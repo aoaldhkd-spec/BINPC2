@@ -4007,8 +4007,8 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                             <button key={n}
                               onClick={() => { setEditingLabelNum(isSelected ? null : n); setLabelDraft(hasCustom ? curLabel : ''); }}
                               className={`rounded-xl border-2 py-2.5 px-1 flex flex-col items-center gap-0.5 transition-all active:scale-95 ${isSelected ? 'border-violet-500 bg-violet-50' : 'border-gray-200 bg-gray-50 hover:border-violet-300 hover:bg-violet-50'}`}>
-                              <span className={`text-[8px] leading-none ${isSelected ? 'text-violet-400' : 'text-gray-400'}`}>{pos ?? n}</span>
-                              <span className={`text-sm font-black leading-tight text-center break-all ${isSelected ? 'text-violet-700' : hasCustom ? 'text-teal-600' : 'text-gray-700'}`}>{curLabel}</span>
+                              <span className={`text-[11px] leading-none font-semibold ${isSelected ? 'text-violet-400' : 'text-gray-400'}`}>{pos ?? n}</span>
+                              <span className={`text-base font-black leading-tight text-center break-all ${isSelected ? 'text-violet-700' : hasCustom ? 'text-teal-600' : 'text-gray-700'}`}>{curLabel}</span>
                             </button>
                           );
                         })}
