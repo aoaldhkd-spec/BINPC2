@@ -1,0 +1,2 @@
+- [Supabase v2 Database type requirements](supabase-v2-database-type.md) — GenericTable must have Relationships:[], GenericSchema needs Tables/Views/Functions or from() returns never.
+- [boltnew-app architecture](boltnew-app-architecture.md) — Korean social app in artifacts/boltnew-app; App/AdminApp/TestDashboard routes; MainScreen is a separate module-level component receiving newMsgCount as a prop from App.
