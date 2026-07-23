@@ -272,16 +272,41 @@ function NotificationTab({ tableCount, settings, onSetTimer }: {
   };
   const typeCfg = (t: string) => NOTIF_TYPES.find(x => x.id === t) ?? NOTIF_TYPES[0];
 
-  const QUICK_TEMPLATES = [
-    { label: '진행 시작', msg: '곧 진행을 시작합니다. 대기해주세요.', type: 'info' },
-    { label: '집중 요청', msg: '잠시 집중해 주세요! 중요한 안내가 있습니다.', type: 'info' },
-    { label: '대화 시간', msg: '대화 시간입니다. 자유롭게 대화 나눠주세요!', type: 'info' },
-    { label: '화장실·담배', msg: '화장실, 담배 시간입니다. 10분 후 다시 시작합니다.', type: 'info' },
-    { label: '자리 이동', msg: '자리 이동 시간입니다. 지정 자리로 이동해 주세요.', type: 'info' },
-    { label: '종료 임박', msg: '행사가 곧 마무리됩니다. 연락처 교환 해 주세요!', type: 'info' },
-    { label: '게임 시작', msg: '지금부터 게임을 시작합니다! 참여해 주세요 🎮', type: 'game' },
-    { label: '게임 종료', msg: '게임이 종료되었습니다. 수고하셨습니다!', type: 'game' },
+  const INFO_QUICK = [
+    { label: '진행 시작', msg: '곧 진행을 시작합니다. 대기해주세요.' },
+    { label: '집중 요청', msg: '잠시 집중해 주세요! 중요한 안내가 있습니다.' },
+    { label: '대화 시간', msg: '대화 시간입니다. 자유롭게 대화 나눠주세요!' },
+    { label: '화장실·담배', msg: '화장실, 담배 시간입니다. 10분 후 다시 시작합니다.' },
+    { label: '자리 이동', msg: '자리 이동 시간입니다. 지정 자리로 이동해 주세요.' },
+    { label: '종료 임박', msg: '행사가 곧 마무리됩니다. 연락처 교환 해 주세요!' },
   ];
+  const URGENT_QUICK = [
+    { label: '⚙️ 시스템\n안정화', msg: '⚙️ 시스템 안정화 작업 중입니다. 잠시 불편하시더라도 양해 부탁드립니다.' },
+  ];
+  const LOST_ITEMS = ['카드', '지갑', '민증', '가방', '우산', '열쇠', '핸드폰', '안경'];
+  const LOST_COLORS = [
+    { label: '빨간색', cls: 'bg-red-500' }, { label: '파란색', cls: 'bg-blue-500' },
+    { label: '검은색', cls: 'bg-gray-900' }, { label: '흰색', cls: 'bg-white border border-gray-300' },
+    { label: '갈색', cls: 'bg-amber-800' }, { label: '노란색', cls: 'bg-yellow-400' },
+    { label: '초록색', cls: 'bg-green-500' }, { label: '분홍색', cls: 'bg-pink-400' },
+    { label: '회색', cls: 'bg-gray-400' }, { label: '남색', cls: 'bg-indigo-800' },
+  ];
+  const EVENT_AWARDS = [
+    { label: '🏆 하트최다상', msg: (prize: string) => `🏆 [하트 최다 수신] 수상자를 발표합니다! 상금: ${prize} 🎉 축하드립니다!` },
+    { label: '🥰 칭찬상', msg: (prize: string) => `🥰 [칭찬 최다 수신] 수상자를 발표합니다! 상금: ${prize} 🎉 축하드립니다!` },
+  ];
+  const PRIZE_AMOUNTS = ['1,000원', '2,000원', '3,000원', '5,000원', '10,000원', '15,000원', '20,000원'];
+  const GAME_QUICK = [
+    '가장 웃긴 사람은?', '가장 매력 넘치는 사람은?', '가장 분위기 띄우는 사람은?',
+    '가장 술 잘 드시는 분은?', '가장 조용한 사람은?', '가장 기억에 남는 사람은?',
+    '가장 말 많은 사람은?', '가장 웃음이 예쁜 사람은?',
+  ];
+  const PENALTY_QUICK = ['일반 질문', '19금 질문 🔞', '앞잔 (원샷 X)'];
+
+  const [lostItem, setLostItem] = useState<string|null>(null);
+  const [lostColor, setLostColor] = useState<string|null>(null);
+  const [awardType, setAwardType] = useState<number|null>(null);
+  const [prizeAmount, setPrizeAmount] = useState<string>('5,000원');
 
   const TIMER_QUICK = [5, 10, 15, 20, 30];
 
@@ -343,17 +368,112 @@ function NotificationTab({ tableCount, settings, onSetTimer }: {
             ))}
           </div>
 
-          {/* Quick templates */}
-          <div>
-            <p className="text-xs font-semibold text-gray-500 mb-2">빠른 메시지</p>
-            <div className="grid grid-cols-4 gap-1.5">
-              {QUICK_TEMPLATES.map(t => (
-                <button key={t.label} onClick={() => { setMessage(t.msg); setType(t.type); }}
-                  className="text-xs font-semibold px-2 py-2 rounded-xl bg-gray-50 border border-gray-200 text-gray-700 hover:bg-teal-50 hover:border-teal-300 hover:text-teal-700 transition-all text-center leading-snug">
-                  {t.label}
+          {/* Quick templates — type별 */}
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-gray-500">빠른 메시지</p>
+
+            {/* 일반공지 */}
+            {type === 'info' && (
+              <div className="grid grid-cols-3 gap-1.5">
+                {INFO_QUICK.map(t => (
+                  <button key={t.label} onClick={() => setMessage(t.msg)}
+                    className="text-xs font-semibold px-2 py-2 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition-all text-center leading-snug active:scale-95">
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* 긴급 */}
+            {type === 'urgent' && (
+              <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-1.5">
+                  {URGENT_QUICK.map(t => (
+                    <button key={t.label} onClick={() => setMessage(t.msg)}
+                      className="text-xs font-semibold px-2 py-2.5 rounded-xl bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 transition-all text-center whitespace-pre-line leading-snug active:scale-95">
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+                {/* 분실물 picker */}
+                <div className="bg-red-50 border border-red-200 rounded-2xl p-3 space-y-2">
+                  <p className="text-xs font-black text-red-700">📦 분실물 안내 생성기</p>
+                  <div className="flex flex-wrap gap-1">
+                    {LOST_ITEMS.map(item => (
+                      <button key={item} onClick={() => setLostItem(lostItem === item ? null : item)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold border-2 transition-all active:scale-95 ${lostItem === item ? 'bg-red-500 border-red-500 text-white' : 'bg-white border-red-200 text-red-700 hover:border-red-400'}`}>
+                        {item}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {LOST_COLORS.map(c => (
+                      <button key={c.label} onClick={() => setLostColor(lostColor === c.label ? null : c.label)}
+                        className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold border-2 transition-all active:scale-95 ${lostColor === c.label ? 'border-red-500 bg-red-50' : 'border-gray-200 bg-white hover:border-red-300'}`}>
+                        <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${c.cls}`} />
+                        {c.label}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    disabled={!lostItem && !lostColor}
+                    onClick={() => {
+                      const colorPart = lostColor ? lostColor + ' ' : '';
+                      const itemPart = lostItem ?? '물건';
+                      setMessage(`🚨 분실물 안내: ${colorPart}${itemPart}이(가) 발견되었습니다. 분실하신 분은 관리자에게 문의해 주세요.`);
+                    }}
+                    className="w-full py-2 bg-red-500 disabled:opacity-40 text-white text-xs font-black rounded-xl active:scale-95 transition-all">
+                    메시지 적용
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 이벤트 */}
+            {type === 'event' && (
+              <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-1.5">
+                  {EVENT_AWARDS.map((a, i) => (
+                    <button key={a.label} onClick={() => setAwardType(awardType === i ? null : i)}
+                      className={`py-2.5 rounded-xl text-xs font-black border-2 transition-all active:scale-95 ${awardType === i ? 'bg-amber-500 border-amber-500 text-white' : 'bg-amber-50 border-amber-200 text-amber-700 hover:border-amber-400'}`}>
+                      {a.label}
+                    </button>
+                  ))}
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-gray-500 mb-1">상금 선택</p>
+                  <div className="flex flex-wrap gap-1">
+                    {PRIZE_AMOUNTS.map(p => (
+                      <button key={p} onClick={() => setPrizeAmount(p)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-black border-2 transition-all active:scale-95 ${prizeAmount === p ? 'bg-amber-500 border-amber-500 text-white' : 'bg-white border-amber-200 text-amber-700 hover:border-amber-400'}`}>
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <button
+                  disabled={awardType === null}
+                  onClick={() => {
+                    if (awardType === null) return;
+                    setMessage(EVENT_AWARDS[awardType].msg(prizeAmount));
+                  }}
+                  className="w-full py-2 bg-amber-500 disabled:opacity-40 text-white text-xs font-black rounded-xl active:scale-95 transition-all">
+                  메시지 적용
                 </button>
-              ))}
-            </div>
+              </div>
+            )}
+
+            {/* 진행·게임 */}
+            {type === 'game' && (
+              <div className="grid grid-cols-2 gap-1.5">
+                {GAME_QUICK.map(msg => (
+                  <button key={msg} onClick={() => setMessage(msg)}
+                    className="text-xs font-semibold px-2 py-2 rounded-xl bg-violet-50 border border-violet-200 text-violet-700 hover:bg-violet-100 transition-all text-center leading-snug active:scale-95">
+                    {msg}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Target */}
@@ -384,6 +504,14 @@ function NotificationTab({ tableCount, settings, onSetTimer }: {
                 placeholder="예: 원샷, 건배사 하기"
                 className="w-full bg-gray-50 border border-violet-200 rounded-xl px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-400"
               />
+              <div className="flex gap-1.5 mt-1.5">
+                {PENALTY_QUICK.map(v => (
+                  <button key={v} type="button" onClick={() => setPenalty(v)}
+                    className={`flex-1 py-1.5 rounded-xl text-[11px] font-bold border-2 transition-all ${penalty === v ? 'bg-violet-500 border-violet-500 text-white' : 'bg-white border-violet-200 text-violet-700 hover:bg-violet-50'}`}>
+                    {v}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
@@ -2886,13 +3014,14 @@ function HistoryTab({ histories, onClear }: { histories: SessionHistory[]; onCle
 
 // ─── Credentials Tab ──────────────────────────────────────────────────────────
 
-function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset }: {
+function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onSaveTest }: {
   settings: AppSettings | null;
   onSave: (phone: string, password: string) => void;
   onSaveEntry: (entryPassword: string) => void;
   onSaveReset: (resetPassword: string) => void;
+  onSaveTest: (pw: string) => void;
 }) {
-  const [activeTab, setActiveTab] = useState<'admin' | 'entry' | 'reset'>('admin');
+  const [activeTab, setActiveTab] = useState<'admin' | 'entry' | 'reset' | 'test'>('admin');
   // Admin tab state
   const [phone, setPhone] = useState(settings?.admin_phone ?? '');
   const [password, setPassword] = useState('');
@@ -2912,6 +3041,12 @@ function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset }: {
   const [showResetPw, setShowResetPw] = useState(false);
   const [savedReset, setSavedReset] = useState(false);
   const [errReset, setErrReset] = useState('');
+  // Test password tab state
+  const [testPw, setTestPw] = useState('');
+  const [testConfirm, setTestConfirm] = useState('');
+  const [showTestPw, setShowTestPw] = useState(false);
+  const [savedTest, setSavedTest] = useState(false);
+  const [errTest, setErrTest] = useState('');
 
   const formatPhone = (v: string) => {
     const d = v.replace(/\D/g, '').slice(0, 11);
@@ -2945,11 +3080,12 @@ function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset }: {
   return (
     <div className="p-4 space-y-4 max-w-md">
       {/* 탭 선택 */}
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-2 gap-2">
         {([
           { id: 'admin' as const, label: '🔑 관리자 설정', desc: '전화번호·비밀번호' },
           { id: 'entry' as const, label: '🚪 입장 코드', desc: '참여자 입장 코드' },
           { id: 'reset' as const, label: '🔄 처음으로', desc: '술번개 재시작 코드' },
+          { id: 'test' as const, label: '🧪 테스트 코드', desc: '테스트 전용 접속 코드' },
         ]).map(t => (
           <button key={t.id} onClick={() => setActiveTab(t.id)}
             className={`rounded-2xl p-3 border-2 text-left transition-all active:scale-[0.98] ${activeTab === t.id ? 'border-slate-700 bg-slate-800 text-white' : 'border-gray-200 bg-gray-50 hover:border-gray-300'}`}>
@@ -3104,6 +3240,66 @@ function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset }: {
                 onClick={() => { onSaveReset(''); setSavedReset(true); setTimeout(() => setSavedReset(false), 2500); }}
                 className="px-4 py-3 font-semibold rounded-xl bg-red-100 text-red-600 hover:bg-red-200 transition-all text-sm">
                 초기화
+              </button>
+            )}
+          </div>
+        </form>
+      )}
+
+      {activeTab === 'test' && (
+        <form onSubmit={(e) => {
+          e.preventDefault();
+          setErrTest('');
+          if (testPw.length < 4) { setErrTest('비밀번호는 4자 이상이어야 합니다.'); return; }
+          if (testPw !== testConfirm) { setErrTest('비밀번호 확인이 일치하지 않습니다.'); return; }
+          onSaveTest(testPw);
+          setSavedTest(true);
+          setTestPw(''); setTestConfirm('');
+          setTimeout(() => setSavedTest(false), 2500);
+        }} className="space-y-4">
+          <div className="bg-violet-50 rounded-xl p-3 border border-violet-200 text-xs text-violet-700 leading-relaxed">
+            <strong>테스트 전용 접속 코드</strong>입니다. 이 코드로 접속하면 테스트 대시보드로 이동합니다.<br />
+            미설정 시 관리자 비밀번호가 테스트 코드로도 사용됩니다.
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">현재 테스트 코드</label>
+            <p className="text-sm font-black text-gray-800 bg-gray-50 rounded-xl px-4 py-3 border border-gray-200 tracking-widest">
+              {(settings as any)?.test_password ? (settings as any).test_password : '(미설정 — 관리자 비밀번호 사용)'}
+            </p>
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">새 테스트 코드</label>
+            <div className="relative">
+              <input type={showTestPw ? 'text' : 'password'} value={testPw} onChange={(e) => setTestPw(e.target.value)}
+                placeholder="새 테스트 코드 입력 (4자 이상)"
+                className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl focus:ring-2 focus:ring-violet-500 outline-none" required minLength={4} />
+              <button type="button" onClick={() => setShowTestPw(p => !p)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                {showTestPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">코드 확인</label>
+            <input type={showTestPw ? 'text' : 'password'} value={testConfirm} onChange={(e) => setTestConfirm(e.target.value)}
+              placeholder="테스트 코드 재입력"
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-violet-500 outline-none" required />
+          </div>
+          {errTest && (
+            <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg border border-red-100">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0" />{errTest}
+            </div>
+          )}
+          <div className="flex gap-2">
+            <button type="submit"
+              className={`flex-1 py-3 font-semibold rounded-xl transition-all ${savedTest ? 'bg-teal-500 text-white' : 'bg-violet-600 text-white hover:bg-violet-700'}`}>
+              {savedTest ? '✓ 저장 완료!' : '코드 저장'}
+            </button>
+            {(settings as any)?.test_password && (
+              <button type="button"
+                onClick={() => { onSaveTest(''); setSavedTest(true); setTimeout(() => setSavedTest(false), 2500); }}
+                className="px-4 py-3 font-semibold rounded-xl bg-red-100 text-red-600 hover:bg-red-200 transition-all text-sm">
+                해제
               </button>
             )}
           </div>
@@ -3530,6 +3726,12 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     if (data) setSettings(data);
   };
 
+  const handleSaveTestPassword = async (testPassword: string) => {
+    await adminSupabase.from('app_settings').update({ test_password: testPassword || null, updated_at: new Date().toISOString() }).eq('id', 1);
+    const { data } = await adminSupabase.from('app_settings').select('*').eq('id', 1).single();
+    if (data) setSettings(data);
+  };
+
   const handleToggleFeatureLock = async () => {
     const newVal = !(settings?.seating_locked ?? false);
     await adminSupabase.from('app_settings').update({ seating_locked: newVal, updated_at: new Date().toISOString() }).eq('id', 1);
@@ -3659,7 +3861,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                 onClearHistory={handleClearHistory} />
             )}
             {settingsSubTab === 'qr' && <AdminQrTab seats={seats} />}
-            {settingsSubTab === 'admin' && <CredentialsTab settings={settings} onSave={handleSaveCredentials} onSaveEntry={handleSaveEntryPassword} onSaveReset={handleSaveResetPassword} />}
+            {settingsSubTab === 'admin' && <CredentialsTab settings={settings} onSave={handleSaveCredentials} onSaveEntry={handleSaveEntryPassword} onSaveReset={handleSaveResetPassword} onSaveTest={handleSaveTestPassword} />}
           </div>
         )}
         {tab === 'seating' && (
