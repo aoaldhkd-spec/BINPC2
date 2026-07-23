@@ -2782,28 +2782,6 @@ function CredentialsTab({ settings, onSave }: { settings: AppSettings | null; on
   const [showPw, setShowPw] = useState(false);
   const [saved, setSaved] = useState(false);
   const [err, setErr] = useState('');
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
-
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL ?? '';
-  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
-
-  const handleCopy = (value: string, key: string) => {
-    const doCopy = () => { setCopiedKey(key); setTimeout(() => setCopiedKey(null), 2000); };
-    if (navigator.clipboard?.writeText) {
-      navigator.clipboard.writeText(value).then(doCopy).catch(() => {
-        const el = document.createElement('textarea');
-        el.value = value; el.style.position = 'fixed'; el.style.opacity = '0';
-        document.body.appendChild(el); el.select(); document.execCommand('copy');
-        document.body.removeChild(el); doCopy();
-      });
-    } else {
-      const el = document.createElement('textarea');
-      el.value = value; el.style.position = 'fixed'; el.style.opacity = '0';
-      document.body.appendChild(el); el.select(); document.execCommand('copy');
-      document.body.removeChild(el); doCopy();
-    }
-  };
-
   const formatPhone = (v: string) => {
     const d = v.replace(/\D/g, '').slice(0, 11);
     if (d.length <= 3) return d;
@@ -2825,41 +2803,6 @@ function CredentialsTab({ settings, onSave }: { settings: AppSettings | null; on
 
   return (
     <div className="p-4 space-y-4 max-w-md">
-      {/* Netlify 환경변수 복사 카드 */}
-      <div className="rounded-2xl border-2 border-indigo-200 bg-indigo-50 overflow-hidden">
-        <div className="flex items-center gap-2 px-4 py-3 bg-indigo-100 border-b border-indigo-200">
-          <svg className="w-4 h-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-          <p className="text-sm font-black text-indigo-700">Netlify 환경변수</p>
-          <span className="ml-auto text-[10px] text-indigo-500 font-medium">아래 값을 복사해 Netlify에 등록하세요</span>
-        </div>
-        <div className="p-4 space-y-4">
-          {[
-            { key: 'VITE_SUPABASE_URL', value: supabaseUrl },
-            { key: 'VITE_SUPABASE_ANON_KEY', value: supabaseAnonKey },
-          ].map(({ key, value }) => (
-            <div key={key} className="space-y-1.5">
-              <p className="text-[11px] font-black text-indigo-600 font-mono tracking-wide">{key}</p>
-              <div className="flex gap-2">
-                <div className="flex-1 bg-white border border-indigo-200 rounded-xl px-3 py-2.5 font-mono text-[11px] text-gray-700 break-all leading-relaxed min-h-[36px]">
-                  {value || <span className="text-gray-400 italic">값 없음</span>}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleCopy(value, key)}
-                  className={`flex-shrink-0 w-12 rounded-xl font-bold text-xs transition-all flex flex-col items-center justify-center gap-0.5 ${
-                    copiedKey === key
-                      ? 'bg-teal-500 text-white'
-                      : 'bg-indigo-600 hover:bg-indigo-700 text-white active:scale-95'
-                  }`}
-                >
-                  {copiedKey === key ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
-                  <span className="text-[9px]">{copiedKey === key ? '복사됨' : '복사'}</span>
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
       <form onSubmit={handleSave} className="space-y-4">
       <div className="bg-amber-50 rounded-xl p-3 border border-amber-200 text-xs text-amber-700 leading-relaxed">
         관리자 접속 정보를 변경합니다. 저장 후 자동 로그아웃되지 않으므로 기억해 두세요.
