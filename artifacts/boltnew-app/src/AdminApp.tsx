@@ -204,9 +204,10 @@ function NotificationTab({ tableCount, settings, onSetTimer }: {
   const [sent, setSent] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshDone, setRefreshDone] = useState(false);
+  const [withTimer, setWithTimer] = useState(false);
+  const [showStandaloneTimer, setShowStandaloneTimer] = useState(false);
 
-  // ── Timer state ──────────────────────────────────────────────────────────
-  const [timerMinutes, setTimerMinutes] = useState('30');
+  const [timerMinutes, setTimerMinutes] = useState('10');
   const [timerLabelInput, setTimerLabelInput] = useState('');
   const [timerCountdown, setTimerCountdown] = useState('');
   const autoCleared = useRef(false);
@@ -224,26 +225,23 @@ function NotificationTab({ tableCount, settings, onSetTimer }: {
     update();
     const id = setInterval(update, 1000);
     return () => clearInterval(id);
-  }, [settings?.timer_end_at]);
+  }, [settings?.timer_end_at]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const startTimer = async () => {
-    const mins = parseInt(timerMinutes, 10);
-    if (isNaN(mins) || mins <= 0) return;
-    await onSetTimer(new Date(Date.now() + mins * 60 * 1000).toISOString(), timerLabelInput.trim() || null);
+  const startTimer = async (mins?: number, label?: string) => {
+    const m = mins ?? parseInt(timerMinutes, 10);
+    if (isNaN(m) || m <= 0) return;
+    await onSetTimer(new Date(Date.now() + m * 60 * 1000).toISOString(), (label ?? timerLabelInput.trim()) || null);
   };
 
   const load = async () => {
     const { data } = await adminSupabase.from('notifications').select('*').order('created_at', { ascending: false }).limit(30);
     if (data) setNotifications(data as Notification[]);
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleRefresh = async () => {
-    setRefreshing(true);
-    await load();
-    setRefreshing(false);
-    setRefreshDone(true);
-    setTimeout(() => setRefreshDone(false), 2000);
+    setRefreshing(true); await load(); setRefreshing(false);
+    setRefreshDone(true); setTimeout(() => setRefreshDone(false), 2000);
   };
 
   const send = async () => {
@@ -253,24 +251,25 @@ function NotificationTab({ tableCount, settings, onSetTimer }: {
       ? `${message.trim()}\n🎯 벌칙: ${penalty.trim()}`
       : message.trim();
     await adminSupabase.from('notifications').insert({ message: fullMsg, type, target, is_active: true });
-    setMessage('');
-    setPenalty('');
-    setSent(true);
-    setTimeout(() => setSent(false), 2500);
-    await load();
-    setSending(false);
+    if (withTimer) {
+      const mins = parseInt(timerMinutes, 10);
+      if (!isNaN(mins) && mins > 0) {
+        await onSetTimer(new Date(Date.now() + mins * 60 * 1000).toISOString(), timerLabelInput.trim() || fullMsg.slice(0, 20) || null);
+      }
+    }
+    setMessage(''); setPenalty('');
+    setSent(true); setTimeout(() => setSent(false), 2500);
+    await load(); setSending(false);
   };
 
   const toggle = async (n: Notification) => {
     await adminSupabase.from('notifications').update({ is_active: !n.is_active }).eq('id', n.id);
     setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, is_active: !n.is_active } : x));
   };
-
   const del = async (id: string) => {
     await adminSupabase.from('notifications').delete().eq('id', id);
     setNotifications(prev => prev.filter(x => x.id !== id));
   };
-
   const typeCfg = (t: string) => NOTIF_TYPES.find(x => x.id === t) ?? NOTIF_TYPES[0];
 
   const QUICK_TEMPLATES = [
@@ -284,151 +283,210 @@ function NotificationTab({ tableCount, settings, onSetTimer }: {
     { label: '게임 종료', msg: '게임이 종료되었습니다. 수고하셨습니다!', type: 'game' },
   ];
 
+  const TIMER_QUICK = [5, 10, 15, 20, 30];
+
+  const timerActive = !!settings?.timer_end_at;
+
   return (
-    <div className="p-4 space-y-5">
+    <div className="p-4 space-y-4">
 
-      {/* ── 타이머 ───────────────────────────────────────────────────────── */}
-      <div className="rounded-2xl overflow-hidden border-2 border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 shadow-sm">
-        {/* 헤더 */}
-        <div className="flex items-center gap-2 px-4 py-3 bg-amber-100/70 border-b border-amber-200">
-          <div className="w-7 h-7 rounded-xl bg-amber-500 flex items-center justify-center">
-            <Timer className="w-4 h-4 text-white" />
-          </div>
-          <span className="font-black text-amber-800 text-sm">타이머</span>
-          {settings?.timer_end_at && (
-            <span className={`ml-auto text-xs font-bold px-2.5 py-0.5 rounded-full ${
-              timerCountdown === '00:00'
-                ? 'bg-gray-200 text-gray-500'
-                : 'bg-amber-500 text-white animate-pulse'
-            }`}>
-              {timerCountdown === '00:00' ? '종료됨' : '진행 중'}
-            </span>
-          )}
-        </div>
-
-        <div className="p-4 space-y-3">
-          {/* 카운트다운 표시 */}
-          {settings?.timer_end_at ? (
-            <div className="bg-white/80 rounded-2xl px-5 py-4 border border-amber-200 flex items-center justify-between">
-              <div>
-                <p className={`text-4xl font-black tabular-nums tracking-tight ${
-                  timerCountdown === '00:00' ? 'text-gray-300' : 'text-amber-600'
-                }`}>{timerCountdown || '00:00'}</p>
-                {settings.timer_label && (
-                  <p className="text-xs text-amber-700 font-semibold mt-1">{settings.timer_label}</p>
-                )}
+      {/* ── 타이머 활성 스트립 ────────────────────────────────────────────── */}
+      {timerActive && (
+        <div className="rounded-2xl border-2 border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50 overflow-hidden">
+          <div className="flex items-center gap-3 px-4 py-3">
+            <div className="w-9 h-9 rounded-2xl bg-amber-500 flex items-center justify-center flex-shrink-0 shadow-md shadow-amber-500/30">
+              <Timer className="w-5 h-5 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className={`text-3xl font-black tabular-nums tracking-tight leading-none ${timerCountdown === '00:00' ? 'text-gray-300' : 'text-amber-600'}`}>
+                  {timerCountdown || '00:00'}
+                </span>
+                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${timerCountdown === '00:00' ? 'bg-gray-200 text-gray-500' : 'bg-amber-500 text-white animate-pulse'}`}>
+                  {timerCountdown === '00:00' ? '종료됨' : '진행 중'}
+                </span>
               </div>
-              <button
-                onClick={() => onSetTimer(null, null)}
-                className="flex items-center gap-1.5 px-3 py-2 bg-red-100 hover:bg-red-200 text-red-600 rounded-xl text-xs font-bold transition-all active:scale-95"
-              >
-                <X className="w-3.5 h-3.5" />종료
-              </button>
+              {settings?.timer_label && <p className="text-xs text-amber-700 font-semibold mt-0.5 truncate">{settings.timer_label}</p>}
             </div>
-          ) : (
-            <p className="text-xs text-amber-600/70 text-center py-1 font-medium">진행 중인 타이머 없음</p>
-          )}
-
-          {/* 입력 영역 */}
-          <div className="flex gap-2 items-center">
-            <div className="flex items-center gap-1 bg-white border-2 border-amber-200 rounded-xl px-2 focus-within:border-amber-400 transition-all">
-              <input
-                type="number" value={timerMinutes} onChange={e => setTimerMinutes(e.target.value)}
-                min="1" max="999" placeholder="30"
-                className="w-14 py-2 text-sm text-center font-black text-amber-700 focus:outline-none bg-transparent"
-              />
-              <span className="text-xs font-bold text-amber-500 pr-1">분</span>
-            </div>
-            <input
-              type="text" value={timerLabelInput} onChange={e => setTimerLabelInput(e.target.value)}
-              placeholder="라벨 (예: 자리 이동 시간)"
-              className="flex-1 px-3 py-2.5 bg-white border-2 border-amber-200 rounded-xl text-sm focus:outline-none focus:border-amber-400 transition-all"
-            />
+            <button onClick={() => onSetTimer(null, null)}
+              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 bg-red-100 hover:bg-red-200 text-red-600 rounded-xl text-xs font-bold transition-all active:scale-95">
+              <X className="w-3.5 h-3.5" />종료
+            </button>
           </div>
-          <button
-            onClick={startTimer}
-            className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white rounded-xl text-sm font-black transition-all active:scale-[0.98] shadow-md shadow-amber-500/20 flex items-center justify-center gap-2"
-          >
-            <Timer className="w-4 h-4" />타이머 시작
-          </button>
+          {/* 빠른 재설정 */}
+          <div className="flex gap-1.5 px-4 pb-3">
+            {TIMER_QUICK.map(m => (
+              <button key={m} onClick={() => startTimer(m)}
+                className="flex-1 py-1.5 bg-white/80 border border-amber-200 rounded-xl text-[11px] font-bold text-amber-700 hover:bg-amber-100 transition-all active:scale-95">
+                +{m}분
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ── 공지 작성 ─────────────────────────────────────────────────────── */}
-      {/* Compose */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
-        <h3 className="font-black text-gray-800 text-sm flex items-center gap-2">
-          <BellRing className="w-4 h-4 text-teal-500" />공지 작성
-        </h3>
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="px-5 pt-5 pb-0 flex items-center gap-2 mb-4">
+          <BellRing className="w-4 h-4 text-teal-500" />
+          <h3 className="font-black text-gray-800 text-sm">공지 작성</h3>
+        </div>
 
-        {/* Quick templates */}
-        <div>
-          <p className="text-xs font-semibold text-gray-500 mb-2">빠른 메시지</p>
-          <div className="grid grid-cols-2 gap-1.5">
-            {QUICK_TEMPLATES.map(t => (
-              <button key={t.label} onClick={() => { setMessage(t.msg); setType(t.type); }}
-                className="text-xs font-semibold px-3 py-2 rounded-xl bg-gray-50 border border-gray-200 text-gray-700 hover:bg-teal-50 hover:border-teal-300 hover:text-teal-700 transition-all text-left leading-snug">
+        <div className="px-5 pb-5 space-y-4">
+          {/* Quick templates */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 mb-2">빠른 메시지</p>
+            <div className="grid grid-cols-2 gap-1.5">
+              {QUICK_TEMPLATES.map(t => (
+                <button key={t.label} onClick={() => { setMessage(t.msg); setType(t.type); }}
+                  className="text-xs font-semibold px-3 py-2 rounded-xl bg-gray-50 border border-gray-200 text-gray-700 hover:bg-teal-50 hover:border-teal-300 hover:text-teal-700 transition-all text-left leading-snug">
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Type selector */}
+          <div className="flex gap-2 flex-wrap">
+            {NOTIF_TYPES.map(t => (
+              <button key={t.id} onClick={() => setType(t.id)}
+                className={`text-xs font-bold px-3 py-1.5 rounded-xl border-2 transition-all ${type === t.id ? t.color + ' border-current' : 'bg-gray-50 border-gray-200 text-gray-500 hover:border-gray-400'}`}>
                 {t.label}
               </button>
             ))}
           </div>
-        </div>
 
-        {/* Type selector */}
-        <div className="flex gap-2 flex-wrap">
-          {NOTIF_TYPES.map(t => (
-            <button key={t.id} onClick={() => setType(t.id)}
-              className={`text-xs font-bold px-3 py-1.5 rounded-xl border-2 transition-all ${type === t.id ? t.color + ' border-current' : 'bg-gray-50 border-gray-200 text-gray-500 hover:border-gray-400'}`}>
-              {t.label}
-            </button>
-          ))}
-        </div>
-        {/* Target selector */}
-        <div>
-          <label className="text-xs font-semibold text-gray-500 mb-1 block">대상</label>
-          <select value={target} onChange={e => setTarget(e.target.value)}
-            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-400">
-            <option value="all">전체 참가자</option>
-            {Array.from({ length: tableCount }, (_, i) => i + 1).map(n => (
-              <option key={n} value={`table_${n}`}>{TABLE_LABELS[n] ?? n}테이블 ({n}번)</option>
-            ))}
-          </select>
-        </div>
-        {/* Message */}
-        <div>
-          <label className="text-xs font-semibold text-gray-500 mb-1 block">메시지</label>
-          <textarea
-            value={message}
-            onChange={e => setMessage(e.target.value)}
-            placeholder="예) 지금부터 1번 테이블 이동 시간입니다!"
-            rows={3}
-            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-400 resize-none"
-          />
-        </div>
-        {/* Penalty field — only for game type */}
-        {type === 'game' && (
+          {/* Target */}
           <div>
-            <label className="text-xs font-semibold text-violet-600 mb-1 block">벌칙 (선택)</label>
-            <input
-              type="text"
-              value={penalty}
-              onChange={e => setPenalty(e.target.value)}
-              placeholder="예: 원샷, 건배사 하기"
-              className="w-full bg-gray-50 border border-violet-200 rounded-xl px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-400"
+            <label className="text-xs font-semibold text-gray-500 mb-1 block">대상</label>
+            <select value={target} onChange={e => setTarget(e.target.value)}
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-400">
+              <option value="all">전체 참가자</option>
+              {Array.from({ length: tableCount }, (_, i) => i + 1).map(n => (
+                <option key={n} value={`table_${n}`}>{TABLE_LABELS[n] ?? n}테이블 ({n}번)</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Message */}
+          <div>
+            <label className="text-xs font-semibold text-gray-500 mb-1 block">메시지</label>
+            <textarea value={message} onChange={e => setMessage(e.target.value)}
+              placeholder="예) 지금부터 자리 이동 시간입니다!" rows={3}
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-400 resize-none"
             />
           </div>
-        )}
-        <button
-          onClick={send}
-          disabled={sending || !message.trim()}
-          className="w-full py-3 rounded-xl font-black text-sm transition-all flex items-center justify-center gap-2 disabled:opacity-40
-            bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-white shadow-lg shadow-teal-500/20"
-        >
-          {sent ? <><CheckCircle className="w-4 h-4" />전송됨!</> : sending ? '전송 중...' : <><Send className="w-4 h-4" />공지 전송</>}
-        </button>
+
+          {type === 'game' && (
+            <div>
+              <label className="text-xs font-semibold text-violet-600 mb-1 block">벌칙 (선택)</label>
+              <input type="text" value={penalty} onChange={e => setPenalty(e.target.value)}
+                placeholder="예: 원샷, 건배사 하기"
+                className="w-full bg-gray-50 border border-violet-200 rounded-xl px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-400"
+              />
+            </div>
+          )}
+
+          {/* ⏱ 타이머 함께 시작 토글 */}
+          <div className={`rounded-2xl border-2 transition-all overflow-hidden ${withTimer ? 'border-amber-300 bg-amber-50' : 'border-gray-100 bg-gray-50'}`}>
+            <button onClick={() => setWithTimer(v => !v)}
+              className="w-full flex items-center justify-between px-4 py-3 transition-all">
+              <div className="flex items-center gap-2.5">
+                <Timer className={`w-4 h-4 flex-shrink-0 ${withTimer ? 'text-amber-500' : 'text-gray-400'}`} />
+                <div className="text-left">
+                  <p className={`text-sm font-bold leading-tight ${withTimer ? 'text-amber-700' : 'text-gray-500'}`}>타이머 함께 시작</p>
+                  <p className="text-[10px] text-gray-400 leading-none mt-0.5">공지 전송과 동시에 타이머 실행</p>
+                </div>
+              </div>
+              <div className={`w-10 h-6 rounded-full flex items-center px-0.5 transition-all flex-shrink-0 ${withTimer ? 'bg-amber-500' : 'bg-gray-300'}`}>
+                <div className={`w-5 h-5 rounded-full bg-white shadow transition-transform ${withTimer ? 'translate-x-4' : 'translate-x-0'}`} />
+              </div>
+            </button>
+            {withTimer && (
+              <div className="px-4 pb-4 space-y-2">
+                <div className="flex gap-1.5 mb-1">
+                  {TIMER_QUICK.map(m => (
+                    <button key={m} onClick={() => setTimerMinutes(String(m))}
+                      className={`flex-1 py-1.5 rounded-xl text-[11px] font-bold border-2 transition-all ${timerMinutes === String(m) ? 'bg-amber-500 border-amber-500 text-white' : 'bg-white border-amber-200 text-amber-700 hover:bg-amber-50'}`}>
+                      {m}분
+                    </button>
+                  ))}
+                </div>
+                <div className="flex gap-2 items-center">
+                  <div className="flex items-center gap-1 bg-white border-2 border-amber-300 rounded-xl px-2 focus-within:border-amber-500 transition-all">
+                    <input type="number" value={timerMinutes} onChange={e => setTimerMinutes(e.target.value)}
+                      min="1" max="999" placeholder="10"
+                      className="w-14 py-2 text-sm text-center font-black text-amber-700 focus:outline-none bg-transparent" />
+                    <span className="text-xs font-bold text-amber-500 pr-1">분</span>
+                  </div>
+                  <input type="text" value={timerLabelInput} onChange={e => setTimerLabelInput(e.target.value)}
+                    placeholder="타이머 라벨 (선택)"
+                    className="flex-1 px-3 py-2.5 bg-white border-2 border-amber-200 rounded-xl text-sm focus:outline-none focus:border-amber-400 transition-all" />
+                </div>
+              </div>
+            )}
+          </div>
+
+          <button onClick={send} disabled={sending || !message.trim()}
+            className={`w-full py-3 rounded-xl font-black text-sm transition-all flex items-center justify-center gap-2 disabled:opacity-40 shadow-lg
+              ${withTimer
+                ? 'bg-gradient-to-r from-teal-500 via-cyan-500 to-amber-500 hover:opacity-90 shadow-teal-500/20 text-white'
+                : 'bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-white shadow-teal-500/20'}`}>
+            {sent
+              ? <><CheckCircle className="w-4 h-4" />전송됨!</>
+              : sending ? '전송 중...'
+              : withTimer
+              ? <><Send className="w-4 h-4" />공지 전송 + 타이머 시작 ⏱</>
+              : <><Send className="w-4 h-4" />공지 전송</>}
+          </button>
+        </div>
       </div>
 
-      {/* History */}
+      {/* ── 타이머 단독 설정 (타이머 없을 때만) ─────────────────────────── */}
+      {!timerActive && (
+        <div className={`rounded-2xl border-2 overflow-hidden transition-all ${showStandaloneTimer ? 'border-amber-300 bg-amber-50' : 'border-gray-200 bg-white'}`}>
+          <button onClick={() => setShowStandaloneTimer(v => !v)}
+            className="w-full flex items-center gap-3 px-4 py-3.5 text-left">
+            <div className="w-8 h-8 rounded-xl bg-amber-500 flex items-center justify-center flex-shrink-0">
+              <Timer className="w-4 h-4 text-white" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-black text-amber-800">타이머 단독 설정</p>
+              <p className="text-[10px] text-amber-600/70 font-medium">공지 없이 타이머만 실행</p>
+            </div>
+            <ChevronDown className={`w-4 h-4 text-amber-600 transition-transform flex-shrink-0 ${showStandaloneTimer ? 'rotate-180' : ''}`} />
+          </button>
+          {showStandaloneTimer && (
+            <div className="px-4 pb-4 space-y-3">
+              <div className="flex gap-1.5">
+                {TIMER_QUICK.map(m => (
+                  <button key={m} onClick={() => setTimerMinutes(String(m))}
+                    className={`flex-1 py-1.5 rounded-xl text-[11px] font-bold border-2 transition-all ${timerMinutes === String(m) ? 'bg-amber-500 border-amber-500 text-white' : 'bg-white border-amber-200 text-amber-700 hover:bg-amber-50'}`}>
+                    {m}분
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2 items-center">
+                <div className="flex items-center gap-1 bg-white border-2 border-amber-200 rounded-xl px-2 focus-within:border-amber-400 transition-all">
+                  <input type="number" value={timerMinutes} onChange={e => setTimerMinutes(e.target.value)}
+                    min="1" max="999" placeholder="10"
+                    className="w-14 py-2 text-sm text-center font-black text-amber-700 focus:outline-none bg-transparent" />
+                  <span className="text-xs font-bold text-amber-500 pr-1">분</span>
+                </div>
+                <input type="text" value={timerLabelInput} onChange={e => setTimerLabelInput(e.target.value)}
+                  placeholder="라벨 (예: 자리 이동 시간)"
+                  className="flex-1 px-3 py-2.5 bg-white border-2 border-amber-200 rounded-xl text-sm focus:outline-none focus:border-amber-400 transition-all" />
+              </div>
+              <button onClick={() => startTimer()}
+                className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white rounded-xl text-sm font-black transition-all active:scale-[0.98] shadow-md shadow-amber-500/20 flex items-center justify-center gap-2">
+                <Timer className="w-4 h-4" />타이머 시작
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── 전송 이력 ────────────────────────────────────────────────────── */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
           <div>
@@ -441,10 +499,9 @@ function NotificationTab({ tableCount, settings, onSetTimer }: {
               <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />{refreshDone ? '완료!' : refreshing ? '로딩...' : '새로고침'}
             </button>
             {notifications.some(n => n.is_active) && (
-              <button
-                onClick={() => notifications.filter(n => n.is_active).forEach(n => toggle(n))}
+              <button onClick={() => notifications.filter(n => n.is_active).forEach(n => toggle(n))}
                 className="px-3 py-1.5 bg-red-50 border border-red-200 text-red-600 text-xs font-bold rounded-xl hover:bg-red-100 transition-all">
-                전체 공지 종료
+                전체 종료
               </button>
             )}
           </div>
@@ -2901,16 +2958,18 @@ function CredentialsTab({ settings, onSave }: { settings: AppSettings | null; on
 
 // ─── Admin Dashboard ──────────────────────────────────────────────────────────
 
-type AdminTab = 'dashboard' | 'seating' | 'qr' | 'profiles' | 'hearts' | 'chats' | 'feedback' | 'game' | 'notify' | 'info';
+type AdminTab = 'settings' | 'seating' | 'profiles' | 'notify' | 'game' | 'history';
+type SettingsSubTab = 'control' | 'qr' | 'admin';
+type HistorySubTab = 'hearts' | 'chats' | 'session' | 'feedback';
 type HeartSubTab = 'hearts' | 'popularity';
 type FeedbackSubTab = 'suggestions' | 'reports';
-type InfoSubTab = 'history' | 'credentials';
 type GameSubTab = 'balance' | 'qa' | 'image';
 
 function AdminDashboard({ onLogout }: { onLogout: () => void }) {
-  const [tab, setTab] = useState<AdminTab>('dashboard');
+  const [tab, setTab] = useState<AdminTab>('settings');
+  const [settingsSubTab, setSettingsSubTab] = useState<SettingsSubTab>('control');
+  const [historySubTab, setHistorySubTab] = useState<HistorySubTab>('hearts');
   const [feedbackSubTab, setFeedbackSubTab] = useState<FeedbackSubTab>('reports');
-  const [infoSubTab, setInfoSubTab] = useState<InfoSubTab>('credentials');
   const [gameSubTab, setGameSubTab] = useState<GameSubTab>('balance');
   const [heartSubTab, setHeartSubTab] = useState<HeartSubTab>('hearts');
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -3194,32 +3253,33 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const feedbackTotal = suggestions.filter(s => s.status === 'pending').length + anonymousReports.filter(r => !r.ack_at).length;
   const gameActive = currentGame?.active ? 1 : 0;
 
-  // Auto-update seenFeedbackCount when admin is on the feedback tab and new items arrive
+  // Auto-update seenFeedbackCount when admin is on the feedback sub-tab
   useEffect(() => {
-    if (tab === 'feedback') {
+    if (tab === 'history' && historySubTab === 'feedback') {
       setSeenFeedbackCount(feedbackTotal);
     }
-  }, [feedbackTotal, tab]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [feedbackTotal, tab, historySubTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleTabChange = (t: AdminTab) => {
-    if (t === 'hearts') setSeenHeartsCount(likes.length);
-    if (t === 'chats') setSeenMessagesCount(allMessages.length);
-    if (t === 'feedback') setSeenFeedbackCount(feedbackTotal);
     if (t === 'game') setSeenGameActive(!!currentGame?.active);
     setTab(t);
   };
 
+  const handleHistorySubTabChange = (t: HistorySubTab) => {
+    if (t === 'hearts') setSeenHeartsCount(likes.length);
+    if (t === 'chats') setSeenMessagesCount(allMessages.length);
+    if (t === 'feedback') setSeenFeedbackCount(feedbackTotal);
+    setHistorySubTab(t);
+  };
+
+  const historyBadge = Math.max(0, likes.length - seenHeartsCount) + Math.max(0, allMessages.length - seenMessagesCount) + Math.max(0, feedbackTotal - seenFeedbackCount);
   const TABS: { id: AdminTab; label: string; icon: React.ReactNode; badge?: number }[] = [
-    { id: 'dashboard', label: '대시보드', icon: <LayoutGrid className="w-4 h-4" /> },
+    { id: 'settings', label: '설정', icon: <LayoutGrid className="w-4 h-4" /> },
     { id: 'seating', label: '배치도', icon: <LayoutGrid className="w-4 h-4" /> },
-    { id: 'qr', label: 'QR', icon: <QrCode className="w-4 h-4" /> },
     { id: 'profiles', label: '참여자', icon: <Users className="w-4 h-4" /> },
-    { id: 'hearts', label: '하트', icon: <Heart className="w-4 h-4" />, badge: Math.max(0, likes.length - seenHeartsCount) },
-    { id: 'chats', label: '채팅', icon: <MessageCircle className="w-4 h-4" />, badge: Math.max(0, allMessages.length - seenMessagesCount) },
-    { id: 'feedback', label: '건의', icon: <Send className="w-4 h-4" />, badge: Math.max(0, feedbackTotal - seenFeedbackCount) },
-    { id: 'game', label: '게임', icon: <Gamepad2 className="w-4 h-4" />, badge: !seenGameActive && currentGame?.active ? 1 : 0 },
     { id: 'notify', label: '공지', icon: <BellRing className="w-4 h-4" /> },
-    { id: 'info', label: '이력·설정', icon: <History className="w-4 h-4" /> },
+    { id: 'game', label: '게임', icon: <Gamepad2 className="w-4 h-4" />, badge: !seenGameActive && currentGame?.active ? 1 : 0 },
+    { id: 'history', label: '이력', icon: <History className="w-4 h-4" />, badge: historyBadge > 0 ? historyBadge : undefined },
   ];
 
   return (
@@ -3238,7 +3298,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
             로그아웃
           </button>
         </div>
-        <div className="max-w-4xl mx-auto px-2 grid grid-cols-5 pb-0">
+        <div className="max-w-4xl mx-auto px-2 grid grid-cols-6 pb-0">
           {TABS.map((t) => (
             <button key={t.id} onClick={() => handleTabChange(t.id)}
               className={`relative flex items-center justify-center gap-1 px-1 py-2 text-[11px] font-semibold border-b-2 transition-all ${
@@ -3257,13 +3317,31 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       </header>
 
       <main className="max-w-4xl mx-auto">
-        {tab === 'dashboard' && (
-          <DashboardTab settings={settings} seats={seats} profiles={profiles}
-            onToggleSession={handleToggleSession} onFullReset={handleFullReset} onEventEndReset={handleEventEndReset}
-            onToggleFeatureLock={handleToggleFeatureLock}
-            onClearLikes={handleClearLikes} onClearChats={handleClearAllChats}
-            onClearNotifications={handleClearNotifications} onClearGames={handleClearGames}
-            onClearSuggestions={handleClearSuggestions} onClearProfiles={handleClearProfiles} />
+        {tab === 'settings' && (
+          <div>
+            <div className="flex border-b border-gray-200 bg-white px-4">
+              {([
+                { id: 'control' as SettingsSubTab, label: '대시보드' },
+                { id: 'qr' as SettingsSubTab, label: 'QR코드' },
+                { id: 'admin' as SettingsSubTab, label: '관리자 설정' },
+              ]).map(st => (
+                <button key={st.id} onClick={() => setSettingsSubTab(st.id)}
+                  className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition-all ${settingsSubTab === st.id ? 'border-teal-500 text-teal-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+                  {st.label}
+                </button>
+              ))}
+            </div>
+            {settingsSubTab === 'control' && (
+              <DashboardTab settings={settings} seats={seats} profiles={profiles}
+                onToggleSession={handleToggleSession} onFullReset={handleFullReset} onEventEndReset={handleEventEndReset}
+                onToggleFeatureLock={handleToggleFeatureLock}
+                onClearLikes={handleClearLikes} onClearChats={handleClearAllChats}
+                onClearNotifications={handleClearNotifications} onClearGames={handleClearGames}
+                onClearSuggestions={handleClearSuggestions} onClearProfiles={handleClearProfiles} />
+            )}
+            {settingsSubTab === 'qr' && <AdminQrTab seats={seats} />}
+            {settingsSubTab === 'admin' && <CredentialsTab settings={settings} onSave={handleSaveCredentials} />}
+          </div>
         )}
         {tab === 'seating' && (
           <div className="p-4">
@@ -3371,55 +3449,71 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
             )}
           </div>
         )}
-        {tab === 'qr' && (
-          <AdminQrTab seats={seats} />
-        )}
         {tab === 'profiles' && (
           <ProfilesTabSection profiles={profiles} seats={seats} settings={settings} onClear={async () => {
             await adminSupabase.from('profiles').delete().neq('id', '00000000-0000-0000-0000-000000000000');
             await loadAll();
           }} onDeleteProfile={handleDeleteProfile} onForceSeat={handleForceSeat} />
         )}
-        {tab === 'hearts' && (
+        {tab === 'history' && (
           <div>
-            <div className="flex border-b border-gray-200 bg-white px-4">
+            <div className="flex border-b border-gray-200 bg-white px-4 overflow-x-auto">
               {([
-                { id: 'hearts' as HeartSubTab, label: '하트 현황' },
-                { id: 'popularity' as HeartSubTab, label: '인기도 랭킹' },
+                { id: 'hearts' as HistorySubTab, label: '하트', badge: Math.max(0, likes.length - seenHeartsCount) },
+                { id: 'chats' as HistorySubTab, label: '채팅', badge: Math.max(0, allMessages.length - seenMessagesCount) },
+                { id: 'session' as HistorySubTab, label: '회식 이력', badge: 0 },
+                { id: 'feedback' as HistorySubTab, label: '피드백', badge: Math.max(0, feedbackTotal - seenFeedbackCount) },
               ]).map(st => (
-                <button key={st.id} onClick={() => setHeartSubTab(st.id)}
-                  className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition-all ${heartSubTab === st.id ? 'border-rose-500 text-rose-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+                <button key={st.id} onClick={() => handleHistorySubTabChange(st.id)}
+                  className={`flex items-center gap-1.5 flex-shrink-0 px-4 py-2.5 text-xs font-semibold border-b-2 transition-all ${historySubTab === st.id ? 'border-teal-500 text-teal-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
                   {st.label}
+                  {st.badge > 0 && <span className="px-1.5 py-0.5 bg-rose-500 text-white text-[10px] font-bold rounded-full leading-none">{st.badge}</span>}
                 </button>
               ))}
             </div>
-            {heartSubTab === 'hearts' && <HeartsTab likes={likes} profileMap={profileMap} onClear={handleClearLikes} onRefresh={loadAll} />}
-            {heartSubTab === 'popularity' && <PopularityTab likes={likes} profileMap={profileMap} />}
-          </div>
-        )}
-        {tab === 'chats' && <ChatsTab chats={allChats} messages={allMessages} profileMap={profileMap} onDeleteChat={handleDeleteChat} onClearAll={handleClearAllChats} onRefresh={loadAll} />}
-        {tab === 'feedback' && (
-          <div>
-            <div className="flex border-b border-gray-200 bg-white px-4">
-              {([
-                { id: 'reports' as FeedbackSubTab, label: '익명건의', badge: anonymousReports.filter(r => !r.ack_at).length },
-                { id: 'suggestions' as FeedbackSubTab, label: '건의사항', badge: suggestions.filter(s => s.status === 'pending').length },
-              ]).map(st => (
-                <button key={st.id} onClick={() => setFeedbackSubTab(st.id)}
-                  className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-semibold border-b-2 transition-all ${feedbackSubTab === st.id ? 'border-teal-500 text-teal-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
-                  {st.label}
-                  {st.badge > 0 && <span className="px-1.5 py-0.5 bg-rose-500 text-white text-[10px] font-bold rounded-full">{st.badge}</span>}
-                </button>
-              ))}
-            </div>
-            {feedbackSubTab === 'suggestions' && (
-              <div className="p-4">
-                <SuggestionsTab suggestions={suggestions} onUpdate={(updated) => setSuggestions(prev => prev.map(s => s.id === updated.id ? updated : s))} />
+            {historySubTab === 'hearts' && (
+              <div>
+                <div className="flex border-b border-gray-200 bg-gray-50 px-4">
+                  {([
+                    { id: 'hearts' as HeartSubTab, label: '하트 현황' },
+                    { id: 'popularity' as HeartSubTab, label: '인기도 랭킹' },
+                  ]).map(st => (
+                    <button key={st.id} onClick={() => setHeartSubTab(st.id)}
+                      className={`px-4 py-2 text-xs font-semibold border-b-2 transition-all ${heartSubTab === st.id ? 'border-rose-500 text-rose-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+                      {st.label}
+                    </button>
+                  ))}
+                </div>
+                {heartSubTab === 'hearts' && <HeartsTab likes={likes} profileMap={profileMap} onClear={handleClearLikes} onRefresh={loadAll} />}
+                {heartSubTab === 'popularity' && <PopularityTab likes={likes} profileMap={profileMap} />}
               </div>
             )}
-            {feedbackSubTab === 'reports' && (
-              <div className="p-4">
-                <AnonymousReportsTab reports={anonymousReports} onClear={handleClearReports} onAck={handleAckReport} onRefresh={handleRefreshReports} />
+            {historySubTab === 'chats' && <ChatsTab chats={allChats} messages={allMessages} profileMap={profileMap} onDeleteChat={handleDeleteChat} onClearAll={handleClearAllChats} onRefresh={loadAll} />}
+            {historySubTab === 'session' && <HistoryTab histories={histories} onClear={handleClearHistory} />}
+            {historySubTab === 'feedback' && (
+              <div>
+                <div className="flex border-b border-gray-200 bg-gray-50 px-4">
+                  {([
+                    { id: 'reports' as FeedbackSubTab, label: '익명건의', badge: anonymousReports.filter(r => !r.ack_at).length },
+                    { id: 'suggestions' as FeedbackSubTab, label: '건의사항', badge: suggestions.filter(s => s.status === 'pending').length },
+                  ]).map(st => (
+                    <button key={st.id} onClick={() => setFeedbackSubTab(st.id)}
+                      className={`flex items-center gap-1.5 px-4 py-2 text-xs font-semibold border-b-2 transition-all ${feedbackSubTab === st.id ? 'border-teal-500 text-teal-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+                      {st.label}
+                      {st.badge > 0 && <span className="px-1.5 py-0.5 bg-rose-500 text-white text-[10px] font-bold rounded-full">{st.badge}</span>}
+                    </button>
+                  ))}
+                </div>
+                {feedbackSubTab === 'reports' && (
+                  <div className="p-4">
+                    <AnonymousReportsTab reports={anonymousReports} onClear={handleClearReports} onAck={handleAckReport} onRefresh={handleRefreshReports} />
+                  </div>
+                )}
+                {feedbackSubTab === 'suggestions' && (
+                  <div className="p-4">
+                    <SuggestionsTab suggestions={suggestions} onUpdate={(updated) => setSuggestions(prev => prev.map(s => s.id === updated.id ? updated : s))} />
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -3461,23 +3555,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           </div>
         )}
         {tab === 'notify' && <NotificationTab tableCount={[...new Set(seats.map(s => s.table_number))].length} settings={settings} onSetTimer={handleSetTimer} />}
-        {tab === 'info' && (
-          <div>
-            <div className="flex border-b border-gray-200 bg-white px-4">
-              {([
-                { id: 'history' as InfoSubTab, label: '회식 이력' },
-                { id: 'credentials' as InfoSubTab, label: '관리자 설정' },
-              ]).map(st => (
-                <button key={st.id} onClick={() => setInfoSubTab(st.id)}
-                  className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition-all ${infoSubTab === st.id ? 'border-teal-500 text-teal-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
-                  {st.label}
-                </button>
-              ))}
-            </div>
-            {infoSubTab === 'history' && <HistoryTab histories={histories} onClear={handleClearHistory} />}
-            {infoSubTab === 'credentials' && <CredentialsTab settings={settings} onSave={handleSaveCredentials} />}
-          </div>
-        )}
       </main>
 
       {qrSeat && <QrModal seat={qrSeat} onClose={() => setQrSeat(null)} />}
@@ -3546,7 +3623,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               <p className="text-sm font-semibold text-gray-800 leading-relaxed">{newReportPopup.content}</p>
             </div>
             <div className="flex gap-3">
-              <button onClick={() => { setTab('feedback'); setNewReportPopup(null); }} className="flex-1 py-2.5 bg-orange-500 text-white font-bold rounded-xl hover:bg-orange-600 transition-all text-sm">건의함으로 이동</button>
+              <button onClick={() => { setTab('history'); setHistorySubTab('feedback'); setFeedbackSubTab('reports'); setNewReportPopup(null); }} className="flex-1 py-2.5 bg-orange-500 text-white font-bold rounded-xl hover:bg-orange-600 transition-all text-sm">건의함으로 이동</button>
               <button onClick={() => setNewReportPopup(null)} className="flex-1 py-2.5 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition-all text-sm">확인</button>
             </div>
           </div>
