@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import {
   Shield, LogOut, ToggleLeft, ToggleRight, Trash2, Users,
   LayoutGrid, History, X, AlertTriangle, ChevronDown,
@@ -31,19 +30,13 @@ const ADMIN_TOKEN_KEY = 'admin_token_v1';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://ocvjorxlhwnkzhzjoazk.supabase.co';
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9jdmpvcnhsaHdua3poempvYXprIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMyNzQ2ODcsImV4cCI6MjA5ODg1MDY4N30.69iPkEspH1Y8wPYvhicgZ9_8TMYJ6zfDkSZUJ6KBADg';
 
-function buildAdminClient(token: string | null): SupabaseClient<Database> {
-  if (!token) return supabase;
-  return createClient<Database>(SUPABASE_URL, SUPABASE_KEY, {
-    global: { headers: { 'x-admin-token': token } },
-  });
-}
-
-let adminSupabase = buildAdminClient(localStorage.getItem(ADMIN_TOKEN_KEY));
+// Local mock: admin client is the same as the regular client
+const adminSupabase = supabase;
 
 function setAdminToken(token: string | null) {
+  // Local mock: token is not needed; just update localStorage for session tracking
   if (token) localStorage.setItem(ADMIN_TOKEN_KEY, token);
   else localStorage.removeItem(ADMIN_TOKEN_KEY);
-  adminSupabase = buildAdminClient(token);
 }
 
 interface AdminSession { phone: string; authedAt: number; }
