@@ -1138,8 +1138,8 @@ function DashboardTab({ settings, seats, profiles, onToggleSession, onFullReset,
             { emoji: '🔔', label: '공지', desc: '전송 공지 모두 삭제', bg: 'bg-amber-50 border-amber-200 hover:bg-amber-100', title: '공지 초기화', msg: '전송된 모든 공지를 삭제합니다.', fn: onClearNotifications },
             { emoji: '🎮', label: '게임', desc: '게임·투표 기록 삭제', bg: 'bg-violet-50 border-violet-200 hover:bg-violet-100', title: '게임 초기화', msg: '밸런스·OX·이미지 게임 기록과 투표 데이터를 모두 삭제합니다.', fn: onClearGames },
             { emoji: '💡', label: '건의', desc: '익명 건의 모두 삭제', bg: 'bg-sky-50 border-sky-200 hover:bg-sky-100', title: '건의 초기화', msg: '모든 익명 건의 내용을 삭제합니다.', fn: onClearSuggestions },
-            { emoji: '👤', label: '참여자', desc: '모든 프로필 삭제', bg: 'bg-slate-50 border-slate-200 hover:bg-slate-100', title: '참여자 초기화', msg: '모든 참여자 프로필을 삭제합니다. 좌석도 함께 비워집니다.', fn: onClearProfiles },
-            { emoji: '📋', label: '이력', desc: '회식 이력 모두 삭제', bg: 'bg-gray-50 border-gray-200 hover:bg-gray-100', title: '이력 초기화', msg: '저장된 회식 이력을 모두 삭제합니다.', fn: onClearHistory },
+            { emoji: '👤', label: '참여자', desc: '모든 프로필 삭제', bg: 'bg-indigo-50 border-indigo-200 hover:bg-indigo-100', title: '참여자 초기화', msg: '모든 참여자 프로필을 삭제합니다. 좌석도 함께 비워집니다.', fn: onClearProfiles },
+            { emoji: '📋', label: '이력', desc: '회식 이력 모두 삭제', bg: 'bg-emerald-50 border-emerald-200 hover:bg-emerald-100', title: '이력 초기화', msg: '저장된 회식 이력을 모두 삭제합니다.', fn: onClearHistory },
           ] as const).map(item => (
             <button
               key={item.label}
@@ -3955,31 +3955,24 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                         className="text-[10px] font-black px-3 py-1 bg-teal-500 hover:bg-teal-600 text-white rounded-lg active:scale-95 transition-all">적용</button>
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    {rows.map((rowNums, ri) => (
-                      <div key={ri}>
-                        <p className="text-[9px] font-bold text-gray-400 mb-1">{ri + 1}열</p>
-                        <div className="grid grid-cols-4 gap-1.5">
-                          {rowNums.map(n => {
-                            const isOn = !current || current.includes(n);
-                            const pos = posNum(n);
-                            return (
-                              <button key={n} onClick={() => {
-                                let next: number[];
-                                if (!current) { next = allNums.filter(x => x !== n); }
-                                else if (current.includes(n)) { next = current.filter(x => x !== n); }
-                                else { next = [...current, n].sort((a, b) => a - b); }
-                                setPendingActiveTables(next.length === allNums.length ? null : next);
-                              }}
-                                className={`rounded-xl border-2 py-2 px-1 flex flex-col items-center gap-0.5 transition-all active:scale-95 ${isOn ? 'bg-teal-500 border-teal-500 text-white' : 'bg-gray-50 border-gray-200 text-gray-400'}`}>
-                                <span className={`text-sm font-black leading-tight ${isOn ? 'text-white' : 'text-gray-700'}`}>{pos ?? n}</span>
-                                <span className={`text-[8px] font-medium leading-none ${isOn ? 'text-teal-100' : 'text-gray-400'}`}>{tableLabel(n, settings?.table_labels)}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))}
+                  <div className="grid grid-cols-4 gap-1">
+                    {displayNums.map(n => {
+                      const isOn = !current || current.includes(n);
+                      const pos = posNum(n);
+                      return (
+                        <button key={n} onClick={() => {
+                          let next: number[];
+                          if (!current) { next = allNums.filter(x => x !== n); }
+                          else if (current.includes(n)) { next = current.filter(x => x !== n); }
+                          else { next = [...current, n].sort((a, b) => a - b); }
+                          setPendingActiveTables(next.length === allNums.length ? null : next);
+                        }}
+                          className={`rounded-lg border-2 py-1.5 px-0.5 flex flex-col items-center gap-0 transition-all active:scale-95 ${isOn ? 'bg-teal-500 border-teal-500 text-white' : 'bg-gray-50 border-gray-200 text-gray-400'}`}>
+                          <span className={`text-xs font-black leading-tight ${isOn ? 'text-white' : 'text-gray-700'}`}>{pos ?? n}</span>
+                          <span className={`text-[7px] font-medium leading-none ${isOn ? 'text-teal-100' : 'text-gray-400'}`}>{tableLabel(n, settings?.table_labels)}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               );
@@ -3987,7 +3980,12 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
             {/* 테이블 이름 변경 패널 */}
             {(() => {
-              const allNums = Array.from(new Set(seats.map(s => s.table_number))).sort((a, b) => a - b);
+              const allNums = Array.from(new Set(seats.map(s => s.table_number)));
+              const SPATIAL_ORDER = [7, 5, 6, 8, 9, 4, 2, 11, 10, 3, 1, 12];
+              const orderedNums = SPATIAL_ORDER.filter(n => allNums.includes(n));
+              const extra = allNums.filter(n => !SPATIAL_ORDER.includes(n));
+              const displayNums = [...orderedNums, ...extra];
+              const posNum = (n: number) => { const i = SPATIAL_ORDER.indexOf(n); return i >= 0 ? i + 1 : null; };
               return (
                 <div className="mb-3">
                   <button
@@ -3996,24 +3994,25 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                     <div className="flex items-center gap-2">
                       <span className="text-base">✏️</span>
                       <span className={`text-sm font-black ${showLabelPanel ? 'text-violet-700' : 'text-gray-700'}`}>테이블 이름 변경</span>
-                      <span className="text-[10px] text-gray-400 font-medium">테이블 번호를 탭해서 수정</span>
+                      <span className="text-[10px] text-gray-400 font-medium">배치도 순서 · 탭해서 수정</span>
                     </div>
                     <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${showLabelPanel ? 'rotate-180' : ''}`} />
                   </button>
                   {showLabelPanel && (
                     <div className="mt-2 bg-white rounded-2xl border border-gray-200 p-3 space-y-2">
-                      {/* 4-column button grid */}
-                      <div className="grid grid-cols-4 gap-1.5">
-                        {allNums.map(n => {
+                      {/* 4-column button grid — spatial order */}
+                      <div className="grid grid-cols-4 gap-1">
+                        {displayNums.map(n => {
                           const curLabel = tableLabel(n, settings?.table_labels);
                           const isSelected = editingLabelNum === n;
                           const hasCustom = curLabel !== String(n);
+                          const pos = posNum(n);
                           return (
                             <button key={n}
                               onClick={() => { setEditingLabelNum(isSelected ? null : n); setLabelDraft(hasCustom ? curLabel : ''); }}
-                              className={`rounded-xl border-2 py-2.5 px-1 flex flex-col items-center gap-0.5 transition-all active:scale-95 ${isSelected ? 'border-violet-500 bg-violet-50' : 'border-gray-200 bg-gray-50 hover:border-violet-300 hover:bg-violet-50'}`}>
-                              <span className="text-[9px] text-gray-400 font-medium leading-none">{n}번</span>
-                              <span className={`text-sm font-black leading-tight ${isSelected ? 'text-violet-700' : hasCustom ? 'text-teal-700' : 'text-gray-700'}`}>{curLabel}</span>
+                              className={`rounded-lg border-2 py-1.5 px-0.5 flex flex-col items-center gap-0 transition-all active:scale-95 ${isSelected ? 'border-violet-500 bg-violet-50' : 'border-gray-200 bg-gray-50 hover:border-violet-300 hover:bg-violet-50'}`}>
+                              <span className="text-xs font-black leading-tight text-gray-700">{pos ?? n}</span>
+                              <span className={`text-[7px] font-medium leading-none ${isSelected ? 'text-violet-600' : hasCustom ? 'text-teal-600' : 'text-gray-400'}`}>{curLabel}</span>
                             </button>
                           );
                         })}
