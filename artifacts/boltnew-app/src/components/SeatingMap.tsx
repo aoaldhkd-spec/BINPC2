@@ -617,12 +617,15 @@ function SmallTable({ tableNum, seats, profileMap, currentUserId, isAdmin, movin
       onSelectForMove={onSelectForMove} onMoveTo={onMoveTo} />
   );
 
+  const posNum = TABLE_POS_NUM[tableNum];
   const tableBtn = isAdmin && onSetTableLabel ? (
     <div onClick={onTableClick} className="w-12 self-stretch rounded-lg bg-gradient-to-br from-amber-800/80 to-amber-900/80 border border-amber-700/50 shadow-inner flex flex-col items-center justify-center gap-0.5 cursor-pointer">
+      {posNum != null && <span className="text-[9px] font-black text-amber-500/80 leading-none">{posNum}</span>}
       <span className="text-[11px] font-black text-amber-300/90 leading-none"><TableLabelEditor tableNum={tableNum} tableLabels={tableLabels} onSetTableLabel={onSetTableLabel} /></span>
     </div>
   ) : (
     <button onClick={onTableClick} className={`w-12 self-stretch rounded-lg bg-gradient-to-br from-amber-800/80 to-amber-900/80 border border-amber-700/50 shadow-inner flex flex-col items-center justify-center gap-0.5 ${!isAdmin ? 'hover:border-teal-500/60 transition-colors' : ''}`}>
+      {posNum != null && <span className="text-[9px] font-black text-amber-500/80 leading-none">{posNum}</span>}
       <span className="text-[11px] font-black text-amber-300/90 leading-none">{label}</span>
     </button>
   );
@@ -659,6 +662,16 @@ function SmallTable({ tableNum, seats, profileMap, currentUserId, isAdmin, movin
     </div>
   );
 }
+
+// ─── Position number map (왼→오, 위→아래 순서) ─────────────────────────────────
+// Col1/Row1=7→1, Col2/Row1=5→2, Col3/Row1=6→3, Col4/Row1=8→4
+// Col1/Row2=9→5, Col2/Row2=4→6, Col3/Row2=2→7, Col4/Row2=11→8
+// Col1/Row3=10→9, Col2/Row3=3→10, Col3/Row3=1→11, Col4/Row3=12→12
+const TABLE_POS_NUM: Record<number, number> = {
+  7: 1, 5: 2, 6: 3, 8: 4,
+  9: 5, 4: 6, 2: 7, 11: 8,
+  10: 9, 3: 10, 1: 11, 12: 12,
+};
 
 // ─── Main SeatingMap ───────────────────────────────────────────────────────────
 

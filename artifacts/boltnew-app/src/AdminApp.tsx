@@ -3907,42 +3907,51 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
             {/* 활성 테이블 설정 */}
             {(() => {
-              const allNums = Array.from(new Set(seats.map(s => s.table_number))).sort((a, b) => a - b);
+              const allNums = Array.from(new Set(seats.map(s => s.table_number)));
+              // 공간 배치 순서 (배치도와 동일: 왼→오, 위→아래)
+              const SPATIAL_ORDER = [7, 5, 6, 8, 9, 4, 2, 11, 10, 3, 1, 12];
+              const orderedNums = SPATIAL_ORDER.filter(n => allNums.includes(n));
+              const extra = allNums.filter(n => !SPATIAL_ORDER.includes(n));
+              const displayNums = [...orderedNums, ...extra];
               const current = pendingActiveTables !== undefined ? pendingActiveTables : (settings?.active_tables ?? null);
+              const posNum = (n: number) => { const i = SPATIAL_ORDER.indexOf(n); return i >= 0 ? i + 1 : null; };
+              const rows = [displayNums.slice(0, 4), displayNums.slice(4, 8), displayNums.slice(8, 12)].filter(r => r.length > 0);
               return (
                 <div className="mb-3 bg-white rounded-2xl border border-gray-200 p-3">
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">활성 테이블</p>
                     <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setPendingActiveTables(null)}
-                        className="text-[10px] text-teal-600 font-bold px-2 py-0.5 rounded-lg hover:bg-teal-50 transition-all">
-                        전체
-                      </button>
-                      <button
-                        onClick={() => { handleSetActiveTables(current); setPendingActiveTables(undefined); }}
-                        className="text-[10px] font-black px-3 py-1 bg-teal-500 hover:bg-teal-600 text-white rounded-lg active:scale-95 transition-all">
-                        적용
-                      </button>
+                      <button onClick={() => setPendingActiveTables(null)}
+                        className="text-[10px] text-teal-600 font-bold px-2 py-0.5 rounded-lg hover:bg-teal-50 transition-all">전체</button>
+                      <button onClick={() => { handleSetActiveTables(current); setPendingActiveTables(undefined); }}
+                        className="text-[10px] font-black px-3 py-1 bg-teal-500 hover:bg-teal-600 text-white rounded-lg active:scale-95 transition-all">적용</button>
                     </div>
                   </div>
-                  <div className="grid grid-cols-4 gap-1.5">
-                    {allNums.map(n => {
-                      const isOn = !current || current.includes(n);
-                      return (
-                        <button key={n} onClick={() => {
-                          let next: number[];
-                          if (!current) { next = allNums.filter(x => x !== n); }
-                          else if (current.includes(n)) { next = current.filter(x => x !== n); }
-                          else { next = [...current, n].sort((a, b) => a - b); }
-                          setPendingActiveTables(next.length === allNums.length ? null : next);
-                        }}
-                          className={`rounded-xl border-2 py-2.5 px-1 flex flex-col items-center gap-0.5 transition-all active:scale-95 ${isOn ? 'bg-teal-500 border-teal-500 text-white' : 'bg-gray-50 border-gray-200 text-gray-400'}`}>
-                          <span className={`text-[9px] font-medium leading-none ${isOn ? 'text-teal-100' : 'text-gray-400'}`}>{n}번</span>
-                          <span className={`text-sm font-black leading-tight ${isOn ? 'text-white' : 'text-gray-500'}`}>{tableLabel(n, settings?.table_labels)}</span>
-                        </button>
-                      );
-                    })}
+                  <div className="space-y-2">
+                    {rows.map((rowNums, ri) => (
+                      <div key={ri}>
+                        <p className="text-[9px] font-bold text-gray-400 mb-1">{ri + 1}열</p>
+                        <div className="grid grid-cols-4 gap-1.5">
+                          {rowNums.map(n => {
+                            const isOn = !current || current.includes(n);
+                            const pos = posNum(n);
+                            return (
+                              <button key={n} onClick={() => {
+                                let next: number[];
+                                if (!current) { next = allNums.filter(x => x !== n); }
+                                else if (current.includes(n)) { next = current.filter(x => x !== n); }
+                                else { next = [...current, n].sort((a, b) => a - b); }
+                                setPendingActiveTables(next.length === allNums.length ? null : next);
+                              }}
+                                className={`rounded-xl border-2 py-2 px-1 flex flex-col items-center gap-0.5 transition-all active:scale-95 ${isOn ? 'bg-teal-500 border-teal-500 text-white' : 'bg-gray-50 border-gray-200 text-gray-400'}`}>
+                                <span className={`text-sm font-black leading-tight ${isOn ? 'text-white' : 'text-gray-700'}`}>{pos ?? n}</span>
+                                <span className={`text-[8px] font-medium leading-none ${isOn ? 'text-teal-100' : 'text-gray-400'}`}>{tableLabel(n, settings?.table_labels)}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               );
@@ -4166,42 +4175,29 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
       {qrSeat && <QrModal seat={qrSeat} onClose={() => setQrSeat(null)} />}
 
-      {/* 초기화 복구 팝업 */}
+      {/* 초기화 복구 배너 (non-blocking) */}
       {recovery && (
-        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/50 backdrop-blur-sm p-6">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xs overflow-hidden">
-            {/* 헤더 */}
-            <div className={`px-7 pt-8 pb-6 text-center ${recovery.restore ? 'bg-gradient-to-b from-teal-50 to-white' : 'bg-gradient-to-b from-slate-50 to-white'}`}>
-              <div className="text-5xl mb-3">{recovery.emoji}</div>
-              <h3 className="text-xl font-black text-gray-900">{recovery.label}</h3>
-              <p className="text-sm font-bold text-gray-400 mt-1">초기화 완료</p>
-              {recovery.restore ? (
-                <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 bg-teal-100 rounded-full">
-                  <div className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse" />
-                  <span className="text-xs font-bold text-teal-700">30초 안에 복구 가능</span>
-                </div>
-              ) : (
-                <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-50 rounded-full">
-                  <span className="text-xs font-bold text-red-400">데이터가 없어 복구 불가</span>
-                </div>
-              )}
-            </div>
-            {/* 버튼 영역 */}
-            <div className="px-6 pb-7 pt-2 space-y-3">
-              {recovery.restore && (
-                <button
-                  onClick={() => recovery.restore!()}
-                  className="w-full py-4 bg-teal-500 hover:bg-teal-400 active:scale-95 text-white font-black rounded-2xl transition-all text-base shadow-lg shadow-teal-500/30">
-                  ↩ 복구하기
-                </button>
-              )}
-              <button
-                onClick={() => { clearTimeout(recovery.timerId); setRecovery(null); }}
-                className="w-full py-4 bg-gray-100 hover:bg-gray-200 active:scale-95 text-gray-600 font-bold rounded-2xl transition-all text-base">
-                닫기
-              </button>
-            </div>
+        <div className={`fixed top-0 left-0 right-0 z-[400] flex items-center gap-3 px-4 py-3 shadow-lg transition-all ${recovery.restore ? 'bg-teal-600' : 'bg-gray-700'}`}>
+          <span className="text-2xl flex-shrink-0">{recovery.emoji}</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-white font-black text-sm leading-tight">{recovery.label} 초기화 완료</p>
+            {recovery.restore
+              ? <p className="text-teal-200 text-[10px] font-semibold leading-none mt-0.5">30초 안에 복구 가능</p>
+              : <p className="text-gray-400 text-[10px] font-semibold leading-none mt-0.5">데이터 없음 — 복구 불가</p>
+            }
           </div>
+          {recovery.restore && (
+            <button
+              onClick={() => recovery.restore!()}
+              className="flex-shrink-0 px-4 py-2 bg-white text-teal-700 font-black text-sm rounded-xl active:scale-95 transition-all shadow">
+              ↩ 복구
+            </button>
+          )}
+          <button
+            onClick={() => { clearTimeout(recovery.timerId); setRecovery(null); }}
+            className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-xl bg-white/20 hover:bg-white/30 text-white font-black text-base transition-all">
+            ×
+          </button>
         </div>
       )}
 
