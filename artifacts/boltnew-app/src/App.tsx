@@ -3568,7 +3568,12 @@ function App() {
         />
       )}
       {showProfileQr && currentUserId && (
-        <ProfileQrModal profileId={currentUserId} pinCode={profileMap.get(currentUserId)?.pin_code ?? null} onClose={() => setShowProfileQr(false)} />
+        <ProfileQrModal
+          profileId={currentUserId}
+          pinCode={profileMap.get(currentUserId)?.pin_code ?? null}
+          onClose={() => setShowProfileQr(false)}
+          onPinGenerated={(pin) => setProfiles(prev => prev.map(p => p.id === currentUserId ? { ...p, pin_code: pin } : p))}
+        />
       )}
     </>
   );
@@ -3843,10 +3848,28 @@ function ResetButton({ onReset, darkMode }: { onReset: () => void; variant?: str
 
 // ─── Profile QR Modal ─────────────────────────────────────────────────────────
 
-function ProfileQrModal({ profileId, pinCode, onClose }: { profileId: string; pinCode: string | null; onClose: () => void }) {
+function ProfileQrModal({ profileId, pinCode: pinCodeProp, onClose, onPinGenerated }: {
+  profileId: string; pinCode: string | null; onClose: () => void; onPinGenerated?: (pin: string) => void;
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const largeCanvasRef = useRef<HTMLCanvasElement>(null);
   const [expanded, setExpanded] = useState(false);
+  const [pinCode, setPinCode] = useState<string | null>(pinCodeProp);
+
+  // Auto-generate pin_code for existing users who don't have one yet
+  useEffect(() => {
+    if (pinCodeProp !== null) { setPinCode(pinCodeProp); return; }
+    const generate = async () => {
+      const { data: existingPins } = await supabase.from('profiles').select('pin_code');
+      const usedPins = new Set((existingPins ?? []).map((p: { pin_code: string | null }) => p.pin_code).filter(Boolean));
+      let pin = String(Math.floor(1000 + Math.random() * 9000));
+      while (usedPins.has(pin)) pin = String(Math.floor(1000 + Math.random() * 9000));
+      await supabase.from('profiles').update({ pin_code: pin }).eq('id', profileId);
+      setPinCode(pin);
+      onPinGenerated?.(pin);
+    };
+    generate();
+  }, [profileId, pinCodeProp]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!canvasRef.current) return;

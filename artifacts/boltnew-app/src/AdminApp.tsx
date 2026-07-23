@@ -3235,9 +3235,8 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     }));
     await adminSupabase.from('session_history').insert({ seats_snapshot: snapshot });
     await adminSupabase.rpc('admin_reset_all_seats', { p_admin_password: settings?.admin_password ?? '' });
-    // Broadcast reset signal: every connected client wipes localStorage and is forced
-    // back to the nickname setup screen so they re-register with a fresh identity.
     await adminSupabase.from('app_settings').update({ reset_signal: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', 1);
+    showRecovery('좌석 배치', '🪑', null);
     await loadAll();
   };
 
@@ -3333,8 +3332,16 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   };
 
   const handleClearAllChats = async () => {
+    const backupChats = [...allChats];
+    const backupMsgs = [...allMessages];
     await adminSupabase.from('messages').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     await adminSupabase.from('chats').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    showRecovery('채팅', '💬', (backupChats.length > 0 || backupMsgs.length > 0) ? async () => {
+      for (const c of backupChats) await adminSupabase.from('chats').upsert(c);
+      for (const m of backupMsgs) await adminSupabase.from('messages').upsert(m);
+      await loadAll();
+      setRecovery(null);
+    } : null);
     await loadAll();
   };
 
