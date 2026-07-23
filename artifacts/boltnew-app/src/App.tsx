@@ -2468,7 +2468,7 @@ function App() {
 
     // Q&A game subscription (root-level so overlay shows on any tab)
     const loadActiveQa = async () => {
-      const { data } = await supabase.from('qa_games').select('id, question, correct_answer').eq('status', 'active').order('created_at', { ascending: false }).limit(1);
+      const { data } = await supabase.from('qa_games').select('id, question, correct_answer').eq('status', 'active').neq('scope', 'chosung').order('created_at', { ascending: false }).limit(1);
       const game = data?.[0] ?? null;
       if (game) {
         setActiveQaGame(game);
@@ -2967,12 +2967,16 @@ function App() {
           setShownWaiting(false);
           setView('entry-1');
         } else {
-          // Refresh data on returning to app
+          // Refresh data on returning to app (백그라운드→포그라운드 복귀 시 전체 리프레시)
           loadProfiles();
+          loadSeats();
           loadReceivedLikes(storedId);
           loadLikes(storedId);
           loadChatList(storedId);
-          loadSeats();
+          loadContactShareData(storedId);
+          loadBalanceGames();
+          loadMyVotes(storedId);
+          loadSuggestions(storedId);
         }
       });
     };
