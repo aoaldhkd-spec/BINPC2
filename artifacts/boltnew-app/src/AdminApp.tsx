@@ -4,6 +4,7 @@ import {
   LayoutGrid, History, X, AlertTriangle, ChevronDown,
   Heart, MessageCircle, QrCode, Send, CheckCircle, Gamepad2, BellRing, Eye, EyeOff,
   PlayCircle, StopCircle, RotateCcw, Clock, Timer, RefreshCw, Copy, Check, Sparkles,
+  Lock, Unlock,
 } from 'lucide-react';
 import { supabase } from './lib/supabase';
 import type { Database, Json } from './types/database';
@@ -189,7 +190,11 @@ const NOTIF_TYPES = [
   { id: 'game',   label: '🎮 진행·게임', color: 'bg-violet-50 border-violet-200 text-violet-800' },
 ];
 
-function NotificationTab({ tableCount }: { tableCount: number }) {
+function NotificationTab({ tableCount, settings, onSetTimer }: {
+  tableCount: number;
+  settings: AppSettings | null;
+  onSetTimer: (endAt: string | null, label: string | null) => Promise<void>;
+}) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [message, setMessage] = useState('');
   const [penalty, setPenalty] = useState('');
@@ -199,6 +204,33 @@ function NotificationTab({ tableCount }: { tableCount: number }) {
   const [sent, setSent] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshDone, setRefreshDone] = useState(false);
+
+  // ── Timer state ──────────────────────────────────────────────────────────
+  const [timerMinutes, setTimerMinutes] = useState('30');
+  const [timerLabelInput, setTimerLabelInput] = useState('');
+  const [timerCountdown, setTimerCountdown] = useState('');
+  const autoCleared = useRef(false);
+
+  useEffect(() => {
+    if (!settings?.timer_end_at) { setTimerCountdown(''); autoCleared.current = false; return; }
+    autoCleared.current = false;
+    const update = () => {
+      const diff = Math.max(0, Math.round((new Date(settings.timer_end_at!).getTime() - Date.now()) / 1000));
+      const m = Math.floor(diff / 60);
+      const s = diff % 60;
+      setTimerCountdown(`${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
+      if (diff === 0 && !autoCleared.current) { autoCleared.current = true; setTimeout(() => onSetTimer(null, null), 1500); }
+    };
+    update();
+    const id = setInterval(update, 1000);
+    return () => clearInterval(id);
+  }, [settings?.timer_end_at]);
+
+  const startTimer = async () => {
+    const mins = parseInt(timerMinutes, 10);
+    if (isNaN(mins) || mins <= 0) return;
+    await onSetTimer(new Date(Date.now() + mins * 60 * 1000).toISOString(), timerLabelInput.trim() || null);
+  };
 
   const load = async () => {
     const { data } = await adminSupabase.from('notifications').select('*').order('created_at', { ascending: false }).limit(30);
@@ -254,6 +286,75 @@ function NotificationTab({ tableCount }: { tableCount: number }) {
 
   return (
     <div className="p-4 space-y-5">
+
+      {/* ── 타이머 ───────────────────────────────────────────────────────── */}
+      <div className="rounded-2xl overflow-hidden border-2 border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 shadow-sm">
+        {/* 헤더 */}
+        <div className="flex items-center gap-2 px-4 py-3 bg-amber-100/70 border-b border-amber-200">
+          <div className="w-7 h-7 rounded-xl bg-amber-500 flex items-center justify-center">
+            <Timer className="w-4 h-4 text-white" />
+          </div>
+          <span className="font-black text-amber-800 text-sm">타이머</span>
+          {settings?.timer_end_at && (
+            <span className={`ml-auto text-xs font-bold px-2.5 py-0.5 rounded-full ${
+              timerCountdown === '00:00'
+                ? 'bg-gray-200 text-gray-500'
+                : 'bg-amber-500 text-white animate-pulse'
+            }`}>
+              {timerCountdown === '00:00' ? '종료됨' : '진행 중'}
+            </span>
+          )}
+        </div>
+
+        <div className="p-4 space-y-3">
+          {/* 카운트다운 표시 */}
+          {settings?.timer_end_at ? (
+            <div className="bg-white/80 rounded-2xl px-5 py-4 border border-amber-200 flex items-center justify-between">
+              <div>
+                <p className={`text-4xl font-black tabular-nums tracking-tight ${
+                  timerCountdown === '00:00' ? 'text-gray-300' : 'text-amber-600'
+                }`}>{timerCountdown || '00:00'}</p>
+                {settings.timer_label && (
+                  <p className="text-xs text-amber-700 font-semibold mt-1">{settings.timer_label}</p>
+                )}
+              </div>
+              <button
+                onClick={() => onSetTimer(null, null)}
+                className="flex items-center gap-1.5 px-3 py-2 bg-red-100 hover:bg-red-200 text-red-600 rounded-xl text-xs font-bold transition-all active:scale-95"
+              >
+                <X className="w-3.5 h-3.5" />종료
+              </button>
+            </div>
+          ) : (
+            <p className="text-xs text-amber-600/70 text-center py-1 font-medium">진행 중인 타이머 없음</p>
+          )}
+
+          {/* 입력 영역 */}
+          <div className="flex gap-2 items-center">
+            <div className="flex items-center gap-1 bg-white border-2 border-amber-200 rounded-xl px-2 focus-within:border-amber-400 transition-all">
+              <input
+                type="number" value={timerMinutes} onChange={e => setTimerMinutes(e.target.value)}
+                min="1" max="999" placeholder="30"
+                className="w-14 py-2 text-sm text-center font-black text-amber-700 focus:outline-none bg-transparent"
+              />
+              <span className="text-xs font-bold text-amber-500 pr-1">분</span>
+            </div>
+            <input
+              type="text" value={timerLabelInput} onChange={e => setTimerLabelInput(e.target.value)}
+              placeholder="라벨 (예: 자리 이동 시간)"
+              className="flex-1 px-3 py-2.5 bg-white border-2 border-amber-200 rounded-xl text-sm focus:outline-none focus:border-amber-400 transition-all"
+            />
+          </div>
+          <button
+            onClick={startTimer}
+            className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white rounded-xl text-sm font-black transition-all active:scale-[0.98] shadow-md shadow-amber-500/20 flex items-center justify-center gap-2"
+          >
+            <Timer className="w-4 h-4" />타이머 시작
+          </button>
+        </div>
+      </div>
+
+      {/* ── 공지 작성 ─────────────────────────────────────────────────────── */}
       {/* Compose */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
         <h3 className="font-black text-gray-800 text-sm flex items-center gap-2">
@@ -707,50 +808,21 @@ function QrModal({ seat, onClose }: { seat: Seat; onClose: () => void }) {
 
 // ─── Dashboard Tab ────────────────────────────────────────────────────────────
 
-function DashboardTab({ settings, seats, profiles, onToggleSession, onFullReset, onEventEndReset, onSetTimer, onSetActiveTables }: {
+function DashboardTab({ settings, seats, profiles, onToggleSession, onFullReset, onEventEndReset, onToggleFeatureLock, onSetActiveTables }: {
   settings: AppSettings | null; seats: Seat[]; profiles: Profile[];
   onToggleSession: () => void; onFullReset: () => void; onEventEndReset: () => void;
-  onSetTimer: (endAt: string | null, label: string | null) => Promise<void>;
+  onToggleFeatureLock: () => void;
   onSetActiveTables: (tables: number[] | null) => void;
 }) {
   const [confirmToggle, setConfirmToggle] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [confirmEventEnd, setConfirmEventEnd] = useState(false);
-  const [timerMinutes, setTimerMinutes] = useState('30');
-  const [timerLabelInput, setTimerLabelInput] = useState('');
-  const [timerCountdown, setTimerCountdown] = useState('');
   const [pendingActiveTables, setPendingActiveTables] = useState<number[] | null | undefined>(undefined);
   const activeTables = settings?.active_tables ?? null;
   const activeSeats = activeTables ? seats.filter(s => activeTables.includes(s.table_number)) : seats;
   const occupied = activeSeats.filter((s) => s.status === 'occupied').length;
   const isActive = settings?.session_active ?? false;
-
-  const autoCleared = useRef(false);
-
-  useEffect(() => {
-    if (!settings?.timer_end_at) { setTimerCountdown(''); autoCleared.current = false; return; }
-    autoCleared.current = false;
-    const update = () => {
-      const diff = Math.max(0, Math.round((new Date(settings.timer_end_at!).getTime() - Date.now()) / 1000));
-      const m = Math.floor(diff / 60);
-      const s = diff % 60;
-      setTimerCountdown(`${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
-      if (diff === 0 && !autoCleared.current) {
-        autoCleared.current = true;
-        setTimeout(() => onSetTimer(null, null), 1500);
-      }
-    };
-    update();
-    const id = setInterval(update, 1000);
-    return () => clearInterval(id);
-  }, [settings?.timer_end_at]);
-
-  const startTimer = async () => {
-    const mins = parseInt(timerMinutes, 10);
-    if (isNaN(mins) || mins <= 0) return;
-    const endAt = new Date(Date.now() + mins * 60 * 1000).toISOString();
-    await onSetTimer(endAt, timerLabelInput.trim() || null);
-  };
+  const isLocked = settings?.seating_locked ?? false;
 
   return (
     <div className="space-y-4 p-4">
@@ -804,35 +876,36 @@ function DashboardTab({ settings, seats, profiles, onToggleSession, onFullReset,
         </div>
       </div>
 
-      {/* 타이머 */}
+      {/* 기능 잠금 */}
       <div>
-        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 px-1">타이머</h3>
-        <div className="rounded-2xl p-4 border-2 border-amber-100 bg-amber-50 space-y-3">
-          {settings?.timer_end_at && (
-            <div className="flex items-center justify-between bg-white rounded-xl px-4 py-3 border border-amber-200">
-              <div>
-                <p className="text-[10px] font-bold text-amber-500 uppercase tracking-widest">{timerCountdown === '00:00' ? '종료됨' : '진행 중'}</p>
-                <p className={`text-3xl font-black tabular-nums mt-0.5 ${timerCountdown === '00:00' ? 'text-gray-400' : 'text-amber-600'}`}>{timerCountdown || '00:00'}</p>
-                {settings.timer_label && <p className="text-xs text-gray-500 mt-0.5">{settings.timer_label}</p>}
-              </div>
-              <button onClick={() => onSetTimer(null, null)} className="px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-600 rounded-xl text-xs font-bold transition-all">종료</button>
-            </div>
-          )}
-          <div className="flex gap-2">
-            <input type="number" value={timerMinutes} onChange={e => setTimerMinutes(e.target.value)}
-              min="1" max="999" placeholder="분"
-              className="w-16 px-2 py-2 rounded-xl border border-amber-200 bg-white text-sm text-center font-bold focus:outline-none focus:border-amber-400" />
-            <span className="flex items-center text-sm text-amber-700 font-semibold">분</span>
-            <input type="text" value={timerLabelInput} onChange={e => setTimerLabelInput(e.target.value)}
-              placeholder="예: 2차가 시작됩니다"
-              className="flex-1 px-3 py-2 rounded-xl border border-amber-200 bg-white text-sm focus:outline-none focus:border-amber-400" />
+        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 px-1">기능 잠금</h3>
+        <button
+          onClick={onToggleFeatureLock}
+          className={`w-full rounded-2xl p-4 border-2 flex items-center gap-4 transition-all active:scale-[0.98] shadow-sm ${
+            isLocked
+              ? 'bg-red-50 border-red-300 hover:bg-red-100'
+              : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
+          }`}
+        >
+          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 transition-all ${
+            isLocked ? 'bg-red-500' : 'bg-slate-400'
+          }`}>
+            {isLocked ? <Lock className="w-6 h-6 text-white" /> : <Unlock className="w-6 h-6 text-white" />}
           </div>
-          <button onClick={startTimer}
-            className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-sm font-black transition-all active:scale-95 flex items-center justify-center gap-2">
-            <Timer className="w-4 h-4" />
-            타이머 시작
-          </button>
-        </div>
+          <div className="flex-1 text-left">
+            <p className={`font-black text-sm ${isLocked ? 'text-red-700' : 'text-slate-700'}`}>
+              {isLocked ? '🔒 기능 잠금 중' : '🔓 기능 잠금 해제됨'}
+            </p>
+            <p className={`text-xs mt-0.5 leading-snug ${isLocked ? 'text-red-500' : 'text-slate-400'}`}>
+              {isLocked
+                ? '유저들이 앱 기능을 사용할 수 없습니다 — 탭하여 해제'
+                : '유저들이 자유롭게 앱을 사용 중 — 탭하여 잠금'}
+            </p>
+          </div>
+          <div className={`relative w-12 h-7 rounded-full transition-all duration-300 flex-shrink-0 ${isLocked ? 'bg-red-500' : 'bg-slate-300'}`}>
+            <div className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow-md transition-all duration-300 ${isLocked ? 'left-6' : 'left-1'}`} />
+          </div>
+        </button>
       </div>
 
       {/* Active Tables */}
@@ -3076,6 +3149,12 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     if (data) setSettings(data);
   };
 
+  const handleToggleFeatureLock = async () => {
+    const newVal = !(settings?.seating_locked ?? false);
+    await adminSupabase.from('app_settings').update({ seating_locked: newVal, updated_at: new Date().toISOString() }).eq('id', 1);
+    setSettings(prev => prev ? { ...prev, seating_locked: newVal } : prev);
+  };
+
   const handleSetActiveTables = async (tables: number[] | null) => {
     await adminSupabase.from('app_settings').update({ active_tables: tables, updated_at: new Date().toISOString() }).eq('id', 1);
     setSettings(prev => prev ? { ...prev, active_tables: tables } : prev);
@@ -3176,7 +3255,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         {tab === 'dashboard' && (
           <DashboardTab settings={settings} seats={seats} profiles={profiles}
             onToggleSession={handleToggleSession} onFullReset={handleFullReset} onEventEndReset={handleEventEndReset}
-            onSetTimer={handleSetTimer} onSetActiveTables={handleSetActiveTables} />
+            onToggleFeatureLock={handleToggleFeatureLock} onSetActiveTables={handleSetActiveTables} />
         )}
         {tab === 'seating' && (
           <div className="p-4">
@@ -3330,7 +3409,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
             </div>
           </div>
         )}
-        {tab === 'notify' && <NotificationTab tableCount={[...new Set(seats.map(s => s.table_number))].length} />}
+        {tab === 'notify' && <NotificationTab tableCount={[...new Set(seats.map(s => s.table_number))].length} settings={settings} onSetTimer={handleSetTimer} />}
         {tab === 'info' && (
           <div>
             <div className="flex border-b border-gray-200 bg-white px-4">
