@@ -46,6 +46,9 @@ function ts(): string {
 }
 
 // ─── Seed initial data ────────────────────────────────────────────────────────
+const DEFAULT_ADMIN_PHONE = '010-3878-6740';
+const DEFAULT_ADMIN_PASSWORD = '116606';
+
 function seedIfNeeded(): void {
   // app_settings singleton
   if (!readTable('app_settings').length) {
@@ -53,8 +56,8 @@ function seedIfNeeded(): void {
       {
         id: 1,
         session_active: false,
-        admin_phone: '010-0000-0000',
-        admin_password: 'admin1234',
+        admin_phone: DEFAULT_ADMIN_PHONE,
+        admin_password: DEFAULT_ADMIN_PASSWORD,
         updated_at: ts(),
         timer_end_at: null,
         timer_label: null,
@@ -89,6 +92,20 @@ function seedIfNeeded(): void {
 }
 
 seedIfNeeded();
+
+// One-time migration: overwrite phone/password to the current defaults
+// regardless of what was previously stored.
+(function migrateAdminCredentials() {
+  const rows = readTable('app_settings');
+  if (rows.length > 0) {
+    const updated = rows.map((r) =>
+      r.id === 1
+        ? { ...r, admin_phone: DEFAULT_ADMIN_PHONE, admin_password: DEFAULT_ADMIN_PASSWORD }
+        : r,
+    );
+    writeTable('app_settings', updated);
+  }
+})();
 
 // ─── Change event types ───────────────────────────────────────────────────────
 interface ChangeEvent {
