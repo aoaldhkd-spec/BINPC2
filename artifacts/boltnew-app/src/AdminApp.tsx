@@ -808,16 +808,21 @@ function QrModal({ seat, onClose }: { seat: Seat; onClose: () => void }) {
 
 // ─── Dashboard Tab ────────────────────────────────────────────────────────────
 
-function DashboardTab({ settings, seats, profiles, onToggleSession, onFullReset, onEventEndReset, onToggleFeatureLock, onSetActiveTables }: {
+function DashboardTab({ settings, seats, profiles, onToggleSession, onFullReset, onEventEndReset, onToggleFeatureLock,
+  onClearLikes, onClearChats, onClearNotifications, onClearGames, onClearSuggestions, onClearProfiles }: {
   settings: AppSettings | null; seats: Seat[]; profiles: Profile[];
   onToggleSession: () => void; onFullReset: () => void; onEventEndReset: () => void;
   onToggleFeatureLock: () => void;
-  onSetActiveTables: (tables: number[] | null) => void;
+  onClearLikes: () => Promise<void>;
+  onClearChats: () => Promise<void>;
+  onClearNotifications: () => Promise<void>;
+  onClearGames: () => Promise<void>;
+  onClearSuggestions: () => Promise<void>;
+  onClearProfiles: () => Promise<void>;
 }) {
   const [confirmToggle, setConfirmToggle] = useState(false);
-  const [confirmReset, setConfirmReset] = useState(false);
   const [confirmEventEnd, setConfirmEventEnd] = useState(false);
-  const [pendingActiveTables, setPendingActiveTables] = useState<number[] | null | undefined>(undefined);
+  const [confirmAction, setConfirmAction] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
   const activeTables = settings?.active_tables ?? null;
   const activeSeats = activeTables ? seats.filter(s => activeTables.includes(s.table_number)) : seats;
   const occupied = activeSeats.filter((s) => s.status === 'occupied').length;
@@ -908,56 +913,31 @@ function DashboardTab({ settings, seats, profiles, onToggleSession, onFullReset,
         </button>
       </div>
 
-      {/* Active Tables */}
+      {/* 데이터 초기화 */}
       <div>
-        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 px-1">활성 테이블 설정</h3>
-        <div className="bg-white rounded-2xl border border-gray-200 p-4">
-          <p className="text-xs text-gray-500 mb-3">배치도에 표시할 테이블을 선택하세요. 미선택 시 전체 표시.</p>
-          <div className="flex flex-wrap gap-2 mb-3">
-            {(() => {
-              const allNums = Array.from(new Set(seats.map(s => s.table_number))).sort((a, b) => a - b);
-              const current = pendingActiveTables !== undefined ? pendingActiveTables : (settings?.active_tables ?? null);
-              return allNums.map(n => {
-                const isActiveTable = !current || current.includes(n);
-                return (
-                  <button key={n} onClick={() => {
-                    const cur = pendingActiveTables !== undefined ? pendingActiveTables : (settings?.active_tables ?? null);
-                    let next: number[];
-                    if (!cur) { next = allNums.filter(x => x !== n); }
-                    else if (cur.includes(n)) { next = cur.filter(x => x !== n); }
-                    else { next = [...cur, n].sort((a, b) => a - b); }
-                    setPendingActiveTables(next.length === allNums.length ? null : next);
-                  }}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold border-2 transition-all ${isActiveTable ? 'bg-teal-500 border-teal-500 text-white' : 'bg-gray-50 border-gray-200 text-gray-400'}`}>
-                    {tableLabel(n, settings?.table_labels)}
-                  </button>
-                );
-              });
-            })()}
-          </div>
-          <div className="flex items-center justify-between">
-            <button onClick={() => setPendingActiveTables(null)} className="text-xs text-teal-600 font-bold hover:underline">전체 선택</button>
+        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 px-1">데이터 초기화</h3>
+        <div className="grid grid-cols-2 gap-2">
+          {([
+            { emoji: '🪑', label: '좌석', desc: '이력 백업 후 초기화', bg: 'bg-orange-50 border-orange-200 hover:bg-orange-100', title: '좌석 초기화', msg: '이력 백업 후 모든 좌석을 초기화합니다. 참여자 프로필은 유지됩니다.', fn: onFullReset },
+            { emoji: '❤️', label: '하트', desc: '모든 하트 기록 삭제', bg: 'bg-pink-50 border-pink-200 hover:bg-pink-100', title: '하트 초기화', msg: '모든 하트(좋아요) 기록을 삭제합니다. 되돌릴 수 없습니다.', fn: onClearLikes },
+            { emoji: '💬', label: '채팅', desc: '채팅·메시지 전체 삭제', bg: 'bg-teal-50 border-teal-200 hover:bg-teal-100', title: '채팅 초기화', msg: '모든 채팅방과 메시지를 삭제합니다. 되돌릴 수 없습니다.', fn: onClearChats },
+            { emoji: '🔔', label: '공지', desc: '전송 공지 모두 삭제', bg: 'bg-amber-50 border-amber-200 hover:bg-amber-100', title: '공지 초기화', msg: '전송된 모든 공지를 삭제합니다.', fn: onClearNotifications },
+            { emoji: '🎮', label: '게임', desc: '게임·투표 기록 삭제', bg: 'bg-violet-50 border-violet-200 hover:bg-violet-100', title: '게임 초기화', msg: '밸런스·OX·이미지 게임 기록과 투표 데이터를 모두 삭제합니다.', fn: onClearGames },
+            { emoji: '💡', label: '건의', desc: '익명 건의 모두 삭제', bg: 'bg-sky-50 border-sky-200 hover:bg-sky-100', title: '건의 초기화', msg: '모든 익명 건의 내용을 삭제합니다.', fn: onClearSuggestions },
+            { emoji: '👤', label: '참여자', desc: '모든 프로필 삭제', bg: 'bg-slate-50 border-slate-200 hover:bg-slate-100', title: '참여자 초기화', msg: '모든 참여자 프로필을 삭제합니다. 좌석도 함께 비워집니다. 되돌릴 수 없습니다.', fn: onClearProfiles },
+          ] as const).map(item => (
             <button
-              onClick={() => { onSetActiveTables(pendingActiveTables !== undefined ? pendingActiveTables : (settings?.active_tables ?? null)); setPendingActiveTables(undefined); }}
-              className="px-4 py-2 bg-teal-500 hover:bg-teal-600 text-white rounded-xl text-xs font-black transition-all active:scale-95">
-              확인
+              key={item.label}
+              onClick={() => setConfirmAction({ title: item.title, message: item.msg, onConfirm: item.fn })}
+              className={`rounded-2xl p-3.5 border-2 flex items-center gap-3 transition-all active:scale-[0.97] text-left ${item.bg}`}
+            >
+              <span className="text-xl leading-none flex-shrink-0">{item.emoji}</span>
+              <div className="min-w-0">
+                <p className="text-sm font-black text-gray-800 leading-tight">{item.label} 초기화</p>
+                <p className="text-[10px] text-gray-500 mt-0.5 leading-tight">{item.desc}</p>
+              </div>
             </button>
-          </div>
-        </div>
-      </div>
-
-      {/* 좌석 초기화 */}
-      <div className="rounded-2xl p-5 border-2 border-orange-100 bg-orange-50">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="font-bold text-gray-900 text-sm">좌석 초기화</h3>
-            <p className="text-xs text-orange-500 mt-0.5">이력 백업 후 모든 좌석만 초기화</p>
-          </div>
-          <button onClick={() => setConfirmReset(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-orange-500 text-white rounded-xl font-semibold text-sm hover:bg-orange-600 transition-all">
-            <RotateCcw className="w-4 h-4" />
-            좌석 초기화
-          </button>
+          ))}
         </div>
       </div>
 
@@ -987,13 +967,14 @@ function DashboardTab({ settings, seats, profiles, onToggleSession, onFullReset,
           onCancel={() => setConfirmToggle(false)}
         />
       )}
-      {confirmReset && (
-        <ConfirmDialog title="좌석 초기화"
-          message="현재 좌석 데이터를 이력으로 백업한 후 모든 좌석을 초기화합니다. 참여자 프로필은 유지됩니다."
+      {confirmAction && (
+        <ConfirmDialog
+          title={confirmAction.title}
+          message={confirmAction.message}
           danger
-          confirmText="좌석초기화"
-          onConfirm={() => { setConfirmReset(false); onFullReset(); }}
-          onCancel={() => setConfirmReset(false)}
+          confirmText="초기화"
+          onConfirm={() => { confirmAction.onConfirm(); setConfirmAction(null); }}
+          onCancel={() => setConfirmAction(null)}
         />
       )}
       {confirmEventEnd && (
@@ -2955,6 +2936,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [seatingRefreshing, setSeatingRefreshing] = useState(false);
   const [seatingRefreshDone, setSeatingRefreshDone] = useState(false);
   const [seatingViewMode, setSeatingViewMode] = useState<'map' | 'manage'>('map');
+  const [pendingActiveTables, setPendingActiveTables] = useState<number[] | null | undefined>(undefined);
   const [seenHeartsCount, setSeenHeartsCountRaw] = useState(() => parseInt(localStorage.getItem('admin_seen_hearts') ?? '0', 10));
   const [seenMessagesCount, setSeenMessagesCountRaw] = useState(() => parseInt(localStorage.getItem('admin_seen_messages') ?? '0', 10));
   const [seenFeedbackCount, setSeenFeedbackCountRaw] = useState(() => parseInt(localStorage.getItem('admin_seen_feedback') ?? '0', 10));
@@ -3112,6 +3094,29 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     setLikes([]);
   };
 
+  const handleClearNotifications = async () => {
+    await adminSupabase.from('notifications').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+  };
+
+  const handleClearGames = async () => {
+    for (const t of ['balance_games', 'qa_games', 'image_games', 'balance_votes', 'qa_answers', 'image_votes']) {
+      await adminSupabase.from(t).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    }
+    await adminSupabase.from('app_settings').update({ game_state: null, updated_at: new Date().toISOString() }).eq('id', 1);
+    await loadAll();
+  };
+
+  const handleClearSuggestions = async () => {
+    await adminSupabase.from('suggestions').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    setSuggestions([]);
+  };
+
+  const handleClearProfiles = async () => {
+    await adminSupabase.from('profiles').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    await adminSupabase.rpc('admin_reset_all_seats', { p_admin_password: settings?.admin_password ?? '' });
+    await loadAll();
+  };
+
   const handleDeleteChat = async (chatId: string) => {
     await adminSupabase.from('messages').delete().eq('chat_id', chatId);
     await adminSupabase.from('chats').delete().eq('id', chatId);
@@ -3255,7 +3260,10 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         {tab === 'dashboard' && (
           <DashboardTab settings={settings} seats={seats} profiles={profiles}
             onToggleSession={handleToggleSession} onFullReset={handleFullReset} onEventEndReset={handleEventEndReset}
-            onToggleFeatureLock={handleToggleFeatureLock} onSetActiveTables={handleSetActiveTables} />
+            onToggleFeatureLock={handleToggleFeatureLock}
+            onClearLikes={handleClearLikes} onClearChats={handleClearAllChats}
+            onClearNotifications={handleClearNotifications} onClearGames={handleClearGames}
+            onClearSuggestions={handleClearSuggestions} onClearProfiles={handleClearProfiles} />
         )}
         {tab === 'seating' && (
           <div className="p-4">
@@ -3297,6 +3305,49 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                 {seatingRefreshDone ? '완료!' : seatingRefreshing ? '불러오는 중...' : '새로고침'}
               </button>
             </div>
+
+            {/* 활성 테이블 설정 */}
+            {(() => {
+              const allNums = Array.from(new Set(seats.map(s => s.table_number))).sort((a, b) => a - b);
+              const current = pendingActiveTables !== undefined ? pendingActiveTables : (settings?.active_tables ?? null);
+              return (
+                <div className="mb-3 bg-white rounded-2xl border border-gray-200 p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">활성 테이블</p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setPendingActiveTables(null)}
+                        className="text-[10px] text-teal-600 font-bold px-2 py-0.5 rounded-lg hover:bg-teal-50 transition-all">
+                        전체
+                      </button>
+                      <button
+                        onClick={() => { handleSetActiveTables(current); setPendingActiveTables(undefined); }}
+                        className="text-[10px] font-black px-3 py-1 bg-teal-500 hover:bg-teal-600 text-white rounded-lg active:scale-95 transition-all">
+                        적용
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {allNums.map(n => {
+                      const isOn = !current || current.includes(n);
+                      return (
+                        <button key={n} onClick={() => {
+                          let next: number[];
+                          if (!current) { next = allNums.filter(x => x !== n); }
+                          else if (current.includes(n)) { next = current.filter(x => x !== n); }
+                          else { next = [...current, n].sort((a, b) => a - b); }
+                          setPendingActiveTables(next.length === allNums.length ? null : next);
+                        }}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold border-2 transition-all active:scale-95 ${isOn ? 'bg-teal-500 border-teal-500 text-white' : 'bg-gray-50 border-gray-200 text-gray-400'}`}>
+                          {tableLabel(n, settings?.table_labels)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+
             {seatingViewMode === 'manage' ? (
               <SeatManagementMode
                 seats={settings?.active_tables ? seats.filter(s => settings.active_tables!.includes(s.table_number)) : seats}
