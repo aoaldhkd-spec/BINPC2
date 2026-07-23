@@ -3010,6 +3010,12 @@ function App() {
     contactPrivate: boolean;
   }) => {
     setLoading(true);
+    // Generate unique 4-digit pin code
+    const { data: existingPins } = await supabase.from('profiles').select('pin_code');
+    const usedPins = new Set((existingPins ?? []).map((p: { pin_code: string | null }) => p.pin_code).filter(Boolean));
+    let pinCode = String(Math.floor(1000 + Math.random() * 9000));
+    while (usedPins.has(pinCode)) pinCode = String(Math.floor(1000 + Math.random() * 9000));
+
     const { data: profile, error } = await supabase
       .from('profiles')
       .insert({
@@ -3026,6 +3032,7 @@ function App() {
         kakao_id: data.kakaoId || null,
         instagram_id: data.instagramId || null,
         phone_number: data.phoneNumber || null,
+        pin_code: pinCode,
       })
       .select()
       .single();

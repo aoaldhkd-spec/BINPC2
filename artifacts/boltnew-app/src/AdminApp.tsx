@@ -157,7 +157,7 @@ function ConfirmDialog({ title, message, danger, confirmText, onConfirm, onCance
         </div>
         <div className="text-center">
           <h3 className="text-lg font-bold text-gray-900">{title}</h3>
-          <p className="text-sm text-gray-600 mt-1.5 leading-relaxed">{message}</p>
+          <p className="text-sm text-gray-600 mt-1.5 leading-relaxed whitespace-pre-line">{message}</p>
         </div>
         {confirmText && (
           <div>
@@ -866,7 +866,7 @@ function QrModal({ seat, onClose }: { seat: Seat; onClose: () => void }) {
 // ─── Dashboard Tab ────────────────────────────────────────────────────────────
 
 function DashboardTab({ settings, seats, profiles, onToggleSession, onFullReset, onEventEndReset, onToggleFeatureLock,
-  onClearLikes, onClearChats, onClearNotifications, onClearGames, onClearSuggestions, onClearProfiles }: {
+  onClearLikes, onClearChats, onClearNotifications, onClearGames, onClearSuggestions, onClearProfiles, onClearHistory }: {
   settings: AppSettings | null; seats: Seat[]; profiles: Profile[];
   onToggleSession: () => void; onFullReset: () => void; onEventEndReset: () => void;
   onToggleFeatureLock: () => void;
@@ -876,6 +876,7 @@ function DashboardTab({ settings, seats, profiles, onToggleSession, onFullReset,
   onClearGames: () => Promise<void>;
   onClearSuggestions: () => Promise<void>;
   onClearProfiles: () => Promise<void>;
+  onClearHistory: () => Promise<void>;
 }) {
   const [confirmToggle, setConfirmToggle] = useState(false);
   const [confirmEventEnd, setConfirmEventEnd] = useState(false);
@@ -981,7 +982,8 @@ function DashboardTab({ settings, seats, profiles, onToggleSession, onFullReset,
             { emoji: '🔔', label: '공지', desc: '전송 공지 모두 삭제', bg: 'bg-amber-50 border-amber-200 hover:bg-amber-100', title: '공지 초기화', msg: '전송된 모든 공지를 삭제합니다.', fn: onClearNotifications },
             { emoji: '🎮', label: '게임', desc: '게임·투표 기록 삭제', bg: 'bg-violet-50 border-violet-200 hover:bg-violet-100', title: '게임 초기화', msg: '밸런스·OX·이미지 게임 기록과 투표 데이터를 모두 삭제합니다.', fn: onClearGames },
             { emoji: '💡', label: '건의', desc: '익명 건의 모두 삭제', bg: 'bg-sky-50 border-sky-200 hover:bg-sky-100', title: '건의 초기화', msg: '모든 익명 건의 내용을 삭제합니다.', fn: onClearSuggestions },
-            { emoji: '👤', label: '참여자', desc: '모든 프로필 삭제', bg: 'bg-slate-50 border-slate-200 hover:bg-slate-100', title: '참여자 초기화', msg: '모든 참여자 프로필을 삭제합니다. 좌석도 함께 비워집니다. 되돌릴 수 없습니다.', fn: onClearProfiles },
+            { emoji: '👤', label: '참여자', desc: '모든 프로필 삭제', bg: 'bg-slate-50 border-slate-200 hover:bg-slate-100', title: '참여자 초기화', msg: '모든 참여자 프로필을 삭제합니다. 좌석도 함께 비워집니다.', fn: onClearProfiles },
+            { emoji: '📋', label: '이력', desc: '회식 이력 모두 삭제', bg: 'bg-gray-50 border-gray-200 hover:bg-gray-100', title: '이력 초기화', msg: '저장된 회식 이력을 모두 삭제합니다.', fn: onClearHistory },
           ] as const).map(item => (
             <button
               key={item.label}
@@ -1006,7 +1008,7 @@ function DashboardTab({ settings, seats, profiles, onToggleSession, onFullReset,
               <span className="text-xs font-black text-red-600 bg-red-100 border border-red-300 px-2 py-0.5 rounded-full">위험</span>
               <h3 className="font-bold text-red-900 text-sm">회식 종료 전체 초기화</h3>
             </div>
-            <p className="text-xs text-red-600 mt-0.5 font-semibold">좌석·참여자·하트·익명건의 모두 삭제 — 되돌릴 수 없음</p>
+            <p className="text-xs text-red-600 mt-0.5 font-semibold">좌석·참여자·하트·채팅·공지·게임·건의·이력 모두 삭제 — 복구 불가</p>
           </div>
           <button onClick={() => setConfirmEventEnd(true)}
             className="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 bg-red-600 text-white rounded-xl font-semibold text-sm hover:bg-red-700 transition-all border-2 border-red-800">
@@ -1029,16 +1031,14 @@ function DashboardTab({ settings, seats, profiles, onToggleSession, onFullReset,
           title={confirmAction.title}
           message={confirmAction.message}
           danger
-          confirmText="초기화"
           onConfirm={() => { confirmAction.onConfirm(); setConfirmAction(null); }}
           onCancel={() => setConfirmAction(null)}
         />
       )}
       {confirmEventEnd && (
         <ConfirmDialog title="회식 종료 전체 초기화"
-          message="좌석, 참여자, 하트, 익명건의 등 모든 데이터를 초기화합니다. 채팅 메시지는 유지됩니다. 이 작업은 되돌릴 수 없습니다."
+          message={`좌석 · 참여자 · 하트 · 채팅 · 공지 · 게임 · 건의 · 이력\n모든 데이터를 초기화합니다.\n\n진짜로 전체 초기화하시겠습니까?`}
           danger
-          confirmText="전체초기화"
           onConfirm={() => { setConfirmEventEnd(false); onEventEndReset(); }}
           onCancel={() => setConfirmEventEnd(false)}
         />
@@ -2996,6 +2996,13 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [seatingRefreshDone, setSeatingRefreshDone] = useState(false);
   const [seatingViewMode, setSeatingViewMode] = useState<'map' | 'manage'>('map');
   const [pendingActiveTables, setPendingActiveTables] = useState<number[] | null | undefined>(undefined);
+  // Recovery banner
+  const [recovery, setRecovery] = useState<{ label: string; emoji: string; restore: (() => Promise<void>) | null; timerId: ReturnType<typeof setTimeout> } | null>(null);
+  // Table label editing panel
+  const [showLabelPanel, setShowLabelPanel] = useState(false);
+  const [editingLabelNum, setEditingLabelNum] = useState<number | null>(null);
+  const [labelDraft, setLabelDraft] = useState('');
+  const [savingLabel, setSavingLabel] = useState(false);
   const [seenHeartsCount, setSeenHeartsCountRaw] = useState(() => parseInt(localStorage.getItem('admin_seen_hearts') ?? '0', 10));
   const [seenMessagesCount, setSeenMessagesCountRaw] = useState(() => parseInt(localStorage.getItem('admin_seen_messages') ?? '0', 10));
   const [seenFeedbackCount, setSeenFeedbackCountRaw] = useState(() => parseInt(localStorage.getItem('admin_seen_feedback') ?? '0', 10));
@@ -3146,6 +3153,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   };
 
   const handleEventEndReset = async () => {
+    // Backup seat snapshot to history before full wipe
     const snapshot = seats.map((s) => ({
       seat_label: s.seat_label, table_number: s.table_number,
       seat_position: s.seat_position, status: s.status,
@@ -3153,22 +3161,51 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       registered_at: s.registered_at,
     }));
     await adminSupabase.from('session_history').insert({ seats_snapshot: snapshot });
+    // Wipe ALL data categories
     await adminSupabase.rpc('admin_reset_all_seats', { p_admin_password: settings?.admin_password ?? '' });
     await adminSupabase.from('profiles').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     await adminSupabase.from('likes').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     await adminSupabase.from('anonymous_reports').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    // Broadcast reset signal so all clients clear their localStorage identity.
-    await adminSupabase.from('app_settings').update({ reset_signal: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', 1);
+    await adminSupabase.from('messages').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    await adminSupabase.from('chats').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    await adminSupabase.from('notifications').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    for (const t of ['balance_games', 'qa_games', 'image_games', 'balance_votes', 'qa_answers', 'image_votes']) {
+      await adminSupabase.from(t).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    }
+    await adminSupabase.from('suggestions').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    await adminSupabase.from('app_settings').update({
+      reset_signal: new Date().toISOString(),
+      game_state: null,
+      updated_at: new Date().toISOString(),
+    }).eq('id', 1);
+    showRecovery('전체', '🗑️', null);
     await loadAll();
   };
 
+  const showRecovery = useCallback((label: string, emoji: string, restore: (() => Promise<void>) | null) => {
+    setRecovery(prev => {
+      if (prev?.timerId) clearTimeout(prev.timerId);
+      const timerId = setTimeout(() => setRecovery(null), 30000);
+      return { label, emoji, restore, timerId };
+    });
+  }, []);
+
   const handleClearLikes = async () => {
+    const backup = [...likes];
     await adminSupabase.from('likes').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     setLikes([]);
+    showRecovery('하트 기록', '❤️', backup.length > 0 ? async () => {
+      for (const l of backup) {
+        await adminSupabase.from('likes').upsert({ id: l.id, from_profile_id: l.from_profile_id, to_profile_id: l.to_profile_id, heart_type: l.heart_type, created_at: l.created_at });
+      }
+      await loadAll();
+      setRecovery(null);
+    } : null);
   };
 
   const handleClearNotifications = async () => {
     await adminSupabase.from('notifications').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    showRecovery('공지', '🔔', null);
   };
 
   const handleClearGames = async () => {
@@ -3176,17 +3213,27 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       await adminSupabase.from(t).delete().neq('id', '00000000-0000-0000-0000-000000000000');
     }
     await adminSupabase.from('app_settings').update({ game_state: null, updated_at: new Date().toISOString() }).eq('id', 1);
+    showRecovery('게임 기록', '🎮', null);
     await loadAll();
   };
 
   const handleClearSuggestions = async () => {
+    const backup = [...suggestions];
     await adminSupabase.from('suggestions').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     setSuggestions([]);
+    showRecovery('익명 건의', '💡', backup.length > 0 ? async () => {
+      for (const s of backup) {
+        await adminSupabase.from('suggestions').upsert({ id: s.id, content: s.content, created_at: s.created_at });
+      }
+      await loadAll();
+      setRecovery(null);
+    } : null);
   };
 
   const handleClearProfiles = async () => {
     await adminSupabase.from('profiles').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     await adminSupabase.rpc('admin_reset_all_seats', { p_admin_password: settings?.admin_password ?? '' });
+    showRecovery('참여자 프로필', '👤', null);
     await loadAll();
   };
 
@@ -3213,8 +3260,16 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   };
 
   const handleClearHistory = async () => {
+    const backup = [...histories];
     await adminSupabase.from('session_history').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     setHistories([]);
+    showRecovery('회식 이력', '📋', backup.length > 0 ? async () => {
+      for (const h of backup) {
+        await adminSupabase.from('session_history').upsert({ id: h.id, seats_snapshot: h.seats_snapshot, created_at: h.created_at });
+      }
+      await loadAll();
+      setRecovery(null);
+    } : null);
   };
 
   const handleClearSeat = async (seat: Seat) => {
@@ -3352,7 +3407,8 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                 onToggleFeatureLock={handleToggleFeatureLock}
                 onClearLikes={handleClearLikes} onClearChats={handleClearAllChats}
                 onClearNotifications={handleClearNotifications} onClearGames={handleClearGames}
-                onClearSuggestions={handleClearSuggestions} onClearProfiles={handleClearProfiles} />
+                onClearSuggestions={handleClearSuggestions} onClearProfiles={handleClearProfiles}
+                onClearHistory={handleClearHistory} />
             )}
             {settingsSubTab === 'qr' && <AdminQrTab seats={seats} />}
             {settingsSubTab === 'admin' && <CredentialsTab settings={settings} onSave={handleSaveCredentials} />}
@@ -3437,6 +3493,91 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                       );
                     })}
                   </div>
+                </div>
+              );
+            })()}
+
+            {/* 테이블 이름 변경 패널 */}
+            {(() => {
+              const allNums = Array.from(new Set(seats.map(s => s.table_number))).sort((a, b) => a - b);
+              return (
+                <div className="mb-3">
+                  <button
+                    onClick={() => { setShowLabelPanel(v => !v); setEditingLabelNum(null); }}
+                    className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl border-2 transition-all active:scale-[0.98] ${showLabelPanel ? 'border-violet-300 bg-violet-50' : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'}`}>
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">✏️</span>
+                      <span className={`text-sm font-black ${showLabelPanel ? 'text-violet-700' : 'text-gray-700'}`}>테이블 이름 변경</span>
+                      <span className="text-[10px] text-gray-400 font-medium">테이블 번호를 탭해서 수정</span>
+                    </div>
+                    <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${showLabelPanel ? 'rotate-180' : ''}`} />
+                  </button>
+                  {showLabelPanel && (
+                    <div className="mt-2 bg-white rounded-2xl border border-gray-200 p-3">
+                      <div className="grid grid-cols-3 gap-2">
+                        {allNums.map(n => {
+                          const curLabel = tableLabel(n, settings?.table_labels);
+                          const isEditing = editingLabelNum === n;
+                          return (
+                            <div key={n}>
+                              {isEditing ? (
+                                <div className="rounded-xl border-2 border-violet-400 bg-violet-50 p-2 space-y-1.5">
+                                  <p className="text-[10px] text-violet-500 font-bold text-center">{n}번 테이블</p>
+                                  <input
+                                    autoFocus
+                                    value={labelDraft}
+                                    onChange={e => setLabelDraft(e.target.value)}
+                                    onKeyDown={async e => {
+                                      if (e.key === 'Enter' && !savingLabel) {
+                                        setSavingLabel(true);
+                                        const base = { ...((settings?.table_labels as Record<string, string>) ?? {}) };
+                                        const t = labelDraft.trim();
+                                        if (t && t !== String(n)) base[String(n)] = t; else delete base[String(n)];
+                                        await handleSetTableLabels(Object.keys(base).length ? base : null);
+                                        setSavingLabel(false); setEditingLabelNum(null);
+                                      }
+                                      if (e.key === 'Escape') setEditingLabelNum(null);
+                                    }}
+                                    placeholder={`${n}번 표시명`}
+                                    maxLength={6}
+                                    className="w-full text-center text-sm font-bold px-2 py-1.5 rounded-lg border border-violet-300 focus:outline-none focus:border-violet-500 bg-white"
+                                  />
+                                  <div className="flex gap-1">
+                                    <button
+                                      onClick={async () => {
+                                        setSavingLabel(true);
+                                        const base = { ...((settings?.table_labels as Record<string, string>) ?? {}) };
+                                        const t = labelDraft.trim();
+                                        if (t && t !== String(n)) base[String(n)] = t; else delete base[String(n)];
+                                        await handleSetTableLabels(Object.keys(base).length ? base : null);
+                                        setSavingLabel(false); setEditingLabelNum(null);
+                                      }}
+                                      disabled={savingLabel}
+                                      className="flex-1 py-1.5 bg-violet-500 text-white text-[10px] font-black rounded-lg disabled:opacity-50 active:scale-95 transition-all">
+                                      {savingLabel ? '...' : '저장'}
+                                    </button>
+                                    <button
+                                      onClick={() => setEditingLabelNum(null)}
+                                      className="flex-1 py-1.5 bg-gray-100 text-gray-600 text-[10px] font-bold rounded-lg active:scale-95 transition-all">
+                                      취소
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => { setEditingLabelNum(n); setLabelDraft(curLabel !== String(n) ? curLabel : ''); }}
+                                  className="w-full rounded-xl border-2 border-gray-200 bg-gray-50 hover:border-violet-300 hover:bg-violet-50 p-3 flex flex-col items-center gap-1 transition-all active:scale-95 group">
+                                  <span className="text-[10px] text-gray-400 font-medium">{n}번</span>
+                                  <span className="text-lg font-black text-gray-800 leading-tight">{curLabel}</span>
+                                  <span className="text-[9px] text-gray-300 group-hover:text-violet-400 font-bold transition-colors">탭하여 수정</span>
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })()}
@@ -3573,6 +3714,35 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       </main>
 
       {qrSeat && <QrModal seat={qrSeat} onClose={() => setQrSeat(null)} />}
+
+      {/* 초기화 복구 배너 */}
+      {recovery && (
+        <div className="fixed bottom-4 inset-x-4 z-[350] max-w-sm mx-auto">
+          <div className="bg-slate-900 rounded-2xl shadow-2xl p-4 flex items-center gap-3 border border-slate-700">
+            <span className="text-xl flex-shrink-0">{recovery.emoji}</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-black text-white leading-tight">{recovery.label} 초기화 완료</p>
+              {recovery.restore ? (
+                <p className="text-[10px] text-teal-400 font-medium mt-0.5">30초 안에 복구 가능</p>
+              ) : (
+                <p className="text-[10px] text-slate-500 font-medium mt-0.5">복구 불가 — 완전 삭제됨</p>
+              )}
+            </div>
+            {recovery.restore && (
+              <button
+                onClick={() => recovery.restore!()}
+                className="flex-shrink-0 px-3 py-2 bg-teal-500 hover:bg-teal-400 text-white text-xs font-black rounded-xl transition-all active:scale-95">
+                복구
+              </button>
+            )}
+            <button
+              onClick={() => { clearTimeout(recovery.timerId); setRecovery(null); }}
+              className="flex-shrink-0 p-1.5 text-slate-400 hover:text-white transition-colors">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 밸런스 게임 결과 모달 (어느 탭에서도 표시) */}
       {adminGameEndResult && (() => {
