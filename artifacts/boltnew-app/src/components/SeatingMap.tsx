@@ -617,16 +617,9 @@ function SmallTable({ tableNum, seats, profileMap, currentUserId, isAdmin, movin
       onSelectForMove={onSelectForMove} onMoveTo={onMoveTo} />
   );
 
-  const posNum = TABLE_POS_NUM[tableNum];
-  const tableBtn = isAdmin && onSetTableLabel ? (
-    <div onClick={onTableClick} className="w-12 self-stretch rounded-lg bg-gradient-to-br from-amber-800/80 to-amber-900/80 border border-amber-700/50 shadow-inner flex flex-col items-center justify-center gap-0.5 cursor-pointer">
-      {posNum != null && <span className="text-[9px] font-black text-amber-500/80 leading-none">{posNum}</span>}
-      <span className="text-[11px] font-black text-amber-300/90 leading-none"><TableLabelEditor tableNum={tableNum} tableLabels={tableLabels} onSetTableLabel={onSetTableLabel} /></span>
-    </div>
-  ) : (
-    <button onClick={onTableClick} className={`w-12 self-stretch rounded-lg bg-gradient-to-br from-amber-800/80 to-amber-900/80 border border-amber-700/50 shadow-inner flex flex-col items-center justify-center gap-0.5 ${!isAdmin ? 'hover:border-teal-500/60 transition-colors' : ''}`}>
-      {posNum != null && <span className="text-[9px] font-black text-amber-500/80 leading-none">{posNum}</span>}
-      <span className="text-[11px] font-black text-amber-300/90 leading-none">{label}</span>
+  const tableBtn = (
+    <button onClick={onTableClick} className={`w-12 self-stretch rounded-lg bg-gradient-to-br from-amber-800/80 to-amber-900/80 border border-amber-700/50 shadow-inner flex items-center justify-center px-0.5 ${!isAdmin ? 'hover:border-teal-500/60 transition-colors' : 'cursor-pointer'}`}>
+      <span className="text-[11px] font-black text-amber-300/90 text-center leading-tight break-words whitespace-pre-wrap">{label}</span>
     </button>
   );
 

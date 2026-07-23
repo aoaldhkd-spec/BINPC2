@@ -283,7 +283,7 @@ function NotificationTab({ tableCount, settings, onSetTimer }: {
   const URGENT_QUICK = [
     { label: '⚙️ 시스템\n안정화', msg: '⚙️ 시스템 안정화 작업 중입니다. 잠시 불편하시더라도 양해 부탁드립니다.' },
   ];
-  const WHO_TARGETS = ['전체', '지목 2~3명', '탑오빠한테만', '텀동생한테만'];
+  const WHO_TARGETS = ['테이블 전체', '지목 2~3명', '탑오빠한테만', '텀동생한테만'];
   const LOST_ITEMS = ['카드', '지갑', '민증', '가방', '우산', '열쇠', '핸드폰', '안경'];
   const LOST_COLORS = [
     { label: '빨간색', cls: 'bg-red-500' }, { label: '파란색', cls: 'bg-blue-500' },
@@ -298,9 +298,6 @@ function NotificationTab({ tableCount, settings, onSetTimer }: {
   ];
   const PRIZE_AMOUNTS = ['1,000원', '2,000원', '3,000원', '5,000원', '10,000원', '15,000원', '20,000원'];
   const GAME_QUICK = [
-    '가장 웃긴 사람은?', '가장 매력 넘치는 사람은?', '가장 분위기 띄우는 사람은?',
-    '가장 술 잘 드시는 분은?', '가장 조용한 사람은?', '가장 기억에 남는 사람은?',
-    '가장 말 많은 사람은?', '가장 웃음이 예쁜 사람은?',
     '가장 ~한 사람은?', '가장 ~큰 사람은?', '가장 작은 사람은?', '가장 ~일 것 같은 사람은?',
   ];
   const PENALTY_QUICK = ['일반 질문', '19금 질문 🔞', '앞잔 (원샷 X)'];
@@ -364,7 +361,7 @@ function NotificationTab({ tableCount, settings, onSetTimer }: {
           {/* Type selector */}
           <div className="grid grid-cols-4 gap-1.5">
             {NOTIF_TYPES.map(t => (
-              <button key={t.id} onClick={() => setType(t.id)}
+              <button key={t.id} onClick={() => { setType(t.id); setMessage(''); }}
                 className={`text-xs font-bold px-2 py-2 rounded-xl border-2 transition-all text-center leading-tight ${type === t.id ? t.color + ' border-current' : 'bg-gray-50 border-gray-200 text-gray-500 hover:border-gray-400'}`}>
                 {t.label}
               </button>
@@ -3945,17 +3942,17 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               const posNum = (n: number) => { const i = SPATIAL_ORDER.indexOf(n); return i >= 0 ? i + 1 : null; };
               const rows = [displayNums.slice(0, 4), displayNums.slice(4, 8), displayNums.slice(8, 12)].filter(r => r.length > 0);
               return (
-                <div className="mb-3 bg-white rounded-2xl border border-gray-200 p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">활성 테이블</p>
-                    <div className="flex items-center gap-2">
+                <div className="mb-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">활성 테이블</p>
+                    <div className="flex items-center gap-1">
                       <button onClick={() => setPendingActiveTables(null)}
-                        className="text-[10px] text-teal-600 font-bold px-2 py-0.5 rounded-lg hover:bg-teal-50 transition-all">전체</button>
+                        className="text-[9px] text-teal-600 font-bold px-1.5 py-0.5 rounded hover:bg-teal-50 transition-all">전체</button>
                       <button onClick={() => { handleSetActiveTables(current); setPendingActiveTables(undefined); }}
-                        className="text-[10px] font-black px-3 py-1 bg-teal-500 hover:bg-teal-600 text-white rounded-lg active:scale-95 transition-all">적용</button>
+                        className="text-[9px] font-black px-2 py-0.5 bg-teal-500 hover:bg-teal-600 text-white rounded active:scale-95 transition-all">적용</button>
                     </div>
                   </div>
-                  <div className="grid grid-cols-4 gap-1">
+                  <div className="grid grid-cols-4 gap-0.5">
                     {displayNums.map(n => {
                       const isOn = !current || current.includes(n);
                       const pos = posNum(n);
@@ -3967,9 +3964,9 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                           else { next = [...current, n].sort((a, b) => a - b); }
                           setPendingActiveTables(next.length === allNums.length ? null : next);
                         }}
-                          className={`rounded-lg border-2 py-1.5 px-0.5 flex flex-col items-center gap-0 transition-all active:scale-95 ${isOn ? 'bg-teal-500 border-teal-500 text-white' : 'bg-gray-50 border-gray-200 text-gray-400'}`}>
-                          <span className={`text-xs font-black leading-tight ${isOn ? 'text-white' : 'text-gray-700'}`}>{pos ?? n}</span>
-                          <span className={`text-[7px] font-medium leading-none ${isOn ? 'text-teal-100' : 'text-gray-400'}`}>{tableLabel(n, settings?.table_labels)}</span>
+                          className={`rounded border py-0.5 flex items-center justify-center gap-0.5 transition-all active:scale-95 ${isOn ? 'bg-teal-500 border-teal-500' : 'bg-gray-50 border-gray-200'}`}>
+                          <span className={`text-[10px] font-black leading-tight ${isOn ? 'text-white' : 'text-gray-700'}`}>{pos ?? n}</span>
+                          <span className={`text-[7px] ${isOn ? 'text-teal-100' : 'text-gray-400'}`}>{tableLabel(n, settings?.table_labels)}</span>
                         </button>
                       );
                     })}
@@ -4000,8 +3997,8 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                   </button>
                   {showLabelPanel && (
                     <div className="mt-2 bg-white rounded-2xl border border-gray-200 p-3 space-y-2">
-                      {/* 4-column button grid — spatial order */}
-                      <div className="grid grid-cols-4 gap-1">
+                      {/* 4-column button grid — spatial order, 크게 표시 */}
+                      <div className="grid grid-cols-4 gap-1.5">
                         {displayNums.map(n => {
                           const curLabel = tableLabel(n, settings?.table_labels);
                           const isSelected = editingLabelNum === n;
@@ -4010,9 +4007,9 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                           return (
                             <button key={n}
                               onClick={() => { setEditingLabelNum(isSelected ? null : n); setLabelDraft(hasCustom ? curLabel : ''); }}
-                              className={`rounded-lg border-2 py-1.5 px-0.5 flex flex-col items-center gap-0 transition-all active:scale-95 ${isSelected ? 'border-violet-500 bg-violet-50' : 'border-gray-200 bg-gray-50 hover:border-violet-300 hover:bg-violet-50'}`}>
-                              <span className="text-xs font-black leading-tight text-gray-700">{pos ?? n}</span>
-                              <span className={`text-[7px] font-medium leading-none ${isSelected ? 'text-violet-600' : hasCustom ? 'text-teal-600' : 'text-gray-400'}`}>{curLabel}</span>
+                              className={`rounded-xl border-2 py-2.5 px-1 flex flex-col items-center gap-0.5 transition-all active:scale-95 ${isSelected ? 'border-violet-500 bg-violet-50' : 'border-gray-200 bg-gray-50 hover:border-violet-300 hover:bg-violet-50'}`}>
+                              <span className={`text-sm font-black leading-tight ${isSelected ? 'text-violet-700' : 'text-gray-700'}`}>{pos ?? n}</span>
+                              <span className={`text-[9px] font-medium leading-tight text-center break-all ${isSelected ? 'text-violet-500' : hasCustom ? 'text-teal-600' : 'text-gray-400'}`}>{curLabel}</span>
                             </button>
                           );
                         })}
