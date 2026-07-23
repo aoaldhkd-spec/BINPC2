@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { ArrowLeftRight, Move, Pencil, UserX, X, Check, Search, Eye, Lock, Camera, Hash, User, AlertTriangle, ChevronRight, QrCode, Copy, CheckCheck } from 'lucide-react';
+import jsQR from 'jsqr';
+import { ArrowLeftRight, Move, Pencil, UserX, X, Check, Search, Eye, Lock, Camera, Hash, User, AlertTriangle, ChevronRight } from 'lucide-react';
 import type { Database } from '../types/database';
 import { supabase } from '../lib/supabase';
 import { TABLE_POSITIONS } from '../lib/constants';
@@ -620,7 +621,7 @@ function matchesSearch(text: string, query: string): boolean {
 
 // ─── Hybrid Assign Modal ─────────────────────────────────────────────────────
 
-type AssignMode = 'show_qr' | 'qr' | 'code' | 'nickname';
+type AssignMode = 'qr' | 'code' | 'nickname';
 
 function HybridAssignModal({
   seat, adminPassword, unseatedProfiles, onAssigned, onClose,
@@ -631,8 +632,7 @@ function HybridAssignModal({
   onAssigned: (profileId: string) => void;
   onClose: () => void;
 }) {
-  const [mode, setMode] = useState<AssignMode>('show_qr');
-  const [copied, setCopied] = useState(false);
+  const [mode, setMode] = useState<AssignMode>('qr');
   const [pin, setPin] = useState('');
   const [nickSearch, setNickSearch] = useState('');
   const [pinResult, setPinResult] = useState<Profile | null | 'not_found'>(null);
@@ -648,7 +648,9 @@ function HybridAssignModal({
     !nickSearch || matchesSearch(p.nickname, nickSearch)
   );
 
-  // ── QR scanning ──────────────────────────────────────────────────────────
+  // ── QR scanning (jsQR — works on all browsers) ───────────────────────────
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
   const stopCamera = () => {
     cancelAnimationFrame(rafRef.current);
     streamRef.current?.getTracks().forEach(t => t.stop());
@@ -658,16 +660,14 @@ function HybridAssignModal({
 
   const startCamera = async () => {
     setQrError(null);
-    if (!('BarcodeDetector' in window)) {
-      setQrError('이 기기는 QR 스캔을 지원하지 않습니다.');
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setQrError('이 브라우저는 카메라를 지원하지 않습니다. 번호 입력을 이용해 주세요.');
       return;
     }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
       streamRef.current = stream;
       setCameraActive(true);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      detectorRef.current = new (window as any).BarcodeDetector({ formats: ['qr_code'] });
     } catch {
       setQrError('카메라 접근 권한이 필요합니다. 번호 입력 또는 닉네임 검색을 이용해 주세요.');
     }
@@ -680,30 +680,37 @@ function HybridAssignModal({
   }, [mode]);
 
   useEffect(() => {
-    if (!cameraActive || !videoRef.current || !detectorRef.current) return;
+    if (!cameraActive || !videoRef.current) return;
     const video = videoRef.current;
     video.srcObject = streamRef.current;
     video.play().catch(() => {});
 
+    // Create offscreen canvas for jsQR pixel extraction
+    const canvas = document.createElement('canvas');
+    canvasRef.current = canvas;
+
     const scan = async () => {
-      if (!detectorRef.current || !video.readyState || video.readyState < 2) {
+      if (!video.readyState || video.readyState < 2 || video.videoWidth === 0) {
         rafRef.current = requestAnimationFrame(scan);
         return;
       }
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const barcodes = await (detectorRef.current as any).detect(video);
-        if (barcodes.length > 0) {
-          const raw = (barcodes[0].rawValue as string).trim();
-          stopCamera();
-          if (raw.startsWith('PROFID:')) {
-            await handleProfileIdLookup(raw.replace('PROFID:', ''));
-          } else {
-            await handlePinLookup(raw);
-          }
-          return;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      if (!ctx) { rafRef.current = requestAnimationFrame(scan); return; }
+      ctx.drawImage(video, 0, 0);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
+      if (code?.data) {
+        const raw = code.data.trim();
+        stopCamera();
+        if (raw.startsWith('PROFID:')) {
+          await handleProfileIdLookup(raw.replace('PROFID:', ''));
+        } else {
+          await handlePinLookup(raw);
         }
-      } catch { /* continue */ }
+        return;
+      }
       rafRef.current = requestAnimationFrame(scan);
     };
     rafRef.current = requestAnimationFrame(scan);
@@ -749,19 +756,7 @@ function HybridAssignModal({
 
   const seatLabel = seat.seat_label.split(' ').pop() ?? seat.seat_label;
 
-  const seatQrUrl = (() => {
-    const base = localStorage.getItem('qr_base_url') || window.location.origin;
-    return `${base}/?seat=${seat.id}`;
-  })();
-  const copyUrl = () => {
-    navigator.clipboard.writeText(seatQrUrl).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }).catch(() => {});
-  };
-
   const TABS: { id: AssignMode; icon: typeof Camera; label: string }[] = [
-    { id: 'show_qr', icon: QrCode, label: '좌석 QR' },
     { id: 'qr', icon: Camera, label: 'QR 스캔' },
     { id: 'code', icon: Hash, label: '번호 입력' },
     { id: 'nickname', icon: User, label: '닉네임' },
@@ -782,7 +777,7 @@ function HybridAssignModal({
         </div>
 
         {/* Tabs */}
-        <div className="grid grid-cols-4 border-b border-gray-100">
+        <div className="grid grid-cols-3 border-b border-gray-100">
           {TABS.map(tab => {
             const Icon = tab.icon;
             const active = mode === tab.id;
@@ -798,30 +793,6 @@ function HybridAssignModal({
 
         {/* Content */}
         <div className="p-5">
-          {/* ── SHOW QR MODE ── */}
-          {mode === 'show_qr' && (
-            <div className="space-y-4 text-center">
-              <p className="text-xs text-gray-400">참여자가 아래 QR을 스캔하면 이 자리로 바로 입장합니다</p>
-              <div className="flex justify-center">
-                <div className="p-3 bg-white rounded-2xl border-2 border-gray-100 shadow-inner inline-block">
-                  <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(seatQrUrl)}&size=240x240&margin=10`}
-                    alt="Seat QR"
-                    className="w-52 h-52 rounded-xl"
-                  />
-                </div>
-              </div>
-              <p className="text-sm font-black text-gray-800">{seatLabel} 입장 QR</p>
-              <button
-                onClick={copyUrl}
-                className={`w-full py-2.5 flex items-center justify-center gap-2 text-sm font-semibold rounded-xl transition-all ${copied ? 'bg-teal-500 text-white' : 'bg-slate-800 hover:bg-slate-700 text-white'}`}
-              >
-                {copied ? <CheckCheck className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                {copied ? '복사됨!' : '링크 복사'}
-              </button>
-            </div>
-          )}
-
           {/* ── QR SCAN MODE ── */}
           {mode === 'qr' && (
             <div className="space-y-3">
