@@ -154,6 +154,22 @@ const DOM_SUB_OPTIONS: { label: string; val: number }[] = [
 type View = 'entry-1' | 'loading-main' | 'main' | 'profile' | 'chat';
 type MainTab = 'profiles' | 'seating' | 'status' | 'chats' | 'suggestions' | 'game' | 'tutorial' | 'stats' | 'ranking';
 
+// ─── Table Mini-Game Session (broadcast payload) ──────────────────────────────
+type TableMiniGameSession = {
+  sessionId: string;
+  type: 'ladder' | 'roulette';
+  participants: string[];
+  hostNickname: string;
+  tableNumber: number;
+  startedAt: string;
+  // ladder
+  bars?: { row: number; col: number }[];
+  endCols?: number[];
+  shuffledPrizes?: string[];
+  // roulette
+  winnerIdx?: number;
+};
+
 // ─── Seat Register Dialog ─────────────────────────────────────────────────────
 
 function SeatRegisterDialog({
@@ -1230,7 +1246,12 @@ const WHEEL_COLORS = [
   '#ea580c','#d97706','#16a34a','#0891b2','#2563eb',
 ];
 
-function RouletteGame({ seats, tableNumber }: { seats: Seat[]; tableNumber: number | null }) {
+function RouletteGame({ seats, tableNumber, onBroadcast, myNickname }: {
+  seats: Seat[];
+  tableNumber: number | null;
+  onBroadcast?: (s: TableMiniGameSession) => void;
+  myNickname?: string;
+}) {
   const [participants, setParticipants] = useState<string[]>([]);
   const [spinning, setSpinning] = useState(false);
   const [result, setResult] = useState<string | null>(null);
@@ -1266,10 +1287,29 @@ function RouletteGame({ seats, tableNumber }: { seats: Seat[]; tableNumber: numb
 
   const spin = () => {
     if (spinning || n < 2) return;
+    const winnerIdx = Math.floor(Math.random() * n);
+
+    // ── 테이블 동기 모드 ─────────────────────────────────────────────────────
+    if (onBroadcast && tableNumber !== null) {
+      const session: TableMiniGameSession = {
+        sessionId: Date.now().toString(),
+        type: 'roulette',
+        participants: [...participants],
+        hostNickname: myNickname ?? '알 수 없음',
+        tableNumber,
+        startedAt: new Date().toISOString(),
+        winnerIdx,
+      };
+      onBroadcast(session);
+      setParticipants([]);
+      reset();
+      return;
+    }
+
+    // ── 로컬(테이블 미배정) 모드 ─────────────────────────────────────────────
     setSpinning(true);
     setResult(null);
     setShowResult(false);
-    const winnerIdx = Math.floor(Math.random() * n);
     const winnerCenter = winnerIdx * segAngle + segAngle / 2;
     const newRot = totalRot + 360 * 8 + (360 - winnerCenter % 360);
     setTotalRot(newRot);
@@ -1386,7 +1426,12 @@ function tracePath(n: number, bars: LadderBar[], rows: number, startCol: number)
 
 const LADDER_PRESET_PRIZES = ['술 쏘기 🍺', '건배사 📣', '노래 한 곡 🎤', '벌주 한 잔 🥃', '다음 자리 쏘기 💸', '면제 ✅', '게임 마스터 🎮', '자기소개 🙋'];
 
-function LadderGame({ seats, tableNumber }: { seats: Seat[]; tableNumber: number | null }) {
+function LadderGame({ seats, tableNumber, onBroadcast, myNickname }: {
+  seats: Seat[];
+  tableNumber: number | null;
+  onBroadcast?: (s: TableMiniGameSession) => void;
+  myNickname?: string;
+}) {
   const [participants, setParticipants] = useState<string[]>([]);
   const [prizes, setPrizes] = useState<string[]>([]);
   const [prizeInput, setPrizeInput] = useState('');
@@ -1412,8 +1457,34 @@ function LadderGame({ seats, tableNumber }: { seats: Seat[]; tableNumber: number
       ? prizes.slice(0, n)
       : [...prizes, ...participants.map((_, i) => `${prizes.length + i + 1}등 🎉`)].slice(0, n);
     const sp = [...effectivePrizes].sort(() => Math.random() - 0.5);
-    setShuffledPrizes(sp);
 
+    // ── 테이블 동기 모드 ─────────────────────────────────────────────────────
+    if (onBroadcast && tableNumber !== null) {
+      const newBars = buildLadder(n, ROWS);
+      const cols = participants.map((_, i) => tracePath(n, newBars, ROWS, i));
+      const session: TableMiniGameSession = {
+        sessionId: Date.now().toString(),
+        type: 'ladder',
+        participants: [...participants],
+        hostNickname: myNickname ?? '알 수 없음',
+        tableNumber,
+        startedAt: new Date().toISOString(),
+        bars: newBars,
+        endCols: cols,
+        shuffledPrizes: sp,
+      };
+      setTimeout(() => {
+        onBroadcast(session);
+        setRunning(false);
+        setParticipants([]);
+        setPrizes([]);
+        reset();
+      }, 800);
+      return;
+    }
+
+    // ── 로컬(테이블 미배정) 모드 ─────────────────────────────────────────────
+    setShuffledPrizes(sp);
     const newBars = buildLadder(n, ROWS);
     const cols = participants.map((_, i) => tracePath(n, newBars, ROWS, i));
 
@@ -1565,7 +1636,7 @@ type UserGameSubTab = 'balance' | 'ladder' | 'roulette';
 
 function UserGameTab({
   currentUserId, tableNumber, currentUserNickname, balanceGames, voteCounts, myVotes,
-  seats, onVote, onCreateGame, onEndGame,
+  seats, onVote, onCreateGame, onEndGame, onBroadcastGame,
 }: {
   currentUserId: string | null;
   tableNumber: number | null;
@@ -1577,6 +1648,7 @@ function UserGameTab({
   onVote: (gameId: string, option: 'a' | 'b') => void;
   onCreateGame: (question: string, optA: string, optB: string, scope: 'global' | 'table') => void;
   onEndGame: (gameId: string) => void;
+  onBroadcastGame?: (s: TableMiniGameSession) => void;
 }) {
   const [subTab, setSubTab] = useState<UserGameSubTab>('balance');
   const [showCreate, setShowCreate] = useState(false);
@@ -1688,18 +1760,216 @@ function UserGameTab({
 
       {/* 사다리타기 */}
       {subTab === 'ladder' && (
-        <LadderGame seats={seats} tableNumber={tableNumber} />
+        <LadderGame seats={seats} tableNumber={tableNumber}
+          onBroadcast={onBroadcastGame} myNickname={currentUserNickname} />
       )}
 
       {/* 돌림판 */}
       {subTab === 'roulette' && (
-        <RouletteGame seats={seats} tableNumber={tableNumber} />
+        <RouletteGame seats={seats} tableNumber={tableNumber}
+          onBroadcast={onBroadcastGame} myNickname={currentUserNickname} />
       )}
     </div>
   );
 }
 
+// ─── Table Mini-Game Modal (동기 결과 표시) ────────────────────────────────────
+function TableMiniGameModal({ session, onClose }: {
+  session: TableMiniGameSession;
+  onClose: () => void;
+}) {
+  const wheelRef = useRef<SVGSVGElement>(null);
+  const [showRouletteResult, setShowRouletteResult] = useState(false);
+  const [revealed, setRevealed] = useState(0);
+  const [visible, setVisible] = useState(false);
 
+  const n = session.participants.length;
+  const segAngle = n > 0 ? 360 / n : 0;
+
+  // 진입 애니메이션 + 게임 애니메이션
+  useEffect(() => {
+    const t = setTimeout(() => setVisible(true), 30);
+
+    if (session.type === 'roulette' && session.winnerIdx !== undefined) {
+      const winnerCenter = session.winnerIdx * segAngle + segAngle / 2;
+      const finalRot = 360 * 8 + (360 - winnerCenter % 360);
+      // 두 번의 rAF으로 transition: none 후 재적용
+      requestAnimationFrame(() => {
+        if (wheelRef.current) {
+          wheelRef.current.style.transition = 'none';
+          wheelRef.current.style.transform = 'rotate(0deg)';
+          requestAnimationFrame(() => {
+            if (wheelRef.current) {
+              wheelRef.current.style.transition = 'transform 4s cubic-bezier(0.25, 0.1, 0.1, 1)';
+              wheelRef.current.style.transform = `rotate(${finalRot}deg)`;
+            }
+          });
+        }
+      });
+      const tm = setTimeout(() => setShowRouletteResult(true), 4250);
+      return () => { clearTimeout(t); clearTimeout(tm); };
+    }
+
+    if (session.type === 'ladder' && session.endCols) {
+      const timers: ReturnType<typeof setTimeout>[] = [];
+      session.endCols.forEach((_, idx) => {
+        timers.push(setTimeout(() => setRevealed(idx + 1), idx * 350 + 600));
+      });
+      return () => { clearTimeout(t); timers.forEach(clearTimeout); };
+    }
+
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session.sessionId]);
+
+  // 돌림판 SVG helpers
+  const SIZE = 240;
+  const CX = SIZE / 2, CY = SIZE / 2, R = SIZE / 2 - 6;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const getSeg = (i: number) => {
+    const s = i * segAngle - 90, e = (i + 1) * segAngle - 90;
+    const x1 = CX + R * Math.cos(toRad(s)), y1 = CY + R * Math.sin(toRad(s));
+    const x2 = CX + R * Math.cos(toRad(e)), y2 = CY + R * Math.sin(toRad(e));
+    const mid = s + segAngle / 2, tr = R * 0.65;
+    return {
+      path: `M ${CX} ${CY} L ${x1} ${y1} A ${R} ${R} 0 ${segAngle > 180 ? 1 : 0} 1 ${x2} ${y2} Z`,
+      tx: CX + tr * Math.cos(toRad(mid)), ty: CY + tr * Math.sin(toRad(mid)), tAngle: mid + 90,
+    };
+  };
+
+  // 사다리 SVG helpers
+  const bars = session.bars ?? [];
+  const endCols = session.endCols ?? [];
+  const shuffledPrizes = session.shuffledPrizes ?? [];
+  const ROWS = Math.max(6, n + 2);
+  const SVG_PAD = 24;
+  const SVG_W = Math.max(180, Math.min(320, SVG_PAD * 2 + n * 42));
+  const SVG_H = 130;
+  const colGap = n > 1 ? (SVG_W - SVG_PAD * 2) / (n - 1) : 0;
+  const rowGap = SVG_H / (ROWS + 1);
+  const cx = (col: number) => SVG_PAD + col * colGap;
+  const ry = (row: number) => rowGap * (row + 1);
+
+  return (
+    <div className={`fixed inset-0 z-[97] flex items-end justify-center transition-all duration-300 ${visible ? 'bg-black/80 backdrop-blur-sm' : 'bg-transparent'}`}>
+      <div className={`w-full max-w-sm bg-white rounded-t-3xl shadow-2xl flex flex-col max-h-[88dvh] transition-all duration-400 ${visible ? 'translate-y-0' : 'translate-y-full'}`}>
+        {/* 헤더 */}
+        <div className="bg-gradient-to-r from-violet-600 to-purple-600 px-5 py-4 flex items-center gap-3 flex-shrink-0 rounded-t-3xl">
+          <span className="text-3xl">{session.type === 'ladder' ? '🪜' : '🎡'}</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] text-violet-200 font-semibold">{session.tableNumber}번 테이블</p>
+            <p className="text-sm font-black text-white leading-tight">
+              {session.hostNickname}님이 {session.type === 'ladder' ? '사다리타기' : '돌림판'}를 시작했어요!
+            </p>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full bg-white/20 text-white active:scale-90">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* 내용 */}
+        <div className="overflow-y-auto flex-1 px-5 py-5 space-y-4">
+          {/* 참여자 칩 */}
+          <div className="flex flex-wrap gap-1.5 justify-center">
+            {session.participants.map((name, i) => (
+              <span key={i} className="px-2.5 py-1 bg-violet-100 text-violet-700 text-xs font-bold rounded-full">{name}</span>
+            ))}
+          </div>
+
+          {/* 돌림판 */}
+          {session.type === 'roulette' && n >= 2 && (
+            <div className="space-y-4">
+              <div className="flex flex-col items-center gap-1">
+                <div className="w-0 h-0" style={{ borderLeft: '10px solid transparent', borderRight: '10px solid transparent', borderTop: '22px solid #7c3aed', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,.25))' }} />
+                <div className="rounded-full shadow-xl overflow-hidden" style={{ width: SIZE, height: SIZE }}>
+                  <svg ref={wheelRef} width={SIZE} height={SIZE} style={{ display: 'block', transformOrigin: `${CX}px ${CY}px` }}>
+                    {session.participants.map((name, i) => {
+                      const { path, tx, ty, tAngle } = getSeg(i);
+                      return (
+                        <g key={i}>
+                          <path d={path} fill={WHEEL_COLORS[i % WHEEL_COLORS.length]} stroke="white" strokeWidth="2" />
+                          <text x={tx} y={ty} textAnchor="middle" dominantBaseline="middle"
+                            fill="white" fontSize={n > 6 ? 9 : 11} fontWeight="bold"
+                            transform={`rotate(${tAngle},${tx},${ty})`}>
+                            {name.length > 5 ? name.slice(0, 5) + '…' : name}
+                          </text>
+                        </g>
+                      );
+                    })}
+                    <circle cx={CX} cy={CY} r={18} fill="white" stroke="#7c3aed" strokeWidth="3" />
+                    <circle cx={CX} cy={CY} r={9} fill="#7c3aed" />
+                  </svg>
+                </div>
+              </div>
+              {showRouletteResult && session.winnerIdx !== undefined && (
+                <div className="text-center" style={{ animation: 'slideInUp 0.35s ease-out' }}>
+                  <div className="inline-block bg-gradient-to-r from-violet-500 to-purple-600 rounded-2xl px-8 py-4 shadow-xl shadow-violet-500/30">
+                    <p className="text-[10px] font-bold text-violet-200 uppercase tracking-widest mb-1">🏆 당첨!</p>
+                    <p className="text-2xl font-black text-white">{session.participants[session.winnerIdx]}</p>
+                  </div>
+                </div>
+              )}
+              {!showRouletteResult && (
+                <p className="text-center text-xs text-gray-400 animate-pulse">🎡 돌아가는 중...</p>
+              )}
+            </div>
+          )}
+
+          {/* 사다리 */}
+          {session.type === 'ladder' && n >= 2 && (
+            <div className="space-y-4">
+              <div className="bg-gray-50 rounded-2xl p-4">
+                <div className="flex justify-center">
+                  <svg width={SVG_W} height={SVG_H + 32} style={{ overflow: 'visible' }}>
+                    {session.participants.map((name, i) => (
+                      <text key={i} x={cx(i)} y={10} textAnchor="middle" fontSize={n > 6 ? 8 : 9} fontWeight="bold" fill="#6d28d9">
+                        {name.length > 3 ? name.slice(0, 3) + '…' : name}
+                      </text>
+                    ))}
+                    {session.participants.map((_, i) => (
+                      <line key={i} x1={cx(i)} y1={15} x2={cx(i)} y2={SVG_H + 4}
+                        stroke="#8b5cf6" strokeWidth="2.5" strokeLinecap="round" />
+                    ))}
+                    {bars.map((b, i) => (
+                      <line key={i} x1={cx(b.col)} y1={ry(b.row)} x2={cx(b.col + 1)} y2={ry(b.row)}
+                        stroke="#f59e0b" strokeWidth="2.5" strokeLinecap="round" />
+                    ))}
+                    {endCols.map((endCol, i) => (
+                      <text key={i} x={cx(endCol)} y={SVG_H + 22} textAnchor="middle" fontSize={8} fill="#d97706" fontWeight="bold">
+                        {(shuffledPrizes[endCol] ?? '').slice(0, 6)}
+                      </text>
+                    ))}
+                  </svg>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">결과</p>
+                {session.participants.slice(0, revealed).map((name, i) => (
+                  <div key={i} className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl px-4 py-3"
+                    style={{ animation: 'slideInUp 0.3s ease-out' }}>
+                    <span className="font-black text-gray-900 text-sm">{name}</span>
+                    <span className="text-amber-700 font-black text-sm">{shuffledPrizes[endCols[i]] ?? ''}</span>
+                  </div>
+                ))}
+                {revealed < n && (
+                  <p className="text-center text-xs text-gray-400 animate-pulse py-1">결과 공개 중...</p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* CTA */}
+        <div className="px-5 pb-6 pt-3 flex-shrink-0">
+          <button onClick={onClose}
+            className="w-full py-3.5 bg-gradient-to-r from-violet-500 to-purple-600 text-white font-black rounded-2xl text-sm shadow-lg shadow-violet-500/30 active:scale-[0.98]">
+            확인
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function WaitingOverlay({ sessionActive, onEnter }: {
   sessionActive: boolean | null; onEnter: () => void;
@@ -2842,6 +3112,8 @@ function App() {
   const [gameEndResult, setGameEndResult] = useState<{ game: BalanceGame; counts: { a: number; b: number } } | null>(null);
   const [activeNotif, setActiveNotif] = useState<{ id: string; message: string; type: string; target: string } | null>(null);
   const [showWelcomeNotice, setShowWelcomeNotice] = useState(false);
+  const [incomingTableGame, setIncomingTableGame] = useState<TableMiniGameSession | null>(null);
+  const tableMinigameChRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const [timerEndAt, setTimerEndAt] = useState<string | null>(null);
   const [timerLabel, setTimerLabel] = useState<string | null>(null);
   const [rejectionNotif, setRejectionNotif] = useState<string | null>(null); // nickname of person who rejected
@@ -3055,6 +3327,44 @@ function App() {
       supabase.removeChannel(imageGameChannel);
       supabase.removeChannel(contactEventsChannel);
     };
+  }, []);
+
+  // ── 테이블 미니게임 브로드캐스트 채널 ────────────────────────────────────────
+  // seats 또는 currentUserId 변경(자리 배정·변경) 시 해당 테이블 채널 재구독
+  useEffect(() => {
+    if (!currentUserId) return;
+    const tableNum = seats.find(s => s.profile_id === currentUserId)?.table_number ?? null;
+
+    if (tableMinigameChRef.current) {
+      supabase.removeChannel(tableMinigameChRef.current);
+      tableMinigameChRef.current = null;
+    }
+    if (tableNum === null) return;
+
+    const ch = supabase
+      .channel(`table-minigame-${tableNum}`)
+      .on('broadcast', { event: 'game_start' }, ({ payload }) => {
+        setIncomingTableGame(payload as TableMiniGameSession);
+      })
+      .subscribe();
+    tableMinigameChRef.current = ch;
+
+    return () => {
+      if (tableMinigameChRef.current) {
+        supabase.removeChannel(tableMinigameChRef.current);
+        tableMinigameChRef.current = null;
+      }
+    };
+  }, [currentUserId, seats]);
+
+  // 호스트가 게임을 시작할 때 호출 → 채널 브로드캐스트 + 본인도 모달 표시
+  const broadcastTableGame = useCallback((session: TableMiniGameSession) => {
+    tableMinigameChRef.current?.send({
+      type: 'broadcast',
+      event: 'game_start',
+      payload: session,
+    });
+    setIncomingTableGame(session);
   }, []);
 
   const loadProfiles = useCallback(async () => {
@@ -4028,7 +4338,15 @@ function App() {
         newMsgCount={newMsgCount}
         onClearMsgCount={() => setNewMsgCount(0)}
         resetPassword={resetPassword}
+        onBroadcastGame={broadcastTableGame}
       />
+      {/* Table Mini-Game Modal (테이블 동기 게임 결과) */}
+      {incomingTableGame && (
+        <TableMiniGameModal
+          session={incomingTableGame}
+          onClose={() => setIncomingTableGame(null)}
+        />
+      )}
       {seatDialog && (
         <SeatRegisterDialog
           seat={seatDialog}
@@ -5173,7 +5491,7 @@ function MainScreen({
   onContactShareOpen, onContactViewOpen, onHeartResponse, onDeleteChat, onSubmitSuggestion, onOpenChat,
   onVote, onCreateGame, onEndGame, onSubmitAnonymousReport,
   timerEndAt, timerLabel, onRefreshStatus, onRefreshChat, onRefreshProfiles, onRefreshSeating, darkMode, onToggleDark, onShowQr, seatingLocked, activeTables, tableLabels, onShowTutorial,
-  newMsgCount, onClearMsgCount, resetPassword,
+  newMsgCount, onClearMsgCount, resetPassword, onBroadcastGame,
 }: {
   profiles: Profile[]; currentUserId: string | null; likedIds: Set<string>; sentHeartTypes: Map<string, HeartType>; likeStatuses: Map<string, string>;
   seats: Seat[]; profileMap: Map<string, Profile>; mainTab: MainTab;
@@ -5210,6 +5528,7 @@ function MainScreen({
   newMsgCount: number;
   onClearMsgCount: () => void;
   resetPassword: string | null;
+  onBroadcastGame: (s: TableMiniGameSession) => void;
 }) {
   const heartCount = useCallback((t: HeartType) => { let c = 0; sentHeartTypes.forEach(v => { if (v === t) c++; }); return c; }, [sentHeartTypes]);
   const currentUserSeat = useMemo(() => seats.find(s => s.profile_id === currentUserId) ?? null, [seats, currentUserId]);
@@ -5973,6 +6292,7 @@ function MainScreen({
               onVote={onVote}
               onCreateGame={onCreateGame}
               onEndGame={onEndGame}
+              onBroadcastGame={tableNumber !== null ? onBroadcastGame : undefined}
             />
           )
         )}
