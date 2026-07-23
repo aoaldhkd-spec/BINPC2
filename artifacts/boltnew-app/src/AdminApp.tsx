@@ -2999,11 +2999,13 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [seenHeartsCount, setSeenHeartsCountRaw] = useState(() => parseInt(localStorage.getItem('admin_seen_hearts') ?? '0', 10));
   const [seenMessagesCount, setSeenMessagesCountRaw] = useState(() => parseInt(localStorage.getItem('admin_seen_messages') ?? '0', 10));
   const [seenFeedbackCount, setSeenFeedbackCountRaw] = useState(() => parseInt(localStorage.getItem('admin_seen_feedback') ?? '0', 10));
+  const [seenProfilesCount, setSeenProfilesCountRaw] = useState(() => parseInt(localStorage.getItem('admin_seen_profiles') ?? '0', 10));
   const [seenGameActive, setSeenGameActiveRaw] = useState(() => localStorage.getItem('admin_seen_game') === 'true');
 
   const setSeenHeartsCount = (n: number) => { localStorage.setItem('admin_seen_hearts', String(n)); setSeenHeartsCountRaw(n); };
   const setSeenMessagesCount = (n: number) => { localStorage.setItem('admin_seen_messages', String(n)); setSeenMessagesCountRaw(n); };
   const setSeenFeedbackCount = (n: number) => { localStorage.setItem('admin_seen_feedback', String(n)); setSeenFeedbackCountRaw(n); };
+  const setSeenProfilesCount = (n: number) => { localStorage.setItem('admin_seen_profiles', String(n)); setSeenProfilesCountRaw(n); };
   const setSeenGameActive = (v: boolean) => { localStorage.setItem('admin_seen_game', String(v)); setSeenGameActiveRaw(v); };
 
   const profileMap = new Map(profiles.map((p) => [p.id, p]));
@@ -3101,6 +3103,18 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'suggestions' }, () => {
         adminSupabase.from('suggestions').select('*').order('created_at', { ascending: false }).then(({ data }) => { if (data) setSuggestions(data as Suggestion[]); });
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'likes' }, (payload) => {
+        setLikes(prev => prev.filter(l => l.id !== (payload.old as Like).id));
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, () => {
+        adminSupabase.from('messages').select('*').order('created_at', { ascending: true }).then(({ data }) => { if (data) setAllMessages(data as Message[]); });
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'chats' }, () => {
+        adminSupabase.from('chats').select('*').order('created_at', { ascending: false }).then(({ data }) => { if (data) setAllChats(data as Chat[]); });
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'anonymous_reports' }, (payload) => {
+        setAnonymousReports(prev => prev.map(r => r.id === (payload.new as AnonymousReport).id ? payload.new as AnonymousReport : r));
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -3262,6 +3276,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
   const handleTabChange = (t: AdminTab) => {
     if (t === 'game') setSeenGameActive(!!currentGame?.active);
+    if (t === 'profiles') setSeenProfilesCount(profiles.length);
     setTab(t);
   };
 
@@ -3276,7 +3291,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const TABS: { id: AdminTab; label: string; icon: React.ReactNode; badge?: number }[] = [
     { id: 'settings', label: '설정', icon: <LayoutGrid className="w-4 h-4" /> },
     { id: 'seating', label: '배치도', icon: <LayoutGrid className="w-4 h-4" /> },
-    { id: 'profiles', label: '참여자', icon: <Users className="w-4 h-4" /> },
+    { id: 'profiles', label: '참여자', icon: <Users className="w-4 h-4" />, badge: Math.max(0, profiles.length - seenProfilesCount) || undefined },
     { id: 'notify', label: '공지', icon: <BellRing className="w-4 h-4" /> },
     { id: 'game', label: '게임', icon: <Gamepad2 className="w-4 h-4" />, badge: !seenGameActive && currentGame?.active ? 1 : 0 },
     { id: 'history', label: '이력', icon: <History className="w-4 h-4" />, badge: historyBadge > 0 ? historyBadge : undefined },
@@ -3461,8 +3476,8 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               {([
                 { id: 'hearts' as HistorySubTab, label: '하트', badge: Math.max(0, likes.length - seenHeartsCount) },
                 { id: 'chats' as HistorySubTab, label: '채팅', badge: Math.max(0, allMessages.length - seenMessagesCount) },
-                { id: 'session' as HistorySubTab, label: '회식 이력', badge: 0 },
-                { id: 'feedback' as HistorySubTab, label: '피드백', badge: Math.max(0, feedbackTotal - seenFeedbackCount) },
+                { id: 'session' as HistorySubTab, label: '회식', badge: 0 },
+                { id: 'feedback' as HistorySubTab, label: '건의', badge: Math.max(0, feedbackTotal - seenFeedbackCount) },
               ]).map(st => (
                 <button key={st.id} onClick={() => handleHistorySubTabChange(st.id)}
                   className={`flex items-center gap-1.5 flex-shrink-0 px-4 py-2.5 text-xs font-semibold border-b-2 transition-all ${historySubTab === st.id ? 'border-teal-500 text-teal-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>

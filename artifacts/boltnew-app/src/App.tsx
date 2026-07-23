@@ -4675,8 +4675,12 @@ function MainScreen({
   const heartsKey = `seen_hearts_${currentUserId ?? 'x'}`;
   const gameKey = `seen_game_${currentUserId ?? 'x'}`;
   const contactsKey = `seen_contacts_${currentUserId ?? 'x'}`;
+  const profilesKey = `seen_profiles_${currentUserId ?? 'x'}`;
   const [seenHeartsCount, setSeenHeartsCountRaw] = useState(() => {
     const v = ls.getItem(heartsKey); return v !== null ? parseInt(v, 10) : 0;
+  });
+  const [seenProfilesCount, setSeenProfilesCountRaw] = useState(() => {
+    const v = ls.getItem(profilesKey); return v !== null ? parseInt(v, 10) : -1;
   });
   const activeGameCount = useMemo(() => balanceGames.filter(g =>
     g.status === 'active' && (
@@ -4692,6 +4696,7 @@ function MainScreen({
   });
 
   const setSeenHeartsCount = (n: number) => { ls.setItem(heartsKey, String(n)); setSeenHeartsCountRaw(n); };
+  const setSeenProfilesCount = (n: number) => { ls.setItem(profilesKey, String(n)); setSeenProfilesCountRaw(n); };
   const setSeenGameCount = (n: number) => { ls.setItem(gameKey, String(n)); setSeenGameCountRaw(n); };
   const setSeenContactsCount = (n: number) => { ls.setItem(contactsKey, String(n)); setSeenContactsCountRaw(n); };
 
@@ -4705,11 +4710,12 @@ function MainScreen({
     baselineSetRef.current = true;
     setSeenHeartsCount(pendingHeartsCount);
     setSeenContactsCount(receivedContactShares.length);
+    setSeenProfilesCount(profiles.length);
     if (activeGameCount > 0) setSeenGameCount(activeGameCount);
   }, []);
 
   const handleTabChange = (t: MainTab) => {
-    if (t === 'status') { setSeenHeartsCount(pendingHeartsCount); setSeenContactsCount(receivedContactShares.length); }
+    if (t === 'status') { setSeenHeartsCount(pendingHeartsCount); setSeenContactsCount(receivedContactShares.length); setSeenProfilesCount(profiles.length); }
     if (t === 'chats') onClearMsgCount();
     if (t === 'game') setSeenGameCount(activeGameCount);
     onTabChange(t);
@@ -4786,7 +4792,7 @@ function MainScreen({
         {/* Bottom Tab Bar */}
         <div className={`max-w-7xl mx-auto flex border-t-2 overflow-x-auto scrollbar-hide safe-area-pb ${darkMode ? 'bg-slate-900 border-slate-700' : 'bg-gray-50 border-gray-200'}`} style={{ WebkitOverflowScrolling: 'touch' }}>
           {([
-            { id: 'status' as MainTab, label: '나·참여자', icon: <UserCheck className="w-5 h-5" />, badge: Math.max(0, pendingHeartsCount - seenHeartsCount) + newContactsCount },
+            { id: 'status' as MainTab, label: '나·참여자', icon: <UserCheck className="w-5 h-5" />, badge: Math.max(0, pendingHeartsCount - seenHeartsCount) + newContactsCount + (seenProfilesCount < 0 ? 0 : Math.max(0, profiles.length - seenProfilesCount)) },
             { id: 'seating' as MainTab, label: '배치도', icon: <LayoutGrid className="w-5 h-5" /> },
             { id: 'chats' as MainTab, label: '채팅·건의', icon: <MessageCircle className="w-5 h-5" />, badge: newMsgCount },
             { id: 'game' as MainTab, label: '게임', icon: <Gamepad2 className="w-5 h-5" />, badge: Math.max(0, activeGameCount - seenGameCount) },
@@ -5493,7 +5499,7 @@ function MainScreen({
 
         {/* ─── 랭킹 탭 ─── */}
         {mainTab === 'ranking' && (
-          <RankingTab seats={seats} darkMode={darkMode} />
+          <RankingTab seats={seats} darkMode={darkMode} profiles={profiles} />
         )}
 
       </main>

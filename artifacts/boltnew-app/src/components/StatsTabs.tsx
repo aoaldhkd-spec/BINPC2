@@ -221,8 +221,18 @@ export function StatsTab({ profiles, seats, darkMode }: { profiles: Profile[]; s
 }
 
 // ─── 랭킹 탭 ──────────────────────────────────────────────────────────────────
-export function RankingTab({ seats, darkMode }: { seats: Seat[]; darkMode: boolean }) {
+export function RankingTab({ seats, darkMode, profiles: propProfiles }: { seats: Seat[]; darkMode: boolean; profiles?: Profile[] }) {
   const [allLikes, setAllLikes] = useState<Like[]>([]);
+  const [fetchedProfiles, setFetchedProfiles] = useState<Profile[]>([]);
+
+  useEffect(() => {
+    if (propProfiles) return;
+    let active = true;
+    supabase.from('profiles').select('*').then(({ data }) => {
+      if (active && data) setFetchedProfiles(data as Profile[]);
+    });
+    return () => { active = false; };
+  }, [propProfiles]);
 
   useEffect(() => {
     let active = true;
@@ -249,23 +259,25 @@ export function RankingTab({ seats, darkMode }: { seats: Seat[]; darkMode: boole
 
   const maxTotal = ranked.length > 0 ? ranked[0].total : 1;
   const medalColors = ['#f59e0b', '#94a3b8', '#b45309'];
+  const allProfiles = propProfiles ?? fetchedProfiles;
+  const profileMap = new Map(allProfiles.map(p => [p.id, p]));
 
   return (
     <div className="max-w-3xl mx-auto space-y-4">
       <div className="flex items-center gap-2 px-1">
         <Trophy className="w-5 h-5 text-amber-500" />
-        <h2 className={`text-lg font-black ${darkMode ? 'text-white' : 'text-gray-800'}`}>하트 랭킹</h2>
-        <span className={`text-[11px] ml-auto ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>닉네임 비공개 · 순위만 표시</span>
+        <h2 className={`text-lg font-black ${darkMode ? 'text-white' : 'text-gray-800'}`}>인기도 랭킹</h2>
+        <span className={`text-[11px] ml-auto ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>하트 많이 받은 순</span>
       </div>
 
       <div className={`rounded-2xl shadow-sm p-4 border transition-colors duration-300 flex items-start gap-2.5 ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-100'}`}>
         <Award className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
         <div>
           <p className={`text-xs font-bold leading-relaxed ${darkMode ? 'text-slate-200' : 'text-gray-700'}`}>
-            하트를 가장 많이 받은 참여자 TOP 10
+            하트를 가장 많이 받은 인기인 TOP 10
           </p>
           <p className={`text-[11px] mt-0.5 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
-            누가 받았는지는 공개되지 않으며, 받은 하트 종류별 통계만 표시됩니다.
+            누가 보냈는지는 공개되지 않으며, 받은 하트 종류별 통계만 표시됩니다.
           </p>
         </div>
       </div>
@@ -279,17 +291,26 @@ export function RankingTab({ seats, darkMode }: { seats: Seat[]; darkMode: boole
         <div className="space-y-2.5">
           {ranked.map((r, i) => {
             const seat = seats.find((s) => s.profile_id === r.id);
+            const profile = profileMap.get(r.id);
             const isTop3 = i < 3;
+            const medal = i === 0 ? '👑' : i === 1 ? '🥈' : '🥉';
             return (
               <div key={r.id} className={`rounded-2xl p-4 border shadow-sm transition-colors duration-300 ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-100'}`}>
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full flex items-center justify-center font-black text-white text-sm flex-shrink-0"
+                  <div className="w-9 h-9 rounded-full flex items-center justify-center font-black text-white text-sm flex-shrink-0 shrink-0"
                     style={{ background: isTop3 ? medalColors[i] : '#0891b2' }}>
-                    {i + 1}
+                    {isTop3 ? medal : i + 1}
                   </div>
+                  {profile?.photo_url ? (
+                    <img src={profile.photo_url} alt={profile.nickname} className="w-9 h-9 rounded-full object-cover flex-shrink-0" />
+                  ) : (
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center text-base font-black flex-shrink-0 ${darkMode ? 'bg-slate-600 text-slate-300' : 'bg-gray-100 text-gray-500'}`}>
+                      {profile?.nickname?.charAt(0) ?? '?'}
+                    </div>
+                  )}
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm font-black truncate ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                      {isTop3 ? (i === 0 ? '👑 1위' : i === 1 ? '🥈 2위' : '🥉 3위') : `${i + 1}위`}
+                      {profile?.nickname ?? `${i + 1}위`}
                       <span className={`text-xs font-bold ml-1.5 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>총 {r.total}개</span>
                     </p>
                     {seat && (
