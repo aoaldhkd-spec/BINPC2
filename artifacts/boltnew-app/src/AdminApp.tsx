@@ -283,6 +283,7 @@ function NotificationTab({ tableCount, settings, onSetTimer }: {
   const URGENT_QUICK = [
     { label: '⚙️ 시스템\n안정화', msg: '⚙️ 시스템 안정화 작업 중입니다. 잠시 불편하시더라도 양해 부탁드립니다.' },
   ];
+  const WHO_TARGETS = ['전체', '지목 2~3명', '탑오빠한테만', '텀동생한테만'];
   const LOST_ITEMS = ['카드', '지갑', '민증', '가방', '우산', '열쇠', '핸드폰', '안경'];
   const LOST_COLORS = [
     { label: '빨간색', cls: 'bg-red-500' }, { label: '파란색', cls: 'bg-blue-500' },
@@ -300,11 +301,13 @@ function NotificationTab({ tableCount, settings, onSetTimer }: {
     '가장 웃긴 사람은?', '가장 매력 넘치는 사람은?', '가장 분위기 띄우는 사람은?',
     '가장 술 잘 드시는 분은?', '가장 조용한 사람은?', '가장 기억에 남는 사람은?',
     '가장 말 많은 사람은?', '가장 웃음이 예쁜 사람은?',
+    '가장 ~한 사람은?', '가장 ~큰 사람은?', '가장 작은 사람은?', '가장 ~일 것 같은 사람은?',
   ];
   const PENALTY_QUICK = ['일반 질문', '19금 질문 🔞', '앞잔 (원샷 X)'];
 
   const [lostItem, setLostItem] = useState<string|null>(null);
   const [lostColor, setLostColor] = useState<string|null>(null);
+  const [showLostPicker, setShowLostPicker] = useState(false);
   const [awardType, setAwardType] = useState<number|null>(null);
   const [prizeAmount, setPrizeAmount] = useState<string>('5,000원');
 
@@ -388,44 +391,53 @@ function NotificationTab({ tableCount, settings, onSetTimer }: {
             {type === 'urgent' && (
               <div className="space-y-2">
                 <div className="grid grid-cols-2 gap-1.5">
+                  {/* 시스템안정화 — 클릭 시 메시지 바로 적용 */}
                   {URGENT_QUICK.map(t => (
-                    <button key={t.label} onClick={() => setMessage(t.msg)}
+                    <button key={t.label} onClick={() => { setMessage(t.msg); setShowLostPicker(false); }}
                       className="text-xs font-semibold px-2 py-2.5 rounded-xl bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 transition-all text-center whitespace-pre-line leading-snug active:scale-95">
                       {t.label}
                     </button>
                   ))}
-                </div>
-                {/* 분실물 picker */}
-                <div className="bg-red-50 border border-red-200 rounded-2xl p-3 space-y-2">
-                  <p className="text-xs font-black text-red-700">📦 분실물 안내 생성기</p>
-                  <div className="flex flex-wrap gap-1">
-                    {LOST_ITEMS.map(item => (
-                      <button key={item} onClick={() => setLostItem(lostItem === item ? null : item)}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-bold border-2 transition-all active:scale-95 ${lostItem === item ? 'bg-red-500 border-red-500 text-white' : 'bg-white border-red-200 text-red-700 hover:border-red-400'}`}>
-                        {item}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    {LOST_COLORS.map(c => (
-                      <button key={c.label} onClick={() => setLostColor(lostColor === c.label ? null : c.label)}
-                        className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold border-2 transition-all active:scale-95 ${lostColor === c.label ? 'border-red-500 bg-red-50' : 'border-gray-200 bg-white hover:border-red-300'}`}>
-                        <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${c.cls}`} />
-                        {c.label}
-                      </button>
-                    ))}
-                  </div>
+                  {/* 분실물 탭 버튼 */}
                   <button
-                    disabled={!lostItem && !lostColor}
-                    onClick={() => {
-                      const colorPart = lostColor ? lostColor + ' ' : '';
-                      const itemPart = lostItem ?? '물건';
-                      setMessage(`🚨 분실물 안내: ${colorPart}${itemPart}이(가) 발견되었습니다. 분실하신 분은 관리자에게 문의해 주세요.`);
-                    }}
-                    className="w-full py-2 bg-red-500 disabled:opacity-40 text-white text-xs font-black rounded-xl active:scale-95 transition-all">
-                    메시지 적용
+                    onClick={() => setShowLostPicker(v => !v)}
+                    className={`text-xs font-semibold px-2 py-2.5 rounded-xl border transition-all text-center leading-snug active:scale-95 ${showLostPicker ? 'bg-red-500 border-red-500 text-white' : 'bg-red-50 border-red-200 text-red-700 hover:bg-red-100'}`}>
+                    📦 분실물
                   </button>
                 </div>
+                {/* 분실물 picker — 분실물 탭 선택 시만 표시 */}
+                {showLostPicker && (
+                  <div className="bg-red-50 border border-red-200 rounded-2xl p-3 space-y-2">
+                    <p className="text-xs font-black text-red-700">📦 분실물 안내 생성기</p>
+                    <div className="flex flex-wrap gap-1">
+                      {LOST_ITEMS.map(item => (
+                        <button key={item} onClick={() => setLostItem(lostItem === item ? null : item)}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold border-2 transition-all active:scale-95 ${lostItem === item ? 'bg-red-500 border-red-500 text-white' : 'bg-white border-red-200 text-red-700 hover:border-red-400'}`}>
+                          {item}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {LOST_COLORS.map(c => (
+                        <button key={c.label} onClick={() => setLostColor(lostColor === c.label ? null : c.label)}
+                          className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold border-2 transition-all active:scale-95 ${lostColor === c.label ? 'border-red-500 bg-red-50' : 'border-gray-200 bg-white hover:border-red-300'}`}>
+                          <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${c.cls}`} />
+                          {c.label}
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      disabled={!lostItem && !lostColor}
+                      onClick={() => {
+                        const colorPart = lostColor ? lostColor + ' ' : '';
+                        const itemPart = lostItem ?? '물건';
+                        setMessage(`🚨 분실물 안내: ${colorPart}${itemPart}이(가) 발견되었습니다. 분실하신 분은 관리자에게 문의해 주세요.`);
+                      }}
+                      className="w-full py-2 bg-red-500 disabled:opacity-40 text-white text-xs font-black rounded-xl active:scale-95 transition-all">
+                      메시지 적용
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -498,19 +510,35 @@ function NotificationTab({ tableCount, settings, onSetTimer }: {
           </div>
 
           {type === 'game' && (
-            <div>
-              <label className="text-xs font-semibold text-violet-600 mb-1 block">벌칙 (선택)</label>
-              <input type="text" value={penalty} onChange={e => setPenalty(e.target.value)}
-                placeholder="예: 원샷, 건배사 하기"
-                className="w-full bg-gray-50 border border-violet-200 rounded-xl px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-400"
-              />
-              <div className="flex gap-1.5 mt-1.5">
-                {PENALTY_QUICK.map(v => (
-                  <button key={v} type="button" onClick={() => setPenalty(v)}
-                    className={`flex-1 py-1.5 rounded-xl text-[11px] font-bold border-2 transition-all ${penalty === v ? 'bg-violet-500 border-violet-500 text-white' : 'bg-white border-violet-200 text-violet-700 hover:bg-violet-50'}`}>
-                    {v}
-                  </button>
-                ))}
+            <div className="space-y-3">
+              {/* 누구? */}
+              <div>
+                <label className="text-xs font-semibold text-violet-600 mb-1.5 block">누구?</label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {WHO_TARGETS.map(w => (
+                    <button key={w} type="button"
+                      onClick={() => setMessage(prev => `${prev.replace(/ → .+$/, '')} → ${w}`)}
+                      className="py-2 rounded-xl text-xs font-bold border-2 bg-white border-violet-200 text-violet-700 hover:bg-violet-50 active:scale-95 transition-all">
+                      {w}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {/* 벌칙 */}
+              <div>
+                <label className="text-xs font-semibold text-violet-600 mb-1 block">벌칙 (선택)</label>
+                <input type="text" value={penalty} onChange={e => setPenalty(e.target.value)}
+                  placeholder="예: 원샷, 건배사 하기"
+                  className="w-full bg-gray-50 border border-violet-200 rounded-xl px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-400"
+                />
+                <div className="flex gap-1.5 mt-1.5">
+                  {PENALTY_QUICK.map(v => (
+                    <button key={v} type="button" onClick={() => setPenalty(v)}
+                      className={`flex-1 py-1.5 rounded-xl text-[11px] font-bold border-2 transition-all ${penalty === v ? 'bg-violet-500 border-violet-500 text-white' : 'bg-white border-violet-200 text-violet-700 hover:bg-violet-50'}`}>
+                      {v}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           )}
