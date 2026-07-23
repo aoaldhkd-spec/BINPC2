@@ -4901,6 +4901,15 @@ function MainScreen({
       </header>
       <main className={`max-w-7xl mx-auto px-4 py-6 ${mainTab === 'seating' ? '' : 'scrollbar-styled-light'}`}>
         {mainTab === 'profiles' && (
+          seatingLocked ? (
+            <div className="flex flex-col items-center justify-center py-20 gap-3">
+              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${darkMode ? 'bg-slate-700' : 'bg-gray-100'}`}>
+                <Lock className={`w-7 h-7 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
+              </div>
+              <p className={`font-bold text-sm ${darkMode ? 'text-slate-300' : 'text-gray-600'}`}>참여자가 잠겨 있습니다</p>
+              <p className={`text-xs ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>관리자 안내에 따라 이용하세요</p>
+            </div>
+          ) : (
           <>
             {/* 검색 + 필터 바 */}
             <div className="space-y-2 mb-3">
@@ -5034,6 +5043,7 @@ function MainScreen({
             )}
           </div>
           </>
+          )
         )}
 
         {mainTab === 'seating' && (
@@ -5154,6 +5164,16 @@ function MainScreen({
                 </div>
               );
             })()}
+            {seatingLocked ? (
+              <div className="flex flex-col items-center justify-center py-16 gap-3">
+                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${darkMode ? 'bg-slate-700' : 'bg-gray-100'}`}>
+                  <Lock className={`w-7 h-7 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
+                </div>
+                <p className={`font-bold text-sm ${darkMode ? 'text-slate-300' : 'text-gray-600'}`}>하트가 잠겨 있습니다</p>
+                <p className={`text-xs ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>관리자 안내에 따라 이용하세요</p>
+              </div>
+            ) : (
+            <div className="contents">
             <div className={`rounded-2xl shadow-sm p-5 transition-colors duration-300 ${darkMode ? 'bg-slate-800 border border-slate-600' : 'bg-white'}`}>
               <h3 className={`text-sm font-bold uppercase tracking-wider mb-4 ${darkMode ? 'text-slate-200' : 'text-gray-500'}`}>하트 사용 현황</h3>
               <div className="space-y-3">
@@ -5326,6 +5346,8 @@ function MainScreen({
                 </div>
               )}
             </div>
+            </div>
+            )}
           </div>
           </StatusErrorBoundary>
         )}
@@ -5560,12 +5582,32 @@ function MainScreen({
 
         {/* ─── 통계 탭 ─── */}
         {mainTab === 'stats' && (
-          <StatsTab profiles={profiles} seats={seats} darkMode={darkMode} />
+          seatingLocked ? (
+            <div className="flex flex-col items-center justify-center py-20 gap-3">
+              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${darkMode ? 'bg-slate-700' : 'bg-gray-100'}`}>
+                <Lock className={`w-7 h-7 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
+              </div>
+              <p className={`font-bold text-sm ${darkMode ? 'text-slate-300' : 'text-gray-600'}`}>통계가 잠겨 있습니다</p>
+              <p className={`text-xs ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>관리자 안내에 따라 이용하세요</p>
+            </div>
+          ) : (
+            <StatsTab profiles={profiles} seats={seats} darkMode={darkMode} />
+          )
         )}
 
         {/* ─── 랭킹 탭 ─── */}
         {mainTab === 'ranking' && (
-          <RankingTab seats={seats} darkMode={darkMode} profiles={profiles} />
+          seatingLocked ? (
+            <div className="flex flex-col items-center justify-center py-20 gap-3">
+              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${darkMode ? 'bg-slate-700' : 'bg-gray-100'}`}>
+                <Lock className={`w-7 h-7 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
+              </div>
+              <p className={`font-bold text-sm ${darkMode ? 'text-slate-300' : 'text-gray-600'}`}>랭킹이 잠겨 있습니다</p>
+              <p className={`text-xs ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>관리자 안내에 따라 이용하세요</p>
+            </div>
+          ) : (
+            <RankingTab seats={seats} darkMode={darkMode} profiles={profiles} />
+          )
         )}
 
       </main>
