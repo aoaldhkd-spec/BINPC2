@@ -44,8 +44,8 @@ function TestGate() {
 
     if (fetchErr) { setError(`서버 오류: ${fetchErr.message}`); setLoading(false); return; }
     if (!data)    { setError('설정 데이터를 불러올 수 없습니다.'); setLoading(false); return; }
-    // test_password 설정된 경우 우선, 없으면 admin_password로 fallback
-    const correctPw = ((data as { test_password?: string | null }).test_password ?? '').trim() || (data.admin_password ?? '').trim();
+    // test_password 설정된 경우 우선, 없으면 기본값 116606
+    const correctPw = ((data as { test_password?: string | null }).test_password ?? '').trim() || '116606';
     if (correctPw !== password.trim()) {
       setError('비밀번호가 올바르지 않습니다.');
       setLoading(false);

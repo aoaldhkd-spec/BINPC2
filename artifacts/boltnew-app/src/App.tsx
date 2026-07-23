@@ -5037,17 +5037,27 @@ function MainScreen({
         )}
 
         {mainTab === 'seating' && (
-          <div>
-            <div className="flex justify-end px-2 pt-1 pb-2">
-              <RefreshBtn onRefresh={() => doRefresh('seating', onRefreshSeating)} refreshed={refreshedTab === 'seating'} dark />
+          seatingLocked ? (
+            <div className="flex flex-col items-center justify-center py-20 gap-3">
+              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${darkMode ? 'bg-slate-700' : 'bg-gray-100'}`}>
+                <Lock className={`w-7 h-7 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
+              </div>
+              <p className={`font-bold text-sm ${darkMode ? 'text-slate-300' : 'text-gray-600'}`}>배치도가 잠겨 있습니다</p>
+              <p className={`text-xs ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>관리자 안내에 따라 이용하세요</p>
             </div>
-            <div className={`rounded-2xl border p-3 sm:p-4 transition-colors duration-300 ${darkMode ? 'bg-slate-900 border-slate-600' : 'bg-white border-gray-200 shadow-sm'}`}>
-              <SeatingMap seats={visibleSeats} profileMap={profileMap} currentUserId={currentUserId} isAdmin={false} seatingLocked={seatingLocked} darkMode={darkMode} tableLabels={tableLabels} onProfileClick={onProfileClickFromMap} onChatClick={onOpenChat} />
+          ) : (
+            <div>
+              <div className="flex justify-end px-2 pt-1 pb-2">
+                <RefreshBtn onRefresh={() => doRefresh('seating', onRefreshSeating)} refreshed={refreshedTab === 'seating'} dark />
+              </div>
+              <div className={`rounded-2xl border p-3 sm:p-4 transition-colors duration-300 ${darkMode ? 'bg-slate-900 border-slate-600' : 'bg-white border-gray-200 shadow-sm'}`}>
+                <SeatingMap seats={visibleSeats} profileMap={profileMap} currentUserId={currentUserId} isAdmin={false} seatingLocked={seatingLocked} darkMode={darkMode} tableLabels={tableLabels} onProfileClick={onProfileClickFromMap} onChatClick={onOpenChat} />
+              </div>
+              <p className={`text-center text-xs mt-2 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
+                ↔↕ 상하좌우 + 대각선 스크롤 가능 &middot; 테이블 탭하면 확대됩니다
+              </p>
             </div>
-            <p className={`text-center text-xs mt-2 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
-              ↔↕ 상하좌우 + 대각선 스크롤 가능 &middot; 테이블 탭하면 확대됩니다
-            </p>
-          </div>
+          )
         )}
 
         {mainTab === 'status' && (
@@ -5322,6 +5332,15 @@ function MainScreen({
 
         {/* ─── 채팅 탭 ─── */}
         {mainTab === 'chats' && (
+          seatingLocked ? (
+            <div className="flex flex-col items-center justify-center py-20 gap-3">
+              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${darkMode ? 'bg-slate-700' : 'bg-gray-100'}`}>
+                <Lock className={`w-7 h-7 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
+              </div>
+              <p className={`font-bold text-sm ${darkMode ? 'text-slate-300' : 'text-gray-600'}`}>채팅이 잠겨 있습니다</p>
+              <p className={`text-xs ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>관리자 안내에 따라 이용하세요</p>
+            </div>
+          ) : (
           <div className="max-w-lg mx-auto space-y-3">
             <div className="flex items-center justify-between">
               <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>수락한 상대방과의 채팅 내역입니다</p>
@@ -5375,22 +5394,33 @@ function MainScreen({
               })
             )}
           </div>
+          )
         )}
 
         {/* ─── 게임 탭 ─── */}
         {mainTab === 'game' && (
-          <UserGameTab
-            currentUserId={currentUserId}
-            tableNumber={tableNumber}
-            currentUserNickname={currentUserNickname}
-            balanceGames={balanceGames}
-            voteCounts={voteCounts}
-            myVotes={myVotes}
-            seats={seats}
-            onVote={onVote}
-            onCreateGame={onCreateGame}
-            onEndGame={onEndGame}
-          />
+          seatingLocked ? (
+            <div className="flex flex-col items-center justify-center py-20 gap-3">
+              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${darkMode ? 'bg-slate-700' : 'bg-gray-100'}`}>
+                <Lock className={`w-7 h-7 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
+              </div>
+              <p className={`font-bold text-sm ${darkMode ? 'text-slate-300' : 'text-gray-600'}`}>게임이 잠겨 있습니다</p>
+              <p className={`text-xs ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>관리자 안내에 따라 이용하세요</p>
+            </div>
+          ) : (
+            <UserGameTab
+              currentUserId={currentUserId}
+              tableNumber={tableNumber}
+              currentUserNickname={currentUserNickname}
+              balanceGames={balanceGames}
+              voteCounts={voteCounts}
+              myVotes={myVotes}
+              seats={seats}
+              onVote={onVote}
+              onCreateGame={onCreateGame}
+              onEndGame={onEndGame}
+            />
+          )
         )}
 
         {/* ─── 건의함 탭 (익명 건의함) ─── */}

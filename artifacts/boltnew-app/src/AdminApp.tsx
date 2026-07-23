@@ -3284,12 +3284,12 @@ function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onSaveTest
         }} className="space-y-4">
           <div className="bg-violet-50 rounded-xl p-3 border border-violet-200 text-xs text-violet-700 leading-relaxed">
             <strong>테스트 전용 접속 코드</strong>입니다. 이 코드로 접속하면 테스트 대시보드로 이동합니다.<br />
-            미설정 시 관리자 비밀번호가 테스트 코드로도 사용됩니다.
+            미설정 시 기본값 <span className="font-black text-violet-700">116606</span>이 사용됩니다.
           </div>
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">현재 테스트 코드</label>
             <p className="text-sm font-black text-gray-800 bg-gray-50 rounded-xl px-4 py-3 border border-gray-200 tracking-widest">
-              {(settings as any)?.test_password ? (settings as any).test_password : '(미설정 — 관리자 비밀번호 사용)'}
+              {(settings as any)?.test_password ? (settings as any).test_password : '116606 (기본값)'}
             </p>
           </div>
           <div>
