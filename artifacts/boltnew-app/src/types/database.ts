@@ -156,6 +156,7 @@ export interface Database {
           session_active: boolean;
           admin_phone: string;
           admin_password: string;
+          entry_password: string | null;
           updated_at: string;
           timer_end_at: string | null;
           timer_label: string | null;
@@ -170,6 +171,7 @@ export interface Database {
           session_active?: boolean;
           admin_phone?: string;
           admin_password?: string;
+          entry_password?: string | null;
           updated_at?: string;
           timer_end_at?: string | null;
           timer_label?: string | null;
@@ -184,6 +186,7 @@ export interface Database {
           session_active?: boolean;
           admin_phone?: string;
           admin_password?: string;
+          entry_password?: string | null;
           updated_at?: string;
           timer_end_at?: string | null;
           timer_label?: string | null;

@@ -333,27 +333,27 @@ function NotificationTab({ tableCount, settings, onSetTimer }: {
         </div>
 
         <div className="px-5 pb-5 space-y-4">
+          {/* Type selector */}
+          <div className="grid grid-cols-4 gap-1.5">
+            {NOTIF_TYPES.map(t => (
+              <button key={t.id} onClick={() => setType(t.id)}
+                className={`text-xs font-bold px-2 py-2 rounded-xl border-2 transition-all text-center leading-tight ${type === t.id ? t.color + ' border-current' : 'bg-gray-50 border-gray-200 text-gray-500 hover:border-gray-400'}`}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+
           {/* Quick templates */}
           <div>
             <p className="text-xs font-semibold text-gray-500 mb-2">빠른 메시지</p>
-            <div className="grid grid-cols-2 gap-1.5">
+            <div className="grid grid-cols-4 gap-1.5">
               {QUICK_TEMPLATES.map(t => (
                 <button key={t.label} onClick={() => { setMessage(t.msg); setType(t.type); }}
-                  className="text-xs font-semibold px-3 py-2 rounded-xl bg-gray-50 border border-gray-200 text-gray-700 hover:bg-teal-50 hover:border-teal-300 hover:text-teal-700 transition-all text-left leading-snug">
+                  className="text-xs font-semibold px-2 py-2 rounded-xl bg-gray-50 border border-gray-200 text-gray-700 hover:bg-teal-50 hover:border-teal-300 hover:text-teal-700 transition-all text-center leading-snug">
                   {t.label}
                 </button>
               ))}
             </div>
-          </div>
-
-          {/* Type selector */}
-          <div className="flex gap-2 flex-wrap">
-            {NOTIF_TYPES.map(t => (
-              <button key={t.id} onClick={() => setType(t.id)}
-                className={`text-xs font-bold px-3 py-1.5 rounded-xl border-2 transition-all ${type === t.id ? t.color + ' border-current' : 'bg-gray-50 border-gray-200 text-gray-500 hover:border-gray-400'}`}>
-                {t.label}
-              </button>
-            ))}
           </div>
 
           {/* Target */}
@@ -2886,13 +2886,26 @@ function HistoryTab({ histories, onClear }: { histories: SessionHistory[]; onCle
 
 // ─── Credentials Tab ──────────────────────────────────────────────────────────
 
-function CredentialsTab({ settings, onSave }: { settings: AppSettings | null; onSave: (phone: string, password: string) => void }) {
+function CredentialsTab({ settings, onSave, onSaveEntry }: {
+  settings: AppSettings | null;
+  onSave: (phone: string, password: string) => void;
+  onSaveEntry: (entryPassword: string) => void;
+}) {
+  const [activeTab, setActiveTab] = useState<'admin' | 'entry'>('admin');
+  // Admin tab state
   const [phone, setPhone] = useState(settings?.admin_phone ?? '');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [showPw, setShowPw] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [err, setErr] = useState('');
+  const [savedAdmin, setSavedAdmin] = useState(false);
+  const [errAdmin, setErrAdmin] = useState('');
+  // Entry password tab state
+  const [entryPw, setEntryPw] = useState('');
+  const [entryConfirm, setEntryConfirm] = useState('');
+  const [showEntryPw, setShowEntryPw] = useState(false);
+  const [savedEntry, setSavedEntry] = useState(false);
+  const [errEntry, setErrEntry] = useState('');
+
   const formatPhone = (v: string) => {
     const d = v.replace(/\D/g, '').slice(0, 11);
     if (d.length <= 3) return d;
@@ -2900,58 +2913,134 @@ function CredentialsTab({ settings, onSave }: { settings: AppSettings | null; on
     return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`;
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSaveAdmin = (e: React.FormEvent) => {
     e.preventDefault();
-    setErr('');
-    if (password.length < 4) { setErr('비밀번호는 4자 이상이어야 합니다.'); return; }
-    if (password !== confirm) { setErr('비밀번호 확인이 일치하지 않습니다.'); return; }
+    setErrAdmin('');
+    if (password.length < 4) { setErrAdmin('비밀번호는 4자 이상이어야 합니다.'); return; }
+    if (password !== confirm) { setErrAdmin('비밀번호 확인이 일치하지 않습니다.'); return; }
     onSave(phone, password);
-    setSaved(true);
-    setPassword('');
-    setConfirm('');
-    setTimeout(() => setSaved(false), 2500);
+    setSavedAdmin(true);
+    setPassword(''); setConfirm('');
+    setTimeout(() => setSavedAdmin(false), 2500);
+  };
+
+  const handleSaveEntryPw = (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrEntry('');
+    if (entryPw.length < 4) { setErrEntry('입장 코드는 4자 이상이어야 합니다.'); return; }
+    if (entryPw !== entryConfirm) { setErrEntry('입장 코드 확인이 일치하지 않습니다.'); return; }
+    onSaveEntry(entryPw);
+    setSavedEntry(true);
+    setEntryPw(''); setEntryConfirm('');
+    setTimeout(() => setSavedEntry(false), 2500);
   };
 
   return (
     <div className="p-4 space-y-4 max-w-md">
-      <form onSubmit={handleSave} className="space-y-4">
-      <div className="bg-amber-50 rounded-xl p-3 border border-amber-200 text-xs text-amber-700 leading-relaxed">
-        관리자 접속 정보를 변경합니다. 저장 후 자동 로그아웃되지 않으므로 기억해 두세요.
-      </div>
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-1.5">관리자 전화번호</label>
-        <input type="tel" value={phone} onChange={(e) => setPhone(formatPhone(e.target.value))}
-          className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-slate-500 outline-none" required />
-        <p className="text-[11px] text-gray-400 mt-1">현재: {settings?.admin_phone ?? '–'}</p>
-      </div>
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-1.5">새 비밀번호</label>
-        <div className="relative">
-          <input type={showPw ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)}
-            placeholder="새 비밀번호 입력 (4자 이상)"
-            className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl focus:ring-2 focus:ring-slate-500 outline-none" required minLength={4} />
-          <button type="button" onClick={() => setShowPw(p => !p)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-            {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+      {/* 탭 선택 */}
+      <div className="grid grid-cols-2 gap-2">
+        {([
+          { id: 'admin' as const, label: '🔑 관리자 설정', desc: '전화번호·비밀번호' },
+          { id: 'entry' as const, label: '🚪 입장 코드', desc: '참여자 입장 코드' },
+        ]).map(t => (
+          <button key={t.id} onClick={() => setActiveTab(t.id)}
+            className={`rounded-2xl p-3 border-2 text-left transition-all active:scale-[0.98] ${activeTab === t.id ? 'border-slate-700 bg-slate-800 text-white' : 'border-gray-200 bg-gray-50 hover:border-gray-300'}`}>
+            <p className={`text-xs font-black ${activeTab === t.id ? 'text-white' : 'text-gray-700'}`}>{t.label}</p>
+            <p className={`text-[10px] mt-0.5 ${activeTab === t.id ? 'text-slate-300' : 'text-gray-400'}`}>{t.desc}</p>
           </button>
-        </div>
+        ))}
       </div>
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-1.5">비밀번호 확인</label>
-        <input type={showPw ? 'text' : 'password'} value={confirm} onChange={(e) => setConfirm(e.target.value)}
-          placeholder="비밀번호 재입력"
-          className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-slate-500 outline-none" required />
-      </div>
-      {err && (
-        <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg border border-red-100">
-          <AlertTriangle className="w-4 h-4 flex-shrink-0" />{err}
-        </div>
+
+      {activeTab === 'admin' && (
+        <form onSubmit={handleSaveAdmin} className="space-y-4">
+          <div className="bg-amber-50 rounded-xl p-3 border border-amber-200 text-xs text-amber-700 leading-relaxed">
+            관리자 접속 정보를 변경합니다. 저장 후 자동 로그아웃되지 않으므로 기억해 두세요.
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">관리자 전화번호</label>
+            <input type="tel" value={phone} onChange={(e) => setPhone(formatPhone(e.target.value))}
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-slate-500 outline-none" required />
+            <p className="text-[11px] text-gray-400 mt-1">현재: {settings?.admin_phone ?? '–'}</p>
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">새 관리자 비밀번호</label>
+            <div className="relative">
+              <input type={showPw ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)}
+                placeholder="새 비밀번호 입력 (4자 이상)"
+                className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl focus:ring-2 focus:ring-slate-500 outline-none" required minLength={4} />
+              <button type="button" onClick={() => setShowPw(p => !p)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">비밀번호 확인</label>
+            <input type={showPw ? 'text' : 'password'} value={confirm} onChange={(e) => setConfirm(e.target.value)}
+              placeholder="비밀번호 재입력"
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-slate-500 outline-none" required />
+          </div>
+          {errAdmin && (
+            <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg border border-red-100">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0" />{errAdmin}
+            </div>
+          )}
+          <button type="submit"
+            className={`w-full py-3 font-semibold rounded-xl transition-all ${savedAdmin ? 'bg-teal-500 text-white' : 'bg-slate-800 text-white hover:bg-slate-700'}`}>
+            {savedAdmin ? '✓ 저장 완료!' : '변경 저장'}
+          </button>
+        </form>
       )}
-      <button type="submit"
-        className={`w-full py-3 font-semibold rounded-xl transition-all ${saved ? 'bg-teal-500 text-white' : 'bg-slate-800 text-white hover:bg-slate-700'}`}>
-        {saved ? '✓ 저장 완료!' : '변경 저장'}
-      </button>
-    </form>
+
+      {activeTab === 'entry' && (
+        <form onSubmit={handleSaveEntryPw} className="space-y-4">
+          <div className="bg-sky-50 rounded-xl p-3 border border-sky-200 text-xs text-sky-700 leading-relaxed">
+            참여자가 앱 입장 시 입력해야 하는 코드입니다. 설정하면 코드 없이는 프로필 등록이 불가합니다.
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">현재 입장 코드</label>
+            <p className="text-sm font-black text-gray-800 bg-gray-50 rounded-xl px-4 py-3 border border-gray-200 tracking-widest">
+              {settings?.entry_password ? settings.entry_password : '(설정 없음 — 누구나 입장 가능)'}
+            </p>
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">새 입장 코드</label>
+            <div className="relative">
+              <input type={showEntryPw ? 'text' : 'password'} value={entryPw} onChange={(e) => setEntryPw(e.target.value)}
+                placeholder="새 입장 코드 입력 (4자 이상)"
+                className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl focus:ring-2 focus:ring-sky-500 outline-none" required minLength={4} />
+              <button type="button" onClick={() => setShowEntryPw(p => !p)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                {showEntryPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">코드 확인</label>
+            <input type={showEntryPw ? 'text' : 'password'} value={entryConfirm} onChange={(e) => setEntryConfirm(e.target.value)}
+              placeholder="입장 코드 재입력"
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-sky-500 outline-none" required />
+          </div>
+          {errEntry && (
+            <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg border border-red-100">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0" />{errEntry}
+            </div>
+          )}
+          <div className="flex gap-2">
+            <button type="submit"
+              className={`flex-1 py-3 font-semibold rounded-xl transition-all ${savedEntry ? 'bg-teal-500 text-white' : 'bg-sky-600 text-white hover:bg-sky-700'}`}>
+              {savedEntry ? '✓ 저장 완료!' : '코드 저장'}
+            </button>
+            {settings?.entry_password && (
+              <button type="button"
+                onClick={() => { onSaveEntry(''); setSavedEntry(true); setTimeout(() => setSavedEntry(false), 2500); }}
+                className="px-4 py-3 font-semibold rounded-xl bg-red-100 text-red-600 hover:bg-red-200 transition-all text-sm">
+                해제
+              </button>
+            )}
+          </div>
+        </form>
+      )}
     </div>
   );
 }
@@ -3282,6 +3371,12 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     if (data) setSettings(data);
   };
 
+  const handleSaveEntryPassword = async (entryPassword: string) => {
+    await adminSupabase.from('app_settings').update({ entry_password: entryPassword || null, updated_at: new Date().toISOString() }).eq('id', 1);
+    const { data } = await adminSupabase.from('app_settings').select('*').eq('id', 1).single();
+    if (data) setSettings(data);
+  };
+
   const handleToggleFeatureLock = async () => {
     const newVal = !(settings?.seating_locked ?? false);
     await adminSupabase.from('app_settings').update({ seating_locked: newVal, updated_at: new Date().toISOString() }).eq('id', 1);
@@ -3411,7 +3506,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                 onClearHistory={handleClearHistory} />
             )}
             {settingsSubTab === 'qr' && <AdminQrTab seats={seats} />}
-            {settingsSubTab === 'admin' && <CredentialsTab settings={settings} onSave={handleSaveCredentials} />}
+            {settingsSubTab === 'admin' && <CredentialsTab settings={settings} onSave={handleSaveCredentials} onSaveEntry={handleSaveEntryPassword} />}
           </div>
         )}
         {tab === 'seating' && (
@@ -3513,69 +3608,69 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                     <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${showLabelPanel ? 'rotate-180' : ''}`} />
                   </button>
                   {showLabelPanel && (
-                    <div className="mt-2 bg-white rounded-2xl border border-gray-200 p-3">
-                      <div className="grid grid-cols-3 gap-2">
+                    <div className="mt-2 bg-white rounded-2xl border border-gray-200 p-3 space-y-2">
+                      {/* 4-column button grid */}
+                      <div className="grid grid-cols-4 gap-1.5">
                         {allNums.map(n => {
                           const curLabel = tableLabel(n, settings?.table_labels);
-                          const isEditing = editingLabelNum === n;
+                          const isSelected = editingLabelNum === n;
+                          const hasCustom = curLabel !== String(n);
                           return (
-                            <div key={n}>
-                              {isEditing ? (
-                                <div className="rounded-xl border-2 border-violet-400 bg-violet-50 p-2 space-y-1.5">
-                                  <p className="text-[10px] text-violet-500 font-bold text-center">{n}번 테이블</p>
-                                  <input
-                                    autoFocus
-                                    value={labelDraft}
-                                    onChange={e => setLabelDraft(e.target.value)}
-                                    onKeyDown={async e => {
-                                      if (e.key === 'Enter' && !savingLabel) {
-                                        setSavingLabel(true);
-                                        const base = { ...((settings?.table_labels as Record<string, string>) ?? {}) };
-                                        const t = labelDraft.trim();
-                                        if (t && t !== String(n)) base[String(n)] = t; else delete base[String(n)];
-                                        await handleSetTableLabels(Object.keys(base).length ? base : null);
-                                        setSavingLabel(false); setEditingLabelNum(null);
-                                      }
-                                      if (e.key === 'Escape') setEditingLabelNum(null);
-                                    }}
-                                    placeholder={`${n}번 표시명`}
-                                    maxLength={6}
-                                    className="w-full text-center text-sm font-bold px-2 py-1.5 rounded-lg border border-violet-300 focus:outline-none focus:border-violet-500 bg-white"
-                                  />
-                                  <div className="flex gap-1">
-                                    <button
-                                      onClick={async () => {
-                                        setSavingLabel(true);
-                                        const base = { ...((settings?.table_labels as Record<string, string>) ?? {}) };
-                                        const t = labelDraft.trim();
-                                        if (t && t !== String(n)) base[String(n)] = t; else delete base[String(n)];
-                                        await handleSetTableLabels(Object.keys(base).length ? base : null);
-                                        setSavingLabel(false); setEditingLabelNum(null);
-                                      }}
-                                      disabled={savingLabel}
-                                      className="flex-1 py-1.5 bg-violet-500 text-white text-[10px] font-black rounded-lg disabled:opacity-50 active:scale-95 transition-all">
-                                      {savingLabel ? '...' : '저장'}
-                                    </button>
-                                    <button
-                                      onClick={() => setEditingLabelNum(null)}
-                                      className="flex-1 py-1.5 bg-gray-100 text-gray-600 text-[10px] font-bold rounded-lg active:scale-95 transition-all">
-                                      취소
-                                    </button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <button
-                                  onClick={() => { setEditingLabelNum(n); setLabelDraft(curLabel !== String(n) ? curLabel : ''); }}
-                                  className="w-full rounded-xl border-2 border-gray-200 bg-gray-50 hover:border-violet-300 hover:bg-violet-50 p-3 flex flex-col items-center gap-1 transition-all active:scale-95 group">
-                                  <span className="text-[10px] text-gray-400 font-medium">{n}번</span>
-                                  <span className="text-lg font-black text-gray-800 leading-tight">{curLabel}</span>
-                                  <span className="text-[9px] text-gray-300 group-hover:text-violet-400 font-bold transition-colors">탭하여 수정</span>
-                                </button>
-                              )}
-                            </div>
+                            <button key={n}
+                              onClick={() => { setEditingLabelNum(isSelected ? null : n); setLabelDraft(hasCustom ? curLabel : ''); }}
+                              className={`rounded-xl border-2 py-2.5 px-1 flex flex-col items-center gap-0.5 transition-all active:scale-95 ${isSelected ? 'border-violet-500 bg-violet-50' : 'border-gray-200 bg-gray-50 hover:border-violet-300 hover:bg-violet-50'}`}>
+                              <span className="text-[9px] text-gray-400 font-medium leading-none">{n}번</span>
+                              <span className={`text-sm font-black leading-tight ${isSelected ? 'text-violet-700' : hasCustom ? 'text-teal-700' : 'text-gray-700'}`}>{curLabel}</span>
+                            </button>
                           );
                         })}
                       </div>
+                      {/* Inline editor — shown below grid when a table is selected */}
+                      {editingLabelNum !== null && (
+                        <div className="rounded-xl border-2 border-violet-400 bg-violet-50 p-3 space-y-2">
+                          <p className="text-xs text-violet-600 font-black">{editingLabelNum}번 테이블 이름 수정</p>
+                          <input
+                            autoFocus
+                            value={labelDraft}
+                            onChange={e => setLabelDraft(e.target.value)}
+                            onKeyDown={async e => {
+                              if (e.key === 'Enter' && !savingLabel) {
+                                setSavingLabel(true);
+                                const base = { ...((settings?.table_labels as Record<string, string>) ?? {}) };
+                                const t = labelDraft.trim();
+                                if (t && t !== String(editingLabelNum)) base[String(editingLabelNum)] = t;
+                                else delete base[String(editingLabelNum)];
+                                await handleSetTableLabels(Object.keys(base).length ? base : null);
+                                setSavingLabel(false); setEditingLabelNum(null);
+                              }
+                              if (e.key === 'Escape') setEditingLabelNum(null);
+                            }}
+                            placeholder={`${editingLabelNum}번 표시명 (비우면 숫자로 표시)`}
+                            maxLength={6}
+                            className="w-full text-center text-base font-bold px-3 py-2.5 rounded-xl border-2 border-violet-300 focus:outline-none focus:border-violet-500 bg-white"
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              onClick={async () => {
+                                setSavingLabel(true);
+                                const base = { ...((settings?.table_labels as Record<string, string>) ?? {}) };
+                                const t = labelDraft.trim();
+                                if (t && t !== String(editingLabelNum)) base[String(editingLabelNum)] = t;
+                                else delete base[String(editingLabelNum)];
+                                await handleSetTableLabels(Object.keys(base).length ? base : null);
+                                setSavingLabel(false); setEditingLabelNum(null);
+                              }}
+                              disabled={savingLabel}
+                              className="flex-1 py-2 bg-violet-500 text-white text-xs font-black rounded-xl disabled:opacity-50 active:scale-95 transition-all">
+                              {savingLabel ? '저장 중...' : '✓ 저장'}
+                            </button>
+                            <button onClick={() => setEditingLabelNum(null)}
+                              className="px-4 py-2 bg-gray-100 text-gray-600 text-xs font-bold rounded-xl active:scale-95 transition-all">
+                              취소
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
