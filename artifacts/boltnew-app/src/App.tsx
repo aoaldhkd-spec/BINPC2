@@ -2338,6 +2338,7 @@ function App() {
   const [seatingLocked, setSeatingLocked] = useState(false);
   const [activeTables, setActiveTables] = useState<number[] | null>(null);
   const [tableLabels, setTableLabels] = useState<Record<string, string> | null>(null);
+  const [resetPassword, setResetPassword] = useState<string | null>(null);
   const [darkMode, setDarkMode] = useState(() => ls.getItem('dark_mode') === '1');
 
   const pendingSeatId = useRef<string | null>(
@@ -2370,7 +2371,7 @@ function App() {
     const timeout = setTimeout(() => {
       if (!cancelled) setAppLoading(false);
     }, 6000);
-    supabase.from('app_settings').select('session_active, game_state, timer_end_at, timer_label, seating_locked, active_tables, reset_signal, table_labels').eq('id', 1).single().then(({ data }) => {
+    supabase.from('app_settings').select('session_active, game_state, timer_end_at, timer_label, seating_locked, active_tables, reset_signal, table_labels, reset_password').eq('id', 1).single().then(({ data }) => {
       if (cancelled) return;
       clearTimeout(timeout);
       setAppLoading(false);
@@ -2398,13 +2399,14 @@ function App() {
       if (data?.seating_locked != null) setSeatingLocked(data.seating_locked);
       setActiveTables((data?.active_tables as number[] | null) ?? null);
       setTableLabels((data?.table_labels as Record<string, string> | null) ?? null);
+      setResetPassword((data as { reset_password?: string | null })?.reset_password ?? null);
       const gs = data?.game_state as GameState | null;
       if (gs?.active) { setCurrentGame(gs); setGameModalVisible(true); }
     });
     const settingsChannel = supabase
       .channel('app-settings-user')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_settings' }, (payload) => {
-        const p = payload.new as { session_active: boolean; game_state: GameState | null; timer_end_at: string | null; timer_label: string | null; seating_locked: boolean | null; active_tables: number[] | null; reset_signal: string | null; table_labels: Record<string, string> | null };
+        const p = payload.new as { session_active: boolean; game_state: GameState | null; timer_end_at: string | null; timer_label: string | null; seating_locked: boolean | null; active_tables: number[] | null; reset_signal: string | null; table_labels: Record<string, string> | null; reset_password: string | null };
         // Admin triggered a full reset: wipe local user identity and force back to nickname setup
         if (p.reset_signal && p.reset_signal !== ls.getItem(MATCHING_LAST_RESET_KEY)) {
           ls.setItem(MATCHING_LAST_RESET_KEY, p.reset_signal);
@@ -2433,6 +2435,7 @@ function App() {
         if (p.seating_locked != null) setSeatingLocked(p.seating_locked);
         setActiveTables(p.active_tables ?? null);
         if (p.table_labels !== undefined) setTableLabels(p.table_labels);
+        if (p.reset_password !== undefined) setResetPassword(p.reset_password ?? null);
         const gs = p.game_state as GameState | null;
         if (gs?.active) {
           // Only show if game targets all or the user's own table
@@ -3507,6 +3510,7 @@ function App() {
         onShowTutorial={() => { setTutorialPage(0); setShowTutorialModal(true); }}
         newMsgCount={newMsgCount}
         onClearMsgCount={() => setNewMsgCount(0)}
+        resetPassword={resetPassword}
       />
       {seatDialog && (
         <SeatRegisterDialog
@@ -3797,13 +3801,14 @@ function TutorialModal({ page, onChangePage, onClose, darkMode }: {
   );
 }
 
-function ResetButton({ onReset, darkMode }: { onReset: () => void; variant?: string; darkMode?: boolean }) {
+function ResetButton({ onReset, darkMode, resetPassword }: { onReset: () => void; variant?: string; darkMode?: boolean; resetPassword?: string | null }) {
   const [open, setOpen] = useState(false);
   const [pw, setPw] = useState('');
   const [err, setErr] = useState(false);
 
   const confirm = () => {
-    if (pw === '116606') { setOpen(false); setPw(''); setErr(false); onReset(); }
+    const correctPw = resetPassword ?? '116606';
+    if (pw === correctPw) { setOpen(false); setPw(''); setErr(false); onReset(); }
     else { setErr(true); setPw(''); }
   };
 
@@ -4642,7 +4647,7 @@ function MainScreen({
   onContactShareOpen, onContactViewOpen, onHeartResponse, onDeleteChat, onSubmitSuggestion, onOpenChat,
   onVote, onCreateGame, onEndGame, onSubmitAnonymousReport,
   timerEndAt, timerLabel, onRefreshStatus, onRefreshChat, onRefreshProfiles, onRefreshSeating, darkMode, onToggleDark, onShowQr, seatingLocked, activeTables, tableLabels, onShowTutorial,
-  newMsgCount, onClearMsgCount,
+  newMsgCount, onClearMsgCount, resetPassword,
 }: {
   profiles: Profile[]; currentUserId: string | null; likedIds: Set<string>; sentHeartTypes: Map<string, HeartType>; likeStatuses: Map<string, string>;
   seats: Seat[]; profileMap: Map<string, Profile>; mainTab: MainTab;
@@ -4678,6 +4683,7 @@ function MainScreen({
   onShowTutorial: () => void;
   newMsgCount: number;
   onClearMsgCount: () => void;
+  resetPassword: string | null;
 }) {
   const heartCount = useCallback((t: HeartType) => { let c = 0; sentHeartTypes.forEach(v => { if (v === t) c++; }); return c; }, [sentHeartTypes]);
   const currentUserSeat = useMemo(() => seats.find(s => s.profile_id === currentUserId) ?? null, [seats, currentUserId]);
@@ -4792,7 +4798,7 @@ function MainScreen({
           </button>
           {/* 중앙: 타이틀 */}
           <div className="justify-self-center">
-            <ResetButton onReset={onReset} darkMode={darkMode} />
+            <ResetButton onReset={onReset} darkMode={darkMode} resetPassword={resetPassword} />
           </div>
           {/* 우: 다크모드 + 하트 */}
           <div className="justify-self-end flex items-center gap-2">

@@ -2886,12 +2886,13 @@ function HistoryTab({ histories, onClear }: { histories: SessionHistory[]; onCle
 
 // ─── Credentials Tab ──────────────────────────────────────────────────────────
 
-function CredentialsTab({ settings, onSave, onSaveEntry }: {
+function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset }: {
   settings: AppSettings | null;
   onSave: (phone: string, password: string) => void;
   onSaveEntry: (entryPassword: string) => void;
+  onSaveReset: (resetPassword: string) => void;
 }) {
-  const [activeTab, setActiveTab] = useState<'admin' | 'entry'>('admin');
+  const [activeTab, setActiveTab] = useState<'admin' | 'entry' | 'reset'>('admin');
   // Admin tab state
   const [phone, setPhone] = useState(settings?.admin_phone ?? '');
   const [password, setPassword] = useState('');
@@ -2905,6 +2906,12 @@ function CredentialsTab({ settings, onSave, onSaveEntry }: {
   const [showEntryPw, setShowEntryPw] = useState(false);
   const [savedEntry, setSavedEntry] = useState(false);
   const [errEntry, setErrEntry] = useState('');
+  // Reset password tab state
+  const [resetPw, setResetPw] = useState('');
+  const [resetConfirm, setResetConfirm] = useState('');
+  const [showResetPw, setShowResetPw] = useState(false);
+  const [savedReset, setSavedReset] = useState(false);
+  const [errReset, setErrReset] = useState('');
 
   const formatPhone = (v: string) => {
     const d = v.replace(/\D/g, '').slice(0, 11);
@@ -2938,10 +2945,11 @@ function CredentialsTab({ settings, onSave, onSaveEntry }: {
   return (
     <div className="p-4 space-y-4 max-w-md">
       {/* 탭 선택 */}
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-3 gap-2">
         {([
           { id: 'admin' as const, label: '🔑 관리자 설정', desc: '전화번호·비밀번호' },
           { id: 'entry' as const, label: '🚪 입장 코드', desc: '참여자 입장 코드' },
+          { id: 'reset' as const, label: '🔄 처음으로', desc: '술번개 재시작 코드' },
         ]).map(t => (
           <button key={t.id} onClick={() => setActiveTab(t.id)}
             className={`rounded-2xl p-3 border-2 text-left transition-all active:scale-[0.98] ${activeTab === t.id ? 'border-slate-700 bg-slate-800 text-white' : 'border-gray-200 bg-gray-50 hover:border-gray-300'}`}>
@@ -3036,6 +3044,66 @@ function CredentialsTab({ settings, onSave, onSaveEntry }: {
                 onClick={() => { onSaveEntry(''); setSavedEntry(true); setTimeout(() => setSavedEntry(false), 2500); }}
                 className="px-4 py-3 font-semibold rounded-xl bg-red-100 text-red-600 hover:bg-red-200 transition-all text-sm">
                 해제
+              </button>
+            )}
+          </div>
+        </form>
+      )}
+
+      {activeTab === 'reset' && (
+        <form onSubmit={(e) => {
+          e.preventDefault();
+          setErrReset('');
+          if (resetPw.length < 4) { setErrReset('비밀번호는 4자 이상이어야 합니다.'); return; }
+          if (resetPw !== resetConfirm) { setErrReset('비밀번호 확인이 일치하지 않습니다.'); return; }
+          onSaveReset(resetPw);
+          setSavedReset(true);
+          setResetPw(''); setResetConfirm('');
+          setTimeout(() => setSavedReset(false), 2500);
+        }} className="space-y-4">
+          <div className="bg-amber-50 rounded-xl p-3 border border-amber-200 text-xs text-amber-700 leading-relaxed">
+            유저가 술번개 로고를 탭하면 뜨는 <strong>처음으로 돌아가기</strong> 비밀번호입니다.<br />
+            미설정 시 기본값(116606)이 사용됩니다.
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">현재 비밀번호</label>
+            <p className="text-sm font-black text-gray-800 bg-gray-50 rounded-xl px-4 py-3 border border-gray-200 tracking-widest">
+              {settings?.reset_password ? settings.reset_password : '(기본값 116606)'}
+            </p>
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">새 비밀번호</label>
+            <div className="relative">
+              <input type={showResetPw ? 'text' : 'password'} value={resetPw} onChange={(e) => setResetPw(e.target.value)}
+                placeholder="새 비밀번호 입력 (4자 이상)"
+                className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none" required minLength={4} />
+              <button type="button" onClick={() => setShowResetPw(p => !p)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                {showResetPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">비밀번호 확인</label>
+            <input type={showResetPw ? 'text' : 'password'} value={resetConfirm} onChange={(e) => setResetConfirm(e.target.value)}
+              placeholder="비밀번호 재입력"
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none" required />
+          </div>
+          {errReset && (
+            <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg border border-red-100">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0" />{errReset}
+            </div>
+          )}
+          <div className="flex gap-2">
+            <button type="submit"
+              className={`flex-1 py-3 font-semibold rounded-xl transition-all ${savedReset ? 'bg-teal-500 text-white' : 'bg-amber-500 text-white hover:bg-amber-600'}`}>
+              {savedReset ? '✓ 저장 완료!' : '비밀번호 저장'}
+            </button>
+            {settings?.reset_password && (
+              <button type="button"
+                onClick={() => { onSaveReset(''); setSavedReset(true); setTimeout(() => setSavedReset(false), 2500); }}
+                className="px-4 py-3 font-semibold rounded-xl bg-red-100 text-red-600 hover:bg-red-200 transition-all text-sm">
+                초기화
               </button>
             )}
           </div>
@@ -3384,6 +3452,12 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     if (data) setSettings(data);
   };
 
+  const handleSaveResetPassword = async (resetPassword: string) => {
+    await adminSupabase.from('app_settings').update({ reset_password: resetPassword || null, updated_at: new Date().toISOString() }).eq('id', 1);
+    const { data } = await adminSupabase.from('app_settings').select('*').eq('id', 1).single();
+    if (data) setSettings(data);
+  };
+
   const handleToggleFeatureLock = async () => {
     const newVal = !(settings?.seating_locked ?? false);
     await adminSupabase.from('app_settings').update({ seating_locked: newVal, updated_at: new Date().toISOString() }).eq('id', 1);
@@ -3513,7 +3587,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                 onClearHistory={handleClearHistory} />
             )}
             {settingsSubTab === 'qr' && <AdminQrTab seats={seats} />}
-            {settingsSubTab === 'admin' && <CredentialsTab settings={settings} onSave={handleSaveCredentials} onSaveEntry={handleSaveEntryPassword} />}
+            {settingsSubTab === 'admin' && <CredentialsTab settings={settings} onSave={handleSaveCredentials} onSaveEntry={handleSaveEntryPassword} onSaveReset={handleSaveResetPassword} />}
           </div>
         )}
         {tab === 'seating' && (
@@ -3578,7 +3652,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                       </button>
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="grid grid-cols-4 gap-1.5">
                     {allNums.map(n => {
                       const isOn = !current || current.includes(n);
                       return (
@@ -3589,8 +3663,9 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                           else { next = [...current, n].sort((a, b) => a - b); }
                           setPendingActiveTables(next.length === allNums.length ? null : next);
                         }}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-bold border-2 transition-all active:scale-95 ${isOn ? 'bg-teal-500 border-teal-500 text-white' : 'bg-gray-50 border-gray-200 text-gray-400'}`}>
-                          {tableLabel(n, settings?.table_labels)}
+                          className={`rounded-xl border-2 py-2.5 px-1 flex flex-col items-center gap-0.5 transition-all active:scale-95 ${isOn ? 'bg-teal-500 border-teal-500 text-white' : 'bg-gray-50 border-gray-200 text-gray-400'}`}>
+                          <span className={`text-[9px] font-medium leading-none ${isOn ? 'text-teal-100' : 'text-gray-400'}`}>{n}번</span>
+                          <span className={`text-sm font-black leading-tight ${isOn ? 'text-white' : 'text-gray-500'}`}>{tableLabel(n, settings?.table_labels)}</span>
                         </button>
                       );
                     })}

@@ -157,6 +157,7 @@ export interface Database {
           admin_phone: string;
           admin_password: string;
           entry_password: string | null;
+          reset_password: string | null;
           updated_at: string;
           timer_end_at: string | null;
           timer_label: string | null;
@@ -172,6 +173,7 @@ export interface Database {
           admin_phone?: string;
           admin_password?: string;
           entry_password?: string | null;
+          reset_password?: string | null;
           updated_at?: string;
           timer_end_at?: string | null;
           timer_label?: string | null;
@@ -187,6 +189,7 @@ export interface Database {
           admin_phone?: string;
           admin_password?: string;
           entry_password?: string | null;
+          reset_password?: string | null;
           updated_at?: string;
           timer_end_at?: string | null;
           timer_label?: string | null;
