@@ -773,56 +773,84 @@ function NotifModal({ notif, onClose }: { notif: { id: string; message: string; 
   );
 }
 
-// ─── Welcome Notice Modal ─────────────────────────────────────────────────────
+// ─── Welcome + Notice Modal (합본) ────────────────────────────────────────────
 
-const WELCOME_NOTICE_ITEMS = [
+const WELCOME_RULES = [
   '술강요가 없는 자유로운 분위기입니다',
-  '정치, 종교, 지역감정, 패드립은 허용되지 않습니다',
-  '욕설, 반말 등은 영구밴이 될 수 있습니다',
-  '화장실, 담배는 함께 이동해 주세요',
-  '급하신 분은 먼저 허락을 받고 이동 부탁드립니다',
-  '모든 저작권은 범일NPC에게 있습니다. 불법 복제 및 도용은 민형사상 책임을 질 수 있습니다',
+  '정치·종교·지역감정·패드립은 허용되지 않습니다',
+  '욕설·반말 등은 영구밴이 될 수 있습니다',
+  '화장실·담배는 함께 이동해 주세요',
+  '급하신 분은 먼저 허락을 받고 이동해 주세요',
+  '모든 저작권은 범일NPC에 있습니다. 불법 복제·도용 시 민형사상 책임을 질 수 있습니다',
+];
+
+const TECH_NOTICES = [
+  { icon: '🔋', title: '절전 모드 해제', desc: '저전력 모드에서는 백그라운드 처리가 막혀 앱이 튕길 수 있어요. 설정 → 배터리 → 저전력 모드 OFF 후 사용해 주세요.' },
+  { icon: '🕵️', title: '시크릿·개인정보 보호 모드 금지', desc: 'Safari/Chrome 시크릿 모드는 로컬 저장소가 차단돼 닉네임·프로필이 사라집니다. 일반 탭으로 접속해 주세요.' },
+  { icon: '📵', title: '화면 자동 꺼짐 방지', desc: '화면이 꺼지면 브라우저가 세션을 초기화할 수 있어요. 화면 잠금 시간을 길게 설정하거나 주기적으로 깨워주세요.' },
+  { icon: '🔖', title: 'URL 북마크 추천', desc: '앱이 튕겨도 같은 URL로 재접속하면 프로필이 자동 복구됩니다. 주소창에서 북마크해 두세요.' },
 ];
 
 function WelcomeNoticeModal({ onClose }: { onClose: () => void }) {
   const [visible, setVisible] = useState(false);
   useEffect(() => { const t = setTimeout(() => setVisible(true), 50); return () => clearTimeout(t); }, []);
   return (
-    <div className={`fixed inset-0 z-[90] flex items-center justify-center p-4 transition-all duration-300 ${visible ? 'bg-black/70 backdrop-blur-sm' : 'bg-transparent'}`}>
-      <div className={`w-full max-w-sm transition-all duration-400 ${visible ? 'scale-100 opacity-100 translate-y-0' : 'scale-90 opacity-0 translate-y-6'}`}>
-        <div className="bg-white rounded-3xl shadow-2xl overflow-hidden">
+    <div className={`fixed inset-0 z-[90] flex items-end justify-center p-0 sm:items-center sm:p-4 transition-all duration-300 ${visible ? 'bg-black/75 backdrop-blur-sm' : 'bg-transparent'}`}>
+      <div className={`w-full max-w-sm transition-all duration-400 ${visible ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'}`}>
+        <div className="bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90dvh]">
           {/* Header */}
-          <div className="bg-gradient-to-r from-cyan-500 to-teal-500 px-6 py-5 text-center relative">
-            <button onClick={onClose}
-              className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-full bg-black/20 text-white hover:bg-black/40 transition-all">
-              <X className="w-4 h-4" />
-            </button>
-            <div className="text-3xl font-black text-white mb-1">범일NPC 술번개</div>
-            <div className="text-4xl mb-2">🥂</div>
-            <h2 className="text-xl font-black text-white">환영합니다!</h2>
-            <p className="text-xs text-white/80 mt-1">오늘 즐거운 시간 보내세요</p>
+          <div className="bg-gradient-to-r from-cyan-500 to-teal-500 px-6 pt-6 pb-5 text-center relative flex-shrink-0">
+            <div className="text-4xl mb-1">🥂</div>
+            <h2 className="text-2xl font-black text-white leading-tight">환영합니다!</h2>
+            <p className="text-xs text-white/80 mt-1 font-medium">범일NPC 술번개에 오신 걸 환영해요</p>
           </div>
-          {/* Notice */}
-          <div className="px-6 py-5">
-            <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-3">공지사항</p>
-            <ol className="space-y-3">
-              {WELCOME_NOTICE_ITEMS.map((item, i) => (
-                <li key={i} className="flex items-start gap-3">
-                  <span className="flex-shrink-0 w-6 h-6 rounded-full bg-cyan-500 text-white text-xs font-black flex items-center justify-center">{i + 1}</span>
-                  <span className="text-sm text-gray-700 leading-snug pt-0.5">{item}</span>
-                </li>
-              ))}
-            </ol>
-            <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-xl">
-              <p className="text-xs text-amber-700 leading-relaxed">⚠️ 개발자가 아닌 제가 직접 만든 관계로 서버가 다소 불안정하거나 나갔다 다시 연결하면 초기상태로 돌아갈 수 있습니다. 양해 부탁드립니다.</p>
+
+          {/* Scrollable body */}
+          <div className="overflow-y-auto flex-1 px-5 py-5 space-y-5">
+            {/* 이용 규칙 */}
+            <div>
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">이용 규칙</p>
+              <ol className="space-y-2.5">
+                {WELCOME_RULES.map((item, i) => (
+                  <li key={i} className="flex items-start gap-2.5">
+                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-cyan-500 text-white text-[10px] font-black flex items-center justify-center mt-0.5">{i + 1}</span>
+                    <span className="text-[13px] text-gray-700 leading-snug">{item}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+
+            {/* 구분선 */}
+            <div className="border-t border-gray-100" />
+
+            {/* 기술 주의사항 */}
+            <div>
+              <p className="text-[10px] font-black text-amber-500 uppercase tracking-widest mb-3">⚠️ 앱 사용 전 주의사항</p>
+              <div className="space-y-3">
+                {TECH_NOTICES.map((n, i) => (
+                  <div key={i} className="flex gap-3 p-3 bg-amber-50 border border-amber-100 rounded-xl">
+                    <span className="text-xl flex-shrink-0 leading-none mt-0.5">{n.icon}</span>
+                    <div>
+                      <p className="text-[12px] font-black text-gray-800 mb-0.5">{n.title}</p>
+                      <p className="text-[11px] text-gray-500 leading-relaxed">{n.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+              <p className="text-[11px] text-slate-500 leading-relaxed text-center">직접 만든 앱이라 서버가 가끔 불안정할 수 있습니다.<br/>불편하시더라도 양해 부탁드립니다 🙏</p>
             </div>
           </div>
-          <div className="px-6 pb-6">
+
+          {/* CTA */}
+          <div className="px-5 pb-6 pt-3 flex-shrink-0">
             <button
               onClick={onClose}
-              className="w-full py-3.5 bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-400 text-white font-black rounded-2xl transition-all shadow-lg shadow-cyan-500/30 active:scale-[0.98]"
+              className="w-full py-4 bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-400 text-white font-black text-base rounded-2xl transition-all shadow-lg shadow-cyan-500/30 active:scale-[0.98]"
             >
-              확인했습니다!
+              확인했어요! 🍻
             </button>
           </div>
         </div>
@@ -2496,12 +2524,12 @@ function koreanLength(s: string): number {
   return [...s].length;
 }
 
-// 관심사 정규화: 슬래시 포함 관심사를 자연스러운 짧은 형태로 변환
+// 관심사 정규화: 8글자 닉네임에 맞게 짧게 변환
 const INTEREST_NORMALIZE: Record<string, string> = {
   '공연/전시':    '공연',
-  '필라테스/요가': '필라테스',
-  '스키/보드':    '스키',
-  '축구/풋살':    '축구',
+  '필라테스/요가': '요가',
+  '스키/보드':    '보드',
+  '축구/풋살':    '풋살',
   '팝/힙합':      '힙합',
   '재즈/클래식':  '재즈',
   '영화/드라마':  '영화',
@@ -2509,8 +2537,19 @@ const INTEREST_NORMALIZE: Record<string, string> = {
   '음악감상':     '음악',
   '라이브방송':   '라이브',
   '사진찍기':     '사진',
-  '자기계발':     '자기계발',
+  '자기계발':     '성장',
   '술자리':       '술',
+  '반려동물':     '펫',
+  '원예/식물':    '식물',
+  '명상/요가':    '명상',
+  '보드게임':     '보드',
+  '봉사활동':     '봉사',
+  '맥주축제':     '맥주',
+  '야구직관':     '야구',
+  '독서모임':     '독서',
+  '소모임':       '모임',
+  '클럽/바':      '클럽',
+  '뜨밤':         '뜨밤',
 };
 
 function normalizeInterest(interest: string): string {
@@ -2534,10 +2573,9 @@ function fixParticle(s: string): string {
 }
 
 // ── 닉네임 생성 데이터셋 ──────────────────────────────────────────────────────
+type NickTpl = { template: string; label: string; type: 'any' | 'action' };
 
-// 관심사 타입 분류
-// action: 동사형으로 쓸 수 있는 활동 (게임하다, 낚시하다, 요리하다 등)
-// lifestyle: 명사형 장소/취향 (카페, 여행, 맛집탐방 등) — 동사형 접미사와 충돌
+// 활동형 관심사 (동사형 접미사와 자연스러운 것들)
 const ACTION_INTERESTS = new Set([
   '운동', '헬스', '필라테스/요가', '골프', '테니스', '자전거', '등산', '낚시',
   '수영', '클라이밍', '축구/풋살', '배드민턴', '볼링', '스키/보드',
@@ -2546,74 +2584,89 @@ const ACTION_INTERESTS = new Set([
   '음악감상', '공연/전시', '라이브방송',
 ]);
 
-// 어떤 관심사와도 자연스러운 "만능" 접미사를 포함한 템플릿
-// type: 'any' = 모든 관심사, 'action' = 활동형 관심사만
-type NickTpl = { template: string; label: string; type: 'any' | 'action' };
-
+// ── 3요소(지역+나이+관심사) 조합 — 재치있고 짧은 템플릿 ───────────────────
 const NICKNAME_TEMPLATES: NickTpl[] = [
-  // ── any (만능) ──────────────────────────────────────────────────────────────
-  { template: '[나이]살[관심사]천재',           label: '랜덤', type: 'any' },
-  { template: '[관심사]가취미인[지역]사람',     label: '랜덤', type: 'any' },
-  { template: '[나이]살[관심사]박사',           label: '랜덤', type: 'any' },
-  { template: '[관심사]없인못사는[지역]인',     label: '랜덤', type: 'any' },
-  { template: '[나이]년생[관심사]지존',         label: '랜덤', type: 'any' },
-  { template: '[관심사]바라기[지역]사람',       label: '랜덤', type: 'any' },
-  { template: '[지역]의[관심사]요정',           label: '랜덤', type: 'any' },
-  { template: '[나이]살[관심사]고수',           label: '랜덤', type: 'any' },
-  { template: '[관심사]홀릭[지역]사람',         label: '랜덤', type: 'any' },
-  { template: '[나이]년생[관심사]요정',         label: '랜덤', type: 'any' },
-  { template: '[관심사]즐기는[지역]인',         label: '랜덤', type: 'any' },
-  { template: '[나이]살[관심사]매니아',         label: '랜덤', type: 'any' },
-  { template: '[관심사]러버[지역]사람',         label: '랜덤', type: 'any' },
-  { template: '[지역]의[관심사]킹',             label: '랜덤', type: 'any' },
-  { template: '[나이]살[관심사]쟁이',           label: '랜덤', type: 'any' },
-  { template: '[관심사]덕후[지역]사람',         label: '랜덤', type: 'any' },
-  { template: '[지역]의[관심사]장인',           label: '랜덤', type: 'any' },
-  { template: '[나이]년생[관심사]퀸',           label: '랜덤', type: 'any' },
-  { template: '[관심사]만보는[지역]인',         label: '랜덤', type: 'any' },
-  { template: '[나이]살[관심사]천재',           label: '랜덤', type: 'any' },
-  { template: '[관심사]에진심인[지역]인',       label: '랜덤', type: 'any' },
-  { template: '[나이]년생[관심사]도사',         label: '랜덤', type: 'any' },
-  { template: '[관심사]프로[지역]인',           label: '랜덤', type: 'any' },
-  { template: '[지역]의[관심사]천사',           label: '랜덤', type: 'any' },
-  { template: '[나이]살[관심사]대왕',           label: '랜덤', type: 'any' },
-  { template: '[관심사]연구중인[지역]인',       label: '랜덤', type: 'any' },
-  { template: '[지역]의[관심사]스타',           label: '랜덤', type: 'any' },
-  { template: '[나이]살[관심사]지니어스',       label: '랜덤', type: 'any' },
-  { template: '[나이]년생[관심사]신동',         label: '랜덤', type: 'any' },
-  { template: '[지역]대표[관심사]꾼',           label: '랜덤', type: 'any' },
-  { template: '[나이]년생[관심사]술사',         label: '랜덤', type: 'any' },
-  { template: '[관심사]마스터[지역]인',         label: '랜덤', type: 'any' },
-  // ── action 전용 (활동형 관심사만) ──────────────────────────────────────────
-  { template: '[지역]의[관심사]괴물',           label: '랜덤', type: 'action' },
-  { template: '[지역]대표[관심사]대장',         label: '랜덤', type: 'action' },
-  { template: '[지역]에서[관심사]젤잘해',       label: '랜덤', type: 'action' },
-  { template: '[지역]의[관심사]왕자',           label: '랜덤', type: 'action' },
-  { template: '[지역]의[관심사]공주',           label: '랜덤', type: 'action' },
-  { template: '[지역]의[관심사]킬러',           label: '랜덤', type: 'action' },
-  { template: '[나이]년생[관심사]광인',         label: '랜덤', type: 'action' },
-  { template: '[관심사]풀파워[지역]인',         label: '랜덤', type: 'action' },
-  { template: '[지역]의[관심사]대통령',         label: '랜덤', type: 'action' },
-  { template: '[나이]년생[관심사]악마',         label: '랜덤', type: 'action' },
-  { template: '[관심사]에미친[지역]인',         label: '랜덤', type: 'action' },
-  { template: '[지역]의[관심사]탐정',           label: '랜덤', type: 'action' },
-  { template: '[지역]의[관심사]보스',           label: '랜덤', type: 'action' },
-  { template: '[지역]의[관심사]영웅',           label: '랜덤', type: 'action' },
-  { template: '[관심사]킬러[지역]인',           label: '랜덤', type: 'action' },
-  { template: '[나이]살[관심사]천사',           label: '랜덤', type: 'action' },
+  // ── 지역 + 관심사 (핵심 조합) ──────────────────────────────────────────────
+  { template: '[지역][관심사]광인',    label: '광인형',   type: 'any' },
+  { template: '[지역][관심사]귀신',    label: '귀신형',   type: 'any' },
+  { template: '[지역][관심사]중독',    label: '중독형',   type: 'any' },
+  { template: '[지역][관심사]폐인',    label: '폐인형',   type: 'any' },
+  { template: '[지역][관심사]인간',    label: '인간형',   type: 'any' },
+  { template: '[지역][관심사]좀비',    label: '좀비형',   type: 'any' },
+  { template: '[지역][관심사]덕후',    label: '덕후형',   type: 'any' },
+  { template: '[지역][관심사]요정',    label: '요정형',   type: 'any' },
+  { template: '[지역][관심사]천재',    label: '천재형',   type: 'any' },
+  { template: '[지역][관심사]킹',      label: '킹형',     type: 'any' },
+  { template: '[지역][관심사]신',      label: '달인형',   type: 'any' },
+  { template: '[지역][관심사]장인',    label: '장인형',   type: 'any' },
+  { template: '[지역][관심사]대왕',    label: '대왕형',   type: 'any' },
+  { template: '[지역][관심사]러버',    label: '러버형',   type: 'any' },
+  { template: '[지역][관심사]만렙',    label: '만렙형',   type: 'any' },
+  { template: '[지역][관심사]집사',    label: '집사형',   type: 'any' },
+  { template: '[지역][관심사]퀸',      label: '퀸형',     type: 'any' },
+  { template: '[지역][관심사]쟁이',    label: '쟁이형',   type: 'any' },
+  // ── 나이 + 관심사 ──────────────────────────────────────────────────────────
+  { template: '[나이]살[관심사]킹',    label: '킹형',     type: 'any' },
+  { template: '[나이]살[관심사]광인',  label: '광인형',   type: 'any' },
+  { template: '[나이]살[관심사]좀비',  label: '좀비형',   type: 'any' },
+  { template: '[나이]살[관심사]인간',  label: '인간형',   type: 'any' },
+  { template: '[나이]살[관심사]귀신',  label: '귀신형',   type: 'any' },
+  { template: '[나이]살[관심사]만렙',  label: '만렙형',   type: 'any' },
+  { template: '[나이]살[관심사]천재',  label: '천재형',   type: 'any' },
+  { template: '[나이]살[관심사]신',    label: '달인형',   type: 'any' },
+  { template: '[나이]살[관심사]퀸',    label: '퀸형',     type: 'any' },
+  { template: '[나이]살[관심사]쟁이',  label: '쟁이형',   type: 'any' },
+  { template: '[나이]년생[관심사]킹',  label: '킹형',     type: 'any' },
+  { template: '[나이]년생[관심사]요정', label: '요정형',  type: 'any' },
+  { template: '[나이]년생[관심사]광인', label: '광인형',  type: 'any' },
+  { template: '[나이]년생[관심사]귀신', label: '귀신형',  type: 'any' },
+  { template: '[관심사]폐인[나이]살',  label: '폐인형',   type: 'any' },
+  { template: '[관심사]귀신[나이]살',  label: '귀신형',   type: 'any' },
+  { template: '[관심사]중독[나이]살',  label: '중독형',   type: 'any' },
+  { template: '[관심사]킹[나이]살',    label: '킹형',     type: 'any' },
+  { template: '[관심사]신[나이]살',    label: '달인형',   type: 'any' },
+  { template: '[관심사]러버[나이]살',  label: '러버형',   type: 'any' },
+  { template: '[관심사]요정[나이]살',  label: '요정형',   type: 'any' },
+  // ── 관심사 + 지역 ──────────────────────────────────────────────────────────
+  { template: '[관심사]귀신[지역]',    label: '귀신형',   type: 'any' },
+  { template: '[관심사]폐인[지역]',    label: '폐인형',   type: 'any' },
+  { template: '[관심사]중독[지역]',    label: '중독형',   type: 'any' },
+  { template: '[관심사]킹[지역]',      label: '킹형',     type: 'any' },
+  { template: '[관심사]신[지역]',      label: '달인형',   type: 'any' },
+  { template: '[관심사]인간[지역]',    label: '인간형',   type: 'any' },
+  { template: '[관심사]요정[지역]',    label: '요정형',   type: 'any' },
+  { template: '[관심사]러버[지역]',    label: '러버형',   type: 'any' },
+  { template: '[관심사]장인[지역]',    label: '장인형',   type: 'any' },
+  // ── 3요소 팩트형 (지역+나이+관심사 모두 사용) ─────────────────────────────
+  { template: '[지역][나이]살[관심사]킹', label: '킹형',  type: 'any' },
+  { template: '[지역][나이]살[관심사]신', label: '달인형', type: 'any' },
+  { template: '[나이]살[지역][관심사]왕', label: '왕형',  type: 'any' },
+  { template: '[나이]살[지역][관심사]킹', label: '킹형',  type: 'any' },
+  { template: '[지역][나이]살[관심사]',   label: '팩트형', type: 'any' },
+  { template: '[나이]살[지역][관심사]',   label: '팩트형', type: 'any' },
+  // ── action 전용 ────────────────────────────────────────────────────────────
+  { template: '[지역][관심사]빌런',    label: '빌런형',   type: 'action' },
+  { template: '[지역][관심사]보스',    label: '보스형',   type: 'action' },
+  { template: '[지역][관심사]깡패',    label: '깡패형',   type: 'action' },
+  { template: '[지역][관심사]괴물',    label: '괴물형',   type: 'action' },
+  { template: '[나이]살[관심사]빌런',  label: '빌런형',   type: 'action' },
+  { template: '[나이]살[관심사]보스',  label: '보스형',   type: 'action' },
+  { template: '[나이]살[관심사]깡패',  label: '깡패형',   type: 'action' },
+  { template: '[나이]살[관심사]괴물',  label: '괴물형',   type: 'action' },
+  { template: '[관심사]빌런[지역]',    label: '빌런형',   type: 'action' },
+  { template: '[관심사]보스[지역]',    label: '보스형',   type: 'action' },
+  { template: '[관심사]괴물[지역]',    label: '괴물형',   type: 'action' },
+  { template: '[관심사]전도사[지역]',  label: '전도사형', type: 'action' },
+  { template: '[나이]살[관심사]전도사', label: '전도사형', type: 'action' },
+  { template: '[지역][나이]살[관심사]빌런', label: '빌런형', type: 'action' },
 ];
 
 const NICKNAME_CONCEPTS: NickTpl[] = [
-  { template: '[관심사]에진심인[나이]살',       label: '열정형',   type: 'any' },
-  { template: '[관심사]가취미인[지역]사람',     label: '동호회형', type: 'any' },
-  { template: '[지역]대표[관심사]천재',         label: '능력자형', type: 'any' },
-  { template: '[지역]의[관심사]요정님',         label: '요정형',   type: 'any' },
-  { template: '[관심사]계의살아있는전설',       label: '독보적형', type: 'any' },
-  { template: '[관심사]레벨[나이]마스터',       label: '레벨업형', type: 'any' },
-  { template: '[지역]의기운받은[관심사]러',     label: '운세형',   type: 'any' },
-  { template: '[관심사]하는[지역]댕댕이',       label: '반려동물형', type: 'any' },
-  { template: '[관심사]에미쳐버린[나이]세상',   label: '과몰입형', type: 'action' },
-  { template: '[관심사]쫓는[지역]탐정',        label: '탐정형',   type: 'action' },
+  { template: '[지역][관심사]종결자',  label: '종결자형', type: 'any' },
+  { template: '[나이]살[관심사]종결자', label: '종결자형', type: 'any' },
+  { template: '[관심사]종결자[지역]',  label: '종결자형', type: 'any' },
+  { template: '[지역][관심사]사랑꾼',  label: '사랑꾼형', type: 'any' },
+  { template: '[나이]살[관심사]사랑꾼', label: '사랑꾼형', type: 'any' },
 ];
 
 function applyNicknameTemplate(tpl: string, region: string, age: string, interest: string): string {
@@ -3163,7 +3216,7 @@ function App() {
       setView('main');
       if (isNewRegistration.current) {
         isNewRegistration.current = false;
-        setMainTab('profiles');
+        setMainTab('status');
         setShowWelcomeNotice(true);
       }
     });
