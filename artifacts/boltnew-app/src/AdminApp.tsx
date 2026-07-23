@@ -3301,23 +3301,45 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       nickname: s.profile_id ? (profileMap.get(s.profile_id)?.nickname ?? null) : null,
       registered_at: s.registered_at,
     }));
+    const seatAssignments = seats.filter(s => s.profile_id).map(s => ({ seat_id: s.id, profile_id: s.profile_id! }));
     await adminSupabase.from('session_history').insert({ seats_snapshot: snapshot });
     await adminSupabase.rpc('admin_reset_all_seats', { p_admin_password: settings?.admin_password ?? '' });
     await adminSupabase.from('app_settings').update({ reset_signal: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', 1);
-    showRecovery('좌석 배치', '🪑', null);
+    showRecovery('좌석 배치', '🪑', seatAssignments.length > 0 ? async () => {
+      for (const { seat_id, profile_id } of seatAssignments) {
+        await adminSupabase.rpc('admin_force_seat', { p_profile_id: profile_id, p_seat_id: seat_id, p_admin_password: settings?.admin_password ?? '' });
+      }
+      await loadAll();
+      setRecovery(null);
+    } : null);
     await loadAll();
   };
 
   const handleEventEndReset = async () => {
-    // Backup seat snapshot to history before full wipe
     const snapshot = seats.map((s) => ({
       seat_label: s.seat_label, table_number: s.table_number,
       seat_position: s.seat_position, status: s.status,
       nickname: s.profile_id ? (profileMap.get(s.profile_id)?.nickname ?? null) : null,
       registered_at: s.registered_at,
     }));
+    const seatAssignments = seats.filter(s => s.profile_id).map(s => ({ seat_id: s.id, profile_id: s.profile_id! }));
+    const backupProfiles = [...profiles];
+    const backupLikes = [...likes];
+    const backupChats = [...allChats];
+    const backupMsgs = [...allMessages];
+    const backupSuggestions = [...suggestions];
+    const backupHistories = [...histories];
+    const gsBackup = settings?.game_state ?? null;
+    const [notifRes, bgRes, bvRes, qgRes, qaRes, igRes, ivRes] = await Promise.all([
+      adminSupabase.from('notifications').select('*'),
+      adminSupabase.from('balance_games').select('*'),
+      adminSupabase.from('balance_votes').select('*'),
+      adminSupabase.from('qa_games').select('*'),
+      adminSupabase.from('qa_answers').select('*'),
+      adminSupabase.from('image_games').select('*'),
+      adminSupabase.from('image_votes').select('*'),
+    ]);
     await adminSupabase.from('session_history').insert({ seats_snapshot: snapshot });
-    // Wipe ALL data categories
     await adminSupabase.rpc('admin_reset_all_seats', { p_admin_password: settings?.admin_password ?? '' });
     await adminSupabase.from('profiles').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     await adminSupabase.from('likes').delete().neq('id', '00000000-0000-0000-0000-000000000000');
@@ -3329,12 +3351,29 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       await adminSupabase.from(t).delete().neq('id', '00000000-0000-0000-0000-000000000000');
     }
     await adminSupabase.from('suggestions').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    await adminSupabase.from('app_settings').update({
-      reset_signal: new Date().toISOString(),
-      game_state: null,
-      updated_at: new Date().toISOString(),
-    }).eq('id', 1);
-    showRecovery('전체', '🗑️', null);
+    await adminSupabase.from('app_settings').update({ reset_signal: new Date().toISOString(), game_state: null, updated_at: new Date().toISOString() }).eq('id', 1);
+    const hasData = backupProfiles.length > 0 || backupLikes.length > 0 || backupChats.length > 0 || backupSuggestions.length > 0;
+    showRecovery('전체 초기화', '🗑️', hasData ? async () => {
+      for (const p of backupProfiles) await adminSupabase.from('profiles').upsert(p);
+      for (const l of backupLikes) await adminSupabase.from('likes').upsert({ id: l.id, from_profile_id: l.from_profile_id, to_profile_id: l.to_profile_id, heart_type: l.heart_type, created_at: l.created_at });
+      for (const c of backupChats) await adminSupabase.from('chats').upsert(c);
+      for (const m of backupMsgs) await adminSupabase.from('messages').upsert(m);
+      for (const s of backupSuggestions) await adminSupabase.from('suggestions').upsert({ id: s.id, content: s.content, created_at: s.created_at });
+      for (const h of backupHistories) await adminSupabase.from('session_history').upsert({ id: h.id, seats_snapshot: h.seats_snapshot, created_at: (h as { created_at?: string }).created_at });
+      if (notifRes.data) for (const n of notifRes.data) await adminSupabase.from('notifications').upsert(n);
+      if (bgRes.data) for (const r of bgRes.data) await adminSupabase.from('balance_games').upsert(r);
+      if (bvRes.data) for (const r of bvRes.data) await adminSupabase.from('balance_votes').upsert(r);
+      if (qgRes.data) for (const r of qgRes.data) await adminSupabase.from('qa_games').upsert(r);
+      if (qaRes.data) for (const r of qaRes.data) await adminSupabase.from('qa_answers').upsert(r);
+      if (igRes.data) for (const r of igRes.data) await adminSupabase.from('image_games').upsert(r);
+      if (ivRes.data) for (const r of ivRes.data) await adminSupabase.from('image_votes').upsert(r);
+      if (gsBackup) await adminSupabase.from('app_settings').update({ game_state: gsBackup, updated_at: new Date().toISOString() }).eq('id', 1);
+      for (const { seat_id, profile_id } of seatAssignments) {
+        await adminSupabase.rpc('admin_force_seat', { p_profile_id: profile_id, p_seat_id: seat_id, p_admin_password: settings?.admin_password ?? '' });
+      }
+      await loadAll();
+      setRecovery(null);
+    } : null);
     await loadAll();
   };
 
@@ -3360,16 +3399,40 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   };
 
   const handleClearNotifications = async () => {
+    const { data: backup } = await adminSupabase.from('notifications').select('*');
     await adminSupabase.from('notifications').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    showRecovery('공지', '🔔', null);
+    showRecovery('공지', '🔔', backup && backup.length > 0 ? async () => {
+      for (const n of backup) await adminSupabase.from('notifications').upsert(n);
+      setRecovery(null);
+    } : null);
   };
 
   const handleClearGames = async () => {
+    const gsBackup = settings?.game_state ?? null;
+    const [bgRes, bvRes, qgRes, qaRes, igRes, ivRes] = await Promise.all([
+      adminSupabase.from('balance_games').select('*'),
+      adminSupabase.from('balance_votes').select('*'),
+      adminSupabase.from('qa_games').select('*'),
+      adminSupabase.from('qa_answers').select('*'),
+      adminSupabase.from('image_games').select('*'),
+      adminSupabase.from('image_votes').select('*'),
+    ]);
     for (const t of ['balance_games', 'qa_games', 'image_games', 'balance_votes', 'qa_answers', 'image_votes']) {
       await adminSupabase.from(t).delete().neq('id', '00000000-0000-0000-0000-000000000000');
     }
     await adminSupabase.from('app_settings').update({ game_state: null, updated_at: new Date().toISOString() }).eq('id', 1);
-    showRecovery('게임 기록', '🎮', null);
+    const hasData = [bgRes.data, bvRes.data, qgRes.data, qaRes.data, igRes.data, ivRes.data].some(d => d && d.length > 0) || !!gsBackup;
+    showRecovery('게임 기록', '🎮', hasData ? async () => {
+      if (bgRes.data) for (const r of bgRes.data) await adminSupabase.from('balance_games').upsert(r);
+      if (bvRes.data) for (const r of bvRes.data) await adminSupabase.from('balance_votes').upsert(r);
+      if (qgRes.data) for (const r of qgRes.data) await adminSupabase.from('qa_games').upsert(r);
+      if (qaRes.data) for (const r of qaRes.data) await adminSupabase.from('qa_answers').upsert(r);
+      if (igRes.data) for (const r of igRes.data) await adminSupabase.from('image_games').upsert(r);
+      if (ivRes.data) for (const r of ivRes.data) await adminSupabase.from('image_votes').upsert(r);
+      if (gsBackup) await adminSupabase.from('app_settings').update({ game_state: gsBackup, updated_at: new Date().toISOString() }).eq('id', 1);
+      await loadAll();
+      setRecovery(null);
+    } : null);
     await loadAll();
   };
 
@@ -3387,9 +3450,18 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   };
 
   const handleClearProfiles = async () => {
+    const backupProfiles = [...profiles];
+    const seatAssignments = seats.filter(s => s.profile_id).map(s => ({ seat_id: s.id, profile_id: s.profile_id! }));
     await adminSupabase.from('profiles').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     await adminSupabase.rpc('admin_reset_all_seats', { p_admin_password: settings?.admin_password ?? '' });
-    showRecovery('참여자 프로필', '👤', null);
+    showRecovery('참여자 프로필', '👤', backupProfiles.length > 0 ? async () => {
+      for (const p of backupProfiles) await adminSupabase.from('profiles').upsert(p);
+      for (const { seat_id, profile_id } of seatAssignments) {
+        await adminSupabase.rpc('admin_force_seat', { p_profile_id: profile_id, p_seat_id: seat_id, p_admin_password: settings?.admin_password ?? '' });
+      }
+      await loadAll();
+      setRecovery(null);
+    } : null);
     await loadAll();
   };
 
@@ -3892,31 +3964,41 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
       {qrSeat && <QrModal seat={qrSeat} onClose={() => setQrSeat(null)} />}
 
-      {/* 초기화 복구 배너 */}
+      {/* 초기화 복구 팝업 */}
       {recovery && (
-        <div className="fixed bottom-4 inset-x-4 z-[350] max-w-sm mx-auto">
-          <div className="bg-slate-900 rounded-2xl shadow-2xl p-4 flex items-center gap-3 border border-slate-700">
-            <span className="text-xl flex-shrink-0">{recovery.emoji}</span>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-black text-white leading-tight">{recovery.label} 초기화 완료</p>
+        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/50 backdrop-blur-sm p-6">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xs overflow-hidden">
+            {/* 헤더 */}
+            <div className={`px-7 pt-8 pb-6 text-center ${recovery.restore ? 'bg-gradient-to-b from-teal-50 to-white' : 'bg-gradient-to-b from-slate-50 to-white'}`}>
+              <div className="text-5xl mb-3">{recovery.emoji}</div>
+              <h3 className="text-xl font-black text-gray-900">{recovery.label}</h3>
+              <p className="text-sm font-bold text-gray-400 mt-1">초기화 완료</p>
               {recovery.restore ? (
-                <p className="text-[10px] text-teal-400 font-medium mt-0.5">30초 안에 복구 가능</p>
+                <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 bg-teal-100 rounded-full">
+                  <div className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse" />
+                  <span className="text-xs font-bold text-teal-700">30초 안에 복구 가능</span>
+                </div>
               ) : (
-                <p className="text-[10px] text-slate-500 font-medium mt-0.5">복구 불가 — 완전 삭제됨</p>
+                <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-50 rounded-full">
+                  <span className="text-xs font-bold text-red-400">데이터가 없어 복구 불가</span>
+                </div>
               )}
             </div>
-            {recovery.restore && (
+            {/* 버튼 영역 */}
+            <div className="px-6 pb-7 pt-2 space-y-3">
+              {recovery.restore && (
+                <button
+                  onClick={() => recovery.restore!()}
+                  className="w-full py-4 bg-teal-500 hover:bg-teal-400 active:scale-95 text-white font-black rounded-2xl transition-all text-base shadow-lg shadow-teal-500/30">
+                  ↩ 복구하기
+                </button>
+              )}
               <button
-                onClick={() => recovery.restore!()}
-                className="flex-shrink-0 px-3 py-2 bg-teal-500 hover:bg-teal-400 text-white text-xs font-black rounded-xl transition-all active:scale-95">
-                복구
+                onClick={() => { clearTimeout(recovery.timerId); setRecovery(null); }}
+                className="w-full py-4 bg-gray-100 hover:bg-gray-200 active:scale-95 text-gray-600 font-bold rounded-2xl transition-all text-base">
+                닫기
               </button>
-            )}
-            <button
-              onClick={() => { clearTimeout(recovery.timerId); setRecovery(null); }}
-              className="flex-shrink-0 p-1.5 text-slate-400 hover:text-white transition-colors">
-              <X className="w-4 h-4" />
-            </button>
+            </div>
           </div>
         </div>
       )}
