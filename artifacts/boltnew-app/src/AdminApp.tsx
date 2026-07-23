@@ -1969,7 +1969,7 @@ function QaGameSection({ seats }: { seats: Seat[] }) {
   const activeQaGameRef = useRef<QaGame | null>(null);
 
   const loadActiveQa = useCallback(async () => {
-    const { data } = await adminSupabase.from('qa_games').select('*').eq('status', 'active').order('created_at', { ascending: false }).limit(1);
+    const { data } = await adminSupabase.from('qa_games').select('*').eq('status', 'active').eq('scope', 'qa_global').order('created_at', { ascending: false }).limit(1);
     const game = data?.[0] as QaGame | undefined ?? null;
     activeQaGameRef.current = game;
     setActiveQaGame(game);
@@ -2015,7 +2015,7 @@ function QaGameSection({ seats }: { seats: Seat[] }) {
     if (!qaQuestion.trim()) return;
     setQaSaving(true);
     const { data } = await adminSupabase.from('qa_games').insert({
-      question: qaQuestion.trim(), correct_answer: qaCorrectAnswer.trim() || null, status: 'active', scope: 'global',
+      question: qaQuestion.trim(), correct_answer: qaCorrectAnswer.trim() || null, status: 'active', scope: 'qa_global',
     }).select().single();
     if (data) {
       activeQaGameRef.current = data as QaGame;
@@ -2138,6 +2138,387 @@ function QaGameSection({ seats }: { seats: Seat[] }) {
 type QaGame = Database['public']['Tables']['qa_games']['Row'];
 type QaAnswer = Database['public']['Tables']['qa_answers']['Row'];
 type ImageGame = Database['public']['Tables']['image_games']['Row'];
+
+// ─── OX Game Section ───────────────────────────────────────────────────────────
+const OX_A = '⭕ O';
+const OX_B = '❌ X';
+const isOxGame = (g: BalanceGame) => g.option_a === OX_A && g.option_b === OX_B;
+
+const OX_QUICK = [
+  '오늘 이 자리가 즐겁다', '지금 짝이 있다', '오늘 처음 보는 사람이 있다',
+  '술 게임에 자신 있다', '번호 교환할 의향이 있다', '다음에 또 참석할 것이다',
+  '술을 이미 많이 마셨다', '범일NPC 이용약관을 읽었다',
+];
+
+function OxGameSection({ balanceGames, voteCounts, currentGame, onGameUpdate, seats, settings }: {
+  balanceGames: BalanceGame[];
+  voteCounts: Map<string, { a: number; b: number }>;
+  currentGame: GameState | null;
+  onGameUpdate: (g: GameState | null) => void;
+  seats: Seat[];
+  settings: AppSettings | null;
+}) {
+  const [question, setQuestion] = useState('');
+  const [targetTable, setTargetTable] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const oxGames = balanceGames.filter(isOxGame);
+  const activeOxGame = oxGames.find(g => g.status === 'active');
+  const isOxActive = !!(currentGame?.active && currentGame.option_a === OX_A);
+
+  const allNums = [...new Set(seats.map(s => s.table_number))].sort((a, b) => a - b);
+  const active = settings?.active_tables ?? null;
+  const tableNumbers = active ? allNums.filter(n => active.includes(n)) : allNums;
+
+  const startOx = async () => {
+    if (!question.trim()) return;
+    setSaving(true);
+    const { data: row } = await adminSupabase.from('balance_games').insert({
+      creator_nickname: '관리자',
+      scope: targetTable !== null ? 'table' : 'global',
+      table_number: targetTable ?? null,
+      question: question.trim(),
+      option_a: OX_A,
+      option_b: OX_B,
+    }).select().single();
+    const gs: GameState = {
+      active: true, type: 'balance',
+      title: question.trim(),
+      description: 'O 또는 X를 선택하세요!',
+      rules: '', penalty: '',
+      option_a: OX_A, option_b: OX_B,
+      game_id: (row as { id: string } | null)?.id,
+      started_at: new Date().toISOString(),
+      table_number: targetTable ?? undefined,
+    };
+    await adminSupabase.from('app_settings').update({ game_state: gs as unknown as Json, updated_at: new Date().toISOString() }).eq('id', 1);
+    onGameUpdate(gs);
+    setQuestion('');
+    setSaving(false);
+  };
+
+  const stopOx = async () => {
+    setSaving(true);
+    await adminSupabase.from('app_settings').update({ game_state: { active: false } as unknown as Json, updated_at: new Date().toISOString() }).eq('id', 1);
+    onGameUpdate(null);
+    setSaving(false);
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+          <span className="text-xl">⭕❌</span> OX 게임 만들기
+        </h2>
+        {isOxActive && (
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-100 border border-orange-200 rounded-full text-xs font-bold text-orange-700 animate-pulse">
+              <span className="w-2 h-2 rounded-full bg-orange-500" />진행 중: {currentGame!.title}
+            </span>
+            <button onClick={stopOx} disabled={saving}
+              className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold rounded-xl border border-red-200 transition-all disabled:opacity-50">
+              게임 종료
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* 빠른 문제 */}
+      <div>
+        <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">빠른 문제</p>
+        <div className="grid grid-cols-2 gap-1.5">
+          {OX_QUICK.map(q => (
+            <button key={q} onClick={() => setQuestion(q)}
+              className="text-xs font-semibold px-2 py-2 rounded-xl bg-orange-50 border border-orange-200 text-orange-700 hover:bg-orange-100 transition-all text-left leading-snug active:scale-95">
+              {q}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 문제 입력 */}
+      <div>
+        <label className="text-xs font-bold text-gray-600 uppercase tracking-wider block mb-1.5">OX 문제 *</label>
+        <textarea value={question} onChange={e => setQuestion(e.target.value)}
+          placeholder="예: 오늘 이 자리가 즐겁다" rows={2}
+          className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-orange-400 resize-none" />
+      </div>
+
+      {/* 대상 */}
+      <div>
+        <label className="text-xs font-bold text-gray-600 uppercase tracking-wider block mb-1.5">대상</label>
+        <div className="flex flex-wrap gap-1.5">
+          <button onClick={() => setTargetTable(null)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold border-2 transition-all active:scale-95 ${targetTable === null ? 'bg-orange-500 border-orange-500 text-white' : 'bg-white border-gray-200 text-gray-600 hover:border-orange-300'}`}>
+            전체
+          </button>
+          {tableNumbers.map(n => (
+            <button key={n} onClick={() => setTargetTable(targetTable === n ? null : n)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold border-2 transition-all active:scale-95 ${targetTable === n ? 'bg-orange-500 border-orange-500 text-white' : 'bg-white border-gray-200 text-gray-600 hover:border-orange-300'}`}>
+              {TABLE_LABELS[n] ?? n}번
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <button onClick={startOx} disabled={!question.trim() || saving}
+        className="w-full py-3.5 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-400 hover:to-red-400 text-white font-bold rounded-xl transition-all disabled:opacity-40 shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2">
+        <span className="text-lg">⭕❌</span>{saving ? 'OX 시작 중...' : 'OX 게임 시작'}
+      </button>
+
+      {/* 실시간 결과 */}
+      {activeOxGame && (() => {
+        const counts = voteCounts.get(activeOxGame.id) ?? { a: 0, b: 0 };
+        const total = counts.a + counts.b;
+        const pctA = total > 0 ? Math.round((counts.a / total) * 100) : 0;
+        const pctB = 100 - pctA;
+        return (
+          <div className="bg-orange-50 border border-orange-200 rounded-2xl p-4 space-y-3">
+            <p className="text-xs font-bold text-orange-700 uppercase tracking-wider">실시간 결과 — {activeOxGame.question}</p>
+            <div className="flex gap-2">
+              <div className="flex-1 bg-white rounded-2xl border-2 border-emerald-300 p-4 text-center shadow-sm">
+                <div className="text-4xl mb-1">⭕</div>
+                <div className="text-3xl font-black text-emerald-600">{counts.a}</div>
+                <div className="text-sm font-bold text-emerald-500">{pctA}%</div>
+              </div>
+              <div className="flex-1 bg-white rounded-2xl border-2 border-red-300 p-4 text-center shadow-sm">
+                <div className="text-4xl mb-1">❌</div>
+                <div className="text-3xl font-black text-red-600">{counts.b}</div>
+                <div className="text-sm font-bold text-red-500">{pctB}%</div>
+              </div>
+            </div>
+            <div className="flex h-3 rounded-full overflow-hidden bg-gray-100">
+              <div className="bg-emerald-400 transition-all duration-500" style={{ width: `${pctA}%` }} />
+              <div className="bg-red-400 transition-all duration-500" style={{ width: `${pctB}%` }} />
+            </div>
+            <p className="text-center text-xs text-gray-500 font-semibold">총 {total}명 참여</p>
+          </div>
+        );
+      })()}
+
+      {/* 종료된 게임 목록 */}
+      {oxGames.filter(g => g.status === 'ended').length > 0 && (
+        <div>
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">종료된 OX 게임</p>
+          <div className="space-y-1.5">
+            {oxGames.filter(g => g.status === 'ended').slice(0, 8).map(g => {
+              const c = voteCounts.get(g.id) ?? { a: 0, b: 0 };
+              return (
+                <div key={g.id} className="bg-white rounded-xl border border-gray-200 px-3 py-2 flex items-center gap-3">
+                  <p className="flex-1 text-xs font-semibold text-gray-700 truncate">{g.question}</p>
+                  <span className="text-xs font-black text-emerald-600 flex-shrink-0">O {c.a}</span>
+                  <span className="text-gray-300 text-xs">|</span>
+                  <span className="text-xs font-black text-red-500 flex-shrink-0">X {c.b}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── 초성 Game Section ─────────────────────────────────────────────────────────
+const CHOSUNG_QUICK = [
+  { hint: 'ㅅㅂ', answer: '사부' },       { hint: 'ㅊㅅ', answer: '초성' },
+  { hint: 'ㄱㅅ', answer: '감사' },       { hint: 'ㅎㄱ', answer: '합격' },
+  { hint: 'ㅇㄱ', answer: '연기' },       { hint: 'ㅅㄹ', answer: '사랑' },
+  { hint: 'ㅁㅈ', answer: '마지' },       { hint: 'ㅂㄹ', answer: '바람' },
+  { hint: 'ㄴㄱ', answer: '남자' },       { hint: 'ㅇㅈ', answer: '여자' },
+  { hint: 'ㅅㅈ', answer: '소주' },       { hint: 'ㅁㄱ', answer: '맥주' },
+  { hint: 'ㅂㄴ', answer: '번호' },       { hint: 'ㄱㄱ', answer: '고기' },
+  { hint: 'ㄷㅅ', answer: '다시' },       { hint: 'ㅇㅁ', answer: '언제' },
+];
+
+function ChosungGameSection({ seats }: { seats: Seat[] }) {
+  const [hint, setHint] = useState('');
+  const [answer, setAnswer] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [activeGame, setActiveGame] = useState<QaGame | null>(null);
+  const [answers, setAnswers] = useState<QaAnswer[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshDone, setRefreshDone] = useState(false);
+  const activeGameRef = useRef<QaGame | null>(null);
+
+  const loadActive = useCallback(async () => {
+    const { data } = await adminSupabase.from('qa_games').select('*')
+      .eq('status', 'active').eq('scope', 'chosung')
+      .order('created_at', { ascending: false }).limit(1);
+    const game = data?.[0] as QaGame | undefined ?? null;
+    activeGameRef.current = game;
+    setActiveGame(game);
+    if (game) {
+      const { data: ans } = await adminSupabase.from('qa_answers').select('*')
+        .eq('game_id', game.id).order('submitted_at', { ascending: true });
+      setAnswers((ans ?? []) as QaAnswer[]);
+    } else { setAnswers([]); }
+  }, []);
+
+  useEffect(() => {
+    loadActive();
+    const chName = `chosung-admin-${Date.now()}`;
+    const ch = supabase.channel(chName)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'qa_answers' }, async (payload) => {
+        const a = payload.new as QaAnswer;
+        if (activeGameRef.current && a.game_id === activeGameRef.current.id) {
+          setAnswers(prev => prev.some(x => x.id === a.id) ? prev : [...prev, a]);
+        } else { await loadActive(); }
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'qa_answers' }, (payload) => {
+        setAnswers(prev => prev.map(a => a.id === (payload.new as QaAnswer).id ? payload.new as QaAnswer : a));
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'qa_games' }, () => loadActive())
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'qa_games' }, () => loadActive())
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [loadActive]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadActive();
+    setRefreshing(false);
+    setRefreshDone(true);
+    setTimeout(() => setRefreshDone(false), 2000);
+  };
+
+  const startGame = async () => {
+    if (!hint.trim()) return;
+    setSaving(true);
+    const q = `초성: ${hint.trim()}`;
+    const { data } = await adminSupabase.from('qa_games').insert({
+      question: q,
+      correct_answer: answer.trim() || null,
+      status: 'active',
+      scope: 'chosung',
+    }).select().single();
+    if (data) { activeGameRef.current = data as QaGame; setActiveGame(data as QaGame); }
+    setAnswers([]);
+    setHint('');
+    setAnswer('');
+    setSaving(false);
+  };
+
+  const endGame = async () => {
+    if (!activeGame) return;
+    setSaving(true);
+    await adminSupabase.from('qa_games').update({ status: 'ended', ended_at: new Date().toISOString() }).eq('id', activeGame.id);
+    activeGameRef.current = null;
+    setActiveGame(null);
+    setAnswers([]);
+    setSaving(false);
+  };
+
+  const markCorrect = async (answerId: string, correct: boolean) => {
+    await adminSupabase.from('qa_answers').update({ is_correct: correct }).eq('id', answerId);
+    setAnswers(prev => prev.map(a => a.id === answerId ? { ...a, is_correct: correct } : a));
+  };
+
+  const correctCount = answers.filter(a => a.is_correct).length;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <span className="text-xl">🔤</span>
+        <h2 className="text-lg font-bold text-gray-900">초성 게임</h2>
+        <div className="ml-auto flex items-center gap-2">
+          {activeGame && (
+            <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-black rounded-full uppercase tracking-wider border border-indigo-300 animate-pulse">진행 중</span>
+          )}
+          <button onClick={handleRefresh} disabled={refreshing}
+            className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl transition-all border disabled:opacity-50 ${refreshDone ? 'bg-teal-50 border-teal-300 text-teal-600' : 'bg-gray-100 hover:bg-gray-200 text-gray-600 border-gray-200'}`}>
+            <RefreshCw className={`w-3 h-3 ${refreshing ? 'animate-spin' : ''}`} />
+            {refreshDone ? '완료!' : '새로고침'}
+          </button>
+        </div>
+      </div>
+
+      {activeGame ? (
+        <>
+          <div className="flex items-start justify-between gap-3 flex-wrap bg-indigo-50 rounded-xl border border-indigo-200 p-4">
+            <div>
+              <p className="text-[10px] text-indigo-600 font-bold uppercase tracking-wider mb-1">진행 중인 초성</p>
+              <p className="text-2xl font-black text-gray-900 tracking-widest">{activeGame.question.replace('초성: ', '')}</p>
+              {activeGame.correct_answer && (
+                <p className="text-xs text-indigo-600 mt-1.5 font-bold">정답: <span className="text-indigo-800">{activeGame.correct_answer}</span></p>
+              )}
+              {correctCount > 0 && (
+                <p className="text-xs text-emerald-600 font-bold mt-0.5">✅ 정답자 {correctCount}명</p>
+              )}
+            </div>
+            <button onClick={endGame} disabled={saving}
+              className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold rounded-xl border border-red-200 transition-all flex-shrink-0">
+              {saving ? '종료 중...' : '초성 게임 종료'}
+            </button>
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">답변 {answers.length}개</p>
+            {answers.length === 0 && <p className="text-sm text-gray-400 text-center py-6">아직 답변이 없습니다</p>}
+            {answers.map((a, idx) => {
+              const seat = seats.find(s => s.profile_id === a.user_id);
+              return (
+                <div key={a.id} className={`flex items-center gap-2.5 bg-white rounded-xl border p-3 ${a.is_correct ? 'border-emerald-400 bg-emerald-50/50' : 'border-gray-200'}`}>
+                  <span className="flex-shrink-0 w-5 h-5 rounded-full bg-gray-100 flex items-center justify-center text-[10px] font-black text-gray-400">{idx + 1}</span>
+                  <div className={`flex-shrink-0 w-9 h-9 rounded-xl flex flex-col items-center justify-center font-black text-center leading-tight ${a.table_number != null ? 'bg-indigo-100 text-indigo-700 border border-indigo-200' : 'bg-gray-100 text-gray-500'}`}>
+                    {a.table_number != null ? (
+                      <><span className="text-xs font-black">{TABLE_LABELS[a.table_number] ?? a.table_number}</span><span className="text-[7px] opacity-70">번</span></>
+                    ) : '?'}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-xs font-bold text-gray-700">{a.nickname ?? '익명'}</span>
+                    {seat && <span className="text-[10px] text-gray-400 ml-1.5">{seat.seat_label}석</span>}
+                    <p className="text-sm font-black text-gray-900 mt-0.5">{a.answer}</p>
+                  </div>
+                  {activeGame.correct_answer && (
+                    <button onClick={() => markCorrect(a.id, !a.is_correct)}
+                      className={`flex-shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${a.is_correct ? 'bg-emerald-100 text-emerald-700 border border-emerald-300' : 'bg-gray-100 text-gray-500 border border-gray-200 hover:border-emerald-300 hover:text-emerald-600'}`}>
+                      {a.is_correct ? '✓ 정답' : '정답?'}
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </>
+      ) : (
+        <>
+          {/* 빠른 초성 */}
+          <div>
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">빠른 초성</p>
+            <div className="grid grid-cols-4 gap-1.5">
+              {CHOSUNG_QUICK.map(({ hint: h, answer: a }) => (
+                <button key={h} onClick={() => { setHint(h); setAnswer(a); }}
+                  className="py-2 rounded-xl bg-indigo-50 border border-indigo-200 text-center transition-all hover:bg-indigo-100 active:scale-95">
+                  <div className="text-base font-black text-indigo-700">{h}</div>
+                  <div className="text-[9px] text-indigo-400 font-semibold">{a}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-bold text-gray-600 uppercase tracking-wider block mb-1.5">초성 힌트 *</label>
+            <input type="text" value={hint} onChange={e => setHint(e.target.value)}
+              placeholder="예: ㅅㅂ  (자음만 입력)"
+              className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-2xl font-black text-center rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-400 tracking-widest" />
+          </div>
+          <div>
+            <label className="text-xs font-bold text-gray-600 uppercase tracking-wider block mb-1.5">정답 (선택)</label>
+            <input type="text" value={answer} onChange={e => setAnswer(e.target.value)}
+              placeholder="정답이 있으면 입력 — 없으면 자유 답변"
+              className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+          </div>
+          <p className="text-xs text-gray-400">💡 게임 시작 후 공지탭에서 초성 힌트를 공지로 전송하면 유저들이 답변합니다</p>
+          <button onClick={startGame} disabled={!hint.trim() || saving}
+            className="w-full py-3.5 bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-400 hover:to-violet-500 text-white font-bold rounded-xl transition-all disabled:opacity-40 shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2">
+            <span className="text-lg">🔤</span>{saving ? '초성 게임 시작 중...' : '초성 게임 시작'}
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
 type ImageVote = Database['public']['Tables']['image_votes']['Row'];
 
 // ─── Image Game Section ────────────────────────────────────────────────────────
@@ -3339,7 +3720,7 @@ type SettingsSubTab = 'control' | 'qr' | 'admin';
 type HistorySubTab = 'hearts' | 'chats' | 'session' | 'feedback';
 type HeartSubTab = 'hearts' | 'popularity';
 type FeedbackSubTab = 'suggestions' | 'reports';
-type GameSubTab = 'balance' | 'qa' | 'image';
+type GameSubTab = 'balance' | 'ox' | 'chosung' | 'qa' | 'image';
 
 function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [tab, setTab] = useState<AdminTab>('settings');
@@ -4190,14 +4571,16 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         )}
         {tab === 'game' && (
           <div>
-            <div className="flex border-b border-gray-200 bg-white px-4">
+            <div className="flex border-b border-gray-200 bg-white px-2 overflow-x-auto">
               {([
-                { id: 'balance' as GameSubTab, label: '밸런스 게임', icon: '⚡' },
-                { id: 'qa' as GameSubTab, label: 'Q&A 게임', icon: '💬' },
-                { id: 'image' as GameSubTab, label: '이미지 게임', icon: '🖼️' },
+                { id: 'balance' as GameSubTab, label: '밸런스', icon: '⚡' },
+                { id: 'ox'      as GameSubTab, label: 'OX',     icon: '⭕' },
+                { id: 'chosung' as GameSubTab, label: '초성',   icon: '🔤' },
+                { id: 'qa'      as GameSubTab, label: 'Q&A',    icon: '💬' },
+                { id: 'image'   as GameSubTab, label: '이미지', icon: '🖼️' },
               ]).map(st => (
                 <button key={st.id} onClick={() => setGameSubTab(st.id)}
-                  className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-semibold border-b-2 transition-all ${gameSubTab === st.id ? 'border-violet-500 text-violet-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+                  className={`flex items-center gap-1 px-3 py-2.5 text-xs font-semibold border-b-2 transition-all whitespace-nowrap flex-shrink-0 ${gameSubTab === st.id ? 'border-violet-500 text-violet-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
                   <span>{st.icon}</span>{st.label}
                 </button>
               ))}
@@ -4208,7 +4591,17 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                   <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
                     <BalanceGameCreate currentGame={currentGame} onGameUpdate={setCurrentGame} seats={seats} settings={settings} />
                   </div>
-                  <AdminBalanceGameTab balanceGames={balanceGames} voteCounts={adminVoteCounts} myVotes={adminMyVotes} onVote={handleAdminVote} />
+                  <AdminBalanceGameTab balanceGames={balanceGames.filter(g => !isOxGame(g))} voteCounts={adminVoteCounts} myVotes={adminMyVotes} onVote={handleAdminVote} />
+                </div>
+              )}
+              {gameSubTab === 'ox' && (
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+                  <OxGameSection balanceGames={balanceGames} voteCounts={adminVoteCounts} currentGame={currentGame} onGameUpdate={setCurrentGame} seats={seats} settings={settings} />
+                </div>
+              )}
+              {gameSubTab === 'chosung' && (
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+                  <ChosungGameSection seats={seats} />
                 </div>
               )}
               {gameSubTab === 'qa' && (
