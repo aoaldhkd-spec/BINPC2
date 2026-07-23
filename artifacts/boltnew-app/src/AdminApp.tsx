@@ -3952,7 +3952,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                         className="text-[9px] font-black px-2 py-0.5 bg-teal-500 hover:bg-teal-600 text-white rounded active:scale-95 transition-all">적용</button>
                     </div>
                   </div>
-                  <div className="grid grid-cols-4 gap-0.5">
+                  <div className="flex gap-0.5">
                     {displayNums.map(n => {
                       const isOn = !current || current.includes(n);
                       const pos = posNum(n);
@@ -3964,9 +3964,9 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                           else { next = [...current, n].sort((a, b) => a - b); }
                           setPendingActiveTables(next.length === allNums.length ? null : next);
                         }}
-                          className={`rounded border py-0.5 flex items-center justify-center gap-0.5 transition-all active:scale-95 ${isOn ? 'bg-teal-500 border-teal-500' : 'bg-gray-50 border-gray-200'}`}>
-                          <span className={`text-[10px] font-black leading-tight ${isOn ? 'text-white' : 'text-gray-700'}`}>{pos ?? n}</span>
-                          <span className={`text-[7px] ${isOn ? 'text-teal-100' : 'text-gray-400'}`}>{tableLabel(n, settings?.table_labels)}</span>
+                          className={`flex-1 aspect-square rounded border flex flex-col items-center justify-center transition-all active:scale-95 ${isOn ? 'bg-teal-500 border-teal-500' : 'bg-gray-50 border-gray-200'}`}>
+                          <span className={`text-[7px] leading-none ${isOn ? 'text-teal-200' : 'text-gray-400'}`}>{pos ?? n}</span>
+                          <span className={`text-[9px] font-black leading-tight text-center break-all ${isOn ? 'text-white' : 'text-gray-700'}`}>{tableLabel(n, settings?.table_labels)}</span>
                         </button>
                       );
                     })}
@@ -4008,8 +4008,8 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                             <button key={n}
                               onClick={() => { setEditingLabelNum(isSelected ? null : n); setLabelDraft(hasCustom ? curLabel : ''); }}
                               className={`rounded-xl border-2 py-2.5 px-1 flex flex-col items-center gap-0.5 transition-all active:scale-95 ${isSelected ? 'border-violet-500 bg-violet-50' : 'border-gray-200 bg-gray-50 hover:border-violet-300 hover:bg-violet-50'}`}>
-                              <span className={`text-sm font-black leading-tight ${isSelected ? 'text-violet-700' : 'text-gray-700'}`}>{pos ?? n}</span>
-                              <span className={`text-[9px] font-medium leading-tight text-center break-all ${isSelected ? 'text-violet-500' : hasCustom ? 'text-teal-600' : 'text-gray-400'}`}>{curLabel}</span>
+                              <span className={`text-[8px] leading-none ${isSelected ? 'text-violet-400' : 'text-gray-400'}`}>{pos ?? n}</span>
+                              <span className={`text-sm font-black leading-tight text-center break-all ${isSelected ? 'text-violet-700' : hasCustom ? 'text-teal-600' : 'text-gray-700'}`}>{curLabel}</span>
                             </button>
                           );
                         })}
