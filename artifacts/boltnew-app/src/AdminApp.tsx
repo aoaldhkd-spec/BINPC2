@@ -3951,7 +3951,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                         className="text-[9px] font-black px-2 py-0.5 bg-teal-500 hover:bg-teal-600 text-white rounded active:scale-95 transition-all">적용</button>
                     </div>
                   </div>
-                  <div className="flex gap-0.5">
+                  <div className="grid grid-cols-6 gap-1">
                     {displayNums.map(n => {
                       const isOn = !current || current.includes(n);
                       const pos = posNum(n);
@@ -3963,9 +3963,9 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                           else { next = [...current, n].sort((a, b) => a - b); }
                           setPendingActiveTables(next.length === allNums.length ? null : next);
                         }}
-                          className={`flex-1 aspect-square rounded border flex flex-col items-center justify-center transition-all active:scale-95 ${isOn ? 'bg-teal-500 border-teal-500' : 'bg-gray-50 border-gray-200'}`}>
-                          <span className={`text-[9px] leading-none ${isOn ? 'text-teal-200' : 'text-gray-400'}`}>{pos ?? n}</span>
-                          <span className={`text-[10px] font-black leading-tight text-center break-all ${isOn ? 'text-white' : 'text-gray-700'}`}>{tableLabel(n, settings?.table_labels)}</span>
+                          className={`h-12 rounded-lg border-2 flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 ${isOn ? 'bg-teal-500 border-teal-500' : 'bg-gray-50 border-gray-200'}`}>
+                          <span className={`text-[11px] leading-none font-bold ${isOn ? 'text-teal-100' : 'text-gray-400'}`}>{pos ?? n}</span>
+                          <span className={`text-xs font-black leading-tight text-center px-0.5 break-all ${isOn ? 'text-white' : 'text-gray-700'}`}>{tableLabel(n, settings?.table_labels)}</span>
                         </button>
                       );
                     })}
