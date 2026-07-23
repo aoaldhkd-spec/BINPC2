@@ -3314,8 +3314,8 @@ function App() {
         isMe={selectedProfile.id === currentUserId}
         isLiked={likedIds.has(selectedProfile.id)}
         heartType={sentHeartTypes.get(selectedProfile.id)}
-        onLike={() => handleLike(selectedProfile.id)}
-        onChat={() => openChat(selectedProfile)}
+        onLike={() => { if (!seatingLocked) handleLike(selectedProfile.id); }}
+        onChat={() => { if (!seatingLocked) openChat(selectedProfile); }}
         onBack={() => setView('main')}
         onReset={reset}
       />
@@ -3814,15 +3814,24 @@ function ResetButton({ onReset, darkMode, resetPassword }: { onReset: () => void
 
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)}
-        className="flex items-center gap-3 group cursor-pointer select-none"
-        title="처음으로 돌아가기">
-        <Users className={`w-7 h-7 transition-all group-hover:scale-110 group-active:scale-95 ${darkMode ? 'text-cyan-400' : 'text-cyan-500'}`} />
-        <div className="text-left">
+      <div className="flex items-center gap-2">
+        <button type="button"
+          onClick={() => {
+            const base = import.meta.env.BASE_URL;
+            window.history.pushState({}, '', base + 'admin');
+            window.dispatchEvent(new PopStateEvent('popstate'));
+          }}
+          title="관리자"
+          className={`p-1 rounded-xl transition-all active:scale-95 hover:scale-110 ${darkMode ? 'text-cyan-400 hover:text-cyan-300' : 'text-cyan-500 hover:text-cyan-600'}`}>
+          <Users className="w-7 h-7" />
+        </button>
+        <button type="button" onClick={() => setOpen(true)}
+          className="text-left group cursor-pointer select-none"
+          title="처음으로 돌아가기">
           <p className={`text-[10px] font-black tracking-widest uppercase leading-none transition-colors ${darkMode ? 'text-cyan-400 group-hover:text-cyan-300' : 'text-cyan-500 group-hover:text-cyan-600'}`}>범일NPC</p>
           <h1 className={`text-lg font-black leading-tight transition-colors ${darkMode ? 'text-white group-hover:text-cyan-200' : 'text-gray-900 group-hover:text-cyan-600'}`}>술번개 🍻</h1>
-        </div>
-      </button>
+        </button>
+      </div>
       {open && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => { setOpen(false); setPw(''); setErr(false); }}>
           <div className="bg-white rounded-2xl p-6 w-72 shadow-2xl" onClick={(e) => e.stopPropagation()}>
@@ -5016,7 +5025,7 @@ function MainScreen({
                     )}
                   </div>
                 </div>
-                {canLike && (
+                {canLike && !seatingLocked && (
                   <button
                     onClick={(e) => { e.stopPropagation(); onLike(profile.id); }}
                     disabled={isLiked}

@@ -619,7 +619,7 @@ function SmallTable({ tableNum, seats, profileMap, currentUserId, isAdmin, movin
 
   const tableBtn = (
     <button onClick={onTableClick} className={`w-12 self-stretch rounded-lg bg-gradient-to-br from-amber-800/80 to-amber-900/80 border border-amber-700/50 shadow-inner flex items-center justify-center px-0.5 ${!isAdmin ? 'hover:border-teal-500/60 transition-colors' : 'cursor-pointer'}`}>
-      <span className="text-[11px] font-black text-amber-300/90 text-center leading-tight break-words whitespace-pre-wrap">{label}</span>
+      <span className="text-xs font-black text-amber-300 text-center leading-tight break-words whitespace-pre-wrap">{label}</span>
     </button>
   );
 

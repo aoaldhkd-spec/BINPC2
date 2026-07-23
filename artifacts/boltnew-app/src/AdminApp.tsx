@@ -294,7 +294,7 @@ function NotificationTab({ tableCount, settings, onSetTimer }: {
   ];
   const EVENT_AWARDS = [
     { label: '🏆 하트최다상', msg: (prize: string) => `🏆 [하트 최다 수신] 수상자를 발표합니다! 상금: ${prize} 🎉 축하드립니다!` },
-    { label: '🥰 칭찬상', msg: (prize: string) => `🥰 [칭찬 최다 수신] 수상자를 발표합니다! 상금: ${prize} 🎉 축하드립니다!` },
+    { label: '🥰 칭찬 많이 받은 사람', msg: (prize: string) => `🥰 [칭찬 최다 수신] 수상자를 발표합니다! 상금: ${prize} 🎉 축하드립니다!` },
   ];
   const PRIZE_AMOUNTS = ['1,000원', '2,000원', '3,000원', '5,000원', '10,000원', '15,000원', '20,000원'];
   const GAME_QUICK = [
@@ -443,32 +443,31 @@ function NotificationTab({ tableCount, settings, onSetTimer }: {
               <div className="space-y-2">
                 <div className="grid grid-cols-2 gap-1.5">
                   {EVENT_AWARDS.map((a, i) => (
-                    <button key={a.label} onClick={() => setAwardType(awardType === i ? null : i)}
+                    <button key={a.label} onClick={() => {
+                      const next = awardType === i ? null : i;
+                      setAwardType(next);
+                      if (next !== null) setMessage(a.msg(prizeAmount));
+                      else setMessage('');
+                    }}
                       className={`py-2.5 rounded-xl text-xs font-black border-2 transition-all active:scale-95 ${awardType === i ? 'bg-amber-500 border-amber-500 text-white' : 'bg-amber-50 border-amber-200 text-amber-700 hover:border-amber-400'}`}>
                       {a.label}
                     </button>
                   ))}
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold text-gray-500 mb-1">상금 선택</p>
+                  <p className="text-[10px] font-bold text-gray-500 mb-1">상금 선택 (자동 적용)</p>
                   <div className="flex flex-wrap gap-1">
                     {PRIZE_AMOUNTS.map(p => (
-                      <button key={p} onClick={() => setPrizeAmount(p)}
+                      <button key={p} onClick={() => {
+                        setPrizeAmount(p);
+                        if (awardType !== null) setMessage(EVENT_AWARDS[awardType].msg(p));
+                      }}
                         className={`px-2.5 py-1 rounded-lg text-xs font-black border-2 transition-all active:scale-95 ${prizeAmount === p ? 'bg-amber-500 border-amber-500 text-white' : 'bg-white border-amber-200 text-amber-700 hover:border-amber-400'}`}>
                         {p}
                       </button>
                     ))}
                   </div>
                 </div>
-                <button
-                  disabled={awardType === null}
-                  onClick={() => {
-                    if (awardType === null) return;
-                    setMessage(EVENT_AWARDS[awardType].msg(prizeAmount));
-                  }}
-                  className="w-full py-2 bg-amber-500 disabled:opacity-40 text-white text-xs font-black rounded-xl active:scale-95 transition-all">
-                  메시지 적용
-                </button>
               </div>
             )}
 
@@ -3965,8 +3964,8 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                           setPendingActiveTables(next.length === allNums.length ? null : next);
                         }}
                           className={`flex-1 aspect-square rounded border flex flex-col items-center justify-center transition-all active:scale-95 ${isOn ? 'bg-teal-500 border-teal-500' : 'bg-gray-50 border-gray-200'}`}>
-                          <span className={`text-[7px] leading-none ${isOn ? 'text-teal-200' : 'text-gray-400'}`}>{pos ?? n}</span>
-                          <span className={`text-[9px] font-black leading-tight text-center break-all ${isOn ? 'text-white' : 'text-gray-700'}`}>{tableLabel(n, settings?.table_labels)}</span>
+                          <span className={`text-[9px] leading-none ${isOn ? 'text-teal-200' : 'text-gray-400'}`}>{pos ?? n}</span>
+                          <span className={`text-[10px] font-black leading-tight text-center break-all ${isOn ? 'text-white' : 'text-gray-700'}`}>{tableLabel(n, settings?.table_labels)}</span>
                         </button>
                       );
                     })}
