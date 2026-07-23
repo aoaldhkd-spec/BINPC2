@@ -6,10 +6,34 @@
 
 @layer base {
   * { box-sizing: border-box; }
+
+  html, body {
+    /* iOS 바운스 스크롤 방지 */
+    overscroll-behavior: none;
+    /* iOS safe area padding */
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
   body {
     font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* 텍스트 크기 자동 조정 방지 (iOS 가로 회전 시) */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  /* 모든 버튼/링크: 300ms 탭 딜레이 제거 */
+  button, a, [role="button"] {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* 입력창 iOS 자동 확대 방지 (16px 미만 폰트 시 확대됨) */
+  input, select, textarea {
+    font-size: max(16px, 1em);
+    -webkit-text-size-adjust: 100%;
   }
 }
 

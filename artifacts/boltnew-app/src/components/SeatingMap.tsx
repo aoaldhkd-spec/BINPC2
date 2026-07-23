@@ -657,26 +657,10 @@ function SmallTable({ tableNum, seats, profileMap, currentUserId, isAdmin, movin
 }
 
 // ─── Position number map (왼→오, 위→아래 순서) ─────────────────────────────────
-// Col1/Row1=7→1, Col2/Row1=5→2, Col3/Row1=6→3, Col4/Row1=8→4
-// Col1/Row2=9→5, Col2/Row2=4→6, Col3/Row2=2→7, Col4/Row2=11→8
-// Col1/Row3=10→9, Col2/Row3=3→10, Col3/Row3=1→11, Col4/Row3=12→12
-const TABLE_POS_NUM: Record<number, number> = {
-  7: 1, 5: 2, 6: 3, 8: 4,
-  9: 5, 4: 6, 2: 7, 11: 8,
-  10: 9, 3: 10, 1: 11, 12: 12,
-};
-
 // ─── Main SeatingMap ───────────────────────────────────────────────────────────
 
 type ColFilter = 'all' | '1' | '2' | '3' | '4';
 type RowFilter = 'all' | '1' | '2' | '3';
-
-const COL_TABLES: Record<'1' | '2' | '3' | '4', number[]> = {
-  '1': [7, 9, 10],
-  '2': [5, 4, 3],
-  '3': [6, 2, 1],
-  '4': [8, 11, 12],
-};
 
 export default function SeatingMap({
   seats, profileMap, currentUserId, isAdmin, seatingLocked = false,
@@ -684,8 +668,6 @@ export default function SeatingMap({
 }: SeatingMapProps) {
   // User (non-admin) view: seat self-registration is always disabled.
   // Empty seats are display-only; only admin can assign/move seats.
-  const userReadOnly = !isAdmin;
-  const effectiveOnSeatClick = userReadOnly ? undefined : onSeatClick;
   const totalOccupied = seats.filter(s => s.status === 'occupied').length;
   const totalSeats = seats.length;
   const [expandedTable, setExpandedTable] = useState<number | null>(null);

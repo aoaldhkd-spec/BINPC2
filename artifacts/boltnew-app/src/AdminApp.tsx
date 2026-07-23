@@ -28,8 +28,7 @@ type BalanceGame = Database['public']['Tables']['balance_games']['Row'];
 const ADMIN_SESSION_KEY = 'admin_session_v1';
 const ADMIN_TOKEN_KEY = 'admin_token_v1';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://ocvjorxlhwnkzhzjoazk.supabase.co';
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9jdmpvcnhsaHdua3poempvYXprIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMyNzQ2ODcsImV4cCI6MjA5ODg1MDY4N30.69iPkEspH1Y8wPYvhicgZ9_8TMYJ6zfDkSZUJ6KBADg';
+
 
 // Local mock: admin client is the same as the regular client
 const adminSupabase = supabase;
