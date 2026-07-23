@@ -1095,6 +1095,446 @@ function MiniGameTips() {
 
 // ─── User Game Tab ─────────────────────────────────────────────────────────────
 
+// OX 게임 구분자 (밸런스 목록에서 제외)
+const isOxBalanceGame = (g: BalanceGame) => g.option_a === '⭕ O' && g.option_b === '❌ X';
+
+// ─── 참여자 선택기 (사다리·돌림판 공용) ───────────────────────────────────────
+const MAX_GAME_PARTICIPANTS = 10;
+
+function ParticipantSelector({ seats, tableNumber, selected, onChange }: {
+  seats: Seat[];
+  tableNumber: number | null;
+  selected: string[];
+  onChange: (names: string[]) => void;
+}) {
+  const [mode, setMode] = useState<'auto' | 'manual'>('auto');
+  const [input, setInput] = useState('');
+
+  const autoList = seats
+    .filter(s => s.status === 'occupied' && s.nickname && (tableNumber === null || s.table_number === tableNumber))
+    .map(s => s.nickname as string);
+
+  const toggle = (name: string) => {
+    if (selected.includes(name)) onChange(selected.filter(n => n !== name));
+    else if (selected.length < MAX_GAME_PARTICIPANTS) onChange([...selected, name]);
+  };
+
+  const addManual = () => {
+    const name = input.trim();
+    if (!name || selected.includes(name) || selected.length >= MAX_GAME_PARTICIPANTS) return;
+    onChange([...selected, name]);
+    setInput('');
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex bg-gray-100 rounded-xl p-1">
+        {(['auto', 'manual'] as const).map(m => (
+          <button key={m} onClick={() => setMode(m)}
+            className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${mode === m ? 'bg-white shadow text-gray-900' : 'text-gray-500'}`}>
+            {m === 'auto' ? '자동 (좌석)' : '직접 입력'}
+          </button>
+        ))}
+      </div>
+
+      {mode === 'auto' && (
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs text-gray-500">{tableNumber != null ? `${tableNumber}번 테이블` : '전체'} — 탭하여 선택 (최대 {MAX_GAME_PARTICIPANTS}명)</p>
+            <div className="flex gap-1">
+              <button onClick={() => onChange(autoList.slice(0, MAX_GAME_PARTICIPANTS))}
+                className="text-xs text-violet-600 font-bold px-2 py-0.5 rounded-lg hover:bg-violet-50">전체</button>
+              <button onClick={() => onChange([])}
+                className="text-xs text-gray-400 font-bold px-2 py-0.5 rounded-lg hover:bg-gray-100">초기화</button>
+            </div>
+          </div>
+          {autoList.length === 0 ? (
+            <p className="text-xs text-gray-400 text-center py-4 bg-gray-50 rounded-xl">자리 배치된 참여자가 없습니다<br /><span className="text-[10px]">직접 입력 탭을 사용하세요</span></p>
+          ) : (
+            <div className="grid grid-cols-3 gap-1.5">
+              {autoList.map(name => (
+                <button key={name} onClick={() => toggle(name)}
+                  disabled={!selected.includes(name) && selected.length >= MAX_GAME_PARTICIPANTS}
+                  className={`py-2 px-1 rounded-xl text-xs font-bold text-center truncate transition-all active:scale-95 border-2 ${selected.includes(name) ? 'bg-violet-500 border-violet-500 text-white' : 'bg-gray-50 border-gray-200 text-gray-700 hover:border-violet-300 disabled:opacity-40'}`}>
+                  {name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {mode === 'manual' && (
+        <div className="flex gap-2">
+          <input type="text" value={input} onChange={e => setInput(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && addManual()}
+            placeholder={`이름 입력 (최대 ${MAX_GAME_PARTICIPANTS}명)`}
+            disabled={selected.length >= MAX_GAME_PARTICIPANTS}
+            className="flex-1 bg-gray-50 border border-gray-200 text-sm text-gray-900 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-violet-400 disabled:opacity-50" />
+          <button onClick={addManual} disabled={!input.trim() || selected.length >= MAX_GAME_PARTICIPANTS}
+            className="px-4 py-2.5 bg-violet-500 text-white text-xs font-bold rounded-xl disabled:opacity-40 active:scale-95">추가</button>
+        </div>
+      )}
+
+      {selected.length > 0 && (
+        <div className="bg-violet-50 border border-violet-200 rounded-xl p-3">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[10px] font-bold text-violet-600 uppercase tracking-wider">참여자 {selected.length}/{MAX_GAME_PARTICIPANTS}</p>
+            <button onClick={() => onChange([])} className="text-[10px] text-gray-400 hover:text-gray-600 font-semibold">전체 삭제</button>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {selected.map(name => (
+              <button key={name} onClick={() => onChange(selected.filter(n => n !== name))}
+                className="flex items-center gap-1 px-2.5 py-1 bg-violet-500 text-white text-xs font-bold rounded-full active:scale-95 transition-all">
+                {name}<span className="text-violet-200 text-[10px] ml-0.5">✕</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── 돌림판 ────────────────────────────────────────────────────────────────────
+const WHEEL_COLORS = [
+  '#7c3aed','#9333ea','#c026d3','#db2777','#e11d48',
+  '#ea580c','#d97706','#16a34a','#0891b2','#2563eb',
+];
+
+function RouletteGame({ seats, tableNumber }: { seats: Seat[]; tableNumber: number | null }) {
+  const [participants, setParticipants] = useState<string[]>([]);
+  const [spinning, setSpinning] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+  const [totalRot, setTotalRot] = useState(0);
+  const [showResult, setShowResult] = useState(false);
+  const wheelRef = useRef<SVGSVGElement>(null);
+
+  const SIZE = 260;
+  const CX = SIZE / 2;
+  const CY = SIZE / 2;
+  const R = SIZE / 2 - 6;
+  const n = participants.length;
+  const segAngle = n > 0 ? 360 / n : 0;
+
+  const toRad = (d: number) => (d * Math.PI) / 180;
+
+  const getSegment = (i: number) => {
+    const s = i * segAngle - 90;
+    const e = (i + 1) * segAngle - 90;
+    const x1 = CX + R * Math.cos(toRad(s));
+    const y1 = CY + R * Math.sin(toRad(s));
+    const x2 = CX + R * Math.cos(toRad(e));
+    const y2 = CY + R * Math.sin(toRad(e));
+    const mid = s + segAngle / 2;
+    const tr = R * 0.65;
+    return {
+      path: `M ${CX} ${CY} L ${x1} ${y1} A ${R} ${R} 0 ${segAngle > 180 ? 1 : 0} 1 ${x2} ${y2} Z`,
+      tx: CX + tr * Math.cos(toRad(mid)),
+      ty: CY + tr * Math.sin(toRad(mid)),
+      tAngle: mid + 90,
+    };
+  };
+
+  const spin = () => {
+    if (spinning || n < 2) return;
+    setSpinning(true);
+    setResult(null);
+    setShowResult(false);
+    const winnerIdx = Math.floor(Math.random() * n);
+    const winnerCenter = winnerIdx * segAngle + segAngle / 2;
+    const newRot = totalRot + 360 * 8 + (360 - winnerCenter % 360);
+    setTotalRot(newRot);
+    if (wheelRef.current) {
+      wheelRef.current.style.transition = 'transform 4s cubic-bezier(0.25, 0.1, 0.1, 1)';
+      wheelRef.current.style.transform = `rotate(${newRot}deg)`;
+    }
+    setTimeout(() => {
+      setResult(participants[winnerIdx]);
+      setSpinning(false);
+      setTimeout(() => setShowResult(true), 60);
+    }, 4150);
+  };
+
+  const reset = () => {
+    setResult(null);
+    setShowResult(false);
+    setTotalRot(0);
+    if (wheelRef.current) {
+      wheelRef.current.style.transition = 'none';
+      wheelRef.current.style.transform = 'rotate(0deg)';
+    }
+  };
+
+  return (
+    <div className="max-w-lg mx-auto space-y-4">
+      <ParticipantSelector seats={seats} tableNumber={tableNumber} selected={participants}
+        onChange={p => { setParticipants(p); reset(); }} />
+
+      {n >= 2 ? (
+        <div className="space-y-4">
+          {/* 휠 */}
+          <div className="flex flex-col items-center gap-1">
+            {/* 포인터 */}
+            <div className="w-0 h-0" style={{ borderLeft: '10px solid transparent', borderRight: '10px solid transparent', borderTop: '22px solid #7c3aed', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,.25))' }} />
+            <div className="rounded-full shadow-xl overflow-hidden" style={{ width: SIZE, height: SIZE }}>
+              <svg ref={wheelRef} width={SIZE} height={SIZE}
+                style={{ display: 'block', transformOrigin: `${CX}px ${CY}px` }}>
+                {participants.map((name, i) => {
+                  const { path, tx, ty, tAngle } = getSegment(i);
+                  return (
+                    <g key={i}>
+                      <path d={path} fill={WHEEL_COLORS[i % WHEEL_COLORS.length]} stroke="white" strokeWidth="2" />
+                      <text x={tx} y={ty} textAnchor="middle" dominantBaseline="middle"
+                        fill="white" fontSize={n > 6 ? 9 : 11} fontWeight="bold"
+                        transform={`rotate(${tAngle},${tx},${ty})`}>
+                        {name.length > 5 ? name.slice(0, 5) + '…' : name}
+                      </text>
+                    </g>
+                  );
+                })}
+                <circle cx={CX} cy={CY} r={18} fill="white" stroke="#7c3aed" strokeWidth="3" />
+                <circle cx={CX} cy={CY} r={9} fill="#7c3aed" />
+              </svg>
+            </div>
+          </div>
+
+          {showResult && result && (
+            <div className="text-center">
+              <div className="inline-block bg-gradient-to-r from-violet-500 to-purple-600 rounded-2xl px-8 py-4 shadow-xl shadow-violet-500/30">
+                <p className="text-[10px] font-bold text-violet-200 uppercase tracking-widest mb-1">🏆 당첨!</p>
+                <p className="text-2xl font-black text-white">{result}</p>
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            <button onClick={spin} disabled={spinning}
+              className="flex-1 py-3.5 bg-gradient-to-r from-violet-500 to-purple-600 text-white font-black rounded-2xl text-sm transition-all active:scale-95 disabled:opacity-60 shadow-lg shadow-violet-500/30">
+              {spinning ? '🎡 돌아가는 중...' : '🎡 돌림판 시작!'}
+            </button>
+            {(result || totalRot > 0) && (
+              <button onClick={reset}
+                className="px-4 py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-bold rounded-2xl transition-all active:scale-95">
+                초기화
+              </button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="text-center py-12">
+          <div className="text-5xl mb-3 opacity-40">🎡</div>
+          <p className="text-sm font-bold text-gray-400">참여자를 2명 이상 선택하세요</p>
+          <p className="text-xs text-gray-300 mt-1">최대 10명</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── 사다리타기 ─────────────────────────────────────────────────────────────────
+interface LadderBar { row: number; col: number; }
+
+function buildLadder(n: number, rows: number): LadderBar[] {
+  const bars: LadderBar[] = [];
+  for (let r = 0; r < rows; r++) {
+    let c = 0;
+    while (c < n - 1) {
+      if (Math.random() > 0.45) { bars.push({ row: r, col: c }); c += 2; }
+      else c++;
+    }
+  }
+  return bars;
+}
+
+function tracePath(n: number, bars: LadderBar[], rows: number, startCol: number): number {
+  let col = startCol;
+  for (let r = 0; r < rows; r++) {
+    if (bars.some(b => b.row === r && b.col === col)) { col++; continue; }
+    if (col > 0 && bars.some(b => b.row === r && b.col === col - 1)) { col--; continue; }
+  }
+  return col;
+}
+
+const LADDER_PRESET_PRIZES = ['술 쏘기 🍺', '건배사 📣', '노래 한 곡 🎤', '벌주 한 잔 🥃', '다음 자리 쏘기 💸', '면제 ✅', '게임 마스터 🎮', '자기소개 🙋'];
+
+function LadderGame({ seats, tableNumber }: { seats: Seat[]; tableNumber: number | null }) {
+  const [participants, setParticipants] = useState<string[]>([]);
+  const [prizes, setPrizes] = useState<string[]>([]);
+  const [prizeInput, setPrizeInput] = useState('');
+  const [running, setRunning] = useState(false);
+  const [bars, setBars] = useState<LadderBar[] | null>(null);
+  const [endCols, setEndCols] = useState<number[] | null>(null);
+  const [shuffledPrizes, setShuffledPrizes] = useState<string[]>([]);
+  const [revealed, setRevealed] = useState(0);
+
+  const n = participants.length;
+  const ROWS = Math.max(6, n + 2);
+
+  const reset = () => { setBars(null); setEndCols(null); setRevealed(0); setRunning(false); };
+
+  const startLadder = () => {
+    if (n < 2) return;
+    setRunning(true);
+    setBars(null);
+    setEndCols(null);
+    setRevealed(0);
+
+    const effectivePrizes = prizes.length >= n
+      ? prizes.slice(0, n)
+      : [...prizes, ...participants.map((_, i) => `${prizes.length + i + 1}등 🎉`)].slice(0, n);
+    const sp = [...effectivePrizes].sort(() => Math.random() - 0.5);
+    setShuffledPrizes(sp);
+
+    const newBars = buildLadder(n, ROWS);
+    const cols = participants.map((_, i) => tracePath(n, newBars, ROWS, i));
+
+    setTimeout(() => {
+      setBars(newBars);
+      setEndCols(cols);
+      setRunning(false);
+      cols.forEach((_, idx) => setTimeout(() => setRevealed(idx + 1), idx * 350 + 200));
+    }, 1400);
+  };
+
+  const addPrize = () => {
+    if (prizeInput.trim() && prizes.length < n) {
+      setPrizes(p => [...p, prizeInput.trim()]);
+      setPrizeInput('');
+    }
+  };
+
+  // SVG ladder dimensions
+  const SVG_PAD = 24;
+  const SVG_W = Math.max(180, Math.min(320, SVG_PAD * 2 + n * 42));
+  const SVG_H = 130;
+  const colGap = n > 1 ? (SVG_W - SVG_PAD * 2) / (n - 1) : 0;
+  const rowGap = SVG_H / (ROWS + 1);
+  const cx = (col: number) => SVG_PAD + col * colGap;
+  const ry = (row: number) => rowGap * (row + 1);
+
+  return (
+    <div className="max-w-lg mx-auto space-y-4">
+      <ParticipantSelector seats={seats} tableNumber={tableNumber} selected={participants}
+        onChange={p => { setParticipants(p); reset(); }} />
+
+      {/* 결과 항목 */}
+      {n >= 2 && (
+        <div className="bg-white rounded-2xl border border-gray-200 p-4 space-y-3">
+          <p className="text-xs font-bold text-gray-700 uppercase tracking-wider">결과 항목 <span className="text-gray-400 font-normal normal-case">(없으면 1등·2등… 자동)</span></p>
+          <div className="flex flex-wrap gap-1.5">
+            {LADDER_PRESET_PRIZES.map(p => (
+              <button key={p}
+                onClick={() => { if (!prizes.includes(p) && prizes.length < n) setPrizes(prev => [...prev, p]); }}
+                disabled={prizes.includes(p) || prizes.length >= n}
+                className={`text-xs px-2.5 py-1.5 rounded-xl border font-semibold transition-all disabled:opacity-40 active:scale-95 ${prizes.includes(p) ? 'bg-amber-100 border-amber-400 text-amber-700' : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-amber-300 hover:text-amber-600'}`}>
+                {p}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <input type="text" value={prizeInput} onChange={e => setPrizeInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && addPrize()}
+              placeholder="직접 입력" disabled={prizes.length >= n}
+              className="flex-1 bg-gray-50 border border-gray-200 text-sm rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400 disabled:opacity-50" />
+            <button onClick={addPrize} disabled={!prizeInput.trim() || prizes.length >= n}
+              className="px-3 py-2 bg-amber-500 text-white text-xs font-bold rounded-xl disabled:opacity-40 active:scale-95">추가</button>
+          </div>
+          {prizes.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {prizes.map((p, i) => (
+                <button key={i} onClick={() => setPrizes(prev => prev.filter((_, j) => j !== i))}
+                  className="flex items-center gap-1 px-2.5 py-1 bg-amber-100 border border-amber-300 text-amber-800 text-xs font-bold rounded-full active:scale-95">
+                  {p}<span className="text-amber-400 text-[10px] ml-0.5">✕</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 사다리 SVG */}
+      {bars && endCols && (
+        <div className="bg-white rounded-2xl border border-gray-200 p-4">
+          <p className="text-xs font-bold text-gray-500 text-center uppercase tracking-wider mb-3">🪜 사다리</p>
+          <div className="flex justify-center">
+            <svg width={SVG_W} height={SVG_H + 32} style={{ overflow: 'visible' }}>
+              {/* 참여자 이름 (위) */}
+              {participants.map((name, i) => (
+                <text key={i} x={cx(i)} y={10} textAnchor="middle" fontSize={n > 6 ? 8 : 9} fontWeight="bold" fill="#6d28d9">
+                  {name.length > 3 ? name.slice(0, 3) + '…' : name}
+                </text>
+              ))}
+              {/* 세로선 */}
+              {participants.map((_, i) => (
+                <line key={i} x1={cx(i)} y1={15} x2={cx(i)} y2={SVG_H + 4}
+                  stroke="#8b5cf6" strokeWidth="2.5" strokeLinecap="round" />
+              ))}
+              {/* 가로 막대 */}
+              {bars.map((b, i) => (
+                <line key={i} x1={cx(b.col)} y1={ry(b.row)} x2={cx(b.col + 1)} y2={ry(b.row)}
+                  stroke="#f59e0b" strokeWidth="2.5" strokeLinecap="round" />
+              ))}
+              {/* 결과 (아래) */}
+              {endCols.map((endCol, i) => (
+                <text key={i} x={cx(endCol)} y={SVG_H + 22} textAnchor="middle" fontSize={8} fill="#d97706" fontWeight="bold">
+                  {(shuffledPrizes[endCol] ?? '').length > 6 ? (shuffledPrizes[endCol] ?? '').slice(0, 6) : (shuffledPrizes[endCol] ?? '')}
+                </text>
+              ))}
+            </svg>
+          </div>
+        </div>
+      )}
+
+      {/* 결과 카드 */}
+      {endCols && shuffledPrizes.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">결과</p>
+          {participants.slice(0, revealed).map((name, i) => (
+            <div key={i}
+              className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl px-4 py-3"
+              style={{ animation: 'slideInUp 0.3s ease-out' }}>
+              <span className="font-black text-gray-900 text-sm">{name}</span>
+              <span className="text-amber-700 font-black text-sm">{shuffledPrizes[endCols[i]] ?? ''}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {running && (
+        <div className="text-center py-10">
+          <div className="text-5xl mb-3 animate-bounce">🪜</div>
+          <p className="text-sm font-bold text-gray-500">사다리 타는 중...</p>
+        </div>
+      )}
+
+      {n >= 2 ? (
+        <div className="flex gap-2">
+          <button onClick={startLadder} disabled={running}
+            className="flex-1 py-3.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-black rounded-2xl text-sm transition-all active:scale-95 disabled:opacity-50 shadow-lg shadow-amber-500/30">
+            {running ? '사다리 타는 중...' : '🪜 사다리타기 시작!'}
+          </button>
+          {(bars || running) && (
+            <button onClick={reset}
+              className="px-4 py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-bold rounded-2xl transition-all active:scale-95">
+              다시
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="text-center py-12">
+          <div className="text-5xl mb-3 opacity-40">🪜</div>
+          <p className="text-sm font-bold text-gray-400">참여자를 2명 이상 선택하세요</p>
+          <p className="text-xs text-gray-300 mt-1">최대 10명</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── UserGameTab ───────────────────────────────────────────────────────────────
+type UserGameSubTab = 'balance' | 'ladder' | 'roulette';
+
 function UserGameTab({
   currentUserId, tableNumber, currentUserNickname, balanceGames, voteCounts, myVotes,
   seats, onVote, onCreateGame, onEndGame,
@@ -1110,105 +1550,123 @@ function UserGameTab({
   onCreateGame: (question: string, optA: string, optB: string, scope: 'global' | 'table') => void;
   onEndGame: (gameId: string) => void;
 }) {
+  const [subTab, setSubTab] = useState<UserGameSubTab>('balance');
   const [showCreate, setShowCreate] = useState(false);
 
-  const activeGlobal = balanceGames.filter(g => g.status === 'active' && g.scope === 'global');
+  // OX 게임은 GameAnnouncementModal로 처리되므로 밸런스 탭에서 제외
+  const nonOxGames = balanceGames.filter(g => !isOxBalanceGame(g));
+  const activeGlobal = nonOxGames.filter(g => g.status === 'active' && g.scope === 'global');
   const activeTable = tableNumber != null
-    ? balanceGames.filter(g => g.status === 'active' && g.scope === 'table' && g.table_number === tableNumber)
+    ? nonOxGames.filter(g => g.status === 'active' && g.scope === 'table' && g.table_number === tableNumber)
     : [];
-  const allActive = balanceGames.filter(g => g.status === 'active' && !(g.scope === 'table' && tableNumber !== null && g.table_number !== tableNumber));
-  const ended = balanceGames.filter(g => g.status === 'ended').slice(0, 5);
+  const allActive = nonOxGames.filter(g => g.status === 'active' && !(g.scope === 'table' && tableNumber !== null && g.table_number !== tableNumber));
+  const ended = nonOxGames.filter(g => g.status === 'ended').slice(0, 5);
+
+  const SUBTABS: { id: UserGameSubTab; label: string; icon: string }[] = [
+    { id: 'balance', label: '밸런스', icon: '⚡' },
+    { id: 'ladder',  label: '사다리', icon: '🪜' },
+    { id: 'roulette', label: '돌림판', icon: '🎡' },
+  ];
 
   return (
     <div className="max-w-lg mx-auto space-y-4">
-      <div className="bg-amber-50 border border-amber-300 rounded-2xl p-3.5 flex items-start gap-2.5">
-        <Info className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-        <div>
-          <p className="text-xs font-bold text-amber-800">게임 탭은 아직 미완성이니 양해 부탁드립니다.</p>
-          <p className="text-[11px] text-amber-600 mt-0.5">추후 수정 예정입니다.</p>
-        </div>
-      </div>
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-base font-black text-gray-900">실시간 밸런스 게임</h2>
-          <p className="text-xs text-gray-400 mt-0.5">투표 결과가 실시간으로 반영됩니다</p>
-        </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="flex items-center gap-1.5 px-3 py-2 bg-violet-500 hover:bg-violet-600 text-white text-xs font-bold rounded-xl transition-all shadow-sm"
-        >
-          <Gamepad2 className="w-3.5 h-3.5" />게임 만들기
-        </button>
+      {/* 서브탭 */}
+      <div className="flex bg-gray-100 rounded-2xl p-1 gap-1">
+        {SUBTABS.map(t => (
+          <button key={t.id} onClick={() => setSubTab(t.id)}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all ${subTab === t.id ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>
+            <span>{t.icon}</span>{t.label}
+          </button>
+        ))}
       </div>
 
-      {allActive.length === 0 && ended.length === 0 && (
-        <div className="text-center py-16">
-          <Gamepad2 className="w-12 h-12 text-gray-200 mx-auto mb-3" />
-          <p className="text-sm text-gray-400">진행 중인 게임이 없습니다.</p>
-          <p className="text-xs text-gray-300 mt-1">게임을 직접 만들어보세요!</p>
-        </div>
-      )}
-
-      {activeGlobal.length > 0 && (
-        <div className="space-y-3">
-          <p className="text-[10px] font-black text-violet-500 uppercase tracking-widest">전체 게임</p>
-          {activeGlobal.map(g => (
-            <BalanceGameCard key={g.id} game={g}
-              myVote={myVotes.get(g.id) ?? null}
-              voteCounts={voteCounts.get(g.id) ?? { a: 0, b: 0 }}
-              currentUserId={currentUserId}
-              eligibleCount={seats.filter(s => s.status === 'occupied').length}
-              onVote={onVote} onEnd={onEndGame} />
-          ))}
-        </div>
-      )}
-
-      {activeTable.length > 0 && (
-        <div className="space-y-3">
-          <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{tableNumber}번 테이블 게임</p>
-          {activeTable.map(g => (
-            <BalanceGameCard key={g.id} game={g}
-              myVote={myVotes.get(g.id) ?? null}
-              voteCounts={voteCounts.get(g.id) ?? { a: 0, b: 0 }}
-              currentUserId={currentUserId}
-              eligibleCount={seats.filter(s => s.table_number === g.table_number && s.status === 'occupied').length}
-              onVote={onVote} onEnd={onEndGame} />
-          ))}
-        </div>
-      )}
-
-      {ended.length > 0 && (
-        <details className="group">
-          <summary className="list-none flex items-center gap-2 cursor-pointer py-2 text-xs font-bold text-gray-400 hover:text-gray-500">
-            <ChevronDown className="w-4 h-4 transition-transform group-open:rotate-180" />종료된 게임 ({ended.length})
-          </summary>
-          <div className="space-y-3 pt-2">
-            {ended.map(g => (
-              <BalanceGameCard key={g.id} game={g}
-                myVote={myVotes.get(g.id) ?? null}
-                voteCounts={voteCounts.get(g.id) ?? { a: 0, b: 0 }}
-                currentUserId={currentUserId}
-                eligibleCount={g.scope === 'table' ? seats.filter(s => s.table_number === g.table_number && s.status === 'occupied').length : seats.filter(s => s.status === 'occupied').length}
-                onVote={onVote} />
-            ))}
+      {/* 밸런스 게임 */}
+      {subTab === 'balance' && (
+        <>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-black text-gray-900">실시간 밸런스 게임</h2>
+              <p className="text-xs text-gray-400 mt-0.5">투표 결과가 실시간으로 반영됩니다</p>
+            </div>
+            <button onClick={() => setShowCreate(true)}
+              className="flex items-center gap-1.5 px-3 py-2 bg-violet-500 hover:bg-violet-600 text-white text-xs font-bold rounded-xl transition-all shadow-sm active:scale-95">
+              <Gamepad2 className="w-3.5 h-3.5" />게임 만들기
+            </button>
           </div>
-        </details>
+
+          {allActive.length === 0 && ended.length === 0 && (
+            <div className="text-center py-16">
+              <Gamepad2 className="w-12 h-12 text-gray-200 mx-auto mb-3" />
+              <p className="text-sm text-gray-400">진행 중인 게임이 없습니다.</p>
+              <p className="text-xs text-gray-300 mt-1">게임을 직접 만들어보세요!</p>
+            </div>
+          )}
+
+          {activeGlobal.length > 0 && (
+            <div className="space-y-3">
+              <p className="text-[10px] font-black text-violet-500 uppercase tracking-widest">전체 게임</p>
+              {activeGlobal.map(g => (
+                <BalanceGameCard key={g.id} game={g}
+                  myVote={myVotes.get(g.id) ?? null}
+                  voteCounts={voteCounts.get(g.id) ?? { a: 0, b: 0 }}
+                  currentUserId={currentUserId}
+                  eligibleCount={seats.filter(s => s.status === 'occupied').length}
+                  onVote={onVote} onEnd={onEndGame} />
+              ))}
+            </div>
+          )}
+
+          {activeTable.length > 0 && (
+            <div className="space-y-3">
+              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{tableNumber}번 테이블 게임</p>
+              {activeTable.map(g => (
+                <BalanceGameCard key={g.id} game={g}
+                  myVote={myVotes.get(g.id) ?? null}
+                  voteCounts={voteCounts.get(g.id) ?? { a: 0, b: 0 }}
+                  currentUserId={currentUserId}
+                  eligibleCount={seats.filter(s => s.table_number === g.table_number && s.status === 'occupied').length}
+                  onVote={onVote} onEnd={onEndGame} />
+              ))}
+            </div>
+          )}
+
+          {ended.length > 0 && (
+            <details className="group">
+              <summary className="list-none flex items-center gap-2 cursor-pointer py-2 text-xs font-bold text-gray-400 hover:text-gray-500">
+                <ChevronDown className="w-4 h-4 transition-transform group-open:rotate-180" />종료된 게임 ({ended.length})
+              </summary>
+              <div className="space-y-3 pt-2">
+                {ended.map(g => (
+                  <BalanceGameCard key={g.id} game={g}
+                    myVote={myVotes.get(g.id) ?? null}
+                    voteCounts={voteCounts.get(g.id) ?? { a: 0, b: 0 }}
+                    currentUserId={currentUserId}
+                    eligibleCount={g.scope === 'table' ? seats.filter(s => s.table_number === g.table_number && s.status === 'occupied').length : seats.filter(s => s.status === 'occupied').length}
+                    onVote={onVote} />
+                ))}
+              </div>
+            </details>
+          )}
+
+          <MiniGameTips />
+
+          {showCreate && (
+            <CreateGameModal tableNumber={tableNumber} currentUserNickname={currentUserNickname}
+              onSubmit={(q, a, b, scope) => { onCreateGame(q, a, b, scope); setShowCreate(false); }}
+              onClose={() => setShowCreate(false)} />
+          )}
+        </>
       )}
 
-      {showCreate && (
-        <CreateGameModal
-          tableNumber={tableNumber}
-          currentUserNickname={currentUserNickname}
-          onSubmit={(q, a, b, scope) => {
-            onCreateGame(q, a, b, scope);
-            setShowCreate(false);
-          }}
-          onClose={() => setShowCreate(false)}
-        />
+      {/* 사다리타기 */}
+      {subTab === 'ladder' && (
+        <LadderGame seats={seats} tableNumber={tableNumber} />
       )}
 
-      {/* 게임 설명 팁 */}
-      <MiniGameTips />
+      {/* 돌림판 */}
+      {subTab === 'roulette' && (
+        <RouletteGame seats={seats} tableNumber={tableNumber} />
+      )}
     </div>
   );
 }
