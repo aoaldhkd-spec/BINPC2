@@ -2838,7 +2838,9 @@ function App() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chats' }, (payload) => {
         const c = payload.new as { user1_id: string; user2_id: string; id: string; created_at: string };
         if (c.user1_id !== currentUserId && c.user2_id !== currentUserId) return;
-        loadChatList(currentUserId);
+        // 페이로드로 바로 추가 — 전체 리패치 불필요
+        const newChat: Chat = { id: c.id, user1_id: c.user1_id, user2_id: c.user2_id, created_at: c.created_at, lastMessage: '', messageCount: 0 };
+        setChatList(prev => prev.some(x => x.id === c.id) ? prev : [newChat, ...prev]);
         const otherId = c.user1_id === currentUserId ? c.user2_id : c.user1_id;
         const otherProfile = profiles.find(p => p.id === otherId);
         if (otherProfile) setBottomNotif({ type: 'chat', nickname: otherProfile.nickname });
@@ -4702,6 +4704,32 @@ function MainScreen({
   const [profileSearch, setProfileSearch] = useState('');
   const [profilePersonalityFilter, setProfilePersonalityFilter] = useState<string | null>(null);
   const [profileMbtiFilter, setProfileMbtiFilter] = useState<string | null>(null);
+
+  // 참여자 목록 — 필터·정렬을 매 렌더마다 재계산하지 않도록 메모이제이션
+  const filteredProfiles = useMemo(() => {
+    return [...profiles]
+      .filter(p => {
+        if (profileSearch) {
+          const q = profileSearch.toLowerCase();
+          if (!p.nickname.toLowerCase().includes(q)) return false;
+        }
+        if (profilePersonalityFilter) {
+          const score = p.personality_score ?? 50;
+          if (profilePersonalityFilter === '비선호' && score >= 0) return false;
+          if (profilePersonalityFilter === '바텀계열' && (score < 0 || score > 49)) return false;
+          if (profilePersonalityFilter === '올계열' && (score < 50 || score > 55)) return false;
+          if (profilePersonalityFilter === '탑계열' && score < 56) return false;
+        }
+        if (profileMbtiFilter && p.mbti !== profileMbtiFilter) return false;
+        return true;
+      })
+      .sort((a, b) => {
+        if (a.id === currentUserId) return -1;
+        if (b.id === currentUserId) return 1;
+        return 0;
+      });
+  }, [profiles, profileSearch, profilePersonalityFilter, profileMbtiFilter, currentUserId]);
+
   const [suggestionContent, setSuggestionContent] = useState('');
   const [suggestionContact, setSuggestionContact] = useState('');
   const [suggestionSubmitting, setSuggestionSubmitting] = useState(false);
@@ -4967,27 +4995,7 @@ function MainScreen({
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 no-capture">
-            {[...profiles]
-              .filter(p => {
-                if (profileSearch) {
-                  const q = profileSearch.toLowerCase();
-                  if (!p.nickname.toLowerCase().includes(q)) return false;
-                }
-                if (profilePersonalityFilter) {
-                  const score = p.personality_score ?? 50;
-                  if (profilePersonalityFilter === '비선호' && score >= 0) return false;
-                  if (profilePersonalityFilter === '바텀계열' && (score < 0 || score > 49)) return false;
-                  if (profilePersonalityFilter === '올계열' && (score < 50 || score > 55)) return false;
-                  if (profilePersonalityFilter === '탑계열' && score < 56) return false;
-                }
-                if (profileMbtiFilter && p.mbti !== profileMbtiFilter) return false;
-                return true;
-              })
-              .sort((a, b) => {
-                if (a.id === currentUserId) return -1;
-                if (b.id === currentUserId) return 1;
-                return 0;
-              }).map((profile) => {
+            {filteredProfiles.map((profile) => {
               const posColor = getPositionBg(profile.personality_score ?? 50);
               const posLabel = getPositionLabel(profile.personality_score ?? 50);
               const isLiked = likedIds.has(profile.id);

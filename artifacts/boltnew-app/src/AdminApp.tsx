@@ -3437,36 +3437,72 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     loadAll();
     const channel = supabase
       .channel('admin-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'seats' }, () => {
-        adminSupabase.from('seats').select('*').order('table_number').order('seat_position').then(({ data }) => { if (data) setSeats(data); });
+      // ── seats: 페이로드 기반 증분 업데이트 (풀 리패치 제거) ───────────
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'seats' }, (payload) => {
+        const s = payload.new as Seat;
+        setSeats(prev => prev.some(x => x.id === s.id) ? prev.map(x => x.id === s.id ? s : x) : [...prev, s]);
       })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'seats' }, (payload) => {
+        const s = payload.new as Seat;
+        setSeats(prev => prev.map(x => x.id === s.id ? s : x));
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'seats' }, (payload) => {
+        setSeats(prev => prev.filter(x => x.id !== (payload.old as Seat).id));
+      })
+      // ── profiles: 페이로드 기반 증분 업데이트 ───────────────────────
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'profiles' }, (payload) => {
+        const p = payload.new as Profile;
+        setProfiles(prev => prev.some(x => x.id === p.id) ? prev : [p, ...prev]);
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' }, (payload) => {
+        const p = payload.new as Profile;
+        setProfiles(prev => prev.map(x => x.id === p.id ? p : x));
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'profiles' }, (payload) => {
+        setProfiles(prev => prev.filter(x => x.id !== (payload.old as Profile).id));
+      })
+      // ── app_settings ─────────────────────────────────────────────────
       .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, (payload) => {
         setSettings(payload.new as AppSettings);
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
-        adminSupabase.from('profiles').select('*').order('created_at', { ascending: false }).then(({ data }) => { if (data) setProfiles(data); });
-      })
+      // ── likes ────────────────────────────────────────────────────────
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'likes' }, (payload) => {
-        setLikes((prev) => [payload.new as Like, ...prev]);
+        setLikes(prev => [payload.new as Like, ...prev]);
       })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'likes' }, (payload) => {
+        setLikes(prev => prev.filter(l => l.id !== (payload.old as Like).id));
+      })
+      // ── messages ─────────────────────────────────────────────────────
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
-        setAllMessages((prev) => [...prev, payload.new as Message]);
+        setAllMessages(prev => [...prev, payload.new as Message]);
       })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, (payload) => {
+        setAllMessages(prev => prev.filter(m => m.id !== (payload.old as Message).id));
+      })
+      // ── chats ────────────────────────────────────────────────────────
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chats' }, (payload) => {
-        setAllChats((prev) => [payload.new as Chat, ...prev]);
+        setAllChats(prev => [payload.new as Chat, ...prev]);
       })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'chats' }, (payload) => {
+        setAllChats(prev => prev.filter(c => c.id !== (payload.old as Chat).id));
+      })
+      // ── anonymous_reports ────────────────────────────────────────────
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'anonymous_reports' }, (payload) => {
         const report = payload.new as AnonymousReport;
-        setAnonymousReports((prev) => [report, ...prev]);
+        setAnonymousReports(prev => [report, ...prev]);
         setNewReportPopup(report);
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'balance_games' }, () => {
-        adminSupabase.from('balance_games').select('*').order('created_at', { ascending: false }).limit(30).then(({ data }) => {
-          if (data) setBalanceGames(data as BalanceGame[]);
-        });
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'anonymous_reports' }, (payload) => {
+        setAnonymousReports(prev => prev.map(r => r.id === (payload.new as AnonymousReport).id ? payload.new as AnonymousReport : r));
+      })
+      // ── balance_games: INSERT/UPDATE 페이로드 기반 ───────────────────
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'balance_games' }, (payload) => {
+        const g = payload.new as BalanceGame;
+        setBalanceGames(prev => prev.some(x => x.id === g.id) ? prev : [g, ...prev]);
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'balance_games' }, (payload) => {
         const updated = payload.new as BalanceGame;
+        setBalanceGames(prev => prev.map(x => x.id === updated.id ? updated : x));
         if (updated.status === 'ended') {
           setAdminVoteCounts(prev => {
             const counts = prev.get(updated.id) || { a: 0, b: 0 };
@@ -3475,29 +3511,25 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           });
         }
       })
+      // ── balance_votes ────────────────────────────────────────────────
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'balance_votes' }, (payload) => {
-        const v = payload.new as { game_id: string; option: string };
+        const v = payload.new as { game_id: string; option: 'a' | 'b' };
         setAdminVoteCounts(prev => {
           const copy = new Map(prev);
           const c = copy.get(v.game_id) || { a: 0, b: 0 };
-          copy.set(v.game_id, { ...c, [v.option]: c[v.option as 'a' | 'b'] + 1 });
+          copy.set(v.game_id, { ...c, [v.option]: c[v.option] + 1 });
           return copy;
         });
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'suggestions' }, () => {
-        adminSupabase.from('suggestions').select('*').order('created_at', { ascending: false }).then(({ data }) => { if (data) setSuggestions(data as Suggestion[]); });
+      // ── suggestions: 페이로드 기반 증분 업데이트 ─────────────────────
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'suggestions' }, (payload) => {
+        setSuggestions(prev => [payload.new as Suggestion, ...prev]);
       })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'likes' }, (payload) => {
-        setLikes(prev => prev.filter(l => l.id !== (payload.old as Like).id));
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'suggestions' }, (payload) => {
+        setSuggestions(prev => prev.map(s => s.id === (payload.new as Suggestion).id ? payload.new as Suggestion : s));
       })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, () => {
-        adminSupabase.from('messages').select('*').order('created_at', { ascending: true }).then(({ data }) => { if (data) setAllMessages(data as Message[]); });
-      })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'chats' }, () => {
-        adminSupabase.from('chats').select('*').order('created_at', { ascending: false }).then(({ data }) => { if (data) setAllChats(data as Chat[]); });
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'anonymous_reports' }, (payload) => {
-        setAnonymousReports(prev => prev.map(r => r.id === (payload.new as AnonymousReport).id ? payload.new as AnonymousReport : r));
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'suggestions' }, (payload) => {
+        setSuggestions(prev => prev.filter(s => s.id !== (payload.old as Suggestion).id));
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
