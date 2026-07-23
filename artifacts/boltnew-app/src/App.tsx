@@ -4539,6 +4539,18 @@ function DrumRoller<T extends string | number>({
 
 const TUTORIAL_SLIDES = [
   {
+    emoji: '📋',
+    title: '공지사항 (필독!)',
+    desc: '① 술 강요가 없는 자유로운 분위기입니다\n② 정치, 종교, 지역감정, 패드립은 허용되지 않습니다\n③ 욕설, 반말 등은 영구밴이 될 수 있습니다\n④ 화장실, 담배는 함께 이동해 주세요\n⑤ 급하신 분은 먼저 허락을 받고 이동 부탁드립니다\n⑥ 모든 저작권은 범일NPC에게 있습니다. 불법 복제 및 도용은 민형사상 책임을 질 수 있습니다',
+    color: 'from-teal-500 to-cyan-600',
+  },
+  {
+    emoji: '⚠️',
+    title: '주의사항 (필독!)',
+    desc: '🔋 절전 모드 해제\n저전력 모드에서는 백그라운드 처리가 막혀 앱이 갑자기 튕길 수 있어요. 설정 → 배터리 → 저전력 모드 OFF 후 사용해 주세요.\n\n🕵️ 시크릿·개인정보 보호 모드 금지\n시크릿 모드는 로컬 저장소를 차단해 닉네임·프로필이 사라집니다. 반드시 일반 탭으로 접속해 주세요.\n\n📵 화면 자동 꺼짐 방지\n화면이 꺼지면 세션이 초기화될 수 있어요. 화면 잠금 시간을 길게 설정해 주세요.\n\n🔖 URL 북마크 추천\n앱이 튕겨도 같은 URL로 재접속하면 프로필이 자동 복구됩니다.',
+    color: 'from-red-500 to-rose-600',
+  },
+  {
     emoji: '🥂',
     title: '범일NPC 술번개에 오신 걸 환영해요!',
     desc: '이 앱을 통해 오늘 함께하는 분들과 하트를 보내고, 채팅하고, 연락처를 교환할 수 있어요.',
@@ -4565,20 +4577,14 @@ const TUTORIAL_SLIDES = [
   {
     emoji: '🎮',
     title: '게임',
-    desc: '게임 탭에서 밸런스 게임, QA 게임, 이미지 투표 등 다양한 미니 게임을 즐길 수 있어요.\n\n운영진이 게임을 시작하면 알림이 와요!\n\n※ 현재 일부 게임은 미완성 상태입니다. 순차적으로 업데이트될 예정이에요.',
+    desc: '게임 탭에서 밸런스 게임, QA 게임, 이미지 투표 등 다양한 미니 게임을 즐길 수 있어요.\n\n운영진이 게임을 시작하면 알림이 와요!\n\n사다리타기·돌림판은 테이블 인원이 자동으로 참여할 수 있어요.',
     color: 'from-violet-500 to-purple-500',
   },
   {
     emoji: '🍺',
     title: '음료 요청 & 건의함',
-    desc: '채팅·건의 탭의 건의함에서 음료를 요청하거나 운영진에게 의견을 전달할 수 있어요.\n\n맥주, 소주, 음료수 버튼을 누르면 바로 전달됩니다!',
+    desc: '채팅·건의 탭의 건의함에서 음료를 요청하거나 운영진에게 의견을 전달할 수 있어요.\n\n맥주, 소주, 음료수 버튼을 누르면 바로 전달됩니다!\n\n오늘 즐거운 시간 보내세요! 🎉',
     color: 'from-amber-500 to-orange-500',
-  },
-  {
-    emoji: '⚠️',
-    title: '주의사항 (필독!)',
-    desc: '① 술 강요가 없는 자유로운 분위기입니다\n② 정치, 종교, 지역감정, 패드립은 허용되지 않습니다\n③ 욕설, 반말 등은 영구밴이 될 수 있습니다\n④ 화장실, 담배는 함께 이동해 주세요\n⑤ 급하신 분은 먼저 허락을 받고 이동 부탁드립니다\n⑥ 모든 저작권은 범일NPC에게 있습니다. 불법 복제 및 도용은 민형사상 책임을 질 수 있습니다\n\n오늘 즐거운 시간 보내세요! 🎉',
-    color: 'from-red-500 to-rose-600',
   },
 ];
 
@@ -5871,12 +5877,15 @@ function MainScreen({
                   <button
                     onClick={(e) => { e.stopPropagation(); onLike(profile.id); }}
                     disabled={isLiked}
-                    className={`absolute top-1.5 right-1.5 w-7 h-7 rounded-full flex items-center justify-center shadow transition-all active:scale-90 ${
+                    className={`absolute top-1 right-1 w-9 h-9 rounded-full flex items-center justify-center shadow-lg transition-all active:scale-90 border-2 ${
                       isLiked
-                        ? `${sentHeartTypes.get(profile.id) ? heartMeta(sentHeartTypes.get(profile.id)!).solidBg : 'bg-rose-500'} text-white`
-                        : 'bg-white/90 text-gray-400 hover:bg-rose-500 hover:text-white'
+                        ? `${sentHeartTypes.get(profile.id) ? heartMeta(sentHeartTypes.get(profile.id)!).solidBg : 'bg-rose-500'} text-white border-transparent`
+                        : 'bg-white border-rose-300 text-rose-400 hover:bg-rose-500 hover:text-white hover:border-transparent'
                     }`}>
-                    <Heart className={`w-3 h-3 ${isLiked ? 'fill-current' : ''}`} />
+                    {isLiked && sentHeartTypes.get(profile.id)
+                      ? <span className="text-base leading-none">{heartMeta(sentHeartTypes.get(profile.id)!).emoji}</span>
+                      : <Heart className={`w-4 h-4 ${isLiked ? 'fill-current' : 'fill-rose-100'}`} />
+                    }
                   </button>
                 )}
               </div>
