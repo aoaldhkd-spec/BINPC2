@@ -4417,13 +4417,18 @@ function App() {
         <TutorialModal
           page={tutorialPage}
           onChangePage={setTutorialPage}
-          onClose={() => setShowTutorialModal(false)}
+          onClose={() => {
+            setShowTutorialModal(false);
+            // 튜토리얼 닫으면 접속 가이드도 함께 처리 (중복 팝업 방지)
+            setShowGuide(false);
+            ls.setItem(MATCHING_GUIDE_SHOWN_KEY, '1');
+          }}
           darkMode={darkMode}
         />
       )}
 
-      {/* Browser optimization guide — shown once on first visit */}
-      {showGuide && (
+      {/* Browser optimization guide — 튜토리얼·환영 모달이 없을 때만 표시 */}
+      {showGuide && !showTutorialModal && !showWelcomeNotice && (
         <BrowserGuidePopup onClose={() => {
           setShowGuide(false);
           ls.setItem(MATCHING_GUIDE_SHOWN_KEY, '1');
