@@ -5555,6 +5555,7 @@ function NicknameSetupScreen({ onSubmit, loading, onReset }: {
   };
 
   const atMaxBio = selectedBio.length >= 5;
+  const [bioFilter, setBioFilter] = useState<string | null>(null); // null = 전체
 
   // Step 1 valid: mbti + birthYear + location + (생월·생일 둘 다 선택 OR 개인정보 체크)
   const birthDateFilled = birthMonth !== null && birthDay !== null;
@@ -5872,10 +5873,37 @@ function NicknameSetupScreen({ onSubmit, loading, onReset }: {
                       ))}
                     </div>
                   )}
+                  {/* 카테고리 필터 탭 */}
+                  <div className="flex gap-1.5 flex-wrap mb-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setBioFilter(null)}
+                      className={`px-3 py-1 rounded-full text-xs font-black border transition-all ${
+                        bioFilter === null
+                          ? 'bg-gray-800 text-white border-gray-800'
+                          : 'bg-white text-gray-500 border-gray-200 hover:border-gray-400'
+                      }`}
+                    >전체</button>
+                    {BIO_CATEGORIES.map((cat) => {
+                      const active = bioFilter === cat.label;
+                      return (
+                        <button
+                          key={cat.label}
+                          type="button"
+                          onClick={() => setBioFilter(active ? null : cat.label)}
+                          className={`px-3 py-1 rounded-full text-xs font-black border transition-all ${
+                            active
+                              ? `${cat.color.selected} border-transparent`
+                              : `bg-white border-gray-200 ${cat.color.label} hover:border-current`
+                          }`}
+                        >{cat.label}</button>
+                      );
+                    })}
+                  </div>
+
                   <div className="space-y-2.5 max-h-48 overflow-y-auto pr-1">
-                    {BIO_CATEGORIES.map((cat) => (
+                    {BIO_CATEGORIES.filter((cat) => bioFilter === null || cat.label === bioFilter).map((cat) => (
                       <div key={cat.label}>
-                        <p className={`text-xs font-bold uppercase tracking-wider mb-1.5 ${cat.color.label}`}>{cat.label}</p>
                         <div className="flex flex-wrap gap-1.5">
                           {cat.tags.map((tag) => {
                             const selected = selectedBio.includes(tag);
