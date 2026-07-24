@@ -2234,6 +2234,7 @@ function WaitingOverlay({ sessionActive, onEnter }: {
   const [showAdminPwModal, setShowAdminPwModal] = useState(false);
   const [adminPwInput, setAdminPwInput] = useState('');
   const [adminPwError, setAdminPwError] = useState(false);
+  const [showConsentModal, setShowConsentModal] = useState(false);
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-black flex flex-col items-center justify-center p-6 relative overflow-hidden">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -2297,13 +2298,56 @@ function WaitingOverlay({ sessionActive, onEnter }: {
           <ChevronRight className="w-4 h-4 text-amber-400/60 flex-shrink-0" />
         </button>
         <button
-          onClick={onEnter}
+          onClick={() => setShowConsentModal(true)}
           className="w-full py-4 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-white font-black text-lg rounded-2xl shadow-2xl shadow-teal-500/30 transition-all active:scale-98 mb-3"
         >입장하기</button>
         <button
           onClick={() => { setTutPage(0); setShowTutorial(true); }}
           className="w-full py-3.5 bg-gradient-to-r from-orange-400 to-rose-500 hover:from-orange-300 hover:to-rose-400 text-white font-black text-sm rounded-2xl shadow-lg shadow-orange-500/25 transition-all active:scale-98 mb-3"
         >앱 사용법 보기</button>
+        {/* 개인정보 동의 모달 */}
+        {showConsentModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/75 backdrop-blur-sm">
+            <div className="w-full max-w-sm rounded-3xl bg-slate-900 border border-slate-700 overflow-hidden shadow-2xl">
+              {/* 헤더 */}
+              <div className="bg-gradient-to-r from-cyan-500/20 to-teal-500/20 border-b border-cyan-500/20 px-5 py-5 text-center">
+                <div className="w-12 h-12 rounded-2xl bg-cyan-500/20 flex items-center justify-center mx-auto mb-3">
+                  <ShieldAlert className="w-6 h-6 text-cyan-400" />
+                </div>
+                <h3 className="text-white font-black text-lg">개인정보 안내</h3>
+              </div>
+              {/* 본문 */}
+              <div className="px-6 py-6">
+                <p className="text-white text-base font-bold leading-relaxed text-center mb-2">
+                  본 서비스는 원활한 모임 진행만을 위하여 입력되며,
+                </p>
+                <p className="text-white text-base font-bold leading-relaxed text-center mb-2">
+                  모든 개인 정보는 저장·수집하지 않습니다.
+                </p>
+                <p className="text-white text-base font-bold leading-relaxed text-center mb-6">
+                  모임 종료 시 즉시 파기합니다.
+                </p>
+                <p className="text-slate-400 text-xs text-center leading-relaxed mb-6">
+                  동의하지 않을 시 본 모임에 불이익이 있을 수 있습니다.
+                </p>
+                <div className="flex flex-col gap-3">
+                  <button
+                    onClick={() => { setShowConsentModal(false); onEnter(); }}
+                    className="w-full py-4 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-white font-black text-base rounded-2xl shadow-lg shadow-teal-500/30 transition-all active:scale-98"
+                  >
+                    위 내용에 동의합니다
+                  </button>
+                  <button
+                    onClick={() => setShowConsentModal(false)}
+                    className="w-full py-3 bg-slate-700/60 hover:bg-slate-700 text-slate-300 font-bold text-sm rounded-2xl transition-all"
+                  >
+                    닫기
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
         {/* 주의사항 전체 모달 */}
         {showNotice && (
           <div className="fixed inset-0 z-50 flex items-end justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => setShowNotice(false)}>
@@ -5486,6 +5530,7 @@ function NicknameSetupScreen({ onSubmit, loading, onReset }: {
   const [birthYear, setBirthYear] = useState<string>(String(DECADE_GROUPS['90년대생'][0]));
   const [birthMonth, setBirthMonth] = useState<number>(1);
   const [birthDay, setBirthDay] = useState<number>(1);
+  const [birthInfoChecked, setBirthInfoChecked] = useState(false);
   const [location, setLocation] = useState<string>(LOCATION_GROUPS['광역시'][0]);
   const [selectedBio, setSelectedBio] = useState<string[]>([]);
   const [positionScore, setPositionScore] = useState<number | null>(null);
@@ -5515,8 +5560,8 @@ function NicknameSetupScreen({ onSubmit, loading, onReset }: {
 
   const atMaxBio = selectedBio.length >= 5;
 
-  // Step 1 valid: mbti + birthYear + birthMonth + birthDay + location
-  const step1Valid = !!mbti && !!birthYear && !!birthMonth && !!birthDay && !!location;
+  // Step 1 valid: mbti + birthYear + birthMonth + birthDay + location + 개인정보 체크
+  const step1Valid = !!mbti && !!birthYear && !!birthMonth && !!birthDay && !!location && birthInfoChecked;
   // Step 2 valid: interests >= 2 + position
   const step2Valid = selectedBio.length >= 2 && positionScore !== null;
   const canGenerate = !!mbti && !!birthYear && !!location && selectedBio.length >= 2 && positionScore !== null;
@@ -5743,6 +5788,29 @@ function NicknameSetupScreen({ onSubmit, loading, onReset }: {
                       </div>
                     </div>
                   </div>
+                </div>
+
+                {/* 생월·생일 개인정보 경고 + 체크박스 */}
+                <div className={`rounded-2xl border-2 p-4 transition-all ${birthInfoChecked ? 'border-teal-300 bg-teal-50/60' : 'border-orange-200 bg-orange-50/70'}`}>
+                  <div className="flex items-start gap-3 mb-3">
+                    <div className="mt-0.5 flex-shrink-0 w-5 h-5 rounded-full bg-orange-400 flex items-center justify-center">
+                      <span className="text-white text-[10px] font-black leading-none">!</span>
+                    </div>
+                    <p className="text-[13px] text-gray-700 leading-relaxed flex-1">
+                      <span className="font-black text-orange-600">생월·생일은 개인정보</span>이므로 입력하지 않을 수 있으며,{' '}
+                      본 모임의 <span className="font-bold">사주·운세·궁합 기능에 불이익이 있을 수 있습니다.</span>
+                    </p>
+                  </div>
+                  <label className="flex items-center gap-3 cursor-pointer select-none" onClick={() => setBirthInfoChecked(v => !v)}>
+                    <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all ${birthInfoChecked ? 'bg-teal-500 border-teal-500' : 'bg-white border-gray-300'}`}>
+                      {birthInfoChecked && (
+                        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </div>
+                    <span className="text-[13px] font-bold text-gray-700">위 내용을 확인했습니다</span>
+                  </label>
                 </div>
 
                 {/* Step 1 summary chips */}
