@@ -253,6 +253,7 @@ export default function FortuneTab({
       </div>
 
       <div className="bg-slate-900">
+        <div className="max-w-md mx-auto">
 
         {/* ── 타로 ────────────────────────────────────────────────────────── */}
         {subTab === 'tarot' && (
@@ -582,6 +583,7 @@ export default function FortuneTab({
             )}
           </div>
         )}
+        </div>
       </div>
     </div>
   );

@@ -2147,6 +2147,9 @@ function WaitingOverlay({ sessionActive, onEnter }: {
   const [showNotice, setShowNotice] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [tutPage, setTutPage] = useState(0);
+  const [showAdminPwModal, setShowAdminPwModal] = useState(false);
+  const [adminPwInput, setAdminPwInput] = useState('');
+  const [adminPwError, setAdminPwError] = useState(false);
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-black flex flex-col items-center justify-center p-6 relative overflow-hidden">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -2296,14 +2299,54 @@ function WaitingOverlay({ sessionActive, onEnter }: {
         {/* 테스트/관리자 — 우측 하단 고정 */}
         <div className="fixed bottom-4 right-4 z-40 flex flex-row gap-2 items-end">
           <a href="/test" className="px-3 py-1.5 rounded-lg bg-violet-600/80 hover:bg-violet-500 text-white font-bold text-xs shadow-lg backdrop-blur-sm transition-all border border-violet-500/50 active:scale-95">테스트</a>
-          <button onClick={() => {
-              const correctPw = resetPassword ?? '116606';
-              const input = window.prompt('🔐 관리자 비밀번호를 입력하세요');
-              if (input === null) return;
-              if (input === correctPw) window.location.href = '/admin';
-              else alert('비밀번호가 틀렸습니다.');
-            }} className="px-3 py-1.5 rounded-lg bg-slate-700/90 hover:bg-slate-800 text-white font-bold text-xs shadow-lg backdrop-blur-sm transition-all border border-slate-600/50 active:scale-95">관리자</button>
+          <button onClick={() => { setAdminPwInput(''); setAdminPwError(false); setShowAdminPwModal(true); }}
+            className="px-3 py-1.5 rounded-lg bg-slate-700/90 hover:bg-slate-800 text-white font-bold text-xs shadow-lg backdrop-blur-sm transition-all border border-slate-600/50 active:scale-95">관리자</button>
         </div>
+
+        {/* 관리자 비밀번호 모달 */}
+        {showAdminPwModal && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+            onClick={() => setShowAdminPwModal(false)}>
+            <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-xs p-6 space-y-4"
+              onClick={e => e.stopPropagation()}>
+              <div className="text-center">
+                <span className="text-3xl">🔐</span>
+                <h3 className="text-white font-black text-lg mt-2">관리자 확인</h3>
+                <p className="text-slate-400 text-xs mt-1">비밀번호를 입력하세요</p>
+              </div>
+              <input
+                type="password"
+                value={adminPwInput}
+                onChange={e => { setAdminPwInput(e.target.value); setAdminPwError(false); }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    if (adminPwInput === (resetPassword ?? '116606')) { window.location.href = '/admin'; }
+                    else { setAdminPwError(true); setAdminPwInput(''); }
+                  }
+                }}
+                placeholder="비밀번호"
+                autoFocus
+                className="w-full bg-slate-800 border border-slate-600 text-white text-center text-lg font-bold rounded-xl px-4 py-3 focus:outline-none focus:border-cyan-500 placeholder-slate-600"
+              />
+              {adminPwError && (
+                <p className="text-red-400 text-xs text-center font-bold">❌ 비밀번호가 틀렸습니다</p>
+              )}
+              <div className="flex gap-2">
+                <button onClick={() => setShowAdminPwModal(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-slate-600 text-slate-400 text-sm font-semibold hover:bg-slate-800 transition-all">
+                  취소
+                </button>
+                <button onClick={() => {
+                    if (adminPwInput === (resetPassword ?? '116606')) { window.location.href = '/admin'; }
+                    else { setAdminPwError(true); setAdminPwInput(''); }
+                  }}
+                  className="flex-1 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-sm font-bold transition-all">
+                  확인
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
       <style>{`
         @keyframes dotbounce {
@@ -7250,8 +7293,8 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
   const [showSajuModal, setShowSajuModal] = useState(false);
   const [activeCompatMethod, setActiveCompatMethod] = useState<'saju' | 'numerology' | 'ohaeng' | 'mbti'>('saju');
 
-  // 상대방이 나에게 공유한 연락처 (liker_id = currentUserId, liked_id = otherProfile.id)
-  const theirShare = receivedContactShares?.find(s => s.liked_id === otherProfile.id) ?? null;
+  // 상대방이 나에게 공유한 연락처 (liker_id = 상대방, liked_id = 나)
+  const theirShare = receivedContactShares?.find(s => s.liker_id === otherProfile.id) ?? null;
   // 내가 상대방에게 이미 공유했는지
   const iSharedMine = contactSharedWithIds?.has(otherProfile.id) ?? false;
 
