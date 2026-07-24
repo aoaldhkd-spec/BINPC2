@@ -5804,7 +5804,12 @@ function NicknameSetupScreen({ onSubmit, loading, onReset }: {
                       본 모임의 <span className="font-bold">사주·운세·궁합 기능에 불이익이 있을 수 있습니다.</span>
                     </p>
                   </div>
-                  <label className="flex items-center gap-3 cursor-pointer select-none" onClick={() => setBirthInfoChecked(v => !v)}>
+                  <label className="flex items-center gap-3 cursor-pointer select-none" onClick={() => {
+                    const next = !birthInfoChecked;
+                    setBirthInfoChecked(next);
+                    if (next) { setBirthMonth(null); setBirthDay(null); }
+                    else { setBirthMonth(1); setBirthDay(1); }
+                  }}>
                     <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all ${birthInfoChecked ? 'bg-teal-500 border-teal-500' : 'bg-white border-gray-300'}`}>
                       {birthInfoChecked && (
                         <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
@@ -5827,7 +5832,11 @@ function NicknameSetupScreen({ onSubmit, loading, onReset }: {
                         {String(birthYear).slice(2)}년생
                       </span>
                     )}
-                    {birthMonth !== null && (
+                    {birthInfoChecked ? (
+                      <span className="px-3 py-1.5 bg-purple-100 text-purple-400 text-sm font-bold rounded-full border border-purple-200 line-through">
+                        생월·생일 미선택
+                      </span>
+                    ) : birthMonth !== null && (
                       <span className="px-3 py-1.5 bg-purple-50 text-purple-700 text-sm font-bold rounded-full border border-purple-100">
                         {birthMonth}월 {birthDay !== null ? `${birthDay}일` : ''}
                       </span>
