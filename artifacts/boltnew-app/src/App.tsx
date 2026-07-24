@@ -1246,6 +1246,38 @@ const WHEEL_COLORS = [
   '#ea580c','#d97706','#16a34a','#0891b2','#2563eb',
 ];
 
+// ─── 게임 How-To 가이드 카드 ───────────────────────────────────────────────────
+function HowToPlayCard({ steps, color }: { steps: { icon: string; text: string }[]; color: string }) {
+  const [open, setOpen] = useState(true);
+  return (
+    <div className={`rounded-2xl border overflow-hidden transition-all ${color}`}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-4 py-3 text-left">
+        <span className="text-xs font-black tracking-wide flex items-center gap-2">
+          <span className="text-base">💡</span> 이렇게 하세요!
+        </span>
+        <span className={`text-xs font-bold transition-transform duration-200 ${open ? 'rotate-180' : ''}`}>▲</span>
+      </button>
+      {open && (
+        <div className="px-4 pb-4 grid grid-cols-1 gap-2">
+          {steps.map((s, i) => (
+            <div key={i} className="flex items-start gap-3">
+              <div className="w-6 h-6 rounded-full bg-white/80 flex items-center justify-center flex-shrink-0 text-[11px] font-black text-gray-600 shadow-sm">
+                {i + 1}
+              </div>
+              <div className="flex-1 flex items-center gap-2 min-w-0">
+                <span className="text-lg leading-none">{s.icon}</span>
+                <p className="text-xs text-gray-700 font-medium leading-snug">{s.text}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function RouletteGame({ seats, tableNumber, onBroadcast, myNickname }: {
   seats: Seat[];
   tableNumber: number | null;
@@ -1336,6 +1368,14 @@ function RouletteGame({ seats, tableNumber, onBroadcast, myNickname }: {
 
   return (
     <div className="max-w-lg mx-auto space-y-4">
+      <HowToPlayCard
+        color="bg-violet-50 border-violet-200"
+        steps={[
+          { icon: '👥', text: '아래에서 함께할 사람을 탭해서 선택하세요 (2명 이상)' },
+          { icon: '🎡', text: '선택이 끝나면 "돌림판 시작!" 버튼을 누르세요' },
+          { icon: '🏆', text: '바늘이 멈추면 당첨자가 공개돼요! 같은 테이블이면 모두에게 동시에 보여요' },
+        ]}
+      />
       <ParticipantSelector seats={seats} tableNumber={tableNumber} selected={participants}
         onChange={p => { setParticipants(p); reset(); }} />
 
@@ -1514,6 +1554,15 @@ function LadderGame({ seats, tableNumber, onBroadcast, myNickname }: {
 
   return (
     <div className="max-w-lg mx-auto space-y-4">
+      <HowToPlayCard
+        color="bg-amber-50 border-amber-200"
+        steps={[
+          { icon: '👥', text: '함께할 사람을 탭해서 선택하세요 (2명 이상)' },
+          { icon: '🎁', text: '결과 항목을 골라보세요 — 없으면 1등·2등·3등… 으로 자동 설정돼요' },
+          { icon: '🪜', text: '"사다리타기 시작!" 버튼을 누르면 결과가 한 명씩 공개돼요' },
+          { icon: '📡', text: '같은 테이블이면 모두의 화면에 동시에 결과가 나타나요!' },
+        ]}
+      />
       <ParticipantSelector seats={seats} tableNumber={tableNumber} selected={participants}
         onChange={p => { setParticipants(p); reset(); }} />
 
@@ -4539,6 +4588,12 @@ function DrumRoller<T extends string | number>({
 
 const TUTORIAL_SLIDES = [
   {
+    emoji: '🥂',
+    title: '범일NPC 술번개에 오신 걸 환영해요!',
+    desc: '이 앱을 통해 오늘 함께하는 분들과 하트를 보내고, 채팅하고, 연락처를 교환할 수 있어요.',
+    color: 'from-cyan-500 to-teal-500',
+  },
+  {
     emoji: '📋',
     title: '공지사항 (필독!)',
     desc: '① 술 강요가 없는 자유로운 분위기입니다\n② 정치, 종교, 지역감정, 패드립은 허용되지 않습니다\n③ 욕설, 반말 등은 영구밴이 될 수 있습니다\n④ 화장실, 담배는 함께 이동해 주세요\n⑤ 급하신 분은 먼저 허락을 받고 이동 부탁드립니다\n⑥ 모든 저작권은 범일NPC에게 있습니다. 불법 복제 및 도용은 민형사상 책임을 질 수 있습니다',
@@ -4549,12 +4604,6 @@ const TUTORIAL_SLIDES = [
     title: '주의사항 (필독!)',
     desc: '🔋 절전 모드 해제\n저전력 모드에서는 백그라운드 처리가 막혀 앱이 갑자기 튕길 수 있어요. 설정 → 배터리 → 저전력 모드 OFF 후 사용해 주세요.\n\n🕵️ 시크릿·개인정보 보호 모드 금지\n시크릿 모드는 로컬 저장소를 차단해 닉네임·프로필이 사라집니다. 반드시 일반 탭으로 접속해 주세요.\n\n📵 화면 자동 꺼짐 방지\n화면이 꺼지면 세션이 초기화될 수 있어요. 화면 잠금 시간을 길게 설정해 주세요.\n\n🔖 URL 북마크 추천\n앱이 튕겨도 같은 URL로 재접속하면 프로필이 자동 복구됩니다.',
     color: 'from-red-500 to-rose-600',
-  },
-  {
-    emoji: '🥂',
-    title: '범일NPC 술번개에 오신 걸 환영해요!',
-    desc: '이 앱을 통해 오늘 함께하는 분들과 하트를 보내고, 채팅하고, 연락처를 교환할 수 있어요.',
-    color: 'from-cyan-500 to-teal-500',
   },
   {
     emoji: '❤️',
@@ -5877,14 +5926,14 @@ function MainScreen({
                   <button
                     onClick={(e) => { e.stopPropagation(); onLike(profile.id); }}
                     disabled={isLiked}
-                    className={`absolute top-1 right-1 w-9 h-9 rounded-full flex items-center justify-center shadow-lg transition-all active:scale-90 border-2 ${
+                    className={`absolute bottom-1.5 right-1.5 w-8 h-8 rounded-full flex items-center justify-center shadow-md transition-all duration-200 active:scale-90 ${
                       isLiked
-                        ? `${sentHeartTypes.get(profile.id) ? heartMeta(sentHeartTypes.get(profile.id)!).solidBg : 'bg-rose-500'} text-white border-transparent`
-                        : 'bg-white border-rose-300 text-rose-400 hover:bg-rose-500 hover:text-white hover:border-transparent'
+                        ? `${sentHeartTypes.get(profile.id) ? heartMeta(sentHeartTypes.get(profile.id)!).solidBg : 'bg-rose-500'} text-white shadow-rose-200`
+                        : 'bg-white text-rose-400 hover:bg-rose-500 hover:text-white hover:shadow-rose-200'
                     }`}>
                     {isLiked && sentHeartTypes.get(profile.id)
-                      ? <span className="text-base leading-none">{heartMeta(sentHeartTypes.get(profile.id)!).emoji}</span>
-                      : <Heart className={`w-4 h-4 ${isLiked ? 'fill-current' : 'fill-rose-100'}`} />
+                      ? <span className="text-sm leading-none select-none">{heartMeta(sentHeartTypes.get(profile.id)!).emoji}</span>
+                      : <Heart className="w-4 h-4 fill-rose-100 stroke-rose-400 group-hover:fill-white group-hover:stroke-white" />
                     }
                   </button>
                 )}
