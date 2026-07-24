@@ -196,6 +196,15 @@ interface SubConfig {
   }) => void;
 }
 
+interface BroadcastSub {
+  event: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  callback: (payload: { payload: any }) => void;
+}
+
+// Registry for broadcast dispatch: name → channels
+const _channelRegistry = new Map<string, LocalRealtimeChannel[]>();
+
 function matchChannelFilter(
   filterExpr: string | undefined,
   row: Record<string, unknown> | null,
@@ -213,6 +222,7 @@ function matchChannelFilter(
 class LocalRealtimeChannel {
   public readonly name: string;
   private subs: SubConfig[] = [];
+  private broadcastSubs: BroadcastSub[] = [];
   private statusCb: ((s: string) => void) | null = null;
   private localHandler: ((e: ChangeEvent) => void) | null = null;
 
@@ -221,20 +231,50 @@ class LocalRealtimeChannel {
   }
 
   on(
-    _type: 'postgres_changes',
+    type: 'postgres_changes' | 'broadcast',
     config: {
-      event: '*' | 'INSERT' | 'UPDATE' | 'DELETE';
-      schema: string;
-      table: string;
+      event: string;
+      schema?: string;
+      table?: string;
       filter?: string;
     },
-    callback: (payload: {
-      new: Record<string, unknown> | object;
-      old: Record<string, unknown> | object;
-    }) => void,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    callback: (payload: any) => void,
   ): this {
-    this.subs.push({ ...config, callback });
+    if (type === 'broadcast') {
+      this.broadcastSubs.push({ event: config.event, callback });
+    } else {
+      this.subs.push({
+        event: config.event as '*' | 'INSERT' | 'UPDATE' | 'DELETE',
+        schema: config.schema!,
+        table: config.table!,
+        filter: config.filter,
+        callback,
+      });
+    }
     return this;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  send(msg: { type: string; event: string; payload: any }): Promise<void> {
+    if (msg.type === 'broadcast') {
+      const chans = _channelRegistry.get(this.name) ?? [];
+      for (const ch of chans) {
+        ch._dispatchBroadcast(msg.event, msg.payload);
+      }
+    }
+    return Promise.resolve();
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  _dispatchBroadcast(event: string, payload: any): void {
+    for (const sub of this.broadcastSubs) {
+      if (sub.event === event || sub.event === '*') {
+        try { sub.callback({ payload }); } catch (err) {
+          console.error('[localdb] broadcast callback error:', err);
+        }
+      }
+    }
   }
 
   subscribe(statusCallback?: (status: string) => void): this {
@@ -274,6 +314,8 @@ class LocalRealtimeChannel {
     this.statusCb?.('CLOSED');
   }
 }
+
+// (forward declaration resolved below — _channelRegistry declared above)
 
 // ─── Query Builder ────────────────────────────────────────────────────────────
 type DbResult<T> = { data: T | null; error: { message: string; code?: string } | null };
@@ -842,12 +884,20 @@ export const supabase: any = {
   channel(name: string): LocalRealtimeChannel {
     const ch = new LocalRealtimeChannel(name);
     _activeChannels.add(ch);
+    if (!_channelRegistry.has(name)) _channelRegistry.set(name, []);
+    _channelRegistry.get(name)!.push(ch);
     return ch;
   },
 
   removeChannel(ch: LocalRealtimeChannel): Promise<void> {
     ch.unsubscribe();
     _activeChannels.delete(ch);
+    const reg = _channelRegistry.get(ch.name);
+    if (reg) {
+      const i = reg.indexOf(ch);
+      if (i !== -1) reg.splice(i, 1);
+      if (reg.length === 0) _channelRegistry.delete(ch.name);
+    }
     return Promise.resolve();
   },
 

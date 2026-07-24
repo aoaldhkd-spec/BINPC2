@@ -1204,7 +1204,7 @@ function ParticipantSelector({ seats, tableNumber, selected, onChange, profileMa
         ))}
       </div>
 
-      {/* 자동 모드: 내 테이블 전원 자동 표시 */}
+      {/* 자동 모드: 내 테이블 전원 자동 표시 + 개별 제외 가능 */}
       {mode === 'auto' && (
         tableNumber === null ? (
           <div className="text-center py-5 bg-gray-50 rounded-xl border border-gray-200">
@@ -1218,15 +1218,27 @@ function ParticipantSelector({ seats, tableNumber, selected, onChange, profileMa
           </div>
         ) : (
           <div className="bg-violet-50 border border-violet-200 rounded-xl p-3">
-            <p className="text-[10px] font-bold text-violet-600 uppercase tracking-wider mb-2">
-              {tableNumber}번 테이블 · {autoList.length}명 자동 참여
-            </p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] font-bold text-violet-600 uppercase tracking-wider">
+                {tableNumber}번 테이블 · {selected.length}/{autoList.length}명 참여
+              </p>
+              <div className="flex gap-1">
+                <button onClick={() => onChange(autoList.slice(0, MAX_GAME_PARTICIPANTS))}
+                  className="text-[10px] text-violet-600 font-bold px-2 py-0.5 rounded-lg hover:bg-violet-100">전체</button>
+                <span className="text-[10px] text-violet-300">탭하여 제외</span>
+              </div>
+            </div>
             <div className="flex flex-wrap gap-1.5">
-              {autoList.map(name => (
-                <span key={name} className="px-2.5 py-1 bg-violet-500 text-white text-xs font-bold rounded-full">
-                  {name}
-                </span>
-              ))}
+              {autoList.map(name => {
+                const isIn = selected.includes(name);
+                return (
+                  <button key={name}
+                    onClick={() => isIn ? onChange(selected.filter(n => n !== name)) : (selected.length < MAX_GAME_PARTICIPANTS ? onChange([...selected, name]) : undefined)}
+                    className={`px-2.5 py-1 text-xs font-bold rounded-full transition-all active:scale-95 ${isIn ? 'bg-violet-500 text-white' : 'bg-gray-200 text-gray-400 line-through'}`}>
+                    {name}
+                  </button>
+                );
+              })}
             </div>
           </div>
         )
@@ -4204,6 +4216,11 @@ function App() {
     setChatList([]);
   };
 
+  const deleteMessage = async (msgId: string) => {
+    await supabase.from('messages').delete().eq('id', msgId);
+    setMessages(prev => prev.filter(m => m.id !== msgId));
+  };
+
   const submitSuggestion = async (content: string, contactInfo: string) => {
     if (!currentUserId || !content.trim()) return;
     const currentProfile = profiles.find(p => p.id === currentUserId);
@@ -4292,6 +4309,8 @@ function App() {
         onSendImage={sendImage}
         onBack={() => setView('main')}
         onReset={reset}
+        onDeleteMessage={deleteMessage}
+        currentUserProfile={profiles.find(p => p.id === currentUserId) ?? null}
       />
     </>
   );
@@ -5819,14 +5838,24 @@ function MainScreen({
     <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'bg-slate-950' : 'bg-gray-50'}`}>
       <header className={`sticky top-0 z-10 transition-colors duration-300 ${darkMode ? 'bg-slate-900 border-b-2 border-slate-700 shadow-slate-950/50' : 'bg-white shadow-sm'}`}>
         <div className="max-w-7xl mx-auto px-4 py-3 grid grid-cols-3 items-center">
-          {/* 좌: 튜토리얼 버튼 */}
-          <button
-            onClick={() => onShowTutorial()}
-            className={`justify-self-start flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-all active:scale-95 ${darkMode ? 'text-slate-400 hover:text-cyan-400 hover:bg-slate-800' : 'text-gray-500 hover:text-cyan-600 hover:bg-cyan-50'}`}
-          >
-            <BookOpen className="w-5 h-5" />
-            <span className="text-[9px] font-semibold">튜토리얼</span>
-          </button>
+          {/* 좌: 튜토리얼 + 테스터 버튼 */}
+          <div className="justify-self-start flex items-center gap-1">
+            <button
+              onClick={() => onShowTutorial()}
+              className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-all active:scale-95 ${darkMode ? 'text-slate-400 hover:text-cyan-400 hover:bg-slate-800' : 'text-gray-500 hover:text-cyan-600 hover:bg-cyan-50'}`}
+            >
+              <BookOpen className="w-5 h-5" />
+              <span className="text-[9px] font-semibold">튜토리얼</span>
+            </button>
+            <button
+              onClick={() => { window.location.href = '/test'; }}
+              className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-all active:scale-95 ${darkMode ? 'text-slate-400 hover:text-amber-400 hover:bg-slate-800' : 'text-gray-400 hover:text-amber-600 hover:bg-amber-50'}`}
+              title="테스트 대시보드"
+            >
+              <span className="text-base leading-none">🧪</span>
+              <span className="text-[9px] font-semibold">테스터</span>
+            </button>
+          </div>
           {/* 중앙: 타이틀 */}
           <div className="justify-self-center">
             <ResetButton onReset={onReset} darkMode={darkMode} resetPassword={resetPassword} />
@@ -6838,11 +6867,13 @@ function ProfileDetail({ profile, isMe, isLiked, heartType, onLike, onChat, onBa
 
 // ─── Chat Screen ──────────────────────────────────────────────────────────────
 
-function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage, onBack, onReset }: {
+function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage, onBack, onReset, onDeleteMessage, currentUserProfile }: {
   messages: Message[]; currentUserId: string; otherProfile: Profile;
   onSend: (content: string) => void;
   onSendImage: (file: File) => Promise<string | null>;
   onBack: () => void; onReset: () => void;
+  onDeleteMessage: (msgId: string) => void;
+  currentUserProfile: Profile | null;
 }) {
   const [input, setInput] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
@@ -6851,7 +6882,28 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // 안 읽음 "1" 뱃지 — 내가 새로 보낸 메시지 추적
+  const initialMsgIds = useRef(new Set(messages.map(m => m.id)));
+  const [myUnreadIds, setMyUnreadIds] = useState<Set<string>>(new Set());
+
+  // 롱프레스 컨텍스트 메뉴
+  const [contextMenu, setContextMenu] = useState<{ msgId: string; content: string; isMine: boolean; x: number; y: number } | null>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+
+  // 안 읽음 "1": 새로 보낸 메시지 추가, 상대가 답장하면 전부 읽음 처리
+  useEffect(() => {
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg && lastMsg.sender_id !== currentUserId) {
+      setMyUnreadIds(new Set());
+    } else {
+      const newMyMsgs = messages.filter(m => m.sender_id === currentUserId && !initialMsgIds.current.has(m.id));
+      if (newMyMsgs.length > 0) {
+        setMyUnreadIds(prev => new Set([...prev, ...newMyMsgs.map(m => m.id)]));
+      }
+    }
+  }, [messages, currentUserId]);
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
@@ -6867,9 +6919,7 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
     setShowEmoji(false);
   };
 
-  const handleEmojiClick = (emoji: string) => {
-    setInput((prev) => prev + emoji);
-  };
+  const handleEmojiClick = (emoji: string) => { setInput((prev) => prev + emoji); };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -6883,40 +6933,141 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
     setShowEmoji(false);
   };
 
+  // 롱프레스 핸들러
+  const handleLongPressStart = (e: React.TouchEvent, msg: Message) => {
+    const touch = e.touches[0];
+    longPressTimer.current = setTimeout(() => {
+      setContextMenu({ msgId: msg.id, content: msg.content ?? '', isMine: msg.sender_id === currentUserId, x: touch.clientX, y: touch.clientY });
+    }, 600);
+  };
+  const handleLongPressEnd = () => { if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; } };
+  const handleMsgContextMenu = (e: React.MouseEvent, msg: Message) => {
+    e.preventDefault();
+    setContextMenu({ msgId: msg.id, content: msg.content ?? '', isMine: msg.sender_id === currentUserId, x: e.clientX, y: e.clientY });
+  };
+
+  // 연락처 공유
+  const handleShareContact = () => {
+    if (!currentUserProfile) return;
+    const { kakao_id, instagram_id, phone_number } = currentUserProfile;
+    if (!kakao_id && !instagram_id && !phone_number) {
+      setChatError('프로필에 연락처가 등록되지 않았습니다.');
+      setTimeout(() => setChatError(''), 3000);
+      return;
+    }
+    const parts: string[] = [];
+    if (kakao_id) parts.push(`카카오: ${kakao_id}`);
+    if (instagram_id) parts.push(`인스타: @${instagram_id}`);
+    if (phone_number) parts.push(`전화: ${phone_number}`);
+    onSend(`__contact__\n${parts.join('\n')}`);
+  };
+
+  const isContactCard = (content: string | null) => !!content?.startsWith('__contact__');
+  const parseContactCard = (content: string) => content.replace(/^__contact__\n?/, '').split('\n').filter(Boolean);
+
+  const hasContact = !!(currentUserProfile?.kakao_id || currentUserProfile?.instagram_id || currentUserProfile?.phone_number);
+
   return (
     <div className="fixed inset-0 bg-gray-100 flex flex-col" style={{ height: '100dvh' }}>
+
+      {/* 롱프레스 컨텍스트 메뉴 */}
+      {contextMenu && (
+        <div className="fixed inset-0 z-50" onClick={() => setContextMenu(null)}>
+          <div
+            className="absolute bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden min-w-[150px]"
+            style={{
+              top: Math.min(contextMenu.y, window.innerHeight - 130),
+              left: Math.min(Math.max(contextMenu.x - 75, 8), window.innerWidth - 170),
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {!isContactCard(contextMenu.content) && contextMenu.content && (
+              <button
+                onClick={() => { navigator.clipboard?.writeText(contextMenu.content); setContextMenu(null); }}
+                className="flex items-center gap-3 w-full px-5 py-3.5 text-sm text-gray-700 hover:bg-gray-50 text-left">
+                📋 복사
+              </button>
+            )}
+            {contextMenu.isMine && (
+              <button
+                onClick={() => {
+                  onDeleteMessage(contextMenu.msgId);
+                  setMyUnreadIds(p => { const n = new Set(p); n.delete(contextMenu.msgId); return n; });
+                  setContextMenu(null);
+                }}
+                className="flex items-center gap-3 w-full px-5 py-3.5 text-sm text-red-500 hover:bg-red-50 border-t border-gray-100 text-left">
+                🗑️ 삭제 (모두에게)
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       <header className="bg-white shadow-sm shrink-0 z-10">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
           <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
             <ArrowLeft className="w-5 h-5 text-gray-700" />
           </button>
-          <div className="w-10 h-10 rounded-full overflow-hidden">
+          <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0">
             <img src={otherProfile.photo_url} alt={otherProfile.nickname} className="w-full h-full object-cover" />
           </div>
-          <h2 className="font-semibold text-gray-900 flex-1">{otherProfile.nickname}</h2>
+          <h2 className="font-semibold text-gray-900 flex-1 truncate">{otherProfile.nickname}</h2>
+          {hasContact && (
+            <button onClick={handleShareContact}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-50 text-cyan-600 text-xs font-bold rounded-xl border border-cyan-200 hover:bg-cyan-100 transition-all active:scale-95 flex-shrink-0">
+              📱 연락처 공유
+            </button>
+          )}
         </div>
       </header>
 
       <main className="flex-1 overflow-y-auto min-h-0">
-        <div className="max-w-3xl mx-auto px-4 py-4 space-y-3">
-          {messages.map((msg) => (
-            <div key={msg.id} className={`flex ${msg.sender_id === currentUserId ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[72%] rounded-2xl overflow-hidden ${
-                msg.sender_id === currentUserId
-                  ? 'bg-cyan-500 text-white rounded-br-md'
-                  : 'bg-white text-gray-900 rounded-bl-md shadow-sm'
-              }`}>
-                {msg.image_url ? (
-                  <img src={msg.image_url} alt="이미지" className="max-w-[240px] w-full object-contain" />
-                ) : (
-                  <p className="px-4 py-2">{msg.content}</p>
-                )}
-                <p className={`text-xs px-3 pb-1.5 ${msg.sender_id === currentUserId ? 'text-cyan-100 text-right' : 'text-gray-400'}`}>
-                  {new Date(msg.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
-                </p>
+        <div className="max-w-3xl mx-auto px-4 py-4 space-y-2">
+          {messages.map((msg) => {
+            const isMe = msg.sender_id === currentUserId;
+            const time = new Date(msg.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+            const isCard = isContactCard(msg.content);
+            return (
+              <div key={msg.id}
+                className={`flex items-end gap-1.5 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}
+                onTouchStart={(e) => handleLongPressStart(e, msg)}
+                onTouchEnd={handleLongPressEnd}
+                onTouchMove={handleLongPressEnd}
+                onContextMenu={(e) => handleMsgContextMenu(e, msg)}>
+                {/* 시간 + 안읽음 "1" 뱃지 */}
+                <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} mb-0.5 shrink-0`}>
+                  {isMe && myUnreadIds.has(msg.id) && (
+                    <span className="text-[11px] font-black text-yellow-500 leading-none mb-0.5">1</span>
+                  )}
+                  <span className="text-[10px] text-gray-400 whitespace-nowrap">{time}</span>
+                </div>
+                {/* 말풍선 */}
+                <div className={`max-w-[72%] rounded-2xl overflow-hidden ${isMe ? 'bg-cyan-500 text-white rounded-br-md' : 'bg-white text-gray-900 rounded-bl-md shadow-sm'}`}>
+                  {isCard ? (
+                    <div className="px-4 py-3">
+                      <p className={`text-[10px] font-black uppercase tracking-widest mb-2 ${isMe ? 'text-cyan-100' : 'text-cyan-600'}`}>📱 연락처</p>
+                      {parseContactCard(msg.content!).map((line, i) => {
+                        const val = line.split(': ').slice(1).join(': ');
+                        return (
+                          <div key={i} className="flex items-center gap-1.5">
+                            <p className="text-sm font-semibold flex-1">{line}</p>
+                            <button onClick={() => navigator.clipboard?.writeText(val)}
+                              className={`text-[10px] px-1.5 py-0.5 rounded-md font-semibold transition-all ${isMe ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                              복사
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : msg.image_url ? (
+                    <img src={msg.image_url} alt="이미지" className="max-w-[240px] w-full object-contain" />
+                  ) : (
+                    <p className="px-4 py-2 text-sm leading-relaxed">{msg.content}</p>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
           <div ref={messagesEndRef} />
           {messages.length === 0 && (
             <div className="text-center py-20">

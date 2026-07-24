@@ -4733,6 +4733,7 @@ export default function AdminApp() {
       localStorage.removeItem(ADMIN_SESSION_KEY);
       setAdminToken(null);
       setIsLoggedIn(false);
+      window.location.href = '/';
     }} />
   ) : (
     <LoginScreen onLogin={() => setIsLoggedIn(true)} />
