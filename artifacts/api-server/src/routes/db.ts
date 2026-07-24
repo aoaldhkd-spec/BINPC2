@@ -1,11 +1,13 @@
 import { Router, type Request, type Response } from 'express';
+import pg from 'pg';
 
 const router = Router();
 
-// ─── In-memory store (shared across all connected clients) ────────────────────
-const store: Record<string, Record<string, unknown>[]> = {};
+// ─── PostgreSQL connection pool ────────────────────────────────────────────────
+const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 
-// Image store: path → base64 data URL
+// ─── In-memory cache (loaded from DB on startup, write-through on every change)
+const store: Record<string, Record<string, unknown>[]> = {};
 const imageStore: Record<string, string> = {};
 
 // SSE clients for real-time push
@@ -33,18 +35,62 @@ function getTable(name: string): Record<string, unknown>[] {
   return store[name];
 }
 
-// ─── SSE broadcast ─────────────────────────────────────────────────────────────
-function broadcast(event: Record<string, unknown>) {
-  const payload = `data: ${JSON.stringify(event)}\n\n`;
-  for (const client of sseClients) {
-    try { client.write(payload); } catch { sseClients.delete(client); }
+// ─── PostgreSQL persistence helpers ───────────────────────────────────────────
+async function dbPersistRow(tableName: string, row: Record<string, unknown>): Promise<void> {
+  const rowId = String(row.id ?? genId());
+  await pool.query(
+    `INSERT INTO app_kv_rows (table_name, row_id, data, updated_at)
+     VALUES ($1, $2, $3, NOW())
+     ON CONFLICT (table_name, row_id)
+     DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
+    [tableName, rowId, JSON.stringify(row)],
+  );
+}
+
+async function dbDeleteRow(tableName: string, rowId: string): Promise<void> {
+  await pool.query(
+    'DELETE FROM app_kv_rows WHERE table_name = $1 AND row_id = $2',
+    [tableName, rowId],
+  );
+}
+
+async function dbDeleteTable(tableName: string): Promise<void> {
+  await pool.query('DELETE FROM app_kv_rows WHERE table_name = $1', [tableName]);
+}
+
+async function dbPersistImage(path: string, dataUrl: string): Promise<void> {
+  await pool.query(
+    `INSERT INTO app_image_store (path, data_url, updated_at)
+     VALUES ($1, $2, NOW())
+     ON CONFLICT (path)
+     DO UPDATE SET data_url = EXCLUDED.data_url, updated_at = NOW()`,
+    [path, dataUrl],
+  );
+}
+
+// ─── Startup: load all data from DB into memory ───────────────────────────────
+async function loadFromDb(): Promise<void> {
+  try {
+    const { rows } = await pool.query('SELECT table_name, data FROM app_kv_rows ORDER BY updated_at ASC');
+    for (const row of rows) {
+      if (!store[row.table_name]) store[row.table_name] = [];
+      store[row.table_name].push(row.data as Record<string, unknown>);
+    }
+    const imgs = await pool.query('SELECT path, data_url FROM app_image_store');
+    for (const img of imgs.rows) {
+      imageStore[img.path] = img.data_url;
+    }
+    console.log('[db] Loaded from PostgreSQL:', Object.entries(store).map(([k, v]) => `${k}(${v.length})`).join(', ') || '(empty)');
+  } catch (e) {
+    console.error('[db] Failed to load from DB:', e);
   }
 }
 
-// ─── Seed data ────────────────────────────────────────────────────────────────
-function seedIfNeeded() {
+// ─── Seed data (only if DB is empty) ─────────────────────────────────────────
+async function seedIfNeeded(): Promise<void> {
+  await loadFromDb();
   if (!getTable('app_settings').length) {
-    store['app_settings'] = [{
+    const settings = {
       id: 1,
       session_active: false,
       admin_phone: '010-3878-6740',
@@ -59,7 +105,9 @@ function seedIfNeeded() {
       game_state: null,
       entry_password: koreanDateMMDD(),
       reset_password: null,
-    }];
+    };
+    store['app_settings'] = [settings];
+    await dbPersistRow('app_settings', settings);
   }
   if (!getTable('seats').length) {
     const rows: Record<string, unknown>[] = [];
@@ -78,9 +126,20 @@ function seedIfNeeded() {
       }
     }
     store['seats'] = rows;
+    await Promise.all(rows.map(r => dbPersistRow('seats', r)));
   }
 }
-seedIfNeeded();
+
+// Kick off async initialization
+seedIfNeeded().catch(console.error);
+
+// ─── SSE broadcast ─────────────────────────────────────────────────────────────
+function broadcast(event: Record<string, unknown>) {
+  const payload = `data: ${JSON.stringify(event)}\n\n`;
+  for (const client of sseClients) {
+    try { client.write(payload); } catch { sseClients.delete(client); }
+  }
+}
 
 // ─── Filter helpers ───────────────────────────────────────────────────────────
 type FilterSpec =
@@ -121,15 +180,8 @@ function applyFilters(
   return rows.filter(r => filters.every(f => matchFilter(r, f)));
 }
 
-function matchChannelFilter(filterExpr: string | undefined, row: Record<string, unknown> | null): boolean {
-  if (!filterExpr || !row) return true;
-  const m = filterExpr.match(/^(\w+)=eq\.(.+)$/);
-  if (m) return String(row[m[1]]) === m[2];
-  return true;
-}
-
 // ─── DB operation endpoint ────────────────────────────────────────────────────
-router.post('/op', (req: Request, res: Response) => {
+router.post('/op', async (req: Request, res: Response) => {
   const {
     table,
     op,
@@ -187,6 +239,7 @@ router.post('/op', (req: Request, res: Response) => {
         tableData.push(newRow);
         inserted.push(newRow);
         broadcast({ type: 'change', table, event: 'INSERT', newRow, oldRow: null });
+        dbPersistRow(table, newRow).catch(console.error);
       }
       if (selectAfterWrite) return res.json({ data: single ? inserted[0] ?? null : inserted, error: null });
       return res.json({ data: null, error: null });
@@ -203,6 +256,7 @@ router.post('/op', (req: Request, res: Response) => {
           tableData[i] = newRow;
           updated.push(newRow);
           broadcast({ type: 'change', table, event: 'UPDATE', newRow, oldRow });
+          dbPersistRow(table, newRow).catch(console.error);
         }
       }
       if (selectAfterWrite) return res.json({ data: single ? updated[0] ?? null : updated, error: null });
@@ -226,6 +280,7 @@ router.post('/op', (req: Request, res: Response) => {
           tableData[idx] = newRow;
           upserted.push(newRow);
           broadcast({ type: 'change', table, event: 'UPDATE', newRow, oldRow });
+          dbPersistRow(table, newRow).catch(console.error);
         } else {
           const base: Record<string, unknown> = { id: genId(), created_at: ts(), ...row };
           if (table === 'profiles' && base.birth_month == null) {
@@ -235,6 +290,7 @@ router.post('/op', (req: Request, res: Response) => {
           tableData.push(base);
           upserted.push(base);
           broadcast({ type: 'change', table, event: 'INSERT', newRow: base, oldRow: null });
+          dbPersistRow(table, base).catch(console.error);
         }
       }
       if (selectAfterWrite) return res.json({ data: upserted, error: null });
@@ -247,6 +303,7 @@ router.post('/op', (req: Request, res: Response) => {
       store[table] = tableData.filter(r => !applyFilters([r], filters).length);
       for (const row of toDelete) {
         broadcast({ type: 'change', table, event: 'DELETE', newRow: null, oldRow: row });
+        dbDeleteRow(table, String(row.id)).catch(console.error);
       }
       return res.json({ data: null, error: null });
     }
@@ -259,7 +316,7 @@ router.post('/op', (req: Request, res: Response) => {
 });
 
 // ─── RPC endpoint ─────────────────────────────────────────────────────────────
-router.post('/rpc/:name', (req: Request, res: Response) => {
+router.post('/rpc/:name', async (req: Request, res: Response) => {
   const { name } = req.params;
   const args = (req.body ?? {}) as Record<string, unknown>;
 
@@ -285,7 +342,10 @@ router.post('/rpc/:name', (req: Request, res: Response) => {
         checkPassword();
         const seats = getTable('seats').map(s => ({ ...s, profile_id: null, status: 'empty', registered_at: null }));
         store['seats'] = seats;
-        for (const s of seats) broadcast({ type: 'change', table: 'seats', event: 'UPDATE', newRow: s, oldRow: null });
+        for (const s of seats) {
+          broadcast({ type: 'change', table: 'seats', event: 'UPDATE', newRow: s, oldRow: null });
+          dbPersistRow('seats', s).catch(console.error);
+        }
         return res.json({ data: null, error: null });
       }
 
@@ -293,15 +353,20 @@ router.post('/rpc/:name', (req: Request, res: Response) => {
         checkPassword();
         const seats = getTable('seats').map(s => ({ ...s, profile_id: null, status: 'empty', registered_at: null }));
         store['seats'] = seats;
-        for (const s of seats) broadcast({ type: 'change', table: 'seats', event: 'UPDATE', newRow: s, oldRow: null });
-        for (const t of [
+        for (const s of seats) {
+          broadcast({ type: 'change', table: 'seats', event: 'UPDATE', newRow: s, oldRow: null });
+          dbPersistRow('seats', s).catch(console.error);
+        }
+        const tablesToClear = [
           'profiles', 'likes', 'anonymous_reports', 'chats', 'messages',
           'contact_shares', 'contact_share_events', 'balance_votes', 'balance_games',
           'qa_answers', 'qa_games', 'image_votes', 'image_games', 'notifications', 'suggestions',
-        ]) {
+        ];
+        for (const t of tablesToClear) {
           const old = store[t] ?? [];
           store[t] = [];
           for (const row of old) broadcast({ type: 'change', table: t, event: 'DELETE', newRow: null, oldRow: row });
+          dbDeleteTable(t).catch(console.error);
         }
         return res.json({ data: null, error: null });
       }
@@ -316,6 +381,7 @@ router.post('/rpc/:name', (req: Request, res: Response) => {
           const newRow = { ...oldRow, profile_id: null, status: 'empty', registered_at: null };
           seats[idx] = newRow;
           broadcast({ type: 'change', table: 'seats', event: 'UPDATE', newRow, oldRow });
+          dbPersistRow('seats', newRow).catch(console.error);
         }
         return res.json({ data: null, error: null });
       }
@@ -331,6 +397,7 @@ router.post('/rpc/:name', (req: Request, res: Response) => {
           const cleared = { ...oldRow, profile_id: null, status: 'empty', registered_at: null };
           seats[curIdx] = cleared;
           broadcast({ type: 'change', table: 'seats', event: 'UPDATE', newRow: cleared, oldRow });
+          dbPersistRow('seats', cleared).catch(console.error);
         }
         const tgtIdx = seats.findIndex(s => s.id === seatId);
         if (tgtIdx >= 0) {
@@ -339,10 +406,12 @@ router.post('/rpc/:name', (req: Request, res: Response) => {
             const bumped = { ...oldRow, profile_id: null, status: 'empty', registered_at: null };
             seats[tgtIdx] = bumped;
             broadcast({ type: 'change', table: 'seats', event: 'UPDATE', newRow: bumped, oldRow });
+            dbPersistRow('seats', bumped).catch(console.error);
           }
           const newRow = { ...seats[tgtIdx], profile_id: profileId, status: 'occupied', registered_at: ts() };
           seats[tgtIdx] = newRow;
           broadcast({ type: 'change', table: 'seats', event: 'UPDATE', newRow, oldRow });
+          dbPersistRow('seats', newRow).catch(console.error);
         }
         return res.json({ data: null, error: null });
       }
@@ -357,6 +426,7 @@ router.post('/rpc/:name', (req: Request, res: Response) => {
           const newRow = { ...oldRow, profile_id: null, status: 'empty', registered_at: null };
           seats[idx] = newRow;
           broadcast({ type: 'change', table: 'seats', event: 'UPDATE', newRow, oldRow });
+          dbPersistRow('seats', newRow).catch(console.error);
         }
         return res.json({ data: null, error: null });
       }
@@ -375,6 +445,8 @@ router.post('/rpc/:name', (req: Request, res: Response) => {
         seats[aIdx] = aNew; seats[bIdx] = bNew;
         broadcast({ type: 'change', table: 'seats', event: 'UPDATE', newRow: aNew, oldRow: aOld });
         broadcast({ type: 'change', table: 'seats', event: 'UPDATE', newRow: bNew, oldRow: bOld });
+        dbPersistRow('seats', aNew).catch(console.error);
+        dbPersistRow('seats', bNew).catch(console.error);
         return res.json({ data: null, error: null });
       }
 
@@ -399,6 +471,7 @@ router.post('/rpc/:name', (req: Request, res: Response) => {
           const newRow = { ...oldRow, ...patch };
           profiles[idx] = newRow;
           broadcast({ type: 'change', table: 'profiles', event: 'UPDATE', newRow, oldRow });
+          dbPersistRow('profiles', newRow).catch(console.error);
         }
         return res.json({ data: null, error: null });
       }
@@ -413,11 +486,15 @@ router.post('/rpc/:name', (req: Request, res: Response) => {
           const newRow = { ...oldRow, profile_id: null, status: 'empty', registered_at: null };
           seats[seatIdx] = newRow;
           broadcast({ type: 'change', table: 'seats', event: 'UPDATE', newRow, oldRow });
+          dbPersistRow('seats', newRow).catch(console.error);
         }
         const profiles = getTable('profiles');
         const oldProfile = profiles.find(p => p.id === profileId);
         store['profiles'] = profiles.filter(p => p.id !== profileId);
-        if (oldProfile) broadcast({ type: 'change', table: 'profiles', event: 'DELETE', newRow: null, oldRow: oldProfile });
+        if (oldProfile) {
+          broadcast({ type: 'change', table: 'profiles', event: 'DELETE', newRow: null, oldRow: oldProfile });
+          dbDeleteRow('profiles', profileId).catch(console.error);
+        }
         return res.json({ data: null, error: null });
       }
 
@@ -438,10 +515,10 @@ router.post('/broadcast', (req: Request, res: Response) => {
 });
 
 // ─── Image storage ────────────────────────────────────────────────────────────
-// Image storage — path sent as JSON body / query string to avoid wildcard routing issues
-router.post('/storage-upload', (req: Request, res: Response) => {
+router.post('/storage-upload', async (req: Request, res: Response) => {
   const { path, dataUrl } = req.body as { path: string; dataUrl: string };
   imageStore[path] = dataUrl;
+  dbPersistImage(path, dataUrl).catch(console.error);
   res.json({ data: { path }, error: null });
 });
 
