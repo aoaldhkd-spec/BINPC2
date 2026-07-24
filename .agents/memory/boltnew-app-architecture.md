@@ -1,53 +1,45 @@
 ---
 name: boltnew-app architecture
-description: Korean queer social drinking app — key architecture decisions, component structure, and feature map
+description: Korean queer social drinking app structure, key files, and component/hook rules
 ---
 
-## Core Stack
-- `artifacts/boltnew-app/src/App.tsx` (~7,800줄) — monolithic main file (Babel 500KB warning, functionally fine)
-- `src/lib/localdb.ts` — in-memory+localStorage mock (no real Supabase)
-- `src/AdminApp.tsx`, `src/TestDashboard.tsx`, `src/stickers.tsx` — supporting screens
-- `src/components/FortuneTab.tsx` — 사주/타로/궁합 탭 컴포넌트 (darkMode prop 없음, 자체 dark theme)
-- `src/lib/fortune.ts` — 모든 점술 계산 로직
+## App structure
+- `artifacts/boltnew-app/src/App.tsx` (~7855 lines) — main user app (App component)
+- `artifacts/boltnew-app/src/AdminApp.tsx` (~5135 lines) — admin panel (AdminDashboard component)
+- `artifacts/boltnew-app/src/TestDashboard.tsx` (641 lines) — do NOT modify without explicit instruction
+- `src/lib/localdb.ts` — Supabase mock (local state)
 
-## Tab Structure (5 Main Tabs)
-1. **나·참여자** (status/profiles) — 내 상태 | 참여자 서브탭
-2. **배치도** (seating)
-3. **채팅·건의** (chats/suggestions) — 채팅 | 건의함 서브탭
-4. **게임·운세** (game/fortune) — 🎮 게임 | 🔮 운세 서브탭
-5. **통계·랭킹** (stats/ranking) — 통계 | 랭킹 서브탭
+## App routing
+- App: NicknameSetupScreen → WaitingOverlay → MainScreen → ProfileDetail → ChatScreen
+- AdminApp: DashboardTab / SeatingTab / GameTabs / HistoryTab / ReportsTab
+- TestDashboard: separate route
 
-**Why:** User wanted exactly 5 tabs; fortune moved from standalone top-level tab into "게임·운세" sub-tab.
+## Rules of Hooks — critical
+`sentLikedProfiles` and `pendingHeartsCount` useMemo must be declared **before ALL early returns** in the App component.
+Current position: ~line 4331-4345 (before `seatQrWithoutSession` check, which is the first early return in App).
+The function has multiple early returns: seatQrWithoutSession → showWaiting → appLoading → view=loading-main → view=entry-1 → view=profile → view=chat → final return.
 
-`mainTab === 'fortune'` still exists in MainTab type and is handled by fortune sub-tab button calling `onTabChange('fortune')`. Game tab in tab bar highlights when mainTab is 'game' OR 'fortune'.
+**Why:** React Rules of Hooks — hooks must not be called conditionally. Any useMemo/useState after an early return that sometimes triggers = runtime error "Rendered more hooks than during the previous render".
 
-## MainScreen Props Key
-- `MainScreen` receives all state from parent App and passes down
-- `MainScreen` is a module-level component (not defined inside App) — receives `newMsgCount` as prop
-- `FortuneTab` receives: `currentUserId`, `myProfile`, `profiles`, `likedIds` (no `darkMode`)
+## AdminApp state summary (as of July 2026)
+- `recovery` state: floating 30-sec banner with restore function
+- `restoreMap` state: `Map<string, () => Promise<void>>` — persistent per-key restore buttons in DashboardTab
+- `showRecovery(label, emoji, restore, mapKey?)` — also updates restoreMap when mapKey provided
+- All handleClear* and handleFull/EventEnd reset functions pass their mapKey to showRecovery
 
-## Fortune Feature Map
-- `getZodiac(year)` — 12지신 정보
-- `getOhaeng(year)` — 오행 (목화토금수)
-- `drawTodayTarot(userId)` — 오늘 타로 3장 (userId+날짜 시드)
-- `getTodayFortune(year,month,day)` — 오늘의 사주 운세
-- `getCompatibility(...)` — 전통 사주 궁합 (12지신)
-- `getNumerologyCompat(...)` — 수비학 궁합 (생년월일 숫자 합산)
-- `getOhaengCompat(...)` — 오행 상성 궁합
-- `getBedCompat(...)` — 침대 궁합 🔞 (오행+돔섭 스코어)
-- `getMbtiCompat(...)` — MBTI 궁합
+## DashboardTab
+- Props include `restoreMap: Map<string, () => Promise<void>>`
+- Items layout: init button (flex-1) + restore button (w-14) side by side per row
+- Restore button enabled only when restoreMap.has(key); keys: seats/likes/chats/notifications/games/suggestions/profiles/history/eventEnd
 
-## Dummy Data (TestDashboard)
-- `createManyDummies`: Korean adjective+noun nicknames (귀여운고양이 등), birth_year 1985-2004, birth_month 1-12, birth_day 1-28, random Korean location, random interests, random pin_code, dom_sub_score
-- `DUMMY_ADJS/DUMMY_NOUNS/DUMMY_LOCATIONS` — nickname/location pool defined in TestDashboard.tsx
+## Game sections (AdminApp)
+- **OxGameSection**: single/batch mode toggle; OX_QUICK_GENERAL/HOT tabs; `oxPenalty` state + quick buttons; batch sends via `sendBatchOx`
+- **ChosungGameSection**: `chosungPenalty` state; `targetTable` state with table selector UI
+- **QaGameSection**: `qaPenalty` state; `qaTargetTable` state (null=전체, number=specific table); `startQa` uses scope `'qa_table'` when targetTable set; target table UI before start button
+- **BalanceGameSection**: single/batch mode; `BALANCE_QUICK` batch quick-select buttons at top of batch section (all-table bulk apply)
 
-## Key Bug Fixes Applied
-- Startup `useEffect` timeout: `clearTimeout` is called on both success AND cleanup via `cancelled` flag
-- `handleTabChange`: fortune tab now sets seenGameCount (same as game tab)
-- FortuneTab: `darkMode` prop removed — uses self-contained dark theme
-
-## Profile Schema Fields for Fortune
-- `birth_year: number | null` — 태어난 해
-- `birth_month: number | null` — 태어난 월
-- `birth_day: number | null` — 태어난 일
-- All three required for fortune features; missing any → NoBirthday state shown
+## Quick content arrays (AdminApp top-level)
+- `OX_QUICK_GENERAL` (12개), `OX_QUICK_HOT` (8개) — OX game quick prompts
+- `BALANCE_QUICK` (25개 general + 13개 hot) — balance game quick options
+- `IMAGE_QUICK` { general: 9, hot: 10 } — image game quick options
+- `GAME_PENALTY_QUICK` (9개) — shared penalty quick buttons

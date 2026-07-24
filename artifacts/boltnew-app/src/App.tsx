@@ -4328,6 +4328,20 @@ function App() {
     if (data) setSuggestions(prev => [data as Suggestion, ...prev]);
   };
 
+  // useMemo: 매 렌더마다 filter 재계산 방지 — 모든 early return 전에 선언 (Rules of Hooks 준수)
+  const sentLikedProfiles = useMemo(
+    () => profiles.filter((p) => likedIds.has(p.id)),
+    [profiles, likedIds],
+  );
+  const pendingHeartsCount = useMemo(
+    () => receivedLikers.filter((l) => {
+      const ht = receivedHeartTypes.get(l.id) ?? 'red';
+      if (ht === 'green') return !acknowledgedComplimentIds.has(l.id);
+      return !contactSharedWithIds.has(l.id);
+    }).length,
+    [receivedLikers, receivedHeartTypes, acknowledgedComplimentIds, contactSharedWithIds],
+  );
+
   // 신규 접속자(localStorage에 userId 없음) → WaitingOverlay 표시
   // 기존 접속자(userId 있음) → 즉시 메인 화면 진입 (showWaiting = false)
   // shownWaiting: 대기 화면에서 '입장하기' 클릭 or 관리자 시작 감지 시 true
@@ -4408,20 +4422,6 @@ function App() {
         currentUserProfile={profiles.find(p => p.id === currentUserId) ?? null}
       />
     </>
-  );
-
-  // useMemo: 매 렌더마다 filter 재계산 방지
-  const sentLikedProfiles = useMemo(
-    () => profiles.filter((p) => likedIds.has(p.id)),
-    [profiles, likedIds],
-  );
-  const pendingHeartsCount = useMemo(
-    () => receivedLikers.filter((l) => {
-      const ht = receivedHeartTypes.get(l.id) ?? 'red';
-      if (ht === 'green') return !acknowledgedComplimentIds.has(l.id);
-      return !contactSharedWithIds.has(l.id);
-    }).length,
-    [receivedLikers, receivedHeartTypes, acknowledgedComplimentIds, contactSharedWithIds],
   );
 
   return (

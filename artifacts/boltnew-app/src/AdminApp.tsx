@@ -1017,7 +1017,8 @@ function QrModal({ seat, onClose }: { seat: Seat; onClose: () => void }) {
 // ─── Dashboard Tab ────────────────────────────────────────────────────────────
 
 function DashboardTab({ settings, seats, profiles, onToggleSession, onFullReset, onEventEndReset, onToggleFeatureLock,
-  onClearLikes, onClearChats, onClearNotifications, onClearGames, onClearSuggestions, onClearProfiles, onClearHistory }: {
+  onClearLikes, onClearChats, onClearNotifications, onClearGames, onClearSuggestions, onClearProfiles, onClearHistory,
+  restoreMap }: {
   settings: AppSettings | null; seats: Seat[]; profiles: Profile[];
   onToggleSession: () => void; onFullReset: () => void; onEventEndReset: () => void;
   onToggleFeatureLock: () => void;
@@ -1028,6 +1029,7 @@ function DashboardTab({ settings, seats, profiles, onToggleSession, onFullReset,
   onClearSuggestions: () => Promise<void>;
   onClearProfiles: () => Promise<void>;
   onClearHistory: () => Promise<void>;
+  restoreMap: Map<string, () => Promise<void>>;
 }) {
   const [confirmToggle, setConfirmToggle] = useState(false);
   const [confirmEventEnd, setConfirmEventEnd] = useState(false);
@@ -1124,30 +1126,46 @@ function DashboardTab({ settings, seats, profiles, onToggleSession, onFullReset,
 
       {/* 데이터 초기화 */}
       <div>
-        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 px-1">데이터 초기화</h3>
-        <div className="grid grid-cols-2 gap-2">
+        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 px-1">데이터 초기화 / 복구</h3>
+        <div className="space-y-1.5">
           {([
-            { emoji: '🪑', label: '좌석', desc: '이력 백업 후 초기화', bg: 'bg-orange-50 border-orange-200 hover:bg-orange-100', title: '좌석 초기화', msg: '이력 백업 후 모든 좌석을 초기화합니다. 참여자 프로필은 유지됩니다.', fn: onFullReset },
-            { emoji: '❤️', label: '하트', desc: '모든 하트 기록 삭제', bg: 'bg-pink-50 border-pink-200 hover:bg-pink-100', title: '하트 초기화', msg: '모든 하트(좋아요) 기록을 삭제합니다. 되돌릴 수 없습니다.', fn: onClearLikes },
-            { emoji: '💬', label: '채팅', desc: '채팅·메시지 전체 삭제', bg: 'bg-teal-50 border-teal-200 hover:bg-teal-100', title: '채팅 초기화', msg: '모든 채팅방과 메시지를 삭제합니다. 되돌릴 수 없습니다.', fn: onClearChats },
-            { emoji: '🔔', label: '공지', desc: '전송 공지 모두 삭제', bg: 'bg-amber-50 border-amber-200 hover:bg-amber-100', title: '공지 초기화', msg: '전송된 모든 공지를 삭제합니다.', fn: onClearNotifications },
-            { emoji: '🎮', label: '게임', desc: '게임·투표 기록 삭제', bg: 'bg-violet-50 border-violet-200 hover:bg-violet-100', title: '게임 초기화', msg: '밸런스·OX·이미지 게임 기록과 투표 데이터를 모두 삭제합니다.', fn: onClearGames },
-            { emoji: '💡', label: '건의', desc: '익명 건의 모두 삭제', bg: 'bg-sky-50 border-sky-200 hover:bg-sky-100', title: '건의 초기화', msg: '모든 익명 건의 내용을 삭제합니다.', fn: onClearSuggestions },
-            { emoji: '👤', label: '참여자', desc: '모든 프로필 삭제', bg: 'bg-indigo-50 border-indigo-200 hover:bg-indigo-100', title: '참여자 초기화', msg: '모든 참여자 프로필을 삭제합니다. 좌석도 함께 비워집니다.', fn: onClearProfiles },
-            { emoji: '📋', label: '이력', desc: '회식 이력 모두 삭제', bg: 'bg-emerald-50 border-emerald-200 hover:bg-emerald-100', title: '이력 초기화', msg: '저장된 회식 이력을 모두 삭제합니다.', fn: onClearHistory },
-          ] as const).map(item => (
-            <button
-              key={item.label}
-              onClick={() => setConfirmAction({ title: item.title, message: item.msg, onConfirm: item.fn })}
-              className={`rounded-2xl p-3.5 border-2 flex items-center gap-3 transition-all active:scale-[0.97] text-left ${item.bg}`}
-            >
-              <span className="text-xl leading-none flex-shrink-0">{item.emoji}</span>
-              <div className="min-w-0">
-                <p className="text-sm font-black text-gray-800 leading-tight">{item.label} 초기화</p>
-                <p className="text-[10px] text-gray-500 mt-0.5 leading-tight">{item.desc}</p>
+            { key: 'seats', emoji: '🪑', label: '좌석', desc: '이력 백업 후 초기화', bg: 'bg-orange-50 border-orange-200 hover:bg-orange-100', title: '좌석 초기화', msg: '이력 백업 후 모든 좌석을 초기화합니다. 참여자 프로필은 유지됩니다.', fn: onFullReset },
+            { key: 'likes', emoji: '❤️', label: '하트', desc: '모든 하트 기록 삭제', bg: 'bg-pink-50 border-pink-200 hover:bg-pink-100', title: '하트 초기화', msg: '모든 하트(좋아요) 기록을 삭제합니다.', fn: onClearLikes },
+            { key: 'chats', emoji: '💬', label: '채팅', desc: '채팅·메시지 전체 삭제', bg: 'bg-teal-50 border-teal-200 hover:bg-teal-100', title: '채팅 초기화', msg: '모든 채팅방과 메시지를 삭제합니다.', fn: onClearChats },
+            { key: 'notifications', emoji: '🔔', label: '공지', desc: '전송 공지 모두 삭제', bg: 'bg-amber-50 border-amber-200 hover:bg-amber-100', title: '공지 초기화', msg: '전송된 모든 공지를 삭제합니다.', fn: onClearNotifications },
+            { key: 'games', emoji: '🎮', label: '게임', desc: '게임·투표 기록 삭제', bg: 'bg-violet-50 border-violet-200 hover:bg-violet-100', title: '게임 초기화', msg: '밸런스·OX·이미지 게임 기록과 투표 데이터를 모두 삭제합니다.', fn: onClearGames },
+            { key: 'suggestions', emoji: '💡', label: '건의', desc: '익명 건의 모두 삭제', bg: 'bg-sky-50 border-sky-200 hover:bg-sky-100', title: '건의 초기화', msg: '모든 익명 건의 내용을 삭제합니다.', fn: onClearSuggestions },
+            { key: 'profiles', emoji: '👤', label: '참여자', desc: '모든 프로필 삭제', bg: 'bg-indigo-50 border-indigo-200 hover:bg-indigo-100', title: '참여자 초기화', msg: '모든 참여자 프로필을 삭제합니다. 좌석도 함께 비워집니다.', fn: onClearProfiles },
+            { key: 'history', emoji: '📋', label: '이력', desc: '회식 이력 모두 삭제', bg: 'bg-emerald-50 border-emerald-200 hover:bg-emerald-100', title: '이력 초기화', msg: '저장된 회식 이력을 모두 삭제합니다.', fn: onClearHistory },
+          ] as const).map(item => {
+            const hasRestore = restoreMap.has(item.key);
+            return (
+              <div key={item.label} className="flex gap-1.5">
+                <button
+                  onClick={() => setConfirmAction({ title: item.title, message: item.msg, onConfirm: item.fn })}
+                  className={`flex-1 rounded-2xl px-3 py-2.5 border-2 flex items-center gap-2.5 transition-all active:scale-[0.97] text-left ${item.bg}`}
+                >
+                  <span className="text-lg leading-none flex-shrink-0">{item.emoji}</span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-black text-gray-800 leading-tight">{item.label} 초기화</p>
+                    <p className="text-[10px] text-gray-500 mt-0.5 leading-tight">{item.desc}</p>
+                  </div>
+                </button>
+                <button
+                  onClick={() => hasRestore && restoreMap.get(item.key)!()}
+                  disabled={!hasRestore}
+                  className={`flex-shrink-0 w-14 rounded-2xl border-2 flex flex-col items-center justify-center gap-0.5 transition-all text-center ${
+                    hasRestore
+                      ? 'bg-teal-50 border-teal-300 text-teal-700 hover:bg-teal-100 active:scale-95 cursor-pointer'
+                      : 'bg-gray-50 border-gray-200 text-gray-300 cursor-not-allowed opacity-50'
+                  }`}
+                >
+                  <span className="text-base leading-none">↩</span>
+                  <span className="text-[9px] font-black leading-tight">복구</span>
+                </button>
               </div>
-            </button>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -1567,6 +1585,14 @@ const BALANCE_QUICK: { label: string; a: string; b: string; hot?: boolean }[] = 
   { label: '같이 살기 vs 각자 집 🔞', a: '같이 살기 선호', b: '각자 집 선호', hot: true },
   { label: '첫날 vs 100일 후 🔞', a: '첫날밤', b: '100일 후', hot: true },
   { label: '리드 vs 리드받기 🔞', a: '내가 리드', b: '리드 받기', hot: true },
+  { label: '소리 있게 vs 조용히 🔞', a: '소리 있게', b: '조용히', hot: true },
+  { label: '불 끄고 vs 켜고 🔞', a: '불 끄고', b: '불 켜고', hot: true },
+  { label: '빠르게 vs 천천히 🔞', a: '빠르게', b: '천천히', hot: true },
+  { label: '원나잇 vs 사귀고 🔞', a: '원나잇 OK', b: '사귀고 나서', hot: true },
+  { label: '키스만 vs 그 이상 🔞', a: '키스까지', b: '그 이상까지', hot: true },
+  { label: '내가 공격 vs 내가 수비 🔞', a: '내가 공격', b: '내가 수비', hot: true },
+  { label: '야하게 vs 다정하게 🔞', a: '야하게', b: '다정하게', hot: true },
+  { label: '침대 vs 소파도 OK 🔞', a: '침대만', b: '소파도 OK', hot: true },
 ];
 
 // ── 게임 공통 벌칙 빠른 선택 ───────────────────────────────────────────────
@@ -1950,6 +1976,23 @@ function BalanceGameCreate({ currentGame, onGameUpdate, seats, settings }: { cur
       ) : (
         <>
           <p className="text-xs text-gray-500">활성 테이블별로 다른 게임을 동시에 시작합니다. A, B 선택지를 입력하세요.</p>
+          {/* 일괄 빠른 선택 */}
+          <div>
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">빠른 선택 — 전 테이블 일괄 적용</p>
+            <div className="flex flex-wrap gap-1.5">
+              {BALANCE_QUICK.map(q => (
+                <button key={q.label} onClick={() => {
+                  const m = new Map<number, { a: string; b: string }>();
+                  tableNumbers.forEach(n => m.set(n, { a: q.a, b: q.b }));
+                  setBatchConfig(m);
+                  setBatchSentTables(new Set());
+                }}
+                  className={`px-2.5 py-1.5 rounded-full text-xs font-bold border-2 transition-all ${q.hot ? 'bg-rose-50 border-rose-200 text-rose-600 hover:border-rose-400' : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-violet-400 hover:text-violet-600'}`}>
+                  {q.label}
+                </button>
+              ))}
+            </div>
+          </div>
           {tableNumbers.length === 0 && <p className="text-sm text-gray-400 text-center py-4">활성 테이블이 없습니다. 먼저 테이블 설정에서 활성 테이블을 선택하세요.</p>}
           <div className="space-y-2">
             {tableNumbers.map(n => {
@@ -2001,6 +2044,7 @@ function QaGameSection({ seats }: { seats: Seat[] }) {
   const [qaQuestion, setQaQuestion] = useState('');
   const [qaCorrectAnswer, setQaCorrectAnswer] = useState('');
   const [qaPenalty, setQaPenalty] = useState('');
+  const [qaTargetTable, setQaTargetTable] = useState<number | null>(null);
   const [qaSaving, setQaSaving] = useState(false);
   const [activeQaGame, setActiveQaGame] = useState<QaGame | null>(null);
   const [qaAnswers, setQaAnswers] = useState<QaAnswer[]>([]);
@@ -2057,7 +2101,9 @@ function QaGameSection({ seats }: { seats: Seat[] }) {
     setQaSaving(true);
     const fullQuestion = qaQuestion.trim() + (qaPenalty.trim() ? `\n🎯 벌칙: ${qaPenalty.trim()}` : '');
     const { data } = await adminSupabase.from('qa_games').insert({
-      question: fullQuestion, correct_answer: qaCorrectAnswer.trim() || null, status: 'active', scope: 'qa_global',
+      question: fullQuestion, correct_answer: qaCorrectAnswer.trim() || null, status: 'active',
+      scope: qaTargetTable !== null ? 'qa_table' : 'qa_global',
+      table_number: qaTargetTable ?? null,
     }).select().single();
     if (data) {
       activeQaGameRef.current = data as QaGame;
@@ -2067,6 +2113,7 @@ function QaGameSection({ seats }: { seats: Seat[] }) {
     setQaQuestion('');
     setQaCorrectAnswer('');
     setQaPenalty('');
+    setQaTargetTable(null);
     setQaSaving(false);
   };
 
@@ -2168,9 +2215,25 @@ function QaGameSection({ seats }: { seats: Seat[] }) {
               placeholder="정답이 있는 경우 입력 (없으면 빈칸)"
               className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-teal-400" />
           </div>
+          {/* 대상 테이블 */}
+          <div>
+            <label className="text-xs font-bold text-gray-600 uppercase tracking-wider block mb-1.5">대상</label>
+            <div className="flex flex-wrap gap-1.5">
+              <button onClick={() => setQaTargetTable(null)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold border-2 transition-all active:scale-95 ${qaTargetTable === null ? 'bg-teal-500 border-teal-500 text-white' : 'bg-white border-gray-200 text-gray-600 hover:border-teal-300'}`}>
+                전체
+              </button>
+              {[...new Set(seats.map(s => s.table_number))].sort((a, b) => a - b).map(n => (
+                <button key={n} onClick={() => setQaTargetTable(qaTargetTable === n ? null : n)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold border-2 transition-all active:scale-95 ${qaTargetTable === n ? 'bg-teal-500 border-teal-500 text-white' : 'bg-white border-gray-200 text-gray-600 hover:border-teal-300'}`}>
+                  {TABLE_LABELS[n] ?? n}번
+                </button>
+              ))}
+            </div>
+          </div>
           <button onClick={startQa} disabled={!qaQuestion.trim() || qaSaving}
             className="w-full py-3.5 bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-400 hover:to-cyan-500 text-white font-bold rounded-xl transition-all disabled:opacity-40 shadow-lg shadow-teal-500/20 flex items-center justify-center gap-2">
-            <Gamepad2 className="w-4 h-4" />{qaSaving ? 'Q&A 시작 중...' : 'Q&A 시작'}
+            <Gamepad2 className="w-4 h-4" />{qaSaving ? 'Q&A 시작 중...' : qaTargetTable !== null ? `${TABLE_LABELS[qaTargetTable] ?? qaTargetTable}번 테이블 Q&A 시작` : 'Q&A 시작'}
           </button>
         </>
       )}
@@ -2187,10 +2250,29 @@ const OX_A = '⭕ O';
 const OX_B = '❌ X';
 const isOxGame = (g: BalanceGame) => g.option_a === OX_A && g.option_b === OX_B;
 
-const OX_QUICK = [
-  '오늘 이 자리가 즐겁다', '지금 짝이 있다', '오늘 처음 보는 사람이 있다',
-  '술 게임에 자신 있다', '번호 교환할 의향이 있다', '다음에 또 참석할 것이다',
-  '술을 이미 많이 마셨다', '범일NPC 이용약관을 읽었다',
+const OX_QUICK_GENERAL = [
+  '오늘 처음 온 술번개다',
+  '지금 누군가에게 번호 받고 싶다',
+  '오늘 맘에 드는 사람이 생겼다',
+  '술을 더 마실 수 있다',
+  '지금 이 순간 연애하고 싶다',
+  '다음 술번개도 반드시 나온다',
+  '오늘 내가 이 자리 분위기 메이커다',
+  '오늘 새 친구가 생겼다',
+  '술 게임에 자신 있다',
+  '오늘 처음 보는 사람이 있다',
+  '오늘 밸런스 게임 가장 솔직하게 했다',
+  '범일NPC 이용약관을 읽었다',
+];
+const OX_QUICK_HOT = [
+  '지금 옆 사람이 매력적으로 느껴진다',
+  '오늘 자고 가고 싶은 분위기다',
+  '첫 만남에도 집 갈 의향이 있다',
+  '지금 이 자리에서 데려가고 싶은 사람이 있다',
+  '오늘 번호 교환 이상을 원하는 사람이 있다',
+  '돔보다 섭이 더 편하다',
+  '오늘 리드하고 싶은 사람이 생겼다',
+  '야한 농담도 괜찮다',
 ];
 
 function OxGameSection({ balanceGames, voteCounts, currentGame, onGameUpdate, seats, settings }: {
@@ -2202,8 +2284,14 @@ function OxGameSection({ balanceGames, voteCounts, currentGame, onGameUpdate, se
   settings: AppSettings | null;
 }) {
   const [question, setQuestion] = useState('');
+  const [oxPenalty, setOxPenalty] = useState('');
   const [targetTable, setTargetTable] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
+  const [batchMode, setBatchMode] = useState(false);
+  const [batchOxQuestions, setBatchOxQuestions] = useState<Map<number, string>>(new Map());
+  const [batchSaving, setBatchSaving] = useState(false);
+  const [batchSentTables, setBatchSentTables] = useState<Set<number>>(new Set());
+  const [oxQuickCat, setOxQuickCat] = useState<'general' | 'hot'>('general');
 
   const oxGames = balanceGames.filter(isOxGame);
   const activeOxGame = oxGames.find(g => g.status === 'active');
@@ -2228,7 +2316,7 @@ function OxGameSection({ balanceGames, voteCounts, currentGame, onGameUpdate, se
       active: true, type: 'balance',
       title: question.trim(),
       description: 'O 또는 X를 선택하세요!',
-      rules: '', penalty: '',
+      rules: '', penalty: oxPenalty.trim(),
       option_a: OX_A, option_b: OX_B,
       game_id: (row as { id: string } | null)?.id,
       started_at: new Date().toISOString(),
@@ -2237,6 +2325,7 @@ function OxGameSection({ balanceGames, voteCounts, currentGame, onGameUpdate, se
     await adminSupabase.from('app_settings').update({ game_state: gs as unknown as Json, updated_at: new Date().toISOString() }).eq('id', 1);
     onGameUpdate(gs);
     setQuestion('');
+    setOxPenalty('');
     setSaving(false);
   };
 
@@ -2247,67 +2336,166 @@ function OxGameSection({ balanceGames, voteCounts, currentGame, onGameUpdate, se
     setSaving(false);
   };
 
+  const sendBatchOx = async () => {
+    const entries = [...batchOxQuestions.entries()].filter(([, q]) => q.trim());
+    if (entries.length === 0) return;
+    setBatchSaving(true);
+    for (const [n, q] of entries) {
+      await adminSupabase.from('balance_games').insert({
+        creator_nickname: '관리자', scope: 'table', table_number: n,
+        question: q.trim(), option_a: OX_A, option_b: OX_B,
+      });
+    }
+    setBatchSentTables(new Set(entries.map(([n]) => n)));
+    setBatchOxQuestions(new Map());
+    setBatchSaving(false);
+  };
+
+  const batchFilledCount = tableNumbers.filter(n => (batchOxQuestions.get(n) ?? '').trim()).length;
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
           <span className="text-xl">⭕❌</span> OX 게임 만들기
         </h2>
-        {isOxActive && (
-          <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-100 border border-orange-200 rounded-full text-xs font-bold text-orange-700 animate-pulse">
-              <span className="w-2 h-2 rounded-full bg-orange-500" />진행 중: {currentGame!.title}
-            </span>
-            <button onClick={stopOx} disabled={saving}
-              className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold rounded-xl border border-red-200 transition-all disabled:opacity-50">
-              게임 종료
-            </button>
+        <div className="flex items-center gap-2">
+          {isOxActive && (
+            <div className="flex items-center gap-2">
+              <span className="flex items-center gap-1.5 px-2.5 py-1 bg-orange-100 border border-orange-200 rounded-full text-[10px] font-bold text-orange-700 animate-pulse">
+                <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />진행 중
+              </span>
+              <button onClick={stopOx} disabled={saving}
+                className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold rounded-xl border border-red-200 transition-all disabled:opacity-50">
+                종료
+              </button>
+            </div>
+          )}
+          <div className="flex bg-gray-100 rounded-xl border border-gray-200 overflow-hidden">
+            <button onClick={() => setBatchMode(false)} className={`px-3 py-1.5 text-xs font-bold transition-colors ${!batchMode ? 'bg-orange-500 text-white' : 'text-gray-500 hover:text-gray-700'}`}>단일</button>
+            <button onClick={() => setBatchMode(true)} className={`px-3 py-1.5 text-xs font-bold transition-colors ${batchMode ? 'bg-orange-500 text-white' : 'text-gray-500 hover:text-gray-700'}`}>일괄</button>
           </div>
-        )}
-      </div>
-
-      {/* 빠른 문제 */}
-      <div>
-        <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">빠른 문제</p>
-        <div className="grid grid-cols-2 gap-1.5">
-          {OX_QUICK.map(q => (
-            <button key={q} onClick={() => setQuestion(q)}
-              className="text-xs font-semibold px-2 py-2 rounded-xl bg-orange-50 border border-orange-200 text-orange-700 hover:bg-orange-100 transition-all text-left leading-snug active:scale-95">
-              {q}
-            </button>
-          ))}
         </div>
       </div>
 
-      {/* 문제 입력 */}
-      <div>
-        <label className="text-xs font-bold text-gray-600 uppercase tracking-wider block mb-1.5">OX 문제 *</label>
-        <textarea value={question} onChange={e => setQuestion(e.target.value)}
-          placeholder="예: 오늘 이 자리가 즐겁다" rows={2}
-          className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-orange-400 resize-none" />
-      </div>
+      {!batchMode ? (
+        <>
+          {/* 빠른 문제 */}
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">빠른 문제</p>
+              <div className="flex bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
+                <button onClick={() => setOxQuickCat('general')} className={`px-2.5 py-1 text-[11px] font-bold transition-colors ${oxQuickCat === 'general' ? 'bg-orange-500 text-white' : 'text-gray-500 hover:text-gray-700'}`}>일반</button>
+                <button onClick={() => setOxQuickCat('hot')} className={`px-2.5 py-1 text-[11px] font-bold transition-colors ${oxQuickCat === 'hot' ? 'bg-rose-500 text-white' : 'text-gray-500 hover:text-gray-700'}`}>🔞 19금</button>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              {(oxQuickCat === 'general' ? OX_QUICK_GENERAL : OX_QUICK_HOT).map(q => (
+                <button key={q} onClick={() => setQuestion(q)}
+                  className={`text-xs font-semibold px-2 py-2 rounded-xl border transition-all text-left leading-snug active:scale-95 ${question === q ? (oxQuickCat === 'hot' ? 'bg-rose-500 border-rose-500 text-white' : 'bg-orange-500 border-orange-500 text-white') : oxQuickCat === 'hot' ? 'bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100' : 'bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100'}`}>
+                  {q}
+                </button>
+              ))}
+            </div>
+          </div>
 
-      {/* 대상 */}
-      <div>
-        <label className="text-xs font-bold text-gray-600 uppercase tracking-wider block mb-1.5">대상</label>
-        <div className="flex flex-wrap gap-1.5">
-          <button onClick={() => setTargetTable(null)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold border-2 transition-all active:scale-95 ${targetTable === null ? 'bg-orange-500 border-orange-500 text-white' : 'bg-white border-gray-200 text-gray-600 hover:border-orange-300'}`}>
-            전체
+          {/* 문제 입력 */}
+          <div>
+            <label className="text-xs font-bold text-gray-600 uppercase tracking-wider block mb-1.5">OX 문제 *</label>
+            <textarea value={question} onChange={e => setQuestion(e.target.value)}
+              placeholder="예: 오늘 이 자리가 즐겁다" rows={2}
+              className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-orange-400 resize-none" />
+          </div>
+
+          {/* 벌칙 */}
+          <div>
+            <label className="text-xs font-bold text-red-500 uppercase tracking-wider block mb-1.5">벌칙 (선택)</label>
+            <input type="text" value={oxPenalty} onChange={e => setOxPenalty(e.target.value)}
+              placeholder="예: 원샷, 건배사 하기"
+              className="w-full bg-gray-50 border border-red-200 text-gray-900 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-red-300 mb-2" />
+            <div className="flex flex-wrap gap-1.5">
+              {GAME_PENALTY_QUICK.map(v => (
+                <button key={v} type="button" onClick={() => setOxPenalty(v)}
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-bold border-2 transition-all ${oxPenalty === v ? 'bg-red-500 border-red-500 text-white' : 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100'}`}>
+                  {v}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 대상 */}
+          <div>
+            <label className="text-xs font-bold text-gray-600 uppercase tracking-wider block mb-1.5">대상</label>
+            <div className="flex flex-wrap gap-1.5">
+              <button onClick={() => setTargetTable(null)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold border-2 transition-all active:scale-95 ${targetTable === null ? 'bg-orange-500 border-orange-500 text-white' : 'bg-white border-gray-200 text-gray-600 hover:border-orange-300'}`}>
+                전체
+              </button>
+              {tableNumbers.map(n => (
+                <button key={n} onClick={() => setTargetTable(targetTable === n ? null : n)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold border-2 transition-all active:scale-95 ${targetTable === n ? 'bg-orange-500 border-orange-500 text-white' : 'bg-white border-gray-200 text-gray-600 hover:border-orange-300'}`}>
+                  {TABLE_LABELS[n] ?? n}번
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <button onClick={startOx} disabled={!question.trim() || saving}
+            className="w-full py-3.5 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-400 hover:to-red-400 text-white font-bold rounded-xl transition-all disabled:opacity-40 shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2">
+            <span className="text-lg">⭕❌</span>{saving ? 'OX 시작 중...' : targetTable !== null ? `${TABLE_LABELS[targetTable] ?? targetTable}번 테이블 OX 시작` : 'OX 게임 시작'}
           </button>
-          {tableNumbers.map(n => (
-            <button key={n} onClick={() => setTargetTable(targetTable === n ? null : n)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold border-2 transition-all active:scale-95 ${targetTable === n ? 'bg-orange-500 border-orange-500 text-white' : 'bg-white border-gray-200 text-gray-600 hover:border-orange-300'}`}>
-              {TABLE_LABELS[n] ?? n}번
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <button onClick={startOx} disabled={!question.trim() || saving}
-        className="w-full py-3.5 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-400 hover:to-red-400 text-white font-bold rounded-xl transition-all disabled:opacity-40 shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2">
-        <span className="text-lg">⭕❌</span>{saving ? 'OX 시작 중...' : 'OX 게임 시작'}
-      </button>
+        </>
+      ) : (
+        <>
+          <p className="text-xs text-gray-500">테이블별로 다른 OX 문제를 동시에 전송합니다.</p>
+          {/* 일괄 빠른 선택 */}
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">빠른 문제 일괄 적용</p>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              {OX_QUICK_GENERAL.slice(0, 8).map(q => (
+                <button key={q} onClick={() => {
+                  const m = new Map<number, string>();
+                  tableNumbers.forEach(n => m.set(n, q));
+                  setBatchOxQuestions(m);
+                }}
+                  className="text-xs font-semibold px-2 py-2 rounded-xl bg-orange-50 border border-orange-200 text-orange-700 hover:bg-orange-100 transition-all text-left leading-snug active:scale-95">
+                  {q}
+                </button>
+              ))}
+            </div>
+          </div>
+          {tableNumbers.length === 0 && <p className="text-sm text-gray-400 text-center py-4">활성 테이블이 없습니다.</p>}
+          <div className="space-y-2">
+            {tableNumbers.map(n => {
+              const q = batchOxQuestions.get(n) ?? '';
+              const filled = q.trim().length > 0;
+              const sent = batchSentTables.has(n);
+              return (
+                <div key={n} className={`rounded-xl border-2 p-3 transition-all ${filled ? 'border-orange-400 bg-orange-50' : 'border-gray-200 bg-gray-50'}`}>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-black w-14 flex-shrink-0 ${filled ? 'text-orange-700' : 'text-gray-500'}`}>{TABLE_LABELS[n] ?? n}번</span>
+                    <input type="text" value={q} onChange={e => {
+                      const m = new Map(batchOxQuestions);
+                      m.set(n, e.target.value);
+                      setBatchOxQuestions(m);
+                    }}
+                      placeholder="OX 문제 입력"
+                      className="flex-1 bg-white border border-orange-200 text-gray-900 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-orange-400 placeholder-gray-400" />
+                    <span className="text-[10px] font-bold text-gray-400 flex-shrink-0">⭕❌</span>
+                    {sent && <span className="text-xs text-teal-600 font-bold flex-shrink-0">✓</span>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <button onClick={sendBatchOx} disabled={batchFilledCount === 0 || batchSaving}
+            className="w-full py-3 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-400 hover:to-red-400 text-white font-bold text-sm rounded-2xl transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-orange-500/20 active:scale-[0.98]">
+            {batchSaving ? '전송 중...' : batchFilledCount > 0 ? `${batchFilledCount}개 테이블 OX 일괄 전송` : '문제를 입력하세요'}
+          </button>
+        </>
+      )}
 
       {/* 실시간 결과 */}
       {activeOxGame && (() => {
@@ -2377,6 +2565,8 @@ const CHOSUNG_QUICK = [
 function ChosungGameSection({ seats }: { seats: Seat[] }) {
   const [hint, setHint] = useState('');
   const [answer, setAnswer] = useState('');
+  const [chosungPenalty, setChosungPenalty] = useState('');
+  const [targetTable, setTargetTable] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [activeGame, setActiveGame] = useState<QaGame | null>(null);
   const [answers, setAnswers] = useState<QaAnswer[]>([]);
@@ -2428,17 +2618,19 @@ function ChosungGameSection({ seats }: { seats: Seat[] }) {
   const startGame = async () => {
     if (!hint.trim()) return;
     setSaving(true);
-    const q = `초성: ${hint.trim()}`;
+    const q = `초성: ${hint.trim()}` + (chosungPenalty.trim() ? `\n🎯 벌칙: ${chosungPenalty.trim()}` : '');
     const { data } = await adminSupabase.from('qa_games').insert({
       question: q,
       correct_answer: answer.trim() || null,
       status: 'active',
-      scope: 'chosung',
+      scope: targetTable !== null ? 'chosung_table' : 'chosung',
+      table_number: targetTable ?? null,
     }).select().single();
     if (data) { activeGameRef.current = data as QaGame; setActiveGame(data as QaGame); }
     setAnswers([]);
     setHint('');
     setAnswer('');
+    setChosungPenalty('');
     setSaving(false);
   };
 
@@ -2552,10 +2744,43 @@ function ChosungGameSection({ seats }: { seats: Seat[] }) {
               placeholder="정답이 있으면 입력 — 없으면 자유 답변"
               className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
           </div>
+          {/* 벌칙 */}
+          <div>
+            <label className="text-xs font-bold text-red-500 uppercase tracking-wider block mb-1.5">벌칙 (선택)</label>
+            <input type="text" value={chosungPenalty} onChange={e => setChosungPenalty(e.target.value)}
+              placeholder="예: 원샷, 건배사 하기"
+              className="w-full bg-gray-50 border border-red-200 text-gray-900 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-red-300 mb-2" />
+            <div className="flex flex-wrap gap-1.5">
+              {GAME_PENALTY_QUICK.map(v => (
+                <button key={v} type="button" onClick={() => setChosungPenalty(v)}
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-bold border-2 transition-all ${chosungPenalty === v ? 'bg-red-500 border-red-500 text-white' : 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100'}`}>
+                  {v}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 대상 테이블 */}
+          <div>
+            <label className="text-xs font-bold text-gray-600 uppercase tracking-wider block mb-1.5">대상</label>
+            <div className="flex flex-wrap gap-1.5">
+              <button onClick={() => setTargetTable(null)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold border-2 transition-all active:scale-95 ${targetTable === null ? 'bg-indigo-500 border-indigo-500 text-white' : 'bg-white border-gray-200 text-gray-600 hover:border-indigo-300'}`}>
+                전체
+              </button>
+              {[...new Set(seats.map(s => s.table_number))].sort((a, b) => a - b).map(n => (
+                <button key={n} onClick={() => setTargetTable(targetTable === n ? null : n)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold border-2 transition-all active:scale-95 ${targetTable === n ? 'bg-indigo-500 border-indigo-500 text-white' : 'bg-white border-gray-200 text-gray-600 hover:border-indigo-300'}`}>
+                  {TABLE_LABELS[n] ?? n}번
+                </button>
+              ))}
+            </div>
+          </div>
+
           <p className="text-xs text-gray-400">💡 게임 시작 후 공지탭에서 초성 힌트를 공지로 전송하면 유저들이 답변합니다</p>
           <button onClick={startGame} disabled={!hint.trim() || saving}
             className="w-full py-3.5 bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-400 hover:to-violet-500 text-white font-bold rounded-xl transition-all disabled:opacity-40 shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2">
-            <span className="text-lg">🔤</span>{saving ? '초성 게임 시작 중...' : '초성 게임 시작'}
+            <span className="text-lg">🔤</span>{saving ? '초성 게임 시작 중...' : targetTable !== null ? `${TABLE_LABELS[targetTable] ?? targetTable}번 테이블 초성 시작` : '초성 게임 시작'}
           </button>
         </>
       )}
@@ -2757,12 +2982,16 @@ function ImageGameSection({ seats, settings, profiles }: { seats: Seat[]; settin
       '오늘 가장 친해지고 싶은 사람',
     ],
     hot: [
-      '오늘 가장 매력적인 사람 🔞',
-      '오늘 가장 섹시한 사람 🔞',
-      '가장 연애를 잘 할 것 같은 사람 🔞',
-      '번호 받고 싶은 사람 🔞',
-      '오늘 만약 고른다면 같이 있고 싶은 사람 🔞',
-      '오늘 가장 핫한 사람 🔞',
+      '오늘 가장 섹시한 사람',
+      '오늘 자고 싶은 사람',
+      '오늘 데려가고 싶은 사람',
+      '오늘 키스하고 싶은 사람',
+      '오늘 같이 집 가고 싶은 사람',
+      '번호 받고 싶은 사람',
+      '오늘 가장 핫한 사람',
+      '오늘 한 번쯤 사귀어보고 싶은 사람',
+      '오늘 가장 매력적인 사람',
+      '오늘 야한 농담 같이 나누고 싶은 사람',
     ],
   };
   const [imageQuickCategory, setImageQuickCategory] = useState<'general' | 'hot'>('general');
@@ -3846,8 +4075,10 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [seatingRefreshDone, setSeatingRefreshDone] = useState(false);
   const [seatingViewMode, setSeatingViewMode] = useState<'map' | 'manage'>('map');
   const [pendingActiveTables, setPendingActiveTables] = useState<number[] | null | undefined>(undefined);
-  // Recovery banner
+  // Recovery banner (floating top)
   const [recovery, setRecovery] = useState<{ label: string; emoji: string; restore: (() => Promise<void>) | null; timerId: ReturnType<typeof setTimeout> } | null>(null);
+  // Persistent restore map — key → restore function (shown as buttons in DashboardTab)
+  const [restoreMap, setRestoreMap] = useState<Map<string, () => Promise<void>>>(new Map());
   // Table label editing panel
   const [showLabelPanel, setShowLabelPanel] = useState(false);
   const [editingLabelNum, setEditingLabelNum] = useState<number | null>(null);
@@ -4041,7 +4272,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       }
       await loadAll();
       setRecovery(null);
-    } : null);
+    } : null, 'seats');
     await loadAll();
   };
 
@@ -4103,16 +4334,24 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       }
       await loadAll();
       setRecovery(null);
-    } : null);
+    } : null, 'eventEnd');
     await loadAll();
   };
 
-  const showRecovery = useCallback((label: string, emoji: string, restore: (() => Promise<void>) | null) => {
+  const showRecovery = useCallback((label: string, emoji: string, restore: (() => Promise<void>) | null, mapKey?: string) => {
     setRecovery(prev => {
       if (prev?.timerId) clearTimeout(prev.timerId);
       const timerId = setTimeout(() => setRecovery(null), 30000);
       return { label, emoji, restore, timerId };
     });
+    if (restore && mapKey) {
+      setRestoreMap(prev => new Map(prev).set(mapKey, async () => {
+        await restore();
+        setRestoreMap(prev2 => { const m = new Map(prev2); m.delete(mapKey); return m; });
+      }));
+    } else if (!restore && mapKey) {
+      setRestoreMap(prev => { const m = new Map(prev); m.delete(mapKey); return m; });
+    }
   }, []);
 
   const handleClearLikes = async () => {
@@ -4125,7 +4364,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       }
       await loadAll();
       setRecovery(null);
-    } : null);
+    } : null, 'likes');
   };
 
   const handleClearNotifications = async () => {
@@ -4134,7 +4373,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     showRecovery('공지', '🔔', backup && backup.length > 0 ? async () => {
       for (const n of backup) await adminSupabase.from('notifications').upsert(n);
       setRecovery(null);
-    } : null);
+    } : null, 'notifications');
   };
 
   const handleClearGames = async () => {
@@ -4162,7 +4401,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       if (gsBackup) await adminSupabase.from('app_settings').update({ game_state: gsBackup, updated_at: new Date().toISOString() }).eq('id', 1);
       await loadAll();
       setRecovery(null);
-    } : null);
+    } : null, 'games');
     await loadAll();
   };
 
@@ -4176,7 +4415,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       }
       await loadAll();
       setRecovery(null);
-    } : null);
+    } : null, 'suggestions');
   };
 
   const handleClearProfiles = async () => {
@@ -4191,7 +4430,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       }
       await loadAll();
       setRecovery(null);
-    } : null);
+    } : null, 'profiles');
     await loadAll();
   };
 
@@ -4211,7 +4450,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       for (const m of backupMsgs) await adminSupabase.from('messages').upsert(m);
       await loadAll();
       setRecovery(null);
-    } : null);
+    } : null, 'chats');
     await loadAll();
   };
 
@@ -4235,7 +4474,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       }
       await loadAll();
       setRecovery(null);
-    } : null);
+    } : null, 'history');
   };
 
   const handleClearSeat = async (seat: Seat) => {
@@ -4398,7 +4637,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                 onClearLikes={handleClearLikes} onClearChats={handleClearAllChats}
                 onClearNotifications={handleClearNotifications} onClearGames={handleClearGames}
                 onClearSuggestions={handleClearSuggestions} onClearProfiles={handleClearProfiles}
-                onClearHistory={handleClearHistory} />
+                onClearHistory={handleClearHistory} restoreMap={restoreMap} />
             )}
             {settingsSubTab === 'qr' && <AdminQrTab seats={seats} />}
             {settingsSubTab === 'admin' && <CredentialsTab settings={settings} onSave={handleSaveCredentials} onSaveEntry={handleSaveEntryPassword} onSaveReset={handleSaveResetPassword} onSaveTest={handleSaveTestPassword} />}
