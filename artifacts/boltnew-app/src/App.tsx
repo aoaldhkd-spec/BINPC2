@@ -5524,8 +5524,8 @@ function NicknameSetupScreen({ onSubmit, loading, onReset }: {
   const [contactPrivate, setContactPrivate] = useState(false);
   const [mbti, setMbti] = useState<string | null>(null);
   const [birthYear, setBirthYear] = useState<string>(String(DECADE_GROUPS['90년대생'][0]));
-  const [birthMonth, setBirthMonth] = useState<number | null>(null);
-  const [birthDay, setBirthDay] = useState<number | null>(null);
+  const [birthMonth, setBirthMonth] = useState<number | null>(1);
+  const [birthDay, setBirthDay] = useState<number | null>(1);
   const [birthInfoChecked, setBirthInfoChecked] = useState(false);
   const [location, setLocation] = useState<string>(LOCATION_GROUPS['광역시'][0]);
   const [selectedBio, setSelectedBio] = useState<string[]>([]);
