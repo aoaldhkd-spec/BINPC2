@@ -5755,37 +5755,42 @@ function NicknameSetupScreen({ onSubmit, loading, onReset }: {
                 <div>
                   <div className="flex items-center gap-2 mb-2">
                     <label className="text-sm font-semibold text-gray-800">생월·생일</label>
-                    <span className="text-xs font-semibold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">선택</span>
+                    {birthInfoChecked
+                      ? <span className="text-xs font-semibold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">입력 안 함</span>
+                      : <span className="text-xs font-semibold text-red-500 bg-red-50 px-2 py-0.5 rounded-full">필수</span>
+                    }
                     <span className="text-[11px] text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full font-semibold">🔮 운세·궁합 기능 필요</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <p className="text-xs text-gray-500 font-semibold mb-1">월</p>
-                      <div className="border-2 border-gray-200 rounded-xl overflow-hidden bg-white">
-                        <DrumRoller
-                          items={Array.from({length: 12}, (_, i) => i + 1)}
-                          selected={birthMonth}
-                          onSelect={(v) => setBirthMonth(v)}
-                          renderItem={(v) => `${v}월`}
-                          itemHeight={36}
-                          visibleCount={3}
-                        />
+                  {!birthInfoChecked && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <p className="text-xs text-gray-500 font-semibold mb-1">월</p>
+                        <div className="border-2 border-gray-200 rounded-xl overflow-hidden bg-white">
+                          <DrumRoller
+                            items={Array.from({length: 12}, (_, i) => i + 1)}
+                            selected={birthMonth}
+                            onSelect={(v) => setBirthMonth(v)}
+                            renderItem={(v) => `${v}월`}
+                            itemHeight={36}
+                            visibleCount={3}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 font-semibold mb-1">일</p>
+                        <div className="border-2 border-gray-200 rounded-xl overflow-hidden bg-white">
+                          <DrumRoller
+                            items={Array.from({length: 31}, (_, i) => i + 1)}
+                            selected={birthDay}
+                            onSelect={(v) => setBirthDay(v)}
+                            renderItem={(v) => `${v}일`}
+                            itemHeight={36}
+                            visibleCount={3}
+                          />
+                        </div>
                       </div>
                     </div>
-                    <div>
-                      <p className="text-xs text-gray-500 font-semibold mb-1">일</p>
-                      <div className="border-2 border-gray-200 rounded-xl overflow-hidden bg-white">
-                        <DrumRoller
-                          items={Array.from({length: 31}, (_, i) => i + 1)}
-                          selected={birthDay}
-                          onSelect={(v) => setBirthDay(v)}
-                          renderItem={(v) => `${v}일`}
-                          itemHeight={36}
-                          visibleCount={3}
-                        />
-                      </div>
-                    </div>
-                  </div>
+                  )}
                 </div>
 
                 {/* 생월·생일 개인정보 경고 + 체크박스 */}
