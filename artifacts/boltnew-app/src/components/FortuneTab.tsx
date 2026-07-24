@@ -234,7 +234,7 @@ export default function FortuneTab({
   const otherProfiles = profiles.filter(p => p.id !== currentUserId);
 
   return (
-    <div className="bg-slate-900 text-white flex flex-col">
+    <div className="text-white">
       {/* 서브탭 */}
       <div className="flex border-b border-slate-700 bg-slate-900 sticky top-0 z-10">
         {([
@@ -252,7 +252,7 @@ export default function FortuneTab({
         ))}
       </div>
 
-      <div className="overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+      <div className="bg-slate-900">
 
         {/* ── 타로 ────────────────────────────────────────────────────────── */}
         {subTab === 'tarot' && (

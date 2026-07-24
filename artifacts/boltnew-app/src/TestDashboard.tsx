@@ -345,30 +345,17 @@ export default function TestDashboard() {
 
   return (
     <div className="min-h-screen bg-slate-900 text-white p-4 pb-20 space-y-4" style={{ WebkitOverflowScrolling: 'touch' }}>
-      {/* 헤더 */}
+      {/* 헤더 + 상태 한 줄 */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-black text-white">🧪 테스트 대시보드</h1>
-          <p className="text-slate-400 text-xs mt-0.5">개발·테스트 전용</p>
+          <h1 className="text-base font-black text-white">🧪 테스트 대시보드</h1>
+          <p className="text-slate-400 text-[10px] mt-0.5">
+            프로필 {profiles.length}명 · 착석 {occupied}/{seats.length} · ❤️ {likes.length} · 💬 {chats.length}
+          </p>
         </div>
         <button onClick={load} className="p-2 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 transition-all active:scale-95">
-          <RefreshCw className="w-5 h-5" />
+          <RefreshCw className="w-4 h-4" />
         </button>
-      </div>
-
-      {/* 상태 */}
-      <div className="grid grid-cols-2 gap-3">
-        {[
-          { label: '프로필', value: profiles.length, icon: <Users className="w-4 h-4" />, color: 'teal' },
-          { label: '착석', value: `${occupied}/${seats.length}`, icon: <LayoutGrid className="w-4 h-4" />, color: 'cyan' },
-          { label: '하트', value: likes.length, icon: <Heart className="w-4 h-4" />, color: 'rose' },
-          { label: '채팅', value: chats.length, icon: <MessageCircle className="w-4 h-4" />, color: 'violet' },
-        ].map(s => (
-          <div key={s.label} className="bg-slate-800 rounded-2xl p-4 border border-slate-700">
-            <div className={`flex items-center gap-2 text-${s.color}-400 mb-1`}>{s.icon}<span className="text-xs font-bold">{s.label}</span></div>
-            <p className="text-2xl font-black text-white">{s.value}</p>
-          </div>
-        ))}
       </div>
 
       {/* 세션 */}
