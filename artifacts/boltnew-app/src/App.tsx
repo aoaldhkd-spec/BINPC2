@@ -1155,11 +1155,30 @@ function ParticipantSelector({ seats, tableNumber, selected, onChange, profileMa
   const [mode, setMode] = useState<'auto' | 'manual'>('auto');
   const [input, setInput] = useState('');
 
-  // seats에는 nickname 필드가 없으므로 profile_id → profileMap으로 닉네임 조회
+  // 자동: 현재 유저 테이블 멤버 (tableNumber 기준)
   const autoList = seats
-    .filter(s => s.status === 'occupied' && s.profile_id && (tableNumber === null || s.table_number === tableNumber))
+    .filter(s => s.status === 'occupied' && s.profile_id && tableNumber !== null && s.table_number === tableNumber)
     .map(s => profileMap.get(s.profile_id!)?.nickname)
     .filter((n): n is string => !!n);
+
+  // 직접 입력용: 전체 착석자 토글 목록
+  const allOccupied = seats
+    .filter(s => s.status === 'occupied' && s.profile_id)
+    .map(s => profileMap.get(s.profile_id!)?.nickname)
+    .filter((n): n is string => !!n);
+
+  // 자동 모드 진입 시 테이블 전원 자동 세팅
+  useEffect(() => {
+    if (mode === 'auto') {
+      onChange(autoList.slice(0, MAX_GAME_PARTICIPANTS));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, tableNumber, autoList.join(',')]);
+
+  const switchMode = (m: 'auto' | 'manual') => {
+    setMode(m);
+    if (m === 'manual') onChange([]); // 직접 입력 전환 시 초기화
+  };
 
   const toggle = (name: string) => {
     if (selected.includes(name)) onChange(selected.filter(n => n !== name));
@@ -1175,68 +1194,94 @@ function ParticipantSelector({ seats, tableNumber, selected, onChange, profileMa
 
   return (
     <div className="space-y-3">
+      {/* 탭 전환 */}
       <div className="flex bg-gray-100 rounded-xl p-1">
         {(['auto', 'manual'] as const).map(m => (
-          <button key={m} onClick={() => setMode(m)}
+          <button key={m} onClick={() => switchMode(m)}
             className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${mode === m ? 'bg-white shadow text-gray-900' : 'text-gray-500'}`}>
-            {m === 'auto' ? '자동 (좌석)' : '직접 입력'}
+            {m === 'auto' ? '🪑 자동 (내 테이블)' : '✏️ 직접 입력'}
           </button>
         ))}
       </div>
 
+      {/* 자동 모드: 내 테이블 전원 자동 표시 */}
       {mode === 'auto' && (
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs text-gray-500">{tableNumber != null ? `${tableNumber}번 테이블` : '전체'} — 탭하여 선택 (최대 {MAX_GAME_PARTICIPANTS}명)</p>
-            <div className="flex gap-1">
-              <button onClick={() => onChange(autoList.slice(0, MAX_GAME_PARTICIPANTS))}
-                className="text-xs text-violet-600 font-bold px-2 py-0.5 rounded-lg hover:bg-violet-50">전체</button>
-              <button onClick={() => onChange([])}
-                className="text-xs text-gray-400 font-bold px-2 py-0.5 rounded-lg hover:bg-gray-100">초기화</button>
-            </div>
+        tableNumber === null ? (
+          <div className="text-center py-5 bg-gray-50 rounded-xl border border-gray-200">
+            <p className="text-xs font-bold text-gray-500">좌석이 배정되지 않았습니다</p>
+            <p className="text-[11px] text-gray-400 mt-1">직접 입력 탭을 사용하세요</p>
           </div>
-          {autoList.length === 0 ? (
-            <p className="text-xs text-gray-400 text-center py-4 bg-gray-50 rounded-xl">자리 배치된 참여자가 없습니다<br /><span className="text-[10px]">직접 입력 탭을 사용하세요</span></p>
-          ) : (
-            <div className="grid grid-cols-3 gap-1.5">
+        ) : autoList.length === 0 ? (
+          <div className="text-center py-5 bg-gray-50 rounded-xl border border-gray-200">
+            <p className="text-xs font-bold text-gray-500">{tableNumber}번 테이블에 착석한 인원이 없습니다</p>
+            <p className="text-[11px] text-gray-400 mt-1">직접 입력 탭을 사용하세요</p>
+          </div>
+        ) : (
+          <div className="bg-violet-50 border border-violet-200 rounded-xl p-3">
+            <p className="text-[10px] font-bold text-violet-600 uppercase tracking-wider mb-2">
+              {tableNumber}번 테이블 · {autoList.length}명 자동 참여
+            </p>
+            <div className="flex flex-wrap gap-1.5">
               {autoList.map(name => (
-                <button key={name} onClick={() => toggle(name)}
-                  disabled={!selected.includes(name) && selected.length >= MAX_GAME_PARTICIPANTS}
-                  className={`py-2 px-1 rounded-xl text-xs font-bold text-center truncate transition-all active:scale-95 border-2 ${selected.includes(name) ? 'bg-violet-500 border-violet-500 text-white' : 'bg-gray-50 border-gray-200 text-gray-700 hover:border-violet-300 disabled:opacity-40'}`}>
+                <span key={name} className="px-2.5 py-1 bg-violet-500 text-white text-xs font-bold rounded-full">
                   {name}
-                </button>
+                </span>
               ))}
             </div>
-          )}
-        </div>
+          </div>
+        )
       )}
 
+      {/* 직접 입력 모드: 전체 착석자 토글 + 이름 직접 입력 */}
       {mode === 'manual' && (
-        <div className="flex gap-2">
-          <input type="text" value={input} onChange={e => setInput(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && addManual()}
-            placeholder={`이름 입력 (최대 ${MAX_GAME_PARTICIPANTS}명)`}
-            disabled={selected.length >= MAX_GAME_PARTICIPANTS}
-            className="flex-1 bg-gray-50 border border-gray-200 text-sm text-gray-900 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-violet-400 disabled:opacity-50" />
-          <button onClick={addManual} disabled={!input.trim() || selected.length >= MAX_GAME_PARTICIPANTS}
-            className="px-4 py-2.5 bg-violet-500 text-white text-xs font-bold rounded-xl disabled:opacity-40 active:scale-95">추가</button>
-        </div>
-      )}
-
-      {selected.length > 0 && (
-        <div className="bg-violet-50 border border-violet-200 rounded-xl p-3">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-[10px] font-bold text-violet-600 uppercase tracking-wider">참여자 {selected.length}/{MAX_GAME_PARTICIPANTS}</p>
-            <button onClick={() => onChange([])} className="text-[10px] text-gray-400 hover:text-gray-600 font-semibold">전체 삭제</button>
+        <div className="space-y-3">
+          {allOccupied.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs text-gray-500">탭하여 선택 (최대 {MAX_GAME_PARTICIPANTS}명)</p>
+                <div className="flex gap-1">
+                  <button onClick={() => onChange(allOccupied.slice(0, MAX_GAME_PARTICIPANTS))}
+                    className="text-xs text-violet-600 font-bold px-2 py-0.5 rounded-lg hover:bg-violet-50">전체</button>
+                  <button onClick={() => onChange([])}
+                    className="text-xs text-gray-400 font-bold px-2 py-0.5 rounded-lg hover:bg-gray-100">초기화</button>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-1.5">
+                {allOccupied.map(name => (
+                  <button key={name} onClick={() => toggle(name)}
+                    disabled={!selected.includes(name) && selected.length >= MAX_GAME_PARTICIPANTS}
+                    className={`py-2 px-1 rounded-xl text-xs font-bold text-center truncate transition-all active:scale-95 border-2 ${selected.includes(name) ? 'bg-violet-500 border-violet-500 text-white' : 'bg-gray-50 border-gray-200 text-gray-700 hover:border-violet-300 disabled:opacity-40'}`}>
+                    {name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="flex gap-2">
+            <input type="text" value={input} onChange={e => setInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && addManual()}
+              placeholder={`이름 직접 입력 (최대 ${MAX_GAME_PARTICIPANTS}명)`}
+              disabled={selected.length >= MAX_GAME_PARTICIPANTS}
+              className="flex-1 bg-gray-50 border border-gray-200 text-sm text-gray-900 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-violet-400 disabled:opacity-50" />
+            <button onClick={addManual} disabled={!input.trim() || selected.length >= MAX_GAME_PARTICIPANTS}
+              className="px-4 py-2.5 bg-violet-500 text-white text-xs font-bold rounded-xl disabled:opacity-40 active:scale-95">추가</button>
           </div>
-          <div className="flex flex-wrap gap-1.5">
-            {selected.map(name => (
-              <button key={name} onClick={() => onChange(selected.filter(n => n !== name))}
-                className="flex items-center gap-1 px-2.5 py-1 bg-violet-500 text-white text-xs font-bold rounded-full active:scale-95 transition-all">
-                {name}<span className="text-violet-200 text-[10px] ml-0.5">✕</span>
-              </button>
-            ))}
-          </div>
+          {selected.length > 0 && (
+            <div className="bg-violet-50 border border-violet-200 rounded-xl p-3">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[10px] font-bold text-violet-600 uppercase tracking-wider">참여자 {selected.length}/{MAX_GAME_PARTICIPANTS}</p>
+                <button onClick={() => onChange([])} className="text-[10px] text-gray-400 hover:text-gray-600 font-semibold">전체 삭제</button>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {selected.map(name => (
+                  <button key={name} onClick={() => onChange(selected.filter(n => n !== name))}
+                    className="flex items-center gap-1 px-2.5 py-1 bg-violet-500 text-white text-xs font-bold rounded-full active:scale-95 transition-all">
+                    {name}<span className="text-violet-200 text-[10px] ml-0.5">✕</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -1468,7 +1513,7 @@ function tracePath(n: number, bars: LadderBar[], rows: number, startCol: number)
   return col;
 }
 
-const LADDER_PRESET_PRIZES = ['술 쏘기 🍺', '건배사 📣', '노래 한 곡 🎤', '벌주 한 잔 🥃', '다음 자리 쏘기 💸', '면제 ✅', '게임 마스터 🎮', '자기소개 🙋'];
+const LADDER_PRESET_PRIZES = ['술 앞잔(원삿X) 🍺', '면제 ✅', '꽝 💀', '통과 ✓'];
 
 function LadderGame({ seats, tableNumber, onBroadcast, myNickname, profileMap }: {
   seats: Seat[];
@@ -1563,7 +1608,7 @@ function LadderGame({ seats, tableNumber, onBroadcast, myNickname, profileMap }:
         color="bg-amber-50 border-amber-200"
         steps={[
           { icon: '👥', text: '함께할 사람을 탭해서 선택하세요 (2명 이상)' },
-          { icon: '🎁', text: '결과 항목을 골라보세요 — 없으면 1등·2등·3등… 으로 자동 설정돼요' },
+          { icon: '🎁', text: '벌칙 항목을 골라보세요 — 없으면 1등·2등·3등… 으로 자동 설정돼요' },
           { icon: '🪜', text: '"사다리타기 시작!" 버튼을 누르면 결과가 한 명씩 공개돼요' },
           { icon: '📡', text: '같은 테이블이면 모두의 화면에 동시에 결과가 나타나요!' },
         ]}
@@ -1571,10 +1616,10 @@ function LadderGame({ seats, tableNumber, onBroadcast, myNickname, profileMap }:
       <ParticipantSelector seats={seats} tableNumber={tableNumber} selected={participants}
         onChange={p => { setParticipants(p); reset(); }} profileMap={profileMap} />
 
-      {/* 결과 항목 */}
+      {/* 벌칙 항목 */}
       {n >= 2 && (
         <div className="bg-white rounded-2xl border border-gray-200 p-4 space-y-3">
-          <p className="text-xs font-bold text-gray-700 uppercase tracking-wider">결과 항목 <span className="text-gray-400 font-normal normal-case">(없으면 1등·2등… 자동)</span></p>
+          <p className="text-xs font-bold text-gray-700 uppercase tracking-wider">벌칙 항목 <span className="text-gray-400 font-normal normal-case">(없으면 1등·2등… 자동)</span></p>
           <div className="flex flex-wrap gap-1.5">
             {LADDER_PRESET_PRIZES.map(p => (
               <button key={p}
