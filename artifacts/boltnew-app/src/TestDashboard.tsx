@@ -70,6 +70,7 @@ export default function TestDashboard() {
   const [chats, setChats] = useState<Chat[]>([]);
   const [sessionActive, setSessionActive] = useState<boolean | null>(null);
   const [activeTables, setActiveTables] = useState<number[] | null>(null);
+  const [pendingActiveTables, setPendingActiveTables] = useState<number[] | null | undefined>(undefined); // undefined = 변경 없음
   const [loading, setLoading] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [myUserId, setMyUserId] = useState<string | null>(() => localStorage.getItem('matching_app_user_id'));
@@ -289,22 +290,28 @@ export default function TestDashboard() {
   // ── Active tables ──────────────────────────────────────────────────────────
   const allTableNums = [...new Set(seats.map(s => s.table_number))].sort((a, b) => a - b);
 
-  const toggleActiveTable = async (tableNum: number) => {
-    const current = activeTables ?? allTableNums;
+  // pending만 업데이트 — 실제 DB 저장은 confirmActiveTables()에서
+  const toggleActiveTable = (tableNum: number) => {
+    const base = pendingActiveTables !== undefined ? pendingActiveTables : activeTables;
+    const current = base ?? allTableNums;
     const next = current.includes(tableNum)
       ? current.filter(t => t !== tableNum)
       : [...current, tableNum].sort((a, b) => a - b);
-    const value = next.length === allTableNums.length ? null : next; // null = 전체 활성
-    setActiveTables(value);
-    await supabase.from('app_settings').update({ active_tables: value as unknown as import('./types/database').Json, updated_at: new Date().toISOString() }).eq('id', 1);
-    notify(value === null ? '전체 테이블 활성화' : `활성 테이블: ${next.map(t => `T${t}`).join(', ')}`);
+    const value = next.length === allTableNums.length ? null : next;
+    setPendingActiveTables(value);
   };
 
-  const setAllTables = async (active: boolean) => {
-    const value = active ? null : [];
-    setActiveTables(value as number[] | null);
+  const setAllTables = (active: boolean) => {
+    setPendingActiveTables(active ? null : []);
+  };
+
+  const confirmActiveTables = async () => {
+    if (pendingActiveTables === undefined) return;
+    const value = pendingActiveTables;
+    setActiveTables(value);
+    setPendingActiveTables(undefined);
     await supabase.from('app_settings').update({ active_tables: value as unknown as import('./types/database').Json, updated_at: new Date().toISOString() }).eq('id', 1);
-    notify(active ? '전체 테이블 활성화' : '전체 테이블 비활성화');
+    notify(value === null ? '전체 테이블 활성화 저장됨' : `활성 테이블 저장됨: ${(value as number[]).map(t => `T${t}`).join(', ')}`);
   };
 
   // ── Select helpers ─────────────────────────────────────────────────────────
@@ -482,7 +489,8 @@ export default function TestDashboard() {
           ) : (
             <div className="flex flex-wrap gap-2">
               {allTableNums.map(t => {
-                const isActive = activeTables === null || activeTables.includes(t);
+                const displayActive = pendingActiveTables !== undefined ? pendingActiveTables : activeTables;
+                const isActive = displayActive === null || displayActive.includes(t);
                 return (
                   <button key={t} onClick={() => toggleActiveTable(t)}
                     className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all ${isActive
@@ -495,8 +503,23 @@ export default function TestDashboard() {
             </div>
           )}
           <div className="px-3 py-2 bg-slate-700/40 rounded-xl text-xs text-slate-400">
-            현재: {activeTables === null ? '전체 테이블 활성' : activeTables.length === 0 ? '모두 비활성' : activeTables.map(t => `T${t}`).join(', ')}
+            저장됨: {activeTables === null ? '전체 활성' : activeTables.length === 0 ? '모두 비활성' : activeTables.map(t => `T${t}`).join(', ')}
+            {pendingActiveTables !== undefined && (
+              <span className="ml-2 text-amber-400 font-bold">
+                → {pendingActiveTables === null ? '전체 활성' : pendingActiveTables.length === 0 ? '모두 비활성' : pendingActiveTables.map(t => `T${t}`).join(', ')} (미저장)
+              </span>
+            )}
           </div>
+          <button
+            onClick={confirmActiveTables}
+            disabled={pendingActiveTables === undefined}
+            className={`w-full py-2.5 rounded-xl font-black text-sm transition-all active:scale-[0.98] ${
+              pendingActiveTables !== undefined
+                ? 'bg-teal-500 hover:bg-teal-600 text-white shadow shadow-teal-500/30'
+                : 'bg-slate-700/40 text-slate-500 cursor-default'
+            }`}>
+            {pendingActiveTables !== undefined ? '✓ 활성 테이블 저장' : '저장됨'}
+          </button>
         </Section>
 
         {/* 자리 배치 — 활성 테이블만 */}
