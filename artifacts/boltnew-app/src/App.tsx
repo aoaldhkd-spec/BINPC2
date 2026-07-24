@@ -5045,6 +5045,9 @@ function ResetButton({ onReset, darkMode, resetPassword, onEasterEgg }: { onRese
   const [open, setOpen] = useState(false);
   const [pw, setPw] = useState('');
   const [err, setErr] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
+  const [adminPw, setAdminPw] = useState('');
+  const [adminErr, setAdminErr] = useState(false);
   const logoClickCount = useRef(0);
   const logoClickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -5095,11 +5098,7 @@ function ResetButton({ onReset, darkMode, resetPassword, onEasterEgg }: { onRese
     <>
       <div className="flex items-center gap-2">
         <button type="button"
-          onClick={() => {
-            const base = import.meta.env.BASE_URL;
-            window.history.pushState({}, '', base + 'admin');
-            window.dispatchEvent(new PopStateEvent('popstate'));
-          }}
+          onClick={() => { setAdminPw(''); setAdminErr(false); setAdminOpen(true); }}
           title="관리자"
           className={`p-1 rounded-xl transition-all active:scale-95 hover:scale-110 ${darkMode ? 'text-cyan-400 hover:text-cyan-300' : 'text-cyan-500 hover:text-cyan-600'}`}>
           <Users className="w-7 h-7" />
@@ -5137,6 +5136,55 @@ function ResetButton({ onReset, darkMode, resetPassword, onEasterEgg }: { onRese
                 className="flex-1 py-2 rounded-xl border-2 border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-all">취소</button>
               <button type="button" onClick={confirm}
                 className="flex-1 py-2 rounded-xl bg-cyan-500 text-white text-sm font-semibold hover:bg-cyan-600 transition-all">확인</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* 관리자 비밀번호 모달 */}
+      {adminOpen && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+          onClick={() => { setAdminOpen(false); setAdminPw(''); setAdminErr(false); }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xs p-6 space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="text-center">
+              <span className="text-3xl">🔐</span>
+              <h3 className="text-gray-900 font-black text-lg mt-2">관리자 확인</h3>
+              <p className="text-gray-400 text-xs mt-1">비밀번호를 입력하세요</p>
+            </div>
+            <input
+              type="password"
+              value={adminPw}
+              onChange={e => { setAdminPw(e.target.value); setAdminErr(false); }}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  if (adminPw === (resetPassword ?? '116606')) {
+                    setAdminOpen(false);
+                    const base = import.meta.env.BASE_URL;
+                    window.history.pushState({}, '', base + 'admin');
+                    window.dispatchEvent(new PopStateEvent('popstate'));
+                  } else { setAdminErr(true); setAdminPw(''); }
+                }
+              }}
+              placeholder="비밀번호"
+              autoFocus
+              className={`w-full border-2 text-center text-lg font-bold rounded-xl px-4 py-3 focus:outline-none placeholder-gray-300 ${adminErr ? 'border-red-400 bg-red-50 text-red-700' : 'border-gray-200 focus:border-cyan-500'}`}
+            />
+            {adminErr && <p className="text-red-500 text-xs text-center font-bold">❌ 비밀번호가 틀렸습니다</p>}
+            <div className="flex gap-2">
+              <button onClick={() => { setAdminOpen(false); setAdminPw(''); setAdminErr(false); }}
+                className="flex-1 py-2.5 rounded-xl border-2 border-gray-200 text-gray-500 text-sm font-semibold hover:bg-gray-50 transition-all">
+                취소
+              </button>
+              <button onClick={() => {
+                  if (adminPw === (resetPassword ?? '116606')) {
+                    setAdminOpen(false);
+                    const base = import.meta.env.BASE_URL;
+                    window.history.pushState({}, '', base + 'admin');
+                    window.dispatchEvent(new PopStateEvent('popstate'));
+                  } else { setAdminErr(true); setAdminPw(''); }
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-600 text-white text-sm font-bold transition-all">
+                확인
+              </button>
             </div>
           </div>
         </div>
@@ -6413,26 +6461,57 @@ function MainScreen({
               </div>
             </div>
 
+            {/* ── 내 카드 고정 ─────────────────────────────────────── */}
+            {(() => {
+              const myProfile = profiles.find(p => p.id === currentUserId);
+              if (!myProfile) return null;
+              const posColor = getPositionBg(myProfile.personality_score ?? 50);
+              const posLabel = getPositionLabel(myProfile.personality_score ?? 50);
+              const bioTags = myProfile.bio ? myProfile.bio.split(',').map(t => t.trim()).filter(Boolean).slice(0, 3) : [];
+              const age = getKoreanAge(myProfile.birth_year);
+              return (
+                <div className={`sticky top-0 z-20 -mx-4 px-4 pb-2 pt-1 mb-2 ${darkMode ? 'bg-slate-950/95' : 'bg-gray-50/95'} backdrop-blur-sm`}>
+                  <p className={`text-[10px] font-black uppercase tracking-widest mb-1.5 ${darkMode ? 'text-amber-400' : 'text-amber-500'}`}>내 카드 👤</p>
+                  <div
+                    className="group relative bg-white rounded-xl overflow-hidden shadow-sm border-2 border-amber-400 ring-2 ring-amber-300/50 cursor-pointer active:scale-[0.98] transition-all"
+                    onClick={() => onSelect(myProfile)}>
+                    <div className="absolute top-1.5 left-1.5 z-10 px-1.5 py-0.5 bg-amber-400 rounded-full shadow text-[9px] font-black text-white">나</div>
+                    <div className="flex items-stretch min-h-[5rem]">
+                      <div className="w-14 flex-shrink-0 flex flex-col items-center justify-center gap-0.5 px-0.5 py-1" style={{ backgroundColor: posColor }}>
+                        <span className="text-[8px] font-black text-white leading-tight text-center w-full overflow-hidden" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{posLabel}</span>
+                        {myProfile.mbti && <span className="text-[8px] font-bold text-white/85 leading-none block w-full text-center truncate">{myProfile.mbti}</span>}
+                      </div>
+                      <div className="flex-1 min-w-0 px-2 py-2 flex flex-col justify-center gap-0.5">
+                        <p className="font-black text-gray-900 text-xs truncate leading-tight">{myProfile.nickname}</p>
+                        {myProfile.birth_year && <p className="text-[9px] text-gray-400 truncate">{age}{myProfile.location ? ` · ${myProfile.location}` : ''}</p>}
+                        {bioTags.length > 0 && (
+                          <div className="flex flex-wrap gap-0.5">
+                            {bioTags.map(tag => (
+                              <span key={tag} className="text-[8px] font-semibold px-1 py-0.5 rounded-full bg-orange-50 text-orange-500 border border-orange-200">#{tag}</span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* ── 다른 참여자 그리드 ────────────────────────────── */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 no-capture">
-            {filteredProfiles.map((profile) => {
+            {filteredProfiles.filter(p => p.id !== currentUserId).map((profile) => {
               const posColor = getPositionBg(profile.personality_score ?? 50);
               const posLabel = getPositionLabel(profile.personality_score ?? 50);
               const isLiked = likedIds.has(profile.id);
               const canLike = currentUserId && profile.id !== currentUserId;
               const bioTags = profile.bio ? profile.bio.split(',').map(t => t.trim()).filter(Boolean).slice(0, 3) : [];
-              const isMe = profile.id === currentUserId;
               const age = getKoreanAge(profile.birth_year);
               return (
               <div key={profile.id}
-                className={`group relative bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer active:scale-[0.98] ${
-                  isMe ? 'border-2 border-amber-400 ring-2 ring-amber-300/50' : 'border border-gray-100'
-                }`}
+                className="group relative bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer active:scale-[0.98] border border-gray-100"
                 onClick={() => onSelect(profile)}>
-                {isMe && (
-                  <div className="absolute top-1.5 left-1.5 z-10 px-1.5 py-0.5 bg-amber-400 rounded-full shadow text-[9px] font-black text-white">나</div>
-                )}
                 <div className="flex items-stretch min-h-[5rem]">
-                  {/* 성향 색상 사각형 + MBTI — 고정 너비·높이, 텍스트 절대 겹침 없음 */}
                   <div className="w-14 flex-shrink-0 flex flex-col items-center justify-center gap-0.5 px-0.5 py-1"
                     style={{ backgroundColor: posColor }}>
                     <span className="text-[8px] font-black text-white leading-tight text-center w-full overflow-hidden" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{posLabel}</span>
@@ -6468,14 +6547,10 @@ function MainScreen({
               </div>
               );
             })}
-            {profiles.filter(p => {
-              if (profileSearch && !p.nickname.toLowerCase().includes(profileSearch.toLowerCase())) return false;
-              if (profileMbtiFilter && p.mbti !== profileMbtiFilter) return false;
-              return true;
-            }).length === 0 && (
+            {filteredProfiles.filter(p => p.id !== currentUserId).length === 0 && (
               <div className="col-span-2 sm:col-span-3 lg:col-span-4 text-center py-20">
                 <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500">{profileSearch || profilePersonalityFilter || profileMbtiFilter ? '검색 결과가 없습니다.' : '아직 참가자가 없습니다.'}</p>
+                <p className="text-gray-500">{profileSearch || profilePersonalityFilter || profileMbtiFilter ? '검색 결과가 없습니다.' : '아직 다른 참가자가 없습니다.'}</p>
               </div>
             )}
           </div>
