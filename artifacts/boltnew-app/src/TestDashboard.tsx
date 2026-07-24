@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { supabase } from './lib/supabase';
 import type { Database } from './types/database';
 import {
-  Users, Heart, MessageCircle, LayoutGrid, Gamepad2, Send,
-  Trash2, RefreshCw, Play, Square, QrCode, UserPlus, X, CheckCircle,
+  Users, Heart, MessageCircle, LayoutGrid,
+  Trash2, RefreshCw, Play, UserPlus, X, CheckCircle,
   AlertTriangle, ChevronDown, ChevronRight,
 } from 'lucide-react';
 import { genAvatar } from './lib/profile';
@@ -69,9 +69,11 @@ export default function TestDashboard() {
   const [likes, setLikes] = useState<Like[]>([]);
   const [chats, setChats] = useState<Chat[]>([]);
   const [sessionActive, setSessionActive] = useState<boolean | null>(null);
+  const [activeTables, setActiveTables] = useState<number[] | null>(null);
   const [loading, setLoading] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [myUserId, setMyUserId] = useState<string | null>(() => localStorage.getItem('matching_app_user_id'));
+  const [bulkCount, setBulkCount] = useState(20);
 
   const notify = (msg: string, ok = true) => {
     setToast({ msg, ok });
@@ -84,13 +86,16 @@ export default function TestDashboard() {
       supabase.from('seats').select('*').order('table_number').order('seat_position'),
       supabase.from('likes').select('*').order('created_at', { ascending: false }),
       supabase.from('chats').select('*').order('created_at', { ascending: false }),
-      supabase.from('app_settings').select('session_active').eq('id', 1).single(),
+      supabase.from('app_settings').select('session_active, active_tables').eq('id', 1).single(),
     ]);
     if (p.data) setProfiles(p.data);
     if (s.data) setSeats(s.data);
     if (l.data) setLikes(l.data);
     if (c.data) setChats(c.data);
-    if (settings.data) setSessionActive(settings.data.session_active);
+    if (settings.data) {
+      setSessionActive(settings.data.session_active);
+      setActiveTables((settings.data.active_tables as number[] | null) ?? null);
+    }
   };
 
   useEffect(() => { load(); }, []);
@@ -129,21 +134,27 @@ export default function TestDashboard() {
     setLoading(null);
   };
 
-  const createManyDummies = async () => {
+  const createManyDummies = async (count: number) => {
     setLoading('dummies');
-    const entries = LETTERS.flatMap(l =>
-      [1,2,3,4,5,6,7,8,9,0].map(n => ({
-        nickname: `${l}${n}`,
-        bio: BIO_LIST[Math.floor(Math.random() * BIO_LIST.length)],
-        photo_url: genAvatar(`${l}${n}`),
-        personality_score: Math.floor(Math.random() * 100),
-        dom_sub_score: null,
-        mbti: MBTI_LIST[Math.floor(Math.random() * MBTI_LIST.length)],
-      }))
-    ).slice(0, 20);
+    const allPairs = LETTERS.flatMap(l =>
+      [1,2,3,4,5,6,7,8,9,0].map(n => `${l}${n}`)
+    );
+    // 기존 닉네임 제외 후 최대 count개 선택
+    const existing = new Set(profiles.map(p => p.nickname));
+    const candidates = allPairs.filter(nick => !existing.has(nick));
+    const shuffled = [...candidates].sort(() => Math.random() - 0.5).slice(0, count);
+    const entries = shuffled.map(nick => ({
+      nickname: nick,
+      bio: BIO_LIST[Math.floor(Math.random() * BIO_LIST.length)],
+      photo_url: genAvatar(nick),
+      personality_score: Math.floor(Math.random() * 100),
+      dom_sub_score: null,
+      mbti: MBTI_LIST[Math.floor(Math.random() * MBTI_LIST.length)],
+    }));
+    if (entries.length === 0) { notify('생성할 수 있는 닉네임이 없습니다 (최대 260개)', false); setLoading(null); return; }
     await supabase.from('profiles').upsert(entries, { onConflict: 'nickname', ignoreDuplicates: true });
     await load();
-    notify(`더미 ${entries.length}개 생성 완료`);
+    notify(`더미 ${entries.length}명 생성 완료`);
     setLoading(null);
   };
 
@@ -198,7 +209,9 @@ export default function TestDashboard() {
   const randomlyFillSeats = async () => {
     setLoading('fillSeats');
     const unassigned = profiles.filter(p => !seats.find(s => s.profile_id === p.id));
-    const emptySeats = seats.filter(s => s.status === 'empty');
+    const emptySeats = seats.filter(s =>
+      s.status === 'empty' && (activeTables === null || activeTables.includes(s.table_number))
+    );
     const shuffled = [...emptySeats].sort(() => Math.random() - 0.5);
     for (let i = 0; i < Math.min(unassigned.length, shuffled.length); i++) {
       await supabase.from('seats').update({ profile_id: unassigned[i].id, status: 'occupied', registered_at: new Date().toISOString() }).eq('id', shuffled[i].id);
@@ -273,39 +286,26 @@ export default function TestDashboard() {
     notify('채팅 삭제됨');
   };
 
-  // ── Game ───────────────────────────────────────────────────────────────────
-  const createBalanceGame = async () => {
-    if (!myUserId) { notify('먼저 내 유저를 설정하세요', false); return; }
-    setLoading('game');
-    const questions = [
-      { q: '솔직히 나는 어느 쪽?', a: '아이스 아메리카노', b: '따뜻한 라떼' },
-      { q: '주말 이상형은?', a: '집콕 휴식', b: '밖에서 놀기' },
-      { q: '연애 스타일은?', a: '먼저 고백하는 편', b: '기다리는 편' },
-      { q: '음식 취향', a: '한식', b: '양식' },
-    ];
-    const pick = questions[Math.floor(Math.random() * questions.length)];
-    const p = profiles.find(x => x.id === myUserId);
-    await supabase.from('balance_games').insert({
-      creator_id: myUserId,
-      creator_nickname: p?.nickname ?? '테스터',
-      question: pick.q,
-      option_a: pick.a,
-      option_b: pick.b,
-      scope: 'global',
-      table_number: null,
-    });
-    await supabase.from('app_settings').update({ game_state: { active: true, question: pick.q, option_a: pick.a, option_b: pick.b, scope: 'global', table_number: null } as unknown as import('./types/database').Json, updated_at: new Date().toISOString() }).eq('id', 1);
-    notify(`밸런스 게임 생성: "${pick.q}"`);
-    setLoading(null);
+  // ── Active tables ──────────────────────────────────────────────────────────
+  const allTableNums = [...new Set(seats.map(s => s.table_number))].sort((a, b) => a - b);
+
+  const toggleActiveTable = async (tableNum: number) => {
+    const current = activeTables ?? allTableNums;
+    const next = current.includes(tableNum)
+      ? current.filter(t => t !== tableNum)
+      : [...current, tableNum].sort((a, b) => a - b);
+    const value = next.length === allTableNums.length ? null : next; // null = 전체 활성
+    setActiveTables(value);
+    await supabase.from('app_settings').update({ active_tables: value as unknown as import('./types/database').Json, updated_at: new Date().toISOString() }).eq('id', 1);
+    notify(value === null ? '전체 테이블 활성화' : `활성 테이블: ${next.map(t => `T${t}`).join(', ')}`);
   };
 
-  const endGame = async () => {
-    await supabase.from('app_settings').update({ game_state: null, updated_at: new Date().toISOString() }).eq('id', 1);
-    notify('게임 종료됨');
+  const setAllTables = async (active: boolean) => {
+    const value = active ? null : [];
+    setActiveTables(value as number[] | null);
+    await supabase.from('app_settings').update({ active_tables: value as unknown as import('./types/database').Json, updated_at: new Date().toISOString() }).eq('id', 1);
+    notify(active ? '전체 테이블 활성화' : '전체 테이블 비활성화');
   };
-
-  // ── QR ─────────────────────────────────────────────────────────────────────
-  const makeQrUrl = (seatId: string) => `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(`${window.location.origin.replace('/test', '')}/?seat=${seatId}`)}&size=120x120&margin=6`;
 
   // ── Select helpers ─────────────────────────────────────────────────────────
   const [fromUser, setFromUser] = useState('');
@@ -430,56 +430,118 @@ export default function TestDashboard() {
           </div>
         </Section>
 
-        {/* 더미 프로필 */}
+        {/* 더미 프로필 대량 생성 */}
         <Section title="더미 프로필 대량 생성" icon={<UserPlus className="w-4 h-4" />} defaultOpen={false}>
-          <p className="text-xs text-slate-400">하트/채팅/게임 기능 테스트에 필요한 다른 유저들을 생성합니다.</p>
-          <div className="grid grid-cols-2 gap-2">
-            <Btn label="더미 5명 생성" onClick={() => Promise.all([0,1,2,3,4].map(i => createTestUser(LETTERS[i], Math.floor(Math.random()*9)+1)))} color="cyan" disabled={!!loading} />
-            <Btn label="더미 20명 생성 (A0~J9)" onClick={createManyDummies} color="violet" disabled={loading === 'dummies'} />
+          <p className="text-xs text-slate-400">하트·채팅·게임 기능 테스트에 필요한 더미 유저들을 생성합니다.</p>
+
+          {/* 슬라이더 */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-slate-400">생성 인원</span>
+              <span className="text-sm font-black text-violet-300">{bulkCount}명</span>
+            </div>
+            <input type="range" min={10} max={50} step={5} value={bulkCount}
+              onChange={e => setBulkCount(Number(e.target.value))}
+              className="w-full accent-violet-500" />
+            <div className="flex justify-between text-[10px] text-slate-500">
+              {[10,15,20,25,30,35,40,45,50].map(v => <span key={v}>{v}</span>)}
+            </div>
           </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <Btn label={`더미 ${bulkCount}명 생성`} onClick={() => createManyDummies(bulkCount)} color="violet" disabled={loading === 'dummies'} />
+            <Btn label="랜덤 1명 생성" onClick={() => createTestUser(LETTERS[Math.floor(Math.random() * LETTERS.length)], Math.floor(Math.random() * 9) + 1)} color="cyan" disabled={!!loading} />
+          </div>
+
+          {/* 프로필 목록 */}
           <div className="max-h-48 overflow-y-auto space-y-1.5 mt-1">
+            {profiles.length === 0 && <p className="text-xs text-slate-500 text-center py-3">프로필 없음</p>}
             {profiles.map(p => (
               <div key={p.id} className="flex items-center gap-2 px-3 py-1.5 bg-slate-700/40 rounded-lg">
                 <img src={p.photo_url} className="w-7 h-7 rounded-full flex-shrink-0" />
-                <span className="text-xs font-semibold text-slate-200 flex-1">{p.nickname}</span>
+                <span className="text-xs font-semibold text-slate-200 flex-1 truncate">{p.nickname}</span>
                 <Tag text={p.mbti ?? '?'} color="slate" />
                 {p.id === myUserId && <Tag text="나" color="teal" />}
-                <button onClick={() => setMyUser(p.id)} className="text-[10px] px-2 py-0.5 bg-teal-500/20 hover:bg-teal-500/40 text-teal-300 rounded-full border border-teal-500/30 transition-all">내꺼로</button>
-                <button onClick={() => deleteProfile(p.id)} disabled={loading === `del-${p.id}`} className="text-[10px] px-2 py-0.5 bg-red-500/20 hover:bg-red-500/40 text-red-300 rounded-full border border-red-500/30 transition-all">삭제</button>
+                <button onClick={() => setMyUser(p.id)} className="text-[10px] px-2 py-0.5 bg-teal-500/20 hover:bg-teal-500/40 text-teal-300 rounded-full border border-teal-500/30 transition-all shrink-0">내꺼로</button>
+                <button onClick={() => deleteProfile(p.id)} disabled={loading === `del-${p.id}`} className="text-[10px] px-2 py-0.5 bg-red-500/20 hover:bg-red-500/40 text-red-300 rounded-full border border-red-500/30 transition-all shrink-0">삭제</button>
               </div>
             ))}
           </div>
           <Btn label="모든 프로필 + 데이터 초기화" onClick={deleteAllProfiles} color="red" disabled={loading === 'deleteAll'} />
         </Section>
 
-        {/* 자리 배치 */}
-        <Section title="자리 배치" icon={<LayoutGrid className="w-4 h-4" />}>
+        {/* 활성 테이블 설정 */}
+        <Section title="활성 테이블 설정" icon={<LayoutGrid className="w-4 h-4" />} defaultOpen={false}>
+          <p className="text-xs text-slate-400">활성화된 테이블에만 자리 배치가 가능합니다. 유저 화면과 자리배치 섹션에도 반영됩니다.</p>
           <div className="grid grid-cols-2 gap-2">
-            <Btn label="전체 랜덤 배치" onClick={randomlyFillSeats} color="teal" disabled={loading === 'fillSeats'} />
+            <Btn label="전체 활성화" onClick={() => setAllTables(true)} color="teal" />
+            <Btn label="전체 비활성화" onClick={() => setAllTables(false)} color="red" />
+          </div>
+          {allTableNums.length === 0 ? (
+            <p className="text-xs text-slate-500 text-center py-2">자리 데이터 없음 — 관리자에서 자리를 먼저 생성하세요</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {allTableNums.map(t => {
+                const isActive = activeTables === null || activeTables.includes(t);
+                return (
+                  <button key={t} onClick={() => toggleActiveTable(t)}
+                    className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all ${isActive
+                      ? 'bg-teal-500/20 border-teal-500/40 text-teal-300'
+                      : 'bg-slate-700/40 border-slate-600/40 text-slate-500'}`}>
+                    T{t} {isActive ? '✓' : '✕'}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <div className="px-3 py-2 bg-slate-700/40 rounded-xl text-xs text-slate-400">
+            현재: {activeTables === null ? '전체 테이블 활성' : activeTables.length === 0 ? '모두 비활성' : activeTables.map(t => `T${t}`).join(', ')}
+          </div>
+        </Section>
+
+        {/* 자리 배치 — 활성 테이블만 */}
+        <Section title="자리 배치" icon={<LayoutGrid className="w-4 h-4" />}>
+          {activeTables !== null && activeTables.length > 0 && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 border border-amber-500/30 rounded-xl">
+              <span className="text-amber-400 text-xs">🟡</span>
+              <span className="text-xs text-amber-300 font-semibold">활성 테이블: {activeTables.map(t => `T${t}`).join(', ')}</span>
+            </div>
+          )}
+          {activeTables === null && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-teal-500/10 border border-teal-500/30 rounded-xl">
+              <span className="text-xs text-teal-300 font-semibold">✓ 전체 테이블 활성화 중</span>
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-2">
+            <Btn label="랜덤 배치 (활성 테이블)" onClick={randomlyFillSeats} color="teal" disabled={loading === 'fillSeats'} />
             <Btn label="모든 자리 비우기" onClick={clearAllSeats} color="red" disabled={loading === 'clearSeats'} />
           </div>
           <div className="flex gap-2 items-center">
             {profileSel(seatProfile, setSeatProfile)}
             <select value={seatTarget} onChange={e => setSeatTarget(e.target.value)} className="flex-1 bg-slate-700 text-slate-200 text-xs rounded-lg px-2 py-1.5 border border-slate-600 min-w-0">
               <option value="">-- 자리 선택 --</option>
-              {seats.filter(s => s.status === 'empty').map(s => <option key={s.id} value={s.id}>{s.seat_label}</option>)}
+              {seats
+                .filter(s => s.status === 'empty' && (activeTables === null || activeTables.includes(s.table_number)))
+                .map(s => <option key={s.id} value={s.id}>{s.seat_label}</option>)}
             </select>
             <Btn label="배정" onClick={() => { if (seatProfile && seatTarget) assignSeat(seatProfile, seatTarget); }} color="violet" small disabled={!seatProfile || !seatTarget} />
           </div>
-          {/* Occupied seats */}
+          {/* 착석된 자리 목록 — 활성 테이블 기준 */}
           <div className="max-h-40 overflow-y-auto space-y-1">
-            {seats.filter(s => s.status === 'occupied').map(s => {
-              const p = profiles.find(x => x.id === s.profile_id);
-              return (
-                <div key={s.id} className="flex items-center gap-2 px-3 py-1.5 bg-teal-500/10 border border-teal-500/20 rounded-lg">
-                  {p && <img src={p.photo_url} className="w-6 h-6 rounded-full flex-shrink-0" />}
-                  <span className="text-xs text-teal-300 flex-1">{s.seat_label}</span>
-                  <span className="text-xs text-slate-400">{p?.nickname ?? '?'}</span>
-                  <button onClick={() => clearSeat(s.id)} className="text-[10px] px-2 py-0.5 bg-red-500/20 hover:bg-red-500/40 text-red-300 rounded-full border border-red-500/30">비움</button>
-                </div>
-              );
-            })}
-            {seats.filter(s => s.status === 'occupied').length === 0 && (
+            {seats
+              .filter(s => s.status === 'occupied' && (activeTables === null || activeTables.includes(s.table_number)))
+              .map(s => {
+                const p = profiles.find(x => x.id === s.profile_id);
+                return (
+                  <div key={s.id} className="flex items-center gap-2 px-3 py-1.5 bg-teal-500/10 border border-teal-500/20 rounded-lg">
+                    {p && <img src={p.photo_url} className="w-6 h-6 rounded-full flex-shrink-0" />}
+                    <span className="text-xs text-teal-300 flex-1">{s.seat_label}</span>
+                    <span className="text-xs text-slate-400">{p?.nickname ?? '?'}</span>
+                    <button onClick={() => clearSeat(s.id)} className="text-[10px] px-2 py-0.5 bg-red-500/20 hover:bg-red-500/40 text-red-300 rounded-full border border-red-500/30">비움</button>
+                  </div>
+                );
+              })}
+            {seats.filter(s => s.status === 'occupied' && (activeTables === null || activeTables.includes(s.table_number))).length === 0 && (
               <p className="text-xs text-slate-500 text-center py-2">착석된 자리 없음</p>
             )}
           </div>
@@ -495,24 +557,8 @@ export default function TestDashboard() {
           </div>
           {myUserId && profiles.length > 1 && (
             <div className="grid grid-cols-2 gap-2">
-              <Btn
-                label="랜덤 유저 → 나 하트"
-                onClick={() => {
-                  const others = profiles.filter(p => p.id !== myUserId);
-                  if (others.length) sendHeart(others[Math.floor(Math.random() * others.length)].id, myUserId);
-                }}
-                color="pink"
-                disabled={loading === 'heart'}
-              />
-              <Btn
-                label="나 → 랜덤 유저 하트"
-                onClick={() => {
-                  const others = profiles.filter(p => p.id !== myUserId);
-                  if (others.length) sendHeart(myUserId, others[Math.floor(Math.random() * others.length)].id);
-                }}
-                color="rose"
-                disabled={loading === 'heart'}
-              />
+              <Btn label="랜덤 → 나 하트" onClick={() => { const others = profiles.filter(p => p.id !== myUserId); if (others.length) sendHeart(others[Math.floor(Math.random() * others.length)].id, myUserId!); }} color="pink" disabled={loading === 'heart'} />
+              <Btn label="나 → 랜덤 하트" onClick={() => { const others = profiles.filter(p => p.id !== myUserId); if (others.length) sendHeart(myUserId!, others[Math.floor(Math.random() * others.length)].id); }} color="rose" disabled={loading === 'heart'} />
             </div>
           )}
           <div className="max-h-48 overflow-y-auto space-y-1">
@@ -542,15 +588,7 @@ export default function TestDashboard() {
             <Btn label="채팅 생성" onClick={() => { if (chatU1 && chatU2) createChat(chatU1, chatU2); }} color="violet" small disabled={!chatU1 || !chatU2 || loading === 'chat'} />
           </div>
           {myUserId && profiles.length > 1 && (
-            <Btn
-              label="나 ↔ 랜덤 유저 채팅 생성"
-              onClick={() => {
-                const others = profiles.filter(p => p.id !== myUserId);
-                if (others.length) createChat(myUserId, others[Math.floor(Math.random() * others.length)].id);
-              }}
-              color="violet"
-              disabled={loading === 'chat'}
-            />
+            <Btn label="나 ↔ 랜덤 채팅 생성" onClick={() => { const others = profiles.filter(p => p.id !== myUserId); if (others.length) createChat(myUserId!, others[Math.floor(Math.random() * others.length)].id); }} color="violet" disabled={loading === 'chat'} />
           )}
           <div className="max-h-36 overflow-y-auto space-y-1">
             {chats.map(c => {
@@ -565,46 +603,6 @@ export default function TestDashboard() {
             })}
             {chats.length === 0 && <p className="text-xs text-slate-500 text-center py-2">채팅 없음</p>}
           </div>
-        </Section>
-
-        {/* 밸런스 게임 */}
-        <Section title="밸런스 게임" icon={<Gamepad2 className="w-4 h-4" />}>
-          <p className="text-xs text-slate-400">게임을 생성하면 모든 유저 화면에 공지가 뜹니다.</p>
-          <div className="grid grid-cols-2 gap-2">
-            <Btn label="게임 생성 (랜덤 질문)" onClick={createBalanceGame} color="amber" disabled={loading === 'game' || !myUserId} />
-            <Btn label="게임 종료" onClick={endGame} color="red" />
-          </div>
-          {!myUserId && <p className="text-xs text-red-400">내 계정을 먼저 설정하세요</p>}
-        </Section>
-
-        {/* QR 코드 */}
-        <Section title="QR 코드 미리보기" icon={<QrCode className="w-4 h-4" />} defaultOpen={false}>
-          <p className="text-xs text-slate-400">자리 QR을 스캔하면 해당 자리에 자동 등록됩니다.</p>
-          <div className="grid grid-cols-4 gap-2 max-h-64 overflow-y-auto">
-            {seats.filter(s => s.status === 'empty').slice(0, 16).map(s => (
-              <div key={s.id} className="flex flex-col items-center gap-1 p-1.5 bg-slate-700/40 rounded-xl border border-slate-600/50">
-                <img src={makeQrUrl(s.id)} className="w-14 h-14 rounded-lg" />
-                <span className="text-[9px] font-bold text-slate-400 text-center">{s.seat_label.split(' ').slice(1).join(' ')}</span>
-              </div>
-            ))}
-          </div>
-          <a href="/admin#qr" className="text-xs text-teal-400 hover:text-teal-300 underline">관리자 QR 탭에서 전체 보기 →</a>
-        </Section>
-
-        {/* 건의사항 테스트 */}
-        <Section title="건의사항 테스트" icon={<Send className="w-4 h-4" />} defaultOpen={false}>
-          <p className="text-xs text-slate-400">유저 화면 "건의함" 탭에서 제출한 내용이 관리자에 표시됩니다.</p>
-          <Btn
-            label="테스트 건의 전송"
-            onClick={async () => {
-              if (!myUserId) { notify('먼저 내 계정을 설정하세요', false); return; }
-              const p = profiles.find(x => x.id === myUserId);
-              await supabase.from('suggestions').insert({ profile_id: myUserId, nickname: p?.nickname ?? null, content: '테스트 건의사항입니다. 기능이 잘 작동하는지 확인 중입니다.', contact_info: null });
-              notify('건의사항 전송됨');
-            }}
-            color="cyan"
-            disabled={!myUserId}
-          />
         </Section>
 
         {/* 전체 초기화 */}

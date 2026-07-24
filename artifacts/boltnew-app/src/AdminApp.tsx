@@ -4250,7 +4250,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
             </span>
           </div>
           <div className="flex items-center gap-3">
-            <a href="/test" target="_blank" rel="noreferrer"
+            <a href="/test"
               className="flex items-center gap-1.5 text-sm text-violet-300 hover:text-violet-100 transition-colors px-2.5 py-1 rounded-lg bg-violet-700/40 hover:bg-violet-700/60 border border-violet-600/40">
               🧪 테스터
             </a>

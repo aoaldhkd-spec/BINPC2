@@ -6920,6 +6920,7 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
 }) {
   const [input, setInput] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
+  const [showEmoticons, setShowEmoticons] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [chatError, setChatError] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -6937,6 +6938,10 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
   // 답장
   const [replyTo, setReplyTo] = useState<{ id: string; snippet: string; isMe: boolean } | null>(null);
 
+  // 슬라이드 답장
+  const [swipeState, setSwipeState] = useState<{ msgId: string; offsetX: number } | null>(null);
+  const swipeTouchRef = useRef<{ msgId: string; startX: number; startY: number; swiping: boolean } | null>(null);
+
   // 이미지 전체화면 뷰어
   const [imageViewer, setImageViewer] = useState<string | null>(null);
 
@@ -6945,6 +6950,32 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
 
   // 더블탭 감지 (❤️ 반응)
   const lastTapRef = useRef<{ id: string; time: number } | null>(null);
+
+  // 술번개 퀴어 전용 이모티콘
+  const SOOL_EMOTICONS = [
+    '(ﾉ◕ヮ◕)ﾉ*:･ﾟ✧  환영해요!',
+    '( ˘ ³˘)♥  반했어요',
+    '(っ˘ω˘ς)  취했어요~',
+    '╰(*°▽°*)╯  설레요!',
+    '(*꒦ິ꒳꒦ີ)  부끄러워',
+    '(◕‿◕✿)  번호 주세요',
+    '(ง •̀ω•́)ง🍺  같이 마셔요!',
+    '｡◕‿◕｡  나는 네 편이에요',
+    '(•ᴗ•)❤️‍🔥  하트 보냈어요',
+    '🥂✨  건배!',
+    '(´。• ω •。`)  보고싶어요',
+    '(≧◡≦)♡  좋아해요!',
+    '눈_눈...  당신이에요?',
+    '(*´▽｀*)💕  설레는 밤',
+    'ヽ(•‿•)ノ🎶  신나요~',
+    '(づ｡◡｡)づ  안아주고 싶어',
+    '🏳️‍🌈✨(ˊ▽ˋ*)♪  우리의 밤!',
+    '(˘⌣˘)♡  오늘 인연이에요',
+    'ʕっ•ᴥ•ʔっ  꼬옥 안아줘',
+    '(人 •͈ᴗ•͈)  감사해요',
+    '(ᵔᴥᵔ)🍻  술 한 잔 어때요?',
+    '≧(´▽｀)≦  너무 좋아!!',
+  ];
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
@@ -7001,14 +7032,47 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
     setShowEmoji(false);
   };
 
-  // 롱프레스
-  const handleLongPressStart = (e: React.TouchEvent, msg: Message) => {
-    const touch = e.touches[0];
+  // 롱프레스 + 슬라이드 통합 터치 핸들러
+  const cancelLP = () => { if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; } };
+
+  const onMsgTouchStart = (e: React.TouchEvent, msg: Message) => {
+    const t = e.touches[0];
+    swipeTouchRef.current = { msgId: msg.id, startX: t.clientX, startY: t.clientY, swiping: false };
     longPressTimer.current = setTimeout(() => {
-      setContextMenu({ msgId: msg.id, content: msg.content ?? '', isMine: msg.sender_id === currentUserId, imgUrl: msg.image_url ?? undefined, x: touch.clientX, y: touch.clientY });
+      if (!swipeTouchRef.current?.swiping) {
+        setContextMenu({ msgId: msg.id, content: msg.content ?? '', isMine: msg.sender_id === currentUserId, imgUrl: msg.image_url ?? undefined, x: t.clientX, y: t.clientY });
+      }
     }, 500);
   };
-  const handleLongPressEnd = () => { if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; } };
+
+  const onMsgTouchMove = (e: React.TouchEvent, msg: Message) => {
+    const ref = swipeTouchRef.current;
+    if (!ref || ref.msgId !== msg.id) return;
+    const t = e.touches[0];
+    const dx = t.clientX - ref.startX;
+    const dy = t.clientY - ref.startY;
+    // 이동 감지 시 롱프레스 취소
+    if (Math.abs(dx) > 6 || Math.abs(dy) > 6) cancelLP();
+    // 수직 스크롤 우선 — 가로 이동이 세로보다 크게 나타나야 스와이프로 인식
+    if (!ref.swiping && Math.abs(dy) > Math.abs(dx) + 4) return;
+    if (Math.abs(dx) > 10) {
+      ref.swiping = true;
+      const clamped = Math.sign(dx) * Math.min(Math.abs(dx), 72);
+      setSwipeState({ msgId: msg.id, offsetX: clamped });
+    }
+  };
+
+  const onMsgTouchEnd = (_e: React.TouchEvent, msg: Message) => {
+    cancelLP();
+    if (swipeState?.msgId === msg.id && Math.abs(swipeState.offsetX) >= 55) {
+      const snippet = msg.image_url ? '[이미지]' : (msg.content ?? '').slice(0, 40);
+      setReplyTo({ id: msg.id, snippet, isMe: msg.sender_id === currentUserId });
+      setTimeout(() => inputRef.current?.focus(), 100);
+    }
+    swipeTouchRef.current = null;
+    setSwipeState(null);
+  };
+
   const handleMsgContextMenu = (e: React.MouseEvent, msg: Message) => {
     e.preventDefault();
     setContextMenu({ msgId: msg.id, content: msg.content ?? '', isMine: msg.sender_id === currentUserId, imgUrl: msg.image_url ?? undefined, x: e.clientX, y: e.clientY });
@@ -7161,13 +7225,25 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
             const isReply = !isCard && isReplyMsg(msg.content);
             const replyData = isReply ? parseReply(msg.content!) : null;
             const reaction = reactions[msg.id];
+            const isSwiping = swipeState?.msgId === msg.id;
+            const swipeX = isSwiping ? swipeState!.offsetX : 0;
+            const arrowVisible = isSwiping && Math.abs(swipeX) > 15;
+            const arrowOpacity = Math.min(Math.abs(swipeX) / 55, 1);
             return (
-              <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+              <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} relative`}>
+                {/* 슬라이드 답장 화살표 */}
+                {arrowVisible && (
+                  <div className="absolute inset-y-0 flex items-center pointer-events-none z-10"
+                    style={{ [swipeX > 0 ? 'left' : 'right']: 0, opacity: arrowOpacity }}>
+                    <span className="text-2xl select-none">↩️</span>
+                  </div>
+                )}
                 <div
                   className={`flex items-end gap-1 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}
-                  onTouchStart={(e) => handleLongPressStart(e, msg)}
-                  onTouchEnd={handleLongPressEnd}
-                  onTouchMove={handleLongPressEnd}
+                  style={{ transform: `translateX(${swipeX}px)`, transition: isSwiping ? 'none' : 'transform 0.2s ease-out' }}
+                  onTouchStart={(e) => onMsgTouchStart(e, msg)}
+                  onTouchMove={(e) => onMsgTouchMove(e, msg)}
+                  onTouchEnd={(e) => onMsgTouchEnd(e, msg)}
                   onContextMenu={(e) => handleMsgContextMenu(e, msg)}
                   onClick={() => handleTap(msg)}>
                   {/* 말풍선 — DOM 첫 번째: flex-row-reverse에서 가장 오른쪽(내 메시지), flex-row에서 가장 왼쪽(상대방) */}
@@ -7233,13 +7309,33 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
         </div>
       </main>
 
-      {showEmoji && (
+      {/* 이모지 패널 */}
+      {showEmoji && !showEmoticons && (
         <div className="bg-white border-t border-gray-200 max-w-3xl w-full mx-auto">
           <div className="grid grid-cols-10 gap-1 p-3">
             {EMOJIS.map((emoji) => (
               <button key={emoji} type="button" onClick={() => handleEmojiClick(emoji)}
                 className="h-9 flex items-center justify-center text-xl hover:bg-gray-100 rounded-lg transition-colors">
                 {emoji}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 술번개 이모티콘 패널 */}
+      {showEmoticons && (
+        <div className="bg-white border-t border-gray-200 max-w-3xl w-full mx-auto">
+          <div className="px-3 py-2 border-b border-gray-100 flex items-center gap-2">
+            <span className="text-xs font-black text-rose-500">🏳️‍🌈 술번개 이모티콘</span>
+            <span className="text-[10px] text-gray-400 flex-1">탭하면 바로 전송</span>
+          </div>
+          <div className="max-h-44 overflow-y-auto p-2 space-y-1">
+            {SOOL_EMOTICONS.map((em, i) => (
+              <button key={i} type="button"
+                onClick={() => { onSend(em); setShowEmoticons(false); }}
+                className="w-full text-left text-sm px-3 py-2 rounded-xl hover:bg-rose-50 active:bg-rose-100 transition-colors text-gray-700 font-medium leading-relaxed">
+                {em}
               </button>
             ))}
           </div>
@@ -7269,9 +7365,17 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
             className="p-2 text-gray-400 hover:text-cyan-500 hover:bg-cyan-50 rounded-full transition-all disabled:opacity-50">
             <ImageIcon className="w-5 h-5" />
           </button>
-          <button type="button" onClick={() => setShowEmoji(!showEmoji)}
-            className={`p-2 rounded-full transition-all ${showEmoji ? 'text-cyan-500 bg-cyan-50' : 'text-gray-400 hover:text-cyan-500 hover:bg-cyan-50'}`}>
+          <button type="button"
+            onClick={() => { setShowEmoji(!showEmoji); setShowEmoticons(false); }}
+            className={`p-2 rounded-full transition-all ${showEmoji && !showEmoticons ? 'text-cyan-500 bg-cyan-50' : 'text-gray-400 hover:text-cyan-500 hover:bg-cyan-50'}`}>
             <Smile className="w-5 h-5" />
+          </button>
+          {/* 술번개 이모티콘 버튼 */}
+          <button type="button"
+            onClick={() => { setShowEmoticons(!showEmoticons); setShowEmoji(false); }}
+            className={`p-2 rounded-full transition-all text-base leading-none ${showEmoticons ? 'bg-rose-50' : 'hover:bg-rose-50'}`}
+            title="술번개 이모티콘">
+            🏳️‍🌈
           </button>
           <input ref={inputRef} type="text" value={input} onChange={(e) => setInput(e.target.value)}
             placeholder={uploading ? '업로드 중...' : replyTo ? '답장 입력...' : '메시지를 입력하세요...'}
