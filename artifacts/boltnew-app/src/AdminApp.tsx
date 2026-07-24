@@ -2036,9 +2036,25 @@ function BalanceGameCreate({ currentGame, onGameUpdate, seats, settings, onRefre
               const penalty = batchBalancePenalties.get(n) ?? '';
               return (
                 <div key={n} className={`rounded-xl border-2 p-3 transition-all ${filled ? 'border-violet-400 bg-violet-50' : 'border-gray-200 bg-gray-50'}`}>
+                  {/* 헤더 행: 테이블명 + 버튼들 */}
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className={`text-xs font-black flex-1 ${filled ? 'text-violet-700' : 'text-gray-500'}`}>{TABLE_LABELS[n] ?? n}번</span>
+                    <button
+                      onClick={() => { setBatchPickerTable(pickerOpen ? null : n); setBatchBalancePenaltyPickerTable(null); }}
+                      className={`flex-shrink-0 px-2 py-1.5 rounded-lg text-xs font-bold transition-all border ${pickerOpen ? 'bg-violet-200 text-violet-700 border-violet-300' : 'bg-white text-violet-500 border-violet-200 hover:bg-violet-50'}`}
+                    >
+                      {pickerOpen ? '닫기' : '고르기'}
+                    </button>
+                    <button
+                      onClick={() => sendSingleBalanceTable(n)}
+                      disabled={!filled || sent}
+                      className={`flex-shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-40 ${sent ? 'bg-teal-500 text-white' : 'bg-violet-500 hover:bg-violet-600 text-white'}`}
+                    >
+                      {sent ? '완료!' : '전송'}
+                    </button>
+                  </div>
                   {/* 선택지 행 */}
                   <div className="flex items-center gap-2">
-                    <span className={`text-xs font-black w-14 flex-shrink-0 ${filled ? 'text-violet-700' : 'text-gray-500'}`}>{TABLE_LABELS[n] ?? n}번</span>
                     <input
                       type="text"
                       value={config.a}
@@ -2054,19 +2070,6 @@ function BalanceGameCreate({ currentGame, onGameUpdate, seats, settings, onRefre
                       placeholder="선택지 B"
                       className="flex-1 bg-white border border-rose-200 text-gray-900 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-rose-400 placeholder-gray-400"
                     />
-                    <button
-                      onClick={() => { setBatchPickerTable(pickerOpen ? null : n); setBatchBalancePenaltyPickerTable(null); }}
-                      className={`flex-shrink-0 px-2 py-1.5 rounded-lg text-xs font-bold transition-all border ${pickerOpen ? 'bg-violet-200 text-violet-700 border-violet-300' : 'bg-white text-violet-500 border-violet-200 hover:bg-violet-50'}`}
-                    >
-                      {pickerOpen ? '닫기' : '고르기'}
-                    </button>
-                    <button
-                      onClick={() => sendSingleBalanceTable(n)}
-                      disabled={!filled || sent}
-                      className={`flex-shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-40 ${sent ? 'bg-teal-500 text-white' : 'bg-violet-500 hover:bg-violet-600 text-white'}`}
-                    >
-                      {sent ? '완료!' : '전송'}
-                    </button>
                   </div>
                   {/* 선택지 고르기 패널 */}
                   {pickerOpen && (

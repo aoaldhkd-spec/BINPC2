@@ -6486,7 +6486,7 @@ function MainScreen({
     <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'bg-slate-950' : 'bg-gray-50'}`}>
       <header className={`sticky top-0 z-10 transition-colors duration-300 ${darkMode ? 'bg-slate-900 border-b-2 border-slate-700 shadow-slate-950/50' : 'bg-white shadow-sm'}`}>
         <div className="max-w-7xl mx-auto px-4 py-3 grid grid-cols-3 items-center">
-          {/* 좌: 튜토리얼 버튼 */}
+          {/* 좌: 튜토리얼 + 다크모드 */}
           <div className="justify-self-start flex items-center gap-1">
             <button
               onClick={() => onShowTutorial()}
@@ -6495,13 +6495,6 @@ function MainScreen({
               <BookOpen className="w-5 h-5" />
               <span className="text-[9px] font-semibold">튜토리얼</span>
             </button>
-          </div>
-          {/* 중앙: 타이틀 */}
-          <div className="justify-self-center">
-            <ResetButton onReset={onReset} darkMode={darkMode} resetPassword={resetPassword} onEasterEgg={() => onSubmitSuggestion('__술주세요__', '')} />
-          </div>
-          {/* 우: 다크모드 + 하트 */}
-          <div className="justify-self-end flex items-center gap-2">
             <button onClick={onToggleDark}
               className={`p-2 rounded-xl transition-all ${darkMode ? 'bg-slate-700 text-amber-400 hover:bg-slate-600' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
               title={darkMode ? '라이트 모드' : '다크 모드'}>
@@ -6511,6 +6504,13 @@ function MainScreen({
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/></svg>
               )}
             </button>
+          </div>
+          {/* 중앙: 타이틀 */}
+          <div className="justify-self-center">
+            <ResetButton onReset={onReset} darkMode={darkMode} resetPassword={resetPassword} onEasterEgg={() => onSubmitSuggestion('__술주세요__', '')} />
+          </div>
+          {/* 우: 하트 */}
+          <div className="justify-self-end flex items-center gap-2">
             <div className="flex items-center gap-1.5">
               {HEART_TYPES.map(h => {
                 const used = heartCount(h.type);
@@ -7844,7 +7844,7 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
   const hasContact = !!(currentUserProfile?.kakao_id || currentUserProfile?.instagram_id || currentUserProfile?.phone_number);
 
   return (
-    <div className="fixed inset-0 bg-gray-100 flex flex-col" style={{ height: '100dvh' }}>
+    <div className="fixed inset-0 bg-gray-100 flex flex-col" style={{ height: '100dvh', paddingTop: 'env(safe-area-inset-top)' }}>
 
       {/* 상대방 연락처 보기 모달 */}
       {showTheirContact && theirShare && (
