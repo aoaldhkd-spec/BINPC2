@@ -56,6 +56,13 @@
 .scrollbar-styled::-webkit-scrollbar-thumb { background: #14b8a6; border-radius: 99px; }
 .scrollbar-styled::-webkit-scrollbar-corner { background: #1e293b; }
 
+/* ─── 스크린샷 방지 (참여자·배치도·채팅 탭) ────────────────────────────── */
+.no-capture {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
 /* ─── 라이트 스크롤바 ─────────────────────────────────────────────────────── */
 .scrollbar-styled-light {
   scrollbar-width: thin;

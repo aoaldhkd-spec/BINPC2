@@ -4668,6 +4668,33 @@ const TUTORIAL_SLIDES = [
   },
 ];
 
+// ─── 스크린샷 억제 워터마크 ────────────────────────────────────────────────────
+function ScreenWatermark({ nickname }: { nickname: string }) {
+  const text = `${nickname} `.repeat(6);
+  return (
+    <div className="fixed inset-0 pointer-events-none z-[9] overflow-hidden select-none" aria-hidden>
+      {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+        <div
+          key={i}
+          style={{
+            position: 'absolute',
+            top: `${i * 13 - 5}%`,
+            left: '-10%',
+            width: '120%',
+            transform: 'rotate(-22deg)',
+            fontSize: 13,
+            fontWeight: 700,
+            whiteSpace: 'nowrap',
+            opacity: 0.07,
+            color: '#000',
+            letterSpacing: '0.15em',
+          }}
+        >{text}</div>
+      ))}
+    </div>
+  );
+}
+
 function TutorialModal({ page, onChangePage, onClose, darkMode }: {
   page: number;
   onChangePage: (p: number) => void;
@@ -4688,20 +4715,20 @@ function TutorialModal({ page, onChangePage, onClose, darkMode }: {
           className="absolute top-3 right-3 z-10 w-8 h-8 flex items-center justify-center rounded-full bg-black/20 text-white hover:bg-black/40 transition-all">
           <X className="w-4 h-4" />
         </button>
-        {/* Slide header */}
-        <div className={`bg-gradient-to-br ${slide.color} px-6 py-8 text-center`}>
-          <div className="text-5xl mb-3">{slide.emoji}</div>
-          <h2 className="text-lg font-black text-white leading-snug">{slide.title}</h2>
+        {/* Slide header — 고정 높이로 슬라이드마다 크기 통일 */}
+        <div className={`bg-gradient-to-br ${slide.color} px-6 text-center flex flex-col items-center justify-center`} style={{ height: 130 }}>
+          <div className="text-4xl mb-2">{slide.emoji}</div>
+          <h2 className="text-base font-black text-white leading-snug">{slide.title}</h2>
         </div>
         {/* Dots */}
-        <div className="flex justify-center gap-1.5 pt-4 px-6">
+        <div className="flex justify-center gap-1.5 pt-3 px-6">
           {TUTORIAL_SLIDES.map((_, i) => (
             <button key={i} onClick={() => onChangePage(i)}
               className={`rounded-full transition-all ${i === page ? 'w-5 h-2 bg-cyan-500' : `w-2 h-2 ${darkMode ? 'bg-slate-600' : 'bg-gray-200'}`}`} />
           ))}
         </div>
-        {/* Body */}
-        <div className={`px-6 py-4 text-sm leading-loose whitespace-pre-line overflow-y-auto min-h-[160px] max-h-[280px] ${darkMode ? 'text-slate-300' : 'text-gray-600'}`}>
+        {/* Body — 고정 높이 + 스크롤 */}
+        <div className={`px-6 py-3 text-sm leading-loose whitespace-pre-line overflow-y-auto ${darkMode ? 'text-slate-300' : 'text-gray-600'}`} style={{ height: 210 }}>
           {slide.desc}
         </div>
         {/* Buttons */}
@@ -5858,7 +5885,12 @@ function MainScreen({
         )}
 
       </header>
-      <main className={`max-w-7xl mx-auto px-4 py-6 ${mainTab === 'seating' ? '' : 'scrollbar-styled-light'}`}>
+      {/* 스크린샷 억제 워터마크 — 참여자·배치도·채팅 탭에서만 표시 */}
+      {(['profiles', 'seating', 'chats'] as MainTab[]).includes(mainTab) && currentUserNickname && (
+        <ScreenWatermark nickname={currentUserNickname} />
+      )}
+
+      <main className={`max-w-7xl mx-auto px-4 py-6 no-capture ${mainTab === 'seating' ? '' : 'scrollbar-styled-light'}`}>
         {mainTab === 'profiles' && (
           seatingLocked ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3">
@@ -5959,14 +5991,12 @@ function MainScreen({
                   <button
                     onClick={(e) => { e.stopPropagation(); onLike(profile.id); }}
                     disabled={isLiked}
-                    className={`absolute top-1.5 right-1.5 w-9 h-9 rounded-full flex items-center justify-center shadow-lg transition-all duration-200 active:scale-90 ${
-                      isLiked
-                        ? `${sentHeartTypes.get(profile.id) ? heartMeta(sentHeartTypes.get(profile.id)!).solidBg : 'bg-rose-500'} text-white shadow-rose-300`
-                        : 'bg-rose-500 text-white hover:bg-rose-600 shadow-rose-300'
-                    }`}>
+                    className="absolute top-1.5 right-1.5 p-1.5 transition-all duration-200 active:scale-90 drop-shadow-md">
                     {isLiked && sentHeartTypes.get(profile.id)
-                      ? <span className="text-base leading-none select-none">{heartMeta(sentHeartTypes.get(profile.id)!).emoji}</span>
-                      : <Heart className="w-4 h-4 fill-white stroke-white" />
+                      ? <span className="text-xl leading-none select-none drop-shadow">{heartMeta(sentHeartTypes.get(profile.id)!).emoji}</span>
+                      : isLiked
+                        ? <Heart className="w-5 h-5" style={{ fill: '#e11d48', stroke: '#9f0a28', strokeWidth: 1.5 }} />
+                        : <Heart className="w-5 h-5" style={{ fill: 'rgba(255,255,255,0.85)', stroke: '#be123c', strokeWidth: 2.5 }} />
                     }
                   </button>
                 )}

@@ -274,10 +274,10 @@ export function RankingTab({ seats, darkMode, profiles: propProfiles }: { seats:
         <Award className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
         <div>
           <p className={`text-xs font-bold leading-relaxed ${darkMode ? 'text-slate-200' : 'text-gray-700'}`}>
-            하트를 가장 많이 받은 인기인 TOP 10
+            하트를 가장 많이 받은 인기인 TOP 10 — 닉네임이 공개됩니다
           </p>
           <p className={`text-[11px] mt-0.5 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
-            누가 보냈는지는 공개되지 않으며, 받은 하트 종류별 통계만 표시됩니다.
+            누가 보냈는지는 공개되지 않습니다. 받은 사람의 닉네임·하트 종류별 수만 표시됩니다.
           </p>
         </div>
       </div>
@@ -309,12 +309,14 @@ export function RankingTab({ seats, darkMode, profiles: propProfiles }: { seats:
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-black truncate ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                      {profile?.nickname ?? `${i + 1}위`}
-                      <span className={`text-xs font-bold ml-1.5 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>총 {r.total}개</span>
+                    <p className={`text-base font-black truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                      {profile?.nickname
+                        ? <><span>{profile.nickname}</span><span className={`text-xs font-bold ml-1.5 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>총 {r.total}개</span></>
+                        : <span className={`text-sm ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>(알 수 없음) · 총 {r.total}개</span>
+                      }
                     </p>
                     {seat && (
-                      <p className={`text-[10px] mt-0.5 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{seat.seat_label} · 테이블 {seat.table_number}</p>
+                      <p className={`text-[10px] mt-0.5 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{seat.seat_label} · {seat.table_number}번 테이블</p>
                     )}
                   </div>
                 </div>
