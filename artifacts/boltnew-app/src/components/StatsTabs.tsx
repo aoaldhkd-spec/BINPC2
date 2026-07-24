@@ -69,6 +69,21 @@ function EmptyNote({ text, dark }: { text: string; dark: boolean }) {
 
 
 // ─── 통계 탭 ──────────────────────────────────────────────────────────────────
+function extractCityLevel(location: string): string {
+  const parts = location.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return location;
+  const first = parts[0];
+  // 광역시·특별시·특별자치시·특별자치도 → 첫 단어만
+  if (first.endsWith('특별시') || first.endsWith('광역시') || first.endsWith('특별자치시') || first.endsWith('특별자치도')) {
+    return first;
+  }
+  // 도 + 시/군 → 두 단어
+  if (parts.length >= 2 && (parts[1].endsWith('시') || parts[1].endsWith('군'))) {
+    return `${first} ${parts[1]}`;
+  }
+  return first;
+}
+
 export function StatsTab({ profiles, seats, darkMode }: { profiles: Profile[]; seats: Seat[]; darkMode: boolean }) {
   const [allLikes, setAllLikes] = useState<Like[]>([]);
 
@@ -100,7 +115,7 @@ export function StatsTab({ profiles, seats, darkMode }: { profiles: Profile[]; s
       interests.forEach((i) => {
         interestCounts.set(i, (interestCounts.get(i) ?? 0) + 1);
       });
-      if (p.location) locationCounts.set(p.location, (locationCounts.get(p.location) ?? 0) + 1);
+      if (p.location) { const city = extractCityLevel(p.location); locationCounts.set(city, (locationCounts.get(city) ?? 0) + 1); }
       const band = ageBand(p.birth_year);
       if (band) ageCounts.set(band, (ageCounts.get(band) ?? 0) + 1);
     });

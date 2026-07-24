@@ -13,7 +13,7 @@ import ProfileAvatar from './components/ProfileAvatar';
 import QRCode from 'qrcode';
 import { StickerSVG, STICKER_LABELS, STICKER_BG, STICKER_COUNT } from './stickers';
 import { getPositionLabel, getPositionBg, getDomSubLabel, getDomSubBg, genAvatar, getKoreanAge } from './lib/profile';
-import { getZodiac, getOhaeng, getCompatibility, getOhaengCompat } from './lib/fortune';
+import { getZodiac, getOhaeng, getCompatibility, getOhaengCompat, getNumerologyCompat, getMbtiCompat, getTodayFortune } from './lib/fortune';
 import FortuneTab from './components/FortuneTab';
 import { HEART_TYPES, HeartType } from './lib/constants';
 
@@ -1529,9 +1529,11 @@ function tracePath(n: number, bars: LadderBar[], rows: number, startCol: number)
 }
 
 const LADDER_PRESET_PRIZES = [
-  '왕 👑', '술 앞잔(원삿X) 🍺', '면제 ✅', '꽝 💀', '통과 ✓', '질문 받기 ❓',
-  '19금 질문받기 🔞', '1빠 면제 🏆', 'VIP ⭐', '벌칙 선택권 🎯', '사진찍기 📸',
-  '칭찬 받기 💕', '음악 신청권 🎵',
+  // ── 상 (좋은 것) ──
+  '왕 👑', '지명권 1회 👉', '벌칙 양도권 🎁', '새 술 받기 🍶',
+  // ── 벌칙 ──
+  '꽝 💀', '술 앞잔(원샷X) 🍺', '원샷 🥃', '건배사 하기 🍻',
+  '노래 한 소절 🎤', '춤 한 번 💃', '질문 받기 ❓', '19금 질문받기 🔞',
 ];
 
 function LadderGame({ seats, tableNumber, onBroadcast, myNickname, profileMap }: {
@@ -7225,25 +7227,34 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
   const [chatError, setChatError] = useState('');
   const [showTheirContact, setShowTheirContact] = useState(false);
   const [showCompatModal, setShowCompatModal] = useState(false);
+  const [showSajuModal, setShowSajuModal] = useState(false);
+  const [activeCompatMethod, setActiveCompatMethod] = useState<'saju' | 'numerology' | 'ohaeng' | 'mbti'>('saju');
 
   // 상대방이 나에게 공유한 연락처 (liker_id = currentUserId, liked_id = otherProfile.id)
   const theirShare = receivedContactShares?.find(s => s.liked_id === otherProfile.id) ?? null;
   // 내가 상대방에게 이미 공유했는지
   const iSharedMine = contactSharedWithIds?.has(otherProfile.id) ?? false;
 
-  // 사주 궁합 계산
+  // 생년월일
   const myBirth = currentUserProfile?.birth_year && currentUserProfile?.birth_month && currentUserProfile?.birth_day
     ? { y: currentUserProfile.birth_year, m: currentUserProfile.birth_month, d: currentUserProfile.birth_day } : null;
   const theirBirth = otherProfile.birth_year && otherProfile.birth_month && otherProfile.birth_day
     ? { y: otherProfile.birth_year, m: otherProfile.birth_month, d: otherProfile.birth_day } : null;
   const hasBothBirthdays = !!(myBirth && theirBirth);
 
+  // 궁합 계산 (4가지)
   const compatResult = hasBothBirthdays
-    ? getCompatibility(myBirth!.y, myBirth!.m, myBirth!.d, theirBirth!.y, theirBirth!.m, theirBirth!.d)
-    : null;
+    ? getCompatibility(myBirth!.y, myBirth!.m, myBirth!.d, theirBirth!.y, theirBirth!.m, theirBirth!.d) : null;
   const ohaengCompatResult = hasBothBirthdays
-    ? getOhaengCompat(myBirth!.y, theirBirth!.y)
-    : null;
+    ? getOhaengCompat(myBirth!.y, theirBirth!.y) : null;
+  const numerologyResult = hasBothBirthdays
+    ? getNumerologyCompat(myBirth!.y, myBirth!.m, myBirth!.d, theirBirth!.y, theirBirth!.m, theirBirth!.d) : null;
+  const mbtiResult = (currentUserProfile?.mbti && otherProfile.mbti)
+    ? getMbtiCompat(currentUserProfile.mbti, otherProfile.mbti) : null;
+
+  // 오늘의 사주
+  const myFortune = myBirth ? getTodayFortune(myBirth.y, myBirth.m, myBirth.d) : null;
+  const theirFortune = theirBirth ? getTodayFortune(theirBirth.y, theirBirth.m, theirBirth.d) : null;
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -7492,16 +7503,69 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
         </div>
       )}
 
-      {/* 사주 궁합 모달 */}
+      {/* 사주 모달 */}
+      {showSajuModal && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowSajuModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-5 py-4 text-center text-white flex-shrink-0">
+              <p className="text-2xl mb-1">📅</p>
+              <h3 className="font-black text-lg">오늘의 사주</h3>
+              <p className="text-xs text-amber-100 mt-0.5">생년월일 기반 · 오늘 하루 운세</p>
+            </div>
+            <div className="overflow-y-auto p-5 space-y-4">
+              {[
+                { label: currentUserProfile?.nickname ?? '나', birth: myBirth, fortune: myFortune, color: 'cyan' },
+                { label: otherProfile.nickname, birth: theirBirth, fortune: theirFortune, color: 'pink' },
+              ].map(({ label, birth, fortune }) => (
+                <div key={label} className="rounded-xl border border-gray-100 overflow-hidden shadow-sm">
+                  <div className="bg-gray-50 px-4 py-2 flex items-center gap-2">
+                    <span className="font-black text-sm text-gray-800">{label}</span>
+                    {birth ? (
+                      <span className="text-xs text-gray-400">{birth.y}년생 · {getZodiac(birth.y).emoji}{getZodiac(birth.y).name}띠 · {getOhaeng(birth.y)}</span>
+                    ) : (
+                      <span className="text-xs text-gray-400">생년월일 없음</span>
+                    )}
+                  </div>
+                  {!birth || !fortune ? (
+                    <div className="px-4 py-3 text-sm text-gray-400">생년월일 미등록 — 사주를 볼 수 없어요</div>
+                  ) : (
+                    <div className="px-4 py-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-500">에너지 지수</span>
+                        <span className="text-sm font-black text-purple-600">{fortune.energyLevel}%</span>
+                      </div>
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-purple-400 to-violet-500 rounded-full transition-all" style={{ width: `${fortune.energyLevel}%` }} />
+                      </div>
+                      <p className="text-xs text-gray-600 leading-relaxed">{fortune.message}</p>
+                      <div className="flex gap-1.5 flex-wrap">
+                        <span className="text-[10px] bg-amber-50 border border-amber-200 text-amber-700 px-2 py-0.5 rounded-full font-bold">🎨 {fortune.luckyColor}</span>
+                        <span className="text-[10px] bg-blue-50 border border-blue-200 text-blue-700 px-2 py-0.5 rounded-full font-bold">🔢 {fortune.luckyNumber}</span>
+                        <span className="text-[10px] bg-teal-50 border border-teal-200 text-teal-700 px-2 py-0.5 rounded-full font-bold">✨ {fortune.luckyItem}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="px-5 pb-5 flex-shrink-0">
+              <button onClick={() => setShowSajuModal(false)}
+                className="w-full py-3 bg-amber-500 text-white font-semibold rounded-xl hover:bg-amber-600 transition-all">닫기</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 궁합 모달 — 4가지 계산법 */}
       {showCompatModal && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowCompatModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="bg-gradient-to-r from-violet-500 to-purple-600 px-5 py-4 text-center text-white">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-violet-500 to-purple-600 px-5 py-4 text-center text-white flex-shrink-0">
               <p className="text-2xl mb-1">🔮</p>
               <h3 className="font-black text-lg">{currentUserProfile?.nickname ?? '나'} × {otherProfile.nickname}</h3>
-              <p className="text-xs text-violet-200 mt-0.5">사주 궁합</p>
+              <p className="text-xs text-violet-200 mt-0.5">궁합 보기</p>
             </div>
-            <div className="p-5 space-y-4">
+            <div className="overflow-y-auto p-5 space-y-4">
               {!hasBothBirthdays ? (
                 <div className="text-center py-6">
                   <p className="text-3xl mb-2">😔</p>
@@ -7510,46 +7574,100 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
                 </div>
               ) : (
                 <>
-                  {/* 12지신 궁합 */}
-                  {compatResult && (
-                    <div className="bg-violet-50 rounded-xl p-4 border border-violet-100">
-                      <div className="flex items-center justify-between mb-2">
+                  {/* 계산 방법 선택 */}
+                  <div className="grid grid-cols-2 gap-2">
+                    {([
+                      { id: 'saju' as const, label: '🐯 전통 사주', desc: '12지신 기반' },
+                      { id: 'numerology' as const, label: '🔢 수비학', desc: '생년월일 숫자' },
+                      { id: 'ohaeng' as const, label: '🌊 오행 상성', desc: '5원소 기운' },
+                      { id: 'mbti' as const, label: '🧠 MBTI', desc: (currentUserProfile?.mbti && otherProfile.mbti) ? '' : '둘 다 MBTI 필요', disabled: !(currentUserProfile?.mbti && otherProfile.mbti) },
+                    ] as Array<{ id: typeof activeCompatMethod; label: string; desc: string; disabled?: boolean }>).map(m => (
+                      <button key={m.id} onClick={() => !m.disabled && setActiveCompatMethod(m.id)} disabled={!!m.disabled}
+                        className={`py-2 px-3 rounded-xl text-xs font-bold border-2 transition-all text-left ${
+                          activeCompatMethod === m.id ? 'bg-violet-100 border-violet-400 text-violet-700' : m.disabled ? 'border-gray-100 text-gray-300 cursor-not-allowed bg-gray-50' : 'border-gray-200 text-gray-600 hover:border-violet-300 hover:text-violet-600'
+                        }`}>
+                        <p>{m.label}</p>
+                        <p className="text-[9px] opacity-70 mt-0.5">{m.desc}</p>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* 전통 사주 */}
+                  {activeCompatMethod === 'saju' && compatResult && (
+                    <div className="bg-violet-50 rounded-xl p-4 border border-violet-100 space-y-2">
+                      <div className="flex items-center justify-between">
                         <span className="text-xs font-black text-violet-600">12지신 궁합</span>
                         <span className="text-xl font-black text-violet-700">{compatResult.emoji} {compatResult.score}점</span>
                       </div>
-                      <p className="text-sm font-bold text-gray-800 mb-1">{compatResult.relation}</p>
+                      <p className="text-sm font-bold text-gray-800">{compatResult.relation}</p>
                       <p className="text-xs text-gray-600 leading-relaxed">{compatResult.summary}</p>
-                      <p className="text-xs text-violet-500 mt-1 leading-relaxed">{compatResult.advice}</p>
+                      <p className="text-xs text-violet-500 leading-relaxed">{compatResult.advice}</p>
+                      <p className="text-[10px] text-gray-400 bg-white rounded-lg px-3 py-2 leading-relaxed">💡 태어난 해의 동물(띠)로 보는 전통 방식. 삼합·육합·상충 관계로 궁합을 읽어요.</p>
                     </div>
                   )}
-                  {/* 오행 궁합 */}
-                  {ohaengCompatResult && (
-                    <div className="bg-amber-50 rounded-xl p-4 border border-amber-100">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-black text-amber-600">오행 궁합</span>
+
+                  {/* 수비학 */}
+                  {activeCompatMethod === 'numerology' && numerologyResult && (
+                    <div className="bg-blue-50 rounded-xl p-4 border border-blue-100 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black text-blue-600">수비학 궁합</span>
+                        <span className="text-xl font-black text-blue-700">🔢 {numerologyResult.score}점</span>
+                      </div>
+                      <div className="flex gap-3">
+                        <div className="flex-1 bg-white rounded-xl p-3 text-center border border-blue-100">
+                          <p className="text-[10px] text-gray-400">내 운명수</p>
+                          <p className="text-2xl font-black text-purple-500 mt-0.5">{numerologyResult.num1}</p>
+                        </div>
+                        <div className="flex items-center text-gray-400 font-black">💕</div>
+                        <div className="flex-1 bg-white rounded-xl p-3 text-center border border-blue-100">
+                          <p className="text-[10px] text-gray-400">상대 운명수</p>
+                          <p className="text-2xl font-black text-pink-500 mt-0.5">{numerologyResult.num2}</p>
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-600 leading-relaxed">{numerologyResult.desc}</p>
+                      <p className="text-[10px] text-gray-400 bg-white rounded-lg px-3 py-2 leading-relaxed">💡 생년월일 숫자를 모두 더해 1자리로 줄인 '운명수'로 성격과 궁합을 봐요.</p>
+                    </div>
+                  )}
+
+                  {/* 오행 */}
+                  {activeCompatMethod === 'ohaeng' && ohaengCompatResult && (
+                    <div className="bg-amber-50 rounded-xl p-4 border border-amber-100 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black text-amber-600">오행 상성</span>
                         <span className="text-xl font-black text-amber-700">{ohaengCompatResult.emoji} {ohaengCompatResult.score}점</span>
                       </div>
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-2">
                         <span className="text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full font-bold">{currentUserProfile?.nickname ?? '나'}: {getOhaeng(myBirth!.y)}</span>
                         <span className="text-xs text-gray-400">×</span>
                         <span className="text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full font-bold">{otherProfile.nickname}: {getOhaeng(theirBirth!.y)}</span>
                       </div>
-                      <p className="text-sm font-bold text-gray-800 mb-1">{ohaengCompatResult.relation}</p>
+                      <p className="text-sm font-bold text-gray-800">{ohaengCompatResult.relation}</p>
                       <p className="text-xs text-gray-600 leading-relaxed">{ohaengCompatResult.summary}</p>
+                      <p className="text-[10px] text-gray-400 bg-white rounded-lg px-3 py-2 leading-relaxed">💡 목·화·토·금·수 5가지 기운의 관계. 상생은 최고, 상극도 자극이 돼요.</p>
                     </div>
                   )}
-                  {/* 총점 */}
-                  {compatResult && ohaengCompatResult && (
-                    <div className="text-center bg-gradient-to-r from-violet-50 to-purple-50 rounded-xl p-3 border border-purple-100">
-                      <p className="text-xs text-gray-500 mb-1">종합 궁합 점수</p>
-                      <p className="text-3xl font-black text-violet-700">{Math.round((compatResult.score + ohaengCompatResult.score) / 2)}점</p>
-                      <p className="text-xs text-violet-500 mt-1">{compatResult.grade}</p>
+
+                  {/* MBTI */}
+                  {activeCompatMethod === 'mbti' && mbtiResult && (
+                    <div className="bg-teal-50 rounded-xl p-4 border border-teal-100 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black text-teal-600">MBTI 궁합</span>
+                        <span className="text-xl font-black text-teal-700">🧠 {mbtiResult.score}점</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="px-2.5 py-1 bg-teal-200 text-teal-800 text-xs font-black rounded-lg">{currentUserProfile?.mbti}</span>
+                        <span className="text-gray-400">+</span>
+                        <span className="px-2.5 py-1 bg-pink-200 text-pink-800 text-xs font-black rounded-lg">{otherProfile.mbti}</span>
+                        <span className="text-[10px] text-gray-400 ml-1">{mbtiResult.overlap}/4 일치</span>
+                      </div>
+                      <p className="text-xs text-gray-600 leading-relaxed">{mbtiResult.note}</p>
+                      <p className="text-[10px] text-gray-400 bg-white rounded-lg px-3 py-2 leading-relaxed">💡 4가지 성격 축이 얼마나 겹치는지. 반드시 많이 겹쳐야 좋은 건 아니에요!</p>
                     </div>
                   )}
                 </>
               )}
             </div>
-            <div className="px-5 pb-5">
+            <div className="px-5 pb-5 flex-shrink-0">
               <button onClick={() => setShowCompatModal(false)}
                 className="w-full py-3 bg-violet-500 text-white font-semibold rounded-xl hover:bg-violet-600 transition-all">닫기</button>
             </div>
@@ -7649,9 +7767,15 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
             <img src={otherProfile.photo_url} alt={otherProfile.nickname} className="w-full h-full object-cover" />
           </div>
           <h2 className="font-semibold text-gray-900 flex-1 truncate text-sm">{otherProfile.nickname}</h2>
+          {/* 사주 보기 버튼 */}
+          <button
+            onClick={() => setShowSajuModal(true)}
+            className="flex items-center gap-1 px-2 py-1.5 bg-amber-50 text-amber-600 text-xs font-bold rounded-xl border border-amber-200 hover:bg-amber-100 transition-all active:scale-95 flex-shrink-0">
+            📅 사주
+          </button>
           {/* 궁합 보기 버튼 */}
           <button
-            onClick={() => setShowCompatModal(true)}
+            onClick={() => { setActiveCompatMethod('saju'); setShowCompatModal(true); }}
             className="flex items-center gap-1 px-2 py-1.5 bg-violet-50 text-violet-600 text-xs font-bold rounded-xl border border-violet-200 hover:bg-violet-100 transition-all active:scale-95 flex-shrink-0">
             🔮 궁합
           </button>
