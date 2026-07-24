@@ -66,6 +66,7 @@ function seedIfNeeded(): void {
         reset_signal: null,
         table_labels: null,
         game_state: null,
+        entry_password: null,
       },
     ]);
   }
