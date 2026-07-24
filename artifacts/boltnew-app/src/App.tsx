@@ -5049,32 +5049,6 @@ const TUTORIAL_SLIDES: TutorialSlide[] = [
   },
 ];
 
-// ─── 스크린샷 억제 워터마크 ────────────────────────────────────────────────────
-function ScreenWatermark({ nickname }: { nickname: string }) {
-  const text = `${nickname} `.repeat(6);
-  return (
-    <div className="fixed inset-0 pointer-events-none z-[9] overflow-hidden select-none" aria-hidden>
-      {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-        <div
-          key={i}
-          style={{
-            position: 'absolute',
-            top: `${i * 13 - 5}%`,
-            left: '-10%',
-            width: '120%',
-            transform: 'rotate(-22deg)',
-            fontSize: 13,
-            fontWeight: 700,
-            whiteSpace: 'nowrap',
-            opacity: 0.07,
-            color: '#000',
-            letterSpacing: '0.15em',
-          }}
-        >{text}</div>
-      ))}
-    </div>
-  );
-}
 
 function TutorialModal({ page, onChangePage, onClose, darkMode }: {
   page: number;
@@ -6565,10 +6539,6 @@ function MainScreen({
         )}
 
       </header>
-      {/* 스크린샷 억제 워터마크 — 참여자·배치도·채팅 탭에서만 표시 */}
-      {(['profiles', 'seating', 'chats'] as MainTab[]).includes(mainTab) && currentUserNickname && (
-        <ScreenWatermark nickname={currentUserNickname} />
-      )}
 
       <main className={`max-w-7xl mx-auto px-4 py-6 ${mainTab === 'seating' ? '' : 'scrollbar-styled-light'}`}>
         {mainTab === 'profiles' && (
