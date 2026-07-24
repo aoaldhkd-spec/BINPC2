@@ -4987,13 +4987,13 @@ function ProfileQrModal({ profileId, pinCode: pinCodeProp, onClose, onPinGenerat
     generate();
   }, [profileId, pinCodeProp]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 프로필 QR (관리자용)
+  // 프로필 QR (관리자용) — tab이 profile로 돌아올 때도 재렌더
   useEffect(() => {
-    if (!canvasRef.current) return;
+    if (tab !== 'profile' || !canvasRef.current) return;
     QRCode.toCanvas(canvasRef.current, `PROFID:${profileId}`, {
       width: 180, margin: 2, color: { dark: '#0f172a', light: '#ffffff' },
     });
-  }, [profileId]);
+  }, [profileId, tab]);
 
   // 연락처 QR (URL 기반)
   useEffect(() => {
@@ -7456,16 +7456,55 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
             <span className="text-[10px] text-gray-400 flex-1">탭하면 바로 전송</span>
             <span className="text-[10px] text-gray-300">{STICKER_COUNT}개</span>
           </div>
-          <div className="grid grid-cols-4 gap-1.5 p-2.5 max-h-64 overflow-y-auto">
-            {Array.from({ length: STICKER_COUNT }, (_, i) => (
-              <button key={i} type="button"
-                onClick={() => { onSend(`__sticker__${i}`); setShowStickers(false); }}
-                style={{ backgroundColor: STICKER_BG[i] }}
-                className="flex flex-col items-center justify-center gap-0.5 p-1.5 rounded-2xl active:scale-90 transition-transform hover:opacity-90">
-                <StickerSVG idx={i} size={76} />
-                <span className="text-[9px] font-bold text-gray-500 text-center leading-tight truncate w-full px-0.5">{STICKER_LABELS[i]}</span>
-              </button>
-            ))}
+          <div className="max-h-72 overflow-y-auto pb-2">
+            {/* Pack A — 술이 */}
+            <div className="px-3 pt-2 pb-1 flex items-center gap-1.5">
+              <span className="text-[10px] font-black text-violet-500">🐻‍❄️ 술이</span>
+              <div className="flex-1 h-px bg-violet-100"/>
+            </div>
+            <div className="grid grid-cols-4 gap-1.5 px-2.5">
+              {Array.from({ length: 8 }, (_, i) => (
+                <button key={i} type="button"
+                  onClick={() => { onSend(`__sticker__${i}`); setShowStickers(false); }}
+                  style={{ backgroundColor: STICKER_BG[i] }}
+                  className="flex flex-col items-center justify-center gap-0.5 p-1.5 rounded-2xl active:scale-90 transition-transform hover:opacity-90">
+                  <StickerSVG idx={i} size={72} />
+                  <span className="text-[9px] font-bold text-gray-500 text-center leading-tight truncate w-full px-0.5">{STICKER_LABELS[i]}</span>
+                </button>
+              ))}
+            </div>
+            {/* Pack B — MZ밈 */}
+            <div className="px-3 pt-3 pb-1 flex items-center gap-1.5">
+              <span className="text-[10px] font-black text-yellow-500">🔥 MZ밈</span>
+              <div className="flex-1 h-px bg-yellow-100"/>
+            </div>
+            <div className="grid grid-cols-4 gap-1.5 px-2.5">
+              {Array.from({ length: 8 }, (_, i) => (
+                <button key={8 + i} type="button"
+                  onClick={() => { onSend(`__sticker__${8 + i}`); setShowStickers(false); }}
+                  style={{ backgroundColor: STICKER_BG[8 + i] }}
+                  className="flex flex-col items-center justify-center gap-0.5 p-1.5 rounded-2xl active:scale-90 transition-transform hover:opacity-90">
+                  <StickerSVG idx={8 + i} size={72} />
+                  <span className="text-[9px] font-bold text-gray-500 text-center leading-tight truncate w-full px-0.5">{STICKER_LABELS[8 + i]}</span>
+                </button>
+              ))}
+            </div>
+            {/* Pack C — 젤리 */}
+            <div className="px-3 pt-3 pb-1 flex items-center gap-1.5">
+              <span className="text-[10px] font-black text-teal-500">🟢 젤리</span>
+              <div className="flex-1 h-px bg-teal-100"/>
+            </div>
+            <div className="grid grid-cols-4 gap-1.5 px-2.5">
+              {Array.from({ length: 8 }, (_, i) => (
+                <button key={16 + i} type="button"
+                  onClick={() => { onSend(`__sticker__${16 + i}`); setShowStickers(false); }}
+                  style={{ backgroundColor: STICKER_BG[16 + i] }}
+                  className="flex flex-col items-center justify-center gap-0.5 p-1.5 rounded-2xl active:scale-90 transition-transform hover:opacity-90">
+                  <StickerSVG idx={16 + i} size={72} />
+                  <span className="text-[9px] font-bold text-gray-500 text-center leading-tight truncate w-full px-0.5">{STICKER_LABELS[16 + i]}</span>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}
