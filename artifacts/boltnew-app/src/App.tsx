@@ -1145,18 +1145,21 @@ const isOxBalanceGame = (g: BalanceGame) => g.option_a === '⭕ O' && g.option_b
 // ─── 참여자 선택기 (사다리·돌림판 공용) ───────────────────────────────────────
 const MAX_GAME_PARTICIPANTS = 10;
 
-function ParticipantSelector({ seats, tableNumber, selected, onChange }: {
+function ParticipantSelector({ seats, tableNumber, selected, onChange, profileMap }: {
   seats: Seat[];
   tableNumber: number | null;
   selected: string[];
   onChange: (names: string[]) => void;
+  profileMap: Map<string, Profile>;
 }) {
   const [mode, setMode] = useState<'auto' | 'manual'>('auto');
   const [input, setInput] = useState('');
 
+  // seats에는 nickname 필드가 없으므로 profile_id → profileMap으로 닉네임 조회
   const autoList = seats
-    .filter(s => s.status === 'occupied' && s.nickname && (tableNumber === null || s.table_number === tableNumber))
-    .map(s => s.nickname as string);
+    .filter(s => s.status === 'occupied' && s.profile_id && (tableNumber === null || s.table_number === tableNumber))
+    .map(s => profileMap.get(s.profile_id!)?.nickname)
+    .filter((n): n is string => !!n);
 
   const toggle = (name: string) => {
     if (selected.includes(name)) onChange(selected.filter(n => n !== name));
@@ -1278,11 +1281,12 @@ function HowToPlayCard({ steps, color }: { steps: { icon: string; text: string }
   );
 }
 
-function RouletteGame({ seats, tableNumber, onBroadcast, myNickname }: {
+function RouletteGame({ seats, tableNumber, onBroadcast, myNickname, profileMap }: {
   seats: Seat[];
   tableNumber: number | null;
   onBroadcast?: (s: TableMiniGameSession) => void;
   myNickname?: string;
+  profileMap: Map<string, Profile>;
 }) {
   const [participants, setParticipants] = useState<string[]>([]);
   const [spinning, setSpinning] = useState(false);
@@ -1377,7 +1381,7 @@ function RouletteGame({ seats, tableNumber, onBroadcast, myNickname }: {
         ]}
       />
       <ParticipantSelector seats={seats} tableNumber={tableNumber} selected={participants}
-        onChange={p => { setParticipants(p); reset(); }} />
+        onChange={p => { setParticipants(p); reset(); }} profileMap={profileMap} />
 
       {n >= 2 ? (
         <div className="space-y-4">
@@ -1466,11 +1470,12 @@ function tracePath(n: number, bars: LadderBar[], rows: number, startCol: number)
 
 const LADDER_PRESET_PRIZES = ['술 쏘기 🍺', '건배사 📣', '노래 한 곡 🎤', '벌주 한 잔 🥃', '다음 자리 쏘기 💸', '면제 ✅', '게임 마스터 🎮', '자기소개 🙋'];
 
-function LadderGame({ seats, tableNumber, onBroadcast, myNickname }: {
+function LadderGame({ seats, tableNumber, onBroadcast, myNickname, profileMap }: {
   seats: Seat[];
   tableNumber: number | null;
   onBroadcast?: (s: TableMiniGameSession) => void;
   myNickname?: string;
+  profileMap: Map<string, Profile>;
 }) {
   const [participants, setParticipants] = useState<string[]>([]);
   const [prizes, setPrizes] = useState<string[]>([]);
@@ -1564,7 +1569,7 @@ function LadderGame({ seats, tableNumber, onBroadcast, myNickname }: {
         ]}
       />
       <ParticipantSelector seats={seats} tableNumber={tableNumber} selected={participants}
-        onChange={p => { setParticipants(p); reset(); }} />
+        onChange={p => { setParticipants(p); reset(); }} profileMap={profileMap} />
 
       {/* 결과 항목 */}
       {n >= 2 && (
@@ -1685,7 +1690,7 @@ type UserGameSubTab = 'balance' | 'ladder' | 'roulette';
 
 function UserGameTab({
   currentUserId, tableNumber, currentUserNickname, balanceGames, voteCounts, myVotes,
-  seats, onVote, onCreateGame, onEndGame, onBroadcastGame,
+  seats, onVote, onCreateGame, onEndGame, onBroadcastGame, profileMap,
 }: {
   currentUserId: string | null;
   tableNumber: number | null;
@@ -1694,6 +1699,7 @@ function UserGameTab({
   voteCounts: Map<string, { a: number; b: number }>;
   myVotes: Map<string, 'a' | 'b'>;
   seats: Seat[];
+  profileMap: Map<string, Profile>;
   onVote: (gameId: string, option: 'a' | 'b') => void;
   onCreateGame: (question: string, optA: string, optB: string, scope: 'global' | 'table') => void;
   onEndGame: (gameId: string) => void;
@@ -1810,13 +1816,13 @@ function UserGameTab({
       {/* 사다리타기 */}
       {subTab === 'ladder' && (
         <LadderGame seats={seats} tableNumber={tableNumber}
-          onBroadcast={onBroadcastGame} myNickname={currentUserNickname} />
+          onBroadcast={onBroadcastGame} myNickname={currentUserNickname} profileMap={profileMap} />
       )}
 
       {/* 돌림판 */}
       {subTab === 'roulette' && (
         <RouletteGame seats={seats} tableNumber={tableNumber}
-          onBroadcast={onBroadcastGame} myNickname={currentUserNickname} />
+          onBroadcast={onBroadcastGame} myNickname={currentUserNickname} profileMap={profileMap} />
       )}
     </div>
   );
@@ -3580,7 +3586,7 @@ function App() {
       if (isNewRegistration.current) {
         isNewRegistration.current = false;
         setMainTab('status');
-        setShowWelcomeNotice(true);
+        // WelcomeNoticeModal은 튜토리얼에 통합되어 별도 팝업 없음
       }
     });
     loadSeats();
@@ -4695,7 +4701,7 @@ function TutorialModal({ page, onChangePage, onClose, darkMode }: {
           ))}
         </div>
         {/* Body */}
-        <div className={`px-6 py-4 text-sm leading-loose whitespace-pre-line ${darkMode ? 'text-slate-300' : 'text-gray-600'}`}>
+        <div className={`px-6 py-4 text-sm leading-loose whitespace-pre-line overflow-y-auto min-h-[160px] max-h-[280px] ${darkMode ? 'text-slate-300' : 'text-gray-600'}`}>
           {slide.desc}
         </div>
         {/* Buttons */}
@@ -5953,14 +5959,14 @@ function MainScreen({
                   <button
                     onClick={(e) => { e.stopPropagation(); onLike(profile.id); }}
                     disabled={isLiked}
-                    className={`absolute bottom-1.5 right-1.5 w-8 h-8 rounded-full flex items-center justify-center shadow-md transition-all duration-200 active:scale-90 ${
+                    className={`absolute top-1.5 right-1.5 w-9 h-9 rounded-full flex items-center justify-center shadow-lg transition-all duration-200 active:scale-90 ${
                       isLiked
-                        ? `${sentHeartTypes.get(profile.id) ? heartMeta(sentHeartTypes.get(profile.id)!).solidBg : 'bg-rose-500'} text-white shadow-rose-200`
-                        : 'bg-white text-rose-400 hover:bg-rose-500 hover:text-white hover:shadow-rose-200'
+                        ? `${sentHeartTypes.get(profile.id) ? heartMeta(sentHeartTypes.get(profile.id)!).solidBg : 'bg-rose-500'} text-white shadow-rose-300`
+                        : 'bg-rose-500 text-white hover:bg-rose-600 shadow-rose-300'
                     }`}>
                     {isLiked && sentHeartTypes.get(profile.id)
-                      ? <span className="text-sm leading-none select-none">{heartMeta(sentHeartTypes.get(profile.id)!).emoji}</span>
-                      : <Heart className="w-4 h-4 fill-rose-100 stroke-rose-400 group-hover:fill-white group-hover:stroke-white" />
+                      ? <span className="text-base leading-none select-none">{heartMeta(sentHeartTypes.get(profile.id)!).emoji}</span>
+                      : <Heart className="w-4 h-4 fill-white stroke-white" />
                     }
                   </button>
                 )}
@@ -6433,6 +6439,7 @@ function MainScreen({
               voteCounts={voteCounts}
               myVotes={myVotes}
               seats={seats}
+              profileMap={profileMap}
               onVote={onVote}
               onCreateGame={onCreateGame}
               onEndGame={onEndGame}
