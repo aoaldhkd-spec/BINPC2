@@ -1,45 +1,30 @@
 ---
 name: boltnew-app architecture
-description: Korean queer social drinking app structure, key files, and component/hook rules
+description: Korean queer social app structure, shared backend, key files and constraints
 ---
 
-## App structure
-- `artifacts/boltnew-app/src/App.tsx` (~7855 lines) — main user app (App component)
-- `artifacts/boltnew-app/src/AdminApp.tsx` (~5135 lines) — admin panel (AdminDashboard component)
-- `artifacts/boltnew-app/src/TestDashboard.tsx` (641 lines) — do NOT modify without explicit instruction
-- `src/lib/localdb.ts` — Supabase mock (local state)
+## App overview
+Korean queer social drinking-meetup matching app in `artifacts/boltnew-app`.
+Routes: `App.tsx` (main user app, ~8500 lines), `AdminApp.tsx` (admin panel), `TestDashboard.tsx` (**read-only — never modify**).
 
-## App routing
-- App: NicknameSetupScreen → WaitingOverlay → MainScreen → ProfileDetail → ChatScreen
-- AdminApp: DashboardTab / SeatingTab / GameTabs / HistoryTab / ReportsTab
-- TestDashboard: separate route
+## Shared backend (as of 2026-07-24)
+`localdb.ts` was completely rewritten from localStorage → HTTP client calling the API server.
+- All data lives in **`artifacts/api-server/src/routes/db.ts`** (in-memory store on the server)
+- Frontend `fetch('/api/db/...')` → API server at `/api`
+- **Real-time**: SSE at `GET /api/db/events` — one global `EventSource` shared by all channels
+- **Storage**: images POSTed to `/api/db/storage-upload`, served via `GET /api/db/storage-image?p=...`
+- **Why**: localStorage is per-device; users scanning the same QR would each get isolated state. SSE broadcasts DB changes to all connected clients.
 
-## Rules of Hooks — critical
-`sentLikedProfiles` and `pendingHeartsCount` useMemo must be declared **before ALL early returns** in the App component.
-Current position: ~line 4331-4345 (before `seatQrWithoutSession` check, which is the first early return in App).
-The function has multiple early returns: seatQrWithoutSession → showWaiting → appLoading → view=loading-main → view=entry-1 → view=profile → view=chat → final return.
+**Why:** path-to-regexp v8 (used by Express 5 / router@2.2.0) does not support `/*` or `:path(*)` wildcards — use named params like `:key` or query strings instead.
 
-**Why:** React Rules of Hooks — hooks must not be called conditionally. Any useMemo/useState after an early return that sometimes triggers = runtime error "Rendered more hooks than during the previous render".
+## Key identifiers
+- `MATCHING_USER_KEY = 'matching_app_user_id'` — stored in browser localStorage (per-device), points to a profile ID in the shared server DB
+- `MainScreen` is a module-level component (not inside `App`), receives `newMsgCount` as prop from `App`
+- Admin password hardcoded: `116606`; admin phone: `010-3878-6740`
 
-## AdminApp state summary (as of July 2026)
-- `recovery` state: floating 30-sec banner with restore function
-- `restoreMap` state: `Map<string, () => Promise<void>>` — persistent per-key restore buttons in DashboardTab
-- `showRecovery(label, emoji, restore, mapKey?)` — also updates restoreMap when mapKey provided
-- All handleClear* and handleFull/EventEnd reset functions pass their mapKey to showRecovery
+## Seat schema
+12 tables × 8 seats = 96 total. Seeded in `db.ts` on first start.
 
-## DashboardTab
-- Props include `restoreMap: Map<string, () => Promise<void>>`
-- Items layout: init button (flex-1) + restore button (w-14) side by side per row
-- Restore button enabled only when restoreMap.has(key); keys: seats/likes/chats/notifications/games/suggestions/profiles/history/eventEnd
-
-## Game sections (AdminApp)
-- **OxGameSection**: single/batch mode toggle; OX_QUICK_GENERAL/HOT tabs; `oxPenalty` state + quick buttons; batch sends via `sendBatchOx`
-- **ChosungGameSection**: `chosungPenalty` state; `targetTable` state with table selector UI
-- **QaGameSection**: `qaPenalty` state; `qaTargetTable` state (null=전체, number=specific table); `startQa` uses scope `'qa_table'` when targetTable set; target table UI before start button
-- **BalanceGameSection**: single/batch mode; `BALANCE_QUICK` batch quick-select buttons at top of batch section (all-table bulk apply)
-
-## Quick content arrays (AdminApp top-level)
-- `OX_QUICK_GENERAL` (12개), `OX_QUICK_HOT` (8개) — OX game quick prompts
-- `BALANCE_QUICK` (25개 general + 13개 hot) — balance game quick options
-- `IMAGE_QUICK` { general: 9, hot: 10 } — image game quick options
-- `GAME_PENALTY_QUICK` (9개) — shared penalty quick buttons
+## Constraints
+- `TestDashboard.tsx` must never be modified
+- `express.json({ limit: '50mb' })` required for image uploads (base64)

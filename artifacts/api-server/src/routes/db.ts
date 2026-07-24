@@ -1,0 +1,486 @@
+import { Router, type Request, type Response } from 'express';
+
+const router = Router();
+
+// ─── In-memory store (shared across all connected clients) ────────────────────
+const store: Record<string, Record<string, unknown>[]> = {};
+
+// Image store: path → base64 data URL
+const imageStore: Record<string, string> = {};
+
+// SSE clients for real-time push
+const sseClients = new Set<Response>();
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function genId(): string {
+  return crypto.randomUUID();
+}
+
+function ts(): string {
+  return new Date().toISOString();
+}
+
+function koreanDateMMDD(): string {
+  const now = new Date();
+  const korea = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  const mm = String(korea.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(korea.getUTCDate()).padStart(2, '0');
+  return mm + dd;
+}
+
+function getTable(name: string): Record<string, unknown>[] {
+  if (!store[name]) store[name] = [];
+  return store[name];
+}
+
+// ─── SSE broadcast ─────────────────────────────────────────────────────────────
+function broadcast(event: Record<string, unknown>) {
+  const payload = `data: ${JSON.stringify(event)}\n\n`;
+  for (const client of sseClients) {
+    try { client.write(payload); } catch { sseClients.delete(client); }
+  }
+}
+
+// ─── Seed data ────────────────────────────────────────────────────────────────
+function seedIfNeeded() {
+  if (!getTable('app_settings').length) {
+    store['app_settings'] = [{
+      id: 1,
+      session_active: false,
+      admin_phone: '010-3878-6740',
+      admin_password: '116606',
+      updated_at: ts(),
+      timer_end_at: null,
+      timer_label: null,
+      seating_locked: false,
+      active_tables: null,
+      reset_signal: null,
+      table_labels: null,
+      game_state: null,
+      entry_password: koreanDateMMDD(),
+      reset_password: null,
+    }];
+  }
+  if (!getTable('seats').length) {
+    const rows: Record<string, unknown>[] = [];
+    for (let t = 1; t <= 12; t++) {
+      for (let p = 1; p <= 8; p++) {
+        rows.push({
+          id: genId(),
+          table_number: t,
+          seat_position: p,
+          seat_label: `${t}번 테이블 ${p}번`,
+          profile_id: null,
+          status: 'empty',
+          registered_at: null,
+          created_at: ts(),
+        });
+      }
+    }
+    store['seats'] = rows;
+  }
+}
+seedIfNeeded();
+
+// ─── Filter helpers ───────────────────────────────────────────────────────────
+type FilterSpec =
+  | { type: 'eq'; col: string; val: unknown }
+  | { type: 'neq'; col: string; val: unknown }
+  | { type: 'in'; col: string; vals: unknown[] }
+  | { type: 'or'; expr: string };
+
+function matchFilter(row: Record<string, unknown>, f: FilterSpec): boolean {
+  if (f.type === 'eq') {
+    return row[f.col] === f.val || String(row[f.col]) === String(f.val);
+  }
+  if (f.type === 'neq') {
+    return row[f.col] !== f.val && String(row[f.col]) !== String(f.val);
+  }
+  if (f.type === 'in') {
+    return f.vals.some(v => row[f.col] === v || String(row[f.col]) === String(v));
+  }
+  if (f.type === 'or') {
+    const parts = f.expr.split(',').map(s => s.trim());
+    return parts.some(part => {
+      const m = part.match(/^(\w+)\.(\w+)\.(.+)$/);
+      if (!m) return false;
+      const [, col, op, val] = m;
+      if (op === 'eq') return row[col] === val || String(row[col]) === val;
+      if (op === 'neq') return row[col] !== val && String(row[col]) !== val;
+      return true;
+    });
+  }
+  return true;
+}
+
+function applyFilters(
+  rows: Record<string, unknown>[],
+  filters: FilterSpec[],
+): Record<string, unknown>[] {
+  if (!filters.length) return rows;
+  return rows.filter(r => filters.every(f => matchFilter(r, f)));
+}
+
+function matchChannelFilter(filterExpr: string | undefined, row: Record<string, unknown> | null): boolean {
+  if (!filterExpr || !row) return true;
+  const m = filterExpr.match(/^(\w+)=eq\.(.+)$/);
+  if (m) return String(row[m[1]]) === m[2];
+  return true;
+}
+
+// ─── DB operation endpoint ────────────────────────────────────────────────────
+router.post('/op', (req: Request, res: Response) => {
+  const {
+    table,
+    op,
+    filters = [],
+    orders = [],
+    limit,
+    single,
+    maybeSingle,
+    payload,
+    conflictCols = [],
+    selectAfterWrite,
+  } = req.body as {
+    table: string; op: string;
+    filters: FilterSpec[]; orders: { col: string; asc: boolean }[];
+    limit?: number; single?: boolean; maybeSingle?: boolean;
+    payload?: unknown; conflictCols?: string[]; selectAfterWrite?: boolean;
+  };
+
+  if (!store[table]) store[table] = [];
+  const tableData = store[table];
+
+  try {
+    // ── SELECT ──────────────────────────────────────────────────────────────
+    if (op === 'select') {
+      let result = applyFilters(tableData, filters);
+      for (const { col, asc } of orders) {
+        result.sort((a, b) => {
+          const av = a[col]; const bv = b[col];
+          if (av === bv) return 0;
+          if (av == null) return asc ? -1 : 1;
+          if (bv == null) return asc ? 1 : -1;
+          const cmp = av < bv ? -1 : 1;
+          return asc ? cmp : -cmp;
+        });
+      }
+      if (limit != null) result = result.slice(0, limit);
+      if (single) {
+        if (!result.length) return res.json({ data: null, error: { message: 'Row not found', code: 'PGRST116' } });
+        return res.json({ data: result[0], error: null });
+      }
+      if (maybeSingle) return res.json({ data: result[0] ?? null, error: null });
+      return res.json({ data: result, error: null });
+    }
+
+    // ── INSERT ──────────────────────────────────────────────────────────────
+    if (op === 'insert') {
+      const inputs = Array.isArray(payload) ? payload as Record<string, unknown>[] : [payload as Record<string, unknown>];
+      const inserted: Record<string, unknown>[] = [];
+      for (const row of inputs) {
+        if (table === 'profiles' && tableData.some(r => r.nickname === row.nickname && row.nickname != null)) {
+          return res.json({ data: null, error: { message: 'duplicate key value violates unique constraint "profiles_nickname_key"', code: '23505' } });
+        }
+        const newRow: Record<string, unknown> = { id: genId(), created_at: ts(), ...row };
+        if (table === 'session_history' && !newRow.ended_at) newRow.ended_at = ts();
+        tableData.push(newRow);
+        inserted.push(newRow);
+        broadcast({ type: 'change', table, event: 'INSERT', newRow, oldRow: null });
+      }
+      if (selectAfterWrite) return res.json({ data: single ? inserted[0] ?? null : inserted, error: null });
+      return res.json({ data: null, error: null });
+    }
+
+    // ── UPDATE ──────────────────────────────────────────────────────────────
+    if (op === 'update') {
+      const patch = payload as Record<string, unknown>;
+      const updated: Record<string, unknown>[] = [];
+      for (let i = 0; i < tableData.length; i++) {
+        if (applyFilters([tableData[i]], filters).length) {
+          const oldRow = { ...tableData[i] };
+          const newRow = { ...oldRow, ...patch };
+          tableData[i] = newRow;
+          updated.push(newRow);
+          broadcast({ type: 'change', table, event: 'UPDATE', newRow, oldRow });
+        }
+      }
+      if (selectAfterWrite) return res.json({ data: single ? updated[0] ?? null : updated, error: null });
+      return res.json({ data: null, error: null });
+    }
+
+    // ── UPSERT ──────────────────────────────────────────────────────────────
+    if (op === 'upsert') {
+      const inputs = Array.isArray(payload) ? payload as Record<string, unknown>[] : [payload as Record<string, unknown>];
+      const upserted: Record<string, unknown>[] = [];
+      for (const row of inputs) {
+        let idx = -1;
+        if (conflictCols.length) {
+          idx = tableData.findIndex(r => conflictCols.every(c => String(r[c]) === String(row[c]) || r[c] === row[c]));
+        } else if (row.id != null) {
+          idx = tableData.findIndex(r => r.id === row.id);
+        }
+        if (idx >= 0) {
+          const oldRow = { ...tableData[idx] };
+          const newRow = { ...oldRow, ...row };
+          tableData[idx] = newRow;
+          upserted.push(newRow);
+          broadcast({ type: 'change', table, event: 'UPDATE', newRow, oldRow });
+        } else {
+          const base: Record<string, unknown> = { id: genId(), created_at: ts(), ...row };
+          if (table === 'profiles' && base.birth_month == null) {
+            base.birth_month = Math.ceil(Math.random() * 12);
+            base.birth_day = Math.ceil(Math.random() * 28);
+          }
+          tableData.push(base);
+          upserted.push(base);
+          broadcast({ type: 'change', table, event: 'INSERT', newRow: base, oldRow: null });
+        }
+      }
+      if (selectAfterWrite) return res.json({ data: upserted, error: null });
+      return res.json({ data: null, error: null });
+    }
+
+    // ── DELETE ──────────────────────────────────────────────────────────────
+    if (op === 'delete') {
+      const toDelete = applyFilters(tableData, filters);
+      store[table] = tableData.filter(r => !applyFilters([r], filters).length);
+      for (const row of toDelete) {
+        broadcast({ type: 'change', table, event: 'DELETE', newRow: null, oldRow: row });
+      }
+      return res.json({ data: null, error: null });
+    }
+
+    return res.json({ data: null, error: { message: 'Unknown operation' } });
+  } catch (e) {
+    console.error('[db/op]', e);
+    return res.json({ data: null, error: { message: String(e) } });
+  }
+});
+
+// ─── RPC endpoint ─────────────────────────────────────────────────────────────
+router.post('/rpc/:name', (req: Request, res: Response) => {
+  const { name } = req.params;
+  const args = (req.body ?? {}) as Record<string, unknown>;
+
+  const settings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
+  const adminPw = (settings.admin_password as string) ?? '';
+
+  function checkPassword() {
+    const provided = (args.p_admin_password as string) ?? '';
+    if (adminPw && provided !== adminPw) throw new Error('비밀번호가 일치하지 않습니다.');
+  }
+
+  try {
+    switch (name) {
+      case 'admin_create_session':
+        return res.json({ data: 'local-' + genId(), error: null });
+
+      case 'admin_invalidate_session':
+      case 'admin_auth_phone':
+        return res.json({ data: null, error: null });
+
+      case 'admin_reset_all_seats':
+      case 'admin_full_reset': {
+        checkPassword();
+        const seats = getTable('seats').map(s => ({ ...s, profile_id: null, status: 'empty', registered_at: null }));
+        store['seats'] = seats;
+        for (const s of seats) broadcast({ type: 'change', table: 'seats', event: 'UPDATE', newRow: s, oldRow: null });
+        return res.json({ data: null, error: null });
+      }
+
+      case 'admin_event_end_reset': {
+        checkPassword();
+        const seats = getTable('seats').map(s => ({ ...s, profile_id: null, status: 'empty', registered_at: null }));
+        store['seats'] = seats;
+        for (const s of seats) broadcast({ type: 'change', table: 'seats', event: 'UPDATE', newRow: s, oldRow: null });
+        for (const t of [
+          'profiles', 'likes', 'anonymous_reports', 'chats', 'messages',
+          'contact_shares', 'contact_share_events', 'balance_votes', 'balance_games',
+          'qa_answers', 'qa_games', 'image_votes', 'image_games', 'notifications', 'suggestions',
+        ]) {
+          const old = store[t] ?? [];
+          store[t] = [];
+          for (const row of old) broadcast({ type: 'change', table: t, event: 'DELETE', newRow: null, oldRow: row });
+        }
+        return res.json({ data: null, error: null });
+      }
+
+      case 'admin_clear_seat': {
+        checkPassword();
+        const seatId = args.p_seat_id as string;
+        const seats = getTable('seats');
+        const idx = seats.findIndex(s => s.id === seatId);
+        if (idx >= 0) {
+          const oldRow = { ...seats[idx] };
+          const newRow = { ...oldRow, profile_id: null, status: 'empty', registered_at: null };
+          seats[idx] = newRow;
+          broadcast({ type: 'change', table: 'seats', event: 'UPDATE', newRow, oldRow });
+        }
+        return res.json({ data: null, error: null });
+      }
+
+      case 'admin_force_seat': {
+        checkPassword();
+        const profileId = args.p_profile_id as string;
+        const seatId = args.p_seat_id as string;
+        const seats = getTable('seats');
+        const curIdx = seats.findIndex(s => s.profile_id === profileId);
+        if (curIdx >= 0 && seats[curIdx].id !== seatId) {
+          const oldRow = { ...seats[curIdx] };
+          const cleared = { ...oldRow, profile_id: null, status: 'empty', registered_at: null };
+          seats[curIdx] = cleared;
+          broadcast({ type: 'change', table: 'seats', event: 'UPDATE', newRow: cleared, oldRow });
+        }
+        const tgtIdx = seats.findIndex(s => s.id === seatId);
+        if (tgtIdx >= 0) {
+          const oldRow = { ...seats[tgtIdx] };
+          if (oldRow.profile_id && oldRow.profile_id !== profileId) {
+            const bumped = { ...oldRow, profile_id: null, status: 'empty', registered_at: null };
+            seats[tgtIdx] = bumped;
+            broadcast({ type: 'change', table: 'seats', event: 'UPDATE', newRow: bumped, oldRow });
+          }
+          const newRow = { ...seats[tgtIdx], profile_id: profileId, status: 'occupied', registered_at: ts() };
+          seats[tgtIdx] = newRow;
+          broadcast({ type: 'change', table: 'seats', event: 'UPDATE', newRow, oldRow });
+        }
+        return res.json({ data: null, error: null });
+      }
+
+      case 'admin_clear_profile_seat': {
+        checkPassword();
+        const profileId = args.p_profile_id as string;
+        const seats = getTable('seats');
+        const idx = seats.findIndex(s => s.profile_id === profileId);
+        if (idx >= 0) {
+          const oldRow = { ...seats[idx] };
+          const newRow = { ...oldRow, profile_id: null, status: 'empty', registered_at: null };
+          seats[idx] = newRow;
+          broadcast({ type: 'change', table: 'seats', event: 'UPDATE', newRow, oldRow });
+        }
+        return res.json({ data: null, error: null });
+      }
+
+      case 'admin_swap_seats': {
+        checkPassword();
+        const aId = args.p_seat_a_id as string;
+        const bId = args.p_seat_b_id as string;
+        const seats = getTable('seats');
+        const aIdx = seats.findIndex(s => s.id === aId);
+        const bIdx = seats.findIndex(s => s.id === bId);
+        if (aIdx < 0 || bIdx < 0) return res.json({ data: null, error: { message: '좌석을 찾을 수 없습니다.' } });
+        const aOld = { ...seats[aIdx] }; const bOld = { ...seats[bIdx] };
+        const aNew = { ...aOld, profile_id: bOld.profile_id, status: bOld.status, registered_at: bOld.registered_at };
+        const bNew = { ...bOld, profile_id: aOld.profile_id, status: aOld.status, registered_at: aOld.registered_at };
+        seats[aIdx] = aNew; seats[bIdx] = bNew;
+        broadcast({ type: 'change', table: 'seats', event: 'UPDATE', newRow: aNew, oldRow: aOld });
+        broadcast({ type: 'change', table: 'seats', event: 'UPDATE', newRow: bNew, oldRow: bOld });
+        return res.json({ data: null, error: null });
+      }
+
+      case 'admin_update_profile': {
+        const profileId = args.p_profile_id as string;
+        const profiles = getTable('profiles');
+        const idx = profiles.findIndex(p => p.id === profileId);
+        if (idx >= 0) {
+          const oldRow = { ...profiles[idx] };
+          const patch: Record<string, unknown> = {};
+          const map: Record<string, string> = {
+            p_nickname: 'nickname', p_mbti: 'mbti', p_bio: 'bio',
+            p_birth_year: 'birth_year', p_birth_month: 'birth_month', p_birth_day: 'birth_day',
+            p_location: 'location', p_personality_score: 'personality_score',
+            p_dom_sub_score: 'dom_sub_score', p_interests: 'interests',
+            p_kakao_id: 'kakao_id', p_instagram_id: 'instagram_id',
+            p_phone_number: 'phone_number', p_contact_private: 'contact_private',
+          };
+          for (const [ak, dk] of Object.entries(map)) {
+            if (args[ak] !== undefined) patch[dk] = args[ak];
+          }
+          const newRow = { ...oldRow, ...patch };
+          profiles[idx] = newRow;
+          broadcast({ type: 'change', table: 'profiles', event: 'UPDATE', newRow, oldRow });
+        }
+        return res.json({ data: null, error: null });
+      }
+
+      case 'admin_delete_profile': {
+        checkPassword();
+        const profileId = args.p_profile_id as string;
+        const seats = getTable('seats');
+        const seatIdx = seats.findIndex(s => s.profile_id === profileId);
+        if (seatIdx >= 0) {
+          const oldRow = { ...seats[seatIdx] };
+          const newRow = { ...oldRow, profile_id: null, status: 'empty', registered_at: null };
+          seats[seatIdx] = newRow;
+          broadcast({ type: 'change', table: 'seats', event: 'UPDATE', newRow, oldRow });
+        }
+        const profiles = getTable('profiles');
+        const oldProfile = profiles.find(p => p.id === profileId);
+        store['profiles'] = profiles.filter(p => p.id !== profileId);
+        if (oldProfile) broadcast({ type: 'change', table: 'profiles', event: 'DELETE', newRow: null, oldRow: oldProfile });
+        return res.json({ data: null, error: null });
+      }
+
+      default:
+        console.warn('[db/rpc] Unknown RPC:', name);
+        return res.json({ data: null, error: null });
+    }
+  } catch (e) {
+    return res.json({ data: null, error: { message: String(e) } });
+  }
+});
+
+// ─── Broadcast endpoint (for channel.send()) ──────────────────────────────────
+router.post('/broadcast', (req: Request, res: Response) => {
+  const { channel, event, payload } = req.body as { channel: string; event: string; payload: unknown };
+  broadcast({ type: 'broadcast', channel, event, payload });
+  res.json({ ok: true });
+});
+
+// ─── Image storage ────────────────────────────────────────────────────────────
+// Image storage — path sent as JSON body / query string to avoid wildcard routing issues
+router.post('/storage-upload', (req: Request, res: Response) => {
+  const { path, dataUrl } = req.body as { path: string; dataUrl: string };
+  imageStore[path] = dataUrl;
+  res.json({ data: { path }, error: null });
+});
+
+router.get('/storage-image', (req: Request, res: Response) => {
+  const path = req.query.p as string;
+  const dataUrl = path ? imageStore[path] : undefined;
+  if (!dataUrl) return res.status(404).json({ error: 'Not found' });
+  const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+  if (match) {
+    const [, mime, b64] = match;
+    res.setHeader('Content-Type', mime);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    return res.send(Buffer.from(b64, 'base64'));
+  }
+  res.send(dataUrl);
+});
+
+// ─── SSE endpoint ─────────────────────────────────────────────────────────────
+router.get('/events', (req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+
+  // Initial ping so the client knows it's connected
+  res.write('data: {"type":"ping"}\n\n');
+
+  sseClients.add(res);
+
+  // Keep-alive every 20s
+  const keepalive = setInterval(() => {
+    try { res.write('data: {"type":"ping"}\n\n'); } catch { clearInterval(keepalive); }
+  }, 20000);
+
+  req.on('close', () => {
+    clearInterval(keepalive);
+    sseClients.delete(res);
+  });
+});
+
+export default router;
