@@ -4249,10 +4249,16 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               {settings?.session_active ? '진행 중' : '대기 중'}
             </span>
           </div>
-          <button onClick={onLogout} className="flex items-center gap-1.5 text-sm text-slate-300 hover:text-white transition-colors">
-            <LogOut className="w-4 h-4" />
-            로그아웃
-          </button>
+          <div className="flex items-center gap-3">
+            <a href="/test" target="_blank" rel="noreferrer"
+              className="flex items-center gap-1.5 text-sm text-violet-300 hover:text-violet-100 transition-colors px-2.5 py-1 rounded-lg bg-violet-700/40 hover:bg-violet-700/60 border border-violet-600/40">
+              🧪 테스터
+            </a>
+            <button onClick={onLogout} className="flex items-center gap-1.5 text-sm text-slate-300 hover:text-white transition-colors">
+              <LogOut className="w-4 h-4" />
+              로그아웃
+            </button>
+          </div>
         </div>
         <div className="max-w-4xl mx-auto px-2 grid grid-cols-6 pb-0">
           {TABS.map((t) => (

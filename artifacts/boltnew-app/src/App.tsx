@@ -1525,7 +1525,7 @@ function tracePath(n: number, bars: LadderBar[], rows: number, startCol: number)
   return col;
 }
 
-const LADDER_PRESET_PRIZES = ['술 앞잔(원삿X) 🍺', '면제 ✅', '꽝 💀', '통과 ✓'];
+const LADDER_PRESET_PRIZES = ['술 앞잔(원삿X) 🍺', '면제 ✅', '꽝 💀', '통과 ✓', '질문 받기 ❓'];
 
 function LadderGame({ seats, tableNumber, onBroadcast, myNickname, profileMap }: {
   seats: Seat[];
@@ -3218,6 +3218,7 @@ function App() {
   const [acknowledgedComplimentIds, setAcknowledgedComplimentIds] = useState<Set<string>>(new Set());
   const [receivedContactShares, setReceivedContactShares] = useState<ContactShare[]>([]);
   const [newMsgCount, setNewMsgCount] = useState(0);
+  const [unreadChatCounts, setUnreadChatCounts] = useState<Record<string, number>>({});
   const [likeConfirmTarget, setLikeConfirmTarget] = useState<Profile | null>(null);
   const [contactShareTarget, setContactShareTarget] = useState<Profile | null>(null);
   const [shareEventNotif, setShareEventNotif] = useState<{ type: 'accepted' | 'rejected'; fromUserId: string } | null>(null);
@@ -3828,6 +3829,8 @@ function App() {
           if (!isMyChat) return prev;
           return prev.map(c => c.id === m.chat_id ? { ...c, lastMessage: m.content } : c);
         });
+        // per-chat unread count 증가
+        setUnreadChatCounts(prev => ({ ...prev, [m.chat_id]: (prev[m.chat_id] ?? 0) + 1 }));
         // profilesRef로 발신자 닉네임 조회
         const senderProfile = profilesRef.current.find(p => p.id === m.sender_id);
         setNewMsgCount(n => n + 1);
@@ -4119,6 +4122,8 @@ function App() {
       .from('chats').select('*').eq('user1_id', user1Id).eq('user2_id', user2Id).maybeSingle();
     if (existingChat) {
       setChatId(existingChat.id);
+      // 해당 채팅방 unread 초기화
+      setUnreadChatCounts(prev => { const n = { ...prev }; delete n[existingChat.id]; return n; });
     } else {
       const { data: newChat } = await supabase
         .from('chats').insert({ user1_id: user1Id, user2_id: user2Id }).select().single();
@@ -4515,6 +4520,8 @@ function App() {
         onShowTutorial={() => { setTutorialPage(0); setShowTutorialModal(true); }}
         newMsgCount={newMsgCount}
         onClearMsgCount={() => setNewMsgCount(0)}
+        unreadChatCounts={unreadChatCounts}
+        onClearChatUnread={(chatId) => setUnreadChatCounts(prev => { const n = { ...prev }; delete n[chatId]; return n; })}
         resetPassword={resetPassword}
         onBroadcastGame={broadcastTableGame}
       />
@@ -5702,7 +5709,7 @@ function MainScreen({
   onContactShareOpen, onContactViewOpen, onHeartResponse, onDeleteChat, onDeleteAllChats, onSubmitSuggestion, onOpenChat,
   onVote, onCreateGame, onEndGame, onSubmitAnonymousReport,
   timerEndAt, timerLabel, onRefreshStatus, onRefreshChat, onRefreshProfiles, onRefreshSeating, darkMode, onToggleDark, onShowQr, seatingLocked, activeTables, tableLabels, onShowTutorial,
-  newMsgCount, onClearMsgCount, resetPassword, onBroadcastGame,
+  newMsgCount, onClearMsgCount, unreadChatCounts, onClearChatUnread, resetPassword, onBroadcastGame,
 }: {
   profiles: Profile[]; currentUserId: string | null; likedIds: Set<string>; sentHeartTypes: Map<string, HeartType>; likeStatuses: Map<string, string>;
   seats: Seat[]; profileMap: Map<string, Profile>; mainTab: MainTab;
@@ -5739,6 +5746,8 @@ function MainScreen({
   onShowTutorial: () => void;
   newMsgCount: number;
   onClearMsgCount: () => void;
+  unreadChatCounts: Record<string, number>;
+  onClearChatUnread: (chatId: string) => void;
   resetPassword: string | null;
   onBroadcastGame: (s: TableMiniGameSession) => void;
   onDeleteAllChats: () => void;
@@ -5836,7 +5845,7 @@ function MainScreen({
 
   const handleTabChange = (t: MainTab) => {
     if (t === 'status') { setSeenHeartsCount(pendingHeartsCount); setSeenContactsCount(receivedContactShares.length); setSeenProfilesCount(profiles.length); }
-    if (t === 'chats') onClearMsgCount();
+    if (t === 'chats') { onClearMsgCount(); }
     if (t === 'game') setSeenGameCount(activeGameCount);
     onTabChange(t);
   };
@@ -5872,7 +5881,7 @@ function MainScreen({
     <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'bg-slate-950' : 'bg-gray-50'}`}>
       <header className={`sticky top-0 z-10 transition-colors duration-300 ${darkMode ? 'bg-slate-900 border-b-2 border-slate-700 shadow-slate-950/50' : 'bg-white shadow-sm'}`}>
         <div className="max-w-7xl mx-auto px-4 py-3 grid grid-cols-3 items-center">
-          {/* 좌: 튜토리얼 + 테스터 버튼 */}
+          {/* 좌: 튜토리얼 버튼 */}
           <div className="justify-self-start flex items-center gap-1">
             <button
               onClick={() => onShowTutorial()}
@@ -5880,14 +5889,6 @@ function MainScreen({
             >
               <BookOpen className="w-5 h-5" />
               <span className="text-[9px] font-semibold">튜토리얼</span>
-            </button>
-            <button
-              onClick={() => { window.location.href = '/test'; }}
-              className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-all active:scale-95 ${darkMode ? 'text-slate-400 hover:text-amber-400 hover:bg-slate-800' : 'text-gray-400 hover:text-amber-600 hover:bg-amber-50'}`}
-              title="테스트 대시보드"
-            >
-              <span className="text-base leading-none">🧪</span>
-              <span className="text-[9px] font-semibold">테스터</span>
             </button>
           </div>
           {/* 중앙: 타이틀 */}
@@ -6526,8 +6527,10 @@ function MainScreen({
                 const otherId = chat.user1_id === currentUserId ? chat.user2_id : chat.user1_id;
                 const otherProfile = profileMap.get(otherId);
                 return (
-                  <div key={chat.id} className={`rounded-2xl shadow-sm p-4 flex items-center gap-3 transition-colors duration-300 ${darkMode ? 'bg-slate-800 border border-slate-600' : 'bg-white'}`}>
-                    <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0">
+                  <div key={chat.id}
+                    onClick={() => otherProfile && onOpenChat(otherProfile)}
+                    className={`rounded-2xl shadow-sm p-4 flex items-center gap-3 cursor-pointer transition-colors duration-300 active:scale-[0.98] ${darkMode ? 'bg-slate-800 border border-slate-600 hover:bg-slate-700' : 'bg-white hover:bg-gray-50'}`}>
+                    <div className="relative w-12 h-12 rounded-full overflow-hidden flex-shrink-0">
                       {otherProfile ? (
                         <img src={otherProfile.photo_url} alt={otherProfile.nickname} className="w-full h-full object-cover" />
                       ) : (
@@ -6536,18 +6539,24 @@ function MainScreen({
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{otherProfile?.nickname ?? '알 수 없음'}</p>
-                      <p className={`text-xs truncate ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{chat.lastMessage || '메시지 없음'}</p>
+                      <p className={`text-xs truncate ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
+                        {(() => {
+                          const lm = chat.lastMessage || '';
+                          if (lm.startsWith('__contact__')) return '📱 연락처 공유';
+                          if (lm.startsWith('__reply__')) return '↩️ ' + lm.replace(/^__reply__[^\n]*\n?/, '').slice(0, 30);
+                          return lm || '메시지 없음';
+                        })()}
+                      </p>
                     </div>
-                    <div className="flex gap-2">
-                      {otherProfile && (
-                        <button
-                          onClick={() => onOpenChat(otherProfile)}
-                          className="px-3 py-1.5 bg-cyan-50 hover:bg-cyan-100 text-cyan-600 text-xs font-bold rounded-xl border border-cyan-200 transition-all"
-                        >채팅</button>
+                    <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                      {unreadChatCounts[chat.id] > 0 && (
+                        <span className="min-w-[22px] h-[22px] px-1.5 bg-rose-500 text-white text-[11px] font-black rounded-full flex items-center justify-center shadow-sm">
+                          {unreadChatCounts[chat.id] > 99 ? '99+' : unreadChatCounts[chat.id]}
+                        </span>
                       )}
                       <button
                         onClick={() => onDeleteChat(chat)}
-                        className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-500 text-xs font-bold rounded-xl border border-red-200 transition-all"
+                        className="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-500 text-xs font-bold rounded-xl border border-red-200 transition-all"
                       >삭제</button>
                     </div>
                   </div>
@@ -7155,20 +7164,13 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
             return (
               <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                 <div
-                  className={`flex items-end gap-1.5 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}
+                  className={`flex items-end gap-1 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}
                   onTouchStart={(e) => handleLongPressStart(e, msg)}
                   onTouchEnd={handleLongPressEnd}
                   onTouchMove={handleLongPressEnd}
                   onContextMenu={(e) => handleMsgContextMenu(e, msg)}
                   onClick={() => handleTap(msg)}>
-                  {/* 시간 + 안읽음 "1" 뱃지 */}
-                  <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} mb-0.5 shrink-0`}>
-                    {isMe && myUnreadIds.has(msg.id) && (
-                      <span className="text-[11px] font-black text-yellow-500 leading-none mb-0.5">1</span>
-                    )}
-                    <span className="text-[10px] text-gray-400 whitespace-nowrap">{time}</span>
-                  </div>
-                  {/* 말풍선 */}
+                  {/* 말풍선 — DOM 첫 번째: flex-row-reverse에서 가장 오른쪽(내 메시지), flex-row에서 가장 왼쪽(상대방) */}
                   <div className={`max-w-[72%] rounded-2xl overflow-hidden ${isMe ? 'bg-cyan-500 text-white rounded-br-md' : 'bg-white text-gray-900 rounded-bl-md shadow-sm'}`}>
                     {isCard ? (
                       <div className="px-4 py-3">
@@ -7188,7 +7190,6 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
                       </div>
                     ) : isReply && replyData ? (
                       <div className="pt-2 pb-0 px-0">
-                        {/* 인용 블록 */}
                         <div className={`mx-2 mb-1 rounded-xl px-3 py-1.5 text-[11px] leading-snug border-l-[3px] ${isMe ? 'bg-white/15 border-white/50 text-white/80' : 'bg-gray-100 border-cyan-400 text-gray-500'}`}>
                           {replyData.quote}
                         </div>
@@ -7202,6 +7203,13 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
                     ) : (
                       <p className="px-4 py-2 text-sm leading-relaxed">{msg.content}</p>
                     )}
+                  </div>
+                  {/* 시간 + 안읽음 "1" — DOM 두 번째: 카톡처럼 말풍선 바깥쪽(내 메시지=왼쪽, 상대=오른쪽) */}
+                  <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} self-end mb-0.5 shrink-0`}>
+                    {isMe && myUnreadIds.has(msg.id) && (
+                      <span className="text-[11px] font-black text-yellow-400 leading-none mb-0.5">1</span>
+                    )}
+                    <span className="text-[10px] text-gray-400 whitespace-nowrap">{time}</span>
                   </div>
                 </div>
                 {/* 이모지 반응 뱃지 */}
