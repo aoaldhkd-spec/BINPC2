@@ -1540,14 +1540,37 @@ function ChatsTab({ chats, messages, profileMap, onDeleteChat, onClearAll, onRef
 
 // ─── Game Tab ─────────────────────────────────────────────────────────────────
 
-const BALANCE_QUICK: { label: string; a: string; b: string }[] = [
-  { label: '치킨파 vs 피자파', a: '치킨파', b: '피자파' },
+const BALANCE_QUICK: { label: string; a: string; b: string; hot?: boolean }[] = [
+  // 일상
+  { label: '치킨 vs 피자', a: '치킨파', b: '피자파' },
   { label: '아침형 vs 야행성', a: '아침형', b: '야행성' },
   { label: '여름 vs 겨울', a: '여름', b: '겨울' },
   { label: '내향인 vs 외향인', a: '내향인', b: '외향인' },
-  { label: '술 vs 안술', a: '술', b: '안술' },
+  { label: '노래방 vs 클럽', a: '노래방', b: '클럽' },
+  { label: '솔로 vs 만남 중', a: '솔로', b: '만남 중' },
+  { label: '술 vs 안술', a: '술 마심', b: '안 마심' },
+  { label: '맥주 vs 소주', a: '맥주파', b: '소주파' },
+  { label: '집순이 vs 외출파', a: '집순이', b: '외출파' },
+  { label: '카카오톡 vs 인스타 DM', a: '카카오톡', b: '인스타 DM' },
+  // 연애
+  { label: '밀당 vs 직진', a: '밀당파', b: '직진파' },
+  { label: '썸 vs 바로 고백', a: '썸 탐', b: '바로 고백' },
   { label: '연상 vs 연하', a: '연상', b: '연하' },
+  { label: '불 같은 연애 vs 잔잔한 연애', a: '불 같은 연애', b: '잔잔한 연애' },
+  { label: '나이차 5살+ vs 비슷한 나이', a: '나이차 5살+', b: '비슷한 나이' },
+  { label: '애교 vs 쿨함', a: '애교 있음', b: '쿨함' },
+  { label: '잘생김 vs 잘 맞음', a: '잘생김 우선', b: '잘 맞음 우선' },
+  { label: '진지한 관계 vs 가벼운 만남', a: '진지한 관계', b: '가벼운 만남' },
+  // 19금 🔞
+  { label: '돔 vs 섭 🔞', a: '돔', b: '섭', hot: true },
+  { label: '집 vs 모텔 🔞', a: '집', b: '모텔', hot: true },
+  { label: '같이 살기 vs 각자 집 🔞', a: '같이 살기 선호', b: '각자 집 선호', hot: true },
+  { label: '첫날 vs 100일 후 🔞', a: '첫날밤', b: '100일 후', hot: true },
+  { label: '리드 vs 리드받기 🔞', a: '내가 리드', b: '리드 받기', hot: true },
 ];
+
+// ── 게임 공통 벌칙 빠른 선택 ───────────────────────────────────────────────
+const GAME_PENALTY_QUICK = ['원샷', '벌주 한 잔', '폭탄주', '건배사 하기', '노래 한 소절', '볼 뽀뽀', '춤 한 번', '진실 말하기', '앞잔'];
 
 
 // ─── Admin Balance Game Tab ───────────────────────────────────────────────────
@@ -1738,6 +1761,7 @@ function AdminBalanceGameTab({ balanceGames, voteCounts, myVotes, onVote }: {
 function BalanceGameCreate({ currentGame, onGameUpdate, seats, settings }: { currentGame: GameState | null; onGameUpdate: (g: GameState | null) => void; seats: Seat[]; settings: AppSettings | null }) {
   const [optA, setOptA] = useState('');
   const [optB, setOptB] = useState('');
+  const [balancePenalty, setBalancePenalty] = useState('');
   const [targetTable, setTargetTable] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [batchMode, setBatchMode] = useState(false);
@@ -1764,7 +1788,7 @@ function BalanceGameCreate({ currentGame, onGameUpdate, seats, settings }: { cur
     }).select().single();
     const gameState: GameState = {
       active: true, type: 'balance', title: `${optA.trim()} vs ${optB.trim()}`,
-      description: '두 가지 중 하나를 선택하세요!', rules: '', penalty: '',
+      description: '두 가지 중 하나를 선택하세요!', rules: '', penalty: balancePenalty.trim(),
       option_a: optA.trim(), option_b: optB.trim(),
       game_id: (gameRow as { id: string } | null)?.id,
       started_at: new Date().toISOString(), table_number: targetTable ?? undefined,
@@ -1865,7 +1889,7 @@ function BalanceGameCreate({ currentGame, onGameUpdate, seats, settings }: { cur
             <div className="flex flex-wrap gap-2">
               {BALANCE_QUICK.map(q => (
                 <button key={q.label} onClick={() => applyQuick(q)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-bold border-2 transition-all ${optA === q.a && optB === q.b ? 'bg-violet-500 border-violet-500 text-white' : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-violet-400 hover:text-violet-600'}`}>
+                  className={`px-3 py-1.5 rounded-full text-xs font-bold border-2 transition-all ${optA === q.a && optB === q.b ? 'bg-violet-500 border-violet-500 text-white' : q.hot ? 'bg-rose-50 border-rose-200 text-rose-600 hover:border-rose-400' : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-violet-400 hover:text-violet-600'}`}>
                   {q.label}
                 </button>
               ))}
@@ -1883,6 +1907,22 @@ function BalanceGameCreate({ currentGame, onGameUpdate, seats, settings }: { cur
               <label className="text-xs font-bold text-rose-500 block mb-1.5">선택지 B *</label>
               <input type="text" value={optB} onChange={e => setOptB(e.target.value)} placeholder="예: 피자"
                 className="w-full bg-white border-2 border-rose-200 text-gray-900 text-sm rounded-xl px-4 py-3 focus:outline-none focus:border-rose-400 placeholder-gray-400" />
+            </div>
+          </div>
+
+          {/* 벌칙 */}
+          <div>
+            <label className="text-xs font-bold text-red-500 uppercase tracking-wider block mb-1.5">벌칙 (선택)</label>
+            <input type="text" value={balancePenalty} onChange={e => setBalancePenalty(e.target.value)}
+              placeholder="예: 원샷, 건배사 하기"
+              className="w-full bg-gray-50 border border-red-200 text-gray-900 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-red-300 mb-2" />
+            <div className="flex flex-wrap gap-1.5">
+              {GAME_PENALTY_QUICK.map(v => (
+                <button key={v} type="button" onClick={() => setBalancePenalty(v)}
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-bold border-2 transition-all ${balancePenalty === v ? 'bg-red-500 border-red-500 text-white' : 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100'}`}>
+                  {v}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -1960,6 +2000,7 @@ function BalanceGameCreate({ currentGame, onGameUpdate, seats, settings }: { cur
 function QaGameSection({ seats }: { seats: Seat[] }) {
   const [qaQuestion, setQaQuestion] = useState('');
   const [qaCorrectAnswer, setQaCorrectAnswer] = useState('');
+  const [qaPenalty, setQaPenalty] = useState('');
   const [qaSaving, setQaSaving] = useState(false);
   const [activeQaGame, setActiveQaGame] = useState<QaGame | null>(null);
   const [qaAnswers, setQaAnswers] = useState<QaAnswer[]>([]);
@@ -2014,8 +2055,9 @@ function QaGameSection({ seats }: { seats: Seat[] }) {
   const startQa = async () => {
     if (!qaQuestion.trim()) return;
     setQaSaving(true);
+    const fullQuestion = qaQuestion.trim() + (qaPenalty.trim() ? `\n🎯 벌칙: ${qaPenalty.trim()}` : '');
     const { data } = await adminSupabase.from('qa_games').insert({
-      question: qaQuestion.trim(), correct_answer: qaCorrectAnswer.trim() || null, status: 'active', scope: 'qa_global',
+      question: fullQuestion, correct_answer: qaCorrectAnswer.trim() || null, status: 'active', scope: 'qa_global',
     }).select().single();
     if (data) {
       activeQaGameRef.current = data as QaGame;
@@ -2024,6 +2066,7 @@ function QaGameSection({ seats }: { seats: Seat[] }) {
     setQaAnswers([]);
     setQaQuestion('');
     setQaCorrectAnswer('');
+    setQaPenalty('');
     setQaSaving(false);
   };
 
@@ -2701,15 +2744,28 @@ function ImageGameSection({ seats, settings, profiles }: { seats: Seat[]; settin
     setSaving(false);
   };
 
-  const IMAGE_QUICK = [
-    '가장 오늘 분위기 메이커',
-    '가장 다시 만나고 싶은 사람',
-    '가장 술을 잘 마실 것 같은 사람',
-    '가장 연애를 잘 할 것 같은 사람',
-    '오늘 가장 웃긴 사람',
-    '오늘 가장 매력적인 사람',
-    '가장 다음 회식에 오고 싶은 사람',
-  ];
+  const IMAGE_QUICK = {
+    general: [
+      '오늘 가장 분위기 메이커',
+      '가장 다시 만나고 싶은 사람',
+      '가장 술을 잘 마실 것 같은 사람',
+      '오늘 가장 웃긴 사람',
+      '오늘 가장 기억에 남는 사람',
+      '가장 인생 조언 해줄 것 같은 사람',
+      '가장 다음 회식에 오고 싶은 사람',
+      '처음 만났을 때 가장 인상적이었던 사람',
+      '오늘 가장 친해지고 싶은 사람',
+    ],
+    hot: [
+      '오늘 가장 매력적인 사람 🔞',
+      '오늘 가장 섹시한 사람 🔞',
+      '가장 연애를 잘 할 것 같은 사람 🔞',
+      '번호 받고 싶은 사람 🔞',
+      '오늘 만약 고른다면 같이 있고 싶은 사람 🔞',
+      '오늘 가장 핫한 사람 🔞',
+    ],
+  };
+  const [imageQuickCategory, setImageQuickCategory] = useState<'general' | 'hot'>('general');
 
   const batchFilledCount = tableNumbers.filter(n => (batchQuestions.get(n) ?? '').trim() && (batchPenalties.get(n) ?? '').trim()).length;
 
@@ -2800,11 +2856,19 @@ function ImageGameSection({ seats, settings, profiles }: { seats: Seat[]; settin
       {!batchMode ? (
         <>
           <div>
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">빠른 주제</p>
+            <div className="flex items-center gap-2 mb-2">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">빠른 주제</p>
+              <div className="flex bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
+                <button onClick={() => setImageQuickCategory('general')}
+                  className={`px-2.5 py-1 text-[11px] font-bold transition-colors ${imageQuickCategory === 'general' ? 'bg-amber-400 text-white' : 'text-gray-500 hover:text-gray-700'}`}>일반</button>
+                <button onClick={() => setImageQuickCategory('hot')}
+                  className={`px-2.5 py-1 text-[11px] font-bold transition-colors ${imageQuickCategory === 'hot' ? 'bg-rose-500 text-white' : 'text-gray-500 hover:text-gray-700'}`}>🔞 19금</button>
+              </div>
+            </div>
             <div className="flex flex-wrap gap-1.5">
-              {IMAGE_QUICK.map(q => (
-                <button key={q} onClick={() => setQuestion(q)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-bold border-2 transition-all ${question === q ? 'bg-amber-400 border-amber-400 text-white' : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-amber-300 hover:text-amber-700'}`}>
+              {IMAGE_QUICK[imageQuickCategory].map(q => (
+                <button key={q} onClick={() => setQuestion(q.replace(' 🔞', ''))}
+                  className={`px-3 py-1.5 rounded-full text-xs font-bold border-2 transition-all ${question === q.replace(' 🔞', '') ? (imageQuickCategory === 'hot' ? 'bg-rose-500 border-rose-500 text-white' : 'bg-amber-400 border-amber-400 text-white') : imageQuickCategory === 'hot' ? 'bg-rose-50 border-rose-200 text-rose-600 hover:border-rose-400' : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-amber-300 hover:text-amber-700'}`}>
                   {q}
                 </button>
               ))}
@@ -2822,7 +2886,15 @@ function ImageGameSection({ seats, settings, profiles }: { seats: Seat[]; settin
             <label className="text-xs font-bold text-red-600 uppercase tracking-wider block mb-1.5">벌칙 *</label>
             <input type="text" value={penalty} onChange={e => setPenalty(e.target.value)}
               placeholder="예: 원샷, 건배사 하기"
-              className="w-full bg-gray-50 border border-red-200 text-gray-900 text-sm rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-red-400" />
+              className="w-full bg-gray-50 border border-red-200 text-gray-900 text-sm rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-red-400 mb-2" />
+            <div className="flex flex-wrap gap-1.5">
+              {GAME_PENALTY_QUICK.map(v => (
+                <button key={v} type="button" onClick={() => setPenalty(v)}
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-bold border-2 transition-all ${penalty === v ? 'bg-red-500 border-red-500 text-white' : 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100'}`}>
+                  {v}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div>
