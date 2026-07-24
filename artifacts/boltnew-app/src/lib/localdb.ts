@@ -49,6 +49,15 @@ function ts(): string {
 const DEFAULT_ADMIN_PHONE = '010-3878-6740';
 const DEFAULT_ADMIN_PASSWORD = '116606';
 
+/** 한국 시간(UTC+9) 기준 오늘 날짜 MMDD 4자리 반환 */
+function koreanDateMMDD(): string {
+  const now = new Date();
+  const korea = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  const mm = String(korea.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(korea.getUTCDate()).padStart(2, '0');
+  return mm + dd;
+}
+
 function seedIfNeeded(): void {
   // app_settings singleton
   if (!readTable('app_settings').length) {
@@ -66,7 +75,7 @@ function seedIfNeeded(): void {
         reset_signal: null,
         table_labels: null,
         game_state: null,
-        entry_password: null,
+        entry_password: koreanDateMMDD(),
       },
     ]);
   }
@@ -103,6 +112,17 @@ seedIfNeeded();
       r.id === 1
         ? { ...r, admin_phone: DEFAULT_ADMIN_PHONE, admin_password: DEFAULT_ADMIN_PASSWORD }
         : r,
+    );
+    writeTable('app_settings', updated);
+  }
+})();
+
+// 기존 설치본에 entry_password 컬럼이 없으면 오늘 날짜(MMDD)로 초기화
+(function migrateEntryPassword() {
+  const rows = readTable('app_settings');
+  if (rows.length > 0 && rows[0].entry_password === undefined) {
+    const updated = rows.map((r) =>
+      r.id === 1 ? { ...r, entry_password: koreanDateMMDD() } : r,
     );
     writeTable('app_settings', updated);
   }
