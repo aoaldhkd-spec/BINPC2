@@ -804,6 +804,8 @@ async function executeRpc(
           if (args.p_mbti !== undefined) patch.mbti = args.p_mbti;
           if (args.p_bio !== undefined) patch.bio = args.p_bio;
           if (args.p_birth_year !== undefined) patch.birth_year = args.p_birth_year;
+          if (args.p_birth_month !== undefined) patch.birth_month = args.p_birth_month;
+          if (args.p_birth_day !== undefined) patch.birth_day = args.p_birth_day;
           if (args.p_location !== undefined) patch.location = args.p_location;
           if (args.p_personality_score !== undefined) patch.personality_score = args.p_personality_score;
           if (args.p_dom_sub_score !== undefined) patch.dom_sub_score = args.p_dom_sub_score;

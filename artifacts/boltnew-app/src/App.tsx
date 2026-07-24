@@ -3,7 +3,7 @@ import {
   Heart, MessageCircle, Send, ArrowLeft, Users, ChevronRight, ChevronDown,
   LayoutGrid, Clock, Smile, ImageIcon, Phone, CheckCircle, Copy,
   Eye, UserCheck, Gamepad2, X, MapPin, RefreshCw, Info, BookOpen,
-  BarChart3, Trophy, Lock, XCircle, Wifi, WifiOff, QrCode, AlertTriangle, ShieldAlert, Maximize2,
+  BarChart3, Trophy, Lock, XCircle, Wifi, WifiOff, QrCode, AlertTriangle, ShieldAlert, Maximize2, Sparkles,
 } from 'lucide-react';
 import { supabase } from './lib/supabase';
 import type { Database } from './types/database';
@@ -13,6 +13,8 @@ import ProfileAvatar from './components/ProfileAvatar';
 import QRCode from 'qrcode';
 import { StickerSVG, STICKER_LABELS, STICKER_BG, STICKER_COUNT } from './stickers';
 import { getPositionLabel, getPositionBg, getDomSubLabel, getDomSubBg, genAvatar, getKoreanAge } from './lib/profile';
+import { getZodiac, getOhaeng } from './lib/fortune';
+import FortuneTab from './components/FortuneTab';
 import { HEART_TYPES, HeartType } from './lib/constants';
 
 // ── Korean 초성 search utility ─────────────────────────────────────────────
@@ -153,7 +155,7 @@ const DOM_SUB_OPTIONS: { label: string; val: number }[] = [
 ];
 
 type View = 'entry-1' | 'loading-main' | 'main' | 'profile' | 'chat';
-type MainTab = 'profiles' | 'seating' | 'status' | 'chats' | 'suggestions' | 'game' | 'tutorial' | 'stats' | 'ranking';
+type MainTab = 'profiles' | 'seating' | 'status' | 'chats' | 'suggestions' | 'game' | 'tutorial' | 'stats' | 'ranking' | 'fortune';
 
 // ─── Table Mini-Game Session (broadcast payload) ──────────────────────────────
 type TableMiniGameSession = {
@@ -2334,6 +2336,11 @@ function ProfileInfoBadges({ profile }: { profile: Profile }) {
           {age}
         </span>
       )}
+      {profile.birth_year && profile.birth_month && profile.birth_day && (
+        <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-purple-50 text-purple-600 border border-purple-100" title="띠">
+          {getZodiac(profile.birth_year).emoji}{getZodiac(profile.birth_year).name}
+        </span>
+      )}
       {profile.location && (
         <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-100">
           {profile.location}
@@ -4035,6 +4042,8 @@ function App() {
 
   const handleNicknameSetup = async (data: {
     birthYear: number;
+    birthMonth: number;
+    birthDay: number;
     location: string;
     mbti: string;
     interests: string[];
@@ -4063,6 +4072,8 @@ function App() {
         dom_sub_score: data.domSubScore,
         mbti: data.mbti,
         birth_year: data.birthYear,
+        birth_month: data.birthMonth,
+        birth_day: data.birthDay,
         location: data.location,
         interests: Array.isArray(data.interests) ? (data.interests as string[]).join(', ') : data.interests as string | null,
         contact_private: data.contactPrivate,
@@ -5162,7 +5173,8 @@ function ProfileQrModal({ profileId, pinCode: pinCodeProp, onClose, onPinGenerat
 
 function NicknameSetupScreen({ onSubmit, loading, onReset }: {
   onSubmit: (data: {
-    birthYear: number; location: string; mbti: string; interests: string[];
+    birthYear: number; birthMonth: number; birthDay: number;
+    location: string; mbti: string; interests: string[];
     personalityScore: number; domSubScore: number | null; nickname: string;
     kakaoId: string; instagramId: string; phoneNumber: string; contactPrivate: boolean;
   }) => void;
@@ -5176,6 +5188,8 @@ function NicknameSetupScreen({ onSubmit, loading, onReset }: {
   const [contactPrivate, setContactPrivate] = useState(false);
   const [mbti, setMbti] = useState<string | null>(null);
   const [birthYear, setBirthYear] = useState<string>(String(DECADE_GROUPS['90년대생'][0]));
+  const [birthMonth, setBirthMonth] = useState<number>(1);
+  const [birthDay, setBirthDay] = useState<number>(1);
   const [location, setLocation] = useState<string>(LOCATION_GROUPS['광역시'][0]);
   const [selectedBio, setSelectedBio] = useState<string[]>([]);
   const [positionScore, setPositionScore] = useState<number | null>(null);
@@ -5205,8 +5219,8 @@ function NicknameSetupScreen({ onSubmit, loading, onReset }: {
 
   const atMaxBio = selectedBio.length >= 5;
 
-  // Step 1 valid: mbti + birthYear + location
-  const step1Valid = !!mbti && !!birthYear && !!location;
+  // Step 1 valid: mbti + birthYear + birthMonth + birthDay + location
+  const step1Valid = !!mbti && !!birthYear && !!birthMonth && !!birthDay && !!location;
   // Step 2 valid: interests >= 2 + position
   const step2Valid = selectedBio.length >= 2 && positionScore !== null;
   const canGenerate = !!mbti && !!birthYear && !!location && selectedBio.length >= 2 && positionScore !== null;
@@ -5269,6 +5283,8 @@ function NicknameSetupScreen({ onSubmit, loading, onReset }: {
     if (!finalNick) return;
     onSubmit({
       birthYear: parseInt(birthYear, 10),
+      birthMonth,
+      birthDay,
       location: location.trim(),
       mbti,
       interests: selectedBio,
@@ -5392,6 +5408,43 @@ function NicknameSetupScreen({ onSubmit, loading, onReset }: {
                         itemHeight={36}
                         visibleCount={3}
                       />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 생년월일 월·일 */}
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <label className="text-sm font-semibold text-gray-800">생월·생일</label>
+                    <span className="text-xs font-semibold text-red-500 bg-red-50 px-2 py-0.5 rounded-full">필수</span>
+                    <span className="text-[11px] text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full font-semibold">🔮 운세·궁합 기능 필요</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <p className="text-xs text-gray-500 font-semibold mb-1">월</p>
+                      <div className="border-2 border-gray-200 rounded-xl overflow-hidden bg-white">
+                        <DrumRoller
+                          items={Array.from({length: 12}, (_, i) => i + 1)}
+                          selected={birthMonth}
+                          onSelect={(v) => setBirthMonth(v)}
+                          renderItem={(v) => `${v}월`}
+                          itemHeight={36}
+                          visibleCount={3}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 font-semibold mb-1">일</p>
+                      <div className="border-2 border-gray-200 rounded-xl overflow-hidden bg-white">
+                        <DrumRoller
+                          items={Array.from({length: 31}, (_, i) => i + 1)}
+                          selected={birthDay}
+                          onSelect={(v) => setBirthDay(v)}
+                          renderItem={(v) => `${v}일`}
+                          itemHeight={36}
+                          visibleCount={3}
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -6074,6 +6127,7 @@ function MainScreen({
             { id: 'chats' as MainTab, label: '채팅·건의', icon: <MessageCircle className="w-5 h-5" />, badge: newMsgCount },
             { id: 'game' as MainTab, label: '게임', icon: <Gamepad2 className="w-5 h-5" />, badge: Math.max(0, activeGameCount - seenGameCount) },
             { id: 'stats' as MainTab, label: '통계·랭킹', icon: <BarChart3 className="w-5 h-5" /> },
+            { id: 'fortune' as MainTab, label: '🔮 운세', icon: <Sparkles className="w-5 h-5" /> },
           ]).map((t) => (
             <button key={t.id} onClick={() => handleTabChange(t.id)}
               className={`relative flex-1 min-w-[56px] flex flex-col items-center gap-1 px-2 py-2.5 text-[10px] font-semibold border-b-2 transition-all active:scale-95 ${
@@ -6391,6 +6445,33 @@ function MainScreen({
                 </div>
               );
             })()}
+            {/* ── 오늘의 운세 미니카드 ── */}
+            {(() => {
+              const me = profiles.find(p => p.id === currentUserId);
+              const hasBd = !!(me?.birth_year && me?.birth_month && me?.birth_day);
+              return (
+                <button
+                  onClick={() => onTabChange('fortune')}
+                  className={`w-full rounded-2xl p-4 border text-left transition-all active:scale-98 ${darkMode ? 'bg-gradient-to-r from-purple-900/40 to-slate-800 border-purple-500/30 hover:border-purple-500/60' : 'bg-gradient-to-r from-purple-50 to-white border-purple-200 hover:border-purple-300'}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">{hasBd ? getZodiac(me!.birth_year!).emoji : '🔮'}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-xs font-black uppercase tracking-widest ${darkMode ? 'text-purple-300' : 'text-purple-600'}`}>오늘의 운세</p>
+                      {hasBd ? (
+                        <p className={`text-sm font-semibold truncate ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                          {getZodiac(me!.birth_year!).name}띠 · {getOhaeng(me!.birth_year!)} · 타로·사주·궁합 보기 →
+                        </p>
+                      ) : (
+                        <p className="text-amber-500 text-xs font-semibold">생년월일 미등록 — 운세 기능을 사용할 수 없어요 ⚠️</p>
+                      )}
+                    </div>
+                    <span className={`text-lg ${darkMode ? 'text-purple-400' : 'text-purple-500'}`}>›</span>
+                  </div>
+                </button>
+              );
+            })()}
+
             {seatingLocked ? (
               <div className="flex flex-col items-center justify-center py-16 gap-3">
                 <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${darkMode ? 'bg-slate-700' : 'bg-gray-100'}`}>
@@ -6906,6 +6987,19 @@ function MainScreen({
           )
         )}
 
+        {/* ─── 운세 탭 ─── */}
+        {mainTab === 'fortune' && (
+          <div className="min-h-[60vh]">
+            <FortuneTab
+              currentUserId={currentUserId}
+              myProfile={profiles.find(p => p.id === currentUserId) ?? null}
+              profiles={profiles}
+              likedIds={likedIds}
+              darkMode={darkMode}
+            />
+          </div>
+        )}
+
       </main>
     </div>
   );
@@ -7048,6 +7142,15 @@ function ProfileDetail({ profile, isMe, isLiked, heartType, onLike, onChat, onBa
           <MessageCircle className="w-5 h-5" />
           채팅하기
         </button>
+        )}
+        {/* 궁합 버튼 */}
+        {!isMe && profile.birth_year && profile.birth_month && profile.birth_day && (
+          <button onClick={onBack}
+            className="w-full py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold rounded-2xl transition-all flex items-center justify-center gap-2 shadow-sm text-sm"
+            title="운세 탭에서 궁합을 확인하세요"
+          >
+            <span>💕</span> 이 사람과 궁합 보기
+          </button>
         )}
       </main>
     </div>

@@ -19,6 +19,8 @@ export interface Database {
           dom_sub_score: number | null;
           mbti: string | null;
           birth_year: number | null;
+          birth_month: number | null;
+          birth_day: number | null;
           location: string | null;
           interests: string | null;
           contact_private: boolean;
@@ -37,6 +39,8 @@ export interface Database {
           dom_sub_score?: number | null;
           mbti?: string | null;
           birth_year?: number | null;
+          birth_month?: number | null;
+          birth_day?: number | null;
           location?: string | null;
           interests?: string | null;
           contact_private?: boolean;
@@ -55,6 +59,8 @@ export interface Database {
           dom_sub_score?: number | null;
           mbti?: string | null;
           birth_year?: number | null;
+          birth_month?: number | null;
+          birth_day?: number | null;
           location?: string | null;
           interests?: string | null;
           contact_private?: boolean;
