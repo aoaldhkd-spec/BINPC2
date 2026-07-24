@@ -839,6 +839,24 @@ function WelcomeNoticeModal({ onClose }: { onClose: () => void }) {
               </ol>
             </div>
 
+            {/* 오늘 즐길 수 있는 것들 */}
+            <div className="bg-gradient-to-r from-cyan-50 to-teal-50 border border-cyan-100 rounded-2xl p-4 space-y-2.5">
+              <p className="text-[11px] font-black text-cyan-600 uppercase tracking-widest mb-1">오늘 할 수 있는 것들 🎉</p>
+              {[
+                { icon: '❤️', text: '마음에 드는 분께 하트 보내기 (종류별 8개)' },
+                { icon: '💬', text: '매칭 성사 시 1:1 채팅 + 연락처 교환' },
+                { icon: '🪜', text: '사다리타기 · 돌림판 미니게임 (테이블별)' },
+                { icon: '🎲', text: '밸런스·OX·이미지 게임 (운영진 진행)' },
+                { icon: '🔮', text: '프로필에서 사주 · 궁합 확인' },
+                { icon: '🍺', text: '음료 요청 · 건의함 이용' },
+              ].map(({ icon, text }) => (
+                <div key={text} className="flex items-start gap-2.5">
+                  <span className="text-base flex-shrink-0 leading-none mt-0.5">{icon}</span>
+                  <span className="text-[13px] text-gray-700 leading-snug">{text}</span>
+                </div>
+              ))}
+            </div>
+
             {/* 구분선 */}
             <div className="border-t border-gray-100" />
 
@@ -1529,11 +1547,7 @@ function tracePath(n: number, bars: LadderBar[], rows: number, startCol: number)
 }
 
 const LADDER_PRESET_PRIZES = [
-  // ── 상 (좋은 것) ──
-  '왕 👑', '지명권 1회 👉', '벌칙 양도권 🎁', '새 술 받기 🍶',
-  // ── 벌칙 ──
-  '꽝 💀', '술 앞잔(원샷X) 🍺', '원샷 🥃', '건배사 하기 🍻',
-  '노래 한 소절 🎤', '춤 한 번 💃', '질문 받기 ❓', '19금 질문받기 🔞',
+  '왕 👑', '꽝 💀', '술 앞잔(원샷X) 🍺', '질문 받기 ❓', '19금 질문받기 🔞',
 ];
 
 function LadderGame({ seats, tableNumber, onBroadcast, myNickname, profileMap }: {
@@ -4843,9 +4857,15 @@ const TUTORIAL_SLIDES = [
   },
   {
     emoji: '🎮',
-    title: '게임',
-    desc: '게임 탭에서 밸런스 게임, QA 게임, 이미지 투표 등 다양한 미니 게임을 즐길 수 있어요.\n\n운영진이 게임을 시작하면 알림이 와요!\n\n사다리타기·돌림판은 테이블 인원이 자동으로 참여할 수 있어요.',
+    title: '미니게임',
+    desc: '게임 탭에서 다양한 미니게임을 즐길 수 있어요!\n\n🪜 사다리타기\n테이블 인원이 자동으로 참여하고, 결과가 동시에 공개돼요!\n\n🎡 돌림판\n항목을 직접 편집하고 돌려서 벌칙·상을 정해요.\n\n🎲 밸런스 게임\n운영진이 출제한 문제에 투표해요!\n\n🖼️ 이미지 게임\n오늘 가장 __한 사람은? 테이블 내 투표로 결정!',
     color: 'from-violet-500 to-purple-500',
+  },
+  {
+    emoji: '👮',
+    title: '운영진 게임',
+    desc: '운영진이 직접 진행하는 게임들이에요. 참여자 화면에 알림으로 전달돼요!\n\n🎲 밸런스 게임\nA vs B 둘 중 하나를 선택하는 투표 게임\n\n⭕❌ OX 게임\n맞으면 ⭕ 틀리면 ❌ — 최후의 1인까지!\n\n🖼️ 이미지 투표\n오늘 가장 ___한 사람을 테이블 내 투표로 결정\n\n🎰 당첨자 추첨\n참여자 중 무작위 당첨자를 뽑아요!',
+    color: 'from-indigo-500 to-violet-500',
   },
   {
     emoji: '🍺',

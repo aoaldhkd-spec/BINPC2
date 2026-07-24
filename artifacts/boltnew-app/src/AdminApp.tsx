@@ -1596,7 +1596,7 @@ const BALANCE_QUICK: { label: string; a: string; b: string; hot?: boolean }[] = 
 ];
 
 // ── 게임 공통 벌칙 빠른 선택 ───────────────────────────────────────────────
-const GAME_PENALTY_QUICK = ['꽝 💀', '술 앞잔(원샷X) 🍺', '원샷 🥃', '건배사 하기 🍻', '노래 한 소절 🎤', '춤 한 번 💃', '질문 받기 ❓', '19금 질문받기 🔞'];
+const GAME_PENALTY_QUICK = ['꽝 💀', '술 앞잔(원샷X) 🍺', '질문 받기 ❓', '19금 질문받기 🔞'];
 
 
 // ─── Admin Balance Game Tab ───────────────────────────────────────────────────
@@ -2923,6 +2923,9 @@ function ImageGameSection({ seats, settings, profiles }: { seats: Seat[]; settin
   const [batchSaving, setBatchSaving] = useState(false);
   const [batchSentTables, setBatchSentTables] = useState<Set<number>>(new Set());
   const [endingGameId, setEndingGameId] = useState<string | null>(null);
+  const [batchImagePickerTable, setBatchImagePickerTable] = useState<number | null>(null);
+  const [batchPenaltyPickerTable, setBatchPenaltyPickerTable] = useState<number | null>(null);
+  const [batchImageQuickCat, setBatchImageQuickCat] = useState<'general' | 'hot'>('general');
 
   const allTableNumbers = [...new Set(seats.map(s => s.table_number))].sort((a, b) => a - b);
   const activeTables = settings?.active_tables ?? null;
@@ -3266,6 +3269,32 @@ function ImageGameSection({ seats, settings, profiles }: { seats: Seat[]; settin
       ) : (
         <>
           <p className="text-xs text-gray-500">활성 테이블별로 다른 이미지 게임을 동시에 시작합니다. 주제와 벌칙을 모두 입력하세요.</p>
+
+          {/* 빠른 주제 — 전 테이블 일괄 적용 */}
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <p className="text-xs font-black text-amber-700">빠른 주제</p>
+              <span className="text-[10px] text-amber-500">클릭 시 전 테이블 동일 적용</span>
+              <div className="ml-auto flex bg-white rounded-lg overflow-hidden border border-amber-200">
+                <button onClick={() => setBatchImageQuickCat('general')}
+                  className={`px-2.5 py-1 text-[11px] font-bold transition-colors ${batchImageQuickCat === 'general' ? 'bg-amber-400 text-white' : 'text-gray-500'}`}>일반</button>
+                <button onClick={() => setBatchImageQuickCat('hot')}
+                  className={`px-2.5 py-1 text-[11px] font-bold transition-colors ${batchImageQuickCat === 'hot' ? 'bg-rose-500 text-white' : 'text-gray-500'}`}>🔞 19금</button>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {IMAGE_QUICK[batchImageQuickCat].map(q => (
+                <button key={q}
+                  onClick={() => { const m = new Map<number, string>(); tableNumbers.forEach(n => m.set(n, q)); setBatchQuestions(m); }}
+                  className={`px-2.5 py-1.5 rounded-full text-xs font-bold border-2 transition-all ${
+                    batchImageQuickCat === 'hot' ? 'bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-100' : 'bg-white border-amber-200 text-amber-700 hover:border-amber-400'
+                  }`}>
+                  {q}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {tableNumbers.length === 0 && <p className="text-sm text-gray-400 text-center py-4">활성 테이블이 없습니다.</p>}
           <div className="space-y-2">
             {tableNumbers.map(n => {
@@ -3273,8 +3302,11 @@ function ImageGameSection({ seats, settings, profiles }: { seats: Seat[]; settin
               const p = batchPenalties.get(n) ?? '';
               const filled = q.trim() && p.trim();
               const sent = batchSentTables.has(n);
+              const imgPickerOpen = batchImagePickerTable === n;
+              const penPickerOpen = batchPenaltyPickerTable === n;
               return (
                 <div key={n} className={`rounded-xl border-2 p-3 space-y-2 transition-all ${filled ? 'border-amber-400 bg-amber-50' : 'border-gray-200 bg-gray-50'}`}>
+                  {/* 테이블 헤더 + 전송 버튼 */}
                   <div className="flex items-center justify-between">
                     <span className={`text-xs font-black ${filled ? 'text-amber-700' : 'text-gray-500'}`}>{TABLE_LABELS[n] ?? n}번 테이블</span>
                     <button
@@ -3285,18 +3317,74 @@ function ImageGameSection({ seats, settings, profiles }: { seats: Seat[]; settin
                       {sent ? '완료!' : '전송'}
                     </button>
                   </div>
-                  <input
-                    type="text" value={q}
-                    onChange={e => setBatchQuestions(prev => { const m = new Map(prev); m.set(n, e.target.value); return m; })}
-                    placeholder="게임 주제"
-                    className="w-full bg-white border border-amber-200 text-gray-900 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-amber-400 placeholder-gray-400"
-                  />
-                  <input
-                    type="text" value={p}
-                    onChange={e => setBatchPenalties(prev => { const m = new Map(prev); m.set(n, e.target.value); return m; })}
-                    placeholder="벌칙 (필수)"
-                    className="w-full bg-white border border-red-200 text-gray-900 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-red-400 placeholder-gray-400"
-                  />
+
+                  {/* 주제 입력 + 고르기 */}
+                  <div className="flex gap-1.5">
+                    <input
+                      type="text" value={q}
+                      onChange={e => setBatchQuestions(prev => { const m = new Map(prev); m.set(n, e.target.value); return m; })}
+                      placeholder="게임 주제"
+                      className="flex-1 bg-white border border-amber-200 text-gray-900 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-amber-400 placeholder-gray-400"
+                    />
+                    <button
+                      onClick={() => { setBatchImagePickerTable(imgPickerOpen ? null : n); setBatchPenaltyPickerTable(null); }}
+                      className={`flex-shrink-0 px-2 py-1.5 rounded-lg text-xs font-bold border transition-all ${imgPickerOpen ? 'bg-amber-200 text-amber-700 border-amber-300' : 'bg-white text-amber-500 border-amber-200 hover:bg-amber-50'}`}>
+                      {imgPickerOpen ? '닫기' : '고르기'}
+                    </button>
+                  </div>
+
+                  {/* 주제 빠른 선택 패널 */}
+                  {imgPickerOpen && (
+                    <div className="pt-2 border-t border-amber-200 space-y-1.5">
+                      <div className="flex gap-1">
+                        <button onClick={() => setBatchImageQuickCat('general')}
+                          className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-colors ${batchImageQuickCat === 'general' ? 'bg-amber-400 text-white' : 'bg-gray-100 text-gray-500'}`}>일반</button>
+                        <button onClick={() => setBatchImageQuickCat('hot')}
+                          className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-colors ${batchImageQuickCat === 'hot' ? 'bg-rose-500 text-white' : 'bg-gray-100 text-gray-500'}`}>🔞 19금</button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1">
+                        {IMAGE_QUICK[batchImageQuickCat].map(preset => (
+                          <button key={preset}
+                            onClick={() => { setBatchQuestions(prev => { const m = new Map(prev); m.set(n, preset); return m; }); setBatchImagePickerTable(null); }}
+                            className={`text-xs font-semibold px-2 py-2 rounded-xl border text-left leading-snug active:scale-95 transition-all ${
+                              batchImageQuickCat === 'hot' ? 'bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100' : 'bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100'
+                            }`}>
+                            {preset}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 벌칙 입력 + 고르기 */}
+                  <div className="flex gap-1.5">
+                    <input
+                      type="text" value={p}
+                      onChange={e => setBatchPenalties(prev => { const m = new Map(prev); m.set(n, e.target.value); return m; })}
+                      placeholder="벌칙 (필수)"
+                      className="flex-1 bg-white border border-red-200 text-gray-900 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-red-400 placeholder-gray-400"
+                    />
+                    <button
+                      onClick={() => { setBatchPenaltyPickerTable(penPickerOpen ? null : n); setBatchImagePickerTable(null); }}
+                      className={`flex-shrink-0 px-2 py-1.5 rounded-lg text-xs font-bold border transition-all ${penPickerOpen ? 'bg-red-200 text-red-700 border-red-300' : 'bg-white text-red-500 border-red-200 hover:bg-red-50'}`}>
+                      {penPickerOpen ? '닫기' : '고르기'}
+                    </button>
+                  </div>
+
+                  {/* 벌칙 빠른 선택 패널 */}
+                  {penPickerOpen && (
+                    <div className="pt-2 border-t border-red-200">
+                      <div className="flex flex-wrap gap-1.5">
+                        {GAME_PENALTY_QUICK.map(v => (
+                          <button key={v}
+                            onClick={() => { setBatchPenalties(prev => { const m = new Map(prev); m.set(n, v); return m; }); setBatchPenaltyPickerTable(null); }}
+                            className="px-2.5 py-1 rounded-full text-[11px] font-bold border-2 bg-red-50 border-red-200 text-red-600 hover:bg-red-100 active:scale-95 transition-all">
+                            {v}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
