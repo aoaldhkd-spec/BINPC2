@@ -1530,7 +1530,7 @@ function tracePath(n: number, bars: LadderBar[], rows: number, startCol: number)
 
 const LADDER_PRESET_PRIZES = [
   '왕 👑', '술 앞잔(원삿X) 🍺', '면제 ✅', '꽝 💀', '통과 ✓', '질문 받기 ❓',
-  '1빠 면제 🏆', 'VIP ⭐', '벌칙 선택권 🎯', '사진찍기 📸',
+  '19금 질문받기 🔞', '1빠 면제 🏆', 'VIP ⭐', '벌칙 선택권 🎯', '사진찍기 📸',
   '칭찬 받기 💕', '음악 신청권 🎵',
 ];
 
@@ -2280,7 +2280,13 @@ function WaitingOverlay({ sessionActive, onEnter }: {
         {/* 테스트/관리자 — 우측 하단 고정 */}
         <div className="fixed bottom-4 right-4 z-40 flex flex-row gap-2 items-end">
           <a href="/test" className="px-3 py-1.5 rounded-lg bg-violet-600/80 hover:bg-violet-500 text-white font-bold text-xs shadow-lg backdrop-blur-sm transition-all border border-violet-500/50 active:scale-95">테스트</a>
-          <a href="/admin" className="px-3 py-1.5 rounded-lg bg-slate-700/90 hover:bg-slate-800 text-white font-bold text-xs shadow-lg backdrop-blur-sm transition-all border border-slate-600/50 active:scale-95">관리자</a>
+          <button onClick={() => {
+              const correctPw = resetPassword ?? '116606';
+              const input = window.prompt('🔐 관리자 비밀번호를 입력하세요');
+              if (input === null) return;
+              if (input === correctPw) window.location.href = '/admin';
+              else alert('비밀번호가 틀렸습니다.');
+            }} className="px-3 py-1.5 rounded-lg bg-slate-700/90 hover:bg-slate-800 text-white font-bold text-xs shadow-lg backdrop-blur-sm transition-all border border-slate-600/50 active:scale-95">관리자</button>
         </div>
       </div>
       <style>{`
@@ -7032,7 +7038,7 @@ function MainScreen({
 
         {/* ─── 운세 탭 (게임·운세 하위) ─── */}
         {mainTab === 'fortune' && (
-          <div className="min-h-[60vh]">
+          <div className="min-h-[60vh] w-full overflow-x-hidden">
             <FortuneTab
               currentUserId={currentUserId}
               myProfile={profiles.find(p => p.id === currentUserId) ?? null}

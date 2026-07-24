@@ -1596,7 +1596,7 @@ const BALANCE_QUICK: { label: string; a: string; b: string; hot?: boolean }[] = 
 ];
 
 // ── 게임 공통 벌칙 빠른 선택 ───────────────────────────────────────────────
-const GAME_PENALTY_QUICK = ['술 앞잔(원삿X) 🍺', '꽝 💀', '면제 ✅', '통과 ✓', '질문 받기 ❓', '원샷 🥃', '건배사 하기 🍻', '노래 한 소절 🎤', '춤 한 번 💃'];
+const GAME_PENALTY_QUICK = ['술 앞잔(원삿X) 🍺', '꽝 💀', '면제 ✅', '통과 ✓', '질문 받기 ❓', '19금 질문받기 🔞'];
 
 
 // ─── Admin Balance Game Tab ───────────────────────────────────────────────────
@@ -1796,6 +1796,7 @@ function BalanceGameCreate({ currentGame, onGameUpdate, seats, settings, onRefre
   const [batchConfig, setBatchConfig] = useState<Map<number, { a: string; b: string } | null>>(new Map());
   const [batchSaving, setBatchSaving] = useState(false);
   const [batchSentTables, setBatchSentTables] = useState<Set<number>>(new Set());
+  const [batchPickerTable, setBatchPickerTable] = useState<number | null>(null);
 
   const handleRefresh = async () => {
     if (!onRefresh) return;
@@ -2028,6 +2029,7 @@ function BalanceGameCreate({ currentGame, onGameUpdate, seats, settings, onRefre
               const config = batchConfig.get(n) ?? { a: '', b: '' };
               const filled = config.a.trim() && config.b.trim();
               const sent = batchSentTables.has(n);
+              const pickerOpen = batchPickerTable === n;
               return (
                 <div key={n} className={`rounded-xl border-2 p-3 transition-all ${filled ? 'border-violet-400 bg-violet-50' : 'border-gray-200 bg-gray-50'}`}>
                   <div className="flex items-center gap-2">
@@ -2048,6 +2050,12 @@ function BalanceGameCreate({ currentGame, onGameUpdate, seats, settings, onRefre
                       className="flex-1 bg-white border border-rose-200 text-gray-900 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-rose-400 placeholder-gray-400"
                     />
                     <button
+                      onClick={() => setBatchPickerTable(pickerOpen ? null : n)}
+                      className={`flex-shrink-0 px-2 py-1.5 rounded-lg text-xs font-bold transition-all border ${pickerOpen ? 'bg-violet-200 text-violet-700 border-violet-300' : 'bg-white text-violet-500 border-violet-200 hover:bg-violet-50'}`}
+                    >
+                      {pickerOpen ? '닫기' : '고르기'}
+                    </button>
+                    <button
                       onClick={() => sendSingleBalanceTable(n)}
                       disabled={!filled || sent}
                       className={`flex-shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-40 ${sent ? 'bg-teal-500 text-white' : 'bg-violet-500 hover:bg-violet-600 text-white'}`}
@@ -2055,6 +2063,23 @@ function BalanceGameCreate({ currentGame, onGameUpdate, seats, settings, onRefre
                       {sent ? '완료!' : '전송'}
                     </button>
                   </div>
+                  {pickerOpen && (
+                    <div className="mt-2 flex flex-wrap gap-1.5 pt-2 border-t border-violet-200">
+                      {BALANCE_QUICK.map(q => (
+                        <button key={q.label}
+                          onClick={() => {
+                            const m = new Map(batchConfig);
+                            m.set(n, { a: q.a, b: q.b });
+                            setBatchConfig(m);
+                            setBatchSentTables(prev => { const s = new Set(prev); s.delete(n); return s; });
+                            setBatchPickerTable(null);
+                          }}
+                          className={`px-2.5 py-1.5 rounded-full text-xs font-bold border-2 transition-all active:scale-95 ${q.hot ? 'bg-rose-50 border-rose-200 text-rose-600 hover:border-rose-400' : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-violet-400 hover:text-violet-600'}`}>
+                          {q.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -2324,6 +2349,7 @@ function OxGameSection({ balanceGames, voteCounts, currentGame, onGameUpdate, se
   const [batchSaving, setBatchSaving] = useState(false);
   const [batchSentTables, setBatchSentTables] = useState<Set<number>>(new Set());
   const [oxQuickCat, setOxQuickCat] = useState<'general' | 'hot'>('general');
+  const [batchOxPickerTable, setBatchOxPickerTable] = useState<number | null>(null);
 
   const handleRefresh = async () => {
     if (!onRefresh) return;
@@ -2528,6 +2554,7 @@ function OxGameSection({ balanceGames, voteCounts, currentGame, onGameUpdate, se
               const q = batchOxQuestions.get(n) ?? '';
               const filled = q.trim().length > 0;
               const sent = batchSentTables.has(n);
+              const oxPickerOpen = batchOxPickerTable === n;
               return (
                 <div key={n} className={`rounded-xl border-2 p-3 transition-all ${filled ? 'border-orange-400 bg-orange-50' : 'border-gray-200 bg-gray-50'}`}>
                   <div className="flex items-center gap-2">
@@ -2539,9 +2566,43 @@ function OxGameSection({ balanceGames, voteCounts, currentGame, onGameUpdate, se
                     }}
                       placeholder="OX 문제 입력"
                       className="flex-1 bg-white border border-orange-200 text-gray-900 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-orange-400 placeholder-gray-400" />
+                    <button
+                      onClick={() => setBatchOxPickerTable(oxPickerOpen ? null : n)}
+                      className={`flex-shrink-0 px-2 py-1.5 rounded-lg text-xs font-bold transition-all border ${oxPickerOpen ? 'bg-orange-200 text-orange-700 border-orange-300' : 'bg-white text-orange-500 border-orange-200 hover:bg-orange-50'}`}
+                    >
+                      {oxPickerOpen ? '닫기' : '고르기'}
+                    </button>
                     <span className="text-[10px] font-bold text-gray-400 flex-shrink-0">⭕❌</span>
                     {sent && <span className="text-xs text-teal-600 font-bold flex-shrink-0">✓</span>}
                   </div>
+                  {oxPickerOpen && (
+                    <div className="mt-2 pt-2 border-t border-orange-200 space-y-1.5">
+                      <div className="flex gap-1 mb-1.5">
+                        <button onClick={() => setOxQuickCat('general')}
+                          className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-colors ${oxQuickCat === 'general' ? 'bg-orange-500 text-white' : 'text-gray-500 hover:text-gray-700 bg-gray-100'}`}>일반</button>
+                        <button onClick={() => setOxQuickCat('hot')}
+                          className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-colors ${oxQuickCat === 'hot' ? 'bg-rose-500 text-white' : 'text-gray-500 hover:text-gray-700 bg-gray-100'}`}>🔞 19금</button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1">
+                        {(oxQuickCat === 'general' ? OX_QUICK_GENERAL : OX_QUICK_HOT).map(preset => (
+                          <button key={preset}
+                            onClick={() => {
+                              const m = new Map(batchOxQuestions);
+                              m.set(n, preset);
+                              setBatchOxQuestions(m);
+                              setBatchOxPickerTable(null);
+                            }}
+                            className={`text-xs font-semibold px-2 py-2 rounded-xl border text-left leading-snug active:scale-95 transition-all ${
+                              oxQuickCat === 'hot'
+                                ? 'bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100'
+                                : 'bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100'
+                            }`}>
+                            {preset}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
