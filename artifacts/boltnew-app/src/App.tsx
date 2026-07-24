@@ -2318,16 +2318,12 @@ function WaitingOverlay({ sessionActive, onEnter }: {
               </div>
               {/* 본문 */}
               <div className="px-6 py-6">
-                <p className="text-white text-base font-bold leading-relaxed text-center mb-2">
-                  본 서비스는 원활한 모임 진행만을 위하여 입력되며,
-                </p>
-                <p className="text-white text-base font-bold leading-relaxed text-center mb-2">
-                  모든 개인 정보는 저장·수집하지 않습니다.
-                </p>
-                <p className="text-white text-base font-bold leading-relaxed text-center mb-6">
+                <p className="text-white text-[15px] font-bold leading-7 text-center break-keep mb-6">
+                  본 서비스는 원활한 모임 진행만을 위하여 입력되며,{' '}
+                  모든 개인 정보는 저장·수집하지 않습니다.{' '}
                   모임 종료 시 즉시 파기합니다.
                 </p>
-                <p className="text-slate-400 text-xs text-center leading-relaxed mb-6">
+                <p className="text-slate-400 text-xs text-center leading-relaxed break-keep mb-6">
                   동의하지 않을 시 본 모임에 불이익이 있을 수 있습니다.
                 </p>
                 <div className="flex flex-col gap-3">
