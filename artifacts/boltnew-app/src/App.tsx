@@ -4861,12 +4861,48 @@ function DrumRoller<T extends string | number>({
 
 // ─── Tutorial Modal ────────────────────────────────────────────────────────
 
-const TUTORIAL_SLIDES = [
+type TutorialSlide = {
+  emoji: string;
+  title: string;
+  desc?: string;
+  renderBody?: (darkMode?: boolean) => React.ReactNode;
+  color: string;
+};
+
+const TUTORIAL_SLIDES: TutorialSlide[] = [
   {
     emoji: '🥂',
     title: '범일NPC 술번개에 오신 걸 환영해요!',
-    desc: '이 앱을 통해 오늘 함께하는 분들과 하트를 보내고, 채팅하고, 연락처를 교환할 수 있어요.',
     color: 'from-cyan-500 to-teal-500',
+    renderBody: (darkMode) => (
+      <div className="px-5 pt-3 pb-4 overflow-y-auto space-y-3" style={{ height: 210 }}>
+        <p className={`text-[13px] font-bold text-center leading-snug ${darkMode ? 'text-slate-200' : 'text-gray-800'}`}>
+          오늘 함께하게 되어 정말 반가워요! 🎉<br />
+          <span className={`text-[11px] font-normal ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>이 앱으로 오늘 이런 것들을 즐길 수 있어요</span>
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          {([
+            { icon: '❤️', label: '하트 보내기', sub: '종류별 8개' },
+            { icon: '💬', label: '1:1 채팅', sub: '매칭 성사 시 오픈' },
+            { icon: '📱', label: '연락처 교환', sub: '채팅에서 공유' },
+            { icon: '🪜', label: '미니게임', sub: '사다리·돌림판 등' },
+            { icon: '🔮', label: '사주·궁합', sub: '운세 탭에서 확인' },
+            { icon: '🍺', label: '음료 요청', sub: '건의함 버튼 클릭' },
+          ] as { icon: string; label: string; sub: string }[]).map(({ icon, label, sub }) => (
+            <div key={label} className={`flex items-center gap-2 px-3 py-2 rounded-xl ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-gradient-to-br from-cyan-50 to-teal-50 border border-cyan-100'}`}>
+              <span className="text-xl leading-none">{icon}</span>
+              <div>
+                <p className={`text-[11px] font-black leading-none ${darkMode ? 'text-slate-200' : 'text-cyan-900'}`}>{label}</p>
+                <p className={`text-[10px] leading-snug mt-0.5 ${darkMode ? 'text-slate-500' : 'text-cyan-600'}`}>{sub}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+        <p className={`text-[10px] text-center ${darkMode ? 'text-slate-600' : 'text-gray-400'}`}>
+          👇 다음 슬라이드에서 공지사항·주의사항을 꼭 읽어주세요!
+        </p>
+      </div>
+    ),
   },
   {
     emoji: '📋',
@@ -4901,14 +4937,14 @@ const TUTORIAL_SLIDES = [
   {
     emoji: '🎮',
     title: '미니게임',
-    desc: '게임 탭에서 다양한 미니게임을 즐길 수 있어요!\n\n🪜 사다리타기\n테이블 인원이 자동으로 참여하고, 결과가 동시에 공개돼요!\n\n🎡 돌림판\n항목을 직접 편집하고 돌려서 벌칙·상을 정해요.\n\n🎲 밸런스 게임\n운영진이 출제한 문제에 투표해요!\n\n🖼️ 이미지 게임\n오늘 가장 __한 사람은? 테이블 내 투표로 결정!',
+    desc: '게임 탭에서 다양한 미니게임을 즐길 수 있어요!\n\n🪜 사다리타기\n테이블 인원이 자동으로 참여하고, 결과가 동시에 공개돼요!\n\n🎡 돌림판\n항목을 직접 편집하고 돌려서 벌칙·상을 정해요.\n\n── 운영진이 진행하는 게임 ──\n\n🎲 밸런스 게임  •  ⭕❌ OX 게임\n🖼️ 이미지 투표  •  🎰 당첨자 추첨\n\n운영진 진행 게임은 화면에 알림으로 전달돼요!',
     color: 'from-violet-500 to-purple-500',
   },
   {
-    emoji: '👮',
-    title: '운영진 게임',
-    desc: '운영진이 직접 진행하는 게임들이에요. 참여자 화면에 알림으로 전달돼요!\n\n🎲 밸런스 게임\nA vs B 둘 중 하나를 선택하는 투표 게임\n\n⭕❌ OX 게임\n맞으면 ⭕ 틀리면 ❌ — 최후의 1인까지!\n\n🖼️ 이미지 투표\n오늘 가장 ___한 사람을 테이블 내 투표로 결정\n\n🎰 당첨자 추첨\n참여자 중 무작위 당첨자를 뽑아요!',
-    color: 'from-indigo-500 to-violet-500',
+    emoji: '🔮',
+    title: '운세 · 사주 · 궁합',
+    desc: '게임 탭 → 운세 탭에서 확인할 수 있어요!\n\n🃏 타로\n오늘의 과거·현재·미래 카드를 뽑아보세요\n\n📅 사주\n생년월일 기반 오늘의 에너지 & 행운 아이템\n\n💕 궁합\n사주·수비학·오행·MBTI 4가지 방식으로 분석!\n마음에 드는 분과의 궁합을 확인해 보세요\n\n✨ 채팅방에서 상대방과의 사주·궁합도 바로 볼 수 있어요!',
+    color: 'from-purple-500 to-pink-500',
   },
   {
     emoji: '🍺',
@@ -4978,9 +5014,15 @@ function TutorialModal({ page, onChangePage, onClose, darkMode }: {
           ))}
         </div>
         {/* Body — 고정 높이 + 스크롤 */}
-        <div className={`px-6 py-3 text-sm leading-loose whitespace-pre-line overflow-y-auto ${darkMode ? 'text-slate-300' : 'text-gray-600'}`} style={{ height: 210 }}>
-          {slide.desc}
-        </div>
+        {slide.renderBody ? (
+          <div style={{ height: 210, overflowY: 'auto' }}>
+            {slide.renderBody(darkMode)}
+          </div>
+        ) : (
+          <div className={`px-6 py-3 text-sm leading-loose whitespace-pre-line overflow-y-auto ${darkMode ? 'text-slate-300' : 'text-gray-600'}`} style={{ height: 210 }}>
+            {slide.desc}
+          </div>
+        )}
         {/* Buttons */}
         <div className="px-6 pb-6 flex gap-2">
           {page > 0 && (

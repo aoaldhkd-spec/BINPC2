@@ -1797,6 +1797,8 @@ function BalanceGameCreate({ currentGame, onGameUpdate, seats, settings, onRefre
   const [batchSaving, setBatchSaving] = useState(false);
   const [batchSentTables, setBatchSentTables] = useState<Set<number>>(new Set());
   const [batchPickerTable, setBatchPickerTable] = useState<number | null>(null);
+  const [batchBalancePenalties, setBatchBalancePenalties] = useState<Map<number, string>>(new Map());
+  const [batchBalancePenaltyPickerTable, setBatchBalancePenaltyPickerTable] = useState<number | null>(null);
 
   const handleRefresh = async () => {
     if (!onRefresh) return;
@@ -2030,8 +2032,11 @@ function BalanceGameCreate({ currentGame, onGameUpdate, seats, settings, onRefre
               const filled = config.a.trim() && config.b.trim();
               const sent = batchSentTables.has(n);
               const pickerOpen = batchPickerTable === n;
+              const penaltyPickerOpen = batchBalancePenaltyPickerTable === n;
+              const penalty = batchBalancePenalties.get(n) ?? '';
               return (
                 <div key={n} className={`rounded-xl border-2 p-3 transition-all ${filled ? 'border-violet-400 bg-violet-50' : 'border-gray-200 bg-gray-50'}`}>
+                  {/* 선택지 행 */}
                   <div className="flex items-center gap-2">
                     <span className={`text-xs font-black w-14 flex-shrink-0 ${filled ? 'text-violet-700' : 'text-gray-500'}`}>{TABLE_LABELS[n] ?? n}번</span>
                     <input
@@ -2050,7 +2055,7 @@ function BalanceGameCreate({ currentGame, onGameUpdate, seats, settings, onRefre
                       className="flex-1 bg-white border border-rose-200 text-gray-900 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-rose-400 placeholder-gray-400"
                     />
                     <button
-                      onClick={() => setBatchPickerTable(pickerOpen ? null : n)}
+                      onClick={() => { setBatchPickerTable(pickerOpen ? null : n); setBatchBalancePenaltyPickerTable(null); }}
                       className={`flex-shrink-0 px-2 py-1.5 rounded-lg text-xs font-bold transition-all border ${pickerOpen ? 'bg-violet-200 text-violet-700 border-violet-300' : 'bg-white text-violet-500 border-violet-200 hover:bg-violet-50'}`}
                     >
                       {pickerOpen ? '닫기' : '고르기'}
@@ -2063,6 +2068,7 @@ function BalanceGameCreate({ currentGame, onGameUpdate, seats, settings, onRefre
                       {sent ? '완료!' : '전송'}
                     </button>
                   </div>
+                  {/* 선택지 고르기 패널 */}
                   {pickerOpen && (
                     <div className="mt-2 flex flex-wrap gap-1.5 pt-2 border-t border-violet-200">
                       {BALANCE_QUICK.map(q => (
@@ -2076,6 +2082,40 @@ function BalanceGameCreate({ currentGame, onGameUpdate, seats, settings, onRefre
                           }}
                           className={`px-2.5 py-1.5 rounded-full text-xs font-bold border-2 transition-all active:scale-95 ${q.hot ? 'bg-rose-50 border-rose-200 text-rose-600 hover:border-rose-400' : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-violet-400 hover:text-violet-600'}`}>
                           {q.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {/* 벌칙 행 */}
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <span className="text-[10px] font-black text-red-400 w-14 flex-shrink-0">벌칙</span>
+                    <input
+                      type="text"
+                      value={penalty}
+                      onChange={e => { const m = new Map(batchBalancePenalties); m.set(n, e.target.value); setBatchBalancePenalties(m); }}
+                      placeholder="벌칙 (선택)"
+                      className="flex-1 bg-white border border-red-200 text-gray-900 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-red-400 placeholder-gray-400"
+                    />
+                    <button
+                      onClick={() => { setBatchBalancePenaltyPickerTable(penaltyPickerOpen ? null : n); setBatchPickerTable(null); }}
+                      className={`flex-shrink-0 px-2 py-1.5 rounded-lg text-xs font-bold transition-all border ${penaltyPickerOpen ? 'bg-red-200 text-red-700 border-red-300' : 'bg-white text-red-500 border-red-200 hover:bg-red-50'}`}
+                    >
+                      {penaltyPickerOpen ? '닫기' : '고르기'}
+                    </button>
+                  </div>
+                  {/* 벌칙 고르기 패널 */}
+                  {penaltyPickerOpen && (
+                    <div className="mt-1.5 flex flex-wrap gap-1.5 pt-2 border-t border-red-100">
+                      {GAME_PENALTY_QUICK.map(v => (
+                        <button key={v}
+                          onClick={() => {
+                            const m = new Map(batchBalancePenalties);
+                            m.set(n, v);
+                            setBatchBalancePenalties(m);
+                            setBatchBalancePenaltyPickerTable(null);
+                          }}
+                          className={`px-2.5 py-1 rounded-full text-[11px] font-bold border-2 transition-all active:scale-95 ${penalty === v ? 'bg-red-500 border-red-500 text-white' : 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100'}`}>
+                          {v}
                         </button>
                       ))}
                     </div>
@@ -2350,6 +2390,8 @@ function OxGameSection({ balanceGames, voteCounts, currentGame, onGameUpdate, se
   const [batchSentTables, setBatchSentTables] = useState<Set<number>>(new Set());
   const [oxQuickCat, setOxQuickCat] = useState<'general' | 'hot'>('general');
   const [batchOxPickerTable, setBatchOxPickerTable] = useState<number | null>(null);
+  const [batchOxPenalties, setBatchOxPenalties] = useState<Map<number, string>>(new Map());
+  const [batchOxPenaltyPickerTable, setBatchOxPenaltyPickerTable] = useState<number | null>(null);
 
   const handleRefresh = async () => {
     if (!onRefresh) return;
@@ -2555,8 +2597,11 @@ function OxGameSection({ balanceGames, voteCounts, currentGame, onGameUpdate, se
               const filled = q.trim().length > 0;
               const sent = batchSentTables.has(n);
               const oxPickerOpen = batchOxPickerTable === n;
+              const oxPenaltyPickerOpen = batchOxPenaltyPickerTable === n;
+              const oxPenalty = batchOxPenalties.get(n) ?? '';
               return (
                 <div key={n} className={`rounded-xl border-2 p-3 transition-all ${filled ? 'border-orange-400 bg-orange-50' : 'border-gray-200 bg-gray-50'}`}>
+                  {/* 문제 행 */}
                   <div className="flex items-center gap-2">
                     <span className={`text-xs font-black w-14 flex-shrink-0 ${filled ? 'text-orange-700' : 'text-gray-500'}`}>{TABLE_LABELS[n] ?? n}번</span>
                     <input type="text" value={q} onChange={e => {
@@ -2567,7 +2612,7 @@ function OxGameSection({ balanceGames, voteCounts, currentGame, onGameUpdate, se
                       placeholder="OX 문제 입력"
                       className="flex-1 bg-white border border-orange-200 text-gray-900 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-orange-400 placeholder-gray-400" />
                     <button
-                      onClick={() => setBatchOxPickerTable(oxPickerOpen ? null : n)}
+                      onClick={() => { setBatchOxPickerTable(oxPickerOpen ? null : n); setBatchOxPenaltyPickerTable(null); }}
                       className={`flex-shrink-0 px-2 py-1.5 rounded-lg text-xs font-bold transition-all border ${oxPickerOpen ? 'bg-orange-200 text-orange-700 border-orange-300' : 'bg-white text-orange-500 border-orange-200 hover:bg-orange-50'}`}
                     >
                       {oxPickerOpen ? '닫기' : '고르기'}
@@ -2575,6 +2620,7 @@ function OxGameSection({ balanceGames, voteCounts, currentGame, onGameUpdate, se
                     <span className="text-[10px] font-bold text-gray-400 flex-shrink-0">⭕❌</span>
                     {sent && <span className="text-xs text-teal-600 font-bold flex-shrink-0">✓</span>}
                   </div>
+                  {/* 문제 고르기 패널 */}
                   {oxPickerOpen && (
                     <div className="mt-2 pt-2 border-t border-orange-200 space-y-1.5">
                       <div className="flex gap-1 mb-1.5">
@@ -2601,6 +2647,40 @@ function OxGameSection({ balanceGames, voteCounts, currentGame, onGameUpdate, se
                           </button>
                         ))}
                       </div>
+                    </div>
+                  )}
+                  {/* 벌칙 행 */}
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <span className="text-[10px] font-black text-red-400 w-14 flex-shrink-0">벌칙</span>
+                    <input
+                      type="text"
+                      value={oxPenalty}
+                      onChange={e => { const m = new Map(batchOxPenalties); m.set(n, e.target.value); setBatchOxPenalties(m); }}
+                      placeholder="벌칙 (선택)"
+                      className="flex-1 bg-white border border-red-200 text-gray-900 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-red-400 placeholder-gray-400"
+                    />
+                    <button
+                      onClick={() => { setBatchOxPenaltyPickerTable(oxPenaltyPickerOpen ? null : n); setBatchOxPickerTable(null); }}
+                      className={`flex-shrink-0 px-2 py-1.5 rounded-lg text-xs font-bold transition-all border ${oxPenaltyPickerOpen ? 'bg-red-200 text-red-700 border-red-300' : 'bg-white text-red-500 border-red-200 hover:bg-red-50'}`}
+                    >
+                      {oxPenaltyPickerOpen ? '닫기' : '고르기'}
+                    </button>
+                  </div>
+                  {/* 벌칙 고르기 패널 */}
+                  {oxPenaltyPickerOpen && (
+                    <div className="mt-1.5 flex flex-wrap gap-1.5 pt-2 border-t border-red-100">
+                      {GAME_PENALTY_QUICK.map(v => (
+                        <button key={v}
+                          onClick={() => {
+                            const m = new Map(batchOxPenalties);
+                            m.set(n, v);
+                            setBatchOxPenalties(m);
+                            setBatchOxPenaltyPickerTable(null);
+                          }}
+                          className={`px-2.5 py-1 rounded-full text-[11px] font-bold border-2 transition-all active:scale-95 ${oxPenalty === v ? 'bg-red-500 border-red-500 text-white' : 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100'}`}>
+                          {v}
+                        </button>
+                      ))}
                     </div>
                   )}
                 </div>
