@@ -18,6 +18,13 @@ build = [ "pnpm", "--filter", "@workspace/boltnew-app", "run", "build" ]
 serve = "static"
 publicDir = "artifacts/boltnew-app/dist/public"
 
+[services.production.health.startup]
+path = "/index.html"
+
+[[services.production.rewrites]]
+from = "/"
+to = "/index.html"
+
 [[services.production.rewrites]]
 from = "/*"
 to = "/index.html"
