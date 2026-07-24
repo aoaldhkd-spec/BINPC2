@@ -13,7 +13,7 @@ import ProfileAvatar from './components/ProfileAvatar';
 import QRCode from 'qrcode';
 import { StickerSVG, STICKER_LABELS, STICKER_BG, STICKER_COUNT } from './stickers';
 import { getPositionLabel, getPositionBg, getDomSubLabel, getDomSubBg, genAvatar, getKoreanAge } from './lib/profile';
-import { getZodiac, getOhaeng } from './lib/fortune';
+import { getZodiac, getOhaeng, getCompatibility, getOhaengCompat } from './lib/fortune';
 import FortuneTab from './components/FortuneTab';
 import { HEART_TYPES, HeartType } from './lib/constants';
 
@@ -1528,7 +1528,11 @@ function tracePath(n: number, bars: LadderBar[], rows: number, startCol: number)
   return col;
 }
 
-const LADDER_PRESET_PRIZES = ['술 앞잔(원삿X) 🍺', '면제 ✅', '꽝 💀', '통과 ✓', '질문 받기 ❓'];
+const LADDER_PRESET_PRIZES = [
+  '왕 👑', '술 앞잔(원삿X) 🍺', '면제 ✅', '꽝 💀', '통과 ✓', '질문 받기 ❓',
+  '1빠 면제 🏆', 'VIP ⭐', '벌칙 선택권 🎯', '사진찍기 📸',
+  '칭찬 받기 💕', '음악 신청권 🎵',
+];
 
 function LadderGame({ seats, tableNumber, onBroadcast, myNickname, profileMap }: {
   seats: Seat[];
@@ -4420,6 +4424,8 @@ function App() {
         onReset={reset}
         onDeleteMessage={deleteMessage}
         currentUserProfile={profiles.find(p => p.id === currentUserId) ?? null}
+        receivedContactShares={receivedContactShares}
+        contactSharedWithIds={contactSharedWithIds}
       />
     </>
   );
@@ -7195,13 +7201,15 @@ function ProfileDetail({ profile, isMe, isLiked, heartType, onLike, onChat, onBa
 
 // ─── Chat Screen ──────────────────────────────────────────────────────────────
 
-function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage, onBack, onReset, onDeleteMessage, currentUserProfile }: {
+function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage, onBack, onReset, onDeleteMessage, currentUserProfile, receivedContactShares, contactSharedWithIds }: {
   messages: Message[]; currentUserId: string; otherProfile: Profile;
   onSend: (content: string) => void;
   onSendImage: (file: File) => Promise<string | null>;
   onBack: () => void; onReset: () => void;
   onDeleteMessage: (msgId: string) => void;
   currentUserProfile: Profile | null;
+  receivedContactShares?: ContactShare[];
+  contactSharedWithIds?: Set<string>;
 }) {
   const [input, setInput] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
@@ -7209,6 +7217,27 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
   const [showQuickMsgs, setShowQuickMsgs] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [chatError, setChatError] = useState('');
+  const [showTheirContact, setShowTheirContact] = useState(false);
+  const [showCompatModal, setShowCompatModal] = useState(false);
+
+  // 상대방이 나에게 공유한 연락처 (liker_id = currentUserId, liked_id = otherProfile.id)
+  const theirShare = receivedContactShares?.find(s => s.liked_id === otherProfile.id) ?? null;
+  // 내가 상대방에게 이미 공유했는지
+  const iSharedMine = contactSharedWithIds?.has(otherProfile.id) ?? false;
+
+  // 사주 궁합 계산
+  const myBirth = currentUserProfile?.birth_year && currentUserProfile?.birth_month && currentUserProfile?.birth_day
+    ? { y: currentUserProfile.birth_year, m: currentUserProfile.birth_month, d: currentUserProfile.birth_day } : null;
+  const theirBirth = otherProfile.birth_year && otherProfile.birth_month && otherProfile.birth_day
+    ? { y: otherProfile.birth_year, m: otherProfile.birth_month, d: otherProfile.birth_day } : null;
+  const hasBothBirthdays = !!(myBirth && theirBirth);
+
+  const compatResult = hasBothBirthdays
+    ? getCompatibility(myBirth!.y, myBirth!.m, myBirth!.d, theirBirth!.y, theirBirth!.m, theirBirth!.d)
+    : null;
+  const ohaengCompatResult = hasBothBirthdays
+    ? getOhaengCompat(myBirth!.y, theirBirth!.y)
+    : null;
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -7402,6 +7431,126 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
   return (
     <div className="fixed inset-0 bg-gray-100 flex flex-col" style={{ height: '100dvh' }}>
 
+      {/* 상대방 연락처 보기 모달 */}
+      {showTheirContact && theirShare && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowTheirContact(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
+            <div className="text-center mb-4">
+              <div className="w-12 h-12 bg-teal-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                <span className="text-2xl">📱</span>
+              </div>
+              <h3 className="text-lg font-bold text-gray-900">{otherProfile.nickname}님의 연락처</h3>
+              <p className="text-xs text-teal-600 font-semibold mt-1">공유 완료된 연락처입니다</p>
+            </div>
+            <div className="space-y-3 mb-5">
+              {theirShare.kakao && (
+                <div className="flex items-center gap-3 px-4 py-3 bg-yellow-50 rounded-xl border border-yellow-200">
+                  <span className="text-yellow-600 font-black text-base w-6 text-center">K</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-yellow-600 font-medium">카카오톡</p>
+                    <p className="text-sm font-bold text-gray-800 truncate">{theirShare.kakao}</p>
+                  </div>
+                  <button onClick={() => navigator.clipboard?.writeText(theirShare.kakao!)}
+                    className="flex-shrink-0 px-3 py-1.5 bg-yellow-500 text-white text-xs font-bold rounded-lg active:scale-95">복사</button>
+                </div>
+              )}
+              {theirShare.instagram && (
+                <div className="flex items-center gap-3 px-4 py-3 bg-pink-50 rounded-xl border border-pink-200">
+                  <span className="text-pink-500 font-black text-base w-6 text-center">@</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-pink-600 font-medium">인스타그램</p>
+                    <p className="text-sm font-bold text-gray-800 truncate">{theirShare.instagram}</p>
+                  </div>
+                  <button onClick={() => navigator.clipboard?.writeText(theirShare.instagram!)}
+                    className="flex-shrink-0 px-3 py-1.5 bg-pink-500 text-white text-xs font-bold rounded-lg active:scale-95">복사</button>
+                </div>
+              )}
+              {theirShare.phone && (
+                <div className="flex items-center gap-3 px-4 py-3 bg-green-50 rounded-xl border border-green-200">
+                  <Phone className="w-4 h-4 text-green-500 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-green-600 font-medium">전화번호</p>
+                    <p className="text-sm font-bold text-gray-800 truncate">{theirShare.phone}</p>
+                  </div>
+                  <button onClick={() => navigator.clipboard?.writeText(theirShare.phone!)}
+                    className="flex-shrink-0 px-3 py-1.5 bg-green-500 text-white text-xs font-bold rounded-lg active:scale-95">복사</button>
+                </div>
+              )}
+              {!theirShare.kakao && !theirShare.instagram && !theirShare.phone && (
+                <p className="text-center text-gray-400 text-sm py-3">공유된 연락처 정보가 없습니다.</p>
+              )}
+            </div>
+            <button onClick={() => setShowTheirContact(false)}
+              className="w-full py-3 bg-teal-500 text-white font-semibold rounded-xl hover:bg-teal-600 transition-all">확인</button>
+          </div>
+        </div>
+      )}
+
+      {/* 사주 궁합 모달 */}
+      {showCompatModal && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowCompatModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-violet-500 to-purple-600 px-5 py-4 text-center text-white">
+              <p className="text-2xl mb-1">🔮</p>
+              <h3 className="font-black text-lg">{currentUserProfile?.nickname ?? '나'} × {otherProfile.nickname}</h3>
+              <p className="text-xs text-violet-200 mt-0.5">사주 궁합</p>
+            </div>
+            <div className="p-5 space-y-4">
+              {!hasBothBirthdays ? (
+                <div className="text-center py-6">
+                  <p className="text-3xl mb-2">😔</p>
+                  <p className="text-gray-700 font-semibold">생년월일 정보가 부족해요</p>
+                  <p className="text-xs text-gray-400 mt-1">두 분 모두 프로필에 생년월일이 등록되어 있어야 합니다</p>
+                </div>
+              ) : (
+                <>
+                  {/* 12지신 궁합 */}
+                  {compatResult && (
+                    <div className="bg-violet-50 rounded-xl p-4 border border-violet-100">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-black text-violet-600">12지신 궁합</span>
+                        <span className="text-xl font-black text-violet-700">{compatResult.emoji} {compatResult.score}점</span>
+                      </div>
+                      <p className="text-sm font-bold text-gray-800 mb-1">{compatResult.relation}</p>
+                      <p className="text-xs text-gray-600 leading-relaxed">{compatResult.summary}</p>
+                      <p className="text-xs text-violet-500 mt-1 leading-relaxed">{compatResult.advice}</p>
+                    </div>
+                  )}
+                  {/* 오행 궁합 */}
+                  {ohaengCompatResult && (
+                    <div className="bg-amber-50 rounded-xl p-4 border border-amber-100">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-black text-amber-600">오행 궁합</span>
+                        <span className="text-xl font-black text-amber-700">{ohaengCompatResult.emoji} {ohaengCompatResult.score}점</span>
+                      </div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full font-bold">{currentUserProfile?.nickname ?? '나'}: {getOhaeng(myBirth!.y)}</span>
+                        <span className="text-xs text-gray-400">×</span>
+                        <span className="text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full font-bold">{otherProfile.nickname}: {getOhaeng(theirBirth!.y)}</span>
+                      </div>
+                      <p className="text-sm font-bold text-gray-800 mb-1">{ohaengCompatResult.relation}</p>
+                      <p className="text-xs text-gray-600 leading-relaxed">{ohaengCompatResult.summary}</p>
+                    </div>
+                  )}
+                  {/* 총점 */}
+                  {compatResult && ohaengCompatResult && (
+                    <div className="text-center bg-gradient-to-r from-violet-50 to-purple-50 rounded-xl p-3 border border-purple-100">
+                      <p className="text-xs text-gray-500 mb-1">종합 궁합 점수</p>
+                      <p className="text-3xl font-black text-violet-700">{Math.round((compatResult.score + ohaengCompatResult.score) / 2)}점</p>
+                      <p className="text-xs text-violet-500 mt-1">{compatResult.grade}</p>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+            <div className="px-5 pb-5">
+              <button onClick={() => setShowCompatModal(false)}
+                className="w-full py-3 bg-violet-500 text-white font-semibold rounded-xl hover:bg-violet-600 transition-all">닫기</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 이미지 전체화면 뷰어 */}
       {imageViewer && (
         <div className="fixed inset-0 z-[200] bg-black flex items-center justify-center"
@@ -7486,18 +7635,38 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
       )}
 
       <header className="bg-white shadow-sm shrink-0 z-10">
-        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
-          <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+        <div className="max-w-3xl mx-auto px-3 py-2.5 flex items-center gap-2">
+          <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-full transition-colors flex-shrink-0">
             <ArrowLeft className="w-5 h-5 text-gray-700" />
           </button>
-          <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0">
+          <div className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0">
             <img src={otherProfile.photo_url} alt={otherProfile.nickname} className="w-full h-full object-cover" />
           </div>
-          <h2 className="font-semibold text-gray-900 flex-1 truncate">{otherProfile.nickname}</h2>
-          {hasContact && (
+          <h2 className="font-semibold text-gray-900 flex-1 truncate text-sm">{otherProfile.nickname}</h2>
+          {/* 궁합 보기 버튼 */}
+          <button
+            onClick={() => setShowCompatModal(true)}
+            className="flex items-center gap-1 px-2 py-1.5 bg-violet-50 text-violet-600 text-xs font-bold rounded-xl border border-violet-200 hover:bg-violet-100 transition-all active:scale-95 flex-shrink-0">
+            🔮 궁합
+          </button>
+          {/* 상대방이 공유한 연락처 보기 */}
+          {theirShare && (
+            <button onClick={() => setShowTheirContact(true)}
+              className="flex items-center gap-1 px-2 py-1.5 bg-teal-50 text-teal-600 text-xs font-bold rounded-xl border border-teal-200 hover:bg-teal-100 transition-all active:scale-95 flex-shrink-0">
+              ✓ 공유완료
+            </button>
+          )}
+          {/* 내 연락처 공유 버튼 */}
+          {iSharedMine ? (
+            <span className="text-xs text-gray-400 flex-shrink-0">📤 공유함</span>
+          ) : (
             <button onClick={handleShareContact}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-50 text-cyan-600 text-xs font-bold rounded-xl border border-cyan-200 hover:bg-cyan-100 transition-all active:scale-95 flex-shrink-0">
-              📱 연락처 공유
+              className={`flex items-center gap-1 px-2 py-1.5 text-xs font-bold rounded-xl border transition-all active:scale-95 flex-shrink-0 ${
+                hasContact
+                  ? 'bg-cyan-50 text-cyan-600 border-cyan-200 hover:bg-cyan-100'
+                  : 'bg-gray-50 text-gray-400 border-gray-200'
+              }`}>
+              📱 공유
             </button>
           )}
         </div>
