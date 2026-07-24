@@ -4715,25 +4715,44 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         );
       })()}
 
-      {/* 🍻 아저씨 술주세요 이스터에그 팝업 */}
+      {/* 🍻 아저씨 술주세요 이스터에그 팝업 — 풀스크린 임팩트 */}
       {drinkPopup && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => setDrinkPopup(false)}>
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xs p-7 text-center space-y-4" onClick={e => e.stopPropagation()}>
-            <div className="text-6xl animate-bounce">🍺</div>
-            <div>
-              <p className="text-2xl font-black text-amber-500 tracking-tight">아저씨 술주세요!</p>
-              <p className="text-xs text-gray-400 mt-1 font-semibold">손님이 술을 요청하고 있어요</p>
-            </div>
-            <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
-              <p className="text-sm text-amber-700 font-semibold">🍻 술번개 로고를 3번 눌렀습니다</p>
-            </div>
-            <button
-              onClick={() => setDrinkPopup(false)}
-              className="w-full py-3 bg-amber-400 hover:bg-amber-500 text-white font-black text-base rounded-2xl transition-all active:scale-95 shadow-lg shadow-amber-200"
-            >
-              넵! 바로 드릴게요 🫡
-            </button>
-          </div>
+        <div className="fixed inset-0 z-[300] flex flex-col items-center justify-center bg-amber-400 p-6 text-center" style={{ animation: 'drinkShake 0.4s ease-in-out' }}>
+          <style>{`
+            @keyframes drinkShake {
+              0%,100%{transform:rotate(0deg)}
+              20%{transform:rotate(-4deg) scale(1.04)}
+              40%{transform:rotate(4deg) scale(1.06)}
+              60%{transform:rotate(-3deg) scale(1.03)}
+              80%{transform:rotate(3deg) scale(1.05)}
+            }
+            @keyframes beerBounce {
+              0%,100%{transform:translateY(0) scale(1)}
+              30%{transform:translateY(-24px) scale(1.15)}
+              60%{transform:translateY(-10px) scale(1.08)}
+            }
+            @keyframes textPulse {
+              0%,100%{opacity:1;transform:scale(1)}
+              50%{opacity:0.85;transform:scale(1.06)}
+            }
+          `}</style>
+
+          <div style={{ animation: 'beerBounce 0.7s ease-in-out infinite' }} className="text-[120px] leading-none select-none">🍺</div>
+
+          <p className="mt-6 text-white font-black leading-tight select-none"
+            style={{ fontSize: 'clamp(2.2rem, 10vw, 4rem)', textShadow: '0 3px 12px rgba(0,0,0,0.25)', animation: 'textPulse 0.9s ease-in-out infinite' }}>
+            아저씨!!<br />술 주세요!!
+          </p>
+
+          <p className="mt-4 text-amber-100 font-bold text-lg select-none">손님이 술을 요청하고 있어요 🙏</p>
+
+          <button
+            onClick={() => setDrinkPopup(false)}
+            className="mt-10 px-12 py-5 bg-white text-amber-500 font-black text-xl rounded-3xl shadow-2xl active:scale-95 transition-transform"
+            style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}
+          >
+            넵! 바로 드릴게요 🫡
+          </button>
         </div>
       )}
 

@@ -4932,16 +4932,32 @@ function ResetButton({ onReset, darkMode, resetPassword, onEasterEgg }: { onRese
     if (logoClickTimer.current) clearTimeout(logoClickTimer.current);
     if (logoClickCount.current >= 3) {
       logoClickCount.current = 0;
-      // 음성 재생 (Web Speech API)
-      if ('speechSynthesis' in window) {
+      // 음성 재생 (Web Speech API) — 3번 반복, 느리고 크게
+      const speakLoud = () => {
+        if (!('speechSynthesis' in window)) return;
         window.speechSynthesis.cancel();
-        const utter = new SpeechSynthesisUtterance('아저씨 술주세요');
-        utter.lang = 'ko-KR';
-        utter.rate = 0.85;
-        utter.pitch = 1.2;
-        utter.volume = 1;
-        window.speechSynthesis.speak(utter);
-      }
+        let count = 0;
+        const say = () => {
+          const utter = new SpeechSynthesisUtterance('아저씨!! 술 주세요!!');
+          utter.lang = 'ko-KR';
+          utter.rate = 0.65;   // 느릿느릿
+          utter.pitch = 1.5;   // 높고 간절하게
+          utter.volume = 1;
+          utter.onend = () => { count++; if (count < 3) say(); }; // 3번 반복
+          window.speechSynthesis.speak(utter);
+        };
+        say();
+      };
+      // iOS: AudioContext 잠금 해제 후 TTS (스마트폰 대응)
+      try {
+        const AudioCtx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        if (AudioCtx) {
+          const ctx = new AudioCtx();
+          ctx.resume().then(speakLoud);
+        } else {
+          speakLoud();
+        }
+      } catch { speakLoud(); }
       onEasterEgg?.();
     } else {
       logoClickTimer.current = setTimeout(() => { logoClickCount.current = 0; }, 3000);
