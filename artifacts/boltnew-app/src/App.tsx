@@ -53,7 +53,7 @@ type Chat = {
 const BIO_CATEGORIES = [
   {
     label: '뜨밤 & 기타',
-    tags: ['뜨밤', '기타'],
+    tags: ['뜨밤', '집콕', '기타'],
     color: {
       label: 'text-pink-500',
       normal: 'bg-pink-50 border-pink-200 text-pink-600 hover:bg-pink-500 hover:border-pink-500 hover:text-white',
@@ -3137,6 +3137,8 @@ function App() {
   const shouldShowStatusAfterSeat = useRef(false);
   const isNewRegistration = useRef(false);
   const prevUserSeatId = useRef<string | null>(null);
+  // 항상 최신 profiles를 가리키는 ref (stale 클로저 방지)
+  const profilesRef = useRef<Profile[]>([]);
   const [chatId, setChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [chatList, setChatList] = useState<Chat[]>([]);
@@ -3194,6 +3196,8 @@ function App() {
   ).current;
 
   const profileMap = useMemo(() => new Map(profiles.map((p) => [p.id, p])), [profiles]);
+  // 렌더마다 최신 profiles를 ref에 동기화 (stale 클로저 방지)
+  profilesRef.current = profiles;
   const currentUserSeat = seats.find((s) => s.profile_id === currentUserId) ?? null;
   // Keep ref updated so notification channel can check user's table without stale closure
   userTableNumRef.current = currentUserSeat?.table_number ?? null;
@@ -3658,8 +3662,11 @@ function App() {
         (payload) => {
           const updated = payload.new as { liked_id: string; status: string };
           if (updated.status === 'rejected') {
-            const rejectedProfile = profiles.find(p => p.id === updated.liked_id);
-            if (rejectedProfile) setRejectionNotif(rejectedProfile.nickname);
+            // profilesRef로 최신 데이터 참조 (stale 클로저 방지)
+            const rejectedProfile = profilesRef.current.find(p => p.id === updated.liked_id);
+            const nick = rejectedProfile?.nickname ?? '상대방';
+            setRejectionNotif(nick);
+            setTimeout(() => setRejectionNotif(null), 5000);
           } else if (updated.status === 'accepted') {
             loadContactShareData(currentUserId);
           }
@@ -3718,9 +3725,16 @@ function App() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
         const m = payload.new as { chat_id: string; sender_id: string; content: string };
         if (m.sender_id === currentUserId) return;
-        setChatList(prev => prev.map(c => c.id === m.chat_id ? { ...c, lastMessage: m.content } : c));
+        setChatList(prev => {
+          // 내 채팅방인지 확인
+          const isMyChat = prev.some(c => c.id === m.chat_id);
+          if (!isMyChat) return prev;
+          return prev.map(c => c.id === m.chat_id ? { ...c, lastMessage: m.content } : c);
+        });
+        // profilesRef로 발신자 닉네임 조회
+        const senderProfile = profilesRef.current.find(p => p.id === m.sender_id);
         setNewMsgCount(n => n + 1);
-        setBottomNotif({ type: 'message', nickname: '' });
+        setBottomNotif({ type: 'message', nickname: senderProfile?.nickname ?? '' });
       })
       .subscribe();
 
@@ -4129,6 +4143,16 @@ function App() {
     setChatList(prev => prev.filter(c => c.id !== chatToDelete.id));
   };
 
+  const deleteAllChats = async () => {
+    if (chatList.length === 0) return;
+    if (!confirm(`채팅 ${chatList.length}개를 모두 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) return;
+    for (const chat of chatList) {
+      await supabase.from('messages').delete().eq('chat_id', chat.id);
+      await supabase.from('chats').delete().eq('id', chat.id);
+    }
+    setChatList([]);
+  };
+
   const submitSuggestion = async (content: string, contactInfo: string) => {
     if (!currentUserId || !content.trim()) return;
     const currentProfile = profiles.find(p => p.id === currentUserId);
@@ -4362,6 +4386,7 @@ function App() {
         onContactViewOpen={(share, profile) => setContactViewShare({ share, profile })}
         onHeartResponse={handleHeartResponse}
         onDeleteChat={deleteChat}
+        onDeleteAllChats={deleteAllChats}
         onSubmitSuggestion={submitSuggestion}
         onOpenChat={openChat}
         balanceGames={balanceGames}
@@ -5543,7 +5568,7 @@ function MainScreen({
   receivedLikers, receivedHeartTypes, sentLikedProfiles, contactSharedWithIds, acknowledgedComplimentIds,
   receivedContactShares, pendingHeartsCount, chatList, suggestions,
   balanceGames, voteCounts, myVotes,
-  onContactShareOpen, onContactViewOpen, onHeartResponse, onDeleteChat, onSubmitSuggestion, onOpenChat,
+  onContactShareOpen, onContactViewOpen, onHeartResponse, onDeleteChat, onDeleteAllChats, onSubmitSuggestion, onOpenChat,
   onVote, onCreateGame, onEndGame, onSubmitAnonymousReport,
   timerEndAt, timerLabel, onRefreshStatus, onRefreshChat, onRefreshProfiles, onRefreshSeating, darkMode, onToggleDark, onShowQr, seatingLocked, activeTables, tableLabels, onShowTutorial,
   newMsgCount, onClearMsgCount, resetPassword, onBroadcastGame,
@@ -5561,6 +5586,7 @@ function MainScreen({
   onContactViewOpen: (share: ContactShare, profile: Profile) => void;
   onHeartResponse: (likerId: string, response: 'accepted' | 'rejected') => void;
   onDeleteChat: (chat: Chat) => void;
+  onDeleteAllChats: () => void;
   onSubmitSuggestion: (content: string, contactInfo: string) => Promise<void>;
   onOpenChat: (profile: Profile) => void;
   onVote: (gameId: string, option: 'a' | 'b') => void;
@@ -5584,6 +5610,7 @@ function MainScreen({
   onClearMsgCount: () => void;
   resetPassword: string | null;
   onBroadcastGame: (s: TableMiniGameSession) => void;
+  onDeleteAllChats: () => void;
 }) {
   const heartCount = useCallback((t: HeartType) => { let c = 0; sentHeartTypes.forEach(v => { if (v === t) c++; }); return c; }, [sentHeartTypes]);
   const currentUserSeat = useMemo(() => seats.find(s => s.profile_id === currentUserId) ?? null, [seats, currentUserId]);
@@ -6184,6 +6211,57 @@ function MainScreen({
               )}
             </div>
 
+            {/* 교환된 연락처 */}
+            {receivedContactShares.length > 0 && (
+              <div className={`rounded-2xl shadow-sm p-5 transition-colors duration-300 ${darkMode ? 'bg-slate-800 border border-slate-600' : 'bg-white'}`}>
+                <div className="flex items-center gap-2 mb-4">
+                  <div className={`w-7 h-7 rounded-xl flex items-center justify-center ${darkMode ? 'bg-teal-900/60' : 'bg-teal-50'}`}>
+                    <span className="text-sm">📱</span>
+                  </div>
+                  <h3 className={`text-sm font-bold uppercase tracking-wider ${darkMode ? 'text-slate-200' : 'text-gray-700'}`}>교환된 연락처</h3>
+                  <span className="ml-auto px-2 py-0.5 bg-teal-100 text-teal-700 text-xs font-bold rounded-full">{receivedContactShares.length}개</span>
+                </div>
+                <div className="space-y-2">
+                  {receivedContactShares.map((share) => {
+                    const sharedProfile = profileMap.get(share.liked_id);
+                    return (
+                      <div key={share.id} className={`rounded-xl p-3 ${darkMode ? 'bg-teal-900/30 border border-teal-800' : 'bg-teal-50 border border-teal-100'}`}>
+                        <div className="flex items-center gap-2 mb-2">
+                          {sharedProfile && <ProfileAvatar profile={sharedProfile} size="xs" rounded="lg" />}
+                          <p className={`text-xs font-bold ${darkMode ? 'text-teal-300' : 'text-teal-800'}`}>
+                            {sharedProfile?.nickname ?? '알 수 없음'}
+                          </p>
+                          <button
+                            onClick={() => sharedProfile && onContactViewOpen(share, sharedProfile)}
+                            className={`ml-auto flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-bold border transition-all ${darkMode ? 'bg-teal-800 border-teal-700 text-teal-200 hover:bg-teal-700' : 'bg-white border-teal-200 text-teal-600 hover:bg-teal-100'}`}
+                          >
+                            <Eye className="w-3 h-3" />보기
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {share.kakao && (
+                            <span className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-bold ${darkMode ? 'bg-yellow-900/40 text-yellow-300' : 'bg-yellow-50 text-yellow-700'}`}>
+                              <span className="text-[10px]">K</span>{share.kakao}
+                            </span>
+                          )}
+                          {share.instagram && (
+                            <span className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-bold ${darkMode ? 'bg-pink-900/40 text-pink-300' : 'bg-pink-50 text-pink-700'}`}>
+                              IG {share.instagram}
+                            </span>
+                          )}
+                          {share.phone && (
+                            <span className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-bold ${darkMode ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-50 text-blue-700'}`}>
+                              📞 {share.phone}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* 보낸 하트 */}
             <div className={`rounded-2xl shadow-sm p-5 transition-colors duration-300 ${darkMode ? 'bg-slate-800 border border-slate-600' : 'bg-white'}`}>
               <h3 className={`text-sm font-bold uppercase tracking-wider mb-4 ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>보낸 하트</h3>
@@ -6275,7 +6353,15 @@ function MainScreen({
           <div className="max-w-lg mx-auto space-y-3">
             <div className="flex items-center justify-between">
               <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>수락한 상대방과의 채팅 내역입니다</p>
-              <RefreshBtn onRefresh={() => doRefresh('chats', onRefreshChat)} refreshed={refreshedTab === 'chats'} />
+              <div className="flex items-center gap-2">
+                {chatList.length > 0 && (
+                  <button
+                    onClick={onDeleteAllChats}
+                    className="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-500 text-[11px] font-bold rounded-lg border border-red-200 transition-all active:scale-95"
+                  >전체 삭제</button>
+                )}
+                <RefreshBtn onRefresh={() => doRefresh('chats', onRefreshChat)} refreshed={refreshedTab === 'chats'} />
+              </div>
             </div>
             <div className={`rounded-2xl p-3 flex items-start gap-2.5 ${darkMode ? 'bg-cyan-900/30 border border-cyan-800' : 'bg-cyan-50 border border-cyan-200'}`}>
               <MessageCircle className="w-5 h-5 text-cyan-500 flex-shrink-0 mt-0.5" />

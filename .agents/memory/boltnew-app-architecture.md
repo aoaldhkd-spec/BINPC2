@@ -29,4 +29,16 @@ Korean social matching app: "범일NPC 술번개"
 - `SUPABASE_URL` / `SUPABASE_KEY` constants kept for the CredentialsTab display UI.
 
 ## MainScreen
-Separate module-level component in App.tsx receiving `newMsgCount` as a prop from App.
+Separate module-level component in App.tsx. Props include: `newMsgCount`, `onDeleteAllChats`, `onBroadcastGame`.
+
+## Stale closure fix (profilesRef)
+- `profilesRef = useRef<Profile[]>([])` declared after other refs (~line 3141).
+- `profilesRef.current = profiles` assigned directly in App render body after `profileMap` useMemo (~line 3201) — safe pattern, no useEffect needed.
+- Used in `likesChannel` UPDATE handler (rejection notify) and `chatChannel` INSERT handler (sender nickname).
+
+## Key completed features
+- `deleteAllChats`: loops over chatList, deletes messages + chats rows, clears state.
+- Chat tab: 전체 삭제 버튼 (red, top-right, only shown when chatList > 0).
+- 내 상태 탭: 교환된 연락처 카드 (`receivedContactShares.length > 0` 조건부 표시, 보낸 하트 섹션 위).
+- 거부 알림: auto-dismiss after 5s via setTimeout.
+- BIO_CATEGORIES: 뜨밤 & 기타에 '집콕' 추가.
