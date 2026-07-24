@@ -6920,7 +6920,8 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
 }) {
   const [input, setInput] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
-  const [showEmoticons, setShowEmoticons] = useState(false);
+  const [showStickers, setShowStickers] = useState(false);
+  const [showQuickMsgs, setShowQuickMsgs] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [chatError, setChatError] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -6951,30 +6952,50 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
   // 더블탭 감지 (❤️ 반응)
   const lastTapRef = useRef<{ id: string; time: number } | null>(null);
 
-  // 술번개 퀴어 전용 이모티콘
-  const SOOL_EMOTICONS = [
-    '(ﾉ◕ヮ◕)ﾉ*:･ﾟ✧  환영해요!',
-    '( ˘ ³˘)♥  반했어요',
-    '(っ˘ω˘ς)  취했어요~',
-    '╰(*°▽°*)╯  설레요!',
-    '(*꒦ິ꒳꒦ີ)  부끄러워',
-    '(◕‿◕✿)  번호 주세요',
-    '(ง •̀ω•́)ง🍺  같이 마셔요!',
-    '｡◕‿◕｡  나는 네 편이에요',
-    '(•ᴗ•)❤️‍🔥  하트 보냈어요',
-    '🥂✨  건배!',
-    '(´。• ω •。`)  보고싶어요',
-    '(≧◡≦)♡  좋아해요!',
-    '눈_눈...  당신이에요?',
-    '(*´▽｀*)💕  설레는 밤',
-    'ヽ(•‿•)ノ🎶  신나요~',
-    '(づ｡◡｡)づ  안아주고 싶어',
-    '🏳️‍🌈✨(ˊ▽ˋ*)♪  우리의 밤!',
-    '(˘⌣˘)♡  오늘 인연이에요',
-    'ʕっ•ᴥ•ʔっ  꼬옥 안아줘',
-    '(人 •͈ᴗ•͈)  감사해요',
-    '(ᵔᴥᵔ)🍻  술 한 잔 어때요?',
-    '≧(´▽｀)≦  너무 좋아!!',
+  // ── 그림 이모티콘 스티커 (술번개 퀴어 테마) ──────────────────────────────
+  const STICKERS: { emoji: string; label: string; bg: string; shadow: string }[] = [
+    { emoji: '🥂', label: '건배!', bg: 'from-amber-50 to-orange-100', shadow: 'shadow-amber-200' },
+    { emoji: '💘', label: '반했어요', bg: 'from-rose-50 to-pink-100', shadow: 'shadow-rose-200' },
+    { emoji: '🙈', label: '부끄러워~', bg: 'from-red-50 to-rose-100', shadow: 'shadow-red-200' },
+    { emoji: '🍺', label: '같이 마셔요', bg: 'from-yellow-50 to-amber-100', shadow: 'shadow-yellow-200' },
+    { emoji: '💝', label: '설레요!', bg: 'from-pink-50 to-fuchsia-100', shadow: 'shadow-pink-200' },
+    { emoji: '🫶', label: '좋아해요', bg: 'from-rose-50 to-red-100', shadow: 'shadow-rose-200' },
+    { emoji: '🌈', label: '우리의 밤', bg: 'from-violet-50 to-purple-100', shadow: 'shadow-violet-200' },
+    { emoji: '🍻', label: '술 한 잔!', bg: 'from-amber-50 to-yellow-100', shadow: 'shadow-amber-200' },
+    { emoji: '📱', label: '번호 주세요', bg: 'from-teal-50 to-cyan-100', shadow: 'shadow-teal-200' },
+    { emoji: '🎉', label: '신나요!', bg: 'from-cyan-50 to-sky-100', shadow: 'shadow-cyan-200' },
+    { emoji: '🤗', label: '안아줘요', bg: 'from-orange-50 to-amber-100', shadow: 'shadow-orange-200' },
+    { emoji: '🥹', label: '감동이에요', bg: 'from-blue-50 to-indigo-100', shadow: 'shadow-blue-200' },
+    { emoji: '✨', label: '오늘 인연', bg: 'from-violet-50 to-indigo-100', shadow: 'shadow-violet-200' },
+    { emoji: '🥺', label: '보고싶어', bg: 'from-pink-50 to-rose-100', shadow: 'shadow-pink-200' },
+    { emoji: '🥰', label: '너무 좋아', bg: 'from-rose-50 to-pink-100', shadow: 'shadow-rose-200' },
+    { emoji: '👋', label: '또 봐요!', bg: 'from-green-50 to-teal-100', shadow: 'shadow-green-200' },
+    { emoji: '🌙', label: '좋은 밤', bg: 'from-indigo-50 to-violet-100', shadow: 'shadow-indigo-200' },
+    { emoji: '💃', label: '같이 놀자', bg: 'from-purple-50 to-fuchsia-100', shadow: 'shadow-purple-200' },
+    { emoji: '🫠', label: '녹아버렸어', bg: 'from-sky-50 to-blue-100', shadow: 'shadow-sky-200' },
+    { emoji: '🏳️‍🌈', label: '프라이드!', bg: 'from-pink-50 to-violet-100', shadow: 'shadow-pink-200' },
+  ];
+
+  // ── 빠른 메시지 ───────────────────────────────────────────────────────────
+  const QUICK_MSGS = [
+    '오늘 즐거웠어요 ☺️',
+    '술 한 잔 더 할래요? 🍺',
+    '번호 교환해요! 📱',
+    '이따가 연락해요 ☎️',
+    '오늘 인연인 것 같아요 💕',
+    '어디서 오셨어요?',
+    '맥주 VS 소주 어느 쪽이에요?',
+    '오늘 처음 나오셨어요?',
+    '자주 이런 모임 나오세요?',
+    '카카오 아이디 알려줘도 돼요? 🐣',
+    '잠깐 밖에 나갈래요? 🌙',
+    '오늘 정말 재미있었어요! 또 봐요 👋',
+    '밥은 드셨어요? 🍚',
+    '다음에 또 만나요 ✨',
+    '저 마음에 드세요? (◕‿◕✿)',
+    '같이 사진 찍어요! 📸',
+    '인스타 팔로우해도 될까요?',
+    '오늘 처음 뵙는데 반가워요!',
   ];
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
@@ -7002,6 +7023,9 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
     const nl = body.indexOf('\n');
     return nl === -1 ? { quote: body, text: '' } : { quote: body.slice(0, nl), text: body.slice(nl + 1) };
   };
+  // 스티커 포맷: "__sticker__N"
+  const isStickerMsg = (content: string | null) => !!content?.startsWith('__sticker__');
+  const parseStickerIdx = (content: string) => parseInt(content.replace('__sticker__', ''), 10);
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
@@ -7222,7 +7246,9 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
             const isMe = msg.sender_id === currentUserId;
             const time = new Date(msg.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
             const isCard = isContactCard(msg.content);
-            const isReply = !isCard && isReplyMsg(msg.content);
+            const isSticker = !isCard && isStickerMsg(msg.content);
+            const stickerData = isSticker ? STICKERS[parseStickerIdx(msg.content!)] : null;
+            const isReply = !isCard && !isSticker && isReplyMsg(msg.content);
             const replyData = isReply ? parseReply(msg.content!) : null;
             const reaction = reactions[msg.id];
             const isSwiping = swipeState?.msgId === msg.id;
@@ -7246,7 +7272,15 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
                   onTouchEnd={(e) => onMsgTouchEnd(e, msg)}
                   onContextMenu={(e) => handleMsgContextMenu(e, msg)}
                   onClick={() => handleTap(msg)}>
-                  {/* 말풍선 — DOM 첫 번째: flex-row-reverse에서 가장 오른쪽(내 메시지), flex-row에서 가장 왼쪽(상대방) */}
+
+                  {/* 스티커 — 말풍선 없이 카드형태로 */}
+                  {isSticker && stickerData ? (
+                    <div className={`w-[110px] h-[110px] rounded-3xl bg-gradient-to-br ${stickerData.bg} border border-white/60 shadow-lg ${stickerData.shadow} flex flex-col items-center justify-center gap-1 select-none`}>
+                      <span className="text-5xl leading-none">{stickerData.emoji}</span>
+                      <span className="text-[11px] font-black text-gray-600 mt-0.5">{stickerData.label}</span>
+                    </div>
+                  ) : (
+                  /* 말풍선 — DOM 첫 번째: flex-row-reverse에서 가장 오른쪽(내 메시지), flex-row에서 가장 왼쪽(상대방) */
                   <div className={`max-w-[72%] rounded-2xl overflow-hidden ${isMe ? 'bg-cyan-500 text-white rounded-br-md' : 'bg-white text-gray-900 rounded-bl-md shadow-sm'}`}>
                     {isCard ? (
                       <div className="px-4 py-3">
@@ -7280,6 +7314,7 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
                       <p className="px-4 py-2 text-sm leading-relaxed">{msg.content}</p>
                     )}
                   </div>
+                  )}
                   {/* 시간 + 안읽음 "1" — DOM 두 번째: 카톡처럼 말풍선 바깥쪽(내 메시지=왼쪽, 상대=오른쪽) */}
                   <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} self-end mb-0.5 shrink-0`}>
                     {isMe && myUnreadIds.has(msg.id) && (
@@ -7310,7 +7345,7 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
       </main>
 
       {/* 이모지 패널 */}
-      {showEmoji && !showEmoticons && (
+      {showEmoji && (
         <div className="bg-white border-t border-gray-200 max-w-3xl w-full mx-auto">
           <div className="grid grid-cols-10 gap-1 p-3">
             {EMOJIS.map((emoji) => (
@@ -7323,19 +7358,39 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
         </div>
       )}
 
-      {/* 술번개 이모티콘 패널 */}
-      {showEmoticons && (
+      {/* 그림 이모티콘 (스티커) 패널 */}
+      {showStickers && (
         <div className="bg-white border-t border-gray-200 max-w-3xl w-full mx-auto">
           <div className="px-3 py-2 border-b border-gray-100 flex items-center gap-2">
-            <span className="text-xs font-black text-rose-500">🏳️‍🌈 술번개 이모티콘</span>
+            <span className="text-xs font-black text-rose-500">🎨 이모티콘</span>
             <span className="text-[10px] text-gray-400 flex-1">탭하면 바로 전송</span>
           </div>
-          <div className="max-h-44 overflow-y-auto p-2 space-y-1">
-            {SOOL_EMOTICONS.map((em, i) => (
+          <div className="grid grid-cols-4 gap-2.5 p-3 max-h-52 overflow-y-auto">
+            {STICKERS.map((s, i) => (
               <button key={i} type="button"
-                onClick={() => { onSend(em); setShowEmoticons(false); }}
-                className="w-full text-left text-sm px-3 py-2 rounded-xl hover:bg-rose-50 active:bg-rose-100 transition-colors text-gray-700 font-medium leading-relaxed">
-                {em}
+                onClick={() => { onSend(`__sticker__${i}`); setShowStickers(false); }}
+                className={`flex flex-col items-center justify-center gap-1 p-2 rounded-2xl bg-gradient-to-br ${s.bg} border border-white/60 shadow-sm ${s.shadow} active:scale-95 transition-transform`}>
+                <span className="text-3xl leading-none">{s.emoji}</span>
+                <span className="text-[10px] font-bold text-gray-600 text-center leading-tight">{s.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 빠른 메시지 패널 */}
+      {showQuickMsgs && (
+        <div className="bg-white border-t border-gray-200 max-w-3xl w-full mx-auto">
+          <div className="px-3 py-2 border-b border-gray-100 flex items-center gap-2">
+            <span className="text-xs font-black text-violet-500">⚡ 빠른 메시지</span>
+            <span className="text-[10px] text-gray-400 flex-1">탭하면 바로 전송</span>
+          </div>
+          <div className="max-h-52 overflow-y-auto p-2 space-y-1">
+            {QUICK_MSGS.map((qm, i) => (
+              <button key={i} type="button"
+                onClick={() => { onSend(qm); setShowQuickMsgs(false); }}
+                className="w-full text-left text-sm px-3 py-2.5 rounded-xl hover:bg-violet-50 active:bg-violet-100 transition-colors text-gray-700 font-medium leading-relaxed border border-transparent hover:border-violet-100">
+                {qm}
               </button>
             ))}
           </div>
@@ -7361,28 +7416,37 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
           </div>
         )}
         <form onSubmit={handleSend} className="max-w-3xl mx-auto px-3 py-2.5 flex items-center gap-2">
+          {/* 이미지 */}
           <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading}
-            className="p-2 text-gray-400 hover:text-cyan-500 hover:bg-cyan-50 rounded-full transition-all disabled:opacity-50">
+            className="p-2 text-gray-400 hover:text-cyan-500 hover:bg-cyan-50 rounded-full transition-all disabled:opacity-50 shrink-0">
             <ImageIcon className="w-5 h-5" />
           </button>
+          {/* 이모지 */}
           <button type="button"
-            onClick={() => { setShowEmoji(!showEmoji); setShowEmoticons(false); }}
-            className={`p-2 rounded-full transition-all ${showEmoji && !showEmoticons ? 'text-cyan-500 bg-cyan-50' : 'text-gray-400 hover:text-cyan-500 hover:bg-cyan-50'}`}>
+            onClick={() => { setShowEmoji(p => !p); setShowStickers(false); setShowQuickMsgs(false); }}
+            className={`p-2 rounded-full transition-all shrink-0 ${showEmoji ? 'text-cyan-500 bg-cyan-50' : 'text-gray-400 hover:text-cyan-500 hover:bg-cyan-50'}`}>
             <Smile className="w-5 h-5" />
           </button>
-          {/* 술번개 이모티콘 버튼 */}
+          {/* 그림 이모티콘 */}
           <button type="button"
-            onClick={() => { setShowEmoticons(!showEmoticons); setShowEmoji(false); }}
-            className={`p-2 rounded-full transition-all text-base leading-none ${showEmoticons ? 'bg-rose-50' : 'hover:bg-rose-50'}`}
-            title="술번개 이모티콘">
-            🏳️‍🌈
+            onClick={() => { setShowStickers(p => !p); setShowEmoji(false); setShowQuickMsgs(false); }}
+            className={`p-1.5 rounded-full transition-all text-lg leading-none shrink-0 ${showStickers ? 'bg-rose-100' : 'hover:bg-rose-50'}`}
+            title="이모티콘">
+            🎨
+          </button>
+          {/* 빠른 메시지 */}
+          <button type="button"
+            onClick={() => { setShowQuickMsgs(p => !p); setShowEmoji(false); setShowStickers(false); }}
+            className={`p-1.5 rounded-full transition-all text-lg leading-none shrink-0 ${showQuickMsgs ? 'bg-violet-100' : 'hover:bg-violet-50'}`}
+            title="빠른 메시지">
+            ⚡
           </button>
           <input ref={inputRef} type="text" value={input} onChange={(e) => setInput(e.target.value)}
             placeholder={uploading ? '업로드 중...' : replyTo ? '답장 입력...' : '메시지를 입력하세요...'}
             disabled={uploading}
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-full focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none transition-all text-sm disabled:opacity-60" />
+            className="flex-1 px-3 py-2 border border-gray-300 rounded-full focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none transition-all text-sm disabled:opacity-60 min-w-0" />
           <button type="submit" disabled={!input.trim() || uploading}
-            className="p-2 bg-cyan-500 text-white rounded-full hover:bg-cyan-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all">
+            className="p-2 bg-cyan-500 text-white rounded-full hover:bg-cyan-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all shrink-0">
             <Send className="w-5 h-5" />
           </button>
         </form>
