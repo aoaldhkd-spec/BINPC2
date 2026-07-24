@@ -1,44 +1,53 @@
 ---
 name: boltnew-app architecture
-description: Korean social/matching app in artifacts/boltnew-app. Data layer, routing, and key component notes.
+description: Korean queer social drinking app — key architecture decisions, component structure, and feature map
 ---
 
-## App
-Korean social matching app: "범일NPC 술번개"
+## Core Stack
+- `artifacts/boltnew-app/src/App.tsx` (~7,800줄) — monolithic main file (Babel 500KB warning, functionally fine)
+- `src/lib/localdb.ts` — in-memory+localStorage mock (no real Supabase)
+- `src/AdminApp.tsx`, `src/TestDashboard.tsx`, `src/stickers.tsx` — supporting screens
+- `src/components/FortuneTab.tsx` — 사주/타로/궁합 탭 컴포넌트 (darkMode prop 없음, 자체 dark theme)
+- `src/lib/fortune.ts` — 모든 점술 계산 로직
 
-**Routes**: App.tsx (main user flow), AdminApp.tsx (admin panel), TestDashboard.tsx
+## Tab Structure (5 Main Tabs)
+1. **나·참여자** (status/profiles) — 내 상태 | 참여자 서브탭
+2. **배치도** (seating)
+3. **채팅·건의** (chats/suggestions) — 채팅 | 건의함 서브탭
+4. **게임·운세** (game/fortune) — 🎮 게임 | 🔮 운세 서브탭
+5. **통계·랭킹** (stats/ranking) — 통계 | 랭킹 서브탭
 
-**Data layer**: All Supabase calls replaced with `localdb.ts` (local mock).
-- `src/lib/localdb.ts` — Full in-memory + localStorage mock of the Supabase JS client.
-- `src/lib/supabase.ts` — Re-exports `supabase` from `./localdb`.
+**Why:** User wanted exactly 5 tabs; fortune moved from standalone top-level tab into "게임·운세" sub-tab.
 
-**Why local mock**: App is deployed on Replit with no external Supabase instance. All data persists in localStorage. Cross-tab realtime uses BroadcastChannel named `'localdb-bc'`.
+`mainTab === 'fortune'` still exists in MainTab type and is handled by fortune sub-tab button calling `onTabChange('fortune')`. Game tab in tab bar highlights when mainTab is 'game' OR 'fortune'.
 
-## Local mock key facts
-- Tables auto-created on first access (empty array returned if not seeded).
-- Seeded on startup: `app_settings` (id=1, admin_password='admin1234') and `seats` (96 rows, 12 tables × 8 positions).
-- Uniqueness enforced: `profiles.nickname` returns `{ error: { code: '23505' } }` on duplicate.
-- RPC stubs: all `admin_*` RPCs implemented in JS in `localdb.ts`.
-- Storage mock: images stored as data URLs in an in-memory Map (not persisted).
-- `delete().neq('id', sentinel)` — handled generically by the neq filter; deletes all rows not matching the sentinel UUID.
+## MainScreen Props Key
+- `MainScreen` receives all state from parent App and passes down
+- `MainScreen` is a module-level component (not defined inside App) — receives `newMsgCount` as prop
+- `FortuneTab` receives: `currentUserId`, `myProfile`, `profiles`, `likedIds` (no `darkMode`)
 
-## AdminApp.tsx
-- `adminSupabase` is now a `const` aliased to `supabase` (same local client).
-- `setAdminToken` is a no-op that only updates localStorage for session tracking.
-- `buildAdminClient` and `createClient` imports removed.
-- `SUPABASE_URL` / `SUPABASE_KEY` constants kept for the CredentialsTab display UI.
+## Fortune Feature Map
+- `getZodiac(year)` — 12지신 정보
+- `getOhaeng(year)` — 오행 (목화토금수)
+- `drawTodayTarot(userId)` — 오늘 타로 3장 (userId+날짜 시드)
+- `getTodayFortune(year,month,day)` — 오늘의 사주 운세
+- `getCompatibility(...)` — 전통 사주 궁합 (12지신)
+- `getNumerologyCompat(...)` — 수비학 궁합 (생년월일 숫자 합산)
+- `getOhaengCompat(...)` — 오행 상성 궁합
+- `getBedCompat(...)` — 침대 궁합 🔞 (오행+돔섭 스코어)
+- `getMbtiCompat(...)` — MBTI 궁합
 
-## MainScreen
-Separate module-level component in App.tsx. Props include: `newMsgCount`, `onDeleteAllChats`, `onBroadcastGame`.
+## Dummy Data (TestDashboard)
+- `createManyDummies`: Korean adjective+noun nicknames (귀여운고양이 등), birth_year 1985-2004, birth_month 1-12, birth_day 1-28, random Korean location, random interests, random pin_code, dom_sub_score
+- `DUMMY_ADJS/DUMMY_NOUNS/DUMMY_LOCATIONS` — nickname/location pool defined in TestDashboard.tsx
 
-## Stale closure fix (profilesRef)
-- `profilesRef = useRef<Profile[]>([])` declared after other refs (~line 3141).
-- `profilesRef.current = profiles` assigned directly in App render body after `profileMap` useMemo (~line 3201) — safe pattern, no useEffect needed.
-- Used in `likesChannel` UPDATE handler (rejection notify) and `chatChannel` INSERT handler (sender nickname).
+## Key Bug Fixes Applied
+- Startup `useEffect` timeout: `clearTimeout` is called on both success AND cleanup via `cancelled` flag
+- `handleTabChange`: fortune tab now sets seenGameCount (same as game tab)
+- FortuneTab: `darkMode` prop removed — uses self-contained dark theme
 
-## Key completed features
-- `deleteAllChats`: loops over chatList, deletes messages + chats rows, clears state.
-- Chat tab: 전체 삭제 버튼 (red, top-right, only shown when chatList > 0).
-- 내 상태 탭: 교환된 연락처 카드 (`receivedContactShares.length > 0` 조건부 표시, 보낸 하트 섹션 위).
-- 거부 알림: auto-dismiss after 5s via setTimeout.
-- BIO_CATEGORIES: 뜨밤 & 기타에 '집콕' 추가.
+## Profile Schema Fields for Fortune
+- `birth_year: number | null` — 태어난 해
+- `birth_month: number | null` — 태어난 월
+- `birth_day: number | null` — 태어난 일
+- All three required for fortune features; missing any → NoBirthday state shown

@@ -6045,7 +6045,7 @@ function MainScreen({
   const handleTabChange = (t: MainTab) => {
     if (t === 'status') { setSeenHeartsCount(pendingHeartsCount); setSeenContactsCount(receivedContactShares.length); setSeenProfilesCount(profiles.length); }
     if (t === 'chats') { onClearMsgCount(); }
-    if (t === 'game') setSeenGameCount(activeGameCount);
+    if (t === 'game' || t === 'fortune') setSeenGameCount(activeGameCount);
     onTabChange(t);
   };
 
@@ -6125,13 +6125,12 @@ function MainScreen({
             { id: 'status' as MainTab, label: '나·참여자', icon: <UserCheck className="w-5 h-5" />, badge: Math.max(0, pendingHeartsCount - seenHeartsCount) + newContactsCount + (seenProfilesCount < 0 ? 0 : Math.max(0, profiles.length - seenProfilesCount)) },
             { id: 'seating' as MainTab, label: '배치도', icon: <LayoutGrid className="w-5 h-5" /> },
             { id: 'chats' as MainTab, label: '채팅·건의', icon: <MessageCircle className="w-5 h-5" />, badge: newMsgCount },
-            { id: 'game' as MainTab, label: '게임', icon: <Gamepad2 className="w-5 h-5" />, badge: Math.max(0, activeGameCount - seenGameCount) },
+            { id: 'game' as MainTab, label: '게임·운세', icon: <Gamepad2 className="w-5 h-5" />, badge: Math.max(0, activeGameCount - seenGameCount) },
             { id: 'stats' as MainTab, label: '통계·랭킹', icon: <BarChart3 className="w-5 h-5" /> },
-            { id: 'fortune' as MainTab, label: '🔮 운세', icon: <Sparkles className="w-5 h-5" /> },
           ]).map((t) => (
             <button key={t.id} onClick={() => handleTabChange(t.id)}
               className={`relative flex-1 min-w-[56px] flex flex-col items-center gap-1 px-2 py-2.5 text-[10px] font-semibold border-b-2 transition-all active:scale-95 ${
-                mainTab === t.id || (t.id === 'status' && mainTab === 'profiles') || (t.id === 'chats' && mainTab === 'suggestions') || (t.id === 'stats' && mainTab === 'ranking')
+                mainTab === t.id || (t.id === 'status' && mainTab === 'profiles') || (t.id === 'chats' && mainTab === 'suggestions') || (t.id === 'stats' && mainTab === 'ranking') || (t.id === 'game' && mainTab === 'fortune')
                   ? darkMode ? 'border-cyan-500 text-cyan-400 bg-cyan-500/10' : 'border-cyan-500 text-cyan-600 bg-cyan-50'
                   : darkMode ? 'border-transparent text-slate-400 active:text-slate-100' : 'border-transparent text-gray-500 active:text-gray-700'
               }`}>
@@ -6181,6 +6180,21 @@ function MainScreen({
         {(mainTab === 'stats' || mainTab === 'ranking') && (
           <div className={`max-w-7xl mx-auto flex p-1 ${darkMode ? 'bg-slate-800' : 'bg-gray-200/80'}`}>
             {[{ id: 'stats' as MainTab, label: '통계' }, { id: 'ranking' as MainTab, label: '랭킹' }].map(sub => (
+              <button key={sub.id} onClick={() => handleTabChange(sub.id)}
+                className={`flex-1 py-2 rounded-lg text-[11px] font-bold transition-all ${
+                  mainTab === sub.id
+                    ? darkMode ? 'bg-slate-700 text-cyan-400 shadow-sm' : 'bg-white text-gray-800 shadow-sm'
+                    : darkMode ? 'text-slate-500' : 'text-gray-500'
+                }`}>
+                {sub.label}
+              </button>
+            ))}
+          </div>
+        )}
+        {/* Sub Tab — 게임·운세 */}
+        {(mainTab === 'game' || mainTab === 'fortune') && (
+          <div className={`max-w-7xl mx-auto flex p-1 ${darkMode ? 'bg-slate-800' : 'bg-gray-200/80'}`}>
+            {[{ id: 'game' as MainTab, label: '🎮 게임' }, { id: 'fortune' as MainTab, label: '🔮 운세' }].map(sub => (
               <button key={sub.id} onClick={() => handleTabChange(sub.id)}
                 className={`flex-1 py-2 rounded-lg text-[11px] font-bold transition-all ${
                   mainTab === sub.id
@@ -6987,7 +7001,7 @@ function MainScreen({
           )
         )}
 
-        {/* ─── 운세 탭 ─── */}
+        {/* ─── 운세 탭 (게임·운세 하위) ─── */}
         {mainTab === 'fortune' && (
           <div className="min-h-[60vh]">
             <FortuneTab
@@ -6995,7 +7009,6 @@ function MainScreen({
               myProfile={profiles.find(p => p.id === currentUserId) ?? null}
               profiles={profiles}
               likedIds={likedIds}
-              darkMode={darkMode}
             />
           </div>
         )}
