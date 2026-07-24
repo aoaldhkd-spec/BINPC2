@@ -5556,8 +5556,9 @@ function NicknameSetupScreen({ onSubmit, loading, onReset }: {
 
   const atMaxBio = selectedBio.length >= 5;
 
-  // Step 1 valid: mbti + birthYear + location + 개인정보 체크 (생월·생일은 선택)
-  const step1Valid = !!mbti && !!birthYear && !!location && birthInfoChecked;
+  // Step 1 valid: mbti + birthYear + location + (생월·생일 둘 다 선택 OR 개인정보 체크)
+  const birthDateFilled = birthMonth !== null && birthDay !== null;
+  const step1Valid = !!mbti && !!birthYear && !!location && (birthDateFilled || birthInfoChecked);
   // Step 2 valid: interests >= 2 + position
   const step2Valid = selectedBio.length >= 2 && positionScore !== null;
   const canGenerate = !!mbti && !!birthYear && !!location && selectedBio.length >= 2 && positionScore !== null;
@@ -5810,7 +5811,7 @@ function NicknameSetupScreen({ onSubmit, loading, onReset }: {
                 </div>
 
                 {/* Step 1 summary chips */}
-                {(mbti || birthYear || location) && (
+                {(mbti || birthYear || birthMonth || birthDay || location) && (
                   <div className="flex gap-2 flex-wrap">
                     {mbti && (
                       <span className="px-3 py-1.5 bg-teal-50 text-teal-700 text-sm font-bold rounded-full border border-teal-100">{mbti}</span>
@@ -5818,6 +5819,11 @@ function NicknameSetupScreen({ onSubmit, loading, onReset }: {
                     {birthYear && (
                       <span className="px-3 py-1.5 bg-cyan-50 text-cyan-700 text-sm font-bold rounded-full border border-cyan-100">
                         {String(birthYear).slice(2)}년생
+                      </span>
+                    )}
+                    {birthMonth !== null && (
+                      <span className="px-3 py-1.5 bg-purple-50 text-purple-700 text-sm font-bold rounded-full border border-purple-100">
+                        {birthMonth}월 {birthDay !== null ? `${birthDay}일` : ''}
                       </span>
                     )}
                     {location && (
