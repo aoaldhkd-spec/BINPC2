@@ -6461,7 +6461,7 @@ function MainScreen({
               </div>
             </div>
 
-            {/* ── 내 카드 고정 ─────────────────────────────────────── */}
+            {/* ── 내 카드 (고정 위치, sticky 없음) ───────────────── */}
             {(() => {
               const myProfile = profiles.find(p => p.id === currentUserId);
               if (!myProfile) return null;
@@ -6470,7 +6470,7 @@ function MainScreen({
               const bioTags = myProfile.bio ? myProfile.bio.split(',').map(t => t.trim()).filter(Boolean).slice(0, 3) : [];
               const age = getKoreanAge(myProfile.birth_year);
               return (
-                <div className={`sticky top-0 z-20 -mx-4 px-4 pb-2 pt-1 mb-2 ${darkMode ? 'bg-slate-950/95' : 'bg-gray-50/95'} backdrop-blur-sm`}>
+                <div className="mb-3">
                   <p className={`text-[10px] font-black uppercase tracking-widest mb-1.5 ${darkMode ? 'text-amber-400' : 'text-amber-500'}`}>내 카드 👤</p>
                   <div
                     className="group relative bg-white rounded-xl overflow-hidden shadow-sm border-2 border-amber-400 ring-2 ring-amber-300/50 cursor-pointer active:scale-[0.98] transition-all"
@@ -6498,7 +6498,8 @@ function MainScreen({
               );
             })()}
 
-            {/* ── 다른 참여자 그리드 ────────────────────────────── */}
+            {/* ── 다른 참여자 그리드 (이 영역만 스크롤) ───────── */}
+            <div className="overflow-y-auto -mx-4 px-4 pb-6" style={{ maxHeight: 'calc(100dvh - 420px)', minHeight: 160 }}>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 no-capture">
             {filteredProfiles.filter(p => p.id !== currentUserId).map((profile) => {
               const posColor = getPositionBg(profile.personality_score ?? 50);
@@ -6554,6 +6555,7 @@ function MainScreen({
               </div>
             )}
           </div>
+          </div>{/* /scroll-wrapper */}
           </>
           )
         )}
