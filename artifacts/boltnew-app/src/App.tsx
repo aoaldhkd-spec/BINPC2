@@ -11,6 +11,7 @@ import SeatingMap from './components/SeatingMap';
 import { StatsTab, RankingTab } from './components/StatsTabs';
 import ProfileAvatar from './components/ProfileAvatar';
 import QRCode from 'qrcode';
+import { StickerSVG, STICKER_LABELS, STICKER_BG, STICKER_COUNT } from './stickers';
 import { getPositionLabel, getPositionBg, getDomSubLabel, getDomSubBg, genAvatar, getKoreanAge } from './lib/profile';
 import { HEART_TYPES, HeartType } from './lib/constants';
 
@@ -7063,29 +7064,7 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
   // 더블탭 감지 (❤️ 반응)
   const lastTapRef = useRef<{ id: string; time: number } | null>(null);
 
-  // ── 그림 이모티콘 스티커 (술번개 퀴어 테마) ──────────────────────────────
-  const STICKERS: { emoji: string; label: string; bg: string; shadow: string }[] = [
-    { emoji: '🥂', label: '건배!', bg: 'from-amber-50 to-orange-100', shadow: 'shadow-amber-200' },
-    { emoji: '💘', label: '반했어요', bg: 'from-rose-50 to-pink-100', shadow: 'shadow-rose-200' },
-    { emoji: '🙈', label: '부끄러워~', bg: 'from-red-50 to-rose-100', shadow: 'shadow-red-200' },
-    { emoji: '🍺', label: '같이 마셔요', bg: 'from-yellow-50 to-amber-100', shadow: 'shadow-yellow-200' },
-    { emoji: '💝', label: '설레요!', bg: 'from-pink-50 to-fuchsia-100', shadow: 'shadow-pink-200' },
-    { emoji: '🫶', label: '좋아해요', bg: 'from-rose-50 to-red-100', shadow: 'shadow-rose-200' },
-    { emoji: '🌈', label: '우리의 밤', bg: 'from-violet-50 to-purple-100', shadow: 'shadow-violet-200' },
-    { emoji: '🍻', label: '술 한 잔!', bg: 'from-amber-50 to-yellow-100', shadow: 'shadow-amber-200' },
-    { emoji: '📱', label: '번호 주세요', bg: 'from-teal-50 to-cyan-100', shadow: 'shadow-teal-200' },
-    { emoji: '🎉', label: '신나요!', bg: 'from-cyan-50 to-sky-100', shadow: 'shadow-cyan-200' },
-    { emoji: '🤗', label: '안아줘요', bg: 'from-orange-50 to-amber-100', shadow: 'shadow-orange-200' },
-    { emoji: '🥹', label: '감동이에요', bg: 'from-blue-50 to-indigo-100', shadow: 'shadow-blue-200' },
-    { emoji: '✨', label: '오늘 인연', bg: 'from-violet-50 to-indigo-100', shadow: 'shadow-violet-200' },
-    { emoji: '🥺', label: '보고싶어', bg: 'from-pink-50 to-rose-100', shadow: 'shadow-pink-200' },
-    { emoji: '🥰', label: '너무 좋아', bg: 'from-rose-50 to-pink-100', shadow: 'shadow-rose-200' },
-    { emoji: '👋', label: '또 봐요!', bg: 'from-green-50 to-teal-100', shadow: 'shadow-green-200' },
-    { emoji: '🌙', label: '좋은 밤', bg: 'from-indigo-50 to-violet-100', shadow: 'shadow-indigo-200' },
-    { emoji: '💃', label: '같이 놀자', bg: 'from-purple-50 to-fuchsia-100', shadow: 'shadow-purple-200' },
-    { emoji: '🫠', label: '녹아버렸어', bg: 'from-sky-50 to-blue-100', shadow: 'shadow-sky-200' },
-    { emoji: '🏳️‍🌈', label: '프라이드!', bg: 'from-pink-50 to-violet-100', shadow: 'shadow-pink-200' },
-  ];
+  // 스티커는 src/stickers.tsx에서 import (StickerSVG, STICKER_LABELS, STICKER_BG, STICKER_COUNT)
 
   // ── 빠른 메시지 ───────────────────────────────────────────────────────────
   const QUICK_MSGS = [
@@ -7358,7 +7337,7 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
             const time = new Date(msg.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
             const isCard = isContactCard(msg.content);
             const isSticker = !isCard && isStickerMsg(msg.content);
-            const stickerData = isSticker ? STICKERS[parseStickerIdx(msg.content!)] : null;
+            const stickerIdx = isSticker ? parseStickerIdx(msg.content!) : -1;
             const isReply = !isCard && !isSticker && isReplyMsg(msg.content);
             const replyData = isReply ? parseReply(msg.content!) : null;
             const reaction = reactions[msg.id];
@@ -7384,11 +7363,11 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
                   onContextMenu={(e) => handleMsgContextMenu(e, msg)}
                   onClick={() => handleTap(msg)}>
 
-                  {/* 스티커 — 말풍선 없이 카드형태로 */}
-                  {isSticker && stickerData ? (
-                    <div className={`w-[110px] h-[110px] rounded-3xl bg-gradient-to-br ${stickerData.bg} border border-white/60 shadow-lg ${stickerData.shadow} flex flex-col items-center justify-center gap-1 select-none`}>
-                      <span className="text-5xl leading-none">{stickerData.emoji}</span>
-                      <span className="text-[11px] font-black text-gray-600 mt-0.5">{stickerData.label}</span>
+                  {/* 스티커 — 카톡처럼 말풍선 없이 크게 */}
+                  {isSticker && stickerIdx >= 0 && stickerIdx < STICKER_COUNT ? (
+                    <div className="flex flex-col items-center select-none">
+                      <StickerSVG idx={stickerIdx} size={160} />
+                      <span className="text-[10px] text-gray-400 mt-0.5">{STICKER_LABELS[stickerIdx]}</span>
                     </div>
                   ) : (
                   /* 말풍선 — DOM 첫 번째: flex-row-reverse에서 가장 오른쪽(내 메시지), flex-row에서 가장 왼쪽(상대방) */
@@ -7475,14 +7454,16 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
           <div className="px-3 py-2 border-b border-gray-100 flex items-center gap-2">
             <span className="text-xs font-black text-rose-500">🎨 이모티콘</span>
             <span className="text-[10px] text-gray-400 flex-1">탭하면 바로 전송</span>
+            <span className="text-[10px] text-gray-300">{STICKER_COUNT}개</span>
           </div>
-          <div className="grid grid-cols-4 gap-2.5 p-3 max-h-52 overflow-y-auto">
-            {STICKERS.map((s, i) => (
+          <div className="grid grid-cols-4 gap-1.5 p-2.5 max-h-64 overflow-y-auto">
+            {Array.from({ length: STICKER_COUNT }, (_, i) => (
               <button key={i} type="button"
                 onClick={() => { onSend(`__sticker__${i}`); setShowStickers(false); }}
-                className={`flex flex-col items-center justify-center gap-1 p-2 rounded-2xl bg-gradient-to-br ${s.bg} border border-white/60 shadow-sm ${s.shadow} active:scale-95 transition-transform`}>
-                <span className="text-3xl leading-none">{s.emoji}</span>
-                <span className="text-[10px] font-bold text-gray-600 text-center leading-tight">{s.label}</span>
+                style={{ backgroundColor: STICKER_BG[i] }}
+                className="flex flex-col items-center justify-center gap-0.5 p-1.5 rounded-2xl active:scale-90 transition-transform hover:opacity-90">
+                <StickerSVG idx={i} size={76} />
+                <span className="text-[9px] font-bold text-gray-500 text-center leading-tight truncate w-full px-0.5">{STICKER_LABELS[i]}</span>
               </button>
             ))}
           </div>
