@@ -1536,6 +1536,7 @@ function LadderGame({ seats, tableNumber, onBroadcast, myNickname, profileMap }:
 }) {
   const [participants, setParticipants] = useState<string[]>([]);
   const [prizes, setPrizes] = useState<string[]>([]);
+  const [penaltyCount, setPenaltyCount] = useState(1); // 벌칙 인원 수
   const [prizeInput, setPrizeInput] = useState('');
   const [running, setRunning] = useState(false);
   const [bars, setBars] = useState<LadderBar[] | null>(null);
@@ -1545,6 +1546,8 @@ function LadderGame({ seats, tableNumber, onBroadcast, myNickname, profileMap }:
 
   const n = participants.length;
   const ROWS = Math.max(6, n + 2);
+  // penaltyCount는 n보다 클 수 없음
+  const effectivePenaltyCount = Math.min(penaltyCount, Math.max(1, n));
 
   const reset = () => { setBars(null); setEndCols(null); setRevealed(0); setRunning(false); };
 
@@ -1555,9 +1558,12 @@ function LadderGame({ seats, tableNumber, onBroadcast, myNickname, profileMap }:
     setEndCols(null);
     setRevealed(0);
 
-    const effectivePrizes = prizes.length >= n
-      ? prizes.slice(0, n)
-      : [...prizes, ...participants.map((_, i) => `${prizes.length + i + 1}등 🎉`)].slice(0, n);
+    // 벌칙 인원만큼 prizes 채우고, 나머지는 "통과"
+    const pc = effectivePenaltyCount;
+    const penaltyPrizes = prizes.length >= pc
+      ? prizes.slice(0, pc)
+      : [...prizes, ...Array(pc - prizes.length).fill('벌칙 🎯')].slice(0, pc);
+    const effectivePrizes = [...penaltyPrizes, ...Array(n - pc).fill('통과 ✓')];
     const sp = [...effectivePrizes].sort(() => Math.random() - 0.5);
 
     // ── 테이블 동기 모드 ─────────────────────────────────────────────────────
@@ -1578,8 +1584,7 @@ function LadderGame({ seats, tableNumber, onBroadcast, myNickname, profileMap }:
       setTimeout(() => {
         onBroadcast(session);
         setRunning(false);
-        setParticipants([]);
-        setPrizes([]);
+        // 참여자 유지 — 바로 다시 할 수 있게
         reset();
       }, 800);
       return;
@@ -1599,7 +1604,7 @@ function LadderGame({ seats, tableNumber, onBroadcast, myNickname, profileMap }:
   };
 
   const addPrize = () => {
-    if (prizeInput.trim() && prizes.length < n) {
+    if (prizeInput.trim() && prizes.length < effectivePenaltyCount) {
       setPrizes(p => [...p, prizeInput.trim()]);
       setPrizeInput('');
     }
@@ -1628,38 +1633,67 @@ function LadderGame({ seats, tableNumber, onBroadcast, myNickname, profileMap }:
       <ParticipantSelector seats={seats} tableNumber={tableNumber} selected={participants}
         onChange={p => { setParticipants(p); reset(); }} profileMap={profileMap} />
 
-      {/* 벌칙 항목 */}
+      {/* 벌칙 인원 + 항목 */}
       {n >= 2 && (
         <div className="bg-white rounded-2xl border border-gray-200 p-4 space-y-3">
-          <p className="text-xs font-bold text-gray-700 uppercase tracking-wider">벌칙 항목 <span className="text-gray-400 font-normal normal-case">(없으면 1등·2등… 자동)</span></p>
-          <div className="flex flex-wrap gap-1.5">
-            {LADDER_PRESET_PRIZES.map(p => (
-              <button key={p}
-                onClick={() => { if (!prizes.includes(p) && prizes.length < n) setPrizes(prev => [...prev, p]); }}
-                disabled={prizes.includes(p) || prizes.length >= n}
-                className={`text-xs px-2.5 py-1.5 rounded-xl border font-semibold transition-all disabled:opacity-40 active:scale-95 ${prizes.includes(p) ? 'bg-amber-100 border-amber-400 text-amber-700' : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-amber-300 hover:text-amber-600'}`}>
-                {p}
-              </button>
-            ))}
+          {/* 벌칙 인원 수 선택 */}
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold text-gray-700 uppercase tracking-wider">벌칙 인원</p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => { setPenaltyCount(c => Math.max(1, c - 1)); setPrizes(p => p.slice(0, penaltyCount - 1)); }}
+                disabled={effectivePenaltyCount <= 1}
+                className="w-7 h-7 rounded-full bg-gray-100 text-gray-600 font-black text-sm flex items-center justify-center hover:bg-gray-200 disabled:opacity-30 active:scale-95">−</button>
+              <span className="text-sm font-black text-amber-600 w-16 text-center">
+                {effectivePenaltyCount} / {n}명
+              </span>
+              <button
+                onClick={() => setPenaltyCount(c => Math.min(n, c + 1))}
+                disabled={effectivePenaltyCount >= n}
+                className="w-7 h-7 rounded-full bg-gray-100 text-gray-600 font-black text-sm flex items-center justify-center hover:bg-gray-200 disabled:opacity-30 active:scale-95">+</button>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <input type="text" value={prizeInput} onChange={e => setPrizeInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && addPrize()}
-              placeholder="직접 입력" disabled={prizes.length >= n}
-              className="flex-1 bg-gray-50 border border-gray-200 text-sm rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400 disabled:opacity-50" />
-            <button onClick={addPrize} disabled={!prizeInput.trim() || prizes.length >= n}
-              className="px-3 py-2 bg-amber-500 text-white text-xs font-bold rounded-xl disabled:opacity-40 active:scale-95">추가</button>
-          </div>
-          {prizes.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {prizes.map((p, i) => (
-                <button key={i} onClick={() => setPrizes(prev => prev.filter((_, j) => j !== i))}
-                  className="flex items-center gap-1 px-2.5 py-1 bg-amber-100 border border-amber-300 text-amber-800 text-xs font-bold rounded-full active:scale-95">
-                  {p}<span className="text-amber-400 text-[10px] ml-0.5">✕</span>
+
+          {/* 벌칙 항목 */}
+          <div>
+            <p className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+              벌칙 항목 <span className="text-gray-400 font-normal normal-case">({prizes.length}/{effectivePenaltyCount} — 미선택 시 "벌칙 🎯" 자동)</span>
+            </p>
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {LADDER_PRESET_PRIZES.map(p => (
+                <button key={p}
+                  onClick={() => { if (!prizes.includes(p) && prizes.length < effectivePenaltyCount) setPrizes(prev => [...prev, p]); }}
+                  disabled={prizes.includes(p) || prizes.length >= effectivePenaltyCount}
+                  className={`text-xs px-2.5 py-1.5 rounded-xl border font-semibold transition-all disabled:opacity-40 active:scale-95 ${prizes.includes(p) ? 'bg-amber-100 border-amber-400 text-amber-700' : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-amber-300 hover:text-amber-600'}`}>
+                  {p}
                 </button>
               ))}
             </div>
-          )}
+            <div className="flex gap-2">
+              <input type="text" value={prizeInput} onChange={e => setPrizeInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addPrize()}
+                placeholder="직접 입력" disabled={prizes.length >= effectivePenaltyCount}
+                className="flex-1 bg-gray-50 border border-gray-200 text-sm rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400 disabled:opacity-50" />
+              <button onClick={addPrize} disabled={!prizeInput.trim() || prizes.length >= effectivePenaltyCount}
+                className="px-3 py-2 bg-amber-500 text-white text-xs font-bold rounded-xl disabled:opacity-40 active:scale-95">추가</button>
+            </div>
+            {prizes.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {prizes.map((p, i) => (
+                  <button key={i} onClick={() => setPrizes(prev => prev.filter((_, j) => j !== i))}
+                    className="flex items-center gap-1 px-2.5 py-1 bg-amber-100 border border-amber-300 text-amber-800 text-xs font-bold rounded-full active:scale-95">
+                    {p}<span className="text-amber-400 text-[10px] ml-0.5">✕</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {/* 나머지 통과 표시 */}
+            {n > effectivePenaltyCount && (
+              <p className="text-[11px] text-gray-400 mt-1.5">
+                나머지 {n - effectivePenaltyCount}명 → <span className="font-bold text-green-600">통과 ✓</span>
+              </p>
+            )}
+          </div>
         </div>
       )}
 
@@ -6881,18 +6915,31 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
   const [chatError, setChatError] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  // 안 읽음 "1" 뱃지 — 내가 새로 보낸 메시지 추적
+  // 안 읽음 "1" 뱃지
   const initialMsgIds = useRef(new Set(messages.map(m => m.id)));
   const [myUnreadIds, setMyUnreadIds] = useState<Set<string>>(new Set());
 
   // 롱프레스 컨텍스트 메뉴
-  const [contextMenu, setContextMenu] = useState<{ msgId: string; content: string; isMine: boolean; x: number; y: number } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ msgId: string; content: string; isMine: boolean; imgUrl?: string; x: number; y: number } | null>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 답장
+  const [replyTo, setReplyTo] = useState<{ id: string; snippet: string; isMe: boolean } | null>(null);
+
+  // 이미지 전체화면 뷰어
+  const [imageViewer, setImageViewer] = useState<string | null>(null);
+
+  // 이모지 반응 (msgId → emoji, 로컬)
+  const [reactions, setReactions] = useState<Record<string, string>>({});
+
+  // 더블탭 감지 (❤️ 반응)
+  const lastTapRef = useRef<{ id: string; time: number } | null>(null);
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
-  // 안 읽음 "1": 새로 보낸 메시지 추가, 상대가 답장하면 전부 읽음 처리
+  // 안 읽음 "1"
   useEffect(() => {
     const lastMsg = messages[messages.length - 1];
     if (lastMsg && lastMsg.sender_id !== currentUserId) {
@@ -6905,21 +6952,33 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
     }
   }, [messages, currentUserId]);
 
+  // 메시지 파싱 helpers
+  const isContactCard = (content: string | null) => !!content?.startsWith('__contact__');
+  const parseContactCard = (content: string) => content.replace(/^__contact__\n?/, '').split('\n').filter(Boolean);
+  // 답장 포맷: "__reply__<snippet>\n<actualText>"
+  const isReplyMsg = (content: string | null) => !!content?.startsWith('__reply__');
+  const parseReply = (content: string): { quote: string; text: string } => {
+    const body = content.replace(/^__reply__/, '');
+    const nl = body.indexOf('\n');
+    return nl === -1 ? { quote: body, text: '' } : { quote: body.slice(0, nl), text: body.slice(nl + 1) };
+  };
+
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
-    if (input.trim()) {
-      if (hasBannedWord(input.trim())) {
-        setChatError('부적절한 표현이 포함되어 있어 전송할 수 없습니다.');
-        return;
-      }
-      setChatError('');
-      onSend(input.trim());
-      setInput('');
+    if (!input.trim()) { setShowEmoji(false); return; }
+    if (hasBannedWord(input.trim())) {
+      setChatError('부적절한 표현이 포함되어 있어 전송할 수 없습니다.');
+      return;
     }
+    setChatError('');
+    const text = replyTo ? `__reply__${replyTo.snippet}\n${input.trim()}` : input.trim();
+    onSend(text);
+    setInput('');
+    setReplyTo(null);
     setShowEmoji(false);
   };
 
-  const handleEmojiClick = (emoji: string) => { setInput((prev) => prev + emoji); };
+  const handleEmojiClick = (emoji: string) => { setInput((prev) => prev + emoji); inputRef.current?.focus(); };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -6933,17 +6992,32 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
     setShowEmoji(false);
   };
 
-  // 롱프레스 핸들러
+  // 롱프레스
   const handleLongPressStart = (e: React.TouchEvent, msg: Message) => {
     const touch = e.touches[0];
     longPressTimer.current = setTimeout(() => {
-      setContextMenu({ msgId: msg.id, content: msg.content ?? '', isMine: msg.sender_id === currentUserId, x: touch.clientX, y: touch.clientY });
-    }, 600);
+      setContextMenu({ msgId: msg.id, content: msg.content ?? '', isMine: msg.sender_id === currentUserId, imgUrl: msg.image_url ?? undefined, x: touch.clientX, y: touch.clientY });
+    }, 500);
   };
   const handleLongPressEnd = () => { if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; } };
   const handleMsgContextMenu = (e: React.MouseEvent, msg: Message) => {
     e.preventDefault();
-    setContextMenu({ msgId: msg.id, content: msg.content ?? '', isMine: msg.sender_id === currentUserId, x: e.clientX, y: e.clientY });
+    setContextMenu({ msgId: msg.id, content: msg.content ?? '', isMine: msg.sender_id === currentUserId, imgUrl: msg.image_url ?? undefined, x: e.clientX, y: e.clientY });
+  };
+
+  // 더블탭 → ❤️ 반응
+  const handleTap = (msg: Message) => {
+    const now = Date.now();
+    if (lastTapRef.current?.id === msg.id && now - lastTapRef.current.time < 350) {
+      setReactions(prev => {
+        const cur = prev[msg.id];
+        if (cur === '❤️') { const n = { ...prev }; delete n[msg.id]; return n; }
+        return { ...prev, [msg.id]: '❤️' };
+      });
+      lastTapRef.current = null;
+    } else {
+      lastTapRef.current = { id: msg.id, time: now };
+    }
   };
 
   // 연락처 공유
@@ -6962,32 +7036,80 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
     onSend(`__contact__\n${parts.join('\n')}`);
   };
 
-  const isContactCard = (content: string | null) => !!content?.startsWith('__contact__');
-  const parseContactCard = (content: string) => content.replace(/^__contact__\n?/, '').split('\n').filter(Boolean);
-
+  const QUICK_REACTIONS = ['❤️', '😂', '👍', '🔥', '😮', '😢'];
   const hasContact = !!(currentUserProfile?.kakao_id || currentUserProfile?.instagram_id || currentUserProfile?.phone_number);
 
   return (
     <div className="fixed inset-0 bg-gray-100 flex flex-col" style={{ height: '100dvh' }}>
 
+      {/* 이미지 전체화면 뷰어 */}
+      {imageViewer && (
+        <div className="fixed inset-0 z-[200] bg-black flex items-center justify-center"
+          onClick={() => setImageViewer(null)}>
+          <img src={imageViewer} alt="이미지" className="max-w-full max-h-full object-contain select-none" />
+          <button className="absolute top-4 right-4 w-10 h-10 bg-white/20 hover:bg-white/40 rounded-full flex items-center justify-center text-white text-xl transition-all"
+            onClick={() => setImageViewer(null)}>✕</button>
+        </div>
+      )}
+
       {/* 롱프레스 컨텍스트 메뉴 */}
       {contextMenu && (
         <div className="fixed inset-0 z-50" onClick={() => setContextMenu(null)}>
           <div
-            className="absolute bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden min-w-[150px]"
+            className="absolute bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden min-w-[170px]"
             style={{
-              top: Math.min(contextMenu.y, window.innerHeight - 130),
-              left: Math.min(Math.max(contextMenu.x - 75, 8), window.innerWidth - 170),
+              top: Math.min(contextMenu.y, window.innerHeight - 260),
+              left: Math.min(Math.max(contextMenu.x - 85, 8), window.innerWidth - 185),
             }}
             onClick={e => e.stopPropagation()}
           >
-            {!isContactCard(contextMenu.content) && contextMenu.content && (
+            {/* 빠른 이모지 반응 */}
+            <div className="flex items-center justify-around px-3 py-2.5 border-b border-gray-100">
+              {QUICK_REACTIONS.map(em => (
+                <button key={em}
+                  onClick={() => {
+                    setReactions(prev => {
+                      const cur = prev[contextMenu.msgId];
+                      if (cur === em) { const n = { ...prev }; delete n[contextMenu.msgId]; return n; }
+                      return { ...prev, [contextMenu.msgId]: em };
+                    });
+                    setContextMenu(null);
+                  }}
+                  className={`text-xl hover:scale-125 transition-transform active:scale-95 ${reactions[contextMenu.msgId] === em ? 'opacity-100 scale-125' : 'opacity-70'}`}>
+                  {em}
+                </button>
+              ))}
+            </div>
+            {/* 답장 */}
+            {!isContactCard(contextMenu.content) && (
+              <button
+                onClick={() => {
+                  const snippet = contextMenu.imgUrl ? '[이미지]' : (contextMenu.content?.slice(0, 40) ?? '');
+                  setReplyTo({ id: contextMenu.msgId, snippet, isMe: contextMenu.isMine });
+                  setContextMenu(null);
+                  setTimeout(() => inputRef.current?.focus(), 100);
+                }}
+                className="flex items-center gap-3 w-full px-5 py-3 text-sm text-gray-700 hover:bg-gray-50 text-left">
+                ↩️ 답장
+              </button>
+            )}
+            {/* 복사 */}
+            {!isContactCard(contextMenu.content) && !contextMenu.imgUrl && contextMenu.content && (
               <button
                 onClick={() => { navigator.clipboard?.writeText(contextMenu.content); setContextMenu(null); }}
-                className="flex items-center gap-3 w-full px-5 py-3.5 text-sm text-gray-700 hover:bg-gray-50 text-left">
+                className="flex items-center gap-3 w-full px-5 py-3 text-sm text-gray-700 hover:bg-gray-50 border-t border-gray-100 text-left">
                 📋 복사
               </button>
             )}
+            {/* 이미지 저장 */}
+            {contextMenu.imgUrl && (
+              <a href={contextMenu.imgUrl} download target="_blank" rel="noreferrer"
+                onClick={() => setContextMenu(null)}
+                className="flex items-center gap-3 w-full px-5 py-3 text-sm text-gray-700 hover:bg-gray-50 border-t border-gray-100 text-left">
+                💾 이미지 저장
+              </a>
+            )}
+            {/* 삭제 */}
             {contextMenu.isMine && (
               <button
                 onClick={() => {
@@ -6995,7 +7117,7 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
                   setMyUnreadIds(p => { const n = new Set(p); n.delete(contextMenu.msgId); return n; });
                   setContextMenu(null);
                 }}
-                className="flex items-center gap-3 w-full px-5 py-3.5 text-sm text-red-500 hover:bg-red-50 border-t border-gray-100 text-left">
+                className="flex items-center gap-3 w-full px-5 py-3 text-sm text-red-500 hover:bg-red-50 border-t border-gray-100 text-left">
                 🗑️ 삭제 (모두에게)
               </button>
             )}
@@ -7022,49 +7144,74 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
       </header>
 
       <main className="flex-1 overflow-y-auto min-h-0">
-        <div className="max-w-3xl mx-auto px-4 py-4 space-y-2">
+        <div className="max-w-3xl mx-auto px-4 py-4 space-y-1">
           {messages.map((msg) => {
             const isMe = msg.sender_id === currentUserId;
             const time = new Date(msg.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
             const isCard = isContactCard(msg.content);
+            const isReply = !isCard && isReplyMsg(msg.content);
+            const replyData = isReply ? parseReply(msg.content!) : null;
+            const reaction = reactions[msg.id];
             return (
-              <div key={msg.id}
-                className={`flex items-end gap-1.5 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}
-                onTouchStart={(e) => handleLongPressStart(e, msg)}
-                onTouchEnd={handleLongPressEnd}
-                onTouchMove={handleLongPressEnd}
-                onContextMenu={(e) => handleMsgContextMenu(e, msg)}>
-                {/* 시간 + 안읽음 "1" 뱃지 */}
-                <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} mb-0.5 shrink-0`}>
-                  {isMe && myUnreadIds.has(msg.id) && (
-                    <span className="text-[11px] font-black text-yellow-500 leading-none mb-0.5">1</span>
-                  )}
-                  <span className="text-[10px] text-gray-400 whitespace-nowrap">{time}</span>
+              <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                <div
+                  className={`flex items-end gap-1.5 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}
+                  onTouchStart={(e) => handleLongPressStart(e, msg)}
+                  onTouchEnd={handleLongPressEnd}
+                  onTouchMove={handleLongPressEnd}
+                  onContextMenu={(e) => handleMsgContextMenu(e, msg)}
+                  onClick={() => handleTap(msg)}>
+                  {/* 시간 + 안읽음 "1" 뱃지 */}
+                  <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} mb-0.5 shrink-0`}>
+                    {isMe && myUnreadIds.has(msg.id) && (
+                      <span className="text-[11px] font-black text-yellow-500 leading-none mb-0.5">1</span>
+                    )}
+                    <span className="text-[10px] text-gray-400 whitespace-nowrap">{time}</span>
+                  </div>
+                  {/* 말풍선 */}
+                  <div className={`max-w-[72%] rounded-2xl overflow-hidden ${isMe ? 'bg-cyan-500 text-white rounded-br-md' : 'bg-white text-gray-900 rounded-bl-md shadow-sm'}`}>
+                    {isCard ? (
+                      <div className="px-4 py-3">
+                        <p className={`text-[10px] font-black uppercase tracking-widest mb-2 ${isMe ? 'text-cyan-100' : 'text-cyan-600'}`}>📱 연락처</p>
+                        {parseContactCard(msg.content!).map((line, i) => {
+                          const val = line.split(': ').slice(1).join(': ');
+                          return (
+                            <div key={i} className="flex items-center gap-1.5">
+                              <p className="text-sm font-semibold flex-1">{line}</p>
+                              <button onClick={() => navigator.clipboard?.writeText(val)}
+                                className={`text-[10px] px-1.5 py-0.5 rounded-md font-semibold transition-all ${isMe ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                                복사
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : isReply && replyData ? (
+                      <div className="pt-2 pb-0 px-0">
+                        {/* 인용 블록 */}
+                        <div className={`mx-2 mb-1 rounded-xl px-3 py-1.5 text-[11px] leading-snug border-l-[3px] ${isMe ? 'bg-white/15 border-white/50 text-white/80' : 'bg-gray-100 border-cyan-400 text-gray-500'}`}>
+                          {replyData.quote}
+                        </div>
+                        <p className="px-4 pb-2 text-sm leading-relaxed">{replyData.text}</p>
+                      </div>
+                    ) : msg.image_url ? (
+                      <img
+                        src={msg.image_url} alt="이미지"
+                        className="max-w-[240px] w-full object-contain cursor-pointer active:opacity-80"
+                        onClick={(e) => { e.stopPropagation(); setImageViewer(msg.image_url!); }} />
+                    ) : (
+                      <p className="px-4 py-2 text-sm leading-relaxed">{msg.content}</p>
+                    )}
+                  </div>
                 </div>
-                {/* 말풍선 */}
-                <div className={`max-w-[72%] rounded-2xl overflow-hidden ${isMe ? 'bg-cyan-500 text-white rounded-br-md' : 'bg-white text-gray-900 rounded-bl-md shadow-sm'}`}>
-                  {isCard ? (
-                    <div className="px-4 py-3">
-                      <p className={`text-[10px] font-black uppercase tracking-widest mb-2 ${isMe ? 'text-cyan-100' : 'text-cyan-600'}`}>📱 연락처</p>
-                      {parseContactCard(msg.content!).map((line, i) => {
-                        const val = line.split(': ').slice(1).join(': ');
-                        return (
-                          <div key={i} className="flex items-center gap-1.5">
-                            <p className="text-sm font-semibold flex-1">{line}</p>
-                            <button onClick={() => navigator.clipboard?.writeText(val)}
-                              className={`text-[10px] px-1.5 py-0.5 rounded-md font-semibold transition-all ${isMe ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
-                              복사
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : msg.image_url ? (
-                    <img src={msg.image_url} alt="이미지" className="max-w-[240px] w-full object-contain" />
-                  ) : (
-                    <p className="px-4 py-2 text-sm leading-relaxed">{msg.content}</p>
-                  )}
-                </div>
+                {/* 이모지 반응 뱃지 */}
+                {reaction && (
+                  <button
+                    onClick={() => setReactions(prev => { const n = { ...prev }; delete n[msg.id]; return n; })}
+                    className={`mt-0.5 text-base px-2 py-0.5 rounded-full border shadow-sm bg-white transition-all active:scale-95 ${isMe ? 'mr-8' : 'ml-8'}`}>
+                    {reaction}
+                  </button>
+                )}
               </div>
             );
           })}
@@ -7098,6 +7245,17 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
             <p className="text-xs text-red-500 bg-red-50 px-3 py-1.5 rounded-lg border border-red-200">{chatError}</p>
           </div>
         )}
+        {/* 답장 미리보기 */}
+        {replyTo && (
+          <div className="max-w-3xl mx-auto px-3 pt-2 flex items-center gap-2">
+            <div className="flex-1 bg-cyan-50 border-l-4 border-cyan-400 rounded-r-xl px-3 py-1.5 text-xs text-gray-600 truncate">
+              <span className="font-bold text-cyan-600 mr-1">{replyTo.isMe ? '내 메시지' : otherProfile.nickname}에 답장</span>
+              {replyTo.snippet}
+            </div>
+            <button onClick={() => setReplyTo(null)}
+              className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-300 text-xs shrink-0">✕</button>
+          </div>
+        )}
         <form onSubmit={handleSend} className="max-w-3xl mx-auto px-3 py-2.5 flex items-center gap-2">
           <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading}
             className="p-2 text-gray-400 hover:text-cyan-500 hover:bg-cyan-50 rounded-full transition-all disabled:opacity-50">
@@ -7107,8 +7265,8 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
             className={`p-2 rounded-full transition-all ${showEmoji ? 'text-cyan-500 bg-cyan-50' : 'text-gray-400 hover:text-cyan-500 hover:bg-cyan-50'}`}>
             <Smile className="w-5 h-5" />
           </button>
-          <input type="text" value={input} onChange={(e) => setInput(e.target.value)}
-            placeholder={uploading ? '업로드 중...' : '메시지를 입력하세요...'}
+          <input ref={inputRef} type="text" value={input} onChange={(e) => setInput(e.target.value)}
+            placeholder={uploading ? '업로드 중...' : replyTo ? '답장 입력...' : '메시지를 입력하세요...'}
             disabled={uploading}
             className="flex-1 px-4 py-2 border border-gray-300 rounded-full focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none transition-all text-sm disabled:opacity-60" />
           <button type="submit" disabled={!input.trim() || uploading}
