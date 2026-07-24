@@ -429,7 +429,7 @@ export default function FortuneTab({
                     <p className="text-slate-400 text-[10px] font-bold mb-2">상대방 생년월일 입력</p>
                     <div className="flex gap-2">
                       <BirthSelect label="태어난 년도" value={manualYear}
-                        options={Array.from({ length: 30 }, (_, i) => 2005 - i)} onChange={setManualYear} />
+                        options={Array.from({ length: 56 }, (_, i) => 2005 - i)} onChange={setManualYear} />
                       <BirthSelect label="월" value={manualMonth}
                         options={Array.from({ length: 12 }, (_, i) => i + 1)} onChange={setManualMonth} />
                       <BirthSelect label="일" value={manualDay}

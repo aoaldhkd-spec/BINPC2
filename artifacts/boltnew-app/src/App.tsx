@@ -3483,6 +3483,7 @@ function App() {
 
     return () => {
       cancelled = true;
+      clearTimeout(timeout); // 언마운트 시 타임아웃 정리 (메모리 누수 방지)
       supabase.removeChannel(settingsChannel);
       supabase.removeChannel(notifChannel);
       supabase.removeChannel(qaChannel);
@@ -4409,12 +4410,19 @@ function App() {
     </>
   );
 
-  const sentLikedProfiles = profiles.filter((p) => likedIds.has(p.id));
-  const pendingHeartsCount = receivedLikers.filter((l) => {
-    const ht = receivedHeartTypes.get(l.id) ?? 'red';
-    if (ht === 'green') return !acknowledgedComplimentIds.has(l.id);
-    return !contactSharedWithIds.has(l.id);
-  }).length;
+  // useMemo: 매 렌더마다 filter 재계산 방지
+  const sentLikedProfiles = useMemo(
+    () => profiles.filter((p) => likedIds.has(p.id)),
+    [profiles, likedIds],
+  );
+  const pendingHeartsCount = useMemo(
+    () => receivedLikers.filter((l) => {
+      const ht = receivedHeartTypes.get(l.id) ?? 'red';
+      if (ht === 'green') return !acknowledgedComplimentIds.has(l.id);
+      return !contactSharedWithIds.has(l.id);
+    }).length,
+    [receivedLikers, receivedHeartTypes, acknowledgedComplimentIds, contactSharedWithIds],
+  );
 
   return (
     <>
@@ -5965,7 +5973,6 @@ function MainScreen({
   onClearChatUnread: (chatId: string) => void;
   resetPassword: string | null;
   onBroadcastGame: (s: TableMiniGameSession) => void;
-  onDeleteAllChats: () => void;
 }) {
   const heartCount = useCallback((t: HeartType) => { let c = 0; sentHeartTypes.forEach(v => { if (v === t) c++; }); return c; }, [sentHeartTypes]);
   const currentUserSeat = useMemo(() => seats.find(s => s.profile_id === currentUserId) ?? null, [seats, currentUserId]);

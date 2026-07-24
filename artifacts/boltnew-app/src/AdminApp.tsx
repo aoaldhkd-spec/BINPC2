@@ -3750,6 +3750,26 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [qrSeat, setQrSeat] = useState<Seat | null>(null);
   const [newReportPopup, setNewReportPopup] = useState<AnonymousReport | null>(null);
   const [drinkPopup, setDrinkPopup] = useState(false);
+  // 관리자 측에서도 팝업 뜰 때 TTS 재생
+  useEffect(() => {
+    if (!drinkPopup) return;
+    const speakLoud = () => {
+      if (!('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel();
+      let count = 0;
+      const say = () => {
+        const utter = new SpeechSynthesisUtterance('아저씨!! 술 주세요!!');
+        utter.lang = 'ko-KR'; utter.rate = 0.65; utter.pitch = 1.5; utter.volume = 1;
+        utter.onend = () => { count++; if (count < 3) say(); };
+        window.speechSynthesis.speak(utter);
+      };
+      say();
+    };
+    try {
+      const AudioCtx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (AudioCtx) { new AudioCtx().resume().then(speakLoud); } else { speakLoud(); }
+    } catch { speakLoud(); }
+  }, [drinkPopup]);
   const [seatingRefreshing, setSeatingRefreshing] = useState(false);
   const [seatingRefreshDone, setSeatingRefreshDone] = useState(false);
   const [seatingViewMode, setSeatingViewMode] = useState<'map' | 'manage'>('map');
