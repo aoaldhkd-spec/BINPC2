@@ -4360,16 +4360,12 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               const rows = [displayNums.slice(0, 4), displayNums.slice(4, 8), displayNums.slice(8, 12)].filter(r => r.length > 0);
               return (
                 <div className="mb-2">
-                  <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center justify-between mb-2">
                     <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">활성 테이블</p>
-                    <div className="flex items-center gap-1">
-                      <button onClick={() => setPendingActiveTables(null)}
-                        className="text-[9px] text-teal-600 font-bold px-1.5 py-0.5 rounded hover:bg-teal-50 transition-all">전체</button>
-                      <button onClick={() => { handleSetActiveTables(current); setPendingActiveTables(undefined); }}
-                        className="text-[9px] font-black px-2 py-0.5 bg-teal-500 hover:bg-teal-600 text-white rounded active:scale-95 transition-all">적용</button>
-                    </div>
+                    <button onClick={() => setPendingActiveTables(null)}
+                      className="text-[10px] text-teal-600 font-bold px-2 py-0.5 rounded-md hover:bg-teal-50 border border-teal-200 transition-all">전체 선택</button>
                   </div>
-                  <div className="grid grid-cols-6 gap-1">
+                  <div className="grid grid-cols-6 gap-1 mb-2.5">
                     {displayNums.map(n => {
                       const isOn = !current || current.includes(n);
                       const pos = posNum(n);
@@ -4388,6 +4384,15 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                       );
                     })}
                   </div>
+                  <button
+                    onClick={() => { handleSetActiveTables(current); setPendingActiveTables(undefined); }}
+                    className={`w-full py-2.5 rounded-xl font-black text-sm transition-all active:scale-[0.98] ${
+                      pendingActiveTables !== undefined
+                        ? 'bg-teal-500 hover:bg-teal-600 text-white shadow shadow-teal-200'
+                        : 'bg-gray-100 text-gray-400 cursor-default'
+                    }`}>
+                    {pendingActiveTables !== undefined ? '✓ 활성 테이블 저장' : '저장됨'}
+                  </button>
                 </div>
               );
             })()}
