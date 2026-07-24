@@ -234,7 +234,7 @@ export default function FortuneTab({
   const otherProfiles = profiles.filter(p => p.id !== currentUserId);
 
   return (
-    <div className="text-white">
+    <div className="text-white overflow-x-hidden w-full">
       {/* 서브탭 */}
       <div className="flex border-b border-slate-700 bg-slate-900 sticky top-0 z-10">
         {([

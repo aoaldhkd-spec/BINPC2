@@ -1596,7 +1596,7 @@ const BALANCE_QUICK: { label: string; a: string; b: string; hot?: boolean }[] = 
 ];
 
 // ── 게임 공통 벌칙 빠른 선택 ───────────────────────────────────────────────
-const GAME_PENALTY_QUICK = ['원샷', '벌주 한 잔', '폭탄주', '건배사 하기', '노래 한 소절', '볼 뽀뽀', '춤 한 번', '진실 말하기', '앞잔'];
+const GAME_PENALTY_QUICK = ['술 앞잔(원삿X) 🍺', '꽝 💀', '면제 ✅', '통과 ✓', '질문 받기 ❓', '원샷 🥃', '건배사 하기 🍻', '노래 한 소절 🎤', '춤 한 번 💃'];
 
 
 // ─── Admin Balance Game Tab ───────────────────────────────────────────────────
@@ -1784,16 +1784,27 @@ function AdminBalanceGameTab({ balanceGames, voteCounts, myVotes, onVote }: {
   );
 }
 
-function BalanceGameCreate({ currentGame, onGameUpdate, seats, settings }: { currentGame: GameState | null; onGameUpdate: (g: GameState | null) => void; seats: Seat[]; settings: AppSettings | null }) {
+function BalanceGameCreate({ currentGame, onGameUpdate, seats, settings, onRefresh }: { currentGame: GameState | null; onGameUpdate: (g: GameState | null) => void; seats: Seat[]; settings: AppSettings | null; onRefresh?: () => Promise<void> }) {
   const [optA, setOptA] = useState('');
   const [optB, setOptB] = useState('');
   const [balancePenalty, setBalancePenalty] = useState('');
   const [targetTable, setTargetTable] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshDone, setRefreshDone] = useState(false);
   const [batchMode, setBatchMode] = useState(false);
   const [batchConfig, setBatchConfig] = useState<Map<number, { a: string; b: string } | null>>(new Map());
   const [batchSaving, setBatchSaving] = useState(false);
   const [batchSentTables, setBatchSentTables] = useState<Set<number>>(new Set());
+
+  const handleRefresh = async () => {
+    if (!onRefresh) return;
+    setRefreshing(true);
+    await onRefresh();
+    setRefreshing(false);
+    setRefreshDone(true);
+    setTimeout(() => setRefreshDone(false), 2000);
+  };
 
   const allTableNumbers = [...new Set(seats.map(s => s.table_number))].sort((a, b) => a - b);
   const activeTables = settings?.active_tables ?? null;
@@ -1900,6 +1911,11 @@ function BalanceGameCreate({ currentGame, onGameUpdate, seats, settings }: { cur
               </button>
             </div>
           )}
+          <button onClick={handleRefresh} disabled={refreshing || !onRefresh}
+            className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl transition-all border disabled:opacity-40 ${refreshDone ? 'bg-teal-50 border-teal-300 text-teal-600' : 'bg-gray-100 hover:bg-gray-200 text-gray-600 border-gray-200'}`}>
+            <RefreshCw className={`w-3 h-3 ${refreshing ? 'animate-spin' : ''}`} />
+            {refreshDone ? '완료!' : '새로고침'}
+          </button>
           <div className="flex bg-gray-100 rounded-xl border border-gray-200 overflow-hidden">
             <button onClick={() => setBatchMode(false)} className={`px-3 py-1.5 text-xs font-bold transition-colors ${!batchMode ? 'bg-violet-500 text-white' : 'text-gray-500 hover:text-gray-700'}`}>단일</button>
             <button onClick={() => setBatchMode(true)} className={`px-3 py-1.5 text-xs font-bold transition-colors ${batchMode ? 'bg-violet-500 text-white' : 'text-gray-500 hover:text-gray-700'}`}>일괄</button>
@@ -1978,7 +1994,19 @@ function BalanceGameCreate({ currentGame, onGameUpdate, seats, settings }: { cur
           <p className="text-xs text-gray-500">활성 테이블별로 다른 게임을 동시에 시작합니다. A, B 선택지를 입력하세요.</p>
           {/* 일괄 빠른 선택 */}
           <div>
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">빠른 선택 — 전 테이블 일괄 적용</p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">빠른 선택</p>
+              <button onClick={() => {
+                const shuffled = [...BALANCE_QUICK].sort(() => Math.random() - 0.5);
+                const m = new Map<number, { a: string; b: string }>();
+                tableNumbers.forEach((n, i) => m.set(n, { a: shuffled[i % shuffled.length].a, b: shuffled[i % shuffled.length].b }));
+                setBatchConfig(m);
+                setBatchSentTables(new Set());
+              }}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold bg-violet-50 border border-violet-200 text-violet-600 hover:bg-violet-100 transition-all active:scale-95">
+                🎲 테이블별 랜덤 배분
+              </button>
+            </div>
             <div className="flex flex-wrap gap-1.5">
               {BALANCE_QUICK.map(q => (
                 <button key={q.label} onClick={() => {
@@ -1992,6 +2020,7 @@ function BalanceGameCreate({ currentGame, onGameUpdate, seats, settings }: { cur
                 </button>
               ))}
             </div>
+            <p className="text-[10px] text-gray-400 mt-1.5">🎲 버튼: 각 테이블에 다른 문제 무작위 배분 / 개별 버튼: 전 테이블 동일 문제</p>
           </div>
           {tableNumbers.length === 0 && <p className="text-sm text-gray-400 text-center py-4">활성 테이블이 없습니다. 먼저 테이블 설정에서 활성 테이블을 선택하세요.</p>}
           <div className="space-y-2">
@@ -2275,23 +2304,35 @@ const OX_QUICK_HOT = [
   '야한 농담도 괜찮다',
 ];
 
-function OxGameSection({ balanceGames, voteCounts, currentGame, onGameUpdate, seats, settings }: {
+function OxGameSection({ balanceGames, voteCounts, currentGame, onGameUpdate, seats, settings, onRefresh }: {
   balanceGames: BalanceGame[];
   voteCounts: Map<string, { a: number; b: number }>;
   currentGame: GameState | null;
   onGameUpdate: (g: GameState | null) => void;
   seats: Seat[];
   settings: AppSettings | null;
+  onRefresh?: () => Promise<void>;
 }) {
   const [question, setQuestion] = useState('');
   const [oxPenalty, setOxPenalty] = useState('');
   const [targetTable, setTargetTable] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshDone, setRefreshDone] = useState(false);
   const [batchMode, setBatchMode] = useState(false);
   const [batchOxQuestions, setBatchOxQuestions] = useState<Map<number, string>>(new Map());
   const [batchSaving, setBatchSaving] = useState(false);
   const [batchSentTables, setBatchSentTables] = useState<Set<number>>(new Set());
   const [oxQuickCat, setOxQuickCat] = useState<'general' | 'hot'>('general');
+
+  const handleRefresh = async () => {
+    if (!onRefresh) return;
+    setRefreshing(true);
+    await onRefresh();
+    setRefreshing(false);
+    setRefreshDone(true);
+    setTimeout(() => setRefreshDone(false), 2000);
+  };
 
   const oxGames = balanceGames.filter(isOxGame);
   const activeOxGame = oxGames.find(g => g.status === 'active');
@@ -2371,6 +2412,11 @@ function OxGameSection({ balanceGames, voteCounts, currentGame, onGameUpdate, se
               </button>
             </div>
           )}
+          <button onClick={handleRefresh} disabled={refreshing || !onRefresh}
+            className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl transition-all border disabled:opacity-40 ${refreshDone ? 'bg-teal-50 border-teal-300 text-teal-600' : 'bg-gray-100 hover:bg-gray-200 text-gray-600 border-gray-200'}`}>
+            <RefreshCw className={`w-3 h-3 ${refreshing ? 'animate-spin' : ''}`} />
+            {refreshDone ? '완료!' : '새로고침'}
+          </button>
           <div className="flex bg-gray-100 rounded-xl border border-gray-200 overflow-hidden">
             <button onClick={() => setBatchMode(false)} className={`px-3 py-1.5 text-xs font-bold transition-colors ${!batchMode ? 'bg-orange-500 text-white' : 'text-gray-500 hover:text-gray-700'}`}>단일</button>
             <button onClick={() => setBatchMode(true)} className={`px-3 py-1.5 text-xs font-bold transition-colors ${batchMode ? 'bg-orange-500 text-white' : 'text-gray-500 hover:text-gray-700'}`}>일괄</button>
@@ -2450,8 +2496,17 @@ function OxGameSection({ balanceGames, voteCounts, currentGame, onGameUpdate, se
           <p className="text-xs text-gray-500">테이블별로 다른 OX 문제를 동시에 전송합니다.</p>
           {/* 일괄 빠른 선택 */}
           <div>
-            <div className="flex items-center gap-2 mb-2">
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">빠른 문제 일괄 적용</p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">빠른 문제</p>
+              <button onClick={() => {
+                const pool = [...OX_QUICK_GENERAL, ...OX_QUICK_HOT].sort(() => Math.random() - 0.5);
+                const m = new Map<number, string>();
+                tableNumbers.forEach((n, i) => m.set(n, pool[i % pool.length]));
+                setBatchOxQuestions(m);
+              }}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold bg-orange-50 border border-orange-200 text-orange-600 hover:bg-orange-100 transition-all active:scale-95">
+                🎲 테이블별 랜덤 배분
+              </button>
             </div>
             <div className="grid grid-cols-2 gap-1.5">
               {OX_QUICK_GENERAL.slice(0, 8).map(q => (
@@ -2465,6 +2520,7 @@ function OxGameSection({ balanceGames, voteCounts, currentGame, onGameUpdate, se
                 </button>
               ))}
             </div>
+            <p className="text-[10px] text-gray-400 mt-1.5">🎲 버튼: 각 테이블에 다른 문제 무작위 배분 / 개별 버튼: 전 테이블 동일 문제</p>
           </div>
           {tableNumbers.length === 0 && <p className="text-sm text-gray-400 text-center py-4">활성 테이블이 없습니다.</p>}
           <div className="space-y-2">
@@ -4942,14 +4998,14 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               {gameSubTab === 'balance' && (
                 <div className="space-y-5">
                   <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
-                    <BalanceGameCreate currentGame={currentGame} onGameUpdate={setCurrentGame} seats={seats} settings={settings} />
+                    <BalanceGameCreate currentGame={currentGame} onGameUpdate={setCurrentGame} seats={seats} settings={settings} onRefresh={loadAll} />
                   </div>
                   <AdminBalanceGameTab balanceGames={balanceGames.filter(g => !isOxGame(g))} voteCounts={adminVoteCounts} myVotes={adminMyVotes} onVote={handleAdminVote} />
                 </div>
               )}
               {gameSubTab === 'ox' && (
                 <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
-                  <OxGameSection balanceGames={balanceGames} voteCounts={adminVoteCounts} currentGame={currentGame} onGameUpdate={setCurrentGame} seats={seats} settings={settings} />
+                  <OxGameSection balanceGames={balanceGames} voteCounts={adminVoteCounts} currentGame={currentGame} onGameUpdate={setCurrentGame} seats={seats} settings={settings} onRefresh={loadAll} />
                 </div>
               )}
               {gameSubTab === 'chosung' && (
