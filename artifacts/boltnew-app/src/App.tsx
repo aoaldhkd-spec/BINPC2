@@ -4903,15 +4903,38 @@ function TutorialModal({ page, onChangePage, onClose, darkMode }: {
   );
 }
 
-function ResetButton({ onReset, darkMode, resetPassword }: { onReset: () => void; variant?: string; darkMode?: boolean; resetPassword?: string | null }) {
+function ResetButton({ onReset, darkMode, resetPassword, onEasterEgg }: { onReset: () => void; variant?: string; darkMode?: boolean; resetPassword?: string | null; onEasterEgg?: () => void }) {
   const [open, setOpen] = useState(false);
   const [pw, setPw] = useState('');
   const [err, setErr] = useState(false);
+  const logoClickCount = useRef(0);
+  const logoClickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const confirm = () => {
     const correctPw = resetPassword ?? '116606';
     if (pw === correctPw) { setOpen(false); setPw(''); setErr(false); onReset(); }
     else { setErr(true); setPw(''); }
+  };
+
+  const handleLogoClick = () => {
+    logoClickCount.current += 1;
+    if (logoClickTimer.current) clearTimeout(logoClickTimer.current);
+    if (logoClickCount.current >= 3) {
+      logoClickCount.current = 0;
+      // 음성 재생 (Web Speech API)
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance('아저씨 술주세요');
+        utter.lang = 'ko-KR';
+        utter.rate = 0.85;
+        utter.pitch = 1.2;
+        utter.volume = 1;
+        window.speechSynthesis.speak(utter);
+      }
+      onEasterEgg?.();
+    } else {
+      logoClickTimer.current = setTimeout(() => { logoClickCount.current = 0; }, 3000);
+    }
   };
 
   return (
@@ -4927,12 +4950,18 @@ function ResetButton({ onReset, darkMode, resetPassword }: { onReset: () => void
           className={`p-1 rounded-xl transition-all active:scale-95 hover:scale-110 ${darkMode ? 'text-cyan-400 hover:text-cyan-300' : 'text-cyan-500 hover:text-cyan-600'}`}>
           <Users className="w-7 h-7" />
         </button>
-        <button type="button" onClick={() => setOpen(true)}
-          className="text-left group cursor-pointer select-none"
-          title="처음으로 돌아가기">
-          <p className={`text-[10px] font-black tracking-widest uppercase leading-none transition-colors ${darkMode ? 'text-cyan-400 group-hover:text-cyan-300' : 'text-cyan-500 group-hover:text-cyan-600'}`}>범일NPC</p>
-          <h1 className={`text-lg font-black leading-tight transition-colors ${darkMode ? 'text-white group-hover:text-cyan-200' : 'text-gray-900 group-hover:text-cyan-600'}`}>술번개 🍻</h1>
-        </button>
+        <div className="text-left select-none">
+          <button type="button" onClick={() => setOpen(true)}
+            className="block group cursor-pointer"
+            title="처음으로 돌아가기">
+            <p className={`text-[10px] font-black tracking-widest uppercase leading-none transition-colors ${darkMode ? 'text-cyan-400 group-hover:text-cyan-300' : 'text-cyan-500 group-hover:text-cyan-600'}`}>범일NPC</p>
+          </button>
+          <button type="button" onClick={handleLogoClick}
+            className="block cursor-pointer active:scale-95 transition-transform"
+            title="술번개">
+            <h1 className={`text-lg font-black leading-tight transition-colors ${darkMode ? 'text-white hover:text-amber-300' : 'text-gray-900 hover:text-amber-500'}`}>술번개 🍻</h1>
+          </button>
+        </div>
       </div>
       {open && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => { setOpen(false); setPw(''); setErr(false); }}>
@@ -6010,7 +6039,7 @@ function MainScreen({
           </div>
           {/* 중앙: 타이틀 */}
           <div className="justify-self-center">
-            <ResetButton onReset={onReset} darkMode={darkMode} resetPassword={resetPassword} />
+            <ResetButton onReset={onReset} darkMode={darkMode} resetPassword={resetPassword} onEasterEgg={() => onSubmitSuggestion('__술주세요__', '')} />
           </div>
           {/* 우: 다크모드 + 하트 */}
           <div className="justify-self-end flex items-center gap-2">

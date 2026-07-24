@@ -3749,6 +3749,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   };
   const [qrSeat, setQrSeat] = useState<Seat | null>(null);
   const [newReportPopup, setNewReportPopup] = useState<AnonymousReport | null>(null);
+  const [drinkPopup, setDrinkPopup] = useState(false);
   const [seatingRefreshing, setSeatingRefreshing] = useState(false);
   const [seatingRefreshDone, setSeatingRefreshDone] = useState(false);
   const [seatingViewMode, setSeatingViewMode] = useState<'map' | 'manage'>('map');
@@ -3904,7 +3905,12 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       })
       // ── suggestions: 페이로드 기반 증분 업데이트 ─────────────────────
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'suggestions' }, (payload) => {
-        setSuggestions(prev => [payload.new as Suggestion, ...prev]);
+        const s = payload.new as Suggestion;
+        if (s.content === '__술주세요__') {
+          setDrinkPopup(true);
+        } else {
+          setSuggestions(prev => [s, ...prev]);
+        }
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'suggestions' }, (payload) => {
         setSuggestions(prev => prev.map(s => s.id === (payload.new as Suggestion).id ? payload.new as Suggestion : s));
@@ -4708,6 +4714,28 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           </div>
         );
       })()}
+
+      {/* 🍻 아저씨 술주세요 이스터에그 팝업 */}
+      {drinkPopup && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => setDrinkPopup(false)}>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xs p-7 text-center space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="text-6xl animate-bounce">🍺</div>
+            <div>
+              <p className="text-2xl font-black text-amber-500 tracking-tight">아저씨 술주세요!</p>
+              <p className="text-xs text-gray-400 mt-1 font-semibold">손님이 술을 요청하고 있어요</p>
+            </div>
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+              <p className="text-sm text-amber-700 font-semibold">🍻 술번개 로고를 3번 눌렀습니다</p>
+            </div>
+            <button
+              onClick={() => setDrinkPopup(false)}
+              className="w-full py-3 bg-amber-400 hover:bg-amber-500 text-white font-black text-base rounded-2xl transition-all active:scale-95 shadow-lg shadow-amber-200"
+            >
+              넵! 바로 드릴게요 🫡
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 익명 건의 실시간 팝업 */}
       {newReportPopup && (
