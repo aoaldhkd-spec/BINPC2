@@ -602,10 +602,15 @@ class QueryBuilder {
           upserted.push(newRow);
           emitChange({ type: 'change', table, event: 'UPDATE', newRow, oldRow });
         } else {
-          const newRow: Record<string, unknown> = { id: genId(), created_at: ts(), ...row };
-          existing.push(newRow);
-          upserted.push(newRow);
-          emitChange({ type: 'change', table, event: 'INSERT', newRow, oldRow: null });
+          const base: Record<string, unknown> = { id: genId(), created_at: ts(), ...row };
+          // 더미 프로필 자동 생월·생일
+          if (table === 'profiles' && base.birth_month == null) {
+            base.birth_month = Math.ceil(Math.random() * 12);
+            base.birth_day   = Math.ceil(Math.random() * 28);
+          }
+          existing.push(base);
+          upserted.push(base);
+          emitChange({ type: 'change', table, event: 'INSERT', newRow: base, oldRow: null });
         }
       }
 

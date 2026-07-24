@@ -4623,7 +4623,6 @@ function App() {
   if (view === 'chat' && selectedProfile && chatId) return (
     <>
       {currentGame?.active && gameModalVisible && <GameAnnouncementModal game={currentGame} onDismiss={() => setGameModalVisible(false)} onVote={voteOnGame} onImageVote={voteOnImageGame} currentUserId={currentUserId} seats={seats} profiles={profiles} />}
-      {currentGame?.active && !gameModalVisible && <GameActiveBanner game={currentGame} onClick={() => setGameModalVisible(true)} />}
       <ChatScreen
         messages={messages}
         currentUserId={currentUserId!}
@@ -6620,7 +6619,7 @@ function MainScreen({
         <ScreenWatermark nickname={currentUserNickname} />
       )}
 
-      <main className={`max-w-7xl mx-auto px-4 py-6 no-capture ${mainTab === 'seating' ? '' : 'scrollbar-styled-light'}`}>
+      <main className={`max-w-7xl mx-auto px-4 py-6 ${mainTab === 'seating' ? '' : 'scrollbar-styled-light'}`}>
         {mainTab === 'profiles' && (
           seatingLocked ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3">
@@ -6717,7 +6716,7 @@ function MainScreen({
 
             {/* ── 다른 참여자 그리드 (이 영역만 스크롤) ───────── */}
             <div className="overflow-y-auto -mx-4 px-4 pb-6" style={{ maxHeight: 'calc(100dvh - 420px)', minHeight: 160 }}>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 no-capture">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
             {filteredProfiles.filter(p => p.id !== currentUserId).map((profile) => {
               const posColor = getPositionBg(profile.personality_score ?? 50);
               const posLabel = getPositionLabel(profile.personality_score ?? 50);
