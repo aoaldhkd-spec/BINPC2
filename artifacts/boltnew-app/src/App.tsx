@@ -4247,8 +4247,8 @@ function App() {
 
   const handleNicknameSetup = async (data: {
     birthYear: number;
-    birthMonth: number;
-    birthDay: number;
+    birthMonth: number | null;
+    birthDay: number | null;
     location: string;
     mbti: string;
     interests: string[];
@@ -5509,7 +5509,7 @@ function ProfileQrModal({ profileId, pinCode: pinCodeProp, onClose, onPinGenerat
 
 function NicknameSetupScreen({ onSubmit, loading, onReset }: {
   onSubmit: (data: {
-    birthYear: number; birthMonth: number; birthDay: number;
+    birthYear: number; birthMonth: number | null; birthDay: number | null;
     location: string; mbti: string; interests: string[];
     personalityScore: number; domSubScore: number | null; nickname: string;
     kakaoId: string; instagramId: string; phoneNumber: string; contactPrivate: boolean;
@@ -5524,8 +5524,8 @@ function NicknameSetupScreen({ onSubmit, loading, onReset }: {
   const [contactPrivate, setContactPrivate] = useState(false);
   const [mbti, setMbti] = useState<string | null>(null);
   const [birthYear, setBirthYear] = useState<string>(String(DECADE_GROUPS['90년대생'][0]));
-  const [birthMonth, setBirthMonth] = useState<number>(1);
-  const [birthDay, setBirthDay] = useState<number>(1);
+  const [birthMonth, setBirthMonth] = useState<number | null>(null);
+  const [birthDay, setBirthDay] = useState<number | null>(null);
   const [birthInfoChecked, setBirthInfoChecked] = useState(false);
   const [location, setLocation] = useState<string>(LOCATION_GROUPS['광역시'][0]);
   const [selectedBio, setSelectedBio] = useState<string[]>([]);
@@ -5556,8 +5556,8 @@ function NicknameSetupScreen({ onSubmit, loading, onReset }: {
 
   const atMaxBio = selectedBio.length >= 5;
 
-  // Step 1 valid: mbti + birthYear + birthMonth + birthDay + location + 개인정보 체크
-  const step1Valid = !!mbti && !!birthYear && !!birthMonth && !!birthDay && !!location && birthInfoChecked;
+  // Step 1 valid: mbti + birthYear + location + 개인정보 체크 (생월·생일은 선택)
+  const step1Valid = !!mbti && !!birthYear && !!location && birthInfoChecked;
   // Step 2 valid: interests >= 2 + position
   const step2Valid = selectedBio.length >= 2 && positionScore !== null;
   const canGenerate = !!mbti && !!birthYear && !!location && selectedBio.length >= 2 && positionScore !== null;
@@ -5753,7 +5753,7 @@ function NicknameSetupScreen({ onSubmit, loading, onReset }: {
                 <div>
                   <div className="flex items-center gap-2 mb-2">
                     <label className="text-sm font-semibold text-gray-800">생월·생일</label>
-                    <span className="text-xs font-semibold text-red-500 bg-red-50 px-2 py-0.5 rounded-full">필수</span>
+                    <span className="text-xs font-semibold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">선택</span>
                     <span className="text-[11px] text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full font-semibold">🔮 운세·궁합 기능 필요</span>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
