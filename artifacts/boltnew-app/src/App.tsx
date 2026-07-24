@@ -2320,7 +2320,7 @@ function WaitingOverlay({ sessionActive, onEnter }: {
                 onChange={e => { setAdminPwInput(e.target.value); setAdminPwError(false); }}
                 onKeyDown={e => {
                   if (e.key === 'Enter') {
-                    if (adminPwInput === (resetPassword ?? '116606')) { window.location.href = '/admin'; }
+                    if (adminPwInput === '116606') { window.location.href = '/admin'; }
                     else { setAdminPwError(true); setAdminPwInput(''); }
                   }
                 }}
@@ -2337,7 +2337,7 @@ function WaitingOverlay({ sessionActive, onEnter }: {
                   취소
                 </button>
                 <button onClick={() => {
-                    if (adminPwInput === (resetPassword ?? '116606')) { window.location.href = '/admin'; }
+                    if (adminPwInput === '116606') { window.location.href = '/admin'; }
                     else { setAdminPwError(true); setAdminPwInput(''); }
                   }}
                   className="flex-1 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-sm font-bold transition-all">
