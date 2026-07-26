@@ -2232,6 +2232,29 @@ function WaitingOverlay({ sessionActive, onEnter }: {
   const [showTutorial, setShowTutorial] = useState(false);
   const [tutPage, setTutPage] = useState(0);
   const [showConsentModal, setShowConsentModal] = useState(false);
+  const [showPinRecovery, setShowPinRecovery] = useState(false);
+  const [pinInput, setPinInput] = useState('');
+  const [pinError, setPinError] = useState('');
+  const [pinLoading, setPinLoading] = useState(false);
+
+  const handlePinRecovery = async () => {
+    if (pinInput.length !== 4) { setPinError('4자리 핀 번호를 입력해주세요'); return; }
+    setPinLoading(true); setPinError('');
+    try {
+      const resp = await fetch('/api/db/by-pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin: pinInput }),
+      });
+      const { data, error } = await resp.json() as { data: { id: string; nickname: string } | null; error: { message: string } | null };
+      if (error || !data) { setPinError('핀 번호를 찾을 수 없어요'); setPinLoading(false); return; }
+      localStorage.setItem(MATCHING_USER_KEY, data.id);
+      onEnter();
+    } catch {
+      setPinError('오류가 발생했어요. 다시 시도해주세요');
+      setPinLoading(false);
+    }
+  };
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-black flex flex-col items-center justify-center p-6 relative overflow-hidden">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -2302,6 +2325,11 @@ function WaitingOverlay({ sessionActive, onEnter }: {
           onClick={() => { setTutPage(0); setShowTutorial(true); }}
           className="w-full py-3.5 bg-gradient-to-r from-orange-400 to-rose-500 hover:from-orange-300 hover:to-rose-400 text-white font-black text-sm rounded-2xl shadow-lg shadow-orange-500/25 transition-all active:scale-98 mb-3"
         >앱 사용법 보기</button>
+        {/* 핀 번호 복구 */}
+        <button
+          onClick={() => { setShowPinRecovery(true); setPinInput(''); setPinError(''); }}
+          className="w-full py-2.5 bg-transparent border border-slate-600/60 hover:border-slate-500 text-slate-400 hover:text-slate-300 font-semibold text-xs rounded-2xl transition-all mb-1"
+        >🔑 핀 번호로 프로필 복구</button>
         {/* 개인정보 동의 모달 */}
         {showConsentModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/75 backdrop-blur-sm">
@@ -2416,6 +2444,48 @@ function WaitingOverlay({ sessionActive, onEnter }: {
             onChangePage={setTutPage}
             onClose={() => setShowTutorial(false)}
           />
+        )}
+        {/* 핀 번호 복구 모달 */}
+        {showPinRecovery && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/75 backdrop-blur-sm">
+            <div className="w-full max-w-sm rounded-3xl bg-slate-900 border border-slate-700 overflow-hidden shadow-2xl">
+              <div className="bg-gradient-to-r from-slate-800/60 to-slate-700/60 border-b border-slate-600 px-5 py-5 text-center">
+                <div className="w-12 h-12 rounded-2xl bg-slate-600/40 flex items-center justify-center mx-auto mb-3">
+                  <span className="text-2xl">🔑</span>
+                </div>
+                <h3 className="text-white font-black text-lg">핀 번호로 복구</h3>
+                <p className="text-slate-400 text-xs mt-1">이전에 받은 4자리 핀 번호를 입력하세요</p>
+              </div>
+              <div className="px-6 py-6 space-y-4">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  maxLength={4}
+                  value={pinInput}
+                  onChange={e => { setPinInput(e.target.value.slice(0, 4)); setPinError(''); }}
+                  onKeyDown={e => e.key === 'Enter' && handlePinRecovery()}
+                  placeholder="0000"
+                  className="w-full text-center text-3xl font-black tracking-[0.5em] bg-slate-800 border border-slate-600 rounded-2xl py-4 text-white placeholder-slate-600 focus:outline-none focus:border-teal-500 transition-all"
+                />
+                {pinError && (
+                  <p className="text-red-400 text-xs text-center font-semibold">{pinError}</p>
+                )}
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={handlePinRecovery}
+                    disabled={pinLoading || pinInput.length !== 4}
+                    className="w-full py-4 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 disabled:from-slate-600 disabled:to-slate-600 disabled:cursor-not-allowed text-white font-black text-base rounded-2xl shadow-lg transition-all active:scale-98"
+                  >
+                    {pinLoading ? '복구 중...' : '프로필 복구하기'}
+                  </button>
+                  <button
+                    onClick={() => setShowPinRecovery(false)}
+                    className="w-full py-3 bg-slate-700/60 hover:bg-slate-700 text-slate-300 font-bold text-sm rounded-2xl transition-all"
+                  >닫기</button>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
         {/* 테스트/관리자 — 우측 하단 고정 */}
         <div className="fixed bottom-4 right-4 z-40 flex flex-row gap-2 items-end">
@@ -3394,8 +3464,12 @@ function App() {
   const [pendingShareId] = useState<string | null>(() => new URLSearchParams(window.location.search).get('share'));
 
   const [chatId, setChatId] = useState<string | null>(null);
+  const chatIdRef = useRef<string | null>(null);
+  chatIdRef.current = chatId;
   const [messages, setMessages] = useState<Message[]>([]);
   const [chatList, setChatList] = useState<Chat[]>([]);
+  const chatListRef = useRef<Chat[]>([]);
+  chatListRef.current = chatList;
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [seats, setSeats] = useState<Seat[]>(() => {
@@ -3966,6 +4040,8 @@ function App() {
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'likes', filter: `liker_id=eq.${currentUserId}` },
         (payload) => {
           const updated = payload.new as { liked_id: string; status: string };
+          // likeStatuses에 보낸 하트 응답 상태 즉시 반영 (거부됨 배지 표시용)
+          setLikeStatuses(prev => new Map(prev).set(updated.liked_id, updated.status));
           if (updated.status === 'rejected') {
             // profilesRef로 최신 데이터 참조 (stale 클로저 방지)
             const rejectedProfile = profilesRef.current.find(p => p.id === updated.liked_id);
@@ -4030,18 +4106,17 @@ function App() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
         const m = payload.new as { chat_id: string; sender_id: string; content: string };
         if (m.sender_id === currentUserId) return;
-        setChatList(prev => {
-          // 내 채팅방인지 확인
-          const isMyChat = prev.some(c => c.id === m.chat_id);
-          if (!isMyChat) return prev;
-          return prev.map(c => c.id === m.chat_id ? { ...c, lastMessage: m.content } : c);
-        });
-        // per-chat unread count 증가
-        setUnreadChatCounts(prev => ({ ...prev, [m.chat_id]: (prev[m.chat_id] ?? 0) + 1 }));
-        // profilesRef로 발신자 닉네임 조회
-        const senderProfile = profilesRef.current.find(p => p.id === m.sender_id);
-        setNewMsgCount(n => n + 1);
-        setBottomNotif({ type: 'message', nickname: senderProfile?.nickname ?? '' });
+        // chatListRef로 내 채팅방인지 확인 (stale 클로저 방지, 다른 사람 채팅 알림 차단)
+        const isMyChat = chatListRef.current.some(c => c.id === m.chat_id);
+        if (!isMyChat) return;
+        setChatList(prev => prev.map(c => c.id === m.chat_id ? { ...c, lastMessage: m.content } : c));
+        // 현재 그 채팅방을 보고 있으면 unread 증가·알림 안 함
+        if (chatIdRef.current !== m.chat_id) {
+          setUnreadChatCounts(prev => ({ ...prev, [m.chat_id]: (prev[m.chat_id] ?? 0) + 1 }));
+          const senderProfile = profilesRef.current.find(p => p.id === m.sender_id);
+          setNewMsgCount(n => n + 1);
+          setBottomNotif({ type: 'message', nickname: senderProfile?.nickname ?? '' });
+        }
       })
       .subscribe();
 
@@ -7035,6 +7110,14 @@ function MainScreen({
                           ) : ht === 'green' ? (
                             <span className="px-2.5 py-1 bg-emerald-50 text-emerald-500 text-xs rounded-full">
                               전달 완료
+                            </span>
+                          ) : likeStatuses.get(liked.id) === 'rejected' ? (
+                            <span className="px-2.5 py-1 bg-red-50 text-red-400 text-xs rounded-full">
+                              💔 거부됨
+                            </span>
+                          ) : likeStatuses.get(liked.id) === 'accepted' ? (
+                            <span className="px-2.5 py-1 bg-teal-50 text-teal-500 text-xs rounded-full">
+                              ✓ 수락됨
                             </span>
                           ) : (
                             <span className="px-2.5 py-1 bg-gray-100 text-gray-400 text-xs rounded-full">

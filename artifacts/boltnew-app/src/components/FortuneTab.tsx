@@ -166,7 +166,11 @@ export default function FortuneTab({
   likedIds: Set<string>;
 }) {
   const [subTab, setSubTab] = useState<FortuneSubTab>('tarot');
-  const hasBirthday = !!(myProfile?.birth_year && myProfile?.birth_month && myProfile?.birth_day);
+  // birth_year만 있으면 사주·궁합 동작. month/day 없으면 1월 1일로 기본값 사용
+  const hasBirthday = !!myProfile?.birth_year;
+  const myBirthYear  = myProfile?.birth_year  ?? 0;
+  const myBirthMonth = myProfile?.birth_month ?? 1;
+  const myBirthDay   = myProfile?.birth_day   ?? 1;
 
   // ── 타로 ──────────────────────────────────────────────────────────────────
   const drawnCards = useMemo(() =>
@@ -180,8 +184,8 @@ export default function FortuneTab({
   // ── 사주 ──────────────────────────────────────────────────────────────────
   const todayFortune = useMemo(() => {
     if (!hasBirthday) return null;
-    return getTodayFortune(myProfile!.birth_year!, myProfile!.birth_month!, myProfile!.birth_day!);
-  }, [hasBirthday, myProfile]);
+    return getTodayFortune(myBirthYear, myBirthMonth, myBirthDay);
+  }, [hasBirthday, myBirthYear, myBirthMonth, myBirthDay]);
 
   // ── 궁합 ──────────────────────────────────────────────────────────────────
   const [targetMode, setTargetMode] = useState<'profile' | 'manual'>('profile');
@@ -193,31 +197,32 @@ export default function FortuneTab({
   const [showBed, setShowBed] = useState(false);
 
   const targetProfile = profiles.find(p => p.id === selectedProfileId);
+  // 상대방도 birth_year만 있으면 궁합 계산 가능
   const targetHasBd = targetMode === 'manual'
     ? true
-    : !!(targetProfile?.birth_year && targetProfile?.birth_month && targetProfile?.birth_day);
+    : !!targetProfile?.birth_year;
 
-  const tYear = targetMode === 'profile' ? (targetProfile?.birth_year ?? 0) : manualYear;
-  const tMonth = targetMode === 'profile' ? (targetProfile?.birth_month ?? 0) : manualMonth;
-  const tDay = targetMode === 'profile' ? (targetProfile?.birth_day ?? 0) : manualDay;
+  const tYear  = targetMode === 'profile' ? (targetProfile?.birth_year  ?? 0) : manualYear;
+  const tMonth = targetMode === 'profile' ? (targetProfile?.birth_month ?? 1) : manualMonth;
+  const tDay   = targetMode === 'profile' ? (targetProfile?.birth_day   ?? 1) : manualDay;
   const tMbti = targetMode === 'profile' ? (targetProfile?.mbti ?? '') : '';
   const tDomScore = targetMode === 'profile' ? (targetProfile?.dom_sub_score ?? null) : null;
   const hasTarget = targetHasBd && tYear > 0;
 
   const compat = useMemo(() => {
     if (!hasBirthday || !hasTarget) return null;
-    return getCompatibility(myProfile!.birth_year!, myProfile!.birth_month!, myProfile!.birth_day!, tYear, tMonth, tDay);
-  }, [hasBirthday, hasTarget, myProfile, tYear, tMonth, tDay]);
+    return getCompatibility(myBirthYear, myBirthMonth, myBirthDay, tYear, tMonth, tDay);
+  }, [hasBirthday, hasTarget, myBirthYear, myBirthMonth, myBirthDay, tYear, tMonth, tDay]);
 
   const numerologyC = useMemo(() => {
     if (!hasBirthday || !hasTarget) return null;
-    return getNumerologyCompat(myProfile!.birth_year!, myProfile!.birth_month!, myProfile!.birth_day!, tYear, tMonth, tDay);
-  }, [hasBirthday, hasTarget, myProfile, tYear, tMonth, tDay]);
+    return getNumerologyCompat(myBirthYear, myBirthMonth, myBirthDay, tYear, tMonth, tDay);
+  }, [hasBirthday, hasTarget, myBirthYear, myBirthMonth, myBirthDay, tYear, tMonth, tDay]);
 
   const ohaengC = useMemo(() => {
     if (!hasBirthday || !hasTarget) return null;
-    return getOhaengCompat(myProfile!.birth_year!, tYear);
-  }, [hasBirthday, hasTarget, myProfile, tYear]);
+    return getOhaengCompat(myBirthYear, tYear);
+  }, [hasBirthday, hasTarget, myBirthYear, tYear]);
 
   const mbtiC = useMemo(() => {
     const myMbti = myProfile?.mbti ?? '';
@@ -227,8 +232,8 @@ export default function FortuneTab({
 
   const bedC = useMemo(() => {
     if (!hasBirthday || !hasTarget) return null;
-    return getBedCompat(myProfile!.birth_year!, myProfile!.birth_month!, myProfile!.birth_day!, tYear, tMonth, tDay, myProfile?.dom_sub_score, tDomScore);
-  }, [hasBirthday, hasTarget, myProfile, tYear, tMonth, tDay, tDomScore]);
+    return getBedCompat(myBirthYear, myBirthMonth, myBirthDay, tYear, tMonth, tDay, myProfile?.dom_sub_score, tDomScore);
+  }, [hasBirthday, hasTarget, myBirthYear, myBirthMonth, myBirthDay, tYear, tMonth, tDay, tDomScore]);
 
   const heartedProfiles = profiles.filter(p => p.id !== currentUserId && likedIds.has(p.id));
   const otherProfiles = profiles.filter(p => p.id !== currentUserId);

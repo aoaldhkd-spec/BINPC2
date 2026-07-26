@@ -130,8 +130,28 @@ async function seedIfNeeded(): Promise<void> {
   }
 }
 
+// ─── Daily entry_password auto-renewal ────────────────────────────────────────
+// If entry_password is a 4-digit MMDD date string, update it to today's Korean
+// date every minute so the code never expires without an admin needing to touch it.
+function startDailyEntryPasswordRenewal(): void {
+  const check = (): void => {
+    const settings = getTable('app_settings')[0];
+    if (!settings) return;
+    const currentPw = settings['entry_password'] as string | null | undefined;
+    if (!currentPw || !/^\d{4}$/.test(currentPw)) return; // not MMDD format — skip
+    const today = koreanDateMMDD();
+    if (currentPw === today) return; // already up-to-date
+    const updated = { ...settings, entry_password: today, updated_at: ts() };
+    store['app_settings'][0] = updated;
+    dbPersistRow('app_settings', updated).catch(console.error);
+    broadcast({ type: 'change', table: 'app_settings', event: 'UPDATE', newRow: updated, oldRow: settings });
+    console.log(`[db] Auto-renewed entry_password: ${currentPw} → ${today}`);
+  };
+  setInterval(check, 60_000); // check every minute
+}
+
 // Kick off async initialization
-seedIfNeeded().catch(console.error);
+seedIfNeeded().then(() => startDailyEntryPasswordRenewal()).catch(console.error);
 
 // ─── SSE broadcast ─────────────────────────────────────────────────────────────
 function broadcast(event: Record<string, unknown>) {
@@ -534,6 +554,16 @@ router.get('/storage-image', (req: Request, res: Response) => {
     return res.send(Buffer.from(b64, 'base64'));
   }
   res.send(dataUrl);
+});
+
+// ─── PIN lookup ───────────────────────────────────────────────────────────────
+router.post('/by-pin', (req: Request, res: Response) => {
+  const { pin } = req.body as { pin?: string };
+  if (!pin) return res.status(400).json({ data: null, error: { message: 'PIN required' } });
+  const profiles = getTable('profiles');
+  const found = profiles.find(p => String(p['pin_code']) === String(pin));
+  if (found) return res.json({ data: found, error: null });
+  return res.json({ data: null, error: { message: '핀 번호를 찾을 수 없습니다' } });
 });
 
 // ─── SSE endpoint ─────────────────────────────────────────────────────────────
