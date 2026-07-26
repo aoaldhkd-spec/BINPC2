@@ -184,19 +184,51 @@ interface SseEvent {
 // One global EventSource, shared by all channels
 let _es: EventSource | null = null;
 const _sseListeners = new Set<(e: SseEvent) => void>();
+let _sseErrorSince: number | null = null;
 
-function ensureSse() {
-  if (_es && _es.readyState !== EventSource.CLOSED) return;
-  _es = new EventSource(`${API}/events`);
-  _es.onmessage = (ev) => {
+function createSse() {
+  const es = new EventSource(`${API}/events`);
+  es.onmessage = (ev) => {
+    _sseErrorSince = null; // 메시지 수신 = 연결 정상
     try {
       const data = JSON.parse(ev.data) as SseEvent;
       _sseListeners.forEach(fn => { try { fn(data); } catch {} });
     } catch {}
   };
-  _es.onerror = () => {
-    // Browser auto-reconnects EventSource; nothing to do
+  es.onerror = () => {
+    if (!_sseErrorSince) _sseErrorSince = Date.now();
+    // CLOSED 상태면 다음 ensureSse() 호출 때 재생성
+    if (es.readyState === EventSource.CLOSED) {
+      _es = null;
+    }
   };
+  return es;
+}
+
+function ensureSse() {
+  // CONNECTING 상태가 10초 이상 지속되면 강제 재연결
+  if (_es && _es.readyState === EventSource.CONNECTING && _sseErrorSince && Date.now() - _sseErrorSince > 10_000) {
+    _es.close();
+    _es = null;
+    _sseErrorSince = null;
+  }
+  if (_es && _es.readyState !== EventSource.CLOSED) return;
+  _sseErrorSince = null;
+  _es = createSse();
+}
+
+// 30초마다 연결 상태 점검 — 끊어진 SSE를 자동 복구
+setInterval(() => {
+  if (_sseListeners.size > 0) ensureSse();
+}, 30_000);
+
+// 탭/앱 포그라운드 복귀 시 즉시 SSE 재연결 확인
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && _sseListeners.size > 0) {
+      ensureSse();
+    }
+  });
 }
 
 function matchChannelFilter(filterExpr: string | undefined, row: Record<string, unknown> | null): boolean {

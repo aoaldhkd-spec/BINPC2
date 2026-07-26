@@ -3521,9 +3521,8 @@ function App() {
   // Track user's current table number for notification targeting (ref for stable access in channel callbacks)
   const userTableNumRef = useRef<number | null>(null);
   // True if user scanned a seat QR without having a profile - block and show error
-  const seatQrWithoutSession = useRef(
-    Boolean(new URLSearchParams(window.location.search).get('seat') || /^\/s\/\d+-\d+/.test(window.location.pathname)) && !ls.getItem(MATCHING_USER_KEY)
-  ).current;
+  // QR 스캔 후 세션 없는 경우: 차단하지 않고 정상 등록 플로우로 진행
+  // pendingSeatId/pendingSeatPath 는 등록 완료 후 currentUserId useEffect에서 처리됨
 
   const profileMap = useMemo(() => new Map(profiles.map((p) => [p.id, p])), [profiles]);
   // 렌더마다 최신 profiles를 ref에 동기화 (stale 클로저 방지)
@@ -3906,6 +3905,9 @@ function App() {
   useEffect(() => {
     if (!currentUserId) return;
     loadProfiles().then((allProfiles) => {
+      // 프로필 목록이 비어있으면 서버 기동 중이거나 네트워크 오류 — 세션 유지
+      // 실제 프로필 삭제는 reset_signal SSE로 처리되므로 여기서 aggressive하게 지우지 않음
+      if (allProfiles.length === 0) return;
       // If the profile no longer exists (e.g. admin reset the session), clear stale state
       if (!allProfiles.some(p => p.id === currentUserId)) {
         ls.removeItem(MATCHING_USER_KEY);
@@ -4098,7 +4100,13 @@ function App() {
         if (c.user1_id !== currentUserId && c.user2_id !== currentUserId) return;
         // 페이로드로 바로 추가 — 전체 리패치 불필요
         const newChat: Chat = { id: c.id, user1_id: c.user1_id, user2_id: c.user2_id, created_at: c.created_at, lastMessage: '', messageCount: 0 };
-        setChatList(prev => prev.some(x => x.id === c.id) ? prev : [newChat, ...prev]);
+        setChatList(prev => {
+          if (prev.some(x => x.id === c.id)) return prev;
+          const next = [newChat, ...prev];
+          // ref 즉시 동기화 — 새 채팅방의 첫 메시지 isMyChat 체크가 렌더 전에도 통과하도록
+          chatListRef.current = next;
+          return next;
+        });
         const otherId = c.user1_id === currentUserId ? c.user2_id : c.user1_id;
         const otherProfile = profiles.find(p => p.id === otherId);
         if (otherProfile) setBottomNotif({ type: 'chat', nickname: otherProfile.nickname });
@@ -4225,16 +4233,18 @@ function App() {
       if (document.visibilityState !== 'visible') return;
       const storedId = ls.getItem(MATCHING_USER_KEY);
       if (!storedId) return;
-      supabase.from('profiles').select('id').eq('id', storedId).maybeSingle().then(({ data }) => {
-        if (!data) {
+      // 포그라운드 복귀 시 전체 데이터 리프레시
+      // ⚠️ 세션 제거는 allProfiles.length > 0 인 경우에만: 빈 결과 = 서버 오류/기동 중
+      loadProfiles().then((allProfiles) => {
+        if (allProfiles.length > 0 && !allProfiles.some(p => p.id === storedId)) {
+          // 실제로 프로필이 삭제된 경우(관리자 리셋)만 세션 제거
           ls.removeItem(MATCHING_USER_KEY);
           ls.removeItem(MATCHING_DRAFT_KEY);
           setCurrentUserId(null);
           setShownWaiting(false);
           setView('entry-1');
         } else {
-          // Refresh data on returning to app (백그라운드→포그라운드 복귀 시 전체 리프레시)
-          loadProfiles();
+          // Refresh data on returning to app
           loadSeats();
           loadReceivedLikes(storedId);
           loadLikes(storedId);
@@ -4244,11 +4254,11 @@ function App() {
           loadMyVotes(storedId);
           loadSuggestions(storedId);
         }
-      });
+      }).catch(() => { /* 네트워크 오류 → 세션 유지, 데이터는 다음 리프레시 때 갱신 */ });
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [loadProfiles, loadReceivedLikes, loadLikes, loadChatList, loadSeats]);
+  }, [loadProfiles, loadReceivedLikes, loadLikes, loadChatList, loadSeats, loadContactShareData, loadBalanceGames, loadMyVotes, loadSuggestions]);
 
   // Manual refresh for status and chat tabs
   const refreshStatusTab = useCallback(() => {
@@ -4407,13 +4417,18 @@ function App() {
     const { data: existingChat } = await supabase
       .from('chats').select('*').eq('user1_id', user1Id).eq('user2_id', user2Id).maybeSingle();
     if (existingChat) {
+      // chatIdRef를 렌더 전에 즉시 동기화 — SSE 경쟁 조건 방지 (채팅방 열리는 동안 도착한 메시지가 unread 를 올리는 버그)
+      chatIdRef.current = existingChat.id;
       setChatId(existingChat.id);
       // 해당 채팅방 unread 초기화
       setUnreadChatCounts(prev => { const n = { ...prev }; delete n[existingChat.id]; return n; });
     } else {
       const { data: newChat } = await supabase
         .from('chats').insert({ user1_id: user1Id, user2_id: user2Id }).select().single();
-      if (newChat) setChatId(newChat.id);
+      if (newChat) {
+        chatIdRef.current = newChat.id;
+        setChatId(newChat.id);
+      }
     }
     setSelectedProfile(otherProfile);
     setView('chat');
@@ -4426,18 +4441,58 @@ function App() {
 
   useEffect(() => {
     if (!chatId) return;
+    // chatIdRef 즉시 동기화 (openChat 경쟁 조건의 2차 안전장치)
+    chatIdRef.current = chatId;
+    // 채팅방 진입 시 이 채팅의 unread 카운트 확실히 초기화
+    setUnreadChatCounts(prev => { const n = { ...prev }; delete n[chatId]; return n; });
     loadMessages(chatId);
     const channel = supabase
       .channel(`chat:${chatId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `chat_id=eq.${chatId}` },
-        (payload) => setMessages((prev) => [...prev, payload.new as Message]))
+        (payload) => {
+          const newMsg = payload.new as Message;
+          setMessages(prev => {
+            // 중복 방지: 같은 ID가 이미 있으면 무시
+            if (prev.some(m => m.id === newMsg.id)) return prev;
+            // 낙관적 메시지 교체: __opt_ 접두사 + 같은 sender·content 항목을 실제 서버 메시지로 교체
+            const optIdx = prev.findIndex(m =>
+              m.id.startsWith('__opt_') &&
+              m.sender_id === newMsg.sender_id &&
+              m.content === newMsg.content
+            );
+            if (optIdx !== -1) {
+              const next = [...prev];
+              next[optIdx] = newMsg;
+              return next;
+            }
+            return [...prev, newMsg];
+          });
+        })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [chatId, loadMessages]);
 
   const sendMessage = async (content: string) => {
     if (!chatId || !currentUserId || !content.trim()) return;
-    await supabase.from('messages').insert({ chat_id: chatId, sender_id: currentUserId, content: content.trim() });
+    // 낙관적 업데이트: 전송 즉시 화면에 표시 (SSE 왕복 대기 없이 반응성 확보)
+    const optimisticId = `__opt_${Date.now()}`;
+    const optimisticMsg = {
+      id: optimisticId,
+      chat_id: chatId,
+      sender_id: currentUserId,
+      content: content.trim(),
+      created_at: new Date().toISOString(),
+    } as Message;
+    setMessages(prev => [...prev, optimisticMsg]);
+    // 채팅 목록 최근 메시지 즉시 갱신
+    setChatList(prev => prev.map(c => c.id === chatId ? { ...c, lastMessage: content.trim() } : c));
+    const { error } = await supabase.from('messages').insert({
+      chat_id: chatId, sender_id: currentUserId, content: content.trim()
+    });
+    if (error) {
+      // 전송 실패 시 낙관적 메시지 롤백
+      setMessages(prev => prev.filter(m => m.id !== optimisticId));
+    }
   };
 
   const sendImage = async (file: File): Promise<string | null> => {
@@ -4576,17 +4631,8 @@ function App() {
   // 기존 접속자(userId 있음) → 즉시 메인 화면 진입 (showWaiting = false)
   // shownWaiting: 대기 화면에서 '입장하기' 클릭 or 관리자 시작 감지 시 true
   const showWaiting = !currentUserId && !shownWaiting;
-  if (seatQrWithoutSession) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col items-center justify-center p-6 text-center">
-        <div className="w-16 h-16 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center mx-auto mb-4">
-          <span className="text-3xl">🪑</span>
-        </div>
-        <h2 className="text-xl font-bold text-white mb-2">입장 QR을 먼저 스캔해주세요</h2>
-        <p className="text-sm text-slate-400 leading-relaxed">자리 QR은 입장 등록 후 사용할 수 있습니다.<br />테이블에 붙어있는 입장 QR을 먼저 스캔해 주세요.</p>
-      </div>
-    );
-  }
+  // QR 스캔 후 미등록 사용자: 자리 QR URL 파라미터는 pendingSeatId/pendingSeatPath에 보존됨.
+  // 등록 완료 후 currentUserId useEffect에서 자동으로 자리 배정 처리됨
 
   if (appLoading || sessionActive === null || entryPassword === null) return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col items-center justify-center gap-4">
@@ -4655,7 +4701,7 @@ function App() {
         otherProfile={selectedProfile}
         onSend={sendMessage}
         onSendImage={sendImage}
-        onBack={() => setView('main')}
+        onBack={() => { chatIdRef.current = null; setChatId(null); setView('main'); }}
         onReset={reset}
         onDeleteMessage={deleteMessage}
         currentUserProfile={profiles.find(p => p.id === currentUserId) ?? null}
@@ -4974,7 +5020,8 @@ function DrumRoller<T extends string | number>({
     isDragging.current = true;
     startY.current = e.clientY;
     startOffset.current = offset;
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    // 컨테이너에 캡처 — 드래그 중 리렌더로 자식 DOM이 교체돼도 캡처가 유지됨
+    containerRef.current?.setPointerCapture(e.pointerId);
   };
   const onPointerMove = (e: React.PointerEvent) => {
     if (!isDragging.current) return;

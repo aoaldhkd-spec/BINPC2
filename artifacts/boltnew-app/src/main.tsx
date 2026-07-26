@@ -1,4 +1,4 @@
-import { StrictMode, useState, useEffect } from 'react';
+import { StrictMode, useState, useEffect, Component, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './index.css';
 import App from './App';
@@ -6,6 +6,36 @@ import AdminApp from './AdminApp';
 import TestDashboard from './TestDashboard';
 import { supabase } from './lib/supabase';
 import { Shield, AlertTriangle } from 'lucide-react';
+
+// ─── 전역 에러 바운더리 ───────────────────────────────────────────────────────
+class AppErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null; info: string }> {
+  state = { error: null as Error | null, info: '' };
+  static getDerivedStateFromError(error: Error) { return { error }; }
+  componentDidCatch(error: Error, info: { componentStack: string }) {
+    console.error('[AppErrorBoundary]', error, info);
+    this.setState({ info: info.componentStack?.slice(0, 200) ?? '' });
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col items-center justify-center p-6 text-center gap-4">
+          <span className="text-5xl">⚡</span>
+          <div>
+            <p className="text-white font-black text-lg mb-1">앱에서 오류가 발생했습니다</p>
+            <p className="text-slate-400 text-sm">{this.state.error.message}</p>
+          </div>
+          <button
+            onClick={() => { this.setState({ error: null, info: '' }); window.location.reload(); }}
+            className="px-6 py-3 bg-teal-500 hover:bg-teal-400 text-white font-black rounded-2xl transition-all"
+          >
+            새로고침
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 // ─── 세션 캐시 키 ─────────────────────────────────────────────────────────────
 const TEST_SESSION_KEY = 'test_session_v1';
@@ -118,7 +148,7 @@ function Root() {
 
   if (normalized.startsWith('/admin')) return <AdminApp />;
   if (normalized.startsWith('/test'))  return <TestGate />;
-  return <App />;
+  return <AppErrorBoundary><App /></AppErrorBoundary>;
 }
 
 createRoot(document.getElementById('root')!).render(
