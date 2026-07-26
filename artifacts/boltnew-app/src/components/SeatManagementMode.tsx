@@ -632,7 +632,7 @@ function HybridAssignModal({
   onAssigned: (profileId: string) => void;
   onClose: () => void;
 }) {
-  const [mode, setMode] = useState<AssignMode>('qr');
+  const [mode, setMode] = useState<AssignMode>('code');
   const [pin, setPin] = useState('');
   const [nickSearch, setNickSearch] = useState('');
   const [pinResult, setPinResult] = useState<Profile | null | 'not_found'>(null);
