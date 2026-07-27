@@ -1,0 +1,283 @@
+import { useState } from 'react';
+import { Users, CheckCircle, Clock, AlertTriangle, ChevronRight, ShieldAlert, X } from 'lucide-react';
+import { TutorialModal } from './TutorialModal';
+import { MATCHING_USER_KEY } from '../lib/constants';
+
+export function WaitingOverlay({ sessionActive, onEnter }: {
+  sessionActive: boolean | null; onEnter: () => void;
+}) {
+  const isActive = sessionActive === true;
+  const [showNotice, setShowNotice] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [tutPage, setTutPage] = useState(0);
+  const [showConsentModal, setShowConsentModal] = useState(false);
+  const [showPinRecovery, setShowPinRecovery] = useState(false);
+  const [pinInput, setPinInput] = useState('');
+  const [pinError, setPinError] = useState('');
+  const [pinLoading, setPinLoading] = useState(false);
+
+  const handlePinRecovery = async () => {
+    if (pinInput.length !== 4) { setPinError('4자리 핀 번호를 입력해주세요'); return; }
+    setPinLoading(true); setPinError('');
+    try {
+      const resp = await fetch('/api/db/by-pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin: pinInput }),
+      });
+      const { data, error } = await resp.json() as { data: { id: string; nickname: string } | null; error: { message: string } | null };
+      if (error || !data) { setPinError('핀 번호를 찾을 수 없어요'); setPinLoading(false); return; }
+      localStorage.setItem(MATCHING_USER_KEY, data.id);
+      onEnter();
+    } catch {
+      setPinError('오류가 발생했어요. 다시 시도해주세요');
+      setPinLoading(false);
+    }
+  };
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-black flex flex-col items-center justify-center p-6 relative overflow-hidden">
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-96 h-96 bg-cyan-500/20 rounded-full blur-3xl" />
+        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-teal-500/20 rounded-full blur-3xl" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-cyan-500/10 rounded-full blur-3xl" />
+      </div>
+      <div className="relative z-10 text-center max-w-sm w-full flex flex-col items-center">
+        {/* 로고 + 아이콘 */}
+        <div className="relative inline-flex items-center justify-center mb-6">
+          <div className="w-28 h-28 rounded-3xl bg-gradient-to-br from-cyan-500 to-teal-600 flex items-center justify-center shadow-2xl shadow-cyan-500/30">
+            <Users className="w-14 h-14 text-white" />
+          </div>
+          <div className={`absolute -top-2 -right-2 w-8 h-8 rounded-full flex items-center justify-center shadow-lg ${isActive ? 'bg-teal-400' : 'bg-amber-400 animate-bounce'}`}>
+            {isActive ? <CheckCircle className="w-4 h-4 text-teal-900" /> : <Clock className="w-4 h-4 text-amber-900" />}
+          </div>
+        </div>
+        {/* 타이틀: 범일NPC 술번개 중앙 */}
+        <div className="mb-4 text-center">
+          <p className="text-[22px] font-black tracking-[0.25em] uppercase mb-1"
+             style={{
+               background: 'linear-gradient(135deg, #ffffff 0%, #cffafe 45%, #99f6e4 100%)',
+               WebkitBackgroundClip: 'text',
+               WebkitTextFillColor: 'transparent',
+               backgroundClip: 'text',
+             }}>
+            범일NPC
+          </p>
+          <h1 className="text-4xl font-black text-white tracking-tight leading-tight">술번개 🍻</h1>
+        </div>
+        {isActive ? (
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-teal-500/20 border border-teal-400/30 rounded-full mb-6">
+            <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse" />
+            <span className="text-teal-300 text-sm font-semibold">모임이 시작되었습니다!</span>
+          </div>
+        ) : (
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-amber-500/20 border border-amber-400/30 rounded-full mb-6">
+            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+            <span className="text-amber-300 text-sm font-semibold">모임 대기 중</span>
+          </div>
+        )}
+        <p className="text-slate-300 text-base leading-relaxed mb-8">
+          {isActive ? (
+            <>모임이 시작되었습니다.<br /><span className="text-teal-400 font-semibold">입장 버튼</span>을 눌러 참여하세요.</>
+          ) : (
+            <>곧 회식이 시작합니다.<br /><span className="text-slate-400 font-semibold">미리 입장해서 닉네임을 설정하세요.</span></>
+          )}
+        </p>
+        {/* 주의사항 미리보기 배너 */}
+        <button
+          onClick={() => setShowNotice(true)}
+          className="w-full flex items-center gap-3 px-4 py-3 mb-4 rounded-2xl bg-amber-500/15 border border-amber-400/30 hover:bg-amber-500/25 transition-all text-left"
+        >
+          <div className="w-8 h-8 rounded-full bg-amber-500/30 flex items-center justify-center flex-shrink-0">
+            <AlertTriangle className="w-4 h-4 text-amber-400" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-amber-300 text-xs font-bold">입장 전 꼭 읽어주세요!</p>
+            <p className="text-amber-400/70 text-[11px] truncate">절전 모드·시크릿 모드 사용 시 앱이 튕길 수 있어요</p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-amber-400/60 flex-shrink-0" />
+        </button>
+        <button
+          onClick={() => setShowConsentModal(true)}
+          className="w-full py-4 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-white font-black text-lg rounded-2xl shadow-2xl shadow-teal-500/30 transition-all active:scale-98 mb-3"
+        >입장하기</button>
+        <button
+          onClick={() => { setTutPage(0); setShowTutorial(true); }}
+          className="w-full py-3.5 bg-gradient-to-r from-orange-400 to-rose-500 hover:from-orange-300 hover:to-rose-400 text-white font-black text-sm rounded-2xl shadow-lg shadow-orange-500/25 transition-all active:scale-98 mb-3"
+        >앱 사용법 보기</button>
+        {/* 핀 번호 복구 */}
+        <button
+          onClick={() => { setShowPinRecovery(true); setPinInput(''); setPinError(''); }}
+          className="w-full py-2.5 bg-transparent border border-slate-600/60 hover:border-slate-500 text-slate-400 hover:text-slate-300 font-semibold text-xs rounded-2xl transition-all mb-1"
+        >🔑 핀 번호로 프로필 복구</button>
+        {/* 개인정보 동의 모달 */}
+        {showConsentModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/75 backdrop-blur-sm">
+            <div className="w-full max-w-sm rounded-3xl bg-slate-900 border border-slate-700 overflow-hidden shadow-2xl">
+              {/* 헤더 */}
+              <div className="bg-gradient-to-r from-cyan-500/20 to-teal-500/20 border-b border-cyan-500/20 px-5 py-5 text-center">
+                <div className="w-12 h-12 rounded-2xl bg-cyan-500/20 flex items-center justify-center mx-auto mb-3">
+                  <ShieldAlert className="w-6 h-6 text-cyan-400" />
+                </div>
+                <h3 className="text-white font-black text-lg">개인정보 안내</h3>
+              </div>
+              {/* 본문 */}
+              <div className="px-6 py-6">
+                <p className="text-white text-[15px] font-bold leading-7 text-center break-keep mb-6">
+                  본 서비스는 원활한 모임 진행만을 위하여 입력되며,{' '}
+                  모든 개인 정보는 저장·수집하지 않습니다.{' '}
+                  모임 종료 시 즉시 파기합니다.
+                </p>
+                <p className="text-slate-400 text-xs text-center leading-relaxed break-keep mb-6">
+                  동의하지 않을 시 본 모임에 불이익이 있을 수 있습니다.
+                </p>
+                <div className="flex flex-col gap-3">
+                  <button
+                    onClick={() => { setShowConsentModal(false); onEnter(); }}
+                    className="w-full py-4 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-white font-black text-base rounded-2xl shadow-lg shadow-teal-500/30 transition-all active:scale-98"
+                  >
+                    위 내용에 동의합니다
+                  </button>
+                  <button
+                    onClick={() => setShowConsentModal(false)}
+                    className="w-full py-3 bg-slate-700/60 hover:bg-slate-700 text-slate-300 font-bold text-sm rounded-2xl transition-all"
+                  >
+                    닫기
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* 주의사항 전체 모달 */}
+        {showNotice && (
+          <div className="fixed inset-0 z-50 flex items-end justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => setShowNotice(false)}>
+            <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-slate-700 overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
+              {/* 헤더 */}
+              <div className="bg-gradient-to-r from-amber-500/20 to-orange-500/20 border-b border-amber-500/20 px-5 py-4 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/30 flex items-center justify-center">
+                  <ShieldAlert className="w-5 h-5 text-amber-400" />
+                </div>
+                <div>
+                  <h3 className="text-white font-black text-base">입장 전 주의사항</h3>
+                  <p className="text-amber-400/70 text-xs">앱이 튕기지 않으려면 꼭 확인하세요</p>
+                </div>
+                <button onClick={() => setShowNotice(false)} className="ml-auto w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
+                  <X className="w-4 h-4 text-white" />
+                </button>
+              </div>
+              <div className="px-5 py-5 space-y-4">
+                {/* 절전 모드 */}
+                <div className="flex gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-red-500/20 flex items-center justify-center flex-shrink-0">
+                    <span className="text-lg">🔋</span>
+                  </div>
+                  <div>
+                    <p className="text-white font-bold text-sm mb-1">절전 모드 해제</p>
+                    <p className="text-slate-400 text-xs leading-relaxed">아이폰·안드로이드 절전(저전력) 모드에서는 백그라운드 처리가 제한되어 앱이 갑자기 튕길 수 있습니다. <span className="text-amber-400 font-semibold">설정 → 배터리 → 저전력 모드 OFF</span> 후 사용해 주세요.</p>
+                  </div>
+                </div>
+                {/* 시크릿 모드 */}
+                <div className="flex gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-purple-500/20 flex items-center justify-center flex-shrink-0">
+                    <span className="text-lg">🕵️</span>
+                  </div>
+                  <div>
+                    <p className="text-white font-bold text-sm mb-1">시크릿·개인정보 보호 모드 사용 금지</p>
+                    <p className="text-slate-400 text-xs leading-relaxed">Safari/Chrome 시크릿 모드나 개인정보 보호 브라우저는 <span className="text-amber-400 font-semibold">로컬 저장소가 차단</span>되어 닉네임·프로필이 사라집니다. 일반 브라우저 탭으로 접속해 주세요.</p>
+                  </div>
+                </div>
+                {/* 화면 꺼짐 */}
+                <div className="flex gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+                    <span className="text-lg">📵</span>
+                  </div>
+                  <div>
+                    <p className="text-white font-bold text-sm mb-1">화면 자동 꺼짐 방지</p>
+                    <p className="text-slate-400 text-xs leading-relaxed">자리를 비울 때 화면이 꺼지면 브라우저가 세션을 초기화할 수 있어요. <span className="text-amber-400 font-semibold">화면 자동 잠금 시간을 길게</span> 설정하거나 주기적으로 화면을 깨워주세요.</p>
+                  </div>
+                </div>
+                {/* 북마크 */}
+                <div className="flex gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-teal-500/20 flex items-center justify-center flex-shrink-0">
+                    <span className="text-lg">🔖</span>
+                  </div>
+                  <div>
+                    <p className="text-white font-bold text-sm mb-1">URL 북마크 추천</p>
+                    <p className="text-slate-400 text-xs leading-relaxed">혹시 앱이 튕겨도 같은 URL로 재접속하면 <span className="text-teal-400 font-semibold">프로필이 자동으로 복구</span>됩니다. 브라우저 주소창에서 이 페이지를 북마크해 두세요.</p>
+                  </div>
+                </div>
+              </div>
+              <div className="px-5 pb-5">
+                <button
+                  onClick={() => setShowNotice(false)}
+                  className="w-full py-3.5 bg-gradient-to-r from-teal-500 to-cyan-500 text-white font-black rounded-2xl shadow-lg shadow-teal-500/25 text-sm"
+                >확인했어요!</button>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* 앱 사용법 튜토리얼 모달 */}
+        {showTutorial && (
+          <TutorialModal
+            page={tutPage}
+            onChangePage={setTutPage}
+            onClose={() => setShowTutorial(false)}
+          />
+        )}
+        {/* 핀 번호 복구 모달 */}
+        {showPinRecovery && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/75 backdrop-blur-sm">
+            <div className="w-full max-w-sm rounded-3xl bg-slate-900 border border-slate-700 overflow-hidden shadow-2xl">
+              <div className="bg-gradient-to-r from-slate-800/60 to-slate-700/60 border-b border-slate-600 px-5 py-5 text-center">
+                <div className="w-12 h-12 rounded-2xl bg-slate-600/40 flex items-center justify-center mx-auto mb-3">
+                  <span className="text-2xl">🔑</span>
+                </div>
+                <h3 className="text-white font-black text-lg">핀 번호로 복구</h3>
+                <p className="text-slate-400 text-xs mt-1">이전에 받은 4자리 핀 번호를 입력하세요</p>
+              </div>
+              <div className="px-6 py-6 space-y-4">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  maxLength={4}
+                  value={pinInput}
+                  onChange={e => { setPinInput(e.target.value.slice(0, 4)); setPinError(''); }}
+                  onKeyDown={e => e.key === 'Enter' && handlePinRecovery()}
+                  placeholder="0000"
+                  className="w-full text-center text-3xl font-black tracking-[0.5em] bg-slate-800 border border-slate-600 rounded-2xl py-4 text-white placeholder-slate-600 focus:outline-none focus:border-teal-500 transition-all"
+                />
+                {pinError && (
+                  <p className="text-red-400 text-xs text-center font-semibold">{pinError}</p>
+                )}
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={handlePinRecovery}
+                    disabled={pinLoading || pinInput.length !== 4}
+                    className="w-full py-4 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 disabled:from-slate-600 disabled:to-slate-600 disabled:cursor-not-allowed text-white font-black text-base rounded-2xl shadow-lg transition-all active:scale-98"
+                  >
+                    {pinLoading ? '복구 중...' : '프로필 복구하기'}
+                  </button>
+                  <button
+                    onClick={() => setShowPinRecovery(false)}
+                    className="w-full py-3 bg-slate-700/60 hover:bg-slate-700 text-slate-300 font-bold text-sm rounded-2xl transition-all"
+                  >닫기</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* 테스트/관리자 — 우측 하단 고정 */}
+        <div className="fixed bottom-4 right-4 z-40 flex flex-row gap-2 items-end">
+          <a href="/test" className="px-3 py-1.5 rounded-lg bg-violet-600/80 hover:bg-violet-500 text-white font-bold text-xs shadow-lg backdrop-blur-sm transition-all border border-violet-500/50 active:scale-95">테스트</a>
+          <a href="/admin" className="px-3 py-1.5 rounded-lg bg-slate-700/90 hover:bg-slate-800 text-white font-bold text-xs shadow-lg backdrop-blur-sm transition-all border border-slate-600/50 active:scale-95">관리자</a>
+        </div>
+      </div>
+      <style>{`
+        @keyframes dotbounce {
+          0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+          40% { transform: scale(1); opacity: 1; }
+        }
+      `}</style>
+    </div>
+  );
+}

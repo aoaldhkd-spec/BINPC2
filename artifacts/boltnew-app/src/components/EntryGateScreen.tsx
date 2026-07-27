@@ -1,0 +1,68 @@
+import React, { useState, useEffect } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
+
+export function EntryGateScreen({ entryPassword, onVerified }: { entryPassword: string; onVerified: () => void }) {
+  const [input, setInput] = useState('');
+  const [showPw, setShowPw] = useState(false);
+  const [error, setError] = useState(false);
+  const [shake, setShake] = useState(false);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => { const t = setTimeout(() => setVisible(true), 60); return () => clearTimeout(t); }, []);
+
+  const handleSubmit = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (input === entryPassword) {
+      onVerified();
+    } else {
+      setError(true); setShake(true); setInput('');
+      setTimeout(() => setShake(false), 500);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center p-6">
+      <div className={`w-full max-w-sm space-y-7 transition-all duration-500 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+        <div className="text-center space-y-2">
+          <div className="text-5xl mb-2 drop-shadow-lg">🍻</div>
+          <h1 className="text-2xl font-black text-white tracking-tight">범일NPC 술번개</h1>
+          <p className="text-slate-400 text-sm">참여하려면 입장 코드를 입력하세요</p>
+        </div>
+        <form onSubmit={handleSubmit}
+          className={`bg-slate-800/70 backdrop-blur-sm rounded-3xl p-6 border border-slate-700/60 shadow-2xl space-y-4 ${shake ? 'animate-[shake_0.45s_ease-in-out]' : ''}`}>
+          <div>
+            <label className="block text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2">입장 코드</label>
+            <div className="relative">
+              <input type={showPw ? 'text' : 'password'} value={input}
+                onChange={e => { setInput(e.target.value); setError(false); }}
+                onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+                placeholder="코드를 입력하세요" autoFocus autoComplete="off"
+                className={`w-full rounded-2xl px-4 py-4 pr-12 text-white text-center text-xl font-black tracking-[0.25em] focus:outline-none transition-all border-2 ${error ? 'bg-red-950/60 border-red-500 placeholder-red-400/50' : 'bg-slate-700/60 border-slate-600 focus:border-cyan-500 placeholder-slate-500'}`} />
+              <button type="button" onClick={() => setShowPw(p => !p)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition-colors">
+                {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            <div className={`overflow-hidden transition-all duration-200 ${error ? 'max-h-8 mt-2' : 'max-h-0'}`}>
+              <p className="text-red-400 text-xs text-center font-bold">❌ 입장 코드가 올바르지 않습니다</p>
+            </div>
+          </div>
+          <button type="submit"
+            className="w-full bg-cyan-600 hover:bg-cyan-500 active:scale-[0.97] text-white font-black py-4 rounded-2xl transition-all text-base shadow-lg shadow-cyan-900/30">
+            입장하기 →
+          </button>
+        </form>
+        <p className="text-center text-slate-600 text-xs">운영진에게 입장 코드를 받아 입력하세요</p>
+      </div>
+      <style>{`
+        @keyframes shake {
+          0%,100% { transform: translateX(0); }
+          18%     { transform: translateX(-8px); }
+          36%     { transform: translateX(8px); }
+          54%     { transform: translateX(-5px); }
+          72%     { transform: translateX(5px); }
+        }
+      `}</style>
+    </div>
+  );
+}

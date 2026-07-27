@@ -2,6 +2,15 @@
 // App.tsx, AdminApp.tsx, SeatingMap.tsx, SeatManagementMode.tsx, StatsTabs.tsx
 // 등 여러 파일에 중복 선언되어 있던 상수들을 한 곳에 모았습니다.
 
+// ─── localStorage 키 ────────────────────────────────────────────────────────
+export const MATCHING_USER_KEY          = 'matching_app_user_id';
+export const MATCHING_DRAFT_KEY         = 'matching_app_draft_step1';
+export const MATCHING_LAST_RESET_KEY    = 'matching_app_last_reset_signal';
+export const MATCHING_GUIDE_SHOWN_KEY   = 'matching_guide_shown';
+export const MATCHING_PROFILES_CACHE_KEY = 'matching_profiles_cache';
+export const MATCHING_SEATS_CACHE_KEY   = 'matching_seats_cache';
+export const ENTRY_VERIFIED_KEY         = 'matching_entry_verified';
+
 // ─── 아바타 색상 ─────────────────────────────────────────────────────────────
 export const AVATAR_COLORS = [
   '#0891b2','#0d9488','#059669','#16a34a','#ca8a04',
@@ -39,6 +48,9 @@ export const HEART_META = {
   pink: { label: '뜨밤', emoji: '💗', color: '#ec4899' },
   green: { label: '칭찬 하트', emoji: '💚', color: '#10b981' },
 } as const;
+
+/** Convenience wrapper — looks up full metadata for a HeartType */
+export const heartMeta = (t: HeartType) => HEART_TYPES.find(h => h.type === t)!;
 
 export const HEART_TYPE_META: Record<string, { emoji: string; label: string; color: string; bg: string }> = {
   red:   { emoji: '❤️', label: '호감', color: 'text-rose-600',    bg: 'bg-rose-100' },

@@ -33,6 +33,28 @@ export function hasBannedWord(text: string): boolean {
   return BANNED_WORDS.some((w) => t.includes(w));
 }
 
+// ─── MBTI badge Tailwind classes ──────────────────────────────────────────────
+export const MBTI_COLORS: Record<string, string> = {
+  'INTJ': 'bg-violet-100 text-violet-700 border-violet-200', 'INTP': 'bg-violet-100 text-violet-700 border-violet-200',
+  'ENTJ': 'bg-violet-100 text-violet-700 border-violet-200', 'ENTP': 'bg-violet-100 text-violet-700 border-violet-200',
+  'INFJ': 'bg-teal-100 text-teal-700 border-teal-200',       'INFP': 'bg-teal-100 text-teal-700 border-teal-200',
+  'ENFJ': 'bg-teal-100 text-teal-700 border-teal-200',       'ENFP': 'bg-teal-100 text-teal-700 border-teal-200',
+  'ISTJ': 'bg-amber-100 text-amber-700 border-amber-200',    'ISFJ': 'bg-amber-100 text-amber-700 border-amber-200',
+  'ESTJ': 'bg-amber-100 text-amber-700 border-amber-200',    'ESFJ': 'bg-amber-100 text-amber-700 border-amber-200',
+  'ISTP': 'bg-sky-100 text-sky-700 border-sky-200',          'ISFP': 'bg-sky-100 text-sky-700 border-sky-200',
+  'ESTP': 'bg-sky-100 text-sky-700 border-sky-200',          'ESFP': 'bg-sky-100 text-sky-700 border-sky-200',
+};
+
+/** Badge label + Tailwind color classes for dom/sub score */
+export const domSubLabel = (score: number | null): { label: string; color: string } | null => {
+  if (score === null || score === undefined) return null;
+  if (score <= 2)  return { label: 'Dominant',  color: 'bg-rose-100 text-rose-700 border-rose-200' };
+  if (score <= 4)  return { label: 'Dom 선호',   color: 'bg-rose-50 text-rose-600 border-rose-100' };
+  if (score <= 6)  return { label: 'Switch',     color: 'bg-gray-100 text-gray-600 border-gray-200' };
+  if (score <= 8)  return { label: 'Sub 선호',   color: 'bg-sky-50 text-sky-600 border-sky-100' };
+  return             { label: 'Submissive',       color: 'bg-sky-100 text-sky-700 border-sky-200' };
+};
+
 // ── MBTI 배지 색상 ─────────────────────────────────────────────────────────────
 export function getMbtiStyle(mbti: string | null): { bg: string; color: string; border: string } {
   if (!mbti) return { bg: '#f3f4f6', color: '#6b7280', border: '#e5e7eb' };
