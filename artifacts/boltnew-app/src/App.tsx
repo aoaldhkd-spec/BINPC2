@@ -3505,24 +3505,11 @@ function App() {
   const [entryVerified, setEntryVerified] = useState(false);
   const [darkMode, setDarkMode] = useState(() => ls.getItem('dark_mode') === '1');
 
-  const pendingSeatId = useRef<string | null>(
-    new URLSearchParams(window.location.search).get('seat')
-  );
-  // Clean path format: /s/{table}-{position}
-  const pendingSeatPath = useRef<{ table: number; position: number } | null>(
-    (() => {
-      const m = window.location.pathname.match(/^\/s\/(\d+)-(\d+)$/);
-      return m ? { table: parseInt(m[1], 10), position: parseInt(m[2], 10) } : null;
-    })()
-  );
   const pendingTableNum = useRef<number | null>(
     (() => { const t = new URLSearchParams(window.location.search).get('table'); return t ? parseInt(t, 10) : null; })()
   );
   // Track user's current table number for notification targeting (ref for stable access in channel callbacks)
   const userTableNumRef = useRef<number | null>(null);
-  // True if user scanned a seat QR without having a profile - block and show error
-  // QR 스캔 후 세션 없는 경우: 차단하지 않고 정상 등록 플로우로 진행
-  // pendingSeatId/pendingSeatPath 는 등록 완료 후 currentUserId useEffect에서 처리됨
 
   const profileMap = useMemo(() => new Map(profiles.map((p) => [p.id, p])), [profiles]);
   // 렌더마다 최신 profiles를 ref에 동기화 (stale 클로저 방지)
@@ -3937,33 +3924,7 @@ function App() {
       loadMyVotes(currentUserId);
     }, 600);
 
-    if (pendingSeatId.current) {
-      const seatId = pendingSeatId.current;
-      pendingSeatId.current = null;
-      window.history.replaceState({}, '', window.location.pathname);
-      supabase.from('seats').select('*').eq('id', seatId).maybeSingle().then(({ data, error }) => {
-        if (error || !data) { alert('좌석 정보를 불러오지 못했습니다. 다시 QR을 스캔해 주세요.'); return; }
-        if (seatingLocked) { alert('자리 배치가 잠겼습니다. 관리자 안내에 따라 자리를 배정받으세요.'); return; }
-        if (data.status === 'occupied' && data.profile_id !== currentUserId) {
-          alert('이미 사용 중인 자리입니다.');
-        } else {
-          setSeatDialog(data);
-        }
-      });
-    } else if (pendingSeatPath.current) {
-      const { table, position } = pendingSeatPath.current;
-      pendingSeatPath.current = null;
-      window.history.replaceState({}, '', window.location.pathname);
-      supabase.from('seats').select('*').eq('table_number', table).eq('seat_position', position).maybeSingle().then(({ data, error }) => {
-        if (error || !data) { alert('좌석 정보를 불러오지 못했습니다. 다시 QR을 스캔해 주세요.'); return; }
-        if (seatingLocked) { alert('자리 배치가 잠겼습니다. 관리자 안내에 따라 자리를 배정받으세요.'); return; }
-        if (data.status === 'occupied' && data.profile_id !== currentUserId) {
-          alert('이미 사용 중인 자리입니다.');
-        } else {
-          setSeatDialog(data);
-        }
-      });
-    } else if (pendingTableNum.current !== null) {
+    if (pendingTableNum.current !== null) {
       const tableNum = pendingTableNum.current;
       pendingTableNum.current = null;
       window.history.replaceState({}, '', window.location.pathname);

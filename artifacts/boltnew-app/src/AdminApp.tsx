@@ -12,7 +12,7 @@ import SeatingMap from './components/SeatingMap';
 import SeatManagementMode from './components/SeatManagementMode';
 import type { GameState } from './App';
 import { getPositionLabel, getDomSubLabel, getKoreanAge } from './lib/profile';
-import { HEART_TYPE_META } from './lib/constants';
+import { HEART_TYPE_META, TABLE_POSITIONS } from './lib/constants';
 
 type Seat = Database['public']['Tables']['seats']['Row'];
 type Profile = Database['public']['Tables']['profiles']['Row'];
@@ -705,118 +705,6 @@ const TABLE_LABELS: Record<number, string> = {
 const tableLabel = (tableNum: number, labels?: Record<string, string> | null) =>
   labels?.[String(tableNum)] ?? TABLE_LABELS[tableNum] ?? String(tableNum);
 
-// ─── Seat QR Visual Layout ─────────────────────────────────────────────────────
-// Position arrays mirror SeatingMap.tsx TABLE_POSITIONS (after migration 025)
-
-type AdminTableCfg =
-  | { type: 'row1'; leftCol: number[]; rightCol: number[]; bottomRow: number[] }
-  | { type: 'sofa'; col1: number[]; col2: number[]; sofaOnLeft: boolean; topRow?: number[]; bottomRow?: number[] };
-
-const ADMIN_TABLE_CFG: Record<number, AdminTableCfg> = {
-  // Row1 tables (5,6,7,8)
-  5: { type: 'row1', leftCol: [1,2,3], rightCol: [8,7,6], bottomRow: [4,5] },
-  6: { type: 'row1', leftCol: [1,2,3], rightCol: [8,7,6], bottomRow: [4,5] },
-  7: { type: 'row1', leftCol: [1,2,3], rightCol: [8,7,6], bottomRow: [4,5] },
-  8: { type: 'row1', leftCol: [1,2,3], rightCol: [8,7,6], bottomRow: [4,5] },
-  // Sofa tables with top row
-  1:  { type: 'sofa', col1: [3,2,1], col2: [6,7,8], sofaOnLeft: false, topRow: [4,5] },
-  3:  { type: 'sofa', col1: [3,2,1], col2: [6,7,8], sofaOnLeft: true,  topRow: [4,5] },
-  10: { type: 'sofa', col1: [3,2,1], col2: [6,7,8], sofaOnLeft: false, topRow: [4,5] },
-  12: { type: 'sofa', col1: [3,2,1], col2: [6,7,8], sofaOnLeft: true,  topRow: [4,5] },
-  // Sofa tables with bottom row
-  2:  { type: 'sofa', col1: [1,2,3], col2: [8,7,6], sofaOnLeft: false, bottomRow: [4,5] },
-  4:  { type: 'sofa', col1: [1,2,3], col2: [8,7,6], sofaOnLeft: true,  bottomRow: [4,5] },
-  9:  { type: 'sofa', col1: [1,2,3], col2: [8,7,6], sofaOnLeft: false, bottomRow: [4,5] },
-  11: { type: 'sofa', col1: [1,2,3], col2: [8,7,6], sofaOnLeft: true,  bottomRow: [4,5] },
-};
-
-function SeatQrGrid({ tableNum, tableSeats, getSeatUrl, makeQr, onSelect }: {
-  tableNum: number;
-  tableSeats: Seat[];
-  getSeatUrl: (s: Seat) => string;
-  makeQr: (url: string, size?: number) => string;
-  onSelect: (s: Seat) => void;
-}) {
-  const cfg = ADMIN_TABLE_CFG[tableNum];
-  const get = (pos: number) => tableSeats.find(s => s.seat_position === pos);
-  const shortLabel = (seat: Seat) => seat.seat_label.split(' ').pop() ?? seat.seat_label;
-
-  const QrCell = ({ pos }: { pos: number }) => {
-    const seat = get(pos);
-    if (!seat) return <div className="w-32 h-36 rounded-xl bg-gray-50 border border-dashed border-gray-200" />;
-    return (
-      <button
-        onClick={() => onSelect(seat)}
-        className="flex flex-col items-center gap-1.5 p-2 rounded-xl border-2 border-gray-200 hover:border-teal-400 hover:bg-teal-50 transition-all w-32"
-      >
-        <img src={makeQr(getSeatUrl(seat), 280)} alt={seat.seat_label} className="w-24 h-24 rounded-lg" />
-        <span className="text-xs font-bold text-gray-600 text-center leading-tight">{shortLabel(seat)}</span>
-      </button>
-    );
-  };
-
-  const TableBlock = ({ vertical }: { vertical?: boolean }) => (
-    <div className={`rounded-xl bg-amber-100 border-2 border-amber-300 flex flex-col items-center justify-center gap-0.5 ${vertical ? 'w-10 self-stretch' : 'h-10 w-full'}`}>
-      <span className="text-[10px] font-black text-amber-700 leading-none">{tableNum}</span>
-      <span className="text-[9px] font-black text-amber-500 leading-none">{TABLE_LABELS[tableNum] ?? ''}</span>
-    </div>
-  );
-
-  if (!cfg) {
-    return (
-      <div className="flex flex-wrap gap-4">
-        {tableSeats.map(s => <QrCell key={s.id} pos={s.seat_position} />)}
-      </div>
-    );
-  }
-
-  if (cfg.type === 'row1') {
-    return (
-      <div className="flex flex-col items-center gap-4 py-2">
-        <div className="flex items-stretch gap-3">
-          <div className="flex flex-col gap-4">{cfg.leftCol.map(p => <QrCell key={p} pos={p} />)}</div>
-          <TableBlock vertical />
-          <div className="flex flex-col gap-4">{cfg.rightCol.map(p => <QrCell key={p} pos={p} />)}</div>
-        </div>
-        <div className="flex gap-4">{cfg.bottomRow.map(p => <QrCell key={p} pos={p} />)}</div>
-      </div>
-    );
-  }
-
-  // Sofa layout — col1 is always left, col2 is always right
-  // sofaOnLeft controls which side gets the teal "소파" label; topRow tables get label at bottom
-  const labelBottom = !!cfg.topRow;
-  const sofaLabel = <span className="text-[9px] font-black text-teal-500 text-center uppercase tracking-wider">소파</span>;
-  const faceLabel = <span className="text-[9px] font-black text-slate-400 text-center uppercase tracking-wider">맞은편</span>;
-
-  const col1El = (
-    <div className="flex flex-col gap-4">
-      {!labelBottom && (cfg.sofaOnLeft ? sofaLabel : faceLabel)}
-      {cfg.col1.map(p => <QrCell key={p} pos={p} />)}
-      {labelBottom && (cfg.sofaOnLeft ? sofaLabel : faceLabel)}
-    </div>
-  );
-  const col2El = (
-    <div className="flex flex-col gap-4">
-      {!labelBottom && (!cfg.sofaOnLeft ? sofaLabel : faceLabel)}
-      {cfg.col2.map(p => <QrCell key={p} pos={p} />)}
-      {labelBottom && (!cfg.sofaOnLeft ? sofaLabel : faceLabel)}
-    </div>
-  );
-
-  return (
-    <div className="flex flex-col items-center gap-4 py-2">
-      {cfg.topRow && <div className="flex gap-4">{cfg.topRow.map(p => <QrCell key={p} pos={p} />)}</div>}
-      <div className="flex items-stretch gap-3">
-        {col1El}
-        <TableBlock vertical />
-        {col2El}
-      </div>
-      {cfg.bottomRow && <div className="flex gap-4">{cfg.bottomRow.map(p => <QrCell key={p} pos={p} />)}</div>}
-    </div>
-  );
-}
-
 function AdminQrTab({ seats }: { seats: Seat[] }) {
   const normalizeBase = (url: string) => {
     const trimmed = url.trim().replace(/\/$/, '');
@@ -978,38 +866,6 @@ function AdminQrTab({ seats }: { seats: Seat[] }) {
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-// ─── QR Modal ─────────────────────────────────────────────────────────────────
-
-function QrModal({ seat, onClose }: { seat: Seat; onClose: () => void }) {
-  const base = localStorage.getItem('qr_base_url') || window.location.origin;
-  const isLocalhost = base.includes('localhost') || base.includes('127.0.0.1');
-  const url = `${base}/?seat=${seat.id}`;
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(url)}&size=200x200&margin=10`;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xs p-6 text-center">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-bold text-gray-900">{seat.seat_label}</h3>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
-            <X className="w-5 h-5 text-gray-500" />
-          </button>
-        </div>
-        {isLocalhost && (
-          <div className="mb-3 px-3 py-2 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600 text-left">
-            QR 탭에서 Netlify 도메인을 먼저 설정해주세요. 현재 localhost라 핸드폰에서 작동 안 됩니다.
-          </div>
-        )}
-        <img src={qrUrl} alt="QR Code" className="w-48 h-48 mx-auto rounded-xl border border-gray-200" />
-        <p className="text-xs text-gray-500 mt-3 break-all bg-gray-50 rounded-lg p-2 font-mono">{url}</p>
-        <button onClick={() => navigator.clipboard.writeText(url)}
-          className="mt-3 w-full py-2.5 bg-slate-800 text-white text-sm font-semibold rounded-xl hover:bg-slate-700 transition-all">
-          링크 복사
-        </button>
-      </div>
     </div>
   );
 }
@@ -3820,7 +3676,7 @@ function ProfilesTabSection({ profiles, seats, settings, onClear, onDeleteProfil
               <div className="overflow-y-auto flex-1 min-h-0 space-y-4">
                 {visibleTableNums.map(tableNum => {
                   const tableSeats = seats.filter(s => s.table_number === tableNum).sort((a, b) => a.seat_position - b.seat_position);
-                  const cfg = ADMIN_TABLE_CFG[tableNum];
+                  const cfg = TABLE_POSITIONS[tableNum];
                   const get = (pos: number) => tableSeats.find(s => s.seat_position === pos) ?? null;
 
                   const SeatBtn = ({ pos }: { pos: number }) => {
@@ -3873,7 +3729,7 @@ function ProfilesTabSection({ profiles, seats, settings, onClear, onDeleteProfil
                           <div className="flex flex-col gap-1">{cfg.leftCol.map(p => <SeatBtn key={p} pos={p} />)}</div>
                           <div className="flex flex-col gap-2 flex-1">
                             <TableBlock />
-                            <div className="flex gap-1 justify-center">{cfg.bottomRow.map(p => <SeatBtn key={p} pos={p} />)}</div>
+                            <div className="flex gap-1 justify-center">{cfg.bottomRow?.map(p => <SeatBtn key={p} pos={p} />)}</div>
                           </div>
                           <div className="flex flex-col gap-1">{cfg.rightCol.map(p => <SeatBtn key={p} pos={p} />)}</div>
                         </div>
@@ -3882,9 +3738,9 @@ function ProfilesTabSection({ profiles, seats, settings, onClear, onDeleteProfil
                     // sofa
                     const inner = (
                       <div className="flex gap-2 items-start">
-                        <div className="flex flex-col gap-1">{cfg.col1.map(p => <SeatBtn key={p} pos={p} />)}</div>
+                        <div className="flex flex-col gap-1">{cfg.leftCol.map(p => <SeatBtn key={p} pos={p} />)}</div>
                         <TableBlock vertical />
-                        <div className="flex flex-col gap-1">{cfg.col2.map(p => <SeatBtn key={p} pos={p} />)}</div>
+                        <div className="flex flex-col gap-1">{cfg.rightCol.map(p => <SeatBtn key={p} pos={p} />)}</div>
                       </div>
                     );
                     const sofaBar = <div className="h-5 w-10 rounded-md bg-sky-200 border-2 border-sky-400 flex items-center justify-center text-[9px] font-black text-sky-700">소파</div>;
@@ -4336,7 +4192,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const handleAdminVote = (gameId: string, option: 'a' | 'b') => {
     setAdminMyVotes(prev => new Map(prev).set(gameId, option));
   };
-  const [qrSeat, setQrSeat] = useState<Seat | null>(null);
   const [newReportPopup, setNewReportPopup] = useState<AnonymousReport | null>(null);
   const [drinkPopup, setDrinkPopup] = useState(false);
   // 관리자 측에서도 팝업 뜰 때 TTS 재생
@@ -5130,7 +4985,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                 seats={settings?.active_tables ? seats.filter(s => settings.active_tables!.includes(s.table_number)) : seats}
                 profileMap={profileMap} currentUserId={null} isAdmin
                 tableLabels={settings?.table_labels ?? null}
-                onClearSeat={handleClearSeat} onShowQr={setQrSeat}
+                onClearSeat={handleClearSeat}
                 onForceSeat={handleForceSeat}
                 onSetTableLabel={async (tableNum, label) => {
                   const base = { ...((settings?.table_labels as Record<string, string>) ?? {}) };
@@ -5260,8 +5115,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         )}
         {tab === 'notify' && <NotificationTab tableCount={[...new Set(seats.map(s => s.table_number))].length} settings={settings} onSetTimer={handleSetTimer} />}
       </main>
-
-      {qrSeat && <QrModal seat={qrSeat} onClose={() => setQrSeat(null)} />}
 
       {/* 초기화 복구 배너 (non-blocking) */}
       {recovery && (
