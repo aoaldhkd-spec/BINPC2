@@ -2580,9 +2580,13 @@ function ProfileInfoBadges({ profile }: { profile: Profile }) {
 }
 
 function LikeConfirmDialog({
-  target, likedByType, onConfirm, onCancel,
+  target, likedByType, sentTypesForTarget, onConfirm, onCancel,
 }: {
-  target: Profile; likedByType: Record<HeartType, number>; onConfirm: (type: HeartType) => void; onCancel: () => void;
+  target: Profile;
+  likedByType: Record<HeartType, number>;
+  sentTypesForTarget: Set<HeartType>;
+  onConfirm: (type: HeartType) => void;
+  onCancel: () => void;
 }) {
   const [selected, setSelected] = useState<HeartType | null>(null);
   return (
@@ -2593,13 +2597,19 @@ function LikeConfirmDialog({
             <ProfileAvatar profile={target} size="lg" rounded="xl" />
           </div>
           <p className="text-lg font-bold text-gray-900">{target.nickname}</p>
+          {sentTypesForTarget.size > 0 && (
+            <p className="text-xs text-gray-400 mt-1">
+              이미 보낸 하트: {[...sentTypesForTarget].map(t => heartMeta(t).emoji).join(' ')}
+            </p>
+          )}
         </div>
 
         <div className="space-y-2 mb-5">
           {HEART_TYPES.map(h => {
             const used = likedByType[h.type] ?? 0;
             const remaining = 2 - used;
-            const disabled = remaining <= 0;
+            const alreadySentToThisPerson = sentTypesForTarget.has(h.type);
+            const disabled = remaining <= 0 || alreadySentToThisPerson;
             const isSel = selected === h.type;
             return (
               <button key={h.type} onClick={() => !disabled && setSelected(h.type)} disabled={disabled}
@@ -2611,12 +2621,18 @@ function LikeConfirmDialog({
                 <span className="text-2xl">{h.emoji}</span>
                 <div className="flex-1 min-w-0">
                   <p className={`text-sm font-bold ${isSel ? h.text : 'text-gray-800'}`}>{h.label}</p>
-                  <p className="text-xs text-gray-400">{h.desc}</p>
+                  <p className="text-xs text-gray-400">
+                    {alreadySentToThisPerson ? '이미 보낸 하트' : h.desc}
+                  </p>
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
-                  {[0, 1].map(i => (
-                    <Heart key={i} className={`w-4 h-4 ${i < (2 - used) ? h.fillText : 'fill-gray-200 text-gray-200'}`} />
-                  ))}
+                  {alreadySentToThisPerson ? (
+                    <span className="text-[10px] text-gray-400 font-bold">전송됨</span>
+                  ) : (
+                    [0, 1].map(i => (
+                      <Heart key={i} className={`w-4 h-4 ${i < (2 - used) ? h.fillText : 'fill-gray-200 text-gray-200'}`} />
+                    ))
+                  )}
                 </div>
               </button>
             );
@@ -3434,6 +3450,8 @@ function App() {
   });
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [sentHeartTypes, setSentHeartTypes] = useState<Map<string, HeartType>>(new Map());
+  // 한 사람에게 여러 종류 하트를 보낼 수 있게: profileId → Set<HeartType>
+  const [sentHeartsPerPerson, setSentHeartsPerPerson] = useState<Map<string, Set<HeartType>>>(new Map());
   const [receivedHeartTypes, setReceivedHeartTypes] = useState<Map<string, HeartType>>(new Map());
   const [likeStatuses, setLikeStatuses] = useState<Map<string, string>>(new Map());
   const [receivedLikers, setReceivedLikers] = useState<Profile[]>([]);
@@ -3758,8 +3776,17 @@ function App() {
     const { data } = await supabase.from('likes').select('liked_id, status, heart_type').eq('liker_id', userId);
     if (data) {
       setLikedIds(new Set(data.map((l) => l.liked_id)));
+      // 마지막 타입만 display용으로 유지 (최신 순 보장)
       setSentHeartTypes(new Map(data.map((l) => [l.liked_id, (l.heart_type ?? 'red') as HeartType])));
       setLikeStatuses(new Map(data.map((l) => [l.liked_id, l.status])));
+      // 사람별 보낸 하트 타입 Set 구축
+      const hmap = new Map<string, Set<HeartType>>();
+      data.forEach(l => {
+        const s = hmap.get(l.liked_id) ?? new Set<HeartType>();
+        s.add((l.heart_type ?? 'red') as HeartType);
+        hmap.set(l.liked_id, s);
+      });
+      setSentHeartsPerPerson(hmap);
     }
   }, []);
 
@@ -3999,6 +4026,13 @@ function App() {
           const row = payload.new as { liked_id: string; heart_type: HeartType };
           setLikedIds((prev) => new Set([...prev, row.liked_id]));
           setSentHeartTypes((prev) => new Map(prev).set(row.liked_id, row.heart_type ?? 'red'));
+          setSentHeartsPerPerson(prev => {
+            const next = new Map(prev);
+            const s = new Set(next.get(row.liked_id) ?? []);
+            s.add(row.heart_type ?? 'red');
+            next.set(row.liked_id, s);
+            return next;
+          });
         })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'likes', filter: `liker_id=eq.${currentUserId}` },
         (payload) => {
@@ -4307,15 +4341,19 @@ function App() {
   };
 
   const handleLike = (profileId: string) => {
-    if (!currentUserId || likedIds.has(profileId)) return;
+    if (!currentUserId) return;
     const target = profiles.find((p) => p.id === profileId);
     if (!target) return;
+    // 이미 4가지 타입 전부 보냈으면 더 이상 보낼 수 없음
+    const sent = sentHeartsPerPerson.get(profileId);
+    if (sent && sent.size >= 4) return;
     setLikeConfirmTarget(target);
   };
 
   const heartCountByType = (type: HeartType) => {
+    // 이 타입의 하트를 받은 사람 수 (사람별로 중복 없이 카운트)
     let c = 0;
-    sentHeartTypes.forEach(t => { if (t === type) c++; });
+    sentHeartsPerPerson.forEach(types => { if (types.has(type)) c++; });
     return c;
   };
 
@@ -4328,11 +4366,21 @@ function App() {
 
   const executeLike = async (heartType: HeartType) => {
     if (!currentUserId || !likeConfirmTarget) return;
+    // 타입별 전체 한도 (2명까지)
     if (heartCountByType(heartType) >= 2) return;
+    // 이 사람에게 이미 이 타입 보낸 경우 중복 차단
+    if (sentHeartsPerPerson.get(likeConfirmTarget.id)?.has(heartType)) return;
     const { error } = await supabase.from('likes').insert({ liker_id: currentUserId, liked_id: likeConfirmTarget.id, heart_type: heartType });
     if (!error) {
       setLikedIds((prev) => new Set([...prev, likeConfirmTarget.id]));
       setSentHeartTypes((prev) => new Map(prev).set(likeConfirmTarget.id, heartType));
+      setSentHeartsPerPerson(prev => {
+        const next = new Map(prev);
+        const s = new Set(next.get(likeConfirmTarget.id) ?? []);
+        s.add(heartType);
+        next.set(likeConfirmTarget.id, s);
+        return next;
+      });
     }
     setLikeConfirmTarget(null);
   };
@@ -4407,6 +4455,15 @@ function App() {
     // 채팅방 진입 시 이 채팅의 unread 카운트 확실히 초기화
     setUnreadChatCounts(prev => { const n = { ...prev }; delete n[chatId]; return n; });
     loadMessages(chatId);
+    // 읽음 처리: 내가 이 채팅방을 열었음을 서버에 알림
+    if (currentUserId) {
+      supabase.from('chat_reads').upsert({
+        id: `${chatId}__${currentUserId}`,
+        chat_id: chatId,
+        reader_id: currentUserId,
+        read_at: new Date().toISOString(),
+      }, { onConflict: 'id' }).then(() => {});
+    }
     const channel = supabase
       .channel(`chat:${chatId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `chat_id=eq.${chatId}` },
@@ -4431,7 +4488,7 @@ function App() {
         })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [chatId, loadMessages]);
+  }, [chatId, loadMessages, currentUserId]);
 
   const sendMessage = async (content: string) => {
     if (!chatId || !currentUserId || !content.trim()) return;
@@ -4471,12 +4528,6 @@ function App() {
 
   const handleRegisterSeat = async (seat: Seat) => {
     if (!currentUserId) return;
-    // 일반 유저는 자리 변경 불가 (관리자만 배치 가능)
-    if (currentUserSeat && currentUserSeat.id !== seat.id) {
-      alert('자리 변경은 관리자만 가능합니다. 관리자에게 요청해 주세요.');
-      setSeatDialog(null);
-      return;
-    }
     if (seatingLocked) {
       alert('자리 배치가 잠겼습니다. 관리자 안내에 따라 자리를 배정받으세요.');
       setSeatDialog(null);
@@ -4487,6 +4538,10 @@ function App() {
       alert('방금 다른 사람이 이 자리를 등록했습니다.');
       setSeatDialog(null);
       return;
+    }
+    // 현재 자리가 있으면 먼저 비워주고 새 자리로 이동
+    if (currentUserSeat && currentUserSeat.id !== seat.id) {
+      await supabase.from('seats').update({ profile_id: null, status: 'empty', registered_at: null }).eq('id', currentUserSeat.id);
     }
     const { error } = await supabase.from('seats').update({ profile_id: currentUserId, status: 'occupied', registered_at: new Date().toISOString() }).eq('id', seat.id);
     if (error) {
@@ -4638,6 +4693,7 @@ function App() {
         isMe={selectedProfile.id === currentUserId}
         isLiked={likedIds.has(selectedProfile.id)}
         heartType={sentHeartTypes.get(selectedProfile.id)}
+        sentHeartsCount={sentHeartsPerPerson.get(selectedProfile.id)?.size ?? 0}
         onLike={() => { if (!seatingLocked) handleLike(selectedProfile.id); }}
         onChat={() => { if (!seatingLocked) openChat(selectedProfile); }}
         onBack={() => setView('main')}
@@ -4647,6 +4703,7 @@ function App() {
         <LikeConfirmDialog
           target={likeConfirmTarget}
           likedByType={likedByTypeRecord()}
+          sentTypesForTarget={sentHeartsPerPerson.get(likeConfirmTarget.id) ?? new Set()}
           onConfirm={executeLike}
           onCancel={() => setLikeConfirmTarget(null)}
         />
@@ -4657,6 +4714,7 @@ function App() {
     <>
       {currentGame?.active && gameModalVisible && <GameAnnouncementModal game={currentGame} onDismiss={() => setGameModalVisible(false)} onVote={voteOnGame} onImageVote={voteOnImageGame} currentUserId={currentUserId} seats={seats} profiles={profiles} />}
       <ChatScreen
+        chatId={chatId}
         messages={messages}
         currentUserId={currentUserId!}
         otherProfile={selectedProfile}
@@ -4788,6 +4846,7 @@ function App() {
         profiles={profiles}
         currentUserId={currentUserId}
         likedIds={likedIds}
+        sentHeartsPerPerson={sentHeartsPerPerson}
         likeStatuses={likeStatuses}
         seats={seats}
         profileMap={profileMap}
@@ -4860,6 +4919,7 @@ function App() {
         <LikeConfirmDialog
           target={likeConfirmTarget}
           likedByType={likedByTypeRecord()}
+          sentTypesForTarget={sentHeartsPerPerson.get(likeConfirmTarget.id) ?? new Set()}
           onConfirm={executeLike}
           onCancel={() => setLikeConfirmTarget(null)}
         />
@@ -6315,7 +6375,7 @@ function RefreshBtn({ onRefresh, refreshed, dark = false }: { onRefresh: () => v
 // ─── MainScreen ───────────────────────────────────────────────────────────────
 
 function MainScreen({
-  profiles, currentUserId, likedIds, sentHeartTypes, likeStatuses, seats, profileMap, mainTab,
+  profiles, currentUserId, likedIds, sentHeartTypes, sentHeartsPerPerson, likeStatuses, seats, profileMap, mainTab,
   onTabChange, onLike, onSelect, onReset, onProfileClickFromMap,
   receivedLikers, receivedHeartTypes, sentLikedProfiles, contactSharedWithIds, acknowledgedComplimentIds,
   receivedContactShares, pendingHeartsCount, chatList, suggestions,
@@ -6325,7 +6385,7 @@ function MainScreen({
   timerEndAt, timerLabel, onRefreshStatus, onRefreshChat, onRefreshProfiles, onRefreshSeating, darkMode, onToggleDark, onShowQr, seatingLocked, activeTables, tableLabels, onShowTutorial,
   newMsgCount, onClearMsgCount, unreadChatCounts, onClearChatUnread, resetPassword, onBroadcastGame,
 }: {
-  profiles: Profile[]; currentUserId: string | null; likedIds: Set<string>; sentHeartTypes: Map<string, HeartType>; likeStatuses: Map<string, string>;
+  profiles: Profile[]; currentUserId: string | null; likedIds: Set<string>; sentHeartTypes: Map<string, HeartType>; sentHeartsPerPerson: Map<string, Set<HeartType>>; likeStatuses: Map<string, string>;
   seats: Seat[]; profileMap: Map<string, Profile>; mainTab: MainTab;
   onTabChange: (t: MainTab) => void; onLike: (id: string) => void;
   onSelect: (p: Profile) => void; onReset: () => void;
@@ -6365,7 +6425,7 @@ function MainScreen({
   resetPassword: string | null;
   onBroadcastGame: (s: TableMiniGameSession) => void;
 }) {
-  const heartCount = useCallback((t: HeartType) => { let c = 0; sentHeartTypes.forEach(v => { if (v === t) c++; }); return c; }, [sentHeartTypes]);
+  const heartCount = useCallback((t: HeartType) => { let c = 0; sentHeartsPerPerson.forEach(types => { if (types.has(t)) c++; }); return c; }, [sentHeartsPerPerson]);
   const currentUserSeat = useMemo(() => seats.find(s => s.profile_id === currentUserId) ?? null, [seats, currentUserId]);
   const tableNumber = currentUserSeat?.table_number ?? null;
   const visibleSeats = useMemo(() => activeTables ? seats.filter(s => activeTables.includes(s.table_number)) : seats, [seats, activeTables]);
@@ -6755,10 +6815,15 @@ function MainScreen({
                 {canLike && !seatingLocked && (
                   <button
                     onClick={(e) => { e.stopPropagation(); onLike(profile.id); }}
-                    disabled={isLiked}
+                    disabled={isLiked && (sentHeartsPerPerson.get(profile.id)?.size ?? 0) >= 4}
                     className="absolute top-1.5 right-1.5 p-1.5 transition-all duration-200 active:scale-90 drop-shadow-md">
-                    {isLiked && sentHeartTypes.get(profile.id)
-                      ? <span className="text-xl leading-none select-none drop-shadow">{heartMeta(sentHeartTypes.get(profile.id)!).emoji}</span>
+                    {isLiked && sentHeartsPerPerson.get(profile.id)
+                      ? <span className="text-xl leading-none select-none drop-shadow relative">
+                          {heartMeta(sentHeartTypes.get(profile.id)!).emoji}
+                          {(sentHeartsPerPerson.get(profile.id)?.size ?? 0) > 1 && (
+                            <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-rose-500 text-white text-[8px] font-black rounded-full flex items-center justify-center">{sentHeartsPerPerson.get(profile.id)!.size}</span>
+                          )}
+                        </span>
                       : isLiked
                         ? <Heart className="w-5 h-5" style={{ fill: '#e11d48', stroke: '#9f0a28', strokeWidth: 1.5 }} />
                         : <Heart className="w-5 h-5" style={{ fill: 'rgba(255,255,255,0.85)', stroke: '#be123c', strokeWidth: 2.5 }} />
@@ -6795,7 +6860,7 @@ function MainScreen({
                 <RefreshBtn onRefresh={() => doRefresh('seating', onRefreshSeating)} refreshed={refreshedTab === 'seating'} dark />
               </div>
               <div className={`rounded-2xl border p-3 sm:p-4 transition-colors duration-300 ${darkMode ? 'bg-slate-900 border-slate-600' : 'bg-white border-gray-200 shadow-sm'}`}>
-                <SeatingMap seats={visibleSeats} profileMap={profileMap} currentUserId={currentUserId} isAdmin={false} seatingLocked={seatingLocked} darkMode={darkMode} tableLabels={tableLabels} onProfileClick={onProfileClickFromMap} onChatClick={onOpenChat} />
+                <SeatingMap seats={visibleSeats} profileMap={profileMap} currentUserId={currentUserId} isAdmin={false} seatingLocked={seatingLocked} darkMode={darkMode} tableLabels={tableLabels} onProfileClick={onProfileClickFromMap} onChatClick={onOpenChat} onSeatClick={!seatingLocked ? (s) => { if (!s.profile_id || s.profile_id === currentUserId) setSeatDialog(s); } : undefined} />
               </div>
               <p className={`text-center text-xs mt-2 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
                 ↔↕ 상하좌우 + 대각선 스크롤 가능 &middot; 테이블 탭하면 확대됩니다
@@ -7490,12 +7555,12 @@ function ProfileScoreBar({ label, score, getLabel, getBg, leftText, rightText }:
   );
 }
 
-function ProfileDetail({ profile, isMe, isLiked, heartType, onLike, onChat, onBack, onReset }: {
-  profile: Profile; isMe: boolean; isLiked: boolean; heartType?: HeartType;
+function ProfileDetail({ profile, isMe, isLiked, heartType, sentHeartsCount, onLike, onChat, onBack, onReset }: {
+  profile: Profile; isMe: boolean; isLiked: boolean; heartType?: HeartType; sentHeartsCount?: number;
   onLike: () => void; onChat: () => void; onBack: () => void; onReset: () => void;
 }) {
   const handleLike = () => {
-    if (isLiked) return;
+    if (isLiked && (sentHeartsCount ?? 0) >= 4) return;
     onLike();
   };
 
@@ -7548,7 +7613,7 @@ function ProfileDetail({ profile, isMe, isLiked, heartType, onLike, onChat, onBa
           {!isMe && (
           <button
             onClick={handleLike}
-            disabled={isLiked}
+            disabled={isLiked && (sentHeartsCount ?? 0) >= 4}
             className={`absolute top-4 right-4 p-2.5 rounded-full backdrop-blur-sm transition-all ${
               isLiked
                 ? `${heartType ? heartMeta(heartType).solidBg : 'bg-rose-500'} text-white shadow-lg`
@@ -7619,7 +7684,8 @@ function ProfileDetail({ profile, isMe, isLiked, heartType, onLike, onChat, onBa
 
 // ─── Chat Screen ──────────────────────────────────────────────────────────────
 
-function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage, onBack, onReset, onDeleteMessage, currentUserProfile, receivedContactShares, contactSharedWithIds }: {
+function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onSendImage, onBack, onReset, onDeleteMessage, currentUserProfile, receivedContactShares, contactSharedWithIds }: {
+  chatId: string;
   messages: Message[]; currentUserId: string; otherProfile: Profile;
   onSend: (content: string) => void;
   onSendImage: (file: File) => Promise<string | null>;
@@ -7719,18 +7785,29 @@ function ChatScreen({ messages, currentUserId, otherProfile, onSend, onSendImage
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
-  // 안 읽음 "1"
+  // 안 읽음 "1" — 내가 새로 보낸 메시지에 뱃지 추가 (상대 읽음 시 chat_reads SSE로 제거)
   useEffect(() => {
-    const lastMsg = messages[messages.length - 1];
-    if (lastMsg && lastMsg.sender_id !== currentUserId) {
-      setMyUnreadIds(new Set());
-    } else {
-      const newMyMsgs = messages.filter(m => m.sender_id === currentUserId && !initialMsgIds.current.has(m.id));
-      if (newMyMsgs.length > 0) {
-        setMyUnreadIds(prev => new Set([...prev, ...newMyMsgs.map(m => m.id)]));
-      }
+    const newMyMsgs = messages.filter(m => m.sender_id === currentUserId && !initialMsgIds.current.has(m.id));
+    if (newMyMsgs.length > 0) {
+      setMyUnreadIds(prev => new Set([...prev, ...newMyMsgs.map(m => m.id)]));
     }
   }, [messages, currentUserId]);
+
+  // 상대방이 채팅방을 열었을 때 → 내 "1" 뱃지 제거
+  useEffect(() => {
+    if (!chatId) return;
+    const ch = supabase
+      .channel(`chat_reads:${chatId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_reads', filter: `chat_id=eq.${chatId}` },
+        (payload) => {
+          const row = (payload as { new?: { reader_id?: string } }).new;
+          if (row?.reader_id && row.reader_id !== currentUserId) {
+            setMyUnreadIds(new Set());
+          }
+        })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [chatId, currentUserId]);
 
   // 메시지 파싱 helpers
   const isContactCard = (content: string | null) => !!content?.startsWith('__contact__');

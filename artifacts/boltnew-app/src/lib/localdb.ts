@@ -206,8 +206,8 @@ function createSse() {
 }
 
 function ensureSse() {
-  // CONNECTING 상태가 10초 이상 지속되면 강제 재연결
-  if (_es && _es.readyState === EventSource.CONNECTING && _sseErrorSince && Date.now() - _sseErrorSince > 10_000) {
+  // CONNECTING 상태가 3초 이상 지속되면 강제 재연결
+  if (_es && _es.readyState === EventSource.CONNECTING && _sseErrorSince && Date.now() - _sseErrorSince > 3_000) {
     _es.close();
     _es = null;
     _sseErrorSince = null;
@@ -217,10 +217,10 @@ function ensureSse() {
   _es = createSse();
 }
 
-// 30초마다 연결 상태 점검 — 끊어진 SSE를 자동 복구
+// 5초마다 연결 상태 점검 — 끊어진 SSE를 자동 복구
 setInterval(() => {
   if (_sseListeners.size > 0) ensureSse();
-}, 30_000);
+}, 5_000);
 
 // 탭/앱 포그라운드 복귀 시 즉시 SSE 재연결 확인
 if (typeof document !== 'undefined') {
