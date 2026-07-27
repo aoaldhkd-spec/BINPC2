@@ -23,6 +23,9 @@ export function useChat({
   const chatIdRef = useRef<string | null>(null);
   chatIdRef.current = chatId;
 
+  // 내가 직접 연 채팅방 pair 기록 — SSE INSERT 알림 억제용
+  const selfInitiatedPairRef = useRef<string | null>(null);
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [chatList, setChatList] = useState<Chat[]>([]);
   const chatListRef = useRef<Chat[]>([]);
@@ -163,6 +166,10 @@ export function useChat({
     const user1Id = currentUserId < otherProfile.id ? currentUserId : otherProfile.id;
     const user2Id = currentUserId < otherProfile.id ? otherProfile.id : currentUserId;
 
+    // SSE INSERT 알림 억제: 내가 연 채팅방 pair를 미리 기록 (DB 응답 전에 SSE가 먼저 올 수 있음)
+    selfInitiatedPairRef.current = `${user1Id}:${user2Id}`;
+    setTimeout(() => { selfInitiatedPairRef.current = null; }, 5000);
+
     const { data: existingChat } = await supabase
       .from('chats').select('*').eq('user1_id', user1Id).eq('user2_id', user2Id).maybeSingle();
 
@@ -255,6 +262,7 @@ export function useChat({
   return {
     chatId, setChatId,
     chatIdRef,
+    selfInitiatedPairRef,
     messages, setMessages,
     chatList, setChatList,
     chatListRef,

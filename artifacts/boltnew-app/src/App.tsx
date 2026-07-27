@@ -251,7 +251,7 @@ function App() {
   } = useGames(currentUserId, seats, profiles);
 
   const {
-    chatId, setChatId, chatIdRef, messages, setMessages, chatList, setChatList, chatListRef,
+    chatId, setChatId, chatIdRef, selfInitiatedPairRef, messages, setMessages, chatList, setChatList, chatListRef,
     unreadChatCounts, setUnreadChatCounts, newMsgCount, setNewMsgCount,
     loadChatList, loadMessages, openChat, sendMessage, sendImage,
     deleteChat, deleteAllChats, deleteMessage,
@@ -678,7 +678,8 @@ function App() {
         });
         const otherId = c.user1_id === currentUserId ? c.user2_id : c.user1_id;
         const otherProfile = profilesRef.current.find(p => p.id === otherId);
-        const iMadeThis = chatIdRef.current === c.id;
+        const pairKey = `${c.user1_id}:${c.user2_id}`;
+        const iMadeThis = selfInitiatedPairRef.current === pairKey;
         if (otherProfile && !iMadeThis) setBottomNotif({ type: 'chat', nickname: otherProfile.nickname });
       })
       .subscribe();

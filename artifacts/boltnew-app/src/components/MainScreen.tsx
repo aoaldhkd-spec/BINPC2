@@ -113,14 +113,13 @@ const ProfileCard = memo(function ProfileCard({
             }
           </button>
         )}
-        {/* 채팅 버튼 — 그라데이션 위 우하단 */}
+        {/* 채팅 버튼 — 하트 아래 동일 스타일 원형 */}
         {canLike && (
           <button
             onClick={(e) => { e.stopPropagation(); onOpenChat(profile); }}
-            className="absolute bottom-8 right-2 flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-sm border border-white/40 text-white text-[9px] font-bold shadow active:scale-90 transition-transform"
+            className="absolute top-11 right-1.5 w-7 h-7 bg-white/85 backdrop-blur-sm rounded-full flex items-center justify-center shadow-md active:scale-90 transition-transform"
           >
-            <MessageCircle className="w-3 h-3" strokeWidth={2.5} />
-            채팅하기
+            <MessageCircle className="w-4 h-4 text-sky-500" strokeWidth={2} />
           </button>
         )}
         {/* 닉네임+나이 오버레이 */}
@@ -130,15 +129,15 @@ const ProfileCard = memo(function ProfileCard({
         </div>
       </div>
       {/* ── 배지 영역 ── */}
-      <div className="px-2.5 py-2 flex flex-wrap items-center gap-1">
+      <div className="px-2.5 py-2.5 flex flex-wrap items-center gap-1.5">
         <span
-          className="text-[8px] font-bold px-1.5 py-0.5 rounded-lg leading-tight border"
+          className="text-[11px] font-bold px-2 py-0.5 rounded-lg leading-tight border"
           style={{ backgroundColor: posStyle.bg, color: posStyle.text, borderColor: posStyle.border }}
         >
           {posLabel}
         </span>
         {bioTags.map(tag => (
-          <span key={tag} className="text-[8px] font-semibold px-1.5 py-0.5 rounded-full bg-pink-50 text-pink-500 border border-pink-100">#{tag}</span>
+          <span key={tag} className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-pink-50 text-pink-500 border border-pink-100">#{tag}</span>
         ))}
       </div>
     </div>
