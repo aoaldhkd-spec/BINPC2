@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo, Component, ReactNode } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, Component, ReactNode, lazy, Suspense } from 'react';
 import {
   Heart, MessageCircle, Send, ArrowLeft, Users, ChevronRight, ChevronDown,
   LayoutGrid, Clock, Smile, ImageIcon, Phone, CheckCircle, Copy,
@@ -14,7 +14,7 @@ import QRCode from 'qrcode';
 import { StickerSVG, STICKER_LABELS, STICKER_BG, STICKER_COUNT } from './stickers';
 import { getPositionLabel, getPositionBg, getDomSubLabel, getDomSubBg, genAvatar, getKoreanAge } from './lib/profile';
 import { getZodiac, getOhaeng, getCompatibility, getOhaengCompat, getNumerologyCompat, getMbtiCompat, getTodayFortune } from './lib/fortune';
-import FortuneTab from './components/FortuneTab';
+const FortuneTab = lazy(() => import('./components/FortuneTab'));
 import { HEART_TYPES, HeartType } from './lib/constants';
 
 // ── Korean 초성 search utility ─────────────────────────────────────────────
@@ -3600,6 +3600,8 @@ function App() {
   const [chatList, setChatList] = useState<Chat[]>([]);
   const chatListRef = useRef<Chat[]>([]);
   chatListRef.current = chatList;
+  // 채팅방별 개별 메시지 구독 채널 (서버 사이드 필터 적용)
+  const perChatChannelsRef = useRef<Map<string, ReturnType<typeof supabase.channel>>>(new Map());
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [seats, setSeats] = useState<Seat[]>(() => {
@@ -4206,43 +4208,23 @@ function App() {
         })
       .subscribe();
 
+    // chats 생성만 감지 — messages 구독은 별도 perChatChannels 로 분리 (서버 사이드 필터 적용)
     const chatChannel = supabase
       .channel('realtime:chats-user')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chats' }, (payload) => {
         const c = payload.new as { user1_id: string; user2_id: string; id: string; created_at: string };
         if (c.user1_id !== currentUserId && c.user2_id !== currentUserId) return;
-        // 페이로드로 바로 추가 — 전체 리패치 불필요
         const newChat: Chat = { id: c.id, user1_id: c.user1_id, user2_id: c.user2_id, created_at: c.created_at, lastMessage: '', messageCount: 0 };
         setChatList(prev => {
           if (prev.some(x => x.id === c.id)) return prev;
           const next = [newChat, ...prev];
-          // ref 즉시 동기화 — 새 채팅방의 첫 메시지 isMyChat 체크가 렌더 전에도 통과하도록
           chatListRef.current = next;
           return next;
         });
-        // 내가 개설한 채팅방은 알림 표시 안 함 (상대방에게만 알림)
         const otherId = c.user1_id === currentUserId ? c.user2_id : c.user1_id;
         const otherProfile = profilesRef.current.find(p => p.id === otherId);
-        const iMadeThis = chatIdRef.current === c.id; // 내가 방금 openChat으로 만든 채팅방
+        const iMadeThis = chatIdRef.current === c.id;
         if (otherProfile && !iMadeThis) setBottomNotif({ type: 'chat', nickname: otherProfile.nickname });
-      })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
-        try {
-          const m = payload.new as { chat_id: string; sender_id: string; content: string };
-          if (m.sender_id === currentUserId) return;
-          // chatListRef로 내 채팅방인지 확인 (stale 클로저 방지, 다른 사람 채팅 알림 차단)
-          const isMyChat = chatListRef.current.some(c => c.id === m.chat_id);
-          if (!isMyChat) return;
-          setChatList(prev => prev.map(c => c.id === m.chat_id ? { ...c, lastMessage: m.content } : c));
-          // 현재 그 채팅방을 보고 있으면 unread 증가·알림 안 함
-          if (chatIdRef.current !== m.chat_id) {
-            setUnreadChatCounts(prev => ({ ...prev, [m.chat_id]: (prev[m.chat_id] ?? 0) + 1 }));
-            const senderProfile = profilesRef.current.find(p => p.id === m.sender_id);
-            setNewMsgCount(n => n + 1);
-            setBottomNotif({ type: 'message', nickname: senderProfile?.nickname ?? '' });
-            playCuteSound();
-          }
-        } catch (e) { console.warn('[realtime:messages]', e); }
       })
       .subscribe();
 
@@ -4383,6 +4365,57 @@ function App() {
     if (!currentUserId) return;
     registerPushSub(currentUserId);
   }, [currentUserId]);
+
+  // ── 채팅방별 메시지 구독 (서버 사이드 필터) ─────────────────────────────────
+  // chatList가 바뀔 때마다 새 채팅방에만 구독 추가, 사라진 방은 해제
+  // 기존 전역 messages 구독(필터 없음) 대신 이 방식으로 남의 메시지 수신 차단
+  useEffect(() => {
+    if (!currentUserId || chatList.length === 0) return;
+    const channels = perChatChannelsRef.current;
+    const currentIds = new Set(chatList.map(c => c.id));
+
+    // 목록에서 사라진 채팅방 채널 해제
+    for (const [cid, ch] of channels) {
+      if (!currentIds.has(cid)) {
+        supabase.removeChannel(ch);
+        channels.delete(cid);
+      }
+    }
+
+    // 신규 채팅방만 구독
+    for (const chat of chatList) {
+      if (channels.has(chat.id)) continue;
+      const ch = supabase
+        .channel(`msgs:${chat.id}`)
+        .on('postgres_changes', {
+          event: 'INSERT', schema: 'public', table: 'messages',
+          filter: `chat_id=eq.${chat.id}`,   // ← 서버 사이드 필터: 이 방 메시지만 수신
+        }, (payload) => {
+          try {
+            const m = payload.new as { chat_id: string; sender_id: string; content: string };
+            if (m.sender_id === currentUserId) return;
+            setChatList(prev => prev.map(c => c.id === m.chat_id ? { ...c, lastMessage: m.content } : c));
+            if (chatIdRef.current !== m.chat_id) {
+              setUnreadChatCounts(prev => ({ ...prev, [m.chat_id]: (prev[m.chat_id] ?? 0) + 1 }));
+              const senderProfile = profilesRef.current.find(p => p.id === m.sender_id);
+              setNewMsgCount(n => n + 1);
+              setBottomNotif({ type: 'message', nickname: senderProfile?.nickname ?? '' });
+              playCuteSound();
+            }
+          } catch (e) { console.warn('[msgs-ch]', e); }
+        })
+        .subscribe();
+      channels.set(chat.id, ch);
+    }
+
+    return () => {
+      // 유저 로그아웃/변경 시 전체 해제
+      if (!currentUserId) {
+        for (const ch of channels.values()) supabase.removeChannel(ch);
+        channels.clear();
+      }
+    };
+  }, [chatList, currentUserId]);
 
   // ── 사주 탭 생월·생일 편집 상태 ─────────────────────────────────────────────
   const [sajuBirthMonth, setSajuBirthMonth] = useState<number | null>(null);
@@ -7826,12 +7859,18 @@ function MainScreen({
                 </div>
               );
             })()}
-            <FortuneTab
-              currentUserId={currentUserId}
-              myProfile={profiles.find(p => p.id === currentUserId) ?? null}
-              profiles={profiles}
-              likedIds={likedIds}
-            />
+            <Suspense fallback={
+              <div className="flex items-center justify-center py-12">
+                <span className={`text-sm ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>🔮 운세 불러오는 중...</span>
+              </div>
+            }>
+              <FortuneTab
+                currentUserId={currentUserId}
+                myProfile={profiles.find(p => p.id === currentUserId) ?? null}
+                profiles={profiles}
+                likedIds={likedIds}
+              />
+            </Suspense>
           </div>
         )}
 
