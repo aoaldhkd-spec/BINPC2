@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "7AnflHfAY1Klte2j82BJ9"
+uri = "file://cute-notification.wav"
+type = "audio"
+title = "🔔 귀여운 알림음 (BI-DING + 스파클)"
