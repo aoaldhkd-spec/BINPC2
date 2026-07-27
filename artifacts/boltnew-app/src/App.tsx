@@ -589,17 +589,18 @@ function App() {
       const tableNum = pendingTableNum.current;
       pendingTableNum.current = null;
       window.history.replaceState({}, '', window.location.pathname);
-      supabase.from('seats').select('*').eq('profile_id', currentUserId).maybeSingle().then(({ data: myCurrentSeat }: { data: any }) => {
-        if (myCurrentSeat) { return; }
-        supabase.from('seats').select('*').eq('table_number', tableNum).eq('status', 'empty').order('seat_position', { ascending: true }).then(({ data, error }: { data: any; error: any }) => {
-          if (error) { alert('좌석 정보를 불러오지 못했습니다. 다시 QR을 스캔해 주세요.'); return; }
-          if (data && data.length > 0) {
-            setAutoRegisterSeat(data[0]);
-          } else {
-            alert(`${tableNum}번 테이블에 빈 자리가 없습니다. 관리자에게 문의해 주세요.`);
-          }
-        });
-      });
+      // 두 쿼리를 병렬 실행 + 중간 state(setAutoRegisterSeat) 제거 → useEffect 한 사이클 절약
+      (async () => {
+        const [{ data: myCurrentSeat }, { data: emptySeats, error }] = await Promise.all([
+          supabase.from('seats').select('*').eq('profile_id', currentUserId).maybeSingle() as Promise<{ data: any }>,
+          supabase.from('seats').select('*').eq('table_number', tableNum).eq('status', 'empty').order('seat_position', { ascending: true }) as Promise<{ data: any; error: any }>,
+        ]);
+        if (myCurrentSeat) return; // 이미 자리 있음
+        if (error) { alert('좌석 정보를 불러오지 못했습니다. 다시 QR을 스캔해 주세요.'); return; }
+        if (!emptySeats || emptySeats.length === 0) { alert(`${tableNum}번 테이블에 빈 자리가 없습니다. 관리자에게 문의해 주세요.`); return; }
+        shouldShowStatusAfterSeat.current = true;
+        await handleRegisterSeat(emptySeats[0], seatingLocked, currentUserSeat);
+      })();
     }
 
     // ── ?share=<profileId> 처리: 연락처 QR 스캔 → 채팅 자동 오픈 + 연락처 수신 ──

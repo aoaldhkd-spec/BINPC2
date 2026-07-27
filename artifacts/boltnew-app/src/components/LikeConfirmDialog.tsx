@@ -23,9 +23,15 @@ export function LikeConfirmDialog({
             <ProfileAvatar profile={target} size="lg" rounded="xl" />
           </div>
           <p className="text-lg font-bold text-gray-900">{target.nickname}</p>
+          <p className="text-xs text-teal-600 font-semibold mt-1">
+            💡 4가지 종류 하트를 각각 1번씩 보낼 수 있어요
+          </p>
           {sentTypesForTarget.size > 0 && (
             <p className="text-xs text-gray-400 mt-1">
               이미 보낸 하트: {[...sentTypesForTarget].map(t => heartMeta(t).emoji).join(' ')}
+              {sentTypesForTarget.size < 4 && (
+                <span className="ml-1 text-teal-500 font-bold">· {4 - sentTypesForTarget.size}종류 더 보낼 수 있어요</span>
+              )}
             </p>
           )}
         </div>
