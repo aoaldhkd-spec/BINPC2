@@ -1,2 +1,3 @@
 - [Supabase v2 Database type requirements](supabase-v2-database-type.md) — GenericTable must have Relationships:[], GenericSchema needs Tables/Views/Functions or from() returns never.
 - [boltnew-app architecture](boltnew-app-architecture.md) — Shared backend via api-server SSE+HTTP (localdb rewritten); per-device localStorage only for userId; path-to-regexp v8 no wildcard `/*` support.
+- [boltnew-app file split](boltnew-app-file-split.md) — App.tsx 9041→7703 lines; extracted types/app.ts, lib/utils.ts, and 6 components; what remains in App.tsx.
