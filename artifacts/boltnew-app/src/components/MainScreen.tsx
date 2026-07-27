@@ -128,7 +128,7 @@ const ProfileCard = memo(function ProfileCard({
         )}
         {/* 닉네임+나이 오버레이 */}
         <div className="absolute inset-x-0 bottom-0 px-2.5 pb-2.5">
-          <p className="font-black text-white text-[14px] leading-tight truncate" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.8)' }}>{profile.nickname}</p>
+          <p className="font-black text-white text-[14px] leading-tight truncate" style={{ textShadow: '0 0 2px rgba(0,0,0,1), 0 1px 3px rgba(0,0,0,1), 0 2px 8px rgba(0,0,0,0.9), 0 4px 16px rgba(0,0,0,0.7)' }}>{profile.nickname}</p>
           {profile.birth_year && <p className="text-[11px] text-white/90 leading-none mt-0.5 font-medium" style={{ textShadow: '0 1px 3px rgba(0,0,0,0.7)' }}>{age}</p>}
         </div>
       </div>
