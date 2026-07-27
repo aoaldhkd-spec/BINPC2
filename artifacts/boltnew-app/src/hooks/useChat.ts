@@ -215,6 +215,21 @@ export function useChat({
     const { error } = await supabase.from('messages').insert({
       chat_id: chatId, sender_id: currentUserId, content: content.trim()
     });
+    if (!error) {
+      // 수신자에게 백그라운드 푸시 알림
+      const chat = chatListRef.current.find(c => c.id === chatId);
+      if (chat) {
+        const recipientId = chat.user1_id === currentUserId ? chat.user2_id : chat.user1_id;
+        const senderNick = profilesRef.current.find(p => p.id === currentUserId)?.nickname ?? '누군가';
+        const trimmed = content.trim();
+        const bodyText = trimmed.length > 60 ? trimmed.slice(0, 60) + '…' : trimmed;
+        fetch('/api/db/push/notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ recipientId, title: `💬 ${senderNick}`, body: bodyText, tag: `chat-${chatId}`, url: '/' }),
+        }).catch(() => null);
+      }
+    }
     if (error) {
       setMessages(prev => prev.filter(m => m.id !== optimisticId));
       setChatList(prev => prev.map(c => c.id === chatId ? { ...c, lastMessage: c.lastMessage === content.trim() ? '' : c.lastMessage } : c));

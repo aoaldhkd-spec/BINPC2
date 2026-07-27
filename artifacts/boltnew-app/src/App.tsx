@@ -124,7 +124,8 @@ async function registerPushSub(userId: string): Promise<void> {
       if (perm !== 'granted') return;
     }
 
-    const reg = await navigator.serviceWorker.register('/sw.js');
+    const swUrl = (import.meta.env.BASE_URL as string).replace(/\/$/, '') + '/sw.js';
+    const reg = await navigator.serviceWorker.register(swUrl, { scope: import.meta.env.BASE_URL as string });
     await navigator.serviceWorker.ready;
 
     // VAPID 키 취득 (타임아웃 10초)

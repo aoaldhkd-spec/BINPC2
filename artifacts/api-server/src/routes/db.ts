@@ -667,6 +667,38 @@ router.post('/push/subscribe', (req: Request, res: Response) => {
   return res.json({ ok: true });
 });
 
+// ─── Push notify endpoint (클라이언트가 발송 후 호출) ────────────────────────
+router.post('/push/notify', async (req: Request, res: Response) => {
+  const { recipientId, title, body, tag, url } = req.body as {
+    recipientId?: string; title?: string; body?: string; tag?: string; url?: string;
+  };
+  if (!recipientId) return res.status(400).json({ error: 'Missing recipientId' });
+
+  const subs = getTable('push_subscriptions').filter(s => s.user_id === recipientId);
+  if (!subs.length) return res.json({ ok: true, sent: 0 });
+
+  const payload: PushPayload = {
+    title: String(title || '범일NPC 술번개'),
+    body:  String(body  || ''),
+    tag:   String(tag   || 'notification'),
+    url:   String(url   || '/'),
+  };
+
+  const expired: string[] = [];
+  for (const sub of subs) {
+    const ok = await sendPush(
+      { endpoint: sub.endpoint as string, keys: { auth: sub.auth as string, p256dh: sub.p256dh as string } },
+      payload,
+    );
+    if (!ok) expired.push(sub.id as string);
+  }
+  if (expired.length) {
+    store['push_subscriptions'] = (store['push_subscriptions'] ?? []).filter(s => !expired.includes(s.id as string));
+    for (const id of expired) dbDeleteRow('push_subscriptions', id).catch(console.error);
+  }
+  return res.json({ ok: true, sent: subs.length - expired.length });
+});
+
 // ─── SSE endpoint ─────────────────────────────────────────────────────────────
 router.get('/events', (req: Request, res: Response) => {
   res.setHeader('Content-Type', 'text/event-stream');

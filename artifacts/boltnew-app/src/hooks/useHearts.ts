@@ -97,6 +97,14 @@ export function useHearts(
         next.set(likeConfirmTarget.id, s);
         return next;
       });
+      // 수신자에게 백그라운드 푸시 알림
+      const heartEmoji = heartType === 'red' ? '❤️' : heartType === 'blue' ? '💙' : heartType === 'pink' ? '💗' : '💚';
+      const senderNick = profiles.find(p => p.id === currentUserId)?.nickname ?? '누군가';
+      fetch('/api/db/push/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recipientId: likeConfirmTarget.id, title: `${heartEmoji} ${senderNick}님`, body: '하트를 보냈어요!', tag: `like-${currentUserId}`, url: '/' }),
+      }).catch(() => null);
     }
     setLikeConfirmTarget(null);
   };
