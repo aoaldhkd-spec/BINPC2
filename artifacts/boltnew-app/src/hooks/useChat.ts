@@ -134,7 +134,7 @@ export function useChat({
     if (data.length === 0) { setChatList([]); return; }
     const chatIds = data.map((c: { id: string }) => c.id);
     const { data: allMsgs } = await supabase.from('messages').select('chat_id, content, created_at')
-      .in('chat_id', chatIds).order('created_at', { ascending: false }).limit(Math.max(chatIds.length * 2, 40));
+      .in('chat_id', chatIds).order('created_at', { ascending: false }).limit(Math.max(chatIds.length * 20, 100));
     const latestByChat = new Map<string, { content: string; created_at: string }>();
     if (allMsgs) {
       for (const m of allMsgs as { chat_id: string; content: string; created_at: string }[]) {

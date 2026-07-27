@@ -239,6 +239,7 @@ function App() {
     } catch { return []; }
   });
   const [shareEventNotif, setShareEventNotif] = useState<{ type: 'accepted' | 'rejected'; fromUserId: string } | null>(null);
+  const seenContactEventIdsRef = useRef<Set<string>>(new Set());
   const [contactViewShare, setContactViewShare] = useState<{ share: ContactShare; profile: Profile } | null>(null);
   const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null);
   const [view, setView] = useState<View>(() => {
@@ -484,9 +485,15 @@ function App() {
     // Contact share events subscription (acceptance/rejection notifications)
     const contactEventsChannel = supabase.channel('contact-share-events-user')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'contact_share_events' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-        const row = payload.new as { from_user_id: string; to_user_id: string; event_type: string };
+        const row = payload.new as { id?: string; from_user_id: string; to_user_id: string; event_type: string; created_at?: string };
         const myId = userIdRef.current;
         if (!myId || row.to_user_id !== myId) return;
+        // 재연결 시 오래된 이벤트 재전송 방지: 30초 초과 이벤트 무시
+        if (row.created_at && Date.now() - new Date(row.created_at).getTime() > 8000) return;
+        // 동일 이벤트 중복 처리 방지
+        const eventKey = row.id ?? `${row.from_user_id}:${row.event_type}:${row.created_at}`;
+        if (seenContactEventIdsRef.current.has(eventKey)) return;
+        seenContactEventIdsRef.current.add(eventKey);
         if (row.event_type === 'accepted') {
           setShareEventNotif({ type: 'accepted', fromUserId: row.from_user_id });
           setTimeout(() => setShareEventNotif(null), 5000);
@@ -639,6 +646,9 @@ function App() {
           if (prev.find((p) => p.id === (payload.new as Profile).id)) return prev;
           return [payload.new as Profile, ...prev];
         }))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' },
+        (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) =>
+          setProfiles((prev) => prev.map((p) => p.id === (payload.new as Profile).id ? { ...p, ...(payload.new as Profile) } : p)))
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'profiles' },
         (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => setProfiles((prev) => prev.filter((p) => p.id !== (payload.old as Profile).id)))
       .subscribe();
@@ -1287,6 +1297,7 @@ function App() {
         timerLabel={timerLabel}
         onRefreshStatus={refreshStatusTab}
         onRefreshChat={refreshChatTab}
+        onUpdateProfile={(update) => setProfiles(prev => prev.map(p => p.id === (update as { id: string }).id ? { ...p, ...(update as object) } : p))}
         onRefreshProfiles={refreshProfilesTab}
         onRefreshSeating={refreshSeatingTab}
         darkMode={darkMode}

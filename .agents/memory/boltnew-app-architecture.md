@@ -5,8 +5,10 @@ description: Core architecture decisions and patterns for the boltnew-app artifa
 
 ## Backend
 - Shared backend via `artifacts/api-server` — SSE (`/api/db/events`) + HTTP (`/api/db/op`)
-- Local SQLite DB written with custom `localdb` layer; Supabase JS client proxied to this server
+- Local PostgreSQL DB (app_kv_rows) written with custom `localdb` layer; Supabase JS client proxied to this server
 - **Do NOT use real Supabase cloud** — all queries go through the local api-server
+- **CRITICAL**: `supabase.rpc(name, ...)` only works for RPC names explicitly defined in api-server's switch statement. Unknown RPCs return 200 + do nothing. Always use `supabase.from(...).update()` for profile field saves, never rpc('update_profile').
+- Profile saves must call `onUpdateProfile({ id, ...fields })` for immediate local state update (passed from App.tsx → MainScreen)
 
 ## Frontend
 - React + Vite at `artifacts/boltnew-app`

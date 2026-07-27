@@ -2,10 +2,13 @@ import React from 'react';
 import { X } from 'lucide-react';
 import type { TutorialSlide } from '../types/app';
 
+// 슬라이드 단축 레이블 (탭 네비게이션용)
+const SLIDE_SHORT_LABELS = ['환영', '공지', '주의', '하트', '채팅', '배치도', '게임', '운세', '건의'];
+
 // 설명 + 방법 2단 구조 헬퍼
 function SlideWithSteps({ desc, steps, darkMode }: { desc: string; steps: string[]; darkMode?: boolean }) {
   return (
-    <div className="px-5 py-3 space-y-2.5 overflow-y-auto" style={{ height: 210 }}>
+    <div className="px-5 py-3 space-y-2.5">
       <p className={`text-[12px] leading-relaxed ${darkMode ? 'text-slate-300' : 'text-gray-600'}`}>{desc}</p>
       <div className={`rounded-xl p-3 space-y-1.5 ${darkMode ? 'bg-slate-800/80 border border-slate-700' : 'bg-slate-50 border border-slate-100'}`}>
         <p className={`text-[9px] font-black uppercase tracking-widest mb-2 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>📌 이렇게 사용해요</p>
@@ -27,7 +30,7 @@ export const TUTORIAL_SLIDES: TutorialSlide[] = [
     title: '범일NPC 술번개에 오신 걸 환영해요!',
     color: 'from-cyan-500 to-teal-500',
     renderBody: (darkMode) => (
-      <div className="px-5 pt-3 pb-4 overflow-y-auto space-y-3" style={{ height: 210 }}>
+      <div className="px-5 pt-3 pb-4 space-y-3">
         <p className={`text-[12px] font-bold text-center leading-snug ${darkMode ? 'text-slate-200' : 'text-gray-800'}`}>
           오늘 함께하게 되어 정말 반가워요! 🎉
         </p>
@@ -116,19 +119,19 @@ export const TUTORIAL_SLIDES: TutorialSlide[] = [
     ),
   },
 
-  /* 5 — 배치도 */
+  /* 5 — 배치도 (관리자 전용 배치) */
   {
     emoji: '🗺️',
     title: '배치도',
     color: 'from-emerald-500 to-teal-500',
     renderBody: (darkMode) => (
       <SlideWithSteps darkMode={darkMode}
-        desc="배치도 탭에서 현재 자리 배치를 확인하고 내 자리를 등록할 수 있어요. 자리를 이동하면 운영진이 배치해 드립니다."
+        desc="배치도 탭에서 현재 자리 배치를 확인할 수 있어요. 자리 배치는 운영진이 직접 진행합니다. 운영진 안내에 따라 지정된 자리에 앉아주세요!"
         steps={[
-          '배치도 탭 터치 → 테이블 구성 확인',
-          '빈 자리 클릭 → \'이 자리 등록\' 선택',
-          '등록된 자리는 내 닉네임·아바타로 표시돼요',
-          '자리 이동 시 운영진 안내에 따라 재등록',
+          '배치도 탭 → 테이블 구성 및 내 자리 위치 확인',
+          '운영진 안내에 따라 지정된 자리에 착석',
+          '배치도 카드 클릭 → 그 분의 프로필 확인 & 채팅 바로 가기',
+          '자리 이동이 필요하면 운영진에게 말씀해 주세요',
         ]}
       />
     ),
@@ -140,7 +143,7 @@ export const TUTORIAL_SLIDES: TutorialSlide[] = [
     title: '미니게임',
     color: 'from-violet-500 to-purple-500',
     renderBody: (darkMode) => (
-      <div className="px-5 py-3 overflow-y-auto" style={{ height: 210 }}>
+      <div className="px-5 py-3">
         <div className="grid grid-cols-2 gap-2 mb-2.5">
           {[
             { icon: '🪜', title: '사다리타기', desc: '테이블 인원 자동 배정\n결과 동시 공개' },
@@ -181,7 +184,7 @@ export const TUTORIAL_SLIDES: TutorialSlide[] = [
         desc="타로·사주·궁합으로 오늘의 운세와 오늘 만난 분과의 궁합을 확인해 보세요! 채팅방에서도 바로 볼 수 있어요."
         steps={[
           '운세 탭 → 타로 / 사주 / 궁합 선택',
-          '사주를 보려면 먼저 내 상태 탭에서 생월·생일 입력',
+          '사주를 보려면 내 상태 탭에서 생월·생일 먼저 입력',
           '궁합: 마음에 드는 분 선택 후 4가지 방식 분석 확인',
           '채팅방 ♀♂ 버튼으로 상대방과 궁합 바로 확인 가능',
         ]}
@@ -219,36 +222,68 @@ export function TutorialModal({ page, onChangePage, onClose, darkMode }: {
 
   return (
     <div className="fixed inset-0 z-[150] flex items-end justify-center sm:items-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
-      <div className={`relative w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden transition-all ${darkMode ? 'bg-slate-900' : 'bg-white'}`} onClick={(e) => e.stopPropagation()}>
+      <div
+        className={`relative w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden transition-all ${darkMode ? 'bg-slate-900' : 'bg-white'}`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* 닫기 */}
         <button onClick={onClose} className="absolute top-3 right-3 z-10 w-8 h-8 flex items-center justify-center rounded-full bg-black/20 text-white hover:bg-black/40 transition-all">
           <X className="w-4 h-4" />
         </button>
-        <div className={`bg-gradient-to-br ${slide.color} px-6 text-center flex flex-col items-center justify-center`} style={{ height: 110 }}>
-          <div className="text-3xl mb-1.5">{slide.emoji}</div>
-          <h2 className="text-[13px] font-black text-white leading-snug">{slide.title}</h2>
+
+        {/* 헤더 그라데이션 */}
+        <div className={`bg-gradient-to-br ${slide.color} px-6 text-center flex flex-col items-center justify-center`} style={{ height: 90 }}>
+          <div className="text-2xl mb-1">{slide.emoji}</div>
+          <h2 className="text-[12px] font-black text-white leading-snug px-6">{slide.title}</h2>
         </div>
-        <div className="flex justify-center gap-1 pt-2.5 px-6">
-          {TUTORIAL_SLIDES.map((_, i) => (
-            <button key={i} onClick={() => onChangePage(i)}
-              className={`rounded-full transition-all ${i === page ? 'w-4 h-1.5 bg-cyan-500' : `w-1.5 h-1.5 ${darkMode ? 'bg-slate-600' : 'bg-gray-200'}`}`} />
-          ))}
-        </div>
-        {slide.renderBody ? (
-          <div style={{ height: 210, overflowY: 'auto' }}>{slide.renderBody(darkMode)}</div>
-        ) : (
-          <div className={`px-6 py-3 text-[12px] leading-loose whitespace-pre-line overflow-y-auto ${darkMode ? 'text-slate-300' : 'text-gray-600'}`} style={{ height: 210 }}>
-            {slide.desc}
+
+        {/* ── 슬라이드 탭 네비게이션 (직접 이동) ── */}
+        <div className={`border-b ${darkMode ? 'border-slate-700 bg-slate-900' : 'border-gray-100 bg-white'}`}>
+          <div className="grid grid-cols-5 gap-0.5 px-1.5 py-1.5">
+            {TUTORIAL_SLIDES.map((s, i) => (
+              <button
+                key={i}
+                onClick={() => onChangePage(i)}
+                className={`flex flex-col items-center gap-0.5 px-1 py-1.5 rounded-xl transition-all ${
+                  i === page
+                    ? `bg-gradient-to-br ${s.color} shadow-sm`
+                    : darkMode ? 'hover:bg-slate-800' : 'hover:bg-gray-50'
+                }`}
+              >
+                <span className="text-sm leading-none">{s.emoji}</span>
+                <span className={`text-[8px] font-bold leading-none text-center break-keep ${
+                  i === page ? 'text-white' : darkMode ? 'text-slate-500' : 'text-gray-400'
+                }`}>{SLIDE_SHORT_LABELS[i]}</span>
+              </button>
+            ))}
           </div>
-        )}
-        <div className="px-5 pb-5 pt-1 flex gap-2">
+        </div>
+
+        {/* ── 슬라이드 본문 (스크롤 가능) ── */}
+        <div className="overflow-y-auto" style={{ maxHeight: 220 }}>
+          {slide.renderBody ? (
+            slide.renderBody(darkMode)
+          ) : (
+            <div className={`px-6 py-3 text-[12px] leading-loose whitespace-pre-line ${darkMode ? 'text-slate-300' : 'text-gray-600'}`}>
+              {slide.desc}
+            </div>
+          )}
+        </div>
+
+        {/* ── 하단 이전/다음 버튼 ── */}
+        <div className={`px-5 py-4 pt-3 flex gap-2 border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
           {page > 0 && (
-            <button onClick={() => onChangePage(page - 1)}
-              className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border transition-all ${darkMode ? 'border-slate-700 text-slate-300 hover:bg-slate-800' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+            <button
+              onClick={() => onChangePage(page - 1)}
+              className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border transition-all ${darkMode ? 'border-slate-700 text-slate-300 hover:bg-slate-800' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+            >
               이전
             </button>
           )}
-          <button onClick={isLast ? onClose : () => onChangePage(page + 1)}
-            className={`flex-1 py-2.5 rounded-xl text-sm font-bold text-white transition-all bg-gradient-to-r ${slide.color} hover:opacity-90 active:scale-95`}>
+          <button
+            onClick={isLast ? onClose : () => onChangePage(page + 1)}
+            className={`flex-1 py-2.5 rounded-xl text-sm font-bold text-white transition-all bg-gradient-to-r ${slide.color} hover:opacity-90 active:scale-95`}
+          >
             {isLast ? '시작하기 🎉' : '다음'}
           </button>
         </div>

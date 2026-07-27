@@ -586,7 +586,7 @@ function TableHeader({ tableNum, seats, onClick, isAdmin, label, darkMode = true
   const total = seats.filter(s => s.table_number === tableNum).length;
   return (
     <button onClick={onClick} className={`text-[10px] font-bold mb-0.5 transition-colors ${t.muted} ${isAdmin ? 'cursor-default' : 'hover:text-teal-400 active:text-teal-300'}`}>
-      {label} {occupied}/{total}
+      {occupied}/{total}
     </button>
   );
 }

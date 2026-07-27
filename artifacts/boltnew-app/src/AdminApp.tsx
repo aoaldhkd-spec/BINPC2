@@ -705,7 +705,7 @@ const TABLE_LABELS: Record<number, string> = {
 const tableLabel = (tableNum: number, labels?: Record<string, string> | null) =>
   labels?.[String(tableNum)] ?? TABLE_LABELS[tableNum] ?? String(tableNum);
 
-function AdminQrTab({ seats }: { seats: Seat[] }) {
+function AdminQrTab({ seats, settings, onSaveQrBase }: { seats: Seat[]; settings: AppSettings | null; onSaveQrBase: (url: string) => Promise<void> }) {
   const normalizeBase = (url: string) => {
     const trimmed = url.trim().replace(/\/$/, '');
     if (!trimmed) return trimmed;
@@ -713,20 +713,38 @@ function AdminQrTab({ seats }: { seats: Seat[] }) {
     return 'https://' + trimmed;
   };
 
-  const [customBase, setCustomBase] = useState(() => normalizeBase(localStorage.getItem('qr_base_url') ?? window.location.origin));
+  // DB 우선, localStorage 폴백 (기존 설정 마이그레이션용)
+  const [customBase, setCustomBase] = useState(() => {
+    const dbVal = (settings as Record<string, unknown> | null)?.qr_base_url as string | null | undefined;
+    return normalizeBase(dbVal ?? localStorage.getItem('qr_base_url') ?? window.location.origin);
+  });
   const [editingBase, setEditingBase] = useState(false);
   const [baseInput, setBaseInput] = useState(customBase);
+  const [saving, setSaving] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const tableNumbers = [...new Set(seats.map(s => s.table_number))].sort((a, b) => a - b);
 
-  const saveBase = () => {
+  // settings가 로드되면 DB 값으로 동기화
+  useEffect(() => {
+    const dbVal = (settings as Record<string, unknown> | null)?.qr_base_url as string | null | undefined;
+    if (dbVal) {
+      const normalized = normalizeBase(dbVal);
+      setCustomBase(normalized);
+      setBaseInput(normalized);
+    }
+  }, [settings]);
+
+  const saveBase = async () => {
     let val = baseInput.trim().replace(/\/$/, '');
     if (val && !val.startsWith('http://') && !val.startsWith('https://')) {
       val = 'https://' + val;
     }
     setCustomBase(val);
     setBaseInput(val);
-    localStorage.setItem('qr_base_url', val);
+    localStorage.setItem('qr_base_url', val); // 폴백 백업
+    setSaving(true);
+    await onSaveQrBase(val);
+    setSaving(false);
     setEditingBase(false);
   };
 
@@ -768,7 +786,7 @@ function AdminQrTab({ seats }: { seats: Seat[] }) {
               className="flex-1 text-xs px-3 py-2 rounded-lg bg-slate-800 border border-slate-600 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400"
               autoFocus
             />
-            <button onClick={saveBase} className="text-xs font-bold px-3 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white transition-all">저장</button>
+            <button onClick={saveBase} disabled={saving} className="text-xs font-bold px-3 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white transition-all disabled:opacity-60">{saving ? '저장중…' : '저장'}</button>
             <button onClick={() => setEditingBase(false)} className="text-xs px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 transition-all">취소</button>
           </div>
         )}
@@ -4782,7 +4800,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                 onClearSuggestions={handleClearSuggestions} onClearProfiles={handleClearProfiles}
                 onClearHistory={handleClearHistory} restoreMap={restoreMap} />
             )}
-            {settingsSubTab === 'qr' && <AdminQrTab seats={seats} />}
+            {settingsSubTab === 'qr' && <AdminQrTab seats={seats} settings={settings} onSaveQrBase={async (url) => { await adminSupabase.from('app_settings').update({ qr_base_url: url, updated_at: new Date().toISOString() } as never).eq('id', 1); }} />}
             {settingsSubTab === 'admin' && <CredentialsTab settings={settings} onSave={handleSaveCredentials} onSaveEntry={handleSaveEntryPassword} onSaveReset={handleSaveResetPassword} onSaveTest={handleSaveTestPassword} />}
           </div>
         )}
