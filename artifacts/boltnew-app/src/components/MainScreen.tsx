@@ -113,35 +113,32 @@ const ProfileCard = memo(function ProfileCard({
             }
           </button>
         )}
+        {/* 채팅 버튼 — 하트 아래 */}
+        {canLike && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onOpenChat(profile); }}
+            className="absolute top-10 right-1.5 w-7 h-7 bg-cyan-500/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-md active:scale-90 transition-transform"
+          >
+            <MessageCircle className="w-4 h-4 text-white" />
+          </button>
+        )}
         {/* 닉네임+나이 오버레이 */}
         <div className="absolute inset-x-0 bottom-0 px-2.5 pb-2">
           <p className="font-black text-white text-[13px] leading-tight truncate drop-shadow">{profile.nickname}</p>
           {profile.birth_year && <p className="text-[10px] text-white/70 leading-none mt-0.5">{age}</p>}
         </div>
       </div>
-      {/* ── 배지 + 바로채팅 버튼 ── */}
-      <div className="px-2.5 py-2 flex items-center gap-1 min-h-[32px]">
-        <div className="flex flex-wrap items-center gap-1 flex-1 min-w-0">
-          <span
-            className="text-[8px] font-bold px-1.5 py-0.5 rounded-lg leading-tight border"
-            style={{ backgroundColor: posStyle.bg, color: posStyle.text, borderColor: posStyle.border }}
-          >
-            {posLabel}
-          </span>
-          {bioTags.map(tag => (
-            <span key={tag} className="text-[8px] font-semibold px-1.5 py-0.5 rounded-full bg-pink-50 text-pink-500 border border-pink-100">#{tag}</span>
-          ))}
-        </div>
-        {/* 바로 채팅 버튼 */}
-        {canLike && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onOpenChat(profile); }}
-            className="shrink-0 flex items-center gap-0.5 px-2 py-1 rounded-lg bg-cyan-500 text-white active:scale-90 transition-transform"
-          >
-            <MessageCircle className="w-3 h-3" />
-            <span className="text-[8px] font-bold">채팅</span>
-          </button>
-        )}
+      {/* ── 배지 영역 ── */}
+      <div className="px-2.5 py-2 flex flex-wrap items-center gap-1 min-h-[32px]">
+        <span
+          className="text-[8px] font-bold px-1.5 py-0.5 rounded-lg leading-tight border"
+          style={{ backgroundColor: posStyle.bg, color: posStyle.text, borderColor: posStyle.border }}
+        >
+          {posLabel}
+        </span>
+        {bioTags.map(tag => (
+          <span key={tag} className="text-[8px] font-semibold px-1.5 py-0.5 rounded-full bg-pink-50 text-pink-500 border border-pink-100">#{tag}</span>
+        ))}
       </div>
     </div>
   );
