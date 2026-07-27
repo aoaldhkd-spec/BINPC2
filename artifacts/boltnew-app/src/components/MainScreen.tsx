@@ -322,8 +322,8 @@ export function MainScreen({
 
   // ── 프로필 사진 업로드 ────────────────────────────────────────────────────────
   const [photoUploading, setPhotoUploading] = useState(false);
-  // 이미지 압축: 최대 600px, JPEG 품질 0.75 — 메모리/DB 과부하 방지
-  const compressImage = (dataUrl: string, maxPx = 600, quality = 0.75): Promise<string> =>
+  // 이미지 압축: 최대 1200px, JPEG 품질 0.92 — 화질 유지 + 메모리/DB 과부하 방지
+  const compressImage = (dataUrl: string, maxPx = 1200, quality = 0.92): Promise<string> =>
     new Promise((resolve) => {
       const img = new Image();
       img.onload = () => {
