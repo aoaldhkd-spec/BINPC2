@@ -113,13 +113,13 @@ const ProfileCard = memo(function ProfileCard({
             }
           </button>
         )}
-        {/* 채팅 버튼 — 하트 아래 */}
+        {/* 채팅 버튼 — 하트 아래 (간격 확보) */}
         {canLike && (
           <button
             onClick={(e) => { e.stopPropagation(); onOpenChat(profile); }}
-            className="absolute top-10 right-1.5 w-7 h-7 bg-cyan-500/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-md active:scale-90 transition-transform"
+            className="absolute top-[2.75rem] right-1.5 w-7 h-7 bg-sky-400/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-md active:scale-90 transition-transform"
           >
-            <MessageCircle className="w-4 h-4 text-white" />
+            <MessageCircle className="w-4 h-4 stroke-white stroke-2" fill="none" />
           </button>
         )}
         {/* 닉네임+나이 오버레이 */}
