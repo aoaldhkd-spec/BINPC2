@@ -50,6 +50,18 @@ export function getDomSubBg(score: number | null): string {
   return '#1e3a8a';
 }
 
+// ─── 포지션 배지 스타일 (파스텔 — 가독성 개선) ───────────────────────────────
+export function getPositionStyle(score: number): { bg: string; text: string; border: string } {
+  if (score < 0)   return { bg: '#f3f4f6', text: '#374151', border: '#d1d5db' };
+  if (score <= 24) return { bg: '#f0fdf4', text: '#15803d', border: '#86efac' };   // green
+  if (score <= 49) return { bg: '#f7fee7', text: '#4d7c0f', border: '#bef264' };   // lime
+  if (score <= 55) return { bg: '#fefce8', text: '#a16207', border: '#fde68a' };   // yellow
+  if (score <= 75) return { bg: '#fff7ed', text: '#c2410c', border: '#fed7aa' };   // orange
+  if (score <= 89) return { bg: '#eff6ff', text: '#1d4ed8', border: '#bfdbfe' };   // blue
+  if (score <= 98) return { bg: '#eef2ff', text: '#3730a3', border: '#c7d2fe' };   // indigo
+  return           { bg: '#f5f3ff', text: '#6d28d9', border: '#ddd6fe' };           // violet
+}
+
 // ─── 나이 계산 ────────────────────────────────────────────────────────────────
 export function getKoreanAge(birthYear: number | null): string {
   if (!birthYear) return '나이 미입력';

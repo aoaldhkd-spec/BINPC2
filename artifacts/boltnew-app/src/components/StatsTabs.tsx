@@ -89,7 +89,7 @@ export function StatsTab({ profiles, seats, darkMode }: { profiles: Profile[]; s
 
   useEffect(() => {
     let active = true;
-    supabase.from('likes').select('*').then(({ data }) => {
+    supabase.from('likes').select('*').then(({ data }: { data: any }) => {
       if (active && data) setAllLikes(data as Like[]);
     });
     return () => { active = false; };
@@ -243,7 +243,7 @@ export function RankingTab({ seats, darkMode, profiles: propProfiles }: { seats:
   useEffect(() => {
     if (propProfiles) return;
     let active = true;
-    supabase.from('profiles').select('*').then(({ data }) => {
+    supabase.from('profiles').select('*').then(({ data }: { data: any }) => {
       if (active && data) setFetchedProfiles(data as Profile[]);
     });
     return () => { active = false; };
@@ -251,7 +251,7 @@ export function RankingTab({ seats, darkMode, profiles: propProfiles }: { seats:
 
   useEffect(() => {
     let active = true;
-    supabase.from('likes').select('*').then(({ data }) => {
+    supabase.from('likes').select('*').then(({ data }: { data: any }) => {
       if (active && data) setAllLikes(data as Like[]);
     });
     return () => { active = false; };

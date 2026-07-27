@@ -105,7 +105,7 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
     const ch = supabase
       .channel(`chat_reads:${chatId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_reads', filter: `chat_id=eq.${chatId}` },
-        (payload) => {
+        (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
           const row = (payload as { new?: { reader_id?: string } }).new;
           if (row?.reader_id && row.reader_id !== currentUserId) {
             setMyUnreadIds(new Set());

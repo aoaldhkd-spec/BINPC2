@@ -7,7 +7,7 @@ import {
 import { supabase } from '../lib/supabase';
 import type { Profile, Seat, ContactShare, Suggestion, BalanceGame, Chat, MainTab, TableMiniGameSession } from '../types/app';
 import { HeartType, HEART_TYPES, heartMeta } from '../lib/constants';
-import { getPositionLabel, getPositionBg, getDomSubLabel, getDomSubBg, getKoreanAge } from '../lib/profile';
+import { getPositionLabel, getPositionBg, getPositionStyle, getDomSubLabel, getDomSubBg, getKoreanAge } from '../lib/profile';
 import { getZodiac, getOhaeng } from '../lib/fortune';
 import { getMbtiStyle } from '../lib/utils';
 import { ls } from '../lib/storage';
@@ -18,7 +18,6 @@ import { ProfileInfoBadges } from './ProfileInfoBadges';
 import { TimerBanner } from './TimerBanner';
 import { RefreshBtn } from './RefreshBtn';
 import { ResetButton } from './ResetButton';
-import DrumRoller from './DrumRoller';
 import { UserGameTab } from './games/UserGameTab';
 const FortuneTab = lazy(() => import('./FortuneTab'));
 
@@ -241,16 +240,19 @@ export function MainScreen({
   const [sajuSaving, setSajuSaving] = useState(false);
   const sajuInitRef = useRef(false);
 
-  // ── 내 상태 탭 전화번호 편집 상태 ────────────────────────────────────────────
+  // ── 내 상태 탭 연락처 편집 상태 ─────────────────────────────────────────────
+  const [statusKakao, setStatusKakao] = useState('');
+  const [statusInstagram, setStatusInstagram] = useState('');
   const [statusPhone, setStatusPhone] = useState('');
-  const [statusPhoneSaving, setStatusPhoneSaving] = useState(false);
-  const statusPhoneInitRef = useRef(false);
+  const [statusContactPrivate, setStatusContactPrivate] = useState(false);
+  const [statusContactSaving, setStatusContactSaving] = useState(false);
+  const statusContactInitRef = useRef(false);
 
   // 프로필 로드 시 편집 상태 초기화 (최초 1회)
   useEffect(() => {
     if (!currentUserId) {
       sajuInitRef.current = false;
-      statusPhoneInitRef.current = false;
+      statusContactInitRef.current = false;
       return;
     }
     const me = profiles.find(p => p.id === currentUserId);
@@ -260,9 +262,12 @@ export function MainScreen({
       setSajuBirthMonth(me.birth_month ?? null);
       setSajuBirthDay(me.birth_day ?? null);
     }
-    if (!statusPhoneInitRef.current) {
-      statusPhoneInitRef.current = true;
-      setStatusPhone(me.phone_number ?? '');
+    if (!statusContactInitRef.current) {
+      statusContactInitRef.current = true;
+      setStatusKakao((me as { kakao_id?: string | null }).kakao_id ?? '');
+      setStatusInstagram((me as { instagram_id?: string | null }).instagram_id ?? '');
+      setStatusPhone((me as { phone_number?: string | null }).phone_number ?? '');
+      setStatusContactPrivate((me as { contact_private?: boolean | null }).contact_private ?? false);
     }
   }, [profiles, currentUserId]);
 
@@ -279,16 +284,18 @@ export function MainScreen({
     setSajuSaving(false);
   };
 
-  const saveStatusPhone = async () => {
+  const saveStatusContact = async () => {
     if (!currentUserId) return;
-    setStatusPhoneSaving(true);
+    setStatusContactSaving(true);
     try {
-      await supabase.rpc('update_profile', {
-        p_profile_id: currentUserId,
-        p_phone_number: statusPhone.trim() || null,
-      } as never);
-    } catch (e) { console.error('[phone] 저장 실패:', e); }
-    setStatusPhoneSaving(false);
+      await supabase.from('profiles').update({
+        kakao_id: statusKakao.trim() || null,
+        instagram_id: statusInstagram.trim() || null,
+        phone_number: statusPhone.trim() || null,
+        contact_private: statusContactPrivate,
+      } as never).eq('id', currentUserId);
+    } catch (e) { console.error('[contact] 저장 실패:', e); }
+    setStatusContactSaving(false);
   };
 
   // ── 프로필 사진 업로드 ────────────────────────────────────────────────────────
@@ -515,6 +522,7 @@ export function MainScreen({
               if (!myProfile) return null;
               const posColor = getPositionBg(myProfile.personality_score ?? 50);
               const posLabel = getPositionLabel(myProfile.personality_score ?? 50);
+              const posStyle = getPositionStyle(myProfile.personality_score ?? 50);
               const bioTags = myProfile.bio ? myProfile.bio.split(',').map(t => t.trim()).filter(Boolean).slice(0, 3) : [];
               const age = getKoreanAge(myProfile.birth_year);
               return (
@@ -535,14 +543,14 @@ export function MainScreen({
                       <div className="flex-1 min-w-0 flex flex-col justify-center gap-1">
                         <p className="font-black text-gray-900 text-base leading-tight truncate">{myProfile.nickname}</p>
                         {myProfile.birth_year && (
-                          <p className="text-[11px] text-gray-400 leading-none">{age}세</p>
+                          <p className="text-[11px] text-gray-400 leading-none">{age}</p>
                         )}
                         <div className="flex items-center gap-1 flex-wrap mt-0.5">
                           {myProfile.mbti && (() => {
                             const ms = getMbtiStyle(myProfile.mbti);
                             return <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md border" style={{ backgroundColor: ms.bg, color: ms.color, borderColor: ms.border }}>{myProfile.mbti}</span>;
                           })()}
-                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md text-white leading-tight" style={{ backgroundColor: posColor }}>{posLabel}</span>
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md leading-tight border" style={{ backgroundColor: posStyle.bg, color: posStyle.text, borderColor: posStyle.border }}>{posLabel}</span>
                         </div>
                         {bioTags.length > 0 && (
                           <div className="flex flex-wrap gap-0.5 mt-0.5">
@@ -564,6 +572,7 @@ export function MainScreen({
             {filteredProfiles.filter(p => p.id !== currentUserId).map((profile) => {
               const posColor = getPositionBg(profile.personality_score ?? 50);
               const posLabel = getPositionLabel(profile.personality_score ?? 50);
+              const posStyle = getPositionStyle(profile.personality_score ?? 50);
               const isLiked = likedIds.has(profile.id);
               const canLike = currentUserId && profile.id !== currentUserId;
               const bioTags = profile.bio ? profile.bio.split(',').map(t => t.trim()).filter(Boolean).slice(0, 3) : [];
@@ -609,7 +618,7 @@ export function MainScreen({
                   <p className="font-black text-gray-900 text-sm leading-tight truncate">{profile.nickname}</p>
                   {/* 나이 */}
                   {profile.birth_year && (
-                    <p className="text-[10px] text-gray-400 mt-0.5 leading-none">{age}세</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5 leading-none">{age}</p>
                   )}
                   {/* MBTI + 성향 배지 */}
                   <div className="flex items-center gap-1 mt-1.5 flex-wrap">
@@ -617,7 +626,7 @@ export function MainScreen({
                       const ms = getMbtiStyle(profile.mbti);
                       return <span className="text-[8px] font-black px-1.5 py-0.5 rounded-md border leading-tight" style={{ backgroundColor: ms.bg, color: ms.color, borderColor: ms.border }}>{profile.mbti}</span>;
                     })()}
-                    <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-md text-white leading-tight" style={{ backgroundColor: posColor }}>{posLabel}</span>
+                    <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-md leading-tight border" style={{ backgroundColor: posStyle.bg, color: posStyle.text, borderColor: posStyle.border }}>{posLabel}</span>
                   </div>
                   {/* 관심사 태그 */}
                   {bioTags.length > 0 && (
@@ -798,38 +807,72 @@ export function MainScreen({
               );
             })()}
 
-            {/* ── 전화번호 설정 ── */}
+            {/* ── 연락처 설정 ── */}
             <div className={`rounded-2xl p-4 border transition-colors duration-300 ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-100'}`}>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-base">📱</span>
-                <p className={`text-sm font-black ${darkMode ? 'text-white' : 'text-gray-900'}`}>전화번호 설정</p>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-base">📋</span>
+                <p className={`text-sm font-black ${darkMode ? 'text-white' : 'text-gray-900'}`}>연락처 설정</p>
               </div>
-              {/* 주의사항 */}
+              {/* 안내 */}
               <div className={`rounded-xl p-3 mb-3 flex items-start gap-2 ${darkMode ? 'bg-amber-900/30 border border-amber-600/40' : 'bg-amber-50 border border-amber-300'}`}>
                 <span className="text-amber-500 text-sm mt-0.5 flex-shrink-0">⚠️</span>
+                <p className={`text-[11px] leading-relaxed ${darkMode ? 'text-amber-400' : 'text-amber-700'}`}>
+                  연락처는 상대방이 <span className="font-bold">연락처 공유를 수락했을 때만</span> 전달됩니다. 개인정보 보호를 위해 신중하게 입력해 주세요.
+                </p>
+              </div>
+              {/* 비공개 토글 */}
+              <label className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer mb-3 select-none border ${statusContactPrivate ? (darkMode ? 'bg-red-900/30 border-red-700' : 'bg-red-50 border-red-200') : (darkMode ? 'bg-slate-700 border-slate-600' : 'bg-gray-50 border-gray-200')}`}>
+                <div
+                  onClick={() => setStatusContactPrivate(v => !v)}
+                  className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${statusContactPrivate ? 'bg-red-500' : 'bg-gray-300'}`}
+                >
+                  <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${statusContactPrivate ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                </div>
                 <div>
-                  <p className={`text-[11px] font-black mb-0.5 ${darkMode ? 'text-amber-300' : 'text-amber-700'}`}>주의사항</p>
-                  <p className={`text-[11px] leading-relaxed ${darkMode ? 'text-amber-400' : 'text-amber-700'}`}>
-                    전화번호는 상대방이 <span className="font-bold">연락처 공유를 수락했을 때만</span> 전달됩니다.<br/>
-                    개인정보 보호를 위해 신중하게 입력해 주세요.
-                  </p>
+                  <p className={`text-xs font-bold ${statusContactPrivate ? (darkMode ? 'text-red-400' : 'text-red-600') : (darkMode ? 'text-slate-300' : 'text-gray-700')}`}>연락처 비공개</p>
+                  {statusContactPrivate && <p className={`text-[10px] ${darkMode ? 'text-red-500' : 'text-red-500'}`}>매칭 상대에게 연락처가 전달되지 않습니다</p>}
+                </div>
+              </label>
+              {/* 입력 필드들 */}
+              <div className={`space-y-2 transition-opacity ${statusContactPrivate ? 'opacity-40 pointer-events-none' : ''}`}>
+                {/* 카카오 */}
+                <div className="relative">
+                  <div className={`absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded flex items-center justify-center text-[11px] font-black text-white flex-shrink-0 bg-yellow-400`}>K</div>
+                  <input
+                    value={statusKakao}
+                    onChange={e => setStatusKakao(e.target.value)}
+                    placeholder="카카오톡 ID"
+                    className={`w-full pl-10 pr-3 py-2.5 rounded-xl border-2 text-sm focus:outline-none transition-colors ${darkMode ? 'bg-slate-700 border-slate-500 text-white placeholder-slate-500 focus:border-yellow-500' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 focus:border-yellow-400'}`}
+                  />
+                </div>
+                {/* 인스타그램 */}
+                <div className="relative">
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded flex items-center justify-center text-[11px] font-black text-white bg-gradient-to-br from-pink-500 to-orange-400">@</div>
+                  <input
+                    value={statusInstagram}
+                    onChange={e => setStatusInstagram(e.target.value.replace(/^@/, ''))}
+                    placeholder="인스타그램 ID (@제외)"
+                    className={`w-full pl-10 pr-3 py-2.5 rounded-xl border-2 text-sm focus:outline-none transition-colors ${darkMode ? 'bg-slate-700 border-slate-500 text-white placeholder-slate-500 focus:border-pink-500' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 focus:border-pink-400'}`}
+                  />
+                </div>
+                {/* 전화번호 */}
+                <div className="relative">
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded flex items-center justify-center text-[11px] font-black text-white bg-green-500">📞</div>
+                  <input
+                    value={statusPhone}
+                    onChange={e => setStatusPhone(e.target.value.replace(/\D/g, '').slice(0, 11))}
+                    placeholder="전화번호 (숫자만)"
+                    inputMode="tel"
+                    className={`w-full pl-10 pr-3 py-2.5 rounded-xl border-2 text-sm focus:outline-none transition-colors ${darkMode ? 'bg-slate-700 border-slate-500 text-white placeholder-slate-500 focus:border-green-500' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 focus:border-green-400'}`}
+                  />
                 </div>
               </div>
-              <div className="flex gap-2">
-                <input
-                  value={statusPhone}
-                  onChange={e => setStatusPhone(e.target.value.replace(/\D/g, '').slice(0, 11))}
-                  placeholder="01012345678 (숫자만)"
-                  inputMode="tel"
-                  className={`flex-1 px-3 py-2.5 rounded-xl border-2 text-sm focus:outline-none transition-colors ${darkMode ? 'bg-slate-700 border-slate-500 text-white placeholder-slate-500 focus:border-cyan-500' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 focus:border-cyan-400'}`}
-                />
-                <button
-                  onClick={saveStatusPhone}
-                  disabled={statusPhoneSaving}
-                  className="px-4 py-2.5 bg-cyan-500 hover:bg-cyan-600 text-white font-bold rounded-xl text-sm active:scale-95 transition-all disabled:opacity-40">
-                  {statusPhoneSaving ? '...' : '저장'}
-                </button>
-              </div>
+              <button
+                onClick={saveStatusContact}
+                disabled={statusContactSaving}
+                className="mt-3 w-full py-2.5 bg-cyan-500 hover:bg-cyan-600 text-white font-bold rounded-xl text-sm active:scale-95 transition-all disabled:opacity-40">
+                {statusContactSaving ? '저장 중...' : '연락처 저장'}
+              </button>
             </div>
 
             {seatingLocked ? (
@@ -1377,32 +1420,36 @@ export function MainScreen({
                       </span>
                     )}
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <p className={`text-xs font-bold mb-1 ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>월</p>
-                      <div className={`border-2 rounded-xl overflow-hidden ${darkMode ? 'border-slate-600 bg-slate-700' : 'border-purple-200 bg-white'}`}>
-                        <DrumRoller
-                          items={Array.from({length: 12}, (_, i) => i + 1)}
-                          selected={sajuBirthMonth}
-                          onSelect={setSajuBirthMonth}
-                          renderItem={(v) => `${v}월`}
-                          itemHeight={36}
-                          visibleCount={3}
-                        />
-                      </div>
+                  {/* 생월 탭 그리드 */}
+                  <div>
+                    <p className={`text-xs font-bold mb-2 ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>월</p>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {Array.from({length: 12}, (_, i) => i + 1).map(m => (
+                        <button key={m} type="button" onClick={() => setSajuBirthMonth(m)}
+                          className={`py-2 rounded-xl text-sm font-bold transition-all active:scale-95 ${
+                            sajuBirthMonth === m
+                              ? 'bg-purple-500 text-white shadow-sm'
+                              : darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-purple-50 text-purple-700 hover:bg-purple-100'
+                          }`}>
+                          {m}월
+                        </button>
+                      ))}
                     </div>
-                    <div>
-                      <p className={`text-xs font-bold mb-1 ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>일</p>
-                      <div className={`border-2 rounded-xl overflow-hidden ${darkMode ? 'border-slate-600 bg-slate-700' : 'border-purple-200 bg-white'}`}>
-                        <DrumRoller
-                          items={Array.from({length: 31}, (_, i) => i + 1)}
-                          selected={sajuBirthDay}
-                          onSelect={setSajuBirthDay}
-                          renderItem={(v) => `${v}일`}
-                          itemHeight={36}
-                          visibleCount={3}
-                        />
-                      </div>
+                  </div>
+                  {/* 생일 탭 그리드 */}
+                  <div className="mt-3">
+                    <p className={`text-xs font-bold mb-2 ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>일</p>
+                    <div className="grid grid-cols-7 gap-1">
+                      {Array.from({length: 31}, (_, i) => i + 1).map(d => (
+                        <button key={d} type="button" onClick={() => setSajuBirthDay(d)}
+                          className={`py-1.5 rounded-lg text-[11px] font-bold transition-all active:scale-95 ${
+                            sajuBirthDay === d
+                              ? 'bg-purple-500 text-white shadow-sm'
+                              : darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-purple-50 text-purple-600 hover:bg-purple-100'
+                          }`}>
+                          {d}
+                        </button>
+                      ))}
                     </div>
                   </div>
                   <button

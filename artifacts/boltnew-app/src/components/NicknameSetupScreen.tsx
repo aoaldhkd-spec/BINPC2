@@ -83,11 +83,39 @@ const DOM_SUB_OPTIONS: { label: string; val: number }[] = [
   { label: '완전돔', val: 100 },
 ];
 
-const MBTI_TYPES = [
-  'INTJ','INTP','ENTJ','ENTP',
-  'INFJ','INFP','ENFJ','ENFP',
-  'ISTJ','ISFJ','ESTJ','ESFJ',
-  'ISTP','ISFP','ESTP','ESFP',
+const MBTI_GROUPS = [
+  {
+    label: '분석가', emoji: '🟣',
+    desc: 'NT — 논리·전략형',
+    bg: 'bg-purple-50', border: 'border-purple-200', labelColor: 'text-purple-700',
+    activeBg: 'bg-purple-500', activeBorder: 'border-purple-500',
+    hoverBorder: 'hover:border-purple-300', hoverBg: 'hover:bg-purple-50',
+    types: ['INTJ','INTP','ENTJ','ENTP'],
+  },
+  {
+    label: '외교관', emoji: '🟢',
+    desc: 'NF — 공감·이상형',
+    bg: 'bg-emerald-50', border: 'border-emerald-200', labelColor: 'text-emerald-700',
+    activeBg: 'bg-emerald-500', activeBorder: 'border-emerald-500',
+    hoverBorder: 'hover:border-emerald-300', hoverBg: 'hover:bg-emerald-50',
+    types: ['INFJ','INFP','ENFJ','ENFP'],
+  },
+  {
+    label: '수호자', emoji: '🔵',
+    desc: 'SJ — 성실·안정형',
+    bg: 'bg-blue-50', border: 'border-blue-200', labelColor: 'text-blue-700',
+    activeBg: 'bg-blue-500', activeBorder: 'border-blue-500',
+    hoverBorder: 'hover:border-blue-300', hoverBg: 'hover:bg-blue-50',
+    types: ['ISTJ','ISFJ','ESTJ','ESFJ'],
+  },
+  {
+    label: '탐험가', emoji: '🟠',
+    desc: 'SP — 자유·실용형',
+    bg: 'bg-orange-50', border: 'border-orange-200', labelColor: 'text-orange-700',
+    activeBg: 'bg-orange-500', activeBorder: 'border-orange-500',
+    hoverBorder: 'hover:border-orange-300', hoverBg: 'hover:bg-orange-50',
+    types: ['ISTP','ISFP','ESTP','ESFP'],
+  },
 ];
 
 const DECADE_GROUPS: Record<string, number[]> = {
@@ -283,12 +311,25 @@ export function NicknameSetupScreen({ onSubmit, loading, onReset }: {
                     <label className="text-sm font-semibold text-gray-800">MBTI</label>
                     <span className="text-xs font-semibold text-red-500 bg-red-50 px-2 py-0.5 rounded-full">필수</span>
                   </div>
-                  <div className="grid grid-cols-4 gap-1.5">
-                    {MBTI_TYPES.map((type) => (
-                      <button key={type} type="button" onClick={() => setMbti(type)}
-                        className={`py-2.5 rounded-xl text-sm font-bold border-2 transition-all ${
-                          mbti === type ? 'bg-teal-500 border-teal-500 text-white shadow-md' : 'bg-white border-gray-200 text-gray-600 hover:border-teal-300 hover:bg-teal-50'
-                        }`}>{type}</button>
+                  <div className="space-y-2">
+                    {MBTI_GROUPS.map((g) => (
+                      <div key={g.label} className={`rounded-2xl border-2 ${g.border} ${g.bg} p-3`}>
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <span className="text-sm">{g.emoji}</span>
+                          <span className={`text-xs font-black ${g.labelColor}`}>{g.label}</span>
+                          <span className={`text-[10px] font-semibold ${g.labelColor} opacity-70`}>{g.desc}</span>
+                        </div>
+                        <div className="grid grid-cols-4 gap-1.5">
+                          {g.types.map((type) => (
+                            <button key={type} type="button" onClick={() => setMbti(type)}
+                              className={`py-2.5 rounded-xl text-sm font-black border-2 transition-all active:scale-95 ${
+                                mbti === type
+                                  ? `${g.activeBg} ${g.activeBorder} text-white shadow-md scale-105`
+                                  : `bg-white border-gray-200 text-gray-700 ${g.hoverBorder} ${g.hoverBg}`
+                              }`}>{type}</button>
+                          ))}
+                        </div>
+                      </div>
                     ))}
                   </div>
                 </div>

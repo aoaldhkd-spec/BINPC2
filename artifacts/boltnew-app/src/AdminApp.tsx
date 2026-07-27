@@ -1558,7 +1558,7 @@ function AdminBalanceGameTab({ balanceGames, voteCounts, myVotes, onVote }: {
         const { data: votes } = await adminSupabase.from('balance_votes').select('game_id, option').in('game_id', activeIds);
         if (votes) {
           const counts = new Map<string, { a: number; b: number }>();
-          votes.forEach(v => {
+          votes.forEach((v: { game_id: string; option: string }) => {
             const c = counts.get(v.game_id) || { a: 0, b: 0 };
             counts.set(v.game_id, { ...c, [v.option]: c[v.option as 'a' | 'b'] + 1 });
           });
@@ -2030,7 +2030,7 @@ function QaGameSection({ seats }: { seats: Seat[] }) {
     // Use unique channel name to avoid conflicts when tab switches cause remount
     const chName = `qa-admin-${Date.now()}`;
     const ch = supabase.channel(chName)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'qa_answers' }, async (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'qa_answers' }, async (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         const newAnswer = payload.new as QaAnswer;
         const currentGame = activeQaGameRef.current;
         if (currentGame && newAnswer.game_id === currentGame.id) {
@@ -2039,7 +2039,7 @@ function QaGameSection({ seats }: { seats: Seat[] }) {
           await loadActiveQa();
         }
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'qa_answers' }, (payload) => {
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'qa_answers' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         const updated = payload.new as QaAnswer;
         setQaAnswers(prev => prev.map(a => a.id === updated.id ? updated : a));
       })
@@ -2648,13 +2648,13 @@ function ChosungGameSection({ seats }: { seats: Seat[] }) {
     loadActive();
     const chName = `chosung-admin-${Date.now()}`;
     const ch = supabase.channel(chName)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'qa_answers' }, async (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'qa_answers' }, async (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         const a = payload.new as QaAnswer;
         if (activeGameRef.current && a.game_id === activeGameRef.current.id) {
           setAnswers(prev => prev.some(x => x.id === a.id) ? prev : [...prev, a]);
         } else { await loadActive(); }
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'qa_answers' }, (payload) => {
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'qa_answers' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         setAnswers(prev => prev.map(a => a.id === (payload.new as QaAnswer).id ? payload.new as QaAnswer : a));
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'qa_games' }, () => loadActive())
@@ -2877,7 +2877,7 @@ function ImageGameSection({ seats, settings, profiles }: { seats: Seat[]; settin
     if (games.length > 0) {
       const { data: vs } = await adminSupabase.from('image_votes').select('*').in('game_id', games.map(g => g.id));
       const grouped = new Map<string, ImageVote[]>();
-      (vs ?? []).forEach(v => {
+      (vs ?? []).forEach((v: { game_id: string } & ImageVote) => {
         const arr = grouped.get(v.game_id) ?? [];
         arr.push(v as ImageVote);
         grouped.set(v.game_id, arr);
@@ -2900,7 +2900,7 @@ function ImageGameSection({ seats, settings, profiles }: { seats: Seat[]; settin
     loadActiveGames();
     const chName = `image-admin-${Date.now()}`;
     const ch = supabase.channel(chName)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'image_votes' }, (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'image_votes' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         const v = payload.new as ImageVote;
         setVotesByGame(prev => {
           const arr = prev.get(v.game_id) ?? [];
@@ -4271,7 +4271,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         const { data: votes } = await adminSupabase.from('balance_votes').select('game_id, option').in('game_id', activeIds);
         if (votes) {
           const counts = new Map<string, { a: number; b: number }>();
-          votes.forEach(v => {
+          votes.forEach((v: { game_id: string; option: string }) => {
             const c = counts.get(v.game_id) || { a: 0, b: 0 };
             counts.set(v.game_id, { ...c, [v.option]: c[v.option as 'a' | 'b'] + 1 });
           });
@@ -4286,69 +4286,69 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     const channel = supabase
       .channel('admin-realtime')
       // ── seats: 페이로드 기반 증분 업데이트 (풀 리패치 제거) ───────────
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'seats' }, (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'seats' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         const s = payload.new as Seat;
         setSeats(prev => prev.some(x => x.id === s.id) ? prev.map(x => x.id === s.id ? s : x) : [...prev, s]);
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'seats' }, (payload) => {
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'seats' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         const s = payload.new as Seat;
         setSeats(prev => prev.map(x => x.id === s.id ? s : x));
       })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'seats' }, (payload) => {
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'seats' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         setSeats(prev => prev.filter(x => x.id !== (payload.old as Seat).id));
       })
       // ── profiles: 페이로드 기반 증분 업데이트 ───────────────────────
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'profiles' }, (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'profiles' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         const p = payload.new as Profile;
         setProfiles(prev => prev.some(x => x.id === p.id) ? prev : [p, ...prev]);
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' }, (payload) => {
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         const p = payload.new as Profile;
         setProfiles(prev => prev.map(x => x.id === p.id ? p : x));
       })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'profiles' }, (payload) => {
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'profiles' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         setProfiles(prev => prev.filter(x => x.id !== (payload.old as Profile).id));
       })
       // ── app_settings ─────────────────────────────────────────────────
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         setSettings(payload.new as AppSettings);
       })
       // ── likes ────────────────────────────────────────────────────────
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'likes' }, (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'likes' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         setLikes(prev => [payload.new as Like, ...prev]);
       })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'likes' }, (payload) => {
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'likes' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         setLikes(prev => prev.filter(l => l.id !== (payload.old as Like).id));
       })
       // ── messages ─────────────────────────────────────────────────────
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         setAllMessages(prev => [...prev, payload.new as Message]);
       })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, (payload) => {
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         setAllMessages(prev => prev.filter(m => m.id !== (payload.old as Message).id));
       })
       // ── chats ────────────────────────────────────────────────────────
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chats' }, (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chats' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         setAllChats(prev => [payload.new as Chat, ...prev]);
       })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'chats' }, (payload) => {
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'chats' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         setAllChats(prev => prev.filter(c => c.id !== (payload.old as Chat).id));
       })
       // ── anonymous_reports ────────────────────────────────────────────
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'anonymous_reports' }, (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'anonymous_reports' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         const report = payload.new as AnonymousReport;
         setAnonymousReports(prev => [report, ...prev]);
         setNewReportPopup(report);
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'anonymous_reports' }, (payload) => {
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'anonymous_reports' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         setAnonymousReports(prev => prev.map(r => r.id === (payload.new as AnonymousReport).id ? payload.new as AnonymousReport : r));
       })
       // ── balance_games: INSERT/UPDATE 페이로드 기반 ───────────────────
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'balance_games' }, (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'balance_games' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         const g = payload.new as BalanceGame;
         setBalanceGames(prev => prev.some(x => x.id === g.id) ? prev : [g, ...prev]);
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'balance_games' }, (payload) => {
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'balance_games' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         const updated = payload.new as BalanceGame;
         setBalanceGames(prev => prev.map(x => x.id === updated.id ? updated : x));
         if (updated.status === 'ended') {
@@ -4360,7 +4360,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         }
       })
       // ── balance_votes ────────────────────────────────────────────────
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'balance_votes' }, (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'balance_votes' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         const v = payload.new as { game_id: string; option: 'a' | 'b' };
         setAdminVoteCounts(prev => {
           const copy = new Map(prev);
@@ -4370,7 +4370,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         });
       })
       // ── suggestions: 페이로드 기반 증분 업데이트 ─────────────────────
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'suggestions' }, (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'suggestions' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         const s = payload.new as Suggestion;
         if (s.content === '__술주세요__') {
           setDrinkPopup(true);
@@ -4378,10 +4378,10 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           setSuggestions(prev => [s, ...prev]);
         }
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'suggestions' }, (payload) => {
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'suggestions' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         setSuggestions(prev => prev.map(s => s.id === (payload.new as Suggestion).id ? payload.new as Suggestion : s));
       })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'suggestions' }, (payload) => {
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'suggestions' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         setSuggestions(prev => prev.filter(s => s.id !== (payload.old as Suggestion).id));
       })
       .subscribe();

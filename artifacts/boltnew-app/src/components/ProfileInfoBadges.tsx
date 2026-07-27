@@ -1,7 +1,7 @@
 import React from 'react';
 import type { Profile } from '../types/app';
 import { MBTI_COLORS, domSubLabel } from '../lib/utils';
-import { getPositionLabel, getPositionBg, getKoreanAge } from '../lib/profile';
+import { getPositionLabel, getPositionBg, getPositionStyle, getKoreanAge } from '../lib/profile';
 import { getZodiac } from '../lib/fortune';
 
 export function ProfileInfoBadges({ profile }: { profile: Profile }) {
@@ -14,6 +14,7 @@ export function ProfileInfoBadges({ profile }: { profile: Profile }) {
 
   const posLabel = getPositionLabel(profile.personality_score ?? 50);
   const posColor = getPositionBg(profile.personality_score ?? 50);
+  const posStyle = getPositionStyle(profile.personality_score ?? 50);
 
   return (
     <div className="flex flex-wrap gap-1.5 mt-2.5 items-center">
@@ -38,7 +39,7 @@ export function ProfileInfoBadges({ profile }: { profile: Profile }) {
         </span>
       )}
       {profile.personality_score !== null && profile.personality_score !== undefined && (
-        <span className="px-2 py-0.5 rounded-full text-[11px] font-bold text-white border border-white/20" style={{ backgroundColor: posColor }}>
+        <span className="px-2 py-0.5 rounded-full text-[11px] font-bold border" style={{ backgroundColor: posStyle.bg, color: posStyle.text, borderColor: posStyle.border }}>
           {posLabel}
         </span>
       )}

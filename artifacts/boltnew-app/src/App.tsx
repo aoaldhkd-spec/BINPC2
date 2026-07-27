@@ -32,6 +32,9 @@ import { SeatRegisterDialog } from './components/SeatRegisterDialog';
 import { DiceDisplay, RouletteDisplay, LadderDisplay } from './components/games/GameDisplays';
 import { GameResultModal } from './components/games/GameResultModal';
 import { GameActiveBanner } from './components/games/GameActiveBanner';
+import { GameAnnouncementModal } from './components/games/GameAnnouncementModal';
+import { QaGameOverlay } from './components/games/QaGameOverlay';
+import { TableMiniGameModal } from './components/games/TableMiniGameModal';
 import { NotifModal } from './components/NotifModal';
 import { WelcomeNoticeModal } from './components/WelcomeNoticeModal';
 import { ProfileInfoBadges } from './components/ProfileInfoBadges';
@@ -53,6 +56,10 @@ import {
 } from './lib/constants';
 import { ls } from './lib/storage';
 import { MainScreen } from './components/MainScreen';
+import { useSeating } from './hooks/useSeating';
+import { useGames } from './hooks/useGames';
+import { useHearts } from './hooks/useHearts';
+import { useChat } from './hooks/useChat';
 
 // ─── QaGameOverlay → ./components/games/QaGameOverlay ────────────────────────
 // ─── GameAnnouncementModal → ./components/games/GameAnnouncementModal ─────────
@@ -231,20 +238,6 @@ function App() {
       return cached ? (JSON.parse(cached) as Profile[]) : [];
     } catch { return []; }
   });
-  const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
-  const [sentHeartTypes, setSentHeartTypes] = useState<Map<string, HeartType>>(new Map());
-  // 한 사람에게 여러 종류 하트를 보낼 수 있게: profileId → Set<HeartType>
-  const [sentHeartsPerPerson, setSentHeartsPerPerson] = useState<Map<string, Set<HeartType>>>(new Map());
-  const [receivedHeartTypes, setReceivedHeartTypes] = useState<Map<string, HeartType>>(new Map());
-  const [likeStatuses, setLikeStatuses] = useState<Map<string, string>>(new Map());
-  const [receivedLikers, setReceivedLikers] = useState<Profile[]>([]);
-  const [contactSharedWithIds, setContactSharedWithIds] = useState<Set<string>>(new Set());
-  const [acknowledgedComplimentIds, setAcknowledgedComplimentIds] = useState<Set<string>>(new Set());
-  const [receivedContactShares, setReceivedContactShares] = useState<ContactShare[]>([]);
-  const [newMsgCount, setNewMsgCount] = useState(0);
-  const [unreadChatCounts, setUnreadChatCounts] = useState<Record<string, number>>({});
-  const [likeConfirmTarget, setLikeConfirmTarget] = useState<Profile | null>(null);
-  const [contactShareTarget, setContactShareTarget] = useState<Profile | null>(null);
   const [shareEventNotif, setShareEventNotif] = useState<{ type: 'accepted' | 'rejected'; fromUserId: string } | null>(null);
   const [contactViewShare, setContactViewShare] = useState<{ share: ContactShare; profile: Profile } | null>(null);
   const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null);
@@ -256,46 +249,21 @@ function App() {
   const [showTutorialModal, setShowTutorialModal] = useState(false);
   const [tutorialPage, setTutorialPage] = useState(0);
   const [showProfileQr, setShowProfileQr] = useState(false);
-  const shouldShowStatusAfterSeat = useRef(false);
   const isNewRegistration = useRef(false);
-  const prevUserSeatId = useRef<string | null>(null);
   // 항상 최신 profiles를 가리키는 ref (stale 클로저 방지)
   const profilesRef = useRef<Profile[]>([]);
   // ?share=<profileId> URL 파라미터 — 프로필 QR 스캔 시 연락처 자동 수신
   const [pendingShareId] = useState<string | null>(() => new URLSearchParams(window.location.search).get('share'));
 
-  const [chatId, setChatId] = useState<string | null>(null);
-  const chatIdRef = useRef<string | null>(null);
-  chatIdRef.current = chatId;
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [chatList, setChatList] = useState<Chat[]>([]);
-  const chatListRef = useRef<Chat[]>([]);
-  chatListRef.current = chatList;
-  // 채팅방별 개별 메시지 구독 채널 (서버 사이드 필터 적용)
-  const perChatChannelsRef = useRef<Map<string, ReturnType<typeof supabase.channel>>>(new Map());
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(false);
-  const [seats, setSeats] = useState<Seat[]>(() => {
-    try {
-      const cached = ls.getItem(MATCHING_SEATS_CACHE_KEY);
-      return cached ? (JSON.parse(cached) as Seat[]) : [];
-    } catch { return []; }
-  });
-  const [seatDialog, setSeatDialog] = useState<Seat | null>(null);
-  const [autoRegisterSeat, setAutoRegisterSeat] = useState<Seat | null>(null);
   const [currentGame, setCurrentGame] = useState<GameState | null>(null);
   const [gameModalVisible, setGameModalVisible] = useState(false);
   const [activeQaGame, setActiveQaGame] = useState<{ id: string; question: string; correct_answer: string | null } | null>(null);
   const [qaOverlayVisible, setQaOverlayVisible] = useState(false);
   const [qaSubmittedIds, setQaSubmittedIds] = useState<Set<string>>(new Set());
-  const [balanceGames, setBalanceGames] = useState<BalanceGame[]>([]);
-  const [voteCounts, setVoteCounts] = useState<Map<string, { a: number; b: number }>>(new Map());
-  const [myVotes, setMyVotes] = useState<Map<string, 'a' | 'b'>>(new Map());
-  const [gameEndResult, setGameEndResult] = useState<{ game: BalanceGame; counts: { a: number; b: number } } | null>(null);
   const [activeNotif, setActiveNotif] = useState<{ id: string; message: string; type: string; target: string } | null>(null);
   const [showWelcomeNotice, setShowWelcomeNotice] = useState(false);
-  const [incomingTableGame, setIncomingTableGame] = useState<TableMiniGameSession | null>(null);
-  const tableMinigameChRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const [timerEndAt, setTimerEndAt] = useState<string | null>(null);
   const [timerLabel, setTimerLabel] = useState<string | null>(null);
   const [rejectionNotif, setRejectionNotif] = useState<string | null>(null); // nickname of person who rejected
@@ -317,6 +285,37 @@ function App() {
   const profileMap = useMemo(() => new Map(profiles.map((p) => [p.id, p])), [profiles]);
   // 렌더마다 최신 profiles를 ref에 동기화 (stale 클로저 방지)
   profilesRef.current = profiles;
+
+  // ── 커스텀 훅 호출 ────────────────────────────────────────────────────────────
+  const {
+    seats, setSeats, seatDialog, setSeatDialog, autoRegisterSeat, setAutoRegisterSeat,
+    shouldShowStatusAfterSeat, prevUserSeatId, loadSeats, handleRegisterSeat,
+  } = useSeating(currentUserId);
+
+  const {
+    balanceGames, setBalanceGames, voteCounts, setVoteCounts, myVotes, setMyVotes,
+    gameEndResult, setGameEndResult, incomingTableGame, setIncomingTableGame,
+    tableMinigameChRef, loadBalanceGames, loadMyVotes, voteOnGame, voteOnImageGame,
+    createTableGame, endBalanceGame, broadcastTableGame,
+  } = useGames(currentUserId, seats, profiles);
+
+  const {
+    chatId, setChatId, chatIdRef, messages, setMessages, chatList, setChatList, chatListRef,
+    unreadChatCounts, setUnreadChatCounts, newMsgCount, setNewMsgCount,
+    loadChatList, loadMessages, openChat, sendMessage, sendImage,
+    deleteChat, deleteAllChats, deleteMessage,
+  } = useChat({ currentUserId, profilesRef, setSelectedProfile, setView, setBottomNotif });
+
+  const {
+    likedIds, setLikedIds, sentHeartTypes, setSentHeartTypes, sentHeartsPerPerson, setSentHeartsPerPerson,
+    receivedHeartTypes, setReceivedHeartTypes, likeStatuses, setLikeStatuses,
+    receivedLikers, setReceivedLikers, contactSharedWithIds, setContactSharedWithIds,
+    acknowledgedComplimentIds, setAcknowledgedComplimentIds, receivedContactShares, setReceivedContactShares,
+    likeConfirmTarget, setLikeConfirmTarget, contactShareTarget, setContactShareTarget,
+    loadLikes, loadReceivedLikes, loadContactShareData, heartCountByType, likedByTypeRecord,
+    handleLike, executeLike, handleHeartResponse, handleContactShare, handleContactShareReject,
+  } = useHearts(currentUserId, profiles, profileMap, openChat);
+
   const currentUserSeat = seats.find((s) => s.profile_id === currentUserId) ?? null;
   // Keep ref updated so notification channel can check user's table without stale closure
   userTableNumRef.current = currentUserSeat?.table_number ?? null;
@@ -326,7 +325,7 @@ function App() {
     const timeout = setTimeout(() => {
       if (!cancelled) setAppLoading(false);
     }, 6000);
-    supabase.from('app_settings').select('session_active, game_state, timer_end_at, timer_label, seating_locked, active_tables, reset_signal, table_labels, reset_password, entry_password').eq('id', 1).single().then(({ data }) => {
+    supabase.from('app_settings').select('session_active, game_state, timer_end_at, timer_label, seating_locked, active_tables, reset_signal, table_labels, reset_password, entry_password').eq('id', 1).single().then(({ data }: { data: any }) => {
       if (cancelled) return;
       clearTimeout(timeout);
       setAppLoading(false);
@@ -363,7 +362,7 @@ function App() {
     });
     const settingsChannel = supabase
       .channel('app-settings-user')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_settings' }, (payload) => {
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_settings' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         const p = payload.new as { session_active: boolean; game_state: GameState | null; timer_end_at: string | null; timer_label: string | null; seating_locked: boolean | null; active_tables: number[] | null; reset_signal: string | null; table_labels: Record<string, string> | null; reset_password: string | null; entry_password: string | null };
         // Admin triggered a full reset: wipe local user identity and force back to nickname setup
         if (p.reset_signal && p.reset_signal !== ls.getItem(MATCHING_LAST_RESET_KEY)) {
@@ -419,7 +418,7 @@ function App() {
       .subscribe();
     const notifChannel = supabase
       .channel('notifications-user')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         const n = payload.new as { id: string; message: string; type: string; target: string; is_active: boolean };
         if (!n.is_active) return;
         // Only show if target is 'all' or matches user's table
@@ -448,7 +447,7 @@ function App() {
 
     // Image game table subscription: show modal when a new image game is inserted for this user's table
     const imageGameChannel = supabase.channel('image-games-user')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'image_games' }, (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'image_games' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         const row = payload.new as { id: string; question: string; penalty: string; scope: string; table_number: number | null; status: string };
         if (row.status === 'ended') return;
         const myTable = userTableNumRef.current;
@@ -468,7 +467,7 @@ function App() {
         setCurrentGame(gs);
         setGameModalVisible(true);
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'image_games' }, (payload) => {
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'image_games' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         const row = payload.new as { id: string; status: string };
         if (row.status === 'ended') {
           setCurrentGame(prev => {
@@ -484,7 +483,7 @@ function App() {
 
     // Contact share events subscription (acceptance/rejection notifications)
     const contactEventsChannel = supabase.channel('contact-share-events-user')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'contact_share_events' }, (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'contact_share_events' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         const row = payload.new as { from_user_id: string; to_user_id: string; event_type: string };
         const myId = userIdRef.current;
         if (!myId || row.to_user_id !== myId) return;
@@ -510,43 +509,6 @@ function App() {
     };
   }, []);
 
-  // ── 테이블 미니게임 브로드캐스트 채널 ────────────────────────────────────────
-  // seats 또는 currentUserId 변경(자리 배정·변경) 시 해당 테이블 채널 재구독
-  useEffect(() => {
-    if (!currentUserId) return;
-    const tableNum = seats.find(s => s.profile_id === currentUserId)?.table_number ?? null;
-
-    if (tableMinigameChRef.current) {
-      supabase.removeChannel(tableMinigameChRef.current);
-      tableMinigameChRef.current = null;
-    }
-    if (tableNum === null) return;
-
-    const ch = supabase
-      .channel(`table-minigame-${tableNum}`)
-      .on('broadcast', { event: 'game_start' }, ({ payload }) => {
-        setIncomingTableGame(payload as TableMiniGameSession);
-      })
-      .subscribe();
-    tableMinigameChRef.current = ch;
-
-    return () => {
-      if (tableMinigameChRef.current) {
-        supabase.removeChannel(tableMinigameChRef.current);
-        tableMinigameChRef.current = null;
-      }
-    };
-  }, [currentUserId, seats]);
-
-  // 호스트가 게임을 시작할 때 호출 → 채널 브로드캐스트 + 본인도 모달 표시
-  const broadcastTableGame = useCallback((session: TableMiniGameSession) => {
-    tableMinigameChRef.current?.send({
-      type: 'broadcast',
-      event: 'game_start',
-      payload: session,
-    });
-    setIncomingTableGame(session);
-  }, []);
 
   const loadProfiles = useCallback(async () => {
     const { data } = await supabase.from('profiles').select('*').order('created_at', { ascending: false });
@@ -557,150 +519,26 @@ function App() {
     return data ?? [];
   }, []);
 
-  const loadLikes = useCallback(async (userId: string) => {
-    const { data } = await supabase.from('likes').select('liked_id, status, heart_type').eq('liker_id', userId);
-    if (data) {
-      setLikedIds(new Set(data.map((l) => l.liked_id)));
-      // 마지막 타입만 display용으로 유지 (최신 순 보장)
-      setSentHeartTypes(new Map(data.map((l) => [l.liked_id, (l.heart_type ?? 'red') as HeartType])));
-      setLikeStatuses(new Map(data.map((l) => [l.liked_id, l.status])));
-      // 사람별 보낸 하트 타입 Set 구축
-      const hmap = new Map<string, Set<HeartType>>();
-      data.forEach(l => {
-        const s = hmap.get(l.liked_id) ?? new Set<HeartType>();
-        s.add((l.heart_type ?? 'red') as HeartType);
-        hmap.set(l.liked_id, s);
-      });
-      setSentHeartsPerPerson(hmap);
-    }
-  }, []);
 
-  const loadReceivedLikes = useCallback(async (userId: string) => {
-    const { data } = await supabase.from('likes').select('liker_id, status, heart_type').eq('liked_id', userId);
-    if (!data?.length) { setReceivedLikers([]); setReceivedHeartTypes(new Map()); setAcknowledgedComplimentIds(new Set()); return; }
-    const rejected = new Set(data.filter(l => l.status === 'rejected').map(l => l.liker_id));
-    setReceivedHeartTypes(new Map(data.map(l => [l.liker_id, (l.heart_type ?? 'red') as HeartType])));
-    setAcknowledgedComplimentIds(new Set(data.filter(l => l.status === 'accepted' && (l.heart_type ?? 'red') === 'green').map(l => l.liker_id)));
-    const activeLikerIds = data.filter(l => l.status !== 'rejected').map(l => l.liker_id);
-    if (!activeLikerIds.length) { setReceivedLikers([]); return; }
-    const { data: ps } = await supabase.from('profiles').select('*').in('id', activeLikerIds);
-    if (ps) setReceivedLikers(ps);
-  }, []);
 
-  const loadContactShareData = useCallback(async (userId: string) => {
-    const { data: shared } = await supabase.from('contact_shares').select('liker_id').eq('liked_id', userId);
-    if (shared) setContactSharedWithIds(new Set(shared.map((s) => s.liker_id)));
-    const { data: received } = await supabase.from('contact_shares').select('*').eq('liker_id', userId);
-    if (received) setReceivedContactShares(received as ContactShare[]);
-  }, []);
 
-  const loadChatList = useCallback(async (userId: string) => {
-    const { data } = await supabase.from('chats').select('*')
-      .or(`user1_id.eq.${userId},user2_id.eq.${userId}`)
-      .order('created_at', { ascending: false });
-    if (!data) return;
-    if (data.length === 0) { setChatList([]); return; }
-    // Batch: 한 번의 메시지 조회로 모든 채팅의 최근 메시지를 채운다 (N+1 방지)
-    const chatIds = data.map(c => c.id);
-    // limit: 채팅방당 최신 1개만 필요하므로 chatIds.length * 2 로 제한 (전체 조회 방지)
-    const { data: allMsgs } = await supabase.from('messages').select('chat_id, content, created_at')
-      .in('chat_id', chatIds).order('created_at', { ascending: false }).limit(Math.max(chatIds.length * 2, 40));
-    const latestByChat = new Map<string, { content: string; created_at: string }>();
-    if (allMsgs) {
-      for (const m of allMsgs) {
-        if (!latestByChat.has(m.chat_id)) latestByChat.set(m.chat_id, { content: m.content, created_at: m.created_at });
-      }
-    }
-    const enriched: Chat[] = data.map(c => ({
-      ...c,
-      lastMessage: latestByChat.get(c.id)?.content || '',
-      messageCount: 0,
-    }));
-    setChatList(enriched);
-  }, []);
 
   const loadSuggestions = useCallback(async (userId: string) => {
     const { data } = await supabase.from('suggestions').select('*').eq('profile_id', userId).order('created_at', { ascending: false });
     if (data) setSuggestions(data as Suggestion[]);
   }, []);
 
-  const loadBalanceGames = useCallback(async () => {
-    const { data: games } = await supabase.from('balance_games').select('*').order('created_at', { ascending: false }).limit(30);
-    if (!games) return;
-    setBalanceGames(games as BalanceGame[]);
-    const activeIds = games.filter(g => g.status === 'active').map(g => g.id);
-    if (activeIds.length > 0) {
-      const { data: votes } = await supabase.from('balance_votes').select('game_id, option').in('game_id', activeIds);
-      if (votes) {
-        const counts = new Map<string, { a: number; b: number }>();
-        votes.forEach(v => {
-          const c = counts.get(v.game_id) || { a: 0, b: 0 };
-          counts.set(v.game_id, { ...c, [v.option]: c[v.option as 'a' | 'b'] + 1 });
-        });
-        setVoteCounts(counts);
-      }
-    }
-  }, []);
 
-  const loadMyVotes = useCallback(async (userId: string) => {
-    const { data } = await supabase.from('balance_votes').select('game_id, option').eq('voter_id', userId);
-    if (data) setMyVotes(new Map(data.map(v => [v.game_id, v.option as 'a' | 'b'])));
-  }, []);
 
-  const voteOnGame = async (gameId: string, option: 'a' | 'b') => {
-    if (!currentUserId || myVotes.has(gameId)) return;
-    setMyVotes(prev => new Map(prev).set(gameId, option));
-    setVoteCounts(prev => {
-      const copy = new Map(prev);
-      const c = copy.get(gameId) || { a: 0, b: 0 };
-      copy.set(gameId, { ...c, [option]: c[option] + 1 });
-      return copy;
-    });
-    await supabase.from('balance_votes').insert({ game_id: gameId, voter_id: currentUserId, option });
-  };
 
-  const voteOnImageGame = async (gameId: string, votedProfileId: string) => {
-    if (!currentUserId) return;
-    await supabase.from('image_votes').insert({ game_id: gameId, voter_id: currentUserId, voted_profile_id: votedProfileId });
-  };
 
-  const createTableGame = async (question: string, optA: string, optB: string, scope: 'global' | 'table') => {
-    if (!currentUserId) return;
-    const currentProfile = profiles.find(p => p.id === currentUserId);
-    const tableNumber = seats.find(s => s.profile_id === currentUserId)?.table_number ?? null;
-    const { data } = await supabase.from('balance_games').insert({
-      creator_id: currentUserId,
-      creator_nickname: currentProfile?.nickname ?? null,
-      scope,
-      table_number: scope === 'table' ? tableNumber : null,
-      question, option_a: optA, option_b: optB,
-    }).select().single();
-    if (data) setBalanceGames(prev => prev.some(g => g.id === (data as BalanceGame).id) ? prev : [data as BalanceGame, ...prev]);
-  };
 
-  const endBalanceGame = async (gameId: string) => {
-    await supabase.from('balance_games').update({ status: 'ended', ended_at: new Date().toISOString() }).eq('id', gameId);
-    setBalanceGames(prev => prev.map(g => {
-      if (g.id !== gameId) return g;
-      const updated = { ...g, status: 'ended' as const };
-      const counts = voteCounts.get(gameId) || { a: 0, b: 0 };
-      setGameEndResult({ game: updated, counts });
-      return updated;
-    }));
-  };
 
   const submitAnonymousReport = async (content: string, tableNumber: number | null) => {
     if (!content.trim()) return;
     await supabase.from('anonymous_reports').insert({ content: content.trim(), table_number: tableNumber });
   };
 
-  const loadSeats = useCallback(async () => {
-    const { data } = await supabase.from('seats').select('*').order('table_number').order('seat_position');
-    if (data) {
-      setSeats(data);
-      try { ls.setItem(MATCHING_SEATS_CACHE_KEY, JSON.stringify(data)); } catch { /* quota */ }
-    }
-  }, []);
 
   useEffect(() => {
     if (!currentUserId) return;
@@ -709,7 +547,7 @@ function App() {
       // 실제 프로필 삭제는 reset_signal SSE로 처리되므로 여기서 aggressive하게 지우지 않음
       if (allProfiles.length === 0) return;
       // If the profile no longer exists (e.g. admin reset the session), clear stale state
-      if (!allProfiles.some(p => p.id === currentUserId)) {
+      if (!allProfiles.some((p: { id: string }) => p.id === currentUserId)) {
         ls.removeItem(MATCHING_USER_KEY);
         ls.removeItem(MATCHING_DRAFT_KEY);
         setCurrentUserId(null);
@@ -741,9 +579,9 @@ function App() {
       const tableNum = pendingTableNum.current;
       pendingTableNum.current = null;
       window.history.replaceState({}, '', window.location.pathname);
-      supabase.from('seats').select('*').eq('profile_id', currentUserId).maybeSingle().then(({ data: myCurrentSeat }) => {
+      supabase.from('seats').select('*').eq('profile_id', currentUserId).maybeSingle().then(({ data: myCurrentSeat }: { data: any }) => {
         if (myCurrentSeat) { return; }
-        supabase.from('seats').select('*').eq('table_number', tableNum).eq('status', 'empty').order('seat_position', { ascending: true }).then(({ data, error }) => {
+        supabase.from('seats').select('*').eq('table_number', tableNum).eq('status', 'empty').order('seat_position', { ascending: true }).then(({ data, error }: { data: any; error: any }) => {
           if (error) { alert('좌석 정보를 불러오지 못했습니다. 다시 QR을 스캔해 주세요.'); return; }
           if (data && data.length > 0) {
             setAutoRegisterSeat(data[0]);
@@ -778,7 +616,7 @@ function App() {
             if (phone_number) parts.push(`전화: ${phone_number}`);
             // 메시지가 이미 있는지 확인 (중복 방지)
             const { data: existingMsgs } = await supabase.from('messages').select('id,content').eq('chat_id', cid).eq('sender_id', shareProfile.id);
-            const alreadySent = existingMsgs?.some(m => m.content?.startsWith('__contact__'));
+            const alreadySent = existingMsgs?.some((m: { id: string; content: string }) => m.content?.startsWith('__contact__'));
             if (!alreadySent) {
               await supabase.from('messages').insert({
                 chat_id: cid,
@@ -797,18 +635,18 @@ function App() {
     const profileChannel = supabase
       .channel('realtime:profiles')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'profiles' },
-        (payload) => setProfiles((prev) => {
+        (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => setProfiles((prev) => {
           if (prev.find((p) => p.id === (payload.new as Profile).id)) return prev;
           return [payload.new as Profile, ...prev];
         }))
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'profiles' },
-        (payload) => setProfiles((prev) => prev.filter((p) => p.id !== (payload.old as Profile).id)))
+        (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => setProfiles((prev) => prev.filter((p) => p.id !== (payload.old as Profile).id)))
       .subscribe();
 
     const likesChannel = supabase
       .channel('realtime:likes')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'likes', filter: `liker_id=eq.${currentUserId}` },
-        (payload) => {
+        (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
           const row = payload.new as { liked_id: string; heart_type: HeartType };
           setLikedIds((prev) => new Set([...prev, row.liked_id]));
           setSentHeartTypes((prev) => new Map(prev).set(row.liked_id, row.heart_type ?? 'red'));
@@ -821,7 +659,7 @@ function App() {
           });
         })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'likes', filter: `liker_id=eq.${currentUserId}` },
-        (payload) => {
+        (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
           const updated = payload.new as { liked_id: string; status: string };
           // likeStatuses에 보낸 하트 응답 상태 즉시 반영 (거부됨 배지 표시용)
           setLikeStatuses(prev => new Map(prev).set(updated.liked_id, updated.status));
@@ -840,7 +678,7 @@ function App() {
     const receivedLikesChannel = supabase
       .channel('realtime:received-likes')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'likes', filter: `liked_id=eq.${currentUserId}` },
-        async (payload) => {
+        async (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
           try {
             const row = payload.new as { liker_id: string; heart_type: HeartType };
             const likerId = row.liker_id;
@@ -861,7 +699,7 @@ function App() {
     const contactSharesChannel = supabase
       .channel('realtime:contact-shares')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'contact_shares', filter: `liker_id=eq.${currentUserId}` },
-        async (payload) => {
+        async (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
           try {
             const share = payload.new as ContactShare;
             setReceivedContactShares(prev => {
@@ -873,7 +711,7 @@ function App() {
           } catch (e) { console.warn('[realtime:contact-shares]', e); }
         })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'contact_shares', filter: `liker_id=eq.${currentUserId}` },
-        (payload) => {
+        (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
           const share = payload.new as ContactShare;
           setReceivedContactShares(prev => prev.map(s => s.liked_id === share.liked_id ? share : s));
         })
@@ -882,7 +720,7 @@ function App() {
     // chats 생성만 감지 — messages 구독은 별도 perChatChannels 로 분리 (서버 사이드 필터 적용)
     const chatChannel = supabase
       .channel('realtime:chats-user')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chats' }, (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chats' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         const c = payload.new as { user1_id: string; user2_id: string; id: string; created_at: string };
         if (c.user1_id !== currentUserId && c.user2_id !== currentUserId) return;
         const newChat: Chat = { id: c.id, user1_id: c.user1_id, user2_id: c.user2_id, created_at: c.created_at, lastMessage: '', messageCount: 0 };
@@ -905,18 +743,18 @@ function App() {
       if (seatsRefreshTimer) return;
       seatsRefreshTimer = setTimeout(() => {
         seatsRefreshTimer = null;
-        supabase.from('seats').select('*').order('table_number').order('seat_position').then(({ data }) => {
+        supabase.from('seats').select('*').order('table_number').order('seat_position').then(({ data }: { data: any }) => {
           if (data) setSeats(data);
         });
       }, 400);
     };
     const seatsChannel = supabase
       .channel('realtime:seats')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'seats' }, (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'seats' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         const s = payload.new as Seat;
         setSeats(prev => prev.some(x => x.id === s.id) ? prev.map(x => x.id === s.id ? s : x) : [...prev, s]);
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'seats' }, (payload) => {
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'seats' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         const s = payload.new as Seat;
         setSeats(prev => prev.map(x => x.id === s.id ? s : x));
       })
@@ -927,7 +765,7 @@ function App() {
 
     const balanceChannel = supabase
       .channel('realtime:balance')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'balance_votes' }, (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'balance_votes' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         const v = payload.new as BalanceVote;
         setVoteCounts(prev => {
           const copy = new Map(prev);
@@ -936,7 +774,7 @@ function App() {
           return copy;
         });
       })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'balance_games' }, (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'balance_games' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         const g = payload.new as BalanceGame;
         setBalanceGames(prev => prev.some(x => x.id === g.id) ? prev : [g, ...prev]);
         // Show announcement modal for the user's table
@@ -960,7 +798,7 @@ function App() {
         setCurrentGame(gs);
         setGameModalVisible(true);
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'balance_games' }, (payload) => {
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'balance_games' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         const updated = payload.new as BalanceGame;
         setBalanceGames(prev => prev.map(g => g.id === updated.id ? updated : g));
         if (updated.status === 'ended') {
@@ -975,11 +813,11 @@ function App() {
 
     const suggestionsChannel = supabase
       .channel('realtime:suggestions')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'suggestions', filter: `profile_id=eq.${currentUserId}` }, (payload) => {
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'suggestions', filter: `profile_id=eq.${currentUserId}` }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         const s = payload.new as Suggestion;
         setSuggestions(prev => prev.map(x => x.id === s.id ? s : x));
       })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'suggestions', filter: `profile_id=eq.${currentUserId}` }, (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'suggestions', filter: `profile_id=eq.${currentUserId}` }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         const s = payload.new as Suggestion;
         setSuggestions(prev => prev.some(x => x.id === s.id) ? prev : [s, ...prev]);
       })
@@ -1007,7 +845,7 @@ function App() {
       // 포그라운드 복귀 시 전체 데이터 리프레시
       // ⚠️ 세션 제거는 allProfiles.length > 0 인 경우에만: 빈 결과 = 서버 오류/기동 중
       loadProfiles().then((allProfiles) => {
-        if (allProfiles.length > 0 && !allProfiles.some(p => p.id === storedId)) {
+        if (allProfiles.length > 0 && !allProfiles.some((p: { id: string }) => p.id === storedId)) {
           // 실제로 프로필이 삭제된 경우(관리자 리셋)만 세션 제거
           ls.removeItem(MATCHING_USER_KEY);
           ls.removeItem(MATCHING_DRAFT_KEY);
@@ -1037,56 +875,6 @@ function App() {
     registerPushSub(currentUserId);
   }, [currentUserId]);
 
-  // ── 채팅방별 메시지 구독 (서버 사이드 필터) ─────────────────────────────────
-  // chatList가 바뀔 때마다 새 채팅방에만 구독 추가, 사라진 방은 해제
-  // 기존 전역 messages 구독(필터 없음) 대신 이 방식으로 남의 메시지 수신 차단
-  useEffect(() => {
-    if (!currentUserId || chatList.length === 0) return;
-    const channels = perChatChannelsRef.current;
-    const currentIds = new Set(chatList.map(c => c.id));
-
-    // 목록에서 사라진 채팅방 채널 해제
-    for (const [cid, ch] of channels) {
-      if (!currentIds.has(cid)) {
-        supabase.removeChannel(ch);
-        channels.delete(cid);
-      }
-    }
-
-    // 신규 채팅방만 구독
-    for (const chat of chatList) {
-      if (channels.has(chat.id)) continue;
-      const ch = supabase
-        .channel(`msgs:${chat.id}`)
-        .on('postgres_changes', {
-          event: 'INSERT', schema: 'public', table: 'messages',
-          filter: `chat_id=eq.${chat.id}`,   // ← 서버 사이드 필터: 이 방 메시지만 수신
-        }, (payload) => {
-          try {
-            const m = payload.new as { chat_id: string; sender_id: string; content: string };
-            if (m.sender_id === currentUserId) return;
-            setChatList(prev => prev.map(c => c.id === m.chat_id ? { ...c, lastMessage: m.content } : c));
-            if (chatIdRef.current !== m.chat_id) {
-              setUnreadChatCounts(prev => ({ ...prev, [m.chat_id]: (prev[m.chat_id] ?? 0) + 1 }));
-              const senderProfile = profilesRef.current.find(p => p.id === m.sender_id);
-              setNewMsgCount(n => n + 1);
-              setBottomNotif({ type: 'message', nickname: senderProfile?.nickname ?? '' });
-              playCuteSound();
-            }
-          } catch (e) { console.warn('[msgs-ch]', e); }
-        })
-        .subscribe();
-      channels.set(chat.id, ch);
-    }
-
-    return () => {
-      // 유저 로그아웃/변경 시 전체 해제
-      if (!currentUserId) {
-        for (const ch of channels.values()) supabase.removeChannel(ch);
-        channels.clear();
-      }
-    };
-  }, [chatList, currentUserId]);
 
 
   // Manual refresh for status and chat tabs
@@ -1174,248 +962,18 @@ function App() {
     setLoading(false);
   };
 
-  const handleLike = (profileId: string) => {
-    if (!currentUserId) return;
-    const target = profiles.find((p) => p.id === profileId);
-    if (!target) return;
-    // 이미 4가지 타입 전부 보냈으면 더 이상 보낼 수 없음
-    const sent = sentHeartsPerPerson.get(profileId);
-    if (sent && sent.size >= 4) return;
-    setLikeConfirmTarget(target);
-  };
-
-  const heartCountByType = (type: HeartType) => {
-    // 이 타입의 하트를 받은 사람 수 (사람별로 중복 없이 카운트)
-    let c = 0;
-    sentHeartsPerPerson.forEach(types => { if (types.has(type)) c++; });
-    return c;
-  };
-
-  const likedByTypeRecord = (): Record<HeartType, number> => ({
-    red: heartCountByType('red'),
-    blue: heartCountByType('blue'),
-    pink: heartCountByType('pink'),
-    green: heartCountByType('green'),
-  });
 
 
-  const executeLike = async (heartType: HeartType) => {
-    if (!currentUserId || !likeConfirmTarget) return;
-    // 타입별 전체 한도 (2명까지)
-    if (heartCountByType(heartType) >= 2) return;
-    // 이 사람에게 이미 이 타입 보낸 경우 중복 차단
-    if (sentHeartsPerPerson.get(likeConfirmTarget.id)?.has(heartType)) return;
-    const { error } = await supabase.from('likes').insert({ liker_id: currentUserId, liked_id: likeConfirmTarget.id, heart_type: heartType });
-    if (!error) {
-      setLikedIds((prev) => new Set([...prev, likeConfirmTarget.id]));
-      setSentHeartTypes((prev) => new Map(prev).set(likeConfirmTarget.id, heartType));
-      setSentHeartsPerPerson(prev => {
-        const next = new Map(prev);
-        const s = new Set(next.get(likeConfirmTarget.id) ?? []);
-        s.add(heartType);
-        next.set(likeConfirmTarget.id, s);
-        return next;
-      });
-    }
-    setLikeConfirmTarget(null);
-  };
 
-  const handleContactShare = async (likerId: string, kakao: string, instagram: string, phone: string) => {
-    if (!currentUserId) return;
-    const { error } = await supabase.from('contact_shares').upsert({
-      liker_id: likerId,
-      liked_id: currentUserId,
-      kakao: kakao || null,
-      instagram: instagram || null,
-      phone: phone || null,
-    }, { onConflict: 'liker_id,liked_id' });
-    if (!error) {
-      await supabase.from('contact_share_events').insert({
-        from_user_id: currentUserId,
-        to_user_id: likerId,
-        event_type: 'accepted',
-      });
-      setContactSharedWithIds((prev) => new Set([...prev, likerId]));
-      setContactShareTarget(null);
-      const likerProfile = profileMap.get(likerId);
-      if (likerProfile) openChat(likerProfile);
-    } else {
-      alert(`연락처 공유 실패: ${error.message}`);
-    }
-  };
 
-  const handleContactShareReject = async (likerId: string) => {
-    if (!currentUserId) return;
-    await supabase.from('contact_share_events').insert({
-      from_user_id: currentUserId,
-      to_user_id: likerId,
-      event_type: 'rejected',
-    });
-    setContactShareTarget(null);
-  };
 
-  const openChat = async (otherProfile: Profile) => {
-    if (!currentUserId) return;
-    // 즉시 채팅 뷰로 전환 — chatId가 null인 동안 로딩 스피너 표시
-    setMessages([]);
-    setSelectedProfile(otherProfile);
-    chatIdRef.current = null;
-    setChatId(null);
-    setView('chat');
 
-    const user1Id = currentUserId < otherProfile.id ? currentUserId : otherProfile.id;
-    const user2Id = currentUserId < otherProfile.id ? otherProfile.id : currentUserId;
 
-    // 기존 채팅방 먼저 조회
-    const { data: existingChat } = await supabase
-      .from('chats').select('*').eq('user1_id', user1Id).eq('user2_id', user2Id).maybeSingle();
 
-    let resolvedChatId: string | null = null;
-    if (existingChat) {
-      resolvedChatId = existingChat.id;
-    } else {
-      // 없으면 생성 (서버에서 중복 체크 후 기존 것 반환 가능)
-      const { data: newChat, error: createErr } = await supabase
-        .from('chats').insert({ user1_id: user1Id, user2_id: user2Id }).select().single();
-      if (newChat) {
-        resolvedChatId = newChat.id;
-      } else {
-        console.error('[openChat] 채팅방 생성 실패:', createErr?.message);
-        // 레이스 컨디션 대비: 생성 실패 시 재조회
-        const { data: retryChat } = await supabase
-          .from('chats').select('*').eq('user1_id', user1Id).eq('user2_id', user2Id).maybeSingle();
-        if (retryChat) resolvedChatId = retryChat.id;
-      }
-    }
 
-    if (!resolvedChatId) {
-      console.error('[openChat] 채팅방 ID 결정 불가 — 메인으로 복귀');
-      setView('main');
-      return;
-    }
 
-    chatIdRef.current = resolvedChatId;
-    setChatId(resolvedChatId);
-    setUnreadChatCounts(prev => { const n = { ...prev }; delete n[resolvedChatId!]; return n; });
-  };
 
-  const loadMessages = useCallback(async (cid: string) => {
-    const { data } = await supabase.from('messages').select('*').eq('chat_id', cid).order('created_at', { ascending: true });
-    if (data) setMessages(prev => {
-      // DB가 source of truth. 단, 아직 서버에 없는 낙관적 메시지(__opt_)는 유지
-      const dbIds = new Set(data.map(m => m.id));
-      const optimistic = prev.filter(m => m.id.startsWith('__opt_') && !dbIds.has(m.id));
-      return [...data, ...optimistic];
-    });
-  }, []);
 
-  useEffect(() => {
-    // chatId가 바뀌면(다른 채팅방으로 이동하거나 채팅방에서 나갈 때) 메시지 초기화
-    setMessages([]);
-    if (!chatId) return;
-    // chatIdRef 즉시 동기화 (openChat 경쟁 조건의 2차 안전장치)
-    chatIdRef.current = chatId;
-    // 채팅방 진입 시 이 채팅의 unread 카운트 확실히 초기화
-    setUnreadChatCounts(prev => { const n = { ...prev }; delete n[chatId]; return n; });
-    // 읽음 처리: 내가 이 채팅방을 열었음을 서버에 알림
-    if (currentUserId) {
-      supabase.from('chat_reads').upsert({
-        id: `${chatId}__${currentUserId}`,
-        chat_id: chatId,
-        reader_id: currentUserId,
-        read_at: new Date().toISOString(),
-      }, { onConflict: 'id' }).then(() => {});
-    }
-    // ⚠️ 구독을 먼저 걸고 loadMessages 호출 — 구독 전에 도착한 메시지를 loadMessages가 커버
-    // loadMessages는 setMessages를 merge 방식으로 처리하므로 이벤트 중복도 안전
-    const channel = supabase
-      .channel(`chat:${chatId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `chat_id=eq.${chatId}` },
-        (payload) => {
-          const newMsg = payload.new as Message;
-          setMessages(prev => {
-            // 중복 방지: 같은 ID가 이미 있으면 무시
-            if (prev.some(m => m.id === newMsg.id)) return prev;
-            // 낙관적 메시지 교체: __opt_ 접두사 + 같은 sender·content 항목을 실제 서버 메시지로 교체
-            const optIdx = prev.findIndex(m =>
-              m.id.startsWith('__opt_') &&
-              m.sender_id === newMsg.sender_id &&
-              m.content === newMsg.content
-            );
-            if (optIdx !== -1) {
-              const next = [...prev];
-              next[optIdx] = newMsg;
-              return next;
-            }
-            return [...prev, newMsg];
-          });
-        })
-      .subscribe();
-    loadMessages(chatId);
-    return () => { supabase.removeChannel(channel); };
-  }, [chatId, loadMessages, currentUserId]);
-
-  const sendMessage = async (content: string) => {
-    if (!chatId || !currentUserId || !content.trim()) return;
-    // 낙관적 업데이트: 전송 즉시 화면에 표시 (SSE 왕복 대기 없이 반응성 확보)
-    const optimisticId = `__opt_${Date.now()}`;
-    const optimisticMsg = {
-      id: optimisticId,
-      chat_id: chatId,
-      sender_id: currentUserId,
-      content: content.trim(),
-      created_at: new Date().toISOString(),
-    } as Message;
-    setMessages(prev => [...prev, optimisticMsg]);
-    // 채팅 목록 최근 메시지 즉시 갱신
-    setChatList(prev => prev.map(c => c.id === chatId ? { ...c, lastMessage: content.trim() } : c));
-    const { error } = await supabase.from('messages').insert({
-      chat_id: chatId, sender_id: currentUserId, content: content.trim()
-    });
-    if (error) {
-      // 전송 실패 시 낙관적 메시지 롤백
-      setMessages(prev => prev.filter(m => m.id !== optimisticId));
-    }
-  };
-
-  const sendImage = async (file: File): Promise<string | null> => {
-    if (!chatId || !currentUserId) return null;
-    const ext = file.name.split('.').pop() ?? 'jpg';
-    const path = `${chatId}/${Date.now()}.${ext}`;
-    const { data, error } = await supabase.storage.from('chat-images').upload(path, file, { contentType: file.type || 'image/jpeg' });
-    if (error) return error.message;
-    if (!data) return '업로드 실패';
-    const { data: { publicUrl } } = supabase.storage.from('chat-images').getPublicUrl(data.path);
-    const { error: msgErr } = await supabase.from('messages').insert({ chat_id: chatId, sender_id: currentUserId, content: '', image_url: publicUrl });
-    if (msgErr) return msgErr.message;
-    return null;
-  };
-
-  const handleRegisterSeat = async (seat: Seat) => {
-    if (!currentUserId) return;
-    if (seatingLocked) {
-      alert('자리 배치가 잠겼습니다. 관리자 안내에 따라 자리를 배정받으세요.');
-      setSeatDialog(null);
-      return;
-    }
-    const { data: fresh } = await supabase.from('seats').select('*').eq('id', seat.id).single();
-    if (fresh?.status === 'occupied' && fresh.profile_id !== currentUserId) {
-      alert('방금 다른 사람이 이 자리를 등록했습니다.');
-      setSeatDialog(null);
-      return;
-    }
-    // 현재 자리가 있으면 먼저 비워주고 새 자리로 이동
-    if (currentUserSeat && currentUserSeat.id !== seat.id) {
-      await supabase.from('seats').update({ profile_id: null, status: 'empty', registered_at: null }).eq('id', currentUserSeat.id);
-    }
-    const { error } = await supabase.from('seats').update({ profile_id: currentUserId, status: 'occupied', registered_at: new Date().toISOString() }).eq('id', seat.id);
-    if (error) {
-      alert('자리 등록에 실패했습니다. 다시 시도해 주세요.');
-      return;
-    }
-    setSeatDialog(null);
-    await loadSeats();
-  };
 
   // Auto-register seat from entry QR (no confirmation dialog)
   useEffect(() => {
@@ -1423,7 +981,7 @@ function App() {
     const seat = autoRegisterSeat;
     setAutoRegisterSeat(null);
     shouldShowStatusAfterSeat.current = true;
-    handleRegisterSeat(seat);
+    handleRegisterSeat(seat, seatingLocked, currentUserSeat);
   }, [autoRegisterSeat]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Navigate to '내 상태' tab after first seat is assigned via entry QR
@@ -1444,43 +1002,9 @@ function App() {
     setView('entry-1');
   };
 
-  const handleHeartResponse = async (likerId: string, response: 'accepted' | 'rejected') => {
-    if (!currentUserId) return;
-    const ht = receivedHeartTypes.get(likerId) ?? 'red';
-    await supabase.from('likes').update({ status: response }).eq('liker_id', likerId).eq('liked_id', currentUserId);
-    if (response === 'rejected') {
-      setReceivedLikers(prev => prev.filter(p => p.id !== likerId));
-    } else {
-      if (ht === 'green') {
-        setAcknowledgedComplimentIds(prev => new Set([...prev, likerId]));
-      } else {
-        const target = receivedLikers.find(p => p.id === likerId);
-        if (target) setContactShareTarget(target);
-      }
-    }
-  };
 
-  const deleteChat = async (chatToDelete: Chat) => {
-    if (!confirm('이 채팅방을 삭제하시겠습니까?')) return;
-    await supabase.from('messages').delete().eq('chat_id', chatToDelete.id);
-    await supabase.from('chats').delete().eq('id', chatToDelete.id);
-    setChatList(prev => prev.filter(c => c.id !== chatToDelete.id));
-  };
 
-  const deleteAllChats = async () => {
-    if (chatList.length === 0) return;
-    if (!confirm(`채팅 ${chatList.length}개를 모두 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) return;
-    for (const chat of chatList) {
-      await supabase.from('messages').delete().eq('chat_id', chat.id);
-      await supabase.from('chats').delete().eq('id', chat.id);
-    }
-    setChatList([]);
-  };
 
-  const deleteMessage = async (msgId: string) => {
-    await supabase.from('messages').delete().eq('id', msgId);
-    setMessages(prev => prev.filter(m => m.id !== msgId));
-  };
 
   const submitSuggestion = async (content: string, contactInfo: string) => {
     if (!currentUserId || !content.trim()) return;
@@ -1603,7 +1127,7 @@ function App() {
           chatIdRef.current = null;
           setChatId(null);
           setView('main');
-          setMainTab(tab === 'fortune' ? 'fortune' : tab === 'status' ? 'status' : tab);
+          setMainTab(tab as MainTab);
         }}
       />
     </>
@@ -1791,7 +1315,7 @@ function App() {
         <SeatRegisterDialog
           seat={seatDialog}
           currentUserSeat={currentUserSeat}
-          onConfirm={() => handleRegisterSeat(seatDialog)}
+          onConfirm={() => handleRegisterSeat(seatDialog, seatingLocked, currentUserSeat)}
           onCancel={() => setSeatDialog(null)}
         />
       )}
