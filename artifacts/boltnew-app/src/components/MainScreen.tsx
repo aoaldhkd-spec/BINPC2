@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo, Suspense, lazy, Component, ReactNode } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, Suspense, lazy, Component, ReactNode, memo } from 'react';
 import {
   Heart, MessageCircle, Users, ChevronDown, LayoutGrid, CheckCircle,
   Eye, UserCheck, Gamepad2, X, BookOpen,
@@ -53,6 +53,99 @@ class StatusErrorBoundary extends Component<
     return this.props.children;
   }
 }
+
+// ─── ProfileCard (memoized — 하트/채팅 상태 변경 시 해당 카드만 재렌더) ────────
+
+const ProfileCard = memo(function ProfileCard({
+  profile, isLiked, sentHeartType, heartCount, canLike, onLike, onSelect, onOpenChat,
+}: {
+  profile: Profile;
+  isLiked: boolean;
+  sentHeartType: HeartType | undefined;
+  heartCount: number;
+  canLike: boolean;
+  onLike: (id: string) => void;
+  onSelect: (p: Profile) => void;
+  onOpenChat: (p: Profile) => void;
+}) {
+  const posLabel = getPositionLabel(profile.personality_score ?? 50);
+  const posStyle = getPositionStyle(profile.personality_score ?? 50);
+  const bioTags = profile.bio ? profile.bio.split(',').map(t => t.trim()).filter(Boolean).slice(0, 2) : [];
+  const age = getKoreanAge(profile.birth_year);
+  const msStyle = profile.mbti ? getMbtiStyle(profile.mbti) : null;
+
+  return (
+    <div
+      className="group relative bg-white rounded-2xl overflow-hidden shadow-sm active:scale-[0.97] cursor-pointer border border-gray-100 transition-transform duration-150"
+      onClick={() => onSelect(profile)}
+    >
+      {/* ── 사진 (3:4 세로형) ── */}
+      <div className="relative bg-gray-100" style={{ aspectRatio: '3/4' }}>
+        <img src={profile.photo_url} alt={profile.nickname} className="w-full h-full object-cover" />
+        {/* 하단 그라데이션 */}
+        <div className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/75 via-black/25 to-transparent pointer-events-none" />
+        {/* MBTI 배지 — 좌상단 */}
+        {msStyle && (
+          <span
+            className="absolute top-1.5 left-1.5 text-[8px] font-black px-1.5 py-0.5 rounded-lg border leading-tight shadow-sm backdrop-blur-sm"
+            style={{ backgroundColor: msStyle.bg + 'ee', color: msStyle.color, borderColor: msStyle.border }}
+          >
+            {profile.mbti}
+          </span>
+        )}
+        {/* 하트 버튼 — 우상단 */}
+        {canLike && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onLike(profile.id); }}
+            disabled={isLiked && heartCount >= 4}
+            className="absolute top-1.5 right-1.5 w-7 h-7 bg-white/85 backdrop-blur-sm rounded-full flex items-center justify-center shadow-md active:scale-90 transition-transform"
+          >
+            {isLiked && sentHeartType
+              ? <span className="text-sm leading-none relative">
+                  {heartMeta(sentHeartType).emoji}
+                  {heartCount > 1 && (
+                    <span className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 text-white text-[7px] font-black rounded-full flex items-center justify-center">{heartCount}</span>
+                  )}
+                </span>
+              : isLiked
+                ? <Heart className="w-4 h-4" style={{ fill: '#e11d48', stroke: '#9f0a28', strokeWidth: 1.5 }} />
+                : <Heart className="w-4 h-4" style={{ fill: 'rgba(255,255,255,0.9)', stroke: '#be123c', strokeWidth: 2 }} />
+            }
+          </button>
+        )}
+        {/* 닉네임+나이 오버레이 */}
+        <div className="absolute inset-x-0 bottom-0 px-2.5 pb-2">
+          <p className="font-black text-white text-[13px] leading-tight truncate drop-shadow">{profile.nickname}</p>
+          {profile.birth_year && <p className="text-[10px] text-white/70 leading-none mt-0.5">{age}</p>}
+        </div>
+      </div>
+      {/* ── 배지 + 바로채팅 버튼 ── */}
+      <div className="px-2.5 py-2 flex items-center gap-1 min-h-[32px]">
+        <div className="flex flex-wrap items-center gap-1 flex-1 min-w-0">
+          <span
+            className="text-[8px] font-bold px-1.5 py-0.5 rounded-lg leading-tight border"
+            style={{ backgroundColor: posStyle.bg, color: posStyle.text, borderColor: posStyle.border }}
+          >
+            {posLabel}
+          </span>
+          {bioTags.map(tag => (
+            <span key={tag} className="text-[8px] font-semibold px-1.5 py-0.5 rounded-full bg-pink-50 text-pink-500 border border-pink-100">#{tag}</span>
+          ))}
+        </div>
+        {/* 바로 채팅 버튼 */}
+        {canLike && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onOpenChat(profile); }}
+            className="shrink-0 flex items-center gap-0.5 px-2 py-1 rounded-lg bg-cyan-500 text-white active:scale-90 transition-transform"
+          >
+            <MessageCircle className="w-3 h-3" />
+            <span className="text-[8px] font-bold">채팅</span>
+          </button>
+        )}
+      </div>
+    </div>
+  );
+});
 
 // ─── MainScreen ───────────────────────────────────────────────────────────────
 
@@ -623,66 +716,19 @@ export function MainScreen({
             {/* ── 다른 참여자 그리드 (이 영역만 스크롤) ───────── */}
             <div className="overflow-y-auto -mx-4 px-4 pb-6" style={{ maxHeight: 'calc(100dvh - 420px)', minHeight: 160 }}>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-            {filteredProfiles.filter(p => p.id !== currentUserId).map((profile) => {
-              const posLabel = getPositionLabel(profile.personality_score ?? 50);
-              const posStyle = getPositionStyle(profile.personality_score ?? 50);
-              const isLiked = likedIds.has(profile.id);
-              const canLike = currentUserId && profile.id !== currentUserId;
-              const bioTags = profile.bio ? profile.bio.split(',').map(t => t.trim()).filter(Boolean).slice(0, 2) : [];
-              const age = getKoreanAge(profile.birth_year);
-              return (
-              <div key={profile.id}
-                className="group relative bg-white rounded-2xl overflow-hidden shadow-sm active:scale-[0.97] cursor-pointer border border-gray-100 transition-transform duration-150"
-                onClick={() => onSelect(profile)}>
-                {/* ── 사진 (3:4 세로형) ── */}
-                <div className="relative bg-gray-100" style={{ aspectRatio: '3/4' }}>
-                  <img src={profile.photo_url} alt={profile.nickname} className="w-full h-full object-cover" />
-                  {/* 하단 그라데이션 */}
-                  <div className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/75 via-black/25 to-transparent pointer-events-none" />
-                  {/* MBTI 배지 — 좌상단 */}
-                  {profile.mbti && (() => {
-                    const ms = getMbtiStyle(profile.mbti);
-                    return (
-                      <span className="absolute top-1.5 left-1.5 text-[8px] font-black px-1.5 py-0.5 rounded-lg border leading-tight shadow-sm backdrop-blur-sm" style={{ backgroundColor: ms.bg + 'ee', color: ms.color, borderColor: ms.border }}>
-                        {profile.mbti}
-                      </span>
-                    );
-                  })()}
-                  {/* 하트 버튼 — 우상단 */}
-                  {canLike && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onLike(profile.id); }}
-                      disabled={isLiked && (sentHeartsPerPerson.get(profile.id)?.size ?? 0) >= 4}
-                      className="absolute top-1.5 right-1.5 w-7 h-7 bg-white/85 backdrop-blur-sm rounded-full flex items-center justify-center shadow-md active:scale-90 transition-transform">
-                      {isLiked && sentHeartsPerPerson.get(profile.id)
-                        ? <span className="text-sm leading-none relative">
-                            {heartMeta(sentHeartTypes.get(profile.id)!).emoji}
-                            {(sentHeartsPerPerson.get(profile.id)?.size ?? 0) > 1 && (
-                              <span className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 text-white text-[7px] font-black rounded-full flex items-center justify-center">{sentHeartsPerPerson.get(profile.id)!.size}</span>
-                            )}
-                          </span>
-                        : isLiked
-                          ? <Heart className="w-4 h-4" style={{ fill: '#e11d48', stroke: '#9f0a28', strokeWidth: 1.5 }} />
-                          : <Heart className="w-4 h-4" style={{ fill: 'rgba(255,255,255,0.9)', stroke: '#be123c', strokeWidth: 2 }} />
-                      }
-                    </button>
-                  )}
-                  {/* 닉네임+나이 오버레이 */}
-                  <div className="absolute inset-x-0 bottom-0 px-2.5 pb-2">
-                    <p className="font-black text-white text-[13px] leading-tight truncate drop-shadow">{profile.nickname}</p>
-                    {profile.birth_year && <p className="text-[10px] text-white/70 leading-none mt-0.5">{age}</p>}
-                  </div>
-                </div>
-                {/* ── 배지 영역 ── */}
-                <div className="px-2.5 py-2 flex flex-wrap items-center gap-1">
-                  <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-lg leading-tight border" style={{ backgroundColor: posStyle.bg, color: posStyle.text, borderColor: posStyle.border }}>{posLabel}</span>
-                  {bioTags.map(tag => (
-                    <span key={tag} className="text-[8px] font-semibold px-1.5 py-0.5 rounded-full bg-pink-50 text-pink-500 border border-pink-100">#{tag}</span>
-                  ))}
-                </div>
-              </div>
-              );
-            })}
+            {filteredProfiles.filter(p => p.id !== currentUserId).map((profile) => (
+              <ProfileCard
+                key={profile.id}
+                profile={profile}
+                isLiked={likedIds.has(profile.id)}
+                sentHeartType={sentHeartTypes.get(profile.id)}
+                heartCount={sentHeartsPerPerson.get(profile.id)?.size ?? 0}
+                canLike={!!(currentUserId && profile.id !== currentUserId)}
+                onLike={onLike}
+                onSelect={onSelect}
+                onOpenChat={onOpenChat}
+              />
+            ))}
             {filteredProfiles.filter(p => p.id !== currentUserId).length === 0 && (
               <div className="col-span-2 sm:col-span-3 lg:col-span-4 text-center py-20">
                 <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />

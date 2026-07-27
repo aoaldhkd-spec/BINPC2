@@ -152,7 +152,7 @@ export function useChat({
     setChatList(enriched);
   }, []);
 
-  const openChat = async (otherProfile: Profile) => {
+  const openChat = useCallback(async (otherProfile: Profile) => {
     if (!currentUserId) return;
     setMessages([]);
     setSelectedProfile(otherProfile);
@@ -191,7 +191,7 @@ export function useChat({
     chatIdRef.current = resolvedChatId;
     setChatId(resolvedChatId);
     setUnreadChatCounts(prev => { const n = { ...prev }; delete n[resolvedChatId!]; return n; });
-  };
+  }, [currentUserId, setSelectedProfile, setView, setBottomNotif]);
 
   const sendMessage = async (content: string) => {
     if (!chatId || !currentUserId || !content.trim()) return;
