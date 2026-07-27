@@ -82,8 +82,12 @@ const ProfileCard = memo(function ProfileCard({
       {/* ── 사진 (3:4 세로형) ── */}
       <div className="relative bg-gray-100" style={{ aspectRatio: '3/4' }}>
         <img src={profile.photo_url} alt={profile.nickname} className="w-full h-full object-cover" />
-        {/* 하단 그라데이션 */}
-        <div className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/75 via-black/25 to-transparent pointer-events-none" />
+        {/* 하단 그라데이션 — 어떤 사진이든 텍스트 가독성 보장 */}
+        <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/90 via-black/40 to-transparent pointer-events-none" />
+        {/* 우상단 버튼 뒤 어두운 스크림 */}
+        {canLike && (
+          <div className="absolute top-0 right-0 w-12 h-24 bg-gradient-to-bl from-black/30 to-transparent pointer-events-none rounded-tr-2xl" />
+        )}
         {/* MBTI 배지 — 좌상단 */}
         {msStyle && (
           <span
@@ -98,7 +102,7 @@ const ProfileCard = memo(function ProfileCard({
           <button
             onClick={(e) => { e.stopPropagation(); onLike(profile.id); }}
             disabled={isLiked && heartCount >= 4}
-            className="absolute top-1.5 right-1.5 w-7 h-7 bg-white/85 backdrop-blur-sm rounded-full flex items-center justify-center shadow-md active:scale-90 transition-transform"
+            className="absolute top-1.5 right-1.5 w-8 h-8 bg-white/95 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-transform"
           >
             {isLiked && sentHeartType
               ? <span className="text-sm leading-none relative">
@@ -113,19 +117,19 @@ const ProfileCard = memo(function ProfileCard({
             }
           </button>
         )}
-        {/* 채팅 버튼 — 하트 아래 동일 스타일 원형 */}
+        {/* 채팅 버튼 — 하트 아래 */}
         {canLike && (
           <button
             onClick={(e) => { e.stopPropagation(); onOpenChat(profile); }}
-            className="absolute top-11 right-1.5 w-7 h-7 bg-white/85 backdrop-blur-sm rounded-full flex items-center justify-center shadow-md active:scale-90 transition-transform"
+            className="absolute top-11 right-1.5 w-8 h-8 bg-white/95 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-transform"
           >
             <MessageCircle className="w-4 h-4 text-sky-500" strokeWidth={2} />
           </button>
         )}
         {/* 닉네임+나이 오버레이 */}
-        <div className="absolute inset-x-0 bottom-0 px-2.5 pb-2">
-          <p className="font-black text-white text-[13px] leading-tight truncate drop-shadow">{profile.nickname}</p>
-          {profile.birth_year && <p className="text-[10px] text-white/70 leading-none mt-0.5">{age}</p>}
+        <div className="absolute inset-x-0 bottom-0 px-2.5 pb-2.5">
+          <p className="font-black text-white text-[14px] leading-tight truncate" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.8)' }}>{profile.nickname}</p>
+          {profile.birth_year && <p className="text-[11px] text-white/90 leading-none mt-0.5 font-medium" style={{ textShadow: '0 1px 3px rgba(0,0,0,0.7)' }}>{age}</p>}
         </div>
       </div>
       {/* ── 배지 영역 ── */}
