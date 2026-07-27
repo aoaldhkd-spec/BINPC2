@@ -3408,6 +3408,41 @@ class StatusErrorBoundary extends Component<{ children: ReactNode }, { error: Er
   }
 }
 
+// ── Web Push helpers ───────────────────────────────────────────────────────────
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const output = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; i++) output[i] = rawData.charCodeAt(i);
+  return output;
+}
+
+async function registerPushSub(userId: string): Promise<void> {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  try {
+    const reg = await navigator.serviceWorker.register('/sw.js');
+    await navigator.serviceWorker.ready;
+    const keyRes = await fetch('/api/db/push/vapid-key');
+    if (!keyRes.ok) return;
+    const { key } = await keyRes.json() as { key: string };
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(key),
+      });
+    }
+    await fetch('/api/db/push/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, subscription: sub.toJSON() }),
+    });
+  } catch (e) {
+    console.error('[push] Registration failed:', e);
+  }
+}
+
 function App() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(() => {
     const existingId = ls.getItem(MATCHING_USER_KEY);
@@ -4102,9 +4137,11 @@ function App() {
           chatListRef.current = next;
           return next;
         });
+        // 내가 개설한 채팅방은 알림 표시 안 함 (상대방에게만 알림)
         const otherId = c.user1_id === currentUserId ? c.user2_id : c.user1_id;
-        const otherProfile = profiles.find(p => p.id === otherId);
-        if (otherProfile) setBottomNotif({ type: 'chat', nickname: otherProfile.nickname });
+        const otherProfile = profilesRef.current.find(p => p.id === otherId);
+        const iMadeThis = chatIdRef.current === c.id; // 내가 방금 openChat으로 만든 채팅방
+        if (otherProfile && !iMadeThis) setBottomNotif({ type: 'chat', nickname: otherProfile.nickname });
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
         const m = payload.new as { chat_id: string; sender_id: string; content: string };
@@ -4254,6 +4291,12 @@ function App() {
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [loadProfiles, loadReceivedLikes, loadLikes, loadChatList, loadSeats, loadContactShareData, loadBalanceGames, loadMyVotes, loadSuggestions]);
+
+  // Web push 구독 — 로그인 완료 후 알림 권한 요청 및 구독 등록
+  useEffect(() => {
+    if (!currentUserId) return;
+    registerPushSub(currentUserId);
+  }, [currentUserId]);
 
   // Manual refresh for status and chat tabs
   const refreshStatusTab = useCallback(() => {
@@ -4421,26 +4464,47 @@ function App() {
 
   const openChat = async (otherProfile: Profile) => {
     if (!currentUserId) return;
+    // 즉시 채팅 뷰로 전환 — chatId가 null인 동안 로딩 스피너 표시
+    setMessages([]);
+    setSelectedProfile(otherProfile);
+    chatIdRef.current = null;
+    setChatId(null);
+    setView('chat');
+
     const user1Id = currentUserId < otherProfile.id ? currentUserId : otherProfile.id;
     const user2Id = currentUserId < otherProfile.id ? otherProfile.id : currentUserId;
+
+    // 기존 채팅방 먼저 조회
     const { data: existingChat } = await supabase
       .from('chats').select('*').eq('user1_id', user1Id).eq('user2_id', user2Id).maybeSingle();
+
+    let resolvedChatId: string | null = null;
     if (existingChat) {
-      // chatIdRef를 렌더 전에 즉시 동기화 — SSE 경쟁 조건 방지 (채팅방 열리는 동안 도착한 메시지가 unread 를 올리는 버그)
-      chatIdRef.current = existingChat.id;
-      setChatId(existingChat.id);
-      // 해당 채팅방 unread 초기화
-      setUnreadChatCounts(prev => { const n = { ...prev }; delete n[existingChat.id]; return n; });
+      resolvedChatId = existingChat.id;
     } else {
-      const { data: newChat } = await supabase
+      // 없으면 생성 (서버에서 중복 체크 후 기존 것 반환 가능)
+      const { data: newChat, error: createErr } = await supabase
         .from('chats').insert({ user1_id: user1Id, user2_id: user2Id }).select().single();
       if (newChat) {
-        chatIdRef.current = newChat.id;
-        setChatId(newChat.id);
+        resolvedChatId = newChat.id;
+      } else {
+        console.error('[openChat] 채팅방 생성 실패:', createErr?.message);
+        // 레이스 컨디션 대비: 생성 실패 시 재조회
+        const { data: retryChat } = await supabase
+          .from('chats').select('*').eq('user1_id', user1Id).eq('user2_id', user2Id).maybeSingle();
+        if (retryChat) resolvedChatId = retryChat.id;
       }
     }
-    setSelectedProfile(otherProfile);
-    setView('chat');
+
+    if (!resolvedChatId) {
+      console.error('[openChat] 채팅방 ID 결정 불가 — 메인으로 복귀');
+      setView('main');
+      return;
+    }
+
+    chatIdRef.current = resolvedChatId;
+    setChatId(resolvedChatId);
+    setUnreadChatCounts(prev => { const n = { ...prev }; delete n[resolvedChatId!]; return n; });
   };
 
   const loadMessages = useCallback(async (cid: string) => {
@@ -4449,6 +4513,8 @@ function App() {
   }, []);
 
   useEffect(() => {
+    // chatId가 바뀌면(다른 채팅방으로 이동하거나 채팅방에서 나갈 때) 메시지 초기화
+    setMessages([]);
     if (!chatId) return;
     // chatIdRef 즉시 동기화 (openChat 경쟁 조건의 2차 안전장치)
     chatIdRef.current = chatId;
@@ -4709,6 +4775,14 @@ function App() {
         />
       )}
     </>
+  );
+  if (view === 'chat' && selectedProfile && !chatId) return (
+    <div className="flex items-center justify-center h-screen bg-white">
+      <div className="text-center">
+        <div className="w-8 h-8 border-4 border-pink-400 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+        <p className="text-sm text-gray-400">채팅방 열는 중…</p>
+      </div>
+    </div>
   );
   if (view === 'chat' && selectedProfile && chatId) return (
     <>

@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from 'express';
 import pg from 'pg';
+import { VAPID_PUBLIC_KEY, sendPush, type PushPayload } from '../lib/push';
 
 const router = Router();
 
@@ -161,6 +162,52 @@ function broadcast(event: Record<string, unknown>) {
   }
 }
 
+// ─── Web Push: 메시지/하트 삽입 시 수신자에게 알림 전송 ──────────────────────
+async function sendPushForEvent(table: string, row: Record<string, unknown>): Promise<void> {
+  let recipientId: string | null = null;
+  let payload: PushPayload | null = null;
+
+  if (table === 'messages') {
+    const chat = getTable('chats').find(c => c.id === row.chat_id);
+    if (!chat) return;
+    recipientId = (chat.user1_id === row.sender_id ? chat.user2_id : chat.user1_id) as string;
+    const sender = getTable('profiles').find(p => p.id === row.sender_id);
+    const nick = (sender?.nickname as string) ?? '누군가';
+    let body = (row.content as string) ?? '';
+    if (row.image_url) body = '[이미지]';
+    else if (body.startsWith('__sticker__')) body = '[스티커]';
+    else if (body.length > 60) body = body.slice(0, 60) + '…';
+    payload = { title: `💬 ${nick}`, body, tag: `chat-${chat.id as string}`, url: '/' };
+  } else if (table === 'likes') {
+    recipientId = row.liked_id as string;
+    const sender = getTable('profiles').find(p => p.id === row.liker_id);
+    const nick = (sender?.nickname as string) ?? '누군가';
+    const heartEmoji =
+      row.heart_type === 'red' ? '❤️' :
+      row.heart_type === 'blue' ? '💙' :
+      row.heart_type === 'pink' ? '💗' : '💚';
+    payload = { title: `${heartEmoji} ${nick}님`, body: '하트를 보냈어요!', tag: `like-${row.liker_id as string}`, url: '/' };
+  }
+
+  if (!recipientId || !payload) return;
+
+  const subs = getTable('push_subscriptions').filter(s => s.user_id === recipientId);
+  const expired: string[] = [];
+
+  for (const sub of subs) {
+    const ok = await sendPush(
+      { endpoint: sub.endpoint as string, keys: { auth: sub.auth as string, p256dh: sub.p256dh as string } },
+      payload,
+    );
+    if (!ok) expired.push(sub.id as string);
+  }
+
+  if (expired.length) {
+    store['push_subscriptions'] = (store['push_subscriptions'] ?? []).filter(s => !expired.includes(s.id as string));
+    for (const id of expired) dbDeleteRow('push_subscriptions', id).catch(console.error);
+  }
+}
+
 // ─── Filter helpers ───────────────────────────────────────────────────────────
 type FilterSpec =
   | { type: 'eq'; col: string; val: unknown }
@@ -254,12 +301,26 @@ router.post('/op', async (req: Request, res: Response) => {
         if (table === 'profiles' && tableData.some(r => r.nickname === row.nickname && row.nickname != null)) {
           return res.json({ data: null, error: { message: 'duplicate key value violates unique constraint "profiles_nickname_key"', code: '23505' } });
         }
+        // chats 테이블: 같은 user1_id+user2_id 조합이 이미 있으면 기존 채팅방 반환 (레이스 컨디션으로 인한 중복 채팅방 생성 방지)
+        if (table === 'chats' && row.user1_id != null && row.user2_id != null) {
+          const existing = tableData.find(r =>
+            r.user1_id === row.user1_id && r.user2_id === row.user2_id
+          );
+          if (existing) {
+            if (selectAfterWrite) return res.json({ data: single ? existing : [existing], error: null });
+            return res.json({ data: null, error: null });
+          }
+        }
         const newRow: Record<string, unknown> = { id: genId(), created_at: ts(), ...row };
         if (table === 'session_history' && !newRow.ended_at) newRow.ended_at = ts();
         tableData.push(newRow);
         inserted.push(newRow);
         broadcast({ type: 'change', table, event: 'INSERT', newRow, oldRow: null });
         dbPersistRow(table, newRow).catch(console.error);
+        // 메시지·하트 삽입 시 수신자 핸드폰으로 푸시 알림 전송
+        if (table === 'messages' || table === 'likes') {
+          sendPushForEvent(table, newRow).catch(console.error);
+        }
       }
       if (selectAfterWrite) return res.json({ data: single ? inserted[0] ?? null : inserted, error: null });
       return res.json({ data: null, error: null });
@@ -564,6 +625,39 @@ router.post('/by-pin', (req: Request, res: Response) => {
   const found = profiles.find(p => String(p['pin_code']) === String(pin));
   if (found) return res.json({ data: found, error: null });
   return res.json({ data: null, error: { message: '핀 번호를 찾을 수 없습니다' } });
+});
+
+// ─── Push subscription endpoints ─────────────────────────────────────────────
+router.get('/push/vapid-key', (_req: Request, res: Response) => {
+  res.json({ key: VAPID_PUBLIC_KEY });
+});
+
+router.post('/push/subscribe', (req: Request, res: Response) => {
+  const { userId, subscription } = req.body as {
+    userId?: string;
+    subscription?: { endpoint?: string; keys?: { auth?: string; p256dh?: string } };
+  };
+  if (!userId || !subscription?.endpoint || !subscription?.keys?.auth || !subscription?.keys?.p256dh) {
+    return res.status(400).json({ error: 'Missing fields' });
+  }
+  const subs = getTable('push_subscriptions');
+  const idx = subs.findIndex(s => s.user_id === userId && s.endpoint === subscription.endpoint);
+  if (idx >= 0) {
+    const updated = { ...subs[idx], auth: subscription.keys!.auth, p256dh: subscription.keys!.p256dh, updated_at: ts() };
+    subs[idx] = updated;
+    dbPersistRow('push_subscriptions', updated).catch(console.error);
+  } else {
+    const newSub = {
+      id: genId(), user_id: userId,
+      endpoint: subscription.endpoint,
+      auth: subscription.keys!.auth,
+      p256dh: subscription.keys!.p256dh,
+      created_at: ts(),
+    };
+    subs.push(newSub);
+    dbPersistRow('push_subscriptions', newSub).catch(console.error);
+  }
+  return res.json({ ok: true });
 });
 
 // ─── SSE endpoint ─────────────────────────────────────────────────────────────
