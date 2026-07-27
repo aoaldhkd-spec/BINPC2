@@ -3408,6 +3408,49 @@ class StatusErrorBoundary extends Component<{ children: ReactNode }, { error: Er
   }
 }
 
+// ── 알림음: 2030 감성 귀여운 사운드 (Web Audio API) ────────────────────────────
+function playCuteSound() {
+  try {
+    type WinWithWebkit = Window & { webkitAudioContext?: typeof AudioContext };
+    const Ctx = window.AudioContext ?? (window as WinWithWebkit).webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const t = ctx.currentTime;
+
+    // 'BI-DING' — C6 → E6 두 음 상행 아르페지오
+    [1047, 1319].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const s = t + i * 0.13;
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, s);
+      osc.frequency.exponentialRampToValueAtTime(freq * 1.018, s + 0.06); // 살짝 피치 업 → 발랄함
+      gain.gain.setValueAtTime(0, s);
+      gain.gain.linearRampToValueAtTime(0.28, s + 0.018); // 빠른 어택
+      gain.gain.exponentialRampToValueAtTime(0.001, s + 0.38); // 부드러운 릴리즈
+      osc.start(s);
+      osc.stop(s + 0.38);
+    });
+
+    // 스파클 ✨ — E7 고음 잔향
+    const sp = ctx.createOscillator();
+    const spGain = ctx.createGain();
+    sp.connect(spGain);
+    spGain.connect(ctx.destination);
+    sp.type = 'sine';
+    sp.frequency.setValueAtTime(2637, t + 0.27);
+    spGain.gain.setValueAtTime(0, t + 0.27);
+    spGain.gain.linearRampToValueAtTime(0.1, t + 0.29);
+    spGain.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
+    sp.start(t + 0.27);
+    sp.stop(t + 0.55);
+
+    setTimeout(() => ctx.close(), 700);
+  } catch { /* 소리 재생 실패는 무시 */ }
+}
+
 // ── Web Push helpers ───────────────────────────────────────────────────────────
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -4100,6 +4143,7 @@ function App() {
               return [data, ...prev];
             });
             setBottomNotif({ type: 'heart', nickname: data.nickname, heartType: row.heart_type ?? 'red' });
+            playCuteSound();
           }
         })
       .subscribe();
@@ -4156,6 +4200,7 @@ function App() {
           const senderProfile = profilesRef.current.find(p => p.id === m.sender_id);
           setNewMsgCount(n => n + 1);
           setBottomNotif({ type: 'message', nickname: senderProfile?.nickname ?? '' });
+          playCuteSound();
         }
       })
       .subscribe();
