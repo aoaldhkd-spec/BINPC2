@@ -509,12 +509,16 @@ export function MainScreen({
                   <input
                     value={profileSearch}
                     onChange={e => setProfileSearch(e.target.value)}
-                    placeholder="닉네임 검색..."
+                    placeholder="닉네임 · MBTI · 성향 · 초성 검색"
                     className="w-full pl-9 pr-3 py-2 rounded-xl border border-gray-200 bg-white text-sm focus:border-teal-400 focus:outline-none shadow-sm"
                   />
                 </div>
                 <RefreshBtn onRefresh={() => doRefresh('profiles', onRefreshProfiles)} refreshed={refreshedTab === 'profiles'} />
               </div>
+              {/* 검색 힌트 */}
+              <p className="text-[10px] text-gray-400 px-1 -mt-0.5">
+                💡 닉네임·MBTI·성향(탑/바텀/올)·초성으로 검색할 수 있어요
+              </p>
               {/* 성향 필터 */}
               <div className={`flex gap-1.5 overflow-x-auto pb-1 scrollbar-styled-light`}>
                 {[null,'바텀계열','올계열','탑계열','비선호'].map(f => {
@@ -1205,7 +1209,7 @@ export function MainScreen({
               <input
                 value={chatSearch}
                 onChange={e => setChatSearch(e.target.value)}
-                placeholder="닉네임 검색 → 대화 시작"
+                placeholder="닉네임 · MBTI · 성향 · 초성 검색"
                 className={`w-full pl-9 pr-9 py-2.5 text-sm bg-transparent focus:outline-none ${darkMode ? 'text-white placeholder-slate-500' : 'text-gray-900 placeholder-gray-400'}`}
               />
               {chatSearch && (

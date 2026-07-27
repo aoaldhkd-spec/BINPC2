@@ -553,6 +553,14 @@ function App() {
       // 프로필 목록이 비어있으면 서버 기동 중이거나 네트워크 오류 — 세션 유지
       // 실제 프로필 삭제는 reset_signal SSE로 처리되므로 여기서 aggressive하게 지우지 않음
       if (allProfiles.length === 0) return;
+      // 신규 가입 직후: DB 반영 지연으로 인한 false-positive 세션 삭제 방지
+      // isNewRegistration이 true이면 방금 insert한 프로필이므로 삭제하지 않고 바로 main으로 이동
+      if (isNewRegistration.current) {
+        isNewRegistration.current = false;
+        setView('main');
+        setMainTab('status');
+        return;
+      }
       // If the profile no longer exists (e.g. admin reset the session), clear stale state
       if (!allProfiles.some((p: { id: string }) => p.id === currentUserId)) {
         ls.removeItem(MATCHING_USER_KEY);
@@ -563,11 +571,6 @@ function App() {
         return;
       }
       setView('main');
-      if (isNewRegistration.current) {
-        isNewRegistration.current = false;
-        setMainTab('status');
-        // WelcomeNoticeModal은 튜토리얼에 통합되어 별도 팝업 없음
-      }
     });
     loadSeats();
     loadLikes(currentUserId);
@@ -966,6 +969,8 @@ function App() {
       ls.setItem(MATCHING_USER_KEY, profile.id);
       ls.removeItem(MATCHING_DRAFT_KEY);
       isNewRegistration.current = true;
+      // 새 프로필을 즉시 로컬 상태에 추가 — DB 반영 지연/SSE 타이밍에 무관하게 세션 유지
+      setProfiles(prev => prev.some(p => p.id === profile.id) ? prev : [profile as Profile, ...prev]);
       setView('loading-main');
       setCurrentUserId(profile.id);
     }

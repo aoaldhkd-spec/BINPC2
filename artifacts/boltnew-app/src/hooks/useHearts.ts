@@ -20,6 +20,7 @@ export function useHearts(
   const [receivedContactShares, setReceivedContactShares] = useState<ContactShare[]>([]);
   const [likeConfirmTarget, setLikeConfirmTarget] = useState<Profile | null>(null);
   const [contactShareTarget, setContactShareTarget] = useState<Profile | null>(null);
+  const [likeInFlight, setLikeInFlight] = useState(false);
 
   const loadLikes = useCallback(async (userId: string) => {
     const { data } = await supabase.from('likes').select('liked_id, status, heart_type').eq('liker_id', userId);
@@ -72,6 +73,7 @@ export function useHearts(
 
   const handleLike = (profileId: string) => {
     if (!currentUserId) return;
+    if (profileId === currentUserId) return; // 자기 자신 하트 금지
     const target = profiles.find((p) => p.id === profileId);
     if (!target) return;
     const sent = sentHeartsPerPerson.get(profileId);
@@ -81,9 +83,12 @@ export function useHearts(
 
   const executeLike = async (heartType: HeartType) => {
     if (!currentUserId || !likeConfirmTarget) return;
+    if (likeInFlight) return; // 중복 클릭 방지
     if (heartCountByType(heartType) >= 2) return;
     if (sentHeartsPerPerson.get(likeConfirmTarget.id)?.has(heartType)) return;
+    setLikeInFlight(true);
     const { error } = await supabase.from('likes').insert({ liker_id: currentUserId, liked_id: likeConfirmTarget.id, heart_type: heartType });
+    setLikeInFlight(false);
     if (!error) {
       setLikedIds((prev) => new Set([...prev, likeConfirmTarget.id]));
       setSentHeartTypes((prev) => new Map(prev).set(likeConfirmTarget.id, heartType));

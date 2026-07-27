@@ -311,6 +311,13 @@ router.post('/op', async (req: Request, res: Response) => {
             return res.json({ data: null, error: null });
           }
         }
+        // likes 테이블: 동일 liker+liked+heart_type 중복 방지 (빠른 연속 클릭으로 인한 중복 하트 삽입 방지)
+        if (table === 'likes' && row.liker_id != null && row.liked_id != null && row.heart_type != null) {
+          const dupLike = tableData.find(r =>
+            r.liker_id === row.liker_id && r.liked_id === row.liked_id && r.heart_type === row.heart_type
+          );
+          if (dupLike) return res.json({ data: null, error: null }); // 무음 중복 차단
+        }
         const newRow: Record<string, unknown> = { id: genId(), created_at: ts(), ...row };
         if (table === 'session_history' && !newRow.ended_at) newRow.ended_at = ts();
         tableData.push(newRow);

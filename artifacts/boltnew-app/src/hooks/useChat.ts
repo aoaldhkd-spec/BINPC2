@@ -108,10 +108,13 @@ export function useChat({
           const newMsg = payload.new as Message;
           setMessages(prev => {
             if (prev.some((m: Message) => m.id === newMsg.id)) return prev;
+            // 낙관적 업데이트 교체: 5초 이내 동일 발신자+내용 메시지에만 매칭 (동일 문구 연속 전송 시 잘못된 매칭 방지)
+            const msgTime = new Date(newMsg.created_at).getTime();
             const optIdx = prev.findIndex(m =>
               m.id.startsWith('__opt_') &&
               m.sender_id === newMsg.sender_id &&
-              m.content === newMsg.content
+              m.content === newMsg.content &&
+              Math.abs(new Date(m.created_at).getTime() - msgTime) < 5000
             );
             if (optIdx !== -1) {
               const next = [...prev];
@@ -207,6 +210,10 @@ export function useChat({
     });
     if (error) {
       setMessages(prev => prev.filter(m => m.id !== optimisticId));
+      setChatList(prev => prev.map(c => c.id === chatId ? { ...c, lastMessage: c.lastMessage === content.trim() ? '' : c.lastMessage } : c));
+      // 실패 시 사용자에게 짧은 피드백 제공
+      console.error('[sendMessage]', error.message);
+      alert('메시지 전송에 실패했습니다. 다시 시도해 주세요.');
     }
   };
 
