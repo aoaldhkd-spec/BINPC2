@@ -1,17 +1,12 @@
 import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
 import {
   Heart, MessageCircle, Users, ChevronRight, ChevronDown,
-  LayoutGrid, CheckCircle,
-  Eye, UserCheck, Gamepad2, X, RefreshCw, Info, BookOpen,
-  BarChart3, Lock, XCircle, QrCode, Camera,
+  LayoutGrid, CheckCircle, X, XCircle,
 } from 'lucide-react';
 import { supabase } from './lib/supabase';
 import SeatingMap from './components/SeatingMap';
-import { StatsTab, RankingTab } from './components/StatsTabs';
 import ProfileAvatar from './components/ProfileAvatar';
-import { StickerSVG, STICKER_LABELS, STICKER_BG, STICKER_COUNT } from './stickers';
-import { getPositionLabel, getPositionBg, getDomSubLabel, getDomSubBg, genAvatar, getKoreanAge } from './lib/profile';
-import { getZodiac, getOhaeng, getCompatibility, getOhaengCompat, getNumerologyCompat, getMbtiCompat, getTodayFortune } from './lib/fortune';
+import { genAvatar } from './lib/profile';
 const FortuneTab = lazy(() => import('./components/FortuneTab'));
 import { HEART_TYPES, HeartType } from './lib/constants';
 // ─── 분리된 타입·유틸·컴포넌트 imports ────────────────────────────────────────
@@ -20,7 +15,7 @@ import type {
   AnonymousReport, Chat, View, MainTab, TableMiniGameSession, GameState,
 } from './types/app';
 export type { GameState } from './types/app';
-import { hasBannedWord, koreanMatch, getMbtiStyle, MBTI_COLORS, domSubLabel } from './lib/utils';
+import { koreanMatch, MBTI_COLORS, domSubLabel } from './lib/utils';
 import { heartMeta } from './lib/constants';
 import ChatScreen from './components/ChatScreen';
 import ProfileDetail from './components/ProfileDetail';
@@ -37,7 +32,6 @@ import { QaGameOverlay } from './components/games/QaGameOverlay';
 import { TableMiniGameModal } from './components/games/TableMiniGameModal';
 import { NotifModal } from './components/NotifModal';
 import { WelcomeNoticeModal } from './components/WelcomeNoticeModal';
-import { ProfileInfoBadges } from './components/ProfileInfoBadges';
 import { LikeConfirmDialog } from './components/LikeConfirmDialog';
 import { ContactShareModal } from './components/ContactShareModal';
 import { ContactViewModal } from './components/ContactViewModal';
@@ -60,42 +54,6 @@ import { useSeating } from './hooks/useSeating';
 import { useGames } from './hooks/useGames';
 import { useHearts } from './hooks/useHearts';
 import { useChat } from './hooks/useChat';
-
-// ─── QaGameOverlay → ./components/games/QaGameOverlay ────────────────────────
-// ─── GameAnnouncementModal → ./components/games/GameAnnouncementModal ─────────
-// ─── BalanceGameCard → ./components/games/BalanceGameCard ────────────────────
-// ─── CreateGameModal → ./components/games/CreateGameModal ────────────────────
-// ─── MiniGameTips → ./components/games/MiniGameTips ──────────────────────────
-// ─── ParticipantSelector → ./components/games/ParticipantSelector ────────────
-// ─── HowToPlayCard → ./components/games/HowToPlayCard ────────────────────────
-// ─── RouletteGame → ./components/games/RouletteGame ──────────────────────────
-// ─── LadderGame → ./components/games/LadderGame ──────────────────────────────
-// ─── UserGameTab → ./components/games/UserGameTab ────────────────────────────
-// ─── TableMiniGameModal → ./components/games/TableMiniGameModal ──────────────
-// ─── EntryGateScreen → ./components/EntryGateScreen ──────────────────────────
-// ─── WaitingOverlay → ./components/WaitingOverlay ────────────────────────────
-// ─── NicknameSetupScreen → ./components/NicknameSetupScreen ──────────────────
-// ─── TutorialModal → ./components/TutorialModal ──────────────────────────────
-// ─── ResetButton → ./components/ResetButton ──────────────────────────────────
-// ─── ProfileQrModal → ./components/ProfileQrModal ────────────────────────────
-
-// ─── Nickname generator → ./lib/nicknameGenerator ────────────────────────────
-// BIO_CATEGORIES, EMOJIS, POSITION_OPTIONS, DOM_SUB_OPTIONS → NicknameSetupScreen
-// MBTI_TYPES, DECADE_GROUPS, LOCATION_GROUPS → NicknameSetupScreen
-
-
-// ─── Seat Register Dialog → ./components/SeatRegisterDialog ─────────────────
-
-// ─── Game display components → ./components/games/GameDisplays ───────────────
-
-// ─── Like Confirm Dialog ──────────────────────────────────────────────────────
-
-// heartMeta → lib/constants | MBTI_COLORS, domSubLabel → lib/utils
-// ProfileInfoBadges → ./components/ProfileInfoBadges
-
-// LikeConfirmDialog  → ./components/LikeConfirmDialog
-// ContactShareModal  → ./components/ContactShareModal
-// ContactViewModal   → ./components/ContactViewModal
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 

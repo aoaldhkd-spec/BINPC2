@@ -322,6 +322,24 @@ export function MainScreen({
 
   // ── 프로필 사진 업로드 ────────────────────────────────────────────────────────
   const [photoUploading, setPhotoUploading] = useState(false);
+  // 이미지 압축: 최대 600px, JPEG 품질 0.75 — 메모리/DB 과부하 방지
+  const compressImage = (dataUrl: string, maxPx = 600, quality = 0.75): Promise<string> =>
+    new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = () => resolve(dataUrl); // 압축 실패 시 원본 사용
+      img.src = dataUrl;
+    });
+
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !currentUserId) return;
@@ -331,11 +349,12 @@ export function MainScreen({
       reader.onload = async (ev) => {
         const dataUrl = ev.target?.result as string;
         if (!dataUrl) { setPhotoUploading(false); return; }
+        const compressed = await compressImage(dataUrl);
         const path = `profile-photos/${currentUserId}`;
         await fetch('/api/db/storage-upload', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ path, dataUrl }),
+          body: JSON.stringify({ path, dataUrl: compressed }),
         });
         const photoUrl = `/api/db/storage-image?p=${encodeURIComponent(path)}&t=${Date.now()}`;
         await supabase.from('profiles').update({ photo_url: photoUrl } as never).eq('id', currentUserId);

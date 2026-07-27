@@ -41,12 +41,10 @@ export function useHearts(
   const loadReceivedLikes = useCallback(async (userId: string) => {
     const { data } = await supabase.from('likes').select('liker_id, status, heart_type').eq('liked_id', userId);
     if (!data?.length) { setReceivedLikers([]); setReceivedHeartTypes(new Map()); setAcknowledgedComplimentIds(new Set()); return; }
-    const rejected = new Set(data.filter((l: { liker_id: string; status: string; heart_type: string | null }) => l.status === 'rejected').map((l: { liker_id: string }) => l.liker_id));
     setReceivedHeartTypes(new Map(data.map((l: { liker_id: string; heart_type: string | null }) => [l.liker_id, (l.heart_type ?? 'red') as HeartType])));
     setAcknowledgedComplimentIds(new Set(data.filter((l: { liker_id: string; status: string; heart_type: string | null }) => l.status === 'accepted' && (l.heart_type ?? 'red') === 'green').map((l: { liker_id: string }) => l.liker_id)));
     const activeLikerIds = data.filter((l: { liker_id: string; status: string }) => l.status !== 'rejected').map((l: { liker_id: string }) => l.liker_id);
     if (!activeLikerIds.length) { setReceivedLikers([]); return; }
-    void rejected; // used for future filtering if needed
     const { data: ps } = await supabase.from('profiles').select('*').in('id', activeLikerIds);
     if (ps) setReceivedLikers(ps);
   }, []);
