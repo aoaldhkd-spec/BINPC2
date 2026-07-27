@@ -1,46 +1,63 @@
-// Service Worker — 푸시 알림 수신 처리
+// Service Worker — 푸시 알림 수신 처리 (견고한 예외처리 포함)
+
+// SW 설치 즉시 활성화 (대기 없이)
+self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients.claim());
+});
+
 self.addEventListener('push', (event) => {
   if (!event.data) return;
+
   let data;
   try { data = event.data.json(); } catch { return; }
 
+  const title  = String(data.title  || '범일NPC 술번개');
+  const body   = String(data.body   || '');
+  const tag    = String(data.tag    || 'notification');
+  const url    = String(data.url    || '/');
+
   const options = {
-    body: data.body || '',
-    icon: '/favicon.svg',
-    badge: '/favicon.svg',
-    tag: data.tag || 'notification',
-    data: { url: data.url || '/' },
+    body,
+    icon:    '/favicon.svg',
+    badge:   '/favicon.svg',
+    tag,
+    renotify: true,
+    data:    { url },
     vibrate: [100, 50, 100],
     requireInteraction: false,
-    // 알림에 "이동하기" 버튼 추가
     actions: [
-      { action: 'open', title: '이동하기 →' },
+      { action: 'open',    title: '이동하기 →' },
       { action: 'dismiss', title: '닫기' },
     ],
   };
 
   event.waitUntil(
-    self.registration.showNotification(data.title || '범일NPC 술번개', options)
+    self.registration.showNotification(title, options)
+      .catch((err) => console.warn('[sw] showNotification failed:', err))
   );
 });
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-
-  // '닫기' 버튼을 누른 경우 앱 전환 없이 닫기만
   if (event.action === 'dismiss') return;
 
-  // '이동하기' 버튼 또는 알림 본문 클릭 → 앱으로 포커스/이동
+  const targetUrl = event.notification.data?.url || '/';
+
   event.waitUntil(
-    clients
+    self.clients
       .matchAll({ type: 'window', includeUncontrolled: true })
       .then((clientList) => {
+        // 이미 열린 탭이 있으면 포커스
         for (const client of clientList) {
-          if ('focus' in client) return client.focus();
+          if ('focus' in client) {
+            client.navigate?.(targetUrl).catch?.(() => {});
+            return client.focus();
+          }
         }
-        if (clients.openWindow) {
-          return clients.openWindow(event.notification.data?.url || '/');
-        }
+        // 없으면 새 탭 열기
+        return self.clients.openWindow(targetUrl);
       })
+      .catch((err) => console.warn('[sw] notificationclick error:', err))
   );
 });

@@ -3410,11 +3410,14 @@ class StatusErrorBoundary extends Component<{ children: ReactNode }, { error: Er
 
 // ── 알림음: 2030 감성 귀여운 사운드 (Web Audio API) ────────────────────────────
 function playCuteSound() {
+  if (document.hidden) return; // 백그라운드(화면 꺼짐)에서는 JS 오디오 불가 → 건너뜀
   try {
     type WinWithWebkit = Window & { webkitAudioContext?: typeof AudioContext };
     const Ctx = window.AudioContext ?? (window as WinWithWebkit).webkitAudioContext;
     if (!Ctx) return;
     const ctx = new Ctx();
+    // iOS/Safari의 autoplay 정책으로 suspended 상태일 수 있으므로 resume
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
     const t = ctx.currentTime;
 
     // 'BI-DING' — C6 → E6 두 음 상행 아르페지오
@@ -3476,27 +3479,44 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 }
 
 async function registerPushSub(userId: string): Promise<void> {
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return;
   try {
+    // 알림 권한 확인 / 요청
+    if (Notification.permission === 'denied') return;
+    if (Notification.permission === 'default') {
+      const perm = await Notification.requestPermission().catch(() => 'denied' as NotificationPermission);
+      if (perm !== 'granted') return;
+    }
+
     const reg = await navigator.serviceWorker.register('/sw.js');
     await navigator.serviceWorker.ready;
-    const keyRes = await fetch('/api/db/push/vapid-key');
-    if (!keyRes.ok) return;
-    const { key } = await keyRes.json() as { key: string };
-    let sub = await reg.pushManager.getSubscription();
+
+    // VAPID 키 취득 (타임아웃 10초)
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 10_000);
+    const keyRes = await fetch('/api/db/push/vapid-key', { signal: ctrl.signal }).catch(() => null);
+    clearTimeout(timer);
+    if (!keyRes?.ok) return;
+
+    const { key } = await keyRes.json() as { key?: string };
+    if (!key) return;
+
+    let sub = await reg.pushManager.getSubscription().catch(() => null);
     if (!sub) {
       sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(key),
-      });
+        applicationServerKey: urlBase64ToUint8Array(key) as unknown as ArrayBuffer,
+      }).catch(() => null);
     }
+    if (!sub) return;
+
     await fetch('/api/db/push/subscribe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId, subscription: sub.toJSON() }),
-    });
+    }).catch(() => null);
   } catch (e) {
-    console.error('[push] Registration failed:', e);
+    console.warn('[push] 등록 건너뜀:', (e as Error)?.message ?? e);
   }
 }
 
@@ -4147,18 +4167,20 @@ function App() {
       .channel('realtime:received-likes')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'likes', filter: `liked_id=eq.${currentUserId}` },
         async (payload) => {
-          const row = payload.new as { liker_id: string; heart_type: HeartType };
-          const likerId = row.liker_id;
-          setReceivedHeartTypes(prev => new Map(prev).set(likerId, row.heart_type ?? 'red'));
-          const { data } = await supabase.from('profiles').select('*').eq('id', likerId).maybeSingle();
-          if (data) {
-            setReceivedLikers((prev) => {
-              if (prev.find((p) => p.id === data.id)) return prev;
-              return [data, ...prev];
-            });
-            setBottomNotif({ type: 'heart', nickname: data.nickname, heartType: row.heart_type ?? 'red' });
-            playCuteSound();
-          }
+          try {
+            const row = payload.new as { liker_id: string; heart_type: HeartType };
+            const likerId = row.liker_id;
+            setReceivedHeartTypes(prev => new Map(prev).set(likerId, row.heart_type ?? 'red'));
+            const { data } = await supabase.from('profiles').select('*').eq('id', likerId).maybeSingle();
+            if (data) {
+              setReceivedLikers((prev) => {
+                if (prev.find((p) => p.id === data.id)) return prev;
+                return [data, ...prev];
+              });
+              setBottomNotif({ type: 'heart', nickname: data.nickname, heartType: row.heart_type ?? 'red' });
+              playCuteSound();
+            }
+          } catch (e) { console.warn('[realtime:likes]', e); }
         })
       .subscribe();
 
@@ -4166,13 +4188,15 @@ function App() {
       .channel('realtime:contact-shares')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'contact_shares', filter: `liker_id=eq.${currentUserId}` },
         async (payload) => {
-          const share = payload.new as ContactShare;
-          setReceivedContactShares(prev => {
-            if (prev.find(s => s.liked_id === share.liked_id)) return prev.map(s => s.liked_id === share.liked_id ? share : s);
-            return [share, ...prev];
-          });
-          const { data } = await supabase.from('profiles').select('nickname').eq('id', share.liked_id).maybeSingle();
-          setBottomNotif({ type: 'contact', nickname: data?.nickname ?? '' });
+          try {
+            const share = payload.new as ContactShare;
+            setReceivedContactShares(prev => {
+              if (prev.find(s => s.liked_id === share.liked_id)) return prev.map(s => s.liked_id === share.liked_id ? share : s);
+              return [share, ...prev];
+            });
+            const { data } = await supabase.from('profiles').select('nickname').eq('id', share.liked_id).maybeSingle();
+            setBottomNotif({ type: 'contact', nickname: data?.nickname ?? '' });
+          } catch (e) { console.warn('[realtime:contact-shares]', e); }
         })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'contact_shares', filter: `liker_id=eq.${currentUserId}` },
         (payload) => {
@@ -4202,20 +4226,22 @@ function App() {
         if (otherProfile && !iMadeThis) setBottomNotif({ type: 'chat', nickname: otherProfile.nickname });
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
-        const m = payload.new as { chat_id: string; sender_id: string; content: string };
-        if (m.sender_id === currentUserId) return;
-        // chatListRef로 내 채팅방인지 확인 (stale 클로저 방지, 다른 사람 채팅 알림 차단)
-        const isMyChat = chatListRef.current.some(c => c.id === m.chat_id);
-        if (!isMyChat) return;
-        setChatList(prev => prev.map(c => c.id === m.chat_id ? { ...c, lastMessage: m.content } : c));
-        // 현재 그 채팅방을 보고 있으면 unread 증가·알림 안 함
-        if (chatIdRef.current !== m.chat_id) {
-          setUnreadChatCounts(prev => ({ ...prev, [m.chat_id]: (prev[m.chat_id] ?? 0) + 1 }));
-          const senderProfile = profilesRef.current.find(p => p.id === m.sender_id);
-          setNewMsgCount(n => n + 1);
-          setBottomNotif({ type: 'message', nickname: senderProfile?.nickname ?? '' });
-          playCuteSound();
-        }
+        try {
+          const m = payload.new as { chat_id: string; sender_id: string; content: string };
+          if (m.sender_id === currentUserId) return;
+          // chatListRef로 내 채팅방인지 확인 (stale 클로저 방지, 다른 사람 채팅 알림 차단)
+          const isMyChat = chatListRef.current.some(c => c.id === m.chat_id);
+          if (!isMyChat) return;
+          setChatList(prev => prev.map(c => c.id === m.chat_id ? { ...c, lastMessage: m.content } : c));
+          // 현재 그 채팅방을 보고 있으면 unread 증가·알림 안 함
+          if (chatIdRef.current !== m.chat_id) {
+            setUnreadChatCounts(prev => ({ ...prev, [m.chat_id]: (prev[m.chat_id] ?? 0) + 1 }));
+            const senderProfile = profilesRef.current.find(p => p.id === m.sender_id);
+            setNewMsgCount(n => n + 1);
+            setBottomNotif({ type: 'message', nickname: senderProfile?.nickname ?? '' });
+            playCuteSound();
+          }
+        } catch (e) { console.warn('[realtime:messages]', e); }
       })
       .subscribe();
 
@@ -4356,6 +4382,62 @@ function App() {
     if (!currentUserId) return;
     registerPushSub(currentUserId);
   }, [currentUserId]);
+
+  // ── 사주 탭 생월·생일 편집 상태 ─────────────────────────────────────────────
+  const [sajuBirthMonth, setSajuBirthMonth] = useState<number | null>(null);
+  const [sajuBirthDay, setSajuBirthDay] = useState<number | null>(null);
+  const [sajuSaving, setSajuSaving] = useState(false);
+  const sajuInitRef = useRef(false);
+
+  // ── 내 상태 탭 전화번호 편집 상태 ────────────────────────────────────────────
+  const [statusPhone, setStatusPhone] = useState('');
+  const [statusPhoneSaving, setStatusPhoneSaving] = useState(false);
+  const statusPhoneInitRef = useRef(false);
+
+  // 프로필 로드 시 편집 상태 초기화 (최초 1회)
+  useEffect(() => {
+    if (!currentUserId) {
+      sajuInitRef.current = false;
+      statusPhoneInitRef.current = false;
+      return;
+    }
+    const me = profiles.find(p => p.id === currentUserId);
+    if (!me) return;
+    if (!sajuInitRef.current) {
+      sajuInitRef.current = true;
+      setSajuBirthMonth(me.birth_month ?? null);
+      setSajuBirthDay(me.birth_day ?? null);
+    }
+    if (!statusPhoneInitRef.current) {
+      statusPhoneInitRef.current = true;
+      setStatusPhone(me.phone_number ?? '');
+    }
+  }, [profiles, currentUserId]);
+
+  const saveSajuBirthDate = async () => {
+    if (!currentUserId) return;
+    setSajuSaving(true);
+    try {
+      await supabase.rpc('update_profile', {
+        p_profile_id: currentUserId,
+        p_birth_month: sajuBirthMonth,
+        p_birth_day: sajuBirthDay,
+      } as never);
+    } catch (e) { console.error('[saju] 저장 실패:', e); }
+    setSajuSaving(false);
+  };
+
+  const saveStatusPhone = async () => {
+    if (!currentUserId) return;
+    setStatusPhoneSaving(true);
+    try {
+      await supabase.rpc('update_profile', {
+        p_profile_id: currentUserId,
+        p_phone_number: statusPhone.trim() || null,
+      } as never);
+    } catch (e) { console.error('[phone] 저장 실패:', e); }
+    setStatusPhoneSaving(false);
+  };
 
   // Manual refresh for status and chat tabs
   const refreshStatusTab = useCallback(() => {
@@ -5784,9 +5866,9 @@ function NicknameSetupScreen({ onSubmit, loading, onReset }: {
   const atMaxBio = selectedBio.length >= 5;
   const [bioFilter, setBioFilter] = useState<string | null>(null); // null = 전체
 
-  // Step 1 valid: mbti + birthYear + location + (생월·생일 둘 다 선택 OR 개인정보 체크)
+  // Step 1 valid: mbti + birthYear + location (생월·생일은 이제 사주 탭에서 따로 설정)
   const birthDateFilled = birthMonth !== null && birthDay !== null;
-  const step1Valid = !!mbti && !!birthYear && !!location && (birthDateFilled || birthInfoChecked);
+  const step1Valid = !!mbti && !!birthYear && !!location;
   // Step 2 valid: interests >= 2 + position
   const step2Valid = selectedBio.length >= 2 && positionScore !== null;
   const canGenerate = !!mbti && !!birthYear && !!location && selectedBio.length >= 2 && positionScore !== null;
@@ -5840,7 +5922,7 @@ function NicknameSetupScreen({ onSubmit, loading, onReset }: {
     }, 600);
   };
 
-  const contactValid = contactPrivate || !!(kakaoId.trim() || instagramId.trim() || phoneNumber.trim());
+  const contactValid = contactPrivate || !!(kakaoId.trim() || instagramId.trim());
 
   const handleSubmit = () => {
     if (!canEnter || !mbti || positionScore === null) return;
@@ -5978,78 +6060,16 @@ function NicknameSetupScreen({ onSubmit, loading, onReset }: {
                   </div>
                 </div>
 
-                {/* 생년월일 월·일 */}
-                <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <label className="text-sm font-semibold text-gray-800">생월·생일</label>
-                    {birthInfoChecked
-                      ? <span className="text-xs font-semibold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">입력 안 함</span>
-                      : <span className="text-xs font-semibold text-red-500 bg-red-50 px-2 py-0.5 rounded-full">필수</span>
-                    }
-                    <span className="text-[11px] text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full font-semibold">🔮 운세·궁합 기능 필요</span>
-                  </div>
-                  {!birthInfoChecked && (
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <p className="text-xs text-gray-500 font-semibold mb-1">월</p>
-                        <div className="border-2 border-gray-200 rounded-xl overflow-hidden bg-white">
-                          <DrumRoller
-                            items={Array.from({length: 12}, (_, i) => i + 1)}
-                            selected={birthMonth}
-                            onSelect={(v) => setBirthMonth(v)}
-                            renderItem={(v) => `${v}월`}
-                            itemHeight={36}
-                            visibleCount={3}
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500 font-semibold mb-1">일</p>
-                        <div className="border-2 border-gray-200 rounded-xl overflow-hidden bg-white">
-                          <DrumRoller
-                            items={Array.from({length: 31}, (_, i) => i + 1)}
-                            selected={birthDay}
-                            onSelect={(v) => setBirthDay(v)}
-                            renderItem={(v) => `${v}일`}
-                            itemHeight={36}
-                            visibleCount={3}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* 생월·생일 개인정보 경고 + 체크박스 */}
-                <div className={`rounded-2xl border-2 p-4 transition-all ${birthInfoChecked ? 'border-teal-300 bg-teal-50/60' : 'border-orange-200 bg-orange-50/70'}`}>
-                  <div className="flex items-start gap-3 mb-3">
-                    <div className="mt-0.5 flex-shrink-0 w-5 h-5 rounded-full bg-orange-400 flex items-center justify-center">
-                      <span className="text-white text-[10px] font-black leading-none">!</span>
-                    </div>
-                    <p className="text-[13px] text-gray-700 leading-relaxed flex-1">
-                      <span className="font-black text-orange-600">생월·생일은 개인정보</span>이므로 입력하지 않을 수 있으며,{' '}
-                      본 모임의 <span className="font-bold">사주·운세·궁합 기능에 불이익이 있을 수 있습니다.</span>
-                    </p>
-                  </div>
-                  <label className="flex items-center gap-3 cursor-pointer select-none" onClick={() => {
-                    const next = !birthInfoChecked;
-                    setBirthInfoChecked(next);
-                    if (next) { setBirthMonth(null); setBirthDay(null); }
-                    else { setBirthMonth(1); setBirthDay(1); }
-                  }}>
-                    <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all ${birthInfoChecked ? 'bg-teal-500 border-teal-500' : 'bg-white border-gray-300'}`}>
-                      {birthInfoChecked && (
-                        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                        </svg>
-                      )}
-                    </div>
-                    <span className="text-[13px] font-bold text-gray-700">위 내용을 확인했습니다</span>
-                  </label>
+                {/* 생월·생일 안내 — 입장 후 사주 탭에서 설정 */}
+                <div className="rounded-xl border border-purple-200 bg-purple-50 p-3 flex items-start gap-2">
+                  <span className="text-purple-500 text-sm mt-0.5">🔮</span>
+                  <p className="text-[12px] text-purple-700 leading-relaxed">
+                    <span className="font-black">생월·생일</span>은 입장 후 <span className="font-bold">운세·사주 탭</span>에서 언제든 설정할 수 있어요.
+                  </p>
                 </div>
 
                 {/* Step 1 summary chips */}
-                {(mbti || birthYear || birthMonth || birthDay || location) && (
+                {(mbti || birthYear || location) && (
                   <div className="flex gap-2 flex-wrap">
                     {mbti && (
                       <span className="px-3 py-1.5 bg-teal-50 text-teal-700 text-sm font-bold rounded-full border border-teal-100">{mbti}</span>
@@ -6057,15 +6077,6 @@ function NicknameSetupScreen({ onSubmit, loading, onReset }: {
                     {birthYear && (
                       <span className="px-3 py-1.5 bg-cyan-50 text-cyan-700 text-sm font-bold rounded-full border border-cyan-100">
                         {String(birthYear).slice(2)}년생
-                      </span>
-                    )}
-                    {birthInfoChecked ? (
-                      <span className="px-3 py-1.5 bg-purple-100 text-purple-400 text-sm font-bold rounded-full border border-purple-200 line-through">
-                        생월·생일 미선택
-                      </span>
-                    ) : birthMonth !== null && (
-                      <span className="px-3 py-1.5 bg-purple-50 text-purple-700 text-sm font-bold rounded-full border border-purple-100">
-                        {birthMonth}월 {birthDay !== null ? `${birthDay}일` : ''}
                       </span>
                     )}
                     {location && (
@@ -6406,12 +6417,7 @@ function NicknameSetupScreen({ onSubmit, loading, onReset }: {
                         placeholder="인스타그램 ID"
                         className="w-full pl-8 pr-3 py-2.5 rounded-xl border-2 border-blue-200 bg-white text-sm focus:border-blue-400 focus:outline-none disabled:opacity-40 disabled:bg-gray-100" />
                     </div>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-green-500 font-black text-xs">#</span>
-                      <input value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)} disabled={contactPrivate}
-                        placeholder="전화번호 (숫자만)"
-                        className="w-full pl-8 pr-3 py-2.5 rounded-xl border-2 border-blue-200 bg-white text-sm focus:border-blue-400 focus:outline-none disabled:opacity-40 disabled:bg-gray-100" />
-                    </div>
+                    <p className="text-[10px] text-blue-500">📱 전화번호는 입장 후 내 상태 탭에서 설정할 수 있어요.</p>
                   </div>
                   <label className="flex items-start gap-2 cursor-pointer select-none">
                     <input type="checkbox" checked={contactPrivate} onChange={e => setContactPrivate(e.target.checked)}
@@ -6426,7 +6432,7 @@ function NicknameSetupScreen({ onSubmit, loading, onReset }: {
                     </div>
                   )}
                   {!contactPrivate && !contactValid && (
-                    <p className="text-[11px] text-red-500 font-semibold">카카오, 인스타, 전화번호 중 하나 이상을 입력해 주세요.</p>
+                    <p className="text-[11px] text-red-500 font-semibold">카카오 또는 인스타 중 하나 이상을 입력해 주세요.</p>
                   )}
                 </div>
 
@@ -7190,6 +7196,40 @@ function MainScreen({
               );
             })()}
 
+            {/* ── 전화번호 설정 ── */}
+            <div className={`rounded-2xl p-4 border transition-colors duration-300 ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-100'}`}>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-base">📱</span>
+                <p className={`text-sm font-black ${darkMode ? 'text-white' : 'text-gray-900'}`}>전화번호 설정</p>
+              </div>
+              {/* 주의사항 */}
+              <div className={`rounded-xl p-3 mb-3 flex items-start gap-2 ${darkMode ? 'bg-amber-900/30 border border-amber-600/40' : 'bg-amber-50 border border-amber-300'}`}>
+                <span className="text-amber-500 text-sm mt-0.5 flex-shrink-0">⚠️</span>
+                <div>
+                  <p className={`text-[11px] font-black mb-0.5 ${darkMode ? 'text-amber-300' : 'text-amber-700'}`}>주의사항</p>
+                  <p className={`text-[11px] leading-relaxed ${darkMode ? 'text-amber-400' : 'text-amber-700'}`}>
+                    전화번호는 상대방이 <span className="font-bold">연락처 공유를 수락했을 때만</span> 전달됩니다.<br/>
+                    개인정보 보호를 위해 신중하게 입력해 주세요.
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <input
+                  value={statusPhone}
+                  onChange={e => setStatusPhone(e.target.value.replace(/\D/g, '').slice(0, 11))}
+                  placeholder="01012345678 (숫자만)"
+                  inputMode="tel"
+                  className={`flex-1 px-3 py-2.5 rounded-xl border-2 text-sm focus:outline-none transition-colors ${darkMode ? 'bg-slate-700 border-slate-500 text-white placeholder-slate-500 focus:border-cyan-500' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 focus:border-cyan-400'}`}
+                />
+                <button
+                  onClick={saveStatusPhone}
+                  disabled={statusPhoneSaving}
+                  className="px-4 py-2.5 bg-cyan-500 hover:bg-cyan-600 text-white font-bold rounded-xl text-sm active:scale-95 transition-all disabled:opacity-40">
+                  {statusPhoneSaving ? '...' : '저장'}
+                </button>
+              </div>
+            </div>
+
             {seatingLocked ? (
               <div className="flex flex-col items-center justify-center py-16 gap-3">
                 <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${darkMode ? 'bg-slate-700' : 'bg-gray-100'}`}>
@@ -7716,6 +7756,62 @@ function MainScreen({
         {/* ─── 운세 탭 (게임·운세 하위) ─── */}
         {mainTab === 'fortune' && (
           <div className="min-h-[60vh] w-full overflow-x-hidden">
+            {/* ── 생월·생일 설정 카드 ── */}
+            {currentUserId && (() => {
+              const me = profiles.find(p => p.id === currentUserId);
+              if (!me) return null;
+              const hasBd = !!(me.birth_month && me.birth_day);
+              return (
+                <div className={`rounded-2xl p-4 mb-4 border transition-colors duration-300 ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-gradient-to-br from-purple-50 to-white border-purple-200'}`}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-xl">🔮</span>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-black ${darkMode ? 'text-white' : 'text-gray-900'}`}>생월·생일 설정</p>
+                      <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-purple-600'}`}>사주·운세·궁합 기능에 필요해요</p>
+                    </div>
+                    {hasBd && (
+                      <span className="text-[10px] font-black px-2 py-0.5 bg-purple-500 text-white rounded-full flex-shrink-0">
+                        {me.birth_month}월 {me.birth_day}일 저장됨 ✓
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <p className={`text-xs font-bold mb-1 ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>월</p>
+                      <div className={`border-2 rounded-xl overflow-hidden ${darkMode ? 'border-slate-600 bg-slate-700' : 'border-purple-200 bg-white'}`}>
+                        <DrumRoller
+                          items={Array.from({length: 12}, (_, i) => i + 1)}
+                          selected={sajuBirthMonth}
+                          onSelect={setSajuBirthMonth}
+                          renderItem={(v) => `${v}월`}
+                          itemHeight={36}
+                          visibleCount={3}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <p className={`text-xs font-bold mb-1 ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>일</p>
+                      <div className={`border-2 rounded-xl overflow-hidden ${darkMode ? 'border-slate-600 bg-slate-700' : 'border-purple-200 bg-white'}`}>
+                        <DrumRoller
+                          items={Array.from({length: 31}, (_, i) => i + 1)}
+                          selected={sajuBirthDay}
+                          onSelect={setSajuBirthDay}
+                          renderItem={(v) => `${v}일`}
+                          itemHeight={36}
+                          visibleCount={3}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={saveSajuBirthDate}
+                    disabled={sajuSaving || (sajuBirthMonth === null || sajuBirthDay === null)}
+                    className="mt-3 w-full py-2.5 bg-gradient-to-r from-purple-500 to-violet-500 hover:from-purple-600 hover:to-violet-600 text-white font-bold rounded-xl text-sm disabled:opacity-40 active:scale-[0.98] transition-all">
+                    {sajuSaving ? '저장 중...' : '생월·생일 저장하기'}
+                  </button>
+                </div>
+              );
+            })()}
             <FortuneTab
               currentUserId={currentUserId}
               myProfile={profiles.find(p => p.id === currentUserId) ?? null}
