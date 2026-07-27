@@ -4968,6 +4968,12 @@ function App() {
         currentUserProfile={profiles.find(p => p.id === currentUserId) ?? null}
         receivedContactShares={receivedContactShares}
         contactSharedWithIds={contactSharedWithIds}
+        onGoToTab={(tab) => {
+          chatIdRef.current = null;
+          setChatId(null);
+          setView('main');
+          setMainTab(tab === 'fortune' ? 'fortune' : tab === 'status' ? 'status' : tab);
+        }}
       />
     </>
   );
@@ -7980,7 +7986,7 @@ function ProfileDetail({ profile, isMe, isLiked, heartType, sentHeartsCount, onL
 
 // ─── Chat Screen ──────────────────────────────────────────────────────────────
 
-function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onSendImage, onBack, onReset, onDeleteMessage, currentUserProfile, receivedContactShares, contactSharedWithIds }: {
+function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onSendImage, onBack, onReset, onDeleteMessage, currentUserProfile, receivedContactShares, contactSharedWithIds, onGoToTab }: {
   chatId: string;
   messages: Message[]; currentUserId: string; otherProfile: Profile;
   onSend: (content: string) => void;
@@ -7990,6 +7996,7 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   currentUserProfile: Profile | null;
   receivedContactShares?: ContactShare[];
   contactSharedWithIds?: Set<string>;
+  onGoToTab?: (tab: string) => void;
 }) {
   const [input, setInput] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
@@ -8210,12 +8217,12 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   };
 
   // 연락처 공유
+  const [showNoContactModal, setShowNoContactModal] = useState(false);
   const handleShareContact = () => {
     if (!currentUserProfile) return;
     const { kakao_id, instagram_id, phone_number } = currentUserProfile;
     if (!kakao_id && !instagram_id && !phone_number) {
-      setChatError('프로필에 연락처가 등록되지 않았습니다.');
-      setTimeout(() => setChatError(''), 3000);
+      setShowNoContactModal(true);
       return;
     }
     const parts: string[] = [];
@@ -8286,6 +8293,28 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
         </div>
       )}
 
+      {/* 연락처 미등록 안내 모달 */}
+      {showNoContactModal && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowNoContactModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xs p-6 text-center" onClick={e => e.stopPropagation()}>
+            <p className="text-3xl mb-3">📱</p>
+            <h3 className="font-black text-gray-900 text-base mb-1">연락처가 등록되어 있지 않아요</h3>
+            <p className="text-xs text-gray-500 leading-relaxed mb-5">
+              카카오톡·인스타그램·전화번호 중<br/>하나 이상을 등록해야 공유할 수 있어요.
+            </p>
+            <div className="space-y-2">
+              <button
+                onClick={() => { setShowNoContactModal(false); onGoToTab?.('status'); onBack(); }}
+                className="w-full py-3 bg-gradient-to-r from-cyan-500 to-teal-500 text-white font-bold rounded-xl text-sm active:scale-95 transition-all">
+                📋 내 상태 탭에서 등록하러 가기
+              </button>
+              <button onClick={() => setShowNoContactModal(false)}
+                className="w-full py-2.5 text-gray-500 text-sm font-semibold">취소</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 사주 모달 */}
       {showSajuModal && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowSajuModal(false)}>
@@ -8296,6 +8325,19 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
               <p className="text-xs text-amber-100 mt-0.5">생년월일 기반 · 오늘 하루 운세</p>
             </div>
             <div className="overflow-y-auto p-5 space-y-4">
+              {/* 내 생월·생일 미등록 → 등록 안내 */}
+              {!myBirth && (
+                <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 text-center">
+                  <p className="text-2xl mb-1">⚠️</p>
+                  <p className="text-sm font-black text-amber-800 mb-0.5">내 생월·생일이 없어요</p>
+                  <p className="text-xs text-amber-600 mb-3 leading-relaxed">운세·사주 탭에서 생월·생일을 등록하면<br/>내 사주를 확인할 수 있어요.</p>
+                  <button
+                    onClick={() => { setShowSajuModal(false); onGoToTab?.('fortune'); onBack(); }}
+                    className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-sm active:scale-95 transition-all">
+                    🔮 운세 탭에서 등록하러 가기
+                  </button>
+                </div>
+              )}
               {[
                 { label: currentUserProfile?.nickname ?? '나', birth: myBirth, fortune: myFortune, color: 'cyan' },
                 { label: otherProfile.nickname, birth: theirBirth, fortune: theirFortune, color: 'pink' },
@@ -8306,11 +8348,13 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
                     {birth ? (
                       <span className="text-xs text-gray-400">{birth.y}년생 · {getZodiac(birth.y).emoji}{getZodiac(birth.y).name}띠 · {getOhaeng(birth.y)}</span>
                     ) : (
-                      <span className="text-xs text-gray-400">생년월일 없음</span>
+                      <span className="text-xs text-red-400 font-semibold">생년월일 미등록</span>
                     )}
                   </div>
                   {!birth || !fortune ? (
-                    <div className="px-4 py-3 text-sm text-gray-400">생년월일 미등록 — 사주를 볼 수 없어요</div>
+                    <div className="px-4 py-3 text-xs text-gray-400 italic">
+                      {birth ? '사주 계산 중...' : '생년월일 등록 후 확인 가능해요'}
+                    </div>
                   ) : (
                     <div className="px-4 py-3 space-y-2">
                       <div className="flex items-center justify-between">
@@ -8350,10 +8394,23 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
             </div>
             <div className="overflow-y-auto p-5 space-y-4">
               {!hasBothBirthdays ? (
-                <div className="text-center py-6">
+                <div className="text-center py-4">
                   <p className="text-3xl mb-2">😔</p>
-                  <p className="text-gray-700 font-semibold">생년월일 정보가 부족해요</p>
-                  <p className="text-xs text-gray-400 mt-1">두 분 모두 프로필에 생년월일이 등록되어 있어야 합니다</p>
+                  <p className="text-gray-700 font-semibold mb-1">생년월일 정보가 부족해요</p>
+                  {!myBirth && (
+                    <div className="rounded-xl bg-purple-50 border border-purple-200 p-3 mb-3 text-left">
+                      <p className="text-xs font-black text-purple-700 mb-0.5">내 생월·생일이 미등록</p>
+                      <p className="text-[11px] text-purple-600 leading-relaxed mb-2">운세 탭에서 생월·생일을 등록해야 궁합을 볼 수 있어요.</p>
+                      <button
+                        onClick={() => { setShowCompatModal(false); onGoToTab?.('fortune'); onBack(); }}
+                        className="w-full py-2 bg-gradient-to-r from-purple-500 to-violet-500 text-white font-bold rounded-lg text-xs active:scale-95 transition-all">
+                        🔮 운세 탭에서 등록하러 가기
+                      </button>
+                    </div>
+                  )}
+                  {myBirth && !theirBirth && (
+                    <p className="text-xs text-gray-400 mt-1">{otherProfile.nickname}님의 생년월일이 등록되지 않았어요</p>
+                  )}
                 </div>
               ) : (
                 <>
