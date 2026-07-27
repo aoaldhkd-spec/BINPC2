@@ -12,11 +12,6 @@ export function useSeating(currentUserId: string | null) {
     } catch { return []; }
   });
   const [seatDialog, setSeatDialog] = useState<Seat | null>(null);
-  const [autoRegisterSeat, setAutoRegisterSeat] = useState<Seat | null>(null);
-
-  // Refs for QR auto-register flow (passed to App.tsx for use in useEffects that need setMainTab)
-  const shouldShowStatusAfterSeat = useRef(false);
-  const prevUserSeatId = useRef<string | null>(null);
 
   const loadSeats = useCallback(async () => {
     const { data } = await supabase.from('seats').select('*').order('table_number').order('seat_position');
@@ -61,9 +56,6 @@ export function useSeating(currentUserId: string | null) {
   return {
     seats, setSeats,
     seatDialog, setSeatDialog,
-    autoRegisterSeat, setAutoRegisterSeat,
-    shouldShowStatusAfterSeat,
-    prevUserSeatId,
     loadSeats,
     handleRegisterSeat,
   };

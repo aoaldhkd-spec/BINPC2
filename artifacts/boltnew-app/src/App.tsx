@@ -200,12 +200,7 @@ async function registerPushSub(userId: string): Promise<void> {
 
 function App() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(() => {
-    const existingId = ls.getItem(MATCHING_USER_KEY);
-    if (existingId) return existingId;
-    if (new URLSearchParams(window.location.search).get('table')) {
-      ls.removeItem(MATCHING_DRAFT_KEY);
-    }
-    return null;
+    return ls.getItem(MATCHING_USER_KEY) ?? null;
   });
   const userIdRef = useRef<string | null>(null);
   userIdRef.current = currentUserId;
@@ -277,9 +272,6 @@ function App() {
   const [entryVerified, setEntryVerified] = useState(false);
   const [darkMode, setDarkMode] = useState(() => ls.getItem('dark_mode') === '1');
 
-  const pendingTableNum = useRef<number | null>(
-    (() => { const t = new URLSearchParams(window.location.search).get('table'); return t ? parseInt(t, 10) : null; })()
-  );
   // Track user's current table number for notification targeting (ref for stable access in channel callbacks)
   const userTableNumRef = useRef<number | null>(null);
 
@@ -289,8 +281,8 @@ function App() {
 
   // ── 커스텀 훅 호출 ────────────────────────────────────────────────────────────
   const {
-    seats, setSeats, seatDialog, setSeatDialog, autoRegisterSeat, setAutoRegisterSeat,
-    shouldShowStatusAfterSeat, prevUserSeatId, loadSeats, handleRegisterSeat,
+    seats, setSeats, seatDialog, setSeatDialog,
+    loadSeats, handleRegisterSeat,
   } = useSeating(currentUserId);
 
   const {
@@ -584,24 +576,6 @@ function App() {
       loadBalanceGames();
       loadMyVotes(currentUserId);
     }, 600);
-
-    if (pendingTableNum.current !== null) {
-      const tableNum = pendingTableNum.current;
-      pendingTableNum.current = null;
-      window.history.replaceState({}, '', window.location.pathname);
-      // 두 쿼리를 병렬 실행 + 중간 state(setAutoRegisterSeat) 제거 → useEffect 한 사이클 절약
-      (async () => {
-        const [{ data: myCurrentSeat }, { data: emptySeats, error }] = await Promise.all([
-          supabase.from('seats').select('*').eq('profile_id', currentUserId).maybeSingle() as Promise<{ data: any }>,
-          supabase.from('seats').select('*').eq('table_number', tableNum).eq('status', 'empty').order('seat_position', { ascending: true }) as Promise<{ data: any; error: any }>,
-        ]);
-        if (myCurrentSeat) return; // 이미 자리 있음
-        if (error) { alert('좌석 정보를 불러오지 못했습니다. 다시 QR을 스캔해 주세요.'); return; }
-        if (!emptySeats || emptySeats.length === 0) { alert(`${tableNum}번 테이블에 빈 자리가 없습니다. 관리자에게 문의해 주세요.`); return; }
-        shouldShowStatusAfterSeat.current = true;
-        await handleRegisterSeat(emptySeats[0], seatingLocked, currentUserSeat);
-      })();
-    }
 
     // ── ?share=<profileId> 처리: 연락처 QR 스캔 → 채팅 자동 오픈 + 연락처 수신 ──
     if (pendingShareId && pendingShareId !== currentUserId) {
@@ -990,25 +964,6 @@ function App() {
 
 
 
-
-  // Auto-register seat from entry QR (no confirmation dialog)
-  useEffect(() => {
-    if (!autoRegisterSeat) return;
-    const seat = autoRegisterSeat;
-    setAutoRegisterSeat(null);
-    shouldShowStatusAfterSeat.current = true;
-    handleRegisterSeat(seat, seatingLocked, currentUserSeat);
-  }, [autoRegisterSeat]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Navigate to '내 상태' tab after first seat is assigned via entry QR
-  useEffect(() => {
-    const newId = currentUserSeat?.id ?? null;
-    if (!prevUserSeatId.current && newId && shouldShowStatusAfterSeat.current) {
-      setMainTab('profiles');
-      shouldShowStatusAfterSeat.current = false;
-    }
-    prevUserSeatId.current = newId;
-  }, [currentUserSeat]);
 
   const reset = () => {
     ls.removeItem(MATCHING_USER_KEY);

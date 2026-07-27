@@ -24,7 +24,7 @@ export function LikeConfirmDialog({
           </div>
           <p className="text-lg font-bold text-gray-900">{target.nickname}</p>
           <p className="text-xs text-teal-600 font-semibold mt-1">
-            💡 4가지 종류 하트를 각각 1번씩 보낼 수 있어요
+            💡 한 사람에게도 종류별로 하트를 보낼 수 있어요
           </p>
           {sentTypesForTarget.size > 0 && (
             <p className="text-xs text-gray-400 mt-1">
