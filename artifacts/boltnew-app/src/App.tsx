@@ -7087,7 +7087,7 @@ function MainScreen({
                           <img src={me.photo_url} alt={me.nickname} className="w-full h-full object-cover" />
                         </div>
                         {/* 사진 업로드 버튼 */}
-                        <label className={`absolute -bottom-1 -right-1 w-7 h-7 rounded-full flex items-center justify-center cursor-pointer shadow-md active:scale-90 transition-all ${photoUploading ? 'bg-gray-400' : 'bg-pink-500 hover:bg-pink-600'}`}>
+                        <label className={`absolute -bottom-1 -right-1 w-7 h-7 rounded-full flex items-center justify-center cursor-pointer shadow-md active:scale-90 transition-all ${photoUploading ? 'bg-gray-400' : 'bg-gray-600 hover:bg-gray-700'}`}>
                           {photoUploading
                             ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
                             : <Camera className="w-3.5 h-3.5 text-white" />
