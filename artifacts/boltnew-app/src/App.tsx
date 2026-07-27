@@ -3929,8 +3929,9 @@ function App() {
     if (data.length === 0) { setChatList([]); return; }
     // Batch: 한 번의 메시지 조회로 모든 채팅의 최근 메시지를 채운다 (N+1 방지)
     const chatIds = data.map(c => c.id);
+    // limit: 채팅방당 최신 1개만 필요하므로 chatIds.length * 2 로 제한 (전체 조회 방지)
     const { data: allMsgs } = await supabase.from('messages').select('chat_id, content, created_at')
-      .in('chat_id', chatIds).order('created_at', { ascending: false });
+      .in('chat_id', chatIds).order('created_at', { ascending: false }).limit(Math.max(chatIds.length * 2, 40));
     const latestByChat = new Map<string, { content: string; created_at: string }>();
     if (allMsgs) {
       for (const m of allMsgs) {
@@ -4677,7 +4678,12 @@ function App() {
 
   const loadMessages = useCallback(async (cid: string) => {
     const { data } = await supabase.from('messages').select('*').eq('chat_id', cid).order('created_at', { ascending: true });
-    if (data) setMessages(data);
+    if (data) setMessages(prev => {
+      // DB가 source of truth. 단, 아직 서버에 없는 낙관적 메시지(__opt_)는 유지
+      const dbIds = new Set(data.map(m => m.id));
+      const optimistic = prev.filter(m => m.id.startsWith('__opt_') && !dbIds.has(m.id));
+      return [...data, ...optimistic];
+    });
   }, []);
 
   useEffect(() => {
@@ -4688,7 +4694,6 @@ function App() {
     chatIdRef.current = chatId;
     // 채팅방 진입 시 이 채팅의 unread 카운트 확실히 초기화
     setUnreadChatCounts(prev => { const n = { ...prev }; delete n[chatId]; return n; });
-    loadMessages(chatId);
     // 읽음 처리: 내가 이 채팅방을 열었음을 서버에 알림
     if (currentUserId) {
       supabase.from('chat_reads').upsert({
@@ -4698,6 +4703,8 @@ function App() {
         read_at: new Date().toISOString(),
       }, { onConflict: 'id' }).then(() => {});
     }
+    // ⚠️ 구독을 먼저 걸고 loadMessages 호출 — 구독 전에 도착한 메시지를 loadMessages가 커버
+    // loadMessages는 setMessages를 merge 방식으로 처리하므로 이벤트 중복도 안전
     const channel = supabase
       .channel(`chat:${chatId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `chat_id=eq.${chatId}` },
@@ -4721,6 +4728,7 @@ function App() {
           });
         })
       .subscribe();
+    loadMessages(chatId);
     return () => { supabase.removeChannel(channel); };
   }, [chatId, loadMessages, currentUserId]);
 
