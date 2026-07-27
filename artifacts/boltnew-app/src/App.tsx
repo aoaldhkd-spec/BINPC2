@@ -3,7 +3,7 @@ import {
   Heart, MessageCircle, Send, ArrowLeft, Users, ChevronRight, ChevronDown,
   LayoutGrid, Clock, Smile, ImageIcon, Phone, CheckCircle, Copy,
   Eye, UserCheck, Gamepad2, X, MapPin, RefreshCw, Info, BookOpen,
-  BarChart3, Trophy, Lock, XCircle, Wifi, WifiOff, QrCode, AlertTriangle, ShieldAlert, Maximize2, Sparkles,
+  BarChart3, Trophy, Lock, XCircle, Wifi, WifiOff, QrCode, AlertTriangle, ShieldAlert, Maximize2, Sparkles, Camera,
 } from 'lucide-react';
 import { supabase } from './lib/supabase';
 import type { Database } from './types/database';
@@ -3451,6 +3451,20 @@ function playCuteSound() {
   } catch { /* 소리 재생 실패는 무시 */ }
 }
 
+// ── MBTI 배지 색상 ─────────────────────────────────────────────────────────────
+function getMbtiStyle(mbti: string | null): { bg: string; color: string; border: string } {
+  if (!mbti) return { bg: '#f3f4f6', color: '#6b7280', border: '#e5e7eb' };
+  const g = mbti.length >= 3
+    ? (mbti[1] === 'N' ? (mbti[2] === 'T' ? 'NT' : 'NF') : (mbti[2] === 'J' ? 'SJ' : 'SP'))
+    : 'NT';
+  return ({
+    NT: { bg: '#ede9fe', color: '#7c3aed', border: '#c4b5fd' },
+    NF: { bg: '#fce7f3', color: '#be185d', border: '#f9a8d4' },
+    SJ: { bg: '#fef3c7', color: '#b45309', border: '#fcd34d' },
+    SP: { bg: '#cffafe', color: '#0e7490', border: '#67e8f9' },
+  } as Record<string, { bg: string; color: string; border: string }>)[g] ?? { bg: '#f3f4f6', color: '#6b7280', border: '#e5e7eb' };
+}
+
 // ── Web Push helpers ───────────────────────────────────────────────────────────
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -4451,6 +4465,33 @@ function App() {
     pink: heartCountByType('pink'),
     green: heartCountByType('green'),
   });
+
+  // ── 프로필 사진 업로드 ────────────────────────────────────────────────────────
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !currentUserId) return;
+    setPhotoUploading(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = async (ev) => {
+        const dataUrl = ev.target?.result as string;
+        if (!dataUrl) { setPhotoUploading(false); return; }
+        const path = `profile-photos/${currentUserId}`;
+        await fetch('/api/db/storage-upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path, dataUrl }),
+        });
+        const photoUrl = `/api/db/storage-image?p=${encodeURIComponent(path)}`;
+        await supabase.from('profiles').update({ photo_url: photoUrl } as never).eq('id', currentUserId);
+        setPhotoUploading(false);
+      };
+      reader.readAsDataURL(file);
+    } catch { setPhotoUploading(false); }
+    // 같은 파일 재선택 허용
+    e.target.value = '';
+  };
 
   const executeLike = async (heartType: HeartType) => {
     if (!currentUserId || !likeConfirmTarget) return;
@@ -6872,21 +6913,33 @@ function MainScreen({
                 <div className="mb-3">
                   <p className={`text-[10px] font-black uppercase tracking-widest mb-1.5 ${darkMode ? 'text-amber-400' : 'text-amber-500'}`}>내 카드 👤</p>
                   <div
-                    className="group relative bg-white rounded-xl overflow-hidden shadow-sm border-2 border-amber-400 ring-2 ring-amber-300/50 cursor-pointer active:scale-[0.98] transition-all"
+                    className="group relative bg-white rounded-2xl overflow-hidden shadow-md border-2 border-amber-400 ring-2 ring-amber-200/60 cursor-pointer active:scale-[0.98] transition-all"
                     onClick={() => onSelect(myProfile)}>
-                    <div className="absolute top-1.5 left-1.5 z-10 px-1.5 py-0.5 bg-amber-400 rounded-full shadow text-[9px] font-black text-white">나</div>
-                    <div className="flex items-stretch min-h-[5rem]">
-                      <div className="w-14 flex-shrink-0 flex flex-col items-center justify-center gap-0.5 px-0.5 py-1" style={{ backgroundColor: posColor }}>
-                        <span className="text-[8px] font-black text-white leading-tight text-center w-full overflow-hidden" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{posLabel}</span>
-                        {myProfile.mbti && <span className="text-[8px] font-bold text-white/85 leading-none block w-full text-center truncate">{myProfile.mbti}</span>}
+                    <div className="flex gap-3 p-3">
+                      {/* 프로필 사진 */}
+                      <div className="relative flex-shrink-0">
+                        <div className="w-[72px] h-[72px] rounded-2xl overflow-hidden border border-gray-200 shadow-sm bg-gray-100">
+                          <img src={myProfile.photo_url} alt={myProfile.nickname} className="w-full h-full object-cover" />
+                        </div>
+                        <div className="absolute -top-1.5 -left-1.5 z-10 px-1.5 py-0.5 bg-amber-400 rounded-full shadow text-[9px] font-black text-white leading-none">나</div>
                       </div>
-                      <div className="flex-1 min-w-0 px-2 py-2 flex flex-col justify-center gap-0.5">
-                        <p className="font-black text-gray-900 text-xs truncate leading-tight">{myProfile.nickname}</p>
-                        {myProfile.birth_year && <p className="text-[9px] text-gray-400 truncate">{age}{myProfile.location ? ` · ${myProfile.location}` : ''}</p>}
+                      {/* 텍스트 정보 */}
+                      <div className="flex-1 min-w-0 flex flex-col justify-center gap-1">
+                        <p className="font-black text-gray-900 text-base leading-tight truncate">{myProfile.nickname}</p>
+                        {myProfile.birth_year && (
+                          <p className="text-[11px] text-gray-400 leading-none">{age}세</p>
+                        )}
+                        <div className="flex items-center gap-1 flex-wrap mt-0.5">
+                          {myProfile.mbti && (() => {
+                            const ms = getMbtiStyle(myProfile.mbti);
+                            return <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md border" style={{ backgroundColor: ms.bg, color: ms.color, borderColor: ms.border }}>{myProfile.mbti}</span>;
+                          })()}
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md text-white leading-tight" style={{ backgroundColor: posColor }}>{posLabel}</span>
+                        </div>
                         {bioTags.length > 0 && (
-                          <div className="flex flex-wrap gap-0.5">
-                            {bioTags.map(tag => (
-                              <span key={tag} className="text-[8px] font-semibold px-1 py-0.5 rounded-full bg-orange-50 text-orange-500 border border-orange-200">#{tag}</span>
+                          <div className="flex flex-wrap gap-0.5 mt-0.5">
+                            {bioTags.slice(0, 3).map(tag => (
+                              <span key={tag} className="text-[8px] font-semibold px-1.5 py-0.5 rounded-full bg-pink-50 text-pink-500 border border-pink-100">#{tag}</span>
                             ))}
                           </div>
                         )}
@@ -6909,46 +6962,64 @@ function MainScreen({
               const age = getKoreanAge(profile.birth_year);
               return (
               <div key={profile.id}
-                className="group relative bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer active:scale-[0.98] border border-gray-100"
+                className="group relative bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-200 cursor-pointer active:scale-[0.97] border border-gray-100"
                 onClick={() => onSelect(profile)}>
-                <div className="flex items-stretch min-h-[5rem]">
-                  <div className="w-14 flex-shrink-0 flex flex-col items-center justify-center gap-0.5 px-0.5 py-1"
-                    style={{ backgroundColor: posColor }}>
-                    <span className="text-[8px] font-black text-white leading-tight text-center w-full overflow-hidden" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{posLabel}</span>
-                    {profile.mbti && (
-                      <span className="text-[8px] font-bold text-white/85 leading-none block w-full text-center truncate">{profile.mbti}</span>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0 px-2 py-2 flex flex-col justify-center gap-0.5">
-                    <p className="font-black text-gray-900 text-xs truncate leading-tight">{profile.nickname}</p>
-                    {profile.birth_year && <p className="text-[9px] text-gray-400 truncate">{age}{profile.location ? ` · ${profile.location}` : ''}</p>}
-                    {bioTags.length > 0 && (
-                      <div className="flex flex-wrap gap-0.5">
-                        {bioTags.map(tag => (
-                          <span key={tag} className="text-[8px] font-semibold px-1 py-0.5 rounded-full bg-orange-50 text-orange-500 border border-orange-200">#{tag}</span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+
+                {/* ── 사진 영역 ── */}
+                <div className="relative aspect-square bg-gray-100">
+                  <img
+                    src={profile.photo_url}
+                    alt={profile.nickname}
+                    className="w-full h-full object-cover"
+                  />
+                  {/* 하단 그라데이션 — 가독성 */}
+                  <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
+                  {/* 하트 버튼 */}
+                  {canLike && !seatingLocked && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onLike(profile.id); }}
+                      disabled={isLiked && (sentHeartsPerPerson.get(profile.id)?.size ?? 0) >= 4}
+                      className="absolute top-2 right-2 w-7 h-7 bg-white/85 backdrop-blur-sm rounded-full flex items-center justify-center shadow-md active:scale-90 transition-transform">
+                      {isLiked && sentHeartsPerPerson.get(profile.id)
+                        ? <span className="text-sm leading-none relative">
+                            {heartMeta(sentHeartTypes.get(profile.id)!).emoji}
+                            {(sentHeartsPerPerson.get(profile.id)?.size ?? 0) > 1 && (
+                              <span className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 text-white text-[7px] font-black rounded-full flex items-center justify-center">{sentHeartsPerPerson.get(profile.id)!.size}</span>
+                            )}
+                          </span>
+                        : isLiked
+                          ? <Heart className="w-4 h-4" style={{ fill: '#e11d48', stroke: '#9f0a28', strokeWidth: 1.5 }} />
+                          : <Heart className="w-4 h-4" style={{ fill: 'rgba(255,255,255,0.9)', stroke: '#be123c', strokeWidth: 2 }} />
+                      }
+                    </button>
+                  )}
                 </div>
-                {canLike && !seatingLocked && (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onLike(profile.id); }}
-                    disabled={isLiked && (sentHeartsPerPerson.get(profile.id)?.size ?? 0) >= 4}
-                    className="absolute top-1.5 right-1.5 p-1.5 transition-all duration-200 active:scale-90 drop-shadow-md">
-                    {isLiked && sentHeartsPerPerson.get(profile.id)
-                      ? <span className="text-xl leading-none select-none drop-shadow relative">
-                          {heartMeta(sentHeartTypes.get(profile.id)!).emoji}
-                          {(sentHeartsPerPerson.get(profile.id)?.size ?? 0) > 1 && (
-                            <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-rose-500 text-white text-[8px] font-black rounded-full flex items-center justify-center">{sentHeartsPerPerson.get(profile.id)!.size}</span>
-                          )}
-                        </span>
-                      : isLiked
-                        ? <Heart className="w-5 h-5" style={{ fill: '#e11d48', stroke: '#9f0a28', strokeWidth: 1.5 }} />
-                        : <Heart className="w-5 h-5" style={{ fill: 'rgba(255,255,255,0.85)', stroke: '#be123c', strokeWidth: 2.5 }} />
-                    }
-                  </button>
-                )}
+
+                {/* ── 정보 영역 ── */}
+                <div className="p-2.5 pb-3">
+                  {/* 닉네임 — 크고 굵게 */}
+                  <p className="font-black text-gray-900 text-sm leading-tight truncate">{profile.nickname}</p>
+                  {/* 나이 */}
+                  {profile.birth_year && (
+                    <p className="text-[10px] text-gray-400 mt-0.5 leading-none">{age}세</p>
+                  )}
+                  {/* MBTI + 성향 배지 */}
+                  <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+                    {profile.mbti && (() => {
+                      const ms = getMbtiStyle(profile.mbti);
+                      return <span className="text-[8px] font-black px-1.5 py-0.5 rounded-md border leading-tight" style={{ backgroundColor: ms.bg, color: ms.color, borderColor: ms.border }}>{profile.mbti}</span>;
+                    })()}
+                    <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-md text-white leading-tight" style={{ backgroundColor: posColor }}>{posLabel}</span>
+                  </div>
+                  {/* 관심사 태그 */}
+                  {bioTags.length > 0 && (
+                    <div className="flex flex-wrap gap-0.5 mt-1.5">
+                      {bioTags.slice(0, 2).map(tag => (
+                        <span key={tag} className="text-[8px] font-semibold px-1.5 py-0.5 rounded-full bg-pink-50 text-pink-500 border border-pink-100">#{tag}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
               );
             })}
@@ -7009,13 +7080,23 @@ function MainScreen({
                 <div className={`rounded-3xl p-5 border shadow-xl transition-colors duration-300 ${darkMode ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600' : 'bg-white border-gray-100'}`}>
                   <p className={`text-[10px] font-black uppercase tracking-widest mb-3 ${darkMode ? 'text-slate-300' : 'text-gray-400'}`}>내 프로필</p>
                   <div className="flex gap-4">
-                    {/* 프로필 이미지 + QR */}
+                    {/* 프로필 사진 + 업로드 + QR */}
                     <div className="flex-shrink-0">
-                      <div className="w-20 h-20 rounded-2xl overflow-hidden border-2 border-cyan-500/50 shadow-lg shadow-cyan-500/20">
-                        <ProfileAvatar profile={me} size="lg" rounded="2xl" className="w-full h-full" />
+                      <div className="relative w-20 h-20">
+                        <div className="w-20 h-20 rounded-2xl overflow-hidden border-2 border-cyan-500/50 shadow-lg shadow-cyan-500/20 bg-gray-100">
+                          <img src={me.photo_url} alt={me.nickname} className="w-full h-full object-cover" />
+                        </div>
+                        {/* 사진 업로드 버튼 */}
+                        <label className={`absolute -bottom-1 -right-1 w-7 h-7 rounded-full flex items-center justify-center cursor-pointer shadow-md active:scale-90 transition-all ${photoUploading ? 'bg-gray-400' : 'bg-pink-500 hover:bg-pink-600'}`}>
+                          {photoUploading
+                            ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            : <Camera className="w-3.5 h-3.5 text-white" />
+                          }
+                          <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} disabled={photoUploading} />
+                        </label>
                       </div>
                       {currentUserSeat && (
-                        <div className="mt-1.5 text-center">
+                        <div className="mt-2 text-center">
                           <span className="text-[10px] font-black text-amber-400">{currentUserSeat.table_number}번 {tableLetter}테이블</span>
                         </div>
                       )}
