@@ -83,7 +83,7 @@ const ProfileCard = memo(function ProfileCard({
       <div className="relative bg-gray-100" style={{ aspectRatio: '3/4' }}>
         <img src={profile.photo_url} alt={profile.nickname} className="w-full h-full object-cover" />
         {/* 하단 그라데이션 */}
-        <div className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/75 via-black/25 to-transparent pointer-events-none" />
+        <div className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/80 via-black/30 to-transparent pointer-events-none" />
         {/* MBTI 배지 — 좌상단 */}
         {msStyle && (
           <span
@@ -93,53 +93,53 @@ const ProfileCard = memo(function ProfileCard({
             {profile.mbti}
           </span>
         )}
-        {/* 하트 버튼 — 우상단 */}
-        {canLike && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onLike(profile.id); }}
-            disabled={isLiked && heartCount >= 4}
-            className="absolute top-1.5 right-1.5 w-7 h-7 bg-white/85 backdrop-blur-sm rounded-full flex items-center justify-center shadow-md active:scale-90 transition-transform"
-          >
-            {isLiked && sentHeartType
-              ? <span className="text-sm leading-none relative">
-                  {heartMeta(sentHeartType).emoji}
-                  {heartCount > 1 && (
-                    <span className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 text-white text-[7px] font-black rounded-full flex items-center justify-center">{heartCount}</span>
-                  )}
-                </span>
-              : isLiked
-                ? <Heart className="w-4 h-4" style={{ fill: '#e11d48', stroke: '#9f0a28', strokeWidth: 1.5 }} />
-                : <Heart className="w-4 h-4" style={{ fill: 'rgba(255,255,255,0.9)', stroke: '#be123c', strokeWidth: 2 }} />
-            }
-          </button>
-        )}
-        {/* 채팅 버튼 — 하트 아래 (간격 확보) */}
-        {canLike && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onOpenChat(profile); }}
-            className="absolute top-[2.75rem] right-1.5 w-7 h-7 bg-sky-400/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-md active:scale-90 transition-transform"
-          >
-            <MessageCircle className="w-4 h-4 stroke-white stroke-2" fill="none" />
-          </button>
-        )}
-        {/* 닉네임+나이 오버레이 */}
-        <div className="absolute inset-x-0 bottom-0 px-2.5 pb-2">
-          <p className="font-black text-white text-[13px] leading-tight truncate drop-shadow">{profile.nickname}</p>
-          {profile.birth_year && <p className="text-[10px] text-white/70 leading-none mt-0.5">{age}</p>}
-        </div>
-      </div>
-      {/* ── 배지 영역 ── */}
-      <div className="px-2.5 py-2 flex flex-wrap items-center gap-1 min-h-[32px]">
+        {/* 성향 배지 — 우상단 */}
         <span
-          className="text-[8px] font-bold px-1.5 py-0.5 rounded-lg leading-tight border"
-          style={{ backgroundColor: posStyle.bg, color: posStyle.text, borderColor: posStyle.border }}
+          className="absolute top-1.5 right-1.5 text-[8px] font-bold px-1.5 py-0.5 rounded-lg border leading-tight shadow-sm backdrop-blur-sm"
+          style={{ backgroundColor: posStyle.bg + 'dd', color: posStyle.text, borderColor: posStyle.border }}
         >
           {posLabel}
         </span>
-        {bioTags.map(tag => (
-          <span key={tag} className="text-[8px] font-semibold px-1.5 py-0.5 rounded-full bg-pink-50 text-pink-500 border border-pink-100">#{tag}</span>
-        ))}
+        {/* 닉네임+나이 오버레이 */}
+        <div className="absolute inset-x-0 bottom-0 px-2.5 pb-2.5">
+          <p className="font-black text-white text-[13px] leading-tight truncate drop-shadow-md">{profile.nickname}</p>
+          {profile.birth_year && <p className="text-[10px] text-white/70 leading-none mt-0.5">{age}</p>}
+        </div>
       </div>
+
+      {/* ── 액션 버튼 행 ── */}
+      {canLike ? (
+        <div className="grid grid-cols-2 gap-px bg-gray-100">
+          {/* 하트 버튼 */}
+          <button
+            onClick={(e) => { e.stopPropagation(); onLike(profile.id); }}
+            disabled={isLiked && heartCount >= 4}
+            className={`flex items-center justify-center gap-1.5 py-2.5 text-[10px] font-bold transition-colors active:opacity-70
+              ${isLiked ? 'bg-rose-500 text-white' : 'bg-white text-rose-500'}`}
+          >
+            {isLiked && sentHeartType
+              ? <span className="text-[13px] leading-none">{heartMeta(sentHeartType).emoji}</span>
+              : <Heart className="w-3.5 h-3.5" fill={isLiked ? 'currentColor' : 'none'} strokeWidth={2.5} />
+            }
+            <span>{isLiked && heartCount > 1 ? `하트 ${heartCount}` : '하트'}</span>
+          </button>
+          {/* 채팅 버튼 */}
+          <button
+            onClick={(e) => { e.stopPropagation(); onOpenChat(profile); }}
+            className="flex items-center justify-center gap-1.5 py-2.5 bg-white text-sky-500 text-[10px] font-bold transition-colors active:opacity-70"
+          >
+            <MessageCircle className="w-3.5 h-3.5" strokeWidth={2.5} />
+            <span>채팅하기</span>
+          </button>
+        </div>
+      ) : (
+        /* 본인 카드: 배지만 */
+        <div className="px-2.5 py-2 flex flex-wrap gap-1">
+          {bioTags.map(tag => (
+            <span key={tag} className="text-[8px] font-semibold px-1.5 py-0.5 rounded-full bg-pink-50 text-pink-500 border border-pink-100">#{tag}</span>
+          ))}
+        </div>
+      )}
     </div>
   );
 });
