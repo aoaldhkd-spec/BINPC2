@@ -74,6 +74,16 @@ const ProfileCard = memo(function ProfileCard({
   const age = getKoreanAge(profile.birth_year);
   const msStyle = profile.mbti ? getMbtiStyle(profile.mbti) : null;
 
+  // 이미지 비율 자동 감지: 3:4(세로형)에 가까우면 꽉 채움, 아니면 내부 박스에 가둠
+  const [imgFit, setImgFit] = useState<'cover' | 'contain'>('cover');
+  const handleImgLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const { naturalWidth: w, naturalHeight: h } = e.currentTarget;
+    if (!w || !h) return;
+    const ratio = w / h;
+    // 3:4 = 0.75 기준 ±20% 이내면 cover, 벗어나면 contain
+    setImgFit(Math.abs(ratio - 0.75) / 0.75 < 0.20 ? 'cover' : 'contain');
+  };
+
   return (
     <div
       className="group relative bg-white rounded-2xl overflow-hidden shadow-sm active:scale-[0.97] cursor-pointer border border-gray-100 transition-transform duration-150"
@@ -81,7 +91,12 @@ const ProfileCard = memo(function ProfileCard({
     >
       {/* ── 사진 (3:4 세로형) ── */}
       <div className="relative bg-gray-100" style={{ aspectRatio: '3/4' }}>
-        <img src={profile.photo_url} alt={profile.nickname} className="w-full h-full object-cover" />
+        <img
+          src={profile.photo_url}
+          alt={profile.nickname}
+          onLoad={handleImgLoad}
+          className={`w-full h-full transition-none ${imgFit === 'cover' ? 'object-cover' : 'object-contain p-3 bg-gray-50'}`}
+        />
         {/* 하단 그라데이션 — 어떤 사진이든 텍스트 가독성 보장 */}
         <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/90 via-black/40 to-transparent pointer-events-none" />
         {/* 우상단 버튼 뒤 어두운 스크림 */}
