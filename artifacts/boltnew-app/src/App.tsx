@@ -42,6 +42,7 @@ import { TimerBanner } from './components/TimerBanner';
 import { RefreshBtn } from './components/RefreshBtn';
 import { WaitingOverlay } from './components/WaitingOverlay';
 import { NicknameSetupScreen } from './components/NicknameSetupScreen';
+import { EntryGateScreen } from './components/EntryGateScreen';
 import { TutorialModal } from './components/TutorialModal';
 import { ResetButton } from './components/ResetButton';
 import { ProfileQrModal } from './components/ProfileQrModal';
