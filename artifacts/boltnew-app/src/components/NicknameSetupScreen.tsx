@@ -268,10 +268,10 @@ export function NicknameSetupScreen({ onSubmit, loading, onReset, onShowRecovery
                           <span className={`text-xs font-black ${g.labelColor}`}>{g.label}</span>
                           <span className={`text-[10px] font-semibold ${g.labelColor} opacity-70`}>{g.desc}</span>
                         </div>
-                        <div className="grid grid-cols-4 gap-1.5">
+                        <div className="grid grid-cols-4 gap-1">
                           {g.types.map((type) => (
                             <button key={type} type="button" onClick={() => setMbti(type)}
-                              className={`py-2.5 rounded-xl text-sm font-black border-2 transition-all active:scale-95 ${
+                              className={`py-1.5 rounded-lg text-xs font-black border-2 transition-all active:scale-95 ${
                                 mbti === type
                                   ? `${g.activeBg} ${g.activeBorder} text-white shadow-md scale-105`
                                   : `bg-white border-gray-200 text-gray-700 ${g.hoverBorder} ${g.hoverBg}`
