@@ -67,6 +67,574 @@
 .scrollbar-styled-light::-webkit-scrollbar-thumb { background: #0d9488; border-radius: 99px; }
 .scrollbar-styled-light::-webkit-scrollbar-corner { background: #e2e8f0; }
 
+/* ════════════════════════════════════════════════════════════════
+   THEME SYSTEM  — data-theme attribute on <html>
+   모든 Tailwind 클래스 오버라이드는 !important 사용
+   (Tailwind v4 @theme inline → CSS 변수 미생성으로 직접 클래스 오버라이드 필요)
+════════════════════════════════════════════════════════════════ */
+
+/* ── 공통: 테마 전환 애니메이션 ─────────────────────────────────────────── */
+*, *::before, *::after {
+  transition-property: background-color, border-color, color, box-shadow;
+  transition-duration: 200ms;
+  transition-timing-function: ease;
+}
+/* 그러나 transform 계열은 제외(버튼 active 등) */
+[class*="translate"], [class*="scale"], [class*="rotate"] {
+  transition-property: transform;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   [2] 💖 Y2K / High-Teen Signal
+══════════════════════════════════════════════════════════════ */
+/* -- 배경 오버라이드 ----------------------------------------- */
+[data-theme="y2k"] body {
+  background-color: #FCFCFB !important;
+  color: #18181b !important;
+}
+[data-theme="y2k"] .bg-slate-950,
+[data-theme="y2k"] .bg-slate-900 {
+  background-color: #FCFCFB !important;
+}
+[data-theme="y2k"] .bg-slate-800,
+[data-theme="y2k"] .bg-zinc-900,
+[data-theme="y2k"] .bg-zinc-800 {
+  background-color: #ffffff !important;
+}
+[data-theme="y2k"] .bg-slate-700,
+[data-theme="y2k"] .bg-zinc-700,
+[data-theme="y2k"] .bg-slate-600 {
+  background-color: #f4f4f5 !important;
+}
+[data-theme="y2k"] .bg-slate-500 {
+  background-color: #e4e4e7 !important;
+}
+/* 반투명 배경 처리 */
+[data-theme="y2k"] .bg-slate-900\/80,
+[data-theme="y2k"] .bg-slate-800\/70,
+[data-theme="y2k"] .bg-slate-800\/60,
+[data-theme="y2k"] .bg-slate-700\/60,
+[data-theme="y2k"] .bg-zinc-900\/80,
+[data-theme="y2k"] .bg-zinc-800\/60 {
+  background-color: rgba(255,255,255,0.92) !important;
+  backdrop-filter: blur(12px) !important;
+}
+/* 그라데이션 배경 */
+[data-theme="y2k"] .from-slate-950,
+[data-theme="y2k"] .from-slate-900 {
+  --tw-gradient-from: #FCFCFB var(--tw-gradient-from-position) !important;
+}
+[data-theme="y2k"] .via-slate-900,
+[data-theme="y2k"] .via-slate-800 {
+  --tw-gradient-via: #ffffff var(--tw-gradient-via-position) !important;
+}
+[data-theme="y2k"] .to-slate-950,
+[data-theme="y2k"] .to-slate-900 {
+  --tw-gradient-to: #FCFCFB var(--tw-gradient-to-position) !important;
+}
+[data-theme="y2k"] .from-teal-500,
+[data-theme="y2k"] .from-teal-600 {
+  --tw-gradient-from: #6ee7b7 var(--tw-gradient-from-position) !important;
+}
+[data-theme="y2k"] .to-cyan-500,
+[data-theme="y2k"] .to-cyan-600 {
+  --tw-gradient-to: #34d399 var(--tw-gradient-to-position) !important;
+}
+
+/* -- 텍스트 오버라이드 --------------------------------------- */
+[data-theme="y2k"] .text-white { color: #18181b !important; }
+[data-theme="y2k"] .text-slate-100 { color: #18181b !important; }
+[data-theme="y2k"] .text-slate-200 { color: #27272a !important; }
+[data-theme="y2k"] .text-slate-300 { color: #3f3f46 !important; }
+[data-theme="y2k"] .text-slate-400 { color: #71717a !important; }
+[data-theme="y2k"] .text-slate-500 { color: #a1a1aa !important; }
+[data-theme="y2k"] .text-slate-600 { color: #52525b !important; }
+[data-theme="y2k"] .text-zinc-400  { color: #71717a !important; }
+[data-theme="y2k"] .text-zinc-300  { color: #3f3f46 !important; }
+[data-theme="y2k"] .text-zinc-200  { color: #27272a !important; }
+
+/* -- 액센트 텍스트 ----------------------------------------- */
+[data-theme="y2k"] .text-teal-400,
+[data-theme="y2k"] .text-teal-500 { color: #059669 !important; }
+[data-theme="y2k"] .text-cyan-400,
+[data-theme="y2k"] .text-cyan-500 { color: #059669 !important; }
+[data-theme="y2k"] .text-teal-300 { color: #10b981 !important; }
+[data-theme="y2k"] .text-cyan-300 { color: #10b981 !important; }
+
+/* -- 액센트 배경 (버튼) ------------------------------------- */
+[data-theme="y2k"] .bg-teal-500,
+[data-theme="y2k"] .bg-teal-600,
+[data-theme="y2k"] .bg-cyan-500,
+[data-theme="y2k"] .bg-cyan-600 {
+  background-color: #6ee7b7 !important;
+  color: #18181b !important;
+  border: 2px solid #18181b !important;
+  box-shadow: 2px 2px 0px 0px #18181b !important;
+  font-weight: 900 !important;
+}
+[data-theme="y2k"] .bg-teal-500\/20,
+[data-theme="y2k"] .bg-cyan-500\/20 {
+  background-color: rgba(110,231,183,0.2) !important;
+}
+[data-theme="y2k"] .bg-teal-400\/20 {
+  background-color: rgba(52,211,153,0.2) !important;
+}
+[data-theme="y2k"] .hover\:bg-teal-400:hover,
+[data-theme="y2k"] .hover\:bg-teal-500:hover,
+[data-theme="y2k"] .hover\:bg-cyan-500:hover {
+  background-color: #34d399 !important;
+}
+[data-theme="y2k"] .hover\:bg-cyan-400:hover {
+  background-color: #6ee7b7 !important;
+}
+
+/* -- 테두리 --------------------------------------------- */
+[data-theme="y2k"] .border-slate-700,
+[data-theme="y2k"] .border-slate-600,
+[data-theme="y2k"] .border-zinc-700,
+[data-theme="y2k"] .border-zinc-800 {
+  border-color: #d4d4d8 !important;
+}
+[data-theme="y2k"] .border-teal-500,
+[data-theme="y2k"] .border-cyan-500 { border-color: #10b981 !important; }
+[data-theme="y2k"] .border-teal-500\/40 { border-color: rgba(16,185,129,0.4) !important; }
+
+/* -- 카드 / 패널: 네오브루탈리스트 테두리 + 그림자 ------------ */
+[data-theme="y2k"] .rounded-2xl:not(.theme-switcher-panel):not(.theme-switcher-btn) {
+  border: 2px solid #18181b !important;
+  box-shadow: 4px 4px 0px 0px #18181b !important;
+  background-color: #ffffff !important;
+}
+[data-theme="y2k"] .rounded-3xl:not(.theme-switcher-panel):not(.theme-switcher-btn) {
+  border: 2px solid #18181b !important;
+  box-shadow: 6px 6px 0px 0px #18181b !important;
+}
+[data-theme="y2k"] .rounded-xl:not(input):not(textarea):not(.theme-switcher-btn) {
+  border: 2px solid #18181b !important;
+  box-shadow: 2px 2px 0px 0px #18181b !important;
+}
+/* 버튼의 경우 배경/텍스트만 조정, 중복 border는 OK */
+[data-theme="y2k"] button.rounded-2xl,
+[data-theme="y2k"] button.rounded-xl {
+  background-color: #ffffff !important;
+  color: #18181b !important;
+}
+
+/* -- 입력창 --------------------------------------------- */
+[data-theme="y2k"] input,
+[data-theme="y2k"] textarea,
+[data-theme="y2k"] select {
+  background-color: #ffffff !important;
+  color: #18181b !important;
+  border: 2px solid #18181b !important;
+  box-shadow: none !important;
+}
+[data-theme="y2k"] input::placeholder,
+[data-theme="y2k"] textarea::placeholder {
+  color: #a1a1aa !important;
+}
+[data-theme="y2k"] input:focus,
+[data-theme="y2k"] textarea:focus {
+  border-color: #10b981 !important;
+  box-shadow: 0 0 0 2px rgba(16,185,129,0.25) !important;
+  outline: none !important;
+}
+
+/* -- 에러 상태 유지 -------------------------------------- */
+[data-theme="y2k"] .border-red-500 { border-color: #ef4444 !important; }
+[data-theme="y2k"] .bg-red-950\/60 { background-color: rgba(254,242,242,0.8) !important; }
+[data-theme="y2k"] .text-red-400 { color: #dc2626 !important; }
+
+/* -- 스크롤바 ------------------------------------------- */
+[data-theme="y2k"] .scrollbar-styled {
+  scrollbar-color: #10b981 #f4f4f5 !important;
+}
+[data-theme="y2k"] .scrollbar-styled::-webkit-scrollbar-track { background: #f4f4f5 !important; }
+[data-theme="y2k"] .scrollbar-styled::-webkit-scrollbar-thumb { background: #10b981 !important; }
+
+/* -- 구분선 -------------------------------------------- */
+[data-theme="y2k"] .border-white\/5,
+[data-theme="y2k"] .border-white\/10,
+[data-theme="y2k"] .border-white\/20 { border-color: #18181b !important; border-width: 2px !important; }
+
+/* -- 뱃지 --------------------------------------------- */
+[data-theme="y2k"] .rounded-full:not(.theme-switcher-btn):not(img) {
+  background-color: #e9d5ff !important;
+  color: #581c87 !important;
+  border: 1px solid #18181b !important;
+  font-weight: 700 !important;
+  border-radius: 0.5rem !important;
+}
+/* 이미지 아바타는 예외 */
+[data-theme="y2k"] img.rounded-full,
+[data-theme="y2k"] .rounded-full img {
+  border-radius: 9999px !important;
+  border: 2px solid #18181b !important;
+  box-shadow: none !important;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   [3] 🔥 Dark Neon (TikTok / Reels)
+══════════════════════════════════════════════════════════════ */
+/* -- 배경 오버라이드 --------------------------------------- */
+[data-theme="dark-neon"] body {
+  background-color: #09090b !important;
+  color: #f4f4f5 !important;
+}
+[data-theme="dark-neon"] .bg-slate-950,
+[data-theme="dark-neon"] .bg-slate-900 {
+  background-color: #09090b !important;
+}
+[data-theme="dark-neon"] .bg-slate-800 {
+  background-color: #18181b !important;
+}
+[data-theme="dark-neon"] .bg-slate-700,
+[data-theme="dark-neon"] .bg-zinc-800 {
+  background-color: #27272a !important;
+}
+[data-theme="dark-neon"] .bg-zinc-900 {
+  background-color: #18181b !important;
+}
+/* 반투명 */
+[data-theme="dark-neon"] .bg-slate-800\/70,
+[data-theme="dark-neon"] .bg-slate-700\/60 {
+  background-color: rgba(24,24,27,0.8) !important;
+  backdrop-filter: blur(20px) !important;
+}
+/* 그라데이션 */
+[data-theme="dark-neon"] .from-slate-950,
+[data-theme="dark-neon"] .from-slate-900 {
+  --tw-gradient-from: #09090b var(--tw-gradient-from-position) !important;
+}
+[data-theme="dark-neon"] .via-slate-900 {
+  --tw-gradient-via: #09090b var(--tw-gradient-via-position) !important;
+}
+[data-theme="dark-neon"] .to-slate-950,
+[data-theme="dark-neon"] .to-slate-900 {
+  --tw-gradient-to: #09090b var(--tw-gradient-to-position) !important;
+}
+[data-theme="dark-neon"] .from-teal-500,
+[data-theme="dark-neon"] .from-teal-600 {
+  --tw-gradient-from: #ec4899 var(--tw-gradient-from-position) !important;
+}
+[data-theme="dark-neon"] .to-cyan-500,
+[data-theme="dark-neon"] .to-cyan-600 {
+  --tw-gradient-to: #9333ea var(--tw-gradient-to-position) !important;
+}
+
+/* -- 액센트 (teal → 핑크/퍼플) ─────────────────────────── */
+[data-theme="dark-neon"] .text-teal-400,
+[data-theme="dark-neon"] .text-teal-500 { color: #f472b6 !important; }
+[data-theme="dark-neon"] .text-teal-300 { color: #fb7185 !important; }
+[data-theme="dark-neon"] .text-cyan-400,
+[data-theme="dark-neon"] .text-cyan-500 { color: #f472b6 !important; }
+[data-theme="dark-neon"] .text-cyan-300 { color: #fb7185 !important; }
+
+[data-theme="dark-neon"] .bg-teal-500,
+[data-theme="dark-neon"] .bg-teal-600 {
+  background: linear-gradient(135deg, #ec4899, #9333ea) !important;
+  color: #ffffff !important;
+  border: none !important;
+  box-shadow: 0 0 20px rgba(236,72,153,0.3), 0 4px 15px rgba(147,51,234,0.2) !important;
+  font-weight: 800 !important;
+}
+[data-theme="dark-neon"] .bg-cyan-500,
+[data-theme="dark-neon"] .bg-cyan-600 {
+  background: linear-gradient(135deg, #ec4899, #9333ea) !important;
+  color: #ffffff !important;
+  border: none !important;
+  box-shadow: 0 0 20px rgba(236,72,153,0.3) !important;
+}
+[data-theme="dark-neon"] .bg-teal-500\/20,
+[data-theme="dark-neon"] .bg-cyan-500\/20,
+[data-theme="dark-neon"] .bg-teal-400\/20 {
+  background-color: rgba(236,72,153,0.1) !important;
+}
+
+[data-theme="dark-neon"] .hover\:bg-teal-400:hover,
+[data-theme="dark-neon"] .hover\:bg-teal-500:hover {
+  background: linear-gradient(135deg, #db2777, #7c3aed) !important;
+}
+
+/* -- 카드: 글래스모피즘 ----------------------------------- */
+[data-theme="dark-neon"] .rounded-2xl:not(.theme-switcher-panel):not(.theme-switcher-btn) {
+  background-color: rgba(24,24,27,0.8) !important;
+  backdrop-filter: blur(16px) !important;
+  border: 1px solid rgba(255,255,255,0.08) !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4) !important;
+}
+[data-theme="dark-neon"] .rounded-3xl:not(.theme-switcher-panel):not(.theme-switcher-btn) {
+  background-color: rgba(24,24,27,0.8) !important;
+  backdrop-filter: blur(20px) !important;
+  border: 1px solid rgba(255,255,255,0.08) !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important;
+}
+
+/* -- 입력창: 다크 글래스 ---------------------------------- */
+[data-theme="dark-neon"] input,
+[data-theme="dark-neon"] textarea,
+[data-theme="dark-neon"] select {
+  background-color: rgba(39,39,42,0.6) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255,255,255,0.1) !important;
+}
+[data-theme="dark-neon"] input::placeholder,
+[data-theme="dark-neon"] textarea::placeholder {
+  color: rgba(161,161,170,0.5) !important;
+}
+[data-theme="dark-neon"] input:focus,
+[data-theme="dark-neon"] textarea:focus {
+  border-color: #ec4899 !important;
+  box-shadow: 0 0 0 2px rgba(236,72,153,0.2) !important;
+  outline: none !important;
+}
+
+/* -- 테두리 -------------------------------------------- */
+[data-theme="dark-neon"] .border-slate-700,
+[data-theme="dark-neon"] .border-slate-600 { border-color: rgba(255,255,255,0.06) !important; }
+[data-theme="dark-neon"] .border-teal-500,
+[data-theme="dark-neon"] .border-cyan-500 { border-color: #ec4899 !important; }
+[data-theme="dark-neon"] .border-teal-500\/40 { border-color: rgba(236,72,153,0.4) !important; }
+
+/* -- 뱃지: 네온 핑크 ------------------------------------- */
+[data-theme="dark-neon"] .rounded-full:not(.theme-switcher-btn):not(img) {
+  background-color: rgba(236,72,153,0.1) !important;
+  color: #f472b6 !important;
+  border: 1px solid rgba(236,72,153,0.2) !important;
+}
+
+/* -- 스크롤바 ------------------------------------------- */
+[data-theme="dark-neon"] .scrollbar-styled {
+  scrollbar-color: #ec4899 #18181b !important;
+}
+[data-theme="dark-neon"] .scrollbar-styled::-webkit-scrollbar-track { background: #18181b !important; }
+[data-theme="dark-neon"] .scrollbar-styled::-webkit-scrollbar-thumb { background: #ec4899 !important; }
+
+/* -- 네온 글로우 효과 (액션 버튼) -------------------------- */
+[data-theme="dark-neon"] button.bg-teal-500:active,
+[data-theme="dark-neon"] button.bg-cyan-500:active {
+  transform: scale(0.95) !important;
+  box-shadow: 0 0 30px rgba(236,72,153,0.5) !important;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   [4] ☕ Minimal Chic (감성 편집숍 / 매거진)
+══════════════════════════════════════════════════════════════ */
+/* -- 배경 오버라이드 --------------------------------------- */
+[data-theme="minimal"] body {
+  background-color: #F9F8F6 !important;
+  color: #09090b !important;
+  font-family: 'Pretendard', Georgia, 'Times New Roman', serif !important;
+  letter-spacing: 0.02em !important;
+}
+[data-theme="minimal"] .bg-slate-950,
+[data-theme="minimal"] .bg-slate-900 {
+  background-color: #F9F8F6 !important;
+}
+[data-theme="minimal"] .bg-slate-800,
+[data-theme="minimal"] .bg-zinc-900,
+[data-theme="minimal"] .bg-zinc-800 {
+  background-color: #ffffff !important;
+}
+[data-theme="minimal"] .bg-slate-700,
+[data-theme="minimal"] .bg-zinc-700 {
+  background-color: #f5f4f2 !important;
+}
+[data-theme="minimal"] .bg-slate-800\/70,
+[data-theme="minimal"] .bg-slate-700\/60,
+[data-theme="minimal"] .bg-zinc-900\/80 {
+  background-color: rgba(255,255,255,0.95) !important;
+}
+/* 그라데이션 */
+[data-theme="minimal"] .from-slate-950,
+[data-theme="minimal"] .from-slate-900 {
+  --tw-gradient-from: #F9F8F6 var(--tw-gradient-from-position) !important;
+}
+[data-theme="minimal"] .via-slate-900 {
+  --tw-gradient-via: #F9F8F6 var(--tw-gradient-via-position) !important;
+}
+[data-theme="minimal"] .to-slate-950,
+[data-theme="minimal"] .to-slate-900 {
+  --tw-gradient-to: #F9F8F6 var(--tw-gradient-to-position) !important;
+}
+[data-theme="minimal"] .from-teal-500,
+[data-theme="minimal"] .from-teal-600 {
+  --tw-gradient-from: #09090b var(--tw-gradient-from-position) !important;
+}
+[data-theme="minimal"] .to-cyan-500,
+[data-theme="minimal"] .to-cyan-600 {
+  --tw-gradient-to: #09090b var(--tw-gradient-to-position) !important;
+}
+
+/* -- 텍스트 -------------------------------------------- */
+[data-theme="minimal"] .text-white { color: #09090b !important; }
+[data-theme="minimal"] .text-slate-100 { color: #09090b !important; }
+[data-theme="minimal"] .text-slate-200 { color: #18181b !important; }
+[data-theme="minimal"] .text-slate-300 { color: #27272a !important; }
+[data-theme="minimal"] .text-slate-400 { color: #71717a !important; }
+[data-theme="minimal"] .text-slate-500 { color: #a1a1aa !important; }
+[data-theme="minimal"] .text-zinc-400  { color: #71717a !important; }
+[data-theme="minimal"] .text-zinc-300  { color: #27272a !important; }
+
+/* -- 액센트 (teal → 검정) -------------------------------- */
+[data-theme="minimal"] .text-teal-400,
+[data-theme="minimal"] .text-teal-500,
+[data-theme="minimal"] .text-teal-300 { color: #09090b !important; font-weight: 600 !important; }
+[data-theme="minimal"] .text-cyan-400,
+[data-theme="minimal"] .text-cyan-500,
+[data-theme="minimal"] .text-cyan-300 { color: #09090b !important; font-weight: 600 !important; }
+
+/* -- 버튼: 솔리드 블랙, 각진 ----------------------------- */
+[data-theme="minimal"] .bg-teal-500,
+[data-theme="minimal"] .bg-teal-600,
+[data-theme="minimal"] .bg-cyan-500,
+[data-theme="minimal"] .bg-cyan-600 {
+  background-color: #09090b !important;
+  color: #ffffff !important;
+  border: none !important;
+  box-shadow: none !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.1em !important;
+  text-transform: uppercase !important;
+  border-radius: 0 !important;
+}
+[data-theme="minimal"] .bg-teal-500\/20,
+[data-theme="minimal"] .bg-cyan-500\/20,
+[data-theme="minimal"] .bg-teal-400\/20 {
+  background-color: rgba(9,9,11,0.06) !important;
+}
+[data-theme="minimal"] .hover\:bg-teal-400:hover,
+[data-theme="minimal"] .hover\:bg-teal-500:hover,
+[data-theme="minimal"] .hover\:bg-cyan-500:hover {
+  background-color: #27272a !important;
+}
+
+/* -- 테두리: 굵고 선명한 블랙 ----------------------------- */
+[data-theme="minimal"] .border-slate-700,
+[data-theme="minimal"] .border-slate-600,
+[data-theme="minimal"] .border-zinc-700 { border-color: #09090b !important; }
+[data-theme="minimal"] .border-teal-500,
+[data-theme="minimal"] .border-cyan-500 { border-color: #09090b !important; }
+[data-theme="minimal"] .border-teal-500\/40 { border-color: rgba(9,9,11,0.4) !important; }
+
+/* -- 카드: 각진 직각, 테두리만 ─────────────────────────── */
+[data-theme="minimal"] .rounded-xl:not(.theme-switcher-btn),
+[data-theme="minimal"] .rounded-2xl:not(.theme-switcher-panel):not(.theme-switcher-btn),
+[data-theme="minimal"] .rounded-3xl:not(.theme-switcher-panel):not(.theme-switcher-btn),
+[data-theme="minimal"] .rounded-full:not(img):not(.theme-switcher-btn) {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+[data-theme="minimal"] .rounded-2xl:not(.theme-switcher-panel):not(.theme-switcher-btn) {
+  border: 2px solid #09090b !important;
+  background-color: #ffffff !important;
+}
+[data-theme="minimal"] .rounded-3xl:not(.theme-switcher-panel):not(.theme-switcher-btn) {
+  border: 2px solid #09090b !important;
+}
+
+/* 아바타/이미지 예외 */
+[data-theme="minimal"] img.rounded-full,
+[data-theme="minimal"] .rounded-full img {
+  border-radius: 9999px !important;
+}
+
+/* -- 입력창: 언더라인 스타일 ------------------------------ */
+[data-theme="minimal"] input,
+[data-theme="minimal"] textarea {
+  background-color: transparent !important;
+  color: #09090b !important;
+  border: none !important;
+  border-bottom: 2px solid #09090b !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  letter-spacing: 0.05em !important;
+}
+[data-theme="minimal"] input::placeholder,
+[data-theme="minimal"] textarea::placeholder {
+  color: #a1a1aa !important;
+  letter-spacing: 0.05em !important;
+}
+[data-theme="minimal"] input:focus,
+[data-theme="minimal"] textarea:focus {
+  border-color: #09090b !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* -- 버튼 전반: 각진 직각 -------------------------------- */
+[data-theme="minimal"] button:not(.theme-switcher-btn) {
+  border-radius: 0 !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.05em !important;
+}
+
+/* -- 뱃지 --------------------------------------------- */
+[data-theme="minimal"] .rounded-full:not(.theme-switcher-btn):not(img) {
+  background-color: transparent !important;
+  color: #09090b !important;
+  border: 1px solid #09090b !important;
+  border-radius: 0 !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  font-size: 0.65rem !important;
+  letter-spacing: 0.08em !important;
+}
+
+/* -- 구분선 -------------------------------------------- */
+[data-theme="minimal"] .divide-slate-700 > * + * { border-color: #09090b !important; }
+[data-theme="minimal"] .border-white\/5,
+[data-theme="minimal"] .border-white\/10,
+[data-theme="minimal"] .border-white\/20 { border-color: #d4d4d8 !important; }
+
+/* -- 스크롤바 ------------------------------------------ */
+[data-theme="minimal"] .scrollbar-styled {
+  scrollbar-color: #09090b #f5f4f2 !important;
+}
+[data-theme="minimal"] .scrollbar-styled::-webkit-scrollbar-track { background: #f5f4f2 !important; }
+[data-theme="minimal"] .scrollbar-styled::-webkit-scrollbar-thumb { background: #09090b !important; }
+
+/* -- 자간/폰트 ----------------------------------------- */
+[data-theme="minimal"] h1,
+[data-theme="minimal"] h2,
+[data-theme="minimal"] h3 {
+  letter-spacing: 0.05em !important;
+  font-weight: 800 !important;
+}
+[data-theme="minimal"] .tracking-tight { letter-spacing: 0.02em !important; }
+[data-theme="minimal"] .tracking-widest { letter-spacing: 0.15em !important; }
+
+/* ── 테마 스위처: 어떤 테마에서도 독립적인 스타일 유지 ────── */
+.theme-switcher-panel {
+  background-color: #1e293b !important;
+  border-color: rgba(100,116,139,0.6) !important;
+  border-radius: 1rem !important;
+  box-shadow: 0 25px 50px -12px rgba(0,0,0,0.8) !important;
+  color: #e2e8f0 !important;
+}
+.theme-switcher-panel * {
+  border-radius: inherit !important;
+  box-shadow: none !important;
+  letter-spacing: initial !important;
+  text-transform: initial !important;
+  font-family: 'Pretendard', system-ui, sans-serif !important;
+}
+.theme-switcher-panel button {
+  background-color: transparent !important;
+  border: 1px solid transparent !important;
+  box-shadow: none !important;
+  color: #e2e8f0 !important;
+  font-weight: 600 !important;
+  border-radius: 0.75rem !important;
+}
+.theme-switcher-panel button:hover {
+  background-color: rgba(51,65,85,0.8) !important;
+}
+.theme-switcher-panel .text-teal-300 { color: #5eead4 !important; }
+.theme-switcher-panel input { display: none !important; }
+
 /* QR 스캔 라인 애니메이션 */
 @keyframes scan-line {
   0%   { top: 8px;  opacity: 1; }

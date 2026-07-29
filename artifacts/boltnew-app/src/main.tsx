@@ -6,6 +6,8 @@ import AdminApp from './AdminApp';
 import TestDashboard from './TestDashboard';
 import { supabase } from './lib/supabase';
 import { Shield, AlertTriangle } from 'lucide-react';
+import { ThemeProvider } from './lib/theme';
+import { ThemeSwitcher } from './components/ThemeSwitcher';
 
 // ─── 전역 에러 바운더리 ───────────────────────────────────────────────────────
 class AppErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null; info: string }> {
@@ -153,6 +155,9 @@ function Root() {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <Root />
+    <ThemeProvider>
+      <Root />
+      <ThemeSwitcher />
+    </ThemeProvider>
   </StrictMode>,
 );
