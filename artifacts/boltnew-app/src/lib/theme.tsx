@@ -34,7 +34,18 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   const setTheme = (t: ThemeMode) => {
     setThemeState(t);
-    try { localStorage.setItem(THEME_KEY, t); } catch { /* ignore */ }
+    try {
+      localStorage.setItem(THEME_KEY, t);
+      // dark_mode 동기화: 다크 계열 테마는 강제 다크, 라이트 계열은 강제 라이트
+      const forceDark = t === 'dark-neon' || t === 'default';
+      localStorage.setItem('dark_mode', forceDark ? '1' : '0');
+      // App.tsx의 darkMode state가 반응하도록 storage 이벤트 발화
+      window.dispatchEvent(new StorageEvent('storage', {
+        key: 'dark_mode',
+        newValue: forceDark ? '1' : '0',
+        storageArea: localStorage,
+      }));
+    } catch { /* ignore */ }
   };
 
   return (

@@ -119,18 +119,15 @@
   background-color: rgba(255,255,255,0.92) !important;
   backdrop-filter: blur(12px) !important;
 }
-/* 그라데이션 배경 */
-[data-theme="y2k"] .from-slate-950,
-[data-theme="y2k"] .from-slate-900 {
-  --tw-gradient-from: #FCFCFB var(--tw-gradient-from-position) !important;
-}
-[data-theme="y2k"] .via-slate-900,
-[data-theme="y2k"] .via-slate-800 {
-  --tw-gradient-via: #ffffff var(--tw-gradient-via-position) !important;
-}
-[data-theme="y2k"] .to-slate-950,
-[data-theme="y2k"] .to-slate-900 {
-  --tw-gradient-to: #FCFCFB var(--tw-gradient-to-position) !important;
+/* 그라데이션 배경 — CSS 변수 방식 불가, 다중클래스 셀렉터 사용 */
+[data-theme="y2k"] .bg-gradient-to-br.from-slate-950,
+[data-theme="y2k"] .bg-gradient-to-b.from-slate-950,
+[data-theme="y2k"] .bg-gradient-to-br.from-slate-900,
+[data-theme="y2k"] .bg-gradient-to-b.from-slate-900,
+[data-theme="y2k"] .bg-gradient-to-br.from-slate-800,
+[data-theme="y2k"] .bg-gradient-to-b.from-slate-800 {
+  background: #FCFCFB !important;
+  background-image: none !important;
 }
 [data-theme="y2k"] .from-teal-500,
 [data-theme="y2k"] .from-teal-600 {
@@ -298,244 +295,301 @@
    [3] 🔥 Dark Neon (TikTok / Reels)
 ══════════════════════════════════════════════════════════════ */
 
-/* -- 네온 글로우 키프레임 ---------------------------------- */
+/* -- 네온 키프레임 ---------------------------------------- */
 @keyframes neon-pulse {
-  0%, 100% { box-shadow: 0 0 8px rgba(236,72,153,0.4), 0 0 20px rgba(236,72,153,0.15); }
-  50%       { box-shadow: 0 0 16px rgba(236,72,153,0.7), 0 0 40px rgba(147,51,234,0.3); }
+  0%, 100% { box-shadow: 0 0 10px rgba(236,72,153,0.45), 0 0 24px rgba(236,72,153,0.15), 0 4px 15px rgba(139,92,246,0.2); }
+  50%       { box-shadow: 0 0 20px rgba(236,72,153,0.75), 0 0 45px rgba(139,92,246,0.35), 0 4px 20px rgba(236,72,153,0.3); }
 }
 @keyframes neon-text {
-  0%, 100% { text-shadow: 0 0 8px rgba(244,114,182,0.6); }
-  50%       { text-shadow: 0 0 16px rgba(244,114,182,0.9), 0 0 32px rgba(167,139,250,0.4); }
+  0%, 100% { text-shadow: 0 0 8px rgba(244,114,182,0.55); }
+  50%       { text-shadow: 0 0 18px rgba(244,114,182,0.9), 0 0 35px rgba(167,139,250,0.45); }
 }
 
-/* -- body / 전체 배경 ------------------------------------- */
+/* ── ① 베이스: body + 전역 색 ──────────────────────────── */
 [data-theme="dark-neon"] body {
-  background-color: #09090b !important;
+  background-color: #000000 !important;
   color: #f4f4f5 !important;
 }
 
-/* -- 다크 배경 계열 --------------------------------------- */
+/* ── ② 다크 계열 배경 → 순수 블랙/다크징크 ──────────────── */
 [data-theme="dark-neon"] .bg-slate-950,
 [data-theme="dark-neon"] .bg-slate-900,
-[data-theme="dark-neon"] .bg-zinc-950 {
-  background-color: #09090b !important;
-}
-[data-theme="dark-neon"] .bg-slate-800,
-[data-theme="dark-neon"] .bg-zinc-900 {
-  background-color: #18181b !important;
-}
-[data-theme="dark-neon"] .bg-slate-700,
-[data-theme="dark-neon"] .bg-zinc-800,
-[data-theme="dark-neon"] .bg-slate-600 {
-  background-color: #27272a !important;
-}
-[data-theme="dark-neon"] .bg-slate-500 {
-  background-color: #3f3f46 !important;
-}
+[data-theme="dark-neon"] .bg-zinc-950,
+[data-theme="dark-neon"] .bg-zinc-900  { background-color: #09090b !important; }
 
-/* -- 라이트 배경 → 다크로 --------------------------------- */
-[data-theme="dark-neon"] .bg-white         { background-color: #18181b !important; }
+[data-theme="dark-neon"] .bg-slate-800 { background-color: #18181b !important; }
+
+[data-theme="dark-neon"] .bg-slate-700,
+[data-theme="dark-neon"] .bg-slate-600,
+[data-theme="dark-neon"] .bg-zinc-800,
+[data-theme="dark-neon"] .bg-zinc-700  { background-color: #27272a !important; }
+
+[data-theme="dark-neon"] .bg-slate-500 { background-color: #3f3f46 !important; }
+
+/* ── ③ 라이트 계열 배경 → 다크징크 카드 ─────────────────── */
+[data-theme="dark-neon"] .bg-white,
+[data-theme="dark-neon"] .bg-white\/95  { background-color: #18181b !important; }
+
 [data-theme="dark-neon"] .bg-gray-50,
-[data-theme="dark-neon"] .bg-slate-50      { background-color: #18181b !important; }
-[data-theme="dark-neon"] .bg-gray-100      { background-color: #27272a !important; }
-[data-theme="dark-neon"] .bg-gray-200,
-[data-theme="dark-neon"] .bg-gray-200\/80  { background-color: #3f3f46 !important; }
+[data-theme="dark-neon"] .bg-slate-50   { background-color: #09090b !important; }
+
+[data-theme="dark-neon"] .bg-gray-100   { background-color: #18181b !important; }
+[data-theme="dark-neon"] .bg-gray-200   { background-color: #27272a !important; }
+[data-theme="dark-neon"] .bg-gray-200\/80 { background-color: rgba(24,24,27,0.95) !important; }
+[data-theme="dark-neon"] .bg-gray-300   { background-color: #3f3f46 !important; }
+
+/* 컬러 틴트 라이트 배경 → 다크 틴트 버전 */
 [data-theme="dark-neon"] .bg-teal-50,
 [data-theme="dark-neon"] .bg-teal-100,
 [data-theme="dark-neon"] .bg-cyan-50,
-[data-theme="dark-neon"] .bg-cyan-100      { background-color: rgba(236,72,153,0.08) !important; }
+[data-theme="dark-neon"] .bg-cyan-100   { background-color: rgba(244,114,182,0.08) !important; }
+
+[data-theme="dark-neon"] .bg-violet-50,
+[data-theme="dark-neon"] .bg-violet-100 { background-color: rgba(139,92,246,0.1) !important; }
+
 [data-theme="dark-neon"] .bg-amber-50,
 [data-theme="dark-neon"] .bg-amber-100,
-[data-theme="dark-neon"] .bg-yellow-50     { background-color: rgba(251,191,36,0.08) !important; }
-[data-theme="dark-neon"] .bg-violet-50,
-[data-theme="dark-neon"] .bg-violet-100    { background-color: rgba(167,139,250,0.08) !important; }
-[data-theme="dark-neon"] .bg-red-50,
-[data-theme="dark-neon"] .bg-red-100       { background-color: rgba(248,113,113,0.08) !important; }
-[data-theme="dark-neon"] .bg-rose-50       { background-color: rgba(251,113,133,0.08) !important; }
-[data-theme="dark-neon"] .bg-pink-50       { background-color: rgba(236,72,153,0.08) !important; }
-[data-theme="dark-neon"] .bg-green-50      { background-color: rgba(74,222,128,0.08) !important; }
-[data-theme="dark-neon"] .bg-blue-50       { background-color: rgba(96,165,250,0.08) !important; }
-[data-theme="dark-neon"] .bg-sky-500\/10   { background-color: rgba(56,189,248,0.08) !important; }
+[data-theme="dark-neon"] .bg-yellow-50  { background-color: rgba(251,191,36,0.07) !important; }
 
-/* -- 반투명 배경 ------------------------------------------ */
+[data-theme="dark-neon"] .bg-red-50,
+[data-theme="dark-neon"] .bg-red-100    { background-color: rgba(248,113,113,0.07) !important; }
+
+[data-theme="dark-neon"] .bg-rose-50    { background-color: rgba(244,114,182,0.07) !important; }
+[data-theme="dark-neon"] .bg-pink-50    { background-color: rgba(244,114,182,0.07) !important; }
+[data-theme="dark-neon"] .bg-green-50   { background-color: rgba(74,222,128,0.07) !important; }
+[data-theme="dark-neon"] .bg-blue-50    { background-color: rgba(96,165,250,0.07) !important; }
+[data-theme="dark-neon"] .bg-sky-500\/10 { background-color: rgba(56,189,248,0.07) !important; }
+
+/* ── ④ 반투명 배경: 입장 화면 카드 + 오버레이만 glassmorphism */
 [data-theme="dark-neon"] .bg-slate-800\/70,
 [data-theme="dark-neon"] .bg-slate-700\/60,
-[data-theme="dark-neon"] .bg-slate-700\/50,
-[data-theme="dark-neon"] .bg-zinc-900\/80  {
-  background-color: rgba(9,9,11,0.85) !important;
-  backdrop-filter: blur(20px) !important;
+[data-theme="dark-neon"] .bg-slate-700\/50 {
+  background-color: rgba(9,9,11,0.88) !important;
+  backdrop-filter: blur(24px) !important;
+  -webkit-backdrop-filter: blur(24px) !important;
+  border: 1px solid rgba(255,255,255,0.07) !important;
+}
+[data-theme="dark-neon"] .bg-zinc-900\/80 {
+  background-color: rgba(9,9,11,0.82) !important;
+  backdrop-filter: blur(16px) !important;
 }
 
-/* -- 그라데이션 배경 -------------------------------------- */
-[data-theme="dark-neon"] .from-slate-950,
-[data-theme="dark-neon"] .from-slate-900,
-[data-theme="dark-neon"] .from-slate-800  {
-  --tw-gradient-from: #09090b var(--tw-gradient-from-position) !important;
-}
-[data-theme="dark-neon"] .via-slate-900,
-[data-theme="dark-neon"] .via-slate-800   {
-  --tw-gradient-via: #0d0d10 var(--tw-gradient-via-position) !important;
-}
-[data-theme="dark-neon"] .to-slate-950,
-[data-theme="dark-neon"] .to-slate-900    {
-  --tw-gradient-to: #09090b var(--tw-gradient-to-position) !important;
-}
-[data-theme="dark-neon"] .from-teal-500,
-[data-theme="dark-neon"] .from-teal-600   {
-  --tw-gradient-from: #ec4899 var(--tw-gradient-from-position) !important;
-}
-[data-theme="dark-neon"] .to-cyan-500,
-[data-theme="dark-neon"] .to-cyan-600     {
-  --tw-gradient-to: #9333ea var(--tw-gradient-to-position) !important;
+/* ── ⑤ 그라데이션 (CSS 변수 방식 불가 → 다중클래스 셀렉터) ─ */
+
+/* ▸ 페이지 배경 그라데이션 → 솔리드 블랙 */
+[data-theme="dark-neon"] .bg-gradient-to-br.from-slate-950,
+[data-theme="dark-neon"] .bg-gradient-to-b.from-slate-950,
+[data-theme="dark-neon"] .bg-gradient-to-br.from-slate-900,
+[data-theme="dark-neon"] .bg-gradient-to-b.from-slate-900,
+[data-theme="dark-neon"] .bg-gradient-to-br.from-slate-800,
+[data-theme="dark-neon"] .bg-gradient-to-b.from-slate-800 {
+  background: #000000 !important;
+  background-image: none !important;
 }
 
-/* -- 텍스트: 다크 배경에서 밝게 --------------------------- */
-[data-theme="dark-neon"] .text-gray-900  { color: #f4f4f5 !important; }
+/* ▸ teal/cyan 그라데이션 버튼·헤더 → 핑크-퍼플 */
+[data-theme="dark-neon"] .bg-gradient-to-r.from-cyan-500,
+[data-theme="dark-neon"] .bg-gradient-to-r.from-teal-500,
+[data-theme="dark-neon"] .bg-gradient-to-r.from-cyan-400,
+[data-theme="dark-neon"] .bg-gradient-to-r.from-teal-400,
+[data-theme="dark-neon"] .bg-gradient-to-br.from-cyan-500,
+[data-theme="dark-neon"] .bg-gradient-to-br.from-teal-500 {
+  background: linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%) !important;
+  background-image: none !important;
+  color: #ffffff !important;
+  border: none !important;
+  box-shadow: 0 0 18px rgba(236,72,153,0.4), 0 4px 16px rgba(139,92,246,0.28) !important;
+}
+
+/* ▸ 라이트 틴트 그라데이션 카드 → 다크 핑크 틴트 */
+[data-theme="dark-neon"] .bg-gradient-to-r.from-cyan-50,
+[data-theme="dark-neon"] .bg-gradient-to-r.from-teal-50,
+[data-theme="dark-neon"] .bg-gradient-to-r.from-emerald-50 {
+  background: rgba(244,114,182,0.07) !important;
+  background-image: none !important;
+}
+
+/* ▸ violet/fuchsia 그라데이션 버튼 (닉네임 완료 버튼) 유지 */
+[data-theme="dark-neon"] .bg-gradient-to-r.from-violet-500 {
+  background: linear-gradient(135deg, #8b5cf6 0%, #d946ef 100%) !important;
+  background-image: none !important;
+  box-shadow: 0 0 16px rgba(139,92,246,0.4) !important;
+}
+
+/* ── ⑥ 텍스트 — 라이트 클래스 → 밝게 반전 ─────────────── */
+[data-theme="dark-neon"] .text-gray-900  { color: #fafafa !important; }
 [data-theme="dark-neon"] .text-gray-800  { color: #e4e4e7 !important; }
 [data-theme="dark-neon"] .text-gray-700  { color: #d4d4d8 !important; }
 [data-theme="dark-neon"] .text-gray-600  { color: #a1a1aa !important; }
 [data-theme="dark-neon"] .text-gray-500  { color: #71717a !important; }
-[data-theme="dark-neon"] .text-gray-400  { color: #71717a !important; }
+[data-theme="dark-neon"] .text-gray-400  { color: #52525b !important; }
 
-/* -- 액센트: teal/cyan → 핑크 ----------------------------- */
+[data-theme="dark-neon"] .text-slate-100 { color: #fafafa !important; }
+[data-theme="dark-neon"] .text-slate-200 { color: #e4e4e7 !important; }
+[data-theme="dark-neon"] .text-slate-300 { color: #d4d4d8 !important; }
+[data-theme="dark-neon"] .text-slate-400 { color: #a1a1aa !important; }
+[data-theme="dark-neon"] .text-slate-500 { color: #71717a !important; }
+
+/* ── ⑦ 액센트 텍스트: teal/cyan → 핫핑크 ─────────────── */
+[data-theme="dark-neon"] .text-teal-300,
 [data-theme="dark-neon"] .text-teal-400,
 [data-theme="dark-neon"] .text-teal-500,
 [data-theme="dark-neon"] .text-teal-600  { color: #f472b6 !important; }
-[data-theme="dark-neon"] .text-teal-300  { color: #f9a8d4 !important; animation: neon-text 2.5s ease-in-out infinite !important; }
 [data-theme="dark-neon"] .text-teal-700  { color: #ec4899 !important; }
+[data-theme="dark-neon"] .text-cyan-300,
 [data-theme="dark-neon"] .text-cyan-400,
 [data-theme="dark-neon"] .text-cyan-500,
 [data-theme="dark-neon"] .text-cyan-600  { color: #f472b6 !important; }
-[data-theme="dark-neon"] .text-cyan-300  { color: #f9a8d4 !important; }
 [data-theme="dark-neon"] .text-cyan-700  { color: #ec4899 !important; }
-[data-theme="dark-neon"] .text-violet-600,
-[data-theme="dark-neon"] .text-violet-500 { color: #c084fc !important; }
+[data-theme="dark-neon"] .text-violet-400,
+[data-theme="dark-neon"] .text-violet-500,
+[data-theme="dark-neon"] .text-violet-600 { color: #c084fc !important; }
 
-/* -- 주요 버튼: 핑크→퍼플 그라데이션 + 네온 글로우 ---------- */
+/* ── ⑧ CTA 버튼: 핑크→퍼플 그라데이션 + 네온 글로우 ────── */
+[data-theme="dark-neon"] .bg-teal-400,
 [data-theme="dark-neon"] .bg-teal-500,
 [data-theme="dark-neon"] .bg-teal-600,
-[data-theme="dark-neon"] .bg-teal-400,
+[data-theme="dark-neon"] .bg-cyan-400,
 [data-theme="dark-neon"] .bg-cyan-500,
-[data-theme="dark-neon"] .bg-cyan-600,
-[data-theme="dark-neon"] .bg-cyan-400 {
+[data-theme="dark-neon"] .bg-cyan-600 {
   background: linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%) !important;
   color: #ffffff !important;
   border: none !important;
   font-weight: 800 !important;
-  box-shadow: 0 0 20px rgba(236,72,153,0.35), 0 4px 15px rgba(139,92,246,0.25) !important;
-  animation: neon-pulse 2.5s ease-in-out infinite !important;
+  box-shadow: 0 0 18px rgba(236,72,153,0.4), 0 4px 16px rgba(139,92,246,0.3) !important;
+  animation: neon-pulse 2.8s ease-in-out infinite !important;
 }
-
-/* hover / active 상태 */
 [data-theme="dark-neon"] .hover\:bg-teal-400:hover,
 [data-theme="dark-neon"] .hover\:bg-teal-500:hover,
 [data-theme="dark-neon"] .hover\:bg-cyan-400:hover,
 [data-theme="dark-neon"] .hover\:bg-cyan-500:hover {
   background: linear-gradient(135deg, #db2777 0%, #7c3aed 100%) !important;
-  box-shadow: 0 0 28px rgba(236,72,153,0.5) !important;
-}
-[data-theme="dark-neon"] .active\:scale-\[0\.97\]:active,
-[data-theme="dark-neon"] button:active {
-  box-shadow: 0 0 36px rgba(236,72,153,0.6) !important;
+  box-shadow: 0 0 30px rgba(236,72,153,0.55) !important;
 }
 
-/* -- 보조 버튼: 다크 글래스 ------------------------------ */
+/* ── ⑨ 보조/틴트 배경 버튼 ────────────────────────────── */
 [data-theme="dark-neon"] .bg-teal-500\/20,
+[data-theme="dark-neon"] .bg-teal-400\/20,
 [data-theme="dark-neon"] .bg-cyan-500\/20,
-[data-theme="dark-neon"] .bg-teal-400\/20 { background-color: rgba(236,72,153,0.12) !important; }
-[data-theme="dark-neon"] .bg-gray-100.text-gray-500,
-[data-theme="dark-neon"] .bg-gray-100     { background-color: rgba(39,39,42,0.7) !important; }
-[data-theme="dark-neon"] .bg-slate-50     { background-color: rgba(24,24,27,0.9) !important; }
+[data-theme="dark-neon"] .bg-cyan-50      { background-color: rgba(244,114,182,0.12) !important; }
+/* 다크모드용 보조 버튼(bg-slate-700/50 등)은 ④에서 처리 */
 
-/* -- 카드: 글래스모피즘 (rounded-xl/2xl/3xl) -------------- */
-[data-theme="dark-neon"] .rounded-xl:not(input):not(textarea):not(button):not(.theme-switcher-btn) {
-  background-color: rgba(24,24,27,0.75) !important;
-  backdrop-filter: blur(12px) !important;
-  border: 1px solid rgba(255,255,255,0.07) !important;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.35) !important;
-}
-[data-theme="dark-neon"] .rounded-2xl:not(.theme-switcher-panel):not(.theme-switcher-btn):not(button) {
-  background-color: rgba(24,24,27,0.82) !important;
-  backdrop-filter: blur(16px) !important;
-  border: 1px solid rgba(255,255,255,0.08) !important;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.4) !important;
-}
-[data-theme="dark-neon"] .rounded-3xl:not(.theme-switcher-panel):not(.theme-switcher-btn):not(button) {
-  background-color: rgba(18,18,20,0.9) !important;
-  backdrop-filter: blur(24px) !important;
-  border: 1px solid rgba(255,255,255,0.08) !important;
-  box-shadow: 0 8px 40px rgba(0,0,0,0.55) !important;
-}
+/* ── ⑩ 특수 색상 버튼 유지 (rose/violet/green/red) ─────── */
+[data-theme="dark-neon"] .bg-rose-500   { background: linear-gradient(135deg,#fb7185,#ec4899) !important; box-shadow: 0 0 12px rgba(251,113,133,0.35) !important; }
+[data-theme="dark-neon"] .bg-violet-500 { background: linear-gradient(135deg,#8b5cf6,#7c3aed) !important; box-shadow: 0 0 12px rgba(139,92,246,0.35) !important; }
+[data-theme="dark-neon"] .bg-green-500  { background: linear-gradient(135deg,#4ade80,#22c55e) !important; box-shadow: 0 0 12px rgba(74,222,128,0.3)  !important; }
+[data-theme="dark-neon"] .bg-red-500    { background: linear-gradient(135deg,#f87171,#ef4444) !important; }
+[data-theme="dark-neon"] .bg-amber-400,
+[data-theme="dark-neon"] .bg-amber-500  { background: linear-gradient(135deg,#fbbf24,#f59e0b) !important; }
 
-/* -- 버튼은 글래스 적용 제외 ------------------------------ */
-[data-theme="dark-neon"] button.rounded-xl,
-[data-theme="dark-neon"] button.rounded-2xl,
-[data-theme="dark-neon"] button.rounded-3xl {
-  backdrop-filter: none !important;
-}
-
-/* -- 입력창: 다크 글래스 + 핑크 포커스 -------------------- */
+/* ── ⑪ 입력창 ─────────────────────────────────────────── */
 [data-theme="dark-neon"] input,
 [data-theme="dark-neon"] textarea,
 [data-theme="dark-neon"] select {
-  background-color: rgba(39,39,42,0.65) !important;
+  background-color: #27272a !important;
   color: #ffffff !important;
   border: 1px solid rgba(255,255,255,0.1) !important;
-  border-radius: 0.75rem !important;
 }
 [data-theme="dark-neon"] input::placeholder,
-[data-theme="dark-neon"] textarea::placeholder {
-  color: rgba(161,161,170,0.45) !important;
-}
+[data-theme="dark-neon"] textarea::placeholder { color: #52525b !important; }
 [data-theme="dark-neon"] input:focus,
 [data-theme="dark-neon"] textarea:focus {
   border-color: #ec4899 !important;
-  box-shadow: 0 0 0 2px rgba(236,72,153,0.25), 0 0 12px rgba(236,72,153,0.15) !important;
+  box-shadow: 0 0 0 2px rgba(236,72,153,0.22), 0 0 14px rgba(236,72,153,0.14) !important;
   outline: none !important;
 }
 
-/* -- 테두리 --------------------------------------------- */
+/* ── ⑫ 테두리 ────────────────────────────────────────── */
 [data-theme="dark-neon"] .border-slate-700,
 [data-theme="dark-neon"] .border-slate-600,
-[data-theme="dark-neon"] .border-zinc-700  { border-color: rgba(255,255,255,0.07) !important; }
+[data-theme="dark-neon"] .border-zinc-700,
+[data-theme="dark-neon"] .border-zinc-600   { border-color: rgba(255,255,255,0.08) !important; }
+[data-theme="dark-neon"] .border-slate-800  { border-color: rgba(255,255,255,0.05) !important; }
+[data-theme="dark-neon"] .border-gray-100,
 [data-theme="dark-neon"] .border-gray-200,
-[data-theme="dark-neon"] .border-gray-300,
-[data-theme="dark-neon"] .border-gray-100  { border-color: rgba(255,255,255,0.08) !important; }
+[data-theme="dark-neon"] .border-gray-300   { border-color: rgba(255,255,255,0.08) !important; }
 [data-theme="dark-neon"] .border-teal-500,
 [data-theme="dark-neon"] .border-teal-600,
-[data-theme="dark-neon"] .border-cyan-500  { border-color: #ec4899 !important; }
+[data-theme="dark-neon"] .border-cyan-500,
+[data-theme="dark-neon"] .border-cyan-600   { border-color: #ec4899 !important; }
 [data-theme="dark-neon"] .border-teal-100,
-[data-theme="dark-neon"] .border-cyan-100  { border-color: rgba(236,72,153,0.2) !important; }
+[data-theme="dark-neon"] .border-teal-200,
+[data-theme="dark-neon"] .border-cyan-100   { border-color: rgba(244,114,182,0.2) !important; }
 [data-theme="dark-neon"] .border-teal-500\/40 { border-color: rgba(236,72,153,0.4) !important; }
-[data-theme="dark-neon"] .border-white\/5,
-[data-theme="dark-neon"] .border-white\/10 { border-color: rgba(255,255,255,0.06) !important; }
 [data-theme="dark-neon"] .border-red-100,
-[data-theme="dark-neon"] .border-red-500   { border-color: rgba(248,113,113,0.4) !important; }
+[data-theme="dark-neon"] .border-red-500    { border-color: rgba(248,113,113,0.4) !important; }
 
-/* -- 뱃지 / pill: 네온 핑크 ----------------------------- */
-[data-theme="dark-neon"] .rounded-full:not(.theme-switcher-btn):not(img):not(button) {
-  background-color: rgba(236,72,153,0.1) !important;
-  color: #f472b6 !important;
-  border: 1px solid rgba(236,72,153,0.25) !important;
+/* ── ⑬ 뱃지(span/div — text 포함한 좁은 타겟) ─────────── */
+/* rounded-full은 지나치게 광범위하므로 제거.
+   대신 bg+rounded-full 조합만 핑크 처리             */
+[data-theme="dark-neon"] span.rounded-full:not(img),
+[data-theme="dark-neon"] .tag-pill {
+  background-color: rgba(244,114,182,0.1) !important;
+  color: #f9a8d4 !important;
+  border: 1px solid rgba(244,114,182,0.2) !important;
 }
-[data-theme="dark-neon"] .rounded-full:not(.theme-switcher-btn):not(img):not(button).bg-teal-500\/20,
-[data-theme="dark-neon"] .bg-teal-50.rounded-full,
-[data-theme="dark-neon"] .bg-cyan-50.rounded-full { background-color: rgba(236,72,153,0.1) !important; }
+/* teal/cyan 배지 → 핑크 */
+[data-theme="dark-neon"] .bg-teal-500\/10,
+[data-theme="dark-neon"] .bg-cyan-500\/10  { background-color: rgba(244,114,182,0.1) !important; }
+[data-theme="dark-neon"] .text-teal-600.bg-teal-50,
+[data-theme="dark-neon"] .text-cyan-600.bg-cyan-50 { color: #f472b6 !important; }
 
-/* -- 특수 상태색 ----------------------------------------- */
-[data-theme="dark-neon"] .bg-red-50    { background-color: rgba(239,68,68,0.08) !important; }
-[data-theme="dark-neon"] .text-red-500 { color: #f87171 !important; }
-[data-theme="dark-neon"] .border-red-100 { border-color: rgba(248,113,113,0.2) !important; }
-[data-theme="dark-neon"] .bg-rose-500  { background: linear-gradient(135deg,#fb7185,#ec4899) !important; }
-[data-theme="dark-neon"] .bg-violet-500 { background: linear-gradient(135deg,#8b5cf6,#7c3aed) !important; }
-[data-theme="dark-neon"] .bg-green-500  { background: linear-gradient(135deg,#4ade80,#22c55e) !important; }
+/* ── ⑭ 탭 바 (하단 네비게이션) ──────────────────────────── */
+/* 라이트 모드 탭바 배경 */
+[data-theme="dark-neon"] .bg-gray-50.border-gray-200 {
+  background-color: #09090b !important;
+  border-color: rgba(255,255,255,0.06) !important;
+}
+/* 라이트 모드 활성 탭 인디케이터 */
+[data-theme="dark-neon"] .bg-cyan-50   { background-color: rgba(244,114,182,0.1) !important; }
+[data-theme="dark-neon"] .text-cyan-600 { color: #f472b6 !important; }
+/* 라이트 모드 비활성 탭 */
+[data-theme="dark-neon"] .text-gray-500.active\:text-gray-700 { color: #52525b !important; }
 
-/* -- 스크롤바 ------------------------------------------- */
+/* ── ⑮ 하위 탭바 (sub-tab) ──────────────────────────────── */
+[data-theme="dark-neon"] .bg-gray-200\/80  { background-color: rgba(24,24,27,0.98) !important; }
+[data-theme="dark-neon"] .bg-white.rounded-full,
+[data-theme="dark-neon"] .bg-white.rounded-lg { background-color: #3f3f46 !important; }
+
+/* ── ⑯ 오류/성공 상태 텍스트 ──────────────────────────── */
+[data-theme="dark-neon"] .text-red-500,
+[data-theme="dark-neon"] .text-red-600    { color: #f87171 !important; }
+[data-theme="dark-neon"] .text-green-500,
+[data-theme="dark-neon"] .text-green-600  { color: #4ade80 !important; }
+[data-theme="dark-neon"] .text-amber-500,
+[data-theme="dark-neon"] .text-amber-600  { color: #fbbf24 !important; }
+
+/* ── ⑰ Radix UI 원시 컴포넌트 ──────────────────────────── */
+[data-theme="dark-neon"] [data-radix-popper-content-wrapper],
+[data-theme="dark-neon"] [role="dialog"],
+[data-theme="dark-neon"] [role="alertdialog"] {
+  background-color: #18181b !important;
+  border: 1px solid rgba(244,114,182,0.25) !important;
+  box-shadow: 0 0 40px rgba(236,72,153,0.12), 0 20px 60px rgba(0,0,0,0.7) !important;
+  backdrop-filter: blur(24px) !important;
+}
+
+/* ── ⑱ 스크롤바 ────────────────────────────────────────── */
 [data-theme="dark-neon"] .scrollbar-styled {
   scrollbar-color: #ec4899 #18181b !important;
 }
-[data-theme="dark-neon"] .scrollbar-styled::-webkit-scrollbar-track { background: #18181b !important; }
-[data-theme="dark-neon"] .scrollbar-styled::-webkit-scrollbar-thumb { background: linear-gradient(180deg,#ec4899,#8b5cf6) !important; }
+[data-theme="dark-neon"] .scrollbar-styled::-webkit-scrollbar-track { background: #09090b !important; }
+[data-theme="dark-neon"] .scrollbar-styled::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg,#ec4899,#8b5cf6) !important;
+  border-radius: 9999px !important;
+}
+
+/* ── ⑲ 포인트 액센트 (선택된 MBTI 그룹 카드, 활성 버튼 등) */
+[data-theme="dark-neon"] .border-teal-500.bg-teal-50,
+[data-theme="dark-neon"] .border-cyan-500.bg-cyan-50 {
+  background-color: rgba(244,114,182,0.08) !important;
+  border-color: #ec4899 !important;
+}
+
+/* ── ⑳ active:scale 보조 (버튼 탭 피드백) ──────────────── */
+[data-theme="dark-neon"] button:active {
+  filter: brightness(1.15) !important;
+}
 
 /* ══════════════════════════════════════════════════════════════
    [4] ☕ Minimal Chic (감성 편집숍 / 매거진)
@@ -565,17 +619,15 @@
 [data-theme="minimal"] .bg-zinc-900\/80 {
   background-color: rgba(255,255,255,0.95) !important;
 }
-/* 그라데이션 */
-[data-theme="minimal"] .from-slate-950,
-[data-theme="minimal"] .from-slate-900 {
-  --tw-gradient-from: #F9F8F6 var(--tw-gradient-from-position) !important;
-}
-[data-theme="minimal"] .via-slate-900 {
-  --tw-gradient-via: #F9F8F6 var(--tw-gradient-via-position) !important;
-}
-[data-theme="minimal"] .to-slate-950,
-[data-theme="minimal"] .to-slate-900 {
-  --tw-gradient-to: #F9F8F6 var(--tw-gradient-to-position) !important;
+/* 그라데이션 — CSS 변수 방식 불가, 다중클래스 셀렉터 사용 */
+[data-theme="minimal"] .bg-gradient-to-br.from-slate-950,
+[data-theme="minimal"] .bg-gradient-to-b.from-slate-950,
+[data-theme="minimal"] .bg-gradient-to-br.from-slate-900,
+[data-theme="minimal"] .bg-gradient-to-b.from-slate-900,
+[data-theme="minimal"] .bg-gradient-to-br.from-slate-800,
+[data-theme="minimal"] .bg-gradient-to-b.from-slate-800 {
+  background: #F9F8F6 !important;
+  background-image: none !important;
 }
 [data-theme="minimal"] .from-teal-500,
 [data-theme="minimal"] .from-teal-600 {

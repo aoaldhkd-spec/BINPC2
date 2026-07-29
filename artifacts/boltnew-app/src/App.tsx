@@ -263,6 +263,14 @@ function App() {
   const [entryPassword, setEntryPassword] = useState<string | null>(null); // null = 아직 로드 전
   const [entryVerified, setEntryVerified] = useState(false);
   const [darkMode, setDarkMode] = useState(() => ls.getItem('dark_mode') === '1');
+  // 테마 전환 시 dark_mode 동기화 (theme.tsx에서 storage 이벤트 발화)
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'dark_mode') setDarkMode(e.newValue === '1');
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
 
   // Track user's current table number for notification targeting (ref for stable access in channel callbacks)
   const userTableNumRef = useRef<number | null>(null);
