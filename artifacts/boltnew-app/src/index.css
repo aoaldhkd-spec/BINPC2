@@ -119,13 +119,14 @@
   background-color: rgba(255,255,255,0.92) !important;
   backdrop-filter: blur(12px) !important;
 }
-/* 그라데이션 배경 — CSS 변수 방식 불가, 다중클래스 셀렉터 사용 */
-[data-theme="y2k"] .bg-gradient-to-br.from-slate-950,
-[data-theme="y2k"] .bg-gradient-to-b.from-slate-950,
-[data-theme="y2k"] .bg-gradient-to-br.from-slate-900,
-[data-theme="y2k"] .bg-gradient-to-b.from-slate-900,
-[data-theme="y2k"] .bg-gradient-to-br.from-slate-800,
-[data-theme="y2k"] .bg-gradient-to-b.from-slate-800 {
+/* 그라데이션 배경 — 페이지 전체 래퍼 강제 오버라이드 */
+[data-theme="y2k"] .min-h-screen {
+  background: #FCFCFB !important;
+  background-image: none !important;
+}
+/* 혹시 min-h-screen 없는 경우도 커버 */
+[data-theme="y2k"] .bg-gradient-to-br,
+[data-theme="y2k"] .bg-gradient-to-b {
   background: #FCFCFB !important;
   background-image: none !important;
 }
@@ -619,13 +620,13 @@
 [data-theme="minimal"] .bg-zinc-900\/80 {
   background-color: rgba(255,255,255,0.95) !important;
 }
-/* 그라데이션 — CSS 변수 방식 불가, 다중클래스 셀렉터 사용 */
-[data-theme="minimal"] .bg-gradient-to-br.from-slate-950,
-[data-theme="minimal"] .bg-gradient-to-b.from-slate-950,
-[data-theme="minimal"] .bg-gradient-to-br.from-slate-900,
-[data-theme="minimal"] .bg-gradient-to-b.from-slate-900,
-[data-theme="minimal"] .bg-gradient-to-br.from-slate-800,
-[data-theme="minimal"] .bg-gradient-to-b.from-slate-800 {
+/* 그라데이션 — 페이지 전체 래퍼 강제 오버라이드 */
+[data-theme="minimal"] .min-h-screen {
+  background: #F9F8F6 !important;
+  background-image: none !important;
+}
+[data-theme="minimal"] .bg-gradient-to-br,
+[data-theme="minimal"] .bg-gradient-to-b {
   background: #F9F8F6 !important;
   background-image: none !important;
 }
