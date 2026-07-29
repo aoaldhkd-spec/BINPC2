@@ -66,12 +66,10 @@ const BIO_CATEGORIES = [
 
 const POSITION_OPTIONS: { label: string; val: number }[] = [
   { label: '비선호', val: -1 },
-  { label: '개바텀', val: 0 },
   { label: '바텀', val: 15 },
   { label: '올텀', val: 35 },
   { label: '올', val: 50 },
   { label: '올탑', val: 70 },
-  { label: '탑', val: 90 },
   { label: '퓨어탑', val: 100 },
 ];
 
@@ -85,36 +83,36 @@ const DOM_SUB_OPTIONS: { label: string; val: number }[] = [
 
 const MBTI_GROUPS = [
   {
-    label: '분석가', emoji: '🟣',
-    desc: 'NT — 논리·전략형',
-    bg: 'bg-purple-50', border: 'border-purple-200', labelColor: 'text-purple-700',
-    activeBg: 'bg-purple-500', activeBorder: 'border-purple-500',
-    hoverBorder: 'hover:border-purple-300', hoverBg: 'hover:bg-purple-50',
-    types: ['INTJ','INTP','ENTJ','ENTP'],
+    label: 'IN', emoji: '🌙',
+    desc: '내향 + 직관 — 독창·이상형',
+    bg: 'bg-indigo-50', border: 'border-indigo-200', labelColor: 'text-indigo-700',
+    activeBg: 'bg-indigo-500', activeBorder: 'border-indigo-500',
+    hoverBorder: 'hover:border-indigo-300', hoverBg: 'hover:bg-indigo-50',
+    types: ['INTJ','INTP','INFJ','INFP'],
   },
   {
-    label: '외교관', emoji: '🟢',
-    desc: 'NF — 공감·이상형',
-    bg: 'bg-emerald-50', border: 'border-emerald-200', labelColor: 'text-emerald-700',
-    activeBg: 'bg-emerald-500', activeBorder: 'border-emerald-500',
-    hoverBorder: 'hover:border-emerald-300', hoverBg: 'hover:bg-emerald-50',
-    types: ['INFJ','INFP','ENFJ','ENFP'],
+    label: 'IS', emoji: '🌿',
+    desc: '내향 + 감각 — 성실·안정형',
+    bg: 'bg-teal-50', border: 'border-teal-200', labelColor: 'text-teal-700',
+    activeBg: 'bg-teal-500', activeBorder: 'border-teal-500',
+    hoverBorder: 'hover:border-teal-300', hoverBg: 'hover:bg-teal-50',
+    types: ['ISTJ','ISFJ','ISTP','ISFP'],
   },
   {
-    label: '수호자', emoji: '🔵',
-    desc: 'SJ — 성실·안정형',
-    bg: 'bg-blue-50', border: 'border-blue-200', labelColor: 'text-blue-700',
-    activeBg: 'bg-blue-500', activeBorder: 'border-blue-500',
-    hoverBorder: 'hover:border-blue-300', hoverBg: 'hover:bg-blue-50',
-    types: ['ISTJ','ISFJ','ESTJ','ESFJ'],
+    label: 'EN', emoji: '⚡',
+    desc: '외향 + 직관 — 활발·전략형',
+    bg: 'bg-amber-50', border: 'border-amber-200', labelColor: 'text-amber-700',
+    activeBg: 'bg-amber-500', activeBorder: 'border-amber-500',
+    hoverBorder: 'hover:border-amber-300', hoverBg: 'hover:bg-amber-50',
+    types: ['ENTJ','ENTP','ENFJ','ENFP'],
   },
   {
-    label: '탐험가', emoji: '🟠',
-    desc: 'SP — 자유·실용형',
-    bg: 'bg-orange-50', border: 'border-orange-200', labelColor: 'text-orange-700',
-    activeBg: 'bg-orange-500', activeBorder: 'border-orange-500',
-    hoverBorder: 'hover:border-orange-300', hoverBg: 'hover:bg-orange-50',
-    types: ['ISTP','ISFP','ESTP','ESFP'],
+    label: 'ES', emoji: '🌟',
+    desc: '외향 + 감각 — 현실·사교형',
+    bg: 'bg-rose-50', border: 'border-rose-200', labelColor: 'text-rose-700',
+    activeBg: 'bg-rose-500', activeBorder: 'border-rose-500',
+    hoverBorder: 'hover:border-rose-300', hoverBg: 'hover:bg-rose-50',
+    types: ['ESTJ','ESFJ','ESTP','ESFP'],
   },
 ];
 
@@ -139,14 +137,14 @@ const LOCATION_GROUPS: Record<string, string[]> = {
 
 // ─── NicknameSetupScreen ──────────────────────────────────────────────────────
 
-export function NicknameSetupScreen({ onSubmit, loading, onReset }: {
+export function NicknameSetupScreen({ onSubmit, loading, onReset, onShowRecovery }: {
   onSubmit: (data: {
     birthYear: number; birthMonth: number | null; birthDay: number | null;
     location: string; mbti: string; interests: string[];
     personalityScore: number; domSubScore: number | null; nickname: string;
     kakaoId: string; instagramId: string; phoneNumber: string; contactPrivate: boolean;
   }) => void;
-  loading: boolean; onReset: () => void;
+  loading: boolean; onReset: () => void; onShowRecovery?: () => void;
 }) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   // contact fields
@@ -241,11 +239,8 @@ export function NicknameSetupScreen({ onSubmit, loading, onReset }: {
     }, 600);
   };
 
-  const contactValid = contactPrivate || !!(kakaoId.trim() || instagramId.trim());
-
   const handleSubmit = () => {
     if (!canEnter || !mbti || positionScore === null) return;
-    if (!contactValid) return;
     const finalNick = nicknameMode === 'random' ? selectedNickname! : customFinalNick;
     if (!finalNick) return;
     onSubmit({
@@ -458,37 +453,49 @@ export function NicknameSetupScreen({ onSubmit, loading, onReset }: {
                     </div>
                   )}
                   {/* 카테고리 필터 탭 */}
-                  <div className="flex gap-1.5 flex-wrap mb-2.5">
+                  <div className="flex gap-1.5 flex-wrap mb-3">
                     <button
                       type="button"
                       onClick={() => setBioFilter(null)}
-                      className={`px-3 py-1 rounded-full text-xs font-black border transition-all ${
+                      className={`px-3 py-1.5 rounded-full text-xs font-black border transition-all ${
                         bioFilter === null
-                          ? 'bg-gray-800 text-white border-gray-800'
+                          ? 'bg-gray-800 text-white border-gray-800 shadow-sm'
                           : 'bg-white text-gray-500 border-gray-200 hover:border-gray-400'
                       }`}
                     >전체</button>
                     {BIO_CATEGORIES.map((cat) => {
                       const active = bioFilter === cat.label;
+                      const hasSelected = cat.tags.some(t => selectedBio.includes(t));
                       return (
                         <button
                           key={cat.label}
                           type="button"
                           onClick={() => setBioFilter(active ? null : cat.label)}
-                          className={`px-3 py-1 rounded-full text-xs font-black border transition-all ${
+                          className={`relative px-3 py-1.5 rounded-full text-xs font-black border transition-all ${
                             active
-                              ? `${cat.color.selected} border-transparent`
+                              ? `${cat.color.selected} border-transparent shadow-sm`
                               : `bg-white border-gray-200 ${cat.color.label} hover:border-current`
                           }`}
-                        >{cat.label}</button>
+                        >
+                          {cat.label}
+                          {hasSelected && !active && (
+                            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-cyan-500 rounded-full border border-white" />
+                          )}
+                        </button>
                       );
                     })}
                   </div>
 
-                  <div className="space-y-2.5 max-h-48 overflow-y-auto pr-1">
+                  {/* 태그 목록 — 카테고리 선택 시 헤더 없이 단순 표시, 전체 시 카테고리별 그룹 */}
+                  <div className="space-y-3">
                     {BIO_CATEGORIES.filter((cat) => bioFilter === null || cat.label === bioFilter).map((cat) => (
-                      <div key={cat.label}>
-                        <div className="flex flex-wrap gap-1.5">
+                      <div key={cat.label} className={bioFilter === null ? `rounded-xl border ${cat.color.normal.includes('green') ? 'border-green-100' : cat.color.normal.includes('amber') ? 'border-amber-100' : cat.color.normal.includes('sky') ? 'border-sky-100' : cat.color.normal.includes('rose') ? 'border-rose-100' : cat.color.normal.includes('orange') ? 'border-orange-100' : 'border-pink-100'} overflow-hidden` : ''}>
+                        {bioFilter === null && (
+                          <div className={`px-3 py-1.5 flex items-center gap-1.5 ${cat.color.normal.includes('green') ? 'bg-green-50' : cat.color.normal.includes('amber') ? 'bg-amber-50' : cat.color.normal.includes('sky') ? 'bg-sky-50' : cat.color.normal.includes('rose') ? 'bg-rose-50' : cat.color.normal.includes('orange') ? 'bg-orange-50' : 'bg-pink-50'}`}>
+                            <span className={`text-[11px] font-black ${cat.color.label}`}>{cat.label}</span>
+                          </div>
+                        )}
+                        <div className={`flex flex-wrap gap-1.5 ${bioFilter === null ? 'p-2.5' : ''}`}>
                           {cat.tags.map((tag) => {
                             const selected = selectedBio.includes(tag);
                             const isHot = tag === '뜨밤';
@@ -496,7 +503,7 @@ export function NicknameSetupScreen({ onSubmit, loading, onReset }: {
                             return (
                               <button key={tag} type="button" onClick={() => toggleBio(tag)}
                                 disabled={disabled}
-                                className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all ${
+                                className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all active:scale-95 ${
                                   selected ? cat.color.selected : disabled ? 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed' : cat.color.normal
                                 }`}>
                                 {isHot && <span className="mr-1">🔥</span>}
@@ -724,48 +731,12 @@ export function NicknameSetupScreen({ onSubmit, loading, onReset }: {
                   </div>
                 )}
 
-                {/* ── 연락처 입력 ── */}
-                <div className="bg-blue-50 border-2 border-blue-200 rounded-2xl p-4 space-y-3">
-                  <div>
-                    <p className="text-xs font-black text-blue-700 mb-0.5">연락처 입력</p>
-                    <p className="text-[10px] text-blue-500">아래 중 하나 이상 필수 입력 (비공개 선택 시 제외)</p>
-                  </div>
-                  <div className="flex items-start gap-2 p-2.5 bg-white border border-blue-200 rounded-xl">
-                    <svg className="w-3.5 h-3.5 text-blue-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                    </svg>
-                    <p className="text-[10px] text-blue-600 leading-relaxed">입력하신 정보는 프로필에 공개되지 않으며, 사용자 동의 시에만 매칭 상대방에게 전달됩니다.</p>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-yellow-500 font-black text-xs">K</span>
-                      <input value={kakaoId} onChange={e => setKakaoId(e.target.value)} disabled={contactPrivate}
-                        placeholder="카카오톡 ID"
-                        className="w-full pl-8 pr-3 py-2.5 rounded-xl border-2 border-blue-200 bg-white text-sm focus:border-blue-400 focus:outline-none disabled:opacity-40 disabled:bg-gray-100" />
-                    </div>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-pink-500 font-black text-xs">@</span>
-                      <input value={instagramId} onChange={e => setInstagramId(e.target.value)} disabled={contactPrivate}
-                        placeholder="인스타그램 ID"
-                        className="w-full pl-8 pr-3 py-2.5 rounded-xl border-2 border-blue-200 bg-white text-sm focus:border-blue-400 focus:outline-none disabled:opacity-40 disabled:bg-gray-100" />
-                    </div>
-                    <p className="text-[10px] text-blue-500">📱 전화번호는 입장 후 내 상태 탭에서 설정할 수 있어요.</p>
-                  </div>
-                  <label className="flex items-start gap-2 cursor-pointer select-none">
-                    <input type="checkbox" checked={contactPrivate} onChange={e => setContactPrivate(e.target.checked)}
-                      className="mt-0.5 w-4 h-4 accent-red-500 flex-shrink-0" />
-                    <span className="text-xs font-bold text-gray-700">연락처 공유 안 함 (비공개)</span>
-                  </label>
-                  {contactPrivate && (
-                    <div className="bg-red-50 border border-red-200 rounded-xl p-2.5">
-                      <p className="text-[11px] text-red-600 font-medium leading-relaxed">
-                        선택 시 연락처가 상대방에게 절대 공유되지 않으며, 행사 내 소통이 제한될 수 있습니다.
-                      </p>
-                    </div>
-                  )}
-                  {!contactPrivate && !contactValid && (
-                    <p className="text-[11px] text-red-500 font-semibold">카카오 또는 인스타 중 하나 이상을 입력해 주세요.</p>
-                  )}
+                {/* 연락처 안내 */}
+                <div className="bg-sky-50 border border-sky-200 rounded-xl px-4 py-3 flex items-start gap-2">
+                  <span className="text-sky-500 text-sm mt-0.5">📋</span>
+                  <p className="text-[12px] text-sky-700 leading-relaxed">
+                    <span className="font-black">연락처</span>는 입장 후 <span className="font-bold">내 상태 탭 → 연락처 설정</span>에서 언제든 입력할 수 있어요.
+                  </p>
                 </div>
 
                 <div className="flex gap-3 pt-2">
@@ -773,7 +744,7 @@ export function NicknameSetupScreen({ onSubmit, loading, onReset }: {
                     className="flex items-center justify-center gap-1.5 px-5 py-3 bg-gray-100 text-gray-500 font-bold rounded-xl hover:bg-gray-200 transition-all">
                     <ArrowLeft className="w-4 h-4" /> 이전
                   </button>
-                  <button type="button" onClick={handleSubmit} disabled={!canEnter || !contactValid}
+                  <button type="button" onClick={handleSubmit} disabled={!canEnter}
                     className="flex-1 flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-cyan-500 to-teal-500 text-white font-bold rounded-xl hover:from-cyan-600 hover:to-teal-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all">
                     {loading ? '입장 중...' : <>이 닉네임으로 입장하기 <ChevronRight className="w-5 h-5" /></>}
                   </button>
@@ -783,6 +754,19 @@ export function NicknameSetupScreen({ onSubmit, loading, onReset }: {
           </div>
         </div>
       </div>
+
+      {/* 프로필 복구 링크 */}
+      {onShowRecovery && (
+        <div className="text-center mt-4">
+          <button
+            type="button"
+            onClick={onShowRecovery}
+            className="text-white/50 text-xs hover:text-white/80 transition-all underline underline-offset-2"
+          >
+            이미 등록한 프로필이 있나요? → 고유번호로 복구하기
+          </button>
+        </div>
+      )}
     </div>
   );
 }

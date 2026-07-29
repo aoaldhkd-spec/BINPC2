@@ -94,6 +94,8 @@ const ProfileCard = memo(function ProfileCard({
         <img
           src={profile.photo_url}
           alt={profile.nickname}
+          loading="lazy"
+          decoding="async"
           onLoad={handleImgLoad}
           className={`w-full h-full transition-none ${imgFit === 'cover' ? 'object-cover' : 'object-contain p-3 bg-gray-50'}`}
         />
@@ -828,6 +830,13 @@ export function MainScreen({
                         <QrCode className="w-3 h-3" />
                         <span>QR 보기</span>
                       </button>
+                      {/* 핀번호 직접 표시 */}
+                      {me.pin_code && (
+                        <div className={`mt-1.5 w-20 text-center px-1 py-1 rounded-lg border ${darkMode ? 'bg-slate-700/60 border-slate-600' : 'bg-slate-50 border-slate-200'}`}>
+                          <p className={`text-[8px] font-bold uppercase tracking-widest mb-0.5 ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>고유번호</p>
+                          <p className={`text-sm font-black tracking-[0.25em] ${darkMode ? 'text-slate-200' : 'text-slate-800'}`}>{me.pin_code}</p>
+                        </div>
+                      )}
                     </div>
                     {/* 텍스트 정보 */}
                     <div className="flex-1 min-w-0 space-y-2">

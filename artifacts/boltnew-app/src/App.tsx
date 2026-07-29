@@ -40,6 +40,7 @@ import { RefreshBtn } from './components/RefreshBtn';
 import { WaitingOverlay } from './components/WaitingOverlay';
 import { NicknameSetupScreen } from './components/NicknameSetupScreen';
 import { EntryGateScreen } from './components/EntryGateScreen';
+import { ProfileRecoveryScreen } from './components/ProfileRecoveryScreen';
 import { TutorialModal } from './components/TutorialModal';
 import { ResetButton } from './components/ResetButton';
 import { ProfileQrModal } from './components/ProfileQrModal';
@@ -936,6 +937,27 @@ function App() {
     setView('entry-1');
   };
 
+  const handleProfileRecovery = async (profileId: string) => {
+    setLoading(true);
+    // 프로필 존재 여부 확인
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', profileId)
+      .single();
+    if (profile) {
+      ls.setItem(MATCHING_USER_KEY, profile.id);
+      ls.removeItem(MATCHING_DRAFT_KEY);
+      setCurrentUserId(profile.id);
+      setProfiles(prev => prev.some(p => p.id === profile.id) ? prev : [profile as Profile, ...prev]);
+      setView('loading-main');
+    } else {
+      alert('프로필을 찾을 수 없습니다. 관리자에게 문의하세요.');
+      setView('entry-1');
+    }
+    setLoading(false);
+  };
+
 
 
 
@@ -1001,9 +1023,21 @@ function App() {
     </div>
   );
 
+  if (view === 'entry-recover') return (
+    <ProfileRecoveryScreen
+      onRecover={handleProfileRecovery}
+      onBack={() => setView('entry-1')}
+    />
+  );
+
   if (view === 'entry-1') return (
     <>
-      <NicknameSetupScreen onSubmit={handleNicknameSetup} loading={loading} onReset={reset} />
+      <NicknameSetupScreen
+        onSubmit={handleNicknameSetup}
+        loading={loading}
+        onReset={reset}
+        onShowRecovery={() => setView('entry-recover')}
+      />
     </>
   );
 

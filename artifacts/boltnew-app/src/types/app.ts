@@ -21,7 +21,7 @@ export type Chat = {
   messageCount?: number;
 };
 
-export type View = 'entry-1' | 'loading-main' | 'main' | 'profile' | 'chat';
+export type View = 'entry-1' | 'entry-recover' | 'loading-main' | 'main' | 'profile' | 'chat';
 export type MainTab =
   | 'profiles' | 'seating' | 'status' | 'chats' | 'suggestions'
   | 'game' | 'tutorial' | 'stats' | 'ranking' | 'fortune';
