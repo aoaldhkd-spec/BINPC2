@@ -4,3 +4,4 @@
 - [boltnew-app realtime fixes](boltnew-app-realtime-fixes.md) — profileChannel needed UPDATE handler; contactEventsChannel needs recency+dedup check to prevent re-fire on reconnect.
 - [boltnew-app entry race condition fix](boltnew-app-entry-race.md) — isNewRegistration ref must skip profile-not-found check; also immediately push new profile to state on insert.
 - [boltnew-app audit findings](boltnew-app-audit.md) — useState in custom hook must stay at top of hook body (not after function defs). likes table needs server-side dedup. useHearts needs self-like guard + likeInFlight lock.
+- [boltnew-app SSE security fix](boltnew-app-sse-security.md) — SSE was broadcasting all events to all clients; fixed with userId-based routing: sseUserMap+smartBroadcast. FilterSpec uses type:'eq' not op:'eq'. push/notify uses recipientId not userId.

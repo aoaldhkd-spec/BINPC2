@@ -3,7 +3,7 @@ import {
   Heart, MessageCircle, Users, ChevronRight, ChevronDown,
   LayoutGrid, CheckCircle, X, XCircle,
 } from 'lucide-react';
-import { supabase } from './lib/supabase';
+import { supabase, setLocalDbUserId } from './lib/supabase';
 import SeatingMap from './components/SeatingMap';
 import ProfileAvatar from './components/ProfileAvatar';
 import { genAvatar } from './lib/profile';
@@ -163,6 +163,9 @@ function App() {
   });
   const userIdRef = useRef<string | null>(null);
   userIdRef.current = currentUserId;
+
+  // SSE 연결을 현재 userId로 식별 → 서버가 당사자 이벤트만 라우팅
+  useEffect(() => { setLocalDbUserId(currentUserId); }, [currentUserId]);
 
   const handleChannelStatus = useCallback((status: string) => {
     if (status === 'SUBSCRIBED') {

@@ -11,8 +11,9 @@ const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 const store: Record<string, Record<string, unknown>[]> = {};
 const imageStore: Record<string, string> = {};
 
-// SSE clients for real-time push
-const sseClients = new Set<Response>();
+// SSE clients — userId별 연결 관리 (보안: 민감 이벤트는 당사자에게만 전송)
+const sseUserMap = new Map<string, Set<Response>>();   // userId → 연결 집합
+const sseAnonClients = new Set<Response>();             // userId 미등록 연결 (폴백)
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function genId(): string {
@@ -145,7 +146,7 @@ function startDailyEntryPasswordRenewal(): void {
     const updated = { ...settings, entry_password: today, updated_at: ts() };
     store['app_settings'][0] = updated;
     dbPersistRow('app_settings', updated).catch(console.error);
-    broadcast({ type: 'change', table: 'app_settings', event: 'UPDATE', newRow: updated, oldRow: settings });
+    broadcastAll({ type: 'change', table: 'app_settings', event: 'UPDATE', newRow: updated, oldRow: settings });
     console.log(`[db] Auto-renewed entry_password: ${currentPw} → ${today}`);
   };
   setInterval(check, 60_000); // check every minute
@@ -155,11 +156,53 @@ function startDailyEntryPasswordRenewal(): void {
 seedIfNeeded().then(() => startDailyEntryPasswordRenewal()).catch(console.error);
 
 // ─── SSE broadcast ─────────────────────────────────────────────────────────────
-function broadcast(event: Record<string, unknown>) {
+function _send(client: Response, conns: Set<Response>, payload: string) {
+  try { client.write(payload); } catch { conns.delete(client); }
+}
+
+/** 모든 클라이언트에게 전송 (공개 이벤트: seats, profiles, app_settings, games 등) */
+function broadcastAll(event: Record<string, unknown>) {
   const payload = `data: ${JSON.stringify(event)}\n\n`;
-  for (const client of sseClients) {
-    try { client.write(payload); } catch { sseClients.delete(client); }
+  for (const [, conns] of sseUserMap) for (const c of conns) _send(c, conns, payload);
+  for (const c of sseAnonClients) _send(c, sseAnonClients, payload);
+}
+
+/** 특정 사용자들에게만 전송 (비공개 이벤트: messages, likes, chats 등) */
+function broadcastToUsers(userIds: string[], event: Record<string, unknown>) {
+  const payload = `data: ${JSON.stringify(event)}\n\n`;
+  const seen = new Set<Response>();
+  for (const uid of userIds) {
+    const conns = sseUserMap.get(uid);
+    if (!conns) continue;
+    for (const c of conns) {
+      if (seen.has(c)) continue;
+      seen.add(c);
+      _send(c, conns, payload);
+    }
   }
+}
+
+/** 테이블 종류에 따라 자동으로 수신자 판단 */
+function smartBroadcast(table: string, row: Record<string, unknown> | null, event: Record<string, unknown>) {
+  if (!row) { broadcastAll(event); return; }
+  const targets: string[] = [];
+  if (table === 'messages') {
+    const chat = getTable('chats').find(c => c['id'] === row['chat_id']);
+    if (chat) targets.push(chat['user1_id'] as string, chat['user2_id'] as string);
+  } else if (table === 'likes') {
+    if (row['liker_id']) targets.push(row['liker_id'] as string);
+    if (row['liked_id']) targets.push(row['liked_id'] as string);
+  } else if (table === 'chats') {
+    if (row['user1_id']) targets.push(row['user1_id'] as string);
+    if (row['user2_id']) targets.push(row['user2_id'] as string);
+  } else if (table === 'contact_shares' || table === 'contact_share_events') {
+    ['sharer_id','receiver_id','sender_id','recipient_id','user1_id','user2_id']
+      .forEach(k => { if (row[k]) targets.push(row[k] as string); });
+  } else if (table === 'chat_reads') {
+    if (row['user_id']) targets.push(row['user_id'] as string);
+  }
+  if (targets.length > 0) broadcastToUsers(targets, event);
+  else broadcastAll(event);
 }
 
 // ─── Web Push: 메시지/하트 삽입 시 수신자에게 알림 전송 ──────────────────────
@@ -324,7 +367,7 @@ router.post('/op', async (req: Request, res: Response) => {
         if (table === 'session_history' && !newRow.ended_at) newRow.ended_at = ts();
         tableData.push(newRow);
         inserted.push(newRow);
-        broadcast({ type: 'change', table, event: 'INSERT', newRow, oldRow: null });
+        smartBroadcast(table, newRow, { type: 'change', table, event: 'INSERT', newRow, oldRow: null });
         dbPersistRow(table, newRow).catch(console.error);
         // 메시지·하트 삽입 시 수신자 핸드폰으로 푸시 알림 전송
         if (table === 'messages' || table === 'likes') {
@@ -345,7 +388,7 @@ router.post('/op', async (req: Request, res: Response) => {
           const newRow = { ...oldRow, ...patch };
           tableData[i] = newRow;
           updated.push(newRow);
-          broadcast({ type: 'change', table, event: 'UPDATE', newRow, oldRow });
+          smartBroadcast(table, newRow, { type: 'change', table, event: 'UPDATE', newRow, oldRow });
           dbPersistRow(table, newRow).catch(console.error);
         }
       }
@@ -369,7 +412,7 @@ router.post('/op', async (req: Request, res: Response) => {
           const newRow = { ...oldRow, ...row };
           tableData[idx] = newRow;
           upserted.push(newRow);
-          broadcast({ type: 'change', table, event: 'UPDATE', newRow, oldRow });
+          smartBroadcast(table, newRow, { type: 'change', table, event: 'UPDATE', newRow, oldRow });
           dbPersistRow(table, newRow).catch(console.error);
         } else {
           const base: Record<string, unknown> = { id: genId(), created_at: ts(), ...row };
@@ -379,7 +422,7 @@ router.post('/op', async (req: Request, res: Response) => {
           }
           tableData.push(base);
           upserted.push(base);
-          broadcast({ type: 'change', table, event: 'INSERT', newRow: base, oldRow: null });
+          smartBroadcast(table, base, { type: 'change', table, event: 'INSERT', newRow: base, oldRow: null });
           dbPersistRow(table, base).catch(console.error);
         }
       }
@@ -392,7 +435,7 @@ router.post('/op', async (req: Request, res: Response) => {
       const toDelete = applyFilters(tableData, filters);
       store[table] = tableData.filter(r => !applyFilters([r], filters).length);
       for (const row of toDelete) {
-        broadcast({ type: 'change', table, event: 'DELETE', newRow: null, oldRow: row });
+        smartBroadcast(table, row, { type: 'change', table, event: 'DELETE', newRow: null, oldRow: row });
         dbDeleteRow(table, String(row.id)).catch(console.error);
       }
       return res.json({ data: null, error: null });
@@ -433,7 +476,7 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         const seats = getTable('seats').map(s => ({ ...s, profile_id: null, status: 'empty', registered_at: null }));
         store['seats'] = seats;
         for (const s of seats) {
-          broadcast({ type: 'change', table: 'seats', event: 'UPDATE', newRow: s, oldRow: null });
+          broadcastAll({ type: 'change', table: 'seats', event: 'UPDATE', newRow: s, oldRow: null });
           dbPersistRow('seats', s).catch(console.error);
         }
         return res.json({ data: null, error: null });
@@ -444,7 +487,7 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         const seats = getTable('seats').map(s => ({ ...s, profile_id: null, status: 'empty', registered_at: null }));
         store['seats'] = seats;
         for (const s of seats) {
-          broadcast({ type: 'change', table: 'seats', event: 'UPDATE', newRow: s, oldRow: null });
+          broadcastAll({ type: 'change', table: 'seats', event: 'UPDATE', newRow: s, oldRow: null });
           dbPersistRow('seats', s).catch(console.error);
         }
         const tablesToClear = [
@@ -455,7 +498,7 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         for (const t of tablesToClear) {
           const old = store[t] ?? [];
           store[t] = [];
-          for (const row of old) broadcast({ type: 'change', table: t, event: 'DELETE', newRow: null, oldRow: row });
+          for (const row of old) broadcastAll({ type: 'change', table: t, event: 'DELETE', newRow: null, oldRow: row });
           dbDeleteTable(t).catch(console.error);
         }
         return res.json({ data: null, error: null });
@@ -470,7 +513,7 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
           const oldRow = { ...seats[idx] };
           const newRow = { ...oldRow, profile_id: null, status: 'empty', registered_at: null };
           seats[idx] = newRow;
-          broadcast({ type: 'change', table: 'seats', event: 'UPDATE', newRow, oldRow });
+          broadcastAll({ type: 'change', table: 'seats', event: 'UPDATE', newRow, oldRow });
           dbPersistRow('seats', newRow).catch(console.error);
         }
         return res.json({ data: null, error: null });
@@ -486,7 +529,7 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
           const oldRow = { ...seats[curIdx] };
           const cleared = { ...oldRow, profile_id: null, status: 'empty', registered_at: null };
           seats[curIdx] = cleared;
-          broadcast({ type: 'change', table: 'seats', event: 'UPDATE', newRow: cleared, oldRow });
+          broadcastAll({ type: 'change', table: 'seats', event: 'UPDATE', newRow: cleared, oldRow });
           dbPersistRow('seats', cleared).catch(console.error);
         }
         const tgtIdx = seats.findIndex(s => s.id === seatId);
@@ -495,12 +538,12 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
           if (oldRow.profile_id && oldRow.profile_id !== profileId) {
             const bumped = { ...oldRow, profile_id: null, status: 'empty', registered_at: null };
             seats[tgtIdx] = bumped;
-            broadcast({ type: 'change', table: 'seats', event: 'UPDATE', newRow: bumped, oldRow });
+            broadcastAll({ type: 'change', table: 'seats', event: 'UPDATE', newRow: bumped, oldRow });
             dbPersistRow('seats', bumped).catch(console.error);
           }
           const newRow = { ...seats[tgtIdx], profile_id: profileId, status: 'occupied', registered_at: ts() };
           seats[tgtIdx] = newRow;
-          broadcast({ type: 'change', table: 'seats', event: 'UPDATE', newRow, oldRow });
+          broadcastAll({ type: 'change', table: 'seats', event: 'UPDATE', newRow, oldRow });
           dbPersistRow('seats', newRow).catch(console.error);
         }
         return res.json({ data: null, error: null });
@@ -515,7 +558,7 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
           const oldRow = { ...seats[idx] };
           const newRow = { ...oldRow, profile_id: null, status: 'empty', registered_at: null };
           seats[idx] = newRow;
-          broadcast({ type: 'change', table: 'seats', event: 'UPDATE', newRow, oldRow });
+          broadcastAll({ type: 'change', table: 'seats', event: 'UPDATE', newRow, oldRow });
           dbPersistRow('seats', newRow).catch(console.error);
         }
         return res.json({ data: null, error: null });
@@ -533,8 +576,8 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         const aNew = { ...aOld, profile_id: bOld.profile_id, status: bOld.status, registered_at: bOld.registered_at };
         const bNew = { ...bOld, profile_id: aOld.profile_id, status: aOld.status, registered_at: aOld.registered_at };
         seats[aIdx] = aNew; seats[bIdx] = bNew;
-        broadcast({ type: 'change', table: 'seats', event: 'UPDATE', newRow: aNew, oldRow: aOld });
-        broadcast({ type: 'change', table: 'seats', event: 'UPDATE', newRow: bNew, oldRow: bOld });
+        broadcastAll({ type: 'change', table: 'seats', event: 'UPDATE', newRow: aNew, oldRow: aOld });
+        broadcastAll({ type: 'change', table: 'seats', event: 'UPDATE', newRow: bNew, oldRow: bOld });
         dbPersistRow('seats', aNew).catch(console.error);
         dbPersistRow('seats', bNew).catch(console.error);
         return res.json({ data: null, error: null });
@@ -560,7 +603,7 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
           }
           const newRow = { ...oldRow, ...patch };
           profiles[idx] = newRow;
-          broadcast({ type: 'change', table: 'profiles', event: 'UPDATE', newRow, oldRow });
+          broadcastAll({ type: 'change', table: 'profiles', event: 'UPDATE', newRow, oldRow });
           dbPersistRow('profiles', newRow).catch(console.error);
         }
         return res.json({ data: null, error: null });
@@ -575,14 +618,14 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
           const oldRow = { ...seats[seatIdx] };
           const newRow = { ...oldRow, profile_id: null, status: 'empty', registered_at: null };
           seats[seatIdx] = newRow;
-          broadcast({ type: 'change', table: 'seats', event: 'UPDATE', newRow, oldRow });
+          broadcastAll({ type: 'change', table: 'seats', event: 'UPDATE', newRow, oldRow });
           dbPersistRow('seats', newRow).catch(console.error);
         }
         const profiles = getTable('profiles');
         const oldProfile = profiles.find(p => p.id === profileId);
         store['profiles'] = profiles.filter(p => p.id !== profileId);
         if (oldProfile) {
-          broadcast({ type: 'change', table: 'profiles', event: 'DELETE', newRow: null, oldRow: oldProfile });
+          broadcastAll({ type: 'change', table: 'profiles', event: 'DELETE', newRow: null, oldRow: oldProfile });
           dbDeleteRow('profiles', profileId).catch(console.error);
         }
         return res.json({ data: null, error: null });
@@ -600,7 +643,7 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
 // ─── Broadcast endpoint (for channel.send()) ──────────────────────────────────
 router.post('/broadcast', (req: Request, res: Response) => {
   const { channel, event, payload } = req.body as { channel: string; event: string; payload: unknown };
-  broadcast({ type: 'broadcast', channel, event, payload });
+  broadcastAll({ type: 'broadcast', channel, event, payload });
   res.json({ ok: true });
 });
 
@@ -712,7 +755,14 @@ router.get('/events', (req: Request, res: Response) => {
   // Initial ping so the client knows it's connected
   res.write('data: {"type":"ping"}\n\n');
 
-  sseClients.add(res);
+  const userId = typeof req.query.userId === 'string' && req.query.userId ? req.query.userId : null;
+
+  if (userId) {
+    if (!sseUserMap.has(userId)) sseUserMap.set(userId, new Set());
+    sseUserMap.get(userId)!.add(res);
+  } else {
+    sseAnonClients.add(res);
+  }
 
   // Keep-alive every 20s
   const keepalive = setInterval(() => {
@@ -721,7 +771,15 @@ router.get('/events', (req: Request, res: Response) => {
 
   req.on('close', () => {
     clearInterval(keepalive);
-    sseClients.delete(res);
+    if (userId) {
+      const conns = sseUserMap.get(userId);
+      if (conns) {
+        conns.delete(res);
+        if (conns.size === 0) sseUserMap.delete(userId);
+      }
+    } else {
+      sseAnonClients.delete(res);
+    }
   });
 });
 

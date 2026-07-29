@@ -185,9 +185,21 @@ interface SseEvent {
 let _es: EventSource | null = null;
 const _sseListeners = new Set<(e: SseEvent) => void>();
 let _sseErrorSince: number | null = null;
+let _currentUserId: string | null = null;
+
+/** 사용자 로그인/로그아웃 시 호출 — SSE를 userId 식별 연결로 재연결 */
+export function setLocalDbUserId(userId: string | null) {
+  if (_currentUserId === userId) return;
+  _currentUserId = userId;
+  if (_es) { _es.close(); _es = null; }
+  if (_sseListeners.size > 0) ensureSse();
+}
 
 function createSse() {
-  const es = new EventSource(`${API}/events`);
+  const url = _currentUserId
+    ? `${API}/events?userId=${encodeURIComponent(_currentUserId)}`
+    : `${API}/events`;
+  const es = new EventSource(url);
   es.onmessage = (ev) => {
     _sseErrorSince = null; // 메시지 수신 = 연결 정상
     try {
