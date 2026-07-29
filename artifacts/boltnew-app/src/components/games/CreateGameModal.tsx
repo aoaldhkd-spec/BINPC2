@@ -11,7 +11,7 @@ const QUICK_TEMPLATES = [
 ];
 
 export function CreateGameModal({
-  tableNumber, currentUserNickname, onSubmit, onClose,
+  tableNumber, currentUserNickname: _currentUserNickname, onSubmit, onClose,
 }: {
   tableNumber: number | null;
   currentUserNickname: string;

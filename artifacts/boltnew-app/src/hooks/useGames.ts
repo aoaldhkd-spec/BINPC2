@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import type { BalanceGame, BalanceVote, TableMiniGameSession, Seat, Profile } from '../types/app';
+import type { BalanceGame, TableMiniGameSession, Seat, Profile } from '../types/app';
 
 export function useGames(
   currentUserId: string | null,

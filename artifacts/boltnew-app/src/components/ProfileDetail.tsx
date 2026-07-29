@@ -7,7 +7,7 @@ import type { Profile } from '../types/app';
 // heartMeta: HeartType → HEART_TYPES 메타데이터 조회
 const heartMeta = (t: HeartType) => HEART_TYPES.find(h => h.type === t)!;
 
-function ProfileDetail({ profile, isMe, isLiked, heartType, sentHeartsCount, onLike, onChat, onBack, onReset }: {
+function ProfileDetail({ profile, isMe, isLiked, heartType, sentHeartsCount, onLike, onChat, onBack, onReset: _onReset }: {
   profile: Profile; isMe: boolean; isLiked: boolean; heartType?: HeartType; sentHeartsCount?: number;
   onLike: () => void; onChat: () => void; onBack: () => void; onReset: () => void;
 }) {

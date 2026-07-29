@@ -624,7 +624,7 @@ function matchesSearch(text: string, query: string): boolean {
 type AssignMode = 'qr' | 'code' | 'nickname';
 
 function HybridAssignModal({
-  seat, adminPassword, unseatedProfiles, onAssigned, onClose,
+  seat, adminPassword: _adminPassword, unseatedProfiles, onAssigned, onClose,
 }: {
   seat: Seat;
   adminPassword: string;
@@ -641,7 +641,6 @@ function HybridAssignModal({
   const [cameraActive, setCameraActive] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const detectorRef = useRef<unknown>(null);
   const rafRef = useRef<number>(0);
 
   const filteredProfiles = unseatedProfiles.filter(p =>

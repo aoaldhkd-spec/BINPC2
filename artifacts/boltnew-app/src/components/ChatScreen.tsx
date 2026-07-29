@@ -20,7 +20,7 @@ const EMOJIS = [
   '🐶','🐱','🐼','🦊','🦁','🐻','🐨','🐸','🦋','🌸',
 ];
 
-function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onSendImage, onBack, onReset, onDeleteMessage, currentUserProfile, receivedContactShares, contactSharedWithIds, onGoToTab }: {
+function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onSendImage, onBack, onReset: _onReset, onDeleteMessage, currentUserProfile, receivedContactShares, contactSharedWithIds, onGoToTab }: {
   chatId: string;
   messages: Message[]; currentUserId: string; otherProfile: Profile;
   onSend: (content: string) => void;

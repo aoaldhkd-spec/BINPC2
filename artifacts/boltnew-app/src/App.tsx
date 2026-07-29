@@ -1,30 +1,22 @@
-import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
-  Heart, MessageCircle, Users, ChevronRight, ChevronDown,
-  LayoutGrid, CheckCircle, X, XCircle,
+  CheckCircle, X, XCircle,
 } from 'lucide-react';
 import { supabase, setLocalDbUserId } from './lib/supabase';
-import SeatingMap from './components/SeatingMap';
-import ProfileAvatar from './components/ProfileAvatar';
 import { genAvatar } from './lib/profile';
-const FortuneTab = lazy(() => import('./components/FortuneTab'));
-import { HEART_TYPES, HeartType } from './lib/constants';
+import { HeartType } from './lib/constants';
 // ─── 분리된 타입·유틸·컴포넌트 imports ────────────────────────────────────────
 import type {
-  Profile, Message, Seat, ContactShare, Suggestion, BalanceGame, BalanceVote,
-  AnonymousReport, Chat, View, MainTab, TableMiniGameSession, GameState,
+  Profile, Seat, ContactShare, Suggestion, BalanceGame, BalanceVote,
+  Chat, View, MainTab, GameState,
 } from './types/app';
 export type { GameState } from './types/app';
-import { koreanMatch, MBTI_COLORS, domSubLabel } from './lib/utils';
 import { heartMeta } from './lib/constants';
 import ChatScreen from './components/ChatScreen';
 import ProfileDetail from './components/ProfileDetail';
 import BrowserGuidePopup from './components/BrowserGuidePopup';
 import ReconnectOverlay from './components/ReconnectOverlay';
-import DrumRoller from './components/DrumRoller';
-import ProfileScoreBar from './components/ProfileScoreBar';
 import { SeatRegisterDialog } from './components/SeatRegisterDialog';
-import { DiceDisplay, RouletteDisplay, LadderDisplay } from './components/games/GameDisplays';
 import { GameResultModal } from './components/games/GameResultModal';
 import { GameActiveBanner } from './components/games/GameActiveBanner';
 import { GameAnnouncementModal } from './components/games/GameAnnouncementModal';
@@ -38,20 +30,17 @@ import { ContactDisplayModal } from './components/ContactDisplayModal';
 import { LikeConfirmDialog } from './components/LikeConfirmDialog';
 import { ContactShareModal } from './components/ContactShareModal';
 import { ContactViewModal } from './components/ContactViewModal';
-import { TimerBanner } from './components/TimerBanner';
-import { RefreshBtn } from './components/RefreshBtn';
 import { WaitingOverlay } from './components/WaitingOverlay';
 import { NicknameSetupScreen } from './components/NicknameSetupScreen';
 import { EntryGateScreen } from './components/EntryGateScreen';
 import { ProfileRecoveryScreen } from './components/ProfileRecoveryScreen';
 import { TutorialModal } from './components/TutorialModal';
-import { ResetButton } from './components/ResetButton';
 import { ProfileQrModal } from './components/ProfileQrModal';
 import { QrScannerModal } from './components/QrScannerModal';
 import { ContactRevealModal } from './components/ContactRevealModal';
 import {
   MATCHING_USER_KEY, MATCHING_DRAFT_KEY, MATCHING_LAST_RESET_KEY,
-  MATCHING_GUIDE_SHOWN_KEY, MATCHING_PROFILES_CACHE_KEY, MATCHING_SEATS_CACHE_KEY,
+  MATCHING_GUIDE_SHOWN_KEY, MATCHING_PROFILES_CACHE_KEY,
   ENTRY_VERIFIED_KEY, SCANNED_CONTACTS_KEY,
 } from './lib/constants';
 import { ls } from './lib/storage';
@@ -173,7 +162,7 @@ function App() {
   // SSE 연결을 현재 userId로 식별 → 서버가 당사자 이벤트만 라우팅
   useEffect(() => { setLocalDbUserId(currentUserId); }, [currentUserId]);
 
-  const handleChannelStatus = useCallback((status: string) => {
+  const _handleChannelStatus = useCallback((status: string) => {
     if (status === 'SUBSCRIBED') {
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
       reconnectTimerRef.current = null;
@@ -289,26 +278,26 @@ function App() {
   } = useSeating(currentUserId);
 
   const {
-    balanceGames, setBalanceGames, voteCounts, setVoteCounts, myVotes, setMyVotes,
+    balanceGames, setBalanceGames, voteCounts, setVoteCounts, myVotes,
     gameEndResult, setGameEndResult, incomingTableGame, setIncomingTableGame,
-    tableMinigameChRef, loadBalanceGames, loadMyVotes, voteOnGame, voteOnImageGame,
+    loadBalanceGames, loadMyVotes, voteOnGame, voteOnImageGame,
     createTableGame, endBalanceGame, broadcastTableGame,
   } = useGames(currentUserId, seats, profiles);
 
   const {
-    chatId, setChatId, chatIdRef, selfInitiatedPairRef, messages, setMessages, chatList, setChatList, chatListRef,
+    chatId, setChatId, chatIdRef, selfInitiatedPairRef, messages, chatList, setChatList, chatListRef,
     unreadChatCounts, setUnreadChatCounts, newMsgCount, setNewMsgCount,
-    loadChatList, loadMessages, openChat, sendMessage, sendImage,
+    loadChatList, openChat, sendMessage, sendImage,
     deleteChat, deleteAllChats, deleteMessage,
   } = useChat({ currentUserId, profilesRef, setSelectedProfile, setView, setBottomNotif });
 
   const {
     likedIds, setLikedIds, sentHeartTypes, setSentHeartTypes, sentHeartsPerPerson, setSentHeartsPerPerson,
     receivedHeartTypes, setReceivedHeartTypes, likeStatuses, setLikeStatuses,
-    receivedLikers, setReceivedLikers, contactSharedWithIds, setContactSharedWithIds,
+    receivedLikers, setReceivedLikers, contactSharedWithIds,
     acknowledgedComplimentIds, setAcknowledgedComplimentIds, receivedContactShares, setReceivedContactShares,
     likeConfirmTarget, setLikeConfirmTarget, contactShareTarget, setContactShareTarget,
-    loadLikes, loadReceivedLikes, loadContactShareData, heartCountByType, likedByTypeRecord,
+    loadLikes, loadReceivedLikes, loadContactShareData, likedByTypeRecord,
     handleLike, executeLike, handleHeartResponse, handleContactShare, handleContactShareReject,
   } = useHearts(currentUserId, profiles, profileMap, openChat);
 

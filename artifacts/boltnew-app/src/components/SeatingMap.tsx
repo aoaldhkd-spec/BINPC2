@@ -232,7 +232,7 @@ function ProfilePopup({ profile, seat, isCurrentUser, onChat, onClose }: {
 
 // ─── Big Seat Button (expanded modal) ─────────────────────────────────────────
 
-function BigSeatButton({ seat, profile, isCurrentUser, isAdmin, movingProfileId, darkMode = true, onSeatClick, onProfileClick, onClearSeat, onShowQr, onSelectForMove, onMoveTo }: {
+function BigSeatButton({ seat, profile, isCurrentUser, isAdmin, movingProfileId, darkMode = true, onSeatClick: _onSeatClick, onProfileClick, onClearSeat, onShowQr, onSelectForMove, onMoveTo }: {
   seat: Seat | null; profile?: Profile; isCurrentUser: boolean; isAdmin: boolean;
   movingProfileId?: string | null; darkMode?: boolean;
   onSeatClick?: (s: Seat) => void; onProfileClick?: (p: Profile) => void;
@@ -483,7 +483,7 @@ function TableExpandModal({
 
 function SeatButton({
   seat, profile, isCurrentUser, isAdmin, movingProfileId, darkMode = true,
-  onSeatClick, onProfileClick, onClearSeat, onShowQr, onSelectForMove, onMoveTo,
+  onSeatClick: _onSeatClick, onProfileClick, onClearSeat, onShowQr, onSelectForMove, onMoveTo,
 }: {
   seat: Seat | null; profile?: Profile; isCurrentUser: boolean; isAdmin: boolean;
   movingProfileId?: string | null; darkMode?: boolean;
@@ -578,7 +578,7 @@ function SeatButton({
 
 // ─── Table wrappers (small map) ────────────────────────────────────────────────
 
-function TableHeader({ tableNum, seats, onClick, isAdmin, label, darkMode = true }: {
+function TableHeader({ tableNum, seats, onClick, isAdmin, label: _label, darkMode = true }: {
   tableNum: number; seats: Seat[]; onClick: () => void; isAdmin: boolean; label: string; darkMode?: boolean;
 }) {
   const t = seatTheme(darkMode);
@@ -602,7 +602,7 @@ type SmallTableProps = {
   onSetTableLabel?: (tableNum: number, label: string) => Promise<void>;
 };
 
-function SmallTable({ tableNum, seats, profileMap, currentUserId, isAdmin, movingProfileId, darkMode = true, tableLabels, onSeatClick, onProfileClick, onClearSeat, onShowQr, onSelectForMove, onMoveTo, onTableClick, onSetTableLabel }: SmallTableProps) {
+function SmallTable({ tableNum, seats, profileMap, currentUserId, isAdmin, movingProfileId, darkMode = true, tableLabels, onSeatClick: _onSeatClick, onProfileClick, onClearSeat, onShowQr, onSelectForMove, onMoveTo, onTableClick, onSetTableLabel: _onSetTableLabel }: SmallTableProps) {
   const cfg = TABLE_POSITIONS[tableNum];
   if (!cfg) return null;
   const t = seatTheme(darkMode);
@@ -613,7 +613,7 @@ function SmallTable({ tableNum, seats, profileMap, currentUserId, isAdmin, movin
   const sb = (pos: number) => (
     <SeatButton key={pos} seat={get(pos)} profile={prof(get(pos))} isCurrentUser={isMe(get(pos))}
       isAdmin={isAdmin} movingProfileId={movingProfileId} darkMode={darkMode}
-      onSeatClick={onSeatClick} onProfileClick={onProfileClick} onClearSeat={onClearSeat} onShowQr={onShowQr}
+      onSeatClick={_onSeatClick} onProfileClick={onProfileClick} onClearSeat={onClearSeat} onShowQr={onShowQr}
       onSelectForMove={onSelectForMove} onMoveTo={onMoveTo} />
   );
 

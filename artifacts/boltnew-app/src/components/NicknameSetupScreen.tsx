@@ -90,14 +90,14 @@ export function NicknameSetupScreen({ onSubmit, loading, onReset, onShowRecovery
 }) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   // contact fields
-  const [kakaoId, setKakaoId] = useState('');
-  const [instagramId, setInstagramId] = useState('');
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [contactPrivate, setContactPrivate] = useState(false);
+  const [kakaoId] = useState('');
+  const [instagramId] = useState('');
+  const [phoneNumber] = useState('');
+  const [contactPrivate] = useState(false);
   const [mbti, setMbti] = useState<string | null>(null);
   const [birthYear, setBirthYear] = useState<string>(String(DECADE_GROUPS['90년대생'][0]));
-  const [birthMonth, setBirthMonth] = useState<number | null>(1);
-  const [birthDay, setBirthDay] = useState<number | null>(1);
+  const [birthMonth] = useState<number | null>(1);
+  const [birthDay] = useState<number | null>(1);
   const [location, setLocation] = useState<string>(LOCATION_GROUPS['광역시'][0]);
   const [selectedBio, setSelectedBio] = useState<string[]>([]);
   const [positionScore, setPositionScore] = useState<number | null>(null);

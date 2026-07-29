@@ -780,7 +780,14 @@ router.get('/events', (req: Request, res: Response) => {
 
   if (userId) {
     if (!sseUserMap.has(userId)) sseUserMap.set(userId, new Set());
-    sseUserMap.get(userId)!.add(res);
+    const userConns = sseUserMap.get(userId)!;
+    // 탭 과다 방지: 사용자당 최대 4개 연결. 초과 시 가장 오래된 연결 종료
+    if (userConns.size >= 4) {
+      const oldest = userConns.values().next().value;
+      try { oldest.end(); } catch { /* ignore */ }
+      userConns.delete(oldest);
+    }
+    userConns.add(res);
   } else {
     sseAnonClients.add(res);
   }

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo, Suspense, lazy, Comp
 import {
   Heart, MessageCircle, Users, ChevronDown, LayoutGrid, CheckCircle,
   Eye, UserCheck, Gamepad2, X, BookOpen,
-  BarChart3, XCircle, QrCode, Camera, Search,
+  BarChart3, QrCode, Camera, Search,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { Profile, Seat, ContactShare, Suggestion, BalanceGame, Chat, MainTab, TableMiniGameSession } from '../types/app';
@@ -174,11 +174,11 @@ export function MainScreen({
   receivedLikers, receivedHeartTypes, sentLikedProfiles, contactSharedWithIds, acknowledgedComplimentIds,
   receivedContactShares, pendingHeartsCount, chatList, suggestions,
   balanceGames, voteCounts, myVotes,
-  onContactShareOpen, onContactViewOpen, onHeartResponse, onDeleteChat, onDeleteAllChats, onSubmitSuggestion, onOpenChat,
+  onContactShareOpen: _onContactShareOpen, onContactViewOpen, onHeartResponse, onDeleteChat, onDeleteAllChats, onSubmitSuggestion, onOpenChat,
   onVote, onCreateGame, onEndGame, onSubmitAnonymousReport,
-  timerEndAt, timerLabel, onRefreshStatus, onRefreshChat, onRefreshProfiles, onRefreshSeating, darkMode, onToggleDark, onShowQr, onShowContactQr, onScanQr, scannedContacts, onClearScannedContact, seatingLocked, activeTables, tableLabels, onShowTutorial,
-  newMsgCount, onClearMsgCount, unreadChatCounts, onClearChatUnread, resetPassword, onBroadcastGame,
-  setSeatDialog, onUpdateProfile,
+  timerEndAt, timerLabel, onRefreshStatus, onRefreshChat, onRefreshProfiles, onRefreshSeating, darkMode, onToggleDark, onShowQr, onShowContactQr, onScanQr, scannedContacts, onClearScannedContact, seatingLocked: _seatingLocked, activeTables, tableLabels, onShowTutorial,
+  newMsgCount, onClearMsgCount, unreadChatCounts, onClearChatUnread: _onClearChatUnread, resetPassword, onBroadcastGame,
+  setSeatDialog: _setSeatDialog, onUpdateProfile,
 }: {
   profiles: Profile[]; currentUserId: string | null; likedIds: Set<string>; sentHeartTypes: Map<string, HeartType>; sentHeartsPerPerson: Map<string, Set<HeartType>>; likeStatuses: Map<string, string>;
   seats: Seat[]; profileMap: Map<string, Profile>; mainTab: MainTab;
@@ -715,7 +715,6 @@ export function MainScreen({
             {(() => {
               const myProfile = profiles.find(p => p.id === currentUserId);
               if (!myProfile) return null;
-              const posColor = getPositionBg(myProfile.personality_score ?? 50);
               const posLabel = getPositionLabel(myProfile.personality_score ?? 50);
               const posStyle = getPositionStyle(myProfile.personality_score ?? 50);
               const bioTags = myProfile.bio ? myProfile.bio.split(',').map(t => t.trim()).filter(Boolean).slice(0, 3) : [];

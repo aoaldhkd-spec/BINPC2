@@ -22,7 +22,7 @@ function extractProfileId(text: string): string | null {
   }
 }
 
-export function QrScannerModal({ onDetected, onClose, darkMode }: Props) {
+export function QrScannerModal({ onDetected, onClose, darkMode: _darkMode }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);

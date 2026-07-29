@@ -7,13 +7,17 @@ export function EntryGateScreen({ entryPassword, onVerified }: { entryPassword: 
   const [error, setError] = useState(false);
   const [shake, setShake] = useState(false);
   const [visible, setVisible] = useState(false);
+  const [verifying, setVerifying] = useState(false);
 
   useEffect(() => { const t = setTimeout(() => setVisible(true), 60); return () => clearTimeout(t); }, []);
 
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
+    if (verifying) return;
     if (input === entryPassword) {
-      onVerified();
+      setVerifying(true);
+      // 짧은 딜레이로 로딩 피드백 후 입장 — 네트워크 느린 기기에서 버튼이 멈춘 것처럼 보이지 않도록
+      setTimeout(() => onVerified(), 120);
     } else {
       setError(true); setShake(true); setInput('');
       setTimeout(() => setShake(false), 500);
@@ -47,9 +51,9 @@ export function EntryGateScreen({ entryPassword, onVerified }: { entryPassword: 
               <p className="text-red-400 text-xs text-center font-bold">❌ 입장 코드가 올바르지 않습니다</p>
             </div>
           </div>
-          <button type="submit"
-            className="w-full bg-cyan-600 hover:bg-cyan-500 active:scale-[0.97] text-white font-black py-4 rounded-2xl transition-all text-base shadow-lg shadow-cyan-900/30">
-            입장하기 →
+          <button type="submit" disabled={verifying}
+            className={`w-full text-white font-black py-4 rounded-2xl transition-all text-base shadow-lg shadow-cyan-900/30 ${verifying ? 'bg-cyan-700/60 cursor-not-allowed' : 'bg-cyan-600 hover:bg-cyan-500 active:scale-[0.97]'}`}>
+            {verifying ? '입장 중...' : '입장하기 →'}
           </button>
         </form>
         <p className="text-center text-slate-600 text-xs">운영진에게 입장 코드를 받아 입력하세요</p>

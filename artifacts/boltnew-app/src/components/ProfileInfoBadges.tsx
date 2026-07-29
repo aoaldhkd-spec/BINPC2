@@ -1,7 +1,7 @@
 import React from 'react';
 import type { Profile } from '../types/app';
 import { MBTI_COLORS, domSubLabel } from '../lib/utils';
-import { getPositionLabel, getPositionBg, getPositionStyle, getKoreanAge } from '../lib/profile';
+import { getPositionLabel, getPositionStyle, getKoreanAge } from '../lib/profile';
 import { getZodiac } from '../lib/fortune';
 
 export function ProfileInfoBadges({ profile }: { profile: Profile }) {
@@ -13,7 +13,6 @@ export function ProfileInfoBadges({ profile }: { profile: Profile }) {
     : rawInterests ? String(rawInterests).split(/[,，、\s]+/).filter(Boolean).slice(0, 4) : [];
 
   const posLabel = getPositionLabel(profile.personality_score ?? 50);
-  const posColor = getPositionBg(profile.personality_score ?? 50);
   const posStyle = getPositionStyle(profile.personality_score ?? 50);
 
   return (

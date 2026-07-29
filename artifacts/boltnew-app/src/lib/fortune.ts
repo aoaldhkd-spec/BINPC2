@@ -341,7 +341,6 @@ export function getBedCompat(
 }
 
 // MBTI 궁합
-const MBTI_LETTERS = ['E', 'I', 'N', 'S', 'T', 'F', 'J', 'P'];
 function mbtiOverlap(a: string, b: string): number {
   if (!a || !b || a.length !== 4 || b.length !== 4) return 2;
   let same = 0;

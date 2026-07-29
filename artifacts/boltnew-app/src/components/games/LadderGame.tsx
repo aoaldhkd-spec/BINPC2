@@ -15,7 +15,7 @@ function buildLadder(n: number, rows: number): LadderBar[] {
   return bars;
 }
 
-function tracePath(n: number, bars: LadderBar[], rows: number, startCol: number): number {
+function tracePath(_n: number, bars: LadderBar[], rows: number, startCol: number): number {
   let col = startCol;
   for (let r = 0; r < rows; r++) {
     if (bars.some(b => b.row === r && b.col === col)) { col++; continue; }

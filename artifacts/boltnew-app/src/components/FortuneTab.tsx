@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { ChevronDown, ChevronUp, RefreshCw, Info } from 'lucide-react';
 import type { Database } from '../types/database';
 import {
-  getZodiac, getOhaeng, getOhaengColor, getOhaengEmoji, getOhaengDesc,
+  getZodiac, getOhaeng, getOhaengColor, getOhaengEmoji,
   drawTodayTarot, getTodayFortune,
   getCompatibility, getNumerologyCompat, getOhaengCompat, getBedCompat, getMbtiCompat,
   type DrawnCard,

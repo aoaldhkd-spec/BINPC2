@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { ls } from '../lib/storage';
 import { MATCHING_SEATS_CACHE_KEY } from '../lib/constants';
