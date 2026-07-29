@@ -260,10 +260,10 @@ export function NicknameSetupScreen({ onSubmit, loading, onReset, onShowRecovery
                     <label className="text-sm font-semibold text-gray-800">MBTI</label>
                     <span className="text-xs font-semibold text-red-500 bg-red-50 px-2 py-0.5 rounded-full">필수</span>
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     {MBTI_GROUPS.map((g) => (
-                      <div key={g.label} className={`rounded-2xl border-2 ${g.border} ${g.bg} p-3`}>
-                        <div className="flex items-center gap-1.5 mb-2">
+                      <div key={g.label} className={`rounded-xl border-2 ${g.border} ${g.bg} px-2.5 py-2`}>
+                        <div className="flex items-center gap-1.5 mb-1.5">
                           <span className="text-sm">{g.emoji}</span>
                           <span className={`text-xs font-black ${g.labelColor}`}>{g.label}</span>
                           <span className={`text-[10px] font-semibold ${g.labelColor} opacity-70`}>{g.desc}</span>
@@ -271,7 +271,7 @@ export function NicknameSetupScreen({ onSubmit, loading, onReset, onShowRecovery
                         <div className="grid grid-cols-4 gap-1">
                           {g.types.map((type) => (
                             <button key={type} type="button" onClick={() => setMbti(type)}
-                              className={`py-1.5 rounded-lg text-sm font-black border-2 transition-all active:scale-95 ${
+                              className={`py-1 rounded-lg text-sm font-black border-2 transition-all active:scale-95 ${
                                 mbti === type
                                   ? `${g.activeBg} ${g.activeBorder} text-white shadow-md scale-105`
                                   : `bg-white border-gray-200 text-gray-700 ${g.hoverBorder} ${g.hoverBg}`
