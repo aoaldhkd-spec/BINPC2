@@ -384,6 +384,78 @@ export function NicknameSetupScreen({ onSubmit, loading, onReset, onShowRecovery
             {/* ─── Step 2: 관심사·성향 (관심사 + 포지션 + 돔/섭) ─── */}
             {step === 2 && (
               <>
+                {/* 성향 (포지션) */}
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <label className="text-sm font-semibold text-gray-800">성향 (포지션)</label>
+                    <span className="text-xs font-semibold text-red-500 bg-red-50 px-2 py-0.5 rounded-full">필수</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {POSITION_OPTIONS.map(({ label, val }) => {
+                      const selected = positionScore === val;
+                      const bg = getPositionBg(val);
+                      return (
+                        <button key={val} type="button" onClick={() => setPositionScore(val)}
+                          className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 transition-all text-left ${
+                            selected ? 'border-transparent shadow-md' : 'border-gray-200 bg-white hover:border-gray-300'
+                          }`}
+                          style={selected ? { background: bg, borderColor: bg } : {}}>
+                          <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition-all ${
+                            selected ? 'bg-white border-white' : 'border-gray-300'
+                          }`}>
+                            {selected && (
+                              <svg className="w-2.5 h-2.5" viewBox="0 0 12 12" fill="none">
+                                <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: bg }} />
+                              </svg>
+                            )}
+                          </div>
+                          <span className={`font-semibold text-xs ${selected ? 'text-white' : 'text-gray-700'}`}>{label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 성향 (돔/섭) — 선택 */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm font-semibold text-gray-800">성향 (돔/섭)</label>
+                    <div onClick={() => setDomSubEnabled(!domSubEnabled)}
+                      className={`relative w-11 h-6 rounded-full transition-all cursor-pointer ${domSubEnabled ? 'bg-cyan-500' : 'bg-gray-200'}`}>
+                      <div className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${domSubEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </div>
+                  </div>
+                  {!domSubEnabled ? (
+                    <div className="flex items-center gap-2 px-4 py-2.5 bg-gray-50 rounded-xl border border-gray-200">
+                      <div className="w-3 h-3 rounded-full bg-gray-400" />
+                      <span className="text-gray-500 text-sm font-medium">일반/보통</span>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-1.5">
+                      {DOM_SUB_OPTIONS.map(({ label, val }) => {
+                        const selected = domSubScore === val;
+                        const bg = getDomSubBg(val);
+                        return (
+                          <button key={val} type="button" onClick={() => setDomSubScore(val)}
+                            className={`flex items-center gap-3 px-4 py-2.5 rounded-xl border-2 transition-all text-left ${
+                              selected ? 'border-transparent shadow-md' : 'border-gray-200 bg-white hover:border-gray-300'
+                            }`}
+                            style={selected ? { background: bg, borderColor: bg } : {}}>
+                            <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 ${selected ? 'bg-white border-white' : 'border-gray-300'}`}>
+                              {selected && (
+                                <svg className="w-2.5 h-2.5" viewBox="0 0 12 12" fill="none">
+                                  <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: bg }} />
+                                </svg>
+                              )}
+                            </div>
+                            <span className={`font-semibold text-sm ${selected ? 'text-white' : 'text-gray-700'}`}>{label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
                 {/* 관심사 */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
@@ -469,78 +541,6 @@ export function NicknameSetupScreen({ onSubmit, loading, onReset, onShowRecovery
                       </div>
                     ))}
                   </div>
-                </div>
-
-                {/* 성향 (포지션) */}
-                <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <label className="text-sm font-semibold text-gray-800">성향 (포지션)</label>
-                    <span className="text-xs font-semibold text-red-500 bg-red-50 px-2 py-0.5 rounded-full">필수</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {POSITION_OPTIONS.map(({ label, val }) => {
-                      const selected = positionScore === val;
-                      const bg = getPositionBg(val);
-                      return (
-                        <button key={val} type="button" onClick={() => setPositionScore(val)}
-                          className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 transition-all text-left ${
-                            selected ? 'border-transparent shadow-md' : 'border-gray-200 bg-white hover:border-gray-300'
-                          }`}
-                          style={selected ? { background: bg, borderColor: bg } : {}}>
-                          <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition-all ${
-                            selected ? 'bg-white border-white' : 'border-gray-300'
-                          }`}>
-                            {selected && (
-                              <svg className="w-2.5 h-2.5" viewBox="0 0 12 12" fill="none">
-                                <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: bg }} />
-                              </svg>
-                            )}
-                          </div>
-                          <span className={`font-semibold text-xs ${selected ? 'text-white' : 'text-gray-700'}`}>{label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* 성향 (돔/섭) — 선택 */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="text-sm font-semibold text-gray-800">성향 (돔/섭)</label>
-                    <div onClick={() => setDomSubEnabled(!domSubEnabled)}
-                      className={`relative w-11 h-6 rounded-full transition-all cursor-pointer ${domSubEnabled ? 'bg-cyan-500' : 'bg-gray-200'}`}>
-                      <div className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${domSubEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
-                    </div>
-                  </div>
-                  {!domSubEnabled ? (
-                    <div className="flex items-center gap-2 px-4 py-2.5 bg-gray-50 rounded-xl border border-gray-200">
-                      <div className="w-3 h-3 rounded-full bg-gray-400" />
-                      <span className="text-gray-500 text-sm font-medium">일반/보통</span>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 gap-1.5">
-                      {DOM_SUB_OPTIONS.map(({ label, val }) => {
-                        const selected = domSubScore === val;
-                        const bg = getDomSubBg(val);
-                        return (
-                          <button key={val} type="button" onClick={() => setDomSubScore(val)}
-                            className={`flex items-center gap-3 px-4 py-2.5 rounded-xl border-2 transition-all text-left ${
-                              selected ? 'border-transparent shadow-md' : 'border-gray-200 bg-white hover:border-gray-300'
-                            }`}
-                            style={selected ? { background: bg, borderColor: bg } : {}}>
-                            <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 ${selected ? 'bg-white border-white' : 'border-gray-300'}`}>
-                              {selected && (
-                                <svg className="w-2.5 h-2.5" viewBox="0 0 12 12" fill="none">
-                                  <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: bg }} />
-                                </svg>
-                              )}
-                            </div>
-                            <span className={`font-semibold text-sm ${selected ? 'text-white' : 'text-gray-700'}`}>{label}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
                 </div>
 
                 <div className="flex gap-3 pt-2">
