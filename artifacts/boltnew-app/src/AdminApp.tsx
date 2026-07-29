@@ -4247,25 +4247,48 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   };
   const [newReportPopup, setNewReportPopup] = useState<AnonymousReport | null>(null);
   const [drinkPopup, setDrinkPopup] = useState(false);
-  // 관리자 측에서도 팝업 뜰 때 TTS 재생
+  // 관리자 팝업 — 짠! 효과음 + TTS
   useEffect(() => {
     if (!drinkPopup) return;
+    const playClink = () => {
+      try {
+        const AudioCtx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        const master = ctx.createGain();
+        master.gain.setValueAtTime(0, ctx.currentTime);
+        master.gain.linearRampToValueAtTime(1.0, ctx.currentTime + 0.01);
+        master.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.5);
+        master.connect(ctx.destination);
+        [[880,0],[1320,0.03],[660,0.06]].forEach(([freq, delay]) => {
+          const osc = ctx.createOscillator(); const g = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, ctx.currentTime + delay);
+          osc.frequency.exponentialRampToValueAtTime(freq * 0.95, ctx.currentTime + delay + 0.6);
+          g.gain.setValueAtTime(0.6, ctx.currentTime + delay);
+          g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 1.4);
+          osc.connect(g); g.connect(master);
+          osc.start(ctx.currentTime + delay); osc.stop(ctx.currentTime + delay + 1.5);
+        });
+        if ('vibrate' in navigator) navigator.vibrate([100, 50, 100, 50, 300]);
+        setTimeout(() => ctx.close(), 2000);
+      } catch { /**/ }
+    };
     const speakLoud = () => {
       if (!('speechSynthesis' in window)) return;
       window.speechSynthesis.cancel();
-      let count = 0;
+      const lines = ['손님이 술을 요청하고 있어요! 빨리 가져다 드리세요!', '아저씨!! 술 주세요!!'];
+      let i = 0;
       const say = () => {
-        const utter = new SpeechSynthesisUtterance('아저씨!! 술 주세요!!');
-        utter.lang = 'ko-KR'; utter.rate = 0.65; utter.pitch = 1.5; utter.volume = 1;
-        utter.onend = () => { count++; if (count < 3) say(); };
+        const utter = new SpeechSynthesisUtterance(lines[i] ?? lines[0]);
+        utter.lang = 'ko-KR'; utter.rate = 0.85; utter.pitch = 1.6; utter.volume = 1;
+        utter.onend = () => { i++; if (i < lines.length) say(); };
         window.speechSynthesis.speak(utter);
       };
       say();
     };
-    try {
-      const AudioCtx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      if (AudioCtx) { new AudioCtx().resume().then(speakLoud); } else { speakLoud(); }
-    } catch { speakLoud(); }
+    playClink();
+    setTimeout(speakLoud, 400);
   }, [drinkPopup]);
   const [seatingRefreshing, setSeatingRefreshing] = useState(false);
   const [seatingRefreshDone, setSeatingRefreshDone] = useState(false);

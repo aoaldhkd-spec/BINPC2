@@ -1,15 +1,94 @@
 import React, { useState, useRef } from 'react';
 import { Users } from 'lucide-react';
 
-export function ResetButton({ onReset, darkMode, resetPassword, onEasterEgg }: { onReset: () => void; variant?: string; darkMode?: boolean; resetPassword?: string | null; onEasterEgg?: () => void }) {
+const REVEAL_LINES = [
+  ['범일NPC는', '30살입니다 😱'],
+  ['충격적이죠?', '저도 압니다 🫠'],
+  ['놀랍죠?', '이게 현실임 💀'],
+  ['30살인데', '술번개를 합니다 🍺'],
+  ['범일NPC', '30살 실화임?? 😭'],
+  ['서른 살', '범일NPC입니다 🎂'],
+];
+
+/** 맥주잔 부딪히는 "짠!" 소리 — Web Audio API */
+function playClink() {
+  try {
+    const AudioCtx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const master = ctx.createGain();
+    master.gain.setValueAtTime(0, ctx.currentTime);
+    master.gain.linearRampToValueAtTime(1.0, ctx.currentTime + 0.01);
+    master.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.5);
+    master.connect(ctx.destination);
+
+    // 두 음 겹쳐 맥주잔 울림 재현
+    [[880, 0], [1320, 0.03], [660, 0.06]].forEach(([freq, delay]) => {
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, ctx.currentTime + delay);
+      osc.frequency.exponentialRampToValueAtTime(freq * 0.95, ctx.currentTime + delay + 0.6);
+      g.gain.setValueAtTime(0.6, ctx.currentTime + delay);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 1.4);
+      osc.connect(g);
+      g.connect(master);
+      osc.start(ctx.currentTime + delay);
+      osc.stop(ctx.currentTime + delay + 1.5);
+    });
+
+    // 짧은 노이즈 버스트 (잔 부딪히는 충격음)
+    const bufSize = ctx.sampleRate * 0.08;
+    const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / bufSize);
+    const noise = ctx.createBufferSource();
+    const noiseGain = ctx.createGain();
+    noiseGain.gain.setValueAtTime(0.35, ctx.currentTime);
+    noise.buffer = buf;
+    noise.connect(noiseGain);
+    noiseGain.connect(master);
+    noise.start(ctx.currentTime);
+
+    // 진동
+    if ('vibrate' in navigator) navigator.vibrate([80, 40, 80, 40, 200]);
+
+    setTimeout(() => ctx.close(), 2000);
+  } catch { /* 소리 안 나도 무시 */ }
+}
+
+/** TTS — 더 빠르고 높게 */
+function speakLine(line: string) {
+  if (!('speechSynthesis' in window)) return;
+  window.speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(line);
+  utter.lang = 'ko-KR';
+  utter.rate = 0.8;
+  utter.pitch = 1.8;
+  utter.volume = 1;
+  window.speechSynthesis.speak(utter);
+  // 2번 반복
+  utter.onend = () => {
+    const u2 = new SpeechSynthesisUtterance(line);
+    u2.lang = 'ko-KR'; u2.rate = 0.9; u2.pitch = 2.0; u2.volume = 1;
+    window.speechSynthesis.speak(u2);
+  };
+}
+
+export function ResetButton({ onReset, darkMode, resetPassword, onEasterEgg }: {
+  onReset: () => void; variant?: string; darkMode?: boolean; resetPassword?: string | null; onEasterEgg?: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const [pw, setPw] = useState('');
   const [err, setErr] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
   const [adminPw, setAdminPw] = useState('');
   const [adminErr, setAdminErr] = useState(false);
+  const [showEgg, setShowEgg] = useState(false);
+  const [eggLine, setEggLine] = useState(REVEAL_LINES[0]);
   const logoClickCount = useRef(0);
   const logoClickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const eggTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const confirm = () => {
     const correctPw = resetPassword ?? '116606';
@@ -22,23 +101,14 @@ export function ResetButton({ onReset, darkMode, resetPassword, onEasterEgg }: {
     if (logoClickTimer.current) clearTimeout(logoClickTimer.current);
     if (logoClickCount.current >= 3) {
       logoClickCount.current = 0;
-      const speakLoud = () => {
-        if (!('speechSynthesis' in window)) return;
-        window.speechSynthesis.cancel();
-        let count = 0;
-        const say = () => {
-          const utter = new SpeechSynthesisUtterance('아저씨!! 술 주세요!!');
-          utter.lang = 'ko-KR'; utter.rate = 0.65; utter.pitch = 1.5; utter.volume = 1;
-          utter.onend = () => { count++; if (count < 3) say(); };
-          window.speechSynthesis.speak(utter);
-        };
-        say();
-      };
-      try {
-        const AudioCtx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-        if (AudioCtx) { const ctx = new AudioCtx(); ctx.resume().then(speakLoud); } else { speakLoud(); }
-      } catch { speakLoud(); }
+      const line = REVEAL_LINES[Math.floor(Math.random() * REVEAL_LINES.length)];
+      setEggLine(line);
+      setShowEgg(true);
+      playClink();
+      speakLine(line[0] + ' ' + line[1]);
       onEasterEgg?.();
+      if (eggTimer.current) clearTimeout(eggTimer.current);
+      eggTimer.current = setTimeout(() => setShowEgg(false), 5000);
     } else {
       logoClickTimer.current = setTimeout(() => { logoClickCount.current = 0; }, 3000);
     }
@@ -60,6 +130,107 @@ export function ResetButton({ onReset, darkMode, resetPassword, onEasterEgg }: {
           </button>
         </div>
       </div>
+
+      {/* 💀 이스터에그 — 범일NPC 30살 충격 폭로 */}
+      {showEgg && (
+        <div
+          className="fixed inset-0 z-[300] flex flex-col items-center justify-center overflow-hidden"
+          style={{ background: 'linear-gradient(160deg, #0f0f1a 0%, #1a0a2e 40%, #0d1a2e 100%)' }}
+          onClick={() => { setShowEgg(false); window.speechSynthesis?.cancel(); }}
+        >
+          <style>{`
+            @keyframes revealShake {
+              0%,100%{transform:translateX(0)}
+              15%{transform:translateX(-8px) rotate(-1deg)}
+              30%{transform:translateX(8px) rotate(1deg)}
+              45%{transform:translateX(-5px)}
+              60%{transform:translateX(5px)}
+              75%{transform:translateX(-3px)}
+            }
+            @keyframes bigNumPop {
+              0%{transform:scale(0.5);opacity:0}
+              60%{transform:scale(1.15);opacity:1}
+              80%{transform:scale(0.95)}
+              100%{transform:scale(1)}
+            }
+            @keyframes glitch {
+              0%,100%{text-shadow:0 0 0 #f00,0 0 0 #0ff}
+              20%{text-shadow:-3px 0 #f00,3px 0 #0ff}
+              40%{text-shadow:3px 0 #f00,-3px 0 #0ff}
+              60%{text-shadow:-2px 0 #f00,2px 0 #0ff}
+            }
+            @keyframes floatBg {
+              0%,100%{transform:translateY(0) scale(1);opacity:0.12}
+              50%{transform:translateY(-18px) scale(1.08);opacity:0.2}
+            }
+            @keyframes blinkHint {
+              0%,100%{opacity:0.5} 50%{opacity:0.9}
+            }
+            @keyframes scanline {
+              0%{transform:translateY(-100%)} 100%{transform:translateY(100vh)}
+            }
+          `}</style>
+
+          {/* 스캔라인 효과 */}
+          <div className="absolute inset-0 pointer-events-none overflow-hidden">
+            <div style={{ animation: 'scanline 2.5s linear infinite', background: 'linear-gradient(transparent, rgba(255,255,255,0.04) 50%, transparent)', height: '8px', width: '100%', position: 'absolute' }} />
+          </div>
+
+          {/* 배경 떠다니는 숫자들 */}
+          {['top-[6%] left-[8%]','top-[12%] right-[10%]','top-[45%] left-[5%]','top-[65%] right-[8%]','bottom-[18%] left-[18%]','bottom-[25%] right-[12%]'].map((pos, i) => (
+            <div key={i} className={`absolute ${pos} font-black select-none pointer-events-none text-purple-400`}
+              style={{ fontSize: `${2 + i * 0.4}rem`, animation: `floatBg ${2 + i * 0.4}s ease-in-out infinite` }}>
+              30
+            </div>
+          ))}
+
+          {/* 상단 경고 라벨 */}
+          <div className="mb-3 px-4 py-1 rounded-full border border-red-500/60 bg-red-500/15">
+            <p className="text-red-400 text-[11px] font-black tracking-[0.3em] uppercase">⚠ 충격 주의 ⚠</p>
+          </div>
+
+          {/* 메인 숫자 "30" */}
+          <div style={{ animation: 'bigNumPop 0.6s cubic-bezier(0.34,1.56,0.64,1) forwards' }}>
+            <p className="font-black leading-none select-none text-center"
+              style={{
+                fontSize: 'clamp(6rem, 30vw, 11rem)',
+                background: 'linear-gradient(135deg, #e879f9 0%, #818cf8 50%, #38bdf8 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+                animation: 'glitch 3s ease-in-out infinite',
+                filter: 'drop-shadow(0 0 24px rgba(168,85,247,0.6))',
+              }}>
+              30
+            </p>
+          </div>
+
+          {/* 설명 텍스트 */}
+          <div className="text-center mt-1 px-6" style={{ animation: 'revealShake 0.5s ease-in-out infinite' }}>
+            <p className="text-white font-black"
+              style={{ fontSize: 'clamp(1.6rem, 7.5vw, 2.8rem)', textShadow: '0 0 20px rgba(139,92,246,0.8)' }}>
+              {eggLine[0]}
+            </p>
+            <p className="text-purple-200 font-black mt-0.5"
+              style={{ fontSize: 'clamp(1.2rem, 5.5vw, 2rem)' }}>
+              {eggLine[1]}
+            </p>
+          </div>
+
+          {/* 하단 반응 이모지 행 */}
+          <div className="flex gap-3 mt-5 text-3xl select-none">
+            {'😱🫠💀😭🤯'.split('').map((e, i) => (
+              <span key={i} style={{ animation: `floatBg ${1.0 + i * 0.25}s ease-in-out infinite`, display: 'inline-block' }}>{e}</span>
+            ))}
+          </div>
+
+          <p className="mt-6 text-purple-400/70 text-xs font-bold select-none"
+            style={{ animation: 'blinkHint 1.4s ease-in-out infinite' }}>
+            탭하면 닫혀요
+          </p>
+        </div>
+      )}
+
       {open && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => { setOpen(false); setPw(''); setErr(false); }}>
           <div className="bg-white rounded-2xl p-6 w-72 shadow-2xl" onClick={(e) => e.stopPropagation()}>

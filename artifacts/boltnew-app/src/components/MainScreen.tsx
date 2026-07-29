@@ -928,9 +928,9 @@ export function MainScreen({
                       <span className="text-[10px] leading-tight text-center">QR<br/>찍기</span>
                     </button>
                     {me.pin_code ? (
-                      <div className={`flex flex-col items-center justify-center gap-0.5 py-2.5 rounded-2xl border ${darkMode ? 'bg-slate-700/60 border-slate-600' : 'bg-slate-50 border-slate-200'}`}>
-                        <span className={`text-[8px] font-black uppercase tracking-widest ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>고유번호</span>
-                        <span className={`text-base font-black tracking-[0.2em] ${darkMode ? 'text-slate-200' : 'text-slate-800'}`}>{me.pin_code}</span>
+                      <div className={`flex flex-col items-center justify-center gap-0.5 py-2.5 rounded-2xl border-2 ${darkMode ? 'bg-amber-500/15 border-amber-500/40' : 'bg-amber-50 border-amber-300'}`}>
+                        <span className={`text-[8px] font-black uppercase tracking-widest ${darkMode ? 'text-amber-400' : 'text-amber-500'}`}>🔑 고유번호</span>
+                        <span className={`text-xl font-black tracking-[0.25em] ${darkMode ? 'text-amber-300' : 'text-amber-700'}`}>{me.pin_code}</span>
                       </div>
                     ) : (
                       <div className={`flex flex-col items-center justify-center gap-0.5 py-2.5 rounded-2xl border ${darkMode ? 'bg-slate-700/60 border-slate-600 text-slate-500' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
