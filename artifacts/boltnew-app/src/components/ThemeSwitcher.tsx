@@ -56,7 +56,7 @@ export function ThemeSwitcher() {
       {/* Panel */}
       {open && (
         <div
-          className="theme-switcher-panel fixed bottom-20 right-3 z-[9998] w-60 rounded-2xl border border-slate-700/80 bg-slate-900/95 backdrop-blur-xl shadow-2xl overflow-hidden"
+          className="theme-switcher-panel fixed bottom-20 left-3 z-[9998] w-60 rounded-2xl border border-slate-700/80 bg-slate-900/95 backdrop-blur-xl shadow-2xl overflow-hidden"
           style={{ boxShadow: '0 25px 50px -12px rgba(0,0,0,0.8)' }}
         >
           <div className="px-4 py-3 border-b border-slate-700/60">
@@ -102,7 +102,7 @@ export function ThemeSwitcher() {
       {/* FAB */}
       <button
         onClick={() => setOpen(p => !p)}
-        className="theme-switcher-btn fixed bottom-6 right-3 z-[9998] w-11 h-11 rounded-full flex items-center justify-center shadow-xl transition-all duration-150 active:scale-90"
+        className="theme-switcher-btn fixed bottom-6 left-3 z-[9998] w-11 h-11 rounded-full flex items-center justify-center shadow-xl transition-all duration-150 active:scale-90"
         style={{
           background: current.previewBg === '#FCFCFB' || current.previewBg === '#F9F8F6'
             ? '#18181b'
