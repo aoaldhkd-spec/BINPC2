@@ -32,6 +32,9 @@ import { QaGameOverlay } from './components/games/QaGameOverlay';
 import { TableMiniGameModal } from './components/games/TableMiniGameModal';
 import { NotifModal } from './components/NotifModal';
 import { WelcomeNoticeModal } from './components/WelcomeNoticeModal';
+import { DrinkFloatButton } from './components/DrinkFloatButton';
+import { ConfettiOverlay } from './components/ConfettiOverlay';
+import { ContactDisplayModal } from './components/ContactDisplayModal';
 import { LikeConfirmDialog } from './components/LikeConfirmDialog';
 import { ContactShareModal } from './components/ContactShareModal';
 import { ContactViewModal } from './components/ContactViewModal';
@@ -262,6 +265,8 @@ function App() {
   const [timerLabel, setTimerLabel] = useState<string | null>(null);
   const [rejectionNotif, setRejectionNotif] = useState<string | null>(null); // nickname of person who rejected
   const [bottomNotif, setBottomNotif] = useState<{ type: 'heart' | 'chat' | 'message' | 'contact'; nickname: string; heartType?: HeartType } | null>(null);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const triggerConfetti = useCallback(() => { setShowConfetti(false); setTimeout(() => setShowConfetti(true), 30); }, []);
   const [seatingLocked, setSeatingLocked] = useState(false);
   const [activeTables, setActiveTables] = useState<number[] | null>(null);
   const [tableLabels, setTableLabels] = useState<Record<string, string> | null>(null);
@@ -306,6 +311,12 @@ function App() {
     loadLikes, loadReceivedLikes, loadContactShareData, heartCountByType, likedByTypeRecord,
     handleLike, executeLike, handleHeartResponse, handleContactShare, handleContactShareReject,
   } = useHearts(currentUserId, profiles, profileMap, openChat);
+
+  // 하트 보내는 쪽도 폭죽 🎊
+  const execLikeWithConfetti = useCallback((...args: Parameters<typeof executeLike>) => {
+    executeLike(...args);
+    triggerConfetti();
+  }, [executeLike, triggerConfetti]);
 
   const currentUserSeat = seats.find((s) => s.profile_id === currentUserId) ?? null;
   // Keep ref updated so notification channel can check user's table without stale closure
@@ -572,6 +583,18 @@ function App() {
         return;
       }
       setView('main');
+      // 고유번호 없는 기존 사용자 자동 생성
+      const me = allProfiles.find((p: { id: string }) => p.id === currentUserId);
+      if (me && !(me as { pin_code?: string | null }).pin_code) {
+        (async () => {
+          const { data: existingPins } = await supabase.from('profiles').select('pin_code');
+          const usedPins = new Set((existingPins ?? []).map((p: { pin_code: string | null }) => p.pin_code).filter(Boolean));
+          let newPin = String(Math.floor(1000 + Math.random() * 9000));
+          while (usedPins.has(newPin)) newPin = String(Math.floor(1000 + Math.random() * 9000));
+          await supabase.from('profiles').update({ pin_code: newPin }).eq('id', currentUserId);
+          setProfiles(prev => prev.map(p => p.id === currentUserId ? { ...p, pin_code: newPin } : p));
+        })();
+      }
     });
     loadSeats();
     loadLikes(currentUserId);
@@ -659,6 +682,7 @@ function App() {
                 return [data, ...prev];
               });
               setBottomNotif({ type: 'heart', nickname: data.nickname, heartType: row.heart_type ?? 'red' });
+              triggerConfetti();
               playCuteSound();
             }
           } catch (e) { console.warn('[realtime:likes]', e); }
@@ -1016,9 +1040,10 @@ function App() {
   // 등록 완료 후 currentUserId useEffect에서 자동으로 자리 배정 처리됨
 
   if (appLoading || sessionActive === null || entryPassword === null) return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col items-center justify-center gap-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col items-center justify-center gap-4 px-6 text-center">
       <div className="w-12 h-12 rounded-full border-4 border-teal-500/30 border-t-teal-500 animate-spin" />
-      <p className="text-sm text-slate-400">연결 중...</p>
+      <p className="text-base font-black text-white">서버랑 X스 중입니다...</p>
+      <p className="text-sm font-bold text-slate-400">조ㄹ라 잠시만 기다려주세요! 🍺</p>
     </div>
   );
   // 입장 코드 게이트: 설정되어 있고 아직 인증 안 됐으면 입력 화면 표시
@@ -1052,14 +1077,12 @@ function App() {
   );
 
   if (view === 'entry-1') return (
-    <>
-      <NicknameSetupScreen
-        onSubmit={handleNicknameSetup}
-        loading={loading}
-        onReset={reset}
-        onShowRecovery={() => setView('entry-recover')}
-      />
-    </>
+    <NicknameSetupScreen
+      onSubmit={handleNicknameSetup}
+      loading={loading}
+      onReset={reset}
+      onShowRecovery={() => setView('entry-recover')}
+    />
   );
 
   if (view === 'profile' && selectedProfile) return (
@@ -1082,10 +1105,11 @@ function App() {
           target={likeConfirmTarget}
           likedByType={likedByTypeRecord()}
           sentTypesForTarget={sentHeartsPerPerson.get(likeConfirmTarget.id) ?? new Set()}
-          onConfirm={executeLike}
+          onConfirm={execLikeWithConfetti}
           onCancel={() => setLikeConfirmTarget(null)}
         />
       )}
+      <ConfettiOverlay show={showConfetti} />
     </>
   );
   if (view === 'chat' && selectedProfile && !chatId) return (
@@ -1322,7 +1346,7 @@ function App() {
           target={likeConfirmTarget}
           likedByType={likedByTypeRecord()}
           sentTypesForTarget={sentHeartsPerPerson.get(likeConfirmTarget.id) ?? new Set()}
-          onConfirm={executeLike}
+          onConfirm={execLikeWithConfetti}
           onCancel={() => setLikeConfirmTarget(null)}
         />
       )}
@@ -1377,13 +1401,10 @@ function App() {
           onPinGenerated={(pin) => setProfiles(prev => prev.map(p => p.id === currentUserId ? { ...p, pin_code: pin } : p))}
         />
       )}
-      {showContactQr && currentUserId && (
-        <ProfileQrModal
-          profileId={currentUserId}
-          pinCode={profileMap.get(currentUserId)?.pin_code ?? null}
+      {showContactQr && currentUserId && profileMap.get(currentUserId) && (
+        <ContactDisplayModal
+          profile={profileMap.get(currentUserId)!}
           onClose={() => setShowContactQr(false)}
-          onPinGenerated={(pin) => setProfiles(prev => prev.map(p => p.id === currentUserId ? { ...p, pin_code: pin } : p))}
-          initialTab="contact"
         />
       )}
       {/* QR 카메라 스캐너 */}
@@ -1421,6 +1442,8 @@ function App() {
           } : undefined}
         />
       )}
+      <DrinkFloatButton onRequest={currentUserId ? () => submitSuggestion('__술주세요__', '') : undefined} />
+      <ConfettiOverlay show={showConfetti} />
     </>
   );
 }

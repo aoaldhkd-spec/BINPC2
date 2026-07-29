@@ -1,13 +1,14 @@
 import React, { useState, useRef } from 'react';
 import { Users } from 'lucide-react';
 
-const REVEAL_LINES = [
-  ['범일NPC는', '30살입니다 😱'],
-  ['충격적이죠?', '저도 압니다 🫠'],
-  ['놀랍죠?', '이게 현실임 💀'],
-  ['30살인데', '술번개를 합니다 🍺'],
-  ['범일NPC', '30살 실화임?? 😭'],
-  ['서른 살', '범일NPC입니다 🎂'],
+const FIXED_TITLE = '범일NPC는 30살!';
+const RANDOM_SUFFIX = [
+  '놀랍죠? 충격적이죠? 저도 압니다. 😱',
+  '이게 진짜 현실입니다 🫠',
+  '30년을 살아왔습니다 💀',
+  '30살에 술번개를 합니다 🍺',
+  '서른. 실화입니다 😭',
+  '믿기 어렵죠? 저도요 🤯',
 ];
 
 /** 맥주잔 부딪히는 "짠!" 소리 — Web Audio API */
@@ -85,7 +86,7 @@ export function ResetButton({ onReset, darkMode, resetPassword, onEasterEgg }: {
   const [adminPw, setAdminPw] = useState('');
   const [adminErr, setAdminErr] = useState(false);
   const [showEgg, setShowEgg] = useState(false);
-  const [eggLine, setEggLine] = useState(REVEAL_LINES[0]);
+  const [eggLine, setEggLine] = useState<[string,string]>([FIXED_TITLE, RANDOM_SUFFIX[0]]);
   const logoClickCount = useRef(0);
   const logoClickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const eggTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -101,11 +102,12 @@ export function ResetButton({ onReset, darkMode, resetPassword, onEasterEgg }: {
     if (logoClickTimer.current) clearTimeout(logoClickTimer.current);
     if (logoClickCount.current >= 3) {
       logoClickCount.current = 0;
-      const line = REVEAL_LINES[Math.floor(Math.random() * REVEAL_LINES.length)];
+      const suffix = RANDOM_SUFFIX[Math.floor(Math.random() * RANDOM_SUFFIX.length)];
+      const line: [string, string] = [FIXED_TITLE, suffix];
       setEggLine(line);
       setShowEgg(true);
       playClink();
-      speakLine(line[0] + ' ' + line[1]);
+      speakLine(FIXED_TITLE + ' ' + suffix.replace(/[😱🫠💀🍺😭🤯✅🎂]/g, ''));
       onEasterEgg?.();
       if (eggTimer.current) clearTimeout(eggTimer.current);
       eggTimer.current = setTimeout(() => setShowEgg(false), 5000);
