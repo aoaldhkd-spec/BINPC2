@@ -10,6 +10,7 @@ export const MATCHING_GUIDE_SHOWN_KEY   = 'matching_guide_shown';
 export const MATCHING_PROFILES_CACHE_KEY = 'matching_profiles_cache';
 export const MATCHING_SEATS_CACHE_KEY   = 'matching_seats_cache';
 export const ENTRY_VERIFIED_KEY         = 'matching_entry_verified';
+export const SCANNED_CONTACTS_KEY       = 'matching_scanned_contacts';
 
 // ─── 아바타 색상 ─────────────────────────────────────────────────────────────
 export const AVATAR_COLORS = [

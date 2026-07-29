@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Users, CheckCircle, Clock, AlertTriangle, ChevronRight, ShieldAlert, X } from 'lucide-react';
 import { TutorialModal } from './TutorialModal';
-import { MATCHING_USER_KEY } from '../lib/constants';
 
-export function WaitingOverlay({ sessionActive, onEnter }: {
-  sessionActive: boolean | null; onEnter: () => void;
+export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
+  sessionActive: boolean | null;
+  onEnter: () => void;
+  onRecover?: (profileId: string) => void;
 }) {
   const isActive = sessionActive === true;
   const [showNotice, setShowNotice] = useState(false);
@@ -12,27 +13,76 @@ export function WaitingOverlay({ sessionActive, onEnter }: {
   const [tutPage, setTutPage] = useState(0);
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [showPinRecovery, setShowPinRecovery] = useState(false);
-  const [pinInput, setPinInput] = useState('');
+  const [pinDigits, setPinDigits] = useState<[string,string,string,string]>(['','','','']);
   const [pinError, setPinError] = useState('');
   const [pinLoading, setPinLoading] = useState(false);
 
-  const handlePinRecovery = async () => {
-    if (pinInput.length !== 4) { setPinError('4자리 핀 번호를 입력해주세요'); return; }
+  // 개별 ref
+  const pref0 = useRef<HTMLInputElement>(null);
+  const pref1 = useRef<HTMLInputElement>(null);
+  const pref2 = useRef<HTMLInputElement>(null);
+  const pref3 = useRef<HTMLInputElement>(null);
+  const prefs = [pref0, pref1, pref2, pref3] as const;
+
+  useEffect(() => {
+    if (showPinRecovery) setTimeout(() => pref0.current?.focus(), 80);
+  }, [showPinRecovery]);
+
+  const submitPin = async (code: string) => {
+    if (code.length !== 4 || !/^\d{4}$/.test(code)) return;
     setPinLoading(true); setPinError('');
     try {
       const resp = await fetch('/api/db/by-pin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pin: pinInput }),
+        body: JSON.stringify({ pin: code }),
       });
       const { data, error } = await resp.json() as { data: { id: string; nickname: string } | null; error: { message: string } | null };
-      if (error || !data) { setPinError('핀 번호를 찾을 수 없어요'); setPinLoading(false); return; }
-      localStorage.setItem(MATCHING_USER_KEY, data.id);
-      onEnter();
+      if (error || !data) {
+        setPinError('해당 번호로 등록된 프로필이 없어요');
+        setPinDigits(['','','','']);
+        setTimeout(() => pref0.current?.focus(), 80);
+        setPinLoading(false);
+        return;
+      }
+      // onRecover가 있으면 App의 handleProfileRecovery 사용 (올바른 state 업데이트)
+      // 없으면 fallback: localStorage 직접 세팅 후 onEnter
+      if (onRecover) {
+        onRecover(data.id);
+      } else {
+        localStorage.setItem('matching_user_id', data.id);
+        onEnter();
+      }
     } catch {
       setPinError('오류가 발생했어요. 다시 시도해주세요');
       setPinLoading(false);
     }
+  };
+
+  const handlePinChange = (idx: 0|1|2|3, raw: string) => {
+    const d = raw.replace(/\D/g, '').slice(-1);
+    setPinError('');
+    const next: [string,string,string,string] = [...pinDigits] as [string,string,string,string];
+    next[idx] = d;
+    setPinDigits(next);
+    if (d) {
+      if (idx < 3) prefs[idx + 1].current?.focus();
+      if (idx === 3) setTimeout(() => submitPin(next.join('')), 60);
+    }
+  };
+
+  const handlePinKey = (idx: 0|1|2|3, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace' && !pinDigits[idx] && idx > 0) prefs[idx - 1].current?.focus();
+  };
+
+  const handlePinPaste = (e: React.ClipboardEvent) => {
+    const v = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 4);
+    if (v.length === 4) {
+      setPinDigits(v.split('') as [string,string,string,string]);
+      setPinError('');
+      setTimeout(() => submitPin(v), 60);
+    }
+    e.preventDefault();
   };
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-black flex flex-col items-center justify-center p-6 relative overflow-hidden">
@@ -106,7 +156,7 @@ export function WaitingOverlay({ sessionActive, onEnter }: {
         >앱 사용법 보기</button>
         {/* 핀 번호 복구 */}
         <button
-          onClick={() => { setShowPinRecovery(true); setPinInput(''); setPinError(''); }}
+          onClick={() => { setShowPinRecovery(true); setPinDigits(['','','','']); setPinError(''); }}
           className="w-full py-2.5 bg-transparent border border-slate-600/60 hover:border-slate-500 text-slate-400 hover:text-slate-300 font-semibold text-xs rounded-2xl transition-all mb-1"
         >🔑 핀 번호로 프로필 복구</button>
         {/* 개인정보 동의 모달 */}
@@ -226,42 +276,54 @@ export function WaitingOverlay({ sessionActive, onEnter }: {
         )}
         {/* 핀 번호 복구 모달 */}
         {showPinRecovery && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/75 backdrop-blur-sm">
-            <div className="w-full max-w-sm rounded-3xl bg-slate-900 border border-slate-700 overflow-hidden shadow-2xl">
+          <div className="fixed inset-0 z-50 overflow-hidden flex items-center justify-center p-6 bg-black/75 backdrop-blur-sm">
+            <div className="w-full max-w-sm rounded-3xl bg-slate-900 border border-slate-700 shadow-2xl">
+              {/* 헤더 */}
               <div className="bg-gradient-to-r from-slate-800/60 to-slate-700/60 border-b border-slate-600 px-5 py-5 text-center">
                 <div className="w-12 h-12 rounded-2xl bg-slate-600/40 flex items-center justify-center mx-auto mb-3">
                   <span className="text-2xl">🔑</span>
                 </div>
                 <h3 className="text-white font-black text-lg">핀 번호로 복구</h3>
-                <p className="text-slate-400 text-xs mt-1">이전에 받은 4자리 핀 번호를 입력하세요</p>
+                <p className="text-slate-400 text-xs mt-1">내 상태 탭 프로필 카드의 <strong className="text-slate-300">고유번호</strong> 4자리</p>
               </div>
+              {/* 입력 */}
               <div className="px-6 py-6 space-y-4">
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  maxLength={4}
-                  value={pinInput}
-                  onChange={e => { setPinInput(e.target.value.slice(0, 4)); setPinError(''); }}
-                  onKeyDown={e => e.key === 'Enter' && handlePinRecovery()}
-                  placeholder="0000"
-                  className="w-full text-center text-3xl font-black tracking-[0.5em] bg-slate-800 border border-slate-600 rounded-2xl py-4 text-white placeholder-slate-600 focus:outline-none focus:border-teal-500 transition-all"
-                />
-                {pinError && (
-                  <p className="text-red-400 text-xs text-center font-semibold">{pinError}</p>
-                )}
-                <div className="flex flex-col gap-2">
-                  <button
-                    onClick={handlePinRecovery}
-                    disabled={pinLoading || pinInput.length !== 4}
-                    className="w-full py-4 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 disabled:from-slate-600 disabled:to-slate-600 disabled:cursor-not-allowed text-white font-black text-base rounded-2xl shadow-lg transition-all active:scale-98"
-                  >
-                    {pinLoading ? '복구 중...' : '프로필 복구하기'}
-                  </button>
-                  <button
-                    onClick={() => setShowPinRecovery(false)}
-                    className="w-full py-3 bg-slate-700/60 hover:bg-slate-700 text-slate-300 font-bold text-sm rounded-2xl transition-all"
-                  >닫기</button>
+                <div className="flex gap-3 justify-center" onPaste={handlePinPaste}>
+                  {([0,1,2,3] as const).map(idx => (
+                    <input
+                      key={idx}
+                      ref={prefs[idx]}
+                      type="text"
+                      inputMode="numeric"
+                      pattern="\d*"
+                      maxLength={1}
+                      value={pinDigits[idx]}
+                      onChange={e => handlePinChange(idx, e.target.value)}
+                      onKeyDown={e => handlePinKey(idx, e)}
+                      disabled={pinLoading}
+                      className={[
+                        'w-16 h-16 text-center text-3xl font-black rounded-2xl border-2 outline-none transition-all bg-slate-800',
+                        pinError ? 'border-red-500 text-red-400'
+                          : pinDigits[idx] ? 'border-teal-500 text-teal-300'
+                          : 'border-slate-600 focus:border-teal-500 text-white',
+                        'disabled:opacity-40',
+                      ].join(' ')}
+                    />
+                  ))}
                 </div>
+                {pinLoading && (
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="w-4 h-4 border-2 border-teal-400/40 border-t-teal-400 rounded-full animate-spin" />
+                    <p className="text-sm text-teal-400 font-semibold">복구 중…</p>
+                  </div>
+                )}
+                {pinError && (
+                  <p className="text-red-400 text-xs text-center font-semibold">⚠ {pinError}</p>
+                )}
+                <button
+                  onClick={() => setShowPinRecovery(false)}
+                  className="w-full py-3 bg-slate-700/60 hover:bg-slate-700 text-slate-300 font-bold text-sm rounded-2xl transition-all"
+                >닫기</button>
               </div>
             </div>
           </div>

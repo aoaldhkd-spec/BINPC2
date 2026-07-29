@@ -4,7 +4,7 @@ import {
   LayoutGrid, History, X, AlertTriangle, ChevronDown,
   Heart, MessageCircle, QrCode, Send, CheckCircle, Gamepad2, BellRing, Eye, EyeOff,
   PlayCircle, StopCircle, RotateCcw, Clock, Timer, RefreshCw, Copy, Check, Sparkles,
-  Lock, Unlock,
+  Lock, Unlock, Search,
 } from 'lucide-react';
 import { supabase } from './lib/supabase';
 import type { Database, Json } from './types/database';
@@ -3576,17 +3576,35 @@ function ProfilesTabSection({ profiles, seats, settings, onClear, onDeleteProfil
   const [deleteTarget, setDeleteTarget] = useState<Profile | null>(null);
   const [forceSeatTarget, setForceSeatTarget] = useState<Profile | null>(null);
   const [selectedSeatId, setSelectedSeatId] = useState('');
+  const [search, setSearch] = useState('');
 
   const allTableNums = Array.from(new Set(seats.map(s => s.table_number))).sort((a, b) => a - b);
   // Force seat shows ALL tables (admin needs full access regardless of active_tables setting)
   const visibleTableNums = allTableNums;
 
+  const q = search.trim().toLowerCase();
+  const filtered = q
+    ? profiles.filter(p => {
+        const seat = seats.find(s => s.profile_id === p.id);
+        return (
+          p.nickname?.toLowerCase().includes(q) ||
+          (p.mbti ?? '').toLowerCase().includes(q) ||
+          (p.location ?? '').toLowerCase().includes(q) ||
+          ((p as any).bio ?? '').toLowerCase().includes(q) ||
+          (seat ? `${seat.table_number}번 ${seat.seat_label}`.includes(q) : false) ||
+          ((p as any).pin_code ?? '').includes(q)
+        );
+      })
+    : profiles;
+
   return (
     <div className="p-4">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <Users className="w-4 h-4 text-cyan-500" />
-          <span className="text-sm font-bold text-gray-700">참여자 {profiles.length}명</span>
+          <span className="text-sm font-bold text-gray-700">
+            참여자 {q ? <>{filtered.length}<span className="font-normal text-gray-400">/{profiles.length}</span></> : profiles.length}명
+          </span>
         </div>
         {profiles.length > 0 && (
           <button onClick={() => setConfirm(true)}
@@ -3595,8 +3613,25 @@ function ProfilesTabSection({ profiles, seats, settings, onClear, onDeleteProfil
           </button>
         )}
       </div>
+      {/* 검색 */}
+      <div className="relative mb-4">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="닉네임, MBTI, 지역, 관심사, 좌석, 고유번호 검색…"
+          className="w-full pl-8 pr-8 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-cyan-400 focus:bg-white transition-all"
+        />
+        {search && (
+          <button onClick={() => setSearch('')}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        {profiles.map((p) => {
+        {filtered.map((p) => {
           const seat = seats.find(s => s.profile_id === p.id);
           const posLabel = getPositionLabel(p.personality_score ?? 50);
           const domLabel = p.dom_sub_score !== null ? getDomSubLabel(p.dom_sub_score) : null;

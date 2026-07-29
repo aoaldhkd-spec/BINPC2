@@ -764,10 +764,10 @@ router.get('/events', (req: Request, res: Response) => {
     sseAnonClients.add(res);
   }
 
-  // Keep-alive every 20s
+  // Keep-alive every 5s — 짧게 유지해 프록시/방화벽 idle 차단 방지
   const keepalive = setInterval(() => {
     try { res.write('data: {"type":"ping"}\n\n'); } catch { clearInterval(keepalive); }
-  }, 20000);
+  }, 5000);
 
   req.on('close', () => {
     clearInterval(keepalive);

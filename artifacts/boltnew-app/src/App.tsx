@@ -44,10 +44,12 @@ import { ProfileRecoveryScreen } from './components/ProfileRecoveryScreen';
 import { TutorialModal } from './components/TutorialModal';
 import { ResetButton } from './components/ResetButton';
 import { ProfileQrModal } from './components/ProfileQrModal';
+import { QrScannerModal } from './components/QrScannerModal';
+import { ContactRevealModal } from './components/ContactRevealModal';
 import {
   MATCHING_USER_KEY, MATCHING_DRAFT_KEY, MATCHING_LAST_RESET_KEY,
   MATCHING_GUIDE_SHOWN_KEY, MATCHING_PROFILES_CACHE_KEY, MATCHING_SEATS_CACHE_KEY,
-  ENTRY_VERIFIED_KEY,
+  ENTRY_VERIFIED_KEY, SCANNED_CONTACTS_KEY,
 } from './lib/constants';
 import { ls } from './lib/storage';
 import { MainScreen } from './components/MainScreen';
@@ -178,7 +180,7 @@ function App() {
       reconnectTimerRef.current = setTimeout(() => {
         setConnStatus('error');
         reconnectTimerRef.current = null;
-      }, 15000);
+      }, 1500);
       setConnStatus('reconnecting');
     }
   }, []);
@@ -208,6 +210,39 @@ function App() {
   const [showTutorialModal, setShowTutorialModal] = useState(false);
   const [tutorialPage, setTutorialPage] = useState(0);
   const [showProfileQr, setShowProfileQr] = useState(false);
+  const [showContactQr, setShowContactQr] = useState(false);
+  const [showQrScanner, setShowQrScanner] = useState(false);
+  const [scannedContactProfile, setScannedContactProfile] = useState<import('./types/app').Profile | null>(null);
+
+  // ── 스캔한 연락처 (localStorage 영구 보관) ─────────────────────────────────
+  type ScannedContact = {
+    id: string; nickname: string; mbti?: string | null; photo_url?: string | null;
+    kakao_id?: string | null; instagram_id?: string | null; phone_number?: string | null;
+    contact_private?: boolean | null; scanned_at: string;
+  };
+  const [scannedContacts, setScannedContacts] = useState<ScannedContact[]>(() => {
+    try { return JSON.parse(ls.getItem(SCANNED_CONTACTS_KEY) ?? '[]') as ScannedContact[]; } catch { return []; }
+  });
+  const saveScannedContact = (profile: import('./types/app').Profile) => {
+    if (!profile.id) return;
+    const entry: ScannedContact = {
+      id: profile.id,
+      nickname: (profile as { nickname?: string }).nickname ?? '?',
+      mbti: profile.mbti,
+      photo_url: profile.photo_url,
+      kakao_id: (profile as { kakao_id?: string | null }).kakao_id,
+      instagram_id: (profile as { instagram_id?: string | null }).instagram_id,
+      phone_number: (profile as { phone_number?: string | null }).phone_number,
+      contact_private: (profile as { contact_private?: boolean | null }).contact_private,
+      scanned_at: new Date().toISOString(),
+    };
+    setScannedContacts(prev => {
+      const filtered = prev.filter(c => c.id !== entry.id);
+      const next = [entry, ...filtered].slice(0, 50);
+      try { ls.setItem(SCANNED_CONTACTS_KEY, JSON.stringify(next)); } catch { /* quota */ }
+      return next;
+    });
+  };
   const isNewRegistration = useRef(false);
   // 항상 최신 profiles를 가리키는 ref (stale 클로저 방지)
   const profilesRef = useRef<Profile[]>([]);
@@ -278,9 +313,14 @@ function App() {
 
   useEffect(() => {
     let cancelled = false;
+    // 네트워크 지연 시 fallback — 세 조건 모두 해제해야 로딩 스피너가 사라짐
     const timeout = setTimeout(() => {
-      if (!cancelled) setAppLoading(false);
-    }, 6000);
+      if (!cancelled) {
+        setAppLoading(false);
+        setSessionActive(prev => prev ?? true);
+        setEntryPassword(prev => prev ?? '');
+      }
+    }, 1000);
     supabase.from('app_settings').select('session_active, game_state, timer_end_at, timer_label, seating_locked, active_tables, reset_signal, table_labels, reset_password, entry_password').eq('id', 1).single().then(({ data }: { data: any }) => {
       if (cancelled) return;
       clearTimeout(timeout);
@@ -517,12 +557,18 @@ function App() {
         return;
       }
       // If the profile no longer exists (e.g. admin reset the session), clear stale state
+      // 안정성: DB 전파 지연으로 인한 false-positive 방지 — 2초 후 한 번 더 확인
       if (!allProfiles.some((p: { id: string }) => p.id === currentUserId)) {
-        ls.removeItem(MATCHING_USER_KEY);
-        ls.removeItem(MATCHING_DRAFT_KEY);
-        setCurrentUserId(null);
-        setShownWaiting(false);
-        setView('entry-1');
+        setTimeout(async () => {
+          const retry = await loadProfiles();
+          if (retry.length > 0 && !retry.some((p: { id: string }) => p.id === currentUserId)) {
+            ls.removeItem(MATCHING_USER_KEY);
+            ls.removeItem(MATCHING_DRAFT_KEY);
+            setCurrentUserId(null);
+            setShownWaiting(false);
+            setView('entry-1');
+          }
+        }, 2000);
         return;
       }
       setView('main');
@@ -540,43 +586,15 @@ function App() {
       loadMyVotes(currentUserId);
     }, 600);
 
-    // ── ?share=<profileId> 처리: 연락처 QR 스캔 → 채팅 자동 오픈 + 연락처 수신 ──
+    // ── ?share=<profileId> 처리: 연락처 QR 스캔 → 연락처 모달 표시 ──
     if (pendingShareId && pendingShareId !== currentUserId) {
       window.history.replaceState({}, '', window.location.pathname);
       (async () => {
         const { data: shareProfile } = await supabase.from('profiles').select('*').eq('id', pendingShareId).maybeSingle();
         if (!shareProfile) return;
-        const uid1 = currentUserId < shareProfile.id ? currentUserId : shareProfile.id;
-        const uid2 = currentUserId < shareProfile.id ? shareProfile.id : currentUserId;
-        const { data: existingChat } = await supabase.from('chats').select('*').eq('user1_id', uid1).eq('user2_id', uid2).maybeSingle();
-        let cid = existingChat?.id ?? null;
-        if (!cid) {
-          const { data: newChat } = await supabase.from('chats').insert({ user1_id: uid1, user2_id: uid2 }).select().single();
-          cid = newChat?.id ?? null;
-        }
-        if (cid) {
-          // 연락처 정보가 있으면 자동 메시지 전송
-          const { kakao_id, instagram_id, phone_number, contact_private } = shareProfile;
-          if (!contact_private && (kakao_id || instagram_id || phone_number)) {
-            const parts: string[] = [];
-            if (kakao_id) parts.push(`카카오: ${kakao_id}`);
-            if (instagram_id) parts.push(`인스타: @${instagram_id}`);
-            if (phone_number) parts.push(`전화: ${phone_number}`);
-            // 메시지가 이미 있는지 확인 (중복 방지)
-            const { data: existingMsgs } = await supabase.from('messages').select('id,content').eq('chat_id', cid).eq('sender_id', shareProfile.id);
-            const alreadySent = existingMsgs?.some((m: { id: string; content: string }) => m.content?.startsWith('__contact__'));
-            if (!alreadySent) {
-              await supabase.from('messages').insert({
-                chat_id: cid,
-                sender_id: shareProfile.id,
-                content: `__contact__\n${parts.join('\n')}`,
-              });
-            }
-          }
-          setChatId(cid);
-          setSelectedProfile(shareProfile);
-          setView('chat');
-        }
+        const p = shareProfile as import('./types/app').Profile;
+        saveScannedContact(p);
+        setScannedContactProfile(p);
       })();
     }
 
@@ -939,7 +957,6 @@ function App() {
 
   const handleProfileRecovery = async (profileId: string) => {
     setLoading(true);
-    // 프로필 존재 여부 확인
     const { data: profile } = await supabase
       .from('profiles')
       .select('*')
@@ -948,9 +965,12 @@ function App() {
     if (profile) {
       ls.setItem(MATCHING_USER_KEY, profile.id);
       ls.removeItem(MATCHING_DRAFT_KEY);
-      setCurrentUserId(profile.id);
+      // isNewRegistration = true → useEffect가 false-positive 체크(setView('entry-1') 타임아웃)를
+      // 건너뛰고 바로 setView('main')으로 이동 (handleNicknameSetup과 동일 패턴)
+      isNewRegistration.current = true;
       setProfiles(prev => prev.some(p => p.id === profile.id) ? prev : [profile as Profile, ...prev]);
-      setView('loading-main');
+      setCurrentUserId(profile.id);
+      setView('loading-main'); // 복구 확인 중 spinner 표시
     } else {
       alert('프로필을 찾을 수 없습니다. 관리자에게 문의하세요.');
       setView('entry-1');
@@ -1014,6 +1034,7 @@ function App() {
   if (showWaiting) return <WaitingOverlay
     sessionActive={sessionActive}
     onEnter={() => setShownWaiting(true)}
+    onRecover={handleProfileRecovery}
   />;
 
   if (view === 'loading-main') return (
@@ -1261,6 +1282,14 @@ function App() {
         darkMode={darkMode}
         onToggleDark={() => { const next = !darkMode; setDarkMode(next); ls.setItem('dark_mode', next ? '1' : '0'); }}
         onShowQr={() => setShowProfileQr(true)}
+        onShowContactQr={() => setShowContactQr(true)}
+        onScanQr={() => setShowQrScanner(true)}
+        scannedContacts={scannedContacts}
+        onClearScannedContact={(id) => setScannedContacts(prev => {
+          const next = prev.filter(c => c.id !== id);
+          try { ls.setItem(SCANNED_CONTACTS_KEY, JSON.stringify(next)); } catch {}
+          return next;
+        })}
         seatingLocked={seatingLocked}
         activeTables={activeTables}
         tableLabels={tableLabels}
@@ -1346,6 +1375,50 @@ function App() {
           pinCode={profileMap.get(currentUserId)?.pin_code ?? null}
           onClose={() => setShowProfileQr(false)}
           onPinGenerated={(pin) => setProfiles(prev => prev.map(p => p.id === currentUserId ? { ...p, pin_code: pin } : p))}
+        />
+      )}
+      {showContactQr && currentUserId && (
+        <ProfileQrModal
+          profileId={currentUserId}
+          pinCode={profileMap.get(currentUserId)?.pin_code ?? null}
+          onClose={() => setShowContactQr(false)}
+          onPinGenerated={(pin) => setProfiles(prev => prev.map(p => p.id === currentUserId ? { ...p, pin_code: pin } : p))}
+          initialTab="contact"
+        />
+      )}
+      {/* QR 카메라 스캐너 */}
+      {showQrScanner && (
+        <QrScannerModal
+          darkMode={darkMode}
+          onClose={() => setShowQrScanner(false)}
+          onDetected={async (profileId) => {
+            setShowQrScanner(false);
+            const cached = profiles.find(p => p.id === profileId);
+            if (cached) { saveScannedContact(cached); setScannedContactProfile(cached); return; }
+            const { data } = await supabase.from('profiles').select('*').eq('id', profileId).maybeSingle();
+            if (data) { saveScannedContact(data as import('./types/app').Profile); setScannedContactProfile(data as import('./types/app').Profile); }
+          }}
+        />
+      )}
+      {/* 연락처 스캔 결과 모달 */}
+      {scannedContactProfile && (
+        <ContactRevealModal
+          profile={scannedContactProfile}
+          darkMode={darkMode}
+          onClose={() => setScannedContactProfile(null)}
+          onOpenChat={currentUserId ? async () => {
+            const sp = scannedContactProfile;
+            setScannedContactProfile(null);
+            const uid1 = currentUserId < sp.id ? currentUserId : sp.id;
+            const uid2 = currentUserId < sp.id ? sp.id : currentUserId;
+            const { data: existing } = await supabase.from('chats').select('*').eq('user1_id', uid1).eq('user2_id', uid2).maybeSingle();
+            let cid = existing?.id ?? null;
+            if (!cid) {
+              const { data: newChat } = await supabase.from('chats').insert({ user1_id: uid1, user2_id: uid2 }).select().single();
+              cid = newChat?.id ?? null;
+            }
+            if (cid) { setChatId(cid); setSelectedProfile(sp); setView('chat'); }
+          } : undefined}
         />
       )}
     </>

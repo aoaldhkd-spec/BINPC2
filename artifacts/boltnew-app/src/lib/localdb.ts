@@ -12,7 +12,7 @@ import type { Database } from '../types/database';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const API = '/api/db';
-const FETCH_TIMEOUT = 12_000; // ms
+const FETCH_TIMEOUT = 4_000; // ms
 
 // ─── Fetch helper ─────────────────────────────────────────────────────────────
 async function apiFetch(path: string, body?: unknown): Promise<{ data: unknown; error: unknown }> {

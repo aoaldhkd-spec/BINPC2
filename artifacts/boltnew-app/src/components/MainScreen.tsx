@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { Profile, Seat, ContactShare, Suggestion, BalanceGame, Chat, MainTab, TableMiniGameSession } from '../types/app';
+import { BIO_CATEGORIES } from '../lib/interests';
 import { HeartType, HEART_TYPES, heartMeta } from '../lib/constants';
 import { getPositionLabel, getPositionBg, getPositionStyle, getDomSubLabel, getDomSubBg, getKoreanAge } from '../lib/profile';
 import { getZodiac, getOhaeng } from '../lib/fortune';
@@ -175,7 +176,7 @@ export function MainScreen({
   balanceGames, voteCounts, myVotes,
   onContactShareOpen, onContactViewOpen, onHeartResponse, onDeleteChat, onDeleteAllChats, onSubmitSuggestion, onOpenChat,
   onVote, onCreateGame, onEndGame, onSubmitAnonymousReport,
-  timerEndAt, timerLabel, onRefreshStatus, onRefreshChat, onRefreshProfiles, onRefreshSeating, darkMode, onToggleDark, onShowQr, seatingLocked, activeTables, tableLabels, onShowTutorial,
+  timerEndAt, timerLabel, onRefreshStatus, onRefreshChat, onRefreshProfiles, onRefreshSeating, darkMode, onToggleDark, onShowQr, onShowContactQr, onScanQr, scannedContacts, onClearScannedContact, seatingLocked, activeTables, tableLabels, onShowTutorial,
   newMsgCount, onClearMsgCount, unreadChatCounts, onClearChatUnread, resetPassword, onBroadcastGame,
   setSeatDialog, onUpdateProfile,
 }: {
@@ -208,6 +209,10 @@ export function MainScreen({
   darkMode: boolean;
   onToggleDark: () => void;
   onShowQr: () => void;
+  onShowContactQr: () => void;
+  onScanQr: () => void;
+  scannedContacts: Array<{ id: string; nickname: string; mbti?: string | null; photo_url?: string | null; kakao_id?: string | null; instagram_id?: string | null; phone_number?: string | null; contact_private?: boolean | null; scanned_at: string }>;
+  onClearScannedContact: (id: string) => void;
   seatingLocked: boolean;
   activeTables: number[] | null;
   tableLabels: Record<string, string> | null;
@@ -368,6 +373,13 @@ export function MainScreen({
   const [statusContactSaving, setStatusContactSaving] = useState(false);
   const statusContactInitRef = useRef(false);
 
+  // ── 관심사 편집 상태 ────────────────────────────────────────────────────────
+  const [showInterestEdit, setShowInterestEdit] = useState(false);
+  const [editInterests, setEditInterests] = useState<string[]>([]);
+  const [interestFilter, setInterestFilter] = useState<string | null>(null);
+  const [interestSaving, setInterestSaving] = useState(false);
+  const interestInitRef = useRef(false);
+
   // 프로필 로드 시 편집 상태 초기화 (최초 1회)
   useEffect(() => {
     if (!currentUserId) {
@@ -388,6 +400,10 @@ export function MainScreen({
       setStatusInstagram((me as { instagram_id?: string | null }).instagram_id ?? '');
       setStatusPhone((me as { phone_number?: string | null }).phone_number ?? '');
       setStatusContactPrivate((me as { contact_private?: boolean | null }).contact_private ?? false);
+    }
+    if (!interestInitRef.current) {
+      interestInitRef.current = true;
+      setEditInterests(me.bio ? me.bio.split(',').map(t => t.trim()).filter(Boolean) : []);
     }
     // 운세탭 생월생일 섹션: 미설정 상태면 자동으로 펼치기 (최초 1회)
     if (!fortuneBirthAutoOpenedRef.current) {
@@ -411,6 +427,20 @@ export function MainScreen({
       onRefreshProfiles();
     } catch (e) { console.error('[saju] 저장 실패:', e); }
     setSajuSaving(false);
+  };
+
+  const saveInterests = async () => {
+    if (!currentUserId) return;
+    setInterestSaving(true);
+    try {
+      const bioStr = editInterests.join(', ');
+      await supabase.from('profiles').update({ bio: bioStr } as never).eq('id', currentUserId);
+      onUpdateProfile({ id: currentUserId, bio: bioStr });
+      interestInitRef.current = false;
+      setShowInterestEdit(false);
+      onRefreshProfiles();
+    } catch (e) { console.error('[interests] 저장 실패:', e); }
+    setInterestSaving(false);
   };
 
   const saveStatusContact = async () => {
@@ -793,12 +823,11 @@ export function MainScreen({
                 <div className={`rounded-3xl p-5 border shadow-xl transition-colors duration-300 ${darkMode ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600' : 'bg-white border-gray-100'}`}>
                   <p className={`text-[10px] font-black uppercase tracking-widest mb-3 ${darkMode ? 'text-slate-300' : 'text-gray-400'}`}>내 프로필</p>
                   <div className="flex gap-4">
-                    {/* 프로필 사진 + 업로드 + QR */}
+                    {/* 프로필 사진 + 업로드 */}
                     <div className="flex-shrink-0">
                       <div className="relative w-24 h-24">
                         <label className={`block w-full h-full rounded-2xl overflow-hidden border-2 border-cyan-500/50 shadow-lg shadow-cyan-500/20 cursor-pointer group ${photoUploading ? 'cursor-wait' : ''}`}>
                           <img src={me.photo_url} alt={me.nickname} className="w-full h-full object-cover" />
-                          {/* 호버/업로드 오버레이 */}
                           <div className={`absolute inset-0 flex flex-col items-center justify-center rounded-2xl transition-all ${photoUploading ? 'bg-black/60' : 'bg-black/0 group-hover:bg-black/50'}`}>
                             {photoUploading ? (
                               <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -811,7 +840,6 @@ export function MainScreen({
                           </div>
                           <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} disabled={photoUploading} />
                         </label>
-                        {/* 카메라 뱃지 */}
                         {!photoUploading && (
                           <span className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-cyan-500 border-2 border-slate-900 flex items-center justify-center pointer-events-none shadow">
                             <Camera className="w-3 h-3 text-white" />
@@ -821,20 +849,6 @@ export function MainScreen({
                       {currentUserSeat && (
                         <div className="mt-2 text-center">
                           <span className="text-[10px] font-black text-amber-400">{currentUserSeat.table_number}번 {tableLetter}테이블</span>
-                        </div>
-                      )}
-                      <button
-                        onClick={onShowQr}
-                        className={`mt-2 w-20 flex items-center justify-center gap-1 py-1.5 rounded-xl text-[10px] font-bold transition-all ${darkMode ? 'bg-cyan-500/15 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/25' : 'bg-cyan-50 border border-cyan-200 text-cyan-600 hover:bg-cyan-100'}`}
-                      >
-                        <QrCode className="w-3 h-3" />
-                        <span>QR 보기</span>
-                      </button>
-                      {/* 핀번호 직접 표시 */}
-                      {me.pin_code && (
-                        <div className={`mt-1.5 w-20 text-center px-1 py-1 rounded-lg border ${darkMode ? 'bg-slate-700/60 border-slate-600' : 'bg-slate-50 border-slate-200'}`}>
-                          <p className={`text-[8px] font-bold uppercase tracking-widest mb-0.5 ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>고유번호</p>
-                          <p className={`text-sm font-black tracking-[0.25em] ${darkMode ? 'text-slate-200' : 'text-slate-800'}`}>{me.pin_code}</p>
                         </div>
                       )}
                     </div>
@@ -890,9 +904,98 @@ export function MainScreen({
                       </div>
                     )}
                   </div>
+                  {/* ── QR 버튼 한 줄 ── */}
+                  <div className="mt-4 grid grid-cols-4 gap-2">
+                    <button
+                      onClick={onShowQr}
+                      className={`flex flex-col items-center justify-center gap-1 py-2.5 rounded-2xl font-bold transition-all active:scale-95 border ${darkMode ? 'bg-cyan-500/15 border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/25' : 'bg-cyan-50 border-cyan-200 text-cyan-600 hover:bg-cyan-100'}`}
+                    >
+                      <QrCode className="w-5 h-5" />
+                      <span className="text-[10px] leading-tight text-center">프로필<br/>QR</span>
+                    </button>
+                    <button
+                      onClick={onShowContactQr}
+                      className={`flex flex-col items-center justify-center gap-1 py-2.5 rounded-2xl font-bold transition-all active:scale-95 border ${darkMode ? 'bg-violet-500/15 border-violet-500/30 text-violet-400 hover:bg-violet-500/25' : 'bg-violet-50 border-violet-200 text-violet-600 hover:bg-violet-100'}`}
+                    >
+                      <QrCode className="w-5 h-5" />
+                      <span className="text-[10px] leading-tight text-center">연락처<br/>QR</span>
+                    </button>
+                    <button
+                      onClick={onScanQr}
+                      className={`flex flex-col items-center justify-center gap-1 py-2.5 rounded-2xl font-bold transition-all active:scale-95 border ${darkMode ? 'bg-amber-500/15 border-amber-500/30 text-amber-400 hover:bg-amber-500/25' : 'bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100'}`}
+                    >
+                      <Camera className="w-5 h-5" />
+                      <span className="text-[10px] leading-tight text-center">QR<br/>찍기</span>
+                    </button>
+                    {me.pin_code ? (
+                      <div className={`flex flex-col items-center justify-center gap-0.5 py-2.5 rounded-2xl border ${darkMode ? 'bg-slate-700/60 border-slate-600' : 'bg-slate-50 border-slate-200'}`}>
+                        <span className={`text-[8px] font-black uppercase tracking-widest ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>고유번호</span>
+                        <span className={`text-base font-black tracking-[0.2em] ${darkMode ? 'text-slate-200' : 'text-slate-800'}`}>{me.pin_code}</span>
+                      </div>
+                    ) : (
+                      <div className={`flex flex-col items-center justify-center gap-0.5 py-2.5 rounded-2xl border ${darkMode ? 'bg-slate-700/60 border-slate-600 text-slate-500' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
+                        <span className="text-[9px] font-semibold text-center leading-tight">고유번호<br/>없음</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               );
             })()}
+            {/* ── 스캔한 연락처 ── */}
+            {scannedContacts.length > 0 && (
+              <div className={`rounded-2xl border transition-colors duration-300 ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-100'}`}>
+                <div className="p-4 pb-2">
+                  <p className={`text-[10px] font-black uppercase tracking-widest mb-3 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>📋 스캔한 연락처 ({scannedContacts.length})</p>
+                  <div className="space-y-2">
+                    {scannedContacts.map(c => (
+                      <div key={c.id} className={`rounded-xl p-3 border flex items-start gap-3 ${darkMode ? 'bg-slate-700/50 border-slate-600' : 'bg-gray-50 border-gray-100'}`}>
+                        {/* 아바타 */}
+                        <div className="flex-shrink-0">
+                          {c.photo_url ? (
+                            <img src={c.photo_url} alt={c.nickname} loading="lazy" className="w-10 h-10 rounded-xl object-cover" />
+                          ) : (
+                            <div className="w-10 h-10 rounded-xl bg-teal-500 flex items-center justify-center text-white font-black text-sm">{c.nickname[0]}</div>
+                          )}
+                        </div>
+                        {/* 정보 */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <span className={`font-black text-sm ${darkMode ? 'text-white' : 'text-gray-900'}`}>{c.nickname}</span>
+                            {c.mbti && <span className="px-1.5 py-0.5 bg-teal-500/20 text-teal-400 text-[10px] font-bold rounded-md border border-teal-500/30">{c.mbti}</span>}
+                          </div>
+                          {c.contact_private ? (
+                            <p className={`text-[11px] ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>🔒 연락처 비공개</p>
+                          ) : (
+                            <div className="space-y-0.5">
+                              {c.kakao_id && <p className={`text-[11px] font-medium ${darkMode ? 'text-yellow-400' : 'text-yellow-600'}`}>🟡 카카오: {c.kakao_id}</p>}
+                              {c.instagram_id && <p className={`text-[11px] font-medium ${darkMode ? 'text-pink-400' : 'text-pink-600'}`}>📸 인스타: @{c.instagram_id}</p>}
+                              {c.phone_number && <p className={`text-[11px] font-medium ${darkMode ? 'text-green-400' : 'text-green-600'}`}>📞 전화: {c.phone_number}</p>}
+                              {!c.kakao_id && !c.instagram_id && !c.phone_number && (
+                                <p className={`text-[11px] ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>연락처 미등록</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        {/* 삭제 */}
+                        <button
+                          onClick={() => onClearScannedContact(c.id)}
+                          className={`flex-shrink-0 p-1.5 rounded-lg transition-all active:scale-90 ${darkMode ? 'text-slate-500 hover:text-slate-300 hover:bg-slate-600' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-200'}`}
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="px-4 pb-3">
+                  <button onClick={() => scannedContacts.forEach(c => onClearScannedContact(c.id))}
+                    className={`text-[11px] font-semibold transition-all ${darkMode ? 'text-slate-500 hover:text-slate-400' : 'text-gray-300 hover:text-gray-400'}`}>
+                    전체 삭제
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* ── 오늘의 운세 미니카드 ── */}
             {(() => {
               const me = profiles.find(p => p.id === currentUserId);
@@ -1052,6 +1155,96 @@ export function MainScreen({
                 </div>
               )}
             </div>
+
+            {/* ── 관심사 편집 — 접기/펼치기 ── */}
+            {(() => {
+              const me = profiles.find(p => p.id === currentUserId);
+              if (!me) return null;
+              const currentTags = me.bio ? me.bio.split(',').map(t => t.trim()).filter(Boolean) : [];
+              const atMax = editInterests.length >= 5;
+              const toggleTag = (tag: string) => {
+                setEditInterests(prev =>
+                  prev.includes(tag) ? prev.filter(t => t !== tag) : prev.length < 5 ? [...prev, tag] : prev
+                );
+              };
+              return (
+                <div className={`rounded-2xl border transition-colors duration-300 ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-100'}`}>
+                  <button onClick={() => { setShowInterestEdit(v => !v); if (!showInterestEdit) { interestInitRef.current = false; setEditInterests(currentTags); } }} className="w-full flex items-center gap-2 p-4 text-left">
+                    <span className="text-xl flex-shrink-0">🏷️</span>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-black ${darkMode ? 'text-white' : 'text-gray-900'}`}>관심사 수정</p>
+                      {currentTags.length > 0 ? (
+                        <p className={`text-[11px] truncate ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>{currentTags.join(' · ')}</p>
+                      ) : (
+                        <p className={`text-[11px] ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>미설정</p>
+                      )}
+                    </div>
+                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full flex-shrink-0 ${currentTags.length >= 2 ? 'bg-teal-500 text-white' : 'bg-gray-100 text-gray-400'}`}>{currentTags.length}/5</span>
+                    <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${showInterestEdit ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
+                  </button>
+                  {showInterestEdit && (
+                    <div className="px-4 pb-4 space-y-3">
+                      {/* 선택된 태그 미리보기 */}
+                      {editInterests.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 p-2.5 rounded-xl border bg-cyan-50 border-cyan-100">
+                          {editInterests.map(tag => (
+                            <button key={tag} type="button" onClick={() => toggleTag(tag)}
+                              className="flex items-center gap-1 px-2.5 py-1 bg-cyan-500 text-white text-xs font-semibold rounded-lg hover:bg-cyan-600 transition-all active:scale-95">
+                              {tag} <span className="opacity-70 text-[10px]">×</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {/* 카테고리 필터 탭 */}
+                      <div className="flex gap-1.5 flex-wrap">
+                        <button type="button" onClick={() => setInterestFilter(null)}
+                          className={`px-3 py-1.5 rounded-full text-xs font-black border transition-all ${interestFilter === null ? (darkMode ? 'bg-white text-gray-900 border-white' : 'bg-gray-800 text-white border-gray-800') : (darkMode ? 'bg-slate-700 text-slate-400 border-slate-600 hover:border-slate-400' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-400')}`}
+                        >전체</button>
+                        {BIO_CATEGORIES.map(cat => {
+                          const active = interestFilter === cat.label;
+                          const hasSelected = cat.tags.some(t => editInterests.includes(t));
+                          return (
+                            <button key={cat.label} type="button" onClick={() => setInterestFilter(active ? null : cat.label)}
+                              className={`relative px-3 py-1.5 rounded-full text-xs font-black border transition-all ${active ? `${cat.color.selected} border-transparent` : (darkMode ? `bg-slate-700 border-slate-600 ${cat.color.label} hover:border-current` : `bg-white border-gray-200 ${cat.color.label} hover:border-current`)}`}>
+                              {cat.label}
+                              {hasSelected && !active && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-cyan-500 rounded-full border border-white" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {/* 태그 목록 */}
+                      <div className="space-y-2.5">
+                        {BIO_CATEGORIES.filter(cat => interestFilter === null || cat.label === cat.label && interestFilter === cat.label).map(cat => (
+                          <div key={cat.label} className={interestFilter === null ? `rounded-xl border ${cat.color.border} overflow-hidden` : ''}>
+                            {interestFilter === null && (
+                              <div className={`px-3 py-1.5 ${cat.color.bg}`}>
+                                <span className={`text-[11px] font-black ${cat.color.label}`}>{cat.label}</span>
+                              </div>
+                            )}
+                            <div className={`flex flex-wrap gap-1.5 ${interestFilter === null ? 'p-2.5' : ''}`}>
+                              {cat.tags.map(tag => {
+                                const selected = editInterests.includes(tag);
+                                const disabled = !selected && atMax;
+                                return (
+                                  <button key={tag} type="button" onClick={() => toggleTag(tag)} disabled={disabled}
+                                    className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all active:scale-95 ${selected ? cat.color.selected : disabled ? (darkMode ? 'bg-slate-700 text-slate-600 border-slate-700 cursor-not-allowed' : 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed') : cat.color.normal}`}>
+                                    {tag === '뜨밤' && <span className="mr-1">🔥</span>}{tag}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <button onClick={saveInterests} disabled={interestSaving || editInterests.length < 2}
+                        className="w-full py-2.5 bg-teal-500 hover:bg-teal-600 text-white font-bold rounded-xl text-sm active:scale-[0.98] transition-all disabled:opacity-40">
+                        {interestSaving ? '저장 중...' : `관심사 저장 (${editInterests.length}개 선택됨)`}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             <div className="contents">
             <div className={`rounded-2xl shadow-sm p-5 transition-colors duration-300 ${darkMode ? 'bg-slate-800 border border-slate-600' : 'bg-white'}`}>

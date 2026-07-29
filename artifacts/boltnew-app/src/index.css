@@ -66,3 +66,19 @@
 .scrollbar-styled-light::-webkit-scrollbar-track { background: #e2e8f0; border-radius: 99px; }
 .scrollbar-styled-light::-webkit-scrollbar-thumb { background: #0d9488; border-radius: 99px; }
 .scrollbar-styled-light::-webkit-scrollbar-corner { background: #e2e8f0; }
+
+/* QR 스캔 라인 애니메이션 */
+@keyframes scan-line {
+  0%   { top: 8px;  opacity: 1; }
+  45%  { top: calc(100% - 8px); opacity: 1; }
+  50%  { opacity: 0; }
+  51%  { top: 8px; opacity: 0; }
+  55%  { opacity: 1; }
+  100% { top: 8px; opacity: 1; }
+}
+.animate-scan-line {
+  animation: scan-line 2s ease-in-out infinite;
+  position: absolute;
+  left: 8px;
+  right: 8px;
+}

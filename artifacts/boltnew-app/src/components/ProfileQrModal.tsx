@@ -3,15 +3,15 @@ import { Maximize2 } from 'lucide-react';
 import QRCode from 'qrcode';
 import { supabase } from '../lib/supabase';
 
-export function ProfileQrModal({ profileId, pinCode: pinCodeProp, onClose, onPinGenerated }: {
-  profileId: string; pinCode: string | null; onClose: () => void; onPinGenerated?: (pin: string) => void;
+export function ProfileQrModal({ profileId, pinCode: pinCodeProp, onClose, onPinGenerated, initialTab = 'profile' }: {
+  profileId: string; pinCode: string | null; onClose: () => void; onPinGenerated?: (pin: string) => void; initialTab?: 'profile' | 'contact';
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const contactCanvasRef = useRef<HTMLCanvasElement>(null);
   const largeCanvasRef = useRef<HTMLCanvasElement>(null);
   const [expanded, setExpanded] = useState(false);
-  const [expandedTab, setExpandedTab] = useState<'profile' | 'contact'>('profile');
-  const [tab, setTab] = useState<'profile' | 'contact'>('profile');
+  const [expandedTab, setExpandedTab] = useState<'profile' | 'contact'>(initialTab);
+  const [tab, setTab] = useState<'profile' | 'contact'>(initialTab);
   const [pinCode, setPinCode] = useState<string | null>(pinCodeProp);
   const shareUrl = `${window.location.origin}${window.location.pathname}?share=${profileId}`;
 
