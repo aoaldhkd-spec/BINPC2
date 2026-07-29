@@ -208,10 +208,22 @@ export function NicknameSetupScreen({ onSubmit, loading, onReset, onShowRecovery
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
       <div className="w-full max-w-md max-h-[92vh] overflow-y-auto">
         <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
-          <div className="bg-gradient-to-r from-cyan-500 to-teal-500 px-6 py-5">
-            <p className="text-white/80 text-xs font-semibold mb-0.5">QR 접속 완료</p>
-            <h2 className="text-white font-black text-xl">닉네임 설정</h2>
-            <p className="text-white/90 text-xs mt-1">3단계로 나의 프로필을 완성해요</p>
+          <div className="bg-gradient-to-r from-cyan-500 to-teal-500 px-6 py-5 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-white/80 text-xs font-semibold mb-0.5">QR 접속 완료</p>
+              <h2 className="text-white font-black text-xl">닉네임 설정</h2>
+              <p className="text-white/90 text-xs mt-1">3단계로 나의 프로필을 완성해요</p>
+            </div>
+            {onShowRecovery && (
+              <button
+                type="button"
+                onClick={onShowRecovery}
+                className="flex-shrink-0 flex flex-col items-center gap-1 px-3 py-2 rounded-xl bg-white/20 hover:bg-white/30 active:bg-white/40 transition-all border border-white/30"
+              >
+                <span className="text-lg leading-none">🔑</span>
+                <span className="text-white text-[10px] font-bold leading-tight whitespace-nowrap">프로필 복구</span>
+              </button>
+            )}
           </div>
           <div className="px-5 pt-4">
           </div>
@@ -697,18 +709,6 @@ export function NicknameSetupScreen({ onSubmit, loading, onReset, onShowRecovery
         </div>
       </div>
 
-      {/* 프로필 복구 링크 */}
-      {onShowRecovery && (
-        <div className="text-center mt-4">
-          <button
-            type="button"
-            onClick={onShowRecovery}
-            className="text-white/50 text-xs hover:text-white/80 transition-all underline underline-offset-2"
-          >
-            이미 등록한 프로필이 있나요? → 고유번호로 복구하기
-          </button>
-        </div>
-      )}
     </div>
   );
 }
