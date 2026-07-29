@@ -182,9 +182,19 @@ function broadcastToUsers(userIds: string[], event: Record<string, unknown>) {
   }
 }
 
+/** 1:1 프라이빗 데이터 테이블 — 절대 전체 브로드캐스트 금지 */
+const PRIVATE_TABLES = new Set([
+  'messages', 'likes', 'chats',
+  'contact_shares', 'contact_share_events', 'chat_reads',
+]);
+
 /** 테이블 종류에 따라 자동으로 수신자 판단 */
 function smartBroadcast(table: string, row: Record<string, unknown> | null, event: Record<string, unknown>) {
-  if (!row) { broadcastAll(event); return; }
+  // row가 없는 경우(DELETE payload 없음): 프라이빗 테이블이면 드롭, 공개 테이블만 전체 전송
+  if (!row) {
+    if (!PRIVATE_TABLES.has(table)) broadcastAll(event);
+    return;
+  }
   const targets: string[] = [];
   if (table === 'messages') {
     const chat = getTable('chats').find(c => c['id'] === row['chat_id']);
@@ -201,8 +211,14 @@ function smartBroadcast(table: string, row: Record<string, unknown> | null, even
   } else if (table === 'chat_reads') {
     if (row['user_id']) targets.push(row['user_id'] as string);
   }
-  if (targets.length > 0) broadcastToUsers(targets, event);
-  else broadcastAll(event);
+
+  if (targets.length > 0) {
+    broadcastToUsers(targets, event);
+  } else if (!PRIVATE_TABLES.has(table)) {
+    // 공개 테이블(seats, profiles 등)만 전체 브로드캐스트 허용
+    broadcastAll(event);
+  }
+  // 프라이빗 테이블인데 수신자를 특정 못한 경우 → 조용히 드롭 (전체 유출 방지)
 }
 
 // ─── Web Push: 메시지/하트 삽입 시 수신자에게 알림 전송 ──────────────────────
@@ -655,16 +671,17 @@ router.post('/storage-upload', async (req: Request, res: Response) => {
   res.json({ data: { path }, error: null });
 });
 
-router.get('/storage-image', (req: Request, res: Response) => {
+router.get('/storage-image', (req: Request, res: Response): void => {
   const path = req.query.p as string;
   const dataUrl = path ? imageStore[path] : undefined;
-  if (!dataUrl) return res.status(404).json({ error: 'Not found' });
+  if (!dataUrl) { res.status(404).json({ error: 'Not found' }); return; }
   const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
   if (match) {
     const [, mime, b64] = match;
     res.setHeader('Content-Type', mime);
     res.setHeader('Cache-Control', 'public, max-age=86400');
-    return res.send(Buffer.from(b64, 'base64'));
+    res.send(Buffer.from(b64, 'base64'));
+    return;
   }
   res.send(dataUrl);
 });
@@ -712,8 +729,12 @@ router.post('/push/subscribe', (req: Request, res: Response) => {
   return res.json({ ok: true });
 });
 
-// ─── Push notify endpoint (클라이언트가 발송 후 호출) ────────────────────────
+// ─── Push notify endpoint (서버 내부 또는 인증된 호출만 허용) ────────────────
+const PUSH_NOTIFY_SECRET = process.env.SESSION_SECRET ?? 'internal';
 router.post('/push/notify', async (req: Request, res: Response) => {
+  // 클라이언트 직접 호출 남용 방지 — X-Internal-Secret 헤더 필요
+  const secret = req.headers['x-internal-secret'];
+  if (secret !== PUSH_NOTIFY_SECRET) return res.status(403).json({ error: 'Forbidden' });
   const { recipientId, title, body, tag, url } = req.body as {
     recipientId?: string; title?: string; body?: string; tag?: string; url?: string;
   };
