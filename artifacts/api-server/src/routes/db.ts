@@ -295,9 +295,11 @@ router.post('/op', async (req: Request, res: Response) => {
 
     // ── INSERT ──────────────────────────────────────────────────────────────
     if (op === 'insert') {
+      if (payload == null) return res.status(400).json({ data: null, error: { message: 'payload is required for insert', code: '22023' } });
       const inputs = Array.isArray(payload) ? payload as Record<string, unknown>[] : [payload as Record<string, unknown>];
       const inserted: Record<string, unknown>[] = [];
       for (const row of inputs) {
+        if (!row) continue;
         if (table === 'profiles' && tableData.some(r => r.nickname === row.nickname && row.nickname != null)) {
           return res.json({ data: null, error: { message: 'duplicate key value violates unique constraint "profiles_nickname_key"', code: '23505' } });
         }

@@ -64,7 +64,7 @@ export function RouletteDisplay({ result, options }: { result?: string; options?
   );
 }
 
-export function LadderDisplay({ result, participants }: { result?: string; participants?: string[] }) {
+export function LadderDisplay({ result, participants, prizes }: { result?: string; participants?: string[]; prizes?: string[] }) {
   const pairs: { participant: string; prize: string }[] = [];
   if (result) {
     try { const parsed = JSON.parse(result); if (Array.isArray(parsed)) pairs.push(...parsed); } catch {}
@@ -87,6 +87,11 @@ export function LadderDisplay({ result, participants }: { result?: string; parti
           {participants && participants.length > 0 && (
             <div className="flex flex-wrap justify-center gap-1.5 mb-3">
               {participants.map((p, i) => <span key={i} className="px-2 py-0.5 bg-slate-700 rounded-full text-xs text-slate-300">{p}</span>)}
+            </div>
+          )}
+          {prizes && prizes.length > 0 && (
+            <div className="flex flex-wrap justify-center gap-1.5 mb-3">
+              {prizes.map((p, i) => <span key={i} className="px-2 py-0.5 bg-violet-800/60 rounded-full text-xs text-violet-300">🎁 {p}</span>)}
             </div>
           )}
           <p className="text-sm text-slate-400">관리자가 사다리를 진행 중...</p>

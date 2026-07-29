@@ -1,6 +1,14 @@
 // ─── 공통 유틸리티 ────────────────────────────────────────────────────────────
 // App.tsx에서 분리된 순수 함수 모음.
 
+import { type ClassValue, clsx } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+/** shadcn/ui 컴포넌트에서 사용하는 className 병합 헬퍼 */
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
 const CHOSUNG_LIST = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
 
 export function getKoreanChosung(str: string): string {

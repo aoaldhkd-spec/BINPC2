@@ -26,7 +26,7 @@ export function GameAnnouncementModal({ game, onDismiss, onVote, onImageVote, cu
     const loadCounts = async () => {
       const { data } = await supabase.from('image_votes').select('voted_profile_id').eq('game_id', game.game_id!);
       if (data) {
-        const tally = data.reduce<Record<string, number>>((acc: Record<string, number>, v: { voted_profile_id: string }) => { acc[v.voted_profile_id] = (acc[v.voted_profile_id] ?? 0) + 1; return acc; }, {});
+        const tally = (data as { voted_profile_id: string }[]).reduce((acc: Record<string, number>, v) => { acc[v.voted_profile_id] = (acc[v.voted_profile_id] ?? 0) + 1; return acc; }, {} as Record<string, number>);
         setImageVoteCounts(tally);
       }
       if (currentUserId) {
