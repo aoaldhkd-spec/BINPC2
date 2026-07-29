@@ -271,7 +271,7 @@ export function NicknameSetupScreen({ onSubmit, loading, onReset, onShowRecovery
                         <div className="grid grid-cols-4 gap-1">
                           {g.types.map((type) => (
                             <button key={type} type="button" onClick={() => setMbti(type)}
-                              className={`py-1.5 rounded-lg text-xs font-black border-2 transition-all active:scale-95 ${
+                              className={`py-1.5 rounded-lg text-sm font-black border-2 transition-all active:scale-95 ${
                                 mbti === type
                                   ? `${g.activeBg} ${g.activeBorder} text-white shadow-md scale-105`
                                   : `bg-white border-gray-200 text-gray-700 ${g.hoverBorder} ${g.hoverBg}`
