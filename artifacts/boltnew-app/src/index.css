@@ -76,8 +76,10 @@ body[data-view="chat"] .fixed.inset-0.z-\[9997\] { display: none !important; }
 
 /* ════════════════════════════════════════════════════════════════
    THEME SYSTEM  — data-theme attribute on <html>
-   모든 Tailwind 클래스 오버라이드는 !important 사용
-   (Tailwind v4 @theme inline → CSS 변수 미생성으로 직접 클래스 오버라이드 필요)
+   theme.tsx의 setTheme()이 html.style에 CSS custom properties를 직접 주입.
+   (--t-bg, --t-surface, --t-text, --t-accent, --t-border)
+   배경·텍스트 핵심 색상은 var(--t-*)로 참조하고,
+   그 외 형태(border-radius, animation 등)만 !important 개별 오버라이드.
 ════════════════════════════════════════════════════════════════ */
 
 /* ── 공통: 테마 전환 애니메이션 ─────────────────────────────────────────── */
@@ -96,17 +98,17 @@ body[data-view="chat"] .fixed.inset-0.z-\[9997\] { display: none !important; }
 ══════════════════════════════════════════════════════════════ */
 /* -- 배경 오버라이드 ----------------------------------------- */
 [data-theme="y2k"] body {
-  background-color: #FCFCFB !important;
-  color: #18181b !important;
+  background-color: var(--t-bg, #FCFCFB) !important;
+  color: var(--t-text, #18181b) !important;
 }
 [data-theme="y2k"] .bg-slate-950,
 [data-theme="y2k"] .bg-slate-900 {
-  background-color: #FCFCFB !important;
+  background-color: var(--t-bg, #FCFCFB) !important;
 }
 [data-theme="y2k"] .bg-slate-800,
 [data-theme="y2k"] .bg-zinc-900,
 [data-theme="y2k"] .bg-zinc-800 {
-  background-color: #ffffff !important;
+  background-color: var(--t-surface, #ffffff) !important;
 }
 [data-theme="y2k"] .bg-slate-700,
 [data-theme="y2k"] .bg-zinc-700,
@@ -150,7 +152,7 @@ html[data-theme="y2k"] .bg-gradient-to-b,
 }
 
 /* -- 텍스트 오버라이드 --------------------------------------- */
-[data-theme="y2k"] .text-white        { color: #18181b !important; }
+[data-theme="y2k"] .text-white        { color: var(--t-text, #18181b) !important; }
 [data-theme="y2k"] .text-white\/85    { color: #27272a !important; }
 [data-theme="y2k"] .text-white\/80    { color: #3f3f46 !important; }
 [data-theme="y2k"] .text-white\/70    { color: #52525b !important; }
@@ -274,7 +276,7 @@ html[data-theme="y2k"] .bg-gradient-to-b,
 [data-theme="y2k"] .border-slate-600,
 [data-theme="y2k"] .border-zinc-700,
 [data-theme="y2k"] .border-zinc-800 {
-  border-color: #d4d4d8 !important;
+  border-color: var(--t-border, #d4d4d8) !important;
 }
 [data-theme="y2k"] .border-teal-500,
 [data-theme="y2k"] .border-cyan-500 { border-color: #10b981 !important; }
@@ -370,8 +372,8 @@ html[data-theme="y2k"] .bg-gradient-to-b,
 
 /* ── ① 베이스: body + 전역 색 ──────────────────────────── */
 [data-theme="dark-neon"] body {
-  background-color: #000000 !important;
-  color: #f4f4f5 !important;
+  background-color: var(--t-bg, #000000) !important;
+  color: var(--t-text, #f4f4f5) !important;
 }
 
 /* ── ② 다크 계열 배경 → 순수 블랙/다크징크 ──────────────── */
@@ -391,7 +393,7 @@ html[data-theme="y2k"] .bg-gradient-to-b,
 
 /* ── ③ 라이트 계열 배경 → 다크징크 카드 ─────────────────── */
 [data-theme="dark-neon"] .bg-white,
-[data-theme="dark-neon"] .bg-white\/95  { background-color: #18181b !important; }
+[data-theme="dark-neon"] .bg-white\/95  { background-color: var(--t-surface, #18181b) !important; }
 
 [data-theme="dark-neon"] .bg-gray-50,
 [data-theme="dark-neon"] .bg-slate-50   { background-color: #09090b !important; }
@@ -440,13 +442,22 @@ html[data-theme="y2k"] .bg-gradient-to-b,
 /* ── ⑤ 그라데이션 (CSS 변수 방식 불가 → 다중클래스 셀렉터) ─ */
 
 /* ▸ 페이지 배경 그라데이션 → 솔리드 블랙 */
+[data-theme="dark-neon"] .min-h-screen,
+html[data-theme="dark-neon"] .min-h-screen {
+  background: var(--t-bg, #000000) !important;
+  background-image: none !important;
+}
 [data-theme="dark-neon"] .bg-gradient-to-br.from-slate-950,
 [data-theme="dark-neon"] .bg-gradient-to-b.from-slate-950,
 [data-theme="dark-neon"] .bg-gradient-to-br.from-slate-900,
 [data-theme="dark-neon"] .bg-gradient-to-b.from-slate-900,
 [data-theme="dark-neon"] .bg-gradient-to-br.from-slate-800,
-[data-theme="dark-neon"] .bg-gradient-to-b.from-slate-800 {
-  background: #000000 !important;
+[data-theme="dark-neon"] .bg-gradient-to-b.from-slate-800,
+html[data-theme="dark-neon"] .bg-gradient-to-br,
+html[data-theme="dark-neon"] .bg-gradient-to-b,
+[data-theme="dark-neon"] .bg-gradient-to-br,
+[data-theme="dark-neon"] .bg-gradient-to-b {
+  background: var(--t-bg, #000000) !important;
   background-image: none !important;
 }
 
@@ -566,7 +577,7 @@ html[data-theme="y2k"] .bg-gradient-to-b,
 [data-theme="dark-neon"] .border-slate-700,
 [data-theme="dark-neon"] .border-slate-600,
 [data-theme="dark-neon"] .border-zinc-700,
-[data-theme="dark-neon"] .border-zinc-600   { border-color: rgba(255,255,255,0.08) !important; }
+[data-theme="dark-neon"] .border-zinc-600   { border-color: var(--t-border, rgba(255,255,255,0.08)) !important; }
 [data-theme="dark-neon"] .border-slate-800  { border-color: rgba(255,255,255,0.05) !important; }
 [data-theme="dark-neon"] .border-gray-100,
 [data-theme="dark-neon"] .border-gray-200,
@@ -659,19 +670,19 @@ html[data-theme="y2k"] .bg-gradient-to-b,
 ══════════════════════════════════════════════════════════════ */
 /* -- 배경 오버라이드 --------------------------------------- */
 [data-theme="minimal"] body {
-  background-color: #F9F8F6 !important;
-  color: #09090b !important;
+  background-color: var(--t-bg, #F9F8F6) !important;
+  color: var(--t-text, #09090b) !important;
   font-family: 'Pretendard', Georgia, 'Times New Roman', serif !important;
   letter-spacing: 0.02em !important;
 }
 [data-theme="minimal"] .bg-slate-950,
 [data-theme="minimal"] .bg-slate-900 {
-  background-color: #F9F8F6 !important;
+  background-color: var(--t-bg, #F9F8F6) !important;
 }
 [data-theme="minimal"] .bg-slate-800,
 [data-theme="minimal"] .bg-zinc-900,
 [data-theme="minimal"] .bg-zinc-800 {
-  background-color: #ffffff !important;
+  background-color: var(--t-surface, #ffffff) !important;
 }
 [data-theme="minimal"] .bg-slate-700,
 [data-theme="minimal"] .bg-zinc-700 {
@@ -685,18 +696,16 @@ html[data-theme="y2k"] .bg-gradient-to-b,
 /* 그라데이션 — 페이지 전체 래퍼 강제 오버라이드 (html 포함 고특이도) */
 [data-theme="minimal"] .min-h-screen,
 html[data-theme="minimal"] .min-h-screen {
-  background: #F9F8F6 !important;
-  background-color: #F9F8F6 !important;
+  background: var(--t-bg, #F9F8F6) !important;
+  background-color: var(--t-bg, #F9F8F6) !important;
   background-image: none !important;
 }
 html[data-theme="minimal"] .bg-gradient-to-br,
 html[data-theme="minimal"] .bg-gradient-to-b,
 [data-theme="minimal"] .bg-gradient-to-br,
-[data-theme="minimal"] .bg-gradient-to-b,
-html[data-theme="minimal"] .bg-gradient-to-br,
-html[data-theme="minimal"] .bg-gradient-to-b {
-  background: #F9F8F6 !important;
-  background-color: #F9F8F6 !important;
+[data-theme="minimal"] .bg-gradient-to-b {
+  background: var(--t-bg, #F9F8F6) !important;
+  background-color: var(--t-bg, #F9F8F6) !important;
   background-image: none !important;
 }
 [data-theme="minimal"] .from-teal-500,
@@ -709,7 +718,7 @@ html[data-theme="minimal"] .bg-gradient-to-b {
 }
 
 /* -- 텍스트 -------------------------------------------- */
-[data-theme="minimal"] .text-white        { color: #09090b !important; }
+[data-theme="minimal"] .text-white        { color: var(--t-text, #09090b) !important; }
 [data-theme="minimal"] .text-white\/85    { color: #18181b !important; }
 [data-theme="minimal"] .text-white\/80    { color: #27272a !important; }
 [data-theme="minimal"] .text-white\/70    { color: #3f3f46 !important; }
@@ -773,7 +782,7 @@ html[data-theme="minimal"] .bg-gradient-to-b {
 /* -- 테두리: 굵고 선명한 블랙 ----------------------------- */
 [data-theme="minimal"] .border-slate-700,
 [data-theme="minimal"] .border-slate-600,
-[data-theme="minimal"] .border-zinc-700 { border-color: #09090b !important; }
+[data-theme="minimal"] .border-zinc-700 { border-color: var(--t-border, #e5e7eb) !important; }
 [data-theme="minimal"] .border-teal-500,
 [data-theme="minimal"] .border-cyan-500 { border-color: #09090b !important; }
 [data-theme="minimal"] .border-teal-500\/40 { border-color: rgba(9,9,11,0.4) !important; }

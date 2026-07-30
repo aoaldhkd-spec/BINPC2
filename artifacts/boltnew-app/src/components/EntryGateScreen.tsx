@@ -1,22 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
-import { useTheme } from '../lib/theme';
 
 export function EntryGateScreen({ entryPassword, onVerified }: { entryPassword: string; onVerified: () => void }) {
-  const { theme } = useTheme();
   const [input, setInput] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState(false);
   const [shake, setShake] = useState(false);
   const [visible, setVisible] = useState(false);
   const [verifying, setVerifying] = useState(false);
-
-  // 테마별 배경·텍스트 색
-  const isLight = theme === 'y2k' || theme === 'minimal';
-  const bgColor = theme === 'y2k' ? '#FCFCFB' : theme === 'minimal' ? '#F9F8F6' : theme === 'dark-neon' ? '#000000' : undefined;
-  const titleColor = isLight ? '#000000' : '#ffffff';
-  const subtitleColor = isLight ? '#52525b' : undefined;
-  const hintColor = isLight ? '#71717a' : undefined;
 
   useEffect(() => { const t = setTimeout(() => setVisible(true), 60); return () => clearTimeout(t); }, []);
 
@@ -36,13 +27,12 @@ export function EntryGateScreen({ entryPassword, onVerified }: { entryPassword: 
   return (
     <div
       className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center p-6"
-      style={bgColor ? { background: bgColor } : undefined}
     >
       <div className={`w-full max-w-sm space-y-7 transition-all duration-500 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
         <div className="text-center space-y-2">
           <div className="text-5xl mb-2 drop-shadow-lg">🍻</div>
-          <h1 className="text-2xl font-black text-white tracking-tight" style={{ color: titleColor }}>범일NPC 술번개</h1>
-          <p className="text-slate-400 text-sm" style={subtitleColor ? { color: subtitleColor } : undefined}>참여하려면 입장 코드를 입력하세요</p>
+          <h1 className="text-2xl font-black text-white tracking-tight">범일NPC 술번개</h1>
+          <p className="text-slate-400 text-sm">참여하려면 입장 코드를 입력하세요</p>
         </div>
         <form onSubmit={handleSubmit}
           className={`bg-slate-800/70 backdrop-blur-sm rounded-3xl p-6 border border-slate-700/60 shadow-2xl space-y-4 ${shake ? 'animate-[shake_0.45s_ease-in-out]' : ''}`}>
