@@ -15,13 +15,15 @@ const API = '/api/db';
 const FETCH_TIMEOUT = 4_000; // ms
 
 // ─── Fetch helper ─────────────────────────────────────────────────────────────
-async function apiFetch(path: string, body?: unknown): Promise<{ data: unknown; error: unknown }> {
+async function apiFetch(path: string, body?: unknown, extraHeaders?: Record<string, string>): Promise<{ data: unknown; error: unknown }> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT);
   try {
     const resp = await fetch(`${API}${path}`, {
       method: body !== undefined ? 'POST' : 'GET',
-      headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
+      headers: body !== undefined
+        ? { 'Content-Type': 'application/json', ...extraHeaders }
+        : (extraHeaders ?? undefined),
       body: body !== undefined ? JSON.stringify(body) : undefined,
       signal: ctrl.signal,
     });
@@ -343,11 +345,17 @@ class LocalRealtimeChannel {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   send(msg: { type: string; event: string; payload: any }): Promise<void> {
     if (msg.type === 'broadcast') {
+      // SSE 토큰을 broadcast 인증 헤더로 전달 (SESSION_SECRET 클라이언트 노출 없이 인증)
+      const authHeaders: Record<string, string> = {};
+      if (_sseToken  && _currentUserId) {
+        authHeaders['x-broadcast-token']  = _sseToken;
+        authHeaders['x-broadcast-userid'] = _currentUserId;
+      }
       return apiFetch('/broadcast', {
         channel: this.name,
         event: msg.event,
         payload: msg.payload,
-      }).then(() => undefined);
+      }, authHeaders).then(() => undefined);
     }
     return Promise.resolve();
   }

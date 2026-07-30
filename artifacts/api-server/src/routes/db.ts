@@ -729,10 +729,10 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
 // IP별 레이트 리밋 (5초 윈도우, 최대 30회) — 스팸/악의적 남용 추가 방어
 const _broadcastRateMap = new Map<string, { count: number; resetAt: number }>();
 router.post('/broadcast', (req: Request, res: Response) => {
-  // ✅ Fix #1: 인증 없는 broadcast 전면 차단 — SESSION_SECRET 헤더 필수
-  const authHeader = req.headers['x-broadcast-token'] as string | undefined;
-  const BROADCAST_SECRET = process.env.SESSION_SECRET ?? 'dev-sse-secret';
-  if (!authHeader || authHeader !== BROADCAST_SECRET) {
+  // ✅ 인증: 클라이언트 SSE 토큰(HMAC)으로 검증 — SESSION_SECRET 클라이언트 노출 없이 안전
+  const token  = req.headers['x-broadcast-token']  as string | undefined;
+  const userId = req.headers['x-broadcast-userid'] as string | undefined;
+  if (!token || !userId || !verifySseToken(userId, token)) {
     res.status(403).json({ ok: false, error: 'Forbidden: invalid broadcast token' });
     return;
   }
