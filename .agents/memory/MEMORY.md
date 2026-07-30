@@ -9,3 +9,4 @@
 - [boltnew-app SSE token auth](boltnew-app-sse-token-auth.md) — /events?userId=X now requires ?token=T (HMAC-SHA256, 1h expiry). POST /auth/sse-token issues it; client auto-refreshes 5 min before expiry.
 - [boltnew-app theme CSS pitfalls](boltnew-app-theme-css-pitfalls.md) — Y2K/Minimal rounded-2xl overrides need :not(.photo-overlay,:not(.chat-bubble) exclusions; DiceBear transparent SVG detection via avatarSrc helper.
 - [boltnew-app audit fixes](boltnew-app-audit-fixes.md) — admin_create_session/admin_update_profile were missing checkPassword(); sendImage lacked in-flight guard; client /push/notify always 403 (server auto-pushes); useChat mount syncUnreadCounts needed for badge on restart.
+- [boltnew-app durability fixes](boltnew-app-durability-fixes.md) — messages use client_id UUID idempotency (ON CONFLICT DO NOTHING); likes rate-limiter key must include heart_type or concurrent different-type sends are wrongly blocked; health endpoint has lag/alarm fields.

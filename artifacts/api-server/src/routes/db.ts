@@ -38,6 +38,20 @@ const _dbPersistErrorLog: PersistErrorEntry[] = [];
 const sseUserMap = new Map<string, Set<Response>>();   // userId → 연결 집합
 const sseAnonClients = new Set<Response>();             // userId 미등록 연결 (폴백)
 
+// ─── Likes time-bucket rate limiter ──────────────────────────────────────────
+// JavaScript is single-threaded so in-memory checks are inherently race-free,
+// but this adds an explicit 500 ms cooldown per (liker_id, liked_id) pair as a
+// belt-and-suspenders guard against rapid-fire bursts (e.g. 100 VUs hammering
+// the same endpoint simultaneously — each VU blocked before it even hits the
+// type-dedup check).
+const _likesLastInsert = new Map<string, number>(); // `${liker}:${liked}` → epoch ms
+const LIKES_MIN_INTERVAL_MS = 500;
+setInterval(() => {
+  // Prune stale entries every 10 s to prevent unbounded memory growth
+  const cutoff = Date.now() - 10_000;
+  for (const [k, t] of _likesLastInsert) if (t < cutoff) _likesLastInsert.delete(k);
+}, 10_000);
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function genId(): string {
   return crypto.randomUUID();
@@ -460,6 +474,17 @@ router.post('/op', async (req: Request, res: Response) => {
             r.liker_id === effectiveRow.liker_id && r.liked_id === effectiveRow.liked_id && r.heart_type === effectiveRow.heart_type
           );
           if (dupLike) return res.json({ data: null, error: null }); // 무음 중복 차단
+
+          // Time-bucket rate limiter: at most 1 like per 500 ms per (liker, liked, type) triple
+          // Keyed on all three dimensions so different heart types can still be sent concurrently;
+          // only the exact same (liker, liked, type) combination is throttled within the window.
+          const rateKey = `${effectiveRow.liker_id}:${effectiveRow.liked_id}:${effectiveRow.heart_type}`;
+          const lastMs = _likesLastInsert.get(rateKey) ?? 0;
+          if (Date.now() - lastMs < LIKES_MIN_INTERVAL_MS) {
+            // Rapid duplicate — silently ignore (client-side lock should have prevented this)
+            return res.json({ data: null, error: null });
+          }
+          _likesLastInsert.set(rateKey, Date.now());
         }
         const newRow: Record<string, unknown> = { id: genId(), created_at: ts(), ...effectiveRow };
         if (table === 'session_history' && !newRow.ended_at) newRow.ended_at = ts();
@@ -870,12 +895,29 @@ router.get('/health', async (_req: Request, res: Response) => {
 
   const sseTotal = [...sseUserMap.values()].reduce((s, c) => s + c.size, 0) + sseAnonClients.size;
 
+  // ── Alarm thresholds (0% loss target) ────────────────────────────────────
+  // Durability alarm: flag if DB count lags in-memory count by more than 5 rows
+  // (transient lag is normal; large gaps signal persist failures or pool starvation).
+  // Error-rate alarm: any persist errors in 5 min window = warning.
+  const LOSS_ALARM_THRESHOLD = 5;
+  const recentPersistErrors = _dbPersistErrorLog.filter(e => Date.now() - e.time < 5 * 60 * 1000).length;
+  const messageLag = dbMessages >= 0 ? inMemMessages - dbMessages : null;
+  const likeLag    = dbLikes    >= 0 ? inMemLikes    - dbLikes    : null;
+  const alarms: string[] = [];
+  if (recentPersistErrors > 0) alarms.push(`${recentPersistErrors} DB persist error(s) in last 5 min`);
+  if (messageLag !== null && messageLag > LOSS_ALARM_THRESHOLD) alarms.push(`message lag: inMem=${inMemMessages} db=${dbMessages} (>${LOSS_ALARM_THRESHOLD})`);
+  if (likeLag    !== null && likeLag    > LOSS_ALARM_THRESHOLD) alarms.push(`like lag: inMem=${inMemLikes} db=${dbLikes} (>${LOSS_ALARM_THRESHOLD})`);
+
   return res.json({
     persistErrors: _dbPersistErrors,
     recentErrors: _dbPersistErrorLog.slice(-10),
     inMemory: { messages: inMemMessages, likes: inMemLikes },
     db: { messages: dbMessages, likes: dbLikes },
+    lag: { messages: messageLag, likes: likeLag },
+    alarms,                          // non-empty = action required
+    ok: alarms.length === 0,         // quick pass/fail for monitoring
     sseConnections: sseTotal,
+    thresholds: { lossAlarm: LOSS_ALARM_THRESHOLD, likesMinIntervalMs: LIKES_MIN_INTERVAL_MS },
     checkedAt: new Date().toISOString(),
   });
 });
