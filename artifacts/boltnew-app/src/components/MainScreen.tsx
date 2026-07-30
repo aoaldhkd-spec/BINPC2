@@ -263,7 +263,7 @@ const ProfileCard = memo(function ProfileCard({
       {/* ── 사진 (3:4 세로형) ── */}
       <div className="relative bg-gray-100" style={{ aspectRatio: '3/4' }}>
         <img
-          src={profile.photo_url}
+          src={getAvatarSrc(profile.photo_url, profile.nickname)}
           alt={profile.nickname}
           loading="lazy"
           decoding="async"
@@ -1024,7 +1024,7 @@ export function MainScreen({
                         <label className={`block w-full h-full rounded-2xl overflow-hidden border-2 border-cyan-500/50 shadow-lg shadow-cyan-500/20 cursor-pointer group ${photoUploading ? 'cursor-wait' : ''}`}>
                           <img src={getAvatarSrc(me.photo_url, me.nickname)} alt={me.nickname} className="w-full h-full object-cover"
                             onError={(e) => { (e.target as HTMLImageElement).src = genAvatar(me.nickname); }} />
-                          <div className={`absolute inset-0 flex flex-col items-center justify-center rounded-2xl transition-all ${photoUploading ? 'bg-black/60' : 'bg-black/0 group-hover:bg-black/50'}`}>
+                          <div className={`absolute inset-0 flex flex-col items-center justify-center photo-overlay transition-all ${photoUploading ? 'bg-black/60' : 'bg-black/0 group-hover:bg-black/50'}`}>
                             {photoUploading ? (
                               <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
                             ) : (
