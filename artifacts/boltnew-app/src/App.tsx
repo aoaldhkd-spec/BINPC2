@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   CheckCircle, X, XCircle,
 } from 'lucide-react';
-import { supabase, setLocalDbUserId } from './lib/supabase';
+import { supabase, setLocalDbUserId, fetchAndSetSseToken, getDeviceSecret } from './lib/supabase';
 import { genAvatar } from './lib/profile';
 import { HeartType } from './lib/constants';
 // ─── 분리된 타입·유틸·컴포넌트 imports ────────────────────────────────────────
@@ -160,7 +160,13 @@ function App() {
   userIdRef.current = currentUserId;
 
   // SSE 연결을 현재 userId로 식별 → 서버가 당사자 이벤트만 라우팅
-  useEffect(() => { setLocalDbUserId(currentUserId); }, [currentUserId]);
+  // userId 변경 시 SSE 인증 토큰을 새로 발급받아 연결
+  useEffect(() => {
+    setLocalDbUserId(currentUserId);
+    if (currentUserId) {
+      fetchAndSetSseToken(currentUserId).catch(() => {});
+    }
+  }, [currentUserId]);
 
   const _handleChannelStatus = useCallback((status: string) => {
     if (status === 'SUBSCRIBED') {
@@ -552,18 +558,10 @@ function App() {
   }, []);
 
 
-
-
-
   const loadSuggestions = useCallback(async (userId: string) => {
     const { data } = await supabase.from('suggestions').select('*').eq('profile_id', userId).order('created_at', { ascending: false });
     if (data) setSuggestions(data as Suggestion[]);
   }, []);
-
-
-
-
-
 
 
   const submitAnonymousReport = async (content: string, tableNumber: number | null) => {
@@ -889,7 +887,6 @@ function App() {
   }, [currentUserId]);
 
 
-
   // Manual refresh for status and chat tabs
   const refreshStatusTab = useCallback(() => {
     if (!currentUserId) return;
@@ -933,9 +930,13 @@ function App() {
     let pinCode = String(Math.floor(1000 + Math.random() * 9000));
     while (usedPins.has(pinCode)) pinCode = String(Math.floor(1000 + Math.random() * 9000));
 
+    // 프로필 ID를 클라이언트에서 미리 생성 — SSE 기기 secret을 INSERT와 원자적으로 바인딩하기 위함
+    const newProfileId = crypto.randomUUID();
     const { data: profile, error } = await supabase
       .from('profiles')
       .insert({
+        id: newProfileId,
+        _device_secret: getDeviceSecret(newProfileId), // 서버가 HMAC 저장 후 필드 제거
         nickname: data.nickname,
         bio: data.interests.join(', '),
         photo_url: genAvatar(data.nickname),
@@ -978,18 +979,6 @@ function App() {
   };
 
 
-
-
-
-
-
-
-
-
-
-
-
-
   const reset = () => {
     ls.removeItem(MATCHING_USER_KEY);
     ls.removeItem(MATCHING_DRAFT_KEY);
@@ -1020,9 +1009,6 @@ function App() {
     }
     setLoading(false);
   };
-
-
-
 
 
   const submitSuggestion = async (content: string, contactInfo: string) => {
@@ -1469,10 +1455,7 @@ function App() {
 }
 
 
-
-
 // ─── Profile Detail ───────────────────────────────────────────────────────────
-
 
 
 export default App;

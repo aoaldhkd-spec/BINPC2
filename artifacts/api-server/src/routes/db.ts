@@ -1,7 +1,14 @@
 import { Router, type Request, type Response } from 'express';
 import pg from 'pg';
-import { createHmac } from 'crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { VAPID_PUBLIC_KEY, sendPush, type PushPayload } from '../lib/push';
+
+// express-session의 SessionData에 userId 필드 추가
+declare module 'express-session' {
+  interface SessionData {
+    userId?: string;
+  }
+}
 
 const router = Router();
 
@@ -20,16 +27,6 @@ const imageStore: Record<string, string> = {};
 // SSE clients — userId별 연결 관리 (보안: 민감 이벤트는 당사자에게만 전송)
 const sseUserMap = new Map<string, Set<Response>>();   // userId → 연결 집합
 const sseAnonClients = new Set<Response>();             // userId 미등록 연결 (폴백)
-
-// ─── SSE 토큰 (HMAC-SHA256, 시간 버킷 기반) ───────────────────────────────────
-const SSE_SECRET = process.env.SESSION_SECRET ?? 'dev-sse-secret';
-function makeSseToken(userId: string, hourBucket: number): string {
-  return createHmac('sha256', SSE_SECRET).update(`${userId}:${hourBucket}`).digest('hex');
-}
-function verifySseToken(userId: string, token: string): boolean {
-  const now = Math.floor(Date.now() / 3_600_000);
-  return token === makeSseToken(userId, now) || token === makeSseToken(userId, now - 1);
-}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function genId(): string {
@@ -437,6 +434,23 @@ router.post('/op', async (req: Request, res: Response) => {
         }
         const newRow: Record<string, unknown> = { id: genId(), created_at: ts(), ...effectiveRow };
         if (table === 'session_history' && !newRow.ended_at) newRow.ended_at = ts();
+
+        // 프로필 생성 시 device secret을 원자적으로 바인딩 — TOFU 레이스 윈도우 제거
+        // 클라이언트가 _device_secret 필드를 포함해 INSERT하면 서버가 HMAC 해시를 저장하고
+        // 해당 필드를 프로필 데이터에서 제거합니다(공개 쿼리에 노출되지 않음).
+        if (table === 'profiles' && typeof newRow._device_secret === 'string') {
+          const secretHash = createHmac('sha256', SSE_TOKEN_SECRET)
+            .update(newRow._device_secret as string)
+            .digest('hex');
+          const profileId = newRow.id as string;
+          if (!getTable('device_secrets').find(r => r.user_id === profileId)) {
+            const dsRow = { id: genId(), user_id: profileId, secret_hash: secretHash, created_at: ts() };
+            getTable('device_secrets').push(dsRow);
+            dbPersistRow('device_secrets', dsRow).catch(console.error);
+          }
+          delete newRow._device_secret; // 프로필 응답·DB에서 제거
+        }
+
         tableData.push(newRow);
         inserted.push(newRow);
         smartBroadcast(table, newRow, { type: 'change', table, event: 'INSERT', newRow, oldRow: null });
@@ -855,36 +869,110 @@ router.post('/push/notify', async (req: Request, res: Response) => {
   return res.json({ ok: true, sent: subs.length - expired.length });
 });
 
-// ─── SSE 토큰 발급 ─────────────────────────────────────────────────────────────
-// 클라이언트가 userId를 보내면 HMAC 토큰을 반환. 이 토큰이 있어야 /events에 userId로 등록 가능.
-// 보안: userId가 실제 profiles 테이블에 존재하는지 검증해 타인 userId 사칭 차단.
-router.get('/sse-token', async (req: Request, res: Response) => {
-  const userId = typeof req.query.userId === 'string' ? req.query.userId.trim() : '';
-  if (!userId) { res.status(400).json({ error: 'userId required' }); return; }
+// ─── SSE token helpers ─────────────────────────────────────────────────────────
+// SESSION_SECRET는 app.ts에서 필수 검증하므로 여기서는 항상 유효한 값
+const SSE_TOKEN_SECRET = process.env.SESSION_SECRET!;
+const SSE_TOKEN_EXPIRY_SEC = 3600; // 1 hour
 
-  // userId 실존 여부 확인 (in-memory store 기준 — DB 재조회 없이 빠르게)
-  const profiles = (store['profiles'] ?? []) as Array<{ id: string }>;
-  const exists = profiles.some(p => p.id === userId);
-  if (!exists) {
-    // in-memory 미존재 시 DB 재확인 (부팅 직후 등 극소수 경우 대비)
-    try {
-      const { rows } = await pool.query('SELECT id FROM profiles WHERE id=$1 LIMIT 1', [userId]);
-      if (rows.length === 0) {
-        res.status(403).json({ error: 'unknown_user' }); return;
-      }
-    } catch {
-      res.status(500).json({ error: 'db_error' }); return;
-    }
+function issueSseToken(userId: string): { token: string; expiresAt: number } {
+  const exp = Math.floor(Date.now() / 1000) + SSE_TOKEN_EXPIRY_SEC;
+  const mac = createHmac('sha256', SSE_TOKEN_SECRET)
+    .update(`${userId}:${exp}`)
+    .digest('hex');
+  return { token: `${exp}:${mac}`, expiresAt: exp };
+}
+
+function verifySseToken(userId: string, token: string): boolean {
+  const colonIdx = token.indexOf(':');
+  if (colonIdx < 1) return false;
+  const expStr = token.slice(0, colonIdx);
+  const mac = token.slice(colonIdx + 1);
+  const exp = Number(expStr);
+  if (!Number.isFinite(exp) || Math.floor(Date.now() / 1000) > exp) return false;
+  const expected = createHmac('sha256', SSE_TOKEN_SECRET)
+    .update(`${userId}:${exp}`)
+    .digest('hex');
+  try {
+    return timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(mac, 'hex'));
+  } catch {
+    return false;
   }
+}
 
-  const hour = Math.floor(Date.now() / 3_600_000);
-  const token = makeSseToken(userId, hour);
-  const expiresAt = (hour + 1) * 3_600_000; // 다음 시간 버킷 시작 시각(ms)
-  res.json({ token, expiresAt });
+/**
+ * POST /auth/login
+ *
+ * 클라이언트가 { userId, deviceSecret }을 제출합니다.
+ * deviceSecret은 클라이언트 localStorage에만 저장된 무작위 UUID입니다.
+ * 서버는 HMAC-SHA256(deviceSecret, SESSION_SECRET) 해시를 `device_secrets` 테이블에 저장합니다.
+ *
+ * - 첫 클레임(device_secrets에 해당 userId 없음): 해시를 저장하고 세션 수립
+ * - 재인증(해시 있음): 제출한 secret이 저장된 해시와 일치하면 세션 수립, 불일치하면 401
+ *
+ * 결과적으로 userId를 알더라도 device secret 없이는 세션을 얻을 수 없습니다.
+ */
+router.post('/auth/login', (req: Request, res: Response) => {
+  const { userId, deviceSecret } = req.body as { userId?: string; deviceSecret?: string };
+  if (!userId || typeof userId !== 'string') {
+    return res.status(400).json({ error: 'Missing userId' });
+  }
+  if (!deviceSecret || typeof deviceSecret !== 'string') {
+    return res.status(400).json({ error: 'Missing deviceSecret' });
+  }
+  // 프로필 존재 여부 확인
+  const profiles = getTable('profiles');
+  const profile = profiles.find(p => p.id === userId);
+  if (!profile) {
+    return res.status(401).json({ error: 'Unknown userId' });
+  }
+  // 제출된 deviceSecret의 HMAC 계산
+  const submittedHash = createHmac('sha256', SSE_TOKEN_SECRET)
+    .update(deviceSecret)
+    .digest('hex');
+  const deviceSecrets = getTable('device_secrets');
+  const existing = deviceSecrets.find(r => r.user_id === userId);
+  if (!existing) {
+    // 기기 secret이 미등록된 계정 — 프로필 생성 시 _device_secret을 포함하지 않은 경우
+    // (시스템 도입 이전 기존 사용자). 무단 선점을 방지하기 위해 자동 first-claim을 허용하지 않습니다.
+    // 마이그레이션은 계정 소유자가 재가입하거나 관리자가 바인딩을 생성해야 합니다.
+    return res.status(401).json({ error: 'device_not_bound', code: 'NEEDS_MIGRATION' });
+  }
+  // 재인증: 타이밍 안전 비교
+  try {
+    const match = timingSafeEqual(
+      Buffer.from(submittedHash, 'hex'),
+      Buffer.from(existing.secret_hash as string, 'hex'),
+    );
+    if (!match) return res.status(401).json({ error: 'Invalid deviceSecret' });
+  } catch {
+    return res.status(401).json({ error: 'Invalid deviceSecret' });
+  }
+  req.session.userId = userId;
+  return res.json({ ok: true });
+});
+
+// POST /auth/sse-token — 세션으로 인증된 userId에만 단기 SSE 토큰 발급
+// 세션이 없거나 userId가 일치하지 않으면 401 반환
+router.post('/auth/sse-token', (req: Request, res: Response) => {
+  const sessionUserId = req.session?.userId;
+  if (!sessionUserId) {
+    return res.status(401).json({ error: 'Not authenticated — call /auth/login first' });
+  }
+  const { token, expiresAt } = issueSseToken(sessionUserId);
+  return res.json({ token, expiresAt });
 });
 
 // ─── SSE endpoint ─────────────────────────────────────────────────────────────
 router.get('/events', (req: Request, res: Response) => {
+  const userId = typeof req.query.userId === 'string' && req.query.userId ? req.query.userId : null;
+  const token = typeof req.query.token === 'string' ? req.query.token : null;
+
+  // userId가 있으면 반드시 유효한 토큰 필요 — 없거나 만료/위조된 경우 거부
+  if (userId && (!token || !verifySseToken(userId, token))) {
+    res.status(401).json({ error: 'Invalid or missing SSE token' });
+    return;
+  }
+
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
@@ -893,16 +981,6 @@ router.get('/events', (req: Request, res: Response) => {
 
   // Initial ping so the client knows it's connected
   res.write('data: {"type":"ping"}\n\n');
-
-  const userId = typeof req.query.userId === 'string' && req.query.userId ? req.query.userId : null;
-  const token  = typeof req.query.token  === 'string' && req.query.token  ? req.query.token  : null;
-
-  // 토큰 검증: userId가 있으면 반드시 유효한 토큰이 필요
-  if (userId && (!token || !verifySseToken(userId, token))) {
-    res.write('data: {"type":"auth_error","message":"invalid_token"}\n\n');
-    res.end();
-    return;
-  }
 
   if (userId) {
     if (!sseUserMap.has(userId)) sseUserMap.set(userId, new Set());

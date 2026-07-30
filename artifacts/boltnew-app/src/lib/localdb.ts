@@ -189,8 +189,10 @@ const _sseListeners = new Set<(e: SseEvent) => void>();
 let _sseErrorSince: number | null = null;
 let _currentUserId: string | null = null;
 
-// SSE 인증 토큰 — 서버 HMAC 검증용
+// SSE 인증 토큰 — 서버에서 발급한 HMAC 토큰으로 자신의 이벤트만 수신 가능
 let _sseToken: string | null = null;
+
+let _tokenRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 const SSE_TOK_KEY = 'sse_tok';
 const SSE_TOK_EXP_KEY = 'sse_tok_exp';
 
@@ -229,7 +231,8 @@ async function fetchSseToken(userId: string): Promise<void> {
 export function setLocalDbUserId(userId: string | null) {
   if (_currentUserId === userId) return;
   _currentUserId = userId;
-  _sseToken = null;
+  _sseToken = null; // 사용자 변경 시 이전 토큰 폐기
+  if (_tokenRefreshTimer) { clearTimeout(_tokenRefreshTimer); _tokenRefreshTimer = null; }
   if (_es) { _es.close(); _es = null; }
   if (!userId) {
     // 로그아웃: 토큰 캐시 삭제
@@ -243,10 +246,10 @@ export function setLocalDbUserId(userId: string | null) {
 }
 
 function createSse() {
-  // userId + 유효한 토큰이 모두 있을 때만 인증 연결; 아니면 익명 연결
-  const url = (_currentUserId && _sseToken)
-    ? `${API}/events?userId=${encodeURIComponent(_currentUserId)}&token=${encodeURIComponent(_sseToken)}`
-    : `${API}/events`;
+  const params: string[] = [];
+  if (_currentUserId) params.push(`userId=${encodeURIComponent(_currentUserId)}`);
+  if (_sseToken) params.push(`token=${encodeURIComponent(_sseToken)}`);
+  const url = params.length ? `${API}/events?${params.join('&')}` : `${API}/events`;
   const es = new EventSource(url);
   es.onmessage = (ev) => {
     _sseErrorSince = null; // 메시지 수신 = 연결 정상
@@ -458,3 +461,85 @@ export const supabase: any = {
 
 // Start SSE connection early so the first subscription is instant
 ensureSse();
+
+/**
+ * 세션 수립 후 SSE 토큰을 서버에서 발급받아 저장합니다.
+ * 세션 쿠키는 서버가 "이 요청이 진짜 userId 브라우저에서 왔다"는 것을
+ * 검증하는 근거이므로, 토큰은 세션이 있는 브라우저에만 발급됩니다.
+ * device_not_bound 오류 시에는 SSE가 익명 모드로 폴백됩니다.
+ */
+export async function fetchAndSetSseToken(userId: string): Promise<void> {
+  try {
+    // 1단계: 세션 수립 (기기 secret 검증)
+    const loggedIn = await loginSession(userId);
+    if (!loggedIn) return; // device_not_bound 또는 네트워크 오류
+    // 2단계: 세션이 수립된 브라우저에만 SSE 토큰 발급
+    const resp = await fetch(`${API}/auth/sse-token`, {
+      method: 'POST',
+      credentials: 'same-origin',
+    });
+    if (!resp.ok) return;
+    const data = await resp.json() as { token?: string; expiresAt?: number };
+    if (data.token && data.expiresAt) setSseToken(data.token, data.expiresAt);
+  } catch { /* 네트워크 오류 시 무시 — SSE는 익명으로 폴백 */ }
+}
+
+/** 서버에서 발급받은 SSE 토큰 저장 및 SSE 재연결. expiresAt은 Unix 초. */
+export function setSseToken(token: string, expiresAt: number) {
+  _sseToken = token;
+  // 기존 타이머 정리
+  if (_tokenRefreshTimer) { clearTimeout(_tokenRefreshTimer); _tokenRefreshTimer = null; }
+  // 만료 5분 전에 자동 재발급 스케줄링
+  const refreshIn = (expiresAt - Math.floor(Date.now() / 1000) - 300) * 1000;
+  if (_currentUserId && refreshIn > 0) {
+    _tokenRefreshTimer = setTimeout(() => {
+      if (_currentUserId) fetchAndSetSseToken(_currentUserId).catch(() => {});
+    }, refreshIn);
+  }
+  // 새 토큰으로 SSE 재연결
+  if (_es) { _es.close(); _es = null; }
+  if (_sseListeners.size > 0) ensureSse();
+}
+
+const DEVICE_SECRET_PREFIX = 'bolt_device_secret_';
+/**
+ * userId + deviceSecret으로 서버 세션을 수립합니다.
+ * deviceSecret은 localStorage에만 있는 값이므로
+ * userId만 아는 공격자는 세션을 얻을 수 없습니다.
+ */
+async function loginSession(userId: string): Promise<boolean> {
+  try {
+    const deviceSecret = getDeviceSecret(userId);
+    const resp = await fetch(`${API}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, deviceSecret }),
+      credentials: 'same-origin',
+    });
+    if (!resp.ok) {
+      if (resp.status === 401) {
+        const body = await resp.json().catch(() => ({})) as { code?: string };
+        if (body.code === 'NEEDS_MIGRATION') {
+          console.warn(
+            '[localdb] SSE 인증 실패: 기기 secret 미등록 계정 — ' +
+            '비공개 이벤트(채팅·하트)를 수신하려면 재가입이 필요합니다.',
+          );
+        }
+      }
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function getDeviceSecret(userId: string): string {
+  const key = DEVICE_SECRET_PREFIX + userId;
+  const existing = localStorage.getItem(key);
+  if (existing) return existing;
+  // 최초 실행 시 새 비밀값 생성 후 저장
+  const secret = crypto.randomUUID();
+  localStorage.setItem(key, secret);
+  return secret;
+}

@@ -668,17 +668,21 @@ html[data-theme="y2k"] .bg-gradient-to-b,
 [data-theme="minimal"] .bg-zinc-900\/80 {
   background-color: rgba(255,255,255,0.95) !important;
 }
-/* 그라데이션 — var(--t-bg) = theme.tsx에서 html 인라인 스타일로 주입 */
-html[data-theme="minimal"] .min-h-screen,
-[data-theme="minimal"] .min-h-screen {
-  background: var(--t-bg, #F9F8F6) !important;
+/* 그라데이션 — 페이지 전체 래퍼 강제 오버라이드 (html 포함 고특이도) */
+[data-theme="minimal"] .min-h-screen,
+html[data-theme="minimal"] .min-h-screen {
+  background: #F9F8F6 !important;
+  background-color: #F9F8F6 !important;
   background-image: none !important;
 }
 html[data-theme="minimal"] .bg-gradient-to-br,
 html[data-theme="minimal"] .bg-gradient-to-b,
 [data-theme="minimal"] .bg-gradient-to-br,
-[data-theme="minimal"] .bg-gradient-to-b {
-  background: var(--t-bg, #F9F8F6) !important;
+[data-theme="minimal"] .bg-gradient-to-b,
+html[data-theme="minimal"] .bg-gradient-to-br,
+html[data-theme="minimal"] .bg-gradient-to-b {
+  background: #F9F8F6 !important;
+  background-color: #F9F8F6 !important;
   background-image: none !important;
 }
 [data-theme="minimal"] .from-teal-500,
