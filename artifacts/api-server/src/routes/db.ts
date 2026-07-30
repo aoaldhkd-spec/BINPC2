@@ -174,6 +174,10 @@ seedIfNeeded().then(() => startDailyEntryPasswordRenewal()).catch(console.error)
 // ─── SSE broadcast ─────────────────────────────────────────────────────────────
 function _send(client: Response, conns: Set<Response>, payload: string) {
   try { client.write(payload); } catch { conns.delete(client); }
+  // ✅ Fix #7: 빈 Set은 즉시 삭제해 sseUserMap 키 누수 방지
+  if (conns.size === 0) {
+    for (const [uid, s] of sseUserMap) { if (s === conns) { sseUserMap.delete(uid); break; } }
+  }
 }
 
 /** 모든 클라이언트에게 전송 (공개 이벤트: seats, profiles, app_settings, games 등) */
@@ -234,7 +238,9 @@ function smartBroadcast(table: string, row: Record<string, unknown> | null, even
     ['sharer_id','receiver_id','sender_id','recipient_id','user1_id','user2_id']
       .forEach(k => { if (row[k]) targets.push(row[k] as string); });
   } else if (table === 'chat_reads') {
-    if (row['user_id']) targets.push(row['user_id'] as string);
+    // ✅ Fix #2: 앱이 reader_id로 쓰고 있으므로 두 필드 모두 체크
+    if (row['user_id'])   targets.push(row['user_id']   as string);
+    if (row['reader_id']) targets.push(row['reader_id'] as string);
   }
 
   if (targets.length > 0) {
@@ -397,10 +403,25 @@ router.post('/op', async (req: Request, res: Response) => {
         if (table === 'profiles' && tableData.some(r => r.nickname === row.nickname && row.nickname != null)) {
           return res.json({ data: null, error: { message: 'duplicate key value violates unique constraint "profiles_nickname_key"', code: '23505' } });
         }
+        // ✅ Fix #3: 서버 레벨 PIN 유일성 보장 — 100명 동시 INSERT 시 충돌 자동 해소
+        // const row는 재할당 불가이므로 effectiveRow로 분리
+        let effectiveRow: Record<string, unknown> = row;
+        if (table === 'profiles' && effectiveRow.pin_code != null) {
+          const usedPins = new Set(tableData.map(r => r.pin_code).filter(Boolean));
+          if (usedPins.has(effectiveRow.pin_code)) {
+            // 충돌 시 서버에서 새 PIN 직접 생성
+            let newPin = String(Math.floor(1000 + Math.random() * 9000));
+            let tries = 0;
+            while (usedPins.has(newPin) && tries++ < 100) {
+              newPin = String(Math.floor(1000 + Math.random() * 9000));
+            }
+            effectiveRow = { ...effectiveRow, pin_code: newPin };
+          }
+        }
         // chats 테이블: 같은 user1_id+user2_id 조합이 이미 있으면 기존 채팅방 반환 (레이스 컨디션으로 인한 중복 채팅방 생성 방지)
-        if (table === 'chats' && row.user1_id != null && row.user2_id != null) {
+        if (table === 'chats' && effectiveRow.user1_id != null && effectiveRow.user2_id != null) {
           const existing = tableData.find(r =>
-            r.user1_id === row.user1_id && r.user2_id === row.user2_id
+            r.user1_id === effectiveRow.user1_id && r.user2_id === effectiveRow.user2_id
           );
           if (existing) {
             if (selectAfterWrite) return res.json({ data: single ? existing : [existing], error: null });
@@ -408,13 +429,13 @@ router.post('/op', async (req: Request, res: Response) => {
           }
         }
         // likes 테이블: 동일 liker+liked+heart_type 중복 방지 (빠른 연속 클릭으로 인한 중복 하트 삽입 방지)
-        if (table === 'likes' && row.liker_id != null && row.liked_id != null && row.heart_type != null) {
+        if (table === 'likes' && effectiveRow.liker_id != null && effectiveRow.liked_id != null && effectiveRow.heart_type != null) {
           const dupLike = tableData.find(r =>
-            r.liker_id === row.liker_id && r.liked_id === row.liked_id && r.heart_type === row.heart_type
+            r.liker_id === effectiveRow.liker_id && r.liked_id === effectiveRow.liked_id && r.heart_type === effectiveRow.heart_type
           );
           if (dupLike) return res.json({ data: null, error: null }); // 무음 중복 차단
         }
-        const newRow: Record<string, unknown> = { id: genId(), created_at: ts(), ...row };
+        const newRow: Record<string, unknown> = { id: genId(), created_at: ts(), ...effectiveRow };
         if (table === 'session_history' && !newRow.ended_at) newRow.ended_at = ts();
         tableData.push(newRow);
         inserted.push(newRow);
@@ -704,9 +725,17 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
 });
 
 // ─── Broadcast endpoint (for channel.send()) ──────────────────────────────────
-// 간단한 IP별 레이트 리밋 (5초 윈도우, 최대 30회) — 스팸/악의적 남용 방지
+// 반드시 SESSION_SECRET 또는 admin RPC 비밀번호를 헤더로 전달해야 사용 가능
+// IP별 레이트 리밋 (5초 윈도우, 최대 30회) — 스팸/악의적 남용 추가 방어
 const _broadcastRateMap = new Map<string, { count: number; resetAt: number }>();
 router.post('/broadcast', (req: Request, res: Response) => {
+  // ✅ Fix #1: 인증 없는 broadcast 전면 차단 — SESSION_SECRET 헤더 필수
+  const authHeader = req.headers['x-broadcast-token'] as string | undefined;
+  const BROADCAST_SECRET = process.env.SESSION_SECRET ?? 'dev-sse-secret';
+  if (!authHeader || authHeader !== BROADCAST_SECRET) {
+    res.status(403).json({ ok: false, error: 'Forbidden: invalid broadcast token' });
+    return;
+  }
   const ip = (req.headers['x-forwarded-for'] as string || req.socket.remoteAddress || 'unknown').split(',')[0].trim();
   const now = Date.now();
   let bucket = _broadcastRateMap.get(ip);

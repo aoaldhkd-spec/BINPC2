@@ -4465,8 +4465,16 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   }, [loadAll]);
 
   const handleToggleSession = async () => {
-    const newVal = !(settings?.session_active ?? false);
-    await adminSupabase.from('app_settings').update({ session_active: newVal, updated_at: new Date().toISOString() }).eq('id', 1);
+    // ✅ Fix #4a: 빠른 더블클릭·동시 관리자 race 방지 — 낙관적 즉시 반영 후 저장
+    if (!settings) return;
+    const newVal = !(settings.session_active ?? false);
+    setSettings(prev => prev ? { ...prev, session_active: newVal } : prev); // 낙관적 업데이트
+    const { error } = await adminSupabase.from('app_settings').update({ session_active: newVal, updated_at: new Date().toISOString() }).eq('id', 1);
+    if (error) {
+      // 실패 시 롤백
+      setSettings(prev => prev ? { ...prev, session_active: !newVal } : prev);
+      console.error('[admin] 세션 토글 실패:', error.message);
+    }
   };
 
   const handleSetTimer = async (endAt: string | null, label: string | null) => {
@@ -4535,7 +4543,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     const hasData = backupProfiles.length > 0 || backupLikes.length > 0 || backupChats.length > 0 || backupSuggestions.length > 0;
     showRecovery('전체 초기화', '🗑️', hasData ? async () => {
       for (const p of backupProfiles) await adminSupabase.from('profiles').upsert(p);
-      for (const l of backupLikes) await adminSupabase.from('likes').upsert({ id: l.id, from_profile_id: l.from_profile_id, to_profile_id: l.to_profile_id, heart_type: l.heart_type, created_at: l.created_at });
+      for (const l of backupLikes) await adminSupabase.from('likes').upsert({ id: l.id, liker_id: l.liker_id, liked_id: l.liked_id, heart_type: l.heart_type, status: l.status, created_at: l.created_at });
       for (const c of backupChats) await adminSupabase.from('chats').upsert(c);
       for (const m of backupMsgs) await adminSupabase.from('messages').upsert(m);
       for (const s of backupSuggestions) await adminSupabase.from('suggestions').upsert({ id: s.id, content: s.content, created_at: s.created_at });
@@ -4579,7 +4587,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     setLikes([]);
     showRecovery('하트 기록', '❤️', backup.length > 0 ? async () => {
       for (const l of backup) {
-        await adminSupabase.from('likes').upsert({ id: l.id, from_profile_id: l.from_profile_id, to_profile_id: l.to_profile_id, heart_type: l.heart_type, created_at: l.created_at });
+        await adminSupabase.from('likes').upsert({ id: l.id, liker_id: l.liker_id, liked_id: l.liked_id, heart_type: l.heart_type, status: l.status, created_at: l.created_at });
       }
       await loadAll();
       setRecovery(null);
@@ -4689,7 +4697,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     setHistories([]);
     showRecovery('회식 이력', '📋', backup.length > 0 ? async () => {
       for (const h of backup) {
-        await adminSupabase.from('session_history').upsert({ id: h.id, seats_snapshot: h.seats_snapshot, created_at: h.created_at });
+        await adminSupabase.from('session_history').upsert({ id: h.id, seats_snapshot: h.seats_snapshot, ended_at: (h as Record<string, unknown>)['ended_at'] as string ?? h.ended_at });
       }
       await loadAll();
       setRecovery(null);
@@ -4725,9 +4733,16 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   };
 
   const handleToggleFeatureLock = async () => {
-    const newVal = !(settings?.seating_locked ?? false);
-    await adminSupabase.from('app_settings').update({ seating_locked: newVal, updated_at: new Date().toISOString() }).eq('id', 1);
-    setSettings(prev => prev ? { ...prev, seating_locked: newVal } : prev);
+    // ✅ Fix #4b: 기능 잠금 토글 race 방지 — 낙관적 즉시 반영 후 저장
+    if (!settings) return;
+    const newVal = !(settings.seating_locked ?? false);
+    setSettings(prev => prev ? { ...prev, seating_locked: newVal } : prev); // 낙관적 업데이트
+    const { error } = await adminSupabase.from('app_settings').update({ seating_locked: newVal, updated_at: new Date().toISOString() }).eq('id', 1);
+    if (error) {
+      // 실패 시 롤백
+      setSettings(prev => prev ? { ...prev, seating_locked: !newVal } : prev);
+      console.error('[admin] 기능 잠금 토글 실패:', error.message);
+    }
   };
 
   const handleSetActiveTables = async (tables: number[] | null) => {

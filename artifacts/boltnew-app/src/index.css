@@ -159,6 +159,50 @@ html[data-theme="y2k"] .bg-gradient-to-b,
 [data-theme="y2k"] .text-zinc-300  { color: #3f3f46 !important; }
 [data-theme="y2k"] .text-zinc-200  { color: #27272a !important; }
 
+/* ✅ Fix 테마: y2k/minimal — ChatScreen bg-white·text-gray-* 전수 커버 */
+/* bg-white 계열 → 흰 배경 유지 (y2k는 이미 흰 배경이므로 추가 처리 없음) */
+[data-theme="y2k"] .bg-white,
+[data-theme="y2k"] .bg-white\/95   { background-color: #FCFCFB !important; }
+[data-theme="y2k"] .bg-gray-50,
+[data-theme="y2k"] .bg-slate-50    { background-color: #f4f4f5 !important; }
+[data-theme="y2k"] .bg-gray-100    { background-color: #e4e4e7 !important; }
+[data-theme="y2k"] .bg-gray-200    { background-color: #d4d4d8 !important; }
+[data-theme="y2k"] .text-gray-800  { color: #18181b !important; }
+[data-theme="y2k"] .text-gray-900  { color: #09090b !important; }
+[data-theme="y2k"] .text-gray-700  { color: #27272a !important; }
+[data-theme="y2k"] .text-gray-600  { color: #3f3f46 !important; }
+[data-theme="y2k"] .text-gray-500  { color: #52525b !important; }
+[data-theme="y2k"] .text-gray-400  { color: #71717a !important; }
+[data-theme="y2k"] .border-gray-100{ border-color: #e4e4e7 !important; }
+[data-theme="y2k"] .border-gray-200{ border-color: #d4d4d8 !important; }
+[data-theme="y2k"] .border-gray-300{ border-color: #a1a1aa !important; }
+/* minimal 테마 — 동일한 전수 커버 */
+[data-theme="minimal"] .bg-white,
+[data-theme="minimal"] .bg-white\/95   { background-color: #ffffff !important; }
+[data-theme="minimal"] .bg-gray-50,
+[data-theme="minimal"] .bg-slate-50    { background-color: #F9F8F6 !important; }
+[data-theme="minimal"] .bg-gray-100    { background-color: #f0efed !important; }
+[data-theme="minimal"] .bg-gray-200    { background-color: #e5e7eb !important; }
+[data-theme="minimal"] .text-gray-900  { color: #09090b !important; }
+[data-theme="minimal"] .text-gray-800  { color: #18181b !important; }
+[data-theme="minimal"] .text-gray-700  { color: #27272a !important; }
+[data-theme="minimal"] .text-gray-600  { color: #3f3f46 !important; }
+[data-theme="minimal"] .text-gray-500  { color: #52525b !important; }
+[data-theme="minimal"] .text-gray-400  { color: #71717a !important; }
+[data-theme="minimal"] .border-gray-100{ border-color: #f0efed !important; }
+[data-theme="minimal"] .border-gray-200{ border-color: #e5e7eb !important; }
+[data-theme="minimal"] .border-gray-300{ border-color: #d1d5db !important; }
+/* minimal 액센트 색: text-cyan, text-teal → 다크 잉크 */
+[data-theme="minimal"] .text-cyan-400,
+[data-theme="minimal"] .text-cyan-500,
+[data-theme="minimal"] .text-cyan-600   { color: #18181b !important; }
+[data-theme="minimal"] .text-teal-400,
+[data-theme="minimal"] .text-teal-500,
+[data-theme="minimal"] .text-teal-600   { color: #18181b !important; }
+[data-theme="minimal"] .bg-cyan-50,
+[data-theme="minimal"] .bg-teal-50      { background-color: #f0efed !important; }
+[data-theme="minimal"] .bg-cyan-500,
+[data-theme="minimal"] .bg-teal-500     { background-color: #18181b !important; color: #ffffff !important; }
 /* -- 누락 밝은 텍스트 (흰배경에서 안보이는 것들) ------------- */
 [data-theme="y2k"] .text-gray-200  { color: #52525b !important; }
 [data-theme="y2k"] .text-gray-300  { color: #52525b !important; }

@@ -272,16 +272,27 @@ function App() {
     return () => window.removeEventListener('storage', onStorage);
   }, []);
 
-  // loading-main 무한 갇힘 방지 — 3초 안에 main으로 못 가면 강제 전환
+  // loading-main 무한 갇힘 방지 — 최대 5초 대기 후 강제 전환
   // ※ Rules of Hooks: 모든 useEffect는 조건부 return 이전에 위치해야 함
   useEffect(() => {
     if (view !== 'loading-main') return;
+    // ✅ Fix #6: 3초→5초 확대 + 프로필 로드 폴링(profilesRef 사용으로 deps 크기 고정)
+    const pollId = setInterval(() => {
+      // profilesRef.current는 최신값 — deps에 추가 없이 stale 클로저 방지
+      if ((profilesRef.current?.length ?? 0) > 0) {
+        clearInterval(pollId);
+        setView('main');
+        console.info('[loading-main] 프로필 로드 확인 → main 전환');
+      }
+    }, 200);
+    // 5초 하드 타임아웃
     const timer = setTimeout(() => {
+      clearInterval(pollId);
       setView('main');
-      console.warn('[loading-main] 3초 타임아웃 → main 강제 전환');
-    }, 3_000);
-    return () => clearTimeout(timer);
-  }, [view]);
+      console.warn('[loading-main] 5초 타임아웃 → main 강제 전환 (프로필 로드 미확인)');
+    }, 5_000);
+    return () => { clearTimeout(timer); clearInterval(pollId); };
+  }, [view]); // deps 크기 고정([view] = 1개) — profilesRef로 최신값 읽음
 
   // Track user's current table number for notification targeting (ref for stable access in channel callbacks)
   const userTableNumRef = useRef<number | null>(null);

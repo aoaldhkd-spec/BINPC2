@@ -86,8 +86,15 @@ export function useHearts(
     if (heartCountByType(heartType) >= 2) return;
     if (sentHeartsPerPerson.get(likeConfirmTarget.id)?.has(heartType)) return;
     likeInFlightRef.current = true; // 동기적으로 즉시 잠금 — 리렌더 대기 없음
+    // ✅ Fix #5: hung promise 영구 잠금 방지 — 8초 타임아웃 AbortSignal
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+      console.warn('[useHearts] executeLike 8초 타임아웃 → 잠금 해제');
+    }, 8_000);
     try {
       const { error } = await supabase.from('likes').insert({ liker_id: currentUserId, liked_id: likeConfirmTarget.id, heart_type: heartType });
+      if (controller.signal.aborted) return; // 타임아웃 후 응답은 무시
       if (!error) {
         setLikedIds((prev) => new Set([...prev, likeConfirmTarget.id]));
         setSentHeartTypes((prev) => new Map(prev).set(likeConfirmTarget.id, heartType));
@@ -102,6 +109,7 @@ export function useHearts(
       }
       setLikeConfirmTarget(null);
     } finally {
+      clearTimeout(timeoutId);
       likeInFlightRef.current = false; // 예외/타임아웃 모든 경우에 잠금 해제
     }
   };
