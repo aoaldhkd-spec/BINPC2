@@ -28,7 +28,7 @@ const THEME_EMOJI: Record<ThemeMode, string> = { default: '🌙', y2k: '💖', '
 function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onSendImage, onBack, onReset: _onReset, onDeleteMessage, currentUserProfile, receivedContactShares, contactSharedWithIds, onGoToTab, onUpdateProfile }: {
   chatId: string;
   messages: Message[]; currentUserId: string; otherProfile: Profile;
-  onSend: (content: string) => void;
+  onSend: (content: string) => Promise<void> | void;
   onSendImage: (file: File) => Promise<string | null>;
   onBack: () => void; onReset: () => void;
   onDeleteMessage: (msgId: string) => void;
@@ -77,6 +77,7 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   const myFortune = myBirth ? getTodayFortune(myBirth.y, myBirth.m, myBirth.d) : null;
   const theirFortune = theirBirth ? getTodayFortune(theirBirth.y, theirBirth.m, theirBirth.d) : null;
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLElement>(null); // 스크롤 컨테이너 ref
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [showMoreBtns, setShowMoreBtns] = useState(false);
@@ -123,7 +124,36 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
     '인스타 팔로우해도 될까요?', '오늘 처음 뵙는데 반가워요!',
   ];
 
-  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+  // ── 스크롤 자동 이동 ──────────────────────────────────────────────────────────
+  // - 방 입장(초기 로드): instant — 긴 대화도 즉시 이동, 애니메이션 없음
+  // - 내 메시지 전송: smooth — 항상 하단으로
+  // - 상대방 메시지: 스크롤이 하단 근처(100px)일 때만 smooth 이동 (위 읽는 중 강제 이동 방지)
+  const prevMsgCountRef = useRef(0);
+  useEffect(() => {
+    const prev = prevMsgCountRef.current;
+    const cur = messages.length;
+    prevMsgCountRef.current = cur;
+    if (cur === 0) return;
+
+    const isInitialLoad = prev === 0 && cur > 1;
+    if (isInitialLoad) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'instant' as ScrollBehavior });
+      return;
+    }
+
+    const latestMsg = messages[cur - 1];
+    const isMyMsg = latestMsg?.sender_id === currentUserId;
+
+    if (isMyMsg) {
+      // 내 메시지: 항상 smooth 이동
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    } else {
+      // 상대 메시지: 하단 근처일 때만 이동 (100px 여유)
+      const el = messagesContainerRef.current;
+      const nearBottom = !el || (el.scrollHeight - el.scrollTop - el.clientHeight < 100);
+      if (nearBottom) messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, currentUserId]);
 
   // ── visualViewport: iOS 키보드 올라올 때 컨테이너가 위로 밀리지 않도록 ─────────
   // JS로 el.style을 직접 건드리면 React 재렌더 시 style props가 덮어씌워 원복됨.
@@ -213,7 +243,7 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
     el.style.height = Math.min(el.scrollHeight, 120) + 'px';
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!input.trim()) { setShowEmoji(false); return; }
     if (hasBannedWord(input.trim())) {
       setChatError('부적절한 표현이 포함되어 있어 전송할 수 없습니다.');
@@ -221,7 +251,7 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
     }
     setChatError('');
     const text = replyTo ? `__reply__${replyTo.snippet}\n${input.trim()}` : input.trim();
-    onSend(text);
+    const savedInput = input; // ✅ 전송 실패 시 복원용으로 미리 저장
     setInput('');
     setReplyTo(null);
     setShowEmoji(false);
@@ -229,6 +259,19 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
     requestAnimationFrame(() => {
       if (inputRef.current) inputRef.current.style.height = 'auto';
     });
+    try {
+      await onSend(text);
+    } catch {
+      // 전송 실패 시 입력창 원상복구 — 사용자가 다시 시도할 수 있도록
+      setInput(savedInput);
+      requestAnimationFrame(() => {
+        if (inputRef.current) {
+          inputRef.current.style.height = 'auto';
+          inputRef.current.style.height = Math.min(inputRef.current.scrollHeight, 120) + 'px';
+          inputRef.current.focus();
+        }
+      });
+    }
   };
 
   const handleEmojiClick = (emoji: string) => { setInput((prev) => prev + emoji); inputRef.current?.focus(); };
@@ -769,7 +812,7 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto min-h-0">
+      <main ref={messagesContainerRef} className="flex-1 overflow-y-auto min-h-0">
         <div className="max-w-3xl mx-auto px-4 py-4 space-y-1">
           {messages.map((msg) => {
             const isMe = msg.sender_id === currentUserId;

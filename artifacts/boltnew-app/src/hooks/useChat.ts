@@ -100,7 +100,14 @@ export function useChat({
     setMessages([]);
     if (!chatId) return;
     chatIdRef.current = chatId;
-    setUnreadChatCounts(prev => { const n = { ...prev }; delete n[chatId]; return n; });
+    // 채팅방 열 때: unread 카운트 삭제 + 전체 배지(newMsgCount)도 함께 감소
+    setUnreadChatCounts(prev => {
+      const removed = prev[chatId] ?? 0;
+      const n = { ...prev };
+      delete n[chatId];
+      if (removed > 0) setNewMsgCount(c => Math.max(0, c - removed));
+      return n;
+    });
     if (currentUserId) {
       supabase.from('chat_reads').upsert({
         id: `${chatId}__${currentUserId}`,
@@ -116,7 +123,7 @@ export function useChat({
           const newMsg = payload.new as Message;
           setMessages(prev => {
             if (prev.some((m: Message) => m.id === newMsg.id)) return prev;
-            // 낙관적 업데이트 교체: 5초 이내 동일 발신자+내용 메시지에만 매칭 (동일 문구 연속 전송 시 잘못된 매칭 방지)
+            // 낙관적 업데이트 교체: 5초 이내 동일 발신자+내용 메시지에만 매칭
             const msgTime = new Date(newMsg.created_at).getTime();
             const optIdx = prev.findIndex(m =>
               m.id.startsWith('__opt_') &&
@@ -137,15 +144,20 @@ export function useChat({
     return () => { supabase.removeChannel(channel); };
   }, [chatId, loadMessages, currentUserId]);
 
+  // loadChatList: generation guard — 느린 응답이 현재 userId의 목록을 덮어쓰지 않도록
+  const loadChatListGenRef = useRef(0);
   const loadChatList = useCallback(async (userId: string) => {
+    const gen = ++loadChatListGenRef.current;
     const { data } = await supabase.from('chats').select('*')
       .or(`user1_id.eq.${userId},user2_id.eq.${userId}`)
       .order('created_at', { ascending: false });
+    if (gen !== loadChatListGenRef.current) return; // 스탤 응답 버림
     if (!data) return;
     if (data.length === 0) { setChatList([]); return; }
     const chatIds = data.map((c: { id: string }) => c.id);
     const { data: allMsgs } = await supabase.from('messages').select('chat_id, content, created_at')
       .in('chat_id', chatIds).order('created_at', { ascending: false }).limit(Math.max(chatIds.length * 20, 100));
+    if (gen !== loadChatListGenRef.current) return; // 두 번째 fetch도 체크
     const latestByChat = new Map<string, { content: string; created_at: string }>();
     if (allMsgs) {
       for (const m of allMsgs as { chat_id: string; content: string; created_at: string }[]) {
@@ -160,8 +172,12 @@ export function useChat({
     setChatList(enriched);
   }, []);
 
+  // openChat: generation guard — 빠른 연속 탭 시 느린 응답이 현재 채팅방을 덮어쓰지 않도록
+  const openChatGenRef = useRef(0);
   const openChat = useCallback(async (otherProfile: Profile) => {
     if (!currentUserId) return;
+    const gen = ++openChatGenRef.current; // generation 캡처 — 이 호출보다 나중 호출이 오면 버림
+
     setMessages([]);
     setSelectedProfile(otherProfile);
     chatIdRef.current = null;
@@ -178,19 +194,39 @@ export function useChat({
     const { data: existingChat } = await supabase
       .from('chats').select('*').eq('user1_id', user1Id).eq('user2_id', user2Id).maybeSingle();
 
+    if (gen !== openChatGenRef.current) return; // 더 최신 openChat이 호출됨 — 버림
+
     let resolvedChatId: string | null = null;
     if (existingChat) {
       resolvedChatId = existingChat.id;
     } else {
       const { data: newChat, error: createErr } = await supabase
         .from('chats').insert({ user1_id: user1Id, user2_id: user2Id }).select().single();
+      if (gen !== openChatGenRef.current) return; // insert 완료 후에도 체크
+
       if (newChat) {
         resolvedChatId = newChat.id;
+        // ✅ 신규 채팅방을 chatList에 즉시 추가
+        // → per-chat SSE 구독이 생성되어 상대가 보낸 메시지의 미읽음 알림이 즉시 동작함
+        const newChatEntry: Chat = { ...newChat, lastMessage: '', messageCount: 0 };
+        setChatList(prev => {
+          if (prev.some(c => c.id === newChat.id)) return prev; // 이미 있으면 무시
+          return [newChatEntry, ...prev];
+        });
       } else {
         console.error('[openChat] 채팅방 생성 실패:', createErr?.message);
         const { data: retryChat } = await supabase
           .from('chats').select('*').eq('user1_id', user1Id).eq('user2_id', user2Id).maybeSingle();
-        if (retryChat) resolvedChatId = retryChat.id;
+        if (gen !== openChatGenRef.current) return;
+        if (retryChat) {
+          resolvedChatId = retryChat.id;
+          // 재시도로 찾은 기존 방도 chatList에 없으면 추가
+          const retryChatEntry: Chat = { ...retryChat, lastMessage: '', messageCount: 0 };
+          setChatList(prev => {
+            if (prev.some(c => c.id === retryChat.id)) return prev;
+            return [retryChatEntry, ...prev];
+          });
+        }
       }
     }
 
@@ -255,35 +291,42 @@ export function useChat({
   // 전송 중 잠금 — 동기 ref로 이중 클릭/Enter+클릭 동시 전송 방지
   const sendInFlightRef = useRef(false);
 
-  const sendMessage = async (content: string) => {
-    if (!chatId || !currentUserId || !content.trim()) return;
+  const sendMessage = async (content: string): Promise<void> => {
+    // ✅ chatId/currentUserId를 호출 시점에 스냅샷
+    // await 완료 후 채팅방이 전환되어도 원래 방의 state만 변경함
+    const snapChatId = chatId;
+    const snapUserId = currentUserId;
+    if (!snapChatId || !snapUserId || !content.trim()) return;
     if (sendInFlightRef.current) return;
     sendInFlightRef.current = true;
     const optimisticId = `__opt_${crypto.randomUUID()}`; // ms 충돌 없는 UUID 사용
     // 에러 시 되돌릴 이전 lastMessage를 미리 기록
-    const prevLastMessage = chatListRef.current.find(c => c.id === chatId)?.lastMessage ?? '';
+    const prevLastMessage = chatListRef.current.find(c => c.id === snapChatId)?.lastMessage ?? '';
     const optimisticMsg = {
       id: optimisticId,
-      chat_id: chatId,
-      sender_id: currentUserId,
+      chat_id: snapChatId,
+      sender_id: snapUserId,
       content: content.trim(),
       created_at: new Date().toISOString(),
     } as Message;
-    setMessages(prev => [...prev, optimisticMsg]);
-    setChatList(prev => prev.map(c => c.id === chatId ? { ...c, lastMessage: content.trim() } : c));
+    // ✅ 현재 보고 있는 방이 snapChatId인 경우에만 optimistic 메시지 추가
+    setMessages(prev => {
+      if (chatIdRef.current !== snapChatId) return prev; // 이미 다른 방으로 전환됨
+      return [...prev, optimisticMsg];
+    });
+    setChatList(prev => prev.map(c => c.id === snapChatId ? { ...c, lastMessage: content.trim() } : c));
     try {
       const { error } = await supabase.from('messages').insert({
-        chat_id: chatId, sender_id: currentUserId, content: content.trim(),
+        chat_id: snapChatId, sender_id: snapUserId, content: content.trim(),
         client_id: optimisticId.replace('__opt_', ''), // UUID — ON CONFLICT DO NOTHING on server
       });
       // 서버가 SSE 인서트 이벤트 시점에 수신자에게 푸시 알림을 자동 발송함
-      // 클라이언트에서 /push/notify 직접 호출 불필요 (x-internal-secret 없어 항상 403)
       if (error) {
         setMessages(prev => prev.filter(m => m.id !== optimisticId));
         // 에러 전 상태로 정확히 복원 (낙관적 업데이트 전 lastMessage)
-        setChatList(prev => prev.map(c => c.id === chatId ? { ...c, lastMessage: prevLastMessage } : c));
+        setChatList(prev => prev.map(c => c.id === snapChatId ? { ...c, lastMessage: prevLastMessage } : c));
         console.error('[sendMessage]', error.message);
-        alert('메시지 전송에 실패했습니다. 다시 시도해 주세요.');
+        throw error; // ChatScreen에서 입력값 복원용
       }
     } finally {
       sendInFlightRef.current = false; // 성공/실패/예외 모든 경우 잠금 해제

@@ -31,6 +31,16 @@ Also used `Date.now()` as the storage path, which can collide under load.
 After app restart/refresh, badge showed 0 until tab switch or SSE reconnect.
 **Fix:** added `useEffect(() => { if (currentUserId) void syncUnreadCounts(); }, [currentUserId, syncUnreadCounts])`.
 
+## Chat deep-fix (2026-07-30)
+- openChat() race: openChatGenRef — generation guard prevents stale slow response overwriting newer chatId
+- loadChatList() race: loadChatListGenRef — same pattern, stale response discarded
+- sendMessage closure pollution: snapshot chatId/currentUserId at call time; setMessages checks chatIdRef.current before adding optimistic msg
+- New chat chatList insert: openChat now adds new Chat to chatList immediately → per-chat SSE subscription activates
+- newMsgCount badge: when opening a chat, subtract removed unread count from newMsgCount (was never decremented before)
+- handleSend async: saves input before clearing, restores on throw; onSend prop type now Promise<void>|void
+- sendMessage throws on error: ChatScreen can catch and restore input
+- Scroll: instant on initial load (prev===0,cur>1), smooth only for my msgs or when near bottom (<100px); messagesContainerRef added
+
 ## Still open / covered by tasks
 - Push subscribe endpoint accepts arbitrary userId (Task #21)
 - sendImage orphaned storage file on DB insert failure (Task #20)  
