@@ -3,6 +3,8 @@ import {
   ArrowLeft, Send, MessageCircle, Smile, ImageIcon, Phone,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { useTheme, type ThemeMode } from '../lib/theme';
+import { genAvatar } from '../lib/profile';
 import { getZodiac, getOhaeng, getCompatibility, getOhaengCompat, getNumerologyCompat, getMbtiCompat, getTodayFortune } from '../lib/fortune';
 import { StickerSVG, STICKER_LABELS, STICKER_BG, STICKER_COUNT } from '../stickers';
 import { hasBannedWord } from '../lib/utils';
@@ -20,7 +22,10 @@ const EMOJIS = [
   '🐶','🐱','🐼','🦊','🦁','🐻','🐨','🐸','🦋','🌸',
 ];
 
-function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onSendImage, onBack, onReset: _onReset, onDeleteMessage, currentUserProfile, receivedContactShares, contactSharedWithIds, onGoToTab }: {
+const THEME_CYCLE: ThemeMode[] = ['default', 'y2k', 'dark-neon', 'minimal'];
+const THEME_EMOJI: Record<ThemeMode, string> = { default: '🌙', y2k: '💖', 'dark-neon': '🔥', minimal: '☕' };
+
+function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onSendImage, onBack, onReset: _onReset, onDeleteMessage, currentUserProfile, receivedContactShares, contactSharedWithIds, onGoToTab, onUpdateProfile }: {
   chatId: string;
   messages: Message[]; currentUserId: string; otherProfile: Profile;
   onSend: (content: string) => void;
@@ -31,7 +36,14 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   receivedContactShares?: ContactShare[];
   contactSharedWithIds?: Set<string>;
   onGoToTab?: (tab: string) => void;
+  onUpdateProfile?: (update: Partial<Profile> & { id: string }) => void;
 }) {
+  const { theme, setTheme } = useTheme();
+  const handleCycleTheme = () => {
+    const idx = THEME_CYCLE.indexOf(theme);
+    setTheme(THEME_CYCLE[(idx + 1) % THEME_CYCLE.length]);
+  };
+
   const [input, setInput] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
   const [showStickers, setShowStickers] = useState(false);
@@ -66,7 +78,9 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   const theirFortune = theirBirth ? getTodayFortune(theirBirth.y, theirBirth.m, theirBirth.d) : null;
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const [showMoreBtns, setShowMoreBtns] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const initialMsgIds = useRef(new Set(messages.map(m => m.id)));
   const [myUnreadIds, setMyUnreadIds] = useState<Set<string>>(new Set());
@@ -75,6 +89,11 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [replyTo, setReplyTo] = useState<{ id: string; snippet: string; isMe: boolean } | null>(null);
+
+  // ── 내 정보 인라인 등록 ────────────────────────────────────────────────────────
+  const [showMyInfoEdit, setShowMyInfoEdit] = useState(false);
+  const [myInfoForm, setMyInfoForm] = useState({ birthMonth: '', birthDay: '', phone: '', kakao: '', instagram: '' });
+  const [myInfoSaving, setMyInfoSaving] = useState(false);
 
   const [swipeState, setSwipeState] = useState<{ msgId: string; offsetX: number } | null>(null);
   const swipeTouchRef = useRef<{ msgId: string; startX: number; startY: number; swiping: boolean } | null>(null);
@@ -93,6 +112,50 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   ];
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+
+  // ── visualViewport: iOS 키보드 올라올 때 컨테이너가 위로 밀리지 않도록 ─────────
+  // 핵심: inset-0 (bottom:0 포함)을 쓰면 JS height와 충돌 → 컨테이너가 위로 밀림.
+  // 해결: CSS에서 top/bottom을 모두 제거하고 JS에서 top + height를 완전히 제어.
+  //   top  = vv.offsetTop  (iOS가 레이아웃 뷰포트를 스크롤한 만큼 따라감)
+  //   height = vv.height   (키보드를 제외한 시각적 뷰포트 높이)
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const vv = window.visualViewport;
+    const applySize = (top: number, height: number) => {
+      el.style.top    = `${top}px`;
+      el.style.height = `${height}px`;
+    };
+    if (!vv) {
+      // visualViewport 미지원 폴백
+      applySize(0, window.innerHeight);
+      return;
+    }
+    const update = () => applySize(vv.offsetTop, vv.height);
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    update(); // 초기값 즉시 적용
+    return () => { vv.removeEventListener('resize', update); vv.removeEventListener('scroll', update); };
+  }, []);
+
+  // ── 채팅 중 전역 ThemeSwitcher FAB 숨김 ──────────────────────────────────────
+  useEffect(() => {
+    document.body.dataset.view = 'chat';
+    return () => { delete document.body.dataset.view; };
+  }, []);
+
+  // ── 내 정보 등록 폼 동기화 ─────────────────────────────────────────────────────
+  useEffect(() => {
+    if (showMyInfoEdit && currentUserProfile) {
+      setMyInfoForm({
+        birthMonth: currentUserProfile.birth_month ? String(currentUserProfile.birth_month) : '',
+        birthDay:   currentUserProfile.birth_day   ? String(currentUserProfile.birth_day)   : '',
+        phone:     currentUserProfile.phone_number  ?? '',
+        kakao:     currentUserProfile.kakao_id      ?? '',
+        instagram: currentUserProfile.instagram_id  ?? '',
+      });
+    }
+  }, [showMyInfoEdit]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const newMyMsgs = messages.filter(m => m.sender_id === currentUserId && !initialMsgIds.current.has(m.id));
@@ -139,8 +202,15 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
     return { type: body.slice(0, ci) as 'birthday' | 'phone', value: body.slice(ci + 1) };
   };
 
-  const handleSend = (e: React.FormEvent) => {
-    e.preventDefault();
+  // textarea 높이 자동 조절
+  const autoResizeTextarea = () => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+  };
+
+  const handleSend = () => {
     if (!input.trim()) { setShowEmoji(false); return; }
     if (hasBannedWord(input.trim())) {
       setChatError('부적절한 표현이 포함되어 있어 전송할 수 없습니다.');
@@ -152,9 +222,39 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
     setInput('');
     setReplyTo(null);
     setShowEmoji(false);
+    // textarea 높이 초기화
+    requestAnimationFrame(() => {
+      if (inputRef.current) inputRef.current.style.height = 'auto';
+    });
   };
 
   const handleEmojiClick = (emoji: string) => { setInput((prev) => prev + emoji); inputRef.current?.focus(); };
+
+  // ── 내 정보 저장 ──────────────────────────────────────────────────────────────
+  const handleSaveMyInfo = async () => {
+    if (!currentUserProfile) return;
+    const update: Record<string, unknown> = { id: currentUserProfile.id };
+    const bm = parseInt(myInfoForm.birthMonth);
+    const bd = parseInt(myInfoForm.birthDay);
+    if (!isNaN(bm) && bm >= 1 && bm <= 12) update.birth_month = bm;
+    if (!isNaN(bd) && bd >= 1 && bd <= 31) update.birth_day   = bd;
+    const phone = myInfoForm.phone.trim();
+    const kakao = myInfoForm.kakao.trim();
+    const insta = myInfoForm.instagram.trim();
+    if (phone) update.phone_number  = phone;
+    if (kakao) update.kakao_id      = kakao;
+    if (insta) update.instagram_id  = insta;
+    setMyInfoSaving(true);
+    try {
+      const { id: _id, ...patch } = update;
+      await supabase.from('profiles').update(patch).eq('id', currentUserProfile.id);
+      onUpdateProfile?.(update as Partial<Profile> & { id: string });
+      setShowMyInfoEdit(false);
+      setShowInfoReqMenu(false);
+    } finally {
+      setMyInfoSaving(false);
+    }
+  };
 
   const handleSendInfoReq = (type: 'birthday' | 'phone') => {
     onSend(`__inforeq__:${type}`);
@@ -262,7 +362,7 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   const hasContact = !!(currentUserProfile?.kakao_id || currentUserProfile?.instagram_id || currentUserProfile?.phone_number);
 
   return (
-    <div className="fixed inset-0 bg-gray-100 flex flex-col" style={{ height: '100dvh', paddingTop: 'env(safe-area-inset-top)' }}>
+    <div ref={containerRef} className="fixed left-0 right-0 bg-gray-100 flex flex-col z-[9999]" style={{ top: 0, height: '100dvh', paddingTop: 'env(safe-area-inset-top)' }}>
 
       {/* 상대방 연락처 보기 모달 */}
       {showTheirContact && theirShare && (
@@ -618,10 +718,23 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
           <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-full transition-colors flex-shrink-0">
             <ArrowLeft className="w-5 h-5 text-gray-700" />
           </button>
-          <div className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0">
-            <img src={otherProfile.photo_url} alt={otherProfile.nickname} className="w-full h-full object-cover" />
+          <div className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0 ring-2 ring-gray-200 bg-gray-200">
+            <img
+              src={otherProfile.photo_url}
+              alt={otherProfile.nickname}
+              className="w-full h-full object-cover"
+              onError={(e) => { (e.target as HTMLImageElement).src = genAvatar(otherProfile.nickname); }}
+            />
           </div>
           <h2 className="font-semibold text-gray-900 flex-1 truncate text-sm">{otherProfile.nickname}</h2>
+          {/* 미니 테마 순환 버튼 — 전역 FAB 대신 헤더에 위치 */}
+          <button
+            onClick={handleCycleTheme}
+            title="테마 변경"
+            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 active:scale-90 transition-all flex-shrink-0 text-base"
+          >
+            {THEME_EMOJI[theme]}
+          </button>
           <button
             onClick={() => setShowSajuModal(true)}
             className="flex items-center gap-1 px-2 py-1.5 bg-amber-50 text-amber-600 text-xs font-bold rounded-xl border border-amber-200 hover:bg-amber-100 transition-all active:scale-95 flex-shrink-0">
@@ -887,8 +1000,79 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
 
       {/* ── 정보 요청 메뉴 패널 ── */}
       {showInfoReqMenu && (
-        <div className="bg-white border-t border-gray-100 shrink-0">
+        <div className="bg-white border-t border-gray-100 shrink-0 max-h-[60vh] overflow-y-auto">
           <div className="max-w-3xl mx-auto px-3 py-2.5 space-y-1">
+
+            {/* ── 내 정보 바로 등록 ── */}
+            <button type="button"
+              onClick={() => setShowMyInfoEdit(p => !p)}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl transition-all text-left border ${showMyInfoEdit ? 'bg-emerald-50 border-emerald-200' : 'border-transparent hover:bg-emerald-50 hover:border-emerald-100'}`}>
+              <span className="text-2xl shrink-0">✏️</span>
+              <div className="flex-1">
+                <p className="text-sm font-bold text-gray-800">내 정보 등록하기</p>
+                <p className="text-[10px] text-gray-400">생월·생일·연락처를 채팅에서 바로 저장</p>
+              </div>
+              <span className="text-gray-400 text-xs">{showMyInfoEdit ? '▲' : '▼'}</span>
+            </button>
+
+            {showMyInfoEdit && (
+              <div className="bg-emerald-50 rounded-2xl p-3 space-y-2 border border-emerald-100">
+                {/* 생월·생일 */}
+                <p className="text-[10px] font-black text-emerald-600 px-1">🎂 생월 · 생일</p>
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <input
+                      type="number" min="1" max="12" placeholder="월 (1~12)"
+                      value={myInfoForm.birthMonth}
+                      onChange={e => setMyInfoForm(f => ({ ...f, birthMonth: e.target.value }))}
+                      className="w-full px-3 py-2 text-sm border border-emerald-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <input
+                      type="number" min="1" max="31" placeholder="일 (1~31)"
+                      value={myInfoForm.birthDay}
+                      onChange={e => setMyInfoForm(f => ({ ...f, birthDay: e.target.value }))}
+                      className="w-full px-3 py-2 text-sm border border-emerald-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
+                    />
+                  </div>
+                </div>
+
+                {/* 연락처 */}
+                <p className="text-[10px] font-black text-emerald-600 px-1 pt-1">📱 연락처</p>
+                <input
+                  type="tel" placeholder="전화번호 (010-xxxx-xxxx)"
+                  value={myInfoForm.phone}
+                  onChange={e => setMyInfoForm(f => ({ ...f, phone: e.target.value }))}
+                  className="w-full px-3 py-2 text-sm border border-emerald-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
+                />
+                <input
+                  type="text" placeholder="카카오톡 ID"
+                  value={myInfoForm.kakao}
+                  onChange={e => setMyInfoForm(f => ({ ...f, kakao: e.target.value }))}
+                  className="w-full px-3 py-2 text-sm border border-emerald-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
+                />
+                <input
+                  type="text" placeholder="인스타그램 ID (@없이)"
+                  value={myInfoForm.instagram}
+                  onChange={e => setMyInfoForm(f => ({ ...f, instagram: e.target.value }))}
+                  className="w-full px-3 py-2 text-sm border border-emerald-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
+                />
+
+                <div className="flex gap-2 pt-1">
+                  <button type="button" onClick={() => setShowMyInfoEdit(false)}
+                    className="flex-1 py-2 text-sm text-gray-500 font-semibold rounded-xl border border-gray-200 bg-white active:scale-95 transition-all">
+                    취소
+                  </button>
+                  <button type="button" onClick={handleSaveMyInfo} disabled={myInfoSaving}
+                    className="flex-1 py-2 text-sm text-white font-bold rounded-xl bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 active:scale-95 transition-all">
+                    {myInfoSaving ? '저장 중…' : '저장하기'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="border-t border-gray-100 my-1" />
             <p className="text-[10px] font-black text-gray-400 px-2 pb-1">📋 상대방에게 요청하기</p>
             <button type="button"
               onClick={() => handleSendInfoReq('birthday')}
@@ -929,43 +1113,60 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
               className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-300 text-xs shrink-0">✕</button>
           </div>
         )}
-        <form onSubmit={handleSend} className="max-w-3xl mx-auto px-3 py-2.5 flex items-center gap-2">
-          <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading}
-            className="p-2 text-gray-400 hover:text-cyan-500 hover:bg-cyan-50 rounded-full transition-all disabled:opacity-50 shrink-0">
-            <ImageIcon className="w-5 h-5" />
+        {/* 더보기 버튼 펼쳐지면 보조 버튼 한 줄 표시 */}
+        {showMoreBtns && (
+          <div className="max-w-3xl mx-auto px-3 pt-2 pb-0 flex items-center gap-1">
+            <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading}
+              className="p-2 text-gray-400 hover:text-cyan-500 hover:bg-cyan-50 rounded-full transition-all disabled:opacity-50 shrink-0" title="이미지 전송">
+              <ImageIcon className="w-5 h-5" />
+            </button>
+            <button type="button"
+              onClick={() => { setShowStickers(p => !p); setShowEmoji(false); setShowQuickMsgs(false); }}
+              className={`p-1.5 rounded-full transition-all text-lg leading-none shrink-0 ${showStickers ? 'bg-rose-100' : 'hover:bg-rose-50'}`}
+              title="이모티콘">🎨</button>
+            <button type="button"
+              onClick={() => { setShowQuickMsgs(p => !p); setShowEmoji(false); setShowStickers(false); setShowInfoReqMenu(false); }}
+              className={`p-1.5 rounded-full transition-all text-lg leading-none shrink-0 ${showQuickMsgs ? 'bg-violet-100' : 'hover:bg-violet-50'}`}
+              title="빠른 메시지">⚡</button>
+            <button type="button"
+              onClick={() => { setShowInfoReqMenu(p => !p); setShowEmoji(false); setShowStickers(false); setShowQuickMsgs(false); }}
+              className={`p-1.5 rounded-full transition-all text-lg leading-none shrink-0 ${showInfoReqMenu ? 'bg-amber-100' : 'hover:bg-amber-50'}`}
+              title="생일·전화번호 요청">📋</button>
+          </div>
+        )}
+        {/* 기본 입력 행: [+] [😊] [textarea] [➤] */}
+        <div className="max-w-3xl mx-auto px-3 py-2 flex items-end gap-2">
+          {/* + 더보기 토글 */}
+          <button type="button"
+            onClick={() => setShowMoreBtns(p => !p)}
+            className={`p-2 rounded-full transition-all shrink-0 text-base leading-none ${showMoreBtns ? 'bg-gray-200 text-gray-600' : 'text-gray-400 hover:bg-gray-100'}`}
+            title="더보기">
+            {showMoreBtns ? '✕' : '+'}
           </button>
+          {/* 이모지 */}
           <button type="button"
             onClick={() => { setShowEmoji(p => !p); setShowStickers(false); setShowQuickMsgs(false); }}
             className={`p-2 rounded-full transition-all shrink-0 ${showEmoji ? 'text-cyan-500 bg-cyan-50' : 'text-gray-400 hover:text-cyan-500 hover:bg-cyan-50'}`}>
             <Smile className="w-5 h-5" />
           </button>
-          <button type="button"
-            onClick={() => { setShowStickers(p => !p); setShowEmoji(false); setShowQuickMsgs(false); }}
-            className={`p-1.5 rounded-full transition-all text-lg leading-none shrink-0 ${showStickers ? 'bg-rose-100' : 'hover:bg-rose-50'}`}
-            title="이모티콘">
-            🎨
-          </button>
-          <button type="button"
-            onClick={() => { setShowQuickMsgs(p => !p); setShowEmoji(false); setShowStickers(false); setShowInfoReqMenu(false); }}
-            className={`p-1.5 rounded-full transition-all text-lg leading-none shrink-0 ${showQuickMsgs ? 'bg-violet-100' : 'hover:bg-violet-50'}`}
-            title="빠른 메시지">
-            ⚡
-          </button>
-          <button type="button"
-            onClick={() => { setShowInfoReqMenu(p => !p); setShowEmoji(false); setShowStickers(false); setShowQuickMsgs(false); }}
-            className={`p-1.5 rounded-full transition-all text-lg leading-none shrink-0 ${showInfoReqMenu ? 'bg-amber-100' : 'hover:bg-amber-50'}`}
-            title="생일·전화번호 요청">
-            📋
-          </button>
-          <input ref={inputRef} type="text" value={input} onChange={(e) => setInput(e.target.value)}
+          {/* 멀티라인 입력창 — Enter=줄바꿈, 버튼만 전송 */}
+          <textarea
+            ref={inputRef}
+            value={input}
+            onChange={(e) => { setInput(e.target.value); autoResizeTextarea(); }}
+            onInput={autoResizeTextarea}
             placeholder={uploading ? '업로드 중...' : replyTo ? '답장 입력...' : '메시지를 입력하세요...'}
             disabled={uploading}
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-full focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none transition-all text-sm disabled:opacity-60 min-w-0" />
-          <button type="submit" disabled={!input.trim() || uploading}
+            rows={1}
+            className="flex-1 px-3 py-2 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none transition-all text-sm disabled:opacity-60 min-w-0 resize-none overflow-y-auto leading-relaxed"
+            style={{ maxHeight: '120px' }}
+          />
+          {/* 전송 버튼 — onClick만, 폼 submit 없음 */}
+          <button type="button" onClick={handleSend} disabled={!input.trim() || uploading}
             className="p-2 bg-cyan-500 text-white rounded-full hover:bg-cyan-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all shrink-0">
             <Send className="w-5 h-5" />
           </button>
-        </form>
+        </div>
       </footer>
     </div>
   );

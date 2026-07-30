@@ -1148,6 +1148,7 @@ function App() {
           setView('main');
           setMainTab(tab as MainTab);
         }}
+        onUpdateProfile={(update) => setProfiles(prev => prev.map(p => p.id === update.id ? { ...p, ...update } : p))}
       />
     </>
   );

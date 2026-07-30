@@ -4,6 +4,12 @@
   --font-sans: 'Pretendard', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', sans-serif;
 }
 
+/* ── 채팅 뷰에서 전역 ThemeSwitcher FAB·패널·백드롭 완전 숨김 ──────────────── */
+body[data-view="chat"] .theme-switcher-btn,
+body[data-view="chat"] .theme-switcher-panel { display: none !important; }
+/* backdrop: fixed inset-0 z-[9997] — chat view에서도 숨김 */
+body[data-view="chat"] .fixed.inset-0.z-\[9997\] { display: none !important; }
+
 @layer base {
   * { box-sizing: border-box; }
 
@@ -181,17 +187,23 @@ html[data-theme="y2k"] .bg-gradient-to-b,
 [data-theme="minimal"] .bg-white\/95   { background-color: #ffffff !important; }
 [data-theme="minimal"] .bg-gray-50,
 [data-theme="minimal"] .bg-slate-50    { background-color: #F9F8F6 !important; }
-[data-theme="minimal"] .bg-gray-100    { background-color: #f0efed !important; }
-[data-theme="minimal"] .bg-gray-200    { background-color: #e5e7eb !important; }
+/* bg-gray-100: 채팅배경 등 — 흰색 메시지버블과 구분되도록 충분히 어둡게 */
+[data-theme="minimal"] .bg-gray-100    { background-color: #d8d5d0 !important; }
+[data-theme="minimal"] .bg-gray-200    { background-color: #c8c5c1 !important; }
 [data-theme="minimal"] .text-gray-900  { color: #09090b !important; }
 [data-theme="minimal"] .text-gray-800  { color: #18181b !important; }
 [data-theme="minimal"] .text-gray-700  { color: #27272a !important; }
 [data-theme="minimal"] .text-gray-600  { color: #3f3f46 !important; }
 [data-theme="minimal"] .text-gray-500  { color: #52525b !important; }
 [data-theme="minimal"] .text-gray-400  { color: #71717a !important; }
-[data-theme="minimal"] .border-gray-100{ border-color: #f0efed !important; }
-[data-theme="minimal"] .border-gray-200{ border-color: #e5e7eb !important; }
-[data-theme="minimal"] .border-gray-300{ border-color: #d1d5db !important; }
+/* 이전에 누락: 흰 배경에서 안보이는 옅은 텍스트 */
+[data-theme="minimal"] .text-gray-300  { color: #71717a !important; }
+[data-theme="minimal"] .text-gray-200  { color: #a1a1aa !important; }
+[data-theme="minimal"] .border-gray-100{ border-color: #dddbd8 !important; }
+[data-theme="minimal"] .border-gray-200{ border-color: #c8c5c1 !important; }
+[data-theme="minimal"] .border-gray-300{ border-color: #a8a5a1 !important; }
+/* 아바타 링 (ring-gray-200) — 흰 헤더 위에서도 프로필 이미지 구별 */
+[data-theme="minimal"] .ring-gray-200  { --tw-ring-color: #a8a5a1 !important; }
 /* minimal 액센트 색: text-cyan, text-teal → 다크 잉크 */
 [data-theme="minimal"] .text-cyan-400,
 [data-theme="minimal"] .text-cyan-500,
@@ -200,9 +212,11 @@ html[data-theme="y2k"] .bg-gradient-to-b,
 [data-theme="minimal"] .text-teal-500,
 [data-theme="minimal"] .text-teal-600   { color: #18181b !important; }
 [data-theme="minimal"] .bg-cyan-50,
-[data-theme="minimal"] .bg-teal-50      { background-color: #f0efed !important; }
+[data-theme="minimal"] .bg-teal-50      { background-color: #ede9e4 !important; }
 [data-theme="minimal"] .bg-cyan-500,
 [data-theme="minimal"] .bg-teal-500     { background-color: #18181b !important; color: #ffffff !important; }
+/* 메시지 버블 그림자 — 밝은 배경에서도 received bubble이 뚜렷하게 */
+[data-theme="minimal"] .shadow-sm       { box-shadow: 0 1px 4px rgba(0,0,0,0.14), 0 0 0 1px rgba(0,0,0,0.07) !important; }
 /* -- 누락 밝은 텍스트 (흰배경에서 안보이는 것들) ------------- */
 [data-theme="y2k"] .text-gray-200  { color: #52525b !important; }
 [data-theme="y2k"] .text-gray-300  { color: #52525b !important; }
