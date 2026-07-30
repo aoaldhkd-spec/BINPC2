@@ -1,12 +1,15 @@
 import { useState, useRef, useEffect } from 'react';
 import { Users, CheckCircle, Clock, AlertTriangle, ChevronRight, ShieldAlert, X } from 'lucide-react';
 import { TutorialModal } from './TutorialModal';
+import { useTheme } from '../lib/theme';
 
 export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
   sessionActive: boolean | null;
   onEnter: () => void;
   onRecover?: (profileId: string) => void;
 }) {
+  const { theme } = useTheme();
+  const isLightTheme = theme === 'y2k' || theme === 'minimal';
   const isActive = sessionActive === true;
   const [showNotice, setShowNotice] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
@@ -104,7 +107,7 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
         {/* 타이틀: 범일NPC 술번개 중앙 */}
         <div className="mb-4 text-center">
           <p className="text-[22px] font-black tracking-[0.25em] uppercase mb-1"
-             style={{
+             style={isLightTheme ? { color: '#0f766e' } : {
                background: 'linear-gradient(135deg, #ffffff 0%, #cffafe 45%, #99f6e4 100%)',
                WebkitBackgroundClip: 'text',
                WebkitTextFillColor: 'transparent',
@@ -112,7 +115,8 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
              }}>
             범일NPC
           </p>
-          <h1 className="text-4xl font-black text-white tracking-tight leading-tight">술번개 🍻</h1>
+          <h1 className="text-4xl font-black tracking-tight leading-tight"
+              style={{ color: isLightTheme ? '#111827' : '#ffffff' }}>술번개 🍻</h1>
         </div>
         {isActive ? (
           <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-teal-500/20 border border-teal-400/30 rounded-full mb-6">
@@ -148,8 +152,9 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
         </button>
         <button
           onClick={() => setShowConsentModal(true)}
-          className="w-full py-4 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-white font-black text-lg rounded-2xl shadow-2xl shadow-teal-500/30 transition-all active:scale-98 mb-3"
-        >입장하기</button>
+          disabled={!isActive}
+          className="w-full py-4 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 disabled:from-slate-700 disabled:to-slate-600 disabled:cursor-not-allowed text-white font-black text-lg rounded-2xl shadow-2xl shadow-teal-500/30 transition-all active:scale-98 disabled:active:scale-100 mb-3"
+        >{isActive ? '입장하기' : '⏳ 회의 시작 전입니다'}</button>
         <button
           onClick={() => { setTutPage(0); setShowTutorial(true); }}
           className="w-full py-3.5 bg-gradient-to-r from-orange-400 to-rose-500 hover:from-orange-300 hover:to-rose-400 text-white font-black text-sm rounded-2xl shadow-lg shadow-orange-500/25 transition-all active:scale-98 mb-3"

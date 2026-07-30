@@ -6,3 +6,39 @@ id = "7AnflHfAY1Klte2j82BJ9"
 uri = "file://cute-notification.wav"
 type = "audio"
 title = "🔔 귀여운 알림음 (BI-DING + 스파클)"
+
+[[outputs]]
+id = "BD6pD7v1oBXWN-Pw5l9uW"
+uri = "file://artifacts/boltnew-app/public/avatars/av1.png"
+type = "image"
+title = "아바타 1"
+
+[[outputs]]
+id = "A4-CinIsNSht4H7aDlfPh"
+uri = "file://artifacts/boltnew-app/public/avatars/av2.png"
+type = "image"
+title = "아바타 2"
+
+[[outputs]]
+id = "iIOgv_IGMEpaO8VvkPTqG"
+uri = "file://artifacts/boltnew-app/public/avatars/av3.png"
+type = "image"
+title = "아바타 3"
+
+[[outputs]]
+id = "_-KeDSkCX3p_QrS4pXsLa"
+uri = "file://artifacts/boltnew-app/public/avatars/av4.png"
+type = "image"
+title = "아바타 4"
+
+[[outputs]]
+id = "js9_CMfc-ea2DEiYIsNLo"
+uri = "file://artifacts/boltnew-app/public/avatars/av5.png"
+type = "image"
+title = "아바타 5"
+
+[[outputs]]
+id = "RUAOUpllk-bMl2EIZxjOG"
+uri = "file://artifacts/boltnew-app/public/avatars/av6.png"
+type = "image"
+title = "아바타 6"

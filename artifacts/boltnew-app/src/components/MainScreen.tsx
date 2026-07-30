@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo, Suspense, lazy, Comp
 import {
   Heart, MessageCircle, Users, ChevronDown, LayoutGrid, CheckCircle,
   Eye, UserCheck, Gamepad2, X, BookOpen,
-  BarChart3, QrCode, Camera, Search,
+  BarChart3, QrCode, Camera, Search, Lock,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { Profile, Seat, ContactShare, Suggestion, BalanceGame, Chat, MainTab, TableMiniGameSession } from '../types/app';
@@ -18,6 +18,168 @@ import { StatsTab, RankingTab } from './StatsTabs';
 import { ProfileInfoBadges } from './ProfileInfoBadges';
 import { TimerBanner } from './TimerBanner';
 import { RefreshBtn } from './RefreshBtn';
+
+// ── 기본 아바타 (내 상태 탭 사진 변경에서 사용) ────────────────────────────────
+const _BASE = import.meta.env.BASE_URL ?? '/';
+// DiceBear API로 캐릭터 아바타 생성 (style별 일러스트 자동 생성)
+const _db = (style: string, seed: string, bg = 'b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf') =>
+  `https://api.dicebear.com/9.x/${style}/svg?seed=${encodeURIComponent(seed)}&radius=50&size=100&backgroundColor=${bg}`;
+// 이모지 + 배경색 SVG (음식 등 단순 표현용)
+const _ea = (e: string, c: string) => {
+  const s = `<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><circle cx='50' cy='50' r='50' fill='${c}'/><text x='50' y='68' font-size='54' text-anchor='middle'>${e}</text></svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(s)}`;
+};
+const AVATAR_CATEGORIES = [
+  { label: '✨ 인물', avatars: [
+    { id:'av1',  src:`${_BASE}avatars/av1.png`,  label:'핑크 요정' },
+    { id:'av2',  src:`${_BASE}avatars/av2.png`,  label:'민트 페어리' },
+    { id:'av3',  src:`${_BASE}avatars/av3.png`,  label:'퍼플 쿨가이' },
+    { id:'av4',  src:`${_BASE}avatars/av4.png`,  label:'코럴 큐티' },
+    { id:'av5',  src:`${_BASE}avatars/av5.png`,  label:'다크 시크' },
+    { id:'av6',  src:`${_BASE}avatars/av6.png`,  label:'레인보우' },
+    { id:'av7',  src:`${_BASE}avatars/av7.png`,  label:'베어 후디' },
+    { id:'av8',  src:`${_BASE}avatars/av8.png`,  label:'레트로 팜므' },
+    { id:'av9',  src:`${_BASE}avatars/av9.png`,  label:'스포티 짐' },
+    { id:'av10', src:`${_BASE}avatars/av10.png`, label:'북덕 지성파' },
+  ]},
+  { label: '🌸 애니/만화', avatars: [
+    { id:'e_doraemon',  src:_db('adventurer','Doraemon blue robot cat','b3d4ff'),  label:'도라에몽' },
+    { id:'e_luffy',     src:_db('adventurer','Luffy straw hat pirate','ffd5dc'),   label:'루피' },
+    { id:'e_naruto',    src:_db('adventurer','Naruto ninja orange','ffecc8'),      label:'나루토' },
+    { id:'e_sasuke',    src:_db('adventurer','Sasuke Uchiha dark','c0aede'),       label:'사스케' },
+    { id:'e_goku',      src:_db('adventurer','Goku Dragon Ball orange','ffd5dc'),  label:'손오공' },
+    { id:'e_vegeta',    src:_db('adventurer','Vegeta Dragon Ball proud','c0aede'), label:'베지터' },
+    { id:'e_tanjiro',   src:_db('adventurer','Tanjiro Kamado demon slayer','b6e3f4'),label:'탄지로' },
+    { id:'e_nezuko',    src:_db('adventurer','Nezuko Kamado pink','ffd5dc'),       label:'네즈코' },
+    { id:'e_levi',      src:_db('adventurer','Levi Ackerman survey corps','d1d4f9'),label:'레비' },
+    { id:'e_shinchan',  src:_db('adventurer','Shin chan crayon yellow','ffdfbf'),  label:'짱구' },
+    { id:'e_sailormoon',src:_db('adventurer','Sailor Moon magical girl pink','ffd5dc'),label:'세일러문' },
+    { id:'e_totoro',    src:_db('adventurer','Totoro forest spirit green','c0e8c0'),label:'토토로' },
+    { id:'e_ichigo',    src:_db('adventurer','Ichigo Kurosaki Bleach','ffd5dc'),   label:'이치고' },
+    { id:'e_eren',      src:_db('adventurer','Eren Yeager attack titan','c8e6c9'), label:'에렌' },
+    { id:'e_killua',    src:_db('adventurer','Killua Zoldyck HxH silver','d1d4f9'),label:'킬루아' },
+    { id:'e_zoro',      src:_db('adventurer','Roronoa Zoro three swords','c8e6c9'),label:'조로' },
+    { id:'e_rem',       src:_db('adventurer','Rem ReZero blue maid','b6e3f4'),    label:'렘' },
+    { id:'e_asuna',     src:_db('adventurer','Asuna Yuuki SAO red','ffd5dc'),     label:'아스나' },
+    { id:'e_nami',      src:_db('adventurer','Nami One Piece navigator','ffecc8'),label:'나미' },
+    { id:'e_conan',     src:_db('adventurer','Conan Edogawa detective boy','b6e3f4'),label:'코난' },
+  ]},
+  { label: '💜 K-POP', avatars: [
+    { id:'k_iu',      src:_db('avataaars','IU Korean singer autumn','ffecc8'),        label:'IU 아이유' },
+    { id:'k_bts',     src:_db('avataaars','BTS Bangtan kpop group purple','c0aede'),  label:'BTS 방탄' },
+    { id:'k_bp',      src:_db('avataaars','Blackpink girl group pink','ffd5dc'),      label:'블랙핑크' },
+    { id:'k_nj',      src:_db('avataaars','NewJeans bunny kpop pastel','b6e3f4'),     label:'뉴진스' },
+    { id:'k_akmu',    src:_db('avataaars','AKMU Akdong musician guitar','ffdfbf'),   label:'악뮤 AKMU' },
+    { id:'k_aespa',   src:_db('avataaars','aespa kpop metaverse cyber','c0aede'),    label:'에스파 aespa' },
+    { id:'k_gidle',   src:_db('avataaars','GIDLE girl group charisma','ffd5dc'),     label:'(G)I-DLE' },
+    { id:'k_lsrfm',   src:_db('avataaars','Le Sserafim kpop ocean','b6e3f4'),       label:'르세라핌' },
+    { id:'k_svt',     src:_db('avataaars','Seventeen kpop diamond','d1d4f9'),        label:'세븐틴' },
+    { id:'k_twice',   src:_db('avataaars','TWICE candy kpop cute','ffd5dc'),         label:'TWICE' },
+    { id:'k_skz',     src:_db('avataaars','Stray Kids wolf kpop dark','c0aede'),     label:'스키즈 SKZ' },
+    { id:'k_exo',     src:_db('avataaars','EXO exo planet kpop cool','d1d4f9'),      label:'EXO 엑소' },
+    { id:'k_shinee',  src:_db('avataaars','SHINee shiny kpop teal','b6e3f4'),       label:'샤이니 SHINee' },
+    { id:'k_2ne1',    src:_db('avataaars','2NE1 queen kpop fierce','ffdfbf'),        label:'2NE1 투애니원' },
+    { id:'k_bigbang', src:_db('avataaars','BIGBANG VIP kpop gold','ffecc8'),         label:'빅뱅 BIGBANG' },
+  ]},
+  { label: '🏳️‍🌈 퀴어/프라이드', avatars: [
+    { id:'av49', src:`${_BASE}avatars/av49.png`, label:'레인보우 프라이드' },
+    { id:'av50', src:`${_BASE}avatars/av50.png`, label:'드래그 퀸' },
+    { id:'av51', src:`${_BASE}avatars/av51.png`, label:'젠더플루이드' },
+    { id:'av52', src:`${_BASE}avatars/av52.png`, label:'논바이너리' },
+    { id:'av53', src:`${_BASE}avatars/av53.png`, label:'트랜스 프라이드' },
+    { id:'av54', src:`${_BASE}avatars/av54.png`, label:'레즈비언 프라이드' },
+    { id:'av55', src:`${_BASE}avatars/av55.png`, label:'게이 프라이드' },
+    { id:'av56', src:`${_BASE}avatars/av56.png`, label:'퀴어 액티비스트' },
+  ]},
+  { label: '🎮 게임', avatars: [
+    // 리그 오브 레전드 (pixel-art 스타일)
+    { id:'g_yasuo',  src:_db('pixel-art','Yasuo LoL wind samurai','d4e6f1'),     label:'야스오(롤)' },
+    { id:'g_ahri',   src:_db('pixel-art','Ahri LoL nine tail fox pink','ffd5dc'),label:'아리(롤)' },
+    { id:'g_teemo',  src:_db('pixel-art','Teemo LoL mushroom yordle red','ffd5dc'),label:'티모(롤)' },
+    { id:'g_ashe',   src:_db('pixel-art','Ashe LoL ice archer frost','b6e3f4'), label:'애쉬(롤)' },
+    { id:'g_lulu',   src:_db('pixel-art','Lulu LoL fairy yordle purple','c0aede'),label:'룰루(롤)' },
+    { id:'g_jinx',   src:_db('pixel-art','Jinx LoL rocket crazy purple','d1d4f9'),label:'징크스(롤)' },
+    { id:'g_akali',  src:_db('pixel-art','Akali LoL assassin shadow','c0aede'), label:'아칼리(롤)' },
+    { id:'g_ez',     src:_db('pixel-art','Ezreal LoL explorer blue','b6e3f4'),  label:'이즈리얼(롤)' },
+    // 오버워치 (bottts 스타일 - 슈트/메카 느낌)
+    { id:'g_dva',    src:_db('bottts','DVa Overwatch mech pilot pink','ffd5dc'), label:'디바(OW)' },
+    { id:'g_tracer', src:_db('bottts','Tracer Overwatch time orange','ffecc8'), label:'트레이서(OW)' },
+    { id:'g_genji',  src:_db('bottts','Genji Overwatch cyber ninja green','c8e6c9'),label:'겐지(OW)' },
+    { id:'g_mei',    src:_db('bottts','Mei Overwatch ice scientist blue','b6e3f4'),label:'메이(OW)' },
+    { id:'g_mercy',  src:_db('bottts','Mercy Overwatch angel healer gold','ffecc8'),label:'메르시(OW)' },
+    // 포켓몬 (fun-emoji 스타일 - 귀여운 표정)
+    { id:'g_pika',   src:_db('fun-emoji','Pikachu electric yellow thunder','ffecc8'),label:'피카츄' },
+    { id:'g_bulba',  src:_db('fun-emoji','Bulbasaur grass seed green','c8e6c9'),label:'이상해씨' },
+    { id:'g_char',   src:_db('fun-emoji','Charmander fire lizard orange','ffd5dc'),label:'파이리' },
+    { id:'g_squirt', src:_db('fun-emoji','Squirtle water turtle blue','b6e3f4'),label:'꼬부기' },
+    // 기타 (pixel-art)
+    { id:'g_mario',  src:_db('pixel-art','Mario Nintendo mushroom red','ffd5dc'),label:'마리오' },
+    { id:'g_link',   src:_db('pixel-art','Link Zelda hero green elf','c8e6c9'),  label:'링크(젤다)' },
+    { id:'g_kirby',  src:_db('pixel-art','Kirby puff star pink',  'ffd5dc'),    label:'커비' },
+    { id:'g_sonic',  src:_db('pixel-art','Sonic hedgehog speed blue','b6e3f4'), label:'소닉' },
+  ]},
+  { label: '🌆 레트로/감성', avatars: [
+    { id:'av72', src:`${_BASE}avatars/av72.png`, label:'90년대 레트로' },
+    { id:'av73', src:`${_BASE}avatars/av73.png`, label:'Y2K 나비핀' },
+    { id:'av74', src:`${_BASE}avatars/av74.png`, label:'로파이 감성' },
+    { id:'av75', src:`${_BASE}avatars/av75.png`, label:'그런지 록' },
+    { id:'av76', src:`${_BASE}avatars/av76.png`, label:'팝아트' },
+    { id:'av77', src:`${_BASE}avatars/av77.png`, label:'필름 카메라' },
+    { id:'av78', src:`${_BASE}avatars/av78.png`, label:'스케이터 레트로' },
+    { id:'av79', src:`${_BASE}avatars/av79.png`, label:'코티지코어' },
+  ]},
+  { label: '☕ 직업/라이프스타일', avatars: [
+    { id:'av80', src:`${_BASE}avatars/av80.png`, label:'바리스타' },
+    { id:'av81', src:`${_BASE}avatars/av81.png`, label:'예술가' },
+    { id:'av82', src:`${_BASE}avatars/av82.png`, label:'DJ' },
+    { id:'av83', src:`${_BASE}avatars/av83.png`, label:'스트리머' },
+    { id:'av84', src:`${_BASE}avatars/av84.png`, label:'요리사' },
+    { id:'av85', src:`${_BASE}avatars/av85.png`, label:'세계여행자' },
+    { id:'av86', src:`${_BASE}avatars/av86.png`, label:'피트니스' },
+    { id:'av87', src:`${_BASE}avatars/av87.png`, label:'독서가' },
+    { id:'av88', src:`${_BASE}avatars/av88.png`, label:'과학자' },
+    { id:'av89', src:`${_BASE}avatars/av89.png`, label:'뮤지션' },
+  ]},
+  { label: '🐾 동물', avatars: [
+    { id:'av15', src:`${_BASE}avatars/av15.png`, label:'시바 이누' },
+    { id:'av16', src:`${_BASE}avatars/av16.png`, label:'드리미 냥' },
+    { id:'av17', src:`${_BASE}avatars/av17.png`, label:'프라이드 펭귄' },
+    { id:'av18', src:`${_BASE}avatars/av18.png`, label:'선셋 여우' },
+    { id:'av90', src:`${_BASE}avatars/av90.png`, label:'판다' },
+    { id:'av91', src:`${_BASE}avatars/av91.png`, label:'흰 토끼' },
+    { id:'av92', src:`${_BASE}avatars/av92.png`, label:'고양이' },
+    { id:'av93', src:`${_BASE}avatars/av93.png`, label:'골든 강아지' },
+    { id:'av94', src:`${_BASE}avatars/av94.png`, label:'카피바라' },
+    { id:'av95', src:`${_BASE}avatars/av95.png`, label:'고슴도치' },
+    { id:'av96', src:`${_BASE}avatars/av96.png`, label:'알파카' },
+    { id:'av97', src:`${_BASE}avatars/av97.png`, label:'아홀로틀' },
+  ]},
+  { label: '🍱 음식', avatars: [
+    // 기존 (중복 제거: 라멘·버블티 각 1개만)
+    { id:'av11', src:`${_BASE}avatars/av11.png`, label:'라멘' },
+    { id:'av12', src:`${_BASE}avatars/av12.png`, label:'마카롱' },
+    { id:'av13', src:`${_BASE}avatars/av13.png`, label:'아보카도' },
+    { id:'av14', src:`${_BASE}avatars/av14.png`, label:'버블티' },
+    { id:'av98', src:`${_BASE}avatars/av98.png`, label:'딸기 케이크' },
+    { id:'av101',src:`${_BASE}avatars/av101.png`,label:'타코야키' },
+    // 추가 음식 (이모지 SVG)
+    { id:'f_chicken',  src:_ea('🍗','#e65100'), label:'치킨' },
+    { id:'f_pizza',    src:_ea('🍕','#bf360c'), label:'피자' },
+    { id:'f_sushi',    src:_ea('🍣','#c62828'), label:'스시' },
+    { id:'f_tteok',    src:_ea('🌶️','#b71c1c'), label:'떡볶이' },
+    { id:'f_samgyup',  src:_ea('🥩','#795548'), label:'삼겹살' },
+    { id:'f_taco',     src:_ea('🌮','#f57c00'), label:'타코' },
+    { id:'f_icecream', src:_ea('🍦','#f8bbd0'), label:'아이스크림' },
+    { id:'f_donut',    src:_ea('🍩','#ff6f00'), label:'도넛' },
+    { id:'f_waffle',   src:_ea('🧇','#ffa000'), label:'와플' },
+    { id:'f_choco',    src:_ea('🍫','#4e342e'), label:'초콜릿' },
+    { id:'f_straw',    src:_ea('🍓','#e53935'), label:'딸기' },
+    { id:'f_water',    src:_ea('🍉','#388e3c'), label:'수박' },
+    { id:'f_mango',    src:_ea('🥭','#ff8f00'), label:'망고' },
+    { id:'f_cotton',   src:_ea('🍭','#f48fb1'), label:'솜사탕' },
+    { id:'f_croffle',  src:_ea('🥐','#f57f17'), label:'크로플' },
+  ]},
+];
 import { ResetButton } from './ResetButton';
 import { UserGameTab } from './games/UserGameTab';
 const FortuneTab = lazy(() => import('./FortuneTab'));
@@ -176,7 +338,7 @@ export function MainScreen({
   balanceGames, voteCounts, myVotes,
   onContactShareOpen: _onContactShareOpen, onContactViewOpen, onHeartResponse, onDeleteChat, onDeleteAllChats, onSubmitSuggestion, onOpenChat,
   onVote, onCreateGame, onEndGame, onSubmitAnonymousReport,
-  timerEndAt, timerLabel, onRefreshStatus, onRefreshChat, onRefreshProfiles, onRefreshSeating, darkMode, onToggleDark, onShowQr, onShowContactQr, onScanQr, scannedContacts, onClearScannedContact, seatingLocked: _seatingLocked, activeTables, tableLabels, onShowTutorial,
+  timerEndAt, timerLabel, onRefreshStatus, onRefreshChat, onRefreshProfiles, onRefreshSeating, darkMode, onToggleDark, onShowQr, onShowContactQr, onScanQr, scannedContacts, onClearScannedContact, seatingLocked, activeTables, tableLabels, onShowTutorial,
   newMsgCount, onClearMsgCount, unreadChatCounts, onClearChatUnread: _onClearChatUnread, resetPassword, onBroadcastGame,
   setSeatDialog: _setSeatDialog, onUpdateProfile,
 }: {
@@ -319,7 +481,11 @@ export function MainScreen({
     if (activeGameCount > 0) setSeenGameCount(activeGameCount);
   }, []);
 
+  // 기능 잠금 시 이동 불가 탭 (내 상태·배치도 제외)
+  const LOCKED_TABS = new Set<MainTab>(['chats', 'suggestions', 'game', 'fortune', 'stats', 'ranking']);
+
   const handleTabChange = (t: MainTab) => {
+    if (seatingLocked && LOCKED_TABS.has(t)) return; // 잠금 중 → 탭 이동 차단
     if (t === 'status') { setSeenHeartsCount(pendingHeartsCount); setSeenContactsCount(receivedContactShares.length); }
     if (t === 'profiles') setSeenProfilesCount(profiles.length);
     if (t === 'chats' || t === 'suggestions') { onClearMsgCount(); }
@@ -461,8 +627,18 @@ export function MainScreen({
     setStatusContactSaving(false);
   };
 
-  // ── 프로필 사진 업로드 ────────────────────────────────────────────────────────
+  // ── 프로필 사진 업로드 + 기본 아바타 피커 ────────────────────────────────────
   const [photoUploading, setPhotoUploading] = useState(false);
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const [avatarCatIdx, setAvatarCatIdx] = useState(0);
+
+  const handleSelectPresetAvatar = async (avatarUrl: string) => {
+    if (!currentUserId) return;
+    await supabase.from('profiles').update({ photo_url: avatarUrl } as never).eq('id', currentUserId);
+    onUpdateProfile({ id: currentUserId, photo_url: avatarUrl });
+    onRefreshProfiles();
+    setShowAvatarPicker(false);
+  };
   // 이미지 압축: 최대 1200px, JPEG 품질 0.92 — 화질 유지 + 메모리/DB 과부하 방지
   const compressImage = (dataUrl: string, maxPx = 1200, quality = 0.92): Promise<string> =>
     new Promise((resolve) => {
@@ -560,24 +736,27 @@ export function MainScreen({
             { id: 'chats' as MainTab, label: '채팅·건의', icon: <MessageCircle className="w-5 h-5" />, badge: newMsgCount },
             { id: 'game' as MainTab, label: '게임·운세', icon: <Gamepad2 className="w-5 h-5" />, badge: Math.max(0, activeGameCount - seenGameCount) },
             { id: 'stats' as MainTab, label: '통계·랭킹', icon: <BarChart3 className="w-5 h-5" /> },
-          ]).map((t) => (
-            <button key={t.id} onClick={() => handleTabChange(t.id)}
-              className={`relative flex-1 min-w-[56px] flex flex-col items-center gap-1 px-2 py-2.5 text-[10px] font-semibold border-b-2 transition-all active:scale-95 ${
-                mainTab === t.id || (t.id === 'status' && mainTab === 'profiles') || (t.id === 'chats' && mainTab === 'suggestions') || (t.id === 'stats' && mainTab === 'ranking') || (t.id === 'game' && mainTab === 'fortune')
+          ]).map((t) => {
+            const isTabLocked = seatingLocked && LOCKED_TABS.has(t.id);
+            const isActive = mainTab === t.id || (t.id === 'status' && mainTab === 'profiles') || (t.id === 'chats' && mainTab === 'suggestions') || (t.id === 'stats' && mainTab === 'ranking') || (t.id === 'game' && mainTab === 'fortune');
+            return (
+            <button key={t.id} onClick={() => handleTabChange(t.id)} disabled={isTabLocked}
+              className={`relative flex-1 min-w-[56px] flex flex-col items-center gap-1 px-2 py-2.5 text-[10px] font-semibold border-b-2 transition-all active:scale-95 ${isTabLocked ? 'opacity-35 cursor-not-allowed border-transparent ' + (darkMode ? 'text-slate-500' : 'text-gray-400') : isActive
                   ? darkMode ? 'border-cyan-500 text-cyan-400 bg-cyan-500/10' : 'border-cyan-500 text-cyan-600 bg-cyan-50'
                   : darkMode ? 'border-transparent text-slate-400 active:text-slate-100' : 'border-transparent text-gray-500 active:text-gray-700'
               }`}>
               <span className="relative">
-                {t.icon}
-                {'badge' in t && (t as { badge: number }).badge > 0 && (
+                {isTabLocked ? <Lock className="w-5 h-5" /> : t.icon}
+                {!isTabLocked && 'badge' in t && (t as { badge: number }).badge > 0 && (
                   <span className="absolute -top-1.5 -right-2 min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
                     {t.badge}
                   </span>
                 )}
               </span>
-              <span className="leading-none whitespace-nowrap">{t.label}</span>
+              <span className="leading-none whitespace-nowrap">{isTabLocked ? '잠금' : t.label}</span>
             </button>
-          ))}
+            );
+          })}
         </div>
         {/* Sub Tab — 나·참여자 */}
         {(mainTab === 'status' || mainTab === 'profiles') && (
@@ -658,7 +837,7 @@ export function MainScreen({
 
       </header>
 
-      <main className={`max-w-7xl mx-auto px-4 py-6 ${mainTab === 'seating' ? '' : 'scrollbar-styled-light'}`}>
+      <main className={`max-w-7xl mx-auto ${mainTab === 'seating' ? 'px-0 py-2' : 'px-4 py-6 scrollbar-styled-light'}`}>
         {mainTab === 'profiles' && (
           <>
             {/* 검색 + 필터 바 */}
@@ -770,7 +949,7 @@ export function MainScreen({
                 isLiked={likedIds.has(profile.id)}
                 sentHeartType={sentHeartTypes.get(profile.id)}
                 heartCount={sentHeartsPerPerson.get(profile.id)?.size ?? 0}
-                canLike={!!(currentUserId && profile.id !== currentUserId)}
+                canLike={!!(currentUserId && profile.id !== currentUserId) && !seatingLocked}
                 onLike={onLike}
                 onSelect={onSelect}
                 onOpenChat={onOpenChat}
@@ -788,11 +967,18 @@ export function MainScreen({
         )}
 
         {mainTab === 'seating' && (
-            <div>
-              <div className="flex justify-end px-2 pt-1 pb-2">
+            <div className="px-2">
+              <div className="flex justify-end pt-1 pb-2">
                 <RefreshBtn onRefresh={() => doRefresh('seating', onRefreshSeating)} refreshed={refreshedTab === 'seating'} dark />
               </div>
-              <div className={`rounded-2xl border p-3 sm:p-4 transition-colors duration-300 ${darkMode ? 'bg-slate-900 border-slate-600' : 'bg-white border-gray-200 shadow-sm'}`}>
+              {/* 배치도 컨테이너 — 테두리 색상은 CSS 변수로 테마 연동, overflow-x는 SeatingMap 내부에서 처리 */}
+              <div
+                className={`rounded-2xl border p-2 sm:p-3 transition-colors duration-300 ${darkMode ? 'shadow-none' : 'shadow-sm'}`}
+                style={{
+                  background: `var(--t-surface, ${darkMode ? '#0f172a' : '#ffffff'})`,
+                  borderColor: `var(--t-border, ${darkMode ? '#475569' : '#e5e7eb'})`,
+                }}
+              >
                 <SeatingMap seats={visibleSeats} profileMap={profileMap} currentUserId={currentUserId} isAdmin={false} seatingLocked={true} darkMode={darkMode} tableLabels={tableLabels} onProfileClick={onProfileClickFromMap} onChatClick={onOpenChat} onSeatClick={undefined} />
               </div>
               <p className={`text-center text-xs mt-2 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
@@ -822,8 +1008,8 @@ export function MainScreen({
                 <div className={`rounded-3xl p-5 border shadow-xl transition-colors duration-300 ${darkMode ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600' : 'bg-white border-gray-100'}`}>
                   <p className={`text-[10px] font-black uppercase tracking-widest mb-3 ${darkMode ? 'text-slate-300' : 'text-gray-400'}`}>내 프로필</p>
                   <div className="flex gap-4">
-                    {/* 프로필 사진 + 업로드 */}
-                    <div className="flex-shrink-0">
+                    {/* 프로필 사진 + 업로드 + 기본 아바타 */}
+                    <div className="flex-shrink-0 flex flex-col items-center gap-1.5">
                       <div className="relative w-24 h-24">
                         <label className={`block w-full h-full rounded-2xl overflow-hidden border-2 border-cyan-500/50 shadow-lg shadow-cyan-500/20 cursor-pointer group ${photoUploading ? 'cursor-wait' : ''}`}>
                           <img src={me.photo_url} alt={me.nickname} className="w-full h-full object-cover" />
@@ -833,7 +1019,7 @@ export function MainScreen({
                             ) : (
                               <div className="opacity-0 group-hover:opacity-100 flex flex-col items-center gap-0.5 transition-opacity">
                                 <Camera className="w-5 h-5 text-white drop-shadow" />
-                                <span className="text-[10px] font-black text-white drop-shadow">사진 변경</span>
+                                <span className="text-[10px] font-black text-white drop-shadow">내 사진</span>
                               </div>
                             )}
                           </div>
@@ -845,8 +1031,16 @@ export function MainScreen({
                           </span>
                         )}
                       </div>
+                      {/* 기본 아바타 선택 버튼 */}
+                      <button
+                        type="button"
+                        onClick={() => setShowAvatarPicker(v => !v)}
+                        className="text-[10px] font-bold text-cyan-400 hover:text-cyan-300 underline underline-offset-2 transition-colors"
+                      >
+                        🎨 기본 아바타
+                      </button>
                       {currentUserSeat && (
-                        <div className="mt-2 text-center">
+                        <div className="text-center">
                           <span className="text-[10px] font-black text-amber-400">{currentUserSeat.table_number}번 {tableLetter}테이블</span>
                         </div>
                       )}
@@ -874,6 +1068,70 @@ export function MainScreen({
                       )}
                     </div>
                   </div>
+                  {/* ── 기본 아바타 피커 (카테고리 탭 방식) ── */}
+                  {showAvatarPicker && (
+                    <div className={`mt-3 rounded-2xl border overflow-hidden ${darkMode ? 'bg-slate-800/60 border-slate-600' : 'bg-gray-50 border-gray-200'}`}>
+                      {/* 헤더 */}
+                      <div className="flex items-center justify-between px-3 pt-3 pb-2">
+                        <p className={`text-[11px] font-black ${darkMode ? 'text-slate-200' : 'text-gray-700'}`}>🎨 기본 아바타 선택</p>
+                        <button onClick={() => setShowAvatarPicker(false)} className={`text-[10px] font-bold ${darkMode ? 'text-slate-400 hover:text-slate-200' : 'text-gray-400 hover:text-gray-600'} transition-colors`}>✕ 닫기</button>
+                      </div>
+                      {/* 카테고리 탭 (2-3줄 그리드) */}
+                      <div className={`flex flex-wrap gap-1 px-3 pb-2 border-b ${darkMode ? 'border-slate-700' : 'border-gray-200'}`}>
+                        {AVATAR_CATEGORIES.map((cat, idx) => (
+                          <button
+                            key={cat.label}
+                            type="button"
+                            onClick={() => setAvatarCatIdx(idx)}
+                            className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all whitespace-nowrap ${
+                              avatarCatIdx === idx
+                                ? 'bg-cyan-500 text-white shadow-sm'
+                                : darkMode
+                                  ? 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                                  : 'bg-white text-gray-600 border border-gray-200 hover:border-cyan-300'
+                            }`}
+                          >
+                            {cat.label}
+                          </button>
+                        ))}
+                      </div>
+                      {/* 선택된 카테고리 그리드 */}
+                      <div className="p-3">
+                        <div className="grid grid-cols-5 gap-1.5">
+                          {AVATAR_CATEGORIES[avatarCatIdx]?.avatars.map((av) => {
+                            const isSelected = me.photo_url === av.src;
+                            return (
+                              <button
+                                key={av.id}
+                                type="button"
+                                onClick={() => handleSelectPresetAvatar(av.src)}
+                                className={`relative flex flex-col items-center gap-0.5 p-1 rounded-xl border-2 transition-all ${
+                                  isSelected
+                                    ? 'border-cyan-500 bg-cyan-500/10 shadow-md'
+                                    : darkMode
+                                      ? 'border-slate-600 hover:border-cyan-400 bg-slate-700/50'
+                                      : 'border-gray-200 hover:border-cyan-300 bg-white'
+                                }`}
+                              >
+                                <img
+                                  src={av.src}
+                                  alt={av.label}
+                                  className="w-11 h-11 rounded-full object-cover"
+                                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                />
+                                <span className={`text-[8px] font-bold leading-tight text-center truncate w-full ${isSelected ? 'text-cyan-400' : darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{av.label}</span>
+                                {isSelected && (
+                                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-cyan-500 rounded-full flex items-center justify-center">
+                                    <CheckCircle className="w-3 h-3 text-white" />
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   {/* 성향 바 */}
                   <div className="mt-4 grid grid-cols-2 gap-3">
                     <div>
@@ -1322,21 +1580,24 @@ export function MainScreen({
                         {isGreen ? (
                           !isAcked && (
                             <button
-                              onClick={() => onHeartResponse(liker.id, 'accepted')}
-                              className={`w-full py-2 mt-2.5 text-xs font-bold text-white rounded-xl transition-all ${hm.solidBg} ${hm.solidHover}`}
-                            >확인</button>
+                              onClick={() => !seatingLocked && onHeartResponse(liker.id, 'accepted')}
+                              disabled={seatingLocked}
+                              className={`w-full py-2 mt-2.5 text-xs font-bold text-white rounded-xl transition-all ${hm.solidBg} ${hm.solidHover} disabled:opacity-40 disabled:cursor-not-allowed`}
+                            >{seatingLocked ? '🔒 잠금 중' : '확인'}</button>
                           )
                         ) : (
                           !shared && (
                             <div className="flex gap-2 mt-2.5">
                               <button
-                                onClick={() => onHeartResponse(liker.id, 'rejected')}
-                                className="flex-1 py-2 text-xs font-bold bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl transition-all"
+                                onClick={() => !seatingLocked && onHeartResponse(liker.id, 'rejected')}
+                                disabled={seatingLocked}
+                                className="flex-1 py-2 text-xs font-bold bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                               >거절</button>
                               <button
-                                onClick={() => onHeartResponse(liker.id, 'accepted')}
-                                className={`flex-2 flex-grow py-2 text-xs font-bold text-white rounded-xl transition-all ${hm.solidBg} ${hm.solidHover}`}
-                              >수락 + 연락처 공유</button>
+                                onClick={() => !seatingLocked && onHeartResponse(liker.id, 'accepted')}
+                                disabled={seatingLocked}
+                                className={`flex-2 flex-grow py-2 text-xs font-bold text-white rounded-xl transition-all ${hm.solidBg} ${hm.solidHover} disabled:opacity-40 disabled:cursor-not-allowed`}
+                              >{seatingLocked ? '🔒 잠금 중' : '수락 + 연락처 공유'}</button>
                             </div>
                           )
                         )}

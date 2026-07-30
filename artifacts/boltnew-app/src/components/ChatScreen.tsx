@@ -36,6 +36,7 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   const [showEmoji, setShowEmoji] = useState(false);
   const [showStickers, setShowStickers] = useState(false);
   const [showQuickMsgs, setShowQuickMsgs] = useState(false);
+  const [showInfoReqMenu, setShowInfoReqMenu] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [chatError, setChatError] = useState('');
   const [showTheirContact, setShowTheirContact] = useState(false);
@@ -126,6 +127,18 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   const isStickerMsg = (content: string | null) => !!content?.startsWith('__sticker__');
   const parseStickerIdx = (content: string) => parseInt(content.replace('__sticker__', ''), 10);
 
+  // ── 정보 요청/수락/거절 메시지 타입 ──────────────────────────────────────────
+  const isInfoReq     = (c: string | null) => !!c?.startsWith('__inforeq__:');
+  const isInfoAck     = (c: string | null) => !!c?.startsWith('__infoack__:');
+  const isInfoDecline = (c: string | null) => !!c?.startsWith('__infodecline__:');
+  const parseInfoReqType = (c: string): 'birthday' | 'phone' =>
+    c.includes('birthday') ? 'birthday' : 'phone';
+  const parseInfoAckData = (c: string): { type: 'birthday' | 'phone'; value: string } => {
+    const body = c.replace('__infoack__:', '');
+    const ci = body.indexOf(':');
+    return { type: body.slice(0, ci) as 'birthday' | 'phone', value: body.slice(ci + 1) };
+  };
+
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim()) { setShowEmoji(false); return; }
@@ -142,6 +155,24 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   };
 
   const handleEmojiClick = (emoji: string) => { setInput((prev) => prev + emoji); inputRef.current?.focus(); };
+
+  const handleSendInfoReq = (type: 'birthday' | 'phone') => {
+    onSend(`__inforeq__:${type}`);
+    setShowInfoReqMenu(false);
+  };
+  const handleAcceptInfoReq = (type: 'birthday' | 'phone') => {
+    let value = '정보 없음';
+    if (type === 'birthday') {
+      const p = currentUserProfile;
+      if (p?.birth_month && p?.birth_day) value = `${p.birth_month}월 ${p.birth_day}일`;
+    } else {
+      value = currentUserProfile?.phone_number ?? '정보 없음';
+    }
+    onSend(`__infoack__:${type}:${value}`);
+  };
+  const handleDeclineInfoReq = (type: 'birthday' | 'phone') => {
+    onSend(`__infodecline__:${type}`);
+  };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -632,6 +663,9 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
             const stickerIdx = isSticker ? parseStickerIdx(msg.content!) : -1;
             const isReply = !isCard && !isSticker && isReplyMsg(msg.content);
             const replyData = isReply ? parseReply(msg.content!) : null;
+            const isInfoReqMsg     = !isCard && !isSticker && !isReply && isInfoReq(msg.content);
+            const isInfoAckMsg     = !isCard && !isSticker && !isReply && !isInfoReqMsg && isInfoAck(msg.content);
+            const isInfoDeclineMsg = !isCard && !isSticker && !isReply && !isInfoReqMsg && !isInfoAckMsg && isInfoDecline(msg.content);
             const reaction = reactions[msg.id];
             const isSwiping = swipeState?.msgId === msg.id;
             const swipeX = isSwiping ? swipeState!.offsetX : 0;
@@ -683,6 +717,67 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
                           {replyData.quote}
                         </div>
                         <p className="px-4 pb-2 text-sm leading-relaxed">{replyData.text}</p>
+                      </div>
+                    ) : isInfoReqMsg ? (() => {
+                      const reqType = parseInfoReqType(msg.content!);
+                      const alreadyAcked    = messages.some(m => isInfoAck(m.content)     && m.content!.includes(reqType));
+                      const alreadyDeclined = messages.some(m => isInfoDecline(m.content) && m.content!.includes(reqType));
+                      const responded = alreadyAcked || alreadyDeclined;
+                      return (
+                        <div className="px-4 py-3 space-y-2 min-w-[180px]">
+                          <p className={`text-[10px] font-black uppercase tracking-wide ${isMe ? 'text-cyan-100' : 'text-amber-600'}`}>
+                            {reqType === 'birthday' ? '🎂 생일 요청' : '📱 전화번호 요청'}
+                          </p>
+                          <p className="text-xs leading-relaxed">
+                            {isMe
+                              ? (reqType === 'birthday' ? '생일을 알려달라고 요청했어요' : '전화번호를 알려달라고 요청했어요')
+                              : (reqType === 'birthday' ? '상대방이 생일을 알고 싶어해요' : '상대방이 전화번호를 알고 싶어해요')}
+                          </p>
+                          {!isMe && !responded && (
+                            <div className="flex gap-2 pt-0.5">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleAcceptInfoReq(reqType); }}
+                                className="flex-1 py-1.5 bg-cyan-500 text-white rounded-xl text-xs font-bold hover:bg-cyan-600 active:scale-95 transition-all">
+                                ✓ 수락
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleDeclineInfoReq(reqType); }}
+                                className="flex-1 py-1.5 bg-gray-200 text-gray-600 rounded-xl text-xs font-bold hover:bg-gray-300 active:scale-95 transition-all">
+                                ✕ 거절
+                              </button>
+                            </div>
+                          )}
+                          {!isMe && alreadyAcked    && <p className="text-[10px] text-cyan-400 font-bold">✓ 수락했습니다</p>}
+                          {!isMe && alreadyDeclined && <p className="text-[10px] text-gray-400">거절했습니다</p>}
+                          {isMe  && alreadyAcked    && <p className="text-[10px] text-cyan-400 font-bold">✓ 상대방이 수락했어요</p>}
+                          {isMe  && alreadyDeclined && <p className="text-[10px] text-gray-400">상대방이 거절했어요</p>}
+                          {isMe  && !responded      && <p className="text-[10px] text-gray-400 italic">답변 대기 중…</p>}
+                        </div>
+                      );
+                    })() : isInfoAckMsg ? (() => {
+                      const { type, value } = parseInfoAckData(msg.content!);
+                      return (
+                        <div className="px-4 py-3 space-y-1.5">
+                          <p className={`text-[10px] font-black uppercase tracking-widest ${isMe ? 'text-cyan-100' : 'text-cyan-600'}`}>
+                            {type === 'birthday' ? '🎂 생일 공유' : '📱 전화번호 공유'}
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-semibold flex-1">{value}</p>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); navigator.clipboard?.writeText(value); }}
+                              className={`text-[10px] px-1.5 py-0.5 rounded-md font-semibold transition-all ${isMe ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                              복사
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })() : isInfoDeclineMsg ? (
+                      <div className="px-4 py-3">
+                        <p className="text-xs text-center opacity-60">
+                          {isMe
+                            ? (parseInfoReqType(msg.content!) === 'birthday' ? '생일 공유를 거절했습니다' : '전화번호 공유를 거절했습니다')
+                            : (parseInfoReqType(msg.content!) === 'birthday' ? '상대방이 생일 공유를 거절했어요' : '상대방이 전화번호 공유를 거절했어요')}
+                        </p>
                       </div>
                     ) : msg.image_url ? (
                       <img
@@ -790,6 +885,33 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
         </div>
       )}
 
+      {/* ── 정보 요청 메뉴 패널 ── */}
+      {showInfoReqMenu && (
+        <div className="bg-white border-t border-gray-100 shrink-0">
+          <div className="max-w-3xl mx-auto px-3 py-2.5 space-y-1">
+            <p className="text-[10px] font-black text-gray-400 px-2 pb-1">📋 상대방에게 요청하기</p>
+            <button type="button"
+              onClick={() => handleSendInfoReq('birthday')}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl hover:bg-amber-50 active:bg-amber-100 transition-all text-left border border-transparent hover:border-amber-100">
+              <span className="text-2xl shrink-0">🎂</span>
+              <div>
+                <p className="text-sm font-bold text-gray-800">생일 요청</p>
+                <p className="text-[10px] text-gray-400">상대방의 생일(월/일)을 물어봅니다</p>
+              </div>
+            </button>
+            <button type="button"
+              onClick={() => handleSendInfoReq('phone')}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl hover:bg-cyan-50 active:bg-cyan-100 transition-all text-left border border-transparent hover:border-cyan-100">
+              <span className="text-2xl shrink-0">📱</span>
+              <div>
+                <p className="text-sm font-bold text-gray-800">전화번호 요청</p>
+                <p className="text-[10px] text-gray-400">상대방의 전화번호를 물어봅니다</p>
+              </div>
+            </button>
+          </div>
+        </div>
+      )}
+
       <footer className="bg-white border-t border-gray-200 shrink-0">
         <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
         {chatError && (
@@ -824,10 +946,16 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
             🎨
           </button>
           <button type="button"
-            onClick={() => { setShowQuickMsgs(p => !p); setShowEmoji(false); setShowStickers(false); }}
+            onClick={() => { setShowQuickMsgs(p => !p); setShowEmoji(false); setShowStickers(false); setShowInfoReqMenu(false); }}
             className={`p-1.5 rounded-full transition-all text-lg leading-none shrink-0 ${showQuickMsgs ? 'bg-violet-100' : 'hover:bg-violet-50'}`}
             title="빠른 메시지">
             ⚡
+          </button>
+          <button type="button"
+            onClick={() => { setShowInfoReqMenu(p => !p); setShowEmoji(false); setShowStickers(false); setShowQuickMsgs(false); }}
+            className={`p-1.5 rounded-full transition-all text-lg leading-none shrink-0 ${showInfoReqMenu ? 'bg-amber-100' : 'hover:bg-amber-50'}`}
+            title="생일·전화번호 요청">
+            📋
           </button>
           <input ref={inputRef} type="text" value={input} onChange={(e) => setInput(e.target.value)}
             placeholder={uploading ? '업로드 중...' : replyTo ? '답장 입력...' : '메시지를 입력하세요...'}

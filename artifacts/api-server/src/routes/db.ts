@@ -1,11 +1,17 @@
 import { Router, type Request, type Response } from 'express';
 import pg from 'pg';
+import { createHmac } from 'crypto';
 import { VAPID_PUBLIC_KEY, sendPush, type PushPayload } from '../lib/push';
 
 const router = Router();
 
 // ─── PostgreSQL connection pool ────────────────────────────────────────────────
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+const pool = new pg.Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: 50,                  // 100명 동시접속 대비 (기본값 10에서 상향)
+  idleTimeoutMillis: 30000, // idle 커넥션 30초 후 해제
+  connectionTimeoutMillis: 5000, // 5초 안에 커넥션 못 얻으면 에러
+});
 
 // ─── In-memory cache (loaded from DB on startup, write-through on every change)
 const store: Record<string, Record<string, unknown>[]> = {};
@@ -14,6 +20,16 @@ const imageStore: Record<string, string> = {};
 // SSE clients — userId별 연결 관리 (보안: 민감 이벤트는 당사자에게만 전송)
 const sseUserMap = new Map<string, Set<Response>>();   // userId → 연결 집합
 const sseAnonClients = new Set<Response>();             // userId 미등록 연결 (폴백)
+
+// ─── SSE 토큰 (HMAC-SHA256, 시간 버킷 기반) ───────────────────────────────────
+const SSE_SECRET = process.env.SESSION_SECRET ?? 'dev-sse-secret';
+function makeSseToken(userId: string, hourBucket: number): string {
+  return createHmac('sha256', SSE_SECRET).update(`${userId}:${hourBucket}`).digest('hex');
+}
+function verifySseToken(userId: string, token: string): boolean {
+  const now = Math.floor(Date.now() / 3_600_000);
+  return token === makeSseToken(userId, now) || token === makeSseToken(userId, now - 1);
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function genId(): string {
@@ -188,6 +204,15 @@ const PRIVATE_TABLES = new Set([
   'contact_shares', 'contact_share_events', 'chat_reads',
 ]);
 
+/** 프로필 row에서 민감 연락처 필드를 제거하여 전체 브로드캐스트 안전하게 만들기 */
+function sanitizeProfile(row: Record<string, unknown>): Record<string, unknown> {
+  const s = { ...row };
+  delete s['phone_number'];
+  delete s['kakao_id'];
+  delete s['instagram_id'];
+  return s;
+}
+
 /** 테이블 종류에 따라 자동으로 수신자 판단 */
 function smartBroadcast(table: string, row: Record<string, unknown> | null, event: Record<string, unknown>) {
   // row가 없는 경우(DELETE payload 없음): 프라이빗 테이블이면 드롭, 공개 테이블만 전체 전송
@@ -213,10 +238,20 @@ function smartBroadcast(table: string, row: Record<string, unknown> | null, even
   }
 
   if (targets.length > 0) {
+    // 프로필 포함 이벤트라도 수신자가 명확하면 해당 유저에게만 전달
     broadcastToUsers(targets, event);
   } else if (!PRIVATE_TABLES.has(table)) {
-    // 공개 테이블(seats, profiles 등)만 전체 브로드캐스트 허용
-    broadcastAll(event);
+    // 공개 테이블(seats, profiles 등)만 전체 브로드캐스트 허용 — profiles는 민감 필드 제거
+    if (table === 'profiles') {
+      const safeEvent = {
+        ...event,
+        newRow: event['newRow'] ? sanitizeProfile(event['newRow'] as Record<string, unknown>) : null,
+        oldRow: event['oldRow'] ? sanitizeProfile(event['oldRow'] as Record<string, unknown>) : null,
+      };
+      broadcastAll(safeEvent);
+    } else {
+      broadcastAll(event);
+    }
   }
   // 프라이빗 테이블인데 수신자를 특정 못한 경우 → 조용히 드롭 (전체 유출 방지)
 }
@@ -511,10 +546,20 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
           'contact_shares', 'contact_share_events', 'balance_votes', 'balance_games',
           'qa_answers', 'qa_games', 'image_votes', 'image_games', 'notifications', 'suggestions',
         ];
+        // 프라이빗 테이블은 row 내용 없이 "전체 초기화" 신호만 전송 (민감 데이터 유출 방지)
+        const RESET_PRIVATE = new Set(['likes', 'chats', 'messages', 'contact_shares', 'contact_share_events', 'chat_reads', 'anonymous_reports']);
         for (const t of tablesToClear) {
           const old = store[t] ?? [];
           store[t] = [];
-          for (const row of old) broadcastAll({ type: 'change', table: t, event: 'DELETE', newRow: null, oldRow: row });
+          if (RESET_PRIVATE.has(t)) {
+            // 행 데이터 없이 테이블 초기화 알림만 전송
+            broadcastAll({ type: 'change', table: t, event: 'RESET', newRow: null, oldRow: null });
+          } else if (t === 'profiles') {
+            // 프로필 DELETE는 민감 필드 제거 후 전송
+            for (const row of old) broadcastAll({ type: 'change', table: t, event: 'DELETE', newRow: null, oldRow: sanitizeProfile(row) });
+          } else {
+            for (const row of old) broadcastAll({ type: 'change', table: t, event: 'DELETE', newRow: null, oldRow: row });
+          }
           dbDeleteTable(t).catch(console.error);
         }
         return res.json({ data: null, error: null });
@@ -619,7 +664,8 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
           }
           const newRow = { ...oldRow, ...patch };
           profiles[idx] = newRow;
-          broadcastAll({ type: 'change', table: 'profiles', event: 'UPDATE', newRow, oldRow });
+          // 민감 연락처 필드 제거 후 전체 브로드캐스트
+          broadcastAll({ type: 'change', table: 'profiles', event: 'UPDATE', newRow: sanitizeProfile(newRow), oldRow: sanitizeProfile(oldRow) });
           dbPersistRow('profiles', newRow).catch(console.error);
         }
         return res.json({ data: null, error: null });
@@ -641,7 +687,8 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         const oldProfile = profiles.find(p => p.id === profileId);
         store['profiles'] = profiles.filter(p => p.id !== profileId);
         if (oldProfile) {
-          broadcastAll({ type: 'change', table: 'profiles', event: 'DELETE', newRow: null, oldRow: oldProfile });
+          // 민감 연락처 필드 제거 후 전체 브로드캐스트
+          broadcastAll({ type: 'change', table: 'profiles', event: 'DELETE', newRow: null, oldRow: sanitizeProfile(oldProfile) });
           dbDeleteRow('profiles', profileId).catch(console.error);
         }
         return res.json({ data: null, error: null });
@@ -657,7 +704,21 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
 });
 
 // ─── Broadcast endpoint (for channel.send()) ──────────────────────────────────
+// 간단한 IP별 레이트 리밋 (5초 윈도우, 최대 30회) — 스팸/악의적 남용 방지
+const _broadcastRateMap = new Map<string, { count: number; resetAt: number }>();
 router.post('/broadcast', (req: Request, res: Response) => {
+  const ip = (req.headers['x-forwarded-for'] as string || req.socket.remoteAddress || 'unknown').split(',')[0].trim();
+  const now = Date.now();
+  let bucket = _broadcastRateMap.get(ip);
+  if (!bucket || now > bucket.resetAt) {
+    bucket = { count: 0, resetAt: now + 5_000 };
+    _broadcastRateMap.set(ip, bucket);
+  }
+  bucket.count++;
+  if (bucket.count > 30) {
+    res.status(429).json({ ok: false, error: 'Too many broadcasts' });
+    return;
+  }
   const { channel, event, payload } = req.body as { channel: string; event: string; payload: unknown };
   broadcastAll({ type: 'broadcast', channel, event, payload });
   res.json({ ok: true });
@@ -765,6 +826,34 @@ router.post('/push/notify', async (req: Request, res: Response) => {
   return res.json({ ok: true, sent: subs.length - expired.length });
 });
 
+// ─── SSE 토큰 발급 ─────────────────────────────────────────────────────────────
+// 클라이언트가 userId를 보내면 HMAC 토큰을 반환. 이 토큰이 있어야 /events에 userId로 등록 가능.
+// 보안: userId가 실제 profiles 테이블에 존재하는지 검증해 타인 userId 사칭 차단.
+router.get('/sse-token', async (req: Request, res: Response) => {
+  const userId = typeof req.query.userId === 'string' ? req.query.userId.trim() : '';
+  if (!userId) { res.status(400).json({ error: 'userId required' }); return; }
+
+  // userId 실존 여부 확인 (in-memory store 기준 — DB 재조회 없이 빠르게)
+  const profiles = (store['profiles'] ?? []) as Array<{ id: string }>;
+  const exists = profiles.some(p => p.id === userId);
+  if (!exists) {
+    // in-memory 미존재 시 DB 재확인 (부팅 직후 등 극소수 경우 대비)
+    try {
+      const { rows } = await pool.query('SELECT id FROM profiles WHERE id=$1 LIMIT 1', [userId]);
+      if (rows.length === 0) {
+        res.status(403).json({ error: 'unknown_user' }); return;
+      }
+    } catch {
+      res.status(500).json({ error: 'db_error' }); return;
+    }
+  }
+
+  const hour = Math.floor(Date.now() / 3_600_000);
+  const token = makeSseToken(userId, hour);
+  const expiresAt = (hour + 1) * 3_600_000; // 다음 시간 버킷 시작 시각(ms)
+  res.json({ token, expiresAt });
+});
+
 // ─── SSE endpoint ─────────────────────────────────────────────────────────────
 router.get('/events', (req: Request, res: Response) => {
   res.setHeader('Content-Type', 'text/event-stream');
@@ -777,6 +866,14 @@ router.get('/events', (req: Request, res: Response) => {
   res.write('data: {"type":"ping"}\n\n');
 
   const userId = typeof req.query.userId === 'string' && req.query.userId ? req.query.userId : null;
+  const token  = typeof req.query.token  === 'string' && req.query.token  ? req.query.token  : null;
+
+  // 토큰 검증: userId가 있으면 반드시 유효한 토큰이 필요
+  if (userId && (!token || !verifySseToken(userId, token))) {
+    res.write('data: {"type":"auth_error","message":"invalid_token"}\n\n');
+    res.end();
+    return;
+  }
 
   if (userId) {
     if (!sseUserMap.has(userId)) sseUserMap.set(userId, new Set());

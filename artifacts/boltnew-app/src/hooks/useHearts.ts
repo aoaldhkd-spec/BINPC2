@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Profile, ContactShare } from '../types/app';
 import { HeartType } from '../lib/constants';
@@ -20,7 +20,8 @@ export function useHearts(
   const [receivedContactShares, setReceivedContactShares] = useState<ContactShare[]>([]);
   const [likeConfirmTarget, setLikeConfirmTarget] = useState<Profile | null>(null);
   const [contactShareTarget, setContactShareTarget] = useState<Profile | null>(null);
-  const [likeInFlight, setLikeInFlight] = useState(false);
+  // useRef로 선언 — React 리렌더 전에 두 번 호출돼도 같은 참조를 공유해 race 방지
+  const likeInFlightRef = useRef(false);
 
   const loadLikes = useCallback(async (userId: string) => {
     const { data } = await supabase.from('likes').select('liked_id, status, heart_type').eq('liker_id', userId);
@@ -81,25 +82,28 @@ export function useHearts(
 
   const executeLike = async (heartType: HeartType) => {
     if (!currentUserId || !likeConfirmTarget) return;
-    if (likeInFlight) return; // 중복 클릭 방지
+    if (likeInFlightRef.current) return; // 중복 클릭 방지 (ref = 동기적으로 즉시 잠금)
     if (heartCountByType(heartType) >= 2) return;
     if (sentHeartsPerPerson.get(likeConfirmTarget.id)?.has(heartType)) return;
-    setLikeInFlight(true);
-    const { error } = await supabase.from('likes').insert({ liker_id: currentUserId, liked_id: likeConfirmTarget.id, heart_type: heartType });
-    setLikeInFlight(false);
-    if (!error) {
-      setLikedIds((prev) => new Set([...prev, likeConfirmTarget.id]));
-      setSentHeartTypes((prev) => new Map(prev).set(likeConfirmTarget.id, heartType));
-      setSentHeartsPerPerson(prev => {
-        const next = new Map(prev);
-        const s = new Set(next.get(likeConfirmTarget.id) ?? []);
-        s.add(heartType);
-        next.set(likeConfirmTarget.id, s);
-        return next;
-      });
-      // 서버가 likes INSERT 이벤트에서 자동으로 push 전송하므로 클라이언트 중복 호출 제거
+    likeInFlightRef.current = true; // 동기적으로 즉시 잠금 — 리렌더 대기 없음
+    try {
+      const { error } = await supabase.from('likes').insert({ liker_id: currentUserId, liked_id: likeConfirmTarget.id, heart_type: heartType });
+      if (!error) {
+        setLikedIds((prev) => new Set([...prev, likeConfirmTarget.id]));
+        setSentHeartTypes((prev) => new Map(prev).set(likeConfirmTarget.id, heartType));
+        setSentHeartsPerPerson(prev => {
+          const next = new Map(prev);
+          const s = new Set(next.get(likeConfirmTarget.id) ?? []);
+          s.add(heartType);
+          next.set(likeConfirmTarget.id, s);
+          return next;
+        });
+        // 서버가 likes INSERT 이벤트에서 자동으로 push 전송하므로 클라이언트 중복 호출 제거
+      }
+      setLikeConfirmTarget(null);
+    } finally {
+      likeInFlightRef.current = false; // 예외/타임아웃 모든 경우에 잠금 해제
     }
-    setLikeConfirmTarget(null);
   };
 
   const handleHeartResponse = async (likerId: string, response: 'accepted' | 'rejected') => {

@@ -14,6 +14,34 @@ const ThemeContext = createContext<ThemeContextType>({
   setTheme: () => {},
 });
 
+// CSS Custom Property 값 — JS에서 직접 주입해 !important 없이도 인라인 스타일 우선순위 확보
+const THEME_VARS: Record<ThemeMode, Record<string, string>> = {
+  default: {},
+  y2k: {
+    '--t-bg':      '#FCFCFB',
+    '--t-surface': '#ffffff',
+    '--t-text':    '#18181b',
+    '--t-accent':  '#10b981',
+    '--t-border':  '#e5e7eb',
+  },
+  'dark-neon': {
+    '--t-bg':      '#000000',
+    '--t-surface': '#09090b',
+    '--t-text':    '#ffffff',
+    '--t-accent':  '#f472b6',
+    '--t-border':  '#27272a',
+  },
+  minimal: {
+    '--t-bg':      '#F9F8F6',
+    '--t-surface': '#ffffff',
+    '--t-text':    '#09090b',
+    '--t-accent':  '#18181b',
+    '--t-border':  '#e5e7eb',
+  },
+};
+
+const ALL_THEME_VARS = ['--t-bg', '--t-surface', '--t-text', '--t-accent', '--t-border'] as const;
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<ThemeMode>(() => {
     try {
@@ -25,11 +53,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const html = document.documentElement;
-    if (theme === 'default') {
-      html.removeAttribute('data-theme');
-    } else {
-      html.setAttribute('data-theme', theme);
-    }
+    // 1) data-theme 속성 (기존 CSS 셀렉터용)
+    if (theme === 'default') html.removeAttribute('data-theme');
+    else html.setAttribute('data-theme', theme);
+    // 2) CSS Custom Properties — html 인라인 스타일로 직접 주입 (최고 우선순위)
+    //    배경·표면색 등을 var(--t-bg) 형태로 CSS에서 참조 가능
+    ALL_THEME_VARS.forEach(k => html.style.removeProperty(k));
+    Object.entries(THEME_VARS[theme]).forEach(([k, v]) => html.style.setProperty(k, v));
   }, [theme]);
 
   const setTheme = (t: ThemeMode) => {

@@ -272,6 +272,17 @@ function App() {
     return () => window.removeEventListener('storage', onStorage);
   }, []);
 
+  // loading-main 무한 갇힘 방지 — 3초 안에 main으로 못 가면 강제 전환
+  // ※ Rules of Hooks: 모든 useEffect는 조건부 return 이전에 위치해야 함
+  useEffect(() => {
+    if (view !== 'loading-main') return;
+    const timer = setTimeout(() => {
+      setView('main');
+      console.warn('[loading-main] 3초 타임아웃 → main 강제 전환');
+    }, 3_000);
+    return () => clearTimeout(timer);
+  }, [view]);
+
   // Track user's current table number for notification targeting (ref for stable access in channel callbacks)
   const userTableNumRef = useRef<number | null>(null);
 
@@ -1029,10 +1040,11 @@ function App() {
     [receivedLikers, receivedHeartTypes, acknowledgedComplimentIds, contactSharedWithIds],
   );
 
-  // 신규 접속자(localStorage에 userId 없음) → WaitingOverlay 표시
-  // 기존 접속자(userId 있음) → 즉시 메인 화면 진입 (showWaiting = false)
-  // shownWaiting: 대기 화면에서 '입장하기' 클릭 or 관리자 시작 감지 시 true
-  const showWaiting = !currentUserId && !shownWaiting;
+  // showWaiting: WaitingOverlay를 표시할 조건
+  //   - 프로필 없음(신규 접속자) → 항상 대기 화면
+  //   - 프로필 있어도 sessionActive=false → 회의 시작 전이면 차단
+  //   - shownWaiting: 입장하기 클릭 or 회의 시작 감지 후 true
+  const showWaiting = !shownWaiting && (!currentUserId || sessionActive === false);
   // QR 스캔 후 미등록 사용자: 자리 QR URL 파라미터는 pendingSeatId/pendingSeatPath에 보존됨.
   // 등록 완료 후 currentUserId useEffect에서 자동으로 자리 배정 처리됨
 

@@ -82,8 +82,12 @@ export function useChat({
   }, [chatList, currentUserId]);
 
   // ── 활성 채팅방 메시지 구독 ─────────────────────────────────────────────────
+  // 스탤 로드 방지: 채팅방 전환 시 이전 채팅방 응답이 늦게 돌아와 덮어쓰는 race 차단
+  const loadGenRef = useRef(0);
   const loadMessages = useCallback(async (cid: string) => {
+    const gen = ++loadGenRef.current;
     const { data } = await supabase.from('messages').select('*').eq('chat_id', cid).order('created_at', { ascending: true });
+    if (gen !== loadGenRef.current) return; // 이미 다른 채팅방으로 전환됨 — 결과 버림
     if (data) setMessages(prev => {
       const dbIds = new Set(data.map((m: { id: string }) => m.id));
       const optimistic = prev.filter(m => m.id.startsWith('__opt_') && !dbIds.has(m.id));
@@ -200,9 +204,14 @@ export function useChat({
     setUnreadChatCounts(prev => { const n = { ...prev }; delete n[resolvedChatId!]; return n; });
   }, [currentUserId, setSelectedProfile, setView, setBottomNotif]);
 
+  // 전송 중 잠금 — 동기 ref로 이중 클릭/Enter+클릭 동시 전송 방지
+  const sendInFlightRef = useRef(false);
+
   const sendMessage = async (content: string) => {
     if (!chatId || !currentUserId || !content.trim()) return;
-    const optimisticId = `__opt_${Date.now()}`;
+    if (sendInFlightRef.current) return;
+    sendInFlightRef.current = true;
+    const optimisticId = `__opt_${crypto.randomUUID()}`; // ms 충돌 없는 UUID 사용
     const optimisticMsg = {
       id: optimisticId,
       chat_id: chatId,
@@ -212,30 +221,33 @@ export function useChat({
     } as Message;
     setMessages(prev => [...prev, optimisticMsg]);
     setChatList(prev => prev.map(c => c.id === chatId ? { ...c, lastMessage: content.trim() } : c));
-    const { error } = await supabase.from('messages').insert({
-      chat_id: chatId, sender_id: currentUserId, content: content.trim()
-    });
-    if (!error) {
-      // 수신자에게 백그라운드 푸시 알림
-      const chat = chatListRef.current.find(c => c.id === chatId);
-      if (chat) {
-        const recipientId = chat.user1_id === currentUserId ? chat.user2_id : chat.user1_id;
-        const senderNick = profilesRef.current.find(p => p.id === currentUserId)?.nickname ?? '누군가';
-        const trimmed = content.trim();
-        const bodyText = trimmed.length > 60 ? trimmed.slice(0, 60) + '…' : trimmed;
-        fetch('/api/db/push/notify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ recipientId, title: `💬 ${senderNick}`, body: bodyText, tag: `chat-${chatId}`, url: '/' }),
-        }).catch(() => null);
+    try {
+      const { error } = await supabase.from('messages').insert({
+        chat_id: chatId, sender_id: currentUserId, content: content.trim()
+      });
+      if (!error) {
+        // 수신자에게 백그라운드 푸시 알림
+        const chat = chatListRef.current.find(c => c.id === chatId);
+        if (chat) {
+          const recipientId = chat.user1_id === currentUserId ? chat.user2_id : chat.user1_id;
+          const senderNick = profilesRef.current.find(p => p.id === currentUserId)?.nickname ?? '누군가';
+          const trimmed = content.trim();
+          const bodyText = trimmed.length > 60 ? trimmed.slice(0, 60) + '…' : trimmed;
+          fetch('/api/db/push/notify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ recipientId, title: `💬 ${senderNick}`, body: bodyText, tag: `chat-${chatId}`, url: '/' }),
+          }).catch(() => null);
+        }
       }
-    }
-    if (error) {
-      setMessages(prev => prev.filter(m => m.id !== optimisticId));
-      setChatList(prev => prev.map(c => c.id === chatId ? { ...c, lastMessage: c.lastMessage === content.trim() ? '' : c.lastMessage } : c));
-      // 실패 시 사용자에게 짧은 피드백 제공
-      console.error('[sendMessage]', error.message);
-      alert('메시지 전송에 실패했습니다. 다시 시도해 주세요.');
+      if (error) {
+        setMessages(prev => prev.filter(m => m.id !== optimisticId));
+        setChatList(prev => prev.map(c => c.id === chatId ? { ...c, lastMessage: c.lastMessage === content.trim() ? '' : c.lastMessage } : c));
+        console.error('[sendMessage]', error.message);
+        alert('메시지 전송에 실패했습니다. 다시 시도해 주세요.');
+      }
+    } finally {
+      sendInFlightRef.current = false; // 성공/실패/예외 모든 경우 잠금 해제
     }
   };
 

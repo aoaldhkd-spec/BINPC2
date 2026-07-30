@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Users } from 'lucide-react';
+import { useTheme } from '../lib/theme';
 
 const FIXED_TITLE = '범일NPC는 30살!';
 const RANDOM_SUFFIX = [
@@ -125,7 +126,7 @@ export function ResetButton({ onReset, darkMode, resetPassword, onEasterEgg }: {
         </button>
         <div className="text-left select-none">
           <button type="button" onClick={() => setOpen(true)} className="block group cursor-pointer" title="처음으로 돌아가기">
-            <p className={`text-[10px] font-black tracking-widest uppercase leading-none transition-colors ${darkMode ? 'text-cyan-400 group-hover:text-cyan-300' : 'text-cyan-500 group-hover:text-cyan-600'}`}>범일NPC</p>
+            <p className={`text-[10px] font-black tracking-widest uppercase leading-none transition-colors ${darkMode ? 'text-cyan-400 group-hover:text-cyan-300' : 'text-cyan-600 group-hover:text-cyan-700'}`}>범일NPC</p>
           </button>
           <button type="button" onClick={handleLogoClick} className="block cursor-pointer active:scale-95 transition-transform" title="술번개">
             <h1 className={`text-lg font-black leading-tight transition-colors ${darkMode ? 'text-white hover:text-amber-300' : 'text-gray-900 hover:text-amber-500'}`}>술번개 🍻</h1>

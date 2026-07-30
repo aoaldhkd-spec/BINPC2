@@ -187,17 +187,63 @@ const _sseListeners = new Set<(e: SseEvent) => void>();
 let _sseErrorSince: number | null = null;
 let _currentUserId: string | null = null;
 
+// SSE 인증 토큰 — 서버 HMAC 검증용
+let _sseToken: string | null = null;
+const SSE_TOK_KEY = 'sse_tok';
+const SSE_TOK_EXP_KEY = 'sse_tok_exp';
+
+/** userId에 대한 SSE 토큰을 서버에서 발급받아 캐시 후 SSE 재연결 */
+async function fetchSseToken(userId: string): Promise<void> {
+  // localStorage 캐시 확인 (만료 2분 전까지 재사용)
+  try {
+    const cached = localStorage.getItem(SSE_TOK_KEY);
+    const exp = parseInt(localStorage.getItem(SSE_TOK_EXP_KEY) ?? '0', 10);
+    if (cached && Date.now() < exp - 120_000) {
+      _sseToken = cached;
+      if (_es) { _es.close(); _es = null; }
+      if (_sseListeners.size > 0) ensureSse();
+      return;
+    }
+  } catch { /* ignore */ }
+  // 서버에서 새 토큰 발급
+  try {
+    const res = await fetch(`${API}/sse-token?userId=${encodeURIComponent(userId)}`);
+    if (!res.ok) return;
+    const { token, expiresAt } = await res.json() as { token: string; expiresAt: number };
+    _sseToken = token;
+    try {
+      localStorage.setItem(SSE_TOK_KEY, token);
+      localStorage.setItem(SSE_TOK_EXP_KEY, String(expiresAt));
+    } catch { /* ignore */ }
+    // 토큰 획득 후 SSE 재연결 (이번엔 userId+token 포함)
+    if (_currentUserId === userId) {
+      if (_es) { _es.close(); _es = null; }
+      if (_sseListeners.size > 0) ensureSse();
+    }
+  } catch { /* ignore */ }
+}
+
 /** 사용자 로그인/로그아웃 시 호출 — SSE를 userId 식별 연결로 재연결 */
 export function setLocalDbUserId(userId: string | null) {
   if (_currentUserId === userId) return;
   _currentUserId = userId;
+  _sseToken = null;
   if (_es) { _es.close(); _es = null; }
+  if (!userId) {
+    // 로그아웃: 토큰 캐시 삭제
+    try { localStorage.removeItem(SSE_TOK_KEY); localStorage.removeItem(SSE_TOK_EXP_KEY); } catch { /* ignore */ }
+    if (_sseListeners.size > 0) ensureSse(); // 익명 SSE 유지
+    return;
+  }
+  // 토큰이 없으므로 일단 익명으로 연결하고, 토큰 발급 후 자동 재연결
   if (_sseListeners.size > 0) ensureSse();
+  void fetchSseToken(userId);
 }
 
 function createSse() {
-  const url = _currentUserId
-    ? `${API}/events?userId=${encodeURIComponent(_currentUserId)}`
+  // userId + 유효한 토큰이 모두 있을 때만 인증 연결; 아니면 익명 연결
+  const url = (_currentUserId && _sseToken)
+    ? `${API}/events?userId=${encodeURIComponent(_currentUserId)}&token=${encodeURIComponent(_sseToken)}`
     : `${API}/events`;
   const es = new EventSource(url);
   es.onmessage = (ev) => {
