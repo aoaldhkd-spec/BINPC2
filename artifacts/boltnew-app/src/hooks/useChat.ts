@@ -232,6 +232,12 @@ export function useChat({
     } catch { /* 네트워크 오류 시 무시 — 다음 재연결 때 재시도 */ }
   }, [currentUserId]);
 
+  // 첫 마운트: currentUserId가 확보된 직후 DB에서 정확한 미읽음 카운트를 즉시 동기화
+  // (앱 재시작/새로고침 후 배지가 0으로 뜨는 현상 방지)
+  useEffect(() => {
+    if (currentUserId) void syncUnreadCounts();
+  }, [currentUserId, syncUnreadCounts]);
+
   // visibilitychange: 포그라운드 복귀 시 즉시 재동기화
   useEffect(() => {
     const handler = () => {
@@ -254,6 +260,8 @@ export function useChat({
     if (sendInFlightRef.current) return;
     sendInFlightRef.current = true;
     const optimisticId = `__opt_${crypto.randomUUID()}`; // ms 충돌 없는 UUID 사용
+    // 에러 시 되돌릴 이전 lastMessage를 미리 기록
+    const prevLastMessage = chatListRef.current.find(c => c.id === chatId)?.lastMessage ?? '';
     const optimisticMsg = {
       id: optimisticId,
       chat_id: chatId,
@@ -268,24 +276,12 @@ export function useChat({
         chat_id: chatId, sender_id: currentUserId, content: content.trim(),
         client_id: optimisticId.replace('__opt_', ''), // UUID — ON CONFLICT DO NOTHING on server
       });
-      if (!error) {
-        // 수신자에게 백그라운드 푸시 알림
-        const chat = chatListRef.current.find(c => c.id === chatId);
-        if (chat) {
-          const recipientId = chat.user1_id === currentUserId ? chat.user2_id : chat.user1_id;
-          const senderNick = profilesRef.current.find(p => p.id === currentUserId)?.nickname ?? '누군가';
-          const trimmed = content.trim();
-          const bodyText = trimmed.length > 60 ? trimmed.slice(0, 60) + '…' : trimmed;
-          fetch('/api/db/push/notify', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ recipientId, title: `💬 ${senderNick}`, body: bodyText, tag: `chat-${chatId}`, url: '/' }),
-          }).catch(() => null);
-        }
-      }
+      // 서버가 SSE 인서트 이벤트 시점에 수신자에게 푸시 알림을 자동 발송함
+      // 클라이언트에서 /push/notify 직접 호출 불필요 (x-internal-secret 없어 항상 403)
       if (error) {
         setMessages(prev => prev.filter(m => m.id !== optimisticId));
-        setChatList(prev => prev.map(c => c.id === chatId ? { ...c, lastMessage: c.lastMessage === content.trim() ? '' : c.lastMessage } : c));
+        // 에러 전 상태로 정확히 복원 (낙관적 업데이트 전 lastMessage)
+        setChatList(prev => prev.map(c => c.id === chatId ? { ...c, lastMessage: prevLastMessage } : c));
         console.error('[sendMessage]', error.message);
         alert('메시지 전송에 실패했습니다. 다시 시도해 주세요.');
       }
@@ -294,17 +290,29 @@ export function useChat({
     }
   };
 
+  // sendImage에도 in-flight 잠금 적용 — 연속 탭 시 동일 파일이 두 번 업로드되는 현상 방지
+  const sendImageInFlightRef = useRef(false);
   const sendImage = async (file: File): Promise<string | null> => {
     if (!chatId || !currentUserId) return null;
-    const ext = file.name.split('.').pop() ?? 'jpg';
-    const path = `${chatId}/${Date.now()}.${ext}`;
-    const { data, error } = await supabase.storage.from('chat-images').upload(path, file, { contentType: file.type || 'image/jpeg' });
-    if (error) return error.message;
-    if (!data) return '업로드 실패';
-    const { data: { publicUrl } } = supabase.storage.from('chat-images').getPublicUrl(data.path);
-    const { error: msgErr } = await supabase.from('messages').insert({ chat_id: chatId, sender_id: currentUserId, content: '', image_url: publicUrl, client_id: crypto.randomUUID() });
-    if (msgErr) return msgErr.message;
-    return null;
+    if (sendImageInFlightRef.current) return '이미 전송 중입니다.';
+    sendImageInFlightRef.current = true;
+    try {
+      const ext = file.name.split('.').pop() ?? 'jpg';
+      const clientId = crypto.randomUUID(); // 업로드 전에 고정 — 재시도 시 동일 ID 사용
+      const path = `${chatId}/${clientId}.${ext}`;
+      const { data, error } = await supabase.storage.from('chat-images').upload(path, file, { contentType: file.type || 'image/jpeg' });
+      if (error) return error.message;
+      if (!data) return '업로드 실패';
+      const { data: { publicUrl } } = supabase.storage.from('chat-images').getPublicUrl(data.path);
+      const { error: msgErr } = await supabase.from('messages').insert({
+        chat_id: chatId, sender_id: currentUserId, content: '', image_url: publicUrl,
+        client_id: clientId, // 스토리지 경로와 동일한 UUID — ON CONFLICT DO NOTHING 중복 방지
+      });
+      if (msgErr) return msgErr.message;
+      return null;
+    } finally {
+      sendImageInFlightRef.current = false;
+    }
   };
 
   const deleteChat = async (chatToDelete: Chat) => {

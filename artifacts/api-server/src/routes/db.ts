@@ -578,10 +578,15 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
 
   try {
     switch (name) {
-      case 'admin_create_session':
+      case 'admin_create_session': {
+        // 관리자 비밀번호가 설정돼 있으면 반드시 검증 — 비밀번호 없이 세션 생성 방지
+        checkPassword();
         return res.json({ data: 'local-' + genId(), error: null });
+      }
 
       case 'admin_invalidate_session':
+        return res.json({ data: null, error: null });
+
       case 'admin_auth_phone':
         return res.json({ data: null, error: null });
 
@@ -709,6 +714,7 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
       }
 
       case 'admin_update_profile': {
+        checkPassword(); // 관리자 비밀번호 없이 타인 프로필 수정 방지
         const profileId = args.p_profile_id as string;
         const profiles = getTable('profiles');
         const idx = profiles.findIndex(p => p.id === profileId);

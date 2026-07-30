@@ -198,9 +198,9 @@ html[data-theme="y2k"] .bg-gradient-to-b,
 [data-theme="minimal"] .text-gray-600  { color: #3f3f46 !important; }
 [data-theme="minimal"] .text-gray-500  { color: #52525b !important; }
 [data-theme="minimal"] .text-gray-400  { color: #71717a !important; }
-/* 이전에 누락: 흰 배경에서 안보이는 옅은 텍스트 */
+/* 이전에 누락: 흰 배경에서 안보이는 옅은 텍스트 — 하단 블록(line 762)이 최종 값을 덮어씀 */
 [data-theme="minimal"] .text-gray-300  { color: #71717a !important; }
-[data-theme="minimal"] .text-gray-200  { color: #a1a1aa !important; }
+[data-theme="minimal"] .text-gray-200  { color: #52525b !important; } /* #a1a1aa 대신 충분히 어두운 값으로 통일 */
 [data-theme="minimal"] .border-gray-100{ border-color: #dddbd8 !important; }
 [data-theme="minimal"] .border-gray-200{ border-color: #c8c5c1 !important; }
 [data-theme="minimal"] .border-gray-300{ border-color: #a8a5a1 !important; }
