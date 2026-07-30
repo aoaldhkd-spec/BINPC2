@@ -425,6 +425,11 @@ router.post('/op', async (req: Request, res: Response) => {
             return res.json({ data: null, error: null });
           }
         }
+        // messages 테이블: client_id(UUID) 기반 멱등성 — 네트워크 재시도로 인한 중복 메시지 삽입 방지
+        if (table === 'messages' && effectiveRow.client_id != null) {
+          const dupMsg = tableData.find(r => r.client_id === effectiveRow.client_id);
+          if (dupMsg) return res.json({ data: single ? dupMsg : [dupMsg], error: null }); // ON CONFLICT DO NOTHING
+        }
         // likes 테이블: 동일 liker+liked+heart_type 중복 방지 (빠른 연속 클릭으로 인한 중복 하트 삽입 방지)
         if (table === 'likes' && effectiveRow.liker_id != null && effectiveRow.liked_id != null && effectiveRow.heart_type != null) {
           const dupLike = tableData.find(r =>
@@ -466,7 +471,18 @@ router.post('/op', async (req: Request, res: Response) => {
 
     // ── UPDATE ──────────────────────────────────────────────────────────────
     if (op === 'update') {
-      const patch = payload as Record<string, unknown>;
+      let patch = payload as Record<string, unknown>;
+      // profiles 테이블에서 pin_code를 UPDATE할 때 서버 레벨 유일성 보장
+      // (레거시 사용자 핀 자동 부여 시 경쟁 조건 방지)
+      if (table === 'profiles' && patch.pin_code != null) {
+        const usedPins = new Set(tableData.map(r => r.pin_code).filter(Boolean));
+        let pin = patch.pin_code as string;
+        let tries = 0;
+        while (usedPins.has(pin) && tries++ < 100) {
+          pin = String(Math.floor(1000 + Math.random() * 9000));
+        }
+        patch = { ...patch, pin_code: pin };
+      }
       const updated: Record<string, unknown>[] = [];
       for (let i = 0; i < tableData.length; i++) {
         if (applyFilters([tableData[i]], filters).length) {

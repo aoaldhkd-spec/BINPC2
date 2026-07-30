@@ -223,7 +223,8 @@ export function useChat({
     setChatList(prev => prev.map(c => c.id === chatId ? { ...c, lastMessage: content.trim() } : c));
     try {
       const { error } = await supabase.from('messages').insert({
-        chat_id: chatId, sender_id: currentUserId, content: content.trim()
+        chat_id: chatId, sender_id: currentUserId, content: content.trim(),
+        client_id: optimisticId.replace('__opt_', ''), // UUID — ON CONFLICT DO NOTHING on server
       });
       if (!error) {
         // 수신자에게 백그라운드 푸시 알림
@@ -259,7 +260,7 @@ export function useChat({
     if (error) return error.message;
     if (!data) return '업로드 실패';
     const { data: { publicUrl } } = supabase.storage.from('chat-images').getPublicUrl(data.path);
-    const { error: msgErr } = await supabase.from('messages').insert({ chat_id: chatId, sender_id: currentUserId, content: '', image_url: publicUrl });
+    const { error: msgErr } = await supabase.from('messages').insert({ chat_id: chatId, sender_id: currentUserId, content: '', image_url: publicUrl, client_id: crypto.randomUUID() });
     if (msgErr) return msgErr.message;
     return null;
   };
