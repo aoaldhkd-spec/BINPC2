@@ -244,6 +244,8 @@ function App() {
   const isNewRegistration = useRef(false);
   // 항상 최신 profiles를 가리키는 ref (stale 클로저 방지)
   const profilesRef = useRef<Profile[]>([]);
+  // loadProfiles 최신 참조 — loading-main 지수 백오프에서 stale 클로저 없이 사용
+  const loadProfilesRef = useRef<() => Promise<Profile[]>>(async () => []);
   // ?share=<profileId> URL 파라미터 — 프로필 QR 스캔 시 연락처 자동 수신
   const [pendingShareId] = useState<string | null>(() => new URLSearchParams(window.location.search).get('share'));
 
@@ -278,27 +280,78 @@ function App() {
     return () => window.removeEventListener('storage', onStorage);
   }, []);
 
-  // loading-main 무한 갇힘 방지 — 최대 5초 대기 후 강제 전환
+  // loading-main 무한 갇힘 방지 — 지수 백오프 재시도(최대 3회) + 강제 전환
   // ※ Rules of Hooks: 모든 useEffect는 조건부 return 이전에 위치해야 함
   useEffect(() => {
     if (view !== 'loading-main') return;
-    // ✅ Fix #6: 3초→5초 확대 + 프로필 로드 폴링(profilesRef 사용으로 deps 크기 고정)
+    let cancelled = false;
+
+    // 빠른 경로: 프로필이 이미 로드돼 있으면 200ms 내 main 전환
     const pollId = setInterval(() => {
-      // profilesRef.current는 최신값 — deps에 추가 없이 stale 클로저 방지
+      if (cancelled) { clearInterval(pollId); return; }
       if ((profilesRef.current?.length ?? 0) > 0) {
         clearInterval(pollId);
         setView('main');
         console.info('[loading-main] 프로필 로드 확인 → main 전환');
       }
     }, 200);
-    // 5초 하드 타임아웃
-    const timer = setTimeout(() => {
+
+    // 지수 백오프 재시도 — 고부하(100명 동시 진입)로 서버 응답이 늦어도 재시도로 극복
+    // 첫 재시도: 1초, 두 번째: 2초, 세 번째: 4초 후 최종 강제 전환
+    let attempt = 0;
+    const MAX_ATTEMPTS = 3;
+    const BASE_DELAY_MS = 1_000;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const scheduleRetry = (delay: number) => {
+      retryTimer = setTimeout(async () => {
+        if (cancelled) return;
+        attempt++;
+        console.info(`[loading-main] 프로필 재시도 #${attempt} (${delay}ms 대기 후)`);
+        try {
+          const loaded = await loadProfilesRef.current();
+          if (cancelled) return;
+          if ((loaded?.length ?? 0) > 0) {
+            clearInterval(pollId);
+            setView('main');
+            console.info('[loading-main] 재시도 성공 → main 전환');
+            return;
+          }
+        } catch (e) {
+          console.warn('[loading-main] 재시도 오류:', e);
+        }
+        if (!cancelled) {
+          if (attempt < MAX_ATTEMPTS) {
+            scheduleRetry(BASE_DELAY_MS * Math.pow(2, attempt));
+          } else {
+            // 최대 재시도 소진 → 강제 전환 (프로필 없어도 main으로)
+            clearInterval(pollId);
+            setView('main');
+            console.warn('[loading-main] 최대 재시도 소진 → main 강제 전환');
+          }
+        }
+      }, delay);
+    };
+
+    scheduleRetry(BASE_DELAY_MS); // 1초 후 첫 재시도
+
+    return () => {
+      cancelled = true;
       clearInterval(pollId);
-      setView('main');
-      console.warn('[loading-main] 5초 타임아웃 → main 강제 전환 (프로필 로드 미확인)');
-    }, 5_000);
-    return () => { clearTimeout(timer); clearInterval(pollId); };
-  }, [view]); // deps 크기 고정([view] = 1개) — profilesRef로 최신값 읽음
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, [view]); // loadProfilesRef는 ref이므로 deps 불필요
+
+  // SSE 연결 실패 시 polling fallback — SSE 없이도 프로필 목록 최소 기능 유지
+  // connStatus가 'error'로 전환되면 15초마다 프로필 재로드 (SSE 복구 시 자동 정지)
+  useEffect(() => {
+    if (connStatus !== 'error' || !currentUserId) return;
+    console.info('[SSE-fallback] SSE 오류 감지 → 15초 폴링 모드 활성화');
+    const pollId = setInterval(() => {
+      loadProfilesRef.current().catch(() => {});
+    }, 15_000);
+    return () => { clearInterval(pollId); console.info('[SSE-fallback] 폴링 정지'); };
+  }, [connStatus, currentUserId]);
 
   // Track user's current table number for notification targeting (ref for stable access in channel callbacks)
   const userTableNumRef = useRef<number | null>(null);
@@ -556,6 +609,8 @@ function App() {
     }
     return data ?? [];
   }, []);
+  // loading-main 지수 백오프 재시도에서 항상 최신 함수 참조 유지
+  loadProfilesRef.current = loadProfiles;
 
 
   const loadSuggestions = useCallback(async (userId: string) => {

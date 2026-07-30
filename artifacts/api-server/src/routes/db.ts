@@ -24,6 +24,11 @@ const pool = new pg.Pool({
 const store: Record<string, Record<string, unknown>[]> = {};
 const imageStore: Record<string, string> = {};
 
+// ─── Concurrency limiter — graceful 503 when too many concurrent /op requests ──
+// /op는 in-memory 서빙이지만 Node.js 이벤트 루프 포화 방지용 상한선
+let _activeOpCount = 0;
+const MAX_CONCURRENT_OPS = 80;
+
 // ─── DB persist error tracking ────────────────────────────────────────────────
 let _dbPersistErrors = 0;
 interface PersistErrorEntry { table: string; time: number; msg: string }
@@ -359,6 +364,12 @@ function applyFilters(
 
 // ─── DB operation endpoint ────────────────────────────────────────────────────
 router.post('/op', async (req: Request, res: Response) => {
+  // 동시 요청이 상한선을 초과하면 503 반환 — 클라이언트가 지수 백오프 후 재시도
+  if (_activeOpCount >= MAX_CONCURRENT_OPS) {
+    res.status(503).setHeader('Retry-After', '1');
+    return res.json({ data: null, error: { message: 'Server busy — retry in 1s', code: 'BUSY' } });
+  }
+  _activeOpCount++;
   const {
     table,
     op,
@@ -560,6 +571,8 @@ router.post('/op', async (req: Request, res: Response) => {
   } catch (e) {
     console.error('[db/op]', e);
     return res.json({ data: null, error: { message: String(e) } });
+  } finally {
+    _activeOpCount--;
   }
 });
 

@@ -15,29 +15,46 @@ const API = '/api/db';
 const FETCH_TIMEOUT = 4_000; // ms
 
 // ─── Fetch helper ─────────────────────────────────────────────────────────────
+// 503(서버 과부하) 및 네트워크 오류 시 지수 백오프 재시도 — 100명 동시 진입 고부하 대응
+const MAX_BUSY_RETRIES = 3;
+
 async function apiFetch(path: string, body?: unknown, extraHeaders?: Record<string, string>): Promise<{ data: unknown; error: unknown }> {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT);
-  try {
-    const resp = await fetch(`${API}${path}`, {
-      method: body !== undefined ? 'POST' : 'GET',
-      headers: body !== undefined
-        ? { 'Content-Type': 'application/json', ...extraHeaders }
-        : (extraHeaders ?? undefined),
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-      signal: ctrl.signal,
-    });
-    clearTimeout(timer);
-    if (!resp.ok) {
-      const text = await resp.text().catch(() => '');
-      return { data: null, error: { message: `HTTP ${resp.status}: ${text}` } };
+  for (let attempt = 0; attempt <= MAX_BUSY_RETRIES; attempt++) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT);
+    try {
+      const resp = await fetch(`${API}${path}`, {
+        method: body !== undefined ? 'POST' : 'GET',
+        headers: body !== undefined
+          ? { 'Content-Type': 'application/json', ...extraHeaders }
+          : (extraHeaders ?? undefined),
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+        signal: ctrl.signal,
+      });
+      clearTimeout(timer);
+      // 503 서버 과부하 — Retry-After 헤더 또는 지수 백오프 후 재시도
+      if (resp.status === 503 && attempt < MAX_BUSY_RETRIES) {
+        const retryAfterSec = parseInt(resp.headers.get('Retry-After') ?? '1', 10);
+        await new Promise<void>(r => setTimeout(r, Math.min(retryAfterSec * 1000, 4_000)));
+        continue;
+      }
+      if (!resp.ok) {
+        const text = await resp.text().catch(() => '');
+        return { data: null, error: { message: `HTTP ${resp.status}: ${text}` } };
+      }
+      return await resp.json();
+    } catch (e) {
+      clearTimeout(timer);
+      if (attempt < MAX_BUSY_RETRIES) {
+        // 네트워크 오류 — 지수 백오프 후 재시도 (500ms → 1000ms → 2000ms)
+        await new Promise<void>(r => setTimeout(r, 500 * Math.pow(2, attempt)));
+        continue;
+      }
+      const msg = e instanceof Error ? e.message : String(e);
+      return { data: null, error: { message: msg } };
     }
-    return await resp.json();
-  } catch (e) {
-    clearTimeout(timer);
-    const msg = e instanceof Error ? e.message : String(e);
-    return { data: null, error: { message: msg } };
   }
+  return { data: null, error: { message: 'Max retries exceeded' } };
 }
 
 // ─── Filter specs (serialisable) ──────────────────────────────────────────────
