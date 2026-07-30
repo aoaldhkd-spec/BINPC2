@@ -283,7 +283,7 @@ html[data-theme="y2k"] .bg-gradient-to-b,
 [data-theme="y2k"] .border-teal-500\/40 { border-color: rgba(16,185,129,0.4) !important; }
 
 /* -- 카드 / 패널: 네오브루탈리스트 테두리 + 그림자 ------------ */
-[data-theme="y2k"] .rounded-2xl:not(.theme-switcher-panel):not(.theme-switcher-btn) {
+[data-theme="y2k"] .rounded-2xl:not(.theme-switcher-panel):not(.theme-switcher-btn):not(.chat-bubble) {
   border: 2px solid #18181b !important;
   box-shadow: 4px 4px 0px 0px #18181b !important;
   background-color: #ffffff !important;
@@ -292,9 +292,37 @@ html[data-theme="y2k"] .bg-gradient-to-b,
   border: 2px solid #18181b !important;
   box-shadow: 6px 6px 0px 0px #18181b !important;
 }
-[data-theme="y2k"] .rounded-xl:not(input):not(textarea):not(.theme-switcher-btn) {
+[data-theme="y2k"] .rounded-xl:not(input):not(textarea):not(.theme-switcher-btn):not(.chat-bubble) {
   border: 2px solid #18181b !important;
   box-shadow: 2px 2px 0px 0px #18181b !important;
+}
+
+/* ── 채팅 버블 전용 색상 — Y2K neobrutalist & Minimal ──────────────────────────
+   .rounded-2xl 전역 오버라이드에서 제외하고 여기서 명시적으로 지정
+   ─────────────────────────────────────────────────────────────────────────── */
+[data-theme="y2k"] .chat-bubble-me {
+  background-color: #6ee7b7 !important;   /* 민트 그린 */
+  color: #18181b !important;
+  border: 2px solid #18181b !important;
+  box-shadow: 2px 2px 0 0 #18181b !important;
+}
+[data-theme="y2k"] .chat-bubble-other {
+  background-color: #fef9c3 !important;   /* 연한 노랑 */
+  color: #18181b !important;
+  border: 2px solid #18181b !important;
+  box-shadow: 2px 2px 0 0 #18181b !important;
+}
+[data-theme="minimal"] .chat-bubble-me {
+  background-color: #18181b !important;   /* 잉크 블랙 */
+  color: #ffffff !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+[data-theme="minimal"] .chat-bubble-other {
+  background-color: #ffffff !important;   /* 순백 */
+  color: #09090b !important;
+  border: 1px solid #dddbd8 !important;
+  /* shadow-sm 은 Minimal .shadow-sm override가 처리 */
 }
 /* 버튼의 경우 배경/텍스트만 조정, 중복 border는 OK */
 [data-theme="y2k"] button.rounded-2xl,

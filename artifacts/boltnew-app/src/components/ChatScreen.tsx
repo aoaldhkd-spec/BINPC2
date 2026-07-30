@@ -80,7 +80,7 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [showMoreBtns, setShowMoreBtns] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
+  // containerRef 제거 — vpStyle(React state)로 교체됨
 
   const initialMsgIds = useRef(new Set(messages.map(m => m.id)));
   const [myUnreadIds, setMyUnreadIds] = useState<Set<string>>(new Set());
@@ -100,6 +100,18 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
 
   const [imageViewer, setImageViewer] = useState<string | null>(null);
   const [reactions, setReactions] = useState<Record<string, string>>({});
+
+  // ── DiceBear 투명 SVG → genAvatar 강제 치환 ─────────────────────────────────
+  // DiceBear URL은 200 OK 반환하므로 onerror 미발화. URL 내 'dicebear' 포함 여부로 판별.
+  // backgroundColor 파라미터가 있는 URL(프리셋 아바타)은 배경이 있으므로 그대로 유지.
+  const avatarSrc = (url: string | null | undefined, nick: string): string => {
+    if (!url) return genAvatar(nick);
+    if (url.includes('dicebear') && !url.includes('backgroundColor')) return genAvatar(nick);
+    return url;
+  };
+
+  // ── 뷰포트 스타일 (React state) — JS가 직접 style을 건드리면 React 재렌더 시 덮어씌워짐
+  const [vpStyle, setVpStyle] = useState<React.CSSProperties>({ top: 0, height: '100dvh' });
   const lastTapRef = useRef<{ id: string; time: number } | null>(null);
 
   const QUICK_MSGS = [
@@ -114,27 +126,18 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
   // ── visualViewport: iOS 키보드 올라올 때 컨테이너가 위로 밀리지 않도록 ─────────
-  // 핵심: inset-0 (bottom:0 포함)을 쓰면 JS height와 충돌 → 컨테이너가 위로 밀림.
-  // 해결: CSS에서 top/bottom을 모두 제거하고 JS에서 top + height를 완전히 제어.
-  //   top  = vv.offsetTop  (iOS가 레이아웃 뷰포트를 스크롤한 만큼 따라감)
-  //   height = vv.height   (키보드를 제외한 시각적 뷰포트 높이)
+  // JS로 el.style을 직접 건드리면 React 재렌더 시 style props가 덮어씌워 원복됨.
+  // 해결: React state(vpStyle)로 관리 → 재렌더 시에도 최신 viewport 값 유지.
+  //   top    = vv.offsetTop  (iOS가 레이아웃 뷰포트를 스크롤한 만큼 따라감)
+  //   height = vv.height     (키보드를 제외한 시각적 뷰포트 높이)
   useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
     const vv = window.visualViewport;
-    const applySize = (top: number, height: number) => {
-      el.style.top    = `${top}px`;
-      el.style.height = `${height}px`;
-    };
-    if (!vv) {
-      // visualViewport 미지원 폴백
-      applySize(0, window.innerHeight);
-      return;
-    }
-    const update = () => applySize(vv.offsetTop, vv.height);
+    const apply = (top: number, height: number) => setVpStyle({ top, height });
+    if (!vv) { apply(0, window.innerHeight); return; }
+    const update = () => apply(vv.offsetTop, vv.height);
     vv.addEventListener('resize', update);
     vv.addEventListener('scroll', update);
-    update(); // 초기값 즉시 적용
+    update();
     return () => { vv.removeEventListener('resize', update); vv.removeEventListener('scroll', update); };
   }, []);
 
@@ -362,7 +365,7 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   const hasContact = !!(currentUserProfile?.kakao_id || currentUserProfile?.instagram_id || currentUserProfile?.phone_number);
 
   return (
-    <div ref={containerRef} className="fixed left-0 right-0 bg-gray-100 flex flex-col z-[9999]" style={{ top: 0, height: '100dvh', paddingTop: 'env(safe-area-inset-top)' }}>
+    <div className="fixed left-0 right-0 bg-gray-100 flex flex-col z-[9999]" style={{ ...vpStyle, paddingTop: 'env(safe-area-inset-top)' }}>
 
       {/* 상대방 연락처 보기 모달 */}
       {showTheirContact && theirShare && (
@@ -720,7 +723,7 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
           </button>
           <div className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0 ring-2 ring-gray-200 bg-gray-200">
             <img
-              src={otherProfile.photo_url}
+              src={avatarSrc(otherProfile.photo_url, otherProfile.nickname)}
               alt={otherProfile.nickname}
               className="w-full h-full object-cover"
               onError={(e) => { (e.target as HTMLImageElement).src = genAvatar(otherProfile.nickname); }}
@@ -807,7 +810,7 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
                       <span className="text-[10px] text-gray-400 mt-0.5">{STICKER_LABELS[stickerIdx]}</span>
                     </div>
                   ) : (
-                  <div className={`max-w-[72%] rounded-2xl overflow-hidden ${isMe ? 'bg-cyan-500 text-white rounded-br-md' : 'bg-white text-gray-900 rounded-bl-md shadow-sm'}`}>
+                  <div className={`max-w-[72%] rounded-2xl overflow-hidden chat-bubble ${isMe ? 'chat-bubble-me bg-cyan-500 text-white rounded-br-md' : 'chat-bubble-other bg-white text-gray-900 rounded-bl-md shadow-sm'}`}>
                     {isCard ? (
                       <div className="px-4 py-3">
                         <p className={`text-[10px] font-black uppercase tracking-widest mb-2 ${isMe ? 'text-cyan-100' : 'text-cyan-600'}`}>📱 연락처</p>

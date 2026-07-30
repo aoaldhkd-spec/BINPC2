@@ -9,6 +9,14 @@ import type { Profile, Seat, ContactShare, Suggestion, BalanceGame, Chat, MainTa
 import { BIO_CATEGORIES } from '../lib/interests';
 import { HeartType, HEART_TYPES, heartMeta } from '../lib/constants';
 import { getPositionLabel, getPositionBg, getPositionStyle, getDomSubLabel, getDomSubBg, getKoreanAge, genAvatar } from '../lib/profile';
+
+// DiceBear backgroundColor 없는 구형 투명 SVG URL → genAvatar 강제 치환
+// backgroundColor 있는 프리셋 아바타 URL은 그대로 유지
+const getAvatarSrc = (url: string | null | undefined, nick: string): string => {
+  if (!url) return genAvatar(nick);
+  if (url.includes('dicebear') && !url.includes('backgroundColor')) return genAvatar(nick);
+  return url;
+};
 import { getZodiac, getOhaeng } from '../lib/fortune';
 import { getMbtiStyle, koreanMatch } from '../lib/utils';
 import { ls } from '../lib/storage';
@@ -42,44 +50,44 @@ const AVATAR_CATEGORIES = [
     { id:'av9',  src:`${_BASE}avatars/av9.png`,  label:'스포티 짐' },
     { id:'av10', src:`${_BASE}avatars/av10.png`, label:'북덕 지성파' },
   ]},
-  { label: '🌸 애니/만화', avatars: [
-    { id:'e_doraemon',  src:_db('adventurer','Doraemon blue robot cat','b3d4ff'),  label:'도라에몽' },
-    { id:'e_luffy',     src:_db('adventurer','Luffy straw hat pirate','ffd5dc'),   label:'루피' },
-    { id:'e_naruto',    src:_db('adventurer','Naruto ninja orange','ffecc8'),      label:'나루토' },
-    { id:'e_sasuke',    src:_db('adventurer','Sasuke Uchiha dark','c0aede'),       label:'사스케' },
-    { id:'e_goku',      src:_db('adventurer','Goku Dragon Ball orange','ffd5dc'),  label:'손오공' },
-    { id:'e_vegeta',    src:_db('adventurer','Vegeta Dragon Ball proud','c0aede'), label:'베지터' },
-    { id:'e_tanjiro',   src:_db('adventurer','Tanjiro Kamado demon slayer','b6e3f4'),label:'탄지로' },
-    { id:'e_nezuko',    src:_db('adventurer','Nezuko Kamado pink','ffd5dc'),       label:'네즈코' },
-    { id:'e_levi',      src:_db('adventurer','Levi Ackerman survey corps','d1d4f9'),label:'레비' },
-    { id:'e_shinchan',  src:_db('adventurer','Shin chan crayon yellow','ffdfbf'),  label:'짱구' },
-    { id:'e_sailormoon',src:_db('adventurer','Sailor Moon magical girl pink','ffd5dc'),label:'세일러문' },
-    { id:'e_totoro',    src:_db('adventurer','Totoro forest spirit green','c0e8c0'),label:'토토로' },
-    { id:'e_ichigo',    src:_db('adventurer','Ichigo Kurosaki Bleach','ffd5dc'),   label:'이치고' },
-    { id:'e_eren',      src:_db('adventurer','Eren Yeager attack titan','c8e6c9'), label:'에렌' },
-    { id:'e_killua',    src:_db('adventurer','Killua Zoldyck HxH silver','d1d4f9'),label:'킬루아' },
-    { id:'e_zoro',      src:_db('adventurer','Roronoa Zoro three swords','c8e6c9'),label:'조로' },
-    { id:'e_rem',       src:_db('adventurer','Rem ReZero blue maid','b6e3f4'),    label:'렘' },
-    { id:'e_asuna',     src:_db('adventurer','Asuna Yuuki SAO red','ffd5dc'),     label:'아스나' },
-    { id:'e_nami',      src:_db('adventurer','Nami One Piece navigator','ffecc8'),label:'나미' },
-    { id:'e_conan',     src:_db('adventurer','Conan Edogawa detective boy','b6e3f4'),label:'코난' },
+  { label: '🌸 애니 스타일', avatars: [
+    { id:'e_doraemon',  src:_db('adventurer','blue round robot ears cat friend','b3d4ff'),  label:'블루 로봇 캣' },
+    { id:'e_luffy',     src:_db('adventurer','straw hat boy pirate adventure red','ffd5dc'),   label:'밀짚모자 해적' },
+    { id:'e_naruto',    src:_db('adventurer','spiky blond hair headband ninja orange','ffecc8'),      label:'뾰족 금발 닌자' },
+    { id:'e_sasuke',    src:_db('adventurer','dark straight hair cold eyes shinobi','c0aede'),       label:'다크 닌자' },
+    { id:'e_goku',      src:_db('adventurer','spiky black upright hair martial artist orange gi','ffd5dc'),  label:'뾰족 머리 무도가' },
+    { id:'e_vegeta',    src:_db('adventurer','upright black proud warrior flame hair','c0aede'), label:'직립 머리 전사' },
+    { id:'e_tanjiro',   src:_db('adventurer','checkered haori young swordsman blue','b6e3f4'),label:'체크 하오리 검사' },
+    { id:'e_nezuko',    src:_db('adventurer','pink kimono girl bamboo headband ribbon','ffd5dc'),       label:'분홍 기모노 소녀' },
+    { id:'e_levi',      src:_db('adventurer','short black hair calm intense soldier','d1d4f9'),label:'단발 냉정 병사' },
+    { id:'e_shinchan',  src:_db('adventurer','short black hair cute toddler crayon yellow','ffdfbf'),  label:'까만 단발 꼬마' },
+    { id:'e_sailormoon',src:_db('adventurer','double twintail blonde magical girl pink bow','ffd5dc'),label:'트윈테일 마법소녀' },
+    { id:'e_totoro',    src:_db('adventurer','round fluffy forest spirit creature green','c0e8c0'),label:'복슬 숲속 친구' },
+    { id:'e_ichigo',    src:_db('adventurer','orange short hair sharp eyes young swordsman','ffd5dc'),   label:'주황 단발 검사' },
+    { id:'e_eren',      src:_db('adventurer','brown short hair angry eyes determined soldier green','c8e6c9'), label:'분노 눈빛 병사' },
+    { id:'e_killua',    src:_db('adventurer','silver short hair cool sharp boy','d1d4f9'),label:'은발 쿨 소년' },
+    { id:'e_zoro',      src:_db('adventurer','green short hair three swords fighter','c8e6c9'),label:'녹색 삼도류 검사' },
+    { id:'e_rem',       src:_db('adventurer','blue bob cut maid pure gentle','b6e3f4'),    label:'파란 단발 메이드' },
+    { id:'e_asuna',     src:_db('adventurer','long red auburn elegant female swordsman','ffd5dc'),     label:'긴 적발 여검사' },
+    { id:'e_nami',      src:_db('adventurer','orange short hair navigator girl sea','ffecc8'),label:'주황 단발 항법사' },
+    { id:'e_conan',     src:_db('adventurer','glasses bob child detective small boy blue','b6e3f4'),label:'안경 꼬마 탐정' },
   ]},
-  { label: '💜 K-POP', avatars: [
-    { id:'k_iu',      src:_db('avataaars','IU Korean singer autumn','ffecc8'),        label:'IU 아이유' },
-    { id:'k_bts',     src:_db('avataaars','BTS Bangtan kpop group purple','c0aede'),  label:'BTS 방탄' },
-    { id:'k_bp',      src:_db('avataaars','Blackpink girl group pink','ffd5dc'),      label:'블랙핑크' },
-    { id:'k_nj',      src:_db('avataaars','NewJeans bunny kpop pastel','b6e3f4'),     label:'뉴진스' },
-    { id:'k_akmu',    src:_db('avataaars','AKMU Akdong musician guitar','ffdfbf'),   label:'악뮤 AKMU' },
-    { id:'k_aespa',   src:_db('avataaars','aespa kpop metaverse cyber','c0aede'),    label:'에스파 aespa' },
-    { id:'k_gidle',   src:_db('avataaars','GIDLE girl group charisma','ffd5dc'),     label:'(G)I-DLE' },
-    { id:'k_lsrfm',   src:_db('avataaars','Le Sserafim kpop ocean','b6e3f4'),       label:'르세라핌' },
-    { id:'k_svt',     src:_db('avataaars','Seventeen kpop diamond','d1d4f9'),        label:'세븐틴' },
-    { id:'k_twice',   src:_db('avataaars','TWICE candy kpop cute','ffd5dc'),         label:'TWICE' },
-    { id:'k_skz',     src:_db('avataaars','Stray Kids wolf kpop dark','c0aede'),     label:'스키즈 SKZ' },
-    { id:'k_exo',     src:_db('avataaars','EXO exo planet kpop cool','d1d4f9'),      label:'EXO 엑소' },
-    { id:'k_shinee',  src:_db('avataaars','SHINee shiny kpop teal','b6e3f4'),       label:'샤이니 SHINee' },
-    { id:'k_2ne1',    src:_db('avataaars','2NE1 queen kpop fierce','ffdfbf'),        label:'2NE1 투애니원' },
-    { id:'k_bigbang', src:_db('avataaars','BIGBANG VIP kpop gold','ffecc8'),         label:'빅뱅 BIGBANG' },
+  { label: '💜 케이팝 스타일', avatars: [
+    { id:'k_iu',      src:_db('avataaars','bob cut autumn natural elegant solo vocalist','ffecc8'),        label:'가을 감성 보컬' },
+    { id:'k_bts',     src:_db('avataaars','purple dye street fashion hip hop dancer youth','c0aede'),  label:'보라빛 힙합 댄서' },
+    { id:'k_bp',      src:_db('avataaars','pink black glossy girl crush chic stage outfit','ffd5dc'),      label:'걸크러시 글로시' },
+    { id:'k_nj',      src:_db('avataaars','pastel Y2K retro cute innocent schoolgirl','b6e3f4'),     label:'Y2K 파스텔 소녀' },
+    { id:'k_akmu',    src:_db('avataaars','acoustic guitar indie folk natural casual musician','ffdfbf'),   label:'통기타 인디 뮤지션' },
+    { id:'k_aespa',   src:_db('avataaars','metaverse cyber metallic futuristic idol avatar','c0aede'),    label:'사이버 메탈 아이돌' },
+    { id:'k_gidle',   src:_db('avataaars','charisma fierce stage costume powerful performer','ffd5dc'),     label:'카리스마 퍼포머' },
+    { id:'k_lsrfm',   src:_db('avataaars','ocean blue sporty fresh athletic idol','b6e3f4'),       label:'청량 스포티 아이돌' },
+    { id:'k_svt',     src:_db('avataaars','crystal multi member hip hop unit navy','d1d4f9'),        label:'크리스탈 힙합 그룹' },
+    { id:'k_twice',   src:_db('avataaars','candy pink heart cute bubbly idol rainbow','ffd5dc'),         label:'캔디 핑크 아이돌' },
+    { id:'k_skz',     src:_db('avataaars','wolf chain dark intense stage charisma idol','c0aede'),     label:'다크 울프 아이돌' },
+    { id:'k_exo',     src:_db('avataaars','space planet cool sleek performer black','d1d4f9'),      label:'우주 쿨 퍼포머' },
+    { id:'k_shinee',  src:_db('avataaars','teal shiny sophisticated dancer sparkle','b6e3f4'),       label:'반짝 틸 댄서' },
+    { id:'k_2ne1',    src:_db('avataaars','queen fierce fashion icon strong girl power','ffdfbf'),        label:'퀸 강렬 패션 아이콘' },
+    { id:'k_bigbang', src:_db('avataaars','gold vip hip hop legend street style','ffecc8'),         label:'황금 힙합 레전드' },
   ]},
   { label: '🏳️‍🌈 퀴어/프라이드', avatars: [
     { id:'av49', src:`${_BASE}avatars/av49.png`, label:'레인보우 프라이드' },
@@ -91,32 +99,32 @@ const AVATAR_CATEGORIES = [
     { id:'av55', src:`${_BASE}avatars/av55.png`, label:'게이 프라이드' },
     { id:'av56', src:`${_BASE}avatars/av56.png`, label:'퀴어 액티비스트' },
   ]},
-  { label: '🎮 게임', avatars: [
-    // 리그 오브 레전드 (pixel-art 스타일)
-    { id:'g_yasuo',  src:_db('pixel-art','Yasuo LoL wind samurai','d4e6f1'),     label:'야스오(롤)' },
-    { id:'g_ahri',   src:_db('pixel-art','Ahri LoL nine tail fox pink','ffd5dc'),label:'아리(롤)' },
-    { id:'g_teemo',  src:_db('pixel-art','Teemo LoL mushroom yordle red','ffd5dc'),label:'티모(롤)' },
-    { id:'g_ashe',   src:_db('pixel-art','Ashe LoL ice archer frost','b6e3f4'), label:'애쉬(롤)' },
-    { id:'g_lulu',   src:_db('pixel-art','Lulu LoL fairy yordle purple','c0aede'),label:'룰루(롤)' },
-    { id:'g_jinx',   src:_db('pixel-art','Jinx LoL rocket crazy purple','d1d4f9'),label:'징크스(롤)' },
-    { id:'g_akali',  src:_db('pixel-art','Akali LoL assassin shadow','c0aede'), label:'아칼리(롤)' },
-    { id:'g_ez',     src:_db('pixel-art','Ezreal LoL explorer blue','b6e3f4'),  label:'이즈리얼(롤)' },
-    // 오버워치 (bottts 스타일 - 슈트/메카 느낌)
-    { id:'g_dva',    src:_db('bottts','DVa Overwatch mech pilot pink','ffd5dc'), label:'디바(OW)' },
-    { id:'g_tracer', src:_db('bottts','Tracer Overwatch time orange','ffecc8'), label:'트레이서(OW)' },
-    { id:'g_genji',  src:_db('bottts','Genji Overwatch cyber ninja green','c8e6c9'),label:'겐지(OW)' },
-    { id:'g_mei',    src:_db('bottts','Mei Overwatch ice scientist blue','b6e3f4'),label:'메이(OW)' },
-    { id:'g_mercy',  src:_db('bottts','Mercy Overwatch angel healer gold','ffecc8'),label:'메르시(OW)' },
-    // 포켓몬 (fun-emoji 스타일 - 귀여운 표정)
-    { id:'g_pika',   src:_db('fun-emoji','Pikachu electric yellow thunder','ffecc8'),label:'피카츄' },
-    { id:'g_bulba',  src:_db('fun-emoji','Bulbasaur grass seed green','c8e6c9'),label:'이상해씨' },
-    { id:'g_char',   src:_db('fun-emoji','Charmander fire lizard orange','ffd5dc'),label:'파이리' },
-    { id:'g_squirt', src:_db('fun-emoji','Squirtle water turtle blue','b6e3f4'),label:'꼬부기' },
-    // 기타 (pixel-art)
-    { id:'g_mario',  src:_db('pixel-art','Mario Nintendo mushroom red','ffd5dc'),label:'마리오' },
-    { id:'g_link',   src:_db('pixel-art','Link Zelda hero green elf','c8e6c9'),  label:'링크(젤다)' },
-    { id:'g_kirby',  src:_db('pixel-art','Kirby puff star pink',  'ffd5dc'),    label:'커비' },
-    { id:'g_sonic',  src:_db('pixel-art','Sonic hedgehog speed blue','b6e3f4'), label:'소닉' },
+  { label: '🎮 판타지 용사', avatars: [
+    // 바람/마법/얼음 용사류 (pixel-art)
+    { id:'g_yasuo',  src:_db('pixel-art','wind samurai wide brim hat longsword blue','d4e6f1'),     label:'바람 사무라이' },
+    { id:'g_ahri',   src:_db('pixel-art','nine tail fox ears mage girl pink magic orb','ffd5dc'),label:'여우 귀 마법사' },
+    { id:'g_teemo',  src:_db('pixel-art','mushroom hat red cap tiny scout yordle curious','ffd5dc'),label:'버섯 모자 요정' },
+    { id:'g_ashe',   src:_db('pixel-art','ice frost archer white hair bow quiver blue','b6e3f4'), label:'얼음 서리 궁수' },
+    { id:'g_lulu',   src:_db('pixel-art','purple fairy tiny wand magical support helper','c0aede'),label:'보라 지팡이 요정' },
+    { id:'g_jinx',   src:_db('pixel-art','twin tail rocket launcher chaotic rebel mad purple','d1d4f9'),label:'로켓 트윈테일' },
+    { id:'g_akali',  src:_db('pixel-art','mask shadow assassin ninja dark hood silent','c0aede'), label:'마스크 닌자' },
+    { id:'g_ez',     src:_db('pixel-art','explorer adventurer boy blue jacket magical gauntlet','b6e3f4'),  label:'파랑 탐험 소년' },
+    // 로봇/사이버 영웅류 (bottts)
+    { id:'g_dva',    src:_db('bottts','pink mech pilot gamer girl bunny headset cockpit','ffd5dc'), label:'메카 파일럿 소녀' },
+    { id:'g_tracer', src:_db('bottts','orange goggle time jump hero agile quick','ffecc8'), label:'주황 고글 영웅' },
+    { id:'g_genji',  src:_db('bottts','cyber ninja green robot blade swift dragon','c8e6c9'),label:'사이버 닌자 로봇' },
+    { id:'g_mei',    src:_db('bottts','ice scientist cute blue parka fluffy glasses','b6e3f4'),label:'귀여운 빙하 과학자' },
+    { id:'g_mercy',  src:_db('bottts','golden wings angel healer staff light divine','ffecc8'),label:'황금 날개 천사' },
+    // 귀여운 몬스터류 (fun-emoji)
+    { id:'g_pika',   src:_db('fun-emoji','yellow electric cute round cheek pouches small creature','ffecc8'),label:'노랑 전기 쥐' },
+    { id:'g_bulba',  src:_db('fun-emoji','seed bulb back green dinosaur cute grass sprout','c8e6c9'),label:'씨앗 등 초록 공룡' },
+    { id:'g_char',   src:_db('fun-emoji','flame tail orange fire lizard baby cute ember','ffd5dc'),label:'불꽃 주황 도마뱀' },
+    { id:'g_squirt', src:_db('fun-emoji','water shell blue turtle cute round baby wave','b6e3f4'),label:'물 파랑 거북이' },
+    // 클래식 플랫폼 용사류 (pixel-art)
+    { id:'g_mario',  src:_db('pixel-art','red cap mustache plumber jumpman overalls coin','ffd5dc'),label:'빨강 모자 점프맨' },
+    { id:'g_link',   src:_db('pixel-art','green elf hero pointy hat sword shield tunic forest','c8e6c9'),  label:'녹색 엘프 용사' },
+    { id:'g_kirby',  src:_db('pixel-art','pink round puff absorb star creature cute float','ffd5dc'),    label:'분홍 동글 별 생물' },
+    { id:'g_sonic',  src:_db('pixel-art','fast blue hedgehog sneakers speed ring dash','b6e3f4'), label:'파랑 스피드 고슴도치' },
   ]},
   { label: '🌆 레트로/감성', avatars: [
     { id:'av72', src:`${_BASE}avatars/av72.png`, label:'90년대 레트로' },
@@ -909,7 +917,7 @@ export function MainScreen({
                       {/* 프로필 사진 */}
                       <div className="relative flex-shrink-0">
                         <div className="w-[72px] h-[72px] rounded-2xl overflow-hidden border border-gray-200 shadow-sm bg-gray-200">
-                          <img src={myProfile.photo_url} alt={myProfile.nickname} className="w-full h-full object-cover"
+                          <img src={getAvatarSrc(myProfile.photo_url, myProfile.nickname)} alt={myProfile.nickname} className="w-full h-full object-cover"
                             onError={(e) => { (e.target as HTMLImageElement).src = genAvatar(myProfile.nickname); }} />
                         </div>
                         <div className="absolute -top-1.5 -left-1.5 z-10 px-1.5 py-0.5 bg-amber-400 rounded-full shadow text-[9px] font-black text-white leading-none">나</div>
@@ -1014,7 +1022,7 @@ export function MainScreen({
                     <div className="flex-shrink-0 flex flex-col items-center gap-1.5">
                       <div className="relative w-24 h-24">
                         <label className={`block w-full h-full rounded-2xl overflow-hidden border-2 border-cyan-500/50 shadow-lg shadow-cyan-500/20 cursor-pointer group ${photoUploading ? 'cursor-wait' : ''}`}>
-                          <img src={me.photo_url} alt={me.nickname} className="w-full h-full object-cover"
+                          <img src={getAvatarSrc(me.photo_url, me.nickname)} alt={me.nickname} className="w-full h-full object-cover"
                             onError={(e) => { (e.target as HTMLImageElement).src = genAvatar(me.nickname); }} />
                           <div className={`absolute inset-0 flex flex-col items-center justify-center rounded-2xl transition-all ${photoUploading ? 'bg-black/60' : 'bg-black/0 group-hover:bg-black/50'}`}>
                             {photoUploading ? (
@@ -1778,7 +1786,7 @@ export function MainScreen({
                         onClick={() => { onOpenChat(p); setChatSearch(''); }}
                         className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors ${darkMode ? 'bg-slate-800 hover:bg-slate-700 border border-slate-700' : 'bg-white hover:bg-gray-50 border border-gray-100'}`}>
                         <div className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0 bg-gray-200">
-                          <img src={p.photo_url} alt={p.nickname} className="w-full h-full object-cover"
+                          <img src={getAvatarSrc(p.photo_url, p.nickname)} alt={p.nickname} className="w-full h-full object-cover"
                             onError={(e) => { (e.target as HTMLImageElement).src = genAvatar(p.nickname); }} />
                         </div>
                         <div className="flex-1 min-w-0">
@@ -1823,7 +1831,7 @@ export function MainScreen({
                     className={`rounded-2xl shadow-sm p-4 flex items-center gap-3 cursor-pointer transition-colors duration-300 active:scale-[0.98] ${darkMode ? 'bg-slate-800 border border-slate-600 hover:bg-slate-700' : 'bg-white hover:bg-gray-50'}`}>
                     <div className="relative w-12 h-12 rounded-full overflow-hidden flex-shrink-0 bg-gray-200">
                       {otherProfile ? (
-                        <img src={otherProfile.photo_url} alt={otherProfile.nickname} className="w-full h-full object-cover"
+                        <img src={getAvatarSrc(otherProfile.photo_url, otherProfile.nickname)} alt={otherProfile.nickname} className="w-full h-full object-cover"
                           onError={(e) => { (e.target as HTMLImageElement).src = genAvatar(otherProfile.nickname); }} />
                       ) : (
                         <div className={`w-full h-full flex items-center justify-center text-xs ${darkMode ? 'bg-slate-700 text-slate-400' : 'bg-gray-200 text-gray-400'}`}>?</div>
