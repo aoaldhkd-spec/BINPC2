@@ -189,6 +189,17 @@ const _sseListeners = new Set<(e: SseEvent) => void>();
 let _sseErrorSince: number | null = null;
 let _currentUserId: string | null = null;
 
+// SSE 재연결 감지 — 첫 연결이 아닌 재연결일 때 등록된 콜백 호출
+let _sseHasConnected = false;     // 최초 연결 완료 여부
+let _sseNeedsResync = false;      // 끊겼다가 재연결 대기 중 여부
+const _reconnectCallbacks = new Set<() => void>();
+
+/** SSE 재연결 후 호출될 콜백을 등록합니다. 반환값은 해제 함수입니다. */
+export function onSseReconnect(fn: () => void): () => void {
+  _reconnectCallbacks.add(fn);
+  return () => _reconnectCallbacks.delete(fn);
+}
+
 // SSE 인증 토큰 — 서버에서 발급한 HMAC 토큰으로 자신의 이벤트만 수신 가능
 let _sseToken: string | null = null;
 
@@ -253,6 +264,12 @@ function createSse() {
   const es = new EventSource(url);
   es.onmessage = (ev) => {
     _sseErrorSince = null; // 메시지 수신 = 연결 정상
+    // 재연결 감지: 이전에 한 번 이상 연결됐었고, 끊김 이후 첫 메시지
+    if (_sseHasConnected && _sseNeedsResync) {
+      _sseNeedsResync = false;
+      _reconnectCallbacks.forEach(fn => { try { fn(); } catch {} });
+    }
+    _sseHasConnected = true;
     try {
       const data = JSON.parse(ev.data) as SseEvent;
       _sseListeners.forEach(fn => { try { fn(data); } catch {} });
@@ -260,6 +277,8 @@ function createSse() {
   };
   es.onerror = () => {
     if (!_sseErrorSince) _sseErrorSince = Date.now();
+    // 끊겼음을 기록 — 다음 메시지 수신 시 재연결 콜백 실행
+    if (_sseHasConnected) _sseNeedsResync = true;
     // CLOSED 상태면 다음 ensureSse() 호출 때 재생성
     if (es.readyState === EventSource.CLOSED) {
       _es = null;

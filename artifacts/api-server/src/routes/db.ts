@@ -806,6 +806,39 @@ router.get('/storage-image', (req: Request, res: Response): void => {
   res.send(dataUrl);
 });
 
+// ─── Unread counts endpoint ───────────────────────────────────────────────────
+// Returns per-chat unread message counts for a user, computed from DB truth.
+// Used by client on visibilitychange and SSE reconnect to fix missed increments.
+router.get('/unread-counts', (req: Request, res: Response) => {
+  const userId = typeof req.query.userId === 'string' && req.query.userId ? req.query.userId : null;
+  if (!userId) return res.status(400).json({ data: null, error: { message: 'userId required' } });
+
+  const chats = getTable('chats').filter(c => c.user1_id === userId || c.user2_id === userId);
+
+  // Build a map of chatId → read_at for this user
+  const readAtByChat = new Map<string, string>();
+  for (const r of getTable('chat_reads')) {
+    if (r.reader_id === userId && r.chat_id && r.read_at) {
+      readAtByChat.set(r.chat_id as string, r.read_at as string);
+    }
+  }
+
+  const counts: Record<string, number> = {};
+  for (const chat of chats) {
+    const chatId = chat.id as string;
+    const readAt = readAtByChat.get(chatId);
+    const unread = getTable('messages').filter(m => {
+      if (m.chat_id !== chatId) return false;
+      if (m.sender_id === userId) return false; // own messages never unread
+      if (!readAt) return true; // never read this chat — all messages unread
+      return (m.created_at as string) > readAt;
+    });
+    if (unread.length > 0) counts[chatId] = unread.length;
+  }
+
+  return res.json({ data: counts, error: null });
+});
+
 // ─── PIN lookup ───────────────────────────────────────────────────────────────
 router.post('/by-pin', (req: Request, res: Response) => {
   const { pin } = req.body as { pin?: string };

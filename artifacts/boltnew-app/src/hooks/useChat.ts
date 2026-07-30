@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { onSseReconnect } from '../lib/localdb';
 import type { Profile, Message, Chat, View } from '../types/app';
 import { HeartType } from '../lib/constants';
 import { playCuteSound } from '../lib/sounds';
@@ -203,6 +204,47 @@ export function useChat({
     setChatId(resolvedChatId);
     setUnreadChatCounts(prev => { const n = { ...prev }; delete n[resolvedChatId!]; return n; });
   }, [currentUserId, setSelectedProfile, setView, setBottomNotif]);
+
+  // ── DB 기반 미읽음 카운트 재동기화 ────────────────────────────────────────────
+  // visibilitychange 또는 SSE 재연결 시 호출 — 백그라운드에서 누락된 메시지 보정
+  const syncUnreadCounts = useCallback(async () => {
+    if (!currentUserId) return;
+    try {
+      const resp = await fetch(`/api/db/unread-counts?userId=${encodeURIComponent(currentUserId)}`);
+      if (!resp.ok) return;
+      const { data } = await resp.json() as { data: Record<string, number> | null };
+      if (!data) return;
+      setUnreadChatCounts(prev => {
+        const next = { ...data };
+        // 현재 열려 있는 채팅방은 이미 읽고 있으므로 0 유지
+        if (chatIdRef.current) delete next[chatIdRef.current];
+        // prev와 실질적으로 같으면 리렌더 스킵
+        const prevKeys = Object.keys(prev);
+        const nextKeys = Object.keys(next);
+        if (prevKeys.length === nextKeys.length && nextKeys.every(k => prev[k] === next[k])) return prev;
+        return next;
+      });
+      // 알림 배지도 DB 합계로 보정 (현재 열린 채팅방 제외)
+      const total = Object.entries(data)
+        .filter(([cid]) => cid !== chatIdRef.current)
+        .reduce((sum, [, n]) => sum + n, 0);
+      setNewMsgCount(total);
+    } catch { /* 네트워크 오류 시 무시 — 다음 재연결 때 재시도 */ }
+  }, [currentUserId]);
+
+  // visibilitychange: 포그라운드 복귀 시 즉시 재동기화
+  useEffect(() => {
+    const handler = () => {
+      if (document.visibilityState === 'visible') void syncUnreadCounts();
+    };
+    document.addEventListener('visibilitychange', handler);
+    return () => document.removeEventListener('visibilitychange', handler);
+  }, [syncUnreadCounts]);
+
+  // SSE 재연결: 끊김 복구 직후 누락 카운트 보정
+  useEffect(() => {
+    return onSseReconnect(() => void syncUnreadCounts());
+  }, [syncUnreadCounts]);
 
   // 전송 중 잠금 — 동기 ref로 이중 클릭/Enter+클릭 동시 전송 방지
   const sendInFlightRef = useRef(false);
