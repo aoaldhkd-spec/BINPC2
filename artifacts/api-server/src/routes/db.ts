@@ -24,6 +24,11 @@ const pool = new pg.Pool({
 const store: Record<string, Record<string, unknown>[]> = {};
 const imageStore: Record<string, string> = {};
 
+// ─── DB persist error tracking ────────────────────────────────────────────────
+let _dbPersistErrors = 0;
+interface PersistErrorEntry { table: string; time: number; msg: string }
+const _dbPersistErrorLog: PersistErrorEntry[] = [];
+
 // SSE clients — userId별 연결 관리 (보안: 민감 이벤트는 당사자에게만 전송)
 const sseUserMap = new Map<string, Set<Response>>();   // userId → 연결 집합
 const sseAnonClients = new Set<Response>();             // userId 미등록 연결 (폴백)
@@ -53,13 +58,21 @@ function getTable(name: string): Record<string, unknown>[] {
 // ─── PostgreSQL persistence helpers ───────────────────────────────────────────
 async function dbPersistRow(tableName: string, row: Record<string, unknown>): Promise<void> {
   const rowId = String(row.id ?? genId());
-  await pool.query(
-    `INSERT INTO app_kv_rows (table_name, row_id, data, updated_at)
-     VALUES ($1, $2, $3, NOW())
-     ON CONFLICT (table_name, row_id)
-     DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
-    [tableName, rowId, JSON.stringify(row)],
-  );
+  try {
+    await pool.query(
+      `INSERT INTO app_kv_rows (table_name, row_id, data, updated_at)
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (table_name, row_id)
+       DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
+      [tableName, rowId, JSON.stringify(row)],
+    );
+  } catch (e) {
+    // Track persist failures for the health monitor
+    _dbPersistErrors++;
+    _dbPersistErrorLog.push({ table: tableName, time: Date.now(), msg: String(e) });
+    if (_dbPersistErrorLog.length > 100) _dbPersistErrorLog.shift();
+    throw e;
+  }
 }
 
 async function dbDeleteRow(tableName: string, rowId: string): Promise<void> {
@@ -804,6 +817,48 @@ router.get('/storage-image', (req: Request, res: Response): void => {
     return;
   }
   res.send(dataUrl);
+});
+
+// ─── DB Health endpoint ───────────────────────────────────────────────────────
+router.get('/health', async (_req: Request, res: Response) => {
+  const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+
+  // In-memory counts for last 5 minutes
+  const inMemMessages = getTable('messages').filter(
+    m => typeof m.created_at === 'string' && m.created_at >= fiveMinAgo,
+  ).length;
+  const inMemLikes = getTable('likes').filter(
+    l => typeof l.created_at === 'string' && l.created_at >= fiveMinAgo,
+  ).length;
+
+  // DB counts for last 5 minutes (best-effort)
+  let dbMessages = -1;
+  let dbLikes = -1;
+  try {
+    const [mRes, lRes] = await Promise.all([
+      pool.query(
+        `SELECT COUNT(*) FROM app_kv_rows WHERE table_name='messages' AND (data->>'created_at') >= $1`,
+        [fiveMinAgo],
+      ),
+      pool.query(
+        `SELECT COUNT(*) FROM app_kv_rows WHERE table_name='likes' AND (data->>'created_at') >= $1`,
+        [fiveMinAgo],
+      ),
+    ]);
+    dbMessages = parseInt(mRes.rows[0].count as string, 10);
+    dbLikes = parseInt(lRes.rows[0].count as string, 10);
+  } catch { /* db unreachable — leave as -1 */ }
+
+  const sseTotal = [...sseUserMap.values()].reduce((s, c) => s + c.size, 0) + sseAnonClients.size;
+
+  return res.json({
+    persistErrors: _dbPersistErrors,
+    recentErrors: _dbPersistErrorLog.slice(-10),
+    inMemory: { messages: inMemMessages, likes: inMemLikes },
+    db: { messages: dbMessages, likes: dbLikes },
+    sseConnections: sseTotal,
+    checkedAt: new Date().toISOString(),
+  });
 });
 
 // ─── Unread counts endpoint ───────────────────────────────────────────────────
