@@ -34,6 +34,27 @@ let _dbPersistErrors = 0;
 interface PersistErrorEntry { table: string; time: number; msg: string }
 const _dbPersistErrorLog: PersistErrorEntry[] = [];
 
+/** Write the current error counter to DB directly on the pool.
+ *  Must NOT call dbPersistRow (infinite recursion risk).
+ *  Errors from this write are swallowed — the DB may be down. */
+async function flushErrorStateToDB(): Promise<void> {
+  try {
+    await pool.query(
+      `INSERT INTO app_kv_rows (table_name, row_id, data, updated_at)
+       VALUES ('db_error_log', 'counter', $1, NOW())
+       ON CONFLICT (table_name, row_id)
+       DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
+      [JSON.stringify({ count: _dbPersistErrors, log: _dbPersistErrorLog })],
+    );
+  } catch (e) {
+    console.error('[db] Failed to persist error state:', e);
+  }
+}
+
+// Flush on graceful shutdown so the final counter value is never lost
+process.once('SIGTERM', () => { flushErrorStateToDB().finally(() => process.exit(0)); });
+process.once('SIGINT',  () => { flushErrorStateToDB().finally(() => process.exit(0)); });
+
 // SSE clients — userId별 연결 관리 (보안: 민감 이벤트는 당사자에게만 전송)
 const sseUserMap = new Map<string, Set<Response>>();   // userId → 연결 집합
 const sseAnonClients = new Set<Response>();             // userId 미등록 연결 (폴백)
@@ -90,6 +111,10 @@ async function dbPersistRow(tableName: string, row: Record<string, unknown>): Pr
     _dbPersistErrors++;
     _dbPersistErrorLog.push({ table: tableName, time: Date.now(), msg: String(e) });
     if (_dbPersistErrorLog.length > 100) _dbPersistErrorLog.shift();
+    // Await the flush so the counter is durable before the error propagates.
+    // flushErrorStateToDB() swallows its own errors (DB may be down), so this
+    // will not throw — it just does best-effort persistence.
+    await flushErrorStateToDB();
     throw e;
   }
 }
@@ -118,8 +143,19 @@ async function dbPersistImage(path: string, dataUrl: string): Promise<void> {
 // ─── Startup: load all data from DB into memory ───────────────────────────────
 async function loadFromDb(): Promise<void> {
   try {
-    const { rows } = await pool.query('SELECT table_name, data FROM app_kv_rows ORDER BY updated_at ASC');
+    const { rows } = await pool.query('SELECT table_name, row_id, data FROM app_kv_rows ORDER BY updated_at ASC');
     for (const row of rows) {
+      // Error-log counter row is meta — not application data
+      if (row.table_name === 'db_error_log' && row.row_id === 'counter') {
+        const saved = row.data as { count?: number; log?: PersistErrorEntry[] };
+        if (typeof saved.count === 'number') _dbPersistErrors = saved.count;
+        if (Array.isArray(saved.log)) {
+          _dbPersistErrorLog.length = 0;
+          _dbPersistErrorLog.push(...saved.log.slice(-100));
+        }
+        console.log(`[db] Restored DB persist error counter: ${_dbPersistErrors}`);
+        continue;
+      }
       if (!store[row.table_name]) store[row.table_name] = [];
       store[row.table_name].push(row.data as Record<string, unknown>);
     }
@@ -929,6 +965,33 @@ router.get('/storage-image', (req: Request, res: Response): void => {
     return;
   }
   res.send(dataUrl);
+});
+
+// ─── Admin: clear DB error counter ───────────────────────────────────────────
+router.post('/admin/clear-db-errors', async (req: Request, res: Response) => {
+  // Require admin password for safety
+  const { adminPassword } = req.body as { adminPassword?: string };
+  const settings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
+  const expectedPw = (settings.admin_password as string) ?? '';
+  if (expectedPw && adminPassword !== expectedPw) {
+    return res.status(403).json({ ok: false, error: 'Invalid admin password' });
+  }
+
+  _dbPersistErrors = 0;
+  _dbPersistErrorLog.length = 0;
+
+  // Remove the persisted counter from DB
+  try {
+    await pool.query(
+      `DELETE FROM app_kv_rows WHERE table_name = 'db_error_log' AND row_id = 'counter'`,
+    );
+  } catch (e) {
+    console.error('[db] Failed to clear error state from DB:', e);
+    return res.status(500).json({ ok: false, error: String(e) });
+  }
+
+  console.log('[db] DB persist error counter cleared by admin');
+  return res.json({ ok: true });
 });
 
 // ─── DB Health endpoint ───────────────────────────────────────────────────────

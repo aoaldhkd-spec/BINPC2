@@ -890,9 +890,10 @@ function AdminQrTab({ seats, settings, onSaveQrBase }: { seats: Seat[]; settings
 }
 
 // ─── DB Health Tab ────────────────────────────────────────────────────────────
-function DbHealthTab({ health, loading, onRefresh }: { health: DbHealthData | null; loading: boolean; onRefresh: () => void }) {
+function DbHealthTab({ health, loading, onRefresh, onClearErrors }: { health: DbHealthData | null; loading: boolean; onRefresh: () => void; onClearErrors?: () => Promise<void> }) {
   const hasErrors = (health?.persistErrors ?? 0) > 0;
   const dbUnavailable = health?.db.messages === -1;
+  const [clearing, setClearing] = useState(false);
 
   const CountBox = ({ label, value, sub, warn }: { label: string; value: string | number; sub?: string; warn?: boolean }) => (
     <div className={`rounded-xl border p-3 flex flex-col gap-0.5 ${warn ? 'bg-red-50 border-red-200' : 'bg-white border-gray-200'}`}>
@@ -932,13 +933,22 @@ function DbHealthTab({ health, loading, onRefresh }: { health: DbHealthData | nu
       {hasErrors && (
         <div className="bg-red-50 border border-red-300 rounded-xl p-3 flex items-start gap-2">
           <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
-          <div>
+          <div className="flex-1 min-w-0">
             <p className="text-sm font-bold text-red-700">DB 저장 오류 감지</p>
             <p className="text-xs text-red-600 mt-0.5">
               {health!.persistErrors}건의 DB 저장 실패가 누적되어 있습니다.
               In-memory 데이터와 PostgreSQL 간 불일치가 발생했을 수 있습니다.
             </p>
           </div>
+          {onClearErrors && (
+            <button
+              onClick={async () => { setClearing(true); await onClearErrors(); setClearing(false); }}
+              disabled={clearing}
+              className="flex-shrink-0 px-2.5 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 text-[11px] font-bold rounded-lg transition-all disabled:opacity-50"
+            >
+              {clearing ? '초기화 중…' : '초기화'}
+            </button>
+          )}
         </div>
       )}
 
@@ -1003,7 +1013,7 @@ function DbHealthTab({ health, loading, onRefresh }: { health: DbHealthData | nu
         <CountBox
           label="누적 오류"
           value={health?.persistErrors ?? '—'}
-          sub="서버 재시작 시 초기화"
+          sub="DB에 영구 저장됨"
           warn={hasErrors}
         />
         <CountBox
@@ -4705,6 +4715,18 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     finally { setDbHealthLoading(false); }
   }, []);
 
+  const handleClearDbErrors = useCallback(async () => {
+    const adminPassword = (settings as Record<string, unknown> | null)?.admin_password as string ?? '';
+    try {
+      await fetch('/api/db/admin/clear-db-errors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminPassword }),
+      });
+    } catch { /* ignore */ }
+    await fetchDbHealth();
+  }, [settings, fetchDbHealth]);
+
   useEffect(() => {
     fetchDbHealth();
     const id = setInterval(fetchDbHealth, 30_000);
@@ -5126,7 +5148,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
             )}
             {settingsSubTab === 'qr' && <AdminQrTab seats={seats} settings={settings} onSaveQrBase={async (url) => { await adminSupabase.from('app_settings').update({ qr_base_url: url, updated_at: new Date().toISOString() } as never).eq('id', 1); }} />}
             {settingsSubTab === 'admin' && <CredentialsTab settings={settings} onSave={handleSaveCredentials} onSaveEntry={handleSaveEntryPassword} onSaveReset={handleSaveResetPassword} onSaveTest={handleSaveTestPassword} />}
-            {settingsSubTab === 'db' && <DbHealthTab health={dbHealth} loading={dbHealthLoading} onRefresh={fetchDbHealth} />}
+            {settingsSubTab === 'db' && <DbHealthTab health={dbHealth} loading={dbHealthLoading} onRefresh={fetchDbHealth} onClearErrors={handleClearDbErrors} />}
           </div>
         )}
         {tab === 'seating' && (
