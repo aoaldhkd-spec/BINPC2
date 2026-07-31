@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   CheckCircle, X, XCircle,
 } from 'lucide-react';
-import { supabase, setLocalDbUserId, getSseToken, fetchAndSetSseToken, getDeviceSecret, onSseReconnect } from './lib/supabase';
+import { supabase, setLocalDbUserId, getSseToken, fetchAndSetSseToken, getDeviceSecret, onSseReconnect, onSseDisconnect } from './lib/supabase';
 import { genAvatar } from './lib/profile';
 import { HeartType } from './lib/constants';
 // ─── 분리된 타입·유틸·컴포넌트 imports ────────────────────────────────────────
@@ -250,6 +250,9 @@ function App() {
   const profilesRef = useRef<Profile[]>([]);
   // loadProfiles 최신 참조 — loading-main 지수 백오프에서 stale 클로저 없이 사용
   const loadProfilesRef = useRef<() => Promise<Profile[]>>(async () => []);
+  // SSE fallback polling refs — SSE 끊김 중 채팅·하트 polling에 사용 (stale 클로저 방지)
+  const loadChatListRef = useRef<((userId: string) => Promise<void>) | null>(null);
+  const loadReceivedLikesRef = useRef<((userId: string) => Promise<void>) | null>(null);
   // ?share=<profileId> URL 파라미터 — 프로필 QR 스캔 시 연락처 자동 수신
   const [pendingShareId] = useState<string | null>(() => new URLSearchParams(window.location.search).get('share'));
 
@@ -349,12 +352,15 @@ function App() {
     };
   }, [view]); // loadProfilesRef는 ref이므로 deps 불필요
 
-  // SSE 연결 실패 시 polling fallback — SSE 없이도 프로필 목록 최소 기능 유지
-  // connStatus가 'error'로 전환되면 15초마다 프로필 재로드 (SSE 복구 시 자동 정지)
+  // SSE 연결 실패 시 polling fallback — SSE 없이도 프로필·채팅·하트 최소 기능 유지
+  // connStatus가 'error'로 전환되면 15초마다 재로드 (SSE 복구 시 자동 정지, 중복 없음)
   useEffect(() => {
     if (connStatus !== 'error' || !currentUserId) return;
+    const uid = currentUserId;
     const pollId = setInterval(() => {
       loadProfilesRef.current().catch(() => {});
+      loadChatListRef.current?.(uid).catch(() => {});
+      loadReceivedLikesRef.current?.(uid).catch(() => {});
     }, 15_000);
     return () => { clearInterval(pollId); };
   }, [connStatus, currentUserId]);
@@ -395,6 +401,10 @@ function App() {
     loadLikes, loadReceivedLikes, loadContactShareData, likedByTypeRecord,
     handleLike, executeLike, handleHeartResponse, handleContactShare, handleContactShareReject,
   } = useHearts(currentUserId, profiles, profileMap, openChat);
+
+  // SSE fallback polling refs 동기화 — 렌더마다 최신 함수를 가리키도록 (stale 클로저 방지)
+  loadChatListRef.current = loadChatList;
+  loadReceivedLikesRef.current = loadReceivedLikes;
 
   // 하트 보내는 쪽도 폭죽 🎊
   const execLikeWithConfetti = useCallback((...args: Parameters<typeof executeLike>) => {
@@ -976,17 +986,25 @@ function App() {
     registerPushSub(currentUserId);
   }, [currentUserId]);
 
-  // #24 #57 #58: SSE 재연결 시 채팅목록·하트·알림 즉시 리로드
-  // 네트워크 단절 후 재연결되면 놓친 이벤트를 polling으로 보완
+  // #24: SSE 연결 상태 변화 → connStatus 동기화 + 재연결 시 채팅목록·받은하트 즉시 리로드
+  // onSseDisconnect: SSE 오류 첫 감지 시 'reconnecting' → 1.5s 후 'error' (fallback polling 시작)
+  // onSseReconnect:  재연결 성공 시 'ok'로 복귀 (fallback polling 자동 정지) + 놓친 데이터 리로드
+  useEffect(() => {
+    const unsubDisconnect = onSseDisconnect(() => {
+      _handleChannelStatus('CLOSED');
+    });
+    return unsubDisconnect;
+  }, [_handleChannelStatus]);
+
   useEffect(() => {
     if (!currentUserId) return;
-    const unsub = onSseReconnect(() => {
-      loadChatList(currentUserId);        // #24 #58: 채팅·알림 복구
-      loadReceivedLikes(currentUserId);   // #24 #58: 받은 하트 복구
-      loadLikes(currentUserId);           // #57: 보낸 하트 표시 유지
+    const unsubReconnect = onSseReconnect(() => {
+      _handleChannelStatus('SUBSCRIBED');
+      loadChatList(currentUserId);
+      loadReceivedLikes(currentUserId);
     });
-    return unsub;
-  }, [currentUserId, loadChatList, loadReceivedLikes, loadLikes]);
+    return unsubReconnect;
+  }, [currentUserId, loadChatList, loadReceivedLikes, _handleChannelStatus]);
 
 
   // Manual refresh for status and chat tabs
