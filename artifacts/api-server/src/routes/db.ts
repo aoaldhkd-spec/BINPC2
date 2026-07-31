@@ -34,6 +34,62 @@ let _dbPersistErrors = 0;
 interface PersistErrorEntry { table: string; time: number; msg: string }
 const _dbPersistErrorLog: PersistErrorEntry[] = [];
 
+// ─── Admin DB failure push throttle ──────────────────────────────────────────
+// At most 1 admin alert push every 5 minutes to avoid spamming on cascading failures.
+const ADMIN_DB_PUSH_THROTTLE_MS = 5 * 60 * 1000;
+let _lastAdminDbPushAt = 0;
+
+/** Send a push notification to the admin for a DB persist failure.
+ *  Throttled to at most once every 5 minutes.
+ *  Errors are swallowed — we must not recurse into dbPersistRow. */
+async function notifyAdminDbFailure(tableName: string, errMsg: string): Promise<void> {
+  const now = Date.now();
+  if (now - _lastAdminDbPushAt < ADMIN_DB_PUSH_THROTTLE_MS) return;
+  _lastAdminDbPushAt = now;
+
+  try {
+    // Find admin profile by admin_phone in app_settings
+    const settings = (store['app_settings'] ?? [])[0];
+    if (!settings) return;
+    const adminPhone = settings['admin_phone'] as string | undefined;
+    if (!adminPhone) return;
+
+    const adminProfile = (store['profiles'] ?? []).find(p => p['phone_number'] === adminPhone);
+    if (!adminProfile) return;
+    const adminId = adminProfile['id'] as string;
+
+    const subs = (store['push_subscriptions'] ?? []).filter(s => s['user_id'] === adminId);
+    if (!subs.length) return;
+
+    // Truncate error message for notification body
+    const shortErr = errMsg.length > 80 ? errMsg.slice(0, 80) + '…' : errMsg;
+    const payload: PushPayload = {
+      title: '⚠️ DB 저장 오류 발생',
+      body: `[${tableName}] ${shortErr}`,
+      tag: 'db-persist-error',
+      url: '/',
+    };
+
+    const results = await Promise.all(
+      subs.map(sub => sendPush(
+        { endpoint: sub['endpoint'] as string, keys: { auth: sub['auth'] as string, p256dh: sub['p256dh'] as string } },
+        payload,
+      ).then(ok => ({ id: sub['id'] as string, ok })).catch(() => ({ id: sub['id'] as string, ok: false }))),
+    );
+
+    // Clean up expired subscriptions
+    const expired = results.filter(r => !r.ok).map(r => r.id);
+    if (expired.length) {
+      store['push_subscriptions'] = (store['push_subscriptions'] ?? []).filter(s => !expired.includes(s['id'] as string));
+      for (const id of expired) dbDeleteRow('push_subscriptions', id).catch(console.error);
+    }
+
+    console.log(`[db] Admin DB failure push sent (table=${tableName}, subs=${subs.length}, expired=${expired.length})`);
+  } catch (e) {
+    console.error('[db] Failed to send admin DB failure push:', e);
+  }
+}
+
 /** Write the current error counter to DB directly on the pool.
  *  Must NOT call dbPersistRow (infinite recursion risk).
  *  Errors from this write are swallowed — the DB may be down. */
@@ -115,6 +171,8 @@ async function dbPersistRow(tableName: string, row: Record<string, unknown>): Pr
     // flushErrorStateToDB() swallows its own errors (DB may be down), so this
     // will not throw — it just does best-effort persistence.
     await flushErrorStateToDB();
+    // Alert the admin via push notification (throttled to 1 per 5 min)
+    notifyAdminDbFailure(tableName, String(e)).catch(console.error);
     throw e;
   }
 }
