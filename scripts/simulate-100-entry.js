@@ -8,7 +8,7 @@
  *   node scripts/simulate-100-entry.js [OPTIONS]
  *
  * 옵션:
- *   --url <base>        API 서버 기본 URL (기본: http://localhost:3001/api/db)
+ *   --url <base>        API 서버 기본 URL (기본: http://localhost:8080/api/db)
  *   --users <n>         동시 입장 사용자 수 (기본: 100)
  *   --concurrency <n>   동시 병렬 요청 수 (기본: 100, 즉 전원 동시)
  *   --verbose           각 요청 결과 출력
@@ -20,9 +20,10 @@
  *   - 최대 동시 연결 수
  */
 
-const { performance } = require('perf_hooks');
-const http = require('http');
-const https = require('https');
+import { performance } from 'perf_hooks';
+import http from 'http';
+import https from 'https';
+import { randomUUID } from 'crypto';
 
 // ─── CLI 파싱 ──────────────────────────────────────────────────────────────────
 const args = process.argv.slice(2);
@@ -31,7 +32,7 @@ function getArg(flag, defaultVal) {
   if (idx < 0) return defaultVal;
   return args[idx + 1] ?? defaultVal;
 }
-const BASE_URL = getArg('--url', 'http://localhost:3001/api/db');
+const BASE_URL = getArg('--url', 'http://localhost:8080/api/db');
 const TOTAL_USERS = parseInt(getArg('--users', '100'), 10);
 const CONCURRENCY = parseInt(getArg('--concurrency', '100'), 10);
 const VERBOSE = args.includes('--verbose');
@@ -71,7 +72,7 @@ const nodeFetch = typeof fetch !== 'undefined' ? fetch : async (url, opts = {}) 
 // ─── 단일 사용자 입장 시뮬레이션 ───────────────────────────────────────────────
 async function simulateOneUser(userIndex) {
   const nickname = `테스트유저_${Date.now()}_${userIndex}`;
-  const deviceSecret = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+  const deviceSecret = randomUUID();
   const startAt = performance.now();
   let retries503 = 0;
 
@@ -203,7 +204,8 @@ async function runWithConcurrency(tasks, concurrency) {
       }
     }
     next();
-    if (queue.length === 0) resolve(results);
+    // Handle the edge case where tasks array was empty from the start
+    if (queue.length === 0 && inFlight === 0) resolve(results);
   });
 }
 
@@ -273,24 +275,46 @@ async function main() {
   // ─── 판정 ───────────────────────────────────────────────────────────────────
   const p95 = percentile(totalMsSorted, 95);
   const successRate = insertSuccesses / TOTAL_USERS;
+  const verdict = successRate >= 0.99 && p95 < 3000
+    ? 'PASS'
+    : successRate >= 0.95 && p95 < 5000
+      ? 'MARGINAL'
+      : 'FAIL';
+
   console.log('\n🎯 판정');
   console.log('─'.repeat(60));
-  if (successRate >= 0.99 && p95 < 3000) {
+  if (verdict === 'PASS') {
     console.log('✅ PASS — 99% 이상 성공 + p95 < 3초');
-  } else if (successRate >= 0.95 && p95 < 5000) {
+  } else if (verdict === 'MARGINAL') {
     console.log('⚠️  MARGINAL — 95% 이상 성공이지만 p95 응답이 느림');
   } else {
     console.log('❌ FAIL — 성공률 미달 또는 p95 응답 초과');
-    process.exit(1);
   }
 
   if (errors.length > 0) {
     console.log('\n오류 목록:');
     errors.forEach(e => console.log('  -', e.error));
   }
+
+  // Return structured results for programmatic use
+  return {
+    totalUsers: TOTAL_USERS,
+    insertSuccesses,
+    loadSuccesses,
+    successRate,
+    total503Retries,
+    errors: errors.length,
+    totalElapsedSec: totalElapsed / 1000,
+    total: { p50: percentile(totalMsSorted, 50), p95: percentile(totalMsSorted, 95), p99: percentile(totalMsSorted, 99), max: Math.max(...totalMsSorted) },
+    insert: { p50: percentile(insertMsSorted, 50), p95: percentile(insertMsSorted, 95), max: Math.max(...insertMsSorted) },
+    load: { p50: percentile(loadMsSorted, 50), p95: percentile(loadMsSorted, 95), max: Math.max(...loadMsSorted) },
+    verdict,
+  };
 }
 
-main().catch(err => {
+main().then(r => {
+  if (r.verdict === 'FAIL') process.exit(1);
+}).catch(err => {
   console.error('시뮬레이션 실행 오류:', err);
   process.exit(1);
 });
