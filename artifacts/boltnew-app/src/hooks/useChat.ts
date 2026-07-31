@@ -154,7 +154,19 @@ export function useChat({
         })
       .subscribe();
     loadMessages(chatId);
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      supabase.removeChannel(channel);
+      // 채팅방을 나갈 때(chatId가 바뀌거나 null로 돌아올 때) read_at 갱신
+      // → 채팅방에 열려 있는 동안 도착한 메시지도 읽음 처리됨
+      if (currentUserId) {
+        supabase.from('chat_reads').upsert({
+          id: `${chatId}__${currentUserId}`,
+          chat_id: chatId,
+          reader_id: currentUserId,
+          read_at: new Date().toISOString(),
+        }, { onConflict: 'id' }).then(() => {});
+      }
+    };
   }, [chatId, loadMessages, currentUserId]);
 
   // loadChatList: generation guard — 느린 응답이 현재 userId의 목록을 덮어쓰지 않도록
