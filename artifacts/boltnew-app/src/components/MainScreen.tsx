@@ -1004,6 +1004,11 @@ export function MainScreen({
                           </span>
                         )}
                       </div>
+                      {/* 선택된 프리셋 아바타 이름 */}
+                      {(() => {
+                        const avLabel = AVATAR_CATEGORIES.flatMap(c => c.avatars).find(a => a.src === me.photo_url)?.label;
+                        return avLabel ? <span className={`text-[10px] font-bold text-center leading-tight ${darkMode ? 'text-slate-300' : 'text-gray-600'}`}>{avLabel}</span> : null;
+                      })()}
                       {/* 기본 아바타 선택 버튼 */}
                       <button
                         type="button"
@@ -1070,7 +1075,7 @@ export function MainScreen({
                       </div>
                       {/* 선택된 카테고리 그리드 */}
                       <div className="p-3">
-                        <div className="grid grid-cols-4 gap-2.5">
+                        <div className="grid grid-cols-5 gap-2">
                           {AVATAR_CATEGORIES[avatarCatIdx]?.avatars.map((av) => {
                             const isSelected = me.photo_url === av.src;
                             return (
@@ -1078,9 +1083,9 @@ export function MainScreen({
                                 key={av.id}
                                 type="button"
                                 onClick={() => handleSelectPresetAvatar(av.src)}
-                                className={`relative flex flex-col items-center gap-1.5 py-3 px-1 rounded-2xl border-2 shadow-sm transition-all active:scale-95 ${
+                                className={`relative flex flex-col items-center gap-1 py-2 px-1 rounded-xl border-2 shadow-sm transition-all active:scale-95 ${
                                   isSelected
-                                    ? 'border-cyan-500 bg-cyan-50 shadow-cyan-100'
+                                    ? 'border-cyan-500 bg-cyan-50'
                                     : darkMode
                                       ? 'border-slate-600 bg-slate-700/70 hover:border-cyan-400'
                                       : 'border-gray-200 bg-white hover:border-cyan-300 hover:shadow-md'
@@ -1089,13 +1094,13 @@ export function MainScreen({
                                 <img
                                   src={av.src}
                                   alt={av.label}
-                                  className="w-14 h-14 rounded-full object-cover block shadow-sm"
+                                  className="w-12 h-12 rounded-full object-cover block"
                                   onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                                 />
-                                <span className={`text-[10px] font-bold leading-tight text-center w-full truncate px-0.5 ${isSelected ? 'text-cyan-600' : darkMode ? 'text-slate-300' : 'text-gray-600'}`}>{av.label}</span>
+                                <span className={`text-[10px] font-bold leading-tight text-center w-full truncate ${isSelected ? 'text-cyan-600' : darkMode ? 'text-slate-300' : 'text-gray-600'}`}>{av.label}</span>
                                 {isSelected && (
-                                  <span className="absolute top-1.5 right-1.5 w-5 h-5 bg-cyan-500 rounded-full flex items-center justify-center shadow">
-                                    <CheckCircle className="w-3.5 h-3.5 text-white" />
+                                  <span className="absolute top-1 right-1 w-4 h-4 bg-cyan-500 rounded-full flex items-center justify-center shadow">
+                                    <CheckCircle className="w-2.5 h-2.5 text-white" />
                                   </span>
                                 )}
                               </button>
