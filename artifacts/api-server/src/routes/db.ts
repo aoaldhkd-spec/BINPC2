@@ -179,7 +179,7 @@ async function seedIfNeeded(): Promise<void> {
         rows.push({ id: genId(), table_number: t, seat_position: p, seat_label: `${t}번 테이블 ${p}번`, profile_id: null, status: 'empty', registered_at: null, created_at: ts() });
       }
     }
-    for (let t = 16; t <= 19; t++) {
+    for (let t = 16; t <= 22; t++) {
       for (let p = 1; p <= 6; p++) {
         rows.push({ id: genId(), table_number: t, seat_position: p, seat_label: `${t}번 테이블 ${p}번`, profile_id: null, status: 'empty', registered_at: null, created_at: ts() });
       }
@@ -197,7 +197,7 @@ async function seedIfNeeded(): Promise<void> {
         }
       }
     }
-    for (let t = 16; t <= 19; t++) {
+    for (let t = 16; t <= 22; t++) {
       if (!existingTables.has(t)) {
         for (let p = 1; p <= 6; p++) {
           extraRows.push({ id: genId(), table_number: t, seat_position: p, seat_label: `${t}번 테이블 ${p}번`, profile_id: null, status: 'empty', registered_at: null, created_at: ts() });

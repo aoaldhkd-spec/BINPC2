@@ -92,4 +92,7 @@ export const TABLE_POSITIONS: Record<number, TableConfig> = {
   17: { type: 'row1', leftCol: [1,2], rightCol: [3,4], bottomRow: [5,6], sofaOnLeft: false },
   18: { type: 'row1', leftCol: [1,2], rightCol: [3,4], bottomRow: [5,6], sofaOnLeft: false },
   19: { type: 'row1', leftCol: [1,2], rightCol: [3,4], bottomRow: [5,6], sofaOnLeft: false },
+  20: { type: 'row1', leftCol: [1,2], rightCol: [3,4], bottomRow: [5,6], sofaOnLeft: false },
+  21: { type: 'row1', leftCol: [1,2], rightCol: [3,4], bottomRow: [5,6], sofaOnLeft: false },
+  22: { type: 'row1', leftCol: [1,2], rightCol: [3,4], bottomRow: [5,6], sofaOnLeft: false },
 };

@@ -894,7 +894,7 @@ export default function SeatingMap({
           )}
 
           {/* 번외열 (16-19) — 주 배치도 아래 별도 영역 */}
-          {activeCol === 'all' && (isActive(16) || isActive(17) || isActive(18) || isActive(19)) && (
+          {activeCol === 'all' && (isActive(16) || isActive(17) || isActive(18) || isActive(19) || isActive(20) || isActive(21) || isActive(22)) && (
             <div className={`border-t border-dashed ${t.colDivider} pt-3 mt-1`}>
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-[9px] font-black text-indigo-400 tracking-widest">번외열</span>
@@ -905,6 +905,9 @@ export default function SeatingMap({
                 {isActive(17) && <SmallTable tableNum={17} {...sharedProps} onTableClick={() => setExpandedTable(17)} />}
                 {isActive(18) && <SmallTable tableNum={18} {...sharedProps} onTableClick={() => setExpandedTable(18)} />}
                 {isActive(19) && <SmallTable tableNum={19} {...sharedProps} onTableClick={() => setExpandedTable(19)} />}
+                {isActive(20) && <SmallTable tableNum={20} {...sharedProps} onTableClick={() => setExpandedTable(20)} />}
+                {isActive(21) && <SmallTable tableNum={21} {...sharedProps} onTableClick={() => setExpandedTable(21)} />}
+                {isActive(22) && <SmallTable tableNum={22} {...sharedProps} onTableClick={() => setExpandedTable(22)} />}
               </div>
             </div>
           )}

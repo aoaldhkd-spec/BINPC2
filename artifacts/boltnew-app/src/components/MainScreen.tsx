@@ -1070,7 +1070,7 @@ export function MainScreen({
                       </div>
                       {/* 선택된 카테고리 그리드 */}
                       <div className="p-3">
-                        <div className="grid grid-cols-5 gap-2">
+                        <div className="grid grid-cols-4 gap-2.5">
                           {AVATAR_CATEGORIES[avatarCatIdx]?.avatars.map((av) => {
                             const isSelected = me.photo_url === av.src;
                             return (
@@ -1078,21 +1078,23 @@ export function MainScreen({
                                 key={av.id}
                                 type="button"
                                 onClick={() => handleSelectPresetAvatar(av.src)}
-                                className="relative flex flex-col items-center gap-1 p-1 rounded-xl transition-all active:scale-95"
+                                className={`relative flex flex-col items-center gap-1.5 py-3 px-1 rounded-2xl border-2 shadow-sm transition-all active:scale-95 ${
+                                  isSelected
+                                    ? 'border-cyan-500 bg-cyan-50 shadow-cyan-100'
+                                    : darkMode
+                                      ? 'border-slate-600 bg-slate-700/70 hover:border-cyan-400'
+                                      : 'border-gray-200 bg-white hover:border-cyan-300 hover:shadow-md'
+                                }`}
                               >
                                 <img
                                   src={av.src}
                                   alt={av.label}
-                                  className={`w-14 h-14 rounded-full object-cover block transition-all ${
-                                    isSelected
-                                      ? 'ring-4 ring-cyan-500 ring-offset-2'
-                                      : 'hover:ring-2 hover:ring-cyan-300 hover:ring-offset-1'
-                                  }`}
+                                  className="w-14 h-14 rounded-full object-cover block shadow-sm"
                                   onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                                 />
-                                <span className={`text-[10px] font-bold leading-tight text-center w-full truncate ${isSelected ? 'text-cyan-400' : darkMode ? 'text-slate-300' : 'text-gray-600'}`}>{av.label}</span>
+                                <span className={`text-[10px] font-bold leading-tight text-center w-full truncate px-0.5 ${isSelected ? 'text-cyan-600' : darkMode ? 'text-slate-300' : 'text-gray-600'}`}>{av.label}</span>
                                 {isSelected && (
-                                  <span className="absolute top-0.5 right-0.5 w-5 h-5 bg-cyan-500 rounded-full flex items-center justify-center shadow-sm">
+                                  <span className="absolute top-1.5 right-1.5 w-5 h-5 bg-cyan-500 rounded-full flex items-center justify-center shadow">
                                     <CheckCircle className="w-3.5 h-3.5 text-white" />
                                   </span>
                                 )}
