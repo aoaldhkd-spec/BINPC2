@@ -815,49 +815,49 @@ export default function SeatingMap({
 
             {/* Columns */}
             <div className="flex items-start gap-5">
-              {/* 1번줄 */}
-              {(activeCol === 'all' || activeCol === '1') && (isActive(7) || isActive(9) || isActive(10)) && (
+              {/* 1번줄 — 비활성 테이블은 제자리에 두고 흐리게 표시 (position 유지) */}
+              {(activeCol === 'all' || activeCol === '1') && (
                 <div className="flex flex-col items-center gap-1">
                   {activeCol === 'all' && <span className={`text-[9px] font-black ${t.dim} tracking-widest mb-1`}>1번줄</span>}
-                  {(activeRow === 'all' || activeRow === '1') && isActive(7)  && <SmallTable tableNum={7}  {...sharedProps} onTableClick={() => setExpandedTable(7)} />}
+                  {(activeRow === 'all' || activeRow === '1') && <div className={!isActive(7)  ? 'opacity-25 pointer-events-none select-none' : ''}><SmallTable tableNum={7}  {...sharedProps} onTableClick={() => isActive(7)  && setExpandedTable(7)} /></div>}
                   {activeRow === 'all' && <div className={`w-full h-px ${t.divider} my-1`} />}
-                  {(activeRow === 'all' || activeRow === '2') && isActive(9)  && <SmallTable tableNum={9}  {...sharedProps} onTableClick={() => setExpandedTable(9)} />}
-                  {(activeRow === 'all' || activeRow === '3') && isActive(10) && <SmallTable tableNum={10} {...sharedProps} onTableClick={() => setExpandedTable(10)} />}
+                  {(activeRow === 'all' || activeRow === '2') && <div className={!isActive(9)  ? 'opacity-25 pointer-events-none select-none' : ''}><SmallTable tableNum={9}  {...sharedProps} onTableClick={() => isActive(9)  && setExpandedTable(9)} /></div>}
+                  {(activeRow === 'all' || activeRow === '3') && <div className={!isActive(10) ? 'opacity-25 pointer-events-none select-none' : ''}><SmallTable tableNum={10} {...sharedProps} onTableClick={() => isActive(10) && setExpandedTable(10)} /></div>}
                 </div>
               )}
 
               {/* 2번줄 */}
-              {(activeCol === 'all' || activeCol === '2') && (isActive(5) || isActive(4) || isActive(3)) && (
+              {(activeCol === 'all' || activeCol === '2') && (
                 <div className="flex flex-col items-center gap-1">
                   {activeCol === 'all' && <span className={`text-[9px] font-black ${t.dim} tracking-widest mb-1`}>2번줄</span>}
-                  {(activeRow === 'all' || activeRow === '1') && isActive(5) && <SmallTable tableNum={5}  {...sharedProps} onTableClick={() => setExpandedTable(5)} />}
+                  {(activeRow === 'all' || activeRow === '1') && <div className={!isActive(5) ? 'opacity-25 pointer-events-none select-none' : ''}><SmallTable tableNum={5}  {...sharedProps} onTableClick={() => isActive(5) && setExpandedTable(5)} /></div>}
                   {activeRow === 'all' && <div className={`w-full h-px ${t.divider} my-1`} />}
-                  {(activeRow === 'all' || activeRow === '2') && isActive(4) && <SmallTable tableNum={4}  {...sharedProps} onTableClick={() => setExpandedTable(4)} />}
-                  {(activeRow === 'all' || activeRow === '3') && isActive(3) && <SmallTable tableNum={3}  {...sharedProps} onTableClick={() => setExpandedTable(3)} />}
+                  {(activeRow === 'all' || activeRow === '2') && <div className={!isActive(4) ? 'opacity-25 pointer-events-none select-none' : ''}><SmallTable tableNum={4}  {...sharedProps} onTableClick={() => isActive(4) && setExpandedTable(4)} /></div>}
+                  {(activeRow === 'all' || activeRow === '3') && <div className={!isActive(3) ? 'opacity-25 pointer-events-none select-none' : ''}><SmallTable tableNum={3}  {...sharedProps} onTableClick={() => isActive(3) && setExpandedTable(3)} /></div>}
                 </div>
               )}
 
               {activeCol === 'all' && <div className={`w-4 flex-shrink-0 self-stretch border-l border-dashed ${t.colDivider}`} />}
 
               {/* 3번줄 */}
-              {(activeCol === 'all' || activeCol === '3') && (isActive(6) || isActive(2) || isActive(1)) && (
+              {(activeCol === 'all' || activeCol === '3') && (
                 <div className="flex flex-col items-center gap-1">
                   {activeCol === 'all' && <span className={`text-[9px] font-black ${t.dim} tracking-widest mb-1`}>3번줄</span>}
-                  {(activeRow === 'all' || activeRow === '1') && isActive(6) && <SmallTable tableNum={6}  {...sharedProps} onTableClick={() => setExpandedTable(6)} />}
+                  {(activeRow === 'all' || activeRow === '1') && <div className={!isActive(6) ? 'opacity-25 pointer-events-none select-none' : ''}><SmallTable tableNum={6}  {...sharedProps} onTableClick={() => isActive(6) && setExpandedTable(6)} /></div>}
                   {activeRow === 'all' && <div className={`w-full h-px ${t.divider} my-1`} />}
-                  {(activeRow === 'all' || activeRow === '2') && isActive(2) && <SmallTable tableNum={2}  {...sharedProps} onTableClick={() => setExpandedTable(2)} />}
-                  {(activeRow === 'all' || activeRow === '3') && isActive(1) && <SmallTable tableNum={1}  {...sharedProps} onTableClick={() => setExpandedTable(1)} />}
+                  {(activeRow === 'all' || activeRow === '2') && <div className={!isActive(2) ? 'opacity-25 pointer-events-none select-none' : ''}><SmallTable tableNum={2}  {...sharedProps} onTableClick={() => isActive(2) && setExpandedTable(2)} /></div>}
+                  {(activeRow === 'all' || activeRow === '3') && <div className={!isActive(1) ? 'opacity-25 pointer-events-none select-none' : ''}><SmallTable tableNum={1}  {...sharedProps} onTableClick={() => isActive(1) && setExpandedTable(1)} /></div>}
                 </div>
               )}
 
               {/* 4번줄 */}
-              {(activeCol === 'all' || activeCol === '4') && (isActive(8) || isActive(11) || isActive(12)) && (
+              {(activeCol === 'all' || activeCol === '4') && (
                 <div className="flex flex-col items-center gap-1">
                   {activeCol === 'all' && <span className={`text-[9px] font-black ${t.dim} tracking-widest mb-1`}>4번줄</span>}
-                  {(activeRow === 'all' || activeRow === '1') && isActive(8)  && <SmallTable tableNum={8}  {...sharedProps} onTableClick={() => setExpandedTable(8)} />}
+                  {(activeRow === 'all' || activeRow === '1') && <div className={!isActive(8)  ? 'opacity-25 pointer-events-none select-none' : ''}><SmallTable tableNum={8}  {...sharedProps} onTableClick={() => isActive(8)  && setExpandedTable(8)} /></div>}
                   {activeRow === 'all' && <div className={`w-full h-px ${t.divider} my-1`} />}
-                  {(activeRow === 'all' || activeRow === '2') && isActive(11) && <SmallTable tableNum={11} {...sharedProps} onTableClick={() => setExpandedTable(11)} />}
-                  {(activeRow === 'all' || activeRow === '3') && isActive(12) && <SmallTable tableNum={12} {...sharedProps} onTableClick={() => setExpandedTable(12)} />}
+                  {(activeRow === 'all' || activeRow === '2') && <div className={!isActive(11) ? 'opacity-25 pointer-events-none select-none' : ''}><SmallTable tableNum={11} {...sharedProps} onTableClick={() => isActive(11) && setExpandedTable(11)} /></div>}
+                  {(activeRow === 'all' || activeRow === '3') && <div className={!isActive(12) ? 'opacity-25 pointer-events-none select-none' : ''}><SmallTable tableNum={12} {...sharedProps} onTableClick={() => isActive(12) && setExpandedTable(12)} /></div>}
                 </div>
               )}
 

@@ -24,7 +24,6 @@ import { QaGameOverlay } from './components/games/QaGameOverlay';
 import { TableMiniGameModal } from './components/games/TableMiniGameModal';
 import { NotifModal } from './components/NotifModal';
 import { WelcomeNoticeModal } from './components/WelcomeNoticeModal';
-import { DrinkFloatButton } from './components/DrinkFloatButton';
 import { ConfettiOverlay } from './components/ConfettiOverlay';
 import { ContactDisplayModal } from './components/ContactDisplayModal';
 import { LikeConfirmDialog } from './components/LikeConfirmDialog';
@@ -263,7 +262,13 @@ function App() {
   const [rejectionNotif, setRejectionNotif] = useState<string | null>(null); // nickname of person who rejected
   const [bottomNotif, setBottomNotif] = useState<{ type: 'heart' | 'chat' | 'message' | 'contact'; nickname: string; heartType?: HeartType } | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
-  const triggerConfetti = useCallback(() => { setShowConfetti(false); setTimeout(() => setShowConfetti(true), 30); }, []);
+  const confettiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const triggerConfetti = useCallback(() => {
+    // 뷰 전환 시 이전 타이머 취소 가능하도록 ref에 저장
+    if (confettiTimerRef.current) clearTimeout(confettiTimerRef.current);
+    setShowConfetti(false);
+    confettiTimerRef.current = setTimeout(() => { setShowConfetti(true); confettiTimerRef.current = null; }, 30);
+  }, []);
   const [seatingLocked, setSeatingLocked] = useState(false);
   const [activeTables, setActiveTables] = useState<number[] | null>(null);
   const [tableLabels, setTableLabels] = useState<Record<string, string> | null>(null);
@@ -1513,22 +1518,8 @@ function App() {
           profile={scannedContactProfile}
           darkMode={darkMode}
           onClose={() => setScannedContactProfile(null)}
-          onOpenChat={currentUserId ? async () => {
-            const sp = scannedContactProfile;
-            setScannedContactProfile(null);
-            const uid1 = currentUserId < sp.id ? currentUserId : sp.id;
-            const uid2 = currentUserId < sp.id ? sp.id : currentUserId;
-            const { data: existing } = await supabase.from('chats').select('*').eq('user1_id', uid1).eq('user2_id', uid2).maybeSingle();
-            let cid = existing?.id ?? null;
-            if (!cid) {
-              const { data: newChat } = await supabase.from('chats').insert({ user1_id: uid1, user2_id: uid2 }).select().single();
-              cid = newChat?.id ?? null;
-            }
-            if (cid) { setChatId(cid); setSelectedProfile(sp); setView('chat'); }
-          } : undefined}
         />
       )}
-      <DrinkFloatButton onRequest={currentUserId ? () => submitSuggestion('__술주세요__', '') : undefined} />
       <ConfettiOverlay show={showConfetti} />
     </>
   );

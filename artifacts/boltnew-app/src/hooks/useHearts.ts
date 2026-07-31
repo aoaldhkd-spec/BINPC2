@@ -61,10 +61,13 @@ export function useHearts(
   // ✅ try/catch 추가
   const loadContactShareData = useCallback(async (userId: string) => {
     try {
-      const { data: shared } = await supabase.from('contact_shares').select('liker_id').eq('liked_id', userId);
-      if (shared) setContactSharedWithIds(new Set(shared.map((s: { liker_id: string }) => s.liker_id)));
-      const { data: received } = await supabase.from('contact_shares').select('*').eq('liker_id', userId);
-      if (received) setReceivedContactShares(received as ContactShare[]);
+      // Fix #9: 두 독립 쿼리를 Promise.all로 병렬 실행 → 레이턴시 ~50% 감소
+      const [sharedResult, receivedResult] = await Promise.all([
+        supabase.from('contact_shares').select('liker_id').eq('liked_id', userId),
+        supabase.from('contact_shares').select('*').eq('liker_id', userId),
+      ]);
+      if (sharedResult.data) setContactSharedWithIds(new Set(sharedResult.data.map((s: { liker_id: string }) => s.liker_id)));
+      if (receivedResult.data) setReceivedContactShares(receivedResult.data as ContactShare[]);
     } catch { /* 네트워크 오류 — stale state 유지 */ }
   }, []);
 
@@ -93,34 +96,36 @@ export function useHearts(
 
   const executeLike = async (heartType: HeartType) => {
     if (!currentUserId || !likeConfirmTarget) return;
-    if (likeInFlightRef.current) return; // 중복 클릭 방지 (ref = 동기적으로 즉시 잠금)
+    if (likeInFlightRef.current) return;
     if (heartCountByType(heartType) >= 2) return;
     if (sentHeartsPerPerson.get(likeConfirmTarget.id)?.has(heartType)) return;
-    likeInFlightRef.current = true; // 동기적으로 즉시 잠금 — 리렌더 대기 없음
-    // ✅ Fix: hung promise 영구 잠금 방지 — 8초 타임아웃 AbortSignal
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => {
-      controller.abort();
-    }, 8_000);
+    likeInFlightRef.current = true;
+    // 진입 시점 스냅샷 — await 중 상태 변경으로 stale 클로저 방지
+    const targetId = likeConfirmTarget.id;
+    const likerId = currentUserId;
     try {
-      const { error } = await supabase.from('likes').insert({ liker_id: currentUserId, liked_id: likeConfirmTarget.id, heart_type: heartType });
-      if (controller.signal.aborted) return; // 타임아웃 후 응답은 무시
+      // Promise.race로 8초 타임아웃 강제 — localdb.ts가 AbortSignal을 지원하지 않으므로 race 패턴 사용
+      const insertPromise = supabase.from('likes').insert({ liker_id: likerId, liked_id: targetId, heart_type: heartType });
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('timeout')), 8_000)
+      );
+      const { error } = await Promise.race([insertPromise, timeoutPromise]) as { error: unknown };
       if (!error) {
-        setLikedIds((prev) => new Set([...prev, likeConfirmTarget.id]));
-        setSentHeartTypes((prev) => new Map(prev).set(likeConfirmTarget.id, heartType));
+        setLikedIds((prev) => new Set([...prev, targetId]));
+        setSentHeartTypes((prev) => new Map(prev).set(targetId, heartType));
         setSentHeartsPerPerson(prev => {
           const next = new Map(prev);
-          const s = new Set(next.get(likeConfirmTarget.id) ?? []);
+          const s = new Set(next.get(targetId) ?? []);
           s.add(heartType);
-          next.set(likeConfirmTarget.id, s);
+          next.set(targetId, s);
           return next;
         });
-        // 서버가 likes INSERT 이벤트에서 자동으로 push 전송하므로 클라이언트 중복 호출 제거
       }
       setLikeConfirmTarget(null);
+    } catch {
+      // 타임아웃 또는 네트워크 오류 — in-flight 잠금만 해제, UI 유지
     } finally {
-      clearTimeout(timeoutId);
-      likeInFlightRef.current = false; // 예외/타임아웃 모든 경우에 잠금 해제
+      likeInFlightRef.current = false;
     }
   };
 

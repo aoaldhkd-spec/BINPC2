@@ -128,10 +128,15 @@ const sseAnonClients = new Set<Response>();             // userId 미등록 연�
 const _likesLastInsert = new Map<string, number>(); // `${liker}:${liked}` → epoch ms
 const LIKES_MIN_INTERVAL_MS = 500;
 setInterval(() => {
-  // Prune stale entries every 10 s to prevent unbounded memory growth
   const cutoff = Date.now() - 10_000;
   for (const [k, t] of _likesLastInsert) if (t < cutoff) _likesLastInsert.delete(k);
 }, 10_000);
+
+// Fix #1: _userLikeMinuteBuckets 만료 버킷 5분마다 정리 — 무한 메모리 누수 방지
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, b] of _userLikeMinuteBuckets) if (b.resetAt < now) _userLikeMinuteBuckets.delete(k);
+}, 5 * 60 * 1000);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function genId(): string {
@@ -158,26 +163,26 @@ function getTable(name: string): Record<string, unknown>[] {
 // ─── PostgreSQL persistence helpers ───────────────────────────────────────────
 async function dbPersistRow(tableName: string, row: Record<string, unknown>): Promise<void> {
   const rowId = String(row.id ?? genId());
-  try {
-    await pool.query(
-      `INSERT INTO app_kv_rows (table_name, row_id, data, updated_at)
+  const sql = `INSERT INTO app_kv_rows (table_name, row_id, data, updated_at)
        VALUES ($1, $2, $3, NOW())
        ON CONFLICT (table_name, row_id)
-       DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
-      [tableName, rowId, JSON.stringify(row)],
-    );
-  } catch (e) {
-    // Track persist failures for the health monitor
-    _dbPersistErrors++;
-    _dbPersistErrorLog.push({ table: tableName, time: Date.now(), msg: String(e) });
-    if (_dbPersistErrorLog.length > 100) _dbPersistErrorLog.shift();
-    // Await the flush so the counter is durable before the error propagates.
-    // flushErrorStateToDB() swallows its own errors (DB may be down), so this
-    // will not throw — it just does best-effort persistence.
-    await flushErrorStateToDB();
-    // Alert the admin via push notification (throttled to 1 per 5 min)
-    notifyAdminDbFailure(tableName, String(e)).catch(console.error);
-    throw e;
+       DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`;
+  const params = [tableName, rowId, JSON.stringify(row)];
+  try {
+    await pool.query(sql, params);
+  } catch {
+    // Fix #5: 1회 재시도 — 일시적 연결 오류(ECONNRESET, idle timeout) 자동 복구
+    await new Promise<void>(r => setTimeout(r, 500));
+    try {
+      await pool.query(sql, params);
+    } catch (e) {
+      _dbPersistErrors++;
+      _dbPersistErrorLog.push({ table: tableName, time: Date.now(), msg: String(e) });
+      if (_dbPersistErrorLog.length > 100) _dbPersistErrorLog.shift();
+      await flushErrorStateToDB();
+      notifyAdminDbFailure(tableName, String(e)).catch(console.error);
+      throw e;
+    }
   }
 }
 
@@ -310,29 +315,41 @@ async function seedIfNeeded(): Promise<void> {
 // ─── Daily entry_password auto-renewal ────────────────────────────────────────
 // If entry_password is a 4-digit MMDD date string, update it to today's Korean
 // date every minute so the code never expires without an admin needing to touch it.
+let _renewalInProgress = false; // single-flight guard — 동시 갱신 방지
 function startDailyEntryPasswordRenewal(): void {
   const check = (): void => {
+    if (_renewalInProgress) return; // 이전 DB write가 완료되지 않은 경우 건너뜀
     const settings = getTable('app_settings')[0];
     if (!settings) return;
     const currentPw = settings['entry_password'] as string | null | undefined;
-    if (!currentPw || !/^\d{4}$/.test(currentPw)) return; // not MMDD format — skip
+    if (!currentPw || !/^\d{4}$/.test(currentPw)) return;
     const today = koreanDateMMDD();
-    if (currentPw === today) return; // already up-to-date
+    if (currentPw === today) return;
+    _renewalInProgress = true;
     const updated = { ...settings, entry_password: today, updated_at: ts() };
     store['app_settings'][0] = updated;
-    dbPersistRow('app_settings', updated).catch(console.error);
+    dbPersistRow('app_settings', updated)
+      .catch(console.error)
+      .finally(() => { _renewalInProgress = false; });
     broadcastAll({ type: 'change', table: 'app_settings', event: 'UPDATE', newRow: updated, oldRow: settings });
   };
-  setInterval(check, 60_000); // check every minute
+  setInterval(check, 60_000);
 }
 
 // Kick off async initialization
 seedIfNeeded().then(() => startDailyEntryPasswordRenewal()).catch(console.error);
 
 // ─── SSE broadcast ─────────────────────────────────────────────────────────────
+// SSE 연결별 keepalive interval 정리 함수 보관 — write 실패 시에도 인터벌 즉시 해제
+const _sseCleanup = new Map<Response, () => void>();
+
 function _send(client: Response, conns: Set<Response>, payload: string) {
-  try { client.write(payload); } catch { conns.delete(client); }
-  // ✅ Fix #7: 빈 Set은 즉시 삭제해 sseUserMap 키 누수 방지
+  try { client.write(payload); } catch {
+    conns.delete(client);
+    // write 실패 = 클라이언트 연결 끊김 → keepalive interval 즉시 정리 (req.close 미발화 대비)
+    _sseCleanup.get(client)?.();
+    _sseCleanup.delete(client);
+  }
   if (conns.size === 0) {
     for (const [uid, s] of sseUserMap) { if (s === conns) { sseUserMap.delete(uid); break; } }
   }
@@ -341,8 +358,20 @@ function _send(client: Response, conns: Set<Response>, payload: string) {
 /** 모든 클라이언트에게 전송 (공개 이벤트: seats, profiles, app_settings, games 등) */
 function broadcastAll(event: Record<string, unknown>) {
   const payload = `data: ${JSON.stringify(event)}\n\n`;
-  for (const [, conns] of sseUserMap) for (const c of conns) _send(c, conns, payload);
-  for (const c of sseAnonClients) _send(c, sseAnonClients, payload);
+  // Fix #6: 스냅샷 후 50개씩 청킹 — 150명×2연결=300 write()가 이벤트 루프를 블로킹하지 않도록
+  const batch: Array<[Response, Set<Response>]> = [];
+  for (const [, conns] of sseUserMap) for (const c of conns) batch.push([c, conns]);
+  for (const c of sseAnonClients) batch.push([c, sseAnonClients]);
+  if (batch.length <= 50) {
+    for (const [c, conns] of batch) _send(c, conns, payload);
+    return;
+  }
+  const doChunk = (i: number) => {
+    const end = Math.min(i + 50, batch.length);
+    for (let j = i; j < end; j++) _send(batch[j][0], batch[j][1], payload);
+    if (end < batch.length) setImmediate(() => doChunk(end));
+  };
+  doChunk(0);
 }
 
 /** 특정 사용자들에게만 전송 (비공개 이벤트: messages, likes, chats 등) */
@@ -562,19 +591,22 @@ router.post('/op', async (req: Request, res: Response) => {
       if (payload == null) return res.status(400).json({ data: null, error: { message: 'payload is required for insert', code: '22023' } });
       const inputs = Array.isArray(payload) ? payload as Record<string, unknown>[] : [payload as Record<string, unknown>];
       const inserted: Record<string, unknown>[] = [];
+      // Fix #4: O(n²) → O(n) — profiles 삽입 시 루프 밖에서 Set 1회만 빌드
+      const _insertNickSet = table === 'profiles' ? new Set(tableData.map(r => r.nickname).filter(Boolean)) : null;
+      const _insertPinSet  = table === 'profiles' ? new Set(tableData.map(r => r.pin_code).filter(Boolean))  : null;
+      const _use5Digit     = table === 'profiles' && tableData.length > 8000;
+      const _pinPoolSize   = _use5Digit ? 90000 : 9000;
       for (const row of inputs) {
         if (!row) continue;
-        if (table === 'profiles' && tableData.some(r => r.nickname === row.nickname && row.nickname != null)) {
+        if (table === 'profiles' && _insertNickSet!.has(row.nickname) && row.nickname != null) {
           return res.json({ data: null, error: { message: 'duplicate key value violates unique constraint "profiles_nickname_key"', code: '23505' } });
         }
-        // ✅ Fix #3: 서버 레벨 PIN 유일성 보장 — 100명 동시 INSERT 시 충돌 자동 해소
         // const row는 재할당 불가이므로 effectiveRow로 분리
         let effectiveRow: Record<string, unknown> = row;
         if (table === 'profiles') {
-          const usedPins = new Set(tableData.map(r => r.pin_code).filter(Boolean));
-          // 프로필 수가 8000 초과 시 5자리 PIN으로 자동 확장 (풀: 90,000개)
-          const use5Digit = tableData.length > 8000;
-          const poolSize = use5Digit ? 90000 : 9000;
+          const usedPins = _insertPinSet!; // 루프 밖 빌드 Set 재사용 — O(1) 조회
+          const use5Digit = _use5Digit;
+          const poolSize = _pinPoolSize;
           // PIN 슬롯 전체 소진 — 신규 등록 불가 (503)
           if (usedPins.size >= poolSize) {
             return res.status(503).json({
@@ -667,11 +699,24 @@ router.post('/op', async (req: Request, res: Response) => {
 
         tableData.push(newRow);
         inserted.push(newRow);
+        // 배치 삽입 시 다음 항목의 중복 검사가 정확하도록 Set 증분 업데이트
+        if (table === 'profiles') {
+          if (newRow.nickname) _insertNickSet!.add(newRow.nickname as string);
+          if (newRow.pin_code) _insertPinSet!.add(newRow.pin_code as string);
+        }
         smartBroadcast(table, newRow, { type: 'change', table, event: 'INSERT', newRow, oldRow: null });
         dbPersistRow(table, newRow).catch(console.error);
         // chat_reads 삽입 시 해당 유저 unread 캐시 즉시 무효화
         if (table === 'chat_reads' && newRow.reader_id) {
           unreadCountsCache.delete(String(newRow.reader_id));
+        }
+        // Fix #8: 메시지 삽입 시 수신자 unread 캐시 즉시 무효화 (TTL 2s 대기 없음)
+        if (table === 'messages' && newRow.sender_id && newRow.chat_id) {
+          const _msgChat = getTable('chats').find(c => c.id === newRow.chat_id);
+          if (_msgChat) {
+            const _receiverId = _msgChat.user1_id === newRow.sender_id ? _msgChat.user2_id : _msgChat.user1_id;
+            if (_receiverId) unreadCountsCache.delete(String(_receiverId));
+          }
         }
         // 메시지·하트 삽입 시 수신자 핸드폰으로 푸시 알림 전송
         if (table === 'messages' || table === 'likes') {
@@ -730,12 +775,14 @@ router.post('/op', async (req: Request, res: Response) => {
     if (op === 'upsert') {
       const inputs = Array.isArray(payload) ? payload as Record<string, unknown>[] : [payload as Record<string, unknown>];
       const upserted: Record<string, unknown>[] = [];
+      // Fix #7: O(n²) → O(n) — id 기반 UPSERT 시 Map 인덱스로 O(1) 조회
+      const _idxById = !conflictCols.length ? new Map(tableData.map((r, i) => [r.id, i])) : null;
       for (const row of inputs) {
         let idx = -1;
         if (conflictCols.length) {
           idx = tableData.findIndex(r => conflictCols.every(c => String(r[c]) === String(row[c]) || r[c] === row[c]));
         } else if (row.id != null) {
-          idx = tableData.findIndex(r => r.id === row.id);
+          idx = _idxById!.get(row.id) ?? -1;
         }
         if (idx >= 0) {
           const oldRow = { ...tableData[idx] };
@@ -755,6 +802,7 @@ router.post('/op', async (req: Request, res: Response) => {
             base.birth_day = Math.ceil(Math.random() * 28);
           }
           tableData.push(base);
+          _idxById?.set(base.id, tableData.length - 1); // Map 갱신 (배치 내 후속 항목 O(1) 조회)
           upserted.push(base);
           smartBroadcast(table, base, { type: 'change', table, event: 'INSERT', newRow: base, oldRow: null });
           dbPersistRow(table, base).catch(console.error);
@@ -1002,6 +1050,11 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
 // 반드시 SESSION_SECRET 또는 admin RPC 비밀번호를 헤더로 전달해야 사용 가능
 // IP별 레이트 리밋 (5초 윈도우, 최대 30회) — 스팸/악의적 남용 추가 방어
 const _broadcastRateMap = new Map<string, { count: number; resetAt: number }>();
+// Fix #2: _broadcastRateMap 만료 항목 5분마다 정리 — 고유 IP 항목 무한 축적 방지
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, b] of _broadcastRateMap) if (b.resetAt < now) _broadcastRateMap.delete(k);
+}, 5 * 60 * 1000);
 router.post('/broadcast', (req: Request, res: Response) => {
   // ✅ 인증: 클라이언트 SSE 토큰(HMAC)으로 검증 — SESSION_SECRET 클라이언트 노출 없이 안전
   const token  = req.headers['x-broadcast-token']  as string | undefined;
@@ -1057,7 +1110,7 @@ router.post('/storage-upload', async (req: Request, res: Response) => {
   }
   imageStore[imgPath] = dataUrl;
   dbPersistImage(imgPath, dataUrl).catch(console.error);
-  res.json({ data: { path: imgPath }, error: null });
+  return res.json({ data: { path: imgPath }, error: null });
 });
 
 router.get('/storage-image', (req: Request, res: Response): void => {
@@ -1168,6 +1221,11 @@ router.get('/health', async (_req: Request, res: Response) => {
 // 단기 캐시(2s): 탭 전환·재연결 폭발 시 동일 userId에 대한 중복 O(chats×msgs) 스캔 방지
 const unreadCountsCache = new Map<string, { ts: number; data: Record<string, number> }>();
 const UNREAD_CACHE_TTL_MS = 2_000;
+// Fix #3: unreadCountsCache TTL 초과 항목 30초마다 정리 — userId 항목 무한 축적 방지
+setInterval(() => {
+  const cutoff = Date.now() - UNREAD_CACHE_TTL_MS;
+  for (const [k, v] of unreadCountsCache) if (v.ts < cutoff) unreadCountsCache.delete(k);
+}, 30_000);
 
 router.get('/unread-counts', (req: Request, res: Response) => {
   const userId = typeof req.query.userId === 'string' && req.query.userId ? req.query.userId : null;
@@ -1210,6 +1268,11 @@ router.get('/unread-counts', (req: Request, res: Response) => {
     if (unreadCount > 0) counts[chatId] = unreadCount;
   }
 
+  // LRU 상한 200개 — Map은 삽입 순서 보장이므로 첫 번째(가장 오래된) 항목 제거
+  if (unreadCountsCache.size >= 200) {
+    const oldest = unreadCountsCache.keys().next().value;
+    if (oldest !== undefined) unreadCountsCache.delete(oldest);
+  }
   unreadCountsCache.set(userId, { ts: Date.now(), data: counts });
   return res.json({ data: counts, error: null });
 });
@@ -1246,12 +1309,13 @@ router.post('/push/subscribe', (req: Request, res: Response) => {
   } else {
     // 사용자당 최대 5개 구독 — 초과 시 가장 오래된 것 제거 (슬라이딩 윈도우)
     const USER_MAX_PUSH_SUBS = 5;
-    const userSubs = subs
-      .map((s, i) => ({ ...s, _idx: i }))
-      .filter(s => s.user_id === userId)
-      .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+    type SubWithIdx = Record<string, unknown> & { _idx: number };
+    const userSubs = (subs as Array<Record<string, unknown>>)
+      .map((s, i) => ({ ...s, _idx: i } as SubWithIdx))
+      .filter(s => s['user_id'] === userId)
+      .sort((a, b) => String(a['created_at']).localeCompare(String(b['created_at'])));
     if (userSubs.length >= USER_MAX_PUSH_SUBS) {
-      const oldestIdx = subs.findIndex(s => s.id === userSubs[0].id);
+      const oldestIdx = subs.findIndex(s => s['id'] === userSubs[0]['id']);
       if (oldestIdx >= 0) subs.splice(oldestIdx, 1);
     }
     const newSub = {
@@ -1437,21 +1501,26 @@ router.get('/events', (req: Request, res: Response) => {
 
   // Keep-alive every 5s — 짧게 유지해 프록시/방화벽 idle 차단 방지
   const keepalive = setInterval(() => {
-    try { res.write('data: {"type":"ping"}\n\n'); } catch { clearInterval(keepalive); }
+    try { res.write('data: {"type":"ping"}\n\n'); } catch {
+      clearInterval(keepalive);
+      _sseCleanup.delete(res);
+    }
   }, 5000);
+  // _sseCleanup에 등록 — _send write 실패 시에도 interval 즉시 해제 가능
+  _sseCleanup.set(res, () => clearInterval(keepalive));
 
-  req.on('close', () => {
-    clearInterval(keepalive);
+  const cleanupConn = () => {
+    _sseCleanup.get(res)?.();
+    _sseCleanup.delete(res);
     if (userId) {
       const conns = sseUserMap.get(userId);
-      if (conns) {
-        conns.delete(res);
-        if (conns.size === 0) sseUserMap.delete(userId);
-      }
+      if (conns) { conns.delete(res); if (conns.size === 0) sseUserMap.delete(userId); }
     } else {
       sseAnonClients.delete(res);
     }
-  });
+  };
+  req.on('close', cleanupConn);
+  req.on('aborted', cleanupConn); // Node.js HTTP/1.1 강제 종료 대비
 });
 
 export default router;

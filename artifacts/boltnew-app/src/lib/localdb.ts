@@ -427,6 +427,13 @@ class LocalRealtimeChannel {
     if (this._sseHandler) {
       _sseListeners.delete(this._sseHandler);
       this._sseHandler = null;
+      // Fix #11: 마지막 구독자가 떠나면 SSE 연결 즉시 해제
+      // — idle 연결이 서버 sseUserMap에 남아 자원(메모리+keep-alive) 낭비하던 문제 해결
+      // 다음 subscribe() 호출 시 ensureSse()가 즉시 재연결하므로 기능 영향 없음
+      if (_sseListeners.size === 0 && _es) {
+        _es.close();
+        _es = null;
+      }
     }
     this.statusCb?.('CLOSED');
   }

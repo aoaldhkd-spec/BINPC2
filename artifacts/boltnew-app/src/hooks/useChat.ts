@@ -201,6 +201,8 @@ export function useChat({
 
   // openChat: generation guard — 빠른 연속 탭 시 느린 응답이 현재 채팅방을 덮어쓰지 않도록
   const openChatGenRef = useRef(0);
+  // Fix #10: 타이머 ref — 연속 openChat 시 stale 타이머가 pair ref를 null로 지우는 race 방지
+  const selfInitiatedPairTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const openChat = useCallback(async (otherProfile: Profile) => {
     if (!currentUserId) return;
     const gen = ++openChatGenRef.current; // generation 캡처 — 이 호출보다 나중 호출이 오면 버림
@@ -215,8 +217,12 @@ export function useChat({
     const user2Id = currentUserId < otherProfile.id ? otherProfile.id : currentUserId;
 
     // SSE INSERT 알림 억제: 내가 연 채팅방 pair를 미리 기록 (DB 응답 전에 SSE가 먼저 올 수 있음)
+    if (selfInitiatedPairTimerRef.current !== null) clearTimeout(selfInitiatedPairTimerRef.current);
     selfInitiatedPairRef.current = `${user1Id}:${user2Id}`;
-    setTimeout(() => { selfInitiatedPairRef.current = null; }, 5000);
+    selfInitiatedPairTimerRef.current = setTimeout(() => {
+      selfInitiatedPairRef.current = null;
+      selfInitiatedPairTimerRef.current = null;
+    }, 5000);
 
     const { data: existingChat } = await supabase
       .from('chats').select('*').eq('user1_id', user1Id).eq('user2_id', user2Id).maybeSingle();
@@ -366,23 +372,30 @@ export function useChat({
   // sendImage에도 in-flight 잠금 적용 — 연속 탭 시 동일 파일이 두 번 업로드되는 현상 방지
   const sendImageInFlightRef = useRef(false);
   const sendImage = async (file: File): Promise<string | null> => {
-    if (!chatId || !currentUserId) return null;
+    // 진입 시점에 chatId/userId 스냅샷 — 업로드 중 채팅방/사용자 전환 시 고아 파일 방지
+    const snapChatId = chatId;
+    const snapUserId = currentUserId;
+    if (!snapChatId || !snapUserId) return null;
     if (sendImageInFlightRef.current) return '이미 전송 중입니다.';
     sendImageInFlightRef.current = true;
     try {
       const ext = file.name.split('.').pop() ?? 'jpg';
-      const clientId = crypto.randomUUID(); // 업로드 전에 고정 — 재시도 시 동일 ID 사용
-      const path = `${chatId}/${clientId}.${ext}`;
+      const clientId = crypto.randomUUID();
+      const path = `${snapChatId}/${clientId}.${ext}`;
       const { data, error } = await supabase.storage.from('chat-images').upload(path, file, { contentType: file.type || 'image/jpeg' });
       if (error) return error.message;
       if (!data) return '업로드 실패';
+      // 업로드 완료 후 채팅방/사용자가 바뀌었으면 고아 파일 정리 후 중단
+      if (chatIdRef.current !== snapChatId || currentUserId !== snapUserId) {
+        supabase.storage.from('chat-images').remove([data.path]).catch(() => {});
+        return null;
+      }
       const { data: { publicUrl } } = supabase.storage.from('chat-images').getPublicUrl(data.path);
       const { error: msgErr } = await supabase.from('messages').insert({
-        chat_id: chatId, sender_id: currentUserId, content: '', image_url: publicUrl,
-        client_id: clientId, // 스토리지 경로와 동일한 UUID — ON CONFLICT DO NOTHING 중복 방지
+        chat_id: snapChatId, sender_id: snapUserId, content: '', image_url: publicUrl,
+        client_id: clientId,
       });
       if (msgErr) {
-        // ✅ 메시지 INSERT 실패 시 이미 업로드된 스토리지 파일 정리 (고아 파일 방지)
         supabase.storage.from('chat-images').remove([data.path]).catch(() => {});
         return msgErr.message;
       }
@@ -402,20 +415,19 @@ export function useChat({
     setChatList(prev => prev.filter(c => c.id !== chatToDelete.id));
   };
 
-  // ✅ 개별 성공한 채팅방만 UI에서 제거 (일부 실패 시 partial rollback 가능)
+  // 전체 채팅 삭제 — Promise.all 병렬화 (직렬 O(n) → 병렬, 스냅샷으로 동시 목록 변경 방지)
   const deleteAllChats = async () => {
     if (chatList.length === 0) return;
     if (!confirm(`채팅 ${chatList.length}개를 모두 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) return;
-    const deletedIds: string[] = [];
-    for (const chat of chatList) {
+    const snapshot = [...chatList]; // 병렬 실행 중 chatList 변경 방지
+    const results = await Promise.all(snapshot.map(async (chat) => {
       const { error: msgErr } = await supabase.from('messages').delete().eq('chat_id', chat.id);
-      if (msgErr) continue; // 메시지 삭제 실패한 채팅방은 건너뜀
+      if (msgErr) return null;
       const { error: chatErr } = await supabase.from('chats').delete().eq('id', chat.id);
-      if (!chatErr) deletedIds.push(chat.id);
-    }
-    if (deletedIds.length > 0) {
-      setChatList(prev => prev.filter(c => !deletedIds.includes(c.id)));
-    }
+      return chatErr ? null : chat.id;
+    }));
+    const deletedIds = results.filter((id): id is string => id !== null);
+    if (deletedIds.length > 0) setChatList(prev => prev.filter(c => !deletedIds.includes(c.id)));
   };
 
   // ✅ 서버 삭제 성공 후에만 UI에서 제거
