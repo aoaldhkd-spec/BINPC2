@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Gamepad2, ChevronDown } from 'lucide-react';
 import type { BalanceGame, Seat, Profile, TableMiniGameSession, UserGameSubTab } from '../../types/app';
 import { BalanceGameCard } from './BalanceGameCard';
@@ -29,13 +29,30 @@ export function UserGameTab({
   const [subTab, setSubTab] = useState<UserGameSubTab>('balance');
   const [showCreate, setShowCreate] = useState(false);
 
-  const nonOxGames = balanceGames.filter(g => !isOxBalanceGame(g));
-  const activeGlobal = nonOxGames.filter(g => g.status === 'active' && g.scope === 'global');
-  const activeTable = tableNumber != null
-    ? nonOxGames.filter(g => g.status === 'active' && g.scope === 'table' && g.table_number === tableNumber)
-    : [];
-  const allActive = nonOxGames.filter(g => g.status === 'active' && !(g.scope === 'table' && tableNumber !== null && g.table_number !== tableNumber));
-  const ended = nonOxGames.filter(g => g.status === 'ended').slice(0, 5);
+  // 렌더마다 반복 filter 방지: balanceGames/tableNumber가 바뀔 때만 재계산
+  const { nonOxGames, activeGlobal, activeTable, allActive, ended } = useMemo(() => {
+    const nonOx = balanceGames.filter(g => !isOxBalanceGame(g));
+    return {
+      nonOxGames: nonOx,
+      activeGlobal: nonOx.filter(g => g.status === 'active' && g.scope === 'global'),
+      activeTable: tableNumber != null
+        ? nonOx.filter(g => g.status === 'active' && g.scope === 'table' && g.table_number === tableNumber)
+        : [],
+      allActive: nonOx.filter(g => g.status === 'active' && !(g.scope === 'table' && tableNumber !== null && g.table_number !== tableNumber)),
+      ended: nonOx.filter(g => g.status === 'ended').slice(0, 5),
+    };
+  }, [balanceGames, tableNumber]);
+
+  // 자리 점유 수 사전 계산 — .map() 내부 반복 filter 제거
+  const occupiedTotal = useMemo(() => seats.filter(s => s.status === 'occupied').length, [seats]);
+  const tableOccupied = useMemo(() => {
+    const m = new Map<number, number>();
+    for (const s of seats) {
+      if (s.status === 'occupied' && s.table_number != null)
+        m.set(s.table_number, (m.get(s.table_number) ?? 0) + 1);
+    }
+    return m;
+  }, [seats]);
 
   const SUBTABS: { id: UserGameSubTab; label: string; icon: string }[] = [
     { id: 'balance', label: '밸런스', icon: '⚡' },
@@ -81,7 +98,7 @@ export function UserGameTab({
               {activeGlobal.map(g => (
                 <BalanceGameCard key={g.id} game={g} myVote={myVotes.get(g.id) ?? null}
                   voteCounts={voteCounts.get(g.id) ?? { a: 0, b: 0 }} currentUserId={currentUserId}
-                  eligibleCount={seats.filter(s => s.status === 'occupied').length}
+                  eligibleCount={occupiedTotal}
                   onVote={onVote} onEnd={onEndGame} />
               ))}
             </div>
@@ -93,7 +110,7 @@ export function UserGameTab({
               {activeTable.map(g => (
                 <BalanceGameCard key={g.id} game={g} myVote={myVotes.get(g.id) ?? null}
                   voteCounts={voteCounts.get(g.id) ?? { a: 0, b: 0 }} currentUserId={currentUserId}
-                  eligibleCount={seats.filter(s => s.table_number === g.table_number && s.status === 'occupied').length}
+                  eligibleCount={tableOccupied.get(g.table_number!) ?? 0}
                   onVote={onVote} onEnd={onEndGame} />
               ))}
             </div>
@@ -108,7 +125,7 @@ export function UserGameTab({
                 {ended.map(g => (
                   <BalanceGameCard key={g.id} game={g} myVote={myVotes.get(g.id) ?? null}
                     voteCounts={voteCounts.get(g.id) ?? { a: 0, b: 0 }} currentUserId={currentUserId}
-                    eligibleCount={g.scope === 'table' ? seats.filter(s => s.table_number === g.table_number && s.status === 'occupied').length : seats.filter(s => s.status === 'occupied').length}
+                    eligibleCount={g.scope === 'table' ? (tableOccupied.get(g.table_number!) ?? 0) : occupiedTotal}
                     onVote={onVote} />
                 ))}
               </div>

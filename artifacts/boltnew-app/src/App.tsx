@@ -439,7 +439,7 @@ function App() {
       setEntryVerified(!ep || ls.getItem(ENTRY_VERIFIED_KEY) === ep);
       const gs = data?.game_state as GameState | null;
       if (gs?.active) { setCurrentGame(gs); setGameModalVisible(true); }
-    });
+    }).catch(() => {});
     const settingsChannel = supabase
       .channel('app-settings-user')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_settings' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
@@ -562,6 +562,8 @@ function App() {
       .subscribe();
 
     // Contact share events subscription (acceptance/rejection notifications)
+    // 알림 자동소거 타이머 ID 추적 — 언마운트 시 clearTimeout으로 누수 방지
+    const shareNotifTimerIds: ReturnType<typeof setTimeout>[] = [];
     const contactEventsChannel = supabase.channel('contact-share-events-user')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'contact_share_events' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         const row = payload.new as { id?: string; from_user_id: string; to_user_id: string; event_type: string; created_at?: string };
@@ -575,11 +577,11 @@ function App() {
         seenContactEventIdsRef.current.add(eventKey);
         if (row.event_type === 'accepted') {
           setShareEventNotif({ type: 'accepted', fromUserId: row.from_user_id });
-          setTimeout(() => setShareEventNotif(null), 5000);
+          shareNotifTimerIds.push(setTimeout(() => setShareEventNotif(null), 5000));
           loadContactShareData(myId);
         } else if (row.event_type === 'rejected') {
           setShareEventNotif({ type: 'rejected', fromUserId: row.from_user_id });
-          setTimeout(() => setShareEventNotif(null), 5000);
+          shareNotifTimerIds.push(setTimeout(() => setShareEventNotif(null), 5000));
         }
       })
       .subscribe();
@@ -587,6 +589,7 @@ function App() {
     return () => {
       cancelled = true;
       clearTimeout(timeout); // 언마운트 시 타임아웃 정리 (메모리 누수 방지)
+      shareNotifTimerIds.forEach(clearTimeout);
       supabase.removeChannel(settingsChannel);
       supabase.removeChannel(notifChannel);
       supabase.removeChannel(qaChannel);
@@ -622,6 +625,11 @@ function App() {
 
   useEffect(() => {
     if (!currentUserId) return;
+    // 타이머 ID 추적 — 언마운트 시 clearTimeout으로 stale setState 방지
+    let retryTimerId: ReturnType<typeof setTimeout> | null = null;
+    let initTimerId1: ReturnType<typeof setTimeout> | null = null;
+    let initTimerId2: ReturnType<typeof setTimeout> | null = null;
+    const rejNotifTimerIds: ReturnType<typeof setTimeout>[] = [];
     loadProfiles().catch(() => []).then((allProfiles) => {
       // 프로필 목록이 비어있으면 서버 기동 중이거나 네트워크 오류 — 세션 유지
       // 실제 프로필 삭제는 reset_signal SSE로 처리되므로 여기서 aggressive하게 지우지 않음
@@ -637,7 +645,7 @@ function App() {
       // If the profile no longer exists (e.g. admin reset the session), clear stale state
       // 안정성: DB 전파 지연으로 인한 false-positive 방지 — 2초 후 한 번 더 확인
       if (!allProfiles.some((p: { id: string }) => p.id === currentUserId)) {
-        setTimeout(async () => {
+        retryTimerId = setTimeout(async () => {
           const retry = await loadProfiles();
           if (retry.length > 0 && !retry.some((p: { id: string }) => p.id === currentUserId)) {
             ls.removeItem(MATCHING_USER_KEY);
@@ -666,11 +674,11 @@ function App() {
     loadSeats();
     loadLikes(currentUserId);
     loadReceivedLikes(currentUserId);
-    setTimeout(() => {
+    initTimerId1 = setTimeout(() => {
       loadContactShareData(currentUserId);
       loadChatList(currentUserId);
     }, 300);
-    setTimeout(() => {
+    initTimerId2 = setTimeout(() => {
       loadSuggestions(currentUserId);
       loadBalanceGames();
       loadMyVotes(currentUserId);
@@ -727,7 +735,7 @@ function App() {
             const rejectedProfile = profilesRef.current.find(p => p.id === updated.liked_id);
             const nick = rejectedProfile?.nickname ?? '상대방';
             setRejectionNotif(nick);
-            setTimeout(() => setRejectionNotif(null), 5000);
+            rejNotifTimerIds.push(setTimeout(() => setRejectionNotif(null), 5000));
           } else if (updated.status === 'accepted') {
             loadContactShareData(currentUserId);
           }
@@ -806,7 +814,7 @@ function App() {
         seatsRefreshTimer = null;
         supabase.from('seats').select('*').order('table_number').order('seat_position').then(({ data }: { data: any }) => {
           if (data) setSeats(data);
-        });
+        }).catch(() => {});
       }, 400);
     };
     const seatsChannel = supabase
@@ -863,9 +871,10 @@ function App() {
         const updated = payload.new as BalanceGame;
         setBalanceGames(prev => prev.map(g => g.id === updated.id ? updated : g));
         if (updated.status === 'ended') {
+          // setState 중첩 금지: queueMicrotask로 updater 밖에서 setGameEndResult 호출
           setVoteCounts(prev => {
             const counts = prev.get(updated.id) || { a: 0, b: 0 };
-            setGameEndResult({ game: updated, counts });
+            queueMicrotask(() => setGameEndResult({ game: updated, counts }));
             return prev;
           });
         }
@@ -885,6 +894,10 @@ function App() {
       .subscribe();
 
     return () => {
+      if (retryTimerId) clearTimeout(retryTimerId);
+      if (initTimerId1) clearTimeout(initTimerId1);
+      if (initTimerId2) clearTimeout(initTimerId2);
+      rejNotifTimerIds.forEach(clearTimeout);
       if (seatsRefreshTimer) clearTimeout(seatsRefreshTimer);
       supabase.removeChannel(profileChannel);
       supabase.removeChannel(likesChannel);

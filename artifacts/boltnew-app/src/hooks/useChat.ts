@@ -119,7 +119,7 @@ export function useChat({
         chat_id: chatId,
         reader_id: currentUserId,
         read_at: new Date().toISOString(),
-      }, { onConflict: 'id' }).then(() => {});
+      }, { onConflict: 'id' }).then(() => {}).catch(() => {});
     }
     const channel = supabase
       .channel(`chat:${chatId}`)
@@ -161,7 +161,7 @@ export function useChat({
           chat_id: chatId,
           reader_id: currentUserId,
           read_at: new Date().toISOString(),
-        }, { onConflict: 'id' }).then(() => {});
+        }, { onConflict: 'id' }).then(() => {}).catch(() => {});
       }
     };
   }, [chatId, loadMessages, currentUserId]);

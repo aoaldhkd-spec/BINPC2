@@ -310,7 +310,7 @@ export default function SeatManagementMode({ seats, profileMap, adminPassword, t
                       isSel ? 'border-orange-500 bg-orange-50 ring-2 ring-orange-300' : 'border-amber-200 bg-white hover:border-amber-400'
                     }`}
                   >
-                    <img src={p.photo_url} alt={p.nickname} className="w-6 h-6 rounded-full object-cover" />
+                    <img src={p.photo_url} alt={p.nickname} className="w-6 h-6 rounded-full object-cover" loading="lazy" />
                     <span className="text-xs font-bold text-gray-700 whitespace-nowrap">{p.nickname}</span>
                     {isSel && <Check className="w-3 h-3 text-orange-500" />}
                   </button>
@@ -483,7 +483,7 @@ function EditProfileModal({ profile, seat, adminPassword, onClose, onSaved }: {
         </div>
         <div className="p-5 space-y-4">
           <div className="flex items-center gap-3 pb-3 border-b border-gray-50">
-            <img src={profile.photo_url} alt={profile.nickname} className="w-14 h-14 rounded-xl object-cover" />
+            <img src={profile.photo_url} alt={profile.nickname} className="w-14 h-14 rounded-xl object-cover" loading="lazy" />
             <div>
               <p className="text-sm font-bold text-gray-700">{shortLabel(seat)}</p>
               <p className="text-xs text-gray-400">현재 닉네임: {profile.nickname}</p>

@@ -288,7 +288,7 @@ function BigSeatButton({ seat, profile, isCurrentUser, isAdmin, movingProfileId,
               }
             }}
           >
-            <img src={profile.photo_url} alt={profile.nickname} className="w-full h-full object-cover" />
+            <img src={profile.photo_url} alt={profile.nickname} className="w-full h-full object-cover" loading="lazy" />
             {/* Overlays */}
             {isSelectedForMove && (
               <div className="absolute inset-0 bg-orange-500/30 flex items-center justify-center">
@@ -335,7 +335,7 @@ function BigSeatButton({ seat, profile, isCurrentUser, isAdmin, movingProfileId,
     return (
       <div className="flex flex-col items-center gap-1">
         <button onClick={() => onProfileClick?.(profile)} className={`${dim} rounded-xl overflow-hidden border-2 transition-all active:scale-95 shadow relative ${isCurrentUser ? 'border-blue-400 ring-2 ring-blue-300/70' : 'border-white/20 hover:border-teal-300'}`} title={profile.nickname}>
-          <img src={profile.photo_url} alt={profile.nickname} className="w-full h-full object-cover" />
+          <img src={profile.photo_url} alt={profile.nickname} className="w-full h-full object-cover" loading="lazy" />
           {isCurrentUser && <div className="absolute inset-0 bg-blue-500/50 flex items-center justify-center"><span className="text-sm font-black text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">나</span></div>}
         </button>
         <span className={`text-[9px] font-bold truncate max-w-[3.5rem] text-center ${isCurrentUser ? t.labelMe : t.label}`}>{isCurrentUser ? '나' : profile.nickname}</span>
@@ -523,7 +523,7 @@ function SeatButton({
               }
             }}
           >
-            <img src={profile.photo_url} alt={profile.nickname} className="w-full h-full object-cover" />
+            <img src={profile.photo_url} alt={profile.nickname} className="w-full h-full object-cover" loading="lazy" />
             {isSelectedForMove && (
               <div className="absolute inset-0 bg-orange-500/40 flex items-center justify-center">
                 <Move className="w-3 h-3 text-white" />
@@ -564,7 +564,7 @@ function SeatButton({
   if (occupied && profile) {
     return (
       <button onClick={() => onProfileClick?.(profile)} className={`${dim} rounded-lg overflow-hidden border-2 ${isCurrentUser ? 'border-blue-400 shadow-md ring-2 ring-blue-300/70' : 'border-white/30 hover:border-teal-300'} shadow-sm relative transition-all active:scale-95`} title={profile.nickname}>
-        <img src={profile.photo_url} alt={profile.nickname} className="w-full h-full object-cover" />
+        <img src={profile.photo_url} alt={profile.nickname} className="w-full h-full object-cover" loading="lazy" />
         {isCurrentUser && <div className="absolute inset-0 bg-blue-500/50 flex items-center justify-center"><span className="text-[11px] font-black text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">나</span></div>}
       </button>
     );
@@ -724,7 +724,7 @@ export default function SeatingMap({
       {isAdmin && movingProfile && (
         <div className="sticky top-0 z-40 mx-4 mb-3 flex items-center gap-3 px-4 py-2.5 bg-amber-500 rounded-2xl shadow-lg shadow-amber-500/30 animate-pulse-slow">
           <div className="w-8 h-8 rounded-lg overflow-hidden border-2 border-amber-300 flex-shrink-0">
-            <img src={movingProfile.photo_url} alt={movingProfile.nickname} className="w-full h-full object-cover" />
+            <img src={movingProfile.photo_url} alt={movingProfile.nickname} className="w-full h-full object-cover" loading="lazy" />
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-amber-900 font-black text-xs leading-tight">{movingProfile.nickname}</p>

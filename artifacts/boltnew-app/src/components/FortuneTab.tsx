@@ -235,8 +235,15 @@ export default function FortuneTab({
     return getBedCompat(myBirthYear, myBirthMonth, myBirthDay, tYear, tMonth, tDay, myProfile?.dom_sub_score, tDomScore);
   }, [hasBirthday, hasTarget, myBirthYear, myBirthMonth, myBirthDay, tYear, tMonth, tDay, tDomScore]);
 
-  const heartedProfiles = profiles.filter(p => p.id !== currentUserId && likedIds.has(p.id));
-  const otherProfiles = profiles.filter(p => p.id !== currentUserId);
+  // 렌더마다 반복 filter 방지
+  const heartedProfiles = useMemo(
+    () => profiles.filter(p => p.id !== currentUserId && likedIds.has(p.id)),
+    [profiles, currentUserId, likedIds],
+  );
+  const otherProfiles = useMemo(
+    () => profiles.filter(p => p.id !== currentUserId),
+    [profiles, currentUserId],
+  );
 
   return (
     <div className="text-white overflow-x-hidden w-full">

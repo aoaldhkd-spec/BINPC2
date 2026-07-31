@@ -153,7 +153,6 @@ async function loadFromDb(): Promise<void> {
           _dbPersistErrorLog.length = 0;
           _dbPersistErrorLog.push(...saved.log.slice(-100));
         }
-        console.log(`[db] Restored DB persist error counter: ${_dbPersistErrors}`);
         continue;
       }
       if (!store[row.table_name]) store[row.table_name] = [];
@@ -163,7 +162,6 @@ async function loadFromDb(): Promise<void> {
     for (const img of imgs.rows) {
       imageStore[img.path] = img.data_url;
     }
-    console.log('[db] Loaded from PostgreSQL:', Object.entries(store).map(([k, v]) => `${k}(${v.length})`).join(', ') || '(empty)');
   } catch (e) {
     console.error('[db] Failed to load from DB:', e);
   }
@@ -243,7 +241,6 @@ async function seedIfNeeded(): Promise<void> {
     if (extraRows.length) {
       store['seats'].push(...extraRows);
       await Promise.all(extraRows.map(r => dbPersistRow('seats', r)));
-      console.log(`[db] 번외 테이블 추가: ${extraRows.length}석`);
     }
   }
 }
@@ -263,7 +260,6 @@ function startDailyEntryPasswordRenewal(): void {
     store['app_settings'][0] = updated;
     dbPersistRow('app_settings', updated).catch(console.error);
     broadcastAll({ type: 'change', table: 'app_settings', event: 'UPDATE', newRow: updated, oldRow: settings });
-    console.log(`[db] Auto-renewed entry_password: ${currentPw} → ${today}`);
   };
   setInterval(check, 60_000); // check every minute
 }
@@ -598,6 +594,10 @@ router.post('/op', async (req: Request, res: Response) => {
         inserted.push(newRow);
         smartBroadcast(table, newRow, { type: 'change', table, event: 'INSERT', newRow, oldRow: null });
         dbPersistRow(table, newRow).catch(console.error);
+        // chat_reads 삽입 시 해당 유저 unread 캐시 즉시 무효화
+        if (table === 'chat_reads' && newRow.reader_id) {
+          unreadCountsCache.delete(String(newRow.reader_id));
+        }
         // 메시지·하트 삽입 시 수신자 핸드폰으로 푸시 알림 전송
         if (table === 'messages' || table === 'likes') {
           sendPushForEvent(table, newRow).catch(console.error);
@@ -669,6 +669,10 @@ router.post('/op', async (req: Request, res: Response) => {
           upserted.push(newRow);
           smartBroadcast(table, newRow, { type: 'change', table, event: 'UPDATE', newRow, oldRow });
           dbPersistRow(table, newRow).catch(console.error);
+          // chat_reads 갱신 시 해당 유저 unread 캐시 즉시 무효화
+          if (table === 'chat_reads' && newRow.reader_id) {
+            unreadCountsCache.delete(String(newRow.reader_id));
+          }
         } else {
           const base: Record<string, unknown> = { id: genId(), created_at: ts(), ...row };
           if (table === 'profiles' && base.birth_month == null) {
@@ -679,6 +683,9 @@ router.post('/op', async (req: Request, res: Response) => {
           upserted.push(base);
           smartBroadcast(table, base, { type: 'change', table, event: 'INSERT', newRow: base, oldRow: null });
           dbPersistRow(table, base).catch(console.error);
+          if (table === 'chat_reads' && base.reader_id) {
+            unreadCountsCache.delete(String(base.reader_id));
+          }
         }
       }
       if (selectAfterWrite) return res.json({ data: upserted, error: null });
@@ -762,6 +769,7 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         for (const t of tablesToClear) {
           const old = store[t] ?? [];
           store[t] = [];
+          if (t === 'chat_reads') unreadCountsCache.clear(); // 전체 리셋 시 캐시 전부 무효화
           if (RESET_PRIVATE.has(t)) {
             // 행 데이터 없이 테이블 초기화 알림만 전송
             broadcastAll({ type: 'change', table: t, event: 'RESET', newRow: null, oldRow: null });
