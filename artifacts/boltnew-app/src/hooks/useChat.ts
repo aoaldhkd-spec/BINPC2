@@ -158,6 +158,8 @@ export function useChat({
   }, [chatId, loadMessages, currentUserId]);
 
   // loadChatList: generation guard — 느린 응답이 현재 userId의 목록을 덮어쓰지 않도록
+  // syncUnreadCounts는 아래에서 정의되지만 ref를 통해 참조 — 순환 의존 없이 loadChatList 완료 후 호출
+  const syncUnreadCountsRef = useRef<(() => Promise<void>) | null>(null);
   const loadChatListGenRef = useRef(0);
   const loadChatList = useCallback(async (userId: string) => {
     const gen = ++loadChatListGenRef.current;
@@ -166,7 +168,7 @@ export function useChat({
       .order('created_at', { ascending: false });
     if (gen !== loadChatListGenRef.current) return; // 스탤 응답 버림
     if (!data) return;
-    if (data.length === 0) { setChatList([]); return; }
+    if (data.length === 0) { setChatList([]); void syncUnreadCountsRef.current?.(); return; }
     const chatIds = data.map((c: { id: string }) => c.id);
     const { data: allMsgs } = await supabase.from('messages').select('chat_id, content, created_at')
       .in('chat_id', chatIds).order('created_at', { ascending: false }).limit(Math.max(chatIds.length * 20, 100));
@@ -183,6 +185,9 @@ export function useChat({
       messageCount: 0,
     }));
     setChatList(enriched);
+    // 채팅 목록 로드 완료 후 DB 기반 미읽음 카운트를 즉시 동기화
+    // (앱을 완전히 닫았다가 재진입 시 SSE 재연결이 아닌 첫 연결이므로 별도 호출 필요)
+    void syncUnreadCountsRef.current?.();
   }, []);
 
   // openChat: generation guard — 빠른 연속 탭 시 느린 응답이 현재 채팅방을 덮어쓰지 않도록
@@ -255,7 +260,7 @@ export function useChat({
   }, [currentUserId, setSelectedProfile, setView, setBottomNotif]);
 
   // ── DB 기반 미읽음 카운트 재동기화 ────────────────────────────────────────────
-  // visibilitychange 또는 SSE 재연결 시 호출 — 백그라운드에서 누락된 메시지 보정
+  // visibilitychange, SSE 재연결, 또는 loadChatList 완료 시 호출 — 누락된 메시지 보정
   const syncUnreadCounts = useCallback(async () => {
     if (!currentUserId) return;
     try {
@@ -280,6 +285,9 @@ export function useChat({
       setNewMsgCount(total);
     } catch { /* 네트워크 오류 시 무시 — 다음 재연결 때 재시도 */ }
   }, [currentUserId]);
+
+  // syncUnreadCountsRef 업데이트 — loadChatList가 정의 순서와 무관하게 최신 함수를 참조할 수 있도록
+  syncUnreadCountsRef.current = syncUnreadCounts;
 
   // 첫 마운트: currentUserId가 확보된 직후 DB에서 정확한 미읽음 카운트를 즉시 동기화
   // (앱 재시작/새로고침 후 배지가 0으로 뜨는 현상 방지)
