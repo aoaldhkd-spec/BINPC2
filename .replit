@@ -20,6 +20,10 @@ author = "agent"
 task = "workflow.run"
 args = "stress-test"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "theme-regression"
+
 [[workflows.workflow]]
 name = "stress-test"
 author = "agent"
@@ -30,6 +34,17 @@ isValidation = true
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "BASE_URL=http://localhost:8080 node artifacts/api-server/scripts/stress-test.mjs"
+
+[[workflows.workflow]]
+name = "theme-regression"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd artifacts/boltnew-app && pnpm run build && pnpm run test:themes"
+
+[workflows.workflow.metadata]
+isValidation = true
 
 [agent]
 stack = "PNPM_WORKSPACE"
