@@ -29,6 +29,10 @@ const imageStore: Record<string, string> = {};
 let _activeOpCount = 0;
 const MAX_CONCURRENT_OPS = 80;
 
+// ─── Per-user global likes rate limit (독립 조합 스팸 방지) ──────────────────────
+const LIKES_MAX_PER_USER_PER_MIN = 20; // 1분에 20개 초과 시 429
+const _userLikeMinuteBuckets = new Map<string, { count: number; resetAt: number }>();
+
 // ─── DB persist error tracking ────────────────────────────────────────────────
 let _dbPersistErrors = 0;
 interface PersistErrorEntry { table: string; time: number; msg: string }
@@ -628,6 +632,19 @@ router.post('/op', async (req: Request, res: Response) => {
             return res.json({ data: null, error: null });
           }
           _likesLastInsert.set(rateKey, Date.now());
+
+          // ─ 사용자 전체 분당 한도 (서로 다른 대상/타입 조합 스팸 방지)
+          const liker = String(effectiveRow.liker_id);
+          const nowMs = Date.now();
+          let ubucket = _userLikeMinuteBuckets.get(liker);
+          if (!ubucket || nowMs > ubucket.resetAt) {
+            ubucket = { count: 0, resetAt: nowMs + 60_000 };
+            _userLikeMinuteBuckets.set(liker, ubucket);
+          }
+          ubucket.count++;
+          if (ubucket.count > LIKES_MAX_PER_USER_PER_MIN) {
+            return res.status(429).json({ data: null, error: { message: '하트를 너무 빠르게 보내고 있습니다. 잠시 후 다시 시도해 주세요.', code: 'RATE_LIMIT' } });
+          }
         }
         const newRow: Record<string, unknown> = { id: genId(), created_at: ts(), ...effectiveRow };
         if (table === 'session_history' && !newRow.ended_at) newRow.ended_at = ts();
@@ -1011,11 +1028,36 @@ router.post('/broadcast', (req: Request, res: Response) => {
 });
 
 // ─── Image storage ────────────────────────────────────────────────────────────
+// 허용 MIME 타입 (이미지만)
+const ALLOWED_IMAGE_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+// base64 인코딩 시 ~4/3 오버헤드 → 5MB 원본 ≈ 9MB JSON 문자열
+const MAX_IMAGE_DATAURL_BYTES = 9_000_000;
+
 router.post('/storage-upload', async (req: Request, res: Response) => {
-  const { path, dataUrl } = req.body as { path: string; dataUrl: string };
-  imageStore[path] = dataUrl;
-  dbPersistImage(path, dataUrl).catch(console.error);
-  res.json({ data: { path }, error: null });
+  const { path: imgPath, dataUrl } = req.body as { path?: string; dataUrl?: string };
+  // ─ 경로 검증: 디렉터리 트래버설 / 임의 덮어쓰기 방지
+  if (
+    !imgPath || typeof imgPath !== 'string' ||
+    imgPath.includes('..') || imgPath.startsWith('/') ||
+    imgPath.length > 512 || !/^[\w\-./]+$/.test(imgPath)
+  ) {
+    return res.status(400).json({ data: null, error: 'Invalid path' });
+  }
+  // ─ dataUrl 검증
+  if (!dataUrl || typeof dataUrl !== 'string') {
+    return res.status(400).json({ data: null, error: 'Missing dataUrl' });
+  }
+  const mimeMatch = dataUrl.match(/^data:([^;]+);base64,/);
+  if (!mimeMatch || !ALLOWED_IMAGE_MIMES.has(mimeMatch[1])) {
+    return res.status(400).json({ data: null, error: 'Invalid image type' });
+  }
+  // ─ 크기 제한 (~5MB 원본)
+  if (dataUrl.length > MAX_IMAGE_DATAURL_BYTES) {
+    return res.status(413).json({ data: null, error: 'Image too large (max 5MB)' });
+  }
+  imageStore[imgPath] = dataUrl;
+  dbPersistImage(imgPath, dataUrl).catch(console.error);
+  res.json({ data: { path: imgPath }, error: null });
 });
 
 router.get('/storage-image', (req: Request, res: Response): void => {
@@ -1039,7 +1081,8 @@ router.post('/admin/clear-db-errors', async (req: Request, res: Response) => {
   const { adminPassword } = req.body as { adminPassword?: string };
   const settings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
   const expectedPw = (settings.admin_password as string) ?? '';
-  if (expectedPw && adminPassword !== expectedPw) {
+  // 비밀번호가 설정돼 있지 않아도 반드시 거부 — 설정 전 관리자가 먼저 비밀번호를 세팅해야 함
+  if (!expectedPw || adminPassword !== expectedPw) {
     return res.status(403).json({ ok: false, error: 'Invalid admin password' });
   }
 
@@ -1107,7 +1150,7 @@ router.get('/health', async (_req: Request, res: Response) => {
 
   return res.json({
     persistErrors: _dbPersistErrors,
-    recentErrors: _dbPersistErrorLog.slice(-10),
+    // recentErrors는 DB 내부 오류 메시지를 포함할 수 있어 공개 응답에서 제외
     inMemory: { messages: inMemMessages, likes: inMemLikes },
     db: { messages: dbMessages, likes: dbLikes },
     lag: { messages: messageLag, likes: likeLag },
@@ -1201,6 +1244,16 @@ router.post('/push/subscribe', (req: Request, res: Response) => {
     subs[idx] = updated;
     dbPersistRow('push_subscriptions', updated).catch(console.error);
   } else {
+    // 사용자당 최대 5개 구독 — 초과 시 가장 오래된 것 제거 (슬라이딩 윈도우)
+    const USER_MAX_PUSH_SUBS = 5;
+    const userSubs = subs
+      .map((s, i) => ({ ...s, _idx: i }))
+      .filter(s => s.user_id === userId)
+      .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+    if (userSubs.length >= USER_MAX_PUSH_SUBS) {
+      const oldestIdx = subs.findIndex(s => s.id === userSubs[0].id);
+      if (oldestIdx >= 0) subs.splice(oldestIdx, 1);
+    }
     const newSub = {
       id: genId(), user_id: userId,
       endpoint: subscription.endpoint,

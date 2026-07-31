@@ -224,35 +224,25 @@ let _tokenRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 const SSE_TOK_KEY = 'sse_tok';
 const SSE_TOK_EXP_KEY = 'sse_tok_exp';
 
-/** userId에 대한 SSE 토큰을 서버에서 발급받아 캐시 후 SSE 재연결 */
-async function fetchSseToken(userId: string): Promise<void> {
+/**
+ * SSE 재연결 시 localStorage 캐시 토큰을 복원합니다.
+ * 실제 토큰 발급은 fetchAndSetSseToken(App.tsx에서 호출)이 담당합니다.
+ * 이 함수는 캐시 확인 + SSE 재연결만 수행합니다.
+ */
+function fetchSseToken(userId: string): void {
   // localStorage 캐시 확인 (만료 2분 전까지 재사용)
   try {
     const cached = localStorage.getItem(SSE_TOK_KEY);
     const exp = parseInt(localStorage.getItem(SSE_TOK_EXP_KEY) ?? '0', 10);
     if (cached && Date.now() < exp - 120_000) {
       _sseToken = cached;
-      if (_es) { _es.close(); _es = null; }
-      if (_sseListeners.size > 0) ensureSse();
-      return;
     }
   } catch { /* ignore */ }
-  // 서버에서 새 토큰 발급
-  try {
-    const res = await fetch(`${API}/sse-token?userId=${encodeURIComponent(userId)}`);
-    if (!res.ok) return;
-    const { token, expiresAt } = await res.json() as { token: string; expiresAt: number };
-    _sseToken = token;
-    try {
-      localStorage.setItem(SSE_TOK_KEY, token);
-      localStorage.setItem(SSE_TOK_EXP_KEY, String(expiresAt));
-    } catch { /* ignore */ }
-    // 토큰 획득 후 SSE 재연결 (이번엔 userId+token 포함)
-    if (_currentUserId === userId) {
-      if (_es) { _es.close(); _es = null; }
-      if (_sseListeners.size > 0) ensureSse();
-    }
-  } catch { /* ignore */ }
+  // userId가 일치할 때만 SSE 재연결 (userId 변경 경합 방지)
+  if (_currentUserId === userId) {
+    if (_es) { _es.close(); _es = null; }
+    if (_sseListeners.size > 0) ensureSse();
+  }
 }
 
 /** 사용자 로그인/로그아웃 시 호출 — SSE를 userId 식별 연결로 재연결 */

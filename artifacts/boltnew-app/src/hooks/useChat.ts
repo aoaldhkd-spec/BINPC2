@@ -74,11 +74,11 @@ export function useChat({
       channels.set(chat.id, ch);
     }
 
+    // ✅ 항상 전체 채널 정리 — currentUserId 값에 관계없이
+    // (로그아웃·사용자 변경·언마운트 시 stale 채널이 남아 알림 이중 발화 방지)
     return () => {
-      if (!currentUserId) {
-        for (const ch of channels.values()) supabase.removeChannel(ch);
-        channels.clear();
-      }
+      for (const ch of channels.values()) supabase.removeChannel(ch);
+      channels.clear();
     };
   }, [chatList, currentUserId]);
 
@@ -381,33 +381,47 @@ export function useChat({
         chat_id: chatId, sender_id: currentUserId, content: '', image_url: publicUrl,
         client_id: clientId, // 스토리지 경로와 동일한 UUID — ON CONFLICT DO NOTHING 중복 방지
       });
-      if (msgErr) return msgErr.message;
+      if (msgErr) {
+        // ✅ 메시지 INSERT 실패 시 이미 업로드된 스토리지 파일 정리 (고아 파일 방지)
+        supabase.storage.from('chat-images').remove([data.path]).catch(() => {});
+        return msgErr.message;
+      }
       return null;
     } finally {
       sendImageInFlightRef.current = false;
     }
   };
 
+  // ✅ 서버 삭제 성공 후에만 UI 업데이트 + 실패 시 오류 표시
   const deleteChat = async (chatToDelete: Chat) => {
     if (!confirm('이 채팅방을 삭제하시겠습니까?')) return;
-    await supabase.from('messages').delete().eq('chat_id', chatToDelete.id);
-    await supabase.from('chats').delete().eq('id', chatToDelete.id);
+    const { error: msgErr } = await supabase.from('messages').delete().eq('chat_id', chatToDelete.id);
+    if (msgErr) { alert('메시지 삭제 실패: ' + msgErr.message); return; }
+    const { error: chatErr } = await supabase.from('chats').delete().eq('id', chatToDelete.id);
+    if (chatErr) { alert('채팅방 삭제 실패: ' + chatErr.message); return; }
     setChatList(prev => prev.filter(c => c.id !== chatToDelete.id));
   };
 
+  // ✅ 개별 성공한 채팅방만 UI에서 제거 (일부 실패 시 partial rollback 가능)
   const deleteAllChats = async () => {
     if (chatList.length === 0) return;
     if (!confirm(`채팅 ${chatList.length}개를 모두 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) return;
+    const deletedIds: string[] = [];
     for (const chat of chatList) {
-      await supabase.from('messages').delete().eq('chat_id', chat.id);
-      await supabase.from('chats').delete().eq('id', chat.id);
+      const { error: msgErr } = await supabase.from('messages').delete().eq('chat_id', chat.id);
+      if (msgErr) continue; // 메시지 삭제 실패한 채팅방은 건너뜀
+      const { error: chatErr } = await supabase.from('chats').delete().eq('id', chat.id);
+      if (!chatErr) deletedIds.push(chat.id);
     }
-    setChatList([]);
+    if (deletedIds.length > 0) {
+      setChatList(prev => prev.filter(c => !deletedIds.includes(c.id)));
+    }
   };
 
+  // ✅ 서버 삭제 성공 후에만 UI에서 제거
   const deleteMessage = async (msgId: string) => {
-    await supabase.from('messages').delete().eq('id', msgId);
-    setMessages(prev => prev.filter(m => m.id !== msgId));
+    const { error } = await supabase.from('messages').delete().eq('id', msgId);
+    if (!error) setMessages(prev => prev.filter(m => m.id !== msgId));
   };
 
   return {

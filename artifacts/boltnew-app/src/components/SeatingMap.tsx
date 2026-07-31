@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { MessageCircle, X, ArrowRight, Move, ArrowLeftRight, Pencil } from 'lucide-react';
 import type { Database } from '../types/database';
 import { getPositionLabel, getPositionBg, getDomSubLabel, getDomSubBg } from '../lib/profile';
@@ -679,6 +679,8 @@ export default function SeatingMap({
   const [activeRow, setActiveRow] = useState<RowFilter>('all');
   const [movingProfileId, setMovingProfileId] = useState<string | null>(null);
   const [movingProfile, setMovingProfile] = useState<Profile | null>(null);
+  // ✅ 이동 버튼 연타 방지 — 첫 클릭 후 즉시 잠금 (렌더 사이클 대기 없음)
+  const moveBusyRef = useRef(false);
 
   const handleSelectForMove = (profileId: string, profile: Profile) => {
     if (movingProfileId === profileId) {
@@ -691,11 +693,12 @@ export default function SeatingMap({
   };
 
   const handleMoveTo = (seat: Seat) => {
-    if (movingProfileId && onForceSeat) {
-      onForceSeat(movingProfileId, seat.id);
-    }
+    if (moveBusyRef.current || !movingProfileId || !onForceSeat) return;
+    moveBusyRef.current = true;
+    onForceSeat(movingProfileId, seat.id);
     setMovingProfileId(null);
     setMovingProfile(null);
+    moveBusyRef.current = false;
   };
 
   const openProfile = (profile: Profile) => {

@@ -21,6 +21,7 @@ export function useSeating(currentUserId: string | null) {
     }
   }, []);
 
+  // ✅ try/catch 추가 — 네트워크 오류 시 다이얼로그 닫고 사용자에게 안내
   const handleRegisterSeat = async (
     seat: Seat,
     seatingLocked: boolean,
@@ -32,25 +33,34 @@ export function useSeating(currentUserId: string | null) {
       setSeatDialog(null);
       return;
     }
-    const { data: fresh } = await supabase.from('seats').select('*').eq('id', seat.id).single();
-    if (fresh?.status === 'occupied' && fresh.profile_id !== currentUserId) {
-      alert('방금 다른 사람이 이 자리를 등록했습니다.');
+    try {
+      const { data: fresh } = await supabase.from('seats').select('*').eq('id', seat.id).single();
+      if (fresh?.status === 'occupied' && fresh.profile_id !== currentUserId) {
+        alert('방금 다른 사람이 이 자리를 등록했습니다.');
+        setSeatDialog(null);
+        return;
+      }
+      // 현재 자리가 있으면 먼저 비워주고 새 자리로 이동
+      if (currentUserSeat && currentUserSeat.id !== seat.id) {
+        await supabase
+          .from('seats')
+          .update({ profile_id: null, status: 'empty', registered_at: null })
+          .eq('id', currentUserSeat.id);
+      }
+      const { error } = await supabase.from('seats').update({
+        profile_id: currentUserId, status: 'occupied', registered_at: new Date().toISOString(),
+      }).eq('id', seat.id);
+      if (error) {
+        alert('자리 등록에 실패했습니다. 다시 시도해 주세요.');
+        return;
+      }
       setSeatDialog(null);
-      return;
+      await loadSeats();
+    } catch {
+      // 예상치 못한 네트워크/서버 오류
+      alert('자리 등록 중 오류가 발생했습니다. 다시 시도해 주세요.');
+      setSeatDialog(null);
     }
-    // 현재 자리가 있으면 먼저 비워주고 새 자리로 이동
-    if (currentUserSeat && currentUserSeat.id !== seat.id) {
-      await supabase.from('seats').update({ profile_id: null, status: 'empty', registered_at: null }).eq('id', currentUserSeat.id);
-    }
-    const { error } = await supabase.from('seats').update({
-      profile_id: currentUserId, status: 'occupied', registered_at: new Date().toISOString(),
-    }).eq('id', seat.id);
-    if (error) {
-      alert('자리 등록에 실패했습니다. 다시 시도해 주세요.');
-      return;
-    }
-    setSeatDialog(null);
-    await loadSeats();
   };
 
   return {

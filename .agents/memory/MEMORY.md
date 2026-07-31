@@ -10,3 +10,4 @@
 - [boltnew-app theme CSS pitfalls](boltnew-app-theme-css-pitfalls.md) — Y2K/Minimal rounded-2xl overrides need :not(.photo-overlay,:not(.chat-bubble) exclusions; DiceBear transparent SVG detection via avatarSrc helper.
 - [boltnew-app audit fixes](boltnew-app-audit-fixes.md) — admin_create_session/admin_update_profile were missing checkPassword(); sendImage lacked in-flight guard; client /push/notify always 403 (server auto-pushes); useChat mount syncUnreadCounts needed for badge on restart.
 - [boltnew-app durability fixes](boltnew-app-durability-fixes.md) — messages use client_id UUID idempotency (ON CONFLICT DO NOTHING); likes rate-limiter key must include heart_type or concurrent different-type sends are wrongly blocked; health endpoint has lag/alarm fields.
+- [boltnew-app full-feature audit](boltnew-app-full-audit.md) — 2026-07-31 전수검사: 16건 수정 완료; 잔여 3건(broadcast 역할, 생년월일 유효성, 프로필 사진 고아) Task #46-48로 추적 중.
