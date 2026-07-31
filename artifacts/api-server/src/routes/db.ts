@@ -476,14 +476,32 @@ router.post('/op', async (req: Request, res: Response) => {
         // ✅ Fix #3: 서버 레벨 PIN 유일성 보장 — 100명 동시 INSERT 시 충돌 자동 해소
         // const row는 재할당 불가이므로 effectiveRow로 분리
         let effectiveRow: Record<string, unknown> = row;
-        if (table === 'profiles' && effectiveRow.pin_code != null) {
+        if (table === 'profiles') {
           const usedPins = new Set(tableData.map(r => r.pin_code).filter(Boolean));
-          if (usedPins.has(effectiveRow.pin_code)) {
+          // 프로필 수가 8000 초과 시 5자리 PIN으로 자동 확장 (풀: 90,000개)
+          const use5Digit = tableData.length > 8000;
+          const poolSize = use5Digit ? 90000 : 9000;
+          // PIN 슬롯 전체 소진 — 신규 등록 불가 (503)
+          if (usedPins.size >= poolSize) {
+            return res.status(503).json({
+              data: null,
+              error: { message: 'PIN pool exhausted — no available PIN slots. Please contact the administrator.', code: 'PIN_EXHAUSTED' },
+            });
+          }
+          if (effectiveRow.pin_code != null && usedPins.has(effectiveRow.pin_code)) {
             // 충돌 시 서버에서 새 PIN 직접 생성
-            let newPin = String(Math.floor(1000 + Math.random() * 9000));
+            const genPin = () => use5Digit
+              ? String(Math.floor(10000 + Math.random() * 90000))
+              : String(Math.floor(1000 + Math.random() * 9000));
+            let newPin = genPin();
             let tries = 0;
-            while (usedPins.has(newPin) && tries++ < 100) {
-              newPin = String(Math.floor(1000 + Math.random() * 9000));
+            while (usedPins.has(newPin) && tries++ < 100) newPin = genPin();
+            if (usedPins.has(newPin)) {
+              // 100회 시도 후에도 충돌 — PIN 풀 거의 소진 상태
+              return res.status(503).json({
+                data: null,
+                error: { message: 'PIN pool exhausted — no available PIN slots. Please contact the administrator.', code: 'PIN_EXHAUSTED' },
+              });
             }
             effectiveRow = { ...effectiveRow, pin_code: newPin };
           }
@@ -560,10 +578,25 @@ router.post('/op', async (req: Request, res: Response) => {
       // (레거시 사용자 핀 자동 부여 시 경쟁 조건 방지)
       if (table === 'profiles' && patch.pin_code != null) {
         const usedPins = new Set(tableData.map(r => r.pin_code).filter(Boolean));
+        const use5Digit = tableData.length > 8000;
+        const poolSize = use5Digit ? 90000 : 9000;
+        if (usedPins.size >= poolSize) {
+          return res.status(503).json({
+            data: null,
+            error: { message: 'PIN pool exhausted — no available PIN slots. Please contact the administrator.', code: 'PIN_EXHAUSTED' },
+          });
+        }
+        const genPin = () => use5Digit
+          ? String(Math.floor(10000 + Math.random() * 90000))
+          : String(Math.floor(1000 + Math.random() * 9000));
         let pin = patch.pin_code as string;
         let tries = 0;
-        while (usedPins.has(pin) && tries++ < 100) {
-          pin = String(Math.floor(1000 + Math.random() * 9000));
+        while (usedPins.has(pin) && tries++ < 100) pin = genPin();
+        if (usedPins.has(pin)) {
+          return res.status(503).json({
+            data: null,
+            error: { message: 'PIN pool exhausted — no available PIN slots. Please contact the administrator.', code: 'PIN_EXHAUSTED' },
+          });
         }
         patch = { ...patch, pin_code: pin };
       }

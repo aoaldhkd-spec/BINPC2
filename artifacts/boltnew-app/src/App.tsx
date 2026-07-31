@@ -979,11 +979,22 @@ function App() {
     contactPrivate: boolean;
   }) => {
     setLoading(true);
-    // Generate unique 4-digit pin code
+    // Generate unique PIN code (4-digit normally; 5-digit when >8000 profiles)
     const { data: existingPins } = await supabase.from('profiles').select('pin_code');
     const usedPins = new Set((existingPins ?? []).map((p: { pin_code: string | null }) => p.pin_code).filter(Boolean));
-    let pinCode = String(Math.floor(1000 + Math.random() * 9000));
-    while (usedPins.has(pinCode)) pinCode = String(Math.floor(1000 + Math.random() * 9000));
+    const use5Digit = usedPins.size > 8000;
+    const poolSize = use5Digit ? 90000 : 9000;
+    if (usedPins.size >= poolSize) {
+      alert('현재 등록 가능한 자리가 없습니다. 관리자에게 문의해 주세요.');
+      setLoading(false);
+      return;
+    }
+    const genPin = () => use5Digit
+      ? String(Math.floor(10000 + Math.random() * 90000))
+      : String(Math.floor(1000 + Math.random() * 9000));
+    let pinCode = genPin();
+    let pinTries = 0;
+    while (usedPins.has(pinCode) && pinTries++ < 100) pinCode = genPin();
 
     // 프로필 ID를 클라이언트에서 미리 생성 — SSE 기기 secret을 INSERT와 원자적으로 바인딩하기 위함
     const newProfileId = crypto.randomUUID();
@@ -1015,6 +1026,8 @@ function App() {
     if (error) {
       if (error.code === '23505') {
         alert('이미 사용 중인 닉네임입니다. 다른 닉네임을 선택해 주세요.');
+      } else if (error.code === 'PIN_EXHAUSTED') {
+        alert('현재 등록 가능한 자리가 없습니다. 관리자에게 문의해 주세요.');
       } else {
         alert(`오류가 발생했습니다: ${error.message}`);
       }
