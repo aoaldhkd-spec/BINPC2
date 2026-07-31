@@ -517,6 +517,11 @@ export async function fetchAndSetSseToken(userId: string): Promise<void> {
   } catch { /* 네트워크 오류 시 무시 — SSE는 익명으로 폴백 */ }
 }
 
+/** 현재 SSE 토큰 반환 — push/subscribe 등 인증이 필요한 요청에서 헤더로 사용 */
+export function getSseToken(): string | null {
+  return _sseToken;
+}
+
 /** 서버에서 발급받은 SSE 토큰 저장 및 SSE 재연결. expiresAt은 Unix 초. */
 export function setSseToken(token: string, expiresAt: number) {
   _sseToken = token;

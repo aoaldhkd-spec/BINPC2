@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   CheckCircle, X, XCircle,
 } from 'lucide-react';
-import { supabase, setLocalDbUserId, fetchAndSetSseToken, getDeviceSecret } from './lib/supabase';
+import { supabase, setLocalDbUserId, getSseToken, fetchAndSetSseToken, getDeviceSecret } from './lib/supabase';
 import { genAvatar } from './lib/profile';
 import { HeartType } from './lib/constants';
 // ─── 분리된 타입·유틸·컴포넌트 imports ────────────────────────────────────────
@@ -141,9 +141,14 @@ async function registerPushSub(userId: string): Promise<void> {
     }
     if (!sub) return;
 
+    const sseToken = getSseToken();
+    if (!sseToken) {
+      console.warn('[push] SSE 토큰 없음 — 구독 등록 건너뜀');
+      return;
+    }
     await fetch('/api/db/push/subscribe', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-sse-token': sseToken },
       body: JSON.stringify({ userId, subscription: sub.toJSON() }),
     }).catch(() => null);
   } catch (e) {

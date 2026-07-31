@@ -1300,6 +1300,13 @@ router.post('/push/subscribe', (req: Request, res: Response) => {
   if (!userId || !subscription?.endpoint || !subscription?.keys?.auth || !subscription?.keys?.p256dh) {
     return res.status(400).json({ error: 'Missing fields' });
   }
+
+  // SSE 토큰 검증 — 실제 userId 소유자만 구독 등록 가능
+  const sseToken = req.headers['x-sse-token'] as string | undefined;
+  if (!sseToken || !verifySseToken(userId, sseToken)) {
+    console.warn(`[push/subscribe] Invalid or missing SSE token for userId=${userId} ip=${req.ip}`);
+    return res.status(401).json({ error: 'Unauthorized: invalid SSE token' });
+  }
   const subs = getTable('push_subscriptions');
   const idx = subs.findIndex(s => s.user_id === userId && s.endpoint === subscription.endpoint);
   if (idx >= 0) {
