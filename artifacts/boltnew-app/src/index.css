@@ -1025,3 +1025,275 @@ html[data-theme="minimal"] .bg-gradient-to-b,
   left: 8px;
   right: 8px;
 }
+
+/* ══════════════════════════════════════════════════════════════
+   [5] 라이트 테마 전수 텍스트 대비 보정 (4.5:1 이상)
+   Y2K·Minimal 흰 배경에서 기존 매핑이 부족하거나 누락된 색상을
+   모두 WCAG AA 통과값으로 교정.  마지막 선언이 이전 규칙을 덮어씀.
+══════════════════════════════════════════════════════════════ */
+
+/* ── Y2K: teal 계열 (기존 #10b981/#059669 = 2.4~3.5:1 부족 → 교정) ── */
+[data-theme="y2k"] .text-teal-100,
+[data-theme="y2k"] .text-teal-200 { color: #0f766e !important; }   /* teal-700 */
+[data-theme="y2k"] .text-teal-300,
+[data-theme="y2k"] .text-teal-400,
+[data-theme="y2k"] .text-teal-500 { color: #0f766e !important; }   /* teal-700  4.6:1 ✓ */
+[data-theme="y2k"] .text-teal-600 { color: #0f766e !important; }   /* teal-700  4.6:1 ✓ */
+[data-theme="y2k"] .text-teal-700,
+[data-theme="y2k"] .text-teal-800,
+[data-theme="y2k"] .text-teal-900 { color: #115e59 !important; }   /* teal-800  5.9:1 ✓ */
+
+/* ── Y2K: cyan 계열 (기존 #10b981/#059669 부족 → 교정) ── */
+[data-theme="y2k"] .text-cyan-100,
+[data-theme="y2k"] .text-cyan-200 { color: #0e7490 !important; }   /* cyan-700 */
+[data-theme="y2k"] .text-cyan-300,
+[data-theme="y2k"] .text-cyan-400,
+[data-theme="y2k"] .text-cyan-500 { color: #0e7490 !important; }   /* cyan-700  4.5:1 ✓ */
+[data-theme="y2k"] .text-cyan-600,
+[data-theme="y2k"] .text-cyan-700,
+[data-theme="y2k"] .text-cyan-900 { color: #155e75 !important; }   /* cyan-800  5.7:1 ✓ */
+
+/* ── Y2K: green 계열 (기존 #16a34a = 2.77:1 부족 → 교정) ── */
+[data-theme="y2k"] .text-green-200,
+[data-theme="y2k"] .text-green-300,
+[data-theme="y2k"] .text-green-400,
+[data-theme="y2k"] .text-green-500 { color: #15803d !important; }  /* green-700  4.9:1 ✓ */
+[data-theme="y2k"] .text-green-600,
+[data-theme="y2k"] .text-green-700 { color: #166534 !important; }  /* green-800  6.0:1 ✓ */
+
+/* ── Y2K: emerald 계열 ── */
+[data-theme="y2k"] .text-emerald-400,
+[data-theme="y2k"] .text-emerald-500,
+[data-theme="y2k"] .text-emerald-600 { color: #065f46 !important; } /* emerald-800  7.0:1 ✓ */
+[data-theme="y2k"] .text-emerald-700  { color: #064e3b !important; } /* emerald-900  8.1:1 ✓ */
+
+/* ── Y2K: amber 계열 (amber-300/4 이미 #92400e → 동일값으로 통일) ── */
+[data-theme="y2k"] .text-amber-100,
+[data-theme="y2k"] .text-amber-200,
+[data-theme="y2k"] .text-amber-500,
+[data-theme="y2k"] .text-amber-600,
+[data-theme="y2k"] .text-amber-700 { color: #92400e !important; }  /* amber-800  6.1:1 ✓ */
+[data-theme="y2k"] .text-amber-800,
+[data-theme="y2k"] .text-amber-900 { color: #78350f !important; }  /* amber-900  7.7:1 ✓ */
+
+/* ── Y2K: orange 계열 ── */
+[data-theme="y2k"] .text-orange-200,
+[data-theme="y2k"] .text-orange-300,
+[data-theme="y2k"] .text-orange-400,
+[data-theme="y2k"] .text-orange-500,
+[data-theme="y2k"] .text-orange-600 { color: #9a3412 !important; } /* orange-800  5.9:1 ✓ */
+[data-theme="y2k"] .text-orange-700  { color: #7c2d12 !important; } /* orange-900  7.5:1 ✓ */
+
+/* ── Y2K: yellow 계열 ── */
+[data-theme="y2k"] .text-yellow-300,
+[data-theme="y2k"] .text-yellow-400,
+[data-theme="y2k"] .text-yellow-500,
+[data-theme="y2k"] .text-yellow-600,
+[data-theme="y2k"] .text-yellow-700 { color: #92400e !important; } /* amber-800  6.1:1 ✓ */
+
+/* ── Y2K: red 계열 ── */
+[data-theme="y2k"] .text-red-200,
+[data-theme="y2k"] .text-red-300     { color: #b91c1c !important; } /* red-700  6.5:1 ✓ */
+[data-theme="y2k"] .text-red-500     { color: #b91c1c !important; } /* red-500 원본 3.8:1 → 교정 */
+[data-theme="y2k"] .text-red-600     { color: #991b1b !important; } /* red-800  7.9:1 ✓ */
+
+/* ── Y2K: rose 계열 (rose-300 이미 #e11d48 → 동일값으로 통일) ── */
+[data-theme="y2k"] .text-rose-400,
+[data-theme="y2k"] .text-rose-500    { color: #be123c !important; } /* rose-700  5.9:1 ✓ */
+[data-theme="y2k"] .text-rose-600    { color: #9f1239 !important; } /* rose-800  7.4:1 ✓ */
+[data-theme="y2k"] .text-rose-700    { color: #881337 !important; } /* rose-900  9.0:1 ✓ */
+
+/* ── Y2K: pink 계열 (pink-300/5 이미 #db2777 → 동일값으로 통일) ── */
+[data-theme="y2k"] .text-pink-400    { color: #be185d !important; } /* pink-700  6.0:1 ✓ */
+[data-theme="y2k"] .text-pink-600,
+[data-theme="y2k"] .text-pink-700,
+[data-theme="y2k"] .text-pink-800    { color: #9d174d !important; } /* pink-800  7.5:1 ✓ */
+
+/* ── Y2K: violet 계열 (violet-200/3/5 이미 매핑됨) ── */
+[data-theme="y2k"] .text-violet-100,
+[data-theme="y2k"] .text-violet-400  { color: #5b21b6 !important; } /* violet-800  7.5:1 ✓ */
+[data-theme="y2k"] .text-violet-600  { color: #5b21b6 !important; } /* violet-600 원본 5.2:1 → 충분하지만 통일 */
+[data-theme="y2k"] .text-violet-700,
+[data-theme="y2k"] .text-violet-800  { color: #4c1d95 !important; } /* violet-900  9.4:1 ✓ */
+
+/* ── Y2K: purple 계열 (purple-300/4 이미 매핑됨) ── */
+[data-theme="y2k"] .text-purple-200  { color: #6b21a8 !important; } /* purple-800  7.5:1 ✓ */
+[data-theme="y2k"] .text-purple-500,
+[data-theme="y2k"] .text-purple-600  { color: #7e22ce !important; } /* purple-700  6.0:1 ✓ */
+[data-theme="y2k"] .text-purple-700  { color: #6b21a8 !important; } /* purple-800  7.5:1 ✓ */
+
+/* ── Y2K: sky 계열 (기존 sky-400→#0284c7 = 3.98:1 부족 → 교정, sky-600 추가) ── */
+[data-theme="y2k"] .text-sky-400,
+[data-theme="y2k"] .text-sky-500,
+[data-theme="y2k"] .text-sky-600     { color: #0369a1 !important; } /* sky-700  5.8:1 ✓ */
+[data-theme="y2k"] .text-sky-700     { color: #075985 !important; } /* sky-800  7.2:1 ✓ */
+
+/* ── Y2K: blue 계열 ── */
+[data-theme="y2k"] .text-blue-300,
+[data-theme="y2k"] .text-blue-400,
+[data-theme="y2k"] .text-blue-500,
+[data-theme="y2k"] .text-blue-600    { color: #1d4ed8 !important; } /* blue-700  5.1:1 ✓ */
+[data-theme="y2k"] .text-blue-700,
+[data-theme="y2k"] .text-blue-800    { color: #1e3a8a !important; } /* blue-900  7.4:1 ✓ */
+
+/* ── Y2K: indigo 계열 (indigo-400=#818cf8 2.98:1 부족 → 교정) ── */
+[data-theme="y2k"] .text-indigo-100,
+[data-theme="y2k"] .text-indigo-200,
+[data-theme="y2k"] .text-indigo-300,
+[data-theme="y2k"] .text-indigo-400  { color: #3730a3 !important; } /* indigo-800  7.4:1 ✓ */
+[data-theme="y2k"] .text-indigo-500  { color: #4338ca !important; } /* indigo-700  6.8:1 ✓ */
+[data-theme="y2k"] .text-indigo-600,
+[data-theme="y2k"] .text-indigo-700,
+[data-theme="y2k"] .text-indigo-800  { color: #312e81 !important; } /* indigo-900  8.6:1 ✓ */
+
+/* ── Y2K: fuchsia 계열 ── */
+[data-theme="y2k"] .text-fuchsia-100,
+[data-theme="y2k"] .text-fuchsia-200,
+[data-theme="y2k"] .text-fuchsia-300,
+[data-theme="y2k"] .text-fuchsia-400,
+[data-theme="y2k"] .text-fuchsia-500 { color: #86198f !important; } /* fuchsia-800  6.6:1 ✓ */
+[data-theme="y2k"] .text-fuchsia-600,
+[data-theme="y2k"] .text-fuchsia-700,
+[data-theme="y2k"] .text-fuchsia-800 { color: #701a75 !important; } /* fuchsia-900  8.0:1 ✓ */
+
+/* ── Y2K: slate-500/700 (기존 #a1a1aa = 2.6:1 부족 → 교정) ── */
+[data-theme="y2k"] .text-slate-500   { color: #71717a !important; } /* zinc-500  4.8:1 ✓ */
+[data-theme="y2k"] .text-slate-700   { color: #3f3f46 !important; } /* zinc-700  8.7:1 ✓ */
+
+/* ════════════════════════════════════════════════════════════════
+   Minimal 테마 — 동일한 전수 대비 보정
+════════════════════════════════════════════════════════════════ */
+
+/* ── Minimal: teal·cyan 계열 (일관성: 액센트 색 → 잉크 블랙으로) ── */
+[data-theme="minimal"] .text-teal-100,
+[data-theme="minimal"] .text-teal-200,
+[data-theme="minimal"] .text-teal-300 { color: #09090b !important; }
+[data-theme="minimal"] .text-teal-700,
+[data-theme="minimal"] .text-teal-800,
+[data-theme="minimal"] .text-teal-900 { color: #09090b !important; }
+
+[data-theme="minimal"] .text-cyan-100,
+[data-theme="minimal"] .text-cyan-200,
+[data-theme="minimal"] .text-cyan-300 { color: #09090b !important; }
+[data-theme="minimal"] .text-cyan-700,
+[data-theme="minimal"] .text-cyan-900 { color: #09090b !important; }
+
+/* ── Minimal: green 계열 (기존 #16a34a = 2.77:1 부족 → 교정) ── */
+[data-theme="minimal"] .text-green-200,
+[data-theme="minimal"] .text-green-300,
+[data-theme="minimal"] .text-green-400,
+[data-theme="minimal"] .text-green-500 { color: #15803d !important; } /* green-700  4.9:1 ✓ */
+[data-theme="minimal"] .text-green-600,
+[data-theme="minimal"] .text-green-700 { color: #166534 !important; } /* green-800  6.0:1 ✓ */
+
+/* ── Minimal: emerald 계열 ── */
+[data-theme="minimal"] .text-emerald-400,
+[data-theme="minimal"] .text-emerald-500,
+[data-theme="minimal"] .text-emerald-600 { color: #065f46 !important; }
+[data-theme="minimal"] .text-emerald-700  { color: #064e3b !important; }
+
+/* ── Minimal: amber 계열 ── */
+[data-theme="minimal"] .text-amber-100,
+[data-theme="minimal"] .text-amber-200,
+[data-theme="minimal"] .text-amber-300,
+[data-theme="minimal"] .text-amber-400,
+[data-theme="minimal"] .text-amber-500,
+[data-theme="minimal"] .text-amber-600,
+[data-theme="minimal"] .text-amber-700 { color: #92400e !important; } /* amber-800  6.1:1 ✓ */
+[data-theme="minimal"] .text-amber-800,
+[data-theme="minimal"] .text-amber-900 { color: #78350f !important; }
+
+/* ── Minimal: orange 계열 ── */
+[data-theme="minimal"] .text-orange-200,
+[data-theme="minimal"] .text-orange-300,
+[data-theme="minimal"] .text-orange-400,
+[data-theme="minimal"] .text-orange-500,
+[data-theme="minimal"] .text-orange-600 { color: #9a3412 !important; }
+[data-theme="minimal"] .text-orange-700  { color: #7c2d12 !important; }
+
+/* ── Minimal: yellow 계열 ── */
+[data-theme="minimal"] .text-yellow-300,
+[data-theme="minimal"] .text-yellow-400,
+[data-theme="minimal"] .text-yellow-500,
+[data-theme="minimal"] .text-yellow-600,
+[data-theme="minimal"] .text-yellow-700 { color: #92400e !important; }
+
+/* ── Minimal: red 계열 ── */
+[data-theme="minimal"] .text-red-200,
+[data-theme="minimal"] .text-red-300     { color: #b91c1c !important; }
+[data-theme="minimal"] .text-red-400     { color: #dc2626 !important; } /* red-600  4.8:1 ✓ */
+[data-theme="minimal"] .text-red-500     { color: #b91c1c !important; }
+[data-theme="minimal"] .text-red-600     { color: #991b1b !important; }
+
+/* ── Minimal: rose 계열 ── */
+[data-theme="minimal"] .text-rose-300,
+[data-theme="minimal"] .text-rose-400,
+[data-theme="minimal"] .text-rose-500    { color: #be123c !important; }
+[data-theme="minimal"] .text-rose-600    { color: #9f1239 !important; }
+[data-theme="minimal"] .text-rose-700    { color: #881337 !important; }
+
+/* ── Minimal: pink 계열 ── */
+[data-theme="minimal"] .text-pink-300,
+[data-theme="minimal"] .text-pink-400    { color: #be185d !important; }
+[data-theme="minimal"] .text-pink-500    { color: #db2777 !important; } /* 4.6:1 ✓ */
+[data-theme="minimal"] .text-pink-600,
+[data-theme="minimal"] .text-pink-700,
+[data-theme="minimal"] .text-pink-800    { color: #9d174d !important; }
+
+/* ── Minimal: violet 계열 ── */
+[data-theme="minimal"] .text-violet-100,
+[data-theme="minimal"] .text-violet-200,
+[data-theme="minimal"] .text-violet-300  { color: #5b21b6 !important; }
+[data-theme="minimal"] .text-violet-400  { color: #5b21b6 !important; }
+[data-theme="minimal"] .text-violet-500,
+[data-theme="minimal"] .text-violet-600  { color: #6d28d9 !important; }
+[data-theme="minimal"] .text-violet-700,
+[data-theme="minimal"] .text-violet-800  { color: #4c1d95 !important; }
+
+/* ── Minimal: purple 계열 ── */
+[data-theme="minimal"] .text-purple-200,
+[data-theme="minimal"] .text-purple-300,
+[data-theme="minimal"] .text-purple-400  { color: #6b21a8 !important; }
+[data-theme="minimal"] .text-purple-500,
+[data-theme="minimal"] .text-purple-600  { color: #7e22ce !important; }
+[data-theme="minimal"] .text-purple-700  { color: #6b21a8 !important; }
+
+/* ── Minimal: sky 계열 (기존 sky-400→#0284c7=3.98:1 부족 → 교정, sky-600 추가) ── */
+[data-theme="minimal"] .text-sky-400,
+[data-theme="minimal"] .text-sky-500,
+[data-theme="minimal"] .text-sky-600     { color: #0369a1 !important; }
+[data-theme="minimal"] .text-sky-700     { color: #075985 !important; }
+
+/* ── Minimal: blue 계열 ── */
+[data-theme="minimal"] .text-blue-300,
+[data-theme="minimal"] .text-blue-400,
+[data-theme="minimal"] .text-blue-500,
+[data-theme="minimal"] .text-blue-600    { color: #1d4ed8 !important; }
+[data-theme="minimal"] .text-blue-700,
+[data-theme="minimal"] .text-blue-800    { color: #1e3a8a !important; }
+
+/* ── Minimal: indigo 계열 (indigo-400 2.98:1 부족 → 교정) ── */
+[data-theme="minimal"] .text-indigo-100,
+[data-theme="minimal"] .text-indigo-200,
+[data-theme="minimal"] .text-indigo-300,
+[data-theme="minimal"] .text-indigo-400  { color: #3730a3 !important; } /* indigo-800  7.4:1 ✓ */
+[data-theme="minimal"] .text-indigo-500  { color: #4338ca !important; } /* indigo-700  6.8:1 ✓ */
+[data-theme="minimal"] .text-indigo-600,
+[data-theme="minimal"] .text-indigo-700,
+[data-theme="minimal"] .text-indigo-800  { color: #312e81 !important; } /* indigo-900  8.6:1 ✓ */
+
+/* ── Minimal: fuchsia 계열 ── */
+[data-theme="minimal"] .text-fuchsia-100,
+[data-theme="minimal"] .text-fuchsia-200,
+[data-theme="minimal"] .text-fuchsia-300,
+[data-theme="minimal"] .text-fuchsia-400,
+[data-theme="minimal"] .text-fuchsia-500 { color: #86198f !important; } /* fuchsia-800  6.6:1 ✓ */
+[data-theme="minimal"] .text-fuchsia-600,
+[data-theme="minimal"] .text-fuchsia-700,
+[data-theme="minimal"] .text-fuchsia-800 { color: #701a75 !important; } /* fuchsia-900  8.0:1 ✓ */
+
+/* ── Minimal: slate-500/7 (기존 #a1a1aa = 2.6:1 부족 → 교정) ── */
+[data-theme="minimal"] .text-slate-500   { color: #71717a !important; }
+[data-theme="minimal"] .text-slate-600   { color: #52525b !important; }
+[data-theme="minimal"] .text-slate-700   { color: #3f3f46 !important; }
+[data-theme="minimal"] .text-zinc-200    { color: #27272a !important; }
