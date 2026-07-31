@@ -277,6 +277,7 @@ function App() {
   const [seatingLocked, setSeatingLocked] = useState(false);
   const [activeTables, setActiveTables] = useState<number[] | null>(null);
   const [tableLabels, setTableLabels] = useState<Record<string, string> | null>(null);
+  const [registrationError, setRegistrationError] = useState<string | null>(null);
   const [resetPassword, setResetPassword] = useState<string | null>(null);
   const [entryPassword, setEntryPassword] = useState<string | null>(null); // null = 아직 로드 전
   const [entryVerified, setEntryVerified] = useState(false);
@@ -1005,13 +1006,14 @@ function App() {
     contactPrivate: boolean;
   }) => {
     setLoading(true);
+    setRegistrationError(null);
     // Generate unique PIN code (4-digit normally; 5-digit when >8000 profiles)
     const { data: existingPins } = await supabase.from('profiles').select('pin_code');
     const usedPins = new Set((existingPins ?? []).map((p: { pin_code: string | null }) => p.pin_code).filter(Boolean));
     const use5Digit = usedPins.size > 8000;
     const poolSize = use5Digit ? 90000 : 9000;
     if (usedPins.size >= poolSize) {
-      alert('현재 등록 가능한 자리가 없습니다. 관리자에게 문의해 주세요.');
+      setRegistrationError('현재 정원이 가득 찼습니다. 운영진에 문의하세요.');
       setLoading(false);
       return;
     }
@@ -1051,11 +1053,11 @@ function App() {
 
     if (error) {
       if (error.code === '23505') {
-        alert('이미 사용 중인 닉네임입니다. 다른 닉네임을 선택해 주세요.');
+        setRegistrationError('이미 사용 중인 닉네임입니다. 다른 닉네임을 선택해 주세요.');
       } else if (error.code === 'PIN_EXHAUSTED') {
-        alert('현재 등록 가능한 자리가 없습니다. 관리자에게 문의해 주세요.');
+        setRegistrationError('현재 정원이 가득 찼습니다. 운영진에 문의하세요.');
       } else {
-        alert(`오류가 발생했습니다: ${error.message}`);
+        setRegistrationError(`오류가 발생했습니다: ${error.message}`);
       }
       setLoading(false);
       return;
@@ -1180,6 +1182,7 @@ function App() {
     <NicknameSetupScreen
       onSubmit={handleNicknameSetup}
       loading={loading}
+      registrationError={registrationError}
       onReset={reset}
       onShowRecovery={() => setView('entry-recover')}
     />

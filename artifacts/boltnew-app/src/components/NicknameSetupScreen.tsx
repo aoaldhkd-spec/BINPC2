@@ -79,14 +79,14 @@ const LOCATION_GROUPS: Record<string, string[]> = {
 
 // ─── NicknameSetupScreen ──────────────────────────────────────────────────────
 
-export function NicknameSetupScreen({ onSubmit, loading, onReset, onShowRecovery }: {
+export function NicknameSetupScreen({ onSubmit, loading, registrationError, onReset, onShowRecovery }: {
   onSubmit: (data: {
     birthYear: number; birthMonth: number | null; birthDay: number | null;
     location: string; mbti: string; interests: string[];
     personalityScore: number; domSubScore: number | null; nickname: string;
     kakaoId: string; instagramId: string; phoneNumber: string; contactPrivate: boolean;
   }) => void;
-  loading: boolean; onReset: () => void; onShowRecovery?: () => void;
+  loading: boolean; registrationError?: string | null; onReset: () => void; onShowRecovery?: () => void;
 }) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   // contact fields
@@ -692,6 +692,13 @@ export function NicknameSetupScreen({ onSubmit, loading, onReset, onShowRecovery
                     <span className="font-black">연락처</span>는 입장 후 <span className="font-bold">내 상태 탭 → 연락처 설정</span>에서 언제든 입력할 수 있어요.
                   </p>
                 </div>
+
+                {registrationError && (
+                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2">
+                    <span className="text-rose-500 text-sm mt-0.5 flex-shrink-0">⚠️</span>
+                    <p className="text-sm font-semibold text-rose-700 leading-snug">{registrationError}</p>
+                  </div>
+                )}
 
                 <div className="flex gap-3 pt-2">
                   <button type="button" onClick={() => setStep(2)}
