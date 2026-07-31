@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from 'express';
 import pg from 'pg';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { VAPID_PUBLIC_KEY, sendPush, type PushPayload } from '../lib/push';
+import { resolvePin, pinPoolParams } from '../lib/pin';
 
 // express-session의 SessionData에 userId 필드 추가
 declare module 'express-session' {
@@ -727,9 +728,8 @@ router.post('/op', async (req: Request, res: Response) => {
       const inserted: Record<string, unknown>[] = [];
       // Fix #4: O(n²) → O(n) — profiles 삽입 시 루프 밖에서 Set 1회만 빌드
       const _insertNickSet = table === 'profiles' ? new Set(tableData.map(r => r.nickname).filter(Boolean)) : null;
-      const _insertPinSet  = table === 'profiles' ? new Set(tableData.map(r => r.pin_code).filter(Boolean))  : null;
-      const _use5Digit     = table === 'profiles' && tableData.length > 8000;
-      const _pinPoolSize   = _use5Digit ? 90000 : 9000;
+      const _insertPinSet  = table === 'profiles' ? new Set(tableData.map(r => r.pin_code).filter(Boolean)) as Set<string>  : null;
+      const _pinParams     = table === 'profiles' ? pinPoolParams(tableData.length) : null;
       for (const row of inputs) {
         if (!row) continue;
         if (table === 'profiles' && _insertNickSet!.has(row.nickname) && row.nickname != null) {
@@ -738,33 +738,17 @@ router.post('/op', async (req: Request, res: Response) => {
         // const row는 재할당 불가이므로 effectiveRow로 분리
         let effectiveRow: Record<string, unknown> = row;
         if (table === 'profiles') {
+          const { use5Digit, poolSize } = _pinParams!;
           const usedPins = _insertPinSet!; // 루프 밖 빌드 Set 재사용 — O(1) 조회
-          const use5Digit = _use5Digit;
-          const poolSize = _pinPoolSize;
-          // PIN 슬롯 전체 소진 — 신규 등록 불가 (503)
-          if (usedPins.size >= poolSize) {
+          // PIN 슬롯 전체 소진 — 신규 등록 불가 (503) [resolvePin handles exhaustion + collision]
+          const pinResult = resolvePin(usedPins, poolSize, use5Digit, effectiveRow.pin_code as string | null | undefined);
+          if (!pinResult.ok) {
             return res.status(503).json({
               data: null,
               error: { message: 'PIN pool exhausted — no available PIN slots. Please contact the administrator.', code: 'PIN_EXHAUSTED' },
             });
           }
-          if (effectiveRow.pin_code != null && usedPins.has(effectiveRow.pin_code)) {
-            // 충돌 시 서버에서 새 PIN 직접 생성
-            const genPin = () => use5Digit
-              ? String(Math.floor(10000 + Math.random() * 90000))
-              : String(Math.floor(1000 + Math.random() * 9000));
-            let newPin = genPin();
-            let tries = 0;
-            while (usedPins.has(newPin) && tries++ < 100) newPin = genPin();
-            if (usedPins.has(newPin)) {
-              // 100회 시도 후에도 충돌 — PIN 풀 거의 소진 상태
-              return res.status(503).json({
-                data: null,
-                error: { message: 'PIN pool exhausted — no available PIN slots. Please contact the administrator.', code: 'PIN_EXHAUSTED' },
-              });
-            }
-            effectiveRow = { ...effectiveRow, pin_code: newPin };
-          }
+          effectiveRow = { ...effectiveRow, pin_code: pinResult.pin };
         }
         // chats 테이블: 같은 user1_id+user2_id 조합이 이미 있으면 기존 채팅방 반환 (레이스 컨디션으로 인한 중복 채팅방 생성 방지)
         if (table === 'chats' && effectiveRow.user1_id != null && effectiveRow.user2_id != null) {
@@ -871,28 +855,16 @@ router.post('/op', async (req: Request, res: Response) => {
       // profiles 테이블에서 pin_code를 UPDATE할 때 서버 레벨 유일성 보장
       // (레거시 사용자 핀 자동 부여 시 경쟁 조건 방지)
       if (table === 'profiles' && patch.pin_code != null) {
-        const usedPins = new Set(tableData.map(r => r.pin_code).filter(Boolean));
-        const use5Digit = tableData.length > 8000;
-        const poolSize = use5Digit ? 90000 : 9000;
-        if (usedPins.size >= poolSize) {
+        const usedPins = new Set(tableData.map(r => r.pin_code).filter(Boolean)) as Set<string>;
+        const { use5Digit, poolSize } = pinPoolParams(tableData.length);
+        const pinResult = resolvePin(usedPins, poolSize, use5Digit, patch.pin_code as string);
+        if (!pinResult.ok) {
           return res.status(503).json({
             data: null,
             error: { message: 'PIN pool exhausted — no available PIN slots. Please contact the administrator.', code: 'PIN_EXHAUSTED' },
           });
         }
-        const genPin = () => use5Digit
-          ? String(Math.floor(10000 + Math.random() * 90000))
-          : String(Math.floor(1000 + Math.random() * 9000));
-        let pin = patch.pin_code as string;
-        let tries = 0;
-        while (usedPins.has(pin) && tries++ < 100) pin = genPin();
-        if (usedPins.has(pin)) {
-          return res.status(503).json({
-            data: null,
-            error: { message: 'PIN pool exhausted — no available PIN slots. Please contact the administrator.', code: 'PIN_EXHAUSTED' },
-          });
-        }
-        patch = { ...patch, pin_code: pin };
+        patch = { ...patch, pin_code: pinResult.pin };
       }
       const updated: Record<string, unknown>[] = [];
       for (let i = 0; i < tableData.length; i++) {
