@@ -342,7 +342,7 @@ html[data-theme="y2k"] .bg-gradient-to-b,
 }
 [data-theme="y2k"] input::placeholder,
 [data-theme="y2k"] textarea::placeholder {
-  color: #a1a1aa !important;
+  color: #71717a !important;
 }
 [data-theme="y2k"] input:focus,
 [data-theme="y2k"] textarea:focus {
@@ -921,7 +921,7 @@ html[data-theme="minimal"] .bg-gradient-to-b,
 [data-theme="minimal"] input.pr-3  { padding-right: 0.75rem !important; }
 [data-theme="minimal"] input::placeholder,
 [data-theme="minimal"] textarea::placeholder {
-  color: #a1a1aa !important;
+  color: #71717a !important;
   letter-spacing: 0.05em !important;
 }
 [data-theme="minimal"] input:focus,
