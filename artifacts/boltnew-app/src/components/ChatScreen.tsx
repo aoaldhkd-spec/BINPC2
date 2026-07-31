@@ -261,6 +261,8 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
     });
     try {
       await onSend(text);
+      // 카톡처럼 전송 후에도 키보드 유지 — 연속 입력 편의
+      requestAnimationFrame(() => inputRef.current?.focus());
     } catch {
       // 전송 실패 시 입력창 원상복구 — 사용자가 다시 시도할 수 있도록
       setInput(savedInput);
@@ -812,7 +814,17 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
         </div>
       </header>
 
-      <main ref={messagesContainerRef} className="flex-1 overflow-y-auto min-h-0">
+      <main
+        ref={messagesContainerRef}
+        className="flex-1 overflow-y-auto min-h-0"
+        onClick={(e) => {
+          // 메시지 버블·버튼 등 인터랙티브 요소가 아닌 빈 영역 터치 시 키보드 내림
+          const target = e.target as HTMLElement;
+          if (!target.closest('button, a, textarea, input, [role="button"]')) {
+            inputRef.current?.blur();
+          }
+        }}
+      >
         <div className="max-w-3xl mx-auto px-4 py-4 space-y-1">
           {messages.map((msg) => {
             const isMe = msg.sender_id === currentUserId;
