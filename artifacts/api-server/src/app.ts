@@ -1,9 +1,81 @@
-import express, { type Express } from "express";
+import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import session from "express-session";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
+
+// ─── Per-IP sliding-window rate limiter ───────────────────────────────────────
+// Tracks request timestamps per IP in a sliding window.
+// JavaScript is single-threaded so Map ops are inherently race-free.
+
+interface RateLimitEntry {
+  timestamps: number[];
+}
+
+const _rateLimitStore = new Map<string, RateLimitEntry>();
+
+// Prune stale entries every 60 s to prevent unbounded memory growth
+setInterval(() => {
+  const cutoff = Date.now() - 60_000;
+  for (const [key, entry] of _rateLimitStore) {
+    if (!entry.timestamps.length || entry.timestamps[entry.timestamps.length - 1] < cutoff) {
+      _rateLimitStore.delete(key);
+    }
+  }
+}, 60_000).unref();
+
+/**
+ * Build an Express middleware that allows at most `maxRequests` requests
+ * within a rolling `windowMs` window, keyed by `namespace` (explicit, stable
+ * per-endpoint string) + trusted client IP.
+ *
+ * Pass an explicit `namespace` instead of relying on `req.path`, because
+ * Express sets `req.path` relative to the mount point — so every middleware
+ * mounted at a specific path sees `req.path === '/'`, making path-based keys
+ * ambiguous when multiple limiters share the same store.
+ *
+ * IP is taken from `req.ip`, which Express populates from the rightmost
+ * trusted proxy hop when `trust proxy` is configured.  This cannot be
+ * spoofed by the client: Replit's reverse proxy always appends the real
+ * remote address, and `trust proxy: 1` tells Express to trust exactly one
+ * hop, so any client-injected X-Forwarded-For entries are ignored.
+ */
+function makeRateLimiter(maxRequests: number, windowMs: number, namespace: string) {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    // req.ip is set by Express after applying the trust-proxy setting.
+    // Fall back to the raw socket address only if somehow unset.
+    const ip = req.ip ?? req.socket.remoteAddress ?? 'unknown';
+    const key = `${namespace}:${ip}`;
+    const now = Date.now();
+    const cutoff = now - windowMs;
+
+    let entry = _rateLimitStore.get(key);
+    if (!entry) {
+      entry = { timestamps: [] };
+      _rateLimitStore.set(key, entry);
+    }
+
+    // Drop timestamps outside the window
+    let lo = 0;
+    while (lo < entry.timestamps.length && entry.timestamps[lo] < cutoff) lo++;
+    if (lo > 0) entry.timestamps.splice(0, lo);
+
+    if (entry.timestamps.length >= maxRequests) {
+      // Oldest timestamp + windowMs tells the client when a slot opens
+      const retryAfterMs = entry.timestamps[0] + windowMs - now;
+      const retryAfterSec = Math.max(1, Math.ceil(retryAfterMs / 1000));
+      res.setHeader('Retry-After', String(retryAfterSec));
+      res.status(429).json({
+        error: { message: 'Too many requests — slow down and retry', code: 'RATE_LIMIT' },
+      });
+      return;
+    }
+
+    entry.timestamps.push(now);
+    next();
+  };
+}
 
 // SESSION_SECRET는 반드시 환경변수로 설정되어야 합니다.
 // 개발 환경에서도 빈 값 없이 사용하세요.
@@ -13,6 +85,11 @@ if (!SESSION_SECRET) {
 }
 
 const app: Express = express();
+
+// Trust exactly one upstream proxy hop (Replit's reverse proxy).
+// This lets Express populate req.ip from the rightmost X-Forwarded-For entry
+// added by Replit's infrastructure, which the client cannot spoof.
+app.set('trust proxy', 1);
 
 // 세션 미들웨어 — userId를 httpOnly 서명 쿠키로 관리
 app.use(session({
@@ -49,6 +126,16 @@ app.use(
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// Per-IP rate limits applied before the main router.
+// The third argument is a stable namespace that isolates each endpoint's
+// quota bucket regardless of how Express resolves req.path at the mount point.
+//   /api/auth/login — 5 req/s: a single login attempt is one shot; aggressive
+//                              retries or credential-stuffing loops are blocked.
+//   /api/op         — 30 req/s: one device loading all data on join peaks at
+//                              ~10-15 req/s, so legitimate bursts are not blocked.
+app.use('/api/auth/login', makeRateLimiter(5,  1_000, 'auth-login'));
+app.use('/api/op',         makeRateLimiter(30, 1_000, 'op'));
 
 app.use("/api", router);
 
