@@ -1,9 +1,28 @@
-// Service Worker — 푸시 알림 수신 처리 (견고한 예외처리 포함)
+// Service Worker — 푸시 알림 + HTML 캐시 무효화
 
 // SW 설치 즉시 활성화 (대기 없이)
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim());
+});
+
+// HTML 요청은 항상 네트워크 우선 — 재배포 후 구버전 HTML이 캐시되는 문제 방지
+self.addEventListener('fetch', (event) => {
+  const { request } = event;
+  const url = new URL(request.url);
+
+  // 같은 오리진의 HTML 네비게이션 요청만 인터셉트
+  if (
+    url.origin === self.location.origin &&
+    request.mode === 'navigate'
+  ) {
+    event.respondWith(
+      fetch(request, { cache: 'no-store' }).catch(() =>
+        // 오프라인이면 캐시 폴백 (없으면 브라우저 기본 처리)
+        caches.match(request)
+      )
+    );
+  }
 });
 
 self.addEventListener('push', (event) => {
@@ -48,14 +67,12 @@ self.addEventListener('notificationclick', (event) => {
     self.clients
       .matchAll({ type: 'window', includeUncontrolled: true })
       .then((clientList) => {
-        // 이미 열린 탭이 있으면 포커스
         for (const client of clientList) {
           if ('focus' in client) {
             client.navigate?.(targetUrl).catch?.(() => {});
             return client.focus();
           }
         }
-        // 없으면 새 탭 열기
         return self.clients.openWindow(targetUrl);
       })
       .catch((err) => console.warn('[sw] notificationclick error:', err))
