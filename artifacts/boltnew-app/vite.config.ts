@@ -65,6 +65,14 @@ export default defineConfig({
     fs: {
       strict: true,
     },
+    // App.tsx(1.5 MB)를 서버 기동 시 미리 변환 → 첫 페이지 로드 콜드스타트 제거
+    warmup: {
+      clientFiles: [
+        './src/main.tsx',
+        './src/App.tsx',
+        './src/lib/localdb.ts',
+      ],
+    },
   },
   preview: {
     port,

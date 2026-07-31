@@ -13,3 +13,4 @@
 - [boltnew-app full-feature audit](boltnew-app-full-audit.md) — 2026-07-31 전수검사: 16건 수정 완료; 잔여 3건(broadcast 역할, 생년월일 유효성, 프로필 사진 고아) Task #46-48로 추적 중.
 - [boltnew-app perf fixes](boltnew-app-perf-fixes.md) — 2026-07-31 13개 성능·메모리 수정: Map pruning×3, dbPersistRow 재시도, broadcastAll 청킹, INSERT/UPSERT O(n)화, Promise.all, setTimeout ref, unread 즉시 무효화. 150-VU p95=327ms.
 - [boltnew-app deep audit fixes](boltnew-app-deep-audit-fixes.md) — 2026-07-31 2차 전수검사 7건: sendImage 스냅샷, deleteAllChats Promise.all, executeLike Promise.race 타임아웃, SSE keepalive _sseCleanup Map, req.aborted 핸들러, 비밀번호 갱신 single-flight, unreadCache LRU cap 200.
+- [boltnew-app cold-start loading gate bug](boltnew-app-cold-start-bug.md) — reset_signal+fresh localStorage → early return이 sessionActive/entryPassword 설정 없이 timeout 취소 → 무한 로딩. 수정: loading gate 상태 설정을 reset 분기 이전으로 이동.

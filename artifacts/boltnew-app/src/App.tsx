@@ -403,20 +403,29 @@ function App() {
   useEffect(() => {
     let cancelled = false;
     // 네트워크 지연 시 fallback — 세 조건 모두 해제해야 로딩 스피너가 사라짐
+    // 300ms: Vite 콜드컴파일·서버 기동 후 충분한 여유, 체감 대기 최소화
     const timeout = setTimeout(() => {
       if (!cancelled) {
         setAppLoading(false);
         setSessionActive(prev => prev ?? true);
         setEntryPassword(prev => prev ?? '');
       }
-    }, 1000);
+    }, 300);
     supabase.from('app_settings').select('session_active, game_state, timer_end_at, timer_label, seating_locked, active_tables, reset_signal, table_labels, reset_password, entry_password').eq('id', 1).single().then(({ data }: { data: any }) => {
       if (cancelled) return;
       clearTimeout(timeout);
       setAppLoading(false);
+      // loading 게이트 해제는 reset 분기보다 먼저 — early return 시에도 앱이 멈추지 않도록
+      const ep = (data as { entry_password?: string | null })?.entry_password ?? '';
+      setSessionActive(data?.session_active ?? false);
+      setEntryPassword(ep);
+      setEntryVerified(!ep || ls.getItem(ENTRY_VERIFIED_KEY) === ep);
       const localReset = ls.getItem(MATCHING_LAST_RESET_KEY);
       const serverReset = data?.reset_signal ?? null;
       if (serverReset && serverReset !== localReset) {
+        // 신규 브라우저(localStorage 없음)에서는 reset_signal이 항상 다름 →
+        // 기존: early return 전에 sessionActive/entryPassword 미설정 → 무한 로딩
+        // 수정: 이미 위에서 설정 완료 후 reset 처리 진행
         ls.setItem(MATCHING_LAST_RESET_KEY, serverReset);
         ls.removeItem(MATCHING_USER_KEY);
         ls.removeItem(MATCHING_DRAFT_KEY);
@@ -432,16 +441,12 @@ function App() {
         setView('entry-1');
         return;
       }
-      setSessionActive(data?.session_active ?? false);
       setTimerEndAt(data?.timer_end_at ?? null);
       setTimerLabel(data?.timer_label ?? null);
       if (data?.seating_locked != null) setSeatingLocked(data.seating_locked);
       setActiveTables((data?.active_tables as number[] | null) ?? null);
       setTableLabels((data?.table_labels as Record<string, string> | null) ?? null);
       setResetPassword((data as { reset_password?: string | null })?.reset_password ?? null);
-      const ep = (data as { entry_password?: string | null })?.entry_password ?? '';
-      setEntryPassword(ep);
-      setEntryVerified(!ep || ls.getItem(ENTRY_VERIFIED_KEY) === ep);
       const gs = data?.game_state as GameState | null;
       if (gs?.active) { setCurrentGame(gs); setGameModalVisible(true); }
     }).catch(() => {});
