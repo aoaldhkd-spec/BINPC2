@@ -20,6 +20,9 @@ const pool = new pg.Pool({
   connectionTimeoutMillis: 5000, // 5초 안에 커넥션 못 얻으면 에러
 });
 
+// 인스턴스마다 고유 ID — 자신이 보낸 NOTIFY를 수신해도 중복 처리 방지
+const INSTANCE_ID = crypto.randomUUID();
+
 // ─── In-memory cache (loaded from DB on startup, write-through on every change)
 const store: Record<string, Record<string, unknown>[]> = {};
 const imageStore: Record<string, string> = {};
@@ -357,7 +360,74 @@ function startDailyEntryPasswordRenewal(): void {
 }
 
 // Kick off async initialization
-seedIfNeeded().then(() => startDailyEntryPasswordRenewal()).catch(console.error);
+seedIfNeeded()
+  .then(() => startDailyEntryPasswordRenewal())
+  .then(() => setupListenClient())
+  .catch(console.error);
+
+// ─── Cross-instance sync via PostgreSQL LISTEN/NOTIFY ─────────────────────────
+// autoscale 환경에서 여러 인스턴스가 뜰 때 store + SSE를 동기화한다.
+// 각 인스턴스는 data_change 채널을 LISTEN하고, 쓰기 시 NOTIFY로 전파한다.
+// 자신이 보낸 NOTIFY는 INSTANCE_ID로 걸러서 중복 브로드캐스트를 방지한다.
+
+let _listenClient: pg.Client | null = null;
+
+async function setupListenClient(): Promise<void> {
+  try {
+    const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
+    await client.connect();
+    await client.query('LISTEN data_change');
+    client.on('notification', (msg) => {
+      if (!msg.payload) return;
+      let env: { src: string; table: string; ev: string; newRow: Record<string, unknown> | null; oldRow: Record<string, unknown> | null };
+      try { env = JSON.parse(msg.payload); } catch { return; }
+      if (env.src === INSTANCE_ID) return; // 자신이 보낸 echo — 이미 로컬에서 처리됨
+
+      // ── 1. 로컬 store 업데이트 ──
+      const tbl = env.table;
+      if (tbl && tbl !== 'db_error_log') {
+        if (!store[tbl]) store[tbl] = [];
+        if (env.ev === 'INSERT' && env.newRow) {
+          const id = env.newRow['id'];
+          if (!store[tbl].some(r => r['id'] === id)) store[tbl].push(env.newRow!);
+        } else if (env.ev === 'UPDATE' && env.newRow) {
+          const id = env.newRow['id'];
+          const idx = store[tbl].findIndex(r => r['id'] === id);
+          if (idx >= 0) store[tbl][idx] = env.newRow!; else store[tbl].push(env.newRow!);
+        } else if (env.ev === 'DELETE' && env.oldRow) {
+          const id = env.oldRow['id'];
+          const idx = store[tbl].findIndex(r => r['id'] === id);
+          if (idx >= 0) store[tbl].splice(idx, 1);
+        }
+      }
+
+      // ── 2. 로컬 SSE 클라이언트에게 중계 (notify=false — 무한 루프 방지) ──
+      const event = { type: 'change', table: tbl, event: env.ev, newRow: env.newRow, oldRow: env.oldRow };
+      _smartBroadcastLocal(tbl, env.newRow ?? env.oldRow, event);
+    });
+    client.on('error', (err) => {
+      console.error('[db] LISTEN client error — reconnecting in 5 s:', err.message);
+      _listenClient = null;
+      client.end().catch(() => {});
+      setTimeout(() => { setupListenClient().catch(console.error); }, 5000);
+    });
+    _listenClient = client;
+    console.log(`[db] LISTEN data_change ready (instance=${INSTANCE_ID.slice(0, 8)})`);
+  } catch (err) {
+    console.error('[db] setupListenClient failed — retry in 10 s:', (err as Error).message);
+    setTimeout(() => { setupListenClient().catch(console.error); }, 10000);
+  }
+}
+
+/** 다른 인스턴스에 변경 사항 전파. 8 KB 초과 or 이미지 테이블은 건너뜀 */
+function notifyOtherInstances(table: string, ev: string, newRow: Record<string, unknown> | null, oldRow: Record<string, unknown> | null): void {
+  if (table === 'app_image_store') return; // 이미지 data URL은 수 KB — 제외
+  const payload = JSON.stringify({ src: INSTANCE_ID, table, ev, newRow, oldRow });
+  if (payload.length > 7900) return; // PostgreSQL NOTIFY 8 KB 한도
+  pool.query("SELECT pg_notify('data_change', $1)", [payload]).catch((e) =>
+    console.warn('[db] NOTIFY failed:', (e as Error).message)
+  );
+}
 
 // ─── SSE broadcast ─────────────────────────────────────────────────────────────
 // SSE 연결별 keepalive interval 정리 함수 보관 — write 실패 시에도 인터벌 즉시 해제
@@ -424,8 +494,8 @@ function sanitizeProfile(row: Record<string, unknown>): Record<string, unknown> 
   return s;
 }
 
-/** 테이블 종류에 따라 자동으로 수신자 판단 */
-function smartBroadcast(table: string, row: Record<string, unknown> | null, event: Record<string, unknown>) {
+/** 테이블 종류에 따라 자동으로 수신자 판단 — 로컬 SSE 전송 전용 (NOTIFY 없음) */
+function _smartBroadcastLocal(table: string, row: Record<string, unknown> | null, event: Record<string, unknown>) {
   // row가 없는 경우(DELETE payload 없음): 프라이빗 테이블이면 드롭, 공개 테이블만 전체 전송
   if (!row) {
     if (!PRIVATE_TABLES.has(table)) broadcastAll(event);
@@ -467,6 +537,17 @@ function smartBroadcast(table: string, row: Record<string, unknown> | null, even
     }
   }
   // 프라이빗 테이블인데 수신자를 특정 못한 경우 → 조용히 드롭 (전체 유출 방지)
+}
+
+/** 로컬 SSE 전송 + 다른 인스턴스에 NOTIFY 전파 */
+function smartBroadcast(table: string, row: Record<string, unknown> | null, event: Record<string, unknown>) {
+  _smartBroadcastLocal(table, row, event);
+  notifyOtherInstances(
+    table,
+    event['event'] as string,
+    event['newRow'] as Record<string, unknown> | null,
+    event['oldRow'] as Record<string, unknown> | null,
+  );
 }
 
 // ─── Web Push: 메시지/하트 삽입 시 수신자에게 알림 전송 ──────────────────────
