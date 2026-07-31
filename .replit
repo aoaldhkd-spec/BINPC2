@@ -11,6 +11,26 @@ env = { "CI" = "true" }
 [workflows]
 runButton = "Project"
 
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "stress-test"
+
+[[workflows.workflow]]
+name = "stress-test"
+author = "agent"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "BASE_URL=http://localhost:8080 node artifacts/api-server/scripts/stress-test.mjs"
+
 [agent]
 stack = "PNPM_WORKSPACE"
 expertMode = true
