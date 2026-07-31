@@ -396,6 +396,7 @@ export function useChat({
         client_id: clientId,
       });
       if (msgErr) {
+        // DB insert 실패 → 스토리지에 올라간 파일을 즉시 삭제해 고아 파일 방지
         supabase.storage.from('chat-images').remove([data.path]).catch(() => {});
         return msgErr.message;
       }
