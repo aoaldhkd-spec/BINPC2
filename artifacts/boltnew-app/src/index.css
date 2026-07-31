@@ -229,8 +229,8 @@ html[data-theme="y2k"] .bg-gradient-to-b,
 [data-theme="y2k"] .text-purple-300 { color: #7c3aed !important; }
 [data-theme="y2k"] .text-purple-400 { color: #9333ea !important; }
 [data-theme="y2k"] .text-rose-300   { color: #e11d48 !important; }
-[data-theme="y2k"] .text-pink-300   { color: #db2777 !important; }
-[data-theme="y2k"] .text-pink-500   { color: #db2777 !important; }
+[data-theme="y2k"] .text-pink-300   { color: #be185d !important; }  /* #db2777→#be185d: 4.48→5.87:1 on Y2K bg */
+[data-theme="y2k"] .text-pink-500   { color: #be185d !important; }
 [data-theme="y2k"] .text-sky-400    { color: #0284c7 !important; }
 [data-theme="y2k"] .text-green-400  { color: #16a34a !important; }
 [data-theme="y2k"] .text-amber-300  { color: #92400e !important; }
@@ -831,8 +831,8 @@ html[data-theme="minimal"] .bg-gradient-to-b,
 [data-theme="minimal"] .text-purple-300 { color: #7c3aed !important; }
 [data-theme="minimal"] .text-purple-400 { color: #9333ea !important; }
 [data-theme="minimal"] .text-rose-300   { color: #e11d48 !important; }
-[data-theme="minimal"] .text-pink-300   { color: #db2777 !important; }
-[data-theme="minimal"] .text-pink-500   { color: #db2777 !important; }
+[data-theme="minimal"] .text-pink-300   { color: #be185d !important; }  /* #db2777→#be185d: ensures ≥4.5:1 on Minimal bg */
+[data-theme="minimal"] .text-pink-500   { color: #be185d !important; }
 [data-theme="minimal"] .text-sky-400    { color: #0284c7 !important; }
 [data-theme="minimal"] .text-green-400  { color: #16a34a !important; }
 [data-theme="minimal"] .text-amber-300  { color: #92400e !important; }
@@ -887,7 +887,7 @@ html[data-theme="minimal"] .bg-gradient-to-b,
   border-radius: 0 !important;
   box-shadow: none !important;
 }
-[data-theme="minimal"] .rounded-2xl:not(.theme-switcher-panel):not(.theme-switcher-btn):not(.chat-bubble):not(.photo-overlay) {
+[data-theme="minimal"] .rounded-2xl:not(.theme-switcher-panel):not(.theme-switcher-btn):not(.chat-bubble):not(.chat-bubble-me):not(.chat-bubble-other):not(.photo-overlay) {
   border: 2px solid #09090b !important;
   background-color: #ffffff !important;
 }
@@ -1247,7 +1247,7 @@ html[data-theme="minimal"] .bg-gradient-to-b,
 /* ── Minimal: pink 계열 ── */
 [data-theme="minimal"] .text-pink-300,
 [data-theme="minimal"] .text-pink-400    { color: #be185d !important; }
-[data-theme="minimal"] .text-pink-500    { color: #db2777 !important; } /* 4.6:1 ✓ */
+[data-theme="minimal"] .text-pink-500    { color: #be185d !important; } /* #db2777=4.33:1✗ → #be185d=5.8:1✓ */
 [data-theme="minimal"] .text-pink-600,
 [data-theme="minimal"] .text-pink-700,
 [data-theme="minimal"] .text-pink-800    { color: #9d174d !important; }
