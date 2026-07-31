@@ -952,6 +952,40 @@ function DbHealthTab({ health, loading, onRefresh, onClearErrors }: { health: Db
         </div>
       )}
 
+      {/* PIN Pool utilization */}
+      {health && (() => {
+        const { remaining, total } = health.pinPool ?? { remaining: null, total: null };
+        if (remaining == null || total == null) return null;
+        const used = total - remaining;
+        const pct = Math.round((used / total) * 100);
+        const isWarn = pct >= 85;
+        const barColor = pct >= 95 ? 'bg-red-500' : pct >= 85 ? 'bg-amber-400' : 'bg-teal-400';
+        return (
+          <div>
+            <p className="text-xs font-semibold text-gray-500 mb-2">PIN 풀 사용량</p>
+            {isWarn && (
+              <div className="mb-2 bg-amber-50 border border-amber-300 rounded-xl p-3 flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-bold text-amber-700">PIN 풀 {pct}% 소진 — 즉시 조치 필요</p>
+                  <p className="text-xs text-amber-600 mt-0.5">잔여 PIN: {remaining.toLocaleString()}개 / {total.toLocaleString()}개. 새 참가자 등록이 곧 불가능해집니다.</p>
+                </div>
+              </div>
+            )}
+            <div className="rounded-xl border bg-white border-gray-200 p-3 space-y-2">
+              <div className="flex items-center justify-between text-xs text-gray-500">
+                <span>사용 {used.toLocaleString()} / {total.toLocaleString()}개</span>
+                <span className={`font-bold ${isWarn ? 'text-amber-600' : 'text-teal-600'}`}>{pct}%</span>
+              </div>
+              <div className="w-full h-2.5 rounded-full bg-gray-100 overflow-hidden">
+                <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${pct}%` }} />
+              </div>
+              <p className="text-[10px] text-gray-400">잔여: {remaining.toLocaleString()}개</p>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Last 5-min comparison */}
       <div>
         <p className="text-xs font-semibold text-gray-500 mb-2">최근 5분 활동 (in-memory vs DB)</p>
@@ -4449,6 +4483,9 @@ interface DbHealthData {
   inMemory: { messages: number; likes: number };
   db: { messages: number; likes: number };
   sseConnections: number;
+  pinPool: { remaining: number; total: number };
+  alarms: string[];
+  ok: boolean;
   checkedAt: string;
 }
 type HistorySubTab = 'hearts' | 'chats' | 'session' | 'feedback' | 'participants';

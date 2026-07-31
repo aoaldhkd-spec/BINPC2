@@ -46,6 +46,39 @@ const _dbPersistErrorLog: PersistErrorEntry[] = [];
 const ADMIN_DB_PUSH_THROTTLE_MS = 5 * 60 * 1000;
 let _lastAdminDbPushAt = 0;
 
+// ─── Admin PIN pool warning push throttle ─────────────────────────────────────
+// At most 1 PIN pool warning push per hour to avoid repeat noise.
+const ADMIN_PIN_PUSH_THROTTLE_MS = 60 * 60 * 1000;
+let _lastAdminPinPushAt = 0;
+// 85% used = 15% remaining triggers the alert.
+const PIN_WARN_USED_RATIO = 0.85;
+
+/** Helper: send a push notification to the admin.
+ *  Returns false if no push subscription is found. */
+async function _sendAdminPush(payload: PushPayload): Promise<boolean> {
+  const settings = (store['app_settings'] ?? [])[0];
+  if (!settings) return false;
+  const adminPhone = settings['admin_phone'] as string | undefined;
+  if (!adminPhone) return false;
+  const adminProfile = (store['profiles'] ?? []).find(p => p['phone_number'] === adminPhone);
+  if (!adminProfile) return false;
+  const adminId = adminProfile['id'] as string;
+  const subs = (store['push_subscriptions'] ?? []).filter(s => s['user_id'] === adminId);
+  if (!subs.length) return false;
+  const results = await Promise.all(
+    subs.map(sub => sendPush(
+      { endpoint: sub['endpoint'] as string, keys: { auth: sub['auth'] as string, p256dh: sub['p256dh'] as string } },
+      payload,
+    ).then(ok => ({ id: sub['id'] as string, ok })).catch(() => ({ id: sub['id'] as string, ok: false }))),
+  );
+  const expired = results.filter(r => !r.ok).map(r => r.id);
+  if (expired.length) {
+    store['push_subscriptions'] = (store['push_subscriptions'] ?? []).filter(s => !expired.includes(s['id'] as string));
+    for (const id of expired) dbDeleteRow('push_subscriptions', id).catch(console.error);
+  }
+  return results.some(r => r.ok);
+}
+
 /** Send a push notification to the admin for a DB persist failure.
  *  Throttled to at most once every 5 minutes.
  *  Errors are swallowed — we must not recurse into dbPersistRow. */
@@ -53,47 +86,47 @@ async function notifyAdminDbFailure(tableName: string, errMsg: string): Promise<
   const now = Date.now();
   if (now - _lastAdminDbPushAt < ADMIN_DB_PUSH_THROTTLE_MS) return;
   _lastAdminDbPushAt = now;
-
   try {
-    // Find admin profile by admin_phone in app_settings
-    const settings = (store['app_settings'] ?? [])[0];
-    if (!settings) return;
-    const adminPhone = settings['admin_phone'] as string | undefined;
-    if (!adminPhone) return;
-
-    const adminProfile = (store['profiles'] ?? []).find(p => p['phone_number'] === adminPhone);
-    if (!adminProfile) return;
-    const adminId = adminProfile['id'] as string;
-
-    const subs = (store['push_subscriptions'] ?? []).filter(s => s['user_id'] === adminId);
-    if (!subs.length) return;
-
-    // Truncate error message for notification body
     const shortErr = errMsg.length > 80 ? errMsg.slice(0, 80) + '…' : errMsg;
-    const payload: PushPayload = {
+    const sent = await _sendAdminPush({
       title: '⚠️ DB 저장 오류 발생',
       body: `[${tableName}] ${shortErr}`,
       tag: 'db-persist-error',
       url: '/',
-    };
-
-    const results = await Promise.all(
-      subs.map(sub => sendPush(
-        { endpoint: sub['endpoint'] as string, keys: { auth: sub['auth'] as string, p256dh: sub['p256dh'] as string } },
-        payload,
-      ).then(ok => ({ id: sub['id'] as string, ok })).catch(() => ({ id: sub['id'] as string, ok: false }))),
-    );
-
-    // Clean up expired subscriptions
-    const expired = results.filter(r => !r.ok).map(r => r.id);
-    if (expired.length) {
-      store['push_subscriptions'] = (store['push_subscriptions'] ?? []).filter(s => !expired.includes(s['id'] as string));
-      for (const id of expired) dbDeleteRow('push_subscriptions', id).catch(console.error);
-    }
-
-    console.log(`[db] Admin DB failure push sent (table=${tableName}, subs=${subs.length}, expired=${expired.length})`);
+    });
+    if (sent) console.log(`[db] Admin DB failure push sent (table=${tableName})`);
   } catch (e) {
     console.error('[db] Failed to send admin DB failure push:', e);
+  }
+}
+
+/** Send a push notification to the admin when the PIN pool crosses the 85% usage mark.
+ *  Throttled to at most once per hour.
+ *  Errors are swallowed. */
+async function checkAndNotifyAdminPinPool(): Promise<void> {
+  const allProfiles = getTable('profiles');
+  const use5Digit   = allProfiles.length > 8000;
+  const poolSize    = use5Digit ? 90000 : 9000;
+  const usedCount   = new Set(allProfiles.map(p => p.pin_code).filter(Boolean)).size;
+  const usedRatio   = usedCount / poolSize;
+  if (usedRatio < PIN_WARN_USED_RATIO) return; // below threshold — no alert
+
+  const now = Date.now();
+  if (now - _lastAdminPinPushAt < ADMIN_PIN_PUSH_THROTTLE_MS) return;
+  _lastAdminPinPushAt = now;
+
+  try {
+    const remaining = poolSize - usedCount;
+    const pct = Math.round(usedRatio * 100);
+    const sent = await _sendAdminPush({
+      title: '🔔 PIN 풀 거의 소진',
+      body: `PIN ${pct}% 사용됨 — 잔여 ${remaining}개 (총 ${poolSize}개). 빠른 조치가 필요합니다.`,
+      tag: 'pin-pool-warning',
+      url: '/',
+    });
+    if (sent) console.log(`[db] Admin PIN pool warning push sent (used=${usedCount}/${poolSize}, ${pct}%)`);
+  } catch (e) {
+    console.error('[db] Failed to send admin PIN pool warning push:', e);
   }
 }
 
@@ -807,6 +840,10 @@ router.post('/op', async (req: Request, res: Response) => {
         }
         smartBroadcast(table, newRow, { type: 'change', table, event: 'INSERT', newRow, oldRow: null });
         dbPersistRow(table, newRow).catch(console.error);
+        // #33: 신규 프로필 등록 시 PIN 풀 사용량 확인 — 85% 초과 시 관리자 푸시 알림
+        if (table === 'profiles') {
+          checkAndNotifyAdminPinPool().catch(console.error);
+        }
         // chat_reads 삽입 시 해당 유저 unread 캐시 즉시 무효화
         if (table === 'chat_reads' && newRow.reader_id) {
           unreadCountsCache.delete(String(newRow.reader_id));
@@ -1311,13 +1348,13 @@ router.get('/health', async (_req: Request, res: Response) => {
   const recentPersistErrors = _dbPersistErrorLog.filter(e => Date.now() - e.time < 5 * 60 * 1000).length;
   const messageLag = dbMessages >= 0 ? inMemMessages - dbMessages : null;
   const likeLag    = dbLikes    >= 0 ? inMemLikes    - dbLikes    : null;
-  // #33: PIN pool 잔여량 — 10% 미만이면 alarm
+  // #33: PIN pool 잔여량 — 85% 이상 사용됐으면 alarm (15% 이하 남음)
   const _allProfiles = getTable('profiles');
   const _use5Digit   = _allProfiles.length > 8000;
   const _pinPoolSize = _use5Digit ? 90000 : 9000;
   const _usedPinCount = new Set(_allProfiles.map(p => p.pin_code).filter(Boolean)).size;
   const pinRemaining  = _pinPoolSize - _usedPinCount;
-  const PIN_ALARM_THRESHOLD = Math.max(50, Math.floor(_pinPoolSize * 0.1));
+  const PIN_ALARM_THRESHOLD = Math.max(50, Math.floor(_pinPoolSize * 0.15)); // 15% remaining = 85% used
 
   const alarms: string[] = [];
   if (recentPersistErrors > 0) alarms.push(`${recentPersistErrors} DB persist error(s) in last 5 min`);
