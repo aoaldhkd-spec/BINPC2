@@ -109,13 +109,10 @@ export function useChat({
     if (!chatId) return;
     chatIdRef.current = chatId;
     // 채팅방 열 때: unread 카운트 삭제 + 전체 배지(newMsgCount)도 함께 감소
-    setUnreadChatCounts(prev => {
-      const removed = prev[chatId] ?? 0;
-      const n = { ...prev };
-      delete n[chatId];
-      if (removed > 0) setNewMsgCount(c => Math.max(0, c - removed));
-      return n;
-    });
+    // setState 중첩 호출 금지: removed를 먼저 읽은 뒤 두 setter 분리 호출
+    const removed = unreadChatCounts[chatId] ?? 0;
+    setUnreadChatCounts(prev => { const n = { ...prev }; delete n[chatId]; return n; });
+    if (removed > 0) setNewMsgCount(c => Math.max(0, c - removed));
     if (currentUserId) {
       supabase.from('chat_reads').upsert({
         id: `${chatId}__${currentUserId}`,

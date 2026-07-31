@@ -292,7 +292,6 @@ function App() {
       if ((profilesRef.current?.length ?? 0) > 0) {
         clearInterval(pollId);
         setView('main');
-        console.info('[loading-main] 프로필 로드 확인 → main 전환');
       }
     }, 200);
 
@@ -307,18 +306,16 @@ function App() {
       retryTimer = setTimeout(async () => {
         if (cancelled) return;
         attempt++;
-        console.info(`[loading-main] 프로필 재시도 #${attempt} (${delay}ms 대기 후)`);
         try {
           const loaded = await loadProfilesRef.current();
           if (cancelled) return;
           if ((loaded?.length ?? 0) > 0) {
             clearInterval(pollId);
             setView('main');
-            console.info('[loading-main] 재시도 성공 → main 전환');
             return;
           }
-        } catch (e) {
-          console.warn('[loading-main] 재시도 오류:', e);
+        } catch {
+          // 네트워크 오류 → 다음 재시도로 계속
         }
         if (!cancelled) {
           if (attempt < MAX_ATTEMPTS) {
@@ -327,7 +324,6 @@ function App() {
             // 최대 재시도 소진 → 강제 전환 (프로필 없어도 main으로)
             clearInterval(pollId);
             setView('main');
-            console.warn('[loading-main] 최대 재시도 소진 → main 강제 전환');
           }
         }
       }, delay);
@@ -346,11 +342,10 @@ function App() {
   // connStatus가 'error'로 전환되면 15초마다 프로필 재로드 (SSE 복구 시 자동 정지)
   useEffect(() => {
     if (connStatus !== 'error' || !currentUserId) return;
-    console.info('[SSE-fallback] SSE 오류 감지 → 15초 폴링 모드 활성화');
     const pollId = setInterval(() => {
       loadProfilesRef.current().catch(() => {});
     }, 15_000);
-    return () => { clearInterval(pollId); console.info('[SSE-fallback] 폴링 정지'); };
+    return () => { clearInterval(pollId); };
   }, [connStatus, currentUserId]);
 
   // Track user's current table number for notification targeting (ref for stable access in channel callbacks)
@@ -627,10 +622,10 @@ function App() {
 
   useEffect(() => {
     if (!currentUserId) return;
-    loadProfiles().then((allProfiles) => {
+    loadProfiles().catch(() => []).then((allProfiles) => {
       // 프로필 목록이 비어있으면 서버 기동 중이거나 네트워크 오류 — 세션 유지
       // 실제 프로필 삭제는 reset_signal SSE로 처리되므로 여기서 aggressive하게 지우지 않음
-      if (allProfiles.length === 0) return;
+      if (!allProfiles || allProfiles.length === 0) return;
       // 신규 가입 직후: DB 반영 지연으로 인한 false-positive 세션 삭제 방지
       // isNewRegistration이 true이면 방금 insert한 프로필이므로 삭제하지 않고 바로 main으로 이동
       if (isNewRegistration.current) {

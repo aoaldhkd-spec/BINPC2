@@ -97,13 +97,14 @@ export function useGames(
 
   const endBalanceGame = async (gameId: string) => {
     await supabase.from('balance_games').update({ status: 'ended', ended_at: new Date().toISOString() }).eq('id', gameId);
-    setBalanceGames(prev => prev.map(g => {
-      if (g.id !== gameId) return g;
-      const updated = { ...g, status: 'ended' as const };
+    // setState 중첩 호출 금지: 먼저 업데이트 값 계산 후 두 setter 분리 호출
+    const target = balanceGames.find(g => g.id === gameId);
+    if (target) {
+      const updated = { ...target, status: 'ended' as const };
       const counts = voteCounts.get(gameId) || { a: 0, b: 0 };
       setGameEndResult({ game: updated, counts });
-      return updated;
-    }));
+    }
+    setBalanceGames(prev => prev.map(g => g.id !== gameId ? g : { ...g, status: 'ended' as const }));
   };
 
   const broadcastTableGame = useCallback((session: TableMiniGameSession) => {

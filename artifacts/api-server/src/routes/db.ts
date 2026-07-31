@@ -356,16 +356,16 @@ async function sendPushForEvent(table: string, row: Record<string, unknown>): Pr
   if (!recipientId || !payload) return;
 
   const subs = getTable('push_subscriptions').filter(s => s.user_id === recipientId);
-  const expired: string[] = [];
 
-  for (const sub of subs) {
-    const ok = await sendPush(
+  // 병렬 전송 — 직렬 await 제거로 다수 구독 시 지연 최소화
+  const results = await Promise.all(
+    subs.map(sub => sendPush(
       { endpoint: sub.endpoint as string, keys: { auth: sub.auth as string, p256dh: sub.p256dh as string } },
       payload,
-    );
-    if (!ok) expired.push(sub.id as string);
-  }
+    ).then(ok => ({ id: sub.id as string, ok })).catch(() => ({ id: sub.id as string, ok: false }))),
+  );
 
+  const expired = results.filter(r => !r.ok).map(r => r.id);
   if (expired.length) {
     store['push_subscriptions'] = (store['push_subscriptions'] ?? []).filter(s => !expired.includes(s.id as string));
     for (const id of expired) dbDeleteRow('push_subscriptions', id).catch(console.error);
@@ -993,9 +993,19 @@ router.get('/health', async (_req: Request, res: Response) => {
 // ─── Unread counts endpoint ───────────────────────────────────────────────────
 // Returns per-chat unread message counts for a user, computed from DB truth.
 // Used by client on visibilitychange and SSE reconnect to fix missed increments.
+// 단기 캐시(2s): 탭 전환·재연결 폭발 시 동일 userId에 대한 중복 O(chats×msgs) 스캔 방지
+const unreadCountsCache = new Map<string, { ts: number; data: Record<string, number> }>();
+const UNREAD_CACHE_TTL_MS = 2_000;
+
 router.get('/unread-counts', (req: Request, res: Response) => {
   const userId = typeof req.query.userId === 'string' && req.query.userId ? req.query.userId : null;
   if (!userId) return res.status(400).json({ data: null, error: { message: 'userId required' } });
+
+  // 캐시 히트
+  const cached = unreadCountsCache.get(userId);
+  if (cached && (Date.now() - cached.ts) < UNREAD_CACHE_TTL_MS) {
+    return res.json({ data: cached.data, error: null });
+  }
 
   const chats = getTable('chats').filter(c => c.user1_id === userId || c.user2_id === userId);
 
@@ -1007,19 +1017,28 @@ router.get('/unread-counts', (req: Request, res: Response) => {
     }
   }
 
+  // 전체 메시지를 chat_id 기준으로 미리 인덱싱 — O(msgs) 1회 스캔
+  const msgsByChatId = new Map<string, typeof store[string]>();
+  for (const m of getTable('messages')) {
+    const cid = m.chat_id as string;
+    if (!msgsByChatId.has(cid)) msgsByChatId.set(cid, []);
+    msgsByChatId.get(cid)!.push(m);
+  }
+
   const counts: Record<string, number> = {};
   for (const chat of chats) {
     const chatId = chat.id as string;
     const readAt = readAtByChat.get(chatId);
-    const unread = getTable('messages').filter(m => {
-      if (m.chat_id !== chatId) return false;
-      if (m.sender_id === userId) return false; // own messages never unread
-      if (!readAt) return true; // never read this chat — all messages unread
-      return (m.created_at as string) > readAt;
-    });
-    if (unread.length > 0) counts[chatId] = unread.length;
+    const msgs = msgsByChatId.get(chatId) ?? [];
+    let unreadCount = 0;
+    for (const m of msgs) {
+      if (m.sender_id === userId) continue;
+      if (!readAt || (m.created_at as string) > readAt) unreadCount++;
+    }
+    if (unreadCount > 0) counts[chatId] = unreadCount;
   }
 
+  unreadCountsCache.set(userId, { ts: Date.now(), data: counts });
   return res.json({ data: counts, error: null });
 });
 
@@ -1087,14 +1106,14 @@ router.post('/push/notify', async (req: Request, res: Response) => {
     url:   String(url   || '/'),
   };
 
-  const expired: string[] = [];
-  for (const sub of subs) {
-    const ok = await sendPush(
+  // 병렬 전송 — 직렬 await 제거
+  const pushResults = await Promise.all(
+    subs.map(sub => sendPush(
       { endpoint: sub.endpoint as string, keys: { auth: sub.auth as string, p256dh: sub.p256dh as string } },
       payload,
-    );
-    if (!ok) expired.push(sub.id as string);
-  }
+    ).then(ok => ({ id: sub.id as string, ok })).catch(() => ({ id: sub.id as string, ok: false }))),
+  );
+  const expired = pushResults.filter(r => !r.ok).map(r => r.id);
   if (expired.length) {
     store['push_subscriptions'] = (store['push_subscriptions'] ?? []).filter(s => !expired.includes(s.id as string));
     for (const id of expired) dbDeleteRow('push_subscriptions', id).catch(console.error);
@@ -1226,6 +1245,11 @@ router.get('/events', (req: Request, res: Response) => {
     }
     userConns.add(res);
   } else {
+    // 익명 연결 최대 100개 제한 — 미인증 연결에 의한 리소스 고갈 방지
+    if (sseAnonClients.size >= 100) {
+      res.status(429).end();
+      return;
+    }
     sseAnonClients.add(res);
   }
 
