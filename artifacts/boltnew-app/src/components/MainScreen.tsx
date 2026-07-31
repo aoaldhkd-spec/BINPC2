@@ -76,30 +76,6 @@ const AVATAR_CATEGORIES = [
     { id:'av95', src:`${_BASE}avatars/av95.png`, label:'고슴도치' },
     { id:'av96', src:`${_BASE}avatars/av96.png`, label:'알파카' },
     { id:'av97', src:`${_BASE}avatars/av97.png`, label:'아홀로틀' },
-    { id:'a_bear',      src:_ea('🐻','#d7a87a'),   label:'곰' },
-    { id:'a_polarbear', src:_ea('🐻‍❄️','#cce8ff'), label:'북극곰' },
-    { id:'a_hamster',   src:_ea('🐹','#f5c49a'),   label:'햄스터' },
-    { id:'a_otter',     src:_ea('🦦','#a0785a'),   label:'수달' },
-    { id:'a_koala',     src:_ea('🐨','#b0b7be'),   label:'코알라' },
-    { id:'a_frog',      src:_ea('🐸','#6abf69'),   label:'개구리' },
-    { id:'a_chick',     src:_ea('🐥','#ffd54f'),   label:'병아리' },
-    { id:'a_lion',      src:_ea('🦁','#f9a825'),   label:'사자' },
-    { id:'a_tiger',     src:_ea('🐯','#ff8f00'),   label:'호랑이' },
-    { id:'a_dino',      src:_ea('🦕','#81c784'),   label:'공룡' },
-    { id:'a_flamingo',  src:_ea('🦩','#f06292'),   label:'플라밍고' },
-    { id:'a_giraffe',   src:_ea('🦒','#f9a825'),   label:'기린' },
-    { id:'a_elephant',  src:_ea('🐘','#b0bec5'),   label:'코끼리' },
-    { id:'a_unicorn',   src:_ea('🦄','#ce93d8'),   label:'유니콘' },
-    { id:'a_duck',      src:_ea('🦆','#fff176'),   label:'오리' },
-    { id:'a_owl',       src:_ea('🦉','#8d6e63'),   label:'부엉이' },
-    { id:'a_rabbit2',   src:_ea('🐰','#f8bbd0'),   label:'분홍 토끼' },
-    { id:'a_sheep',     src:_ea('🐑','#eceff1'),   label:'양' },
-    { id:'a_pig',       src:_ea('🐷','#f48fb1'),   label:'돼지' },
-    { id:'a_monkey',    src:_ea('🐵','#d7a87a'),   label:'원숭이' },
-    { id:'a_bee',       src:_ea('🐝','#fdd835'),   label:'꿀벌' },
-    { id:'a_butterfly', src:_ea('🦋','#ab47bc'),   label:'나비' },
-    { id:'a_crab',      src:_ea('🦀','#e53935'),   label:'게' },
-    { id:'a_fish',      src:_ea('🐡','#29b6f6'),   label:'복어' },
   ]},
   // ── 음식 ──────────────────────────────────────────────────────────────────
   { label: '🍱 음식', avatars: [
@@ -109,45 +85,6 @@ const AVATAR_CATEGORIES = [
     { id:'av14', src:`${_BASE}avatars/av14.png`, label:'버블티' },
     { id:'av98', src:`${_BASE}avatars/av98.png`, label:'딸기 케이크' },
     { id:'av101',src:`${_BASE}avatars/av101.png`,label:'타코야키' },
-    { id:'f_tteok',    src:_ea('🌶️','#c62828'),  label:'떡볶이' },
-    { id:'f_samgyup',  src:_ea('🥩','#8d6e63'),   label:'삼겹살' },
-    { id:'f_gimbap',   src:_ea('🍙','#388e3c'),   label:'김밥' },
-    { id:'f_jjajang',  src:_ea('🍜','#4e342e'),   label:'짜장면' },
-    { id:'f_soondubu', src:_ea('🍲','#bf360c'),   label:'순두부' },
-    { id:'f_sushi',    src:_ea('🍣','#c62828'),   label:'스시' },
-    { id:'f_curry',    src:_ea('🍛','#f57c00'),   label:'카레' },
-    { id:'f_pizza',    src:_ea('🍕','#bf360c'),   label:'피자' },
-    { id:'f_burger',   src:_ea('🍔','#e65100'),   label:'햄버거' },
-    { id:'f_hotdog',   src:_ea('🌭','#f57f17'),   label:'핫도그' },
-    { id:'f_pasta',    src:_ea('🍝','#bf360c'),   label:'파스타' },
-    { id:'f_taco',     src:_ea('🌮','#f57c00'),   label:'타코' },
-    { id:'f_pretzel',  src:_ea('🥨','#8d6e63'),   label:'프레첼' },
-    { id:'f_chicken',  src:_ea('🍗','#e65100'),   label:'치킨' },
-    { id:'f_popcorn',  src:_ea('🍿','#fdd835'),   label:'팝콘' },
-    { id:'f_icecream', src:_ea('🍦','#f8bbd0'),   label:'소프트 아이스크림' },
-    { id:'f_icecream2',src:_ea('🍨','#b3e5fc'),   label:'아이스크림 컵' },
-    { id:'f_donut',    src:_ea('🍩','#ff6f00'),   label:'도넛' },
-    { id:'f_waffle',   src:_ea('🧇','#f9a825'),   label:'와플' },
-    { id:'f_pancake',  src:_ea('🥞','#ff8f00'),   label:'팬케이크' },
-    { id:'f_cupcake',  src:_ea('🧁','#ab47bc'),   label:'컵케이크' },
-    { id:'f_cookie',   src:_ea('🍪','#8d6e63'),   label:'쿠키' },
-    { id:'f_choco',    src:_ea('🍫','#4e342e'),   label:'초콜릿' },
-    { id:'f_candy',    src:_ea('🍬','#e91e63'),   label:'캔디' },
-    { id:'f_cotton',   src:_ea('🍭','#f48fb1'),   label:'솜사탕' },
-    { id:'f_pudding',  src:_ea('🍮','#ffb300'),   label:'푸딩' },
-    { id:'f_croffle',  src:_ea('🥐','#f57f17'),   label:'크로플' },
-    { id:'f_straw',    src:_ea('🍓','#e53935'),   label:'딸기' },
-    { id:'f_water',    src:_ea('🍉','#388e3c'),   label:'수박' },
-    { id:'f_mango',    src:_ea('🥭','#ff8f00'),   label:'망고' },
-    { id:'f_grape',    src:_ea('🍇','#7b1fa2'),   label:'포도' },
-    { id:'f_peach',    src:_ea('🍑','#ff8a65'),   label:'복숭아' },
-    { id:'f_lemon',    src:_ea('🍋','#fdd835'),   label:'레몬' },
-    { id:'f_cherry',   src:_ea('🍒','#c62828'),   label:'체리' },
-    { id:'f_blueberry',src:_ea('🫐','#283593'),   label:'블루베리' },
-    { id:'f_melon',    src:_ea('🍈','#66bb6a'),   label:'멜론' },
-    { id:'f_coffee',   src:_ea('☕','#5d4037'),   label:'커피' },
-    { id:'f_juice',    src:_ea('🧃','#f9a825'),   label:'주스' },
-    { id:'f_milk',     src:_ea('🥛','#e3f2fd'),   label:'우유' },
   ]},
 ];
 import { ResetButton } from './ResetButton';
@@ -206,6 +143,7 @@ const ProfileCard = memo(function ProfileCard({
   const bioTags = profile.bio ? profile.bio.split(',').map(t => t.trim()).filter(Boolean).slice(0, 2) : [];
   const age = getKoreanAge(profile.birth_year);
   const msStyle = profile.mbti ? getMbtiStyle(profile.mbti) : null;
+  const avLabel = AVATAR_CATEGORIES.flatMap(c => c.avatars).find(a => a.src === profile.photo_url)?.label ?? null;
 
   // 이미지 비율 자동 감지: 3:4(세로형)에 가까우면 꽉 채움, 아니면 내부 박스에 가둠
   const [imgFit, setImgFit] = useState<'cover' | 'contain'>('cover');
@@ -291,6 +229,9 @@ const ProfileCard = memo(function ProfileCard({
         >
           {posLabel}
         </span>
+        {avLabel && (
+          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200">{avLabel}</span>
+        )}
         {bioTags.map(tag => (
           <span key={tag} className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-pink-50 text-pink-500 border border-pink-100">#{tag}</span>
         ))}
@@ -869,6 +810,7 @@ export function MainScreen({
               const posStyle = getPositionStyle(myProfile.personality_score ?? 50);
               const bioTags = myProfile.bio ? myProfile.bio.split(',').map(t => t.trim()).filter(Boolean).slice(0, 3) : [];
               const age = getKoreanAge(myProfile.birth_year);
+              const myAvLabel = AVATAR_CATEGORIES.flatMap(c => c.avatars).find(a => a.src === myProfile.photo_url)?.label ?? null;
               return (
                 <div className="mb-3">
                   <p className={`text-[10px] font-black uppercase tracking-widest mb-1.5 ${darkMode ? 'text-amber-400' : 'text-amber-500'}`}>내 카드 👤</p>
@@ -896,6 +838,7 @@ export function MainScreen({
                             return <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md border" style={{ backgroundColor: ms.bg, color: ms.color, borderColor: ms.border }}>{myProfile.mbti}</span>;
                           })()}
                           <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md leading-tight border" style={{ backgroundColor: posStyle.bg, color: posStyle.text, borderColor: posStyle.border }}>{posLabel}</span>
+                          {myAvLabel && <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200">{myAvLabel}</span>}
                         </div>
                         {bioTags.length > 0 && (
                           <div className="flex flex-wrap gap-0.5 mt-0.5">
