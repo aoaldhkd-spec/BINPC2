@@ -53,12 +53,14 @@ function MiniScoreBar({ label, score, getLabel, getBg, leftText, rightText }: {
     <div>
       <div className="flex items-center justify-between mb-1">
         <span className="text-[10px] text-slate-400">{label}</span>
-        <span className="text-[10px] font-bold text-white px-1.5 py-0.5 rounded-full" style={{ background: bg }}>
+        {/* score-badge: rounded-full이지만 y2k/minimal 뱃지 오버라이드에서 제외 */}
+        <span className="score-badge text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: bg, color: '#fff' }}>
           {getLabel(score)}
         </span>
       </div>
-      <div className="relative h-1.5 bg-slate-700 rounded-full overflow-hidden">
-        <div className="absolute left-0 top-0 h-full rounded-full transition-all" style={{ width: `${pct}%`, background: bg }} />
+      {/* progress-track: rounded-full y2k/minimal 오버라이드에서 제외 */}
+      <div className="progress-track relative h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--t-border, rgba(100,116,139,0.4))' }}>
+        <div className="progress-fill absolute left-0 top-0 h-full rounded-full transition-all" style={{ width: `${pct}%`, background: bg }} />
       </div>
       <div className="flex justify-between mt-0.5">
         <span className="text-[9px] text-slate-500">{leftText}</span>

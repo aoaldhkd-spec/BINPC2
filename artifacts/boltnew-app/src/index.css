@@ -369,7 +369,7 @@ html[data-theme="y2k"] .bg-gradient-to-b,
 [data-theme="y2k"] .border-white\/20 { border-color: #18181b !important; border-width: 2px !important; }
 
 /* -- 뱃지 --------------------------------------------- */
-[data-theme="y2k"] .rounded-full:not(.theme-switcher-btn):not(img) {
+[data-theme="y2k"] .rounded-full:not(.theme-switcher-btn):not(img):not(.score-badge):not(.progress-track):not(.progress-fill):not(.animate-spin):not(.avatar-ring) {
   background-color: #e9d5ff !important;
   color: #581c87 !important;
   border: 1px solid #18181b !important;
@@ -675,6 +675,58 @@ html[data-theme="dark-neon"] .bg-gradient-to-b,
 [data-theme="dark-neon"] .scrollbar-styled {
   scrollbar-color: #ec4899 #18181b !important;
 }
+
+/* ── ⑲-a ChatScreen 전용 컬러 틴트 — dark-neon 보완 ─────── */
+/* Emerald 계열 */
+[data-theme="dark-neon"] .bg-emerald-50   { background-color: rgba(52,211,153,0.08) !important; }
+[data-theme="dark-neon"] .bg-emerald-500,
+[data-theme="dark-neon"] .bg-emerald-600  { background: linear-gradient(135deg,#34d399,#059669) !important; color: #ffffff !important; box-shadow: 0 0 12px rgba(52,211,153,0.3) !important; }
+[data-theme="dark-neon"] .text-emerald-600 { color: #34d399 !important; }
+[data-theme="dark-neon"] .border-emerald-100,
+[data-theme="dark-neon"] .border-emerald-200 { border-color: rgba(52,211,153,0.2) !important; }
+
+/* Yellow 계열 */
+[data-theme="dark-neon"] .text-yellow-400,
+[data-theme="dark-neon"] .text-yellow-600 { color: #fbbf24 !important; }
+[data-theme="dark-neon"] .border-yellow-200 { border-color: rgba(251,191,36,0.2) !important; }
+
+/* Blue 계열 */
+[data-theme="dark-neon"] .bg-blue-50      { background-color: rgba(96,165,250,0.07) !important; }
+[data-theme="dark-neon"] .text-blue-600,
+[data-theme="dark-neon"] .text-blue-700   { color: #60a5fa !important; }
+[data-theme="dark-neon"] .border-blue-100,
+[data-theme="dark-neon"] .border-blue-200 { border-color: rgba(96,165,250,0.2) !important; }
+
+/* Pink 계열 */
+[data-theme="dark-neon"] .bg-pink-50      { background-color: rgba(244,114,182,0.07) !important; }
+[data-theme="dark-neon"] .text-pink-600   { color: #f472b6 !important; }
+[data-theme="dark-neon"] .text-pink-800   { color: #ec4899 !important; }
+[data-theme="dark-neon"] .border-pink-200 { border-color: rgba(244,114,182,0.2) !important; }
+
+/* Amber 추가 밝은 단계 */
+[data-theme="dark-neon"] .text-amber-700  { color: #fbbf24 !important; }
+[data-theme="dark-neon"] .text-amber-800  { color: #f59e0b !important; }
+[data-theme="dark-neon"] .border-amber-100,
+[data-theme="dark-neon"] .border-amber-200 { border-color: rgba(251,191,36,0.2) !important; }
+
+/* Violet 추가 단계 */
+[data-theme="dark-neon"] .bg-violet-50,
+[data-theme="dark-neon"] .bg-violet-100   { background-color: rgba(139,92,246,0.1) !important; }
+[data-theme="dark-neon"] .text-violet-700 { color: #a78bfa !important; }
+[data-theme="dark-neon"] .border-violet-100,
+[data-theme="dark-neon"] .border-violet-200 { border-color: rgba(139,92,246,0.2) !important; }
+
+/* Teal 추가 단계 */
+[data-theme="dark-neon"] .text-teal-700,
+[data-theme="dark-neon"] .text-teal-800   { color: #ec4899 !important; }
+
+/* Gray-400 배경 */
+[data-theme="dark-neon"] .bg-gray-400     { background-color: #52525b !important; }
+
+/* 텍스트 회색 추가 단계 (dark-neon에서 너무 어두운 gray-300 보정) */
+[data-theme="dark-neon"] .text-gray-300   { color: #d4d4d8 !important; }
+[data-theme="dark-neon"] .text-gray-200   { color: #e4e4e7 !important; }
+[data-theme="dark-neon"] .text-gray-100   { color: #f4f4f5 !important; }
 [data-theme="dark-neon"] .scrollbar-styled::-webkit-scrollbar-track { background: #09090b !important; }
 [data-theme="dark-neon"] .scrollbar-styled::-webkit-scrollbar-thumb {
   background: linear-gradient(180deg,#ec4899,#8b5cf6) !important;
@@ -870,7 +922,7 @@ html[data-theme="minimal"] .bg-gradient-to-b,
 }
 
 /* -- 뱃지 --------------------------------------------- */
-[data-theme="minimal"] .rounded-full:not(.theme-switcher-btn):not(img) {
+[data-theme="minimal"] .rounded-full:not(.theme-switcher-btn):not(img):not(.score-badge):not(.progress-track):not(.progress-fill):not(.animate-spin):not(.avatar-ring) {
   background-color: transparent !important;
   color: #09090b !important;
   border: 1px solid #09090b !important;
