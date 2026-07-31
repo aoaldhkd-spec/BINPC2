@@ -431,11 +431,19 @@ html[data-theme="y2k"] .bg-gradient-to-b,
 [data-theme="dark-neon"] .bg-gray-200\/80 { background-color: rgba(24,24,27,0.95) !important; }
 [data-theme="dark-neon"] .bg-gray-300   { background-color: #3f3f46 !important; }
 
+/* hover 상태 라이트 배경 → 다크징크 (채팅 메뉴·리액션 버튼 등) */
+[data-theme="dark-neon"] .hover\:bg-white:hover    { background-color: var(--t-surface, #18181b) !important; }
+[data-theme="dark-neon"] .hover\:bg-gray-50:hover  { background-color: #09090b !important; }
+[data-theme="dark-neon"] .hover\:bg-gray-100:hover { background-color: #18181b !important; }
+[data-theme="dark-neon"] .hover\:bg-gray-200:hover { background-color: #27272a !important; }
+
 /* 컬러 틴트 라이트 배경 → 다크 틴트 버전 */
 [data-theme="dark-neon"] .bg-teal-50,
 [data-theme="dark-neon"] .bg-teal-100,
 [data-theme="dark-neon"] .bg-cyan-50,
 [data-theme="dark-neon"] .bg-cyan-100   { background-color: rgba(244,114,182,0.08) !important; }
+[data-theme="dark-neon"] .hover\:bg-teal-50:hover,
+[data-theme="dark-neon"] .hover\:bg-cyan-50:hover  { background-color: rgba(244,114,182,0.12) !important; }
 
 [data-theme="dark-neon"] .bg-violet-50,
 [data-theme="dark-neon"] .bg-violet-100 { background-color: rgba(139,92,246,0.1) !important; }
@@ -617,6 +625,10 @@ html[data-theme="dark-neon"] .bg-gradient-to-b,
 [data-theme="dark-neon"] .border-teal-100,
 [data-theme="dark-neon"] .border-teal-200,
 [data-theme="dark-neon"] .border-cyan-100   { border-color: rgba(244,114,182,0.2) !important; }
+[data-theme="dark-neon"] .border-teal-300,
+[data-theme="dark-neon"] .border-teal-400,
+[data-theme="dark-neon"] .border-cyan-200,
+[data-theme="dark-neon"] .border-cyan-300   { border-color: rgba(244,114,182,0.35) !important; }
 [data-theme="dark-neon"] .border-teal-500\/40 { border-color: rgba(236,72,153,0.4) !important; }
 [data-theme="dark-neon"] .border-red-100,
 [data-theme="dark-neon"] .border-red-500    { border-color: rgba(248,113,113,0.4) !important; }
