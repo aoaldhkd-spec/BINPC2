@@ -158,6 +158,7 @@ async function seedIfNeeded(): Promise<void> {
   }
   if (!getTable('seats').length) {
     const rows: Record<string, unknown>[] = [];
+    // 테이블 1-12: 8석
     for (let t = 1; t <= 12; t++) {
       for (let p = 1; p <= 8; p++) {
         rows.push({
@@ -172,8 +173,42 @@ async function seedIfNeeded(): Promise<void> {
         });
       }
     }
+    // 번외 테이블 13-15: 10석, 번외열 16-19: 6석
+    for (let t = 13; t <= 15; t++) {
+      for (let p = 1; p <= 10; p++) {
+        rows.push({ id: genId(), table_number: t, seat_position: p, seat_label: `${t}번 테이블 ${p}번`, profile_id: null, status: 'empty', registered_at: null, created_at: ts() });
+      }
+    }
+    for (let t = 16; t <= 19; t++) {
+      for (let p = 1; p <= 6; p++) {
+        rows.push({ id: genId(), table_number: t, seat_position: p, seat_label: `${t}번 테이블 ${p}번`, profile_id: null, status: 'empty', registered_at: null, created_at: ts() });
+      }
+    }
     store['seats'] = rows;
     await Promise.all(rows.map(r => dbPersistRow('seats', r)));
+  } else {
+    // 기존 설치: 번외 테이블이 없으면 추가
+    const existingTables = new Set(getTable('seats').map((s: Record<string, unknown>) => s['table_number']));
+    const extraRows: Record<string, unknown>[] = [];
+    for (let t = 13; t <= 15; t++) {
+      if (!existingTables.has(t)) {
+        for (let p = 1; p <= 10; p++) {
+          extraRows.push({ id: genId(), table_number: t, seat_position: p, seat_label: `${t}번 테이블 ${p}번`, profile_id: null, status: 'empty', registered_at: null, created_at: ts() });
+        }
+      }
+    }
+    for (let t = 16; t <= 19; t++) {
+      if (!existingTables.has(t)) {
+        for (let p = 1; p <= 6; p++) {
+          extraRows.push({ id: genId(), table_number: t, seat_position: p, seat_label: `${t}번 테이블 ${p}번`, profile_id: null, status: 'empty', registered_at: null, created_at: ts() });
+        }
+      }
+    }
+    if (extraRows.length) {
+      store['seats'].push(...extraRows);
+      await Promise.all(extraRows.map(r => dbPersistRow('seats', r)));
+      console.log(`[db] 번외 테이블 추가: ${extraRows.length}석`);
+    }
   }
 }
 

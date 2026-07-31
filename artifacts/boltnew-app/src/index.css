@@ -902,6 +902,11 @@ html[data-theme="minimal"] .bg-gradient-to-b,
   padding-right: 0 !important;
   letter-spacing: 0.05em !important;
 }
+/* 아이콘 있는 입력 필드: padding-left 복원 (absolute 아이콘과 겹침 방지) */
+[data-theme="minimal"] input.pl-10 { padding-left: 2.5rem !important; }
+[data-theme="minimal"] input.pl-9  { padding-left: 2.25rem !important; }
+[data-theme="minimal"] input.pl-8  { padding-left: 2rem !important; }
+[data-theme="minimal"] input.pr-3  { padding-right: 0.75rem !important; }
 [data-theme="minimal"] input::placeholder,
 [data-theme="minimal"] textarea::placeholder {
   color: #a1a1aa !important;
@@ -922,7 +927,7 @@ html[data-theme="minimal"] .bg-gradient-to-b,
 }
 
 /* -- 뱃지 --------------------------------------------- */
-[data-theme="minimal"] .rounded-full:not(.theme-switcher-btn):not(img):not(.score-badge):not(.progress-track):not(.progress-fill):not(.animate-spin):not(.avatar-ring) {
+[data-theme="minimal"] .rounded-full:not(.theme-switcher-btn):not(img):not(.score-badge):not(.progress-track):not(.progress-fill):not(.animate-spin):not(.avatar-ring):not(.toggle-track):not(.toggle-thumb) {
   background-color: transparent !important;
   color: #09090b !important;
   border: 1px solid #09090b !important;
@@ -931,6 +936,26 @@ html[data-theme="minimal"] .bg-gradient-to-b,
   text-transform: uppercase !important;
   font-size: 0.65rem !important;
   letter-spacing: 0.08em !important;
+}
+/* 필터 버튼(button.rounded-full): 텍스트 크기·높이 복원 */
+[data-theme="minimal"] button.rounded-full:not(.theme-switcher-btn) {
+  font-size: 0.75rem !important;
+  min-height: 26px !important;
+  padding-top: 0.2rem !important;
+  padding-bottom: 0.2rem !important;
+}
+/* 토글 스위치 복원 */
+[data-theme="minimal"] .toggle-track {
+  border: none !important;
+  border-radius: 9999px !important;
+}
+[data-theme="minimal"] .toggle-track.bg-red-500   { background-color: #ef4444 !important; }
+[data-theme="minimal"] .toggle-track.bg-gray-300  { background-color: #d1d5db !important; }
+[data-theme="minimal"] .toggle-track.bg-cyan-500  { background-color: #09090b !important; }
+[data-theme="minimal"] .toggle-thumb {
+  background-color: #ffffff !important;
+  border: none !important;
+  border-radius: 9999px !important;
 }
 
 /* -- 구분선 -------------------------------------------- */

@@ -699,6 +699,7 @@ function NotificationTab({ tableCount, settings, onSetTimer }: {
 
 const TABLE_LABELS: Record<number, string> = {
   1: '1', 2: '2', 3: '3', 4: '4', 5: '5', 6: '6', 7: '7', 8: '8', 9: '9', 10: '10', 11: '11', 12: '12',
+  13: '13', 14: '14', 15: '15', 16: '16', 17: '17', 18: '18', 19: '19',
 };
 
 // Resolve a table's display label: admin-configured table_labels overrides the default.
@@ -4076,6 +4077,59 @@ function HistoryTab({ histories, onClear }: { histories: SessionHistory[]; onCle
   );
 }
 
+// ─── Participants Tab ──────────────────────────────────────────────────────────
+
+function ParticipantsTab({ profiles }: { profiles: Profile[] }) {
+  const [query, setQuery] = useState('');
+  const sorted = [...profiles]
+    .filter(p =>
+      !query ||
+      (p.nickname ?? '').toLowerCase().includes(query.toLowerCase()) ||
+      (p.pin_code ?? '').includes(query)
+    )
+    .sort((a, b) => Number(a.pin_code ?? '9999') - Number(b.pin_code ?? '9999'));
+
+  if (profiles.length === 0) {
+    return (
+      <div className="p-8 text-center text-gray-400">
+        <span className="text-4xl block mb-3">👥</span>
+        <p className="text-sm">등록된 참여자가 없습니다.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4">
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-sm font-bold text-gray-700">총 {profiles.length}명</span>
+        <input
+          type="text"
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          placeholder="이름 또는 고유번호 검색"
+          className="text-xs px-3 py-1.5 border border-gray-200 rounded-xl bg-white w-44 focus:outline-none focus:border-teal-400"
+        />
+      </div>
+      <div className="space-y-1.5">
+        {sorted.map(p => (
+          <div key={p.id} className="flex items-center gap-3 bg-white rounded-xl border border-gray-100 px-3 py-2.5 shadow-sm">
+            <div className="w-8 h-8 rounded-full bg-cyan-100 flex items-center justify-center flex-shrink-0">
+              <span className="text-cyan-700 text-sm font-black">{(p.nickname ?? '?')[0]}</span>
+            </div>
+            <p className="flex-1 min-w-0 text-sm font-bold text-gray-800 truncate">{p.nickname ?? '(이름 없음)'}</p>
+            <div className="flex-shrink-0 bg-teal-50 border border-teal-200 rounded-lg px-2.5 py-1">
+              <span className="text-teal-700 font-black text-sm tabular-nums tracking-widest">{p.pin_code ?? '—'}</span>
+            </div>
+          </div>
+        ))}
+        {sorted.length === 0 && query && (
+          <p className="text-center text-gray-400 text-sm py-8">"{query}"에 해당하는 참여자가 없습니다.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Credentials Tab ──────────────────────────────────────────────────────────
 
 function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onSaveTest }: {
@@ -4387,7 +4441,7 @@ interface DbHealthData {
   sseConnections: number;
   checkedAt: string;
 }
-type HistorySubTab = 'hearts' | 'chats' | 'session' | 'feedback';
+type HistorySubTab = 'hearts' | 'chats' | 'session' | 'feedback' | 'participants';
 type HeartSubTab = 'hearts' | 'popularity';
 type FeedbackSubTab = 'suggestions' | 'reports';
 type GameSubTab = 'balance' | 'ox' | 'chosung' | 'qa' | 'image';
@@ -5138,7 +5192,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                         className="text-[9px] font-black px-2 py-0.5 bg-teal-500 hover:bg-teal-600 text-white rounded active:scale-95 transition-all">적용</button>
                     </div>
                   </div>
-                  <div className="grid grid-cols-6 gap-1 mb-2">
+                  <div className="grid grid-cols-8 gap-1 mb-2">
                     {displayNums.map(n => {
                       const isOn = !current || current.includes(n);
                       const pos = posNum(n);
@@ -5150,9 +5204,9 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                           else { next = [...current, n].sort((a, b) => a - b); }
                           setPendingActiveTables(next.length === allNums.length ? null : next);
                         }}
-                          className={`h-12 rounded-lg border-2 flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 ${isOn ? 'bg-teal-500 border-teal-500' : 'bg-gray-50 border-gray-200'}`}>
-                          <span className={`text-[11px] leading-none font-bold ${isOn ? 'text-teal-100' : 'text-gray-400'}`}>{pos ?? n}</span>
-                          <span className={`text-xs font-black leading-tight text-center px-0.5 break-all ${isOn ? 'text-white' : 'text-gray-700'}`}>{tableLabel(n, settings?.table_labels)}</span>
+                          className={`h-9 rounded-lg border-2 flex flex-col items-center justify-center gap-0 transition-all active:scale-95 ${isOn ? 'bg-teal-500 border-teal-500' : 'bg-gray-50 border-gray-200'}`}>
+                          <span className={`text-[9px] leading-none font-bold ${isOn ? 'text-teal-100' : 'text-gray-400'}`}>{pos ?? n}</span>
+                          <span className={`text-[10px] font-black leading-tight text-center px-0.5 break-all ${isOn ? 'text-white' : 'text-gray-700'}`}>{tableLabel(n, settings?.table_labels)}</span>
                         </button>
                       );
                     })}
@@ -5271,8 +5325,9 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                 onReload={loadAll} />
             ) : (
               <SeatingMap
-                seats={settings?.active_tables ? seats.filter(s => settings.active_tables!.includes(s.table_number)) : seats}
+                seats={seats}
                 profileMap={profileMap} currentUserId={null} isAdmin
+                activeTables={settings?.active_tables ?? null}
                 tableLabels={settings?.table_labels ?? null}
                 onClearSeat={handleClearSeat}
                 onForceSeat={handleForceSeat}
@@ -5298,6 +5353,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                 { id: 'hearts' as HistorySubTab, label: '하트', badge: Math.max(0, likes.length - seenHeartsCount) },
                 { id: 'chats' as HistorySubTab, label: '채팅', badge: Math.max(0, allMessages.length - seenMessagesCount) },
                 { id: 'session' as HistorySubTab, label: '회식', badge: 0 },
+                { id: 'participants' as HistorySubTab, label: '참여자', badge: 0 },
                 { id: 'feedback' as HistorySubTab, label: '건의', badge: Math.max(0, feedbackTotal - seenFeedbackCount) },
               ]).map(st => (
                 <button key={st.id} onClick={() => handleHistorySubTabChange(st.id)}
@@ -5326,6 +5382,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
             )}
             {historySubTab === 'chats' && <ChatsTab chats={allChats} messages={allMessages} profileMap={profileMap} onDeleteChat={handleDeleteChat} onClearAll={handleClearAllChats} onRefresh={loadAll} />}
             {historySubTab === 'session' && <HistoryTab histories={histories} onClear={handleClearHistory} />}
+            {historySubTab === 'participants' && <ParticipantsTab profiles={profiles} />}
             {historySubTab === 'feedback' && (
               <div>
                 <div className="flex border-b border-gray-200 bg-gray-50 px-4">

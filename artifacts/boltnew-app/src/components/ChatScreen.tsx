@@ -1204,6 +1204,11 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
             placeholder={uploading ? '업로드 중...' : replyTo ? '답장 입력...' : '메시지를 입력하세요...'}
             disabled={uploading}
             rows={1}
+            onFocus={() => {
+              setTimeout(() => {
+                messagesEndRef.current?.scrollIntoView({ behavior: 'instant' as ScrollBehavior });
+              }, 350);
+            }}
             className="flex-1 px-3 py-2 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none transition-all text-sm disabled:opacity-60 min-w-0 resize-none overflow-y-auto leading-relaxed"
             style={{ maxHeight: '120px' }}
           />

@@ -22,6 +22,7 @@ interface SeatingMapProps {
   onShowQr?: (seat: Seat) => void;
   onForceSeat?: (profileId: string, seatId: string) => void;
   onSetTableLabel?: (tableNum: number, label: string) => Promise<void>;
+  activeTables?: number[] | null;
 }
 
 // ─── Score helpers ─────────────────────────────────────────────────────────────
@@ -373,7 +374,7 @@ type LayoutProps = {
 function ExpandedLayout({ tableNum, seats, profileMap, currentUserId, isAdmin, movingProfileId, darkMode = true, tableLabels, onSeatClick, onProfileClick, onClearSeat, onShowQr, onSelectForMove, onMoveTo }: LayoutProps) {
   const cfg = TABLE_POSITIONS[tableNum];
   if (!cfg) return null;
-  const label = (tableLabels?.[String(tableNum)]) ?? String(tableNum);
+  const label = tableLabels?.[String(tableNum)] ?? String(tableNum);
   const get = (pos: number) => seats.find(s => s.table_number === tableNum && s.seat_position === pos) ?? null;
   const prof = (s: Seat | null) => s?.profile_id ? profileMap.get(s.profile_id) : undefined;
   const isMe = (s: Seat | null) => !!s && s.profile_id === currentUserId;
@@ -666,7 +667,7 @@ type RowFilter = 'all' | '1' | '2' | '3';
 
 export default function SeatingMap({
   seats, profileMap, currentUserId, isAdmin, seatingLocked = false,
-  tableLabels, darkMode = true, onSeatClick, onProfileClick, onChatClick, onClearSeat, onShowQr, onForceSeat, onSetTableLabel,
+  tableLabels, darkMode = true, onSeatClick, onProfileClick, onChatClick, onClearSeat, onShowQr, onForceSeat, onSetTableLabel, activeTables,
 }: SeatingMapProps) {
   // User (non-admin) view: seat self-registration is always disabled.
   // Empty seats are display-only; only admin can assign/move seats.
@@ -714,6 +715,8 @@ export default function SeatingMap({
     onMoveTo: isAdmin && onForceSeat ? handleMoveTo : undefined,
     onSetTableLabel: isAdmin && onSetTableLabel ? onSetTableLabel : undefined,
   };
+
+  const isActive = (n: number) => !activeTables || activeTables.includes(n);
 
   return (
     <>
@@ -810,48 +813,48 @@ export default function SeatingMap({
             {/* Columns */}
             <div className="flex items-start gap-5">
               {/* 1번줄 */}
-              {(activeCol === 'all' || activeCol === '1') && (
+              {(activeCol === 'all' || activeCol === '1') && (isActive(7) || isActive(9) || isActive(10)) && (
                 <div className="flex flex-col items-center gap-1">
                   {activeCol === 'all' && <span className={`text-[9px] font-black ${t.dim} tracking-widest mb-1`}>1번줄</span>}
-                  {(activeRow === 'all' || activeRow === '1') && <SmallTable tableNum={7}  {...sharedProps} onTableClick={() => setExpandedTable(7)} />}
+                  {(activeRow === 'all' || activeRow === '1') && isActive(7)  && <SmallTable tableNum={7}  {...sharedProps} onTableClick={() => setExpandedTable(7)} />}
                   {activeRow === 'all' && <div className={`w-full h-px ${t.divider} my-1`} />}
-                  {(activeRow === 'all' || activeRow === '2') && <SmallTable tableNum={9}  {...sharedProps} onTableClick={() => setExpandedTable(9)} />}
-                  {(activeRow === 'all' || activeRow === '3') && <SmallTable tableNum={10} {...sharedProps} onTableClick={() => setExpandedTable(10)} />}
+                  {(activeRow === 'all' || activeRow === '2') && isActive(9)  && <SmallTable tableNum={9}  {...sharedProps} onTableClick={() => setExpandedTable(9)} />}
+                  {(activeRow === 'all' || activeRow === '3') && isActive(10) && <SmallTable tableNum={10} {...sharedProps} onTableClick={() => setExpandedTable(10)} />}
                 </div>
               )}
 
               {/* 2번줄 */}
-              {(activeCol === 'all' || activeCol === '2') && (
+              {(activeCol === 'all' || activeCol === '2') && (isActive(5) || isActive(4) || isActive(3)) && (
                 <div className="flex flex-col items-center gap-1">
                   {activeCol === 'all' && <span className={`text-[9px] font-black ${t.dim} tracking-widest mb-1`}>2번줄</span>}
-                  {(activeRow === 'all' || activeRow === '1') && <SmallTable tableNum={5}  {...sharedProps} onTableClick={() => setExpandedTable(5)} />}
+                  {(activeRow === 'all' || activeRow === '1') && isActive(5) && <SmallTable tableNum={5}  {...sharedProps} onTableClick={() => setExpandedTable(5)} />}
                   {activeRow === 'all' && <div className={`w-full h-px ${t.divider} my-1`} />}
-                  {(activeRow === 'all' || activeRow === '2') && <SmallTable tableNum={4}  {...sharedProps} onTableClick={() => setExpandedTable(4)} />}
-                  {(activeRow === 'all' || activeRow === '3') && <SmallTable tableNum={3}  {...sharedProps} onTableClick={() => setExpandedTable(3)} />}
+                  {(activeRow === 'all' || activeRow === '2') && isActive(4) && <SmallTable tableNum={4}  {...sharedProps} onTableClick={() => setExpandedTable(4)} />}
+                  {(activeRow === 'all' || activeRow === '3') && isActive(3) && <SmallTable tableNum={3}  {...sharedProps} onTableClick={() => setExpandedTable(3)} />}
                 </div>
               )}
 
               {activeCol === 'all' && <div className={`w-4 flex-shrink-0 self-stretch border-l border-dashed ${t.colDivider}`} />}
 
               {/* 3번줄 */}
-              {(activeCol === 'all' || activeCol === '3') && (
+              {(activeCol === 'all' || activeCol === '3') && (isActive(6) || isActive(2) || isActive(1)) && (
                 <div className="flex flex-col items-center gap-1">
                   {activeCol === 'all' && <span className={`text-[9px] font-black ${t.dim} tracking-widest mb-1`}>3번줄</span>}
-                  {(activeRow === 'all' || activeRow === '1') && <SmallTable tableNum={6}  {...sharedProps} onTableClick={() => setExpandedTable(6)} />}
+                  {(activeRow === 'all' || activeRow === '1') && isActive(6) && <SmallTable tableNum={6}  {...sharedProps} onTableClick={() => setExpandedTable(6)} />}
                   {activeRow === 'all' && <div className={`w-full h-px ${t.divider} my-1`} />}
-                  {(activeRow === 'all' || activeRow === '2') && <SmallTable tableNum={2}  {...sharedProps} onTableClick={() => setExpandedTable(2)} />}
-                  {(activeRow === 'all' || activeRow === '3') && <SmallTable tableNum={1}  {...sharedProps} onTableClick={() => setExpandedTable(1)} />}
+                  {(activeRow === 'all' || activeRow === '2') && isActive(2) && <SmallTable tableNum={2}  {...sharedProps} onTableClick={() => setExpandedTable(2)} />}
+                  {(activeRow === 'all' || activeRow === '3') && isActive(1) && <SmallTable tableNum={1}  {...sharedProps} onTableClick={() => setExpandedTable(1)} />}
                 </div>
               )}
 
               {/* 4번줄 */}
-              {(activeCol === 'all' || activeCol === '4') && (
+              {(activeCol === 'all' || activeCol === '4') && (isActive(8) || isActive(11) || isActive(12)) && (
                 <div className="flex flex-col items-center gap-1">
                   {activeCol === 'all' && <span className={`text-[9px] font-black ${t.dim} tracking-widest mb-1`}>4번줄</span>}
-                  {(activeRow === 'all' || activeRow === '1') && <SmallTable tableNum={8}  {...sharedProps} onTableClick={() => setExpandedTable(8)} />}
+                  {(activeRow === 'all' || activeRow === '1') && isActive(8)  && <SmallTable tableNum={8}  {...sharedProps} onTableClick={() => setExpandedTable(8)} />}
                   {activeRow === 'all' && <div className={`w-full h-px ${t.divider} my-1`} />}
-                  {(activeRow === 'all' || activeRow === '2') && <SmallTable tableNum={11} {...sharedProps} onTableClick={() => setExpandedTable(11)} />}
-                  {(activeRow === 'all' || activeRow === '3') && <SmallTable tableNum={12} {...sharedProps} onTableClick={() => setExpandedTable(12)} />}
+                  {(activeRow === 'all' || activeRow === '2') && isActive(11) && <SmallTable tableNum={11} {...sharedProps} onTableClick={() => setExpandedTable(11)} />}
+                  {(activeRow === 'all' || activeRow === '3') && isActive(12) && <SmallTable tableNum={12} {...sharedProps} onTableClick={() => setExpandedTable(12)} />}
                 </div>
               )}
 
@@ -863,6 +866,21 @@ export default function SeatingMap({
                   </div>
                 </div>
               )}
+
+              {/* 번외 테이블 (왼쪽·오른쪽 위치 안내) — 전체 보기일 때만 표시 */}
+              {activeCol === 'all' && (isActive(13) || isActive(14) || isActive(15)) && (
+                <>
+                  <div className={`w-4 flex-shrink-0 self-stretch border-l border-dashed ${t.colDivider} mx-1`} />
+                  <div className="flex-shrink-0">
+                    <div className="flex flex-col items-center gap-1 px-2 py-2 border border-dashed border-purple-500/40 rounded-xl">
+                      <span className="text-[9px] font-black text-purple-400 tracking-widest mb-0.5">번외</span>
+                      {isActive(13) && <><span className="text-[9px] font-bold text-purple-300/80">왼쪽 테이블</span><SmallTable tableNum={13} {...sharedProps} onTableClick={() => setExpandedTable(13)} /></>}
+                      {isActive(14) && <><div className={`w-full h-px ${t.divider} my-1`} /><span className="text-[9px] font-bold text-purple-300/80">오른쪽 테이블</span><SmallTable tableNum={14} {...sharedProps} onTableClick={() => setExpandedTable(14)} /></>}
+                      {isActive(15) && <><div className={`w-full h-px ${t.divider} my-1`} /><span className="text-[9px] font-bold text-purple-300/80">임시 테이블</span><SmallTable tableNum={15} {...sharedProps} onTableClick={() => setExpandedTable(15)} /></>}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -871,6 +889,22 @@ export default function SeatingMap({
               <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/15 border border-blue-500/30 rounded-xl">
                 <span className="text-base">🚻</span>
                 <span className="text-xs font-black text-blue-400">화장실</span>
+              </div>
+            </div>
+          )}
+
+          {/* 번외열 (16-19) — 주 배치도 아래 별도 영역 */}
+          {activeCol === 'all' && (isActive(16) || isActive(17) || isActive(18) || isActive(19)) && (
+            <div className={`border-t border-dashed ${t.colDivider} pt-3 mt-1`}>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-[9px] font-black text-indigo-400 tracking-widest">번외열</span>
+                <div className={`flex-1 border-t border-dashed ${t.colDivider}`} />
+              </div>
+              <div className="flex gap-3 flex-wrap">
+                {isActive(16) && <SmallTable tableNum={16} {...sharedProps} onTableClick={() => setExpandedTable(16)} />}
+                {isActive(17) && <SmallTable tableNum={17} {...sharedProps} onTableClick={() => setExpandedTable(17)} />}
+                {isActive(18) && <SmallTable tableNum={18} {...sharedProps} onTableClick={() => setExpandedTable(18)} />}
+                {isActive(19) && <SmallTable tableNum={19} {...sharedProps} onTableClick={() => setExpandedTable(19)} />}
               </div>
             </div>
           )}

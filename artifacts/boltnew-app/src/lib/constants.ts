@@ -83,4 +83,13 @@ export const TABLE_POSITIONS: Record<number, TableConfig> = {
   3:  { type: 'sofa', leftCol: [3,2,1], rightCol: [6,7,8], topRow: [4,5], sofaOnLeft: true },
   10: { type: 'sofa', leftCol: [3,2,1], rightCol: [6,7,8], topRow: [4,5], sofaOnLeft: false },
   12: { type: 'sofa', leftCol: [3,2,1], rightCol: [6,7,8], topRow: [4,5], sofaOnLeft: true },
+  // 번외 테이블 (10석: 상단 2 + 좌 3 + 우 3 + 하단 2)
+  13: { type: 'sofa', leftCol: [3,2,1], rightCol: [6,7,8], topRow: [4,5], bottomRow: [9,10], sofaOnLeft: false },
+  14: { type: 'sofa', leftCol: [3,2,1], rightCol: [6,7,8], topRow: [4,5], bottomRow: [9,10], sofaOnLeft: false },
+  15: { type: 'sofa', leftCol: [3,2,1], rightCol: [6,7,8], topRow: [4,5], bottomRow: [9,10], sofaOnLeft: false },
+  // 번외열 (6석: 좌 2 + 우 2 + 하단 2)
+  16: { type: 'row1', leftCol: [1,2], rightCol: [3,4], bottomRow: [5,6], sofaOnLeft: false },
+  17: { type: 'row1', leftCol: [1,2], rightCol: [3,4], bottomRow: [5,6], sofaOnLeft: false },
+  18: { type: 'row1', leftCol: [1,2], rightCol: [3,4], bottomRow: [5,6], sofaOnLeft: false },
+  19: { type: 'row1', leftCol: [1,2], rightCol: [3,4], bottomRow: [5,6], sofaOnLeft: false },
 };

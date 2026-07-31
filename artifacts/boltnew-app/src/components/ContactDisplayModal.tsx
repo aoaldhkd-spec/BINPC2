@@ -37,8 +37,10 @@ export function ContactDisplayModal({ profile, onClose }: {
               className="w-full relative flex justify-center mb-1.5 p-3 bg-violet-50 rounded-2xl border-2 border-dashed border-violet-300 hover:border-violet-500 active:scale-95 transition-all group"
               onClick={() => setExpanded(true)}
             >
-              <canvas ref={canvasRef} className="rounded-lg" />
-              <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-black/0 group-hover:bg-black/10 transition-all">
+              <div style={{ background: '#ffffff', borderRadius: 8, display: 'inline-block', lineHeight: 0 }}>
+                <canvas ref={canvasRef} style={{ display: 'block', borderRadius: 8 }} />
+              </div>
+              <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/10 transition-all">
                 <div className="opacity-0 group-hover:opacity-100 bg-white rounded-full px-2 py-1 shadow text-[10px] font-bold text-gray-700 flex items-center gap-1 transition-all">
                   <Maximize2 className="w-3 h-3" /> 확대
                 </div>
@@ -52,8 +54,10 @@ export function ContactDisplayModal({ profile, onClose }: {
       {expanded && (
         <div className="fixed inset-0 z-[300] flex flex-col items-center justify-center bg-black/90 backdrop-blur-sm" onClick={() => setExpanded(false)}>
           <p className="text-white text-sm font-bold mb-4 opacity-70">탭하면 닫힙니다</p>
-          <div className="rounded-3xl p-4 shadow-2xl bg-white" onClick={e => e.stopPropagation()}>
-            <canvas ref={largeCanvasRef} className="rounded-xl block" />
+          <div className="rounded-3xl p-4 shadow-2xl bg-white" style={{ background: '#ffffff' }} onClick={e => e.stopPropagation()}>
+            <div style={{ background: '#ffffff', borderRadius: 12, display: 'inline-block', lineHeight: 0 }}>
+              <canvas ref={largeCanvasRef} style={{ display: 'block', borderRadius: 8 }} />
+            </div>
           </div>
           <button onClick={() => setExpanded(false)} className="mt-4 px-6 py-2.5 bg-white/20 rounded-full text-white font-bold text-sm">닫기</button>
         </div>

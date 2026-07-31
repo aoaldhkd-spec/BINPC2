@@ -38,6 +38,7 @@ const _ea = (e: string, c: string) => {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(s)}`;
 };
 const AVATAR_CATEGORIES = [
+  // ── 인물 ─────────────────────────────────────────────────────────────────
   { label: '✨ 인물', avatars: [
     { id:'av1',  src:`${_BASE}avatars/av1.png`,  label:'핑크 요정' },
     { id:'av2',  src:`${_BASE}avatars/av2.png`,  label:'민트 페어리' },
@@ -50,45 +51,7 @@ const AVATAR_CATEGORIES = [
     { id:'av9',  src:`${_BASE}avatars/av9.png`,  label:'스포티 짐' },
     { id:'av10', src:`${_BASE}avatars/av10.png`, label:'북덕 지성파' },
   ]},
-  { label: '🌸 애니 스타일', avatars: [
-    { id:'e_doraemon',  src:_db('adventurer','blue round robot ears cat friend','b3d4ff'),  label:'블루 로봇 캣' },
-    { id:'e_luffy',     src:_db('adventurer','straw hat boy pirate adventure red','ffd5dc'),   label:'밀짚모자 해적' },
-    { id:'e_naruto',    src:_db('adventurer','spiky blond hair headband ninja orange','ffecc8'),      label:'뾰족 금발 닌자' },
-    { id:'e_sasuke',    src:_db('adventurer','dark straight hair cold eyes shinobi','c0aede'),       label:'다크 닌자' },
-    { id:'e_goku',      src:_db('adventurer','spiky black upright hair martial artist orange gi','ffd5dc'),  label:'뾰족 머리 무도가' },
-    { id:'e_vegeta',    src:_db('adventurer','upright black proud warrior flame hair','c0aede'), label:'직립 머리 전사' },
-    { id:'e_tanjiro',   src:_db('adventurer','checkered haori young swordsman blue','b6e3f4'),label:'체크 하오리 검사' },
-    { id:'e_nezuko',    src:_db('adventurer','pink kimono girl bamboo headband ribbon','ffd5dc'),       label:'분홍 기모노 소녀' },
-    { id:'e_levi',      src:_db('adventurer','short black hair calm intense soldier','d1d4f9'),label:'단발 냉정 병사' },
-    { id:'e_shinchan',  src:_db('adventurer','short black hair cute toddler crayon yellow','ffdfbf'),  label:'까만 단발 꼬마' },
-    { id:'e_sailormoon',src:_db('adventurer','double twintail blonde magical girl pink bow','ffd5dc'),label:'트윈테일 마법소녀' },
-    { id:'e_totoro',    src:_db('adventurer','round fluffy forest spirit creature green','c0e8c0'),label:'복슬 숲속 친구' },
-    { id:'e_ichigo',    src:_db('adventurer','orange short hair sharp eyes young swordsman','ffd5dc'),   label:'주황 단발 검사' },
-    { id:'e_eren',      src:_db('adventurer','brown short hair angry eyes determined soldier green','c8e6c9'), label:'분노 눈빛 병사' },
-    { id:'e_killua',    src:_db('adventurer','silver short hair cool sharp boy','d1d4f9'),label:'은발 쿨 소년' },
-    { id:'e_zoro',      src:_db('adventurer','green short hair three swords fighter','c8e6c9'),label:'녹색 삼도류 검사' },
-    { id:'e_rem',       src:_db('adventurer','blue bob cut maid pure gentle','b6e3f4'),    label:'파란 단발 메이드' },
-    { id:'e_asuna',     src:_db('adventurer','long red auburn elegant female swordsman','ffd5dc'),     label:'긴 적발 여검사' },
-    { id:'e_nami',      src:_db('adventurer','orange short hair navigator girl sea','ffecc8'),label:'주황 단발 항법사' },
-    { id:'e_conan',     src:_db('adventurer','glasses bob child detective small boy blue','b6e3f4'),label:'안경 꼬마 탐정' },
-  ]},
-  { label: '💜 케이팝 스타일', avatars: [
-    { id:'k_iu',      src:_db('avataaars','bob cut autumn natural elegant solo vocalist','ffecc8'),        label:'가을 감성 보컬' },
-    { id:'k_bts',     src:_db('avataaars','purple dye street fashion hip hop dancer youth','c0aede'),  label:'보라빛 힙합 댄서' },
-    { id:'k_bp',      src:_db('avataaars','pink black glossy girl crush chic stage outfit','ffd5dc'),      label:'걸크러시 글로시' },
-    { id:'k_nj',      src:_db('avataaars','pastel Y2K retro cute innocent schoolgirl','b6e3f4'),     label:'Y2K 파스텔 소녀' },
-    { id:'k_akmu',    src:_db('avataaars','acoustic guitar indie folk natural casual musician','ffdfbf'),   label:'통기타 인디 뮤지션' },
-    { id:'k_aespa',   src:_db('avataaars','metaverse cyber metallic futuristic idol avatar','c0aede'),    label:'사이버 메탈 아이돌' },
-    { id:'k_gidle',   src:_db('avataaars','charisma fierce stage costume powerful performer','ffd5dc'),     label:'카리스마 퍼포머' },
-    { id:'k_lsrfm',   src:_db('avataaars','ocean blue sporty fresh athletic idol','b6e3f4'),       label:'청량 스포티 아이돌' },
-    { id:'k_svt',     src:_db('avataaars','crystal multi member hip hop unit navy','d1d4f9'),        label:'크리스탈 힙합 그룹' },
-    { id:'k_twice',   src:_db('avataaars','candy pink heart cute bubbly idol rainbow','ffd5dc'),         label:'캔디 핑크 아이돌' },
-    { id:'k_skz',     src:_db('avataaars','wolf chain dark intense stage charisma idol','c0aede'),     label:'다크 울프 아이돌' },
-    { id:'k_exo',     src:_db('avataaars','space planet cool sleek performer black','d1d4f9'),      label:'우주 쿨 퍼포머' },
-    { id:'k_shinee',  src:_db('avataaars','teal shiny sophisticated dancer sparkle','b6e3f4'),       label:'반짝 틸 댄서' },
-    { id:'k_2ne1',    src:_db('avataaars','queen fierce fashion icon strong girl power','ffdfbf'),        label:'퀸 강렬 패션 아이콘' },
-    { id:'k_bigbang', src:_db('avataaars','gold vip hip hop legend street style','ffecc8'),         label:'황금 힙합 레전드' },
-  ]},
+  // ── 퀴어/프라이드 ──────────────────────────────────────────────────────────
   { label: '🏳️‍🌈 퀴어/프라이드', avatars: [
     { id:'av49', src:`${_BASE}avatars/av49.png`, label:'레인보우 프라이드' },
     { id:'av50', src:`${_BASE}avatars/av50.png`, label:'드래그 퀸' },
@@ -99,55 +62,7 @@ const AVATAR_CATEGORIES = [
     { id:'av55', src:`${_BASE}avatars/av55.png`, label:'게이 프라이드' },
     { id:'av56', src:`${_BASE}avatars/av56.png`, label:'퀴어 액티비스트' },
   ]},
-  { label: '🎮 판타지 용사', avatars: [
-    // 바람/마법/얼음 용사류 (pixel-art)
-    { id:'g_yasuo',  src:_db('pixel-art','wind samurai wide brim hat longsword blue','d4e6f1'),     label:'바람 사무라이' },
-    { id:'g_ahri',   src:_db('pixel-art','nine tail fox ears mage girl pink magic orb','ffd5dc'),label:'여우 귀 마법사' },
-    { id:'g_teemo',  src:_db('pixel-art','mushroom hat red cap tiny scout yordle curious','ffd5dc'),label:'버섯 모자 요정' },
-    { id:'g_ashe',   src:_db('pixel-art','ice frost archer white hair bow quiver blue','b6e3f4'), label:'얼음 서리 궁수' },
-    { id:'g_lulu',   src:_db('pixel-art','purple fairy tiny wand magical support helper','c0aede'),label:'보라 지팡이 요정' },
-    { id:'g_jinx',   src:_db('pixel-art','twin tail rocket launcher chaotic rebel mad purple','d1d4f9'),label:'로켓 트윈테일' },
-    { id:'g_akali',  src:_db('pixel-art','mask shadow assassin ninja dark hood silent','c0aede'), label:'마스크 닌자' },
-    { id:'g_ez',     src:_db('pixel-art','explorer adventurer boy blue jacket magical gauntlet','b6e3f4'),  label:'파랑 탐험 소년' },
-    // 로봇/사이버 영웅류 (bottts)
-    { id:'g_dva',    src:_db('bottts','pink mech pilot gamer girl bunny headset cockpit','ffd5dc'), label:'메카 파일럿 소녀' },
-    { id:'g_tracer', src:_db('bottts','orange goggle time jump hero agile quick','ffecc8'), label:'주황 고글 영웅' },
-    { id:'g_genji',  src:_db('bottts','cyber ninja green robot blade swift dragon','c8e6c9'),label:'사이버 닌자 로봇' },
-    { id:'g_mei',    src:_db('bottts','ice scientist cute blue parka fluffy glasses','b6e3f4'),label:'귀여운 빙하 과학자' },
-    { id:'g_mercy',  src:_db('bottts','golden wings angel healer staff light divine','ffecc8'),label:'황금 날개 천사' },
-    // 귀여운 몬스터류 (fun-emoji)
-    { id:'g_pika',   src:_db('fun-emoji','yellow electric cute round cheek pouches small creature','ffecc8'),label:'노랑 전기 쥐' },
-    { id:'g_bulba',  src:_db('fun-emoji','seed bulb back green dinosaur cute grass sprout','c8e6c9'),label:'씨앗 등 초록 공룡' },
-    { id:'g_char',   src:_db('fun-emoji','flame tail orange fire lizard baby cute ember','ffd5dc'),label:'불꽃 주황 도마뱀' },
-    { id:'g_squirt', src:_db('fun-emoji','water shell blue turtle cute round baby wave','b6e3f4'),label:'물 파랑 거북이' },
-    // 클래식 플랫폼 용사류 (pixel-art)
-    { id:'g_mario',  src:_db('pixel-art','red cap mustache plumber jumpman overalls coin','ffd5dc'),label:'빨강 모자 점프맨' },
-    { id:'g_link',   src:_db('pixel-art','green elf hero pointy hat sword shield tunic forest','c8e6c9'),  label:'녹색 엘프 용사' },
-    { id:'g_kirby',  src:_db('pixel-art','pink round puff absorb star creature cute float','ffd5dc'),    label:'분홍 동글 별 생물' },
-    { id:'g_sonic',  src:_db('pixel-art','fast blue hedgehog sneakers speed ring dash','b6e3f4'), label:'파랑 스피드 고슴도치' },
-  ]},
-  { label: '🌆 레트로/감성', avatars: [
-    { id:'av72', src:`${_BASE}avatars/av72.png`, label:'90년대 레트로' },
-    { id:'av73', src:`${_BASE}avatars/av73.png`, label:'Y2K 나비핀' },
-    { id:'av74', src:`${_BASE}avatars/av74.png`, label:'로파이 감성' },
-    { id:'av75', src:`${_BASE}avatars/av75.png`, label:'그런지 록' },
-    { id:'av76', src:`${_BASE}avatars/av76.png`, label:'팝아트' },
-    { id:'av77', src:`${_BASE}avatars/av77.png`, label:'필름 카메라' },
-    { id:'av78', src:`${_BASE}avatars/av78.png`, label:'스케이터 레트로' },
-    { id:'av79', src:`${_BASE}avatars/av79.png`, label:'코티지코어' },
-  ]},
-  { label: '☕ 직업/라이프스타일', avatars: [
-    { id:'av80', src:`${_BASE}avatars/av80.png`, label:'바리스타' },
-    { id:'av81', src:`${_BASE}avatars/av81.png`, label:'예술가' },
-    { id:'av82', src:`${_BASE}avatars/av82.png`, label:'DJ' },
-    { id:'av83', src:`${_BASE}avatars/av83.png`, label:'스트리머' },
-    { id:'av84', src:`${_BASE}avatars/av84.png`, label:'요리사' },
-    { id:'av85', src:`${_BASE}avatars/av85.png`, label:'세계여행자' },
-    { id:'av86', src:`${_BASE}avatars/av86.png`, label:'피트니스' },
-    { id:'av87', src:`${_BASE}avatars/av87.png`, label:'독서가' },
-    { id:'av88', src:`${_BASE}avatars/av88.png`, label:'과학자' },
-    { id:'av89', src:`${_BASE}avatars/av89.png`, label:'뮤지션' },
-  ]},
+  // ── 동물 ──────────────────────────────────────────────────────────────────
   { label: '🐾 동물', avatars: [
     { id:'av15', src:`${_BASE}avatars/av15.png`, label:'시바 이누' },
     { id:'av16', src:`${_BASE}avatars/av16.png`, label:'드리미 냥' },
@@ -161,31 +76,78 @@ const AVATAR_CATEGORIES = [
     { id:'av95', src:`${_BASE}avatars/av95.png`, label:'고슴도치' },
     { id:'av96', src:`${_BASE}avatars/av96.png`, label:'알파카' },
     { id:'av97', src:`${_BASE}avatars/av97.png`, label:'아홀로틀' },
+    { id:'a_bear',      src:_ea('🐻','#d7a87a'),   label:'곰' },
+    { id:'a_polarbear', src:_ea('🐻‍❄️','#cce8ff'), label:'북극곰' },
+    { id:'a_hamster',   src:_ea('🐹','#f5c49a'),   label:'햄스터' },
+    { id:'a_otter',     src:_ea('🦦','#a0785a'),   label:'수달' },
+    { id:'a_koala',     src:_ea('🐨','#b0b7be'),   label:'코알라' },
+    { id:'a_frog',      src:_ea('🐸','#6abf69'),   label:'개구리' },
+    { id:'a_chick',     src:_ea('🐥','#ffd54f'),   label:'병아리' },
+    { id:'a_lion',      src:_ea('🦁','#f9a825'),   label:'사자' },
+    { id:'a_tiger',     src:_ea('🐯','#ff8f00'),   label:'호랑이' },
+    { id:'a_dino',      src:_ea('🦕','#81c784'),   label:'공룡' },
+    { id:'a_flamingo',  src:_ea('🦩','#f06292'),   label:'플라밍고' },
+    { id:'a_giraffe',   src:_ea('🦒','#f9a825'),   label:'기린' },
+    { id:'a_elephant',  src:_ea('🐘','#b0bec5'),   label:'코끼리' },
+    { id:'a_unicorn',   src:_ea('🦄','#ce93d8'),   label:'유니콘' },
+    { id:'a_duck',      src:_ea('🦆','#fff176'),   label:'오리' },
+    { id:'a_owl',       src:_ea('🦉','#8d6e63'),   label:'부엉이' },
+    { id:'a_rabbit2',   src:_ea('🐰','#f8bbd0'),   label:'분홍 토끼' },
+    { id:'a_sheep',     src:_ea('🐑','#eceff1'),   label:'양' },
+    { id:'a_pig',       src:_ea('🐷','#f48fb1'),   label:'돼지' },
+    { id:'a_monkey',    src:_ea('🐵','#d7a87a'),   label:'원숭이' },
+    { id:'a_bee',       src:_ea('🐝','#fdd835'),   label:'꿀벌' },
+    { id:'a_butterfly', src:_ea('🦋','#ab47bc'),   label:'나비' },
+    { id:'a_crab',      src:_ea('🦀','#e53935'),   label:'게' },
+    { id:'a_fish',      src:_ea('🐡','#29b6f6'),   label:'복어' },
   ]},
+  // ── 음식 ──────────────────────────────────────────────────────────────────
   { label: '🍱 음식', avatars: [
-    // 기존 (중복 제거: 라멘·버블티 각 1개만)
     { id:'av11', src:`${_BASE}avatars/av11.png`, label:'라멘' },
     { id:'av12', src:`${_BASE}avatars/av12.png`, label:'마카롱' },
     { id:'av13', src:`${_BASE}avatars/av13.png`, label:'아보카도' },
     { id:'av14', src:`${_BASE}avatars/av14.png`, label:'버블티' },
     { id:'av98', src:`${_BASE}avatars/av98.png`, label:'딸기 케이크' },
     { id:'av101',src:`${_BASE}avatars/av101.png`,label:'타코야키' },
-    // 추가 음식 (이모지 SVG)
-    { id:'f_chicken',  src:_ea('🍗','#e65100'), label:'치킨' },
-    { id:'f_pizza',    src:_ea('🍕','#bf360c'), label:'피자' },
-    { id:'f_sushi',    src:_ea('🍣','#c62828'), label:'스시' },
-    { id:'f_tteok',    src:_ea('🌶️','#b71c1c'), label:'떡볶이' },
-    { id:'f_samgyup',  src:_ea('🥩','#795548'), label:'삼겹살' },
-    { id:'f_taco',     src:_ea('🌮','#f57c00'), label:'타코' },
-    { id:'f_icecream', src:_ea('🍦','#f8bbd0'), label:'아이스크림' },
-    { id:'f_donut',    src:_ea('🍩','#ff6f00'), label:'도넛' },
-    { id:'f_waffle',   src:_ea('🧇','#ffa000'), label:'와플' },
-    { id:'f_choco',    src:_ea('🍫','#4e342e'), label:'초콜릿' },
-    { id:'f_straw',    src:_ea('🍓','#e53935'), label:'딸기' },
-    { id:'f_water',    src:_ea('🍉','#388e3c'), label:'수박' },
-    { id:'f_mango',    src:_ea('🥭','#ff8f00'), label:'망고' },
-    { id:'f_cotton',   src:_ea('🍭','#f48fb1'), label:'솜사탕' },
-    { id:'f_croffle',  src:_ea('🥐','#f57f17'), label:'크로플' },
+    { id:'f_tteok',    src:_ea('🌶️','#c62828'),  label:'떡볶이' },
+    { id:'f_samgyup',  src:_ea('🥩','#8d6e63'),   label:'삼겹살' },
+    { id:'f_gimbap',   src:_ea('🍙','#388e3c'),   label:'김밥' },
+    { id:'f_jjajang',  src:_ea('🍜','#4e342e'),   label:'짜장면' },
+    { id:'f_soondubu', src:_ea('🍲','#bf360c'),   label:'순두부' },
+    { id:'f_sushi',    src:_ea('🍣','#c62828'),   label:'스시' },
+    { id:'f_curry',    src:_ea('🍛','#f57c00'),   label:'카레' },
+    { id:'f_pizza',    src:_ea('🍕','#bf360c'),   label:'피자' },
+    { id:'f_burger',   src:_ea('🍔','#e65100'),   label:'햄버거' },
+    { id:'f_hotdog',   src:_ea('🌭','#f57f17'),   label:'핫도그' },
+    { id:'f_pasta',    src:_ea('🍝','#bf360c'),   label:'파스타' },
+    { id:'f_taco',     src:_ea('🌮','#f57c00'),   label:'타코' },
+    { id:'f_pretzel',  src:_ea('🥨','#8d6e63'),   label:'프레첼' },
+    { id:'f_chicken',  src:_ea('🍗','#e65100'),   label:'치킨' },
+    { id:'f_popcorn',  src:_ea('🍿','#fdd835'),   label:'팝콘' },
+    { id:'f_icecream', src:_ea('🍦','#f8bbd0'),   label:'소프트 아이스크림' },
+    { id:'f_icecream2',src:_ea('🍨','#b3e5fc'),   label:'아이스크림 컵' },
+    { id:'f_donut',    src:_ea('🍩','#ff6f00'),   label:'도넛' },
+    { id:'f_waffle',   src:_ea('🧇','#f9a825'),   label:'와플' },
+    { id:'f_pancake',  src:_ea('🥞','#ff8f00'),   label:'팬케이크' },
+    { id:'f_cupcake',  src:_ea('🧁','#ab47bc'),   label:'컵케이크' },
+    { id:'f_cookie',   src:_ea('🍪','#8d6e63'),   label:'쿠키' },
+    { id:'f_choco',    src:_ea('🍫','#4e342e'),   label:'초콜릿' },
+    { id:'f_candy',    src:_ea('🍬','#e91e63'),   label:'캔디' },
+    { id:'f_cotton',   src:_ea('🍭','#f48fb1'),   label:'솜사탕' },
+    { id:'f_pudding',  src:_ea('🍮','#ffb300'),   label:'푸딩' },
+    { id:'f_croffle',  src:_ea('🥐','#f57f17'),   label:'크로플' },
+    { id:'f_straw',    src:_ea('🍓','#e53935'),   label:'딸기' },
+    { id:'f_water',    src:_ea('🍉','#388e3c'),   label:'수박' },
+    { id:'f_mango',    src:_ea('🥭','#ff8f00'),   label:'망고' },
+    { id:'f_grape',    src:_ea('🍇','#7b1fa2'),   label:'포도' },
+    { id:'f_peach',    src:_ea('🍑','#ff8a65'),   label:'복숭아' },
+    { id:'f_lemon',    src:_ea('🍋','#fdd835'),   label:'레몬' },
+    { id:'f_cherry',   src:_ea('🍒','#c62828'),   label:'체리' },
+    { id:'f_blueberry',src:_ea('🫐','#283593'),   label:'블루베리' },
+    { id:'f_melon',    src:_ea('🍈','#66bb6a'),   label:'멜론' },
+    { id:'f_coffee',   src:_ea('☕','#5d4037'),   label:'커피' },
+    { id:'f_juice',    src:_ea('🧃','#f9a825'),   label:'주스' },
+    { id:'f_milk',     src:_ea('🥛','#e3f2fd'),   label:'우유' },
   ]},
 ];
 import { ResetButton } from './ResetButton';
@@ -989,7 +951,7 @@ export function MainScreen({
                   borderColor: `var(--t-border, ${darkMode ? '#475569' : '#e5e7eb'})`,
                 }}
               >
-                <SeatingMap seats={visibleSeats} profileMap={profileMap} currentUserId={currentUserId} isAdmin={false} seatingLocked={true} darkMode={darkMode} tableLabels={tableLabels} onProfileClick={onProfileClickFromMap} onChatClick={onOpenChat} onSeatClick={undefined} />
+                <SeatingMap seats={seats} profileMap={profileMap} currentUserId={currentUserId} isAdmin={false} seatingLocked={true} darkMode={darkMode} activeTables={activeTables} tableLabels={tableLabels} onProfileClick={onProfileClickFromMap} onChatClick={onOpenChat} onSeatClick={undefined} />
               </div>
               <p className={`text-center text-xs mt-2 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
                 ↔↕ 상하좌우 + 대각선 스크롤 가능 &middot; 테이블 탭하면 확대됩니다
@@ -1108,7 +1070,7 @@ export function MainScreen({
                       </div>
                       {/* 선택된 카테고리 그리드 */}
                       <div className="p-3">
-                        <div className="grid grid-cols-5 gap-1.5">
+                        <div className="grid grid-cols-5 gap-2">
                           {AVATAR_CATEGORIES[avatarCatIdx]?.avatars.map((av) => {
                             const isSelected = me.photo_url === av.src;
                             return (
@@ -1116,24 +1078,22 @@ export function MainScreen({
                                 key={av.id}
                                 type="button"
                                 onClick={() => handleSelectPresetAvatar(av.src)}
-                                className={`relative flex flex-col items-center gap-0.5 p-1 rounded-xl border-2 transition-all ${
-                                  isSelected
-                                    ? 'border-cyan-500 bg-cyan-500/10 shadow-md'
-                                    : darkMode
-                                      ? 'border-slate-600 hover:border-cyan-400 bg-slate-700/50'
-                                      : 'border-gray-200 hover:border-cyan-300 bg-white'
-                                }`}
+                                className="relative flex flex-col items-center gap-1 p-1 rounded-xl transition-all active:scale-95"
                               >
                                 <img
                                   src={av.src}
                                   alt={av.label}
-                                  className="w-11 h-11 rounded-full object-cover"
+                                  className={`w-14 h-14 rounded-full object-cover block transition-all ${
+                                    isSelected
+                                      ? 'ring-4 ring-cyan-500 ring-offset-2'
+                                      : 'hover:ring-2 hover:ring-cyan-300 hover:ring-offset-1'
+                                  }`}
                                   onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                                 />
-                                <span className={`text-[8px] font-bold leading-tight text-center truncate w-full ${isSelected ? 'text-cyan-400' : darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{av.label}</span>
+                                <span className={`text-[10px] font-bold leading-tight text-center w-full truncate ${isSelected ? 'text-cyan-400' : darkMode ? 'text-slate-300' : 'text-gray-600'}`}>{av.label}</span>
                                 {isSelected && (
-                                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-cyan-500 rounded-full flex items-center justify-center">
-                                    <CheckCircle className="w-3 h-3 text-white" />
+                                  <span className="absolute top-0.5 right-0.5 w-5 h-5 bg-cyan-500 rounded-full flex items-center justify-center shadow-sm">
+                                    <CheckCircle className="w-3.5 h-3.5 text-white" />
                                   </span>
                                 )}
                               </button>
@@ -1389,9 +1349,9 @@ export function MainScreen({
                   <label className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer mb-3 select-none border ${statusContactPrivate ? (darkMode ? 'bg-red-900/30 border-red-700' : 'bg-red-50 border-red-200') : (darkMode ? 'bg-slate-700 border-slate-600' : 'bg-gray-50 border-gray-200')}`}>
                     <div
                       onClick={() => setStatusContactPrivate(v => !v)}
-                      className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${statusContactPrivate ? 'bg-red-500' : 'bg-gray-300'}`}
+                      className={`toggle-track relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${statusContactPrivate ? 'bg-red-500' : 'bg-gray-300'}`}
                     >
-                      <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${statusContactPrivate ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                      <span className={`toggle-thumb absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${statusContactPrivate ? 'translate-x-5' : 'translate-x-0.5'}`} />
                     </div>
                     <div>
                       <p className={`text-xs font-bold ${statusContactPrivate ? (darkMode ? 'text-red-400' : 'text-red-600') : (darkMode ? 'text-slate-300' : 'text-gray-700')}`}>연락처 비공개</p>
@@ -1406,7 +1366,7 @@ export function MainScreen({
                         className={`w-full pl-10 pr-3 py-2.5 rounded-xl border-2 text-sm focus:outline-none transition-colors ${darkMode ? 'bg-slate-700 border-slate-500 text-white placeholder-slate-500 focus:border-yellow-500' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 focus:border-yellow-400'}`} />
                     </div>
                     <div className="relative">
-                      <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded flex items-center justify-center text-[11px] font-black text-white bg-gradient-to-br from-pink-500 to-orange-400">@</div>
+                      <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded flex items-center justify-center text-[11px] font-black text-white bg-pink-500">@</div>
                       <input value={statusInstagram} onChange={e => setStatusInstagram(e.target.value.replace(/^@/, ''))} placeholder="인스타그램 ID (@제외)"
                         className={`w-full pl-10 pr-3 py-2.5 rounded-xl border-2 text-sm focus:outline-none transition-colors ${darkMode ? 'bg-slate-700 border-slate-500 text-white placeholder-slate-500 focus:border-pink-500' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 focus:border-pink-400'}`} />
                     </div>
@@ -1729,7 +1689,7 @@ export function MainScreen({
                             )}
                             {share.instagram && (
                               <div className="flex items-center gap-2">
-                                <span className="w-5 h-5 rounded-lg bg-gradient-to-br from-pink-500 to-orange-400 text-white flex items-center justify-center text-[10px] font-black flex-shrink-0">@</span>
+                                <span className="w-5 h-5 rounded-lg bg-pink-500 text-white flex items-center justify-center text-[10px] font-black flex-shrink-0">@</span>
                                 <span className="text-xs font-bold text-gray-800 flex-1">@{share.instagram}</span>
                                 <button onClick={() => navigator.clipboard.writeText(share.instagram!)} className="text-[10px] text-gray-400 hover:text-teal-600 transition-all">복사</button>
                               </div>
