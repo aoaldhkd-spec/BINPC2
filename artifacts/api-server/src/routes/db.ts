@@ -1153,6 +1153,20 @@ router.post('/admin/clear-db-errors', async (req: Request, res: Response) => {
   }
 
   console.log('[db] DB persist error counter cleared by admin');
+  // #38: 관리자 에러 초기화 감사 로그 — DB에 영구 기록
+  try {
+    await pool.query(
+      `INSERT INTO app_kv_rows (table_name, row_id, data)
+       VALUES ('audit_log', $1, $2::jsonb)
+       ON CONFLICT (table_name, row_id) DO UPDATE SET data = EXCLUDED.data`,
+      [
+        `clear_db_errors_${Date.now()}`,
+        JSON.stringify({ action: 'clear_db_errors', clearedAt: new Date().toISOString() }),
+      ],
+    );
+  } catch (auditErr) {
+    console.warn('[db] 감사 로그 저장 실패 (non-critical):', auditErr);
+  }
   return res.json({ ok: true });
 });
 
@@ -1196,10 +1210,19 @@ router.get('/health', async (_req: Request, res: Response) => {
   const recentPersistErrors = _dbPersistErrorLog.filter(e => Date.now() - e.time < 5 * 60 * 1000).length;
   const messageLag = dbMessages >= 0 ? inMemMessages - dbMessages : null;
   const likeLag    = dbLikes    >= 0 ? inMemLikes    - dbLikes    : null;
+  // #33: PIN pool 잔여량 — 10% 미만이면 alarm
+  const _allProfiles = getTable('profiles');
+  const _use5Digit   = _allProfiles.length > 8000;
+  const _pinPoolSize = _use5Digit ? 90000 : 9000;
+  const _usedPinCount = new Set(_allProfiles.map(p => p.pin_code).filter(Boolean)).size;
+  const pinRemaining  = _pinPoolSize - _usedPinCount;
+  const PIN_ALARM_THRESHOLD = Math.max(50, Math.floor(_pinPoolSize * 0.1));
+
   const alarms: string[] = [];
   if (recentPersistErrors > 0) alarms.push(`${recentPersistErrors} DB persist error(s) in last 5 min`);
   if (messageLag !== null && messageLag > LOSS_ALARM_THRESHOLD) alarms.push(`message lag: inMem=${inMemMessages} db=${dbMessages} (>${LOSS_ALARM_THRESHOLD})`);
   if (likeLag    !== null && likeLag    > LOSS_ALARM_THRESHOLD) alarms.push(`like lag: inMem=${inMemLikes} db=${dbLikes} (>${LOSS_ALARM_THRESHOLD})`);
+  if (pinRemaining <= PIN_ALARM_THRESHOLD) alarms.push(`PIN pool nearly full: ${pinRemaining} slot(s) remaining of ${_pinPoolSize}`);
 
   return res.json({
     persistErrors: _dbPersistErrors,
@@ -1207,6 +1230,7 @@ router.get('/health', async (_req: Request, res: Response) => {
     inMemory: { messages: inMemMessages, likes: inMemLikes },
     db: { messages: dbMessages, likes: dbLikes },
     lag: { messages: messageLag, likes: likeLag },
+    pinPool: { remaining: pinRemaining, total: _pinPoolSize }, // #33
     alarms,                          // non-empty = action required
     ok: alarms.length === 0,         // quick pass/fail for monitoring
     sseConnections: sseTotal,
@@ -1474,6 +1498,8 @@ router.get('/events', (req: Request, res: Response) => {
 
   // userId가 있으면 반드시 유효한 토큰 필요 — 없거나 만료/위조된 경우 거부
   if (userId && (!token || !verifySseToken(userId, token))) {
+    // #3: 침입 탐지용 서버 로그 — userId별 토큰 없는/위조된 SSE 접근 기록
+    console.warn(`[sse] 인증 실패: userId=${userId} hasToken=${!!token} ip=${req.ip} — 유효하지 않은 토큰으로 SSE 접근 시도`);
     res.status(401).json({ error: 'Invalid or missing SSE token' });
     return;
   }

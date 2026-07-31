@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   CheckCircle, X, XCircle,
 } from 'lucide-react';
-import { supabase, setLocalDbUserId, getSseToken, fetchAndSetSseToken, getDeviceSecret } from './lib/supabase';
+import { supabase, setLocalDbUserId, getSseToken, fetchAndSetSseToken, getDeviceSecret, onSseReconnect } from './lib/supabase';
 import { genAvatar } from './lib/profile';
 import { HeartType } from './lib/constants';
 // ─── 분리된 타입·유틸·컴포넌트 imports ────────────────────────────────────────
@@ -644,6 +644,14 @@ function App() {
 
   useEffect(() => {
     if (!currentUserId) return;
+    // #52: 계정 전환 시 이전 유저의 하트 상태가 잠깐 보이는 현상 방지
+    // 새 userId로 로드하기 전에 상태를 즉시 비움
+    setLikedIds(new Set());
+    setSentHeartTypes(new Map());
+    setSentHeartsPerPerson(new Map());
+    setReceivedHeartTypes(new Map());
+    setLikeStatuses(new Map());
+    setReceivedLikers([]);
     // 타이머 ID 추적 — 언마운트 시 clearTimeout으로 stale setState 방지
     let retryTimerId: ReturnType<typeof setTimeout> | null = null;
     let initTimerId1: ReturnType<typeof setTimeout> | null = null;
@@ -967,6 +975,17 @@ function App() {
     if (!currentUserId) return;
     registerPushSub(currentUserId);
   }, [currentUserId]);
+
+  // #24: SSE 재연결 시 채팅목록·받은하트 즉시 리로드
+  // 네트워크 단절 후 재연결되면 놓친 이벤트를 polling으로 보완
+  useEffect(() => {
+    if (!currentUserId) return;
+    const unsub = onSseReconnect(() => {
+      loadChatList(currentUserId);
+      loadReceivedLikes(currentUserId);
+    });
+    return unsub;
+  }, [currentUserId, loadChatList, loadReceivedLikes]);
 
 
   // Manual refresh for status and chat tabs

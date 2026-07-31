@@ -66,6 +66,7 @@ export function useGames(
 
   const voteOnGame = async (gameId: string, option: 'a' | 'b') => {
     if (!currentUserId || myVotes.has(gameId)) return;
+    // #39: 낙관적 업데이트 → 네트워크 실패 시 롤백
     setMyVotes(prev => new Map(prev).set(gameId, option));
     setVoteCounts(prev => {
       const copy = new Map(prev);
@@ -73,12 +74,25 @@ export function useGames(
       copy.set(gameId, { ...c, [option]: c[option] + 1 });
       return copy;
     });
-    await supabase.from('balance_votes').insert({ game_id: gameId, voter_id: currentUserId, option });
+    const { error } = await supabase.from('balance_votes').insert({ game_id: gameId, voter_id: currentUserId, option });
+    if (error) {
+      // 실패 시 낙관적 업데이트 롤백
+      setMyVotes(prev => { const m = new Map(prev); m.delete(gameId); return m; });
+      setVoteCounts(prev => {
+        const copy = new Map(prev);
+        const c = copy.get(gameId);
+        if (c) copy.set(gameId, { ...c, [option]: Math.max(0, c[option] - 1) });
+        return copy;
+      });
+      alert('투표 저장에 실패했습니다. 다시 시도해 주세요.');
+    }
   };
 
   const voteOnImageGame = async (gameId: string, votedProfileId: string) => {
     if (!currentUserId) return;
-    await supabase.from('image_votes').insert({ game_id: gameId, voter_id: currentUserId, voted_profile_id: votedProfileId });
+    // #39: 이미지 투표도 실패 시 사용자에게 알림
+    const { error } = await supabase.from('image_votes').insert({ game_id: gameId, voter_id: currentUserId, voted_profile_id: votedProfileId });
+    if (error) alert('투표 저장에 실패했습니다. 다시 시도해 주세요.');
   };
 
   const createTableGame = async (question: string, optA: string, optB: string, scope: 'global' | 'table') => {

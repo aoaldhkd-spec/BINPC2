@@ -525,6 +525,11 @@ export function getSseToken(): string | null {
 /** 서버에서 발급받은 SSE 토큰 저장 및 SSE 재연결. expiresAt은 Unix 초. */
 export function setSseToken(token: string, expiresAt: number) {
   _sseToken = token;
+  // #4: localStorage에 토큰 캐시 저장 → 앱 재시작 후에도 재연결 없이 즉시 재사용
+  try {
+    localStorage.setItem(SSE_TOK_KEY, token);
+    localStorage.setItem(SSE_TOK_EXP_KEY, String(expiresAt));
+  } catch { /* storage quota 초과 시 무시 — 메모리 캐시로 폴백 */ }
   // 기존 타이머 정리
   if (_tokenRefreshTimer) { clearTimeout(_tokenRefreshTimer); _tokenRefreshTimer = null; }
   // 만료 5분 전에 자동 재발급 스케줄링

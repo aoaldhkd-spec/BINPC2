@@ -993,7 +993,7 @@ export function MainScreen({
             <button key={t.id} onClick={() => handleTabChange(t.id)} disabled={isTabLocked}
               className={`relative flex-1 min-w-[56px] flex flex-col items-center gap-1 px-2 py-2.5 text-[10px] font-semibold border-b-2 transition-all active:scale-95 ${isTabLocked ? 'opacity-35 cursor-not-allowed border-transparent ' + (darkMode ? 'text-slate-500' : 'text-gray-400') : isActive
                   ? darkMode ? 'border-cyan-500 text-cyan-400 bg-cyan-500/10' : 'border-cyan-500 text-cyan-600 bg-cyan-50'
-                  : darkMode ? 'border-transparent text-slate-400 active:text-slate-100' : 'border-transparent text-gray-500 active:text-gray-700'
+                  : darkMode ? 'border-transparent text-slate-400' : 'border-transparent text-gray-500 active:text-gray-700'
               }`}>
               <span className="relative">
                 {isTabLocked ? <Lock className="w-5 h-5" /> : t.icon}
