@@ -229,6 +229,26 @@ async function loadFromDb(): Promise<void> {
     for (const img of imgs.rows) {
       imageStore[img.path] = img.data_url;
     }
+
+    // Rebuild _likesLastInsert from the freshly loaded likes so the 500 ms
+    // cooldown window survives a server restart.  For each (liker, liked, type)
+    // triple we keep the timestamp of the most-recent insert; entries older than
+    // the 10-second prune window are skipped — they wouldn't block anything anyway.
+    const cutoff = Date.now() - 10_000;
+    for (const like of (store['likes'] ?? [])) {
+      const liker = like['liker_id'];
+      const liked  = like['liked_id'];
+      const htype  = like['heart_type'];
+      if (!liker || !liked || !htype) continue;
+      const createdMs = like['created_at'] ? new Date(like['created_at'] as string).getTime() : 0;
+      if (createdMs < cutoff) continue; // already expired — don't bother
+      const key = `${liker}:${liked}:${htype}`;
+      const prev = _likesLastInsert.get(key) ?? 0;
+      if (createdMs > prev) _likesLastInsert.set(key, createdMs);
+    }
+    if (_likesLastInsert.size > 0) {
+      console.log(`[db] Seeded _likesLastInsert with ${_likesLastInsert.size} entry/entries from DB on startup`);
+    }
   } catch (e) {
     console.error('[db] Failed to load from DB:', e);
   }
