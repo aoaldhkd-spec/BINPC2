@@ -145,8 +145,8 @@ export interface Database {
         Relationships: [];
       };
       messages: {
-        Row: { id: string; chat_id: string; sender_id: string; content: string; image_url: string | null; created_at: string; };
-        Insert: { id?: string; chat_id: string; sender_id: string; content: string; image_url?: string | null; created_at?: string; };
+        Row: { id: string; chat_id: string; sender_id: string; content: string; image_url: string | null; created_at: string; client_id: string | null; };
+        Insert: { id?: string; chat_id: string; sender_id: string; content: string; image_url?: string | null; created_at?: string; client_id?: string | null; };
         Update: { id?: string; chat_id?: string; sender_id?: string; content?: string; image_url?: string | null; created_at?: string; };
         Relationships: [];
       };

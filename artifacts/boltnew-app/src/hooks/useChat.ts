@@ -90,8 +90,16 @@ export function useChat({
     const { data } = await supabase.from('messages').select('*').eq('chat_id', cid).order('created_at', { ascending: true });
     if (gen !== loadGenRef.current) return; // 이미 다른 채팅방으로 전환됨 — 결과 버림
     if (data) setMessages(prev => {
-      const dbIds = new Set(data.map((m: { id: string }) => m.id));
-      const optimistic = prev.filter(m => m.id.startsWith('__opt_') && !dbIds.has(m.id));
+      const dbIds = new Set(data.map((m: Message) => m.id));
+      // client_id로도 중복 제거: 재시도 성공 시 서버 row가 DB에 있으면 낙관적 메시지 제거
+      const dbClientIds = new Set<string>(
+        (data as Message[]).flatMap(m => (m.client_id != null ? [m.client_id] : []))
+      );
+      const optimistic = prev.filter(m =>
+        m.id.startsWith('__opt_') &&
+        !dbIds.has(m.id) &&
+        !dbClientIds.has(m.id.replace('__opt_', ''))
+      );
       return [...data, ...optimistic];
     });
   }, []);
@@ -123,14 +131,19 @@ export function useChat({
           const newMsg = payload.new as Message;
           setMessages(prev => {
             if (prev.some((m: Message) => m.id === newMsg.id)) return prev;
-            // 낙관적 업데이트 교체: 5초 이내 동일 발신자+내용 메시지에만 매칭
-            const msgTime = new Date(newMsg.created_at).getTime();
-            const optIdx = prev.findIndex(m =>
-              m.id.startsWith('__opt_') &&
-              m.sender_id === newMsg.sender_id &&
-              m.content === newMsg.content &&
-              Math.abs(new Date(m.created_at).getTime() - msgTime) < 5000
-            );
+            // 낙관적 업데이트 교체: client_id로 정확히 매칭 (네트워크 재시도 후에도 유령 메시지 방지)
+            // client_id가 없는 경우(레거시): 5초 이내 동일 발신자+내용으로 폴백
+            const optIdx = newMsg.client_id
+              ? prev.findIndex(m => m.id === `__opt_${newMsg.client_id}`)
+              : (() => {
+                  const msgTime = new Date(newMsg.created_at).getTime();
+                  return prev.findIndex(m =>
+                    m.id.startsWith('__opt_') &&
+                    m.sender_id === newMsg.sender_id &&
+                    m.content === newMsg.content &&
+                    Math.abs(new Date(m.created_at).getTime() - msgTime) < 5000
+                  );
+                })();
             if (optIdx !== -1) {
               const next = [...prev];
               next[optIdx] = newMsg;
