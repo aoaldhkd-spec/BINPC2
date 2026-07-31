@@ -976,16 +976,17 @@ function App() {
     registerPushSub(currentUserId);
   }, [currentUserId]);
 
-  // #24: SSE 재연결 시 채팅목록·받은하트 즉시 리로드
+  // #24 #57 #58: SSE 재연결 시 채팅목록·하트·알림 즉시 리로드
   // 네트워크 단절 후 재연결되면 놓친 이벤트를 polling으로 보완
   useEffect(() => {
     if (!currentUserId) return;
     const unsub = onSseReconnect(() => {
-      loadChatList(currentUserId);
-      loadReceivedLikes(currentUserId);
+      loadChatList(currentUserId);        // #24 #58: 채팅·알림 복구
+      loadReceivedLikes(currentUserId);   // #24 #58: 받은 하트 복구
+      loadLikes(currentUserId);           // #57: 보낸 하트 표시 유지
     });
     return unsub;
-  }, [currentUserId, loadChatList, loadReceivedLikes]);
+  }, [currentUserId, loadChatList, loadReceivedLikes, loadLikes]);
 
 
   // Manual refresh for status and chat tabs
