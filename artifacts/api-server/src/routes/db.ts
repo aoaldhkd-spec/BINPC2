@@ -875,6 +875,10 @@ router.post('/op', async (req: Request, res: Response) => {
           updated.push(newRow);
           smartBroadcast(table, newRow, { type: 'change', table, event: 'UPDATE', newRow, oldRow });
           dbPersistRow(table, newRow).catch(console.error);
+          // chat_reads 갱신 시 해당 유저 unread 캐시 즉시 무효화
+          if (table === 'chat_reads' && newRow.reader_id) {
+            unreadCountsCache.delete(String(newRow.reader_id));
+          }
         }
       }
       if (selectAfterWrite) return res.json({ data: single ? updated[0] ?? null : updated, error: null });
