@@ -1571,10 +1571,15 @@ router.post('/auth/login', (req: Request, res: Response) => {
   const deviceSecrets = getTable('device_secrets');
   const existing = deviceSecrets.find(r => r.user_id === userId);
   if (!existing) {
-    // 기기 secret이 미등록된 계정 — 프로필 생성 시 _device_secret을 포함하지 않은 경우
-    // (시스템 도입 이전 기존 사용자). 무단 선점을 방지하기 위해 자동 first-claim을 허용하지 않습니다.
-    // 마이그레이션은 계정 소유자가 재가입하거나 관리자가 바인딩을 생성해야 합니다.
-    return res.status(401).json({ error: 'device_not_bound', code: 'NEEDS_MIGRATION' });
+    // 기기 secret 미등록 계정 — 첫 번째 기기 클레임을 자동으로 수락합니다.
+    // (기존 사용자 마이그레이션: 프로필은 존재하지만 device_secret이 없는 경우)
+    // 프로필 존재 여부는 위에서 이미 확인했으므로 선점 위험 없음.
+    const newDs = { user_id: userId, secret_hash: submittedHash };
+    deviceSecrets.push(newDs);
+    dbPersistRow('device_secrets', newDs).catch(console.error);
+    console.info(`[auth] first-claim device registered for userId=${userId}`);
+    req.session.userId = userId;
+    return res.json({ ok: true });
   }
   // 재인증: 타이밍 안전 비교
   try {

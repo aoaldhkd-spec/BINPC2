@@ -3,7 +3,7 @@ import { ArrowLeft, ChevronRight, RefreshCw, CheckCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import DrumRoller from './DrumRoller';
 import { getPositionBg, getDomSubBg } from '../lib/profile';
-import { generateNicknameCandidates, containsBannedNicknameWord } from '../lib/nicknameGenerator';
+import { containsBannedNicknameWord } from '../lib/nicknameGenerator';
 import { BIO_CATEGORIES } from '../lib/interests';
 
 const POSITION_OPTIONS: { label: string; val: number }[] = [
@@ -106,10 +106,6 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
 
   const [decadeFilter, setDecadeFilter] = useState<string>('90년대생');
   const [regionFilter, setRegionFilter] = useState<string>('광역시');
-  const [candidates, setCandidates] = useState<{ nickname: string; concept: string }[]>([]);
-  const [selectedNickname, setSelectedNickname] = useState<string | null>(null);
-  const [generating, setGenerating] = useState(false);
-  const [nicknameMode, setNicknameMode] = useState<'random' | 'custom'>('random');
   const [customInput, setCustomInput] = useState('');
   const [customError, setCustomError] = useState<string | null>(null);
   const [checkingDup, setCheckingDup] = useState(false);
@@ -133,10 +129,8 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
   const step2Valid = selectedBio.length >= 2 && positionScore !== null;
   const canGenerate = !!mbti && !!birthYear && !!location && selectedBio.length >= 2 && positionScore !== null;
   const customFinalNick = customInput.trim();
-  const customValid = nicknameMode === 'custom'
-    ? customFinalNick.length >= 2 && customFinalNick.length <= 6 && !customError && dupChecked
-    : false;
-  const canEnter = canGenerate && (nicknameMode === 'random' ? !!selectedNickname : customValid) && !loading;
+  const customValid = customFinalNick.length >= 2 && customFinalNick.length <= 6 && !customError && dupChecked;
+  const canEnter = canGenerate && customValid && !loading;
 
   const validateCustom = useCallback(async (val: string) => {
     const trimmed = val.trim();
@@ -169,21 +163,9 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
     dupTimerRef.current = setTimeout(() => validateCustom(sliced), 500);
   };
 
-  const handleGenerate = () => {
-    if (!canGenerate) return;
-    setGenerating(true);
-    setSelectedNickname(null);
-    const year = parseInt(birthYear, 10);
-    const next = generateNicknameCandidates(year, location, selectedBio);
-    setTimeout(() => {
-      setCandidates(next);
-      setGenerating(false);
-    }, 600);
-  };
-
   const handleSubmit = () => {
     if (!canEnter || !mbti || positionScore === null) return;
-    const finalNick = nicknameMode === 'random' ? selectedNickname! : customFinalNick;
+    const finalNick = customFinalNick;
     if (!finalNick) return;
     onSubmit({
       birthYear: parseInt(birthYear, 10),
@@ -467,7 +449,7 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
                       atMaxBio ? 'bg-rose-500 text-white' : selectedBio.length >= 2 ? 'bg-teal-500 text-white' : 'bg-gray-100 text-gray-500'
                     }`}>{selectedBio.length} / 5</div>
                   </div>
-                  <p className="text-xs text-gray-400 mb-2">2개 이상 선택 — 닉네임 생성에 사용됩니다</p>
+                  <p className="text-xs text-gray-400 mb-2">2개 이상 선택해주세요</p>
                   {selectedBio.length > 0 && (
                     <div className="flex gap-2 p-2.5 bg-cyan-50 rounded-xl border border-cyan-100 flex-wrap mb-2">
                       {selectedBio.map((tag) => (
@@ -567,123 +549,60 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
                   {selectedBio.map((t) => <span key={t} className="px-2.5 py-1 bg-cyan-100 text-cyan-700 text-xs font-bold rounded-full">{t}</span>)}
                 </div>
 
-                {/* 모드 선택 탭 */}
-                <div className="flex gap-2 p-1 bg-gray-100 rounded-xl">
-                  <button type="button" onClick={() => { setNicknameMode('random'); setSelectedNickname(null); }}
-                    className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${nicknameMode === 'random' ? 'bg-white text-cyan-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-                    ✨ 랜덤 생성
-                  </button>
-                  <button type="button" onClick={() => { setNicknameMode('custom'); setSelectedNickname(null); }}
-                    className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${nicknameMode === 'custom' ? 'bg-white text-cyan-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-                    ✏️ 직접 입력
-                  </button>
-                </div>
-
-                {/* 랜덤 생성 모드 */}
-                {nicknameMode === 'random' && (
-                  <div className="pt-1 space-y-3">
-                    <button type="button" onClick={handleGenerate} disabled={!canGenerate || generating}
-                      className="w-full py-3 px-4 bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white font-bold rounded-xl hover:from-violet-600 hover:to-fuchsia-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2">
-                      {generating ? (
-                        <><RefreshCw className="w-4 h-4 animate-spin" />생성 중...</>
-                      ) : candidates.length > 0 ? (
-                        <><RefreshCw className="w-4 h-4" />다시 생성하기</>
-                      ) : (
-                        <>✨ 닉네임 5개 만들기</>
-                      )}
-                    </button>
-                    <p className="text-[11px] text-gray-400 text-center">지역·나이·관심사를 조합해 자동으로 만들어드려요 · 최대 8글자</p>
-
-                    {candidates.length > 0 && (
-                      <div className="space-y-2">
-                        <p className="text-xs font-bold text-gray-500 text-center">마음에 드는 닉네임을 선택하세요</p>
-                        {candidates.map(({ nickname, concept }) => {
-                          const isSel = selectedNickname === nickname;
-                          return (
-                            <button key={nickname} type="button" onClick={() => setSelectedNickname(nickname)}
-                              className={`w-full flex items-center justify-between gap-2 px-4 py-3 rounded-xl border-2 transition-all ${
-                                isSel ? 'border-cyan-500 bg-cyan-50 shadow-md' : 'border-gray-200 bg-white hover:border-cyan-300'
-                              }`}>
-                              <div className="text-left min-w-0">
-                                <span className={`font-black text-sm block ${isSel ? 'text-cyan-700' : 'text-gray-800'}`}>{nickname}</span>
-                                <span className={`text-[11px] font-medium block mt-0.5 truncate ${isSel ? 'text-cyan-500' : 'text-gray-400'}`}>{concept}</span>
-                              </div>
-                              {isSel ? (
-                                <span className="text-xs font-bold text-cyan-600 bg-cyan-100 px-2 py-1 rounded-full flex-shrink-0">선택됨</span>
-                              ) : (
-                                <span className="text-[11px] text-gray-300 flex-shrink-0">선택</span>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    {selectedNickname && (
-                      <div className="p-3 bg-gradient-to-r from-cyan-50 to-teal-50 rounded-xl border border-cyan-200">
-                        <p className="text-xs text-gray-400 mb-0.5">선택된 닉네임 (입장 후 변경 불가)</p>
-                        <p className="text-lg font-black text-cyan-700">{selectedNickname}</p>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* 직접 입력 모드 */}
-                {nicknameMode === 'custom' && (
-                  <div className="pt-1 space-y-3">
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs font-bold text-gray-600">닉네임 직접 입력</label>
-                        <span className={`text-xs font-bold tabular-nums ${customInput.length >= 6 ? 'text-rose-500' : 'text-gray-400'}`}>
-                          {customInput.length} / 6
-                        </span>
-                      </div>
-                      <div className="relative">
-                        <input
-                          type="text"
-                          value={customInput}
-                          onChange={(e) => handleCustomChange(e.target.value)}
-                          maxLength={6}
-                          placeholder="예: 서울고수"
-                          className={`w-full px-4 py-3 rounded-xl border-2 text-sm font-bold transition-all outline-none bg-white ${
-                            customError ? 'border-rose-400 focus:border-rose-500' :
-                            dupChecked ? 'border-emerald-400 focus:border-emerald-500' :
-                            'border-gray-200 focus:border-cyan-400'
-                          }`}
-                        />
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                          {checkingDup && <RefreshCw className="w-4 h-4 text-gray-400 animate-spin" />}
-                          {!checkingDup && dupChecked && !customError && <span className="text-emerald-500 text-xs font-bold">사용 가능 ✓</span>}
-                        </div>
-                      </div>
-
-                      {/* 에러 메시지 */}
-                      {customError && (
-                        <p className="text-xs text-rose-500 font-medium flex items-center gap-1">
-                          <span>⚠</span> {customError}
-                        </p>
-                      )}
-
-                      {/* 안내 문구 */}
-                      <div className="p-3 bg-amber-50 rounded-lg border border-amber-100 space-y-1">
-                        <p className="text-[11px] font-bold text-amber-700">입력 규칙</p>
-                        <ul className="text-[11px] text-amber-600 space-y-0.5 list-none">
-                          <li>· 공백 포함 최대 6글자</li>
-                          <li>· 정치·종교·지역감정·욕설 포함 불가</li>
-                          <li>· 이미 사용 중인 닉네임 불가</li>
-                          <li>· 입장 후 변경이 불가능하니 신중히 선택하세요</li>
-                        </ul>
+                {/* 닉네임 직접 입력 */}
+                <div className="pt-1 space-y-3">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-gray-600">닉네임 입력</label>
+                      <span className={`text-xs font-bold tabular-nums ${customInput.length >= 6 ? 'text-rose-500' : 'text-gray-400'}`}>
+                        {customInput.length} / 6
+                      </span>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={customInput}
+                        onChange={(e) => handleCustomChange(e.target.value)}
+                        maxLength={6}
+                        placeholder="예: 서울고수"
+                        autoFocus
+                        className={`w-full px-4 py-3 rounded-xl border-2 text-sm font-bold transition-all outline-none bg-white ${
+                          customError ? 'border-rose-400 focus:border-rose-500' :
+                          dupChecked ? 'border-emerald-400 focus:border-emerald-500' :
+                          'border-gray-200 focus:border-cyan-400'
+                        }`}
+                      />
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        {checkingDup && <RefreshCw className="w-4 h-4 text-gray-400 animate-spin" />}
+                        {!checkingDup && dupChecked && !customError && <span className="text-emerald-500 text-xs font-bold">사용 가능 ✓</span>}
                       </div>
                     </div>
 
-                    {dupChecked && !customError && customInput.trim().length >= 2 && (
-                      <div className="p-3 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl border border-emerald-200">
-                        <p className="text-xs text-gray-400 mb-0.5">사용할 닉네임 (입장 후 변경 불가)</p>
-                        <p className="text-lg font-black text-emerald-700">{customInput.trim()}</p>
-                      </div>
+                    {/* 에러 메시지 */}
+                    {customError && (
+                      <p className="text-xs text-rose-500 font-medium flex items-center gap-1">
+                        <span>⚠</span> {customError}
+                      </p>
                     )}
+
+                    {/* 안내 문구 */}
+                    <div className="p-3 bg-amber-50 rounded-lg border border-amber-100 space-y-1">
+                      <p className="text-[11px] font-bold text-amber-700">입력 규칙</p>
+                      <ul className="text-[11px] text-amber-600 space-y-0.5 list-none">
+                        <li>· 최소 2글자 · 최대 6글자</li>
+                        <li>· 정치·종교·지역감정·욕설·패드립 포함 불가</li>
+                        <li>· 이미 사용 중인 닉네임 불가</li>
+                      </ul>
+                    </div>
                   </div>
-                )}
+
+                  {dupChecked && !customError && customInput.trim().length >= 2 && (
+                    <div className="p-3 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl border border-emerald-200">
+                      <p className="text-xs text-gray-400 mb-0.5">사용할 닉네임</p>
+                      <p className="text-lg font-black text-emerald-700">{customInput.trim()}</p>
+                    </div>
+                  )}
+                </div>
 
                 {/* 연락처 안내 */}
                 <div className="bg-sky-50 border border-sky-200 rounded-xl px-4 py-3 flex items-start gap-2">

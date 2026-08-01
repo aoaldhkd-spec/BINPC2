@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { onSseReconnect } from '../lib/localdb';
+import { onSseReconnect, onSseDisconnect } from '../lib/localdb';
 import type { Profile, Message, Chat, View } from '../types/app';
 import { HeartType } from '../lib/constants';
 import { playCuteSound } from '../lib/sounds';
@@ -38,10 +38,13 @@ export function useChat({
   const [newMsgCount, setNewMsgCount] = useState(0);
 
   // ── 채팅방별 메시지 구독 (서버 사이드 필터) ──────────────────────────────────
+  // chatIdsKey: chatList의 ID 목록만 문자열로 직렬화 — lastMessage 변경 시 채널 재생성 방지
+  // (lastMessage 업데이트마다 채널이 통째로 다시 만들어지던 성능 버그 수정)
+  const chatIdsKey = chatList.map(c => c.id).join(',');
   useEffect(() => {
-    if (!currentUserId || chatList.length === 0) return;
+    if (!currentUserId || chatListRef.current.length === 0) return;
     const channels = perChatChannelsRef.current;
-    const currentIds = new Set(chatList.map(c => c.id));
+    const currentIds = new Set(chatListRef.current.map(c => c.id));
 
     for (const [cid, ch] of channels) {
       if (!currentIds.has(cid)) {
@@ -50,13 +53,14 @@ export function useChat({
       }
     }
 
-    for (const chat of chatList) {
+    for (const chat of chatListRef.current) {
       if (channels.has(chat.id)) continue;
+      const chatId_ = chat.id; // 클로저 캡처용
       const ch = supabase
-        .channel(`msgs:${chat.id}`)
+        .channel(`msgs:${chatId_}`)
         .on('postgres_changes', {
           event: 'INSERT', schema: 'public', table: 'messages',
-          filter: `chat_id=eq.${chat.id}`,
+          filter: `chat_id=eq.${chatId_}`,
         }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
           try {
             const m = payload.new as { chat_id: string; sender_id: string; content: string };
@@ -72,7 +76,7 @@ export function useChat({
           } catch (e) { console.warn('[msgs-ch]', e); }
         })
         .subscribe();
-      channels.set(chat.id, ch);
+      channels.set(chatId_, ch);
     }
 
     // ✅ 항상 전체 채널 정리 — currentUserId 값에 관계없이
@@ -81,16 +85,19 @@ export function useChat({
       for (const ch of channels.values()) supabase.removeChannel(ch);
       channels.clear();
     };
-  }, [chatList, currentUserId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatIdsKey, currentUserId]);
 
   // ── 활성 채팅방 메시지 구독 ─────────────────────────────────────────────────
   // 스탤 로드 방지: 채팅방 전환 시 이전 채팅방 응답이 늦게 돌아와 덮어쓰는 race 차단
   const loadGenRef = useRef(0);
-  const loadMessages = useCallback(async (cid: string) => {
+  const loadMessages = useCallback(async (cid: string): Promise<boolean> => {
     const gen = ++loadGenRef.current;
-    const { data } = await supabase.from('messages').select('*').eq('chat_id', cid).order('created_at', { ascending: true });
-    if (gen !== loadGenRef.current) return; // 이미 다른 채팅방으로 전환됨 — 결과 버림
+    const { data, error } = await supabase.from('messages').select('*').eq('chat_id', cid).order('created_at', { ascending: true });
+    if (gen !== loadGenRef.current) return false; // 이미 다른 채팅방으로 전환됨 — 결과 버림
+    if (error) { console.error('[loadMessages] DB 오류:', error.message); return false; }
     if (data) setMessages(prev => applyLoadMessages(prev, data as Message[]));
+    return true;
   }, []);
 
   useEffect(() => {
@@ -119,7 +126,19 @@ export function useChat({
         })
       .subscribe();
     loadMessages(chatId);
+
+    // SSE 연결 불안정 시 폴링 폴백 — 8초마다 새 메시지를 DB에서 직접 확인
+    // SSE가 정상이면 중복 렌더가 없도록 applySseInsert의 dedup 로직이 처리함
+    // 3회 연속 실패 시 폴링 중단 (서버 과부하 방지)
+    let pollFailCount = 0;
+    const pollInterval = setInterval(async () => {
+      if (chatIdRef.current !== chatId || pollFailCount >= 3) return;
+      const ok = await loadMessages(chatId);
+      if (ok) pollFailCount = 0; else pollFailCount++;
+    }, 8_000);
+
     return () => {
+      clearInterval(pollInterval);
       supabase.removeChannel(channel);
       // 채팅방을 나갈 때(chatId가 바뀌거나 null로 돌아올 때) read_at 갱신
       // → 채팅방에 열려 있는 동안 도착한 메시지도 읽음 처리됨
@@ -234,6 +253,8 @@ export function useChat({
     if (!resolvedChatId) {
       console.error('[openChat] 채팅방 ID 결정 불가 — 메인으로 복귀');
       setView('main');
+      setBottomNotif({ type: 'chat', nickname: '채팅방을 열 수 없습니다. 잠시 후 다시 시도해주세요.' });
+      setTimeout(() => setBottomNotif(null), 3000);
       return;
     }
 

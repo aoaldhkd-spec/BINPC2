@@ -14,3 +14,4 @@
 - [boltnew-app perf fixes](boltnew-app-perf-fixes.md) — 2026-07-31 13개 성능·메모리 수정: Map pruning×3, dbPersistRow 재시도, broadcastAll 청킹, INSERT/UPSERT O(n)화, Promise.all, setTimeout ref, unread 즉시 무효화. 150-VU p95=327ms.
 - [boltnew-app deep audit fixes](boltnew-app-deep-audit-fixes.md) — 2026-07-31 2차 전수검사 7건: sendImage 스냅샷, deleteAllChats Promise.all, executeLike Promise.race 타임아웃, SSE keepalive _sseCleanup Map, req.aborted 핸들러, 비밀번호 갱신 single-flight, unreadCache LRU cap 200.
 - [boltnew-app cold-start loading gate bug](boltnew-app-cold-start-bug.md) — reset_signal+fresh localStorage → early return이 sessionActive/entryPassword 설정 없이 timeout 취소 → 무한 로딩. 수정: loading gate 상태 설정을 reset 분기 이전으로 이동.
+- [boltnew-app chat bugs 2026-08-01](boltnew-app-chat-bugs-aug01.md) — device_secret NEEDS_MIGRATION 차단(→first-claim 허용), chatList dep churn(→chatIdsKey), loadMessages 무음 오류(→반환값+로그), 폴링 무한재시도(→3회실패 중단). 150명 테스트 스크립트: artifacts/api-server/scripts/chat-test-150.mjs.

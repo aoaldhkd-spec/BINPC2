@@ -2,13 +2,14 @@ import { useState, useEffect, useRef, useCallback, useMemo, Suspense, lazy, Comp
 import {
   Heart, MessageCircle, Users, ChevronDown, LayoutGrid, CheckCircle,
   Eye, UserCheck, Gamepad2, X, BookOpen,
-  BarChart3, QrCode, Camera, Search, Lock,
+  BarChart3, QrCode, Camera, Search, Lock, Pencil,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { Profile, Seat, ContactShare, Suggestion, BalanceGame, Chat, MainTab, TableMiniGameSession } from '../types/app';
 import { BIO_CATEGORIES } from '../lib/interests';
 import { HeartType, HEART_TYPES, heartMeta } from '../lib/constants';
 import { getPositionLabel, getPositionBg, getPositionStyle, getDomSubLabel, getDomSubBg, getKoreanAge, genAvatar } from '../lib/profile';
+import { containsBannedNicknameWord } from '../lib/nicknameGenerator';
 
 // DiceBear backgroundColor 없는 구형 투명 SVG URL → genAvatar 강제 치환
 // backgroundColor 있는 프리셋 아바타 URL은 그대로 유지
@@ -795,6 +796,15 @@ export function MainScreen({
   const [statusContactSaving, setStatusContactSaving] = useState(false);
   const statusContactInitRef = useRef(false);
 
+  // ── 닉네임 변경 상태 ────────────────────────────────────────────────────────
+  const [showNicknameEdit, setShowNicknameEdit] = useState(false);
+  const [nicknameEditInput, setNicknameEditInput] = useState('');
+  const [nicknameEditError, setNicknameEditError] = useState<string | null>(null);
+  const [nicknameEditChecking, setNicknameEditChecking] = useState(false);
+  const [nicknameEditDupOk, setNicknameEditDupOk] = useState(false);
+  const [nicknameEditSaving, setNicknameEditSaving] = useState(false);
+  const nickEditTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // ── 관심사 편집 상태 ────────────────────────────────────────────────────────
   const [showInterestEdit, setShowInterestEdit] = useState(false);
   const [editInterests, setEditInterests] = useState<string[]>([]);
@@ -863,6 +873,48 @@ export function MainScreen({
       onRefreshProfiles();
     } catch (e) { console.error('[interests] 저장 실패:', e); }
     setInterestSaving(false);
+  };
+
+  const validateNicknameEdit = useCallback(async (val: string, currentNick: string) => {
+    const t = val.trim();
+    if (!t) { setNicknameEditError(null); setNicknameEditDupOk(false); return; }
+    if (t.length < 2) { setNicknameEditError('최소 2글자 이상 입력하세요'); setNicknameEditDupOk(false); return; }
+    if (t.length > 6) { setNicknameEditError('최대 6글자까지 입력할 수 있어요'); setNicknameEditDupOk(false); return; }
+    if (containsBannedNicknameWord(t)) { setNicknameEditError('사용할 수 없는 단어가 포함되어 있어요'); setNicknameEditDupOk(false); return; }
+    if (t === currentNick) { setNicknameEditError('현재 닉네임과 동일해요'); setNicknameEditDupOk(false); return; }
+    setNicknameEditChecking(true);
+    setNicknameEditDupOk(false);
+    try {
+      const { data } = await supabase.from('profiles').select('id').eq('nickname', t).limit(1);
+      if (data && data.length > 0) { setNicknameEditError('이미 사용 중인 닉네임이에요'); setNicknameEditDupOk(false); }
+      else { setNicknameEditError(null); setNicknameEditDupOk(true); }
+    } catch { setNicknameEditError(null); setNicknameEditDupOk(true); }
+    setNicknameEditChecking(false);
+  }, []);
+
+  const handleNicknameEditChange = (val: string, currentNick: string) => {
+    const sliced = [...val].slice(0, 6).join('');
+    setNicknameEditInput(sliced);
+    setNicknameEditDupOk(false);
+    setNicknameEditError(null);
+    if (nickEditTimerRef.current) clearTimeout(nickEditTimerRef.current);
+    nickEditTimerRef.current = setTimeout(() => validateNicknameEdit(sliced, currentNick), 500);
+  };
+
+  const saveNickname = async (currentNick: string) => {
+    if (!currentUserId || !nicknameEditDupOk || nicknameEditError) return;
+    const trimmed = nicknameEditInput.trim();
+    if (!trimmed || trimmed === currentNick) return;
+    setNicknameEditSaving(true);
+    try {
+      await supabase.from('profiles').update({ nickname: trimmed } as never).eq('id', currentUserId);
+      onUpdateProfile({ id: currentUserId, nickname: trimmed });
+      setShowNicknameEdit(false);
+      setNicknameEditInput('');
+      setNicknameEditDupOk(false);
+      onRefreshProfiles();
+    } catch (e) { console.error('[nickname] 저장 실패:', e); setNicknameEditError('저장에 실패했어요. 다시 시도해주세요.'); }
+    setNicknameEditSaving(false);
   };
 
   const saveStatusContact = async () => {
@@ -1317,7 +1369,78 @@ export function MainScreen({
                         {me.mbti && (
                           <span className="px-2 py-0.5 bg-teal-500/20 border border-teal-500/40 text-teal-300 text-xs font-bold rounded-lg">{me.mbti}</span>
                         )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (showNicknameEdit) {
+                              setShowNicknameEdit(false);
+                              setNicknameEditInput('');
+                              setNicknameEditError(null);
+                              setNicknameEditDupOk(false);
+                            } else {
+                              setNicknameEditInput('');
+                              setNicknameEditError(null);
+                              setNicknameEditDupOk(false);
+                              setShowNicknameEdit(true);
+                            }
+                          }}
+                          className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all border ${
+                            showNicknameEdit
+                              ? darkMode ? 'bg-slate-600 border-slate-500 text-slate-300' : 'bg-gray-200 border-gray-300 text-gray-600'
+                              : darkMode ? 'bg-cyan-500/15 border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/25' : 'bg-cyan-50 border-cyan-200 text-cyan-600 hover:bg-cyan-100'
+                          }`}
+                        >
+                          <Pencil className="w-2.5 h-2.5" />
+                          닉변
+                        </button>
                       </div>
+                      {/* 닉네임 인라인 편집 폼 */}
+                      {showNicknameEdit && (
+                        <div className={`rounded-xl border p-3 space-y-2 ${darkMode ? 'bg-slate-700/60 border-slate-600' : 'bg-gray-50 border-gray-200'}`}>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={nicknameEditInput}
+                              onChange={(e) => handleNicknameEditChange(e.target.value, me.nickname)}
+                              maxLength={6}
+                              autoFocus
+                              placeholder="새 닉네임 (2~6글자)"
+                              className={`w-full px-3 py-2 rounded-lg border-2 text-sm font-bold transition-all outline-none ${
+                                darkMode ? 'bg-slate-800 text-white placeholder-slate-500' : 'bg-white text-gray-900'
+                              } ${
+                                nicknameEditError ? 'border-rose-400' :
+                                nicknameEditDupOk ? 'border-emerald-400' :
+                                darkMode ? 'border-slate-500 focus:border-cyan-500' : 'border-gray-300 focus:border-cyan-400'
+                              }`}
+                            />
+                            <div className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold">
+                              {nicknameEditChecking && <span className={darkMode ? 'text-slate-400' : 'text-gray-400'}>확인 중…</span>}
+                              {!nicknameEditChecking && nicknameEditDupOk && !nicknameEditError && <span className="text-emerald-500">사용 가능 ✓</span>}
+                            </div>
+                          </div>
+                          {nicknameEditError && (
+                            <p className="text-[11px] text-rose-500 font-medium">⚠ {nicknameEditError}</p>
+                          )}
+                          <p className={`text-[10px] ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>
+                            최소 2글자 · 최대 6글자 · 욕설·지역감정·패드립 불가
+                          </p>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => { setShowNicknameEdit(false); setNicknameEditInput(''); setNicknameEditError(null); setNicknameEditDupOk(false); }}
+                              className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${darkMode ? 'bg-slate-600 text-slate-300 hover:bg-slate-500' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}
+                            >취소</button>
+                            <button
+                              type="button"
+                              onClick={() => saveNickname(me.nickname)}
+                              disabled={!nicknameEditDupOk || !!nicknameEditError || nicknameEditSaving}
+                              className="flex-1 py-1.5 rounded-lg text-xs font-bold bg-gradient-to-r from-cyan-500 to-teal-500 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:from-cyan-600 hover:to-teal-600"
+                            >
+                              {nicknameEditSaving ? '저장 중…' : '저장'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
                       {/* 성향 배지들 */}
                       <div className="flex flex-wrap gap-1.5">
                         <span className="px-2.5 py-1 rounded-full text-[11px] font-bold text-white border border-white/20" style={{ backgroundColor: posColor + '33', borderColor: posColor + '66', color: posColor }}>{posLabel}</span>
