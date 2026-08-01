@@ -99,26 +99,36 @@ export function useGames(
     if (!currentUserId) return;
     const currentProfile = profiles.find(p => p.id === currentUserId);
     const tableNumber = seats.find(s => s.profile_id === currentUserId)?.table_number ?? null;
-    const { data } = await supabase.from('balance_games').insert({
-      creator_id: currentUserId,
-      creator_nickname: currentProfile?.nickname ?? null,
-      scope,
-      table_number: scope === 'table' ? tableNumber : null,
-      question, option_a: optA, option_b: optB,
-    }).select().single();
-    if (data) setBalanceGames(prev => prev.some(g => g.id === (data as BalanceGame).id) ? prev : [data as BalanceGame, ...prev]);
+    try {
+      const { data, error } = await supabase.from('balance_games').insert({
+        creator_id: currentUserId,
+        creator_nickname: currentProfile?.nickname ?? null,
+        scope,
+        table_number: scope === 'table' ? tableNumber : null,
+        question, option_a: optA, option_b: optB,
+      }).select().single();
+      if (error) throw error;
+      if (data) setBalanceGames(prev => prev.some(g => g.id === (data as BalanceGame).id) ? prev : [data as BalanceGame, ...prev]);
+    } catch {
+      alert('게임 생성에 실패했습니다. 다시 시도해 주세요.');
+    }
   };
 
   const endBalanceGame = async (gameId: string) => {
-    await supabase.from('balance_games').update({ status: 'ended', ended_at: new Date().toISOString() }).eq('id', gameId);
-    // setState 중첩 호출 금지: 먼저 업데이트 값 계산 후 두 setter 분리 호출
-    const target = balanceGames.find(g => g.id === gameId);
-    if (target) {
-      const updated = { ...target, status: 'ended' as const };
-      const counts = voteCounts.get(gameId) || { a: 0, b: 0 };
-      setGameEndResult({ game: updated, counts });
+    try {
+      const { error } = await supabase.from('balance_games').update({ status: 'ended', ended_at: new Date().toISOString() }).eq('id', gameId);
+      if (error) throw error;
+      // setState 중첩 호출 금지: 먼저 업데이트 값 계산 후 두 setter 분리 호출
+      const target = balanceGames.find(g => g.id === gameId);
+      if (target) {
+        const updated = { ...target, status: 'ended' as const };
+        const counts = voteCounts.get(gameId) || { a: 0, b: 0 };
+        setGameEndResult({ game: updated, counts });
+      }
+      setBalanceGames(prev => prev.map(g => g.id !== gameId ? g : { ...g, status: 'ended' as const }));
+    } catch {
+      alert('게임 종료에 실패했습니다. 다시 시도해 주세요.');
     }
-    setBalanceGames(prev => prev.map(g => g.id !== gameId ? g : { ...g, status: 'ended' as const }));
   };
 
   const broadcastTableGame = useCallback((session: TableMiniGameSession) => {
