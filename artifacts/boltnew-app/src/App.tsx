@@ -645,10 +645,8 @@ function App() {
 
   const submitAnonymousReport = async (content: string, tableNumber: number | null) => {
     if (!content.trim()) return;
-    try {
-      const { error } = await supabase.from('anonymous_reports').insert({ content: content.trim(), table_number: tableNumber });
-      if (error) { alert('제보 전송에 실패했습니다. 다시 시도해 주세요.'); }
-    } catch { alert('제보 전송에 실패했습니다. 네트워크를 확인해 주세요.'); }
+    const { error } = await supabase.from('anonymous_reports').insert({ content: content.trim(), table_number: tableNumber });
+    if (error) throw new Error(error.message ?? '전송 실패');
   };
 
 

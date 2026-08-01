@@ -681,6 +681,7 @@ export function MainScreen({
   const reportSentKey = `reportSent_${currentUserId}`;
   const [reportSent, setReportSentRaw] = useState(() => ls.getItem(reportSentKey) === '1');
   const setReportSent = (v: boolean) => { if (v) ls.setItem(reportSentKey, '1'); else ls.removeItem(reportSentKey); setReportSentRaw(v); };
+  const [reportError, setReportError] = useState<string | null>(null);
   const [drinkPicker, setDrinkPicker] = useState<string | null>(null);
   const [refreshedTab, setRefreshedTab] = useState<string | null>(null);
 
@@ -764,10 +765,15 @@ export function MainScreen({
   };
 
   const sendReport = async (text: string) => {
-    await onSubmitAnonymousReport(text, tableNumber);
-    setDrinkPicker(null);
-    setReportSent(true);
-    setReportText('');
+    setReportError(null);
+    try {
+      await onSubmitAnonymousReport(text, tableNumber);
+      setDrinkPicker(null);
+      setReportSent(true);
+      setReportText('');
+    } catch {
+      setReportError('신고 전송 실패 — 잠시 후 다시 시도해 주세요');
+    }
   };
 
   // ── 사주 탭 생월·생일 편집 상태 ─────────────────────────────────────────────
@@ -2199,6 +2205,10 @@ export function MainScreen({
                         ))}
                       </div>
                     </>
+                  )}
+
+                  {reportError && (
+                    <p className="text-xs text-red-500 font-semibold mb-2">{reportError}</p>
                   )}
 
                   {/* Custom message */}
