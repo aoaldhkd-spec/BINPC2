@@ -8,7 +8,8 @@
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test:pin": "node --test tests/pin-exhaustion.test.mjs"
+    "test:pin": "node --test tests/pin-exhaustion.test.mjs",
+    "test:admin-push": "node --test tests/admin-db-failure-push.test.mjs"
   },
   "dependencies": {
     "@types/express-session": "^1.19.0",
