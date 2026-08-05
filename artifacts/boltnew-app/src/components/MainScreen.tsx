@@ -779,8 +779,13 @@ export function MainScreen({
 
   // ── 사주 탭 생월·생일 편집 상태 ─────────────────────────────────────────────
   const [chatSearch, setChatSearch] = useState('');
-  const [showBirthEdit, setShowBirthEdit] = useState(false);
   const [showContactEdit, setShowContactEdit] = useState(false);
+  // ── 프로필 편집 통합 상태 (한 섹션만 열림) ──────────────────────────────────
+  const [profileEditSection, setProfileEditSection] = useState<'avatar' | 'nickname' | 'birth' | 'interests' | null>(null);
+  const showBirthEdit = profileEditSection === 'birth';
+  const showInterestEdit = profileEditSection === 'interests';
+  const showAvatarPicker = profileEditSection === 'avatar';
+  const showNicknameEdit = profileEditSection === 'nickname';
   const [showFortuneBirthEdit, setShowFortuneBirthEdit] = useState(false);
   const fortuneBirthAutoOpenedRef = useRef(false);
   const [sajuBirthMonth, setSajuBirthMonth] = useState<number | null>(null);
@@ -797,7 +802,6 @@ export function MainScreen({
   const statusContactInitRef = useRef(false);
 
   // ── 닉네임 변경 상태 ────────────────────────────────────────────────────────
-  const [showNicknameEdit, setShowNicknameEdit] = useState(false);
   const [nicknameEditInput, setNicknameEditInput] = useState('');
   const [nicknameEditError, setNicknameEditError] = useState<string | null>(null);
   const [nicknameEditChecking, setNicknameEditChecking] = useState(false);
@@ -806,7 +810,6 @@ export function MainScreen({
   const nickEditTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── 관심사 편집 상태 ────────────────────────────────────────────────────────
-  const [showInterestEdit, setShowInterestEdit] = useState(false);
   const [editInterests, setEditInterests] = useState<string[]>([]);
   const [interestFilter, setInterestFilter] = useState<string | null>(null);
   const [interestSaving, setInterestSaving] = useState(false);
@@ -854,7 +857,7 @@ export function MainScreen({
       } as never).eq('id', currentUserId);
       onUpdateProfile({ id: currentUserId, birth_month: sajuBirthMonth, birth_day: sajuBirthDay });
       sajuInitRef.current = false;
-      setShowBirthEdit(false);
+      setProfileEditSection(null);
       setShowFortuneBirthEdit(false);
       onRefreshProfiles();
     } catch (e) { console.error('[saju] 저장 실패:', e); }
@@ -869,7 +872,7 @@ export function MainScreen({
       await supabase.from('profiles').update({ bio: bioStr } as never).eq('id', currentUserId);
       onUpdateProfile({ id: currentUserId, bio: bioStr });
       interestInitRef.current = false;
-      setShowInterestEdit(false);
+      setProfileEditSection(null);
       onRefreshProfiles();
     } catch (e) { console.error('[interests] 저장 실패:', e); }
     setInterestSaving(false);
@@ -909,7 +912,7 @@ export function MainScreen({
     try {
       await supabase.from('profiles').update({ nickname: trimmed } as never).eq('id', currentUserId);
       onUpdateProfile({ id: currentUserId, nickname: trimmed });
-      setShowNicknameEdit(false);
+      setProfileEditSection(null);
       setNicknameEditInput('');
       setNicknameEditDupOk(false);
       onRefreshProfiles();
@@ -937,7 +940,6 @@ export function MainScreen({
 
   // ── 프로필 사진 업로드 + 기본 아바타 피커 ────────────────────────────────────
   const [photoUploading, setPhotoUploading] = useState(false);
-  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [avatarCatIdx, setAvatarCatIdx] = useState(0);
 
   const handleSelectPresetAvatar = async (avatarUrl: string) => {
@@ -945,7 +947,7 @@ export function MainScreen({
     await supabase.from('profiles').update({ photo_url: avatarUrl } as never).eq('id', currentUserId);
     onUpdateProfile({ id: currentUserId, photo_url: avatarUrl });
     onRefreshProfiles();
-    setShowAvatarPicker(false);
+    setProfileEditSection(null);
   };
   // 이미지 압축: 최대 1200px, JPEG 품질 0.92 — 화질 유지 + 메모리/DB 과부하 방지
   const compressImage = (dataUrl: string, maxPx = 1200, quality = 0.92): Promise<string> =>
@@ -1036,112 +1038,68 @@ export function MainScreen({
           </div>
         </div>
         {timerEndAt && <TimerBanner endAt={timerEndAt} label={timerLabel ?? ''} />}
-        {/* Bottom Tab Bar */}
-        <div className={`max-w-7xl mx-auto flex border-t-2 overflow-x-auto scrollbar-hide safe-area-pb ${darkMode ? 'bg-slate-900 border-slate-700' : 'bg-gray-50 border-gray-200'}`} style={{ WebkitOverflowScrolling: 'touch' }}>
-          {([
-            { id: 'status' as MainTab, label: '나·참여자', icon: <UserCheck className="w-5 h-5" />, badge: Math.max(0, pendingHeartsCount - seenHeartsCount) + newContactsCount + (seenProfilesCount < 0 ? 0 : Math.max(0, profiles.length - seenProfilesCount)) },
-            { id: 'seating' as MainTab, label: '배치도', icon: <LayoutGrid className="w-5 h-5" /> },
-            { id: 'chats' as MainTab, label: '채팅·건의', icon: <MessageCircle className="w-5 h-5" />, badge: newMsgCount },
-            { id: 'game' as MainTab, label: '게임·운세', icon: <Gamepad2 className="w-5 h-5" />, badge: Math.max(0, activeGameCount - seenGameCount) },
-            { id: 'stats' as MainTab, label: '통계·랭킹', icon: <BarChart3 className="w-5 h-5" /> },
-          ]).map((t) => {
-            const isTabLocked = seatingLocked && LOCKED_TABS.has(t.id);
-            const isActive = mainTab === t.id || (t.id === 'status' && mainTab === 'profiles') || (t.id === 'chats' && mainTab === 'suggestions') || (t.id === 'stats' && mainTab === 'ranking') || (t.id === 'game' && mainTab === 'fortune');
-            return (
-            <button key={t.id} onClick={() => handleTabChange(t.id)} disabled={isTabLocked}
-              className={`relative flex-1 min-w-[56px] flex flex-col items-center gap-1 px-2 py-2.5 text-[10px] font-semibold border-b-2 transition-all active:scale-95 ${isTabLocked ? 'opacity-35 cursor-not-allowed border-transparent ' + (darkMode ? 'text-slate-500' : 'text-gray-400') : isActive
-                  ? darkMode ? 'border-cyan-500 text-cyan-400 bg-cyan-500/10' : 'border-cyan-500 text-cyan-600 bg-cyan-50'
-                  : darkMode ? 'border-transparent text-slate-400' : 'border-transparent text-gray-500 active:text-gray-700'
-              }`}>
-              <span className="relative">
-                {isTabLocked ? <Lock className="w-5 h-5" /> : t.icon}
-                {!isTabLocked && 'badge' in t && (t as { badge: number }).badge > 0 && (
-                  <span className="absolute -top-1.5 -right-2 min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                    {t.badge}
-                  </span>
-                )}
-              </span>
-              <span className="leading-none whitespace-nowrap">{isTabLocked ? '잠금' : t.label}</span>
-            </button>
-            );
-          })}
-        </div>
-        {/* Sub Tab — 나·참여자 */}
-        {(mainTab === 'status' || mainTab === 'profiles') && (
-          <div className={`max-w-7xl mx-auto flex p-1 ${darkMode ? 'bg-slate-800' : 'bg-gray-200/80'}`}>
+        {/* ── 탭 바 (2행) ── */}
+        <div className={`max-w-7xl mx-auto border-t-2 ${darkMode ? 'bg-slate-900 border-slate-700' : 'bg-gray-50 border-gray-200'}`}>
+          {/* 1행: 주요 탭 */}
+          <div className={`flex border-b ${darkMode ? 'border-slate-700/60' : 'border-gray-200'}`}>
             {([
               { id: 'status' as MainTab, label: '내 상태', badge: Math.max(0, pendingHeartsCount - seenHeartsCount) + newContactsCount },
               { id: 'profiles' as MainTab, label: '참여자', badge: seenProfilesCount < 0 ? 0 : Math.max(0, profiles.length - seenProfilesCount) },
-            ]).map(sub => (
-              <button key={sub.id} onClick={() => handleTabChange(sub.id)}
-                className={`relative flex-1 py-2 rounded-lg text-[11px] font-bold transition-all ${
-                  mainTab === sub.id
-                    ? darkMode ? 'bg-slate-700 text-cyan-400 shadow-sm' : 'bg-white text-gray-800 shadow-sm'
-                    : darkMode ? 'text-slate-500' : 'text-gray-500'
-                }`}>
-                {sub.label}
-                {sub.badge > 0 && (
-                  <span className="absolute top-1 right-3 min-w-[16px] h-[16px] px-0.5 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
-                    {sub.badge}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-        )}
-        {/* Sub Tab — 채팅·건의 */}
-        {(mainTab === 'chats' || mainTab === 'suggestions') && (
-          <div className={`max-w-7xl mx-auto flex p-1 ${darkMode ? 'bg-slate-800' : 'bg-gray-200/80'}`}>
-            {([
+              { id: 'seating' as MainTab, label: '배치도' },
               { id: 'chats' as MainTab, label: '채팅', badge: newMsgCount },
-              { id: 'suggestions' as MainTab, label: '건의함', badge: 0 },
-            ]).map(sub => (
-              <button key={sub.id} onClick={() => handleTabChange(sub.id)}
-                className={`relative flex-1 py-2 rounded-lg text-[11px] font-bold transition-all ${
-                  mainTab === sub.id
-                    ? darkMode ? 'bg-slate-700 text-cyan-400 shadow-sm' : 'bg-white text-gray-800 shadow-sm'
-                    : darkMode ? 'text-slate-500' : 'text-gray-500'
-                }`}>
-                {sub.label}
-                {sub.badge > 0 && (
-                  <span className="absolute top-1 right-3 min-w-[16px] h-[16px] px-0.5 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
-                    {sub.badge}
+              { id: 'suggestions' as MainTab, label: '건의함' },
+            ]).map((t) => {
+              const locked = seatingLocked && LOCKED_TABS.has(t.id);
+              const active = mainTab === t.id;
+              return (
+                <button key={t.id} onClick={() => handleTabChange(t.id)} disabled={locked}
+                  className={`relative flex-1 py-2.5 text-[11px] font-bold border-b-2 transition-all active:scale-95 ${
+                    locked ? `opacity-35 cursor-not-allowed border-transparent ${darkMode ? 'text-slate-500' : 'text-gray-400'}` :
+                    active ? darkMode ? 'border-cyan-500 text-cyan-400 bg-cyan-500/10' : 'border-cyan-500 text-cyan-700 bg-cyan-50' :
+                    darkMode ? 'border-transparent text-slate-400' : 'border-transparent text-gray-500'
+                  }`}>
+                  <span className="relative inline-flex">
+                    {locked ? '🔒' : t.label}
+                    {'badge' in t && !locked && (t as { badge: number }).badge > 0 && (
+                      <span className="absolute -top-1 -right-3.5 min-w-[14px] h-[14px] px-0.5 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
+                        {(t as { badge: number }).badge}
+                      </span>
+                    )}
                   </span>
-                )}
-              </button>
-            ))}
+                </button>
+              );
+            })}
           </div>
-        )}
-        {/* Sub Tab — 통계·랭킹 */}
-        {(mainTab === 'stats' || mainTab === 'ranking') && (
-          <div className={`max-w-7xl mx-auto flex p-1 ${darkMode ? 'bg-slate-800' : 'bg-gray-200/80'}`}>
-            {[{ id: 'stats' as MainTab, label: '통계' }, { id: 'ranking' as MainTab, label: '랭킹' }].map(sub => (
-              <button key={sub.id} onClick={() => handleTabChange(sub.id)}
-                className={`flex-1 py-2 rounded-lg text-[11px] font-bold transition-all ${
-                  mainTab === sub.id
-                    ? darkMode ? 'bg-slate-700 text-cyan-400 shadow-sm' : 'bg-white text-gray-800 shadow-sm'
-                    : darkMode ? 'text-slate-500' : 'text-gray-500'
-                }`}>
-                {sub.label}
-              </button>
-            ))}
+          {/* 2행: 보조 탭 */}
+          <div className={`flex ${darkMode ? 'bg-slate-900' : 'bg-gray-50'}`}>
+            {([
+              { id: 'game' as MainTab, label: '🎮 게임', badge: Math.max(0, activeGameCount - seenGameCount) },
+              { id: 'fortune' as MainTab, label: '🔮 운세' },
+              { id: 'stats' as MainTab, label: '📊 통계' },
+              { id: 'ranking' as MainTab, label: '🏆 랭킹' },
+            ]).map((t) => {
+              const locked = seatingLocked && LOCKED_TABS.has(t.id);
+              const active = mainTab === t.id;
+              return (
+                <button key={t.id} onClick={() => handleTabChange(t.id)} disabled={locked}
+                  className={`relative flex-1 py-1.5 text-[11px] font-bold border-b-2 transition-all active:scale-95 ${
+                    locked ? `opacity-35 cursor-not-allowed border-transparent ${darkMode ? 'text-slate-500' : 'text-gray-400'}` :
+                    active ? darkMode ? 'border-cyan-500 text-cyan-400 bg-cyan-500/10' : 'border-cyan-500 text-cyan-700 bg-cyan-50' :
+                    darkMode ? 'border-transparent text-slate-400' : 'border-transparent text-gray-500'
+                  }`}>
+                  <span className="relative inline-flex">
+                    {locked ? '🔒' : t.label}
+                    {'badge' in t && !locked && (t as { badge: number }).badge > 0 && (
+                      <span className="absolute -top-1 -right-3.5 min-w-[14px] h-[14px] px-0.5 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
+                        {(t as { badge: number }).badge}
+                      </span>
+                    )}
+                  </span>
+                </button>
+              );
+            })}
           </div>
-        )}
-        {/* Sub Tab — 게임·운세 */}
-        {(mainTab === 'game' || mainTab === 'fortune') && (
-          <div className={`max-w-7xl mx-auto flex p-1 ${darkMode ? 'bg-slate-800' : 'bg-gray-200/80'}`}>
-            {[{ id: 'game' as MainTab, label: '🎮 게임' }, { id: 'fortune' as MainTab, label: '🔮 운세' }].map(sub => (
-              <button key={sub.id} onClick={() => handleTabChange(sub.id)}
-                className={`flex-1 py-2 rounded-lg text-[11px] font-bold transition-all ${
-                  mainTab === sub.id
-                    ? darkMode ? 'bg-slate-700 text-cyan-400 shadow-sm' : 'bg-white text-gray-800 shadow-sm'
-                    : darkMode ? 'text-slate-500' : 'text-gray-500'
-                }`}>
-                {sub.label}
-              </button>
-            ))}
-          </div>
-        )}
+        </div>
 
       </header>
 
@@ -1348,14 +1306,6 @@ export function MainScreen({
                         const avLabel = AVATAR_CATEGORIES.flatMap(c => c.avatars).find(a => a.src === me.photo_url)?.label;
                         return avLabel ? <span className={`text-[10px] font-bold text-center leading-tight ${darkMode ? 'text-slate-300' : 'text-gray-600'}`}>{avLabel}</span> : null;
                       })()}
-                      {/* 기본 아바타 선택 버튼 */}
-                      <button
-                        type="button"
-                        onClick={() => setShowAvatarPicker(v => !v)}
-                        className="text-[10px] font-bold text-cyan-400 hover:text-cyan-300 underline underline-offset-2 transition-colors"
-                      >
-                        🎨 기본 아바타
-                      </button>
                       {currentUserSeat && (
                         <div className="text-center">
                           <span className="text-[10px] font-black text-amber-400">{currentUserSeat.table_number}번 {tableLetter}테이블</span>
@@ -1369,78 +1319,7 @@ export function MainScreen({
                         {me.mbti && (
                           <span className="px-2 py-0.5 bg-teal-500/20 border border-teal-500/40 text-teal-300 text-xs font-bold rounded-lg">{me.mbti}</span>
                         )}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (showNicknameEdit) {
-                              setShowNicknameEdit(false);
-                              setNicknameEditInput('');
-                              setNicknameEditError(null);
-                              setNicknameEditDupOk(false);
-                            } else {
-                              setNicknameEditInput('');
-                              setNicknameEditError(null);
-                              setNicknameEditDupOk(false);
-                              setShowNicknameEdit(true);
-                            }
-                          }}
-                          className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all border ${
-                            showNicknameEdit
-                              ? darkMode ? 'bg-slate-600 border-slate-500 text-slate-300' : 'bg-gray-200 border-gray-300 text-gray-600'
-                              : darkMode ? 'bg-cyan-500/15 border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/25' : 'bg-cyan-50 border-cyan-200 text-cyan-600 hover:bg-cyan-100'
-                          }`}
-                        >
-                          <Pencil className="w-2.5 h-2.5" />
-                          닉변
-                        </button>
                       </div>
-                      {/* 닉네임 인라인 편집 폼 */}
-                      {showNicknameEdit && (
-                        <div className={`rounded-xl border p-3 space-y-2 ${darkMode ? 'bg-slate-700/60 border-slate-600' : 'bg-gray-50 border-gray-200'}`}>
-                          <div className="relative">
-                            <input
-                              type="text"
-                              value={nicknameEditInput}
-                              onChange={(e) => handleNicknameEditChange(e.target.value, me.nickname)}
-                              maxLength={6}
-                              autoFocus
-                              placeholder="새 닉네임 (2~6글자)"
-                              className={`w-full px-3 py-2 rounded-lg border-2 text-sm font-bold transition-all outline-none ${
-                                darkMode ? 'bg-slate-800 text-white placeholder-slate-500' : 'bg-white text-gray-900'
-                              } ${
-                                nicknameEditError ? 'border-rose-400' :
-                                nicknameEditDupOk ? 'border-emerald-400' :
-                                darkMode ? 'border-slate-500 focus:border-cyan-500' : 'border-gray-300 focus:border-cyan-400'
-                              }`}
-                            />
-                            <div className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold">
-                              {nicknameEditChecking && <span className={darkMode ? 'text-slate-400' : 'text-gray-400'}>확인 중…</span>}
-                              {!nicknameEditChecking && nicknameEditDupOk && !nicknameEditError && <span className="text-emerald-500">사용 가능 ✓</span>}
-                            </div>
-                          </div>
-                          {nicknameEditError && (
-                            <p className="text-[11px] text-rose-500 font-medium">⚠ {nicknameEditError}</p>
-                          )}
-                          <p className={`text-[10px] ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>
-                            최소 2글자 · 최대 6글자 · 욕설·지역감정·패드립 불가
-                          </p>
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => { setShowNicknameEdit(false); setNicknameEditInput(''); setNicknameEditError(null); setNicknameEditDupOk(false); }}
-                              className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${darkMode ? 'bg-slate-600 text-slate-300 hover:bg-slate-500' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}
-                            >취소</button>
-                            <button
-                              type="button"
-                              onClick={() => saveNickname(me.nickname)}
-                              disabled={!nicknameEditDupOk || !!nicknameEditError || nicknameEditSaving}
-                              className="flex-1 py-1.5 rounded-lg text-xs font-bold bg-gradient-to-r from-cyan-500 to-teal-500 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:from-cyan-600 hover:to-teal-600"
-                            >
-                              {nicknameEditSaving ? '저장 중…' : '저장'}
-                            </button>
-                          </div>
-                        </div>
-                      )}
                       {/* 성향 배지들 */}
                       <div className="flex flex-wrap gap-1.5">
                         <span className="px-2.5 py-1 rounded-full text-[11px] font-bold text-white border border-white/20" style={{ backgroundColor: posColor + '33', borderColor: posColor + '66', color: posColor }}>{posLabel}</span>
@@ -1456,74 +1335,6 @@ export function MainScreen({
                       )}
                     </div>
                   </div>
-                  {/* ── 기본 아바타 피커 (카테고리 탭 방식) ── */}
-                  {showAvatarPicker && (
-                    <div className={`mt-3 rounded-2xl border overflow-hidden ${darkMode ? 'bg-slate-800/60 border-slate-600' : 'bg-gray-50 border-gray-200'}`}>
-                      {/* 헤더 */}
-                      <div className="flex items-center justify-between px-3 pt-3 pb-1">
-                        <p className={`text-[11px] font-black ${darkMode ? 'text-slate-200' : 'text-gray-700'}`}>🎨 기본 아바타 선택</p>
-                        <button onClick={() => setShowAvatarPicker(false)} className={`text-[10px] font-bold ${darkMode ? 'text-slate-400 hover:text-slate-200' : 'text-gray-400 hover:text-gray-600'} transition-colors`}>✕ 닫기</button>
-                      </div>
-                      {/* 저작권 안내 */}
-                      <p className={`px-3 pb-2 text-[9px] leading-snug ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>
-                        ⚠️ 저작권으로 인하여 아래와 같은 아바타 밖에 만들지 못합니다.
-                      </p>
-                      {/* 카테고리 탭 (2-3줄 그리드) */}
-                      <div className={`flex flex-wrap gap-1 px-3 pb-2 border-b ${darkMode ? 'border-slate-700' : 'border-gray-200'}`}>
-                        {AVATAR_CATEGORIES.map((cat, idx) => (
-                          <button
-                            key={cat.label}
-                            type="button"
-                            onClick={() => setAvatarCatIdx(idx)}
-                            className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all whitespace-nowrap ${
-                              avatarCatIdx === idx
-                                ? 'bg-cyan-500 text-white shadow-sm'
-                                : darkMode
-                                  ? 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                                  : 'bg-white text-gray-600 border border-gray-200 hover:border-cyan-300'
-                            }`}
-                          >
-                            {cat.label}
-                          </button>
-                        ))}
-                      </div>
-                      {/* 선택된 카테고리 그리드 */}
-                      <div className="p-3">
-                        <div className="grid grid-cols-5 gap-2">
-                          {AVATAR_CATEGORIES[avatarCatIdx]?.avatars.map((av) => {
-                            const isSelected = me.photo_url === av.src;
-                            return (
-                              <button
-                                key={av.id}
-                                type="button"
-                                onClick={() => handleSelectPresetAvatar(av.src)}
-                                className={`relative flex flex-col items-center gap-1 py-2 px-1 rounded-xl border-2 shadow-sm transition-all active:scale-95 ${
-                                  isSelected
-                                    ? 'border-cyan-500 bg-cyan-50'
-                                    : darkMode
-                                      ? 'border-slate-600 bg-slate-700/70 hover:border-cyan-400'
-                                      : 'border-gray-200 bg-white hover:border-cyan-300 hover:shadow-md'
-                                }`}
-                              >
-                                <img
-                                  src={av.src}
-                                  alt={av.label}
-                                  className="w-12 h-12 rounded-full object-cover block"
-                                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                                />
-                                <span className={`text-[10px] font-bold leading-tight text-center w-full truncate ${isSelected ? 'text-cyan-600' : darkMode ? 'text-slate-300' : 'text-gray-600'}`}>{av.label}</span>
-                                {isSelected && (
-                                  <span className="absolute top-1 right-1 w-4 h-4 bg-cyan-500 rounded-full flex items-center justify-center shadow">
-                                    <CheckCircle className="w-2.5 h-2.5 text-white" />
-                                  </span>
-                                )}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  )}
                   {/* 성향 바 */}
                   <div className="mt-4 grid grid-cols-2 gap-3">
                     <div>
@@ -1590,6 +1401,268 @@ export function MainScreen({
                 </div>
               );
             })()}
+
+            {/* ── 프로필 편집 (통합) ── */}
+            {(() => {
+              const me = profiles.find(p => p.id === currentUserId);
+              if (!me) return null;
+              const currentTags = me.bio ? me.bio.split(',').map(t => t.trim()).filter(Boolean) : [];
+              const hasBd = !!(me.birth_month && me.birth_day);
+              const atMax = editInterests.length >= 5;
+              const toggleTag = (tag: string) => {
+                // 함수형 업데이트 대신 직접 계산 — setTimeout 클로저 stale 문제 방지
+                const next = editInterests.includes(tag)
+                  ? editInterests.filter(t => t !== tag)
+                  : editInterests.length < 5 ? [...editInterests, tag] : editInterests;
+                setEditInterests(next);
+                // 2번째 관심사를 막 선택한 순간 → 즉시 저장 + 닫기
+                if (next.length >= 2 && editInterests.length < 2 && currentUserId) {
+                  const bioStr = next.join(', ');
+                  setInterestSaving(true);
+                  supabase.from('profiles').update({ bio: bioStr } as never).eq('id', currentUserId)
+                    .then(() => {
+                      onUpdateProfile({ id: currentUserId!, bio: bioStr });
+                      interestInitRef.current = false;
+                      setInterestSaving(false);
+                      onRefreshProfiles();
+                    })
+                    .catch((e: unknown) => { console.error('[interests auto]', e); setInterestSaving(false); });
+                  setProfileEditSection(null);
+                }
+              };
+              const toggleSection = (s: 'avatar' | 'nickname' | 'birth' | 'interests') => {
+                if (s === 'nickname' && profileEditSection !== 'nickname') {
+                  setNicknameEditInput('');
+                  setNicknameEditError(null);
+                  setNicknameEditDupOk(false);
+                }
+                if (s === 'interests' && profileEditSection !== 'interests') {
+                  interestInitRef.current = false;
+                  setEditInterests(currentTags);
+                }
+                setProfileEditSection(p => p === s ? null : s);
+              };
+              return (
+                <div className={`rounded-2xl border overflow-hidden transition-colors duration-300 ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-100'}`}>
+                  <div className={`px-4 py-3 border-b ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
+                    <p className={`text-[10px] font-black uppercase tracking-widest ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>✏️ 프로필 편집</p>
+                  </div>
+
+                  {/* ── 사진·아바타 ── */}
+                  <div className={`border-b ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
+                    <button onClick={() => toggleSection('avatar')} className="w-full flex items-center gap-3 px-4 py-3 text-left">
+                      {me.photo_url ? (
+                        <img src={me.photo_url} alt="" className="w-9 h-9 rounded-xl object-cover flex-shrink-0 border border-white/10" />
+                      ) : (
+                        <div className="w-9 h-9 rounded-xl bg-teal-500 flex items-center justify-center text-white font-black text-sm flex-shrink-0">{me.nickname[0]}</div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>사진 · 아바타</p>
+                        <p className={`text-[11px] ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>탭하여 사진 또는 아바타 변경</p>
+                      </div>
+                      <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${showAvatarPicker ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
+                    </button>
+                    {showAvatarPicker && (
+                      <div className={`px-4 pb-4 ${darkMode ? 'bg-slate-700/20' : 'bg-gray-50/50'}`}>
+                        <label className={`flex items-center gap-3 p-3 mb-3 rounded-xl border-2 border-dashed cursor-pointer transition-all ${darkMode ? 'border-slate-600 hover:border-cyan-500 bg-slate-800/60' : 'border-gray-200 hover:border-cyan-400 bg-white'}`}>
+                          <Camera className={`w-5 h-5 flex-shrink-0 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
+                          <div className="flex-1">
+                            <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-700'}`}>내 사진 업로드</p>
+                            <p className={`text-[11px] ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>JPG/PNG · 자동 압축</p>
+                          </div>
+                          {photoUploading && <div className="w-5 h-5 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />}
+                          <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} disabled={photoUploading} />
+                        </label>
+                        <p className={`text-[11px] font-black mb-1 ${darkMode ? 'text-slate-300' : 'text-gray-600'}`}>🎨 기본 아바타 선택</p>
+                        <p className={`text-[9px] mb-2 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>⚠️ 저작권으로 인하여 아래와 같은 아바타 밖에 만들지 못합니다.</p>
+                        <div className={`flex flex-wrap gap-1 mb-2 pb-2 border-b ${darkMode ? 'border-slate-700' : 'border-gray-200'}`}>
+                          {AVATAR_CATEGORIES.map((cat, idx) => (
+                            <button key={cat.label} type="button" onClick={() => setAvatarCatIdx(idx)}
+                              className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all whitespace-nowrap ${
+                                avatarCatIdx === idx ? 'bg-cyan-500 text-white shadow-sm' :
+                                darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-white text-gray-600 border border-gray-200 hover:border-cyan-300'
+                              }`}>{cat.label}</button>
+                          ))}
+                        </div>
+                        <div className="grid grid-cols-5 gap-2">
+                          {AVATAR_CATEGORIES[avatarCatIdx]?.avatars.map((av) => {
+                            const isSel = me.photo_url === av.src;
+                            return (
+                              <button key={av.id} type="button" onClick={() => handleSelectPresetAvatar(av.src)}
+                                className={`relative flex flex-col items-center gap-1 py-2 px-1 rounded-xl border-2 shadow-sm transition-all active:scale-95 ${
+                                  isSel ? 'border-cyan-500 bg-cyan-50' :
+                                  darkMode ? 'border-slate-600 bg-slate-700/70 hover:border-cyan-400' : 'border-gray-200 bg-white hover:border-cyan-300 hover:shadow-md'
+                                }`}>
+                                <img src={av.src} alt={av.label} className="w-12 h-12 rounded-full object-cover block"
+                                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                                <span className={`text-[10px] font-bold leading-tight text-center w-full truncate ${isSel ? 'text-cyan-600' : darkMode ? 'text-slate-300' : 'text-gray-600'}`}>{av.label}</span>
+                                {isSel && <span className="absolute top-1 right-1 w-4 h-4 bg-cyan-500 rounded-full flex items-center justify-center shadow"><CheckCircle className="w-2.5 h-2.5 text-white" /></span>}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ── 닉네임 ── */}
+                  <div className={`border-b ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
+                    <button onClick={() => toggleSection('nickname')} className="w-full flex items-center gap-3 px-4 py-3 text-left">
+                      <span className="text-xl flex-shrink-0">🏷️</span>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>닉네임</p>
+                        <p className={`text-[11px] font-semibold truncate ${darkMode ? 'text-cyan-400' : 'text-cyan-600'}`}>{me.nickname}</p>
+                      </div>
+                      <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${showNicknameEdit ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
+                    </button>
+                    {showNicknameEdit && (
+                      <div className={`px-4 pb-4 space-y-2 ${darkMode ? 'bg-slate-700/20' : 'bg-gray-50/50'}`}>
+                        <div className="relative">
+                          <input type="text" value={nicknameEditInput}
+                            onChange={(e) => handleNicknameEditChange(e.target.value, me.nickname)}
+                            maxLength={6} autoFocus placeholder="새 닉네임 (2~6글자)"
+                            className={`w-full px-3 py-2 rounded-lg border-2 text-sm font-bold transition-all outline-none ${
+                              darkMode ? 'bg-slate-800 text-white placeholder-slate-500' : 'bg-white text-gray-900'
+                            } ${nicknameEditError ? 'border-rose-400' : nicknameEditDupOk ? 'border-emerald-400' : darkMode ? 'border-slate-500 focus:border-cyan-500' : 'border-gray-300 focus:border-cyan-400'}`}
+                          />
+                          <div className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold">
+                            {nicknameEditChecking && <span className={darkMode ? 'text-slate-400' : 'text-gray-400'}>확인 중…</span>}
+                            {!nicknameEditChecking && nicknameEditDupOk && !nicknameEditError && <span className="text-emerald-500">사용 가능 ✓</span>}
+                          </div>
+                        </div>
+                        {nicknameEditError && <p className="text-[11px] text-rose-500 font-medium">⚠ {nicknameEditError}</p>}
+                        <p className={`text-[10px] ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>최소 2글자 · 최대 6글자 · 욕설·지역감정·패드립 불가</p>
+                        <p className={`text-[10px] mt-0.5 ${darkMode ? 'text-teal-400/70' : 'text-teal-600/70'}`}>💡 예시: 음식이름, 패션스타일, 직업 등 나를 나타낼 수 있는 거 아무거나 설정해 주세요!</p>
+                        <div className="flex gap-2">
+                          <button type="button" onClick={() => setProfileEditSection(null)}
+                            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${darkMode ? 'bg-slate-600 text-slate-300 hover:bg-slate-500' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>취소</button>
+                          <button type="button" onClick={() => saveNickname(me.nickname)}
+                            disabled={!nicknameEditDupOk || !!nicknameEditError || nicknameEditSaving}
+                            className="flex-1 py-1.5 rounded-lg text-xs font-bold bg-gradient-to-r from-cyan-500 to-teal-500 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all">
+                            {nicknameEditSaving ? '저장 중…' : '저장'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ── 생월·생일 ── */}
+                  <div className={`border-b ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
+                    <button onClick={() => toggleSection('birth')} className="w-full flex items-center gap-3 px-4 py-3 text-left">
+                      <span className="text-xl flex-shrink-0">🔮</span>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>생월 · 생일</p>
+                        <p className={`text-[11px] ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{hasBd ? `${me.birth_month}월 ${me.birth_day}일` : '미설정 — 사주·운세·궁합에 반영돼요'}</p>
+                      </div>
+                      {hasBd && <span className="text-[10px] font-black px-2 py-0.5 bg-purple-500 text-white rounded-full flex-shrink-0">{me.birth_month}월 {me.birth_day}일 ✓</span>}
+                      <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${showBirthEdit ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
+                    </button>
+                    {showBirthEdit && (
+                      <div className={`px-4 pb-4 ${darkMode ? 'bg-slate-700/20' : 'bg-gray-50/50'}`}>
+                        <div>
+                          <p className={`text-xs font-bold mb-2 ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>월</p>
+                          <div className="grid grid-cols-4 gap-1.5">
+                            {Array.from({length: 12}, (_, i) => i + 1).map(m => (
+                              <button key={m} type="button" onClick={() => setSajuBirthMonth(m)}
+                                className={`py-2 rounded-xl text-sm font-bold transition-all active:scale-95 ${
+                                  sajuBirthMonth === m ? 'bg-purple-500 text-white shadow-sm' :
+                                  darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-purple-50 text-purple-700 hover:bg-purple-100'
+                                }`}>{m}월</button>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="mt-3">
+                          <p className={`text-xs font-bold mb-2 ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>일</p>
+                          <div className="grid grid-cols-7 gap-1">
+                            {Array.from({length: 31}, (_, i) => i + 1).map(d => (
+                              <button key={d} type="button" onClick={() => setSajuBirthDay(d)}
+                                className={`py-1.5 rounded-lg text-[11px] font-bold transition-all active:scale-95 ${
+                                  sajuBirthDay === d ? 'bg-purple-500 text-white shadow-sm' :
+                                  darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-purple-50 text-purple-600 hover:bg-purple-100'
+                                }`}>{d}</button>
+                            ))}
+                          </div>
+                        </div>
+                        <button onClick={saveSajuBirthDate} disabled={sajuSaving || sajuBirthMonth === null || sajuBirthDay === null}
+                          className="mt-3 w-full py-2.5 bg-gradient-to-r from-purple-500 to-violet-500 hover:from-purple-600 hover:to-violet-600 text-white font-bold rounded-xl text-sm disabled:opacity-40 active:scale-[0.98] transition-all">
+                          {sajuSaving ? '저장 중...' : '생월·생일 저장하기'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ── 관심사 ── */}
+                  <div>
+                    <button onClick={() => toggleSection('interests')} className="w-full flex items-center gap-3 px-4 py-3 text-left">
+                      <span className="text-xl flex-shrink-0">🎯</span>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>관심사</p>
+                        {currentTags.length > 0
+                          ? <p className={`text-[11px] truncate ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{currentTags.join(' · ')}</p>
+                          : <p className={`text-[11px] ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>미설정</p>}
+                      </div>
+                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-full flex-shrink-0 ${currentTags.length >= 2 ? 'bg-teal-500 text-white' : darkMode ? 'bg-slate-700 text-slate-500' : 'bg-gray-100 text-gray-400'}`}>{currentTags.length}/5</span>
+                      <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${showInterestEdit ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
+                    </button>
+                    {showInterestEdit && (
+                      <div className={`px-4 pb-4 space-y-3 ${darkMode ? 'bg-slate-700/20' : 'bg-gray-50/50'}`}>
+                        {editInterests.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 p-2.5 rounded-xl border bg-cyan-50 border-cyan-100">
+                            {editInterests.map(tag => (
+                              <button key={tag} type="button" onClick={() => toggleTag(tag)}
+                                className="flex items-center gap-1 px-2.5 py-1 bg-cyan-500 text-white text-xs font-semibold rounded-lg hover:bg-cyan-600 transition-all active:scale-95">
+                                {tag} <span className="opacity-70 text-[10px]">×</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        <div className="flex gap-1.5 flex-wrap">
+                          {BIO_CATEGORIES.map(cat => {
+                            const active = interestFilter === cat.label;
+                            const hasSelected = cat.tags.some(t => editInterests.includes(t));
+                            return (
+                              <button key={cat.label} type="button" onClick={() => setInterestFilter(active ? null : cat.label)}
+                                className={`relative px-3 py-1.5 rounded-full text-xs font-black border transition-all ${active ? `${cat.color.selected} border-transparent` : (darkMode ? `bg-slate-700 border-slate-600 ${cat.color.label} hover:border-current` : `bg-white border-gray-200 ${cat.color.label} hover:border-current`)}`}>
+                                {cat.label}
+                                {hasSelected && !active && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-cyan-500 rounded-full border border-white" />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div className="space-y-2.5">
+                          {BIO_CATEGORIES.filter(cat => interestFilter === null || interestFilter === cat.label).map(cat => (
+                            <div key={cat.label} className={interestFilter === null ? `rounded-xl border ${cat.color.border} overflow-hidden` : ''}>
+                              {interestFilter === null && (
+                                <div className={`px-3 py-1.5 ${cat.color.bg}`}>
+                                  <span className={`text-[11px] font-black ${cat.color.label}`}>{cat.label}</span>
+                                </div>
+                              )}
+                              <div className={`flex flex-wrap gap-1.5 ${interestFilter === null ? 'p-2.5' : ''}`}>
+                                {cat.tags.map(tag => {
+                                  const selected = editInterests.includes(tag);
+                                  const disabled = !selected && atMax;
+                                  return (
+                                    <button key={tag} type="button" onClick={() => toggleTag(tag)} disabled={disabled}
+                                      className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all active:scale-95 ${selected ? cat.color.selected : disabled ? (darkMode ? 'bg-slate-700 text-slate-600 border-slate-700 cursor-not-allowed' : 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed') : cat.color.normal}`}>
+                                      {tag === '뜨밤' && <span className="mr-1">🔥</span>}{tag}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <button onClick={saveInterests} disabled={interestSaving || editInterests.length < 2}
+                          className="w-full py-2.5 bg-teal-500 hover:bg-teal-600 text-white font-bold rounded-xl text-sm active:scale-[0.98] transition-all disabled:opacity-40">
+                          {interestSaving ? '저장 중...' : `관심사 저장 (${editInterests.length}개 선택됨)`}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* ── 스캔한 연락처 ── */}
             {scannedContacts.length > 0 && (
               <div className={`rounded-2xl border transition-colors duration-300 ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-100'}`}>
@@ -1672,71 +1745,6 @@ export function MainScreen({
               );
             })()}
 
-            {/* ── 생월·생일 설정 (내 상태 탭) — 접기/펼치기 ── */}
-            {(() => {
-              const me = profiles.find(p => p.id === currentUserId);
-              if (!me) return null;
-              const hasBd = !!(me.birth_month && me.birth_day);
-              return (
-                <div className={`rounded-2xl border transition-colors duration-300 ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-gradient-to-br from-purple-50 to-white border-purple-200'}`}>
-                  <button onClick={() => setShowBirthEdit(v => !v)} className="w-full flex items-center gap-2 p-4 text-left">
-                    <span className="text-xl flex-shrink-0">🔮</span>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-black ${darkMode ? 'text-white' : 'text-gray-900'}`}>생월·생일 설정</p>
-                      <p className={`text-[11px] ${darkMode ? 'text-slate-400' : 'text-purple-600'}`}>사주·운세·궁합에 반영돼요</p>
-                    </div>
-                    {hasBd ? (
-                      <span className="text-[10px] font-black px-2 py-0.5 bg-purple-500 text-white rounded-full flex-shrink-0">
-                        {me.birth_month}월 {me.birth_day}일 ✓
-                      </span>
-                    ) : (
-                      <span className={`text-[10px] font-bold flex-shrink-0 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>미설정</span>
-                    )}
-                    <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${showBirthEdit ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
-                  </button>
-                  {showBirthEdit && (
-                    <div className="px-4 pb-4">
-                      <div>
-                        <p className={`text-xs font-bold mb-2 ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>월</p>
-                        <div className="grid grid-cols-4 gap-1.5">
-                          {Array.from({length: 12}, (_, i) => i + 1).map(m => (
-                            <button key={m} type="button" onClick={() => setSajuBirthMonth(m)}
-                              className={`py-2 rounded-xl text-sm font-bold transition-all active:scale-95 ${
-                                sajuBirthMonth === m
-                                  ? 'bg-purple-500 text-white shadow-sm'
-                                  : darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-purple-50 text-purple-700 hover:bg-purple-100'
-                              }`}>
-                              {m}월
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="mt-3">
-                        <p className={`text-xs font-bold mb-2 ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>일</p>
-                        <div className="grid grid-cols-7 gap-1">
-                          {Array.from({length: 31}, (_, i) => i + 1).map(d => (
-                            <button key={d} type="button" onClick={() => setSajuBirthDay(d)}
-                              className={`py-1.5 rounded-lg text-[11px] font-bold transition-all active:scale-95 ${
-                                sajuBirthDay === d
-                                  ? 'bg-purple-500 text-white shadow-sm'
-                                  : darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-purple-50 text-purple-600 hover:bg-purple-100'
-                              }`}>
-                              {d}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <button
-                        onClick={saveSajuBirthDate}
-                        disabled={sajuSaving || (sajuBirthMonth === null || sajuBirthDay === null)}
-                        className="mt-3 w-full py-2.5 bg-gradient-to-r from-purple-500 to-violet-500 hover:from-purple-600 hover:to-violet-600 text-white font-bold rounded-xl text-sm disabled:opacity-40 active:scale-[0.98] transition-all">
-                        {sajuSaving ? '저장 중...' : '생월·생일 저장하기'}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
 
             {/* ── 연락처 설정 — 접기/펼치기 ── */}
             <div className={`rounded-2xl border transition-colors duration-300 ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-100'}`}>
@@ -1805,95 +1813,6 @@ export function MainScreen({
               )}
             </div>
 
-            {/* ── 관심사 편집 — 접기/펼치기 ── */}
-            {(() => {
-              const me = profiles.find(p => p.id === currentUserId);
-              if (!me) return null;
-              const currentTags = me.bio ? me.bio.split(',').map(t => t.trim()).filter(Boolean) : [];
-              const atMax = editInterests.length >= 5;
-              const toggleTag = (tag: string) => {
-                setEditInterests(prev =>
-                  prev.includes(tag) ? prev.filter(t => t !== tag) : prev.length < 5 ? [...prev, tag] : prev
-                );
-              };
-              return (
-                <div className={`rounded-2xl border transition-colors duration-300 ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-100'}`}>
-                  <button onClick={() => { setShowInterestEdit(v => !v); if (!showInterestEdit) { interestInitRef.current = false; setEditInterests(currentTags); } }} className="w-full flex items-center gap-2 p-4 text-left">
-                    <span className="text-xl flex-shrink-0">🏷️</span>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-black ${darkMode ? 'text-white' : 'text-gray-900'}`}>관심사 수정</p>
-                      {currentTags.length > 0 ? (
-                        <p className={`text-[11px] truncate ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>{currentTags.join(' · ')}</p>
-                      ) : (
-                        <p className={`text-[11px] ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>미설정</p>
-                      )}
-                    </div>
-                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full flex-shrink-0 ${currentTags.length >= 2 ? 'bg-teal-500 text-white' : 'bg-gray-100 text-gray-400'}`}>{currentTags.length}/5</span>
-                    <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${showInterestEdit ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
-                  </button>
-                  {showInterestEdit && (
-                    <div className="px-4 pb-4 space-y-3">
-                      {/* 선택된 태그 미리보기 */}
-                      {editInterests.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 p-2.5 rounded-xl border bg-cyan-50 border-cyan-100">
-                          {editInterests.map(tag => (
-                            <button key={tag} type="button" onClick={() => toggleTag(tag)}
-                              className="flex items-center gap-1 px-2.5 py-1 bg-cyan-500 text-white text-xs font-semibold rounded-lg hover:bg-cyan-600 transition-all active:scale-95">
-                              {tag} <span className="opacity-70 text-[10px]">×</span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                      {/* 카테고리 필터 탭 */}
-                      <div className="flex gap-1.5 flex-wrap">
-                        <button type="button" onClick={() => setInterestFilter(null)}
-                          className={`px-3 py-1.5 rounded-full text-xs font-black border transition-all ${interestFilter === null ? (darkMode ? 'bg-white text-gray-900 border-white' : 'bg-gray-800 text-white border-gray-800') : (darkMode ? 'bg-slate-700 text-slate-400 border-slate-600 hover:border-slate-400' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-400')}`}
-                        >전체</button>
-                        {BIO_CATEGORIES.map(cat => {
-                          const active = interestFilter === cat.label;
-                          const hasSelected = cat.tags.some(t => editInterests.includes(t));
-                          return (
-                            <button key={cat.label} type="button" onClick={() => setInterestFilter(active ? null : cat.label)}
-                              className={`relative px-3 py-1.5 rounded-full text-xs font-black border transition-all ${active ? `${cat.color.selected} border-transparent` : (darkMode ? `bg-slate-700 border-slate-600 ${cat.color.label} hover:border-current` : `bg-white border-gray-200 ${cat.color.label} hover:border-current`)}`}>
-                              {cat.label}
-                              {hasSelected && !active && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-cyan-500 rounded-full border border-white" />}
-                            </button>
-                          );
-                        })}
-                      </div>
-                      {/* 태그 목록 */}
-                      <div className="space-y-2.5">
-                        {BIO_CATEGORIES.filter(cat => interestFilter === null || cat.label === cat.label && interestFilter === cat.label).map(cat => (
-                          <div key={cat.label} className={interestFilter === null ? `rounded-xl border ${cat.color.border} overflow-hidden` : ''}>
-                            {interestFilter === null && (
-                              <div className={`px-3 py-1.5 ${cat.color.bg}`}>
-                                <span className={`text-[11px] font-black ${cat.color.label}`}>{cat.label}</span>
-                              </div>
-                            )}
-                            <div className={`flex flex-wrap gap-1.5 ${interestFilter === null ? 'p-2.5' : ''}`}>
-                              {cat.tags.map(tag => {
-                                const selected = editInterests.includes(tag);
-                                const disabled = !selected && atMax;
-                                return (
-                                  <button key={tag} type="button" onClick={() => toggleTag(tag)} disabled={disabled}
-                                    className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all active:scale-95 ${selected ? cat.color.selected : disabled ? (darkMode ? 'bg-slate-700 text-slate-600 border-slate-700 cursor-not-allowed' : 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed') : cat.color.normal}`}>
-                                    {tag === '뜨밤' && <span className="mr-1">🔥</span>}{tag}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                      <button onClick={saveInterests} disabled={interestSaving || editInterests.length < 2}
-                        className="w-full py-2.5 bg-teal-500 hover:bg-teal-600 text-white font-bold rounded-xl text-sm active:scale-[0.98] transition-all disabled:opacity-40">
-                        {interestSaving ? '저장 중...' : `관심사 저장 (${editInterests.length}개 선택됨)`}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
 
             <div className="contents">
             <div className={`rounded-2xl shadow-sm p-5 transition-colors duration-300 ${darkMode ? 'bg-slate-800 border border-slate-600' : 'bg-white'}`}>

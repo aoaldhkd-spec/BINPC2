@@ -820,7 +820,7 @@ function App() {
         })
       .subscribe();
 
-    // chats 생성만 감지 — messages 구독은 별도 perChatChannels 로 분리 (서버 사이드 필터 적용)
+    // chats 생성/삭제 감지 — messages 구독은 별도 perChatChannels 로 분리 (서버 사이드 필터 적용)
     const chatChannel = supabase
       .channel('realtime:chats-user')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chats' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
@@ -838,6 +838,16 @@ function App() {
         const pairKey = `${c.user1_id}:${c.user2_id}`;
         const iMadeThis = selfInitiatedPairRef.current === pairKey;
         if (otherProfile && !iMadeThis) setBottomNotif({ type: 'chat', nickname: otherProfile.nickname });
+      })
+      // Bug fix: 상대방이 채팅방을 삭제해도 내 목록에서 즉시 제거
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'chats' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
+        const c = payload.old as { id?: string };
+        if (!c.id) return;
+        setChatList(prev => {
+          const next = prev.filter(x => x.id !== c.id);
+          chatListRef.current = next;
+          return next;
+        });
       })
       .subscribe();
 

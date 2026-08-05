@@ -308,10 +308,19 @@ export function useChat({
     return () => document.removeEventListener('visibilitychange', handler);
   }, [syncUnreadCounts]);
 
-  // SSE 재연결: 끊김 복구 직후 누락 카운트 보정
+  // currentUserId를 ref로 캡처 — 클로저 stale 방지
+  const currentUserIdRef = useRef(currentUserId);
+  currentUserIdRef.current = currentUserId;
+
+  // SSE 재연결: 끊김 복구 직후 누락 카운트 보정 + 채팅 목록 전체 재동기화
+  // (끊긴 동안 생성된 채팅방을 놓치지 않기 위해 loadChatList도 함께 호출)
   useEffect(() => {
-    return onSseReconnect(() => void syncUnreadCounts());
-  }, [syncUnreadCounts]);
+    return onSseReconnect(() => {
+      void syncUnreadCounts();
+      const uid = currentUserIdRef.current;
+      if (uid) void loadChatList(uid);
+    });
+  }, [syncUnreadCounts, loadChatList]);
 
   // 전송 중 잠금 — 동기 ref로 이중 클릭/Enter+클릭 동시 전송 방지
   const sendInFlightRef = useRef(false);
