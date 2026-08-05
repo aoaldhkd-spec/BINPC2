@@ -643,18 +643,22 @@ export function MainScreen({
   const currentUserSeat = useMemo(() => seats.find(s => s.profile_id === currentUserId) ?? null, [seats, currentUserId]);
   const tableNumber = currentUserSeat?.table_number ?? null;
   const visibleSeats = useMemo(() => activeTables ? seats.filter(s => activeTables.includes(s.table_number)) : seats, [seats, activeTables]);
-  // 내 테이블 탭: 테이블 번호별 자리 그룹 (seat_position 오름차순)
-  const tableGroups = useMemo(() => {
-    const map = new Map<number, typeof seats>();
-    for (const s of visibleSeats) {
-      const arr = map.get(s.table_number) ?? [];
-      arr.push(s);
-      map.set(s.table_number, arr);
-    }
-    return Array.from(map.entries())
-      .sort((a, b) => a[0] - b[0])
-      .map(([tableNum, ts]) => ({ tableNum, seats: [...ts].sort((a, b) => a.seat_position - b.seat_position) }));
-  }, [visibleSeats]);
+  // 내 테이블 탭: 선택된 테이블 번호 (null = 선택 전)
+  const [selectedMyTableNum, setSelectedMyTableNum] = useState<number | null>(null);
+  // 내 테이블 탭: 활성 테이블 목록 (관리자 설정 이름 포함)
+  const myTableList = useMemo(() => {
+    const nums = activeTables && activeTables.length > 0
+      ? activeTables
+      : [...new Set(seats.map(s => s.table_number))].sort((a, b) => a - b);
+    return nums.map(n => ({
+      num: n,
+      label: tableLabels?.[String(n)] ?? `${n}번 테이블`,
+      total: seats.filter(s => s.table_number === n).length,
+      occupied: seats.filter(s => s.table_number === n && s.status === 'occupied').length,
+    }));
+  }, [activeTables, seats, tableLabels]);
+  // 현재 선택 테이블 (지정이 없으면 내 자리 기준 → 없으면 null)
+  const resolvedMyTable = selectedMyTableNum ?? currentUserSeat?.table_number ?? null;
   const currentUserNickname = useMemo(() => profiles.find(p => p.id === currentUserId)?.nickname ?? '', [profiles, currentUserId]);
   const [profileSearch, setProfileSearch] = useState('');
   const [profilePersonalityFilter, setProfilePersonalityFilter] = useState<string | null>(null);
@@ -1050,68 +1054,54 @@ export function MainScreen({
           </div>
         </div>
         {timerEndAt && <TimerBanner endAt={timerEndAt} label={timerLabel ?? ''} />}
-        {/* ── 탭 바 (2행) ── */}
+        {/* ── 탭 바 (5행 × 2열) ── */}
         <div className={`max-w-7xl mx-auto border-t-2 ${darkMode ? 'bg-slate-900 border-slate-700' : 'bg-gray-50 border-gray-200'}`}>
-          {/* 1행: 내 상태 / 참여자 / 배치도 / 내 테이블 / 채팅 */}
-          <div className={`flex border-b ${darkMode ? 'border-slate-700/60' : 'border-gray-200'}`}>
-            {([
+          {([
+            [
               { id: 'status' as MainTab, label: '내 상태', badge: Math.max(0, pendingHeartsCount - seenHeartsCount) + newContactsCount },
               { id: 'profiles' as MainTab, label: '참여자', badge: seenProfilesCount < 0 ? 0 : Math.max(0, profiles.length - seenProfilesCount) },
-              { id: 'seating' as MainTab, label: '배치도' },
+            ],
+            [
               { id: 'my-table' as MainTab, label: '내 테이블' },
+              { id: 'seating' as MainTab, label: '배치도' },
+            ],
+            [
               { id: 'chats' as MainTab, label: '채팅', badge: newMsgCount },
-            ]).map((t) => {
-              const locked = seatingLocked && LOCKED_TABS.has(t.id);
-              const active = mainTab === t.id;
-              return (
-                <button key={t.id} onClick={() => handleTabChange(t.id)} disabled={locked}
-                  className={`relative flex-1 py-2.5 text-[10px] font-bold border-b-2 transition-all active:scale-95 ${
-                    locked ? `opacity-35 cursor-not-allowed border-transparent ${darkMode ? 'text-slate-500' : 'text-gray-400'}` :
-                    active ? darkMode ? 'border-cyan-500 text-cyan-400 bg-cyan-500/10' : 'border-cyan-500 text-cyan-700 bg-cyan-50' :
-                    darkMode ? 'border-transparent text-slate-400' : 'border-transparent text-gray-500'
-                  }`}>
-                  <span className="relative inline-flex">
-                    {locked ? '🔒' : t.label}
-                    {'badge' in t && !locked && (t as { badge: number }).badge > 0 && (
-                      <span className="absolute -top-1 -right-3.5 min-w-[14px] h-[14px] px-0.5 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
-                        {(t as { badge: number }).badge}
-                      </span>
-                    )}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-          {/* 2행: 건의 / 게임 / 운세 / 통계 / 랭킹 */}
-          <div className={`flex ${darkMode ? 'bg-slate-900' : 'bg-gray-50'}`}>
-            {([
               { id: 'suggestions' as MainTab, label: '💬 건의' },
+            ],
+            [
               { id: 'game' as MainTab, label: '🎮 게임', badge: Math.max(0, activeGameCount - seenGameCount) },
               { id: 'fortune' as MainTab, label: '🔮 운세' },
+            ],
+            [
               { id: 'stats' as MainTab, label: '📊 통계' },
               { id: 'ranking' as MainTab, label: '🏆 랭킹' },
-            ]).map((t) => {
-              const locked = seatingLocked && LOCKED_TABS.has(t.id);
-              const active = mainTab === t.id;
-              return (
-                <button key={t.id} onClick={() => handleTabChange(t.id)} disabled={locked}
-                  className={`relative flex-1 py-1.5 text-[10px] font-bold border-b-2 transition-all active:scale-95 ${
-                    locked ? `opacity-35 cursor-not-allowed border-transparent ${darkMode ? 'text-slate-500' : 'text-gray-400'}` :
-                    active ? darkMode ? 'border-cyan-500 text-cyan-400 bg-cyan-500/10' : 'border-cyan-500 text-cyan-700 bg-cyan-50' :
-                    darkMode ? 'border-transparent text-slate-400' : 'border-transparent text-gray-500'
-                  }`}>
-                  <span className="relative inline-flex">
-                    {locked ? '🔒' : t.label}
-                    {'badge' in t && !locked && (t as { badge: number }).badge > 0 && (
-                      <span className="absolute -top-1 -right-3.5 min-w-[14px] h-[14px] px-0.5 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
-                        {(t as { badge: number }).badge}
-                      </span>
-                    )}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+            ],
+          ] as Array<Array<{ id: MainTab; label: string; badge?: number }>>).map((row, ri) => (
+            <div key={ri} className={`flex border-b ${darkMode ? 'border-slate-700/40' : 'border-gray-200/80'}`}>
+              {row.map((t, ci) => {
+                const locked = seatingLocked && LOCKED_TABS.has(t.id);
+                const active = mainTab === t.id;
+                return (
+                  <button key={t.id} onClick={() => handleTabChange(t.id)} disabled={locked}
+                    className={`relative flex-1 py-2 text-[11px] font-bold transition-all active:scale-95 border-b-2 ${ci === 0 ? (darkMode ? 'border-r border-slate-700/40' : 'border-r border-gray-200/80') : ''} ${
+                      locked ? `opacity-35 cursor-not-allowed border-transparent border-b-transparent ${darkMode ? 'text-slate-500' : 'text-gray-400'}` :
+                      active ? darkMode ? 'border-b-cyan-500 text-cyan-400 bg-cyan-500/10' : 'border-b-cyan-500 text-cyan-700 bg-cyan-50' :
+                      darkMode ? 'border-b-transparent text-slate-400' : 'border-b-transparent text-gray-500'
+                    }`}>
+                    <span className="relative inline-flex">
+                      {locked ? '🔒' : t.label}
+                      {!locked && (t.badge ?? 0) > 0 && (
+                        <span className="absolute -top-1 -right-3.5 min-w-[14px] h-[14px] px-0.5 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
+                          {t.badge}
+                        </span>
+                      )}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          ))}
         </div>
 
       </header>
@@ -1271,118 +1261,107 @@ export function MainScreen({
 
         {/* ── 내 테이블 탭 ── */}
         {mainTab === 'my-table' && (
-          <div className="max-w-lg mx-auto space-y-4">
-            {/* 내 자리 현황 카드 */}
-            <div className={`rounded-2xl p-4 border shadow-sm ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-100'}`}>
-              <p className={`text-[10px] font-black uppercase tracking-widest mb-3 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>내 자리</p>
-              {currentUserSeat ? (
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-cyan-500 flex items-center justify-center text-white font-black text-2xl shadow-lg shadow-cyan-200/50">
-                    {String.fromCharCode(64 + currentUserSeat.table_number)}
-                  </div>
-                  <div>
-                    <p className={`font-black text-lg leading-tight ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                      {String.fromCharCode(64 + currentUserSeat.table_number)}테이블 {currentUserSeat.seat_position}번 자리
-                    </p>
-                    {tableLabels?.[String(currentUserSeat.table_number)] && (
-                      <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{tableLabels[String(currentUserSeat.table_number)]}</p>
-                    )}
-                  </div>
-                  {!seatingLocked && (
+          <div className="space-y-4">
+
+            {/* ── 테이블 선택 ── */}
+            <div className="max-w-lg mx-auto">
+              <p className={`text-[10px] font-black uppercase tracking-widest mb-2 px-1 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
+                테이블 선택 {myTableList.length > 0 ? `(${myTableList.length}개)` : ''}
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {myTableList.map(t => {
+                  const isSelected = resolvedMyTable === t.num;
+                  const isMyTable = currentUserSeat?.table_number === t.num;
+                  const full = t.occupied >= t.total && t.total > 0;
+                  return (
                     <button
-                      onClick={() => _setSeatDialog(null)}
-                      className={`ml-auto text-[11px] px-3 py-1.5 rounded-lg font-bold transition-all active:scale-95 ${darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
-                    >자리 변경</button>
-                  )}
-                </div>
-              ) : (
-                <div className="flex items-center gap-3">
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${darkMode ? 'bg-slate-700' : 'bg-gray-100'}`}>🪑</div>
-                  <p className={`text-sm font-bold ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
-                    {seatingLocked ? '관리자가 자리를 배정합니다' : '아래 빈 자리를 탭해서 선택하세요'}
+                      key={t.num}
+                      onClick={() => setSelectedMyTableNum(t.num)}
+                      className={`relative rounded-2xl px-3 py-3 border-2 text-left transition-all active:scale-95 ${
+                        isSelected
+                          ? 'border-cyan-500 bg-cyan-500/10 shadow-md shadow-cyan-500/20'
+                          : darkMode
+                          ? 'border-slate-600 bg-slate-800 hover:border-slate-500'
+                          : 'border-gray-200 bg-white hover:border-gray-300'
+                      }`}
+                    >
+                      {isMyTable && (
+                        <span className="absolute top-1.5 right-1.5 text-[9px] font-black bg-cyan-500 text-white px-1.5 py-0.5 rounded-full">내 자리</span>
+                      )}
+                      <p className={`font-black text-sm leading-tight ${isSelected ? (darkMode ? 'text-cyan-300' : 'text-cyan-700') : darkMode ? 'text-white' : 'text-gray-900'}`}>
+                        {t.label}
+                      </p>
+                      <p className={`text-[10px] mt-0.5 font-bold ${full ? 'text-rose-400' : darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
+                        {full ? '자리 가득 참' : `${t.occupied}/${t.total} 착석`}
+                      </p>
+                    </button>
+                  );
+                })}
+                {myTableList.length === 0 && (
+                  <p className={`col-span-2 text-sm text-center py-4 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>
+                    테이블 정보가 없습니다
                   </p>
-                </div>
-              )}
+                )}
+              </div>
             </div>
 
-            {/* 자리 선택 가능 여부 배너 */}
-            {seatingLocked ? (
-              <div className={`rounded-xl py-2.5 px-3 border text-sm font-bold text-center flex items-center justify-center gap-2 ${darkMode ? 'bg-amber-900/30 border-amber-700/50 text-amber-400' : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
-                🔒 관리자가 자리 선택을 잠금 중입니다
+            {/* ── 선택된 테이블 배치도 ── */}
+            {resolvedMyTable !== null ? (
+              <div className="space-y-2">
+                {/* 내 자리 / 상태 */}
+                <div className={`max-w-lg mx-auto rounded-2xl px-4 py-2.5 border flex items-center gap-3 ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-100'} shadow-sm`}>
+                  {currentUserSeat?.table_number === resolvedMyTable ? (
+                    <>
+                      <div className="w-8 h-8 rounded-lg bg-cyan-500 flex items-center justify-center text-white font-black flex-shrink-0 text-sm">
+                        {currentUserSeat.seat_position}
+                      </div>
+                      <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                        {currentUserSeat.seat_position}번 자리 착석 중
+                        <span className={`ml-2 text-[11px] font-normal ${seatingLocked ? (darkMode ? 'text-amber-400' : 'text-amber-600') : (darkMode ? 'text-teal-400' : 'text-teal-600')}`}>
+                          {seatingLocked ? '🔒 잠금 중' : '✅ 변경 가능'}
+                        </span>
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-lg flex-shrink-0 ${darkMode ? 'bg-slate-700' : 'bg-gray-100'}`}>🪑</div>
+                      <p className={`text-sm font-bold ${seatingLocked ? (darkMode ? 'text-amber-400' : 'text-amber-600') : (darkMode ? 'text-teal-400' : 'text-teal-600')}`}>
+                        {seatingLocked ? '🔒 관리자가 자리를 배정합니다' : '✅ 빈 자리(+)를 탭해서 선택하세요'}
+                      </p>
+                    </>
+                  )}
+                </div>
+                {/* SeatingMap — 선택된 테이블만 */}
+                <div
+                  className="max-w-7xl mx-auto overflow-auto rounded-2xl border-2"
+                  style={{
+                    background: `var(--t-surface, ${darkMode ? '#0f172a' : '#ffffff'})`,
+                    borderColor: `var(--t-border, ${darkMode ? '#475569' : '#e5e7eb'})`,
+                  }}
+                >
+                  <SeatingMap
+                    seats={seats}
+                    profileMap={profileMap}
+                    currentUserId={currentUserId}
+                    isAdmin={false}
+                    seatingLocked={seatingLocked}
+                    darkMode={darkMode}
+                    activeTables={[resolvedMyTable]}
+                    tableLabels={tableLabels}
+                    onProfileClick={onProfileClickFromMap}
+                    onChatClick={onOpenChat}
+                    onSeatClick={!seatingLocked ? (seat) => { if (!seat.profile_id) _setSeatDialog(seat); } : undefined}
+                  />
+                </div>
+                <p className={`text-center text-xs ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>
+                  탭하면 확대됩니다
+                </p>
               </div>
             ) : (
-              <div className={`rounded-xl py-2.5 px-3 border text-sm font-bold text-center flex items-center justify-center gap-2 ${darkMode ? 'bg-teal-900/30 border-teal-700/50 text-teal-400' : 'bg-teal-50 border-teal-200 text-teal-700'}`}>
-                ✅ 자리 선택이 열려있습니다 — 빈 자리를 탭하세요
-              </div>
+              <p className={`text-center text-sm py-4 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>
+                위에서 테이블을 선택하면 자리가 표시됩니다
+              </p>
             )}
-
-            {/* 테이블별 자리 그리드 */}
-            {tableGroups.length === 0 ? (
-              <div className="text-center py-12">
-                <p className={`text-sm ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>아직 자리 정보가 없습니다</p>
-              </div>
-            ) : tableGroups.map(({ tableNum, seats: tableSeats }) => {
-              const occupiedCount = tableSeats.filter(s => s.status === 'occupied').length;
-              const tableLetter = String.fromCharCode(64 + tableNum);
-              return (
-                <div key={tableNum} className={`rounded-2xl border p-4 ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-100'} shadow-sm`}>
-                  {/* 테이블 헤더 */}
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className={`w-7 h-7 rounded-lg font-black text-sm flex items-center justify-center ${darkMode ? 'bg-slate-700 text-slate-300' : 'bg-gray-100 text-gray-600'}`}>
-                      {tableLetter}
-                    </div>
-                    <p className={`text-sm font-black ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                      {tableNum}번 테이블
-                      {tableLabels?.[String(tableNum)] && (
-                        <span className={`ml-1.5 font-normal text-xs ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{tableLabels[String(tableNum)]}</span>
-                      )}
-                    </p>
-                    <span className={`ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                      occupiedCount === tableSeats.length
-                        ? darkMode ? 'bg-rose-900/40 text-rose-400' : 'bg-rose-50 text-rose-500'
-                        : darkMode ? 'bg-slate-700 text-slate-400' : 'bg-gray-100 text-gray-500'
-                    }`}>
-                      {occupiedCount}/{tableSeats.length}
-                    </span>
-                  </div>
-                  {/* 자리 그리드 */}
-                  <div className="grid grid-cols-4 gap-2">
-                    {tableSeats.map(seat => {
-                      const isMe = seat.profile_id === currentUserId;
-                      const isOccupied = seat.status === 'occupied' && !!seat.profile_id;
-                      const occupant = isOccupied && !isMe ? profileMap.get(seat.profile_id!) : null;
-                      const canClick = !seatingLocked && !isOccupied;
-                      return (
-                        <button
-                          key={seat.id}
-                          onClick={() => canClick ? _setSeatDialog(seat) : undefined}
-                          disabled={!canClick && !isMe}
-                          className={`py-3 px-1 rounded-xl flex flex-col items-center justify-center gap-1 transition-all active:scale-95 border-2 select-none ${
-                            isMe
-                              ? 'bg-cyan-500 border-cyan-400 text-white shadow-md shadow-cyan-200/40 cursor-default'
-                              : isOccupied
-                              ? darkMode ? 'bg-slate-700 border-slate-600 text-slate-400 cursor-default' : 'bg-gray-50 border-gray-200 text-gray-400 cursor-default'
-                              : canClick
-                              ? darkMode ? 'bg-teal-900/40 border-teal-600 text-teal-400 hover:bg-teal-900/60 cursor-pointer' : 'bg-teal-50 border-teal-300 text-teal-600 hover:bg-teal-100 cursor-pointer'
-                              : darkMode ? 'bg-slate-800 border-slate-700 text-slate-600 cursor-default' : 'bg-gray-50 border-gray-100 text-gray-300 cursor-default'
-                          }`}
-                        >
-                          <span className="text-base leading-none">
-                            {isMe ? '😊' : isOccupied ? (occupant?.photo_url ? '' : (occupant?.nickname?.[0] ?? '?')) : `${seat.seat_position}`}
-                          </span>
-                          {isOccupied && !isMe && occupant?.photo_url && (
-                            <img src={occupant.photo_url} alt={occupant.nickname} className="w-6 h-6 rounded-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                          )}
-                          <span className="text-[9px] font-bold truncate max-w-full px-0.5 leading-tight text-center">
-                            {isMe ? '나' : isOccupied ? (occupant?.nickname?.slice(0, 4) ?? '착석') : '빈 자리'}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
           </div>
         )}
 

@@ -352,6 +352,21 @@ function BigSeatButton({ seat, profile, isCurrentUser, isAdmin, movingProfileId,
     );
   }
 
+  // 유저 자리 선택 모드: 빈 자리에 클릭 핸들러 추가
+  if (_onSeatClick) {
+    return (
+      <div className="flex flex-col items-center gap-1">
+        <button
+          onClick={() => _onSeatClick(seat)}
+          className={`${dim} rounded-xl border-2 border-dashed border-teal-500/50 hover:border-teal-400 hover:bg-teal-500/10 flex items-center justify-center transition-all active:scale-95`}
+          title={seat.seat_label}
+        >
+          <span className="text-[10px] font-bold text-teal-400/60">+</span>
+        </button>
+        <span className={`text-[9px] ${t.faint}`}>{posLabel}</span>
+      </div>
+    );
+  }
   return (
     <div className="flex flex-col items-center gap-1">
       <div className={`${dim} rounded-xl border-2 border-dashed ${t.emptyBorder} flex items-center justify-center`} title={seat.seat_label} />
@@ -574,6 +589,18 @@ function SeatButton({
     return <div className={`${dim} rounded-lg ${t.unknownBg} flex items-center justify-center`}><span className={`text-[9px] ${t.unknownText}`}>?</span></div>;
   }
 
+  // 유저 자리 선택 모드: 빈 자리에 클릭 핸들러 추가
+  if (_onSeatClick) {
+    return (
+      <button
+        onClick={() => _onSeatClick(seat)}
+        className={`${dim} rounded-lg border-2 border-dashed border-teal-500/50 hover:border-teal-400 hover:bg-teal-500/10 flex items-center justify-center transition-all active:scale-95`}
+        title={seat.seat_label}
+      >
+        <span className="text-[8px] font-bold text-teal-400/70">+</span>
+      </button>
+    );
+  }
   return (
     <div className={`${dim} rounded-lg border-2 border-dashed ${t.emptyBorder} flex items-center justify-center`} title={seat.seat_label} />
   );
@@ -707,7 +734,8 @@ export default function SeatingMap({
     onProfileClick?.(profile);
   };
 
-  const handleSeatClick = isAdmin ? onSeatClick : undefined;
+  // 관리자이거나, 자리 잠금 해제 + 핸들러 제공 시 → 유저도 빈 자리 탭 가능
+  const handleSeatClick = (isAdmin || (!seatingLocked && onSeatClick)) ? onSeatClick : undefined;
   const t = seatTheme(darkMode);
 
   const sharedProps = {
