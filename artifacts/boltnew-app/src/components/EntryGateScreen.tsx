@@ -52,6 +52,11 @@ export function EntryGateScreen({ entryPassword, onVerified }: { entryPassword: 
             <div className={`overflow-hidden transition-all duration-200 ${error ? 'max-h-8 mt-2' : 'max-h-0'}`}>
               <p className="text-red-400 text-xs text-center font-bold">❌ 입장 코드가 올바르지 않습니다</p>
             </div>
+            {!error && (
+              <p className="mt-2 text-center text-cyan-400/80 text-[11px] font-semibold">
+                💡 입장 코드는 <span className="font-black text-cyan-300">오늘 날짜</span>입니다 (숫자 4개)
+              </p>
+            )}
           </div>
           <button type="submit" disabled={verifying}
             className={`w-full text-white font-black py-4 rounded-2xl transition-all text-base shadow-lg shadow-cyan-900/30 ${verifying ? 'bg-cyan-700/60 cursor-not-allowed' : 'bg-cyan-600 hover:bg-cyan-500 active:scale-[0.97]'}`}>

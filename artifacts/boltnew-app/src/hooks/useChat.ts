@@ -381,15 +381,18 @@ export function useChat({
     setChatList(prev => prev.map(c => c.id === snapChatId ? { ...c, lastMessage: content.trim() } : c));
 
     try {
-      const { error } = await supabase.from('messages').insert({
+      // .select().single() — HTTP 응답에서 서버 할당 id·created_at을 직접 수신
+      // → optimistic 메시지를 SSE를 기다리지 않고 즉시 실제 DB 행으로 교체
+      // → SSE가 나중에 도착해도 applySseInsert 규칙 1(id 중복)로 자동 무시됨
+      const { data: insertedMsg, error } = await supabase.from('messages').insert({
         chat_id: snapChatId,
         sender_id: snapUserId,
         content: content.trim(),
         client_id: optimisticId.replace('__opt_', ''),
-      });
+      }).select().single();
+
       if (error) {
         setMessages(prev => prev.filter(m => m.id !== optimisticId));
-        // 낙관적으로 설정한 값인 경우에만 복원 — 다른 메시지가 이미 덮어썼으면 건드리지 않음
         setChatList(prev => prev.map(c =>
           c.id === snapChatId && c.lastMessage === content.trim()
             ? { ...c, lastMessage: prevLastMessage }
@@ -398,10 +401,15 @@ export function useChat({
         console.error('[sendMessage] DB 오류:', error.message);
         throw error;
       }
+
+      // 성공: optimistic → 실제 DB 행으로 교체 (현재 방이 변경됐으면 skip)
+      if (insertedMsg && chatIdRef.current === snapChatId) {
+        setMessages(prev => prev.map(m => m.id === optimisticId ? insertedMsg as Message : m));
+      }
     } catch (err) {
-      // 네트워크 오류 등 예외 처리 — supabase error 객체가 아닌 경우
-      if (!(err instanceof Object && 'message' in err && 'code' in err)) {
-        // 진짜 예외 (네트워크 단절 등) — 낙관적 메시지 롤백
+      // 네트워크 단절 등 예외 — 낙관적 메시지 롤백
+      const isSupabaseError = err instanceof Object && 'message' in err && 'code' in err;
+      if (!isSupabaseError) {
         setMessages(prev => prev.filter(m => m.id !== optimisticId));
         setChatList(prev => prev.map(c =>
           c.id === snapChatId && c.lastMessage === content.trim()
@@ -409,9 +417,8 @@ export function useChat({
             : c
         ));
         console.error('[sendMessage] 네트워크 예외:', err);
-        throw err;
       }
-      throw err; // supabase error — 위에서 이미 롤백함
+      throw err;
     } finally {
       sendingChatIdsRef.current.delete(snapChatId);
     }
@@ -467,17 +474,21 @@ export function useChat({
       }
 
       const { data: { publicUrl } } = supabase.storage.from('chat-images').getPublicUrl(data.path);
-      const { error: msgErr } = await supabase.from('messages').insert({
+      // .select().single() — HTTP 응답으로 실제 DB 행을 직접 수신해 optimistic 즉시 교체
+      const { data: insertedMsg, error: msgErr } = await supabase.from('messages').insert({
         chat_id: snapChatId, sender_id: snapUserId, content: '', image_url: publicUrl,
         client_id: clientId,
-      });
+      }).select().single();
       if (msgErr) {
         supabase.storage.from('chat-images').remove([data.path]).catch(() => {});
         rollback();
         return msgErr.message;
       }
-      // 성공: SSE가 실제 URL로 낙관적 메시지를 교체함 — blob URL은 5초 후 해제
-      setTimeout(() => URL.revokeObjectURL(localBlobUrl), 5_000);
+      // 성공: optimistic(blob URL) → 실제 DB 행(CDN URL)으로 즉시 교체
+      URL.revokeObjectURL(localBlobUrl);
+      if (insertedMsg && chatIdRef.current === snapChatId) {
+        setMessages(prev => prev.map(m => m.id === optimisticId ? insertedMsg as Message : m));
+      }
       return null;
     } catch (err) {
       console.error('[sendImage] 네트워크 예외:', err);
