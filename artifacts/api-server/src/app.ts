@@ -139,8 +139,9 @@ app.use(
 // origin:false sends no CORS headers → browser same-origin policy blocks
 // cross-site requests automatically, closing CSRF-style API attacks.
 app.use(cors({ origin: false }));
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+// 최대 이미지 크기(~7MB base64) 고려해 10MB로 제한 — 50MB는 DoS 위험
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Per-IP rate limits applied before the main router.
 // The third argument is a stable namespace that isolates each endpoint's
@@ -155,6 +156,10 @@ app.use('/api/op',                  makeRateLimiter(30, 1_000,  'op'));
 app.use('/api/db/storage-upload',   makeRateLimiter(20, 60_000, 'storage-upload'));
 app.use('/api/db/events',           makeRateLimiter(20, 60_000, 'sse-events'));
 app.use('/api/db/unread-counts',    makeRateLimiter(60, 60_000, 'unread-counts'));
+// SSE 토큰 발급: 분당 10회 (토큰 파밍 봇 차단)
+app.use('/api/db/auth/sse-token',   makeRateLimiter(10, 60_000, 'sse-token'));
+// RPC 어드민 엔드포인트: 분당 30회 (비밀번호 브루트포스 방어)
+app.use('/api/db/rpc',              makeRateLimiter(30, 60_000, 'rpc'));
 
 app.use("/api", router);
 

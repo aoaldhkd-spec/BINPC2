@@ -967,6 +967,43 @@ router.post('/op', async (req: Request, res: Response) => {
     // ── UPDATE ──────────────────────────────────────────────────────────────
     if (op === 'update') {
       let patch = sanitizeRow(table, payload as Record<string, unknown>);
+
+      // ─ IDOR guard: UPDATE ownership check ──────────────────────────────
+      // requesterId가 있는 경우, 자신 소유의 행만 수정 가능하도록 검증
+      if (requesterId) {
+        const rowsToUpdate = applyFilters(tableData, filters);
+        for (const existingRow of rowsToUpdate) {
+          // profiles: 자신의 프로필만 수정 가능
+          if (table === 'profiles' && existingRow.id != null &&
+              String(existingRow.id) !== String(requesterId)) {
+            logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: UPDATE profiles blocked');
+            _activeOpCount--;
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신의 프로필만 수정할 수 있습니다.', code: 'FORBIDDEN' } });
+          }
+          // messages: 자신이 보낸 메시지만 수정 가능
+          if (table === 'messages' && existingRow.sender_id != null &&
+              String(existingRow.sender_id) !== String(requesterId)) {
+            logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: UPDATE messages blocked');
+            _activeOpCount--;
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신의 메시지만 수정할 수 있습니다.', code: 'FORBIDDEN' } });
+          }
+          // seats: 자신이 점유한 자리만 수정 가능 (빈 자리 클레임은 INSERT/patch로 처리됨)
+          if (table === 'seats' && existingRow.profile_id != null &&
+              String(existingRow.profile_id) !== String(requesterId)) {
+            // 단, patch에 profile_id === requesterId 인 경우(자리 이동)는 admin RPC로만 해야 함
+            logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: UPDATE seats blocked');
+            _activeOpCount--;
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: 다른 사람의 자리는 수정할 수 없습니다.', code: 'FORBIDDEN' } });
+          }
+          // chat_reads: 자신의 읽음 기록만 수정 가능
+          if (table === 'chat_reads' && existingRow.reader_id != null &&
+              String(existingRow.reader_id) !== String(requesterId)) {
+            logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: UPDATE chat_reads blocked');
+            _activeOpCount--;
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신의 읽음 기록만 수정할 수 있습니다.', code: 'FORBIDDEN' } });
+          }
+        }
+      }
       // profiles 테이블에서 pin_code를 UPDATE할 때 서버 레벨 유일성 보장
       // (레거시 사용자 핀 자동 부여 시 경쟁 조건 방지)
       if (table === 'profiles' && patch.pin_code != null) {
@@ -1004,6 +1041,27 @@ router.post('/op', async (req: Request, res: Response) => {
     if (op === 'upsert') {
       const inputs = Array.isArray(payload) ? payload as Record<string, unknown>[] : [payload as Record<string, unknown>];
       const upserted: Record<string, unknown>[] = [];
+
+      // ─ IDOR guard: UPSERT ownership check ─────────────────────────────
+      if (requesterId) {
+        for (const row of inputs) {
+          if (!row) continue;
+          // chat_reads: reader_id는 반드시 requester여야 함
+          if (table === 'chat_reads' && row.reader_id != null &&
+              String(row.reader_id) !== String(requesterId)) {
+            logger.warn({ requesterId, reader_id: row.reader_id }, '[SECURITY] IDOR: UPSERT chat_reads blocked');
+            _activeOpCount--;
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신의 읽음 기록만 생성할 수 있습니다.', code: 'FORBIDDEN' } });
+          }
+          // seats: profile_id는 반드시 requester여야 함 (자리 직접 등록)
+          if (table === 'seats' && row.profile_id != null &&
+              String(row.profile_id) !== String(requesterId)) {
+            logger.warn({ requesterId, profile_id: row.profile_id }, '[SECURITY] IDOR: UPSERT seats blocked');
+            _activeOpCount--;
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신의 자리만 등록할 수 있습니다.', code: 'FORBIDDEN' } });
+          }
+        }
+      }
       // Fix #7: O(n²) → O(n) — id 기반 UPSERT 시 Map 인덱스로 O(1) 조회
       const _idxById = !conflictCols.length ? new Map(tableData.map((r, i) => [r.id, i])) : null;
       for (const row of inputs) {
@@ -1047,6 +1105,33 @@ router.post('/op', async (req: Request, res: Response) => {
     // ── DELETE ──────────────────────────────────────────────────────────────
     if (op === 'delete') {
       const toDelete = applyFilters(tableData, filters);
+
+      // ─ IDOR guard: DELETE ownership check ──────────────────────────────
+      if (requesterId) {
+        for (const existingRow of toDelete) {
+          // likes: 자신이 보낸 하트만 삭제 가능
+          if (table === 'likes' && existingRow.liker_id != null &&
+              String(existingRow.liker_id) !== String(requesterId)) {
+            logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: DELETE likes blocked');
+            _activeOpCount--;
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신이 보낸 하트만 취소할 수 있습니다.', code: 'FORBIDDEN' } });
+          }
+          // messages: 자신이 보낸 메시지만 삭제 가능
+          if (table === 'messages' && existingRow.sender_id != null &&
+              String(existingRow.sender_id) !== String(requesterId)) {
+            logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: DELETE messages blocked');
+            _activeOpCount--;
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신의 메시지만 삭제할 수 있습니다.', code: 'FORBIDDEN' } });
+          }
+          // seats: 자신이 점유한 자리만 비울 수 있음
+          if (table === 'seats' && existingRow.profile_id != null &&
+              String(existingRow.profile_id) !== String(requesterId)) {
+            logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: DELETE seats blocked');
+            _activeOpCount--;
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: 다른 사람의 자리를 삭제할 수 없습니다.', code: 'FORBIDDEN' } });
+          }
+        }
+      }
       store[table] = tableData.filter(r => !applyFilters([r], filters).length);
       for (const row of toDelete) {
         smartBroadcast(table, row, { type: 'change', table, event: 'DELETE', newRow: null, oldRow: row });

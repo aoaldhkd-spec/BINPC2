@@ -33,8 +33,6 @@ interface SeatingMapProps {
   onForceSeat?: (profileId: string, seatId: string) => void;
   onSetTableLabel?: (tableNum: number, label: string) => Promise<void>;
   activeTables?: number[] | null;
-  /** 마운트 시 자동으로 확대할 테이블 번호 (내 테이블 탭 전용) */
-  defaultExpandedTable?: number | null;
 }
 
 // ─── Score helpers ─────────────────────────────────────────────────────────────
@@ -712,14 +710,13 @@ type RowFilter = 'all' | '1' | '2' | '3';
 
 export default function SeatingMap({
   seats, profileMap, currentUserId, isAdmin, seatingLocked = false,
-  tableLabels, darkMode = true, onSeatClick, onProfileClick, onChatClick, onClearSeat, onShowQr, onForceSeat, onSetTableLabel, activeTables, defaultExpandedTable,
+  tableLabels, darkMode = true, onSeatClick, onProfileClick, onChatClick, onClearSeat, onShowQr, onForceSeat, onSetTableLabel, activeTables,
 }: SeatingMapProps) {
   // User (non-admin) view: seat self-registration is always disabled.
   // Empty seats are display-only; only admin can assign/move seats.
   const totalOccupied = seats.filter(s => s.status === 'occupied').length;
   const totalSeats = seats.length;
-  // defaultExpandedTable: 내 테이블 탭에서 마운트 시 자동 확대 (초기값만 적용)
-  const [expandedTable, setExpandedTable] = useState<number | null>(defaultExpandedTable ?? null);
+  const [expandedTable, setExpandedTable] = useState<number | null>(null);
   const [profilePopup, setProfilePopup] = useState<{ profile: Profile; seat: Seat } | null>(null);
   const [activeCol, setActiveCol] = useState<ColFilter>('all');
   const [activeRow, setActiveRow] = useState<RowFilter>('all');

@@ -22,6 +22,7 @@ import { getZodiac, getOhaeng, getTodayFortune } from '../lib/fortune';
 import { getMbtiStyle, koreanMatch } from '../lib/utils';
 import { ls } from '../lib/storage';
 import SeatingMap from './SeatingMap';
+import MyTableView from './MyTableView';
 import ProfileAvatar from './ProfileAvatar';
 import { StatsTab, RankingTab } from './StatsTabs';
 import { ProfileInfoBadges } from './ProfileInfoBadges';
@@ -1282,19 +1283,15 @@ export function MainScreen({
                     </span>
                   </p>
                 </div>
-                {/* 내 테이블만 표시 — 마운트 시 자동 확대 (defaultExpandedTable) */}
-                <SeatingMap
+                {/* 내 테이블만 표시 — MyTableView (SeatingMap과 완전 분리) */}
+                <MyTableView
+                  tableNumber={tableNumber}
                   seats={seats}
                   profileMap={profileMap}
                   currentUserId={currentUserId}
-                  isAdmin={false}
-                  seatingLocked={seatingLocked}
                   darkMode={darkMode}
-                  activeTables={[tableNumber]}
                   tableLabels={tableLabels}
-                  defaultExpandedTable={tableNumber}
                   onProfileClick={onProfileClickFromMap}
-                  onChatClick={onOpenChat}
                   onSeatClick={!seatingLocked ? (seat) => { if (!seat.profile_id) _setSeatDialog(seat); } : undefined}
                 />
               </>
