@@ -75,7 +75,10 @@ describe('applySseInsert', () => {
     expect(next[1].id).toBe('db-row-3');
   });
 
-  it('replaces via legacy fallback (no client_id) when sender+content+time match within 5 s', () => {
+  // ── fuzzy fallback: 2-second window (regression: was 5s, now 2s) ────────────
+  // IMPORTANT: This window is 2 000 ms. Any future change MUST update these tests.
+
+  it('replaces via fuzzy fallback when sender+content match within 2 s (same timestamp)', () => {
     const clientUUID = 'aaaaaaaa-0000-0000-0000-000000000002';
     const optimistic = makeOptimistic(clientUUID, {
       sender_id: 'user-a',
@@ -84,13 +87,12 @@ describe('applySseInsert', () => {
     });
     const prev: Message[] = [optimistic];
 
-    // Incoming has no client_id but arrived within 5 s of the optimistic timestamp
     const incoming = makeMsg({
       id: 'db-row-legacy',
       client_id: null, // legacy — no client_id
       sender_id: 'user-a',
       content: 'legacy',
-      created_at: NOW,
+      created_at: NOW, // 0 ms difference → within 2 s
     });
 
     const next = applySseInsert(prev, incoming);
@@ -99,7 +101,51 @@ describe('applySseInsert', () => {
     expect(next[0].id).toBe('db-row-legacy');
   });
 
-  it('does NOT replace via legacy fallback when time difference exceeds 5 s', () => {
+  it('replaces via fuzzy fallback at 1 999 ms (just inside the 2 s window)', () => {
+    const clientUUID = 'aaaaaaaa-0000-0000-0000-000000000002b';
+    const optTime = new Date(new Date(NOW).getTime() - 1_999).toISOString();
+    const optimistic = makeOptimistic(clientUUID, {
+      sender_id: 'user-a',
+      content: 'boundary-in',
+      created_at: optTime,
+    });
+
+    const incoming = makeMsg({
+      id: 'db-row-1999',
+      client_id: null,
+      sender_id: 'user-a',
+      content: 'boundary-in',
+      created_at: NOW, // 1 999 ms after optimistic → inside window
+    });
+
+    const next = applySseInsert([optimistic], incoming);
+    expect(next).toHaveLength(1);
+    expect(next[0].id).toBe('db-row-1999');
+  });
+
+  it('does NOT replace via fuzzy fallback at 2 001 ms (just outside the 2 s window)', () => {
+    const clientUUID = 'aaaaaaaa-0000-0000-0000-000000000002c';
+    const optTime = new Date(new Date(NOW).getTime() - 2_001).toISOString();
+    const optimistic = makeOptimistic(clientUUID, {
+      sender_id: 'user-a',
+      content: 'boundary-out',
+      created_at: optTime,
+    });
+
+    const incoming = makeMsg({
+      id: 'db-row-2001',
+      client_id: null,
+      sender_id: 'user-a',
+      content: 'boundary-out',
+      created_at: NOW, // 2 001 ms after optimistic → outside window
+    });
+
+    const next = applySseInsert([optimistic], incoming);
+    // Outside window → appended, not replaced
+    expect(next).toHaveLength(2);
+  });
+
+  it('does NOT replace via legacy fallback when time difference exceeds 10 s', () => {
     const clientUUID = 'aaaaaaaa-0000-0000-0000-000000000003';
     const oldTime = new Date(new Date(NOW).getTime() - 10_000).toISOString();
     const optimistic = makeOptimistic(clientUUID, {
@@ -120,6 +166,31 @@ describe('applySseInsert', () => {
     const next = applySseInsert(prev, incoming);
 
     // Fallback didn't match → appended as new
+    expect(next).toHaveLength(2);
+  });
+
+  it('image messages are NEVER fuzzy-matched (even at 0 ms, same sender)', () => {
+    // Regression guard: image messages must never be fuzzy-matched because
+    // their content is always '' and a false match would merge two different images.
+    const clientUUID = 'aaaaaaaa-0000-0000-0000-000000000003b';
+    const imageOptimistic = makeOptimistic(clientUUID, {
+      sender_id: 'user-a',
+      content: '',
+      image_url: 'blob:fake-local-blob-url',
+      created_at: NOW,
+    });
+
+    const incomingImage = makeMsg({
+      id: 'db-image-row',
+      client_id: null, // no client_id → would normally attempt fuzzy
+      sender_id: 'user-a',
+      content: '',
+      image_url: 'https://cdn.example.com/real-image.jpg',
+      created_at: NOW, // same timestamp
+    });
+
+    const next = applySseInsert([imageOptimistic], incomingImage);
+    // Must NOT fuzzy-match — both should exist
     expect(next).toHaveLength(2);
   });
 

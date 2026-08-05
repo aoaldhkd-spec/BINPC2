@@ -10,7 +10,7 @@ import { SkipBack, SkipForward, Play, Pause } from 'lucide-react';
 function Cursor({ x, y, clicking }: { x: number; y: number; clicking: boolean }) {
   return (
     <div
-      className="absolute pointer-events-none z-50 transition-all duration-[450ms] ease-in-out"
+      className="absolute pointer-events-none z-50 transition-all duration-[650ms] ease-[cubic-bezier(0.4,0,0.2,1)]"
       style={{ left: x, top: y, transform: 'translate(-3px, -3px)' }}
     >
       {clicking && (
@@ -188,56 +188,69 @@ function S2({ step }: { step: number }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Scene 3: 프로필 정보 등록 (MBTI·생월일·연락처)
+// Scene 3: 프로필 정보 등록 (관심사·생월일·연락처)
 // ══════════════════════════════════════════════════════════════════════════════
 function S3({ step }: { step: number }) {
-  const mbtiOptions = ['ENFP','ENFJ','ENTP','ENTJ','INFP','INFJ','INTP','INTJ'];
-  const [mbtiSelected, setMbtiSelected] = useState<string|null>(null);
+  const interestOptions = [
+    { emoji: '🎵', label: '음악' }, { emoji: '✈️', label: '여행' },
+    { emoji: '🍕', label: '맛집' }, { emoji: '🏃', label: '운동' },
+    { emoji: '🎮', label: '게임' }, { emoji: '📚', label: '독서' },
+    { emoji: '🎨', label: '그림' }, { emoji: '☕', label: '카페' },
+  ];
+  const [selected, setSelected] = useState<number[]>([]);
   const [showContact, setShowContact] = useState(false);
   useEffect(() => {
-    if (step >= 2) setMbtiSelected('ENFP');
-    if (step >= 4) setShowContact(true);
+    if (step >= 2) setSelected([0]);          // 음악 선택
+    if (step >= 3) setSelected([0, 1]);       // 여행도 선택
+    if (step >= 5) setShowContact(true);
   }, [step]);
   return (
     <div className="h-full flex flex-col bg-slate-900 px-3 pt-3 gap-2 overflow-hidden">
       <p className="text-slate-400 text-[10px] font-bold">내 상태 탭 → 프로필 편집</p>
 
-      {/* MBTI */}
-      <div className={`relative bg-slate-800 border rounded-2xl p-2.5 transition-all ${step >= 1 && step <= 2 ? 'border-teal-500/70' : 'border-slate-700'}`}>
+      {/* 관심사 */}
+      <div className={`relative bg-slate-800 border rounded-2xl p-2.5 transition-all duration-300 ${step >= 1 && step <= 3 ? 'border-teal-500/70' : 'border-slate-700'}`}>
         <Ring on={step === 1} />
-        <Tip text="MBTI 선택!" show={step === 1} dir="right" />
-        <p className="text-slate-400 text-[9px] font-bold mb-1.5">🧠 MBTI</p>
-        <div className="flex flex-wrap gap-1">
-          {mbtiOptions.map(m => (
-            <div key={m} className={`relative px-2 py-0.5 rounded-lg text-[9px] font-black transition-all duration-200 ${mbtiSelected === m ? 'bg-teal-500 text-white scale-110' : 'bg-slate-700 text-slate-400'}`}>
-              <Ring on={step === 1 && m === 'ENFP'} color="ring-teal-400" />
-              {m}
+        <Tip text="관심사 2개 이상 선택!" show={step === 1} dir="right" />
+        <p className="text-slate-400 text-[9px] font-bold mb-1.5">🌟 관심사</p>
+        <div className="flex flex-wrap gap-1.5">
+          {interestOptions.map((it, i) => (
+            <div key={it.label}
+              className={`relative flex items-center gap-1 px-2 py-1 rounded-xl text-[9px] font-black transition-all duration-300
+                ${selected.includes(i) ? 'bg-teal-500 text-white scale-105' : 'bg-slate-700 text-slate-400'}
+                ${step === 2 && i === 0 ? 'ring-2 ring-teal-300' : ''}
+                ${step === 3 && i === 1 ? 'ring-2 ring-teal-300' : ''}`}>
+              <span>{it.emoji}</span>
+              <span>{it.label}</span>
             </div>
           ))}
         </div>
+        {selected.length >= 2 && (
+          <p className="text-teal-400 text-[8px] mt-1.5 font-bold animate-in fade-in duration-300">✅ 관심사가 저장되었습니다!</p>
+        )}
       </div>
 
       {/* 생월일 */}
-      <div className={`relative bg-slate-800 border rounded-2xl p-2.5 transition-all ${step === 3 ? 'border-violet-500/70' : 'border-slate-700'}`}>
-        <Ring on={step === 3} color="ring-violet-400" />
-        <Tip text="생월·생일 입력 → 운세·궁합 활성화!" show={step === 3} dir="right" />
+      <div className={`relative bg-slate-800 border rounded-2xl p-2.5 transition-all duration-300 ${step === 4 ? 'border-violet-500/70' : 'border-slate-700'}`}>
+        <Ring on={step === 4} color="ring-violet-400" />
+        <Tip text="생월·생일 입력 → 운세·궁합 활성화!" show={step === 4} dir="right" />
         <p className="text-slate-400 text-[9px] font-bold mb-1.5">🎂 생월·생일</p>
         <div className="flex gap-2">
-          <div className={`flex-1 bg-slate-700 rounded-xl px-2 py-1.5 text-center transition-all ${step === 3 ? 'ring-2 ring-violet-400 text-white' : 'text-slate-400'} text-[11px] font-black`}>
-            {step >= 3 ? '3월' : '-- 월'}
+          <div className={`flex-1 bg-slate-700 rounded-xl px-2 py-1.5 text-center transition-all duration-300 ${step === 4 ? 'ring-2 ring-violet-400 text-white' : 'text-slate-400'} text-[11px] font-black`}>
+            {step >= 4 ? '3월' : '-- 월'}
           </div>
-          <div className={`flex-1 bg-slate-700 rounded-xl px-2 py-1.5 text-center transition-all ${step === 3 ? 'ring-2 ring-violet-400 text-white' : 'text-slate-400'} text-[11px] font-black`}>
-            {step >= 3 ? '15일' : '-- 일'}
+          <div className={`flex-1 bg-slate-700 rounded-xl px-2 py-1.5 text-center transition-all duration-300 ${step === 4 ? 'ring-2 ring-violet-400 text-white' : 'text-slate-400'} text-[11px] font-black`}>
+            {step >= 4 ? '15일' : '-- 일'}
           </div>
         </div>
-        {step >= 3 && <p className="text-violet-400 text-[8px] mt-1 font-bold">✨ 등록하면 운세·궁합 기능이 열려요!</p>}
+        {step >= 4 && <p className="text-violet-400 text-[8px] mt-1 font-bold">✨ 등록하면 운세·궁합 기능이 열려요!</p>}
       </div>
 
       {/* 연락처 */}
       {showContact && (
-        <div className="relative bg-slate-800 border border-rose-500/50 rounded-2xl p-2.5 animate-in slide-in-from-bottom-2 duration-300">
-          <Ring on={step === 4} color="ring-rose-400" />
-          <Tip text="연락처 등록 → 상대와 공유 가능!" show={step === 4} dir="right" />
+        <div className="relative bg-slate-800 border border-rose-500/50 rounded-2xl p-2.5 animate-in slide-in-from-bottom-2 duration-500">
+          <Ring on={step === 5} color="ring-rose-400" />
+          <Tip text="연락처 등록 → 상대와 공유 가능!" show={step === 5} dir="right" />
           <p className="text-slate-400 text-[9px] font-bold mb-1.5">📱 연락처</p>
           <div className="space-y-1">
             {[{icon:'K',label:'카카오톡',val:'my_kakao',color:'text-yellow-400'},{icon:'@',label:'인스타그램',val:'@my_insta',color:'text-pink-400'}].map(c => (
@@ -508,16 +521,18 @@ const SCENES: SceneDef[] = [
     render: s => <S2 step={s} />,
   },
   {
-    title: 'MBTI·생월일·연락처 등록', sub: '내 상태 탭 → 프로필 편집에서 등록',
+    title: '관심사·생월일·연락처 등록', sub: '내 상태 탭 → 프로필 편집에서 등록',
     steps: [
-      { cx: 124, cy: 80, dur: 900 },
-      { cx: 55,  cy: 95, click: false, dur: 800 },  // MBTI 섹션
-      { cx: 55,  cy: 95, click: true,  dur: 500 },  // ENFP 탭
-      { cx: 124, cy: 140, dur: 900 },
-      { cx: 124, cy: 155, click: false, dur: 800 }, // 생월일 섹션
-      { cx: 124, cy: 155, click: true,  dur: 500 },
-      { cx: 124, cy: 210, dur: 900 },
-      { cx: 124, cy: 225, click: false, dur: 1600 },
+      { cx: 124, cy: 80,  dur: 1000 },              // 관심사 섹션 소개
+      { cx: 55,  cy: 100, click: false, dur: 900 }, // 음악 위로 이동
+      { cx: 55,  cy: 100, click: true,  dur: 700 }, // 음악 선택
+      { cx: 104, cy: 100, click: false, dur: 900 }, // 여행으로 이동
+      { cx: 104, cy: 100, click: true,  dur: 700 }, // 여행 선택 → 저장됨
+      { cx: 124, cy: 160, click: false, dur: 1000 }, // 생월일로 이동
+      { cx: 80,  cy: 175, click: false, dur: 800 }, // 월 선택
+      { cx: 80,  cy: 175, click: true,  dur: 700 },
+      { cx: 124, cy: 215, click: false, dur: 900 }, // 연락처로 이동
+      { cx: 124, cy: 230, click: false, dur: 1600 },
     ],
     render: s => <S3 step={s} />,
   },

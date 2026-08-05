@@ -16,3 +16,5 @@
 - [boltnew-app cold-start loading gate bug](boltnew-app-cold-start-bug.md) — reset_signal+fresh localStorage → early return이 sessionActive/entryPassword 설정 없이 timeout 취소 → 무한 로딩. 수정: loading gate 상태 설정을 reset 분기 이전으로 이동.
 - [boltnew-app chat bugs 2026-08-01](boltnew-app-chat-bugs-aug01.md) — device_secret NEEDS_MIGRATION 차단(→first-claim 허용), chatList dep churn(→chatIdsKey), loadMessages 무음 오류(→반환값+로그), 폴링 무한재시도(→3회실패 중단). 150명 테스트 스크립트: artifacts/api-server/scripts/chat-test-150.mjs.
 - [boltnew-app chat overhaul 2026-08-05](boltnew-app-chat-overhaul.md) — seatingLocked→chat 차단 제거; perChatChannels cleanup 분리(userId/chatIdsKey 별도 effect); new-chats SSE(user1_id·user2_id 각각 구독); selfInitiatedPairTimerRef unmount 정리; sendMessage/sendImage .select().single()로 SSE 의존 제거.
+- [boltnew-app test channel mock pattern](boltnew-app-test-channel-mock.md) — supabase.channel() mock은 handlers 배열로 다중 .on() 지원해야 함. 단일 변수로 overwrite 시 new-chats 채널이 message 핸들러를 덮어씀.
+- [boltnew-app defensive hardening 2026-08-05](boltnew-app-defensive-hardening.md) — sendMessage 3회 재시도+분실복구; SSE 백오프+지터; 폴링 중첩방지; 메시지 배열 상한 500; SSE 페이로드 검증; ChatErrorBoundary; 기존 60개 테스트 전부 통과.

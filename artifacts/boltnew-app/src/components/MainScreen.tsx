@@ -1070,7 +1070,7 @@ export function MainScreen({
             [
               { id: 'profiles' as MainTab, label: '참여자', badge: seenProfilesCount < 0 ? 0 : Math.max(0, profiles.length - seenProfilesCount) },
               { id: 'seating' as MainTab, label: '배치도' },
-              { id: 'suggestions' as MainTab, label: '💬 요청' },
+              { id: 'suggestions' as MainTab, label: '📋 요청' },
               { id: 'game' as MainTab, label: '🎮 게임', badge: Math.max(0, activeGameCount - seenGameCount) },
               { id: 'ranking' as MainTab, label: '🏆 랭킹' },
             ],
@@ -1938,32 +1938,6 @@ export function MainScreen({
 
 
             <div className="contents">
-            <div className={`rounded-2xl shadow-sm p-5 transition-colors duration-300 ${darkMode ? 'bg-slate-800 border border-slate-600' : 'bg-white'}`}>
-              <h3 className={`text-sm font-bold uppercase tracking-wider mb-4 ${darkMode ? 'text-slate-200' : 'text-gray-500'}`}>하트 사용 현황</h3>
-              <div className="space-y-3">
-                {HEART_TYPES.map(h => {
-                  const used = heartCount(h.type);
-                  return (
-                    <div key={h.type} className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xl">{h.emoji}</span>
-                        <div>
-                          <p className={`text-xs font-bold ${h.text}`}>{h.label}</p>
-                          <p className={`text-[10px] ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{h.desc}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        {[0, 1].map(i => (
-                          <Heart key={i} className={`w-5 h-5 ${i < (2 - used) ? h.fillText : darkMode ? 'fill-slate-600 text-slate-600' : 'fill-gray-200 text-gray-200'}`} />
-                        ))}
-                        <span className={`text-xs font-bold ml-1 ${darkMode ? 'text-slate-200' : 'text-gray-400'}`}>{2-used}/2</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
             {/* 받은 하트 */}
             <div className={`rounded-2xl shadow-sm p-5 transition-colors duration-300 ${darkMode ? 'bg-slate-800 border border-slate-600' : 'bg-white'}`}>
               <div className="flex items-center justify-between mb-4">
@@ -2307,11 +2281,11 @@ export function MainScreen({
             />
         )}
 
-        {/* ─── 건의함 탭 (익명 건의함) ─── */}
+        {/* ─── 건의함 탭 (관리자에게 요청) ─── */}
         {mainTab === 'suggestions' && (
           <div className="max-w-lg mx-auto space-y-4">
             <div className={`rounded-2xl shadow-sm p-5 transition-colors duration-300 ${darkMode ? 'bg-slate-800 border border-slate-600' : 'bg-white'}`}>
-              <h3 className={`text-base font-black mb-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}>익명 건의함</h3>
+              <h3 className={`text-base font-black mb-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}>관리자(방장)에게 요청</h3>
               <p className={`text-xs mb-4 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
                 익명으로 전송되며, 관리자에게 어느 테이블에서 보냈는지 함께 전달됩니다.
                 {tableNumber && <span className="ml-1 font-bold text-teal-600">({tableNumber}번 테이블)</span>}

@@ -13,6 +13,7 @@ import type {
 export type { GameState } from './types/app';
 import { heartMeta } from './lib/constants';
 import ChatScreen from './components/ChatScreen';
+import { ChatErrorBoundary } from './components/ChatErrorBoundary';
 import ProfileDetail from './components/ProfileDetail';
 import BrowserGuidePopup from './components/BrowserGuidePopup';
 import ReconnectOverlay from './components/ReconnectOverlay';
@@ -1279,30 +1280,32 @@ function App() {
     </div>
   );
   if (view === 'chat' && selectedProfile && chatId) return (
-    <>
-      {currentGame?.active && gameModalVisible && <GameAnnouncementModal game={currentGame} onDismiss={() => setGameModalVisible(false)} onVote={voteOnGame} onImageVote={voteOnImageGame} currentUserId={currentUserId} seats={seats} profiles={profiles} />}
-      <ChatScreen
-        chatId={chatId}
-        messages={messages}
-        currentUserId={currentUserId!}
-        otherProfile={selectedProfile}
-        onSend={sendMessage}
-        onSendImage={sendImage}
-        onBack={() => { chatIdRef.current = null; setChatId(null); setView('main'); }}
-        onReset={reset}
-        onDeleteMessage={deleteMessage}
-        currentUserProfile={profiles.find(p => p.id === currentUserId) ?? null}
-        receivedContactShares={receivedContactShares}
-        contactSharedWithIds={contactSharedWithIds}
-        onGoToTab={(tab) => {
-          chatIdRef.current = null;
-          setChatId(null);
-          setView('main');
-          setMainTab(tab as MainTab);
-        }}
-        onUpdateProfile={(update) => setProfiles(prev => prev.map(p => p.id === update.id ? { ...p, ...update } : p))}
-      />
-    </>
+    <ChatErrorBoundary onReset={() => { chatIdRef.current = null; setChatId(null); setView('main'); }}>
+      <>
+        {currentGame?.active && gameModalVisible && <GameAnnouncementModal game={currentGame} onDismiss={() => setGameModalVisible(false)} onVote={voteOnGame} onImageVote={voteOnImageGame} currentUserId={currentUserId} seats={seats} profiles={profiles} />}
+        <ChatScreen
+          chatId={chatId}
+          messages={messages}
+          currentUserId={currentUserId!}
+          otherProfile={selectedProfile}
+          onSend={sendMessage}
+          onSendImage={sendImage}
+          onBack={() => { chatIdRef.current = null; setChatId(null); setView('main'); }}
+          onReset={reset}
+          onDeleteMessage={deleteMessage}
+          currentUserProfile={profiles.find(p => p.id === currentUserId) ?? null}
+          receivedContactShares={receivedContactShares}
+          contactSharedWithIds={contactSharedWithIds}
+          onGoToTab={(tab) => {
+            chatIdRef.current = null;
+            setChatId(null);
+            setView('main');
+            setMainTab(tab as MainTab);
+          }}
+          onUpdateProfile={(update) => setProfiles(prev => prev.map(p => p.id === update.id ? { ...p, ...update } : p))}
+        />
+      </>
+    </ChatErrorBoundary>
   );
 
   return (

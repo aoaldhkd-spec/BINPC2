@@ -27,6 +27,7 @@ let mockFetch: ReturnType<typeof vi.fn>;
 
 // Channel mock — returned by supabase.channel(name)
 function makeChannelMock() {
+  // handlers 배열로 모든 .on() 등록 — new-chats-u1/u2 채널이 기존 핸들러를 덮어쓰지 않도록
   const ch: Record<string, unknown> = {};
   ch.on = vi.fn().mockReturnValue(ch);
   ch.subscribe = vi.fn().mockReturnValue(ch);

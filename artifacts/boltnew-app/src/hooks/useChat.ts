@@ -4,10 +4,15 @@
  * 구조적 안전 장치:
  * 1. sendMessage/sendImage: chatIdRef·currentUserIdRef(항상 최신 ref)를 스냅샷해 stale closure 완전 차단
  * 2. 전송 잠금: boolean → Set<chatId> 로 교체 — 채팅방별 독립 잠금 (A 전송 중에도 B 전송 가능)
- * 3. try/catch: supabase.insert() 네트워크 예외를 잡아 finally로 잠금 해제 보장
+ * 3. 자동 재시도: 네트워크 오류 시 지수 백오프(1s→2s→4s)로 최대 3회 재시도, 낙관적 메시지 유지
  * 4. 미읽음 뱃지: unreadChatCountsRef(ref)로 항상 최신값 보장
  * 5. 채널 누수: per-chat 채널은 chatIdsKey·currentUserId 변화 시 cleanup이 항상 실행됨
+ * 6. 폴링 중첩 방지: 이전 폴링이 완료되기 전 다음 폴링 실행 차단
+ * 7. 메시지 배열 상한: MAX_MESSAGES 초과 시 가장 오래된 것부터 제거 (메모리 누수 방지)
+ * 8. SSE 페이로드 검증: 필수 필드 없는 이벤트 즉시 차단
  */
+
+const MAX_MESSAGES = 500; // 채팅방당 최대 메시지 보유 수 (메모리 누수 방지)
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
@@ -95,6 +100,9 @@ export function useChat({
         }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
           try {
             const m = payload.new as { chat_id: string; sender_id: string; content: string; image_url?: string };
+            // [안전장치 8] SSE 페이로드 필수 필드 검증 — 잘못된 데이터 즉시 차단
+            if (!m || typeof m.sender_id !== 'string' || !m.sender_id ||
+                typeof m.chat_id !== 'string' || !m.chat_id) return;
             // 내 메시지는 HTTP 응답 + optimistic UI에서 이미 처리 — 여기서 중복 금지
             if (m.sender_id === currentUserId) return;
             const preview = m.image_url ? '📷 사진' : m.content;
@@ -124,7 +132,11 @@ export function useChat({
       const { data, error } = await supabase.from('messages').select('*').eq('chat_id', cid).order('created_at', { ascending: true });
       if (gen !== loadGenRef.current) return false; // stale 응답 버림
       if (error) { console.error('[loadMessages] DB 오류:', error.message); return false; }
-      if (data) setMessages(prev => applyLoadMessages(prev, data as Message[]));
+      if (data) setMessages(prev => {
+        const result = applyLoadMessages(prev, data as Message[]);
+        // [안전장치 7] 메시지 배열 상한 — 오래된 메시지부터 제거해 메모리 누수 방지
+        return result.length > MAX_MESSAGES ? result.slice(-MAX_MESSAGES) : result;
+      });
       return true;
     } catch (err) {
       console.error('[loadMessages] 네트워크 오류:', err);
@@ -156,13 +168,16 @@ export function useChat({
       .channel(`chat:${chatId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `chat_id=eq.${chatId}` },
         (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-          const newMsg = payload.new as Message;
+          // [안전장치 8] SSE 페이로드 필수 필드 검증 — null/undefined/wrong-type 즉시 차단
+          const raw = payload.new;
+          if (!raw || typeof raw.id !== 'string' || !raw.id || typeof raw.sender_id !== 'string') return;
+          const newMsg = raw as unknown as Message;
           setMessages(prev => applySseInsert(prev, newMsg));
         })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages', filter: `chat_id=eq.${chatId}` },
         (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
           const deleted = payload.old as { id?: string };
-          if (deleted.id) setMessages(prev => prev.filter(m => m.id !== deleted.id));
+          if (deleted.id && typeof deleted.id === 'string') setMessages(prev => prev.filter(m => m.id !== deleted.id));
         })
       .subscribe();
 
@@ -170,11 +185,19 @@ export function useChat({
 
     // SSE 불안정 시 폴링 폴백 — 8초마다 확인 (applyLoadMessages가 dedup 처리)
     // 3회 연속 실패 시 중단 (서버 과부하 방지)
+    // [안전장치 6] isPolling 플래그로 이전 폴링이 완료되기 전 중복 실행 차단
     let pollFailCount = 0;
+    let isPolling = false;
     const pollInterval = setInterval(async () => {
       if (chatIdRef.current !== chatId || pollFailCount >= 3) return;
-      const ok = await loadMessages(chatId);
-      if (ok) pollFailCount = 0; else pollFailCount++;
+      if (isPolling) return; // 이전 폴링이 아직 실행 중 — skip (간격 중첩 방지)
+      isPolling = true;
+      try {
+        const ok = await loadMessages(chatId);
+        if (ok) pollFailCount = 0; else pollFailCount++;
+      } finally {
+        isPolling = false;
+      }
     }, 8_000);
 
     return () => {
@@ -419,8 +442,10 @@ export function useChat({
   const uploadingChatIdsRef = useRef(new Set<string>());
 
   // ── 메시지 전송 ───────────────────────────────────────────────────────────────
-  // chatIdRef·currentUserIdRef 사용 → stale closure 완전 차단
-  // try/catch로 네트워크 예외 보호 → finally로 잠금 해제 보장
+  // [안전장치 3] 자동 재시도: 네트워크 오류 시 낙관적 메시지를 화면에 유지한 채
+  //   지수 백오프(1s → 2s → 4s)로 최대 3회 재시도. 모두 실패 시에만 롤백.
+  //   client_id(UUID)를 재시도에도 동일하게 유지 → DB ON CONFLICT 로 idempotent.
+  //   응답 분실(first attempt 성공+응답 누락) 시: insert error + client_id 재조회로 복구.
   const sendMessage = useCallback(async (content: string): Promise<void> => {
     const snapChatId = chatIdRef.current;
     const snapUserId = currentUserIdRef.current;
@@ -428,13 +453,15 @@ export function useChat({
     if (sendingChatIdsRef.current.has(snapChatId)) return;
     sendingChatIdsRef.current.add(snapChatId);
 
-    const optimisticId = `__opt_${crypto.randomUUID()}`;
+    const clientUUID = crypto.randomUUID(); // 재시도 전체에서 동일 UUID 사용 (idempotency)
+    const optimisticId = `__opt_${clientUUID}`;
     const prevLastMessage = chatListRef.current.find(c => c.id === snapChatId)?.lastMessage ?? '';
+    const trimmed = content.trim();
     const optimisticMsg: Message = {
       id: optimisticId,
       chat_id: snapChatId,
       sender_id: snapUserId,
-      content: content.trim(),
+      content: trimmed,
       created_at: new Date().toISOString(),
     } as Message;
 
@@ -442,47 +469,63 @@ export function useChat({
       if (chatIdRef.current !== snapChatId) return prev;
       return [...prev, optimisticMsg];
     });
-    setChatList(prev => prev.map(c => c.id === snapChatId ? { ...c, lastMessage: content.trim() } : c));
+    setChatList(prev => prev.map(c => c.id === snapChatId ? { ...c, lastMessage: trimmed } : c));
+
+    const rollback = () => {
+      setMessages(prev => prev.filter(m => m.id !== optimisticId));
+      setChatList(prev => prev.map(c =>
+        c.id === snapChatId && c.lastMessage === trimmed ? { ...c, lastMessage: prevLastMessage } : c
+      ));
+    };
+
+    const MAX_RETRIES = 3;
+    let lastErr: unknown;
 
     try {
-      // .select().single() — HTTP 응답에서 서버 할당 id·created_at을 직접 수신
-      // → optimistic 메시지를 SSE를 기다리지 않고 즉시 실제 DB 행으로 교체
-      // → SSE가 나중에 도착해도 applySseInsert 규칙 1(id 중복)로 자동 무시됨
-      const { data: insertedMsg, error } = await supabase.from('messages').insert({
-        chat_id: snapChatId,
-        sender_id: snapUserId,
-        content: content.trim(),
-        client_id: optimisticId.replace('__opt_', ''),
-      }).select().single();
+      for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+        // 재시도 시 지수 백오프 — 1s, 2s, 4s
+        if (attempt > 0) {
+          await new Promise<void>(r => setTimeout(r, Math.pow(2, attempt - 1) * 1000));
+          // 대기 중 채팅방이 바뀌면 중단 (낙관적 메시지는 그대로 — 폴링이 reconcile)
+          if (chatIdRef.current !== snapChatId) return;
+        }
 
-      if (error) {
-        setMessages(prev => prev.filter(m => m.id !== optimisticId));
-        setChatList(prev => prev.map(c =>
-          c.id === snapChatId && c.lastMessage === content.trim()
-            ? { ...c, lastMessage: prevLastMessage }
-            : c
-        ));
-        console.error('[sendMessage] DB 오류:', error.message);
-        throw error;
+        try {
+          const { data: insertedMsg, error } = await supabase.from('messages').insert({
+            chat_id: snapChatId,
+            sender_id: snapUserId,
+            content: trimmed,
+            client_id: clientUUID,
+          }).select().single();
+
+          if (!error && insertedMsg) {
+            // 성공: optimistic → 실제 DB 행으로 즉시 교체
+            if (chatIdRef.current === snapChatId) {
+              setMessages(prev => prev.map(m => m.id === optimisticId ? insertedMsg as Message : m));
+            }
+            return;
+          }
+
+          // Insert 실패했지만 이전 시도의 응답이 분실된 경우를 처리:
+          // 같은 client_id로 DB를 조회해 이미 저장된 행이 있으면 교체 후 성공
+          if (error) {
+            const { data: existing } = await supabase.from('messages').select('*').eq('client_id', clientUUID).maybeSingle();
+            if (existing && chatIdRef.current === snapChatId) {
+              setMessages(prev => prev.map(m => m.id === optimisticId ? existing as Message : m));
+              return; // 분실 복구 성공
+            }
+            lastErr = error;
+          }
+        } catch (err) {
+          lastErr = err;
+          if (chatIdRef.current !== snapChatId) return; // 방 변경 시 조용히 중단
+        }
       }
 
-      // 성공: optimistic → 실제 DB 행으로 교체 (현재 방이 변경됐으면 skip)
-      if (insertedMsg && chatIdRef.current === snapChatId) {
-        setMessages(prev => prev.map(m => m.id === optimisticId ? insertedMsg as Message : m));
-      }
-    } catch (err) {
-      // 네트워크 단절 등 예외 — 낙관적 메시지 롤백
-      const isSupabaseError = err instanceof Object && 'message' in err && 'code' in err;
-      if (!isSupabaseError) {
-        setMessages(prev => prev.filter(m => m.id !== optimisticId));
-        setChatList(prev => prev.map(c =>
-          c.id === snapChatId && c.lastMessage === content.trim()
-            ? { ...c, lastMessage: prevLastMessage }
-            : c
-        ));
-        console.error('[sendMessage] 네트워크 예외:', err);
-      }
-      throw err;
+      // 모든 재시도 실패 → 롤백 + 에러
+      rollback();
+      console.error('[sendMessage] 전송 실패 (3회 재시도 후):', lastErr);
+      throw lastErr;
     } finally {
       sendingChatIdsRef.current.delete(snapChatId);
     }

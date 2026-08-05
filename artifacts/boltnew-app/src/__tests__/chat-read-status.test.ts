@@ -25,22 +25,24 @@ let mockFetch: ReturnType<typeof vi.fn>;
 // Tracks every chat_reads upsert call so tests can inspect them
 const chatReadsUpsertCalls: unknown[] = [];
 
-function makeChannelMock(onSubscribe?: (handler: (payload: unknown) => void) => void) {
-  let insertHandler: ((payload: unknown) => void) | null = null;
+function makeChannelMock() {
+  // 여러 .on() 호출이 모두 등록되도록 handlers 배열 사용
+  // (new-chats-u1/u2 채널 등 추가 구독이 기존 핸들러를 덮어쓰지 않도록)
+  const handlers: ((payload: unknown) => void)[] = [];
   const ch: Record<string, unknown> = {};
   ch.on = vi.fn().mockImplementation(
     (_event: string, _filter: unknown, handler: (payload: unknown) => void) => {
-      insertHandler = handler;
-      if (onSubscribe) onSubscribe(handler);
+      handlers.push(handler);
       return ch;
     },
   );
-  ch.subscribe = vi.fn().mockImplementation(() => {
-    return ch;
-  });
+  ch.subscribe = vi.fn().mockImplementation(() => ch);
   ch.unsubscribe = vi.fn().mockReturnValue(ch);
-  // Expose the handler so tests can simulate incoming messages
-  (ch as unknown as { _triggerInsert: (p: unknown) => void })._triggerInsert = (p) => insertHandler?.(p);
+  // Expose: fires all registered handlers so message-channel and new-chats-channel coexist
+  (ch as unknown as { _triggerInsert: (p: unknown) => void })
+    ._triggerInsert = (p: unknown) => {
+      handlers.forEach(h => { try { h(p); } catch { /* ignore side effects from unrelated channels */ } });
+    };
   return ch;
 }
 
