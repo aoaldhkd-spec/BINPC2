@@ -1,22 +1,61 @@
 /**
  * TutorialVideo — 참여자가 모를 만한 숨겨진 기능 위주 커서 애니메이션 튜토리얼
  * 제외: 하트 보내기, 채팅 기본, 운세
- * 포함: PIN 입장 → 아바타 변경 → 프로필 등록 → 채팅 이모지/스티커 → 사진/빠른메시지 → 스와이프/길게누르기
+ * 포함: PIN 입장 → 아바타 변경 → 프로필 등록 → 채팅 이모지/스티커 → 사진/빠른메시지 → 스와이프/길게누르기 → 받은/보낸 하트
  */
 import { useState, useEffect, useRef, useCallback, type ReactElement } from 'react';
-import { SkipBack, SkipForward, Play, Pause } from 'lucide-react';
+import { SkipBack, SkipForward, Play, Pause, Heart } from 'lucide-react';
 
-// ── 커서 ─────────────────────────────────────────────────────────────────────
+// ── 커서 — RAF lerp (CSS transition 사용 안 함: 목표가 바뀔 때 커서가 튀는 문제 완전 해결) ──
 function Cursor({ x, y, clicking }: { x: number; y: number; clicking: boolean }) {
+  const elRef   = useRef<HTMLDivElement>(null);
+  const posRef  = useRef({ x, y });          // 현재 실제 위치
+  const tgtRef  = useRef({ x, y });          // 목표 위치
+  const rafRef  = useRef<number | null>(null);
+
+  // 목표가 바뀌면 RAF 루프 시작
+  useEffect(() => {
+    tgtRef.current = { x, y };
+
+    const tick = () => {
+      const { x: cx, y: cy } = posRef.current;
+      const { x: tx, y: ty } = tgtRef.current;
+      const dx = tx - cx;
+      const dy = ty - cy;
+      // lerp 계수 0.14 → 60fps 기준 약 480ms 안에 1px 이하로 수렴
+      const nx = cx + dx * 0.14;
+      const ny = cy + dy * 0.14;
+      posRef.current = { x: nx, y: ny };
+      if (elRef.current) {
+        elRef.current.style.left = `${nx}px`;
+        elRef.current.style.top  = `${ny}px`;
+      }
+      if (Math.abs(dx) > 0.15 || Math.abs(dy) > 0.15) {
+        rafRef.current = requestAnimationFrame(tick);
+      } else {
+        rafRef.current = null;
+      }
+    };
+
+    if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(tick);
+    return () => { if (rafRef.current !== null) cancelAnimationFrame(rafRef.current); };
+  }, [x, y]);
+
+  // 언마운트 시 RAF 정리
+  useEffect(() => () => { if (rafRef.current !== null) cancelAnimationFrame(rafRef.current); }, []);
+
   return (
     <div
-      className="absolute pointer-events-none z-50 transition-all duration-[650ms] ease-[cubic-bezier(0.4,0,0.2,1)]"
-      style={{ left: x, top: y, transform: 'translate(-3px, -3px)' }}
+      ref={elRef}
+      className="absolute pointer-events-none z-50"
+      style={{ left: posRef.current.x, top: posRef.current.y, transform: 'translate(-3px, -3px)' }}
     >
       {clicking && (
         <div className="absolute -inset-4 rounded-full bg-teal-400/30 animate-ping" />
       )}
-      <svg width="22" height="28" viewBox="0 0 22 28" fill="none" className={`drop-shadow-lg transition-transform duration-100 ${clicking ? 'scale-90' : 'scale-100'}`}>
+      <svg width="22" height="28" viewBox="0 0 22 28" fill="none"
+        className={`drop-shadow-lg transition-transform duration-150 ${clicking ? 'scale-90' : 'scale-100'}`}>
         <path d="M2 2L2 20L6 16L9 23L12 22L9 15L14 15L2 2Z" fill="white" stroke="#1e293b" strokeWidth="1.5" strokeLinejoin="round" />
       </svg>
     </div>
@@ -481,6 +520,97 @@ function S6({ step }: { step: number }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// Scene 7: 받은 하트 & 보낸 하트 확인
+// ══════════════════════════════════════════════════════════════════════════════
+function S7({ step }: { step: number }) {
+  const scrollRef  = useRef<HTMLDivElement>(null);
+  const sentRef    = useRef<HTMLDivElement>(null);
+
+  const received = [
+    { name: '하늘다람쥐', emoji: '🐿️', heartEmoji: '💕', label: '설렘', color: 'text-pink-400', bg: 'bg-pink-900/20' },
+    { name: '은빛고양이', emoji: '🐱', heartEmoji: '💚', label: '칭찬', color: 'text-emerald-400', bg: 'bg-emerald-900/20' },
+  ];
+  const sent = [
+    { name: '황금여우', emoji: '🦊', heartEmoji: '❤️', label: '로맨틱', color: 'text-red-400', status: '대기 중' },
+  ];
+
+  // step >= 5 : 수락 완료 / step >= 6 : 보낸 하트 섹션 스크롤 진입
+  const accepted = step >= 5;
+
+  useEffect(() => {
+    if (step >= 6 && sentRef.current && scrollRef.current) {
+      scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+    }
+  }, [step]);
+
+  return (
+    <div className="h-full flex flex-col bg-slate-900">
+      {/* overflow-y-auto + scroll-smooth — 보낸 하트 섹션이 잘리지 않도록 */}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 pt-2 pb-1 space-y-2"
+        style={{ scrollBehavior: 'smooth' }}>
+
+        <p className="text-[9px] font-black text-slate-500 uppercase tracking-wider">내 상태 탭에서 확인</p>
+
+        {/* ── 받은 하트 ── */}
+        <div className={`relative rounded-2xl p-2 border transition-all duration-300
+          ${step >= 1 ? 'border-pink-500/50 bg-slate-800' : 'border-slate-700 bg-slate-800'}`}>
+          <Ring on={step === 1 || step === 2} color="ring-pink-400" />
+          <Tip text="받은 하트 목록!" show={step === 1} dir="right" />
+          <p className="text-[9px] font-black text-slate-400 mb-1.5">💌 받은 하트</p>
+          <div className="space-y-1">
+            {received.map((r, i) => (
+              <div key={r.name}
+                className={`flex items-center gap-2 px-2 py-1.5 rounded-xl transition-all duration-300
+                  ${step >= 3 && i === 0 ? `ring-1 ring-pink-400 ${r.bg}` : 'bg-slate-700/60'}`}>
+                <div className="w-6 h-6 rounded-lg bg-slate-600 flex items-center justify-center text-xs flex-shrink-0">{r.emoji}</div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-white text-[9px] font-bold leading-tight">{r.name}</p>
+                  <p className={`text-[8px] ${r.color}`}>{r.heartEmoji} {r.label} 하트</p>
+                </div>
+                {/* 수락 버튼 — step 3~4 */}
+                {i === 0 && step >= 3 && !accepted && (
+                  <div className="flex gap-1 flex-shrink-0">
+                    <span className="px-1.5 py-0.5 bg-slate-600 text-slate-200 text-[7px] font-bold rounded-md">거절</span>
+                    <span className="px-1.5 py-0.5 bg-rose-500 text-white text-[7px] font-bold rounded-md animate-pulse">수락</span>
+                  </div>
+                )}
+                {/* 수락 완료 — step >= 5 */}
+                {i === 0 && accepted && (
+                  <span className="text-[8px] text-teal-400 font-bold flex-shrink-0 animate-in fade-in duration-300">공유 ✓</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── 보낸 하트 ── */}
+        <div ref={sentRef}
+          className={`relative rounded-2xl p-2 border transition-all duration-500
+            ${step >= 6 ? 'border-amber-500/60 bg-slate-800' : 'border-slate-700 bg-slate-800'}`}>
+          <Ring on={step >= 6} color="ring-amber-400" />
+          <Tip text="보낸 하트도 여기서!" show={step === 6} dir="right" />
+          <p className="text-[9px] font-black text-slate-400 mb-1.5">💘 보낸 하트</p>
+          {sent.map(s => (
+            <div key={s.name}
+              className={`flex items-center gap-2 px-2 py-1.5 rounded-xl transition-all duration-300
+                ${step >= 6 ? 'bg-amber-900/20' : 'bg-slate-700/60'}`}>
+              <div className="w-6 h-6 rounded-lg bg-slate-600 flex items-center justify-center text-xs flex-shrink-0">{s.emoji}</div>
+              <div className="flex-1 min-w-0">
+                <p className="text-white text-[9px] font-bold leading-tight">{s.name}</p>
+                <p className={`text-[8px] ${s.color}`}>{s.heartEmoji} {s.label} 하트</p>
+              </div>
+              <span className={`text-[7px] font-bold flex-shrink-0 px-1.5 py-0.5 rounded-md transition-all duration-300
+                ${step >= 6 ? 'bg-amber-500/20 text-amber-400' : 'text-slate-500'}`}>{s.status}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <Tabs active="status" hl={step === 0 ? 'status' : undefined} />
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // 장면 정의
 // ══════════════════════════════════════════════════════════════════════════════
 interface Step { cx: number; cy: number; click?: boolean; dur: number; }
@@ -494,93 +624,115 @@ const SCENES: SceneDef[] = [
   {
     title: '핀번호로 입장하기', sub: '4자리 핀번호를 키패드에 입력하세요',
     steps: [
-      { cx: 124, cy: 200, dur: 800 },
-      { cx: 67,  cy: 168, click: false, dur: 700 },  // 1 버튼 위
-      { cx: 67,  cy: 168, click: true,  dur: 500 },  // 1 클릭
-      { cx: 124, cy: 210, click: false, dur: 500 },  // 5
-      { cx: 124, cy: 210, click: true,  dur: 500 },
-      { cx: 67,  cy: 210, click: false, dur: 500 },  // 2
-      { cx: 67,  cy: 210, click: true,  dur: 500 },
-      { cx: 181, cy: 210, click: false, dur: 500 },  // 8
-      { cx: 181, cy: 210, click: true,  dur: 500 },
-      { cx: 124, cy: 200, click: false, dur: 1200 }, // 완료
+      { cx: 124, cy: 200, dur: 1000 },
+      { cx: 67,  cy: 168, click: false, dur: 900 },  // 1 버튼으로 이동
+      { cx: 67,  cy: 168, click: true,  dur: 700 },  // 1 클릭
+      { cx: 124, cy: 210, click: false, dur: 800 },  // 5로 이동
+      { cx: 124, cy: 210, click: true,  dur: 700 },
+      { cx: 67,  cy: 210, click: false, dur: 800 },  // 2로 이동
+      { cx: 67,  cy: 210, click: true,  dur: 700 },
+      { cx: 181, cy: 210, click: false, dur: 800 },  // 8로 이동
+      { cx: 181, cy: 210, click: true,  dur: 700 },
+      { cx: 124, cy: 200, click: false, dur: 1500 }, // 완료 대기
     ],
     render: s => <S1 step={s} />,
   },
   {
     title: '아바타(동물) 변경하기', sub: '내 상태 탭 → 아바타 탭 → 동물 선택',
     steps: [
-      { cx: 25, cy: 248, dur: 800 },               // 내 상태 탭
-      { cx: 25, cy: 248, click: true, dur: 600 },
-      { cx: 50, cy: 85,  dur: 900 },               // 아바타 탭
-      { cx: 50, cy: 85,  click: true, dur: 600 },
-      { cx: 148, cy: 158, dur: 1000 },             // 여우 선택
-      { cx: 148, cy: 158, click: true, dur: 600 },
-      { cx: 124, cy: 200, dur: 1800 },
+      { cx: 25,  cy: 248, dur: 1000 },              // 내 상태 탭 가리킴
+      { cx: 25,  cy: 248, click: true,  dur: 800 },
+      { cx: 50,  cy: 85,  dur: 1100 },              // 아바타 탭으로 이동
+      { cx: 50,  cy: 85,  click: true,  dur: 800 },
+      { cx: 148, cy: 158, dur: 1200 },              // 여우로 이동
+      { cx: 148, cy: 158, click: true,  dur: 800 },
+      { cx: 124, cy: 200, dur: 2000 },              // 결과 감상
     ],
     render: s => <S2 step={s} />,
   },
   {
     title: '관심사·생월일·연락처 등록', sub: '내 상태 탭 → 프로필 편집에서 등록',
     steps: [
-      { cx: 124, cy: 80,  dur: 1000 },              // 관심사 섹션 소개
-      { cx: 55,  cy: 100, click: false, dur: 900 }, // 음악 위로 이동
-      { cx: 55,  cy: 100, click: true,  dur: 700 }, // 음악 선택
-      { cx: 104, cy: 100, click: false, dur: 900 }, // 여행으로 이동
-      { cx: 104, cy: 100, click: true,  dur: 700 }, // 여행 선택 → 저장됨
-      { cx: 124, cy: 160, click: false, dur: 1000 }, // 생월일로 이동
-      { cx: 80,  cy: 175, click: false, dur: 800 }, // 월 선택
-      { cx: 80,  cy: 175, click: true,  dur: 700 },
-      { cx: 124, cy: 215, click: false, dur: 900 }, // 연락처로 이동
-      { cx: 124, cy: 230, click: false, dur: 1600 },
+      { cx: 124, cy: 80,  dur: 1100 },              // 관심사 섹션 소개
+      { cx: 55,  cy: 105, click: false, dur: 1000 }, // 음악으로 이동
+      { cx: 55,  cy: 105, click: true,  dur: 800 },  // 음악 선택
+      { cx: 110, cy: 105, click: false, dur: 1000 }, // 여행으로 이동
+      { cx: 110, cy: 105, click: true,  dur: 900 },  // 여행 선택 → 저장됨
+      { cx: 124, cy: 165, click: false, dur: 1200 }, // 생월일로 이동
+      { cx: 80,  cy: 178, click: false, dur: 900 },  // 월 선택
+      { cx: 80,  cy: 178, click: true,  dur: 800 },
+      { cx: 124, cy: 225, click: false, dur: 1100 }, // 연락처로 이동
+      { cx: 124, cy: 240, click: false, dur: 1800 }, // 감상
     ],
     render: s => <S3 step={s} />,
   },
   {
     title: '이모지 & 스티커 전송', sub: '채팅창 😊 버튼 → 이모지 / 스티커 선택',
     steps: [
-      { cx: 45, cy: 250, dur: 900 },               // 😊 버튼
-      { cx: 45, cy: 250, click: true, dur: 600 },
-      { cx: 83, cy: 238, dur: 1000 },              // 이모지 피커에서 😍
-      { cx: 83, cy: 238, click: true, dur: 600 },
-      { cx: 45, cy: 250, dur: 900 },               // 다시 버튼
-      { cx: 80, cy: 250, dur: 800 },               // 스티커 버튼
-      { cx: 80, cy: 250, click: true, dur: 600 },
-      { cx: 35, cy: 224, dur: 900 },               // 스티커 선택
-      { cx: 35, cy: 224, click: true, dur: 600 },
-      { cx: 124, cy: 140, dur: 1200 },
+      { cx: 45,  cy: 250, dur: 1000 },              // 😊 버튼 가리킴
+      { cx: 45,  cy: 250, click: true,  dur: 800 },
+      { cx: 83,  cy: 238, dur: 1100 },              // 이모지 피커에서 😍
+      { cx: 83,  cy: 238, click: true,  dur: 800 },
+      { cx: 45,  cy: 250, dur: 1000 },              // 다시 버튼
+      { cx: 80,  cy: 250, dur: 900 },               // 스티커 버튼
+      { cx: 80,  cy: 250, click: true,  dur: 800 },
+      { cx: 35,  cy: 224, dur: 1000 },              // 스티커 선택
+      { cx: 35,  cy: 224, click: true,  dur: 800 },
+      { cx: 124, cy: 140, dur: 1400 },
     ],
     render: s => <S4 step={s} />,
   },
   {
     title: '사진 전송 & 빠른 메시지', sub: '📷로 사진 · ⚡로 자주 쓰는 문장 전송',
     steps: [
-      { cx: 200, cy: 250, dur: 900 },              // 📷 버튼
-      { cx: 200, cy: 250, click: true, dur: 600 },
-      { cx: 124, cy: 150, dur: 1000 },             // 사진 전송됨
-      { cx: 124, cy: 150, dur: 1200 },
-      { cx: 215, cy: 250, dur: 900 },              // ⚡ 버튼
-      { cx: 215, cy: 250, click: true, dur: 600 },
-      { cx: 124, cy: 215, dur: 900 },             // 빠른메시지 선택
-      { cx: 124, cy: 215, click: true, dur: 600 },
-      { cx: 124, cy: 140, dur: 1400 },
+      { cx: 200, cy: 250, dur: 1000 },              // 📷 버튼
+      { cx: 200, cy: 250, click: true,  dur: 800 },
+      { cx: 124, cy: 150, dur: 1100 },              // 사진 전송됨
+      { cx: 124, cy: 150, dur: 1400 },              // 감상
+      { cx: 215, cy: 250, dur: 1000 },              // ⚡ 버튼
+      { cx: 215, cy: 250, click: true,  dur: 800 },
+      { cx: 124, cy: 215, dur: 1000 },              // 빠른메시지로 이동
+      { cx: 124, cy: 215, click: true,  dur: 800 },
+      { cx: 124, cy: 140, dur: 1600 },
     ],
     render: s => <S5 step={s} />,
   },
   {
     title: '스와이프 답장 & 길게누르기', sub: '메시지 옆으로 밀면 답장 · 길게 누르면 메뉴',
     steps: [
-      { cx: 80,  cy: 90, dur: 900 },
-      { cx: 140, cy: 90, dur: 800 },               // 스와이프
-      { cx: 80,  cy: 90, dur: 700 },
-      { cx: 124, cy: 170, dur: 1200 },             // 답장 완성
-      { cx: 180, cy: 130, dur: 1000 },             // 내 메시지
-      { cx: 180, cy: 130, click: true, dur: 1200 }, // 길게누르기
-      { cx: 200, cy: 200, dur: 900 },              // 삭제 메뉴
-      { cx: 200, cy: 210, click: true, dur: 600 },
-      { cx: 124, cy: 160, dur: 1200 },
+      { cx: 80,  cy: 90,  dur: 1000 },
+      { cx: 150, cy: 90,  dur: 1000 },              // 스와이프
+      { cx: 80,  cy: 90,  dur: 900 },
+      { cx: 124, cy: 170, dur: 1400 },              // 답장 완성 감상
+      { cx: 180, cy: 130, dur: 1100 },              // 내 메시지로 이동
+      { cx: 180, cy: 130, click: true,  dur: 1400 }, // 길게누르기
+      { cx: 200, cy: 200, dur: 1000 },              // 삭제 메뉴로 이동
+      { cx: 200, cy: 210, click: true,  dur: 800 },
+      { cx: 124, cy: 160, dur: 1400 },
     ],
     render: s => <S6 step={s} />,
+  },
+  {
+    title: '받은 하트 & 보낸 하트 확인', sub: '내 상태 탭에서 하트 주고받은 내역 확인',
+    steps: [
+      // step 0 — 내 상태 탭 가리킴 (탭 하이라이트)
+      { cx: 25,  cy: 248, dur: 1100 },
+      // step 1 — 탭 클릭 → 받은 하트 섹션 pink border
+      { cx: 25,  cy: 248, click: true,  dur: 900 },
+      // step 2 — 받은 하트 섹션으로 커서 이동 (Ring on)
+      { cx: 124, cy: 95,  dur: 1100 },
+      // step 3 — 첫 번째 항목 강조 + 수락/거절 버튼 등장
+      { cx: 124, cy: 115, dur: 1100 },
+      // step 4 — 수락 버튼 위로 커서 이동
+      { cx: 196, cy: 115, dur: 1000 },
+      // step 5 — 수락 클릭 → accepted=true, 연락처 공유 ✓
+      { cx: 196, cy: 115, click: true,  dur: 1000 },
+      // step 6 — 보낸 하트 섹션으로 이동 (amber highlight + 스크롤)
+      { cx: 124, cy: 210, dur: 1200 },
+      // step 7 — 보낸 하트 감상
+      { cx: 124, cy: 225, dur: 2200 },
+    ],
+    render: s => <S7 step={s} />,
   },
 ];
 
@@ -615,6 +767,9 @@ export function TutorialVideo({ onClose }: { darkMode?: boolean; onClose: () => 
         setStepIdx(p => p + 1);
       } else if (sceneIdx < SCENES.length - 1) {
         goScene(sceneIdx + 1);
+      } else {
+        // 마지막 장면 종료 → 처음으로 루프
+        goScene(0);
       }
     }, s.dur);
     return clearTimer;
@@ -658,10 +813,10 @@ export function TutorialVideo({ onClose }: { darkMode?: boolean; onClose: () => 
           ))}
         </div>
 
-        {/* 앱 화면 */}
+        {/* 앱 화면 — key 로 장면 교체 시 fade-in 적용 */}
         <div className="mx-4 mb-3 rounded-2xl overflow-hidden border border-slate-700 bg-slate-900 relative"
           style={{ height: 280 }}>
-          <div key={sceneIdx} className="w-full h-full">
+          <div key={sceneIdx} className="w-full h-full animate-in fade-in duration-300">
             {scene.render(stepIdx)}
           </div>
           <Cursor x={step.cx} y={step.cy} clicking={step.click ?? false} />

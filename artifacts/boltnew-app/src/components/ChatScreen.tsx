@@ -6,21 +6,65 @@ import { supabase } from '../lib/supabase';
 import { useTheme, type ThemeMode } from '../lib/theme';
 import { genAvatar } from '../lib/profile';
 import { getZodiac, getOhaeng, getCompatibility, getOhaengCompat, getNumerologyCompat, getMbtiCompat, getTodayFortune } from '../lib/fortune';
-import { StickerSVG, STICKER_LABELS, STICKER_BG, STICKER_COUNT } from '../stickers';
+import { StickerSVG, STICKER_LABELS, STICKER_BG, STICKER_COUNT, STICKER_PACKS } from '../stickers';
 import { hasBannedWord } from '../lib/utils';
 import type { Message, Profile, ContactShare } from '../types/app';
 
 // ─── ChatScreen ───────────────────────────────────────────────────────────────
 // 1:1 채팅 화면. 스티커·이모지·이미지·연락처 공유·궁합·사주 기능 포함.
 
-const EMOJIS = [
-  '😀','😂','🥰','😍','🤩','😎','🥳','😜','😏','🙄',
-  '❤️','💕','💖','💗','🔥','✨','🌟','💯','👍','🙏',
-  '🎉','🎊','🤣','😭','😅','😆','🤗','😋','😊','🥹',
-  '👋','🫶','🤝','💪','🫠','🤔','😮','😱','🤯','😴',
-  '🍺','🍻','🥂','🍷','🎶','🎵','🎸','⚡','🌈','🌙',
-  '🐶','🐱','🐼','🦊','🦁','🐻','🐨','🐸','🦋','🌸',
-];
+// ── 이모지 카테고리 (총 ~105개) ───────────────────────────────────────────────
+const EMOJI_CATEGORIES = [
+  {
+    id: 'face', label: '😄', name: '표정',
+    emojis: [
+      '😀','😃','😄','😁','😆','😅','🤣','😂','🥹','😊',
+      '😇','🥰','😍','🤩','😘','😗','😋','😛','😜','🤪',
+      '😏','😒','🙄','😬','🤐','😯','😮','😱','🤯','😴',
+      '🥺','😭','😤','😠','🤔','🫠','🥴','🤗','🤭','😎',
+    ],
+  },
+  {
+    id: 'love', label: '❤️', name: '사랑',
+    emojis: [
+      '❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','🩷',
+      '💕','💞','💓','💗','💖','💘','💝','💟','❣️','💔',
+      '😻','🥰','😘','💏','💑','🫶','💌','💋','🫦','🩸',
+    ],
+  },
+  {
+    id: 'gesture', label: '🙌', name: '제스처',
+    emojis: [
+      '👍','👎','👋','🤚','✋','🖐️','🖖','🤙','💪','🦾',
+      '🙏','🤲','👐','🤝','🤜','🤛','✊','👊','🫳','🫴',
+      '🙌','👏','🤞','🫰','🤟','🤘','✌️','🖕','☝️','👆',
+    ],
+  },
+  {
+    id: 'party', label: '🎉', name: '축하',
+    emojis: [
+      '🎉','🎊','🎈','🥳','🎂','🎁','🎀','🎆','🎇','🧨',
+      '🏆','🥇','🥈','🥉','🎖️','👑','💯','🔥','✨','🌟',
+      '⭐','💫','🌈','🎯','🎪','🎭','🎨','🎬','🎤','🎸',
+    ],
+  },
+  {
+    id: 'drink', label: '🍺', name: '술자리',
+    emojis: [
+      '🍺','🍻','🥂','🍷','🥃','🍸','🍹','🧉','🍾','🥤',
+      '🍜','🍖','🍗','🍕','🍔','🥓','🍣','🍱','🥘','🫕',
+      '🍿','🧆','🥗','🍤','🦞','🦀','🍙','🍛','🥩','🍡',
+    ],
+  },
+  {
+    id: 'animal', label: '🐾', name: '동물',
+    emojis: [
+      '🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯',
+      '🦁','🐮','🐷','🐸','🐵','🙈','🙉','🙊','🐔','🐧',
+      '🐦','🦆','🦋','🐝','🐛','🦎','🐢','🐙','🦑','🐡',
+    ],
+  },
+] as const;
 
 const THEME_CYCLE: ThemeMode[] = ['default', 'y2k', 'dark-neon', 'minimal'];
 const THEME_EMOJI: Record<ThemeMode, string> = { default: '🌙', y2k: '💖', 'dark-neon': '🔥', minimal: '☕' };
@@ -47,6 +91,7 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   const [input, setInput] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
   const [showStickers, setShowStickers] = useState(false);
+  const [emojiCat, setEmojiCat] = useState<string>('face');
   const [showQuickMsgs, setShowQuickMsgs] = useState(false);
   const [showInfoReqMenu, setShowInfoReqMenu] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -990,10 +1035,32 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
       {/* 이모지 패널 */}
       {showEmoji && (
         <div className="bg-white border-t border-gray-200 max-w-3xl w-full mx-auto">
-          <div className="grid grid-cols-10 gap-1 p-3">
-            {EMOJIS.map((emoji) => (
+          {/* 카테고리 탭 */}
+          <div className="flex border-b border-gray-100 px-1 bg-gray-50">
+            {EMOJI_CATEGORIES.map(cat => (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => setEmojiCat(cat.id)}
+                className={`flex-1 flex flex-col items-center pt-1.5 pb-1 gap-0 transition-all relative ${
+                  emojiCat === cat.id
+                    ? 'opacity-100'
+                    : 'opacity-40 hover:opacity-70'
+                }`}
+              >
+                <span className="text-lg leading-tight">{cat.label}</span>
+                <span className="text-[8px] font-bold text-gray-500 leading-tight">{cat.name}</span>
+                {emojiCat === cat.id && (
+                  <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-6 h-0.5 rounded-full bg-cyan-500" />
+                )}
+              </button>
+            ))}
+          </div>
+          {/* 이모지 그리드 */}
+          <div className="grid grid-cols-10 gap-0 p-1.5 max-h-44 overflow-y-auto">
+            {(EMOJI_CATEGORIES.find(c => c.id === emojiCat)?.emojis ?? []).map(emoji => (
               <button key={emoji} type="button" onClick={() => handleEmojiClick(emoji)}
-                className="h-9 flex items-center justify-center text-xl hover:bg-gray-100 rounded-lg transition-colors">
+                className="h-9 flex items-center justify-center text-xl hover:bg-gray-100 active:scale-90 rounded-lg transition-all">
                 {emoji}
               </button>
             ))}
@@ -1010,13 +1077,9 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
             <span className="text-[10px] text-gray-300">{STICKER_COUNT}개</span>
           </div>
           <div className="max-h-72 overflow-y-auto pb-2">
-            {[
-              { label: '🐻‍❄️ 술이', color: 'violet', start: 0, count: 8 },
-              { label: '🔥 MZ밈', color: 'yellow', start: 8, count: 8 },
-              { label: '🟢 젤리', color: 'teal', start: 16, count: 8 },
-            ].map(({ label, color, start, count }) => (
+            {STICKER_PACKS.map(({ label, color, start, count }) => (
               <div key={label}>
-                <div className={`px-3 pt-2 pb-1 flex items-center gap-1.5`}>
+                <div className="px-3 pt-2 pb-1 flex items-center gap-1.5">
                   <span className={`text-[10px] font-black text-${color}-500`}>{label}</span>
                   <div className={`flex-1 h-px bg-${color}-100`}/>
                 </div>
