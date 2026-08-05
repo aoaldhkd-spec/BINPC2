@@ -185,6 +185,7 @@ class QueryBuilder {
       payload: this._payload,
       conflictCols: this._conflictCols,
       selectAfterWrite: this._selectAfterWrite,
+      requesterId: _currentUserId, // IDOR guard: server verifies ownership for sensitive tables
     }) as Promise<DbResult<unknown>>;
   }
 }
@@ -276,10 +277,11 @@ export function setLocalDbUserId(userId: string | null) {
 let _sseFailCount = 0;            // 연속 SSE 연결 실패 횟수
 let _sseNextAllowedRetry = 0;     // 이 시각(ms) 이전에는 재연결 불가
 
-/** 연속 실패 횟수에 따른 지수 백오프 대기 시간 계산 (최대 30초 + 최대 3초 지터) */
+/** 연속 실패 횟수에 따른 지수 백오프 대기 시간 계산 (최대 15초 + 최대 1.5초 지터)
+ *  빠른 재연결: 1s → 2s → 4s → 8s → 15s (jitter 포함) */
 function calcSseBackoffMs(): number {
-  const base = Math.min(Math.pow(2, _sseFailCount) * 1_000, 30_000);
-  const jitter = Math.random() * 3_000; // 0~3초 지터 — thundering herd 방지
+  const base = Math.min(Math.pow(2, _sseFailCount) * 500, 15_000);
+  const jitter = Math.random() * 1_500; // 0~1.5초 지터 — thundering herd 방지
   return base + jitter;
 }
 
@@ -345,10 +347,10 @@ function ensureSse() {
   _es = createSse();
 }
 
-// 5초마다 연결 상태 점검 — 끊어진 SSE를 자동 복구 (백오프 중에는 ensureSse가 자체 skip)
+// 2초마다 연결 상태 점검 — 끊어진 SSE를 자동 복구 (백오프 중에는 ensureSse가 자체 skip)
 setInterval(() => {
   if (_sseListeners.size > 0) ensureSse();
-}, 5_000);
+}, 2_000);
 
 // 탭/앱 포그라운드 복귀 시 즉시 SSE 재연결 확인
 if (typeof document !== 'undefined') {

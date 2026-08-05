@@ -89,7 +89,7 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
     }
     localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify({ phone, authedAt: Date.now() }));
     try {
-      const { data: token } = await supabase.rpc('admin_create_session', { p_phone: phone, p_password: password });
+      const { data: token } = await supabase.rpc('admin_create_session', { p_phone: phone, p_admin_password: password });
       setAdminToken(token ?? null);
     } catch { /* session token creation failed, admin will work without header (rpcs still have password fallback) */ }
     onLogin();

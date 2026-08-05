@@ -14,6 +14,7 @@ export type { GameState } from './types/app';
 import { heartMeta } from './lib/constants';
 import ChatScreen from './components/ChatScreen';
 import { ChatErrorBoundary } from './components/ChatErrorBoundary';
+import { AppErrorBoundary } from './components/AppErrorBoundary';
 import ProfileDetail from './components/ProfileDetail';
 import BrowserGuidePopup from './components/BrowserGuidePopup';
 import ReconnectOverlay from './components/ReconnectOverlay';
@@ -183,7 +184,7 @@ function App() {
       reconnectTimerRef.current = setTimeout(() => {
         setConnStatus('error');
         reconnectTimerRef.current = null;
-      }, 1500);
+      }, 800);
       setConnStatus('reconnecting');
     }
   }, []);
@@ -355,7 +356,7 @@ function App() {
   }, [view]); // loadProfilesRef는 ref이므로 deps 불필요
 
   // SSE 연결 실패 시 polling fallback — SSE 없이도 프로필·채팅·하트 최소 기능 유지
-  // connStatus가 'error'로 전환되면 15초마다 재로드 (SSE 복구 시 자동 정지, 중복 없음)
+  // connStatus가 'error'로 전환되면 5초마다 재로드 (SSE 복구 시 자동 정지, 중복 없음)
   useEffect(() => {
     if (connStatus !== 'error' || !currentUserId) return;
     const uid = currentUserId;
@@ -363,7 +364,7 @@ function App() {
       loadProfilesRef.current().catch(() => {});
       loadChatListRef.current?.(uid).catch(() => {});
       loadReceivedLikesRef.current?.(uid).catch(() => {});
-    }, 15_000);
+    }, 5_000);
     return () => { clearInterval(pollId); };
   }, [connStatus, currentUserId]);
 
@@ -870,7 +871,7 @@ function App() {
         supabase.from('seats').select('*').order('table_number').order('seat_position').then(({ data }: { data: any }) => {
           if (data) setSeats(data);
         }).catch(() => {});
-      }, 400);
+      }, 150);
     };
     const seatsChannel = supabase
       .channel('realtime:seats')
@@ -1020,6 +1021,9 @@ function App() {
       _handleChannelStatus('SUBSCRIBED');
       loadChatList(currentUserId);
       loadReceivedLikes(currentUserId);
+      // SSE 재연결 시 누락된 시트·프로필 변경도 동기화
+      loadSeats();
+      loadProfiles();
     });
     return unsubReconnect;
   }, [currentUserId, loadChatList, loadReceivedLikes, _handleChannelStatus]);
@@ -1245,6 +1249,7 @@ function App() {
   );
 
   if (view === 'profile' && selectedProfile) return (
+    <AppErrorBoundary screenName="프로필" onReset={() => setView('main')}>
     <>
       {currentGame?.active && gameModalVisible && <GameAnnouncementModal game={currentGame} onDismiss={() => setGameModalVisible(false)} onVote={voteOnGame} onImageVote={voteOnImageGame} currentUserId={currentUserId} seats={seats} profiles={profiles} />}
       {currentGame?.active && !gameModalVisible && <GameActiveBanner game={currentGame} onClick={() => setGameModalVisible(true)} />}
@@ -1257,7 +1262,6 @@ function App() {
         onLike={() => { if (!seatingLocked && !functionsLocked) handleLike(selectedProfile.id); }}
         onChat={() => { openChat(selectedProfile); }}
         onBack={() => setView('main')}
-        onReset={reset}
       />
       {likeConfirmTarget && (
         <LikeConfirmDialog
@@ -1270,6 +1274,7 @@ function App() {
       )}
       <ConfettiOverlay show={showConfetti} />
     </>
+    </AppErrorBoundary>
   );
   if (view === 'chat' && selectedProfile && !chatId) return (
     <div className="flex items-center justify-center h-screen bg-white">
@@ -1291,7 +1296,6 @@ function App() {
           onSend={sendMessage}
           onSendImage={sendImage}
           onBack={() => { chatIdRef.current = null; setChatId(null); setView('main'); }}
-          onReset={reset}
           onDeleteMessage={deleteMessage}
           currentUserProfile={profiles.find(p => p.id === currentUserId) ?? null}
           receivedContactShares={receivedContactShares}

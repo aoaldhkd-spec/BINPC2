@@ -1,8 +1,18 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, type SyntheticEvent } from 'react';
 import { MessageCircle, X, ArrowRight, Move, ArrowLeftRight, Pencil } from 'lucide-react';
 import type { Database } from '../types/database';
-import { getPositionLabel, getPositionBg, getDomSubLabel, getDomSubBg } from '../lib/profile';
+import { getPositionLabel, getPositionBg, getDomSubLabel, getDomSubBg, genAvatar } from '../lib/profile';
 import { TABLE_POSITIONS } from '../lib/constants';
+
+// DiceBear 투명 SVG → genAvatar 강제 치환 + null/undefined fallback
+function seatingAvatarSrc(url: string | null | undefined, nick: string): string {
+  if (!url) return genAvatar(nick);
+  if (url.includes('dicebear') && !url.includes('backgroundColor')) return genAvatar(nick);
+  return url;
+}
+const onAvatarErr = (nick: string) => (e: SyntheticEvent<HTMLImageElement>) => {
+  e.currentTarget.src = genAvatar(nick);
+};
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
 type Seat = Database['public']['Tables']['seats']['Row'];
@@ -23,6 +33,8 @@ interface SeatingMapProps {
   onForceSeat?: (profileId: string, seatId: string) => void;
   onSetTableLabel?: (tableNum: number, label: string) => Promise<void>;
   activeTables?: number[] | null;
+  /** 마운트 시 자동으로 확대할 테이블 번호 (내 테이블 탭 전용) */
+  defaultExpandedTable?: number | null;
 }
 
 // ─── Score helpers ─────────────────────────────────────────────────────────────
@@ -182,7 +194,7 @@ function ProfilePopup({ profile, seat, isCurrentUser, onChat, onClose }: {
         onClick={e => e.stopPropagation()}
       >
         <div className="relative">
-          <img src={profile.photo_url} alt={profile.nickname} className="w-full h-52 object-cover" />
+          <img src={seatingAvatarSrc(profile.photo_url, profile.nickname)} alt={profile.nickname} className="w-full h-52 object-cover" onError={onAvatarErr(profile.nickname)} />
           <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/30 to-transparent" />
           <button onClick={onClose} className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/50 flex items-center justify-center hover:bg-black/70 transition-all">
             <X className="w-4 h-4 text-white" />
@@ -243,7 +255,7 @@ function BigSeatButton({ seat, profile, isCurrentUser, isAdmin, movingProfileId,
   onSelectForMove?: (profileId: string, profile: Profile) => void;
   onMoveTo?: (seat: Seat) => void;
 }) {
-  const [confirmSeat, setConfirmSeat] = useState<Seat | null>(null);
+  // ※ useState 없음 — confirm dialog는 TableExpandModal에서 관리 (Vite Fast Refresh 충돌 방지)
   const dim = 'w-14 h-14';
   const t = seatTheme(darkMode);
   if (!seat) return <div className={`${dim} rounded-xl bg-transparent`} />;
@@ -256,18 +268,6 @@ function BigSeatButton({ seat, profile, isCurrentUser, isAdmin, movingProfileId,
   if (isAdmin) {
     return (
       <div className={`relative group ${dim} flex flex-col items-center gap-0.5`}>
-        {confirmSeat && (
-          <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/60 p-4" onClick={() => setConfirmSeat(null)}>
-            <div className="bg-white rounded-2xl shadow-2xl p-5 w-72 text-center" onClick={e => e.stopPropagation()}>
-              <p className="font-black text-gray-900 text-base mb-1">자리 비우기</p>
-              <p className="text-sm text-gray-500 mb-4"><strong>{profile?.nickname}</strong>을(를) 이 자리에서 제거합니다.</p>
-              <div className="flex gap-2">
-                <button onClick={() => setConfirmSeat(null)} className="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-semibold text-sm">취소</button>
-                <button onClick={() => { onClearSeat?.(confirmSeat); setConfirmSeat(null); }} className="flex-1 py-2.5 rounded-xl bg-red-500 text-white font-bold text-sm hover:bg-red-600 transition-all">강제 삭제</button>
-              </div>
-            </div>
-          </div>
-        )}
         {occupied && profile ? (
           <div
             className={`w-full h-full rounded-xl overflow-hidden border-2 shadow relative cursor-pointer transition-all ${
@@ -288,7 +288,7 @@ function BigSeatButton({ seat, profile, isCurrentUser, isAdmin, movingProfileId,
               }
             }}
           >
-            <img src={profile.photo_url} alt={profile.nickname} className="w-full h-full object-cover" loading="lazy" />
+            <img src={seatingAvatarSrc(profile.photo_url, profile.nickname)} alt={profile.nickname} className="w-full h-full object-cover" loading="lazy" onError={onAvatarErr(profile.nickname)} />
             {/* Overlays */}
             {isSelectedForMove && (
               <div className="absolute inset-0 bg-orange-500/30 flex items-center justify-center">
@@ -303,7 +303,7 @@ function BigSeatButton({ seat, profile, isCurrentUser, isAdmin, movingProfileId,
             {/* × button — only when not in move mode */}
             {!isInMoveMode && (
               <button
-                onClick={e => { e.stopPropagation(); setConfirmSeat(seat); }}
+                onClick={e => { e.stopPropagation(); onClearSeat?.(seat); }}
                 className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center text-[10px] font-black shadow transition-all active:scale-90"
               >×</button>
             )}
@@ -335,7 +335,7 @@ function BigSeatButton({ seat, profile, isCurrentUser, isAdmin, movingProfileId,
     return (
       <div className="flex flex-col items-center gap-1">
         <button onClick={() => onProfileClick?.(profile)} className={`${dim} rounded-xl overflow-hidden border-2 transition-all active:scale-95 shadow relative ${isCurrentUser ? 'border-blue-400 ring-2 ring-blue-300/70' : 'border-white/20 hover:border-teal-300'}`} title={profile.nickname}>
-          <img src={profile.photo_url} alt={profile.nickname} className="w-full h-full object-cover" loading="lazy" />
+          <img src={seatingAvatarSrc(profile.photo_url, profile.nickname)} alt={profile.nickname} className="w-full h-full object-cover" loading="lazy" onError={onAvatarErr(profile.nickname)} />
           {isCurrentUser && <div className="absolute inset-0 bg-blue-500/50 flex items-center justify-center"><span className="text-sm font-black text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">나</span></div>}
         </button>
         <span className={`text-[9px] font-bold truncate max-w-[3.5rem] text-center ${isCurrentUser ? t.labelMe : t.label}`}>{isCurrentUser ? '나' : profile.nickname}</span>
@@ -459,11 +459,28 @@ function TableExpandModal({
   tableNum, seats, profileMap, currentUserId, isAdmin, movingProfileId, darkMode = true, tableLabels,
   onSeatClick, onProfileClick, onClearSeat, onShowQr, onSelectForMove, onMoveTo, onSetTableLabel, onClose,
 }: LayoutProps & { onSetTableLabel?: (tableNum: number, label: string) => Promise<void>; onClose: () => void }) {
+  // confirm dialog state는 여기서만 관리 — BigSeatButton에서 useState 제거로 Vite Fast Refresh 충돌 해소
+  const [confirmSeat, setConfirmSeat] = useState<Seat | null>(null);
   const tableSeats = seats.filter(s => s.table_number === tableNum);
   const occupied = tableSeats.filter(s => s.status === 'occupied').length;
   const label = tableLabels?.[String(tableNum)] ?? String(tableNum);
+  const confirmProfile = confirmSeat ? profileMap.get(String(confirmSeat.profile_id ?? '')) : undefined;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4" onClick={onClose}>
+      {/* 자리 비우기 확인 다이얼로그 — z-[300]으로 모달 위에 표시 */}
+      {confirmSeat && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/60 p-4" onClick={() => setConfirmSeat(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl p-5 w-72 text-center" onClick={e => e.stopPropagation()}>
+            <p className="font-black text-gray-900 text-base mb-1">자리 비우기</p>
+            <p className="text-sm text-gray-500 mb-4"><strong>{confirmProfile?.nickname}</strong>을(를) 이 자리에서 제거합니다.</p>
+            <div className="flex gap-2">
+              <button onClick={() => setConfirmSeat(null)} className="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-semibold text-sm">취소</button>
+              <button onClick={() => { onClearSeat?.(confirmSeat); setConfirmSeat(null); }} className="flex-1 py-2.5 rounded-xl bg-red-500 text-white font-bold text-sm hover:bg-red-600 transition-all">강제 삭제</button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="bg-slate-900 rounded-3xl shadow-2xl w-full max-w-sm border border-slate-700 overflow-hidden" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 bg-slate-800 border-b border-slate-700">
           <div>
@@ -488,7 +505,8 @@ function TableExpandModal({
             movingProfileId={movingProfileId} darkMode={darkMode} tableLabels={tableLabels}
             onSeatClick={(s) => { onSeatClick?.(s); onClose(); }}
             onProfileClick={(p) => { onProfileClick?.(p); onClose(); }}
-            onClearSeat={onClearSeat} onShowQr={onShowQr}
+            onClearSeat={(s) => setConfirmSeat(s)}
+            onShowQr={onShowQr}
             onSelectForMove={onSelectForMove}
             onMoveTo={(seat) => { onMoveTo?.(seat); onClose(); }} />
         </div>
@@ -538,7 +556,7 @@ function SeatButton({
               }
             }}
           >
-            <img src={profile.photo_url} alt={profile.nickname} className="w-full h-full object-cover" loading="lazy" />
+            <img src={seatingAvatarSrc(profile.photo_url, profile.nickname)} alt={profile.nickname} className="w-full h-full object-cover" loading="lazy" onError={onAvatarErr(profile.nickname)} />
             {isSelectedForMove && (
               <div className="absolute inset-0 bg-orange-500/40 flex items-center justify-center">
                 <Move className="w-3 h-3 text-white" />
@@ -579,7 +597,7 @@ function SeatButton({
   if (occupied && profile) {
     return (
       <button onClick={() => onProfileClick?.(profile)} className={`${dim} rounded-lg overflow-hidden border-2 ${isCurrentUser ? 'border-blue-400 shadow-md ring-2 ring-blue-300/70' : 'border-white/30 hover:border-teal-300'} shadow-sm relative transition-all active:scale-95`} title={profile.nickname}>
-        <img src={profile.photo_url} alt={profile.nickname} className="w-full h-full object-cover" loading="lazy" />
+        <img src={seatingAvatarSrc(profile.photo_url, profile.nickname)} alt={profile.nickname} className="w-full h-full object-cover" loading="lazy" onError={onAvatarErr(profile.nickname)} />
         {isCurrentUser && <div className="absolute inset-0 bg-blue-500/50 flex items-center justify-center"><span className="text-[11px] font-black text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">나</span></div>}
       </button>
     );
@@ -694,13 +712,14 @@ type RowFilter = 'all' | '1' | '2' | '3';
 
 export default function SeatingMap({
   seats, profileMap, currentUserId, isAdmin, seatingLocked = false,
-  tableLabels, darkMode = true, onSeatClick, onProfileClick, onChatClick, onClearSeat, onShowQr, onForceSeat, onSetTableLabel, activeTables,
+  tableLabels, darkMode = true, onSeatClick, onProfileClick, onChatClick, onClearSeat, onShowQr, onForceSeat, onSetTableLabel, activeTables, defaultExpandedTable,
 }: SeatingMapProps) {
   // User (non-admin) view: seat self-registration is always disabled.
   // Empty seats are display-only; only admin can assign/move seats.
   const totalOccupied = seats.filter(s => s.status === 'occupied').length;
   const totalSeats = seats.length;
-  const [expandedTable, setExpandedTable] = useState<number | null>(null);
+  // defaultExpandedTable: 내 테이블 탭에서 마운트 시 자동 확대 (초기값만 적용)
+  const [expandedTable, setExpandedTable] = useState<number | null>(defaultExpandedTable ?? null);
   const [profilePopup, setProfilePopup] = useState<{ profile: Profile; seat: Seat } | null>(null);
   const [activeCol, setActiveCol] = useState<ColFilter>('all');
   const [activeRow, setActiveRow] = useState<RowFilter>('all');
@@ -755,7 +774,7 @@ export default function SeatingMap({
       {isAdmin && movingProfile && (
         <div className="sticky top-0 z-40 mx-4 mb-3 flex items-center gap-3 px-4 py-2.5 bg-amber-500 rounded-2xl shadow-lg shadow-amber-500/30 animate-pulse-slow">
           <div className="w-8 h-8 rounded-lg overflow-hidden border-2 border-amber-300 flex-shrink-0">
-            <img src={movingProfile.photo_url} alt={movingProfile.nickname} className="w-full h-full object-cover" loading="lazy" />
+            <img src={seatingAvatarSrc(movingProfile.photo_url, movingProfile.nickname)} alt={movingProfile.nickname} className="w-full h-full object-cover" loading="lazy" onError={onAvatarErr(movingProfile.nickname)} />
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-amber-900 font-black text-xs leading-tight">{movingProfile.nickname}</p>

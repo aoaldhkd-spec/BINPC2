@@ -18,3 +18,7 @@
 - [boltnew-app chat overhaul 2026-08-05](boltnew-app-chat-overhaul.md) — seatingLocked→chat 차단 제거; perChatChannels cleanup 분리(userId/chatIdsKey 별도 effect); new-chats SSE(user1_id·user2_id 각각 구독); selfInitiatedPairTimerRef unmount 정리; sendMessage/sendImage .select().single()로 SSE 의존 제거.
 - [boltnew-app test channel mock pattern](boltnew-app-test-channel-mock.md) — supabase.channel() mock은 handlers 배열로 다중 .on() 지원해야 함. 단일 변수로 overwrite 시 new-chats 채널이 message 핸들러를 덮어씀.
 - [boltnew-app defensive hardening 2026-08-05](boltnew-app-defensive-hardening.md) — sendMessage 3회 재시도+분실복구; SSE 백오프+지터; 폴링 중첩방지; 메시지 배열 상한 500; SSE 페이로드 검증; ChatErrorBoundary; 기존 60개 테스트 전부 통과.
+- [boltnew-app full-system audit 2026-08-05](boltnew-app-full-system-audit.md) — 150 VU 부하 테스트 PASS(msg p99=234ms, like p99=176ms, 0% 손실); AppErrorBoundary 전역 도입; backend try-catch+에러 sanitization; rate limit 5개 엔드포인트.
+- [boltnew-app SeatingMap hook pitfall](boltnew-app-seatingmap-export.md) — 비exported 내부 컴포넌트(BigSeatButton)의 useState는 Vite Fast Refresh와 충돌 → Invalid hook call. 수정: BigSeatButton에서 useState 제거, TableExpandModal로 confirm state 인상.
+- [boltnew-app security hardening 2026-08-05](boltnew-app-security-hardening.md) — helmet; CORS same-origin; cookie secure; /op allowlist; IDOR(messages SELECT+INSERT sender, likes liker); HTML tag strip; magic bytes; per-IP rate limit(login/upload/SSE).
+- [boltnew-app SeatingMap image fix](boltnew-app-seatingmap-image.md) — All img tags must use seatingAvatarSrc()+onError fallback; plain photo_url shows broken image for null/DiceBear-transparent URLs.

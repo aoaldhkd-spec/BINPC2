@@ -1,5 +1,6 @@
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
+import helmet from "helmet";
 import session from "express-session";
 import pinoHttp from "pino-http";
 import router from "./routes";
@@ -91,6 +92,16 @@ const app: Express = express();
 // added by Replit's infrastructure, which the client cannot spoof.
 app.set('trust proxy', 1);
 
+// ─── Security headers (helmet) ────────────────────────────────────────────────
+// Helmet sets X-Frame-Options, X-Content-Type-Options, X-XSS-Protection,
+// Strict-Transport-Security, Referrer-Policy, etc. in one shot.
+// CSP is disabled here because the SPA uses inline scripts/styles (Vite/React).
+// crossOriginEmbedderPolicy is disabled to allow external avatar images/fonts.
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+}));
+
 // 세션 미들웨어 — userId를 httpOnly 서명 쿠키로 관리
 app.use(session({
   secret: SESSION_SECRET,
@@ -99,7 +110,8 @@ app.use(session({
   cookie: {
     httpOnly: true,
     sameSite: 'strict',
-    secure: false,   // Replit 프록시가 HTTPS를 처리하므로 내부는 HTTP
+    // trust proxy:1 이 설정되어 있으므로 Replit 프록시의 HTTPS가 올바르게 감지됨
+    secure: process.env.NODE_ENV !== 'test', // 테스트 환경 제외 항상 secure
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7일
   },
 }));
@@ -123,19 +135,26 @@ app.use(
     },
   }),
 );
-app.use(cors());
+// Same-origin only: frontend & backend share the same Replit domain.
+// origin:false sends no CORS headers → browser same-origin policy blocks
+// cross-site requests automatically, closing CSRF-style API attacks.
+app.use(cors({ origin: false }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Per-IP rate limits applied before the main router.
 // The third argument is a stable namespace that isolates each endpoint's
 // quota bucket regardless of how Express resolves req.path at the mount point.
-//   /api/auth/login — 5 req/s: a single login attempt is one shot; aggressive
-//                              retries or credential-stuffing loops are blocked.
-//   /api/op         — 30 req/s: one device loading all data on join peaks at
-//                              ~10-15 req/s, so legitimate bursts are not blocked.
-app.use('/api/auth/login', makeRateLimiter(5,  1_000, 'auth-login'));
-app.use('/api/op',         makeRateLimiter(30, 1_000, 'op'));
+//   /api/auth/login       — 5 req/s : one shot per login attempt; blocks brute-force
+//   /api/op               — 30 req/s: burst-safe for initial data load (~10-15 req/s)
+//   /api/db/storage-upload— 20 per 60 s: image uploads are large; prevent spam uploads
+//   /api/db/events        — 20 per 60 s: SSE connections; blocks token-farming bots
+//   /api/db/unread-counts — 60 per 60 s: polling at ~1 req/s max per client
+app.use('/api/auth/login',          makeRateLimiter(5,  1_000,  'auth-login'));
+app.use('/api/op',                  makeRateLimiter(30, 1_000,  'op'));
+app.use('/api/db/storage-upload',   makeRateLimiter(20, 60_000, 'storage-upload'));
+app.use('/api/db/events',           makeRateLimiter(20, 60_000, 'sse-events'));
+app.use('/api/db/unread-counts',    makeRateLimiter(60, 60_000, 'unread-counts'));
 
 app.use("/api", router);
 

@@ -183,7 +183,7 @@ export function useChat({
 
     loadMessages(chatId);
 
-    // SSE 불안정 시 폴링 폴백 — 8초마다 확인 (applyLoadMessages가 dedup 처리)
+    // SSE 불안정 시 폴링 폴백 — 3초마다 확인 (applyLoadMessages가 dedup 처리)
     // 3회 연속 실패 시 중단 (서버 과부하 방지)
     // [안전장치 6] isPolling 플래그로 이전 폴링이 완료되기 전 중복 실행 차단
     let pollFailCount = 0;
@@ -198,7 +198,7 @@ export function useChat({
       } finally {
         isPolling = false;
       }
-    }, 8_000);
+    }, 3_000);
 
     return () => {
       clearInterval(pollInterval);

@@ -69,12 +69,12 @@ const EMOJI_CATEGORIES = [
 const THEME_CYCLE: ThemeMode[] = ['default', 'y2k', 'dark-neon', 'minimal'];
 const THEME_EMOJI: Record<ThemeMode, string> = { default: '🌙', y2k: '💖', 'dark-neon': '🔥', minimal: '☕' };
 
-function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onSendImage, onBack, onReset: _onReset, onDeleteMessage, currentUserProfile, receivedContactShares, contactSharedWithIds, onGoToTab, onUpdateProfile }: {
+function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onSendImage, onBack, onDeleteMessage, currentUserProfile, receivedContactShares, contactSharedWithIds, onGoToTab, onUpdateProfile }: {
   chatId: string;
   messages: Message[]; currentUserId: string; otherProfile: Profile;
   onSend: (content: string) => Promise<void> | void;
   onSendImage: (file: File) => Promise<string | null>;
-  onBack: () => void; onReset: () => void;
+  onBack: () => void;
   onDeleteMessage: (msgId: string) => void;
   currentUserProfile: Profile | null;
   receivedContactShares?: ContactShare[];
@@ -92,6 +92,7 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   const [showEmoji, setShowEmoji] = useState(false);
   const [showStickers, setShowStickers] = useState(false);
   const [emojiCat, setEmojiCat] = useState<string>('face');
+  const [stickerCat, setStickerCat] = useState(0);
   const [showQuickMsgs, setShowQuickMsgs] = useState(false);
   const [showInfoReqMenu, setShowInfoReqMenu] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -329,8 +330,14 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
     const update: Record<string, unknown> = { id: currentUserProfile.id };
     const bm = parseInt(myInfoForm.birthMonth);
     const bd = parseInt(myInfoForm.birthDay);
-    if (!isNaN(bm) && bm >= 1 && bm <= 12) update.birth_month = bm;
-    if (!isNaN(bd) && bd >= 1 && bd <= 31) update.birth_day   = bd;
+    // 월별 최대 일수 cross-validation (2월 30일 같은 불가능한 날짜 방지)
+    const maxDayForMonth = (m: number) => new Date(2000, m, 0).getDate();
+    if (!isNaN(bm) && bm >= 1 && bm <= 12) {
+      update.birth_month = bm;
+      if (!isNaN(bd) && bd >= 1 && bd <= maxDayForMonth(bm)) update.birth_day = bd;
+    } else if (!isNaN(bd) && bd >= 1 && bd <= 31) {
+      update.birth_day = bd; // 월 없이 일만 수정하는 경우
+    }
     const phone = myInfoForm.phone.trim();
     const kakao = myInfoForm.kakao.trim();
     const insta = myInfoForm.instagram.trim();
@@ -863,10 +870,16 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
         ref={messagesContainerRef}
         className="flex-1 overflow-y-auto min-h-0"
         onClick={(e) => {
-          // 메시지 버블·버튼 등 인터랙티브 요소가 아닌 빈 영역 터치 시 키보드 내림
+          // 빈 채팅 영역 클릭 → 키보드 내리기 + 열린 패널 전부 닫기
           const target = e.target as HTMLElement;
           if (!target.closest('button, a, textarea, input, [role="button"]')) {
             inputRef.current?.blur();
+            setShowEmoji(false);
+            setShowStickers(false);
+            setShowQuickMsgs(false);
+            setShowInfoReqMenu(false);
+            setShowMoreBtns(false);
+            setShowMyInfoEdit(false);
           }
         }}
       >
@@ -998,6 +1011,7 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
                     ) : msg.image_url ? (
                       <img
                         src={msg.image_url} alt="이미지"
+                        loading="lazy"
                         className="max-w-[240px] w-full object-contain cursor-pointer active:opacity-80"
                         onClick={(e) => { e.stopPropagation(); setImageViewer(msg.image_url!); }} />
                     ) : (
@@ -1068,37 +1082,54 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
         </div>
       )}
 
-      {/* 스티커 패널 */}
-      {showStickers && (
-        <div className="bg-white border-t border-gray-200 max-w-3xl w-full mx-auto">
-          <div className="px-3 py-2 border-b border-gray-100 flex items-center gap-2">
-            <span className="text-xs font-black text-rose-500">🎨 이모티콘</span>
-            <span className="text-[10px] text-gray-400 flex-1">탭하면 바로 전송</span>
-            <span className="text-[10px] text-gray-300">{STICKER_COUNT}개</span>
+      {/* 스티커 패널 — 분류 탭 */}
+      {showStickers && (() => {
+        const pack = STICKER_PACKS[stickerCat] ?? STICKER_PACKS[0];
+        return (
+          <div className="bg-white border-t border-gray-200 max-w-3xl w-full mx-auto">
+            {/* 헤더 */}
+            <div className="px-3 py-2 border-b border-gray-100 flex items-center gap-2">
+              <span className="text-xs font-black text-rose-500">🎨 이모티콘</span>
+              <span className="text-[10px] text-gray-400 flex-1">탭하면 바로 전송</span>
+              <span className="text-[10px] text-gray-300">{pack.count}개</span>
+            </div>
+            {/* 분류 탭 */}
+            <div className="flex gap-1 px-2 pt-2 pb-1 overflow-x-auto scrollbar-none border-b border-gray-100">
+              {STICKER_PACKS.map((p, idx) => {
+                const active = stickerCat === idx;
+                // 라벨에서 이모지만 추출 (첫 번째 '공백' 이전 부분)
+                const emoji = p.label.split(' ')[0];
+                const shortName = p.label.split(' ').slice(1).join('');
+                return (
+                  <button key={p.label} type="button"
+                    onClick={() => setStickerCat(idx)}
+                    className={`flex-shrink-0 flex flex-col items-center gap-0.5 px-2.5 py-1.5 rounded-xl transition-all ${active ? 'bg-rose-50' : 'hover:bg-gray-50'}`}
+                  >
+                    <span className="text-base leading-none">{emoji}</span>
+                    <span className={`text-[9px] font-bold leading-none whitespace-nowrap ${active ? 'text-rose-500' : 'text-gray-400'}`}>{shortName}</span>
+                    {active && <div className="w-4 h-0.5 bg-rose-400 rounded-full mt-0.5" />}
+                  </button>
+                );
+              })}
+            </div>
+            {/* 스티커 그리드 — 선택된 팩만 표시 */}
+            <div className="grid grid-cols-4 gap-1.5 p-2.5 max-h-52 overflow-y-auto">
+              {Array.from({ length: pack.count }, (_, i) => {
+                const idx = pack.start + i;
+                return (
+                  <button key={idx} type="button"
+                    onClick={() => { onSend(`__sticker__${idx}`); setShowStickers(false); }}
+                    style={{ backgroundColor: STICKER_BG[idx] }}
+                    className="flex flex-col items-center justify-center gap-0.5 p-1.5 rounded-2xl active:scale-90 transition-transform hover:opacity-90">
+                    <StickerSVG idx={idx} size={72} />
+                    <span className="text-[9px] font-bold text-gray-500 text-center leading-tight truncate w-full px-0.5">{STICKER_LABELS[idx]}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-          <div className="max-h-72 overflow-y-auto pb-2">
-            {STICKER_PACKS.map(({ label, color, start, count }) => (
-              <div key={label}>
-                <div className="px-3 pt-2 pb-1 flex items-center gap-1.5">
-                  <span className={`text-[10px] font-black text-${color}-500`}>{label}</span>
-                  <div className={`flex-1 h-px bg-${color}-100`}/>
-                </div>
-                <div className="grid grid-cols-4 gap-1.5 px-2.5">
-                  {Array.from({ length: count }, (_, i) => (
-                    <button key={start + i} type="button"
-                      onClick={() => { onSend(`__sticker__${start + i}`); setShowStickers(false); }}
-                      style={{ backgroundColor: STICKER_BG[start + i] }}
-                      className="flex flex-col items-center justify-center gap-0.5 p-1.5 rounded-2xl active:scale-90 transition-transform hover:opacity-90">
-                      <StickerSVG idx={start + i} size={72} />
-                      <span className="text-[9px] font-bold text-gray-500 text-center leading-tight truncate w-full px-0.5">{STICKER_LABELS[start + i]}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* 빠른 메시지 패널 */}
       {showQuickMsgs && (

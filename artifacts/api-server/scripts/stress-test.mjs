@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 /**
- * Stress test: 100 VU concurrent chat-message + heart sends
+ * Stress test: 150 VU concurrent chat-message + heart sends
  *
  * Usage:
  *   BASE_URL=http://localhost:3000 node scripts/stress-test.mjs
  *
  * What it does:
  *   1. Creates 2 test profiles + 1 chat room as fixtures
- *   2. Fires 100 concurrent message INSERTs (each with a unique client_id)
- *   3. Fires 100 concurrent like INSERTs across 4 heart types
+ *   2. Fires 150 concurrent message INSERTs (each with a unique client_id)
+ *   3. Fires 150 concurrent like INSERTs across 4 heart types × 38 unique likers
  *   4. After a 1-second settle window, queries in-memory counts via /api/db/op
  *   5. Checks the /api/db/health lag/alarm fields
  *   6. Prints a pass/fail report with p50/p95/p99 latencies
@@ -20,7 +20,7 @@ import { randomUUID } from 'node:crypto';
 
 const BASE_URL = process.env.BASE_URL ?? 'http://localhost:3000';
 const API = `${BASE_URL}/api/db`;
-const VU_COUNT = 100;
+const VU_COUNT = 150;
 
 // ─── HTTP helper ──────────────────────────────────────────────────────────────
 async function post(path, body) {
@@ -83,8 +83,8 @@ async function main() {
   }
   console.log(`  ✓ chat room: ${chatId}\n`);
 
-  // ── 2. 100 concurrent message INSERTs ──────────────────────────────────────
-  console.log('② Firing 100 concurrent message INSERTs…');
+  // ── 2. 150 concurrent message INSERTs ─────────────────────────────────────
+  console.log(`② Firing ${VU_COUNT} concurrent message INSERTs…`);
   const msgClientIds = Array.from({ length: VU_COUNT }, () => randomUUID());
   const msgStart = Date.now();
   const msgResults = await Promise.allSettled(
@@ -116,23 +116,20 @@ async function main() {
   console.log(`  latency — p50:${percentile(msgLatencies,50)}ms  p95:${percentile(msgLatencies,95)}ms  p99:${percentile(msgLatencies,99)}ms`);
   console.log(`  HTTP errors: ${msgErrors}/${VU_COUNT}\n`);
 
-  // ── 3. 100 concurrent like INSERTs (25 per heart type, spread across users) ─
-  // Note: likes dedup prevents same (liker+liked+type) twice, so we use
-  // different (liker, liked) pairs by treating each VU as its own liker against
-  // a pool of recipients. For the test, user1 sends to user2 — subsequent
-  // duplicates are silently deduplicated by the server (intentional behaviour).
-  // We verify total unique inserts below.
-  console.log('③ Firing 100 concurrent like INSERTs (4 heart types × 25 pairs)…');
+  // ── 3. 150 concurrent like INSERTs (38 unique likers × 4 heart types) ─────
+  // 38 likers × 4 types = 152 unique combos; we only send 150 → all unique.
+  console.log(`③ Firing ${VU_COUNT} concurrent like INSERTs (4 heart types × 38 unique likers)…`);
   const heartTypes = ['red', 'blue', 'pink', 'green'];
+  const likerCount = Math.ceil(VU_COUNT / heartTypes.length); // 38
 
-  // Create 25 extra sender profiles so each VU has its own identity
-  console.log('  Creating 25 unique liker profiles for heart VUs…');
+  // Create likerCount unique sender profiles
+  console.log(`  Creating ${likerCount} unique liker profiles for heart VUs…`);
   const likerIds = await Promise.all(
-    Array.from({ length: 25 }, async (_, i) => {
+    Array.from({ length: likerCount }, async (_, i) => {
       const uid = randomUUID();
       await post('/op', {
         table: 'profiles', op: 'insert',
-        payload: { id: uid, nickname: `stress_lk${i}_${runId}`, pin_code: `LK${runId.slice(0,2)}${i.toString().padStart(2,'0')}`.slice(0,4) },
+        payload: { id: uid, nickname: `stress_lk${i}_${runId}`, pin_code: `LK${runId.slice(0,2)}${i.toString().padStart(2,'0')}`.slice(0,6) },
       });
       return uid;
     })
@@ -141,9 +138,9 @@ async function main() {
   const likeStart = Date.now();
   const likeResults = await Promise.allSettled(
     Array.from({ length: VU_COUNT }, (_, i) => {
-      const likerIdx = i % 25;          // 25 unique likers × 4 types = 100 VUs
-      const likerId = likerIds[likerIdx];
-      const heartType = heartTypes[Math.floor(i / 25)];
+      const likerIdx = i % likerCount;           // 0-37, cycling through likers
+      const likerId  = likerIds[likerIdx];
+      const heartType = heartTypes[Math.floor(i / likerCount)]; // group by type
       return post('/op', {
         table: 'likes', op: 'insert',
         payload: {
@@ -175,10 +172,6 @@ async function main() {
   console.log('④ Verifying in-memory counts (1 s settle)…');
   await new Promise(r => setTimeout(r, 1000));
 
-  const { data: storedMsgs } = await get(
-    `/op`
-  ).catch(() => ({ data: null }));
-  // Use the /op SELECT endpoint to count our specific messages
   const msgCountRes = await post('/op', {
     table: 'messages', op: 'select',
     filters: [{ type: 'eq', col: 'chat_id', val: chatId }],
@@ -189,11 +182,11 @@ async function main() {
     table: 'likes', op: 'select',
     filters: [{ type: 'eq', col: 'liked_id', val: user2Id }],
   });
-  // 25 likers × 4 types = 100 expected unique likes
+  // VU_COUNT unique (liker, type) combos → all should persist (no dedups expected)
   const storedLikeCount = Array.isArray(likeCountRes.json?.data) ? likeCountRes.json.data.length : 0;
 
   console.log(`  messages — sent: ${VU_COUNT}, stored: ${storedMsgCount}`);
-  console.log(`  likes    — sent: ${VU_COUNT}, stored: ${storedLikeCount} (expected 100 = 25 likers × 4 types)\n`);
+  console.log(`  likes    — sent: ${VU_COUNT}, stored: ${storedLikeCount} (expected ${VU_COUNT} = ${likerCount} likers × 4 types)\n`);
 
   // ── 5. Health endpoint check ────────────────────────────────────────────────
   console.log('⑤ Checking /health alarms…');
@@ -211,16 +204,14 @@ async function main() {
     failures.push(`${likeErrors} like HTTP 5xx errors`);
   if (storedMsgCount < VU_COUNT)
     failures.push(`message loss: expected ${VU_COUNT}, got ${storedMsgCount}`);
-  if (storedLikeCount < 100)
-    failures.push(`like loss: expected 100 unique likes, got ${storedLikeCount}`);
+  if (storedLikeCount < VU_COUNT)
+    failures.push(`like loss: expected ${VU_COUNT} unique likes, got ${storedLikeCount}`);
 
   // P99 < 3000ms target
-  const msgP99 = percentile(msgLatencies, 99);
+  const msgP99  = percentile(msgLatencies,  99);
   const likeP99 = percentile(likeLatencies, 99);
-  if (msgP99 > 3000)
-    failures.push(`message p99 ${msgP99}ms > 3000ms target`);
-  if (likeP99 > 3000)
-    failures.push(`like p99 ${likeP99}ms > 3000ms target`);
+  if (msgP99  > 3000) failures.push(`message p99 ${msgP99}ms > 3000ms target`);
+  if (likeP99 > 3000) failures.push(`like p99 ${likeP99}ms > 3000ms target`);
 
   if (failures.length === 0) {
     console.log('✅  PASS — 0% message/heart loss, all latencies within 3 s target');
@@ -236,8 +227,8 @@ async function main() {
   // ── 7. Clean up test fixtures ──────────────────────────────────────────────
   console.log('⑥ Cleaning up fixtures…');
   await post('/op', { table: 'messages', op: 'delete', filters: [{ type: 'eq', col: 'chat_id', val: chatId }] });
-  await post('/op', { table: 'likes', op: 'delete', filters: [{ type: 'eq', col: 'liked_id', val: user2Id }] });
-  await post('/op', { table: 'chats', op: 'delete', filters: [{ type: 'eq', col: 'id', val: chatId }] });
+  await post('/op', { table: 'likes',    op: 'delete', filters: [{ type: 'eq', col: 'liked_id', val: user2Id }] });
+  await post('/op', { table: 'chats',    op: 'delete', filters: [{ type: 'eq', col: 'id', val: chatId }] });
   for (const uid of [user1Id, user2Id, ...likerIds]) {
     await post('/op', { table: 'profiles', op: 'delete', filters: [{ type: 'eq', col: 'id', val: uid }] });
   }

@@ -28,10 +28,72 @@ const INSTANCE_ID = crypto.randomUUID();
 const store: Record<string, Record<string, unknown>[]> = {};
 const imageStore: Record<string, string> = {};
 
+// ─── Allowed tables for /op ────────────────────────────────────────────────────
+// Allowlist prevents access to internal or non-existent tables.
+const ALLOWED_OP_TABLES = new Set([
+  'profiles', 'seats', 'chats', 'messages', 'likes', 'chat_reads',
+  'app_settings', 'balance_games', 'balance_votes', 'push_subscriptions',
+  'session_history', 'device_secrets', 'app_kv_rows',
+  // Extra tables used by the app
+  'contact_shares', 'contact_share_events', 'anonymous_reports',
+  'suggestions', 'notifications',
+  'qa_answers', 'qa_games', 'image_votes', 'image_games',
+  'app_image_store',
+]);
+
+// ─── Input sanitization ───────────────────────────────────────────────────────
+// Strips dangerous control characters (keeps \t, \n, \r for normal text),
+// removes HTML/XML tags entirely (stored-XSS prevention),
+// and enforces per-field length limits to prevent oversized payloads.
+function sanitizeStr(val: unknown, maxLen: number): unknown {
+  if (typeof val !== 'string') return val;
+  return val
+    .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, '') // strip control chars
+    .replace(/<[^>]*>/g, '')                              // strip HTML/XML tags → no stored XSS
+    .slice(0, maxLen);
+}
+const FIELD_LIMITS: Record<string, Record<string, number>> = {
+  profiles: { nickname: 30, bio: 500, status_message: 100, kakao_id: 100, instagram_id: 100, phone_number: 30 },
+  messages: { content: 2000 },
+};
+function sanitizeRow(tbl: string, row: Record<string, unknown>): Record<string, unknown> {
+  const limits = FIELD_LIMITS[tbl];
+  if (!limits) return row;
+  const r: Record<string, unknown> = { ...row };
+  for (const [field, maxLen] of Object.entries(limits)) {
+    if (field in r) r[field] = sanitizeStr(r[field], maxLen);
+  }
+  return r;
+}
+
 // ─── Concurrency limiter — graceful 503 when too many concurrent /op requests ──
 // /op는 in-memory 서빙이지만 Node.js 이벤트 루프 포화 방지용 상한선
 let _activeOpCount = 0;
 const MAX_CONCURRENT_OPS = 80;
+
+// ─── Per-IP rate limiters ─────────────────────────────────────────────────────
+// /auth/login: brute-force 방지 (분당 10회)
+const _loginRateMap = new Map<string, { count: number; resetAt: number }>();
+const LOGIN_RATE_MAX = 10;
+const LOGIN_RATE_WINDOW_MS = 60_000;
+
+// /storage-upload: 이미지 스팸 방지 (분당 10회)
+const _uploadRateMap = new Map<string, { count: number; resetAt: number }>();
+const UPLOAD_RATE_MAX = 10;
+const UPLOAD_RATE_WINDOW_MS = 60_000;
+
+// /events (SSE): IP당 최대 동시 연결 수 (5개)
+const _sseConnPerIp = new Map<string, number>();
+const SSE_MAX_CONN_PER_IP = 5;
+
+// ─── Image magic-bytes map ─────────────────────────────────────────────────────
+// MIME 헤더 조작으로 악성 파일을 이미지로 위장하는 공격 차단
+const IMAGE_MAGIC: Record<string, number[]> = {
+  'image/jpeg': [0xFF, 0xD8, 0xFF],
+  'image/png':  [0x89, 0x50, 0x4E, 0x47],
+  'image/gif':  [0x47, 0x49, 0x46, 0x38],
+  'image/webp': [0x52, 0x49, 0x46, 0x46], // RIFF header
+};
 
 // ─── Per-user global likes rate limit (독립 조합 스팸 방지) ──────────────────────
 const LIKES_MAX_PER_USER_PER_MIN = 20; // 1분에 20개 초과 시 429
@@ -95,7 +157,7 @@ async function notifyAdminDbFailure(tableName: string, errMsg: string): Promise<
       tag: 'db-persist-error',
       url: '/',
     });
-    if (sent) console.log(`[db] Admin DB failure push sent (table=${tableName})`);
+    if (sent) console.info(`[db] Admin DB failure push sent (table=${tableName})`);
   } catch (e) {
     console.error('[db] Failed to send admin DB failure push:', e);
   }
@@ -125,7 +187,7 @@ async function checkAndNotifyAdminPinPool(): Promise<void> {
       tag: 'pin-pool-warning',
       url: '/',
     });
-    if (sent) console.log(`[db] Admin PIN pool warning push sent (used=${usedCount}/${poolSize}, ${pct}%)`);
+    if (sent) console.info(`[db] Admin PIN pool warning push sent (used=${usedCount}/${poolSize}, ${pct}%)`);
   } catch (e) {
     console.error('[db] Failed to send admin PIN pool warning push:', e);
   }
@@ -284,7 +346,7 @@ async function loadFromDb(): Promise<void> {
       if (createdMs > prev) _likesLastInsert.set(key, createdMs);
     }
     if (_likesLastInsert.size > 0) {
-      console.log(`[db] Seeded _likesLastInsert with ${_likesLastInsert.size} entry/entries from DB on startup`);
+      console.info(`[db] Seeded _likesLastInsert with ${_likesLastInsert.size} entry/entries from DB on startup`);
     }
   } catch (e) {
     console.error('[db] Failed to load from DB:', e);
@@ -448,7 +510,7 @@ async function setupListenClient(): Promise<void> {
       setTimeout(() => { setupListenClient().catch(console.error); }, 5000);
     });
     _listenClient = client;
-    console.log(`[db] LISTEN data_change ready (instance=${INSTANCE_ID.slice(0, 8)})`);
+    console.info(`[db] LISTEN data_change ready (instance=${INSTANCE_ID.slice(0, 8)})`);
   } catch (err) {
     console.error('[db] setupListenClient failed — retry in 10 s:', (err as Error).message);
     setTimeout(() => { setupListenClient().catch(console.error); }, 10000);
@@ -705,12 +767,20 @@ router.post('/op', async (req: Request, res: Response) => {
     payload,
     conflictCols = [],
     selectAfterWrite,
+    requesterId,
   } = req.body as {
     table: string; op: string;
     filters: FilterSpec[]; orders: { col: string; asc: boolean }[];
     limit?: number; single?: boolean; maybeSingle?: boolean;
     payload?: unknown; conflictCols?: string[]; selectAfterWrite?: boolean;
+    requesterId?: string | null;
   };
+
+  // ─ Table allowlist: reject unknown/internal tables immediately
+  if (!ALLOWED_OP_TABLES.has(table)) {
+    _activeOpCount--;
+    return res.status(400).json({ data: null, error: { message: 'Invalid table', code: 'INVALID_TABLE' } });
+  }
 
   if (!store[table]) store[table] = [];
   const tableData = store[table];
@@ -718,6 +788,17 @@ router.post('/op', async (req: Request, res: Response) => {
   try {
     // ── SELECT ──────────────────────────────────────────────────────────────
     if (op === 'select') {
+      // ─ IDOR guard: messages SELECT requires requester to be a chat participant
+      if (table === 'messages' && requesterId) {
+        const chatIdF = filters.find(f => f.type === 'eq' && f.col === 'chat_id') as { type: 'eq'; col: string; val: unknown } | undefined;
+        if (chatIdF) {
+          const chat = getTable('chats').find(c => c.id === chatIdF.val);
+          if (chat && String(chat.user1_id) !== String(requesterId) && String(chat.user2_id) !== String(requesterId)) {
+            _activeOpCount--;
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: not a chat participant', code: 'FORBIDDEN' } });
+          }
+        }
+      }
       let result = applyFilters(tableData, filters);
       for (const { col, asc } of orders) {
         result.sort((a, b) => {
@@ -752,8 +833,25 @@ router.post('/op', async (req: Request, res: Response) => {
         if (table === 'profiles' && _insertNickSet!.has(row.nickname) && row.nickname != null) {
           return res.json({ data: null, error: { message: 'duplicate key value violates unique constraint "profiles_nickname_key"', code: '23505' } });
         }
-        // const row는 재할당 불가이므로 effectiveRow로 분리
-        let effectiveRow: Record<string, unknown> = row;
+        // const row는 재할당 불가이므로 effectiveRow로 분리; 텍스트 필드 sanitization 적용
+        let effectiveRow: Record<string, unknown> = sanitizeRow(table, row);
+
+        // ─ IDOR: INSERT owner check ────────────────────────────────────────
+        // messages: sender_id must match the authenticated requester
+        if (table === 'messages' && requesterId && effectiveRow.sender_id != null) {
+          if (String(effectiveRow.sender_id) !== String(requesterId)) {
+            _activeOpCount--;
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: sender_id mismatch', code: 'FORBIDDEN' } });
+          }
+        }
+        // likes: liker_id must match the authenticated requester
+        if (table === 'likes' && requesterId && effectiveRow.liker_id != null) {
+          if (String(effectiveRow.liker_id) !== String(requesterId)) {
+            _activeOpCount--;
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: liker_id mismatch', code: 'FORBIDDEN' } });
+          }
+        }
+
         if (table === 'profiles') {
           const { use5Digit, poolSize } = _pinParams!;
           const usedPins = _insertPinSet!; // 루프 밖 빌드 Set 재사용 — O(1) 조회
@@ -868,7 +966,7 @@ router.post('/op', async (req: Request, res: Response) => {
 
     // ── UPDATE ──────────────────────────────────────────────────────────────
     if (op === 'update') {
-      let patch = payload as Record<string, unknown>;
+      let patch = sanitizeRow(table, payload as Record<string, unknown>);
       // profiles 테이블에서 pin_code를 UPDATE할 때 서버 레벨 유일성 보장
       // (레거시 사용자 핀 자동 부여 시 경쟁 조건 방지)
       if (table === 'profiles' && patch.pin_code != null) {
@@ -960,7 +1058,8 @@ router.post('/op', async (req: Request, res: Response) => {
     return res.json({ data: null, error: { message: 'Unknown operation' } });
   } catch (e) {
     console.error('[db/op]', e);
-    return res.json({ data: null, error: { message: String(e) } });
+    // 내부 오류 문자열을 클라이언트에 직접 노출하지 않음 — 스키마·스택 정보 유출 방지
+    return res.json({ data: null, error: { message: '서버 내부 오류가 발생했습니다. 잠시 후 다시 시도해주세요.' } });
   } finally {
     _activeOpCount--;
   }
@@ -1227,6 +1326,19 @@ router.post('/storage-upload', async (req: Request, res: Response) => {
   ) {
     return res.status(400).json({ data: null, error: 'Invalid path' });
   }
+  // ─ Per-IP rate limit: 이미지 스팸 방지
+  const uploadIp = String(req.ip ?? req.socket.remoteAddress ?? 'unknown');
+  const uploadNow = Date.now();
+  let uploadBucket = _uploadRateMap.get(uploadIp);
+  if (!uploadBucket || uploadNow > uploadBucket.resetAt) {
+    uploadBucket = { count: 0, resetAt: uploadNow + UPLOAD_RATE_WINDOW_MS };
+    _uploadRateMap.set(uploadIp, uploadBucket);
+  }
+  uploadBucket.count++;
+  if (uploadBucket.count > UPLOAD_RATE_MAX) {
+    return res.status(429).json({ data: null, error: '이미지를 너무 자주 업로드하고 있습니다. 잠시 후 다시 시도해 주세요.' });
+  }
+
   // ─ dataUrl 검증
   if (!dataUrl || typeof dataUrl !== 'string') {
     return res.status(400).json({ data: null, error: 'Missing dataUrl' });
@@ -1238,6 +1350,16 @@ router.post('/storage-upload', async (req: Request, res: Response) => {
   // ─ 크기 제한 (~5MB 원본)
   if (dataUrl.length > MAX_IMAGE_DATAURL_BYTES) {
     return res.status(413).json({ data: null, error: 'Image too large (max 5MB)' });
+  }
+  // ─ Magic bytes 검증: MIME 헤더 조작으로 악성 파일 위장 차단
+  const expectedMagic = IMAGE_MAGIC[mimeMatch[1]];
+  if (expectedMagic) {
+    const base64Body = dataUrl.split(',')[1] ?? '';
+    const rawBytes = Buffer.from(base64Body.slice(0, 12), 'base64');
+    const matched = expectedMagic.every((b, i) => rawBytes[i] === b);
+    if (!matched) {
+      return res.status(400).json({ data: null, error: 'Image content does not match declared type' });
+    }
   }
   imageStore[imgPath] = dataUrl;
   dbPersistImage(imgPath, dataUrl).catch(console.error);
@@ -1252,6 +1374,8 @@ router.get('/storage-image', (req: Request, res: Response): void => {
   if (match) {
     const [, mime, b64] = match;
     res.setHeader('Content-Type', mime);
+    res.setHeader('X-Content-Type-Options', 'nosniff');   // prevent MIME sniffing
+    res.setHeader('Content-Disposition', 'inline');        // don't treat as download
     res.setHeader('Cache-Control', 'public, max-age=86400');
     res.send(Buffer.from(b64, 'base64'));
     return;
@@ -1283,7 +1407,7 @@ router.post('/admin/clear-db-errors', async (req: Request, res: Response) => {
     return res.status(500).json({ ok: false, error: String(e) });
   }
 
-  console.log('[db] DB persist error counter cleared by admin');
+  console.info('[db] DB persist error counter cleared by admin');
   // #38: 관리자 에러 초기화 감사 로그 — DB에 영구 기록
   try {
     await pool.query(
@@ -1302,7 +1426,15 @@ router.post('/admin/clear-db-errors', async (req: Request, res: Response) => {
 });
 
 // ─── DB Health endpoint ───────────────────────────────────────────────────────
+// 10초 캐시: O(messages+likes+profiles) 전체 스캔 + 2 DB 쿼리를 연속 요청마다 반복하지 않도록
+let _healthCache: { ts: number; body: unknown } | null = null;
+const HEALTH_CACHE_TTL_MS = 10_000;
+
 router.get('/health', async (_req: Request, res: Response) => {
+  if (_healthCache && Date.now() - _healthCache.ts < HEALTH_CACHE_TTL_MS) {
+    return res.json(_healthCache.body);
+  }
+
   const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
 
   // In-memory counts for last 5 minutes
@@ -1355,7 +1487,7 @@ router.get('/health', async (_req: Request, res: Response) => {
   if (likeLag    !== null && likeLag    > LOSS_ALARM_THRESHOLD) alarms.push(`like lag: inMem=${inMemLikes} db=${dbLikes} (>${LOSS_ALARM_THRESHOLD})`);
   if (pinRemaining <= PIN_ALARM_THRESHOLD) alarms.push(`PIN pool nearly full: ${pinRemaining} slot(s) remaining of ${_pinPoolSize}`);
 
-  return res.json({
+  const body = {
     persistErrors: _dbPersistErrors,
     // recentErrors는 DB 내부 오류 메시지를 포함할 수 있어 공개 응답에서 제외
     inMemory: { messages: inMemMessages, likes: inMemLikes },
@@ -1367,7 +1499,9 @@ router.get('/health', async (_req: Request, res: Response) => {
     sseConnections: sseTotal,
     thresholds: { lossAlarm: LOSS_ALARM_THRESHOLD, likesMinIntervalMs: LIKES_MIN_INTERVAL_MS },
     checkedAt: new Date().toISOString(),
-  });
+  };
+  _healthCache = { ts: Date.now(), body };
+  return res.json(body);
 });
 
 // ─── Unread counts endpoint ───────────────────────────────────────────────────
@@ -1386,50 +1520,55 @@ router.get('/unread-counts', (req: Request, res: Response) => {
   const userId = typeof req.query.userId === 'string' && req.query.userId ? req.query.userId : null;
   if (!userId) return res.status(400).json({ data: null, error: { message: 'userId required' } });
 
-  // 캐시 히트
-  const cached = unreadCountsCache.get(userId);
-  if (cached && (Date.now() - cached.ts) < UNREAD_CACHE_TTL_MS) {
-    return res.json({ data: cached.data, error: null });
-  }
-
-  const chats = getTable('chats').filter(c => c.user1_id === userId || c.user2_id === userId);
-
-  // Build a map of chatId → read_at for this user
-  const readAtByChat = new Map<string, string>();
-  for (const r of getTable('chat_reads')) {
-    if (r.reader_id === userId && r.chat_id && r.read_at) {
-      readAtByChat.set(r.chat_id as string, r.read_at as string);
+  try {
+    // 캐시 히트
+    const cached = unreadCountsCache.get(userId);
+    if (cached && (Date.now() - cached.ts) < UNREAD_CACHE_TTL_MS) {
+      return res.json({ data: cached.data, error: null });
     }
-  }
 
-  // 전체 메시지를 chat_id 기준으로 미리 인덱싱 — O(msgs) 1회 스캔
-  const msgsByChatId = new Map<string, typeof store[string]>();
-  for (const m of getTable('messages')) {
-    const cid = m.chat_id as string;
-    if (!msgsByChatId.has(cid)) msgsByChatId.set(cid, []);
-    msgsByChatId.get(cid)!.push(m);
-  }
+    const chats = getTable('chats').filter(c => c.user1_id === userId || c.user2_id === userId);
 
-  const counts: Record<string, number> = {};
-  for (const chat of chats) {
-    const chatId = chat.id as string;
-    const readAt = readAtByChat.get(chatId);
-    const msgs = msgsByChatId.get(chatId) ?? [];
-    let unreadCount = 0;
-    for (const m of msgs) {
-      if (m.sender_id === userId) continue;
-      if (!readAt || (m.created_at as string) > readAt) unreadCount++;
+    // Build a map of chatId → read_at for this user
+    const readAtByChat = new Map<string, string>();
+    for (const r of getTable('chat_reads')) {
+      if (r.reader_id === userId && r.chat_id && r.read_at) {
+        readAtByChat.set(r.chat_id as string, r.read_at as string);
+      }
     }
-    if (unreadCount > 0) counts[chatId] = unreadCount;
-  }
 
-  // LRU 상한 200개 — Map은 삽입 순서 보장이므로 첫 번째(가장 오래된) 항목 제거
-  if (unreadCountsCache.size >= 200) {
-    const oldest = unreadCountsCache.keys().next().value;
-    if (oldest !== undefined) unreadCountsCache.delete(oldest);
+    // 전체 메시지를 chat_id 기준으로 미리 인덱싱 — O(msgs) 1회 스캔
+    const msgsByChatId = new Map<string, typeof store[string]>();
+    for (const m of getTable('messages')) {
+      const cid = m.chat_id as string;
+      if (!msgsByChatId.has(cid)) msgsByChatId.set(cid, []);
+      msgsByChatId.get(cid)!.push(m);
+    }
+
+    const counts: Record<string, number> = {};
+    for (const chat of chats) {
+      const chatId = chat.id as string;
+      const readAt = readAtByChat.get(chatId);
+      const msgs = msgsByChatId.get(chatId) ?? [];
+      let unreadCount = 0;
+      for (const m of msgs) {
+        if (m.sender_id === userId) continue;
+        if (!readAt || (m.created_at as string) > readAt) unreadCount++;
+      }
+      if (unreadCount > 0) counts[chatId] = unreadCount;
+    }
+
+    // LRU 상한 200개 — Map은 삽입 순서 보장이므로 첫 번째(가장 오래된) 항목 제거
+    if (unreadCountsCache.size >= 200) {
+      const oldest = unreadCountsCache.keys().next().value;
+      if (oldest !== undefined) unreadCountsCache.delete(oldest);
+    }
+    unreadCountsCache.set(userId, { ts: Date.now(), data: counts });
+    return res.json({ data: counts, error: null });
+  } catch (e) {
+    console.error('[unread-counts]', e);
+    return res.status(500).json({ data: null, error: { message: '안읽은 메시지 수 조회 중 오류가 발생했습니다.' } });
   }
-  unreadCountsCache.set(userId, { ts: Date.now(), data: counts });
-  return res.json({ data: counts, error: null });
 });
 
 // ─── PIN lookup ───────────────────────────────────────────────────────────────
@@ -1572,6 +1711,20 @@ function verifySseToken(userId: string, token: string): boolean {
  * 결과적으로 userId를 알더라도 device secret 없이는 세션을 얻을 수 없습니다.
  */
 router.post('/auth/login', (req: Request, res: Response) => {
+  try {
+  // ─ Per-IP rate limit: brute-force 방지
+  const loginIp = String(req.ip ?? req.socket.remoteAddress ?? 'unknown');
+  const loginNow = Date.now();
+  let loginBucket = _loginRateMap.get(loginIp);
+  if (!loginBucket || loginNow > loginBucket.resetAt) {
+    loginBucket = { count: 0, resetAt: loginNow + LOGIN_RATE_WINDOW_MS };
+    _loginRateMap.set(loginIp, loginBucket);
+  }
+  loginBucket.count++;
+  if (loginBucket.count > LOGIN_RATE_MAX) {
+    return res.status(429).json({ error: '로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.' });
+  }
+
   const { userId, deviceSecret } = req.body as { userId?: string; deviceSecret?: string };
   if (!userId || typeof userId !== 'string') {
     return res.status(400).json({ error: 'Missing userId' });
@@ -1619,6 +1772,10 @@ router.post('/auth/login', (req: Request, res: Response) => {
   }
   req.session.userId = userId;
   return res.json({ ok: true });
+  } catch (e) {
+    console.error('[auth/login]', e);
+    return res.status(500).json({ error: '로그인 처리 중 오류가 발생했습니다.' });
+  }
 });
 
 // POST /auth/sse-token — 세션으로 인증된 userId에만 단기 SSE 토큰 발급
@@ -1644,6 +1801,15 @@ router.get('/events', (req: Request, res: Response) => {
     res.status(401).json({ error: 'Invalid or missing SSE token' });
     return;
   }
+
+  // ─ Per-IP SSE connection limit: 동일 IP 대량 연결 방지
+  const sseIp = String(req.ip ?? req.socket.remoteAddress ?? 'unknown');
+  const currentConns = _sseConnPerIp.get(sseIp) ?? 0;
+  if (currentConns >= SSE_MAX_CONN_PER_IP) {
+    res.status(429).json({ error: 'Too many SSE connections from this IP' });
+    return;
+  }
+  _sseConnPerIp.set(sseIp, currentConns + 1);
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache, no-transform');
@@ -1695,6 +1861,10 @@ router.get('/events', (req: Request, res: Response) => {
     } else {
       sseAnonClients.delete(res);
     }
+    // Per-IP connection count 해제
+    const remaining = (_sseConnPerIp.get(sseIp) ?? 1) - 1;
+    if (remaining <= 0) _sseConnPerIp.delete(sseIp);
+    else _sseConnPerIp.set(sseIp, remaining);
   };
   req.on('close', cleanupConn);
   req.on('aborted', cleanupConn); // Node.js HTTP/1.1 강제 종료 대비

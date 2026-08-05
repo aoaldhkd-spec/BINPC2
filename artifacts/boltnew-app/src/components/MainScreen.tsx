@@ -644,22 +644,8 @@ export function MainScreen({
   const currentUserSeat = useMemo(() => seats.find(s => s.profile_id === currentUserId) ?? null, [seats, currentUserId]);
   const tableNumber = currentUserSeat?.table_number ?? null;
   const visibleSeats = useMemo(() => activeTables ? seats.filter(s => activeTables.includes(s.table_number)) : seats, [seats, activeTables]);
-  // 내 테이블 탭: 선택된 테이블 번호 (null = 선택 전)
-  const [selectedMyTableNum, setSelectedMyTableNum] = useState<number | null>(null);
-  // 내 테이블 탭: 활성 테이블 목록 (관리자 설정 이름 포함)
-  const myTableList = useMemo(() => {
-    const nums = activeTables && activeTables.length > 0
-      ? activeTables
-      : [...new Set(seats.map(s => s.table_number))].sort((a, b) => a - b);
-    return nums.map(n => ({
-      num: n,
-      label: tableLabels?.[String(n)] ?? `${n}번 테이블`,
-      total: seats.filter(s => s.table_number === n).length,
-      occupied: seats.filter(s => s.table_number === n && s.status === 'occupied').length,
-    }));
-  }, [activeTables, seats, tableLabels]);
-  // 현재 선택 테이블 (지정이 없으면 내 자리 기준 → 없으면 null)
-  const resolvedMyTable = selectedMyTableNum ?? currentUserSeat?.table_number ?? null;
+  // 내 테이블 탭: 선택 없이 내 자리 테이블만 표시
+  // (selectedMyTableNum / myTableList / resolvedMyTable 제거 — 칩 선택 UI 삭제)
   const currentUserNickname = useMemo(() => profiles.find(p => p.id === currentUserId)?.nickname ?? '', [profiles, currentUserId]);
   const [profileSearch, setProfileSearch] = useState('');
   const [profilePersonalityFilter, setProfilePersonalityFilter] = useState<string | null>(null);
@@ -703,10 +689,15 @@ export function MainScreen({
   const [drinkPicker, setDrinkPicker] = useState<string | null>(null);
   const [refreshedTab, setRefreshedTab] = useState<string | null>(null);
 
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const doRefresh = (tabId: string, fn: () => void) => {
     fn();
     setRefreshedTab(tabId);
-    setTimeout(() => setRefreshedTab(null), 2000);
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = setTimeout(() => {
+      refreshTimerRef.current = null;
+      setRefreshedTab(null);
+    }, 2000);
   };
   const heartsKey = `seen_hearts_${currentUserId ?? 'x'}`;
   const gameKey = `seen_game_${currentUserId ?? 'x'}`;
@@ -867,12 +858,17 @@ export function MainScreen({
   const saveSajuBirthDate = async () => {
     if (!currentUserId) return;
     setSajuSaving(true);
+    // 월별 최대 일수 cross-validation (버튼 UI에서도 2월 30일 같은 날짜 저장 방지)
+    const maxDayForMonth = (m: number | null) => m ? new Date(2000, m, 0).getDate() : 31;
+    const clampedDay = (sajuBirthDay && sajuBirthMonth && sajuBirthDay > maxDayForMonth(sajuBirthMonth))
+      ? maxDayForMonth(sajuBirthMonth)
+      : sajuBirthDay;
     try {
       await supabase.from('profiles').update({
         birth_month: sajuBirthMonth,
-        birth_day: sajuBirthDay,
+        birth_day: clampedDay,
       } as never).eq('id', currentUserId);
-      onUpdateProfile({ id: currentUserId, birth_month: sajuBirthMonth, birth_day: sajuBirthDay });
+      onUpdateProfile({ id: currentUserId, birth_month: sajuBirthMonth, birth_day: clampedDay });
       sajuInitRef.current = false;
       setProfileEditSection(null);
       setShowFortuneBirthEdit(false);
@@ -1176,7 +1172,7 @@ export function MainScreen({
                       <div className="relative flex-shrink-0">
                         <div className="w-[72px] h-[72px] rounded-2xl overflow-hidden border border-gray-200 shadow-sm bg-gray-200">
                           <img src={getAvatarSrc(myProfile.photo_url, myProfile.nickname)} alt={myProfile.nickname} className="w-full h-full object-cover"
-                            onError={(e) => { (e.target as HTMLImageElement).src = genAvatar(myProfile.nickname); }} />
+                            loading="lazy" onError={(e) => { (e.target as HTMLImageElement).src = genAvatar(myProfile.nickname); }} />
                         </div>
                         <div className="absolute -top-1.5 -left-1.5 z-10 px-1.5 py-0.5 bg-amber-400 rounded-full shadow text-[9px] font-black text-white leading-none">나</div>
                       </div>
@@ -1256,94 +1252,52 @@ export function MainScreen({
             </div>
         )}
 
-        {/* ── 내 테이블 탭 ── */}
+        {/* ── 내 테이블 탭 — 내 자리 테이블만, 확대 뷰 자동 오픈 ── */}
         {mainTab === 'my-table' && (
-          <div className="space-y-4">
-
-            {/* ── 테이블 선택 (컴팩트 칩 방식) ── */}
-            {myTableList.length === 0 ? (
-              <p className={`text-sm py-2 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>테이블 정보 없음</p>
-            ) : (
-              <div className="flex flex-wrap gap-1">
-                {myTableList.map(t => {
-                  const isSelected = resolvedMyTable === t.num;
-                  const isMyTable = currentUserSeat?.table_number === t.num;
-                  return (
-                    <button
-                      key={t.num}
-                      onClick={() => setSelectedMyTableNum(t.num)}
-                      className={`flex items-center gap-1 px-2.5 py-1 rounded-full border text-[11px] font-bold transition-all active:scale-95 ${
-                        isMyTable
-                          ? darkMode ? 'border-cyan-500 bg-cyan-500/25 text-cyan-300' : 'border-cyan-500 bg-cyan-100 text-cyan-700'
-                          : isSelected
-                          ? darkMode ? 'border-cyan-400 bg-cyan-500/10 text-cyan-400' : 'border-cyan-400 bg-cyan-50 text-cyan-600'
-                          : darkMode ? 'border-slate-600 bg-slate-800 text-slate-400 hover:border-slate-500' : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
-                      }`}
-                    >
-                      {isMyTable && <span className="text-cyan-400 text-[9px]">★</span>}
-                      <span>{t.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* ── 선택된 테이블 배치도 ── */}
-            {resolvedMyTable !== null ? (
-              <div className="space-y-2">
-                {/* 내 자리 / 상태 */}
-                <div className={`max-w-lg mx-auto rounded-2xl px-4 py-2.5 border flex items-center gap-3 ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-100'} shadow-sm`}>
-                  {currentUserSeat?.table_number === resolvedMyTable ? (
-                    <>
-                      <div className="w-8 h-8 rounded-lg bg-cyan-500 flex items-center justify-center text-white font-black flex-shrink-0 text-sm">
-                        {currentUserSeat.seat_position}
-                      </div>
-                      <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                        {currentUserSeat.seat_position}번 자리 착석 중
-                        <span className={`ml-2 text-[11px] font-normal ${seatingLocked ? (darkMode ? 'text-amber-400' : 'text-amber-600') : (darkMode ? 'text-teal-400' : 'text-teal-600')}`}>
-                          {seatingLocked ? '🔒 잠금 중' : '✅ 변경 가능'}
-                        </span>
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-lg flex-shrink-0 ${darkMode ? 'bg-slate-700' : 'bg-gray-100'}`}>🪑</div>
-                      <p className={`text-sm font-bold ${seatingLocked ? (darkMode ? 'text-amber-400' : 'text-amber-600') : (darkMode ? 'text-teal-400' : 'text-teal-600')}`}>
-                        {seatingLocked ? '🔒 관리자가 자리를 배정합니다' : '✅ 빈 자리(+)를 탭해서 선택하세요'}
-                      </p>
-                    </>
-                  )}
-                </div>
-                {/* SeatingMap — 선택된 테이블만 */}
-                <div
-                  className="max-w-7xl mx-auto overflow-auto rounded-2xl border-2"
-                  style={{
-                    background: `var(--t-surface, ${darkMode ? '#0f172a' : '#ffffff'})`,
-                    borderColor: `var(--t-border, ${darkMode ? '#475569' : '#e5e7eb'})`,
-                  }}
-                >
-                  <SeatingMap
-                    seats={seats}
-                    profileMap={profileMap}
-                    currentUserId={currentUserId}
-                    isAdmin={false}
-                    seatingLocked={seatingLocked}
-                    darkMode={darkMode}
-                    activeTables={[resolvedMyTable]}
-                    tableLabels={tableLabels}
-                    onProfileClick={onProfileClickFromMap}
-                    onChatClick={onOpenChat}
-                    onSeatClick={!seatingLocked ? (seat) => { if (!seat.profile_id) _setSeatDialog(seat); } : undefined}
-                  />
-                </div>
-                <p className={`text-center text-xs ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>
-                  탭하면 확대됩니다
+          <div className="space-y-3">
+            {tableNumber === null ? (
+              /* 아직 자리 미배정 */
+              <div className="flex flex-col items-center justify-center py-14 gap-3">
+                <span className="text-5xl">🪑</span>
+                <p className={`text-sm font-bold text-center ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                  아직 자리가 배정되지 않았습니다
                 </p>
+                {!seatingLocked && (
+                  <p className={`text-xs text-center ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>
+                    배치도 탭에서 빈 자리를 선택해 주세요
+                  </p>
+                )}
               </div>
             ) : (
-              <p className={`text-center text-sm py-4 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>
-                위에서 테이블을 선택하면 자리가 표시됩니다
-              </p>
+              <>
+                {/* 내 자리 상태 카드 */}
+                <div className={`max-w-lg mx-auto rounded-2xl px-4 py-2.5 border flex items-center gap-3 ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-100'} shadow-sm`}>
+                  <div className="w-8 h-8 rounded-lg bg-cyan-500 flex items-center justify-center text-white font-black flex-shrink-0 text-sm">
+                    {currentUserSeat?.seat_position}
+                  </div>
+                  <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                    {currentUserSeat?.seat_position}번 자리 착석 중
+                    <span className={`ml-2 text-[11px] font-normal ${seatingLocked ? (darkMode ? 'text-amber-400' : 'text-amber-600') : (darkMode ? 'text-teal-400' : 'text-teal-600')}`}>
+                      {seatingLocked ? '🔒 잠금 중' : '✅ 변경 가능'}
+                    </span>
+                  </p>
+                </div>
+                {/* 내 테이블만 표시 — 마운트 시 자동 확대 (defaultExpandedTable) */}
+                <SeatingMap
+                  seats={seats}
+                  profileMap={profileMap}
+                  currentUserId={currentUserId}
+                  isAdmin={false}
+                  seatingLocked={seatingLocked}
+                  darkMode={darkMode}
+                  activeTables={[tableNumber]}
+                  tableLabels={tableLabels}
+                  defaultExpandedTable={tableNumber}
+                  onProfileClick={onProfileClickFromMap}
+                  onChatClick={onOpenChat}
+                  onSeatClick={!seatingLocked ? (seat) => { if (!seat.profile_id) _setSeatDialog(seat); } : undefined}
+                />
+              </>
             )}
           </div>
         )}
