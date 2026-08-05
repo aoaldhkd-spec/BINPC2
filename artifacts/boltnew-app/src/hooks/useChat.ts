@@ -59,20 +59,31 @@ export function useChat({
   // ── 채팅방별 메시지 구독 (서버 사이드 필터) ──────────────────────────────────
   // chatIdsKey: chatList의 ID 목록만 직렬화 — lastMessage 변경 시 채널 재생성 방지
   const chatIdsKey = chatList.map(c => c.id).join(',');
+
+  // [버그3 수정] 기존 코드: cleanup이 chatIdsKey 변경 시마다 모든 채널을 끊고 재구독해 메시지 수신 갭 발생
+  // 수정 후: userId 변경/언마운트 시만 전체 정리, chatIdsKey 변경 시는 선택적 추가/제거만 수행
+  useEffect(() => {
+    // userId 변경 또는 언마운트 시 전체 채널 정리
+    return () => {
+      for (const ch of perChatChannelsRef.current.values()) supabase.removeChannel(ch);
+      perChatChannelsRef.current.clear();
+    };
+  }, [currentUserId]);
+
   useEffect(() => {
     if (!currentUserId || chatListRef.current.length === 0) return;
     const channels = perChatChannelsRef.current;
     const currentIds = new Set(chatListRef.current.map(c => c.id));
 
-    // 삭제된 채팅방 채널 제거
-    for (const [cid, ch] of channels) {
+    // 삭제된 채팅방 채널만 선택적으로 제거 — 기존 채널은 건드리지 않음
+    for (const [cid, ch] of [...channels]) {
       if (!currentIds.has(cid)) {
         supabase.removeChannel(ch);
         channels.delete(cid);
       }
     }
 
-    // 새 채팅방 채널 추가 (이미 있는 건 skip)
+    // 새 채팅방 채널 추가 (이미 구독 중인 채팅방은 skip — 재구독 갭 제거)
     for (const chat of chatListRef.current) {
       if (channels.has(chat.id)) continue;
       const chatId_ = chat.id;
@@ -84,7 +95,7 @@ export function useChat({
         }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
           try {
             const m = payload.new as { chat_id: string; sender_id: string; content: string; image_url?: string };
-            // 내 메시지는 optimistic UI + sendMessage에서 이미 처리함 — 여기서 중복 처리 금지
+            // 내 메시지는 HTTP 응답 + optimistic UI에서 이미 처리 — 여기서 중복 금지
             if (m.sender_id === currentUserId) return;
             const preview = m.image_url ? '📷 사진' : m.content;
             setChatList(prev => prev.map(c => c.id === m.chat_id ? { ...c, lastMessage: preview } : c));
@@ -101,11 +112,7 @@ export function useChat({
         .subscribe();
       channels.set(chatId_, ch);
     }
-
-    return () => {
-      for (const ch of channels.values()) supabase.removeChannel(ch);
-      channels.clear();
-    };
+    // cleanup 없음 — 전체 정리는 위 userId effect가 담당, 선택적 제거는 이 effect 본문에서 처리
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatIdsKey, currentUserId]);
 
@@ -223,6 +230,63 @@ export function useChat({
   // ── 채팅방 열기 ──────────────────────────────────────────────────────────────
   const openChatGenRef = useRef(0);
   const selfInitiatedPairTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // [버그4 수정] selfInitiatedPairTimerRef 언마운트 시 정리 (선언 이후에 배치 — TDZ 방지)
+  useEffect(() => {
+    return () => {
+      if (selfInitiatedPairTimerRef.current !== null) {
+        clearTimeout(selfInitiatedPairTimerRef.current);
+        selfInitiatedPairTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  // [버그2 수정] 상대가 나에게 새 채팅방을 만들면 chatList를 즉시 갱신 (loadChatList 선언 이후에 배치)
+  // Supabase realtime: chats 테이블 INSERT를 user1_id / user2_id 각각으로 감시
+  // 새 채팅 감지 → loadChatList → chatIdsKey 변경 → perChatChannels effect가 새 채팅방 채널 자동 구독
+  useEffect(() => {
+    if (!currentUserId) return;
+    const uid = currentUserId;
+
+    const handleNewChat = (payload: { new: Record<string, unknown> }) => {
+      const uidNow = currentUserIdRef.current;
+      if (!uidNow) return;
+      // 내가 직접 openChat()으로 만든 채팅방은 이미 목록에 있으므로 중복 알림 방지
+      const newRow = payload.new as { user1_id?: string; user2_id?: string };
+      const pair = `${newRow.user1_id}:${newRow.user2_id}`;
+      if (selfInitiatedPairRef.current === pair) return;
+      // 상대방이 만든 새 채팅방 → 목록 갱신 + 알림
+      void loadChatList(uidNow);
+      const otherId = newRow.user1_id === uidNow ? newRow.user2_id : newRow.user1_id;
+      const otherProfile = profilesRef.current.find(p => p.id === otherId);
+      if (otherProfile) {
+        setBottomNotif({ type: 'chat', nickname: otherProfile.nickname });
+        playCuteSound();
+      }
+    };
+
+    const ch1 = supabase
+      .channel(`new-chats-u1-${uid}`)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'chats',
+        filter: `user1_id=eq.${uid}`,
+      }, handleNewChat)
+      .subscribe();
+
+    const ch2 = supabase
+      .channel(`new-chats-u2-${uid}`)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'chats',
+        filter: `user2_id=eq.${uid}`,
+      }, handleNewChat)
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(ch1);
+      supabase.removeChannel(ch2);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUserId, loadChatList]);
   const openChat = useCallback(async (otherProfile: Profile) => {
     if (!currentUserId) return;
     const gen = ++openChatGenRef.current;

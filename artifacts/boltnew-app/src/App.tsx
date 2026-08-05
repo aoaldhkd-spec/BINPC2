@@ -1254,7 +1254,7 @@ function App() {
         heartType={sentHeartTypes.get(selectedProfile.id)}
         sentHeartsCount={sentHeartsPerPerson.get(selectedProfile.id)?.size ?? 0}
         onLike={() => { if (!seatingLocked && !functionsLocked) handleLike(selectedProfile.id); }}
-        onChat={() => { if (!seatingLocked) openChat(selectedProfile); }}
+        onChat={() => { openChat(selectedProfile); }}
         onBack={() => setView('main')}
         onReset={reset}
       />

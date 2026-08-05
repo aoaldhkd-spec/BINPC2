@@ -581,9 +581,11 @@ async function loginSession(userId: string): Promise<boolean> {
       if (resp.status === 401) {
         const body = await resp.json().catch(() => ({})) as { code?: string };
         if (body.code === 'NEEDS_MIGRATION') {
+          // 서버는 first-claim을 허용하므로 이 분기는 도달하지 않아야 함
+          // 만약 도달했다면 기기 secret 해시가 불일치한 것 — localStorage 초기화 후 재시도 필요
           console.warn(
-            '[localdb] SSE 인증 실패: 기기 secret 미등록 계정 — ' +
-            '비공개 이벤트(채팅·하트)를 수신하려면 재가입이 필요합니다.',
+            '[localdb] SSE 인증 실패: 기기 secret 해시 불일치 — ' +
+            '이 기기에서 재가입하거나 localStorage를 초기화하면 해결됩니다.',
           );
         }
       }
