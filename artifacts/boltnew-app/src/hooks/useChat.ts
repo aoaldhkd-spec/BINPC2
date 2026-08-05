@@ -14,9 +14,12 @@
 
 const MAX_MESSAGES = 500; // 채팅방당 최대 메시지 보유 수 (메모리 누수 방지)
 
+// 오프라인 큐 항목 타입 — 모듈 레벨 선언으로 HMR 호환성 유지
+interface PendingMsg { chatId: string; content: string; clientId: string; optimisticId: string }
+
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { onSseReconnect } from '../lib/localdb';
+import { onSseReconnect, getSseToken } from '../lib/localdb';
 import type { Profile, Message, Chat, View } from '../types/app';
 import { HeartType } from '../lib/constants';
 import { playCuteSound } from '../lib/sounds';
@@ -171,8 +174,13 @@ export function useChat({
           // [안전장치 8] SSE 페이로드 필수 필드 검증 — null/undefined/wrong-type 즉시 차단
           const raw = payload.new;
           if (!raw || typeof raw.id !== 'string' || !raw.id || typeof raw.sender_id !== 'string') return;
+          // chatId guard: 채팅방 전환 중 stale 콜백이 다른 채팅방 메시지를 삽입하는 것을 차단
+          if (chatIdRef.current !== chatId) return;
           const newMsg = raw as unknown as Message;
-          setMessages(prev => applySseInsert(prev, newMsg));
+          setMessages(prev => {
+            const next = applySseInsert(prev, newMsg);
+            return next.length > MAX_MESSAGES ? next.slice(-MAX_MESSAGES) : next;
+          });
         })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages', filter: `chat_id=eq.${chatId}` },
         (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
@@ -392,7 +400,9 @@ export function useChat({
   const syncUnreadCounts = useCallback(async () => {
     if (!currentUserIdRef.current) return;
     try {
-      const resp = await fetch(`/api/db/unread-counts?userId=${encodeURIComponent(currentUserIdRef.current)}`);
+      const token = getSseToken();
+      const tokenParam = token ? `&token=${encodeURIComponent(token)}` : '';
+      const resp = await fetch(`/api/db/unread-counts?userId=${encodeURIComponent(currentUserIdRef.current)}${tokenParam}`);
       if (!resp.ok) return;
       const { data } = await resp.json() as { data: Record<string, number> | null };
       if (!data) return;
@@ -425,6 +435,44 @@ export function useChat({
     return () => document.removeEventListener('visibilitychange', handler);
   }, [syncUnreadCounts]);
 
+  // ── 오프라인 메시지 큐 ─────────────────────────────────────────────────────────
+  // 3회 재시도 모두 실패(네트워크 완전 단절) 시 메시지를 여기에 보관.
+  // SSE 재연결 시 큐를 자동으로 플러시하여 메시지 유실 방지.
+  const pendingQueueRef = useRef<PendingMsg[]>([]);
+  const isFlushingRef = useRef(false);
+
+  const flushPendingQueue = useCallback(async () => {
+    if (isFlushingRef.current || pendingQueueRef.current.length === 0) return;
+    isFlushingRef.current = true;
+    const queue = [...pendingQueueRef.current];
+    for (const item of queue) {
+      try {
+        const { data: insertedMsg, error } = await supabase.from('messages').insert({
+          chat_id: item.chatId,
+          sender_id: currentUserIdRef.current,
+          content: item.content,
+          client_id: item.clientId,
+        }).select().single();
+        if (!error && insertedMsg) {
+          // 성공: 낙관적 메시지를 실제 메시지로 교체
+          setMessages(prev => prev.map(m => m.id === item.optimisticId ? insertedMsg as Message : m));
+          pendingQueueRef.current = pendingQueueRef.current.filter(q => q.clientId !== item.clientId);
+        } else if (error) {
+          // client_id로 이미 저장됐는지 확인 (이전 시도 응답 분실)
+          const { data: existing } = await supabase.from('messages').select('*').eq('client_id', item.clientId).maybeSingle();
+          if (existing) {
+            setMessages(prev => prev.map(m => m.id === item.optimisticId ? existing as Message : m));
+            pendingQueueRef.current = pendingQueueRef.current.filter(q => q.clientId !== item.clientId);
+          }
+        }
+      } catch {
+        // 이번 플러시도 실패 — 다음 재연결 때 재시도
+        break;
+      }
+    }
+    isFlushingRef.current = false;
+  }, []);
+
   useEffect(() => {
     return onSseReconnect(() => {
       void syncUnreadCounts();
@@ -432,8 +480,10 @@ export function useChat({
       if (uid) void loadChatList(uid);
       const activeChatId = chatIdRef.current;
       if (activeChatId) void loadMessages(activeChatId);
+      // 오프라인 큐 플러시 — 재연결 직후 대기 중인 메시지 전송
+      void flushPendingQueue();
     });
-  }, [syncUnreadCounts, loadChatList, loadMessages]);
+  }, [syncUnreadCounts, loadChatList, loadMessages, flushPendingQueue]);
 
   // ── 전송 잠금: boolean → Set<chatId> ─────────────────────────────────────────
   // 채팅방별 독립 잠금 — 채팅방 A 전송 중에도 채팅방 B 전송 가능
@@ -522,10 +572,12 @@ export function useChat({
         }
       }
 
-      // 모든 재시도 실패 → 롤백 + 에러
-      rollback();
-      console.error('[sendMessage] 전송 실패 (3회 재시도 후):', lastErr);
-      throw lastErr;
+      // 모든 재시도 실패 → 롤백 대신 오프라인 큐에 보관 (재연결 시 자동 전송)
+      // 낙관적 메시지는 화면에 유지 — 사용자가 메시지를 다시 입력할 필요 없음
+      console.warn('[sendMessage] 3회 재시도 실패 — 오프라인 큐에 보관, 재연결 시 자동 전송:', lastErr);
+      // 큐 크기 상한 50개 — 무한 증가 방지 (가장 오래된 항목부터 제거)
+      if (pendingQueueRef.current.length >= 50) pendingQueueRef.current.shift();
+      pendingQueueRef.current.push({ chatId: snapChatId, content: trimmed, clientId: clientUUID, optimisticId });
     } finally {
       sendingChatIdsRef.current.delete(snapChatId);
     }
@@ -551,7 +603,8 @@ export function useChat({
 
     setMessages(prev => {
       if (chatIdRef.current !== snapChatId) return prev;
-      return [...prev, optimisticMsg];
+      const next = [...prev, optimisticMsg];
+      return next.length > MAX_MESSAGES ? next.slice(-MAX_MESSAGES) : next;
     });
     setChatList(prev => prev.map(c => c.id === snapChatId ? { ...c, lastMessage: '📷 사진' } : c));
 

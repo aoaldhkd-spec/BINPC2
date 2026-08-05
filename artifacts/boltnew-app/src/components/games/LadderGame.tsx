@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import type { Seat, Profile, TableMiniGameSession, LadderBar } from '../../types/app';
 import { LADDER_PRESET_PRIZES } from './gameConstants';
 import { ParticipantSelector } from './ParticipantSelector';
@@ -40,6 +40,14 @@ export function LadderGame({ seats, tableNumber, onBroadcast, myNickname, profil
   const [endCols, setEndCols] = useState<number[] | null>(null);
   const [shuffledPrizes, setShuffledPrizes] = useState<string[]>([]);
   const [revealed, setRevealed] = useState(0);
+  const ladderTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const revealTimerRefs = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  // 언마운트 시 타이머 정리 (메모리 누수 방지)
+  useEffect(() => () => {
+    if (ladderTimerRef.current) clearTimeout(ladderTimerRef.current);
+    revealTimerRefs.current.forEach(t => clearTimeout(t));
+  }, []);
 
   const n = participants.length;
   const ROWS = Math.max(6, n + 2);
@@ -63,15 +71,16 @@ export function LadderGame({ seats, tableNumber, onBroadcast, myNickname, profil
         hostNickname: myNickname ?? '알 수 없음', tableNumber, startedAt: new Date().toISOString(),
         bars: newBars, endCols: cols, shuffledPrizes: sp,
       };
-      setTimeout(() => { onBroadcast(session); setRunning(false); reset(); }, 800);
+      ladderTimerRef.current = setTimeout(() => { onBroadcast(session); setRunning(false); reset(); }, 800);
       return;
     }
     setShuffledPrizes(sp);
     const newBars = buildLadder(n, ROWS);
     const cols = participants.map((_, i) => tracePath(n, newBars, ROWS, i));
-    setTimeout(() => {
+    ladderTimerRef.current = setTimeout(() => {
       setBars(newBars); setEndCols(cols); setRunning(false);
-      cols.forEach((_, idx) => setTimeout(() => setRevealed(idx + 1), idx * 350 + 200));
+      revealTimerRefs.current.forEach(t => clearTimeout(t));
+      revealTimerRefs.current = cols.map((_, idx) => setTimeout(() => setRevealed(idx + 1), idx * 350 + 200));
     }, 1400);
   };
 

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import type { Seat, Profile, TableMiniGameSession } from '../../types/app';
 import { WHEEL_COLORS } from './gameConstants';
 import { ParticipantSelector } from './ParticipantSelector';
@@ -17,6 +17,14 @@ export function RouletteGame({ seats, tableNumber, onBroadcast, myNickname, prof
   const [totalRot, setTotalRot] = useState(0);
   const [showResult, setShowResult] = useState(false);
   const wheelRef = useRef<SVGSVGElement>(null);
+  const spinTimer1Ref = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const spinTimer2Ref = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 언마운트 시 타이머 정리 (메모리 누수 방지)
+  useEffect(() => () => {
+    if (spinTimer1Ref.current) clearTimeout(spinTimer1Ref.current);
+    if (spinTimer2Ref.current) clearTimeout(spinTimer2Ref.current);
+  }, []);
 
   const SIZE = 260, CX = SIZE / 2, CY = SIZE / 2, R = SIZE / 2 - 6;
   const n = participants.length;
@@ -57,7 +65,11 @@ export function RouletteGame({ seats, tableNumber, onBroadcast, myNickname, prof
       wheelRef.current.style.transition = 'transform 4s cubic-bezier(0.25, 0.1, 0.1, 1)';
       wheelRef.current.style.transform = `rotate(${newRot}deg)`;
     }
-    setTimeout(() => { setResult(participants[winnerIdx]); setSpinning(false); setTimeout(() => setShowResult(true), 60); }, 4150);
+    if (spinTimer1Ref.current) clearTimeout(spinTimer1Ref.current);
+    spinTimer1Ref.current = setTimeout(() => {
+      setResult(participants[winnerIdx]); setSpinning(false);
+      spinTimer2Ref.current = setTimeout(() => setShowResult(true), 60);
+    }, 4150);
   };
 
   return (

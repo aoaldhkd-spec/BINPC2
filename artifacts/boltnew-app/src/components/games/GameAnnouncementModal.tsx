@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import type { GameState, Seat, Profile } from '../../types/app';
 import { GAME_TYPE_ICONS, GAME_TYPE_LABELS } from './gameConstants';
@@ -18,8 +18,11 @@ export function GameAnnouncementModal({ game, onDismiss, onVote, onImageVote, cu
   const [voted, setVoted] = useState<'a' | 'b' | null>(null);
   const [imageVoted, setImageVoted] = useState<string | null>(null);
   const [imageVoteCounts, setImageVoteCounts] = useState<Record<string, number>>({});
+  const dismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => { const t = setTimeout(() => setVisible(true), 50); return () => clearTimeout(t); }, []);
+  // 언마운트 시 dismiss 타이머 정리
+  useEffect(() => () => { if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current); }, []);
 
   useEffect(() => {
     if (game.type !== 'image' || !game.game_id) return;
@@ -60,7 +63,9 @@ export function GameAnnouncementModal({ game, onDismiss, onVote, onImageVote, cu
 
   const handleVote = (option: 'a' | 'b') => {
     if (voted || !game.game_id || !onVote) return;
-    setVoted(option); onVote(game.game_id, option); setTimeout(() => onDismiss(), 800);
+    setVoted(option); onVote(game.game_id, option);
+    if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current);
+    dismissTimerRef.current = setTimeout(() => { onDismiss(); dismissTimerRef.current = null; }, 800);
   };
 
   return (

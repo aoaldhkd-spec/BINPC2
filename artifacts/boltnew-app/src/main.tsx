@@ -25,7 +25,7 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, { error: Error
           <span className="text-5xl">⚡</span>
           <div>
             <p className="text-white font-black text-lg mb-1">앱에서 오류가 발생했습니다</p>
-            <p className="text-slate-400 text-sm">{this.state.error.message}</p>
+            <p className="text-slate-400 text-sm">잠시 후 다시 시도해 주세요</p>
           </div>
           <button
             onClick={() => { this.setState({ error: null, info: '' }); window.location.reload(); }}

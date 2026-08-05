@@ -163,4 +163,14 @@ app.use('/api/db/rpc',              makeRateLimiter(30, 60_000, 'rpc'));
 
 app.use("/api", router);
 
+// ── 전역 Express 에러 미들웨어 — 모든 라우트 핸들러의 throw/reject를 포착 ────
+// Express async 핸들러가 throw하면 next(err)로 넘어와 여기서 처리.
+// 반드시 router 등록 이후, export 이전에 위치해야 함.
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+  logger.error({ err }, '[EXPRESS] Unhandled route error');
+  if (!res.headersSent) {
+    res.status(500).json({ data: null, error: { message: 'Internal server error', code: 'INTERNAL_ERROR' } });
+  }
+});
+
 export default app;

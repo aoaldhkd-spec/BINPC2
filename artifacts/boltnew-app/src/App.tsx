@@ -254,6 +254,8 @@ function App() {
   const loadProfilesRef = useRef<() => Promise<Profile[]>>(async () => []);
   // SSE fallback polling refs — SSE 끊김 중 채팅·하트 polling에 사용 (stale 클로저 방지)
   const loadChatListRef = useRef<((userId: string) => Promise<void>) | null>(null);
+  // 채팅방별 미전송 초안 보존 — 뒤로가기 후 재진입 시 복원
+  const chatDraftRef = useRef<Map<string, string>>(new Map());
   const loadReceivedLikesRef = useRef<((userId: string) => Promise<void>) | null>(null);
   // ?share=<profileId> URL 파라미터 — 프로필 QR 스캔 시 연락처 자동 수신
   const [pendingShareId] = useState<string | null>(() => new URLSearchParams(window.location.search).get('share'));
@@ -1307,6 +1309,8 @@ function App() {
             setMainTab(tab as MainTab);
           }}
           onUpdateProfile={(update) => setProfiles(prev => prev.map(p => p.id === update.id ? { ...p, ...update } : p))}
+          initialInput={chatDraftRef.current.get(chatId) ?? ''}
+          onInputChange={(v) => chatDraftRef.current.set(chatId, v)}
         />
       </>
     </ChatErrorBoundary>
@@ -1406,19 +1410,23 @@ function App() {
       )}
       {/* Q&A Game Overlay (전체 공지) */}
       {activeQaGame && qaOverlayVisible && (
-        <QaGameOverlay
-          game={activeQaGame}
-          currentUserId={currentUserId}
-          currentUserNickname={profileMap.get(currentUserId ?? '')?.nickname ?? null}
-          seats={seats}
-          alreadySubmitted={qaSubmittedIds.has(activeQaGame.id)}
-          onSubmitted={() => setQaSubmittedIds(prev => new Set([...prev, activeQaGame.id]))}
-          onDismiss={() => setQaOverlayVisible(false)}
-        />
+        <AppErrorBoundary screenName="Q&A 게임" onReset={() => setQaOverlayVisible(false)}>
+          <QaGameOverlay
+            game={activeQaGame}
+            currentUserId={currentUserId}
+            currentUserNickname={profileMap.get(currentUserId ?? '')?.nickname ?? null}
+            seats={seats}
+            alreadySubmitted={qaSubmittedIds.has(activeQaGame.id)}
+            onSubmitted={() => setQaSubmittedIds(prev => new Set([...prev, activeQaGame.id]))}
+            onDismiss={() => setQaOverlayVisible(false)}
+          />
+        </AppErrorBoundary>
       )}
       {/* Game Announcement Modal (전체 알림) */}
       {currentGame?.active && gameModalVisible && (
-        <GameAnnouncementModal game={currentGame} onDismiss={() => setGameModalVisible(false)} onVote={voteOnGame} onImageVote={voteOnImageGame} currentUserId={currentUserId} seats={seats} profiles={profiles} />
+        <AppErrorBoundary screenName="게임 공지" onReset={() => setGameModalVisible(false)}>
+          <GameAnnouncementModal game={currentGame} onDismiss={() => setGameModalVisible(false)} onVote={voteOnGame} onImageVote={voteOnImageGame} currentUserId={currentUserId} seats={seats} profiles={profiles} />
+        </AppErrorBoundary>
       )}
       {/* Game Active Banner (모달 닫은 후 상단 표시) */}
       {currentGame?.active && !gameModalVisible && (

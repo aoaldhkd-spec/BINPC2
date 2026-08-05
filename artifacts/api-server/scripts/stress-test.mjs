@@ -66,13 +66,12 @@ async function main() {
     payload: { id: user2Id, nickname: `stress_u2_${runId}`, pin_code: `ST${runId.slice(2,4)}` },
   });
 
-  // Create chat room
+  // Create chat room (requesterId = user1Id, must be a participant)
+  const [canonU1, canonU2] = [user1Id, user2Id].sort();
   const { json: chatJson } = await post('/op', {
     table: 'chats', op: 'insert',
-    payload: {
-      user1_id: user1Id < user2Id ? user1Id : user2Id,
-      user2_id: user1Id < user2Id ? user2Id : user1Id,
-    },
+    payload: { user1_id: canonU1, user2_id: canonU2 },
+    requesterId: canonU1,
     selectAfterWrite: true,
     single: true,
   });
@@ -88,18 +87,20 @@ async function main() {
   const msgClientIds = Array.from({ length: VU_COUNT }, () => randomUUID());
   const msgStart = Date.now();
   const msgResults = await Promise.allSettled(
-    msgClientIds.map((cid, i) =>
-      post('/op', {
+    msgClientIds.map((cid, i) => {
+      const senderId = i % 2 === 0 ? user1Id : user2Id;
+      return post('/op', {
         table: 'messages', op: 'insert',
         payload: {
           chat_id: chatId,
-          sender_id: i % 2 === 0 ? user1Id : user2Id,
+          sender_id: senderId,
           content: `stress-msg-${i}-${cid.slice(0, 8)}`,
           client_id: cid,
         },
+        requesterId: senderId, // IDOR guard: sender must be authenticated participant
         selectAfterWrite: false,
-      })
-    )
+      });
+    })
   );
   const msgElapsed = Date.now() - msgStart;
 
@@ -175,6 +176,7 @@ async function main() {
   const msgCountRes = await post('/op', {
     table: 'messages', op: 'select',
     filters: [{ type: 'eq', col: 'chat_id', val: chatId }],
+    requesterId: user1Id, // IDOR guard: must be a participant
   });
   const storedMsgCount = Array.isArray(msgCountRes.json?.data) ? msgCountRes.json.data.length : 0;
 

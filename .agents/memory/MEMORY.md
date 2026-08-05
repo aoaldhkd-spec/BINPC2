@@ -21,4 +21,9 @@
 - [boltnew-app full-system audit 2026-08-05](boltnew-app-full-system-audit.md) — 150 VU 부하 테스트 PASS(msg p99=234ms, like p99=176ms, 0% 손실); AppErrorBoundary 전역 도입; backend try-catch+에러 sanitization; rate limit 5개 엔드포인트.
 - [boltnew-app SeatingMap hook pitfall](boltnew-app-seatingmap-export.md) — 비exported 내부 컴포넌트(BigSeatButton)의 useState는 Vite Fast Refresh와 충돌 → Invalid hook call. 수정: BigSeatButton에서 useState 제거, TableExpandModal로 confirm state 인상.
 - [boltnew-app security hardening 2026-08-05](boltnew-app-security-hardening.md) — helmet; CORS same-origin; cookie secure; /op allowlist; IDOR(messages SELECT+INSERT sender, likes liker); HTML tag strip; magic bytes; per-IP rate limit(login/upload/SSE).
+- [boltnew-app security hardening v2 2026-08-05](boltnew-app-security-hardening-v2.md) — IDOR filter bypass(op→type normalization); messages SELECT 4-layer guard(requesterId+chatId+participant); UPSERT sanitize; logger import fix in db.ts.
+- [boltnew-app Part 2 frontend optimization](boltnew-app-part2-frontend-opt.md) — 게임 타이머 누수 4곳; key 안티패턴; draft 보존; IDOR guard `.in()` 지원. 메시지 행 memo화는 미완(별도 작업 필요).
+- [boltnew-app Part 3 backend defense](boltnew-app-part3-backend-defense.md) — unhandledRejection+글로벌 미들웨어; push N+1→dbDeleteRows 배치; /op op허용목록+타입검증; /broadcast channel/event 검증; storage-upload/push-notify try-catch.
+- [boltnew-app Part 4 security+errorboundary](boltnew-app-part4-security-errorboundary.md) — chats SELECT IDOR guard(참여자 필터); /unread-counts SSE토큰 검증; admin RPC checkPassword 2곳; game modal ErrorBoundary; ReconnectOverlay "연결 지연 중".
+- [boltnew-app Part 5 final report](boltnew-app-part5-final-report.md) — 60테스트·타입체크·스트레스테스트 PASS; INSERT IDOR 4종 강화; 채팅방중복레이스차단; SSE chatId guard; 메시지500상한 전경로; 큐50상한.
 - [boltnew-app SeatingMap image fix](boltnew-app-seatingmap-image.md) — All img tags must use seatingAvatarSrc()+onError fallback; plain photo_url shows broken image for null/DiceBear-transparent URLs.

@@ -3,6 +3,7 @@ import pg from 'pg';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { VAPID_PUBLIC_KEY, sendPush, type PushPayload } from '../lib/push';
 import { resolvePin, pinPoolParams } from '../lib/pin';
+import { logger } from '../lib/logger';
 
 // express-session의 SessionData에 userId 필드 추가
 declare module 'express-session' {
@@ -137,7 +138,7 @@ async function _sendAdminPush(payload: PushPayload): Promise<boolean> {
   const expired = results.filter(r => !r.ok).map(r => r.id);
   if (expired.length) {
     store['push_subscriptions'] = (store['push_subscriptions'] ?? []).filter(s => !expired.includes(s['id'] as string));
-    for (const id of expired) dbDeleteRow('push_subscriptions', id).catch(console.error);
+    dbDeleteRows('push_subscriptions', expired).catch(console.error);
   }
   return results.some(r => r.ok);
 }
@@ -286,14 +287,35 @@ async function dbPersistRow(tableName: string, row: Record<string, unknown>): Pr
 }
 
 async function dbDeleteRow(tableName: string, rowId: string): Promise<void> {
-  await pool.query(
-    'DELETE FROM app_kv_rows WHERE table_name = $1 AND row_id = $2',
-    [tableName, rowId],
-  );
+  try {
+    await pool.query(
+      'DELETE FROM app_kv_rows WHERE table_name = $1 AND row_id = $2',
+      [tableName, rowId],
+    );
+  } catch (e) {
+    logger.error({ err: e, tableName, rowId }, '[db] dbDeleteRow failed');
+  }
+}
+
+// ── 배치 삭제: N+1 쿼리 제거 ──────────────────────────────────────────────────
+async function dbDeleteRows(tableName: string, rowIds: string[]): Promise<void> {
+  if (!rowIds.length) return;
+  try {
+    await pool.query(
+      'DELETE FROM app_kv_rows WHERE table_name = $1 AND row_id = ANY($2::text[])',
+      [tableName, rowIds],
+    );
+  } catch (e) {
+    logger.error({ err: e, tableName, count: rowIds.length }, '[db] dbDeleteRows (batch) failed');
+  }
 }
 
 async function dbDeleteTable(tableName: string): Promise<void> {
-  await pool.query('DELETE FROM app_kv_rows WHERE table_name = $1', [tableName]);
+  try {
+    await pool.query('DELETE FROM app_kv_rows WHERE table_name = $1', [tableName]);
+  } catch (e) {
+    logger.error({ err: e, tableName }, '[db] dbDeleteTable failed');
+  }
 }
 
 async function dbPersistImage(path: string, dataUrl: string): Promise<void> {
@@ -705,7 +727,7 @@ async function sendPushForEvent(table: string, row: Record<string, unknown>): Pr
   const expired = results.filter(r => !r.ok).map(r => r.id);
   if (expired.length) {
     store['push_subscriptions'] = (store['push_subscriptions'] ?? []).filter(s => !expired.includes(s.id as string));
-    for (const id of expired) dbDeleteRow('push_subscriptions', id).catch(console.error);
+    dbDeleteRows('push_subscriptions', expired).catch(console.error);
   }
 }
 
@@ -776,6 +798,50 @@ router.post('/op', async (req: Request, res: Response) => {
     requesterId?: string | null;
   };
 
+  // ─ 페이로드 타입 방어: table/op는 반드시 문자열이어야 함 ─────────────────────
+  if (typeof table !== 'string' || typeof op !== 'string') {
+    _activeOpCount--;
+    return res.status(400).json({ data: null, error: { message: 'table and op must be strings', code: 'INVALID_INPUT' } });
+  }
+
+  // ─ op 허용 목록: 알 수 없는 op는 즉시 거부 ────────────────────────────────────
+  const ALLOWED_OPS = new Set(['select', 'insert', 'update', 'upsert', 'delete']);
+  if (!ALLOWED_OPS.has(op)) {
+    _activeOpCount--;
+    return res.status(400).json({ data: null, error: { message: `Invalid op: ${op}`, code: 'INVALID_OP' } });
+  }
+
+  // ─ limit 타입 검증: 숫자가 아니거나 음수면 거부 ──────────────────────────────
+  if (limit != null && (typeof limit !== 'number' || !Number.isFinite(limit) || limit < 0)) {
+    _activeOpCount--;
+    return res.status(400).json({ data: null, error: { message: 'limit must be a non-negative number', code: 'INVALID_INPUT' } });
+  }
+
+  // ─ orders 검증: 각 항목이 {col: string, asc: boolean} 이어야 함 ──────────────
+  const safeOrders = Array.isArray(orders)
+    ? orders.filter((o): o is { col: string; asc: boolean } =>
+        o != null && typeof o === 'object' && typeof (o as Record<string, unknown>).col === 'string' && ((o as Record<string, unknown>).col as string).length > 0)
+    : [];
+
+  // ─ conflictCols 검증: 문자열 배열이어야 함 ────────────────────────────────────
+  const safeConflictCols = Array.isArray(conflictCols)
+    ? conflictCols.filter((c): c is string => typeof c === 'string' && c.length > 0)
+    : [];
+
+  // ─ Fix: 외부에서 {op:'eq'} 형식으로 보내 필터를 우회하는 공격 차단 ───────────────
+  // 클라이언트는 {type:'eq'} 형식으로 보내지만, 해커가 {op:'eq'}로 보내면
+  // matchFilter가 f.type을 찾지 못해 모든 행을 통과시킴 → 필터 완전 무력화
+  const normalizedFilters: FilterSpec[] = (Array.isArray(filters) ? filters : []).map((f: Record<string, unknown>) => {
+    if (f.type != null) return f as unknown as FilterSpec;
+    // op → type 정규화
+    if (f.op != null) return { ...f, type: f.op, op: undefined } as unknown as FilterSpec;
+    return f as unknown as FilterSpec;
+  }).filter((f) => {
+    // 필터 요소 유효성: col은 문자열, type은 문자열이어야 함
+    const fr = f as unknown as Record<string, unknown>;
+    return typeof fr.col === 'string' && fr.col.length > 0 && typeof fr.type === 'string';
+  });
+
   // ─ Table allowlist: reject unknown/internal tables immediately
   if (!ALLOWED_OP_TABLES.has(table)) {
     _activeOpCount--;
@@ -788,19 +854,92 @@ router.post('/op', async (req: Request, res: Response) => {
   try {
     // ── SELECT ──────────────────────────────────────────────────────────────
     if (op === 'select') {
-      // ─ IDOR guard: messages SELECT requires requester to be a chat participant
-      if (table === 'messages' && requesterId) {
-        const chatIdF = filters.find(f => f.type === 'eq' && f.col === 'chat_id') as { type: 'eq'; col: string; val: unknown } | undefined;
-        if (chatIdF) {
-          const chat = getTable('chats').find(c => c.id === chatIdF.val);
-          if (chat && String(chat.user1_id) !== String(requesterId) && String(chat.user2_id) !== String(requesterId)) {
+      // ─ IDOR guard (강화): messages SELECT
+      //   규칙 1: requesterId 없으면 메시지 접근 불가 (비인증 요청 차단)
+      //   규칙 2: chat_id 필터 없으면 메시지 전체 덤프 불가
+      //   규칙 3: 해당 채팅방 참여자가 아니면 접근 불가
+      //   규칙 4: 존재하지 않는 chat_id로 요청 시 빈 배열 반환 (정보 노출 차단)
+      if (table === 'messages') {
+        if (!requesterId) {
+          _activeOpCount--;
+          logger.warn({ ip: req.ip }, '[SECURITY] IDOR: messages SELECT without requesterId blocked');
+          return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+        }
+        // chat_id 필터 탐색: eq(단일 채팅방) 또는 in(채팅 목록 일괄 조회) 모두 허용
+        const chatIdEqF = normalizedFilters.find(f => f.type === 'eq' && f.col === 'chat_id') as { type: 'eq'; col: string; val: unknown } | undefined;
+        const chatIdInF = normalizedFilters.find(f => f.type === 'in' && f.col === 'chat_id') as { type: 'in'; col: string; vals: unknown[] } | undefined;
+
+        if (!chatIdEqF && !chatIdInF) {
+          // chat_id 필터 없이 전체 메시지 덤프 시도 → 차단
+          _activeOpCount--;
+          logger.warn({ requesterId, ip: req.ip }, '[SECURITY] IDOR: messages SELECT without chat_id filter blocked');
+          return res.status(403).json({ data: null, error: { message: 'Forbidden: chat_id filter required', code: 'FORBIDDEN' } });
+        }
+
+        if (chatIdEqF) {
+          // 단일 채팅방 접근 — 참여자 검증
+          const chat = getTable('chats').find(c => c.id === chatIdEqF.val);
+          if (!chat) {
             _activeOpCount--;
+            return res.json({ data: [], error: null }); // 존재하지 않는 채팅방 → 빈 배열
+          }
+          if (String(chat.user1_id) !== String(requesterId) && String(chat.user2_id) !== String(requesterId)) {
+            _activeOpCount--;
+            logger.warn({ requesterId, chatId: chatIdEqF.val, ip: req.ip }, '[SECURITY] IDOR: messages SELECT by non-participant blocked');
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: not a chat participant', code: 'FORBIDDEN' } });
+          }
+        }
+
+        if (chatIdInF) {
+          // 복수 채팅방 일괄 조회 (loadChatList) — 요청자가 참여하지 않는 채팅방 ID 차단
+          const chats = getTable('chats');
+          const illegalChatId = (chatIdInF.vals as string[]).find(cid => {
+            const chat = chats.find(c => c.id === cid);
+            if (!chat) return false; // 존재하지 않으면 결과가 없으므로 무해
+            return String(chat.user1_id) !== String(requesterId) && String(chat.user2_id) !== String(requesterId);
+          });
+          if (illegalChatId) {
+            _activeOpCount--;
+            logger.warn({ requesterId, chatId: illegalChatId, ip: req.ip }, '[SECURITY] IDOR: messages SELECT (in) includes non-participant chat blocked');
             return res.status(403).json({ data: null, error: { message: 'Forbidden: not a chat participant', code: 'FORBIDDEN' } });
           }
         }
       }
-      let result = applyFilters(tableData, filters);
-      for (const { col, asc } of orders) {
+
+      // ─ IDOR guard: chats SELECT ───────────────────────────────────────────
+      // 누구든 자신이 참여한 채팅방 목록만 볼 수 있어야 함.
+      // requesterId 없이 chats를 전체 덤프하면 모든 채팅 참여자가 노출됨 → 차단.
+      if (table === 'chats') {
+        if (!requesterId) {
+          _activeOpCount--;
+          logger.warn({ ip: req.ip }, '[SECURITY] IDOR: chats SELECT without requesterId blocked');
+          return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+        }
+        // 서버 측에서 참여자 검증 — 클라이언트 필터 우회 공격 차단
+        // ⚠️ tableData는 store 배열 참조 → splice 금지. 별도 변수로 필터링.
+        const chatScope = tableData.filter(c =>
+          String(c.user1_id) === String(requesterId) || String(c.user2_id) === String(requesterId)
+        );
+        // 이후 로직이 filteredChats 기반으로 동작하도록 임시 교체 (읽기 전용)
+        const scopedResult = applyFilters(chatScope, normalizedFilters);
+        for (const { col, asc } of safeOrders) {
+          scopedResult.sort((a, b) => {
+            const av = a[col]; const bv = b[col];
+            if (av === bv) return 0;
+            if (av == null) return asc ? -1 : 1;
+            if (bv == null) return asc ? 1 : -1;
+            return (av < bv ? -1 : 1) * (asc ? 1 : -1);
+          });
+        }
+        const safeLimit = limit != null ? Math.floor(limit) : undefined;
+        const limitedScope = safeLimit != null ? scopedResult.slice(0, safeLimit) : scopedResult;
+        const singleScope = single ? (limitedScope[0] ?? null) : maybeSingle ? (limitedScope[0] ?? null) : limitedScope;
+        _activeOpCount--;
+        return res.json({ data: singleScope, error: null });
+      }
+
+      let result = applyFilters(tableData, normalizedFilters);
+      for (const { col, asc } of safeOrders) {
         result.sort((a, b) => {
           const av = a[col]; const bv = b[col];
           if (av === bv) return 0;
@@ -836,12 +975,48 @@ router.post('/op', async (req: Request, res: Response) => {
         // const row는 재할당 불가이므로 effectiveRow로 분리; 텍스트 필드 sanitization 적용
         let effectiveRow: Record<string, unknown> = sanitizeRow(table, row);
 
-        // ─ IDOR: INSERT owner check ────────────────────────────────────────
-        // messages: sender_id must match the authenticated requester
-        if (table === 'messages' && requesterId && effectiveRow.sender_id != null) {
-          if (String(effectiveRow.sender_id) !== String(requesterId)) {
+        // ─ IDOR: INSERT 소유권 검증 (강화) ────────────────────────────────
+        // messages: requesterId 필수 + sender_id 일치 + 채팅방 참여자 검증
+        if (table === 'messages') {
+          if (!requesterId) {
             _activeOpCount--;
+            logger.warn({ ip: req.ip }, '[SECURITY] IDOR: messages INSERT without requesterId blocked');
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+          }
+          if (effectiveRow.sender_id != null && String(effectiveRow.sender_id) !== String(requesterId)) {
+            _activeOpCount--;
+            logger.warn({ requesterId, sender_id: effectiveRow.sender_id, ip: req.ip }, '[SECURITY] IDOR: sender_id mismatch blocked');
             return res.status(403).json({ data: null, error: { message: 'Forbidden: sender_id mismatch', code: 'FORBIDDEN' } });
+          }
+          // 채팅방 참여자 검증 — 채팅방에 속하지 않은 사용자가 메시지를 삽입하는 공격 차단
+          if (effectiveRow.chat_id != null) {
+            const targetChat = getTable('chats').find(c => c.id === effectiveRow.chat_id);
+            if (!targetChat || (String(targetChat.user1_id) !== String(requesterId) && String(targetChat.user2_id) !== String(requesterId))) {
+              _activeOpCount--;
+              logger.warn({ requesterId, chatId: effectiveRow.chat_id, ip: req.ip }, '[SECURITY] IDOR: message INSERT by non-participant blocked');
+              return res.status(403).json({ data: null, error: { message: 'Forbidden: not a chat participant', code: 'FORBIDDEN' } });
+            }
+          }
+        }
+        // chats: requesterId 필수 + 본인이 user1_id 또는 user2_id여야 함
+        if (table === 'chats') {
+          if (!requesterId) {
+            _activeOpCount--;
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+          }
+          const u1 = String(effectiveRow.user1_id ?? '');
+          const u2 = String(effectiveRow.user2_id ?? '');
+          if (requesterId !== u1 && requesterId !== u2) {
+            _activeOpCount--;
+            logger.warn({ requesterId, u1, u2, ip: req.ip }, '[SECURITY] IDOR: chats INSERT by non-participant blocked');
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: must be a participant', code: 'FORBIDDEN' } });
+          }
+        }
+        // chat_reads: requesterId 필수 + reader_id 일치
+        if (table === 'chat_reads' && requesterId && effectiveRow.reader_id != null) {
+          if (String(effectiveRow.reader_id) !== String(requesterId)) {
+            _activeOpCount--;
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: reader_id mismatch', code: 'FORBIDDEN' } });
           }
         }
         // likes: liker_id must match the authenticated requester
@@ -865,10 +1040,15 @@ router.post('/op', async (req: Request, res: Response) => {
           }
           effectiveRow = { ...effectiveRow, pin_code: pinResult.pin };
         }
-        // chats 테이블: 같은 user1_id+user2_id 조합이 이미 있으면 기존 채팅방 반환 (레이스 컨디션으로 인한 중복 채팅방 생성 방지)
+        // chats 테이블: ID를 서버에서 정규화(sort)하여 역순 요청으로 인한 중복 채팅방 생성 방지
+        // 클라이언트가 user1/user2를 어떤 순서로 보내든 항상 동일한 채팅방을 가리키도록 강제
         if (table === 'chats' && effectiveRow.user1_id != null && effectiveRow.user2_id != null) {
+          const [uid1, uid2] = [String(effectiveRow.user1_id), String(effectiveRow.user2_id)].sort();
+          effectiveRow = { ...effectiveRow, user1_id: uid1, user2_id: uid2 };
+          // 정규화된 쌍으로 기존 채팅방 탐색 (양방향 모두 확인)
           const existing = tableData.find(r =>
-            r.user1_id === effectiveRow.user1_id && r.user2_id === effectiveRow.user2_id
+            (String(r.user1_id) === uid1 && String(r.user2_id) === uid2) ||
+            (String(r.user1_id) === uid2 && String(r.user2_id) === uid1)
           );
           if (existing) {
             if (selectAfterWrite) return res.json({ data: single ? existing : [existing], error: null });
@@ -971,7 +1151,7 @@ router.post('/op', async (req: Request, res: Response) => {
       // ─ IDOR guard: UPDATE ownership check ──────────────────────────────
       // requesterId가 있는 경우, 자신 소유의 행만 수정 가능하도록 검증
       if (requesterId) {
-        const rowsToUpdate = applyFilters(tableData, filters);
+        const rowsToUpdate = applyFilters(tableData, normalizedFilters);
         for (const existingRow of rowsToUpdate) {
           // profiles: 자신의 프로필만 수정 가능
           if (table === 'profiles' && existingRow.id != null &&
@@ -1020,7 +1200,7 @@ router.post('/op', async (req: Request, res: Response) => {
       }
       const updated: Record<string, unknown>[] = [];
       for (let i = 0; i < tableData.length; i++) {
-        if (applyFilters([tableData[i]], filters).length) {
+        if (applyFilters([tableData[i]], normalizedFilters).length) {
           const oldRow = { ...tableData[i] };
           const newRow = { ...oldRow, ...patch };
           tableData[i] = newRow;
@@ -1039,7 +1219,8 @@ router.post('/op', async (req: Request, res: Response) => {
 
     // ── UPSERT ──────────────────────────────────────────────────────────────
     if (op === 'upsert') {
-      const inputs = Array.isArray(payload) ? payload as Record<string, unknown>[] : [payload as Record<string, unknown>];
+      const inputs = (Array.isArray(payload) ? payload as Record<string, unknown>[] : [payload as Record<string, unknown>])
+        .map(row => sanitizeRow(table, row)); // XSS 방어: UPSERT payload도 sanitize
       const upserted: Record<string, unknown>[] = [];
 
       // ─ IDOR guard: UPSERT ownership check ─────────────────────────────
@@ -1063,11 +1244,11 @@ router.post('/op', async (req: Request, res: Response) => {
         }
       }
       // Fix #7: O(n²) → O(n) — id 기반 UPSERT 시 Map 인덱스로 O(1) 조회
-      const _idxById = !conflictCols.length ? new Map(tableData.map((r, i) => [r.id, i])) : null;
+      const _idxById = !safeConflictCols.length ? new Map(tableData.map((r, i) => [r.id, i])) : null;
       for (const row of inputs) {
         let idx = -1;
-        if (conflictCols.length) {
-          idx = tableData.findIndex(r => conflictCols.every(c => String(r[c]) === String(row[c]) || r[c] === row[c]));
+        if (safeConflictCols.length) {
+          idx = tableData.findIndex(r => safeConflictCols.every(c => String(r[c]) === String(row[c]) || r[c] === row[c]));
         } else if (row.id != null) {
           idx = _idxById!.get(row.id) ?? -1;
         }
@@ -1104,7 +1285,7 @@ router.post('/op', async (req: Request, res: Response) => {
 
     // ── DELETE ──────────────────────────────────────────────────────────────
     if (op === 'delete') {
-      const toDelete = applyFilters(tableData, filters);
+      const toDelete = applyFilters(tableData, normalizedFilters);
 
       // ─ IDOR guard: DELETE ownership check ──────────────────────────────
       if (requesterId) {
@@ -1132,7 +1313,7 @@ router.post('/op', async (req: Request, res: Response) => {
           }
         }
       }
-      store[table] = tableData.filter(r => !applyFilters([r], filters).length);
+      store[table] = tableData.filter(r => !applyFilters([r], normalizedFilters).length);
       for (const row of toDelete) {
         smartBroadcast(table, row, { type: 'change', table, event: 'DELETE', newRow: null, oldRow: row });
         dbDeleteRow(table, String(row.id)).catch(console.error);
@@ -1172,9 +1353,11 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
       }
 
       case 'admin_invalidate_session':
+        checkPassword();
         return res.json({ data: null, error: null });
 
       case 'admin_auth_phone':
+        checkPassword();
         return res.json({ data: null, error: null });
 
       case 'admin_reset_all_seats':
@@ -1320,7 +1503,9 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
           for (const [ak, dk] of Object.entries(map)) {
             if (args[ak] !== undefined) patch[dk] = args[ak];
           }
-          const newRow = { ...oldRow, ...patch };
+          // XSS 방어: 관리자가 악성 스크립트 태그가 포함된 값을 주입하는 것을 차단
+          const sanitizedPatch = sanitizeRow('profiles', patch);
+          const newRow = { ...oldRow, ...sanitizedPatch };
           profiles[idx] = newRow;
           // 민감 연락처 필드 제거 후 전체 브로드캐스트
           broadcastAll({ type: 'change', table: 'profiles', event: 'UPDATE', newRow: sanitizeProfile(newRow), oldRow: sanitizeProfile(oldRow) });
@@ -1390,7 +1575,16 @@ router.post('/broadcast', (req: Request, res: Response) => {
     res.status(429).json({ ok: false, error: 'Too many broadcasts' });
     return;
   }
-  const { channel, event, payload } = req.body as { channel: string; event: string; payload: unknown };
+  const { channel, event, payload } = req.body as { channel?: unknown; event?: unknown; payload: unknown };
+  // ─ 입력 검증: channel과 event는 비어있지 않은 문자열이어야 함
+  if (typeof channel !== 'string' || !channel.trim() || channel.length > 200) {
+    res.status(400).json({ ok: false, error: 'Invalid channel' });
+    return;
+  }
+  if (typeof event !== 'string' || !event.trim() || event.length > 200) {
+    res.status(400).json({ ok: false, error: 'Invalid event' });
+    return;
+  }
   broadcastAll({ type: 'broadcast', channel, event, payload });
   res.json({ ok: true });
 });
@@ -1446,9 +1640,14 @@ router.post('/storage-upload', async (req: Request, res: Response) => {
       return res.status(400).json({ data: null, error: 'Image content does not match declared type' });
     }
   }
-  imageStore[imgPath] = dataUrl;
-  dbPersistImage(imgPath, dataUrl).catch(console.error);
-  return res.json({ data: { path: imgPath }, error: null });
+  try {
+    imageStore[imgPath] = dataUrl;
+    dbPersistImage(imgPath, dataUrl).catch(console.error);
+    return res.json({ data: { path: imgPath }, error: null });
+  } catch (e) {
+    logger.error({ err: e }, '[storage-upload] Unexpected error');
+    return res.status(500).json({ data: null, error: 'Internal server error' });
+  }
 });
 
 router.get('/storage-image', (req: Request, res: Response): void => {
@@ -1605,6 +1804,14 @@ router.get('/unread-counts', (req: Request, res: Response) => {
   const userId = typeof req.query.userId === 'string' && req.query.userId ? req.query.userId : null;
   if (!userId) return res.status(400).json({ data: null, error: { message: 'userId required' } });
 
+  // ─ IDOR guard: 자신의 미읽음 카운트만 조회 가능 — SSE 토큰으로 소유자 확인 ──
+  // 타인의 userId를 추측해 다른 사람의 채팅 존재 여부를 파악하는 공격을 차단
+  const sseToken = (req.query.token as string) ?? (req.headers['x-sse-token'] as string);
+  if (!sseToken || !verifySseToken(userId, sseToken)) {
+    logger.warn({ userId, ip: req.ip }, '[SECURITY] IDOR: /unread-counts without valid SSE token blocked');
+    return res.status(401).json({ data: null, error: { message: 'Unauthorized: valid SSE token required', code: 'UNAUTHORIZED' } });
+  }
+
   try {
     // 캐시 히트
     const cached = unreadCountsCache.get(userId);
@@ -1719,17 +1926,18 @@ router.post('/push/subscribe', (req: Request, res: Response) => {
 
 // ─── Push notify endpoint (서버 내부 또는 인증된 호출만 허용) ────────────────
 const PUSH_NOTIFY_SECRET = process.env.SESSION_SECRET ?? 'internal';
-router.post('/push/notify', async (req: Request, res: Response) => {
+router.post('/push/notify', async (req: Request, res: Response): Promise<void> => {
+  try {
   // 클라이언트 직접 호출 남용 방지 — X-Internal-Secret 헤더 필요
   const secret = req.headers['x-internal-secret'];
-  if (secret !== PUSH_NOTIFY_SECRET) return res.status(403).json({ error: 'Forbidden' });
+  if (secret !== PUSH_NOTIFY_SECRET) { res.status(403).json({ error: 'Forbidden' }); return; }
   const { recipientId, title, body, tag, url } = req.body as {
     recipientId?: string; title?: string; body?: string; tag?: string; url?: string;
   };
-  if (!recipientId) return res.status(400).json({ error: 'Missing recipientId' });
+  if (!recipientId) { res.status(400).json({ error: 'Missing recipientId' }); return; }
 
   const subs = getTable('push_subscriptions').filter(s => s.user_id === recipientId);
-  if (!subs.length) return res.json({ ok: true, sent: 0 });
+  if (!subs.length) { res.json({ ok: true, sent: 0 }); return; }
 
   const payload: PushPayload = {
     title: String(title || '범일NPC 술번개'),
@@ -1748,9 +1956,13 @@ router.post('/push/notify', async (req: Request, res: Response) => {
   const expired = pushResults.filter(r => !r.ok).map(r => r.id);
   if (expired.length) {
     store['push_subscriptions'] = (store['push_subscriptions'] ?? []).filter(s => !expired.includes(s.id as string));
-    for (const id of expired) dbDeleteRow('push_subscriptions', id).catch(console.error);
+    dbDeleteRows('push_subscriptions', expired).catch(console.error);
   }
-  return res.json({ ok: true, sent: subs.length - expired.length });
+  res.json({ ok: true, sent: subs.length - expired.length });
+  } catch (e) {
+    logger.error({ err: e }, '[push/notify] Unexpected error');
+    if (!res.headersSent) res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // ─── SSE token helpers ─────────────────────────────────────────────────────────
@@ -1901,6 +2113,16 @@ router.get('/events', (req: Request, res: Response) => {
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders();
+
+  // ── 소켓 레벨 타임아웃 — 좀비 TCP 연결 방어 ─────────────────────────────────
+  // keep-alive ping(5s)이 7번 연속 ACK 없이 쌓이면 Node가 socket.destroy()를 호출해
+  // 브라우저가 즉시 EventSource.onerror를 받고 재연결을 시작하도록 강제
+  // (TCP keep-alive만으로는 프록시/방화벽이 silent-drop 시 수십 분 좀비가 될 수 있음)
+  const SOCKET_TIMEOUT_MS = 35_000; // 5s ping × 7 = 35s
+  req.socket.setTimeout(SOCKET_TIMEOUT_MS);
+  req.socket.once('timeout', () => {
+    try { req.socket.destroy(); } catch { /* ignore */ }
+  });
 
   // Initial ping so the client knows it's connected
   res.write('data: {"type":"ping"}\n\n');

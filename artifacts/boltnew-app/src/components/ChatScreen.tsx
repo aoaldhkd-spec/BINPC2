@@ -69,7 +69,7 @@ const EMOJI_CATEGORIES = [
 const THEME_CYCLE: ThemeMode[] = ['default', 'y2k', 'dark-neon', 'minimal'];
 const THEME_EMOJI: Record<ThemeMode, string> = { default: '🌙', y2k: '💖', 'dark-neon': '🔥', minimal: '☕' };
 
-function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onSendImage, onBack, onDeleteMessage, currentUserProfile, receivedContactShares, contactSharedWithIds, onGoToTab, onUpdateProfile }: {
+function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onSendImage, onBack, onDeleteMessage, currentUserProfile, receivedContactShares, contactSharedWithIds, onGoToTab, onUpdateProfile, initialInput, onInputChange }: {
   chatId: string;
   messages: Message[]; currentUserId: string; otherProfile: Profile;
   onSend: (content: string) => Promise<void> | void;
@@ -81,6 +81,10 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   contactSharedWithIds?: Set<string>;
   onGoToTab?: (tab: string) => void;
   onUpdateProfile?: (update: Partial<Profile> & { id: string }) => void;
+  /** 뒤로가기 후 다시 열 때 초안 복원용 */
+  initialInput?: string;
+  /** 부모가 초안을 보존하도록 변경 시 호출 */
+  onInputChange?: (v: string) => void;
 }) {
   const { theme, setTheme } = useTheme();
   const handleCycleTheme = () => {
@@ -88,7 +92,8 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
     setTheme(THEME_CYCLE[(idx + 1) % THEME_CYCLE.length]);
   };
 
-  const [input, setInput] = useState('');
+  // initialInput은 마운트 시 한 번만 적용 — lazy initializer로 처리
+  const [input, setInput] = useState(() => initialInput ?? '');
   const [showEmoji, setShowEmoji] = useState(false);
   const [showStickers, setShowStickers] = useState(false);
   const [emojiCat, setEmojiCat] = useState<string>('face');
@@ -930,7 +935,7 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
                         {parseContactCard(msg.content!).map((line, i) => {
                           const val = line.split(': ').slice(1).join(': ');
                           return (
-                            <div key={i} className="flex items-center gap-1.5">
+                            <div key={line || String(i)} className="flex items-center gap-1.5">
                               <p className="text-sm font-semibold flex-1">{line}</p>
                               <button onClick={() => navigator.clipboard?.writeText(val)}
                                 className={`text-[10px] px-1.5 py-0.5 rounded-md font-semibold transition-all ${isMe ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
@@ -1139,8 +1144,8 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
             <span className="text-[10px] text-gray-400 flex-1">탭하면 바로 전송</span>
           </div>
           <div className="max-h-52 overflow-y-auto p-2 space-y-1">
-            {QUICK_MSGS.map((qm, i) => (
-              <button key={i} type="button"
+            {QUICK_MSGS.map((qm) => (
+              <button key={qm} type="button"
                 onClick={() => { onSend(qm); setShowQuickMsgs(false); }}
                 className="w-full text-left text-sm px-3 py-2.5 rounded-xl hover:bg-violet-50 active:bg-violet-100 transition-colors text-gray-700 font-medium leading-relaxed border border-transparent hover:border-violet-100">
                 {qm}
@@ -1305,7 +1310,7 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
           <textarea
             ref={inputRef}
             value={input}
-            onChange={(e) => { setInput(e.target.value); autoResizeTextarea(); }}
+            onChange={(e) => { setInput(e.target.value); onInputChange?.(e.target.value); autoResizeTextarea(); }}
             onInput={autoResizeTextarea}
             placeholder={uploading ? '업로드 중...' : replyTo ? '답장 입력...' : '메시지를 입력하세요...'}
             disabled={uploading}

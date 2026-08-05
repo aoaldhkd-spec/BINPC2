@@ -59,7 +59,14 @@ export default function SeatManagementMode({ seats, profileMap, adminPassword, t
   );
   const tableNumbers = [...new Set(seats.map(s => s.table_number))].sort((a, b) => a - b);
 
-  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showToast = (msg: string) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast(msg);
+    toastTimerRef.current = setTimeout(() => { setToast(null); toastTimerRef.current = null; }, 2500);
+  };
+  // 언마운트 시 정리
+  useEffect(() => () => { if (toastTimerRef.current) clearTimeout(toastTimerRef.current); }, []);
   const setOp = (seat: Seat | null, msg: string | null) => {
     if (!seat || !msg) { setOpStatus(null); return; }
     setOpStatus({ seat: shortLabel(seat), msg });

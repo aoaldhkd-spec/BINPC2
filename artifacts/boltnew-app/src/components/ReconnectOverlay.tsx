@@ -20,10 +20,10 @@ function ReconnectOverlay({ status, onRetry }: { status: 'reconnecting' | 'error
             <div className="w-16 h-16 rounded-2xl bg-amber-100 flex items-center justify-center mx-auto">
               <WifiOff className="w-8 h-8 text-amber-500" />
             </div>
-            <h3 className="font-black text-gray-900 text-lg">연결이 끊겼습니다</h3>
+            <h3 className="font-black text-gray-900 text-lg">연결 지연 중</h3>
             <p className="text-sm text-gray-500 leading-relaxed">
               서버와 재연결을 시도하고 있습니다{dots}<br />
-              <span className="text-xs text-gray-400">잠시만 기다려 주세요</span>
+              <span className="text-xs text-gray-400">데이터는 안전합니다. 잠시만 기다려 주세요</span>
             </p>
             <div className="flex justify-center gap-1.5">
               {[0,1,2].map(i => (

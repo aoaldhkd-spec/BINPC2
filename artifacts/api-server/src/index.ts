@@ -1,6 +1,15 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 
+// ── 전역 비동기 예외 처리 — 서버 프로세스 다운 방지 ─────────────────────────
+process.on('unhandledRejection', (reason) => {
+  logger.error({ reason }, '[FATAL] Unhandled promise rejection — 서버는 유지됩니다');
+});
+process.on('uncaughtException', (err) => {
+  logger.error({ err }, '[FATAL] Uncaught exception — 프로세스를 안전하게 종료합니다');
+  process.exit(1);
+});
+
 const rawPort = process.env["PORT"];
 
 if (!rawPort) {

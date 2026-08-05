@@ -103,6 +103,7 @@ vi.mock('../lib/supabase', () => ({
 vi.mock('../lib/localdb', () => ({
   onSseReconnect: vi.fn(() => () => {}),
   onSseDisconnect: vi.fn(() => () => {}),
+  getSseToken: vi.fn(() => 'test-sse-token'),
 }));
 
 vi.mock('../lib/sounds', () => ({

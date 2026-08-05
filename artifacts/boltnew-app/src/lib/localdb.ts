@@ -213,6 +213,12 @@ let _sseNeedsResync = false;      // 끊겼다가 재연결 대기 중 여부
 const _reconnectCallbacks = new Set<() => void>();
 const _disconnectCallbacks = new Set<() => void>();
 
+// ── Ping 감시 (좀비 클라이언트 방어) ─────────────────────────────────────────
+// 서버는 5초마다 ping을 보냄. 15초(3번) 이상 ping이 없으면 SSE가 겉만 살아있는
+// 좀비 상태 → 강제로 닫고 재연결. (프록시가 SSE를 silent-drop해도 감지 가능)
+let _lastPingAt = 0; // 마지막 ping/메시지 수신 시각 (0 = 아직 미연결)
+const PING_TIMEOUT_MS = 15_000; // 15초 = 서버 ping 주기(5s) × 3
+
 /** SSE 재연결 후 호출될 콜백을 등록합니다. 반환값은 해제 함수입니다. */
 export function onSseReconnect(fn: () => void): () => void {
   _reconnectCallbacks.add(fn);
@@ -296,6 +302,7 @@ function createSse() {
   const url = params.length ? `${API}/events?${params.join('&')}` : `${API}/events`;
   const es = new EventSource(url);
   es.onmessage = (ev) => {
+    _lastPingAt = Date.now(); // Ping 감시: 마지막 수신 시각 갱신
     _sseErrorSince = null; // 메시지 수신 = 연결 정상
     // 재연결 성공 → 실패 카운터·백오프 타이머 초기화
     _sseFailCount = 0;
@@ -349,7 +356,25 @@ function ensureSse() {
 
 // 2초마다 연결 상태 점검 — 끊어진 SSE를 자동 복구 (백오프 중에는 ensureSse가 자체 skip)
 setInterval(() => {
-  if (_sseListeners.size > 0) ensureSse();
+  if (_sseListeners.size === 0) return;
+
+  // ── Ping 감시: 15초 이상 서버 ping 미수신 → 좀비 SSE 강제 재연결 ──────────────
+  // _lastPingAt > 0: 한 번 이상 연결된 적 있음
+  // 현재 OPEN 상태지만 ping이 오지 않는다면 프록시가 연결을 silent-drop한 것
+  if (
+    _lastPingAt > 0 &&
+    _es && _es.readyState === EventSource.OPEN &&
+    Date.now() - _lastPingAt > PING_TIMEOUT_MS
+  ) {
+    console.warn('[SSE] ping timeout — force reconnect');
+    _lastPingAt = 0;
+    _es.close();
+    _es = null;
+    _sseNeedsResync = true;
+    if (_sseHasConnected) _disconnectCallbacks.forEach(fn => { try { fn(); } catch {} });
+  }
+
+  ensureSse();
 }, 2_000);
 
 // 탭/앱 포그라운드 복귀 시 즉시 SSE 재연결 확인
