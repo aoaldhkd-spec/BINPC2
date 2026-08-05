@@ -388,7 +388,8 @@ function startDailyEntryPasswordRenewal(): void {
     dbPersistRow('app_settings', updated)
       .catch(console.error)
       .finally(() => { _renewalInProgress = false; });
-    broadcastAll({ type: 'change', table: 'app_settings', event: 'UPDATE', newRow: updated, oldRow: settings });
+    // admin_password 제거 후 브로드캐스트 — 유저 클라이언트에 관리자 비밀번호 노출 방지
+    broadcastAll({ type: 'change', table: 'app_settings', event: 'UPDATE', newRow: sanitizeSettings(updated), oldRow: sanitizeSettings(settings as Record<string, unknown>) });
   };
   setInterval(check, 60_000);
 }
@@ -528,6 +529,13 @@ function sanitizeProfile(row: Record<string, unknown>): Record<string, unknown> 
   return s;
 }
 
+/** app_settings row에서 관리자 비밀번호를 제거하여 유저 SSE에 노출되지 않도록 */
+function sanitizeSettings(row: Record<string, unknown>): Record<string, unknown> {
+  const s = { ...row };
+  delete s['admin_password']; // 관리자 비밀번호 유저 클라이언트 노출 방지
+  return s;
+}
+
 /** 테이블 종류에 따라 자동으로 수신자 판단 — 로컬 SSE 전송 전용 (NOTIFY 없음) */
 function _smartBroadcastLocal(table: string, row: Record<string, unknown> | null, event: Record<string, unknown>) {
   // row가 없는 경우(DELETE payload 없음): 프라이빗 테이블이면 드롭, 공개 테이블만 전체 전송
@@ -558,12 +566,20 @@ function _smartBroadcastLocal(table: string, row: Record<string, unknown> | null
     // 프로필 포함 이벤트라도 수신자가 명확하면 해당 유저에게만 전달
     broadcastToUsers(targets, event);
   } else if (!PRIVATE_TABLES.has(table)) {
-    // 공개 테이블(seats, profiles 등)만 전체 브로드캐스트 허용 — profiles는 민감 필드 제거
+    // 공개 테이블(seats, profiles, app_settings 등)만 전체 브로드캐스트 허용
+    // profiles → 연락처 필드 제거, app_settings → admin_password 제거
     if (table === 'profiles') {
       const safeEvent = {
         ...event,
         newRow: event['newRow'] ? sanitizeProfile(event['newRow'] as Record<string, unknown>) : null,
         oldRow: event['oldRow'] ? sanitizeProfile(event['oldRow'] as Record<string, unknown>) : null,
+      };
+      broadcastAll(safeEvent);
+    } else if (table === 'app_settings') {
+      const safeEvent = {
+        ...event,
+        newRow: event['newRow'] ? sanitizeSettings(event['newRow'] as Record<string, unknown>) : null,
+        oldRow: event['oldRow'] ? sanitizeSettings(event['oldRow'] as Record<string, unknown>) : null,
       };
       broadcastAll(safeEvent);
     } else {
@@ -1638,6 +1654,9 @@ router.get('/events', (req: Request, res: Response) => {
     // 탭 과다 방지: 사용자당 최대 4개 연결. 초과 시 가장 오래된 연결 종료
     if (userConns.size >= 4) {
       const oldest = userConns.values().next().value;
+      // keepalive interval도 반드시 해제 — 미해제 시 메모리 누수
+      _sseCleanup.get(oldest)?.();
+      _sseCleanup.delete(oldest);
       try { oldest.end(); } catch { /* ignore */ }
       userConns.delete(oldest);
     }

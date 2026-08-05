@@ -4784,7 +4784,8 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   };
 
   const handleSetTimer = async (endAt: string | null, label: string | null) => {
-    await adminSupabase.from('app_settings').update({ timer_end_at: endAt, timer_label: label, updated_at: new Date().toISOString() }).eq('id', 1);
+    const { error } = await adminSupabase.from('app_settings').update({ timer_end_at: endAt, timer_label: label, updated_at: new Date().toISOString() }).eq('id', 1);
+    if (error) { alert(`타이머 설정 실패: ${error.message}`); return; }
     setSettings(prev => prev ? { ...prev, timer_end_at: endAt, timer_label: label } : prev);
   };
 
@@ -4796,17 +4797,28 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       registered_at: s.registered_at,
     }));
     const seatAssignments = seats.filter(s => s.profile_id).map(s => ({ seat_id: s.id, profile_id: s.profile_id! }));
-    await adminSupabase.from('session_history').insert({ seats_snapshot: snapshot });
-    await adminSupabase.rpc('admin_reset_all_seats', { p_admin_password: settings?.admin_password ?? '' });
-    await adminSupabase.from('app_settings').update({ reset_signal: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', 1);
-    showRecovery('좌석 배치', '🪑', seatAssignments.length > 0 ? async () => {
-      for (const { seat_id, profile_id } of seatAssignments) {
-        await adminSupabase.rpc('admin_force_seat', { p_profile_id: profile_id, p_seat_id: seat_id, p_admin_password: settings?.admin_password ?? '' });
-      }
+    try {
+      await adminSupabase.from('session_history').insert({ seats_snapshot: snapshot });
+      const { error: resetErr } = await adminSupabase.rpc('admin_reset_all_seats', { p_admin_password: settings?.admin_password ?? '' });
+      if (resetErr) throw new Error(resetErr.message);
+      const { error: sigErr } = await adminSupabase.from('app_settings').update({ reset_signal: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', 1);
+      if (sigErr) throw new Error(sigErr.message);
+      showRecovery('좌석 배치', '🪑', seatAssignments.length > 0 ? async () => {
+        const results = await Promise.allSettled(
+          seatAssignments.map(({ seat_id, profile_id }) =>
+            adminSupabase.rpc('admin_force_seat', { p_profile_id: profile_id, p_seat_id: seat_id, p_admin_password: settings?.admin_password ?? '' })
+          )
+        );
+        const failed = results.filter(r => r.status === 'rejected').length;
+        if (failed > 0) console.error(`[admin] 좌석 복구 중 ${failed}개 실패`);
+        await loadAll();
+        setRecovery(null);
+      } : null, 'seats');
+    } catch (e: unknown) {
+      alert(`좌석 초기화 실패: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
       await loadAll();
-      setRecovery(null);
-    } : null, 'seats');
-    await loadAll();
+    }
   };
 
   const handleEventEndReset = async () => {
@@ -4824,7 +4836,8 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     const backupSuggestions = [...suggestions];
     const backupHistories = [...histories];
     const gsBackup = settings?.game_state ?? null;
-    const [notifRes, bgRes, bvRes, qgRes, qaRes, igRes, ivRes] = await Promise.all([
+    // 백업 데이터 수집 — 실패해도 초기화 진행
+    const [notifRes, bgRes, bvRes, qgRes, qaRes, igRes, ivRes] = await Promise.allSettled([
       adminSupabase.from('notifications').select('*'),
       adminSupabase.from('balance_games').select('*'),
       adminSupabase.from('balance_votes').select('*'),
@@ -4833,42 +4846,62 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       adminSupabase.from('image_games').select('*'),
       adminSupabase.from('image_votes').select('*'),
     ]);
-    await adminSupabase.from('session_history').insert({ seats_snapshot: snapshot });
-    await adminSupabase.rpc('admin_reset_all_seats', { p_admin_password: settings?.admin_password ?? '' });
-    await adminSupabase.from('profiles').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    await adminSupabase.from('likes').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    await adminSupabase.from('anonymous_reports').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    await adminSupabase.from('messages').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    await adminSupabase.from('chats').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    await adminSupabase.from('notifications').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    for (const t of ['balance_games', 'qa_games', 'image_games', 'balance_votes', 'qa_answers', 'image_votes']) {
-      await adminSupabase.from(t).delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    }
-    await adminSupabase.from('suggestions').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    await adminSupabase.from('app_settings').update({ reset_signal: new Date().toISOString(), game_state: null, updated_at: new Date().toISOString() }).eq('id', 1);
-    const hasData = backupProfiles.length > 0 || backupLikes.length > 0 || backupChats.length > 0 || backupSuggestions.length > 0;
-    showRecovery('전체 초기화', '🗑️', hasData ? async () => {
-      for (const p of backupProfiles) await adminSupabase.from('profiles').upsert(p);
-      for (const l of backupLikes) await adminSupabase.from('likes').upsert({ id: l.id, liker_id: l.liker_id, liked_id: l.liked_id, heart_type: l.heart_type, status: l.status, created_at: l.created_at });
-      for (const c of backupChats) await adminSupabase.from('chats').upsert(c);
-      for (const m of backupMsgs) await adminSupabase.from('messages').upsert(m);
-      for (const s of backupSuggestions) await adminSupabase.from('suggestions').upsert({ id: s.id, content: s.content, created_at: s.created_at });
-      for (const h of backupHistories) await adminSupabase.from('session_history').upsert({ id: h.id, seats_snapshot: h.seats_snapshot, created_at: (h as { created_at?: string }).created_at });
-      if (notifRes.data) for (const n of notifRes.data) await adminSupabase.from('notifications').upsert(n);
-      if (bgRes.data) for (const r of bgRes.data) await adminSupabase.from('balance_games').upsert(r);
-      if (bvRes.data) for (const r of bvRes.data) await adminSupabase.from('balance_votes').upsert(r);
-      if (qgRes.data) for (const r of qgRes.data) await adminSupabase.from('qa_games').upsert(r);
-      if (qaRes.data) for (const r of qaRes.data) await adminSupabase.from('qa_answers').upsert(r);
-      if (igRes.data) for (const r of igRes.data) await adminSupabase.from('image_games').upsert(r);
-      if (ivRes.data) for (const r of ivRes.data) await adminSupabase.from('image_votes').upsert(r);
-      if (gsBackup) await adminSupabase.from('app_settings').update({ game_state: gsBackup, updated_at: new Date().toISOString() }).eq('id', 1);
-      for (const { seat_id, profile_id } of seatAssignments) {
-        await adminSupabase.rpc('admin_force_seat', { p_profile_id: profile_id, p_seat_id: seat_id, p_admin_password: settings?.admin_password ?? '' });
-      }
+    const safeData = (r: PromiseSettledResult<{ data: unknown[] | null }>) =>
+      r.status === 'fulfilled' ? (r.value as { data: unknown[] | null }).data : null;
+    try {
+      await adminSupabase.from('session_history').insert({ seats_snapshot: snapshot });
+      const { error: resetErr } = await adminSupabase.rpc('admin_reset_all_seats', { p_admin_password: settings?.admin_password ?? '' });
+      if (resetErr) throw new Error(resetErr.message);
+      // 병렬 삭제
+      await Promise.all([
+        adminSupabase.from('profiles').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+        adminSupabase.from('likes').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+        adminSupabase.from('anonymous_reports').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+        adminSupabase.from('messages').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+        adminSupabase.from('chats').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+        adminSupabase.from('notifications').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+        adminSupabase.from('balance_games').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+        adminSupabase.from('qa_games').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+        adminSupabase.from('image_games').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+        adminSupabase.from('balance_votes').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+        adminSupabase.from('qa_answers').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+        adminSupabase.from('image_votes').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+        adminSupabase.from('suggestions').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+      ]);
+      const { error: sigErr } = await adminSupabase.from('app_settings').update({ reset_signal: new Date().toISOString(), game_state: null, updated_at: new Date().toISOString() }).eq('id', 1);
+      if (sigErr) throw new Error(sigErr.message);
+      const hasData = backupProfiles.length > 0 || backupLikes.length > 0 || backupChats.length > 0 || backupSuggestions.length > 0;
+      showRecovery('전체 초기화', '🗑️', hasData ? async () => {
+        // 복구 upsert — 개별 실패는 로그만
+        await Promise.allSettled([
+          ...backupProfiles.map(p => adminSupabase.from('profiles').upsert(p)),
+          ...backupLikes.map(l => adminSupabase.from('likes').upsert({ id: l.id, liker_id: l.liker_id, liked_id: l.liked_id, heart_type: l.heart_type, status: l.status, created_at: l.created_at })),
+          ...backupChats.map(c => adminSupabase.from('chats').upsert(c)),
+          ...backupMsgs.map(m => adminSupabase.from('messages').upsert(m)),
+          ...backupSuggestions.map(s => adminSupabase.from('suggestions').upsert({ id: s.id, content: s.content, created_at: s.created_at })),
+          ...backupHistories.map(h => adminSupabase.from('session_history').upsert({ id: h.id, seats_snapshot: h.seats_snapshot, created_at: (h as { created_at?: string }).created_at })),
+          ...(safeData(notifRes) ?? []).map((n: unknown) => adminSupabase.from('notifications').upsert(n)),
+          ...(safeData(bgRes) ?? []).map((r: unknown) => adminSupabase.from('balance_games').upsert(r)),
+          ...(safeData(bvRes) ?? []).map((r: unknown) => adminSupabase.from('balance_votes').upsert(r)),
+          ...(safeData(qgRes) ?? []).map((r: unknown) => adminSupabase.from('qa_games').upsert(r)),
+          ...(safeData(qaRes) ?? []).map((r: unknown) => adminSupabase.from('qa_answers').upsert(r)),
+          ...(safeData(igRes) ?? []).map((r: unknown) => adminSupabase.from('image_games').upsert(r)),
+          ...(safeData(ivRes) ?? []).map((r: unknown) => adminSupabase.from('image_votes').upsert(r)),
+        ]);
+        if (gsBackup) await adminSupabase.from('app_settings').update({ game_state: gsBackup, updated_at: new Date().toISOString() }).eq('id', 1);
+        await Promise.allSettled(
+          seatAssignments.map(({ seat_id, profile_id }) =>
+            adminSupabase.rpc('admin_force_seat', { p_profile_id: profile_id, p_seat_id: seat_id, p_admin_password: settings?.admin_password ?? '' })
+          )
+        );
+        await loadAll();
+        setRecovery(null);
+      } : null, 'eventEnd');
+    } catch (e: unknown) {
+      alert(`전체 초기화 실패: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
       await loadAll();
-      setRecovery(null);
-    } : null, 'eventEnd');
-    await loadAll();
+    }
   };
 
   const showRecovery = useCallback((label: string, emoji: string, restore: (() => Promise<void>) | null, mapKey?: string) => {

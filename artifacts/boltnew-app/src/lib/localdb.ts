@@ -241,7 +241,7 @@ function fetchSseToken(userId: string): void {
   try {
     const cached = localStorage.getItem(SSE_TOK_KEY);
     const exp = parseInt(localStorage.getItem(SSE_TOK_EXP_KEY) ?? '0', 10);
-    if (cached && Date.now() < exp - 120_000) {
+    if (cached && Math.floor(Date.now() / 1000) < exp - 120) {
       _sseToken = cached;
     }
   } catch { /* ignore */ }
