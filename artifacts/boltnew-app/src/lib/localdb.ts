@@ -572,12 +572,16 @@ export async function fetchAndSetSseToken(userId: string): Promise<void> {
     // 1단계: 세션 수립 (기기 secret 검증)
     const loggedIn = await loginSession(userId);
     if (!loggedIn) return; // device_not_bound 또는 네트워크 오류
+    // 경합 방지: 비동기 대기 중 계정이 바뀐 경우 토큰을 설치하지 않음
+    if (_currentUserId !== userId) return;
     // 2단계: 세션이 수립된 브라우저에만 SSE 토큰 발급
     const resp = await fetch(`${API}/auth/sse-token`, {
       method: 'POST',
       credentials: 'same-origin',
     });
     if (!resp.ok) return;
+    // 경합 방지: 네트워크 대기 중 계정이 또 바뀐 경우
+    if (_currentUserId !== userId) return;
     const data = await resp.json() as { token?: string; expiresAt?: number };
     if (data.token && data.expiresAt) setSseToken(data.token, data.expiresAt);
   } catch { /* 네트워크 오류 시 무시 — SSE는 익명으로 폴백 */ }

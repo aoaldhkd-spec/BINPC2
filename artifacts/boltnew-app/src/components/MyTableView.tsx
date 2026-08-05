@@ -50,6 +50,7 @@ export default function MyTableView({
     isAdmin,
     darkMode,
     tableLabels,
+    seatLg: true,   // 내 테이블 탭 전용: 자리·테이블 그래픽을 배치도 확대 모달보다 크게
     // 프로필 클릭 — 탭 자체는 닫히지 않음
     onProfileClick,
     // 빈 자리 클릭 — 탭 자체는 닫히지 않음 (내 테이블 뷰 유지)

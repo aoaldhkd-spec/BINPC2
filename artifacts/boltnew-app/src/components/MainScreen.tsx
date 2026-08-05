@@ -645,8 +645,19 @@ export function MainScreen({
   const currentUserSeat = useMemo(() => seats.find(s => s.profile_id === currentUserId) ?? null, [seats, currentUserId]);
   const tableNumber = currentUserSeat?.table_number ?? null;
   const visibleSeats = useMemo(() => activeTables ? seats.filter(s => activeTables.includes(s.table_number)) : seats, [seats, activeTables]);
-  // 내 테이블 탭: 선택 없이 내 자리 테이블만 표시
-  // (selectedMyTableNum / myTableList / resolvedMyTable 제거 — 칩 선택 UI 삭제)
+  // 내 테이블 탭: 테이블 선택 상태 (칩 선택 UI)
+  const [selectedMyTableNum, setSelectedMyTableNum] = useState<number | null>(null);
+  // 처음 진입 시 내 자리 테이블로 초기화. 이후 칩 선택으로 바꿔도 리셋되지 않음
+  useEffect(() => {
+    if (selectedMyTableNum === null && tableNumber !== null) setSelectedMyTableNum(tableNumber);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tableNumber]);
+  const myTableList = useMemo(() => {
+    const nums = activeTables ?? [...new Set(seats.map((s: Seat) => s.table_number))];
+    return [...new Set(nums)].sort((a: number, b: number) => a - b);
+  }, [activeTables, seats]);
+  const resolvedMyTable = selectedMyTableNum ?? tableNumber ?? (myTableList[0] ?? null);
+
   const currentUserNickname = useMemo(() => profiles.find(p => p.id === currentUserId)?.nickname ?? '', [profiles, currentUserId]);
   const [profileSearch, setProfileSearch] = useState('');
   const [profilePersonalityFilter, setProfilePersonalityFilter] = useState<string | null>(null);
@@ -1256,8 +1267,60 @@ export function MainScreen({
         {/* ── 내 테이블 탭 — 내 자리 테이블만, 확대 뷰 자동 오픈 ── */}
         {mainTab === 'my-table' && (
           <div className="space-y-3">
-            {tableNumber === null ? (
-              /* 아직 자리 미배정 */
+            {/* 내 자리 상태 카드 — 배정된 경우에만 */}
+            {tableNumber !== null && currentUserSeat && (
+              <div className={`rounded-2xl px-4 py-2.5 border flex items-center gap-3 ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-100'} shadow-sm`}>
+                <div className="w-8 h-8 rounded-lg bg-cyan-500 flex items-center justify-center text-white font-black flex-shrink-0 text-sm">
+                  {currentUserSeat.seat_position}
+                </div>
+                <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  {currentUserSeat.seat_position}번 자리 착석 중
+                  <span className={`ml-2 text-[11px] font-normal ${seatingLocked ? (darkMode ? 'text-amber-400' : 'text-amber-600') : (darkMode ? 'text-teal-400' : 'text-teal-600')}`}>
+                    {seatingLocked ? '🔒 잠금 중' : '✅ 변경 가능'}
+                  </span>
+                </p>
+              </div>
+            )}
+
+            {/* 테이블 선택 칩 — 전체 테이블 목록을 가로 스크롤로 표시 */}
+            {myTableList.length > 0 && (
+              <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+                {myTableList.map(n => {
+                  const isSelected = resolvedMyTable === n;
+                  const isMyTable = n === tableNumber;
+                  const label = tableLabels?.[String(n)] ?? String(n);
+                  return (
+                    <button
+                      key={n}
+                      onClick={() => setSelectedMyTableNum(n)}
+                      className={`flex-shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 ${
+                        isSelected
+                          ? 'bg-cyan-500 text-white shadow-lg shadow-cyan-500/30'
+                          : darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {label}번 테이블
+                      {isMyTable && <span className="text-[10px] opacity-80">🪑</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* 선택된 테이블 확대 보기 — 자리 선택 후에도 유지 */}
+            {resolvedMyTable !== null ? (
+              <MyTableView
+                tableNumber={resolvedMyTable}
+                seats={seats}
+                profileMap={profileMap}
+                currentUserId={currentUserId}
+                darkMode={darkMode}
+                tableLabels={tableLabels}
+                onProfileClick={onProfileClickFromMap}
+                onSeatClick={!seatingLocked ? (seat) => { if (!seat.profile_id) _setSeatDialog(seat); } : undefined}
+              />
+            ) : (
+              /* 자리 미배정이고 활성 테이블도 없는 경우 */
               <div className="flex flex-col items-center justify-center py-14 gap-3">
                 <span className="text-5xl">🪑</span>
                 <p className={`text-sm font-bold text-center ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>
@@ -1269,32 +1332,6 @@ export function MainScreen({
                   </p>
                 )}
               </div>
-            ) : (
-              <>
-                {/* 내 자리 상태 카드 */}
-                <div className={`max-w-lg mx-auto rounded-2xl px-4 py-2.5 border flex items-center gap-3 ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-100'} shadow-sm`}>
-                  <div className="w-8 h-8 rounded-lg bg-cyan-500 flex items-center justify-center text-white font-black flex-shrink-0 text-sm">
-                    {currentUserSeat?.seat_position}
-                  </div>
-                  <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                    {currentUserSeat?.seat_position}번 자리 착석 중
-                    <span className={`ml-2 text-[11px] font-normal ${seatingLocked ? (darkMode ? 'text-amber-400' : 'text-amber-600') : (darkMode ? 'text-teal-400' : 'text-teal-600')}`}>
-                      {seatingLocked ? '🔒 잠금 중' : '✅ 변경 가능'}
-                    </span>
-                  </p>
-                </div>
-                {/* 내 테이블만 표시 — MyTableView (SeatingMap과 완전 분리) */}
-                <MyTableView
-                  tableNumber={tableNumber}
-                  seats={seats}
-                  profileMap={profileMap}
-                  currentUserId={currentUserId}
-                  darkMode={darkMode}
-                  tableLabels={tableLabels}
-                  onProfileClick={onProfileClickFromMap}
-                  onSeatClick={!seatingLocked ? (seat) => { if (!seat.profile_id) _setSeatDialog(seat); } : undefined}
-                />
-              </>
             )}
           </div>
         )}

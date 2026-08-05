@@ -170,7 +170,9 @@ function App() {
   useEffect(() => {
     setLocalDbUserId(currentUserId);
     if (currentUserId) {
-      fetchAndSetSseToken(currentUserId).catch(() => {});
+      fetchAndSetSseToken(currentUserId).catch((err: unknown) => {
+        console.warn('[SSE] token fetch failed — running anonymous SSE', err);
+      });
     }
   }, [currentUserId]);
 

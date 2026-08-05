@@ -778,6 +778,21 @@ router.post('/op', async (req: Request, res: Response) => {
     return res.json({ data: null, error: { message: 'Server busy — retry in 1s', code: 'BUSY' } });
   }
   _activeOpCount++;
+
+  // ─ requesterId 세션 바인딩 — 구조분해 이전에 실행해야 local const에 올바른 값이 들어감 ─
+  // 인증된 세션이 있는 경우: body requesterId와 불일치하면 즉시 차단, 일치하거나 null이면 세션값으로 확정
+  {
+    const _sessId = (req.session as { userId?: string })?.userId;
+    const _bodyReqId = (req.body as Record<string, unknown>).requesterId as string | null | undefined;
+    if (_sessId && _bodyReqId != null && String(_bodyReqId) !== _sessId) {
+      _activeOpCount--;
+      logger.warn({ ip: req.ip, session: _sessId, claimed: _bodyReqId }, '[SECURITY] requesterId body-spoof attempt blocked');
+      return res.status(403).json({ data: null, error: { message: 'Forbidden: requesterId must match authenticated session', code: 'FORBIDDEN' } });
+    }
+    // 세션 userId로 확정 → 이후 구조분해 시 requesterId가 올바른 값을 가짐
+    if (_sessId) (req.body as Record<string, unknown>).requesterId = _sessId;
+  }
+
   const {
     table,
     op,

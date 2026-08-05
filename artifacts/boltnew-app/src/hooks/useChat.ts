@@ -153,7 +153,8 @@ export function useChat({
     if (!chatId) return;
     chatIdRef.current = chatId;
 
-    // 채팅방 열 때: unread 카운트 삭제 + 전체 배지 감소
+    // 채팅방 열 때: unread 카운트 낙관적 삭제 + 전체 배지 감소
+    // upsert 실패 시 뱃지 복원 (catch) — 서버 상태와 UI 불일치 방지
     const removed = unreadChatCountsRef.current[chatId] ?? 0;
     setUnreadChatCounts(prev => { const n = { ...prev }; delete n[chatId]; return n; });
     if (removed > 0) setNewMsgCount(c => Math.max(0, c - removed));
@@ -164,7 +165,13 @@ export function useChat({
         chat_id: chatId,
         reader_id: currentUserId,
         read_at: new Date().toISOString(),
-      }, { onConflict: 'id' }).then(() => {}).catch(() => {});
+      }, { onConflict: 'id' }).then(() => {}).catch(() => {
+        // upsert 실패: 낙관적으로 지운 뱃지를 복원해 서버 상태와 일치시킴
+        if (removed > 0) {
+          setUnreadChatCounts(prev => ({ ...prev, [chatId]: removed }));
+          setNewMsgCount(c => c + removed);
+        }
+      });
     }
 
     const channel = supabase

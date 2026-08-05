@@ -28,7 +28,8 @@ export function useHearts(
   // ✅ try/catch 추가 — 네트워크 오류 시 stale state 유지 (기존 UI 보존)
   const loadLikes = useCallback(async (userId: string) => {
     try {
-      const { data } = await supabase.from('likes').select('liked_id, status, heart_type').eq('liker_id', userId);
+      const { data, error } = await supabase.from('likes').select('liked_id, status, heart_type').eq('liker_id', userId);
+      if (error) { console.warn('[useHearts] loadLikes error', error.message); return; }
       if (data) {
         setLikedIds(new Set(data.map((l: { liked_id: string }) => l.liked_id)));
         setSentHeartTypes(new Map(data.map((l: { liked_id: string; heart_type: string | null }) => [l.liked_id, (l.heart_type ?? 'red') as HeartType])));

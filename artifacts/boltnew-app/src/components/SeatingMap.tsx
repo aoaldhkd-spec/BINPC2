@@ -1,3 +1,4 @@
+// @refresh reset
 import { useState, useRef, type SyntheticEvent } from 'react';
 import { MessageCircle, X, ArrowRight, Move, ArrowLeftRight, Pencil } from 'lucide-react';
 import type { Database } from '../types/database';
@@ -245,20 +246,20 @@ function ProfilePopup({ profile, seat, isCurrentUser, onChat, onClose }: {
 
 // ─── Big Seat Button (expanded modal) ─────────────────────────────────────────
 
-function BigSeatButton({ seat, profile, isCurrentUser, isAdmin, movingProfileId, darkMode = true, onSeatClick: _onSeatClick, onProfileClick, onClearSeat, onShowQr, onSelectForMove, onMoveTo }: {
+export function BigSeatButton({ seat, profile, isCurrentUser, isAdmin, movingProfileId, darkMode = true, large = false, onSeatClick: _onSeatClick, onProfileClick, onClearSeat, onShowQr, onSelectForMove, onMoveTo }: {
   seat: Seat | null; profile?: Profile; isCurrentUser: boolean; isAdmin: boolean;
-  movingProfileId?: string | null; darkMode?: boolean;
+  movingProfileId?: string | null; darkMode?: boolean; large?: boolean;
   onSeatClick?: (s: Seat) => void; onProfileClick?: (p: Profile) => void;
   onClearSeat?: (s: Seat) => void; onShowQr?: (s: Seat) => void;
   onSelectForMove?: (profileId: string, profile: Profile) => void;
   onMoveTo?: (seat: Seat) => void;
 }) {
   // ※ useState 없음 — confirm dialog는 TableExpandModal에서 관리 (Vite Fast Refresh 충돌 방지)
-  const dim = 'w-14 h-14';
+  const dim = large ? 'w-16 h-16' : 'w-14 h-14';
   const t = seatTheme(darkMode);
   if (!seat) return <div className={`${dim} rounded-xl bg-transparent`} />;
   const occupied = seat.status === 'occupied';
-  const posLabel = seat.seat_label.split(' ').pop() ?? '';
+  const posLabel = seat.seat_label?.split(' ').pop() ?? '';
   const isInMoveMode = !!(movingProfileId);
   const isSelectedForMove = !!(movingProfileId && seat.profile_id === movingProfileId);
   const isTargetable = isInMoveMode && !isSelectedForMove;
@@ -379,12 +380,14 @@ export type LayoutProps = {
   tableNum: number; seats: Seat[]; profileMap: Map<string, Profile>; currentUserId: string | null; isAdmin: boolean;
   movingProfileId?: string | null; darkMode?: boolean;
   tableLabels?: Record<string, string> | null;
+  /** true → 자리 버튼·테이블 중앙을 크게 렌더 (내 테이블 탭 전용) */
+  seatLg?: boolean;
   onSeatClick?: (s: Seat) => void; onProfileClick?: (p: Profile) => void; onClearSeat?: (s: Seat) => void; onShowQr?: (s: Seat) => void;
   onSelectForMove?: (profileId: string, profile: Profile) => void;
   onMoveTo?: (seat: Seat) => void;
 };
 
-export function ExpandedLayout({ tableNum, seats, profileMap, currentUserId, isAdmin, movingProfileId, darkMode = true, tableLabels, onSeatClick, onProfileClick, onClearSeat, onShowQr, onSelectForMove, onMoveTo }: LayoutProps) {
+export function ExpandedLayout({ tableNum, seats, profileMap, currentUserId, isAdmin, movingProfileId, darkMode = true, tableLabels, seatLg = false, onSeatClick, onProfileClick, onClearSeat, onShowQr, onSelectForMove, onMoveTo }: LayoutProps) {
   const cfg = TABLE_POSITIONS[tableNum];
   if (!cfg) return null;
   const label = tableLabels?.[String(tableNum)] ?? String(tableNum);
@@ -393,17 +396,27 @@ export function ExpandedLayout({ tableNum, seats, profileMap, currentUserId, isA
   const isMe = (s: Seat | null) => !!s && s.profile_id === currentUserId;
   const bsb = (pos: number) => (
     <BigSeatButton key={pos} seat={get(pos)} profile={prof(get(pos))} isCurrentUser={isMe(get(pos))}
-      isAdmin={isAdmin} movingProfileId={movingProfileId} darkMode={darkMode}
+      isAdmin={isAdmin} movingProfileId={movingProfileId} darkMode={darkMode} large={seatLg}
       onSeatClick={onSeatClick} onProfileClick={onProfileClick} onClearSeat={onClearSeat} onShowQr={onShowQr}
       onSelectForMove={onSelectForMove} onMoveTo={onMoveTo} />
   );
+
+  // seatLg=true 일 때 자리 간격·테이블 중앙도 함께 키움
+  // 중앙은 자리 버튼(w-16=64px) 대비 배치도와 동일한 시각적 비율 유지를 위해 더 크게 설정
+  const gap = seatLg ? 'gap-3' : 'gap-2';
+  const sofaPad = seatLg ? 'p-2.5 rounded-2xl' : 'p-2 rounded-2xl';
+  // seatLg 시 sofa와 동일하게 self-stretch — 컬럼 높이에 맞춰 세로로 늘어남
+  const tableCenterRow1 = seatLg ? 'w-28 self-stretch' : 'w-20 h-20';
+  const tableCenterSofa = seatLg ? 'w-16' : 'w-12';
+  const tableLabelSizeRow1 = seatLg ? 'text-lg' : 'text-sm';
+  const tableLabelSizeSofa = seatLg ? 'text-sm' : 'text-[11px]';
 
   const leftColEl = (
     <div className="flex flex-col items-center gap-1">
       {cfg.type === 'sofa' && (
         <span className={`text-[9px] font-black ${cfg.sofaOnLeft ? 'text-sky-400/80' : 'text-slate-400/80'}`}>{cfg.sofaOnLeft ? '소파' : '맞은편'}</span>
       )}
-      <div className={`flex flex-col gap-2 ${cfg.type === 'sofa' && cfg.sofaOnLeft ? 'p-2 rounded-2xl bg-sky-500/10 border border-sky-500/30' : ''}`}>
+      <div className={`flex flex-col ${gap} ${cfg.type === 'sofa' && cfg.sofaOnLeft ? `${sofaPad} bg-sky-500/10 border border-sky-500/30` : ''}`}>
         {cfg.leftCol.map(pos => bsb(pos))}
       </div>
     </div>
@@ -413,7 +426,7 @@ export function ExpandedLayout({ tableNum, seats, profileMap, currentUserId, isA
       {cfg.type === 'sofa' && (
         <span className={`text-[9px] font-black ${!cfg.sofaOnLeft ? 'text-sky-400/80' : 'text-slate-400/80'}`}>{!cfg.sofaOnLeft ? '소파' : '맞은편'}</span>
       )}
-      <div className={`flex flex-col gap-2 ${cfg.type === 'sofa' && !cfg.sofaOnLeft ? 'p-2 rounded-2xl bg-sky-500/10 border border-sky-500/30' : ''}`}>
+      <div className={`flex flex-col ${gap} ${cfg.type === 'sofa' && !cfg.sofaOnLeft ? `${sofaPad} bg-sky-500/10 border border-sky-500/30` : ''}`}>
         {cfg.rightCol.map(pos => bsb(pos))}
       </div>
     </div>
@@ -421,32 +434,32 @@ export function ExpandedLayout({ tableNum, seats, profileMap, currentUserId, isA
 
   if (cfg.type === 'row1') {
     return (
-      <div className="flex flex-col items-center gap-2 py-2">
+      <div className={`flex flex-col items-center ${gap} py-2`}>
         <div className="h-4" />
-        <div className="flex items-center gap-2">
+        <div className={`flex items-center ${gap}`}>
           {leftColEl}
-          <div className="w-20 h-20 rounded-xl bg-gradient-to-br from-amber-800/90 to-amber-900/90 border border-amber-700/60 shadow-inner flex flex-col items-center justify-center gap-0.5">
-            <span className="text-sm font-black text-amber-300/90 leading-none">{label}</span>
+          <div className={`${tableCenterRow1} rounded-xl bg-gradient-to-br from-amber-800/90 to-amber-900/90 border border-amber-700/60 shadow-inner flex flex-col items-center justify-center gap-0.5`}>
+            <span className={`${tableLabelSizeRow1} font-black text-amber-300/90 leading-none`}>{label}</span>
           </div>
           {rightColEl}
         </div>
-        {cfg.bottomRow && <div className="flex gap-2">{cfg.bottomRow.map(pos => bsb(pos))}</div>}
-        {cfg.topRow && <div className="flex gap-2">{cfg.topRow.map(pos => bsb(pos))}</div>}
+        {cfg.bottomRow && <div className={`flex ${gap}`}>{cfg.bottomRow.map(pos => bsb(pos))}</div>}
+        {cfg.topRow && <div className={`flex ${gap}`}>{cfg.topRow.map(pos => bsb(pos))}</div>}
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col items-center gap-2 py-2">
-      {cfg.topRow ? <div className="flex gap-2">{cfg.topRow.map(pos => bsb(pos))}</div> : <div className="h-2" />}
-      <div className="flex items-stretch gap-2">
+    <div className={`flex flex-col items-center ${gap} py-2`}>
+      {cfg.topRow ? <div className={`flex ${gap}`}>{cfg.topRow.map(pos => bsb(pos))}</div> : <div className="h-2" />}
+      <div className={`flex items-stretch ${gap}`}>
         {leftColEl}
-        <div className="w-12 self-stretch rounded-xl bg-gradient-to-br from-amber-800/90 to-amber-900/90 border border-amber-700/60 shadow-inner flex flex-col items-center justify-center gap-0.5">
-          <span className="text-[11px] font-black text-amber-300/90 leading-none">{label}</span>
+        <div className={`${tableCenterSofa} self-stretch rounded-xl bg-gradient-to-br from-amber-800/90 to-amber-900/90 border border-amber-700/60 shadow-inner flex flex-col items-center justify-center gap-0.5`}>
+          <span className={`${tableLabelSizeSofa} font-black text-amber-300/90 leading-none`}>{label}</span>
         </div>
         {rightColEl}
       </div>
-      {cfg.bottomRow ? <div className="flex gap-2">{cfg.bottomRow.map(pos => bsb(pos))}</div> : <div className="h-2" />}
+      {cfg.bottomRow ? <div className={`flex ${gap}`}>{cfg.bottomRow.map(pos => bsb(pos))}</div> : <div className="h-2" />}
     </div>
   );
 }
