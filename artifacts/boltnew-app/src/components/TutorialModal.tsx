@@ -222,13 +222,10 @@ export const TUTORIAL_SLIDES: TutorialSlide[] = [
         </p>
         <div className="space-y-1.5">
           {([
+            { icon: '🖼️', title: '내 상태 아바타 변경', desc: '내 상태 탭 → 프로필 사진 탭하면 아바타 스타일 변경 가능' },
             { icon: '📷', title: '사진 채팅', desc: '채팅방에서 📎 버튼으로 이미지 전송 가능' },
             { icon: '🔮', title: '궁합 확인', desc: '내 운세 탭 → 다른 참여자와 궁합 점수 보기' },
-            { icon: '⭐', title: '내 테이블 즐겨찾기', desc: '내 테이블 탭: ★ 표시된 곳이 내 자리 테이블' },
-            { icon: '🪑', title: '자리 변경', desc: '배치도 탭에서 빈 자리(+)를 직접 탭해 이동' },
-            { icon: '📊', title: '분위기 점수', desc: '통계 탭에서 테이블별 분위기·성향 분석 확인' },
             { icon: '📱', title: '연락처 교환', desc: '채팅 중 📱 버튼 → 카카오·인스타 공유 가능' },
-            { icon: '🌙', title: '다크 모드', desc: '좌상단 🌙 버튼으로 어두운 테마로 전환' },
           ] as { icon: string; title: string; desc: string }[]).map(({ icon, title, desc }) => (
             <div key={title} className={`flex items-start gap-2.5 px-3 py-1.5 rounded-xl ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-violet-50 border border-violet-100'}`}>
               <span className="text-base leading-none mt-0.5 flex-shrink-0">{icon}</span>

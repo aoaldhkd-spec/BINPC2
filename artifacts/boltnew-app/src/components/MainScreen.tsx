@@ -1260,11 +1260,11 @@ export function MainScreen({
         {mainTab === 'my-table' && (
           <div className="space-y-4">
 
-            {/* ── 테이블 선택 (4열 그리드 — 스크롤 없이 한눈에) ── */}
+            {/* ── 테이블 선택 (컴팩트 칩 방식) ── */}
             {myTableList.length === 0 ? (
               <p className={`text-sm py-2 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>테이블 정보 없음</p>
             ) : (
-              <div className="grid grid-cols-4 gap-1.5">
+              <div className="flex flex-wrap gap-1">
                 {myTableList.map(t => {
                   const isSelected = resolvedMyTable === t.num;
                   const isMyTable = currentUserSeat?.table_number === t.num;
@@ -1273,20 +1273,18 @@ export function MainScreen({
                     <button
                       key={t.num}
                       onClick={() => setSelectedMyTableNum(t.num)}
-                      className={`relative py-1.5 px-1 rounded-xl border-2 text-center transition-all active:scale-95 ${
+                      className={`flex items-center gap-1 px-2.5 py-1 rounded-full border text-[11px] font-bold transition-all active:scale-95 ${
                         isMyTable
-                          ? darkMode ? 'border-cyan-500 bg-cyan-500/20 ring-1 ring-cyan-500/40' : 'border-cyan-500 bg-cyan-50 ring-1 ring-cyan-400/40'
+                          ? darkMode ? 'border-cyan-500 bg-cyan-500/25 text-cyan-300' : 'border-cyan-500 bg-cyan-100 text-cyan-700'
                           : isSelected
-                          ? darkMode ? 'border-cyan-400 bg-cyan-500/10' : 'border-cyan-400 bg-cyan-50/60'
-                          : darkMode ? 'border-slate-600 bg-slate-800 hover:border-slate-500' : 'border-gray-200 bg-white hover:border-gray-300'
+                          ? darkMode ? 'border-cyan-400 bg-cyan-500/10 text-cyan-400' : 'border-cyan-400 bg-cyan-50 text-cyan-600'
+                          : darkMode ? 'border-slate-600 bg-slate-800 text-slate-400 hover:border-slate-500' : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
                       }`}
                     >
-                      <span className={`font-black text-[11px] block leading-tight truncate px-0.5 ${isSelected || isMyTable ? (darkMode ? 'text-cyan-300' : 'text-cyan-700') : darkMode ? 'text-slate-300' : 'text-gray-700'}`}>
-                        {t.label}
-                      </span>
-                      <span className={`text-[9px] font-semibold ${full ? 'text-rose-400' : isSelected || isMyTable ? (darkMode ? 'text-cyan-400/80' : 'text-cyan-600/80') : darkMode ? 'text-slate-500' : 'text-gray-400'}`}>
+                      {isMyTable && <span className="text-cyan-400 text-[9px]">★</span>}
+                      <span>{t.label}</span>
+                      <span className={`text-[9px] font-normal ${full ? 'text-rose-400' : isMyTable || isSelected ? 'opacity-70' : 'opacity-50'}`}>
                         {full ? '만석' : `${t.occupied}/${t.total}`}
-                        {isMyTable && <span className="ml-0.5 text-cyan-500 font-black">★</span>}
                       </span>
                     </button>
                   );
