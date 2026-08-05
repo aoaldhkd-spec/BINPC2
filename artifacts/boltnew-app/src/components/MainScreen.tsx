@@ -18,7 +18,7 @@ const getAvatarSrc = (url: string | null | undefined, nick: string): string => {
   if (url.includes('dicebear') && !url.includes('backgroundColor')) return genAvatar(nick);
   return url;
 };
-import { getZodiac, getOhaeng } from '../lib/fortune';
+import { getZodiac, getOhaeng, getTodayFortune } from '../lib/fortune';
 import { getMbtiStyle, koreanMatch } from '../lib/utils';
 import { ls } from '../lib/storage';
 import SeatingMap from './SeatingMap';
@@ -589,7 +589,7 @@ export function MainScreen({
   balanceGames, voteCounts, myVotes,
   onContactShareOpen: _onContactShareOpen, onContactViewOpen, onHeartResponse, onDeleteChat, onDeleteAllChats, onSubmitSuggestion, onOpenChat,
   onVote, onCreateGame, onEndGame, onSubmitAnonymousReport,
-  timerEndAt, timerLabel, onRefreshStatus, onRefreshChat, onRefreshProfiles, onRefreshSeating, darkMode, onToggleDark, onShowQr, onShowContactQr, onScanQr, scannedContacts, onClearScannedContact, seatingLocked, activeTables, tableLabels, onShowTutorial,
+  timerEndAt, timerLabel, onRefreshStatus, onRefreshChat, onRefreshProfiles, onRefreshSeating, darkMode, onToggleDark, onShowQr, onShowContactQr, onScanQr, scannedContacts, onClearScannedContact, seatingLocked, functionsLocked = false, activeTables, tableLabels, onShowTutorial,
   newMsgCount, onClearMsgCount, unreadChatCounts, onClearChatUnread: _onClearChatUnread, resetPassword, onBroadcastGame,
   setSeatDialog: _setSeatDialog, onUpdateProfile,
 }: {
@@ -627,6 +627,7 @@ export function MainScreen({
   scannedContacts: Array<{ id: string; nickname: string; mbti?: string | null; photo_url?: string | null; kakao_id?: string | null; instagram_id?: string | null; phone_number?: string | null; contact_private?: boolean | null; scanned_at: string }>;
   onClearScannedContact: (id: string) => void;
   seatingLocked: boolean;
+  functionsLocked?: boolean;
   activeTables: number[] | null;
   tableLabels: Record<string, string> | null;
   onShowTutorial: () => void;
@@ -749,11 +750,11 @@ export function MainScreen({
     if (activeGameCount > 0) setSeenGameCount(activeGameCount);
   }, []);
 
-  // 기능 잠금 시 이동 불가 탭 (내 상태·배치도 제외)
+  // 기능 잠금(functionsLocked) 시 이동 불가 탭 — 자리 잠금(seatingLocked)과 분리
   const LOCKED_TABS = new Set<MainTab>(['chats', 'suggestions', 'game', 'fortune', 'stats', 'ranking']);
 
   const handleTabChange = (t: MainTab) => {
-    if (seatingLocked && LOCKED_TABS.has(t)) return; // 잠금 중 → 탭 이동 차단
+    if (functionsLocked && LOCKED_TABS.has(t)) return; // 기능 잠금 중 → 탭 이동 차단
     if (t === 'status') { setSeenHeartsCount(pendingHeartsCount); setSeenContactsCount(receivedContactShares.length); }
     if (t === 'profiles') setSeenProfilesCount(profiles.length);
     if (t === 'chats' || t === 'suggestions') { onClearMsgCount(); }
@@ -1054,38 +1055,34 @@ export function MainScreen({
           </div>
         </div>
         {timerEndAt && <TimerBanner endAt={timerEndAt} label={timerLabel ?? ''} />}
-        {/* ── 탭 바 (5행 × 2열) ── */}
+        {/* ── 탭 바 (2행 × 5열) ── */}
         <div className={`max-w-7xl mx-auto border-t-2 ${darkMode ? 'bg-slate-900 border-slate-700' : 'bg-gray-50 border-gray-200'}`}>
           {([
+            // Row 1: 내상태 | 내테이블 | 내채팅 | 내운세 | 통계
             [
               { id: 'status' as MainTab, label: '내 상태', badge: Math.max(0, pendingHeartsCount - seenHeartsCount) + newContactsCount },
-              { id: 'profiles' as MainTab, label: '참여자', badge: seenProfilesCount < 0 ? 0 : Math.max(0, profiles.length - seenProfilesCount) },
-            ],
-            [
               { id: 'my-table' as MainTab, label: '내 테이블' },
-              { id: 'seating' as MainTab, label: '배치도' },
-            ],
-            [
-              { id: 'chats' as MainTab, label: '채팅', badge: newMsgCount },
-              { id: 'suggestions' as MainTab, label: '💬 건의' },
-            ],
-            [
-              { id: 'game' as MainTab, label: '🎮 게임', badge: Math.max(0, activeGameCount - seenGameCount) },
-              { id: 'fortune' as MainTab, label: '🔮 운세' },
-            ],
-            [
+              { id: 'chats' as MainTab, label: '내 채팅', badge: newMsgCount },
+              { id: 'fortune' as MainTab, label: '🔮 내 운세' },
               { id: 'stats' as MainTab, label: '📊 통계' },
+            ],
+            // Row 2: 참여자 | 배치도 | 요청 | 게임 | 랭킹
+            [
+              { id: 'profiles' as MainTab, label: '참여자', badge: seenProfilesCount < 0 ? 0 : Math.max(0, profiles.length - seenProfilesCount) },
+              { id: 'seating' as MainTab, label: '배치도' },
+              { id: 'suggestions' as MainTab, label: '💬 요청' },
+              { id: 'game' as MainTab, label: '🎮 게임', badge: Math.max(0, activeGameCount - seenGameCount) },
               { id: 'ranking' as MainTab, label: '🏆 랭킹' },
             ],
           ] as Array<Array<{ id: MainTab; label: string; badge?: number }>>).map((row, ri) => (
-            <div key={ri} className={`flex border-b ${darkMode ? 'border-slate-700/40' : 'border-gray-200/80'}`}>
+            <div key={ri} className={`flex ${ri === 0 ? `border-b ${darkMode ? 'border-slate-700/50' : 'border-gray-200'}` : ''}`}>
               {row.map((t, ci) => {
-                const locked = seatingLocked && LOCKED_TABS.has(t.id);
+                const locked = functionsLocked && LOCKED_TABS.has(t.id);
                 const active = mainTab === t.id;
                 return (
                   <button key={t.id} onClick={() => handleTabChange(t.id)} disabled={locked}
-                    className={`relative flex-1 py-2 text-[11px] font-bold transition-all active:scale-95 border-b-2 ${ci === 0 ? (darkMode ? 'border-r border-slate-700/40' : 'border-r border-gray-200/80') : ''} ${
-                      locked ? `opacity-35 cursor-not-allowed border-transparent border-b-transparent ${darkMode ? 'text-slate-500' : 'text-gray-400'}` :
+                    className={`relative flex-1 ${ri === 0 ? 'py-2.5' : 'py-1.5'} text-[10px] font-bold transition-all active:scale-95 border-b-2 ${ci < row.length - 1 ? (darkMode ? 'border-r border-slate-700/30' : 'border-r border-gray-200/70') : ''} ${
+                      locked ? `opacity-35 cursor-not-allowed border-b-transparent ${darkMode ? 'text-slate-500' : 'text-gray-400'}` :
                       active ? darkMode ? 'border-b-cyan-500 text-cyan-400 bg-cyan-500/10' : 'border-b-cyan-500 text-cyan-700 bg-cyan-50' :
                       darkMode ? 'border-b-transparent text-slate-400' : 'border-b-transparent text-gray-500'
                     }`}>
@@ -1263,47 +1260,39 @@ export function MainScreen({
         {mainTab === 'my-table' && (
           <div className="space-y-4">
 
-            {/* ── 테이블 선택 ── */}
-            <div className="max-w-lg mx-auto">
-              <p className={`text-[10px] font-black uppercase tracking-widest mb-2 px-1 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
-                테이블 선택 {myTableList.length > 0 ? `(${myTableList.length}개)` : ''}
-              </p>
-              <div className="grid grid-cols-2 gap-2">
+            {/* ── 테이블 선택 (4열 그리드 — 스크롤 없이 한눈에) ── */}
+            {myTableList.length === 0 ? (
+              <p className={`text-sm py-2 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>테이블 정보 없음</p>
+            ) : (
+              <div className="grid grid-cols-4 gap-1.5">
                 {myTableList.map(t => {
                   const isSelected = resolvedMyTable === t.num;
                   const isMyTable = currentUserSeat?.table_number === t.num;
-                  const full = t.occupied >= t.total && t.total > 0;
+                  const full = t.total > 0 && t.occupied >= t.total;
                   return (
                     <button
                       key={t.num}
                       onClick={() => setSelectedMyTableNum(t.num)}
-                      className={`relative rounded-2xl px-3 py-3 border-2 text-left transition-all active:scale-95 ${
-                        isSelected
-                          ? 'border-cyan-500 bg-cyan-500/10 shadow-md shadow-cyan-500/20'
-                          : darkMode
-                          ? 'border-slate-600 bg-slate-800 hover:border-slate-500'
-                          : 'border-gray-200 bg-white hover:border-gray-300'
+                      className={`relative py-1.5 px-1 rounded-xl border-2 text-center transition-all active:scale-95 ${
+                        isMyTable
+                          ? darkMode ? 'border-cyan-500 bg-cyan-500/20 ring-1 ring-cyan-500/40' : 'border-cyan-500 bg-cyan-50 ring-1 ring-cyan-400/40'
+                          : isSelected
+                          ? darkMode ? 'border-cyan-400 bg-cyan-500/10' : 'border-cyan-400 bg-cyan-50/60'
+                          : darkMode ? 'border-slate-600 bg-slate-800 hover:border-slate-500' : 'border-gray-200 bg-white hover:border-gray-300'
                       }`}
                     >
-                      {isMyTable && (
-                        <span className="absolute top-1.5 right-1.5 text-[9px] font-black bg-cyan-500 text-white px-1.5 py-0.5 rounded-full">내 자리</span>
-                      )}
-                      <p className={`font-black text-sm leading-tight ${isSelected ? (darkMode ? 'text-cyan-300' : 'text-cyan-700') : darkMode ? 'text-white' : 'text-gray-900'}`}>
+                      <span className={`font-black text-[11px] block leading-tight truncate px-0.5 ${isSelected || isMyTable ? (darkMode ? 'text-cyan-300' : 'text-cyan-700') : darkMode ? 'text-slate-300' : 'text-gray-700'}`}>
                         {t.label}
-                      </p>
-                      <p className={`text-[10px] mt-0.5 font-bold ${full ? 'text-rose-400' : darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
-                        {full ? '자리 가득 참' : `${t.occupied}/${t.total} 착석`}
-                      </p>
+                      </span>
+                      <span className={`text-[9px] font-semibold ${full ? 'text-rose-400' : isSelected || isMyTable ? (darkMode ? 'text-cyan-400/80' : 'text-cyan-600/80') : darkMode ? 'text-slate-500' : 'text-gray-400'}`}>
+                        {full ? '만석' : `${t.occupied}/${t.total}`}
+                        {isMyTable && <span className="ml-0.5 text-cyan-500 font-black">★</span>}
+                      </span>
                     </button>
                   );
                 })}
-                {myTableList.length === 0 && (
-                  <p className={`col-span-2 text-sm text-center py-4 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>
-                    테이블 정보가 없습니다
-                  </p>
-                )}
               </div>
-            </div>
+            )}
 
             {/* ── 선택된 테이블 배치도 ── */}
             {resolvedMyTable !== null ? (
@@ -1830,27 +1819,58 @@ export function MainScreen({
             {/* ── 오늘의 운세 미니카드 ── */}
             {(() => {
               const me = profiles.find(p => p.id === currentUserId);
-              const hasBd = !!(me?.birth_year && me?.birth_month && me?.birth_day);
+              // birth_year 없이 생월·생일만 있어도 운세 표시 가능
+              const hasBd = !!(me?.birth_month && me?.birth_day);
+              const cardBase = `w-full rounded-2xl p-4 border ${darkMode ? 'bg-gradient-to-r from-purple-900/40 to-slate-800 border-purple-500/30' : 'bg-gradient-to-r from-purple-50 to-white border-purple-200'}`;
+
+              if (!hasBd) {
+                return (
+                  <div className={cardBase}>
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">🔮</span>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-xs font-black uppercase tracking-widest ${darkMode ? 'text-purple-300' : 'text-purple-600'}`}>오늘의 운세</p>
+                        <p className="text-amber-500 text-xs font-semibold mt-0.5">생년월일 미등록 — 운세 기능을 사용할 수 없어요 ⚠️</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+
+              // 연도가 없으면 오행·띠 계산 불가 → 1990 기본값(시드 다양성 위해)
+              const birthYear = me?.birth_year ?? 1990;
+              const fortune = getTodayFortune(birthYear, me!.birth_month!, me!.birth_day!);
+              const zodiacEmoji = me?.birth_year ? getZodiac(me.birth_year).emoji : '🔮';
+
               return (
-                <button
-                  onClick={() => onTabChange('fortune')}
-                  className={`w-full rounded-2xl p-4 border text-left transition-all active:scale-98 ${darkMode ? 'bg-gradient-to-r from-purple-900/40 to-slate-800 border-purple-500/30 hover:border-purple-500/60' : 'bg-gradient-to-r from-purple-50 to-white border-purple-200 hover:border-purple-300'}`}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">{hasBd ? getZodiac(me!.birth_year!).emoji : '🔮'}</span>
+                <div className={cardBase}>
+                  {/* 헤더 행 */}
+                  <div className="flex items-center gap-3 mb-2.5">
+                    <span className="text-2xl flex-shrink-0">{zodiacEmoji}</span>
                     <div className="flex-1 min-w-0">
                       <p className={`text-xs font-black uppercase tracking-widest ${darkMode ? 'text-purple-300' : 'text-purple-600'}`}>오늘의 운세</p>
-                      {hasBd ? (
-                        <p className={`text-sm font-semibold truncate ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                          {getZodiac(me!.birth_year!).name}띠 · {getOhaeng(me!.birth_year!)} · 타로·사주·궁합 보기 →
-                        </p>
-                      ) : (
-                        <p className="text-amber-500 text-xs font-semibold">생년월일 미등록 — 운세 기능을 사용할 수 없어요 ⚠️</p>
-                      )}
+                      <p className={`text-[11px] ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                        {me!.birth_month}월 {me!.birth_day}일
+                        {me?.birth_year ? ` · ${getZodiac(me.birth_year).name}띠 · ${getOhaeng(me.birth_year)}` : ''}
+                      </p>
                     </div>
-                    <span className={`text-lg ${darkMode ? 'text-purple-400' : 'text-purple-500'}`}>›</span>
+                    {/* 에너지 레벨 뱃지 */}
+                    <div className={`flex-shrink-0 text-center px-2.5 py-1 rounded-xl ${darkMode ? 'bg-purple-900/60' : 'bg-purple-100'}`}>
+                      <p className={`text-[17px] font-black leading-none ${darkMode ? 'text-purple-200' : 'text-purple-700'}`}>{fortune.energyLevel}</p>
+                      <p className={`text-[8px] font-bold ${darkMode ? 'text-purple-400' : 'text-purple-500'}`}>에너지</p>
+                    </div>
                   </div>
-                </button>
+                  {/* 오늘의 메시지 */}
+                  <p className={`text-[13px] leading-relaxed mb-2.5 ${darkMode ? 'text-slate-200' : 'text-gray-700'}`}>
+                    {fortune.message}
+                  </p>
+                  {/* 행운 뱃지 */}
+                  <div className="flex flex-wrap gap-1.5">
+                    {[`🎨 ${fortune.luckyColor}`, `🔢 ${fortune.luckyNumber}`, `✨ ${fortune.luckyItem}`].map(tag => (
+                      <span key={tag} className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${darkMode ? 'bg-slate-700 text-slate-300' : 'bg-white border border-purple-100 text-gray-600'}`}>{tag}</span>
+                    ))}
+                  </div>
+                </div>
               );
             })()}
 

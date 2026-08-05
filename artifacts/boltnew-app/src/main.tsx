@@ -14,8 +14,9 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, { error: Error
   state = { error: null as Error | null, info: '' };
   static getDerivedStateFromError(error: Error) { return { error }; }
   componentDidCatch(error: Error, info: { componentStack: string }) {
+    // ⚠️ setState 금지: componentDidCatch에서 setState 호출 → 무한 루프
+    // getDerivedStateFromError에서 error를 이미 받았으므로 로그만 남김
     console.error('[AppErrorBoundary]', error, info);
-    this.setState({ info: info.componentStack?.slice(0, 200) ?? '' });
   }
   render() {
     if (this.state.error) {
@@ -153,7 +154,15 @@ function Root() {
   return <AppErrorBoundary><App /></AppErrorBoundary>;
 }
 
-createRoot(document.getElementById('root')!).render(
+// HMR 환경에서 createRoot()를 같은 컨테이너에 두 번 호출하면 "Maximum update depth" 오류가 발생.
+// 이미 생성된 root를 재사용하여 이중 마운트 방지.
+const rootEl = document.getElementById('root')!;
+const existingRoot = (rootEl as unknown as { __reactRoot?: ReturnType<typeof createRoot> }).__reactRoot;
+const appRoot = existingRoot ?? createRoot(rootEl);
+if (!existingRoot) {
+  (rootEl as unknown as { __reactRoot: ReturnType<typeof createRoot> }).__reactRoot = appRoot;
+}
+appRoot.render(
   <StrictMode>
     <ThemeProvider>
       <Root />

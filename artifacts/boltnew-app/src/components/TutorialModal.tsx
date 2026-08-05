@@ -3,7 +3,7 @@ import { X } from 'lucide-react';
 import type { TutorialSlide } from '../types/app';
 
 // 슬라이드 단축 레이블 (탭 네비게이션용)
-const SLIDE_SHORT_LABELS = ['환영', '공지', '주의', '하트', '채팅', '배치도', '게임', '운세', '건의'];
+const SLIDE_SHORT_LABELS = ['환영', '공지', '주의', '하트', '채팅', '배치도', '게임', '운세', '요청', '💡팁'];
 
 // 설명 + 방법 2단 구조 헬퍼
 function SlideWithSteps({ desc, steps, darkMode }: { desc: string; steps: string[]; darkMode?: boolean }) {
@@ -192,21 +192,54 @@ export const TUTORIAL_SLIDES: TutorialSlide[] = [
     ),
   },
 
-  /* 8 — 음료·건의함 */
+  /* 8 — 음료·요청함 */
   {
     emoji: '🍺',
-    title: '음료 요청 & 건의함',
+    title: '음료 요청 & 건의',
     color: 'from-amber-500 to-orange-500',
     renderBody: (darkMode) => (
       <SlideWithSteps darkMode={darkMode}
-        desc="건의함에서 음료를 요청하거나 운영진에게 의견을 전달할 수 있어요. 오늘 즐거운 시간 보내세요! 🎉"
+        desc="요청 탭에서 음료를 요청하거나 운영진에게 의견을 전달할 수 있어요. 오늘 즐거운 시간 보내세요! 🎉"
         steps={[
-          '채팅·건의 탭 → 건의함 섹션 확인',
+          '요청 탭 → 요청함 섹션 확인',
           '원하는 음료 버튼(🍺 🍶 🥤) 클릭',
           '기타 의견은 텍스트로 입력 후 전송',
           '운영진에게 실시간으로 전달돼요!',
         ]}
       />
+    ),
+  },
+
+  /* 9 — 숨겨진 기능 TIP */
+  {
+    emoji: '💡',
+    title: '알아두면 유용한 숨겨진 기능',
+    color: 'from-violet-500 to-purple-600',
+    renderBody: (darkMode) => (
+      <div className="px-5 py-3 space-y-2">
+        <p className={`text-[11px] leading-relaxed ${darkMode ? 'text-slate-300' : 'text-gray-600'}`}>
+          대부분의 사람들이 모르는 기능들이에요 👀
+        </p>
+        <div className="space-y-1.5">
+          {([
+            { icon: '📷', title: '사진 채팅', desc: '채팅방에서 📎 버튼으로 이미지 전송 가능' },
+            { icon: '🔮', title: '궁합 확인', desc: '내 운세 탭 → 다른 참여자와 궁합 점수 보기' },
+            { icon: '⭐', title: '내 테이블 즐겨찾기', desc: '내 테이블 탭: ★ 표시된 곳이 내 자리 테이블' },
+            { icon: '🪑', title: '자리 변경', desc: '배치도 탭에서 빈 자리(+)를 직접 탭해 이동' },
+            { icon: '📊', title: '분위기 점수', desc: '통계 탭에서 테이블별 분위기·성향 분석 확인' },
+            { icon: '📱', title: '연락처 교환', desc: '채팅 중 📱 버튼 → 카카오·인스타 공유 가능' },
+            { icon: '🌙', title: '다크 모드', desc: '좌상단 🌙 버튼으로 어두운 테마로 전환' },
+          ] as { icon: string; title: string; desc: string }[]).map(({ icon, title, desc }) => (
+            <div key={title} className={`flex items-start gap-2.5 px-3 py-1.5 rounded-xl ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-violet-50 border border-violet-100'}`}>
+              <span className="text-base leading-none mt-0.5 flex-shrink-0">{icon}</span>
+              <div>
+                <p className={`text-[11px] font-black leading-none ${darkMode ? 'text-slate-200' : 'text-violet-900'}`}>{title}</p>
+                <p className={`text-[10px] leading-snug mt-0.5 ${darkMode ? 'text-slate-400' : 'text-violet-600/80'}`}>{desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     ),
   },
 ];

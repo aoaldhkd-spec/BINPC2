@@ -278,6 +278,7 @@ function App() {
     confettiTimerRef.current = setTimeout(() => { setShowConfetti(true); confettiTimerRef.current = null; }, 30);
   }, []);
   const [seatingLocked, setSeatingLocked] = useState(false);
+  const [functionsLocked, setFunctionsLocked] = useState(false);
   const [activeTables, setActiveTables] = useState<number[] | null>(null);
   const [tableLabels, setTableLabels] = useState<Record<string, string> | null>(null);
   const [registrationError, setRegistrationError] = useState<string | null>(null);
@@ -412,6 +413,12 @@ function App() {
     triggerConfetti();
   }, [executeLike, triggerConfetti]);
 
+  // 기능 잠금 중에는 하트 전송 차단 (LOCKED_TABS와 동일한 보호 수준)
+  const handleLikeGuarded = useCallback((profileId: string) => {
+    if (functionsLocked) return;
+    handleLike(profileId);
+  }, [functionsLocked, handleLike]);
+
   const currentUserSeat = seats.find((s) => s.profile_id === currentUserId) ?? null;
   // Keep ref updated so notification channel can check user's table without stale closure
   userTableNumRef.current = currentUserSeat?.table_number ?? null;
@@ -460,6 +467,7 @@ function App() {
       setTimerEndAt(data?.timer_end_at ?? null);
       setTimerLabel(data?.timer_label ?? null);
       if (data?.seating_locked != null) setSeatingLocked(data.seating_locked);
+      if (data?.functions_locked != null) setFunctionsLocked(data.functions_locked);
       setActiveTables((data?.active_tables as number[] | null) ?? null);
       setTableLabels((data?.table_labels as Record<string, string> | null) ?? null);
       setResetPassword((data as { reset_password?: string | null })?.reset_password ?? null);
@@ -496,6 +504,7 @@ function App() {
         setTimerEndAt(p.timer_end_at ?? null);
         setTimerLabel(p.timer_label ?? null);
         if (p.seating_locked != null) setSeatingLocked(p.seating_locked);
+        if ((p as any).functions_locked != null) setFunctionsLocked((p as any).functions_locked);
         setActiveTables(p.active_tables ?? null);
         if (p.table_labels !== undefined) setTableLabels(p.table_labels);
         if (p.reset_password !== undefined) setResetPassword(p.reset_password ?? null);
@@ -1244,7 +1253,7 @@ function App() {
         isLiked={likedIds.has(selectedProfile.id)}
         heartType={sentHeartTypes.get(selectedProfile.id)}
         sentHeartsCount={sentHeartsPerPerson.get(selectedProfile.id)?.size ?? 0}
-        onLike={() => { if (!seatingLocked) handleLike(selectedProfile.id); }}
+        onLike={() => { if (!seatingLocked && !functionsLocked) handleLike(selectedProfile.id); }}
         onChat={() => { if (!seatingLocked) openChat(selectedProfile); }}
         onBack={() => setView('main')}
         onReset={reset}
@@ -1418,7 +1427,7 @@ function App() {
         profileMap={profileMap}
         mainTab={mainTab}
         onTabChange={setMainTab}
-        onLike={handleLike}
+        onLike={handleLikeGuarded}
         onSelect={(p) => { setSelectedProfile(p); setView('profile'); }}
         onReset={reset}
         onProfileClickFromMap={(p) => { setSelectedProfile(p); setView('profile'); }}
@@ -1465,6 +1474,7 @@ function App() {
           return next;
         })}
         seatingLocked={seatingLocked}
+        functionsLocked={functionsLocked}
         activeTables={activeTables}
         tableLabels={tableLabels}
         onShowTutorial={() => { setTutorialPage(0); setShowTutorialModal(true); }}

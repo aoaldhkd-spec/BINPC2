@@ -304,6 +304,7 @@ async function seedIfNeeded(): Promise<void> {
       timer_end_at: null,
       timer_label: null,
       seating_locked: false,
+      functions_locked: false,
       active_tables: null,
       reset_signal: null,
       table_labels: null,

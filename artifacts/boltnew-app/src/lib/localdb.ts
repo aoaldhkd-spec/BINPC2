@@ -272,8 +272,12 @@ export function setLocalDbUserId(userId: string | null) {
 
 function createSse() {
   const params: string[] = [];
-  if (_currentUserId) params.push(`userId=${encodeURIComponent(_currentUserId)}`);
-  if (_sseToken) params.push(`token=${encodeURIComponent(_sseToken)}`);
+  // userId와 token은 반드시 함께 제공해야 함 — token 없이 userId만 보내면 서버가 401 반환
+  // token을 아직 발급받지 못한 경우에는 익명으로 연결하여 401 루프 방지
+  if (_currentUserId && _sseToken) {
+    params.push(`userId=${encodeURIComponent(_currentUserId)}`);
+    params.push(`token=${encodeURIComponent(_sseToken)}`);
+  }
   const url = params.length ? `${API}/events?${params.join('&')}` : `${API}/events`;
   const es = new EventSource(url);
   es.onmessage = (ev) => {

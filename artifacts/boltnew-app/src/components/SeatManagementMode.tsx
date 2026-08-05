@@ -26,6 +26,7 @@ const MODES: { id: Mode; label: string; icon: typeof Move; color: string; desc: 
 ];
 
 function shortLabel(seat: Seat) {
+  if (!seat.seat_label) return '';
   return seat.seat_label.split(' ').pop() ?? seat.seat_label;
 }
 

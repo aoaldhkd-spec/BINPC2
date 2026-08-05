@@ -63,9 +63,11 @@ export function useChat({
           filter: `chat_id=eq.${chatId_}`,
         }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
           try {
-            const m = payload.new as { chat_id: string; sender_id: string; content: string };
+            const m = payload.new as { chat_id: string; sender_id: string; content: string; image_url?: string };
             if (m.sender_id === currentUserId) return;
-            setChatList(prev => prev.map(c => c.id === m.chat_id ? { ...c, lastMessage: m.content } : c));
+            // 이미지 메시지는 content가 '' — lastMessage 미리보기를 '📷 사진'으로 표시
+            const preview = m.image_url ? '📷 사진' : m.content;
+            setChatList(prev => prev.map(c => c.id === m.chat_id ? { ...c, lastMessage: preview } : c));
             if (chatIdRef.current !== m.chat_id) {
               setUnreadChatCounts(prev => ({ ...prev, [m.chat_id]: (prev[m.chat_id] ?? 0) + 1 }));
               const senderProfile = profilesRef.current.find(p => p.id === m.sender_id);
@@ -124,6 +126,12 @@ export function useChat({
           const newMsg = payload.new as Message;
           setMessages(prev => applySseInsert(prev, newMsg));
         })
+      // 상대방이 메시지를 삭제했을 때 화면에서 즉시 제거 (ghost 메시지 방지)
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages', filter: `chat_id=eq.${chatId}` },
+        (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
+          const deleted = payload.old as { id?: string };
+          if (deleted.id) setMessages(prev => prev.filter(m => m.id !== deleted.id));
+        })
       .subscribe();
     loadMessages(chatId);
 
@@ -166,20 +174,23 @@ export function useChat({
     if (!data) return;
     if (data.length === 0) { setChatList([]); void syncUnreadCountsRef.current?.(); return; }
     const chatIds = data.map((c: { id: string }) => c.id);
-    const { data: allMsgs } = await supabase.from('messages').select('chat_id, content, created_at')
+    const { data: allMsgs } = await supabase.from('messages').select('chat_id, content, image_url, created_at')
       .in('chat_id', chatIds).order('created_at', { ascending: false }).limit(Math.max(chatIds.length * 20, 100));
     if (gen !== loadChatListGenRef.current) return; // 두 번째 fetch도 체크
-    const latestByChat = new Map<string, { content: string; created_at: string }>();
+    const latestByChat = new Map<string, { content: string; image_url?: string; created_at: string }>();
     if (allMsgs) {
-      for (const m of allMsgs as { chat_id: string; content: string; created_at: string }[]) {
-        if (!latestByChat.has(m.chat_id)) latestByChat.set(m.chat_id, { content: m.content, created_at: m.created_at });
+      for (const m of allMsgs as { chat_id: string; content: string; image_url?: string; created_at: string }[]) {
+        if (!latestByChat.has(m.chat_id)) latestByChat.set(m.chat_id, { content: m.content, image_url: m.image_url, created_at: m.created_at });
       }
     }
-    const enriched: Chat[] = data.map((c: { id: string; user1_id: string; user2_id: string; created_at: string }) => ({
-      ...c,
-      lastMessage: latestByChat.get(c.id)?.content || '',
-      messageCount: 0,
-    }));
+    const enriched: Chat[] = data.map((c: { id: string; user1_id: string; user2_id: string; created_at: string }) => {
+      const latest = latestByChat.get(c.id);
+      return {
+        ...c,
+        lastMessage: latest?.image_url ? '📷 사진' : (latest?.content ?? ''),
+        messageCount: 0,
+      };
+    });
     setChatList(enriched);
     // 채팅 목록 로드 완료 후 DB 기반 미읽음 카운트를 즉시 동기화
     // (앱을 완전히 닫았다가 재진입 시 SSE 재연결이 아닌 첫 연결이므로 별도 호출 필요)
@@ -313,14 +324,17 @@ export function useChat({
   currentUserIdRef.current = currentUserId;
 
   // SSE 재연결: 끊김 복구 직후 누락 카운트 보정 + 채팅 목록 전체 재동기화
-  // (끊긴 동안 생성된 채팅방을 놓치지 않기 위해 loadChatList도 함께 호출)
+  // (끊긴 동안 생성된 채팅방·메시지를 놓치지 않기 위해 loadChatList + loadMessages 함께 호출)
   useEffect(() => {
     return onSseReconnect(() => {
       void syncUnreadCounts();
       const uid = currentUserIdRef.current;
       if (uid) void loadChatList(uid);
+      // 끊긴 동안 도착한 메시지를 활성 채팅방에서도 즉시 반영 (8초 폴링 대기 없음)
+      const activeChatId = chatIdRef.current;
+      if (activeChatId) void loadMessages(activeChatId);
     });
-  }, [syncUnreadCounts, loadChatList]);
+  }, [syncUnreadCounts, loadChatList, loadMessages]);
 
   // 전송 중 잠금 — 동기 ref로 이중 클릭/Enter+클릭 동시 전송 방지
   const sendInFlightRef = useRef(false);
@@ -376,16 +390,39 @@ export function useChat({
     if (!snapChatId || !snapUserId) return null;
     if (sendImageInFlightRef.current) return '이미 전송 중입니다.';
     sendImageInFlightRef.current = true;
+    const clientId = crypto.randomUUID();
+    const prevLastMessage = chatListRef.current.find(c => c.id === snapChatId)?.lastMessage ?? '';
+
+    // 낙관적 UI: 이미지 메시지를 즉시 화면에 추가 (업로드 중 로컬 blob URL 사용)
+    const localBlobUrl = URL.createObjectURL(file);
+    const optimisticId = `__opt_${clientId}`;
+    const optimisticMsg = {
+      id: optimisticId, chat_id: snapChatId, sender_id: snapUserId,
+      content: '', image_url: localBlobUrl, created_at: new Date().toISOString(),
+      client_id: clientId,
+    } as Message;
+    setMessages(prev => {
+      if (chatIdRef.current !== snapChatId) return prev;
+      return [...prev, optimisticMsg];
+    });
+    setChatList(prev => prev.map(c => c.id === snapChatId ? { ...c, lastMessage: '📷 사진' } : c));
+
+    const rollback = () => {
+      URL.revokeObjectURL(localBlobUrl);
+      setMessages(prev => prev.filter(m => m.id !== optimisticId));
+      setChatList(prev => prev.map(c => c.id === snapChatId ? { ...c, lastMessage: prevLastMessage } : c));
+    };
+
     try {
       const ext = file.name.split('.').pop() ?? 'jpg';
-      const clientId = crypto.randomUUID();
       const path = `${snapChatId}/${clientId}.${ext}`;
       const { data, error } = await supabase.storage.from('chat-images').upload(path, file, { contentType: file.type || 'image/jpeg' });
-      if (error) return error.message;
-      if (!data) return '업로드 실패';
+      if (error) { rollback(); return error.message; }
+      if (!data) { rollback(); return '업로드 실패'; }
       // 업로드 완료 후 채팅방/사용자가 바뀌었으면 고아 파일 정리 후 중단
       if (chatIdRef.current !== snapChatId || currentUserId !== snapUserId) {
         supabase.storage.from('chat-images').remove([data.path]).catch(() => {});
+        rollback();
         return null;
       }
       const { data: { publicUrl } } = supabase.storage.from('chat-images').getPublicUrl(data.path);
@@ -396,8 +433,11 @@ export function useChat({
       if (msgErr) {
         // DB insert 실패 → 스토리지에 올라간 파일을 즉시 삭제해 고아 파일 방지
         supabase.storage.from('chat-images').remove([data.path]).catch(() => {});
+        rollback();
         return msgErr.message;
       }
+      // 성공: SSE가 실제 URL로 낙관적 메시지를 교체함 — blob URL은 5초 후 해제
+      setTimeout(() => URL.revokeObjectURL(localBlobUrl), 5_000);
       return null;
     } finally {
       sendImageInFlightRef.current = false;

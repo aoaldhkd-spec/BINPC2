@@ -1095,14 +1095,58 @@ function DbHealthTab({ health, loading, onRefresh, onClearErrors }: { health: Db
   );
 }
 
+// ─── 자리 수 조정 버튼 (테이블당 8인 초과 자리 삭제) ────────────────────────────
+function TrimSeatsButton({ adminPassword }: { adminPassword: string }) {
+  const [trimming, setTrimming] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+
+  const handleTrim = async () => {
+    if (!window.confirm('각 테이블에서 9번 자리 이상(빈 자리만)을 삭제합니다.\n이미 배정된 자리는 유지됩니다.\n계속할까요?')) return;
+    setTrimming(true);
+    setResult(null);
+    try {
+      // 비어있는 자리 중 seat_position > 8 인 자리만 삭제 (착석 중인 자리는 보존)
+      const { error, count } = await adminSupabase
+        .from('seats')
+        .delete({ count: 'exact' })
+        .gt('seat_position', 8)
+        .eq('status', 'empty');
+      if (error) { setResult(`오류: ${error.message}`); }
+      else { setResult(`완료 — ${count ?? 0}개 자리 삭제됨`); }
+    } finally {
+      setTrimming(false);
+    }
+  };
+
+  return (
+    <div className={`rounded-2xl border-2 p-3.5 flex items-center gap-3 transition-all ${result?.startsWith('완료') ? 'bg-teal-50 border-teal-200' : result ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-200'}`}>
+      <div className="w-10 h-10 rounded-xl bg-indigo-500 flex items-center justify-center flex-shrink-0">
+        <span className="text-white text-base">✂️</span>
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="font-black text-sm text-slate-700">테이블 8인 조정</p>
+        <p className="text-[10px] text-slate-400 mt-0.5">{result ?? '비어있는 9~11번 자리를 일괄 삭제 (0/11 → 0/8)'}</p>
+      </div>
+      <button
+        onClick={handleTrim}
+        disabled={trimming}
+        className="flex-shrink-0 px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-300 text-white text-xs font-black rounded-xl transition-all active:scale-95"
+      >
+        {trimming ? '처리 중…' : '실행'}
+      </button>
+    </div>
+  );
+}
+
 // ─── Dashboard Tab ────────────────────────────────────────────────────────────
 
-function DashboardTab({ settings, seats, profiles, onToggleSession, onFullReset, onEventEndReset, onToggleFeatureLock,
+function DashboardTab({ settings, seats, profiles, onToggleSession, onFullReset, onEventEndReset, onToggleFeatureLock, onToggleFunctionsLock,
   onClearLikes, onClearChats, onClearNotifications, onClearGames, onClearSuggestions, onClearProfiles, onClearHistory,
   restoreMap }: {
   settings: AppSettings | null; seats: Seat[]; profiles: Profile[];
   onToggleSession: () => void; onFullReset: () => void; onEventEndReset: () => void;
   onToggleFeatureLock: () => void;
+  onToggleFunctionsLock: () => void;
   onClearLikes: () => Promise<void>;
   onClearChats: () => Promise<void>;
   onClearNotifications: () => Promise<void>;
@@ -1119,7 +1163,8 @@ function DashboardTab({ settings, seats, profiles, onToggleSession, onFullReset,
   const activeSeats = activeTables ? seats.filter(s => activeTables.includes(s.table_number)) : seats;
   const occupied = activeSeats.filter((s) => s.status === 'occupied').length;
   const isActive = settings?.session_active ?? false;
-  const isLocked = settings?.seating_locked ?? false;
+  const isSeatingLocked = settings?.seating_locked ?? false;
+  const isFunctionsLocked = (settings as any)?.functions_locked ?? false;
 
   return (
     <div className="space-y-4 p-4">
@@ -1173,36 +1218,61 @@ function DashboardTab({ settings, seats, profiles, onToggleSession, onFullReset,
         </div>
       </div>
 
-      {/* 기능 잠금 */}
+      {/* 잠금 제어 — 자리 잠금 / 기능 잠금 분리 */}
       <div>
-        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 px-1">기능 잠금</h3>
-        <button
-          onClick={onToggleFeatureLock}
-          className={`w-full rounded-2xl p-4 border-2 flex items-center gap-4 transition-all active:scale-[0.98] shadow-sm ${
-            isLocked
-              ? 'bg-red-50 border-red-300 hover:bg-red-100'
-              : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
-          }`}
-        >
-          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 transition-all ${
-            isLocked ? 'bg-red-500' : 'bg-slate-400'
-          }`}>
-            {isLocked ? <Lock className="w-6 h-6 text-white" /> : <Unlock className="w-6 h-6 text-white" />}
-          </div>
-          <div className="flex-1 text-left">
-            <p className={`font-black text-sm ${isLocked ? 'text-red-700' : 'text-slate-700'}`}>
-              {isLocked ? '🔒 기능 잠금 중' : '🔓 기능 잠금 해제됨'}
-            </p>
-            <p className={`text-xs mt-0.5 leading-snug ${isLocked ? 'text-red-500' : 'text-slate-400'}`}>
-              {isLocked
-                ? '유저들이 앱 기능을 사용할 수 없습니다 — 탭하여 해제'
-                : '유저들이 자유롭게 앱을 사용 중 — 탭하여 잠금'}
-            </p>
-          </div>
-          <div className={`relative w-12 h-7 rounded-full transition-all duration-300 flex-shrink-0 ${isLocked ? 'bg-red-500' : 'bg-slate-300'}`}>
-            <div className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow-md transition-all duration-300 ${isLocked ? 'left-6' : 'left-1'}`} />
-          </div>
-        </button>
+        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 px-1">잠금 제어</h3>
+        <div className="space-y-2">
+          {/* 자리 잠금 (seating_locked) */}
+          <button
+            onClick={onToggleFeatureLock}
+            className={`w-full rounded-2xl p-3.5 border-2 flex items-center gap-3 transition-all active:scale-[0.98] shadow-sm ${
+              isSeatingLocked ? 'bg-amber-50 border-amber-300 hover:bg-amber-100' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
+            }`}
+          >
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isSeatingLocked ? 'bg-amber-500' : 'bg-slate-400'}`}>
+              {isSeatingLocked ? <Lock className="w-5 h-5 text-white" /> : <Unlock className="w-5 h-5 text-white" />}
+            </div>
+            <div className="flex-1 text-left">
+              <p className={`font-black text-sm ${isSeatingLocked ? 'text-amber-700' : 'text-slate-700'}`}>
+                {isSeatingLocked ? '🔒 자리 선택 잠금 중' : '🪑 자리 선택 열려있음'}
+              </p>
+              <p className={`text-[10px] mt-0.5 ${isSeatingLocked ? 'text-amber-500' : 'text-slate-400'}`}>
+                {isSeatingLocked ? '유저가 자리를 바꿀 수 없음 — 탭하여 해제' : '유저가 자리를 직접 선택 가능 — 탭하여 잠금'}
+              </p>
+            </div>
+            <div className={`relative w-10 h-6 rounded-full transition-all flex-shrink-0 ${isSeatingLocked ? 'bg-amber-500' : 'bg-slate-300'}`}>
+              <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${isSeatingLocked ? 'left-4' : 'left-0.5'}`} />
+            </div>
+          </button>
+          {/* 기능 잠금 (functions_locked) */}
+          <button
+            onClick={onToggleFunctionsLock}
+            className={`w-full rounded-2xl p-3.5 border-2 flex items-center gap-3 transition-all active:scale-[0.98] shadow-sm ${
+              isFunctionsLocked ? 'bg-red-50 border-red-300 hover:bg-red-100' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
+            }`}
+          >
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isFunctionsLocked ? 'bg-red-500' : 'bg-slate-400'}`}>
+              {isFunctionsLocked ? <Lock className="w-5 h-5 text-white" /> : <Unlock className="w-5 h-5 text-white" />}
+            </div>
+            <div className="flex-1 text-left">
+              <p className={`font-black text-sm ${isFunctionsLocked ? 'text-red-700' : 'text-slate-700'}`}>
+                {isFunctionsLocked ? '🔒 채팅·기능 잠금 중' : '💬 채팅·기능 열려있음'}
+              </p>
+              <p className={`text-[10px] mt-0.5 ${isFunctionsLocked ? 'text-red-500' : 'text-slate-400'}`}>
+                {isFunctionsLocked ? '하트·채팅·요청·게임 사용 불가 — 탭하여 해제' : '하트·채팅·요청·게임·운세 모두 사용 가능 — 탭하여 잠금'}
+              </p>
+            </div>
+            <div className={`relative w-10 h-6 rounded-full transition-all flex-shrink-0 ${isFunctionsLocked ? 'bg-red-500' : 'bg-slate-300'}`}>
+              <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${isFunctionsLocked ? 'left-4' : 'left-0.5'}`} />
+            </div>
+          </button>
+        </div>
+      </div>
+
+      {/* 자리 수 조정 — 테이블당 8인 초과 자리 정리 */}
+      <div>
+        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 px-1">자리 설정</h3>
+        <TrimSeatsButton adminPassword={settings?.admin_password ?? ''} />
       </div>
 
       {/* 데이터 초기화 */}
@@ -1556,30 +1626,36 @@ function ChatsTab({ chats, messages, profileMap, onDeleteChat, onClearAll, onRef
         const isOpen = expandedId === chat.id;
         return (
           <div key={chat.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-            <button
-              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left"
-              onClick={() => setExpandedId(isOpen ? null : chat.id)}
-            >
-              <div className="flex -space-x-2">
-                {u1 && <div className="w-8 h-8 rounded-full overflow-hidden ring-2 ring-white"><img src={u1.photo_url} alt={u1.nickname} className="w-full h-full object-cover" /></div>}
-                {u2 && <div className="w-8 h-8 rounded-full overflow-hidden ring-2 ring-white"><img src={u2.photo_url} alt={u2.nickname} className="w-full h-full object-cover" /></div>}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-gray-900">
-                  {u1?.nickname ?? '?'} ↔ {u2?.nickname ?? '?'}
-                </p>
-                {lastMsg && (
-                  <p className="text-xs text-gray-400 truncate">
-                    {lastMsg.image_url ? '[이미지]' : lastMsg.content} · {chatMessages.length}개 메시지
+            {/* ⚠️ 버튼 중첩 방지: 외부 클릭 영역(div)과 삭제 버튼을 분리 */}
+            <div className="flex items-center">
+              <div
+                role="button"
+                tabIndex={0}
+                className="flex-1 flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left cursor-pointer min-w-0"
+                onClick={() => setExpandedId(isOpen ? null : chat.id)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setExpandedId(isOpen ? null : chat.id); }}
+              >
+                <div className="flex -space-x-2 flex-shrink-0">
+                  {u1 && <div className="w-8 h-8 rounded-full overflow-hidden ring-2 ring-white"><img src={u1.photo_url} alt={u1.nickname} className="w-full h-full object-cover" /></div>}
+                  {u2 && <div className="w-8 h-8 rounded-full overflow-hidden ring-2 ring-white"><img src={u2.photo_url} alt={u2.nickname} className="w-full h-full object-cover" /></div>}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-gray-900">
+                    {u1?.nickname ?? '?'} ↔ {u2?.nickname ?? '?'}
                   </p>
-                )}
+                  {lastMsg && (
+                    <p className="text-xs text-gray-400 truncate">
+                      {lastMsg.image_url ? '[이미지]' : lastMsg.content} · {chatMessages.length}개 메시지
+                    </p>
+                  )}
+                </div>
+                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
               </div>
               <button onClick={(e) => { e.stopPropagation(); setConfirmDelete(chat.id); }}
-                className="flex-shrink-0 p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all">
+                className="flex-shrink-0 p-1.5 mr-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all">
                 <Trash2 className="w-4 h-4" />
               </button>
-              <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
-            </button>
+            </div>
             {isOpen && (
               <div className="border-t border-gray-100 max-h-80 overflow-y-auto">
                 {chatMessages.length === 0 ? (
@@ -5072,14 +5148,25 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   };
 
   const handleToggleFeatureLock = async () => {
-    // ✅ Fix #4b: 기능 잠금 토글 race 방지 — 낙관적 즉시 반영 후 저장
+    // 자리 잠금 토글 (seating_locked)
     if (!settings) return;
     const newVal = !(settings.seating_locked ?? false);
-    setSettings(prev => prev ? { ...prev, seating_locked: newVal } : prev); // 낙관적 업데이트
+    setSettings(prev => prev ? { ...prev, seating_locked: newVal } : prev);
     const { error } = await adminSupabase.from('app_settings').update({ seating_locked: newVal, updated_at: new Date().toISOString() }).eq('id', 1);
     if (error) {
-      // 실패 시 롤백
       setSettings(prev => prev ? { ...prev, seating_locked: !newVal } : prev);
+      console.error('[admin] 자리 잠금 토글 실패:', error.message);
+    }
+  };
+
+  const handleToggleFunctionsLock = async () => {
+    // 기능 잠금 토글 (functions_locked) — 채팅·건의·게임 등
+    if (!settings) return;
+    const newVal = !((settings as any).functions_locked ?? false);
+    setSettings(prev => prev ? { ...prev, functions_locked: newVal } as any : prev);
+    const { error } = await adminSupabase.from('app_settings').update({ functions_locked: newVal, updated_at: new Date().toISOString() }).eq('id', 1);
+    if (error) {
+      setSettings(prev => prev ? { ...prev, functions_locked: !newVal } as any : prev);
       console.error('[admin] 기능 잠금 토글 실패:', error.message);
     }
   };
@@ -5211,6 +5298,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               <DashboardTab settings={settings} seats={seats} profiles={profiles}
                 onToggleSession={handleToggleSession} onFullReset={handleFullReset} onEventEndReset={handleEventEndReset}
                 onToggleFeatureLock={handleToggleFeatureLock}
+                onToggleFunctionsLock={handleToggleFunctionsLock}
                 onClearLikes={handleClearLikes} onClearChats={handleClearAllChats}
                 onClearNotifications={handleClearNotifications} onClearGames={handleClearGames}
                 onClearSuggestions={handleClearSuggestions} onClearProfiles={handleClearProfiles}
