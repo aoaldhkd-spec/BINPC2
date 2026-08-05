@@ -1268,7 +1268,6 @@ export function MainScreen({
                 {myTableList.map(t => {
                   const isSelected = resolvedMyTable === t.num;
                   const isMyTable = currentUserSeat?.table_number === t.num;
-                  const full = t.total > 0 && t.occupied >= t.total;
                   return (
                     <button
                       key={t.num}
@@ -1283,9 +1282,6 @@ export function MainScreen({
                     >
                       {isMyTable && <span className="text-cyan-400 text-[9px]">★</span>}
                       <span>{t.label}</span>
-                      <span className={`text-[9px] font-normal ${full ? 'text-rose-400' : isMyTable || isSelected ? 'opacity-70' : 'opacity-50'}`}>
-                        {full ? '만석' : `${t.occupied}/${t.total}`}
-                      </span>
                     </button>
                   );
                 })}
@@ -2276,7 +2272,7 @@ export function MainScreen({
                       </p>
                     </div>
                     <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                      {unreadChatCounts[chat.id] > 0 && (
+                      {(unreadChatCounts[chat.id] ?? 0) > 0 && (
                         <span className="min-w-[22px] h-[22px] px-1.5 bg-rose-500 text-white text-[11px] font-black rounded-full flex items-center justify-center shadow-sm">
                           {unreadChatCounts[chat.id] > 99 ? '99+' : unreadChatCounts[chat.id]}
                         </span>

@@ -477,7 +477,7 @@ function TableExpandModal({
                 <>{label}번 테이블</>
               )}
             </h3>
-            <p className="text-xs text-slate-400 mt-0.5">{occupied}/{tableSeats.length}명 착석</p>
+            <p className="text-xs text-slate-400 mt-0.5">{occupied}/{Math.min(tableSeats.length, 8)}명 착석</p>
           </div>
           <button onClick={onClose} className="w-8 h-8 rounded-xl bg-slate-700 hover:bg-slate-600 flex items-center justify-center transition-all">
             <X className="w-4 h-4 text-slate-300" />
@@ -613,7 +613,7 @@ function TableHeader({ tableNum, seats, onClick, isAdmin, label: _label, darkMod
 }) {
   const t = seatTheme(darkMode);
   const occupied = seats.filter(s => s.table_number === tableNum && s.status === 'occupied').length;
-  const total = seats.filter(s => s.table_number === tableNum).length;
+  const total = Math.min(seats.filter(s => s.table_number === tableNum).length, 8);
   return (
     <button onClick={onClick} className={`text-[10px] font-bold mb-0.5 transition-colors ${t.muted} ${isAdmin ? 'cursor-default' : 'hover:text-teal-400 active:text-teal-300'}`}>
       {occupied}/{total}

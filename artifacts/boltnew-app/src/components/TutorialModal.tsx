@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import type { TutorialSlide } from '../types/app';
+import { TutorialVideo } from './TutorialVideo';
 
 // 슬라이드 단축 레이블 (탭 네비게이션용)
 const SLIDE_SHORT_LABELS = ['환영', '공지', '주의', '하트', '채팅', '배치도', '게임', '운세', '요청', '💡팁'];
@@ -247,8 +248,13 @@ export function TutorialModal({ page, onChangePage, onClose, darkMode }: {
   onClose: () => void;
   darkMode?: boolean;
 }) {
+  const [videoMode, setVideoMode] = useState(false);
   const slide = TUTORIAL_SLIDES[page];
   const isLast = page === TUTORIAL_SLIDES.length - 1;
+
+  if (videoMode) {
+    return <TutorialVideo darkMode={darkMode} onClose={() => setVideoMode(false)} />;
+  }
 
   return (
     <div className="fixed inset-0 z-[150] flex items-end justify-center sm:items-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
@@ -259,6 +265,15 @@ export function TutorialModal({ page, onChangePage, onClose, darkMode }: {
         {/* 닫기 */}
         <button onClick={onClose} className="absolute top-3 right-3 z-10 w-8 h-8 flex items-center justify-center rounded-full bg-black/20 text-white hover:bg-black/40 transition-all">
           <X className="w-4 h-4" />
+        </button>
+
+        {/* 동영상 버튼 */}
+        <button
+          onClick={() => setVideoMode(true)}
+          className="absolute top-3 left-3 z-10 flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-black/30 hover:bg-black/50 transition-all"
+        >
+          <span className="text-white text-[10px]">▶</span>
+          <span className="text-white text-[10px] font-bold">동영상</span>
         </button>
 
         {/* 헤더 그라데이션 */}
@@ -300,7 +315,7 @@ export function TutorialModal({ page, onChangePage, onClose, darkMode }: {
           )}
         </div>
 
-        {/* ── 하단 이전/다음 버튼 ── */}
+        {/* ── 하단 버튼 영역 ── */}
         <div className={`px-5 py-4 pt-3 flex gap-2 border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
           {page > 0 && (
             <button

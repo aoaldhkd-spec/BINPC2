@@ -1,6 +1,17 @@
+/**
+ * useChat — 1:1 채팅 상태 관리 훅
+ *
+ * 구조적 안전 장치:
+ * 1. sendMessage/sendImage: chatIdRef·currentUserIdRef(항상 최신 ref)를 스냅샷해 stale closure 완전 차단
+ * 2. 전송 잠금: boolean → Set<chatId> 로 교체 — 채팅방별 독립 잠금 (A 전송 중에도 B 전송 가능)
+ * 3. try/catch: supabase.insert() 네트워크 예외를 잡아 finally로 잠금 해제 보장
+ * 4. 미읽음 뱃지: unreadChatCountsRef(ref)로 항상 최신값 보장
+ * 5. 채널 누수: per-chat 채널은 chatIdsKey·currentUserId 변화 시 cleanup이 항상 실행됨
+ */
+
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { onSseReconnect, onSseDisconnect } from '../lib/localdb';
+import { onSseReconnect } from '../lib/localdb';
 import type { Profile, Message, Chat, View } from '../types/app';
 import { HeartType } from '../lib/constants';
 import { playCuteSound } from '../lib/sounds';
@@ -25,6 +36,10 @@ export function useChat({
   const chatIdRef = useRef<string | null>(null);
   chatIdRef.current = chatId;
 
+  // currentUserId를 ref로 캡처 — sendMessage/sendImage가 항상 최신값을 읽음 (stale closure 차단)
+  const currentUserIdRef = useRef(currentUserId);
+  currentUserIdRef.current = currentUserId;
+
   // 내가 직접 연 채팅방 pair 기록 — SSE INSERT 알림 억제용
   const selfInitiatedPairRef = useRef<string | null>(null);
 
@@ -35,17 +50,21 @@ export function useChat({
 
   const perChatChannelsRef = useRef<Map<string, ReturnType<typeof supabase.channel>>>(new Map());
   const [unreadChatCounts, setUnreadChatCounts] = useState<Record<string, number>>({});
+  // ref 사본: async 컨텍스트에서 stale closure 없이 최신값 읽기
+  const unreadChatCountsRef = useRef<Record<string, number>>({});
+  unreadChatCountsRef.current = unreadChatCounts;
+
   const [newMsgCount, setNewMsgCount] = useState(0);
 
   // ── 채팅방별 메시지 구독 (서버 사이드 필터) ──────────────────────────────────
-  // chatIdsKey: chatList의 ID 목록만 문자열로 직렬화 — lastMessage 변경 시 채널 재생성 방지
-  // (lastMessage 업데이트마다 채널이 통째로 다시 만들어지던 성능 버그 수정)
+  // chatIdsKey: chatList의 ID 목록만 직렬화 — lastMessage 변경 시 채널 재생성 방지
   const chatIdsKey = chatList.map(c => c.id).join(',');
   useEffect(() => {
     if (!currentUserId || chatListRef.current.length === 0) return;
     const channels = perChatChannelsRef.current;
     const currentIds = new Set(chatListRef.current.map(c => c.id));
 
+    // 삭제된 채팅방 채널 제거
     for (const [cid, ch] of channels) {
       if (!currentIds.has(cid)) {
         supabase.removeChannel(ch);
@@ -53,9 +72,10 @@ export function useChat({
       }
     }
 
+    // 새 채팅방 채널 추가 (이미 있는 건 skip)
     for (const chat of chatListRef.current) {
       if (channels.has(chat.id)) continue;
-      const chatId_ = chat.id; // 클로저 캡처용
+      const chatId_ = chat.id;
       const ch = supabase
         .channel(`msgs:${chatId_}`)
         .on('postgres_changes', {
@@ -64,10 +84,11 @@ export function useChat({
         }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
           try {
             const m = payload.new as { chat_id: string; sender_id: string; content: string; image_url?: string };
+            // 내 메시지는 optimistic UI + sendMessage에서 이미 처리함 — 여기서 중복 처리 금지
             if (m.sender_id === currentUserId) return;
-            // 이미지 메시지는 content가 '' — lastMessage 미리보기를 '📷 사진'으로 표시
             const preview = m.image_url ? '📷 사진' : m.content;
             setChatList(prev => prev.map(c => c.id === m.chat_id ? { ...c, lastMessage: preview } : c));
+            // 현재 열린 채팅방이면 미읽음 증가 없이 lastMessage만 업데이트
             if (chatIdRef.current !== m.chat_id) {
               setUnreadChatCounts(prev => ({ ...prev, [m.chat_id]: (prev[m.chat_id] ?? 0) + 1 }));
               const senderProfile = profilesRef.current.find(p => p.id === m.sender_id);
@@ -81,8 +102,6 @@ export function useChat({
       channels.set(chatId_, ch);
     }
 
-    // ✅ 항상 전체 채널 정리 — currentUserId 값에 관계없이
-    // (로그아웃·사용자 변경·언마운트 시 stale 채널이 남아 알림 이중 발화 방지)
     return () => {
       for (const ch of channels.values()) supabase.removeChannel(ch);
       channels.clear();
@@ -90,27 +109,33 @@ export function useChat({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatIdsKey, currentUserId]);
 
-  // ── 활성 채팅방 메시지 구독 ─────────────────────────────────────────────────
-  // 스탤 로드 방지: 채팅방 전환 시 이전 채팅방 응답이 늦게 돌아와 덮어쓰는 race 차단
+  // ── 활성 채팅방 메시지 로드 ───────────────────────────────────────────────────
   const loadGenRef = useRef(0);
   const loadMessages = useCallback(async (cid: string): Promise<boolean> => {
     const gen = ++loadGenRef.current;
-    const { data, error } = await supabase.from('messages').select('*').eq('chat_id', cid).order('created_at', { ascending: true });
-    if (gen !== loadGenRef.current) return false; // 이미 다른 채팅방으로 전환됨 — 결과 버림
-    if (error) { console.error('[loadMessages] DB 오류:', error.message); return false; }
-    if (data) setMessages(prev => applyLoadMessages(prev, data as Message[]));
-    return true;
+    try {
+      const { data, error } = await supabase.from('messages').select('*').eq('chat_id', cid).order('created_at', { ascending: true });
+      if (gen !== loadGenRef.current) return false; // stale 응답 버림
+      if (error) { console.error('[loadMessages] DB 오류:', error.message); return false; }
+      if (data) setMessages(prev => applyLoadMessages(prev, data as Message[]));
+      return true;
+    } catch (err) {
+      console.error('[loadMessages] 네트워크 오류:', err);
+      return false;
+    }
   }, []);
 
+  // ── 채팅방 진입/전환 ─────────────────────────────────────────────────────────
   useEffect(() => {
     setMessages([]);
     if (!chatId) return;
     chatIdRef.current = chatId;
-    // 채팅방 열 때: unread 카운트 삭제 + 전체 배지(newMsgCount)도 함께 감소
-    // setState 중첩 호출 금지: removed를 먼저 읽은 뒤 두 setter 분리 호출
-    const removed = unreadChatCounts[chatId] ?? 0;
+
+    // 채팅방 열 때: unread 카운트 삭제 + 전체 배지 감소
+    const removed = unreadChatCountsRef.current[chatId] ?? 0;
     setUnreadChatCounts(prev => { const n = { ...prev }; delete n[chatId]; return n; });
     if (removed > 0) setNewMsgCount(c => Math.max(0, c - removed));
+
     if (currentUserId) {
       supabase.from('chat_reads').upsert({
         id: `${chatId}__${currentUserId}`,
@@ -119,6 +144,7 @@ export function useChat({
         read_at: new Date().toISOString(),
       }, { onConflict: 'id' }).then(() => {}).catch(() => {});
     }
+
     const channel = supabase
       .channel(`chat:${chatId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `chat_id=eq.${chatId}` },
@@ -126,18 +152,17 @@ export function useChat({
           const newMsg = payload.new as Message;
           setMessages(prev => applySseInsert(prev, newMsg));
         })
-      // 상대방이 메시지를 삭제했을 때 화면에서 즉시 제거 (ghost 메시지 방지)
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages', filter: `chat_id=eq.${chatId}` },
         (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
           const deleted = payload.old as { id?: string };
           if (deleted.id) setMessages(prev => prev.filter(m => m.id !== deleted.id));
         })
       .subscribe();
+
     loadMessages(chatId);
 
-    // SSE 연결 불안정 시 폴링 폴백 — 8초마다 새 메시지를 DB에서 직접 확인
-    // SSE가 정상이면 중복 렌더가 없도록 applySseInsert의 dedup 로직이 처리함
-    // 3회 연속 실패 시 폴링 중단 (서버 과부하 방지)
+    // SSE 불안정 시 폴링 폴백 — 8초마다 확인 (applyLoadMessages가 dedup 처리)
+    // 3회 연속 실패 시 중단 (서버 과부하 방지)
     let pollFailCount = 0;
     const pollInterval = setInterval(async () => {
       if (chatIdRef.current !== chatId || pollFailCount >= 3) return;
@@ -148,8 +173,6 @@ export function useChat({
     return () => {
       clearInterval(pollInterval);
       supabase.removeChannel(channel);
-      // 채팅방을 나갈 때(chatId가 바뀌거나 null로 돌아올 때) read_at 갱신
-      // → 채팅방에 열려 있는 동안 도착한 메시지도 읽음 처리됨
       if (currentUserId) {
         supabase.from('chat_reads').upsert({
           id: `${chatId}__${currentUserId}`,
@@ -159,51 +182,50 @@ export function useChat({
         }, { onConflict: 'id' }).then(() => {}).catch(() => {});
       }
     };
-  }, [chatId, loadMessages, currentUserId]);
+  }, [chatId, loadMessages, currentUserId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // loadChatList: generation guard — 느린 응답이 현재 userId의 목록을 덮어쓰지 않도록
-  // syncUnreadCounts는 아래에서 정의되지만 ref를 통해 참조 — 순환 의존 없이 loadChatList 완료 후 호출
+  // ── 채팅 목록 로드 ────────────────────────────────────────────────────────────
   const syncUnreadCountsRef = useRef<(() => Promise<void>) | null>(null);
   const loadChatListGenRef = useRef(0);
   const loadChatList = useCallback(async (userId: string) => {
     const gen = ++loadChatListGenRef.current;
-    const { data } = await supabase.from('chats').select('*')
-      .or(`user1_id.eq.${userId},user2_id.eq.${userId}`)
-      .order('created_at', { ascending: false });
-    if (gen !== loadChatListGenRef.current) return; // 스탤 응답 버림
-    if (!data) return;
-    if (data.length === 0) { setChatList([]); void syncUnreadCountsRef.current?.(); return; }
-    const chatIds = data.map((c: { id: string }) => c.id);
-    const { data: allMsgs } = await supabase.from('messages').select('chat_id, content, image_url, created_at')
-      .in('chat_id', chatIds).order('created_at', { ascending: false }).limit(Math.max(chatIds.length * 20, 100));
-    if (gen !== loadChatListGenRef.current) return; // 두 번째 fetch도 체크
-    const latestByChat = new Map<string, { content: string; image_url?: string; created_at: string }>();
-    if (allMsgs) {
-      for (const m of allMsgs as { chat_id: string; content: string; image_url?: string; created_at: string }[]) {
-        if (!latestByChat.has(m.chat_id)) latestByChat.set(m.chat_id, { content: m.content, image_url: m.image_url, created_at: m.created_at });
+    try {
+      const { data } = await supabase.from('chats').select('*')
+        .or(`user1_id.eq.${userId},user2_id.eq.${userId}`)
+        .order('created_at', { ascending: false });
+      if (gen !== loadChatListGenRef.current) return;
+      if (!data) return;
+      if (data.length === 0) { setChatList([]); void syncUnreadCountsRef.current?.(); return; }
+
+      const chatIds = data.map((c: { id: string }) => c.id);
+      const { data: allMsgs } = await supabase.from('messages').select('chat_id, content, image_url, created_at')
+        .in('chat_id', chatIds).order('created_at', { ascending: false }).limit(Math.max(chatIds.length * 20, 100));
+      if (gen !== loadChatListGenRef.current) return;
+
+      const latestByChat = new Map<string, { content: string; image_url?: string; created_at: string }>();
+      if (allMsgs) {
+        for (const m of allMsgs as { chat_id: string; content: string; image_url?: string; created_at: string }[]) {
+          if (!latestByChat.has(m.chat_id)) latestByChat.set(m.chat_id, { content: m.content, image_url: m.image_url, created_at: m.created_at });
+        }
       }
+
+      const enriched: Chat[] = data.map((c: { id: string; user1_id: string; user2_id: string; created_at: string }) => {
+        const latest = latestByChat.get(c.id);
+        return { ...c, lastMessage: latest?.image_url ? '📷 사진' : (latest?.content ?? ''), messageCount: 0 };
+      });
+      setChatList(enriched);
+      void syncUnreadCountsRef.current?.();
+    } catch (err) {
+      console.error('[loadChatList] 오류:', err);
     }
-    const enriched: Chat[] = data.map((c: { id: string; user1_id: string; user2_id: string; created_at: string }) => {
-      const latest = latestByChat.get(c.id);
-      return {
-        ...c,
-        lastMessage: latest?.image_url ? '📷 사진' : (latest?.content ?? ''),
-        messageCount: 0,
-      };
-    });
-    setChatList(enriched);
-    // 채팅 목록 로드 완료 후 DB 기반 미읽음 카운트를 즉시 동기화
-    // (앱을 완전히 닫았다가 재진입 시 SSE 재연결이 아닌 첫 연결이므로 별도 호출 필요)
-    void syncUnreadCountsRef.current?.();
   }, []);
 
-  // openChat: generation guard — 빠른 연속 탭 시 느린 응답이 현재 채팅방을 덮어쓰지 않도록
+  // ── 채팅방 열기 ──────────────────────────────────────────────────────────────
   const openChatGenRef = useRef(0);
-  // Fix #10: 타이머 ref — 연속 openChat 시 stale 타이머가 pair ref를 null로 지우는 race 방지
   const selfInitiatedPairTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const openChat = useCallback(async (otherProfile: Profile) => {
     if (!currentUserId) return;
-    const gen = ++openChatGenRef.current; // generation 캡처 — 이 호출보다 나중 호출이 오면 버림
+    const gen = ++openChatGenRef.current;
 
     setMessages([]);
     setSelectedProfile(otherProfile);
@@ -214,7 +236,6 @@ export function useChat({
     const user1Id = currentUserId < otherProfile.id ? currentUserId : otherProfile.id;
     const user2Id = currentUserId < otherProfile.id ? otherProfile.id : currentUserId;
 
-    // SSE INSERT 알림 억제: 내가 연 채팅방 pair를 미리 기록 (DB 응답 전에 SSE가 먼저 올 수 있음)
     if (selfInitiatedPairTimerRef.current !== null) clearTimeout(selfInitiatedPairTimerRef.current);
     selfInitiatedPairRef.current = `${user1Id}:${user2Id}`;
     selfInitiatedPairTimerRef.current = setTimeout(() => {
@@ -222,95 +243,93 @@ export function useChat({
       selfInitiatedPairTimerRef.current = null;
     }, 5000);
 
-    const { data: existingChat } = await supabase
-      .from('chats').select('*').eq('user1_id', user1Id).eq('user2_id', user2Id).maybeSingle();
+    try {
+      const { data: existingChat } = await supabase
+        .from('chats').select('*').eq('user1_id', user1Id).eq('user2_id', user2Id).maybeSingle();
+      if (gen !== openChatGenRef.current) return;
 
-    if (gen !== openChatGenRef.current) return; // 더 최신 openChat이 호출됨 — 버림
-
-    let resolvedChatId: string | null = null;
-    if (existingChat) {
-      resolvedChatId = existingChat.id;
-    } else {
-      const { data: newChat, error: createErr } = await supabase
-        .from('chats').insert({ user1_id: user1Id, user2_id: user2Id }).select().single();
-      if (gen !== openChatGenRef.current) return; // insert 완료 후에도 체크
-
-      if (newChat) {
-        resolvedChatId = newChat.id;
-        // ✅ 신규 채팅방을 chatList에 즉시 추가
-        // → per-chat SSE 구독이 생성되어 상대가 보낸 메시지의 미읽음 알림이 즉시 동작함
-        const newChatEntry: Chat = { ...newChat, lastMessage: '', messageCount: 0 };
-        setChatList(prev => {
-          if (prev.some(c => c.id === newChat.id)) return prev; // 이미 있으면 무시
-          return [newChatEntry, ...prev];
-        });
+      let resolvedChatId: string | null = null;
+      if (existingChat) {
+        resolvedChatId = existingChat.id;
       } else {
-        console.error('[openChat] 채팅방 생성 실패:', createErr?.message);
-        const { data: retryChat } = await supabase
-          .from('chats').select('*').eq('user1_id', user1Id).eq('user2_id', user2Id).maybeSingle();
+        const { data: newChat, error: createErr } = await supabase
+          .from('chats').insert({ user1_id: user1Id, user2_id: user2Id }).select().single();
         if (gen !== openChatGenRef.current) return;
-        if (retryChat) {
-          resolvedChatId = retryChat.id;
-          // 재시도로 찾은 기존 방도 chatList에 없으면 추가
-          const retryChatEntry: Chat = { ...retryChat, lastMessage: '', messageCount: 0 };
+
+        if (newChat) {
+          resolvedChatId = newChat.id;
+          const newChatEntry: Chat = { ...newChat, lastMessage: '', messageCount: 0 };
           setChatList(prev => {
-            if (prev.some(c => c.id === retryChat.id)) return prev;
-            return [retryChatEntry, ...prev];
+            if (prev.some(c => c.id === newChat.id)) return prev;
+            return [newChatEntry, ...prev];
           });
+        } else {
+          console.error('[openChat] 채팅방 생성 실패:', createErr?.message);
+          // DB unique constraint 충돌 등으로 insert 실패 시 재조회
+          const { data: retryChat } = await supabase
+            .from('chats').select('*').eq('user1_id', user1Id).eq('user2_id', user2Id).maybeSingle();
+          if (gen !== openChatGenRef.current) return;
+          if (retryChat) {
+            resolvedChatId = retryChat.id;
+            const retryChatEntry: Chat = { ...retryChat, lastMessage: '', messageCount: 0 };
+            setChatList(prev => {
+              if (prev.some(c => c.id === retryChat.id)) return prev;
+              return [retryChatEntry, ...prev];
+            });
+          }
         }
       }
-    }
 
-    if (!resolvedChatId) {
-      console.error('[openChat] 채팅방 ID 결정 불가 — 메인으로 복귀');
-      setView('main');
-      setBottomNotif({ type: 'chat', nickname: '채팅방을 열 수 없습니다. 잠시 후 다시 시도해주세요.' });
-      setTimeout(() => setBottomNotif(null), 3000);
-      return;
-    }
+      if (!resolvedChatId) {
+        console.error('[openChat] 채팅방 ID 결정 불가 — 메인으로 복귀');
+        setView('main');
+        setBottomNotif({ type: 'chat', nickname: '채팅방을 열 수 없습니다. 잠시 후 다시 시도해주세요.' });
+        setTimeout(() => setBottomNotif(null), 3000);
+        return;
+      }
 
-    chatIdRef.current = resolvedChatId;
-    setChatId(resolvedChatId);
-    setUnreadChatCounts(prev => { const n = { ...prev }; delete n[resolvedChatId!]; return n; });
+      chatIdRef.current = resolvedChatId;
+      setChatId(resolvedChatId);
+      setUnreadChatCounts(prev => { const n = { ...prev }; delete n[resolvedChatId!]; return n; });
+    } catch (err) {
+      console.error('[openChat] 예외:', err);
+      if (gen === openChatGenRef.current) {
+        setView('main');
+        setBottomNotif({ type: 'chat', nickname: '채팅방 연결 중 오류가 발생했습니다.' });
+        setTimeout(() => setBottomNotif(null), 3000);
+      }
+    }
   }, [currentUserId, setSelectedProfile, setView, setBottomNotif]);
 
-  // ── DB 기반 미읽음 카운트 재동기화 ────────────────────────────────────────────
-  // visibilitychange, SSE 재연결, 또는 loadChatList 완료 시 호출 — 누락된 메시지 보정
+  // ── 미읽음 재동기화 ──────────────────────────────────────────────────────────
   const syncUnreadCounts = useCallback(async () => {
-    if (!currentUserId) return;
+    if (!currentUserIdRef.current) return;
     try {
-      const resp = await fetch(`/api/db/unread-counts?userId=${encodeURIComponent(currentUserId)}`);
+      const resp = await fetch(`/api/db/unread-counts?userId=${encodeURIComponent(currentUserIdRef.current)}`);
       if (!resp.ok) return;
       const { data } = await resp.json() as { data: Record<string, number> | null };
       if (!data) return;
       setUnreadChatCounts(prev => {
         const next = { ...data };
-        // 현재 열려 있는 채팅방은 이미 읽고 있으므로 0 유지
         if (chatIdRef.current) delete next[chatIdRef.current];
-        // prev와 실질적으로 같으면 리렌더 스킵
         const prevKeys = Object.keys(prev);
         const nextKeys = Object.keys(next);
         if (prevKeys.length === nextKeys.length && nextKeys.every(k => prev[k] === next[k])) return prev;
         return next;
       });
-      // 알림 배지도 DB 합계로 보정 (현재 열린 채팅방 제외)
       const total = Object.entries(data)
         .filter(([cid]) => cid !== chatIdRef.current)
         .reduce((sum, [, n]) => sum + n, 0);
       setNewMsgCount(total);
-    } catch { /* 네트워크 오류 시 무시 — 다음 재연결 때 재시도 */ }
-  }, [currentUserId]);
+    } catch { /* 네트워크 오류 무시 — 다음 재연결 때 재시도 */ }
+  }, []); // currentUserIdRef/chatIdRef는 항상 최신 ref라 deps 불필요
 
-  // syncUnreadCountsRef 업데이트 — loadChatList가 정의 순서와 무관하게 최신 함수를 참조할 수 있도록
   syncUnreadCountsRef.current = syncUnreadCounts;
 
-  // 첫 마운트: currentUserId가 확보된 직후 DB에서 정확한 미읽음 카운트를 즉시 동기화
-  // (앱 재시작/새로고침 후 배지가 0으로 뜨는 현상 방지)
   useEffect(() => {
     if (currentUserId) void syncUnreadCounts();
   }, [currentUserId, syncUnreadCounts]);
 
-  // visibilitychange: 포그라운드 복귀 시 즉시 재동기화
   useEffect(() => {
     const handler = () => {
       if (document.visibilityState === 'visible') void syncUnreadCounts();
@@ -319,88 +338,103 @@ export function useChat({
     return () => document.removeEventListener('visibilitychange', handler);
   }, [syncUnreadCounts]);
 
-  // currentUserId를 ref로 캡처 — 클로저 stale 방지
-  const currentUserIdRef = useRef(currentUserId);
-  currentUserIdRef.current = currentUserId;
-
-  // SSE 재연결: 끊김 복구 직후 누락 카운트 보정 + 채팅 목록 전체 재동기화
-  // (끊긴 동안 생성된 채팅방·메시지를 놓치지 않기 위해 loadChatList + loadMessages 함께 호출)
   useEffect(() => {
     return onSseReconnect(() => {
       void syncUnreadCounts();
       const uid = currentUserIdRef.current;
       if (uid) void loadChatList(uid);
-      // 끊긴 동안 도착한 메시지를 활성 채팅방에서도 즉시 반영 (8초 폴링 대기 없음)
       const activeChatId = chatIdRef.current;
       if (activeChatId) void loadMessages(activeChatId);
     });
   }, [syncUnreadCounts, loadChatList, loadMessages]);
 
-  // 전송 중 잠금 — 동기 ref로 이중 클릭/Enter+클릭 동시 전송 방지
-  const sendInFlightRef = useRef(false);
+  // ── 전송 잠금: boolean → Set<chatId> ─────────────────────────────────────────
+  // 채팅방별 독립 잠금 — 채팅방 A 전송 중에도 채팅방 B 전송 가능
+  const sendingChatIdsRef = useRef(new Set<string>());
+  // 이미지 업로드도 채팅방별 독립 잠금
+  const uploadingChatIdsRef = useRef(new Set<string>());
 
-  const sendMessage = async (content: string): Promise<void> => {
-    // ✅ chatId/currentUserId를 호출 시점에 스냅샷
-    // await 완료 후 채팅방이 전환되어도 원래 방의 state만 변경함
-    const snapChatId = chatId;
-    const snapUserId = currentUserId;
+  // ── 메시지 전송 ───────────────────────────────────────────────────────────────
+  // chatIdRef·currentUserIdRef 사용 → stale closure 완전 차단
+  // try/catch로 네트워크 예외 보호 → finally로 잠금 해제 보장
+  const sendMessage = useCallback(async (content: string): Promise<void> => {
+    const snapChatId = chatIdRef.current;
+    const snapUserId = currentUserIdRef.current;
     if (!snapChatId || !snapUserId || !content.trim()) return;
-    if (sendInFlightRef.current) return;
-    sendInFlightRef.current = true;
-    const optimisticId = `__opt_${crypto.randomUUID()}`; // ms 충돌 없는 UUID 사용
-    // 에러 시 되돌릴 이전 lastMessage를 미리 기록
+    if (sendingChatIdsRef.current.has(snapChatId)) return;
+    sendingChatIdsRef.current.add(snapChatId);
+
+    const optimisticId = `__opt_${crypto.randomUUID()}`;
     const prevLastMessage = chatListRef.current.find(c => c.id === snapChatId)?.lastMessage ?? '';
-    const optimisticMsg = {
+    const optimisticMsg: Message = {
       id: optimisticId,
       chat_id: snapChatId,
       sender_id: snapUserId,
       content: content.trim(),
       created_at: new Date().toISOString(),
     } as Message;
-    // ✅ 현재 보고 있는 방이 snapChatId인 경우에만 optimistic 메시지 추가
+
     setMessages(prev => {
-      if (chatIdRef.current !== snapChatId) return prev; // 이미 다른 방으로 전환됨
+      if (chatIdRef.current !== snapChatId) return prev;
       return [...prev, optimisticMsg];
     });
     setChatList(prev => prev.map(c => c.id === snapChatId ? { ...c, lastMessage: content.trim() } : c));
+
     try {
       const { error } = await supabase.from('messages').insert({
-        chat_id: snapChatId, sender_id: snapUserId, content: content.trim(),
-        client_id: optimisticId.replace('__opt_', ''), // UUID — ON CONFLICT DO NOTHING on server
+        chat_id: snapChatId,
+        sender_id: snapUserId,
+        content: content.trim(),
+        client_id: optimisticId.replace('__opt_', ''),
       });
-      // 서버가 SSE 인서트 이벤트 시점에 수신자에게 푸시 알림을 자동 발송함
       if (error) {
         setMessages(prev => prev.filter(m => m.id !== optimisticId));
-        // 에러 전 상태로 정확히 복원 (낙관적 업데이트 전 lastMessage)
-        setChatList(prev => prev.map(c => c.id === snapChatId ? { ...c, lastMessage: prevLastMessage } : c));
-        console.error('[sendMessage]', error.message);
-        throw error; // ChatScreen에서 입력값 복원용
+        // 낙관적으로 설정한 값인 경우에만 복원 — 다른 메시지가 이미 덮어썼으면 건드리지 않음
+        setChatList(prev => prev.map(c =>
+          c.id === snapChatId && c.lastMessage === content.trim()
+            ? { ...c, lastMessage: prevLastMessage }
+            : c
+        ));
+        console.error('[sendMessage] DB 오류:', error.message);
+        throw error;
       }
+    } catch (err) {
+      // 네트워크 오류 등 예외 처리 — supabase error 객체가 아닌 경우
+      if (!(err instanceof Object && 'message' in err && 'code' in err)) {
+        // 진짜 예외 (네트워크 단절 등) — 낙관적 메시지 롤백
+        setMessages(prev => prev.filter(m => m.id !== optimisticId));
+        setChatList(prev => prev.map(c =>
+          c.id === snapChatId && c.lastMessage === content.trim()
+            ? { ...c, lastMessage: prevLastMessage }
+            : c
+        ));
+        console.error('[sendMessage] 네트워크 예외:', err);
+        throw err;
+      }
+      throw err; // supabase error — 위에서 이미 롤백함
     } finally {
-      sendInFlightRef.current = false; // 성공/실패/예외 모든 경우 잠금 해제
+      sendingChatIdsRef.current.delete(snapChatId);
     }
-  };
+  }, []); // chatIdRef/currentUserIdRef/chatListRef는 항상 최신 ref — deps 불필요
 
-  // sendImage에도 in-flight 잠금 적용 — 연속 탭 시 동일 파일이 두 번 업로드되는 현상 방지
-  const sendImageInFlightRef = useRef(false);
-  const sendImage = async (file: File): Promise<string | null> => {
-    // 진입 시점에 chatId/userId 스냅샷 — 업로드 중 채팅방/사용자 전환 시 고아 파일 방지
-    const snapChatId = chatId;
-    const snapUserId = currentUserId;
+  // ── 이미지 전송 ───────────────────────────────────────────────────────────────
+  const sendImage = useCallback(async (file: File): Promise<string | null> => {
+    const snapChatId = chatIdRef.current;
+    const snapUserId = currentUserIdRef.current;
     if (!snapChatId || !snapUserId) return null;
-    if (sendImageInFlightRef.current) return '이미 전송 중입니다.';
-    sendImageInFlightRef.current = true;
+    if (uploadingChatIdsRef.current.has(snapChatId)) return '이미 전송 중입니다.';
+    uploadingChatIdsRef.current.add(snapChatId);
+
     const clientId = crypto.randomUUID();
     const prevLastMessage = chatListRef.current.find(c => c.id === snapChatId)?.lastMessage ?? '';
-
-    // 낙관적 UI: 이미지 메시지를 즉시 화면에 추가 (업로드 중 로컬 blob URL 사용)
     const localBlobUrl = URL.createObjectURL(file);
     const optimisticId = `__opt_${clientId}`;
-    const optimisticMsg = {
+    const optimisticMsg: Message = {
       id: optimisticId, chat_id: snapChatId, sender_id: snapUserId,
       content: '', image_url: localBlobUrl, created_at: new Date().toISOString(),
       client_id: clientId,
     } as Message;
+
     setMessages(prev => {
       if (chatIdRef.current !== snapChatId) return prev;
       return [...prev, optimisticMsg];
@@ -410,7 +444,12 @@ export function useChat({
     const rollback = () => {
       URL.revokeObjectURL(localBlobUrl);
       setMessages(prev => prev.filter(m => m.id !== optimisticId));
-      setChatList(prev => prev.map(c => c.id === snapChatId ? { ...c, lastMessage: prevLastMessage } : c));
+      // 낙관적으로 설정한 값인 경우에만 복원
+      setChatList(prev => prev.map(c =>
+        c.id === snapChatId && c.lastMessage === '📷 사진'
+          ? { ...c, lastMessage: prevLastMessage }
+          : c
+      ));
     };
 
     try {
@@ -419,19 +458,20 @@ export function useChat({
       const { data, error } = await supabase.storage.from('chat-images').upload(path, file, { contentType: file.type || 'image/jpeg' });
       if (error) { rollback(); return error.message; }
       if (!data) { rollback(); return '업로드 실패'; }
+
       // 업로드 완료 후 채팅방/사용자가 바뀌었으면 고아 파일 정리 후 중단
-      if (chatIdRef.current !== snapChatId || currentUserId !== snapUserId) {
+      if (chatIdRef.current !== snapChatId || currentUserIdRef.current !== snapUserId) {
         supabase.storage.from('chat-images').remove([data.path]).catch(() => {});
         rollback();
         return null;
       }
+
       const { data: { publicUrl } } = supabase.storage.from('chat-images').getPublicUrl(data.path);
       const { error: msgErr } = await supabase.from('messages').insert({
         chat_id: snapChatId, sender_id: snapUserId, content: '', image_url: publicUrl,
         client_id: clientId,
       });
       if (msgErr) {
-        // DB insert 실패 → 스토리지에 올라간 파일을 즉시 삭제해 고아 파일 방지
         supabase.storage.from('chat-images').remove([data.path]).catch(() => {});
         rollback();
         return msgErr.message;
@@ -439,12 +479,16 @@ export function useChat({
       // 성공: SSE가 실제 URL로 낙관적 메시지를 교체함 — blob URL은 5초 후 해제
       setTimeout(() => URL.revokeObjectURL(localBlobUrl), 5_000);
       return null;
+    } catch (err) {
+      console.error('[sendImage] 네트워크 예외:', err);
+      rollback();
+      return '네트워크 오류가 발생했습니다.';
     } finally {
-      sendImageInFlightRef.current = false;
+      uploadingChatIdsRef.current.delete(snapChatId);
     }
-  };
+  }, []); // chatIdRef/currentUserIdRef/chatListRef는 항상 최신 ref — deps 불필요
 
-  // ✅ 서버 삭제 성공 후에만 UI 업데이트 + 실패 시 오류 표시
+  // ── 채팅 삭제 ────────────────────────────────────────────────────────────────
   const deleteChat = async (chatToDelete: Chat) => {
     if (!confirm('이 채팅방을 삭제하시겠습니까?')) return;
     const { error: msgErr } = await supabase.from('messages').delete().eq('chat_id', chatToDelete.id);
@@ -454,11 +498,10 @@ export function useChat({
     setChatList(prev => prev.filter(c => c.id !== chatToDelete.id));
   };
 
-  // 전체 채팅 삭제 — Promise.all 병렬화 (직렬 O(n) → 병렬, 스냅샷으로 동시 목록 변경 방지)
   const deleteAllChats = async () => {
     if (chatList.length === 0) return;
     if (!confirm(`채팅 ${chatList.length}개를 모두 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) return;
-    const snapshot = [...chatList]; // 병렬 실행 중 chatList 변경 방지
+    const snapshot = [...chatList];
     const results = await Promise.all(snapshot.map(async (chat) => {
       const { error: msgErr } = await supabase.from('messages').delete().eq('chat_id', chat.id);
       if (msgErr) return null;
@@ -469,7 +512,6 @@ export function useChat({
     if (deletedIds.length > 0) setChatList(prev => prev.filter(c => !deletedIds.includes(c.id)));
   };
 
-  // ✅ 서버 삭제 성공 후에만 UI에서 제거
   const deleteMessage = async (msgId: string) => {
     const { error } = await supabase.from('messages').delete().eq('id', msgId);
     if (!error) setMessages(prev => prev.filter(m => m.id !== msgId));
