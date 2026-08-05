@@ -375,7 +375,7 @@ function BigSeatButton({ seat, profile, isCurrentUser, isAdmin, movingProfileId,
 
 // ─── Expanded Layout (modal) ───────────────────────────────────────────────────
 
-type LayoutProps = {
+export type LayoutProps = {
   tableNum: number; seats: Seat[]; profileMap: Map<string, Profile>; currentUserId: string | null; isAdmin: boolean;
   movingProfileId?: string | null; darkMode?: boolean;
   tableLabels?: Record<string, string> | null;
@@ -384,7 +384,7 @@ type LayoutProps = {
   onMoveTo?: (seat: Seat) => void;
 };
 
-function ExpandedLayout({ tableNum, seats, profileMap, currentUserId, isAdmin, movingProfileId, darkMode = true, tableLabels, onSeatClick, onProfileClick, onClearSeat, onShowQr, onSelectForMove, onMoveTo }: LayoutProps) {
+export function ExpandedLayout({ tableNum, seats, profileMap, currentUserId, isAdmin, movingProfileId, darkMode = true, tableLabels, onSeatClick, onProfileClick, onClearSeat, onShowQr, onSelectForMove, onMoveTo }: LayoutProps) {
   const cfg = TABLE_POSITIONS[tableNum];
   if (!cfg) return null;
   const label = tableLabels?.[String(tableNum)] ?? String(tableNum);
