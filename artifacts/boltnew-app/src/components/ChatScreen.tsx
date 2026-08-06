@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   ArrowLeft, Send, MessageCircle, Smile, ImageIcon, Phone,
 } from 'lucide-react';
@@ -69,6 +69,17 @@ const EMOJI_CATEGORIES = [
 const THEME_CYCLE: ThemeMode[] = ['default', 'y2k', 'dark-neon', 'minimal'];
 const THEME_EMOJI: Record<ThemeMode, string> = { default: '🌙', y2k: '💖', 'dark-neon': '🔥', minimal: '☕' };
 
+// ── 컴포넌트 외부 상수 — 렌더마다 배열 재생성 방지 ──────────────────────────────
+const QUICK_MSGS = [
+  '오늘 즐거웠어요 ☺️', '술 한 잔 더 할래요? 🍺', '번호 교환해요! 📱', '이따가 연락해요 ☎️',
+  '오늘 인연인 것 같아요 💕', '어디서 오셨어요?', '맥주 VS 소주 어느 쪽이에요?',
+  '오늘 처음 나오셨어요?', '자주 이런 모임 나오세요?', '카카오 아이디 알려줘도 돼요? 🐣',
+  '잠깐 밖에 나갈래요? 🌙', '오늘 정말 재미있었어요! 또 봐요 👋', '밥은 드셨어요? 🍚',
+  '다음에 또 만나요 ✨', '저 마음에 드세요? (◕‿◕✿)', '같이 사진 찍어요! 📸',
+  '인스타 팔로우해도 될까요?', '오늘 처음 뵙는데 반가워요!',
+];
+const QUICK_REACTIONS = ['❤️', '😂', '👍', '🔥', '😮', '😢'];
+
 function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onSendImage, onBack, onDeleteMessage, currentUserProfile, receivedContactShares, contactSharedWithIds, onGoToTab, onUpdateProfile, initialInput, onInputChange }: {
   chatId: string;
   messages: Message[]; currentUserId: string; otherProfile: Profile;
@@ -110,23 +121,44 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   const theirShare = receivedContactShares?.find(s => s.liker_id === otherProfile.id) ?? null;
   const iSharedMine = contactSharedWithIds?.has(otherProfile.id) ?? false;
 
-  const myBirth = currentUserProfile?.birth_year && currentUserProfile?.birth_month && currentUserProfile?.birth_day
-    ? { y: currentUserProfile.birth_year, m: currentUserProfile.birth_month, d: currentUserProfile.birth_day } : null;
-  const theirBirth = otherProfile.birth_year && otherProfile.birth_month && otherProfile.birth_day
-    ? { y: otherProfile.birth_year, m: otherProfile.birth_month, d: otherProfile.birth_day } : null;
+  // 생년월일 원시값 추출 — useMemo deps에 사용 (Object 참조 불안정 방지)
+  const myBY = currentUserProfile?.birth_year ?? 0;
+  const myBM = currentUserProfile?.birth_month ?? 0;
+  const myBD = currentUserProfile?.birth_day ?? 0;
+  const thBY = otherProfile.birth_year ?? 0;
+  const thBM = otherProfile.birth_month ?? 0;
+  const thBD = otherProfile.birth_day ?? 0;
+
+  const myBirth = (myBY && myBM && myBD) ? { y: myBY, m: myBM, d: myBD } : null;
+  const theirBirth = (thBY && thBM && thBD) ? { y: thBY, m: thBM, d: thBD } : null;
   const hasBothBirthdays = !!(myBirth && theirBirth);
 
-  const compatResult = hasBothBirthdays
-    ? getCompatibility(myBirth!.y, myBirth!.m, myBirth!.d, theirBirth!.y, theirBirth!.m, theirBirth!.d) : null;
-  const ohaengCompatResult = hasBothBirthdays
-    ? getOhaengCompat(myBirth!.y, theirBirth!.y) : null;
-  const numerologyResult = hasBothBirthdays
-    ? getNumerologyCompat(myBirth!.y, myBirth!.m, myBirth!.d, theirBirth!.y, theirBirth!.m, theirBirth!.d) : null;
-  const mbtiResult = (currentUserProfile?.mbti && otherProfile.mbti)
-    ? getMbtiCompat(currentUserProfile.mbti, otherProfile.mbti) : null;
+  // 궁합·사주·운세 계산 — 생년월일·MBTI 변경 시에만 재계산 (렌더마다 반복 차단)
+  const compatResult = useMemo(() =>
+    hasBothBirthdays ? getCompatibility(myBY, myBM, myBD, thBY, thBM, thBD) : null,
+  [hasBothBirthdays, myBY, myBM, myBD, thBY, thBM, thBD]);
 
-  const myFortune = myBirth ? getTodayFortune(myBirth.y, myBirth.m, myBirth.d) : null;
-  const theirFortune = theirBirth ? getTodayFortune(theirBirth.y, theirBirth.m, theirBirth.d) : null;
+  const ohaengCompatResult = useMemo(() =>
+    hasBothBirthdays ? getOhaengCompat(myBY, thBY) : null,
+  [hasBothBirthdays, myBY, thBY]);
+
+  const numerologyResult = useMemo(() =>
+    hasBothBirthdays ? getNumerologyCompat(myBY, myBM, myBD, thBY, thBM, thBD) : null,
+  [hasBothBirthdays, myBY, myBM, myBD, thBY, thBM, thBD]);
+
+  const mbtiResult = useMemo(() => {
+    const myMbti = currentUserProfile?.mbti;
+    const theirMbti = otherProfile.mbti;
+    return (myMbti && theirMbti) ? getMbtiCompat(myMbti, theirMbti) : null;
+  }, [currentUserProfile?.mbti, otherProfile.mbti]);
+
+  const myFortune = useMemo(() =>
+    (myBY && myBM && myBD) ? getTodayFortune(myBY, myBM, myBD) : null,
+  [myBY, myBM, myBD]);
+
+  const theirFortune = useMemo(() =>
+    (thBY && thBM && thBD) ? getTodayFortune(thBY, thBM, thBD) : null,
+  [thBY, thBM, thBD]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLElement>(null); // 스크롤 컨테이너 ref
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -179,15 +211,6 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   // ── 뷰포트 스타일 (React state) — JS가 직접 style을 건드리면 React 재렌더 시 덮어씌워짐
   const [vpStyle, setVpStyle] = useState<React.CSSProperties>({ top: 0, height: '100dvh' });
   const lastTapRef = useRef<{ id: string; time: number } | null>(null);
-
-  const QUICK_MSGS = [
-    '오늘 즐거웠어요 ☺️', '술 한 잔 더 할래요? 🍺', '번호 교환해요! 📱', '이따가 연락해요 ☎️',
-    '오늘 인연인 것 같아요 💕', '어디서 오셨어요?', '맥주 VS 소주 어느 쪽이에요?',
-    '오늘 처음 나오셨어요?', '자주 이런 모임 나오세요?', '카카오 아이디 알려줘도 돼요? 🐣',
-    '잠깐 밖에 나갈래요? 🌙', '오늘 정말 재미있었어요! 또 봐요 👋', '밥은 드셨어요? 🍚',
-    '다음에 또 만나요 ✨', '저 마음에 드세요? (◕‿◕✿)', '같이 사진 찍어요! 📸',
-    '인스타 팔로우해도 될까요?', '오늘 처음 뵙는데 반가워요!',
-  ];
 
   // ── 스크롤 자동 이동 ──────────────────────────────────────────────────────────
   // - 방 입장(초기 로드): instant — 긴 대화도 즉시 이동, 애니메이션 없음
@@ -498,7 +521,16 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
     onSend(`__contact__\n${parts.join('\n')}`);
   };
 
-  const QUICK_REACTIONS = ['❤️', '😂', '👍', '🔥', '😮', '😢'];
+  // ── O(n) infoReq 응답 집합 — map 내부 messages.some() O(n²) 차단 ─────────────
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const ackedReqTypes = useMemo(() => new Set(
+    messages.filter(m => isInfoAck(m.content)).map(m => parseInfoReqType(m.content!))
+  ), [messages]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const declinedReqTypes = useMemo(() => new Set(
+    messages.filter(m => isInfoDecline(m.content)).map(m => parseInfoReqType(m.content!))
+  ), [messages]);
+
   const hasContact = !!(currentUserProfile?.kakao_id || currentUserProfile?.instagram_id || currentUserProfile?.phone_number);
 
   return (
@@ -831,7 +863,8 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
                 📋 복사
               </button>
             )}
-            {contextMenu.imgUrl && (
+            {/* XSS 방어: javascript:/data: URL 차단 — https?:// 만 허용 */}
+            {contextMenu.imgUrl && /^https?:\/\//i.test(contextMenu.imgUrl) && (
               <a href={contextMenu.imgUrl} download target="_blank" rel="noreferrer"
                 onClick={() => setContextMenu(null)}
                 className="flex items-center gap-3 w-full px-5 py-3 text-sm text-gray-700 hover:bg-gray-50 border-t border-gray-100 text-left">
@@ -989,8 +1022,9 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
                       </div>
                     ) : isInfoReqMsg ? (() => {
                       const reqType = parseInfoReqType(msg.content!);
-                      const alreadyAcked    = messages.some(m => isInfoAck(m.content)     && m.content!.includes(reqType));
-                      const alreadyDeclined = messages.some(m => isInfoDecline(m.content) && m.content!.includes(reqType));
+                      // O(1) 룩업 — 외부 useMemo Set 재활용 (map 내부 messages.some() O(n²) 차단)
+                      const alreadyAcked    = ackedReqTypes.has(reqType);
+                      const alreadyDeclined = declinedReqTypes.has(reqType);
                       const responded = alreadyAcked || alreadyDeclined;
                       return (
                         <div className="px-4 py-3 space-y-2 min-w-[180px]">

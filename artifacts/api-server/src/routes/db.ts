@@ -391,13 +391,18 @@ async function dbDeleteTable(tableName: string): Promise<void> {
 }
 
 async function dbPersistImage(path: string, dataUrl: string): Promise<void> {
-  await pool.query(
-    `INSERT INTO app_image_store (path, data_url, updated_at)
-     VALUES ($1, $2, NOW())
-     ON CONFLICT (path)
-     DO UPDATE SET data_url = EXCLUDED.data_url, updated_at = NOW()`,
-    [path, dataUrl],
-  );
+  try {
+    await pool.query(
+      `INSERT INTO app_image_store (path, data_url, updated_at)
+       VALUES ($1, $2, NOW())
+       ON CONFLICT (path)
+       DO UPDATE SET data_url = EXCLUDED.data_url, updated_at = NOW()`,
+      [path, dataUrl],
+    );
+  } catch (e) {
+    logger.error({ err: e, path }, '[db] dbPersistImage failed');
+    throw e; // 호출자(storage-upload)가 catch로 처리할 수 있도록 다시 던짐
+  }
 }
 
 // ─── Startup: load all data from DB into memory ───────────────────────────────
@@ -569,8 +574,10 @@ setInterval(() => { resyncAllFromNativeDb().catch(console.error); }, 30_000);
 let _listenClient: pg.Client | null = null;
 
 async function setupListenClient(): Promise<void> {
+  // try 외부에 선언 — catch 블록에서 client.end()로 커넥션 누수 방지
+  let client: pg.Client | null = null;
   try {
-    const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
+    client = new pg.Client({ connectionString: process.env.DATABASE_URL });
     await client.connect();
     await client.query('LISTEN data_change');
     client.on('notification', (msg) => {
@@ -637,7 +644,8 @@ async function setupListenClient(): Promise<void> {
     client.on('error', (err) => {
       console.error('[db] LISTEN client error — reconnecting in 5 s:', err.message);
       _listenClient = null;
-      client.end().catch(() => {});
+      // client는 이 시점에 반드시 연결된 상태 (error 이벤트는 connect 이후에만 발생)
+      client!.end().catch(() => {});
       // 재연결 후 핫 테이블 재동기화: 5초 gap 중 누락된 변경 복구
       setTimeout(() => {
         setupListenClient()
@@ -649,6 +657,8 @@ async function setupListenClient(): Promise<void> {
     console.info(`[db] LISTEN data_change ready (instance=${INSTANCE_ID.slice(0, 8)})`);
   } catch (err) {
     console.error('[db] setupListenClient failed — retry in 10 s:', (err as Error).message);
+    // connect() 성공 후 LISTEN 실패 시 반드시 종료 — pg.Client 커넥션 누수 방지
+    if (client) client.end().catch(() => {});
     setTimeout(() => {
       setupListenClient()
         .then(() => resyncHotTablesFromDb())
@@ -1197,6 +1207,16 @@ router.post('/op', async (req: Request, res: Response) => {
         return res.json({ data: singleScope, error: null });
       }
 
+      // ─ IDOR guard: likes SELECT ────────────────────────────────────────────
+      // 좋아요 조회는 requesterId 필수 — 익명 스크래핑 차단.
+      // 인증된 사용자는 전체 좋아요 조회 가능 (랭킹 집계 목적).
+      if (table === 'likes' && !isAdmin) {
+        if (!requesterId) {
+          logger.warn({ ip: req.ip }, '[SECURITY] IDOR: likes SELECT without requesterId blocked');
+          return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+        }
+      }
+
       let result = applyFilters(tableData, normalizedFilters);
       for (const { col, asc } of safeOrders) {
         result.sort((a, b) => {
@@ -1209,6 +1229,10 @@ router.post('/op', async (req: Request, res: Response) => {
         });
       }
       if (limit != null) result = result.slice(0, limit);
+      // ─ app_settings: 비관리자 응답에서 admin_password 제거 (SELECT 경유 유출 방지) ─
+      if (table === 'app_settings' && !isAdmin) {
+        result = result.map(r => { const s = { ...r }; delete s['admin_password']; return s; });
+      }
       if (single) {
         if (!result.length) return res.json({ data: null, error: { message: 'Row not found', code: 'PGRST116' } });
         return res.json({ data: result[0], error: null });
@@ -1872,7 +1896,9 @@ router.post('/broadcast', (req: Request, res: Response) => {
     res.status(403).json({ ok: false, error: 'Forbidden: invalid broadcast token' });
     return;
   }
-  const ip = (req.headers['x-forwarded-for'] as string || req.socket.remoteAddress || 'unknown').split(',')[0].trim();
+  // x-forwarded-for는 Express가 배열로 파싱할 수 있음 — typeof 검사 후 안전하게 첫 IP 추출
+  const xfwd = req.headers['x-forwarded-for'];
+  const ip = (typeof xfwd === 'string' ? xfwd : Array.isArray(xfwd) ? xfwd[0] : req.socket?.remoteAddress ?? 'unknown').split(',')[0].trim();
   const now = Date.now();
   let bucket = _broadcastRateMap.get(ip);
   if (!bucket || now > bucket.resetAt) {
@@ -1882,6 +1908,11 @@ router.post('/broadcast', (req: Request, res: Response) => {
   bucket.count++;
   if (bucket.count > 30) {
     res.status(429).json({ ok: false, error: 'Too many broadcasts' });
+    return;
+  }
+  // ─ req.body 타입 방어: null·원시값·배열 전송 시 400 반환
+  if (req.body == null || typeof req.body !== 'object' || Array.isArray(req.body)) {
+    res.status(400).json({ ok: false, error: 'Request body must be a JSON object' });
     return;
   }
   const { channel, event, payload } = req.body as { channel?: unknown; event?: unknown; payload: unknown };
@@ -1990,6 +2021,10 @@ router.get('/storage-image', (req: Request, res: Response): void => {
 
 // ─── Admin: clear DB error counter ───────────────────────────────────────────
 router.post('/admin/clear-db-errors', async (req: Request, res: Response) => {
+  // ─ req.body 타입 방어
+  if (req.body == null || typeof req.body !== 'object' || Array.isArray(req.body)) {
+    return res.status(400).json({ ok: false, error: 'Request body must be a JSON object' });
+  }
   // Require admin password for safety
   const { adminPassword } = req.body as { adminPassword?: string };
   const settings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
@@ -2132,7 +2167,10 @@ router.get('/unread-counts', (req: Request, res: Response) => {
 
   // ─ IDOR guard: 자신의 미읽음 카운트만 조회 가능 — SSE 토큰으로 소유자 확인 ──
   // 타인의 userId를 추측해 다른 사람의 채팅 존재 여부를 파악하는 공격을 차단
-  const sseToken = (req.query.token as string) ?? (req.headers['x-sse-token'] as string);
+  // req.query.token은 동일 파라미터 반복 시 string[] — typeof 검사로 안전 추출
+  const tokenQuery = req.query.token;
+  const sseToken = (typeof tokenQuery === 'string' ? tokenQuery : null)
+    ?? (typeof req.headers['x-sse-token'] === 'string' ? req.headers['x-sse-token'] : null);
   if (!sseToken || !verifySseToken(userId, sseToken)) {
     logger.warn({ userId, ip: req.ip }, '[SECURITY] IDOR: /unread-counts without valid SSE token blocked');
     return res.status(401).json({ data: null, error: { message: 'Unauthorized: valid SSE token required', code: 'UNAUTHORIZED' } });
@@ -2429,6 +2467,10 @@ router.post('/auth/login', (req: Request, res: Response) => {
     return res.status(429).json({ error: '로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.' });
   }
 
+  // ─ req.body 타입 방어: null·배열·원시값 전송 시 TypeError 방지
+  if (req.body == null || typeof req.body !== 'object' || Array.isArray(req.body)) {
+    return res.status(400).json({ error: 'Request body must be a JSON object' });
+  }
   const { userId, deviceSecret } = req.body as { userId?: string; deviceSecret?: string };
   if (!userId || typeof userId !== 'string') {
     return res.status(400).json({ error: 'Missing userId' });

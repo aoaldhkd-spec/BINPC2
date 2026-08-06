@@ -42,7 +42,7 @@ export function useSeating(currentUserId: string | null) {
         setSeatDialog(null);
         return;
       }
-      // 새 자리 먼저 확보 → 성공 후 기존 자리 반납 (순서 역전 방지)
+      // 새 자리 먼저 확보 → 성공 후 기존 자리 전부 반납 (순서 역전 방지)
       const { error } = await supabase.from('seats').update({
         profile_id: currentUserId, status: 'occupied', registered_at: new Date().toISOString(),
       }).eq('id', seat.id);
@@ -50,14 +50,25 @@ export function useSeating(currentUserId: string | null) {
         alert('자리 등록에 실패했습니다. 다시 시도해 주세요.');
         return;
       }
-      // 새 자리 확보 성공 후 기존 자리 반납 (실패해도 새 자리는 유지)
-      if (currentUserSeat && currentUserSeat.id !== seat.id) {
-        await supabase
-          .from('seats')
-          .update({ profile_id: null, status: 'empty', registered_at: null })
-          .eq('id', currentUserSeat.id)
-          .catch(() => null); // 반납 실패는 다음 resync에서 자동 복구
-      }
+      // 중복 방지: 새 자리 확보 성공 후 서버 최신 상태 기준으로
+      // 이 유저가 점유 중인 다른 자리를 모두 해제.
+      // currentUserSeat 파라미터가 stale해도 서버에서 직접 조회해 안전하게 처리.
+      try {
+        const { data: allSeats } = await supabase.from('seats').select('*');
+        const duplicates = (allSeats ?? []).filter(
+          (s: Seat) => s.profile_id === currentUserId && s.id !== seat.id,
+        );
+        if (duplicates.length > 0) {
+          await Promise.all(
+            duplicates.map((dup: Seat) =>
+              supabase
+                .from('seats')
+                .update({ profile_id: null, status: 'empty', registered_at: null })
+                .eq('id', dup.id),
+            ),
+          );
+        }
+      } catch { /* 해제 실패는 다음 resync에서 자동 복구 */ }
       setSeatDialog(null);
       await loadSeats();
     } catch {

@@ -193,9 +193,13 @@ if (!existingRoot) {
 }
 appRoot.render(
   <StrictMode>
-    <ThemeProvider>
-      <Root />
-      <ThemeSwitcher />
-    </ThemeProvider>
+    {/* ThemeProvider/ThemeSwitcher를 AppErrorBoundary 안으로 이동 —
+        테마 렌더 오류가 전역 ErrorBoundary 밖으로 새어 나가는 것을 방지 */}
+    <AppErrorBoundary>
+      <ThemeProvider>
+        <Root />
+        <ThemeSwitcher />
+      </ThemeProvider>
+    </AppErrorBoundary>
   </StrictMode>,
 );

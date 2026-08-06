@@ -64,6 +64,11 @@ export function useChat({
 
   const [newMsgCount, setNewMsgCount] = useState(0);
 
+  // ── 낙관적 읽음 보호: 최근 30초 내에 읽은 채팅방 추적 ────────────────────────
+  // syncUnreadCounts가 서버 응답으로 전체 상태를 덮어쓸 때,
+  // upsert 응답이 아직 서버에 도달하지 않은 채팅방을 다시 unread로 표시하는 것을 방지.
+  const recentlyReadRef = useRef<Map<string, number>>(new Map());
+
   // ── 채팅방별 메시지 구독 (서버 사이드 필터) ──────────────────────────────────
   // chatIdsKey: chatList의 ID 목록만 직렬화 — lastMessage 변경 시 채널 재생성 방지
   const chatIdsKey = chatList.map(c => c.id).join(',');
@@ -157,6 +162,8 @@ export function useChat({
     const removed = unreadChatCountsRef.current[chatId] ?? 0;
     setUnreadChatCounts(prev => { const n = { ...prev }; delete n[chatId]; return n; });
     if (removed > 0) setNewMsgCount(c => Math.max(0, c - removed));
+    // 낙관적 읽음 보호: 30초간 syncUnreadCounts가 이 채팅방을 unread로 복원하지 않도록
+    recentlyReadRef.current.set(chatId, Date.now());
 
     if (currentUserId) {
       supabase.from('chat_reads').upsert({
@@ -413,14 +420,30 @@ export function useChat({
       if (!data) return;
       setUnreadChatCounts(prev => {
         const next = { ...data };
+        // 현재 열려 있는 채팅방은 항상 unread 제외
         if (chatIdRef.current) delete next[chatIdRef.current];
+        // 낙관적 읽음 보호: 30초 이내에 읽은 채팅방은 서버가 아직 반영 못해도 읽음 유지
+        const now = Date.now();
+        for (const [cid, ts] of recentlyReadRef.current) {
+          if (now - ts < 30_000) {
+            delete next[cid];
+          } else {
+            recentlyReadRef.current.delete(cid); // 만료된 항목 정리
+          }
+        }
         const prevKeys = Object.keys(prev);
         const nextKeys = Object.keys(next);
         if (prevKeys.length === nextKeys.length && nextKeys.every(k => prev[k] === next[k])) return prev;
         return next;
       });
+      const now = Date.now();
       const total = Object.entries(data)
-        .filter(([cid]) => cid !== chatIdRef.current)
+        .filter(([cid]) => {
+          if (cid === chatIdRef.current) return false;
+          const readTs = recentlyReadRef.current.get(cid);
+          if (readTs && now - readTs < 30_000) return false;
+          return true;
+        })
         .reduce((sum, [, n]) => sum + n, 0);
       setNewMsgCount(total);
     } catch { /* 네트워크 오류 무시 — 다음 재연결 때 재시도 */ }

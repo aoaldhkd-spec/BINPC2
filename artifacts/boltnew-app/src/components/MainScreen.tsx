@@ -592,7 +592,7 @@ export function MainScreen({
   onVote, onCreateGame, onEndGame, onSubmitAnonymousReport,
   timerEndAt, timerLabel, onRefreshStatus, onRefreshChat, onRefreshProfiles, onRefreshSeating, darkMode, onToggleDark, onShowQr, onShowContactQr, onScanQr, scannedContacts, onClearScannedContact, seatingLocked, functionsLocked = false, activeTables, tableLabels, onShowTutorial,
   newMsgCount, onClearMsgCount, unreadChatCounts, onClearChatUnread: _onClearChatUnread, resetPassword, onBroadcastGame,
-  setSeatDialog: _setSeatDialog, onUpdateProfile,
+  setSeatDialog: _setSeatDialog, onUpdateProfile, fortuneCompatTarget,
 }: {
   profiles: Profile[]; currentUserId: string | null; likedIds: Set<string>; sentHeartTypes: Map<string, HeartType>; sentHeartsPerPerson: Map<string, Set<HeartType>>; likeStatuses: Map<string, string>;
   seats: Seat[]; profileMap: Map<string, Profile>; mainTab: MainTab;
@@ -640,6 +640,7 @@ export function MainScreen({
   onBroadcastGame: (s: TableMiniGameSession) => void;
   setSeatDialog: (s: Seat | null) => void;
   onUpdateProfile: (update: Record<string, unknown> & { id: string }) => void;
+  fortuneCompatTarget?: string;
 }) {
   const heartCount = useCallback((t: HeartType) => { let c = 0; sentHeartsPerPerson.forEach(types => { if (types.has(t)) c++; }); return c; }, [sentHeartsPerPerson]);
   const currentUserSeat = useMemo(() => seats.find(s => s.profile_id === currentUserId) ?? null, [seats, currentUserId]);
@@ -2494,6 +2495,7 @@ export function MainScreen({
                 myProfile={profiles.find(p => p.id === currentUserId) ?? null}
                 profiles={profiles}
                 likedIds={likedIds}
+                initialCompatProfileId={fortuneCompatTarget}
               />
             </Suspense>
           </div>

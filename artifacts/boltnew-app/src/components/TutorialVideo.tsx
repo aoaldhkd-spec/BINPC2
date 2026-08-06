@@ -124,12 +124,16 @@ function S1({ step }: { step: number }) {
   const [dots, setDots] = useState<number[]>([]);
   const [entered, setEntered] = useState(false);
   const [pressed, setPressed] = useState<string | null>(null);
+  const pressedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (step === 2) { setDots([1]); setPressed('1'); setTimeout(() => setPressed(null), 200); }
-    if (step === 3) { setDots([1,2]); setPressed('5'); setTimeout(() => setPressed(null), 200); }
-    if (step === 4) { setDots([1,2,3]); setPressed('2'); setTimeout(() => setPressed(null), 200); }
-    if (step === 5) { setDots([1,2,3,4]); setPressed('8'); setTimeout(() => setPressed(null), 200); }
+    // 이전 타이머 취소 — step 변경 시 stale setPressed 방지
+    if (pressedTimerRef.current) clearTimeout(pressedTimerRef.current);
+    if (step === 2) { setDots([1]); setPressed('1'); pressedTimerRef.current = setTimeout(() => setPressed(null), 200); }
+    if (step === 3) { setDots([1,2]); setPressed('5'); pressedTimerRef.current = setTimeout(() => setPressed(null), 200); }
+    if (step === 4) { setDots([1,2,3]); setPressed('2'); pressedTimerRef.current = setTimeout(() => setPressed(null), 200); }
+    if (step === 5) { setDots([1,2,3,4]); setPressed('8'); pressedTimerRef.current = setTimeout(() => setPressed(null), 200); }
     if (step >= 6) { setEntered(true); }
+    return () => { if (pressedTimerRef.current) clearTimeout(pressedTimerRef.current); };
   }, [step]);
 
   const nums = ['1','2','3','4','5','6','7','8','9','','0','⌫'];

@@ -66,9 +66,9 @@ function PhotoHeader({ profile }: { profile: Profile }) {
   );
 }
 
-function ProfileDetail({ profile, isMe, isLiked, heartType, sentHeartsCount, onLike, onChat, onBack }: {
+function ProfileDetail({ profile, isMe, isLiked, heartType, sentHeartsCount, onLike, onChat, onBack, onViewFortune }: {
   profile: Profile; isMe: boolean; isLiked: boolean; heartType?: HeartType; sentHeartsCount?: number;
-  onLike: () => void; onChat: () => void; onBack: () => void;
+  onLike: () => void; onChat: () => void; onBack: () => void; onViewFortune?: () => void;
 }) {
   const handleLike = () => {
     if (isLiked && (sentHeartsCount ?? 0) >= 4) return;
@@ -176,10 +176,9 @@ function ProfileDetail({ profile, isMe, isLiked, heartType, sentHeartsCount, onL
         </button>
         )}
         {/* 궁합 버튼 */}
-        {!isMe && profile.birth_year && profile.birth_month && profile.birth_day && (
-          <button onClick={onBack}
+        {!isMe && profile.birth_year && profile.birth_month && profile.birth_day && onViewFortune && (
+          <button onClick={onViewFortune}
             className="w-full py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold rounded-2xl transition-all flex items-center justify-center gap-2 shadow-sm text-sm"
-            title="운세 탭에서 궁합을 확인하세요"
           >
             <span>💕</span> 이 사람과 궁합 보기
           </button>

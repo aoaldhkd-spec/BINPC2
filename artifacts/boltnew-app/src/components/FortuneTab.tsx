@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { ChevronDown, ChevronUp, RefreshCw, Info } from 'lucide-react';
 import type { Database } from '../types/database';
 import {
@@ -158,12 +158,13 @@ function NoBirthday() {
 
 // ── 메인 FortuneTab ────────────────────────────────────────────────────────
 export default function FortuneTab({
-  currentUserId, myProfile, profiles, likedIds,
+  currentUserId, myProfile, profiles, likedIds, initialCompatProfileId,
 }: {
   currentUserId: string | null;
   myProfile: Profile | null;
   profiles: Profile[];
   likedIds: Set<string>;
+  initialCompatProfileId?: string;
 }) {
   const [subTab, setSubTab] = useState<FortuneSubTab>('tarot');
   // birth_year만 있으면 사주·궁합 동작. month/day 없으면 1월 1일로 기본값 사용
@@ -190,6 +191,15 @@ export default function FortuneTab({
   // ── 궁합 ──────────────────────────────────────────────────────────────────
   const [targetMode, setTargetMode] = useState<'profile' | 'manual'>('profile');
   const [selectedProfileId, setSelectedProfileId] = useState('');
+
+  // 외부에서 궁합 타겟이 전달되면 자동으로 '궁합' 서브탭으로 전환
+  useEffect(() => {
+    if (initialCompatProfileId) {
+      setSelectedProfileId(initialCompatProfileId);
+      setTargetMode('profile');
+      setSubTab('gungham');
+    }
+  }, [initialCompatProfileId]);
   const [manualYear, setManualYear] = useState(1993);
   const [manualMonth, setManualMonth] = useState(6);
   const [manualDay, setManualDay] = useState(15);

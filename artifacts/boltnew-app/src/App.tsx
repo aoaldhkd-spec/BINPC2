@@ -171,6 +171,7 @@ function App() {
     return 'entry-1';
   });
   const [mainTab, setMainTab] = useState<MainTab>('profiles');
+  const [fortuneCompatTarget, setFortuneCompatTarget] = useState<string | undefined>(undefined);
   const [showTutorialModal, setShowTutorialModal] = useState(false);
   const [tutorialPage, setTutorialPage] = useState(0);
   const [showProfileQr, setShowProfileQr] = useState(false);
@@ -1274,6 +1275,12 @@ function App() {
         onLike={() => { if (!seatingLocked && !functionsLocked) handleLike(selectedProfile.id); }}
         onChat={() => { openChat(selectedProfile); }}
         onBack={() => { setLikeConfirmTarget(null); setView('main'); }}
+        onViewFortune={selectedProfile.birth_year && selectedProfile.birth_month && selectedProfile.birth_day ? () => {
+          setFortuneCompatTarget(selectedProfile.id);
+          setMainTab('fortune');
+          setLikeConfirmTarget(null);
+          setView('main');
+        } : undefined}
       />
       {likeConfirmTarget && (
         <LikeConfirmDialog
@@ -1397,10 +1404,7 @@ function App() {
               {bottomNotif.type === 'message' && (
                 <>
                   <p className="text-sm font-bold text-white">새로운 채팅이 왔습니다.</p>
-                  <div className="flex gap-2 mt-0.5">
-                    <button onClick={() => { setMainTab('chats'); setBottomNotif(null); }} className="text-xs text-white/90 bg-white/20 px-2 py-0.5 rounded-lg font-semibold">채팅탭</button>
-                    <button onClick={() => { setMainTab('status'); setBottomNotif(null); }} className="text-xs text-white/90 bg-white/20 px-2 py-0.5 rounded-lg font-semibold">내 프로필</button>
-                  </div>
+                  <button onClick={() => { setMainTab('chats'); setBottomNotif(null); }} className="text-xs text-white/90 bg-white/20 px-2 py-0.5 rounded-lg font-semibold mt-0.5">채팅탭</button>
                 </>
               )}
               {bottomNotif.type === 'contact' && (
@@ -1515,6 +1519,7 @@ function App() {
         resetPassword={resetPassword}
         onBroadcastGame={broadcastTableGame}
         setSeatDialog={setSeatDialog}
+        fortuneCompatTarget={fortuneCompatTarget}
       />
       </AppErrorBoundary>
       {/* Table Mini-Game Modal (테이블 동기 게임 결과) */}
