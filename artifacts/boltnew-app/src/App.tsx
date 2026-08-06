@@ -1057,6 +1057,7 @@ function App() {
       _handleChannelStatus('SUBSCRIBED');
       loadChatList(currentUserId);
       loadReceivedLikes(currentUserId);
+      loadLikes(currentUserId);          // 보낸 하트 상태도 재동기화
       // SSE 재연결 시 누락된 시트·프로필·설정 변경도 동기화
       loadSeats();
       loadProfiles();

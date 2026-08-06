@@ -35,7 +35,20 @@ profiles, seats, app_settings, notifications, likes, chats, balance_games, balan
 qa_games, qa_answers, image_games, image_votes, suggestions
 (messages and app_image_store excluded — too large/private)
 
-## Remaining gaps (acceptable)
-- Game insert/update functions in AdminApp (balance_games, qa_games, image_games) — no explicit sync added;
-  covered by 30-sec auto-resync
-- `_bulk_resync: true` SSE signals — frontend localdb.ts must handle these (triggers profile/seat reload)
+## Critical architecture note: app_kv_rows
+ALL data is stored in `app_kv_rows` (KV table), NOT in native postgres tables.
+`SELECT * FROM profiles` → "relation does not exist".
+Correct approach: `SELECT table_name, data FROM app_kv_rows WHERE table_name = ANY($1)`.
+resyncAllFromNativeDb() was fixed to use this approach.
+
+## Deployment race condition
+When dev workflow restarts, it rebuilds dist/index.mjs. The deployed process reads the dist
+file at startup — if it starts before the build finishes, it picks up the OLD binary.
+This causes the deployed process to run old code temporarily. Next full redeploy fixes this.
+
+## Frontend fixes applied (localdb.ts / App.tsx)
+- `_bulk_resync` SSE signal: triggers _reconnectCallbacks (reload all data)
+- Notifications UPDATE/DELETE: subscribed in App.tsx (admin toggle/delete now closes modal)
+- Admin reset signal: also clears sentHearts, activeNotif, currentGame state
+- SSE reconnect: added loadLikes + settings reload to onSseReconnect callback
+- main.tsx: `// @refresh reset` added (full page reload on main.tsx HMR — expected behavior)

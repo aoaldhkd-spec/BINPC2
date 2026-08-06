@@ -683,22 +683,33 @@ async function resyncAllFromNativeDb(): Promise<void> {
   if (_fullResyncRunning) return; // 이전 리싱크가 아직 실행 중이면 skip
   _fullResyncRunning = true;
   try {
-    await Promise.all(FULL_RESYNC_TABLES.map(async ({ tbl, order }) => {
-      try {
-        const { rows } = await pool.query(`SELECT * FROM ${tbl} ${order ?? ''}`);
+    // 모든 데이터는 native 테이블이 아닌 app_kv_rows KV 저장소에 보관됨
+    // SELECT * FROM table_name 은 "relation does not exist" 오류 → app_kv_rows 경유해야 함
+    const tableNames = FULL_RESYNC_TABLES.map(t => t.tbl);
+    const { rows } = await pool.query(
+      `SELECT table_name, data FROM app_kv_rows WHERE table_name = ANY($1::text[])`,
+      [tableNames],
+    );
+    const grouped: Record<string, Record<string, unknown>[]> = {};
+    for (const r of rows) {
+      const tbl = r.table_name as string;
+      if (!grouped[tbl]) grouped[tbl] = [];
+      grouped[tbl].push(r.data as Record<string, unknown>);
+    }
+    for (const { tbl } of FULL_RESYNC_TABLES) {
+      if (grouped[tbl] !== undefined) {
         const prev = store[tbl];
-        store[tbl] = rows as Record<string, unknown>[];
-        // SSE 클라이언트에게 bulk 변경 신호 전송 — 실제 row 데이터는 클라이언트가 다시 fetch
+        store[tbl] = grouped[tbl];
         broadcastAll({
           type: 'change', table: tbl, event: 'UPDATE',
-          newRow: { _bulk_resync: true, count: rows.length },
+          newRow: { _bulk_resync: true, count: store[tbl].length },
           oldRow: { count: prev?.length ?? 0 },
         });
-      } catch (e) {
-        logger.warn({ err: e }, `[db] resyncAllFromNativeDb ${tbl} 실패`);
       }
-    }));
-    logger.info('[db] full native resync complete');
+    }
+    logger.info('[db] full resync complete (via app_kv_rows)');
+  } catch (e) {
+    logger.warn({ err: e }, '[db] resyncAllFromNativeDb 실패');
   } finally {
     _fullResyncRunning = false;
   }
