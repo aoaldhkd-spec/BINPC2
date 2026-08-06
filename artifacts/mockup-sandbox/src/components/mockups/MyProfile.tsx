@@ -16,7 +16,7 @@ export default function MyProfile() {
 
         <div className="flex gap-3 items-start">
           {/* 사진 */}
-          <div className="flex-shrink-0 flex flex-col items-center gap-1">
+          <div className="flex-shrink-0 flex flex-col items-center gap-1 pt-[17px]">
             <div className="relative w-32 h-32">
               <div className="w-full h-full rounded-2xl overflow-hidden border-2 border-cyan-500/50 bg-slate-700 flex items-center justify-center">
                 <span className="text-5xl">🌙</span>
@@ -28,51 +28,59 @@ export default function MyProfile() {
             <span className="text-[9px] font-bold text-slate-400">다크 엔젤</span>
           </div>
 
-          {/* 오른쪽: 2×2 박스 — 레이블 박스 내부 상단 */}
-          <div className="flex-1 min-w-0 flex flex-col">
-            <div className="grid grid-cols-2 gap-2 ml-auto">
-              {/* MBTI */}
-              <div className="w-16 h-16 rounded-2xl relative flex items-center justify-center" style={{
-                background: 'linear-gradient(135deg,rgba(20,184,166,.35),rgba(20,184,166,.10))',
-                border: '1.5px solid rgba(20,184,166,.55)',
-                boxShadow: '0 0 12px rgba(20,184,166,.22)'
-              }}>
-                <span className="absolute top-1 left-0 right-0 text-center text-[7px] font-black tracking-wide text-white/60">MBTI</span>
-                <span className="text-sm font-black mt-1 text-teal-300">ENFJ</span>
-              </div>
+          {/* 오른쪽: 2×2 박스 */}
+          <div className="flex-1 min-w-0">
+            <div className="grid grid-cols-2 gap-x-2 gap-y-1 ml-auto">
 
-              {/* 성향 */}
-              <div className="w-16 h-16 rounded-2xl relative flex items-center justify-center" style={{
-                background: `linear-gradient(135deg,${posColor}44,${posColor}14)`,
-                border: `1.5px solid ${posColor}80`,
-                boxShadow: `0 0 12px ${posColor}30`
-              }}>
-                <span className="absolute top-1 left-0 right-0 text-center text-[7px] font-black tracking-wide text-white/60">성향</span>
-                <span className="text-sm font-black mt-1" style={{ color: posColor }}>올탑</span>
-              </div>
-
-              {/* 돔/섭 */}
-              <div className="w-16 h-16 rounded-2xl relative flex items-center justify-center" style={{
-                background: `linear-gradient(135deg,${domColor}44,${domColor}14)`,
-                border: `1.5px solid ${domColor}80`,
-                boxShadow: `0 0 12px ${domColor}30`
-              }}>
-                <span className="absolute top-1 left-0 right-0 text-center text-[7px] font-black tracking-wide text-white/60">돔/섭</span>
-                <span className="text-sm font-black mt-1" style={{ color: domColor }}>일반</span>
-              </div>
-
-              {/* 관심사 */}
-              <div className="w-16 h-16 rounded-2xl relative flex flex-col items-center justify-center" style={{
-                background: 'linear-gradient(135deg,rgba(236,72,153,.35),rgba(236,72,153,.10))',
-                border: '1.5px solid rgba(236,72,153,.55)',
-                boxShadow: '0 0 12px rgba(236,72,153,.22)'
-              }}>
-                <span className="absolute top-1 left-0 right-0 text-center text-[7px] font-black tracking-wide text-white/60">관심사</span>
-                <div className="flex flex-col items-center mt-1">
-                  <span className="text-[9px] font-bold text-pink-300 leading-snug">#운동</span>
-                  <span className="text-[9px] font-bold text-pink-300 leading-snug">#독서</span>
+              {/* MBTI — 진한 teal 배경 + 흰 텍스트 */}
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-[10px] font-black text-white tracking-wide">MBTI</span>
+                <div className="w-16 h-14 rounded-2xl flex items-center justify-center" style={{
+                  background: 'linear-gradient(135deg,rgba(13,148,136,.85),rgba(6,182,212,.60))',
+                  border: '1.5px solid rgba(20,184,166,.70)',
+                  boxShadow: '0 0 14px rgba(20,184,166,.30)'
+                }}>
+                  <span className="text-xs font-black text-white drop-shadow">ENFJ</span>
                 </div>
               </div>
+
+              {/* 성향 — 진한 cyan 배경 + 흰 텍스트 */}
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-[10px] font-black text-white tracking-wide">성향</span>
+                <div className="w-16 h-14 rounded-2xl flex items-center justify-center" style={{
+                  background: `linear-gradient(135deg,${posColor}cc,${posColor}88)`,
+                  border: `1.5px solid ${posColor}`,
+                  boxShadow: `0 0 14px ${posColor}44`
+                }}>
+                  <span className="text-xs font-black text-white drop-shadow">올탑</span>
+                </div>
+              </div>
+
+              {/* 돔/섭 — 진한 purple 배경 + 흰 텍스트 */}
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-[10px] font-black text-white tracking-wide">돔/섭</span>
+                <div className="w-16 h-14 rounded-2xl flex items-center justify-center" style={{
+                  background: `linear-gradient(135deg,${domColor}cc,${domColor}88)`,
+                  border: `1.5px solid ${domColor}`,
+                  boxShadow: `0 0 14px ${domColor}44`
+                }}>
+                  <span className="text-xs font-black text-white drop-shadow">일반</span>
+                </div>
+              </div>
+
+              {/* 관심사 — 진한 pink 배경 + 흰 텍스트 */}
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-[10px] font-black text-white tracking-wide">관심사</span>
+                <div className="w-16 h-14 rounded-2xl flex flex-col items-center justify-center gap-px" style={{
+                  background: 'linear-gradient(135deg,rgba(219,39,119,.80),rgba(236,72,153,.55))',
+                  border: '1.5px solid rgba(236,72,153,.80)',
+                  boxShadow: '0 0 14px rgba(236,72,153,.30)'
+                }}>
+                  <span className="text-[10px] font-black text-white drop-shadow leading-tight">#운동</span>
+                  <span className="text-[10px] font-black text-white drop-shadow leading-tight">#독서</span>
+                </div>
+              </div>
+
             </div>
           </div>
         </div>

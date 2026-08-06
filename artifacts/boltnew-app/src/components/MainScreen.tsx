@@ -1356,8 +1356,8 @@ export function MainScreen({
 
                   {/* ── 사진(왼쪽) + 박스(오른쪽) — 상단 정렬 ── */}
                   <div className="flex gap-3 items-start">
-                    {/* 사진 */}
-                    <div className="flex-shrink-0 flex flex-col items-center gap-1">
+                    {/* 사진 — 레이블 높이(약 17px)만큼 내려서 박스 상단과 정렬 */}
+                    <div className="flex-shrink-0 flex flex-col items-center gap-1 pt-[17px]">
                       <div className="relative w-32 h-32">
                         <label className={`block w-full h-full rounded-2xl overflow-hidden border-2 border-cyan-500/50 shadow-lg shadow-cyan-500/20 cursor-pointer group ${photoUploading ? 'cursor-wait' : ''}`}>
                           <img src={getAvatarSrc(me.photo_url, me.nickname)} alt={me.nickname} className="w-full h-full object-cover"
@@ -1388,52 +1388,56 @@ export function MainScreen({
 
                     {/* 오른쪽: 2×2 박스 */}
                     <div className="flex-1 min-w-0 flex flex-col">
-                      {/* 2×2 정보 박스 — 레이블 박스 내부 상단, 사진과 top 정렬 */}
-                      <div className="grid grid-cols-2 gap-2 ml-auto">
+                      {/* 2×2 정보 박스 — 레이블 외부 상단, 폰트 통일 */}
+                      <div className="grid grid-cols-2 gap-x-2 gap-y-1 ml-auto">
                         {/* MBTI */}
-                        <div className="w-16 h-16 rounded-2xl relative flex items-center justify-center" style={{
-                          background: darkMode ? 'linear-gradient(135deg,rgba(20,184,166,.35),rgba(20,184,166,.10))' : 'linear-gradient(135deg,rgba(20,184,166,.25),rgba(20,184,166,.08))',
-                          border: '1.5px solid rgba(20,184,166,.55)',
-                          boxShadow: darkMode ? '0 0 12px rgba(20,184,166,.22)' : 'none'
-                        }}>
-                          <span className={`absolute top-1 left-0 right-0 text-center text-[7px] font-black tracking-wide ${darkMode ? 'text-white/60' : 'text-gray-500'}`}>MBTI</span>
-                          <span className={`text-sm font-black mt-1 ${darkMode ? 'text-teal-300' : 'text-teal-700'}`}>
-                            {me.mbti || '—'}
-                          </span>
+                        <div className="flex flex-col items-center gap-1">
+                          <span className={`text-[10px] font-black tracking-wide ${darkMode ? 'text-white' : 'text-gray-800'}`}>MBTI</span>
+                          <div className="w-16 h-14 rounded-2xl flex items-center justify-center" style={{
+                            background: darkMode ? 'linear-gradient(135deg,rgba(13,148,136,.85),rgba(6,182,212,.60))' : 'linear-gradient(135deg,rgba(13,148,136,.70),rgba(6,182,212,.50))',
+                            border: '1.5px solid rgba(20,184,166,.70)',
+                            boxShadow: darkMode ? '0 0 14px rgba(20,184,166,.30)' : 'none'
+                          }}>
+                            <span className="text-xs font-black text-white drop-shadow">{me.mbti || '—'}</span>
+                          </div>
                         </div>
 
                         {/* 성향 */}
-                        <div className="w-16 h-16 rounded-2xl relative flex items-center justify-center" style={{
-                          background: `linear-gradient(135deg,${posColor}44,${posColor}14)`,
-                          border: `1.5px solid ${posColor}80`,
-                          boxShadow: darkMode ? `0 0 12px ${posColor}30` : 'none'
-                        }}>
-                          <span className={`absolute top-1 left-0 right-0 text-center text-[7px] font-black tracking-wide ${darkMode ? 'text-white/60' : 'text-gray-500'}`}>성향</span>
-                          <span className="text-sm font-black mt-1" style={{ color: posColor }}>{posLabel}</span>
+                        <div className="flex flex-col items-center gap-1">
+                          <span className={`text-[10px] font-black tracking-wide ${darkMode ? 'text-white' : 'text-gray-800'}`}>성향</span>
+                          <div className="w-16 h-14 rounded-2xl flex items-center justify-center" style={{
+                            background: `linear-gradient(135deg,${posColor}cc,${posColor}88)`,
+                            border: `1.5px solid ${posColor}`,
+                            boxShadow: darkMode ? `0 0 14px ${posColor}44` : 'none'
+                          }}>
+                            <span className="text-xs font-black text-white drop-shadow">{posLabel}</span>
+                          </div>
                         </div>
 
                         {/* 돔/섭 */}
-                        <div className="w-16 h-16 rounded-2xl relative flex items-center justify-center" style={{
-                          background: `linear-gradient(135deg,${domColor}44,${domColor}14)`,
-                          border: `1.5px solid ${domColor}80`,
-                          boxShadow: darkMode ? `0 0 12px ${domColor}30` : 'none'
-                        }}>
-                          <span className={`absolute top-1 left-0 right-0 text-center text-[7px] font-black tracking-wide ${darkMode ? 'text-white/60' : 'text-gray-500'}`}>돔/섭</span>
-                          <span className="text-sm font-black mt-1" style={{ color: domColor }}>{domLabel}</span>
+                        <div className="flex flex-col items-center gap-1">
+                          <span className={`text-[10px] font-black tracking-wide ${darkMode ? 'text-white' : 'text-gray-800'}`}>돔/섭</span>
+                          <div className="w-16 h-14 rounded-2xl flex items-center justify-center" style={{
+                            background: `linear-gradient(135deg,${domColor}cc,${domColor}88)`,
+                            border: `1.5px solid ${domColor}`,
+                            boxShadow: darkMode ? `0 0 14px ${domColor}44` : 'none'
+                          }}>
+                            <span className="text-xs font-black text-white drop-shadow">{domLabel}</span>
+                          </div>
                         </div>
 
                         {/* 관심사 */}
-                        <div className="w-16 h-16 rounded-2xl relative flex flex-col items-center justify-center" style={{
-                          background: darkMode ? 'linear-gradient(135deg,rgba(236,72,153,.35),rgba(236,72,153,.10))' : 'linear-gradient(135deg,rgba(236,72,153,.20),rgba(236,72,153,.06))',
-                          border: '1.5px solid rgba(236,72,153,.55)',
-                          boxShadow: darkMode ? '0 0 12px rgba(236,72,153,.22)' : 'none'
-                        }}>
-                          <span className={`absolute top-1 left-0 right-0 text-center text-[7px] font-black tracking-wide ${darkMode ? 'text-white/60' : 'text-gray-500'}`}>관심사</span>
-                          <div className="flex flex-col items-center mt-1">
+                        <div className="flex flex-col items-center gap-1">
+                          <span className={`text-[10px] font-black tracking-wide ${darkMode ? 'text-white' : 'text-gray-800'}`}>관심사</span>
+                          <div className="w-16 h-14 rounded-2xl flex flex-col items-center justify-center gap-px" style={{
+                            background: darkMode ? 'linear-gradient(135deg,rgba(219,39,119,.80),rgba(236,72,153,.55))' : 'linear-gradient(135deg,rgba(219,39,119,.65),rgba(236,72,153,.45))',
+                            border: '1.5px solid rgba(236,72,153,.80)',
+                            boxShadow: darkMode ? '0 0 14px rgba(236,72,153,.30)' : 'none'
+                          }}>
                             {bioTags.length > 0 ? bioTags.slice(0, 2).map(tag => (
-                              <span key={tag} className={`text-[9px] font-bold leading-snug ${darkMode ? 'text-pink-300' : 'text-pink-600'}`}>#{tag}</span>
+                              <span key={tag} className="text-[10px] font-black text-white drop-shadow leading-tight">#{tag}</span>
                             )) : (
-                              <span className={`text-[9px] ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>—</span>
+                              <span className="text-xs text-white/60">—</span>
                             )}
                           </div>
                         </div>
