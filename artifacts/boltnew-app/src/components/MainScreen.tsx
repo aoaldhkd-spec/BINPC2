@@ -1388,39 +1388,39 @@ export function MainScreen({
                         )}
                       </div>
 
-                      {/* 2×2 정보 박스 — 정사각형 */}
-                      <div className="grid grid-cols-2 gap-1.5">
+                      {/* 2×2 정보 박스 — 고정 소형 */}
+                      <div className="grid grid-cols-2 gap-1 ml-auto">
                         {/* MBTI */}
-                        <div className={`aspect-square rounded-2xl border flex flex-col items-center justify-center gap-0.5 ${darkMode ? 'bg-teal-500/10 border-teal-500/30' : 'bg-teal-50 border-teal-200'}`}>
-                          <span className={`text-[9px] font-bold ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>MBTI</span>
-                          <span className={`text-base font-black leading-none ${darkMode ? 'text-teal-300' : 'text-teal-700'}`}>
-                            {me.mbti || <span className={`text-[9px] font-semibold ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>미설정</span>}
+                        <div className={`w-14 h-14 rounded-xl border flex flex-col items-center justify-center gap-px ${darkMode ? 'bg-teal-500/10 border-teal-500/30' : 'bg-teal-50 border-teal-200'}`}>
+                          <span className={`text-[8px] font-bold ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>MBTI</span>
+                          <span className={`text-xs font-black leading-none ${darkMode ? 'text-teal-300' : 'text-teal-700'}`}>
+                            {me.mbti || <span className={`text-[8px] ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>—</span>}
                           </span>
                         </div>
 
                         {/* 성향 */}
-                        <div className="aspect-square rounded-2xl border flex flex-col items-center justify-center gap-0.5" style={{ backgroundColor: posColor + '18', borderColor: posColor + '50' }}>
-                          <span className={`text-[9px] font-bold ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>성향</span>
-                          <span className="text-base font-black leading-none" style={{ color: posColor }}>{posLabel}</span>
+                        <div className="w-14 h-14 rounded-xl border flex flex-col items-center justify-center gap-px" style={{ backgroundColor: posColor + '18', borderColor: posColor + '50' }}>
+                          <span className={`text-[8px] font-bold ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>성향</span>
+                          <span className="text-xs font-black leading-none" style={{ color: posColor }}>{posLabel}</span>
                         </div>
 
                         {/* 돔/섭 */}
-                        <div className="aspect-square rounded-2xl border flex flex-col items-center justify-center gap-0.5" style={{ backgroundColor: domColor + '18', borderColor: domColor + '50' }}>
-                          <span className={`text-[9px] font-bold ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>돔/섭</span>
-                          <span className="text-base font-black leading-none" style={{ color: domColor }}>{domLabel}</span>
+                        <div className="w-14 h-14 rounded-xl border flex flex-col items-center justify-center gap-px" style={{ backgroundColor: domColor + '18', borderColor: domColor + '50' }}>
+                          <span className={`text-[8px] font-bold ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>돔/섭</span>
+                          <span className="text-xs font-black leading-none" style={{ color: domColor }}>{domLabel}</span>
                         </div>
 
                         {/* 관심사 */}
-                        <div className={`aspect-square rounded-2xl border flex flex-col items-center justify-center gap-0.5 ${darkMode ? 'bg-pink-500/10 border-pink-500/30' : 'bg-pink-50 border-pink-200'}`}>
-                          <span className={`text-[9px] font-bold ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>관심사</span>
+                        <div className={`w-14 h-14 rounded-xl border flex flex-col items-center justify-center gap-px ${darkMode ? 'bg-pink-500/10 border-pink-500/30' : 'bg-pink-50 border-pink-200'}`}>
+                          <span className={`text-[8px] font-bold ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>관심사</span>
                           {bioTags.length > 0 ? (
-                            <div className="flex flex-wrap justify-center gap-0.5 px-1">
+                            <div className="flex flex-col items-center">
                               {bioTags.slice(0, 2).map(tag => (
-                                <span key={tag} className={`text-[9px] font-bold ${darkMode ? 'text-pink-300' : 'text-pink-600'}`}>#{tag}</span>
+                                <span key={tag} className={`text-[8px] font-bold leading-tight ${darkMode ? 'text-pink-300' : 'text-pink-600'}`}>#{tag}</span>
                               ))}
                             </div>
                           ) : (
-                            <span className={`text-[9px] font-semibold ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>미설정</span>
+                            <span className={`text-[8px] ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>—</span>
                           )}
                         </div>
                       </div>

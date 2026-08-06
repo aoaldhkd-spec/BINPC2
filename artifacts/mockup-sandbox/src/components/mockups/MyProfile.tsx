@@ -35,34 +35,34 @@ export default function MyProfile() {
               <span className="text-[10px] font-bold text-amber-400">🪑 3번 C테이블</span>
             </div>
 
-            {/* 2×2 정보 박스 — 정사각형 */}
-            <div className="grid grid-cols-2 gap-1.5 w-full">
+            {/* 2×2 정보 박스 — 고정 소형 */}
+            <div className="grid grid-cols-2 gap-1 ml-auto">
               {/* MBTI */}
-              <div className="aspect-square rounded-2xl border flex flex-col items-center justify-center gap-0.5 bg-teal-500/10 border-teal-500/30">
-                <span className="text-[9px] font-bold text-slate-400">MBTI</span>
-                <span className="text-base font-black leading-none text-teal-300">ENFJ</span>
+              <div className="w-14 h-14 rounded-xl border flex flex-col items-center justify-center gap-px bg-teal-500/10 border-teal-500/30">
+                <span className="text-[8px] font-bold text-slate-400">MBTI</span>
+                <span className="text-xs font-black leading-none text-teal-300">ENFJ</span>
               </div>
 
               {/* 성향 */}
-              <div className="aspect-square rounded-2xl border flex flex-col items-center justify-center gap-0.5"
+              <div className="w-14 h-14 rounded-xl border flex flex-col items-center justify-center gap-px"
                 style={{ backgroundColor: posColor + '18', borderColor: posColor + '50' }}>
-                <span className="text-[9px] font-bold text-slate-400">성향</span>
-                <span className="text-base font-black leading-none" style={{ color: posColor }}>올탑</span>
+                <span className="text-[8px] font-bold text-slate-400">성향</span>
+                <span className="text-xs font-black leading-none" style={{ color: posColor }}>올탑</span>
               </div>
 
               {/* 돔/섭 */}
-              <div className="aspect-square rounded-2xl border flex flex-col items-center justify-center gap-0.5"
+              <div className="w-14 h-14 rounded-xl border flex flex-col items-center justify-center gap-px"
                 style={{ backgroundColor: domColor + '18', borderColor: domColor + '50' }}>
-                <span className="text-[9px] font-bold text-slate-400">돔/섭</span>
-                <span className="text-base font-black leading-none" style={{ color: domColor }}>일반</span>
+                <span className="text-[8px] font-bold text-slate-400">돔/섭</span>
+                <span className="text-xs font-black leading-none" style={{ color: domColor }}>일반</span>
               </div>
 
               {/* 관심사 */}
-              <div className="aspect-square rounded-2xl border flex flex-col items-center justify-center gap-0.5 bg-pink-500/10 border-pink-500/30">
-                <span className="text-[9px] font-bold text-slate-400">관심사</span>
-                <div className="flex flex-wrap justify-center gap-0.5 px-1">
-                  <span className="text-[9px] font-bold text-pink-300">#운동</span>
-                  <span className="text-[9px] font-bold text-pink-300">#독서</span>
+              <div className="w-14 h-14 rounded-xl border flex flex-col items-center justify-center gap-px bg-pink-500/10 border-pink-500/30">
+                <span className="text-[8px] font-bold text-slate-400">관심사</span>
+                <div className="flex flex-col items-center">
+                  <span className="text-[8px] font-bold text-pink-300">#운동</span>
+                  <span className="text-[8px] font-bold text-pink-300">#독서</span>
                 </div>
               </div>
             </div>
