@@ -1346,8 +1346,16 @@ export function MainScreen({
                 <div className={`rounded-3xl p-5 border shadow-xl transition-colors duration-300 ${darkMode ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600' : 'bg-white border-gray-100'}`}>
                   <p className={`text-[10px] font-black uppercase tracking-widest mb-3 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>내 프로필</p>
 
-                  {/* ── 사진(왼쪽) + 닉네임·박스(오른쪽) 한 줄 ── */}
-                  <div className="flex gap-3">
+                  {/* ── 닉네임 (사진 위) ── */}
+                  <div className="mb-2">
+                    <p className={`text-lg font-black leading-tight truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>{me.nickname}</p>
+                    {currentUserSeat && (
+                      <span className="text-[10px] font-bold text-amber-400">🪑 {currentUserSeat.table_number}번 {tableLetter}테이블</span>
+                    )}
+                  </div>
+
+                  {/* ── 사진(왼쪽) + 박스(오른쪽) — 상단 정렬 ── */}
+                  <div className="flex gap-3 items-start">
                     {/* 사진 */}
                     <div className="flex-shrink-0 flex flex-col items-center gap-1">
                       <div className="relative w-32 h-32">
@@ -1378,64 +1386,50 @@ export function MainScreen({
                       })()}
                     </div>
 
-                    {/* 오른쪽: 닉네임 + 2×2 박스 */}
-                    <div className="flex-1 min-w-0 flex flex-col gap-2">
-                      {/* 닉네임 + 자리 */}
-                      <div>
-                        <p className={`text-base font-black leading-tight truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>{me.nickname}</p>
-                        {currentUserSeat && (
-                          <span className="text-[10px] font-bold text-amber-400">🪑 {currentUserSeat.table_number}번 {tableLetter}테이블</span>
-                        )}
-                      </div>
-
-                      {/* 2×2 정보 박스 — 제목 위 레이블 + 그라디언트 글로우 */}
-                      <div className="grid grid-cols-2 gap-x-2 gap-y-2 ml-auto">
+                    {/* 오른쪽: 2×2 박스 */}
+                    <div className="flex-1 min-w-0 flex flex-col">
+                      {/* 2×2 정보 박스 — 레이블 박스 내부 상단, 사진과 top 정렬 */}
+                      <div className="grid grid-cols-2 gap-2 ml-auto">
                         {/* MBTI */}
-                        <div className="flex flex-col items-center gap-1">
-                          <span className={`text-[9px] font-black tracking-wide ${darkMode ? 'text-white' : 'text-gray-900'}`}>MBTI</span>
-                          <div className="w-16 h-14 rounded-2xl flex items-center justify-center" style={{
-                            background: darkMode ? 'linear-gradient(135deg,rgba(20,184,166,.35),rgba(20,184,166,.10))' : 'linear-gradient(135deg,rgba(20,184,166,.25),rgba(20,184,166,.08))',
-                            border: '1.5px solid rgba(20,184,166,.55)',
-                            boxShadow: darkMode ? '0 0 12px rgba(20,184,166,.22)' : 'none'
-                          }}>
-                            <span className={`text-sm font-black ${darkMode ? 'text-teal-300' : 'text-teal-700'}`}>
-                              {me.mbti || <span className={`text-[9px] font-semibold ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>—</span>}
-                            </span>
-                          </div>
+                        <div className="w-16 h-16 rounded-2xl relative flex items-center justify-center" style={{
+                          background: darkMode ? 'linear-gradient(135deg,rgba(20,184,166,.35),rgba(20,184,166,.10))' : 'linear-gradient(135deg,rgba(20,184,166,.25),rgba(20,184,166,.08))',
+                          border: '1.5px solid rgba(20,184,166,.55)',
+                          boxShadow: darkMode ? '0 0 12px rgba(20,184,166,.22)' : 'none'
+                        }}>
+                          <span className={`absolute top-1 left-0 right-0 text-center text-[7px] font-black tracking-wide ${darkMode ? 'text-white/60' : 'text-gray-500'}`}>MBTI</span>
+                          <span className={`text-sm font-black mt-1 ${darkMode ? 'text-teal-300' : 'text-teal-700'}`}>
+                            {me.mbti || '—'}
+                          </span>
                         </div>
 
                         {/* 성향 */}
-                        <div className="flex flex-col items-center gap-1">
-                          <span className={`text-[9px] font-black tracking-wide ${darkMode ? 'text-white' : 'text-gray-900'}`}>성향</span>
-                          <div className="w-16 h-14 rounded-2xl flex items-center justify-center" style={{
-                            background: `linear-gradient(135deg,${posColor}44,${posColor}14)`,
-                            border: `1.5px solid ${posColor}80`,
-                            boxShadow: darkMode ? `0 0 12px ${posColor}30` : 'none'
-                          }}>
-                            <span className="text-sm font-black" style={{ color: posColor }}>{posLabel}</span>
-                          </div>
+                        <div className="w-16 h-16 rounded-2xl relative flex items-center justify-center" style={{
+                          background: `linear-gradient(135deg,${posColor}44,${posColor}14)`,
+                          border: `1.5px solid ${posColor}80`,
+                          boxShadow: darkMode ? `0 0 12px ${posColor}30` : 'none'
+                        }}>
+                          <span className={`absolute top-1 left-0 right-0 text-center text-[7px] font-black tracking-wide ${darkMode ? 'text-white/60' : 'text-gray-500'}`}>성향</span>
+                          <span className="text-sm font-black mt-1" style={{ color: posColor }}>{posLabel}</span>
                         </div>
 
                         {/* 돔/섭 */}
-                        <div className="flex flex-col items-center gap-1">
-                          <span className={`text-[9px] font-black tracking-wide ${darkMode ? 'text-white' : 'text-gray-900'}`}>돔/섭</span>
-                          <div className="w-16 h-14 rounded-2xl flex items-center justify-center" style={{
-                            background: `linear-gradient(135deg,${domColor}44,${domColor}14)`,
-                            border: `1.5px solid ${domColor}80`,
-                            boxShadow: darkMode ? `0 0 12px ${domColor}30` : 'none'
-                          }}>
-                            <span className="text-sm font-black" style={{ color: domColor }}>{domLabel}</span>
-                          </div>
+                        <div className="w-16 h-16 rounded-2xl relative flex items-center justify-center" style={{
+                          background: `linear-gradient(135deg,${domColor}44,${domColor}14)`,
+                          border: `1.5px solid ${domColor}80`,
+                          boxShadow: darkMode ? `0 0 12px ${domColor}30` : 'none'
+                        }}>
+                          <span className={`absolute top-1 left-0 right-0 text-center text-[7px] font-black tracking-wide ${darkMode ? 'text-white/60' : 'text-gray-500'}`}>돔/섭</span>
+                          <span className="text-sm font-black mt-1" style={{ color: domColor }}>{domLabel}</span>
                         </div>
 
                         {/* 관심사 */}
-                        <div className="flex flex-col items-center gap-1">
-                          <span className={`text-[9px] font-black tracking-wide ${darkMode ? 'text-white' : 'text-gray-900'}`}>관심사</span>
-                          <div className="w-16 h-14 rounded-2xl flex flex-col items-center justify-center" style={{
-                            background: darkMode ? 'linear-gradient(135deg,rgba(236,72,153,.35),rgba(236,72,153,.10))' : 'linear-gradient(135deg,rgba(236,72,153,.20),rgba(236,72,153,.06))',
-                            border: '1.5px solid rgba(236,72,153,.55)',
-                            boxShadow: darkMode ? '0 0 12px rgba(236,72,153,.22)' : 'none'
-                          }}>
+                        <div className="w-16 h-16 rounded-2xl relative flex flex-col items-center justify-center" style={{
+                          background: darkMode ? 'linear-gradient(135deg,rgba(236,72,153,.35),rgba(236,72,153,.10))' : 'linear-gradient(135deg,rgba(236,72,153,.20),rgba(236,72,153,.06))',
+                          border: '1.5px solid rgba(236,72,153,.55)',
+                          boxShadow: darkMode ? '0 0 12px rgba(236,72,153,.22)' : 'none'
+                        }}>
+                          <span className={`absolute top-1 left-0 right-0 text-center text-[7px] font-black tracking-wide ${darkMode ? 'text-white/60' : 'text-gray-500'}`}>관심사</span>
+                          <div className="flex flex-col items-center mt-1">
                             {bioTags.length > 0 ? bioTags.slice(0, 2).map(tag => (
                               <span key={tag} className={`text-[9px] font-bold leading-snug ${darkMode ? 'text-pink-300' : 'text-pink-600'}`}>#{tag}</span>
                             )) : (
