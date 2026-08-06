@@ -1379,7 +1379,7 @@ export function MainScreen({
                     </div>
 
                     {/* 오른쪽: 닉네임 + 2×2 박스 */}
-                    <div className="flex-1 min-w-0 flex flex-col justify-between">
+                    <div className="flex-1 min-w-0 flex flex-col gap-2">
                       {/* 닉네임 + 자리 */}
                       <div>
                         <p className={`text-base font-black leading-tight truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>{me.nickname}</p>
@@ -1393,7 +1393,7 @@ export function MainScreen({
                         {/* MBTI */}
                         <div className="flex flex-col items-center gap-1">
                           <span className={`text-[9px] font-black tracking-wide ${darkMode ? 'text-white' : 'text-gray-900'}`}>MBTI</span>
-                          <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{
+                          <div className="w-16 h-14 rounded-2xl flex items-center justify-center" style={{
                             background: darkMode ? 'linear-gradient(135deg,rgba(20,184,166,.35),rgba(20,184,166,.10))' : 'linear-gradient(135deg,rgba(20,184,166,.25),rgba(20,184,166,.08))',
                             border: '1.5px solid rgba(20,184,166,.55)',
                             boxShadow: darkMode ? '0 0 12px rgba(20,184,166,.22)' : 'none'
@@ -1407,7 +1407,7 @@ export function MainScreen({
                         {/* 성향 */}
                         <div className="flex flex-col items-center gap-1">
                           <span className={`text-[9px] font-black tracking-wide ${darkMode ? 'text-white' : 'text-gray-900'}`}>성향</span>
-                          <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{
+                          <div className="w-16 h-14 rounded-2xl flex items-center justify-center" style={{
                             background: `linear-gradient(135deg,${posColor}44,${posColor}14)`,
                             border: `1.5px solid ${posColor}80`,
                             boxShadow: darkMode ? `0 0 12px ${posColor}30` : 'none'
@@ -1419,7 +1419,7 @@ export function MainScreen({
                         {/* 돔/섭 */}
                         <div className="flex flex-col items-center gap-1">
                           <span className={`text-[9px] font-black tracking-wide ${darkMode ? 'text-white' : 'text-gray-900'}`}>돔/섭</span>
-                          <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{
+                          <div className="w-16 h-14 rounded-2xl flex items-center justify-center" style={{
                             background: `linear-gradient(135deg,${domColor}44,${domColor}14)`,
                             border: `1.5px solid ${domColor}80`,
                             boxShadow: darkMode ? `0 0 12px ${domColor}30` : 'none'
@@ -1431,7 +1431,7 @@ export function MainScreen({
                         {/* 관심사 */}
                         <div className="flex flex-col items-center gap-1">
                           <span className={`text-[9px] font-black tracking-wide ${darkMode ? 'text-white' : 'text-gray-900'}`}>관심사</span>
-                          <div className="w-14 h-14 rounded-2xl flex flex-col items-center justify-center" style={{
+                          <div className="w-16 h-14 rounded-2xl flex flex-col items-center justify-center" style={{
                             background: darkMode ? 'linear-gradient(135deg,rgba(236,72,153,.35),rgba(236,72,153,.10))' : 'linear-gradient(135deg,rgba(236,72,153,.20),rgba(236,72,153,.06))',
                             border: '1.5px solid rgba(236,72,153,.55)',
                             boxShadow: darkMode ? '0 0 12px rgba(236,72,153,.22)' : 'none'

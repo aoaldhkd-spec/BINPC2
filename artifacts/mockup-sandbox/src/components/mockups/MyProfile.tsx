@@ -9,7 +9,6 @@ export default function MyProfile() {
       <div className="w-full max-w-sm rounded-3xl p-5 border border-slate-600 bg-gradient-to-br from-slate-800 to-slate-900 shadow-xl">
         <p className="text-[10px] font-black uppercase tracking-widest mb-3 text-slate-400">내 프로필</p>
 
-        {/* 사진(왼쪽) + 닉네임·박스(오른쪽) */}
         <div className="flex gap-3">
           {/* 사진 */}
           <div className="flex-shrink-0 flex flex-col items-center gap-1">
@@ -25,20 +24,18 @@ export default function MyProfile() {
           </div>
 
           {/* 오른쪽: 닉네임 + 2×2 박스 */}
-          <div className="flex-1 min-w-0 flex flex-col justify-between">
+          <div className="flex-1 min-w-0 flex flex-col gap-2">
             <div>
               <p className="text-base font-black leading-tight text-white">A1</p>
               <span className="text-[10px] font-bold text-amber-400">🪑 3번 C테이블</span>
             </div>
 
-            {/* 제목은 박스 위에 별도 레이블, 검은(흰)색 */}
             <div className="grid grid-cols-2 gap-x-2 gap-y-2 ml-auto">
-
               {/* MBTI */}
               <div className="flex flex-col items-center gap-1">
                 <span className="text-[9px] font-black text-white tracking-wide">MBTI</span>
-                <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{
-                  background: 'linear-gradient(135deg,rgba(20,184,166,.35),rgba(20,184,166,.1))',
+                <div className="w-16 h-14 rounded-2xl flex items-center justify-center" style={{
+                  background: 'linear-gradient(135deg,rgba(20,184,166,.35),rgba(20,184,166,.10))',
                   border: '1.5px solid rgba(20,184,166,.55)',
                   boxShadow: '0 0 12px rgba(20,184,166,.22)'
                 }}>
@@ -49,7 +46,7 @@ export default function MyProfile() {
               {/* 성향 */}
               <div className="flex flex-col items-center gap-1">
                 <span className="text-[9px] font-black text-white tracking-wide">성향</span>
-                <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{
+                <div className="w-16 h-14 rounded-2xl flex items-center justify-center" style={{
                   background: `linear-gradient(135deg,${posColor}44,${posColor}14)`,
                   border: `1.5px solid ${posColor}80`,
                   boxShadow: `0 0 12px ${posColor}30`
@@ -61,7 +58,7 @@ export default function MyProfile() {
               {/* 돔/섭 */}
               <div className="flex flex-col items-center gap-1">
                 <span className="text-[9px] font-black text-white tracking-wide">돔/섭</span>
-                <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{
+                <div className="w-16 h-14 rounded-2xl flex items-center justify-center" style={{
                   background: `linear-gradient(135deg,${domColor}44,${domColor}14)`,
                   border: `1.5px solid ${domColor}80`,
                   boxShadow: `0 0 12px ${domColor}30`
@@ -73,8 +70,8 @@ export default function MyProfile() {
               {/* 관심사 */}
               <div className="flex flex-col items-center gap-1">
                 <span className="text-[9px] font-black text-white tracking-wide">관심사</span>
-                <div className="w-14 h-14 rounded-2xl flex flex-col items-center justify-center" style={{
-                  background: 'linear-gradient(135deg,rgba(236,72,153,.35),rgba(236,72,153,.1))',
+                <div className="w-16 h-14 rounded-2xl flex flex-col items-center justify-center" style={{
+                  background: 'linear-gradient(135deg,rgba(236,72,153,.35),rgba(236,72,153,.10))',
                   border: '1.5px solid rgba(236,72,153,.55)',
                   boxShadow: '0 0 12px rgba(236,72,153,.22)'
                 }}>
@@ -82,7 +79,6 @@ export default function MyProfile() {
                   <span className="text-[9px] font-bold text-pink-300 leading-snug">#독서</span>
                 </div>
               </div>
-
             </div>
           </div>
         </div>
