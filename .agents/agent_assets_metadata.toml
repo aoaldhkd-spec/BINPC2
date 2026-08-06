@@ -63,3 +63,10 @@ uri = "file://artifacts/boltnew-app/public/waiting-bgm_2.mp3"
 type = "audio"
 title = "waiting-bgm-v2"
 description = "Generated music: Modern trendy Korean pop dance music 2024, bright synth lead, punchy trap hi-hats, warm romantic piano layer, dreamy reverb vocals chops, euphoric drop, like meeting someone at a roo…"
+
+[[outputs]]
+id = "sjrd03KIciHLaLw3TDM1P"
+uri = "file://artifacts/boltnew-app/public/waiting-bgm_3.mp3"
+type = "audio"
+title = "waiting-kpop-ballad"
+description = "Generated music: Korean pop ballad, warm piano melody, soft acoustic guitar, gentle synth pad, dreamy atmosphere, romantic and heartwarming, medium tempo around 90 BPM, like the feeling of waiting to…"
