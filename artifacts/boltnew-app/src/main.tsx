@@ -176,7 +176,7 @@ function Root() {
   const base = import.meta.env.BASE_URL.replace(/\/$/, '');
   const normalized = path.replace(new RegExp(`^${base}`), '') || '/';
 
-  if (normalized.startsWith('/admin')) return <AdminApp />;
+  if (normalized.startsWith('/admin')) return <AppErrorBoundary><AdminApp /></AppErrorBoundary>;
   if (normalized.startsWith('/test'))  return <TestGate />;
   return <AppErrorBoundary><App /></AppErrorBoundary>;
 }

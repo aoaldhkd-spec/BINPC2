@@ -1424,7 +1424,9 @@ function App() {
       )}
       {/* Balance game result modal - appears on any tab when a game ends */}
       {gameEndResult && (
-        <GameResultModal game={gameEndResult.game} counts={gameEndResult.counts} onClose={() => setGameEndResult(null)} />
+        <AppErrorBoundary screenName="게임 결과" onReset={() => setGameEndResult(null)}>
+          <GameResultModal game={gameEndResult.game} counts={gameEndResult.counts} onClose={() => setGameEndResult(null)} />
+        </AppErrorBoundary>
       )}
       {/* Q&A Game Overlay (전체 공지) */}
       {activeQaGame && qaOverlayVisible && (
@@ -1448,8 +1450,11 @@ function App() {
       )}
       {/* Game Active Banner (모달 닫은 후 상단 표시) */}
       {currentGame?.active && !gameModalVisible && (
-        <GameActiveBanner game={currentGame} onClick={() => setGameModalVisible(true)} />
+        <AppErrorBoundary screenName="게임 배너" onReset={() => setGameModalVisible(false)}>
+          <GameActiveBanner game={currentGame} onClick={() => setGameModalVisible(true)} />
+        </AppErrorBoundary>
       )}
+      <AppErrorBoundary screenName="메인 화면" onReset={() => { setView('main'); setMainTab('profiles'); }}>
       <MainScreen
         profiles={profiles}
         currentUserId={currentUserId}
@@ -1519,12 +1524,15 @@ function App() {
         onBroadcastGame={broadcastTableGame}
         setSeatDialog={setSeatDialog}
       />
+      </AppErrorBoundary>
       {/* Table Mini-Game Modal (테이블 동기 게임 결과) */}
       {incomingTableGame && (
-        <TableMiniGameModal
-          session={incomingTableGame}
-          onClose={() => setIncomingTableGame(null)}
-        />
+        <AppErrorBoundary screenName="테이블 게임" onReset={() => setIncomingTableGame(null)}>
+          <TableMiniGameModal
+            session={incomingTableGame}
+            onClose={() => setIncomingTableGame(null)}
+          />
+        </AppErrorBoundary>
       )}
       {seatDialog && (
         <SeatRegisterDialog

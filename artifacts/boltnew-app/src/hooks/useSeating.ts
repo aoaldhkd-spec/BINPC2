@@ -40,19 +40,21 @@ export function useSeating(currentUserId: string | null) {
         setSeatDialog(null);
         return;
       }
-      // 현재 자리가 있으면 먼저 비워주고 새 자리로 이동
-      if (currentUserSeat && currentUserSeat.id !== seat.id) {
-        await supabase
-          .from('seats')
-          .update({ profile_id: null, status: 'empty', registered_at: null })
-          .eq('id', currentUserSeat.id);
-      }
+      // 새 자리 먼저 확보 → 성공 후 기존 자리 반납 (순서 역전 방지)
       const { error } = await supabase.from('seats').update({
         profile_id: currentUserId, status: 'occupied', registered_at: new Date().toISOString(),
       }).eq('id', seat.id);
       if (error) {
         alert('자리 등록에 실패했습니다. 다시 시도해 주세요.');
         return;
+      }
+      // 새 자리 확보 성공 후 기존 자리 반납 (실패해도 새 자리는 유지)
+      if (currentUserSeat && currentUserSeat.id !== seat.id) {
+        await supabase
+          .from('seats')
+          .update({ profile_id: null, status: 'empty', registered_at: null })
+          .eq('id', currentUserSeat.id)
+          .catch(() => null); // 반납 실패는 다음 resync에서 자동 복구
       }
       setSeatDialog(null);
       await loadSeats();

@@ -26,5 +26,6 @@
 - [boltnew-app Part 3 backend defense](boltnew-app-part3-backend-defense.md) — unhandledRejection+글로벌 미들웨어; push N+1→dbDeleteRows 배치; /op op허용목록+타입검증; /broadcast channel/event 검증; storage-upload/push-notify try-catch.
 - [boltnew-app Part 4 security+errorboundary](boltnew-app-part4-security-errorboundary.md) — chats SELECT IDOR guard(참여자 필터); /unread-counts SSE토큰 검증; admin RPC checkPassword 2곳; game modal ErrorBoundary; ReconnectOverlay "연결 지연 중".
 - [boltnew-app Part 5 final report](boltnew-app-part5-final-report.md) — 60테스트·타입체크·스트레스테스트 PASS; INSERT IDOR 4종 강화; 채팅방중복레이스차단; SSE chatId guard; 메시지500상한 전경로; 큐50상한.
+- [boltnew-app 15-step E2E audit](boltnew-app-15step-audit.md) — 2026-08-06 전수 감사 완료; /op finally 누수·UPDATE IDOR·FilterSpec타입·RTL유니코드·ErrorBoundary 6종 신규 발견·수정.
 - [boltnew-app SeatingMap image fix](boltnew-app-seatingmap-image.md) — All img tags must use seatingAvatarSrc()+onError fallback; plain photo_url shows broken image for null/DiceBear-transparent URLs.
 - [boltnew-app 내 테이블 탭 테이블 선택 UI](boltnew-app-mytable-fix.md) — selectedMyTableNum+myTableList+resolvedMyTable 제거하면 안 됨; MyTableView는 max-w-sm 말고 w-full 사용.

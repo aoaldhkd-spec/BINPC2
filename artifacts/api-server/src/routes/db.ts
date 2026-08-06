@@ -68,17 +68,26 @@ const ALLOWED_OP_TABLES = new Set([
 // ─── Input sanitization ───────────────────────────────────────────────────────
 // Strips dangerous control characters (keeps \t, \n, \r for normal text),
 // removes HTML/XML tags entirely (stored-XSS prevention),
+// strips Unicode direction-override characters (RTL override attack),
 // and enforces per-field length limits to prevent oversized payloads.
 function sanitizeStr(val: unknown, maxLen: number): unknown {
   if (typeof val !== 'string') return val;
   return val
-    .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, '') // strip control chars
+    .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, '') // strip C0 control chars
+    .replace(/[\u200b-\u200f\u202a-\u202e\u2060-\u2064\u206a-\u206f\ufeff]/g, '') // strip Unicode direction/zero-width overrides (RTL attack)
     .replace(/<[^>]*>/g, '')                              // strip HTML/XML tags → no stored XSS
     .slice(0, maxLen);
 }
 const FIELD_LIMITS: Record<string, Record<string, number>> = {
-  profiles: { nickname: 30, bio: 500, status_message: 100, kakao_id: 100, instagram_id: 100, phone_number: 30 },
-  messages: { content: 2000 },
+  profiles:          { nickname: 30, bio: 500, status_message: 100, kakao_id: 100, instagram_id: 100, phone_number: 30 },
+  messages:          { content: 2000 },
+  // ─ 아래 테이블의 유저 입력 필드도 HTML·제어 문자 제거 적용 ─────────────────
+  notifications:     { content: 300, title: 100 },
+  suggestions:       { content: 500 },
+  anonymous_reports: { content: 500, reason: 200 },
+  qa_games:          { question: 300, option_a: 100, option_b: 100 },
+  image_games:       { question: 200 },
+  balance_games:     { question: 300, option_a: 100, option_b: 100 },
 };
 function sanitizeRow(tbl: string, row: Record<string, unknown>): Record<string, unknown> {
   const limits = FIELD_LIMITS[tbl];
@@ -901,6 +910,11 @@ router.post('/op', async (req: Request, res: Response) => {
     if (_sessId) (req.body as Record<string, unknown>).requesterId = _sessId;
   }
 
+  // ─ req.body 타입 방어: JSON 파싱 실패·비객체 전송 시 safe fallback ─────────
+  if (req.body == null || typeof req.body !== 'object' || Array.isArray(req.body)) {
+    _activeOpCount--;
+    return res.status(400).json({ data: null, error: { message: 'Request body must be a JSON object', code: 'INVALID_BODY' } });
+  }
   const {
     table,
     op,
@@ -959,13 +973,17 @@ router.post('/op', async (req: Request, res: Response) => {
   // ─ Fix: 외부에서 {op:'eq'} 형식으로 보내 필터를 우회하는 공격 차단 ───────────────
   // 클라이언트는 {type:'eq'} 형식으로 보내지만, 해커가 {op:'eq'}로 보내면
   // matchFilter가 f.type을 찾지 못해 모든 행을 통과시킴 → 필터 완전 무력화
-  const normalizedFilters: FilterSpec[] = (Array.isArray(filters) ? filters : []).map((f: Record<string, unknown>) => {
-    if (f.type != null) return f as unknown as FilterSpec;
+  const normalizedFilters: FilterSpec[] = (Array.isArray(filters) ? filters : []).map((f: unknown) => {
+    // ─ 각 필터 요소 타입 방어: null·primitive는 null 마커로 치환해 이후 filter()에서 제거
+    if (f == null || typeof f !== 'object' || Array.isArray(f)) return null;
+    const fr = f as Record<string, unknown>;
+    if (fr.type != null) return fr as unknown as FilterSpec;
     // op → type 정규화
-    if (f.op != null) return { ...f, type: f.op, op: undefined } as unknown as FilterSpec;
-    return f as unknown as FilterSpec;
-  }).filter((f) => {
+    if (fr.op != null) return { ...fr, type: fr.op, op: undefined } as unknown as FilterSpec;
+    return fr as unknown as FilterSpec;
+  }).filter((f): f is FilterSpec => {
     // 필터 요소 유효성: col은 문자열, type은 문자열이어야 함
+    if (f == null) return false;
     const fr = f as unknown as Record<string, unknown>;
     return typeof fr.col === 'string' && fr.col.length > 0 && typeof fr.type === 'string';
   });
@@ -1128,13 +1146,16 @@ router.post('/op', async (req: Request, res: Response) => {
             logger.warn({ requesterId, sender_id: effectiveRow.sender_id, ip: req.ip }, '[SECURITY] IDOR: sender_id mismatch blocked');
             return res.status(403).json({ data: null, error: { message: 'Forbidden: sender_id mismatch', code: 'FORBIDDEN' } });
           }
+          // ─ chat_id는 messages INSERT에서 필수 — 없으면 고아 메시지 생성 차단
+          if (effectiveRow.chat_id == null) {
+            logger.warn({ requesterId, ip: req.ip }, '[SECURITY] IDOR: messages INSERT without chat_id blocked');
+            return res.status(400).json({ data: null, error: { message: 'chat_id is required for messages', code: 'INVALID_INPUT' } });
+          }
           // 채팅방 참여자 검증 — 채팅방에 속하지 않은 사용자가 메시지를 삽입하는 공격 차단
-          if (effectiveRow.chat_id != null) {
-            const targetChat = getTable('chats').find(c => c.id === effectiveRow.chat_id);
-            if (!targetChat || (String(targetChat.user1_id) !== String(requesterId) && String(targetChat.user2_id) !== String(requesterId))) {
-              logger.warn({ requesterId, chatId: effectiveRow.chat_id, ip: req.ip }, '[SECURITY] IDOR: message INSERT by non-participant blocked');
-              return res.status(403).json({ data: null, error: { message: 'Forbidden: not a chat participant', code: 'FORBIDDEN' } });
-            }
+          const targetChat = getTable('chats').find(c => c.id === effectiveRow.chat_id);
+          if (!targetChat || (String(targetChat.user1_id) !== String(requesterId) && String(targetChat.user2_id) !== String(requesterId))) {
+            logger.warn({ requesterId, chatId: effectiveRow.chat_id, ip: req.ip }, '[SECURITY] IDOR: message INSERT by non-participant blocked');
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: not a chat participant', code: 'FORBIDDEN' } });
           }
         }
         // chats: requesterId 필수 + 본인이 user1_id 또는 user2_id여야 함
@@ -1284,6 +1305,11 @@ router.post('/op', async (req: Request, res: Response) => {
       let patch = sanitizeRow(table, payload as Record<string, unknown>);
 
       // ─ IDOR guard: UPDATE ownership check ──────────────────────────────
+      // messages UPDATE는 requesterId 필수 — 미인증 UPDATE로 타인 메시지 수정 차단
+      if (table === 'messages' && !requesterId) {
+        logger.warn({ ip: req.ip }, '[SECURITY] IDOR: messages UPDATE without requesterId blocked');
+        return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+      }
       // requesterId가 있는 경우, 자신 소유의 행만 수정 가능하도록 검증
       if (requesterId) {
         const rowsToUpdate = applyFilters(tableData, normalizedFilters);
@@ -1440,10 +1466,12 @@ router.post('/op', async (req: Request, res: Response) => {
         }
       }
       store[table] = tableData.filter(r => !applyFilters([r], normalizedFilters).length);
+      // ─ 배치 삭제 최적화: N개의 개별 DELETE → 단일 IN-clause 쿼리로 통합 (N+1 제거)
+      const deleteIds = toDelete.map(r => String(r.id)).filter(Boolean);
       for (const row of toDelete) {
         smartBroadcast(table, row, { type: 'change', table, event: 'DELETE', newRow: null, oldRow: row });
-        dbDeleteRow(table, String(row.id)).catch(console.error);
       }
+      if (deleteIds.length > 0) dbDeleteRows(table, deleteIds).catch(console.error);
       return res.json({ data: null, error: null });
     }
 
@@ -1453,6 +1481,8 @@ router.post('/op', async (req: Request, res: Response) => {
     // 내부 오류 문자열을 클라이언트에 직접 노출하지 않음 — 스키마·스택 정보 유출 방지
     return res.json({ data: null, error: { message: '서버 내부 오류가 발생했습니다. 잠시 후 다시 시도해주세요.' } });
   } finally {
+    // ─ 동시 요청 슬롯 반환 — try/catch 내부의 어떤 경로로 나가든 반드시 1회 실행
+    _activeOpCount--;
   }
 });
 
@@ -1466,7 +1496,10 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
 
   function checkPassword() {
     const provided = (args.p_admin_password as string) ?? '';
-    if (adminPw && provided !== adminPw) throw new Error('비밀번호가 일치하지 않습니다.');
+    const token = (args.adminToken as string) ?? '';
+    // adminToken(HMAC)으로도 인증 가능 — 비밀번호 대신 토큰을 전달한 경우도 허용
+    const isValidToken = token.length > 0 && adminPw.length > 0 && token === deriveAdminToken(adminPw);
+    if (adminPw && provided !== adminPw && !isValidToken) throw new Error('비밀번호가 일치하지 않습니다.');
   }
 
   try {
@@ -1487,15 +1520,27 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         checkPassword();
         return res.json({ data: null, error: null });
 
+      case 'admin_update_settings': {
+        // 관리자 패널 → api-server 인메모리 app_settings 동기화
+        // Supabase 직접 업데이트만으로는 api-server 메모리가 갱신되지 않아 유저에게 반영 안 됨
+        checkPassword();
+        const payload = (args.p_payload as Record<string, unknown>) ?? {};
+        const current = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
+        const updated = { ...current, ...payload, updated_at: new Date().toISOString() };
+        store['app_settings'] = [updated];
+        broadcastAll({ type: 'change', table: 'app_settings', event: 'UPDATE', newRow: updated, oldRow: current });
+        dbPersistRow('app_settings', updated).catch(console.error);
+        return res.json({ data: null, error: null });
+      }
+
       case 'admin_reset_all_seats':
       case 'admin_full_reset': {
         checkPassword();
         const seats = getTable('seats').map(s => ({ ...s, profile_id: null, status: 'empty', registered_at: null }));
         store['seats'] = seats;
-        for (const s of seats) {
-          broadcastAll({ type: 'change', table: 'seats', event: 'UPDATE', newRow: s, oldRow: null });
-          dbPersistRow('seats', s).catch(console.error);
-        }
+        // ─ 배치 병렬 쓰기: N개 직렬 await → Promise.all 병렬화 (DB 왕복 N→1)
+        for (const s of seats) broadcastAll({ type: 'change', table: 'seats', event: 'UPDATE', newRow: s, oldRow: null });
+        Promise.all(seats.map(s => dbPersistRow('seats', s))).catch(console.error);
         return res.json({ data: null, error: null });
       }
 
@@ -1503,10 +1548,8 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         checkPassword();
         const seats = getTable('seats').map(s => ({ ...s, profile_id: null, status: 'empty', registered_at: null }));
         store['seats'] = seats;
-        for (const s of seats) {
-          broadcastAll({ type: 'change', table: 'seats', event: 'UPDATE', newRow: s, oldRow: null });
-          dbPersistRow('seats', s).catch(console.error);
-        }
+        for (const s of seats) broadcastAll({ type: 'change', table: 'seats', event: 'UPDATE', newRow: s, oldRow: null });
+        Promise.all(seats.map(s => dbPersistRow('seats', s))).catch(console.error);
         const tablesToClear = [
           'profiles', 'likes', 'anonymous_reports', 'chats', 'messages',
           'contact_shares', 'contact_share_events', 'balance_votes', 'balance_games',
@@ -1723,6 +1766,11 @@ const ALLOWED_IMAGE_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp', 'i
 const MAX_IMAGE_DATAURL_BYTES = 9_000_000;
 
 router.post('/storage-upload', async (req: Request, res: Response) => {
+  try {
+  // ─ req.body 타입 방어
+  if (req.body == null || typeof req.body !== 'object' || Array.isArray(req.body)) {
+    return res.status(400).json({ data: null, error: 'Invalid request body' });
+  }
   const { path: imgPath, dataUrl } = req.body as { path?: string; dataUrl?: string };
   // ─ 경로 검증: 디렉터리 트래버설 / 임의 덮어쓰기 방지
   if (
@@ -1767,10 +1815,9 @@ router.post('/storage-upload', async (req: Request, res: Response) => {
       return res.status(400).json({ data: null, error: 'Image content does not match declared type' });
     }
   }
-  try {
-    imageStore[imgPath] = dataUrl;
-    dbPersistImage(imgPath, dataUrl).catch(console.error);
-    return res.json({ data: { path: imgPath }, error: null });
+  imageStore[imgPath] = dataUrl;
+  dbPersistImage(imgPath, dataUrl).catch(console.error);
+  return res.json({ data: { path: imgPath }, error: null });
   } catch (e) {
     logger.error({ err: e }, '[storage-upload] Unexpected error');
     return res.status(500).json({ data: null, error: 'Internal server error' });
@@ -1778,8 +1825,12 @@ router.post('/storage-upload', async (req: Request, res: Response) => {
 });
 
 router.get('/storage-image', (req: Request, res: Response): void => {
-  const path = req.query.p as string;
-  const dataUrl = path ? imageStore[path] : undefined;
+  try {
+  // ─ req.query.p 타입 방어: Express는 ?p=a&p=b 시 배열을 반환 → 명시적 string 검증
+  const rawP = req.query.p;
+  if (!rawP || typeof rawP !== 'string') { res.status(400).json({ error: 'Invalid path parameter' }); return; }
+  const path = rawP;
+  const dataUrl = imageStore[path];
   if (!dataUrl) { res.status(404).json({ error: 'Not found' }); return; }
   const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
   if (match) {
@@ -1792,6 +1843,10 @@ router.get('/storage-image', (req: Request, res: Response): void => {
     return;
   }
   res.send(dataUrl);
+  } catch (e) {
+    logger.error({ err: e }, '[storage-image] Unexpected error');
+    if (!res.headersSent) res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // ─── Admin: clear DB error counter ───────────────────────────────────────────
@@ -1842,6 +1897,7 @@ let _healthCache: { ts: number; body: unknown } | null = null;
 const HEALTH_CACHE_TTL_MS = 10_000;
 
 router.get('/health', async (_req: Request, res: Response) => {
+  try {
   if (_healthCache && Date.now() - _healthCache.ts < HEALTH_CACHE_TTL_MS) {
     return res.json(_healthCache.body);
   }
@@ -1913,6 +1969,10 @@ router.get('/health', async (_req: Request, res: Response) => {
   };
   _healthCache = { ts: Date.now(), body };
   return res.json(body);
+  } catch (e) {
+    logger.error({ err: e }, '[health] Unexpected error');
+    return res.status(500).json({ ok: false, error: 'Health check failed' });
+  }
 });
 
 // ─── Unread counts endpoint ───────────────────────────────────────────────────
@@ -1997,6 +2057,7 @@ const PIN_MAX = 5;
 const PIN_WINDOW_MS = 15 * 60 * 1000;
 
 router.post('/by-pin', (req: Request, res: Response) => {
+  try {
   const ip = String(req.ip ?? 'unknown');
   const now = Date.now();
   const prev = _pinAttempts.get(ip);
@@ -2009,8 +2070,22 @@ router.post('/by-pin', (req: Request, res: Response) => {
     _pinAttempts.set(ip, { count: 1, resetAt: now + PIN_WINDOW_MS });
   }
 
-  const { pin, nickname } = req.body as { pin?: string; nickname?: string };
-  if (!pin) return res.status(400).json({ data: null, error: { message: 'PIN required' } });
+  // ─ 페이로드 타입 방어
+  if (req.body == null || typeof req.body !== 'object' || Array.isArray(req.body)) {
+    return res.status(400).json({ data: null, error: { message: 'Invalid request body', code: 'INVALID_BODY' } });
+  }
+  const body = req.body as Record<string, unknown>;
+  const pin = body.pin;
+  const nickname = body.nickname;
+
+  // pin은 반드시 문자열, 최대 8자 (4~5자리 숫자 코드)
+  if (!pin || typeof pin !== 'string' || pin.length === 0 || pin.length > 8) {
+    return res.status(400).json({ data: null, error: { message: 'PIN required (max 8 chars)' } });
+  }
+  // nickname은 선택적이되, 전달된 경우 문자열이어야 함, 최대 30자
+  if (nickname != null && (typeof nickname !== 'string' || nickname.length > 30)) {
+    return res.status(400).json({ data: null, error: { message: 'Invalid nickname' } });
+  }
 
   const profiles = getTable('profiles');
   const found = profiles.find(p => String(p['pin_code']) === String(pin));
@@ -2033,6 +2108,10 @@ router.post('/by-pin', (req: Request, res: Response) => {
   // 성공 — rate limit 리셋
   _pinAttempts.delete(ip);
   return res.json({ data: found, error: null });
+  } catch (e) {
+    logger.error({ err: e }, '[by-pin] Unexpected error');
+    return res.status(500).json({ data: null, error: { message: '서버 내부 오류가 발생했습니다.' } });
+  }
 });
 
 // ─── Push subscription endpoints ─────────────────────────────────────────────
@@ -2041,13 +2120,29 @@ router.get('/push/vapid-key', (_req: Request, res: Response) => {
 });
 
 router.post('/push/subscribe', (req: Request, res: Response) => {
-  const { userId, subscription } = req.body as {
-    userId?: string;
-    subscription?: { endpoint?: string; keys?: { auth?: string; p256dh?: string } };
-  };
-  if (!userId || !subscription?.endpoint || !subscription?.keys?.auth || !subscription?.keys?.p256dh) {
-    return res.status(400).json({ error: 'Missing fields' });
+  try {
+  // ─ 페이로드 타입 방어 + 길이 제한
+  if (req.body == null || typeof req.body !== 'object' || Array.isArray(req.body)) {
+    return res.status(400).json({ error: 'Invalid request body' });
   }
+  const rawBody = req.body as Record<string, unknown>;
+  const userId = typeof rawBody.userId === 'string' ? rawBody.userId : null;
+  const sub = rawBody.subscription;
+  const endpoint = sub != null && typeof (sub as Record<string, unknown>).endpoint === 'string'
+    ? (sub as Record<string, unknown>).endpoint as string : null;
+  const keys = sub != null ? (sub as Record<string, unknown>).keys : null;
+  const auth = keys != null && typeof (keys as Record<string, unknown>).auth === 'string'
+    ? (keys as Record<string, unknown>).auth as string : null;
+  const p256dh = keys != null && typeof (keys as Record<string, unknown>).p256dh === 'string'
+    ? (keys as Record<string, unknown>).p256dh as string : null;
+
+  // 필드 존재 + 길이 검증
+  if (!userId || userId.length > 128) return res.status(400).json({ error: 'Missing or invalid userId' });
+  if (!endpoint || endpoint.length > 2048) return res.status(400).json({ error: 'Missing or invalid endpoint' });
+  if (!auth || auth.length > 512) return res.status(400).json({ error: 'Missing or invalid auth key' });
+  if (!p256dh || p256dh.length > 512) return res.status(400).json({ error: 'Missing or invalid p256dh key' });
+
+  const subscription = { endpoint, keys: { auth, p256dh } };
 
   // SSE 토큰 검증 — 실제 userId 소유자만 구독 등록 가능
   const sseToken = req.headers['x-sse-token'] as string | undefined;
@@ -2084,6 +2179,10 @@ router.post('/push/subscribe', (req: Request, res: Response) => {
     dbPersistRow('push_subscriptions', newSub).catch(console.error);
   }
   return res.json({ ok: true });
+  } catch (e) {
+    logger.error({ err: e }, '[push/subscribe] Unexpected error');
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // ─── Push notify endpoint (서버 내부 또는 인증된 호출만 허용) ────────────────
@@ -2093,19 +2192,26 @@ router.post('/push/notify', async (req: Request, res: Response): Promise<void> =
   // 클라이언트 직접 호출 남용 방지 — X-Internal-Secret 헤더 필요
   const secret = req.headers['x-internal-secret'];
   if (secret !== PUSH_NOTIFY_SECRET) { res.status(403).json({ error: 'Forbidden' }); return; }
-  const { recipientId, title, body, tag, url } = req.body as {
-    recipientId?: string; title?: string; body?: string; tag?: string; url?: string;
-  };
-  if (!recipientId) { res.status(400).json({ error: 'Missing recipientId' }); return; }
+  // ─ 페이로드 타입 방어 + 길이 제한 — XSS·스토리지 폭탄 방어
+  if (req.body == null || typeof req.body !== 'object' || Array.isArray(req.body)) {
+    res.status(400).json({ error: 'Invalid request body' }); return;
+  }
+  const rawNotify = req.body as Record<string, unknown>;
+  const recipientId = typeof rawNotify.recipientId === 'string' ? rawNotify.recipientId : null;
+  if (!recipientId || recipientId.length > 128) { res.status(400).json({ error: 'Missing or invalid recipientId' }); return; }
+
+  // 안전한 문자열 변환 + 길이 상한 (알림 페이로드 비대 방지)
+  const safeStr = (v: unknown, def: string, max: number) =>
+    (typeof v === 'string' ? v : def).slice(0, max);
 
   const subs = getTable('push_subscriptions').filter(s => s.user_id === recipientId);
   if (!subs.length) { res.json({ ok: true, sent: 0 }); return; }
 
   const payload: PushPayload = {
-    title: String(title || '범일NPC 술번개'),
-    body:  String(body  || ''),
-    tag:   String(tag   || 'notification'),
-    url:   String(url   || '/'),
+    title: safeStr(rawNotify.title, '범일NPC 술번개', 64),
+    body:  safeStr(rawNotify.body,  '',               200),
+    tag:   safeStr(rawNotify.tag,   'notification',   64),
+    url:   safeStr(rawNotify.url,   '/',              512),
   };
 
   // 병렬 전송 — 직렬 await 제거
@@ -2240,16 +2346,22 @@ router.post('/auth/login', (req: Request, res: Response) => {
 // POST /auth/sse-token — 세션으로 인증된 userId에만 단기 SSE 토큰 발급
 // 세션이 없거나 userId가 일치하지 않으면 401 반환
 router.post('/auth/sse-token', (req: Request, res: Response) => {
-  const sessionUserId = req.session?.userId;
-  if (!sessionUserId) {
-    return res.status(401).json({ error: 'Not authenticated — call /auth/login first' });
+  try {
+    const sessionUserId = req.session?.userId;
+    if (!sessionUserId) {
+      return res.status(401).json({ error: 'Not authenticated — call /auth/login first' });
+    }
+    const { token, expiresAt } = issueSseToken(sessionUserId);
+    return res.json({ token, expiresAt });
+  } catch (e) {
+    logger.error({ err: e }, '[auth/sse-token] Unexpected error');
+    return res.status(500).json({ error: 'Internal server error' });
   }
-  const { token, expiresAt } = issueSseToken(sessionUserId);
-  return res.json({ token, expiresAt });
 });
 
 // ─── SSE endpoint ─────────────────────────────────────────────────────────────
 router.get('/events', (req: Request, res: Response) => {
+  try {
   const userId = typeof req.query.userId === 'string' && req.query.userId ? req.query.userId : null;
   const token = typeof req.query.token === 'string' ? req.query.token : null;
   const adminTokenParam = typeof req.query.adminToken === 'string' ? req.query.adminToken : null;
@@ -2360,6 +2472,22 @@ router.get('/events', (req: Request, res: Response) => {
 
   // Initial ping — cleanupConn 선언 이후에 write. 이미 닫힌 응답이면 즉시 정리.
   try { res.write('data: {"type":"ping"}\n\n'); } catch { cleanupConn(); }
+  } catch (e) {
+    logger.error({ err: e }, '[events] Unexpected error during SSE setup');
+    if (!res.headersSent) res.status(500).json({ error: 'Internal server error' });
+  }
 });
+
+// ─── Graceful shutdown helper (index.ts에서 SIGTERM·SIGINT 시 호출) ───────────
+// DB 커넥션 풀과 LISTEN 클라이언트를 순서대로 종료한다.
+export async function gracefulShutdown(): Promise<void> {
+  // 1) LISTEN 클라이언트 종료 — NOTIFY 구독 해제
+  if (_listenClient) {
+    try { await _listenClient.end(); } catch { /* ignore */ }
+    _listenClient = null;
+  }
+  // 2) 커넥션 풀 종료 — 진행 중인 쿼리가 완료된 후 모든 idle 연결 반환
+  try { await pool.end(); } catch { /* ignore */ }
+}
 
 export default router;

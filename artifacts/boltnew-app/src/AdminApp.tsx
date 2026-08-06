@@ -28,7 +28,43 @@ type BalanceGame = Database['public']['Tables']['balance_games']['Row'];
 const ADMIN_SESSION_KEY = 'admin_session_v1';
 const ADMIN_TOKEN_KEY = 'admin_token_v1';
 
+// ─── api-server 직접 호출 헬퍼 ───────────────────────────────────────────────
+// Supabase 직접 업데이트는 api-server 인메모리 스토어를 갱신하지 않음 →
+// 회식시작·잠금제어·전체초기화 등 유저에게 즉시 반영돼야 하는 작업은
+// Supabase 업데이트 후 api-server RPC도 함께 호출해야 함.
+const ADMIN_API = '/api/db';
 
+async function adminApiRpc(name: string, args: Record<string, unknown>): Promise<void> {
+  const token = localStorage.getItem(ADMIN_TOKEN_KEY) ?? '';
+  const res = await fetch(`${ADMIN_API}/rpc/${name}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...args, adminToken: token }),
+  });
+  if (!res.ok) throw new Error(`api-server RPC ${name} 오류: HTTP ${res.status}`);
+  const json = (await res.json()) as { data: unknown; error: { message: string } | null };
+  if (json.error) throw new Error(json.error.message);
+}
+
+/** api-server /op 호출 — INSERT/UPDATE/DELETE를 인메모리 + SSE broadcast + 영속화 */
+async function adminApiOp(
+  table: string,
+  op: 'insert' | 'update' | 'delete',
+  payload: Record<string, unknown>,
+  filters?: Array<{ col: string; type: string; value: unknown }>,
+): Promise<void> {
+  const token = localStorage.getItem(ADMIN_TOKEN_KEY) ?? '';
+  const body: Record<string, unknown> = { table, op, payload, adminToken: token };
+  if (filters) body.filters = filters;
+  const res = await fetch(`${ADMIN_API}/op`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`api-server /op ${op}:${table} 오류: HTTP ${res.status}`);
+  const json = (await res.json()) as { data: unknown; error: { message: string } | null };
+  if (json.error) throw new Error(json.error.message);
+}
 
 // Local mock: admin client is the same as the regular client
 const adminSupabase = supabase;
@@ -249,7 +285,20 @@ function NotificationTab({ tableCount, settings, onSetTimer }: {
     const fullMsg = type === 'game' && penalty.trim()
       ? `${message.trim()}\n🎯 벌칙: ${penalty.trim()}`
       : message.trim();
-    await adminSupabase.from('notifications').insert({ message: fullMsg, type, target, is_active: true });
+    // Supabase insert + 삽입된 행 반환
+    const { data: inserted, error: insertErr } = await adminSupabase
+      .from('notifications').insert({ message: fullMsg, type, target, is_active: true }).select().single();
+    if (insertErr) {
+      alert(`알림 전송 실패: ${insertErr.message}`);
+      setSending(false);
+      return;
+    }
+    // api-server 동기화 → SSE로 모든 유저에게 즉시 전송
+    // (Supabase 직접 insert는 api-server 인메모리/SSE를 거치지 않아 유저에게 도달 안 함)
+    if (inserted) {
+      adminApiOp('notifications', 'insert', inserted as Record<string, unknown>)
+        .catch(e => console.warn('[admin] api-server 알림 동기화 실패:', e));
+    }
     if (withTimer) {
       const mins = parseInt(timerMinutes, 10);
       if (!isNaN(mins) && mins > 0) {
@@ -4856,13 +4905,19 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       // 실패 시 롤백
       setSettings(prev => prev ? { ...prev, session_active: !newVal } : prev);
       console.error('[admin] 세션 토글 실패:', error.message);
+      return;
     }
+    // api-server 인메모리 동기화 → 모든 유저에게 SSE로 즉시 반영
+    adminApiRpc('admin_update_settings', { p_admin_password: settings.admin_password ?? '', p_payload: { session_active: newVal } })
+      .catch(e => console.warn('[admin] api-server 세션 동기화 실패 (5분 내 자동 복구):', e));
   };
 
   const handleSetTimer = async (endAt: string | null, label: string | null) => {
     const { error } = await adminSupabase.from('app_settings').update({ timer_end_at: endAt, timer_label: label, updated_at: new Date().toISOString() }).eq('id', 1);
     if (error) { alert(`타이머 설정 실패: ${error.message}`); return; }
     setSettings(prev => prev ? { ...prev, timer_end_at: endAt, timer_label: label } : prev);
+    adminApiRpc('admin_update_settings', { p_admin_password: settings?.admin_password ?? '', p_payload: { timer_end_at: endAt, timer_label: label } })
+      .catch(e => console.warn('[admin] api-server 타이머 동기화 실패:', e));
   };
 
   const handleFullReset = async () => {
@@ -4877,8 +4932,13 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       await adminSupabase.from('session_history').insert({ seats_snapshot: snapshot });
       const { error: resetErr } = await adminSupabase.rpc('admin_reset_all_seats', { p_admin_password: settings?.admin_password ?? '' });
       if (resetErr) throw new Error(resetErr.message);
+      // api-server 인메모리 좌석 초기화 → 유저 화면 즉시 갱신
+      await adminApiRpc('admin_reset_all_seats', { p_admin_password: settings?.admin_password ?? '' }).catch(() => null);
       const { error: sigErr } = await adminSupabase.from('app_settings').update({ reset_signal: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', 1);
       if (sigErr) throw new Error(sigErr.message);
+      // api-server reset_signal 동기화
+      adminApiRpc('admin_update_settings', { p_admin_password: settings?.admin_password ?? '', p_payload: { reset_signal: new Date().toISOString() } })
+        .catch(() => null);
       showRecovery('좌석 배치', '🪑', seatAssignments.length > 0 ? async () => {
         const results = await Promise.allSettled(
           seatAssignments.map(({ seat_id, profile_id }) =>
@@ -4926,9 +4986,10 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       r.status === 'fulfilled' ? (r.value as { data: unknown[] | null }).data : null;
     try {
       await adminSupabase.from('session_history').insert({ seats_snapshot: snapshot });
-      const { error: resetErr } = await adminSupabase.rpc('admin_reset_all_seats', { p_admin_password: settings?.admin_password ?? '' });
-      if (resetErr) throw new Error(resetErr.message);
-      // 병렬 삭제
+      // api-server 전체 초기화 (인메모리 스토어 + SSE broadcast → 모든 유저에게 즉시 반영)
+      // Supabase 직접 삭제만으로는 api-server 인메모리가 그대로 남아 유저에게 반영 안 됨
+      await adminApiRpc('admin_event_end_reset', { p_admin_password: settings?.admin_password ?? '' });
+      // 병렬 삭제 (Supabase 네이티브 테이블 — 관리자 화면용)
       await Promise.all([
         adminSupabase.from('profiles').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
         adminSupabase.from('likes').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
@@ -4946,6 +5007,9 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       ]);
       const { error: sigErr } = await adminSupabase.from('app_settings').update({ reset_signal: new Date().toISOString(), game_state: null, updated_at: new Date().toISOString() }).eq('id', 1);
       if (sigErr) throw new Error(sigErr.message);
+      // api-server reset_signal/game_state 동기화
+      adminApiRpc('admin_update_settings', { p_admin_password: settings?.admin_password ?? '', p_payload: { reset_signal: new Date().toISOString(), game_state: null } })
+        .catch(() => null);
       const hasData = backupProfiles.length > 0 || backupLikes.length > 0 || backupChats.length > 0 || backupSuggestions.length > 0;
       showRecovery('전체 초기화', '🗑️', hasData ? async () => {
         // 복구 upsert — 개별 실패는 로그만
@@ -5127,24 +5191,33 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     await adminSupabase.from('app_settings').update({ admin_phone: phone, admin_password: password, updated_at: new Date().toISOString() }).eq('id', 1);
     const { data } = await adminSupabase.from('app_settings').select('*').eq('id', 1).single();
     if (data) setSettings(data);
+    // api-server 동기화: checkPassword()가 새 비밀번호를 즉시 인식하도록
+    adminApiRpc('admin_update_settings', { p_admin_password: settings?.admin_password ?? '', p_payload: { admin_phone: phone, admin_password: password } })
+      .catch(e => console.warn('[admin] api-server 자격증명 동기화 실패:', e));
   };
 
   const handleSaveEntryPassword = async (entryPassword: string) => {
     await adminSupabase.from('app_settings').update({ entry_password: entryPassword || null, updated_at: new Date().toISOString() }).eq('id', 1);
     const { data } = await adminSupabase.from('app_settings').select('*').eq('id', 1).single();
     if (data) setSettings(data);
+    adminApiRpc('admin_update_settings', { p_admin_password: settings?.admin_password ?? '', p_payload: { entry_password: entryPassword || null } })
+      .catch(e => console.warn('[admin] api-server 입장비밀번호 동기화 실패:', e));
   };
 
   const handleSaveResetPassword = async (resetPassword: string) => {
     await adminSupabase.from('app_settings').update({ reset_password: resetPassword || null, updated_at: new Date().toISOString() }).eq('id', 1);
     const { data } = await adminSupabase.from('app_settings').select('*').eq('id', 1).single();
     if (data) setSettings(data);
+    adminApiRpc('admin_update_settings', { p_admin_password: settings?.admin_password ?? '', p_payload: { reset_password: resetPassword || null } })
+      .catch(e => console.warn('[admin] api-server 리셋비밀번호 동기화 실패:', e));
   };
 
   const handleSaveTestPassword = async (testPassword: string) => {
     await adminSupabase.from('app_settings').update({ test_password: testPassword || null, updated_at: new Date().toISOString() }).eq('id', 1);
     const { data } = await adminSupabase.from('app_settings').select('*').eq('id', 1).single();
     if (data) setSettings(data);
+    adminApiRpc('admin_update_settings', { p_admin_password: settings?.admin_password ?? '', p_payload: { test_password: testPassword || null } })
+      .catch(e => console.warn('[admin] api-server 테스트비밀번호 동기화 실패:', e));
   };
 
   const handleToggleFeatureLock = async () => {
@@ -5156,7 +5229,10 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     if (error) {
       setSettings(prev => prev ? { ...prev, seating_locked: !newVal } : prev);
       console.error('[admin] 자리 잠금 토글 실패:', error.message);
+      return;
     }
+    adminApiRpc('admin_update_settings', { p_admin_password: settings.admin_password ?? '', p_payload: { seating_locked: newVal } })
+      .catch(e => console.warn('[admin] api-server 자리잠금 동기화 실패:', e));
   };
 
   const handleToggleFunctionsLock = async () => {
@@ -5168,17 +5244,24 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     if (error) {
       setSettings(prev => prev ? { ...prev, functions_locked: !newVal } as any : prev);
       console.error('[admin] 기능 잠금 토글 실패:', error.message);
+      return;
     }
+    adminApiRpc('admin_update_settings', { p_admin_password: settings.admin_password ?? '', p_payload: { functions_locked: newVal } })
+      .catch(e => console.warn('[admin] api-server 기능잠금 동기화 실패:', e));
   };
 
   const handleSetActiveTables = async (tables: number[] | null) => {
     await adminSupabase.from('app_settings').update({ active_tables: tables, updated_at: new Date().toISOString() }).eq('id', 1);
     setSettings(prev => prev ? { ...prev, active_tables: tables } : prev);
+    adminApiRpc('admin_update_settings', { p_admin_password: settings?.admin_password ?? '', p_payload: { active_tables: tables } })
+      .catch(e => console.warn('[admin] api-server 활성테이블 동기화 실패:', e));
   };
 
   const handleSetTableLabels = async (labels: Record<string, string> | null) => {
     await adminSupabase.from('app_settings').update({ table_labels: labels, updated_at: new Date().toISOString() }).eq('id', 1);
     setSettings(prev => prev ? { ...prev, table_labels: labels } : prev);
+    adminApiRpc('admin_update_settings', { p_admin_password: settings?.admin_password ?? '', p_payload: { table_labels: labels } })
+      .catch(e => console.warn('[admin] api-server 테이블라벨 동기화 실패:', e));
   };
 
   const handleAckReport = async (reportId: string, ackMessage: string) => {
@@ -5190,6 +5273,9 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     await adminSupabase.rpc('admin_clear_profile_seat', { p_profile_id: profileId, p_admin_password: settings?.admin_password ?? '' });
     await adminSupabase.from('profiles').delete().eq('id', profileId);
     setProfiles(prev => prev.filter(p => p.id !== profileId));
+    // api-server 인메모리 동기화 → 유저 화면에서 프로필 즉시 제거
+    adminApiRpc('admin_clear_profile_seat', { p_profile_id: profileId, p_admin_password: settings?.admin_password ?? '' })
+      .catch(e => console.warn('[admin] api-server 프로필좌석 동기화 실패:', e));
   };
 
   const handleForceSeat = async (profileId: string, seatId: string) => {
@@ -5200,6 +5286,9 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     }
     const { data } = await adminSupabase.from('seats').select('*').order('table_number').order('seat_position');
     if (data) setSeats(data);
+    // api-server 인메모리 좌석 동기화 → 유저 화면 즉시 갱신
+    adminApiRpc('admin_force_seat', { p_profile_id: profileId, p_seat_id: seatId, p_admin_password: settings?.admin_password ?? '' })
+      .catch(e => console.warn('[admin] api-server 강제배치 동기화 실패:', e));
   };
 
   const feedbackTotal = suggestions.filter(s => s.status === 'pending').length + anonymousReports.filter(r => !r.ack_at).length;
@@ -5304,7 +5393,13 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                 onClearSuggestions={handleClearSuggestions} onClearProfiles={handleClearProfiles}
                 onClearHistory={handleClearHistory} restoreMap={restoreMap} />
             )}
-            {settingsSubTab === 'qr' && <AdminQrTab seats={seats} settings={settings} onSaveQrBase={async (url) => { await adminSupabase.from('app_settings').update({ qr_base_url: url, updated_at: new Date().toISOString() } as never).eq('id', 1); }} />}
+            {settingsSubTab === 'qr' && <AdminQrTab seats={seats} settings={settings} onSaveQrBase={async (url) => {
+  const { error } = await adminSupabase.from('app_settings').update({ qr_base_url: url, updated_at: new Date().toISOString() } as never).eq('id', 1);
+  if (error) { alert(`QR URL 저장 실패: ${error.message}`); return; }
+  setSettings(prev => prev ? { ...prev, qr_base_url: url } as never : prev);
+  adminApiRpc('admin_update_settings', { p_admin_password: settings?.admin_password ?? '', p_payload: { qr_base_url: url } })
+    .catch(e => console.warn('[admin] api-server QR URL 동기화 실패:', e));
+}} />}
             {settingsSubTab === 'admin' && <CredentialsTab settings={settings} onSave={handleSaveCredentials} onSaveEntry={handleSaveEntryPassword} onSaveReset={handleSaveResetPassword} onSaveTest={handleSaveTestPassword} />}
             {settingsSubTab === 'db' && <DbHealthTab health={dbHealth} loading={dbHealthLoading} onRefresh={fetchDbHealth} onClearErrors={handleClearDbErrors} />}
           </div>
