@@ -518,8 +518,9 @@ seedIfNeeded()
   .then(() => setupListenClient())
   .catch(console.error);
 
-// 5분마다 핫 테이블 DB 재동기화 — NOTIFY 누락·autoscale 인스턴스 드리프트 자동 정정
-setInterval(() => { resyncHotTablesFromDb().catch(console.error); }, 5 * 60 * 1000);
+// 30초마다 전체 테이블 네이티브 DB 재동기화
+// — 관리자·테스트 패널의 Supabase 직접 쓰기도 30초 내 자동 반영 (NOTIFY 미지원 경로 보정)
+setInterval(() => { resyncAllFromNativeDb().catch(console.error); }, 30_000);
 
 // ─── Cross-instance sync via PostgreSQL LISTEN/NOTIFY ─────────────────────────
 // autoscale 환경에서 여러 인스턴스가 뜰 때 store + SSE를 동기화한다.
@@ -636,7 +637,7 @@ function notifyOtherInstances(table: string, ev: string, newRow: Record<string, 
   );
 }
 
-/** hot 테이블(profiles·seats·app_settings)을 DB에서 강제 재동기화 — reconnect gap 보정 */
+/** hot 테이블(profiles·seats·app_settings)을 app_kv_rows에서 재동기화 — LISTEN gap 보정 전용 */
 async function resyncHotTablesFromDb(): Promise<void> {
   const hotTables = ['profiles', 'seats', 'app_settings'];
   try {
@@ -644,7 +645,6 @@ async function resyncHotTablesFromDb(): Promise<void> {
       `SELECT table_name, data FROM app_kv_rows WHERE table_name = ANY($1::text[])`,
       [hotTables],
     );
-    // 테이블별로 묶기
     const grouped: Record<string, Record<string, unknown>[]> = {};
     for (const r of rows) {
       if (!grouped[r.table_name as string]) grouped[r.table_name as string] = [];
@@ -656,6 +656,51 @@ async function resyncHotTablesFromDb(): Promise<void> {
     console.info('[db] hot-table resync complete (profiles/seats/app_settings)');
   } catch (e) {
     console.warn('[db] hot-table resync failed:', (e as Error).message);
+  }
+}
+
+// 관리자·테스트 패널이 Supabase 네이티브 테이블에 직접 쓸 때 api-server 인메모리와 어긋남
+// → 30초마다 네이티브 테이블에서 전체 재동기화해 최대 30초 안에 자동 복구
+const FULL_RESYNC_TABLES: Array<{ tbl: string; order?: string }> = [
+  { tbl: 'profiles' },
+  { tbl: 'seats',         order: 'ORDER BY table_number, seat_position' },
+  { tbl: 'app_settings' },
+  { tbl: 'notifications', order: 'ORDER BY created_at DESC' },
+  { tbl: 'likes',         order: 'ORDER BY created_at DESC LIMIT 5000' },
+  { tbl: 'chats',         order: 'ORDER BY created_at DESC LIMIT 5000' },
+  { tbl: 'balance_games', order: 'ORDER BY created_at DESC LIMIT 500' },
+  { tbl: 'balance_votes', order: 'ORDER BY created_at DESC LIMIT 5000' },
+  { tbl: 'qa_games',      order: 'ORDER BY created_at DESC LIMIT 200' },
+  { tbl: 'qa_answers',    order: 'ORDER BY created_at DESC LIMIT 2000' },
+  { tbl: 'image_games',   order: 'ORDER BY created_at DESC LIMIT 200' },
+  { tbl: 'image_votes',   order: 'ORDER BY created_at DESC LIMIT 2000' },
+  { tbl: 'suggestions',   order: 'ORDER BY created_at DESC LIMIT 500' },
+];
+
+let _fullResyncRunning = false;
+
+async function resyncAllFromNativeDb(): Promise<void> {
+  if (_fullResyncRunning) return; // 이전 리싱크가 아직 실행 중이면 skip
+  _fullResyncRunning = true;
+  try {
+    await Promise.all(FULL_RESYNC_TABLES.map(async ({ tbl, order }) => {
+      try {
+        const { rows } = await pool.query(`SELECT * FROM ${tbl} ${order ?? ''}`);
+        const prev = store[tbl];
+        store[tbl] = rows as Record<string, unknown>[];
+        // SSE 클라이언트에게 bulk 변경 신호 전송 — 실제 row 데이터는 클라이언트가 다시 fetch
+        broadcastAll({
+          type: 'change', table: tbl, event: 'UPDATE',
+          newRow: { _bulk_resync: true, count: rows.length },
+          oldRow: { count: prev?.length ?? 0 },
+        });
+      } catch (e) {
+        logger.warn({ err: e }, `[db] resyncAllFromNativeDb ${tbl} 실패`);
+      }
+    }));
+    logger.info('[db] full native resync complete');
+  } finally {
+    _fullResyncRunning = false;
   }
 }
 
@@ -1530,6 +1575,46 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         store['app_settings'] = [updated];
         broadcastAll({ type: 'change', table: 'app_settings', event: 'UPDATE', newRow: updated, oldRow: current });
         dbPersistRow('app_settings', updated).catch(console.error);
+        return res.json({ data: null, error: null });
+      }
+
+      case 'test_resync': {
+        // 테스트 대시보드 → 모든 관련 테이블을 DB에서 강제 리로드
+        const pTestPw2 = (args.p_test_password as string | undefined) ?? '';
+        const correctTestPw2 = ((settings.test_password as string | null | undefined) ?? '').trim() || '116606';
+        if (pTestPw2.trim() !== correctTestPw2) {
+          return res.status(403).json({ data: null, error: { message: '테스트 비밀번호가 올바르지 않습니다.' } });
+        }
+        resyncAllFromNativeDb().catch(e => logger.error({ err: e }, '[rpc] test_resync 실패'));
+        return res.json({ data: null, error: null });
+      }
+
+      case 'admin_force_resync_all': {
+        // 관리자 패널 → 전체 테이블 강제 리싱크 (Supabase 직접 쓰기 후 즉시 반영용)
+        checkPassword();
+        resyncAllFromNativeDb().catch(e => logger.error({ err: e }, '[rpc] admin_force_resync_all 실패'));
+        return res.json({ data: null, error: null });
+      }
+
+      case 'test_update_settings': {
+        // 테스트 대시보드 → api-server 인메모리 app_settings 동기화
+        // 관리자 비밀번호 없이 테스트 비밀번호로 인증 (session_active / active_tables 전용)
+        const pTestPw = (args.p_test_password as string | undefined) ?? '';
+        const correctTestPw = ((settings.test_password as string | null | undefined) ?? '').trim() || '116606';
+        if (pTestPw.trim() !== correctTestPw) {
+          return res.status(403).json({ data: null, error: { message: '테스트 비밀번호가 올바르지 않습니다.' } });
+        }
+        const testPayload = (args.p_payload as Record<string, unknown>) ?? {};
+        // 허용 필드 제한 — 테스트 대시보드는 세션·테이블 설정만 변경 가능
+        const ALLOWED_TEST_FIELDS = new Set(['session_active', 'active_tables']);
+        const filteredPayload = Object.fromEntries(
+          Object.entries(testPayload).filter(([k]) => ALLOWED_TEST_FIELDS.has(k))
+        );
+        const currentSettings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
+        const updatedSettings = { ...currentSettings, ...filteredPayload, updated_at: new Date().toISOString() };
+        store['app_settings'] = [updatedSettings];
+        broadcastAll({ type: 'change', table: 'app_settings', event: 'UPDATE', newRow: updatedSettings, oldRow: currentSettings });
+        dbPersistRow('app_settings', updatedSettings).catch(console.error);
         return res.json({ data: null, error: null });
       }
 

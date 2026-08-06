@@ -358,6 +358,12 @@ function createSse() {
     _sseHasConnected = true;
     try {
       const data = JSON.parse(ev.data) as SseEvent;
+      // api-server 전체 리싱크 신호 (_bulk_resync:true) → 재연결 콜백 실행해 전체 데이터 리로드
+      // resyncAllFromNativeDb() 호출 후 브로드캐스트되는 신호; 정상 row 이벤트와 구분
+      if (data.type === 'change' && (data.newRow as Record<string, unknown> | null)?._bulk_resync) {
+        _reconnectCallbacks.forEach(fn => { try { fn(); } catch {} });
+        return; // 개별 리스너에게 전파 불필요
+      }
       _sseListeners.forEach(fn => { try { fn(data); } catch {} });
     } catch {}
   };

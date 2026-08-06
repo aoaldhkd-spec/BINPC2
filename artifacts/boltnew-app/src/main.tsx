@@ -69,6 +69,7 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, { error: Error
 
 // ─── 세션 캐시 키 ─────────────────────────────────────────────────────────────
 const TEST_SESSION_KEY = 'test_session_v1';
+const TEST_PASSWORD_KEY = 'test_pw_v1'; // TestDashboard api-server 인증용 (평문 저장 — 공개 테스트 비밀번호)
 
 function loadTestSession(): boolean {
   try {
@@ -112,6 +113,7 @@ function TestGate() {
       return;
     }
     localStorage.setItem(TEST_SESSION_KEY, JSON.stringify({ authedAt: Date.now() }));
+    localStorage.setItem(TEST_PASSWORD_KEY, password.trim()); // api-server 동기화용
     setAuthed(true);
     setLoading(false);
   };

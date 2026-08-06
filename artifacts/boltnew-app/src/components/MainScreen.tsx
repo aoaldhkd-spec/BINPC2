@@ -531,7 +531,7 @@ const ProfileCard = memo(function ProfileCard({
           <button
             onClick={(e) => { e.stopPropagation(); onLike(profile.id); }}
             disabled={isLiked && heartCount >= 4}
-            className="absolute top-1.5 right-1.5 w-8 h-8 bg-white/95 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-transform"
+            className="absolute top-1.5 right-1.5 w-8 h-8 rounded-full flex items-center justify-center active:scale-90 transition-transform"
           >
             {isLiked && sentHeartType
               ? <span className="text-sm leading-none relative">
@@ -550,7 +550,7 @@ const ProfileCard = memo(function ProfileCard({
         {canLike && (
           <button
             onClick={(e) => { e.stopPropagation(); onOpenChat(profile); }}
-            className="absolute top-11 right-1.5 w-8 h-8 bg-white/95 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-transform"
+            className="absolute top-11 right-1.5 w-8 h-8 rounded-full flex items-center justify-center active:scale-90 transition-transform"
           >
             <MessageCircle className="w-4 h-4 text-sky-500" strokeWidth={2} />
           </button>

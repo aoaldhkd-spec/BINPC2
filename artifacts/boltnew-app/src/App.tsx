@@ -509,6 +509,12 @@ function App() {
           setReceivedLikers([]);
           setChatList([]);
           setSuggestions([]);
+          // 추가 상태 초기화 — 하트·알림·게임이 리셋 후에도 남아있는 버그 방지
+          setSentHeartTypes(new Map());
+          setSentHeartsPerPerson(new Map());
+          setActiveNotif(null);
+          setCurrentGame(null);
+          setGameModalVisible(false);
           setView('entry-1');
           return;
         }
@@ -558,6 +564,16 @@ function App() {
         const myTable = userTableNumRef.current;
         const isForMe = n.target === 'all' || n.target === `table_${myTable}`;
         if (isForMe) setActiveNotif(n);
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notifications' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
+        // 관리자가 알림을 비활성화 시 현재 표시 중인 알림 즉시 닫기
+        const n = payload.new as { id: string; is_active: boolean };
+        if (!n.is_active) setActiveNotif(prev => prev?.id === n.id ? null : prev);
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'notifications' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
+        // 관리자가 알림을 삭제 시 표시 중이면 즉시 닫기
+        const n = payload.old as { id: string };
+        setActiveNotif(prev => prev?.id === n.id ? null : prev);
       })
       .subscribe();
 
@@ -1041,9 +1057,27 @@ function App() {
       _handleChannelStatus('SUBSCRIBED');
       loadChatList(currentUserId);
       loadReceivedLikes(currentUserId);
-      // SSE 재연결 시 누락된 시트·프로필 변경도 동기화
+      // SSE 재연결 시 누락된 시트·프로필·설정 변경도 동기화
       loadSeats();
       loadProfiles();
+      // 재연결 중 바뀐 타이머·게임·잠금 상태 재동기화
+      supabase.from('app_settings').select('session_active, game_state, timer_end_at, timer_label, seating_locked, active_tables, reset_signal, table_labels').eq('id', 1).single().then(({ data }: { data: any }) => {
+        if (!data) return;
+        setSessionActive(data.session_active);
+        setTimerEndAt(data.timer_end_at ?? null);
+        setTimerLabel(data.timer_label ?? null);
+        if (data.seating_locked != null) setSeatingLocked(data.seating_locked);
+        setActiveTables(data.active_tables ?? null);
+        if (data.table_labels !== undefined) setTableLabels(data.table_labels);
+        const gs = data.game_state as GameState | null;
+        if (gs?.active) {
+          setCurrentGame(gs);
+          setGameModalVisible(true);
+        } else {
+          setCurrentGame(null);
+          setGameModalVisible(false);
+        }
+      }).catch(() => {});
     });
     return unsubReconnect;
   }, [currentUserId, loadChatList, loadReceivedLikes, _handleChannelStatus]);

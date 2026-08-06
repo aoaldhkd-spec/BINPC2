@@ -5064,6 +5064,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     const backup = [...likes];
     await adminSupabase.from('likes').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     setLikes([]);
+    adminApiRpc('admin_force_resync_all', {}).catch(e => console.warn('[admin] resync:', e));
     showRecovery('하트 기록', '❤️', backup.length > 0 ? async () => {
       for (const l of backup) {
         await adminSupabase.from('likes').upsert({ id: l.id, liker_id: l.liker_id, liked_id: l.liked_id, heart_type: l.heart_type, status: l.status, created_at: l.created_at });
@@ -5076,6 +5077,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const handleClearNotifications = async () => {
     const { data: backup } = await adminSupabase.from('notifications').select('*');
     await adminSupabase.from('notifications').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    adminApiRpc('admin_force_resync_all', {}).catch(e => console.warn('[admin] resync:', e));
     showRecovery('공지', '🔔', backup && backup.length > 0 ? async () => {
       for (const n of backup) await adminSupabase.from('notifications').upsert(n);
       setRecovery(null);
@@ -5096,6 +5098,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       await adminSupabase.from(t).delete().neq('id', '00000000-0000-0000-0000-000000000000');
     }
     await adminSupabase.from('app_settings').update({ game_state: null, updated_at: new Date().toISOString() }).eq('id', 1);
+    adminApiRpc('admin_force_resync_all', {}).catch(e => console.warn('[admin] resync:', e));
     const hasData = [bgRes.data, bvRes.data, qgRes.data, qaRes.data, igRes.data, ivRes.data].some(d => d && d.length > 0) || !!gsBackup;
     showRecovery('게임 기록', '🎮', hasData ? async () => {
       if (bgRes.data) for (const r of bgRes.data) await adminSupabase.from('balance_games').upsert(r);
@@ -5115,6 +5118,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     const backup = [...suggestions];
     await adminSupabase.from('suggestions').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     setSuggestions([]);
+    adminApiRpc('admin_force_resync_all', {}).catch(e => console.warn('[admin] resync:', e));
     showRecovery('익명 건의', '💡', backup.length > 0 ? async () => {
       for (const s of backup) {
         await adminSupabase.from('suggestions').upsert({ id: s.id, content: s.content, created_at: s.created_at });
@@ -5129,6 +5133,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     const seatAssignments = seats.filter(s => s.profile_id).map(s => ({ seat_id: s.id, profile_id: s.profile_id! }));
     await adminSupabase.from('profiles').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     await adminSupabase.rpc('admin_reset_all_seats', { p_admin_password: settings?.admin_password ?? '' });
+    adminApiRpc('admin_force_resync_all', {}).catch(e => console.warn('[admin] resync:', e));
     showRecovery('참여자 프로필', '👤', backupProfiles.length > 0 ? async () => {
       for (const p of backupProfiles) await adminSupabase.from('profiles').upsert(p);
       for (const { seat_id, profile_id } of seatAssignments) {
@@ -5143,6 +5148,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const handleDeleteChat = async (chatId: string) => {
     await adminSupabase.from('messages').delete().eq('chat_id', chatId);
     await adminSupabase.from('chats').delete().eq('id', chatId);
+    adminApiRpc('admin_force_resync_all', {}).catch(e => console.warn('[admin] resync:', e));
     await loadAll();
   };
 
@@ -5151,6 +5157,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     const backupMsgs = [...allMessages];
     await adminSupabase.from('messages').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     await adminSupabase.from('chats').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    adminApiRpc('admin_force_resync_all', {}).catch(e => console.warn('[admin] resync:', e));
     showRecovery('채팅', '💬', (backupChats.length > 0 || backupMsgs.length > 0) ? async () => {
       for (const c of backupChats) await adminSupabase.from('chats').upsert(c);
       for (const m of backupMsgs) await adminSupabase.from('messages').upsert(m);
@@ -5163,6 +5170,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const handleClearReports = async () => {
     await adminSupabase.from('anonymous_reports').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     setAnonymousReports([]);
+    adminApiRpc('admin_force_resync_all', {}).catch(e => console.warn('[admin] resync:', e));
   };
 
   const handleRefreshReports = async () => {
@@ -5174,6 +5182,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     const backup = [...histories];
     await adminSupabase.from('session_history').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     setHistories([]);
+    adminApiRpc('admin_force_resync_all', {}).catch(e => console.warn('[admin] resync:', e));
     showRecovery('회식 이력', '📋', backup.length > 0 ? async () => {
       for (const h of backup) {
         await adminSupabase.from('session_history').upsert({ id: h.id, seats_snapshot: h.seats_snapshot, ended_at: (h as Record<string, unknown>)['ended_at'] as string ?? h.ended_at });

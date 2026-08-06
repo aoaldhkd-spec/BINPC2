@@ -62,6 +62,27 @@ function Tag({ text, color = 'slate' }: { text: string; color?: string }) {
   return <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${colors[color] ?? colors.slate}`}>{text}</span>;
 }
 
+// ─── api-server 동기화 헬퍼 ──────────────────────────────────────────────────
+const API_BASE = '/api/db';
+const TEST_PASSWORD_KEY = 'test_pw_v1';
+
+async function testApiRpc(rpcName: string, payload: Record<string, unknown>): Promise<void> {
+  const testPw = localStorage.getItem(TEST_PASSWORD_KEY) ?? '';
+  const res = await fetch(`${API_BASE}/rpc/${rpcName}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ p_test_password: testPw, ...payload }),
+  });
+  if (!res.ok) throw new Error(`api-server RPC 오류: HTTP ${res.status}`);
+  const json = (await res.json()) as { data: unknown; error: { message: string } | null };
+  if (json.error) throw new Error(json.error.message);
+}
+
+/** 더미/프로필 생성·삭제 후 api-server 인메모리를 DB에서 강제 리싱크 */
+async function testResync(): Promise<void> {
+  return testApiRpc('test_resync', {}).catch(e => console.warn('[test] api-server resync 실패:', e));
+}
+
 // ─── Main TestDashboard ───────────────────────────────────────────────────────
 export default function TestDashboard() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -109,8 +130,12 @@ export default function TestDashboard() {
   const toggleSession = async () => {
     const next = !sessionActive;
     setLoading('session');
-    await supabase.from('app_settings').update({ session_active: next, updated_at: new Date().toISOString() }).eq('id', 1);
+    const { error } = await supabase.from('app_settings').update({ session_active: next, updated_at: new Date().toISOString() }).eq('id', 1);
+    if (error) { notify(`세션 변경 실패: ${error.message}`, false); setLoading(null); return; }
     setSessionActive(next);
+    // api-server 동기화 → SSE로 모든 유저에게 즉시 반영
+    testApiRpc('test_update_settings', { p_payload: { session_active: next } })
+      .catch(e => console.warn('[test] api-server 세션 동기화 실패:', e));
     notify(next ? '세션 시작됨' : '세션 종료됨', next);
     setLoading(null);
   };
@@ -130,6 +155,8 @@ export default function TestDashboard() {
     else {
       notify(`프로필 생성: ${nick} (${mbti})`);
       if (!myUserId && data) { localStorage.setItem('matching_app_user_id', data.id); setMyUserId(data.id); }
+      // api-server 인메모리 동기화 → 메인 앱 유저들이 즉시 볼 수 있도록
+      testResync();
     }
     await load();
     setLoading(null);
@@ -153,7 +180,10 @@ export default function TestDashboard() {
       mbti: MBTI_LIST[Math.floor(Math.random() * MBTI_LIST.length)],
     }));
     if (entries.length === 0) { notify('생성할 수 있는 닉네임이 없습니다 (최대 260개)', false); setLoading(null); return; }
-    await supabase.from('profiles').upsert(entries, { onConflict: 'nickname', ignoreDuplicates: true });
+    const { error: upsertErr } = await supabase.from('profiles').upsert(entries, { onConflict: 'nickname', ignoreDuplicates: true });
+    if (upsertErr) { notify(`더미 생성 실패: ${upsertErr.message}`, false); setLoading(null); return; }
+    // api-server 인메모리 동기화 → 메인 앱에 즉시 반영
+    await testResync();
     await load();
     notify(`더미 ${entries.length}명 생성 완료`);
     setLoading(null);
@@ -171,6 +201,7 @@ export default function TestDashboard() {
     await supabase.from('likes').delete().or(`liker_id.eq.${id},liked_id.eq.${id}`);
     await supabase.from('profiles').delete().eq('id', id);
     if (myUserId === id) { localStorage.removeItem('matching_app_user_id'); setMyUserId(null); }
+    testResync();
     await load();
     notify('프로필 삭제됨');
     setLoading(null);
@@ -185,6 +216,7 @@ export default function TestDashboard() {
     await supabase.from('profiles').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     localStorage.removeItem('matching_app_user_id');
     setMyUserId(null);
+    await testResync(); // 즉시 api-server 인메모리 초기화 → 메인 앱에 즉시 반영
     await load();
     notify('전체 초기화 완료');
     setLoading(null);
@@ -196,6 +228,7 @@ export default function TestDashboard() {
     const prevSeat = seats.find(s => s.profile_id === profileId);
     if (prevSeat) await supabase.from('seats').update({ profile_id: null, status: 'empty', registered_at: null }).eq('id', prevSeat.id);
     await supabase.from('seats').update({ profile_id: profileId, status: 'occupied', registered_at: new Date().toISOString() }).eq('id', seatId);
+    testResync();
     await load();
     setLoading(null);
     notify('자리 배정됨');
@@ -203,6 +236,7 @@ export default function TestDashboard() {
 
   const clearSeat = async (seatId: string) => {
     await supabase.from('seats').update({ profile_id: null, status: 'empty', registered_at: null }).eq('id', seatId);
+    testResync();
     await load();
     notify('자리 비움');
   };
@@ -217,6 +251,7 @@ export default function TestDashboard() {
     for (let i = 0; i < Math.min(unassigned.length, shuffled.length); i++) {
       await supabase.from('seats').update({ profile_id: unassigned[i].id, status: 'occupied', registered_at: new Date().toISOString() }).eq('id', shuffled[i].id);
     }
+    testResync();
     await load();
     notify(`${Math.min(unassigned.length, shuffled.length)}명 자리 배정 완료`);
     setLoading(null);
@@ -225,6 +260,7 @@ export default function TestDashboard() {
   const clearAllSeats = async () => {
     setLoading('clearSeats');
     await supabase.from('seats').update({ profile_id: null, status: 'empty', registered_at: null }).neq('id', '00000000-0000-0000-0000-000000000000');
+    testResync();
     await load();
     notify('모든 자리 비움');
     setLoading(null);
@@ -237,6 +273,7 @@ export default function TestDashboard() {
     const existing = await supabase.from('likes').select('id').eq('liker_id', fromId).eq('liked_id', toId).maybeSingle();
     if (existing.data) { notify('이미 하트를 보냈습니다', false); setLoading(null); return; }
     await supabase.from('likes').insert({ liker_id: fromId, liked_id: toId, status: 'pending' });
+    testResync();
     await load();
     notify('하트 전송됨');
     setLoading(null);
@@ -244,12 +281,14 @@ export default function TestDashboard() {
 
   const acceptHeart = async (likeId: string) => {
     await supabase.from('likes').update({ status: 'accepted' }).eq('id', likeId);
+    testResync();
     await load();
     notify('하트 수락됨');
   };
 
   const deleteHeart = async (likeId: string) => {
     await supabase.from('likes').delete().eq('id', likeId);
+    testResync();
     await load();
     notify('하트 삭제됨');
   };
@@ -257,6 +296,7 @@ export default function TestDashboard() {
   const clearAllHearts = async () => {
     setLoading('clearHearts');
     await supabase.from('likes').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    testResync();
     await load();
     notify('모든 하트 삭제됨');
     setLoading(null);
@@ -275,6 +315,7 @@ export default function TestDashboard() {
       await supabase.from('messages').insert({ chat_id: data.id, sender_id: user2, content: '안녕하세요! 테스트 메시지입니다.' });
       await supabase.from('messages').insert({ chat_id: data.id, sender_id: user1, content: '반갑습니다~' });
     }
+    testResync();
     await load();
     notify('채팅방 + 메시지 2개 생성됨');
     setLoading(null);
@@ -283,6 +324,7 @@ export default function TestDashboard() {
   const deleteChat = async (chatId: string) => {
     await supabase.from('messages').delete().eq('chat_id', chatId);
     await supabase.from('chats').delete().eq('id', chatId);
+    testResync();
     await load();
     notify('채팅 삭제됨');
   };
@@ -310,7 +352,11 @@ export default function TestDashboard() {
     const value = pendingActiveTables;
     setActiveTables(value);
     setPendingActiveTables(undefined);
-    await supabase.from('app_settings').update({ active_tables: value as unknown as import('./types/database').Json, updated_at: new Date().toISOString() }).eq('id', 1);
+    const { error } = await supabase.from('app_settings').update({ active_tables: value as unknown as import('./types/database').Json, updated_at: new Date().toISOString() }).eq('id', 1);
+    if (error) { notify(`테이블 저장 실패: ${error.message}`, false); return; }
+    // api-server 동기화 → SSE로 모든 유저에게 즉시 반영
+    testApiRpc('test_update_settings', { p_payload: { active_tables: value } })
+      .catch(e => console.warn('[test] api-server 테이블 동기화 실패:', e));
     notify(value === null ? '전체 테이블 활성화 저장됨' : `활성 테이블 저장됨: ${(value as number[]).map(t => `T${t}`).join(', ')}`);
   };
 

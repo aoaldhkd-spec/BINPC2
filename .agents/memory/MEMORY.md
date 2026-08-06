@@ -29,3 +29,4 @@
 - [boltnew-app 15-step E2E audit](boltnew-app-15step-audit.md) — 2026-08-06 전수 감사 완료; /op finally 누수·UPDATE IDOR·FilterSpec타입·RTL유니코드·ErrorBoundary 6종 신규 발견·수정.
 - [boltnew-app SeatingMap image fix](boltnew-app-seatingmap-image.md) — All img tags must use seatingAvatarSrc()+onError fallback; plain photo_url shows broken image for null/DiceBear-transparent URLs.
 - [boltnew-app 내 테이블 탭 테이블 선택 UI](boltnew-app-mytable-fix.md) — selectedMyTableNum+myTableList+resolvedMyTable 제거하면 안 됨; MyTableView는 max-w-sm 말고 w-full 사용.
+- [boltnew-app sync architecture fix](boltnew-app-sync-architecture.md) — AdminApp/TestDashboard 직접 Supabase 쓰기가 api-server 인메모리를 건드리지 않는 근본 원인 + 30초 전체 리싱크 + force_resync_all RPC 해결책.
