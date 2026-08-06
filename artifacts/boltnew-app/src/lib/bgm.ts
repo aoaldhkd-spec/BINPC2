@@ -40,7 +40,8 @@ function _get(): HTMLAudioElement {
   _audio = new Audio(track.src);
   _audio.loop = true;
   _audio.volume = _savedVol();
-  try { _audio.muted = localStorage.getItem(MUTED_KEY) === '1'; } catch {}
+  // 기본값 음소거 — localStorage에 '0'이 저장된 경우에만 소리 켜짐
+  try { _audio.muted = localStorage.getItem(MUTED_KEY) !== '0'; } catch { _audio.muted = true; }
   return _audio;
 }
 
