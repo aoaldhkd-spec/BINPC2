@@ -1388,35 +1388,35 @@ export function MainScreen({
                         )}
                       </div>
 
-                      {/* 2×2 정보 박스 — 촘촘하게 */}
-                      <div className="grid grid-cols-2 gap-1">
+                      {/* 2×2 정보 박스 — 정사각형 */}
+                      <div className="grid grid-cols-2 gap-1.5">
                         {/* MBTI */}
-                        <div className={`rounded-lg px-2 py-1 border flex flex-col ${darkMode ? 'bg-teal-500/10 border-teal-500/25' : 'bg-teal-50 border-teal-200'}`}>
-                          <span className={`text-[8px] font-black uppercase tracking-wide ${darkMode ? 'text-teal-400' : 'text-teal-500'}`}>MBTI</span>
-                          <span className={`text-[11px] font-black leading-none ${darkMode ? 'text-teal-300' : 'text-teal-700'}`}>
+                        <div className={`aspect-square rounded-2xl border flex flex-col items-center justify-center gap-0.5 ${darkMode ? 'bg-teal-500/10 border-teal-500/30' : 'bg-teal-50 border-teal-200'}`}>
+                          <span className={`text-[9px] font-bold ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>MBTI</span>
+                          <span className={`text-base font-black leading-none ${darkMode ? 'text-teal-300' : 'text-teal-700'}`}>
                             {me.mbti || <span className={`text-[9px] font-semibold ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>미설정</span>}
                           </span>
                         </div>
 
                         {/* 성향 */}
-                        <div className="rounded-lg px-2 py-1 border flex flex-col" style={{ backgroundColor: posColor + '18', borderColor: posColor + '50' }}>
-                          <span className="text-[8px] font-black uppercase tracking-wide" style={{ color: posColor }}>성향</span>
-                          <span className="text-[11px] font-black leading-none" style={{ color: posColor }}>{posLabel}</span>
+                        <div className="aspect-square rounded-2xl border flex flex-col items-center justify-center gap-0.5" style={{ backgroundColor: posColor + '18', borderColor: posColor + '50' }}>
+                          <span className={`text-[9px] font-bold ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>성향</span>
+                          <span className="text-base font-black leading-none" style={{ color: posColor }}>{posLabel}</span>
                         </div>
 
                         {/* 돔/섭 */}
-                        <div className="rounded-lg px-2 py-1 border flex flex-col" style={{ backgroundColor: domColor + '18', borderColor: domColor + '50' }}>
-                          <span className="text-[8px] font-black uppercase tracking-wide" style={{ color: domColor }}>돔/섭</span>
-                          <span className="text-[11px] font-black leading-none" style={{ color: domColor }}>{domLabel}</span>
+                        <div className="aspect-square rounded-2xl border flex flex-col items-center justify-center gap-0.5" style={{ backgroundColor: domColor + '18', borderColor: domColor + '50' }}>
+                          <span className={`text-[9px] font-bold ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>돔/섭</span>
+                          <span className="text-base font-black leading-none" style={{ color: domColor }}>{domLabel}</span>
                         </div>
 
                         {/* 관심사 */}
-                        <div className={`rounded-lg px-2 py-1 border flex flex-col gap-0.5 ${darkMode ? 'bg-pink-500/10 border-pink-500/25' : 'bg-pink-50 border-pink-200'}`}>
-                          <span className={`text-[8px] font-black uppercase tracking-wide ${darkMode ? 'text-pink-400' : 'text-pink-500'}`}>관심사</span>
+                        <div className={`aspect-square rounded-2xl border flex flex-col items-center justify-center gap-0.5 ${darkMode ? 'bg-pink-500/10 border-pink-500/30' : 'bg-pink-50 border-pink-200'}`}>
+                          <span className={`text-[9px] font-bold ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>관심사</span>
                           {bioTags.length > 0 ? (
-                            <div className="flex flex-wrap gap-0.5">
+                            <div className="flex flex-wrap justify-center gap-0.5 px-1">
                               {bioTags.slice(0, 2).map(tag => (
-                                <span key={tag} className={`text-[8px] font-bold px-1 py-px rounded ${darkMode ? 'bg-pink-500/20 text-pink-300' : 'bg-pink-100 text-pink-600'}`}>#{tag}</span>
+                                <span key={tag} className={`text-[9px] font-bold ${darkMode ? 'text-pink-300' : 'text-pink-600'}`}>#{tag}</span>
                               ))}
                             </div>
                           ) : (
