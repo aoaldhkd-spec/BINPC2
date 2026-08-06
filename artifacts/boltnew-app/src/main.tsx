@@ -2,6 +2,32 @@ import { StrictMode, useState, useEffect, Component, type ReactNode } from 'reac
 import { createRoot } from 'react-dom/client';
 import './index.css';
 import App from './App';
+
+// ─── 개발 URL → 배포 URL 자동 리다이렉트 ────────────────────────────────────
+// VITE_CANONICAL_URL이 dev 환경에만 설정됨.
+// 워크스페이스 미리보기(.replit.dev)로 접속하면 배포 URL로 즉시 이동.
+// 배포 환경에서는 이 변수가 비어있어 아무 동작도 하지 않음.
+{
+  const canonical = (import.meta.env.VITE_CANONICAL_URL as string | undefined)?.trim();
+  if (canonical) {
+    try {
+      const targetHost = new URL(canonical).hostname;
+      if (window.location.hostname !== targetHost) {
+        // 현재 경로·쿼리·해시를 유지하면서 canonical 도메인으로 이동
+        const dest = canonical.replace(/\/$/, '') +
+          window.location.pathname +
+          window.location.search +
+          window.location.hash;
+        window.location.replace(dest);
+        // 리다이렉트 중에는 앱을 렌더하지 않음 — throw로 이후 코드 중단
+        throw new Error('Redirecting to canonical URL');
+      }
+    } catch (e) {
+      // "Redirecting" 오류는 정상 흐름이므로 재throw, 그 외엔 무시하고 계속
+      if (e instanceof Error && e.message === 'Redirecting to canonical URL') throw e;
+    }
+  }
+}
 import AdminApp from './AdminApp';
 import TestDashboard from './TestDashboard';
 import { supabase } from './lib/supabase';

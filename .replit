@@ -98,3 +98,8 @@ externalPort = 8081
 [[ports]]
 localPort = 21066
 externalPort = 80
+
+[userenv]
+
+[userenv.development]
+VITE_CANONICAL_URL = "이게 먼지 몰라"
