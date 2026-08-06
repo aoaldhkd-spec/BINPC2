@@ -16,7 +16,7 @@ export default function MyProfile() {
         <div className="flex gap-3">
           {/* 사진 */}
           <div className="flex-shrink-0 flex flex-col items-center gap-1">
-            <div className="relative w-28 h-28">
+            <div className="relative w-32 h-32">
               <div className="w-full h-full rounded-2xl overflow-hidden border-2 border-cyan-500/50 shadow-lg shadow-cyan-500/20 bg-slate-700 flex items-center justify-center">
                 <span className="text-3xl">🌙</span>
               </div>
@@ -28,41 +28,41 @@ export default function MyProfile() {
           </div>
 
           {/* 오른쪽: 닉네임 + 2×2 박스 */}
-          <div className="flex-1 min-w-0 flex flex-col gap-2">
+          <div className="flex-1 min-w-0 flex flex-col justify-between">
             {/* 닉네임 + 자리 */}
             <div>
-              <p className="text-lg font-black leading-tight text-white">A1</p>
-              <span className="text-[11px] font-bold text-amber-400">🪑 3번 C테이블</span>
+              <p className="text-base font-black leading-tight text-white">A1</p>
+              <span className="text-[10px] font-bold text-amber-400">🪑 3번 C테이블</span>
             </div>
 
-            {/* 2×2 정보 박스 */}
-            <div className="grid grid-cols-2 gap-1.5">
+            {/* 2×2 정보 박스 — 오른쪽 정렬, 촘촘하게 */}
+            <div className="grid grid-cols-2 gap-1 self-end w-full">
               {/* MBTI */}
-              <div className="rounded-xl px-2 py-1.5 border flex flex-col gap-0.5 bg-teal-500/10 border-teal-500/25">
-                <span className="text-[11px] font-black text-teal-400">MBTI</span>
-                <span className="text-sm font-black leading-tight text-teal-300">ENFJ</span>
+              <div className="rounded-lg px-2 py-1 border flex flex-col bg-teal-500/10 border-teal-500/25">
+                <span className="text-[8px] font-black uppercase tracking-wide text-teal-400">MBTI</span>
+                <span className="text-[11px] font-black leading-none text-teal-300">ENFJ</span>
               </div>
 
               {/* 성향 */}
-              <div className="rounded-xl px-2 py-1.5 border flex flex-col gap-0.5"
+              <div className="rounded-lg px-2 py-1 border flex flex-col"
                 style={{ backgroundColor: posColor + '18', borderColor: posColor + '50' }}>
-                <span className="text-[11px] font-black" style={{ color: posColor }}>성향</span>
-                <span className="text-sm font-black leading-tight" style={{ color: posColor }}>올탑</span>
+                <span className="text-[8px] font-black uppercase tracking-wide" style={{ color: posColor }}>성향</span>
+                <span className="text-[11px] font-black leading-none" style={{ color: posColor }}>올탑</span>
               </div>
 
               {/* 돔/섭 */}
-              <div className="rounded-xl px-2 py-1.5 border flex flex-col gap-0.5"
+              <div className="rounded-lg px-2 py-1 border flex flex-col"
                 style={{ backgroundColor: domColor + '18', borderColor: domColor + '50' }}>
-                <span className="text-[11px] font-black" style={{ color: domColor }}>돔 / 섭</span>
-                <span className="text-sm font-black leading-tight" style={{ color: domColor }}>일반/보통</span>
+                <span className="text-[8px] font-black uppercase tracking-wide" style={{ color: domColor }}>돔/섭</span>
+                <span className="text-[11px] font-black leading-none" style={{ color: domColor }}>일반</span>
               </div>
 
               {/* 관심사 */}
-              <div className="rounded-xl px-2 py-1.5 border flex flex-col gap-1 bg-pink-500/10 border-pink-500/25">
-                <span className="text-[11px] font-black text-pink-400">관심사</span>
+              <div className="rounded-lg px-2 py-1 border flex flex-col gap-0.5 bg-pink-500/10 border-pink-500/25">
+                <span className="text-[8px] font-black uppercase tracking-wide text-pink-400">관심사</span>
                 <div className="flex flex-wrap gap-0.5">
-                  <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-pink-500/20 text-pink-300">#운동</span>
-                  <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-pink-500/20 text-pink-300">#독서</span>
+                  <span className="text-[8px] font-bold px-1 py-px rounded bg-pink-500/20 text-pink-300">#운동</span>
+                  <span className="text-[8px] font-bold px-1 py-px rounded bg-pink-500/20 text-pink-300">#독서</span>
                 </div>
               </div>
             </div>

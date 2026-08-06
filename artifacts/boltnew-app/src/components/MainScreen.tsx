@@ -1350,7 +1350,7 @@ export function MainScreen({
                   <div className="flex gap-3">
                     {/* 사진 */}
                     <div className="flex-shrink-0 flex flex-col items-center gap-1">
-                      <div className="relative w-28 h-28">
+                      <div className="relative w-32 h-32">
                         <label className={`block w-full h-full rounded-2xl overflow-hidden border-2 border-cyan-500/50 shadow-lg shadow-cyan-500/20 cursor-pointer group ${photoUploading ? 'cursor-wait' : ''}`}>
                           <img src={getAvatarSrc(me.photo_url, me.nickname)} alt={me.nickname} className="w-full h-full object-cover"
                             onError={(e) => { (e.target as HTMLImageElement).src = genAvatar(me.nickname); }} />
@@ -1379,7 +1379,7 @@ export function MainScreen({
                     </div>
 
                     {/* 오른쪽: 닉네임 + 2×2 박스 */}
-                    <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+                    <div className="flex-1 min-w-0 flex flex-col justify-between">
                       {/* 닉네임 + 자리 */}
                       <div>
                         <p className={`text-base font-black leading-tight truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>{me.nickname}</p>
@@ -1388,31 +1388,31 @@ export function MainScreen({
                         )}
                       </div>
 
-                      {/* 2×2 정보 박스 */}
+                      {/* 2×2 정보 박스 — 촘촘하게 */}
                       <div className="grid grid-cols-2 gap-1">
                         {/* MBTI */}
-                        <div className={`rounded-lg px-1.5 py-1 border flex flex-col gap-0 ${darkMode ? 'bg-teal-500/10 border-teal-500/25' : 'bg-teal-50 border-teal-200'}`}>
-                          <span className={`text-[9px] font-black ${darkMode ? 'text-teal-400' : 'text-teal-500'}`}>MBTI</span>
-                          <span className={`text-xs font-black leading-tight ${darkMode ? 'text-teal-300' : 'text-teal-700'}`}>
+                        <div className={`rounded-lg px-2 py-1 border flex flex-col ${darkMode ? 'bg-teal-500/10 border-teal-500/25' : 'bg-teal-50 border-teal-200'}`}>
+                          <span className={`text-[8px] font-black uppercase tracking-wide ${darkMode ? 'text-teal-400' : 'text-teal-500'}`}>MBTI</span>
+                          <span className={`text-[11px] font-black leading-none ${darkMode ? 'text-teal-300' : 'text-teal-700'}`}>
                             {me.mbti || <span className={`text-[9px] font-semibold ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>미설정</span>}
                           </span>
                         </div>
 
                         {/* 성향 */}
-                        <div className="rounded-lg px-1.5 py-1 border flex flex-col gap-0" style={{ backgroundColor: posColor + '18', borderColor: posColor + '50' }}>
-                          <span className="text-[9px] font-black" style={{ color: posColor }}>성향</span>
-                          <span className="text-xs font-black leading-tight" style={{ color: posColor }}>{posLabel}</span>
+                        <div className="rounded-lg px-2 py-1 border flex flex-col" style={{ backgroundColor: posColor + '18', borderColor: posColor + '50' }}>
+                          <span className="text-[8px] font-black uppercase tracking-wide" style={{ color: posColor }}>성향</span>
+                          <span className="text-[11px] font-black leading-none" style={{ color: posColor }}>{posLabel}</span>
                         </div>
 
                         {/* 돔/섭 */}
-                        <div className="rounded-lg px-1.5 py-1 border flex flex-col gap-0" style={{ backgroundColor: domColor + '18', borderColor: domColor + '50' }}>
-                          <span className="text-[9px] font-black" style={{ color: domColor }}>돔 / 섭</span>
-                          <span className="text-xs font-black leading-tight" style={{ color: domColor }}>{domLabel}</span>
+                        <div className="rounded-lg px-2 py-1 border flex flex-col" style={{ backgroundColor: domColor + '18', borderColor: domColor + '50' }}>
+                          <span className="text-[8px] font-black uppercase tracking-wide" style={{ color: domColor }}>돔/섭</span>
+                          <span className="text-[11px] font-black leading-none" style={{ color: domColor }}>{domLabel}</span>
                         </div>
 
                         {/* 관심사 */}
-                        <div className={`rounded-lg px-1.5 py-1 border flex flex-col gap-0.5 ${darkMode ? 'bg-pink-500/10 border-pink-500/25' : 'bg-pink-50 border-pink-200'}`}>
-                          <span className={`text-[9px] font-black ${darkMode ? 'text-pink-400' : 'text-pink-500'}`}>관심사</span>
+                        <div className={`rounded-lg px-2 py-1 border flex flex-col gap-0.5 ${darkMode ? 'bg-pink-500/10 border-pink-500/25' : 'bg-pink-50 border-pink-200'}`}>
+                          <span className={`text-[8px] font-black uppercase tracking-wide ${darkMode ? 'text-pink-400' : 'text-pink-500'}`}>관심사</span>
                           {bioTags.length > 0 ? (
                             <div className="flex flex-wrap gap-0.5">
                               {bioTags.slice(0, 2).map(tag => (
