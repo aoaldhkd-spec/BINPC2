@@ -555,10 +555,10 @@ const ProfileCard = memo(function ProfileCard({
             <MessageCircle className="w-4 h-4 text-sky-500" strokeWidth={2} />
           </button>
         )}
-        {/* 닉네임+나이 오버레이 */}
+        {/* 닉네임+나이 오버레이 — 테마 text-white 덮어쓰기 방지: inline style 고정 */}
         <div className="absolute inset-x-0 bottom-0 px-2.5 pb-2.5">
-          <p className="font-black text-white text-[14px] leading-tight truncate tracking-widest" style={{ textShadow: '0 0 3px #000, 0 0 6px #000, 0 1px 4px rgba(0,0,0,1), 0 2px 10px rgba(0,0,0,0.95), 0 4px 20px rgba(0,0,0,0.8)' }}>{profile.nickname}</p>
-          {profile.birth_year && <p className="text-[11px] text-white/90 leading-none mt-0.5 font-medium" style={{ textShadow: '0 1px 3px rgba(0,0,0,0.7)' }}>{age}</p>}
+          <p className="font-black text-[14px] leading-tight truncate tracking-widest" style={{ color: '#fff', textShadow: '0 0 3px #000, 0 0 6px #000, 0 1px 4px rgba(0,0,0,1), 0 2px 10px rgba(0,0,0,0.95), 0 4px 20px rgba(0,0,0,0.8)' }}>{profile.nickname}</p>
+          {profile.birth_year && <p className="text-[11px] leading-none mt-0.5 font-medium" style={{ color: 'rgba(255,255,255,0.9)', textShadow: '0 1px 3px rgba(0,0,0,0.7)' }}>{age}</p>}
         </div>
       </div>
       {/* ── 배지 영역 ── */}
