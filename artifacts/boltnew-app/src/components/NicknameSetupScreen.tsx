@@ -121,7 +121,7 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
   };
 
   const atMaxBio = selectedBio.length >= 5;
-  const [bioFilter, setBioFilter] = useState<string | null>(null);
+  const [bioFilter, setBioFilter] = useState<string | null>(BIO_CATEGORIES[0].label);
 
   const birthDateFilled = birthMonth !== null && birthDay !== null;
   void birthDateFilled; // used externally to check completeness
@@ -469,7 +469,7 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
                         <button
                           key={cat.label}
                           type="button"
-                          onClick={() => setBioFilter(active ? null : cat.label)}
+                          onClick={() => setBioFilter(cat.label)}
                           className={`relative px-3 py-1.5 rounded-full text-xs font-black border transition-all ${
                             active
                               ? `${cat.color.selected} border-transparent shadow-sm`

@@ -831,7 +831,7 @@ export function MainScreen({
 
   // ── 관심사 편집 상태 ────────────────────────────────────────────────────────
   const [editInterests, setEditInterests] = useState<string[]>([]);
-  const [interestFilter, setInterestFilter] = useState<string | null>(null);
+  const [interestFilter, setInterestFilter] = useState<string | null>(BIO_CATEGORIES[0].label);
   const [interestSaving, setInterestSaving] = useState(false);
   const interestInitRef = useRef(false);
 
@@ -1728,7 +1728,7 @@ export function MainScreen({
                             const active = interestFilter === cat.label;
                             const hasSelected = cat.tags.some(t => editInterests.includes(t));
                             return (
-                              <button key={cat.label} type="button" onClick={() => setInterestFilter(active ? null : cat.label)}
+                              <button key={cat.label} type="button" onClick={() => setInterestFilter(cat.label)}
                                 className={`relative px-3 py-1.5 rounded-full text-xs font-black border transition-all ${active ? `${cat.color.selected} border-transparent` : (darkMode ? `bg-slate-700 border-slate-600 ${cat.color.label} hover:border-current` : `bg-white border-gray-200 ${cat.color.label} hover:border-current`)}`}>
                                 {cat.label}
                                 {hasSelected && !active && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-cyan-500 rounded-full border border-white" />}
