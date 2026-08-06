@@ -5,6 +5,7 @@ import {
   BarChart3, QrCode, Camera, Search, Lock, Pencil,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { useTheme } from '../lib/theme';
 import type { Profile, Seat, ContactShare, Suggestion, BalanceGame, Chat, MainTab, TableMiniGameSession } from '../types/app';
 import { BIO_CATEGORIES } from '../lib/interests';
 import { HeartType, HEART_TYPES, heartMeta } from '../lib/constants';
@@ -478,12 +479,28 @@ const ProfileCard = memo(function ProfileCard({
   onSelect: (p: Profile) => void;
   onOpenChat: (p: Profile) => void;
 }) {
+  const { theme } = useTheme();
+  // dark-neon / default → 카드 배경이 어두움; y2k / minimal → 흰 배경
+  const isCardDark = theme === 'dark-neon' || theme === 'default';
+
   const posLabel = getPositionLabel(profile.personality_score ?? 50);
   const posStyle = getPositionStyle(profile.personality_score ?? 50);
   const bioTags = profile.bio ? profile.bio.split(',').map(t => t.trim()).filter(Boolean).slice(0, 2) : [];
   const age = getKoreanAge(profile.birth_year);
   const msStyle = profile.mbti ? getMbtiStyle(profile.mbti) : null;
   const avLabel = AVATAR_CATEGORIES.flatMap(c => c.avatars).find(a => a.src === profile.photo_url)?.label ?? null;
+
+  // 테마 적응형 스타일 (Tailwind 오버라이드 없이 항상 올바른 색상 보장)
+  const tagStyle = isCardDark
+    ? { backgroundColor: 'rgba(236,72,153,0.15)', color: '#f472b6', borderColor: 'rgba(236,72,153,0.3)' }
+    : { backgroundColor: '#fdf2f8', color: '#be185d', borderColor: '#fbcfe8' };
+  const heartBtnStyle = isCardDark
+    ? { backgroundColor: 'rgba(251,113,133,0.13)', borderColor: 'rgba(251,113,133,0.28)' }
+    : { backgroundColor: '#fff1f2', borderColor: '#fecdd3' };
+  const chatBtnStyle = isCardDark
+    ? { backgroundColor: 'rgba(56,189,248,0.13)', borderColor: 'rgba(56,189,248,0.28)' }
+    : { backgroundColor: '#f0f9ff', borderColor: '#bae6fd' };
+  const dividerColor = isCardDark ? 'rgba(255,255,255,0.09)' : '#f3f4f6';
 
   // 이미지 비율 자동 감지: 3:4(세로형)에 가까우면 꽉 채움, 아니면 내부 박스에 가둠
   const [imgFit, setImgFit] = useState<'cover' | 'contain'>('cover');
@@ -511,12 +528,12 @@ const ProfileCard = memo(function ProfileCard({
           onError={(e) => { (e.target as HTMLImageElement).src = genAvatar(profile.nickname); }}
           className={`w-full h-full transition-none ${imgFit === 'cover' ? 'object-cover' : 'object-contain p-3 bg-gray-50'}`}
         />
-        {/* 이름+나이 — 하단 검은 배경 라벨 */}
+        {/* 이름+나이 — 하단 검은 배경 라벨 (항상 흰 텍스트, 테마 오버라이드 차단) */}
         <div className="absolute inset-x-0 bottom-0 px-2 pb-2">
-          <div className="inline-flex items-baseline gap-1.5 bg-black/65 backdrop-blur-[2px] rounded-lg px-2 py-0.5 max-w-full">
-            <span className="font-black text-[13px] leading-tight text-white truncate">{profile.nickname}</span>
+          <div className="inline-flex items-baseline gap-1.5 rounded-lg px-2 py-0.5 max-w-full" style={{ backgroundColor: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(2px)' }}>
+            <span className="font-black text-[13px] leading-tight truncate" style={{ color: '#fff' }}>{profile.nickname}</span>
             {profile.birth_year && (
-              <span className="text-[10px] font-semibold text-white/80 flex-shrink-0">{age}</span>
+              <span className="text-[10px] font-semibold flex-shrink-0" style={{ color: 'rgba(255,255,255,0.82)' }}>{age}</span>
             )}
           </div>
         </div>
@@ -544,18 +561,19 @@ const ProfileCard = memo(function ProfileCard({
       {bioTags.length > 0 && (
         <div className="px-2.5 pb-1.5 flex gap-1 overflow-hidden">
           {bioTags.slice(0, 2).map(tag => (
-            <span key={tag} className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-pink-50 text-pink-500 border border-pink-100 whitespace-nowrap flex-shrink-0">#{tag}</span>
+            <span key={tag} className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full whitespace-nowrap flex-shrink-0 border" style={tagStyle}>#{tag}</span>
           ))}
         </div>
       )}
 
       {/* ── 하트 + 채팅 버튼 행 ── */}
       {canLike && (
-        <div className="px-2 pb-2 pt-0.5 flex gap-1.5 border-t border-gray-100 mt-1">
+        <div className="px-2 pb-2 pt-0.5 flex gap-1.5 mt-1" style={{ borderTop: `1px solid ${dividerColor}` }}>
           <button
             onClick={(e) => { e.stopPropagation(); onLike(profile.id); }}
             disabled={isLiked && heartCount >= 4}
-            className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-xl bg-rose-50 border border-rose-100 active:scale-95 transition-transform"
+            className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-xl border active:scale-95 transition-transform"
+            style={heartBtnStyle}
           >
             {isLiked && sentHeartType
               ? <span className="text-xs leading-none relative">
@@ -566,14 +584,15 @@ const ProfileCard = memo(function ProfileCard({
                 </span>
               : <Heart className="w-3.5 h-3.5" style={{ fill: isLiked ? '#e11d48' : 'transparent', stroke: '#e11d48', strokeWidth: 2 }} />
             }
-            <span className="text-[10px] font-bold text-rose-500">하트</span>
+            <span className="text-[10px] font-bold" style={{ color: '#e11d48' }}>하트</span>
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onOpenChat(profile); }}
-            className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-xl bg-sky-50 border border-sky-100 active:scale-95 transition-transform"
+            className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-xl border active:scale-95 transition-transform"
+            style={chatBtnStyle}
           >
-            <MessageCircle className="w-3.5 h-3.5 text-sky-500" strokeWidth={2} />
-            <span className="text-[10px] font-bold text-sky-500">채팅</span>
+            <MessageCircle className="w-3.5 h-3.5" style={{ color: '#0ea5e9' }} strokeWidth={2} />
+            <span className="text-[10px] font-bold" style={{ color: '#0ea5e9' }}>채팅</span>
           </button>
         </div>
       )}
@@ -1325,93 +1344,91 @@ export function MainScreen({
               const bioTags = me.bio ? me.bio.split(',').map(t => t.trim()).filter(Boolean) : [];
               return (
                 <div className={`rounded-3xl p-5 border shadow-xl transition-colors duration-300 ${darkMode ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600' : 'bg-white border-gray-100'}`}>
-                  <p className={`text-[10px] font-black uppercase tracking-widest mb-3 ${darkMode ? 'text-slate-300' : 'text-gray-400'}`}>내 프로필</p>
-                  <div className="flex gap-4">
-                    {/* 프로필 사진 + 업로드 + 기본 아바타 */}
+                  <p className={`text-[10px] font-black uppercase tracking-widest mb-3 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>내 프로필</p>
+
+                  {/* ── 상단: 사진 + 닉네임 ── */}
+                  <div className="flex gap-4 mb-4">
                     <div className="flex-shrink-0 flex flex-col items-center gap-1.5">
-                      <div className="relative w-24 h-24">
+                      <div className="relative w-20 h-20">
                         <label className={`block w-full h-full rounded-2xl overflow-hidden border-2 border-cyan-500/50 shadow-lg shadow-cyan-500/20 cursor-pointer group ${photoUploading ? 'cursor-wait' : ''}`}>
                           <img src={getAvatarSrc(me.photo_url, me.nickname)} alt={me.nickname} className="w-full h-full object-cover"
                             onError={(e) => { (e.target as HTMLImageElement).src = genAvatar(me.nickname); }} />
                           <div className={`absolute inset-0 flex flex-col items-center justify-center photo-overlay transition-all ${photoUploading ? 'bg-black/60' : 'bg-black/0 group-hover:bg-black/50'}`}>
                             {photoUploading ? (
-                              <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                             ) : (
                               <div className="opacity-0 group-hover:opacity-100 flex flex-col items-center gap-0.5 transition-opacity">
-                                <Camera className="w-5 h-5 text-white drop-shadow" />
-                                <span className="text-[10px] font-black text-white drop-shadow">내 사진</span>
+                                <Camera className="w-4 h-4 text-white drop-shadow" />
+                                <span className="text-[9px] font-black text-white drop-shadow">변경</span>
                               </div>
                             )}
                           </div>
                           <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} disabled={photoUploading} />
                         </label>
                         {!photoUploading && (
-                          <span className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-cyan-500 border-2 border-slate-900 flex items-center justify-center pointer-events-none shadow">
-                            <Camera className="w-3 h-3 text-white" />
+                          <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-cyan-500 border-2 border-slate-900 flex items-center justify-center pointer-events-none shadow">
+                            <Camera className="w-2.5 h-2.5 text-white" />
                           </span>
                         )}
                       </div>
-                      {/* 선택된 프리셋 아바타 이름 */}
                       {(() => {
                         const avLabel = AVATAR_CATEGORIES.flatMap(c => c.avatars).find(a => a.src === me.photo_url)?.label;
-                        return avLabel ? <span className={`text-[10px] font-bold text-center leading-tight ${darkMode ? 'text-slate-300' : 'text-gray-600'}`}>{avLabel}</span> : null;
+                        return avLabel ? <span className={`text-[9px] font-bold text-center leading-tight ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>{avLabel}</span> : null;
                       })()}
-                      {currentUserSeat && (
-                        <div className="text-center">
-                          <span className="text-[10px] font-black text-amber-400">{currentUserSeat.table_number}번 {tableLetter}테이블</span>
-                        </div>
-                      )}
                     </div>
-                    {/* 텍스트 정보 */}
-                    <div className="flex-1 min-w-0 flex flex-col gap-2">
-                      {/* 닉네임 단독 행 */}
-                      <p className={`text-xl font-black leading-tight ${darkMode ? 'text-white' : 'text-gray-900'}`}>{me.nickname}</p>
-                      {/* MBTI + 성향 배지 한 줄 */}
-                      <div className="flex flex-wrap gap-1.5">
-                        {me.mbti && (
-                          <span className="px-2 py-0.5 bg-teal-500/20 border border-teal-500/40 text-teal-300 text-xs font-bold rounded-lg">{me.mbti}</span>
-                        )}
-                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold border" style={{ backgroundColor: posColor + '33', borderColor: posColor + '66', color: posColor }}>{posLabel}</span>
-                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold border" style={{ backgroundColor: domColor + '22', borderColor: domColor + '55', color: domColor }}>{domLabel}</span>
-                      </div>
-                      {/* 관심사 태그 */}
-                      {bioTags.length > 0 && (
-                        <div className="flex flex-wrap gap-1">
-                          {bioTags.map(tag => (
-                            <span key={tag} className="px-2 py-0.5 bg-teal-500/15 border border-teal-500/30 text-teal-300 text-[11px] font-semibold rounded-md">#{tag}</span>
-                          ))}
-                        </div>
+                    <div className="flex-1 min-w-0 flex flex-col justify-center gap-1.5">
+                      <p className={`text-2xl font-black leading-tight ${darkMode ? 'text-white' : 'text-gray-900'}`}>{me.nickname}</p>
+                      {currentUserSeat && (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-400">
+                          🪑 {currentUserSeat.table_number}번 {tableLetter}테이블
+                        </span>
                       )}
                     </div>
                   </div>
-                  {/* 성향 바 */}
-                  <div className="mt-4 grid grid-cols-2 gap-3">
-                    <div>
-                      <div className="flex justify-between items-center mb-1">
-                        <span className={`text-[10px] font-bold ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>포지션</span>
-                        <span className="text-[10px] font-bold" style={{ color: posColor }}>{(me.personality_score ?? 50) < 0 ? '비선호' : `${me.personality_score ?? 50}점`}</span>
-                      </div>
-                      <div className={`h-1.5 rounded-full overflow-hidden ${darkMode ? 'bg-slate-700' : 'bg-gray-200'}`}>
-                        <div className="h-full rounded-full transition-all" style={{ width: `${Math.max(0, me.personality_score ?? 50)}%`, backgroundColor: posColor }} />
-                      </div>
-                      <div className={`flex justify-between text-[9px] mt-0.5 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
-                        <span>바텀</span><span>탑</span>
+
+                  {/* ── 정보 박스 그리드 2×2 ── */}
+                  <div className="grid grid-cols-2 gap-2">
+                    {/* MBTI */}
+                    <div className={`rounded-2xl px-3 py-2.5 border flex flex-col gap-1 ${darkMode ? 'bg-teal-500/10 border-teal-500/25' : 'bg-teal-50 border-teal-200'}`}>
+                      <span className={`text-[9px] font-black uppercase tracking-wider ${darkMode ? 'text-teal-400' : 'text-teal-500'}`}>MBTI</span>
+                      <span className={`text-lg font-black leading-tight ${darkMode ? 'text-teal-300' : 'text-teal-700'}`}>
+                        {me.mbti || <span className={`text-xs font-semibold ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>미설정</span>}
+                      </span>
+                    </div>
+
+                    {/* 성향 */}
+                    <div className="rounded-2xl px-3 py-2.5 border flex flex-col gap-1" style={{ backgroundColor: posColor + '18', borderColor: posColor + '50' }}>
+                      <span className="text-[9px] font-black uppercase tracking-wider" style={{ color: posColor }}>성향</span>
+                      <span className="text-lg font-black leading-tight" style={{ color: posColor }}>{posLabel}</span>
+                      <div className={`h-1 rounded-full overflow-hidden ${darkMode ? 'bg-slate-700' : 'bg-black/10'}`}>
+                        <div className="h-full rounded-full" style={{ width: `${Math.max(5, me.personality_score ?? 50)}%`, backgroundColor: posColor }} />
                       </div>
                     </div>
-                    {me.dom_sub_score !== null && (
-                      <div>
-                        <div className="flex justify-between items-center mb-1">
-                          <span className={`text-[10px] font-bold ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>돔/섭</span>
-                          <span className="text-[10px] font-bold" style={{ color: domColor }}>{me.dom_sub_score}점</span>
+
+                    {/* 돔/섭 */}
+                    <div className="rounded-2xl px-3 py-2.5 border flex flex-col gap-1" style={{ backgroundColor: domColor + '18', borderColor: domColor + '50' }}>
+                      <span className="text-[9px] font-black uppercase tracking-wider" style={{ color: domColor }}>돔 / 섭</span>
+                      <span className="text-lg font-black leading-tight" style={{ color: domColor }}>{domLabel}</span>
+                      {me.dom_sub_score !== null && (
+                        <div className={`h-1 rounded-full overflow-hidden ${darkMode ? 'bg-slate-700' : 'bg-black/10'}`}>
+                          <div className="h-full rounded-full" style={{ width: `${me.dom_sub_score}%`, backgroundColor: domColor }} />
                         </div>
-                        <div className={`h-1.5 rounded-full overflow-hidden ${darkMode ? 'bg-slate-700' : 'bg-gray-200'}`}>
-                          <div className="h-full rounded-full transition-all" style={{ width: `${me.dom_sub_score}%`, backgroundColor: domColor }} />
+                      )}
+                    </div>
+
+                    {/* 관심사 */}
+                    <div className={`rounded-2xl px-3 py-2.5 border flex flex-col gap-1.5 ${darkMode ? 'bg-pink-500/10 border-pink-500/25' : 'bg-pink-50 border-pink-200'}`}>
+                      <span className={`text-[9px] font-black uppercase tracking-wider ${darkMode ? 'text-pink-400' : 'text-pink-500'}`}>관심사</span>
+                      {bioTags.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {bioTags.map(tag => (
+                            <span key={tag} className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${darkMode ? 'bg-pink-500/20 text-pink-300' : 'bg-pink-100 text-pink-600'}`}>#{tag}</span>
+                          ))}
                         </div>
-                        <div className={`flex justify-between text-[9px] mt-0.5 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
-                          <span>섭</span><span>돔</span>
-                        </div>
-                      </div>
-                    )}
+                      ) : (
+                        <span className={`text-xs font-semibold ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>미설정</span>
+                      )}
+                    </div>
                   </div>
                   {/* ── QR 버튼 한 줄 ── */}
                   <div className="mt-4 grid grid-cols-4 gap-2">
