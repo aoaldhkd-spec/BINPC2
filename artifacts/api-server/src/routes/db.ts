@@ -65,6 +65,45 @@ const ALLOWED_OP_TABLES = new Set([
   'app_image_store',
 ]);
 
+// ─── SSE Event Ring Buffer — Last-Event-ID 재전송으로 재연결 시 이벤트 유실 방지 ──
+// 브라우저 EventSource는 마지막 수신한 id를 자동으로 Last-Event-ID 헤더로 재연결 시 전송.
+// 서버는 해당 seq 이후 이벤트를 링 버퍼에서 찾아 즉시 재전송 → 단절 구간 이벤트 자동 복구.
+// TTL(10분) 초과 단절은 onSseReconnect → loadMessages 전체 리로드로 폴백.
+let _sseEventSeq = 0;
+const SSE_RING_MAX = 500;            // 최대 보관 이벤트 수 (~500 × ~1 KB ≈ 500 KB 상한)
+const SSE_RING_TTL_MS = 10 * 60 * 1_000; // 10분 보관
+
+interface RingEntry {
+  seq: number;
+  ts: number;
+  json: string;               // JSON.stringify(event) — SSE data 페이로드
+  targets: 'all' | string[]; // 'all' = broadcastAll, string[] = broadcastToUsers userIds
+}
+const _sseRingBuffer: RingEntry[] = [];
+
+function _ringAdd(json: string, targets: 'all' | string[]): number {
+  const seq = ++_sseEventSeq;
+  _sseRingBuffer.push({ seq, ts: Date.now(), json, targets });
+  // TTL + 상한 초과 항목 제거
+  const cutoff = Date.now() - SSE_RING_TTL_MS;
+  while (
+    _sseRingBuffer.length > SSE_RING_MAX ||
+    (_sseRingBuffer.length > 0 && _sseRingBuffer[0].ts < cutoff)
+  ) {
+    _sseRingBuffer.shift();
+  }
+  return seq;
+}
+
+function _ringGetSince(lastSeq: number, userId: string | null, isAdmin: boolean): RingEntry[] {
+  return _sseRingBuffer.filter(e => {
+    if (e.seq <= lastSeq) return false;
+    if (isAdmin) return true;
+    if (e.targets === 'all') return true;
+    return userId ? (e.targets as string[]).includes(userId) : false;
+  });
+}
+
 // ─── Input sanitization ───────────────────────────────────────────────────────
 // Strips dangerous control characters (keeps \t, \n, \r for normal text),
 // removes HTML/XML tags entirely (stored-XSS prevention),
@@ -733,7 +772,9 @@ function _send(client: Response, conns: Set<Response>, payload: string) {
 
 /** 모든 클라이언트에게 전송 (공개 이벤트: seats, profiles, app_settings, games 등) */
 function broadcastAll(event: Record<string, unknown>) {
-  const payload = `data: ${JSON.stringify(event)}\n\n`;
+  const json = JSON.stringify(event);
+  const seq = _ringAdd(json, 'all');
+  const payload = `id: ${seq}\ndata: ${json}\n\n`;
   // Fix #6: 스냅샷 후 50개씩 청킹 — 150명×2연결=300 write()가 이벤트 루프를 블로킹하지 않도록
   const batch: Array<[Response, Set<Response>]> = [];
   for (const [, conns] of sseUserMap) for (const c of conns) batch.push([c, conns]);
@@ -753,7 +794,9 @@ function broadcastAll(event: Record<string, unknown>) {
 
 /** 특정 사용자들에게만 전송 (비공개 이벤트: messages, likes, chats 등) */
 function broadcastToUsers(userIds: string[], event: Record<string, unknown>) {
-  const payload = `data: ${JSON.stringify(event)}\n\n`;
+  const json = JSON.stringify(event);
+  const seq = _ringAdd(json, userIds);
+  const payload = `id: ${seq}\ndata: ${json}\n\n`;
   const seen = new Set<Response>();
   for (const uid of userIds) {
     const conns = sseUserMap.get(uid);
@@ -2525,6 +2568,22 @@ router.get('/events', (req: Request, res: Response) => {
       return;
     }
     sseAnonClients.add(res);
+  }
+
+  // ── Last-Event-ID 기반 미수신 이벤트 재전송 ──────────────────────────────────
+  // 브라우저 EventSource는 이전 연결에서 수신한 마지막 id 값을 재연결 시
+  // Last-Event-ID 헤더로 자동 전송 (RFC 8898 §9.2.4).
+  // 서버는 해당 seq 이후의 ring buffer 항목을 필터링해 순서대로 재전송.
+  // 클라이언트 측 applySseInsert/applyLoadMessages가 중복을 멱등하게 처리하므로 안전.
+  {
+    const rawLastId = req.headers['last-event-id'];
+    const lastSeq = rawLastId ? parseInt(String(rawLastId), 10) : 0;
+    if (lastSeq > 0 && Number.isFinite(lastSeq) && !isNaN(lastSeq)) {
+      const missed = _ringGetSince(lastSeq, userId, isAdminSse);
+      for (const entry of missed) {
+        try { res.write(`id: ${entry.seq}\ndata: ${entry.json}\n\n`); } catch { break; }
+      }
+    }
   }
 
   // Keep-alive every 5s — 짧게 유지해 프록시/방화벽 idle 차단 방지
