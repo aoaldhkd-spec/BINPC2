@@ -54,50 +54,6 @@ import { useChat } from './hooks/useChat';
 // ─── App ──────────────────────────────────────────────────────────────────────
 
 
-function playCuteSound() {
-  if (document.hidden) return; // 백그라운드(화면 꺼짐)에서는 JS 오디오 불가 → 건너뜀
-  try {
-    type WinWithWebkit = Window & { webkitAudioContext?: typeof AudioContext };
-    const Ctx = window.AudioContext ?? (window as WinWithWebkit).webkitAudioContext;
-    if (!Ctx) return;
-    const ctx = new Ctx();
-    // iOS/Safari의 autoplay 정책으로 suspended 상태일 수 있으므로 resume
-    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
-    const t = ctx.currentTime;
-
-    // 'BI-DING' — C6 → E6 두 음 상행 아르페지오
-    [1047, 1319].forEach((freq, i) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      const s = t + i * 0.13;
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(freq, s);
-      osc.frequency.exponentialRampToValueAtTime(freq * 1.018, s + 0.06); // 살짝 피치 업 → 발랄함
-      gain.gain.setValueAtTime(0, s);
-      gain.gain.linearRampToValueAtTime(0.28, s + 0.018); // 빠른 어택
-      gain.gain.exponentialRampToValueAtTime(0.001, s + 0.38); // 부드러운 릴리즈
-      osc.start(s);
-      osc.stop(s + 0.38);
-    });
-
-    // 스파클 ✨ — E7 고음 잔향
-    const sp = ctx.createOscillator();
-    const spGain = ctx.createGain();
-    sp.connect(spGain);
-    spGain.connect(ctx.destination);
-    sp.type = 'sine';
-    sp.frequency.setValueAtTime(2637, t + 0.27);
-    spGain.gain.setValueAtTime(0, t + 0.27);
-    spGain.gain.linearRampToValueAtTime(0.1, t + 0.29);
-    spGain.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
-    sp.start(t + 0.27);
-    sp.stop(t + 0.55);
-
-    setTimeout(() => ctx.close(), 700);
-  } catch { /* 소리 재생 실패는 무시 */ }
-}
 
 
 // ── Web Push helpers ───────────────────────────────────────────────────────────
@@ -201,7 +157,9 @@ function App() {
   const [profiles, setProfiles] = useState<Profile[]>(() => {
     try {
       const cached = ls.getItem(MATCHING_PROFILES_CACHE_KEY);
-      return cached ? (JSON.parse(cached) as Profile[]) : [];
+      if (!cached) return [];
+      const parsed = JSON.parse(cached);
+      return Array.isArray(parsed) ? (parsed as Profile[]) : [];
     } catch { return []; }
   });
   const [shareEventNotif, setShareEventNotif] = useState<{ type: 'accepted' | 'rejected'; fromUserId: string } | null>(null);
@@ -836,7 +794,6 @@ function App() {
               });
               setBottomNotif({ type: 'heart', nickname: data.nickname, heartType: row.heart_type ?? 'red' });
               triggerConfetti();
-              playCuteSound();
             }
           } catch (e) { console.warn('[realtime:likes]', e); }
         })

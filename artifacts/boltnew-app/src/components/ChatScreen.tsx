@@ -424,6 +424,7 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
 
   // 메시지 핸들러를 useCallback으로 안정화 — messages 리스트 렌더 시 불필요한 자식 재렌더 방지
   const onMsgTouchStart = useCallback((e: React.TouchEvent, msg: Message) => {
+    if (!e.touches.length) return;
     const t = e.touches[0];
     swipeTouchRef.current = { msgId: msg.id, startX: t.clientX, startY: t.clientY, swiping: false };
     longPressTimer.current = setTimeout(() => {
@@ -436,6 +437,7 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   const onMsgTouchMove = useCallback((e: React.TouchEvent, msg: Message) => {
     const ref = swipeTouchRef.current;
     if (!ref || ref.msgId !== msg.id) return;
+    if (!e.touches.length) return;
     const t = e.touches[0];
     const dx = t.clientX - ref.startX;
     const dy = t.clientY - ref.startY;

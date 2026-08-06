@@ -23,7 +23,6 @@ import { supabase } from '../lib/supabase';
 import { onSseReconnect, getSseToken } from '../lib/localdb';
 import type { Profile, Message, Chat, View } from '../types/app';
 import { HeartType } from '../lib/constants';
-import { playCuteSound } from '../lib/sounds';
 import { applySseInsert, applyLoadMessages } from '../lib/chat-reducers';
 
 interface UseChatDeps {
@@ -117,7 +116,6 @@ export function useChat({
               const senderProfile = profilesRef.current.find(p => p.id === m.sender_id);
               setNewMsgCount(n => n + 1);
               setBottomNotif({ type: 'message', nickname: senderProfile?.nickname ?? '' });
-              playCuteSound();
             }
           } catch (e) { console.warn('[msgs-ch]', e); }
         })
@@ -300,7 +298,6 @@ export function useChat({
       const otherProfile = profilesRef.current.find(p => p.id === otherId);
       if (otherProfile) {
         setBottomNotif({ type: 'chat', nickname: otherProfile.nickname });
-        playCuteSound();
       }
     };
 

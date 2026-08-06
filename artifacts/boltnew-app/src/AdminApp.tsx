@@ -1144,48 +1144,6 @@ function DbHealthTab({ health, loading, onRefresh, onClearErrors }: { health: Db
   );
 }
 
-// ─── 자리 수 조정 버튼 (테이블당 8인 초과 자리 삭제) ────────────────────────────
-function TrimSeatsButton({ adminPassword }: { adminPassword: string }) {
-  const [trimming, setTrimming] = useState(false);
-  const [result, setResult] = useState<string | null>(null);
-
-  const handleTrim = async () => {
-    if (!window.confirm('각 테이블에서 9번 자리 이상(빈 자리만)을 삭제합니다.\n이미 배정된 자리는 유지됩니다.\n계속할까요?')) return;
-    setTrimming(true);
-    setResult(null);
-    try {
-      // 비어있는 자리 중 seat_position > 8 인 자리만 삭제 (착석 중인 자리는 보존)
-      const { error, count } = await adminSupabase
-        .from('seats')
-        .delete({ count: 'exact' })
-        .gt('seat_position', 8)
-        .eq('status', 'empty');
-      if (error) { setResult(`오류: ${error.message}`); }
-      else { setResult(`완료 — ${count ?? 0}개 자리 삭제됨`); }
-    } finally {
-      setTrimming(false);
-    }
-  };
-
-  return (
-    <div className={`rounded-2xl border-2 p-3.5 flex items-center gap-3 transition-all ${result?.startsWith('완료') ? 'bg-teal-50 border-teal-200' : result ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-200'}`}>
-      <div className="w-10 h-10 rounded-xl bg-indigo-500 flex items-center justify-center flex-shrink-0">
-        <span className="text-white text-base">✂️</span>
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="font-black text-sm text-slate-700">테이블 8인 조정</p>
-        <p className="text-[10px] text-slate-400 mt-0.5">{result ?? '비어있는 9~11번 자리를 일괄 삭제 (0/11 → 0/8)'}</p>
-      </div>
-      <button
-        onClick={handleTrim}
-        disabled={trimming}
-        className="flex-shrink-0 px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-300 text-white text-xs font-black rounded-xl transition-all active:scale-95"
-      >
-        {trimming ? '처리 중…' : '실행'}
-      </button>
-    </div>
-  );
-}
 
 // ─── Dashboard Tab ────────────────────────────────────────────────────────────
 
@@ -1318,11 +1276,6 @@ function DashboardTab({ settings, seats, profiles, onToggleSession, onFullReset,
         </div>
       </div>
 
-      {/* 자리 수 조정 — 테이블당 8인 초과 자리 정리 */}
-      <div>
-        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 px-1">자리 설정</h3>
-        <TrimSeatsButton adminPassword={settings?.admin_password ?? ''} />
-      </div>
 
       {/* 데이터 초기화 */}
       <div>
@@ -4647,48 +4600,20 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   };
   const [newReportPopup, setNewReportPopup] = useState<AnonymousReport | null>(null);
   const [drinkPopup, setDrinkPopup] = useState(false);
-  // 관리자 팝업 — 짠! 효과음 + TTS
+  // 관리자 팝업 — TTS 알림
   useEffect(() => {
     if (!drinkPopup) return;
-    const playClink = () => {
-      try {
-        const AudioCtx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-        if (!AudioCtx) return;
-        const ctx = new AudioCtx();
-        const master = ctx.createGain();
-        master.gain.setValueAtTime(0, ctx.currentTime);
-        master.gain.linearRampToValueAtTime(1.0, ctx.currentTime + 0.01);
-        master.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.5);
-        master.connect(ctx.destination);
-        [[880,0],[1320,0.03],[660,0.06]].forEach(([freq, delay]) => {
-          const osc = ctx.createOscillator(); const g = ctx.createGain();
-          osc.type = 'sine';
-          osc.frequency.setValueAtTime(freq, ctx.currentTime + delay);
-          osc.frequency.exponentialRampToValueAtTime(freq * 0.95, ctx.currentTime + delay + 0.6);
-          g.gain.setValueAtTime(0.6, ctx.currentTime + delay);
-          g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 1.4);
-          osc.connect(g); g.connect(master);
-          osc.start(ctx.currentTime + delay); osc.stop(ctx.currentTime + delay + 1.5);
-        });
-        if ('vibrate' in navigator) navigator.vibrate([100, 50, 100, 50, 300]);
-        setTimeout(() => ctx.close(), 2000);
-      } catch { /**/ }
+    if (!('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    const lines = ['손님이 술을 요청하고 있어요! 빨리 가져다 드리세요!', '아저씨!! 술 주세요!!'];
+    let i = 0;
+    const say = () => {
+      const utter = new SpeechSynthesisUtterance(lines[i] ?? lines[0]);
+      utter.lang = 'ko-KR'; utter.rate = 0.85; utter.pitch = 1.6; utter.volume = 1;
+      utter.onend = () => { i++; if (i < lines.length) say(); };
+      window.speechSynthesis.speak(utter);
     };
-    const speakLoud = () => {
-      if (!('speechSynthesis' in window)) return;
-      window.speechSynthesis.cancel();
-      const lines = ['손님이 술을 요청하고 있어요! 빨리 가져다 드리세요!', '아저씨!! 술 주세요!!'];
-      let i = 0;
-      const say = () => {
-        const utter = new SpeechSynthesisUtterance(lines[i] ?? lines[0]);
-        utter.lang = 'ko-KR'; utter.rate = 0.85; utter.pitch = 1.6; utter.volume = 1;
-        utter.onend = () => { i++; if (i < lines.length) say(); };
-        window.speechSynthesis.speak(utter);
-      };
-      say();
-    };
-    playClink();
-    setTimeout(speakLoud, 400);
+    say();
   }, [drinkPopup]);
   const [seatingRefreshing, setSeatingRefreshing] = useState(false);
   const [seatingRefreshDone, setSeatingRefreshDone] = useState(false);

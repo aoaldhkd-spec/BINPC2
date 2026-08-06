@@ -120,7 +120,7 @@ export default function TestDashboard() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load().catch(e => console.error('[TestDashboard] load 실패:', e)); }, []);
 
   const myProfile = profiles.find(p => p.id === myUserId);
   const occupied = seats.filter(s => s.status === 'occupied').length;

@@ -166,29 +166,34 @@ export function useHearts(
   // ✅ contact_share_events insert 실패를 별도로 처리 (non-fatal)
   const handleContactShare = async (likerId: string, kakao: string, instagram: string, phone: string) => {
     if (!currentUserId) return;
-    const { error } = await supabase.from('contact_shares').upsert({
-      liker_id: likerId,
-      liked_id: currentUserId,
-      kakao: kakao || null,
-      instagram: instagram || null,
-      phone: phone || null,
-    }, { onConflict: 'liker_id,liked_id' });
-    if (!error) {
-      // contact_share_events insert 실패는 non-fatal (연락처 공유 자체는 성공)
-      const { error: evtErr } = await supabase.from('contact_share_events').insert({
-        from_user_id: currentUserId,
-        to_user_id: likerId,
-        event_type: 'accepted',
-      });
-      if (evtErr) {
-        console.warn('[useHearts] contact_share_events insert 실패 (non-fatal):', evtErr.message);
+    try {
+      const { error } = await supabase.from('contact_shares').upsert({
+        liker_id: likerId,
+        liked_id: currentUserId,
+        kakao: kakao || null,
+        instagram: instagram || null,
+        phone: phone || null,
+      }, { onConflict: 'liker_id,liked_id' });
+      if (!error) {
+        // contact_share_events insert 실패는 non-fatal (연락처 공유 자체는 성공)
+        const { error: evtErr } = await supabase.from('contact_share_events').insert({
+          from_user_id: currentUserId,
+          to_user_id: likerId,
+          event_type: 'accepted',
+        });
+        if (evtErr) {
+          console.warn('[useHearts] contact_share_events insert 실패 (non-fatal):', evtErr.message);
+        }
+        setContactSharedWithIds((prev) => new Set([...prev, likerId]));
+        setContactShareTarget(null);
+        const likerProfile = profileMap.get(likerId);
+        if (likerProfile) onOpenChat(likerProfile);
+      } else {
+        alert(`연락처 공유 실패: ${error.message}`);
       }
-      setContactSharedWithIds((prev) => new Set([...prev, likerId]));
-      setContactShareTarget(null);
-      const likerProfile = profileMap.get(likerId);
-      if (likerProfile) onOpenChat(likerProfile);
-    } else {
-      alert(`연락처 공유 실패: ${error.message}`);
+    } catch (e) {
+      console.error('[useHearts] handleContactShare 오류:', e);
+      alert('연락처 공유 중 오류가 발생했습니다. 다시 시도해 주세요.');
     }
   };
 

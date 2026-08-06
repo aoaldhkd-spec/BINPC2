@@ -9,30 +9,6 @@ const DRUNK_SHOUTS = [
   '한 잔만 더요!! 제발!! 🙏',
 ];
 
-function playClink() {
-  try {
-    const AudioCtx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    if (!AudioCtx) return;
-    const ctx = new AudioCtx();
-    const master = ctx.createGain();
-    master.gain.setValueAtTime(0, ctx.currentTime);
-    master.gain.linearRampToValueAtTime(1.0, ctx.currentTime + 0.01);
-    master.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.5);
-    master.connect(ctx.destination);
-    [[880, 0], [1320, 0.03], [660, 0.06]].forEach(([freq, delay]) => {
-      const osc = ctx.createOscillator(); const g = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(freq, ctx.currentTime + delay);
-      osc.frequency.exponentialRampToValueAtTime(freq * 0.95, ctx.currentTime + delay + 0.6);
-      g.gain.setValueAtTime(0.6, ctx.currentTime + delay);
-      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 1.4);
-      osc.connect(g); g.connect(master);
-      osc.start(ctx.currentTime + delay); osc.stop(ctx.currentTime + delay + 1.5);
-    });
-    if ('vibrate' in navigator) navigator.vibrate([60, 30, 60, 30, 120]);
-    setTimeout(() => ctx.close(), 2000);
-  } catch { /**/ }
-}
 
 export function DrinkFloatButton({ onRequest }: { onRequest?: () => void }) {
   const [show, setShow] = useState(false);
@@ -44,7 +20,6 @@ export function DrinkFloatButton({ onRequest }: { onRequest?: () => void }) {
     const s = DRUNK_SHOUTS[Math.floor(Math.random() * DRUNK_SHOUTS.length)];
     setShout(s);
     setShow(true);
-    playClink();
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(s.replace(/[🍺🍻🍶🙋😭🙏]/g, ''));

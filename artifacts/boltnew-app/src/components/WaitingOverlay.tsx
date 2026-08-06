@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Users, CheckCircle, Clock, AlertTriangle, ChevronRight, ShieldAlert, X, Volume2, VolumeX } from 'lucide-react';
+import { Users, CheckCircle, Clock, AlertTriangle, ChevronRight, ShieldAlert, X } from 'lucide-react';
 import { TutorialModal } from './TutorialModal';
 import { useTheme } from '../lib/theme';
 
@@ -25,30 +25,6 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
   const [nickInput, setNickInput] = useState('');
   const [pendingPin, setPendingPin] = useState('');
 
-  // ── 입장대기 전용 배경음악 (전역 bgm과 분리 — 겹치지 않음) ──────────────
-  const waitingAudioRef = useRef<HTMLAudioElement | null>(null);
-  const [waitingMuted, setWaitingMuted] = useState(true); // 기본 음소거
-
-  useEffect(() => {
-    const audio = new Audio('/bgm-waiting.mp3');
-    audio.loop = true;
-    audio.volume = 0.5;
-    audio.muted = true; // 기본 음소거
-    waitingAudioRef.current = audio;
-    audio.play().catch(() => {
-      const tryPlay = () => { audio.play().catch(() => {}); document.removeEventListener('click', tryPlay, true); };
-      document.addEventListener('click', tryPlay, { capture: true, once: true });
-    });
-    return () => { audio.pause(); audio.src = ''; waitingAudioRef.current = null; };
-  }, []);
-
-  const toggleWaitingMute = () => {
-    const audio = waitingAudioRef.current;
-    if (!audio) return;
-    const next = !audio.muted;
-    audio.muted = next;
-    setWaitingMuted(next);
-  };
 
   // 개별 ref
   const pref0 = useRef<HTMLInputElement>(null);
@@ -176,14 +152,7 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-cyan-500/10 rounded-full blur-3xl" />
       </div>
 
-      {/* 음악 음소거 버튼 — 우측 상단 */}
-      <button
-        onClick={toggleWaitingMute}
-        className="absolute top-4 right-4 z-20 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center text-white transition-all backdrop-blur-sm active:scale-90"
-        title={waitingMuted ? '소리 켜기' : '소리 끄기'}
-      >
-        {waitingMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-      </button>
+
       <div className="relative z-10 text-center max-w-sm w-full flex flex-col items-center">
         {/* 로고 + 아이콘 */}
         <div className="relative inline-flex items-center justify-center mb-6">

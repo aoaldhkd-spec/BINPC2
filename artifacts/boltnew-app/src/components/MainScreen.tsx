@@ -765,14 +765,14 @@ export function MainScreen({
   }, [pendingHeartsCount, receivedContactShares.length, profiles.length, activeGameCount]);
 
   // 기능 잠금(functionsLocked) 시 이동 불가 탭 — 자리 잠금(seatingLocked)과 분리
-  const LOCKED_TABS = new Set<MainTab>(['chats', 'suggestions', 'game', 'fortune', 'stats', 'ranking']);
+  const LOCKED_TABS = new Set<MainTab>(['chats', 'fortune', 'stats', 'ranking']);
 
   const handleTabChange = (t: MainTab) => {
     if (functionsLocked && LOCKED_TABS.has(t)) return; // 기능 잠금 중 → 탭 이동 차단
     if (t === 'status') { setSeenHeartsCount(pendingHeartsCount); setSeenContactsCount(receivedContactShares.length); }
     if (t === 'profiles') setSeenProfilesCount(profiles.length);
-    if (t === 'chats' || t === 'suggestions') { onClearMsgCount(); }
-    if (t === 'game' || t === 'fortune') setSeenGameCount(activeGameCount);
+    if (t === 'chats') { onClearMsgCount(); }
+    if (t === 'fortune') setSeenGameCount(activeGameCount);
     onTabChange(t);
   };
 
@@ -1014,20 +1014,26 @@ export function MainScreen({
     try {
       const reader = new FileReader();
       reader.onload = async (ev) => {
-        const dataUrl = ev.target?.result as string;
-        if (!dataUrl) { setPhotoUploading(false); return; }
-        const compressed = await compressImage(dataUrl);
-        const path = `profile-photos/${currentUserId}`;
-        await fetch('/api/db/storage-upload', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ path, dataUrl: compressed }),
-        });
-        const photoUrl = `/api/db/storage-image?p=${encodeURIComponent(path)}&t=${Date.now()}`;
-        await supabase.from('profiles').update({ photo_url: photoUrl } as never).eq('id', currentUserId);
-        onUpdateProfile({ id: currentUserId, photo_url: photoUrl });
-        onRefreshProfiles();
-        setPhotoUploading(false);
+        try {
+          const dataUrl = ev.target?.result as string;
+          if (!dataUrl) { setPhotoUploading(false); return; }
+          const compressed = await compressImage(dataUrl);
+          const path = `profile-photos/${currentUserId}`;
+          await fetch('/api/db/storage-upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path, dataUrl: compressed }),
+          });
+          const photoUrl = `/api/db/storage-image?p=${encodeURIComponent(path)}&t=${Date.now()}`;
+          await supabase.from('profiles').update({ photo_url: photoUrl } as never).eq('id', currentUserId);
+          onUpdateProfile({ id: currentUserId, photo_url: photoUrl });
+          onRefreshProfiles();
+        } catch (e) {
+          console.error('[MainScreen] 사진 업로드 실패:', e);
+          alert('사진 업로드 중 오류가 발생했습니다. 다시 시도해 주세요.');
+        } finally {
+          setPhotoUploading(false);
+        }
       };
       reader.readAsDataURL(file);
     } catch { setPhotoUploading(false); }
@@ -1078,41 +1084,40 @@ export function MainScreen({
           </div>
         </div>
         {timerEndAt && <TimerBanner endAt={timerEndAt} label={timerLabel ?? ''} />}
-        {/* ── 탭 바 (2행 × 5열) ── */}
+        {/* ── 탭 바 (2행 × 4열) — 요청·게임 탭 제거, 아이콘 추가 ── */}
         <div className={`max-w-7xl mx-auto border-t-2 ${darkMode ? 'bg-slate-900 border-slate-700' : 'bg-gray-50 border-gray-200'}`}>
           {([
-            // Row 1: 내상태 | 내테이블 | 내채팅 | 내운세 | 통계
+            // Row 1: 내 상태 | 내 테이블 | 내 채팅 | 통계
             [
-              { id: 'status' as MainTab, label: '내 상태', badge: Math.max(0, pendingHeartsCount - seenHeartsCount) + newContactsCount },
-              { id: 'my-table' as MainTab, label: '내 테이블' },
-              { id: 'chats' as MainTab, label: '내 채팅', badge: newMsgCount },
-              { id: 'fortune' as MainTab, label: '🔮 내 운세' },
-              { id: 'stats' as MainTab, label: '📊 통계' },
+              { id: 'status' as MainTab, icon: '💝', label: '내 상태', badge: Math.max(0, pendingHeartsCount - seenHeartsCount) + newContactsCount },
+              { id: 'my-table' as MainTab, icon: '🪑', label: '내 테이블' },
+              { id: 'chats' as MainTab, icon: '💬', label: '내 채팅', badge: newMsgCount },
+              { id: 'stats' as MainTab, icon: '📊', label: '통계' },
             ],
-            // Row 2: 참여자 | 배치도 | 요청 | 게임 | 랭킹
+            // Row 2: 참여자 | 배치도 | 내 운세 (내채팅 아래) | 랭킹
             [
-              { id: 'profiles' as MainTab, label: '참여자', badge: seenProfilesCount < 0 ? 0 : Math.max(0, profiles.length - seenProfilesCount) },
-              { id: 'seating' as MainTab, label: '배치도' },
-              { id: 'suggestions' as MainTab, label: '📋 요청' },
-              { id: 'game' as MainTab, label: '🎮 게임', badge: Math.max(0, activeGameCount - seenGameCount) },
-              { id: 'ranking' as MainTab, label: '🏆 랭킹' },
+              { id: 'profiles' as MainTab, icon: '👥', label: '참여자', badge: seenProfilesCount < 0 ? 0 : Math.max(0, profiles.length - seenProfilesCount) },
+              { id: 'seating' as MainTab, icon: '🗺️', label: '배치도' },
+              { id: 'fortune' as MainTab, icon: '🔮', label: '내 운세' },
+              { id: 'ranking' as MainTab, icon: '🏆', label: '랭킹' },
             ],
-          ] as Array<Array<{ id: MainTab; label: string; badge?: number }>>).map((row, ri) => (
+          ] as Array<Array<{ id: MainTab; icon: string; label: string; badge?: number }>>).map((row, ri) => (
             <div key={ri} className={`flex ${ri === 0 ? `border-b ${darkMode ? 'border-slate-700/50' : 'border-gray-200'}` : ''}`}>
               {row.map((t, ci) => {
                 const locked = functionsLocked && LOCKED_TABS.has(t.id);
                 const active = mainTab === t.id;
                 return (
                   <button key={t.id} onClick={() => handleTabChange(t.id)} disabled={locked}
-                    className={`relative flex-1 ${ri === 0 ? 'py-2.5' : 'py-1.5'} text-[10px] font-bold transition-all active:scale-95 border-b-2 ${ci < row.length - 1 ? (darkMode ? 'border-r border-slate-700/30' : 'border-r border-gray-200/70') : ''} ${
+                    className={`relative flex-1 py-2 flex flex-col items-center gap-0.5 transition-all active:scale-95 border-b-2 ${ci < row.length - 1 ? (darkMode ? 'border-r border-slate-700/30' : 'border-r border-gray-200/70') : ''} ${
                       locked ? `opacity-35 cursor-not-allowed border-b-transparent ${darkMode ? 'text-slate-500' : 'text-gray-400'}` :
                       active ? darkMode ? 'border-b-cyan-500 text-cyan-400 bg-cyan-500/10' : 'border-b-cyan-500 text-cyan-700 bg-cyan-50' :
                       darkMode ? 'border-b-transparent text-slate-400' : 'border-b-transparent text-gray-500'
                     }`}>
-                    <span className="relative inline-flex">
-                      {locked ? '🔒' : t.label}
+                    <span className="text-base leading-none">{locked ? '🔒' : t.icon}</span>
+                    <span className="relative inline-flex text-[9px] font-bold leading-tight">
+                      {t.label}
                       {!locked && (t.badge ?? 0) > 0 && (
-                        <span className="absolute -top-1 -right-3.5 min-w-[14px] h-[14px] px-0.5 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
+                        <span className="absolute -top-1 -right-3 min-w-[13px] h-[13px] px-0.5 bg-rose-500 text-white text-[8px] font-black rounded-full flex items-center justify-center">
                           {t.badge}
                         </span>
                       )}
@@ -1501,7 +1506,7 @@ export function MainScreen({
                       {me.photo_url ? (
                         <img src={me.photo_url} alt="" className="w-9 h-9 rounded-xl object-cover flex-shrink-0 border border-white/10" />
                       ) : (
-                        <div className="w-9 h-9 rounded-xl bg-teal-500 flex items-center justify-center text-white font-black text-sm flex-shrink-0">{me.nickname[0]}</div>
+                        <div className="w-9 h-9 rounded-xl bg-teal-500 flex items-center justify-center text-white font-black text-sm flex-shrink-0">{me.nickname?.[0] ?? '?'}</div>
                       )}
                       <div className="flex-1 min-w-0">
                         <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>사진 · 아바타</p>
@@ -1746,7 +1751,7 @@ export function MainScreen({
                           {c.photo_url ? (
                             <img src={c.photo_url} alt={c.nickname} loading="lazy" className="w-10 h-10 rounded-xl object-cover" />
                           ) : (
-                            <div className="w-10 h-10 rounded-xl bg-teal-500 flex items-center justify-center text-white font-black text-sm">{c.nickname[0]}</div>
+                            <div className="w-10 h-10 rounded-xl bg-teal-500 flex items-center justify-center text-white font-black text-sm">{c.nickname?.[0] ?? '?'}</div>
                           )}
                         </div>
                         {/* 정보 */}

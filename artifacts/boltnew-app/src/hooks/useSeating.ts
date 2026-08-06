@@ -14,11 +14,13 @@ export function useSeating(currentUserId: string | null) {
   const [seatDialog, setSeatDialog] = useState<Seat | null>(null);
 
   const loadSeats = useCallback(async () => {
-    const { data } = await supabase.from('seats').select('*').order('table_number').order('seat_position');
-    if (data) {
-      setSeats(data);
-      try { ls.setItem(MATCHING_SEATS_CACHE_KEY, JSON.stringify(data)); } catch { /* quota */ }
-    }
+    try {
+      const { data } = await supabase.from('seats').select('*').order('table_number').order('seat_position');
+      if (data) {
+        setSeats(data);
+        try { ls.setItem(MATCHING_SEATS_CACHE_KEY, JSON.stringify(data)); } catch { /* quota */ }
+      }
+    } catch (e) { console.warn('[useSeating] loadSeats 실패:', e); }
   }, []);
 
   // ✅ try/catch 추가 — 네트워크 오류 시 다이얼로그 닫고 사용자에게 안내

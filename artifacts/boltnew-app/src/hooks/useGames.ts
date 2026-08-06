@@ -42,26 +42,30 @@ export function useGames(
   }, [currentUserId, seats]);
 
   const loadBalanceGames = useCallback(async () => {
-    const { data: games } = await supabase.from('balance_games').select('*').order('created_at', { ascending: false }).limit(30);
-    if (!games) return;
-    setBalanceGames(games as BalanceGame[]);
-    const activeIds = (games as { id: string; status: string }[]).filter(g => g.status === 'active').map(g => g.id);
-    if (activeIds.length > 0) {
-      const { data: votes } = await supabase.from('balance_votes').select('game_id, option').in('game_id', activeIds);
-      if (votes) {
-        const counts = new Map<string, { a: number; b: number }>();
-        (votes as { game_id: string; option: string }[]).forEach(v => {
-          const c = counts.get(v.game_id) || { a: 0, b: 0 };
-          counts.set(v.game_id, { ...c, [v.option]: c[v.option as 'a' | 'b'] + 1 });
-        });
-        setVoteCounts(counts);
+    try {
+      const { data: games } = await supabase.from('balance_games').select('*').order('created_at', { ascending: false }).limit(30);
+      if (!games) return;
+      setBalanceGames(games as BalanceGame[]);
+      const activeIds = (games as { id: string; status: string }[]).filter(g => g.status === 'active').map(g => g.id);
+      if (activeIds.length > 0) {
+        const { data: votes } = await supabase.from('balance_votes').select('game_id, option').in('game_id', activeIds);
+        if (votes) {
+          const counts = new Map<string, { a: number; b: number }>();
+          (votes as { game_id: string; option: string }[]).forEach(v => {
+            const c = counts.get(v.game_id) || { a: 0, b: 0 };
+            counts.set(v.game_id, { ...c, [v.option]: c[v.option as 'a' | 'b'] + 1 });
+          });
+          setVoteCounts(counts);
+        }
       }
-    }
+    } catch (e) { console.warn('[useGames] loadBalanceGames 실패:', e); }
   }, []);
 
   const loadMyVotes = useCallback(async (userId: string) => {
-    const { data } = await supabase.from('balance_votes').select('game_id, option').eq('voter_id', userId);
-    if (data) setMyVotes(new Map((data as { game_id: string; option: string }[]).map(v => [v.game_id, v.option as 'a' | 'b'])));
+    try {
+      const { data } = await supabase.from('balance_votes').select('game_id, option').eq('voter_id', userId);
+      if (data) setMyVotes(new Map((data as { game_id: string; option: string }[]).map(v => [v.game_id, v.option as 'a' | 'b'])));
+    } catch (e) { console.warn('[useGames] loadMyVotes 실패:', e); }
   }, []);
 
   const voteOnGame = async (gameId: string, option: 'a' | 'b') => {

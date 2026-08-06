@@ -4,7 +4,7 @@
  * 포함: PIN 입장 → 아바타 변경 → 프로필 등록 → 채팅 이모지/스티커 → 사진/빠른메시지 → 스와이프/길게누르기 → 받은/보낸 하트
  */
 import { useState, useEffect, useRef, useCallback, type ReactElement } from 'react';
-import { SkipBack, SkipForward, Play, Pause, Heart, Volume2, VolumeX } from 'lucide-react';
+import { SkipBack, SkipForward, Play, Pause, Heart } from 'lucide-react';
 
 // ── 커서 — RAF lerp (CSS transition 사용 안 함: 목표가 바뀔 때 커서가 튀는 문제 완전 해결) ──
 function Cursor({ x, y, clicking }: { x: number; y: number; clicking: boolean }) {
@@ -743,32 +743,7 @@ export function TutorialVideo({ onClose }: { darkMode?: boolean; onClose: () => 
   const [sceneIdx, setSceneIdx] = useState(0);
   const [stepIdx, setStepIdx] = useState(0);
   const [playing, setPlaying] = useState(true);
-  const [muted, setMuted] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  // 배경음악 초기화 — 마운트 시 한 번만
-  useEffect(() => {
-    const audio = new Audio('/tutorial-bgm.mp3');
-    audio.loop = true;
-    audio.volume = 0.35;
-    audioRef.current = audio;
-    audio.play().catch(() => { /* autoplay policy: 사용자 인터랙션 후 재생 */ });
-    return () => { audio.pause(); audio.src = ''; audioRef.current = null; };
-  }, []);
-
-  // playing 상태에 따라 음악 재생/일시정지
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    if (playing) { audio.play().catch(() => {}); }
-    else { audio.pause(); }
-  }, [playing]);
-
-  // mute 토글
-  useEffect(() => {
-    if (audioRef.current) audioRef.current.muted = muted;
-  }, [muted]);
 
   const scene = SCENES[sceneIdx];
   const step = scene.steps[Math.min(stepIdx, scene.steps.length - 1)];
@@ -823,11 +798,6 @@ export function TutorialVideo({ onClose }: { darkMode?: boolean; onClose: () => 
             <p className="text-slate-400 text-[10px] mt-0.5 leading-tight">{scene.sub}</p>
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0 mt-0.5">
-            <button onClick={() => setMuted(m => !m)}
-              className="w-7 h-7 rounded-full bg-slate-700 hover:bg-slate-600 flex items-center justify-center text-slate-300 transition-all"
-              title={muted ? '소리 켜기' : '소리 끄기'}>
-              {muted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
-            </button>
             <button onClick={onClose}
               className="w-7 h-7 rounded-full bg-slate-700 hover:bg-slate-600 flex items-center justify-center text-slate-300 text-xs transition-all">
               ✕

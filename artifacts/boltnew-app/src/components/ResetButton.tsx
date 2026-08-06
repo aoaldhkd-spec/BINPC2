@@ -12,52 +12,6 @@ const RANDOM_SUFFIX = [
   '믿기 어렵죠? 저도요 🤯',
 ];
 
-/** 맥주잔 부딪히는 "짠!" 소리 — Web Audio API */
-function playClink() {
-  try {
-    const AudioCtx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    if (!AudioCtx) return;
-    const ctx = new AudioCtx();
-    const master = ctx.createGain();
-    master.gain.setValueAtTime(0, ctx.currentTime);
-    master.gain.linearRampToValueAtTime(1.0, ctx.currentTime + 0.01);
-    master.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.5);
-    master.connect(ctx.destination);
-
-    // 두 음 겹쳐 맥주잔 울림 재현
-    [[880, 0], [1320, 0.03], [660, 0.06]].forEach(([freq, delay]) => {
-      const osc = ctx.createOscillator();
-      const g = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(freq, ctx.currentTime + delay);
-      osc.frequency.exponentialRampToValueAtTime(freq * 0.95, ctx.currentTime + delay + 0.6);
-      g.gain.setValueAtTime(0.6, ctx.currentTime + delay);
-      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 1.4);
-      osc.connect(g);
-      g.connect(master);
-      osc.start(ctx.currentTime + delay);
-      osc.stop(ctx.currentTime + delay + 1.5);
-    });
-
-    // 짧은 노이즈 버스트 (잔 부딪히는 충격음)
-    const bufSize = ctx.sampleRate * 0.08;
-    const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
-    const data = buf.getChannelData(0);
-    for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / bufSize);
-    const noise = ctx.createBufferSource();
-    const noiseGain = ctx.createGain();
-    noiseGain.gain.setValueAtTime(0.35, ctx.currentTime);
-    noise.buffer = buf;
-    noise.connect(noiseGain);
-    noiseGain.connect(master);
-    noise.start(ctx.currentTime);
-
-    // 진동
-    if ('vibrate' in navigator) navigator.vibrate([80, 40, 80, 40, 200]);
-
-    setTimeout(() => ctx.close(), 2000);
-  } catch { /* 소리 안 나도 무시 */ }
-}
 
 /** TTS — 더 빠르고 높게 */
 function speakLine(line: string) {
@@ -107,7 +61,6 @@ export function ResetButton({ onReset, darkMode, resetPassword, onEasterEgg }: {
       const line: [string, string] = [FIXED_TITLE, suffix];
       setEggLine(line);
       setShowEgg(true);
-      playClink();
       speakLine(FIXED_TITLE + ' ' + suffix.replace(/[😱🫠💀🍺😭🤯✅🎂]/g, ''));
       onEasterEgg?.();
       if (eggTimer.current) clearTimeout(eggTimer.current);
