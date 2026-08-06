@@ -19,6 +19,11 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
   const [pinDigits, setPinDigits] = useState<[string,string,string,string]>(['','','','']);
   const [pinError, setPinError] = useState('');
   const [pinLoading, setPinLoading] = useState(false);
+  // 2단계 닉네임 확인
+  const [pinStep, setPinStep] = useState<'pin' | 'confirm'>('pin');
+  const [maskedNickname, setMaskedNickname] = useState('');
+  const [nickInput, setNickInput] = useState('');
+  const [pendingPin, setPendingPin] = useState('');
 
   // ── 입장대기 전용 배경음악 (전역 bgm과 분리 — 겹치지 않음) ──────────────
   const waitingAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -65,20 +70,71 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pin: code }),
       });
-      const { data, error } = await resp.json() as { data: { id: string; nickname: string } | null; error: { message: string } | null };
-      if (error || !data) {
-        setPinError('해당 번호로 등록된 프로필이 없어요');
+      const json = await resp.json() as {
+        data: { step?: string; maskedNickname?: string; id?: string; nickname?: string } | null;
+        error: { message: string } | null;
+      };
+      if (resp.status === 429) {
+        setPinError(json.error?.message ?? '시도 횟수 초과. 잠시 후 다시 시도해주세요.');
+        setPinLoading(false);
+        return;
+      }
+      if (json.error || !json.data) {
+        setPinError(json.error?.message ?? '해당 번호로 등록된 프로필이 없어요');
         setPinDigits(['','','','']);
         setTimeout(() => pref0.current?.focus(), 80);
         setPinLoading(false);
         return;
       }
-      // onRecover가 있으면 App의 handleProfileRecovery 사용 (올바른 state 업데이트)
-      // 없으면 fallback: localStorage 직접 세팅 후 onEnter
+      // 1단계 완료: 닉네임 확인 단계로 이동
+      if (json.data.step === 'confirm') {
+        setPendingPin(code);
+        setMaskedNickname(json.data.maskedNickname ?? '**');
+        setNickInput('');
+        setPinStep('confirm');
+        setPinLoading(false);
+        return;
+      }
+      // 최종 성공
       if (onRecover) {
-        onRecover(data.id);
+        onRecover(json.data.id!);
       } else {
-        localStorage.setItem('matching_user_id', data.id);
+        localStorage.setItem('matching_user_id', json.data.id!);
+        onEnter();
+      }
+    } catch {
+      setPinError('오류가 발생했어요. 다시 시도해주세요');
+      setPinLoading(false);
+    }
+  };
+
+  const confirmNickname = async () => {
+    if (!nickInput.trim()) return;
+    setPinLoading(true); setPinError('');
+    try {
+      const resp = await fetch('/api/db/by-pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin: pendingPin, nickname: nickInput.trim() }),
+      });
+      const json = await resp.json() as {
+        data: { id?: string } | null;
+        error: { message: string } | null;
+      };
+      if (resp.status === 429) {
+        setPinError(json.error?.message ?? '시도 횟수 초과. 잠시 후 다시 시도해주세요.');
+        setPinLoading(false);
+        return;
+      }
+      if (json.error || !json.data?.id) {
+        setPinError(json.error?.message ?? '닉네임이 일치하지 않습니다.');
+        setPinLoading(false);
+        return;
+      }
+      if (onRecover) {
+        onRecover(json.data.id);
+      } else {
+        localStorage.setItem('matching_user_id', json.data.id);
         onEnter();
       }
     } catch {
@@ -320,49 +376,89 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
               {/* 헤더 */}
               <div className="bg-gradient-to-r from-slate-800/60 to-slate-700/60 border-b border-slate-600 px-5 py-5 text-center">
                 <div className="w-12 h-12 rounded-2xl bg-slate-600/40 flex items-center justify-center mx-auto mb-3">
-                  <span className="text-2xl">🔑</span>
+                  <span className="text-2xl">{pinStep === 'confirm' ? '🙋' : '🔑'}</span>
                 </div>
-                <h3 className="text-white font-black text-lg">핀 번호로 복구</h3>
-                <p className="text-slate-400 text-xs mt-1">내 상태 탭 프로필 카드의 <strong className="text-slate-300">고유번호</strong> 4자리</p>
+                <h3 className="text-white font-black text-lg">
+                  {pinStep === 'confirm' ? '본인 확인' : '핀 번호로 복구'}
+                </h3>
+                <p className="text-slate-400 text-xs mt-1">
+                  {pinStep === 'confirm'
+                    ? <>닉네임 <strong className="text-teal-300">{maskedNickname}</strong> — 정확한 닉네임을 입력해주세요</>
+                    : <>내 상태 탭 프로필 카드의 <strong className="text-slate-300">고유번호</strong> 4자리</>}
+                </p>
               </div>
-              {/* 입력 */}
+
               <div className="px-6 py-6 space-y-4">
-                <div className="flex gap-3 justify-center" onPaste={handlePinPaste}>
-                  {([0,1,2,3] as const).map(idx => (
+                {pinStep === 'pin' ? (
+                  /* ── 1단계: 핀 입력 ── */
+                  <div className="flex gap-3 justify-center" onPaste={handlePinPaste}>
+                    {([0,1,2,3] as const).map(idx => (
+                      <input
+                        key={idx}
+                        ref={prefs[idx]}
+                        type="text"
+                        inputMode="numeric"
+                        pattern="\d*"
+                        maxLength={1}
+                        value={pinDigits[idx]}
+                        onChange={e => handlePinChange(idx, e.target.value)}
+                        onKeyDown={e => handlePinKey(idx, e)}
+                        disabled={pinLoading}
+                        className={[
+                          'w-16 h-16 text-center text-3xl font-black rounded-2xl border-2 outline-none transition-all bg-slate-800',
+                          pinError ? 'border-red-500 text-red-400'
+                            : pinDigits[idx] ? 'border-teal-500 text-teal-300'
+                            : 'border-slate-600 focus:border-teal-500 text-white',
+                          'disabled:opacity-40',
+                        ].join(' ')}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  /* ── 2단계: 닉네임 확인 ── */
+                  <div className="space-y-3">
+                    <p className="text-slate-400 text-xs text-center">
+                      가입 시 설정한 닉네임을 정확히 입력하면 입장할 수 있어요
+                    </p>
                     <input
-                      key={idx}
-                      ref={prefs[idx]}
                       type="text"
-                      inputMode="numeric"
-                      pattern="\d*"
-                      maxLength={1}
-                      value={pinDigits[idx]}
-                      onChange={e => handlePinChange(idx, e.target.value)}
-                      onKeyDown={e => handlePinKey(idx, e)}
+                      autoFocus
+                      placeholder="닉네임 입력"
+                      value={nickInput}
+                      onChange={e => { setNickInput(e.target.value); setPinError(''); }}
+                      onKeyDown={e => e.key === 'Enter' && confirmNickname()}
                       disabled={pinLoading}
-                      className={[
-                        'w-16 h-16 text-center text-3xl font-black rounded-2xl border-2 outline-none transition-all bg-slate-800',
-                        pinError ? 'border-red-500 text-red-400'
-                          : pinDigits[idx] ? 'border-teal-500 text-teal-300'
-                          : 'border-slate-600 focus:border-teal-500 text-white',
-                        'disabled:opacity-40',
-                      ].join(' ')}
+                      className="w-full rounded-2xl px-4 py-3 text-center text-white text-lg font-black tracking-wider bg-slate-800 border-2 border-slate-600 focus:border-teal-500 outline-none transition-all disabled:opacity-40"
                     />
-                  ))}
-                </div>
-                {pinLoading && (
+                    <button
+                      onClick={confirmNickname}
+                      disabled={!nickInput.trim() || pinLoading}
+                      className="w-full py-3 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 text-white font-black rounded-2xl transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      {pinLoading ? '확인 중…' : '본인 확인 완료'}
+                    </button>
+                    <button
+                      onClick={() => { setPinStep('pin'); setPinError(''); setNickInput(''); }}
+                      className="w-full py-2 text-slate-500 font-semibold text-sm hover:text-slate-300 transition-colors"
+                    >← 고유번호 다시 입력</button>
+                  </div>
+                )}
+
+                {pinLoading && pinStep === 'pin' && (
                   <div className="flex items-center justify-center gap-2">
                     <div className="w-4 h-4 border-2 border-teal-400/40 border-t-teal-400 rounded-full animate-spin" />
-                    <p className="text-sm text-teal-400 font-semibold">복구 중…</p>
+                    <p className="text-sm text-teal-400 font-semibold">확인 중…</p>
                   </div>
                 )}
                 {pinError && (
                   <p className="text-red-400 text-xs text-center font-semibold">⚠ {pinError}</p>
                 )}
-                <button
-                  onClick={() => setShowPinRecovery(false)}
-                  className="w-full py-3 bg-slate-700/60 hover:bg-slate-700 text-slate-300 font-bold text-sm rounded-2xl transition-all"
-                >닫기</button>
+                {pinStep === 'pin' && (
+                  <button
+                    onClick={() => { setShowPinRecovery(false); setPinStep('pin'); setPinError(''); setPinDigits(['','','','']); }}
+                    className="w-full py-3 bg-slate-700/60 hover:bg-slate-700 text-slate-300 font-bold text-sm rounded-2xl transition-all"
+                  >닫기</button>
+                )}
               </div>
             </div>
           </div>

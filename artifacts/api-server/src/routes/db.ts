@@ -1939,13 +1939,48 @@ router.get('/unread-counts', (req: Request, res: Response) => {
 });
 
 // ─── PIN lookup ───────────────────────────────────────────────────────────────
+// 고유코드 조회 — IP당 15분에 최대 5회 시도 제한
+const _pinAttempts = new Map<string, { count: number; resetAt: number }>();
+const PIN_MAX = 5;
+const PIN_WINDOW_MS = 15 * 60 * 1000;
+
 router.post('/by-pin', (req: Request, res: Response) => {
-  const { pin } = req.body as { pin?: string };
+  const ip = String(req.ip ?? 'unknown');
+  const now = Date.now();
+  const prev = _pinAttempts.get(ip);
+  if (prev && prev.resetAt > now) {
+    if (prev.count >= PIN_MAX) {
+      return res.status(429).json({ data: null, error: { message: '시도 횟수를 초과했습니다. 15분 후 다시 시도해주세요.' } });
+    }
+    prev.count++;
+  } else {
+    _pinAttempts.set(ip, { count: 1, resetAt: now + PIN_WINDOW_MS });
+  }
+
+  const { pin, nickname } = req.body as { pin?: string; nickname?: string };
   if (!pin) return res.status(400).json({ data: null, error: { message: 'PIN required' } });
+
   const profiles = getTable('profiles');
   const found = profiles.find(p => String(p['pin_code']) === String(pin));
-  if (found) return res.json({ data: found, error: null });
-  return res.json({ data: null, error: { message: '핀 번호를 찾을 수 없습니다' } });
+  if (!found) return res.json({ data: null, error: { message: '해당 번호로 등록된 프로필이 없어요' } });
+
+  // 1단계: pin만 입력 → 마스킹된 닉네임 반환 (본인 확인용)
+  if (!nickname) {
+    const nick = String(found['nickname'] ?? '');
+    const masked = nick.length > 1
+      ? nick[0] + '*'.repeat(nick.length - 1)
+      : nick[0] ?? '*';
+    return res.json({ data: { step: 'confirm', maskedNickname: masked }, error: null });
+  }
+
+  // 2단계: pin + nickname → 정확히 일치해야 통과
+  if (String(found['nickname']) !== nickname) {
+    return res.json({ data: null, error: { message: '닉네임이 일치하지 않습니다. 본인 닉네임을 정확히 입력해주세요.' } });
+  }
+
+  // 성공 — rate limit 리셋
+  _pinAttempts.delete(ip);
+  return res.json({ data: found, error: null });
 });
 
 // ─── Push subscription endpoints ─────────────────────────────────────────────

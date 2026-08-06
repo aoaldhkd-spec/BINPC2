@@ -352,7 +352,7 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
 
                 <div className="flex gap-3 pt-2">
                   <button type="button" onClick={onReset}
-                    className="flex items-center justify-center gap-1.5 px-5 py-3 bg-gray-100 text-gray-500 font-bold rounded-xl hover:bg-gray-200 transition-all">
+                    className="flex-1 flex items-center justify-center gap-1.5 py-3 bg-gray-100 text-gray-500 font-bold rounded-xl hover:bg-gray-200 transition-all">
                     <ArrowLeft className="w-4 h-4" /> 이전
                   </button>
                   <button type="button" onClick={() => setStep(2)} disabled={!step1Valid}
@@ -518,7 +518,7 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
 
                 <div className="flex gap-3 pt-2">
                   <button type="button" onClick={() => setStep(1)}
-                    className="flex items-center justify-center gap-1.5 px-5 py-3 bg-gray-100 text-gray-500 font-bold rounded-xl hover:bg-gray-200 transition-all">
+                    className="flex-1 flex items-center justify-center gap-1.5 py-3 bg-gray-100 text-gray-500 font-bold rounded-xl hover:bg-gray-200 transition-all">
                     <ArrowLeft className="w-4 h-4" /> 이전
                   </button>
                   <button type="button" onClick={() => setStep(3)} disabled={!step2Valid}
@@ -612,7 +612,7 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
 
                 <div className="flex gap-3 pt-2">
                   <button type="button" onClick={() => setStep(2)}
-                    className="flex items-center justify-center gap-1.5 px-5 py-3 bg-gray-100 text-gray-500 font-bold rounded-xl hover:bg-gray-200 transition-all">
+                    className="flex-1 flex items-center justify-center gap-1.5 py-3 bg-gray-100 text-gray-500 font-bold rounded-xl hover:bg-gray-200 transition-all">
                     <ArrowLeft className="w-4 h-4" /> 이전
                   </button>
                   <button type="button" onClick={handleSubmit} disabled={!canEnter}
