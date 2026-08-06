@@ -462,15 +462,6 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
                   )}
                   {/* 카테고리 필터 탭 */}
                   <div className="flex gap-1.5 flex-wrap mb-3">
-                    <button
-                      type="button"
-                      onClick={() => setBioFilter(null)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-black border transition-all ${
-                        bioFilter === null
-                          ? 'bg-gray-800 text-white border-gray-800 shadow-sm'
-                          : 'bg-white text-gray-500 border-gray-200 hover:border-gray-400'
-                      }`}
-                    >전체</button>
                     {BIO_CATEGORIES.map((cat) => {
                       const active = bioFilter === cat.label;
                       const hasSelected = cat.tags.some(t => selectedBio.includes(t));
