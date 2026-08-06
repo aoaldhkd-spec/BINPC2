@@ -935,8 +935,8 @@ export function MainScreen({
     if (!trimmed || trimmed === currentNick) return;
     setNicknameEditSaving(true);
     try {
-      await supabase.from('profiles').update({ nickname: trimmed } as never).eq('id', currentUserId);
-      onUpdateProfile({ id: currentUserId, nickname: trimmed });
+      await supabase.from('profiles').update({ nickname: trimmed, nickname_changed: true } as never).eq('id', currentUserId);
+      onUpdateProfile({ id: currentUserId, nickname: trimmed, nickname_changed: true });
       setProfileEditSection(null);
       setNicknameEditInput('');
       setNicknameEditDupOk(false);
@@ -1511,10 +1511,14 @@ export function MainScreen({
                 }
               };
               const toggleSection = (s: 'avatar' | 'nickname' | 'birth' | 'interests') => {
-                if (s === 'nickname' && profileEditSection !== 'nickname') {
-                  setNicknameEditInput('');
-                  setNicknameEditError(null);
-                  setNicknameEditDupOk(false);
+                if (s === 'nickname') {
+                  // 이미 1회 변경한 경우 열기 차단
+                  if ((me as { nickname_changed?: boolean }).nickname_changed) return;
+                  if (profileEditSection !== 'nickname') {
+                    setNicknameEditInput('');
+                    setNicknameEditError(null);
+                    setNicknameEditDupOk(false);
+                  }
                 }
                 if (s === 'interests' && profileEditSection !== 'interests') {
                   interestInitRef.current = false;
@@ -1586,45 +1590,68 @@ export function MainScreen({
                   </div>
 
                   {/* ── 닉네임 ── */}
-                  <div className={`border-b ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
-                    <button onClick={() => toggleSection('nickname')} className="w-full flex items-center gap-3 px-4 py-3 text-left">
-                      <span className="text-xl flex-shrink-0">🏷️</span>
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>닉네임</p>
-                        <p className={`text-[11px] font-semibold truncate ${darkMode ? 'text-cyan-400' : 'text-cyan-600'}`}>{me.nickname}</p>
-                      </div>
-                      <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${showNicknameEdit ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
-                    </button>
-                    {showNicknameEdit && (
-                      <div className={`px-4 pb-4 space-y-2 ${darkMode ? 'bg-slate-700/20' : 'bg-gray-50/50'}`}>
-                        <div className="relative">
-                          <input type="text" value={nicknameEditInput}
-                            onChange={(e) => handleNicknameEditChange(e.target.value, me.nickname)}
-                            maxLength={6} autoFocus placeholder="새 닉네임 (2~6글자)"
-                            className={`w-full px-3 py-2 rounded-lg border-2 text-sm font-bold transition-all outline-none ${
-                              darkMode ? 'bg-slate-800 text-white placeholder-slate-500' : 'bg-white text-gray-900'
-                            } ${nicknameEditError ? 'border-rose-400' : nicknameEditDupOk ? 'border-emerald-400' : darkMode ? 'border-slate-500 focus:border-cyan-500' : 'border-gray-300 focus:border-cyan-400'}`}
-                          />
-                          <div className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold">
-                            {nicknameEditChecking && <span className={darkMode ? 'text-slate-400' : 'text-gray-400'}>확인 중…</span>}
-                            {!nicknameEditChecking && nicknameEditDupOk && !nicknameEditError && <span className="text-emerald-500">사용 가능 ✓</span>}
+                  {(() => {
+                    const nicknameAlreadyChanged = !!(me as { nickname_changed?: boolean }).nickname_changed;
+                    return (
+                      <div className={`border-b ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
+                        <button
+                          onClick={() => toggleSection('nickname')}
+                          disabled={nicknameAlreadyChanged}
+                          className={`w-full flex items-center gap-3 px-4 py-3 text-left ${nicknameAlreadyChanged ? 'cursor-not-allowed' : ''}`}
+                        >
+                          <span className="text-xl flex-shrink-0">{nicknameAlreadyChanged ? '🔒' : '🏷️'}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>닉네임</p>
+                            <p className={`text-[11px] font-semibold truncate ${darkMode ? 'text-cyan-400' : 'text-cyan-600'}`}>{me.nickname}</p>
+                            {nicknameAlreadyChanged && (
+                              <p className={`text-[10px] mt-0.5 font-medium ${darkMode ? 'text-amber-400/80' : 'text-amber-600'}`}>닉네임 변경은 1회만 가능해요</p>
+                            )}
                           </div>
-                        </div>
-                        {nicknameEditError && <p className="text-[11px] text-rose-500 font-medium">⚠ {nicknameEditError}</p>}
-                        <p className={`text-[10px] ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>최소 2글자 · 최대 6글자 · 욕설·지역감정·패드립 불가</p>
-                        <p className={`text-[10px] mt-0.5 ${darkMode ? 'text-teal-400/70' : 'text-teal-600/70'}`}>💡 예시: 음식이름, 패션스타일, 직업 등 나를 나타낼 수 있는 거 아무거나 설정해 주세요!</p>
-                        <div className="flex gap-2">
-                          <button type="button" onClick={() => setProfileEditSection(null)}
-                            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${darkMode ? 'bg-slate-600 text-slate-300 hover:bg-slate-500' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>취소</button>
-                          <button type="button" onClick={() => saveNickname(me.nickname)}
-                            disabled={!nicknameEditDupOk || !!nicknameEditError || nicknameEditSaving}
-                            className="flex-1 py-1.5 rounded-lg text-xs font-bold bg-gradient-to-r from-cyan-500 to-teal-500 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all">
-                            {nicknameEditSaving ? '저장 중…' : '저장'}
-                          </button>
-                        </div>
+                          {nicknameAlreadyChanged
+                            ? <span className={`text-[10px] font-black px-2 py-0.5 rounded-full flex-shrink-0 ${darkMode ? 'bg-slate-700 text-slate-400' : 'bg-gray-100 text-gray-400'}`}>변경 완료</span>
+                            : <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${showNicknameEdit ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
+                          }
+                        </button>
+                        {showNicknameEdit && !nicknameAlreadyChanged && (
+                          <div className={`px-4 pb-4 space-y-2 ${darkMode ? 'bg-slate-700/20' : 'bg-gray-50/50'}`}>
+                            {/* 1회 변경 경고 배너 */}
+                            <div className={`flex items-start gap-2 px-3 py-2 rounded-xl ${darkMode ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-amber-50 border border-amber-200'}`}>
+                              <span className="text-sm flex-shrink-0">⚠️</span>
+                              <p className={`text-[11px] font-bold leading-snug ${darkMode ? 'text-amber-300' : 'text-amber-700'}`}>
+                                닉네임은 <span className="underline">단 1회만</span> 변경할 수 있어요.<br />
+                                변경 후에는 되돌릴 수 없으니 신중하게 입력해 주세요.
+                              </p>
+                            </div>
+                            <div className="relative">
+                              <input type="text" value={nicknameEditInput}
+                                onChange={(e) => handleNicknameEditChange(e.target.value, me.nickname)}
+                                maxLength={6} autoFocus placeholder="새 닉네임 (2~6글자)"
+                                className={`w-full px-3 py-2 rounded-lg border-2 text-sm font-bold transition-all outline-none ${
+                                  darkMode ? 'bg-slate-800 text-white placeholder-slate-500' : 'bg-white text-gray-900'
+                                } ${nicknameEditError ? 'border-rose-400' : nicknameEditDupOk ? 'border-emerald-400' : darkMode ? 'border-slate-500 focus:border-cyan-500' : 'border-gray-300 focus:border-cyan-400'}`}
+                              />
+                              <div className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold">
+                                {nicknameEditChecking && <span className={darkMode ? 'text-slate-400' : 'text-gray-400'}>확인 중…</span>}
+                                {!nicknameEditChecking && nicknameEditDupOk && !nicknameEditError && <span className="text-emerald-500">사용 가능 ✓</span>}
+                              </div>
+                            </div>
+                            {nicknameEditError && <p className="text-[11px] text-rose-500 font-medium">⚠ {nicknameEditError}</p>}
+                            <p className={`text-[10px] ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>최소 2글자 · 최대 6글자 · 욕설·지역감정·패드립 불가</p>
+                            <p className={`text-[10px] mt-0.5 ${darkMode ? 'text-teal-400/70' : 'text-teal-600/70'}`}>💡 예시: 음식이름, 패션스타일, 직업 등 나를 나타낼 수 있는 거 아무거나 설정해 주세요!</p>
+                            <div className="flex gap-2">
+                              <button type="button" onClick={() => setProfileEditSection(null)}
+                                className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${darkMode ? 'bg-slate-600 text-slate-300 hover:bg-slate-500' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>취소</button>
+                              <button type="button" onClick={() => saveNickname(me.nickname)}
+                                disabled={!nicknameEditDupOk || !!nicknameEditError || nicknameEditSaving}
+                                className="flex-1 py-1.5 rounded-lg text-xs font-bold bg-gradient-to-r from-cyan-500 to-teal-500 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all">
+                                {nicknameEditSaving ? '저장 중…' : '저장'}
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
+                    );
+                  })()}
 
                   {/* ── 생월·생일 ── */}
                   <div className={`border-b ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
