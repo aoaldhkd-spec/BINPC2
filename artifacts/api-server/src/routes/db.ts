@@ -509,6 +509,9 @@ seedIfNeeded()
   .then(() => setupListenClient())
   .catch(console.error);
 
+// 5분마다 핫 테이블 DB 재동기화 — NOTIFY 누락·autoscale 인스턴스 드리프트 자동 정정
+setInterval(() => { resyncHotTablesFromDb().catch(console.error); }, 5 * 60 * 1000);
+
 // ─── Cross-instance sync via PostgreSQL LISTEN/NOTIFY ─────────────────────────
 // autoscale 환경에서 여러 인스턴스가 뜰 때 store + SSE를 동기화한다.
 // 각 인스턴스는 data_change 채널을 LISTEN하고, 쓰기 시 NOTIFY로 전파한다.
@@ -523,54 +526,128 @@ async function setupListenClient(): Promise<void> {
     await client.query('LISTEN data_change');
     client.on('notification', (msg) => {
       if (!msg.payload) return;
-      let env: { src: string; table: string; ev: string; newRow: Record<string, unknown> | null; oldRow: Record<string, unknown> | null };
+      let env: { src: string; table: string; ev: string; id?: unknown; _tombstone?: boolean; newRow?: Record<string, unknown> | null; oldRow?: Record<string, unknown> | null };
       try { env = JSON.parse(msg.payload); } catch { return; }
       if (env.src === INSTANCE_ID) return; // 자신이 보낸 echo — 이미 로컬에서 처리됨
 
-      // ── 1. 로컬 store 업데이트 ──
       const tbl = env.table;
+
+      // ── tombstone: 페이로드가 너무 커서 row를 생략한 경우 → DB에서 직접 재조회 ──
+      if (env._tombstone && tbl && tbl !== 'db_error_log') {
+        const id = String(env.id ?? '');
+        if (!id) return;
+        if (env.ev === 'DELETE') {
+          // DELETE tombstone: id로 store에서 제거
+          if (!store[tbl]) return;
+          const idx = store[tbl].findIndex(r => r['id'] === id);
+          if (idx >= 0) store[tbl].splice(idx, 1);
+          const delEvent = { type: 'change', table: tbl, event: 'DELETE', newRow: null, oldRow: { id } };
+          _smartBroadcastLocal(tbl, null, delEvent);
+        } else {
+          // INSERT/UPDATE tombstone: DB에서 전체 row 재조회 후 store 갱신
+          pool.query(
+            `SELECT data FROM app_kv_rows WHERE table_name = $1 AND row_id = $2 LIMIT 1`,
+            [tbl, id],
+          ).then(result => {
+            const row = (result.rows[0]?.data ?? null) as Record<string, unknown> | null;
+            if (!row) return;
+            if (!store[tbl]) store[tbl] = [];
+            const idx = store[tbl].findIndex(r => r['id'] === id);
+            if (idx >= 0) store[tbl][idx] = row; else store[tbl].push(row);
+            const fullEvent = { type: 'change', table: tbl, event: env.ev, newRow: row, oldRow: null };
+            _smartBroadcastLocal(tbl, row, fullEvent);
+          }).catch(e => console.warn('[db] tombstone DB refetch failed:', (e as Error).message));
+        }
+        return;
+      }
+
+      const newRow = env.newRow ?? null;
+      const oldRow = env.oldRow ?? null;
+
+      // ── 1. 로컬 store 업데이트 ──
       if (tbl && tbl !== 'db_error_log') {
         if (!store[tbl]) store[tbl] = [];
-        if (env.ev === 'INSERT' && env.newRow) {
-          const id = env.newRow['id'];
-          if (!store[tbl].some(r => r['id'] === id)) store[tbl].push(env.newRow!);
-        } else if (env.ev === 'UPDATE' && env.newRow) {
-          const id = env.newRow['id'];
+        if (env.ev === 'INSERT' && newRow) {
+          const id = newRow['id'];
+          if (!store[tbl].some(r => r['id'] === id)) store[tbl].push(newRow);
+        } else if (env.ev === 'UPDATE' && newRow) {
+          const id = newRow['id'];
           const idx = store[tbl].findIndex(r => r['id'] === id);
-          if (idx >= 0) store[tbl][idx] = env.newRow!; else store[tbl].push(env.newRow!);
-        } else if (env.ev === 'DELETE' && env.oldRow) {
-          const id = env.oldRow['id'];
+          if (idx >= 0) store[tbl][idx] = newRow; else store[tbl].push(newRow);
+        } else if (env.ev === 'DELETE' && oldRow) {
+          const id = oldRow['id'];
           const idx = store[tbl].findIndex(r => r['id'] === id);
           if (idx >= 0) store[tbl].splice(idx, 1);
         }
       }
 
       // ── 2. 로컬 SSE 클라이언트에게 중계 (notify=false — 무한 루프 방지) ──
-      const event = { type: 'change', table: tbl, event: env.ev, newRow: env.newRow, oldRow: env.oldRow };
-      _smartBroadcastLocal(tbl, env.newRow ?? env.oldRow, event);
+      const event = { type: 'change', table: tbl, event: env.ev, newRow, oldRow };
+      _smartBroadcastLocal(tbl, newRow ?? oldRow, event);
     });
     client.on('error', (err) => {
       console.error('[db] LISTEN client error — reconnecting in 5 s:', err.message);
       _listenClient = null;
       client.end().catch(() => {});
-      setTimeout(() => { setupListenClient().catch(console.error); }, 5000);
+      // 재연결 후 핫 테이블 재동기화: 5초 gap 중 누락된 변경 복구
+      setTimeout(() => {
+        setupListenClient()
+          .then(() => resyncHotTablesFromDb())
+          .catch(console.error);
+      }, 5000);
     });
     _listenClient = client;
     console.info(`[db] LISTEN data_change ready (instance=${INSTANCE_ID.slice(0, 8)})`);
   } catch (err) {
     console.error('[db] setupListenClient failed — retry in 10 s:', (err as Error).message);
-    setTimeout(() => { setupListenClient().catch(console.error); }, 10000);
+    setTimeout(() => {
+      setupListenClient()
+        .then(() => resyncHotTablesFromDb())
+        .catch(console.error);
+    }, 10000);
   }
 }
 
-/** 다른 인스턴스에 변경 사항 전파. 8 KB 초과 or 이미지 테이블은 건너뜀 */
+/** 다른 인스턴스에 변경 사항 전파. 이미지 테이블 제외. 8 KB 초과 시 tombstone 전송 */
 function notifyOtherInstances(table: string, ev: string, newRow: Record<string, unknown> | null, oldRow: Record<string, unknown> | null): void {
   if (table === 'app_image_store') return; // 이미지 data URL은 수 KB — 제외
   const payload = JSON.stringify({ src: INSTANCE_ID, table, ev, newRow, oldRow });
-  if (payload.length > 7900) return; // PostgreSQL NOTIFY 8 KB 한도
+  if (payload.length > 7900) {
+    // 페이로드 8KB 초과(큰 프로필 사진 등) — 수신 측이 DB에서 직접 재조회하도록 tombstone 전송
+    const id = (newRow ?? oldRow)?.['id'];
+    if (!id) return;
+    const tombstone = JSON.stringify({ src: INSTANCE_ID, table, ev, id, _tombstone: true });
+    pool.query("SELECT pg_notify('data_change', $1)", [tombstone]).catch((e) =>
+      console.warn('[db] NOTIFY tombstone failed:', (e as Error).message)
+    );
+    return;
+  }
   pool.query("SELECT pg_notify('data_change', $1)", [payload]).catch((e) =>
     console.warn('[db] NOTIFY failed:', (e as Error).message)
   );
+}
+
+/** hot 테이블(profiles·seats·app_settings)을 DB에서 강제 재동기화 — reconnect gap 보정 */
+async function resyncHotTablesFromDb(): Promise<void> {
+  const hotTables = ['profiles', 'seats', 'app_settings'];
+  try {
+    const { rows } = await pool.query(
+      `SELECT table_name, data FROM app_kv_rows WHERE table_name = ANY($1::text[])`,
+      [hotTables],
+    );
+    // 테이블별로 묶기
+    const grouped: Record<string, Record<string, unknown>[]> = {};
+    for (const r of rows) {
+      if (!grouped[r.table_name as string]) grouped[r.table_name as string] = [];
+      grouped[r.table_name as string].push(r.data as Record<string, unknown>);
+    }
+    for (const tbl of hotTables) {
+      if (grouped[tbl]?.length) store[tbl] = grouped[tbl];
+    }
+    console.info('[db] hot-table resync complete (profiles/seats/app_settings)');
+  } catch (e) {
+    console.warn('[db] hot-table resync failed:', (e as Error).message);
+  }
 }
 
 // ─── SSE broadcast ─────────────────────────────────────────────────────────────
@@ -913,7 +990,6 @@ router.post('/op', async (req: Request, res: Response) => {
       if (table === 'messages') {
         if (!isAdmin) {
           if (!requesterId) {
-            _activeOpCount--;
             logger.warn({ ip: req.ip }, '[SECURITY] IDOR: messages SELECT without requesterId blocked');
             return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
           }
@@ -923,7 +999,6 @@ router.post('/op', async (req: Request, res: Response) => {
 
           if (!chatIdEqF && !chatIdInF) {
             // chat_id 필터 없이 전체 메시지 덤프 시도 → 차단
-            _activeOpCount--;
             logger.warn({ requesterId, ip: req.ip }, '[SECURITY] IDOR: messages SELECT without chat_id filter blocked');
             return res.status(403).json({ data: null, error: { message: 'Forbidden: chat_id filter required', code: 'FORBIDDEN' } });
           }
@@ -932,11 +1007,9 @@ router.post('/op', async (req: Request, res: Response) => {
             // 단일 채팅방 접근 — 참여자 검증
             const chat = getTable('chats').find(c => c.id === chatIdEqF.val);
             if (!chat) {
-              _activeOpCount--;
               return res.json({ data: [], error: null }); // 존재하지 않는 채팅방 → 빈 배열
             }
             if (String(chat.user1_id) !== String(requesterId) && String(chat.user2_id) !== String(requesterId)) {
-              _activeOpCount--;
               logger.warn({ requesterId, chatId: chatIdEqF.val, ip: req.ip }, '[SECURITY] IDOR: messages SELECT by non-participant blocked');
               return res.status(403).json({ data: null, error: { message: 'Forbidden: not a chat participant', code: 'FORBIDDEN' } });
             }
@@ -951,7 +1024,6 @@ router.post('/op', async (req: Request, res: Response) => {
               return String(chat.user1_id) !== String(requesterId) && String(chat.user2_id) !== String(requesterId);
             });
             if (illegalChatId) {
-              _activeOpCount--;
               logger.warn({ requesterId, chatId: illegalChatId, ip: req.ip }, '[SECURITY] IDOR: messages SELECT (in) includes non-participant chat blocked');
               return res.status(403).json({ data: null, error: { message: 'Forbidden: not a chat participant', code: 'FORBIDDEN' } });
             }
@@ -980,11 +1052,9 @@ router.post('/op', async (req: Request, res: Response) => {
           const safeLimit2 = limit != null ? Math.floor(limit) : undefined;
           const limited2 = safeLimit2 != null ? adminResult.slice(0, safeLimit2) : adminResult;
           const result2 = single ? (limited2[0] ?? null) : maybeSingle ? (limited2[0] ?? null) : limited2;
-          _activeOpCount--;
           return res.json({ data: result2, error: null });
         }
         if (!requesterId) {
-          _activeOpCount--;
           logger.warn({ ip: req.ip }, '[SECURITY] IDOR: chats SELECT without requesterId blocked');
           return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
         }
@@ -1007,7 +1077,6 @@ router.post('/op', async (req: Request, res: Response) => {
         const safeLimit = limit != null ? Math.floor(limit) : undefined;
         const limitedScope = safeLimit != null ? scopedResult.slice(0, safeLimit) : scopedResult;
         const singleScope = single ? (limitedScope[0] ?? null) : maybeSingle ? (limitedScope[0] ?? null) : limitedScope;
-        _activeOpCount--;
         return res.json({ data: singleScope, error: null });
       }
 
@@ -1052,12 +1121,10 @@ router.post('/op', async (req: Request, res: Response) => {
         // messages: requesterId 필수 + sender_id 일치 + 채팅방 참여자 검증
         if (table === 'messages') {
           if (!requesterId) {
-            _activeOpCount--;
             logger.warn({ ip: req.ip }, '[SECURITY] IDOR: messages INSERT without requesterId blocked');
             return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
           }
           if (effectiveRow.sender_id != null && String(effectiveRow.sender_id) !== String(requesterId)) {
-            _activeOpCount--;
             logger.warn({ requesterId, sender_id: effectiveRow.sender_id, ip: req.ip }, '[SECURITY] IDOR: sender_id mismatch blocked');
             return res.status(403).json({ data: null, error: { message: 'Forbidden: sender_id mismatch', code: 'FORBIDDEN' } });
           }
@@ -1065,7 +1132,6 @@ router.post('/op', async (req: Request, res: Response) => {
           if (effectiveRow.chat_id != null) {
             const targetChat = getTable('chats').find(c => c.id === effectiveRow.chat_id);
             if (!targetChat || (String(targetChat.user1_id) !== String(requesterId) && String(targetChat.user2_id) !== String(requesterId))) {
-              _activeOpCount--;
               logger.warn({ requesterId, chatId: effectiveRow.chat_id, ip: req.ip }, '[SECURITY] IDOR: message INSERT by non-participant blocked');
               return res.status(403).json({ data: null, error: { message: 'Forbidden: not a chat participant', code: 'FORBIDDEN' } });
             }
@@ -1074,13 +1140,11 @@ router.post('/op', async (req: Request, res: Response) => {
         // chats: requesterId 필수 + 본인이 user1_id 또는 user2_id여야 함
         if (table === 'chats') {
           if (!requesterId) {
-            _activeOpCount--;
             return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
           }
           const u1 = String(effectiveRow.user1_id ?? '');
           const u2 = String(effectiveRow.user2_id ?? '');
           if (requesterId !== u1 && requesterId !== u2) {
-            _activeOpCount--;
             logger.warn({ requesterId, u1, u2, ip: req.ip }, '[SECURITY] IDOR: chats INSERT by non-participant blocked');
             return res.status(403).json({ data: null, error: { message: 'Forbidden: must be a participant', code: 'FORBIDDEN' } });
           }
@@ -1088,14 +1152,12 @@ router.post('/op', async (req: Request, res: Response) => {
         // chat_reads: requesterId 필수 + reader_id 일치
         if (table === 'chat_reads' && requesterId && effectiveRow.reader_id != null) {
           if (String(effectiveRow.reader_id) !== String(requesterId)) {
-            _activeOpCount--;
             return res.status(403).json({ data: null, error: { message: 'Forbidden: reader_id mismatch', code: 'FORBIDDEN' } });
           }
         }
         // likes: liker_id must match the authenticated requester
         if (table === 'likes' && requesterId && effectiveRow.liker_id != null) {
           if (String(effectiveRow.liker_id) !== String(requesterId)) {
-            _activeOpCount--;
             return res.status(403).json({ data: null, error: { message: 'Forbidden: liker_id mismatch', code: 'FORBIDDEN' } });
           }
         }
@@ -1230,14 +1292,12 @@ router.post('/op', async (req: Request, res: Response) => {
           if (table === 'profiles' && existingRow.id != null &&
               String(existingRow.id) !== String(requesterId)) {
             logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: UPDATE profiles blocked');
-            _activeOpCount--;
             return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신의 프로필만 수정할 수 있습니다.', code: 'FORBIDDEN' } });
           }
           // messages: 자신이 보낸 메시지만 수정 가능
           if (table === 'messages' && existingRow.sender_id != null &&
               String(existingRow.sender_id) !== String(requesterId)) {
             logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: UPDATE messages blocked');
-            _activeOpCount--;
             return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신의 메시지만 수정할 수 있습니다.', code: 'FORBIDDEN' } });
           }
           // seats: 자신이 점유한 자리만 수정 가능 (빈 자리 클레임은 INSERT/patch로 처리됨)
@@ -1245,14 +1305,12 @@ router.post('/op', async (req: Request, res: Response) => {
               String(existingRow.profile_id) !== String(requesterId)) {
             // 단, patch에 profile_id === requesterId 인 경우(자리 이동)는 admin RPC로만 해야 함
             logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: UPDATE seats blocked');
-            _activeOpCount--;
             return res.status(403).json({ data: null, error: { message: 'Forbidden: 다른 사람의 자리는 수정할 수 없습니다.', code: 'FORBIDDEN' } });
           }
           // chat_reads: 자신의 읽음 기록만 수정 가능
           if (table === 'chat_reads' && existingRow.reader_id != null &&
               String(existingRow.reader_id) !== String(requesterId)) {
             logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: UPDATE chat_reads blocked');
-            _activeOpCount--;
             return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신의 읽음 기록만 수정할 수 있습니다.', code: 'FORBIDDEN' } });
           }
         }
@@ -1304,14 +1362,12 @@ router.post('/op', async (req: Request, res: Response) => {
           if (table === 'chat_reads' && row.reader_id != null &&
               String(row.reader_id) !== String(requesterId)) {
             logger.warn({ requesterId, reader_id: row.reader_id }, '[SECURITY] IDOR: UPSERT chat_reads blocked');
-            _activeOpCount--;
             return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신의 읽음 기록만 생성할 수 있습니다.', code: 'FORBIDDEN' } });
           }
           // seats: profile_id는 반드시 requester여야 함 (자리 직접 등록)
           if (table === 'seats' && row.profile_id != null &&
               String(row.profile_id) !== String(requesterId)) {
             logger.warn({ requesterId, profile_id: row.profile_id }, '[SECURITY] IDOR: UPSERT seats blocked');
-            _activeOpCount--;
             return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신의 자리만 등록할 수 있습니다.', code: 'FORBIDDEN' } });
           }
         }
@@ -1367,21 +1423,18 @@ router.post('/op', async (req: Request, res: Response) => {
           if (table === 'likes' && existingRow.liker_id != null &&
               String(existingRow.liker_id) !== String(requesterId)) {
             logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: DELETE likes blocked');
-            _activeOpCount--;
             return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신이 보낸 하트만 취소할 수 있습니다.', code: 'FORBIDDEN' } });
           }
           // messages: 자신이 보낸 메시지만 삭제 가능
           if (table === 'messages' && existingRow.sender_id != null &&
               String(existingRow.sender_id) !== String(requesterId)) {
             logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: DELETE messages blocked');
-            _activeOpCount--;
             return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신의 메시지만 삭제할 수 있습니다.', code: 'FORBIDDEN' } });
           }
           // seats: 자신이 점유한 자리만 비울 수 있음
           if (table === 'seats' && existingRow.profile_id != null &&
               String(existingRow.profile_id) !== String(requesterId)) {
             logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: DELETE seats blocked');
-            _activeOpCount--;
             return res.status(403).json({ data: null, error: { message: 'Forbidden: 다른 사람의 자리를 삭제할 수 없습니다.', code: 'FORBIDDEN' } });
           }
         }
@@ -1400,7 +1453,6 @@ router.post('/op', async (req: Request, res: Response) => {
     // 내부 오류 문자열을 클라이언트에 직접 노출하지 않음 — 스키마·스택 정보 유출 방지
     return res.json({ data: null, error: { message: '서버 내부 오류가 발생했습니다. 잠시 후 다시 시도해주세요.' } });
   } finally {
-    _activeOpCount--;
   }
 });
 
@@ -2238,9 +2290,6 @@ router.get('/events', (req: Request, res: Response) => {
     try { req.socket.destroy(); } catch { /* ignore */ }
   });
 
-  // Initial ping so the client knows it's connected
-  res.write('data: {"type":"ping"}\n\n');
-
   if (isAdminSse) {
     // 관리자 SSE — 모든 이벤트(private 포함) 수신, 최대 10개 연결
     if (sseAdminClients.size >= 10) {
@@ -2280,7 +2329,11 @@ router.get('/events', (req: Request, res: Response) => {
   // _sseCleanup에 등록 — _send write 실패 시에도 interval 즉시 해제 가능
   _sseCleanup.set(res, () => clearInterval(keepalive));
 
+  // _cleaned 플래그로 close·aborted 두 이벤트가 동시에 발생해도 정확히 1회만 실행
+  let _cleaned = false;
   const cleanupConn = () => {
+    if (_cleaned) return;
+    _cleaned = true;
     _sseCleanup.get(res)?.();
     _sseCleanup.delete(res);
     if (isAdminSse) {
@@ -2291,13 +2344,16 @@ router.get('/events', (req: Request, res: Response) => {
     } else {
       sseAnonClients.delete(res);
     }
-    // Per-IP connection count 해제
+    // Per-IP connection count 해제 — 최소 0으로 클램프
     const remaining = (_sseConnPerIp.get(sseIp) ?? 1) - 1;
     if (remaining <= 0) _sseConnPerIp.delete(sseIp);
     else _sseConnPerIp.set(sseIp, remaining);
   };
   req.on('close', cleanupConn);
   req.on('aborted', cleanupConn); // Node.js HTTP/1.1 강제 종료 대비
+
+  // Initial ping — cleanupConn 선언 이후에 write. 이미 닫힌 응답이면 즉시 정리.
+  try { res.write('data: {"type":"ping"}\n\n'); } catch { cleanupConn(); }
 });
 
 export default router;

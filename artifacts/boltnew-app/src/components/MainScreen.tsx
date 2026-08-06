@@ -1150,14 +1150,14 @@ export function MainScreen({
                   );
                 })}
               </div>
-              {/* MBTI 필터 */}
-              <div className={`flex gap-1 overflow-x-auto pb-1 scrollbar-styled-light`}>
-                {[null,...['INTJ','INTP','ENTJ','ENTP','INFJ','INFP','ENFJ','ENFP','ISTJ','ISFJ','ESTJ','ESFJ','ISTP','ISFP','ESTP','ESFP']].map(m => {
+              {/* MBTI 필터 — 8열 2행 고정 그리드 (스크롤 없음, 전체 버튼 없음) */}
+              <div className="grid grid-cols-8 gap-1">
+                {['INTJ','INTP','ENTJ','ENTP','INFJ','INFP','ENFJ','ENFP','ISTJ','ISFJ','ESTJ','ESFJ','ISTP','ISFP','ESTP','ESFP'].map(m => {
                   const active = profileMbtiFilter === m;
                   return (
-                    <button key={String(m)} onClick={() => setProfileMbtiFilter(active ? null : m)}
-                      className={`flex-shrink-0 px-2 py-0.5 rounded text-[10px] font-bold border transition-all ${active ? 'bg-cyan-500 text-white border-cyan-500' : 'bg-white text-gray-500 border-gray-200 hover:border-cyan-300'}`}>
-                      {m ?? '전체'}
+                    <button key={m} onClick={() => setProfileMbtiFilter(active ? null : m)}
+                      className={`px-1 py-1.5 rounded-md text-[10px] font-bold border transition-all text-center ${active ? 'bg-cyan-500 text-white border-cyan-500' : 'bg-white text-gray-500 border-gray-200 hover:border-cyan-300'}`}>
+                      {m}
                     </button>
                   );
                 })}

@@ -669,30 +669,47 @@ export function useChat({
   // ── 채팅 삭제 ────────────────────────────────────────────────────────────────
   const deleteChat = async (chatToDelete: Chat) => {
     if (!confirm('이 채팅방을 삭제하시겠습니까?')) return;
-    const { error: msgErr } = await supabase.from('messages').delete().eq('chat_id', chatToDelete.id);
-    if (msgErr) { alert('메시지 삭제 실패: ' + msgErr.message); return; }
-    const { error: chatErr } = await supabase.from('chats').delete().eq('id', chatToDelete.id);
-    if (chatErr) { alert('채팅방 삭제 실패: ' + chatErr.message); return; }
-    setChatList(prev => prev.filter(c => c.id !== chatToDelete.id));
+    try {
+      const { error: msgErr } = await supabase.from('messages').delete().eq('chat_id', chatToDelete.id);
+      if (msgErr) { alert('메시지 삭제 실패: ' + msgErr.message); return; }
+      const { error: chatErr } = await supabase.from('chats').delete().eq('id', chatToDelete.id);
+      if (chatErr) { alert('채팅방 삭제 실패: ' + chatErr.message); return; }
+      setChatList(prev => prev.filter(c => c.id !== chatToDelete.id));
+    } catch (ex) {
+      console.error('[useChat] deleteChat 네트워크 오류:', ex);
+      alert('네트워크 오류로 삭제에 실패했습니다. 다시 시도해 주세요.');
+    }
   };
 
   const deleteAllChats = async () => {
     if (chatList.length === 0) return;
     if (!confirm(`채팅 ${chatList.length}개를 모두 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) return;
     const snapshot = [...chatList];
-    const results = await Promise.all(snapshot.map(async (chat) => {
-      const { error: msgErr } = await supabase.from('messages').delete().eq('chat_id', chat.id);
-      if (msgErr) return null;
-      const { error: chatErr } = await supabase.from('chats').delete().eq('id', chat.id);
-      return chatErr ? null : chat.id;
-    }));
-    const deletedIds = results.filter((id): id is string => id !== null);
-    if (deletedIds.length > 0) setChatList(prev => prev.filter(c => !deletedIds.includes(c.id)));
+    try {
+      const results = await Promise.all(snapshot.map(async (chat) => {
+        try {
+          const { error: msgErr } = await supabase.from('messages').delete().eq('chat_id', chat.id);
+          if (msgErr) return null;
+          const { error: chatErr } = await supabase.from('chats').delete().eq('id', chat.id);
+          return chatErr ? null : chat.id;
+        } catch { return null; }
+      }));
+      const deletedIds = results.filter((id): id is string => id !== null);
+      if (deletedIds.length > 0) setChatList(prev => prev.filter(c => !deletedIds.includes(c.id)));
+    } catch (ex) {
+      console.error('[useChat] deleteAllChats 네트워크 오류:', ex);
+      alert('네트워크 오류로 일부 채팅 삭제에 실패했습니다.');
+    }
   };
 
   const deleteMessage = async (msgId: string) => {
-    const { error } = await supabase.from('messages').delete().eq('id', msgId);
-    if (!error) setMessages(prev => prev.filter(m => m.id !== msgId));
+    try {
+      const { error } = await supabase.from('messages').delete().eq('id', msgId);
+      if (!error) setMessages(prev => prev.filter(m => m.id !== msgId));
+      else console.warn('[useChat] deleteMessage 오류:', error.message);
+    } catch (ex) {
+      console.error('[useChat] deleteMessage 네트워크 오류:', ex);
+    }
   };
 
   return {

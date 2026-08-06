@@ -281,7 +281,14 @@ function App() {
     // 뷰 전환 시 이전 타이머 취소 가능하도록 ref에 저장
     if (confettiTimerRef.current) clearTimeout(confettiTimerRef.current);
     setShowConfetti(false);
-    confettiTimerRef.current = setTimeout(() => { setShowConfetti(true); confettiTimerRef.current = null; }, 30);
+    confettiTimerRef.current = setTimeout(() => {
+      setShowConfetti(true);
+      confettiTimerRef.current = null;
+      // 애니메이션 완료 후 반드시 false로 리셋:
+      // ConfettiOverlay가 view 전환(profile↔main)으로 언마운트→재마운트될 때
+      // show=true 잔류 상태로 인해 폭죽이 재발사되는 버그를 방지한다.
+      setTimeout(() => setShowConfetti(false), 2100);
+    }, 30);
   }, []);
   const [seatingLocked, setSeatingLocked] = useState(false);
   const [functionsLocked, setFunctionsLocked] = useState(false);
@@ -1265,7 +1272,7 @@ function App() {
         sentHeartsCount={sentHeartsPerPerson.get(selectedProfile.id)?.size ?? 0}
         onLike={() => { if (!seatingLocked && !functionsLocked) handleLike(selectedProfile.id); }}
         onChat={() => { openChat(selectedProfile); }}
-        onBack={() => setView('main')}
+        onBack={() => { setLikeConfirmTarget(null); setView('main'); }}
       />
       {likeConfirmTarget && (
         <LikeConfirmDialog
@@ -1445,9 +1452,9 @@ function App() {
         mainTab={mainTab}
         onTabChange={setMainTab}
         onLike={handleLikeGuarded}
-        onSelect={(p) => { setSelectedProfile(p); setView('profile'); }}
+        onSelect={(p) => { setLikeConfirmTarget(null); setSelectedProfile(p); setView('profile'); }}
         onReset={reset}
-        onProfileClickFromMap={(p) => { setSelectedProfile(p); setView('profile'); }}
+        onProfileClickFromMap={(p) => { setLikeConfirmTarget(null); setSelectedProfile(p); setView('profile'); }}
         receivedLikers={receivedLikers}
         receivedHeartTypes={receivedHeartTypes}
         sentHeartTypes={sentHeartTypes}

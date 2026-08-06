@@ -137,6 +137,19 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   const initialMsgIds = useRef(new Set(messages.map(m => m.id)));
   const [myUnreadIds, setMyUnreadIds] = useState<Set<string>>(new Set());
 
+  // chatId 변경 시 채팅방별 로컬 상태를 전부 초기화한다.
+  // 이전 방의 initialMsgIds·reactions·replyTo 등이 새 방에 잔류하면
+  // "새 메시지" 마킹 오작동, 엉뚱한 답장 UI 잔존 등의 버그가 발생한다.
+  useEffect(() => {
+    initialMsgIds.current = new Set(messages.map(m => m.id));
+    setMyUnreadIds(new Set());
+    setReplyTo(null);
+    setContextMenu(null);
+    setSwipeState(null);
+    setReactions({});
+    setImageViewer(null);
+  }, [chatId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const [contextMenu, setContextMenu] = useState<{ msgId: string; content: string; isMine: boolean; imgUrl?: string; x: number; y: number } | null>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -384,11 +397,18 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
     if (!file) return;
     setUploading(true);
     setChatError('');
-    const err = await onSendImage(file);
-    if (err) setChatError(`사진 전송 실패: ${err}`);
-    setUploading(false);
-    e.target.value = '';
-    setShowEmoji(false);
+    try {
+      const err = await onSendImage(file);
+      if (err) setChatError(`사진 전송 실패: ${err}`);
+    } catch (ex) {
+      setChatError('사진 전송 중 오류가 발생했습니다. 다시 시도해 주세요.');
+      console.error('[ChatScreen] handleFileChange error:', ex);
+    } finally {
+      // 예외가 발생해도 반드시 해제 — 영구 disabled 방지
+      setUploading(false);
+      e.target.value = '';
+      setShowEmoji(false);
+    }
   };
 
   const cancelLP = () => { if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; } };

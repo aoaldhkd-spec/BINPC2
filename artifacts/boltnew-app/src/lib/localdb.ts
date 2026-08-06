@@ -14,6 +14,39 @@ import type { Database } from '../types/database';
 const API = '/api/db';
 const FETCH_TIMEOUT = 4_000; // ms
 
+// ─── Session readiness gate ───────────────────────────────────────────────────
+// 문제: setLocalDbUserId(newUUID) → _currentUserId 즉시 갱신 → /op 요청 날림
+//       그런데 loginSession(newUUID)는 비동기 → 아직 서버 세션은 구(舊) UUID
+//       → 서버가 "session UUID ≠ body requesterId" → 403으로 전면 차단
+// 해결: loginSession 완료 전까지 /op 요청을 대기열에 보관, 완료 후 일괄 해제
+let _sessionReady = true;
+let _sessionReadyResolve: (() => void) | null = null;
+let _sessionReadyPromise: Promise<void> = Promise.resolve();
+
+/** loginSession 완료까지 대기. 최대 5초 타임아웃으로 무한 블로킹 방지. */
+async function _waitForSession(): Promise<void> {
+  if (_sessionReady) return;
+  await Promise.race([
+    _sessionReadyPromise,
+    new Promise<void>(r => setTimeout(r, 5_000)),
+  ]);
+}
+
+function _markSessionReady() {
+  _sessionReady = true;
+  if (_sessionReadyResolve) {
+    _sessionReadyResolve();
+    _sessionReadyResolve = null;
+  }
+}
+
+function _markSessionPending() {
+  if (_sessionReady) {
+    _sessionReady = false;
+    _sessionReadyPromise = new Promise<void>(r => { _sessionReadyResolve = r; });
+  }
+}
+
 // ─── Fetch helper ─────────────────────────────────────────────────────────────
 // 503(서버 과부하) 및 네트워크 오류 시 지수 백오프 재시도 — 100명 동시 진입 고부하 대응
 const MAX_BUSY_RETRIES = 3;
@@ -174,6 +207,8 @@ class QueryBuilder {
   }
 
   private async _runAsync(): Promise<DbResult<unknown>> {
+    // 세션이 수립될 때까지 대기 (loginSession 완료 전 /op 요청 전면 차단 방지)
+    await _waitForSession();
     return apiFetch('/op', {
       table: this._table,
       op: this._op,
@@ -268,11 +303,15 @@ export function setLocalDbUserId(userId: string | null) {
   if (_tokenRefreshTimer) { clearTimeout(_tokenRefreshTimer); _tokenRefreshTimer = null; }
   if (_es) { _es.close(); _es = null; }
   if (!userId) {
-    // 로그아웃: 토큰 캐시 삭제
+    // 로그아웃: 토큰 캐시 삭제, 세션 게이트 즉시 해제
+    _markSessionReady();
     try { localStorage.removeItem(SSE_TOK_KEY); localStorage.removeItem(SSE_TOK_EXP_KEY); } catch { /* ignore */ }
     if (_sseListeners.size > 0) ensureSse(); // 익명 SSE 유지
     return;
   }
+  // userId가 바뀐 경우: loginSession 완료 전까지 /op 요청을 게이트로 차단
+  // → 서버 세션(구 UUID)과 body.requesterId(신 UUID) 불일치로 인한 403 차단 방지
+  _markSessionPending();
   // 토큰이 없으므로 일단 익명으로 연결하고, 토큰 발급 후 자동 재연결
   if (_sseListeners.size > 0) ensureSse();
   void fetchSseToken(userId);
@@ -416,6 +455,7 @@ class LocalRealtimeChannel {
   private broadcastSubs: BroadcastSub[] = [];
   private statusCb: ((s: string) => void) | null = null;
   private _sseHandler: ((e: SseEvent) => void) | null = null;
+  private _statusTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(name: string) {
     this.name = name;
@@ -479,21 +519,30 @@ class LocalRealtimeChannel {
       } else if (data.type === 'broadcast' && data.channel === this.name) {
         for (const sub of this.broadcastSubs) {
           if (sub.event === data.event || sub.event === '*') {
-            try { sub.callback({ payload: data.payload }); } catch {}
+            try { sub.callback({ payload: data.payload }); } catch (err) {
+              console.error('[localdb] broadcast callback error:', err);
+            }
           }
         }
       }
     };
 
+    // 이전 핸들러가 남아 있으면 먼저 제거 (subscribe() 재호출 시 중복 리스너 방지)
+    if (this._sseHandler) {
+      _sseListeners.delete(this._sseHandler);
+      this._sseHandler = null;
+    }
     this._sseHandler = handler;
     _sseListeners.add(handler);
 
-    // Signal subscribed quickly (same as before)
-    setTimeout(() => this.statusCb?.('SUBSCRIBED'), 50);
+    // Signal subscribed quickly — 타이머 ref 보관해서 unsubscribe 시 취소 가능하도록
+    if (this._statusTimer) { clearTimeout(this._statusTimer); this._statusTimer = null; }
+    this._statusTimer = setTimeout(() => { this._statusTimer = null; this.statusCb?.('SUBSCRIBED'); }, 50);
     return this;
   }
 
   unsubscribe(): void {
+    if (this._statusTimer) { clearTimeout(this._statusTimer); this._statusTimer = null; }
     if (this._sseHandler) {
       _sseListeners.delete(this._sseHandler);
       this._sseHandler = null;
@@ -588,7 +637,10 @@ export async function fetchAndSetSseToken(userId: string): Promise<void> {
     if (_currentUserId !== userId) return;
     const data = await resp.json() as { token?: string; expiresAt?: number };
     if (data.token && data.expiresAt) setSseToken(data.token, data.expiresAt);
-  } catch { /* 네트워크 오류 시 무시 — SSE는 익명으로 폴백 */ }
+  } catch (e) {
+    // 네트워크 오류 시 SSE는 익명으로 폴백. 원인을 로그로 남겨 디버깅 가능하게.
+    console.warn('[SSE] fetchAndSetSseToken failed — falling back to anonymous SSE:', e);
+  }
 }
 
 /** 현재 SSE 토큰 반환 — push/subscribe 등 인증이 필요한 요청에서 헤더로 사용 */
@@ -645,20 +697,32 @@ async function loginSession(userId: string): Promise<boolean> {
           );
         }
       }
+      // 실패해도 게이트 해제 — 앱이 무한 대기하지 않도록 (5초 타임아웃 폴백도 있음)
+      if (_currentUserId === userId) _markSessionReady();
       return false;
     }
+    // 성공: 서버 세션이 userId로 갱신됨 → /op 요청 차단 해제
+    if (_currentUserId === userId) _markSessionReady();
     return true;
   } catch {
+    // 네트워크 오류: 게이트 해제 후 익명 폴백
+    if (_currentUserId === userId) _markSessionReady();
     return false;
   }
 }
 
 export function getDeviceSecret(userId: string): string {
   const key = DEVICE_SECRET_PREFIX + userId;
-  const existing = localStorage.getItem(key);
-  if (existing) return existing;
-  // 최초 실행 시 새 비밀값 생성 후 저장
-  const secret = crypto.randomUUID();
-  localStorage.setItem(key, secret);
-  return secret;
+  try {
+    const existing = localStorage.getItem(key);
+    if (existing) return existing;
+    // 최초 실행 시 새 비밀값 생성 후 저장
+    const secret = crypto.randomUUID();
+    localStorage.setItem(key, secret);
+    return secret;
+  } catch {
+    // 시크릿/프라이빗 모드 등 localStorage 접근 불가 시 메모리 내 UUID 반환
+    // (재시작 시 다시 first-claim 처리됨 — 자동 재바인딩 허용)
+    return crypto.randomUUID();
+  }
 }

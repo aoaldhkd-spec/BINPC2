@@ -5,8 +5,8 @@ import { HEART_TYPES, HeartType } from '../lib/constants';
 import ProfileScoreBar from './ProfileScoreBar';
 import type { Profile } from '../types/app';
 
-// heartMeta: HeartType → HEART_TYPES 메타데이터 조회
-const heartMeta = (t: HeartType) => HEART_TYPES.find(h => h.type === t)!;
+// heartMeta: HeartType → HEART_TYPES 메타데이터 조회 (unknown 타입 방어: 첫 번째 항목으로 폴백)
+const heartMeta = (t: HeartType) => HEART_TYPES.find(h => h.type === t) ?? HEART_TYPES[0];
 
 // DiceBear 투명 SVG나 null → genAvatar 폴백, 실제 사진은 그대로 반환
 function profileAvatarSrc(url: string | null | undefined, nick: string): string {
