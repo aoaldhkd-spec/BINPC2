@@ -1388,40 +1388,60 @@ export function MainScreen({
                         )}
                       </div>
 
-                      {/* 2×2 정보 박스 — 고정 소형 */}
-                      <div className="grid grid-cols-2 gap-1 ml-auto">
+                      {/* 2×2 정보 박스 — 제목 위 레이블 + 그라디언트 글로우 */}
+                      <div className="grid grid-cols-2 gap-x-2 gap-y-2 ml-auto">
                         {/* MBTI */}
-                        <div className={`w-14 h-14 rounded-xl border flex flex-col items-center justify-center gap-px ${darkMode ? 'bg-teal-500/10 border-teal-500/30' : 'bg-teal-50 border-teal-200'}`}>
-                          <span className={`text-[8px] font-bold ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>MBTI</span>
-                          <span className={`text-xs font-black leading-none ${darkMode ? 'text-teal-300' : 'text-teal-700'}`}>
-                            {me.mbti || <span className={`text-[8px] ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>—</span>}
-                          </span>
+                        <div className="flex flex-col items-center gap-1">
+                          <span className={`text-[9px] font-black tracking-wide ${darkMode ? 'text-white' : 'text-gray-900'}`}>MBTI</span>
+                          <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{
+                            background: darkMode ? 'linear-gradient(135deg,rgba(20,184,166,.35),rgba(20,184,166,.10))' : 'linear-gradient(135deg,rgba(20,184,166,.25),rgba(20,184,166,.08))',
+                            border: '1.5px solid rgba(20,184,166,.55)',
+                            boxShadow: darkMode ? '0 0 12px rgba(20,184,166,.22)' : 'none'
+                          }}>
+                            <span className={`text-sm font-black ${darkMode ? 'text-teal-300' : 'text-teal-700'}`}>
+                              {me.mbti || <span className={`text-[9px] font-semibold ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>—</span>}
+                            </span>
+                          </div>
                         </div>
 
                         {/* 성향 */}
-                        <div className="w-14 h-14 rounded-xl border flex flex-col items-center justify-center gap-px" style={{ backgroundColor: posColor + '18', borderColor: posColor + '50' }}>
-                          <span className={`text-[8px] font-bold ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>성향</span>
-                          <span className="text-xs font-black leading-none" style={{ color: posColor }}>{posLabel}</span>
+                        <div className="flex flex-col items-center gap-1">
+                          <span className={`text-[9px] font-black tracking-wide ${darkMode ? 'text-white' : 'text-gray-900'}`}>성향</span>
+                          <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{
+                            background: `linear-gradient(135deg,${posColor}44,${posColor}14)`,
+                            border: `1.5px solid ${posColor}80`,
+                            boxShadow: darkMode ? `0 0 12px ${posColor}30` : 'none'
+                          }}>
+                            <span className="text-sm font-black" style={{ color: posColor }}>{posLabel}</span>
+                          </div>
                         </div>
 
                         {/* 돔/섭 */}
-                        <div className="w-14 h-14 rounded-xl border flex flex-col items-center justify-center gap-px" style={{ backgroundColor: domColor + '18', borderColor: domColor + '50' }}>
-                          <span className={`text-[8px] font-bold ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>돔/섭</span>
-                          <span className="text-xs font-black leading-none" style={{ color: domColor }}>{domLabel}</span>
+                        <div className="flex flex-col items-center gap-1">
+                          <span className={`text-[9px] font-black tracking-wide ${darkMode ? 'text-white' : 'text-gray-900'}`}>돔/섭</span>
+                          <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{
+                            background: `linear-gradient(135deg,${domColor}44,${domColor}14)`,
+                            border: `1.5px solid ${domColor}80`,
+                            boxShadow: darkMode ? `0 0 12px ${domColor}30` : 'none'
+                          }}>
+                            <span className="text-sm font-black" style={{ color: domColor }}>{domLabel}</span>
+                          </div>
                         </div>
 
                         {/* 관심사 */}
-                        <div className={`w-14 h-14 rounded-xl border flex flex-col items-center justify-center gap-px ${darkMode ? 'bg-pink-500/10 border-pink-500/30' : 'bg-pink-50 border-pink-200'}`}>
-                          <span className={`text-[8px] font-bold ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>관심사</span>
-                          {bioTags.length > 0 ? (
-                            <div className="flex flex-col items-center">
-                              {bioTags.slice(0, 2).map(tag => (
-                                <span key={tag} className={`text-[8px] font-bold leading-tight ${darkMode ? 'text-pink-300' : 'text-pink-600'}`}>#{tag}</span>
-                              ))}
-                            </div>
-                          ) : (
-                            <span className={`text-[8px] ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>—</span>
-                          )}
+                        <div className="flex flex-col items-center gap-1">
+                          <span className={`text-[9px] font-black tracking-wide ${darkMode ? 'text-white' : 'text-gray-900'}`}>관심사</span>
+                          <div className="w-14 h-14 rounded-2xl flex flex-col items-center justify-center" style={{
+                            background: darkMode ? 'linear-gradient(135deg,rgba(236,72,153,.35),rgba(236,72,153,.10))' : 'linear-gradient(135deg,rgba(236,72,153,.20),rgba(236,72,153,.06))',
+                            border: '1.5px solid rgba(236,72,153,.55)',
+                            boxShadow: darkMode ? '0 0 12px rgba(236,72,153,.22)' : 'none'
+                          }}>
+                            {bioTags.length > 0 ? bioTags.slice(0, 2).map(tag => (
+                              <span key={tag} className={`text-[9px] font-bold leading-snug ${darkMode ? 'text-pink-300' : 'text-pink-600'}`}>#{tag}</span>
+                            )) : (
+                              <span className={`text-[9px] ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>—</span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
