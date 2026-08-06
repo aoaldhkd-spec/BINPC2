@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Users, CheckCircle, Clock, AlertTriangle, ChevronRight, ShieldAlert, X, Volume2, VolumeX } from 'lucide-react';
+import { Users, CheckCircle, Clock, AlertTriangle, ChevronRight, ShieldAlert, X } from 'lucide-react';
 import { TutorialModal } from './TutorialModal';
 import { useTheme } from '../lib/theme';
 
@@ -20,43 +20,18 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
   const [pinError, setPinError] = useState('');
   const [pinLoading, setPinLoading] = useState(false);
 
-  // ── 배경음악 ──────────────────────────────────────────────────────────────
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [muted, setMuted] = useState(false);
-  const [audioReady, setAudioReady] = useState(false);
-  const [volume, setVolume] = useState(0.5); // 0.0 ~ 1.0
-  const [showVolumeSlider, setShowVolumeSlider] = useState(false);
-
+  // ── 입장대기 전용 배경음악 (전역 bgm과 분리 — 겹치지 않음) ──────────────
   useEffect(() => {
-    const audio = new Audio('/waiting-bgm.mp3');
+    const audio = new Audio('/bgm-waiting.mp3');
     audio.loop = true;
     audio.volume = 0.5;
-    audioRef.current = audio;
-    audio.play()
-      .then(() => setAudioReady(true))
-      .catch(() => setAudioReady(false));
-    return () => { audio.pause(); audio.src = ''; audioRef.current = null; };
+    audio.play().catch(() => {
+      // autoplay 차단 시 첫 터치/클릭으로 재생
+      const tryPlay = () => { audio.play().catch(() => {}); document.removeEventListener('click', tryPlay, true); };
+      document.addEventListener('click', tryPlay, { capture: true, once: true });
+    });
+    return () => { audio.pause(); audio.src = ''; };
   }, []);
-
-  const handleVolumeChange = (v: number) => {
-    setVolume(v);
-    if (audioRef.current) {
-      audioRef.current.volume = v;
-      audioRef.current.muted = v === 0;
-    }
-    setMuted(v === 0);
-  };
-
-  const toggleMute = () => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    if (!audioReady) {
-      audio.play().then(() => { setAudioReady(true); setMuted(false); }).catch(() => {});
-      setShowVolumeSlider(true);
-      return;
-    }
-    setShowVolumeSlider(p => !p);
-  };
 
   // 개별 ref
   const pref0 = useRef<HTMLInputElement>(null);
@@ -132,33 +107,6 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
         <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-teal-500/20 rounded-full blur-3xl" />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-cyan-500/10 rounded-full blur-3xl" />
       </div>
-      {/* 음악 컨트롤 — 우측 상단 고정 */}
-      <div className="absolute top-4 right-4 z-20 flex flex-col items-end gap-2">
-        <button
-          onClick={toggleMute}
-          className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center text-white transition-all backdrop-blur-sm"
-          title={!audioReady ? '음악 켜기' : '볼륨 조절'}
-        >
-          {!audioReady || muted || volume === 0
-            ? <VolumeX className="w-4 h-4" />
-            : <Volume2 className="w-4 h-4" />}
-        </button>
-        {showVolumeSlider && (
-          <div className="bg-black/60 backdrop-blur-md border border-white/20 rounded-2xl px-3 py-3 flex flex-col items-center gap-1.5 shadow-xl">
-            <span className="text-white/70 text-[10px] font-bold">볼륨</span>
-            <input
-              type="range"
-              min={0} max={1} step={0.05}
-              value={volume}
-              onChange={e => handleVolumeChange(parseFloat(e.target.value))}
-              className="w-24 accent-teal-400 cursor-pointer"
-              style={{ writingMode: 'horizontal-tb' }}
-            />
-            <span className="text-teal-300 text-[10px] font-black">{Math.round(volume * 100)}%</span>
-          </div>
-        )}
-      </div>
-
       <div className="relative z-10 text-center max-w-sm w-full flex flex-col items-center">
         {/* 로고 + 아이콘 */}
         <div className="relative inline-flex items-center justify-center mb-6">

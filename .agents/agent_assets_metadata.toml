@@ -70,3 +70,38 @@ uri = "file://artifacts/boltnew-app/public/waiting-bgm_3.mp3"
 type = "audio"
 title = "waiting-kpop-ballad"
 description = "Generated music: Korean pop ballad, warm piano melody, soft acoustic guitar, gentle synth pad, dreamy atmosphere, romantic and heartwarming, medium tempo around 90 BPM, like the feeling of waiting to…"
+
+[[outputs]]
+id = "A33pNI8kj-JqNzutL3Enp"
+uri = "file://artifacts/boltnew-app/public/bgm-citypop.mp3"
+type = "audio"
+title = "bgm-citypop"
+description = "Generated music: Japanese city pop retro electronic, 80s synthesizer arpeggios, smooth bass groove, lush chorus effect guitar, dreamy romantic sunset atmosphere, 95 BPM, sophisticated and stylish, Sh…"
+
+[[outputs]]
+id = "x6JkWTckjTPryjbdfxtLF"
+uri = "file://artifacts/boltnew-app/public/bgm-lofi.mp3"
+type = "audio"
+title = "bgm-lofi"
+description = "Generated music: Lo-fi hip hop chill study beats, warm vinyl crackle, soft jazz piano chords, mellow boom bap drums, ambient street sounds, cozy and relaxing, 75 BPM, Korean aesthetic, late night caf…"
+
+[[outputs]]
+id = "kS19xWgQhnPtGaaoaNs_V"
+uri = "file://artifacts/boltnew-app/public/bgm-waiting.mp3"
+type = "audio"
+title = "bgm-waiting-exciting"
+description = "Generated music: Exciting Korean pop dance party music, energetic synth bass drop, heart-racing tempo 128 BPM, euphoric and thrilling like the moment before entering a party, bright staccato piano, p…"
+
+[[outputs]]
+id = "oKgtkbeUvR7eAwVUSsVBz"
+uri = "file://artifacts/boltnew-app/public/bgm-acoustic.mp3"
+type = "audio"
+title = "bgm-acoustic"
+description = "Generated music: Warm acoustic pop ballad, fingerpicked guitar, soft piano, gentle percussion brushes, intimate and heartwarming, 80 BPM, romantic Korean cafe atmosphere, tender and emotional, indie …"
+
+[[outputs]]
+id = "s_1c0yYCZNQoB3WJRuXVx"
+uri = "file://artifacts/boltnew-app/public/bgm-futurebass.mp3"
+type = "audio"
+title = "bgm-futurebass"
+description = "Generated music: Uplifting future bass electronic pop, bright synth lead melody, emotional chord progression, euphoric drop, dreamy female vocal chops, 120 BPM, modern Korean pop festival vibes, hope…"
