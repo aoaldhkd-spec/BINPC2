@@ -15,7 +15,8 @@
 const MAX_MESSAGES = 500; // 채팅방당 최대 메시지 보유 수 (메모리 누수 방지)
 
 // 오프라인 큐 항목 타입 — 모듈 레벨 선언으로 HMR 호환성 유지
-interface PendingMsg { chatId: string; content: string; clientId: string; optimisticId: string }
+// userId: 큐에 쌓일 당시 로그인 유저 — flush 시 다른 유저로 전환됐으면 해당 항목 폐기
+interface PendingMsg { chatId: string; content: string; clientId: string; optimisticId: string; userId: string }
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
@@ -453,10 +454,16 @@ export function useChat({
     isFlushingRef.current = true;
     const queue = [...pendingQueueRef.current];
     for (const item of queue) {
+      // 유저 전환 시 이전 유저 큐 항목 폐기 — 엉뚱한 sender로 전송 차단
+      if (item.userId !== currentUserIdRef.current) {
+        pendingQueueRef.current = pendingQueueRef.current.filter(q => q.clientId !== item.clientId);
+        setMessages(prev => prev.filter(m => m.id !== item.optimisticId));
+        continue;
+      }
       try {
         const { data: insertedMsg, error } = await supabase.from('messages').insert({
           chat_id: item.chatId,
-          sender_id: currentUserIdRef.current,
+          sender_id: item.userId,
           content: item.content,
           client_id: item.clientId,
         }).select().single();
@@ -471,10 +478,11 @@ export function useChat({
             setMessages(prev => prev.map(m => m.id === item.optimisticId ? existing as Message : m));
             pendingQueueRef.current = pendingQueueRef.current.filter(q => q.clientId !== item.clientId);
           }
+          // 실패해도 break 하지 않음 — 다음 항목 계속 시도 (한 항목 실패가 전체 큐를 막지 않음)
         }
       } catch {
-        // 이번 플러시도 실패 — 다음 재연결 때 재시도
-        break;
+        // 네트워크 오류 — 이 항목은 다음 재연결 때 재시도, 나머지는 계속 처리
+        continue;
       }
     }
     isFlushingRef.current = false;
@@ -491,6 +499,14 @@ export function useChat({
       void flushPendingQueue();
     });
   }, [syncUnreadCounts, loadChatList, loadMessages, flushPendingQueue]);
+
+  // 브라우저 네트워크 복구 이벤트 — SSE 재연결과 별개로 큐를 즉시 플러시
+  // (WiFi → LTE 전환 등 SSE가 아직 안 붙었어도 HTTP는 먼저 복구되는 경우 대응)
+  useEffect(() => {
+    const onOnline = () => void flushPendingQueue();
+    window.addEventListener('online', onOnline);
+    return () => window.removeEventListener('online', onOnline);
+  }, [flushPendingQueue]);
 
   // ── 전송 잠금: boolean → Set<chatId> ─────────────────────────────────────────
   // 채팅방별 독립 잠금 — 채팅방 A 전송 중에도 채팅방 B 전송 가능
@@ -584,7 +600,7 @@ export function useChat({
       console.warn('[sendMessage] 3회 재시도 실패 — 오프라인 큐에 보관, 재연결 시 자동 전송:', lastErr);
       // 큐 크기 상한 50개 — 무한 증가 방지 (가장 오래된 항목부터 제거)
       if (pendingQueueRef.current.length >= 50) pendingQueueRef.current.shift();
-      pendingQueueRef.current.push({ chatId: snapChatId, content: trimmed, clientId: clientUUID, optimisticId });
+      pendingQueueRef.current.push({ chatId: snapChatId, content: trimmed, clientId: clientUUID, optimisticId, userId: snapUserId });
     } finally {
       sendingChatIdsRef.current.delete(snapChatId);
     }

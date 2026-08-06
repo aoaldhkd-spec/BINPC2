@@ -53,8 +53,11 @@ export function applySseInsert(prev: Message[], newMsg: Message): Message[] {
     return next;
   }
 
-  // 4. New message from another source — append
-  return [...prev, newMsg];
+  // 4. New message from another source — append then sort by created_at
+  // SSE 이벤트가 네트워크 지연으로 순서가 뒤바뀌어 도착해도 시간 순서 보장
+  const next = [...prev, newMsg];
+  next.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  return next;
 }
 
 /**

@@ -277,9 +277,11 @@ function App() {
   const [bottomNotif, setBottomNotif] = useState<{ type: 'heart' | 'chat' | 'message' | 'contact'; nickname: string; heartType?: HeartType } | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const confettiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const confettiInnerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const triggerConfetti = useCallback(() => {
     // 뷰 전환 시 이전 타이머 취소 가능하도록 ref에 저장
     if (confettiTimerRef.current) clearTimeout(confettiTimerRef.current);
+    if (confettiInnerTimerRef.current) clearTimeout(confettiInnerTimerRef.current);
     setShowConfetti(false);
     confettiTimerRef.current = setTimeout(() => {
       setShowConfetti(true);
@@ -287,7 +289,10 @@ function App() {
       // 애니메이션 완료 후 반드시 false로 리셋:
       // ConfettiOverlay가 view 전환(profile↔main)으로 언마운트→재마운트될 때
       // show=true 잔류 상태로 인해 폭죽이 재발사되는 버그를 방지한다.
-      setTimeout(() => setShowConfetti(false), 2100);
+      confettiInnerTimerRef.current = setTimeout(() => {
+        confettiInnerTimerRef.current = null;
+        setShowConfetti(false);
+      }, 2100);
     }, 30);
   }, []);
   const [seatingLocked, setSeatingLocked] = useState(false);
@@ -966,6 +971,10 @@ function App() {
       if (initTimerId2) clearTimeout(initTimerId2);
       rejNotifTimerIds.forEach(clearTimeout);
       if (seatsRefreshTimer) clearTimeout(seatsRefreshTimer);
+      // reconnectTimerRef는 effect 외부 ref이므로 여기서도 정리
+      if (reconnectTimerRef.current) { clearTimeout(reconnectTimerRef.current); reconnectTimerRef.current = null; }
+      if (confettiTimerRef.current) { clearTimeout(confettiTimerRef.current); confettiTimerRef.current = null; }
+      if (confettiInnerTimerRef.current) { clearTimeout(confettiInnerTimerRef.current); confettiInnerTimerRef.current = null; }
       supabase.removeChannel(profileChannel);
       supabase.removeChannel(likesChannel);
       supabase.removeChannel(receivedLikesChannel);

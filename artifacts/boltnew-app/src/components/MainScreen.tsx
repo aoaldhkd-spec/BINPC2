@@ -702,6 +702,12 @@ export function MainScreen({
   const [refreshedTab, setRefreshedTab] = useState<string | null>(null);
 
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 언마운트 시 대기 중인 타이머 취소
+  useEffect(() => {
+    return () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    };
+  }, []);
   const doRefresh = (tabId: string, fn: () => void) => {
     fn();
     setRefreshedTab(tabId);
@@ -742,16 +748,21 @@ export function MainScreen({
   const newContactsCount = Math.max(0, receivedContactShares.length - seenContactsCount);
 
   // On initial data load, set baseline seen counts so pre-existing data doesn't show as unread
+  // 수정: [] deps → 실제 값 deps 추가. [] 사용 시 마운트 시점의 0값(아직 로드 전)이 baseline으로 굳어져
+  //       이미 받은 하트·연락처가 "새 알림"으로 잘못 배지되는 stale closure 버그 수정.
   const baselineSetRef = useRef(false);
   useEffect(() => {
     if (baselineSetRef.current) return;
-    // Always set baseline on first render so existing hearts/contacts don't badge
+    // 데이터가 아직 하나도 로드되지 않은 초기 상태면 대기 (빈 값으로 baseline 설정 방지)
+    const hasAnyData = profiles.length > 0 || pendingHeartsCount > 0 || receivedContactShares.length > 0;
+    if (!hasAnyData) return;
     baselineSetRef.current = true;
     setSeenHeartsCount(pendingHeartsCount);
     setSeenContactsCount(receivedContactShares.length);
     setSeenProfilesCount(profiles.length);
     if (activeGameCount > 0) setSeenGameCount(activeGameCount);
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingHeartsCount, receivedContactShares.length, profiles.length, activeGameCount]);
 
   // 기능 잠금(functionsLocked) 시 이동 불가 탭 — 자리 잠금(seatingLocked)과 분리
   const LOCKED_TABS = new Set<MainTab>(['chats', 'suggestions', 'game', 'fortune', 'stats', 'ranking']);
@@ -828,6 +839,10 @@ export function MainScreen({
   const [nicknameEditDupOk, setNicknameEditDupOk] = useState(false);
   const [nicknameEditSaving, setNicknameEditSaving] = useState(false);
   const nickEditTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 언마운트 시 닉네임 디바운스 타이머 취소
+  useEffect(() => {
+    return () => { if (nickEditTimerRef.current) clearTimeout(nickEditTimerRef.current); };
+  }, []);
 
   // ── 관심사 편집 상태 ────────────────────────────────────────────────────────
   const [editInterests, setEditInterests] = useState<string[]>([]);

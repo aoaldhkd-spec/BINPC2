@@ -429,6 +429,19 @@ if (typeof document !== 'undefined') {
   });
 }
 
+// 네트워크 복구(WiFi→LTE 전환, 공유기 재시작 등) 시 즉시 SSE 재연결
+// SSE는 TCP 연결이라 visibilitychange와 독립적으로 끊길 수 있음
+if (typeof window !== 'undefined') {
+  window.addEventListener('online', () => {
+    if (_sseListeners.size > 0) {
+      // 백오프 쿨다운 초기화 — 네트워크가 돌아왔으므로 즉시 재연결 허용
+      _sseNextAllowedRetry = 0;
+      _sseFailCount = 0;
+      ensureSse();
+    }
+  });
+}
+
 function matchChannelFilter(filterExpr: string | undefined, row: Record<string, unknown> | null): boolean {
   if (!filterExpr || !row) return true;
   const m = filterExpr.match(/^(\w+)=eq\.(.+)$/);

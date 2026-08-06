@@ -2321,9 +2321,15 @@ router.get('/events', (req: Request, res: Response) => {
 
   // Keep-alive every 5s — 짧게 유지해 프록시/방화벽 idle 차단 방지
   const keepalive = setInterval(() => {
-    try { res.write('data: {"type":"ping"}\n\n'); } catch {
+    // res.writable이 false면 이미 닫힌 소켓 — 즉시 정리
+    if (!res.writable || res.writableEnded) { clearInterval(keepalive); return; }
+    try {
+      const flushed = res.write('data: {"type":"ping"}\n\n');
+      // write()가 false를 반환하면 TCP 송신 버퍼가 가득 찬 것 (backpressure)
+      // 클라이언트가 읽지 못하는 좀비 연결이므로 정리
+      if (!flushed) { clearInterval(keepalive); res.end(); }
+    } catch {
       clearInterval(keepalive);
-      _sseCleanup.delete(res);
     }
   }, 5000);
   // _sseCleanup에 등록 — _send write 실패 시에도 interval 즉시 해제 가능

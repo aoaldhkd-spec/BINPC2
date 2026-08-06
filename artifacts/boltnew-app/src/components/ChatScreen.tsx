@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   ArrowLeft, Send, MessageCircle, Smile, ImageIcon, Phone,
 } from 'lucide-react';
@@ -131,6 +131,7 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   const messagesContainerRef = useRef<HTMLElement>(null); // 스크롤 컨테이너 ref
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const focusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null); // unmount 시 취소용
   const [showMoreBtns, setShowMoreBtns] = useState(false);
   // containerRef 제거 — vpStyle(React state)로 교체됨
 
@@ -411,9 +412,18 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
     }
   };
 
+  // 언마운트 시 대기 중인 타이머 전부 취소 — unmount 후 setState 방지
+  useEffect(() => {
+    return () => {
+      if (longPressTimer.current) clearTimeout(longPressTimer.current);
+      if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
+    };
+  }, []);
+
   const cancelLP = () => { if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; } };
 
-  const onMsgTouchStart = (e: React.TouchEvent, msg: Message) => {
+  // 메시지 핸들러를 useCallback으로 안정화 — messages 리스트 렌더 시 불필요한 자식 재렌더 방지
+  const onMsgTouchStart = useCallback((e: React.TouchEvent, msg: Message) => {
     const t = e.touches[0];
     swipeTouchRef.current = { msgId: msg.id, startX: t.clientX, startY: t.clientY, swiping: false };
     longPressTimer.current = setTimeout(() => {
@@ -421,9 +431,9 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
         setContextMenu({ msgId: msg.id, content: msg.content ?? '', isMine: msg.sender_id === currentUserId, imgUrl: msg.image_url ?? undefined, x: t.clientX, y: t.clientY });
       }
     }, 500);
-  };
+  }, [currentUserId]);
 
-  const onMsgTouchMove = (e: React.TouchEvent, msg: Message) => {
+  const onMsgTouchMove = useCallback((e: React.TouchEvent, msg: Message) => {
     const ref = swipeTouchRef.current;
     if (!ref || ref.msgId !== msg.id) return;
     const t = e.touches[0];
@@ -436,25 +446,28 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
       const clamped = Math.sign(dx) * Math.min(Math.abs(dx), 72);
       setSwipeState({ msgId: msg.id, offsetX: clamped });
     }
-  };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const onMsgTouchEnd = (_e: React.TouchEvent, msg: Message) => {
+  const onMsgTouchEnd = useCallback((_e: React.TouchEvent, msg: Message) => {
     cancelLP();
-    if (swipeState?.msgId === msg.id && Math.abs(swipeState.offsetX) >= 55) {
+    if (swipeTouchRef.current?.swiping === false &&
+        swipeState?.msgId === msg.id && Math.abs(swipeState.offsetX) >= 55) {
       const snippet = msg.image_url ? '[이미지]' : (msg.content ?? '').slice(0, 40);
       setReplyTo({ id: msg.id, snippet, isMe: msg.sender_id === currentUserId });
-      setTimeout(() => inputRef.current?.focus(), 100);
+      // focusTimerRef로 관리 — 언마운트 시 clearTimeout 가능
+      if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
+      focusTimerRef.current = setTimeout(() => { focusTimerRef.current = null; inputRef.current?.focus(); }, 100);
     }
     swipeTouchRef.current = null;
     setSwipeState(null);
-  };
+  }, [swipeState, currentUserId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleMsgContextMenu = (e: React.MouseEvent, msg: Message) => {
+  const handleMsgContextMenu = useCallback((e: React.MouseEvent, msg: Message) => {
     e.preventDefault();
     setContextMenu({ msgId: msg.id, content: msg.content ?? '', isMine: msg.sender_id === currentUserId, imgUrl: msg.image_url ?? undefined, x: e.clientX, y: e.clientY });
-  };
+  }, [currentUserId]);
 
-  const handleTap = (msg: Message) => {
+  const handleTap = useCallback((msg: Message) => {
     const now = Date.now();
     if (lastTapRef.current?.id === msg.id && now - lastTapRef.current.time < 350) {
       setReactions(prev => {
@@ -466,7 +479,7 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
     } else {
       lastTapRef.current = { id: msg.id, time: now };
     }
-  };
+  }, []);
 
   const [showNoContactModal, setShowNoContactModal] = useState(false);
   const handleShareContact = () => {
