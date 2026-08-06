@@ -96,8 +96,6 @@ function Tabs({ active, hl }: { active: string; hl?: string }) {
   const row2 = [
     { id: 'profiles', e: '👥', l: '참여자' },
     { id: 'seating', e: '🗺️', l: '배치도' },
-    { id: 'suggestions', e: '📋', l: '요청' },
-    { id: 'game', e: '🎮', l: '게임' },
     { id: 'ranking', e: '🏆', l: '랭킹' },
   ];
   return (
