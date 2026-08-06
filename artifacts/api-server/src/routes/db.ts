@@ -272,7 +272,8 @@ function ts(): string {
 
 function koreanDateMMDD(): string {
   const now = new Date();
-  const korea = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  // 새벽 3시 이전(00:00~02:59 KST)은 전날로 취급 — 3시간을 빼고 날짜를 계산
+  const korea = new Date(now.getTime() + (9 - 3) * 60 * 60 * 1000);
   const mm = String(korea.getUTCMonth() + 1).padStart(2, '0');
   const dd = String(korea.getUTCDate()).padStart(2, '0');
   return mm + dd;
