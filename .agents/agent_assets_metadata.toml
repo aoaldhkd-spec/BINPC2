@@ -42,3 +42,24 @@ id = "RUAOUpllk-bMl2EIZxjOG"
 uri = "file://artifacts/boltnew-app/public/avatars/av6.png"
 type = "image"
 title = "아바타 6"
+
+[[outputs]]
+id = "uQYc5GKNwPuZS4m5Nw3N0"
+uri = "file://artifacts/boltnew-app/public/tutorial-bgm.mp3"
+type = "audio"
+title = "tutorial-bgm"
+description = "Generated music: Upbeat cheerful K-pop inspired electronic pop, light synth melody, playful xylophone, warm bass, fun party vibe for a social gathering app tutorial, energetic but not overwhelming, m…"
+
+[[outputs]]
+id = "jRRPE8lhgwUUDXudxLntn"
+uri = "file://artifacts/boltnew-app/public/waiting-bgm.mp3"
+type = "audio"
+title = "waiting-bgm"
+description = "Generated music: Trendy upbeat K-pop electronic dance music, bright synth arpeggio, punchy 808 bass, exciting and thrilling vibe, like walking into a party for the first time, energetic build-up, mod…"
+
+[[outputs]]
+id = "RDDF8V3aFZgz3CXt36Sin"
+uri = "file://artifacts/boltnew-app/public/waiting-bgm_2.mp3"
+type = "audio"
+title = "waiting-bgm-v2"
+description = "Generated music: Modern trendy Korean pop dance music 2024, bright synth lead, punchy trap hi-hats, warm romantic piano layer, dreamy reverb vocals chops, euphoric drop, like meeting someone at a roo…"

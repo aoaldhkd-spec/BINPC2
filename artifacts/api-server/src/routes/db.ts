@@ -14,6 +14,29 @@ declare module 'express-session' {
 
 const router = Router();
 
+// ─── Admin token — HMAC 기반 (서버 재시작 후에도 유효, in-memory Set 불필요) ──
+// 토큰 = HMAC-SHA256(key = SESSION_SECRET + adminPassword, data = 'admin-session')
+// 서버는 현재 admin_password를 읽어 HMAC을 재계산한 뒤 timingSafeEqual로 비교
+// → 비밀번호 변경 시 자동 무효화, 재시작 후에도 동일 토큰 검증 가능
+
+function deriveAdminToken(adminPassword: string): string {
+  const secret = (process.env.SESSION_SECRET ?? 'fallback-secret') + adminPassword;
+  return createHmac('sha256', secret).update('admin-session').digest('hex');
+}
+
+function verifyAdminToken(provided: string | null | undefined): boolean {
+  if (!provided || typeof provided !== 'string') return false;
+  const settings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
+  const adminPw = (settings.admin_password as string) ?? '';
+  const expected = deriveAdminToken(adminPw);
+  try {
+    return timingSafeEqual(Buffer.from(provided, 'hex'), Buffer.from(expected, 'hex'));
+  } catch { return false; }
+}
+
+// 관리자 SSE 연결 집합 — 일반 sseUserMap과 분리해 모든 이벤트(private 포함) 수신
+const sseAdminClients = new Set<Response>();
+
 // ─── PostgreSQL connection pool ────────────────────────────────────────────────
 const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
@@ -572,6 +595,7 @@ function broadcastAll(event: Record<string, unknown>) {
   const batch: Array<[Response, Set<Response>]> = [];
   for (const [, conns] of sseUserMap) for (const c of conns) batch.push([c, conns]);
   for (const c of sseAnonClients) batch.push([c, sseAnonClients]);
+  for (const c of sseAdminClients) batch.push([c, sseAdminClients]); // 관리자도 공개 이벤트 수신
   if (batch.length <= 50) {
     for (const [c, conns] of batch) _send(c, conns, payload);
     return;
@@ -596,6 +620,12 @@ function broadcastToUsers(userIds: string[], event: Record<string, unknown>) {
       seen.add(c);
       _send(c, conns, payload);
     }
+  }
+  // 관리자 클라이언트: 모든 프라이빗 이벤트도 수신 (감사·모니터링 목적)
+  for (const c of sseAdminClients) {
+    if (seen.has(c)) continue;
+    seen.add(c);
+    _send(c, sseAdminClients, payload);
   }
 }
 
@@ -805,13 +835,18 @@ router.post('/op', async (req: Request, res: Response) => {
     conflictCols = [],
     selectAfterWrite,
     requesterId,
+    adminToken,
   } = req.body as {
     table: string; op: string;
     filters: FilterSpec[]; orders: { col: string; asc: boolean }[];
     limit?: number; single?: boolean; maybeSingle?: boolean;
     payload?: unknown; conflictCols?: string[]; selectAfterWrite?: boolean;
     requesterId?: string | null;
+    adminToken?: string | null;
   };
+
+  // 관리자 토큰 검증 — HMAC 재계산으로 검증 (서버 재시작 후에도 유효)
+  const isAdmin = verifyAdminToken(adminToken);
 
   // ─ 페이로드 타입 방어: table/op는 반드시 문자열이어야 함 ─────────────────────
   if (typeof table !== 'string' || typeof op !== 'string') {
@@ -875,56 +910,78 @@ router.post('/op', async (req: Request, res: Response) => {
       //   규칙 3: 해당 채팅방 참여자가 아니면 접근 불가
       //   규칙 4: 존재하지 않는 chat_id로 요청 시 빈 배열 반환 (정보 노출 차단)
       if (table === 'messages') {
-        if (!requesterId) {
-          _activeOpCount--;
-          logger.warn({ ip: req.ip }, '[SECURITY] IDOR: messages SELECT without requesterId blocked');
-          return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
-        }
-        // chat_id 필터 탐색: eq(단일 채팅방) 또는 in(채팅 목록 일괄 조회) 모두 허용
-        const chatIdEqF = normalizedFilters.find(f => f.type === 'eq' && f.col === 'chat_id') as { type: 'eq'; col: string; val: unknown } | undefined;
-        const chatIdInF = normalizedFilters.find(f => f.type === 'in' && f.col === 'chat_id') as { type: 'in'; col: string; vals: unknown[] } | undefined;
-
-        if (!chatIdEqF && !chatIdInF) {
-          // chat_id 필터 없이 전체 메시지 덤프 시도 → 차단
-          _activeOpCount--;
-          logger.warn({ requesterId, ip: req.ip }, '[SECURITY] IDOR: messages SELECT without chat_id filter blocked');
-          return res.status(403).json({ data: null, error: { message: 'Forbidden: chat_id filter required', code: 'FORBIDDEN' } });
-        }
-
-        if (chatIdEqF) {
-          // 단일 채팅방 접근 — 참여자 검증
-          const chat = getTable('chats').find(c => c.id === chatIdEqF.val);
-          if (!chat) {
+        if (!isAdmin) {
+          if (!requesterId) {
             _activeOpCount--;
-            return res.json({ data: [], error: null }); // 존재하지 않는 채팅방 → 빈 배열
+            logger.warn({ ip: req.ip }, '[SECURITY] IDOR: messages SELECT without requesterId blocked');
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
           }
-          if (String(chat.user1_id) !== String(requesterId) && String(chat.user2_id) !== String(requesterId)) {
-            _activeOpCount--;
-            logger.warn({ requesterId, chatId: chatIdEqF.val, ip: req.ip }, '[SECURITY] IDOR: messages SELECT by non-participant blocked');
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: not a chat participant', code: 'FORBIDDEN' } });
-          }
-        }
+          // chat_id 필터 탐색: eq(단일 채팅방) 또는 in(채팅 목록 일괄 조회) 모두 허용
+          const chatIdEqF = normalizedFilters.find(f => f.type === 'eq' && f.col === 'chat_id') as { type: 'eq'; col: string; val: unknown } | undefined;
+          const chatIdInF = normalizedFilters.find(f => f.type === 'in' && f.col === 'chat_id') as { type: 'in'; col: string; vals: unknown[] } | undefined;
 
-        if (chatIdInF) {
-          // 복수 채팅방 일괄 조회 (loadChatList) — 요청자가 참여하지 않는 채팅방 ID 차단
-          const chats = getTable('chats');
-          const illegalChatId = (chatIdInF.vals as string[]).find(cid => {
-            const chat = chats.find(c => c.id === cid);
-            if (!chat) return false; // 존재하지 않으면 결과가 없으므로 무해
-            return String(chat.user1_id) !== String(requesterId) && String(chat.user2_id) !== String(requesterId);
-          });
-          if (illegalChatId) {
+          if (!chatIdEqF && !chatIdInF) {
+            // chat_id 필터 없이 전체 메시지 덤프 시도 → 차단
             _activeOpCount--;
-            logger.warn({ requesterId, chatId: illegalChatId, ip: req.ip }, '[SECURITY] IDOR: messages SELECT (in) includes non-participant chat blocked');
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: not a chat participant', code: 'FORBIDDEN' } });
+            logger.warn({ requesterId, ip: req.ip }, '[SECURITY] IDOR: messages SELECT without chat_id filter blocked');
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: chat_id filter required', code: 'FORBIDDEN' } });
+          }
+
+          if (chatIdEqF) {
+            // 단일 채팅방 접근 — 참여자 검증
+            const chat = getTable('chats').find(c => c.id === chatIdEqF.val);
+            if (!chat) {
+              _activeOpCount--;
+              return res.json({ data: [], error: null }); // 존재하지 않는 채팅방 → 빈 배열
+            }
+            if (String(chat.user1_id) !== String(requesterId) && String(chat.user2_id) !== String(requesterId)) {
+              _activeOpCount--;
+              logger.warn({ requesterId, chatId: chatIdEqF.val, ip: req.ip }, '[SECURITY] IDOR: messages SELECT by non-participant blocked');
+              return res.status(403).json({ data: null, error: { message: 'Forbidden: not a chat participant', code: 'FORBIDDEN' } });
+            }
+          }
+
+          if (chatIdInF) {
+            // 복수 채팅방 일괄 조회 (loadChatList) — 요청자가 참여하지 않는 채팅방 ID 차단
+            const chats = getTable('chats');
+            const illegalChatId = (chatIdInF.vals as string[]).find(cid => {
+              const chat = chats.find(c => c.id === cid);
+              if (!chat) return false; // 존재하지 않으면 결과가 없으므로 무해
+              return String(chat.user1_id) !== String(requesterId) && String(chat.user2_id) !== String(requesterId);
+            });
+            if (illegalChatId) {
+              _activeOpCount--;
+              logger.warn({ requesterId, chatId: illegalChatId, ip: req.ip }, '[SECURITY] IDOR: messages SELECT (in) includes non-participant chat blocked');
+              return res.status(403).json({ data: null, error: { message: 'Forbidden: not a chat participant', code: 'FORBIDDEN' } });
+            }
           }
         }
+        // isAdmin: 모든 메시지 조회 허용 (관리자 감사용)
       }
 
       // ─ IDOR guard: chats SELECT ───────────────────────────────────────────
       // 누구든 자신이 참여한 채팅방 목록만 볼 수 있어야 함.
       // requesterId 없이 chats를 전체 덤프하면 모든 채팅 참여자가 노출됨 → 차단.
+      // 관리자는 전체 채팅방 조회 허용 (감사 목적).
       if (table === 'chats') {
+        if (isAdmin) {
+          // 관리자: 필터/정렬/페이지 그대로 적용하되 참여자 스코프 제한 없음
+          const adminResult = applyFilters(tableData, normalizedFilters);
+          for (const { col, asc } of safeOrders) {
+            adminResult.sort((a, b) => {
+              const av = a[col]; const bv = b[col];
+              if (av === bv) return 0;
+              if (av == null) return asc ? -1 : 1;
+              if (bv == null) return asc ? 1 : -1;
+              return (av < bv ? -1 : 1) * (asc ? 1 : -1);
+            });
+          }
+          const safeLimit2 = limit != null ? Math.floor(limit) : undefined;
+          const limited2 = safeLimit2 != null ? adminResult.slice(0, safeLimit2) : adminResult;
+          const result2 = single ? (limited2[0] ?? null) : maybeSingle ? (limited2[0] ?? null) : limited2;
+          _activeOpCount--;
+          return res.json({ data: result2, error: null });
+        }
         if (!requesterId) {
           _activeOpCount--;
           logger.warn({ ip: req.ip }, '[SECURITY] IDOR: chats SELECT without requesterId blocked');
@@ -1364,7 +1421,9 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
       case 'admin_create_session': {
         // 관리자 비밀번호가 설정돼 있으면 반드시 검증 — 비밀번호 없이 세션 생성 방지
         checkPassword();
-        return res.json({ data: 'local-' + genId(), error: null });
+        // HMAC 기반 토큰 — 서버 재시작 후에도 동일 토큰이 재계산되어 유효
+        const adminToken = deriveAdminToken(adminPw);
+        return res.json({ data: adminToken, error: null });
       }
 
       case 'admin_invalidate_session':
@@ -2105,6 +2164,10 @@ router.post('/auth/sse-token', (req: Request, res: Response) => {
 router.get('/events', (req: Request, res: Response) => {
   const userId = typeof req.query.userId === 'string' && req.query.userId ? req.query.userId : null;
   const token = typeof req.query.token === 'string' ? req.query.token : null;
+  const adminTokenParam = typeof req.query.adminToken === 'string' ? req.query.adminToken : null;
+
+  // 관리자 토큰 검증 — HMAC 재계산으로 검증 (서버 재시작 후에도 유효)
+  const isAdminSse = verifyAdminToken(adminTokenParam);
 
   // userId가 있으면 반드시 유효한 토큰 필요 — 없거나 만료/위조된 경우 거부
   if (userId && (!token || !verifySseToken(userId, token))) {
@@ -2142,7 +2205,14 @@ router.get('/events', (req: Request, res: Response) => {
   // Initial ping so the client knows it's connected
   res.write('data: {"type":"ping"}\n\n');
 
-  if (userId) {
+  if (isAdminSse) {
+    // 관리자 SSE — 모든 이벤트(private 포함) 수신, 최대 10개 연결
+    if (sseAdminClients.size >= 10) {
+      const oldest = sseAdminClients.values().next().value;
+      if (oldest) { _sseCleanup.get(oldest)?.(); _sseCleanup.delete(oldest); try { oldest.end(); } catch { /* ignore */ } sseAdminClients.delete(oldest); }
+    }
+    sseAdminClients.add(res);
+  } else if (userId) {
     if (!sseUserMap.has(userId)) sseUserMap.set(userId, new Set());
     const userConns = sseUserMap.get(userId)!;
     // 탭 과다 방지: 사용자당 최대 4개 연결. 초과 시 가장 오래된 연결 종료
@@ -2177,7 +2247,9 @@ router.get('/events', (req: Request, res: Response) => {
   const cleanupConn = () => {
     _sseCleanup.get(res)?.();
     _sseCleanup.delete(res);
-    if (userId) {
+    if (isAdminSse) {
+      sseAdminClients.delete(res);
+    } else if (userId) {
       const conns = sseUserMap.get(userId);
       if (conns) { conns.delete(res); if (conns.size === 0) sseUserMap.delete(userId); }
     } else {

@@ -186,6 +186,7 @@ class QueryBuilder {
       conflictCols: this._conflictCols,
       selectAfterWrite: this._selectAfterWrite,
       requesterId: _currentUserId, // IDOR guard: server verifies ownership for sensitive tables
+      adminToken: localStorage.getItem('admin_token_v1') ?? undefined, // admin bypass: included when logged in as admin
     }) as Promise<DbResult<unknown>>;
   }
 }
@@ -299,6 +300,9 @@ function createSse() {
     params.push(`userId=${encodeURIComponent(_currentUserId)}`);
     params.push(`token=${encodeURIComponent(_sseToken)}`);
   }
+  // 관리자 토큰이 있으면 관리자 SSE 연결로 업그레이드 (모든 이벤트 수신)
+  const adminToken = (() => { try { return localStorage.getItem('admin_token_v1'); } catch { return null; } })();
+  if (adminToken && !_currentUserId) params.push(`adminToken=${encodeURIComponent(adminToken)}`);
   const url = params.length ? `${API}/events?${params.join('&')}` : `${API}/events`;
   const es = new EventSource(url);
   es.onmessage = (ev) => {
