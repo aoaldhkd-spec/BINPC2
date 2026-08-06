@@ -224,7 +224,9 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
                     }`}>
                       {done ? <CheckCircle className="w-4 h-4" /> : idx}
                     </div>
-                    <span className={`text-xs font-bold ${active ? 'text-gray-800' : done ? 'text-teal-500' : 'text-gray-400'}`}>{label}</span>
+                    <span className={`text-xs font-bold leading-tight ${active ? 'text-gray-800' : done ? 'text-teal-500' : 'text-gray-400'}`}>
+                      {label === '관심사·성향' ? <>관심사<br />성향</> : label}
+                    </span>
                   </div>
                   {idx < 3 && <div className={`flex-1 h-0.5 mx-2 rounded-full ${done ? 'bg-teal-400' : 'bg-gray-200'}`} />}
                 </div>
@@ -617,7 +619,7 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
                   </button>
                   <button type="button" onClick={handleSubmit} disabled={!canEnter}
                     className="flex-1 flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-cyan-500 to-teal-500 text-white font-bold rounded-xl hover:from-cyan-600 hover:to-teal-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all">
-                    {loading ? '입장 중...' : <>이 닉네임으로 입장하기 <ChevronRight className="w-5 h-5" /></>}
+                    {loading ? '입장 중...' : <>입장하기 <ChevronRight className="w-5 h-5" /></>}
                   </button>
                 </div>
               </>

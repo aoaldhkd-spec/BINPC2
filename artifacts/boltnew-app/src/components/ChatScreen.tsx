@@ -553,7 +553,7 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
                   <span className="text-yellow-600 font-black text-base w-6 text-center">K</span>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-yellow-600 font-medium">카카오톡</p>
-                    <p className="text-sm font-bold text-gray-800 truncate">{theirShare.kakao}</p>
+                    <p className="text-sm font-bold text-gray-800 break-all">{theirShare.kakao}</p>
                   </div>
                   <button onClick={() => navigator.clipboard?.writeText(theirShare.kakao!)}
                     className="flex-shrink-0 px-3 py-1.5 bg-yellow-500 text-white text-xs font-bold rounded-lg active:scale-95">복사</button>
@@ -564,7 +564,7 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
                   <span className="text-pink-500 font-black text-base w-6 text-center">@</span>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-pink-600 font-medium">인스타그램</p>
-                    <p className="text-sm font-bold text-gray-800 truncate">{theirShare.instagram}</p>
+                    <p className="text-sm font-bold text-gray-800 break-all">{theirShare.instagram}</p>
                   </div>
                   <button onClick={() => navigator.clipboard?.writeText(theirShare.instagram!)}
                     className="flex-shrink-0 px-3 py-1.5 bg-pink-500 text-white text-xs font-bold rounded-lg active:scale-95">복사</button>
@@ -575,7 +575,7 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
                   <Phone className="w-4 h-4 text-green-500 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-green-600 font-medium">전화번호</p>
-                    <p className="text-sm font-bold text-gray-800 truncate">{theirShare.phone}</p>
+                    <p className="text-sm font-bold text-gray-800 break-all">{theirShare.phone}</p>
                   </div>
                   <button onClick={() => navigator.clipboard?.writeText(theirShare.phone!)}
                     className="flex-shrink-0 px-3 py-1.5 bg-green-500 text-white text-xs font-bold rounded-lg active:scale-95">복사</button>
@@ -887,7 +887,8 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
       )}
 
       <header className="bg-white shadow-sm shrink-0 z-10">
-        <div className="max-w-3xl mx-auto px-3 py-2.5 flex items-center gap-2">
+        {/* 행 1: 뒤로가기 + 아바타 + 닉네임 */}
+        <div className="max-w-3xl mx-auto px-3 pt-2.5 pb-1 flex items-center gap-2">
           <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-full transition-colors flex-shrink-0">
             <ArrowLeft className="w-5 h-5 text-gray-700" />
           </button>
@@ -899,8 +900,11 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
               onError={(e) => { (e.target as HTMLImageElement).src = genAvatar(otherProfile.nickname); }}
             />
           </div>
-          <h2 className="font-semibold text-gray-900 flex-1 truncate text-sm">{otherProfile.nickname}</h2>
-          {/* 미니 테마 순환 버튼 — 전역 FAB 대신 헤더에 위치 */}
+          <h2 className="font-semibold text-gray-900 flex-1 min-w-0 truncate text-sm">{otherProfile.nickname}</h2>
+        </div>
+        {/* 행 2: 액션 버튼 (가로 스크롤) — 320px 이하도 잘리지 않도록 */}
+        <div className="max-w-3xl mx-auto px-3 pb-2 flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
+          {/* 미니 테마 순환 버튼 */}
           <button
             onClick={handleCycleTheme}
             title="테마 변경"
@@ -910,17 +914,17 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
           </button>
           <button
             onClick={() => setShowSajuModal(true)}
-            className="flex items-center gap-1 px-2 py-1.5 bg-amber-50 text-amber-600 text-xs font-bold rounded-xl border border-amber-200 hover:bg-amber-100 transition-all active:scale-95 flex-shrink-0">
+            className="flex items-center gap-1 px-2 py-1 bg-amber-50 text-amber-600 text-xs font-bold rounded-xl border border-amber-200 hover:bg-amber-100 transition-all active:scale-95 flex-shrink-0">
             📅 사주
           </button>
           <button
             onClick={() => { setActiveCompatMethod('saju'); setShowCompatModal(true); }}
-            className="flex items-center gap-1 px-2 py-1.5 bg-violet-50 text-violet-600 text-xs font-bold rounded-xl border border-violet-200 hover:bg-violet-100 transition-all active:scale-95 flex-shrink-0">
+            className="flex items-center gap-1 px-2 py-1 bg-violet-50 text-violet-600 text-xs font-bold rounded-xl border border-violet-200 hover:bg-violet-100 transition-all active:scale-95 flex-shrink-0">
             🔮 궁합
           </button>
           {theirShare && (
             <button onClick={() => setShowTheirContact(true)}
-              className="flex items-center gap-1 px-2 py-1.5 bg-teal-50 text-teal-600 text-xs font-bold rounded-xl border border-teal-200 hover:bg-teal-100 transition-all active:scale-95 flex-shrink-0">
+              className="flex items-center gap-1 px-2 py-1 bg-teal-50 text-teal-600 text-xs font-bold rounded-xl border border-teal-200 hover:bg-teal-100 transition-all active:scale-95 flex-shrink-0">
               ✓ 공유완료
             </button>
           )}
@@ -928,7 +932,7 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
             <span className="text-xs text-gray-400 flex-shrink-0">📤 공유함</span>
           ) : (
             <button onClick={handleShareContact}
-              className={`flex items-center gap-1 px-2 py-1.5 text-xs font-bold rounded-xl border transition-all active:scale-95 flex-shrink-0 ${
+              className={`flex items-center gap-1 px-2 py-1 text-xs font-bold rounded-xl border transition-all active:scale-95 flex-shrink-0 ${
                 hasContact
                   ? 'bg-cyan-50 text-cyan-600 border-cyan-200 hover:bg-cyan-100'
                   : 'bg-gray-50 text-gray-400 border-gray-200'
@@ -1027,7 +1031,7 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
                       const alreadyDeclined = declinedReqTypes.has(reqType);
                       const responded = alreadyAcked || alreadyDeclined;
                       return (
-                        <div className="px-4 py-3 space-y-2 min-w-[180px]">
+                        <div className="px-4 py-3 space-y-2">
                           <p className={`text-[10px] font-black uppercase tracking-wide ${isMe ? 'text-cyan-100' : 'text-amber-600'}`}>
                             {reqType === 'birthday' ? '🎂 생일 요청' : '📱 전화번호 요청'}
                           </p>
@@ -1331,9 +1335,9 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
         )}
         {replyTo && (
           <div className="max-w-3xl mx-auto px-3 pt-2 flex items-center gap-2">
-            <div className="flex-1 bg-cyan-50 border-l-4 border-cyan-400 rounded-r-xl px-3 py-1.5 text-xs text-gray-600 truncate">
+            <div className="flex-1 min-w-0 bg-cyan-50 border-l-4 border-cyan-400 rounded-r-xl px-3 py-1.5 text-xs text-gray-600">
               <span className="font-bold text-cyan-600 mr-1">{replyTo.isMe ? '내 메시지' : otherProfile.nickname}에 답장</span>
-              {replyTo.snippet}
+              <span className="line-clamp-1">{replyTo.snippet}</span>
             </div>
             <button onClick={() => setReplyTo(null)}
               className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-300 text-xs shrink-0">✕</button>

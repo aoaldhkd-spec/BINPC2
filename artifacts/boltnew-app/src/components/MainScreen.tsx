@@ -511,71 +511,72 @@ const ProfileCard = memo(function ProfileCard({
           onError={(e) => { (e.target as HTMLImageElement).src = genAvatar(profile.nickname); }}
           className={`w-full h-full transition-none ${imgFit === 'cover' ? 'object-cover' : 'object-contain p-3 bg-gray-50'}`}
         />
-        {/* 하단 그라데이션 — 어떤 사진이든 텍스트 가독성 보장 */}
-        <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/90 via-black/40 to-transparent pointer-events-none" />
-        {/* 우상단 버튼 뒤 어두운 스크림 */}
-        {canLike && (
-          <div className="absolute top-0 right-0 w-12 h-24 bg-gradient-to-bl from-black/30 to-transparent pointer-events-none rounded-tr-2xl" />
-        )}
-        {/* MBTI 배지 — 좌상단 */}
+        {/* 이름+나이 — 하단 검은 배경 라벨 */}
+        <div className="absolute inset-x-0 bottom-0 px-2 pb-2">
+          <div className="inline-flex items-baseline gap-1.5 bg-black/65 backdrop-blur-[2px] rounded-lg px-2 py-0.5 max-w-full">
+            <span className="font-black text-[13px] leading-tight text-white truncate">{profile.nickname}</span>
+            {profile.birth_year && (
+              <span className="text-[10px] font-semibold text-white/80 flex-shrink-0">{age}</span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── 성향 + MBTI 한 줄 ── */}
+      <div className="px-2.5 pt-2 pb-1 flex items-center justify-between gap-1">
+        <span
+          className="text-[10px] font-bold px-2 py-0.5 rounded-lg leading-tight border"
+          style={{ backgroundColor: posStyle.bg, color: posStyle.text, borderColor: posStyle.border }}
+        >
+          {posLabel}
+        </span>
         {msStyle && (
           <span
-            className="absolute top-1.5 left-1.5 text-[8px] font-black px-1.5 py-0.5 rounded-lg border leading-tight shadow-sm backdrop-blur-sm"
-            style={{ backgroundColor: msStyle.bg + 'ee', color: msStyle.color, borderColor: msStyle.border }}
+            className="text-[10px] font-black px-1.5 py-0.5 rounded-lg leading-tight border"
+            style={{ backgroundColor: msStyle.bg + 'dd', color: msStyle.color, borderColor: msStyle.border }}
           >
             {profile.mbti}
           </span>
         )}
-        {/* 하트 버튼 — 우상단 */}
-        {canLike && (
+      </div>
+
+      {/* ── 관심사 (최대 2개, 한 줄) ── */}
+      {bioTags.length > 0 && (
+        <div className="px-2.5 pb-1.5 flex gap-1 overflow-hidden">
+          {bioTags.slice(0, 2).map(tag => (
+            <span key={tag} className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-pink-50 text-pink-500 border border-pink-100 whitespace-nowrap flex-shrink-0">#{tag}</span>
+          ))}
+        </div>
+      )}
+
+      {/* ── 하트 + 채팅 버튼 행 ── */}
+      {canLike && (
+        <div className="px-2 pb-2 pt-0.5 flex gap-1.5 border-t border-gray-100 mt-1">
           <button
             onClick={(e) => { e.stopPropagation(); onLike(profile.id); }}
             disabled={isLiked && heartCount >= 4}
-            className="absolute top-1.5 right-1.5 w-8 h-8 rounded-full flex items-center justify-center active:scale-90 transition-transform"
+            className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-xl bg-rose-50 border border-rose-100 active:scale-95 transition-transform"
           >
             {isLiked && sentHeartType
-              ? <span className="text-sm leading-none relative">
+              ? <span className="text-xs leading-none relative">
                   {heartMeta(sentHeartType).emoji}
                   {heartCount > 1 && (
                     <span className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 text-white text-[7px] font-black rounded-full flex items-center justify-center">{heartCount}</span>
                   )}
                 </span>
-              : isLiked
-                ? <Heart className="w-4 h-4" style={{ fill: '#e11d48', stroke: '#9f0a28', strokeWidth: 1.5 }} />
-                : <Heart className="w-4 h-4" style={{ fill: 'rgba(255,255,255,0.9)', stroke: '#be123c', strokeWidth: 2 }} />
+              : <Heart className="w-3.5 h-3.5" style={{ fill: isLiked ? '#e11d48' : 'transparent', stroke: '#e11d48', strokeWidth: 2 }} />
             }
+            <span className="text-[10px] font-bold text-rose-500">하트</span>
           </button>
-        )}
-        {/* 채팅 버튼 — 하트 아래 */}
-        {canLike && (
           <button
             onClick={(e) => { e.stopPropagation(); onOpenChat(profile); }}
-            className="absolute top-11 right-1.5 w-8 h-8 rounded-full flex items-center justify-center active:scale-90 transition-transform"
+            className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-xl bg-sky-50 border border-sky-100 active:scale-95 transition-transform"
           >
-            <MessageCircle className="w-4 h-4 text-sky-500" strokeWidth={2} />
+            <MessageCircle className="w-3.5 h-3.5 text-sky-500" strokeWidth={2} />
+            <span className="text-[10px] font-bold text-sky-500">채팅</span>
           </button>
-        )}
-        {/* 닉네임+나이 오버레이 — 테마 text-white 덮어쓰기 방지: inline style 고정 */}
-        <div className="absolute inset-x-0 bottom-0 px-2.5 pb-2.5">
-          <p className="font-black text-[14px] leading-tight truncate tracking-widest" style={{ color: '#fff', textShadow: '0 0 3px #000, 0 0 6px #000, 0 1px 4px rgba(0,0,0,1), 0 2px 10px rgba(0,0,0,0.95), 0 4px 20px rgba(0,0,0,0.8)' }}>{profile.nickname}</p>
-          {profile.birth_year && <p className="text-[11px] leading-none mt-0.5 font-medium" style={{ color: 'rgba(255,255,255,0.9)', textShadow: '0 1px 3px rgba(0,0,0,0.7)' }}>{age}</p>}
         </div>
-      </div>
-      {/* ── 배지 영역 ── */}
-      <div className="px-2.5 py-2.5 flex flex-wrap items-center gap-1.5">
-        <span
-          className="text-[11px] font-bold px-2 py-0.5 rounded-lg leading-tight border"
-          style={{ backgroundColor: posStyle.bg, color: posStyle.text, borderColor: posStyle.border }}
-        >
-          {posLabel}
-        </span>
-        {avLabel && (
-          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200">{avLabel}</span>
-        )}
-        {bioTags.map(tag => (
-          <span key={tag} className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-pink-50 text-pink-500 border border-pink-100">#{tag}</span>
-        ))}
-      </div>
+      )}
     </div>
   );
 });
@@ -1362,17 +1363,16 @@ export function MainScreen({
                       )}
                     </div>
                     {/* 텍스트 정보 */}
-                    <div className="flex-1 min-w-0 space-y-2">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className={`text-lg font-black leading-none ${darkMode ? 'text-white' : 'text-gray-900'}`}>{me.nickname}</span>
+                    <div className="flex-1 min-w-0 flex flex-col gap-2">
+                      {/* 닉네임 단독 행 */}
+                      <p className={`text-xl font-black leading-tight ${darkMode ? 'text-white' : 'text-gray-900'}`}>{me.nickname}</p>
+                      {/* MBTI + 성향 배지 한 줄 */}
+                      <div className="flex flex-wrap gap-1.5">
                         {me.mbti && (
                           <span className="px-2 py-0.5 bg-teal-500/20 border border-teal-500/40 text-teal-300 text-xs font-bold rounded-lg">{me.mbti}</span>
                         )}
-                      </div>
-                      {/* 성향 배지들 */}
-                      <div className="flex flex-wrap gap-1.5">
-                        <span className="px-2.5 py-1 rounded-full text-[11px] font-bold text-white border border-white/20" style={{ backgroundColor: posColor + '33', borderColor: posColor + '66', color: posColor }}>{posLabel}</span>
-                        <span className="px-2.5 py-1 rounded-full text-[11px] font-bold border" style={{ backgroundColor: domColor + '22', borderColor: domColor + '55', color: domColor }}>{domLabel}</span>
+                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold border" style={{ backgroundColor: posColor + '33', borderColor: posColor + '66', color: posColor }}>{posLabel}</span>
+                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold border" style={{ backgroundColor: domColor + '22', borderColor: domColor + '55', color: domColor }}>{domLabel}</span>
                       </div>
                       {/* 관심사 태그 */}
                       {bioTags.length > 0 && (
@@ -1571,7 +1571,7 @@ export function MainScreen({
                           <span className="text-xl flex-shrink-0">{nicknameAlreadyChanged ? '🔒' : '🏷️'}</span>
                           <div className="flex-1 min-w-0">
                             <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>닉네임</p>
-                            <p className={`text-[11px] font-semibold truncate ${darkMode ? 'text-cyan-400' : 'text-cyan-600'}`}>{me.nickname}</p>
+                            <p className={`text-[11px] font-semibold break-all ${darkMode ? 'text-cyan-400' : 'text-cyan-600'}`}>{me.nickname}</p>
                             {nicknameAlreadyChanged && (
                               <p className={`text-[10px] mt-0.5 font-medium ${darkMode ? 'text-amber-400/80' : 'text-amber-600'}`}>닉네임 변경은 1회만 가능해요</p>
                             )}
@@ -1674,7 +1674,7 @@ export function MainScreen({
                       <div className="flex-1 min-w-0">
                         <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>관심사</p>
                         {currentTags.length > 0
-                          ? <p className={`text-[11px] truncate ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{currentTags.join(' · ')}</p>
+                          ? <p className={`text-[11px] leading-snug ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{currentTags.join(' · ')}</p>
                           : <p className={`text-[11px] ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>미설정</p>}
                       </div>
                       <span className={`text-[10px] font-black px-2 py-0.5 rounded-full flex-shrink-0 ${currentTags.length >= 2 ? 'bg-teal-500 text-white' : darkMode ? 'bg-slate-700 text-slate-500' : 'bg-gray-100 text-gray-400'}`}>{currentTags.length}/5</span>
@@ -1860,7 +1860,7 @@ export function MainScreen({
                 <div className="flex-1 min-w-0">
                   <p className={`text-sm font-black ${darkMode ? 'text-white' : 'text-gray-900'}`}>연락처 설정</p>
                   {(statusKakao || statusInstagram || statusPhone) ? (
-                    <p className={`text-[11px] truncate ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                    <p className={`text-[11px] leading-snug ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>
                       {[statusKakao && `K: ${statusKakao}`, statusInstagram && `@${statusInstagram}`, statusPhone && `📞 ${statusPhone}`].filter(Boolean).join(' · ')}
                     </p>
                   ) : (

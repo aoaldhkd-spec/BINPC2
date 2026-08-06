@@ -4,7 +4,7 @@ import type { TutorialSlide } from '../types/app';
 import { TutorialVideo } from './TutorialVideo';
 
 // 슬라이드 단축 레이블 (탭 네비게이션용)
-const SLIDE_SHORT_LABELS = ['환영', '공지', '주의', '하트', '채팅', '배치도', '게임', '운세', '요청', '💡팁'];
+const SLIDE_SHORT_LABELS = ['환영', '공지', '주의', '하트', '채팅', '배치도', '운세', '💡팁'];
 
 // 설명 + 방법 2단 구조 헬퍼
 function SlideWithSteps({ desc, steps, darkMode }: { desc: string; steps: string[]; darkMode?: boolean }) {
@@ -40,9 +40,7 @@ export const TUTORIAL_SLIDES: TutorialSlide[] = [
             { icon: '❤️', label: '하트 보내기', sub: '종류별 2개, 총 8개' },
             { icon: '💬', label: '1:1 채팅', sub: '수락 시 자동 오픈' },
             { icon: '📱', label: '연락처 교환', sub: '채팅에서 공유' },
-            { icon: '🪜', label: '미니게임', sub: '사다리·돌림판 등' },
             { icon: '🔮', label: '사주·궁합', sub: '운세 탭에서 확인' },
-            { icon: '🍺', label: '음료 요청', sub: '건의함 버튼 클릭' },
           ] as { icon: string; label: string; sub: string }[]).map(({ icon, label, sub }) => (
             <div key={label} className={`flex items-center gap-2 px-3 py-1.5 rounded-xl ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-gradient-to-br from-cyan-50 to-teal-50 border border-cyan-100'}`}>
               <span className="text-lg leading-none">{icon}</span>
@@ -127,10 +125,10 @@ export const TUTORIAL_SLIDES: TutorialSlide[] = [
     color: 'from-emerald-500 to-teal-500',
     renderBody: (darkMode) => (
       <SlideWithSteps darkMode={darkMode}
-        desc="배치도 탭에서 현재 자리 배치를 확인할 수 있어요. 자리 배치는 운영진이 직접 진행합니다. 운영진 안내에 따라 지정된 자리에 앉아주세요!"
+        desc="배치도 탭에서 자리 배치를 확인하고, 내 테이블 탭에서 직접 원하는 자리를 선택할 수 있어요!"
         steps={[
           '배치도 탭 → 테이블 구성 및 내 자리 위치 확인',
-          '운영진 안내에 따라 지정된 자리에 착석',
+          '내 테이블 탭 → 원하는 자리를 직접 선택해 앉을 수 있어요',
           '배치도 카드 클릭 → 그 분의 프로필 확인 & 채팅 바로 가기',
           '자리 이동이 필요하면 운영진에게 말씀해 주세요',
         ]}
@@ -138,44 +136,7 @@ export const TUTORIAL_SLIDES: TutorialSlide[] = [
     ),
   },
 
-  /* 6 — 미니게임 */
-  {
-    emoji: '🎮',
-    title: '미니게임',
-    color: 'from-violet-500 to-purple-500',
-    renderBody: (darkMode) => (
-      <div className="px-5 py-3">
-        <div className="grid grid-cols-2 gap-2 mb-2.5">
-          {[
-            { icon: '🪜', title: '사다리타기', desc: '테이블 인원 자동 배정\n결과 동시 공개' },
-            { icon: '🎡', title: '돌림판', desc: '항목 직접 편집\n돌려서 결과 확인' },
-          ].map(g => (
-            <div key={g.title} className={`rounded-xl p-2.5 ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-violet-50 border border-violet-100'}`}>
-              <p className="text-base mb-0.5">{g.icon}</p>
-              <p className={`text-[11px] font-black ${darkMode ? 'text-slate-200' : 'text-violet-800'}`}>{g.title}</p>
-              <p className={`text-[9px] leading-snug whitespace-pre-line mt-0.5 ${darkMode ? 'text-slate-500' : 'text-violet-500'}`}>{g.desc}</p>
-            </div>
-          ))}
-        </div>
-        <div className={`rounded-xl p-2.5 space-y-1 ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-slate-50 border border-slate-100'}`}>
-          <p className={`text-[9px] font-black uppercase tracking-wider ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>📌 이렇게 사용해요</p>
-          {[
-            '게임 탭 → 직접하기 → 사다리 or 돌림판 선택',
-            '사다리: 참여자 이름 확인 후 결과 확인',
-            '돌림판: + 버튼으로 항목 추가 후 Start!',
-            '운영진 게임(밸런스·OX 등)은 알림으로 자동 전달',
-          ].map((s, i) => (
-            <div key={i} className="flex items-start gap-1.5">
-              <span className="flex-shrink-0 w-[15px] h-[15px] rounded-full bg-violet-500 text-white text-[8px] font-black flex items-center justify-center mt-0.5">{i + 1}</span>
-              <p className={`text-[10px] leading-snug ${darkMode ? 'text-slate-300' : 'text-gray-600'}`}>{s}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    ),
-  },
-
-  /* 7 — 운세·사주·궁합 */
+  /* 6 — 운세·사주·궁합 */
   {
     emoji: '🔮',
     title: '운세 · 사주 · 궁합',
@@ -193,25 +154,7 @@ export const TUTORIAL_SLIDES: TutorialSlide[] = [
     ),
   },
 
-  /* 8 — 음료·요청함 */
-  {
-    emoji: '🍺',
-    title: '음료 요청 & 건의',
-    color: 'from-amber-500 to-orange-500',
-    renderBody: (darkMode) => (
-      <SlideWithSteps darkMode={darkMode}
-        desc="요청 탭에서 음료를 요청하거나 운영진에게 의견을 전달할 수 있어요. 오늘 즐거운 시간 보내세요! 🎉"
-        steps={[
-          '요청 탭 → 요청함 섹션 확인',
-          '원하는 음료 버튼(🍺 🍶 🥤) 클릭',
-          '기타 의견은 텍스트로 입력 후 전송',
-          '운영진에게 실시간으로 전달돼요!',
-        ]}
-      />
-    ),
-  },
-
-  /* 9 — 숨겨진 기능 TIP */
+  /* 7 — 숨겨진 기능 TIP */
   {
     emoji: '💡',
     title: '알아두면 유용한 숨겨진 기능',
@@ -284,7 +227,7 @@ export function TutorialModal({ page, onChangePage, onClose, darkMode }: {
 
         {/* ── 슬라이드 탭 네비게이션 (직접 이동) ── */}
         <div className={`border-b ${darkMode ? 'border-slate-700 bg-slate-900' : 'border-gray-100 bg-white'}`}>
-          <div className="grid grid-cols-5 gap-0.5 px-1.5 py-1.5">
+          <div className="grid grid-cols-4 gap-0.5 px-1.5 py-1.5">
             {TUTORIAL_SLIDES.map((s, i) => (
               <button
                 key={i}

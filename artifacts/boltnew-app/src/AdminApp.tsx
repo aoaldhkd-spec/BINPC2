@@ -5261,21 +5261,21 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-slate-900 text-white sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Shield className="w-5 h-5 text-slate-300" />
-            <h1 className="font-bold text-base">관리자 대시보드</h1>
-            <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${settings?.session_active ? 'bg-teal-500 text-white' : 'bg-slate-700 text-slate-300'}`}>
+        <div className="max-w-4xl mx-auto px-3 py-2.5 flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-1 min-w-0">
+            <Shield className="w-4 h-4 text-slate-300 flex-shrink-0" />
+            <h1 className="font-bold text-sm truncate">관리자 대시보드</h1>
+            <span className={`text-[11px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 ${settings?.session_active ? 'bg-teal-500 text-white' : 'bg-slate-700 text-slate-300'}`}>
               {settings?.session_active ? '진행 중' : '대기 중'}
             </span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 flex-shrink-0">
             <a href="/test"
-              className="flex items-center gap-1.5 text-sm text-violet-300 hover:text-violet-100 transition-colors px-2.5 py-1 rounded-lg bg-violet-700/40 hover:bg-violet-700/60 border border-violet-600/40">
+              className="flex items-center gap-1 text-xs text-violet-300 hover:text-violet-100 transition-colors px-2 py-1 rounded-lg bg-violet-700/40 hover:bg-violet-700/60 border border-violet-600/40">
               🧪 테스터
             </a>
-            <button onClick={onLogout} className="flex items-center gap-1.5 text-sm text-slate-300 hover:text-white transition-colors">
-              <LogOut className="w-4 h-4" />
+            <button onClick={onLogout} className="flex items-center gap-1 text-xs text-slate-300 hover:text-white transition-colors">
+              <LogOut className="w-3.5 h-3.5" />
               로그아웃
             </button>
           </div>

@@ -64,6 +64,13 @@ body[data-view="chat"] .fixed.inset-0.z-\[9997\] { display: none !important; }
 .scrollbar-styled::-webkit-scrollbar-corner { background: #1e293b; }
 
 
+/* ─── 스크롤바 숨김 (모바일 액션 버튼 행 등) ──────────────────────────────── */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+
 /* ─── 라이트 스크롤바 ─────────────────────────────────────────────────────── */
 .scrollbar-styled-light {
   scrollbar-width: thin;

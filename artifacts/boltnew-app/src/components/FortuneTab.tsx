@@ -398,8 +398,8 @@ export default function FortuneTab({
                 <div className="bg-slate-800 rounded-2xl p-3 border border-slate-700 flex items-center gap-3">
                   <span className="text-2xl shrink-0">{getZodiac(myProfile!.birth_year!).emoji}</span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-white text-sm font-black truncate">{myProfile?.nickname ?? '나'}</p>
-                    <p className="text-slate-400 text-[10px] truncate">
+                    <p className="text-white text-sm font-black break-keep">{myProfile?.nickname ?? '나'}</p>
+                    <p className="text-slate-400 text-[10px] leading-snug">
                       {myProfile!.birth_year}년 {myProfile!.birth_month}월 {myProfile!.birth_day}일 ·{' '}
                       {getZodiac(myProfile!.birth_year!).name}띠 · {getOhaeng(myProfile!.birth_year!)}
                       {myProfile?.mbti ? ` · ${myProfile.mbti}` : ''}

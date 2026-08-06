@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Users, CheckCircle, Clock, AlertTriangle, ChevronRight, ShieldAlert, X } from 'lucide-react';
+import { Users, CheckCircle, Clock, ShieldAlert } from 'lucide-react';
 import { TutorialModal } from './TutorialModal';
 import { useTheme } from '../lib/theme';
 
@@ -11,7 +11,6 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
   const { theme } = useTheme();
   const isLightTheme = theme === 'y2k' || theme === 'minimal';
   const isActive = sessionActive === true;
-  const [showNotice, setShowNotice] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [tutPage, setTutPage] = useState(0);
   const [showConsentModal, setShowConsentModal] = useState(false);
@@ -145,7 +144,7 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
     e.preventDefault();
   };
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-black flex flex-col items-center justify-center p-6 relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-black flex flex-col items-center justify-center px-6 pt-6 pb-20 relative overflow-hidden">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -right-40 w-96 h-96 bg-cyan-500/20 rounded-full blur-3xl" />
         <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-teal-500/20 rounded-full blur-3xl" />
@@ -195,20 +194,6 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
             <>곧 회식이 시작합니다.<br /><span className="text-slate-400 font-semibold">미리 입장해서 닉네임을 설정하세요.</span></>
           )}
         </p>
-        {/* 주의사항 미리보기 배너 */}
-        <button
-          onClick={() => setShowNotice(true)}
-          className="w-full flex items-center gap-3 px-4 py-3 mb-4 rounded-2xl bg-amber-500/15 border border-amber-400/30 hover:bg-amber-500/25 transition-all text-left"
-        >
-          <div className="w-8 h-8 rounded-full bg-amber-500/30 flex items-center justify-center flex-shrink-0">
-            <AlertTriangle className="w-4 h-4 text-amber-400" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-amber-300 text-xs font-bold">입장 전 꼭 읽어주세요!</p>
-            <p className="text-amber-400/70 text-[11px] truncate">절전 모드·시크릿 모드 사용 시 앱이 튕길 수 있어요</p>
-          </div>
-          <ChevronRight className="w-4 h-4 text-amber-400/60 flex-shrink-0" />
-        </button>
         <button
           onClick={() => setShowConsentModal(true)}
           disabled={!isActive}
@@ -221,8 +206,29 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
         {/* 핀 번호 복구 */}
         <button
           onClick={() => { setShowPinRecovery(true); setPinDigits(['','','','']); setPinError(''); }}
-          className="w-full py-2.5 bg-transparent border border-slate-600/60 hover:border-slate-500 text-slate-400 hover:text-slate-300 font-semibold text-xs rounded-2xl transition-all mb-1"
+          className="w-full py-2.5 bg-transparent border border-slate-600/60 hover:border-slate-500 text-slate-400 hover:text-slate-300 font-semibold text-xs rounded-2xl transition-all mb-5"
         >🔑 핀 번호로 프로필 복구</button>
+
+        {/* 입장 전 주의사항 — 인라인 카드 */}
+        <div className="w-full rounded-2xl bg-amber-500/10 border border-amber-400/25 overflow-hidden">
+          <div className="flex items-center gap-2 px-4 pt-3 pb-2">
+            <ShieldAlert className="w-4 h-4 text-amber-400 flex-shrink-0" />
+            <p className="text-amber-200 text-[12px] font-black tracking-wide">입장 전 꼭 확인하세요</p>
+          </div>
+          <div className="px-3 pb-3 space-y-1.5">
+            {[
+              { emoji: '🔋', text: '절전(저전력) 모드는 OFF로 설정해 주세요' },
+              { emoji: '🕵️', text: '시크릿·개인정보 보호 모드는 사용하지 마세요' },
+              { emoji: '📵', text: '화면 자동 잠금 시간을 길게 설정해 주세요' },
+              { emoji: '🔖', text: '이 페이지를 북마크해 두면 재접속 시 프로필이 복구돼요' },
+            ].map(item => (
+              <div key={item.emoji} className="flex items-start gap-2 px-2 py-1.5 rounded-xl bg-black/20">
+                <span className="text-base leading-none flex-shrink-0 mt-0.5">{item.emoji}</span>
+                <p className="text-amber-100/85 text-[11px] leading-snug">{item.text}</p>
+              </div>
+            ))}
+          </div>
+        </div>
         {/* 개인정보 동의 모달 */}
         {showConsentModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/75 backdrop-blur-sm">
@@ -258,74 +264,6 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
                     닫기
                   </button>
                 </div>
-              </div>
-            </div>
-          </div>
-        )}
-        {/* 주의사항 전체 모달 */}
-        {showNotice && (
-          <div className="fixed inset-0 z-50 flex items-end justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => setShowNotice(false)}>
-            <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-slate-700 overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
-              {/* 헤더 */}
-              <div className="bg-gradient-to-r from-amber-500/20 to-orange-500/20 border-b border-amber-500/20 px-5 py-4 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-amber-500/30 flex items-center justify-center">
-                  <ShieldAlert className="w-5 h-5 text-amber-400" />
-                </div>
-                <div>
-                  <h3 className="text-white font-black text-base">입장 전 주의사항</h3>
-                  <p className="text-amber-400/70 text-xs">앱이 튕기지 않으려면 꼭 확인하세요</p>
-                </div>
-                <button onClick={() => setShowNotice(false)} className="ml-auto w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
-                  <X className="w-4 h-4 text-white" />
-                </button>
-              </div>
-              <div className="px-5 py-5 space-y-4">
-                {/* 절전 모드 */}
-                <div className="flex gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-red-500/20 flex items-center justify-center flex-shrink-0">
-                    <span className="text-lg">🔋</span>
-                  </div>
-                  <div>
-                    <p className="text-white font-bold text-sm mb-1">절전 모드 해제</p>
-                    <p className="text-slate-400 text-xs leading-relaxed">아이폰·안드로이드 절전(저전력) 모드에서는 백그라운드 처리가 제한되어 앱이 갑자기 튕길 수 있습니다. <span className="text-amber-400 font-semibold">설정 → 배터리 → 저전력 모드 OFF</span> 후 사용해 주세요.</p>
-                  </div>
-                </div>
-                {/* 시크릿 모드 */}
-                <div className="flex gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-purple-500/20 flex items-center justify-center flex-shrink-0">
-                    <span className="text-lg">🕵️</span>
-                  </div>
-                  <div>
-                    <p className="text-white font-bold text-sm mb-1">시크릿·개인정보 보호 모드 사용 금지</p>
-                    <p className="text-slate-400 text-xs leading-relaxed">Safari/Chrome 시크릿 모드나 개인정보 보호 브라우저는 <span className="text-amber-400 font-semibold">로컬 저장소가 차단</span>되어 닉네임·프로필이 사라집니다. 일반 브라우저 탭으로 접속해 주세요.</p>
-                  </div>
-                </div>
-                {/* 화면 꺼짐 */}
-                <div className="flex gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-blue-500/20 flex items-center justify-center flex-shrink-0">
-                    <span className="text-lg">📵</span>
-                  </div>
-                  <div>
-                    <p className="text-white font-bold text-sm mb-1">화면 자동 꺼짐 방지</p>
-                    <p className="text-slate-400 text-xs leading-relaxed">자리를 비울 때 화면이 꺼지면 브라우저가 세션을 초기화할 수 있어요. <span className="text-amber-400 font-semibold">화면 자동 잠금 시간을 길게</span> 설정하거나 주기적으로 화면을 깨워주세요.</p>
-                  </div>
-                </div>
-                {/* 북마크 */}
-                <div className="flex gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-teal-500/20 flex items-center justify-center flex-shrink-0">
-                    <span className="text-lg">🔖</span>
-                  </div>
-                  <div>
-                    <p className="text-white font-bold text-sm mb-1">URL 북마크 추천</p>
-                    <p className="text-slate-400 text-xs leading-relaxed">혹시 앱이 튕겨도 같은 URL로 재접속하면 <span className="text-teal-400 font-semibold">프로필이 자동으로 복구</span>됩니다. 브라우저 주소창에서 이 페이지를 북마크해 두세요.</p>
-                  </div>
-                </div>
-              </div>
-              <div className="px-5 pb-5">
-                <button
-                  onClick={() => setShowNotice(false)}
-                  className="w-full py-3.5 bg-gradient-to-r from-teal-500 to-cyan-500 text-white font-black rounded-2xl shadow-lg shadow-teal-500/25 text-sm"
-                >확인했어요!</button>
               </div>
             </div>
           </div>

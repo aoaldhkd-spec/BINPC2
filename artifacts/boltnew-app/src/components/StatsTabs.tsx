@@ -26,7 +26,7 @@ function BarRow({ label, count, max, color, dark }: { label: string; count: numb
   const pct = max > 0 ? Math.max(2, (count / max) * 100) : 0;
   return (
     <div className="flex items-center gap-2.5">
-      <span className={`text-xs font-semibold w-20 sm:w-24 truncate text-right ${dark ? 'text-slate-300' : 'text-gray-600'}`}>{label}</span>
+      <span className={`text-xs font-semibold w-16 sm:w-20 shrink-0 text-right leading-tight break-keep ${dark ? 'text-slate-300' : 'text-gray-600'}`}>{label}</span>
       <div className={`flex-1 h-6 rounded-lg overflow-hidden relative ${dark ? 'bg-slate-700' : 'bg-gray-100'}`}>
         <div className="h-full rounded-lg transition-all duration-500" style={{ width: `${pct}%`, background: color }} />
         <span className={`absolute inset-y-0 right-2 flex items-center text-[11px] font-bold ${dark ? 'text-slate-200' : 'text-gray-700'}`}>{count}</span>

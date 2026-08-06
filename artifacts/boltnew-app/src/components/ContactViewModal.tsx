@@ -52,7 +52,7 @@ export function ContactViewModal({
                 <span className="text-yellow-600 font-black text-base w-6 text-center">K</span>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-yellow-600 font-medium">카카오톡</p>
-                  <p className="text-sm font-bold text-gray-800 truncate">{share.kakao}</p>
+                  <p className="text-sm font-bold text-gray-800 break-all">{share.kakao}</p>
                 </div>
                 <button type="button" onClick={() => copyToClipboard(share.kakao!, '카카오톡 ID')}
                   className="flex-shrink-0 px-3 py-1.5 bg-yellow-500 hover:bg-yellow-600 active:scale-95 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1">
@@ -65,7 +65,7 @@ export function ContactViewModal({
                 <span className="text-pink-500 font-black text-base w-6 text-center">@</span>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-pink-600 font-medium">인스타그램</p>
-                  <p className="text-sm font-bold text-gray-800 truncate">{share.instagram}</p>
+                  <p className="text-sm font-bold text-gray-800 break-all">{share.instagram}</p>
                 </div>
                 <button type="button" onClick={() => copyToClipboard(share.instagram!, '인스타그램 아이디')}
                   className="flex-shrink-0 px-3 py-1.5 bg-pink-500 hover:bg-pink-600 active:scale-95 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1">
@@ -78,7 +78,7 @@ export function ContactViewModal({
                 <Phone className="w-4 h-4 text-green-500 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-green-600 font-medium">전화번호</p>
-                  <p className="text-sm font-bold text-gray-800 truncate">{share.phone}</p>
+                  <p className="text-sm font-bold text-gray-800 break-all">{share.phone}</p>
                 </div>
                 <button type="button" onClick={() => copyToClipboard(share.phone!, '전화번호')}
                   className="flex-shrink-0 px-3 py-1.5 bg-green-500 hover:bg-green-600 active:scale-95 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1">

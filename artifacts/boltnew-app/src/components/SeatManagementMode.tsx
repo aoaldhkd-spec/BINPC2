@@ -438,7 +438,7 @@ export default function SeatManagementMode({ seats, profileMap, adminPassword, t
             <span className="text-teal-400 font-black text-xs">{opStatus?.seat ?? '...'}</span>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-white text-sm font-semibold truncate">{opStatus?.msg ?? '처리 중...'}</p>
+            <p className="text-white text-sm font-semibold leading-snug">{opStatus?.msg ?? '처리 중...'}</p>
           </div>
           <div className="flex gap-1 flex-shrink-0">
             {[0,1,2].map(i => (
@@ -920,7 +920,7 @@ function HybridAssignModal({
                         {p.nickname.charAt(0)}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-bold text-gray-900 text-sm truncate">{p.nickname}</p>
+                        <p className="font-bold text-gray-900 text-sm break-keep">{p.nickname}</p>
                         {p.mbti && <span className="text-xs text-violet-500">{p.mbti}</span>}
                       </div>
                       {p.pin_code && <span className="text-xs font-black text-gray-300">#{p.pin_code}</span>}

@@ -132,7 +132,7 @@ export function ThemeSwitcher() {
                     <p className="text-xs font-bold leading-tight" style={{ color: active ? t.item.activeText : current.item.text }}>
                       {t.label}
                     </p>
-                    <p className="text-[10px] leading-tight mt-0.5 truncate" style={{ color: current.item.subText }}>
+                    <p className="text-[10px] leading-tight mt-0.5 break-keep" style={{ color: current.item.subText }}>
                       {t.desc}
                     </p>
                   </div>
