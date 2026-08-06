@@ -1164,61 +1164,9 @@ export function MainScreen({
               </div>
             </div>
 
-            {/* ── 내 카드 (고정 위치, sticky 없음) ───────────────── */}
-            {(() => {
-              const myProfile = profiles.find(p => p.id === currentUserId);
-              if (!myProfile) return null;
-              const posLabel = getPositionLabel(myProfile.personality_score ?? 50);
-              const posStyle = getPositionStyle(myProfile.personality_score ?? 50);
-              const bioTags = myProfile.bio ? myProfile.bio.split(',').map(t => t.trim()).filter(Boolean).slice(0, 3) : [];
-              const age = getKoreanAge(myProfile.birth_year);
-              const myAvLabel = AVATAR_CATEGORIES.flatMap(c => c.avatars).find(a => a.src === myProfile.photo_url)?.label ?? null;
-              return (
-                <div className="mb-3">
-                  <p className={`text-[10px] font-black uppercase tracking-widest mb-1.5 ${darkMode ? 'text-amber-400' : 'text-amber-500'}`}>내 카드 👤</p>
-                  <div
-                    className="group relative bg-white rounded-2xl overflow-hidden shadow-md border-2 border-amber-400 ring-2 ring-amber-200/60 cursor-pointer active:scale-[0.98] transition-all"
-                    onClick={() => onSelect(myProfile)}>
-                    <div className="flex gap-3 p-3">
-                      {/* 프로필 사진 */}
-                      <div className="relative flex-shrink-0">
-                        <div className="w-[72px] h-[72px] rounded-2xl overflow-hidden border border-gray-200 shadow-sm bg-gray-200">
-                          <img src={getAvatarSrc(myProfile.photo_url, myProfile.nickname)} alt={myProfile.nickname} className="w-full h-full object-cover"
-                            loading="lazy" onError={(e) => { (e.target as HTMLImageElement).src = genAvatar(myProfile.nickname); }} />
-                        </div>
-                        <div className="absolute -top-1.5 -left-1.5 z-10 px-1.5 py-0.5 bg-amber-400 rounded-full shadow text-[9px] font-black text-white leading-none">나</div>
-                      </div>
-                      {/* 텍스트 정보 */}
-                      <div className="flex-1 min-w-0 flex flex-col justify-center gap-1">
-                        <p className="font-black text-gray-900 text-base leading-tight truncate">{myProfile.nickname}</p>
-                        {myProfile.birth_year && (
-                          <p className="text-[11px] text-gray-400 leading-none">{age}</p>
-                        )}
-                        <div className="flex items-center gap-1 flex-wrap mt-0.5">
-                          {myProfile.mbti && (() => {
-                            const ms = getMbtiStyle(myProfile.mbti);
-                            return <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md border" style={{ backgroundColor: ms.bg, color: ms.color, borderColor: ms.border }}>{myProfile.mbti}</span>;
-                          })()}
-                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md leading-tight border" style={{ backgroundColor: posStyle.bg, color: posStyle.text, borderColor: posStyle.border }}>{posLabel}</span>
-                          {myAvLabel && <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200">{myAvLabel}</span>}
-                        </div>
-                        {bioTags.length > 0 && (
-                          <div className="flex flex-wrap gap-0.5 mt-0.5">
-                            {bioTags.slice(0, 3).map(tag => (
-                              <span key={tag} className="text-[8px] font-semibold px-1.5 py-0.5 rounded-full bg-pink-50 text-pink-500 border border-pink-100">#{tag}</span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* ── 다른 참여자 그리드 (이 영역만 스크롤) ───────── */}
-            <div className="overflow-y-auto -mx-4 px-4 pb-6" style={{ maxHeight: 'calc(100dvh - 420px)', minHeight: 160 }}>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+            {/* ── 참여자 그리드 (이 영역만 스크롤) ───────── */}
+            <div className="overflow-y-auto -mx-4 px-4 pb-6" style={{ maxHeight: 'calc(100dvh - 330px)', minHeight: 160 }}>
+            <div className="grid grid-cols-2 gap-3">
             {filteredProfiles.filter(p => p.id !== currentUserId).map((profile) => (
               <ProfileCard
                 key={profile.id}
