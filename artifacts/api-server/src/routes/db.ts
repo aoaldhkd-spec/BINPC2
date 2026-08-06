@@ -1628,8 +1628,16 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
   try {
     switch (name) {
       case 'admin_create_session': {
-        // 관리자 비밀번호가 설정돼 있으면 반드시 검증 — 비밀번호 없이 세션 생성 방지
+        // 관리자 비밀번호 서버 사이드 검증
+        // (클라이언트가 app_settings.admin_password를 직접 읽는 것을 방지하기 위해 여기서만 검증)
         checkPassword();
+        // 전화번호 검증 — admin_phone이 설정된 경우
+        const adminPhoneSetting = (settings.admin_phone as string | undefined) ?? '';
+        const providedPhone = (args.p_phone as string | undefined) ?? '';
+        const normalizeP = (s: string) => s.replace(/[^0-9]/g, '');
+        if (adminPhoneSetting && normalizeP(providedPhone) !== normalizeP(adminPhoneSetting)) {
+          return res.status(403).json({ data: null, error: { message: '전화번호 또는 비밀번호가 올바르지 않습니다.' } });
+        }
         // HMAC 기반 토큰 — 서버 재시작 후에도 동일 토큰이 재계산되어 유효
         const adminToken = deriveAdminToken(adminPw);
         return res.json({ data: adminToken, error: null });

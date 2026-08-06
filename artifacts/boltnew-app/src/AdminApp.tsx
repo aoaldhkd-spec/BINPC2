@@ -113,22 +113,22 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
     e.preventDefault();
     setError('');
     setLoading(true);
-    const { data, error: fetchErr } = await adminSupabase.from('app_settings').select('admin_phone, admin_password').eq('id', 1).maybeSingle();
-    if (fetchErr) { setError(`서버 오류: ${fetchErr.message}`); setLoading(false); return; }
-    if (!data) { setError('설정 데이터를 찾을 수 없습니다. 관리자에게 문의하세요.'); setLoading(false); return; }
-    const phoneMatch = normalizePhone(data.admin_phone ?? '') === normalizePhone(phone);
-    const passMatch = (data.admin_password ?? '').trim() === password.trim();
-    if (!phoneMatch || !passMatch) {
-      setError('전화번호 또는 비밀번호가 올바르지 않습니다.');
-      setLoading(false);
-      return;
-    }
-    localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify({ phone, authedAt: Date.now() }));
     try {
-      const { data: token } = await supabase.rpc('admin_create_session', { p_phone: phone, p_admin_password: password });
+      // 전화번호·비밀번호 검증은 서버 사이드에서만 처리
+      // (이전에는 app_settings.admin_password를 클라이언트에서 직접 읽었으나
+      //  보안 강화로 비관리자 응답에서 admin_password가 제거돼 로그인 불가 문제 발생)
+      const { data: token, error: rpcErr } = await supabase.rpc('admin_create_session', { p_phone: phone, p_admin_password: password });
+      if (rpcErr) {
+        setError('전화번호 또는 비밀번호가 올바르지 않습니다.');
+        setLoading(false);
+        return;
+      }
       setAdminToken(token ?? null);
-    } catch { /* session token creation failed, admin will work without header (rpcs still have password fallback) */ }
-    onLogin();
+      localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify({ phone, authedAt: Date.now() }));
+      onLogin();
+    } catch {
+      setError('전화번호 또는 비밀번호가 올바르지 않습니다.');
+    }
     setLoading(false);
   };
 
