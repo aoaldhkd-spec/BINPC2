@@ -492,7 +492,7 @@ const ProfileCard = memo(function ProfileCard({
 
   // 테마 적응형 스타일 (Tailwind 오버라이드 없이 항상 올바른 색상 보장)
   // 카드 배경이 항상 bg-white이므로 태그는 배경·테두리 없이 텍스트만
-  const tagStyle = { backgroundColor: 'transparent', color: '#9ca3af', borderColor: 'transparent' };
+  const tagStyle = { backgroundColor: 'transparent', color: '#6b7280', borderColor: 'transparent' };
   const heartBtnStyle = isCardDark
     ? { backgroundColor: 'rgba(251,113,133,0.13)', borderColor: 'rgba(251,113,133,0.28)' }
     : { backgroundColor: '#fff1f2', borderColor: '#fecdd3' };
@@ -560,7 +560,7 @@ const ProfileCard = memo(function ProfileCard({
       {bioTags.length > 0 && (
         <div className="px-2.5 pb-1.5 flex gap-1 overflow-hidden">
           {bioTags.slice(0, 2).map(tag => (
-            <span key={tag} className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full whitespace-nowrap flex-shrink-0 border" style={tagStyle}>#{tag}</span>
+            <span key={tag} className="text-[11px] font-semibold whitespace-nowrap flex-shrink-0" style={tagStyle}>#{tag}</span>
           ))}
         </div>
       )}
