@@ -1118,13 +1118,13 @@ export function MainScreen({
               const active = mainTab === t.id;
               return (
                 <button key={t.id} onClick={() => handleTabChange(t.id)} disabled={locked}
-                  className={`relative flex-1 py-2 flex flex-col items-center gap-0.5 transition-all active:scale-95 border-b-2 ${ci < arr.length - 1 ? (darkMode ? 'border-r border-slate-700/30' : 'border-r border-gray-200/70') : ''} ${
+                  className={`relative flex-1 py-3 flex flex-col items-center gap-1 transition-all active:scale-95 border-b-2 ${ci < arr.length - 1 ? (darkMode ? 'border-r border-slate-700/30' : 'border-r border-gray-200/70') : ''} ${
                     locked ? `opacity-35 cursor-not-allowed border-b-transparent ${darkMode ? 'text-slate-500' : 'text-gray-400'}` :
                     active ? darkMode ? 'border-b-cyan-500 text-cyan-400 bg-cyan-500/10' : 'border-b-cyan-500 text-cyan-700 bg-cyan-50' :
                     darkMode ? 'border-b-transparent text-slate-400' : 'border-b-transparent text-gray-500'
                   }`}>
-                  <span className="text-base leading-none">{locked ? '🔒' : t.icon}</span>
-                  <span className="relative inline-flex text-[9px] font-bold leading-tight">
+                  <span className="text-lg leading-none">{locked ? '🔒' : t.icon}</span>
+                  <span className="relative inline-flex text-[10px] font-bold leading-tight">
                     {t.label}
                     {!locked && (t.badge ?? 0) > 0 && (
                       <span className="absolute -top-1 -right-3 min-w-[13px] h-[13px] px-0.5 bg-rose-500 text-white text-[8px] font-black rounded-full flex items-center justify-center">

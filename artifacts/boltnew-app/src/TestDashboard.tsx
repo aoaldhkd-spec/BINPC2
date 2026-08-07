@@ -365,9 +365,7 @@ export default function TestDashboard() {
             )}
           </div>
           <div className="grid grid-cols-2 gap-2">
-            {LETTERS.slice(0, 5).map(l => (
-              <Btn key={l} label={`테스터 ${l}1 생성`} onClick={() => createTestUser(l, 1)} color="teal" disabled={loading === 'profile'} />
-            ))}
+            <Btn label="테스터 A1 생성" onClick={() => createTestUser('A', 1)} color="teal" disabled={loading === 'profile'} />
             <Btn label="랜덤 테스터 생성" onClick={() => createTestUser(LETTERS[Math.floor(Math.random() * LETTERS.length)], Math.floor(Math.random() * 9) + 1)} color="amber" disabled={loading === 'profile'} />
           </div>
           {profiles.length > 0 && (
@@ -383,22 +381,11 @@ export default function TestDashboard() {
 
         {/* 세션 제어 */}
         <Section title="세션 제어" icon={<Play className="w-4 h-4" />}>
-          <div className="flex items-center gap-3 p-3 bg-slate-700/40 rounded-xl border border-slate-600/50">
-            <div className={`w-3 h-3 rounded-full ${sessionActive ? 'bg-teal-400 animate-pulse' : 'bg-amber-400 animate-pulse'}`} />
-            <span className="font-bold text-sm flex-1">세션 상태: {sessionActive === null ? '확인 중...' : sessionActive ? '진행 중 (Active)' : '대기 중 (Waiting)'}</span>
-            <Btn
-              label={sessionActive ? '세션 종료' : '세션 시작'}
-              onClick={toggleSession}
-              color={sessionActive ? 'red' : 'green'}
-              disabled={loading === 'session'}
-            />
-          </div>
-          <p className="text-xs text-slate-500">세션을 시작해야 유저가 대기 화면에서 "입장하기" 버튼을 볼 수 있습니다.</p>
           <div className="flex gap-2">
-            <a href="/" className="flex-1 text-center text-xs py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold rounded-xl border border-slate-600 transition-all">
+            <a href="/" className="flex-1 text-center text-sm py-3 bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold rounded-xl border border-slate-600 transition-all">
               유저 화면 열기 →
             </a>
-            <a href="/admin" className="flex-1 text-center text-xs py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold rounded-xl border border-slate-600 transition-all">
+            <a href="/admin" className="flex-1 text-center text-sm py-3 bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold rounded-xl border border-slate-600 transition-all">
               관리자 화면 열기 →
             </a>
           </div>

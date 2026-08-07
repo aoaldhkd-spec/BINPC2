@@ -211,20 +211,20 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
 
         {/* 입장 전 주의사항 — 인라인 카드 */}
         <div className="w-full rounded-2xl bg-amber-500/10 border border-amber-400/25 overflow-hidden">
-          <div className="flex items-center gap-2 px-4 pt-3 pb-2">
-            <ShieldAlert className="w-4 h-4 text-amber-400 flex-shrink-0" />
-            <p className="text-amber-200 text-[12px] font-black tracking-wide">입장 전 꼭 확인하세요</p>
+          <div className="flex items-center gap-2 px-4 pt-3 pb-2.5">
+            <ShieldAlert className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+            <p className="text-amber-200 text-[11px] font-black tracking-widest uppercase">입장 전 체크</p>
           </div>
-          <div className="px-3 pb-3 space-y-1.5">
+          <div className="px-3 pb-3 grid grid-cols-2 gap-2">
             {[
-              { emoji: '🔋', text: '절전(저전력) 모드는 OFF로 설정해 주세요' },
-              { emoji: '🕵️', text: '시크릿·개인정보 보호 모드는 사용하지 마세요' },
-              { emoji: '📵', text: '화면 자동 잠금 시간을 길게 설정해 주세요' },
-              { emoji: '🔖', text: '이 페이지를 북마크해 두면 재접속 시 프로필이 복구돼요' },
+              { emoji: '🔋', text: '절전 모드 OFF' },
+              { emoji: '🕵️', text: '시크릿 모드 금지' },
+              { emoji: '📵', text: '화면 잠금 길게 설정' },
+              { emoji: '🔖', text: '이 페이지 북마크 저장' },
             ].map(item => (
-              <div key={item.emoji} className="flex items-start gap-2 px-2 py-1.5 rounded-xl bg-black/20">
-                <span className="text-base leading-none flex-shrink-0 mt-0.5">{item.emoji}</span>
-                <p className="text-amber-100/85 text-[11px] leading-snug">{item.text}</p>
+              <div key={item.emoji} className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-black/20">
+                <span className="text-base leading-none flex-shrink-0">{item.emoji}</span>
+                <p className="text-amber-100/85 text-[11px] font-semibold leading-tight">{item.text}</p>
               </div>
             ))}
           </div>

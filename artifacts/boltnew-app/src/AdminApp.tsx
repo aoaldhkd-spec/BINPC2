@@ -1167,14 +1167,14 @@ function DashboardTab({ settings, seats, profiles, onToggleSession, onEventEndRe
   const isFunctionsLocked = (settings as any)?.functions_locked ?? false;
 
   return (
-    <div className="space-y-4 p-4">
+    <div className="space-y-5 p-5">
       <div className="grid grid-cols-3 gap-3">
         {[
           { label: '참여자', value: profiles.length, color: 'bg-cyan-50 text-cyan-700' },
           { label: '착석', value: occupied, color: 'bg-teal-50 text-teal-700' },
           { label: activeTables ? '빈 자리 (활성)' : '빈 자리', value: activeSeats.length - occupied, color: 'bg-gray-50 text-gray-600' },
         ].map((stat) => (
-          <div key={stat.label} className={`${stat.color} rounded-2xl p-4 text-center`}>
+          <div key={stat.label} className={`${stat.color} rounded-2xl p-5 text-center`}>
             <div className="text-2xl font-black">{stat.value}</div>
             <div className="text-xs font-semibold mt-0.5">{stat.label}</div>
           </div>
@@ -1183,7 +1183,7 @@ function DashboardTab({ settings, seats, profiles, onToggleSession, onEventEndRe
 
       {/* Session control */}
       <div>
-        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 px-1">회식 세션</h3>
+        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 px-1">회식 세션</h3>
         <div className="grid grid-cols-2 gap-3">
           <button
             onClick={() => !isActive && setConfirmToggle(true)}
@@ -1220,12 +1220,12 @@ function DashboardTab({ settings, seats, profiles, onToggleSession, onEventEndRe
 
       {/* 잠금 제어 */}
       <div>
-        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 px-1">잠금 제어</h3>
+        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 px-1">잠금 제어</h3>
         <div className="space-y-2">
           {/* 기능 잠금 (functions_locked) */}
           <button
             onClick={onToggleFunctionsLock}
-            className={`w-full rounded-2xl p-3.5 border-2 flex items-center gap-3 transition-all active:scale-[0.98] shadow-sm ${
+            className={`w-full rounded-2xl p-4 border-2 flex items-center gap-3 transition-all active:scale-[0.98] shadow-sm ${
               isFunctionsLocked ? 'bg-red-50 border-red-300 hover:bg-red-100' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
             }`}
           >
@@ -1250,8 +1250,8 @@ function DashboardTab({ settings, seats, profiles, onToggleSession, onEventEndRe
 
       {/* 데이터 초기화 */}
       <div>
-        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 px-1">데이터 초기화 / 복구</h3>
-        <div className="space-y-1.5">
+        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 px-1">데이터 초기화 / 복구</h3>
+        <div className="space-y-2.5">
           {([
             { key: 'likes', emoji: '❤️', label: '하트', desc: '모든 하트 기록 삭제', bg: 'bg-pink-50 border-pink-200 hover:bg-pink-100', title: '하트 초기화', msg: '모든 하트(좋아요) 기록을 삭제합니다.', fn: onClearLikes },
             { key: 'chats', emoji: '💬', label: '채팅', desc: '채팅·메시지 전체 삭제', bg: 'bg-teal-50 border-teal-200 hover:bg-teal-100', title: '채팅 초기화', msg: '모든 채팅방과 메시지를 삭제합니다.', fn: onClearChats },
