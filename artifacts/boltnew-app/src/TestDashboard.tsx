@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { supabase } from './lib/supabase';
 import type { Database } from './types/database';
 import {
-  Users, Heart, MessageCircle, LayoutGrid,
-  Trash2, RefreshCw, Play, UserPlus, X, CheckCircle,
+  Users, Heart, MessageCircle,
+  RefreshCw, Play, UserPlus, X, CheckCircle,
   AlertTriangle, ChevronDown, ChevronRight,
 } from 'lucide-react';
 import { genAvatar } from './lib/profile';
@@ -91,7 +91,6 @@ export default function TestDashboard() {
   const [chats, setChats] = useState<Chat[]>([]);
   const [sessionActive, setSessionActive] = useState<boolean | null>(null);
   const [activeTables, setActiveTables] = useState<number[] | null>(null);
-  const [pendingActiveTables, setPendingActiveTables] = useState<number[] | null | undefined>(undefined); // undefined = 변경 없음
   const [loading, setLoading] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [myUserId, setMyUserId] = useState<string | null>(() => localStorage.getItem('matching_app_user_id'));
@@ -285,37 +284,6 @@ export default function TestDashboard() {
     notify('채팅 삭제됨');
   };
 
-  // ── Active tables ──────────────────────────────────────────────────────────
-  const allTableNums = [...new Set(seats.map(s => s.table_number))].sort((a, b) => a - b);
-
-  // pending만 업데이트 — 실제 DB 저장은 confirmActiveTables()에서
-  const toggleActiveTable = (tableNum: number) => {
-    const base = pendingActiveTables !== undefined ? pendingActiveTables : activeTables;
-    const current = base ?? allTableNums;
-    const next = current.includes(tableNum)
-      ? current.filter(t => t !== tableNum)
-      : [...current, tableNum].sort((a, b) => a - b);
-    const value = next.length === allTableNums.length ? null : next;
-    setPendingActiveTables(value);
-  };
-
-  const setAllTables = (active: boolean) => {
-    setPendingActiveTables(active ? null : []);
-  };
-
-  const confirmActiveTables = async () => {
-    if (pendingActiveTables === undefined) return;
-    const value = pendingActiveTables;
-    setActiveTables(value);
-    setPendingActiveTables(undefined);
-    const { error } = await supabase.from('app_settings').update({ active_tables: value as unknown as import('./types/database').Json, updated_at: new Date().toISOString() }).eq('id', 1);
-    if (error) { notify(`테이블 저장 실패: ${error.message}`, false); return; }
-    // api-server 동기화 → SSE로 모든 유저에게 즉시 반영
-    testApiRpc('test_update_settings', { p_payload: { active_tables: value } })
-      .catch(e => console.warn('[test] api-server 테이블 동기화 실패:', e));
-    notify(value === null ? '전체 테이블 활성화 저장됨' : `활성 테이블 저장됨: ${(value as number[]).map(t => `T${t}`).join(', ')}`);
-  };
-
   // ── Select helpers ─────────────────────────────────────────────────────────
   const [fromUser, setFromUser] = useState('');
   const [toUser, setToUser] = useState('');
@@ -476,51 +444,6 @@ export default function TestDashboard() {
           <Btn label="모든 프로필 + 데이터 초기화" onClick={deleteAllProfiles} color="red" disabled={loading === 'deleteAll'} />
         </Section>
 
-        {/* 활성 테이블 설정 */}
-        <Section title="활성 테이블 설정" icon={<LayoutGrid className="w-4 h-4" />} defaultOpen={false}>
-          <p className="text-xs text-slate-400">활성화된 테이블에만 자리 배치가 가능합니다. 유저 화면과 자리배치 섹션에도 반영됩니다.</p>
-          <div className="grid grid-cols-2 gap-2">
-            <Btn label="전체 활성화" onClick={() => setAllTables(true)} color="teal" />
-            <Btn label="전체 비활성화" onClick={() => setAllTables(false)} color="red" />
-          </div>
-          {allTableNums.length === 0 ? (
-            <p className="text-xs text-slate-500 text-center py-2">자리 데이터 없음 — 관리자에서 자리를 먼저 생성하세요</p>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {allTableNums.map(t => {
-                const displayActive = pendingActiveTables !== undefined ? pendingActiveTables : activeTables;
-                const isActive = displayActive === null || displayActive.includes(t);
-                return (
-                  <button key={t} onClick={() => toggleActiveTable(t)}
-                    className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all ${isActive
-                      ? 'bg-teal-500/20 border-teal-500/40 text-teal-300'
-                      : 'bg-slate-700/40 border-slate-600/40 text-slate-500'}`}>
-                    T{t} {isActive ? '✓' : '✕'}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-          <div className="px-3 py-2 bg-slate-700/40 rounded-xl text-xs text-slate-400">
-            저장됨: {activeTables === null ? '전체 활성' : activeTables.length === 0 ? '모두 비활성' : activeTables.map(t => `T${t}`).join(', ')}
-            {pendingActiveTables !== undefined && (
-              <span className="ml-2 text-amber-400 font-bold">
-                → {pendingActiveTables === null ? '전체 활성' : pendingActiveTables.length === 0 ? '모두 비활성' : pendingActiveTables.map(t => `T${t}`).join(', ')} (미저장)
-              </span>
-            )}
-          </div>
-          <button
-            onClick={confirmActiveTables}
-            disabled={pendingActiveTables === undefined}
-            className={`w-full py-2.5 rounded-xl font-black text-sm transition-all active:scale-[0.98] ${
-              pendingActiveTables !== undefined
-                ? 'bg-teal-500 hover:bg-teal-600 text-white shadow shadow-teal-500/30'
-                : 'bg-slate-700/40 text-slate-500 cursor-default'
-            }`}>
-            {pendingActiveTables !== undefined ? '✓ 활성 테이블 저장' : '저장됨'}
-          </button>
-        </Section>
-
         {/* 하트 테스트 */}
         <Section title="하트 (좋아요) 테스트" icon={<Heart className="w-4 h-4" />}>
           <div className="flex gap-2 items-center flex-wrap">
@@ -579,13 +502,6 @@ export default function TestDashboard() {
           </div>
         </Section>
 
-        {/* 전체 초기화 */}
-        <Section title="전체 초기화" icon={<Trash2 className="w-4 h-4" />} defaultOpen={false}>
-          <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl">
-            <p className="text-xs text-red-300 mb-3">모든 테스트 데이터를 삭제합니다. 실제 운영 중에는 사용하지 마세요.</p>
-            <Btn label="모든 데이터 초기화" onClick={deleteAllProfiles} color="red" disabled={loading === 'deleteAll'} />
-          </div>
-        </Section>
       </div>
     </div>
   );

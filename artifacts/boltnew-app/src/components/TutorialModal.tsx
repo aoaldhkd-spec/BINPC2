@@ -118,25 +118,7 @@ export const TUTORIAL_SLIDES: TutorialSlide[] = [
     ),
   },
 
-  /* 5 — 배치도 (관리자 전용 배치) */
-  {
-    emoji: '🗺️',
-    title: '배치도',
-    color: 'from-emerald-500 to-teal-500',
-    renderBody: (darkMode) => (
-      <SlideWithSteps darkMode={darkMode}
-        desc="배치도 탭에서 자리 배치를 확인하고, 내 테이블 탭에서 직접 원하는 자리를 선택할 수 있어요!"
-        steps={[
-          '배치도 탭 → 테이블 구성 및 내 자리 위치 확인',
-          '내 테이블 탭 → 원하는 자리를 직접 선택해 앉을 수 있어요',
-          '배치도 카드 클릭 → 그 분의 프로필 확인 & 채팅 바로 가기',
-          '자리 이동이 필요하면 운영진에게 말씀해 주세요',
-        ]}
-      />
-    ),
-  },
-
-  /* 6 — 운세·사주·궁합 */
+  /* 5 — 운세·사주·궁합 */
   {
     emoji: '🔮',
     title: '운세 · 사주 · 궁합',

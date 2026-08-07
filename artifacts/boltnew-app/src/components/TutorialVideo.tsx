@@ -87,30 +87,21 @@ function Tip({ text, show, dir = 'bottom' }: { text: string; show: boolean; dir?
 // ── 앱 탭바 ───────────────────────────────────────────────────────────────────
 function Tabs({ active, hl }: { active: string; hl?: string }) {
   const row1 = [
-    { id: 'status', e: '😊', l: '내 상태' },
-    { id: 'my-table', e: '🪑', l: '내 테이블' },
-    { id: 'chat', e: '💬', l: '내 채팅' },
-    { id: 'fortune', e: '🔮', l: '내 운세' },
-    { id: 'stats', e: '📊', l: '통계' },
-  ];
-  const row2 = [
     { id: 'profiles', e: '👥', l: '참여자' },
-    { id: 'seating', e: '🗺️', l: '배치도' },
+    { id: 'stats', e: '📊', l: '통계' },
     { id: 'ranking', e: '🏆', l: '랭킹' },
   ];
   return (
     <div className="border-t border-slate-700 bg-slate-900 px-0.5 pt-0.5 pb-1">
-      {[row1, row2].map((row, ri) => (
-        <div key={ri} className="flex">
-          {row.map(t => (
-            <div key={t.id} className={`relative flex-1 flex flex-col items-center py-1 rounded-lg ${active === t.id ? 'bg-teal-500/20' : ''}`}>
-              <Ring on={hl === t.id} />
-              <span className="text-[13px] leading-none">{t.e}</span>
-              <span className={`text-[7px] font-bold mt-0.5 ${active === t.id ? 'text-teal-400' : 'text-slate-500'}`}>{t.l}</span>
-            </div>
-          ))}
-        </div>
-      ))}
+      <div className="flex">
+        {row1.map(t => (
+          <div key={t.id} className={`relative flex-1 flex flex-col items-center py-1 rounded-lg ${active === t.id ? 'bg-teal-500/20' : ''}`}>
+            <Ring on={hl === t.id} />
+            <span className="text-[13px] leading-none">{t.e}</span>
+            <span className={`text-[7px] font-bold mt-0.5 ${active === t.id ? 'text-teal-400' : 'text-slate-500'}`}>{t.l}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -613,49 +604,6 @@ function S7({ step }: { step: number }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Scene 8: 배치도 & 내 테이블 탭
-// ══════════════════════════════════════════════════════════════════════════════
-function S8({ step }: { step: number }) {
-  return (
-    <div className="h-full flex flex-col bg-slate-900">
-      <div className="flex-1 px-3 pt-4 flex flex-col items-center justify-center gap-3">
-        <div className="text-center mb-1">
-          <div className="text-4xl mb-1.5">🗺️</div>
-          <p className="text-white font-black text-sm">배치도 & 내 테이블</p>
-          <p className="text-slate-400 text-[10px] mt-0.5">자리 배정 및 확인</p>
-        </div>
-
-        {/* 내 테이블 탭 설명 */}
-        <div className={`relative w-full bg-slate-800 border rounded-2xl p-3 transition-all duration-300 ${step >= 1 ? 'border-teal-500/60' : 'border-slate-700'}`}>
-          <Ring on={step === 1} />
-          <Tip text="탭하면 자리를 정할 수 있어요!" show={step === 1} dir="right" />
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">🪑</span>
-            <div>
-              <p className="text-white text-xs font-black">내 테이블 탭</p>
-              <p className="text-slate-400 text-[10px] mt-0.5">클릭하면 자리를 정할 수 있어요</p>
-            </div>
-          </div>
-        </div>
-
-        {/* 배치도 탭 설명 */}
-        <div className={`relative w-full bg-slate-800 border rounded-2xl p-3 transition-all duration-300 ${step >= 2 ? 'border-amber-500/50' : 'border-slate-700'}`}>
-          <Ring on={step === 2} color="ring-amber-400" />
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">🗺️</span>
-            <div>
-              <p className="text-white text-xs font-black">배치도 탭</p>
-              <p className="text-slate-400 text-[10px] mt-0.5">전체 좌석 배치를 한눈에 확인</p>
-            </div>
-          </div>
-        </div>
-      </div>
-      <Tabs active="seating" hl={step === 0 ? 'seating' : step === 1 ? 'my-table' : 'seating'} />
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
 // 장면 정의
 // ══════════════════════════════════════════════════════════════════════════════
 interface Step { cx: number; cy: number; click?: boolean; dur: number; }
@@ -756,16 +704,6 @@ const SCENES: SceneDef[] = [
       { cx: 124, cy: 160, dur: 1400 },
     ],
     render: s => <S6 step={s} />,
-  },
-  {
-    title: '배치도 & 자리 정하기', sub: '내 테이블 탭을 클릭하면 자리를 정할 수 있어요',
-    steps: [
-      { cx: 74,  cy: 248, dur: 1200 },             // 배치도 탭 가리킴
-      { cx: 50,  cy: 248, dur: 1200 },             // 내 테이블 탭으로 이동
-      { cx: 50,  cy: 248, click: true, dur: 1000 }, // 내 테이블 탭 클릭
-      { cx: 124, cy: 150, dur: 2000 },             // 설명 감상
-    ],
-    render: s => <S8 step={s} />,
   },
   {
     title: '받은 하트 & 보낸 하트 확인', sub: '내 상태 탭에서 하트 주고받은 내역 확인',

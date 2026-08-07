@@ -1145,18 +1145,14 @@ function DbHealthTab({ health, loading, onRefresh, onClearErrors }: { health: Db
 
 // ─── Dashboard Tab ────────────────────────────────────────────────────────────
 
-function DashboardTab({ settings, seats, profiles, onToggleSession, onFullReset, onEventEndReset, onToggleFeatureLock, onToggleFunctionsLock,
-  onClearLikes, onClearChats, onClearNotifications, onClearGames, onClearSuggestions, onClearProfiles, onClearHistory,
+function DashboardTab({ settings, seats, profiles, onToggleSession, onEventEndReset, onToggleFunctionsLock,
+  onClearLikes, onClearChats, onClearProfiles, onClearHistory,
   restoreMap }: {
   settings: AppSettings | null; seats: Seat[]; profiles: Profile[];
-  onToggleSession: () => void; onFullReset: () => void; onEventEndReset: () => void;
-  onToggleFeatureLock: () => void;
+  onToggleSession: () => void; onEventEndReset: () => void;
   onToggleFunctionsLock: () => void;
   onClearLikes: () => Promise<void>;
   onClearChats: () => Promise<void>;
-  onClearNotifications: () => Promise<void>;
-  onClearGames: () => Promise<void>;
-  onClearSuggestions: () => Promise<void>;
   onClearProfiles: () => Promise<void>;
   onClearHistory: () => Promise<void>;
   restoreMap: Map<string, () => Promise<void>>;
@@ -1168,7 +1164,6 @@ function DashboardTab({ settings, seats, profiles, onToggleSession, onFullReset,
   const activeSeats = activeTables ? seats.filter(s => activeTables.includes(s.table_number)) : seats;
   const occupied = activeSeats.filter((s) => s.status === 'occupied').length;
   const isActive = settings?.session_active ?? false;
-  const isSeatingLocked = settings?.seating_locked ?? false;
   const isFunctionsLocked = (settings as any)?.functions_locked ?? false;
 
   return (
@@ -1223,32 +1218,10 @@ function DashboardTab({ settings, seats, profiles, onToggleSession, onFullReset,
         </div>
       </div>
 
-      {/* 잠금 제어 — 자리 잠금 / 기능 잠금 분리 */}
+      {/* 잠금 제어 */}
       <div>
         <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 px-1">잠금 제어</h3>
         <div className="space-y-2">
-          {/* 자리 잠금 (seating_locked) */}
-          <button
-            onClick={onToggleFeatureLock}
-            className={`w-full rounded-2xl p-3.5 border-2 flex items-center gap-3 transition-all active:scale-[0.98] shadow-sm ${
-              isSeatingLocked ? 'bg-amber-50 border-amber-300 hover:bg-amber-100' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
-            }`}
-          >
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isSeatingLocked ? 'bg-amber-500' : 'bg-slate-400'}`}>
-              {isSeatingLocked ? <Lock className="w-5 h-5 text-white" /> : <Unlock className="w-5 h-5 text-white" />}
-            </div>
-            <div className="flex-1 text-left">
-              <p className={`font-black text-sm ${isSeatingLocked ? 'text-amber-700' : 'text-slate-700'}`}>
-                {isSeatingLocked ? '🔒 자리 선택 잠금 중' : '🪑 자리 선택 열려있음'}
-              </p>
-              <p className={`text-[10px] mt-0.5 ${isSeatingLocked ? 'text-amber-500' : 'text-slate-400'}`}>
-                {isSeatingLocked ? '유저가 자리를 바꿀 수 없음 — 탭하여 해제' : '유저가 자리를 직접 선택 가능 — 탭하여 잠금'}
-              </p>
-            </div>
-            <div className={`relative w-10 h-6 rounded-full transition-all flex-shrink-0 ${isSeatingLocked ? 'bg-amber-500' : 'bg-slate-300'}`}>
-              <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${isSeatingLocked ? 'left-4' : 'left-0.5'}`} />
-            </div>
-          </button>
           {/* 기능 잠금 (functions_locked) */}
           <button
             onClick={onToggleFunctionsLock}
@@ -1280,12 +1253,8 @@ function DashboardTab({ settings, seats, profiles, onToggleSession, onFullReset,
         <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 px-1">데이터 초기화 / 복구</h3>
         <div className="space-y-1.5">
           {([
-            { key: 'seats', emoji: '🪑', label: '좌석', desc: '이력 백업 후 초기화', bg: 'bg-orange-50 border-orange-200 hover:bg-orange-100', title: '좌석 초기화', msg: '이력 백업 후 모든 좌석을 초기화합니다. 참여자 프로필은 유지됩니다.', fn: onFullReset },
             { key: 'likes', emoji: '❤️', label: '하트', desc: '모든 하트 기록 삭제', bg: 'bg-pink-50 border-pink-200 hover:bg-pink-100', title: '하트 초기화', msg: '모든 하트(좋아요) 기록을 삭제합니다.', fn: onClearLikes },
             { key: 'chats', emoji: '💬', label: '채팅', desc: '채팅·메시지 전체 삭제', bg: 'bg-teal-50 border-teal-200 hover:bg-teal-100', title: '채팅 초기화', msg: '모든 채팅방과 메시지를 삭제합니다.', fn: onClearChats },
-            { key: 'notifications', emoji: '🔔', label: '공지', desc: '전송 공지 모두 삭제', bg: 'bg-amber-50 border-amber-200 hover:bg-amber-100', title: '공지 초기화', msg: '전송된 모든 공지를 삭제합니다.', fn: onClearNotifications },
-            { key: 'games', emoji: '🎮', label: '게임', desc: '게임·투표 기록 삭제', bg: 'bg-violet-50 border-violet-200 hover:bg-violet-100', title: '게임 초기화', msg: '밸런스·OX·이미지 게임 기록과 투표 데이터를 모두 삭제합니다.', fn: onClearGames },
-            { key: 'suggestions', emoji: '💡', label: '건의', desc: '익명 건의 모두 삭제', bg: 'bg-sky-50 border-sky-200 hover:bg-sky-100', title: '건의 초기화', msg: '모든 익명 건의 내용을 삭제합니다.', fn: onClearSuggestions },
             { key: 'profiles', emoji: '👤', label: '참여자', desc: '모든 프로필 삭제', bg: 'bg-indigo-50 border-indigo-200 hover:bg-indigo-100', title: '참여자 초기화', msg: '모든 참여자 프로필을 삭제합니다. 좌석도 함께 비워집니다.', fn: onClearProfiles },
             { key: 'history', emoji: '📋', label: '이력', desc: '회식 이력 모두 삭제', bg: 'bg-emerald-50 border-emerald-200 hover:bg-emerald-100', title: '이력 초기화', msg: '저장된 회식 이력을 모두 삭제합니다.', fn: onClearHistory },
           ] as const).map(item => {
@@ -4549,7 +4518,7 @@ function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onSaveTest
 
 // ─── Admin Dashboard ──────────────────────────────────────────────────────────
 
-type AdminTab = 'settings' | 'profiles' | 'notify' | 'game' | 'history';
+type AdminTab = 'settings' | 'profiles' | 'notify' | 'history';
 type SettingsSubTab = 'control' | 'qr' | 'admin' | 'db';
 
 // ─── DB Health types ──────────────────────────────────────────────────────────
@@ -4564,17 +4533,13 @@ interface DbHealthData {
   ok: boolean;
   checkedAt: string;
 }
-type HistorySubTab = 'hearts' | 'chats' | 'session' | 'feedback' | 'participants';
+type HistorySubTab = 'hearts' | 'chats' | 'participants';
 type HeartSubTab = 'hearts' | 'popularity';
-type FeedbackSubTab = 'suggestions' | 'reports';
-type GameSubTab = 'balance' | 'ox' | 'chosung' | 'qa' | 'image';
 
 function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [tab, setTab] = useState<AdminTab>('settings');
   const [settingsSubTab, setSettingsSubTab] = useState<SettingsSubTab>('control');
   const [historySubTab, setHistorySubTab] = useState<HistorySubTab>('hearts');
-  const [feedbackSubTab, setFeedbackSubTab] = useState<FeedbackSubTab>('reports');
-  const [gameSubTab, setGameSubTab] = useState<GameSubTab>('balance');
   const [heartSubTab, setHeartSubTab] = useState<HeartSubTab>('hearts');
   const [dbHealth, setDbHealth] = useState<DbHealthData | null>(null);
   const [dbHealthLoading, setDbHealthLoading] = useState(false);
@@ -4587,15 +4552,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [allMessages, setAllMessages] = useState<Message[]>([]);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [anonymousReports, setAnonymousReports] = useState<AnonymousReport[]>([]);
-  const [currentGame, setCurrentGame] = useState<GameState | null>(null);
-  const [balanceGames, setBalanceGames] = useState<BalanceGame[]>([]);
-  const [adminVoteCounts, setAdminVoteCounts] = useState<Map<string, { a: number; b: number }>>(new Map());
-  const [adminGameEndResult, setAdminGameEndResult] = useState<{ game: BalanceGame; counts: { a: number; b: number } } | null>(null);
-  const [adminMyVotes, setAdminMyVotes] = useState<Map<string, 'a' | 'b'>>(new Map());
-
-  const handleAdminVote = (gameId: string, option: 'a' | 'b') => {
-    setAdminMyVotes(prev => new Map(prev).set(gameId, option));
-  };
   const [newReportPopup, setNewReportPopup] = useState<AnonymousReport | null>(null);
   const [drinkPopup, setDrinkPopup] = useState(false);
   // 관리자 팝업 — TTS 알림
@@ -4621,20 +4577,16 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   // Table label editing panel
   const [seenHeartsCount, setSeenHeartsCountRaw] = useState(() => parseInt(localStorage.getItem('admin_seen_hearts') ?? '0', 10));
   const [seenMessagesCount, setSeenMessagesCountRaw] = useState(() => parseInt(localStorage.getItem('admin_seen_messages') ?? '0', 10));
-  const [seenFeedbackCount, setSeenFeedbackCountRaw] = useState(() => parseInt(localStorage.getItem('admin_seen_feedback') ?? '0', 10));
   const [seenProfilesCount, setSeenProfilesCountRaw] = useState(() => parseInt(localStorage.getItem('admin_seen_profiles') ?? '0', 10));
-  const [seenGameActive, setSeenGameActiveRaw] = useState(() => localStorage.getItem('admin_seen_game') === 'true');
 
   const setSeenHeartsCount = (n: number) => { localStorage.setItem('admin_seen_hearts', String(n)); setSeenHeartsCountRaw(n); };
   const setSeenMessagesCount = (n: number) => { localStorage.setItem('admin_seen_messages', String(n)); setSeenMessagesCountRaw(n); };
-  const setSeenFeedbackCount = (n: number) => { localStorage.setItem('admin_seen_feedback', String(n)); setSeenFeedbackCountRaw(n); };
   const setSeenProfilesCount = (n: number) => { localStorage.setItem('admin_seen_profiles', String(n)); setSeenProfilesCountRaw(n); };
-  const setSeenGameActive = (v: boolean) => { localStorage.setItem('admin_seen_game', String(v)); setSeenGameActiveRaw(v); };
 
   const profileMap = new Map(profiles.map((p) => [p.id, p]));
 
   const loadAll = useCallback(async () => {
-    const [{ data: s }, { data: se }, { data: pr }, { data: hi }, { data: li }, { data: ch }, { data: msgs }, { data: sug }, { data: anon }, { data: bg }] = await Promise.all([
+    const [{ data: s }, { data: se }, { data: pr }, { data: hi }, { data: li }, { data: ch }, { data: msgs }, { data: sug }, { data: anon }] = await Promise.all([
       adminSupabase.from('app_settings').select('*').eq('id', 1).single(),
       adminSupabase.from('seats').select('*').order('table_number').order('seat_position'),
       adminSupabase.from('profiles').select('*').order('created_at', { ascending: false }),
@@ -4644,7 +4596,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       adminSupabase.from('messages').select('*').order('created_at', { ascending: true }),
       adminSupabase.from('suggestions').select('*').order('created_at', { ascending: false }),
       adminSupabase.from('anonymous_reports').select('*').order('created_at', { ascending: false }),
-      adminSupabase.from('balance_games').select('*').order('created_at', { ascending: false }).limit(30),
     ]);
     if (s) setSettings(s);
     if (se) setSeats(se);
@@ -4655,22 +4606,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     if (msgs) setAllMessages(msgs);
     if (sug) setSuggestions(sug as Suggestion[]);
     if (anon) setAnonymousReports(anon as AnonymousReport[]);
-    if (s) setCurrentGame((s as unknown as { game_state: GameState | null }).game_state);
-    if (bg) {
-      setBalanceGames(bg as BalanceGame[]);
-      const activeIds = (bg as BalanceGame[]).filter(g => g.status === 'active').map(g => g.id);
-      if (activeIds.length > 0) {
-        const { data: votes } = await adminSupabase.from('balance_votes').select('game_id, option').in('game_id', activeIds);
-        if (votes) {
-          const counts = new Map<string, { a: number; b: number }>();
-          votes.forEach((v: { game_id: string; option: string }) => {
-            const c = counts.get(v.game_id) || { a: 0, b: 0 };
-            counts.set(v.game_id, { ...c, [v.option]: c[v.option as 'a' | 'b'] + 1 });
-          });
-          setAdminVoteCounts(counts);
-        }
-      }
-    }
   }, []);
 
   useEffect(() => {
@@ -4734,32 +4669,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'anonymous_reports' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         setAnonymousReports(prev => prev.map(r => r.id === (payload.new as AnonymousReport).id ? payload.new as AnonymousReport : r));
-      })
-      // ── balance_games: INSERT/UPDATE 페이로드 기반 ───────────────────
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'balance_games' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-        const g = payload.new as BalanceGame;
-        setBalanceGames(prev => prev.some(x => x.id === g.id) ? prev : [g, ...prev]);
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'balance_games' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-        const updated = payload.new as BalanceGame;
-        setBalanceGames(prev => prev.map(x => x.id === updated.id ? updated : x));
-        if (updated.status === 'ended') {
-          setAdminVoteCounts(prev => {
-            const counts = prev.get(updated.id) || { a: 0, b: 0 };
-            setAdminGameEndResult({ game: updated, counts });
-            return prev;
-          });
-        }
-      })
-      // ── balance_votes ────────────────────────────────────────────────
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'balance_votes' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-        const v = payload.new as { game_id: string; option: 'a' | 'b' };
-        setAdminVoteCounts(prev => {
-          const copy = new Map(prev);
-          const c = copy.get(v.game_id) || { a: 0, b: 0 };
-          copy.set(v.game_id, { ...c, [v.option]: c[v.option] + 1 });
-          return copy;
-        });
       })
       // ── suggestions: 페이로드 기반 증분 업데이트 ─────────────────────
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'suggestions' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
@@ -4834,43 +4743,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     setSettings(prev => prev ? { ...prev, timer_end_at: endAt, timer_label: label } : prev);
     adminApiRpc('admin_update_settings', { p_admin_password: settings?.admin_password ?? '', p_payload: { timer_end_at: endAt, timer_label: label } })
       .catch(e => console.warn('[admin] api-server 타이머 동기화 실패:', e));
-  };
-
-  const handleFullReset = async () => {
-    const snapshot = seats.map((s) => ({
-      seat_label: s.seat_label, table_number: s.table_number,
-      seat_position: s.seat_position, status: s.status,
-      nickname: s.profile_id ? (profileMap.get(s.profile_id)?.nickname ?? null) : null,
-      registered_at: s.registered_at,
-    }));
-    const seatAssignments = seats.filter(s => s.profile_id).map(s => ({ seat_id: s.id, profile_id: s.profile_id! }));
-    try {
-      await adminSupabase.from('session_history').insert({ seats_snapshot: snapshot });
-      const { error: resetErr } = await adminSupabase.rpc('admin_reset_all_seats', { p_admin_password: settings?.admin_password ?? '' });
-      if (resetErr) throw new Error(resetErr.message);
-      // api-server 인메모리 좌석 초기화 → 유저 화면 즉시 갱신
-      await adminApiRpc('admin_reset_all_seats', { p_admin_password: settings?.admin_password ?? '' }).catch(() => null);
-      const { error: sigErr } = await adminSupabase.from('app_settings').update({ reset_signal: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', 1);
-      if (sigErr) throw new Error(sigErr.message);
-      // api-server reset_signal 동기화
-      adminApiRpc('admin_update_settings', { p_admin_password: settings?.admin_password ?? '', p_payload: { reset_signal: new Date().toISOString() } })
-        .catch(() => null);
-      showRecovery('좌석 배치', '🪑', seatAssignments.length > 0 ? async () => {
-        const results = await Promise.allSettled(
-          seatAssignments.map(({ seat_id, profile_id }) =>
-            adminSupabase.rpc('admin_force_seat', { p_profile_id: profile_id, p_seat_id: seat_id, p_admin_password: settings?.admin_password ?? '' })
-          )
-        );
-        const failed = results.filter(r => r.status === 'rejected').length;
-        if (failed > 0) console.error(`[admin] 좌석 복구 중 ${failed}개 실패`);
-        await loadAll();
-        setRecovery(null);
-      } : null, 'seats');
-    } catch (e: unknown) {
-      alert(`좌석 초기화 실패: ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      await loadAll();
-    }
   };
 
   const handleEventEndReset = async () => {
@@ -4990,60 +4862,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     } : null, 'likes');
   };
 
-  const handleClearNotifications = async () => {
-    const { data: backup } = await adminSupabase.from('notifications').select('*');
-    await adminSupabase.from('notifications').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    adminApiRpc('admin_force_resync_all', {}).catch(e => console.warn('[admin] resync:', e));
-    showRecovery('공지', '🔔', backup && backup.length > 0 ? async () => {
-      for (const n of backup) await adminSupabase.from('notifications').upsert(n);
-      setRecovery(null);
-    } : null, 'notifications');
-  };
-
-  const handleClearGames = async () => {
-    const gsBackup = settings?.game_state ?? null;
-    const [bgRes, bvRes, qgRes, qaRes, igRes, ivRes] = await Promise.all([
-      adminSupabase.from('balance_games').select('*'),
-      adminSupabase.from('balance_votes').select('*'),
-      adminSupabase.from('qa_games').select('*'),
-      adminSupabase.from('qa_answers').select('*'),
-      adminSupabase.from('image_games').select('*'),
-      adminSupabase.from('image_votes').select('*'),
-    ]);
-    for (const t of ['balance_games', 'qa_games', 'image_games', 'balance_votes', 'qa_answers', 'image_votes']) {
-      await adminSupabase.from(t).delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    }
-    await adminSupabase.from('app_settings').update({ game_state: null, updated_at: new Date().toISOString() }).eq('id', 1);
-    adminApiRpc('admin_force_resync_all', {}).catch(e => console.warn('[admin] resync:', e));
-    const hasData = [bgRes.data, bvRes.data, qgRes.data, qaRes.data, igRes.data, ivRes.data].some(d => d && d.length > 0) || !!gsBackup;
-    showRecovery('게임 기록', '🎮', hasData ? async () => {
-      if (bgRes.data) for (const r of bgRes.data) await adminSupabase.from('balance_games').upsert(r);
-      if (bvRes.data) for (const r of bvRes.data) await adminSupabase.from('balance_votes').upsert(r);
-      if (qgRes.data) for (const r of qgRes.data) await adminSupabase.from('qa_games').upsert(r);
-      if (qaRes.data) for (const r of qaRes.data) await adminSupabase.from('qa_answers').upsert(r);
-      if (igRes.data) for (const r of igRes.data) await adminSupabase.from('image_games').upsert(r);
-      if (ivRes.data) for (const r of ivRes.data) await adminSupabase.from('image_votes').upsert(r);
-      if (gsBackup) await adminSupabase.from('app_settings').update({ game_state: gsBackup, updated_at: new Date().toISOString() }).eq('id', 1);
-      await loadAll();
-      setRecovery(null);
-    } : null, 'games');
-    await loadAll();
-  };
-
-  const handleClearSuggestions = async () => {
-    const backup = [...suggestions];
-    await adminSupabase.from('suggestions').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    setSuggestions([]);
-    adminApiRpc('admin_force_resync_all', {}).catch(e => console.warn('[admin] resync:', e));
-    showRecovery('익명 건의', '💡', backup.length > 0 ? async () => {
-      for (const s of backup) {
-        await adminSupabase.from('suggestions').upsert({ id: s.id, content: s.content, created_at: s.created_at });
-      }
-      await loadAll();
-      setRecovery(null);
-    } : null, 'suggestions');
-  };
-
   const handleClearProfiles = async () => {
     const backupProfiles = [...profiles];
     const seatAssignments = seats.filter(s => s.profile_id).map(s => ({ seat_id: s.id, profile_id: s.profile_id! }));
@@ -5081,17 +4899,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       setRecovery(null);
     } : null, 'chats');
     await loadAll();
-  };
-
-  const handleClearReports = async () => {
-    await adminSupabase.from('anonymous_reports').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    setAnonymousReports([]);
-    adminApiRpc('admin_force_resync_all', {}).catch(e => console.warn('[admin] resync:', e));
-  };
-
-  const handleRefreshReports = async () => {
-    const { data } = await adminSupabase.from('anonymous_reports').select('*').order('created_at', { ascending: false });
-    if (data) setAnonymousReports(data as AnonymousReport[]);
   };
 
   const handleClearHistory = async () => {
@@ -5143,21 +4950,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     if (data) setSettings(data);
     adminApiRpc('admin_update_settings', { p_admin_password: settings?.admin_password ?? '', p_payload: { test_password: testPassword || null } })
       .catch(e => console.warn('[admin] api-server 테스트비밀번호 동기화 실패:', e));
-  };
-
-  const handleToggleFeatureLock = async () => {
-    // 자리 잠금 토글 (seating_locked)
-    if (!settings) return;
-    const newVal = !(settings.seating_locked ?? false);
-    setSettings(prev => prev ? { ...prev, seating_locked: newVal } : prev);
-    const { error } = await adminSupabase.from('app_settings').update({ seating_locked: newVal, updated_at: new Date().toISOString() }).eq('id', 1);
-    if (error) {
-      setSettings(prev => prev ? { ...prev, seating_locked: !newVal } : prev);
-      console.error('[admin] 자리 잠금 토글 실패:', error.message);
-      return;
-    }
-    adminApiRpc('admin_update_settings', { p_admin_password: settings.admin_password ?? '', p_payload: { seating_locked: newVal } })
-      .catch(e => console.warn('[admin] api-server 자리잠금 동기화 실패:', e));
   };
 
   const handleToggleFunctionsLock = async () => {
@@ -5216,18 +5008,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       .catch(e => console.warn('[admin] api-server 강제배치 동기화 실패:', e));
   };
 
-  const feedbackTotal = suggestions.filter(s => s.status === 'pending').length + anonymousReports.filter(r => !r.ack_at).length;
-  const gameActive = currentGame?.active ? 1 : 0;
-
-  // Auto-update seenFeedbackCount when admin is on the feedback sub-tab
-  useEffect(() => {
-    if (tab === 'history' && historySubTab === 'feedback') {
-      setSeenFeedbackCount(feedbackTotal);
-    }
-  }, [feedbackTotal, tab, historySubTab]); // eslint-disable-line react-hooks/exhaustive-deps
-
   const handleTabChange = (t: AdminTab) => {
-    if (t === 'game') setSeenGameActive(!!currentGame?.active);
     if (t === 'profiles') setSeenProfilesCount(profiles.length);
     setTab(t);
   };
@@ -5235,16 +5016,14 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const handleHistorySubTabChange = (t: HistorySubTab) => {
     if (t === 'hearts') setSeenHeartsCount(likes.length);
     if (t === 'chats') setSeenMessagesCount(allMessages.length);
-    if (t === 'feedback') setSeenFeedbackCount(feedbackTotal);
     setHistorySubTab(t);
   };
 
-  const historyBadge = Math.max(0, likes.length - seenHeartsCount) + Math.max(0, allMessages.length - seenMessagesCount) + Math.max(0, feedbackTotal - seenFeedbackCount);
+  const historyBadge = Math.max(0, likes.length - seenHeartsCount) + Math.max(0, allMessages.length - seenMessagesCount);
   const TABS: { id: AdminTab; label: string; icon: React.ReactNode; badge?: number }[] = [
     { id: 'settings', label: '설정', icon: <LayoutGrid className="w-4 h-4" /> },
     { id: 'profiles', label: '참여자', icon: <Users className="w-4 h-4" />, badge: Math.max(0, profiles.length - seenProfilesCount) || undefined },
     { id: 'notify', label: '공지', icon: <BellRing className="w-4 h-4" /> },
-    { id: 'game', label: '게임', icon: <Gamepad2 className="w-4 h-4" />, badge: !seenGameActive && currentGame?.active ? 1 : 0 },
     { id: 'history', label: '이력', icon: <History className="w-4 h-4" />, badge: historyBadge > 0 ? historyBadge : undefined },
   ];
 
@@ -5270,7 +5049,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
             </button>
           </div>
         </div>
-        <div className="max-w-4xl mx-auto px-2 grid grid-cols-6 pb-0">
+        <div className="max-w-4xl mx-auto px-2 grid grid-cols-4 pb-0">
           {TABS.map((t) => (
             <button key={t.id} onClick={() => handleTabChange(t.id)}
               className={`relative flex items-center justify-center gap-1 px-1 py-2 text-[11px] font-semibold border-b-2 transition-all ${
@@ -5309,12 +5088,10 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
             </div>
             {settingsSubTab === 'control' && (
               <DashboardTab settings={settings} seats={seats} profiles={profiles}
-                onToggleSession={handleToggleSession} onFullReset={handleFullReset} onEventEndReset={handleEventEndReset}
-                onToggleFeatureLock={handleToggleFeatureLock}
+                onToggleSession={handleToggleSession} onEventEndReset={handleEventEndReset}
                 onToggleFunctionsLock={handleToggleFunctionsLock}
                 onClearLikes={handleClearLikes} onClearChats={handleClearAllChats}
-                onClearNotifications={handleClearNotifications} onClearGames={handleClearGames}
-                onClearSuggestions={handleClearSuggestions} onClearProfiles={handleClearProfiles}
+                onClearProfiles={handleClearProfiles}
                 onClearHistory={handleClearHistory} restoreMap={restoreMap} />
             )}
             {settingsSubTab === 'qr' && <AdminQrTab seats={seats} settings={settings} onSaveQrBase={async (url) => {
@@ -5340,9 +5117,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               {([
                 { id: 'hearts' as HistorySubTab, label: '하트', badge: Math.max(0, likes.length - seenHeartsCount) },
                 { id: 'chats' as HistorySubTab, label: '채팅', badge: Math.max(0, allMessages.length - seenMessagesCount) },
-                { id: 'session' as HistorySubTab, label: '회식', badge: 0 },
                 { id: 'participants' as HistorySubTab, label: '참여자', badge: 0 },
-                { id: 'feedback' as HistorySubTab, label: '건의', badge: Math.max(0, feedbackTotal - seenFeedbackCount) },
               ]).map(st => (
                 <button key={st.id} onClick={() => handleHistorySubTabChange(st.id)}
                   className={`flex items-center gap-1.5 flex-shrink-0 px-4 py-2.5 text-xs font-semibold border-b-2 transition-all ${historySubTab === st.id ? 'border-teal-500 text-teal-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
@@ -5369,82 +5144,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               </div>
             )}
             {historySubTab === 'chats' && <ChatsTab chats={allChats} messages={allMessages} profileMap={profileMap} onDeleteChat={handleDeleteChat} onClearAll={handleClearAllChats} onRefresh={loadAll} />}
-            {historySubTab === 'session' && <HistoryTab histories={histories} onClear={handleClearHistory} />}
             {historySubTab === 'participants' && <ParticipantsTab profiles={profiles} />}
-            {historySubTab === 'feedback' && (
-              <div>
-                <div className="flex border-b border-gray-200 bg-gray-50 px-4">
-                  {([
-                    { id: 'reports' as FeedbackSubTab, label: '익명건의', badge: anonymousReports.filter(r => !r.ack_at).length },
-                    { id: 'suggestions' as FeedbackSubTab, label: '건의사항', badge: suggestions.filter(s => s.status === 'pending').length },
-                  ]).map(st => (
-                    <button key={st.id} onClick={() => setFeedbackSubTab(st.id)}
-                      className={`flex items-center gap-1.5 px-4 py-2 text-xs font-semibold border-b-2 transition-all ${feedbackSubTab === st.id ? 'border-teal-500 text-teal-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
-                      {st.label}
-                      {st.badge > 0 && <span className="px-1.5 py-0.5 bg-rose-500 text-white text-[10px] font-bold rounded-full">{st.badge}</span>}
-                    </button>
-                  ))}
-                </div>
-                {feedbackSubTab === 'reports' && (
-                  <div className="p-4">
-                    <AnonymousReportsTab reports={anonymousReports} onClear={handleClearReports} onAck={handleAckReport} onRefresh={handleRefreshReports} />
-                  </div>
-                )}
-                {feedbackSubTab === 'suggestions' && (
-                  <div className="p-4">
-                    <SuggestionsTab suggestions={suggestions} onUpdate={(updated) => setSuggestions(prev => prev.map(s => s.id === updated.id ? updated : s))} />
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-        {tab === 'game' && (
-          <div>
-            <div className="flex border-b border-gray-200 bg-white px-2 overflow-x-auto">
-              {([
-                { id: 'balance' as GameSubTab, label: '밸런스', icon: '⚡' },
-                { id: 'ox'      as GameSubTab, label: 'OX',     icon: '⭕' },
-                { id: 'chosung' as GameSubTab, label: '초성',   icon: '🔤' },
-                { id: 'qa'      as GameSubTab, label: 'Q&A',    icon: '💬' },
-                { id: 'image'   as GameSubTab, label: '이미지', icon: '🖼️' },
-              ]).map(st => (
-                <button key={st.id} onClick={() => setGameSubTab(st.id)}
-                  className={`flex items-center gap-1 px-3 py-2.5 text-xs font-semibold border-b-2 transition-all whitespace-nowrap flex-shrink-0 ${gameSubTab === st.id ? 'border-violet-500 text-violet-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
-                  <span>{st.icon}</span>{st.label}
-                </button>
-              ))}
-            </div>
-            <div className="p-4 bg-gray-50 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 200px)' }}>
-              {gameSubTab === 'balance' && (
-                <div className="space-y-5">
-                  <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
-                    <BalanceGameCreate currentGame={currentGame} onGameUpdate={setCurrentGame} seats={seats} settings={settings} onRefresh={loadAll} />
-                  </div>
-                  <AdminBalanceGameTab balanceGames={balanceGames.filter(g => !isOxGame(g))} voteCounts={adminVoteCounts} myVotes={adminMyVotes} onVote={handleAdminVote} />
-                </div>
-              )}
-              {gameSubTab === 'ox' && (
-                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
-                  <OxGameSection balanceGames={balanceGames} voteCounts={adminVoteCounts} currentGame={currentGame} onGameUpdate={setCurrentGame} seats={seats} settings={settings} onRefresh={loadAll} />
-                </div>
-              )}
-              {gameSubTab === 'chosung' && (
-                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
-                  <ChosungGameSection seats={seats} />
-                </div>
-              )}
-              {gameSubTab === 'qa' && (
-                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
-                  <QaGameSection seats={seats} />
-                </div>
-              )}
-              {gameSubTab === 'image' && (
-                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
-                  <ImageGameSection seats={seats} settings={settings} profiles={profiles} />
-                </div>
-              )}
-            </div>
           </div>
         )}
         {tab === 'notify' && <NotificationTab tableCount={[...new Set(seats.map(s => s.table_number))].length} settings={settings} onSetTimer={handleSetTimer} />}
@@ -5475,51 +5175,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           </button>
         </div>
       )}
-
-      {/* 밸런스 게임 결과 모달 (어느 탭에서도 표시) */}
-      {adminGameEndResult && (() => {
-        const { game, counts } = adminGameEndResult;
-        const total = counts.a + counts.b;
-        const pctA = total > 0 ? Math.round((counts.a / total) * 100) : 50;
-        const pctB = 100 - pctA;
-        const winnerA = counts.a >= counts.b;
-        return (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
-            <div className="w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden">
-              <div className="bg-gradient-to-r from-violet-600 to-purple-700 px-5 py-4 text-center">
-                <div className="text-2xl mb-1">🏆</div>
-                <div className="text-[10px] font-black text-violet-200 uppercase tracking-widest mb-1">밸런스 게임 결과</div>
-                <h2 className="text-base font-black text-white leading-snug">{game.question}</h2>
-              </div>
-              <div className="p-5 space-y-3">
-                {(['a', 'b'] as const).map(opt => {
-                  const label = opt === 'a' ? game.option_a : game.option_b;
-                  const pct = opt === 'a' ? pctA : pctB;
-                  const count = opt === 'a' ? counts.a : counts.b;
-                  const isWinner = opt === 'a' ? winnerA : !winnerA;
-                  return (
-                    <div key={opt} className={`rounded-xl overflow-hidden border-2 ${isWinner ? 'border-violet-300' : 'border-gray-100'}`}>
-                      <div className={`px-4 py-3 flex items-center justify-between ${isWinner ? 'bg-violet-50' : 'bg-gray-50'}`}>
-                        <div className="flex items-center gap-2">
-                          {isWinner && <span className="text-base">🥇</span>}
-                          <span className={`text-sm font-black ${isWinner ? 'text-violet-700' : 'text-gray-400'}`}>{label}</span>
-                        </div>
-                        <span className={`text-lg font-black ${isWinner ? 'text-violet-600' : 'text-gray-400'}`}>{pct}%</span>
-                      </div>
-                      <div className={`h-1 ${isWinner ? 'bg-violet-500' : 'bg-gray-200'}`} style={{ width: `${pct}%` }} />
-                      <div className="px-4 py-1.5 text-xs text-gray-400">{count}명 선택</div>
-                    </div>
-                  );
-                })}
-                <p className="text-center text-gray-400 text-xs">총 {total}명 참여</p>
-              </div>
-              <div className="px-5 pb-5">
-                <button onClick={() => setAdminGameEndResult(null)} className="w-full py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white font-bold rounded-xl transition-all">확인</button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
 
       {/* 🍻 아저씨 술주세요 이스터에그 팝업 — 풀스크린 임팩트 */}
       {drinkPopup && (
@@ -5581,7 +5236,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               <p className="text-sm font-semibold text-gray-800 leading-relaxed">{newReportPopup.content}</p>
             </div>
             <div className="flex gap-3">
-              <button onClick={() => { setTab('history'); setHistorySubTab('feedback'); setFeedbackSubTab('reports'); setNewReportPopup(null); }} className="flex-1 py-2.5 bg-orange-500 text-white font-bold rounded-xl hover:bg-orange-600 transition-all text-sm">건의함으로 이동</button>
+              <button onClick={() => { setTab('history'); setHistorySubTab('participants'); setNewReportPopup(null); }} className="flex-1 py-2.5 bg-orange-500 text-white font-bold rounded-xl hover:bg-orange-600 transition-all text-sm">이력으로 이동</button>
               <button onClick={() => setNewReportPopup(null)} className="flex-1 py-2.5 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition-all text-sm">확인</button>
             </div>
           </div>
