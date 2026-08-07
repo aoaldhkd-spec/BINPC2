@@ -222,50 +222,6 @@ export default function TestDashboard() {
     setLoading(null);
   };
 
-  // ── Seats ──────────────────────────────────────────────────────────────────
-  const assignSeat = async (profileId: string, seatId: string) => {
-    setLoading(`seat-${seatId}`);
-    const prevSeat = seats.find(s => s.profile_id === profileId);
-    if (prevSeat) await supabase.from('seats').update({ profile_id: null, status: 'empty', registered_at: null }).eq('id', prevSeat.id);
-    await supabase.from('seats').update({ profile_id: profileId, status: 'occupied', registered_at: new Date().toISOString() }).eq('id', seatId);
-    testResync();
-    await load();
-    setLoading(null);
-    notify('자리 배정됨');
-  };
-
-  const clearSeat = async (seatId: string) => {
-    await supabase.from('seats').update({ profile_id: null, status: 'empty', registered_at: null }).eq('id', seatId);
-    testResync();
-    await load();
-    notify('자리 비움');
-  };
-
-  const randomlyFillSeats = async () => {
-    setLoading('fillSeats');
-    const unassigned = profiles.filter(p => !seats.find(s => s.profile_id === p.id));
-    const emptySeats = seats.filter(s =>
-      s.status === 'empty' && (activeTables === null || activeTables.includes(s.table_number))
-    );
-    const shuffled = [...emptySeats].sort(() => Math.random() - 0.5);
-    for (let i = 0; i < Math.min(unassigned.length, shuffled.length); i++) {
-      await supabase.from('seats').update({ profile_id: unassigned[i].id, status: 'occupied', registered_at: new Date().toISOString() }).eq('id', shuffled[i].id);
-    }
-    testResync();
-    await load();
-    notify(`${Math.min(unassigned.length, shuffled.length)}명 자리 배정 완료`);
-    setLoading(null);
-  };
-
-  const clearAllSeats = async () => {
-    setLoading('clearSeats');
-    await supabase.from('seats').update({ profile_id: null, status: 'empty', registered_at: null }).neq('id', '00000000-0000-0000-0000-000000000000');
-    testResync();
-    await load();
-    notify('모든 자리 비움');
-    setLoading(null);
-  };
-
   // ── Hearts ─────────────────────────────────────────────────────────────────
   const sendHeart = async (fromId: string, toId: string) => {
     if (fromId === toId) return;
@@ -365,9 +321,6 @@ export default function TestDashboard() {
   const [toUser, setToUser] = useState('');
   const [chatU1, setChatU1] = useState('');
   const [chatU2, setChatU2] = useState('');
-  const [seatProfile, setSeatProfile] = useState('');
-  const [seatTarget, setSeatTarget] = useState('');
-
   const profileSel = (val: string, set: (v: string) => void) => (
     <select value={val} onChange={e => set(e.target.value)} className="flex-1 bg-slate-700 text-slate-200 text-xs rounded-lg px-2 py-1.5 border border-slate-600 min-w-0">
       <option value="">-- 유저 선택 --</option>
@@ -566,54 +519,6 @@ export default function TestDashboard() {
             }`}>
             {pendingActiveTables !== undefined ? '✓ 활성 테이블 저장' : '저장됨'}
           </button>
-        </Section>
-
-        {/* 자리 배치 — 활성 테이블만 */}
-        <Section title="자리 배치" icon={<LayoutGrid className="w-4 h-4" />}>
-          {activeTables !== null && activeTables.length > 0 && (
-            <div className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 border border-amber-500/30 rounded-xl">
-              <span className="text-amber-400 text-xs">🟡</span>
-              <span className="text-xs text-amber-300 font-semibold">활성 테이블: {activeTables.map(t => `T${t}`).join(', ')}</span>
-            </div>
-          )}
-          {activeTables === null && (
-            <div className="flex items-center gap-2 px-3 py-2 bg-teal-500/10 border border-teal-500/30 rounded-xl">
-              <span className="text-xs text-teal-300 font-semibold">✓ 전체 테이블 활성화 중</span>
-            </div>
-          )}
-          <div className="grid grid-cols-2 gap-2">
-            <Btn label="랜덤 배치 (활성 테이블)" onClick={randomlyFillSeats} color="teal" disabled={loading === 'fillSeats'} />
-            <Btn label="모든 자리 비우기" onClick={clearAllSeats} color="red" disabled={loading === 'clearSeats'} />
-          </div>
-          <div className="flex gap-2 items-center">
-            {profileSel(seatProfile, setSeatProfile)}
-            <select value={seatTarget} onChange={e => setSeatTarget(e.target.value)} className="flex-1 bg-slate-700 text-slate-200 text-xs rounded-lg px-2 py-1.5 border border-slate-600 min-w-0">
-              <option value="">-- 자리 선택 --</option>
-              {seats
-                .filter(s => s.status === 'empty' && (activeTables === null || activeTables.includes(s.table_number)))
-                .map(s => <option key={s.id} value={s.id}>{s.seat_label}</option>)}
-            </select>
-            <Btn label="배정" onClick={() => { if (seatProfile && seatTarget) assignSeat(seatProfile, seatTarget); }} color="violet" small disabled={!seatProfile || !seatTarget} />
-          </div>
-          {/* 착석된 자리 목록 — 활성 테이블 기준 */}
-          <div className="max-h-40 overflow-y-auto space-y-1">
-            {seats
-              .filter(s => s.status === 'occupied' && (activeTables === null || activeTables.includes(s.table_number)))
-              .map(s => {
-                const p = profiles.find(x => x.id === s.profile_id);
-                return (
-                  <div key={s.id} className="flex items-center gap-2 px-3 py-1.5 bg-teal-500/10 border border-teal-500/20 rounded-lg">
-                    {p && <img src={p.photo_url} className="w-6 h-6 rounded-full flex-shrink-0" />}
-                    <span className="text-xs text-teal-300 flex-1">{s.seat_label}</span>
-                    <span className="text-xs text-slate-400">{p?.nickname ?? '?'}</span>
-                    <button onClick={() => clearSeat(s.id)} className="text-[10px] px-2 py-0.5 bg-red-500/20 hover:bg-red-500/40 text-red-300 rounded-full border border-red-500/30">비움</button>
-                  </div>
-                );
-              })}
-            {seats.filter(s => s.status === 'occupied' && (activeTables === null || activeTables.includes(s.table_number))).length === 0 && (
-              <p className="text-xs text-slate-500 text-center py-2">착석된 자리 없음</p>
-            )}
-          </div>
         </Section>
 
         {/* 하트 테스트 */}

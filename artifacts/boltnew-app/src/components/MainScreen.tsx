@@ -22,8 +22,6 @@ const getAvatarSrc = (url: string | null | undefined, nick: string): string => {
 import { getZodiac, getOhaeng, getTodayFortune } from '../lib/fortune';
 import { getMbtiStyle, koreanMatch } from '../lib/utils';
 import { ls } from '../lib/storage';
-import SeatingMap from './SeatingMap';
-import MyTableView from './MyTableView';
 import ProfileAvatar from './ProfileAvatar';
 import { StatsTab, RankingTab } from './StatsTabs';
 import { ProfileInfoBadges } from './ProfileInfoBadges';
@@ -467,14 +465,15 @@ class StatusErrorBoundary extends Component<
 
 // ─── ProfileCard (memoized — 하트/채팅 상태 변경 시 해당 카드만 재렌더) ────────
 
-const ProfileCard = memo(function ProfileCard({
-  profile, isLiked, sentHeartType, heartCount, canLike, onLike, onSelect, onOpenChat,
+export const ProfileCard = memo(function ProfileCard({
+  profile, isLiked, sentHeartType, heartCount, canLike, locked, onLike, onSelect, onOpenChat,
 }: {
   profile: Profile;
   isLiked: boolean;
   sentHeartType: HeartType | undefined;
   heartCount: number;
   canLike: boolean;
+  locked?: boolean;
   onLike: (id: string) => void;
   onSelect: (p: Profile) => void;
   onOpenChat: (p: Profile) => void;
@@ -500,6 +499,14 @@ const ProfileCard = memo(function ProfileCard({
     ? { backgroundColor: 'rgba(56,189,248,0.13)', borderColor: 'rgba(56,189,248,0.28)' }
     : { backgroundColor: '#f0f9ff', borderColor: '#bae6fd' };
   const dividerColor = isCardDark ? 'rgba(255,255,255,0.09)' : '#f3f4f6';
+
+  // 잠금 토스트 (컴포넌트 최상단 — Rules of Hooks 준수)
+  const [lockToast, setLockToast] = useState(false);
+  const showLockToast = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setLockToast(true);
+    setTimeout(() => setLockToast(false), 1400);
+  };
 
   // 이미지 비율 자동 감지: 3:4(세로형)에 가까우면 꽉 채움, 아니면 내부 박스에 가둠
   const [imgFit, setImgFit] = useState<'cover' | 'contain'>('cover');
@@ -565,34 +572,41 @@ const ProfileCard = memo(function ProfileCard({
         </div>
       )}
 
-      {/* ── 하트 + 채팅 버튼 행 ── */}
+      {/* ── 하트 + 채팅 버튼 행 — 항상 표시, 잠금 시 토스트만 ── */}
       {canLike && (
-        <div className="px-2 pb-2 pt-0.5 flex gap-1.5 mt-1" style={{ borderTop: `1px solid ${dividerColor}` }}>
-          <button
-            onClick={(e) => { e.stopPropagation(); onLike(profile.id); }}
-            disabled={isLiked && heartCount >= 4}
-            className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-xl border active:scale-95 transition-transform"
-            style={heartBtnStyle}
-          >
-            {isLiked && sentHeartType
-              ? <span className="text-xs leading-none relative">
-                  {heartMeta(sentHeartType).emoji}
-                  {heartCount > 1 && (
-                    <span className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 text-white text-[7px] font-black rounded-full flex items-center justify-center">{heartCount}</span>
-                  )}
-                </span>
-              : <Heart className="w-3.5 h-3.5" style={{ fill: isLiked ? '#e11d48' : 'transparent', stroke: '#e11d48', strokeWidth: 2 }} />
-            }
-            <span className="text-[10px] font-bold" style={{ color: '#e11d48' }}>하트</span>
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); onOpenChat(profile); }}
-            className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-xl border active:scale-95 transition-transform"
-            style={chatBtnStyle}
-          >
-            <MessageCircle className="w-3.5 h-3.5" style={{ color: '#0ea5e9' }} strokeWidth={2} />
-            <span className="text-[10px] font-bold" style={{ color: '#0ea5e9' }}>채팅</span>
-          </button>
+        <div className="relative">
+          {lockToast && (
+            <div className="absolute -top-6 left-1/2 -translate-x-1/2 z-20 whitespace-nowrap text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-800/90 text-white shadow pointer-events-none">
+              🔒 현재 잠금 중
+            </div>
+          )}
+          <div className="px-2 pb-2 pt-0.5 flex gap-1.5 mt-1" style={{ borderTop: `1px solid ${dividerColor}` }}>
+            <button
+              onClick={(e) => { if (locked) { showLockToast(e); return; } e.stopPropagation(); onLike(profile.id); }}
+              disabled={!locked && isLiked && heartCount >= 4}
+              className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-xl border active:scale-95 transition-transform ${locked ? 'opacity-50' : ''}`}
+              style={heartBtnStyle}
+            >
+              {isLiked && sentHeartType
+                ? <span className="text-xs leading-none relative">
+                    {heartMeta(sentHeartType).emoji}
+                    {heartCount > 1 && (
+                      <span className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 text-white text-[7px] font-black rounded-full flex items-center justify-center">{heartCount}</span>
+                    )}
+                  </span>
+                : <Heart className="w-3.5 h-3.5" style={{ fill: isLiked ? '#e11d48' : 'transparent', stroke: '#e11d48', strokeWidth: 2 }} />
+              }
+              <span className="text-[10px] font-bold" style={{ color: '#e11d48' }}>하트</span>
+            </button>
+            <button
+              onClick={(e) => { if (locked) { showLockToast(e); return; } e.stopPropagation(); onOpenChat(profile); }}
+              className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-xl border active:scale-95 transition-transform ${locked ? 'opacity-50' : ''}`}
+              style={chatBtnStyle}
+            >
+              <MessageCircle className="w-3.5 h-3.5" style={{ color: '#0ea5e9' }} strokeWidth={2} />
+              <span className="text-[10px] font-bold" style={{ color: '#0ea5e9' }}>채팅</span>
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -609,9 +623,9 @@ export function MainScreen({
   balanceGames, voteCounts, myVotes,
   onContactShareOpen: _onContactShareOpen, onContactViewOpen, onHeartResponse, onDeleteChat, onDeleteAllChats, onSubmitSuggestion, onOpenChat,
   onVote, onCreateGame, onEndGame, onSubmitAnonymousReport,
-  timerEndAt, timerLabel, onRefreshStatus, onRefreshChat, onRefreshProfiles, onRefreshSeating, darkMode, onToggleDark, onShowQr, onShowContactQr, onScanQr, scannedContacts, onClearScannedContact, seatingLocked, functionsLocked = false, activeTables, tableLabels, onShowTutorial,
-  newMsgCount, onClearMsgCount, unreadChatCounts, onClearChatUnread: _onClearChatUnread, resetPassword, onBroadcastGame,
-  setSeatDialog: _setSeatDialog, onUpdateProfile, fortuneCompatTarget,
+  timerEndAt, timerLabel, onRefreshStatus, onRefreshChat, onRefreshProfiles, darkMode, onToggleDark, onShowQr, onShowContactQr, onScanQr, scannedContacts, onClearScannedContact, seatingLocked, functionsLocked = false, onShowTutorial,
+  newMsgCount, onClearMsgCount, unreadChatCounts, onClearChatUnread, resetPassword, onBroadcastGame,
+  onUpdateProfile, fortuneCompatTarget,
 }: {
   profiles: Profile[]; currentUserId: string | null; likedIds: Set<string>; sentHeartTypes: Map<string, HeartType>; sentHeartsPerPerson: Map<string, Set<HeartType>>; likeStatuses: Map<string, string>;
   seats: Seat[]; profileMap: Map<string, Profile>; mainTab: MainTab;
@@ -638,7 +652,6 @@ export function MainScreen({
   onRefreshStatus: () => void;
   onRefreshChat: () => void;
   onRefreshProfiles: () => void;
-  onRefreshSeating: () => void;
   darkMode: boolean;
   onToggleDark: () => void;
   onShowQr: () => void;
@@ -648,8 +661,6 @@ export function MainScreen({
   onClearScannedContact: (id: string) => void;
   seatingLocked: boolean;
   functionsLocked?: boolean;
-  activeTables: number[] | null;
-  tableLabels: Record<string, string> | null;
   onShowTutorial: () => void;
   newMsgCount: number;
   onClearMsgCount: () => void;
@@ -657,26 +668,12 @@ export function MainScreen({
   onClearChatUnread: (chatId: string) => void;
   resetPassword: string | null;
   onBroadcastGame: (s: TableMiniGameSession) => void;
-  setSeatDialog: (s: Seat | null) => void;
   onUpdateProfile: (update: Record<string, unknown> & { id: string }) => void;
   fortuneCompatTarget?: string;
 }) {
   const heartCount = useCallback((t: HeartType) => { let c = 0; sentHeartsPerPerson.forEach(types => { if (types.has(t)) c++; }); return c; }, [sentHeartsPerPerson]);
   const currentUserSeat = useMemo(() => seats.find(s => s.profile_id === currentUserId) ?? null, [seats, currentUserId]);
   const tableNumber = currentUserSeat?.table_number ?? null;
-  const visibleSeats = useMemo(() => activeTables ? seats.filter(s => activeTables.includes(s.table_number)) : seats, [seats, activeTables]);
-  // 내 테이블 탭: 테이블 선택 상태 (칩 선택 UI)
-  const [selectedMyTableNum, setSelectedMyTableNum] = useState<number | null>(null);
-  // 처음 진입 시 내 자리 테이블로 초기화. 이후 칩 선택으로 바꿔도 리셋되지 않음
-  useEffect(() => {
-    if (selectedMyTableNum === null && tableNumber !== null) setSelectedMyTableNum(tableNumber);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tableNumber]);
-  const myTableList = useMemo(() => {
-    const nums = activeTables ?? [...new Set(seats.map((s: Seat) => s.table_number))];
-    return [...new Set(nums)].sort((a: number, b: number) => a - b);
-  }, [activeTables, seats]);
-  const resolvedMyTable = selectedMyTableNum ?? tableNumber ?? (myTableList[0] ?? null);
 
   const currentUserNickname = useMemo(() => profiles.find(p => p.id === currentUserId)?.nickname ?? '', [profiles, currentUserId]);
   const [profileSearch, setProfileSearch] = useState('');
@@ -830,6 +827,8 @@ export function MainScreen({
 
   // ── 사주 탭 생월·생일 편집 상태 ─────────────────────────────────────────────
   const [chatSearch, setChatSearch] = useState('');
+  const [chatSearchLockToast, setChatSearchLockToast] = useState(false);
+  const showChatSearchLockToast = () => { setChatSearchLockToast(true); setTimeout(() => setChatSearchLockToast(false), 1400); };
   const [showContactEdit, setShowContactEdit] = useState(false);
   // ── 프로필 편집 통합 상태 (한 섹션만 열림) ──────────────────────────────────
   const [profileEditSection, setProfileEditSection] = useState<'avatar' | 'nickname' | 'birth' | 'interests' | null>(null);
@@ -1104,20 +1103,18 @@ export function MainScreen({
           </div>
         </div>
         {timerEndAt && <TimerBanner endAt={timerEndAt} label={timerLabel ?? ''} />}
-        {/* ── 탭 바 (2행 × 4열) — 요청·게임 탭 제거, 아이콘 추가 ── */}
+        {/* ── 탭 바 (2행 × 3열) ── */}
         <div className={`max-w-7xl mx-auto border-t-2 ${darkMode ? 'bg-slate-900 border-slate-700' : 'bg-gray-50 border-gray-200'}`}>
           {([
-            // Row 1: 내 상태 | 내 테이블 | 내 채팅 | 통계
+            // Row 1: 내 상태 | 내 채팅 | 통계
             [
               { id: 'status' as MainTab, icon: '💝', label: '내 상태', badge: Math.max(0, pendingHeartsCount - seenHeartsCount) + newContactsCount },
-              { id: 'my-table' as MainTab, icon: '🪑', label: '내 테이블' },
               { id: 'chats' as MainTab, icon: '💬', label: '내 채팅', badge: newMsgCount },
               { id: 'stats' as MainTab, icon: '📊', label: '통계' },
             ],
-            // Row 2: 참여자 | 배치도 | 내 운세 (내채팅 아래) | 랭킹
+            // Row 2: 참여자 | 내 운세 | 랭킹
             [
               { id: 'profiles' as MainTab, icon: '👥', label: '참여자', badge: seenProfilesCount < 0 ? 0 : Math.max(0, profiles.length - seenProfilesCount) },
-              { id: 'seating' as MainTab, icon: '🗺️', label: '배치도' },
               { id: 'fortune' as MainTab, icon: '🔮', label: '내 운세' },
               { id: 'ranking' as MainTab, icon: '🏆', label: '랭킹' },
             ],
@@ -1151,7 +1148,7 @@ export function MainScreen({
 
       </header>
 
-      <main className={`max-w-7xl mx-auto ${mainTab === 'seating' ? 'px-0 py-2' : 'px-4 py-6 scrollbar-styled-light'}`}>
+      <main className="max-w-7xl mx-auto px-4 py-6 scrollbar-styled-light">
         {mainTab === 'profiles' && (
           <>
             {/* 검색 + 필터 바 */}
@@ -1214,7 +1211,8 @@ export function MainScreen({
                 isLiked={likedIds.has(profile.id)}
                 sentHeartType={sentHeartTypes.get(profile.id)}
                 heartCount={sentHeartsPerPerson.get(profile.id)?.size ?? 0}
-                canLike={!!(currentUserId && profile.id !== currentUserId) && !seatingLocked}
+                canLike={!!(currentUserId && profile.id !== currentUserId)}
+                locked={seatingLocked || functionsLocked}
                 onLike={onLike}
                 onSelect={onSelect}
                 onOpenChat={onOpenChat}
@@ -1229,99 +1227,6 @@ export function MainScreen({
           </div>
           </div>{/* /scroll-wrapper */}
           </>
-        )}
-
-        {mainTab === 'seating' && (
-            <div className="px-2">
-              <div className="flex justify-end pt-1 pb-2">
-                <RefreshBtn onRefresh={() => doRefresh('seating', onRefreshSeating)} refreshed={refreshedTab === 'seating'} dark />
-              </div>
-              {/* 배치도 컨테이너 — 테두리 색상은 CSS 변수로 테마 연동, overflow-x는 SeatingMap 내부에서 처리 */}
-              <div
-                className={`rounded-2xl border p-2 sm:p-3 transition-colors duration-300 ${darkMode ? 'shadow-none' : 'shadow-sm'}`}
-                style={{
-                  background: `var(--t-surface, ${darkMode ? '#0f172a' : '#ffffff'})`,
-                  borderColor: `var(--t-border, ${darkMode ? '#475569' : '#e5e7eb'})`,
-                }}
-              >
-                <SeatingMap seats={seats} profileMap={profileMap} currentUserId={currentUserId} isAdmin={false} seatingLocked={true} darkMode={darkMode} activeTables={activeTables} tableLabels={tableLabels} onProfileClick={onProfileClickFromMap} onChatClick={onOpenChat} onSeatClick={undefined} />
-              </div>
-              <p className={`text-center text-xs mt-2 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
-                ↔↕ 상하좌우 + 대각선 스크롤 가능 &middot; 테이블 탭하면 확대됩니다
-              </p>
-            </div>
-        )}
-
-        {/* ── 내 테이블 탭 — 내 자리 테이블만, 확대 뷰 자동 오픈 ── */}
-        {mainTab === 'my-table' && (
-          <div className="space-y-3">
-            {/* 내 자리 상태 카드 — 배정된 경우에만 */}
-            {tableNumber !== null && currentUserSeat && (
-              <div className={`rounded-2xl px-4 py-2.5 border flex items-center gap-3 ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-100'} shadow-sm`}>
-                <div className="w-8 h-8 rounded-lg bg-cyan-500 flex items-center justify-center text-white font-black flex-shrink-0 text-sm">
-                  {currentUserSeat.seat_position}
-                </div>
-                <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  {currentUserSeat.seat_position}번 자리 착석 중
-                  <span className={`ml-2 text-[11px] font-normal ${seatingLocked ? (darkMode ? 'text-amber-400' : 'text-amber-600') : (darkMode ? 'text-teal-400' : 'text-teal-600')}`}>
-                    {seatingLocked ? '🔒 잠금 중' : '✅ 변경 가능'}
-                  </span>
-                </p>
-              </div>
-            )}
-
-            {/* 테이블 선택 칩 — 전체 테이블 목록을 가로 스크롤로 표시 */}
-            {myTableList.length > 0 && (
-              <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
-                {myTableList.map(n => {
-                  const isSelected = resolvedMyTable === n;
-                  const isMyTable = n === tableNumber;
-                  const label = tableLabels?.[String(n)] ?? String(n);
-                  return (
-                    <button
-                      key={n}
-                      onClick={() => setSelectedMyTableNum(n)}
-                      className={`flex-shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 ${
-                        isSelected
-                          ? 'bg-cyan-500 text-white shadow-lg shadow-cyan-500/30'
-                          : darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
-                    >
-                      {label}번 테이블
-                      {isMyTable && <span className="text-[10px] opacity-80">🪑</span>}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* 선택된 테이블 확대 보기 — 자리 선택 후에도 유지 */}
-            {resolvedMyTable !== null ? (
-              <MyTableView
-                tableNumber={resolvedMyTable}
-                seats={seats}
-                profileMap={profileMap}
-                currentUserId={currentUserId}
-                darkMode={darkMode}
-                tableLabels={tableLabels}
-                onProfileClick={onProfileClickFromMap}
-                onSeatClick={!seatingLocked ? (seat) => { if (!seat.profile_id) _setSeatDialog(seat); } : undefined}
-              />
-            ) : (
-              /* 자리 미배정이고 활성 테이블도 없는 경우 */
-              <div className="flex flex-col items-center justify-center py-14 gap-3">
-                <span className="text-5xl">🪑</span>
-                <p className={`text-sm font-bold text-center ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>
-                  아직 자리가 배정되지 않았습니다
-                </p>
-                {!seatingLocked && (
-                  <p className={`text-xs text-center ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>
-                    배치도 탭에서 빈 자리를 선택해 주세요
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
         )}
 
         {mainTab === 'status' && (
@@ -2181,6 +2086,12 @@ export function MainScreen({
                 <button onClick={() => setChatSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm leading-none">✕</button>
               )}
             </div>
+            {/* 채팅 검색 잠금 토스트 */}
+            {chatSearchLockToast && (
+              <div className="text-center text-[11px] font-bold text-white bg-gray-800/90 rounded-full px-3 py-1 pointer-events-none">
+                🔒 현재 잠금 중
+              </div>
+            )}
             {/* 검색 결과 */}
             {chatSearch.trim() && (() => {
               const results = profiles.filter(p => p.id !== currentUserId && (
@@ -2194,7 +2105,7 @@ export function MainScreen({
                     const hasChat = chatList.some(c => c.user1_id === p.id || c.user2_id === p.id);
                     return (
                       <div key={p.id}
-                        onClick={() => { onOpenChat(p); setChatSearch(''); }}
+                        onClick={() => { if (functionsLocked) { showChatSearchLockToast(); return; } onOpenChat(p); setChatSearch(''); }}
                         className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors ${darkMode ? 'bg-slate-800 hover:bg-slate-700 border border-slate-700' : 'bg-white hover:bg-gray-50 border border-gray-100'}`}>
                         <div className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0 bg-gray-200">
                           <img src={getAvatarSrc(p.photo_url, p.nickname)} alt={p.nickname} className="w-full h-full object-cover"

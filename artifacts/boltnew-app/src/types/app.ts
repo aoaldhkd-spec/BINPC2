@@ -23,8 +23,8 @@ export type Chat = {
 
 export type View = 'entry-1' | 'entry-recover' | 'loading-main' | 'main' | 'profile' | 'chat';
 export type MainTab =
-  | 'profiles' | 'seating' | 'status' | 'chats' | 'suggestions'
-  | 'game' | 'tutorial' | 'stats' | 'ranking' | 'fortune' | 'my-table';
+  | 'profiles' | 'status' | 'chats' | 'suggestions'
+  | 'game' | 'tutorial' | 'stats' | 'ranking' | 'fortune';
 
 export type TableMiniGameSession = {
   sessionId: string;

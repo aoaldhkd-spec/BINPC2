@@ -380,7 +380,7 @@ function createSse() {
     if (wasConnected) _sseNeedsResync = true;
     // CLOSED 상태면 실패 카운터 증가 후 백오프 쿨다운 설정
     if (es.readyState === EventSource.CLOSED) {
-      _sseFailCount = Math.min(_sseFailCount + 1, 5); // 최대 5 (≈ 32s base 백오프)
+      _sseFailCount = Math.min(_sseFailCount + 1, 4); // 최대 4 (≈ 8s base 백오프, 지터 포함 최대 ~10s)
       _sseNextAllowedRetry = Date.now() + calcSseBackoffMs();
       _es = null;
     }

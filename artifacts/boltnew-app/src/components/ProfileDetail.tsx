@@ -66,13 +66,25 @@ function PhotoHeader({ profile }: { profile: Profile }) {
   );
 }
 
-function ProfileDetail({ profile, isMe, isLiked, heartType, sentHeartsCount, onLike, onChat, onBack, onViewFortune }: {
+function ProfileDetail({ profile, isMe, isLiked, heartType, sentHeartsCount, locked, onLike, onChat, onBack, onViewFortune }: {
   profile: Profile; isMe: boolean; isLiked: boolean; heartType?: HeartType; sentHeartsCount?: number;
+  locked?: boolean;
   onLike: () => void; onChat: () => void; onBack: () => void; onViewFortune?: () => void;
 }) {
+  const [lockToast, setLockToast] = useState(false);
+  const showLockToast = () => {
+    setLockToast(true);
+    setTimeout(() => setLockToast(false), 1400);
+  };
+
   const handleLike = () => {
+    if (locked) { showLockToast(); return; }
     if (isLiked && (sentHeartsCount ?? 0) >= 4) return;
     onLike();
+  };
+  const handleChat = () => {
+    if (locked) { showLockToast(); return; }
+    onChat();
   };
 
   return (
@@ -117,11 +129,16 @@ function ProfileDetail({ profile, isMe, isLiked, heartType, sentHeartsCount, onL
               )}
             </div>
           </div>
+          {lockToast && (
+            <div className="absolute top-14 left-1/2 -translate-x-1/2 z-20 whitespace-nowrap text-[11px] font-bold px-3 py-1 rounded-full bg-gray-800/90 text-white shadow pointer-events-none">
+              🔒 현재 잠금 중
+            </div>
+          )}
           {!isMe && (
           <button
             onClick={handleLike}
-            disabled={isLiked && (sentHeartsCount ?? 0) >= 4}
-            className={`absolute top-4 right-4 p-2.5 rounded-full backdrop-blur-sm transition-all ${
+            disabled={!locked && isLiked && (sentHeartsCount ?? 0) >= 4}
+            className={`absolute top-4 right-4 p-2.5 rounded-full backdrop-blur-sm transition-all ${locked ? 'opacity-60' : ''} ${
               isLiked
                 ? `${heartType ? heartMeta(heartType).solidBg : 'bg-rose-500'} text-white shadow-lg`
                 : 'bg-white/30 text-white hover:bg-rose-500 hover:scale-110'
@@ -167,12 +184,12 @@ function ProfileDetail({ profile, isMe, isLiked, heartType, sentHeartsCount, onL
             getLabel={getDomSubLabel} getBg={getDomSubBg} leftText="섭" rightText="돔" />
         </div>
 
-        {/* Chat button */}
+        {/* Chat button — locked 시 토스트, 정상 시 채팅 진입 */}
         {!isMe && (
-        <button onClick={onChat}
-          className="w-full py-3.5 bg-gradient-to-r from-cyan-500 to-teal-500 text-white font-semibold rounded-2xl hover:from-cyan-600 hover:to-teal-600 transition-all flex items-center justify-center gap-2 shadow-sm">
+        <button onClick={handleChat}
+          className={`w-full py-3.5 bg-gradient-to-r from-cyan-500 to-teal-500 text-white font-semibold rounded-2xl hover:from-cyan-600 hover:to-teal-600 transition-all flex items-center justify-center gap-2 shadow-sm ${locked ? 'opacity-60' : ''}`}>
           <MessageCircle className="w-5 h-5" />
-          채팅하기
+          {locked ? '🔒 채팅하기' : '채팅하기'}
         </button>
         )}
         {/* 궁합 버튼 */}

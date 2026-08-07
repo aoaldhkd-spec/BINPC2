@@ -1272,6 +1272,7 @@ function App() {
         isLiked={likedIds.has(selectedProfile.id)}
         heartType={sentHeartTypes.get(selectedProfile.id)}
         sentHeartsCount={sentHeartsPerPerson.get(selectedProfile.id)?.size ?? 0}
+        locked={seatingLocked || functionsLocked}
         onLike={() => { if (!seatingLocked && !functionsLocked) handleLike(selectedProfile.id); }}
         onChat={() => { openChat(selectedProfile); }}
         onBack={() => { setLikeConfirmTarget(null); setView('main'); }}
@@ -1495,7 +1496,6 @@ function App() {
         onRefreshChat={refreshChatTab}
         onUpdateProfile={(update) => setProfiles(prev => prev.map(p => p.id === (update as { id: string }).id ? { ...p, ...(update as object) } : p))}
         onRefreshProfiles={refreshProfilesTab}
-        onRefreshSeating={refreshSeatingTab}
         darkMode={darkMode}
         onToggleDark={() => { const next = !darkMode; setDarkMode(next); ls.setItem('dark_mode', next ? '1' : '0'); }}
         onShowQr={() => setShowProfileQr(true)}
@@ -1509,8 +1509,6 @@ function App() {
         })}
         seatingLocked={seatingLocked}
         functionsLocked={functionsLocked}
-        activeTables={activeTables}
-        tableLabels={tableLabels}
         onShowTutorial={() => { setTutorialPage(0); setShowTutorialModal(true); }}
         newMsgCount={newMsgCount}
         onClearMsgCount={() => setNewMsgCount(0)}
@@ -1518,7 +1516,6 @@ function App() {
         onClearChatUnread={(chatId) => setUnreadChatCounts(prev => { const n = { ...prev }; delete n[chatId]; return n; })}
         resetPassword={resetPassword}
         onBroadcastGame={broadcastTableGame}
-        setSeatDialog={setSeatDialog}
         fortuneCompatTarget={fortuneCompatTarget}
       />
       </AppErrorBoundary>

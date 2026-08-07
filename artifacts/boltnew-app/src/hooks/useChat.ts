@@ -205,17 +205,26 @@ export function useChat({
     loadMessages(chatId);
 
     // SSE 불안정 시 폴링 폴백 — 3초마다 확인 (applyLoadMessages가 dedup 처리)
-    // 3회 연속 실패 시 중단 (서버 과부하 방지)
+    // 3회 연속 실패 시 20초 쿨다운 후 자동 재개 (영구 중단 → 일시 정지)
     // [안전장치 6] isPolling 플래그로 이전 폴링이 완료되기 전 중복 실행 차단
     let pollFailCount = 0;
     let isPolling = false;
+    let pollPausedUntil = 0; // 이 시각(ms) 전에는 폴링 skip — 일시 정지 구현
     const pollInterval = setInterval(async () => {
-      if (chatIdRef.current !== chatId || pollFailCount >= 3) return;
+      if (chatIdRef.current !== chatId) return;
+      if (Date.now() < pollPausedUntil) return; // 쿨다운 중 — 대기
       if (isPolling) return; // 이전 폴링이 아직 실행 중 — skip (간격 중첩 방지)
       isPolling = true;
       try {
         const ok = await loadMessages(chatId);
-        if (ok) pollFailCount = 0; else pollFailCount++;
+        if (ok) {
+          pollFailCount = 0;
+          pollPausedUntil = 0;
+        } else if (++pollFailCount >= 3) {
+          // 3회 연속 실패 → 20초 쿨다운 후 재시도 (서버 과부하 방지 + 복구 보장)
+          pollPausedUntil = Date.now() + 20_000;
+          pollFailCount = 0;
+        }
       } finally {
         isPolling = false;
       }
@@ -396,8 +405,13 @@ export function useChat({
       }
 
       chatIdRef.current = resolvedChatId;
+      // unreadChatCountsRef.current は毎レンダーで更新されるため、ここで読めば最新値を取得できる.
+      // setChatId → effect の前に setUnreadChatCounts を呼ぶと effect 内で removed=0 になるため
+      // ここで count を読んでから両方まとめてクリアする (effect は no-op になるが二重減算は発生しない).
+      const countToRemove = unreadChatCountsRef.current[resolvedChatId!] ?? 0;
       setChatId(resolvedChatId);
       setUnreadChatCounts(prev => { const n = { ...prev }; delete n[resolvedChatId!]; return n; });
+      if (countToRemove > 0) setNewMsgCount(c => Math.max(0, c - countToRemove));
     } catch (err) {
       console.error('[openChat] 예외:', err);
       if (gen === openChatGenRef.current) {
@@ -457,11 +471,32 @@ export function useChat({
 
   useEffect(() => {
     const handler = () => {
-      if (document.visibilityState === 'visible') void syncUnreadCounts();
+      if (document.visibilityState === 'visible') {
+        void syncUnreadCounts();
+        // 탭 복귀 시 active 채팅방 메시지도 즉시 당겨옴 (SSE가 끊긴 사이 누락된 메시지 복구)
+        const activeChatId = chatIdRef.current;
+        if (activeChatId) void loadMessages(activeChatId);
+      }
     };
     document.addEventListener('visibilitychange', handler);
     return () => document.removeEventListener('visibilitychange', handler);
-  }, [syncUnreadCounts]);
+  }, [syncUnreadCounts, loadMessages]);
+
+  // ── 15초 주기 동기화 — SSE 드롭 시 메시지·미읽음·채팅 목록 복구 ──────────────
+  // active 채팅방 메시지도 함께 리로드해 SSE 끊김 기간 동안 누락된 메시지를 채움
+  // (SSE 재연결 핸들러와 이중화 → 어느 쪽이든 먼저 복구되면 즉시 반영)
+  useEffect(() => {
+    if (!currentUserId) return;
+    const uid = currentUserId;
+    const id = setInterval(() => {
+      void syncUnreadCounts();
+      void loadChatList(uid);
+      // active 채팅방이 열려 있으면 메시지도 동기화 (폴링 일시정지 중 gap 메우기)
+      const activeChatId = chatIdRef.current;
+      if (activeChatId) void loadMessages(activeChatId);
+    }, 15_000);
+    return () => clearInterval(id);
+  }, [currentUserId, syncUnreadCounts, loadChatList, loadMessages]);
 
   // ── 오프라인 메시지 큐 ─────────────────────────────────────────────────────────
   // 3회 재시도 모두 실패(네트워크 완전 단절) 시 메시지를 여기에 보관.

@@ -183,6 +183,7 @@ async function main() {
   const likeCountRes = await post('/op', {
     table: 'likes', op: 'select',
     filters: [{ type: 'eq', col: 'liked_id', val: user2Id }],
+    requesterId: user2Id,   // IDOR guard: likes SELECT requires authentication
   });
   // VU_COUNT unique (liker, type) combos → all should persist (no dedups expected)
   const storedLikeCount = Array.isArray(likeCountRes.json?.data) ? likeCountRes.json.data.length : 0;

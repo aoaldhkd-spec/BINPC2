@@ -264,6 +264,58 @@ describe('useChat — syncUnreadCounts is called once on mount (currentUserId be
   });
 });
 
+describe('useChat — openChat clears both per-chat badge and global newMsgCount', () => {
+  it('newMsgCount decrements correctly when openChat clears unread for the resolved chat', async () => {
+    // Scenario: user has 1 unread in CHAT_A. They open the chat list and click the chat.
+    // openChat calls setUnreadChatCounts (clearing CHAT_A) before the chatId effect fires.
+    // The bug (regressed): if openChat did NOT read the count before calling
+    // setUnreadChatCounts, the chatId effect would find removed=0 and never decrement newMsgCount.
+    //
+    // Verifies that after openChat resolves: unreadChatCounts[CHAT_A] is gone AND newMsgCount===0.
+
+    // Arrange: chat list shows CHAT_A; unread-counts endpoint returns { [CHAT_A]: 1 }
+    chatQB._setData([makeChatRow(CHAT_A)]);
+    setupFetch({ [CHAT_A]: 1 });
+
+    // Make chatQB.maybeSingle return the existing chat so openChat resolves to CHAT_A
+    // (chatQB is reused for supabase.from('chats') lookups inside openChat)
+    chatQB.maybeSingle = vi.fn().mockResolvedValue({ data: { id: CHAT_A, user1_id: TEST_USER_ID, user2_id: 'other-user' }, error: null });
+
+    const { result } = renderHook(() => useChat(BASE_DEPS));
+
+    // 1. Load chat list → triggers syncUnreadCounts which sets newMsgCount = 1
+    await act(async () => {
+      await result.current.loadChatList(TEST_USER_ID);
+    });
+    expect(result.current.newMsgCount).toBe(1);
+    expect(result.current.unreadChatCounts[CHAT_A]).toBe(1);
+
+    // 2. Open the chat — openChat must clear both per-chat count AND global badge
+    const otherProfile: Profile = {
+      id: 'other-user',
+      nickname: 'Other',
+      pin_code: '1234',
+      bio: '',
+      mbti: null,
+      photo_url: null,
+      seat_number: null,
+      personality_score: 50,
+      birth_year: null,
+      is_admin: false,
+      device_secret: null,
+      push_subscription: null,
+      created_at: new Date().toISOString(),
+    };
+    await act(async () => {
+      await result.current.openChat(otherProfile);
+    });
+
+    // Both the per-chat bubble and the global badge must be cleared in the same cycle
+    expect(result.current.unreadChatCounts[CHAT_A]).toBeUndefined();
+    expect(result.current.newMsgCount).toBe(0);
+  });
+});
+
 describe('useChat — error resilience', () => {
   it('hook remains stable when /api/db/unread-counts returns 500', async () => {
     chatQB._setData([makeChatRow(CHAT_A)]);
