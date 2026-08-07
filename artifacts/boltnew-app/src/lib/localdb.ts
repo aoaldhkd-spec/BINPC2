@@ -659,6 +659,12 @@ export async function fetchAndSetSseToken(userId: string): Promise<void> {
   } catch (e) {
     // 네트워크 오류 시 SSE는 익명으로 폴백. 원인을 로그로 남겨 디버깅 가능하게.
     console.warn('[SSE] fetchAndSetSseToken failed — falling back to anonymous SSE:', e);
+    // 30초 후 자동 재시도: 일시적 오류로 토큰이 영구 익명 상태가 되는 것을 방지
+    if (_currentUserId === userId) {
+      setTimeout(() => {
+        if (_currentUserId === userId) fetchAndSetSseToken(userId).catch(() => {});
+      }, 30_000);
+    }
   }
 }
 

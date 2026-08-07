@@ -1346,6 +1346,14 @@ router.post('/op', async (req: Request, res: Response) => {
           );
           if (dupLike) return res.json({ data: null, error: null }); // 무음 중복 차단
 
+          // 타입별 글로벌 한도: 동일 heart_type을 최대 2명에게만 보낼 수 있음 (클라이언트 우회 방지)
+          const sameTypeCount = tableData.filter(r =>
+            r.liker_id === effectiveRow.liker_id && r.heart_type === effectiveRow.heart_type
+          ).length;
+          if (sameTypeCount >= 2) {
+            return res.status(429).json({ data: null, error: { message: '같은 종류의 하트는 최대 2명에게만 보낼 수 있습니다.', code: 'HEART_LIMIT' } });
+          }
+
           // Time-bucket rate limiter: at most 1 like per 500 ms per (liker, liked, type) triple
           // Keyed on all three dimensions so different heart types can still be sent concurrently;
           // only the exact same (liker, liked, type) combination is throttled within the window.

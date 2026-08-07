@@ -49,14 +49,15 @@ export function useGames(
       const activeIds = (games as { id: string; status: string }[]).filter(g => g.status === 'active').map(g => g.id);
       if (activeIds.length > 0) {
         const { data: votes } = await supabase.from('balance_votes').select('game_id, option').in('game_id', activeIds);
-        if (votes) {
-          const counts = new Map<string, { a: number; b: number }>();
-          (votes as { game_id: string; option: string }[]).forEach(v => {
-            const c = counts.get(v.game_id) || { a: 0, b: 0 };
-            counts.set(v.game_id, { ...c, [v.option]: c[v.option as 'a' | 'b'] + 1 });
-          });
-          setVoteCounts(counts);
-        }
+        const counts = new Map<string, { a: number; b: number }>();
+        (votes ?? []).forEach((v: { game_id: string; option: string }) => {
+          const c = counts.get(v.game_id) || { a: 0, b: 0 };
+          counts.set(v.game_id, { ...c, [v.option]: c[v.option as 'a' | 'b'] + 1 });
+        });
+        setVoteCounts(counts);
+      } else {
+        // 활성 게임 없으면 이전 집계 초기화 (재활성화 시 오염 방지)
+        setVoteCounts(new Map());
       }
     } catch (e) { console.warn('[useGames] loadBalanceGames 실패:', e); }
   }, []);
@@ -64,7 +65,8 @@ export function useGames(
   const loadMyVotes = useCallback(async (userId: string) => {
     try {
       const { data } = await supabase.from('balance_votes').select('game_id, option').eq('voter_id', userId);
-      if (data) setMyVotes(new Map((data as { game_id: string; option: string }[]).map(v => [v.game_id, v.option as 'a' | 'b'])));
+      // data가 null/빈 배열이어도 항상 반영: 계정 전환 시 이전 사용자 투표 잔류 방지
+      setMyVotes(new Map((data ?? []).map((v: { game_id: string; option: string }) => [v.game_id, v.option as 'a' | 'b'])));
     } catch (e) { console.warn('[useGames] loadMyVotes 실패:', e); }
   }, []);
 

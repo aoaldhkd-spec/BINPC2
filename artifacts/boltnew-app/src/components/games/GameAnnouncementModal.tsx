@@ -26,15 +26,17 @@ export function GameAnnouncementModal({ game, onDismiss, onVote, onImageVote, cu
 
   useEffect(() => {
     if (game.type !== 'image' || !game.game_id) return;
+    let mounted = true;
     const loadCounts = async () => {
       const { data } = await supabase.from('image_votes').select('voted_profile_id').eq('game_id', game.game_id!);
+      if (!mounted) return;
       if (data) {
         const tally = (data as { voted_profile_id: string }[]).reduce((acc: Record<string, number>, v) => { acc[v.voted_profile_id] = (acc[v.voted_profile_id] ?? 0) + 1; return acc; }, {} as Record<string, number>);
         setImageVoteCounts(tally);
       }
       if (currentUserId) {
         const { data: myVote } = await supabase.from('image_votes').select('voted_profile_id').eq('game_id', game.game_id!).eq('voter_id', currentUserId).maybeSingle();
-        if (myVote) setImageVoted(myVote.voted_profile_id);
+        if (mounted && myVote) setImageVoted(myVote.voted_profile_id);
       }
     };
     loadCounts();
@@ -43,7 +45,7 @@ export function GameAnnouncementModal({ game, onDismiss, onVote, onImageVote, cu
         const v = payload.new as { voted_profile_id: string };
         setImageVoteCounts(prev => ({ ...prev, [v.voted_profile_id]: (prev[v.voted_profile_id] ?? 0) + 1 }));
       }).subscribe(() => {});
-    return () => { supabase.removeChannel(ch); };
+    return () => { mounted = false; supabase.removeChannel(ch); };
   }, [game.type, game.game_id, currentUserId]);
 
   const handleImageVote = (profileId: string) => {

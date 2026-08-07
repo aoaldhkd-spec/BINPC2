@@ -783,6 +783,11 @@ function App() {
             rejNotifTimerIds.push(setTimeout(() => setRejectionNotif(null), 5000));
           } else if (updated.status === 'accepted') {
             loadContactShareData(currentUserId);
+            // 수락 알림: 보낸 사람에게도 피드백 제공
+            const acceptedProfile = profilesRef.current.find(p => p.id === updated.liked_id);
+            const nick = acceptedProfile?.nickname ?? '상대방';
+            setBottomNotif({ type: 'chat', nickname: `💚 ${nick}님이 하트를 수락했어요` });
+            rejNotifTimerIds.push(setTimeout(() => setBottomNotif(prev => prev?.nickname === `💚 ${nick}님이 하트를 수락했어요` ? null : prev), 5000));
           }
         })
       .subscribe();
@@ -806,6 +811,9 @@ function App() {
             }
           } catch (e) { console.warn('[realtime:likes]', e); }
         })
+      // 받은 하트의 상태 변경(수락/거절)을 실시간 반영 — INSERT 전용이면 다른 기기에서 처리한 수락이 누락됨
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'likes', filter: `liked_id=eq.${currentUserId}` },
+        () => { loadReceivedLikesRef.current?.(currentUserId).catch(() => {}); })
       .subscribe();
 
     const contactSharesChannel = supabase

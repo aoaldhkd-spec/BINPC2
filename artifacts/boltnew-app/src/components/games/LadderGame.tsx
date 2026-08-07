@@ -108,7 +108,7 @@ export function LadderGame({ seats, tableNumber, onBroadcast, myNickname, profil
           <div className="flex items-center justify-between">
             <p className="text-xs font-bold text-gray-700 uppercase tracking-wider">벌칙 인원</p>
             <div className="flex items-center gap-2">
-              <button onClick={() => { setPenaltyCount(c => Math.max(1, c - 1)); setPrizes(p => p.slice(0, penaltyCount - 1)); }}
+              <button onClick={() => { const next = Math.max(1, penaltyCount - 1); setPenaltyCount(next); setPrizes(p => p.slice(0, next)); }}
                 disabled={effectivePenaltyCount <= 1}
                 className="w-7 h-7 rounded-full bg-gray-100 text-gray-600 font-black text-sm flex items-center justify-center hover:bg-gray-200 disabled:opacity-30 active:scale-95">−</button>
               <span className="text-sm font-black text-amber-600 w-16 text-center">{effectivePenaltyCount} / {n}명</span>
