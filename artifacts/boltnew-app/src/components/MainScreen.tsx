@@ -491,9 +491,8 @@ const ProfileCard = memo(function ProfileCard({
   const avLabel = AVATAR_CATEGORIES.flatMap(c => c.avatars).find(a => a.src === profile.photo_url)?.label ?? null;
 
   // 테마 적응형 스타일 (Tailwind 오버라이드 없이 항상 올바른 색상 보장)
-  const tagStyle = isCardDark
-    ? { backgroundColor: 'rgba(255,255,255,0.08)', color: '#ffffff', borderColor: 'rgba(255,255,255,0.18)' }
-    : { backgroundColor: 'rgba(0,0,0,0.06)', color: '#1f2937', borderColor: 'rgba(0,0,0,0.12)' };
+  // 카드 배경이 항상 bg-white이므로 테마 무관하게 어두운 텍스트 사용
+  const tagStyle = { backgroundColor: 'rgba(0,0,0,0.07)', color: '#374151', borderColor: 'rgba(0,0,0,0.18)' };
   const heartBtnStyle = isCardDark
     ? { backgroundColor: 'rgba(251,113,133,0.13)', borderColor: 'rgba(251,113,133,0.28)' }
     : { backgroundColor: '#fff1f2', borderColor: '#fecdd3' };
