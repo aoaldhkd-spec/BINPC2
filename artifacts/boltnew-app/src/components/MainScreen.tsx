@@ -1106,18 +1106,19 @@ export function MainScreen({
           </div>
         </div>
         {timerEndAt && <TimerBanner endAt={timerEndAt} label={timerLabel ?? ''} />}
-        {/* ── 탭 바 (1행 × 2열: 참여자 | 통계·랭킹) ── */}
+        {/* ── 탭 바 (1행 × 3열: 참여자 | 통계 | 랭킹) ── */}
         <div className={`max-w-7xl mx-auto border-t-2 ${darkMode ? 'bg-slate-900 border-slate-700' : 'bg-gray-50 border-gray-200'}`}>
           <div className="flex">
             {([
               { id: 'profiles' as MainTab, icon: '👥', label: '참여자', badge: seenProfilesCount < 0 ? 0 : Math.max(0, profiles.length - seenProfilesCount) },
-              { id: 'stats' as MainTab, icon: '📊', label: '통계·랭킹' },
+              { id: 'stats' as MainTab, icon: '📊', label: '통계' },
+              { id: 'ranking' as MainTab, icon: '🏆', label: '랭킹' },
             ] as Array<{ id: MainTab; icon: string; label: string; badge?: number }>).map((t, ci, arr) => {
               const locked = functionsLocked && LOCKED_TABS.has(t.id);
-              const active = mainTab === t.id || (t.id === 'stats' && mainTab === 'ranking');
+              const active = mainTab === t.id;
               return (
                 <button key={t.id} onClick={() => handleTabChange(t.id)} disabled={locked}
-                  className={`relative flex-1 py-2.5 flex flex-col items-center gap-0.5 transition-all active:scale-95 border-b-2 ${ci < arr.length - 1 ? (darkMode ? 'border-r border-slate-700/30' : 'border-r border-gray-200/70') : ''} ${
+                  className={`relative flex-1 py-2 flex flex-col items-center gap-0.5 transition-all active:scale-95 border-b-2 ${ci < arr.length - 1 ? (darkMode ? 'border-r border-slate-700/30' : 'border-r border-gray-200/70') : ''} ${
                     locked ? `opacity-35 cursor-not-allowed border-b-transparent ${darkMode ? 'text-slate-500' : 'text-gray-400'}` :
                     active ? darkMode ? 'border-b-cyan-500 text-cyan-400 bg-cyan-500/10' : 'border-b-cyan-500 text-cyan-700 bg-cyan-50' :
                     darkMode ? 'border-b-transparent text-slate-400' : 'border-b-transparent text-gray-500'
@@ -2336,22 +2337,14 @@ export function MainScreen({
           </div>
         )}
 
-        {/* ─── 통계·랭킹 합산 탭 ─── */}
-        {(mainTab === 'stats' || mainTab === 'ranking') && (
-          <div className="space-y-4">
-            <StatsTab profiles={profiles} seats={seats} darkMode={darkMode} />
+        {/* ─── 통계 탭 ─── */}
+        {mainTab === 'stats' && (
+          <StatsTab profiles={profiles} seats={seats} darkMode={darkMode} />
+        )}
 
-            {/* 구분선 */}
-            <div className="flex items-center gap-3 py-1">
-              <div className={`flex-1 h-px ${darkMode ? 'bg-slate-700' : 'bg-gray-200'}`} />
-              <span className={`flex items-center gap-1.5 text-xs font-black px-3 py-1 rounded-full ${darkMode ? 'bg-slate-800 text-amber-400 border border-slate-600' : 'bg-amber-50 text-amber-600 border border-amber-200'}`}>
-                🏆 인기도 랭킹
-              </span>
-              <div className={`flex-1 h-px ${darkMode ? 'bg-slate-700' : 'bg-gray-200'}`} />
-            </div>
-
-            <RankingTab seats={seats} darkMode={darkMode} profiles={profiles} />
-          </div>
+        {/* ─── 랭킹 탭 ─── */}
+        {mainTab === 'ranking' && (
+          <RankingTab seats={seats} darkMode={darkMode} profiles={profiles} />
         )}
 
         {/* ─── 운세 탭 (게임·운세 하위) ─── */}
