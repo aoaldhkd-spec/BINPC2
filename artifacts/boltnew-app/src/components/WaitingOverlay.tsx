@@ -199,7 +199,7 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
         {/* 고유번호 복구 */}
         <button
           onClick={() => { setShowPinRecovery(true); setPinDigits(['','','','']); setPinError(''); }}
-          className="w-full py-2.5 bg-transparent border border-slate-600/60 hover:border-slate-500 text-slate-400 hover:text-slate-300 font-semibold text-xs rounded-2xl transition-all mb-5"
+          className="w-full py-3.5 bg-gradient-to-r from-orange-400 to-rose-500 hover:from-orange-300 hover:to-rose-400 text-white font-black text-sm rounded-2xl shadow-lg shadow-orange-500/25 transition-all active:scale-98 mb-3"
         >🔑 고유번호로 프로필 복구</button>
 
         {/* 입장 전 주의사항 — 인라인 카드 */}
