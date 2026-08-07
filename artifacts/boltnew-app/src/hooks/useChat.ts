@@ -583,7 +583,6 @@ export function useChat({
 
     const clientUUID = crypto.randomUUID(); // 재시도 전체에서 동일 UUID 사용 (idempotency)
     const optimisticId = `__opt_${clientUUID}`;
-    const prevLastMessage = chatListRef.current.find(c => c.id === snapChatId)?.lastMessage ?? '';
     const trimmed = content.trim();
     const optimisticMsg: Message = {
       id: optimisticId,

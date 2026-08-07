@@ -699,12 +699,16 @@ function App() {
       const me = allProfiles.find((p: { id: string }) => p.id === currentUserId);
       if (me && !(me as { pin_code?: string | null }).pin_code) {
         (async () => {
-          const { data: existingPins } = await supabase.from('profiles').select('pin_code');
-          const usedPins = new Set((existingPins ?? []).map((p: { pin_code: string | null }) => p.pin_code).filter(Boolean));
-          let newPin = String(Math.floor(1000 + Math.random() * 9000));
-          while (usedPins.has(newPin)) newPin = String(Math.floor(1000 + Math.random() * 9000));
-          await supabase.from('profiles').update({ pin_code: newPin }).eq('id', currentUserId);
-          setProfiles(prev => prev.map(p => p.id === currentUserId ? { ...p, pin_code: newPin } : p));
+          try {
+            const { data: existingPins } = await supabase.from('profiles').select('pin_code');
+            const usedPins = new Set((existingPins ?? []).map((p: { pin_code: string | null }) => p.pin_code).filter(Boolean));
+            let newPin = String(Math.floor(1000 + Math.random() * 9000));
+            while (usedPins.has(newPin)) newPin = String(Math.floor(1000 + Math.random() * 9000));
+            await supabase.from('profiles').update({ pin_code: newPin }).eq('id', currentUserId);
+            setProfiles(prev => prev.map(p => p.id === currentUserId ? { ...p, pin_code: newPin } : p));
+          } catch (err) {
+            console.warn('[pin-gen] 고유번호 자동 생성 실패:', err);
+          }
         })();
       }
     });
@@ -725,11 +729,15 @@ function App() {
     if (pendingShareId && pendingShareId !== currentUserId) {
       window.history.replaceState({}, '', window.location.pathname);
       (async () => {
-        const { data: shareProfile } = await supabase.from('profiles').select('*').eq('id', pendingShareId).maybeSingle();
-        if (!shareProfile) return;
-        const p = shareProfile as import('./types/app').Profile;
-        saveScannedContact(p);
-        setScannedContactProfile(p);
+        try {
+          const { data: shareProfile } = await supabase.from('profiles').select('*').eq('id', pendingShareId).maybeSingle();
+          if (!shareProfile) return;
+          const p = shareProfile as import('./types/app').Profile;
+          saveScannedContact(p);
+          setScannedContactProfile(p);
+        } catch (err) {
+          console.warn('[share-profile] QR 스캔 프로필 로드 실패:', err);
+        }
       })();
     }
 

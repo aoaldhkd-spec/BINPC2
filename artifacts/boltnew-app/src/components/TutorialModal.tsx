@@ -32,7 +32,7 @@ function SlideWithSteps({ desc, steps, color, darkMode }: {
   );
 }
 
-export const TUTORIAL_SLIDES: TutorialSlide[] = [
+const TUTORIAL_SLIDES: TutorialSlide[] = [
   /* 0 — 환영 */
   {
     emoji: '🥂',
