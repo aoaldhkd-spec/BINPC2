@@ -250,10 +250,13 @@ export default function TestDashboard() {
 
   const clearAllHearts = async () => {
     setLoading('clearHearts');
-    await supabase.from('likes').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    testResync();
-    await load();
-    notify('모든 하트 삭제됨');
+    try {
+      await testApiRpc('test_clear_hearts', {});
+      await load();
+      notify('모든 하트 삭제됨');
+    } catch (e) {
+      notify(`하트 삭제 실패: ${e instanceof Error ? e.message : String(e)}`, false);
+    }
     setLoading(null);
   };
 

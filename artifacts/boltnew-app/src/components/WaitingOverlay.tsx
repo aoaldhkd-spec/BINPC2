@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
 import { Users, CheckCircle, Clock, ShieldAlert } from 'lucide-react';
-import { TutorialModal } from './TutorialModal';
 import { useTheme } from '../lib/theme';
 
 export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
@@ -11,8 +10,6 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
   const { theme } = useTheme();
   const isLightTheme = theme === 'y2k' || theme === 'minimal';
   const isActive = sessionActive === true;
-  const [showTutorial, setShowTutorial] = useState(false);
-  const [tutPage, setTutPage] = useState(0);
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [showPinRecovery, setShowPinRecovery] = useState(false);
   const [pinDigits, setPinDigits] = useState<[string,string,string,string]>(['','','','']);
@@ -199,15 +196,11 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
           disabled={!isActive}
           className="w-full py-4 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 disabled:from-slate-700 disabled:to-slate-600 disabled:cursor-not-allowed text-white font-black text-lg rounded-2xl shadow-2xl shadow-teal-500/30 transition-all active:scale-98 disabled:active:scale-100 mb-3"
         >{isActive ? '입장하기' : '⏳ 회의 시작 전입니다'}</button>
-        <button
-          onClick={() => { setTutPage(0); setShowTutorial(true); }}
-          className="w-full py-3.5 bg-gradient-to-r from-orange-400 to-rose-500 hover:from-orange-300 hover:to-rose-400 text-white font-black text-sm rounded-2xl shadow-lg shadow-orange-500/25 transition-all active:scale-98 mb-3"
-        >앱 사용법 보기</button>
-        {/* 핀 번호 복구 */}
+        {/* 고유번호 복구 */}
         <button
           onClick={() => { setShowPinRecovery(true); setPinDigits(['','','','']); setPinError(''); }}
           className="w-full py-2.5 bg-transparent border border-slate-600/60 hover:border-slate-500 text-slate-400 hover:text-slate-300 font-semibold text-xs rounded-2xl transition-all mb-5"
-        >🔑 핀 번호로 프로필 복구</button>
+        >🔑 고유번호로 프로필 복구</button>
 
         {/* 입장 전 주의사항 — 인라인 카드 */}
         <div className="w-full rounded-2xl bg-amber-500/10 border border-amber-400/25 overflow-hidden">
@@ -267,14 +260,6 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
               </div>
             </div>
           </div>
-        )}
-        {/* 앱 사용법 튜토리얼 모달 */}
-        {showTutorial && (
-          <TutorialModal
-            page={tutPage}
-            onChangePage={setTutPage}
-            onClose={() => setShowTutorial(false)}
-          />
         )}
         {/* 핀 번호 복구 모달 */}
         {showPinRecovery && (

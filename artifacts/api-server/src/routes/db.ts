@@ -1675,6 +1675,24 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         return res.json({ data: null, error: null });
       }
 
+      case 'test_clear_hearts': {
+        // 테스트 대시보드 → likes 테이블 전체 삭제 (in-memory + DB)
+        const pTestPwH = (args.p_test_password as string | undefined) ?? '';
+        const correctTestPwH = ((settings.test_password as string | null | undefined) ?? '').trim() || '116606';
+        if (pTestPwH.trim() !== correctTestPwH) {
+          return res.status(403).json({ data: null, error: { message: '테스트 비밀번호가 올바르지 않습니다.' } });
+        }
+        const allLikes = getTable('likes');
+        store['likes'] = [];
+        _likesLastInsert.clear();
+        dbDeleteTable('likes').catch(e => logger.error({ err: e }, '[rpc] test_clear_hearts DB 삭제 실패'));
+        for (const like of allLikes) {
+          broadcastAll({ type: 'change', table: 'likes', event: 'DELETE', newRow: like, oldRow: like });
+        }
+        logger.info({ count: allLikes.length }, '[rpc] test_clear_hearts: 하트 전체 삭제');
+        return res.json({ data: { cleared: allLikes.length }, error: null });
+      }
+
       case 'admin_force_resync_all': {
         // 관리자 패널 → 전체 테이블 강제 리싱크 (Supabase 직접 쓰기 후 즉시 반영용)
         checkPassword();
