@@ -213,7 +213,7 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
               { emoji: '🔋', text: '절전 모드 OFF' },
               { emoji: '🕵️', text: '시크릿 모드 금지' },
               { emoji: '📵', text: '화면 잠금 길게 설정' },
-              { emoji: '🔖', text: '이 페이지 북마크 저장' },
+              { emoji: '🔖', text: '고유번호 및 프로필 암기' },
             ].map(item => (
               <div key={item.emoji} className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-black/20">
                 <span className="text-base leading-none flex-shrink-0">{item.emoji}</span>
