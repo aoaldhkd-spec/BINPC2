@@ -784,6 +784,9 @@ export function MainScreen({
   // 기능 잠금(functionsLocked) 시 이동 불가 탭 — 자리 잠금(seatingLocked)과 분리
   const LOCKED_TABS = new Set<MainTab>(['chats', 'fortune', 'stats', 'ranking']);
 
+  // MY 버튼 팝업 열림 상태
+  const [myMenuOpen, setMyMenuOpen] = useState(false);
+
   const handleTabChange = (t: MainTab) => {
     if (functionsLocked && LOCKED_TABS.has(t)) return; // 기능 잠금 중 → 탭 이동 차단
     if (t === 'status') { setSeenHeartsCount(pendingHeartsCount); setSeenContactsCount(receivedContactShares.length); }
@@ -1103,47 +1106,35 @@ export function MainScreen({
           </div>
         </div>
         {timerEndAt && <TimerBanner endAt={timerEndAt} label={timerLabel ?? ''} />}
-        {/* ── 탭 바 (2행 × 3열) ── */}
+        {/* ── 탭 바 (1행 × 2열: 참여자 | 통계·랭킹) ── */}
         <div className={`max-w-7xl mx-auto border-t-2 ${darkMode ? 'bg-slate-900 border-slate-700' : 'bg-gray-50 border-gray-200'}`}>
-          {([
-            // Row 1: 내 상태 | 내 채팅 | 통계
-            [
-              { id: 'status' as MainTab, icon: '💝', label: '내 상태', badge: Math.max(0, pendingHeartsCount - seenHeartsCount) + newContactsCount },
-              { id: 'chats' as MainTab, icon: '💬', label: '내 채팅', badge: newMsgCount },
-              { id: 'stats' as MainTab, icon: '📊', label: '통계' },
-            ],
-            // Row 2: 참여자 | 내 운세 | 랭킹
-            [
+          <div className="flex">
+            {([
               { id: 'profiles' as MainTab, icon: '👥', label: '참여자', badge: seenProfilesCount < 0 ? 0 : Math.max(0, profiles.length - seenProfilesCount) },
-              { id: 'fortune' as MainTab, icon: '🔮', label: '내 운세' },
-              { id: 'ranking' as MainTab, icon: '🏆', label: '랭킹' },
-            ],
-          ] as Array<Array<{ id: MainTab; icon: string; label: string; badge?: number }>>).map((row, ri) => (
-            <div key={ri} className={`flex ${ri === 0 ? `border-b ${darkMode ? 'border-slate-700/50' : 'border-gray-200'}` : ''}`}>
-              {row.map((t, ci) => {
-                const locked = functionsLocked && LOCKED_TABS.has(t.id);
-                const active = mainTab === t.id;
-                return (
-                  <button key={t.id} onClick={() => handleTabChange(t.id)} disabled={locked}
-                    className={`relative flex-1 py-2 flex flex-col items-center gap-0.5 transition-all active:scale-95 border-b-2 ${ci < row.length - 1 ? (darkMode ? 'border-r border-slate-700/30' : 'border-r border-gray-200/70') : ''} ${
-                      locked ? `opacity-35 cursor-not-allowed border-b-transparent ${darkMode ? 'text-slate-500' : 'text-gray-400'}` :
-                      active ? darkMode ? 'border-b-cyan-500 text-cyan-400 bg-cyan-500/10' : 'border-b-cyan-500 text-cyan-700 bg-cyan-50' :
-                      darkMode ? 'border-b-transparent text-slate-400' : 'border-b-transparent text-gray-500'
-                    }`}>
-                    <span className="text-base leading-none">{locked ? '🔒' : t.icon}</span>
-                    <span className="relative inline-flex text-[9px] font-bold leading-tight">
-                      {t.label}
-                      {!locked && (t.badge ?? 0) > 0 && (
-                        <span className="absolute -top-1 -right-3 min-w-[13px] h-[13px] px-0.5 bg-rose-500 text-white text-[8px] font-black rounded-full flex items-center justify-center">
-                          {t.badge}
-                        </span>
-                      )}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          ))}
+              { id: 'stats' as MainTab, icon: '📊', label: '통계·랭킹' },
+            ] as Array<{ id: MainTab; icon: string; label: string; badge?: number }>).map((t, ci, arr) => {
+              const locked = functionsLocked && LOCKED_TABS.has(t.id);
+              const active = mainTab === t.id || (t.id === 'stats' && mainTab === 'ranking');
+              return (
+                <button key={t.id} onClick={() => handleTabChange(t.id)} disabled={locked}
+                  className={`relative flex-1 py-2.5 flex flex-col items-center gap-0.5 transition-all active:scale-95 border-b-2 ${ci < arr.length - 1 ? (darkMode ? 'border-r border-slate-700/30' : 'border-r border-gray-200/70') : ''} ${
+                    locked ? `opacity-35 cursor-not-allowed border-b-transparent ${darkMode ? 'text-slate-500' : 'text-gray-400'}` :
+                    active ? darkMode ? 'border-b-cyan-500 text-cyan-400 bg-cyan-500/10' : 'border-b-cyan-500 text-cyan-700 bg-cyan-50' :
+                    darkMode ? 'border-b-transparent text-slate-400' : 'border-b-transparent text-gray-500'
+                  }`}>
+                  <span className="text-base leading-none">{locked ? '🔒' : t.icon}</span>
+                  <span className="relative inline-flex text-[9px] font-bold leading-tight">
+                    {t.label}
+                    {!locked && (t.badge ?? 0) > 0 && (
+                      <span className="absolute -top-1 -right-3 min-w-[13px] h-[13px] px-0.5 bg-rose-500 text-white text-[8px] font-black rounded-full flex items-center justify-center">
+                        {t.badge}
+                      </span>
+                    )}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
       </header>
@@ -2345,14 +2336,22 @@ export function MainScreen({
           </div>
         )}
 
-        {/* ─── 통계 탭 ─── */}
-        {mainTab === 'stats' && (
+        {/* ─── 통계·랭킹 합산 탭 ─── */}
+        {(mainTab === 'stats' || mainTab === 'ranking') && (
+          <div className="space-y-4">
             <StatsTab profiles={profiles} seats={seats} darkMode={darkMode} />
-        )}
 
-        {/* ─── 랭킹 탭 ─── */}
-        {mainTab === 'ranking' && (
+            {/* 구분선 */}
+            <div className="flex items-center gap-3 py-1">
+              <div className={`flex-1 h-px ${darkMode ? 'bg-slate-700' : 'bg-gray-200'}`} />
+              <span className={`flex items-center gap-1.5 text-xs font-black px-3 py-1 rounded-full ${darkMode ? 'bg-slate-800 text-amber-400 border border-slate-600' : 'bg-amber-50 text-amber-600 border border-amber-200'}`}>
+                🏆 인기도 랭킹
+              </span>
+              <div className={`flex-1 h-px ${darkMode ? 'bg-slate-700' : 'bg-gray-200'}`} />
+            </div>
+
             <RankingTab seats={seats} darkMode={darkMode} profiles={profiles} />
+          </div>
         )}
 
         {/* ─── 운세 탭 (게임·운세 하위) ─── */}
@@ -2443,6 +2442,81 @@ export function MainScreen({
         )}
 
       </main>
+
+      {/* ── MY 버튼 (우하단 고정 원형) + 팝업 ── */}
+      {(() => {
+        const myTabActive = mainTab === 'status' || mainTab === 'chats' || mainTab === 'fortune';
+        const heartsBadge = Math.max(0, pendingHeartsCount - seenHeartsCount) + newContactsCount;
+        const myBadgeTotal = heartsBadge + newMsgCount;
+
+        const MY_ITEMS: Array<{ id: MainTab; icon: string; label: string; badge?: number }> = [
+          { id: 'status',  icon: '💝', label: '내 상태',  badge: heartsBadge },
+          { id: 'chats',   icon: '💬', label: '내 채팅',  badge: newMsgCount },
+          { id: 'fortune', icon: '🔮', label: '내 운세' },
+        ];
+
+        return (
+          <>
+            {/* 팝업 닫기용 배경 */}
+            {myMenuOpen && (
+              <div className="fixed inset-0 z-40" onClick={() => setMyMenuOpen(false)} />
+            )}
+
+            {/* 팝업 메뉴 */}
+            {myMenuOpen && (
+              <div className={`fixed bottom-24 right-4 z-50 rounded-2xl shadow-2xl border overflow-hidden min-w-[160px] transition-all ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'}`}>
+                {MY_ITEMS.map((item, idx) => {
+                  const locked = functionsLocked && LOCKED_TABS.has(item.id);
+                  const active = mainTab === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      disabled={locked}
+                      onClick={() => { if (locked) return; setMyMenuOpen(false); handleTabChange(item.id); }}
+                      className={`w-full flex items-center gap-3 px-4 py-3 transition-all active:scale-95 ${idx > 0 ? (darkMode ? 'border-t border-slate-700' : 'border-t border-gray-100') : ''} ${
+                        active
+                          ? darkMode ? 'bg-cyan-500/20 text-cyan-400' : 'bg-cyan-50 text-cyan-700'
+                          : locked
+                            ? `opacity-40 cursor-not-allowed ${darkMode ? 'text-slate-400' : 'text-gray-400'}`
+                            : darkMode ? 'text-slate-200 hover:bg-slate-700' : 'text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <span className="text-lg leading-none">{locked ? '🔒' : item.icon}</span>
+                      <span className="text-sm font-bold flex-1 text-left">{item.label}</span>
+                      {!locked && (item.badge ?? 0) > 0 && (
+                        <span className="min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
+                          {item.badge}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* MY 원형 버튼 */}
+            <button
+              onClick={() => setMyMenuOpen(v => !v)}
+              className={`fixed bottom-6 right-4 z-50 w-14 h-14 rounded-full shadow-xl flex flex-col items-center justify-center gap-0 transition-all active:scale-90 select-none ${
+                myTabActive || myMenuOpen
+                  ? 'bg-gradient-to-br from-cyan-500 to-teal-500 text-white shadow-cyan-500/40'
+                  : darkMode
+                    ? 'bg-slate-700 text-slate-200 shadow-slate-900/60'
+                    : 'bg-white text-gray-700 shadow-gray-300/80 border border-gray-200'
+              }`}
+              style={{ boxShadow: (myTabActive || myMenuOpen) ? '0 4px 20px rgba(6,182,212,0.45)' : undefined }}
+            >
+              <span className="text-[11px] font-black leading-none tracking-wide">MY</span>
+              {myBadgeTotal > 0 && !myMenuOpen && (
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center shadow-sm">
+                  {myBadgeTotal > 99 ? '99+' : myBadgeTotal}
+                </span>
+              )}
+            </button>
+          </>
+        );
+      })()}
+
     </div>
   );
 }
