@@ -3882,56 +3882,105 @@ function ProfilesTabSection({ profiles, seats, settings, onClear, onDeleteProfil
           </button>
         )}
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      <div className="space-y-2">
         {filtered.map((p) => {
           const seat = seats.find(s => s.profile_id === p.id);
           const posLabel = getPositionLabel(p.personality_score ?? 50);
           const domLabel = p.dom_sub_score !== null ? getDomSubLabel(p.dom_sub_score) : null;
           const age = p.birth_year ? getKoreanAge(p.birth_year) : null;
-          const bioTags = p.bio ? p.bio.split(',').map(t => t.trim()).filter(Boolean).slice(0, 3) : [];
+          const bioTags = (p.bio ?? '').split(',').map(t => t.trim()).filter(Boolean).slice(0, 4);
+          const initial = (p.nickname ?? '?')[0];
           return (
-            <div key={p.id} className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100">
-              <div className="aspect-[4/3] overflow-hidden relative">
-                <img src={p.photo_url} alt={p.nickname} className="w-full h-full object-cover" />
-                <button onClick={() => setDeleteTarget(p)}
-                  className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-red-500/90 hover:bg-red-600 text-white flex items-center justify-center shadow transition-all">
-                  <X className="w-3.5 h-3.5" />
+            <div key={p.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3 flex items-center gap-3">
+              {/* 원형 아바타 */}
+              <div className="relative flex-shrink-0 w-12 h-12">
+                {p.photo_url ? (
+                  <img
+                    src={p.photo_url}
+                    alt={p.nickname ?? ''}
+                    onError={e => {
+                      e.currentTarget.style.display = 'none';
+                      const fb = e.currentTarget.nextElementSibling as HTMLElement | null;
+                      if (fb) fb.style.display = 'flex';
+                    }}
+                    className="w-12 h-12 rounded-full object-cover"
+                  />
+                ) : null}
+                <div
+                  className="w-12 h-12 rounded-full bg-gradient-to-br from-cyan-400 to-teal-500 items-center justify-center"
+                  style={{ display: p.photo_url ? 'none' : 'flex' }}
+                >
+                  <span className="text-white text-lg font-black leading-none">{initial}</span>
+                </div>
+                <button
+                  onClick={() => setDeleteTarget(p)}
+                  className="absolute -top-0.5 -right-0.5 w-5 h-5 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center shadow transition-all"
+                >
+                  <X className="w-3 h-3" />
                 </button>
               </div>
-              <div className="p-3 space-y-1.5">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <p className="font-bold text-gray-900 text-sm">{p.nickname}</p>
-                  {p.mbti && <span className="text-[9px] font-bold bg-indigo-50 text-indigo-600 border border-indigo-100 px-1.5 py-0.5 rounded-full">{p.mbti}</span>}
+
+              {/* 정보 영역 */}
+              <div className="flex-1 min-w-0">
+                {/* 이름 + 고유번호 */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="font-black text-sm text-gray-900 leading-none">{p.nickname ?? '(이름 없음)'}</p>
+                  {p.pin_code && (
+                    <span className="text-[10px] font-black text-teal-700 bg-teal-50 border border-teal-200 px-1.5 py-0.5 rounded-full tabular-nums tracking-wider">
+                      #{p.pin_code}
+                    </span>
+                  )}
                 </div>
-                <div className="flex flex-wrap gap-1">
+
+                {/* 배지 — 성향·MBTI·DOM·나이·지역 */}
+                <div className="flex flex-wrap gap-1 mt-1.5">
                   <span className="text-[9px] font-bold bg-cyan-50 text-cyan-700 border border-cyan-100 px-1.5 py-0.5 rounded-full">{posLabel}</span>
-                  {domLabel && <span className="text-[9px] font-bold bg-rose-50 text-rose-600 border border-rose-100 px-1.5 py-0.5 rounded-full">{domLabel}</span>}
-                  {age && <span className="text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-100 px-1.5 py-0.5 rounded-full">{age}</span>}
-                  {p.location && <span className="text-[9px] font-bold bg-green-50 text-green-700 border border-green-100 px-1.5 py-0.5 rounded-full">{p.location}</span>}
+                  {p.mbti && (
+                    <span className="text-[9px] font-bold bg-indigo-50 text-indigo-600 border border-indigo-100 px-1.5 py-0.5 rounded-full">{p.mbti}</span>
+                  )}
+                  {domLabel && (
+                    <span className="text-[9px] font-bold bg-rose-50 text-rose-600 border border-rose-100 px-1.5 py-0.5 rounded-full">{domLabel}</span>
+                  )}
+                  {age && (
+                    <span className="text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-100 px-1.5 py-0.5 rounded-full">{age}</span>
+                  )}
+                  {p.location && (
+                    <span className="text-[9px] font-bold bg-green-50 text-green-700 border border-green-100 px-1.5 py-0.5 rounded-full">{p.location}</span>
+                  )}
                 </div>
+
+                {/* 관심사 태그 */}
                 {bioTags.length > 0 && (
-                  <div className="flex flex-wrap gap-1">
+                  <div className="flex flex-wrap gap-1 mt-1">
                     {bioTags.map(tag => (
                       <span key={tag} className="text-[9px] text-gray-500 bg-gray-50 border border-gray-100 px-1.5 py-0.5 rounded-full">{tag}</span>
                     ))}
                   </div>
                 )}
-                {seat ? (
-                  <p className="text-[10px] text-teal-600 font-bold bg-teal-50 px-1.5 py-0.5 rounded-md inline-block">
-                    {seat.table_number}번 {seat.seat_label}
-                  </p>
-                ) : (
-                  <p className="text-[10px] text-gray-400">좌석 없음</p>
-                )}
-                <button onClick={() => { setForceSeatTarget(p); setSelectedSeatId(''); }}
-                  className="w-full text-[10px] font-semibold text-blue-600 bg-blue-50 border border-blue-200 px-2 py-1 rounded-lg hover:bg-blue-100 transition-all">
-                  강제 자리배치
-                </button>
+
+                {/* 좌석 + 강제 배치 */}
+                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                  {seat ? (
+                    <span className="text-[10px] text-teal-600 font-bold bg-teal-50 px-1.5 py-0.5 rounded-md">
+                      {seat.table_number}번 {seat.seat_label}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-gray-400">좌석 없음</span>
+                  )}
+                  <button
+                    onClick={() => { setForceSeatTarget(p); setSelectedSeatId(''); }}
+                    className="text-[10px] font-semibold text-blue-600 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-lg hover:bg-blue-100 transition-all"
+                  >
+                    강제 자리배치
+                  </button>
+                </div>
               </div>
             </div>
           );
         })}
-        {profiles.length === 0 && <div className="col-span-3 py-12 text-center text-gray-400 text-sm">참여자가 없습니다.</div>}
+        {profiles.length === 0 && (
+          <div className="py-12 text-center text-gray-400 text-sm">참여자가 없습니다.</div>
+        )}
       </div>
       {confirm && (
         <ConfirmDialog title="참여자 초기화"
@@ -4162,59 +4211,6 @@ function HistoryTab({ histories, onClear }: { histories: SessionHistory[]; onCle
           </div>
         );
       })}
-    </div>
-  );
-}
-
-// ─── Participants Tab ──────────────────────────────────────────────────────────
-
-function ParticipantsTab({ profiles }: { profiles: Profile[] }) {
-  const [query, setQuery] = useState('');
-  const sorted = [...profiles]
-    .filter(p =>
-      !query ||
-      (p.nickname ?? '').toLowerCase().includes(query.toLowerCase()) ||
-      (p.pin_code ?? '').includes(query)
-    )
-    .sort((a, b) => Number(a.pin_code ?? '9999') - Number(b.pin_code ?? '9999'));
-
-  if (profiles.length === 0) {
-    return (
-      <div className="p-8 text-center text-gray-400">
-        <span className="text-4xl block mb-3">👥</span>
-        <p className="text-sm">등록된 참여자가 없습니다.</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="p-4">
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-sm font-bold text-gray-700">총 {profiles.length}명</span>
-        <input
-          type="text"
-          value={query}
-          onChange={e => setQuery(e.target.value)}
-          placeholder="이름 또는 고유번호 검색"
-          className="text-xs px-3 py-1.5 border border-gray-200 rounded-xl bg-white w-44 focus:outline-none focus:border-teal-400"
-        />
-      </div>
-      <div className="space-y-1.5">
-        {sorted.map(p => (
-          <div key={p.id} className="flex items-center gap-3 bg-white rounded-xl border border-gray-100 px-3 py-2.5 shadow-sm">
-            <div className="w-8 h-8 rounded-full bg-cyan-100 flex items-center justify-center flex-shrink-0">
-              <span className="text-cyan-700 text-sm font-black">{(p.nickname ?? '?')[0]}</span>
-            </div>
-            <p className="flex-1 min-w-0 text-sm font-bold text-gray-800 truncate">{p.nickname ?? '(이름 없음)'}</p>
-            <div className="flex-shrink-0 bg-teal-50 border border-teal-200 rounded-lg px-2.5 py-1">
-              <span className="text-teal-700 font-black text-sm tabular-nums tracking-widest">{p.pin_code ?? '—'}</span>
-            </div>
-          </div>
-        ))}
-        {sorted.length === 0 && query && (
-          <p className="text-center text-gray-400 text-sm py-8">"{query}"에 해당하는 참여자가 없습니다.</p>
-        )}
-      </div>
     </div>
   );
 }
@@ -4533,7 +4529,7 @@ interface DbHealthData {
   ok: boolean;
   checkedAt: string;
 }
-type HistorySubTab = 'hearts' | 'chats' | 'participants';
+type HistorySubTab = 'hearts' | 'chats';
 type HeartSubTab = 'hearts' | 'popularity';
 
 function AdminDashboard({ onLogout }: { onLogout: () => void }) {
@@ -5117,7 +5113,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               {([
                 { id: 'hearts' as HistorySubTab, label: '하트', badge: Math.max(0, likes.length - seenHeartsCount) },
                 { id: 'chats' as HistorySubTab, label: '채팅', badge: Math.max(0, allMessages.length - seenMessagesCount) },
-                { id: 'participants' as HistorySubTab, label: '참여자', badge: 0 },
               ]).map(st => (
                 <button key={st.id} onClick={() => handleHistorySubTabChange(st.id)}
                   className={`flex items-center gap-1.5 flex-shrink-0 px-4 py-2.5 text-xs font-semibold border-b-2 transition-all ${historySubTab === st.id ? 'border-teal-500 text-teal-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
@@ -5144,7 +5139,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               </div>
             )}
             {historySubTab === 'chats' && <ChatsTab chats={allChats} messages={allMessages} profileMap={profileMap} onDeleteChat={handleDeleteChat} onClearAll={handleClearAllChats} onRefresh={loadAll} />}
-            {historySubTab === 'participants' && <ParticipantsTab profiles={profiles} />}
           </div>
         )}
         {tab === 'notify' && <NotificationTab tableCount={[...new Set(seats.map(s => s.table_number))].length} settings={settings} onSetTimer={handleSetTimer} />}
@@ -5236,7 +5230,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               <p className="text-sm font-semibold text-gray-800 leading-relaxed">{newReportPopup.content}</p>
             </div>
             <div className="flex gap-3">
-              <button onClick={() => { setTab('history'); setHistorySubTab('participants'); setNewReportPopup(null); }} className="flex-1 py-2.5 bg-orange-500 text-white font-bold rounded-xl hover:bg-orange-600 transition-all text-sm">이력으로 이동</button>
+              <button onClick={() => { setTab('history'); setHistorySubTab('chats'); setNewReportPopup(null); }} className="flex-1 py-2.5 bg-orange-500 text-white font-bold rounded-xl hover:bg-orange-600 transition-all text-sm">이력으로 이동</button>
               <button onClick={() => setNewReportPopup(null)} className="flex-1 py-2.5 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition-all text-sm">확인</button>
             </div>
           </div>
