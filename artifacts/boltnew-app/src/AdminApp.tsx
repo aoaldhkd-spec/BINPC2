@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Shield, LogOut, ToggleLeft, ToggleRight, Trash2, Users,
   LayoutGrid, History, X, AlertTriangle, ChevronDown,
-  Heart, MessageCircle, QrCode, Send, CheckCircle, Gamepad2, BellRing, Eye, EyeOff,
-  PlayCircle, StopCircle, RotateCcw, Clock, Timer, RefreshCw, Copy, Check, Sparkles,
+  Heart, MessageCircle, Send, CheckCircle, Gamepad2, BellRing, Eye, EyeOff,
+  PlayCircle, StopCircle, Timer, RefreshCw, Sparkles,
   Lock, Unlock, Search, Database as DatabaseIcon, Activity,
 } from 'lucide-react';
 import { supabase } from './lib/supabase';

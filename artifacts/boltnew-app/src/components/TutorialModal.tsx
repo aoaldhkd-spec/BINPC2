@@ -193,7 +193,7 @@ export function TutorialModal({ page, onChangePage, onClose, darkMode }: {
   const isLast = page === TUTORIAL_SLIDES.length - 1;
 
   if (videoMode) {
-    return <TutorialVideo darkMode={darkMode} onClose={() => setVideoMode(false)} />;
+    return <TutorialVideo onClose={() => setVideoMode(false)} />;
   }
 
   return (

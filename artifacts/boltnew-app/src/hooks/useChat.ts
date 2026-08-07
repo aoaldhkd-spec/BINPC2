@@ -599,13 +599,6 @@ export function useChat({
     });
     setChatList(prev => prev.map(c => c.id === snapChatId ? { ...c, lastMessage: trimmed } : c));
 
-    const rollback = () => {
-      setMessages(prev => prev.filter(m => m.id !== optimisticId));
-      setChatList(prev => prev.map(c =>
-        c.id === snapChatId && c.lastMessage === trimmed ? { ...c, lastMessage: prevLastMessage } : c
-      ));
-    };
-
     const MAX_RETRIES = 3;
     let lastErr: unknown;
 

@@ -1059,9 +1059,6 @@ function App() {
     loadProfiles();
   }, [loadProfiles]);
 
-  const refreshSeatingTab = useCallback(() => {
-    loadSeats();
-  }, [loadSeats]);
 
   const handleNicknameSetup = async (data: {
     birthYear: number;

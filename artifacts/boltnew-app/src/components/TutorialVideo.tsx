@@ -732,7 +732,7 @@ const SCENES: SceneDef[] = [
 // ══════════════════════════════════════════════════════════════════════════════
 // 메인 플레이어
 // ══════════════════════════════════════════════════════════════════════════════
-export function TutorialVideo({ onClose }: { darkMode?: boolean; onClose: () => void }) {
+export function TutorialVideo({ onClose }: { onClose: () => void }) {
   const [sceneIdx, setSceneIdx] = useState(0);
   const [stepIdx, setStepIdx] = useState(0);
   const [playing, setPlaying] = useState(true);
