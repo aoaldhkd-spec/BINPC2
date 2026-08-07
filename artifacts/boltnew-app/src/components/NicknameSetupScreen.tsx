@@ -598,21 +598,21 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
       </div>
 
       {/* ── 하단 버튼 ── */}
-      <div className="bg-white border-t-2 border-gray-100 px-5 py-3 flex gap-3 flex-shrink-0">
+      <div className="bg-white border-t-2 border-gray-100 px-4 py-3 flex gap-2.5 flex-shrink-0">
         <button type="button" onClick={goPrev}
-          className="flex items-center justify-center gap-1.5 px-5 py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold text-sm rounded-2xl transition-all active:scale-95 flex-shrink-0">
+          className="flex-[2] flex items-center justify-center gap-1.5 py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold text-sm rounded-2xl transition-all active:scale-95">
           <ArrowLeft className="w-4 h-4" />
           {step === 1 ? '처음으로' : '이전'}
         </button>
 
         {step < 5 ? (
           <button type="button" onClick={goNext} disabled={!isStepValid(step)}
-            className="flex-1 flex items-center justify-center gap-2 py-3.5 bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 disabled:from-gray-200 disabled:to-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-black text-sm rounded-2xl shadow-lg shadow-cyan-500/25 transition-all active:scale-[0.98]">
+            className="flex-[3] flex items-center justify-center gap-2 py-3.5 bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 disabled:from-gray-200 disabled:to-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-black text-sm rounded-2xl shadow-lg shadow-cyan-500/25 transition-all active:scale-[0.98]">
             다음 <ChevronRight className="w-5 h-5" />
           </button>
         ) : (
           <button type="button" onClick={handleSubmit} disabled={!canEnter}
-            className="flex-1 flex items-center justify-center gap-2 py-3.5 bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 disabled:from-gray-200 disabled:to-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-black text-sm rounded-2xl shadow-lg shadow-cyan-500/25 transition-all active:scale-[0.98]">
+            className="flex-[3] flex items-center justify-center gap-2 py-3.5 bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 disabled:from-gray-200 disabled:to-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-black text-sm rounded-2xl shadow-lg shadow-cyan-500/25 transition-all active:scale-[0.98]">
             {loading ? (
               <><RefreshCw className="w-4 h-4 animate-spin" /> 입장 중...</>
             ) : (
