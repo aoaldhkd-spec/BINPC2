@@ -2499,7 +2499,7 @@ export function MainScreen({
               }`}
               style={{ boxShadow: (myTabActive || myMenuOpen) ? '0 4px 20px rgba(6,182,212,0.45)' : undefined }}
             >
-              <span className="text-[11px] font-black leading-none tracking-wide">MY</span>
+              <span className="text-[15px] font-black leading-none tracking-widest">MY</span>
               {myBadgeTotal > 0 && !myMenuOpen && (
                 <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center shadow-sm">
                   {myBadgeTotal > 99 ? '99+' : myBadgeTotal}
