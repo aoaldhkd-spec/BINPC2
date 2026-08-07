@@ -75,7 +75,7 @@ const LOCATION_GROUPS: Record<string, string[]> = {
 };
 
 // ─── 5단계 라벨 ────────────────────────────────────────────────────────────────
-const STEP_LABELS = ['닉네임', 'MBTI', '년생·지역', '관심사', '성향'] as const;
+const STEP_LABELS = ['MBTI', '년생·지역', '관심사', '성향', '닉네임'] as const;
 type Step = 1 | 2 | 3 | 4 | 5;
 
 // ─── NicknameSetupScreen ──────────────────────────────────────────────────────
@@ -167,11 +167,11 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
   const atMaxBio = selectedBio.length >= 5;
 
   const isStepValid = (s: Step): boolean => {
-    if (s === 1) return customValid;
-    if (s === 2) return !!mbti;
-    if (s === 3) return !!birthYear && !!location;
-    if (s === 4) return selectedBio.length >= 2;
-    if (s === 5) return positionScore !== null;
+    if (s === 1) return !!mbti;
+    if (s === 2) return !!birthYear && !!location;
+    if (s === 3) return selectedBio.length >= 2;
+    if (s === 4) return positionScore !== null;
+    if (s === 5) return customValid;
     return false;
   };
 
@@ -202,7 +202,8 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
 
   // ── 렌더 ──────────────────────────────────────────────────────────────────────
   return (
-    <div className="h-[100dvh] flex flex-col bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
+    <div className="w-full max-w-md flex flex-col max-h-[92vh] bg-white rounded-2xl shadow-2xl overflow-hidden">
 
       {/* ── 헤더 ── */}
       <div className="bg-gradient-to-r from-cyan-500 to-teal-500 px-5 pt-5 pb-4 flex-shrink-0">
@@ -253,8 +254,8 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
       <div className="flex-1 overflow-y-auto bg-white">
         <div className="p-5">
 
-          {/* ─── Step 1: 닉네임 ─── */}
-          {step === 1 && (
+          {/* ─── Step 5: 닉네임 ─── */}
+          {step === 5 && (
             <div className="space-y-4">
               <div className="text-center pt-2 pb-1">
                 <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-cyan-100 to-teal-100 flex items-center justify-center mx-auto mb-3">
@@ -315,8 +316,8 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
             </div>
           )}
 
-          {/* ─── Step 2: MBTI ─── */}
-          {step === 2 && (
+          {/* ─── Step 1: MBTI ─── */}
+          {step === 1 && (
             <div className="space-y-2.5">
               <p className="text-xs text-gray-400 mb-1">해당하는 MBTI를 선택하세요</p>
               {MBTI_GROUPS.map(g => (
@@ -347,8 +348,8 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
             </div>
           )}
 
-          {/* ─── Step 3: 출생년도 / 사는곳 ─── */}
-          {step === 3 && (
+          {/* ─── Step 2: 출생년도 / 사는곳 ─── */}
+          {step === 2 && (
             <div className="space-y-5">
               {/* 출생년도 */}
               <div>
@@ -398,8 +399,8 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
                   <span className="text-sm font-black text-gray-800">사는 곳</span>
                   <span className="text-xs font-semibold text-red-500 bg-red-50 px-2 py-0.5 rounded-full">필수</span>
                 </div>
-                {/* 지역 탭 (가로 스크롤) */}
-                <div className="flex gap-1.5 overflow-x-auto pb-1 mb-2.5 scrollbar-none" style={{ scrollbarWidth: 'none' }}>
+                {/* 지역 탭 */}
+                <div className="flex flex-wrap gap-1.5 mb-2.5">
                   {Object.keys(LOCATION_GROUPS).map(r => (
                     <button key={r} type="button"
                       onClick={() => {
@@ -435,8 +436,8 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
             </div>
           )}
 
-          {/* ─── Step 4: 관심사 ─── */}
-          {step === 4 && (
+          {/* ─── Step 3: 관심사 ─── */}
+          {step === 3 && (
             <div className="space-y-3">
               {/* 헤더 */}
               <div className="flex items-center justify-between">
@@ -463,7 +464,7 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
               )}
 
               {/* 카테고리 탭 */}
-              <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-none" style={{ scrollbarWidth: 'none' }}>
+              <div className="flex flex-wrap gap-1.5">
                 {BIO_CATEGORIES.map(cat => {
                   const active = bioFilter === cat.label;
                   const hasSelected = cat.tags.some(t => selectedBio.includes(t));
@@ -504,8 +505,8 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
             </div>
           )}
 
-          {/* ─── Step 5: 성향 ─── */}
-          {step === 5 && (
+          {/* ─── Step 4: 성향 ─── */}
+          {step === 4 && (
             <div className="space-y-5">
               {/* 포지션 */}
               <div>
@@ -621,6 +622,7 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
         )}
       </div>
 
+    </div>
     </div>
   );
 }
