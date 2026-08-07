@@ -16,14 +16,14 @@ function SlideWithSteps({ desc, steps, color, darkMode }: {
 }) {
   return (
     <Body>
-      <div className="px-5 pt-4 pb-4 space-y-3 h-full flex flex-col justify-between">
-        <p className={`text-[12px] leading-relaxed ${darkMode ? 'text-slate-300' : 'text-gray-600'}`}>{desc}</p>
-        <div className={`rounded-2xl p-3.5 space-y-2.5 flex-1 ${darkMode ? 'bg-slate-800/80 border border-slate-700' : 'bg-slate-50 border border-slate-200'}`}>
+      <div className="px-5 pt-3 pb-3 space-y-2.5 h-full flex flex-col justify-between">
+        <p className={`text-[13px] leading-relaxed ${darkMode ? 'text-slate-300' : 'text-gray-600'}`}>{desc}</p>
+        <div className={`rounded-2xl p-3 space-y-2 flex-1 ${darkMode ? 'bg-slate-800/80 border border-slate-700' : 'bg-slate-50 border border-slate-200'}`}>
           <p className={`text-[9px] font-black uppercase tracking-widest ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>📌 이렇게 사용해요</p>
           {steps.map((step, i) => (
             <div key={i} className="flex items-start gap-2.5">
               <span className={`flex-shrink-0 w-[18px] h-[18px] rounded-full text-white text-[9px] font-black flex items-center justify-center mt-0.5 leading-none bg-gradient-to-br ${color}`}>{i + 1}</span>
-              <p className={`text-[11px] leading-snug ${darkMode ? 'text-slate-300' : 'text-gray-600'}`}>{step}</p>
+              <p className={`text-[13px] leading-snug ${darkMode ? 'text-slate-300' : 'text-gray-600'}`}>{step}</p>
             </div>
           ))}
         </div>
@@ -40,8 +40,8 @@ export const TUTORIAL_SLIDES: TutorialSlide[] = [
     color: 'from-cyan-500 to-teal-500',
     renderBody: (darkMode) => (
       <Body>
-        <div className="px-5 pt-4 pb-4 flex flex-col gap-3 h-full justify-between">
-          <p className={`text-[12px] font-bold text-center ${darkMode ? 'text-slate-200' : 'text-gray-800'}`}>
+        <div className="px-5 pt-3 pb-3 flex flex-col gap-2.5 h-full justify-between">
+          <p className={`text-[13px] font-bold text-center ${darkMode ? 'text-slate-200' : 'text-gray-800'}`}>
             오늘 함께하게 되어 정말 반가워요! 🎉
           </p>
           <div className="grid grid-cols-2 gap-2 flex-1">
@@ -54,13 +54,13 @@ export const TUTORIAL_SLIDES: TutorialSlide[] = [
               <div key={label} className={`flex items-center gap-2.5 px-3 py-0 rounded-2xl ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-gradient-to-br from-cyan-50 to-teal-50 border border-cyan-100'}`}>
                 <span className="text-xl leading-none flex-shrink-0">{icon}</span>
                 <div>
-                  <p className={`text-[11px] font-black leading-tight ${darkMode ? 'text-slate-200' : 'text-cyan-900'}`}>{label}</p>
-                  <p className={`text-[10px] leading-snug mt-0.5 ${darkMode ? 'text-slate-500' : 'text-cyan-600'}`}>{sub}</p>
+                  <p className={`text-[13px] font-black leading-tight ${darkMode ? 'text-slate-200' : 'text-cyan-900'}`}>{label}</p>
+                  <p className={`text-[11px] leading-snug mt-0.5 ${darkMode ? 'text-slate-500' : 'text-cyan-600'}`}>{sub}</p>
                 </div>
               </div>
             ))}
           </div>
-          <p className={`text-[10px] text-center ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>
+          <p className={`text-[11px] text-center ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>
             👇 탭을 눌러 각 기능을 확인하세요
           </p>
         </div>
@@ -75,8 +75,8 @@ export const TUTORIAL_SLIDES: TutorialSlide[] = [
     color: 'from-teal-500 to-cyan-600',
     renderBody: (darkMode) => (
       <Body>
-        <div className="px-5 pt-4 pb-4 h-full">
-          <div className={`rounded-2xl p-3.5 space-y-2 h-full ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-teal-50 border border-teal-100'}`}>
+        <div className="px-5 pt-3 pb-3 h-full">
+          <div className={`rounded-2xl p-3 space-y-2 h-full ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-teal-50 border border-teal-100'}`}>
             {[
               '술 강요가 없는 자유로운 분위기입니다',
               '정치, 종교, 지역감정, 패드립은 허용되지 않습니다',
@@ -87,7 +87,7 @@ export const TUTORIAL_SLIDES: TutorialSlide[] = [
             ].map((text, i) => (
               <div key={i} className="flex items-start gap-2.5">
                 <span className={`flex-shrink-0 w-[18px] h-[18px] rounded-full text-[9px] font-black flex items-center justify-center mt-0.5 leading-none ${darkMode ? 'bg-teal-700 text-teal-200' : 'bg-teal-500 text-white'}`}>{i + 1}</span>
-                <p className={`text-[11px] leading-snug ${darkMode ? 'text-slate-300' : 'text-teal-900'}`}>{text}</p>
+                <p className={`text-[13px] leading-snug ${darkMode ? 'text-slate-300' : 'text-teal-900'}`}>{text}</p>
               </div>
             ))}
           </div>
@@ -157,11 +157,11 @@ export const TUTORIAL_SLIDES: TutorialSlide[] = [
     color: 'from-violet-500 to-purple-600',
     renderBody: (darkMode) => (
       <Body>
-        <div className="px-5 pt-4 pb-4 h-full flex flex-col gap-3">
-          <p className={`text-[11px] ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+        <div className="px-5 pt-3 pb-3 h-full flex flex-col gap-2.5">
+          <p className={`text-[12px] ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>
             대부분 모르는 기능이에요 👀
           </p>
-          <div className="flex flex-col gap-2.5 flex-1 justify-between">
+          <div className="flex flex-col gap-2 flex-1 justify-between">
             {([
               { icon: '🖼️', title: '아바타 변경', desc: '내 상태 탭 → 프로필 사진 탭 → 스타일 선택' },
               { icon: '📷', title: '사진 채팅', desc: '채팅방 📎 버튼으로 이미지 전송 가능' },
@@ -170,8 +170,8 @@ export const TUTORIAL_SLIDES: TutorialSlide[] = [
               <div key={title} className={`flex items-center gap-3 px-4 py-0 rounded-2xl flex-1 ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-violet-50 border border-violet-100'}`}>
                 <span className="text-xl flex-shrink-0">{icon}</span>
                 <div>
-                  <p className={`text-[12px] font-black leading-tight ${darkMode ? 'text-slate-200' : 'text-violet-900'}`}>{title}</p>
-                  <p className={`text-[11px] leading-snug mt-0.5 ${darkMode ? 'text-slate-400' : 'text-violet-600/80'}`}>{desc}</p>
+                  <p className={`text-[13px] font-black leading-tight ${darkMode ? 'text-slate-200' : 'text-violet-900'}`}>{title}</p>
+                  <p className={`text-[12px] leading-snug mt-0.5 ${darkMode ? 'text-slate-400' : 'text-violet-600/80'}`}>{desc}</p>
                 </div>
               </div>
             ))}
