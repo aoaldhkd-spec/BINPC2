@@ -7,6 +7,7 @@ import {
   Lock, Unlock, Search, Database as DatabaseIcon, Activity,
 } from 'lucide-react';
 import { supabase } from './lib/supabase';
+import { setLocalDbUserId } from './lib/localdb';
 import type { Database, Json } from './types/database';
 import type { GameState } from './App';
 import { getPositionLabel, getDomSubLabel, getKoreanAge } from './lib/profile';
@@ -4568,6 +4569,10 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   }, []);
 
   useEffect(() => {
+    // 관리자 SSE 핵심 수정: 일반 유저 userId가 localStorage에 남아 있으면
+    // localdb가 adminToken 조건(userId===null)을 만족 못해 admin SSE가 아닌 user SSE로 연결됨.
+    // → setLocalDbUserId(null)로 userId를 초기화하여 adminToken이 SSE URL에 포함되도록 강제.
+    setLocalDbUserId(null);
     loadAll();
     const channel = supabase
       .channel('admin-realtime')
@@ -4675,7 +4680,8 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
   useEffect(() => {
     fetchDbHealth();
-    const id = setInterval(fetchDbHealth, 30_000);
+    // 5초 주기로 SSE 연결 수 갱신 (기존 30초는 실시간성이 너무 낮음)
+    const id = setInterval(fetchDbHealth, 5_000);
     return () => clearInterval(id);
   }, [fetchDbHealth]);
 

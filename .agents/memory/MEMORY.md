@@ -31,3 +31,4 @@
 - [boltnew-app SeatingMap image fix](boltnew-app-seatingmap-image.md) — All img tags must use seatingAvatarSrc()+onError fallback; plain photo_url shows broken image for null/DiceBear-transparent URLs.
 - [boltnew-app 내 테이블 탭 테이블 선택 UI](boltnew-app-mytable-fix.md) — selectedMyTableNum+myTableList+resolvedMyTable 제거하면 안 됨; MyTableView는 max-w-sm 말고 w-full 사용.
 - [boltnew-app sync architecture fix](boltnew-app-sync-architecture.md) — AdminApp/TestDashboard 직접 Supabase 쓰기가 api-server 인메모리를 건드리지 않는 근본 원인 + 30초 전체 리싱크 + force_resync_all RPC 해결책.
+- [boltnew-app admin SSE fix](boltnew-app-admin-sse-fix.md) — AdminApp mount시 setLocalDbUserId(null) 필수; 미호출시 잔여 userId가 adminToken 조건 !_currentUserId를 차단해 admin SSE 미연결.

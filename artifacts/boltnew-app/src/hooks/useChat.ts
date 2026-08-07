@@ -507,40 +507,49 @@ export function useChat({
   const flushPendingQueue = useCallback(async () => {
     if (isFlushingRef.current || pendingQueueRef.current.length === 0) return;
     isFlushingRef.current = true;
-    const queue = [...pendingQueueRef.current];
-    for (const item of queue) {
-      // 유저 전환 시 이전 유저 큐 항목 폐기 — 엉뚱한 sender로 전송 차단
-      if (item.userId !== currentUserIdRef.current) {
-        pendingQueueRef.current = pendingQueueRef.current.filter(q => q.clientId !== item.clientId);
-        setMessages(prev => prev.filter(m => m.id !== item.optimisticId));
-        continue;
-      }
-      try {
-        const { data: insertedMsg, error } = await supabase.from('messages').insert({
-          chat_id: item.chatId,
-          sender_id: item.userId,
-          content: item.content,
-          client_id: item.clientId,
-        }).select().single();
-        if (!error && insertedMsg) {
-          // 성공: 낙관적 메시지를 실제 메시지로 교체
-          setMessages(prev => prev.map(m => m.id === item.optimisticId ? insertedMsg as Message : m));
+    try {
+      const queue = [...pendingQueueRef.current];
+      for (const item of queue) {
+        // 유저 전환 시 이전 유저 큐 항목 폐기 — 엉뚱한 sender로 전송 차단
+        if (item.userId !== currentUserIdRef.current) {
           pendingQueueRef.current = pendingQueueRef.current.filter(q => q.clientId !== item.clientId);
-        } else if (error) {
-          // client_id로 이미 저장됐는지 확인 (이전 시도 응답 분실)
-          const { data: existing } = await supabase.from('messages').select('*').eq('client_id', item.clientId).maybeSingle();
-          if (existing) {
-            setMessages(prev => prev.map(m => m.id === item.optimisticId ? existing as Message : m));
-            pendingQueueRef.current = pendingQueueRef.current.filter(q => q.clientId !== item.clientId);
-          }
-          // 실패해도 break 하지 않음 — 다음 항목 계속 시도 (한 항목 실패가 전체 큐를 막지 않음)
+          setMessages(prev => prev.filter(m => m.id !== item.optimisticId));
+          continue;
         }
-      } catch {
-        // 네트워크 오류 — 이 항목은 다음 재연결 때 재시도, 나머지는 계속 처리
-        continue;
+        try {
+          // 항목별 8초 타임아웃 — 단일 insert가 영원히 hang되면 전체 큐가 멈추는 현상 방지
+          const insertPromise = supabase.from('messages').insert({
+            chat_id: item.chatId,
+            sender_id: item.userId,
+            content: item.content,
+            client_id: item.clientId,
+          }).select().single();
+          const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('queue-item-timeout')), 8_000)
+          );
+          const { data: insertedMsg, error } = await Promise.race([insertPromise, timeoutPromise]);
+          if (!error && insertedMsg) {
+            // 성공: 낙관적 메시지를 실제 메시지로 교체
+            setMessages(prev => prev.map(m => m.id === item.optimisticId ? insertedMsg as Message : m));
+            pendingQueueRef.current = pendingQueueRef.current.filter(q => q.clientId !== item.clientId);
+          } else if (error) {
+            // client_id로 이미 저장됐는지 확인 (이전 시도 응답 분실)
+            const { data: existing } = await supabase.from('messages').select('*').eq('client_id', item.clientId).maybeSingle();
+            if (existing) {
+              setMessages(prev => prev.map(m => m.id === item.optimisticId ? existing as Message : m));
+              pendingQueueRef.current = pendingQueueRef.current.filter(q => q.clientId !== item.clientId);
+            }
+            // 실패해도 break 하지 않음 — 다음 항목 계속 시도 (한 항목 실패가 전체 큐를 막지 않음)
+          }
+        } catch {
+          // 네트워크 오류 또는 타임아웃 — 이 항목은 다음 재연결 때 재시도, 나머지는 계속 처리
+          continue;
+        }
       }
+    } finally {
+      // 예외가 발생해도 반드시 해제 — 영구 잠금 방지
+      isFlushingRef.current = false;
     }
-    isFlushingRef.current = false;
   }, []);
 
   useEffect(() => {

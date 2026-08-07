@@ -274,6 +274,9 @@ let _tokenRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 const SSE_TOK_KEY = 'sse_tok';
 const SSE_TOK_EXP_KEY = 'sse_tok_exp';
 
+// SSE 토큰 재시도 타이머 — userId 변경 시 명시적으로 취소
+let _sseTokenRetryTimer: ReturnType<typeof setTimeout> | null = null;
+
 /**
  * SSE 재연결 시 localStorage 캐시 토큰을 복원합니다.
  * 실제 토큰 발급은 fetchAndSetSseToken(App.tsx에서 호출)이 담당합니다.
@@ -300,6 +303,8 @@ export function setLocalDbUserId(userId: string | null) {
   if (_currentUserId === userId) return;
   _currentUserId = userId;
   _sseToken = null; // 사용자 변경 시 이전 토큰 폐기
+  // userId 변경 → 이전 userId 대상 재시도 타이머 취소 (오래된 userId로 재시도되는 경쟁 방지)
+  if (_sseTokenRetryTimer) { clearTimeout(_sseTokenRetryTimer); _sseTokenRetryTimer = null; }
   if (_tokenRefreshTimer) { clearTimeout(_tokenRefreshTimer); _tokenRefreshTimer = null; }
   if (_es) { _es.close(); _es = null; }
   if (!userId) {
@@ -639,32 +644,60 @@ ensureSse();
  * 검증하는 근거이므로, 토큰은 세션이 있는 브라우저에만 발급됩니다.
  * device_not_bound 오류 시에는 SSE가 익명 모드로 폴백됩니다.
  */
-export async function fetchAndSetSseToken(userId: string): Promise<void> {
+/**
+ * SSE 토큰 발급. 실패 시 모든 경우(loginSession 실패·HTTP 오류·네트워크 오류)에 지수 백오프로 재시도.
+ * 익명 SSE 영구 고착을 방지하는 핵심 함수 — 토큰 없이는 채팅·하트 이벤트를 수신할 수 없음.
+ * attempt: 현재 재시도 횟수 (내부용, 외부 호출 시 생략)
+ */
+export async function fetchAndSetSseToken(userId: string, attempt = 0): Promise<void> {
+  // 이전 재시도 타이머 초기화 (중복 재시도 방지)
+  if (_sseTokenRetryTimer) { clearTimeout(_sseTokenRetryTimer); _sseTokenRetryTimer = null; }
+
+  /** 모든 실패 경로에서 호출 — 지수 백오프(5s→10s→20s→40s→최대 60s) + 지터로 재시도 예약 */
+  const scheduleRetry = (reason: string) => {
+    if (_currentUserId !== userId) return; // userId 변경됐으면 재시도 불필요
+    const baseDelay = Math.min(Math.pow(2, attempt) * 5_000, 60_000);
+    const jitter = Math.random() * 2_000; // thundering herd 방지
+    const delayMs = baseDelay + jitter;
+    console.warn(`[SSE] 토큰 발급 실패 (${reason}) — ${(delayMs / 1_000).toFixed(1)}s 후 재시도 #${attempt + 1}`);
+    _sseTokenRetryTimer = setTimeout(() => {
+      _sseTokenRetryTimer = null;
+      if (_currentUserId === userId) fetchAndSetSseToken(userId, attempt + 1).catch(() => {});
+    }, delayMs);
+  };
+
   try {
-    // 1단계: 세션 수립 (기기 secret 검증)
+    // 1단계: 기기 secret으로 서버 세션 수립
     const loggedIn = await loginSession(userId);
-    if (!loggedIn) return; // device_not_bound 또는 네트워크 오류
+    if (!loggedIn) {
+      // device_not_bound·네트워크 오류 모두 재시도 (익명 SSE 영구 고착 방지)
+      scheduleRetry('loginSession 실패');
+      return;
+    }
     // 경합 방지: 비동기 대기 중 계정이 바뀐 경우 토큰을 설치하지 않음
     if (_currentUserId !== userId) return;
+
     // 2단계: 세션이 수립된 브라우저에만 SSE 토큰 발급
     const resp = await fetch(`${API}/auth/sse-token`, {
       method: 'POST',
       credentials: 'same-origin',
     });
-    if (!resp.ok) return;
+    if (!resp.ok) {
+      scheduleRetry(`HTTP ${resp.status}`);
+      return;
+    }
     // 경합 방지: 네트워크 대기 중 계정이 또 바뀐 경우
     if (_currentUserId !== userId) return;
+
     const data = await resp.json() as { token?: string; expiresAt?: number };
-    if (data.token && data.expiresAt) setSseToken(data.token, data.expiresAt);
-  } catch (e) {
-    // 네트워크 오류 시 SSE는 익명으로 폴백. 원인을 로그로 남겨 디버깅 가능하게.
-    console.warn('[SSE] fetchAndSetSseToken failed — falling back to anonymous SSE:', e);
-    // 30초 후 자동 재시도: 일시적 오류로 토큰이 영구 익명 상태가 되는 것을 방지
-    if (_currentUserId === userId) {
-      setTimeout(() => {
-        if (_currentUserId === userId) fetchAndSetSseToken(userId).catch(() => {});
-      }, 30_000);
+    if (data.token && data.expiresAt) {
+      setSseToken(data.token, data.expiresAt); // 성공 — setSseToken 내부에서 만료 전 자동 재발급 타이머 설정
+    } else {
+      scheduleRetry('응답에 token/expiresAt 없음');
     }
+  } catch (e) {
+    // 네트워크 오류 (fetch 자체 실패)
+    scheduleRetry(`네트워크 오류: ${(e as Error).message}`);
   }
 }
 

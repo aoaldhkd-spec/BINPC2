@@ -764,9 +764,8 @@ export function MainScreen({
 
   const newContactsCount = Math.max(0, receivedContactShares.length - seenContactsCount);
 
-  // On initial data load, set baseline seen counts so pre-existing data doesn't show as unread
-  // 수정: [] deps → 실제 값 deps 추가. [] 사용 시 마운트 시점의 0값(아직 로드 전)이 baseline으로 굳어져
-  //       이미 받은 하트·연락처가 "새 알림"으로 잘못 배지되는 stale closure 버그 수정.
+  // On initial data load, set baseline seen counts so pre-existing data doesn't show as unread.
+  // 조건: localStorage에 이전 값이 없을 때만 baseline 설정 (seen>0이면 이미 올바른 값이 있는 것)
   const baselineSetRef = useRef(false);
   useEffect(() => {
     if (baselineSetRef.current) return;
@@ -774,12 +773,47 @@ export function MainScreen({
     const hasAnyData = profiles.length > 0 || pendingHeartsCount > 0 || receivedContactShares.length > 0;
     if (!hasAnyData) return;
     baselineSetRef.current = true;
-    setSeenHeartsCount(pendingHeartsCount);
-    setSeenContactsCount(receivedContactShares.length);
-    setSeenProfilesCount(profiles.length);
-    if (activeGameCount > 0) setSeenGameCount(activeGameCount);
+    // localStorage에서 복원한 seen 값이 이미 있으면 덮어쓰지 않음 (새로 온 배지 보존)
+    if (seenHeartsCount === 0) setSeenHeartsCount(pendingHeartsCount);
+    if (seenContactsCount === 0) setSeenContactsCount(receivedContactShares.length);
+    if (seenProfilesCount === -1 || seenProfilesCount === 0) setSeenProfilesCount(profiles.length);
+    if (seenGameCount === 0 && activeGameCount > 0) setSeenGameCount(activeGameCount);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingHeartsCount, receivedContactShares.length, profiles.length, activeGameCount]);
+
+  // 하향 동기화: 하트/연락처 수가 줄어들었으면(상대방 취소 등) seen 카운트를 낮춰 고스트 배지 제거
+  useEffect(() => {
+    if (pendingHeartsCount < seenHeartsCount) setSeenHeartsCount(pendingHeartsCount);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingHeartsCount]);
+  useEffect(() => {
+    if (receivedContactShares.length < seenContactsCount) setSeenContactsCount(receivedContactShares.length);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [receivedContactShares.length]);
+
+  // visibility 핸들러에서 stale closure 없이 최신 값 참조 (useEffect deps에 넣지 않아도 항상 최신)
+  const pendingHeartsCountRef = useRef(pendingHeartsCount);
+  pendingHeartsCountRef.current = pendingHeartsCount;
+  const receivedContactSharesLenRef = useRef(receivedContactShares.length);
+  receivedContactSharesLenRef.current = receivedContactShares.length;
+  const seenHeartsCountRef = useRef(seenHeartsCount);
+  seenHeartsCountRef.current = seenHeartsCount;
+  const seenContactsCountRef = useRef(seenContactsCount);
+  seenContactsCountRef.current = seenContactsCount;
+
+  // 앱 재방문(페이지 포커스) 시 새로 온 게 없으면 배지 자동 클리어
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState !== 'visible') return;
+      // seen보다 pending이 적으면 seen을 낮춰 고스트 배지 해소 (취소된 하트/연락처 처리)
+      if (pendingHeartsCountRef.current < seenHeartsCountRef.current)
+        setSeenHeartsCount(pendingHeartsCountRef.current);
+      if (receivedContactSharesLenRef.current < seenContactsCountRef.current)
+        setSeenContactsCount(receivedContactSharesLenRef.current);
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 기능 잠금(functionsLocked) 시 이동 불가 탭 — 자리 잠금(seatingLocked)과 분리
   const LOCKED_TABS = new Set<MainTab>(['chats', 'fortune', 'stats', 'ranking']);

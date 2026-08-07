@@ -389,7 +389,11 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
     setMyInfoSaving(true);
     try {
       const { id: _id, ...patch } = update;
-      await supabase.from('profiles').update(patch).eq('id', currentUserProfile.id);
+      const { error } = await supabase.from('profiles').update(patch).eq('id', currentUserProfile.id);
+      if (error) {
+        setChatError('정보 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+        return; // 저장 실패 시 편집창 유지 — 변경사항 손실 방지
+      }
       onUpdateProfile?.(update as Partial<Profile> & { id: string });
       setShowMyInfoEdit(false);
       setShowInfoReqMenu(false);
