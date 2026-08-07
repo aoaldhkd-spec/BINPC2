@@ -492,8 +492,8 @@ const ProfileCard = memo(function ProfileCard({
 
   // 테마 적응형 스타일 (Tailwind 오버라이드 없이 항상 올바른 색상 보장)
   const tagStyle = isCardDark
-    ? { backgroundColor: 'rgba(236,72,153,0.15)', color: '#f472b6', borderColor: 'rgba(236,72,153,0.3)' }
-    : { backgroundColor: '#fdf2f8', color: '#be185d', borderColor: '#fbcfe8' };
+    ? { backgroundColor: 'rgba(255,255,255,0.08)', color: '#ffffff', borderColor: 'rgba(255,255,255,0.18)' }
+    : { backgroundColor: 'rgba(0,0,0,0.06)', color: '#1f2937', borderColor: 'rgba(0,0,0,0.12)' };
   const heartBtnStyle = isCardDark
     ? { backgroundColor: 'rgba(251,113,133,0.13)', borderColor: 'rgba(251,113,133,0.28)' }
     : { backgroundColor: '#fff1f2', borderColor: '#fecdd3' };
