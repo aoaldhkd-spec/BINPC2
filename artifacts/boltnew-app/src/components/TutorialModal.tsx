@@ -4,7 +4,7 @@ import type { TutorialSlide } from '../types/app';
 import { TutorialVideo } from './TutorialVideo';
 
 // 슬라이드 단축 레이블 (탭 네비게이션용)
-const SLIDE_SHORT_LABELS = ['환영', '공지', '주의', '하트', '채팅', '배치도', '운세', '💡팁'];
+const SLIDE_SHORT_LABELS = ['환영', '공지', '하트', '채팅', '운세', '💡팁'];
 
 // 설명 + 방법 2단 구조 헬퍼
 function SlideWithSteps({ desc, steps, darkMode }: { desc: string; steps: string[]; darkMode?: boolean }) {
@@ -70,19 +70,7 @@ export const TUTORIAL_SLIDES: TutorialSlide[] = [
       '⑥ 모든 저작권은 범일NPC에게 있습니다. 불법 복제 및 도용은 민형사상 책임을 질 수 있습니다',
   },
 
-  /* 2 — 주의사항 */
-  {
-    emoji: '⚠️',
-    title: '주의사항 (필독!)',
-    color: 'from-red-500 to-rose-600',
-    desc:
-      '🔋 절전 모드 해제\n저전력 모드에서는 앱이 갑자기 튕길 수 있어요. 설정 → 배터리 → 저전력 모드 OFF\n\n' +
-      '🕵️ 시크릿 모드 금지\n로컬 저장소를 차단해 프로필이 사라집니다. 일반 탭으로 접속해 주세요.\n\n' +
-      '📵 화면 꺼짐 방지\n화면이 꺼지면 세션이 초기화될 수 있어요. 화면 잠금 시간을 길게 설정해 주세요.\n\n' +
-      '🔖 URL 북마크 추천\n같은 URL로 재접속하면 프로필이 자동 복구됩니다.',
-  },
-
-  /* 3 — 하트 */
+  /* 2 — 하트 */
   {
     emoji: '❤️',
     title: '하트 보내기',
@@ -209,7 +197,7 @@ export function TutorialModal({ page, onChangePage, onClose, darkMode }: {
 
         {/* ── 슬라이드 탭 네비게이션 (직접 이동) ── */}
         <div className={`border-b ${darkMode ? 'border-slate-700 bg-slate-900' : 'border-gray-100 bg-white'}`}>
-          <div className="grid grid-cols-4 gap-0.5 px-1.5 py-1.5">
+          <div className="grid grid-cols-3 gap-0.5 px-1.5 py-1.5">
             {TUTORIAL_SLIDES.map((s, i) => (
               <button
                 key={i}

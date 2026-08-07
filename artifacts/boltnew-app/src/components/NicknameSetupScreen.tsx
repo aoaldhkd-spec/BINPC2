@@ -121,8 +121,8 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
   const instagramId = '';
   const phoneNumber = '';
   const contactPrivate = false;
-  const birthMonth = 1;
-  const birthDay = 1;
+  const birthMonth = null;
+  const birthDay = null;
 
   // ── 닉네임 검증 ───────────────────────────────────────────────────────────────
   const validateCustom = useCallback(async (val: string) => {
