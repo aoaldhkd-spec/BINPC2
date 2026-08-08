@@ -37,3 +37,4 @@
 - [boltnew-app Part3 backend defense](boltnew-app-part3-backend.md) — health.ts try-catch; /broadcast 외부 try; /rpc RPC allowlist(17개) + name 검증; /admin/clear-db-errors 외부 try; /op boolean+length 검증.
 - [boltnew-app Part4 security+errorboundary](boltnew-app-part4-security.md) — IDOR: contact_shares/chat_reads SELECT 소유권 스코프; DELETE 3종 requesterId 필수화; liker_id/reader_id 강제 설정. XSS: broadcast/settings 페이로드 sanitize; FIELD_LIMITS 확장. EB: 알림 3종+SeatDialog 래핑.
 - [boltnew-app game removal 2026-08-08](boltnew-app-game-removal.md) — 게임 기능 전면 삭제 + Bug #1/#5/#6 수정; lint/typecheck/unit test 전부 PASS.
+- [boltnew-app seating removal](boltnew-app-seating-removal.md) — 자리배치 전면 삭제; db.ts RATE_MAP_MAX_SIZE 중복·여분 `}` 주의; AdminApp forceSeat 다이얼로그 3단계 제거.

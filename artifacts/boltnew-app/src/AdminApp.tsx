@@ -10,9 +10,8 @@ import { supabase } from './lib/supabase';
 import { setLocalDbUserId, supabase as ldbSupabase } from './lib/localdb';
 import type { Database } from './types/database';
 import { getPositionLabel, getDomSubLabel, getKoreanAge } from './lib/profile';
-import { HEART_TYPE_META, TABLE_POSITIONS } from './lib/constants';
+import { HEART_TYPE_META } from './lib/constants';
 
-type Seat = Database['public']['Tables']['seats']['Row'];
 type Profile = Database['public']['Tables']['profiles']['Row'];
 type AppSettings = Database['public']['Tables']['app_settings']['Row'];
 type SessionHistory = Database['public']['Tables']['session_history']['Row'];
@@ -702,18 +701,15 @@ function NotificationTab({ tableCount, settings, onSetTimer }: {
   );
 }
 
-// ─── Admin QR Tab ─────────────────────────────────────────────────────────────
-
+// 테이블 번호 표시용 (알림 타겟 표시에서 사용)
 const TABLE_LABELS: Record<number, string> = {
   1: '1', 2: '2', 3: '3', 4: '4', 5: '5', 6: '6', 7: '7', 8: '8', 9: '9', 10: '10', 11: '11', 12: '12',
   13: '13', 14: '14', 15: '15', 16: '16', 17: '17', 18: '18', 19: '19', 20: '20', 21: '21', 22: '22',
 };
 
-// Resolve a table's display label: admin-configured table_labels overrides the default.
-const tableLabel = (tableNum: number, labels?: Record<string, string> | null) =>
-  labels?.[String(tableNum)] ?? TABLE_LABELS[tableNum] ?? String(tableNum);
+// ─── Admin QR Tab ─────────────────────────────────────────────────────────────
 
-function AdminQrTab({ seats: _seats, settings, onSaveQrBase }: { seats: Seat[]; settings: AppSettings | null; onSaveQrBase: (url: string) => Promise<void> }) {
+function AdminQrTab({ settings, onSaveQrBase }: { settings: AppSettings | null; onSaveQrBase: (url: string) => Promise<void> }) {
   const normalizeBase = (url: string) => {
     const trimmed = url.trim().replace(/\/$/, '');
     if (!trimmed) return trimmed;
@@ -1104,10 +1100,10 @@ function DbHealthTab({ health, loading, onRefresh, onClearErrors }: { health: Db
 
 // ─── Dashboard Tab ────────────────────────────────────────────────────────────
 
-function DashboardTab({ settings, seats, profiles, onToggleSession, onEventEndReset, onToggleFunctionsLock,
+function DashboardTab({ settings, profiles, onToggleSession, onEventEndReset, onToggleFunctionsLock,
   onClearLikes, onClearChats, onClearProfiles, onClearHistory,
   restoreMap }: {
-  settings: AppSettings | null; seats: Seat[]; profiles: Profile[];
+  settings: AppSettings | null; profiles: Profile[];
   onToggleSession: () => void; onEventEndReset: () => void;
   onToggleFunctionsLock: () => void;
   onClearLikes: () => Promise<void>;
@@ -1119,9 +1115,6 @@ function DashboardTab({ settings, seats, profiles, onToggleSession, onEventEndRe
   const [confirmToggle, setConfirmToggle] = useState(false);
   const [confirmEventEnd, setConfirmEventEnd] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
-  const activeTables = settings?.active_tables ?? null;
-  const activeSeats = activeTables ? seats.filter(s => activeTables.includes(s.table_number)) : seats;
-  const occupied = activeSeats.filter((s) => s.status === 'occupied').length;
   const isActive = settings?.session_active ?? false;
   const isFunctionsLocked = (settings as any)?.functions_locked ?? false;
 
@@ -1130,8 +1123,6 @@ function DashboardTab({ settings, seats, profiles, onToggleSession, onEventEndRe
       <div className="grid grid-cols-3 gap-3">
         {[
           { label: '참여자', value: profiles.length, color: 'bg-cyan-50 text-cyan-700' },
-          { label: '착석', value: occupied, color: 'bg-teal-50 text-teal-700' },
-          { label: activeTables ? '빈 자리 (활성)' : '빈 자리', value: activeSeats.length - occupied, color: 'bg-gray-50 text-gray-600' },
         ].map((stat) => (
           <div key={stat.label} className={`${stat.color} rounded-2xl p-5 text-center`}>
             <div className="text-2xl font-black">{stat.value}</div>
@@ -1643,34 +1634,24 @@ function ChatsTab({ chats, messages, profileMap, onDeleteChat, onClearAll, onRef
 
 // ─── Game Tab ─────────────────────────────────────────────────────────────────
 
-function ProfilesTabSection({ profiles, seats, settings, onClear, onDeleteProfile, onForceSeat }: {
+function ProfilesTabSection({ profiles, settings: _settings, onClear, onDeleteProfile }: {
   profiles: Profile[];
-  seats: Seat[];
   settings: AppSettings | null;
   onClear: () => void;
   onDeleteProfile: (id: string) => void;
-  onForceSeat: (profileId: string, seatId: string) => void;
 }) {
   const [confirm, setConfirm] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Profile | null>(null);
-  const [forceSeatTarget, setForceSeatTarget] = useState<Profile | null>(null);
-  const [selectedSeatId, setSelectedSeatId] = useState('');
   const [search, setSearch] = useState('');
-
-  const allTableNums = Array.from(new Set(seats.map(s => s.table_number))).sort((a, b) => a - b);
-  // Force seat shows ALL tables (admin needs full access regardless of active_tables setting)
-  const visibleTableNums = allTableNums;
 
   const q = search.trim().toLowerCase();
   const filtered = q
     ? profiles.filter(p => {
-        const seat = seats.find(s => s.profile_id === p.id);
         return (
           p.nickname?.toLowerCase().includes(q) ||
           (p.mbti ?? '').toLowerCase().includes(q) ||
           (p.location ?? '').toLowerCase().includes(q) ||
           ((p as any).bio ?? '').toLowerCase().includes(q) ||
-          (seat ? `${seat.table_number}번 ${seat.seat_label}`.includes(q) : false) ||
           ((p as any).pin_code ?? '').includes(q)
         );
       })
@@ -1776,7 +1757,7 @@ function ProfilesTabSection({ profiles, seats, settings, onClear, onDeleteProfil
       </div>
       {confirm && (
         <ConfirmDialog title="참여자 초기화"
-          message="모든 참여자 프로필을 삭제합니다. 연결된 좌석도 자동으로 초기화됩니다."
+          message="모든 참여자 프로필을 삭제합니다."
           danger
           onConfirm={() => { setConfirm(false); onClear(); }}
           onCancel={() => setConfirm(false)}
@@ -1784,156 +1765,11 @@ function ProfilesTabSection({ profiles, seats, settings, onClear, onDeleteProfil
       )}
       {deleteTarget && (
         <ConfirmDialog title="참여자 삭제"
-          message={`"${deleteTarget.nickname}" 프로필을 삭제합니다. 연결된 좌석도 해제됩니다.`}
+          message={`"${deleteTarget.nickname}" 프로필을 삭제합니다.`}
           danger
           onConfirm={() => { onDeleteProfile(deleteTarget.id); setDeleteTarget(null); }}
           onCancel={() => setDeleteTarget(null)}
         />
-      )}
-      {forceSeatTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-5 space-y-4 max-h-[90vh] flex flex-col">
-            <div className="text-center flex-shrink-0">
-              <h3 className="text-lg font-bold text-gray-900">강제 자리배치 / 교환</h3>
-              <p className="text-sm text-gray-500 mt-1">
-                <span className="font-bold text-gray-700">{forceSeatTarget.nickname}</span> — 이동할 자리를 선택하세요
-              </p>
-              {selectedSeatId && (() => {
-                const targetSeat = seats.find(s => s.id === selectedSeatId);
-                const targetOccupant = targetSeat && targetSeat.status === 'occupied'
-                  ? profiles.find(p => p.id === targetSeat.profile_id)
-                  : null;
-                if (targetOccupant) {
-                  return (
-                    <div className="mt-2 flex items-center justify-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700 font-semibold">
-                      <span>{forceSeatTarget.nickname}</span>
-                      <span className="text-amber-500">⇄</span>
-                      <span>{targetOccupant.nickname}</span>
-                      <span className="text-amber-500 font-normal">교환됩니다</span>
-                    </div>
-                  );
-                }
-                return null;
-              })()}
-            </div>
-            {visibleTableNums.length === 0 ? (
-              <p className="text-sm text-center text-gray-400 py-4 flex-shrink-0">표시할 테이블이 없습니다</p>
-            ) : (
-              <div className="overflow-y-auto flex-1 min-h-0 space-y-4">
-                {visibleTableNums.map(tableNum => {
-                  const tableSeats = seats.filter(s => s.table_number === tableNum).sort((a, b) => a.seat_position - b.seat_position);
-                  const cfg = TABLE_POSITIONS[tableNum];
-                  const get = (pos: number) => tableSeats.find(s => s.seat_position === pos) ?? null;
-
-                  const SeatBtn = ({ pos }: { pos: number }) => {
-                    const s = get(pos);
-                    if (!s) return <div className="w-12 h-10 rounded-lg bg-gray-100 border border-dashed border-gray-200" />;
-                    const isEmpty = s.status === 'empty';
-                    const isCurrentSeat = s.profile_id === forceSeatTarget!.id;
-                    const isSelected = selectedSeatId === s.id;
-                    const occupant = !isEmpty && !isCurrentSeat ? profiles.find(p => p.id === s.profile_id) : null;
-                    const posLabel = s.seat_label.split(' ').pop() ?? String(s.seat_position);
-                    return (
-                      <button
-                        key={s.id}
-                        disabled={isCurrentSeat}
-                        onClick={() => setSelectedSeatId(isSelected ? '' : s.id)}
-                        title={occupant ? `${occupant.nickname} 와 교환` : posLabel}
-                        className={`w-12 h-10 rounded-lg text-[10px] font-bold transition-all border-2 flex flex-col items-center justify-center gap-0.5 ${
-                          isCurrentSeat
-                            ? 'bg-amber-100 border-amber-400 text-amber-700 cursor-not-allowed'
-                            : isSelected
-                            ? 'bg-blue-500 border-blue-600 text-white shadow-md scale-105'
-                            : isEmpty
-                            ? 'bg-teal-50 border-teal-300 text-teal-700 hover:bg-teal-100 hover:border-teal-500'
-                            : 'bg-rose-50 border-rose-300 text-rose-600 hover:bg-rose-100'
-                        }`}
-                      >
-                        <span className="leading-none">{isCurrentSeat ? '현위' : posLabel}</span>
-                        {occupant && <span className="text-[8px] leading-none opacity-70 max-w-full truncate px-0.5">{occupant.nickname.slice(0,4)}</span>}
-                      </button>
-                    );
-                  };
-
-                  const TableBlock = ({ vertical }: { vertical?: boolean }) => (
-                    <div className={`rounded-lg bg-amber-100 border-2 border-amber-300 flex flex-col items-center justify-center ${vertical ? 'w-8 self-stretch' : 'h-7 w-full'}`}>
-                      <span className="text-[10px] font-black text-amber-700">{tableNum}</span>
-                    </div>
-                  );
-
-                  const renderLayout = () => {
-                    if (!cfg) {
-                      return (
-                        <div className="flex flex-wrap gap-1.5">
-                          {tableSeats.map(s => <SeatBtn key={s.id} pos={s.seat_position} />)}
-                        </div>
-                      );
-                    }
-                    if (cfg.type === 'row1') {
-                      return (
-                        <div className="flex gap-2 items-start">
-                          <div className="flex flex-col gap-1">{cfg.leftCol.map(p => <SeatBtn key={p} pos={p} />)}</div>
-                          <div className="flex flex-col gap-2 flex-1">
-                            <TableBlock />
-                            <div className="flex gap-1 justify-center">{cfg.bottomRow?.map(p => <SeatBtn key={p} pos={p} />)}</div>
-                          </div>
-                          <div className="flex flex-col gap-1">{cfg.rightCol.map(p => <SeatBtn key={p} pos={p} />)}</div>
-                        </div>
-                      );
-                    }
-                    // sofa
-                    const inner = (
-                      <div className="flex gap-2 items-start">
-                        <div className="flex flex-col gap-1">{cfg.leftCol.map(p => <SeatBtn key={p} pos={p} />)}</div>
-                        <TableBlock vertical />
-                        <div className="flex flex-col gap-1">{cfg.rightCol.map(p => <SeatBtn key={p} pos={p} />)}</div>
-                      </div>
-                    );
-                    const sofaBar = <div className="h-5 w-10 rounded-md bg-sky-200 border-2 border-sky-400 flex items-center justify-center text-[9px] font-black text-sky-700">소파</div>;
-                    return (
-                      <div className="flex flex-col gap-1">
-                        {cfg.topRow && (
-                          <div className="flex gap-1 items-center">
-                            {cfg.sofaOnLeft && sofaBar}
-                            {cfg.topRow.map(p => <SeatBtn key={p} pos={p} />)}
-                            {!cfg.sofaOnLeft && sofaBar}
-                          </div>
-                        )}
-                        {inner}
-                        {cfg.bottomRow && (
-                          <div className="flex gap-1 items-center">
-                            {cfg.sofaOnLeft && sofaBar}
-                            {cfg.bottomRow.map(p => <SeatBtn key={p} pos={p} />)}
-                            {!cfg.sofaOnLeft && sofaBar}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  };
-
-                  return (
-                    <div key={tableNum} className="bg-gray-50 rounded-xl border border-gray-200 p-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-black text-gray-700">{tableNum}번 테이블 ({tableLabel(tableNum, settings?.table_labels as Record<string,string>|null)})</span>
-                        <span className="text-[10px] text-gray-400">{tableSeats.filter(s => s.status === 'empty').length}빈 / {tableSeats.length}</span>
-                      </div>
-                      {renderLayout()}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-            <div className="flex gap-3 flex-shrink-0">
-              <button onClick={() => setForceSeatTarget(null)} className="flex-1 py-3 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition-all">취소</button>
-              <button
-                disabled={!selectedSeatId}
-                onClick={() => { if (selectedSeatId) { onForceSeat(forceSeatTarget.id, selectedSeatId); setForceSeatTarget(null); } }}
-                className="flex-1 py-3 bg-blue-500 text-white font-semibold rounded-xl hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all">
-                {selectedSeatId && seats.find(s => s.id === selectedSeatId)?.status === 'occupied' ? '교환' : '배치'}
-              </button>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );
@@ -2260,7 +2096,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [dbHealth, setDbHealth] = useState<DbHealthData | null>(null);
   const [dbHealthLoading, setDbHealthLoading] = useState(false);
   const [settings, setSettings] = useState<AppSettings | null>(null);
-  const [seats, setSeats] = useState<Seat[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [histories, setHistories] = useState<SessionHistory[]>([]);
   const [likes, setLikes] = useState<Like[]>([]);
@@ -2302,9 +2137,8 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const profileMap = new Map(profiles.map((p) => [p.id, p]));
 
   const loadAll = useCallback(async () => {
-    const [{ data: s }, { data: se }, { data: pr }, { data: hi }, { data: li }, { data: ch }, { data: msgs }, { data: sug }, { data: anon }] = await Promise.all([
+    const [{ data: s }, { data: pr }, { data: hi }, { data: li }, { data: ch }, { data: msgs }, { data: sug }, { data: anon }] = await Promise.all([
       adminSupabase.from('app_settings').select('*').eq('id', 1).single(),
-      adminSupabase.from('seats').select('*').order('table_number').order('seat_position'),
       adminSupabase.from('profiles').select('*').order('created_at', { ascending: false }),
       adminSupabase.from('session_history').select('*').order('ended_at', { ascending: false }),
       adminApiSelect<Like>('likes', [{ column: 'created_at', ascending: false }]),
@@ -2314,7 +2148,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       adminSupabase.from('anonymous_reports').select('*').order('created_at', { ascending: false }),
     ]);
     if (s) setSettings(s);
-    if (se) setSeats(se);
     if (pr) setProfiles(pr);
     if (hi) setHistories(hi);
     if (li) setLikes(li);
@@ -2332,18 +2165,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     loadAll();
     const channel = supabase
       .channel('admin-realtime')
-      // ── seats: 페이로드 기반 증분 업데이트 (풀 리패치 제거) ───────────
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'seats' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-        const s = payload.new as Seat;
-        setSeats(prev => prev.some(x => x.id === s.id) ? prev.map(x => x.id === s.id ? s : x) : [...prev, s]);
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'seats' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-        const s = payload.new as Seat;
-        setSeats(prev => prev.map(x => x.id === s.id ? s : x));
-      })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'seats' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-        setSeats(prev => prev.filter(x => x.id !== (payload.old as Seat).id));
-      })
       // ── profiles: 페이로드 기반 증분 업데이트 ───────────────────────
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'profiles' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         const p = payload.new as Profile;
@@ -2480,13 +2301,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   };
 
   const handleEventEndReset = async () => {
-    const snapshot = seats.map((s) => ({
-      seat_label: s.seat_label, table_number: s.table_number,
-      seat_position: s.seat_position, status: s.status,
-      nickname: s.profile_id ? (profileMap.get(s.profile_id)?.nickname ?? null) : null,
-      registered_at: s.registered_at,
-    }));
-    const seatAssignments = seats.filter(s => s.profile_id).map(s => ({ seat_id: s.id, profile_id: s.profile_id! }));
     const backupProfiles = [...profiles];
     const backupLikes = [...likes];
     const backupChats = [...allChats];
@@ -2494,16 +2308,13 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     const backupSuggestions = [...suggestions];
     const backupHistories = [...histories];
     // 백업 데이터 수집 — 실패해도 초기화 진행
-    const [notifRes, bvRes, qaRes, ivRes] = await Promise.allSettled([
+    const [notifRes] = await Promise.allSettled([
       adminSupabase.from('notifications').select('*'),
-      adminSupabase.from('balance_votes').select('*'),
-      adminSupabase.from('qa_answers').select('*'),
-      adminSupabase.from('image_votes').select('*'),
     ]);
     const safeData = (r: PromiseSettledResult<{ data: unknown[] | null }>) =>
       r.status === 'fulfilled' ? (r.value as { data: unknown[] | null }).data : null;
     try {
-      await adminSupabase.from('session_history').insert({ seats_snapshot: snapshot });
+      await adminSupabase.from('session_history').insert({ seats_snapshot: [] });
       // api-server 전체 초기화 (인메모리 스토어 + SSE broadcast → 모든 유저에게 즉시 반영)
       // Supabase 직접 삭제만으로는 api-server 인메모리가 그대로 남아 유저에게 반영 안 됨
       await adminApiRpc('admin_event_end_reset', { p_admin_password: settings?.admin_password ?? '' });
@@ -2515,9 +2326,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         adminSupabase.from('messages').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
         adminSupabase.from('chats').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
         adminSupabase.from('notifications').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
-        adminSupabase.from('balance_votes').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
-        adminSupabase.from('qa_answers').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
-        adminSupabase.from('image_votes').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
         adminSupabase.from('suggestions').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
       ]);
       const { error: sigErr } = await adminSupabase.from('app_settings').update({ reset_signal: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', 1);
@@ -2534,17 +2342,9 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           ...backupChats.map(c => adminSupabase.from('chats').upsert(c)),
           ...backupMsgs.map(m => adminSupabase.from('messages').upsert(m)),
           ...backupSuggestions.map(s => adminSupabase.from('suggestions').upsert({ id: s.id, content: s.content, created_at: s.created_at })),
-          ...backupHistories.map(h => adminSupabase.from('session_history').upsert({ id: h.id, seats_snapshot: h.seats_snapshot, created_at: (h as { created_at?: string }).created_at })),
+          ...backupHistories.map(h => adminSupabase.from('session_history').upsert({ id: h.id, seats_snapshot: [], created_at: (h as { created_at?: string }).created_at })),
           ...(safeData(notifRes) ?? []).map((n: unknown) => adminSupabase.from('notifications').upsert(n)),
-          ...(safeData(bvRes) ?? []).map((r: unknown) => adminSupabase.from('balance_votes').upsert(r)),
-          ...(safeData(qaRes) ?? []).map((r: unknown) => adminSupabase.from('qa_answers').upsert(r)),
-          ...(safeData(ivRes) ?? []).map((r: unknown) => adminSupabase.from('image_votes').upsert(r)),
         ]);
-        await Promise.allSettled(
-          seatAssignments.map(({ seat_id, profile_id }) =>
-            adminSupabase.rpc('admin_force_seat', { p_profile_id: profile_id, p_seat_id: seat_id, p_admin_password: settings?.admin_password ?? '' })
-          )
-        );
         await loadAll();
         setRecovery(null);
       } : null, 'eventEnd');
@@ -2587,15 +2387,10 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
   const handleClearProfiles = async () => {
     const backupProfiles = [...profiles];
-    const seatAssignments = seats.filter(s => s.profile_id).map(s => ({ seat_id: s.id, profile_id: s.profile_id! }));
     await adminSupabase.from('profiles').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    await adminSupabase.rpc('admin_reset_all_seats', { p_admin_password: settings?.admin_password ?? '' });
     adminApiRpc('admin_force_resync_all', {}).catch(e => console.warn('[admin] resync:', e));
     showRecovery('참여자 프로필', '👤', backupProfiles.length > 0 ? async () => {
       for (const p of backupProfiles) await adminSupabase.from('profiles').upsert(p);
-      for (const { seat_id, profile_id } of seatAssignments) {
-        await adminSupabase.rpc('admin_force_seat', { p_profile_id: profile_id, p_seat_id: seat_id, p_admin_password: settings?.admin_password ?? '' });
-      }
       await loadAll();
       setRecovery(null);
     } : null, 'profiles');
@@ -2631,7 +2426,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     adminApiRpc('admin_force_resync_all', {}).catch(e => console.warn('[admin] resync:', e));
     showRecovery('회식 이력', '📋', backup.length > 0 ? async () => {
       for (const h of backup) {
-        await adminSupabase.from('session_history').upsert({ id: h.id, seats_snapshot: h.seats_snapshot, ended_at: (h as Record<string, unknown>)['ended_at'] as string ?? h.ended_at });
+        await adminSupabase.from('session_history').upsert({ id: h.id, seats_snapshot: [], ended_at: (h as Record<string, unknown>)['ended_at'] as string ?? h.ended_at });
       }
       await loadAll();
       setRecovery(null);
@@ -2687,26 +2482,12 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   };
 
   const handleDeleteProfile = async (profileId: string) => {
-    await adminSupabase.rpc('admin_clear_profile_seat', { p_profile_id: profileId, p_admin_password: settings?.admin_password ?? '' });
     await adminSupabase.from('profiles').delete().eq('id', profileId);
     setProfiles(prev => prev.filter(p => p.id !== profileId));
-    // api-server 인메모리 동기화 → 유저 화면에서 프로필 즉시 제거
-    adminApiRpc('admin_clear_profile_seat', { p_profile_id: profileId, p_admin_password: settings?.admin_password ?? '' })
-      .catch(e => console.warn('[admin] api-server 프로필좌석 동기화 실패:', e));
+    // api-server 인메모리 동기화
+    adminApiRpc('admin_force_resync_all', {}).catch(e => console.warn('[admin] resync:', e));
   };
 
-  const handleForceSeat = async (profileId: string, seatId: string) => {
-    const { error } = await adminSupabase.rpc('admin_force_seat', { p_profile_id: profileId, p_seat_id: seatId, p_admin_password: settings?.admin_password ?? '' });
-    if (error) {
-      alert(`자리배치 실패: ${error.message}`);
-      return;
-    }
-    const { data } = await adminSupabase.from('seats').select('*').order('table_number').order('seat_position');
-    if (data) setSeats(data);
-    // api-server 인메모리 좌석 동기화 → 유저 화면 즉시 갱신
-    adminApiRpc('admin_force_seat', { p_profile_id: profileId, p_seat_id: seatId, p_admin_password: settings?.admin_password ?? '' })
-      .catch(e => console.warn('[admin] api-server 강제배치 동기화 실패:', e));
-  };
 
   const handleTabChange = (t: AdminTab) => {
     if (t === 'profiles') setSeenProfilesCount(profiles.length);
@@ -2783,14 +2564,14 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               ))}
             </div>
             {settingsSubTab === 'control' && (
-              <DashboardTab settings={settings} seats={seats} profiles={profiles}
+              <DashboardTab settings={settings} profiles={profiles}
                 onToggleSession={handleToggleSession} onEventEndReset={handleEventEndReset}
                 onToggleFunctionsLock={handleToggleFunctionsLock}
                 onClearLikes={handleClearLikes} onClearChats={handleClearAllChats}
                 onClearProfiles={handleClearProfiles}
                 onClearHistory={handleClearHistory} restoreMap={restoreMap} />
             )}
-            {settingsSubTab === 'qr' && <AdminQrTab seats={seats} settings={settings} onSaveQrBase={async (url) => {
+            {settingsSubTab === 'qr' && <AdminQrTab settings={settings} onSaveQrBase={async (url) => {
   const { error } = await adminSupabase.from('app_settings').update({ qr_base_url: url, updated_at: new Date().toISOString() } as never).eq('id', 1);
   if (error) { alert(`QR URL 저장 실패: ${error.message}`); return; }
   setSettings(prev => prev ? { ...prev, qr_base_url: url } as never : prev);
@@ -2802,10 +2583,10 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           </div>
         )}
         {tab === 'profiles' && (
-          <ProfilesTabSection profiles={profiles} seats={seats} settings={settings} onClear={async () => {
+          <ProfilesTabSection profiles={profiles} settings={settings} onClear={async () => {
             await adminSupabase.from('profiles').delete().neq('id', '00000000-0000-0000-0000-000000000000');
             await loadAll();
-          }} onDeleteProfile={handleDeleteProfile} onForceSeat={handleForceSeat} />
+          }} onDeleteProfile={handleDeleteProfile} />
         )}
         {tab === 'hearts' && (
           <div>
@@ -2825,7 +2606,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           </div>
         )}
         {tab === 'chats' && <ChatsTab chats={allChats} messages={allMessages} profileMap={profileMap} onDeleteChat={handleDeleteChat} onClearAll={handleClearAllChats} onRefresh={loadAll} />}
-        {tab === 'notify' && <NotificationTab tableCount={[...new Set(seats.map(s => s.table_number))].length} settings={settings} onSetTimer={handleSetTimer} />}
+        {tab === 'notify' && <NotificationTab tableCount={0} settings={settings} onSetTimer={handleSetTimer} />}
       </main>
 
       {/* 초기화 복구 배너 (non-blocking) */}

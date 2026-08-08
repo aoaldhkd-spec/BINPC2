@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../lib/theme';
-import type { Profile, Seat, ContactShare, Suggestion, Chat, MainTab } from '../types/app';
+import type { Profile, ContactShare, Suggestion, Chat, MainTab } from '../types/app';
 import { BIO_CATEGORIES } from '../lib/interests';
 import { HeartType, HEART_TYPES, heartMeta } from '../lib/constants';
 import { getPositionLabel, getPositionBg, getPositionStyle, getDomSubLabel, getDomSubBg, getKoreanAge, genAvatar } from '../lib/profile';
@@ -613,18 +613,18 @@ export const ProfileCard = memo(function ProfileCard({
 // ─── MainScreen ───────────────────────────────────────────────────────────────
 
 export function MainScreen({
-  profiles, currentUserId, likedIds, sentHeartTypes, sentHeartsPerPerson, likeStatuses, seats, profileMap, mainTab,
+  profiles, currentUserId, likedIds, sentHeartTypes, sentHeartsPerPerson, likeStatuses, profileMap, mainTab,
   onTabChange, onLike, onSelect, onReset, onProfileClickFromMap: _onProfileClickFromMap,
   receivedLikers, receivedHeartTypes, sentLikedProfiles, contactSharedWithIds, acknowledgedComplimentIds,
   receivedContactShares, pendingHeartsCount, chatList, suggestions,
   onContactShareOpen: _onContactShareOpen, onContactViewOpen, onHeartResponse, onDeleteChat, onDeleteAllChats, onSubmitSuggestion, onOpenChat,
   onSubmitAnonymousReport,
-  timerEndAt, timerLabel, onRefreshStatus, onRefreshChat, onRefreshProfiles, darkMode, onToggleDark, onShowQr, onShowContactQr, onScanQr, scannedContacts, onClearScannedContact, seatingLocked, functionsLocked = false, onShowTutorial,
+  timerEndAt, timerLabel, onRefreshStatus, onRefreshChat, onRefreshProfiles, darkMode, onToggleDark, onShowQr, onShowContactQr, onScanQr, scannedContacts, onClearScannedContact, functionsLocked = false, onShowTutorial,
   newMsgCount, onClearMsgCount, unreadChatCounts, onClearChatUnread: _onClearChatUnread, resetPassword,
   onUpdateProfile, fortuneCompatTarget,
 }: {
   profiles: Profile[]; currentUserId: string | null; likedIds: Set<string>; sentHeartTypes: Map<string, HeartType>; sentHeartsPerPerson: Map<string, Set<HeartType>>; likeStatuses: Map<string, string>;
-  seats: Seat[]; profileMap: Map<string, Profile>; mainTab: MainTab;
+  profileMap: Map<string, Profile>; mainTab: MainTab;
   onTabChange: (t: MainTab) => void; onLike: (id: string) => void;
   onSelect: (p: Profile) => void; onReset: () => void;
   onProfileClickFromMap: (profile: Profile) => void;
@@ -651,7 +651,6 @@ export function MainScreen({
   onScanQr: () => void;
   scannedContacts: Array<{ id: string; nickname: string; mbti?: string | null; photo_url?: string | null; kakao_id?: string | null; instagram_id?: string | null; phone_number?: string | null; contact_private?: boolean | null; scanned_at: string }>;
   onClearScannedContact: (id: string) => void;
-  seatingLocked: boolean;
   functionsLocked?: boolean;
   onShowTutorial: () => void;
   newMsgCount: number;
@@ -663,8 +662,7 @@ export function MainScreen({
   fortuneCompatTarget?: string;
 }) {
   const heartCount = useCallback((t: HeartType) => { let c = 0; sentHeartsPerPerson.forEach(types => { if (types.has(t)) c++; }); return c; }, [sentHeartsPerPerson]);
-  const currentUserSeat = useMemo(() => seats.find(s => s.profile_id === currentUserId) ?? null, [seats, currentUserId]);
-  const tableNumber = currentUserSeat?.table_number ?? null;
+  const tableNumber: number | null = null;
 
   const _currentUserNickname = useMemo(() => profiles.find(p => p.id === currentUserId)?.nickname ?? '', [profiles, currentUserId]);
   const [profileSearch, setProfileSearch] = useState('');
@@ -794,7 +792,7 @@ export function MainScreen({
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 기능 잠금(functionsLocked) 시 이동 불가 탭 — 자리 잠금(seatingLocked)과 분리
+  // 기능 잠금(functionsLocked) 시 이동 불가 탭
   const LOCKED_TABS = new Set<MainTab>(['chats', 'fortune', 'stats', 'ranking']);
 
   // MY 버튼 팝업 열림 상태
@@ -1216,7 +1214,7 @@ export function MainScreen({
                 sentHeartType={sentHeartTypes.get(profile.id)}
                 heartCount={sentHeartsPerPerson.get(profile.id)?.size ?? 0}
                 canLike={!!(currentUserId && profile.id !== currentUserId)}
-                locked={seatingLocked || functionsLocked}
+                locked={functionsLocked}
                 onLike={onLike}
                 onSelect={onSelect}
                 onOpenChat={onOpenChat}
@@ -1248,7 +1246,6 @@ export function MainScreen({
               const posColor = getPositionBg(me.personality_score ?? 50);
               const domLabel = getDomSubLabel(me.dom_sub_score ?? null);
               const domColor = getDomSubBg(me.dom_sub_score ?? null);
-              const tableLetter = currentUserSeat ? String.fromCharCode(64 + currentUserSeat.table_number) : null;
               const bioTags = me.bio ? me.bio.split(',').map(t => t.trim()).filter(Boolean) : [];
               return (
                 <div className={`rounded-3xl p-5 border shadow-xl transition-colors duration-300 ${darkMode ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600' : 'bg-white border-gray-100'}`}>
@@ -1257,9 +1254,6 @@ export function MainScreen({
                   {/* ── 닉네임 (사진 위) ── */}
                   <div className="mb-2">
                     <p className={`text-lg font-black leading-tight truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>{me.nickname}</p>
-                    {currentUserSeat && (
-                      <span className="text-[10px] font-bold text-amber-400">🪑 {currentUserSeat.table_number}번 {tableLetter}테이블</span>
-                    )}
                   </div>
 
                   {/* ── 사진(왼쪽) + 박스(오른쪽) — 상단 정렬 ── */}
@@ -1911,24 +1905,21 @@ export function MainScreen({
                         {isGreen ? (
                           !isAcked && (
                             <button
-                              onClick={() => !seatingLocked && onHeartResponse(liker.id, 'accepted')}
-                              disabled={seatingLocked}
-                              className={`w-full py-2 mt-2.5 text-xs font-bold text-white rounded-xl transition-all ${hm.solidBg} ${hm.solidHover} disabled:opacity-40 disabled:cursor-not-allowed`}
-                            >{seatingLocked ? '🔒 잠금 중' : '확인'}</button>
+                              onClick={() => onHeartResponse(liker.id, 'accepted')}
+                              className={`w-full py-2 mt-2.5 text-xs font-bold text-white rounded-xl transition-all ${hm.solidBg} ${hm.solidHover}`}
+                            >{'확인'}</button>
                           )
                         ) : (
                           !shared && (
                             <div className="flex gap-2 mt-2.5">
                               <button
-                                onClick={() => !seatingLocked && onHeartResponse(liker.id, 'rejected')}
-                                disabled={seatingLocked}
+                                onClick={() => onHeartResponse(liker.id, 'rejected')}
                                 className="flex-1 py-2 text-xs font-bold bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                               >거절</button>
                               <button
-                                onClick={() => !seatingLocked && onHeartResponse(liker.id, 'accepted')}
-                                disabled={seatingLocked}
-                                className={`flex-2 flex-grow py-2 text-xs font-bold text-white rounded-xl transition-all ${hm.solidBg} ${hm.solidHover} disabled:opacity-40 disabled:cursor-not-allowed`}
-                              >{seatingLocked ? '🔒 잠금 중' : '수락 + 연락처 공유'}</button>
+                                onClick={() => onHeartResponse(liker.id, 'accepted')}
+                                className={`flex-2 flex-grow py-2 text-xs font-bold text-white rounded-xl transition-all ${hm.solidBg} ${hm.solidHover}`}
+                              >{'수락 + 연락처 공유'}</button>
                             </div>
                           )
                         )}
@@ -2333,12 +2324,12 @@ export function MainScreen({
 
         {/* ─── 통계 탭 ─── */}
         {mainTab === 'stats' && (
-          <StatsTab profiles={profiles} seats={seats} darkMode={darkMode} />
+          <StatsTab profiles={profiles} darkMode={darkMode} />
         )}
 
         {/* ─── 랭킹 탭 ─── */}
         {mainTab === 'ranking' && (
-          <RankingTab seats={seats} darkMode={darkMode} profiles={profiles} />
+          <RankingTab darkMode={darkMode} profiles={profiles} />
         )}
 
         {/* ─── 운세 탭 (게임·운세 하위) ─── */}

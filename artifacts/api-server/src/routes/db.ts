@@ -55,7 +55,7 @@ const imageStore: Record<string, string> = {};
 // ─── Allowed tables for /op ────────────────────────────────────────────────────
 // Allowlist prevents access to internal or non-existent tables.
 const ALLOWED_OP_TABLES = new Set([
-  'profiles', 'seats', 'chats', 'messages', 'likes', 'chat_reads',
+  'profiles', 'chats', 'messages', 'likes', 'chat_reads',
   'app_settings', 'push_subscriptions',
   'session_history', 'device_secrets', 'app_kv_rows',
   // Extra tables used by the app
@@ -156,7 +156,6 @@ const UPLOAD_RATE_WINDOW_MS = 60_000;
 // ─── Rate map 주기적 pruning + 상한 ─────────────────────────────────────────
 // 공격자가 무수한 IP로 요청하면 Map이 무한 증가 → 2분마다 만료 항목 제거
 // 재발방지: Map 크기가 상한(50000) 초과 시 새 IP 추가 자체를 거부 (OOM 방지)
-const RATE_MAP_MAX_SIZE = 50_000;
 setInterval(() => {
   const now = Date.now();
   for (const [k, v] of _loginRateMap) if (v.resetAt < now) _loginRateMap.delete(k);
@@ -490,70 +489,14 @@ async function seedIfNeeded(): Promise<void> {
       updated_at: ts(),
       timer_end_at: null,
       timer_label: null,
-      seating_locked: false,
       functions_locked: false,
-      active_tables: null,
       reset_signal: null,
-      table_labels: null,
       game_state: null,
       entry_password: koreanDateMMDD(),
       reset_password: null,
     };
     store['app_settings'] = [settings];
     await dbPersistRow('app_settings', settings);
-  }
-  if (!getTable('seats').length) {
-    const rows: Record<string, unknown>[] = [];
-    // 테이블 1-12: 8석
-    for (let t = 1; t <= 12; t++) {
-      for (let p = 1; p <= 8; p++) {
-        rows.push({
-          id: genId(),
-          table_number: t,
-          seat_position: p,
-          seat_label: `${t}번 테이블 ${p}번`,
-          profile_id: null,
-          status: 'empty',
-          registered_at: null,
-          created_at: ts(),
-        });
-      }
-    }
-    // 번외 테이블 13-15: 10석, 번외열 16-19: 6석
-    for (let t = 13; t <= 15; t++) {
-      for (let p = 1; p <= 10; p++) {
-        rows.push({ id: genId(), table_number: t, seat_position: p, seat_label: `${t}번 테이블 ${p}번`, profile_id: null, status: 'empty', registered_at: null, created_at: ts() });
-      }
-    }
-    for (let t = 16; t <= 22; t++) {
-      for (let p = 1; p <= 6; p++) {
-        rows.push({ id: genId(), table_number: t, seat_position: p, seat_label: `${t}번 테이블 ${p}번`, profile_id: null, status: 'empty', registered_at: null, created_at: ts() });
-      }
-    }
-    store['seats'] = rows;
-    await Promise.all(rows.map(r => dbPersistRow('seats', r)));
-  } else {
-    // 기존 설치: 번외 테이블이 없으면 추가
-    const existingTables = new Set(getTable('seats').map((s: Record<string, unknown>) => s['table_number']));
-    const extraRows: Record<string, unknown>[] = [];
-    for (let t = 13; t <= 15; t++) {
-      if (!existingTables.has(t)) {
-        for (let p = 1; p <= 10; p++) {
-          extraRows.push({ id: genId(), table_number: t, seat_position: p, seat_label: `${t}번 테이블 ${p}번`, profile_id: null, status: 'empty', registered_at: null, created_at: ts() });
-        }
-      }
-    }
-    for (let t = 16; t <= 22; t++) {
-      if (!existingTables.has(t)) {
-        for (let p = 1; p <= 6; p++) {
-          extraRows.push({ id: genId(), table_number: t, seat_position: p, seat_label: `${t}번 테이블 ${p}번`, profile_id: null, status: 'empty', registered_at: null, created_at: ts() });
-        }
-      }
-    }
-    if (extraRows.length) {
-      store['seats'].push(...extraRows);
-      await Promise.all(extraRows.map(r => dbPersistRow('seats', r)));
-    }
   }
 }
 
@@ -727,7 +670,7 @@ function notifyOtherInstances(table: string, ev: string, newRow: Record<string, 
 
 /** hot 테이블(profiles·seats·app_settings)을 app_kv_rows에서 재동기화 — LISTEN gap 보정 전용 */
 async function resyncHotTablesFromDb(): Promise<void> {
-  const hotTables = ['profiles', 'seats', 'app_settings'];
+  const hotTables = ['profiles', 'app_settings'];
   try {
     const { rows } = await pool.query(
       `SELECT table_name, data FROM app_kv_rows WHERE table_name = ANY($1::text[])`,
@@ -751,7 +694,6 @@ async function resyncHotTablesFromDb(): Promise<void> {
 // → 30초마다 네이티브 테이블에서 전체 재동기화해 최대 30초 안에 자동 복구
 const FULL_RESYNC_TABLES: Array<{ tbl: string; order?: string }> = [
   { tbl: 'profiles' },
-  { tbl: 'seats',         order: 'ORDER BY table_number, seat_position' },
   { tbl: 'app_settings' },
   { tbl: 'notifications', order: 'ORDER BY created_at DESC' },
   { tbl: 'likes',         order: 'ORDER BY created_at DESC LIMIT 5000' },
@@ -1379,10 +1321,13 @@ router.post('/op', async (req: Request, res: Response) => {
             logger.warn({ ip: req.ip }, '[SECURITY] IDOR: messages INSERT without requesterId blocked');
             return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
           }
+          // sender_id를 requesterId로 강제 설정 (omit·mismatch 공격 동시 차단)
+          // liker_id/reader_id와 동일한 방어 패턴
           if (effectiveRow.sender_id != null && String(effectiveRow.sender_id) !== String(requesterId)) {
             logger.warn({ requesterId, sender_id: effectiveRow.sender_id, ip: req.ip }, '[SECURITY] IDOR: sender_id mismatch blocked');
             return res.status(403).json({ data: null, error: { message: 'Forbidden: sender_id mismatch', code: 'FORBIDDEN' } });
           }
+          effectiveRow = { ...effectiveRow, sender_id: requesterId };
           // ─ chat_id는 messages INSERT에서 필수 — 없으면 고아 메시지 생성 차단
           if (effectiveRow.chat_id == null) {
             logger.warn({ requesterId, ip: req.ip }, '[SECURITY] IDOR: messages INSERT without chat_id blocked');
@@ -1402,6 +1347,12 @@ router.post('/op', async (req: Request, res: Response) => {
           }
           const u1 = String(effectiveRow.user1_id ?? '');
           const u2 = String(effectiveRow.user2_id ?? '');
+          if (!u1 || !u2) {
+            return res.status(400).json({ data: null, error: { message: 'user1_id and user2_id are both required', code: 'INVALID_INPUT' } });
+          }
+          if (u1 === u2) {
+            return res.status(400).json({ data: null, error: { message: 'self-chat not allowed', code: 'INVALID_INPUT' } });
+          }
           if (requesterId !== u1 && requesterId !== u2) {
             logger.warn({ requesterId, u1, u2, ip: req.ip }, '[SECURITY] IDOR: chats INSERT by non-participant blocked');
             return res.status(403).json({ data: null, error: { message: 'Forbidden: must be a participant', code: 'FORBIDDEN' } });
@@ -1568,15 +1519,7 @@ router.post('/op', async (req: Request, res: Response) => {
               String(existingRow.sender_id) !== String(requesterId)) {
             logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: UPDATE messages blocked');
             return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신의 메시지만 수정할 수 있습니다.', code: 'FORBIDDEN' } });
-          }
-          // seats: 자신이 점유한 자리만 수정 가능 (빈 자리 클레임은 INSERT/patch로 처리됨)
-          if (table === 'seats' && existingRow.profile_id != null &&
-              String(existingRow.profile_id) !== String(requesterId)) {
-            // 단, patch에 profile_id === requesterId 인 경우(자리 이동)는 admin RPC로만 해야 함
-            logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: UPDATE seats blocked');
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: 다른 사람의 자리는 수정할 수 없습니다.', code: 'FORBIDDEN' } });
-          }
-          // chat_reads: 자신의 읽음 기록만 수정 가능
+          }          // chat_reads: 자신의 읽음 기록만 수정 가능
           if (table === 'chat_reads' && existingRow.reader_id != null &&
               String(existingRow.reader_id) !== String(requesterId)) {
             logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: UPDATE chat_reads blocked');
@@ -1632,14 +1575,7 @@ router.post('/op', async (req: Request, res: Response) => {
               String(row.reader_id) !== String(requesterId)) {
             logger.warn({ requesterId, reader_id: row.reader_id }, '[SECURITY] IDOR: UPSERT chat_reads blocked');
             return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신의 읽음 기록만 생성할 수 있습니다.', code: 'FORBIDDEN' } });
-          }
-          // seats: profile_id는 반드시 requester여야 함 (자리 직접 등록)
-          if (table === 'seats' && row.profile_id != null &&
-              String(row.profile_id) !== String(requesterId)) {
-            logger.warn({ requesterId, profile_id: row.profile_id }, '[SECURITY] IDOR: UPSERT seats blocked');
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신의 자리만 등록할 수 있습니다.', code: 'FORBIDDEN' } });
-          }
-        }
+          }        }
       }
       // Fix #7: O(n²) → O(n) — id 기반 UPSERT 시 Map 인덱스로 O(1) 조회
       const _idxById = !safeConflictCols.length ? new Map(tableData.map((r, i) => [r.id, i])) : null;
@@ -1708,14 +1644,7 @@ router.post('/op', async (req: Request, res: Response) => {
               String(existingRow.sender_id) !== String(requesterId)) {
             logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: DELETE messages blocked');
             return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신의 메시지만 삭제할 수 있습니다.', code: 'FORBIDDEN' } });
-          }
-          // seats: 자신이 점유한 자리만 비울 수 있음
-          if (table === 'seats' && existingRow.profile_id != null &&
-              String(existingRow.profile_id) !== String(requesterId)) {
-            logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: DELETE seats blocked');
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: 다른 사람의 자리를 삭제할 수 없습니다.', code: 'FORBIDDEN' } });
-          }
-        }
+          }        }
       }
       store[table] = tableData.filter(r => !applyFilters([r], normalizedFilters).length);
       // ─ 배치 삭제 최적화: N개의 개별 DELETE → 단일 IN-clause 쿼리로 통합 (N+1 제거)
@@ -1743,9 +1672,8 @@ router.post('/op', async (req: Request, res: Response) => {
 const ALLOWED_RPCS = new Set([
   'admin_create_session', 'admin_invalidate_session', 'admin_auth_phone',
   'admin_update_settings', 'test_resync', 'test_clear_hearts', 'admin_force_resync_all',
-  'test_update_settings', 'admin_reset_all_seats', 'admin_full_reset',
-  'admin_event_end_reset', 'admin_clear_seat', 'admin_force_seat',
-  'admin_clear_profile_seat', 'admin_swap_seats', 'admin_update_profile',
+  'test_update_settings', 'admin_full_reset', 'admin_event_end_reset',
+  'admin_update_profile',
   'admin_delete_profile',
 ]);
 
@@ -1886,23 +1814,13 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         return res.json({ data: null, error: null });
       }
 
-      case 'admin_reset_all_seats':
       case 'admin_full_reset': {
         checkPassword();
-        const seats = getTable('seats').map(s => ({ ...s, profile_id: null, status: 'empty', registered_at: null }));
-        store['seats'] = seats;
-        // ─ 배치 병렬 쓰기: N개 직렬 await → Promise.all 병렬화 (DB 왕복 N→1)
-        for (const s of seats) broadcastAll({ type: 'change', table: 'seats', event: 'UPDATE', newRow: s, oldRow: null });
-        Promise.all(seats.map(s => dbPersistRow('seats', s))).catch(console.error);
         return res.json({ data: null, error: null });
       }
 
       case 'admin_event_end_reset': {
         checkPassword();
-        const seats = getTable('seats').map(s => ({ ...s, profile_id: null, status: 'empty', registered_at: null }));
-        store['seats'] = seats;
-        for (const s of seats) broadcastAll({ type: 'change', table: 'seats', event: 'UPDATE', newRow: s, oldRow: null });
-        Promise.all(seats.map(s => dbPersistRow('seats', s))).catch(console.error);
         const tablesToClear = [
           'profiles', 'likes', 'anonymous_reports', 'chats', 'messages',
           'contact_shares', 'contact_share_events',
@@ -1928,84 +1846,6 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         return res.json({ data: null, error: null });
       }
 
-      case 'admin_clear_seat': {
-        checkPassword();
-        const seatId = args.p_seat_id as string;
-        const seats = getTable('seats');
-        const idx = seats.findIndex(s => s.id === seatId);
-        if (idx >= 0) {
-          const oldRow = { ...seats[idx] };
-          const newRow = { ...oldRow, profile_id: null, status: 'empty', registered_at: null };
-          seats[idx] = newRow;
-          broadcastAll({ type: 'change', table: 'seats', event: 'UPDATE', newRow, oldRow });
-          dbPersistRow('seats', newRow).catch(console.error);
-        }
-        return res.json({ data: null, error: null });
-      }
-
-      case 'admin_force_seat': {
-        checkPassword();
-        const profileId = args.p_profile_id as string;
-        const seatId = args.p_seat_id as string;
-        const seats = getTable('seats');
-        const curIdx = seats.findIndex(s => s.profile_id === profileId);
-        if (curIdx >= 0 && seats[curIdx].id !== seatId) {
-          const oldRow = { ...seats[curIdx] };
-          const cleared = { ...oldRow, profile_id: null, status: 'empty', registered_at: null };
-          seats[curIdx] = cleared;
-          broadcastAll({ type: 'change', table: 'seats', event: 'UPDATE', newRow: cleared, oldRow });
-          dbPersistRow('seats', cleared).catch(console.error);
-        }
-        const tgtIdx = seats.findIndex(s => s.id === seatId);
-        if (tgtIdx >= 0) {
-          const oldRow = { ...seats[tgtIdx] };
-          if (oldRow.profile_id && oldRow.profile_id !== profileId) {
-            const bumped = { ...oldRow, profile_id: null, status: 'empty', registered_at: null };
-            seats[tgtIdx] = bumped;
-            broadcastAll({ type: 'change', table: 'seats', event: 'UPDATE', newRow: bumped, oldRow });
-            dbPersistRow('seats', bumped).catch(console.error);
-          }
-          const newRow = { ...seats[tgtIdx], profile_id: profileId, status: 'occupied', registered_at: ts() };
-          seats[tgtIdx] = newRow;
-          broadcastAll({ type: 'change', table: 'seats', event: 'UPDATE', newRow, oldRow });
-          dbPersistRow('seats', newRow).catch(console.error);
-        }
-        return res.json({ data: null, error: null });
-      }
-
-      case 'admin_clear_profile_seat': {
-        checkPassword();
-        const profileId = args.p_profile_id as string;
-        const seats = getTable('seats');
-        const idx = seats.findIndex(s => s.profile_id === profileId);
-        if (idx >= 0) {
-          const oldRow = { ...seats[idx] };
-          const newRow = { ...oldRow, profile_id: null, status: 'empty', registered_at: null };
-          seats[idx] = newRow;
-          broadcastAll({ type: 'change', table: 'seats', event: 'UPDATE', newRow, oldRow });
-          dbPersistRow('seats', newRow).catch(console.error);
-        }
-        return res.json({ data: null, error: null });
-      }
-
-      case 'admin_swap_seats': {
-        checkPassword();
-        const aId = args.p_seat_a_id as string;
-        const bId = args.p_seat_b_id as string;
-        const seats = getTable('seats');
-        const aIdx = seats.findIndex(s => s.id === aId);
-        const bIdx = seats.findIndex(s => s.id === bId);
-        if (aIdx < 0 || bIdx < 0) return res.json({ data: null, error: { message: '좌석을 찾을 수 없습니다.' } });
-        const aOld = { ...seats[aIdx] }; const bOld = { ...seats[bIdx] };
-        const aNew = { ...aOld, profile_id: bOld.profile_id, status: bOld.status, registered_at: bOld.registered_at };
-        const bNew = { ...bOld, profile_id: aOld.profile_id, status: aOld.status, registered_at: aOld.registered_at };
-        seats[aIdx] = aNew; seats[bIdx] = bNew;
-        broadcastAll({ type: 'change', table: 'seats', event: 'UPDATE', newRow: aNew, oldRow: aOld });
-        broadcastAll({ type: 'change', table: 'seats', event: 'UPDATE', newRow: bNew, oldRow: bOld });
-        dbPersistRow('seats', aNew).catch(console.error);
-        dbPersistRow('seats', bNew).catch(console.error);
-        return res.json({ data: null, error: null });
-      }
 
       case 'admin_update_profile': {
         checkPassword(); // 관리자 비밀번호 없이 타인 프로필 수정 방지
@@ -2040,15 +1880,6 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
       case 'admin_delete_profile': {
         checkPassword();
         const profileId = args.p_profile_id as string;
-        const seats = getTable('seats');
-        const seatIdx = seats.findIndex(s => s.profile_id === profileId);
-        if (seatIdx >= 0) {
-          const oldRow = { ...seats[seatIdx] };
-          const newRow = { ...oldRow, profile_id: null, status: 'empty', registered_at: null };
-          seats[seatIdx] = newRow;
-          broadcastAll({ type: 'change', table: 'seats', event: 'UPDATE', newRow, oldRow });
-          dbPersistRow('seats', newRow).catch(console.error);
-        }
         const profiles = getTable('profiles');
         const oldProfile = profiles.find(p => p.id === profileId);
         store['profiles'] = profiles.filter(p => p.id !== profileId);

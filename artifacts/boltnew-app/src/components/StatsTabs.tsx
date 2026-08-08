@@ -9,8 +9,6 @@ import { HEART_META, HeartType } from '../lib/constants';
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
 type Like = Database['public']['Tables']['likes']['Row'];
-type Seat = Database['public']['Tables']['seats']['Row'];
-
 const CHART_COLORS = ['#0891b2', '#0d9488', '#059669', '#16a34a', '#65a30d', '#ca8a04', '#d97706', '#ea580c', '#dc2626', '#db2777', '#9333ea', '#7c3aed'];
 
 function ageBand(by: number | null): string | null {
@@ -84,7 +82,7 @@ function extractCityLevel(location: string): string {
   return first;
 }
 
-export function StatsTab({ profiles, seats, darkMode }: { profiles: Profile[]; seats: Seat[]; darkMode: boolean }) {
+export function StatsTab({ profiles, darkMode }: { profiles: Profile[]; darkMode: boolean }) {
   const [allLikes, setAllLikes] = useState<Like[]>([]);
 
   useEffect(() => {
@@ -125,7 +123,6 @@ export function StatsTab({ profiles, seats, darkMode }: { profiles: Profile[]; s
       heartCounts[t] = (heartCounts[t] ?? 0) + 1;
     });
 
-    const occupied = seats.filter((s) => s.status === 'occupied').length;
     const totalHearts = allLikes.length;
     const matched = allLikes.filter((l) => l.status === 'accepted').length;
 
@@ -136,9 +133,9 @@ export function StatsTab({ profiles, seats, darkMode }: { profiles: Profile[]; s
       location: [...locationCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8),
       age: [...ageCounts.entries()].sort((a, b) => a[0].localeCompare(b[0])),
       heart: heartCounts,
-      occupied, totalHearts, matched,
+      totalHearts, matched,
     };
-  }, [profiles, allLikes, seats]);
+  }, [profiles, allLikes]);
 
   const maxMbti = Math.max(1, ...stats.mbti.map((e) => e[1]));
   const maxPos = Math.max(1, ...stats.position.map((e) => e[1]));
@@ -236,7 +233,7 @@ export function StatsTab({ profiles, seats, darkMode }: { profiles: Profile[]; s
 }
 
 // ─── 랭킹 탭 ──────────────────────────────────────────────────────────────────
-export function RankingTab({ seats, darkMode, profiles: propProfiles }: { seats: Seat[]; darkMode: boolean; profiles?: Profile[] }) {
+export function RankingTab({ darkMode, profiles: propProfiles }: { darkMode: boolean; profiles?: Profile[] }) {
   const [allLikes, setAllLikes] = useState<Like[]>([]);
   const [fetchedProfiles, setFetchedProfiles] = useState<Profile[]>([]);
 
@@ -305,7 +302,6 @@ export function RankingTab({ seats, darkMode, profiles: propProfiles }: { seats:
       ) : (
         <div className="space-y-2.5">
           {ranked.map((r, i) => {
-            const seat = seats.find((s) => s.profile_id === r.id);
             const profile = profileMap.get(r.id);
             const isTop3 = i < 3;
             const medal = i === 0 ? '👑' : i === 1 ? '🥈' : '🥉';
@@ -329,11 +325,7 @@ export function RankingTab({ seats, darkMode, profiles: propProfiles }: { seats:
                         ? <><span>{profile.nickname}</span><span className={`text-xs font-bold ml-1.5 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>총 {r.total}개</span></>
                         : <span className={`text-sm ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>(알 수 없음) · 총 {r.total}개</span>
                       }
-                    </p>
-                    {seat && (
-                      <p className={`text-[10px] mt-0.5 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{seat.seat_label} · {seat.table_number}번 테이블</p>
-                    )}
-                  </div>
+                    </p>                  </div>
                 </div>
                 <div className={`mt-2.5 h-2 rounded-full overflow-hidden ${darkMode ? 'bg-slate-700' : 'bg-gray-100'}`}>
                   <div className="h-full rounded-full bg-gradient-to-r from-amber-400 to-rose-500 transition-all duration-500"

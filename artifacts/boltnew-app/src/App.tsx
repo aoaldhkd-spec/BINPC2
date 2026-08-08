@@ -7,7 +7,7 @@ import { genAvatar } from './lib/profile';
 import { HeartType } from './lib/constants';
 // ─── 분리된 타입·유틸·컴포넌트 imports ────────────────────────────────────────
 import type {
-  Profile, Seat, ContactShare, Suggestion,
+  Profile, ContactShare, Suggestion,
   Chat, View, MainTab,
 } from './types/app';
 import { heartMeta } from './lib/constants';
@@ -16,7 +16,6 @@ import { ChatErrorBoundary } from './components/ChatErrorBoundary';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
 import ProfileDetail from './components/ProfileDetail';
 import ReconnectOverlay from './components/ReconnectOverlay';
-import { SeatRegisterDialog } from './components/SeatRegisterDialog';
 import { NotifModal } from './components/NotifModal';
 import { ConfettiOverlay } from './components/ConfettiOverlay';
 import { ContactDisplayModal } from './components/ContactDisplayModal';
@@ -38,7 +37,6 @@ import {
 } from './lib/constants';
 import { ls } from './lib/storage';
 import { MainScreen } from './components/MainScreen';
-import { useSeating } from './hooks/useSeating';
 import { useHearts } from './hooks/useHearts';
 import { useChat } from './hooks/useChat';
 
@@ -242,7 +240,6 @@ function App() {
       }, 2100);
     }, 30);
   }, []);
-  const [seatingLocked, setSeatingLocked] = useState(false);
   const [functionsLocked, setFunctionsLocked] = useState(false);
   const [registrationError, setRegistrationError] = useState<string | null>(null);
   const [resetPassword, setResetPassword] = useState<string | null>(null);
@@ -330,17 +327,12 @@ function App() {
   }, [connStatus, currentUserId]);
 
   // Track user's current table number for notification targeting (ref for stable access in channel callbacks)
-  const userTableNumRef = useRef<number | null>(null);
 
   const profileMap = useMemo(() => new Map(profiles.map((p) => [p.id, p])), [profiles]);
   // 렌더마다 최신 profiles를 ref에 동기화 (stale 클로저 방지)
   profilesRef.current = profiles;
 
   // ── 커스텀 훅 호출 ────────────────────────────────────────────────────────────
-  const {
-    seats, setSeats, seatDialog, setSeatDialog,
-    loadSeats, handleRegisterSeat,
-  } = useSeating(currentUserId);
 
   const {
     chatId, setChatId, chatIdRef, selfInitiatedPairRef, messages, chatList, setChatList, chatListRef,
@@ -384,9 +376,6 @@ function App() {
     handleLike(profileId);
   }, [functionsLocked, handleLike]);
 
-  const currentUserSeat = seats.find((s) => s.profile_id === currentUserId) ?? null;
-  // Keep ref updated so notification channel can check user's table without stale closure
-  userTableNumRef.current = currentUserSeat?.table_number ?? null;
 
   useEffect(() => {
     let cancelled = false;
@@ -399,7 +388,7 @@ function App() {
         setEntryPassword(prev => prev ?? '');
       }
     }, 300);
-    supabase.from('app_settings').select('session_active, game_state, timer_end_at, timer_label, seating_locked, active_tables, reset_signal, table_labels, reset_password, entry_password').eq('id', 1).single().then(({ data }: { data: any }) => {
+    supabase.from('app_settings').select('session_active, timer_end_at, timer_label, reset_signal, reset_password, entry_password').eq('id', 1).single().then(({ data }: { data: any }) => {
       if (cancelled) return;
       clearTimeout(timeout);
       setAppLoading(false);
@@ -420,7 +409,6 @@ function App() {
         setCurrentUserId(null);
         setShownWaiting(false);
         setProfiles([]);
-        setSeats([]);
         setLikedIds(new Set());
         setSentHeartTypes(new Map());
         setAcknowledgedComplimentIds(new Set());
@@ -431,14 +419,13 @@ function App() {
       }
       setTimerEndAt(data?.timer_end_at ?? null);
       setTimerLabel(data?.timer_label ?? null);
-      if (data?.seating_locked != null) setSeatingLocked(data.seating_locked);
       if (data?.functions_locked != null) setFunctionsLocked(data.functions_locked);
       setResetPassword((data as { reset_password?: string | null })?.reset_password ?? null);
     }).catch(() => {});
     const settingsChannel = supabase
       .channel('app-settings-user')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_settings' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-        const p = payload.new as { session_active: boolean; timer_end_at: string | null; timer_label: string | null; seating_locked: boolean | null; active_tables: number[] | null; reset_signal: string | null; table_labels: Record<string, string> | null; reset_password: string | null; entry_password: string | null };
+        const p = payload.new as { session_active: boolean; timer_end_at: string | null; timer_label: string | null; reset_signal: string | null; reset_password: string | null; entry_password: string | null };
         // Admin triggered a full reset: wipe local user identity and force back to nickname setup
         if (p.reset_signal && p.reset_signal !== ls.getItem(MATCHING_LAST_RESET_KEY)) {
           ls.setItem(MATCHING_LAST_RESET_KEY, p.reset_signal);
@@ -447,7 +434,6 @@ function App() {
           setCurrentUserId(null);
           setShownWaiting(false);
           setProfiles([]);
-          setSeats([]);
           setLikedIds(new Set());
           setReceivedLikers([]);
           setChatList([]);
@@ -468,7 +454,6 @@ function App() {
         }
         setTimerEndAt(p.timer_end_at ?? null);
         setTimerLabel(p.timer_label ?? null);
-        if (p.seating_locked != null) setSeatingLocked(p.seating_locked);
         if ((p as any).functions_locked != null) setFunctionsLocked((p as any).functions_locked);
         if (p.reset_password !== undefined) setResetPassword(p.reset_password ?? null);
         if (p.entry_password !== undefined) {
@@ -483,10 +468,7 @@ function App() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         const n = payload.new as { id: string; message: string; type: string; target: string; is_active: boolean };
         if (!n.is_active) return;
-        // Only show if target is 'all' or matches user's table
-        const myTable = userTableNumRef.current;
-        const isForMe = n.target === 'all' || n.target === `table_${myTable}`;
-        if (isForMe) setActiveNotif(n);
+        if (n.target === 'all') setActiveNotif(n);
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notifications' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         // 관리자가 알림을 비활성화 시 현재 표시 중인 알림 즉시 닫기
@@ -555,9 +537,9 @@ function App() {
   }, []);
 
 
-  const submitAnonymousReport = async (content: string, tableNumber: number | null) => {
+  const submitAnonymousReport = async (content: string, _tableNumber: number | null) => {
     if (!content.trim()) return;
-    const { error } = await supabase.from('anonymous_reports').insert({ content: content.trim(), table_number: tableNumber });
+    const { error } = await supabase.from('anonymous_reports').insert({ content: content.trim() });
     if (error) throw new Error(error.message ?? '전송 실패');
   };
 
@@ -625,7 +607,6 @@ function App() {
         })();
       }
     });
-    loadSeats();
     loadLikes(currentUserId);
     loadReceivedLikes(currentUserId);
     initTimerId1 = setTimeout(() => {
@@ -779,32 +760,6 @@ function App() {
       })
       .subscribe();
 
-    // 자리 변경: 증분 업데이트 + 디바운스된 전체 리프레시 (thundering herd 방지)
-    let seatsRefreshTimer: ReturnType<typeof setTimeout> | null = null;
-    const scheduleSeatsRefresh = () => {
-      if (seatsRefreshTimer) return;
-      seatsRefreshTimer = setTimeout(() => {
-        seatsRefreshTimer = null;
-        supabase.from('seats').select('*').order('table_number').order('seat_position').then(({ data }: { data: any }) => {
-          if (data) setSeats(data);
-        }).catch(() => {});
-      }, 150);
-    };
-    const seatsChannel = supabase
-      .channel('realtime:seats')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'seats' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-        const s = payload.new as Seat;
-        setSeats(prev => prev.some(x => x.id === s.id) ? prev.map(x => x.id === s.id ? s : x) : [...prev, s]);
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'seats' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-        const s = payload.new as Seat;
-        setSeats(prev => prev.map(x => x.id === s.id ? s : x));
-      })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'seats' }, () => {
-        scheduleSeatsRefresh();
-      })
-      .subscribe();
-
     const suggestionsChannel = supabase
       .channel('realtime:suggestions')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'suggestions', filter: `profile_id=eq.${currentUserId}` }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
@@ -823,7 +778,6 @@ function App() {
       if (initTimerId1) clearTimeout(initTimerId1);
       if (initTimerId2) clearTimeout(initTimerId2);
       rejNotifTimerIds.forEach(clearTimeout);
-      if (seatsRefreshTimer) clearTimeout(seatsRefreshTimer);
       // reconnectTimerRef는 effect 외부 ref이므로 여기서도 정리
       if (reconnectTimerRef.current) { clearTimeout(reconnectTimerRef.current); reconnectTimerRef.current = null; }
       if (confettiTimerRef.current) { clearTimeout(confettiTimerRef.current); confettiTimerRef.current = null; }
@@ -832,12 +786,11 @@ function App() {
       supabase.removeChannel(likesChannel);
       supabase.removeChannel(receivedLikesChannel);
       supabase.removeChannel(contactSharesChannel);
-      supabase.removeChannel(seatsChannel);
       supabase.removeChannel(chatChannel);
       supabase.removeChannel(suggestionsChannel);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- loadXxx are stable useCallbacks; setState/refs are stable
-  }, [currentUserId, loadProfiles, loadLikes, loadReceivedLikes, loadContactShareData, loadChatList, loadSuggestions, loadSeats]);
+  }, [currentUserId, loadProfiles, loadLikes, loadReceivedLikes, loadContactShareData, loadChatList, loadSuggestions]);
 
   // Re-validate profile when the user returns to the app (Android/iOS back, home button, tab switch)
   useEffect(() => {
@@ -857,7 +810,6 @@ function App() {
           setView('entry-1');
         } else {
           // Refresh data on returning to app
-          loadSeats();
           loadReceivedLikes(storedId);
           loadLikes(storedId);
           loadChatList(storedId);
@@ -868,7 +820,7 @@ function App() {
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [loadProfiles, loadReceivedLikes, loadLikes, loadChatList, loadSeats, loadContactShareData, loadSuggestions]);
+  }, [loadProfiles, loadReceivedLikes, loadLikes, loadChatList, loadContactShareData, loadSuggestions]);
 
   // Web push 구독 — 로그인 완료 후 알림 권한 요청 및 구독 등록
   useEffect(() => {
@@ -894,20 +846,18 @@ function App() {
       loadReceivedLikes(currentUserId);
       loadLikes(currentUserId);          // 보낸 하트 상태도 재동기화
       // SSE 재연결 시 누락된 시트·프로필·설정 변경도 동기화
-      loadSeats();
       loadProfiles();
       // 재연결 중 바뀐 타이머·게임·잠금 상태 재동기화
-      supabase.from('app_settings').select('session_active, timer_end_at, timer_label, seating_locked, active_tables, reset_signal, table_labels').eq('id', 1).single().then(({ data }: { data: any }) => {
+      supabase.from('app_settings').select('session_active, timer_end_at, timer_label, reset_signal').eq('id', 1).single().then(({ data }: { data: any }) => {
         if (!data) return;
         setSessionActive(data.session_active);
         setTimerEndAt(data.timer_end_at ?? null);
         setTimerLabel(data.timer_label ?? null);
-        if (data.seating_locked != null) setSeatingLocked(data.seating_locked);
       }).catch(() => {});
     });
     return unsubReconnect;
-  // [Part1-Fix5] loadLikes·loadSeats·loadProfiles deps 추가 — stale closure 차단
-  }, [currentUserId, loadChatList, loadReceivedLikes, loadLikes, loadSeats, loadProfiles, _handleChannelStatus]);
+  // [Part1-Fix5] loadLikes·loadProfiles deps 추가 — stale closure 차단
+  }, [currentUserId, loadChatList, loadReceivedLikes, loadLikes, loadProfiles, _handleChannelStatus]);
 
 
   // Manual refresh for status and chat tabs
@@ -1135,8 +1085,8 @@ function App() {
         isLiked={likedIds.has(selectedProfile.id)}
         heartType={sentHeartTypes.get(selectedProfile.id)}
         sentHeartsCount={sentHeartsPerPerson.get(selectedProfile.id)?.size ?? 0}
-        locked={seatingLocked || functionsLocked}
-        onLike={() => { if (!seatingLocked && !functionsLocked) handleLike(selectedProfile.id); }}
+        locked={functionsLocked}
+        onLike={() => { if (!functionsLocked) handleLike(selectedProfile.id); }}
         onChat={() => { openChat(selectedProfile); }}
         onBack={() => { setLikeConfirmTarget(null); setView('main'); }}
         onViewFortune={selectedProfile.birth_year && selectedProfile.birth_month && selectedProfile.birth_day ? () => {
@@ -1278,7 +1228,6 @@ function App() {
         likedIds={likedIds}
         sentHeartsPerPerson={sentHeartsPerPerson}
         likeStatuses={likeStatuses}
-        seats={seats}
         profileMap={profileMap}
         mainTab={mainTab}
         onTabChange={setMainTab}
@@ -1321,7 +1270,6 @@ function App() {
           try { ls.setItem(SCANNED_CONTACTS_KEY, JSON.stringify(next)); } catch {}
           return next;
         })}
-        seatingLocked={seatingLocked}
         functionsLocked={functionsLocked}
         onShowTutorial={() => { setTutorialPage(0); setShowTutorialModal(true); }}
         newMsgCount={newMsgCount}
@@ -1332,16 +1280,6 @@ function App() {
         fortuneCompatTarget={fortuneCompatTarget}
       />
       </AppErrorBoundary>
-      {seatDialog && (
-        <AppErrorBoundary screenName="자리 등록" onReset={() => setSeatDialog(null)}>
-          <SeatRegisterDialog
-            seat={seatDialog}
-            currentUserSeat={currentUserSeat}
-            onConfirm={() => handleRegisterSeat(seatDialog, seatingLocked, currentUserSeat)}
-            onCancel={() => setSeatDialog(null)}
-          />
-        </AppErrorBoundary>
-      )}
       {likeConfirmTarget && (
         <LikeConfirmDialog
           target={likeConfirmTarget}

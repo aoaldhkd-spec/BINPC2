@@ -5,7 +5,6 @@ import type { Database } from './database';
 
 export type Profile = Database['public']['Tables']['profiles']['Row'];
 export type Message = Database['public']['Tables']['messages']['Row'];
-export type Seat = Database['public']['Tables']['seats']['Row'];
 export type ContactShare = Database['public']['Tables']['contact_shares']['Row'];
 export type Suggestion = Database['public']['Tables']['suggestions']['Row'];
 export type AnonymousReport = Database['public']['Tables']['anonymous_reports']['Row'];

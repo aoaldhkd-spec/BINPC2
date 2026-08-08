@@ -231,8 +231,12 @@ export function useChat({
         })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages', filter: `chat_id=eq.${chatId}` },
         (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-          const deleted = payload.old as { id?: string };
-          if (deleted.id && typeof deleted.id === 'string') setMessages(prev => prev.filter(m => m.id !== deleted.id));
+          // [안전장치] chatId guard + payload 검증 — stale 콜백·cross-room event·malformed 페이로드 차단
+          if (chatIdRef.current !== chatId) return;
+          const deleted = payload.old as { id?: string; chat_id?: string };
+          if (!deleted.id || typeof deleted.id !== 'string') return;
+          if (deleted.chat_id && deleted.chat_id !== chatId) return; // cross-room 이벤트 차단
+          setMessages(prev => prev.filter(m => m.id !== deleted.id));
         })
       .subscribe();
 
