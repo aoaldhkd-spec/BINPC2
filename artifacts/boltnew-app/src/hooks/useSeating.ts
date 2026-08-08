@@ -27,7 +27,7 @@ export function useSeating(currentUserId: string | null) {
   const handleRegisterSeat = async (
     seat: Seat,
     seatingLocked: boolean,
-    currentUserSeat: Seat | null,
+    _currentUserSeat: Seat | null,
   ) => {
     if (!currentUserId) return;
     if (seatingLocked) {

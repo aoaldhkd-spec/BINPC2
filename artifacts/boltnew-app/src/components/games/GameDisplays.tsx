@@ -31,7 +31,7 @@ export function RouletteDisplay({ result, options }: { result?: string; options?
     }
     setDisplayResult(result);
     return undefined;
-  }, [result]);
+  }, [result, displayResult]);
   return (
     <div className="flex flex-col items-center py-4">
       {spinning ? (

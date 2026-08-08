@@ -1,6 +1,5 @@
 import React, { useState, useRef } from 'react';
 import { Users } from 'lucide-react';
-import { useTheme } from '../lib/theme';
 
 const FIXED_TITLE = '범일NPC는 30살!';
 const RANDOM_SUFFIX = [

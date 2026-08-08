@@ -30,10 +30,9 @@ export function UserGameTab({
   const [showCreate, setShowCreate] = useState(false);
 
   // 렌더마다 반복 filter 방지: balanceGames/tableNumber가 바뀔 때만 재계산
-  const { nonOxGames, activeGlobal, activeTable, allActive, ended } = useMemo(() => {
+  const { activeGlobal, activeTable, allActive, ended } = useMemo(() => {
     const nonOx = balanceGames.filter(g => !isOxBalanceGame(g));
     return {
-      nonOxGames: nonOx,
       activeGlobal: nonOx.filter(g => g.status === 'active' && g.scope === 'global'),
       activeTable: tableNumber != null
         ? nonOx.filter(g => g.status === 'active' && g.scope === 'table' && g.table_number === tableNumber)

@@ -4,7 +4,7 @@
  * 포함: PIN 입장 → 아바타 변경 → 프로필 등록 → 채팅 이모지/스티커 → 사진/빠른메시지 → 스와이프/길게누르기 → 받은/보낸 하트
  */
 import { useState, useEffect, useRef, useCallback, type ReactElement } from 'react';
-import { SkipBack, SkipForward, Play, Pause, Heart } from 'lucide-react';
+import { SkipBack, SkipForward, Play, Pause } from 'lucide-react';
 
 // ── 커서 — RAF lerp (CSS transition 사용 안 함: 목표가 바뀔 때 커서가 튀는 문제 완전 해결) ──
 function Cursor({ x, y, clicking }: { x: number; y: number; clicking: boolean }) {

@@ -225,12 +225,10 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
 
   // ── 언마운트 시 스크롤 위치 저장 ──────────────────────────────────────────
   useEffect(() => {
+    const el = messagesContainerRef.current; // 캡처: cleanup 시점의 stale ref 방지
     return () => {
-      const el = messagesContainerRef.current;
       if (el) _scrollPositionCache.set(chatId, el.scrollTop);
     };
-  // chatId가 바뀌면 이전 chatId의 위치를 저장하기 위해 deps에 포함
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatId]);
 
   useEffect(() => {
@@ -264,7 +262,7 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
       const nearBottom = !el || (el.scrollHeight - el.scrollTop - el.clientHeight < 100);
       if (nearBottom) messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages, currentUserId]);
+  }, [messages, currentUserId, chatId]);
 
   // ── visualViewport: iOS 키보드 올라올 때 컨테이너가 위로 밀리지 않도록 ─────────
   // JS로 el.style을 직접 건드리면 React 재렌더 시 style props가 덮어씌워 원복됨.
@@ -499,7 +497,7 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
       const clamped = Math.sign(dx) * Math.min(Math.abs(dx), 72);
       setSwipeState({ msgId: msg.id, offsetX: clamped });
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   const onMsgTouchEnd = useCallback((_e: React.TouchEvent, msg: Message) => {
     cancelLP();
@@ -513,7 +511,7 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
     }
     swipeTouchRef.current = null;
     setSwipeState(null);
-  }, [swipeState, currentUserId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [swipeState, currentUserId]);
 
   const handleMsgContextMenu = useCallback((e: React.MouseEvent, msg: Message) => {
     e.preventDefault();
@@ -550,11 +548,9 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   };
 
   // ── O(n) infoReq 응답 집합 — map 내부 messages.some() O(n²) 차단 ─────────────
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const ackedReqTypes = useMemo(() => new Set(
     messages.filter(m => isInfoAck(m.content)).map(m => parseInfoReqType(m.content!))
   ), [messages]);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const declinedReqTypes = useMemo(() => new Set(
     messages.filter(m => isInfoDecline(m.content)).map(m => parseInfoReqType(m.content!))
   ), [messages]);

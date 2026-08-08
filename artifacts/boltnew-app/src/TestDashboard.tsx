@@ -90,7 +90,7 @@ export default function TestDashboard() {
   const [likes, setLikes] = useState<Like[]>([]);
   const [chats, setChats] = useState<Chat[]>([]);
   const [sessionActive, setSessionActive] = useState<boolean | null>(null);
-  const [activeTables, setActiveTables] = useState<number[] | null>(null);
+  const [_activeTables, setActiveTables] = useState<number[] | null>(null);
   const [loading, setLoading] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [myUserId, setMyUserId] = useState<string | null>(() => localStorage.getItem('matching_app_user_id'));
@@ -126,7 +126,7 @@ export default function TestDashboard() {
   const mySeat = seats.find(s => s.profile_id === myUserId);
 
   // ── Session ────────────────────────────────────────────────────────────────
-  const toggleSession = async () => {
+  const _toggleSession = async () => {
     const next = !sessionActive;
     setLoading('session');
     const { error } = await supabase.from('app_settings').update({ session_active: next, updated_at: new Date().toISOString() }).eq('id', 1);

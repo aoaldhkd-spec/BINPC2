@@ -469,7 +469,6 @@ interface SubConfig {
 }
 interface BroadcastSub {
   event: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   callback: (payload: { payload: any }) => void;
 }
 
@@ -488,7 +487,6 @@ class LocalRealtimeChannel {
   on(
     type: 'postgres_changes' | 'broadcast',
     config: { event: string; schema?: string; table?: string; filter?: string },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     callback: (payload: any) => void,
   ): this {
     if (type === 'broadcast') {
@@ -505,7 +503,6 @@ class LocalRealtimeChannel {
     return this;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   send(msg: { type: string; event: string; payload: any }): Promise<void> {
     if (msg.type === 'broadcast') {
       // SSE 토큰을 broadcast 인증 헤더로 전달 (SESSION_SECRET 클라이언트 노출 없이 인증)
@@ -612,7 +609,6 @@ const mockStorage = {
 };
 
 // ─── Public mock client ───────────────────────────────────────────────────────
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const supabase: any = {
   from(table: keyof Database['public']['Tables'] | string): QueryBuilder {
     return new QueryBuilder(table as string);
@@ -627,7 +623,6 @@ export const supabase: any = {
     return Promise.resolve();
   },
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async rpc(name: string, args?: Record<string, unknown>): Promise<{ data: any; error: any }> {
     return apiFetch(`/rpc/${name}`, args ?? {});
   },

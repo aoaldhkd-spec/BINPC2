@@ -626,6 +626,7 @@ function App() {
       supabase.removeChannel(imageGameChannel);
       supabase.removeChannel(contactEventsChannel);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only; adding deps causes reconnect loop
   }, []);
 
 
@@ -979,6 +980,7 @@ function App() {
       supabase.removeChannel(chatChannel);
       supabase.removeChannel(suggestionsChannel);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loadXxx are stable useCallbacks; setState/refs are stable
   }, [currentUserId, loadProfiles, loadLikes, loadReceivedLikes, loadContactShareData, loadChatList, loadSuggestions, loadBalanceGames, loadMyVotes, loadSeats]);
 
   // Re-validate profile when the user returns to the app (Android/iOS back, home button, tab switch)

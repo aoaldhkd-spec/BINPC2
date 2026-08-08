@@ -243,7 +243,7 @@ export default function FortuneTab({
   const bedC = useMemo(() => {
     if (!hasBirthday || !hasTarget) return null;
     return getBedCompat(myBirthYear, myBirthMonth, myBirthDay, tYear, tMonth, tDay, myProfile?.dom_sub_score, tDomScore);
-  }, [hasBirthday, hasTarget, myBirthYear, myBirthMonth, myBirthDay, tYear, tMonth, tDay, tDomScore]);
+  }, [hasBirthday, hasTarget, myBirthYear, myBirthMonth, myBirthDay, tYear, tMonth, tDay, tDomScore, myProfile?.dom_sub_score]);
 
   // 렌더마다 반복 filter 방지
   const heartedProfiles = useMemo(

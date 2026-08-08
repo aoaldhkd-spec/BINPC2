@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useCallback, useMemo, Suspense, lazy, Component, ReactNode, memo } from 'react';
 import {
-  Heart, MessageCircle, Users, ChevronDown, LayoutGrid, CheckCircle,
-  Eye, UserCheck, Gamepad2, X, BookOpen,
-  BarChart3, QrCode, Camera, Search, Lock, Pencil,
+  Heart, MessageCircle, Users, ChevronDown, CheckCircle,
+  Eye, X, BookOpen,
+  QrCode, Camera, Search,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../lib/theme';
@@ -487,8 +487,6 @@ export const ProfileCard = memo(function ProfileCard({
   const bioTags = profile.bio ? profile.bio.split(',').map(t => t.trim()).filter(Boolean).slice(0, 2) : [];
   const age = getKoreanAge(profile.birth_year);
   const msStyle = profile.mbti ? getMbtiStyle(profile.mbti) : null;
-  const avLabel = AVATAR_CATEGORIES.flatMap(c => c.avatars).find(a => a.src === profile.photo_url)?.label ?? null;
-
   // 테마 적응형 스타일 (Tailwind 오버라이드 없이 항상 올바른 색상 보장)
   // 카드 배경이 항상 bg-white이므로 태그는 배경·테두리 없이 텍스트만
   const tagStyle = { backgroundColor: 'transparent', color: '#6b7280', borderColor: 'transparent' };
@@ -617,14 +615,14 @@ export const ProfileCard = memo(function ProfileCard({
 
 export function MainScreen({
   profiles, currentUserId, likedIds, sentHeartTypes, sentHeartsPerPerson, likeStatuses, seats, profileMap, mainTab,
-  onTabChange, onLike, onSelect, onReset, onProfileClickFromMap,
+  onTabChange, onLike, onSelect, onReset, onProfileClickFromMap: _onProfileClickFromMap,
   receivedLikers, receivedHeartTypes, sentLikedProfiles, contactSharedWithIds, acknowledgedComplimentIds,
   receivedContactShares, pendingHeartsCount, chatList, suggestions,
   balanceGames, voteCounts, myVotes,
   onContactShareOpen: _onContactShareOpen, onContactViewOpen, onHeartResponse, onDeleteChat, onDeleteAllChats, onSubmitSuggestion, onOpenChat,
   onVote, onCreateGame, onEndGame, onSubmitAnonymousReport,
   timerEndAt, timerLabel, onRefreshStatus, onRefreshChat, onRefreshProfiles, darkMode, onToggleDark, onShowQr, onShowContactQr, onScanQr, scannedContacts, onClearScannedContact, seatingLocked, functionsLocked = false, onShowTutorial,
-  newMsgCount, onClearMsgCount, unreadChatCounts, onClearChatUnread, resetPassword, onBroadcastGame,
+  newMsgCount, onClearMsgCount, unreadChatCounts, onClearChatUnread: _onClearChatUnread, resetPassword, onBroadcastGame,
   onUpdateProfile, fortuneCompatTarget,
 }: {
   profiles: Profile[]; currentUserId: string | null; likedIds: Set<string>; sentHeartTypes: Map<string, HeartType>; sentHeartsPerPerson: Map<string, Set<HeartType>>; likeStatuses: Map<string, string>;

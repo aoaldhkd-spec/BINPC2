@@ -20,7 +20,7 @@ export function CreateGameModal({
 }) {
   const [optA, setOptA] = useState('');
   const [optB, setOptB] = useState('');
-  const scope: 'table' = 'table';
+  const scope = 'table' as const;
   const question = optA && optB ? `${optA} vs ${optB}` : '';
 
   return (

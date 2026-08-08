@@ -99,9 +99,12 @@ export function useChat({
   // 수정 후: userId 변경/언마운트 시만 전체 정리, chatIdsKey 변경 시는 선택적 추가/제거만 수행
   useEffect(() => {
     // userId 변경 또는 언마운트 시 전체 채널 정리
+    // perChatChannelsRef.current를 cleanup 시점에 직접 읽으면 ref 값이 바뀐 후의 값을 가리킬 수 있음
+    // → effect 실행 시점에 캡처해 closure에 고정
+    const capturedChannels = perChatChannelsRef.current;
     return () => {
-      for (const ch of perChatChannelsRef.current.values()) supabase.removeChannel(ch);
-      perChatChannelsRef.current.clear();
+      for (const ch of capturedChannels.values()) supabase.removeChannel(ch);
+      capturedChannels.clear();
     };
   }, [currentUserId]);
 
@@ -265,7 +268,7 @@ export function useChat({
         }, { onConflict: 'id' }).then(() => {}).catch(() => {});
       }
     };
-  }, [chatId, loadMessages, currentUserId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [chatId, loadMessages, currentUserId]);
 
   // ── 채팅 목록 로드 ────────────────────────────────────────────────────────────
   const syncUnreadCountsRef = useRef<(() => Promise<void>) | null>(null);
