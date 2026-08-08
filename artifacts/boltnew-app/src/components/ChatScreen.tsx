@@ -311,17 +311,22 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
 
   useEffect(() => {
     if (!chatId) return;
+    console.log('[ChatScreen] chat_reads 구독 시작:', chatId, 'as user:', currentUserId);
     const ch = supabase
       .channel(`chat_reads:${chatId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_reads', filter: `chat_id=eq.${chatId}` },
         (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
+          console.log('[ChatScreen] chat_reads 이벤트 수신:', payload);
           const row = (payload as { new?: { reader_id?: string } }).new;
           if (row?.reader_id && row.reader_id !== currentUserId) {
+            console.log('[ChatScreen] 상대방이 읽음 → myUnreadIds 초기화');
             // 상대방이 읽었음 → 현재 화면의 메시지를 전부 "이미 본" 목록에 추가.
             // 이렇게 하지 않으면 3초 폴링이 messages를 갱신할 때
             // useEffect가 같은 ID를 myUnreadIds에 다시 추가해 "1"이 재표시됨.
             messagesRef.current.forEach(m => initialMsgIds.current.add(m.id));
             setMyUnreadIds(new Set());
+          } else {
+            console.log('[ChatScreen] chat_reads 이벤트 무시 (내 읽음 또는 reader_id 없음):', row?.reader_id, 'vs currentUserId:', currentUserId);
           }
         })
       .subscribe();
