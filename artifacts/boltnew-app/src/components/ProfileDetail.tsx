@@ -1,4 +1,4 @@
-import { useState, type SyntheticEvent } from 'react';
+import { useState, useRef, useEffect, type SyntheticEvent } from 'react';
 import { ArrowLeft, Heart, MessageCircle, MapPin } from 'lucide-react';
 import { getPositionLabel, getPositionBg, getDomSubLabel, getDomSubBg, getKoreanAge, genAvatar } from '../lib/profile';
 import { HEART_TYPES, HeartType } from '../lib/constants';
@@ -72,9 +72,12 @@ function ProfileDetail({ profile, isMe, isLiked, heartType, sentHeartsCount, loc
   onLike: () => void; onChat: () => void; onBack: () => void; onViewFortune?: () => void;
 }) {
   const [lockToast, setLockToast] = useState(false);
+  const lockToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (lockToastTimerRef.current) clearTimeout(lockToastTimerRef.current); }, []);
   const showLockToast = () => {
+    if (lockToastTimerRef.current) clearTimeout(lockToastTimerRef.current);
     setLockToast(true);
-    setTimeout(() => setLockToast(false), 1400);
+    lockToastTimerRef.current = setTimeout(() => setLockToast(false), 1400);
   };
 
   const handleLike = () => {

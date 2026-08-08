@@ -4,12 +4,13 @@
  * 구조적 안전 장치:
  * 1. sendMessage/sendImage: chatIdRef·currentUserIdRef(항상 최신 ref)를 스냅샷해 stale closure 완전 차단
  * 2. 전송 잠금: boolean → Set<chatId> 로 교체 — 채팅방별 독립 잠금 (A 전송 중에도 B 전송 가능)
- * 3. 자동 재시도: 네트워크 오류 시 지수 백오프(1s→2s→4s)로 최대 3회 재시도, 낙관적 메시지 유지
+ * 3. 자동 재시도: 네트워크 오류 시 지수 백오프(1s→2s→4s)로 최대 4회 재시도, 낙관적 메시지 유지
  * 4. 미읽음 뱃지: unreadChatCountsRef(ref)로 항상 최신값 보장
  * 5. 채널 누수: per-chat 채널은 chatIdsKey·currentUserId 변화 시 cleanup이 항상 실행됨
  * 6. 폴링 중첩 방지: 이전 폴링이 완료되기 전 다음 폴링 실행 차단
  * 7. 메시지 배열 상한: MAX_MESSAGES 초과 시 가장 오래된 것부터 제거 (메모리 누수 방지)
  * 8. SSE 페이로드 검증: 필수 필드 없는 이벤트 즉시 차단
+ * 9. 내구성 큐: 오프라인 큐를 localStorage에 영속화 — 새로고침 후에도 미전송 메시지 복구 [Part1-Fix3]
  */
 
 const MAX_MESSAGES = 500; // 채팅방당 최대 메시지 보유 수 (메모리 누수 방지)
@@ -17,6 +18,25 @@ const MAX_MESSAGES = 500; // 채팅방당 최대 메시지 보유 수 (메모리
 // 오프라인 큐 항목 타입 — 모듈 레벨 선언으로 HMR 호환성 유지
 // userId: 큐에 쌓일 당시 로그인 유저 — flush 시 다른 유저로 전환됐으면 해당 항목 폐기
 interface PendingMsg { chatId: string; content: string; clientId: string; optimisticId: string; userId: string }
+
+// [Part1-Fix3] 내구성 큐 — localStorage 영속화 헬퍼
+const PENDING_QUEUE_KEY = 'chat_pending_queue_v1';
+function _savePendingQueue(queue: PendingMsg[]): void {
+  try { localStorage.setItem(PENDING_QUEUE_KEY, JSON.stringify(queue)); } catch { /* 스토리지 쓰기 실패 무시 */ }
+}
+function _loadPendingQueue(): PendingMsg[] {
+  try {
+    const raw = localStorage.getItem(PENDING_QUEUE_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    // 최대 50개 + 필수 필드 유효성 확인 후 복원
+    return (parsed as PendingMsg[]).filter(
+      (m) => m && typeof m.chatId === 'string' && typeof m.content === 'string' &&
+             typeof m.clientId === 'string' && typeof m.optimisticId === 'string' && typeof m.userId === 'string'
+    ).slice(-50);
+  } catch { return []; }
+}
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
@@ -68,6 +88,8 @@ export function useChat({
   // syncUnreadCounts가 서버 응답으로 전체 상태를 덮어쓸 때,
   // upsert 응답이 아직 서버에 도달하지 않은 채팅방을 다시 unread로 표시하는 것을 방지.
   const recentlyReadRef = useRef<Map<string, number>>(new Map());
+  // generation counter: 동시 sync 요청 중 구식 응답이 최신 상태를 덮어쓰는 것을 방지
+  const syncGenRef = useRef(0);
 
   // ── 채팅방별 메시지 구독 (서버 사이드 필터) ──────────────────────────────────
   // chatIdsKey: chatList의 ID 목록만 직렬화 — lastMessage 변경 시 채널 재생성 방지
@@ -114,8 +136,11 @@ export function useChat({
             // 내 메시지는 HTTP 응답 + optimistic UI에서 이미 처리 — 여기서 중복 금지
             if (m.sender_id === currentUserId) return;
             const preview = m.image_url ? '📷 사진' : m.content;
+            // 현재 열린 채팅방이면: chat:${chatId} 채널이 이미 이 메시지를 처리 중
+            // chatList preview도 활성 채팅방 안에서는 갱신 불필요 — 이중 channel 간 중복 state update 차단
+            if (chatIdRef.current === m.chat_id) return;
             setChatList(prev => prev.map(c => c.id === m.chat_id ? { ...c, lastMessage: preview } : c));
-            // 현재 열린 채팅방이면 미읽음 증가 없이 lastMessage만 업데이트
+            // 현재 열린 채팅방이면 미읽음 증가 없이 lastMessage만 업데이트 (위 early-return으로 이제 도달 불가)
             if (chatIdRef.current !== m.chat_id) {
               setUnreadChatCounts(prev => ({ ...prev, [m.chat_id]: (prev[m.chat_id] ?? 0) + 1 }));
               const senderProfile = profilesRef.current.find(p => p.id === m.sender_id);
@@ -172,11 +197,9 @@ export function useChat({
         reader_id: currentUserId,
         read_at: new Date().toISOString(),
       }, { onConflict: 'id' }).then(() => {}).catch(() => {
-        // upsert 실패: 낙관적으로 지운 뱃지를 복원해 서버 상태와 일치시킴
-        if (removed > 0) {
-          setUnreadChatCounts(prev => ({ ...prev, [chatId]: removed }));
-          setNewMsgCount(c => c + removed);
-        }
+        // upsert 실패: 맹목적 restore 대신 syncUnreadCounts로 서버 상태에서 재동기화
+        // 이유: restore 사이에 다른 채팅방 오픈/sync가 발생했을 수 있어 stale count를 더하면 배지가 틀려짐
+        syncUnreadCountsRef.current?.().catch(() => {});
       });
     }
 
@@ -425,13 +448,16 @@ export function useChat({
   // ── 미읽음 재동기화 ──────────────────────────────────────────────────────────
   const syncUnreadCounts = useCallback(async () => {
     if (!currentUserIdRef.current) return;
+    const gen = ++syncGenRef.current; // 이 요청의 고유 세대 번호
     try {
       const token = getSseToken();
       const tokenParam = token ? `&token=${encodeURIComponent(token)}` : '';
       const resp = await fetch(`/api/db/unread-counts?userId=${encodeURIComponent(currentUserIdRef.current)}${tokenParam}`);
       if (!resp.ok) return;
+      if (gen !== syncGenRef.current) return; // 더 최신 요청이 이미 진행 중 → 이 응답은 버림
       const { data } = await resp.json() as { data: Record<string, number> | null };
       if (!data) return;
+      if (gen !== syncGenRef.current) return; // JSON 파싱 사이에 더 최신 요청이 시작됐으면 버림
       setUnreadChatCounts(prev => {
         const next = { ...data };
         // 현재 열려 있는 채팅방은 항상 unread 제외
@@ -499,9 +525,10 @@ export function useChat({
   }, [currentUserId, syncUnreadCounts, loadChatList, loadMessages]);
 
   // ── 오프라인 메시지 큐 ─────────────────────────────────────────────────────────
-  // 3회 재시도 모두 실패(네트워크 완전 단절) 시 메시지를 여기에 보관.
+  // 4회 재시도 모두 실패(네트워크 완전 단절) 시 메시지를 여기에 보관.
   // SSE 재연결 시 큐를 자동으로 플러시하여 메시지 유실 방지.
-  const pendingQueueRef = useRef<PendingMsg[]>([]);
+  // [Part1-Fix3] localStorage 영속화 — 새로고침 후에도 미전송 메시지 복구
+  const pendingQueueRef = useRef<PendingMsg[]>(_loadPendingQueue());
   const isFlushingRef = useRef(false);
 
   const flushPendingQueue = useCallback(async () => {
@@ -532,12 +559,14 @@ export function useChat({
             // 성공: 낙관적 메시지를 실제 메시지로 교체
             setMessages(prev => prev.map(m => m.id === item.optimisticId ? insertedMsg as Message : m));
             pendingQueueRef.current = pendingQueueRef.current.filter(q => q.clientId !== item.clientId);
+            _savePendingQueue(pendingQueueRef.current); // [Part1-Fix3] localStorage 동기화
           } else if (error) {
             // client_id로 이미 저장됐는지 확인 (이전 시도 응답 분실)
             const { data: existing } = await supabase.from('messages').select('*').eq('client_id', item.clientId).maybeSingle();
             if (existing) {
               setMessages(prev => prev.map(m => m.id === item.optimisticId ? existing as Message : m));
               pendingQueueRef.current = pendingQueueRef.current.filter(q => q.clientId !== item.clientId);
+              _savePendingQueue(pendingQueueRef.current); // [Part1-Fix3] localStorage 동기화
             }
             // 실패해도 break 하지 않음 — 다음 항목 계속 시도 (한 항목 실패가 전체 큐를 막지 않음)
           }
@@ -607,12 +636,12 @@ export function useChat({
     });
     setChatList(prev => prev.map(c => c.id === snapChatId ? { ...c, lastMessage: trimmed } : c));
 
-    const MAX_RETRIES = 3;
+    const MAX_RETRIES = 4; // [Part1-Fix2] 4회 시도 → 실제 지수백오프 1s→2s→4s 3단계 적용
     let lastErr: unknown;
 
     try {
       for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-        // 재시도 시 지수 백오프 — 1s, 2s, 4s
+        // 재시도 시 지수 백오프 — attempt=1:1s, attempt=2:2s, attempt=3:4s
         if (attempt > 0) {
           await new Promise<void>(r => setTimeout(r, Math.pow(2, attempt - 1) * 1000));
           // 대기 중 채팅방이 바뀌면 중단 (낙관적 메시지는 그대로 — 폴링이 reconcile)
@@ -653,10 +682,11 @@ export function useChat({
 
       // 모든 재시도 실패 → 롤백 대신 오프라인 큐에 보관 (재연결 시 자동 전송)
       // 낙관적 메시지는 화면에 유지 — 사용자가 메시지를 다시 입력할 필요 없음
-      console.warn('[sendMessage] 3회 재시도 실패 — 오프라인 큐에 보관, 재연결 시 자동 전송:', lastErr);
+      console.warn('[sendMessage] 4회 재시도 실패 — 오프라인 큐에 보관, 재연결 시 자동 전송:', lastErr);
       // 큐 크기 상한 50개 — 무한 증가 방지 (가장 오래된 항목부터 제거)
       if (pendingQueueRef.current.length >= 50) pendingQueueRef.current.shift();
       pendingQueueRef.current.push({ chatId: snapChatId, content: trimmed, clientId: clientUUID, optimisticId, userId: snapUserId });
+      _savePendingQueue(pendingQueueRef.current); // [Part1-Fix3] localStorage 영속화 — 새로고침 후에도 복구
     } finally {
       sendingChatIdsRef.current.delete(snapChatId);
     }

@@ -45,7 +45,6 @@ export interface GameState {
   title: string;
   description: string;
   rules: string;
-  penalty: string;
   option_a?: string;
   option_b?: string;
   game_id?: string;

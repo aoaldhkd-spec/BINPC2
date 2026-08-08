@@ -32,3 +32,7 @@
 - [boltnew-app 내 테이블 탭 테이블 선택 UI](boltnew-app-mytable-fix.md) — selectedMyTableNum+myTableList+resolvedMyTable 제거하면 안 됨; MyTableView는 max-w-sm 말고 w-full 사용.
 - [boltnew-app sync architecture fix](boltnew-app-sync-architecture.md) — AdminApp/TestDashboard 직접 Supabase 쓰기가 api-server 인메모리를 건드리지 않는 근본 원인 + 30초 전체 리싱크 + force_resync_all RPC 해결책.
 - [boltnew-app admin SSE fix](boltnew-app-admin-sse-fix.md) — AdminApp mount시 setLocalDbUserId(null) 필수; 미호출시 잔여 userId가 adminToken 조건 !_currentUserId를 차단해 admin SSE 미연결.
+- [boltnew-app Part2 frontend fixes](boltnew-app-part2-frontend-fixes.md) — BrowserGuidePopup 삭제; index key 수정; loadProfiles cancelled guard; ChatScreen 스크롤 위치 복원(_scrollPositionCache).
+- [boltnew-app dead code audit](boltnew-app-dead-code.md) — loadSeats는 활성 기능(좌석/테이블맵·게임). activeTables/tableLabels state는 SET만 되고 읽히지 않음 → 제거 완료. penalty 필드 완전 제거(types+App.tsx+AdminApp.tsx).
+- [boltnew-app Part3 backend defense](boltnew-app-part3-backend.md) — health.ts try-catch; /broadcast 외부 try; /rpc RPC allowlist(17개) + name 검증; /admin/clear-db-errors 외부 try; /op boolean+length 검증.
+- [boltnew-app Part4 security+errorboundary](boltnew-app-part4-security.md) — IDOR: contact_shares/chat_reads SELECT 소유권 스코프; DELETE 3종 requesterId 필수화; liker_id/reader_id 강제 설정. XSS: broadcast/settings 페이로드 sanitize; FIELD_LIMITS 확장. EB: 알림 3종+SeatDialog 래핑.

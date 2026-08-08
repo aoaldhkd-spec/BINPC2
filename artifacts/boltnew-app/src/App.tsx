@@ -16,7 +16,6 @@ import ChatScreen from './components/ChatScreen';
 import { ChatErrorBoundary } from './components/ChatErrorBoundary';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
 import ProfileDetail from './components/ProfileDetail';
-import BrowserGuidePopup from './components/BrowserGuidePopup';
 import ReconnectOverlay from './components/ReconnectOverlay';
 import { SeatRegisterDialog } from './components/SeatRegisterDialog';
 import { GameResultModal } from './components/games/GameResultModal';
@@ -25,7 +24,6 @@ import { GameAnnouncementModal } from './components/games/GameAnnouncementModal'
 import { QaGameOverlay } from './components/games/QaGameOverlay';
 import { TableMiniGameModal } from './components/games/TableMiniGameModal';
 import { NotifModal } from './components/NotifModal';
-import { WelcomeNoticeModal } from './components/WelcomeNoticeModal';
 import { ConfettiOverlay } from './components/ConfettiOverlay';
 import { ContactDisplayModal } from './components/ContactDisplayModal';
 import { LikeConfirmDialog } from './components/LikeConfirmDialog';
@@ -41,7 +39,7 @@ import { QrScannerModal } from './components/QrScannerModal';
 import { ContactRevealModal } from './components/ContactRevealModal';
 import {
   MATCHING_USER_KEY, MATCHING_DRAFT_KEY, MATCHING_LAST_RESET_KEY,
-  MATCHING_GUIDE_SHOWN_KEY, MATCHING_PROFILES_CACHE_KEY,
+  MATCHING_PROFILES_CACHE_KEY,
   ENTRY_VERIFIED_KEY, SCANNED_CONTACTS_KEY,
 } from './lib/constants';
 import { ls } from './lib/storage';
@@ -83,8 +81,12 @@ async function registerPushSub(userId: string): Promise<void> {
     // VAPID 키 취득 (타임아웃 10초)
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 10_000);
-    const keyRes = await fetch('/api/db/push/vapid-key', { signal: ctrl.signal }).catch(() => null);
-    clearTimeout(timer);
+    let keyRes: Response | null = null;
+    try {
+      keyRes = await fetch('/api/db/push/vapid-key', { signal: ctrl.signal }).catch(() => null);
+    } finally {
+      clearTimeout(timer); // fetch reject/throw 시에도 반드시 타이머 해제
+    }
     if (!keyRes?.ok) return;
 
     const { key } = await keyRes.json() as { key?: string };
@@ -149,7 +151,6 @@ function App() {
   const [appLoading, setAppLoading] = useState(true);
   const [connStatus, setConnStatus] = useState<'ok' | 'reconnecting' | 'error'>('ok');
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [showGuide, setShowGuide] = useState(() => !ls.getItem(MATCHING_GUIDE_SHOWN_KEY));
   const [sessionActive, setSessionActive] = useState<boolean | null>(null);
   // Existing users skip the waiting overlay entirely and go straight to main.
   // New users go straight to nickname setup — no waiting overlay.
@@ -229,7 +230,6 @@ function App() {
   const [qaOverlayVisible, setQaOverlayVisible] = useState(false);
   const [qaSubmittedIds, setQaSubmittedIds] = useState<Set<string>>(new Set());
   const [activeNotif, setActiveNotif] = useState<{ id: string; message: string; type: string; target: string } | null>(null);
-  const [showWelcomeNotice, setShowWelcomeNotice] = useState(false);
   const [timerEndAt, setTimerEndAt] = useState<string | null>(null);
   const [timerLabel, setTimerLabel] = useState<string | null>(null);
   const [rejectionNotif, setRejectionNotif] = useState<string | null>(null); // nickname of person who rejected
@@ -256,8 +256,6 @@ function App() {
   }, []);
   const [seatingLocked, setSeatingLocked] = useState(false);
   const [functionsLocked, setFunctionsLocked] = useState(false);
-  const [activeTables, setActiveTables] = useState<number[] | null>(null);
-  const [tableLabels, setTableLabels] = useState<Record<string, string> | null>(null);
   const [registrationError, setRegistrationError] = useState<string | null>(null);
   const [resetPassword, setResetPassword] = useState<string | null>(null);
   const [entryPassword, setEntryPassword] = useState<string | null>(null); // null = 아직 로드 전
@@ -378,7 +376,16 @@ function App() {
     likeConfirmTarget, setLikeConfirmTarget, contactShareTarget, setContactShareTarget,
     loadLikes, loadReceivedLikes, loadContactShareData, likedByTypeRecord,
     handleLike, executeLike, handleHeartResponse, handleContactShare, handleContactShareReject,
+    likeError, setLikeError,
   } = useHearts(currentUserId, profiles, profileMap, openChat);
+
+  // 하트 전송 실패 알림 — executeLike가 error를 set하면 바텀 토스트로 표시
+  useEffect(() => {
+    if (!likeError) return;
+    setBottomNotif({ type: 'chat', nickname: likeError });
+    const t = setTimeout(() => { setBottomNotif(null); setLikeError(null); }, 4_000);
+    return () => clearTimeout(t);
+  }, [likeError, setLikeError]);
 
   // SSE fallback polling refs 동기화 — 렌더마다 최신 함수를 가리키도록 (stale 클로저 방지)
   loadChatListRef.current = loadChatList;
@@ -445,8 +452,6 @@ function App() {
       setTimerLabel(data?.timer_label ?? null);
       if (data?.seating_locked != null) setSeatingLocked(data.seating_locked);
       if (data?.functions_locked != null) setFunctionsLocked(data.functions_locked);
-      setActiveTables((data?.active_tables as number[] | null) ?? null);
-      setTableLabels((data?.table_labels as Record<string, string> | null) ?? null);
       setResetPassword((data as { reset_password?: string | null })?.reset_password ?? null);
       const gs = data?.game_state as GameState | null;
       if (gs?.active) { setCurrentGame(gs); setGameModalVisible(true); }
@@ -488,8 +493,6 @@ function App() {
         setTimerLabel(p.timer_label ?? null);
         if (p.seating_locked != null) setSeatingLocked(p.seating_locked);
         if ((p as any).functions_locked != null) setFunctionsLocked((p as any).functions_locked);
-        setActiveTables(p.active_tables ?? null);
-        if (p.table_labels !== undefined) setTableLabels(p.table_labels);
         if (p.reset_password !== undefined) setResetPassword(p.reset_password ?? null);
         if (p.entry_password !== undefined) {
           const ep = p.entry_password ?? '';
@@ -567,7 +570,6 @@ function App() {
           title: row.question,
           description: '',
           rules: '',
-          penalty: row.penalty ?? '',
           game_id: row.id,
           started_at: new Date().toISOString(),
           table_number: row.table_number ?? undefined,
@@ -667,7 +669,10 @@ function App() {
     let initTimerId1: ReturnType<typeof setTimeout> | null = null;
     let initTimerId2: ReturnType<typeof setTimeout> | null = null;
     const rejNotifTimerIds: ReturnType<typeof setTimeout>[] = [];
+    // cancelled 플래그 — 언마운트 후 비동기 콜백이 setState를 호출하는 것을 방지
+    let cancelled = false;
     loadProfiles().catch(() => []).then((allProfiles) => {
+      if (cancelled) return;
       // 프로필 목록이 비어있으면 서버 기동 중이거나 네트워크 오류 — 세션 유지
       // 실제 프로필 삭제는 reset_signal SSE로 처리되므로 여기서 aggressive하게 지우지 않음
       if (!allProfiles || allProfiles.length === 0) return;
@@ -919,7 +924,6 @@ function App() {
           title: g.question,
           description: '',
           rules: '',
-          penalty: '',
           option_a: g.option_a,
           option_b: g.option_b,
           game_id: g.id,
@@ -956,6 +960,7 @@ function App() {
       .subscribe();
 
     return () => {
+      cancelled = true;
       if (retryTimerId) clearTimeout(retryTimerId);
       if (initTimerId1) clearTimeout(initTimerId1);
       if (initTimerId2) clearTimeout(initTimerId2);
@@ -1042,8 +1047,6 @@ function App() {
         setTimerEndAt(data.timer_end_at ?? null);
         setTimerLabel(data.timer_label ?? null);
         if (data.seating_locked != null) setSeatingLocked(data.seating_locked);
-        setActiveTables(data.active_tables ?? null);
-        if (data.table_labels !== undefined) setTableLabels(data.table_labels);
         const gs = data.game_state as GameState | null;
         if (gs?.active) {
           setCurrentGame(gs);
@@ -1055,7 +1058,8 @@ function App() {
       }).catch(() => {});
     });
     return unsubReconnect;
-  }, [currentUserId, loadChatList, loadReceivedLikes, _handleChannelStatus]);
+  // [Part1-Fix5] loadLikes·loadSeats·loadProfiles deps 추가 — stale closure 차단
+  }, [currentUserId, loadChatList, loadReceivedLikes, loadLikes, loadSeats, loadProfiles, _handleChannelStatus]);
 
 
   // Manual refresh for status and chat tabs
@@ -1349,11 +1353,6 @@ function App() {
 
   return (
     <>
-      {/* Welcome notice for new registrations */}
-      {showWelcomeNotice && (
-        <WelcomeNoticeModal onClose={() => setShowWelcomeNotice(false)} />
-      )}
-
       {/* Tutorial modal */}
       {showTutorialModal && (
         <TutorialModal
@@ -1361,20 +1360,9 @@ function App() {
           onChangePage={setTutorialPage}
           onClose={() => {
             setShowTutorialModal(false);
-            // 튜토리얼 닫으면 접속 가이드도 함께 처리 (중복 팝업 방지)
-            setShowGuide(false);
-            ls.setItem(MATCHING_GUIDE_SHOWN_KEY, '1');
           }}
           darkMode={darkMode}
         />
-      )}
-
-      {/* Browser optimization guide — 튜토리얼·환영 모달이 없을 때만 표시 */}
-      {showGuide && !showTutorialModal && !showWelcomeNotice && (
-        <BrowserGuidePopup onClose={() => {
-          setShowGuide(false);
-          ls.setItem(MATCHING_GUIDE_SHOWN_KEY, '1');
-        }} />
       )}
 
       {/* Reconnect overlay */}
@@ -1383,54 +1371,60 @@ function App() {
       )}
       {/* Broadcast notification modal */}
       {activeNotif && (
-        <NotifModal notif={activeNotif} onClose={() => setActiveNotif(null)} />
+        <AppErrorBoundary screenName="공지 알림" onReset={() => setActiveNotif(null)}>
+          <NotifModal notif={activeNotif} onClose={() => setActiveNotif(null)} />
+        </AppErrorBoundary>
       )}
       {/* Heart rejection notification */}
       {rejectionNotif && (
-        <div className="fixed bottom-20 left-0 right-0 z-[150] flex justify-center px-4 pointer-events-none">
-          <div className="bg-gray-800 text-white px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 pointer-events-auto animate-bounce">
-            <span className="text-lg">💔</span>
-            <div>
-              <p className="text-sm font-bold">{rejectionNotif}님이 하트를 거절했습니다</p>
+        <AppErrorBoundary screenName="거절 알림" onReset={() => setRejectionNotif(null)}>
+          <div className="fixed bottom-20 left-0 right-0 z-[150] flex justify-center px-4 pointer-events-none">
+            <div className="bg-gray-800 text-white px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 pointer-events-auto animate-bounce">
+              <span className="text-lg">💔</span>
+              <div>
+                <p className="text-sm font-bold">{rejectionNotif}님이 하트를 거절했습니다</p>
+              </div>
+              <button onClick={() => setRejectionNotif(null)} className="text-white/60 hover:text-white text-lg ml-2">×</button>
             </div>
-            <button onClick={() => setRejectionNotif(null)} className="text-white/60 hover:text-white text-lg ml-2">×</button>
           </div>
-        </div>
+        </AppErrorBoundary>
       )}
       {/* Bottom notification: new heart / chat */}
       {bottomNotif && (
-        <div className="fixed bottom-20 left-0 right-0 z-[150] flex justify-center px-4 pointer-events-none">
-          <div className={`px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 pointer-events-auto cursor-pointer ${bottomNotif.type === 'heart' ? 'bg-rose-500' : bottomNotif.type === 'contact' ? 'bg-emerald-500' : 'bg-cyan-600'}`}>
-            <span className="text-lg">{bottomNotif.type === 'heart' ? (bottomNotif.heartType ? heartMeta(bottomNotif.heartType).emoji : '❤️') : bottomNotif.type === 'contact' ? '📱' : '💬'}</span>
-            <div className="flex-1">
-              {bottomNotif.type === 'heart' && (
-                <>
-                  <p className="text-sm font-bold text-white">{bottomNotif.nickname}님이 {bottomNotif.heartType ? heartMeta(bottomNotif.heartType).label : '하트'}를 보냈습니다!</p>
-                  <button onClick={() => { setMainTab('status'); setBottomNotif(null); }} className="text-xs text-white/80 underline">내 상태 탭으로 이동</button>
-                </>
-              )}
-              {bottomNotif.type === 'chat' && (
-                <>
-                  <p className="text-sm font-bold text-white">{bottomNotif.nickname}님과 채팅이 열렸습니다!</p>
-                  <button onClick={() => { setMainTab('chats'); setBottomNotif(null); }} className="text-xs text-white/80 underline">채팅 탭으로 이동</button>
-                </>
-              )}
-              {bottomNotif.type === 'message' && (
-                <>
-                  <p className="text-sm font-bold text-white">새로운 채팅이 왔습니다.</p>
-                  <button onClick={() => { setMainTab('chats'); setBottomNotif(null); }} className="text-xs text-white/90 bg-white/20 px-2 py-0.5 rounded-lg font-semibold mt-0.5">채팅탭</button>
-                </>
-              )}
-              {bottomNotif.type === 'contact' && (
-                <>
-                  <p className="text-sm font-bold text-white">{bottomNotif.nickname}님이 연락처를 공유했습니다!</p>
-                  <button onClick={() => { setMainTab('status'); setBottomNotif(null); }} className="text-xs text-white/80 underline">내 상태 탭에서 확인</button>
-                </>
-              )}
+        <AppErrorBoundary screenName="하단 알림" onReset={() => setBottomNotif(null)}>
+          <div className="fixed bottom-20 left-0 right-0 z-[150] flex justify-center px-4 pointer-events-none">
+            <div className={`px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 pointer-events-auto cursor-pointer ${bottomNotif.type === 'heart' ? 'bg-rose-500' : bottomNotif.type === 'contact' ? 'bg-emerald-500' : 'bg-cyan-600'}`}>
+              <span className="text-lg">{bottomNotif.type === 'heart' ? (bottomNotif.heartType ? heartMeta(bottomNotif.heartType).emoji : '❤️') : bottomNotif.type === 'contact' ? '📱' : '💬'}</span>
+              <div className="flex-1">
+                {bottomNotif.type === 'heart' && (
+                  <>
+                    <p className="text-sm font-bold text-white">{bottomNotif.nickname}님이 {bottomNotif.heartType ? heartMeta(bottomNotif.heartType).label : '하트'}를 보냈습니다!</p>
+                    <button onClick={() => { setMainTab('status'); setBottomNotif(null); }} className="text-xs text-white/80 underline">내 상태 탭으로 이동</button>
+                  </>
+                )}
+                {bottomNotif.type === 'chat' && (
+                  <>
+                    <p className="text-sm font-bold text-white">{bottomNotif.nickname}님과 채팅이 열렸습니다!</p>
+                    <button onClick={() => { setMainTab('chats'); setBottomNotif(null); }} className="text-xs text-white/80 underline">채팅 탭으로 이동</button>
+                  </>
+                )}
+                {bottomNotif.type === 'message' && (
+                  <>
+                    <p className="text-sm font-bold text-white">새로운 채팅이 왔습니다.</p>
+                    <button onClick={() => { setMainTab('chats'); setBottomNotif(null); }} className="text-xs text-white/90 bg-white/20 px-2 py-0.5 rounded-lg font-semibond mt-0.5">채팅탭</button>
+                  </>
+                )}
+                {bottomNotif.type === 'contact' && (
+                  <>
+                    <p className="text-sm font-bold text-white">{bottomNotif.nickname}님이 연락처를 공유했습니다!</p>
+                    <button onClick={() => { setMainTab('status'); setBottomNotif(null); }} className="text-xs text-white/80 underline">내 상태 탭에서 확인</button>
+                  </>
+                )}
+              </div>
+              <button onClick={(e) => { e.stopPropagation(); setBottomNotif(null); }} className="text-white/60 hover:text-white text-lg ml-1">×</button>
             </div>
-            <button onClick={(e) => { e.stopPropagation(); setBottomNotif(null); }} className="text-white/60 hover:text-white text-lg ml-1">×</button>
           </div>
-        </div>
+        </AppErrorBoundary>
       )}
       {/* Balance game result modal - appears on any tab when a game ends */}
       {gameEndResult && (
@@ -1542,12 +1536,14 @@ function App() {
         </AppErrorBoundary>
       )}
       {seatDialog && (
-        <SeatRegisterDialog
-          seat={seatDialog}
-          currentUserSeat={currentUserSeat}
-          onConfirm={() => handleRegisterSeat(seatDialog, seatingLocked, currentUserSeat)}
-          onCancel={() => setSeatDialog(null)}
-        />
+        <AppErrorBoundary screenName="자리 등록" onReset={() => setSeatDialog(null)}>
+          <SeatRegisterDialog
+            seat={seatDialog}
+            currentUserSeat={currentUserSeat}
+            onConfirm={() => handleRegisterSeat(seatDialog, seatingLocked, currentUserSeat)}
+            onCancel={() => setSeatDialog(null)}
+          />
+        </AppErrorBoundary>
       )}
       {likeConfirmTarget && (
         <LikeConfirmDialog

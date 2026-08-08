@@ -35,7 +35,7 @@ export function CreateGameModal({
             <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">빠른 선택</p>
             <div className="flex flex-wrap gap-1.5">
               {QUICK_TEMPLATES.map((t, i) => (
-                <button key={i} onClick={() => { setOptA(t.a); setOptB(t.b); }}
+                <button key={`qt-${i}-${t.a}`} onClick={() => { setOptA(t.a); setOptB(t.b); }}
                   className="text-[11px] px-2.5 py-1 bg-violet-50 hover:bg-violet-100 text-violet-600 rounded-full border border-violet-200 transition-all">
                   {t.a} vs {t.b}
                 </button>

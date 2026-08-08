@@ -70,8 +70,8 @@ const ALLOWED_OP_TABLES = new Set([
 // 서버는 해당 seq 이후 이벤트를 링 버퍼에서 찾아 즉시 재전송 → 단절 구간 이벤트 자동 복구.
 // TTL(10분) 초과 단절은 onSseReconnect → loadMessages 전체 리로드로 폴백.
 let _sseEventSeq = 0;
-const SSE_RING_MAX = 500;            // 최대 보관 이벤트 수 (~500 × ~1 KB ≈ 500 KB 상한)
-const SSE_RING_TTL_MS = 10 * 60 * 1_000; // 10분 보관
+const SSE_RING_MAX = 1000;           // 최대 보관 이벤트 수 (~1000 × ~1 KB ≈ 1 MB 상한) [Part1-Fix1]
+const SSE_RING_TTL_MS = 20 * 60 * 1_000; // 20분 보관 — 중단기 재연결 Last-Event-ID 복구 커버 [Part1-Fix1]
 
 interface RingEntry {
   seq: number;
@@ -122,11 +122,13 @@ const FIELD_LIMITS: Record<string, Record<string, number>> = {
   messages:          { content: 2000 },
   // ─ 아래 테이블의 유저 입력 필드도 HTML·제어 문자 제거 적용 ─────────────────
   notifications:     { content: 300, title: 100 },
-  suggestions:       { content: 500 },
+  suggestions:       { content: 500, contact_info: 100 }, // contact_info 추가: 이전에 미등록으로 비위생 저장 가능
   anonymous_reports: { content: 500, reason: 200 },
-  qa_games:          { question: 300, option_a: 100, option_b: 100 },
-  image_games:       { question: 200 },
+  qa_games:          { question: 300, option_a: 100, option_b: 100, answer: 200 },
+  image_games:       { question: 200, image_url: 500 },
   balance_games:     { question: 300, option_a: 100, option_b: 100 },
+  // ─ 게임 결과/투표 테이블도 자유 텍스트가 있을 수 있으므로 추가 ─────────────
+  game_votes:        { reason: 200 },
 };
 function sanitizeRow(tbl: string, row: Record<string, unknown>): Record<string, unknown> {
   const limits = FIELD_LIMITS[tbl];
@@ -153,6 +155,14 @@ const LOGIN_RATE_WINDOW_MS = 60_000;
 const _uploadRateMap = new Map<string, { count: number; resetAt: number }>();
 const UPLOAD_RATE_MAX = 10;
 const UPLOAD_RATE_WINDOW_MS = 60_000;
+
+// ─── Rate map 주기적 pruning ──────────────────────────────────────────────────
+// 공격자가 무수한 IP로 요청하면 Map이 무한 증가 → 2분마다 만료 항목 제거
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of _loginRateMap) if (v.resetAt < now) _loginRateMap.delete(k);
+  for (const [k, v] of _uploadRateMap) if (v.resetAt < now) _uploadRateMap.delete(k);
+}, 2 * 60 * 1000);
 
 // /events (SSE): IP당 최대 동시 연결 수 (5개)
 const _sseConnPerIp = new Map<string, number>();
@@ -333,8 +343,25 @@ function getTable(name: string): Record<string, unknown>[] {
 }
 
 // ─── PostgreSQL persistence helpers ───────────────────────────────────────────
+// [Part1-Fix4] Per-(table, row_id) write serialization — 동시 upsert 순서 역전 방지
+// 동일 키의 새 write는 이전 promise 완료 후 실행 → 오래된 스냅샷이 최신 데이터를 덮어쓰지 않음
+const _dbWriteLocks = new Map<string, Promise<void>>();
+
 async function dbPersistRow(tableName: string, row: Record<string, unknown>): Promise<void> {
   const rowId = String(row.id ?? genId());
+  const key = `${tableName}:${rowId}`;
+
+  // 동일 key의 in-flight write가 있으면 chain — 완료 순서를 호출 순서와 일치시킴
+  const prev = _dbWriteLocks.get(key) ?? Promise.resolve();
+  const next: Promise<void> = prev.then(() => _execDbPersistRow(tableName, rowId, row)).finally(() => {
+    // 이 Promise가 여전히 최신이면 Map에서 삭제 (메모리 해제)
+    if (_dbWriteLocks.get(key) === next) _dbWriteLocks.delete(key);
+  });
+  _dbWriteLocks.set(key, next);
+  return next;
+}
+
+async function _execDbPersistRow(tableName: string, rowId: string, row: Record<string, unknown>): Promise<void> {
   const sql = `INSERT INTO app_kv_rows (table_name, row_id, data, updated_at)
        VALUES ($1, $2, $3, NOW())
        ON CONFLICT (table_name, row_id)
@@ -343,7 +370,7 @@ async function dbPersistRow(tableName: string, row: Record<string, unknown>): Pr
   try {
     await pool.query(sql, params);
   } catch {
-    // Fix #5: 1회 재시도 — 일시적 연결 오류(ECONNRESET, idle timeout) 자동 복구
+    // 1회 재시도 — 일시적 연결 오류(ECONNRESET, idle timeout) 자동 복구
     await new Promise<void>(r => setTimeout(r, 500));
     try {
       await pool.query(sql, params);
@@ -667,23 +694,36 @@ async function setupListenClient(): Promise<void> {
   }
 }
 
+// [Fix] NOTIFY 직렬 큐 — 150명 동시 쓰기 시 pool 과부하 방지
+// 최대 32개 대기, 초과 시 가장 오래된 항목 드롭 (최신 이벤트 우선)
+const _notifyQueue: string[] = [];
+const NOTIFY_QUEUE_MAX = 32;
+let _notifyBusy = false;
+function _drainNotifyQueue() {
+  if (_notifyBusy || _notifyQueue.length === 0) return;
+  _notifyBusy = true;
+  const payload = _notifyQueue.shift()!;
+  pool.query("SELECT pg_notify('data_change', $1)", [payload])
+    .catch((e) => console.warn('[db] NOTIFY failed:', (e as Error).message))
+    .finally(() => { _notifyBusy = false; _drainNotifyQueue(); });
+}
+
 /** 다른 인스턴스에 변경 사항 전파. 이미지 테이블 제외. 8 KB 초과 시 tombstone 전송 */
 function notifyOtherInstances(table: string, ev: string, newRow: Record<string, unknown> | null, oldRow: Record<string, unknown> | null): void {
   if (table === 'app_image_store') return; // 이미지 data URL은 수 KB — 제외
   const payload = JSON.stringify({ src: INSTANCE_ID, table, ev, newRow, oldRow });
+  let msg: string;
   if (payload.length > 7900) {
-    // 페이로드 8KB 초과(큰 프로필 사진 등) — 수신 측이 DB에서 직접 재조회하도록 tombstone 전송
     const id = (newRow ?? oldRow)?.['id'];
     if (!id) return;
-    const tombstone = JSON.stringify({ src: INSTANCE_ID, table, ev, id, _tombstone: true });
-    pool.query("SELECT pg_notify('data_change', $1)", [tombstone]).catch((e) =>
-      console.warn('[db] NOTIFY tombstone failed:', (e as Error).message)
-    );
-    return;
+    msg = JSON.stringify({ src: INSTANCE_ID, table, ev, id, _tombstone: true });
+  } else {
+    msg = payload;
   }
-  pool.query("SELECT pg_notify('data_change', $1)", [payload]).catch((e) =>
-    console.warn('[db] NOTIFY failed:', (e as Error).message)
-  );
+  // [Fix] 큐 초과 시 오래된 항목 드롭 — 풀 포화 방지
+  if (_notifyQueue.length >= NOTIFY_QUEUE_MAX) _notifyQueue.shift();
+  _notifyQueue.push(msg);
+  _drainNotifyQueue();
 }
 
 /** hot 테이블(profiles·seats·app_settings)을 app_kv_rows에서 재동기화 — LISTEN gap 보정 전용 */
@@ -728,17 +768,32 @@ const FULL_RESYNC_TABLES: Array<{ tbl: string; order?: string }> = [
 
 let _fullResyncRunning = false;
 
+// [Fix] 테이블별 최대 행 수 — 리싱크 시 인메모리 크기 상한 적용
+const RESYNC_TABLE_LIMIT: Record<string, number> = {
+  notifications: 200,
+  likes: 5000,
+  chats: 5000,
+  balance_games: 500,
+  balance_votes: 5000,
+  qa_games: 200,
+  qa_answers: 2000,
+  image_games: 200,
+  image_votes: 2000,
+  suggestions: 500,
+};
+
 async function resyncAllFromNativeDb(): Promise<void> {
   if (_fullResyncRunning) return; // 이전 리싱크가 아직 실행 중이면 skip
   _fullResyncRunning = true;
   try {
-    // 모든 데이터는 native 테이블이 아닌 app_kv_rows KV 저장소에 보관됨
-    // SELECT * FROM table_name 은 "relation does not exist" 오류 → app_kv_rows 경유해야 함
+    // [Fix] 테이블별 LIMIT 적용 — 대용량 세션에서 전체 행 적재로 인한 메모리/지연 방지
+    // ROW_NUMBER() OVER(PARTITION BY table_name ORDER BY updated_at DESC) 로 최근 N개만 조회
     const tableNames = FULL_RESYNC_TABLES.map(t => t.tbl);
-    const { rows } = await pool.query(
-      `SELECT table_name, data FROM app_kv_rows WHERE table_name = ANY($1::text[])`,
-      [tableNames],
-    );
+    const defaultLimit = 10000;
+    const limitSql = tableNames
+      .map(t => `(SELECT table_name, data FROM app_kv_rows WHERE table_name = '${t}' ORDER BY updated_at DESC LIMIT ${RESYNC_TABLE_LIMIT[t] ?? defaultLimit})`)
+      .join(' UNION ALL ');
+    const { rows } = await pool.query(limitSql);
     const grouped: Record<string, Record<string, unknown>[]> = {};
     for (const r of rows) {
       const tbl = r.table_name as string;
@@ -1062,6 +1117,26 @@ router.post('/op', async (req: Request, res: Response) => {
     return res.status(400).json({ data: null, error: { message: `Invalid op: ${op}`, code: 'INVALID_OP' } });
   }
 
+  // ─ table/op 문자열 길이 제한 ────────────────────────────────────────────────
+  if (table.length > 100 || op.length > 50) {
+    _activeOpCount--;
+    return res.status(400).json({ data: null, error: { message: 'Invalid input length', code: 'INVALID_INPUT' } });
+  }
+
+  // ─ boolean 필드 타입 검증 ────────────────────────────────────────────────────
+  if (single != null && typeof single !== 'boolean') {
+    _activeOpCount--;
+    return res.status(400).json({ data: null, error: { message: 'single must be a boolean', code: 'INVALID_INPUT' } });
+  }
+  if (maybeSingle != null && typeof maybeSingle !== 'boolean') {
+    _activeOpCount--;
+    return res.status(400).json({ data: null, error: { message: 'maybeSingle must be a boolean', code: 'INVALID_INPUT' } });
+  }
+  if (selectAfterWrite != null && typeof selectAfterWrite !== 'boolean') {
+    _activeOpCount--;
+    return res.status(400).json({ data: null, error: { message: 'selectAfterWrite must be a boolean', code: 'INVALID_INPUT' } });
+  }
+
   // ─ limit 타입 검증: 숫자가 아니거나 음수면 거부 ──────────────────────────────
   if (limit != null && (typeof limit !== 'number' || !Number.isFinite(limit) || limit < 0)) {
     _activeOpCount--;
@@ -1217,6 +1292,58 @@ router.post('/op', async (req: Request, res: Response) => {
         }
       }
 
+      // ─ IDOR guard: contact_shares SELECT ─────────────────────────────────
+      // 연락처 공유 내역은 보낸 사람(liker_id) 또는 받은 사람(liked_id)만 조회 가능.
+      // requesterId 없이 전체 덤프하면 모든 연락처 공유 기록이 노출됨 → 차단.
+      if (table === 'contact_shares' && !isAdmin) {
+        if (!requesterId) {
+          logger.warn({ ip: req.ip }, '[SECURITY] IDOR: contact_shares SELECT without requesterId blocked');
+          return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+        }
+        // 서버 측에서 소유자 스코프 제한 — 클라이언트 필터 우회 공격 차단
+        const csScope = tableData.filter(r =>
+          String(r.liker_id) === String(requesterId) || String(r.liked_id) === String(requesterId)
+        );
+        const csResult = applyFilters(csScope, normalizedFilters);
+        for (const { col, asc } of safeOrders) {
+          csResult.sort((a, b) => {
+            const av = a[col]; const bv = b[col];
+            if (av === bv) return 0;
+            if (av == null) return asc ? -1 : 1;
+            if (bv == null) return asc ? 1 : -1;
+            return (av < bv ? -1 : 1) * (asc ? 1 : -1);
+          });
+        }
+        const csLimit = limit != null ? Math.floor(limit) : undefined;
+        const csLimited = csLimit != null ? csResult.slice(0, csLimit) : csResult;
+        const csData = single ? (csLimited[0] ?? null) : maybeSingle ? (csLimited[0] ?? null) : csLimited;
+        return res.json({ data: csData, error: null });
+      }
+
+      // ─ IDOR guard: chat_reads SELECT ──────────────────────────────────────
+      // 읽음 기록은 자신의 것(reader_id)만 조회 가능 — 타인의 읽음 여부 스크래핑 차단.
+      if (table === 'chat_reads' && !isAdmin) {
+        if (!requesterId) {
+          logger.warn({ ip: req.ip }, '[SECURITY] IDOR: chat_reads SELECT without requesterId blocked');
+          return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+        }
+        const crScope = tableData.filter(r => String(r.reader_id) === String(requesterId));
+        const crResult = applyFilters(crScope, normalizedFilters);
+        for (const { col, asc } of safeOrders) {
+          crResult.sort((a, b) => {
+            const av = a[col]; const bv = b[col];
+            if (av === bv) return 0;
+            if (av == null) return asc ? -1 : 1;
+            if (bv == null) return asc ? 1 : -1;
+            return (av < bv ? -1 : 1) * (asc ? 1 : -1);
+          });
+        }
+        const crLimit = limit != null ? Math.floor(limit) : undefined;
+        const crLimited = crLimit != null ? crResult.slice(0, crLimit) : crResult;
+        const crData = single ? (crLimited[0] ?? null) : maybeSingle ? (crLimited[0] ?? null) : crLimited;
+        return res.json({ data: crData, error: null });
+      }
+
       let result = applyFilters(tableData, normalizedFilters);
       for (const { col, asc } of safeOrders) {
         result.sort((a, b) => {
@@ -1293,17 +1420,15 @@ router.post('/op', async (req: Request, res: Response) => {
             return res.status(403).json({ data: null, error: { message: 'Forbidden: must be a participant', code: 'FORBIDDEN' } });
           }
         }
-        // chat_reads: requesterId 필수 + reader_id 일치
-        if (table === 'chat_reads' && requesterId && effectiveRow.reader_id != null) {
-          if (String(effectiveRow.reader_id) !== String(requesterId)) {
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: reader_id mismatch', code: 'FORBIDDEN' } });
-          }
+        // chat_reads: reader_id를 requesterId로 강제 설정 (클라이언트 조작 방지)
+        // 단순 불일치 검사 대신 강제 덮어쓰기 — omit 공격도 차단
+        if (table === 'chat_reads' && requesterId) {
+          effectiveRow = { ...effectiveRow, reader_id: requesterId };
         }
-        // likes: liker_id must match the authenticated requester
-        if (table === 'likes' && requesterId && effectiveRow.liker_id != null) {
-          if (String(effectiveRow.liker_id) !== String(requesterId)) {
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: liker_id mismatch', code: 'FORBIDDEN' } });
-          }
+        // likes: liker_id를 requesterId로 강제 설정 (클라이언트 조작 방지)
+        // omit 공격(liker_id 없이 전송) + mismatch 공격 동시 차단
+        if (table === 'likes' && requesterId) {
+          effectiveRow = { ...effectiveRow, liker_id: requesterId };
         }
 
         if (table === 'profiles') {
@@ -1573,6 +1698,15 @@ router.post('/op', async (req: Request, res: Response) => {
     if (op === 'delete') {
       const toDelete = applyFilters(tableData, normalizedFilters);
 
+      // ─ IDOR guard: 민감 테이블 DELETE는 requesterId 필수 ────────────────
+      // UPDATE와 동일 정책 — 미인증 삭제로 타인 데이터를 지우는 공격 차단
+      if (!isAdmin && !requesterId) {
+        if (table === 'messages' || table === 'likes' || table === 'chat_reads') {
+          logger.warn({ table, ip: req.ip }, '[SECURITY] IDOR: DELETE without requesterId blocked');
+          return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+        }
+      }
+
       // ─ IDOR guard: DELETE ownership check ──────────────────────────────
       if (requesterId) {
         for (const existingRow of toDelete) {
@@ -1617,9 +1751,34 @@ router.post('/op', async (req: Request, res: Response) => {
   }
 });
 
+// ─── RPC allowlist ─────────────────────────────────────────────────────────────
+// 알 수 없는 RPC 이름으로의 호출을 즉시 404로 차단 — 내부 구현 노출 및 퍼징 방지
+const ALLOWED_RPCS = new Set([
+  'admin_create_session', 'admin_invalidate_session', 'admin_auth_phone',
+  'admin_update_settings', 'test_resync', 'test_clear_hearts', 'admin_force_resync_all',
+  'test_update_settings', 'admin_reset_all_seats', 'admin_full_reset',
+  'admin_event_end_reset', 'admin_clear_seat', 'admin_force_seat',
+  'admin_clear_profile_seat', 'admin_swap_seats', 'admin_update_profile',
+  'admin_delete_profile',
+]);
+
 // ─── RPC endpoint ─────────────────────────────────────────────────────────────
 router.post('/rpc/:name', async (req: Request, res: Response) => {
   const { name } = req.params;
+
+  // ─ name 타입·길이 방어 + 허용 목록 검증 ───────────────────────────────────
+  if (typeof name !== 'string' || name.length > 100) {
+    return res.status(400).json({ data: null, error: { message: 'Invalid RPC name format' } });
+  }
+  if (!ALLOWED_RPCS.has(name)) {
+    logger.warn({ name, ip: req.ip }, '[SECURITY] Unknown RPC call rejected');
+    return res.status(404).json({ data: null, error: { message: `Unknown RPC: ${name}` } });
+  }
+
+  // ─ req.body 타입 방어 ──────────────────────────────────────────────────────
+  if (req.body != null && (typeof req.body !== 'object' || Array.isArray(req.body))) {
+    return res.status(400).json({ data: null, error: { message: 'Request body must be a JSON object' } });
+  }
   const args = (req.body ?? {}) as Record<string, unknown>;
 
   const settings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
@@ -1663,9 +1822,19 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         // 관리자 패널 → api-server 인메모리 app_settings 동기화
         // Supabase 직접 업데이트만으로는 api-server 메모리가 갱신되지 않아 유저에게 반영 안 됨
         checkPassword();
-        const payload = (args.p_payload as Record<string, unknown>) ?? {};
+        const rawPayload = (args.p_payload as Record<string, unknown>) ?? {};
+        // ─ XSS 방어: 관리자가 app_settings에 악성 스크립트를 주입하는 것을 차단 ──────
+        // 클라이언트(AdminApp)가 app_settings를 전달할 때 문자열 값 내 HTML 태그 제거
+        const sanitizedSettingsPayload = Object.fromEntries(
+          Object.entries(rawPayload).map(([k, v]) => [
+            k,
+            typeof v === 'string'
+              ? v.replace(/<[^>]*>/g, '').slice(0, 2000)
+              : v,
+          ])
+        );
         const current = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
-        const updated = { ...current, ...payload, updated_at: new Date().toISOString() };
+        const updated = { ...current, ...sanitizedSettingsPayload, updated_at: new Date().toISOString() };
         store['app_settings'] = [updated];
         broadcastAll({ type: 'change', table: 'app_settings', event: 'UPDATE', newRow: updated, oldRow: current });
         dbPersistRow('app_settings', updated).catch(console.error);
@@ -1905,11 +2074,13 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
       }
 
       default:
-        console.warn('[db/rpc] Unknown RPC:', name);
-        return res.json({ data: null, error: null });
+        // ALLOWED_RPCS 허용 목록에서 이미 차단됨 — 이 경로는 도달하지 않아야 함
+        return res.status(404).json({ data: null, error: { message: `Unknown RPC: ${name}` } });
     }
   } catch (e) {
-    return res.json({ data: null, error: { message: String(e) } });
+    logger.error({ err: e, rpc: name }, '[rpc] Unexpected error');
+    if (!res.headersSent) res.status(500).json({ data: null, error: { message: String(e) } });
+    return;
   }
 });
 
@@ -1923,6 +2094,7 @@ setInterval(() => {
   for (const [k, b] of _broadcastRateMap) if (b.resetAt < now) _broadcastRateMap.delete(k);
 }, 5 * 60 * 1000);
 router.post('/broadcast', (req: Request, res: Response) => {
+  try {
   // ✅ 인증: 클라이언트 SSE 토큰(HMAC)으로 검증 — SESSION_SECRET 클라이언트 노출 없이 안전
   const token  = req.headers['x-broadcast-token']  as string | undefined;
   const userId = req.headers['x-broadcast-userid'] as string | undefined;
@@ -1959,8 +2131,26 @@ router.post('/broadcast', (req: Request, res: Response) => {
     res.status(400).json({ ok: false, error: 'Invalid event' });
     return;
   }
-  broadcastAll({ type: 'broadcast', channel, event, payload });
+  // ─ XSS 방어: broadcast payload 내 문자열 값 HTML 태그 제거 ───────────────────
+  // 관리자가 전송한 공지 메시지에 <script> 삽입 시도를 서버 레벨에서 차단
+  function sanitizeBroadcastValue(val: unknown, depth = 0): unknown {
+    if (depth > 5) return val; // 깊이 제한 (ReDoS / 순환 참조 방지)
+    if (typeof val === 'string') return val.replace(/<[^>]*>/g, '').slice(0, 5000);
+    if (Array.isArray(val)) return val.map(v => sanitizeBroadcastValue(v, depth + 1));
+    if (val !== null && typeof val === 'object') {
+      return Object.fromEntries(
+        Object.entries(val as Record<string, unknown>).map(([k, v]) => [k, sanitizeBroadcastValue(v, depth + 1)])
+      );
+    }
+    return val;
+  }
+  const sanitizedPayload = sanitizeBroadcastValue(payload);
+  broadcastAll({ type: 'broadcast', channel, event, payload: sanitizedPayload });
   res.json({ ok: true });
+  } catch (e) {
+    logger.error({ err: e }, '[broadcast] Unexpected error');
+    if (!res.headersSent) res.status(500).json({ ok: false, error: 'Internal server error' });
+  }
 });
 
 // ─── Image storage ────────────────────────────────────────────────────────────
@@ -2055,12 +2245,16 @@ router.get('/storage-image', (req: Request, res: Response): void => {
 
 // ─── Admin: clear DB error counter ───────────────────────────────────────────
 router.post('/admin/clear-db-errors', async (req: Request, res: Response) => {
+  try {
   // ─ req.body 타입 방어
   if (req.body == null || typeof req.body !== 'object' || Array.isArray(req.body)) {
     return res.status(400).json({ ok: false, error: 'Request body must be a JSON object' });
   }
   // Require admin password for safety
   const { adminPassword } = req.body as { adminPassword?: string };
+  if (typeof adminPassword !== 'string') {
+    return res.status(400).json({ ok: false, error: 'adminPassword must be a string' });
+  }
   const settings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
   const expectedPw = (settings.admin_password as string) ?? '';
   // 비밀번호가 설정돼 있지 않아도 반드시 거부 — 설정 전 관리자가 먼저 비밀번호를 세팅해야 함
@@ -2097,6 +2291,11 @@ router.post('/admin/clear-db-errors', async (req: Request, res: Response) => {
     console.warn('[db] 감사 로그 저장 실패 (non-critical):', auditErr);
   }
   return res.json({ ok: true });
+  } catch (e) {
+    logger.error({ err: e }, '[admin/clear-db-errors] Unexpected error');
+    if (!res.headersSent) res.status(500).json({ ok: false, error: 'Internal server error' });
+    return;
+  }
 });
 
 // ─── DB Health endpoint ───────────────────────────────────────────────────────
@@ -2266,6 +2465,13 @@ router.get('/unread-counts', (req: Request, res: Response) => {
 const _pinAttempts = new Map<string, { count: number; resetAt: number }>();
 const PIN_MAX = 5;
 const PIN_WINDOW_MS = 15 * 60 * 1000;
+// [Fix] 만료된 PIN 시도 기록 주기적 정리 — 무한 Map 성장 방지 (5분마다 sweep)
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, rec] of _pinAttempts) {
+    if (rec.resetAt <= now) _pinAttempts.delete(ip);
+  }
+}, 5 * 60 * 1000).unref();
 
 router.post('/by-pin', (req: Request, res: Response) => {
   try {
@@ -2600,6 +2806,12 @@ router.get('/events', (req: Request, res: Response) => {
     return;
   }
   _sseConnPerIp.set(sseIp, currentConns + 1);
+  // [Fix] 조기 반환 시 IP 카운터 복원 헬퍼 — 아래 익명 cap 429에서 사용
+  const _undoSseConnCount = () => {
+    const c = _sseConnPerIp.get(sseIp) ?? 1;
+    if (c <= 1) _sseConnPerIp.delete(sseIp);
+    else _sseConnPerIp.set(sseIp, c - 1);
+  };
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache, no-transform');
@@ -2640,6 +2852,7 @@ router.get('/events', (req: Request, res: Response) => {
   } else {
     // 익명 연결 최대 100개 제한 — 미인증 연결에 의한 리소스 고갈 방지
     if (sseAnonClients.size >= 100) {
+      _undoSseConnCount(); // [Fix] 카운터 증가 취소 — 거부된 연결이 IP 슬롯 점유하지 않도록
       res.status(429).end();
       return;
     }
@@ -2664,15 +2877,16 @@ router.get('/events', (req: Request, res: Response) => {
 
   // Keep-alive every 5s — 짧게 유지해 프록시/방화벽 idle 차단 방지
   const keepalive = setInterval(() => {
-    // res.writable이 false면 이미 닫힌 소켓 — 즉시 정리
-    if (!res.writable || res.writableEnded) { clearInterval(keepalive); return; }
+    // res.writable이 false면 이미 닫힌 소켓 — cleanupConn 호출 후 정리
+    if (!res.writable || res.writableEnded) { clearInterval(keepalive); cleanupConn(); return; }
     try {
       const flushed = res.write('data: {"type":"ping"}\n\n');
       // write()가 false를 반환하면 TCP 송신 버퍼가 가득 찬 것 (backpressure)
-      // 클라이언트가 읽지 못하는 좀비 연결이므로 정리
-      if (!flushed) { clearInterval(keepalive); res.end(); }
+      // 클라이언트가 읽지 못하는 좀비 연결이므로 정리 — sseUserMap에서도 제거
+      if (!flushed) { clearInterval(keepalive); cleanupConn(); res.end(); }
     } catch {
       clearInterval(keepalive);
+      cleanupConn(); // write 예외 시에도 sseUserMap에서 반드시 제거
     }
   }, 5000);
   // _sseCleanup에 등록 — _send write 실패 시에도 interval 즉시 해제 가능

@@ -84,7 +84,7 @@ export function TableMiniGameModal({ session, onClose }: {
         <div className="overflow-y-auto flex-1 px-5 py-5 space-y-4">
           <div className="flex flex-wrap gap-1.5 justify-center">
             {session.participants.map((name, i) => (
-              <span key={i} className="px-2.5 py-1 bg-violet-100 text-violet-700 text-xs font-bold rounded-full">{name}</span>
+              <span key={`p-${i}-${name}`} className="px-2.5 py-1 bg-violet-100 text-violet-700 text-xs font-bold rounded-full">{name}</span>
             ))}
           </div>
 
@@ -97,7 +97,7 @@ export function TableMiniGameModal({ session, onClose }: {
                     {session.participants.map((name, i) => {
                       const { path, tx, ty, tAngle } = getSeg(i);
                       return (
-                        <g key={i}>
+                        <g key={`seg-${i}-${name}`}>
                           <path d={path} fill={WHEEL_COLORS[i % WHEEL_COLORS.length]} stroke="white" strokeWidth="2" />
                           <text x={tx} y={ty} textAnchor="middle" dominantBaseline="middle"
                             fill="white" fontSize={n > 6 ? 9 : 11} fontWeight="bold"
@@ -130,18 +130,18 @@ export function TableMiniGameModal({ session, onClose }: {
                 <div className="flex justify-center">
                   <svg width={SVG_W} height={SVG_H + 32} style={{ overflow: 'visible' }}>
                     {session.participants.map((name, i) => (
-                      <text key={i} x={cx(i)} y={10} textAnchor="middle" fontSize={n > 6 ? 8 : 9} fontWeight="bold" fill="#6d28d9">
+                      <text key={`lbl-${i}-${name}`} x={cx(i)} y={10} textAnchor="middle" fontSize={n > 6 ? 8 : 9} fontWeight="bold" fill="#6d28d9">
                         {name.length > 3 ? name.slice(0, 3) + '…' : name}
                       </text>
                     ))}
                     {session.participants.map((_, i) => (
-                      <line key={i} x1={cx(i)} y1={15} x2={cx(i)} y2={SVG_H + 4} stroke="#8b5cf6" strokeWidth="2.5" strokeLinecap="round" />
+                      <line key={`rail-${i}`} x1={cx(i)} y1={15} x2={cx(i)} y2={SVG_H + 4} stroke="#8b5cf6" strokeWidth="2.5" strokeLinecap="round" />
                     ))}
                     {bars.map((b, i) => (
-                      <line key={i} x1={cx(b.col)} y1={ry(b.row)} x2={cx(b.col + 1)} y2={ry(b.row)} stroke="#f59e0b" strokeWidth="2.5" strokeLinecap="round" />
+                      <line key={`bar-${i}-${b.col}-${b.row}`} x1={cx(b.col)} y1={ry(b.row)} x2={cx(b.col + 1)} y2={ry(b.row)} stroke="#f59e0b" strokeWidth="2.5" strokeLinecap="round" />
                     ))}
                     {endCols.map((endCol, i) => (
-                      <text key={i} x={cx(endCol)} y={SVG_H + 22} textAnchor="middle" fontSize={8} fill="#d97706" fontWeight="bold">
+                      <text key={`end-${i}-${endCol}`} x={cx(endCol)} y={SVG_H + 22} textAnchor="middle" fontSize={8} fill="#d97706" fontWeight="bold">
                         {(shuffledPrizes[endCol] ?? '').slice(0, 6)}
                       </text>
                     ))}
@@ -151,7 +151,7 @@ export function TableMiniGameModal({ session, onClose }: {
               <div className="space-y-2">
                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">결과</p>
                 {session.participants.slice(0, revealed).map((name, i) => (
-                  <div key={i} className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl px-4 py-3" style={{ animation: 'slideInUp 0.3s ease-out' }}>
+                  <div key={`res-${i}-${name}`} className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl px-4 py-3" style={{ animation: 'slideInUp 0.3s ease-out' }}>
                     <span className="font-black text-gray-900 text-sm">{name}</span>
                     <span className="text-amber-700 font-black text-sm">{shuffledPrizes[endCols[i]] ?? ''}</span>
                   </div>

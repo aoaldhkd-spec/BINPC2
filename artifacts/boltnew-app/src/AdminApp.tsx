@@ -7,7 +7,7 @@ import {
   Lock, Unlock, Search, Database as DatabaseIcon, Activity,
 } from 'lucide-react';
 import { supabase } from './lib/supabase';
-import { setLocalDbUserId } from './lib/localdb';
+import { setLocalDbUserId, supabase as ldbSupabase } from './lib/localdb';
 import type { Database, Json } from './types/database';
 import type { GameState } from './App';
 import { getPositionLabel, getDomSubLabel, getKoreanAge } from './lib/profile';
@@ -43,6 +43,28 @@ async function adminApiRpc(name: string, args: Record<string, unknown>): Promise
   if (!res.ok) throw new Error(`api-server RPC ${name} 오류: HTTP ${res.status}`);
   const json = (await res.json()) as { data: unknown; error: { message: string } | null };
   if (json.error) throw new Error(json.error.message);
+}
+
+/** api-server /op SELECT — 인메모리 데이터 직접 조회 (Supabase KV가 아닌 api-server 스토어) */
+async function adminApiSelect<T>(
+  table: string,
+  orderBy?: Array<{ column: string; ascending: boolean }>,
+): Promise<{ data: T[] | null }> {
+  const token = localStorage.getItem(ADMIN_TOKEN_KEY) ?? '';
+  const body: Record<string, unknown> = { table, op: 'select', adminToken: token };
+  if (orderBy) body.orderBy = orderBy;
+  try {
+    const res = await fetch(`${ADMIN_API}/op`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) return { data: null };
+    const json = await res.json() as { data: T[] | null; error: unknown };
+    return { data: json.data ?? [] };
+  } catch {
+    return { data: null };
+  }
 }
 
 /** api-server /op 호출 — INSERT/UPDATE/DELETE를 인메모리 + SSE broadcast + 영속화 */
@@ -231,7 +253,6 @@ function NotificationTab({ tableCount, settings, onSetTimer }: {
 }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [message, setMessage] = useState('');
-  const [penalty, setPenalty] = useState('');
   const [type, setType] = useState('info');
   const [target, setTarget] = useState('all');
   const [sending, setSending] = useState(false);
@@ -281,9 +302,7 @@ function NotificationTab({ tableCount, settings, onSetTimer }: {
   const send = async () => {
     if (!message.trim()) return;
     setSending(true);
-    const fullMsg = type === 'game' && penalty.trim()
-      ? `${message.trim()}\n🎯 벌칙: ${penalty.trim()}`
-      : message.trim();
+    const fullMsg = message.trim();
     // Supabase insert + 삽입된 행 반환
     const { data: inserted, error: insertErr } = await adminSupabase
       .from('notifications').insert({ message: fullMsg, type, target, is_active: true }).select().single();
@@ -304,7 +323,7 @@ function NotificationTab({ tableCount, settings, onSetTimer }: {
         await onSetTimer(new Date(Date.now() + mins * 60 * 1000).toISOString(), timerLabelInput.trim() || fullMsg.slice(0, 20) || null);
       }
     }
-    setMessage(''); setPenalty('');
+    setMessage('');
     setSent(true); setTimeout(() => setSent(false), 2500);
     await load(); setSending(false);
   };
@@ -347,8 +366,6 @@ function NotificationTab({ tableCount, settings, onSetTimer }: {
   const GAME_QUICK = [
     '가장 ~한 사람은?', '가장 ~큰 사람은?', '가장 작은 사람은?', '가장 ~일 것 같은 사람은?',
   ];
-  const PENALTY_QUICK = ['일반 질문', '19금 질문 🔞', '앞잔 (원샷 X)'];
-
   const [lostItem, setLostItem] = useState<string|null>(null);
   const [lostColor, setLostColor] = useState<string|null>(null);
   const [showLostPicker, setShowLostPicker] = useState(false);
@@ -563,22 +580,6 @@ function NotificationTab({ tableCount, settings, onSetTimer }: {
                       onClick={() => setMessage(prev => `${prev.replace(/ → .+$/, '')} → ${w}`)}
                       className="py-2 rounded-xl text-xs font-bold border-2 bg-white border-violet-200 text-violet-700 hover:bg-violet-50 active:scale-95 transition-all">
                       {w}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              {/* 벌칙 */}
-              <div>
-                <label className="text-xs font-semibold text-violet-600 mb-1 block">벌칙 (선택)</label>
-                <input type="text" value={penalty} onChange={e => setPenalty(e.target.value)}
-                  placeholder="예: 원샷, 건배사 하기"
-                  className="w-full bg-gray-50 border border-violet-200 rounded-xl px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-400"
-                />
-                <div className="flex gap-1.5 mt-1.5">
-                  {PENALTY_QUICK.map(v => (
-                    <button key={v} type="button" onClick={() => setPenalty(v)}
-                      className={`flex-1 py-1.5 rounded-xl text-[11px] font-bold border-2 transition-all ${penalty === v ? 'bg-violet-500 border-violet-500 text-white' : 'bg-white border-violet-200 text-violet-700 hover:bg-violet-50'}`}>
-                      {v}
                     </button>
                   ))}
                 </div>
@@ -1722,10 +1723,6 @@ const BALANCE_QUICK: { label: string; a: string; b: string; hot?: boolean }[] = 
   { label: '침대 vs 소파도 OK 🔞', a: '침대만', b: '소파도 OK', hot: true },
 ];
 
-// ── 게임 공통 벌칙 빠른 선택 ───────────────────────────────────────────────
-const GAME_PENALTY_QUICK = ['꽝 💀', '술 앞잔(원샷X) 🍺', '질문 받기 ❓', '19금 질문받기 🔞'];
-
-
 // ─── Admin Balance Game Tab ───────────────────────────────────────────────────
 
 function AdminBalanceGameCard({ game, counts, myVote, onVote, onEnd }: {
@@ -1914,7 +1911,6 @@ function AdminBalanceGameTab({ balanceGames, voteCounts, myVotes, onVote }: {
 function BalanceGameCreate({ currentGame, onGameUpdate, seats, settings, onRefresh }: { currentGame: GameState | null; onGameUpdate: (g: GameState | null) => void; seats: Seat[]; settings: AppSettings | null; onRefresh?: () => Promise<void> }) {
   const [optA, setOptA] = useState('');
   const [optB, setOptB] = useState('');
-  const [balancePenalty, setBalancePenalty] = useState('');
   const [targetTable, setTargetTable] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -1924,8 +1920,6 @@ function BalanceGameCreate({ currentGame, onGameUpdate, seats, settings, onRefre
   const [batchSaving, setBatchSaving] = useState(false);
   const [batchSentTables, setBatchSentTables] = useState<Set<number>>(new Set());
   const [batchPickerTable, setBatchPickerTable] = useState<number | null>(null);
-  const [batchBalancePenalties, setBatchBalancePenalties] = useState<Map<number, string>>(new Map());
-  const [batchBalancePenaltyPickerTable, setBatchBalancePenaltyPickerTable] = useState<number | null>(null);
 
   const handleRefresh = async () => {
     if (!onRefresh) return;
@@ -1955,7 +1949,7 @@ function BalanceGameCreate({ currentGame, onGameUpdate, seats, settings, onRefre
     }).select().single();
     const gameState: GameState = {
       active: true, type: 'balance', title: `${optA.trim()} vs ${optB.trim()}`,
-      description: '두 가지 중 하나를 선택하세요!', rules: '', penalty: balancePenalty.trim(),
+      description: '두 가지 중 하나를 선택하세요!', rules: '',
       option_a: optA.trim(), option_b: optB.trim(),
       game_id: (gameRow as { id: string } | null)?.id,
       started_at: new Date().toISOString(), table_number: targetTable ?? undefined,
@@ -2082,22 +2076,6 @@ function BalanceGameCreate({ currentGame, onGameUpdate, seats, settings, onRefre
             </div>
           </div>
 
-          {/* 벌칙 */}
-          <div>
-            <label className="text-xs font-bold text-red-500 uppercase tracking-wider block mb-1.5">벌칙 (선택)</label>
-            <input type="text" value={balancePenalty} onChange={e => setBalancePenalty(e.target.value)}
-              placeholder="예: 원샷, 건배사 하기"
-              className="w-full bg-gray-50 border border-red-200 text-gray-900 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-red-300 mb-2" />
-            <div className="flex flex-wrap gap-1.5">
-              {GAME_PENALTY_QUICK.map(v => (
-                <button key={v} type="button" onClick={() => setBalancePenalty(v)}
-                  className={`px-2.5 py-1 rounded-full text-[11px] font-bold border-2 transition-all ${balancePenalty === v ? 'bg-red-500 border-red-500 text-white' : 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100'}`}>
-                  {v}
-                </button>
-              ))}
-            </div>
-          </div>
-
           {/* 대상 테이블 선택 */}
           <div>
             <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">대상 테이블</p>
@@ -2159,15 +2137,13 @@ function BalanceGameCreate({ currentGame, onGameUpdate, seats, settings, onRefre
               const filled = config.a.trim() && config.b.trim();
               const sent = batchSentTables.has(n);
               const pickerOpen = batchPickerTable === n;
-              const penaltyPickerOpen = batchBalancePenaltyPickerTable === n;
-              const penalty = batchBalancePenalties.get(n) ?? '';
               return (
                 <div key={n} className={`rounded-xl border-2 p-3 transition-all ${filled ? 'border-violet-400 bg-violet-50' : 'border-gray-200 bg-gray-50'}`}>
                   {/* 헤더 행: 테이블명 + 버튼들 */}
                   <div className="flex items-center gap-2 mb-2">
                     <span className={`text-xs font-black flex-1 ${filled ? 'text-violet-700' : 'text-gray-500'}`}>{TABLE_LABELS[n] ?? n}번</span>
                     <button
-                      onClick={() => { setBatchPickerTable(pickerOpen ? null : n); setBatchBalancePenaltyPickerTable(null); }}
+                      onClick={() => { setBatchPickerTable(pickerOpen ? null : n); }}
                       className={`flex-shrink-0 px-2 py-1.5 rounded-lg text-xs font-bold transition-all border ${pickerOpen ? 'bg-violet-200 text-violet-700 border-violet-300' : 'bg-white text-violet-500 border-violet-200 hover:bg-violet-50'}`}
                     >
                       {pickerOpen ? '닫기' : '고르기'}
@@ -2216,40 +2192,6 @@ function BalanceGameCreate({ currentGame, onGameUpdate, seats, settings, onRefre
                       ))}
                     </div>
                   )}
-                  {/* 벌칙 행 */}
-                  <div className="flex items-center gap-2 mt-1.5">
-                    <span className="text-[10px] font-black text-red-400 w-14 flex-shrink-0">벌칙</span>
-                    <input
-                      type="text"
-                      value={penalty}
-                      onChange={e => { const m = new Map(batchBalancePenalties); m.set(n, e.target.value); setBatchBalancePenalties(m); }}
-                      placeholder="벌칙 (선택)"
-                      className="flex-1 bg-white border border-red-200 text-gray-900 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-red-400 placeholder-gray-400"
-                    />
-                    <button
-                      onClick={() => { setBatchBalancePenaltyPickerTable(penaltyPickerOpen ? null : n); setBatchPickerTable(null); }}
-                      className={`flex-shrink-0 px-2 py-1.5 rounded-lg text-xs font-bold transition-all border ${penaltyPickerOpen ? 'bg-red-200 text-red-700 border-red-300' : 'bg-white text-red-500 border-red-200 hover:bg-red-50'}`}
-                    >
-                      {penaltyPickerOpen ? '닫기' : '고르기'}
-                    </button>
-                  </div>
-                  {/* 벌칙 고르기 패널 */}
-                  {penaltyPickerOpen && (
-                    <div className="mt-1.5 flex flex-wrap gap-1.5 pt-2 border-t border-red-100">
-                      {GAME_PENALTY_QUICK.map(v => (
-                        <button key={v}
-                          onClick={() => {
-                            const m = new Map(batchBalancePenalties);
-                            m.set(n, v);
-                            setBatchBalancePenalties(m);
-                            setBatchBalancePenaltyPickerTable(null);
-                          }}
-                          className={`px-2.5 py-1 rounded-full text-[11px] font-bold border-2 transition-all active:scale-95 ${penalty === v ? 'bg-red-500 border-red-500 text-white' : 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100'}`}>
-                          {v}
-                        </button>
-                      ))}
-                    </div>
-                  )}
                 </div>
               );
             })}
@@ -2267,7 +2209,6 @@ function BalanceGameCreate({ currentGame, onGameUpdate, seats, settings, onRefre
 function QaGameSection({ seats }: { seats: Seat[] }) {
   const [qaQuestion, setQaQuestion] = useState('');
   const [qaCorrectAnswer, setQaCorrectAnswer] = useState('');
-  const [qaPenalty, setQaPenalty] = useState('');
   const [qaTargetTable, setQaTargetTable] = useState<number | null>(null);
   const [qaSaving, setQaSaving] = useState(false);
   const [activeQaGame, setActiveQaGame] = useState<QaGame | null>(null);
@@ -2323,7 +2264,7 @@ function QaGameSection({ seats }: { seats: Seat[] }) {
   const startQa = async () => {
     if (!qaQuestion.trim()) return;
     setQaSaving(true);
-    const fullQuestion = qaQuestion.trim() + (qaPenalty.trim() ? `\n🎯 벌칙: ${qaPenalty.trim()}` : '');
+    const fullQuestion = qaQuestion.trim();
     const { data } = await adminSupabase.from('qa_games').insert({
       question: fullQuestion, correct_answer: qaCorrectAnswer.trim() || null, status: 'active',
       scope: qaTargetTable !== null ? 'qa_table' : 'qa_global',
@@ -2336,7 +2277,6 @@ function QaGameSection({ seats }: { seats: Seat[] }) {
     setQaAnswers([]);
     setQaQuestion('');
     setQaCorrectAnswer('');
-    setQaPenalty('');
     setQaTargetTable(null);
     setQaSaving(false);
   };
@@ -2509,7 +2449,6 @@ function OxGameSection({ balanceGames, voteCounts, currentGame, onGameUpdate, se
   onRefresh?: () => Promise<void>;
 }) {
   const [question, setQuestion] = useState('');
-  const [oxPenalty, setOxPenalty] = useState('');
   const [targetTable, setTargetTable] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -2520,8 +2459,6 @@ function OxGameSection({ balanceGames, voteCounts, currentGame, onGameUpdate, se
   const [batchSentTables, setBatchSentTables] = useState<Set<number>>(new Set());
   const [oxQuickCat, setOxQuickCat] = useState<'general' | 'hot'>('general');
   const [batchOxPickerTable, setBatchOxPickerTable] = useState<number | null>(null);
-  const [batchOxPenalties, setBatchOxPenalties] = useState<Map<number, string>>(new Map());
-  const [batchOxPenaltyPickerTable, setBatchOxPenaltyPickerTable] = useState<number | null>(null);
 
   const handleRefresh = async () => {
     if (!onRefresh) return;
@@ -2555,7 +2492,7 @@ function OxGameSection({ balanceGames, voteCounts, currentGame, onGameUpdate, se
       active: true, type: 'balance',
       title: question.trim(),
       description: 'O 또는 X를 선택하세요!',
-      rules: '', penalty: oxPenalty.trim(),
+      rules: '',
       option_a: OX_A, option_b: OX_B,
       game_id: (row as { id: string } | null)?.id,
       started_at: new Date().toISOString(),
@@ -2564,7 +2501,6 @@ function OxGameSection({ balanceGames, voteCounts, currentGame, onGameUpdate, se
     await adminSupabase.from('app_settings').update({ game_state: gs as unknown as Json, updated_at: new Date().toISOString() }).eq('id', 1);
     onGameUpdate(gs);
     setQuestion('');
-    setOxPenalty('');
     setSaving(false);
   };
 
@@ -2651,22 +2587,6 @@ function OxGameSection({ balanceGames, voteCounts, currentGame, onGameUpdate, se
               className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-orange-400 resize-none" />
           </div>
 
-          {/* 벌칙 */}
-          <div>
-            <label className="text-xs font-bold text-red-500 uppercase tracking-wider block mb-1.5">벌칙 (선택)</label>
-            <input type="text" value={oxPenalty} onChange={e => setOxPenalty(e.target.value)}
-              placeholder="예: 원샷, 건배사 하기"
-              className="w-full bg-gray-50 border border-red-200 text-gray-900 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-red-300 mb-2" />
-            <div className="flex flex-wrap gap-1.5">
-              {GAME_PENALTY_QUICK.map(v => (
-                <button key={v} type="button" onClick={() => setOxPenalty(v)}
-                  className={`px-2.5 py-1 rounded-full text-[11px] font-bold border-2 transition-all ${oxPenalty === v ? 'bg-red-500 border-red-500 text-white' : 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100'}`}>
-                  {v}
-                </button>
-              ))}
-            </div>
-          </div>
-
           {/* 대상 */}
           <div>
             <label className="text-xs font-bold text-gray-600 uppercase tracking-wider block mb-1.5">대상</label>
@@ -2727,8 +2647,6 @@ function OxGameSection({ balanceGames, voteCounts, currentGame, onGameUpdate, se
               const filled = q.trim().length > 0;
               const sent = batchSentTables.has(n);
               const oxPickerOpen = batchOxPickerTable === n;
-              const oxPenaltyPickerOpen = batchOxPenaltyPickerTable === n;
-              const oxPenalty = batchOxPenalties.get(n) ?? '';
               return (
                 <div key={n} className={`rounded-xl border-2 p-3 transition-all ${filled ? 'border-orange-400 bg-orange-50' : 'border-gray-200 bg-gray-50'}`}>
                   {/* 문제 행 */}
@@ -2742,7 +2660,7 @@ function OxGameSection({ balanceGames, voteCounts, currentGame, onGameUpdate, se
                       placeholder="OX 문제 입력"
                       className="flex-1 bg-white border border-orange-200 text-gray-900 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-orange-400 placeholder-gray-400" />
                     <button
-                      onClick={() => { setBatchOxPickerTable(oxPickerOpen ? null : n); setBatchOxPenaltyPickerTable(null); }}
+                      onClick={() => { setBatchOxPickerTable(oxPickerOpen ? null : n); }}
                       className={`flex-shrink-0 px-2 py-1.5 rounded-lg text-xs font-bold transition-all border ${oxPickerOpen ? 'bg-orange-200 text-orange-700 border-orange-300' : 'bg-white text-orange-500 border-orange-200 hover:bg-orange-50'}`}
                     >
                       {oxPickerOpen ? '닫기' : '고르기'}
@@ -2777,40 +2695,6 @@ function OxGameSection({ balanceGames, voteCounts, currentGame, onGameUpdate, se
                           </button>
                         ))}
                       </div>
-                    </div>
-                  )}
-                  {/* 벌칙 행 */}
-                  <div className="flex items-center gap-2 mt-1.5">
-                    <span className="text-[10px] font-black text-red-400 w-14 flex-shrink-0">벌칙</span>
-                    <input
-                      type="text"
-                      value={oxPenalty}
-                      onChange={e => { const m = new Map(batchOxPenalties); m.set(n, e.target.value); setBatchOxPenalties(m); }}
-                      placeholder="벌칙 (선택)"
-                      className="flex-1 bg-white border border-red-200 text-gray-900 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-red-400 placeholder-gray-400"
-                    />
-                    <button
-                      onClick={() => { setBatchOxPenaltyPickerTable(oxPenaltyPickerOpen ? null : n); setBatchOxPickerTable(null); }}
-                      className={`flex-shrink-0 px-2 py-1.5 rounded-lg text-xs font-bold transition-all border ${oxPenaltyPickerOpen ? 'bg-red-200 text-red-700 border-red-300' : 'bg-white text-red-500 border-red-200 hover:bg-red-50'}`}
-                    >
-                      {oxPenaltyPickerOpen ? '닫기' : '고르기'}
-                    </button>
-                  </div>
-                  {/* 벌칙 고르기 패널 */}
-                  {oxPenaltyPickerOpen && (
-                    <div className="mt-1.5 flex flex-wrap gap-1.5 pt-2 border-t border-red-100">
-                      {GAME_PENALTY_QUICK.map(v => (
-                        <button key={v}
-                          onClick={() => {
-                            const m = new Map(batchOxPenalties);
-                            m.set(n, v);
-                            setBatchOxPenalties(m);
-                            setBatchOxPenaltyPickerTable(null);
-                          }}
-                          className={`px-2.5 py-1 rounded-full text-[11px] font-bold border-2 transition-all active:scale-95 ${oxPenalty === v ? 'bg-red-500 border-red-500 text-white' : 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100'}`}>
-                          {v}
-                        </button>
-                      ))}
                     </div>
                   )}
                 </div>
@@ -2892,7 +2776,6 @@ const CHOSUNG_QUICK = [
 function ChosungGameSection({ seats }: { seats: Seat[] }) {
   const [hint, setHint] = useState('');
   const [answer, setAnswer] = useState('');
-  const [chosungPenalty, setChosungPenalty] = useState('');
   const [targetTable, setTargetTable] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [activeGame, setActiveGame] = useState<QaGame | null>(null);
@@ -2945,7 +2828,7 @@ function ChosungGameSection({ seats }: { seats: Seat[] }) {
   const startGame = async () => {
     if (!hint.trim()) return;
     setSaving(true);
-    const q = `초성: ${hint.trim()}` + (chosungPenalty.trim() ? `\n🎯 벌칙: ${chosungPenalty.trim()}` : '');
+    const q = `초성: ${hint.trim()}`;
     const { data } = await adminSupabase.from('qa_games').insert({
       question: q,
       correct_answer: answer.trim() || null,
@@ -2957,7 +2840,6 @@ function ChosungGameSection({ seats }: { seats: Seat[] }) {
     setAnswers([]);
     setHint('');
     setAnswer('');
-    setChosungPenalty('');
     setSaving(false);
   };
 
@@ -3071,22 +2953,6 @@ function ChosungGameSection({ seats }: { seats: Seat[] }) {
               placeholder="정답이 있으면 입력 — 없으면 자유 답변"
               className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
           </div>
-          {/* 벌칙 */}
-          <div>
-            <label className="text-xs font-bold text-red-500 uppercase tracking-wider block mb-1.5">벌칙 (선택)</label>
-            <input type="text" value={chosungPenalty} onChange={e => setChosungPenalty(e.target.value)}
-              placeholder="예: 원샷, 건배사 하기"
-              className="w-full bg-gray-50 border border-red-200 text-gray-900 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-red-300 mb-2" />
-            <div className="flex flex-wrap gap-1.5">
-              {GAME_PENALTY_QUICK.map(v => (
-                <button key={v} type="button" onClick={() => setChosungPenalty(v)}
-                  className={`px-2.5 py-1 rounded-full text-[11px] font-bold border-2 transition-all ${chosungPenalty === v ? 'bg-red-500 border-red-500 text-white' : 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100'}`}>
-                  {v}
-                </button>
-              ))}
-            </div>
-          </div>
-
           {/* 대상 테이블 */}
           <div>
             <label className="text-xs font-bold text-gray-600 uppercase tracking-wider block mb-1.5">대상</label>
@@ -3120,7 +2986,6 @@ type ImageVote = Database['public']['Tables']['image_votes']['Row'];
 
 function ImageGameSection({ seats, settings, profiles }: { seats: Seat[]; settings: AppSettings | null; profiles: Profile[] }) {
   const [question, setQuestion] = useState('');
-  const [penalty, setPenalty] = useState('');
   const [targetTable, setTargetTable] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [activeGames, setActiveGames] = useState<ImageGame[]>([]);
@@ -3128,13 +2993,11 @@ function ImageGameSection({ seats, settings, profiles }: { seats: Seat[]; settin
   const [refreshing, setRefreshing] = useState(false);
   const [refreshDone, setRefreshDone] = useState(false);
   const [batchMode, setBatchMode] = useState(false);
-  const [batchPenalties, setBatchPenalties] = useState<Map<number, string>>(new Map());
   const [batchQuestions, setBatchQuestions] = useState<Map<number, string>>(new Map());
   const [batchSaving, setBatchSaving] = useState(false);
   const [batchSentTables, setBatchSentTables] = useState<Set<number>>(new Set());
   const [endingGameId, setEndingGameId] = useState<string | null>(null);
   const [batchImagePickerTable, setBatchImagePickerTable] = useState<number | null>(null);
-  const [batchPenaltyPickerTable, setBatchPenaltyPickerTable] = useState<number | null>(null);
   const [batchImageQuickCat, setBatchImageQuickCat] = useState<'general' | 'hot'>('general');
 
   const allTableNumbers = [...new Set(seats.map(s => s.table_number))].sort((a, b) => a - b);
@@ -3188,11 +3051,10 @@ function ImageGameSection({ seats, settings, profiles }: { seats: Seat[]; settin
   }, []);
 
   const startGame = async () => {
-    if (!question.trim() || !penalty.trim()) return;
+    if (!question.trim()) return;
     setSaving(true);
     const { data: gameRow } = await adminSupabase.from('image_games').insert({
       question: question.trim(),
-      penalty: penalty.trim(),
       scope: targetTable !== null ? 'table' : 'global',
       table_number: targetTable ?? null,
     }).select().single();
@@ -3202,7 +3064,6 @@ function ImageGameSection({ seats, settings, profiles }: { seats: Seat[]; settin
         title: question.trim(),
         description: '',
         rules: '',
-        penalty: penalty.trim(),
         game_id: (gameRow as ImageGame).id,
         started_at: new Date().toISOString(),
         table_number: targetTable ?? undefined,
@@ -3210,7 +3071,6 @@ function ImageGameSection({ seats, settings, profiles }: { seats: Seat[]; settin
       await adminSupabase.from('app_settings').update({ game_state: gs as unknown as Json, updated_at: new Date().toISOString() }).eq('id', 1);
     }
     setQuestion('');
-    setPenalty('');
     setTargetTable(null);
     setSaving(false);
     await loadActiveGames();
@@ -3218,21 +3078,19 @@ function ImageGameSection({ seats, settings, profiles }: { seats: Seat[]; settin
 
   const startBatchGames = async () => {
     const entries = tableNumbers
-      .map(n => ({ n, q: (batchQuestions.get(n) ?? '').trim(), p: (batchPenalties.get(n) ?? '').trim() }))
-      .filter(({ q, p }) => !!q && !!p);
+      .map(n => ({ n, q: (batchQuestions.get(n) ?? '').trim() }))
+      .filter(({ q }) => !!q);
     if (!entries.length) return;
     setBatchSaving(true);
-    for (const { n, q, p } of entries) {
+    for (const { n, q } of entries) {
       await adminSupabase.from('image_games').insert({
         question: q,
-        penalty: p,
         scope: 'table',
         table_number: n,
       });
       setBatchSentTables(prev => new Set([...prev, n]));
     }
     setBatchQuestions(new Map());
-    setBatchPenalties(new Map());
     setBatchSentTables(new Set());
     setBatchSaving(false);
     await loadActiveGames();
@@ -3240,12 +3098,10 @@ function ImageGameSection({ seats, settings, profiles }: { seats: Seat[]; settin
 
   const sendSingleImageTable = async (n: number) => {
     const q = (batchQuestions.get(n) ?? '').trim();
-    const p = (batchPenalties.get(n) ?? '').trim();
-    if (!q || !p) return;
+    if (!q) return;
     setBatchSentTables(prev => new Set([...prev, n]));
-    await adminSupabase.from('image_games').insert({ question: q, penalty: p, scope: 'table', table_number: n });
+    await adminSupabase.from('image_games').insert({ question: q, scope: 'table', table_number: n });
     setBatchQuestions(prev => { const m = new Map(prev); m.set(n, ''); return m; });
-    setBatchPenalties(prev => { const m = new Map(prev); m.set(n, ''); return m; });
     setTimeout(() => setBatchSentTables(prev => { const s = new Set(prev); s.delete(n); return s; }), 2000);
     await loadActiveGames();
   };
@@ -3326,7 +3182,7 @@ function ImageGameSection({ seats, settings, profiles }: { seats: Seat[]; settin
   };
   const [imageQuickCategory, setImageQuickCategory] = useState<'general' | 'hot'>('general');
 
-  const batchFilledCount = tableNumbers.filter(n => (batchQuestions.get(n) ?? '').trim() && (batchPenalties.get(n) ?? '').trim()).length;
+  const batchFilledCount = tableNumbers.filter(n => !!(batchQuestions.get(n) ?? '').trim()).length;
 
   return (
     <div className="space-y-5">
@@ -3374,7 +3230,6 @@ function ImageGameSection({ seats, settings, profiles }: { seats: Seat[]; settin
                       {game.scope === 'table' ? `${TABLE_LABELS[game.table_number!] ?? game.table_number}번 테이블` : '전체'}
                     </p>
                     <p className="text-sm font-bold text-gray-900 leading-snug">{game.question}</p>
-                    {game.penalty && <p className="text-xs text-red-600 mt-1 font-medium">벌칙: {game.penalty}</p>}
                   </div>
                   <button onClick={() => endGame(game.id)} disabled={endingGameId === game.id}
                     className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold rounded-xl border border-red-200 transition-all flex-shrink-0 disabled:opacity-50">
@@ -3442,21 +3297,6 @@ function ImageGameSection({ seats, settings, profiles }: { seats: Seat[]; settin
           </div>
 
           <div>
-            <label className="text-xs font-bold text-red-600 uppercase tracking-wider block mb-1.5">벌칙 *</label>
-            <input type="text" value={penalty} onChange={e => setPenalty(e.target.value)}
-              placeholder="예: 원샷, 건배사 하기"
-              className="w-full bg-gray-50 border border-red-200 text-gray-900 text-sm rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-red-400 mb-2" />
-            <div className="flex flex-wrap gap-1.5">
-              {GAME_PENALTY_QUICK.map(v => (
-                <button key={v} type="button" onClick={() => setPenalty(v)}
-                  className={`px-2.5 py-1 rounded-full text-[11px] font-bold border-2 transition-all ${penalty === v ? 'bg-red-500 border-red-500 text-white' : 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100'}`}>
-                  {v}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
             <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">대상 테이블</p>
             <div className="flex flex-wrap gap-2">
               <button onClick={() => setTargetTable(null)} className={`px-3 py-1.5 rounded-lg text-xs font-bold border-2 transition-all ${targetTable === null ? 'bg-amber-400 border-amber-400 text-white' : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'}`}>전체</button>
@@ -3466,7 +3306,7 @@ function ImageGameSection({ seats, settings, profiles }: { seats: Seat[]; settin
             </div>
           </div>
 
-          <button onClick={startGame} disabled={!question.trim() || !penalty.trim() || saving}
+          <button onClick={startGame} disabled={!question.trim() || saving}
             className="w-full py-4 bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-white font-black text-base rounded-2xl transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-amber-500/20 active:scale-[0.98]">
             {saving ? '게임 시작 중...' : targetTable !== null ? `${TABLE_LABELS[targetTable] ?? targetTable}번 테이블 이미지 게임 시작!` : '전체 이미지 게임 시작!'}
           </button>
@@ -3478,7 +3318,7 @@ function ImageGameSection({ seats, settings, profiles }: { seats: Seat[]; settin
         </>
       ) : (
         <>
-          <p className="text-xs text-gray-500">활성 테이블별로 다른 이미지 게임을 동시에 시작합니다. 주제와 벌칙을 모두 입력하세요.</p>
+          <p className="text-xs text-gray-500">활성 테이블별로 다른 이미지 게임을 동시에 시작합니다. 주제를 입력하세요.</p>
 
           {/* 빠른 주제 — 전 테이블 일괄 적용 */}
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
@@ -3509,11 +3349,9 @@ function ImageGameSection({ seats, settings, profiles }: { seats: Seat[]; settin
           <div className="space-y-2">
             {tableNumbers.map(n => {
               const q = batchQuestions.get(n) ?? '';
-              const p = batchPenalties.get(n) ?? '';
-              const filled = q.trim() && p.trim();
+              const filled = !!q.trim();
               const sent = batchSentTables.has(n);
               const imgPickerOpen = batchImagePickerTable === n;
-              const penPickerOpen = batchPenaltyPickerTable === n;
               return (
                 <div key={n} className={`rounded-xl border-2 p-3 space-y-2 transition-all ${filled ? 'border-amber-400 bg-amber-50' : 'border-gray-200 bg-gray-50'}`}>
                   {/* 테이블 헤더 + 전송 버튼 */}
@@ -3537,7 +3375,7 @@ function ImageGameSection({ seats, settings, profiles }: { seats: Seat[]; settin
                       className="flex-1 bg-white border border-amber-200 text-gray-900 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-amber-400 placeholder-gray-400"
                     />
                     <button
-                      onClick={() => { setBatchImagePickerTable(imgPickerOpen ? null : n); setBatchPenaltyPickerTable(null); }}
+                      onClick={() => { setBatchImagePickerTable(imgPickerOpen ? null : n); }}
                       className={`flex-shrink-0 px-2 py-1.5 rounded-lg text-xs font-bold border transition-all ${imgPickerOpen ? 'bg-amber-200 text-amber-700 border-amber-300' : 'bg-white text-amber-500 border-amber-200 hover:bg-amber-50'}`}>
                       {imgPickerOpen ? '닫기' : '고르기'}
                     </button>
@@ -3566,42 +3404,13 @@ function ImageGameSection({ seats, settings, profiles }: { seats: Seat[]; settin
                     </div>
                   )}
 
-                  {/* 벌칙 입력 + 고르기 */}
-                  <div className="flex gap-1.5">
-                    <input
-                      type="text" value={p}
-                      onChange={e => setBatchPenalties(prev => { const m = new Map(prev); m.set(n, e.target.value); return m; })}
-                      placeholder="벌칙 (필수)"
-                      className="flex-1 bg-white border border-red-200 text-gray-900 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-red-400 placeholder-gray-400"
-                    />
-                    <button
-                      onClick={() => { setBatchPenaltyPickerTable(penPickerOpen ? null : n); setBatchImagePickerTable(null); }}
-                      className={`flex-shrink-0 px-2 py-1.5 rounded-lg text-xs font-bold border transition-all ${penPickerOpen ? 'bg-red-200 text-red-700 border-red-300' : 'bg-white text-red-500 border-red-200 hover:bg-red-50'}`}>
-                      {penPickerOpen ? '닫기' : '고르기'}
-                    </button>
-                  </div>
-
-                  {/* 벌칙 빠른 선택 패널 */}
-                  {penPickerOpen && (
-                    <div className="pt-2 border-t border-red-200">
-                      <div className="flex flex-wrap gap-1.5">
-                        {GAME_PENALTY_QUICK.map(v => (
-                          <button key={v}
-                            onClick={() => { setBatchPenalties(prev => { const m = new Map(prev); m.set(n, v); return m; }); setBatchPenaltyPickerTable(null); }}
-                            className="px-2.5 py-1 rounded-full text-[11px] font-bold border-2 bg-red-50 border-red-200 text-red-600 hover:bg-red-100 active:scale-95 transition-all">
-                            {v}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               );
             })}
           </div>
           <button onClick={startBatchGames} disabled={batchFilledCount === 0 || batchSaving}
             className="w-full py-3 bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-white font-bold text-sm rounded-2xl transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-amber-500/20 active:scale-[0.98]">
-            {batchSaving ? '시작 중...' : batchFilledCount > 0 ? `입력된 ${batchFilledCount}개 테이블 일괄 전송` : '테이블별 주제·벌칙을 입력하세요'}
+            {batchSaving ? '시작 중...' : batchFilledCount > 0 ? `입력된 ${batchFilledCount}개 테이블 일괄 전송` : '테이블별 주제를 입력하세요'}
           </button>
         </>
       )}
@@ -4551,9 +4360,9 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       adminSupabase.from('seats').select('*').order('table_number').order('seat_position'),
       adminSupabase.from('profiles').select('*').order('created_at', { ascending: false }),
       adminSupabase.from('session_history').select('*').order('ended_at', { ascending: false }),
-      adminSupabase.from('likes').select('*').order('created_at', { ascending: false }),
-      adminSupabase.from('chats').select('*').order('created_at', { ascending: false }),
-      adminSupabase.from('messages').select('*').order('created_at', { ascending: true }),
+      adminApiSelect<Like>('likes', [{ column: 'created_at', ascending: false }]),
+      adminApiSelect<Chat>('chats', [{ column: 'created_at', ascending: false }]),
+      adminApiSelect<Message>('messages', [{ column: 'created_at', ascending: true }]),
       adminSupabase.from('suggestions').select('*').order('created_at', { ascending: false }),
       adminSupabase.from('anonymous_reports').select('*').order('created_at', { ascending: false }),
     ]);
@@ -4604,27 +4413,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         setSettings(payload.new as AppSettings);
       })
-      // ── likes ────────────────────────────────────────────────────────
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'likes' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-        setLikes(prev => [payload.new as Like, ...prev]);
-      })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'likes' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-        setLikes(prev => prev.filter(l => l.id !== (payload.old as Like).id));
-      })
-      // ── messages ─────────────────────────────────────────────────────
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-        setAllMessages(prev => [...prev, payload.new as Message]);
-      })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-        setAllMessages(prev => prev.filter(m => m.id !== (payload.old as Message).id));
-      })
-      // ── chats ────────────────────────────────────────────────────────
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chats' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-        setAllChats(prev => [payload.new as Chat, ...prev]);
-      })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'chats' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-        setAllChats(prev => prev.filter(c => c.id !== (payload.old as Chat).id));
-      })
       // ── anonymous_reports ────────────────────────────────────────────
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'anonymous_reports' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         const report = payload.new as AnonymousReport;
@@ -4652,6 +4440,40 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [loadAll]);
+
+  // ── api-server SSE 실시간 동기화: likes · messages · chats ──────────────────
+  // api-server는 이 세 테이블을 app_kv_rows에 저장하므로 Supabase Realtime이 아닌
+  // localdb SSE 채널을 써야 실시간 변경을 받을 수 있다.
+  useEffect(() => {
+    const ch = ldbSupabase
+      .channel('admin-ldb-changes')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'likes' },
+        (payload: { new: Record<string, unknown> }) => {
+          setLikes(prev => [payload.new as Like, ...prev]);
+        })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'likes' },
+        (payload: { old: Record<string, unknown> }) => {
+          setLikes(prev => prev.filter(l => l.id !== (payload.old as Like).id));
+        })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' },
+        (payload: { new: Record<string, unknown> }) => {
+          setAllMessages(prev => [...prev, payload.new as Message]);
+        })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' },
+        (payload: { old: Record<string, unknown> }) => {
+          setAllMessages(prev => prev.filter(m => m.id !== (payload.old as Message).id));
+        })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chats' },
+        (payload: { new: Record<string, unknown> }) => {
+          setAllChats(prev => [payload.new as Chat, ...prev]);
+        })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'chats' },
+        (payload: { old: Record<string, unknown> }) => {
+          setAllChats(prev => prev.filter(c => c.id !== (payload.old as Chat).id));
+        })
+      .subscribe();
+    return () => { ldbSupabase.removeChannel(ch); };
+  }, []);
 
   // ─── DB health polling (30s interval) ──────────────────────────────────────
   const fetchDbHealth = useCallback(async () => {

@@ -24,6 +24,8 @@ export function useHearts(
   const likeInFlightRef = useRef(false);
   // 하트 응답(수락/거절) 중복 클릭 방지용 ref
   const heartResponseInFlightRef = useRef<string | null>(null);
+  // 하트 전송 실패 메시지 — 호출 측에서 BottomNotif 등으로 표시
+  const [likeError, setLikeError] = useState<string | null>(null);
 
   // ✅ try/catch 추가 — 네트워크 오류 시 stale state 유지 (기존 UI 보존)
   const loadLikes = useCallback(async (userId: string) => {
@@ -121,10 +123,23 @@ export function useHearts(
           next.set(targetId, s);
           return next;
         });
+        setLikeConfirmTarget(null);
+      } else {
+        // ← 핵심 수정: 서버 오류(429·500 등) 시 모달을 닫되 사용자에게 실패 알림
+        // 기존 코드는 에러 시에도 setLikeConfirmTarget(null)을 호출해 모달이 조용히 닫혔음
+        const errMsg = typeof error === 'object' && error !== null && 'message' in error
+          ? String((error as { message: unknown }).message)
+          : String(error);
+        const isRateLimit = errMsg.includes('429') || errMsg.includes('rate') || errMsg.includes('too many');
+        setLikeError(isRateLimit
+          ? '하트를 너무 많이 보냈습니다. 잠시 후 다시 시도해 주세요. 💔'
+          : '하트 전송에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+        setLikeConfirmTarget(null);
       }
-      setLikeConfirmTarget(null);
     } catch {
-      // 타임아웃 또는 네트워크 오류 — in-flight 잠금만 해제, UI 유지
+      // 타임아웃 또는 네트워크 오류 — 사용자에게 명시적으로 알림
+      setLikeError('연결이 불안정합니다. 잠시 후 다시 시도해 주세요.');
+      setLikeConfirmTarget(null);
     } finally {
       likeInFlightRef.current = false;
     }
@@ -219,6 +234,7 @@ export function useHearts(
     receivedLikers, setReceivedLikers,
     contactSharedWithIds, setContactSharedWithIds,
     acknowledgedComplimentIds, setAcknowledgedComplimentIds,
+    likeError, setLikeError,
     receivedContactShares, setReceivedContactShares,
     likeConfirmTarget, setLikeConfirmTarget,
     contactShareTarget, setContactShareTarget,

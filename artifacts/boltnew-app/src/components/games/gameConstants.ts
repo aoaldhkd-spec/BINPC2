@@ -15,8 +15,4 @@ export const WHEEL_COLORS = [
   '#ea580c','#d97706','#16a34a','#0891b2','#2563eb',
 ];
 
-export const LADDER_PRESET_PRIZES = [
-  '왕 👑', '꽝 💀', '술 앞잔(원샷X) 🍺', '질문 받기 ❓', '19금 질문받기 🔞',
-];
-
 export const MAX_GAME_PARTICIPANTS = 10;

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Copy, CheckCircle, Phone } from 'lucide-react';
 import type { ContactShare, Profile } from '../types/app';
 import ProfileAvatar from './ProfileAvatar';
@@ -10,6 +10,9 @@ export function ContactViewModal({
 }) {
   const hasAny = share.kakao || share.instagram || share.phone;
   const [copied, setCopied] = useState<string | null>(null);
+  // 언마운트 후 setState 호출 방지용 타이머 ref
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (copyTimerRef.current) clearTimeout(copyTimerRef.current); }, []);
 
   const copyToClipboard = async (text: string, label: string) => {
     try {
@@ -27,10 +30,10 @@ export function ContactViewModal({
         ta.remove();
       }
       setCopied(label);
-      setTimeout(() => { setCopied(null); (window as unknown as Record<string, unknown>).__clipboardActive = false; }, 1800);
+      copyTimerRef.current = setTimeout(() => { setCopied(null); (window as unknown as Record<string, unknown>).__clipboardActive = false; }, 1800);
     } catch {
       setCopied('복사 실패');
-      setTimeout(() => { setCopied(null); (window as unknown as Record<string, unknown>).__clipboardActive = false; }, 1800);
+      copyTimerRef.current = setTimeout(() => { setCopied(null); (window as unknown as Record<string, unknown>).__clipboardActive = false; }, 1800);
     }
   };
 

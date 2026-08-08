@@ -52,7 +52,7 @@ export function RouletteDisplay({ result, options }: { result?: string; options?
           {options && options.length > 0 && (
             <div className="flex flex-wrap justify-center gap-2 mb-3">
               {options.map((opt, i) => (
-                <span key={i} className="px-3 py-1 bg-violet-500/20 border border-violet-500/40 rounded-full text-sm text-violet-200">{opt}</span>
+                <span key={`opt-${i}-${opt}`} className="px-3 py-1 bg-violet-500/20 border border-violet-500/40 rounded-full text-sm text-violet-200">{opt}</span>
               ))}
             </div>
           )}
@@ -75,7 +75,7 @@ export function LadderDisplay({ result, participants, prizes }: { result?: strin
         <div className="w-full space-y-2">
           <p className="text-xs font-bold text-violet-300 uppercase tracking-widest text-center mb-3">사다리 결과!</p>
           {pairs.map((p, i) => (
-            <div key={i} className="flex items-center justify-between bg-slate-700/60 rounded-xl px-4 py-2.5 border border-slate-600/40">
+            <div key={`pair-${p.participant}-${i}`} className="flex items-center justify-between bg-slate-700/60 rounded-xl px-4 py-2.5 border border-slate-600/40">
               <span className="font-bold text-white text-sm">{p.participant}</span>
               <span className="text-violet-300 font-black text-sm">{p.prize}</span>
             </div>
@@ -86,12 +86,12 @@ export function LadderDisplay({ result, participants, prizes }: { result?: strin
           <div className="text-7xl mb-2 opacity-50">🪜</div>
           {participants && participants.length > 0 && (
             <div className="flex flex-wrap justify-center gap-1.5 mb-3">
-              {participants.map((p, i) => <span key={i} className="px-2 py-0.5 bg-slate-700 rounded-full text-xs text-slate-300">{p}</span>)}
+              {participants.map((p, i) => <span key={`pt-${i}-${p}`} className="px-2 py-0.5 bg-slate-700 rounded-full text-xs text-slate-300">{p}</span>)}
             </div>
           )}
           {prizes && prizes.length > 0 && (
             <div className="flex flex-wrap justify-center gap-1.5 mb-3">
-              {prizes.map((p, i) => <span key={i} className="px-2 py-0.5 bg-violet-800/60 rounded-full text-xs text-violet-300">🎁 {p}</span>)}
+              {prizes.map((p, i) => <span key={`pr-${i}-${p}`} className="px-2 py-0.5 bg-violet-800/60 rounded-full text-xs text-violet-300">🎁 {p}</span>)}
             </div>
           )}
           <p className="text-sm text-slate-400">관리자가 사다리를 진행 중...</p>

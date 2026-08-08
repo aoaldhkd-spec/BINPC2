@@ -111,7 +111,6 @@ export function GameAnnouncementModal({ game, onDismiss, onVote, onImageVote, cu
             {game.type === 'ladder' && <LadderDisplay result={game.result} participants={game.ladder_participants} prizes={game.ladder_prizes} />}
             {game.type === 'image' && (
               <div className="space-y-2">
-                {game.penalty && <div className="p-3 bg-red-500/10 rounded-xl border border-red-500/30 mb-1"><p className="text-[10px] font-bold text-red-400 uppercase tracking-wider mb-0.5">벌칙</p><p className="text-sm text-red-200">{game.penalty}</p></div>}
                 {!imageVoted && candidates.length > 0 && <p className="text-center text-xs font-bold text-slate-400">한 명을 선택하세요!</p>}
                 {candidates.length === 0 && !imageVoted && <p className="text-center text-xs text-slate-400 py-2">같은 테이블에 참여자가 없습니다</p>}
                 <div className="space-y-1.5 max-h-52 overflow-y-auto">
@@ -136,7 +135,6 @@ export function GameAnnouncementModal({ game, onDismiss, onVote, onImageVote, cu
             {game.image_url && <div className="rounded-xl overflow-hidden border border-slate-700"><img src={game.image_url} alt="game" className="w-full max-h-40 object-cover" /></div>}
             {game.description && !isInteractive && game.type !== 'balance' && <div className="p-3.5 bg-slate-700/40 rounded-xl border border-slate-600/50"><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">게임 설명</p><p className="text-sm text-white leading-relaxed">{game.description}</p></div>}
             {game.rules && !isInteractive && <div className="p-3.5 bg-slate-700/40 rounded-xl border border-slate-600/50"><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">방법</p><p className="text-sm text-slate-200 leading-relaxed">{game.rules}</p></div>}
-            {game.penalty && !isInteractive && <div className="p-3.5 bg-red-500/10 rounded-xl border border-red-500/30"><p className="text-[10px] font-bold text-red-400 uppercase tracking-wider mb-1">벌칙</p><p className="text-sm text-red-200 leading-relaxed">{game.penalty}</p></div>}
           </div>
           {(!isBalance && game.type !== 'image') && (
             <div className="px-5 pb-5"><button onClick={onDismiss} className="w-full py-3 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white font-bold rounded-xl transition-all shadow-lg">확인했습니다!</button></div>

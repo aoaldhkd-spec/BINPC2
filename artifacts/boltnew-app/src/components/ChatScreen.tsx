@@ -13,6 +13,11 @@ import type { Message, Profile, ContactShare } from '../types/app';
 // ─── ChatScreen ───────────────────────────────────────────────────────────────
 // 1:1 채팅 화면. 스티커·이모지·이미지·연락처 공유·궁합·사주 기능 포함.
 
+// ── 채팅방별 스크롤 위치 캐시 ────────────────────────────────────────────────
+// 뒤로가기 후 재진입 시 마지막 스크롤 위치를 복원한다.
+// React ref가 아닌 모듈 스코프 Map을 사용하므로 컴포넌트 언마운트 이후에도 유지된다.
+const _scrollPositionCache = new Map<string, number>();
+
 // ── 이모지 카테고리 (총 ~105개) ───────────────────────────────────────────────
 const EMOJI_CATEGORIES = [
   {
@@ -217,6 +222,17 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   // - 내 메시지 전송: smooth — 항상 하단으로
   // - 상대방 메시지: 스크롤이 하단 근처(100px)일 때만 smooth 이동 (위 읽는 중 강제 이동 방지)
   const prevMsgCountRef = useRef(0);
+
+  // ── 언마운트 시 스크롤 위치 저장 ──────────────────────────────────────────
+  useEffect(() => {
+    return () => {
+      const el = messagesContainerRef.current;
+      if (el) _scrollPositionCache.set(chatId, el.scrollTop);
+    };
+  // chatId가 바뀌면 이전 chatId의 위치를 저장하기 위해 deps에 포함
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatId]);
+
   useEffect(() => {
     const prev = prevMsgCountRef.current;
     const cur = messages.length;
@@ -225,7 +241,14 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
 
     const isInitialLoad = prev === 0 && cur > 1;
     if (isInitialLoad) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'instant' as ScrollBehavior });
+      // 이전에 저장한 스크롤 위치가 있으면 복원 (뒤로가기 후 재진입 시)
+      const cached = _scrollPositionCache.get(chatId);
+      if (cached !== undefined && messagesContainerRef.current) {
+        messagesContainerRef.current.scrollTop = cached;
+        _scrollPositionCache.delete(chatId);
+      } else {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'instant' as ScrollBehavior });
+      }
       return;
     }
 
@@ -266,6 +289,7 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   }, []);
 
   // ── 내 정보 등록 폼 동기화 ─────────────────────────────────────────────────────
+  // currentUserProfile도 deps에 포함: 모달이 열려있는 동안 프로필이 변경되면 폼도 즉시 갱신
   useEffect(() => {
     if (showMyInfoEdit && currentUserProfile) {
       setMyInfoForm({
@@ -276,7 +300,7 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
         instagram: currentUserProfile.instagram_id  ?? '',
       });
     }
-  }, [showMyInfoEdit]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [showMyInfoEdit, currentUserProfile]);
 
   useEffect(() => {
     const newMyMsgs = messages.filter(m => m.sender_id === currentUserId && !initialMsgIds.current.has(m.id));
