@@ -2,7 +2,7 @@ import { useState, useRef, useCallback } from 'react';
 import { ArrowLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { getPositionBg, getDomSubBg } from '../lib/profile';
-import { containsBannedNicknameWord } from '../lib/nicknameGenerator';
+import { containsBannedNicknameWord } from '../lib/bannedWords';
 import { BIO_CATEGORIES } from '../lib/interests';
 
 // ─── 데이터 ────────────────────────────────────────────────────────────────────

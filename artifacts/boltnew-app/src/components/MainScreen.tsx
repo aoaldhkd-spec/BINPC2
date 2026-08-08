@@ -10,7 +10,7 @@ import type { Profile, ContactShare, Suggestion, Chat, MainTab } from '../types/
 import { BIO_CATEGORIES } from '../lib/interests';
 import { HeartType, HEART_TYPES, heartMeta } from '../lib/constants';
 import { getPositionLabel, getPositionBg, getPositionStyle, getDomSubLabel, getDomSubBg, getKoreanAge, genAvatar } from '../lib/profile';
-import { containsBannedNicknameWord } from '../lib/nicknameGenerator';
+import { containsBannedNicknameWord } from '../lib/bannedWords';
 
 // DiceBear backgroundColor 없는 구형 투명 SVG URL → genAvatar 강제 치환
 // backgroundColor 있는 프리셋 아바타 URL은 그대로 유지
