@@ -173,6 +173,8 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   // containerRef 제거 — vpStyle(React state)로 교체됨
 
   const initialMsgIds = useRef(new Set(messages.map(m => m.id)));
+  const messagesRef = useRef(messages); // 항상 최신 messages를 가리키는 ref
+  messagesRef.current = messages;
   const [myUnreadIds, setMyUnreadIds] = useState<Set<string>>(new Set());
 
   // chatId 변경 시 채팅방별 로컬 상태를 전부 초기화한다.
@@ -315,6 +317,10 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
         (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
           const row = (payload as { new?: { reader_id?: string } }).new;
           if (row?.reader_id && row.reader_id !== currentUserId) {
+            // 상대방이 읽었음 → 현재 화면의 메시지를 전부 "이미 본" 목록에 추가.
+            // 이렇게 하지 않으면 3초 폴링이 messages를 갱신할 때
+            // useEffect가 같은 ID를 myUnreadIds에 다시 추가해 "1"이 재표시됨.
+            messagesRef.current.forEach(m => initialMsgIds.current.add(m.id));
             setMyUnreadIds(new Set());
           }
         })
