@@ -56,12 +56,11 @@ const imageStore: Record<string, string> = {};
 // Allowlist prevents access to internal or non-existent tables.
 const ALLOWED_OP_TABLES = new Set([
   'profiles', 'seats', 'chats', 'messages', 'likes', 'chat_reads',
-  'app_settings', 'balance_games', 'balance_votes', 'push_subscriptions',
+  'app_settings', 'push_subscriptions',
   'session_history', 'device_secrets', 'app_kv_rows',
   // Extra tables used by the app
   'contact_shares', 'contact_share_events', 'anonymous_reports',
   'suggestions', 'notifications',
-  'qa_answers', 'qa_games', 'image_votes', 'image_games',
   'app_image_store',
 ]);
 
@@ -124,11 +123,7 @@ const FIELD_LIMITS: Record<string, Record<string, number>> = {
   notifications:     { content: 300, title: 100 },
   suggestions:       { content: 500, contact_info: 100 }, // contact_info 추가: 이전에 미등록으로 비위생 저장 가능
   anonymous_reports: { content: 500, reason: 200 },
-  qa_games:          { question: 300, option_a: 100, option_b: 100, answer: 200 },
-  image_games:       { question: 200, image_url: 500 },
-  balance_games:     { question: 300, option_a: 100, option_b: 100 },
   // ─ 게임 결과/투표 테이블도 자유 텍스트가 있을 수 있으므로 추가 ─────────────
-  game_votes:        { reason: 200 },
 };
 function sanitizeRow(tbl: string, row: Record<string, unknown>): Record<string, unknown> {
   const limits = FIELD_LIMITS[tbl];
@@ -148,6 +143,8 @@ const MAX_CONCURRENT_OPS = 80;
 // ─── Per-IP rate limiters ─────────────────────────────────────────────────────
 // /auth/login: brute-force 방지 (분당 10회)
 const _loginRateMap = new Map<string, { count: number; resetAt: number }>();
+// Rate map 크기 상한 — IP 폭탄 시 OOM 방지
+const RATE_MAP_MAX_SIZE = 50_000;
 const LOGIN_RATE_MAX = 10;
 const LOGIN_RATE_WINDOW_MS = 60_000;
 
@@ -156,8 +153,10 @@ const _uploadRateMap = new Map<string, { count: number; resetAt: number }>();
 const UPLOAD_RATE_MAX = 10;
 const UPLOAD_RATE_WINDOW_MS = 60_000;
 
-// ─── Rate map 주기적 pruning ──────────────────────────────────────────────────
+// ─── Rate map 주기적 pruning + 상한 ─────────────────────────────────────────
 // 공격자가 무수한 IP로 요청하면 Map이 무한 증가 → 2분마다 만료 항목 제거
+// 재발방지: Map 크기가 상한(50000) 초과 시 새 IP 추가 자체를 거부 (OOM 방지)
+const RATE_MAP_MAX_SIZE = 50_000;
 setInterval(() => {
   const now = Date.now();
   for (const [k, v] of _loginRateMap) if (v.resetAt < now) _loginRateMap.delete(k);
@@ -757,12 +756,6 @@ const FULL_RESYNC_TABLES: Array<{ tbl: string; order?: string }> = [
   { tbl: 'notifications', order: 'ORDER BY created_at DESC' },
   { tbl: 'likes',         order: 'ORDER BY created_at DESC LIMIT 5000' },
   { tbl: 'chats',         order: 'ORDER BY created_at DESC LIMIT 5000' },
-  { tbl: 'balance_games', order: 'ORDER BY created_at DESC LIMIT 500' },
-  { tbl: 'balance_votes', order: 'ORDER BY created_at DESC LIMIT 5000' },
-  { tbl: 'qa_games',      order: 'ORDER BY created_at DESC LIMIT 200' },
-  { tbl: 'qa_answers',    order: 'ORDER BY created_at DESC LIMIT 2000' },
-  { tbl: 'image_games',   order: 'ORDER BY created_at DESC LIMIT 200' },
-  { tbl: 'image_votes',   order: 'ORDER BY created_at DESC LIMIT 2000' },
   { tbl: 'suggestions',   order: 'ORDER BY created_at DESC LIMIT 500' },
 ];
 
@@ -773,12 +766,6 @@ const RESYNC_TABLE_LIMIT: Record<string, number> = {
   notifications: 200,
   likes: 5000,
   chats: 5000,
-  balance_games: 500,
-  balance_votes: 5000,
-  qa_games: 200,
-  qa_answers: 2000,
-  image_games: 200,
-  image_votes: 2000,
   suggestions: 500,
 };
 
@@ -1918,8 +1905,8 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         Promise.all(seats.map(s => dbPersistRow('seats', s))).catch(console.error);
         const tablesToClear = [
           'profiles', 'likes', 'anonymous_reports', 'chats', 'messages',
-          'contact_shares', 'contact_share_events', 'balance_votes', 'balance_games',
-          'qa_answers', 'qa_games', 'image_votes', 'image_games', 'notifications', 'suggestions',
+          'contact_shares', 'contact_share_events',
+          'notifications', 'suggestions',
         ];
         // 프라이빗 테이블은 row 내용 없이 "전체 초기화" 신호만 전송 (민감 데이터 유출 방지)
         const RESET_PRIVATE = new Set(['likes', 'chats', 'messages', 'contact_shares', 'contact_share_events', 'chat_reads', 'anonymous_reports']);
@@ -2179,6 +2166,9 @@ router.post('/storage-upload', async (req: Request, res: Response) => {
   const uploadNow = Date.now();
   let uploadBucket = _uploadRateMap.get(uploadIp);
   if (!uploadBucket || uploadNow > uploadBucket.resetAt) {
+    if (!uploadBucket && _uploadRateMap.size >= RATE_MAP_MAX_SIZE) {
+      return res.status(429).json({ data: null, error: '요청이 너무 많습니다.' });
+    }
     uploadBucket = { count: 0, resetAt: uploadNow + UPLOAD_RATE_WINDOW_MS };
     _uploadRateMap.set(uploadIp, uploadBucket);
   }
@@ -2699,6 +2689,9 @@ router.post('/auth/login', (req: Request, res: Response) => {
   const loginNow = Date.now();
   let loginBucket = _loginRateMap.get(loginIp);
   if (!loginBucket || loginNow > loginBucket.resetAt) {
+    if (!loginBucket && _loginRateMap.size >= RATE_MAP_MAX_SIZE) {
+      return res.status(429).json({ error: '요청이 너무 많습니다.' });
+    }
     loginBucket = { count: 0, resetAt: loginNow + LOGIN_RATE_WINDOW_MS };
     _loginRateMap.set(loginIp, loginBucket);
   }
@@ -2889,8 +2882,9 @@ router.get('/events', (req: Request, res: Response) => {
       cleanupConn(); // write 예외 시에도 sseUserMap에서 반드시 제거
     }
   }, 5000);
-  // _sseCleanup에 등록 — _send write 실패 시에도 interval 즉시 해제 가능
-  _sseCleanup.set(res, () => clearInterval(keepalive));
+  // _sseCleanup에 등록 — _send write 실패 시에도 keepalive 해제 + IP 카운터 감소 보장
+  // (cleanupConn에서 _sseConnPerIp 감소를 제거하고 여기서 통합 처리)
+  _sseCleanup.set(res, () => { clearInterval(keepalive); _undoSseConnCount(); });
 
   // _cleaned 플래그로 close·aborted 두 이벤트가 동시에 발생해도 정확히 1회만 실행
   let _cleaned = false;
@@ -2907,10 +2901,7 @@ router.get('/events', (req: Request, res: Response) => {
     } else {
       sseAnonClients.delete(res);
     }
-    // Per-IP connection count 해제 — 최소 0으로 클램프
-    const remaining = (_sseConnPerIp.get(sseIp) ?? 1) - 1;
-    if (remaining <= 0) _sseConnPerIp.delete(sseIp);
-    else _sseConnPerIp.set(sseIp, remaining);
+    // Per-IP connection count 해제: _sseCleanup fn으로 통합 — _undoSseConnCount() 중복 호출 방지
   };
   req.on('close', cleanupConn);
   req.on('aborted', cleanupConn); // Node.js HTTP/1.1 강제 종료 대비

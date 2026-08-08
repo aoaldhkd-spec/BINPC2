@@ -8,8 +8,6 @@ export type Message = Database['public']['Tables']['messages']['Row'];
 export type Seat = Database['public']['Tables']['seats']['Row'];
 export type ContactShare = Database['public']['Tables']['contact_shares']['Row'];
 export type Suggestion = Database['public']['Tables']['suggestions']['Row'];
-export type BalanceGame = Database['public']['Tables']['balance_games']['Row'];
-export type BalanceVote = Database['public']['Tables']['balance_votes']['Row'];
 export type AnonymousReport = Database['public']['Tables']['anonymous_reports']['Row'];
 
 export type Chat = {
@@ -26,36 +24,7 @@ export type MainTab =
   | 'profiles' | 'status' | 'chats' | 'suggestions'
   | 'game' | 'tutorial' | 'stats' | 'ranking' | 'fortune';
 
-export type TableMiniGameSession = {
-  sessionId: string;
-  type: 'ladder' | 'roulette';
-  participants: string[];
-  hostNickname: string;
-  tableNumber: number;
-  startedAt: string;
-  bars?: { row: number; col: number }[];
-  endCols?: number[];
-  shuffledPrizes?: string[];
-  winnerIdx?: number;
-};
 
-export interface GameState {
-  active: boolean;
-  type: 'balance' | 'image' | 'custom' | 'dice' | 'roulette' | 'ladder';
-  title: string;
-  description: string;
-  rules: string;
-  option_a?: string;
-  option_b?: string;
-  game_id?: string;
-  image_url?: string;
-  started_at?: string;
-  table_number?: number;
-  result?: string;
-  roulette_options?: string[];
-  ladder_participants?: string[];
-  ladder_prizes?: string[];
-}
 
 export type NickTpl = { template: string; label: string; type: 'any' | 'action' };
 export type UserGameSubTab = 'balance' | 'ladder' | 'roulette';

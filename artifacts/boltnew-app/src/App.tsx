@@ -7,10 +7,9 @@ import { genAvatar } from './lib/profile';
 import { HeartType } from './lib/constants';
 // ─── 분리된 타입·유틸·컴포넌트 imports ────────────────────────────────────────
 import type {
-  Profile, Seat, ContactShare, Suggestion, BalanceGame, BalanceVote,
-  Chat, View, MainTab, GameState,
+  Profile, Seat, ContactShare, Suggestion,
+  Chat, View, MainTab,
 } from './types/app';
-export type { GameState } from './types/app';
 import { heartMeta } from './lib/constants';
 import ChatScreen from './components/ChatScreen';
 import { ChatErrorBoundary } from './components/ChatErrorBoundary';
@@ -18,11 +17,6 @@ import { AppErrorBoundary } from './components/AppErrorBoundary';
 import ProfileDetail from './components/ProfileDetail';
 import ReconnectOverlay from './components/ReconnectOverlay';
 import { SeatRegisterDialog } from './components/SeatRegisterDialog';
-import { GameResultModal } from './components/games/GameResultModal';
-import { GameActiveBanner } from './components/games/GameActiveBanner';
-import { GameAnnouncementModal } from './components/games/GameAnnouncementModal';
-import { QaGameOverlay } from './components/games/QaGameOverlay';
-import { TableMiniGameModal } from './components/games/TableMiniGameModal';
 import { NotifModal } from './components/NotifModal';
 import { ConfettiOverlay } from './components/ConfettiOverlay';
 import { ContactDisplayModal } from './components/ContactDisplayModal';
@@ -45,7 +39,6 @@ import {
 import { ls } from './lib/storage';
 import { MainScreen } from './components/MainScreen';
 import { useSeating } from './hooks/useSeating';
-import { useGames } from './hooks/useGames';
 import { useHearts } from './hooks/useHearts';
 import { useChat } from './hooks/useChat';
 
@@ -224,11 +217,6 @@ function App() {
 
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(false);
-  const [currentGame, setCurrentGame] = useState<GameState | null>(null);
-  const [gameModalVisible, setGameModalVisible] = useState(false);
-  const [activeQaGame, setActiveQaGame] = useState<{ id: string; question: string; correct_answer: string | null } | null>(null);
-  const [qaOverlayVisible, setQaOverlayVisible] = useState(false);
-  const [qaSubmittedIds, setQaSubmittedIds] = useState<Set<string>>(new Set());
   const [activeNotif, setActiveNotif] = useState<{ id: string; message: string; type: string; target: string } | null>(null);
   const [timerEndAt, setTimerEndAt] = useState<string | null>(null);
   const [timerLabel, setTimerLabel] = useState<string | null>(null);
@@ -355,13 +343,6 @@ function App() {
   } = useSeating(currentUserId);
 
   const {
-    balanceGames, setBalanceGames, voteCounts, setVoteCounts, myVotes,
-    gameEndResult, setGameEndResult, incomingTableGame, setIncomingTableGame,
-    loadBalanceGames, loadMyVotes, voteOnGame, voteOnImageGame,
-    createTableGame, endBalanceGame, broadcastTableGame,
-  } = useGames(currentUserId, seats, profiles);
-
-  const {
     chatId, setChatId, chatIdRef, selfInitiatedPairRef, messages, chatList, setChatList, chatListRef,
     unreadChatCounts, setUnreadChatCounts, newMsgCount, setNewMsgCount,
     loadChatList, openChat, sendMessage, sendImage,
@@ -453,13 +434,11 @@ function App() {
       if (data?.seating_locked != null) setSeatingLocked(data.seating_locked);
       if (data?.functions_locked != null) setFunctionsLocked(data.functions_locked);
       setResetPassword((data as { reset_password?: string | null })?.reset_password ?? null);
-      const gs = data?.game_state as GameState | null;
-      if (gs?.active) { setCurrentGame(gs); setGameModalVisible(true); }
     }).catch(() => {});
     const settingsChannel = supabase
       .channel('app-settings-user')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_settings' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-        const p = payload.new as { session_active: boolean; game_state: GameState | null; timer_end_at: string | null; timer_label: string | null; seating_locked: boolean | null; active_tables: number[] | null; reset_signal: string | null; table_labels: Record<string, string> | null; reset_password: string | null; entry_password: string | null };
+        const p = payload.new as { session_active: boolean; timer_end_at: string | null; timer_label: string | null; seating_locked: boolean | null; active_tables: number[] | null; reset_signal: string | null; table_labels: Record<string, string> | null; reset_password: string | null; entry_password: string | null };
         // Admin triggered a full reset: wipe local user identity and force back to nickname setup
         if (p.reset_signal && p.reset_signal !== ls.getItem(MATCHING_LAST_RESET_KEY)) {
           ls.setItem(MATCHING_LAST_RESET_KEY, p.reset_signal);
@@ -473,12 +452,10 @@ function App() {
           setReceivedLikers([]);
           setChatList([]);
           setSuggestions([]);
-          // 추가 상태 초기화 — 하트·알림·게임이 리셋 후에도 남아있는 버그 방지
+          // 추가 상태 초기화 — 하트·알림이 리셋 후에도 남아있는 버그 방지
           setSentHeartTypes(new Map());
           setSentHeartsPerPerson(new Map());
           setActiveNotif(null);
-          setCurrentGame(null);
-          setGameModalVisible(false);
           setView('entry-1');
           return;
         }
@@ -498,22 +475,6 @@ function App() {
           const ep = p.entry_password ?? '';
           setEntryPassword(ep);
           setEntryVerified(!ep || ls.getItem(ENTRY_VERIFIED_KEY) === ep);
-        }
-        const gs = p.game_state as GameState | null;
-        if (gs?.active) {
-          // Only show if game targets all or the user's own table
-          const userTableNum = seats.find(s => s.profile_id === currentUserId)?.table_number ?? null;
-          const isForMe = !gs.table_number || gs.table_number === userTableNum;
-          if (isForMe) {
-            setCurrentGame(gs);
-            setGameModalVisible(true);
-          } else {
-            setCurrentGame(null);
-            setGameModalVisible(false);
-          }
-        } else {
-          setCurrentGame(null);
-          setGameModalVisible(false);
         }
       })
       .subscribe();
@@ -536,58 +497,6 @@ function App() {
         // 관리자가 알림을 삭제 시 표시 중이면 즉시 닫기
         const n = payload.old as { id: string };
         setActiveNotif(prev => prev?.id === n.id ? null : prev);
-      })
-      .subscribe();
-
-    // Q&A game subscription (root-level so overlay shows on any tab)
-    const loadActiveQa = async () => {
-      const { data } = await supabase.from('qa_games').select('id, question, correct_answer').eq('status', 'active').neq('scope', 'chosung').order('created_at', { ascending: false }).limit(1);
-      const game = data?.[0] ?? null;
-      if (game) {
-        setActiveQaGame(game);
-        setQaOverlayVisible(true);
-      } else {
-        setActiveQaGame(null);
-        setQaOverlayVisible(false);
-      }
-    };
-    loadActiveQa();
-    const qaChannel = supabase.channel('qa-user-root')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'qa_games' }, loadActiveQa)
-      .subscribe();
-
-    // Image game table subscription: show modal when a new image game is inserted for this user's table
-    const imageGameChannel = supabase.channel('image-games-user')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'image_games' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-        const row = payload.new as { id: string; question: string; penalty: string; scope: string; table_number: number | null; status: string };
-        if (row.status === 'ended') return;
-        const myTable = userTableNumRef.current;
-        const isForMe = row.scope === 'global' || row.table_number == null || row.table_number === myTable;
-        if (!isForMe) return;
-        const gs: GameState = {
-          active: true,
-          type: 'image',
-          title: row.question,
-          description: '',
-          rules: '',
-          game_id: row.id,
-          started_at: new Date().toISOString(),
-          table_number: row.table_number ?? undefined,
-        };
-        setCurrentGame(gs);
-        setGameModalVisible(true);
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'image_games' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-        const row = payload.new as { id: string; status: string };
-        if (row.status === 'ended') {
-          setCurrentGame(prev => {
-            if (prev?.type === 'image' && prev.game_id === row.id) {
-              setGameModalVisible(false);
-              return null;
-            }
-            return prev;
-          });
-        }
       })
       .subscribe();
 
@@ -622,8 +531,6 @@ function App() {
       shareNotifTimerIds.forEach(clearTimeout);
       supabase.removeChannel(settingsChannel);
       supabase.removeChannel(notifChannel);
-      supabase.removeChannel(qaChannel);
-      supabase.removeChannel(imageGameChannel);
       supabase.removeChannel(contactEventsChannel);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only; adding deps causes reconnect loop
@@ -727,8 +634,6 @@ function App() {
     }, 300);
     initTimerId2 = setTimeout(() => {
       loadSuggestions(currentUserId);
-      loadBalanceGames();
-      loadMyVotes(currentUserId);
     }, 600);
 
     // ── ?share=<profileId> 처리: 연락처 QR 스캔 → 연락처 모달 표시 ──
@@ -900,54 +805,6 @@ function App() {
       })
       .subscribe();
 
-    const balanceChannel = supabase
-      .channel('realtime:balance')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'balance_votes' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-        const v = payload.new as BalanceVote;
-        setVoteCounts(prev => {
-          const copy = new Map(prev);
-          const c = copy.get(v.game_id) || { a: 0, b: 0 };
-          copy.set(v.game_id, { ...c, [v.option]: c[v.option] + 1 });
-          return copy;
-        });
-      })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'balance_games' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-        const g = payload.new as BalanceGame;
-        setBalanceGames(prev => prev.some(x => x.id === g.id) ? prev : [g, ...prev]);
-        // Show announcement modal for the user's table
-        if (g.status === 'ended') return;
-        const myTable = userTableNumRef.current;
-        const isForMe = g.scope === 'global' || (myTable != null && g.table_number === myTable);
-        if (!isForMe) return;
-        const gs: GameState = {
-          active: true,
-          type: 'balance',
-          title: g.question,
-          description: '',
-          rules: '',
-          option_a: g.option_a,
-          option_b: g.option_b,
-          game_id: g.id,
-          started_at: new Date().toISOString(),
-          table_number: g.table_number ?? undefined,
-        };
-        setCurrentGame(gs);
-        setGameModalVisible(true);
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'balance_games' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-        const updated = payload.new as BalanceGame;
-        setBalanceGames(prev => prev.map(g => g.id === updated.id ? updated : g));
-        if (updated.status === 'ended') {
-          // setState 중첩 금지: queueMicrotask로 updater 밖에서 setGameEndResult 호출
-          setVoteCounts(prev => {
-            const counts = prev.get(updated.id) || { a: 0, b: 0 };
-            queueMicrotask(() => setGameEndResult({ game: updated, counts }));
-            return prev;
-          });
-        }
-      })
-      .subscribe();
-
     const suggestionsChannel = supabase
       .channel('realtime:suggestions')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'suggestions', filter: `profile_id=eq.${currentUserId}` }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
@@ -976,12 +833,11 @@ function App() {
       supabase.removeChannel(receivedLikesChannel);
       supabase.removeChannel(contactSharesChannel);
       supabase.removeChannel(seatsChannel);
-      supabase.removeChannel(balanceChannel);
       supabase.removeChannel(chatChannel);
       supabase.removeChannel(suggestionsChannel);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- loadXxx are stable useCallbacks; setState/refs are stable
-  }, [currentUserId, loadProfiles, loadLikes, loadReceivedLikes, loadContactShareData, loadChatList, loadSuggestions, loadBalanceGames, loadMyVotes, loadSeats]);
+  }, [currentUserId, loadProfiles, loadLikes, loadReceivedLikes, loadContactShareData, loadChatList, loadSuggestions, loadSeats]);
 
   // Re-validate profile when the user returns to the app (Android/iOS back, home button, tab switch)
   useEffect(() => {
@@ -1006,15 +862,13 @@ function App() {
           loadLikes(storedId);
           loadChatList(storedId);
           loadContactShareData(storedId);
-          loadBalanceGames();
-          loadMyVotes(storedId);
           loadSuggestions(storedId);
         }
       }).catch(() => { /* 네트워크 오류 → 세션 유지, 데이터는 다음 리프레시 때 갱신 */ });
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [loadProfiles, loadReceivedLikes, loadLikes, loadChatList, loadSeats, loadContactShareData, loadBalanceGames, loadMyVotes, loadSuggestions]);
+  }, [loadProfiles, loadReceivedLikes, loadLikes, loadChatList, loadSeats, loadContactShareData, loadSuggestions]);
 
   // Web push 구독 — 로그인 완료 후 알림 권한 요청 및 구독 등록
   useEffect(() => {
@@ -1043,20 +897,12 @@ function App() {
       loadSeats();
       loadProfiles();
       // 재연결 중 바뀐 타이머·게임·잠금 상태 재동기화
-      supabase.from('app_settings').select('session_active, game_state, timer_end_at, timer_label, seating_locked, active_tables, reset_signal, table_labels').eq('id', 1).single().then(({ data }: { data: any }) => {
+      supabase.from('app_settings').select('session_active, timer_end_at, timer_label, seating_locked, active_tables, reset_signal, table_labels').eq('id', 1).single().then(({ data }: { data: any }) => {
         if (!data) return;
         setSessionActive(data.session_active);
         setTimerEndAt(data.timer_end_at ?? null);
         setTimerLabel(data.timer_label ?? null);
         if (data.seating_locked != null) setSeatingLocked(data.seating_locked);
-        const gs = data.game_state as GameState | null;
-        if (gs?.active) {
-          setCurrentGame(gs);
-          setGameModalVisible(true);
-        } else {
-          setCurrentGame(null);
-          setGameModalVisible(false);
-        }
       }).catch(() => {});
     });
     return unsubReconnect;
@@ -1283,8 +1129,6 @@ function App() {
   if (view === 'profile' && selectedProfile) return (
     <AppErrorBoundary screenName="프로필" onReset={() => setView('main')}>
     <>
-      {currentGame?.active && gameModalVisible && <GameAnnouncementModal game={currentGame} onDismiss={() => setGameModalVisible(false)} onVote={voteOnGame} onImageVote={voteOnImageGame} currentUserId={currentUserId} seats={seats} profiles={profiles} />}
-      {currentGame?.active && !gameModalVisible && <GameActiveBanner game={currentGame} onClick={() => setGameModalVisible(true)} />}
       <ProfileDetail
         profile={selectedProfile}
         isMe={selectedProfile.id === currentUserId}
@@ -1326,7 +1170,6 @@ function App() {
   if (view === 'chat' && selectedProfile && chatId) return (
     <ChatErrorBoundary onReset={() => { chatIdRef.current = null; setChatId(null); setView('main'); }}>
       <>
-        {currentGame?.active && gameModalVisible && <GameAnnouncementModal game={currentGame} onDismiss={() => setGameModalVisible(false)} onVote={voteOnGame} onImageVote={voteOnImageGame} currentUserId={currentUserId} seats={seats} profiles={profiles} />}
         <ChatScreen
           chatId={chatId}
           messages={messages}
@@ -1428,38 +1271,6 @@ function App() {
           </div>
         </AppErrorBoundary>
       )}
-      {/* Balance game result modal - appears on any tab when a game ends */}
-      {gameEndResult && (
-        <AppErrorBoundary screenName="게임 결과" onReset={() => setGameEndResult(null)}>
-          <GameResultModal game={gameEndResult.game} counts={gameEndResult.counts} onClose={() => setGameEndResult(null)} />
-        </AppErrorBoundary>
-      )}
-      {/* Q&A Game Overlay (전체 공지) */}
-      {activeQaGame && qaOverlayVisible && (
-        <AppErrorBoundary screenName="Q&A 게임" onReset={() => setQaOverlayVisible(false)}>
-          <QaGameOverlay
-            game={activeQaGame}
-            currentUserId={currentUserId}
-            currentUserNickname={profileMap.get(currentUserId ?? '')?.nickname ?? null}
-            seats={seats}
-            alreadySubmitted={qaSubmittedIds.has(activeQaGame.id)}
-            onSubmitted={() => setQaSubmittedIds(prev => new Set([...prev, activeQaGame.id]))}
-            onDismiss={() => setQaOverlayVisible(false)}
-          />
-        </AppErrorBoundary>
-      )}
-      {/* Game Announcement Modal (전체 알림) */}
-      {currentGame?.active && gameModalVisible && (
-        <AppErrorBoundary screenName="게임 공지" onReset={() => setGameModalVisible(false)}>
-          <GameAnnouncementModal game={currentGame} onDismiss={() => setGameModalVisible(false)} onVote={voteOnGame} onImageVote={voteOnImageGame} currentUserId={currentUserId} seats={seats} profiles={profiles} />
-        </AppErrorBoundary>
-      )}
-      {/* Game Active Banner (모달 닫은 후 상단 표시) */}
-      {currentGame?.active && !gameModalVisible && (
-        <AppErrorBoundary screenName="게임 배너" onReset={() => setGameModalVisible(false)}>
-          <GameActiveBanner game={currentGame} onClick={() => setGameModalVisible(true)} />
-        </AppErrorBoundary>
-      )}
       <AppErrorBoundary screenName="메인 화면" onReset={() => { setView('main'); setMainTab('profiles'); }}>
       <MainScreen
         profiles={profiles}
@@ -1492,12 +1303,6 @@ function App() {
         onDeleteAllChats={deleteAllChats}
         onSubmitSuggestion={submitSuggestion}
         onOpenChat={openChat}
-        balanceGames={balanceGames}
-        voteCounts={voteCounts}
-        myVotes={myVotes}
-        onVote={voteOnGame}
-        onCreateGame={createTableGame}
-        onEndGame={endBalanceGame}
         onSubmitAnonymousReport={submitAnonymousReport}
         timerEndAt={timerEndAt}
         timerLabel={timerLabel}
@@ -1524,19 +1329,9 @@ function App() {
         unreadChatCounts={unreadChatCounts}
         onClearChatUnread={(chatId) => setUnreadChatCounts(prev => { const n = { ...prev }; delete n[chatId]; return n; })}
         resetPassword={resetPassword}
-        onBroadcastGame={broadcastTableGame}
         fortuneCompatTarget={fortuneCompatTarget}
       />
       </AppErrorBoundary>
-      {/* Table Mini-Game Modal (테이블 동기 게임 결과) */}
-      {incomingTableGame && (
-        <AppErrorBoundary screenName="테이블 게임" onReset={() => setIncomingTableGame(null)}>
-          <TableMiniGameModal
-            session={incomingTableGame}
-            onClose={() => setIncomingTableGame(null)}
-          />
-        </AppErrorBoundary>
-      )}
       {seatDialog && (
         <AppErrorBoundary screenName="자리 등록" onReset={() => setSeatDialog(null)}>
           <SeatRegisterDialog

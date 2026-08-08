@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../lib/theme';
-import type { Profile, Seat, ContactShare, Suggestion, BalanceGame, Chat, MainTab, TableMiniGameSession } from '../types/app';
+import type { Profile, Seat, ContactShare, Suggestion, Chat, MainTab } from '../types/app';
 import { BIO_CATEGORIES } from '../lib/interests';
 import { HeartType, HEART_TYPES, heartMeta } from '../lib/constants';
 import { getPositionLabel, getPositionBg, getPositionStyle, getDomSubLabel, getDomSubBg, getKoreanAge, genAvatar } from '../lib/profile';
@@ -427,7 +427,6 @@ const AVATAR_CATEGORIES = [
   ]},
 ];
 import { ResetButton } from './ResetButton';
-import { UserGameTab } from './games/UserGameTab';
 const FortuneTab = lazy(() => import('./FortuneTab'));
 
 // ─── StatusErrorBoundary ──────────────────────────────────────────────────────
@@ -618,11 +617,10 @@ export function MainScreen({
   onTabChange, onLike, onSelect, onReset, onProfileClickFromMap: _onProfileClickFromMap,
   receivedLikers, receivedHeartTypes, sentLikedProfiles, contactSharedWithIds, acknowledgedComplimentIds,
   receivedContactShares, pendingHeartsCount, chatList, suggestions,
-  balanceGames, voteCounts, myVotes,
   onContactShareOpen: _onContactShareOpen, onContactViewOpen, onHeartResponse, onDeleteChat, onDeleteAllChats, onSubmitSuggestion, onOpenChat,
-  onVote, onCreateGame, onEndGame, onSubmitAnonymousReport,
+  onSubmitAnonymousReport,
   timerEndAt, timerLabel, onRefreshStatus, onRefreshChat, onRefreshProfiles, darkMode, onToggleDark, onShowQr, onShowContactQr, onScanQr, scannedContacts, onClearScannedContact, seatingLocked, functionsLocked = false, onShowTutorial,
-  newMsgCount, onClearMsgCount, unreadChatCounts, onClearChatUnread: _onClearChatUnread, resetPassword, onBroadcastGame,
+  newMsgCount, onClearMsgCount, unreadChatCounts, onClearChatUnread: _onClearChatUnread, resetPassword,
   onUpdateProfile, fortuneCompatTarget,
 }: {
   profiles: Profile[]; currentUserId: string | null; likedIds: Set<string>; sentHeartTypes: Map<string, HeartType>; sentHeartsPerPerson: Map<string, Set<HeartType>>; likeStatuses: Map<string, string>;
@@ -633,7 +631,6 @@ export function MainScreen({
   receivedLikers: Profile[]; receivedHeartTypes: Map<string, HeartType>; sentLikedProfiles: Profile[];
   contactSharedWithIds: Set<string>; acknowledgedComplimentIds: Set<string>; receivedContactShares: ContactShare[];
   pendingHeartsCount: number; chatList: Chat[]; suggestions: Suggestion[];
-  balanceGames: BalanceGame[]; voteCounts: Map<string, { a: number; b: number }>; myVotes: Map<string, 'a' | 'b'>;
   onContactShareOpen: (profile: Profile) => void;
   onContactViewOpen: (share: ContactShare, profile: Profile) => void;
   onHeartResponse: (likerId: string, response: 'accepted' | 'rejected') => void;
@@ -641,9 +638,6 @@ export function MainScreen({
   onDeleteAllChats: () => void;
   onSubmitSuggestion: (content: string, contactInfo: string) => Promise<void>;
   onOpenChat: (profile: Profile) => void;
-  onVote: (gameId: string, option: 'a' | 'b') => void;
-  onCreateGame: (question: string, optA: string, optB: string, scope: 'global' | 'table') => void;
-  onEndGame: (gameId: string) => void;
   onSubmitAnonymousReport: (content: string, tableNumber: number | null) => Promise<void>;
   timerEndAt: string | null;
   timerLabel: string | null;
@@ -665,7 +659,6 @@ export function MainScreen({
   unreadChatCounts: Record<string, number>;
   onClearChatUnread: (chatId: string) => void;
   resetPassword: string | null;
-  onBroadcastGame: (s: TableMiniGameSession) => void;
   onUpdateProfile: (update: Record<string, unknown> & { id: string }) => void;
   fortuneCompatTarget?: string;
 }) {
@@ -673,7 +666,7 @@ export function MainScreen({
   const currentUserSeat = useMemo(() => seats.find(s => s.profile_id === currentUserId) ?? null, [seats, currentUserId]);
   const tableNumber = currentUserSeat?.table_number ?? null;
 
-  const currentUserNickname = useMemo(() => profiles.find(p => p.id === currentUserId)?.nickname ?? '', [profiles, currentUserId]);
+  const _currentUserNickname = useMemo(() => profiles.find(p => p.id === currentUserId)?.nickname ?? '', [profiles, currentUserId]);
   const [profileSearch, setProfileSearch] = useState('');
   const [profilePersonalityFilter, setProfilePersonalityFilter] = useState<string | null>(null);
   const [profileMbtiFilter, setProfileMbtiFilter] = useState<string | null>(null);
@@ -733,7 +726,6 @@ export function MainScreen({
     }, 2000);
   };
   const heartsKey = `seen_hearts_${currentUserId ?? 'x'}`;
-  const gameKey = `seen_game_${currentUserId ?? 'x'}`;
   const contactsKey = `seen_contacts_${currentUserId ?? 'x'}`;
   const profilesKey = `seen_profiles_${currentUserId ?? 'x'}`;
   const [seenHeartsCount, setSeenHeartsCountRaw] = useState(() => {
@@ -742,22 +734,12 @@ export function MainScreen({
   const [seenProfilesCount, setSeenProfilesCountRaw] = useState(() => {
     const v = ls.getItem(profilesKey); return v !== null ? parseInt(v, 10) : -1;
   });
-  const activeGameCount = useMemo(() => balanceGames.filter(g =>
-    g.status === 'active' && (
-      g.scope === 'global' ||
-      (tableNumber != null && g.table_number === tableNumber)
-    )
-  ).length, [balanceGames, tableNumber]);
-  const [seenGameCount, setSeenGameCountRaw] = useState(() => {
-    const v = ls.getItem(gameKey); return v !== null ? parseInt(v, 10) : 0;
-  });
   const [seenContactsCount, setSeenContactsCountRaw] = useState(() => {
     const v = ls.getItem(contactsKey); return v !== null ? parseInt(v, 10) : 0;
   });
 
   const setSeenHeartsCount = (n: number) => { ls.setItem(heartsKey, String(n)); setSeenHeartsCountRaw(n); };
   const setSeenProfilesCount = (n: number) => { ls.setItem(profilesKey, String(n)); setSeenProfilesCountRaw(n); };
-  const setSeenGameCount = (n: number) => { ls.setItem(gameKey, String(n)); setSeenGameCountRaw(n); };
   const setSeenContactsCount = (n: number) => { ls.setItem(contactsKey, String(n)); setSeenContactsCountRaw(n); };
 
   const newContactsCount = Math.max(0, receivedContactShares.length - seenContactsCount);
@@ -775,9 +757,8 @@ export function MainScreen({
     if (seenHeartsCount === 0) setSeenHeartsCount(pendingHeartsCount);
     if (seenContactsCount === 0) setSeenContactsCount(receivedContactShares.length);
     if (seenProfilesCount === -1 || seenProfilesCount === 0) setSeenProfilesCount(profiles.length);
-    if (seenGameCount === 0 && activeGameCount > 0) setSeenGameCount(activeGameCount);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingHeartsCount, receivedContactShares.length, profiles.length, activeGameCount]);
+  }, [pendingHeartsCount, receivedContactShares.length, profiles.length]);
 
   // 하향 동기화: 하트/연락처 수가 줄어들었으면(상대방 취소 등) seen 카운트를 낮춰 고스트 배지 제거
   useEffect(() => {
@@ -824,7 +805,6 @@ export function MainScreen({
     if (t === 'status') { setSeenHeartsCount(pendingHeartsCount); setSeenContactsCount(receivedContactShares.length); }
     if (t === 'profiles') setSeenProfilesCount(profiles.length);
     if (t === 'chats') { onClearMsgCount(); }
-    if (t === 'fortune') setSeenGameCount(activeGameCount);
     onTabChange(t);
   };
 
@@ -2210,24 +2190,6 @@ export function MainScreen({
               })
             )}
           </div>
-        )}
-
-        {/* ─── 게임 탭 ─── */}
-        {mainTab === 'game' && (
-            <UserGameTab
-              currentUserId={currentUserId}
-              tableNumber={tableNumber}
-              currentUserNickname={currentUserNickname}
-              balanceGames={balanceGames}
-              voteCounts={voteCounts}
-              myVotes={myVotes}
-              seats={seats}
-              profileMap={profileMap}
-              onVote={onVote}
-              onCreateGame={onCreateGame}
-              onEndGame={onEndGame}
-              onBroadcastGame={tableNumber !== null ? onBroadcastGame : undefined}
-            />
         )}
 
         {/* ─── 건의함 탭 (관리자에게 요청) ─── */}

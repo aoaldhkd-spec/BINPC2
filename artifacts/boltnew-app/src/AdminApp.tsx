@@ -235,7 +235,6 @@ const NOTIF_TYPES = [
   { id: 'info',   label: '📢 일반공지', color: 'bg-blue-50 border-blue-200 text-blue-800' },
   { id: 'urgent', label: '🚨 긴급',     color: 'bg-red-50 border-red-200 text-red-800' },
   { id: 'event',  label: '🎉 이벤트',   color: 'bg-amber-50 border-amber-200 text-amber-800' },
-  { id: 'game',   label: '🎮 진행·게임', color: 'bg-violet-50 border-violet-200 text-violet-800' },
 ];
 
 function NotificationTab({ tableCount, settings, onSetTimer }: {
@@ -341,7 +340,6 @@ function NotificationTab({ tableCount, settings, onSetTimer }: {
   const URGENT_QUICK = [
     { label: '⚙️ 시스템\n안정화', msg: '⚙️ 시스템 안정화 작업 중입니다. 잠시 불편하시더라도 양해 부탁드립니다.' },
   ];
-  const WHO_TARGETS = ['테이블 전체', '지목 2~3명', '탑오빠한테만', '텀동생한테만'];
   const LOST_ITEMS = ['카드', '지갑', '민증', '가방', '우산', '열쇠', '핸드폰', '안경'];
   const LOST_COLORS = [
     { label: '빨간색', cls: 'bg-red-500' }, { label: '파란색', cls: 'bg-blue-500' },
@@ -355,9 +353,6 @@ function NotificationTab({ tableCount, settings, onSetTimer }: {
     { label: '🥰 칭찬 많이 받은 사람', msg: (prize: string) => `🥰 [칭찬 최다 수신] 수상자를 발표합니다! 상금: ${prize} 🎉 축하드립니다!` },
   ];
   const PRIZE_AMOUNTS = ['1,000원', '2,000원', '3,000원', '5,000원', '10,000원', '15,000원', '20,000원'];
-  const GAME_QUICK = [
-    '가장 ~한 사람은?', '가장 ~큰 사람은?', '가장 작은 사람은?', '가장 ~일 것 같은 사람은?',
-  ];
   const [lostItem, setLostItem] = useState<string|null>(null);
   const [lostColor, setLostColor] = useState<string|null>(null);
   const [showLostPicker, setShowLostPicker] = useState(false);
@@ -526,18 +521,6 @@ function NotificationTab({ tableCount, settings, onSetTimer }: {
                 </div>
               </div>
             )}
-
-            {/* 진행·게임 */}
-            {type === 'game' && (
-              <div className="grid grid-cols-2 gap-1.5">
-                {GAME_QUICK.map(msg => (
-                  <button key={msg} onClick={() => setMessage(msg)}
-                    className="text-xs font-semibold px-2 py-2 rounded-xl bg-violet-50 border border-violet-200 text-violet-700 hover:bg-violet-100 transition-all text-center leading-snug active:scale-95">
-                    {msg}
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
 
           {/* Target */}
@@ -561,23 +544,6 @@ function NotificationTab({ tableCount, settings, onSetTimer }: {
             />
           </div>
 
-          {type === 'game' && (
-            <div className="space-y-3">
-              {/* 누구? */}
-              <div>
-                <label className="text-xs font-semibold text-violet-600 mb-1.5 block">누구?</label>
-                <div className="grid grid-cols-2 gap-1.5">
-                  {WHO_TARGETS.map(w => (
-                    <button key={w} type="button"
-                      onClick={() => setMessage(prev => `${prev.replace(/ → .+$/, '')} → ${w}`)}
-                      className="py-2 rounded-xl text-xs font-bold border-2 bg-white border-violet-200 text-violet-700 hover:bg-violet-50 active:scale-95 transition-all">
-                      {w}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* ⏱ 타이머 함께 시작 토글 */}
           <div className={`rounded-2xl border-2 transition-all overflow-hidden ${withTimer ? 'border-amber-300 bg-amber-50' : 'border-gray-100 bg-gray-50'}`}>
@@ -2527,15 +2493,11 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     const backupMsgs = [...allMessages];
     const backupSuggestions = [...suggestions];
     const backupHistories = [...histories];
-    const gsBackup = settings?.game_state ?? null;
     // 백업 데이터 수집 — 실패해도 초기화 진행
-    const [notifRes, bgRes, bvRes, qgRes, qaRes, igRes, ivRes] = await Promise.allSettled([
+    const [notifRes, bvRes, qaRes, ivRes] = await Promise.allSettled([
       adminSupabase.from('notifications').select('*'),
-      adminSupabase.from('balance_games').select('*'),
       adminSupabase.from('balance_votes').select('*'),
-      adminSupabase.from('qa_games').select('*'),
       adminSupabase.from('qa_answers').select('*'),
-      adminSupabase.from('image_games').select('*'),
       adminSupabase.from('image_votes').select('*'),
     ]);
     const safeData = (r: PromiseSettledResult<{ data: unknown[] | null }>) =>
@@ -2553,18 +2515,15 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         adminSupabase.from('messages').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
         adminSupabase.from('chats').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
         adminSupabase.from('notifications').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
-        adminSupabase.from('balance_games').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
-        adminSupabase.from('qa_games').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
-        adminSupabase.from('image_games').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
         adminSupabase.from('balance_votes').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
         adminSupabase.from('qa_answers').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
         adminSupabase.from('image_votes').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
         adminSupabase.from('suggestions').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
       ]);
-      const { error: sigErr } = await adminSupabase.from('app_settings').update({ reset_signal: new Date().toISOString(), game_state: null, updated_at: new Date().toISOString() }).eq('id', 1);
+      const { error: sigErr } = await adminSupabase.from('app_settings').update({ reset_signal: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', 1);
       if (sigErr) throw new Error(sigErr.message);
-      // api-server reset_signal/game_state 동기화
-      adminApiRpc('admin_update_settings', { p_admin_password: settings?.admin_password ?? '', p_payload: { reset_signal: new Date().toISOString(), game_state: null } })
+      // api-server reset_signal 동기화
+      adminApiRpc('admin_update_settings', { p_admin_password: settings?.admin_password ?? '', p_payload: { reset_signal: new Date().toISOString() } })
         .catch(() => null);
       const hasData = backupProfiles.length > 0 || backupLikes.length > 0 || backupChats.length > 0 || backupSuggestions.length > 0;
       showRecovery('전체 초기화', '🗑️', hasData ? async () => {
@@ -2577,14 +2536,10 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           ...backupSuggestions.map(s => adminSupabase.from('suggestions').upsert({ id: s.id, content: s.content, created_at: s.created_at })),
           ...backupHistories.map(h => adminSupabase.from('session_history').upsert({ id: h.id, seats_snapshot: h.seats_snapshot, created_at: (h as { created_at?: string }).created_at })),
           ...(safeData(notifRes) ?? []).map((n: unknown) => adminSupabase.from('notifications').upsert(n)),
-          ...(safeData(bgRes) ?? []).map((r: unknown) => adminSupabase.from('balance_games').upsert(r)),
           ...(safeData(bvRes) ?? []).map((r: unknown) => adminSupabase.from('balance_votes').upsert(r)),
-          ...(safeData(qgRes) ?? []).map((r: unknown) => adminSupabase.from('qa_games').upsert(r)),
           ...(safeData(qaRes) ?? []).map((r: unknown) => adminSupabase.from('qa_answers').upsert(r)),
-          ...(safeData(igRes) ?? []).map((r: unknown) => adminSupabase.from('image_games').upsert(r)),
           ...(safeData(ivRes) ?? []).map((r: unknown) => adminSupabase.from('image_votes').upsert(r)),
         ]);
-        if (gsBackup) await adminSupabase.from('app_settings').update({ game_state: gsBackup, updated_at: new Date().toISOString() }).eq('id', 1);
         await Promise.allSettled(
           seatAssignments.map(({ seat_id, profile_id }) =>
             adminSupabase.rpc('admin_force_seat', { p_profile_id: profile_id, p_seat_id: seat_id, p_admin_password: settings?.admin_password ?? '' })

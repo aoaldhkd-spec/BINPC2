@@ -121,9 +121,17 @@ export function useChat({
       }
     }
 
+    // [Bug #1 수정] 활성 채팅방은 chat:${chatId} 채널이 이미 담당
+    // → msgs:${chatId}가 살아있으면 제거해 이중 Supabase 구독 및 중복 state update 차단
+    if (chatId && channels.has(chatId)) {
+      supabase.removeChannel(channels.get(chatId)!);
+      channels.delete(chatId);
+    }
+
     // 새 채팅방 채널 추가 (이미 구독 중인 채팅방은 skip — 재구독 갭 제거)
     for (const chat of chatListRef.current) {
       if (channels.has(chat.id)) continue;
+      if (chat.id === chatId) continue; // 활성 채팅방: chat:${chatId} 채널이 메시지 처리
       const chatId_ = chat.id;
       const ch = supabase
         .channel(`msgs:${chatId_}`)
@@ -157,7 +165,7 @@ export function useChat({
     }
     // cleanup 없음 — 전체 정리는 위 userId effect가 담당, 선택적 제거는 이 effect 본문에서 처리
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chatIdsKey, currentUserId]);
+  }, [chatId, chatIdsKey, currentUserId]);
 
   // ── 활성 채팅방 메시지 로드 ───────────────────────────────────────────────────
   const loadGenRef = useRef(0);
