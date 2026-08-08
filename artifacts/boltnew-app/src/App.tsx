@@ -127,21 +127,29 @@ function App() {
 
   const _handleChannelStatus = useCallback((status: string) => {
     if (status === 'SUBSCRIBED') {
-      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
-      reconnectTimerRef.current = null;
+      // 재연결 성공 → 두 타이머 모두 취소하고 팝업 즉시 숨김
+      if (reconnectTimerRef.current) { clearTimeout(reconnectTimerRef.current); reconnectTimerRef.current = null; }
+      if (reconnectErrorTimerRef.current) { clearTimeout(reconnectErrorTimerRef.current); reconnectErrorTimerRef.current = null; }
       setConnStatus('ok');
     } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+      // 이미 타이머가 걸려 있으면 중복 등록 방지
       if (reconnectTimerRef.current) return;
+      // 8초 조용히 재연결 시도 → 그래도 안 되면 "연결 지연 중" 팝업
       reconnectTimerRef.current = setTimeout(() => {
-        setConnStatus('error');
         reconnectTimerRef.current = null;
-      }, 800);
-      setConnStatus('reconnecting');
+        setConnStatus('reconnecting');
+        // 추가 30초 지나도 복구 안 되면 "연결 실패 + 새로고침" 팝업
+        reconnectErrorTimerRef.current = setTimeout(() => {
+          reconnectErrorTimerRef.current = null;
+          setConnStatus('error');
+        }, 30_000);
+      }, 8_000);
     }
   }, []);
   const [appLoading, setAppLoading] = useState(true);
   const [connStatus, setConnStatus] = useState<'ok' | 'reconnecting' | 'error'>('ok');
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconnectErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [sessionActive, setSessionActive] = useState<boolean | null>(null);
   // Existing users skip the waiting overlay entirely and go straight to main.
   // New users go straight to nickname setup — no waiting overlay.
