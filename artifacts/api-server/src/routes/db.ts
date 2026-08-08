@@ -525,8 +525,46 @@ function startDailyEntryPasswordRenewal(): void {
   setInterval(check, 60_000);
 }
 
+// ─── 기능 삭제 후 남은 레거시 테이블 자동 정리 ──────────────────────────────────
+// 이 Set에 없는 table_name을 가진 app_kv_rows 행은 서버 시작 시 자동 삭제된다.
+// 새 기능을 추가할 때는 이 Set에도 테이블명을 추가할 것.
+// 기능을 삭제할 때는 이 Set에서 제거하기만 하면 다음 재시작 시 데이터도 자동 삭제된다.
+const ACTIVE_KV_TABLES = new Set([
+  'profiles', 'app_settings', 'notifications', 'likes', 'chats', 'suggestions',
+  'messages', 'chat_reads', 'device_secrets', 'session_history', 'push_subscriptions',
+  'contact_shares', 'contact_share_events', 'anonymous_reports',
+  'app_image_store',
+]);
+
+async function cleanupLegacyTables(): Promise<void> {
+  try {
+    const { rows } = await pool.query<{ table_name: string }>(
+      `SELECT DISTINCT table_name FROM app_kv_rows`,
+    );
+    const legacyTables = rows
+      .map(r => r.table_name)
+      .filter(t => !ACTIVE_KV_TABLES.has(t));
+
+    if (legacyTables.length === 0) {
+      logger.info('[db] cleanupLegacyTables: 삭제할 레거시 테이블 없음');
+      return;
+    }
+
+    // 각 레거시 테이블의 모든 행을 삭제
+    for (const t of legacyTables) {
+      const res = await pool.query(
+        `DELETE FROM app_kv_rows WHERE table_name = $1`, [t],
+      );
+      logger.info({ table: t, deleted: res.rowCount }, '[db] cleanupLegacyTables: 레거시 테이블 삭제');
+    }
+  } catch (e) {
+    logger.warn({ err: e }, '[db] cleanupLegacyTables 실패');
+  }
+}
+
 // Kick off async initialization
 seedIfNeeded()
+  .then(() => cleanupLegacyTables())
   .then(() => startDailyEntryPasswordRenewal())
   .then(() => setupListenClient())
   .catch(console.error);
