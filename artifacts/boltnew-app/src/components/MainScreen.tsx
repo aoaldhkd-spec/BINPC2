@@ -768,6 +768,16 @@ export function MainScreen({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [receivedContactShares.length]);
 
+  // 이미 💝 탭에 있는 동안 새 연락처/하트가 도착해도 즉시 배지 클리어
+  // (탭 버튼을 다시 클릭하지 않아도 보고 있으면 읽은 것으로 처리)
+  useEffect(() => {
+    if (mainTab === 'status') {
+      setSeenContactsCount(receivedContactShares.length);
+      setSeenHeartsCount(pendingHeartsCount);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mainTab, receivedContactShares.length, pendingHeartsCount]);
+
   // visibility 핸들러에서 stale closure 없이 최신 값 참조 (useEffect deps에 넣지 않아도 항상 최신)
   const pendingHeartsCountRef = useRef(pendingHeartsCount);
   pendingHeartsCountRef.current = pendingHeartsCount;
