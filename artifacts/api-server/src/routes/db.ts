@@ -890,9 +890,18 @@ function _smartBroadcastLocal(table: string, row: Record<string, unknown> | null
     ['sharer_id','receiver_id','sender_id','recipient_id','user1_id','user2_id']
       .forEach(k => { if (row[k]) targets.push(row[k] as string); });
   } else if (table === 'chat_reads') {
-    // ✅ Fix #2: 앱이 reader_id로 쓰고 있으므로 두 필드 모두 체크
+    // reader_id에게도 전달 (자신의 읽음 확인)
     if (row['user_id'])   targets.push(row['user_id']   as string);
     if (row['reader_id']) targets.push(row['reader_id'] as string);
+    // 상대방에게도 전달 — 읽음 표시("1") 해제에 필요
+    // reader_id가 읽었다는 사실을 채팅 상대방도 알아야 자신의 메시지 옆 "1"이 사라짐
+    if (row['chat_id'] && row['reader_id']) {
+      const chat = getTable('chats').find(c => c.id === row['chat_id']);
+      if (chat) {
+        const otherId = chat['user1_id'] === row['reader_id'] ? chat['user2_id'] : chat['user1_id'];
+        if (otherId && otherId !== row['reader_id']) targets.push(otherId as string);
+      }
+    }
   }
 
   if (targets.length > 0) {

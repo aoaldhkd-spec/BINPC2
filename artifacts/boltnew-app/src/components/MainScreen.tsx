@@ -2487,12 +2487,12 @@ export function MainScreen({
               onClick={() => setMyMenuOpen(v => !v)}
               className={`fixed bottom-6 right-4 z-50 w-14 h-14 rounded-full shadow-xl flex flex-col items-center justify-center gap-0 transition-all active:scale-90 select-none ${
                 myTabActive || myMenuOpen
-                  ? 'bg-gradient-to-br from-cyan-500 to-teal-500 text-white shadow-cyan-500/40'
+                  ? 'bg-gradient-to-br from-cyan-500 to-teal-500 text-white border-2 border-white/40'
                   : darkMode
-                    ? 'bg-slate-700 text-slate-200 shadow-slate-900/60'
-                    : 'bg-white text-gray-700 shadow-gray-300/80 border border-gray-200'
+                    ? 'bg-slate-700 text-slate-200 border-2 border-teal-400/70'
+                    : 'bg-white text-gray-700 border-2 border-gray-400'
               }`}
-              style={{ boxShadow: (myTabActive || myMenuOpen) ? '0 4px 20px rgba(6,182,212,0.45)' : undefined }}
+              style={{ boxShadow: (myTabActive || myMenuOpen) ? '0 4px 20px rgba(6,182,212,0.45)' : darkMode ? '0 4px 16px rgba(0,0,0,0.5)' : '0 4px 16px rgba(0,0,0,0.15)' }}
             >
               <span className="text-[15px] font-black leading-none tracking-widest">MY</span>
               {myBadgeTotal > 0 && !myMenuOpen && (
