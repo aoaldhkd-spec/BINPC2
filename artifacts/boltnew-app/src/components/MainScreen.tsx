@@ -717,6 +717,8 @@ export function MainScreen({
   const _currentUserNickname = useMemo(() => profiles.find(p => p.id === currentUserId)?.nickname ?? '', [profiles, currentUserId]);
   const [profileSearch, setProfileSearch] = useState('');
   const [profilePersonalityFilter, setProfilePersonalityFilter] = useState<string | null>(null);
+  const [showBlockList, setShowBlockList] = useState(false);
+  const [showVisitors, setShowVisitors] = useState(false);
   const [profileMbtiFilter, setProfileMbtiFilter] = useState<string | null>(null);
   // 채팅 탭 내 서브탭: 1:1 채팅 / 단체 채팅
   const [chatSubTab, setChatSubTab] = useState<'direct' | 'group'>('direct');
@@ -1473,81 +1475,113 @@ export function MainScreen({
               );
             })()}
 
-            {/* ── 차단·숨기기 목록 ── */}
-            {myBlockList.length > 0 && (() => {
-              return (
-                <div className={`rounded-3xl p-5 border shadow-xl transition-colors duration-300 ${darkMode ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600' : 'bg-white border-gray-100'}`}>
-                  <p className={`text-[10px] font-black uppercase tracking-widest mb-3 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>🚫 차단·숨기기 목록</p>
-                  <div className="space-y-2">
-                    {myBlockList.map(b => {
-                      const bp = profiles.find(p => p.id === b.target_id);
-                      if (!bp) return null;
-                      return (
-                        <div key={b.id} className={`flex items-center gap-3 p-2 rounded-xl ${darkMode ? 'bg-slate-700/40' : 'bg-gray-50'}`}>
-                          <img
-                            src={bp.photo_url || `https://api.dicebear.com/7.x/thumbs/svg?seed=${encodeURIComponent(bp.nickname)}`}
-                            alt={bp.nickname}
-                            className="w-9 h-9 rounded-full object-cover flex-shrink-0"
-                            onError={(e) => { (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/thumbs/svg?seed=${encodeURIComponent(bp.nickname)}`; }}
-                          />
-                          <div className="flex-1 min-w-0">
-                            <p className={`text-xs font-black truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>{bp.nickname}</p>
-                            <p className={`text-[10px] ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
-                              {b.block_type === 'block' ? '🚫 차단' : '👻 나를 못 보게 하기'}
-                            </p>
+            {/* ── 차단·숨기기 목록 (접기/펼치기) ── */}
+            <div className={`rounded-3xl border shadow-xl transition-colors duration-300 overflow-hidden ${darkMode ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600' : 'bg-white border-gray-100'}`}>
+              <button
+                onClick={() => setShowBlockList(v => !v)}
+                className="w-full flex items-center justify-between px-5 py-4"
+              >
+                <span className={`text-[10px] font-black uppercase tracking-widest ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
+                  🚫 차단·숨기기 목록 {myBlockList.length > 0 ? `(${myBlockList.length})` : ''}
+                </span>
+                <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${showBlockList ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
+              </button>
+              {showBlockList && (
+                <div className="px-5 pb-5">
+                  {myBlockList.length === 0 ? (
+                    <p className={`text-xs text-center py-4 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>
+                      차단하거나 숨긴 사람이 없어요
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {myBlockList.map(b => {
+                        const bp = profiles.find(p => p.id === b.target_id);
+                        if (!bp) return null;
+                        return (
+                          <div key={b.id} className={`flex items-center gap-3 p-2 rounded-xl ${darkMode ? 'bg-slate-700/40' : 'bg-gray-50'}`}>
+                            <img
+                              src={bp.photo_url || `https://api.dicebear.com/7.x/thumbs/svg?seed=${encodeURIComponent(bp.nickname)}`}
+                              alt={bp.nickname}
+                              className="w-9 h-9 rounded-full object-cover flex-shrink-0"
+                              onError={(e) => { (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/thumbs/svg?seed=${encodeURIComponent(bp.nickname)}`; }}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-xs font-black truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>{bp.nickname}</p>
+                              <p className={`text-[10px] ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
+                                {b.block_type === 'block' ? '🚫 차단됨' : '👻 나를 못 보게 함'}
+                              </p>
+                            </div>
+                            {onUnblock && (
+                              <button
+                                onClick={() => onUnblock(b.id)}
+                                className={`text-[10px] font-black px-2.5 py-1 rounded-xl border transition-all active:scale-95 flex-shrink-0 ${darkMode ? 'border-slate-500 text-slate-300 hover:bg-slate-600' : 'border-gray-200 text-gray-500 hover:bg-gray-100'}`}
+                              >풀기</button>
+                            )}
                           </div>
-                          {onUnblock && (
-                            <button
-                              onClick={() => onUnblock(b.id)}
-                              className={`text-[10px] font-black px-2.5 py-1 rounded-xl border transition-all active:scale-95 flex-shrink-0 ${darkMode ? 'border-slate-500 text-slate-300 hover:bg-slate-600' : 'border-gray-200 text-gray-500 hover:bg-gray-100'}`}
-                            >풀기</button>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              );
-            })()}
+              )}
+            </div>
 
-            {/* ── 방문자 기록 ── */}
-            {profileVisitors.length > 0 && (() => {
+            {/* ── 방문자 기록 (접기/펼치기) ── */}
+            {(() => {
               const visitors = [...profileVisitors]
                 .sort((a, b) => b.viewed_at.localeCompare(a.viewed_at))
-                .filter((v, i, arr) => arr.findIndex(x => x.viewer_id === v.viewer_id) === i); // 중복 제거 (1인당 최근 1회)
+                .filter((v, i, arr) => arr.findIndex(x => x.viewer_id === v.viewer_id) === i);
               return (
-                <div className={`rounded-3xl p-5 border shadow-xl transition-colors duration-300 ${darkMode ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600' : 'bg-white border-gray-100'}`}>
-                  <p className={`text-[10px] font-black uppercase tracking-widest mb-3 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>👁 내 프로필 방문자</p>
-                  <div className="space-y-2">
-                    {visitors.slice(0, 20).map(v => {
-                      const vp = profiles.find(p => p.id === v.viewer_id);
-                      if (!vp) return null;
-                      const ago = (() => {
-                        const ms = Date.now() - new Date(v.viewed_at).getTime();
-                        if (ms < 60_000) return '방금 전';
-                        if (ms < 3_600_000) return `${Math.floor(ms / 60_000)}분 전`;
-                        if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)}시간 전`;
-                        return `${Math.floor(ms / 86_400_000)}일 전`;
-                      })();
-                      return (
-                        <div key={v.id} className={`flex items-center gap-3 p-2 rounded-xl ${darkMode ? 'bg-slate-700/40' : 'bg-gray-50'}`}>
-                          <img
-                            src={vp.photo_url || `https://api.dicebear.com/7.x/thumbs/svg?seed=${encodeURIComponent(vp.nickname)}`}
-                            alt={vp.nickname}
-                            className="w-9 h-9 rounded-full object-cover flex-shrink-0"
-                            onError={(e) => { (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/thumbs/svg?seed=${encodeURIComponent(vp.nickname)}`; }}
-                          />
-                          <div className="flex-1 min-w-0">
-                            <p className={`text-xs font-black truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>{vp.nickname}</p>
-                            {vp.mbti && <p className={`text-[10px] ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{vp.mbti}</p>}
-                          </div>
-                          <span className={`text-[10px] flex-shrink-0 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>{ago}</span>
+                <div className={`rounded-3xl border shadow-xl transition-colors duration-300 overflow-hidden ${darkMode ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600' : 'bg-white border-gray-100'}`}>
+                  <button
+                    onClick={() => setShowVisitors(v => !v)}
+                    className="w-full flex items-center justify-between px-5 py-4"
+                  >
+                    <span className={`text-[10px] font-black uppercase tracking-widest ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
+                      👁 내 프로필 방문자 {visitors.length > 0 ? `(${visitors.length})` : ''}
+                    </span>
+                    <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${showVisitors ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
+                  </button>
+                  {showVisitors && (
+                    <div className="px-5 pb-5">
+                      {visitors.length === 0 ? (
+                        <p className={`text-xs text-center py-4 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>
+                          아직 방문자가 없어요
+                        </p>
+                      ) : (
+                        <div className="space-y-2">
+                          {visitors.slice(0, 20).map(v => {
+                            const vp = profiles.find(p => p.id === v.viewer_id);
+                            if (!vp) return null;
+                            const ago = (() => {
+                              const ms = Date.now() - new Date(v.viewed_at).getTime();
+                              if (ms < 60_000) return '방금 전';
+                              if (ms < 3_600_000) return `${Math.floor(ms / 60_000)}분 전`;
+                              if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)}시간 전`;
+                              return `${Math.floor(ms / 86_400_000)}일 전`;
+                            })();
+                            return (
+                              <div key={v.id} className={`flex items-center gap-3 p-2 rounded-xl ${darkMode ? 'bg-slate-700/40' : 'bg-gray-50'}`}>
+                                <img
+                                  src={vp.photo_url || `https://api.dicebear.com/7.x/thumbs/svg?seed=${encodeURIComponent(vp.nickname)}`}
+                                  alt={vp.nickname}
+                                  className="w-9 h-9 rounded-full object-cover flex-shrink-0"
+                                  onError={(e) => { (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/thumbs/svg?seed=${encodeURIComponent(vp.nickname)}`; }}
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <p className={`text-xs font-black truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>{vp.nickname}</p>
+                                  {vp.mbti && <p className={`text-[10px] ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{vp.mbti}</p>}
+                                </div>
+                                <span className={`text-[10px] flex-shrink-0 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>{ago}</span>
+                              </div>
+                            );
+                          })}
+                          {visitors.length > 20 && (
+                            <p className={`text-[10px] text-center mt-2 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>+{visitors.length - 20}명 더</p>
+                          )}
                         </div>
-                      );
-                    })}
-                  </div>
-                  {visitors.length > 20 && (
-                    <p className={`text-[10px] text-center mt-2 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>+{visitors.length - 20}명 더</p>
+                      )}
+                    </div>
                   )}
                 </div>
               );
