@@ -1597,12 +1597,12 @@ export function MainScreen({
                 <input
                   type="text"
                   value={signalStatusMsg}
-                  onChange={(e) => setSignalStatusMsg(e.target.value.slice(0, 60))}
-                  placeholder="예: 퇴근하고 맥주 한잔할 사람! 🍺"
-                  maxLength={60}
+                  onChange={(e) => setSignalStatusMsg(e.target.value.slice(0, 30))}
+                  placeholder="예: 퇴근 후 맥주 한잔 같이해요 🍺"
+                  maxLength={30}
                   className={`w-full px-3 py-2.5 rounded-xl text-sm border focus:outline-none focus:border-cyan-400 transition-colors ${darkMode ? 'bg-slate-700 border-slate-500 text-white placeholder:text-slate-500' : 'bg-gray-50 border-gray-200 text-gray-800 placeholder:text-gray-400'}`}
                 />
-                <p className={`text-[10px] mt-0.5 text-right ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>{signalStatusMsg.length}/60</p>
+                <p className={`text-[10px] mt-0.5 text-right ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>{signalStatusMsg.length}/30</p>
               </div>
 
               {/* 나의 이상형 */}
