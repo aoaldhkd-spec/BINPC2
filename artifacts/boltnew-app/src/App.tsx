@@ -8,7 +8,7 @@ import { HeartType } from './lib/constants';
 // ─── 분리된 타입·유틸·컴포넌트 imports ────────────────────────────────────────
 import type {
   Profile, ContactShare, Suggestion,
-  Chat, View, MainTab, GroupChat, GroupMessage,
+  Chat, View, MainTab, GroupChat, GroupMessage, BlockedUser, ProfileView,
 } from './types/app';
 import { useGroupChat } from './hooks/useGroupChat';
 import { GroupChatScreen } from './components/GroupChatScreen';
@@ -250,6 +250,8 @@ function App() {
       }, 2100);
     }, 30);
   }, []);
+  const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
+  const [profileVisitors, setProfileVisitors] = useState<ProfileView[]>([]);
   const [heartDrainEnabled, setHeartDrainEnabled] = useState(false);
   const [myHeartCount, setMyHeartCount] = useState<number | null>(null);
   const myHeartCountRef = useRef<number | null>(null);
@@ -373,6 +375,7 @@ function App() {
     openGroupChat,
     closeGroupChat,
     sendGroupMessage,
+    leaveGroupChat,
   } = useGroupChat({ currentUserId, profilesRef, setBottomNotif });
 
   const {
@@ -409,6 +412,30 @@ function App() {
     if (functionsLocked) return;
     handleLike(profileId);
   }, [functionsLocked, handleLike]);
+
+  // ─── 차단·숨기기 처리 ─────────────────────────────────────────────────────
+  const handleBlock = useCallback(async (targetId: string, type: 'block' | 'hide') => {
+    if (!currentUserId || targetId === currentUserId) return;
+    // 이미 차단/숨기기한 경우 중복 방지
+    if (blockedUsers.some(b => b.user_id === currentUserId && b.target_id === targetId && b.block_type === type)) return;
+    const id = crypto.randomUUID();
+    const row: BlockedUser = { id, user_id: currentUserId, target_id: targetId, block_type: type, created_at: new Date().toISOString() };
+    // 낙관적 업데이트
+    setBlockedUsers(prev => [...prev, row]);
+    try {
+      await supabase.from('blocked_users').insert(row as never);
+    } catch (e) {
+      console.error('[handleBlock]', e);
+      setBlockedUsers(prev => prev.filter(b => b.id !== id));
+    }
+  }, [currentUserId, blockedUsers]);
+
+  // ─── 프로필 열 때 방문 기록 ───────────────────────────────────────────────
+  const recordProfileView = useCallback((viewedId: string) => {
+    if (!currentUserId || viewedId === currentUserId) return;
+    const row: ProfileView = { id: crypto.randomUUID(), viewer_id: currentUserId, viewed_id: viewedId, viewed_at: new Date().toISOString() };
+    supabase.from('profile_views').insert(row as never).catch(() => {});
+  }, [currentUserId]);
 
 
   useEffect(() => {
@@ -818,6 +845,57 @@ function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps -- loadXxx are stable useCallbacks; setState/refs are stable
   }, [currentUserId, loadProfiles, loadLikes, loadReceivedLikes, loadContactShareData, loadChatList, loadSuggestions]);
 
+  // ─── 차단·숨기기 / 방문자 기록 로드 ─────────────────────────────────────────
+  useEffect(() => {
+    if (!currentUserId) {
+      setBlockedUsers([]);
+      setProfileVisitors([]);
+      return;
+    }
+    const uid = currentUserId;
+    // 차단·숨기기 목록 로드 (내가 한 것 + 나에게 한 것)
+    supabase.from('blocked_users').select('*')
+      .then(({ data }: { data: unknown }) => {
+        if (Array.isArray(data)) {
+          setBlockedUsers((data as BlockedUser[]).filter(b => b.user_id === uid || b.target_id === uid));
+        }
+      }).catch(() => {});
+    // 내 프로필 방문자 로드
+    supabase.from('profile_views').select('*').eq('viewed_id', uid)
+      .then(({ data }: { data: unknown }) => {
+        if (Array.isArray(data)) setProfileVisitors(data as ProfileView[]);
+      }).catch(() => {});
+
+    // SSE: blocked_users 신규 삽입 구독
+    const blockedCh = supabase
+      .channel(`blocked-users-${uid}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'blocked_users' },
+        (payload: { new: Record<string, unknown> }) => {
+          try {
+            const b = payload.new as BlockedUser;
+            if (b.user_id === uid || b.target_id === uid) {
+              setBlockedUsers(prev => prev.some(x => x.id === b.id) ? prev : [...prev, b]);
+            }
+          } catch (e) { console.warn('[blocked_users SSE]', e); }
+        })
+      .subscribe();
+    // SSE: profile_views 신규 삽입 구독
+    const viewsCh = supabase
+      .channel(`profile-views-${uid}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'profile_views' },
+        (payload: { new: Record<string, unknown> }) => {
+          try {
+            const v = payload.new as ProfileView;
+            if (v.viewed_id === uid) {
+              setProfileVisitors(prev => prev.some(x => x.id === v.id) ? prev : [...prev, v]);
+            }
+          } catch (e) { console.warn('[profile_views SSE]', e); }
+        })
+      .subscribe();
+    return () => { supabase.removeChannel(blockedCh); supabase.removeChannel(viewsCh); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUserId]);
+
   // Re-validate profile when the user returns to the app (Android/iOS back, home button, tab switch)
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -1146,6 +1224,7 @@ function App() {
         darkMode={darkMode}
         onBack={() => { closeGroupChat(); setView('main'); }}
         onSendMessage={sendGroupMessage}
+        onLeave={async () => { if (activeGroupId) await leaveGroupChat(activeGroupId); setView('main'); }}
       />
     );
   }
@@ -1276,9 +1355,9 @@ function App() {
         mainTab={mainTab}
         onTabChange={setMainTab}
         onLike={handleLikeGuarded}
-        onSelect={(p) => { setLikeConfirmTarget(null); setSelectedProfile(p); setView('profile'); }}
+        onSelect={(p) => { setLikeConfirmTarget(null); setSelectedProfile(p); setView('profile'); recordProfileView(p.id); }}
         onReset={reset}
-        onProfileClickFromMap={(p) => { setLikeConfirmTarget(null); setSelectedProfile(p); setView('profile'); }}
+        onProfileClickFromMap={(p) => { setLikeConfirmTarget(null); setSelectedProfile(p); setView('profile'); recordProfileView(p.id); }}
         receivedLikers={receivedLikers}
         receivedHeartTypes={receivedHeartTypes}
         sentHeartTypes={sentHeartTypes}
@@ -1329,6 +1408,25 @@ function App() {
         newGroupMsgCount={newGroupMsgCount}
         onClearGroupMsgCount={() => setNewGroupMsgCount(0)}
         onOpenGroupChat={(groupId) => { void openGroupChat(groupId).then(() => setView('group-chat')); }}
+        blockedUserIds={(() => {
+          const s = new Set<string>();
+          blockedUsers.forEach(b => {
+            if (b.block_type === 'block') {
+              if (b.user_id === currentUserId) s.add(b.target_id);
+              else if (b.target_id === currentUserId) s.add(b.user_id);
+            }
+          });
+          return s;
+        })()}
+        hiddenByIds={(() => {
+          const s = new Set<string>();
+          blockedUsers.forEach(b => {
+            if (b.block_type === 'hide' && b.target_id === currentUserId) s.add(b.user_id);
+          });
+          return s;
+        })()}
+        profileVisitors={profileVisitors}
+        onBlock={handleBlock}
       />
       </AppErrorBoundary>
       {likeConfirmTarget && (

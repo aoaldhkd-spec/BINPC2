@@ -64,6 +64,8 @@ const ALLOWED_OP_TABLES = new Set([
   'app_image_store',
   // 자동 매칭 단톡방
   'group_chats', 'group_participants', 'group_messages',
+  // 차단·숨기기 / 프로필 방문자
+  'blocked_users', 'profile_views',
 ]);
 
 // ─── SSE Event Ring Buffer — Last-Event-ID 재전송으로 재연결 시 이벤트 유실 방지 ──
@@ -499,7 +501,7 @@ async function seedIfNeeded(): Promise<void> {
       reset_password: null,
       heart_drain_enabled: false,
       heart_drain_minutes: 5,
-      heart_initial_count: 10,
+      heart_initial_count: 8,
     };
     store['app_settings'] = [settings];
     await dbPersistRow('app_settings', settings);
@@ -542,6 +544,8 @@ const ACTIVE_KV_TABLES = new Set([
   'app_image_store', 'heart_balances',
   // 자동 매칭 단톡방 시스템
   'group_chats', 'group_participants', 'group_messages',
+  // 차단·숨기기 / 프로필 방문자
+  'blocked_users', 'profile_views',
 ]);
 
 async function cleanupLegacyTables(): Promise<void> {
@@ -638,6 +642,61 @@ function startHeartDrainLoop(): void {
   setInterval(() => { heartDrainLoop().catch(console.error); }, 60_000);
 }
 
+// ─── 미사용 하트 회수 ────────────────────────────────────────────────────────
+// 하나도 보내지 않은 유저의 하트를 0으로 만든다.
+// admin_drain_unused_hearts RPC와 10분 타이머 양쪽에서 호출.
+async function drainUnusedHearts(): Promise<{ userId: string; nickname: string; count: number }[]> {
+  const profiles = getTable('profiles');
+  const likes    = getTable('likes');
+  if (!store['heart_balances']) store['heart_balances'] = [];
+  const balances = getTable('heart_balances');
+  const settings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
+  const initialCount = Math.max(1, Number(settings.heart_initial_count ?? 8));
+
+  // 하나라도 하트를 보낸 유저 Set
+  const sentLikeUsers = new Set(
+    (likes as Record<string, unknown>[]).map(l => l.liker_id as string).filter(Boolean),
+  );
+
+  const nowIso = new Date().toISOString();
+  const drained: { userId: string; nickname: string; count: number }[] = [];
+  const persists: Promise<void>[] = [];
+
+  for (const profile of profiles) {
+    const userId = profile.id as string;
+    if (!userId || sentLikeUsers.has(userId)) continue; // 하트 보낸 유저는 제외
+
+    const balRow  = balances.find(b => b.id === userId);
+    const current = (balRow?.heart_count as number) ?? initialCount;
+    if (current <= 0) continue;
+
+    const newRow: Record<string, unknown> = {
+      id: userId, heart_count: 0, last_drain_at: nowIso, updated_at: nowIso,
+    };
+    const idx = (store['heart_balances'] as Record<string, unknown>[]).findIndex(b => b.id === userId);
+    if (idx >= 0) (store['heart_balances'] as Record<string, unknown>[])[idx] = newRow;
+    else (store['heart_balances'] as Record<string, unknown>[]).push(newRow);
+
+    persists.push(dbPersistRow('heart_balances', newRow).catch(console.error));
+    _smartBroadcastLocal('heart_balances', newRow, {
+      type: 'change', table: 'heart_balances', event: 'UPDATE', newRow, oldRow: balRow ?? {},
+    });
+    drained.push({ userId, nickname: (profile.nickname as string) ?? userId, count: current });
+  }
+
+  if (persists.length > 0) {
+    await Promise.all(persists);
+    logger.info({ drained: drained.length }, '[drain-unused] 미사용 하트 회수 완료');
+  }
+  return drained;
+}
+
+// 서버 시작 10분 후 자동 미사용 하트 회수
+setTimeout(() => { drainUnusedHearts().catch(console.error); }, 10 * 60 * 1_000);
+
+// ─── 단톡방 퇴장 유저 추적 (재매칭 방지) ─────────────────────────────────────
+const leftGroupUsers = new Set<string>(); // userId → 퇴장한 적 있으면 재매칭 안 함
+
 // ─── 단톡방 자동 매칭 ─────────────────────────────────────────────────────────
 // 신규/기존 프로필의 bio에서 관심사 태그를 추출해 나이대별 단톡방에 자동 배정
 // - 이미 참여 중인 유저는 재배정 없이 skip
@@ -645,8 +704,8 @@ function startHeartDrainLoop(): void {
 function autoMatchGroupChat(userId: string, profile: Record<string, unknown>): void {
   try {
     const participants = getTable('group_participants') as Record<string, unknown>[];
-    // 이미 단톡방에 참여 중이면 재배정 안 함
-    if (participants.some(p => p.user_id === userId)) return;
+    // 이미 단톡방에 참여 중이거나 퇴장한 적 있으면 재배정 안 함
+    if (participants.some(p => p.user_id === userId) || leftGroupUsers.has(userId)) return;
 
     // 나이대 계산 (birth_year 기준, 현재 연도 2026)
     const birthYear = profile.birth_year ? Number(profile.birth_year) : null;
@@ -666,20 +725,13 @@ function autoMatchGroupChat(userId: string, profile: Record<string, unknown>): v
       : [`${ageGroup} 모임`]; // 관심사 없으면 나이대 기본 방
 
     const groups = getTable('group_chats') as Record<string, unknown>[];
-    const MAX_MEMBERS = 8;
+    // 인원 제한 없음 — 관심사+나이대 같은 방에 전원 합류
 
     for (const interest of interests) {
-      // 같은 나이대 + 관심사 + 여유 있는 방 탐색
-      const memberCountByGroup = new Map<string, number>();
-      for (const p of participants) {
-        const gid = p.group_id as string;
-        memberCountByGroup.set(gid, (memberCountByGroup.get(gid) ?? 0) + 1);
-      }
-
+      // 같은 나이대 + 관심사 방 탐색 (인원 제한 없음)
       const matchingGroup = groups.find(g =>
         g.age_group === ageGroup &&
-        g.interest_tag === interest &&
-        (memberCountByGroup.get(g.id as string) ?? 0) < MAX_MEMBERS,
+        g.interest_tag === interest,
       );
 
       const targetGroupId = matchingGroup
@@ -691,7 +743,7 @@ function autoMatchGroupChat(userId: string, profile: Record<string, unknown>): v
               name: `${ageGroup} ${interest} 모임`,
               interest_tag: interest,
               age_group: ageGroup,
-              max_members: MAX_MEMBERS,
+              max_members: 9999,
               created_at: ts(),
             };
             if (!store['group_chats']) store['group_chats'] = [];
@@ -1015,6 +1067,7 @@ const PRIVATE_TABLES = new Set([
   'contact_shares', 'contact_share_events', 'chat_reads',
   'heart_balances',
   'group_messages', 'group_participants',
+  'blocked_users', 'profile_views',
 ]);
 
 /** 프로필 row에서 민감 연락처 필드를 제거하여 전체 브로드캐스트 안전하게 만들기 */
@@ -1078,6 +1131,13 @@ function _smartBroadcastLocal(table: string, row: Record<string, unknown> | null
         if (otherId && otherId !== row['reader_id']) targets.push(otherId as string);
       }
     }
+  } else if (table === 'blocked_users') {
+    // 차단/숨기기: 차단자와 피차단자 모두에게 전달 (상호 필터링)
+    if (row['user_id'])  targets.push(row['user_id']  as string);
+    if (row['target_id']) targets.push(row['target_id'] as string);
+  } else if (table === 'profile_views') {
+    // 프로필 방문: 방문 받은 사람에게만 전달 (내 방문자 목록용)
+    if (row['viewed_id']) targets.push(row['viewed_id'] as string);
   }
 
   if (targets.length > 0) {
@@ -1895,7 +1955,20 @@ router.post('/op', async (req: Request, res: Response) => {
               String(existingRow.sender_id) !== String(requesterId)) {
             logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: DELETE messages blocked');
             return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신의 메시지만 삭제할 수 있습니다.', code: 'FORBIDDEN' } });
-          }        }
+          }
+          // group_participants: 자신의 참여만 삭제 가능 (나가기 기능)
+          if (table === 'group_participants' && existingRow.user_id != null && !isAdmin &&
+              String(existingRow.user_id) !== String(requesterId)) {
+            logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: DELETE group_participants blocked');
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신의 참여만 나갈 수 있습니다.', code: 'FORBIDDEN' } });
+          }
+        }
+      }
+      // group_participants DELETE → 재매칭 방지 목록에 추가
+      if (table === 'group_participants') {
+        for (const row of toDelete) {
+          if (row.user_id) leftGroupUsers.add(row.user_id as string);
+        }
       }
       store[table] = tableData.filter(r => !applyFilters([r], normalizedFilters).length);
       // ─ 배치 삭제 최적화: N개의 개별 DELETE → 단일 IN-clause 쿼리로 통합 (N+1 제거)
@@ -1928,6 +2001,7 @@ const ALLOWED_RPCS = new Set([
   'admin_delete_profile',
   'admin_trigger_heart_drain',   // 하트 드레인 즉시 실행 (수동 트리거)
   'admin_reset_heart_balances',  // 모든 유저 하트 잔여 수 초기화
+  'admin_drain_unused_hearts',   // 하나도 안 쓴 유저 하트 0으로 회수
 ]);
 
 // ─── RPC endpoint ─────────────────────────────────────────────────────────────
@@ -2142,6 +2216,14 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
           dbDeleteRow('profiles', profileId).catch(console.error);
         }
         return res.json({ data: null, error: null });
+      }
+
+      case 'admin_drain_unused_hearts': {
+        // 하나도 안 쓴 유저의 하트를 0으로 회수 — 영향 받은 유저 목록 반환
+        checkPassword();
+        const drainResult = await drainUnusedHearts();
+        logger.info({ affected: drainResult.length }, '[rpc] admin_drain_unused_hearts');
+        return res.json({ data: { drained: drainResult }, error: null });
       }
 
       case 'admin_trigger_heart_drain': {

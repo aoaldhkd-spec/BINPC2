@@ -47,6 +47,21 @@ export type GroupParticipant = {
   user_id: string;
   joined_at: string;
 };
+
+export type BlockedUser = {
+  id: string;
+  user_id: string;   // 차단/숨기기 한 사람
+  target_id: string; // 차단/숨기기 당한 사람
+  block_type: 'block' | 'hide'; // block=상호, hide=단방향(상대방이 나를 못 봄)
+  created_at: string;
+};
+
+export type ProfileView = {
+  id: string;
+  viewer_id: string;
+  viewed_id: string;
+  viewed_at: string;
+};
 export type MainTab =
   | 'profiles' | 'status' | 'chats' | 'suggestions'
   | 'game' | 'tutorial' | 'stats' | 'ranking' | 'fortune';

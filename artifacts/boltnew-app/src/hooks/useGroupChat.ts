@@ -159,6 +159,30 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
     setGroupMessages([]);
   }, []);
 
+  // ── 단톡방 나가기 (영구 퇴장) ────────────────────────────────────────────────
+  const leaveGroupChat = useCallback(async (groupId: string): Promise<void> => {
+    const userId = currentUserIdRef.current;
+    if (!userId) return;
+    try {
+      await supabase
+        .from('group_participants')
+        .delete()
+        .eq('group_id', groupId)
+        .eq('user_id', userId);
+    } catch (e) {
+      console.error('[leaveGroupChat] 삭제 오류:', e);
+    }
+    // 로컬 상태 업데이트 (서버 응답과 무관하게 즉시 반영)
+    setMyGroupIds(prev => prev.filter(id => id !== groupId));
+    setGroupChats(prev => prev.filter(g => g.id !== groupId));
+    if (activeGroupIdRef.current === groupId) {
+      setActiveGroupId(null);
+      activeGroupIdRef.current = null;
+      setGroupMessages([]);
+    }
+    setUnreadGroupCounts(prev => { const n = { ...prev }; delete n[groupId]; return n; });
+  }, []);
+
   // ── 메시지 전송 (낙관적 + 3회 재시도) ────────────────────────────────────────
   const sendGroupMessage = useCallback(async (content: string): Promise<void> => {
     const snapGroupId = activeGroupIdRef.current;
@@ -292,5 +316,6 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
     openGroupChat,
     closeGroupChat,
     sendGroupMessage,
+    leaveGroupChat,
   };
 }

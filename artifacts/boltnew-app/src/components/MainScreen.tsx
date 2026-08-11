@@ -2,11 +2,11 @@ import { useState, useEffect, useRef, useCallback, useMemo, Suspense, lazy, Comp
 import {
   Heart, MessageCircle, Users, ChevronDown, CheckCircle,
   Eye, X, BookOpen,
-  QrCode, Camera, Search,
+  QrCode, Camera, Search, MoreHorizontal,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../lib/theme';
-import type { Profile, ContactShare, Suggestion, Chat, MainTab, GroupChat } from '../types/app';
+import type { Profile, ContactShare, Suggestion, Chat, MainTab, GroupChat, ProfileView } from '../types/app';
 import { BIO_CATEGORIES } from '../lib/interests';
 import { HeartType, HEART_TYPES, heartMeta } from '../lib/constants';
 import { getPositionLabel, getPositionBg, getPositionStyle, getDomSubLabel, getDomSubBg, getKoreanAge, genAvatar } from '../lib/profile';
@@ -465,7 +465,7 @@ class StatusErrorBoundary extends Component<
 // ─── ProfileCard (memoized — 하트/채팅 상태 변경 시 해당 카드만 재렌더) ────────
 
 export const ProfileCard = memo(function ProfileCard({
-  profile, isLiked, sentHeartType, heartCount, canLike, locked, onLike, onSelect, onOpenChat,
+  profile, isLiked, sentHeartType, heartCount, canLike, locked, onLike, onSelect, onOpenChat, onBlock,
 }: {
   profile: Profile;
   isLiked: boolean;
@@ -476,6 +476,7 @@ export const ProfileCard = memo(function ProfileCard({
   onLike: (id: string) => void;
   onSelect: (p: Profile) => void;
   onOpenChat: (p: Profile) => void;
+  onBlock?: (id: string, type: 'block' | 'hide') => void;
 }) {
   const { theme } = useTheme();
   // dark-neon / default → 카드 배경이 어두움; y2k / minimal → 흰 배경
@@ -503,6 +504,7 @@ export const ProfileCard = memo(function ProfileCard({
 
   // 잠금 토스트 (컴포넌트 최상단 — Rules of Hooks 준수)
   const [lockToast, setLockToast] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
   const showLockToast = (e: React.MouseEvent) => {
     e.stopPropagation();
     setLockToast(true);
@@ -535,6 +537,31 @@ export const ProfileCard = memo(function ProfileCard({
           onError={(e) => { (e.target as HTMLImageElement).src = genAvatar(profile.nickname); }}
           className={`w-full h-full transition-none ${imgFit === 'cover' ? 'object-cover' : 'object-contain p-3 bg-gray-50'}`}
         />
+        {/* ── ··· 메뉴 (상단 우측) ── */}
+        {onBlock && (
+          <div className="absolute top-1 right-1 z-10">
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowMenu(m => !m); }}
+              className="w-6 h-6 rounded-full bg-black/40 flex items-center justify-center active:scale-90 transition-transform"
+              aria-label="더보기"
+            >
+              <MoreHorizontal className="w-3.5 h-3.5 text-white" />
+            </button>
+            {showMenu && (
+              <div className="absolute right-0 top-7 w-40 rounded-xl bg-white shadow-2xl border border-gray-100 overflow-hidden z-20">
+                <button
+                  onClick={(e) => { e.stopPropagation(); setShowMenu(false); onBlock(profile.id, 'block'); }}
+                  className="w-full text-left px-3 py-2.5 text-xs font-bold text-red-500 hover:bg-red-50 flex items-center gap-2"
+                >🚫 차단하기</button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setShowMenu(false); onBlock(profile.id, 'hide'); }}
+                  className="w-full text-left px-3 py-2.5 text-xs font-bold text-gray-600 hover:bg-gray-50 flex items-center gap-2 border-t border-gray-50"
+                >👻 나를 못 보게 하기</button>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* 이름+나이 — 하단 검은 배경 라벨 (항상 흰 텍스트, 테마 오버라이드 차단) */}
         <div className="absolute inset-x-0 bottom-0 px-2 pb-2">
           <div className="inline-flex items-baseline gap-1.5 rounded-lg px-2 py-0.5 max-w-full" style={{ backgroundColor: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(2px)' }}>
@@ -627,6 +654,9 @@ export function MainScreen({
   newMsgCount, onClearMsgCount, unreadChatCounts, onClearChatUnread: _onClearChatUnread, resetPassword,
   onUpdateProfile, fortuneCompatTarget, myHeartCount, heartDrainEnabled,
   groupChats = [], unreadGroupCounts = {}, newGroupMsgCount: _newGroupMsgCount = 0, onClearGroupMsgCount: _onClearGroupMsgCount, onOpenGroupChat,
+  blockedUserIds = new Set<string>(), hiddenByIds = new Set<string>(),
+  profileVisitors = [] as ProfileView[],
+  onBlock,
 }: {
   profiles: Profile[]; currentUserId: string | null; likedIds: Set<string>; sentHeartTypes: Map<string, HeartType>; sentHeartsPerPerson: Map<string, Set<HeartType>>; likeStatuses: Map<string, string>;
   profileMap: Map<string, Profile>; mainTab: MainTab;
@@ -672,6 +702,10 @@ export function MainScreen({
   newGroupMsgCount?: number;
   onClearGroupMsgCount?: () => void;
   onOpenGroupChat?: (groupId: string) => void;
+  blockedUserIds?: Set<string>;
+  hiddenByIds?: Set<string>;
+  profileVisitors?: ProfileView[];
+  onBlock?: (targetId: string, type: 'block' | 'hide') => void;
 }) {
   const heartCount = useCallback((t: HeartType) => { let c = 0; sentHeartsPerPerson.forEach(types => { if (types.has(t)) c++; }); return c; }, [sentHeartsPerPerson]);
   const tableNumber: number | null = null;
@@ -687,6 +721,8 @@ export function MainScreen({
   const filteredProfiles = useMemo(() => {
     return [...profiles]
       .filter(p => {
+        // 차단·숨기기 필터 (상호 차단 or 상대방이 나를 숨긴 경우 제외)
+        if (blockedUserIds.has(p.id) || hiddenByIds.has(p.id)) return false;
         if (profileSearch) {
           const matchNick = koreanMatch(p.nickname, profileSearch);
           const matchMbti = !!p.mbti && koreanMatch(p.mbti, profileSearch);
@@ -1242,6 +1278,7 @@ export function MainScreen({
                 onLike={onLike}
                 onSelect={onSelect}
                 onOpenChat={onOpenChat}
+                onBlock={onBlock}
               />
             ))}
             {filteredProfiles.filter(p => p.id !== currentUserId).length === 0 && (
@@ -1428,6 +1465,49 @@ export function MainScreen({
                       </div>
                     )}
                   </div>
+                </div>
+              );
+            })()}
+
+            {/* ── 방문자 기록 ── */}
+            {profileVisitors.length > 0 && (() => {
+              const visitors = [...profileVisitors]
+                .sort((a, b) => b.viewed_at.localeCompare(a.viewed_at))
+                .filter((v, i, arr) => arr.findIndex(x => x.viewer_id === v.viewer_id) === i); // 중복 제거 (1인당 최근 1회)
+              return (
+                <div className={`rounded-3xl p-5 border shadow-xl transition-colors duration-300 ${darkMode ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600' : 'bg-white border-gray-100'}`}>
+                  <p className={`text-[10px] font-black uppercase tracking-widest mb-3 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>👁 내 프로필 방문자</p>
+                  <div className="space-y-2">
+                    {visitors.slice(0, 20).map(v => {
+                      const vp = profiles.find(p => p.id === v.viewer_id);
+                      if (!vp) return null;
+                      const ago = (() => {
+                        const ms = Date.now() - new Date(v.viewed_at).getTime();
+                        if (ms < 60_000) return '방금 전';
+                        if (ms < 3_600_000) return `${Math.floor(ms / 60_000)}분 전`;
+                        if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)}시간 전`;
+                        return `${Math.floor(ms / 86_400_000)}일 전`;
+                      })();
+                      return (
+                        <div key={v.id} className={`flex items-center gap-3 p-2 rounded-xl ${darkMode ? 'bg-slate-700/40' : 'bg-gray-50'}`}>
+                          <img
+                            src={vp.photo_url || `https://api.dicebear.com/7.x/thumbs/svg?seed=${encodeURIComponent(vp.nickname)}`}
+                            alt={vp.nickname}
+                            className="w-9 h-9 rounded-full object-cover flex-shrink-0"
+                            onError={(e) => { (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/thumbs/svg?seed=${encodeURIComponent(vp.nickname)}`; }}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-xs font-black truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>{vp.nickname}</p>
+                            {vp.mbti && <p className={`text-[10px] ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{vp.mbti}</p>}
+                          </div>
+                          <span className={`text-[10px] flex-shrink-0 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>{ago}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {visitors.length > 20 && (
+                    <p className={`text-[10px] text-center mt-2 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>+{visitors.length - 20}명 더</p>
+                  )}
                 </div>
               );
             })()}

@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { ArrowLeft, Send } from 'lucide-react';
+import { ArrowLeft, Send, LogOut } from 'lucide-react';
 import { AppErrorBoundary } from './AppErrorBoundary';
 import type { GroupChat, GroupMessage, Profile } from '../types/app';
 
@@ -27,6 +27,7 @@ interface GroupChatScreenProps {
   darkMode: boolean;
   onBack: () => void;
   onSendMessage: (content: string) => Promise<void>;
+  onLeave?: () => Promise<void>;
 }
 
 export function GroupChatScreen({
@@ -37,7 +38,10 @@ export function GroupChatScreen({
   darkMode,
   onBack,
   onSendMessage,
+  onLeave,
 }: GroupChatScreenProps) {
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
@@ -101,7 +105,41 @@ export function GroupChatScreen({
           }`}>
             #{group.interest_tag}
           </span>
+          {onLeave && (
+            <button
+              onClick={() => setShowLeaveConfirm(true)}
+              className={`p-1.5 rounded-full transition-colors flex-shrink-0 ${darkMode ? 'hover:bg-slate-700 text-slate-400' : 'hover:bg-gray-100 text-gray-400'}`}
+              title="단톡방 나가기"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          )}
         </div>
+
+        {/* ─── 나가기 확인 다이얼로그 ─────────────────────────────────────────── */}
+        {showLeaveConfirm && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className={`mx-6 rounded-2xl p-5 shadow-2xl w-full max-w-xs ${darkMode ? 'bg-slate-800' : 'bg-white'}`}>
+              <p className={`font-black text-base mb-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>단톡방 나가기</p>
+              <p className={`text-sm mb-4 ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>나가면 다시 들어올 수 없습니다. 정말 나가시겠습니까?</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowLeaveConfirm(false)}
+                  className={`flex-1 py-2 rounded-xl text-sm font-bold ${darkMode ? 'bg-slate-700 text-white' : 'bg-gray-100 text-gray-700'}`}
+                >취소</button>
+                <button
+                  disabled={leaving}
+                  onClick={async () => {
+                    if (!onLeave) return;
+                    setLeaving(true);
+                    try { await onLeave(); } finally { setLeaving(false); setShowLeaveConfirm(false); }
+                  }}
+                  className="flex-1 py-2 rounded-xl text-sm font-bold bg-red-500 text-white disabled:opacity-50"
+                >나가기</button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ─── 메시지 목록 ──────────────────────────────────────────────────── */}
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2 min-h-0">
