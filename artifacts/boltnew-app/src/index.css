@@ -2,8 +2,8 @@
 
 /* ── 네온 전광판 ticker 애니메이션 ──────────────────────────────────────────── */
 @keyframes ticker-scroll {
-  0%   { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
+  0%   { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
 }
 @keyframes ticker-fadein {
   from { opacity: 0; }

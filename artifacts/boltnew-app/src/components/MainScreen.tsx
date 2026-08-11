@@ -582,7 +582,7 @@ export const ProfileCard = memo(function ProfileCard({
                       letterSpacing: '0.04em',
                       animation: `ticker-scroll ${Math.max(8, (statusMsg?.length ?? 0) * 0.5)}s linear infinite`,
                     }}>
-                      {`${statusMsg}  ✦  ${statusMsg}  ✦  `}
+                      {`${statusMsg}`}
                     </span>
                   </div>
                 ) : (
