@@ -1679,6 +1679,38 @@ export function MainScreen({
             )}
 
 
+            {/* ── 성향(돔/섭) 공개 설정 ── */}
+            {(() => {
+              const me = profiles.find(p => p.id === currentUserId);
+              if (!me) return null;
+              const hidePersonality = (me as { hide_personality?: boolean }).hide_personality ?? true;
+              const handleToggleHidePersonality = async () => {
+                const next = !hidePersonality;
+                if (!currentUserId) return;
+                try {
+                  await supabase.from('profiles').update({ hide_personality: next } as never).eq('id', currentUserId);
+                  onUpdateProfile({ id: currentUserId, hide_personality: next } as never);
+                } catch (e) { console.error('[hide_personality]', e); }
+              };
+              return (
+                <div className={`rounded-3xl p-5 border shadow-xl transition-colors duration-300 ${darkMode ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600' : 'bg-white border-gray-100'}`}>
+                  <div className={`flex items-center justify-between p-3 rounded-2xl ${darkMode ? 'bg-slate-700/40' : 'bg-gray-50'}`}>
+                    <div>
+                      <p className={`text-xs font-black ${darkMode ? 'text-white' : 'text-gray-800'}`}>성향(돔/섭) 공개</p>
+                      <p className={`text-[10px] ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{hidePersonality ? '🔒 다른 참여자에게 숨김' : '👁 다른 참여자에게 보임'}</p>
+                    </div>
+                    <button
+                      onClick={handleToggleHidePersonality}
+                      className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none ${hidePersonality ? (darkMode ? 'bg-slate-600' : 'bg-gray-300') : 'bg-teal-500'}`}
+                      aria-label="성향 공개 토글"
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ${hidePersonality ? 'translate-x-1' : 'translate-x-6'}`} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* ── 방문자 기록 (접기/펼치기) ── */}
             {(() => {
               const visitors = [...profileVisitors]
@@ -1966,39 +1998,6 @@ export function MainScreen({
         {mainTab === 'settings' && (
           <StatusErrorBoundary>
           <div className="max-w-lg mx-auto space-y-4 pb-24">
-
-            {/* ── 성향 설정 ── */}
-            {(() => {
-              const me = profiles.find(p => p.id === currentUserId);
-              if (!me) return null;
-              const hidePersonality = (me as { hide_personality?: boolean }).hide_personality ?? true;
-              const handleToggleHidePersonality = async () => {
-                const next = !hidePersonality;
-                if (!currentUserId) return;
-                try {
-                  await supabase.from('profiles').update({ hide_personality: next } as never).eq('id', currentUserId);
-                  onUpdateProfile({ id: currentUserId, hide_personality: next } as never);
-                } catch (e) { console.error('[hide_personality]', e); }
-              };
-              return (
-                <div className={`rounded-3xl p-5 border shadow-xl transition-colors duration-300 ${darkMode ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600' : 'bg-white border-gray-100'}`}>
-                  <p className={`text-[10px] font-black uppercase tracking-widest mb-4 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>🔒 성향 설정</p>
-                  <div className={`flex items-center justify-between p-3 rounded-2xl ${darkMode ? 'bg-slate-700/40' : 'bg-gray-50'}`}>
-                    <div>
-                      <p className={`text-xs font-black ${darkMode ? 'text-white' : 'text-gray-800'}`}>성향(돔/섭) 공개</p>
-                      <p className={`text-[10px] ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{hidePersonality ? '🔒 다른 참여자에게 숨김' : '👁 다른 참여자에게 보임'}</p>
-                    </div>
-                    <button
-                      onClick={handleToggleHidePersonality}
-                      className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none ${hidePersonality ? (darkMode ? 'bg-slate-600' : 'bg-gray-300') : 'bg-teal-500'}`}
-                      aria-label="성향 공개 토글"
-                    >
-                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ${hidePersonality ? 'translate-x-1' : 'translate-x-6'}`} />
-                    </button>
-                  </div>
-                </div>
-              );
-            })()}
 
             {/* ── 오늘의 한마디 & 이상형 ── */}
             <div className={`rounded-3xl border shadow-xl overflow-hidden ${darkMode ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600' : 'bg-white border-gray-100'}`}>
