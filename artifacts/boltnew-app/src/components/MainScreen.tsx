@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../lib/theme';
-import type { Profile, ContactShare, Suggestion, Chat, MainTab, GroupChat, ProfileView } from '../types/app';
+import type { Profile, ContactShare, Suggestion, Chat, MainTab, GroupChat, ProfileView, UserSignal } from '../types/app';
 import { BIO_CATEGORIES } from '../lib/interests';
 import { HeartType, HEART_TYPES, heartMeta } from '../lib/constants';
 import { getPositionLabel, getPositionBg, getPositionStyle, getDomSubLabel, getDomSubBg, getKoreanAge, genAvatar } from '../lib/profile';
@@ -465,7 +465,7 @@ class StatusErrorBoundary extends Component<
 // ─── ProfileCard (memoized — 하트/채팅 상태 변경 시 해당 카드만 재렌더) ────────
 
 export const ProfileCard = memo(function ProfileCard({
-  profile, isLiked, sentHeartType, heartCount, canLike, locked, onLike, onSelect, onOpenChat, onBlock, onContactShare, onViewFortune,
+  profile, isLiked, sentHeartType, heartCount, canLike, locked, onLike, onSelect, onOpenChat, onBlock, onContactShare, onViewFortune, idealMsg,
 }: {
   profile: Profile;
   isLiked: boolean;
@@ -479,6 +479,7 @@ export const ProfileCard = memo(function ProfileCard({
   onBlock?: (id: string, type: 'block' | 'hide') => void;
   onContactShare?: (p: Profile) => void;
   onViewFortune?: (p: Profile) => void;
+  idealMsg?: string | null;
 }) {
   const { theme } = useTheme();
   // dark-neon / default → 카드 배경이 어두움; y2k / minimal → 흰 배경
@@ -507,6 +508,7 @@ export const ProfileCard = memo(function ProfileCard({
   // 잠금 토스트 (컴포넌트 최상단 — Rules of Hooks 준수)
   const [lockToast, setLockToast] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [isFlipped, setIsFlipped] = useState(false);
   const showLockToast = (e: React.MouseEvent) => {
     e.stopPropagation();
     setLockToast(true);
@@ -524,103 +526,145 @@ export const ProfileCard = memo(function ProfileCard({
   };
 
   return (
-    <div
-      className="group relative bg-white rounded-2xl overflow-hidden shadow-sm active:scale-[0.97] cursor-pointer border border-gray-100 transition-transform duration-150"
-      onClick={() => onSelect(profile)}
-    >
-      {/* ── 사진 (3:4 세로형) ── */}
-      <div className="relative bg-gray-100" style={{ aspectRatio: '3/4' }}>
-        <img
-          src={getAvatarSrc(profile.photo_url, profile.nickname)}
-          alt={profile.nickname}
-          loading="lazy"
-          decoding="async"
-          onLoad={handleImgLoad}
-          onError={(e) => { (e.target as HTMLImageElement).src = genAvatar(profile.nickname); }}
-          className={`w-full h-full transition-none ${imgFit === 'cover' ? 'object-cover' : 'object-contain p-3 bg-gray-50'}`}
-        />
-        {/* ── ··· 메뉴 (상단 우측) ── */}
-        {(onBlock || onContactShare || onViewFortune) && (
-          <div className="absolute top-1 right-1 z-10">
-            <button
-              onClick={(e) => { e.stopPropagation(); setShowMenu(m => !m); }}
-              className="w-6 h-6 rounded-full bg-black/40 flex items-center justify-center active:scale-90 transition-transform"
-              aria-label="더보기"
-            >
-              <MoreHorizontal className="w-3.5 h-3.5 text-white" />
-            </button>
-            {showMenu && (
-              <div className="absolute right-0 top-7 w-44 rounded-xl bg-white shadow-2xl border border-gray-100 overflow-hidden z-20">
-                {onContactShare && (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setShowMenu(false); onContactShare(profile); }}
-                    className="w-full text-left px-3 py-2.5 text-xs font-bold text-teal-600 hover:bg-teal-50 flex items-center gap-2"
-                  >💌 연락처 보내기</button>
-                )}
-                {onViewFortune && (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setShowMenu(false); onViewFortune(profile); }}
-                    className="w-full text-left px-3 py-2.5 text-xs font-bold text-violet-600 hover:bg-violet-50 flex items-center gap-2 border-t border-gray-50"
-                  >🔮 사주 보기</button>
-                )}
-                {onBlock && (
-                  <>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setShowMenu(false); onBlock(profile.id, 'block'); }}
-                      className="w-full text-left px-3 py-2.5 text-xs font-bold text-red-500 hover:bg-red-50 flex items-center gap-2 border-t border-gray-50"
-                    >🚫 차단하기</button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setShowMenu(false); onBlock(profile.id, 'hide'); }}
-                      className="w-full text-left px-3 py-2.5 text-xs font-bold text-gray-600 hover:bg-gray-50 flex items-center gap-2 border-t border-gray-50"
-                    >👻 나를 못 보게 하기</button>
-                  </>
+    <div className="group relative bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100">
+
+      {/* ── 사진 플립 영역 (3:4 세로형) ──────────────────────────────────────── */}
+      <div
+        style={{ aspectRatio: '3/4', perspective: '1000px', cursor: 'pointer', position: 'relative' }}
+        onMouseEnter={() => setIsFlipped(true)}
+        onMouseLeave={() => setIsFlipped(false)}
+        onClick={(e) => { e.stopPropagation(); setIsFlipped(f => !f); }}
+      >
+        <div style={{
+          width: '100%', height: '100%', position: 'relative',
+          transformStyle: 'preserve-3d',
+          transition: 'transform 0.55s cubic-bezier(.4,0,.2,1)',
+          transform: isFlipped ? 'rotateY(180deg)' : 'none',
+        }}>
+
+          {/* ── 앞면(Front): 사진 + 메뉴 + 이름 ──────────────────────────────── */}
+          <div style={{
+            position: 'absolute', inset: 0,
+            backfaceVisibility: 'hidden',
+            WebkitBackfaceVisibility: 'hidden',
+            backgroundColor: '#f3f4f6',
+            overflow: 'hidden',
+          }}>
+            <img
+              src={getAvatarSrc(profile.photo_url, profile.nickname)}
+              alt={profile.nickname}
+              loading="lazy"
+              decoding="async"
+              onLoad={handleImgLoad}
+              onError={(e) => { (e.target as HTMLImageElement).src = genAvatar(profile.nickname); }}
+              style={{ width: '100%', height: '100%', objectFit: imgFit === 'cover' ? 'cover' : 'contain' }}
+            />
+            {/* ··· 메뉴 (상단 우측) */}
+            {(onBlock || onContactShare || onViewFortune) && (
+              <div className="absolute top-1 right-1 z-10">
+                <button
+                  onClick={(e) => { e.stopPropagation(); setShowMenu(m => !m); }}
+                  className="w-6 h-6 rounded-full bg-black/40 flex items-center justify-center active:scale-90 transition-transform"
+                  aria-label="더보기"
+                >
+                  <MoreHorizontal className="w-3.5 h-3.5 text-white" />
+                </button>
+                {showMenu && (
+                  <div className="absolute right-0 top-7 w-44 rounded-xl bg-white shadow-2xl border border-gray-100 overflow-hidden z-20">
+                    {onContactShare && (
+                      <button onClick={(e) => { e.stopPropagation(); setShowMenu(false); onContactShare(profile); }}
+                        className="w-full text-left px-3 py-2.5 text-xs font-bold text-teal-600 hover:bg-teal-50 flex items-center gap-2">💌 연락처 보내기</button>
+                    )}
+                    {onViewFortune && (
+                      <button onClick={(e) => { e.stopPropagation(); setShowMenu(false); onViewFortune(profile); }}
+                        className="w-full text-left px-3 py-2.5 text-xs font-bold text-violet-600 hover:bg-violet-50 flex items-center gap-2 border-t border-gray-50">🔮 사주 보기</button>
+                    )}
+                    {onBlock && (
+                      <>
+                        <button onClick={(e) => { e.stopPropagation(); setShowMenu(false); onBlock(profile.id, 'block'); }}
+                          className="w-full text-left px-3 py-2.5 text-xs font-bold text-red-500 hover:bg-red-50 flex items-center gap-2 border-t border-gray-50">🚫 차단하기</button>
+                        <button onClick={(e) => { e.stopPropagation(); setShowMenu(false); onBlock(profile.id, 'hide'); }}
+                          className="w-full text-left px-3 py-2.5 text-xs font-bold text-gray-600 hover:bg-gray-50 flex items-center gap-2 border-t border-gray-50">👻 나를 못 보게 하기</button>
+                      </>
+                    )}
+                  </div>
                 )}
               </div>
             )}
+            {/* 이름+나이 오버레이 */}
+            <div className="absolute inset-x-0 bottom-0 px-2 pb-2">
+              <div className="inline-flex items-baseline gap-1.5 rounded-lg px-2 py-0.5 max-w-full"
+                style={{ backgroundColor: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(2px)' }}>
+                <span className="font-black text-[13px] leading-tight truncate" style={{ color: '#fff' }}>{profile.nickname}</span>
+                {profile.birth_year && (
+                  <span className="text-[10px] font-semibold flex-shrink-0" style={{ color: 'rgba(255,255,255,0.82)' }}>{age}</span>
+                )}
+              </div>
+            </div>
           </div>
-        )}
 
-        {/* 이름+나이 — 하단 검은 배경 라벨 (항상 흰 텍스트, 테마 오버라이드 차단) */}
-        <div className="absolute inset-x-0 bottom-0 px-2 pb-2">
-          <div className="inline-flex items-baseline gap-1.5 rounded-lg px-2 py-0.5 max-w-full" style={{ backgroundColor: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(2px)' }}>
-            <span className="font-black text-[13px] leading-tight truncate" style={{ color: '#fff' }}>{profile.nickname}</span>
-            {profile.birth_year && (
-              <span className="text-[10px] font-semibold flex-shrink-0" style={{ color: 'rgba(255,255,255,0.82)' }}>{age}</span>
-            )}
+          {/* ── 뒷면(Back): 이상형 텍스트 ─────────────────────────────────────── */}
+          <div style={{
+            position: 'absolute', inset: 0,
+            backfaceVisibility: 'hidden',
+            WebkitBackfaceVisibility: 'hidden',
+            transform: 'rotateY(180deg)',
+            background: 'linear-gradient(135deg, #1a0533 0%, #2d1060 50%, #0d1b4b 100%)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            padding: '14px', gap: '6px',
+          }}>
+            <div style={{ fontSize: '26px', lineHeight: 1 }}>💘</div>
+            <p style={{
+              color: 'rgba(255,200,255,0.85)', fontSize: '9px', fontWeight: 800,
+              letterSpacing: '0.12em', textTransform: 'uppercase', margin: 0,
+            }}>나의 이상형</p>
+            <p style={{
+              color: 'rgba(255,255,255,0.88)', fontSize: '10px', fontWeight: 600,
+              textAlign: 'center', lineHeight: 1.55, margin: '4px 0 8px',
+              display: '-webkit-box', WebkitLineClamp: 5, WebkitBoxOrient: 'vertical' as const,
+              overflow: 'hidden',
+            }}>
+              {idealMsg || '아직 이상형을 작성하지 않았어요 ✨'}
+            </p>
+            <button
+              onClick={(e) => { e.stopPropagation(); onSelect(profile); }}
+              style={{
+                background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.35)',
+                color: 'white', fontSize: '9px', fontWeight: 800,
+                padding: '5px 12px', borderRadius: '20px', cursor: 'pointer',
+              }}
+            >프로필 보기 →</button>
           </div>
         </div>
       </div>
 
-      {/* ── 성향 + MBTI 한 줄 ── */}
-      <div className="px-2.5 pt-2 pb-1 flex items-center justify-between gap-1">
-        <span
-          className="text-[10px] font-bold px-2 py-0.5 rounded-lg leading-tight border"
-          style={{ backgroundColor: posStyle.bg, color: posStyle.text, borderColor: posStyle.border }}
-        >
+      {/* ── 성향 + MBTI (항상 표시, 플립 안 됨) ────────────────────────────────── */}
+      <div className="px-2.5 pt-2 pb-1 flex items-center justify-between gap-1 cursor-pointer"
+        onClick={() => onSelect(profile)}>
+        <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg leading-tight border"
+          style={{ backgroundColor: posStyle.bg, color: posStyle.text, borderColor: posStyle.border }}>
           {posLabel}
         </span>
         {msStyle && (
-          <span
-            className="text-[10px] font-black px-1.5 py-0.5 rounded-lg leading-tight border"
-            style={{ backgroundColor: msStyle.bg + 'dd', color: msStyle.color, borderColor: msStyle.border }}
-          >
+          <span className="text-[10px] font-black px-1.5 py-0.5 rounded-lg leading-tight border"
+            style={{ backgroundColor: msStyle.bg + 'dd', color: msStyle.color, borderColor: msStyle.border }}>
             {profile.mbti}
           </span>
         )}
       </div>
 
-      {/* ── 관심사 (최대 2개, 한 줄) ── */}
+      {/* ── 관심사 (최대 2개, 항상 표시) ───────────────────────────────────────── */}
       {bioTags.length > 0 && (
-        <div className="px-2.5 pb-1.5 flex gap-1 overflow-hidden">
+        <div className="px-2.5 pb-1.5 flex gap-1 overflow-hidden cursor-pointer" onClick={() => onSelect(profile)}>
           {bioTags.slice(0, 2).map(tag => (
             <span key={tag} className="text-[11px] font-semibold whitespace-nowrap flex-shrink-0" style={tagStyle}>#{tag}</span>
           ))}
         </div>
       )}
 
-      {/* ── 하트 + 채팅 버튼 행 — 항상 표시, 잠금 시 토스트만 ── */}
+      {/* ── 하트 + 채팅 버튼 — 항상 표시, 절대 플립 안 됨, z-index 보장 ────────── */}
       {canLike && (
-        <div className="relative">
+        <div className="relative" onClick={(e) => e.stopPropagation()}>
           {lockToast && (
             <div className="absolute -top-6 left-1/2 -translate-x-1/2 z-20 whitespace-nowrap text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-800/90 text-white shadow pointer-events-none">
               🔒 현재 잠금 중
@@ -678,6 +722,7 @@ export function MainScreen({
   myBlockList = [] as import('../types/app').BlockedUser[],
   onUnblock,
   onViewFortune,
+  userSignals = [] as UserSignal[],
 }: {
   profiles: Profile[]; currentUserId: string | null; likedIds: Set<string>; sentHeartTypes: Map<string, HeartType>; sentHeartsPerPerson: Map<string, Set<HeartType>>; likeStatuses: Map<string, string>;
   profileMap: Map<string, Profile>; mainTab: MainTab;
@@ -730,6 +775,7 @@ export function MainScreen({
   myBlockList?: import('../types/app').BlockedUser[];
   onUnblock?: (blockId: string) => void;
   onViewFortune?: (p: Profile) => void;
+  userSignals?: UserSignal[];
 }) {
   const heartCount = useCallback((t: HeartType) => { let c = 0; sentHeartsPerPerson.forEach(types => { if (types.has(t)) c++; }); return c; }, [sentHeartsPerPerson]);
   const tableNumber: number | null = null;
@@ -742,6 +788,19 @@ export function MainScreen({
   const [profileMbtiFilter, setProfileMbtiFilter] = useState<string | null>(null);
   // 채팅 탭 내 서브탭: 1:1 채팅 / 단체 채팅
   const [chatSubTab, setChatSubTab] = useState<'direct' | 'group'>('direct');
+
+  // ── 상태·이상형 입력 상태 ──────────────────────────────────────────────────────
+  const [signalStatusMsg, setSignalStatusMsg] = useState('');
+  const [signalIdealMsg, setSignalIdealMsg] = useState('');
+  const [signalSaving, setSignalSaving] = useState(false);
+  // 내 user_signals 초기값 동기화
+  useEffect(() => {
+    const my = userSignals.find(s => s.user_id === currentUserId);
+    if (my) {
+      setSignalStatusMsg(my.status_msg ?? '');
+      setSignalIdealMsg(my.ideal_msg ?? '');
+    }
+  }, [userSignals, currentUserId]);
 
   // 참여자 목록 — 필터·정렬을 매 렌더마다 재계산하지 않도록 메모이제이션
   const filteredProfiles = useMemo(() => {
@@ -1289,6 +1348,36 @@ export function MainScreen({
               </div>
             </div>
 
+            {/* ── 네온 전광판 (상태 메시지 ticker) ──────────────────────────── */}
+            {(() => {
+              const tickerItems = userSignals.filter(s => s.status_msg?.trim());
+              if (tickerItems.length === 0) return null;
+              const parts = tickerItems.map(s => {
+                const nick = profiles.find(p => p.id === s.user_id)?.nickname ?? '?';
+                return `✦ ${nick}  ${s.status_msg}`;
+              });
+              const doubleText = [...parts, ...parts].join('   ·   ');
+              return (
+                <div className="overflow-hidden rounded-xl mb-3" style={{
+                  height: '38px', background: '#080818',
+                  border: '1px solid rgba(0,255,180,0.35)',
+                  boxShadow: '0 0 10px rgba(0,255,180,0.12), inset 0 1px 0 rgba(0,255,180,0.08)',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', height: '100%', overflow: 'hidden' }}>
+                    <span style={{
+                      display: 'inline-block', whiteSpace: 'nowrap',
+                      fontSize: '11px', fontWeight: 700, letterSpacing: '0.03em',
+                      color: '#00ffb4',
+                      textShadow: '0 0 6px #00ffb4, 0 0 18px rgba(0,255,180,0.55)',
+                      animation: `ticker-scroll ${Math.max(18, tickerItems.length * 6)}s linear infinite`,
+                    }}>
+                      {doubleText}
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* ── 참여자 그리드 (이 영역만 스크롤) ───────── */}
             <div className="overflow-y-auto -mx-4 px-4 pb-6" style={{ maxHeight: 'calc(100dvh - 330px)', minHeight: 160 }}>
             <div className="grid grid-cols-3 gap-2">
@@ -1307,6 +1396,7 @@ export function MainScreen({
                 onBlock={onBlock}
                 onContactShare={_onContactShareOpen}
                 onViewFortune={onViewFortune}
+                idealMsg={userSignals.find(s => s.user_id === profile.id)?.ideal_msg}
               />
             ))}
             {filteredProfiles.filter(p => p.id !== currentUserId).length === 0 && (
@@ -1496,6 +1586,63 @@ export function MainScreen({
                 </div>
               );
             })()}
+
+            {/* ── 오늘의 상태 & 나의 이상형 입력 카드 ── */}
+            <div className={`rounded-3xl p-5 border shadow-xl ${darkMode ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600' : 'bg-white border-gray-100'}`}>
+              <p className={`text-[10px] font-black uppercase tracking-widest mb-4 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>💬 오늘의 한마디 & 이상형</p>
+
+              {/* 오늘의 상태 */}
+              <div className="mb-3">
+                <label className={`block text-[11px] font-black mb-1.5 ${darkMode ? 'text-cyan-300' : 'text-cyan-600'}`}>💬 오늘의 상태</label>
+                <input
+                  type="text"
+                  value={signalStatusMsg}
+                  onChange={(e) => setSignalStatusMsg(e.target.value.slice(0, 60))}
+                  placeholder="예: 퇴근하고 맥주 한잔할 사람! 🍺"
+                  maxLength={60}
+                  className={`w-full px-3 py-2.5 rounded-xl text-sm border focus:outline-none focus:border-cyan-400 transition-colors ${darkMode ? 'bg-slate-700 border-slate-500 text-white placeholder:text-slate-500' : 'bg-gray-50 border-gray-200 text-gray-800 placeholder:text-gray-400'}`}
+                />
+                <p className={`text-[10px] mt-0.5 text-right ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>{signalStatusMsg.length}/60</p>
+              </div>
+
+              {/* 나의 이상형 */}
+              <div className="mb-4">
+                <label className={`block text-[11px] font-black mb-1.5 ${darkMode ? 'text-rose-300' : 'text-rose-500'}`}>💘 나의 이상형</label>
+                <textarea
+                  value={signalIdealMsg}
+                  onChange={(e) => setSignalIdealMsg(e.target.value.slice(0, 100))}
+                  placeholder="예: 다정하고 티키타카 잘 맞는 분 🤝"
+                  maxLength={100}
+                  rows={2}
+                  className={`w-full px-3 py-2.5 rounded-xl text-sm border focus:outline-none focus:border-rose-400 transition-colors resize-none ${darkMode ? 'bg-slate-700 border-slate-500 text-white placeholder:text-slate-500' : 'bg-gray-50 border-gray-200 text-gray-800 placeholder:text-gray-400'}`}
+                />
+                <p className={`text-[10px] mt-0.5 text-right ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>{signalIdealMsg.length}/100</p>
+              </div>
+
+              <button
+                onClick={async () => {
+                  if (!currentUserId || signalSaving) return;
+                  setSignalSaving(true);
+                  try {
+                    const existing = userSignals.find(s => s.user_id === currentUserId);
+                    const row = {
+                      id: existing?.id ?? crypto.randomUUID(),
+                      user_id: currentUserId,
+                      status_msg: signalStatusMsg.trim() || null,
+                      ideal_msg: signalIdealMsg.trim() || null,
+                      created_at: existing?.created_at ?? new Date().toISOString(),
+                    };
+                    await supabase.from('user_signals').upsert(row as never, { onConflict: 'user_id' });
+                  } catch (e) { console.error('[user_signals save]', e); }
+                  finally { setSignalSaving(false); }
+                }}
+                disabled={signalSaving}
+                className="w-full py-2.5 rounded-xl font-black text-sm text-white active:scale-95 transition-transform disabled:opacity-50"
+                style={{ background: 'linear-gradient(135deg, #06b6d4, #e11d48)' }}
+              >
+                {signalSaving ? '저장 중...' : '저장하기 💾'}
+              </button>
+            </div>
 
             {/* ── 프로필 편집 (통합) ── */}
             {(() => {

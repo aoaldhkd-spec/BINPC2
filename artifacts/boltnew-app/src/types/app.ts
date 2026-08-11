@@ -62,6 +62,14 @@ export type ProfileView = {
   viewed_id: string;
   viewed_at: string;
 };
+
+export type UserSignal = {
+  id: string;
+  user_id: string;
+  status_msg: string | null;  // 오늘의 상태 메시지 (전광판 출력)
+  ideal_msg: string | null;   // 나의 이상형 (카드 뒤면 출력)
+  created_at: string;
+};
 export type MainTab =
   | 'profiles' | 'status' | 'chats' | 'suggestions'
   | 'game' | 'tutorial' | 'stats' | 'ranking' | 'fortune';

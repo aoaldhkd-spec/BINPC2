@@ -66,6 +66,8 @@ const ALLOWED_OP_TABLES = new Set([
   'group_chats', 'group_participants', 'group_messages',
   // 차단·숨기기 / 프로필 방문자
   'blocked_users', 'profile_views',
+  // 상태·이상형 신호
+  'user_signals',
 ]);
 
 // ─── SSE Event Ring Buffer — Last-Event-ID 재전송으로 재연결 시 이벤트 유실 방지 ──
@@ -546,6 +548,8 @@ const ACTIVE_KV_TABLES = new Set([
   'group_chats', 'group_participants', 'group_messages',
   // 차단·숨기기 / 프로필 방문자
   'blocked_users', 'profile_views',
+  // 상태·이상형 신호
+  'user_signals',
 ]);
 
 async function cleanupLegacyTables(): Promise<void> {
@@ -1082,6 +1086,7 @@ const PRIVATE_TABLES = new Set([
   'heart_balances',
   'group_messages', 'group_participants',
   'blocked_users', 'profile_views',
+  // user_signals는 공개 — 전광판/카드에서 모두가 볼 수 있음 (연락처 등 민감정보 없음)
 ]);
 
 /** 프로필 row에서 민감 연락처 필드를 제거하여 전체 브로드캐스트 안전하게 만들기 */

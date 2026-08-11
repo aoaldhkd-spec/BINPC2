@@ -8,7 +8,7 @@ import { HeartType } from './lib/constants';
 // ─── 분리된 타입·유틸·컴포넌트 imports ────────────────────────────────────────
 import type {
   Profile, ContactShare, Suggestion,
-  Chat, View, MainTab, GroupChat, GroupMessage, BlockedUser, ProfileView,
+  Chat, View, MainTab, GroupChat, GroupMessage, BlockedUser, ProfileView, UserSignal,
 } from './types/app';
 import { useGroupChat } from './hooks/useGroupChat';
 import { GroupChatScreen } from './components/GroupChatScreen';
@@ -254,6 +254,7 @@ function App() {
   }, []);
   const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
   const [profileVisitors, setProfileVisitors] = useState<ProfileView[]>([]);
+  const [userSignals, setUserSignals] = useState<UserSignal[]>([]);
   const [heartDrainEnabled, setHeartDrainEnabled] = useState(false);
   const [myHeartCount, setMyHeartCount] = useState<number | null>(null);
   const myHeartCountRef = useRef<number | null>(null);
@@ -910,7 +911,30 @@ function App() {
           } catch (e) { console.warn('[profile_views SSE]', e); }
         })
       .subscribe();
-    return () => { supabase.removeChannel(blockedCh); supabase.removeChannel(viewsCh); };
+    // user_signals 전체 로드 (전광판 + 카드 뒤면용)
+    supabase.from('user_signals').select('*')
+      .then(({ data }: { data: unknown }) => {
+        if (Array.isArray(data)) setUserSignals(data as UserSignal[]);
+      }).catch(() => {});
+    // SSE: user_signals INSERT/UPDATE 구독 (전원 공개 — PRIVATE_TABLES 미포함)
+    const signalsCh = supabase
+      .channel('user-signals-all')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'user_signals' },
+        (payload: { new: Record<string, unknown> }) => {
+          try {
+            const s = payload.new as UserSignal;
+            setUserSignals(prev => prev.some(x => x.user_id === s.user_id) ? prev.map(x => x.user_id === s.user_id ? s : x) : [...prev, s]);
+          } catch (e) { console.warn('[user_signals SSE INSERT]', e); }
+        })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'user_signals' },
+        (payload: { new: Record<string, unknown> }) => {
+          try {
+            const s = payload.new as UserSignal;
+            setUserSignals(prev => prev.map(x => x.user_id === s.user_id ? s : x));
+          } catch (e) { console.warn('[user_signals SSE UPDATE]', e); }
+        })
+      .subscribe();
+    return () => { supabase.removeChannel(blockedCh); supabase.removeChannel(viewsCh); supabase.removeChannel(signalsCh); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUserId]);
 
@@ -1427,6 +1451,7 @@ function App() {
         newGroupMsgCount={newGroupMsgCount}
         onClearGroupMsgCount={() => setNewGroupMsgCount(0)}
         onOpenGroupChat={(groupId) => { void openGroupChat(groupId).then(() => setView('group-chat')); }}
+        userSignals={userSignals}
         blockedUserIds={(() => {
           const s = new Set<string>();
           blockedUsers.forEach(b => {
