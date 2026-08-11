@@ -2516,20 +2516,12 @@ export function MainScreen({
                   </span>
                 )}
               </button>
+              {/* 단체채팅 — 준비 중 (코드 유지, UI만 잠금) */}
               <button
-                onClick={() => setChatSubTab('group')}
-                className={`flex-1 py-1.5 text-xs font-black rounded-lg transition-all ${
-                  chatSubTab === 'group'
-                    ? (darkMode ? 'bg-slate-600 text-white shadow-sm' : 'bg-white text-gray-900 shadow-sm')
-                    : (darkMode ? 'text-slate-400' : 'text-gray-500')
-                }`}
+                disabled
+                className={`flex-1 py-1.5 text-xs font-black rounded-lg cursor-not-allowed opacity-40 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}
               >
-                👥 단체 채팅
-                {groupChats.length > 0 && (
-                  <span className={`ml-1 inline-flex items-center justify-center min-w-[16px] h-4 px-1 text-[10px] font-black rounded-full ${
-                    darkMode ? 'bg-teal-500/30 text-teal-300' : 'bg-teal-100 text-teal-700'
-                  }`}>{groupChats.length}</span>
-                )}
+                🔒 단체 채팅
               </button>
             </div>
 
