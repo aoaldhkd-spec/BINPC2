@@ -670,8 +670,10 @@ async function drainUnusedHearts(): Promise<{ userId: string; nickname: string; 
     const current = (balRow?.heart_count as number) ?? initialCount;
     if (current <= 0) continue;
 
+    // 전액 0으로 만드는 게 아니라 1개만 차감 (최소 0)
+    const newCount = Math.max(0, current - 1);
     const newRow: Record<string, unknown> = {
-      id: userId, heart_count: 0, last_drain_at: nowIso, updated_at: nowIso,
+      id: userId, heart_count: newCount, last_drain_at: nowIso, updated_at: nowIso,
     };
     const idx = (store['heart_balances'] as Record<string, unknown>[]).findIndex(b => b.id === userId);
     if (idx >= 0) (store['heart_balances'] as Record<string, unknown>[])[idx] = newRow;
@@ -681,7 +683,7 @@ async function drainUnusedHearts(): Promise<{ userId: string; nickname: string; 
     _smartBroadcastLocal('heart_balances', newRow, {
       type: 'change', table: 'heart_balances', event: 'UPDATE', newRow, oldRow: balRow ?? {},
     });
-    drained.push({ userId, nickname: (profile.nickname as string) ?? userId, count: current });
+    drained.push({ userId, nickname: (profile.nickname as string) ?? userId, count: 1 }); // 차감량은 항상 1
   }
 
   if (persists.length > 0) {
@@ -703,72 +705,84 @@ const leftGroupUsers = new Set<string>(); // userId → 퇴장한 적 있으면 
 // - 최대 8명 정원; 꽉 찼으면 새 방 생성
 function autoMatchGroupChat(userId: string, profile: Record<string, unknown>): void {
   try {
-    const participants = getTable('group_participants') as Record<string, unknown>[];
-    // 이미 단톡방에 참여 중이거나 퇴장한 적 있으면 재배정 안 함
-    if (participants.some(p => p.user_id === userId) || leftGroupUsers.has(userId)) return;
+    if (leftGroupUsers.has(userId)) return; // 퇴장한 적 있으면 재배정 안 함
 
-    // 나이대 계산 (birth_year 기준, 현재 연도 2026)
+    if (!store['group_chats']) store['group_chats'] = [];
+    if (!store['group_participants']) store['group_participants'] = [];
+
+    const participants = getTable('group_participants') as Record<string, unknown>[];
+    // 이미 속한 방 ID 셋 (중복 추가 방지)
+    const alreadyInIds = new Set(
+      participants.filter(p => p.user_id === userId).map(p => p.group_id as string),
+    );
+
+    // ── 헬퍼: 방 찾기 또는 생성 후 참여자 추가 ──────────────────────────────
+    const joinOrCreate = (
+      matchFn: (g: Record<string, unknown>) => boolean,
+      newGroupData: Record<string, unknown>,
+    ) => {
+      const groups = getTable('group_chats') as Record<string, unknown>[];
+      let targetGroupId: string;
+      const existing = groups.find(matchFn);
+      if (existing) {
+        targetGroupId = existing.id as string;
+      } else {
+        targetGroupId = genId();
+        const newGroup: Record<string, unknown> = {
+          id: targetGroupId, ...newGroupData, max_members: 9999, created_at: ts(),
+        };
+        (store['group_chats'] as Record<string, unknown>[]).push(newGroup);
+        dbPersistRow('group_chats', newGroup).catch(console.error);
+        broadcastAll({ type: 'change', table: 'group_chats', event: 'INSERT', newRow: newGroup, oldRow: null });
+      }
+      if (alreadyInIds.has(targetGroupId)) return; // 이미 이 방에 있음
+      const newPart: Record<string, unknown> = {
+        id: `${targetGroupId}__${userId}`, group_id: targetGroupId, user_id: userId, joined_at: ts(),
+      };
+      (store['group_participants'] as Record<string, unknown>[]).push(newPart);
+      alreadyInIds.add(targetGroupId);
+      dbPersistRow('group_participants', newPart).catch(console.error);
+      _smartBroadcastLocal('group_participants', newPart, {
+        type: 'change', table: 'group_participants', event: 'INSERT', newRow: newPart, oldRow: null,
+      });
+    };
+
+    // ── 나이대 계산 ──────────────────────────────────────────────────────────
     const birthYear = profile.birth_year ? Number(profile.birth_year) : null;
     const currentAge = birthYear ? 2026 - birthYear : null;
     const ageGroup = currentAge ? `${Math.floor(currentAge / 10) * 10}대` : '기타';
 
-    // bio에서 관심사 태그 추출 (2글자 이상 단어)
+    // ── 1. 관심사 + 나이대 방 (첫 번째 관심사만) ─────────────────────────────
     const bio = String(profile.bio ?? '');
     const rawInterests = bio
       .split(/[,，、\s]+/)
       .map((s: string) => s.replace(/[^\w가-힣]/g, '').trim())
       .filter((s: string) => s.length >= 2)
       .slice(0, 3);
+    const interest = rawInterests.length > 0 ? rawInterests[0] : `${ageGroup} 모임`;
+    joinOrCreate(
+      g => g.age_group === ageGroup && g.interest_tag === interest,
+      { name: `${ageGroup} ${interest} 모임`, interest_tag: interest, age_group: ageGroup },
+    );
 
-    const interests = rawInterests.length > 0
-      ? rawInterests
-      : [`${ageGroup} 모임`]; // 관심사 없으면 나이대 기본 방
+    // ── 2. MBTI E/I 방 ───────────────────────────────────────────────────────
+    const mbti = String(profile.mbti ?? '').toUpperCase();
+    if (mbti.length >= 4) {
+      const eiType = mbti[0]; // 'E' or 'I'
+      if (eiType === 'E' || eiType === 'I') {
+        joinOrCreate(
+          g => g.mbti_ei_group === eiType,
+          { name: `${eiType}형 (${eiType === 'E' ? '외향형' : '내향형'}) 모임`, mbti_ei_group: eiType },
+        );
+      }
+    }
 
-    const groups = getTable('group_chats') as Record<string, unknown>[];
-    // 인원 제한 없음 — 관심사+나이대 같은 방에 전원 합류
-
-    for (const interest of interests) {
-      // 같은 나이대 + 관심사 방 탐색 (인원 제한 없음)
-      const matchingGroup = groups.find(g =>
-        g.age_group === ageGroup &&
-        g.interest_tag === interest,
+    // ── 3. 같은 출생연도 방 ──────────────────────────────────────────────────
+    if (birthYear) {
+      joinOrCreate(
+        g => g.birth_year_group === birthYear,
+        { name: `${birthYear}년생 모임`, birth_year_group: birthYear },
       );
-
-      const targetGroupId = matchingGroup
-        ? (matchingGroup.id as string)
-        : (() => {
-            // 새 방 생성
-            const newGroup: Record<string, unknown> = {
-              id: genId(),
-              name: `${ageGroup} ${interest} 모임`,
-              interest_tag: interest,
-              age_group: ageGroup,
-              max_members: 9999,
-              created_at: ts(),
-            };
-            if (!store['group_chats']) store['group_chats'] = [];
-            (store['group_chats'] as Record<string, unknown>[]).push(newGroup);
-            dbPersistRow('group_chats', newGroup).catch(console.error);
-            // group_chats는 공개 테이블이므로 broadcastAll
-            broadcastAll({ type: 'change', table: 'group_chats', event: 'INSERT', newRow: newGroup, oldRow: null });
-            return newGroup.id as string;
-          })();
-
-      // 참여자 추가
-      const newPart: Record<string, unknown> = {
-        id: `${targetGroupId}__${userId}`,
-        group_id: targetGroupId,
-        user_id: userId,
-        joined_at: ts(),
-      };
-      if (!store['group_participants']) store['group_participants'] = [];
-      (store['group_participants'] as Record<string, unknown>[]).push(newPart);
-      dbPersistRow('group_participants', newPart).catch(console.error);
-      // 참여자 배정: 본인에게만 SSE 전달 (_smartBroadcastLocal 통해 user_id 라우팅)
-      _smartBroadcastLocal('group_participants', newPart, {
-        type: 'change', table: 'group_participants', event: 'INSERT', newRow: newPart, oldRow: null,
-      });
-      return; // 첫 번째 관심사 방에 배정 후 종료
     }
   } catch (e) {
     console.error('[autoMatchGroupChat] 오류:', e);

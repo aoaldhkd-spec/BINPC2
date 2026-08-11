@@ -1416,6 +1416,7 @@ function App() {
         unreadChatCounts={unreadChatCounts}
         onClearChatUnread={(chatId) => setUnreadChatCounts(prev => { const n = { ...prev }; delete n[chatId]; return n; })}
         resetPassword={resetPassword}
+        onViewFortune={(p) => { setSelectedProfile(p); setFortuneCompatTarget(p.id); setView('profile'); recordProfileView(p.id); }}
         fortuneCompatTarget={fortuneCompatTarget}
         myHeartCount={myHeartCount}
         heartDrainEnabled={heartDrainEnabled}
