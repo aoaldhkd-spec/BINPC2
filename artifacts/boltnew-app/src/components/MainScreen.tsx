@@ -529,12 +529,7 @@ export const ProfileCard = memo(function ProfileCard({
     <div className="group relative bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100">
 
       {/* ── 사진 플립 영역 (3:4 세로형) ──────────────────────────────────────── */}
-      <div
-        style={{ aspectRatio: '3/4', perspective: '1000px', cursor: 'pointer', position: 'relative' }}
-        onMouseEnter={() => setIsFlipped(true)}
-        onMouseLeave={() => setIsFlipped(false)}
-        onClick={(e) => { e.stopPropagation(); setIsFlipped(f => !f); }}
-      >
+      <div style={{ aspectRatio: '3/4', perspective: '1000px', position: 'relative' }}>
         <div style={{
           width: '100%', height: '100%', position: 'relative',
           transformStyle: 'preserve-3d',
@@ -559,6 +554,28 @@ export const ProfileCard = memo(function ProfileCard({
               onError={(e) => { (e.target as HTMLImageElement).src = genAvatar(profile.nickname); }}
               style={{ width: '100%', height: '100%', objectFit: imgFit === 'cover' ? 'cover' : 'contain' }}
             />
+            {/* ── 정중앙 플립 버튼 (hover+클릭 시 뒤집기) ── */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <button
+                onMouseEnter={() => setIsFlipped(true)}
+                onMouseLeave={() => setIsFlipped(false)}
+                onClick={(e) => { e.stopPropagation(); setIsFlipped(f => !f); }}
+                style={{
+                  width: '44px', height: '44px', borderRadius: '50%',
+                  background: 'rgba(0,0,0,0.38)', backdropFilter: 'blur(4px)',
+                  border: '1.5px solid rgba(255,255,255,0.45)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer', pointerEvents: 'auto',
+                  transition: 'transform 0.15s, background 0.15s',
+                }}
+                onMouseDown={(e) => (e.currentTarget.style.transform = 'scale(0.9)')}
+                onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                aria-label="이상형 보기"
+              >
+                <span style={{ fontSize: '20px', lineHeight: 1 }}>💘</span>
+              </button>
+            </div>
+
             {/* ··· 메뉴 (상단 우측) */}
             {(onBlock || onContactShare || onViewFortune) && (
               <div className="absolute top-1 right-1 z-10">
