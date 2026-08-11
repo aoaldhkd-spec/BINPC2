@@ -90,6 +90,8 @@ export function useChat({
   const recentlyReadRef = useRef<Map<string, number>>(new Map());
   // generation counter: 동시 sync 요청 중 구식 응답이 최신 상태를 덮어쓰는 것을 방지
   const syncGenRef = useRef(0);
+  // [Fix-E] 비활성 채팅 미읽음 중복 카운트 방지 — SSE/폴링 중복 이벤트로 인한 overcount 차단
+  const seenUnreadMsgIdsRef = useRef(new Set<string>());
 
   // ── 단일 통합 SSE 채널: messages + chats 처리 ────────────────────────────────
   // 이전: chat별 perChatChannels(N채널) + chat:${chatId}(활성채팅) + new-chats(2채널) = 최대 N+3개 채널
@@ -112,11 +114,41 @@ export function useChat({
                 const next = applySseInsert(prev, newMsg);
                 return next.length > MAX_MESSAGES ? next.slice(-MAX_MESSAGES) : next;
               });
+              // [Fix-H] 활성 채팅방에 상대방 메시지 도착 시 즉시 서버 읽음 표시
+              // 채팅방을 열 때뿐 아니라 새 메시지가 오는 순간에도 read_at 갱신 → 다른 기기 뱃지 즉시 해소
+              if (newMsg.sender_id !== uid && currentUserIdRef.current) {
+                const readerId = currentUserIdRef.current;
+                const activeChatId = chatIdRef.current;
+                if (activeChatId) {
+                  supabase.from('chat_reads').upsert({
+                    id: `${activeChatId}__${readerId}`,
+                    chat_id: activeChatId,
+                    reader_id: readerId,
+                    read_at: new Date().toISOString(),
+                  }, { onConflict: 'id' }).then(() => {}).catch(() => {});
+                }
+              }
             } else if (newMsg.sender_id !== uid) {
-              // 비활성 채팅방의 상대 메시지: preview 갱신 + 미읽음 증가
+              // [Fix-E] 중복 이벤트 방지 — 이미 카운트한 메시지 ID는 skip
+              if (seenUnreadMsgIdsRef.current.has(newMsg.id)) return;
+              seenUnreadMsgIdsRef.current.add(newMsg.id);
+              // 무한 증가 방지: 최근 500개만 보유
+              if (seenUnreadMsgIdsRef.current.size > 500) {
+                const arr = [...seenUnreadMsgIdsRef.current];
+                seenUnreadMsgIdsRef.current = new Set(arr.slice(-300));
+              }
+              // 비활성 채팅방의 상대 메시지: preview 갱신 + 최상단으로 이동 + 미읽음 증가
               const preview = newMsg.image_url ? '📷 사진' : newMsg.content;
               if (typeof newMsg.chat_id === 'string') {
-                setChatList(prev => prev.map(c => c.id === newMsg.chat_id ? { ...c, lastMessage: preview } : c));
+                // [Fix-I] 최신 메시지 도착 시 해당 채팅을 목록 최상단으로 이동
+                setChatList(prev => {
+                  const idx = prev.findIndex(c => c.id === newMsg.chat_id);
+                  if (idx === -1) return prev;
+                  const updated = { ...prev[idx], lastMessage: preview };
+                  const next = [...prev];
+                  next.splice(idx, 1);
+                  return [updated, ...next];
+                });
                 setUnreadChatCounts(prev => ({ ...prev, [newMsg.chat_id!]: (prev[newMsg.chat_id!] ?? 0) + 1 }));
               }
               const senderProfile = profilesRef.current.find(p => p.id === newMsg.sender_id);

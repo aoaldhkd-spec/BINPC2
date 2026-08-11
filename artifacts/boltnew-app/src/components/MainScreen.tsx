@@ -1075,13 +1075,15 @@ export function MainScreen({
   const [sentHeartsOpen, setSentHeartsOpen] = useState(true);
 
   // ── 프로필 편집 통합 상태 (한 섹션만 열림) ──────────────────────────────────
-  const [profileEditSection, setProfileEditSection] = useState<'avatar' | 'nickname' | 'birth' | 'interests' | 'statusMsg' | 'ideal' | null>(null);
+  const [profileEditSection, setProfileEditSection] = useState<'avatar' | 'nickname' | 'birth' | 'interests' | 'statusMsg' | 'ideal' | 'contact' | 'blocklist' | null>(null);
   const showBirthEdit = profileEditSection === 'birth';
   const showInterestEdit = profileEditSection === 'interests';
   const showAvatarPicker = profileEditSection === 'avatar';
   const showNicknameEdit = profileEditSection === 'nickname';
   const showStatusMsgEdit = profileEditSection === 'statusMsg';
   const showIdealEdit = profileEditSection === 'ideal';
+  const showContactInEdit = profileEditSection === 'contact';
+  const showBlockInEdit = profileEditSection === 'blocklist';
   const [showFortuneBirthEdit, setShowFortuneBirthEdit] = useState(false);
   const fortuneBirthAutoOpenedRef = useRef(false);
   const [sajuBirthMonth, setSajuBirthMonth] = useState<number | null>(null);
@@ -1681,38 +1683,6 @@ export function MainScreen({
             )}
 
 
-            {/* ── 성향(돔/섭) 공개 설정 ── */}
-            {(() => {
-              const me = profiles.find(p => p.id === currentUserId);
-              if (!me) return null;
-              const hidePersonality = (me as { hide_personality?: boolean }).hide_personality ?? true;
-              const handleToggleHidePersonality = async () => {
-                const next = !hidePersonality;
-                if (!currentUserId) return;
-                try {
-                  await supabase.from('profiles').update({ hide_personality: next } as never).eq('id', currentUserId);
-                  onUpdateProfile({ id: currentUserId, hide_personality: next } as never);
-                } catch (e) { console.error('[hide_personality]', e); }
-              };
-              return (
-                <div className={`rounded-3xl p-5 border shadow-xl transition-colors duration-300 ${darkMode ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600' : 'bg-white border-gray-100'}`}>
-                  <div className={`flex items-center justify-between p-3 rounded-2xl ${darkMode ? 'bg-slate-700/40' : 'bg-gray-50'}`}>
-                    <div>
-                      <p className={`text-xs font-black ${darkMode ? 'text-white' : 'text-gray-800'}`}>성향(돔/섭) 공개</p>
-                      <p className={`text-[10px] ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{hidePersonality ? '🔒 다른 참여자에게 숨김' : '👁 다른 참여자에게 보임'}</p>
-                    </div>
-                    <button
-                      onClick={handleToggleHidePersonality}
-                      className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none ${hidePersonality ? (darkMode ? 'bg-slate-600' : 'bg-gray-300') : 'bg-teal-500'}`}
-                      aria-label="성향 공개 토글"
-                    >
-                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ${hidePersonality ? 'translate-x-1' : 'translate-x-6'}`} />
-                    </button>
-                  </div>
-                </div>
-              );
-            })()}
-
             {/* ── 방문자 기록 (접기/펼치기) ── */}
             {(() => {
               const visitors = [...profileVisitors]
@@ -2001,108 +1971,6 @@ export function MainScreen({
           <StatusErrorBoundary>
           <div className="max-w-lg mx-auto space-y-4 pb-24">
 
-            {/* ── QR + 연락처 설정 ── */}
-            <div className={`rounded-3xl border shadow-xl transition-colors duration-300 overflow-hidden ${darkMode ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600' : 'bg-white border-gray-100'}`}>
-              <div className={`border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
-                <button onClick={() => setShowContactEdit(v => !v)} className="w-full flex items-center gap-2 p-4 text-left">
-                  <span className="text-xl flex-shrink-0">📋</span>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-black ${darkMode ? 'text-white' : 'text-gray-900'}`}>연락처 설정</p>
-                    {(statusKakao || statusInstagram || statusPhone) ? (
-                      <p className={`text-[11px] leading-snug ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>
-                        {[statusKakao && `K: ${statusKakao}`, statusInstagram && `@${statusInstagram}`, statusPhone && `📞 ${statusPhone}`].filter(Boolean).join(' · ')}
-                      </p>
-                    ) : (
-                      <p className={`text-[11px] ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>미설정</p>
-                    )}
-                  </div>
-                  {statusContactPrivate && (
-                    <span className="text-[9px] font-black px-1.5 py-0.5 bg-red-100 text-red-600 rounded-full flex-shrink-0">비공개</span>
-                  )}
-                  <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${showContactEdit ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
-                </button>
-                {showContactEdit && (
-                  <div className="px-4 pb-4">
-                    <div className={`rounded-xl p-3 mb-3 flex items-start gap-2 ${darkMode ? 'bg-amber-900/30 border border-amber-600/40' : 'bg-amber-50 border border-amber-300'}`}>
-                      <span className="text-amber-500 text-sm mt-0.5 flex-shrink-0">⚠️</span>
-                      <p className={`text-[11px] leading-relaxed ${darkMode ? 'text-amber-400' : 'text-amber-700'}`}>연락처는 상대방이 <span className="font-bold">연락처 공유를 수락했을 때만</span> 전달됩니다.</p>
-                    </div>
-                    <label className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer mb-3 select-none border ${statusContactPrivate ? (darkMode ? 'bg-red-900/30 border-red-700' : 'bg-red-50 border-red-200') : (darkMode ? 'bg-slate-700 border-slate-600' : 'bg-gray-50 border-gray-200')}`}>
-                      <div onClick={() => setStatusContactPrivate(v => !v)}
-                        className={`toggle-track relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${statusContactPrivate ? 'bg-red-500' : 'bg-gray-300'}`}>
-                        <span className={`toggle-thumb absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${statusContactPrivate ? 'translate-x-5' : 'translate-x-0.5'}`} />
-                      </div>
-                      <div>
-                        <p className={`text-xs font-bold ${statusContactPrivate ? (darkMode ? 'text-red-400' : 'text-red-600') : (darkMode ? 'text-slate-300' : 'text-gray-700')}`}>연락처 비공개</p>
-                        {statusContactPrivate && <p className={`text-[10px] ${darkMode ? 'text-red-500' : 'text-red-500'}`}>매칭 상대에게 연락처가 전달되지 않습니다</p>}
-                      </div>
-                    </label>
-                    <div className={`space-y-2 transition-opacity ${statusContactPrivate ? 'opacity-40 pointer-events-none' : ''}`}>
-                      <div className="relative">
-                        <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded flex items-center justify-center text-[11px] font-black text-white bg-yellow-400">K</div>
-                        <input value={statusKakao} onChange={e => setStatusKakao(e.target.value)} placeholder="카카오톡 ID"
-                          className={`w-full pl-10 pr-3 py-2.5 rounded-xl border-2 text-sm focus:outline-none transition-colors ${darkMode ? 'bg-slate-700 border-slate-500 text-white placeholder-slate-500 focus:border-yellow-500' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 focus:border-yellow-400'}`} />
-                      </div>
-                      <div className="relative">
-                        <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded flex items-center justify-center text-[11px] font-black text-white bg-pink-500">@</div>
-                        <input value={statusInstagram} onChange={e => setStatusInstagram(e.target.value.replace(/^@/, ''))} placeholder="인스타그램 ID (@제외)"
-                          className={`w-full pl-10 pr-3 py-2.5 rounded-xl border-2 text-sm focus:outline-none transition-colors ${darkMode ? 'bg-slate-700 border-slate-500 text-white placeholder-slate-500 focus:border-pink-500' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 focus:border-pink-400'}`} />
-                      </div>
-                      <div className="relative">
-                        <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded flex items-center justify-center text-[11px] font-black text-white bg-green-500">📞</div>
-                        <input value={statusPhone} onChange={e => setStatusPhone(e.target.value.replace(/\D/g, '').slice(0, 11))} placeholder="전화번호 (숫자만)" inputMode="tel"
-                          className={`w-full pl-10 pr-3 py-2.5 rounded-xl border-2 text-sm focus:outline-none transition-colors ${darkMode ? 'bg-slate-700 border-slate-500 text-white placeholder-slate-500 focus:border-green-500' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 focus:border-green-400'}`} />
-                      </div>
-                    </div>
-                    <button onClick={saveStatusContact} disabled={statusContactSaving}
-                      className="mt-3 w-full py-2.5 bg-cyan-500 hover:bg-cyan-600 text-white font-bold rounded-xl text-sm active:scale-95 transition-all disabled:opacity-40">
-                      {statusContactSaving ? '저장 중...' : '연락처 저장'}
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* ── 차단·숨기기 목록 ── */}
-            <div className={`rounded-3xl border shadow-xl transition-colors duration-300 overflow-hidden ${darkMode ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600' : 'bg-white border-gray-100'}`}>
-              <button onClick={() => setShowBlockList(v => !v)} className="w-full flex items-center justify-between px-5 py-4">
-                <span className={`text-[10px] font-black uppercase tracking-widest ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
-                  🚫 차단·숨기기 목록 {myBlockList.length > 0 ? `(${myBlockList.length})` : ''}
-                </span>
-                <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${showBlockList ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
-              </button>
-              {showBlockList && (
-                <div className="px-5 pb-5">
-                  {myBlockList.length === 0 ? (
-                    <p className={`text-xs text-center py-4 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>차단하거나 숨긴 사람이 없어요</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {myBlockList.map(b => {
-                        const bp = profiles.find(p => p.id === b.target_id);
-                        if (!bp) return null;
-                        return (
-                          <div key={b.id} className={`flex items-center gap-3 p-2 rounded-xl ${darkMode ? 'bg-slate-700/40' : 'bg-gray-50'}`}>
-                            <img src={bp.photo_url || `https://api.dicebear.com/7.x/thumbs/svg?seed=${encodeURIComponent(bp.nickname)}`} alt={bp.nickname}
-                              className="w-9 h-9 rounded-full object-cover flex-shrink-0"
-                              onError={(e) => { (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/thumbs/svg?seed=${encodeURIComponent(bp.nickname)}`; }} />
-                            <div className="flex-1 min-w-0">
-                              <p className={`text-xs font-black truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>{bp.nickname}</p>
-                              <p className={`text-[10px] ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{b.block_type === 'block' ? '🚫 차단됨' : '👻 나를 못 보게 함'}</p>
-                            </div>
-                            {onUnblock && (
-                              <button onClick={() => onUnblock(b.id)}
-                                className={`text-[10px] font-black px-2.5 py-1 rounded-xl border transition-all active:scale-95 flex-shrink-0 ${darkMode ? 'border-slate-500 text-slate-300 hover:bg-slate-600' : 'border-gray-200 text-gray-500 hover:bg-gray-100'}`}
-                              >풀기</button>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
             {/* ── 프로필 편집 (통합) ── */}
             {(() => {
               const me = profiles.find(p => p.id === currentUserId);
@@ -2131,7 +1999,7 @@ export function MainScreen({
                   setProfileEditSection(null);
                 }
               };
-              const toggleSection = (s: 'avatar' | 'nickname' | 'birth' | 'interests' | 'statusMsg' | 'ideal') => {
+              const toggleSection = (s: 'avatar' | 'nickname' | 'birth' | 'interests' | 'statusMsg' | 'ideal' | 'contact' | 'blocklist') => {
                 if (s === 'nickname') {
                   // 이미 1회 변경한 경우 열기 차단
                   if ((me as { nickname_changed?: boolean }).nickname_changed) return;
@@ -2280,53 +2148,8 @@ export function MainScreen({
                     );
                   })()}
 
-                  {/* ── 생월·생일 ── */}
-                  <div className={`border-b ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
-                    <button onClick={() => toggleSection('birth')} className="w-full flex items-center gap-3 px-4 py-3 text-left">
-                      <span className="text-xl flex-shrink-0">🔮</span>
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>생월 · 생일</p>
-                        <p className={`text-[11px] ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{hasBd ? `${me.birth_month}월 ${me.birth_day}일` : '미설정 — 사주·운세·궁합에 반영돼요'}</p>
-                      </div>
-                      {hasBd && <span className="text-[10px] font-black px-2 py-0.5 bg-purple-500 text-white rounded-full flex-shrink-0">{me.birth_month}월 {me.birth_day}일 ✓</span>}
-                      <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${showBirthEdit ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
-                    </button>
-                    {showBirthEdit && (
-                      <div className={`px-4 pb-4 ${darkMode ? 'bg-slate-700/20' : 'bg-gray-50/50'}`}>
-                        <div>
-                          <p className={`text-xs font-bold mb-2 ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>월</p>
-                          <div className="grid grid-cols-4 gap-1.5">
-                            {Array.from({length: 12}, (_, i) => i + 1).map(m => (
-                              <button key={m} type="button" onClick={() => setSajuBirthMonth(m)}
-                                className={`py-2 rounded-xl text-sm font-bold transition-all active:scale-95 ${
-                                  sajuBirthMonth === m ? 'bg-purple-500 text-white shadow-sm' :
-                                  darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-purple-50 text-purple-700 hover:bg-purple-100'
-                                }`}>{m}월</button>
-                            ))}
-                          </div>
-                        </div>
-                        <div className="mt-3">
-                          <p className={`text-xs font-bold mb-2 ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>일</p>
-                          <div className="grid grid-cols-7 gap-1">
-                            {Array.from({length: 31}, (_, i) => i + 1).map(d => (
-                              <button key={d} type="button" onClick={() => setSajuBirthDay(d)}
-                                className={`py-1.5 rounded-lg text-[11px] font-bold transition-all active:scale-95 ${
-                                  sajuBirthDay === d ? 'bg-purple-500 text-white shadow-sm' :
-                                  darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-purple-50 text-purple-600 hover:bg-purple-100'
-                                }`}>{d}</button>
-                            ))}
-                          </div>
-                        </div>
-                        <button onClick={saveSajuBirthDate} disabled={sajuSaving || sajuBirthMonth === null || sajuBirthDay === null}
-                          className="mt-3 w-full py-2.5 bg-gradient-to-r from-purple-500 to-violet-500 hover:from-purple-600 hover:to-violet-600 text-white font-bold rounded-xl text-sm disabled:opacity-40 active:scale-[0.98] transition-all">
-                          {sajuSaving ? '저장 중...' : '생월·생일 저장하기'}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
                   {/* ── 관심사 ── */}
-                  <div>
+                  <div className={`border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
                     <button onClick={() => toggleSection('interests')} className="w-full flex items-center gap-3 px-4 py-3 text-left">
                       <span className="text-xl flex-shrink-0">🎯</span>
                       <div className="flex-1 min-w-0">
@@ -2393,6 +2216,112 @@ export function MainScreen({
                       </div>
                     )}
                   </div>
+
+                  {/* ── 연락처 설정 ── */}
+                  <div className={`border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
+                    <button onClick={() => toggleSection('contact')} className="w-full flex items-center gap-2 px-4 py-3 text-left">
+                      <span className="text-xl flex-shrink-0">📋</span>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>연락처 설정</p>
+                        {(statusKakao || statusInstagram || statusPhone) ? (
+                          <p className={`text-[11px] leading-snug ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                            {[statusKakao && `K: ${statusKakao}`, statusInstagram && `@${statusInstagram}`, statusPhone && `📞 ${statusPhone}`].filter(Boolean).join(' · ')}
+                          </p>
+                        ) : (
+                          <p className={`text-[11px] ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>미설정</p>
+                        )}
+                      </div>
+                      {statusContactPrivate && (
+                        <span className="text-[9px] font-black px-1.5 py-0.5 bg-red-100 text-red-600 rounded-full flex-shrink-0">비공개</span>
+                      )}
+                      <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${showContactInEdit ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
+                    </button>
+                    {showContactInEdit && (
+                      <div className={`px-4 pb-4 ${darkMode ? 'bg-slate-700/20' : 'bg-gray-50/50'}`}>
+                        <div className={`rounded-xl p-3 mb-3 flex items-start gap-2 ${darkMode ? 'bg-amber-900/30 border border-amber-600/40' : 'bg-amber-50 border border-amber-300'}`}>
+                          <span className="text-amber-500 text-sm mt-0.5 flex-shrink-0">⚠️</span>
+                          <p className={`text-[11px] leading-relaxed ${darkMode ? 'text-amber-400' : 'text-amber-700'}`}>연락처는 상대방이 <span className="font-bold">연락처 공유를 수락했을 때만</span> 전달됩니다.</p>
+                        </div>
+                        <label className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer mb-3 select-none border ${statusContactPrivate ? (darkMode ? 'bg-red-900/30 border-red-700' : 'bg-red-50 border-red-200') : (darkMode ? 'bg-slate-700 border-slate-600' : 'bg-gray-50 border-gray-200')}`}>
+                          <div onClick={() => setStatusContactPrivate(v => !v)}
+                            className={`toggle-track relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${statusContactPrivate ? 'bg-red-500' : 'bg-gray-300'}`}>
+                            <span className={`toggle-thumb absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${statusContactPrivate ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                          </div>
+                          <div>
+                            <p className={`text-xs font-bold ${statusContactPrivate ? (darkMode ? 'text-red-400' : 'text-red-600') : (darkMode ? 'text-slate-300' : 'text-gray-700')}`}>연락처 비공개</p>
+                            {statusContactPrivate && <p className={`text-[10px] ${darkMode ? 'text-red-500' : 'text-red-500'}`}>매칭 상대에게 연락처가 전달되지 않습니다</p>}
+                          </div>
+                        </label>
+                        <div className={`space-y-2 transition-opacity ${statusContactPrivate ? 'opacity-40 pointer-events-none' : ''}`}>
+                          <div className="relative">
+                            <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded flex items-center justify-center text-[11px] font-black text-white bg-yellow-400">K</div>
+                            <input value={statusKakao} onChange={e => setStatusKakao(e.target.value)} placeholder="카카오톡 ID"
+                              className={`w-full pl-10 pr-3 py-2.5 rounded-xl border-2 text-sm focus:outline-none transition-colors ${darkMode ? 'bg-slate-700 border-slate-500 text-white placeholder-slate-500 focus:border-yellow-500' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 focus:border-yellow-400'}`} />
+                          </div>
+                          <div className="relative">
+                            <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded flex items-center justify-center text-[11px] font-black text-white bg-pink-500">@</div>
+                            <input value={statusInstagram} onChange={e => setStatusInstagram(e.target.value.replace(/^@/, ''))} placeholder="인스타그램 ID (@제외)"
+                              className={`w-full pl-10 pr-3 py-2.5 rounded-xl border-2 text-sm focus:outline-none transition-colors ${darkMode ? 'bg-slate-700 border-slate-500 text-white placeholder-slate-500 focus:border-pink-500' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 focus:border-pink-400'}`} />
+                          </div>
+                          <div className="relative">
+                            <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded flex items-center justify-center text-[11px] font-black text-white bg-green-500">📞</div>
+                            <input value={statusPhone} onChange={e => setStatusPhone(e.target.value.replace(/\D/g, '').slice(0, 11))} placeholder="전화번호 (숫자만)" inputMode="tel"
+                              className={`w-full pl-10 pr-3 py-2.5 rounded-xl border-2 text-sm focus:outline-none transition-colors ${darkMode ? 'bg-slate-700 border-slate-500 text-white placeholder-slate-500 focus:border-green-500' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 focus:border-green-400'}`} />
+                          </div>
+                        </div>
+                        <button onClick={saveStatusContact} disabled={statusContactSaving}
+                          className="mt-3 w-full py-2.5 bg-cyan-500 hover:bg-cyan-600 text-white font-bold rounded-xl text-sm active:scale-95 transition-all disabled:opacity-40">
+                          {statusContactSaving ? '저장 중...' : '연락처 저장'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ── 생월·생일 ── */}
+                  <div className={`border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
+                    <button onClick={() => toggleSection('birth')} className="w-full flex items-center gap-3 px-4 py-3 text-left">
+                      <span className="text-xl flex-shrink-0">🔮</span>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>생월 · 생일</p>
+                        <p className={`text-[11px] ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{hasBd ? `${me.birth_month}월 ${me.birth_day}일` : '미설정 — 사주·운세·궁합에 반영돼요'}</p>
+                      </div>
+                      {hasBd && <span className="text-[10px] font-black px-2 py-0.5 bg-purple-500 text-white rounded-full flex-shrink-0">{me.birth_month}월 {me.birth_day}일 ✓</span>}
+                      <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${showBirthEdit ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
+                    </button>
+                    {showBirthEdit && (
+                      <div className={`px-4 pb-4 ${darkMode ? 'bg-slate-700/20' : 'bg-gray-50/50'}`}>
+                        <div>
+                          <p className={`text-xs font-bold mb-2 ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>월</p>
+                          <div className="grid grid-cols-4 gap-1.5">
+                            {Array.from({length: 12}, (_, i) => i + 1).map(m => (
+                              <button key={m} type="button" onClick={() => setSajuBirthMonth(m)}
+                                className={`py-2 rounded-xl text-sm font-bold transition-all active:scale-95 ${
+                                  sajuBirthMonth === m ? 'bg-purple-500 text-white shadow-sm' :
+                                  darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-purple-50 text-purple-700 hover:bg-purple-100'
+                                }`}>{m}월</button>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="mt-3">
+                          <p className={`text-xs font-bold mb-2 ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>일</p>
+                          <div className="grid grid-cols-7 gap-1">
+                            {Array.from({length: 31}, (_, i) => i + 1).map(d => (
+                              <button key={d} type="button" onClick={() => setSajuBirthDay(d)}
+                                className={`py-1.5 rounded-lg text-[11px] font-bold transition-all active:scale-95 ${
+                                  sajuBirthDay === d ? 'bg-purple-500 text-white shadow-sm' :
+                                  darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-purple-50 text-purple-600 hover:bg-purple-100'
+                                }`}>{d}</button>
+                            ))}
+                          </div>
+                        </div>
+                        <button onClick={saveSajuBirthDate} disabled={sajuSaving || sajuBirthMonth === null || sajuBirthDay === null}
+                          className="mt-3 w-full py-2.5 bg-gradient-to-r from-purple-500 to-violet-500 hover:from-purple-600 hover:to-violet-600 text-white font-bold rounded-xl text-sm disabled:opacity-40 active:scale-[0.98] transition-all">
+                          {sajuSaving ? '저장 중...' : '생월·생일 저장하기'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
                   {/* ── 오늘의 한마디 ── */}
                   <div className={`border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
                     <button onClick={() => toggleSection('statusMsg')} className="w-full flex items-center gap-3 px-4 py-3 text-left">
@@ -2483,6 +2412,80 @@ export function MainScreen({
                           className="w-full py-2.5 bg-rose-500 hover:bg-rose-600 text-white font-bold rounded-xl text-sm active:scale-[0.98] transition-all disabled:opacity-40">
                           {signalSaving ? '저장 중...' : '이상형 저장'}
                         </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ── 성향(돔/섭) 공개 ── */}
+                  {(() => {
+                    const hidePersonality = (me as { hide_personality?: boolean }).hide_personality ?? true;
+                    return (
+                      <div className={`border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
+                        <div className="flex items-center justify-between px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <span className="text-xl flex-shrink-0">👁</span>
+                            <div>
+                              <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>성향(돔/섭) 공개</p>
+                              <p className={`text-[10px] ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{hidePersonality ? '🔒 다른 참여자에게 숨김' : '👁 다른 참여자에게 보임'}</p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={async () => {
+                              const next = !hidePersonality;
+                              if (!currentUserId) return;
+                              try {
+                                await supabase.from('profiles').update({ hide_personality: next } as never).eq('id', currentUserId);
+                                onUpdateProfile({ id: currentUserId, hide_personality: next } as never);
+                              } catch (e) { console.error('[hide_personality]', e); }
+                            }}
+                            className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none ${hidePersonality ? (darkMode ? 'bg-slate-600' : 'bg-gray-300') : 'bg-teal-500'}`}
+                            aria-label="성향 공개 토글"
+                          >
+                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ${hidePersonality ? 'translate-x-1' : 'translate-x-6'}`} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* ── 차단·숨기기 ── */}
+                  <div className={`border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
+                    <button onClick={() => toggleSection('blocklist')} className="w-full flex items-center gap-3 px-4 py-3 text-left">
+                      <span className="text-xl flex-shrink-0">🚫</span>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>차단·숨기기 목록</p>
+                        <p className={`text-[11px] ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{myBlockList.length > 0 ? `${myBlockList.length}명` : '없음'}</p>
+                      </div>
+                      <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${showBlockInEdit ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
+                    </button>
+                    {showBlockInEdit && (
+                      <div className={`px-4 pb-4 ${darkMode ? 'bg-slate-700/20' : 'bg-gray-50/50'}`}>
+                        {myBlockList.length === 0 ? (
+                          <p className={`text-xs text-center py-4 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>차단하거나 숨긴 사람이 없어요</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {myBlockList.map(b => {
+                              const bp = profiles.find(p => p.id === b.target_id);
+                              if (!bp) return null;
+                              return (
+                                <div key={b.id} className={`flex items-center gap-3 p-2 rounded-xl ${darkMode ? 'bg-slate-700/40' : 'bg-gray-50'}`}>
+                                  <img src={bp.photo_url || `https://api.dicebear.com/7.x/thumbs/svg?seed=${encodeURIComponent(bp.nickname)}`} alt={bp.nickname}
+                                    className="w-9 h-9 rounded-full object-cover flex-shrink-0"
+                                    onError={(e) => { (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/thumbs/svg?seed=${encodeURIComponent(bp.nickname)}`; }} />
+                                  <div className="flex-1 min-w-0">
+                                    <p className={`text-xs font-black truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>{bp.nickname}</p>
+                                    <p className={`text-[10px] ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{b.block_type === 'block' ? '🚫 차단됨' : '👻 나를 못 보게 함'}</p>
+                                  </div>
+                                  {onUnblock && (
+                                    <button onClick={() => onUnblock(b.id)}
+                                      className={`text-[10px] font-black px-2.5 py-1 rounded-xl border transition-all active:scale-95 flex-shrink-0 ${darkMode ? 'border-slate-500 text-slate-300 hover:bg-slate-600' : 'border-gray-200 text-gray-500 hover:bg-gray-100'}`}
+                                    >풀기</button>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
