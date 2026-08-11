@@ -657,6 +657,8 @@ export function MainScreen({
   blockedUserIds = new Set<string>(), hiddenByIds = new Set<string>(),
   profileVisitors = [] as ProfileView[],
   onBlock,
+  myBlockList = [] as import('../types/app').BlockedUser[],
+  onUnblock,
 }: {
   profiles: Profile[]; currentUserId: string | null; likedIds: Set<string>; sentHeartTypes: Map<string, HeartType>; sentHeartsPerPerson: Map<string, Set<HeartType>>; likeStatuses: Map<string, string>;
   profileMap: Map<string, Profile>; mainTab: MainTab;
@@ -706,6 +708,8 @@ export function MainScreen({
   hiddenByIds?: Set<string>;
   profileVisitors?: ProfileView[];
   onBlock?: (targetId: string, type: 'block' | 'hide') => void;
+  myBlockList?: import('../types/app').BlockedUser[];
+  onUnblock?: (blockId: string) => void;
 }) {
   const heartCount = useCallback((t: HeartType) => { let c = 0; sentHeartsPerPerson.forEach(types => { if (types.has(t)) c++; }); return c; }, [sentHeartsPerPerson]);
   const tableNumber: number | null = null;
@@ -1308,7 +1312,7 @@ export function MainScreen({
               const domLabel = getDomSubLabel(me.dom_sub_score ?? null);
               const domColor = getDomSubBg(me.dom_sub_score ?? null);
               const bioTags = me.bio ? me.bio.split(',').map(t => t.trim()).filter(Boolean) : [];
-              const hidePersonality = (me as { hide_personality?: boolean }).hide_personality ?? false;
+              const hidePersonality = (me as { hide_personality?: boolean }).hide_personality ?? true;
               const handleToggleHidePersonality = async () => {
                 const next = !hidePersonality;
                 if (!currentUserId) return;
@@ -1464,6 +1468,43 @@ export function MainScreen({
                         <span className="text-[9px] font-semibold text-center leading-tight">고유번호<br/>없음</span>
                       </div>
                     )}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* ── 차단·숨기기 목록 ── */}
+            {myBlockList.length > 0 && (() => {
+              return (
+                <div className={`rounded-3xl p-5 border shadow-xl transition-colors duration-300 ${darkMode ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600' : 'bg-white border-gray-100'}`}>
+                  <p className={`text-[10px] font-black uppercase tracking-widest mb-3 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>🚫 차단·숨기기 목록</p>
+                  <div className="space-y-2">
+                    {myBlockList.map(b => {
+                      const bp = profiles.find(p => p.id === b.target_id);
+                      if (!bp) return null;
+                      return (
+                        <div key={b.id} className={`flex items-center gap-3 p-2 rounded-xl ${darkMode ? 'bg-slate-700/40' : 'bg-gray-50'}`}>
+                          <img
+                            src={bp.photo_url || `https://api.dicebear.com/7.x/thumbs/svg?seed=${encodeURIComponent(bp.nickname)}`}
+                            alt={bp.nickname}
+                            className="w-9 h-9 rounded-full object-cover flex-shrink-0"
+                            onError={(e) => { (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/thumbs/svg?seed=${encodeURIComponent(bp.nickname)}`; }}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-xs font-black truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>{bp.nickname}</p>
+                            <p className={`text-[10px] ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
+                              {b.block_type === 'block' ? '🚫 차단' : '👻 나를 못 보게 하기'}
+                            </p>
+                          </div>
+                          {onUnblock && (
+                            <button
+                              onClick={() => onUnblock(b.id)}
+                              className={`text-[10px] font-black px-2.5 py-1 rounded-xl border transition-all active:scale-95 flex-shrink-0 ${darkMode ? 'border-slate-500 text-slate-300 hover:bg-slate-600' : 'border-gray-200 text-gray-500 hover:bg-gray-100'}`}
+                            >풀기</button>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               );

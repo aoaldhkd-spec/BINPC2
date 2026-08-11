@@ -430,6 +430,22 @@ function App() {
     }
   }, [currentUserId, blockedUsers]);
 
+  // ─── 차단·숨기기 해제 ────────────────────────────────────────────────────
+  const handleUnblock = useCallback(async (blockId: string) => {
+    setBlockedUsers(prev => prev.filter(b => b.id !== blockId));
+    try {
+      await supabase.from('blocked_users').delete().eq('id', blockId as never);
+    } catch (e) {
+      console.error('[handleUnblock]', e);
+      // 실패 시 재로드
+      supabase.from('blocked_users').select('*').then(({ data }: { data: unknown }) => {
+        if (Array.isArray(data) && currentUserId) {
+          setBlockedUsers((data as BlockedUser[]).filter(b => b.user_id === currentUserId || b.target_id === currentUserId));
+        }
+      }).catch(() => {});
+    }
+  }, [currentUserId]);
+
   // ─── 프로필 열 때 방문 기록 ───────────────────────────────────────────────
   const recordProfileView = useCallback((viewedId: string) => {
     if (!currentUserId || viewedId === currentUserId) return;
@@ -1427,6 +1443,8 @@ function App() {
         })()}
         profileVisitors={profileVisitors}
         onBlock={handleBlock}
+        myBlockList={blockedUsers.filter(b => b.user_id === currentUserId)}
+        onUnblock={handleUnblock}
       />
       </AppErrorBoundary>
       {likeConfirmTarget && (
