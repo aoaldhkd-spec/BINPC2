@@ -1678,64 +1678,6 @@ export function MainScreen({
               </div>
             )}
 
-            {/* ── 오늘의 운세 미니카드 ── */}
-            {(() => {
-              const me = profiles.find(p => p.id === currentUserId);
-              // birth_year 없이 생월·생일만 있어도 운세 표시 가능
-              const hasBd = !!(me?.birth_month && me?.birth_day);
-              const cardBase = `w-full rounded-2xl p-4 border ${darkMode ? 'bg-gradient-to-r from-purple-900/40 to-slate-800 border-purple-500/30' : 'bg-gradient-to-r from-purple-50 to-white border-purple-200'}`;
-
-              if (!hasBd) {
-                return (
-                  <div className={cardBase}>
-                    <div className="flex items-center gap-3">
-                      <span className="text-2xl">🔮</span>
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-xs font-black uppercase tracking-widest ${darkMode ? 'text-purple-300' : 'text-purple-600'}`}>오늘의 운세</p>
-                        <p className="text-amber-500 text-xs font-semibold mt-0.5">생년월일 미등록 — 운세 기능을 사용할 수 없어요 ⚠️</p>
-                      </div>
-                    </div>
-                  </div>
-                );
-              }
-
-              // 연도가 없으면 오행·띠 계산 불가 → 1990 기본값(시드 다양성 위해)
-              const birthYear = me?.birth_year ?? 1990;
-              const fortune = getTodayFortune(birthYear, me!.birth_month!, me!.birth_day!);
-              const zodiacEmoji = me?.birth_year ? getZodiac(me.birth_year).emoji : '🔮';
-
-              return (
-                <div className={cardBase}>
-                  {/* 헤더 행 */}
-                  <div className="flex items-center gap-3 mb-2.5">
-                    <span className="text-2xl flex-shrink-0">{zodiacEmoji}</span>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-xs font-black uppercase tracking-widest ${darkMode ? 'text-purple-300' : 'text-purple-600'}`}>오늘의 운세</p>
-                      <p className={`text-[11px] ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>
-                        {me!.birth_month}월 {me!.birth_day}일
-                        {me?.birth_year ? ` · ${getZodiac(me.birth_year).name}띠 · ${getOhaeng(me.birth_year)}` : ''}
-                      </p>
-                    </div>
-                    {/* 에너지 레벨 뱃지 */}
-                    <div className={`flex-shrink-0 text-center px-2.5 py-1 rounded-xl ${darkMode ? 'bg-purple-900/60' : 'bg-purple-100'}`}>
-                      <p className={`text-[17px] font-black leading-none ${darkMode ? 'text-purple-200' : 'text-purple-700'}`}>{fortune.energyLevel}</p>
-                      <p className={`text-[8px] font-bold ${darkMode ? 'text-purple-400' : 'text-purple-500'}`}>에너지</p>
-                    </div>
-                  </div>
-                  {/* 오늘의 메시지 */}
-                  <p className={`text-[13px] leading-relaxed mb-2.5 ${darkMode ? 'text-slate-200' : 'text-gray-700'}`}>
-                    {fortune.message}
-                  </p>
-                  {/* 행운 뱃지 */}
-                  <div className="flex flex-wrap gap-1.5">
-                    {[`🎨 ${fortune.luckyColor}`, `🔢 ${fortune.luckyNumber}`, `✨ ${fortune.luckyItem}`].map(tag => (
-                      <span key={tag} className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${darkMode ? 'bg-slate-700 text-slate-300' : 'bg-white border border-purple-100 text-gray-600'}`}>{tag}</span>
-                    ))}
-                  </div>
-                </div>
-              );
-            })()}
-
 
             {/* ── 방문자 기록 (접기/펼치기) ── */}
             {(() => {
