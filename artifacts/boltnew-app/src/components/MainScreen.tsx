@@ -558,15 +558,15 @@ export const ProfileCard = memo(function ProfileCard({
               onError={(e) => { (e.target as HTMLImageElement).src = genAvatar(profile.nickname); }}
               style={{ width: '100%', height: '100%', objectFit: imgFit === 'cover' ? 'cover' : 'contain' }}
             />
-            {/* 상태 메시지 (상단 좌측, ··· 버튼과 같은 줄) */}
+            {/* 상태 메시지 */}
             {statusMsg?.trim() && (
               <div
                 className="absolute top-0 left-0 right-0 z-10 overflow-hidden"
                 style={{
-                  height: '28px',
-                  background: 'linear-gradient(90deg,#7c3aed 0%,#db2777 45%,#f97316 100%)',
-                  borderTop: '1px solid rgba(255,255,255,0.2)',
-                  animation: 'ticker-fadein 0.4s ease',
+                  height: '22px',
+                  background: 'rgba(0,0,0,0.52)',
+                  backdropFilter: 'blur(4px)',
+                  animation: 'ticker-fadein 0.3s ease',
                 }}
                 onClick={(e) => e.stopPropagation()}
               >
@@ -575,24 +575,22 @@ export const ProfileCard = memo(function ProfileCard({
                     <span style={{
                       display: 'inline-block',
                       whiteSpace: 'nowrap',
-                      fontSize: '11.5px',
-                      fontWeight: 800,
-                      color: '#ffffff',
-                      textShadow: '0 0 12px rgba(255,255,255,0.8), 0 0 4px rgba(255,255,255,0.4)',
-                      letterSpacing: '0.04em',
-                      animation: `ticker-scroll ${Math.max(8, (statusMsg?.length ?? 0) * 0.5)}s linear infinite`,
+                      fontSize: '11px',
+                      fontWeight: 500,
+                      color: 'rgba(255,255,255,0.92)',
+                      letterSpacing: '0.02em',
+                      animation: `ticker-scroll ${Math.max(8, (statusMsg?.length ?? 0) * 0.55)}s linear infinite`,
                     }}>
-                      {`${statusMsg}`}
+                      {statusMsg}
                     </span>
                   </div>
                 ) : (
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
                     <span style={{
-                      fontSize: '11.5px',
-                      fontWeight: 800,
-                      color: '#ffffff',
-                      textShadow: '0 0 12px rgba(255,255,255,0.8), 0 0 4px rgba(255,255,255,0.4)',
-                      letterSpacing: '0.04em',
+                      fontSize: '11px',
+                      fontWeight: 500,
+                      color: 'rgba(255,255,255,0.92)',
+                      letterSpacing: '0.02em',
                     }}>
                       {statusMsg}
                     </span>
