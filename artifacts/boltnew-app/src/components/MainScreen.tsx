@@ -1971,6 +1971,42 @@ export function MainScreen({
           <StatusErrorBoundary>
           <div className="max-w-lg mx-auto space-y-4 pb-24">
 
+            {/* ── 고유번호 ── */}
+            {(() => {
+              const pinCode = profiles.find(p => p.id === currentUserId)?.pin_code;
+              return (
+                <div className={`rounded-3xl border shadow-xl overflow-hidden ${darkMode ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600' : 'bg-white border-gray-100'}`}>
+                  <div className="px-5 py-4 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 text-lg ${darkMode ? 'bg-amber-500/20' : 'bg-amber-50'}`}>🔑</div>
+                      <div className="min-w-0">
+                        <p className={`text-[10px] font-black uppercase tracking-widest mb-0.5 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>내 고유번호</p>
+                        {pinCode ? (
+                          <p className={`text-2xl font-black tracking-[0.3em] leading-none ${darkMode ? 'text-amber-300' : 'text-amber-600'}`}>{pinCode}</p>
+                        ) : (
+                          <p className={`text-sm font-bold ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>번호 없음</p>
+                        )}
+                      </div>
+                    </div>
+                    {pinCode && (
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(pinCode).catch(() => {});
+                        }}
+                        className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black border transition-all active:scale-95 ${darkMode ? 'bg-amber-500/15 border-amber-500/30 text-amber-400 hover:bg-amber-500/25' : 'bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100'}`}
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                          <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                        </svg>
+                        복사
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* ── 프로필 편집 (통합) ── */}
             {(() => {
               const me = profiles.find(p => p.id === currentUserId);
