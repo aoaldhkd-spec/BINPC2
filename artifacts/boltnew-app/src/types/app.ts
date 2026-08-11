@@ -18,7 +18,35 @@ export type Chat = {
   messageCount?: number;
 };
 
-export type View = 'entry-1' | 'entry-recover' | 'loading-main' | 'main' | 'profile' | 'chat';
+export type View = 'entry-1' | 'entry-recover' | 'loading-main' | 'main' | 'profile' | 'chat' | 'group-chat';
+
+export type GroupChat = {
+  id: string;
+  name: string;
+  interest_tag: string;
+  age_group: string | null;
+  max_members: number;
+  created_at: string;
+  lastMessage?: string;
+  memberCount?: number;
+};
+
+export type GroupMessage = {
+  id: string;
+  group_id: string;
+  sender_id: string;
+  content: string;
+  image_url?: string | null;
+  created_at: string;
+  client_id?: string | null;
+};
+
+export type GroupParticipant = {
+  id: string;
+  group_id: string;
+  user_id: string;
+  joined_at: string;
+};
 export type MainTab =
   | 'profiles' | 'status' | 'chats' | 'suggestions'
   | 'game' | 'tutorial' | 'stats' | 'ranking' | 'fortune';

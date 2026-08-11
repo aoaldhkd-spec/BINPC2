@@ -24,6 +24,7 @@ export interface Database {
           location: string | null;
           interests: string | null;
           contact_private: boolean;
+          hide_personality: boolean;
           kakao_id: string | null;
           instagram_id: string | null;
           phone_number: string | null;
@@ -44,6 +45,7 @@ export interface Database {
           location?: string | null;
           interests?: string | null;
           contact_private?: boolean;
+          hide_personality?: boolean;
           kakao_id?: string | null;
           instagram_id?: string | null;
           phone_number?: string | null;
@@ -64,6 +66,7 @@ export interface Database {
           location?: string | null;
           interests?: string | null;
           contact_private?: boolean;
+          hide_personality?: boolean;
           kakao_id?: string | null;
           instagram_id?: string | null;
           phone_number?: string | null;

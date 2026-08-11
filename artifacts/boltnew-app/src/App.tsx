@@ -8,8 +8,10 @@ import { HeartType } from './lib/constants';
 // ─── 분리된 타입·유틸·컴포넌트 imports ────────────────────────────────────────
 import type {
   Profile, ContactShare, Suggestion,
-  Chat, View, MainTab,
+  Chat, View, MainTab, GroupChat, GroupMessage,
 } from './types/app';
+import { useGroupChat } from './hooks/useGroupChat';
+import { GroupChatScreen } from './components/GroupChatScreen';
 import { heartMeta } from './lib/constants';
 import ChatScreen from './components/ChatScreen';
 import { ChatErrorBoundary } from './components/ChatErrorBoundary';
@@ -248,6 +250,10 @@ function App() {
       }, 2100);
     }, 30);
   }, []);
+  const [heartDrainEnabled, setHeartDrainEnabled] = useState(false);
+  const [myHeartCount, setMyHeartCount] = useState<number | null>(null);
+  const myHeartCountRef = useRef<number | null>(null);
+  myHeartCountRef.current = myHeartCount;
   const [functionsLocked, setFunctionsLocked] = useState(false);
   const [registrationError, setRegistrationError] = useState<string | null>(null);
   const [resetPassword, setResetPassword] = useState<string | null>(null);
@@ -357,6 +363,17 @@ function App() {
     loadChatList, openChat, sendMessage, sendImage,
     deleteChat, deleteAllChats, deleteMessage,
   } = useChat({ currentUserId, profilesRef, setSelectedProfile, setView, setBottomNotif });
+
+  const {
+    groupChats,
+    activeGroupId,
+    groupMessages,
+    unreadGroupCounts,
+    newGroupMsgCount, setNewGroupMsgCount,
+    openGroupChat,
+    closeGroupChat,
+    sendGroupMessage,
+  } = useGroupChat({ currentUserId, profilesRef, setBottomNotif });
 
   const {
     likedIds, setLikedIds, sentHeartTypes, setSentHeartTypes, sentHeartsPerPerson, setSentHeartsPerPerson,
@@ -472,6 +489,7 @@ function App() {
         setTimerEndAt(p.timer_end_at ?? null);
         setTimerLabel(p.timer_label ?? null);
         if ((p as any).functions_locked != null) setFunctionsLocked((p as any).functions_locked);
+        if ((p as any).heart_drain_enabled != null) setHeartDrainEnabled(!!(p as any).heart_drain_enabled);
         if (p.reset_password !== undefined) setResetPassword(p.reset_password ?? null);
         if (p.entry_password !== undefined) {
           const ep = p.entry_password ?? '';
@@ -746,36 +764,7 @@ function App() {
         })
       .subscribe();
 
-    // chats 생성/삭제 감지 — messages 구독은 별도 perChatChannels 로 분리 (서버 사이드 필터 적용)
-    const chatChannel = supabase
-      .channel('realtime:chats-user')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chats' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-        const c = payload.new as { user1_id: string; user2_id: string; id: string; created_at: string };
-        if (c.user1_id !== currentUserId && c.user2_id !== currentUserId) return;
-        const newChat: Chat = { id: c.id, user1_id: c.user1_id, user2_id: c.user2_id, created_at: c.created_at, lastMessage: '', messageCount: 0 };
-        setChatList(prev => {
-          if (prev.some(x => x.id === c.id)) return prev;
-          const next = [newChat, ...prev];
-          chatListRef.current = next;
-          return next;
-        });
-        const otherId = c.user1_id === currentUserId ? c.user2_id : c.user1_id;
-        const otherProfile = profilesRef.current.find(p => p.id === otherId);
-        const pairKey = `${c.user1_id}:${c.user2_id}`;
-        const iMadeThis = selfInitiatedPairRef.current === pairKey;
-        if (otherProfile && !iMadeThis) setBottomNotif({ type: 'chat', nickname: otherProfile.nickname });
-      })
-      // Bug fix: 상대방이 채팅방을 삭제해도 내 목록에서 즉시 제거
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'chats' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-        const c = payload.old as { id?: string };
-        if (!c.id) return;
-        setChatList(prev => {
-          const next = prev.filter(x => x.id !== c.id);
-          chatListRef.current = next;
-          return next;
-        });
-      })
-      .subscribe();
+    // chats INSERT/DELETE는 useChat의 user-events-${uid} 통합 채널이 처리 — 중복 구독 제거됨
 
     const suggestionsChannel = supabase
       .channel('realtime:suggestions')
@@ -788,6 +777,26 @@ function App() {
         setSuggestions(prev => prev.some(x => x.id === s.id) ? prev : [s, ...prev]);
       })
       .subscribe();
+
+    // ─── 하트 잔여 수 실시간 구독 + 초기 로드 ─────────────────────────────────
+    const heartBalanceChannel = supabase
+      .channel(`realtime:heart_balances:${currentUserId}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'heart_balances', filter: `id=eq.${currentUserId}` },
+        (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
+          const row = payload.new as { heart_count?: number };
+          if (typeof row?.heart_count === 'number') {
+            const prev = myHeartCountRef.current;
+            setMyHeartCount(row.heart_count);
+            if (prev !== null && row.heart_count < prev) {
+              setBottomNotif({ type: 'like', message: `💛 하트가 ${row.heart_count}개 남았어요!` } as any);
+            }
+          }
+        })
+      .subscribe();
+    supabase.from('heart_balances').select('heart_count').eq('id', currentUserId).maybeSingle()
+      .then(({ data }: { data: any }) => {
+        if (data && typeof data.heart_count === 'number') setMyHeartCount(data.heart_count);
+      }).catch(() => {});
 
     return () => {
       cancelled = true;
@@ -803,8 +812,8 @@ function App() {
       supabase.removeChannel(likesChannel);
       supabase.removeChannel(receivedLikesChannel);
       supabase.removeChannel(contactSharesChannel);
-      supabase.removeChannel(chatChannel);
       supabase.removeChannel(suggestionsChannel);
+      supabase.removeChannel(heartBalanceChannel);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- loadXxx are stable useCallbacks; setState/refs are stable
   }, [currentUserId, loadProfiles, loadLikes, loadReceivedLikes, loadContactShareData, loadChatList, loadSuggestions]);
@@ -1126,6 +1135,21 @@ function App() {
     </>
     </AppErrorBoundary>
   );
+  if (view === 'group-chat' && activeGroupId) {
+    const activeGroup = groupChats.find(g => g.id === activeGroupId) ?? null;
+    return (
+      <GroupChatScreen
+        group={activeGroup}
+        messages={groupMessages}
+        currentUserId={currentUserId}
+        profileMap={profileMap}
+        darkMode={darkMode}
+        onBack={() => { closeGroupChat(); setView('main'); }}
+        onSendMessage={sendGroupMessage}
+      />
+    );
+  }
+
   if (view === 'chat' && selectedProfile && !chatId) return (
     <div className="flex items-center justify-center h-screen bg-white">
       <div className="text-center">
@@ -1241,19 +1265,6 @@ function App() {
           </div>
         </AppErrorBoundary>
       )}
-      {/* 차단 화면 — 하트를 한 번도 보내지 않은 유저가 관리자에게 차단됐을 때 */}
-      {currentUserId && (profileMap.get(currentUserId) as any)?.is_blocked === true && (
-        <div className="fixed inset-0 z-[9999] bg-slate-900 flex flex-col items-center justify-center gap-6 px-8">
-          <span className="text-6xl select-none">🚫</span>
-          <div className="text-center">
-            <p className="text-white font-black text-xl mb-2">참가가 제한되었습니다</p>
-            <p className="text-slate-400 text-sm leading-relaxed">
-              하트를 한 번도 보내지 않아 차단되었습니다.<br />
-              관리자에게 문의하여 차단을 해제해 주세요.
-            </p>
-          </div>
-        </div>
-      )}
       <AppErrorBoundary screenName="메인 화면" onReset={() => { setView('main'); setMainTab('profiles'); }}>
       <MainScreen
         profiles={profiles}
@@ -1311,6 +1322,13 @@ function App() {
         onClearChatUnread={(chatId) => setUnreadChatCounts(prev => { const n = { ...prev }; delete n[chatId]; return n; })}
         resetPassword={resetPassword}
         fortuneCompatTarget={fortuneCompatTarget}
+        myHeartCount={myHeartCount}
+        heartDrainEnabled={heartDrainEnabled}
+        groupChats={groupChats}
+        unreadGroupCounts={unreadGroupCounts}
+        newGroupMsgCount={newGroupMsgCount}
+        onClearGroupMsgCount={() => setNewGroupMsgCount(0)}
+        onOpenGroupChat={(groupId) => { void openGroupChat(groupId).then(() => setView('group-chat')); }}
       />
       </AppErrorBoundary>
       {likeConfirmTarget && (

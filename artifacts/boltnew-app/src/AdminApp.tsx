@@ -1102,7 +1102,7 @@ function DbHealthTab({ health, loading, onRefresh, onClearErrors }: { health: Db
 
 function DashboardTab({ settings, profiles, onToggleSession, onEventEndReset, onToggleFunctionsLock,
   onClearLikes, onClearChats, onClearProfiles, onClearHistory,
-  restoreMap, onTriggerInactiveBlock }: {
+  restoreMap, onTriggerHeartDrain, onResetHeartBalances }: {
   settings: AppSettings | null; profiles: Profile[];
   onToggleSession: () => void; onEventEndReset: () => void;
   onToggleFunctionsLock: () => void;
@@ -1111,7 +1111,8 @@ function DashboardTab({ settings, profiles, onToggleSession, onEventEndReset, on
   onClearProfiles: () => Promise<void>;
   onClearHistory: () => Promise<void>;
   restoreMap: Map<string, () => Promise<void>>;
-  onTriggerInactiveBlock: () => Promise<void>;
+  onTriggerHeartDrain: () => Promise<void>;
+  onResetHeartBalances: () => Promise<void>;
 }) {
   const [confirmToggle, setConfirmToggle] = useState(false);
   const [confirmEventEnd, setConfirmEventEnd] = useState(false);
@@ -1199,71 +1200,78 @@ function DashboardTab({ settings, profiles, onToggleSession, onEventEndReset, on
       </div>
 
 
-      {/* 🚫 하트 미전송 자동 차단 */}
+      {/* 💛 하트 드레인 시스템 */}
       <div>
-        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 px-1">🚫 하트 미전송 차단</h3>
-        <div className="rounded-2xl border-2 border-orange-200 bg-orange-50 p-4 space-y-3">
+        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 px-1">💛 하트 차감</h3>
+        <div className="rounded-2xl border-2 border-yellow-200 bg-yellow-50 p-4 space-y-3">
           <div className="flex items-start gap-3">
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-black text-orange-800">비활성 유저 차단</p>
-              <p className="text-[10px] text-orange-600 mt-0.5 leading-relaxed">
-                하트를 한 번도 보내지 않은 유저가 입장 후{' '}
-                <strong>{(settings as any)?.inactive_block_minutes ?? 10}분</strong>이 지나면 자동 차단.
-                {(settings as any)?.inactive_block_enabled
-                  ? ' ✅ 활성 중'
-                  : ' ⏸️ 비활성'}
+              <p className="text-sm font-black text-yellow-800">하트 개수 자동 차감</p>
+              <p className="text-[10px] text-yellow-600 mt-0.5 leading-relaxed">
+                {(settings as any)?.heart_drain_enabled
+                  ? `✅ 활성 — ${(settings as any)?.heart_drain_minutes ?? 5}분마다 하트 1개 차감`
+                  : '⏸️ 비활성 — 하트 개수가 줄지 않음'}
               </p>
             </div>
             <button
               onClick={async () => {
-                const newVal = !((settings as any)?.inactive_block_enabled ?? false);
+                const newVal = !((settings as any)?.heart_drain_enabled ?? false);
                 await adminApiRpc('admin_update_settings', {
                   p_admin_password: settings?.admin_password ?? '',
-                  p_payload: { inactive_block_enabled: newVal },
+                  p_payload: { heart_drain_enabled: newVal },
                 }).catch(console.error);
               }}
-              className={`relative w-10 h-6 rounded-full transition-all flex-shrink-0 ${(settings as any)?.inactive_block_enabled ? 'bg-orange-500' : 'bg-slate-300'}`}
+              className={`relative w-10 h-6 rounded-full transition-all flex-shrink-0 ${(settings as any)?.heart_drain_enabled ? 'bg-yellow-500' : 'bg-slate-300'}`}
             >
-              <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${(settings as any)?.inactive_block_enabled ? 'left-4' : 'left-0.5'}`} />
+              <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${(settings as any)?.heart_drain_enabled ? 'left-4' : 'left-0.5'}`} />
             </button>
           </div>
 
-          {/* 유예 시간 설정 */}
-          <div>
-            <label className="text-[10px] font-black text-orange-700 block mb-1">유예 시간 (분) — 입장 후 이 시간이 지나도 하트 0이면 차단</label>
-            <input
-              type="number" min={1} max={120}
-              defaultValue={(settings as any)?.inactive_block_minutes ?? 10}
-              onBlur={async (e) => {
-                const v = Math.max(1, Math.min(120, parseInt(e.target.value) || 10));
-                e.target.value = String(v);
-                await adminApiRpc('admin_update_settings', {
-                  p_admin_password: settings?.admin_password ?? '',
-                  p_payload: { inactive_block_minutes: v },
-                }).catch(console.error);
-              }}
-              className="w-full rounded-xl border border-orange-300 bg-white px-3 py-1.5 text-sm font-bold text-orange-900 focus:outline-none focus:ring-2 focus:ring-orange-400"
-            />
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] font-black text-yellow-700 block mb-1">차감 간격 (분)</label>
+              <input
+                type="number" min={1} max={60}
+                defaultValue={(settings as any)?.heart_drain_minutes ?? 5}
+                onBlur={async (e) => {
+                  const v = Math.max(1, Math.min(60, parseInt(e.target.value) || 5));
+                  e.target.value = String(v);
+                  await adminApiRpc('admin_update_settings', {
+                    p_admin_password: settings?.admin_password ?? '',
+                    p_payload: { heart_drain_minutes: v },
+                  }).catch(console.error);
+                }}
+                className="w-full rounded-xl border border-yellow-300 bg-white px-3 py-1.5 text-sm font-bold text-yellow-900 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-black text-yellow-700 block mb-1">초기 하트 수</label>
+              <input
+                type="number" min={1} max={100}
+                defaultValue={(settings as any)?.heart_initial_count ?? 10}
+                onBlur={async (e) => {
+                  const v = Math.max(1, Math.min(100, parseInt(e.target.value) || 10));
+                  e.target.value = String(v);
+                  await adminApiRpc('admin_update_settings', {
+                    p_admin_password: settings?.admin_password ?? '',
+                    p_payload: { heart_initial_count: v },
+                  }).catch(console.error);
+                }}
+                className="w-full rounded-xl border border-yellow-300 bg-white px-3 py-1.5 text-sm font-bold text-yellow-900 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+              />
+            </div>
           </div>
 
-          {/* 수동 차단 실행 */}
-          <button
-            onClick={onTriggerInactiveBlock}
-            className="w-full rounded-xl py-2.5 px-3 bg-orange-500 hover:bg-orange-600 text-white text-sm font-black active:scale-95 transition-all shadow-sm"
-          >
-            🚫 지금 바로 미전송 유저 차단
-          </button>
-
-          {/* 현재 차단된 유저 수 */}
-          {(() => {
-            const blocked = profiles.filter(p => (p as any).is_blocked === true);
-            if (!blocked.length) return null;
-            return (
-              <p className="text-[10px] text-orange-700 font-semibold text-center">
-                현재 차단된 참여자 {blocked.length}명 — 참여자 탭에서 개별 해제 가능
-              </p>
-            );
-          })()}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={onTriggerHeartDrain}
+              className="rounded-xl py-2 px-3 bg-yellow-500 hover:bg-yellow-600 text-white text-xs font-black active:scale-95 transition-all shadow-sm"
+            >⚡ 즉시 차감</button>
+            <button
+              onClick={onResetHeartBalances}
+              className="rounded-xl py-2 px-3 bg-white border-2 border-yellow-400 hover:bg-yellow-50 text-yellow-800 text-xs font-black active:scale-95 transition-all"
+            >🔄 전체 초기화</button>
+          </div>
         </div>
       </div>
 
@@ -1703,12 +1711,11 @@ function ChatsTab({ chats, messages, profileMap, onDeleteChat, onClearAll, onRef
 
 // ─── Game Tab ─────────────────────────────────────────────────────────────────
 
-function ProfilesTabSection({ profiles, settings, onClear, onDeleteProfile, onUnblockProfile }: {
+function ProfilesTabSection({ profiles, settings: _settings, onClear, onDeleteProfile }: {
   profiles: Profile[];
   settings: AppSettings | null;
   onClear: () => void;
   onDeleteProfile: (id: string) => void;
-  onUnblockProfile: (id: string) => Promise<void>;
 }) {
   const [confirm, setConfirm] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Profile | null>(null);
@@ -1819,14 +1826,6 @@ function ProfilesTabSection({ profiles, settings, onClear, onDeleteProfile, onUn
                 <div className="bg-teal-50 border border-teal-200 rounded-xl px-3 py-1.5">
                   <span className="text-teal-700 font-black text-sm tabular-nums tracking-widest">{p.pin_code ?? '—'}</span>
                 </div>
-                {(p as any).is_blocked && (
-                  <button
-                    onClick={() => onUnblockProfile(p.id)}
-                    className="text-[10px] font-black px-2 py-0.5 rounded-lg bg-orange-100 border border-orange-300 text-orange-700 hover:bg-orange-200 active:scale-95 transition-all"
-                  >
-                    🚫 차단 해제
-                  </button>
-                )}
               </div>
             </div>
           );
@@ -2561,18 +2560,16 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       .catch(e => console.warn('[admin] api-server 기능잠금 동기화 실패:', e));
   };
 
-  const handleTriggerInactiveBlock = async () => {
+  const handleTriggerHeartDrain = async () => {
     if (!settings) return;
-    await adminApiRpc('admin_trigger_inactive_block', { p_admin_password: settings.admin_password ?? '' })
-      .catch(e => console.warn('[admin] 비활성 유저 차단 실행 실패:', e));
+    await adminApiRpc('admin_trigger_heart_drain', { p_admin_password: settings.admin_password ?? '' })
+      .catch(e => console.warn('[admin] 하트 드레인 실패:', e));
   };
 
-  const handleUnblockProfile = async (profileId: string) => {
+  const handleResetHeartBalances = async () => {
     if (!settings) return;
-    await adminApiRpc('admin_unblock_profile', {
-      p_admin_password: settings.admin_password ?? '',
-      p_profile_id: profileId,
-    }).catch(e => console.warn('[admin] 차단 해제 실패:', e));
+    await adminApiRpc('admin_reset_heart_balances', { p_admin_password: settings.admin_password ?? '' })
+      .catch(e => console.warn('[admin] 하트 초기화 실패:', e));
   };
 
   const handleDeleteProfile = async (profileId: string) => {
@@ -2664,7 +2661,8 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                 onClearLikes={handleClearLikes} onClearChats={handleClearAllChats}
                 onClearProfiles={handleClearProfiles}
                 onClearHistory={handleClearHistory} restoreMap={restoreMap}
-                onTriggerInactiveBlock={handleTriggerInactiveBlock} />
+                onTriggerHeartDrain={handleTriggerHeartDrain}
+                onResetHeartBalances={handleResetHeartBalances} />
             )}
             {settingsSubTab === 'qr' && <AdminQrTab settings={settings} onSaveQrBase={async (url) => {
   const { error } = await adminSupabase.from('app_settings').update({ qr_base_url: url, updated_at: new Date().toISOString() } as never).eq('id', 1);
@@ -2681,7 +2679,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           <ProfilesTabSection profiles={profiles} settings={settings} onClear={async () => {
             await adminSupabase.from('profiles').delete().neq('id', '00000000-0000-0000-0000-000000000000');
             await loadAll();
-          }} onDeleteProfile={handleDeleteProfile} onUnblockProfile={handleUnblockProfile} />
+          }} onDeleteProfile={handleDeleteProfile} />
         )}
         {tab === 'hearts' && (
           <div>

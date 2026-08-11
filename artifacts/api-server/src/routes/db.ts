@@ -62,6 +62,8 @@ const ALLOWED_OP_TABLES = new Set([
   'contact_shares', 'contact_share_events', 'anonymous_reports',
   'suggestions', 'notifications',
   'app_image_store',
+  // 자동 매칭 단톡방
+  'group_chats', 'group_participants', 'group_messages',
 ]);
 
 // ─── SSE Event Ring Buffer — Last-Event-ID 재전송으로 재연결 시 이벤트 유실 방지 ──
@@ -123,7 +125,8 @@ const FIELD_LIMITS: Record<string, Record<string, number>> = {
   notifications:     { content: 300, title: 100 },
   suggestions:       { content: 500, contact_info: 100 }, // contact_info 추가: 이전에 미등록으로 비위생 저장 가능
   anonymous_reports: { content: 500, reason: 200 },
-  // ─ 게임 결과/투표 테이블도 자유 텍스트가 있을 수 있으므로 추가 ─────────────
+  group_chats:    { name: 60, interest_tag: 30, age_group: 10 },
+  group_messages: { content: 2000 },
 };
 function sanitizeRow(tbl: string, row: Record<string, unknown>): Record<string, unknown> {
   const limits = FIELD_LIMITS[tbl];
@@ -494,8 +497,9 @@ async function seedIfNeeded(): Promise<void> {
       game_state: null,
       entry_password: koreanDateMMDD(),
       reset_password: null,
-      inactive_block_enabled: false,
-      inactive_block_minutes: 10,
+      heart_drain_enabled: false,
+      heart_drain_minutes: 5,
+      heart_initial_count: 10,
     };
     store['app_settings'] = [settings];
     await dbPersistRow('app_settings', settings);
@@ -535,7 +539,9 @@ const ACTIVE_KV_TABLES = new Set([
   'profiles', 'app_settings', 'notifications', 'likes', 'chats', 'suggestions',
   'messages', 'chat_reads', 'device_secrets', 'session_history', 'push_subscriptions',
   'contact_shares', 'contact_share_events', 'anonymous_reports',
-  'app_image_store',
+  'app_image_store', 'heart_balances',
+  // 자동 매칭 단톡방 시스템
+  'group_chats', 'group_participants', 'group_messages',
 ]);
 
 async function cleanupLegacyTables(): Promise<void> {
@@ -564,59 +570,164 @@ async function cleanupLegacyTables(): Promise<void> {
   }
 }
 
-// ─── Inactive Block System ───────────────────────────────────────────────────
-// 하트를 한 번도 보내지 않은 유저가 일정 시간 경과 시 자동 차단.
-// inactive_block_enabled=true 인 경우에만 실행.
-// 차단된 유저: profile.is_blocked = true → 프론트에서 차단 화면 표시.
-async function inactiveBlockLoop(): Promise<void> {
+// ─── Heart Drain System ──────────────────────────────────────────────────────
+// 설정된 분 동안 하트를 보내지 않은 유저의 하트 잔여 수를 1 차감.
+// heart_drain_enabled=true 인 경우에만 자동 실행 (매 분 루프).
+async function heartDrainLoop(): Promise<void> {
   const settings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
-  if (!settings.inactive_block_enabled) return;
+  if (!settings.heart_drain_enabled) return;
 
-  const blockMinutes = Math.max(1, Number(settings.inactive_block_minutes ?? 10));
-  const cutoffIso = new Date(Date.now() - blockMinutes * 60_000).toISOString();
+  const drainMinutes = Math.max(1, Number(settings.heart_drain_minutes ?? 5));
+  const initialCount = Math.max(1, Number(settings.heart_initial_count ?? 10));
+  const now = Date.now();
+  const cutoffIso = new Date(now - drainMinutes * 60_000).toISOString();
+  const nowIso = new Date(now).toISOString();
 
-  const profiles = getTable('profiles');
-  const likes    = getTable('likes');
+  const profiles  = getTable('profiles');
+  const likes     = getTable('likes');
+  if (!store['heart_balances']) store['heart_balances'] = [];
+  const balances  = getTable('heart_balances');
 
-  // 하트를 한 번이라도 보낸 유저 집합
-  const heartSenders = new Set(
-    likes.map(l => l.liker_id as string).filter(Boolean)
-  );
+  // 유저별 마지막 하트 전송 시각 O(n) 집계
+  const lastLikeByUser = new Map<string, string>();
+  for (const like of likes) {
+    const uid = like.liker_id as string;
+    const ca  = like.created_at as string;
+    if (!uid || !ca) continue;
+    const cur = lastLikeByUser.get(uid);
+    if (!cur || ca > cur) lastLikeByUser.set(uid, ca);
+  }
 
-  const updates: Promise<void>[] = [];
+  const persists: Promise<void>[] = [];
   for (const profile of profiles) {
     const userId = profile.id as string;
     if (!userId) continue;
-    if (heartSenders.has(userId)) continue;           // 하트 보낸 적 있음 → 안전
-    if ((profile.is_blocked as boolean) === true) continue; // 이미 차단됨
-    const createdAt = profile.created_at as string;
-    if (!createdAt || createdAt >= cutoffIso) continue; // 아직 유예 시간 내
 
-    const newRow = { ...profile, is_blocked: true, updated_at: ts() };
-    const idx = profiles.findIndex(p => p.id === userId);
-    if (idx >= 0) profiles[idx] = newRow;
+    // 최근 N분 안에 하트를 보냈으면 차감 대상 아님
+    const lastLike = lastLikeByUser.get(userId);
+    if (lastLike && lastLike >= cutoffIso) continue;
 
-    updates.push(dbPersistRow('profiles', newRow).catch(console.error));
-    broadcastAll({ type: 'change', table: 'profiles', event: 'UPDATE',
-      newRow: sanitizeProfile(newRow), oldRow: sanitizeProfile(profile) });
-    logger.info({ userId, nickname: profile.nickname }, '[inactive-block] 차단됨');
+    const balRow  = balances.find(b => b.id === userId);
+    const current = (balRow?.heart_count as number) ?? initialCount;
+    if (current <= 0) continue;
+
+    // 동일 창구 안에서 이미 차감됐으면 건너뜀
+    const lastDrainAt = balRow?.last_drain_at as string | undefined;
+    if (lastDrainAt && lastDrainAt >= cutoffIso) continue;
+
+    const newRow: Record<string, unknown> = {
+      id: userId, heart_count: current - 1, last_drain_at: nowIso, updated_at: nowIso,
+    };
+    const idx = (store['heart_balances'] as Record<string, unknown>[]).findIndex(b => b.id === userId);
+    if (idx >= 0) (store['heart_balances'] as Record<string, unknown>[])[idx] = newRow;
+    else (store['heart_balances'] as Record<string, unknown>[]).push(newRow);
+
+    persists.push(dbPersistRow('heart_balances', newRow).catch(console.error));
+    _smartBroadcastLocal('heart_balances', newRow, {
+      type: 'change', table: 'heart_balances', event: 'UPDATE', newRow, oldRow: balRow ?? {},
+    });
   }
 
-  if (updates.length > 0) {
-    await Promise.all(updates);
-    logger.info({ blocked: updates.length }, '[inactive-block] 차단 완료');
+  if (persists.length > 0) {
+    await Promise.all(persists);
+    logger.info({ drained: persists.length }, '[heart-drain] 하트 차감 완료');
   }
 }
 
-function startInactiveBlockLoop(): void {
-  setInterval(() => { inactiveBlockLoop().catch(console.error); }, 60_000);
+function startHeartDrainLoop(): void {
+  setInterval(() => { heartDrainLoop().catch(console.error); }, 60_000);
+}
+
+// ─── 단톡방 자동 매칭 ─────────────────────────────────────────────────────────
+// 신규/기존 프로필의 bio에서 관심사 태그를 추출해 나이대별 단톡방에 자동 배정
+// - 이미 참여 중인 유저는 재배정 없이 skip
+// - 최대 8명 정원; 꽉 찼으면 새 방 생성
+function autoMatchGroupChat(userId: string, profile: Record<string, unknown>): void {
+  try {
+    const participants = getTable('group_participants') as Record<string, unknown>[];
+    // 이미 단톡방에 참여 중이면 재배정 안 함
+    if (participants.some(p => p.user_id === userId)) return;
+
+    // 나이대 계산 (birth_year 기준, 현재 연도 2026)
+    const birthYear = profile.birth_year ? Number(profile.birth_year) : null;
+    const currentAge = birthYear ? 2026 - birthYear : null;
+    const ageGroup = currentAge ? `${Math.floor(currentAge / 10) * 10}대` : '기타';
+
+    // bio에서 관심사 태그 추출 (2글자 이상 단어)
+    const bio = String(profile.bio ?? '');
+    const rawInterests = bio
+      .split(/[,，、\s]+/)
+      .map((s: string) => s.replace(/[^\w가-힣]/g, '').trim())
+      .filter((s: string) => s.length >= 2)
+      .slice(0, 3);
+
+    const interests = rawInterests.length > 0
+      ? rawInterests
+      : [`${ageGroup} 모임`]; // 관심사 없으면 나이대 기본 방
+
+    const groups = getTable('group_chats') as Record<string, unknown>[];
+    const MAX_MEMBERS = 8;
+
+    for (const interest of interests) {
+      // 같은 나이대 + 관심사 + 여유 있는 방 탐색
+      const memberCountByGroup = new Map<string, number>();
+      for (const p of participants) {
+        const gid = p.group_id as string;
+        memberCountByGroup.set(gid, (memberCountByGroup.get(gid) ?? 0) + 1);
+      }
+
+      const matchingGroup = groups.find(g =>
+        g.age_group === ageGroup &&
+        g.interest_tag === interest &&
+        (memberCountByGroup.get(g.id as string) ?? 0) < MAX_MEMBERS,
+      );
+
+      const targetGroupId = matchingGroup
+        ? (matchingGroup.id as string)
+        : (() => {
+            // 새 방 생성
+            const newGroup: Record<string, unknown> = {
+              id: genId(),
+              name: `${ageGroup} ${interest} 모임`,
+              interest_tag: interest,
+              age_group: ageGroup,
+              max_members: MAX_MEMBERS,
+              created_at: ts(),
+            };
+            if (!store['group_chats']) store['group_chats'] = [];
+            (store['group_chats'] as Record<string, unknown>[]).push(newGroup);
+            dbPersistRow('group_chats', newGroup).catch(console.error);
+            // group_chats는 공개 테이블이므로 broadcastAll
+            broadcastAll({ type: 'change', table: 'group_chats', event: 'INSERT', newRow: newGroup, oldRow: null });
+            return newGroup.id as string;
+          })();
+
+      // 참여자 추가
+      const newPart: Record<string, unknown> = {
+        id: `${targetGroupId}__${userId}`,
+        group_id: targetGroupId,
+        user_id: userId,
+        joined_at: ts(),
+      };
+      if (!store['group_participants']) store['group_participants'] = [];
+      (store['group_participants'] as Record<string, unknown>[]).push(newPart);
+      dbPersistRow('group_participants', newPart).catch(console.error);
+      // 참여자 배정: 본인에게만 SSE 전달 (_smartBroadcastLocal 통해 user_id 라우팅)
+      _smartBroadcastLocal('group_participants', newPart, {
+        type: 'change', table: 'group_participants', event: 'INSERT', newRow: newPart, oldRow: null,
+      });
+      return; // 첫 번째 관심사 방에 배정 후 종료
+    }
+  } catch (e) {
+    console.error('[autoMatchGroupChat] 오류:', e);
+  }
 }
 
 // Kick off async initialization
 seedIfNeeded()
   .then(() => cleanupLegacyTables())
   .then(() => startDailyEntryPasswordRenewal())
-  .then(() => startInactiveBlockLoop())
+  .then(() => startHeartDrainLoop())
   .then(() => setupListenClient())
   .catch(console.error);
 
@@ -902,6 +1013,8 @@ function broadcastToUsers(userIds: string[], event: Record<string, unknown>) {
 const PRIVATE_TABLES = new Set([
   'messages', 'likes', 'chats',
   'contact_shares', 'contact_share_events', 'chat_reads',
+  'heart_balances',
+  'group_messages', 'group_participants',
 ]);
 
 /** 프로필 row에서 민감 연락처 필드를 제거하여 전체 브로드캐스트 안전하게 만들기 */
@@ -940,6 +1053,18 @@ function _smartBroadcastLocal(table: string, row: Record<string, unknown> | null
   } else if (table === 'contact_shares' || table === 'contact_share_events') {
     ['sharer_id','receiver_id','sender_id','recipient_id','user1_id','user2_id']
       .forEach(k => { if (row[k]) targets.push(row[k] as string); });
+  } else if (table === 'heart_balances') {
+    // 하트 잔여 수는 본인에게만 전달 (id 필드 = userId)
+    if (row['id']) targets.push(row['id'] as string);
+  } else if (table === 'group_messages') {
+    // 단톡방 메시지: 방 참여자 전원에게 전달
+    const gParts = getTable('group_participants').filter(p => p.group_id === row['group_id']);
+    for (const gp of gParts) {
+      if (gp.user_id) targets.push(gp.user_id as string);
+    }
+  } else if (table === 'group_participants') {
+    // 단톡방 참여자 배정: 해당 유저에게만 전달
+    if (row['user_id']) targets.push(row['user_id'] as string);
   } else if (table === 'chat_reads') {
     // reader_id에게도 전달 (자신의 읽음 확인)
     if (row['user_id'])   targets.push(row['user_id']   as string);
@@ -1456,6 +1581,23 @@ router.post('/op', async (req: Request, res: Response) => {
             return res.status(403).json({ data: null, error: { message: 'Forbidden: must be a participant', code: 'FORBIDDEN' } });
           }
         }
+        // group_messages: requesterId 필수 + sender_id 강제 + 참여자 검증
+        if (table === 'group_messages') {
+          if (!requesterId) {
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+          }
+          effectiveRow = { ...effectiveRow, sender_id: requesterId };
+          if (effectiveRow.group_id == null) {
+            return res.status(400).json({ data: null, error: { message: 'group_id is required for group_messages', code: 'INVALID_INPUT' } });
+          }
+          const isParticipant = getTable('group_participants').some(
+            p => p.group_id === effectiveRow.group_id && p.user_id === requesterId,
+          );
+          if (!isParticipant) {
+            logger.warn({ requesterId, groupId: effectiveRow.group_id, ip: req.ip }, '[SECURITY] IDOR: group_messages INSERT by non-participant blocked');
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: not a group participant', code: 'FORBIDDEN' } });
+          }
+        }
         // chat_reads: reader_id를 requesterId로 강제 설정 (클라이언트 조작 방지)
         // 단순 불일치 검사 대신 강제 덮어쓰기 — omit 공격도 차단
         if (table === 'chat_reads' && requesterId) {
@@ -1499,6 +1641,11 @@ router.post('/op', async (req: Request, res: Response) => {
         if (table === 'messages' && effectiveRow.client_id != null) {
           const dupMsg = tableData.find(r => r.client_id === effectiveRow.client_id);
           if (dupMsg) return res.json({ data: single ? dupMsg : [dupMsg], error: null }); // ON CONFLICT DO NOTHING
+        }
+        // group_messages 테이블: client_id 기반 멱등성 (단톡방 재시도 중복 삽입 방지)
+        if (table === 'group_messages' && effectiveRow.client_id != null) {
+          const dupGMsg = tableData.find(r => r.client_id === effectiveRow.client_id);
+          if (dupGMsg) return res.json({ data: single ? dupGMsg : [dupGMsg], error: null });
         }
         // likes 테이블: 동일 liker+liked+heart_type 중복 방지 (빠른 연속 클릭으로 인한 중복 하트 삽입 방지)
         if (table === 'likes' && effectiveRow.liker_id != null && effectiveRow.liked_id != null && effectiveRow.heart_type != null) {
@@ -1570,6 +1717,8 @@ router.post('/op', async (req: Request, res: Response) => {
         // #33: 신규 프로필 등록 시 PIN 풀 사용량 확인 — 85% 초과 시 관리자 푸시 알림
         if (table === 'profiles') {
           checkAndNotifyAdminPinPool().catch(console.error);
+          // 단톡방 자동 매칭 (비동기, 오류가 INSERT를 막아선 안 됨)
+          void autoMatchGroupChat(String(newRow.id), newRow);
         }
         // chat_reads 삽입 시 해당 유저 unread 캐시 즉시 무효화
         if (table === 'chat_reads' && newRow.reader_id) {
@@ -1651,6 +1800,10 @@ router.post('/op', async (req: Request, res: Response) => {
           // chat_reads 갱신 시 해당 유저 unread 캐시 즉시 무효화
           if (table === 'chat_reads' && newRow.reader_id) {
             unreadCountsCache.delete(String(newRow.reader_id));
+          }
+          // profiles 업데이트 시 단톡방 자동 매칭 (아직 미배정 유저만)
+          if (table === 'profiles' && newRow.id) {
+            void autoMatchGroupChat(String(newRow.id), newRow);
           }
         }
       }
@@ -1773,8 +1926,8 @@ const ALLOWED_RPCS = new Set([
   'test_update_settings', 'admin_full_reset', 'admin_event_end_reset',
   'admin_update_profile',
   'admin_delete_profile',
-  'admin_trigger_inactive_block', // 비활성 유저 즉시 차단 (수동 트리거)
-  'admin_unblock_profile',         // 특정 유저 차단 해제
+  'admin_trigger_heart_drain',   // 하트 드레인 즉시 실행 (수동 트리거)
+  'admin_reset_heart_balances',  // 모든 유저 하트 잔여 수 초기화
 ]);
 
 // ─── RPC endpoint ─────────────────────────────────────────────────────────────
@@ -1991,33 +2144,41 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         return res.json({ data: null, error: null });
       }
 
-      case 'admin_trigger_inactive_block': {
-        // 비활성 유저(하트 미전송) 즉시 차단 — 설정과 무관하게 한 번 강제 실행
+      case 'admin_trigger_heart_drain': {
+        // 하트 드레인 즉시 수동 실행 — 설정 무관하게 한 번 강제 실행
         checkPassword();
-        const savedEnabled2 = (getTable('app_settings')[0] as Record<string, unknown>).inactive_block_enabled;
-        (getTable('app_settings')[0] as Record<string, unknown>).inactive_block_enabled = true;
-        await inactiveBlockLoop();
-        if (!savedEnabled2) (getTable('app_settings')[0] as Record<string, unknown>).inactive_block_enabled = false;
+        const savedEnabled = (getTable('app_settings')[0] as Record<string, unknown>).heart_drain_enabled;
+        (getTable('app_settings')[0] as Record<string, unknown>).heart_drain_enabled = true;
+        await heartDrainLoop();
+        if (!savedEnabled) (getTable('app_settings')[0] as Record<string, unknown>).heart_drain_enabled = false;
         return res.json({ data: null, error: null });
       }
 
-      case 'admin_unblock_profile': {
-        // 특정 유저의 차단 해제
+      case 'admin_reset_heart_balances': {
+        // 모든 유저의 하트 잔여 수를 heart_initial_count로 초기화
         checkPassword();
-        const unblockId = args.p_profile_id as string;
-        if (!unblockId) return res.status(400).json({ data: null, error: { message: 'p_profile_id 필요' } });
-        const profs = getTable('profiles');
-        const uidx = profs.findIndex(p => p.id === unblockId);
-        if (uidx >= 0) {
-          const oldRow = profs[uidx];
-          const newRow = { ...oldRow, is_blocked: false, updated_at: ts() };
-          profs[uidx] = newRow;
-          broadcastAll({ type: 'change', table: 'profiles', event: 'UPDATE',
-            newRow: sanitizeProfile(newRow), oldRow: sanitizeProfile(oldRow) });
-          dbPersistRow('profiles', newRow).catch(console.error);
-          logger.info({ userId: unblockId }, '[rpc] admin_unblock_profile 차단 해제');
+        const initCount = Math.max(1, Number((settings as Record<string, unknown>).heart_initial_count ?? 10));
+        const allProfiles = getTable('profiles');
+        const nowIso2 = new Date().toISOString();
+        if (!store['heart_balances']) store['heart_balances'] = [];
+        const resetPersists: Promise<void>[] = [];
+        for (const p of allProfiles) {
+          const userId = p.id as string;
+          if (!userId) continue;
+          const newRow: Record<string, unknown> = {
+            id: userId, heart_count: initCount, last_drain_at: null, updated_at: nowIso2,
+          };
+          const idx = (store['heart_balances'] as Record<string, unknown>[]).findIndex(b => b.id === userId);
+          if (idx >= 0) (store['heart_balances'] as Record<string, unknown>[])[idx] = newRow;
+          else (store['heart_balances'] as Record<string, unknown>[]).push(newRow);
+          resetPersists.push(dbPersistRow('heart_balances', newRow).catch(console.error));
+          _smartBroadcastLocal('heart_balances', newRow, {
+            type: 'change', table: 'heart_balances', event: 'UPDATE', newRow, oldRow: {},
+          });
         }
-        return res.json({ data: null, error: null });
+        await Promise.all(resetPersists);
+        logger.info({ reset: allProfiles.length }, '[rpc] admin_reset_heart_balances 완료');
+        return res.json({ data: { reset: allProfiles.length }, error: null });
       }
 
       default:

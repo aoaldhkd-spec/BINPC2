@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../lib/theme';
-import type { Profile, ContactShare, Suggestion, Chat, MainTab } from '../types/app';
+import type { Profile, ContactShare, Suggestion, Chat, MainTab, GroupChat } from '../types/app';
 import { BIO_CATEGORIES } from '../lib/interests';
 import { HeartType, HEART_TYPES, heartMeta } from '../lib/constants';
 import { getPositionLabel, getPositionBg, getPositionStyle, getDomSubLabel, getDomSubBg, getKoreanAge, genAvatar } from '../lib/profile';
@@ -625,7 +625,8 @@ export function MainScreen({
   onSubmitAnonymousReport,
   timerEndAt, timerLabel, onRefreshStatus, onRefreshChat, onRefreshProfiles, darkMode, onToggleDark, onShowQr, onShowContactQr, onScanQr, scannedContacts, onClearScannedContact, functionsLocked = false, onShowTutorial,
   newMsgCount, onClearMsgCount, unreadChatCounts, onClearChatUnread: _onClearChatUnread, resetPassword,
-  onUpdateProfile, fortuneCompatTarget,
+  onUpdateProfile, fortuneCompatTarget, myHeartCount, heartDrainEnabled,
+  groupChats = [], unreadGroupCounts = {}, newGroupMsgCount: _newGroupMsgCount = 0, onClearGroupMsgCount: _onClearGroupMsgCount, onOpenGroupChat,
 }: {
   profiles: Profile[]; currentUserId: string | null; likedIds: Set<string>; sentHeartTypes: Map<string, HeartType>; sentHeartsPerPerson: Map<string, Set<HeartType>>; likeStatuses: Map<string, string>;
   profileMap: Map<string, Profile>; mainTab: MainTab;
@@ -664,6 +665,13 @@ export function MainScreen({
   resetPassword: string | null;
   onUpdateProfile: (update: Record<string, unknown> & { id: string }) => void;
   fortuneCompatTarget?: string;
+  myHeartCount?: number | null;
+  heartDrainEnabled?: boolean;
+  groupChats?: GroupChat[];
+  unreadGroupCounts?: Record<string, number>;
+  newGroupMsgCount?: number;
+  onClearGroupMsgCount?: () => void;
+  onOpenGroupChat?: (groupId: string) => void;
 }) {
   const heartCount = useCallback((t: HeartType) => { let c = 0; sentHeartsPerPerson.forEach(types => { if (types.has(t)) c++; }); return c; }, [sentHeartsPerPerson]);
   const tableNumber: number | null = null;
@@ -672,6 +680,8 @@ export function MainScreen({
   const [profileSearch, setProfileSearch] = useState('');
   const [profilePersonalityFilter, setProfilePersonalityFilter] = useState<string | null>(null);
   const [profileMbtiFilter, setProfileMbtiFilter] = useState<string | null>(null);
+  // 채팅 탭 내 서브탭: 1:1 채팅 / 단체 채팅
+  const [chatSubTab, setChatSubTab] = useState<'direct' | 'group'>('direct');
 
   // 참여자 목록 — 필터·정렬을 매 렌더마다 재계산하지 않도록 메모이제이션
   const filteredProfiles = useMemo(() => {
@@ -1261,6 +1271,15 @@ export function MainScreen({
               const domLabel = getDomSubLabel(me.dom_sub_score ?? null);
               const domColor = getDomSubBg(me.dom_sub_score ?? null);
               const bioTags = me.bio ? me.bio.split(',').map(t => t.trim()).filter(Boolean) : [];
+              const hidePersonality = (me as { hide_personality?: boolean }).hide_personality ?? false;
+              const handleToggleHidePersonality = async () => {
+                const next = !hidePersonality;
+                if (!currentUserId) return;
+                try {
+                  await supabase.from('profiles').update({ hide_personality: next } as never).eq('id', currentUserId);
+                  onUpdateProfile({ id: currentUserId, hide_personality: next } as never);
+                } catch (e) { console.error('[hide_personality]', e); }
+              };
               return (
                 <div className={`rounded-3xl p-5 border shadow-xl transition-colors duration-300 ${darkMode ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600' : 'bg-white border-gray-100'}`}>
                   <p className={`text-[10px] font-black uppercase tracking-widest mb-3 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>내 프로필</p>
@@ -1360,6 +1379,21 @@ export function MainScreen({
                       </div>
                     </div>
                   </div>
+                  {/* ── 성향 공개 토글 ── */}
+                  <div className={`mt-3 flex items-center justify-between px-1 py-2 rounded-2xl ${darkMode ? 'bg-slate-700/40' : 'bg-gray-50'}`}>
+                    <div>
+                      <p className={`text-xs font-black ${darkMode ? 'text-white' : 'text-gray-800'}`}>성향(돔/섭) 공개</p>
+                      <p className={`text-[10px] ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{hidePersonality ? '🔒 다른 참여자에게 숨김' : '👁 다른 참여자에게 보임'}</p>
+                    </div>
+                    <button
+                      onClick={handleToggleHidePersonality}
+                      className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none ${hidePersonality ? (darkMode ? 'bg-slate-600' : 'bg-gray-300') : 'bg-teal-500'}`}
+                      aria-label="성향 공개 토글"
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ${hidePersonality ? 'translate-x-1' : 'translate-x-6'}`} />
+                    </button>
+                  </div>
+
                   {/* ── QR 버튼 한 줄 ── */}
                   <div className="mt-4 grid grid-cols-4 gap-2">
                     <button
@@ -2082,6 +2116,101 @@ export function MainScreen({
         {/* ─── 채팅 탭 ─── */}
         {mainTab === 'chats' && (
           <div className="max-w-lg mx-auto space-y-3">
+            {/* ── 1:1 / 단체 채팅 전환 서브탭 ── */}
+            <div className={`flex rounded-xl p-0.5 ${darkMode ? 'bg-slate-700' : 'bg-gray-100'}`}>
+              <button
+                onClick={() => setChatSubTab('direct')}
+                className={`flex-1 py-1.5 text-xs font-black rounded-lg transition-all ${
+                  chatSubTab === 'direct'
+                    ? (darkMode ? 'bg-slate-600 text-white shadow-sm' : 'bg-white text-gray-900 shadow-sm')
+                    : (darkMode ? 'text-slate-400' : 'text-gray-500')
+                }`}
+              >
+                💬 내 채팅 (1:1)
+                {Object.values(unreadChatCounts).some(n => n > 0) && (
+                  <span className="ml-1 inline-flex items-center justify-center min-w-[16px] h-4 px-1 text-[10px] font-black bg-rose-500 text-white rounded-full">
+                    {Object.values(unreadChatCounts).reduce((a, b) => a + b, 0)}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setChatSubTab('group')}
+                className={`flex-1 py-1.5 text-xs font-black rounded-lg transition-all ${
+                  chatSubTab === 'group'
+                    ? (darkMode ? 'bg-slate-600 text-white shadow-sm' : 'bg-white text-gray-900 shadow-sm')
+                    : (darkMode ? 'text-slate-400' : 'text-gray-500')
+                }`}
+              >
+                👥 단체 채팅
+                {groupChats.length > 0 && (
+                  <span className={`ml-1 inline-flex items-center justify-center min-w-[16px] h-4 px-1 text-[10px] font-black rounded-full ${
+                    darkMode ? 'bg-teal-500/30 text-teal-300' : 'bg-teal-100 text-teal-700'
+                  }`}>{groupChats.length}</span>
+                )}
+              </button>
+            </div>
+
+            {/* ── 단체 채팅 목록 ── */}
+            {chatSubTab === 'group' && (
+              <>
+                {groupChats.length === 0 ? (
+                  <div className="text-center py-16">
+                    <span className="text-5xl block mb-3 opacity-30">👥</span>
+                    <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
+                      관심사·나이대 기반 단톡방에 자동 배정됩니다
+                    </p>
+                    <p className={`text-xs mt-1 ${darkMode ? 'text-slate-500' : 'text-gray-300'}`}>
+                      프로필 bio에 관심사를 적으면 비슷한 사람들과 연결돼요!
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {groupChats.map(group => {
+                      const unread = unreadGroupCounts[group.id] ?? 0;
+                      return (
+                        <div
+                          key={group.id}
+                          onClick={() => onOpenGroupChat?.(group.id)}
+                          className={`rounded-2xl shadow-sm p-4 flex items-center gap-3 cursor-pointer transition-colors duration-300 active:scale-[0.98] ${
+                            darkMode ? 'bg-slate-800 border border-slate-600 hover:bg-slate-700' : 'bg-white hover:bg-gray-50'
+                          }`}
+                        >
+                          {/* 그룹 아이콘 */}
+                          <div className={`w-12 h-12 rounded-full flex-shrink-0 flex items-center justify-center text-2xl ${
+                            darkMode ? 'bg-teal-500/20' : 'bg-teal-50'
+                          }`}>
+                            👥
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-sm font-bold truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                              {group.name}
+                            </p>
+                            <p className={`text-xs truncate ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
+                              {group.lastMessage || '메시지 없음'}
+                            </p>
+                          </div>
+                          <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                              darkMode ? 'bg-teal-500/20 text-teal-400' : 'bg-teal-50 text-teal-600'
+                            }`}>
+                              {group.memberCount ?? 0}명
+                            </span>
+                            {unread > 0 && (
+                              <span className="min-w-[22px] h-[22px] px-1.5 bg-rose-500 text-white text-[11px] font-black rounded-full flex items-center justify-center shadow-sm">
+                                {unread > 99 ? '99+' : unread}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* ── 1:1 채팅 섹션 (기존) ── */}
+            {chatSubTab === 'direct' && <>
             {/* ── 닉네임 검색으로 채팅 시작 ── */}
             <div className={`relative rounded-xl border overflow-hidden transition-colors ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'}`}>
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
@@ -2194,6 +2323,7 @@ export function MainScreen({
                 );
               })
             )}
+            </>}
           </div>
         )}
 

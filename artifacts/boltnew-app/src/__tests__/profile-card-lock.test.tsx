@@ -46,6 +46,7 @@ const PROFILE: Profile = {
   location: null,
   interests: null,
   contact_private: false,
+  hide_personality: false,
   kakao_id: null,
   instagram_id: null,
   phone_number: null,

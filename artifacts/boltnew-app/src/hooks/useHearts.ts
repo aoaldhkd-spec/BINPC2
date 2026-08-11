@@ -201,8 +201,7 @@ export function useHearts(
         }
         setContactSharedWithIds((prev) => new Set([...prev, likerId]));
         setContactShareTarget(null);
-        const likerProfile = profileMap.get(likerId);
-        if (likerProfile) onOpenChat(likerProfile);
+        // 하트 수락과 1:1 채팅 개설은 분리됨 — 채팅은 사용자가 직접 채팅탭에서 시작
       } else {
         alert(`연락처 공유 실패: ${error.message}`);
       }

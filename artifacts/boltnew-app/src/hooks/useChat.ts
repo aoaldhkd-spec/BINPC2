@@ -91,81 +91,90 @@ export function useChat({
   // generation counter: 동시 sync 요청 중 구식 응답이 최신 상태를 덮어쓰는 것을 방지
   const syncGenRef = useRef(0);
 
-  // ── 채팅방별 메시지 구독 (서버 사이드 필터) ──────────────────────────────────
-  // chatIdsKey: chatList의 ID 목록만 직렬화 — lastMessage 변경 시 채널 재생성 방지
-  const chatIdsKey = chatList.map(c => c.id).join(',');
-
-  // [버그3 수정] 기존 코드: cleanup이 chatIdsKey 변경 시마다 모든 채널을 끊고 재구독해 메시지 수신 갭 발생
-  // 수정 후: userId 변경/언마운트 시만 전체 정리, chatIdsKey 변경 시는 선택적 추가/제거만 수행
+  // ── 단일 통합 SSE 채널: messages + chats 처리 ────────────────────────────────
+  // 이전: chat별 perChatChannels(N채널) + chat:${chatId}(활성채팅) + new-chats(2채널) = 최대 N+3개 채널
+  // 이후: user-events-${uid} 1개 채널이 모든 messages/chats INSERT/DELETE 처리
+  // SSE 서버가 userId 기반으로 라우팅하므로 클라이언트는 자신에게 속한 이벤트만 수신
   useEffect(() => {
-    // userId 변경 또는 언마운트 시 전체 채널 정리
-    // perChatChannelsRef.current를 cleanup 시점에 직접 읽으면 ref 값이 바뀐 후의 값을 가리킬 수 있음
-    // → effect 실행 시점에 캡처해 closure에 고정
-    const capturedChannels = perChatChannelsRef.current;
-    return () => {
-      for (const ch of capturedChannels.values()) supabase.removeChannel(ch);
-      capturedChannels.clear();
-    };
-  }, [currentUserId]);
-
-  useEffect(() => {
-    if (!currentUserId || chatListRef.current.length === 0) return;
-    const channels = perChatChannelsRef.current;
-    const currentIds = new Set(chatListRef.current.map(c => c.id));
-
-    // 삭제된 채팅방 채널만 선택적으로 제거 — 기존 채널은 건드리지 않음
-    for (const [cid, ch] of [...channels]) {
-      if (!currentIds.has(cid)) {
-        supabase.removeChannel(ch);
-        channels.delete(cid);
-      }
-    }
-
-    // [Bug #1 수정] 활성 채팅방은 chat:${chatId} 채널이 이미 담당
-    // → msgs:${chatId}가 살아있으면 제거해 이중 Supabase 구독 및 중복 state update 차단
-    if (chatId && channels.has(chatId)) {
-      supabase.removeChannel(channels.get(chatId)!);
-      channels.delete(chatId);
-    }
-
-    // 새 채팅방 채널 추가 (이미 구독 중인 채팅방은 skip — 재구독 갭 제거)
-    for (const chat of chatListRef.current) {
-      if (channels.has(chat.id)) continue;
-      if (chat.id === chatId) continue; // 활성 채팅방: chat:${chatId} 채널이 메시지 처리
-      const chatId_ = chat.id;
-      const ch = supabase
-        .channel(`msgs:${chatId_}`)
-        .on('postgres_changes', {
-          event: 'INSERT', schema: 'public', table: 'messages',
-          filter: `chat_id=eq.${chatId_}`,
-        }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
+    if (!currentUserId) return;
+    const uid = currentUserId;
+    const ch = supabase
+      .channel(`user-events-${uid}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' },
+        (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
           try {
-            const m = payload.new as { chat_id: string; sender_id: string; content: string; image_url?: string };
-            // [안전장치 8] SSE 페이로드 필수 필드 검증 — 잘못된 데이터 즉시 차단
-            if (!m || typeof m.sender_id !== 'string' || !m.sender_id ||
-                typeof m.chat_id !== 'string' || !m.chat_id) return;
-            // 내 메시지는 HTTP 응답 + optimistic UI에서 이미 처리 — 여기서 중복 금지
-            if (m.sender_id === currentUserId) return;
-            const preview = m.image_url ? '📷 사진' : m.content;
-            // 현재 열린 채팅방이면: chat:${chatId} 채널이 이미 이 메시지를 처리 중
-            // chatList preview도 활성 채팅방 안에서는 갱신 불필요 — 이중 channel 간 중복 state update 차단
-            if (chatIdRef.current === m.chat_id) return;
-            setChatList(prev => prev.map(c => c.id === m.chat_id ? { ...c, lastMessage: preview } : c));
-            // 현재 열린 채팅방이면 미읽음 증가 없이 lastMessage만 업데이트 (위 early-return으로 이제 도달 불가)
-            if (chatIdRef.current !== m.chat_id) {
-              setUnreadChatCounts(prev => ({ ...prev, [m.chat_id]: (prev[m.chat_id] ?? 0) + 1 }));
-              const senderProfile = profilesRef.current.find(p => p.id === m.sender_id);
+            const raw = payload.new;
+            if (!raw || typeof raw.id !== 'string' || !raw.id || typeof raw.sender_id !== 'string') return;
+            const newMsg = raw as unknown as Message;
+            if (chatIdRef.current === newMsg.chat_id) {
+              // 활성 채팅방: 메시지 목록에 추가 (client_id 기반 dedup)
+              setMessages(prev => {
+                const next = applySseInsert(prev, newMsg);
+                return next.length > MAX_MESSAGES ? next.slice(-MAX_MESSAGES) : next;
+              });
+            } else if (newMsg.sender_id !== uid) {
+              // 비활성 채팅방의 상대 메시지: preview 갱신 + 미읽음 증가
+              const preview = newMsg.image_url ? '📷 사진' : newMsg.content;
+              if (typeof newMsg.chat_id === 'string') {
+                setChatList(prev => prev.map(c => c.id === newMsg.chat_id ? { ...c, lastMessage: preview } : c));
+                setUnreadChatCounts(prev => ({ ...prev, [newMsg.chat_id!]: (prev[newMsg.chat_id!] ?? 0) + 1 }));
+              }
+              const senderProfile = profilesRef.current.find(p => p.id === newMsg.sender_id);
               setNewMsgCount(n => n + 1);
               setBottomNotif({ type: 'message', nickname: senderProfile?.nickname ?? '' });
             }
-          } catch (e) { console.warn('[msgs-ch]', e); }
+          } catch (e) { console.warn('[user-events/msg-insert]', e); }
         })
-        .subscribe();
-      channels.set(chatId_, ch);
-    }
-    // cleanup 없음 — 전체 정리는 위 userId effect가 담당, 선택적 제거는 이 effect 본문에서 처리
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' },
+        (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
+          try {
+            const deleted = payload.old as { id?: string; chat_id?: string };
+            if (!deleted.id || typeof deleted.id !== 'string') return;
+            if (chatIdRef.current === deleted.chat_id) {
+              setMessages(prev => prev.filter(m => m.id !== deleted.id));
+            }
+          } catch (e) { console.warn('[user-events/msg-delete]', e); }
+        })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chats' },
+        (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
+          try {
+            const c = payload.new as { user1_id?: string; user2_id?: string; id?: string; created_at?: string };
+            if (!c.id || (c.user1_id !== uid && c.user2_id !== uid)) return;
+            const newChat: Chat = {
+              id: c.id, user1_id: c.user1_id ?? '', user2_id: c.user2_id ?? '',
+              created_at: c.created_at ?? new Date().toISOString(), lastMessage: '', messageCount: 0,
+            };
+            setChatList(prev => {
+              if (prev.some(x => x.id === c.id)) return prev;
+              const next = [newChat, ...prev];
+              chatListRef.current = next;
+              return next;
+            });
+            const pairKey = `${c.user1_id}:${c.user2_id}`;
+            if (selfInitiatedPairRef.current !== pairKey) {
+              const otherId = c.user1_id === uid ? c.user2_id : c.user1_id;
+              const otherProfile = profilesRef.current.find(p => p.id === otherId);
+              if (otherProfile) setBottomNotif({ type: 'chat', nickname: otherProfile.nickname });
+            }
+            void loadChatList(uid);
+          } catch (e) { console.warn('[user-events/chat-insert]', e); }
+        })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'chats' },
+        (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
+          try {
+            const c = payload.old as { id?: string };
+            if (!c.id) return;
+            setChatList(prev => {
+              const next = prev.filter(x => x.id !== c.id);
+              chatListRef.current = next;
+              return next;
+            });
+          } catch (e) { console.warn('[user-events/chat-delete]', e); }
+        })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chatId, chatIdsKey, currentUserId]);
+  }, [currentUserId]);
 
   // ── 활성 채팅방 메시지 로드 ───────────────────────────────────────────────────
   const loadGenRef = useRef(0);
@@ -214,32 +223,8 @@ export function useChat({
       });
     }
 
-    const channel = supabase
-      .channel(`chat:${chatId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `chat_id=eq.${chatId}` },
-        (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-          // [안전장치 8] SSE 페이로드 필수 필드 검증 — null/undefined/wrong-type 즉시 차단
-          const raw = payload.new;
-          if (!raw || typeof raw.id !== 'string' || !raw.id || typeof raw.sender_id !== 'string') return;
-          // chatId guard: 채팅방 전환 중 stale 콜백이 다른 채팅방 메시지를 삽입하는 것을 차단
-          if (chatIdRef.current !== chatId) return;
-          const newMsg = raw as unknown as Message;
-          setMessages(prev => {
-            const next = applySseInsert(prev, newMsg);
-            return next.length > MAX_MESSAGES ? next.slice(-MAX_MESSAGES) : next;
-          });
-        })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages', filter: `chat_id=eq.${chatId}` },
-        (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-          // [안전장치] chatId guard + payload 검증 — stale 콜백·cross-room event·malformed 페이로드 차단
-          if (chatIdRef.current !== chatId) return;
-          const deleted = payload.old as { id?: string; chat_id?: string };
-          if (!deleted.id || typeof deleted.id !== 'string') return;
-          if (deleted.chat_id && deleted.chat_id !== chatId) return; // cross-room 이벤트 차단
-          setMessages(prev => prev.filter(m => m.id !== deleted.id));
-        })
-      .subscribe();
-
+    // 통합 SSE 채널(user-events-${uid})이 messages INSERT/DELETE를 담당
+    // 여기서는 채팅방 전환 시 메시지 로드만 수행
     loadMessages(chatId);
 
     // SSE 불안정 시 폴링 폴백 — 3초마다 확인 (applyLoadMessages가 dedup 처리)
@@ -270,7 +255,6 @@ export function useChat({
 
     return () => {
       clearInterval(pollInterval);
-      supabase.removeChannel(channel);
       if (currentUserId) {
         supabase.from('chat_reads').upsert({
           id: `${chatId}__${currentUserId}`,
@@ -332,51 +316,8 @@ export function useChat({
     };
   }, []);
 
-  // [버그2 수정] 상대가 나에게 새 채팅방을 만들면 chatList를 즉시 갱신 (loadChatList 선언 이후에 배치)
-  // Supabase realtime: chats 테이블 INSERT를 user1_id / user2_id 각각으로 감시
-  // 새 채팅 감지 → loadChatList → chatIdsKey 변경 → perChatChannels effect가 새 채팅방 채널 자동 구독
-  useEffect(() => {
-    if (!currentUserId) return;
-    const uid = currentUserId;
-
-    const handleNewChat = (payload: { new: Record<string, unknown> }) => {
-      const uidNow = currentUserIdRef.current;
-      if (!uidNow) return;
-      // 내가 직접 openChat()으로 만든 채팅방은 이미 목록에 있으므로 중복 알림 방지
-      const newRow = payload.new as { user1_id?: string; user2_id?: string };
-      const pair = `${newRow.user1_id}:${newRow.user2_id}`;
-      if (selfInitiatedPairRef.current === pair) return;
-      // 상대방이 만든 새 채팅방 → 목록 갱신 + 알림
-      void loadChatList(uidNow);
-      const otherId = newRow.user1_id === uidNow ? newRow.user2_id : newRow.user1_id;
-      const otherProfile = profilesRef.current.find(p => p.id === otherId);
-      if (otherProfile) {
-        setBottomNotif({ type: 'chat', nickname: otherProfile.nickname });
-      }
-    };
-
-    const ch1 = supabase
-      .channel(`new-chats-u1-${uid}`)
-      .on('postgres_changes', {
-        event: 'INSERT', schema: 'public', table: 'chats',
-        filter: `user1_id=eq.${uid}`,
-      }, handleNewChat)
-      .subscribe();
-
-    const ch2 = supabase
-      .channel(`new-chats-u2-${uid}`)
-      .on('postgres_changes', {
-        event: 'INSERT', schema: 'public', table: 'chats',
-        filter: `user2_id=eq.${uid}`,
-      }, handleNewChat)
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(ch1);
-      supabase.removeChannel(ch2);
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUserId, loadChatList]);
+  // [버그2 수정] new-chats 별도 채널 제거
+  // → user-events-${uid} 통합 채널의 chats INSERT/DELETE 핸들러가 동일 역할 수행
   const openChat = useCallback(async (otherProfile: Profile) => {
     if (!currentUserId) return;
     const gen = ++openChatGenRef.current;

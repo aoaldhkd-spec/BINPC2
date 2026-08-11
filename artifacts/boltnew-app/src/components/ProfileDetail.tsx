@@ -176,7 +176,8 @@ function ProfileDetail({ profile, isMe, isLiked, heartType, sentHeartsCount, loc
           </div>
         )}
 
-        {/* Score section */}
+        {/* Score section — hide_personality=true 이면 상대방에게 숨김 */}
+        {(!profile.hide_personality || isMe) && (
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-4">
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">성향</p>
           <ProfileScoreBar label="포지션" score={profile.personality_score}
@@ -186,6 +187,7 @@ function ProfileDetail({ profile, isMe, isLiked, heartType, sentHeartsCount, loc
           <ProfileScoreBar label="돔/섭" score={profile.dom_sub_score}
             getLabel={getDomSubLabel} getBg={getDomSubBg} leftText="섭" rightText="돔" />
         </div>
+        )}
 
         {/* Chat button — locked 시 토스트, 정상 시 채팅 진입 */}
         {!isMe && (

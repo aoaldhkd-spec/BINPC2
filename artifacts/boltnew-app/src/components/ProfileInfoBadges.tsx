@@ -38,12 +38,12 @@ export function ProfileInfoBadges({ profile }: { profile: Profile }) {
           {profile.location}
         </span>
       )}
-      {profile.personality_score !== null && profile.personality_score !== undefined && (
+      {!profile.hide_personality && profile.personality_score !== null && profile.personality_score !== undefined && (
         <span className="px-2 py-0.5 rounded-full text-[11px] font-bold border" style={{ backgroundColor: posStyle.bg, color: posStyle.text, borderColor: posStyle.border }}>
           {posLabel}
         </span>
       )}
-      {ds && (
+      {!profile.hide_personality && ds && (
         <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold border ${ds.color}`}>
           {ds.label}
         </span>
