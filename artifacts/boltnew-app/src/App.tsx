@@ -227,7 +227,7 @@ function App() {
   const [timerEndAt, setTimerEndAt] = useState<string | null>(null);
   const [timerLabel, setTimerLabel] = useState<string | null>(null);
   const [rejectionNotif, setRejectionNotif] = useState<string | null>(null); // nickname of person who rejected
-  const [bottomNotif, setBottomNotif] = useState<{ type: 'heart' | 'chat' | 'message' | 'contact'; nickname: string; heartType?: HeartType } | null>(null);
+  const [bottomNotif, setBottomNotif] = useState<{ type: 'heart' | 'chat' | 'message' | 'contact' | 'system'; nickname?: string; message?: string; heartType?: HeartType } | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const confettiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const confettiInnerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -249,6 +249,10 @@ function App() {
     }, 30);
   }, []);
   const [functionsLocked, setFunctionsLocked] = useState(false);
+  const [heartDrainEnabled, setHeartDrainEnabled] = useState(false);
+  const [myHeartCount, setMyHeartCount] = useState<number | null>(null);
+  const myHeartCountRef = useRef<number | null>(null);
+  myHeartCountRef.current = myHeartCount;
   const [registrationError, setRegistrationError] = useState<string | null>(null);
   const [resetPassword, setResetPassword] = useState<string | null>(null);
   const [entryPassword, setEntryPassword] = useState<string | null>(null); // null = 아직 로드 전
@@ -340,6 +344,15 @@ function App() {
   // 렌더마다 최신 profiles를 ref에 동기화 (stale 클로저 방지)
   profilesRef.current = profiles;
 
+  // selectedProfile(= ChatScreen의 otherProfile) 동기화
+  // 채팅 화면에 있는 동안 상대방이 프로필을 수정하면 profileMap이 갱신되므로
+  // selectedProfile도 최신 데이터로 교체한다.
+  useEffect(() => {
+    if (!selectedProfile) return;
+    const updated = profileMap.get(selectedProfile.id);
+    if (updated && updated !== selectedProfile) setSelectedProfile(updated);
+  }, [profileMap]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── 커스텀 훅 호출 ────────────────────────────────────────────────────────────
 
   const {
@@ -428,6 +441,7 @@ function App() {
       setTimerEndAt(data?.timer_end_at ?? null);
       setTimerLabel(data?.timer_label ?? null);
       if (data?.functions_locked != null) setFunctionsLocked(data.functions_locked);
+      if ((data as any)?.heart_drain_enabled != null) setHeartDrainEnabled(!!(data as any).heart_drain_enabled);
       setResetPassword((data as { reset_password?: string | null })?.reset_password ?? null);
     }).catch(() => {});
     const settingsChannel = supabase
@@ -463,6 +477,7 @@ function App() {
         setTimerEndAt(p.timer_end_at ?? null);
         setTimerLabel(p.timer_label ?? null);
         if ((p as any).functions_locked != null) setFunctionsLocked((p as any).functions_locked);
+        if ((p as any).heart_drain_enabled != null) setHeartDrainEnabled(!!(p as any).heart_drain_enabled);
         if (p.reset_password !== undefined) setResetPassword(p.reset_password ?? null);
         if (p.entry_password !== undefined) {
           const ep = p.entry_password ?? '';
@@ -780,6 +795,35 @@ function App() {
       })
       .subscribe();
 
+    // ─── 하트 잔여 수 실시간 구독 + 초기 로드 ──────────────────────────────────
+    // heart_balances 행은 서버가 id=userId로 직접 SSE 전달
+    const heartBalanceChannel = supabase
+      .channel(`realtime:heart_balances:${currentUserId}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'heart_balances', filter: `id=eq.${currentUserId}` },
+        (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
+          const row = payload.new as { heart_count?: number };
+          if (typeof row?.heart_count === 'number') {
+            const prev = myHeartCountRef.current;
+            setMyHeartCount(row.heart_count);
+            // 차감 알림: 하트가 줄었을 때 바텀 알림
+            if (prev !== null && row.heart_count < prev) {
+              setBottomNotif({ type: 'system', message: `💛 하트가 ${row.heart_count}개 남았어요!` } as any);
+            }
+          }
+        })
+      .subscribe();
+
+    // 초기 잔여 수 로드
+    supabase.from('heart_balances').select('heart_count').eq('id', currentUserId).maybeSingle()
+      .then(({ data }: { data: any }) => {
+        if (data && typeof data.heart_count === 'number') {
+          setMyHeartCount(data.heart_count);
+        } else {
+          // 서버에 row 없음 = 기본값 (서버 heart_initial_count 반영 전까지 10 노출)
+          setMyHeartCount(null); // null = 드레인 비활성 or 미로드
+        }
+      }).catch(() => {});
+
     return () => {
       cancelled = true;
       if (retryTimerId) clearTimeout(retryTimerId);
@@ -796,6 +840,7 @@ function App() {
       supabase.removeChannel(contactSharesChannel);
       supabase.removeChannel(chatChannel);
       supabase.removeChannel(suggestionsChannel);
+      supabase.removeChannel(heartBalanceChannel);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- loadXxx are stable useCallbacks; setState/refs are stable
   }, [currentUserId, loadProfiles, loadLikes, loadReceivedLikes, loadContactShareData, loadChatList, loadSuggestions]);
@@ -1196,8 +1241,8 @@ function App() {
       {bottomNotif && (
         <AppErrorBoundary screenName="하단 알림" onReset={() => setBottomNotif(null)}>
           <div className="fixed bottom-20 left-0 right-0 z-[150] flex justify-center px-4 pointer-events-none">
-            <div className={`px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 pointer-events-auto cursor-pointer ${bottomNotif.type === 'heart' ? 'bg-rose-500' : bottomNotif.type === 'contact' ? 'bg-emerald-500' : 'bg-cyan-600'}`}>
-              <span className="text-lg">{bottomNotif.type === 'heart' ? (bottomNotif.heartType ? heartMeta(bottomNotif.heartType).emoji : '❤️') : bottomNotif.type === 'contact' ? '📱' : '💬'}</span>
+            <div className={`px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 pointer-events-auto cursor-pointer ${bottomNotif.type === 'heart' ? 'bg-rose-500' : bottomNotif.type === 'contact' ? 'bg-emerald-500' : bottomNotif.type === 'system' ? 'bg-amber-600' : 'bg-cyan-600'}`}>
+              <span className="text-lg">{bottomNotif.type === 'heart' ? (bottomNotif.heartType ? heartMeta(bottomNotif.heartType).emoji : '❤️') : bottomNotif.type === 'contact' ? '📱' : bottomNotif.type === 'system' ? '💛' : '💬'}</span>
               <div className="flex-1">
                 {bottomNotif.type === 'heart' && (
                   <>
@@ -1222,6 +1267,9 @@ function App() {
                     <p className="text-sm font-bold text-white">{bottomNotif.nickname}님이 연락처를 공유했습니다!</p>
                     <button onClick={() => { setMainTab('status'); setBottomNotif(null); }} className="text-xs text-white/80 underline">내 상태 탭에서 확인</button>
                   </>
+                )}
+                {bottomNotif.type === 'system' && (
+                  <p className="text-sm font-bold text-white">{bottomNotif.message ?? '알림'}</p>
                 )}
               </div>
               <button onClick={(e) => { e.stopPropagation(); setBottomNotif(null); }} className="text-white/60 hover:text-white text-lg ml-1">×</button>
@@ -1286,6 +1334,8 @@ function App() {
         onClearChatUnread={(chatId) => setUnreadChatCounts(prev => { const n = { ...prev }; delete n[chatId]; return n; })}
         resetPassword={resetPassword}
         fortuneCompatTarget={fortuneCompatTarget}
+        myHeartCount={myHeartCount}
+        heartDrainEnabled={heartDrainEnabled}
       />
       </AppErrorBoundary>
       {likeConfirmTarget && (

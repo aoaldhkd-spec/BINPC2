@@ -494,6 +494,9 @@ async function seedIfNeeded(): Promise<void> {
       game_state: null,
       entry_password: koreanDateMMDD(),
       reset_password: null,
+      heart_drain_enabled: false,
+      heart_drain_minutes: 5,
+      heart_initial_count: 10,
     };
     store['app_settings'] = [settings];
     await dbPersistRow('app_settings', settings);
@@ -534,6 +537,7 @@ const ACTIVE_KV_TABLES = new Set([
   'messages', 'chat_reads', 'device_secrets', 'session_history', 'push_subscriptions',
   'contact_shares', 'contact_share_events', 'anonymous_reports',
   'app_image_store',
+  'heart_balances', // 하트 드레인 시스템 — 유저별 하트 잔여 수
 ]);
 
 async function cleanupLegacyTables(): Promise<void> {
@@ -562,10 +566,83 @@ async function cleanupLegacyTables(): Promise<void> {
   }
 }
 
+// ─── Heart Drain System ─────────────────────────────────────────────────────
+// 설정된 분 동안 하트를 사용하지 않은 유저의 하트 잔여 수를 1 차감.
+// last_drain_at 필드로 동일 창구 내 중복 차감 방지.
+// 매 분 루프: heart_drain_enabled=true 인 경우에만 실행.
+async function heartDrainLoop(): Promise<void> {
+  const settings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
+  if (!settings.heart_drain_enabled) return;
+
+  const drainMinutes = Math.max(1, Number(settings.heart_drain_minutes ?? 5));
+  const initialCount = Math.max(1, Number(settings.heart_initial_count ?? 10));
+  const now = Date.now();
+  const cutoffIso = new Date(now - drainMinutes * 60_000).toISOString();
+  const nowIso = new Date(now).toISOString();
+
+  const profiles = getTable('profiles');
+  const likes    = getTable('likes');
+  const balances = getTable('heart_balances');
+
+  // 유저별 마지막 하트 전송 시각 O(n) 집계
+  const lastLikeByUser = new Map<string, string>();
+  for (const like of likes) {
+    const uid = like.liker_id as string;
+    const ca  = like.created_at as string;
+    if (!uid || !ca) continue;
+    const cur = lastLikeByUser.get(uid);
+    if (!cur || ca > cur) lastLikeByUser.set(uid, ca);
+  }
+
+  if (!store['heart_balances']) store['heart_balances'] = [];
+  const persists: Promise<void>[] = [];
+
+  for (const profile of profiles) {
+    const userId = profile.id as string;
+    if (!userId) continue;
+
+    // 최근 N분 안에 하트를 보냈으면 차감 대상 아님
+    const lastLike = lastLikeByUser.get(userId);
+    if (lastLike && lastLike >= cutoffIso) continue;
+
+    const balRow = balances.find(b => b.id === userId);
+    const current = (balRow?.heart_count as number) ?? initialCount;
+    if (current <= 0) continue;
+
+    // 동일 창구 안에서 이미 차감됐으면 건너뜀 (분 단위 루프 중복 방지)
+    const lastDrainAt = balRow?.last_drain_at as string | undefined;
+    if (lastDrainAt && lastDrainAt >= cutoffIso) continue;
+
+    const newCount = current - 1;
+    const newRow: Record<string, unknown> = {
+      id: userId, heart_count: newCount, last_drain_at: nowIso, updated_at: nowIso,
+    };
+
+    const idx = (store['heart_balances'] as Record<string, unknown>[]).findIndex(b => b.id === userId);
+    if (idx >= 0) (store['heart_balances'] as Record<string, unknown>[])[idx] = newRow;
+    else (store['heart_balances'] as Record<string, unknown>[]).push(newRow);
+
+    persists.push(dbPersistRow('heart_balances', newRow).catch(console.error));
+    _smartBroadcastLocal('heart_balances', newRow, {
+      type: 'change', table: 'heart_balances', event: 'UPDATE', newRow, oldRow: balRow ?? {},
+    });
+  }
+
+  if (persists.length > 0) {
+    await Promise.all(persists);
+    logger.info({ drained: persists.length }, '[heart-drain] 하트 차감 완료');
+  }
+}
+
+function startHeartDrainLoop(): void {
+  setInterval(() => { heartDrainLoop().catch(console.error); }, 60_000);
+}
+
 // Kick off async initialization
 seedIfNeeded()
   .then(() => cleanupLegacyTables())
   .then(() => startDailyEntryPasswordRenewal())
+  .then(() => startHeartDrainLoop())
   .then(() => setupListenClient())
   .catch(console.error);
 
@@ -851,6 +928,7 @@ function broadcastToUsers(userIds: string[], event: Record<string, unknown>) {
 const PRIVATE_TABLES = new Set([
   'messages', 'likes', 'chats',
   'contact_shares', 'contact_share_events', 'chat_reads',
+  'heart_balances', // 유저별 하트 잔여 수 — 본인에게만 전달
 ]);
 
 /** 프로필 row에서 민감 연락처 필드를 제거하여 전체 브로드캐스트 안전하게 만들기 */
@@ -902,6 +980,9 @@ function _smartBroadcastLocal(table: string, row: Record<string, unknown> | null
         if (otherId && otherId !== row['reader_id']) targets.push(otherId as string);
       }
     }
+  } else if (table === 'heart_balances') {
+    // 하트 잔여 수는 본인에게만 전달 (id 필드 = userId)
+    if (row['id']) targets.push(row['id'] as string);
   }
 
   if (targets.length > 0) {
@@ -1722,6 +1803,8 @@ const ALLOWED_RPCS = new Set([
   'test_update_settings', 'admin_full_reset', 'admin_event_end_reset',
   'admin_update_profile',
   'admin_delete_profile',
+  'admin_trigger_heart_drain', // 하트 드레인 즉시 실행 (수동 트리거)
+  'admin_reset_heart_balances', // 모든 유저 하트 잔여 수 초기화
 ]);
 
 // ─── RPC endpoint ─────────────────────────────────────────────────────────────
@@ -1936,6 +2019,44 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
           dbDeleteRow('profiles', profileId).catch(console.error);
         }
         return res.json({ data: null, error: null });
+      }
+
+      case 'admin_trigger_heart_drain': {
+        // 하트 드레인 즉시 수동 실행 — 드레인 루프 한 번 강제 트리거
+        checkPassword();
+        // 일시적으로 heart_drain_enabled를 활성으로 처리하여 비활성이어도 한 번만 실행
+        const savedEnabled = (settings as Record<string, unknown>).heart_drain_enabled;
+        (getTable('app_settings')[0] as Record<string, unknown>).heart_drain_enabled = true;
+        await heartDrainLoop();
+        if (!savedEnabled) (getTable('app_settings')[0] as Record<string, unknown>).heart_drain_enabled = false;
+        return res.json({ data: null, error: null });
+      }
+
+      case 'admin_reset_heart_balances': {
+        // 모든 유저의 하트 잔여 수를 heart_initial_count로 초기화
+        checkPassword();
+        const initialCount = Math.max(1, Number((settings as Record<string, unknown>).heart_initial_count ?? 10));
+        const allProfiles = getTable('profiles');
+        const nowIso2 = new Date().toISOString();
+        if (!store['heart_balances']) store['heart_balances'] = [];
+        const resetPersists: Promise<void>[] = [];
+        for (const p of allProfiles) {
+          const userId = p.id as string;
+          if (!userId) continue;
+          const newRow: Record<string, unknown> = {
+            id: userId, heart_count: initialCount, last_drain_at: null, updated_at: nowIso2,
+          };
+          const idx = (store['heart_balances'] as Record<string, unknown>[]).findIndex(b => b.id === userId);
+          if (idx >= 0) (store['heart_balances'] as Record<string, unknown>[])[idx] = newRow;
+          else (store['heart_balances'] as Record<string, unknown>[]).push(newRow);
+          resetPersists.push(dbPersistRow('heart_balances', newRow).catch(console.error));
+          _smartBroadcastLocal('heart_balances', newRow, {
+            type: 'change', table: 'heart_balances', event: 'UPDATE', newRow, oldRow: {},
+          });
+        }
+        await Promise.all(resetPersists);
+        logger.info({ reset: allProfiles.length }, '[rpc] admin_reset_heart_balances 완료');
+        return res.json({ data: { reset: allProfiles.length }, error: null });
       }
 
       default:

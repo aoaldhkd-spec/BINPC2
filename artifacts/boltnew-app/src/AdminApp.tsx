@@ -1102,7 +1102,7 @@ function DbHealthTab({ health, loading, onRefresh, onClearErrors }: { health: Db
 
 function DashboardTab({ settings, profiles, onToggleSession, onEventEndReset, onToggleFunctionsLock,
   onClearLikes, onClearChats, onClearProfiles, onClearHistory,
-  restoreMap }: {
+  restoreMap, onTriggerHeartDrain, onResetHeartBalances }: {
   settings: AppSettings | null; profiles: Profile[];
   onToggleSession: () => void; onEventEndReset: () => void;
   onToggleFunctionsLock: () => void;
@@ -1111,6 +1111,8 @@ function DashboardTab({ settings, profiles, onToggleSession, onEventEndReset, on
   onClearProfiles: () => Promise<void>;
   onClearHistory: () => Promise<void>;
   restoreMap: Map<string, () => Promise<void>>;
+  onTriggerHeartDrain: () => Promise<void>;
+  onResetHeartBalances: () => Promise<void>;
 }) {
   const [confirmToggle, setConfirmToggle] = useState(false);
   const [confirmEventEnd, setConfirmEventEnd] = useState(false);
@@ -1197,6 +1199,87 @@ function DashboardTab({ settings, profiles, onToggleSession, onEventEndReset, on
         </div>
       </div>
 
+
+      {/* 💛 하트 드레인 시스템 */}
+      <div>
+        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 px-1">💛 하트 드레인</h3>
+        <div className="rounded-2xl border-2 border-yellow-200 bg-yellow-50 p-4 space-y-3">
+          <div className="flex items-start gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-black text-yellow-800">하트 차감 시스템</p>
+              <p className="text-[10px] text-yellow-600 mt-0.5">
+                {(settings as any)?.heart_drain_enabled
+                  ? `✅ 활성 — ${(settings as any)?.heart_drain_minutes ?? 5}분마다 1개 차감`
+                  : '⏸️ 비활성 — 하트가 줄지 않음'}
+              </p>
+            </div>
+            <button
+              onClick={async () => {
+                const newVal = !((settings as any)?.heart_drain_enabled ?? false);
+                await adminApiRpc('admin_update_settings', {
+                  p_admin_password: settings?.admin_password ?? '',
+                  p_payload: { heart_drain_enabled: newVal },
+                });
+              }}
+              className={`relative w-10 h-6 rounded-full transition-all flex-shrink-0 ${(settings as any)?.heart_drain_enabled ? 'bg-yellow-500' : 'bg-slate-300'}`}
+            >
+              <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${(settings as any)?.heart_drain_enabled ? 'left-4' : 'left-0.5'}`} />
+            </button>
+          </div>
+
+          {/* 설정 행: 차감 간격 + 초기 하트 수 */}
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] font-black text-yellow-700 block mb-1">차감 간격 (분)</label>
+              <input
+                type="number" min={1} max={60}
+                defaultValue={(settings as any)?.heart_drain_minutes ?? 5}
+                onBlur={async (e) => {
+                  const v = Math.max(1, Math.min(60, parseInt(e.target.value) || 5));
+                  e.target.value = String(v);
+                  await adminApiRpc('admin_update_settings', {
+                    p_admin_password: settings?.admin_password ?? '',
+                    p_payload: { heart_drain_minutes: v },
+                  }).catch(console.error);
+                }}
+                className="w-full rounded-xl border border-yellow-300 bg-white px-3 py-1.5 text-sm font-bold text-yellow-900 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-black text-yellow-700 block mb-1">초기 하트 수</label>
+              <input
+                type="number" min={1} max={100}
+                defaultValue={(settings as any)?.heart_initial_count ?? 10}
+                onBlur={async (e) => {
+                  const v = Math.max(1, Math.min(100, parseInt(e.target.value) || 10));
+                  e.target.value = String(v);
+                  await adminApiRpc('admin_update_settings', {
+                    p_admin_password: settings?.admin_password ?? '',
+                    p_payload: { heart_initial_count: v },
+                  }).catch(console.error);
+                }}
+                className="w-full rounded-xl border border-yellow-300 bg-white px-3 py-1.5 text-sm font-bold text-yellow-900 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+              />
+            </div>
+          </div>
+
+          {/* 액션 버튼 */}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={onTriggerHeartDrain}
+              className="rounded-xl py-2 px-3 bg-yellow-500 hover:bg-yellow-600 text-white text-xs font-black active:scale-95 transition-all shadow-sm"
+            >
+              ⚡ 즉시 차감 실행
+            </button>
+            <button
+              onClick={onResetHeartBalances}
+              className="rounded-xl py-2 px-3 bg-white border-2 border-yellow-400 hover:bg-yellow-50 text-yellow-800 text-xs font-black active:scale-95 transition-all"
+            >
+              🔄 하트 전체 초기화
+            </button>
+          </div>
+        </div>
+      </div>
 
       {/* 데이터 초기화 */}
       <div>
@@ -2481,6 +2564,18 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       .catch(e => console.warn('[admin] api-server 기능잠금 동기화 실패:', e));
   };
 
+  const handleTriggerHeartDrain = async () => {
+    if (!settings) return;
+    await adminApiRpc('admin_trigger_heart_drain', { p_admin_password: settings.admin_password ?? '' })
+      .catch(e => console.warn('[admin] 하트 드레인 실행 실패:', e));
+  };
+
+  const handleResetHeartBalances = async () => {
+    if (!settings) return;
+    await adminApiRpc('admin_reset_heart_balances', { p_admin_password: settings.admin_password ?? '' })
+      .catch(e => console.warn('[admin] 하트 초기화 실패:', e));
+  };
+
   const handleDeleteProfile = async (profileId: string) => {
     await adminSupabase.from('profiles').delete().eq('id', profileId);
     setProfiles(prev => prev.filter(p => p.id !== profileId));
@@ -2569,7 +2664,9 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                 onToggleFunctionsLock={handleToggleFunctionsLock}
                 onClearLikes={handleClearLikes} onClearChats={handleClearAllChats}
                 onClearProfiles={handleClearProfiles}
-                onClearHistory={handleClearHistory} restoreMap={restoreMap} />
+                onClearHistory={handleClearHistory} restoreMap={restoreMap}
+                onTriggerHeartDrain={handleTriggerHeartDrain}
+                onResetHeartBalances={handleResetHeartBalances} />
             )}
             {settingsSubTab === 'qr' && <AdminQrTab settings={settings} onSaveQrBase={async (url) => {
   const { error } = await adminSupabase.from('app_settings').update({ qr_base_url: url, updated_at: new Date().toISOString() } as never).eq('id', 1);

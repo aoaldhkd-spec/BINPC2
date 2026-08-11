@@ -250,6 +250,30 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
         </div>
       </div>
 
+      {/* ── 이미 등록된 유저 안내 배너 ── */}
+      {onShowRecovery && (
+        <div className="flex-shrink-0 bg-amber-50 border-b border-amber-200 px-4 py-3">
+          <div className="flex items-start gap-2.5">
+            <span className="text-lg leading-none mt-0.5">⚠️</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-amber-800 font-black text-sm leading-snug">이미 프로필을 만드셨나요?</p>
+              <p className="text-amber-700 text-xs mt-0.5 leading-relaxed">
+                다시 만들지 마시고 <span className="font-bold">고유번호(PIN)</span>로 입장해주세요.<br />
+                고유번호를 모르신다면 <span className="font-bold">관리자에게 문의</span>해주세요.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onShowRecovery}
+              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 transition-all text-white font-bold text-xs shadow"
+            >
+              <span>🔑</span>
+              <span>PIN 입장</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── 콘텐츠 ── */}
       <div className="flex-1 overflow-y-auto bg-white">
         <div className="p-5">

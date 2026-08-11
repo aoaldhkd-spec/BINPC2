@@ -483,7 +483,11 @@ export const ProfileCard = memo(function ProfileCard({
 
   const posLabel = getPositionLabel(profile.personality_score ?? 50);
   const posStyle = getPositionStyle(profile.personality_score ?? 50);
-  const bioTags = profile.bio ? profile.bio.split(',').map(t => t.trim()).filter(Boolean).slice(0, 2) : [];
+  // bio(편집 후) 또는 interests(초기 설정) 중 값이 있는 쪽 사용
+  const rawBio = profile.bio || (Array.isArray(profile.interests)
+    ? (profile.interests as string[]).join(', ')
+    : profile.interests ? String(profile.interests) : '');
+  const bioTags = rawBio ? rawBio.split(',').map((t: string) => t.trim()).filter(Boolean).slice(0, 2) : [];
   const age = getKoreanAge(profile.birth_year);
   const msStyle = profile.mbti ? getMbtiStyle(profile.mbti) : null;
   // 테마 적응형 스타일 (Tailwind 오버라이드 없이 항상 올바른 색상 보장)
@@ -621,7 +625,7 @@ export function MainScreen({
   onSubmitAnonymousReport,
   timerEndAt, timerLabel, onRefreshStatus, onRefreshChat, onRefreshProfiles, darkMode, onToggleDark, onShowQr, onShowContactQr, onScanQr, scannedContacts, onClearScannedContact, functionsLocked = false, onShowTutorial,
   newMsgCount, onClearMsgCount, unreadChatCounts, onClearChatUnread: _onClearChatUnread, resetPassword,
-  onUpdateProfile, fortuneCompatTarget,
+  onUpdateProfile, fortuneCompatTarget, myHeartCount, heartDrainEnabled,
 }: {
   profiles: Profile[]; currentUserId: string | null; likedIds: Set<string>; sentHeartTypes: Map<string, HeartType>; sentHeartsPerPerson: Map<string, Set<HeartType>>; likeStatuses: Map<string, string>;
   profileMap: Map<string, Profile>; mainTab: MainTab;
@@ -660,6 +664,8 @@ export function MainScreen({
   resetPassword: string | null;
   onUpdateProfile: (update: Record<string, unknown> & { id: string }) => void;
   fortuneCompatTarget?: string;
+  myHeartCount?: number | null;
+  heartDrainEnabled?: boolean;
 }) {
   const heartCount = useCallback((t: HeartType) => { let c = 0; sentHeartsPerPerson.forEach(types => { if (types.has(t)) c++; }); return c; }, [sentHeartsPerPerson]);
   const tableNumber: number | null = null;
@@ -951,8 +957,8 @@ export function MainScreen({
     setInterestSaving(true);
     try {
       const bioStr = editInterests.join(', ');
-      await supabase.from('profiles').update({ bio: bioStr } as never).eq('id', currentUserId);
-      onUpdateProfile({ id: currentUserId, bio: bioStr });
+      await supabase.from('profiles').update({ bio: bioStr, interests: editInterests } as never).eq('id', currentUserId);
+      onUpdateProfile({ id: currentUserId, bio: bioStr, interests: editInterests as unknown as string });
       interestInitRef.current = false;
       setProfileEditSection(null);
       onRefreshProfiles();
@@ -1356,6 +1362,51 @@ export function MainScreen({
                       </div>
                     </div>
                   </div>
+                  {/* ── 하트 잔여 수 (드레인 활성 시만 표시) ── */}
+                  {heartDrainEnabled && typeof myHeartCount === 'number' && (
+                    <div className={`mt-4 flex items-center gap-2.5 px-4 py-3 rounded-2xl border-2 transition-colors ${
+                      myHeartCount <= 2
+                        ? (darkMode ? 'bg-red-900/40 border-red-500/60' : 'bg-red-50 border-red-300')
+                        : myHeartCount <= 5
+                        ? (darkMode ? 'bg-amber-900/40 border-amber-500/50' : 'bg-amber-50 border-amber-300')
+                        : (darkMode ? 'bg-pink-900/30 border-pink-500/30' : 'bg-pink-50 border-pink-200')
+                    }`}>
+                      <span className={`text-xl ${myHeartCount <= 2 ? 'animate-pulse' : ''}`}>
+                        {myHeartCount <= 2 ? '😱' : myHeartCount <= 5 ? '⚠️' : '💛'}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-black leading-tight ${
+                          myHeartCount <= 2
+                            ? (darkMode ? 'text-red-300' : 'text-red-700')
+                            : myHeartCount <= 5
+                            ? (darkMode ? 'text-amber-300' : 'text-amber-700')
+                            : (darkMode ? 'text-pink-300' : 'text-pink-700')
+                        }`}>
+                          하트 {myHeartCount}개 남음
+                        </p>
+                        <p className={`text-[10px] font-semibold mt-0.5 ${
+                          myHeartCount <= 2
+                            ? (darkMode ? 'text-red-400' : 'text-red-500')
+                            : myHeartCount <= 5
+                            ? (darkMode ? 'text-amber-400' : 'text-amber-600')
+                            : (darkMode ? 'text-pink-400' : 'text-pink-500')
+                        }`}>
+                          {myHeartCount <= 2
+                            ? '⚡ 지금 바로 하트를 보내세요!'
+                            : myHeartCount <= 5
+                            ? '하트를 보내야 더 이상 줄지 않아요!'
+                            : '하트를 보내면 잔여 수가 유지됩니다'}
+                        </p>
+                      </div>
+                      <div className="flex gap-0.5 flex-shrink-0">
+                        {Array.from({ length: Math.min(myHeartCount, 10) }).map((_, i) => (
+                          <span key={i} className="text-xs leading-none">💛</span>
+                        ))}
+                        {myHeartCount > 10 && <span className={`text-[10px] font-black ${darkMode ? 'text-pink-300' : 'text-pink-600'}`}>+{myHeartCount - 10}</span>}
+                      </div>
+                    </div>
+                  )}
+
                   {/* ── QR 버튼 한 줄 ── */}
                   <div className="mt-4 grid grid-cols-4 gap-2">
                     <button
@@ -1411,9 +1462,9 @@ export function MainScreen({
                 if (next.length >= 2 && editInterests.length < 2 && currentUserId) {
                   const bioStr = next.join(', ');
                   setInterestSaving(true);
-                  supabase.from('profiles').update({ bio: bioStr } as never).eq('id', currentUserId)
+                  supabase.from('profiles').update({ bio: bioStr, interests: next } as never).eq('id', currentUserId)
                     .then(() => {
-                      onUpdateProfile({ id: currentUserId!, bio: bioStr });
+                      onUpdateProfile({ id: currentUserId!, bio: bioStr, interests: next as unknown as string });
                       interestInitRef.current = false;
                       setInterestSaving(false);
                       onRefreshProfiles();
