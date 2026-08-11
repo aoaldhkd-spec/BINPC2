@@ -465,7 +465,7 @@ class StatusErrorBoundary extends Component<
 // ─── ProfileCard (memoized — 하트/채팅 상태 변경 시 해당 카드만 재렌더) ────────
 
 export const ProfileCard = memo(function ProfileCard({
-  profile, isLiked, sentHeartType, heartCount, canLike, locked, onLike, onSelect, onOpenChat, onBlock, onContactShare, onViewFortune, idealMsg,
+  profile, isLiked, sentHeartType, heartCount, canLike, locked, onLike, onSelect, onOpenChat, onBlock, onContactShare, onViewFortune, idealMsg, statusMsg,
 }: {
   profile: Profile;
   isLiked: boolean;
@@ -480,6 +480,7 @@ export const ProfileCard = memo(function ProfileCard({
   onContactShare?: (p: Profile) => void;
   onViewFortune?: (p: Profile) => void;
   idealMsg?: string | null;
+  statusMsg?: string | null;
 }) {
   const { theme } = useTheme();
   // dark-neon / default → 카드 배경이 어두움; y2k / minimal → 흰 배경
@@ -529,7 +530,10 @@ export const ProfileCard = memo(function ProfileCard({
     <div className="group relative bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100">
 
       {/* ── 사진 플립 영역 (3:4 세로형) ──────────────────────────────────────── */}
-      <div style={{ aspectRatio: '3/4', perspective: '1000px', position: 'relative' }}>
+      <div
+        style={{ aspectRatio: '3/4', perspective: '1000px', position: 'relative', cursor: 'pointer' }}
+        onClick={(e) => { e.stopPropagation(); setIsFlipped(f => !f); }}
+      >
         <div style={{
           width: '100%', height: '100%', position: 'relative',
           transformStyle: 'preserve-3d',
@@ -554,27 +558,48 @@ export const ProfileCard = memo(function ProfileCard({
               onError={(e) => { (e.target as HTMLImageElement).src = genAvatar(profile.nickname); }}
               style={{ width: '100%', height: '100%', objectFit: imgFit === 'cover' ? 'cover' : 'contain' }}
             />
-            {/* ── 정중앙 플립 버튼 (hover+클릭 시 뒤집기) ── */}
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <button
-                onMouseEnter={() => setIsFlipped(true)}
-                onMouseLeave={() => setIsFlipped(false)}
-                onClick={(e) => { e.stopPropagation(); setIsFlipped(f => !f); }}
+            {/* 상태 메시지 (상단 좌측, ··· 버튼과 같은 줄) */}
+            {statusMsg?.trim() && (
+              <div
+                className="absolute top-0 left-0 right-0 z-10 overflow-hidden"
                 style={{
-                  width: '44px', height: '44px', borderRadius: '50%',
-                  background: 'rgba(0,0,0,0.38)', backdropFilter: 'blur(4px)',
-                  border: '1.5px solid rgba(255,255,255,0.45)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  cursor: 'pointer', pointerEvents: 'auto',
-                  transition: 'transform 0.15s, background 0.15s',
+                  height: '28px',
+                  background: 'linear-gradient(90deg,#7c3aed 0%,#db2777 45%,#f97316 100%)',
+                  borderTop: '1px solid rgba(255,255,255,0.2)',
+                  animation: 'ticker-fadein 0.4s ease',
                 }}
-                onMouseDown={(e) => (e.currentTarget.style.transform = 'scale(0.9)')}
-                onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
-                aria-label="이상형 보기"
+                onClick={(e) => e.stopPropagation()}
               >
-                <span style={{ fontSize: '20px', lineHeight: 1 }}>💘</span>
-              </button>
-            </div>
+                {(statusMsg?.length ?? 0) > 9 ? (
+                  <div style={{ display: 'flex', alignItems: 'center', height: '100%' }}>
+                    <span style={{
+                      display: 'inline-block',
+                      whiteSpace: 'nowrap',
+                      fontSize: '11.5px',
+                      fontWeight: 800,
+                      color: '#ffffff',
+                      textShadow: '0 0 12px rgba(255,255,255,0.8), 0 0 4px rgba(255,255,255,0.4)',
+                      letterSpacing: '0.04em',
+                      animation: `ticker-scroll ${Math.max(8, (statusMsg?.length ?? 0) * 0.5)}s linear infinite`,
+                    }}>
+                      {`${statusMsg}  ✦  ${statusMsg}  ✦  `}
+                    </span>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                    <span style={{
+                      fontSize: '11.5px',
+                      fontWeight: 800,
+                      color: '#ffffff',
+                      textShadow: '0 0 12px rgba(255,255,255,0.8), 0 0 4px rgba(255,255,255,0.4)',
+                      letterSpacing: '0.04em',
+                    }}>
+                      {statusMsg}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* ··· 메뉴 (상단 우측) */}
             {(onBlock || onContactShare || onViewFortune) && (
@@ -635,14 +660,40 @@ export const ProfileCard = memo(function ProfileCard({
               color: 'rgba(255,200,255,0.85)', fontSize: '9px', fontWeight: 800,
               letterSpacing: '0.12em', textTransform: 'uppercase', margin: 0,
             }}>나의 이상형</p>
-            <p style={{
-              color: 'rgba(255,255,255,0.88)', fontSize: '10px', fontWeight: 600,
-              textAlign: 'center', lineHeight: 1.55, margin: '4px 0 8px',
-              display: '-webkit-box', WebkitLineClamp: 5, WebkitBoxOrient: 'vertical' as const,
-              overflow: 'hidden',
-            }}>
-              {idealMsg || '아직 이상형을 작성하지 않았어요 ✨'}
-            </p>
+            {/* ideal_msg 파싱: "태그1,태그2\n기타텍스트" */}
+            {(() => {
+              const parts = (idealMsg ?? '').split('\n');
+              const tags = parts[0] ? parts[0].split(',').map(t => t.trim()).filter(Boolean) : [];
+              const free = parts[1] ?? '';
+              if (!tags.length && !free) {
+                return (
+                  <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '10px', textAlign: 'center', margin: '4px 0 8px' }}>
+                    아직 이상형을 작성하지 않았어요 ✨
+                  </p>
+                );
+              }
+              return (
+                <div style={{ margin: '4px 0 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', width: '100%' }}>
+                  {tags.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px', justifyContent: 'center' }}>
+                      {tags.map(t => (
+                        <span key={t} style={{
+                          padding: '2px 8px', borderRadius: '20px',
+                          background: 'rgba(255,255,255,0.18)',
+                          color: 'rgba(255,230,255,0.95)',
+                          fontSize: '9px', fontWeight: 800,
+                        }}>{t}</span>
+                      ))}
+                    </div>
+                  )}
+                  {free && (
+                    <p style={{ color: 'rgba(255,255,255,0.72)', fontSize: '9px', textAlign: 'center', lineHeight: 1.5, margin: 0 }}>
+                      {free}
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
             <button
               onClick={(e) => { e.stopPropagation(); onSelect(profile); }}
               style={{
@@ -721,6 +772,13 @@ export const ProfileCard = memo(function ProfileCard({
 });
 
 // ─── MainScreen ───────────────────────────────────────────────────────────────
+
+// ── 이상형 태그 그룹 ─────────────────────────────────────────────────────────
+const IDEAL_TAG_GROUPS = [
+  { label: '얼굴상 👀', tags: ['감자상', '댕댕이상', '고양이상', '곰상', '여우상', '공룡상', '토끼상', '눈웃음'] },
+  { label: '체형 💪', tags: ['키큰', '슬림', '근육있는', '통통귀여운', '보통체형'] },
+  { label: '매력 ✨', tags: ['섹끼있는', '다정한', '귀여운', '반전매력', '차분한', '웃음많은', '텐션높은', '술잘마시는'] },
+] as const;
 
 export function MainScreen({
   profiles, currentUserId, likedIds, sentHeartTypes, sentHeartsPerPerson, likeStatuses, profileMap, mainTab,
@@ -807,15 +865,20 @@ export function MainScreen({
   const [chatSubTab, setChatSubTab] = useState<'direct' | 'group'>('direct');
 
   // ── 상태·이상형 입력 상태 ──────────────────────────────────────────────────────
+  const [signalCardOpen, setSignalCardOpen] = useState(true);
   const [signalStatusMsg, setSignalStatusMsg] = useState('');
-  const [signalIdealMsg, setSignalIdealMsg] = useState('');
+  const [idealTags, setIdealTags] = useState<string[]>([]);
+  const [idealFreeText, setIdealFreeText] = useState('');
   const [signalSaving, setSignalSaving] = useState(false);
   // 내 user_signals 초기값 동기화
+  // ideal_msg 형식: "태그1,태그2\n기타자유텍스트" (줄바꿈으로 구분)
   useEffect(() => {
     const my = userSignals.find(s => s.user_id === currentUserId);
     if (my) {
       setSignalStatusMsg(my.status_msg ?? '');
-      setSignalIdealMsg(my.ideal_msg ?? '');
+      const parts = (my.ideal_msg ?? '').split('\n');
+      setIdealTags(parts[0] ? parts[0].split(',').map(t => t.trim()).filter(Boolean) : []);
+      setIdealFreeText(parts[1] ?? '');
     }
   }, [userSignals, currentUserId]);
 
@@ -1005,6 +1068,11 @@ export function MainScreen({
   const [chatSearchLockToast, setChatSearchLockToast] = useState(false);
   const showChatSearchLockToast = () => { setChatSearchLockToast(true); setTimeout(() => setChatSearchLockToast(false), 1400); };
   const [showContactEdit, setShowContactEdit] = useState(false);
+  // ── 내 상태 탭 카드 접기/펼치기 ────────────────────────────────────────────
+  const [profileEditOpen, setProfileEditOpen] = useState(true);
+  const [receivedHeartsOpen, setReceivedHeartsOpen] = useState(true);
+  const [sentHeartsOpen, setSentHeartsOpen] = useState(true);
+
   // ── 프로필 편집 통합 상태 (한 섹션만 열림) ──────────────────────────────────
   const [profileEditSection, setProfileEditSection] = useState<'avatar' | 'nickname' | 'birth' | 'interests' | null>(null);
   const showBirthEdit = profileEditSection === 'birth';
@@ -1365,36 +1433,6 @@ export function MainScreen({
               </div>
             </div>
 
-            {/* ── 네온 전광판 (상태 메시지 ticker) ──────────────────────────── */}
-            {(() => {
-              const tickerItems = userSignals.filter(s => s.status_msg?.trim());
-              if (tickerItems.length === 0) return null;
-              const parts = tickerItems.map(s => {
-                const nick = profiles.find(p => p.id === s.user_id)?.nickname ?? '?';
-                return `✦ ${nick}  ${s.status_msg}`;
-              });
-              const doubleText = [...parts, ...parts].join('   ·   ');
-              return (
-                <div className="overflow-hidden rounded-xl mb-3" style={{
-                  height: '38px', background: '#080818',
-                  border: '1px solid rgba(0,255,180,0.35)',
-                  boxShadow: '0 0 10px rgba(0,255,180,0.12), inset 0 1px 0 rgba(0,255,180,0.08)',
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', height: '100%', overflow: 'hidden' }}>
-                    <span style={{
-                      display: 'inline-block', whiteSpace: 'nowrap',
-                      fontSize: '11px', fontWeight: 700, letterSpacing: '0.03em',
-                      color: '#00ffb4',
-                      textShadow: '0 0 6px #00ffb4, 0 0 18px rgba(0,255,180,0.55)',
-                      animation: `ticker-scroll ${Math.max(18, tickerItems.length * 6)}s linear infinite`,
-                    }}>
-                      {doubleText}
-                    </span>
-                  </div>
-                </div>
-              );
-            })()}
-
             {/* ── 참여자 그리드 (이 영역만 스크롤) ───────── */}
             <div className="overflow-y-auto -mx-4 px-4 pb-6" style={{ maxHeight: 'calc(100dvh - 330px)', minHeight: 160 }}>
             <div className="grid grid-cols-3 gap-2">
@@ -1414,6 +1452,7 @@ export function MainScreen({
                 onContactShare={_onContactShareOpen}
                 onViewFortune={onViewFortune}
                 idealMsg={userSignals.find(s => s.user_id === profile.id)?.ideal_msg}
+                statusMsg={userSignals.find(s => s.user_id === profile.id)?.status_msg}
               />
             ))}
             {filteredProfiles.filter(p => p.id !== currentUserId).length === 0 && (
@@ -1551,30 +1590,8 @@ export function MainScreen({
                       </div>
                     </div>
                   </div>
-                  {/* ── 성향 공개 토글 ── */}
-                  <div className={`mt-3 flex items-center justify-between px-1 py-2 rounded-2xl ${darkMode ? 'bg-slate-700/40' : 'bg-gray-50'}`}>
-                    <div>
-                      <p className={`text-xs font-black ${darkMode ? 'text-white' : 'text-gray-800'}`}>성향(돔/섭) 공개</p>
-                      <p className={`text-[10px] ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{hidePersonality ? '🔒 다른 참여자에게 숨김' : '👁 다른 참여자에게 보임'}</p>
-                    </div>
-                    <button
-                      onClick={handleToggleHidePersonality}
-                      className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none ${hidePersonality ? (darkMode ? 'bg-slate-600' : 'bg-gray-300') : 'bg-teal-500'}`}
-                      aria-label="성향 공개 토글"
-                    >
-                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ${hidePersonality ? 'translate-x-1' : 'translate-x-6'}`} />
-                    </button>
-                  </div>
-
-                  {/* ── QR 버튼 한 줄 ── */}
-                  <div className="mt-4 grid grid-cols-4 gap-2">
-                    <button
-                      onClick={onShowQr}
-                      className={`flex flex-col items-center justify-center gap-1 py-2.5 rounded-2xl font-bold transition-all active:scale-95 border ${darkMode ? 'bg-cyan-500/15 border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/25' : 'bg-cyan-50 border-cyan-200 text-cyan-600 hover:bg-cyan-100'}`}
-                    >
-                      <QrCode className="w-5 h-5" />
-                      <span className="text-[10px] leading-tight text-center">프로필<br/>QR</span>
-                    </button>
+                  {/* ── QR / 고유번호 ── */}
+                  <div className="mt-4 grid grid-cols-3 gap-2">
                     <button
                       onClick={onShowContactQr}
                       className={`flex flex-col items-center justify-center gap-1 py-2.5 rounded-2xl font-bold transition-all active:scale-95 border ${darkMode ? 'bg-violet-500/15 border-violet-500/30 text-violet-400 hover:bg-violet-500/25' : 'bg-violet-50 border-violet-200 text-violet-600 hover:bg-violet-100'}`}
@@ -1603,63 +1620,6 @@ export function MainScreen({
                 </div>
               );
             })()}
-
-            {/* ── 오늘의 상태 & 나의 이상형 입력 카드 ── */}
-            <div className={`rounded-3xl p-5 border shadow-xl ${darkMode ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600' : 'bg-white border-gray-100'}`}>
-              <p className={`text-[10px] font-black uppercase tracking-widest mb-4 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>💬 오늘의 한마디 & 이상형</p>
-
-              {/* 오늘의 상태 */}
-              <div className="mb-3">
-                <label className={`block text-[11px] font-black mb-1.5 ${darkMode ? 'text-cyan-300' : 'text-cyan-600'}`}>💬 오늘의 상태</label>
-                <input
-                  type="text"
-                  value={signalStatusMsg}
-                  onChange={(e) => setSignalStatusMsg(e.target.value.slice(0, 30))}
-                  placeholder="예: 퇴근 후 맥주 한잔 같이해요 🍺"
-                  maxLength={30}
-                  className={`w-full px-3 py-2.5 rounded-xl text-sm border focus:outline-none focus:border-cyan-400 transition-colors ${darkMode ? 'bg-slate-700 border-slate-500 text-white placeholder:text-slate-500' : 'bg-gray-50 border-gray-200 text-gray-800 placeholder:text-gray-400'}`}
-                />
-                <p className={`text-[10px] mt-0.5 text-right ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>{signalStatusMsg.length}/30</p>
-              </div>
-
-              {/* 나의 이상형 */}
-              <div className="mb-4">
-                <label className={`block text-[11px] font-black mb-1.5 ${darkMode ? 'text-rose-300' : 'text-rose-500'}`}>💘 나의 이상형</label>
-                <textarea
-                  value={signalIdealMsg}
-                  onChange={(e) => setSignalIdealMsg(e.target.value.slice(0, 100))}
-                  placeholder="예: 다정하고 티키타카 잘 맞는 분 🤝"
-                  maxLength={100}
-                  rows={2}
-                  className={`w-full px-3 py-2.5 rounded-xl text-sm border focus:outline-none focus:border-rose-400 transition-colors resize-none ${darkMode ? 'bg-slate-700 border-slate-500 text-white placeholder:text-slate-500' : 'bg-gray-50 border-gray-200 text-gray-800 placeholder:text-gray-400'}`}
-                />
-                <p className={`text-[10px] mt-0.5 text-right ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>{signalIdealMsg.length}/100</p>
-              </div>
-
-              <button
-                onClick={async () => {
-                  if (!currentUserId || signalSaving) return;
-                  setSignalSaving(true);
-                  try {
-                    const existing = userSignals.find(s => s.user_id === currentUserId);
-                    const row = {
-                      id: existing?.id ?? crypto.randomUUID(),
-                      user_id: currentUserId,
-                      status_msg: signalStatusMsg.trim() || null,
-                      ideal_msg: signalIdealMsg.trim() || null,
-                      created_at: existing?.created_at ?? new Date().toISOString(),
-                    };
-                    await supabase.from('user_signals').upsert(row as never, { onConflict: 'user_id' });
-                  } catch (e) { console.error('[user_signals save]', e); }
-                  finally { setSignalSaving(false); }
-                }}
-                disabled={signalSaving}
-                className="w-full py-2.5 rounded-xl font-black text-sm text-white active:scale-95 transition-transform disabled:opacity-50"
-                style={{ background: 'linear-gradient(135deg, #06b6d4, #e11d48)' }}
-              >
-                {signalSaving ? '저장 중...' : '저장하기 💾'}
-              </button>
-            </div>
 
             {/* ── 프로필 편집 (통합) ── */}
             {(() => {
@@ -1707,9 +1667,15 @@ export function MainScreen({
               };
               return (
                 <div className={`rounded-2xl border overflow-hidden transition-colors duration-300 ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-100'}`}>
-                  <div className={`px-4 py-3 border-b ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
+                  <button
+                    onClick={() => setProfileEditOpen(o => !o)}
+                    className={`w-full flex items-center justify-between px-4 py-3 border-b transition-colors ${darkMode ? 'border-slate-700 hover:bg-slate-700/40' : 'border-gray-100 hover:bg-gray-50'}`}
+                  >
                     <p className={`text-[10px] font-black uppercase tracking-widest ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>✏️ 프로필 편집</p>
-                  </div>
+                    <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${profileEditOpen ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
+                  </button>
+                  {profileEditOpen && (
+                  <>
 
                   {/* ── 사진·아바타 ── */}
                   <div className={`border-b ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
@@ -1945,6 +1911,8 @@ export function MainScreen({
                       </div>
                     )}
                   </div>
+                  </>
+                  )}
                 </div>
               );
             })()}
@@ -2063,74 +2031,6 @@ export function MainScreen({
             })()}
 
 
-            {/* ── 연락처 설정 — 접기/펼치기 ── */}
-            <div className={`rounded-2xl border transition-colors duration-300 ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-100'}`}>
-              <button onClick={() => setShowContactEdit(v => !v)} className="w-full flex items-center gap-2 p-4 text-left">
-                <span className="text-xl flex-shrink-0">📋</span>
-                <div className="flex-1 min-w-0">
-                  <p className={`text-sm font-black ${darkMode ? 'text-white' : 'text-gray-900'}`}>연락처 설정</p>
-                  {(statusKakao || statusInstagram || statusPhone) ? (
-                    <p className={`text-[11px] leading-snug ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>
-                      {[statusKakao && `K: ${statusKakao}`, statusInstagram && `@${statusInstagram}`, statusPhone && `📞 ${statusPhone}`].filter(Boolean).join(' · ')}
-                    </p>
-                  ) : (
-                    <p className={`text-[11px] ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>미설정</p>
-                  )}
-                </div>
-                {statusContactPrivate && (
-                  <span className="text-[9px] font-black px-1.5 py-0.5 bg-red-100 text-red-600 rounded-full flex-shrink-0">비공개</span>
-                )}
-                <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${showContactEdit ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
-              </button>
-              {showContactEdit && (
-                <div className="px-4 pb-4">
-                  {/* 안내 */}
-                  <div className={`rounded-xl p-3 mb-3 flex items-start gap-2 ${darkMode ? 'bg-amber-900/30 border border-amber-600/40' : 'bg-amber-50 border border-amber-300'}`}>
-                    <span className="text-amber-500 text-sm mt-0.5 flex-shrink-0">⚠️</span>
-                    <p className={`text-[11px] leading-relaxed ${darkMode ? 'text-amber-400' : 'text-amber-700'}`}>
-                      연락처는 상대방이 <span className="font-bold">연락처 공유를 수락했을 때만</span> 전달됩니다.
-                    </p>
-                  </div>
-                  {/* 비공개 토글 */}
-                  <label className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer mb-3 select-none border ${statusContactPrivate ? (darkMode ? 'bg-red-900/30 border-red-700' : 'bg-red-50 border-red-200') : (darkMode ? 'bg-slate-700 border-slate-600' : 'bg-gray-50 border-gray-200')}`}>
-                    <div
-                      onClick={() => setStatusContactPrivate(v => !v)}
-                      className={`toggle-track relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${statusContactPrivate ? 'bg-red-500' : 'bg-gray-300'}`}
-                    >
-                      <span className={`toggle-thumb absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${statusContactPrivate ? 'translate-x-5' : 'translate-x-0.5'}`} />
-                    </div>
-                    <div>
-                      <p className={`text-xs font-bold ${statusContactPrivate ? (darkMode ? 'text-red-400' : 'text-red-600') : (darkMode ? 'text-slate-300' : 'text-gray-700')}`}>연락처 비공개</p>
-                      {statusContactPrivate && <p className={`text-[10px] ${darkMode ? 'text-red-500' : 'text-red-500'}`}>매칭 상대에게 연락처가 전달되지 않습니다</p>}
-                    </div>
-                  </label>
-                  {/* 입력 필드들 */}
-                  <div className={`space-y-2 transition-opacity ${statusContactPrivate ? 'opacity-40 pointer-events-none' : ''}`}>
-                    <div className="relative">
-                      <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded flex items-center justify-center text-[11px] font-black text-white bg-yellow-400">K</div>
-                      <input value={statusKakao} onChange={e => setStatusKakao(e.target.value)} placeholder="카카오톡 ID"
-                        className={`w-full pl-10 pr-3 py-2.5 rounded-xl border-2 text-sm focus:outline-none transition-colors ${darkMode ? 'bg-slate-700 border-slate-500 text-white placeholder-slate-500 focus:border-yellow-500' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 focus:border-yellow-400'}`} />
-                    </div>
-                    <div className="relative">
-                      <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded flex items-center justify-center text-[11px] font-black text-white bg-pink-500">@</div>
-                      <input value={statusInstagram} onChange={e => setStatusInstagram(e.target.value.replace(/^@/, ''))} placeholder="인스타그램 ID (@제외)"
-                        className={`w-full pl-10 pr-3 py-2.5 rounded-xl border-2 text-sm focus:outline-none transition-colors ${darkMode ? 'bg-slate-700 border-slate-500 text-white placeholder-slate-500 focus:border-pink-500' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 focus:border-pink-400'}`} />
-                    </div>
-                    <div className="relative">
-                      <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded flex items-center justify-center text-[11px] font-black text-white bg-green-500">📞</div>
-                      <input value={statusPhone} onChange={e => setStatusPhone(e.target.value.replace(/\D/g, '').slice(0, 11))} placeholder="전화번호 (숫자만)" inputMode="tel"
-                        className={`w-full pl-10 pr-3 py-2.5 rounded-xl border-2 text-sm focus:outline-none transition-colors ${darkMode ? 'bg-slate-700 border-slate-500 text-white placeholder-slate-500 focus:border-green-500' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 focus:border-green-400'}`} />
-                    </div>
-                  </div>
-                  <button onClick={saveStatusContact} disabled={statusContactSaving}
-                    className="mt-3 w-full py-2.5 bg-cyan-500 hover:bg-cyan-600 text-white font-bold rounded-xl text-sm active:scale-95 transition-all disabled:opacity-40">
-                    {statusContactSaving ? '저장 중...' : '연락처 저장'}
-                  </button>
-                </div>
-              )}
-            </div>
-
-
             {/* ── 방문자 기록 (접기/펼치기) ── */}
             {(() => {
               const visitors = [...profileVisitors]
@@ -2184,15 +2084,23 @@ export function MainScreen({
 
             <div className="contents">
             {/* 받은 하트 */}
-            <div className={`rounded-2xl shadow-sm p-5 transition-colors duration-300 ${darkMode ? 'bg-slate-800 border border-slate-600' : 'bg-white'}`}>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className={`text-sm font-bold uppercase tracking-wider ${darkMode ? 'text-slate-200' : 'text-gray-500'}`}>받은 하트</h3>
-                {pendingHeartsCount > 0 && (
-                  <span className="px-2 py-0.5 bg-rose-100 text-rose-600 text-xs font-bold rounded-full">
-                    {pendingHeartsCount}개 미응답
-                  </span>
-                )}
-              </div>
+            <div className={`rounded-2xl shadow-sm transition-colors duration-300 overflow-hidden ${darkMode ? 'bg-slate-800 border border-slate-600' : 'bg-white'}`}>
+              <button
+                onClick={() => setReceivedHeartsOpen(o => !o)}
+                className={`w-full flex items-center justify-between px-5 py-4 ${darkMode ? 'hover:bg-slate-700/40' : 'hover:bg-gray-50'}`}
+              >
+                <h3 className={`text-sm font-bold uppercase tracking-wider ${darkMode ? 'text-slate-200' : 'text-gray-500'}`}>💕 받은 하트</h3>
+                <div className="flex items-center gap-2">
+                  {pendingHeartsCount > 0 && (
+                    <span className="px-2 py-0.5 bg-rose-100 text-rose-600 text-xs font-bold rounded-full">
+                      {pendingHeartsCount}개 미응답
+                    </span>
+                  )}
+                  <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${receivedHeartsOpen ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
+                </div>
+              </button>
+              {receivedHeartsOpen && (
+              <div className="px-5 pb-5">
               {receivedLikers.length === 0 ? (
                 <div className="text-center py-8">
                   <Heart className={`w-10 h-10 mx-auto mb-2 ${darkMode ? 'text-slate-500' : 'text-gray-200'}`} />
@@ -2256,6 +2164,8 @@ export function MainScreen({
                   })}
                 </div>
               )}
+              </div>
+              )}
             </div>
 
             {/* 교환된 연락처 */}
@@ -2307,11 +2217,19 @@ export function MainScreen({
                   })}
                 </div>
               </div>
-            )}
+              )}
 
             {/* 보낸 하트 */}
-            <div className={`rounded-2xl shadow-sm p-5 transition-colors duration-300 ${darkMode ? 'bg-slate-800 border border-slate-600' : 'bg-white'}`}>
-              <h3 className={`text-sm font-bold uppercase tracking-wider mb-4 ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>보낸 하트</h3>
+            <div className={`rounded-2xl shadow-sm transition-colors duration-300 overflow-hidden ${darkMode ? 'bg-slate-800 border border-slate-600' : 'bg-white'}`}>
+              <button
+                onClick={() => setSentHeartsOpen(o => !o)}
+                className={`w-full flex items-center justify-between px-5 py-4 ${darkMode ? 'hover:bg-slate-700/40' : 'hover:bg-gray-50'}`}
+              >
+                <h3 className={`text-sm font-bold uppercase tracking-wider ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>💌 보낸 하트</h3>
+                <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${sentHeartsOpen ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
+              </button>
+              {sentHeartsOpen && (
+              <div className="px-5 pb-5">
               {sentLikedProfiles.length === 0 ? (
                 <div className="text-center py-8">
                   <Heart className={`w-10 h-10 mx-auto mb-2 ${darkMode ? 'text-slate-500' : 'text-gray-200'}`} />
@@ -2387,9 +2305,196 @@ export function MainScreen({
                   })}
                 </div>
               )}
+              </div>
+              )}
             </div>
 
-            {/* ── 차단·숨기기 목록 (접기/펼치기) — 맨 아래 ── */}
+            </div>
+          </div>
+          </StatusErrorBoundary>
+        )}
+
+        {/* ─── 내 설정 탭 ─── */}
+        {mainTab === 'settings' && (
+          <StatusErrorBoundary>
+          <div className="max-w-lg mx-auto space-y-4 pb-24">
+
+            {/* ── 성향 설정 ── */}
+            {(() => {
+              const me = profiles.find(p => p.id === currentUserId);
+              if (!me) return null;
+              const hidePersonality = (me as { hide_personality?: boolean }).hide_personality ?? true;
+              const handleToggleHidePersonality = async () => {
+                const next = !hidePersonality;
+                if (!currentUserId) return;
+                try {
+                  await supabase.from('profiles').update({ hide_personality: next } as never).eq('id', currentUserId);
+                  onUpdateProfile({ id: currentUserId, hide_personality: next } as never);
+                } catch (e) { console.error('[hide_personality]', e); }
+              };
+              return (
+                <div className={`rounded-3xl p-5 border shadow-xl transition-colors duration-300 ${darkMode ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600' : 'bg-white border-gray-100'}`}>
+                  <p className={`text-[10px] font-black uppercase tracking-widest mb-4 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>🔒 성향 설정</p>
+                  <div className={`flex items-center justify-between p-3 rounded-2xl ${darkMode ? 'bg-slate-700/40' : 'bg-gray-50'}`}>
+                    <div>
+                      <p className={`text-xs font-black ${darkMode ? 'text-white' : 'text-gray-800'}`}>성향(돔/섭) 공개</p>
+                      <p className={`text-[10px] ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{hidePersonality ? '🔒 다른 참여자에게 숨김' : '👁 다른 참여자에게 보임'}</p>
+                    </div>
+                    <button
+                      onClick={handleToggleHidePersonality}
+                      className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none ${hidePersonality ? (darkMode ? 'bg-slate-600' : 'bg-gray-300') : 'bg-teal-500'}`}
+                      aria-label="성향 공개 토글"
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ${hidePersonality ? 'translate-x-1' : 'translate-x-6'}`} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* ── 오늘의 한마디 & 이상형 ── */}
+            <div className={`rounded-3xl border shadow-xl overflow-hidden ${darkMode ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600' : 'bg-white border-gray-100'}`}>
+              <button
+                onClick={() => setSignalCardOpen(o => !o)}
+                className={`w-full flex items-center justify-between px-5 py-4 transition-colors ${darkMode ? 'text-slate-300 hover:bg-slate-700/40' : 'text-gray-600 hover:bg-gray-50'}`}
+              >
+                <span className={`text-[10px] font-black uppercase tracking-widest ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>💬 오늘의 한마디 &amp; 이상형</span>
+                <span className={`text-[10px] transition-transform duration-200 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}
+                  style={{ display: 'inline-block', transform: signalCardOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
+              </button>
+              {signalCardOpen && (
+                <div className="px-5 pb-5">
+                  <div className="mb-4">
+                    <label className={`block text-[11px] font-black mb-1.5 ${darkMode ? 'text-cyan-300' : 'text-cyan-600'}`}>💬 오늘의 한마디</label>
+                    <input type="text" value={signalStatusMsg} onChange={(e) => setSignalStatusMsg(e.target.value.slice(0, 30))}
+                      placeholder="예: 퇴근 후 맥주 한잔 같이해요 🍺" maxLength={30}
+                      className={`w-full px-3 py-2.5 rounded-xl text-sm border focus:outline-none focus:border-cyan-400 transition-colors ${darkMode ? 'bg-slate-700 border-slate-500 text-white placeholder:text-slate-500' : 'bg-gray-50 border-gray-200 text-gray-800 placeholder:text-gray-400'}`} />
+                    <p className={`text-[10px] mt-0.5 text-right ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>{signalStatusMsg.length}/30</p>
+                  </div>
+                  <div className="mb-4">
+                    <label className={`block text-[11px] font-black mb-2.5 ${darkMode ? 'text-rose-300' : 'text-rose-500'}`}>💘 나의 이상형</label>
+                    {IDEAL_TAG_GROUPS.map(group => (
+                      <div key={group.label} className="mb-3">
+                        <p className={`text-[9px] font-black uppercase tracking-widest mb-1.5 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>{group.label}</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {group.tags.map(tag => {
+                            const selected = idealTags.includes(tag);
+                            return (
+                              <button key={tag}
+                                onClick={() => setIdealTags(prev => selected ? prev.filter(t => t !== tag) : [...prev, tag])}
+                                className={`px-2.5 py-1 rounded-full text-[11px] font-bold border transition-all active:scale-90 ${selected ? 'text-white border-transparent' : darkMode ? 'text-slate-400 border-slate-600 bg-slate-700/50 hover:border-rose-500/50' : 'text-gray-500 border-gray-200 bg-gray-50 hover:border-rose-300'}`}
+                                style={selected ? { background: 'linear-gradient(135deg,#e11d48,#be185d)' } : {}}
+                              >{tag}</button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                    <div className="mt-1">
+                      <p className={`text-[9px] font-black uppercase tracking-widest mb-1.5 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>기타 ✏️</p>
+                      <input type="text" value={idealFreeText} onChange={(e) => setIdealFreeText(e.target.value.slice(0, 30))}
+                        placeholder="예: 다정하고 티키타카 잘 맞는 분" maxLength={30}
+                        className={`w-full px-3 py-2.5 rounded-xl text-sm border focus:outline-none focus:border-rose-400 transition-colors ${darkMode ? 'bg-slate-700 border-slate-500 text-white placeholder:text-slate-500' : 'bg-gray-50 border-gray-200 text-gray-800 placeholder:text-gray-400'}`} />
+                      <p className={`text-[10px] mt-0.5 text-right ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>{idealFreeText.length}/30</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      if (!currentUserId || signalSaving) return;
+                      setSignalSaving(true);
+                      try {
+                        const existing = userSignals.find(s => s.user_id === currentUserId);
+                        const ideal_msg = [idealTags.join(','), idealFreeText.trim()].filter(Boolean).join('\n') || null;
+                        const row = { id: existing?.id ?? crypto.randomUUID(), user_id: currentUserId, status_msg: signalStatusMsg.trim() || null, ideal_msg, created_at: existing?.created_at ?? new Date().toISOString() };
+                        await supabase.from('user_signals').upsert(row as never, { onConflict: 'user_id' });
+                      } catch (e) { console.error('[user_signals save]', e); }
+                      finally { setSignalSaving(false); }
+                    }}
+                    disabled={signalSaving}
+                    className="w-full py-2.5 rounded-xl font-black text-sm text-white active:scale-95 transition-transform disabled:opacity-50"
+                    style={{ background: 'linear-gradient(135deg,#06b6d4,#e11d48)' }}
+                  >
+                    {signalSaving ? '저장 중...' : '저장하기 💾'}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* ── QR + 연락처 설정 ── */}
+            <div className={`rounded-3xl border shadow-xl transition-colors duration-300 overflow-hidden ${darkMode ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600' : 'bg-white border-gray-100'}`}>
+              <div className="grid grid-cols-2 gap-2 p-4">
+                <button onClick={onShowContactQr}
+                  className={`flex flex-col items-center justify-center gap-1.5 py-3 rounded-2xl font-bold transition-all active:scale-95 border ${darkMode ? 'bg-violet-500/15 border-violet-500/30 text-violet-400 hover:bg-violet-500/25' : 'bg-violet-50 border-violet-200 text-violet-600 hover:bg-violet-100'}`}>
+                  <QrCode className="w-5 h-5" />
+                  <span className="text-[11px]">연락처 QR</span>
+                </button>
+                <button onClick={onScanQr}
+                  className={`flex flex-col items-center justify-center gap-1.5 py-3 rounded-2xl font-bold transition-all active:scale-95 border ${darkMode ? 'bg-amber-500/15 border-amber-500/30 text-amber-400 hover:bg-amber-500/25' : 'bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100'}`}>
+                  <Camera className="w-5 h-5" />
+                  <span className="text-[11px]">QR 찍기</span>
+                </button>
+              </div>
+              <div className={`border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
+                <button onClick={() => setShowContactEdit(v => !v)} className="w-full flex items-center gap-2 p-4 text-left">
+                  <span className="text-xl flex-shrink-0">📋</span>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-black ${darkMode ? 'text-white' : 'text-gray-900'}`}>연락처 설정</p>
+                    {(statusKakao || statusInstagram || statusPhone) ? (
+                      <p className={`text-[11px] leading-snug ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                        {[statusKakao && `K: ${statusKakao}`, statusInstagram && `@${statusInstagram}`, statusPhone && `📞 ${statusPhone}`].filter(Boolean).join(' · ')}
+                      </p>
+                    ) : (
+                      <p className={`text-[11px] ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>미설정</p>
+                    )}
+                  </div>
+                  {statusContactPrivate && (
+                    <span className="text-[9px] font-black px-1.5 py-0.5 bg-red-100 text-red-600 rounded-full flex-shrink-0">비공개</span>
+                  )}
+                  <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${showContactEdit ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
+                </button>
+                {showContactEdit && (
+                  <div className="px-4 pb-4">
+                    <div className={`rounded-xl p-3 mb-3 flex items-start gap-2 ${darkMode ? 'bg-amber-900/30 border border-amber-600/40' : 'bg-amber-50 border border-amber-300'}`}>
+                      <span className="text-amber-500 text-sm mt-0.5 flex-shrink-0">⚠️</span>
+                      <p className={`text-[11px] leading-relaxed ${darkMode ? 'text-amber-400' : 'text-amber-700'}`}>연락처는 상대방이 <span className="font-bold">연락처 공유를 수락했을 때만</span> 전달됩니다.</p>
+                    </div>
+                    <label className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer mb-3 select-none border ${statusContactPrivate ? (darkMode ? 'bg-red-900/30 border-red-700' : 'bg-red-50 border-red-200') : (darkMode ? 'bg-slate-700 border-slate-600' : 'bg-gray-50 border-gray-200')}`}>
+                      <div onClick={() => setStatusContactPrivate(v => !v)}
+                        className={`toggle-track relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${statusContactPrivate ? 'bg-red-500' : 'bg-gray-300'}`}>
+                        <span className={`toggle-thumb absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${statusContactPrivate ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                      </div>
+                      <div>
+                        <p className={`text-xs font-bold ${statusContactPrivate ? (darkMode ? 'text-red-400' : 'text-red-600') : (darkMode ? 'text-slate-300' : 'text-gray-700')}`}>연락처 비공개</p>
+                        {statusContactPrivate && <p className={`text-[10px] ${darkMode ? 'text-red-500' : 'text-red-500'}`}>매칭 상대에게 연락처가 전달되지 않습니다</p>}
+                      </div>
+                    </label>
+                    <div className={`space-y-2 transition-opacity ${statusContactPrivate ? 'opacity-40 pointer-events-none' : ''}`}>
+                      <div className="relative">
+                        <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded flex items-center justify-center text-[11px] font-black text-white bg-yellow-400">K</div>
+                        <input value={statusKakao} onChange={e => setStatusKakao(e.target.value)} placeholder="카카오톡 ID"
+                          className={`w-full pl-10 pr-3 py-2.5 rounded-xl border-2 text-sm focus:outline-none transition-colors ${darkMode ? 'bg-slate-700 border-slate-500 text-white placeholder-slate-500 focus:border-yellow-500' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 focus:border-yellow-400'}`} />
+                      </div>
+                      <div className="relative">
+                        <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded flex items-center justify-center text-[11px] font-black text-white bg-pink-500">@</div>
+                        <input value={statusInstagram} onChange={e => setStatusInstagram(e.target.value.replace(/^@/, ''))} placeholder="인스타그램 ID (@제외)"
+                          className={`w-full pl-10 pr-3 py-2.5 rounded-xl border-2 text-sm focus:outline-none transition-colors ${darkMode ? 'bg-slate-700 border-slate-500 text-white placeholder-slate-500 focus:border-pink-500' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 focus:border-pink-400'}`} />
+                      </div>
+                      <div className="relative">
+                        <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded flex items-center justify-center text-[11px] font-black text-white bg-green-500">📞</div>
+                        <input value={statusPhone} onChange={e => setStatusPhone(e.target.value.replace(/\D/g, '').slice(0, 11))} placeholder="전화번호 (숫자만)" inputMode="tel"
+                          className={`w-full pl-10 pr-3 py-2.5 rounded-xl border-2 text-sm focus:outline-none transition-colors ${darkMode ? 'bg-slate-700 border-slate-500 text-white placeholder-slate-500 focus:border-green-500' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 focus:border-green-400'}`} />
+                      </div>
+                    </div>
+                    <button onClick={saveStatusContact} disabled={statusContactSaving}
+                      className="mt-3 w-full py-2.5 bg-cyan-500 hover:bg-cyan-600 text-white font-bold rounded-xl text-sm active:scale-95 transition-all disabled:opacity-40">
+                      {statusContactSaving ? '저장 중...' : '연락처 저장'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* ── 차단·숨기기 목록 ── */}
             <div className={`rounded-3xl border shadow-xl transition-colors duration-300 overflow-hidden ${darkMode ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600' : 'bg-white border-gray-100'}`}>
               <button onClick={() => setShowBlockList(v => !v)} className="w-full flex items-center justify-between px-5 py-4">
                 <span className={`text-[10px] font-black uppercase tracking-widest ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
@@ -2428,7 +2533,7 @@ export function MainScreen({
                 </div>
               )}
             </div>
-            </div>
+
           </div>
           </StatusErrorBoundary>
         )}
@@ -2887,14 +2992,15 @@ export function MainScreen({
 
       {/* ── MY 버튼 (우하단 고정 원형) + 팝업 ── */}
       {(() => {
-        const myTabActive = mainTab === 'status' || mainTab === 'chats' || mainTab === 'fortune';
+        const myTabActive = mainTab === 'status' || mainTab === 'chats' || mainTab === 'fortune' || mainTab === 'settings';
         const heartsBadge = Math.max(0, pendingHeartsCount - seenHeartsCount) + newContactsCount;
         const myBadgeTotal = heartsBadge + newMsgCount;
 
         const MY_ITEMS: Array<{ id: MainTab; icon: string; label: string; badge?: number }> = [
-          { id: 'status',  icon: '💝', label: '내 상태',  badge: heartsBadge },
-          { id: 'chats',   icon: '💬', label: '내 채팅',  badge: newMsgCount },
-          { id: 'fortune', icon: '🔮', label: '내 운세' },
+          { id: 'status',   icon: '💝', label: '내 상태',  badge: heartsBadge },
+          { id: 'chats',    icon: '💬', label: '내 채팅',  badge: newMsgCount },
+          { id: 'fortune',  icon: '🔮', label: '내 운세' },
+          { id: 'settings', icon: '⚙️', label: '내 설정' },
         ];
 
         return (

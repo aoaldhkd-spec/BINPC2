@@ -72,7 +72,7 @@ export type UserSignal = {
 };
 export type MainTab =
   | 'profiles' | 'status' | 'chats' | 'suggestions'
-  | 'game' | 'tutorial' | 'stats' | 'ranking' | 'fortune';
+  | 'game' | 'tutorial' | 'stats' | 'ranking' | 'fortune' | 'settings';
 
 
 
