@@ -196,11 +196,26 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
           disabled={!isActive}
           className="w-full py-4 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 disabled:from-slate-700 disabled:to-slate-600 disabled:cursor-not-allowed text-white font-black text-lg rounded-2xl shadow-2xl shadow-teal-500/30 transition-all active:scale-98 disabled:active:scale-100 mb-3"
         >{isActive ? '입장하기' : '⏳ 회의 시작 전입니다'}</button>
-        {/* 고유번호 복구 */}
-        <button
-          onClick={() => { setShowPinRecovery(true); setPinDigits(['','','','']); setPinError(''); }}
-          className="w-full py-3.5 bg-gradient-to-r from-orange-400 to-rose-500 hover:from-orange-300 hover:to-rose-400 text-white font-black text-sm rounded-2xl shadow-lg shadow-orange-500/25 transition-all active:scale-98 mb-3"
-        >🔑 고유번호로 프로필 복구</button>
+        {/* 이미 프로필이 있는 유저 안내 — PIN 입장 배너 */}
+        <div className="w-full rounded-2xl bg-amber-500/15 border border-amber-400/30 px-4 py-3 mb-3">
+          <div className="flex items-start gap-2.5">
+            <span className="text-lg leading-none mt-0.5 flex-shrink-0">⚠️</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-amber-200 font-black text-sm leading-snug">이미 프로필을 만드셨나요?</p>
+              <p className="text-amber-300/80 text-xs mt-0.5 leading-relaxed">
+                다시 만들지 마시고 <span className="font-bold text-amber-200">고유번호(PIN)</span>로 입장해주세요.<br />
+                고유번호를 모르신다면 <span className="font-bold text-amber-200">관리자에게 문의</span>해주세요.
+              </p>
+            </div>
+            <button
+              onClick={() => { setShowPinRecovery(true); setPinDigits(['','','','']); setPinError(''); setPinStep('pin'); }}
+              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 transition-all text-white font-bold text-xs shadow"
+            >
+              <span>🔑</span>
+              <span>PIN 입장</span>
+            </button>
+          </div>
+        </div>
 
         {/* 입장 전 주의사항 — 인라인 카드 */}
         <div className="w-full rounded-2xl bg-amber-500/10 border border-amber-400/25 overflow-hidden">
