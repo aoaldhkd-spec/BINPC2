@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
 import {
   CheckCircle, X, XCircle,
 } from 'lucide-react';
@@ -24,6 +24,7 @@ import { ContactDisplayModal } from './components/ContactDisplayModal';
 import { LikeConfirmDialog } from './components/LikeConfirmDialog';
 import { ContactShareModal } from './components/ContactShareModal';
 import { ContactViewModal } from './components/ContactViewModal';
+const FortuneTabLazy = lazy(() => import('./components/FortuneTab'));
 import { WaitingOverlay } from './components/WaitingOverlay';
 import { NicknameSetupScreen } from './components/NicknameSetupScreen';
 import { EntryGateScreen } from './components/EntryGateScreen';
@@ -174,6 +175,7 @@ function App() {
   });
   const [mainTab, setMainTab] = useState<MainTab>('profiles');
   const [fortuneCompatTarget, setFortuneCompatTarget] = useState<string | undefined>(undefined);
+  const [fortuneModalTarget, setFortuneModalTarget] = useState<Profile | null>(null);
   const [showTutorialModal, setShowTutorialModal] = useState(false);
   const [tutorialPage, setTutorialPage] = useState(0);
   const [showProfileQr, setShowProfileQr] = useState(false);
@@ -385,7 +387,7 @@ function App() {
     acknowledgedComplimentIds, setAcknowledgedComplimentIds, receivedContactShares, setReceivedContactShares,
     likeConfirmTarget, setLikeConfirmTarget, contactShareTarget, setContactShareTarget,
     loadLikes, loadReceivedLikes, loadContactShareData, likedByTypeRecord,
-    handleLike, executeLike, handleHeartResponse, handleContactShare, handleContactShareReject,
+    handleLike, executeLike, handleHeartResponse, handleContactShare,
     likeError, setLikeError,
   } = useHearts(currentUserId, profiles, profileMap, openChat);
 
@@ -447,10 +449,10 @@ function App() {
   }, [currentUserId]);
 
   // ─── 프로필 열 때 방문 기록 ───────────────────────────────────────────────
-  const recordProfileView = useCallback((viewedId: string) => {
+  const recordProfileView = useCallback(async (viewedId: string) => {
     if (!currentUserId || viewedId === currentUserId) return;
     const row: ProfileView = { id: crypto.randomUUID(), viewer_id: currentUserId, viewed_id: viewedId, viewed_at: new Date().toISOString() };
-    supabase.from('profile_views').insert(row as never).catch(() => {});
+    try { await supabase.from('profile_views').insert(row as never); } catch {}
   }, [currentUserId]);
 
 
@@ -1416,7 +1418,7 @@ function App() {
         unreadChatCounts={unreadChatCounts}
         onClearChatUnread={(chatId) => setUnreadChatCounts(prev => { const n = { ...prev }; delete n[chatId]; return n; })}
         resetPassword={resetPassword}
-        onViewFortune={(p) => { setSelectedProfile(p); setFortuneCompatTarget(p.id); setView('profile'); recordProfileView(p.id); }}
+        onViewFortune={(p) => { setFortuneModalTarget(p); void recordProfileView(p.id); }}
         fortuneCompatTarget={fortuneCompatTarget}
         myHeartCount={myHeartCount}
         heartDrainEnabled={heartDrainEnabled}
@@ -1489,7 +1491,6 @@ function App() {
           alreadyShared={contactSharedWithIds.has(contactShareTarget.id)}
           myProfile={currentUserId ? (profileMap.get(currentUserId) ?? null) : null}
           onSubmit={(kakao, instagram, phone) => handleContactShare(contactShareTarget.id, kakao, instagram, phone)}
-          onReject={() => handleContactShareReject(contactShareTarget.id)}
           onClose={() => setContactShareTarget(null)}
         />
       )}
@@ -1537,6 +1538,32 @@ function App() {
         />
       )}
       <ConfettiOverlay show={showConfetti} />
+
+      {/* ── 사주 궁합 팝업 모달 ── */}
+      {fortuneModalTarget && (
+        <div className="fixed inset-0 z-[200] flex flex-col bg-slate-900/95 backdrop-blur-sm overflow-y-auto">
+          <div className="flex items-center justify-between px-4 pt-4 pb-2 flex-shrink-0">
+            <p className="text-white font-black text-sm">🔮 {fortuneModalTarget.nickname}님과의 궁합</p>
+            <button
+              onClick={() => setFortuneModalTarget(null)}
+              className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center active:scale-90 transition-transform"
+            >
+              <X className="w-4 h-4 text-white" />
+            </button>
+          </div>
+          <div className="flex-1 min-h-0">
+            <Suspense fallback={<div className="flex items-center justify-center py-20 text-slate-400 text-sm">불러오는 중...</div>}>
+              <FortuneTabLazy
+                currentUserId={currentUserId}
+                myProfile={currentUserId ? (profileMap.get(currentUserId) ?? null) : null}
+                profiles={profiles}
+                likedIds={likedIds}
+                initialCompatProfileId={fortuneModalTarget.id}
+              />
+            </Suspense>
+          </div>
+        </div>
+      )}
     </>
   );
 }

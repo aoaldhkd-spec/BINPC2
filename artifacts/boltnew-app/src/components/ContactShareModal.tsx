@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
-import { Heart, Lock, CheckCircle, XCircle } from 'lucide-react';
+import { Heart, Lock, CheckCircle } from 'lucide-react';
 import type { Profile } from '../types/app';
 import ProfileAvatar from './ProfileAvatar';
 
 export function ContactShareModal({
-  liker, alreadyShared, myProfile, onSubmit, onReject, onClose,
+  liker, alreadyShared, myProfile, onSubmit, onClose,
 }: {
   liker: Profile; alreadyShared: boolean; myProfile: Profile | null;
   onSubmit: (kakao: string, instagram: string, phone: string) => void;
-  onReject: () => void; onClose: () => void;
+  onClose: () => void;
 }) {
   const [kakao, setKakao] = useState(myProfile?.kakao_id ?? '');
   const [instagram, setInstagram] = useState(myProfile?.instagram_id ?? '');
@@ -16,7 +16,6 @@ export function ContactShareModal({
   const [useKakao, setUseKakao] = useState(!!(myProfile?.kakao_id));
   const [useInstagram, setUseInstagram] = useState(!!(myProfile?.instagram_id));
   const [usePhone, setUsePhone] = useState(!!(myProfile?.phone_number));
-  const [confirmReject, setConfirmReject] = useState(false);
 
   const isPrivate = myProfile?.contact_private ?? false;
   const canSubmit = !isPrivate && ((useKakao && kakao.trim()) || (useInstagram && instagram.trim()) || (usePhone && phone.trim()));
@@ -29,26 +28,6 @@ export function ContactShareModal({
           <h3 className="text-lg font-bold text-gray-900 mb-1">연락처 공유 완료</h3>
           <p className="text-sm text-gray-500 mb-5">{liker.nickname}님에게 연락처를 이미 공유했습니다.</p>
           <button onClick={onClose} className="w-full py-3 bg-teal-500 text-white font-semibold rounded-xl hover:bg-teal-600 transition-all">확인</button>
-        </div>
-      </div>
-    );
-  }
-
-  if (confirmReject) {
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center">
-          <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-3">
-            <XCircle className="w-7 h-7 text-gray-500" />
-          </div>
-          <h3 className="text-base font-black text-gray-900 mb-1">공유를 거부하시겠습니까?</h3>
-          <p className="text-sm text-gray-500 mb-5">
-            {liker.nickname}님에게 <strong>"상대방이 연락처 공유를 거부하였습니다"</strong> 알림이 즉시 발송됩니다.
-          </p>
-          <div className="flex gap-3">
-            <button onClick={() => setConfirmReject(false)} className="flex-1 py-3 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition-all">돌아가기</button>
-            <button onClick={onReject} className="flex-1 py-3 bg-gray-800 text-white font-bold rounded-xl hover:bg-gray-900 transition-all">거부 확정</button>
-          </div>
         </div>
       </div>
     );
@@ -137,10 +116,6 @@ export function ContactShareModal({
         )}
 
         <div className="flex gap-2">
-          <button onClick={() => setConfirmReject(true)}
-            className="px-4 py-3 bg-gray-100 text-gray-600 font-semibold rounded-xl hover:bg-gray-200 transition-all text-sm">
-            거부
-          </button>
           <button onClick={onClose} className="flex-1 py-3 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition-all text-sm">
             나중에
           </button>
