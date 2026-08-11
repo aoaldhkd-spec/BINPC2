@@ -1,9 +1,9 @@
 @import 'tailwindcss';
 
 /* ── 네온 전광판 ticker 애니메이션 ──────────────────────────────────────────── */
-@keyframes ticker-scroll {
-  0%   { transform: translateX(100%); }
-  100% { transform: translateX(-100%); }
+@keyframes ticker-flash {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.45; }
 }
 @keyframes ticker-fadein {
   from { opacity: 0; }

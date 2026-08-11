@@ -561,41 +561,30 @@ export const ProfileCard = memo(function ProfileCard({
             {/* 상태 메시지 */}
             {statusMsg?.trim() && (
               <div
-                className="absolute top-0 left-0 right-0 z-10 overflow-hidden"
+                className="absolute top-0 left-0 right-0 z-10"
                 style={{
                   height: '22px',
                   background: 'rgba(0,0,0,0.52)',
                   backdropFilter: 'blur(4px)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
                   animation: 'ticker-fadein 0.3s ease',
+                  overflow: 'hidden',
                 }}
                 onClick={(e) => e.stopPropagation()}
               >
-                {(statusMsg?.length ?? 0) > 9 ? (
-                  <div style={{ display: 'flex', alignItems: 'center', height: '100%' }}>
-                    <span style={{
-                      display: 'inline-block',
-                      whiteSpace: 'nowrap',
-                      fontSize: '11px',
-                      fontWeight: 500,
-                      color: 'rgba(255,255,255,0.92)',
-                      letterSpacing: '0.02em',
-                      animation: `ticker-scroll ${Math.max(8, (statusMsg?.length ?? 0) * 0.55)}s linear infinite`,
-                    }}>
-                      {statusMsg}
-                    </span>
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-                    <span style={{
-                      fontSize: '11px',
-                      fontWeight: 500,
-                      color: 'rgba(255,255,255,0.92)',
-                      letterSpacing: '0.02em',
-                    }}>
-                      {statusMsg}
-                    </span>
-                  </div>
-                )}
+                <span style={{
+                  fontSize: '11px',
+                  fontWeight: 500,
+                  color: 'rgba(255,255,255,0.92)',
+                  letterSpacing: '0.02em',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  maxWidth: '90%',
+                  animation: 'ticker-flash 2.2s ease-in-out infinite',
+                }}>
+                  {statusMsg}
+                </span>
               </div>
             )}
 
@@ -649,14 +638,21 @@ export const ProfileCard = memo(function ProfileCard({
             backfaceVisibility: 'hidden',
             WebkitBackfaceVisibility: 'hidden',
             transform: 'rotateY(180deg)',
-            background: 'linear-gradient(135deg, #1a0533 0%, #2d1060 50%, #0d1b4b 100%)',
+            background: 'linear-gradient(160deg, #1a0533 0%, #3b1278 55%, #0d1b4b 100%)',
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-            padding: '14px', gap: '6px',
+            padding: '16px 12px', gap: '8px',
+            overflow: 'hidden',
           }}>
-            <div style={{ fontSize: '26px', lineHeight: 1 }}>💘</div>
+            {/* 배경 장식 */}
+            <div style={{
+              position: 'absolute', inset: 0, pointerEvents: 'none',
+              background: 'radial-gradient(ellipse at 50% 30%, rgba(200,100,255,0.18) 0%, transparent 65%)',
+            }} />
+            <div style={{ fontSize: '30px', lineHeight: 1, filter: 'drop-shadow(0 0 8px rgba(255,100,200,0.6))' }}>💘</div>
             <p style={{
-              color: 'rgba(255,200,255,0.85)', fontSize: '9px', fontWeight: 800,
-              letterSpacing: '0.12em', textTransform: 'uppercase', margin: 0,
+              color: 'rgba(255,200,255,0.9)', fontSize: '11px', fontWeight: 800,
+              letterSpacing: '0.14em', textTransform: 'uppercase', margin: 0,
+              textShadow: '0 0 10px rgba(255,150,255,0.5)',
             }}>나의 이상형</p>
             {/* ideal_msg 파싱: "태그1,태그2\n기타텍스트" */}
             {(() => {
@@ -665,28 +661,33 @@ export const ProfileCard = memo(function ProfileCard({
               const free = parts[1] ?? '';
               if (!tags.length && !free) {
                 return (
-                  <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '10px', textAlign: 'center', margin: '4px 0 8px' }}>
-                    아직 이상형을 작성하지 않았어요 ✨
+                  <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '12px', textAlign: 'center', margin: '2px 0 6px', lineHeight: 1.5 }}>
+                    아직 이상형을<br/>작성하지 않았어요 ✨
                   </p>
                 );
               }
               return (
-                <div style={{ margin: '4px 0 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', width: '100%' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '7px', width: '100%' }}>
                   {tags.length > 0 && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px', justifyContent: 'center' }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', justifyContent: 'center' }}>
                       {tags.map(t => (
                         <span key={t} style={{
-                          padding: '2px 8px', borderRadius: '20px',
-                          background: 'rgba(255,255,255,0.18)',
-                          color: 'rgba(255,230,255,0.95)',
-                          fontSize: '9px', fontWeight: 800,
+                          padding: '4px 10px', borderRadius: '20px',
+                          background: 'rgba(255,255,255,0.16)',
+                          border: '1px solid rgba(255,180,255,0.35)',
+                          color: 'rgba(255,230,255,1)',
+                          fontSize: '12px', fontWeight: 700,
+                          backdropFilter: 'blur(4px)',
                         }}>{t}</span>
                       ))}
                     </div>
                   )}
                   {free && (
-                    <p style={{ color: 'rgba(255,255,255,0.72)', fontSize: '9px', textAlign: 'center', lineHeight: 1.5, margin: 0 }}>
-                      {free}
+                    <p style={{
+                      color: 'rgba(255,255,255,0.8)', fontSize: '12px',
+                      textAlign: 'center', lineHeight: 1.6, margin: 0,
+                    }}>
+                      "{free}"
                     </p>
                   )}
                 </div>
@@ -695,9 +696,11 @@ export const ProfileCard = memo(function ProfileCard({
             <button
               onClick={(e) => { e.stopPropagation(); onSelect(profile); }}
               style={{
-                background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.35)',
-                color: 'white', fontSize: '9px', fontWeight: 800,
-                padding: '5px 12px', borderRadius: '20px', cursor: 'pointer',
+                marginTop: '4px',
+                background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.4)',
+                color: 'white', fontSize: '11px', fontWeight: 700,
+                padding: '6px 16px', borderRadius: '20px', cursor: 'pointer',
+                backdropFilter: 'blur(4px)',
               }}
             >프로필 보기 →</button>
           </div>
@@ -1619,301 +1622,6 @@ export function MainScreen({
               );
             })()}
 
-            {/* ── 프로필 편집 (통합) ── */}
-            {(() => {
-              const me = profiles.find(p => p.id === currentUserId);
-              if (!me) return null;
-              const currentTags = me.bio ? me.bio.split(',').map(t => t.trim()).filter(Boolean) : [];
-              const hasBd = !!(me.birth_month && me.birth_day);
-              const atMax = editInterests.length >= 5;
-              const toggleTag = (tag: string) => {
-                // 함수형 업데이트 대신 직접 계산 — setTimeout 클로저 stale 문제 방지
-                const next = editInterests.includes(tag)
-                  ? editInterests.filter(t => t !== tag)
-                  : editInterests.length < 5 ? [...editInterests, tag] : editInterests;
-                setEditInterests(next);
-                // 2번째 관심사를 막 선택한 순간 → 즉시 저장 + 닫기
-                if (next.length >= 2 && editInterests.length < 2 && currentUserId) {
-                  const bioStr = next.join(', ');
-                  setInterestSaving(true);
-                  supabase.from('profiles').update({ bio: bioStr, interests: next } as never).eq('id', currentUserId)
-                    .then(() => {
-                      onUpdateProfile({ id: currentUserId!, bio: bioStr, interests: next as unknown as string });
-                      interestInitRef.current = false;
-                      setInterestSaving(false);
-                      onRefreshProfiles();
-                    })
-                    .catch((e: unknown) => { console.error('[interests auto]', e); setInterestSaving(false); });
-                  setProfileEditSection(null);
-                }
-              };
-              const toggleSection = (s: 'avatar' | 'nickname' | 'birth' | 'interests') => {
-                if (s === 'nickname') {
-                  // 이미 1회 변경한 경우 열기 차단
-                  if ((me as { nickname_changed?: boolean }).nickname_changed) return;
-                  if (profileEditSection !== 'nickname') {
-                    setNicknameEditInput('');
-                    setNicknameEditError(null);
-                    setNicknameEditDupOk(false);
-                  }
-                }
-                if (s === 'interests' && profileEditSection !== 'interests') {
-                  interestInitRef.current = false;
-                  setEditInterests(currentTags);
-                }
-                setProfileEditSection(p => p === s ? null : s);
-              };
-              return (
-                <div className={`rounded-2xl border overflow-hidden transition-colors duration-300 ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-100'}`}>
-                  <button
-                    onClick={() => setProfileEditOpen(o => !o)}
-                    className={`w-full flex items-center justify-between px-4 py-3 border-b transition-colors ${darkMode ? 'border-slate-700 hover:bg-slate-700/40' : 'border-gray-100 hover:bg-gray-50'}`}
-                  >
-                    <p className={`text-[10px] font-black uppercase tracking-widest ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>✏️ 프로필 편집</p>
-                    <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${profileEditOpen ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
-                  </button>
-                  {profileEditOpen && (
-                  <>
-
-                  {/* ── 사진·아바타 ── */}
-                  <div className={`border-b ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
-                    <button onClick={() => toggleSection('avatar')} className="w-full flex items-center gap-3 px-4 py-3 text-left">
-                      {me.photo_url ? (
-                        <img src={me.photo_url} alt="" className="w-9 h-9 rounded-xl object-cover flex-shrink-0 border border-white/10" />
-                      ) : (
-                        <div className="w-9 h-9 rounded-xl bg-teal-500 flex items-center justify-center text-white font-black text-sm flex-shrink-0">{me.nickname?.[0] ?? '?'}</div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>사진 · 아바타</p>
-                        <p className={`text-[11px] ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>탭하여 사진 또는 아바타 변경</p>
-                      </div>
-                      <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${showAvatarPicker ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
-                    </button>
-                    {showAvatarPicker && (
-                      <div className={`px-4 pb-4 ${darkMode ? 'bg-slate-700/20' : 'bg-gray-50/50'}`}>
-                        <label className={`flex items-center gap-3 p-3 mb-3 rounded-xl border-2 border-dashed cursor-pointer transition-all ${darkMode ? 'border-slate-600 hover:border-cyan-500 bg-slate-800/60' : 'border-gray-200 hover:border-cyan-400 bg-white'}`}>
-                          <Camera className={`w-5 h-5 flex-shrink-0 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
-                          <div className="flex-1">
-                            <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-700'}`}>내 사진 업로드</p>
-                            <p className={`text-[11px] ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>JPG/PNG · 자동 압축</p>
-                          </div>
-                          {photoUploading && <div className="w-5 h-5 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />}
-                          <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} disabled={photoUploading} />
-                        </label>
-                        <p className={`text-[11px] font-black mb-1 ${darkMode ? 'text-slate-300' : 'text-gray-600'}`}>🎨 기본 아바타 선택</p>
-                        <p className={`text-[9px] mb-2 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>⚠️ 저작권으로 인하여 아래와 같은 아바타 밖에 만들지 못합니다.</p>
-                        <div className={`flex flex-wrap gap-1 mb-2 pb-2 border-b ${darkMode ? 'border-slate-700' : 'border-gray-200'}`}>
-                          {AVATAR_CATEGORIES.map((cat, idx) => (
-                            <button key={cat.label} type="button" onClick={() => setAvatarCatIdx(idx)}
-                              className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all whitespace-nowrap ${
-                                avatarCatIdx === idx ? 'bg-cyan-500 text-white shadow-sm' :
-                                darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-white text-gray-600 border border-gray-200 hover:border-cyan-300'
-                              }`}>{cat.label}</button>
-                          ))}
-                        </div>
-                        <div className="grid grid-cols-5 gap-2">
-                          {AVATAR_CATEGORIES[avatarCatIdx]?.avatars.map((av) => {
-                            const isSel = me.photo_url === av.src;
-                            return (
-                              <button key={av.id} type="button" onClick={() => handleSelectPresetAvatar(av.src)}
-                                className={`relative flex flex-col items-center gap-1 py-2 px-1 rounded-xl border-2 shadow-sm transition-all active:scale-95 ${
-                                  isSel ? 'border-cyan-500 bg-cyan-50' :
-                                  darkMode ? 'border-slate-600 bg-slate-700/70 hover:border-cyan-400' : 'border-gray-200 bg-white hover:border-cyan-300 hover:shadow-md'
-                                }`}>
-                                <img src={av.src} alt={av.label} className="w-12 h-12 rounded-full object-cover block"
-                                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                                <span className={`text-[10px] font-bold leading-tight text-center w-full truncate ${isSel ? 'text-cyan-600' : darkMode ? 'text-slate-300' : 'text-gray-600'}`}>{av.label}</span>
-                                {isSel && <span className="absolute top-1 right-1 w-4 h-4 bg-cyan-500 rounded-full flex items-center justify-center shadow"><CheckCircle className="w-2.5 h-2.5 text-white" /></span>}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* ── 닉네임 ── */}
-                  {(() => {
-                    const nicknameAlreadyChanged = !!(me as { nickname_changed?: boolean }).nickname_changed;
-                    return (
-                      <div className={`border-b ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
-                        <button
-                          onClick={() => toggleSection('nickname')}
-                          disabled={nicknameAlreadyChanged}
-                          className={`w-full flex items-center gap-3 px-4 py-3 text-left ${nicknameAlreadyChanged ? 'cursor-not-allowed' : ''}`}
-                        >
-                          <span className="text-xl flex-shrink-0">{nicknameAlreadyChanged ? '🔒' : '🏷️'}</span>
-                          <div className="flex-1 min-w-0">
-                            <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>닉네임</p>
-                            <p className={`text-[11px] font-semibold break-all ${darkMode ? 'text-cyan-400' : 'text-cyan-600'}`}>{me.nickname}</p>
-                            {nicknameAlreadyChanged && (
-                              <p className={`text-[10px] mt-0.5 font-medium ${darkMode ? 'text-amber-400/80' : 'text-amber-600'}`}>닉네임 변경은 1회만 가능해요</p>
-                            )}
-                          </div>
-                          {nicknameAlreadyChanged
-                            ? <span className={`text-[10px] font-black px-2 py-0.5 rounded-full flex-shrink-0 ${darkMode ? 'bg-slate-700 text-slate-400' : 'bg-gray-100 text-gray-400'}`}>변경 완료</span>
-                            : <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${showNicknameEdit ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
-                          }
-                        </button>
-                        {showNicknameEdit && !nicknameAlreadyChanged && (
-                          <div className={`px-4 pb-4 space-y-2 ${darkMode ? 'bg-slate-700/20' : 'bg-gray-50/50'}`}>
-                            {/* 1회 변경 경고 배너 */}
-                            <div className={`flex items-start gap-2 px-3 py-2 rounded-xl ${darkMode ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-amber-50 border border-amber-200'}`}>
-                              <span className="text-sm flex-shrink-0">⚠️</span>
-                              <p className={`text-[11px] font-bold leading-snug ${darkMode ? 'text-amber-300' : 'text-amber-700'}`}>
-                                닉네임은 <span className="underline">단 1회만</span> 변경할 수 있어요.<br />
-                                변경 후에는 되돌릴 수 없으니 신중하게 입력해 주세요.
-                              </p>
-                            </div>
-                            <div className="relative">
-                              <input type="text" value={nicknameEditInput}
-                                onChange={(e) => handleNicknameEditChange(e.target.value, me.nickname)}
-                                maxLength={6} autoFocus placeholder="새 닉네임 (2~6글자)"
-                                className={`w-full px-3 py-2 rounded-lg border-2 text-sm font-bold transition-all outline-none ${
-                                  darkMode ? 'bg-slate-800 text-white placeholder-slate-500' : 'bg-white text-gray-900'
-                                } ${nicknameEditError ? 'border-rose-400' : nicknameEditDupOk ? 'border-emerald-400' : darkMode ? 'border-slate-500 focus:border-cyan-500' : 'border-gray-300 focus:border-cyan-400'}`}
-                              />
-                              <div className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold">
-                                {nicknameEditChecking && <span className={darkMode ? 'text-slate-400' : 'text-gray-400'}>확인 중…</span>}
-                                {!nicknameEditChecking && nicknameEditDupOk && !nicknameEditError && <span className="text-emerald-500">사용 가능 ✓</span>}
-                              </div>
-                            </div>
-                            {nicknameEditError && <p className="text-[11px] text-rose-500 font-medium">⚠ {nicknameEditError}</p>}
-                            <p className={`text-[10px] ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>최소 2글자 · 최대 6글자 · 욕설·지역감정·패드립 불가</p>
-                            <p className={`text-[10px] mt-0.5 ${darkMode ? 'text-teal-400/70' : 'text-teal-600/70'}`}>💡 예시: 음식이름, 패션스타일, 직업 등 나를 나타낼 수 있는 거 아무거나 설정해 주세요!</p>
-                            <div className="flex gap-2">
-                              <button type="button" onClick={() => setProfileEditSection(null)}
-                                className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${darkMode ? 'bg-slate-600 text-slate-300 hover:bg-slate-500' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>취소</button>
-                              <button type="button" onClick={() => saveNickname(me.nickname)}
-                                disabled={!nicknameEditDupOk || !!nicknameEditError || nicknameEditSaving}
-                                className="flex-1 py-1.5 rounded-lg text-xs font-bold bg-gradient-to-r from-cyan-500 to-teal-500 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all">
-                                {nicknameEditSaving ? '저장 중…' : '저장'}
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
-
-                  {/* ── 생월·생일 ── */}
-                  <div className={`border-b ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
-                    <button onClick={() => toggleSection('birth')} className="w-full flex items-center gap-3 px-4 py-3 text-left">
-                      <span className="text-xl flex-shrink-0">🔮</span>
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>생월 · 생일</p>
-                        <p className={`text-[11px] ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{hasBd ? `${me.birth_month}월 ${me.birth_day}일` : '미설정 — 사주·운세·궁합에 반영돼요'}</p>
-                      </div>
-                      {hasBd && <span className="text-[10px] font-black px-2 py-0.5 bg-purple-500 text-white rounded-full flex-shrink-0">{me.birth_month}월 {me.birth_day}일 ✓</span>}
-                      <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${showBirthEdit ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
-                    </button>
-                    {showBirthEdit && (
-                      <div className={`px-4 pb-4 ${darkMode ? 'bg-slate-700/20' : 'bg-gray-50/50'}`}>
-                        <div>
-                          <p className={`text-xs font-bold mb-2 ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>월</p>
-                          <div className="grid grid-cols-4 gap-1.5">
-                            {Array.from({length: 12}, (_, i) => i + 1).map(m => (
-                              <button key={m} type="button" onClick={() => setSajuBirthMonth(m)}
-                                className={`py-2 rounded-xl text-sm font-bold transition-all active:scale-95 ${
-                                  sajuBirthMonth === m ? 'bg-purple-500 text-white shadow-sm' :
-                                  darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-purple-50 text-purple-700 hover:bg-purple-100'
-                                }`}>{m}월</button>
-                            ))}
-                          </div>
-                        </div>
-                        <div className="mt-3">
-                          <p className={`text-xs font-bold mb-2 ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>일</p>
-                          <div className="grid grid-cols-7 gap-1">
-                            {Array.from({length: 31}, (_, i) => i + 1).map(d => (
-                              <button key={d} type="button" onClick={() => setSajuBirthDay(d)}
-                                className={`py-1.5 rounded-lg text-[11px] font-bold transition-all active:scale-95 ${
-                                  sajuBirthDay === d ? 'bg-purple-500 text-white shadow-sm' :
-                                  darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-purple-50 text-purple-600 hover:bg-purple-100'
-                                }`}>{d}</button>
-                            ))}
-                          </div>
-                        </div>
-                        <button onClick={saveSajuBirthDate} disabled={sajuSaving || sajuBirthMonth === null || sajuBirthDay === null}
-                          className="mt-3 w-full py-2.5 bg-gradient-to-r from-purple-500 to-violet-500 hover:from-purple-600 hover:to-violet-600 text-white font-bold rounded-xl text-sm disabled:opacity-40 active:scale-[0.98] transition-all">
-                          {sajuSaving ? '저장 중...' : '생월·생일 저장하기'}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* ── 관심사 ── */}
-                  <div>
-                    <button onClick={() => toggleSection('interests')} className="w-full flex items-center gap-3 px-4 py-3 text-left">
-                      <span className="text-xl flex-shrink-0">🎯</span>
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>관심사</p>
-                        {currentTags.length > 0
-                          ? <p className={`text-[11px] leading-snug ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{currentTags.join(' · ')}</p>
-                          : <p className={`text-[11px] ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>미설정</p>}
-                      </div>
-                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-full flex-shrink-0 ${currentTags.length >= 2 ? 'bg-teal-500 text-white' : darkMode ? 'bg-slate-700 text-slate-500' : 'bg-gray-100 text-gray-400'}`}>{currentTags.length}/5</span>
-                      <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${showInterestEdit ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
-                    </button>
-                    {showInterestEdit && (
-                      <div className={`px-4 pb-4 space-y-3 ${darkMode ? 'bg-slate-700/20' : 'bg-gray-50/50'}`}>
-                        {editInterests.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5 p-2.5 rounded-xl border bg-cyan-50 border-cyan-100">
-                            {editInterests.map(tag => (
-                              <button key={tag} type="button" onClick={() => toggleTag(tag)}
-                                className="flex items-center gap-1 px-2.5 py-1 bg-cyan-500 text-white text-xs font-semibold rounded-lg hover:bg-cyan-600 transition-all active:scale-95">
-                                {tag} <span className="opacity-70 text-[10px]">×</span>
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                        <div className="flex gap-1.5 flex-wrap">
-                          {BIO_CATEGORIES.map(cat => {
-                            const active = interestFilter === cat.label;
-                            const hasSelected = cat.tags.some(t => editInterests.includes(t));
-                            return (
-                              <button key={cat.label} type="button" onClick={() => setInterestFilter(cat.label)}
-                                className={`relative px-3 py-1.5 rounded-full text-xs font-black border transition-all ${active ? `${cat.color.selected} border-transparent` : (darkMode ? `bg-slate-700 border-slate-600 ${cat.color.label} hover:border-current` : `bg-white border-gray-200 ${cat.color.label} hover:border-current`)}`}>
-                                {cat.label}
-                                {hasSelected && !active && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-cyan-500 rounded-full border border-white" />}
-                              </button>
-                            );
-                          })}
-                        </div>
-                        <div className="space-y-2.5">
-                          {BIO_CATEGORIES.filter(cat => interestFilter === null || interestFilter === cat.label).map(cat => (
-                            <div key={cat.label} className={interestFilter === null ? `rounded-xl border ${cat.color.border} overflow-hidden` : ''}>
-                              {interestFilter === null && (
-                                <div className={`px-3 py-1.5 ${cat.color.bg}`}>
-                                  <span className={`text-[11px] font-black ${cat.color.label}`}>{cat.label}</span>
-                                </div>
-                              )}
-                              <div className={`flex flex-wrap gap-1.5 ${interestFilter === null ? 'p-2.5' : ''}`}>
-                                {cat.tags.map(tag => {
-                                  const selected = editInterests.includes(tag);
-                                  const disabled = !selected && atMax;
-                                  return (
-                                    <button key={tag} type="button" onClick={() => toggleTag(tag)} disabled={disabled}
-                                      className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all active:scale-95 ${selected ? cat.color.selected : disabled ? (darkMode ? 'bg-slate-700 text-slate-600 border-slate-700 cursor-not-allowed' : 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed') : cat.color.normal}`}>
-                                      {tag === '뜨밤' && <span className="mr-1">🔥</span>}{tag}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                        <button onClick={saveInterests} disabled={interestSaving || editInterests.length < 2}
-                          className="w-full py-2.5 bg-teal-500 hover:bg-teal-600 text-white font-bold rounded-xl text-sm active:scale-[0.98] transition-all disabled:opacity-40">
-                          {interestSaving ? '저장 중...' : `관심사 저장 (${editInterests.length}개 선택됨)`}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                  </>
-                  )}
-                </div>
-              );
-            })()}
 
             {/* ── 스캔한 연락처 ── */}
             {scannedContacts.length > 0 && (
@@ -2420,18 +2128,6 @@ export function MainScreen({
 
             {/* ── QR + 연락처 설정 ── */}
             <div className={`rounded-3xl border shadow-xl transition-colors duration-300 overflow-hidden ${darkMode ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600' : 'bg-white border-gray-100'}`}>
-              <div className="grid grid-cols-2 gap-2 p-4">
-                <button onClick={onShowContactQr}
-                  className={`flex flex-col items-center justify-center gap-1.5 py-3 rounded-2xl font-bold transition-all active:scale-95 border ${darkMode ? 'bg-violet-500/15 border-violet-500/30 text-violet-400 hover:bg-violet-500/25' : 'bg-violet-50 border-violet-200 text-violet-600 hover:bg-violet-100'}`}>
-                  <QrCode className="w-5 h-5" />
-                  <span className="text-[11px]">연락처 QR</span>
-                </button>
-                <button onClick={onScanQr}
-                  className={`flex flex-col items-center justify-center gap-1.5 py-3 rounded-2xl font-bold transition-all active:scale-95 border ${darkMode ? 'bg-amber-500/15 border-amber-500/30 text-amber-400 hover:bg-amber-500/25' : 'bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100'}`}>
-                  <Camera className="w-5 h-5" />
-                  <span className="text-[11px]">QR 찍기</span>
-                </button>
-              </div>
               <div className={`border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
                 <button onClick={() => setShowContactEdit(v => !v)} className="w-full flex items-center gap-2 p-4 text-left">
                   <span className="text-xl flex-shrink-0">📋</span>
@@ -2532,6 +2228,301 @@ export function MainScreen({
               )}
             </div>
 
+            {/* ── 프로필 편집 (통합) ── */}
+            {(() => {
+              const me = profiles.find(p => p.id === currentUserId);
+              if (!me) return null;
+              const currentTags = me.bio ? me.bio.split(',').map(t => t.trim()).filter(Boolean) : [];
+              const hasBd = !!(me.birth_month && me.birth_day);
+              const atMax = editInterests.length >= 5;
+              const toggleTag = (tag: string) => {
+                // 함수형 업데이트 대신 직접 계산 — setTimeout 클로저 stale 문제 방지
+                const next = editInterests.includes(tag)
+                  ? editInterests.filter(t => t !== tag)
+                  : editInterests.length < 5 ? [...editInterests, tag] : editInterests;
+                setEditInterests(next);
+                // 2번째 관심사를 막 선택한 순간 → 즉시 저장 + 닫기
+                if (next.length >= 2 && editInterests.length < 2 && currentUserId) {
+                  const bioStr = next.join(', ');
+                  setInterestSaving(true);
+                  supabase.from('profiles').update({ bio: bioStr, interests: next } as never).eq('id', currentUserId)
+                    .then(() => {
+                      onUpdateProfile({ id: currentUserId!, bio: bioStr, interests: next as unknown as string });
+                      interestInitRef.current = false;
+                      setInterestSaving(false);
+                      onRefreshProfiles();
+                    })
+                    .catch((e: unknown) => { console.error('[interests auto]', e); setInterestSaving(false); });
+                  setProfileEditSection(null);
+                }
+              };
+              const toggleSection = (s: 'avatar' | 'nickname' | 'birth' | 'interests') => {
+                if (s === 'nickname') {
+                  // 이미 1회 변경한 경우 열기 차단
+                  if ((me as { nickname_changed?: boolean }).nickname_changed) return;
+                  if (profileEditSection !== 'nickname') {
+                    setNicknameEditInput('');
+                    setNicknameEditError(null);
+                    setNicknameEditDupOk(false);
+                  }
+                }
+                if (s === 'interests' && profileEditSection !== 'interests') {
+                  interestInitRef.current = false;
+                  setEditInterests(currentTags);
+                }
+                setProfileEditSection(p => p === s ? null : s);
+              };
+              return (
+                <div className={`rounded-2xl border overflow-hidden transition-colors duration-300 ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-100'}`}>
+                  <button
+                    onClick={() => setProfileEditOpen(o => !o)}
+                    className={`w-full flex items-center justify-between px-4 py-3 border-b transition-colors ${darkMode ? 'border-slate-700 hover:bg-slate-700/40' : 'border-gray-100 hover:bg-gray-50'}`}
+                  >
+                    <p className={`text-[10px] font-black uppercase tracking-widest ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>✏️ 프로필 편집</p>
+                    <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${profileEditOpen ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
+                  </button>
+                  {profileEditOpen && (
+                  <>
+
+                  {/* ── 사진·아바타 ── */}
+                  <div className={`border-b ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
+                    <button onClick={() => toggleSection('avatar')} className="w-full flex items-center gap-3 px-4 py-3 text-left">
+                      {me.photo_url ? (
+                        <img src={me.photo_url} alt="" className="w-9 h-9 rounded-xl object-cover flex-shrink-0 border border-white/10" />
+                      ) : (
+                        <div className="w-9 h-9 rounded-xl bg-teal-500 flex items-center justify-center text-white font-black text-sm flex-shrink-0">{me.nickname?.[0] ?? '?'}</div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>사진 · 아바타</p>
+                        <p className={`text-[11px] ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>탭하여 사진 또는 아바타 변경</p>
+                      </div>
+                      <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${showAvatarPicker ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
+                    </button>
+                    {showAvatarPicker && (
+                      <div className={`px-4 pb-4 ${darkMode ? 'bg-slate-700/20' : 'bg-gray-50/50'}`}>
+                        <label className={`flex items-center gap-3 p-3 mb-3 rounded-xl border-2 border-dashed cursor-pointer transition-all ${darkMode ? 'border-slate-600 hover:border-cyan-500 bg-slate-800/60' : 'border-gray-200 hover:border-cyan-400 bg-white'}`}>
+                          <Camera className={`w-5 h-5 flex-shrink-0 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
+                          <div className="flex-1">
+                            <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-700'}`}>내 사진 업로드</p>
+                            <p className={`text-[11px] ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>JPG/PNG · 자동 압축</p>
+                          </div>
+                          {photoUploading && <div className="w-5 h-5 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />}
+                          <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} disabled={photoUploading} />
+                        </label>
+                        <p className={`text-[11px] font-black mb-1 ${darkMode ? 'text-slate-300' : 'text-gray-600'}`}>🎨 기본 아바타 선택</p>
+                        <p className={`text-[9px] mb-2 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>⚠️ 저작권으로 인하여 아래와 같은 아바타 밖에 만들지 못합니다.</p>
+                        <div className={`flex flex-wrap gap-1 mb-2 pb-2 border-b ${darkMode ? 'border-slate-700' : 'border-gray-200'}`}>
+                          {AVATAR_CATEGORIES.map((cat, idx) => (
+                            <button key={cat.label} type="button" onClick={() => setAvatarCatIdx(idx)}
+                              className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all whitespace-nowrap ${
+                                avatarCatIdx === idx ? 'bg-cyan-500 text-white shadow-sm' :
+                                darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-white text-gray-600 border border-gray-200 hover:border-cyan-300'
+                              }`}>{cat.label}</button>
+                          ))}
+                        </div>
+                        <div className="grid grid-cols-5 gap-2">
+                          {AVATAR_CATEGORIES[avatarCatIdx]?.avatars.map((av) => {
+                            const isSel = me.photo_url === av.src;
+                            return (
+                              <button key={av.id} type="button" onClick={() => handleSelectPresetAvatar(av.src)}
+                                className={`relative flex flex-col items-center gap-1 py-2 px-1 rounded-xl border-2 shadow-sm transition-all active:scale-95 ${
+                                  isSel ? 'border-cyan-500 bg-cyan-50' :
+                                  darkMode ? 'border-slate-600 bg-slate-700/70 hover:border-cyan-400' : 'border-gray-200 bg-white hover:border-cyan-300 hover:shadow-md'
+                                }`}>
+                                <img src={av.src} alt={av.label} className="w-12 h-12 rounded-full object-cover block"
+                                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                                <span className={`text-[10px] font-bold leading-tight text-center w-full truncate ${isSel ? 'text-cyan-600' : darkMode ? 'text-slate-300' : 'text-gray-600'}`}>{av.label}</span>
+                                {isSel && <span className="absolute top-1 right-1 w-4 h-4 bg-cyan-500 rounded-full flex items-center justify-center shadow"><CheckCircle className="w-2.5 h-2.5 text-white" /></span>}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ── 닉네임 ── */}
+                  {(() => {
+                    const nicknameAlreadyChanged = !!(me as { nickname_changed?: boolean }).nickname_changed;
+                    return (
+                      <div className={`border-b ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
+                        <button
+                          onClick={() => toggleSection('nickname')}
+                          disabled={nicknameAlreadyChanged}
+                          className={`w-full flex items-center gap-3 px-4 py-3 text-left ${nicknameAlreadyChanged ? 'cursor-not-allowed' : ''}`}
+                        >
+                          <span className="text-xl flex-shrink-0">{nicknameAlreadyChanged ? '🔒' : '🏷️'}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>닉네임</p>
+                            <p className={`text-[11px] font-semibold break-all ${darkMode ? 'text-cyan-400' : 'text-cyan-600'}`}>{me.nickname}</p>
+                            {nicknameAlreadyChanged && (
+                              <p className={`text-[10px] mt-0.5 font-medium ${darkMode ? 'text-amber-400/80' : 'text-amber-600'}`}>닉네임 변경은 1회만 가능해요</p>
+                            )}
+                          </div>
+                          {nicknameAlreadyChanged
+                            ? <span className={`text-[10px] font-black px-2 py-0.5 rounded-full flex-shrink-0 ${darkMode ? 'bg-slate-700 text-slate-400' : 'bg-gray-100 text-gray-400'}`}>변경 완료</span>
+                            : <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${showNicknameEdit ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
+                          }
+                        </button>
+                        {showNicknameEdit && !nicknameAlreadyChanged && (
+                          <div className={`px-4 pb-4 space-y-2 ${darkMode ? 'bg-slate-700/20' : 'bg-gray-50/50'}`}>
+                            {/* 1회 변경 경고 배너 */}
+                            <div className={`flex items-start gap-2 px-3 py-2 rounded-xl ${darkMode ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-amber-50 border border-amber-200'}`}>
+                              <span className="text-sm flex-shrink-0">⚠️</span>
+                              <p className={`text-[11px] font-bold leading-snug ${darkMode ? 'text-amber-300' : 'text-amber-700'}`}>
+                                닉네임은 <span className="underline">단 1회만</span> 변경할 수 있어요.<br />
+                                변경 후에는 되돌릴 수 없으니 신중하게 입력해 주세요.
+                              </p>
+                            </div>
+                            <div className="relative">
+                              <input type="text" value={nicknameEditInput}
+                                onChange={(e) => handleNicknameEditChange(e.target.value, me.nickname)}
+                                maxLength={6} autoFocus placeholder="새 닉네임 (2~6글자)"
+                                className={`w-full px-3 py-2 rounded-lg border-2 text-sm font-bold transition-all outline-none ${
+                                  darkMode ? 'bg-slate-800 text-white placeholder-slate-500' : 'bg-white text-gray-900'
+                                } ${nicknameEditError ? 'border-rose-400' : nicknameEditDupOk ? 'border-emerald-400' : darkMode ? 'border-slate-500 focus:border-cyan-500' : 'border-gray-300 focus:border-cyan-400'}`}
+                              />
+                              <div className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold">
+                                {nicknameEditChecking && <span className={darkMode ? 'text-slate-400' : 'text-gray-400'}>확인 중…</span>}
+                                {!nicknameEditChecking && nicknameEditDupOk && !nicknameEditError && <span className="text-emerald-500">사용 가능 ✓</span>}
+                              </div>
+                            </div>
+                            {nicknameEditError && <p className="text-[11px] text-rose-500 font-medium">⚠ {nicknameEditError}</p>}
+                            <p className={`text-[10px] ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>최소 2글자 · 최대 6글자 · 욕설·지역감정·패드립 불가</p>
+                            <p className={`text-[10px] mt-0.5 ${darkMode ? 'text-teal-400/70' : 'text-teal-600/70'}`}>💡 예시: 음식이름, 패션스타일, 직업 등 나를 나타낼 수 있는 거 아무거나 설정해 주세요!</p>
+                            <div className="flex gap-2">
+                              <button type="button" onClick={() => setProfileEditSection(null)}
+                                className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${darkMode ? 'bg-slate-600 text-slate-300 hover:bg-slate-500' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>취소</button>
+                              <button type="button" onClick={() => saveNickname(me.nickname)}
+                                disabled={!nicknameEditDupOk || !!nicknameEditError || nicknameEditSaving}
+                                className="flex-1 py-1.5 rounded-lg text-xs font-bold bg-gradient-to-r from-cyan-500 to-teal-500 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all">
+                                {nicknameEditSaving ? '저장 중…' : '저장'}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {/* ── 생월·생일 ── */}
+                  <div className={`border-b ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
+                    <button onClick={() => toggleSection('birth')} className="w-full flex items-center gap-3 px-4 py-3 text-left">
+                      <span className="text-xl flex-shrink-0">🔮</span>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>생월 · 생일</p>
+                        <p className={`text-[11px] ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{hasBd ? `${me.birth_month}월 ${me.birth_day}일` : '미설정 — 사주·운세·궁합에 반영돼요'}</p>
+                      </div>
+                      {hasBd && <span className="text-[10px] font-black px-2 py-0.5 bg-purple-500 text-white rounded-full flex-shrink-0">{me.birth_month}월 {me.birth_day}일 ✓</span>}
+                      <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${showBirthEdit ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
+                    </button>
+                    {showBirthEdit && (
+                      <div className={`px-4 pb-4 ${darkMode ? 'bg-slate-700/20' : 'bg-gray-50/50'}`}>
+                        <div>
+                          <p className={`text-xs font-bold mb-2 ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>월</p>
+                          <div className="grid grid-cols-4 gap-1.5">
+                            {Array.from({length: 12}, (_, i) => i + 1).map(m => (
+                              <button key={m} type="button" onClick={() => setSajuBirthMonth(m)}
+                                className={`py-2 rounded-xl text-sm font-bold transition-all active:scale-95 ${
+                                  sajuBirthMonth === m ? 'bg-purple-500 text-white shadow-sm' :
+                                  darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-purple-50 text-purple-700 hover:bg-purple-100'
+                                }`}>{m}월</button>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="mt-3">
+                          <p className={`text-xs font-bold mb-2 ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>일</p>
+                          <div className="grid grid-cols-7 gap-1">
+                            {Array.from({length: 31}, (_, i) => i + 1).map(d => (
+                              <button key={d} type="button" onClick={() => setSajuBirthDay(d)}
+                                className={`py-1.5 rounded-lg text-[11px] font-bold transition-all active:scale-95 ${
+                                  sajuBirthDay === d ? 'bg-purple-500 text-white shadow-sm' :
+                                  darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-purple-50 text-purple-600 hover:bg-purple-100'
+                                }`}>{d}</button>
+                            ))}
+                          </div>
+                        </div>
+                        <button onClick={saveSajuBirthDate} disabled={sajuSaving || sajuBirthMonth === null || sajuBirthDay === null}
+                          className="mt-3 w-full py-2.5 bg-gradient-to-r from-purple-500 to-violet-500 hover:from-purple-600 hover:to-violet-600 text-white font-bold rounded-xl text-sm disabled:opacity-40 active:scale-[0.98] transition-all">
+                          {sajuSaving ? '저장 중...' : '생월·생일 저장하기'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ── 관심사 ── */}
+                  <div>
+                    <button onClick={() => toggleSection('interests')} className="w-full flex items-center gap-3 px-4 py-3 text-left">
+                      <span className="text-xl flex-shrink-0">🎯</span>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>관심사</p>
+                        {currentTags.length > 0
+                          ? <p className={`text-[11px] leading-snug ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{currentTags.join(' · ')}</p>
+                          : <p className={`text-[11px] ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>미설정</p>}
+                      </div>
+                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-full flex-shrink-0 ${currentTags.length >= 2 ? 'bg-teal-500 text-white' : darkMode ? 'bg-slate-700 text-slate-500' : 'bg-gray-100 text-gray-400'}`}>{currentTags.length}/5</span>
+                      <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${showInterestEdit ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
+                    </button>
+                    {showInterestEdit && (
+                      <div className={`px-4 pb-4 space-y-3 ${darkMode ? 'bg-slate-700/20' : 'bg-gray-50/50'}`}>
+                        {editInterests.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 p-2.5 rounded-xl border bg-cyan-50 border-cyan-100">
+                            {editInterests.map(tag => (
+                              <button key={tag} type="button" onClick={() => toggleTag(tag)}
+                                className="flex items-center gap-1 px-2.5 py-1 bg-cyan-500 text-white text-xs font-semibold rounded-lg hover:bg-cyan-600 transition-all active:scale-95">
+                                {tag} <span className="opacity-70 text-[10px]">×</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        <div className="flex gap-1.5 flex-wrap">
+                          {BIO_CATEGORIES.map(cat => {
+                            const active = interestFilter === cat.label;
+                            const hasSelected = cat.tags.some(t => editInterests.includes(t));
+                            return (
+                              <button key={cat.label} type="button" onClick={() => setInterestFilter(cat.label)}
+                                className={`relative px-3 py-1.5 rounded-full text-xs font-black border transition-all ${active ? `${cat.color.selected} border-transparent` : (darkMode ? `bg-slate-700 border-slate-600 ${cat.color.label} hover:border-current` : `bg-white border-gray-200 ${cat.color.label} hover:border-current`)}`}>
+                                {cat.label}
+                                {hasSelected && !active && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-cyan-500 rounded-full border border-white" />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div className="space-y-2.5">
+                          {BIO_CATEGORIES.filter(cat => interestFilter === null || interestFilter === cat.label).map(cat => (
+                            <div key={cat.label} className={interestFilter === null ? `rounded-xl border ${cat.color.border} overflow-hidden` : ''}>
+                              {interestFilter === null && (
+                                <div className={`px-3 py-1.5 ${cat.color.bg}`}>
+                                  <span className={`text-[11px] font-black ${cat.color.label}`}>{cat.label}</span>
+                                </div>
+                              )}
+                              <div className={`flex flex-wrap gap-1.5 ${interestFilter === null ? 'p-2.5' : ''}`}>
+                                {cat.tags.map(tag => {
+                                  const selected = editInterests.includes(tag);
+                                  const disabled = !selected && atMax;
+                                  return (
+                                    <button key={tag} type="button" onClick={() => toggleTag(tag)} disabled={disabled}
+                                      className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all active:scale-95 ${selected ? cat.color.selected : disabled ? (darkMode ? 'bg-slate-700 text-slate-600 border-slate-700 cursor-not-allowed' : 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed') : cat.color.normal}`}>
+                                      {tag === '뜨밤' && <span className="mr-1">🔥</span>}{tag}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <button onClick={saveInterests} disabled={interestSaving || editInterests.length < 2}
+                          className="w-full py-2.5 bg-teal-500 hover:bg-teal-600 text-white font-bold rounded-xl text-sm active:scale-[0.98] transition-all disabled:opacity-40">
+                          {interestSaving ? '저장 중...' : `관심사 저장 (${editInterests.length}개 선택됨)`}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  </>
+                  )}
+                </div>
+              );
+            })()}
           </div>
           </StatusErrorBoundary>
         )}
