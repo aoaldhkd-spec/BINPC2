@@ -1075,11 +1075,13 @@ export function MainScreen({
   const [sentHeartsOpen, setSentHeartsOpen] = useState(true);
 
   // ── 프로필 편집 통합 상태 (한 섹션만 열림) ──────────────────────────────────
-  const [profileEditSection, setProfileEditSection] = useState<'avatar' | 'nickname' | 'birth' | 'interests' | null>(null);
+  const [profileEditSection, setProfileEditSection] = useState<'avatar' | 'nickname' | 'birth' | 'interests' | 'statusMsg' | 'ideal' | null>(null);
   const showBirthEdit = profileEditSection === 'birth';
   const showInterestEdit = profileEditSection === 'interests';
   const showAvatarPicker = profileEditSection === 'avatar';
   const showNicknameEdit = profileEditSection === 'nickname';
+  const showStatusMsgEdit = profileEditSection === 'statusMsg';
+  const showIdealEdit = profileEditSection === 'ideal';
   const [showFortuneBirthEdit, setShowFortuneBirthEdit] = useState(false);
   const fortuneBirthAutoOpenedRef = useRef(false);
   const [sajuBirthMonth, setSajuBirthMonth] = useState<number | null>(null);
@@ -1999,74 +2001,6 @@ export function MainScreen({
           <StatusErrorBoundary>
           <div className="max-w-lg mx-auto space-y-4 pb-24">
 
-            {/* ── 오늘의 한마디 & 이상형 ── */}
-            <div className={`rounded-3xl border shadow-xl overflow-hidden ${darkMode ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600' : 'bg-white border-gray-100'}`}>
-              <button
-                onClick={() => setSignalCardOpen(o => !o)}
-                className={`w-full flex items-center justify-between px-5 py-4 transition-colors ${darkMode ? 'text-slate-300 hover:bg-slate-700/40' : 'text-gray-600 hover:bg-gray-50'}`}
-              >
-                <span className={`text-[10px] font-black uppercase tracking-widest ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>💬 오늘의 한마디 &amp; 이상형</span>
-                <span className={`text-[10px] transition-transform duration-200 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}
-                  style={{ display: 'inline-block', transform: signalCardOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
-              </button>
-              {signalCardOpen && (
-                <div className="px-5 pb-5">
-                  <div className="mb-4">
-                    <label className={`block text-[11px] font-black mb-1.5 ${darkMode ? 'text-cyan-300' : 'text-cyan-600'}`}>💬 오늘의 한마디</label>
-                    <input type="text" value={signalStatusMsg} onChange={(e) => setSignalStatusMsg(e.target.value.slice(0, 30))}
-                      placeholder="예: 퇴근 후 맥주 한잔 같이해요 🍺" maxLength={30}
-                      className={`w-full px-3 py-2.5 rounded-xl text-sm border focus:outline-none focus:border-cyan-400 transition-colors ${darkMode ? 'bg-slate-700 border-slate-500 text-white placeholder:text-slate-500' : 'bg-gray-50 border-gray-200 text-gray-800 placeholder:text-gray-400'}`} />
-                    <p className={`text-[10px] mt-0.5 text-right ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>{signalStatusMsg.length}/30</p>
-                  </div>
-                  <div className="mb-4">
-                    <label className={`block text-[11px] font-black mb-2.5 ${darkMode ? 'text-rose-300' : 'text-rose-500'}`}>💘 나의 이상형</label>
-                    {IDEAL_TAG_GROUPS.map(group => (
-                      <div key={group.label} className="mb-3">
-                        <p className={`text-[9px] font-black uppercase tracking-widest mb-1.5 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>{group.label}</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {group.tags.map(tag => {
-                            const selected = idealTags.includes(tag);
-                            return (
-                              <button key={tag}
-                                onClick={() => setIdealTags(prev => selected ? prev.filter(t => t !== tag) : [...prev, tag])}
-                                className={`px-2.5 py-1 rounded-full text-[11px] font-bold border transition-all active:scale-90 ${selected ? 'text-white border-transparent' : darkMode ? 'text-slate-400 border-slate-600 bg-slate-700/50 hover:border-rose-500/50' : 'text-gray-500 border-gray-200 bg-gray-50 hover:border-rose-300'}`}
-                                style={selected ? { background: 'linear-gradient(135deg,#e11d48,#be185d)' } : {}}
-                              >{tag}</button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))}
-                    <div className="mt-1">
-                      <p className={`text-[9px] font-black uppercase tracking-widest mb-1.5 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>기타 ✏️</p>
-                      <input type="text" value={idealFreeText} onChange={(e) => setIdealFreeText(e.target.value.slice(0, 30))}
-                        placeholder="예: 다정하고 티키타카 잘 맞는 분" maxLength={30}
-                        className={`w-full px-3 py-2.5 rounded-xl text-sm border focus:outline-none focus:border-rose-400 transition-colors ${darkMode ? 'bg-slate-700 border-slate-500 text-white placeholder:text-slate-500' : 'bg-gray-50 border-gray-200 text-gray-800 placeholder:text-gray-400'}`} />
-                      <p className={`text-[10px] mt-0.5 text-right ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>{idealFreeText.length}/30</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={async () => {
-                      if (!currentUserId || signalSaving) return;
-                      setSignalSaving(true);
-                      try {
-                        const existing = userSignals.find(s => s.user_id === currentUserId);
-                        const ideal_msg = [idealTags.join(','), idealFreeText.trim()].filter(Boolean).join('\n') || null;
-                        const row = { id: existing?.id ?? crypto.randomUUID(), user_id: currentUserId, status_msg: signalStatusMsg.trim() || null, ideal_msg, created_at: existing?.created_at ?? new Date().toISOString() };
-                        await supabase.from('user_signals').upsert(row as never, { onConflict: 'user_id' });
-                      } catch (e) { console.error('[user_signals save]', e); }
-                      finally { setSignalSaving(false); }
-                    }}
-                    disabled={signalSaving}
-                    className="w-full py-2.5 rounded-xl font-black text-sm text-white active:scale-95 transition-transform disabled:opacity-50"
-                    style={{ background: 'linear-gradient(135deg,#06b6d4,#e11d48)' }}
-                  >
-                    {signalSaving ? '저장 중...' : '저장하기 💾'}
-                  </button>
-                </div>
-              )}
-            </div>
-
             {/* ── QR + 연락처 설정 ── */}
             <div className={`rounded-3xl border shadow-xl transition-colors duration-300 overflow-hidden ${darkMode ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600' : 'bg-white border-gray-100'}`}>
               <div className={`border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
@@ -2197,7 +2131,7 @@ export function MainScreen({
                   setProfileEditSection(null);
                 }
               };
-              const toggleSection = (s: 'avatar' | 'nickname' | 'birth' | 'interests') => {
+              const toggleSection = (s: 'avatar' | 'nickname' | 'birth' | 'interests' | 'statusMsg' | 'ideal') => {
                 if (s === 'nickname') {
                   // 이미 1회 변경한 경우 열기 차단
                   if ((me as { nickname_changed?: boolean }).nickname_changed) return;
@@ -2459,6 +2393,100 @@ export function MainScreen({
                       </div>
                     )}
                   </div>
+                  {/* ── 오늘의 한마디 ── */}
+                  <div className={`border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
+                    <button onClick={() => toggleSection('statusMsg')} className="w-full flex items-center gap-3 px-4 py-3 text-left">
+                      <span className="text-xl flex-shrink-0">💬</span>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>오늘의 한마디</p>
+                        <p className={`text-[11px] truncate ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{signalStatusMsg.trim() || '미설정'}</p>
+                      </div>
+                      <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${showStatusMsgEdit ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
+                    </button>
+                    {showStatusMsgEdit && (
+                      <div className={`px-4 pb-4 ${darkMode ? 'bg-slate-700/20' : 'bg-gray-50/50'}`}>
+                        <input type="text" value={signalStatusMsg} onChange={(e) => setSignalStatusMsg(e.target.value.slice(0, 30))}
+                          placeholder="예: 퇴근 후 맥주 한잔 같이해요 🍺" maxLength={30}
+                          className={`w-full px-3 py-2.5 rounded-xl text-sm border focus:outline-none focus:border-cyan-400 transition-colors ${darkMode ? 'bg-slate-700 border-slate-500 text-white placeholder:text-slate-500' : 'bg-gray-50 border-gray-200 text-gray-800 placeholder:text-gray-400'}`} />
+                        <p className={`text-[10px] mt-0.5 mb-3 text-right ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>{signalStatusMsg.length}/30</p>
+                        <button
+                          onClick={async () => {
+                            if (!currentUserId || signalSaving) return;
+                            setSignalSaving(true);
+                            try {
+                              const existing = userSignals.find(s => s.user_id === currentUserId);
+                              const ideal_msg = [idealTags.join(','), idealFreeText.trim()].filter(Boolean).join('\n') || null;
+                              const row = { id: existing?.id ?? crypto.randomUUID(), user_id: currentUserId, status_msg: signalStatusMsg.trim() || null, ideal_msg, created_at: existing?.created_at ?? new Date().toISOString() };
+                              await supabase.from('user_signals').upsert(row as never, { onConflict: 'user_id' });
+                            } catch (e) { console.error('[statusMsg save]', e); }
+                            finally { setSignalSaving(false); }
+                          }}
+                          disabled={signalSaving}
+                          className="w-full py-2.5 bg-cyan-500 hover:bg-cyan-600 text-white font-bold rounded-xl text-sm active:scale-[0.98] transition-all disabled:opacity-40">
+                          {signalSaving ? '저장 중...' : '저장'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ── 이상형 ── */}
+                  <div className={`border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
+                    <button onClick={() => toggleSection('ideal')} className="w-full flex items-center gap-3 px-4 py-3 text-left">
+                      <span className="text-xl flex-shrink-0">💘</span>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>이상형</p>
+                        <p className={`text-[11px] truncate ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
+                          {idealTags.length > 0 ? idealTags.slice(0, 3).join(' · ') + (idealTags.length > 3 ? ' …' : '') : idealFreeText.trim() || '미설정'}
+                        </p>
+                      </div>
+                      <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${showIdealEdit ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
+                    </button>
+                    {showIdealEdit && (
+                      <div className={`px-4 pb-4 space-y-3 ${darkMode ? 'bg-slate-700/20' : 'bg-gray-50/50'}`}>
+                        {IDEAL_TAG_GROUPS.map(group => (
+                          <div key={group.label}>
+                            <p className={`text-[9px] font-black uppercase tracking-widest mb-1.5 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>{group.label}</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {group.tags.map(tag => {
+                                const selected = idealTags.includes(tag);
+                                return (
+                                  <button key={tag}
+                                    onClick={() => setIdealTags(prev => selected ? prev.filter(t => t !== tag) : [...prev, tag])}
+                                    className={`px-2.5 py-1 rounded-full text-[11px] font-bold border transition-all active:scale-90 ${selected ? 'text-white border-transparent' : darkMode ? 'text-slate-400 border-slate-600 bg-slate-700/50 hover:border-rose-500/50' : 'text-gray-500 border-gray-200 bg-gray-50 hover:border-rose-300'}`}
+                                    style={selected ? { background: 'linear-gradient(135deg,#e11d48,#be185d)' } : {}}
+                                  >{tag}</button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                        <div>
+                          <p className={`text-[9px] font-black uppercase tracking-widest mb-1.5 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>기타 ✏️</p>
+                          <input type="text" value={idealFreeText} onChange={(e) => setIdealFreeText(e.target.value.slice(0, 30))}
+                            placeholder="예: 다정하고 티키타카 잘 맞는 분" maxLength={30}
+                            className={`w-full px-3 py-2.5 rounded-xl text-sm border focus:outline-none focus:border-rose-400 transition-colors ${darkMode ? 'bg-slate-700 border-slate-500 text-white placeholder:text-slate-500' : 'bg-gray-50 border-gray-200 text-gray-800 placeholder:text-gray-400'}`} />
+                          <p className={`text-[10px] mt-0.5 text-right ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>{idealFreeText.length}/30</p>
+                        </div>
+                        <button
+                          onClick={async () => {
+                            if (!currentUserId || signalSaving) return;
+                            setSignalSaving(true);
+                            try {
+                              const existing = userSignals.find(s => s.user_id === currentUserId);
+                              const ideal_msg = [idealTags.join(','), idealFreeText.trim()].filter(Boolean).join('\n') || null;
+                              const row = { id: existing?.id ?? crypto.randomUUID(), user_id: currentUserId, status_msg: signalStatusMsg.trim() || null, ideal_msg, created_at: existing?.created_at ?? new Date().toISOString() };
+                              await supabase.from('user_signals').upsert(row as never, { onConflict: 'user_id' });
+                            } catch (e) { console.error('[ideal save]', e); }
+                            finally { setSignalSaving(false); }
+                          }}
+                          disabled={signalSaving}
+                          className="w-full py-2.5 bg-rose-500 hover:bg-rose-600 text-white font-bold rounded-xl text-sm active:scale-[0.98] transition-all disabled:opacity-40">
+                          {signalSaving ? '저장 중...' : '이상형 저장'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
                   </>
                   )}
                 </div>
