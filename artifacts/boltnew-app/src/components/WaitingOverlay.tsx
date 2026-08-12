@@ -173,24 +173,26 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
               style={{ color: isLightTheme ? '#111827' : '#ffffff' }}>술번개 🍻</h1>
         </div>
 
-        {/* 상태 배지 + 안내 문구를 하나의 블록으로 통합 — 중복 제거 */}
+        {/* 상태 배지 */}
         {isActive ? (
-          <div className="w-full rounded-2xl bg-teal-500/15 border border-teal-400/30 px-4 py-3 mb-3 flex items-center gap-3">
-            <span className="w-2.5 h-2.5 rounded-full bg-teal-400 animate-pulse flex-shrink-0" />
-            <p className="text-teal-200 text-sm font-semibold text-left leading-snug">
-              모임이 시작되었습니다!<br />
-              <span className="text-teal-300 font-black">입장 버튼</span>을 눌러 참여하세요.
-            </p>
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-teal-500/20 border border-teal-400/30 rounded-full mb-2">
+            <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse" />
+            <span className="text-teal-300 text-sm font-semibold">모임이 시작되었습니다!</span>
           </div>
         ) : (
-          <div className="w-full rounded-2xl bg-amber-500/15 border border-amber-400/30 px-4 py-3 mb-3 flex items-center gap-3">
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
-            <p className="text-amber-200 text-sm font-semibold text-left leading-snug">
-              모임 대기 중입니다.<br />
-              <span className="text-slate-400 text-xs">미리 입장해서 닉네임을 설정하세요.</span>
-            </p>
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-amber-500/20 border border-amber-400/30 rounded-full mb-2">
+            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+            <span className="text-amber-300 text-sm font-semibold">모임 대기 중</span>
           </div>
         )}
+        {/* 안내 문구 — 배지와 중복되지 않는 내용만 */}
+        <p className="text-slate-300 text-sm leading-relaxed mb-3">
+          {isActive ? (
+            <><span className="text-teal-400 font-semibold">입장 버튼</span>을 눌러 참여하세요.</>
+          ) : (
+            <>곧 회식이 시작합니다.<br /><span className="text-slate-400 text-xs">미리 입장해서 닉네임을 설정하세요.</span></>
+          )}
+        </p>
 
         <button
           onClick={() => setShowConsentModal(true)}
@@ -198,18 +200,24 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
           className="w-full py-3.5 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 disabled:from-slate-700 disabled:to-slate-600 disabled:cursor-not-allowed text-white font-black text-base rounded-2xl shadow-2xl shadow-teal-500/30 transition-all active:scale-98 disabled:active:scale-100 mb-2"
         >{isActive ? '입장하기' : '⏳ 회의 시작 전입니다'}</button>
 
-        {/* 이미 프로필 있는 유저 안내 + 고유번호 복구를 하나의 카드로 통합 */}
-        <div className="w-full rounded-2xl bg-amber-500/10 border border-amber-400/25 px-4 py-2.5 mb-2 flex items-center gap-2.5">
-          <span className="text-base leading-none flex-shrink-0">⚠️</span>
-          <p className="text-amber-300/90 text-xs leading-snug flex-1 text-left">
-            <span className="font-black text-amber-200">기존 프로필</span>이 있으면 다시 만들지 말고<br />
-            고유번호(PIN)로 복구하세요.
-          </p>
-          <button
-            onClick={() => { setShowPinRecovery(true); setPinDigits(['','','','']); setPinError(''); setPinStep('pin'); }}
-            className="flex-shrink-0 px-3 py-2 bg-gradient-to-r from-orange-400 to-rose-500 hover:from-orange-300 hover:to-rose-400 text-white font-black text-[11px] rounded-xl shadow-sm transition-all active:scale-95 whitespace-nowrap"
-          >🔑 PIN 복구</button>
+        {/* 이미 프로필이 있는 유저 안내 배너 */}
+        <div className="w-full rounded-2xl bg-amber-500/15 border border-amber-400/30 px-4 py-3 mb-2">
+          <div className="flex items-start gap-2.5">
+            <span className="text-lg leading-none mt-0.5 flex-shrink-0">⚠️</span>
+            <div className="min-w-0">
+              <p className="text-amber-200 font-black text-sm leading-snug">이미 프로필을 만드셨나요?</p>
+              <p className="text-amber-300/80 text-xs mt-1 leading-relaxed">
+                다시 만들지 마시고 <span className="font-bold text-amber-200">고유번호(PIN)</span>로 입장해주세요.<br />
+                고유번호를 모르신다면 <span className="font-bold text-amber-200">관리자에게 문의</span>해주세요.
+              </p>
+            </div>
+          </div>
         </div>
+        {/* 고유번호 복구 */}
+        <button
+          onClick={() => { setShowPinRecovery(true); setPinDigits(['','','','']); setPinError(''); setPinStep('pin'); }}
+          className="w-full py-3.5 bg-gradient-to-r from-orange-400 to-rose-500 hover:from-orange-300 hover:to-rose-400 text-white font-black text-sm rounded-2xl shadow-lg shadow-orange-500/25 transition-all active:scale-98 mb-2"
+        >🔑 고유번호로 프로필 복구</button>
 
         {/* 입장 전 체크 — 2×2 그리드 */}
         <div className="w-full rounded-2xl bg-amber-500/10 border border-amber-400/25 overflow-hidden">
