@@ -112,7 +112,12 @@ export function useChat({
               // 활성 채팅방: 메시지 목록에 추가 (client_id 기반 dedup)
               setMessages(prev => {
                 const next = applySseInsert(prev, newMsg);
-                return next.length > MAX_MESSAGES ? next.slice(-MAX_MESSAGES) : next;
+                // [Fix-1] 방어 로직: 현재 채팅방 chat_id와 다른 메시지 완전 차단 (섞임 방지)
+                const activeCid = chatIdRef.current;
+                const safe = activeCid
+                  ? next.filter(m => !m.chat_id || m.chat_id === activeCid || m.id.startsWith('__opt_'))
+                  : next;
+                return safe.length > MAX_MESSAGES ? safe.slice(-MAX_MESSAGES) : safe;
               });
               // [Fix-H] 활성 채팅방에 상대방 메시지 도착 시 즉시 서버 읽음 표시
               // 채팅방을 열 때뿐 아니라 새 메시지가 오는 순간에도 read_at 갱신 → 다른 기기 뱃지 즉시 해소
@@ -218,8 +223,9 @@ export function useChat({
       if (error) { console.error('[loadMessages] DB 오류:', error.message); return false; }
       if (data) setMessages(prev => {
         const result = applyLoadMessages(prev, data as Message[]);
-        // [안전장치 7] 메시지 배열 상한 — 오래된 메시지부터 제거해 메모리 누수 방지
-        return result.length > MAX_MESSAGES ? result.slice(-MAX_MESSAGES) : result;
+        // [Fix-1] 쿼리 결과 chat_id 재검증 — 채팅방 전환 경쟁 조건으로 섞임 원천 차단
+        const filtered = result.filter(m => !m.chat_id || m.chat_id === cid || m.id.startsWith('__opt_'));
+        return filtered.length > MAX_MESSAGES ? filtered.slice(-MAX_MESSAGES) : filtered;
       });
       return true;
     } catch (err) {

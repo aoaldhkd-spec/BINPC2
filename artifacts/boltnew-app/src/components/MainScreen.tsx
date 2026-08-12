@@ -509,6 +509,7 @@ export const ProfileCard = memo(function ProfileCard({
   // 잠금 토스트 (컴포넌트 최상단 — Rules of Hooks 준수)
   const [lockToast, setLockToast] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [menuPos, setMenuPos] = useState<{top:number;right:number}|null>(null);
   const [isFlipped, setIsFlipped] = useState(false);
   const showLockToast = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -526,12 +527,20 @@ export const ProfileCard = memo(function ProfileCard({
     setImgFit(Math.abs(ratio - 0.75) / 0.75 < 0.20 ? 'cover' : 'contain');
   };
 
+  // [Fix-9] ⋯ 메뉴 외부 클릭 시 닫기 — fixed 위치이므로 부모 overflow:hidden 영향 없음
+  useEffect(() => {
+    if (!showMenu) return;
+    const close = () => { setShowMenu(false); setMenuPos(null); };
+    document.addEventListener('pointerdown', close, true);
+    return () => document.removeEventListener('pointerdown', close, true);
+  }, [showMenu]);
+
   return (
-    <div className="group relative bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100">
+    <div className="group relative bg-white rounded-2xl shadow-sm border border-gray-100">
 
       {/* ── 사진 플립 영역 (3:4 세로형) ──────────────────────────────────────── */}
       <div
-        style={{ aspectRatio: '3/4', perspective: '1000px', position: 'relative', cursor: 'pointer' }}
+        style={{ aspectRatio: '3/4', perspective: '1000px', position: 'relative', cursor: 'pointer', overflow: 'hidden', borderRadius: '12px 12px 0 0' }}
         onClick={(e) => { e.stopPropagation(); setIsFlipped(f => !f); }}
       >
         <div style={{
@@ -592,28 +601,39 @@ export const ProfileCard = memo(function ProfileCard({
             {(onBlock || onContactShare || onViewFortune) && (
               <div className="absolute top-1 right-1 z-10">
                 <button
-                  onClick={(e) => { e.stopPropagation(); setShowMenu(m => !m); }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (showMenu) { setShowMenu(false); setMenuPos(null); return; }
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    setMenuPos({ top: rect.bottom + 6, right: Math.max(8, window.innerWidth - rect.right) });
+                    setShowMenu(true);
+                  }}
                   className="w-6 h-6 rounded-full bg-black/40 flex items-center justify-center active:scale-90 transition-transform"
                   aria-label="더보기"
                 >
                   <MoreHorizontal className="w-3.5 h-3.5 text-white" />
                 </button>
-                {showMenu && (
-                  <div className="absolute right-0 top-7 w-44 rounded-xl bg-white shadow-2xl border border-gray-100 overflow-hidden z-20">
+                {/* [Fix-9] fixed 포지션 드롭다운 — overflow:hidden 카드에 잘리지 않음, 모바일 화면 밖 방지 */}
+                {showMenu && menuPos && (
+                  <div
+                    style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 9999, minWidth: '192px' }}
+                    className={`rounded-2xl shadow-2xl border overflow-hidden ${isCardDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100'}`}
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     {onContactShare && (
-                      <button onClick={(e) => { e.stopPropagation(); setShowMenu(false); onContactShare(profile); }}
-                        className="w-full text-left px-3 py-2.5 text-xs font-bold text-teal-600 hover:bg-teal-50 flex items-center gap-2">💌 연락처 보내기</button>
+                      <button onClick={(e) => { e.stopPropagation(); setShowMenu(false); setMenuPos(null); onContactShare(profile); }}
+                        className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 ${isCardDark ? 'text-teal-400 hover:bg-slate-700' : 'text-teal-600 hover:bg-teal-50'}`}>💌 연락처 보내기</button>
                     )}
                     {onViewFortune && (
-                      <button onClick={(e) => { e.stopPropagation(); setShowMenu(false); onViewFortune(profile); }}
-                        className="w-full text-left px-3 py-2.5 text-xs font-bold text-violet-600 hover:bg-violet-50 flex items-center gap-2 border-t border-gray-50">🔮 사주 보기</button>
+                      <button onClick={(e) => { e.stopPropagation(); setShowMenu(false); setMenuPos(null); onViewFortune(profile); }}
+                        className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 border-t ${isCardDark ? 'text-violet-400 hover:bg-slate-700 border-slate-700' : 'text-violet-600 hover:bg-violet-50 border-gray-50'}`}>🔮 사주 보기</button>
                     )}
                     {onBlock && (
                       <>
-                        <button onClick={(e) => { e.stopPropagation(); setShowMenu(false); onBlock(profile.id, 'block'); }}
-                          className="w-full text-left px-3 py-2.5 text-xs font-bold text-red-500 hover:bg-red-50 flex items-center gap-2 border-t border-gray-50">🚫 차단하기</button>
-                        <button onClick={(e) => { e.stopPropagation(); setShowMenu(false); onBlock(profile.id, 'hide'); }}
-                          className="w-full text-left px-3 py-2.5 text-xs font-bold text-gray-600 hover:bg-gray-50 flex items-center gap-2 border-t border-gray-50">👻 나를 못 보게 하기</button>
+                        <button onClick={(e) => { e.stopPropagation(); setShowMenu(false); setMenuPos(null); onBlock(profile.id, 'block'); }}
+                          className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 border-t ${isCardDark ? 'text-red-400 hover:bg-slate-700 border-slate-700' : 'text-red-500 hover:bg-red-50 border-gray-50'}`}>🚫 차단하기</button>
+                        <button onClick={(e) => { e.stopPropagation(); setShowMenu(false); setMenuPos(null); onBlock(profile.id, 'hide'); }}
+                          className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 border-t ${isCardDark ? 'text-slate-300 hover:bg-slate-700 border-slate-700' : 'text-gray-600 hover:bg-gray-50 border-gray-50'}`}>👻 나를 못 보게 하기</button>
                       </>
                     )}
                   </div>
@@ -638,21 +658,32 @@ export const ProfileCard = memo(function ProfileCard({
             backfaceVisibility: 'hidden',
             WebkitBackfaceVisibility: 'hidden',
             transform: 'rotateY(180deg)',
-            background: 'linear-gradient(160deg, #1a0533 0%, #3b1278 55%, #0d1b4b 100%)',
+            background: 'linear-gradient(150deg, #0e0320 0%, #2a0855 35%, #1a0d40 65%, #090c25 100%)',
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-            padding: '16px 12px', gap: '8px',
+            padding: '16px 12px', gap: '7px',
             overflow: 'hidden',
           }}>
-            {/* 배경 장식 */}
+            {/* 배경 광원 레이어 1 */}
+            <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'radial-gradient(ellipse at 50% 15%, rgba(230,80,255,0.25) 0%, transparent 55%)' }} />
+            {/* 배경 광원 레이어 2 */}
+            <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'radial-gradient(ellipse at 75% 85%, rgba(80,100,255,0.20) 0%, transparent 50%)' }} />
+            {/* 반짝이 장식 */}
+            <span style={{ position: 'absolute', top: '9%', left: '11%', fontSize: '12px', opacity: 0.55 }}>✨</span>
+            <span style={{ position: 'absolute', top: '7%', right: '13%', fontSize: '10px', opacity: 0.40 }}>⭐</span>
+            <span style={{ position: 'absolute', bottom: '17%', left: '9%', fontSize: '10px', opacity: 0.40 }}>💫</span>
+            <span style={{ position: 'absolute', bottom: '11%', right: '11%', fontSize: '12px', opacity: 0.50 }}>✨</span>
+            {/* 메인 이모지 */}
             <div style={{
-              position: 'absolute', inset: 0, pointerEvents: 'none',
-              background: 'radial-gradient(ellipse at 50% 30%, rgba(200,100,255,0.18) 0%, transparent 65%)',
-            }} />
-            <div style={{ fontSize: '30px', lineHeight: 1, filter: 'drop-shadow(0 0 8px rgba(255,100,200,0.6))' }}>💘</div>
+              fontSize: '38px', lineHeight: 1, position: 'relative', zIndex: 1,
+              filter: 'drop-shadow(0 0 14px rgba(255,60,180,0.85)) drop-shadow(0 0 28px rgba(200,40,255,0.55))',
+            }}>💘</div>
+            {/* 타이틀 — 그라데이션 텍스트 */}
             <p style={{
-              color: 'rgba(255,200,255,0.9)', fontSize: '11px', fontWeight: 800,
-              letterSpacing: '0.14em', textTransform: 'uppercase', margin: 0,
-              textShadow: '0 0 10px rgba(255,150,255,0.5)',
+              background: 'linear-gradient(90deg,rgba(255,170,255,0.95),rgba(200,150,255,0.95),rgba(255,170,255,0.95))',
+              WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
+              fontSize: '11px', fontWeight: 900,
+              letterSpacing: '0.18em', textTransform: 'uppercase', margin: 0,
+              position: 'relative', zIndex: 1,
             }}>나의 이상형</p>
             {/* ideal_msg 파싱: "태그1,태그2\n기타텍스트" */}
             {(() => {
@@ -1474,10 +1505,6 @@ export function MainScreen({
         {mainTab === 'status' && (
           <StatusErrorBoundary>
           <div className="max-w-lg mx-auto space-y-4">
-            <div className="flex justify-end">
-              <RefreshBtn onRefresh={() => doRefresh('status', onRefreshStatus)} refreshed={refreshedTab === 'status'} />
-            </div>
-
             {/* ── 내 프로필 카드 ── */}
             {(() => {
               const me = profiles.find(p => p.id === currentUserId);
@@ -1539,6 +1566,10 @@ export function MainScreen({
 
                     {/* 오른쪽: 2×2 박스 */}
                     <div className="flex-1 min-w-0 flex flex-col">
+                      {/* 새로고침 — MBTI/성향 박스 바로 위 */}
+                      <div className="flex justify-end mb-1.5">
+                        <RefreshBtn onRefresh={() => doRefresh('status', onRefreshStatus)} refreshed={refreshedTab === 'status'} />
+                      </div>
                       {/* 2×2 정보 박스 — 레이블 외부 상단, 폰트 통일 */}
                       <div className="grid grid-cols-2 gap-x-2 gap-y-1 ml-auto">
                         {/* MBTI */}
@@ -1713,7 +1744,7 @@ export function MainScreen({
                               return `${Math.floor(ms / 86_400_000)}일 전`;
                             })();
                             return (
-                              <div key={v.id} className={`flex items-center gap-3 p-2 rounded-xl ${darkMode ? 'bg-slate-700/40' : 'bg-gray-50'}`}>
+                              <button key={v.id} type="button" onClick={() => onSelect(vp)} className={`w-full flex items-center gap-3 p-2 rounded-xl text-left cursor-pointer active:scale-[0.98] transition-transform ${darkMode ? 'bg-slate-700/40 hover:bg-slate-700/70' : 'bg-gray-50 hover:bg-gray-100'}`}>
                                 <img src={vp.photo_url || `https://api.dicebear.com/7.x/thumbs/svg?seed=${encodeURIComponent(vp.nickname)}`} alt={vp.nickname}
                                   className="w-9 h-9 rounded-full object-cover flex-shrink-0"
                                   onError={(e) => { (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/thumbs/svg?seed=${encodeURIComponent(vp.nickname)}`; }} />
@@ -1722,7 +1753,7 @@ export function MainScreen({
                                   {vp.mbti && <p className={`text-[10px] ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{vp.mbti}</p>}
                                 </div>
                                 <span className={`text-[10px] flex-shrink-0 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>{ago}</span>
-                              </div>
+                              </button>
                             );
                           })}
                           {visitors.length > 20 && <p className={`text-[10px] text-center mt-2 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>+{visitors.length - 20}명 더</p>}
@@ -2383,6 +2414,8 @@ export function MainScreen({
                               const ideal_msg = [idealTags.join(','), idealFreeText.trim()].filter(Boolean).join('\n') || null;
                               const row = { id: existing?.id ?? crypto.randomUUID(), user_id: currentUserId, status_msg: signalStatusMsg.trim() || null, ideal_msg, created_at: existing?.created_at ?? new Date().toISOString() };
                               await supabase.from('user_signals').upsert(row as never, { onConflict: 'user_id' });
+                              // [Fix-6] 저장 완료 후 섹션 자동 닫기
+                              setProfileEditSection(null);
                             } catch (e) { console.error('[statusMsg save]', e); }
                             finally { setSignalSaving(false); }
                           }}
@@ -2441,6 +2474,8 @@ export function MainScreen({
                               const ideal_msg = [idealTags.join(','), idealFreeText.trim()].filter(Boolean).join('\n') || null;
                               const row = { id: existing?.id ?? crypto.randomUUID(), user_id: currentUserId, status_msg: signalStatusMsg.trim() || null, ideal_msg, created_at: existing?.created_at ?? new Date().toISOString() };
                               await supabase.from('user_signals').upsert(row as never, { onConflict: 'user_id' });
+                              // [Fix-6] 저장 완료 후 섹션 자동 닫기
+                              setProfileEditSection(null);
                             } catch (e) { console.error('[ideal save]', e); }
                             finally { setSignalSaving(false); }
                           }}

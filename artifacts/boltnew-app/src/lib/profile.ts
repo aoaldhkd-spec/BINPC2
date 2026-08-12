@@ -77,10 +77,9 @@ const AVATAR_COLORS_FOR_GEN = [
 ];
 
 export function genAvatar(nickname: string): string {
-  const text     = nickname.slice(0, 2).toUpperCase();
-  const bg       = AVATAR_COLORS_FOR_GEN[(nickname.charCodeAt(0) ?? 0) % AVATAR_COLORS_FOR_GEN.length];
-  const fontSize = text.length === 1 ? 210 : 160;
-  const y        = text.length === 1 ? 272  : 258;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><rect width="400" height="400" fill="${bg}"/><text x="200" y="${y}" font-family="Arial,sans-serif" font-size="${fontSize}" font-weight="900" fill="white" text-anchor="middle">${text}</text></svg>`;
+  const bg = AVATAR_COLORS_FOR_GEN[(nickname.charCodeAt(0) ?? 0) % AVATAR_COLORS_FOR_GEN.length];
+  // [Fix-3] 중앙 흰색 닉네임 텍스트 완전 제거 → 사람 실루엣 아이콘으로 대체
+  // 하단 검은색 반투명 이름/나이 라벨만 정보 표시 담당
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><rect width="400" height="400" fill="${bg}"/><circle cx="200" cy="152" r="88" fill="rgba(255,255,255,0.28)"/><ellipse cx="200" cy="378" rx="138" ry="96" fill="rgba(255,255,255,0.28)"/></svg>`;
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }

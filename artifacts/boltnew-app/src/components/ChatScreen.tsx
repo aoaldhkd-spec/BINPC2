@@ -315,13 +315,23 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
       .channel(`chat_reads:${chatId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_reads', filter: `chat_id=eq.${chatId}` },
         (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-          const row = (payload as { new?: { reader_id?: string } }).new;
+          const row = (payload as { new?: { reader_id?: string; read_at?: string } }).new;
           if (row?.reader_id && row.reader_id !== currentUserId) {
-            // 상대방이 읽었음 → 현재 화면의 메시지를 전부 "이미 본" 목록에 추가.
-            // 이렇게 하지 않으면 3초 폴링이 messages를 갱신할 때
-            // useEffect가 같은 ID를 myUnreadIds에 다시 추가해 "1"이 재표시됨.
-            messagesRef.current.forEach(m => initialMsgIds.current.add(m.id));
-            setMyUnreadIds(new Set());
+            // [Fix-2] read_at 타임스탬프 비교: 파트너의 read_at이 내 최신 메시지 created_at 이후여야만 읽음 처리
+            // 이전 세션의 오래된 read_at으로 "1"이 잘못 사라지는 버그 방지
+            if (row.read_at) {
+              const readTime = new Date(row.read_at as string).getTime();
+              const myMsgs = messagesRef.current.filter(m => m.sender_id === currentUserId && !m.id.startsWith('__opt_'));
+              const latestMsgTime = myMsgs.reduce((max, m) => Math.max(max, new Date(m.created_at).getTime()), 0);
+              if (latestMsgTime === 0 || readTime >= latestMsgTime) {
+                messagesRef.current.forEach(m => initialMsgIds.current.add(m.id));
+                setMyUnreadIds(new Set());
+              }
+            } else {
+              // read_at 없이 이벤트 도착: 안전하게 전부 읽음 처리
+              messagesRef.current.forEach(m => initialMsgIds.current.add(m.id));
+              setMyUnreadIds(new Set());
+            }
           }
         })
       .subscribe();
@@ -343,8 +353,14 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
           .eq('reader_id', partnerId)
           .maybeSingle();
         if (data?.read_at) {
-          messagesRef.current.forEach(m => initialMsgIds.current.add(m.id));
-          setMyUnreadIds(new Set());
+          // [Fix-2] 타임스탬프 비교: 파트너의 read_at >= 내 최신 메시지 created_at 이어야만 읽음 처리
+          const readTime = new Date(data.read_at).getTime();
+          const myMsgs = messagesRef.current.filter(m => m.sender_id === currentUserId && !m.id.startsWith('__opt_'));
+          const latestMsgTime = myMsgs.reduce((max, m) => Math.max(max, new Date(m.created_at).getTime()), 0);
+          if (latestMsgTime === 0 || readTime >= latestMsgTime) {
+            messagesRef.current.forEach(m => initialMsgIds.current.add(m.id));
+            setMyUnreadIds(new Set());
+          }
         }
       } catch (_) { /* 네트워크 오류는 무시 */ }
     };
