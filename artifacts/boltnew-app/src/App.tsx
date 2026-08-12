@@ -1041,6 +1041,7 @@ function App() {
   }) => {
     setLoading(true);
     setRegistrationError(null);
+    try {
     // Generate unique PIN code (4-digit normally; 5-digit when >8000 profiles)
     const { data: existingPins } = await supabase.from('profiles').select('pin_code');
     const usedPins = new Set((existingPins ?? []).map((p: { pin_code: string | null }) => p.pin_code).filter(Boolean));
@@ -1105,7 +1106,12 @@ function App() {
       setView('loading-main');
       setCurrentUserId(profile.id);
     }
-    setLoading(false);
+    } catch (e) {
+      console.error('[handleNicknameSetup] 오류:', e);
+      setRegistrationError('오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setLoading(false);
+    }
   };
 
 
@@ -1119,38 +1125,50 @@ function App() {
 
   const handleProfileRecovery = async (profileId: string) => {
     setLoading(true);
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', profileId)
-      .single();
-    if (profile) {
-      ls.setItem(MATCHING_USER_KEY, profile.id);
-      ls.removeItem(MATCHING_DRAFT_KEY);
-      // isNewRegistration = true → useEffect가 false-positive 체크(setView('entry-1') 타임아웃)를
-      // 건너뛰고 바로 setView('main')으로 이동 (handleNicknameSetup과 동일 패턴)
-      isNewRegistration.current = true;
-      setProfiles(prev => prev.some(p => p.id === profile.id) ? prev : [profile as Profile, ...prev]);
-      setCurrentUserId(profile.id);
-      setView('loading-main'); // 복구 확인 중 spinner 표시
-    } else {
-      alert('프로필을 찾을 수 없습니다. 관리자에게 문의하세요.');
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', profileId)
+        .single();
+      if (profile) {
+        ls.setItem(MATCHING_USER_KEY, profile.id);
+        ls.removeItem(MATCHING_DRAFT_KEY);
+        // isNewRegistration = true → useEffect가 false-positive 체크(setView('entry-1') 타임아웃)를
+        // 건너뛰고 바로 setView('main')으로 이동 (handleNicknameSetup과 동일 패턴)
+        isNewRegistration.current = true;
+        setProfiles(prev => prev.some(p => p.id === profile.id) ? prev : [profile as Profile, ...prev]);
+        setCurrentUserId(profile.id);
+        setView('loading-main'); // 복구 확인 중 spinner 표시
+      } else {
+        alert('프로필을 찾을 수 없습니다. 관리자에게 문의하세요.');
+        setView('entry-1');
+      }
+    } catch (e) {
+      console.error('[handleProfileRecovery] 오류:', e);
+      alert('프로필 복구 중 오류가 발생했습니다. 다시 시도해 주세요.');
       setView('entry-1');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
 
   const submitSuggestion = async (content: string, contactInfo: string) => {
     if (!currentUserId || !content.trim()) return;
     const currentProfile = profiles.find(p => p.id === currentUserId);
-    const { data } = await supabase.from('suggestions').insert({
-      profile_id: currentUserId,
-      nickname: currentProfile?.nickname ?? null,
-      content: content.trim(),
-      contact_info: contactInfo.trim() || null,
-    }).select().single();
-    if (data) setSuggestions(prev => [data as Suggestion, ...prev]);
+    try {
+      const { data } = await supabase.from('suggestions').insert({
+        profile_id: currentUserId,
+        nickname: currentProfile?.nickname ?? null,
+        content: content.trim(),
+        contact_info: contactInfo.trim() || null,
+      }).select().single();
+      if (data) setSuggestions(prev => [data as Suggestion, ...prev]);
+    } catch (e) {
+      console.error('[submitSuggestion] 오류:', e);
+      throw e; // 호출자(MainScreen)의 finally에서 버튼 상태 복구
+    }
   };
 
   // useMemo: 매 렌더마다 filter 재계산 방지 — 모든 early return 전에 선언 (Rules of Hooks 준수)
@@ -1450,7 +1468,7 @@ function App() {
         unreadGroupCounts={unreadGroupCounts}
         newGroupMsgCount={newGroupMsgCount}
         onClearGroupMsgCount={() => setNewGroupMsgCount(0)}
-        onOpenGroupChat={(groupId) => { void openGroupChat(groupId).then(() => setView('group-chat')); }}
+        onOpenGroupChat={(groupId) => { void openGroupChat(groupId).then(() => setView('group-chat')).catch(e => console.error('[openGroupChat]', e)); }}
         userSignals={userSignals}
         blockedUserIds={(() => {
           const s = new Set<string>();

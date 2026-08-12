@@ -10,6 +10,7 @@ import { supabase } from '../lib/supabase';
 import type { Profile, GroupChat, GroupMessage, GroupParticipant } from '../types/app';
 
 const MAX_GROUP_MESSAGES = 300;
+const MAX_MSG_LEN = 1000; // 메시지 최대 길이 — useChat과 동일 기준
 
 /** group_messages SSE INSERT 수신 시 낙관적 메시지 교체 or 추가 (created_at 정렬 보장) */
 function applyGroupInsert(prev: GroupMessage[], newMsg: GroupMessage): GroupMessage[] {
@@ -75,33 +76,33 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
       setMyGroupIds(groupIds);
       myGroupIdsRef.current = groupIds;
 
-      // 2. 그룹 정보
-      const { data: groups } = await supabase.from('group_chats').select('*').in('id', groupIds);
+      // §17 성능: groups·msgs·allParts 3개 쿼리를 병렬 실행 (groupIds 확보 후 순서 무관)
+      const [groupsRes, msgsRes, allPartsRes] = await Promise.all([
+        supabase.from('group_chats').select('*').in('id', groupIds),
+        supabase.from('group_messages')
+          .select('group_id, content, image_url, created_at')
+          .in('group_id', groupIds)
+          .order('created_at', { ascending: false })
+          .limit(Math.max(groupIds.length * 10, 50)),
+        supabase.from('group_participants')
+          .select('group_id')
+          .in('group_id', groupIds),
+      ]);
+      const groups = groupsRes.data;
       if (!groups) return;
 
-      // 3. 최근 메시지 미리보기
-      const { data: msgs } = await supabase.from('group_messages')
-        .select('group_id, content, image_url, created_at')
-        .in('group_id', groupIds)
-        .order('created_at', { ascending: false })
-        .limit(Math.max(groupIds.length * 10, 50));
-
       const latestByGroup = new Map<string, string>();
-      if (msgs) {
-        for (const m of msgs as { group_id: string; content: string; image_url?: string }[]) {
+      if (msgsRes.data) {
+        for (const m of msgsRes.data as { group_id: string; content: string; image_url?: string }[]) {
           if (!latestByGroup.has(m.group_id)) {
             latestByGroup.set(m.group_id, m.image_url ? '📷 사진' : m.content);
           }
         }
       }
 
-      // 4. 참여자 수
-      const { data: allParts } = await supabase.from('group_participants')
-        .select('group_id')
-        .in('group_id', groupIds);
       const memberCount = new Map<string, number>();
-      if (allParts) {
-        for (const p of allParts as { group_id: string }[]) {
+      if (allPartsRes.data) {
+        for (const p of allPartsRes.data as { group_id: string }[]) {
           memberCount.set(p.group_id, (memberCount.get(p.group_id) ?? 0) + 1);
         }
       }
@@ -112,8 +113,8 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
         memberCount: memberCount.get(g.id) ?? 0,
       }));
       setGroupChats(enriched);
-    } catch {
-      // 로드 실패 시 무시 — 다음 갱신 주기에 재시도
+    } catch (e) {
+      console.error('[loadGroupChats] 오류:', e);
     }
   }, []);
 
@@ -124,7 +125,7 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
       const { data, error } = await supabase.from('group_messages').select('*')
         .eq('group_id', groupId).order('created_at', { ascending: true });
       if (gen !== loadGenRef.current) return false;
-      if (error) return false;
+      if (error) { console.error('[loadGroupMessages] DB 오류:', error.message); return false; }
       if (data) {
         setGroupMessages(prev => {
           const result = [...(data as GroupMessage[])];
@@ -134,12 +135,14 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
           const stillPending = prev.filter(
             m => m.id.startsWith('__opt_') && !dbIds.has(m.id) && !dbClientIds.has(m.client_id ?? ''),
           );
-          const merged = [...result, ...stillPending];
+          // created_at 기준 정렬 (pending 낙관적 메시지가 DB rows 뒤에 붙을 때 순서 보장)
+          const merged = [...result, ...stillPending].sort((a, b) => a.created_at.localeCompare(b.created_at));
           return merged.length > MAX_GROUP_MESSAGES ? merged.slice(-MAX_GROUP_MESSAGES) : merged;
         });
       }
       return true;
-    } catch {
+    } catch (e) {
+      console.error('[loadGroupMessages] 오류:', e);
       return false;
     }
   }, []);
@@ -173,8 +176,8 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
         .delete()
         .eq('group_id', groupId)
         .eq('user_id', userId);
-    } catch {
-      // 삭제 실패 시에도 로컬 상태는 즉시 반영
+    } catch (e) {
+      console.error('[leaveGroupChat] 삭제 오류:', e);
     }
     // 로컬 상태 업데이트 (서버 응답과 무관하게 즉시 반영)
     setMyGroupIds(prev => prev.filter(id => id !== groupId));
@@ -192,6 +195,7 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
     const snapGroupId = activeGroupIdRef.current;
     const snapUserId = currentUserIdRef.current;
     if (!snapGroupId || !snapUserId || !content.trim()) return;
+    if (content.trim().length > MAX_MSG_LEN) return;
     if (sendingGroupRef.current.has(snapGroupId)) return;
     sendingGroupRef.current.add(snapGroupId);
 

@@ -54,7 +54,7 @@ export function GroupChatScreen({
 
   const handleSend = useCallback(async () => {
     const text = input.trim();
-    if (!text || sending) return;
+    if (!text || sending || text.length > 1000) return;
     setInput('');
     setSending(true);
     try {

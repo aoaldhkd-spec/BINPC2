@@ -512,10 +512,12 @@ export const ProfileCard = memo(function ProfileCard({
   const [showMenu, setShowMenu] = useState(false);
   const [menuPos, setMenuPos] = useState<{top:number;right:number}|null>(null);
   const [isFlipped, setIsFlipped] = useState(false);
+  const lockToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showLockToast = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (lockToastTimerRef.current) clearTimeout(lockToastTimerRef.current);
     setLockToast(true);
-    setTimeout(() => setLockToast(false), 1400);
+    lockToastTimerRef.current = setTimeout(() => setLockToast(false), 1400);
   };
 
   // 이미지 naturalRatio를 추적해 플립 존(실제 사진 영역)을 계산
@@ -1356,6 +1358,11 @@ export function MainScreen({
     setPhotoUploading(true);
     try {
       const reader = new FileReader();
+      reader.onerror = () => {
+        console.error('[MainScreen] FileReader 오류');
+        alert('파일을 읽는 중 오류가 발생했습니다. 다시 시도해 주세요.');
+        setPhotoUploading(false);
+      };
       reader.onload = async (ev) => {
         try {
           const dataUrl = ev.target?.result as string;
@@ -2008,21 +2015,21 @@ export function MainScreen({
                               <div className="flex items-center gap-2">
                                 <span className="w-5 h-5 rounded-lg bg-yellow-400 text-white flex items-center justify-center text-[10px] font-black flex-shrink-0">K</span>
                                 <span className="text-xs font-bold text-gray-800 flex-1">{share.kakao}</span>
-                                <button onClick={() => navigator.clipboard.writeText(share.kakao!)} className="text-[10px] text-gray-400 hover:text-teal-600 transition-all">복사</button>
+                                <button onClick={() => navigator.clipboard?.writeText(share.kakao!).catch(() => {})} className="text-[10px] text-gray-400 hover:text-teal-600 transition-all">복사</button>
                               </div>
                             )}
                             {share.instagram && (
                               <div className="flex items-center gap-2">
                                 <span className="w-5 h-5 rounded-lg bg-pink-500 text-white flex items-center justify-center text-[10px] font-black flex-shrink-0">@</span>
                                 <span className="text-xs font-bold text-gray-800 flex-1">@{share.instagram}</span>
-                                <button onClick={() => navigator.clipboard.writeText(share.instagram!)} className="text-[10px] text-gray-400 hover:text-teal-600 transition-all">복사</button>
+                                <button onClick={() => navigator.clipboard?.writeText(share.instagram!).catch(() => {})} className="text-[10px] text-gray-400 hover:text-teal-600 transition-all">복사</button>
                               </div>
                             )}
                             {share.phone && (
                               <div className="flex items-center gap-2">
                                 <span className="w-5 h-5 rounded-lg bg-green-500 text-white flex items-center justify-center text-[10px] font-black flex-shrink-0">#</span>
                                 <span className="text-xs font-bold text-gray-800 flex-1">{share.phone}</span>
-                                <button onClick={() => navigator.clipboard.writeText(share.phone!)} className="text-[10px] text-gray-400 hover:text-teal-600 transition-all">복사</button>
+                                <button onClick={() => navigator.clipboard?.writeText(share.phone!).catch(() => {})} className="text-[10px] text-gray-400 hover:text-teal-600 transition-all">복사</button>
                               </div>
                             )}
                           </div>
@@ -2930,7 +2937,7 @@ export function MainScreen({
                   <p className="text-[11px] text-red-500 mt-1">※ 본인 연락처가 아닐 경우 지급이 제한될 수 있습니다.</p>
                 </div>
                 <button disabled={!suggestionContent.trim() || suggestionSubmitting}
-                  onClick={async () => { setSuggestionSubmitting(true); await onSubmitSuggestion(suggestionContent, suggestionContact); setSuggestionContent(''); setSuggestionContact(''); setSuggestionSubmitting(false); }}
+                  onClick={async () => { setSuggestionSubmitting(true); try { await onSubmitSuggestion(suggestionContent, suggestionContact); setSuggestionContent(''); setSuggestionContact(''); } catch { /* 오류는 App.tsx에서 로깅 */ } finally { setSuggestionSubmitting(false); } }}
                   className="w-full py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-semibold rounded-xl disabled:opacity-40 transition-all">
                   {suggestionSubmitting ? '제출 중...' : '건의사항 제출'}
                 </button>

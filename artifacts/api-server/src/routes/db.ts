@@ -224,7 +224,7 @@ async function _sendAdminPush(payload: PushPayload): Promise<boolean> {
   const expired = results.filter(r => !r.ok).map(r => r.id);
   if (expired.length) {
     store['push_subscriptions'] = (store['push_subscriptions'] ?? []).filter(s => !expired.includes(s['id'] as string));
-    dbDeleteRows('push_subscriptions', expired).catch(console.error);
+    dbDeleteRows('push_subscriptions', expired).catch(e => logger.error({ err: e }, '[db] background task error'));
   }
   return results.some(r => r.ok);
 }
@@ -244,9 +244,9 @@ async function notifyAdminDbFailure(tableName: string, errMsg: string): Promise<
       tag: 'db-persist-error',
       url: '/',
     });
-    if (sent) console.info(`[db] Admin DB failure push sent (table=${tableName})`);
+    if (sent) logger.info({ tableName }, '[db] Admin DB failure push sent');
   } catch (e) {
-    console.error('[db] Failed to send admin DB failure push:', e);
+    logger.error({ err: e, tableName }, '[db] Failed to send admin DB failure push');
   }
 }
 
@@ -274,9 +274,9 @@ async function checkAndNotifyAdminPinPool(): Promise<void> {
       tag: 'pin-pool-warning',
       url: '/',
     });
-    if (sent) console.info(`[db] Admin PIN pool warning push sent (used=${usedCount}/${poolSize}, ${pct}%)`);
+    if (sent) logger.info({ usedCount, poolSize, pct }, '[db] Admin PIN pool warning push sent');
   } catch (e) {
-    console.error('[db] Failed to send admin PIN pool warning push:', e);
+    logger.error({ err: e }, '[db] Failed to send admin PIN pool warning push');
   }
 }
 
@@ -293,7 +293,7 @@ async function flushErrorStateToDB(): Promise<void> {
       [JSON.stringify({ count: _dbPersistErrors, log: _dbPersistErrorLog })],
     );
   } catch (e) {
-    console.error('[db] Failed to persist error state:', e);
+    logger.error({ err: e }, '[db] Failed to persist error state');
   }
 }
 
@@ -384,7 +384,7 @@ async function _execDbPersistRow(tableName: string, rowId: string, row: Record<s
       _dbPersistErrorLog.push({ table: tableName, time: Date.now(), msg: String(e) });
       if (_dbPersistErrorLog.length > 100) _dbPersistErrorLog.shift();
       await flushErrorStateToDB();
-      notifyAdminDbFailure(tableName, String(e)).catch(console.error);
+      notifyAdminDbFailure(tableName, String(e)).catch(e2 => logger.error({ err: e2 }, '[db] notifyAdminDbFailure failed'));
       throw e;
     }
   }
@@ -477,10 +477,10 @@ async function loadFromDb(): Promise<void> {
       if (createdMs > prev) _likesLastInsert.set(key, createdMs);
     }
     if (_likesLastInsert.size > 0) {
-      console.info(`[db] Seeded _likesLastInsert with ${_likesLastInsert.size} entry/entries from DB on startup`);
+      logger.info({ count: _likesLastInsert.size }, '[db] Seeded _likesLastInsert from DB on startup');
     }
   } catch (e) {
-    console.error('[db] Failed to load from DB:', e);
+    logger.error({ err: e }, '[db] Failed to load from DB');
   }
 }
 
@@ -527,7 +527,7 @@ function startDailyEntryPasswordRenewal(): void {
     const updated = { ...settings, entry_password: today, updated_at: ts() };
     store['app_settings'][0] = updated;
     dbPersistRow('app_settings', updated)
-      .catch(console.error)
+      .catch(e => logger.error({ err: e }, '[db] background task error'))
       .finally(() => { _renewalInProgress = false; });
     // admin_password 제거 후 브로드캐스트 — 유저 클라이언트에 관리자 비밀번호 노출 방지
     broadcastAll({ type: 'change', table: 'app_settings', event: 'UPDATE', newRow: sanitizeSettings(updated), oldRow: sanitizeSettings(settings as Record<string, unknown>) });
@@ -630,7 +630,7 @@ async function heartDrainLoop(): Promise<void> {
     if (idx >= 0) (store['heart_balances'] as Record<string, unknown>[])[idx] = newRow;
     else (store['heart_balances'] as Record<string, unknown>[]).push(newRow);
 
-    persists.push(dbPersistRow('heart_balances', newRow).catch(console.error));
+    persists.push(dbPersistRow('heart_balances', newRow).catch(e => logger.error({ err: e }, '[db] background task error')));
     _smartBroadcastLocal('heart_balances', newRow, {
       type: 'change', table: 'heart_balances', event: 'UPDATE', newRow, oldRow: balRow ?? {},
     });
@@ -643,7 +643,7 @@ async function heartDrainLoop(): Promise<void> {
 }
 
 function startHeartDrainLoop(): void {
-  setInterval(() => { heartDrainLoop().catch(console.error); }, 60_000);
+  setInterval(() => { heartDrainLoop().catch(e => logger.error({ err: e }, '[db] background task error')); }, 60_000);
 }
 
 // ─── 미사용 하트 회수 ────────────────────────────────────────────────────────
@@ -683,7 +683,7 @@ async function drainUnusedHearts(): Promise<{ userId: string; nickname: string; 
     if (idx >= 0) (store['heart_balances'] as Record<string, unknown>[])[idx] = newRow;
     else (store['heart_balances'] as Record<string, unknown>[]).push(newRow);
 
-    persists.push(dbPersistRow('heart_balances', newRow).catch(console.error));
+    persists.push(dbPersistRow('heart_balances', newRow).catch(e => logger.error({ err: e }, '[db] background task error')));
     _smartBroadcastLocal('heart_balances', newRow, {
       type: 'change', table: 'heart_balances', event: 'UPDATE', newRow, oldRow: balRow ?? {},
     });
@@ -698,7 +698,7 @@ async function drainUnusedHearts(): Promise<{ userId: string; nickname: string; 
 }
 
 // 서버 시작 10분 후 자동 미사용 하트 회수
-setTimeout(() => { drainUnusedHearts().catch(console.error); }, 10 * 60 * 1_000);
+setTimeout(() => { drainUnusedHearts().catch(e => logger.error({ err: e }, '[db] background task error')); }, 10 * 60 * 1_000);
 
 // ─── 단톡방 퇴장 유저 추적 (재매칭 방지) ─────────────────────────────────────
 const leftGroupUsers = new Set<string>(); // userId → 퇴장한 적 있으면 재매칭 안 함
@@ -736,7 +736,7 @@ function autoMatchGroupChat(userId: string, profile: Record<string, unknown>): v
           id: targetGroupId, ...newGroupData, max_members: 9999, created_at: ts(),
         };
         (store['group_chats'] as Record<string, unknown>[]).push(newGroup);
-        dbPersistRow('group_chats', newGroup).catch(console.error);
+        dbPersistRow('group_chats', newGroup).catch(e => logger.error({ err: e }, '[db] background task error'));
         broadcastAll({ type: 'change', table: 'group_chats', event: 'INSERT', newRow: newGroup, oldRow: null });
       }
       if (alreadyInIds.has(targetGroupId)) return; // 이미 이 방에 있음
@@ -745,7 +745,7 @@ function autoMatchGroupChat(userId: string, profile: Record<string, unknown>): v
       };
       (store['group_participants'] as Record<string, unknown>[]).push(newPart);
       alreadyInIds.add(targetGroupId);
-      dbPersistRow('group_participants', newPart).catch(console.error);
+      dbPersistRow('group_participants', newPart).catch(e => logger.error({ err: e }, '[db] background task error'));
       _smartBroadcastLocal('group_participants', newPart, {
         type: 'change', table: 'group_participants', event: 'INSERT', newRow: newPart, oldRow: null,
       });
@@ -789,7 +789,7 @@ function autoMatchGroupChat(userId: string, profile: Record<string, unknown>): v
       );
     }
   } catch (e) {
-    console.error('[autoMatchGroupChat] 오류:', e);
+    logger.error({ err: e }, '[autoMatchGroupChat] 오류');
   }
 }
 
@@ -799,11 +799,11 @@ seedIfNeeded()
   .then(() => startDailyEntryPasswordRenewal())
   .then(() => startHeartDrainLoop())
   .then(() => setupListenClient())
-  .catch(console.error);
+  .catch(e => logger.error({ err: e }, '[db] startup initialization failed'));
 
 // 30초마다 전체 테이블 네이티브 DB 재동기화
 // — 관리자·테스트 패널의 Supabase 직접 쓰기도 30초 내 자동 반영 (NOTIFY 미지원 경로 보정)
-setInterval(() => { resyncAllFromNativeDb().catch(console.error); }, 30_000);
+setInterval(() => { resyncAllFromNativeDb().catch(e => logger.error({ err: e }, '[db] resync failed')); }, 30_000);
 
 // ─── Cross-instance sync via PostgreSQL LISTEN/NOTIFY ─────────────────────────
 // autoscale 환경에서 여러 인스턴스가 뜰 때 store + SSE를 동기화한다.
@@ -851,7 +851,7 @@ async function setupListenClient(): Promise<void> {
             if (idx >= 0) store[tbl][idx] = row; else store[tbl].push(row);
             const fullEvent = { type: 'change', table: tbl, event: env.ev, newRow: row, oldRow: null };
             _smartBroadcastLocal(tbl, row, fullEvent);
-          }).catch(e => console.warn('[db] tombstone DB refetch failed:', (e as Error).message));
+          }).catch(e => logger.warn({ err: e }, '[db] tombstone DB refetch failed'));
         }
         return;
       }
@@ -881,7 +881,7 @@ async function setupListenClient(): Promise<void> {
       _smartBroadcastLocal(tbl, newRow ?? oldRow, event);
     });
     client.on('error', (err) => {
-      console.error('[db] LISTEN client error — reconnecting in 5 s:', err.message);
+      logger.error({ err }, '[db] LISTEN client error — reconnecting in 5 s');
       _listenClient = null;
       // client는 이 시점에 반드시 연결된 상태 (error 이벤트는 connect 이후에만 발생)
       client!.end().catch(() => {});
@@ -889,19 +889,19 @@ async function setupListenClient(): Promise<void> {
       setTimeout(() => {
         setupListenClient()
           .then(() => resyncHotTablesFromDb())
-          .catch(console.error);
+          .catch(e => logger.error({ err: e }, '[db] LISTEN reconnect failed'));
       }, 5000);
     });
     _listenClient = client;
-    console.info(`[db] LISTEN data_change ready (instance=${INSTANCE_ID.slice(0, 8)})`);
+    logger.info({ instance: INSTANCE_ID.slice(0, 8) }, '[db] LISTEN data_change ready');
   } catch (err) {
-    console.error('[db] setupListenClient failed — retry in 10 s:', (err as Error).message);
+    logger.error({ err }, '[db] setupListenClient failed — retry in 10 s');
     // connect() 성공 후 LISTEN 실패 시 반드시 종료 — pg.Client 커넥션 누수 방지
     if (client) client.end().catch(() => {});
     setTimeout(() => {
       setupListenClient()
         .then(() => resyncHotTablesFromDb())
-        .catch(console.error);
+        .catch(e => logger.error({ err: e }, '[db] LISTEN retry failed'));
     }, 10000);
   }
 }
@@ -916,7 +916,7 @@ function _drainNotifyQueue() {
   _notifyBusy = true;
   const payload = _notifyQueue.shift()!;
   pool.query("SELECT pg_notify('data_change', $1)", [payload])
-    .catch((e) => console.warn('[db] NOTIFY failed:', (e as Error).message))
+    .catch((e) => logger.warn({ err: e }, '[db] NOTIFY failed'))
     .finally(() => { _notifyBusy = false; _drainNotifyQueue(); });
 }
 
@@ -954,9 +954,9 @@ async function resyncHotTablesFromDb(): Promise<void> {
     for (const tbl of hotTables) {
       if (grouped[tbl]?.length) store[tbl] = grouped[tbl];
     }
-    console.info('[db] hot-table resync complete (profiles/seats/app_settings)');
+    logger.info({}, '[db] hot-table resync complete');
   } catch (e) {
-    console.warn('[db] hot-table resync failed:', (e as Error).message);
+    logger.warn({ err: e }, '[db] hot-table resync failed');
   }
 }
 
@@ -1239,7 +1239,7 @@ async function sendPushForEvent(table: string, row: Record<string, unknown>): Pr
   const expired = results.filter(r => !r.ok).map(r => r.id);
   if (expired.length) {
     store['push_subscriptions'] = (store['push_subscriptions'] ?? []).filter(s => !expired.includes(s.id as string));
-    dbDeleteRows('push_subscriptions', expired).catch(console.error);
+    dbDeleteRows('push_subscriptions', expired).catch(e => logger.error({ err: e }, '[db] background task error'));
   }
 }
 
@@ -1779,7 +1779,7 @@ router.post('/op', async (req: Request, res: Response) => {
           if (!getTable('device_secrets').find(r => r.user_id === profileId)) {
             const dsRow = { id: genId(), user_id: profileId, secret_hash: secretHash, created_at: ts() };
             getTable('device_secrets').push(dsRow);
-            dbPersistRow('device_secrets', dsRow).catch(console.error);
+            dbPersistRow('device_secrets', dsRow).catch(e => logger.error({ err: e }, '[db] background task error'));
           }
           delete newRow._device_secret; // 프로필 응답·DB에서 제거
         }
@@ -1792,10 +1792,10 @@ router.post('/op', async (req: Request, res: Response) => {
           if (newRow.pin_code) _insertPinSet!.add(newRow.pin_code as string);
         }
         smartBroadcast(table, newRow, { type: 'change', table, event: 'INSERT', newRow, oldRow: null });
-        dbPersistRow(table, newRow).catch(console.error);
+        dbPersistRow(table, newRow).catch(e => logger.error({ err: e }, '[db] background task error'));
         // #33: 신규 프로필 등록 시 PIN 풀 사용량 확인 — 85% 초과 시 관리자 푸시 알림
         if (table === 'profiles') {
-          checkAndNotifyAdminPinPool().catch(console.error);
+          checkAndNotifyAdminPinPool().catch(e => logger.error({ err: e }, '[db] background task error'));
           // 단톡방 자동 매칭 (비동기, 오류가 INSERT를 막아선 안 됨)
           void autoMatchGroupChat(String(newRow.id), newRow);
         }
@@ -1813,7 +1813,7 @@ router.post('/op', async (req: Request, res: Response) => {
         }
         // 메시지·하트 삽입 시 수신자 핸드폰으로 푸시 알림 전송
         if (table === 'messages' || table === 'likes') {
-          sendPushForEvent(table, newRow).catch(console.error);
+          sendPushForEvent(table, newRow).catch(e => logger.error({ err: e }, '[db] background task error'));
         }
       }
       if (selectAfterWrite) return res.json({ data: single ? inserted[0] ?? null : inserted, error: null });
@@ -1875,7 +1875,7 @@ router.post('/op', async (req: Request, res: Response) => {
           tableData[i] = newRow;
           updated.push(newRow);
           smartBroadcast(table, newRow, { type: 'change', table, event: 'UPDATE', newRow, oldRow });
-          dbPersistRow(table, newRow).catch(console.error);
+          dbPersistRow(table, newRow).catch(e => logger.error({ err: e }, '[db] background task error'));
           // chat_reads 갱신 시 해당 유저 unread 캐시 즉시 무효화
           if (table === 'chat_reads' && newRow.reader_id) {
             unreadCountsCache.delete(String(newRow.reader_id));
@@ -1922,7 +1922,7 @@ router.post('/op', async (req: Request, res: Response) => {
           tableData[idx] = newRow;
           upserted.push(newRow);
           smartBroadcast(table, newRow, { type: 'change', table, event: 'UPDATE', newRow, oldRow });
-          dbPersistRow(table, newRow).catch(console.error);
+          dbPersistRow(table, newRow).catch(e => logger.error({ err: e }, '[db] background task error'));
           // chat_reads 갱신 시 해당 유저 unread 캐시 즉시 무효화
           if (table === 'chat_reads' && newRow.reader_id) {
             unreadCountsCache.delete(String(newRow.reader_id));
@@ -1937,7 +1937,7 @@ router.post('/op', async (req: Request, res: Response) => {
           _idxById?.set(base.id, tableData.length - 1); // Map 갱신 (배치 내 후속 항목 O(1) 조회)
           upserted.push(base);
           smartBroadcast(table, base, { type: 'change', table, event: 'INSERT', newRow: base, oldRow: null });
-          dbPersistRow(table, base).catch(console.error);
+          dbPersistRow(table, base).catch(e => logger.error({ err: e }, '[db] background task error'));
           if (table === 'chat_reads' && base.reader_id) {
             unreadCountsCache.delete(String(base.reader_id));
           }
@@ -1995,13 +1995,13 @@ router.post('/op', async (req: Request, res: Response) => {
       for (const row of toDelete) {
         smartBroadcast(table, row, { type: 'change', table, event: 'DELETE', newRow: null, oldRow: row });
       }
-      if (deleteIds.length > 0) dbDeleteRows(table, deleteIds).catch(console.error);
+      if (deleteIds.length > 0) dbDeleteRows(table, deleteIds).catch(e => logger.error({ err: e }, '[db] background task error'));
       return res.json({ data: null, error: null });
     }
 
     return res.json({ data: null, error: { message: 'Unknown operation' } });
   } catch (e) {
-    console.error('[db/op]', e);
+    logger.error({ err: e }, '[db/op] Unexpected error');
     // 내부 오류 문자열을 클라이언트에 직접 노출하지 않음 — 스키마·스택 정보 유출 방지
     return res.json({ data: null, error: { message: '서버 내부 오류가 발생했습니다. 잠시 후 다시 시도해주세요.' } });
   } finally {
@@ -2098,7 +2098,7 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         const updated = { ...current, ...sanitizedSettingsPayload, updated_at: new Date().toISOString() };
         store['app_settings'] = [updated];
         broadcastAll({ type: 'change', table: 'app_settings', event: 'UPDATE', newRow: updated, oldRow: current });
-        dbPersistRow('app_settings', updated).catch(console.error);
+        dbPersistRow('app_settings', updated).catch(e => logger.error({ err: e }, '[db] background task error'));
         return res.json({ data: null, error: null });
       }
 
@@ -2156,7 +2156,7 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         const updatedSettings = { ...currentSettings, ...filteredPayload, updated_at: new Date().toISOString() };
         store['app_settings'] = [updatedSettings];
         broadcastAll({ type: 'change', table: 'app_settings', event: 'UPDATE', newRow: updatedSettings, oldRow: currentSettings });
-        dbPersistRow('app_settings', updatedSettings).catch(console.error);
+        dbPersistRow('app_settings', updatedSettings).catch(e => logger.error({ err: e }, '[db] background task error'));
         return res.json({ data: null, error: null });
       }
 
@@ -2187,7 +2187,7 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
           } else {
             for (const row of old) broadcastAll({ type: 'change', table: t, event: 'DELETE', newRow: null, oldRow: row });
           }
-          dbDeleteTable(t).catch(console.error);
+          dbDeleteTable(t).catch(e => logger.error({ err: e }, '[db] background task error'));
         }
         return res.json({ data: null, error: null });
       }
@@ -2218,7 +2218,7 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
           profiles[idx] = newRow;
           // 민감 연락처 필드 제거 후 전체 브로드캐스트
           broadcastAll({ type: 'change', table: 'profiles', event: 'UPDATE', newRow: sanitizeProfile(newRow), oldRow: sanitizeProfile(oldRow) });
-          dbPersistRow('profiles', newRow).catch(console.error);
+          dbPersistRow('profiles', newRow).catch(e => logger.error({ err: e }, '[db] background task error'));
         }
         return res.json({ data: null, error: null });
       }
@@ -2232,7 +2232,7 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         if (oldProfile) {
           // 민감 연락처 필드 제거 후 전체 브로드캐스트
           broadcastAll({ type: 'change', table: 'profiles', event: 'DELETE', newRow: null, oldRow: sanitizeProfile(oldProfile) });
-          dbDeleteRow('profiles', profileId).catch(console.error);
+          dbDeleteRow('profiles', profileId).catch(e => logger.error({ err: e }, '[db] background task error'));
         }
         return res.json({ data: null, error: null });
       }
@@ -2272,7 +2272,7 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
           const idx = (store['heart_balances'] as Record<string, unknown>[]).findIndex(b => b.id === userId);
           if (idx >= 0) (store['heart_balances'] as Record<string, unknown>[])[idx] = newRow;
           else (store['heart_balances'] as Record<string, unknown>[]).push(newRow);
-          resetPersists.push(dbPersistRow('heart_balances', newRow).catch(console.error));
+          resetPersists.push(dbPersistRow('heart_balances', newRow).catch(e => logger.error({ err: e }, '[db] background task error')));
           _smartBroadcastLocal('heart_balances', newRow, {
             type: 'change', table: 'heart_balances', event: 'UPDATE', newRow, oldRow: {},
           });
@@ -2422,7 +2422,7 @@ router.post('/storage-upload', async (req: Request, res: Response) => {
     }
   }
   imageStore[imgPath] = dataUrl;
-  dbPersistImage(imgPath, dataUrl).catch(console.error);
+  dbPersistImage(imgPath, dataUrl).catch(e => logger.error({ err: e }, '[db] background task error'));
   return res.json({ data: { path: imgPath }, error: null });
   } catch (e) {
     logger.error({ err: e }, '[storage-upload] Unexpected error');
@@ -2483,11 +2483,11 @@ router.post('/admin/clear-db-errors', async (req: Request, res: Response) => {
       `DELETE FROM app_kv_rows WHERE table_name = 'db_error_log' AND row_id = 'counter'`,
     );
   } catch (e) {
-    console.error('[db] Failed to clear error state from DB:', e);
+    logger.error({ err: e }, '[db] Failed to clear error state from DB');
     return res.status(500).json({ ok: false, error: String(e) });
   }
 
-  console.info('[db] DB persist error counter cleared by admin');
+  logger.info({}, '[db] DB persist error counter cleared by admin');
   // #38: 관리자 에러 초기화 감사 로그 — DB에 영구 기록
   try {
     await pool.query(
@@ -2500,7 +2500,7 @@ router.post('/admin/clear-db-errors', async (req: Request, res: Response) => {
       ],
     );
   } catch (auditErr) {
-    console.warn('[db] 감사 로그 저장 실패 (non-critical):', auditErr);
+    logger.warn({ err: auditErr }, '[db] 감사 로그 저장 실패 (non-critical)');
   }
   return res.json({ ok: true });
   } catch (e) {
@@ -2667,7 +2667,7 @@ router.get('/unread-counts', (req: Request, res: Response) => {
     unreadCountsCache.set(userId, { ts: Date.now(), data: counts });
     return res.json({ data: counts, error: null });
   } catch (e) {
-    console.error('[unread-counts]', e);
+    logger.error({ err: e }, '[unread-counts] Unexpected error');
     return res.status(500).json({ data: null, error: { message: '안읽은 메시지 수 조회 중 오류가 발생했습니다.' } });
   }
 });
@@ -2776,7 +2776,7 @@ router.post('/push/subscribe', (req: Request, res: Response) => {
   // SSE 토큰 검증 — 실제 userId 소유자만 구독 등록 가능
   const sseToken = req.headers['x-sse-token'] as string | undefined;
   if (!sseToken || !verifySseToken(userId, sseToken)) {
-    console.warn(`[push/subscribe] Invalid or missing SSE token for userId=${userId} ip=${req.ip}`);
+    logger.warn({ userId, ip: req.ip }, '[push/subscribe] Invalid or missing SSE token — 침입 탐지');
     return res.status(401).json({ error: 'Unauthorized: invalid SSE token' });
   }
   const subs = getTable('push_subscriptions');
@@ -2784,7 +2784,7 @@ router.post('/push/subscribe', (req: Request, res: Response) => {
   if (idx >= 0) {
     const updated = { ...subs[idx], auth: subscription.keys!.auth, p256dh: subscription.keys!.p256dh, updated_at: ts() };
     subs[idx] = updated;
-    dbPersistRow('push_subscriptions', updated).catch(console.error);
+    dbPersistRow('push_subscriptions', updated).catch(e => logger.error({ err: e }, '[db] background task error'));
   } else {
     // 사용자당 최대 5개 구독 — 초과 시 가장 오래된 것 제거 (슬라이딩 윈도우)
     const USER_MAX_PUSH_SUBS = 5;
@@ -2805,7 +2805,7 @@ router.post('/push/subscribe', (req: Request, res: Response) => {
       created_at: ts(),
     };
     subs.push(newSub);
-    dbPersistRow('push_subscriptions', newSub).catch(console.error);
+    dbPersistRow('push_subscriptions', newSub).catch(e => logger.error({ err: e }, '[db] background task error'));
   }
   return res.json({ ok: true });
   } catch (e) {
@@ -2853,7 +2853,7 @@ router.post('/push/notify', async (req: Request, res: Response): Promise<void> =
   const expired = pushResults.filter(r => !r.ok).map(r => r.id);
   if (expired.length) {
     store['push_subscriptions'] = (store['push_subscriptions'] ?? []).filter(s => !expired.includes(s.id as string));
-    dbDeleteRows('push_subscriptions', expired).catch(console.error);
+    dbDeleteRows('push_subscriptions', expired).catch(e => logger.error({ err: e }, '[db] background task error'));
   }
   res.json({ ok: true, sent: subs.length - expired.length });
   } catch (e) {
@@ -2950,8 +2950,8 @@ router.post('/auth/login', (req: Request, res: Response) => {
     // (기존 사용자 마이그레이션: 프로필은 존재하지만 device_secret이 없는 경우)
     const newDs = { id: userId, user_id: userId, secret_hash: submittedHash };
     deviceSecrets.push(newDs);
-    dbPersistRow('device_secrets', newDs).catch(console.error);
-    console.info(`[auth] first-claim device registered for userId=${userId}`);
+    dbPersistRow('device_secrets', newDs).catch(e => logger.error({ err: e }, '[db] background task error'));
+    logger.info({ userId }, '[auth] first-claim device registered');
     req.session.userId = userId;
     return res.json({ ok: true });
   }
@@ -2968,13 +2968,13 @@ router.post('/auth/login', (req: Request, res: Response) => {
     // 이벤트 앱: 브라우저 초기화·기기 변경 허용 — 현재 기기로 재바인딩
     // 기존 행을 덮어쓰고 DB도 갱신 (id=userId → ON CONFLICT UPDATE)
     existing.secret_hash = submittedHash;
-    dbPersistRow('device_secrets', { id: userId, user_id: userId, secret_hash: submittedHash }).catch(console.error);
-    console.info(`[auth] device re-bound for userId=${userId} (new device or cleared storage)`);
+    dbPersistRow('device_secrets', { id: userId, user_id: userId, secret_hash: submittedHash }).catch(e => logger.error({ err: e }, '[db] background task error'));
+    logger.info({ userId }, '[auth] device re-bound (new device or cleared storage)');
   }
   req.session.userId = userId;
   return res.json({ ok: true });
   } catch (e) {
-    console.error('[auth/login]', e);
+    logger.error({ err: e }, '[auth/login] Unexpected error');
     return res.status(500).json({ error: '로그인 처리 중 오류가 발생했습니다.' });
   }
 });
@@ -3007,8 +3007,8 @@ router.get('/events', (req: Request, res: Response) => {
 
   // userId가 있으면 반드시 유효한 토큰 필요 — 없거나 만료/위조된 경우 거부
   if (userId && (!token || !verifySseToken(userId, token))) {
-    // #3: 침입 탐지용 서버 로그 — userId별 토큰 없는/위조된 SSE 접근 기록
-    console.warn(`[sse] 인증 실패: userId=${userId} hasToken=${!!token} ip=${req.ip} — 유효하지 않은 토큰으로 SSE 접근 시도`);
+    // Task #1/#3: 침입 탐지용 서버 로그 — pino logger로 구조화 (grep/alert 용이)
+    logger.warn({ userId, hasToken: !!token, ip: req.ip }, '[sse] 인증 실패: 유효하지 않은 토큰으로 SSE 접근 시도 — 침입 탐지');
     res.status(401).json({ error: 'Invalid or missing SSE token' });
     return;
   }
@@ -3039,8 +3039,11 @@ router.get('/events', (req: Request, res: Response) => {
   // 브라우저가 즉시 EventSource.onerror를 받고 재연결을 시작하도록 강제
   // (TCP keep-alive만으로는 프록시/방화벽이 silent-drop 시 수십 분 좀비가 될 수 있음)
   const SOCKET_TIMEOUT_MS = 35_000; // 5s ping × 7 = 35s
+  // Task #153: cleanupConn이 아래에서 선언되므로 forward reference로 호출
+  let _cleanupConnRef: () => void = () => {};
   req.socket.setTimeout(SOCKET_TIMEOUT_MS);
   req.socket.once('timeout', () => {
+    _cleanupConnRef(); // sseUserMap/카운터/keepalive 정리 — 좀비 엔트리 방지
     try { req.socket.destroy(); } catch { /* ignore */ }
   });
 
@@ -3071,6 +3074,8 @@ router.get('/events', (req: Request, res: Response) => {
       res.status(429).end();
       return;
     }
+    // Task #1: userId 없는 익명 SSE — 앱 정상 경로에서는 발생하지 않으므로 의심 접근 기록
+    logger.debug({ ip: req.ip, anonCount: sseAnonClients.size }, '[sse] 익명 SSE 연결 (userId 없음) — 앱 외부 접근 의심');
     sseAnonClients.add(res);
   }
 
@@ -3125,6 +3130,8 @@ router.get('/events', (req: Request, res: Response) => {
     }
     // Per-IP connection count 해제: _sseCleanup fn으로 통합 — _undoSseConnCount() 중복 호출 방지
   };
+  // Task #153: socket timeout forward reference 완성 — timeout 시 cleanupConn 정상 호출
+  _cleanupConnRef = cleanupConn;
   req.on('close', cleanupConn);
   req.on('aborted', cleanupConn); // Node.js HTTP/1.1 강제 종료 대비
 

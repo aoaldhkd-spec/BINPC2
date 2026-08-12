@@ -606,10 +606,13 @@ export function useChat({
   //   지수 백오프(1s → 2s → 4s)로 최대 3회 재시도. 모두 실패 시에만 롤백.
   //   client_id(UUID)를 재시도에도 동일하게 유지 → DB ON CONFLICT 로 idempotent.
   //   응답 분실(first attempt 성공+응답 누락) 시: insert error + client_id 재조회로 복구.
+  const MAX_MSG_LEN = 1000; // 메시지 최대 길이 (서버·UI 공통 기준)
+
   const sendMessage = useCallback(async (content: string): Promise<void> => {
     const snapChatId = chatIdRef.current;
     const snapUserId = currentUserIdRef.current;
     if (!snapChatId || !snapUserId || !content.trim()) return;
+    if (content.trim().length > MAX_MSG_LEN) return;
     if (sendingChatIdsRef.current.has(snapChatId)) return;
     sendingChatIdsRef.current.add(snapChatId);
 

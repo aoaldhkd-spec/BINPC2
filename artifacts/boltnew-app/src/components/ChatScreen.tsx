@@ -1454,8 +1454,9 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
           <textarea
             ref={inputRef}
             value={input}
-            onChange={(e) => { setInput(e.target.value); onInputChange?.(e.target.value); autoResizeTextarea(); }}
+            onChange={(e) => { if (e.target.value.length <= 1000) { setInput(e.target.value); onInputChange?.(e.target.value); autoResizeTextarea(); } }}
             onInput={autoResizeTextarea}
+            maxLength={1000}
             placeholder={uploading ? '업로드 중...' : replyTo ? '답장 입력...' : '메시지를 입력하세요...'}
             disabled={uploading}
             rows={1}
