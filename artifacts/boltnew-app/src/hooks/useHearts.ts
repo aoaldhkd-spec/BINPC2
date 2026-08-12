@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Profile, ContactShare } from '../types/app';
 import { HeartType } from '../lib/constants';
@@ -26,11 +26,34 @@ export function useHearts(
   const heartResponseInFlightRef = useRef<string | null>(null);
   // 하트 전송 실패 메시지 — 호출 측에서 BottomNotif 등으로 표시
   const [likeError, setLikeError] = useState<string | null>(null);
+  // 세대 카운터 — 계정 전환 중 in-flight 응답이 새 사용자 state를 덮어쓰는 race 방지
+  const loadLikesGenRef = useRef(0);
+  const loadReceivedLikesGenRef = useRef(0);
 
-  // ✅ try/catch 추가 — 네트워크 오류 시 stale state 유지 (기존 UI 보존)
+  // 계정 전환(또는 로그아웃) 시 즉시 이전 사용자 하트 state를 초기화하고
+  // 세대 카운터를 올려 in-flight 요청이 새 사용자 state를 덮어쓰지 못하게 한다.
+  useEffect(() => {
+    loadLikesGenRef.current += 1;
+    loadReceivedLikesGenRef.current += 1;
+    setLikedIds(new Set());
+    setSentHeartTypes(new Map());
+    setSentHeartsPerPerson(new Map());
+    setLikeStatuses(new Map());
+    setReceivedHeartTypes(new Map());
+    setReceivedLikers([]);
+    setAcknowledgedComplimentIds(new Set());
+    setContactSharedWithIds(new Set());
+    setReceivedContactShares([]);
+    setLikeConfirmTarget(null);
+    setContactShareTarget(null);
+  }, [currentUserId]);
+
+  // ✅ try/catch + 세대 카운터 — 계정 전환 중 in-flight 응답이 새 사용자 state를 덮어쓰는 race 방지
   const loadLikes = useCallback(async (userId: string) => {
+    const gen = ++loadLikesGenRef.current;
     try {
       const { data, error } = await supabase.from('likes').select('liked_id, status, heart_type').eq('liker_id', userId);
+      if (gen !== loadLikesGenRef.current) return; // 계정이 바뀐 경우 stale 응답 폐기
       if (error) { console.warn('[useHearts] loadLikes error', error.message); return; }
       if (data) {
         setLikedIds(new Set(data.map((l: { liked_id: string }) => l.liked_id)));
@@ -47,16 +70,19 @@ export function useHearts(
     } catch { /* 네트워크 오류 — stale state 유지 */ }
   }, []);
 
-  // ✅ try/catch 추가
+  // ✅ try/catch + 세대 카운터 — 계정 전환 중 in-flight 응답이 새 사용자 state를 덮어쓰는 race 방지
   const loadReceivedLikes = useCallback(async (userId: string) => {
+    const gen = ++loadReceivedLikesGenRef.current;
     try {
       const { data } = await supabase.from('likes').select('liker_id, status, heart_type').eq('liked_id', userId);
+      if (gen !== loadReceivedLikesGenRef.current) return; // 계정이 바뀐 경우 stale 응답 폐기
       if (!data?.length) { setReceivedLikers([]); setReceivedHeartTypes(new Map()); setAcknowledgedComplimentIds(new Set()); return; }
       setReceivedHeartTypes(new Map(data.map((l: { liker_id: string; heart_type: string | null }) => [l.liker_id, (l.heart_type ?? 'red') as HeartType])));
       setAcknowledgedComplimentIds(new Set(data.filter((l: { liker_id: string; status: string; heart_type: string | null }) => l.status === 'accepted' && (l.heart_type ?? 'red') === 'green').map((l: { liker_id: string }) => l.liker_id)));
       const activeLikerIds = data.filter((l: { liker_id: string; status: string }) => l.status !== 'rejected').map((l: { liker_id: string }) => l.liker_id);
       if (!activeLikerIds.length) { setReceivedLikers([]); return; }
       const { data: ps } = await supabase.from('profiles').select('*').in('id', activeLikerIds);
+      if (gen !== loadReceivedLikesGenRef.current) return; // 두 번째 await 후에도 재확인
       if (ps) setReceivedLikers(ps);
     } catch { /* 네트워크 오류 — stale state 유지 */ }
   }, []);
