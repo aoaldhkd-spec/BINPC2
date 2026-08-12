@@ -194,13 +194,22 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
           )}
         </p>
 
-        <button
-          onClick={() => setShowConsentModal(true)}
-          disabled={!isActive}
-          className="w-full py-3.5 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 disabled:from-slate-700 disabled:to-slate-600 disabled:cursor-not-allowed text-white font-black text-base rounded-2xl shadow-2xl shadow-teal-500/30 transition-all active:scale-98 disabled:active:scale-100 mb-2"
-        >{isActive ? '입장하기' : '⏳ 회의 시작 전입니다'}</button>
+        {/* 피라미드형 버튼 그룹 */}
+        <div className="w-full flex flex-col items-center gap-2 mb-2">
+          {/* 1단: 입장하기 — 가장 넓고 크게 */}
+          <button
+            onClick={() => setShowConsentModal(true)}
+            disabled={!isActive}
+            className="w-full py-4 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 disabled:from-slate-700 disabled:to-slate-600 disabled:cursor-not-allowed text-white font-black text-lg rounded-2xl shadow-2xl shadow-teal-500/30 transition-all active:scale-98 disabled:active:scale-100"
+          >{isActive ? '입장하기' : '⏳ 회의 시작 전입니다'}</button>
+          {/* 2단: 프로필 복구 — 좁고 작게 */}
+          <button
+            onClick={() => { setShowPinRecovery(true); setPinDigits(['','','','']); setPinError(''); setPinStep('pin'); }}
+            className="w-4/5 py-3 bg-gradient-to-r from-orange-400 to-rose-500 hover:from-orange-300 hover:to-rose-400 text-white font-black text-sm rounded-2xl shadow-lg shadow-orange-500/25 transition-all active:scale-98"
+          >🔑 고유번호로 프로필 복구</button>
+        </div>
 
-        {/* 이미 프로필이 있는 유저 안내 배너 */}
+        {/* 이미 프로필이 있는 유저 안내 배너 — 복구 버튼 아래 */}
         <div className="w-full rounded-2xl bg-amber-500/15 border border-amber-400/30 px-4 py-3 mb-2">
           <div className="flex items-start gap-2.5">
             <span className="text-lg leading-none mt-0.5 flex-shrink-0">⚠️</span>
@@ -213,11 +222,6 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
             </div>
           </div>
         </div>
-        {/* 고유번호 복구 */}
-        <button
-          onClick={() => { setShowPinRecovery(true); setPinDigits(['','','','']); setPinError(''); setPinStep('pin'); }}
-          className="w-full py-3.5 bg-gradient-to-r from-orange-400 to-rose-500 hover:from-orange-300 hover:to-rose-400 text-white font-black text-sm rounded-2xl shadow-lg shadow-orange-500/25 transition-all active:scale-98 mb-2"
-        >🔑 고유번호로 프로필 복구</button>
 
         {/* 입장 전 체크 — 2×2 그리드 */}
         <div className="w-full rounded-2xl bg-amber-500/10 border border-amber-400/25 overflow-hidden">
