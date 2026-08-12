@@ -650,7 +650,7 @@ function startHeartDrainLoop(): void {
 // 하나도 보내지 않은 유저의 하트를 drainCount만큼 차감한다 (기본: 전부 회수).
 // admin_drain_unused_hearts RPC와 10분 타이머 양쪽에서 호출.
 // drainCount=-1 이면 잔여 하트 전부 회수 (0으로 만들기)
-async function drainUnusedHearts(drainCount: number = -1): Promise<{ userId: string; nickname: string; count: number; remaining: number }[]> {
+async function drainUnusedHearts(drainCount: number = -1, heartType?: string): Promise<{ userId: string; nickname: string; count: number; remaining: number }[]> {
   const profiles = getTable('profiles');
   const likes    = getTable('likes');
   if (!store['heart_balances']) store['heart_balances'] = [];
@@ -658,9 +658,13 @@ async function drainUnusedHearts(drainCount: number = -1): Promise<{ userId: str
   const settings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
   const initialCount = Math.max(1, Number(settings.heart_initial_count ?? 8));
 
-  // 하나라도 하트를 보낸 유저 Set
+  // 해당 목적(heartType)으로 하트를 보낸 유저 Set
+  // heartType이 없으면 어떤 하트든 보낸 유저 전체
   const sentLikeUsers = new Set(
-    (likes as Record<string, unknown>[]).map(l => l.liker_id as string).filter(Boolean),
+    (likes as Record<string, unknown>[])
+      .filter(l => !heartType || l.heart_type === heartType)
+      .map(l => l.liker_id as string)
+      .filter(Boolean),
   );
 
   const nowIso = new Date().toISOString();
@@ -2242,12 +2246,16 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
       case 'admin_drain_unused_hearts': {
         // 하나도 안 쓴 유저의 하트를 drainCount만큼 차감 — 영향 받은 유저 목록 반환
         // p_drain_count: -1(기본)=전부회수, 1~8=해당 개수만 차감
+        // p_heart_type: 'red'|'blue'|'pink'|'green' (없으면 전체 하트 기준)
         checkPassword();
         const rawDrainCount = body.p_drain_count as number | undefined;
         const drainCount = (rawDrainCount != null && Number.isFinite(rawDrainCount))
           ? Math.round(rawDrainCount)
           : -1; // 기본: 전부 회수
-        const drainResult = await drainUnusedHearts(drainCount);
+        const rawHeartType = body.p_heart_type as string | undefined;
+        const heartType = (['red', 'blue', 'pink', 'green'] as const).includes(rawHeartType as never)
+          ? rawHeartType : undefined;
+        const drainResult = await drainUnusedHearts(drainCount, heartType);
         logger.info({ affected: drainResult.length, drainCount }, '[rpc] admin_drain_unused_hearts');
         return res.json({ data: { drained: drainResult }, error: null });
       }

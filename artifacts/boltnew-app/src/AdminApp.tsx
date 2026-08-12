@@ -1111,7 +1111,7 @@ function DashboardTab({ settings, profiles, onToggleSession, onEventEndReset, on
   onClearProfiles: () => Promise<void>;
   onClearHistory: () => Promise<void>;
   restoreMap: Map<string, () => Promise<void>>;
-  onDrainUnusedHearts: (drainCount: number) => Promise<{ nickname: string; count: number; remaining: number }[]>;
+  onDrainUnusedHearts: (drainCount: number, heartType: 'all' | 'red' | 'blue' | 'pink' | 'green') => Promise<{ nickname: string; count: number; remaining: number }[]>;
 }) {
   const [confirmToggle, setConfirmToggle] = useState(false);
   const [confirmEventEnd, setConfirmEventEnd] = useState(false);
@@ -1120,6 +1120,7 @@ function DashboardTab({ settings, profiles, onToggleSession, onEventEndReset, on
   const [draining, setDraining] = useState(false);
   // -1 = 전부 회수, 1~8 = 선택한 개수만 차감
   const [drainCount, setDrainCount] = useState<number>(-1);
+  const [drainHeartType, setDrainHeartType] = useState<'all' | 'red' | 'blue' | 'pink' | 'green'>('all');
   const isActive = settings?.session_active ?? false;
   const isFunctionsLocked = (settings as any)?.functions_locked ?? false;
 
@@ -1247,6 +1248,34 @@ function DashboardTab({ settings, profiles, onToggleSession, onEventEndReset, on
             />
           </div>
 
+          {/* 미사용 하트 회수 — 목적 하트 선택 */}
+          <div>
+            <label className="text-[10px] font-black text-yellow-700 block mb-1">
+              차감 목적 <span className="font-normal text-yellow-500">(선택한 하트를 안 쓴 사람에게만 적용)</span>
+            </label>
+            <div className="flex gap-1.5 flex-wrap mb-2">
+              {([
+                { type: 'all',   emoji: '🔘', label: '전체' },
+                { type: 'red',   emoji: '❤️', label: '맘에 드는' },
+                { type: 'blue',  emoji: '💙', label: '친구' },
+                { type: 'pink',  emoji: '💗', label: '뜨밤' },
+                { type: 'green', emoji: '💚', label: '칭찬' },
+              ] as const).map(h => (
+                <button
+                  key={h.type}
+                  onClick={() => setDrainHeartType(h.type)}
+                  className={`rounded-lg px-2.5 py-1 text-[11px] font-black border transition-all flex items-center gap-1 ${
+                    drainHeartType === h.type
+                      ? 'bg-yellow-500 text-white border-yellow-600 shadow-sm'
+                      : 'bg-white text-yellow-700 border-yellow-300 hover:bg-yellow-50'
+                  }`}
+                >
+                  <span>{h.emoji}</span><span>{h.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* 미사용 하트 회수 — 차감 개수 선택 */}
           <div>
             <label className="text-[10px] font-black text-yellow-700 block mb-1">
@@ -1274,13 +1303,13 @@ function DashboardTab({ settings, profiles, onToggleSession, onEventEndReset, on
               setDraining(true);
               setDrainResult(null);
               try {
-                const result = await onDrainUnusedHearts(drainCount);
+                const result = await onDrainUnusedHearts(drainCount, drainHeartType);
                 setDrainResult(result);
               } finally { setDraining(false); }
             }}
             className="w-full rounded-xl py-2 px-3 bg-yellow-500 hover:bg-yellow-600 text-white text-xs font-black active:scale-95 transition-all shadow-sm disabled:opacity-50"
           >
-            {draining ? '회수 중…' : `💸 미사용 하트 회수${drainCount === -1 ? ' (전부)' : ` (${drainCount}개)`}`}
+            {draining ? '회수 중…' : `💸 미사용 하트 회수${drainCount === -1 ? ' (전부)' : ` (${drainCount}개)`}${drainHeartType !== 'all' ? ` — ${drainHeartType === 'red' ? '❤️' : drainHeartType === 'blue' ? '💙' : drainHeartType === 'pink' ? '💗' : '💚'}만` : ''}`}
           </button>
 
           {/* 회수 결과 */}
@@ -2589,7 +2618,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       .catch(e => console.warn('[admin] api-server 기능잠금 동기화 실패:', e));
   };
 
-  const handleDrainUnusedHearts = async (drainCount: number): Promise<{ nickname: string; count: number; remaining: number }[]> => {
+  const handleDrainUnusedHearts = async (drainCount: number, heartType: 'all' | 'red' | 'blue' | 'pink' | 'green' = 'all'): Promise<{ nickname: string; count: number; remaining: number }[]> => {
     if (!settings) return [];
     try {
       const token = localStorage.getItem(ADMIN_TOKEN_KEY) ?? '';
@@ -2599,7 +2628,8 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         body: JSON.stringify({
           p_admin_password: settings.admin_password ?? '',
           adminToken: token,
-          p_drain_count: drainCount, // -1=전부, 1~8=개수
+          p_drain_count: drainCount,
+          ...(heartType !== 'all' && { p_heart_type: heartType }),
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);

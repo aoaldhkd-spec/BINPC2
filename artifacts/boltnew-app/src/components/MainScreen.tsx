@@ -880,6 +880,8 @@ export function MainScreen({
   groupChats = [], unreadGroupCounts = {}, newGroupMsgCount: _newGroupMsgCount = 0, onClearGroupMsgCount: _onClearGroupMsgCount, onOpenGroupChat,
   blockedUserIds = new Set<string>(), hiddenByIds = new Set<string>(),
   profileVisitors = [] as ProfileView[],
+  newVisitCount = 0,
+  onClearVisitCount,
   onBlock,
   myBlockList = [] as import('../types/app').BlockedUser[],
   onUnblock,
@@ -933,6 +935,8 @@ export function MainScreen({
   blockedUserIds?: Set<string>;
   hiddenByIds?: Set<string>;
   profileVisitors?: ProfileView[];
+  newVisitCount?: number;
+  onClearVisitCount?: () => void;
   onBlock?: (targetId: string, type: 'block' | 'hide') => void;
   myBlockList?: import('../types/app').BlockedUser[];
   onUnblock?: (blockId: string) => void;
@@ -1043,6 +1047,9 @@ export function MainScreen({
 
   const newContactsCount = Math.max(0, receivedContactShares.length - seenContactsCount);
 
+  // 방문자 알림 ON/OFF 설정 (localStorage)
+  const [visitorNotif, setVisitorNotif] = useState(() => localStorage.getItem('visitor_notification') !== '0');
+
   // On initial data load, set baseline seen counts so pre-existing data doesn't show as unread.
   // 조건: localStorage에 이전 값이 없을 때만 baseline 설정 (seen>0이면 이미 올바른 값이 있는 것)
   const baselineSetRef = useRef(false);
@@ -1075,6 +1082,7 @@ export function MainScreen({
     if (mainTab === 'status') {
       setSeenContactsCount(receivedContactShares.length);
       setSeenHeartsCount(pendingHeartsCount);
+      onClearVisitCount?.();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mainTab, receivedContactShares.length, pendingHeartsCount]);
@@ -1111,7 +1119,7 @@ export function MainScreen({
 
   const handleTabChange = (t: MainTab) => {
     if (functionsLocked && LOCKED_TABS.has(t)) return; // 기능 잠금 중 → 탭 이동 차단
-    if (t === 'status') { setSeenHeartsCount(pendingHeartsCount); setSeenContactsCount(receivedContactShares.length); }
+    if (t === 'status') { setSeenHeartsCount(pendingHeartsCount); setSeenContactsCount(receivedContactShares.length); onClearVisitCount?.(); }
     if (t === 'profiles') setSeenProfilesCount(profiles.length);
     if (t === 'chats') { onClearMsgCount(); }
     onTabChange(t);
@@ -2576,6 +2584,33 @@ export function MainScreen({
                     );
                   })()}
 
+                  {/* ── 방문자 알림 ── */}
+                  <div className={`border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
+                    <div className="flex items-center justify-between px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl flex-shrink-0">👁</span>
+                        <div>
+                          <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>방문자 알림</p>
+                          <p className={`text-[10px] ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
+                            {visitorNotif ? '🔔 누군가 내 프로필을 보면 MY에 표시' : '🔕 방문 알림 끔'}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const next = !visitorNotif;
+                          setVisitorNotif(next);
+                          localStorage.setItem('visitor_notification', next ? '1' : '0');
+                          if (!next) onClearVisitCount?.();
+                        }}
+                        className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none ${visitorNotif ? 'bg-teal-500' : (darkMode ? 'bg-slate-600' : 'bg-gray-300')}`}
+                        aria-label="방문자 알림 토글"
+                      >
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ${visitorNotif ? 'translate-x-6' : 'translate-x-1'}`} />
+                      </button>
+                    </div>
+                  </div>
+
                   {/* ── 차단·숨기기 ── */}
                   <div className={`border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
                     <button onClick={() => toggleSection('blocklist')} className="w-full flex items-center gap-3 px-4 py-3 text-left">
@@ -3074,7 +3109,7 @@ export function MainScreen({
       {/* ── MY 버튼 (우하단 고정 원형) + 팝업 ── */}
       {(() => {
         const myTabActive = mainTab === 'status' || mainTab === 'chats' || mainTab === 'fortune' || mainTab === 'settings';
-        const heartsBadge = Math.max(0, pendingHeartsCount - seenHeartsCount) + newContactsCount;
+        const heartsBadge = Math.max(0, pendingHeartsCount - seenHeartsCount) + newContactsCount + newVisitCount;
         const myBadgeTotal = heartsBadge + newMsgCount;
 
         const MY_ITEMS: Array<{ id: MainTab; icon: string; label: string; badge?: number }> = [

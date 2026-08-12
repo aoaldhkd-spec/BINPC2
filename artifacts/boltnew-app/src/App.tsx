@@ -254,6 +254,7 @@ function App() {
   }, []);
   const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
   const [profileVisitors, setProfileVisitors] = useState<ProfileView[]>([]);
+  const [newVisitCount, setNewVisitCount] = useState(0);
   const [userSignals, setUserSignals] = useState<UserSignal[]>([]);
   const [heartDrainEnabled, setHeartDrainEnabled] = useState(false);
   const [myHeartCount, setMyHeartCount] = useState<number | null>(null);
@@ -907,6 +908,9 @@ function App() {
             const v = payload.new as ProfileView;
             if (v.viewed_id === uid) {
               setProfileVisitors(prev => prev.some(x => x.id === v.id) ? prev : [...prev, v]);
+              if (localStorage.getItem('visitor_notification') !== '0') {
+                setNewVisitCount(prev => prev + 1);
+              }
             }
           } catch (e) { console.warn('[profile_views SSE]', e); }
         })
@@ -1488,6 +1492,8 @@ function App() {
           return s;
         })()}
         profileVisitors={profileVisitors}
+        newVisitCount={newVisitCount}
+        onClearVisitCount={() => setNewVisitCount(0)}
         onBlock={handleBlock}
         myBlockList={blockedUsers.filter(b => b.user_id === currentUserId)}
         onUnblock={handleUnblock}
