@@ -1539,8 +1539,8 @@ export function MainScreen({
 
                   {/* ── 사진(왼쪽) + 박스(오른쪽) — 상단 정렬 ── */}
                   <div className="flex gap-3 items-start">
-                    {/* 사진 */}
-                    <div className="flex-shrink-0 flex flex-col items-center gap-1">
+                    {/* 사진 — MBTI 레이블 높이(약 17px)만큼 내려서 박스 상단과 정렬 */}
+                    <div className="flex-shrink-0 flex flex-col items-center gap-1 pt-[17px]">
                       <div className="relative w-32 h-32">
                         <label className={`block w-full h-full rounded-2xl overflow-hidden border-2 border-cyan-500/50 shadow-lg shadow-cyan-500/20 cursor-pointer group ${photoUploading ? 'cursor-wait' : ''}`}>
                           <img src={getAvatarSrc(me.photo_url, me.nickname)} alt={me.nickname} className="w-full h-full object-cover"
