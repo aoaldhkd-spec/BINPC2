@@ -1572,7 +1572,7 @@ export function MainScreen({
                     {/* 오른쪽: 2×2 박스 */}
                     <div className="flex-1 min-w-0 flex flex-col">
                       {/* 2×2 정보 박스 — 레이블 외부 상단, 폰트 통일 */}
-                      <div className="grid grid-cols-2 gap-x-2 gap-y-1 ml-auto mt-1">
+                      <div className="grid grid-cols-2 gap-x-2 gap-y-1 ml-auto">
                         {/* MBTI */}
                         <div className="flex flex-col items-center gap-1">
                           <span className={`text-[10px] font-black tracking-wide ${darkMode ? 'text-white' : 'text-gray-800'}`}>MBTI</span>
