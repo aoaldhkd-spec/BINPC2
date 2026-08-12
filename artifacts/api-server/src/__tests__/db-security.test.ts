@@ -5,18 +5,39 @@
  * 自動テストとして固定する。
  *
  * テスト対象インバリアント:
- * 1. messages INSERT — requesterId なしは 403
- * 2. messages INSERT — sender_id が requesterId と不一致なら 403
- * 3. messages INSERT — chat_id なしは 400
- * 4. messages INSERT — 参加していない chat への INSERT は 403
- * 5. chats INSERT   — セルフチャット (u1===u2) は 400
- * 6. chats INSERT   — requesterId が参加者でなければ 403
- * 7. messages SELECT — requesterId なしは 403
- * 8. messages SELECT — chat_id フィルタなしは 403
- * 9. chats SELECT   — requesterId なしは 403
+ *  1. messages INSERT — requesterId なしは 403
+ *  2. messages INSERT — sender_id が requesterId と不一致なら 403
+ *  3. messages INSERT — chat_id なしは 400
+ *  4. messages INSERT — 参加していない chat への INSERT は 403
+ *  5. chats INSERT   — セルフチャット (u1===u2) は 400
+ *  6. chats INSERT   — requesterId が参加者でなければ 403
+ *  7. messages SELECT — requesterId なしは 403
+ *  8. messages SELECT — chat_id フィルタなしは 403
+ *  9. chats SELECT   — requesterId なしは 403
+ * 10. /unread-counts — token なしは 401
+ * 11. /unread-counts — 偽造 token は 401
+ * 12. /unread-counts — 他ユーザーの有効 token は 401 (IDOR ブロック)
+ * 13. /unread-counts — 自分の有効 token は 200
+ * 14. /auth/login    — deviceSecret 不一致時は再バインドせず 401
  */
 
 import { describe, it, expect, vi, beforeAll } from 'vitest';
+import { createHmac } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
+
+// SESSION_SECRET をアプリ import 前に設定 — SSE_TOKEN_SECRET の初期化に必要
+const TEST_SSE_SECRET = vi.hoisted(() => {
+  const secret = 'test-sse-secret-for-unit-tests';
+  process.env.SESSION_SECRET = secret;
+  return secret;
+});
+
+/** issueSseToken と同じロジックでテスト用トークンを生成 */
+function makeSseToken(userId: string, secret = TEST_SSE_SECRET, offsetSec = 0): string {
+  const exp = Math.floor(Date.now() / 1000) + 3600 + offsetSec;
+  const mac = createHmac('sha256', secret).update(`${userId}:${exp}`).digest('hex');
+  return `${exp}:${mac}`;
+}
 import request from 'supertest';
 
 // ── 必ずアプリ import より前に宣言 ────────────────────────────────────────────
@@ -227,5 +248,116 @@ describe('[Security] requesterId スプーフィング防止', () => {
       requesterId: 'user-a',
     });
     expect(res.status).toBe(400);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════════
+// /unread-counts IDOR ガード — SSE トークン認証
+// ════════════════════════════════════════════════════════════════════════════════
+
+describe('[Security] /unread-counts — SSE トークン IDOR ガード', () => {
+  it('token なしは 401', async () => {
+    const res = await request(app).get('/api/db/unread-counts?userId=user-a');
+    expect(res.status).toBe(401);
+    expect(res.body.error?.code).toBe('UNAUTHORIZED');
+  });
+
+  it('偽造 token (ランダム文字列) は 401', async () => {
+    const res = await request(app).get(
+      `/api/db/unread-counts?userId=user-a&token=${encodeURIComponent('9999999999:deadbeefdeadbeef')}`,
+    );
+    expect(res.status).toBe(401);
+    expect(res.body.error?.code).toBe('UNAUTHORIZED');
+  });
+
+  it('user-A の有効 token を user-B の userId に使うと 401 (IDOR ブロック)', async () => {
+    const userAId = 'user-a-' + randomUUID();
+    const userBId = 'user-b-' + randomUUID();
+    const tokenForA = makeSseToken(userAId);
+    // userB のデータを userA のトークンで取得しようとする → 弾かれる
+    const res = await request(app).get(
+      `/api/db/unread-counts?userId=${encodeURIComponent(userBId)}&token=${encodeURIComponent(tokenForA)}`,
+    );
+    expect(res.status).toBe(401);
+    expect(res.body.error?.code).toBe('UNAUTHORIZED');
+  });
+
+  it('自分の有効 token を使うと 200 (正常フロー)', async () => {
+    const userId = 'user-self-' + randomUUID();
+    const token = makeSseToken(userId);
+    const res = await request(app).get(
+      `/api/db/unread-counts?userId=${encodeURIComponent(userId)}&token=${encodeURIComponent(token)}`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.body.error).toBeNull();
+    // データは空オブジェクト (このユーザーのチャットは存在しない)
+    expect(res.body.data).toEqual({});
+  });
+
+  it('x-sse-token ヘッダー経由でも 200 (ヘッダー認証フロー)', async () => {
+    const userId = 'user-header-' + randomUUID();
+    const token = makeSseToken(userId);
+    const res = await request(app)
+      .get(`/api/db/unread-counts?userId=${encodeURIComponent(userId)}`)
+      .set('x-sse-token', token);
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({});
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════════
+// /auth/login — deviceSecret 不一致は再バインドせず 401
+// ════════════════════════════════════════════════════════════════════════════════
+
+describe('[Security] /auth/login — device secret 再バインド禁止', () => {
+  it('別の deviceSecret で既存アカウントにログインしようとすると 401', async () => {
+    const userId = randomUUID();
+
+    // 1. プロフィール作成 (store に挿入)
+    await op({
+      op: 'insert',
+      table: 'profiles',
+      payload: { id: userId, nickname: 'test-user' },
+    });
+
+    // 2. 最初の deviceSecret でログイン (first-claim → 成功)
+    const firstLogin = await request(app)
+      .post('/api/db/auth/login')
+      .set('Content-Type', 'application/json')
+      .send({ userId, deviceSecret: 'original-secret-aaa' });
+    expect(firstLogin.status).toBe(200);
+    expect(firstLogin.body.ok).toBe(true);
+
+    // 3. 別の deviceSecret で再ログイン → 再バインドせず 401
+    const attackerLogin = await request(app)
+      .post('/api/db/auth/login')
+      .set('Content-Type', 'application/json')
+      .send({ userId, deviceSecret: 'attacker-secret-bbb' });
+    expect(attackerLogin.status).toBe(401);
+    expect(attackerLogin.body.code).toBe('DEVICE_MISMATCH');
+  });
+
+  it('同じ deviceSecret での再ログインは 200 (正常フロー)', async () => {
+    const userId = randomUUID();
+
+    await op({
+      op: 'insert',
+      table: 'profiles',
+      payload: { id: userId, nickname: 'test-user-2' },
+    });
+
+    // first-claim
+    await request(app)
+      .post('/api/db/auth/login')
+      .set('Content-Type', 'application/json')
+      .send({ userId, deviceSecret: 'my-secret-xyz' });
+
+    // 同じ secret で再ログイン → 成功
+    const reLogin = await request(app)
+      .post('/api/db/auth/login')
+      .set('Content-Type', 'application/json')
+      .send({ userId, deviceSecret: 'my-secret-xyz' });
+    expect(reLogin.status).toBe(200);
+    expect(reLogin.body.ok).toBe(true);
   });
 });

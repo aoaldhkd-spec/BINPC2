@@ -2980,11 +2980,14 @@ router.post('/auth/login', (req: Request, res: Response) => {
   } catch { /* 해시 길이 불일치 → mismatch */ }
 
   if (!matched) {
-    // 이벤트 앱: 브라우저 초기화·기기 변경 허용 — 현재 기기로 재바인딩
-    // 기존 행을 덮어쓰고 DB도 갱신 (id=userId → ON CONFLICT UPDATE)
-    existing.secret_hash = submittedHash;
-    dbPersistRow('device_secrets', { id: userId, user_id: userId, secret_hash: submittedHash }).catch(e => logger.error({ err: e }, '[db] background task error'));
-    logger.info({ userId }, '[auth] device re-bound (new device or cleared storage)');
+    // 다른 기기의 deviceSecret으로 기존 계정을 탈취하는 공격 차단:
+    // 이미 등록된 계정은 재바인딩 없이 401 반환.
+    // 새 기기에서 같은 계정을 사용하려면 기존 기기의 localStorage 데이터가 필요함.
+    logger.warn({ userId, ip: req.ip }, '[auth] device secret mismatch — access denied (re-bind blocked)');
+    return res.status(401).json({
+      error: '이미 다른 기기에서 등록된 계정입니다. 기존 기기의 데이터가 필요합니다.',
+      code: 'DEVICE_MISMATCH',
+    });
   }
   req.session.userId = userId;
   return res.json({ ok: true });
