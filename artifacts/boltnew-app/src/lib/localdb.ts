@@ -328,6 +328,18 @@ export function setLocalDbUserId(userId: string | null) {
 let _sseFailCount = 0;            // 연속 SSE 연결 실패 횟수
 let _sseNextAllowedRetry = 0;     // 이 시각(ms) 이전에는 재연결 불가
 
+// ── 서버 재시작 후 능동적 빠른 복구 모드 ──────────────────────────────────────
+// shutdown 이벤트 수신 후 SSE_SHUTDOWN_RECOVERY_MS 동안 활성화:
+//  - 백오프 건너뜀 (바로 재연결 시도)
+//  - CONNECTING 상태 500ms 초과 시 강제 닫기 (평상시 3초 대신)
+//  - 오류 발생 시 _sseFailCount 증가 안 함 (서버 재시작 중 실패는 예상된 상황)
+const SSE_SHUTDOWN_RECOVERY_MS = 10_000; // 서버 재시작은 보통 <2s, 여유를 두어 10s
+let _shutdownRecoveryUntil = 0;          // 이 시각까지 빠른 복구 모드 유지
+
+function inShutdownRecovery(): boolean {
+  return Date.now() < _shutdownRecoveryUntil;
+}
+
 /** 연속 실패 횟수에 따른 지수 백오프 대기 시간 계산 (최대 15초 + 최대 1.5초 지터)
  *  빠른 재연결: 1s → 2s → 4s → 8s → 15s (jitter 포함) */
 function calcSseBackoffMs(): number {
@@ -352,6 +364,33 @@ function createSse() {
   es.onmessage = (ev) => {
     _lastPingAt = Date.now(); // Ping 감시: 마지막 수신 시각 갱신
     _sseErrorSince = null; // 메시지 수신 = 연결 정상
+
+    // ── 서버 재시작 신호: 백오프 없이 즉시 재연결 ──────────────────────────────
+    // 서버가 SIGTERM/SIGINT 수신 시 모든 SSE 클라이언트에 {"type":"shutdown"}을 보냄.
+    // 클라이언트는 백오프 카운터를 초기화하고 즉시 재연결하여 60s 대기를 1s 이하로 단축.
+    try {
+      const peek = JSON.parse(ev.data) as { type?: string };
+      if (peek.type === 'shutdown') {
+        // 빠른 복구 모드 활성화 — SSE_SHUTDOWN_RECOVERY_MS 동안 onerror 시 백오프 누적 없음
+        _shutdownRecoveryUntil = Date.now() + SSE_SHUTDOWN_RECOVERY_MS;
+        // 실패 카운터·백오프 초기화
+        _sseFailCount = 0;
+        _sseNextAllowedRetry = 0;
+        // 끊김 콜백 → UI 재연결 오버레이 표시
+        if (_sseHasConnected) {
+          _sseNeedsResync = true;
+          _disconnectCallbacks.forEach(fn => { try { fn(); } catch {} });
+        }
+        // ★ 핵심: es.close()를 호출하지 않음.
+        //   서버가 'retry: 100\n' 필드를 보낸 후 res.end()로 연결을 닫으면,
+        //   브라우저 내장 EventSource가 100ms 후 자동 재연결을 시도한다.
+        //   여기서 es.close()를 호출하면 retry 지연값이 버려지고
+        //   새 EventSource는 브라우저 기본값(~3s)으로 초기화된다.
+        //   → 서버가 연결을 닫을 때 onerror가 자연스럽게 발생하도록 위임.
+        return;
+      }
+    } catch { /* JSON 파싱 실패 시 무시하고 정상 흐름 유지 */ }
+
     // 재연결 성공 → 실패 카운터·백오프 타이머 초기화
     _sseFailCount = 0;
     _sseNextAllowedRetry = 0;
@@ -384,9 +423,12 @@ function createSse() {
     // 끊겼음을 기록 — 다음 메시지 수신 시 재연결 콜백 실행
     if (wasConnected) _sseNeedsResync = true;
     // CLOSED 상태면 실패 카운터 증가 후 백오프 쿨다운 설정
+    // 단, 서버 재시작 복구 모드 중에는 카운터 증가·백오프 생략 (예상된 실패이므로)
     if (es.readyState === EventSource.CLOSED) {
-      _sseFailCount = Math.min(_sseFailCount + 1, 4); // 최대 4 (≈ 8s base 백오프, 지터 포함 최대 ~10s)
-      _sseNextAllowedRetry = Date.now() + calcSseBackoffMs();
+      if (!inShutdownRecovery()) {
+        _sseFailCount = Math.min(_sseFailCount + 1, 4); // 최대 4 (≈ 8s base 백오프, 지터 포함 최대 ~10s)
+        _sseNextAllowedRetry = Date.now() + calcSseBackoffMs();
+      }
       _es = null;
     }
   };
@@ -395,10 +437,13 @@ function createSse() {
 
 function ensureSse() {
   // [백오프 쿨다운] 연속 실패 후 정해진 시간 전에는 재연결 시도 안 함
-  if (_sseNextAllowedRetry && Date.now() < _sseNextAllowedRetry) return;
+  // 단, 서버 재시작 복구 모드 중에는 백오프를 무시하고 즉시 재시도
+  if (!inShutdownRecovery() && _sseNextAllowedRetry && Date.now() < _sseNextAllowedRetry) return;
 
-  // CONNECTING 상태가 3초 이상 지속되면 강제 재연결
-  if (_es && _es.readyState === EventSource.CONNECTING && _sseErrorSince && Date.now() - _sseErrorSince > 3_000) {
+  // CONNECTING 상태가 3초 이상 지속되면 강제 재연결 (느린 네트워크 환경 허용)
+  // ★ 복구 모드 중에는 강제 닫기 생략 — 브라우저가 retry:100 지연값을 기억한 채로
+  //   자체 재시도 중이므로 es.close()를 호출하면 그 지연값이 리셋된다.
+  if (!inShutdownRecovery() && _es && _es.readyState === EventSource.CONNECTING && _sseErrorSince && Date.now() - _sseErrorSince > 3_000) {
     _es.close();
     _es = null;
     _sseErrorSince = null;

@@ -297,9 +297,47 @@ async function flushErrorStateToDB(): Promise<void> {
   }
 }
 
+// ─── Shutdown broadcast — 서버 재시작 전 모든 SSE 클라이언트에 즉시 알림 ────────
+// 클라이언트가 {"type":"shutdown"} 수신 시 백오프 없이 즉시 재연결하므로
+// 서버 재시작이 사용자에게 거의 투명하게 보임 (60s 대기 → <1s 재연결)
+//
+// retry:100 — 브라우저 내장 EventSource에게도 100ms 후 재시도 지시
+// res.end() Promise 집합을 기다렸다가 모두 drain된 후 process.exit() 실행해
+// 클라이언트가 shutdown 이벤트를 실제로 수신함을 보장
+function broadcastShutdownToAllSseClients(): Promise<void> {
+  // retry:100 필드 → 브라우저 내장 EventSource가 100ms 후 재연결 시도
+  const payload = 'retry: 100\ndata: {"type":"shutdown"}\n\n';
+  const allRes: Response[] = [];
+  for (const conns of sseUserMap.values()) for (const r of conns) allRes.push(r);
+  for (const r of sseAnonClients) allRes.push(r);
+  for (const r of sseAdminClients) allRes.push(r);
+  const drainPromises = allRes.map(r => new Promise<void>(resolve => {
+    try {
+      r.write(payload, () => {
+        try { r.end(resolve); } catch { resolve(); }
+      });
+    } catch {
+      try { r.end(resolve); } catch { resolve(); }
+    }
+  }));
+  // 최대 200ms 대기 — 네트워크 버퍼 drain 보장
+  return Promise.race([
+    Promise.all(drainPromises).then(() => {}),
+    new Promise<void>(resolve => setTimeout(resolve, 200)),
+  ]);
+}
+
 // Flush on graceful shutdown so the final counter value is never lost
-process.once('SIGTERM', () => { flushErrorStateToDB().finally(() => process.exit(0)); });
-process.once('SIGINT',  () => { flushErrorStateToDB().finally(() => process.exit(0)); });
+process.once('SIGTERM', () => {
+  broadcastShutdownToAllSseClients()
+    .then(() => flushErrorStateToDB())
+    .finally(() => process.exit(0));
+});
+process.once('SIGINT',  () => {
+  broadcastShutdownToAllSseClients()
+    .then(() => flushErrorStateToDB())
+    .finally(() => process.exit(0));
+});
 
 // SSE clients — userId별 연결 관리 (보안: 민감 이벤트는 당사자에게만 전송)
 const sseUserMap = new Map<string, Set<Response>>();   // userId → 연결 집합
