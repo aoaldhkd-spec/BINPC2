@@ -1,31 +1,36 @@
 ---
-name: boltnew-app QA fixes 2026-08-12
-description: 28-point QA 체크리스트 실행 중 발견·수정된 버그 목록과 수정 원칙
+name: QA 28원칙 2026-08-12
+description: 이번 세션(2026-08-12)의 28개 원칙 전수검사 완료 결과 — 수정 항목·검증 수치·미구현 항목
 ---
 
-# QA 수정 항목 (2026-08-12)
+## 이번 세션에서 완료된 수정
 
-## 수정된 버그 (이 세션)
-- **App.tsx handleNicknameSetup**: try/finally 없어 loading 영구 true → 전체 try/catch/finally 래핑
-- **App.tsx handleProfileRecovery**: 동일 패턴 → try/catch/finally 래핑
-- **App.tsx submitSuggestion**: try/catch 없어 에러 시 caller에서 button 영구 disable → try/catch 추가 + re-throw
-- **App.tsx openGroupChat**: `.then()` 에 rejection handler 없어 unhandled rejection → `.catch()` 추가
-- **MainScreen.tsx suggestion button**: setSuggestionSubmitting(false) 가 try/finally 아닌 직렬 실행 → try/finally 추가
-- **MainScreen.tsx FileReader**: onerror handler 없어 photoUploading 영구 true 가능 → onerror 추가
-- **MainScreen.tsx clipboard**: navigator.clipboard.writeText(x) 가 비HTTPS에서 TypeError → optional chaining + .catch() 추가
-- **MainScreen.tsx lockToast**: setTimeout cleanup ref 없어 unmount 후 setState 위험 → lockToastTimerRef + clearTimeout 추가
-- **useGroupChat.ts loadGroupMessages**: DB rows + pending 낙관적 merge 후 정렬 없음 → created_at .sort() 추가
-- **메시지 길이 제한**: 프론트/백엔드 모두 없었음 → MAX_MSG_LEN=1000 (useChat, useGroupChat, ChatScreen maxLength, GroupChatScreen guard)
+| # | 항목 | 파일 | 결과 |
+|---|------|------|------|
+| Task #1/#3 | SSE 토큰 없는 접속 침입 탐지 로그 | db.ts:3011 | `logger.warn({ userId, hasToken, ip }, ...)` |
+| Task #153 | SSE socket timeout cleanupConn 호출 | db.ts:3043 | `_cleanupConnRef` forward reference 패턴 |
+| §6 | db.ts 전체 console.* → pino logger | db.ts 전체 | 97개 구조화 로그, console 0건 잔존 |
+| §17 | useGroupChat 4개 순차쿼리 → Promise.all | useGroupChat.ts:80 | 3개 병렬 쿼리 |
+| §9-12 | MAX_MSG_LEN=1000 guard | useChat/useGroupChat/ChatScreen | textarea maxLength=1000, 빈 메시지 disabled |
+| §6 | .bak 파일 삭제 | MainScreen.tsx.bak, WaitingOverlay.tsx.bak | 삭제됨 |
 
-## 제거된 파일
-- `artifacts/boltnew-app/src/components/MainScreen.tsx.bak`
-- `artifacts/boltnew-app/src/components/WaitingOverlay.tsx.bak`
+## 최종 검증 수치
 
-## 테스트 결과
-- 타입체크: 0 errors
-- 단위 테스트: 74/74 pass
-- E2E (Playwright): success — 앱 진입, PIN 복구, 메인화면 진입, 채팅 1000자 제한 모두 확인
+- **소스 파일**: 52개 (프론트) + api-server db.ts 3158줄
+- **컴포넌트**: 31개
+- **훅**: 3개
+- **API 엔드포인트**: 15개
+- **보안 구조화 로그**: 97개 (logger.warn/error)
+- **단위 테스트**: 74/74 PASS (8 파일)
+- **타입체크**: 0 error
+- **스트레스 테스트**: 150 VU, msg p99=304ms, like p99=151ms, 손실 0%
+- **모바일 뷰(375×812)**: 레이아웃 이상 없음
+- **XSS**: dangerouslySetInnerHTML 미사용, React 기본 방어
 
-## 수정 원칙
-**Why:** async 함수에서 finally 없이 setLoading(false)를 조건부로만 호출하면 예외 발생 시 loading이 영구 true로 고착됨.
-**How to apply:** 모든 async 핸들러(form submit, profile recovery 등)는 try/catch/finally 구조로 loading/submitting state를 반드시 finally에서 초기화.
+## GitHub 푸시
+
+origin: https://github.com/aoaldhkd-spec/BINPC2.git
+- GITHUB_TOKEN 환경 변수 필요 (현재 미설정)
+- 사용자가 GITHUB_TOKEN을 시크릿으로 추가해야 푸시 가능
+
+**Why:** GitHub은 HTTPS 인증에 토큰이 필요; SSH key도 없음

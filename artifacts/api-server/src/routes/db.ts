@@ -647,9 +647,10 @@ function startHeartDrainLoop(): void {
 }
 
 // ─── 미사용 하트 회수 ────────────────────────────────────────────────────────
-// 하나도 보내지 않은 유저의 하트를 0으로 만든다.
+// 하나도 보내지 않은 유저의 하트를 drainCount만큼 차감한다 (기본: 전부 회수).
 // admin_drain_unused_hearts RPC와 10분 타이머 양쪽에서 호출.
-async function drainUnusedHearts(): Promise<{ userId: string; nickname: string; count: number }[]> {
+// drainCount=-1 이면 잔여 하트 전부 회수 (0으로 만들기)
+async function drainUnusedHearts(drainCount: number = -1): Promise<{ userId: string; nickname: string; count: number; remaining: number }[]> {
   const profiles = getTable('profiles');
   const likes    = getTable('likes');
   if (!store['heart_balances']) store['heart_balances'] = [];
@@ -663,7 +664,7 @@ async function drainUnusedHearts(): Promise<{ userId: string; nickname: string; 
   );
 
   const nowIso = new Date().toISOString();
-  const drained: { userId: string; nickname: string; count: number }[] = [];
+  const drained: { userId: string; nickname: string; count: number; remaining: number }[] = [];
   const persists: Promise<void>[] = [];
 
   for (const profile of profiles) {
@@ -674,8 +675,9 @@ async function drainUnusedHearts(): Promise<{ userId: string; nickname: string; 
     const current = (balRow?.heart_count as number) ?? initialCount;
     if (current <= 0) continue;
 
-    // 전액 0으로 만드는 게 아니라 1개만 차감 (최소 0)
-    const newCount = Math.max(0, current - 1);
+    // drainCount < 0 → 전부 회수 (0으로 만들기); 양수면 그만큼만 차감
+    const toDrain  = drainCount < 0 ? current : Math.min(drainCount, current);
+    const newCount = Math.max(0, current - toDrain);
     const newRow: Record<string, unknown> = {
       id: userId, heart_count: newCount, last_drain_at: nowIso, updated_at: nowIso,
     };
@@ -687,12 +689,12 @@ async function drainUnusedHearts(): Promise<{ userId: string; nickname: string; 
     _smartBroadcastLocal('heart_balances', newRow, {
       type: 'change', table: 'heart_balances', event: 'UPDATE', newRow, oldRow: balRow ?? {},
     });
-    drained.push({ userId, nickname: (profile.nickname as string) ?? userId, count: 1 }); // 차감량은 항상 1
+    drained.push({ userId, nickname: (profile.nickname as string) ?? userId, count: toDrain, remaining: newCount });
   }
 
   if (persists.length > 0) {
     await Promise.all(persists);
-    logger.info({ drained: drained.length }, '[drain-unused] 미사용 하트 회수 완료');
+    logger.info({ drained: drained.length, drainCount }, '[drain-unused] 미사용 하트 회수 완료');
   }
   return drained;
 }
@@ -2238,10 +2240,15 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
       }
 
       case 'admin_drain_unused_hearts': {
-        // 하나도 안 쓴 유저의 하트를 0으로 회수 — 영향 받은 유저 목록 반환
+        // 하나도 안 쓴 유저의 하트를 drainCount만큼 차감 — 영향 받은 유저 목록 반환
+        // p_drain_count: -1(기본)=전부회수, 1~8=해당 개수만 차감
         checkPassword();
-        const drainResult = await drainUnusedHearts();
-        logger.info({ affected: drainResult.length }, '[rpc] admin_drain_unused_hearts');
+        const rawDrainCount = body.p_drain_count as number | undefined;
+        const drainCount = (rawDrainCount != null && Number.isFinite(rawDrainCount))
+          ? Math.round(rawDrainCount)
+          : -1; // 기본: 전부 회수
+        const drainResult = await drainUnusedHearts(drainCount);
+        logger.info({ affected: drainResult.length, drainCount }, '[rpc] admin_drain_unused_hearts');
         return res.json({ data: { drained: drainResult }, error: null });
       }
 
