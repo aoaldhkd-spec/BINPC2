@@ -707,65 +707,77 @@ export const ProfileCard = memo(function ProfileCard({
                 position: 'absolute', inset: 0,
                 backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden',
                 transform: 'rotateY(180deg)',
-                background: 'linear-gradient(160deg,#1c0a2e 0%,#3b1152 40%,#5b1a6e 70%,#2a0a40 100%)',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                padding: '14px 10px', gap: '8px', overflow: 'hidden',
+                background: 'linear-gradient(170deg,#1a082a 0%,#3a0f52 35%,#5a1870 65%,#28083c 100%)',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between',
+                padding: '12px 10px 10px', overflow: 'hidden',
               }}>
+                {/* 배경 글로우 */}
                 <div style={{ position:'absolute', inset:0, pointerEvents:'none',
-                  background:'radial-gradient(ellipse at 50% 0%,rgba(255,100,200,0.28) 0%,transparent 60%)' }} />
+                  background:'radial-gradient(ellipse at 50% 10%,rgba(255,100,200,0.35) 0%,transparent 55%)' }} />
                 <div style={{ position:'absolute', inset:0, pointerEvents:'none',
-                  background:'radial-gradient(ellipse at 50% 100%,rgba(140,60,255,0.22) 0%,transparent 55%)' }} />
-                <span style={{position:'absolute',top:'8%',left:'10%',fontSize:'11px',opacity:0.5}}>✦</span>
-                <span style={{position:'absolute',top:'6%',right:'12%',fontSize:'9px',opacity:0.4}}>✦</span>
-                <span style={{position:'absolute',bottom:'14%',left:'8%',fontSize:'9px',opacity:0.35}}>✦</span>
-                <span style={{position:'absolute',bottom:'9%',right:'10%',fontSize:'11px',opacity:0.45}}>✦</span>
-                <div style={{fontSize:'36px',lineHeight:1,position:'relative',zIndex:1,
-                  filter:'drop-shadow(0 0 12px rgba(255,80,160,0.9))'}}>💗</div>
-                <p style={{color:'#ffd6f0',fontSize:'10px',fontWeight:900,
-                  letterSpacing:'0.2em',textTransform:'uppercase',margin:0,position:'relative',zIndex:1}}>
-                  나의 이상형
-                </p>
-                <div style={{width:'40px',height:'1px',background:'rgba(255,180,230,0.4)',margin:'-2px 0'}} />
-                {(() => {
-                  const parts = (idealMsg ?? '').split('\n');
-                  const tags = parts[0] ? parts[0].split(',').map(t=>t.trim()).filter(Boolean) : [];
-                  const free = parts[1] ?? '';
-                  if (!tags.length && !free) return (
-                    <p style={{color:'rgba(255,210,240,0.45)',fontSize:'11px',
-                      textAlign:'center',margin:'2px 0 4px',lineHeight:1.6,position:'relative',zIndex:1}}>
-                      아직 작성하지<br/>않았어요 🌸
-                    </p>
-                  );
-                  return (
-                    <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:'6px',width:'100%',position:'relative',zIndex:1}}>
-                      {tags.length > 0 && (
-                        <div style={{display:'flex',flexWrap:'wrap',gap:'4px',justifyContent:'center'}}>
-                          {tags.map(t=>(
-                            <span key={t} style={{
-                              padding:'3px 9px',borderRadius:'20px',
-                              background:'rgba(255,180,230,0.18)',
-                              border:'1px solid rgba(255,160,220,0.45)',
-                              color:'#ffeaf6',fontSize:'11px',fontWeight:700,
-                            }}>{t}</span>
-                          ))}
-                        </div>
-                      )}
-                      {free && (
-                        <p style={{color:'rgba(255,230,245,0.85)',fontSize:'11px',
-                          textAlign:'center',lineHeight:1.6,margin:0,fontStyle:'italic'}}>
-                          "{free}"
-                        </p>
-                      )}
-                    </div>
-                  );
-                })()}
+                  background:'radial-gradient(ellipse at 50% 95%,rgba(140,60,255,0.28) 0%,transparent 50%)' }} />
+                {/* 별 장식 */}
+                <span style={{position:'absolute',top:'7%',left:'9%',fontSize:'10px',opacity:0.45}}>✦</span>
+                <span style={{position:'absolute',top:'5%',right:'11%',fontSize:'8px',opacity:0.35}}>✦</span>
+                <span style={{position:'absolute',bottom:'12%',left:'7%',fontSize:'8px',opacity:0.3}}>✦</span>
+                <span style={{position:'absolute',bottom:'8%',right:'9%',fontSize:'10px',opacity:0.4}}>✦</span>
+
+                {/* 상단: 하트 + 제목 */}
+                <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:'5px',position:'relative',zIndex:1,width:'100%'}}>
+                  <div style={{fontSize:'42px',lineHeight:1,
+                    filter:'drop-shadow(0 0 14px rgba(255,80,160,1)) drop-shadow(0 0 28px rgba(255,80,160,0.5))'}}>💗</div>
+                  <p style={{color:'#ffd6f0',fontSize:'11px',fontWeight:900,
+                    letterSpacing:'0.22em',textTransform:'uppercase',margin:0}}>
+                    나의 이상형
+                  </p>
+                  <div style={{width:'36px',height:'1px',background:'rgba(255,180,230,0.45)'}} />
+                </div>
+
+                {/* 중단: 태그 목록 — 한 줄씩 가운데 정렬 */}
+                <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',
+                  gap:'5px',width:'100%',position:'relative',zIndex:1,padding:'4px 0',overflowY:'hidden'}}>
+                  {(() => {
+                    const parts = (idealMsg ?? '').split('\n');
+                    const tags = parts[0] ? parts[0].split(',').map(t=>t.trim()).filter(Boolean) : [];
+                    const free = parts[1] ?? '';
+                    if (!tags.length && !free) return (
+                      <p style={{color:'rgba(255,210,240,0.5)',fontSize:'12px',
+                        textAlign:'center',lineHeight:1.7,margin:0}}>
+                        아직 작성하지<br/>않았어요 🌸
+                      </p>
+                    );
+                    return (
+                      <>
+                        {tags.map(t=>(
+                          <div key={t} style={{
+                            width:'100%',textAlign:'center',
+                            padding:'4px 8px',borderRadius:'16px',
+                            background:'rgba(255,160,220,0.14)',
+                            border:'1px solid rgba(255,160,220,0.38)',
+                            color:'#ffeaf6',fontSize:'12px',fontWeight:700,
+                            letterSpacing:'0.02em',
+                          }}>{t}</div>
+                        ))}
+                        {free && (
+                          <p style={{color:'rgba(255,230,245,0.8)',fontSize:'11px',
+                            textAlign:'center',lineHeight:1.6,margin:'2px 0 0',fontStyle:'italic'}}>
+                            "{free}"
+                          </p>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+
+                {/* 하단: 버튼 */}
                 <button
                   onClick={(e)=>{e.stopPropagation();onSelect(profile);}}
                   style={{
-                    marginTop:'2px',
-                    background:'rgba(255,180,230,0.2)',border:'1px solid rgba(255,160,220,0.5)',
-                    color:'#ffd6f0',fontSize:'11px',fontWeight:700,
-                    padding:'5px 14px',borderRadius:'20px',cursor:'pointer',
+                    position:'relative',zIndex:1,width:'100%',
+                    background:'rgba(255,160,220,0.22)',border:'1px solid rgba(255,160,220,0.55)',
+                    color:'#ffd6f0',fontSize:'12px',fontWeight:800,
+                    padding:'7px 0',borderRadius:'16px',cursor:'pointer',
+                    letterSpacing:'0.03em',
                   }}
                 >프로필 보기 →</button>
               </div>
