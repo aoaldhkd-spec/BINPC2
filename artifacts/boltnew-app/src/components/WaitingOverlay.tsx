@@ -141,31 +141,28 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
     e.preventDefault();
   };
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-5 py-4 relative overflow-hidden"
-      style={{ background: 'linear-gradient(160deg, #05071a 0%, #0d0f2a 40%, #0f0620 70%, #060418 100%)' }}>
-      {/* 앰비언트 글로우 — 퍼플/블루 계열 */}
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-black flex flex-col items-center justify-center px-5 py-4 relative overflow-hidden">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-32 -right-32 w-80 h-80 rounded-full blur-3xl" style={{ background: 'radial-gradient(circle, rgba(139,92,246,0.35) 0%, transparent 70%)' }} />
-        <div className="absolute -bottom-32 -left-32 w-80 h-80 rounded-full blur-3xl" style={{ background: 'radial-gradient(circle, rgba(59,130,246,0.30) 0%, transparent 70%)' }} />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full blur-3xl" style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.12) 0%, transparent 65%)' }} />
-        <div className="absolute top-1/4 left-1/4 w-48 h-48 rounded-full blur-3xl" style={{ background: 'radial-gradient(circle, rgba(168,85,247,0.18) 0%, transparent 70%)' }} />
+        <div className="absolute -top-40 -right-40 w-96 h-96 bg-cyan-500/20 rounded-full blur-3xl" />
+        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-teal-500/20 rounded-full blur-3xl" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-cyan-500/10 rounded-full blur-3xl" />
       </div>
 
       <div className="relative z-10 text-center max-w-sm w-full flex flex-col items-center">
         {/* 로고 + 아이콘 — 컴팩트 */}
         <div className="relative inline-flex items-center justify-center mb-3">
-          <div className="w-20 h-20 rounded-3xl flex items-center justify-center shadow-2xl" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 50%, #2563eb 100%)', boxShadow: '0 0 40px rgba(124,58,237,0.5), 0 8px 32px rgba(79,70,229,0.4)' }}>
+          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-cyan-500 to-teal-600 flex items-center justify-center shadow-2xl shadow-cyan-500/30">
             <Users className="w-10 h-10 text-white" />
           </div>
-          <div className={`absolute -top-2 -right-2 w-7 h-7 rounded-full flex items-center justify-center shadow-lg ${isActive ? 'bg-violet-400' : 'bg-amber-400 animate-bounce'}`}>
-            {isActive ? <CheckCircle className="w-3.5 h-3.5 text-violet-900" /> : <Clock className="w-3.5 h-3.5 text-amber-900" />}
+          <div className={`absolute -top-2 -right-2 w-7 h-7 rounded-full flex items-center justify-center shadow-lg ${isActive ? 'bg-teal-400' : 'bg-amber-400 animate-bounce'}`}>
+            {isActive ? <CheckCircle className="w-3.5 h-3.5 text-teal-900" /> : <Clock className="w-3.5 h-3.5 text-amber-900" />}
           </div>
         </div>
         {/* 타이틀 */}
         <div className="mb-3 text-center">
           <p className="text-[18px] font-black tracking-[0.25em] uppercase mb-0.5"
              style={isLightTheme ? { color: '#0f766e' } : {
-               background: 'linear-gradient(135deg, #ffffff 0%, #c4b5fd 45%, #93c5fd 100%)',
+               background: 'linear-gradient(135deg, #ffffff 0%, #cffafe 45%, #99f6e4 100%)',
                WebkitBackgroundClip: 'text',
                WebkitTextFillColor: 'transparent',
                backgroundClip: 'text',
@@ -198,41 +195,27 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
         </p>
 
         {/* 피라미드형 버튼 그룹 */}
-        <div className="w-full flex flex-col items-center gap-2.5 mb-2">
-          {/* 1단: 입장하기 — 85% 너비, 알약 형태 */}
+        <div className="w-full flex flex-col items-center gap-2 mb-2">
+          {/* 1단: 입장하기 — 65% 너비(복구 버튼과 동일) */}
           <button
             onClick={() => setShowConsentModal(true)}
             disabled={!isActive}
-            className="w-[85%] py-4 font-black text-lg rounded-full transition-all active:scale-95 disabled:active:scale-100 disabled:cursor-not-allowed text-white"
-            style={isActive ? {
-              background: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 50%, #2563eb 100%)',
-              boxShadow: '0 0 28px rgba(124,58,237,0.55), 0 6px 24px rgba(79,70,229,0.4)',
-            } : {
-              background: 'rgba(51,65,85,0.7)',
-              boxShadow: 'none',
-            }}
-          >{isActive ? '입장하기 ✨' : '⏳ 회의 시작 전입니다'}</button>
-          {/* 2단: 프로필 복구 — 65% 너비, 다크 글래스 */}
+            className="w-[65%] py-4 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 disabled:from-slate-700 disabled:to-slate-600 disabled:cursor-not-allowed text-white font-black text-lg rounded-2xl shadow-2xl shadow-teal-500/30 transition-all active:scale-98 disabled:active:scale-100"
+          >{isActive ? '입장하기' : '⏳ 회의 시작 전입니다'}</button>
+          {/* 2단: 프로필 복구 — 65% 너비 */}
           <button
             onClick={() => { setShowPinRecovery(true); setPinDigits(['','','','']); setPinError(''); setPinStep('pin'); }}
-            className="w-[65%] py-3 font-bold text-sm rounded-full transition-all active:scale-95"
-            style={{
-              background: 'rgba(255,255,255,0.07)',
-              border: '1px solid rgba(255,255,255,0.15)',
-              backdropFilter: 'blur(12px)',
-              color: 'rgba(200,210,255,0.85)',
-              boxShadow: '0 2px 12px rgba(0,0,0,0.3)',
-            }}
+            className="w-[65%] py-3.5 bg-gradient-to-r from-orange-400 to-rose-500 hover:from-orange-300 hover:to-rose-400 text-white font-black text-sm rounded-2xl shadow-lg shadow-orange-500/25 transition-all active:scale-98"
           >🔑 프로필 복구</button>
         </div>
 
         {/* 이미 프로필이 있는 유저 안내 배너 — 복구 버튼 아래 */}
-        <div className="w-full rounded-2xl px-4 py-3 mb-2" style={{ background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.20)', backdropFilter: 'blur(12px)' }}>
+        <div className="w-full rounded-2xl bg-amber-500/15 border border-amber-400/30 px-4 py-3 mb-2">
           <div className="flex items-start gap-2.5">
             <span className="text-lg leading-none mt-0.5 flex-shrink-0">⚠️</span>
             <div className="min-w-0">
               <p className="text-amber-200 font-black text-sm leading-snug">이미 프로필을 만드셨나요?</p>
-              <p className="text-amber-300/70 text-xs mt-1 leading-relaxed">
+              <p className="text-amber-300/80 text-xs mt-1 leading-relaxed">
                 다시 만들지 마시고 <span className="font-bold text-amber-200">고유번호(PIN)</span>로 입장해주세요.<br />
                 고유번호를 모르신다면 <span className="font-bold text-amber-200">관리자에게 문의</span>해주세요.
               </p>
@@ -240,22 +223,22 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
           </div>
         </div>
 
-        {/* 입장 전 체크 — 2×2 그리드, 글래스모피즘 */}
-        <div className="w-full rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)', backdropFilter: 'blur(12px)' }}>
-          <div className="flex items-center gap-2 px-3 pt-3 pb-1.5">
-            <ShieldAlert className="w-3 h-3 flex-shrink-0" style={{ color: 'rgba(196,181,253,0.8)' }} />
-            <p className="text-[10px] font-black tracking-widest uppercase" style={{ color: 'rgba(196,181,253,0.8)' }}>입장 전 체크</p>
+        {/* 입장 전 체크 — 2×2 그리드 */}
+        <div className="w-full rounded-2xl bg-amber-500/10 border border-amber-400/25 overflow-hidden">
+          <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5">
+            <ShieldAlert className="w-3 h-3 text-amber-400 flex-shrink-0" />
+            <p className="text-amber-200 text-[10px] font-black tracking-widest uppercase">입장 전 체크</p>
           </div>
-          <div className="px-2.5 pb-3 grid grid-cols-2 gap-1.5">
+          <div className="px-2.5 pb-2.5 grid grid-cols-2 gap-1.5">
             {[
               { emoji: '🔋', text: '절전 모드 OFF' },
               { emoji: '🕵️', text: '시크릿 모드 금지' },
               { emoji: '📵', text: '화면 잠금 길게 설정' },
               { emoji: '🔖', text: '고유번호 · 프로필 암기' },
             ].map(item => (
-              <div key={item.emoji} className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl" style={{ background: 'rgba(255,255,255,0.05)' }}>
+              <div key={item.emoji} className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl bg-black/20">
                 <span className="text-sm leading-none flex-shrink-0">{item.emoji}</span>
-                <p className="text-[10px] font-semibold leading-tight" style={{ color: 'rgba(226,232,240,0.75)' }}>{item.text}</p>
+                <p className="text-amber-100/85 text-[10px] font-semibold leading-tight">{item.text}</p>
               </div>
             ))}
           </div>
@@ -284,15 +267,13 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
                 <div className="flex flex-col gap-3">
                   <button
                     onClick={() => { setShowConsentModal(false); onEnter(); }}
-                    className="w-full py-4 text-white font-black text-base rounded-full transition-all active:scale-95"
-                    style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 50%, #2563eb 100%)', boxShadow: '0 0 24px rgba(124,58,237,0.5), 0 4px 20px rgba(79,70,229,0.35)' }}
+                    className="w-full py-4 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-white font-black text-base rounded-2xl shadow-lg shadow-teal-500/30 transition-all active:scale-98"
                   >
-                    위 내용에 동의합니다 ✨
+                    위 내용에 동의합니다
                   </button>
                   <button
                     onClick={() => setShowConsentModal(false)}
-                    className="w-full py-3 font-bold text-sm rounded-full transition-all active:scale-95"
-                    style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.14)', backdropFilter: 'blur(8px)', color: 'rgba(200,210,255,0.8)' }}
+                    className="w-full py-3 bg-slate-700/60 hover:bg-slate-700 text-slate-300 font-bold text-sm rounded-2xl transition-all"
                   >
                     닫기
                   </button>

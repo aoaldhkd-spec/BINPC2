@@ -659,29 +659,28 @@ export const ProfileCard = memo(function ProfileCard({
             backfaceVisibility: 'hidden',
             WebkitBackfaceVisibility: 'hidden',
             transform: 'rotateY(180deg)',
-            background: 'linear-gradient(135deg, #0d0825 0%, #1a0d3d 25%, #0f1a35 50%, #1a0a2e 75%, #0a0d22 100%)',
+            background: 'linear-gradient(150deg, #0e0320 0%, #2a0855 35%, #1a0d40 65%, #090c25 100%)',
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
             padding: '16px 12px', gap: '7px',
             overflow: 'hidden',
           }}>
-            {/* 오로라 메쉬 그라데이션 레이어 */}
-            <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'radial-gradient(ellipse at 30% 20%, rgba(167,139,250,0.40) 0%, transparent 50%)' }} />
-            <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'radial-gradient(ellipse at 75% 80%, rgba(96,165,250,0.30) 0%, transparent 50%)' }} />
-            <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'radial-gradient(ellipse at 60% 45%, rgba(236,72,153,0.18) 0%, transparent 45%)' }} />
-            <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'radial-gradient(ellipse at 15% 75%, rgba(52,211,153,0.15) 0%, transparent 45%)' }} />
+            {/* 배경 광원 레이어 1 */}
+            <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'radial-gradient(ellipse at 50% 15%, rgba(230,80,255,0.25) 0%, transparent 55%)' }} />
+            {/* 배경 광원 레이어 2 */}
+            <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'radial-gradient(ellipse at 75% 85%, rgba(80,100,255,0.20) 0%, transparent 50%)' }} />
             {/* 반짝이 장식 */}
-            <span style={{ position: 'absolute', top: '9%', left: '11%', fontSize: '12px', opacity: 0.6 }}>✨</span>
-            <span style={{ position: 'absolute', top: '7%', right: '13%', fontSize: '10px', opacity: 0.45 }}>⭐</span>
-            <span style={{ position: 'absolute', bottom: '17%', left: '9%', fontSize: '10px', opacity: 0.45 }}>💫</span>
-            <span style={{ position: 'absolute', bottom: '11%', right: '11%', fontSize: '12px', opacity: 0.55 }}>✨</span>
+            <span style={{ position: 'absolute', top: '9%', left: '11%', fontSize: '12px', opacity: 0.55 }}>✨</span>
+            <span style={{ position: 'absolute', top: '7%', right: '13%', fontSize: '10px', opacity: 0.40 }}>⭐</span>
+            <span style={{ position: 'absolute', bottom: '17%', left: '9%', fontSize: '10px', opacity: 0.40 }}>💫</span>
+            <span style={{ position: 'absolute', bottom: '11%', right: '11%', fontSize: '12px', opacity: 0.50 }}>✨</span>
             {/* 메인 이모지 */}
             <div style={{
               fontSize: '38px', lineHeight: 1, position: 'relative', zIndex: 1,
-              filter: 'drop-shadow(0 0 16px rgba(167,139,250,0.9)) drop-shadow(0 0 32px rgba(236,72,153,0.5))',
+              filter: 'drop-shadow(0 0 14px rgba(255,60,180,0.85)) drop-shadow(0 0 28px rgba(200,40,255,0.55))',
             }}>💘</div>
-            {/* 타이틀 — 오로라 그라데이션 텍스트 */}
+            {/* 타이틀 — 그라데이션 텍스트 */}
             <p style={{
-              background: 'linear-gradient(90deg, rgba(196,181,253,1) 0%, rgba(251,207,232,1) 50%, rgba(147,197,253,1) 100%)',
+              background: 'linear-gradient(90deg,rgba(255,170,255,0.95),rgba(200,150,255,0.95),rgba(255,170,255,0.95))',
               WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
               fontSize: '11px', fontWeight: 900,
               letterSpacing: '0.18em', textTransform: 'uppercase', margin: 0,
@@ -729,14 +728,11 @@ export const ProfileCard = memo(function ProfileCard({
             <button
               onClick={(e) => { e.stopPropagation(); onSelect(profile); }}
               style={{
-                marginTop: '4px', position: 'relative', zIndex: 1,
-                background: 'rgba(255,255,255,0.14)',
-                border: '1px solid rgba(255,255,255,0.35)',
-                color: 'rgba(255,255,255,0.95)', fontSize: '11px', fontWeight: 700,
-                padding: '7px 18px', borderRadius: '99px', cursor: 'pointer',
-                backdropFilter: 'blur(12px)',
-                boxShadow: '0 2px 12px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.20)',
-                letterSpacing: '0.02em',
+                marginTop: '4px',
+                background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.4)',
+                color: 'white', fontSize: '11px', fontWeight: 700,
+                padding: '6px 16px', borderRadius: '20px', cursor: 'pointer',
+                backdropFilter: 'blur(4px)',
               }}
             >프로필 보기 →</button>
           </div>
@@ -1466,8 +1462,7 @@ export function MainScreen({
                   const active = profileMbtiFilter === m;
                   return (
                     <button key={m} onClick={() => setProfileMbtiFilter(active ? null : m)}
-                      className={`px-1 py-1.5 text-[10px] font-bold border transition-all duration-200 text-center ${active ? 'bg-cyan-500 text-white border-cyan-500 shadow-sm shadow-cyan-200' : 'bg-white text-gray-500 border-gray-200 hover:border-cyan-300 hover:text-cyan-600'}`}
-                      style={{ borderRadius: '99px' }}>
+                      className={`px-1 py-1.5 rounded-md text-[10px] font-bold border transition-all text-center ${active ? 'bg-cyan-500 text-white border-cyan-500' : 'bg-white text-gray-500 border-gray-200 hover:border-cyan-300'}`}>
                       {m}
                     </button>
                   );
@@ -1477,7 +1472,7 @@ export function MainScreen({
 
             {/* ── 참여자 그리드 (이 영역만 스크롤) ───────── */}
             <div className="overflow-y-auto -mx-4 px-4 pb-6" style={{ maxHeight: 'calc(100dvh - 330px)', minHeight: 160 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '8px' }}>
+            <div className="grid grid-cols-3 gap-2">
             {filteredProfiles.filter(p => p.id !== currentUserId).map((profile) => (
               <ProfileCard
                 key={profile.id}
