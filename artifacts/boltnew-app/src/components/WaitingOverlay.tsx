@@ -161,12 +161,7 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
         {/* 타이틀 */}
         <div className="mb-3 text-center">
           <p className="text-[18px] font-black tracking-[0.25em] uppercase mb-0.5"
-             style={isLightTheme ? { color: '#0f766e' } : {
-               backgroundImage: 'linear-gradient(135deg, #ffffff 0%, #cffafe 45%, #99f6e4 100%)',
-               WebkitBackgroundClip: 'text',
-               WebkitTextFillColor: 'transparent',
-               backgroundClip: 'text',
-             }}>
+             style={{ color: isLightTheme ? '#0f766e' : '#cffafe' }}>
             범일NPC
           </p>
           <h1 className="text-3xl font-black tracking-tight leading-tight"
