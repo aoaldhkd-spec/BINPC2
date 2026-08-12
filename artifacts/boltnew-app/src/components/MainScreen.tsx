@@ -1272,6 +1272,7 @@ export function MainScreen({
       onUpdateProfile({ id: currentUserId, kakao_id: statusKakao.trim() || null, instagram_id: statusInstagram.trim() || null, phone_number: statusPhone.trim() || null, contact_private: statusContactPrivate });
       statusContactInitRef.current = false;
       setShowContactEdit(false);
+      setProfileEditSection(null);
       onRefreshProfiles();
     } catch (e) { console.error('[contact] 저장 실패:', e); }
     setStatusContactSaving(false);
@@ -1526,7 +1527,10 @@ export function MainScreen({
               };
               return (
                 <div className={`rounded-3xl p-5 border shadow-xl transition-colors duration-300 ${darkMode ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600' : 'bg-white border-gray-100'}`}>
-                  <p className={`text-[10px] font-black uppercase tracking-widest mb-3 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>내 프로필</p>
+                  <div className="flex items-center justify-between mb-3">
+                    <p className={`text-[10px] font-black uppercase tracking-widest ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>내 프로필</p>
+                    <RefreshBtn onRefresh={() => doRefresh('status', onRefreshStatus)} refreshed={refreshedTab === 'status'} />
+                  </div>
 
                   {/* ── 닉네임 (사진 위) ── */}
                   <div className="mb-2">
@@ -1535,8 +1539,8 @@ export function MainScreen({
 
                   {/* ── 사진(왼쪽) + 박스(오른쪽) — 상단 정렬 ── */}
                   <div className="flex gap-3 items-start">
-                    {/* 사진 — 레이블 높이(약 17px)만큼 내려서 박스 상단과 정렬 */}
-                    <div className="flex-shrink-0 flex flex-col items-center gap-1 pt-[17px]">
+                    {/* 사진 */}
+                    <div className="flex-shrink-0 flex flex-col items-center gap-1">
                       <div className="relative w-32 h-32">
                         <label className={`block w-full h-full rounded-2xl overflow-hidden border-2 border-cyan-500/50 shadow-lg shadow-cyan-500/20 cursor-pointer group ${photoUploading ? 'cursor-wait' : ''}`}>
                           <img src={getAvatarSrc(me.photo_url, me.nickname)} alt={me.nickname} className="w-full h-full object-cover"
@@ -1567,12 +1571,8 @@ export function MainScreen({
 
                     {/* 오른쪽: 2×2 박스 */}
                     <div className="flex-1 min-w-0 flex flex-col">
-                      {/* 새로고침 — MBTI/성향 박스 바로 위 */}
-                      <div className="flex justify-end mb-1.5">
-                        <RefreshBtn onRefresh={() => doRefresh('status', onRefreshStatus)} refreshed={refreshedTab === 'status'} />
-                      </div>
                       {/* 2×2 정보 박스 — 레이블 외부 상단, 폰트 통일 */}
-                      <div className="grid grid-cols-2 gap-x-2 gap-y-1 ml-auto">
+                      <div className="grid grid-cols-2 gap-x-2 gap-y-1 ml-auto mt-1">
                         {/* MBTI */}
                         <div className="flex flex-col items-center gap-1">
                           <span className={`text-[10px] font-black tracking-wide ${darkMode ? 'text-white' : 'text-gray-800'}`}>MBTI</span>
