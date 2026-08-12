@@ -1,4 +1,7 @@
 import webpush from 'web-push';
+import pino from 'pino';
+
+const logger = pino({ name: 'push' });
 
 // VAPID 키 — 이 프로젝트 전용으로 생성된 키
 const VAPID_PUBLIC_KEY =
@@ -41,7 +44,7 @@ export async function sendPush(sub: PushSub, payload: PushPayload): Promise<bool
       const status = (e as { statusCode: number }).statusCode;
       if (status === 410 || status === 404) return false; // 만료된 구독
     }
-    console.error('[push] sendPush error:', e);
+    logger.error({ err: e }, 'sendPush error');
     return true; // 기타 오류는 구독 유지
   }
 }

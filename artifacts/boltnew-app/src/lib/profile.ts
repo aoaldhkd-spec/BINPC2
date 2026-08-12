@@ -78,8 +78,8 @@ const AVATAR_COLORS_FOR_GEN = [
 
 export function genAvatar(nickname: string): string {
   const bg = AVATAR_COLORS_FOR_GEN[(nickname.charCodeAt(0) ?? 0) % AVATAR_COLORS_FOR_GEN.length];
-  // 3:4 비율(300×400) SVG — objectFit:cover로 빈공간 없이 꽉 채워짐
-  // 텍스트 없이 단색 배경 + 실루엣 원/타원만 사용
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="400"><rect width="300" height="400" fill="${bg}"/><circle cx="150" cy="138" r="72" fill="rgba(255,255,255,0.28)"/><ellipse cx="150" cy="348" rx="110" ry="86" fill="rgba(255,255,255,0.28)"/></svg>`;
+  // 1:1 정사각형(400×400) 단색 SVG — 카드가 3:4 컨테이너이므로 위아래 12.5% 흰 여백 생김
+  // → 실제 1:1 사진과 동일한 레이아웃으로 모든 카드가 통일됨
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><rect width="400" height="400" fill="${bg}"/></svg>`;
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }

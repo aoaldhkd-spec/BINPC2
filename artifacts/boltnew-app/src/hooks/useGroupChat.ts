@@ -11,9 +11,9 @@ import type { Profile, GroupChat, GroupMessage, GroupParticipant } from '../type
 
 const MAX_GROUP_MESSAGES = 300;
 
-/** group_messages SSE INSERT 수신 시 낙관적 메시지 교체 or 추가 */
+/** group_messages SSE INSERT 수신 시 낙관적 메시지 교체 or 추가 (created_at 정렬 보장) */
 function applyGroupInsert(prev: GroupMessage[], newMsg: GroupMessage): GroupMessage[] {
-  // client_id 일치 → 낙관적 항목 교체
+  // client_id 일치 → 낙관적 항목 교체 (정렬은 원래 위치 유지)
   if (newMsg.client_id) {
     const idx = prev.findIndex(m => m.client_id === newMsg.client_id || m.id === newMsg.id);
     if (idx >= 0) {
@@ -24,7 +24,10 @@ function applyGroupInsert(prev: GroupMessage[], newMsg: GroupMessage): GroupMess
   }
   // id 중복 방지
   if (prev.some(m => m.id === newMsg.id)) return prev;
-  return [...prev, newMsg];
+  // created_at 순서 보장 (SSE 순서 보장 안 될 때 대비)
+  const next = [...prev, newMsg];
+  next.sort((a, b) => a.created_at.localeCompare(b.created_at));
+  return next;
 }
 
 interface UseGroupChatDeps {
@@ -55,6 +58,8 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
 
   const sendingGroupRef = useRef(new Set<string>());
   const loadGenRef = useRef(0);
+  // 비활성 그룹 SSE 중복 방지 (재연결 시 동일 메시지 재수신 대비)
+  const seenInactiveGroupMsgIds = useRef(new Set<string>());
 
   // ── 단톡방 목록 로드 ─────────────────────────────────────────────────────────
   const loadGroupChats = useCallback(async (userId: string): Promise<void> => {
@@ -107,8 +112,8 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
         memberCount: memberCount.get(g.id) ?? 0,
       }));
       setGroupChats(enriched);
-    } catch (e) {
-      console.error('[loadGroupChats] 오류:', e);
+    } catch {
+      // 로드 실패 시 무시 — 다음 갱신 주기에 재시도
     }
   }, []);
 
@@ -119,7 +124,7 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
       const { data, error } = await supabase.from('group_messages').select('*')
         .eq('group_id', groupId).order('created_at', { ascending: true });
       if (gen !== loadGenRef.current) return false;
-      if (error) { console.error('[loadGroupMessages] DB 오류:', error.message); return false; }
+      if (error) return false;
       if (data) {
         setGroupMessages(prev => {
           const result = [...(data as GroupMessage[])];
@@ -134,8 +139,7 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
         });
       }
       return true;
-    } catch (e) {
-      console.error('[loadGroupMessages] 오류:', e);
+    } catch {
       return false;
     }
   }, []);
@@ -149,7 +153,7 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
     const removed = unreadGroupCountsRef.current[groupId] ?? 0;
     setUnreadGroupCounts(prev => { const n = { ...prev }; delete n[groupId]; return n; });
     if (removed > 0) setNewGroupMsgCount(c => Math.max(0, c - removed));
-    await loadGroupMessages(groupId).catch(console.error);
+    await loadGroupMessages(groupId).catch(() => {});
   }, [loadGroupMessages]);
 
   // ── 단톡방 닫기 ──────────────────────────────────────────────────────────────
@@ -169,8 +173,8 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
         .delete()
         .eq('group_id', groupId)
         .eq('user_id', userId);
-    } catch (e) {
-      console.error('[leaveGroupChat] 삭제 오류:', e);
+    } catch {
+      // 삭제 실패 시에도 로컬 상태는 즉시 반영
     }
     // 로컬 상태 업데이트 (서버 응답과 무관하게 즉시 반영)
     setMyGroupIds(prev => prev.filter(id => id !== groupId));
@@ -265,6 +269,13 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
               return next.length > MAX_GROUP_MESSAGES ? next.slice(-MAX_GROUP_MESSAGES) : next;
             });
           } else if (m.sender_id !== uid) {
+            // 비활성 그룹 중복 방지 (재연결 시 동일 메시지 재수신 대비)
+            if (seenInactiveGroupMsgIds.current.has(m.id)) return;
+            seenInactiveGroupMsgIds.current.add(m.id);
+            if (seenInactiveGroupMsgIds.current.size > 500) {
+              const first = seenInactiveGroupMsgIds.current.values().next().value;
+              if (first) seenInactiveGroupMsgIds.current.delete(first);
+            }
             setGroupChats(prev => prev.map(g =>
               g.id === m.group_id ? { ...g, lastMessage: m.image_url ? '📷 사진' : m.content } : g
             ));
@@ -273,7 +284,7 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
             const sender = profilesRef.current.find(p => p.id === m.sender_id);
             setBottomNotif({ type: 'message', nickname: `[단톡] ${sender?.nickname ?? ''}` });
           }
-        } catch (e) { console.warn('[group-ch/msg-insert]', e); }
+        } catch { /* SSE 파싱 오류 무시 */ }
       })
       .on('postgres_changes', {
         event: 'INSERT', schema: 'public', table: 'group_participants',
@@ -283,7 +294,7 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
           if (!p?.group_id || p.user_id !== uid) return;
           setMyGroupIds(prev => prev.includes(p.group_id) ? prev : [...prev, p.group_id]);
           void loadGroupChats(uid);
-        } catch (e) { console.warn('[group-ch/participant]', e); }
+        } catch { /* SSE 파싱 오류 무시 */ }
       })
       .subscribe();
     return () => { supabase.removeChannel(ch); };

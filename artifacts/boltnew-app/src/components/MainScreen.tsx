@@ -21,7 +21,6 @@ const getAvatarSrc = (url: string | null | undefined, nick: string): string => {
   if (url.startsWith('data:image/svg')) return genAvatar(nick);
   return url;
 };
-import { getZodiac, getOhaeng, getTodayFortune } from '../lib/fortune';
 import { getMbtiStyle, koreanMatch } from '../lib/utils';
 import { ls } from '../lib/storage';
 import ProfileAvatar from './ProfileAvatar';
@@ -938,14 +937,12 @@ export function MainScreen({
   const _currentUserNickname = useMemo(() => profiles.find(p => p.id === currentUserId)?.nickname ?? '', [profiles, currentUserId]);
   const [profileSearch, setProfileSearch] = useState('');
   const [profilePersonalityFilter, setProfilePersonalityFilter] = useState<string | null>(null);
-  const [showBlockList, setShowBlockList] = useState(false);
   const [showVisitors, setShowVisitors] = useState(false);
   const [profileMbtiFilter, setProfileMbtiFilter] = useState<string | null>(null);
   // 채팅 탭 내 서브탭: 1:1 채팅 / 단체 채팅
   const [chatSubTab, setChatSubTab] = useState<'direct' | 'group'>('direct');
 
   // ── 상태·이상형 입력 상태 ──────────────────────────────────────────────────────
-  const [signalCardOpen, setSignalCardOpen] = useState(true);
   const [signalStatusMsg, setSignalStatusMsg] = useState('');
   const [idealTags, setIdealTags] = useState<string[]>([]);
   const [idealFreeText, setIdealFreeText] = useState('');
@@ -989,7 +986,8 @@ export function MainScreen({
         if (b.id === currentUserId) return 1;
         return 0;
       });
-  }, [profiles, profileSearch, profilePersonalityFilter, profileMbtiFilter, currentUserId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profiles, profileSearch, profilePersonalityFilter, profileMbtiFilter, currentUserId, blockedUserIds, hiddenByIds]);
 
   const [suggestionContent, setSuggestionContent] = useState('');
   const [suggestionContact, setSuggestionContact] = useState('');
@@ -1147,7 +1145,6 @@ export function MainScreen({
   const [chatSearch, setChatSearch] = useState('');
   const [chatSearchLockToast, setChatSearchLockToast] = useState(false);
   const showChatSearchLockToast = () => { setChatSearchLockToast(true); setTimeout(() => setChatSearchLockToast(false), 1400); };
-  const [showContactEdit, setShowContactEdit] = useState(false);
   // ── 내 상태 탭 카드 접기/펼치기 ────────────────────────────────────────────
   const [profileEditOpen, setProfileEditOpen] = useState(true);
   const [receivedHeartsOpen, setReceivedHeartsOpen] = useState(true);
@@ -1318,7 +1315,6 @@ export function MainScreen({
       } as never).eq('id', currentUserId);
       onUpdateProfile({ id: currentUserId, kakao_id: statusKakao.trim() || null, instagram_id: statusInstagram.trim() || null, phone_number: statusPhone.trim() || null, contact_private: statusContactPrivate });
       statusContactInitRef.current = false;
-      setShowContactEdit(false);
       setProfileEditSection(null);
       onRefreshProfiles();
     } catch (e) { console.error('[contact] 저장 실패:', e); }

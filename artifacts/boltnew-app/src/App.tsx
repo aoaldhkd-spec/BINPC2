@@ -8,7 +8,7 @@ import { HeartType } from './lib/constants';
 // ─── 분리된 타입·유틸·컴포넌트 imports ────────────────────────────────────────
 import type {
   Profile, ContactShare, Suggestion,
-  Chat, View, MainTab, GroupChat, GroupMessage, BlockedUser, ProfileView, UserSignal,
+  Chat, View, MainTab, GroupChat, BlockedUser, ProfileView, UserSignal,
 } from './types/app';
 import { useGroupChat } from './hooks/useGroupChat';
 import { GroupChatScreen } from './components/GroupChatScreen';
@@ -363,7 +363,7 @@ function App() {
   // ── 커스텀 훅 호출 ────────────────────────────────────────────────────────────
 
   const {
-    chatId, setChatId, chatIdRef, selfInitiatedPairRef, messages, chatList, setChatList, chatListRef,
+    chatId, setChatId, chatIdRef, messages, chatList, setChatList,
     unreadChatCounts, setUnreadChatCounts, newMsgCount, setNewMsgCount,
     loadChatList, openChat, sendMessage, sendImage,
     deleteChat, deleteAllChats, deleteMessage,
