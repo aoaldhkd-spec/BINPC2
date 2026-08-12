@@ -343,13 +343,19 @@ export function useChat({
   // ── 채팅방 열기 ──────────────────────────────────────────────────────────────
   const openChatGenRef = useRef(0);
   const selfInitiatedPairTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Fix #10: openChat 내 에러 알림 setTimeout — 언마운트 시 미취소로 stale setState 발생 방지
+  const openChatNotifTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // [버그4 수정] selfInitiatedPairTimerRef 언마운트 시 정리 (선언 이후에 배치 — TDZ 방지)
+  // [버그4 수정] selfInitiatedPairTimerRef + openChatNotifTimerRef 언마운트 시 정리 (TDZ 방지)
   useEffect(() => {
     return () => {
       if (selfInitiatedPairTimerRef.current !== null) {
         clearTimeout(selfInitiatedPairTimerRef.current);
         selfInitiatedPairTimerRef.current = null;
+      }
+      if (openChatNotifTimerRef.current !== null) {
+        clearTimeout(openChatNotifTimerRef.current);
+        openChatNotifTimerRef.current = null;
       }
     };
   }, []);
@@ -417,7 +423,8 @@ export function useChat({
         console.error('[openChat] 채팅방 ID 결정 불가 — 메인으로 복귀');
         setView('main');
         setBottomNotif({ type: 'chat', nickname: '채팅방을 열 수 없습니다. 잠시 후 다시 시도해주세요.' });
-        setTimeout(() => setBottomNotif(null), 3000);
+        if (openChatNotifTimerRef.current) clearTimeout(openChatNotifTimerRef.current);
+        openChatNotifTimerRef.current = setTimeout(() => { openChatNotifTimerRef.current = null; setBottomNotif(null); }, 3000);
         return;
       }
 
@@ -434,7 +441,8 @@ export function useChat({
       if (gen === openChatGenRef.current) {
         setView('main');
         setBottomNotif({ type: 'chat', nickname: '채팅방 연결 중 오류가 발생했습니다.' });
-        setTimeout(() => setBottomNotif(null), 3000);
+        if (openChatNotifTimerRef.current) clearTimeout(openChatNotifTimerRef.current);
+        openChatNotifTimerRef.current = setTimeout(() => { openChatNotifTimerRef.current = null; setBottomNotif(null); }, 3000);
       }
     }
   }, [currentUserId, setSelectedProfile, setView, setBottomNotif]);
