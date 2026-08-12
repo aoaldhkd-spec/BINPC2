@@ -162,7 +162,7 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
         <div className="mb-3 text-center">
           <p className="text-[18px] font-black tracking-[0.25em] uppercase mb-0.5"
              style={isLightTheme ? { color: '#0f766e' } : {
-               background: 'linear-gradient(135deg, #ffffff 0%, #cffafe 45%, #99f6e4 100%)',
+               backgroundImage: 'linear-gradient(135deg, #ffffff 0%, #cffafe 45%, #99f6e4 100%)',
                WebkitBackgroundClip: 'text',
                WebkitTextFillColor: 'transparent',
                backgroundClip: 'text',
@@ -210,7 +210,7 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
         </div>
 
         {/* 이미 프로필이 있는 유저 안내 배너 — 복구 버튼 아래 */}
-        <div className="w-full rounded-2xl bg-amber-500/15 border border-amber-400/30 px-4 py-3 mb-2">
+        <div className="w-[65%] rounded-2xl bg-amber-500/15 border border-amber-400/30 px-4 py-3 mb-2">
           <div className="flex items-start gap-2.5">
             <span className="text-lg leading-none mt-0.5 flex-shrink-0">⚠️</span>
             <div className="min-w-0">
@@ -224,7 +224,7 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
         </div>
 
         {/* 입장 전 체크 — 2×2 그리드 */}
-        <div className="w-full rounded-2xl bg-amber-500/10 border border-amber-400/25 overflow-hidden">
+        <div className="w-[65%] rounded-2xl bg-amber-500/10 border border-amber-400/25 overflow-hidden">
           <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5">
             <ShieldAlert className="w-3 h-3 text-amber-400 flex-shrink-0" />
             <p className="text-amber-200 text-[10px] font-black tracking-widest uppercase">입장 전 체크</p>
