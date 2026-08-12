@@ -12,11 +12,13 @@ import { HeartType, HEART_TYPES, heartMeta } from '../lib/constants';
 import { getPositionLabel, getPositionBg, getPositionStyle, getDomSubLabel, getDomSubBg, getKoreanAge, genAvatar } from '../lib/profile';
 import { containsBannedNicknameWord } from '../lib/bannedWords';
 
-// DiceBear backgroundColor 없는 구형 투명 SVG URL → genAvatar 강제 치환
-// backgroundColor 있는 프리셋 아바타 URL은 그대로 유지
+// DiceBear URL 및 구형 data:image/svg (텍스트 initials 포함) → genAvatar 실루엣으로 강제 치환
 const getAvatarSrc = (url: string | null | undefined, nick: string): string => {
   if (!url) return genAvatar(nick);
-  if (url.includes('dicebear') && !url.includes('backgroundColor')) return genAvatar(nick);
+  // DiceBear URL (initials·thumbs 등 텍스트 노출 방지)
+  if (url.includes('dicebear')) return genAvatar(nick);
+  // 구형 data:image/svg+xml 아바타 (닉네임 텍스트가 인코딩된 채 저장된 것)
+  if (url.startsWith('data:image/svg')) return genAvatar(nick);
   return url;
 };
 import { getZodiac, getOhaeng, getTodayFortune } from '../lib/fortune';
@@ -517,15 +519,51 @@ export const ProfileCard = memo(function ProfileCard({
     setTimeout(() => setLockToast(false), 1400);
   };
 
-  // 이미지 비율 자동 감지: 3:4(세로형)에 가까우면 꽉 채움, 아니면 내부 박스에 가둠
-  const [imgFit, setImgFit] = useState<'cover' | 'contain'>('cover');
+  // 이미지 naturalRatio를 추적해 플립 존(실제 사진 영역)을 계산
+  // objectFit:contain 상태에서 빈공간은 그대로 두고 사진 영역만 뒤집기 위해 사용
+  const [naturalRatio, setNaturalRatio] = useState<number | null>(null);
   const handleImgLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const { naturalWidth: w, naturalHeight: h } = e.currentTarget;
-    if (!w || !h) return;
-    const ratio = w / h;
-    // 3:4 = 0.75 기준 ±20% 이내면 cover, 벗어나면 contain
-    setImgFit(Math.abs(ratio - 0.75) / 0.75 < 0.20 ? 'cover' : 'contain');
+    if (w && h) setNaturalRatio(w / h);
   };
+
+  // 상태 메시지 자동 마키 — 텍스트가 바 너비를 초과하면 슬라이드 애니메이션 적용
+  const tickerBarRef = useRef<HTMLDivElement>(null);
+  const tickerSpanRef = useRef<HTMLSpanElement>(null);
+  const [tickerOffset, setTickerOffset] = useState(0); // 슬라이드할 px 거리
+  useEffect(() => {
+    const bar = tickerBarRef.current;
+    const span = tickerSpanRef.current;
+    if (!bar || !span) { setTickerOffset(0); return; }
+    // ResizeObserver로 카드 크기 변동 시에도 재계산
+    const calc = () => {
+      const overflow = span.scrollWidth - bar.clientWidth;
+      setTickerOffset(overflow > 4 ? overflow + 12 : 0);
+    };
+    calc();
+    const ro = new ResizeObserver(calc);
+    ro.observe(bar);
+    return () => ro.disconnect();
+  }, [statusMsg]);
+
+  // 컨테이너 비율 3:4 = 0.75
+  // 이미지 비율이 0.75보다 크면(정사각형·가로형) → 너비로 제한, 위아래 빈공간
+  // 이미지 비율이 0.75보다 작으면(세로형)       → 높이로 제한, 좌우 빈공간
+  const CRATIO = 3 / 4;
+  const r = naturalRatio ?? CRATIO;
+  const flipZoneStyle: React.CSSProperties = r >= CRATIO
+    ? {
+        // 위아래 여백: 사진이 너비 꽉 참, 높이는 0.75/r 비율
+        position: 'absolute', left: 0, right: 0,
+        top:    `${((1 - CRATIO / r) / 2) * 100}%`,
+        height: `${(CRATIO / r) * 100}%`,
+      }
+    : {
+        // 좌우 여백: 사진이 높이 꽉 참, 너비는 r/0.75 비율
+        position: 'absolute', top: 0, bottom: 0,
+        left:  `${((1 - r / CRATIO) / 2) * 100}%`,
+        width: `${(r / CRATIO) * 100}%`,
+      };
 
   // [Fix-9] ⋯ 메뉴 외부 클릭 시 닫기 — fixed 위치이므로 부모 overflow:hidden 영향 없음
   useEffect(() => {
@@ -581,163 +619,172 @@ export const ProfileCard = memo(function ProfileCard({
         </div>
       )}
 
-      {/* ── 사진 플립 영역 (3:4 세로형) ──────────────────────────────────────── */}
-      <div
-        style={{ aspectRatio: '3/4', perspective: '1000px', position: 'relative', cursor: 'pointer', overflow: 'hidden', borderRadius: '12px 12px 0 0' }}
-        onClick={(e) => { e.stopPropagation(); setIsFlipped(f => !f); }}
-      >
-        <div style={{
-          width: '100%', height: '100%', position: 'relative',
-          transformStyle: 'preserve-3d',
-          transition: 'transform 0.55s cubic-bezier(.4,0,.2,1)',
-          transform: isFlipped ? 'rotateY(180deg)' : 'none',
-        }}>
+      {/* ── 사진 영역 wrapper (이름/나이 overlay 고정용) ──────────────────────── */}
+      <div style={{ position: 'relative' }}>
 
-          {/* ── 앞면(Front): 사진 + 메뉴 + 이름 ──────────────────────────────── */}
-          <div style={{
-            position: 'absolute', inset: 0,
-            backfaceVisibility: 'hidden',
-            WebkitBackfaceVisibility: 'hidden',
+        {/* ── 3:4 외부 컨테이너 — 플립 없음, 빈공간(배경색)만 표시 ── */}
+        <div
+          style={{
+            aspectRatio: '3/4', position: 'relative',
             backgroundColor: '#f3f4f6',
+            borderRadius: '12px 12px 0 0',
             overflow: 'hidden',
-          }}>
-            <img
-              src={getAvatarSrc(profile.photo_url, profile.nickname)}
-              alt={profile.nickname}
-              loading="lazy"
-              decoding="async"
-              onLoad={handleImgLoad}
-              onError={(e) => { (e.target as HTMLImageElement).src = genAvatar(profile.nickname); }}
-              style={{ width: '100%', height: '100%', objectFit: imgFit === 'cover' ? 'cover' : 'contain' }}
-            />
-            {/* 상태 메시지 */}
-            {statusMsg?.trim() && (
-              <div
-                className="absolute top-0 left-0 right-0 z-10"
-                style={{
-                  height: '22px',
-                  background: 'rgba(0,0,0,0.52)',
-                  backdropFilter: 'blur(4px)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  animation: 'ticker-fadein 0.3s ease',
-                  overflow: 'hidden',
-                }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <span style={{
-                  fontSize: '11px',
-                  fontWeight: 500,
-                  color: 'rgba(255,255,255,0.92)',
-                  letterSpacing: '0.02em',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  maxWidth: '90%',
-                  animation: 'ticker-flash 2.2s ease-in-out infinite',
-                }}>
-                  {statusMsg}
-                </span>
-              </div>
-            )}
-
-            {/* ··· 메뉴 자리 표시자 — 실제 버튼은 카드 최상단으로 이동 */}
-            {/* 이름+나이 오버레이 */}
-            <div className="absolute inset-x-0 bottom-0 px-2 pb-2">
-              <div className="inline-flex items-baseline gap-1.5 rounded-lg px-2 py-0.5 max-w-full"
-                style={{ backgroundColor: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(2px)' }}>
-                <span className="font-black text-[13px] leading-tight truncate" style={{ color: '#fff' }}>{profile.nickname}</span>
-                {profile.birth_year && (
-                  <span className="text-[10px] font-semibold flex-shrink-0" style={{ color: 'rgba(255,255,255,0.82)' }}>{age}</span>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* ── 뒷면(Back): 이상형 텍스트 ─────────────────────────────────────── */}
-          <div style={{
-            position: 'absolute', inset: 0,
-            backfaceVisibility: 'hidden',
-            WebkitBackfaceVisibility: 'hidden',
-            transform: 'rotateY(180deg)',
-            background: 'linear-gradient(150deg, #0e0320 0%, #2a0855 35%, #1a0d40 65%, #090c25 100%)',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-            padding: '16px 12px', gap: '7px',
-            overflow: 'hidden',
-          }}>
-            {/* 배경 광원 레이어 1 */}
-            <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'radial-gradient(ellipse at 50% 15%, rgba(230,80,255,0.25) 0%, transparent 55%)' }} />
-            {/* 배경 광원 레이어 2 */}
-            <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'radial-gradient(ellipse at 75% 85%, rgba(80,100,255,0.20) 0%, transparent 50%)' }} />
-            {/* 반짝이 장식 */}
-            <span style={{ position: 'absolute', top: '9%', left: '11%', fontSize: '12px', opacity: 0.55 }}>✨</span>
-            <span style={{ position: 'absolute', top: '7%', right: '13%', fontSize: '10px', opacity: 0.40 }}>⭐</span>
-            <span style={{ position: 'absolute', bottom: '17%', left: '9%', fontSize: '10px', opacity: 0.40 }}>💫</span>
-            <span style={{ position: 'absolute', bottom: '11%', right: '11%', fontSize: '12px', opacity: 0.50 }}>✨</span>
-            {/* 메인 이모지 */}
-            <div style={{
-              fontSize: '38px', lineHeight: 1, position: 'relative', zIndex: 1,
-              filter: 'drop-shadow(0 0 14px rgba(255,60,180,0.85)) drop-shadow(0 0 28px rgba(200,40,255,0.55))',
-            }}>💘</div>
-            {/* 타이틀 — 그라데이션 텍스트 */}
-            <p style={{
-              background: 'linear-gradient(90deg,rgba(255,170,255,0.95),rgba(200,150,255,0.95),rgba(255,170,255,0.95))',
-              WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
-              fontSize: '11px', fontWeight: 900,
-              letterSpacing: '0.18em', textTransform: 'uppercase', margin: 0,
-              position: 'relative', zIndex: 1,
-            }}>나의 이상형</p>
-            {/* ideal_msg 파싱: "태그1,태그2\n기타텍스트" */}
-            {(() => {
-              const parts = (idealMsg ?? '').split('\n');
-              const tags = parts[0] ? parts[0].split(',').map(t => t.trim()).filter(Boolean) : [];
-              const free = parts[1] ?? '';
-              if (!tags.length && !free) {
-                return (
-                  <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '12px', textAlign: 'center', margin: '2px 0 6px', lineHeight: 1.5 }}>
-                    아직 이상형을<br/>작성하지 않았어요 ✨
-                  </p>
-                );
-              }
-              return (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '7px', width: '100%' }}>
-                  {tags.length > 0 && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', justifyContent: 'center' }}>
-                      {tags.map(t => (
-                        <span key={t} style={{
-                          padding: '4px 10px', borderRadius: '20px',
-                          background: 'rgba(255,255,255,0.16)',
-                          border: '1px solid rgba(255,180,255,0.35)',
-                          color: 'rgba(255,230,255,1)',
-                          fontSize: '12px', fontWeight: 700,
-                          backdropFilter: 'blur(4px)',
-                        }}>{t}</span>
-                      ))}
-                    </div>
-                  )}
-                  {free && (
-                    <p style={{
-                      color: 'rgba(255,255,255,0.8)', fontSize: '12px',
-                      textAlign: 'center', lineHeight: 1.6, margin: 0,
-                    }}>
-                      "{free}"
-                    </p>
-                  )}
-                </div>
-              );
-            })()}
-            <button
-              onClick={(e) => { e.stopPropagation(); onSelect(profile); }}
+            cursor: 'pointer',
+          }}
+          onClick={(e) => { e.stopPropagation(); setIsFlipped(f => !f); }}
+        >
+          {/* 상태 메시지 — 외부 컨테이너 상단, 플립과 무관하게 항상 표시 */}
+          {statusMsg?.trim() && (
+            <div
+              ref={tickerBarRef}
+              className="absolute top-0 left-0 right-0 z-10"
               style={{
-                marginTop: '4px',
-                background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.4)',
-                color: 'white', fontSize: '11px', fontWeight: 700,
-                padding: '6px 16px', borderRadius: '20px', cursor: 'pointer',
+                height: '22px',
+                background: 'rgba(0,0,0,0.52)',
                 backdropFilter: 'blur(4px)',
+                display: 'flex', alignItems: 'center',
+                paddingLeft: '6px', paddingRight: '6px',
+                animation: 'ticker-fadein 0.3s ease',
+                overflow: 'hidden',
               }}
-            >프로필 보기 →</button>
+              onClick={(e) => e.stopPropagation()}
+            >
+              <span
+                ref={tickerSpanRef}
+                style={{
+                  fontSize: '11px', fontWeight: 500,
+                  color: 'rgba(255,255,255,0.92)', letterSpacing: '0.02em',
+                  whiteSpace: 'nowrap',
+                  display: 'inline-block',
+                  flexShrink: 0,
+                  ...(tickerOffset > 0
+                    ? {
+                        // 텍스트가 넘침 → 슬라이드 마키 모드
+                        ['--ticker-offset' as string]: `-${tickerOffset}px`,
+                        animation: `ticker-scroll ${Math.max(4, Math.round(tickerOffset / 30) + 3)}s ease-in-out infinite`,
+                      }
+                    : {
+                        // 텍스트가 여유 있음 → 중앙 정렬 + 깜빡임
+                        overflow: 'hidden', textOverflow: 'ellipsis',
+                        maxWidth: '100%',
+                        animation: 'ticker-flash 2.2s ease-in-out infinite',
+                      }
+                  ),
+                }}
+              >{statusMsg}</span>
+            </div>
+          )}
+
+          {/* ── 플립 존 — 실제 사진이 렌더되는 영역에만 3D 뒤집기 적용 ── */}
+          <div style={{ perspective: '1000px', ...flipZoneStyle }}>
+            <div style={{
+              width: '100%', height: '100%',
+              transformStyle: 'preserve-3d',
+              transition: 'transform 0.55s cubic-bezier(.4,0,.2,1)',
+              transform: isFlipped ? 'rotateY(180deg)' : 'none',
+            }}>
+
+              {/* 앞면: 사진 */}
+              <div style={{
+                position: 'absolute', inset: 0,
+                backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden',
+                overflow: 'hidden',
+              }}>
+                <img
+                  src={getAvatarSrc(profile.photo_url, profile.nickname)}
+                  alt={profile.nickname}
+                  loading="lazy"
+                  decoding="async"
+                  onLoad={handleImgLoad}
+                  onError={(e) => { (e.target as HTMLImageElement).src = genAvatar(profile.nickname); }}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              </div>
+
+              {/* 뒷면: 이상형 */}
+              <div style={{
+                position: 'absolute', inset: 0,
+                backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden',
+                transform: 'rotateY(180deg)',
+                background: 'linear-gradient(160deg,#1c0a2e 0%,#3b1152 40%,#5b1a6e 70%,#2a0a40 100%)',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                padding: '14px 10px', gap: '8px', overflow: 'hidden',
+              }}>
+                <div style={{ position:'absolute', inset:0, pointerEvents:'none',
+                  background:'radial-gradient(ellipse at 50% 0%,rgba(255,100,200,0.28) 0%,transparent 60%)' }} />
+                <div style={{ position:'absolute', inset:0, pointerEvents:'none',
+                  background:'radial-gradient(ellipse at 50% 100%,rgba(140,60,255,0.22) 0%,transparent 55%)' }} />
+                <span style={{position:'absolute',top:'8%',left:'10%',fontSize:'11px',opacity:0.5}}>✦</span>
+                <span style={{position:'absolute',top:'6%',right:'12%',fontSize:'9px',opacity:0.4}}>✦</span>
+                <span style={{position:'absolute',bottom:'14%',left:'8%',fontSize:'9px',opacity:0.35}}>✦</span>
+                <span style={{position:'absolute',bottom:'9%',right:'10%',fontSize:'11px',opacity:0.45}}>✦</span>
+                <div style={{fontSize:'36px',lineHeight:1,position:'relative',zIndex:1,
+                  filter:'drop-shadow(0 0 12px rgba(255,80,160,0.9))'}}>💗</div>
+                <p style={{color:'#ffd6f0',fontSize:'10px',fontWeight:900,
+                  letterSpacing:'0.2em',textTransform:'uppercase',margin:0,position:'relative',zIndex:1}}>
+                  나의 이상형
+                </p>
+                <div style={{width:'40px',height:'1px',background:'rgba(255,180,230,0.4)',margin:'-2px 0'}} />
+                {(() => {
+                  const parts = (idealMsg ?? '').split('\n');
+                  const tags = parts[0] ? parts[0].split(',').map(t=>t.trim()).filter(Boolean) : [];
+                  const free = parts[1] ?? '';
+                  if (!tags.length && !free) return (
+                    <p style={{color:'rgba(255,210,240,0.45)',fontSize:'11px',
+                      textAlign:'center',margin:'2px 0 4px',lineHeight:1.6,position:'relative',zIndex:1}}>
+                      아직 작성하지<br/>않았어요 🌸
+                    </p>
+                  );
+                  return (
+                    <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:'6px',width:'100%',position:'relative',zIndex:1}}>
+                      {tags.length > 0 && (
+                        <div style={{display:'flex',flexWrap:'wrap',gap:'4px',justifyContent:'center'}}>
+                          {tags.map(t=>(
+                            <span key={t} style={{
+                              padding:'3px 9px',borderRadius:'20px',
+                              background:'rgba(255,180,230,0.18)',
+                              border:'1px solid rgba(255,160,220,0.45)',
+                              color:'#ffeaf6',fontSize:'11px',fontWeight:700,
+                            }}>{t}</span>
+                          ))}
+                        </div>
+                      )}
+                      {free && (
+                        <p style={{color:'rgba(255,230,245,0.85)',fontSize:'11px',
+                          textAlign:'center',lineHeight:1.6,margin:0,fontStyle:'italic'}}>
+                          "{free}"
+                        </p>
+                      )}
+                    </div>
+                  );
+                })()}
+                <button
+                  onClick={(e)=>{e.stopPropagation();onSelect(profile);}}
+                  style={{
+                    marginTop:'2px',
+                    background:'rgba(255,180,230,0.2)',border:'1px solid rgba(255,160,220,0.5)',
+                    color:'#ffd6f0',fontSize:'11px',fontWeight:700,
+                    padding:'5px 14px',borderRadius:'20px',cursor:'pointer',
+                  }}
+                >프로필 보기 →</button>
+              </div>
+
+            </div>
+          </div>{/* /플립 존 */}
+        </div>{/* /3:4 외부 컨테이너 */}
+
+        {/* ── 이름+나이 overlay — 플립·이미지 크기와 무관, 항상 사진 영역 하단 고정 ── */}
+        <div className="absolute inset-x-0 bottom-0 px-2 pb-2 pointer-events-none" style={{ zIndex: 5 }}>
+          <div className="inline-flex items-baseline gap-1.5 rounded-lg px-2 py-0.5 max-w-full"
+            style={{ backgroundColor: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(2px)' }}>
+            <span className="font-black text-[13px] leading-tight truncate" style={{ color: '#fff' }}>{profile.nickname}</span>
+            {profile.birth_year && (
+              <span className="text-[10px] font-semibold flex-shrink-0" style={{ color: 'rgba(255,255,255,0.82)' }}>{age}</span>
+            )}
           </div>
         </div>
-      </div>
+
+      </div>{/* /사진 영역 wrapper */}
 
       {/* ── 성향 + MBTI (항상 표시, 플립 안 됨) ────────────────────────────────── */}
       <div className="px-2.5 pt-2 pb-1 flex items-center justify-between gap-1 cursor-pointer"
@@ -1528,13 +1575,13 @@ export function MainScreen({
               return (
                 <div className={`rounded-3xl p-5 border shadow-xl transition-colors duration-300 ${darkMode ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600' : 'bg-white border-gray-100'}`}>
                   <div className="flex items-center justify-between mb-3">
-                    <p className={`text-[10px] font-black uppercase tracking-widest ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>내 프로필</p>
+                    <p className={`text-xs font-black uppercase tracking-widest ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>내 프로필</p>
                     <RefreshBtn onRefresh={() => doRefresh('status', onRefreshStatus)} refreshed={refreshedTab === 'status'} />
                   </div>
 
                   {/* ── 닉네임 (사진 위) ── */}
                   <div className="mb-2">
-                    <p className={`text-lg font-black leading-tight truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>{me.nickname}</p>
+                    <p className={`text-xl font-black leading-tight truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>{me.nickname}</p>
                   </div>
 
                   {/* ── 사진(왼쪽) + 박스(오른쪽) — 상단 정렬 ── */}
@@ -1723,7 +1770,7 @@ export function MainScreen({
               return (
                 <div className={`rounded-3xl border shadow-xl transition-colors duration-300 overflow-hidden ${darkMode ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600' : 'bg-white border-gray-100'}`}>
                   <button onClick={() => setShowVisitors(v => !v)} className="w-full flex items-center justify-between px-5 py-4">
-                    <span className={`text-[10px] font-black uppercase tracking-widest ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
+                    <span className={`text-xs font-black uppercase tracking-widest ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
                       👁 내 프로필 방문자 {visitors.length > 0 ? `(${visitors.length})` : ''}
                     </span>
                     <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${showVisitors ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
@@ -2089,7 +2136,7 @@ export function MainScreen({
                     onClick={() => setProfileEditOpen(o => !o)}
                     className={`w-full flex items-center justify-between px-4 py-3 border-b transition-colors ${darkMode ? 'border-slate-700 hover:bg-slate-700/40' : 'border-gray-100 hover:bg-gray-50'}`}
                   >
-                    <p className={`text-[10px] font-black uppercase tracking-widest ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>✏️ 프로필 편집</p>
+                    <p className={`text-xs font-black uppercase tracking-widest ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>✏️ 프로필 편집</p>
                     <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${profileEditOpen ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
                   </button>
                   {profileEditOpen && (

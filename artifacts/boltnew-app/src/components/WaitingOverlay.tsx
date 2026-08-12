@@ -9,6 +9,15 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
 }) {
   const { theme } = useTheme();
   const isLightTheme = theme === 'y2k' || theme === 'minimal';
+
+  // 라이트 테마(Y2K·Minimal)에서 amber 계열이 흰 배경에 묻히는 문제 → 진한 amber-8/900 사용
+  const C = {
+    panelTitle: isLightTheme ? '#78350f' : '#fde68a',          // amber-900  vs  amber-200
+    panelBody:  isLightTheme ? '#92400e' : 'rgba(252,211,77,0.8)', // amber-800  vs  amber-300/80
+    panelHigh:  isLightTheme ? '#78350f' : '#fde68a',           // amber-900  vs  amber-200
+    checkLabel: isLightTheme ? '#92400e' : '#fde68a',           // amber-800  vs  amber-200
+    checkItem:  isLightTheme ? '#78350f' : '#fef3c7',           // amber-900  vs  amber-100
+  } as const;
   const isActive = sessionActive === true;
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [showPinRecovery, setShowPinRecovery] = useState(false);
@@ -209,10 +218,17 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
           <div className="flex items-start gap-2.5">
             <span className="text-lg leading-none mt-0.5 flex-shrink-0">⚠️</span>
             <div className="min-w-0">
-              <p className="text-amber-200 font-black text-sm leading-snug">이미 프로필을 만드셨나요?</p>
-              <p className="text-amber-300/80 text-xs mt-1 leading-relaxed">
-                다시 만들지 마시고 <span className="font-bold text-amber-200">고유번호(PIN)</span>로 입장해주세요.<br />
-                고유번호를 모르신다면 <span className="font-bold text-amber-200">관리자에게 문의</span>해주세요.
+              <p className="font-black text-sm leading-snug" style={{ color: C.panelTitle }}>이미 프로필을 만드셨나요?</p>
+              {/* word-break:keep-all — 한국어 단어 중간 줄바꿈 방지 */}
+              <p className="text-xs mt-1 leading-relaxed" style={{ color: C.panelBody, wordBreak: 'keep-all' }}>
+                다시 만들지 마시고{' '}
+                <span className="font-bold" style={{ color: C.panelHigh }}>고유번호(PIN)</span>
+                로 입장해주세요.
+              </p>
+              <p className="text-xs leading-relaxed" style={{ color: C.panelBody, wordBreak: 'keep-all' }}>
+                고유번호를 모르신다면{' '}
+                <span className="font-bold" style={{ color: C.panelHigh }}>관리자에게 문의</span>
+                해주세요.
               </p>
             </div>
           </div>
@@ -221,19 +237,19 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
         {/* 입장 전 체크 — 2×2 그리드 */}
         <div className="w-[90%] rounded-2xl bg-amber-500/10 border border-amber-400/25 overflow-hidden">
           <div className="flex items-center justify-center gap-2 px-3 pt-2.5 pb-1.5">
-            <ShieldAlert className="w-3 h-3 text-amber-300 flex-shrink-0" />
-            <p className="text-amber-200 text-[10px] font-black tracking-widest uppercase">입장 전 체크</p>
+            <ShieldAlert className="w-3 h-3 flex-shrink-0" style={{ color: C.checkLabel }} />
+            <p className="text-[10px] font-black tracking-widest uppercase" style={{ color: C.checkLabel }}>입장 전 체크</p>
           </div>
           <div className="px-2.5 pb-2.5 grid grid-cols-2 gap-1.5">
             {[
               { emoji: '🔋', text: '절전 모드 OFF' },
               { emoji: '🕵️', text: '시크릿 모드 금지' },
               { emoji: '📵', text: '화면 잠금 길게 설정' },
-              { emoji: '🔖', text: '고유번호 · 프로필 암기' },
+              { emoji: '🔖', text: '고유번호·프로필 암기' },
             ].map(item => (
-              <div key={item.emoji} className="flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-xl bg-black/20">
+              <div key={item.emoji} className="flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl bg-black/20">
                 <span className="text-sm leading-none flex-shrink-0">{item.emoji}</span>
-                <p className="text-amber-100 text-[10px] font-bold leading-tight">{item.text}</p>
+                <p className="text-[10px] font-bold leading-tight" style={{ color: C.checkItem, wordBreak: 'keep-all' }}>{item.text}</p>
               </div>
             ))}
           </div>
