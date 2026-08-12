@@ -220,10 +220,14 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
             <div className="min-w-0 text-left">
               <p className="font-black text-sm leading-snug" style={{ color: C.panelTitle }}>이미 프로필을 만드셨나요?</p>
               <p className="text-xs mt-1 leading-relaxed" style={{ color: C.panelBody, wordBreak: 'keep-all' }}>
-                다시 만들지 마시고 <span className="font-bold" style={{ color: C.panelHigh }}>고유번호(PIN)</span>로 입장해주세요.
+                {theme === 'minimal'
+                  ? <>다시 만들지 마시고 <span className="font-bold" style={{ color: C.panelHigh }}>고유번호(PIN)</span>로 입장.</>
+                  : <>다시 만들지 마시고 <span className="font-bold" style={{ color: C.panelHigh }}>고유번호(PIN)</span>로 입장해주세요.</>}
               </p>
               <p className="text-xs leading-relaxed" style={{ color: C.panelBody, wordBreak: 'keep-all' }}>
-                고유번호를 모르신다면 <span className="font-bold" style={{ color: C.panelHigh }}>관리자에게 문의</span>해주세요.
+                {theme === 'minimal'
+                  ? <>고유번호를 모르신다면 <span className="font-bold" style={{ color: C.panelHigh }}>관리자에게 문의</span>.</>
+                  : <>고유번호를 모르신다면 <span className="font-bold" style={{ color: C.panelHigh }}>관리자에게 문의</span>해주세요.</>}
               </p>
             </div>
           </div>
