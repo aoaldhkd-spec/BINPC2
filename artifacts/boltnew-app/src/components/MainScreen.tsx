@@ -787,15 +787,29 @@ export const ProfileCard = memo(function ProfileCard({
         </div>{/* /3:4 외부 컨테이너 */}
 
         {/* ── 닉네임(왼쪽) + 나이(오른쪽) overlay — 사진 영역 하단 고정 ── */}
-        <div className="absolute inset-x-0 bottom-0 px-2 pb-2 pointer-events-none flex items-end justify-between gap-1" style={{ zIndex: 5 }}>
-          <div className="inline-flex items-center rounded-lg px-2 py-0.5 min-w-0"
-            style={{ backgroundColor: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(2px)' }}>
-            <span className="font-black text-[13px] leading-tight truncate" style={{ color: '#fff' }}>{profile.nickname}</span>
+        <div className="absolute inset-x-0 bottom-0 px-2 pb-2 pointer-events-none flex items-end justify-between gap-1.5" style={{ zIndex: 5 }}>
+          {/* 닉네임 — 그라디언트 frosted glass */}
+          <div className="inline-flex items-center min-w-0 rounded-xl px-2.5 py-1"
+            style={{
+              background: 'linear-gradient(135deg,rgba(0,0,0,0.72) 0%,rgba(30,30,30,0.62) 100%)',
+              backdropFilter: 'blur(6px)',
+              WebkitBackdropFilter: 'blur(6px)',
+              border: '1px solid rgba(255,255,255,0.13)',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
+            }}>
+            <span className="font-black text-[15px] leading-tight truncate" style={{ color: '#fff', textShadow: '0 1px 3px rgba(0,0,0,0.6)' }}>{profile.nickname}</span>
           </div>
+          {/* 나이 — 포인트 컬러 틴트 */}
           {age && (
-            <div className="flex-shrink-0 rounded-lg px-1.5 py-0.5"
-              style={{ backgroundColor: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(2px)' }}>
-              <span className="font-bold text-[12px] leading-tight" style={{ color: 'rgba(255,255,255,0.9)' }}>{age}</span>
+            <div className="flex-shrink-0 rounded-xl px-2 py-1"
+              style={{
+                background: 'linear-gradient(135deg,rgba(6,182,212,0.55) 0%,rgba(20,184,166,0.45) 100%)',
+                backdropFilter: 'blur(6px)',
+                WebkitBackdropFilter: 'blur(6px)',
+                border: '1px solid rgba(255,255,255,0.18)',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+              }}>
+              <span className="font-black text-[13px] leading-tight" style={{ color: '#fff', textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>{age}</span>
             </div>
           )}
         </div>
