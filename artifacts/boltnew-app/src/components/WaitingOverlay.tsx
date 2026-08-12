@@ -201,7 +201,7 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
           <button
             onClick={() => { setShowPinRecovery(true); setPinDigits(['','','','']); setPinError(''); setPinStep('pin'); }}
             className="w-[80%] py-3.5 bg-gradient-to-r from-orange-400 to-rose-500 hover:from-orange-300 hover:to-rose-400 text-white font-black text-sm rounded-2xl shadow-lg shadow-orange-500/25 transition-all active:scale-98"
-          >🔑 프로필 복구</button>
+          >🔑 고유번호로 프로필 복구</button>
         </div>
 
         {/* 이미 프로필이 있는 유저 안내 배너 — 복구 버튼 아래 */}
@@ -220,8 +220,8 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
 
         {/* 입장 전 체크 — 2×2 그리드 */}
         <div className="w-[90%] rounded-2xl bg-amber-500/10 border border-amber-400/25 overflow-hidden">
-          <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5">
-            <ShieldAlert className="w-3 h-3 text-amber-400 flex-shrink-0" />
+          <div className="flex items-center justify-center gap-2 px-3 pt-2.5 pb-1.5">
+            <ShieldAlert className="w-3 h-3 text-amber-300 flex-shrink-0" />
             <p className="text-amber-200 text-[10px] font-black tracking-widest uppercase">입장 전 체크</p>
           </div>
           <div className="px-2.5 pb-2.5 grid grid-cols-2 gap-1.5">
@@ -231,9 +231,9 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
               { emoji: '📵', text: '화면 잠금 길게 설정' },
               { emoji: '🔖', text: '고유번호 · 프로필 암기' },
             ].map(item => (
-              <div key={item.emoji} className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl bg-black/20">
+              <div key={item.emoji} className="flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-xl bg-black/20">
                 <span className="text-sm leading-none flex-shrink-0">{item.emoji}</span>
-                <p className="text-amber-100/85 text-[10px] font-semibold leading-tight">{item.text}</p>
+                <p className="text-amber-100 text-[10px] font-bold leading-tight">{item.text}</p>
               </div>
             ))}
           </div>
