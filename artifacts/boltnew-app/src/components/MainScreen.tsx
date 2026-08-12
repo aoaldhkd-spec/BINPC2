@@ -774,38 +774,37 @@ export const ProfileCard = memo(function ProfileCard({
           </div>{/* /플립 존 */}
         </div>{/* /3:4 외부 컨테이너 */}
 
-        {/* ── 닉네임 overlay — 나이와 분리, 사진 영역 하단 고정 ── */}
-        <div className="absolute inset-x-0 bottom-0 px-2 pb-2 pointer-events-none" style={{ zIndex: 5 }}>
-          <div className="inline-flex items-center rounded-lg px-2 py-0.5 max-w-full"
+        {/* ── 닉네임(왼쪽) + 나이(오른쪽) overlay — 사진 영역 하단 고정 ── */}
+        <div className="absolute inset-x-0 bottom-0 px-2 pb-2 pointer-events-none flex items-end justify-between gap-1" style={{ zIndex: 5 }}>
+          <div className="inline-flex items-center rounded-lg px-2 py-0.5 min-w-0"
             style={{ backgroundColor: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(2px)' }}>
             <span className="font-black text-[13px] leading-tight truncate" style={{ color: '#fff' }}>{profile.nickname}</span>
           </div>
+          {age && (
+            <div className="flex-shrink-0 rounded-lg px-1.5 py-0.5"
+              style={{ backgroundColor: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(2px)' }}>
+              <span className="font-bold text-[12px] leading-tight" style={{ color: 'rgba(255,255,255,0.9)' }}>{age}</span>
+            </div>
+          )}
         </div>
 
       </div>{/* /사진 영역 wrapper */}
 
-      {/* ── 성향 + (나이↑/MBTI↓) — 나이를 MBTI 위에 독립 표시 ─────────────────── */}
-      <div className="px-2.5 pt-2 pb-1 flex items-start justify-between gap-1 cursor-pointer"
+      {/* ── 성향 + MBTI ─────────────────────────────────────────────────────────── */}
+      <div className="px-2.5 pt-2 pb-1 flex items-center justify-between gap-1 cursor-pointer"
         onClick={() => onSelect(profile)}>
         {/* 왼쪽: 성향 배지 */}
-        <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg leading-tight border mt-0.5"
+        <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg leading-tight border"
           style={{ backgroundColor: posStyle.bg, color: posStyle.text, borderColor: posStyle.border }}>
           {posLabel}
         </span>
-        {/* 오른쪽: 나이(위) + MBTI(아래) 세로 스택 */}
-        <div className="flex flex-col items-end gap-0.5">
-          {profile.birth_year && (
-            <span className="text-[11px] font-bold leading-tight" style={{ color: isCardDark ? 'rgba(255,255,255,0.7)' : '#6b7280' }}>
-              {age}
-            </span>
-          )}
-          {msStyle && (
-            <span className="text-[10px] font-black px-1.5 py-0.5 rounded-lg leading-tight border"
-              style={{ backgroundColor: msStyle.bg + 'dd', color: msStyle.color, borderColor: msStyle.border }}>
-              {profile.mbti}
-            </span>
-          )}
-        </div>
+        {/* 오른쪽: MBTI */}
+        {msStyle && (
+          <span className="text-[10px] font-black px-1.5 py-0.5 rounded-lg leading-tight border"
+            style={{ backgroundColor: msStyle.bg + 'dd', color: msStyle.color, borderColor: msStyle.border }}>
+            {profile.mbti}
+          </span>
+        )}
       </div>
 
       {/* ── 관심사 (최대 2개, 항상 표시) ───────────────────────────────────────── */}

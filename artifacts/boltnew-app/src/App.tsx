@@ -828,7 +828,7 @@ function App() {
     // ─── 하트 잔여 수 실시간 구독 + 초기 로드 ─────────────────────────────────
     const heartBalanceChannel = supabase
       .channel(`realtime:heart_balances:${currentUserId}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'heart_balances', filter: `id=eq.${currentUserId}` },
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'heart_balances', filter: `id=eq.${currentUserId}` },
         (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
           const row = payload.new as { heart_count?: number };
           if (typeof row?.heart_count === 'number') {
