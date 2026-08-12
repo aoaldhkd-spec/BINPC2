@@ -27,13 +27,14 @@ export default function ProfileAvatar({ profile, size = 'md', rounded = 'xl', cl
 
   return (
     <div
-      className={`${s.outer} rounded-${rounded} flex flex-col items-center justify-center overflow-hidden flex-shrink-0 ${className}`}
+      className={`${s.outer} rounded-${rounded} overflow-hidden flex-shrink-0 relative ${className}`}
       style={{ backgroundColor: bg }}
     >
-      <span className={`${s.label} font-black text-white leading-none text-center px-0.5`}>{label}</span>
-      {profile.mbti && (
-        <span className={`${s.mbti} font-bold text-white/80 leading-none mt-px`}>{profile.mbti}</span>
-      )}
+      {/* 사람 실루엣만 — 텍스트 일절 없음 */}
+      <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+        <circle cx="50" cy="38" r="22" fill="rgba(255,255,255,0.28)" />
+        <ellipse cx="50" cy="94" rx="34" ry="24" fill="rgba(255,255,255,0.28)" />
+      </svg>
     </div>
   );
 }
