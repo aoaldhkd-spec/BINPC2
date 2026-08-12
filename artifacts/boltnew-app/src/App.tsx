@@ -222,6 +222,7 @@ function App() {
   // 채팅방별 미전송 초안 보존 — 뒤로가기 후 재진입 시 복원
   const chatDraftRef = useRef<Map<string, string>>(new Map());
   const loadReceivedLikesRef = useRef<((userId: string) => Promise<void>) | null>(null);
+  const loadLikesRef = useRef<((userId: string) => Promise<void>) | null>(null);
   // ?share=<profileId> URL 파라미터 — 프로필 QR 스캔 시 연락처 자동 수신
   const [pendingShareId] = useState<string | null>(() => new URLSearchParams(window.location.search).get('share'));
 
@@ -342,6 +343,7 @@ function App() {
       loadProfilesRef.current().catch(() => {});
       loadChatListRef.current?.(uid).catch(() => {});
       loadReceivedLikesRef.current?.(uid).catch(() => {});
+      loadLikesRef.current?.(uid).catch(() => {});
     }, 5_000);
     return () => { clearInterval(pollId); };
   }, [connStatus, currentUserId]);
@@ -404,6 +406,7 @@ function App() {
   // SSE fallback polling refs 동기화 — 렌더마다 최신 함수를 가리키도록 (stale 클로저 방지)
   loadChatListRef.current = loadChatList;
   loadReceivedLikesRef.current = loadReceivedLikes;
+  loadLikesRef.current = loadLikes;
 
   // 하트 보내는 쪽도 폭죽 🎊
   const execLikeWithConfetti = useCallback((...args: Parameters<typeof executeLike>) => {
