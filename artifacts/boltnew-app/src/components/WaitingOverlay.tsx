@@ -217,18 +217,13 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
         <div className="w-[90%] rounded-2xl bg-amber-500/15 border border-amber-400/30 px-4 py-3 mb-2">
           <div className="flex items-start gap-2.5">
             <span className="text-lg leading-none mt-0.5 flex-shrink-0">⚠️</span>
-            <div className="min-w-0">
+            <div className="min-w-0 text-left">
               <p className="font-black text-sm leading-snug" style={{ color: C.panelTitle }}>이미 프로필을 만드셨나요?</p>
-              {/* word-break:keep-all — 한국어 단어 중간 줄바꿈 방지 */}
               <p className="text-xs mt-1 leading-relaxed" style={{ color: C.panelBody, wordBreak: 'keep-all' }}>
-                다시 만들지 마시고{' '}
-                <span className="font-bold" style={{ color: C.panelHigh }}>고유번호(PIN)</span>
-                로 입장해주세요.
+                다시 만들지 마시고 <span className="font-bold" style={{ color: C.panelHigh }}>고유번호(PIN)</span>로 입장해주세요.
               </p>
               <p className="text-xs leading-relaxed" style={{ color: C.panelBody, wordBreak: 'keep-all' }}>
-                고유번호를 모르신다면{' '}
-                <span className="font-bold" style={{ color: C.panelHigh }}>관리자에게 문의</span>
-                해주세요.
+                고유번호를 모르신다면 <span className="font-bold" style={{ color: C.panelHigh }}>관리자에게 문의</span>해주세요.
               </p>
             </div>
           </div>
