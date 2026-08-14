@@ -576,27 +576,76 @@ async function loadFromDb(): Promise<void> {
 }
 
 // ─── Seed data (only if DB is empty) ─────────────────────────────────────────
+function defaultAppSettings(): Record<string, unknown> {
+  return {
+    id: 1,
+    session_active: false,
+    admin_phone: '010-3878-6740',
+    admin_password: '116606',
+    updated_at: ts(),
+    timer_end_at: null,
+    timer_label: null,
+    functions_locked: false,
+    reset_signal: null,
+    game_state: null,
+    entry_password: koreanDateMMDD(),
+    reset_password: null,
+    test_password: null,
+    qr_base_url: null,
+    heart_drain_enabled: false,
+    heart_drain_minutes: 5,
+    heart_initial_count: 8,
+    active_tables: null,
+  };
+}
+
+function mergeAppSettings(
+  current: Record<string, unknown>,
+  patch: Record<string, unknown>,
+): Record<string, unknown> {
+  const structuralDefaults: Record<string, unknown> = {
+    id: 1,
+    session_active: false,
+    timer_end_at: null,
+    timer_label: null,
+    functions_locked: false,
+    reset_signal: null,
+    game_state: null,
+    entry_password: koreanDateMMDD(),
+    heart_drain_enabled: false,
+    heart_drain_minutes: 5,
+    heart_initial_count: 8,
+  };
+  return { ...structuralDefaults, ...current, ...patch, id: 1, updated_at: ts() };
+}
+
+/** DB에 id/session_active 등 핵심 필드가 빠진 app_settings를 자동 복구 */
+async function repairAppSettingsIfNeeded(): Promise<void> {
+  const row = getTable('app_settings')[0];
+  if (!row) {
+    const settings = defaultAppSettings();
+    store['app_settings'] = [settings];
+    await dbPersistRow('app_settings', settings);
+    logger.warn('[db] app_settings missing — seeded defaults');
+    return;
+  }
+  const broken = row.id == null
+    || row.session_active === undefined
+    || row.admin_password === undefined
+    || row.entry_password === undefined;
+  if (!broken) return;
+  const repaired = mergeAppSettings(row, {});
+  store['app_settings'] = [repaired];
+  await dbPersistRow('app_settings', repaired);
+  logger.warn('[db] app_settings repaired (missing core fields)');
+}
+
 async function seedIfNeeded(): Promise<void> {
   await ensureStorageSchema();
   await loadFromDb();
+  await repairAppSettingsIfNeeded();
   if (!getTable('app_settings').length) {
-    const settings = {
-      id: 1,
-      session_active: false,
-      admin_phone: '010-3878-6740',
-      admin_password: '116606',
-      updated_at: ts(),
-      timer_end_at: null,
-      timer_label: null,
-      functions_locked: false,
-      reset_signal: null,
-      game_state: null,
-      entry_password: koreanDateMMDD(),
-      reset_password: null,
-      heart_drain_enabled: false,
-      heart_drain_minutes: 5,
-      heart_initial_count: 8,
-    };
+    const settings = defaultAppSettings();
     store['app_settings'] = [settings];
     await dbPersistRow('app_settings', settings);
   }
@@ -1993,6 +2042,9 @@ router.post('/op', async (req: Request, res: Response) => {
 
     // ── UPDATE ──────────────────────────────────────────────────────────────
     if (op === 'update') {
+      if (table === 'app_settings' && !isAdmin) {
+        return res.status(403).json({ data: null, error: { message: 'Forbidden: admin only', code: 'FORBIDDEN' } });
+      }
       let patch = sanitizeRow(table, payload as Record<string, unknown>);
 
       // ─ IDOR guard: UPDATE ownership check ──────────────────────────────
@@ -2277,9 +2329,9 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
           ])
         );
         const current = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
-        const updated = { ...current, ...sanitizedSettingsPayload, updated_at: new Date().toISOString() };
+        const updated = mergeAppSettings(current, sanitizedSettingsPayload);
         store['app_settings'] = [updated];
-        broadcastAll({ type: 'change', table: 'app_settings', event: 'UPDATE', newRow: updated, oldRow: current });
+        broadcastAll({ type: 'change', table: 'app_settings', event: 'UPDATE', newRow: sanitizeSettings(updated), oldRow: sanitizeSettings(current) });
         dbPersistRow('app_settings', updated).catch(e => logger.error({ err: e }, '[db] background task error'));
         return res.json({ data: null, error: null });
       }

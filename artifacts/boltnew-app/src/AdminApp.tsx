@@ -2421,20 +2421,19 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   }, [fetchDbHealth]);
 
   const handleToggleSession = async () => {
-    // ✅ Fix #4a: 빠른 더블클릭·동시 관리자 race 방지 — 낙관적 즉시 반영 후 저장
     if (!settings) return;
     const newVal = !(settings.session_active ?? false);
-    setSettings(prev => prev ? { ...prev, session_active: newVal } : prev); // 낙관적 업데이트
-    const { error } = await adminSupabase.from('app_settings').update({ session_active: newVal, updated_at: new Date().toISOString() }).eq('id', 1);
-    if (error) {
-      // 실패 시 롤백
+    setSettings(prev => prev ? { ...prev, session_active: newVal } : prev);
+    try {
+      await adminApiRpc('admin_update_settings', {
+        p_admin_password: '',
+        p_payload: { session_active: newVal },
+      });
+    } catch (e) {
       setSettings(prev => prev ? { ...prev, session_active: !newVal } : prev);
-      console.error('[admin] 세션 토글 실패:', error.message);
-      return;
+      const msg = e instanceof Error ? e.message : String(e);
+      alert(`회식 시작/종료 실패: ${msg}\n\n관리자 로그아웃 후 다시 로그인해 주세요.`);
     }
-    // api-server 인메모리 동기화 → 모든 유저에게 SSE로 즉시 반영
-    adminApiRpc('admin_update_settings', { p_admin_password: settings.admin_password ?? '', p_payload: { session_active: newVal } })
-      .catch(e => console.warn('[admin] api-server 세션 동기화 실패 (5분 내 자동 복구):', e));
   };
 
   const handleSetTimer = async (endAt: string | null, label: string | null) => {
