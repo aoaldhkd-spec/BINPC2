@@ -9,7 +9,7 @@ import { useTheme } from '../lib/theme';
 import type { Profile, ContactShare, Suggestion, Chat, MainTab, GroupChat, ProfileView, UserSignal } from '../types/app';
 import { BIO_CATEGORIES, parseProfileInterests } from '../lib/interests';
 import { HeartType, HEART_TYPES, heartMeta } from '../lib/constants';
-import { getPositionLabel, getPositionBg, getPositionStyle, getDomSubLabel, getDomSubBg, getKoreanAge, genAvatar, getAvatarSrc, getAvatarGradient, hasUploadedPhoto } from '../lib/profile';
+import { getPositionLabel, getPositionBg, getPositionStyle, getDomSubLabel, getDomSubBg, getKoreanAge, genAvatar, getAvatarSrc, getAvatarGradientCss, hasUploadedPhoto } from '../lib/profile';
 import { containsBannedNicknameWord } from '../lib/bannedWords';
 import { getMbtiStyle, koreanMatch } from '../lib/utils';
 import { ls } from '../lib/storage';
@@ -509,13 +509,20 @@ export const ProfileCard = memo(function ProfileCard({
 
   // 이미지 naturalRatio → contain 시 빈공간 유지, 실제 사진 영역만 플립/표시
   const [naturalRatio, setNaturalRatio] = useState<number | null>(null);
+  const [imgFailed, setImgFailed] = useState(false);
   const handleImgLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const { naturalWidth: w, naturalHeight: h } = e.currentTarget;
     if (w && h) setNaturalRatio(w / h);
   };
   useEffect(() => {
     setNaturalRatio(null);
+    setImgFailed(false);
   }, [profile.photo_url, profile.nickname]);
+
+  const pastelFill = !hasUploadedPhoto(profile.photo_url) || imgFailed;
+  const photoBg = pastelFill
+    ? getAvatarGradientCss(profile.nickname)
+    : '#f3f4f6';
 
   // 상태 메시지 자동 마키 — 텍스트가 바 너비를 초과하면 슬라이드 애니메이션 적용
   const tickerBarRef = useRef<HTMLDivElement>(null);
@@ -524,10 +531,6 @@ export const ProfileCard = memo(function ProfileCard({
   const hasTicker = Boolean(statusMsg?.trim());
   const hasMenu = Boolean(onBlock || onContactShare || onViewFortune);
   const showTopBar = hasTicker;
-  const avatarGrad = getAvatarGradient(profile.nickname);
-  const photoBg = hasUploadedPhoto(profile.photo_url)
-    ? '#f3f4f6'
-    : `linear-gradient(135deg, ${avatarGrad.from} 0%, ${avatarGrad.to} 100%)`;
   useEffect(() => {
     const bar = tickerBarRef.current;
     const span = tickerSpanRef.current;
@@ -543,9 +546,9 @@ export const ProfileCard = memo(function ProfileCard({
     return () => ro.disconnect();
   }, [statusMsg]);
 
-  // 3:4 카드 — 사진 원본 비율 유지(양옆·위아래 잘림 방지)
+  // 3:4 카드 — 사진 원본 비율 유지(양옆·위아래 잘림 방지); 파스텔은 영역 전체 채움
   const CRATIO = 3 / 4;
-  const r = naturalRatio ?? CRATIO;
+  const r = pastelFill ? CRATIO : (naturalRatio ?? CRATIO);
   const flipZoneStyle: React.CSSProperties = r >= CRATIO
     ? {
         position: 'absolute', left: 0, right: 0,
@@ -699,15 +702,19 @@ export const ProfileCard = memo(function ProfileCard({
                 }}
                 onClick={(e) => { e.stopPropagation(); setIsFlipped(true); }}
               >
-                <img
-                  src={getAvatarSrc(profile.photo_url, profile.nickname)}
-                  alt={profile.nickname}
-                  loading="lazy"
-                  decoding="async"
-                  onLoad={handleImgLoad}
-                  onError={(e) => { (e.target as HTMLImageElement).src = genAvatar(profile.nickname); }}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
+                {pastelFill ? (
+                  <div className="absolute inset-0" style={{ background: photoBg }} aria-hidden />
+                ) : (
+                  <img
+                    src={profile.photo_url!}
+                    alt={profile.nickname}
+                    loading="lazy"
+                    decoding="async"
+                    onLoad={handleImgLoad}
+                    onError={() => setImgFailed(true)}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                )}
               </div>
 
               {/* 뒷면: 이상형 — 탭하면 앞면(사진)으로 복귀 */}

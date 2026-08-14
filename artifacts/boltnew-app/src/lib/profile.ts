@@ -108,6 +108,12 @@ export function getAvatarGradient(nickname: string): { from: string; to: string 
   return AVATAR_PALETTE[avatarPaletteIndex(nick) % AVATAR_PALETTE.length];
 }
 
+/** 카드 배경·플레이스홀더용 CSS 그라디언트 (genAvatar SVG와 동일 색) */
+export function getAvatarGradientCss(nickname: string): string {
+  const { from, to } = getAvatarGradient(nickname);
+  return `linear-gradient(135deg, ${from} 0%, ${to} 100%)`;
+}
+
 export function getAvatarSrc(url: string | null | undefined, nick: string): string {
   if (!hasUploadedPhoto(url)) return genAvatar(nick);
   return url!;
