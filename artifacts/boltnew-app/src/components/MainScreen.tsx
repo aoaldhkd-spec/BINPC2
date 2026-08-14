@@ -600,52 +600,6 @@ export const ProfileCard = memo(function ProfileCard({
   return (
     <div className="group relative flex flex-col min-w-0 max-w-full bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
 
-      {/* ── 상단 스트립: 전광판 + ⋯ (상태 메시지 있을 때만) ── */}
-      {showTopBar && (
-        <div
-          className="relative z-20 flex items-stretch shrink-0 min-h-[22px]"
-          style={{
-            background: 'linear-gradient(90deg,rgba(15,23,42,0.92) 0%,rgba(17,94,89,0.92) 100%)',
-            borderBottom: '1px solid rgba(45,212,191,0.45)',
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div
-            ref={tickerBarRef}
-            className="flex-1 min-w-0 overflow-hidden flex items-center px-1.5"
-            style={{ animation: 'ticker-fadein 0.3s ease' }}
-          >
-            <span
-              ref={tickerSpanRef}
-              style={{
-                fontSize: '9px', fontWeight: 800,
-                color: '#ccfbf1', letterSpacing: '0.03em',
-                textShadow: '0 0 6px rgba(45,212,191,0.55)',
-                whiteSpace: 'nowrap',
-                display: 'inline-block',
-                flexShrink: 0,
-                ...(tickerOffset > 0
-                  ? {
-                      ['--ticker-offset' as string]: `-${tickerOffset}px`,
-                      animation: `ticker-scroll ${Math.max(4, Math.round(tickerOffset / 30) + 3)}s ease-in-out infinite`,
-                    }
-                  : {
-                      overflow: 'hidden', textOverflow: 'ellipsis',
-                      maxWidth: '100%',
-                      animation: 'ticker-flash 2.2s ease-in-out infinite',
-                    }
-                ),
-              }}
-            >{statusMsg}</span>
-          </div>
-          {hasMenu && (
-            <div className="shrink-0 flex items-center pr-0.5 pl-0.5">
-              {menuButton}
-            </div>
-          )}
-        </div>
-      )}
-
       {/* ⋯ 드롭다운 (fixed) */}
       {showMenu && menuPos && (
         <div
@@ -792,7 +746,54 @@ export const ProfileCard = memo(function ProfileCard({
             </div>
           </div>{/* /플립 존 */}
 
-          {/* ⋯ — 사진 우상단 고정 (크기만 축소), 전광판 있을 땐 스트립 쪽 */}
+          {/* 전광판 — 사진 위에 겹침 (높이 동일 유지) */}
+          {showTopBar && (
+            <div
+              className="absolute top-0 left-0 right-0 z-30 flex items-stretch min-h-[20px] pointer-events-auto"
+              style={{
+                background: 'linear-gradient(90deg,rgba(15,23,42,0.88) 0%,rgba(17,94,89,0.88) 100%)',
+                borderBottom: '1px solid rgba(45,212,191,0.4)',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div
+                ref={tickerBarRef}
+                className="flex-1 min-w-0 overflow-hidden flex items-center px-1.5 py-0.5"
+                style={{ animation: 'ticker-fadein 0.3s ease' }}
+              >
+                <span
+                  ref={tickerSpanRef}
+                  style={{
+                    fontSize: '9px', fontWeight: 800,
+                    color: '#ccfbf1', letterSpacing: '0.03em',
+                    textShadow: '0 0 6px rgba(45,212,191,0.55)',
+                    whiteSpace: 'nowrap',
+                    display: 'inline-block',
+                    flexShrink: 0,
+                    ...(tickerOffset > 0
+                      ? {
+                          ['--ticker-offset' as string]: `-${tickerOffset}px`,
+                          animation: `ticker-scroll ${Math.max(4, Math.round(tickerOffset / 30) + 3)}s ease-in-out infinite`,
+                        }
+                      : {
+                          overflow: 'hidden', textOverflow: 'ellipsis',
+                          maxWidth: '100%',
+                          animation: 'ticker-flash 2.2s ease-in-out infinite',
+                        }
+                    ),
+                  }}
+                >{statusMsg}</span>
+              </div>
+              {hasMenu && (
+                <div className="shrink-0 flex items-center pr-0.5 pl-0.5">
+                  {menuButton}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ⋯ — 전광판 없을 때만 사진 우상단 */}
           {hasMenu && !showTopBar && (
             <div className="absolute right-1 top-1 z-40" onClick={(e) => e.stopPropagation()}>
               {menuButton}
