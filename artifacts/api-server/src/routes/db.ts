@@ -1,3 +1,4 @@
+import '../lib/dns-ipv4-first.js';
 import { Router, type Request, type Response } from 'express';
 import pg from 'pg';
 import { createHmac, timingSafeEqual } from 'node:crypto';
@@ -56,8 +57,19 @@ function verifyTestToken(provided: string | null | undefined): boolean {
 const sseAdminClients = new Set<Response>();
 
 // ─── PostgreSQL connection pool ────────────────────────────────────────────────
+function buildPgOptions(): pg.ClientConfig {
+  const raw = process.env.DATABASE_URL ?? '';
+  const connectionString = raw && !raw.includes('sslmode=')
+    ? `${raw}${raw.includes('?') ? '&' : '?'}sslmode=require`
+    : raw;
+  return {
+    connectionString,
+    ssl: raw ? { rejectUnauthorized: false } : undefined,
+  };
+}
+
 const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL,
+  ...buildPgOptions(),
   max: 50,                  // 100명 동시접속 대비 (기본값 10에서 상향)
   idleTimeoutMillis: 30000, // idle 커넥션 30초 후 해제
   connectionTimeoutMillis: 5000, // 5초 안에 커넥션 못 얻으면 에러
@@ -902,7 +914,7 @@ async function setupListenClient(): Promise<void> {
   // try 외부에 선언 — catch 블록에서 client.end()로 커넥션 누수 방지
   let client: pg.Client | null = null;
   try {
-    client = new pg.Client({ connectionString: process.env.DATABASE_URL });
+    client = new pg.Client(buildPgOptions());
     await client.connect();
     await client.query('LISTEN data_change');
     client.on('notification', (msg) => {

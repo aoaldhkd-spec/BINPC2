@@ -10,6 +10,8 @@ services:
     startCommand: corepack pnpm --filter @workspace/api-server start
     healthCheckPath: /api/healthz
     envVars:
+      - key: NODE_OPTIONS
+        value: "--dns-result-order=ipv4first"
       - key: NODE_ENV
         value: production
       - key: PORT
