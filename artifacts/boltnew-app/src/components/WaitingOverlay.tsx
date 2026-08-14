@@ -5,7 +5,7 @@ import { useTheme } from '../lib/theme';
 export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
   sessionActive: boolean | null;
   onEnter: () => void;
-  onRecover?: (profileId: string) => void;
+  onRecover?: (profileId: string, pinCode: string) => void;
 }) {
   const { theme } = useTheme();
   const isLightTheme = theme === 'y2k' || theme === 'minimal';
@@ -76,13 +76,18 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
         setPinLoading(false);
         return;
       }
-      // 최종 성공
-      if (onRecover) {
-        onRecover(json.data.id!);
+      // 최종 성공 (구 API 호환)
+      const profileId = json.data.id ?? (json.data as { id?: string }).id;
+      if (profileId) {
+        if (onRecover) onRecover(profileId, code);
+        else {
+          localStorage.setItem('matching_user_id', profileId);
+          onEnter();
+        }
       } else {
-        localStorage.setItem('matching_user_id', json.data.id!);
-        onEnter();
+        setPinError('프로필을 찾을 수 없어요');
       }
+      setPinLoading(false);
     } catch {
       setPinError('오류가 발생했어요. 다시 시도해주세요');
       setPinLoading(false);
@@ -112,10 +117,19 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
         setPinLoading(false);
         return;
       }
+      const profileId = typeof json.data.id === 'string' ? json.data.id : String((json.data as { id?: string }).id ?? '');
+      if (!profileId) {
+        setPinError('프로필을 찾을 수 없어요');
+        setPinLoading(false);
+        return;
+      }
+      setShowPinRecovery(false);
+      setPinStep('pin');
+      setPinLoading(false);
       if (onRecover) {
-        onRecover(json.data.id);
+        onRecover(profileId, pendingPin);
       } else {
-        localStorage.setItem('matching_user_id', json.data.id);
+        localStorage.setItem('matching_user_id', profileId);
         onEnter();
       }
     } catch {

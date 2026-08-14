@@ -409,14 +409,14 @@ function App() {
 
   useEffect(() => {
     let cancelled = false;
-    // API 콜드스타트·재시도 중에도 12초 후에는 프리뷰/대기 화면 표시 (무한 스피너 방지)
+    // API 콜드스타트·재시도 중에도 6초 후에는 프리뷰/대기 화면 표시 (무한 스피너 방지)
     const safetyTimer = setTimeout(() => {
       if (!cancelled) {
         setAppLoading(false);
         setSessionActive(prev => (prev === null ? false : prev));
         setEntryPassword(prev => (prev === null ? '' : prev));
       }
-    }, 12_000);
+    }, 6_000);
 
     const applySettings = (data: Record<string, unknown> | null) => {
       if (cancelled || !data) return;
@@ -448,6 +448,23 @@ function App() {
     };
 
     async function loadSettings(attempt = 0): Promise<void> {
+      try {
+        const resp = await fetch('/api/db/ready', { signal: AbortSignal.timeout(8_000) });
+        if (resp.ok) {
+          const json = await resp.json() as {
+            ready?: boolean;
+            settings?: Record<string, unknown>;
+          };
+          if (json.ready && json.settings) {
+            setAppLoading(false);
+            applySettings(json.settings);
+            return;
+          }
+        }
+      } catch {
+        // fall through to Supabase-compatible fetch
+      }
+
       const { data, error } = await supabase
         .from('app_settings')
         .select('session_active, timer_end_at, timer_label, reset_signal, reset_password, entry_password, functions_locked')
@@ -455,8 +472,8 @@ function App() {
         .single();
       if (cancelled) return;
       if (error || !data) {
-        if (attempt < 6) {
-          await new Promise(r => setTimeout(r, Math.min(2000 * (attempt + 1), 8000)));
+        if (attempt < 5) {
+          await new Promise(r => setTimeout(r, Math.min(400 * Math.pow(2, attempt), 3200)));
           return loadSettings(attempt + 1);
         }
         setAppLoading(false);
@@ -666,12 +683,17 @@ function App() {
       if (me && !(me as { pin_code?: string | null }).pin_code) {
         (async () => {
           try {
-            const { data: existingPins } = await supabase.from('profiles').select('pin_code');
-            const usedPins = new Set((existingPins ?? []).map((p: { pin_code: string | null }) => p.pin_code).filter(Boolean));
-            let newPin = String(Math.floor(1000 + Math.random() * 9000));
-            while (usedPins.has(newPin)) newPin = String(Math.floor(1000 + Math.random() * 9000));
-            await supabase.from('profiles').update({ pin_code: newPin }).eq('id', currentUserId);
-            setProfiles(prev => prev.map(p => p.id === currentUserId ? { ...p, pin_code: newPin } : p));
+            const seedPin = String(Math.floor(1000 + Math.random() * 9000));
+            const { data: updated } = await supabase
+              .from('profiles')
+              .update({ pin_code: seedPin })
+              .eq('id', currentUserId)
+              .select('pin_code')
+              .single();
+            const assigned = (updated as { pin_code?: string } | null)?.pin_code;
+            if (assigned) {
+              setProfiles(prev => prev.map(p => p.id === currentUserId ? { ...p, pin_code: assigned } : p));
+            }
           } catch (err) {
             console.warn('[pin-gen] 고유번호 자동 생성 실패:', err);
           }
@@ -1027,30 +1049,12 @@ function App() {
     setLoading(true);
     setRegistrationError(null);
     try {
-    // Generate unique PIN code (4-digit normally; 5-digit when >8000 profiles)
-    const { data: existingPins } = await supabase.from('profiles').select('pin_code');
-    const usedPins = new Set((existingPins ?? []).map((p: { pin_code: string | null }) => p.pin_code).filter(Boolean));
-    const use5Digit = usedPins.size > 8000;
-    const poolSize = use5Digit ? 90000 : 9000;
-    if (usedPins.size >= poolSize) {
-      setRegistrationError('현재 정원이 가득 찼습니다. 운영진에 문의하세요.');
-      setLoading(false);
-      return;
-    }
-    const genPin = () => use5Digit
-      ? String(Math.floor(10000 + Math.random() * 90000))
-      : String(Math.floor(1000 + Math.random() * 9000));
-    let pinCode = genPin();
-    let pinTries = 0;
-    while (usedPins.has(pinCode) && pinTries++ < 100) pinCode = genPin();
-
-    // 프로필 ID를 클라이언트에서 미리 생성 — SSE 기기 secret을 INSERT와 원자적으로 바인딩하기 위함
     const newProfileId = crypto.randomUUID();
     const { data: profile, error } = await supabase
       .from('profiles')
       .insert({
         id: newProfileId,
-        _device_secret: getDeviceSecret(newProfileId), // 서버가 HMAC 저장 후 필드 제거
+        _device_secret: getDeviceSecret(newProfileId),
         nickname: data.nickname,
         bio: data.interests.join(', '),
         photo_url: genAvatar(data.nickname),
@@ -1066,7 +1070,6 @@ function App() {
         kakao_id: data.kakaoId || null,
         instagram_id: data.instagramId || null,
         phone_number: data.phoneNumber || null,
-        pin_code: pinCode,
       })
       .select()
       .single();
@@ -1110,6 +1113,7 @@ function App() {
 
   const handleProfileRecovery = async (profileId: string, pinCode: string) => {
     setLoading(true);
+    setShownWaiting(true);
     try {
       const { data: profile } = await supabase
         .from('profiles')
@@ -1123,7 +1127,7 @@ function App() {
         isNewRegistration.current = true;
         setProfiles(prev => prev.some(p => p.id === profile.id) ? prev : [profile as Profile, ...prev]);
         setCurrentUserId(profile.id);
-        await fetchAndSetSseToken(profile.id as string);
+        void fetchAndSetSseToken(profile.id as string);
         setView('loading-main');
       } else {
         alert('프로필을 찾을 수 없습니다. 관리자에게 문의하세요.');

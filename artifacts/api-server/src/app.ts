@@ -104,6 +104,8 @@ const SESSIONLESS_PATHS = [
   '/api/db/events',
   '/api/db/unread-counts',
   '/api/db/push/vapid-key',
+  '/api/db/ready',
+  '/api/db/by-pin',
 ];
 app.use((req, res, next) => {
   const path = req.path;

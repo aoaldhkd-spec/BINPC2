@@ -562,46 +562,71 @@ async function loadImagesFromDb(): Promise<void> {
   }
 }
 
-async function loadFromDb(): Promise<void> {
-  try {
-    const { rows } = await pool.query('SELECT table_name, row_id, data FROM app_kv_rows ORDER BY updated_at ASC');
-    for (const row of rows) {
-      // Error-log counter row is meta — not application data
-      if (row.table_name === 'db_error_log' && row.row_id === 'counter') {
-        const saved = row.data as { count?: number; log?: PersistErrorEntry[] };
-        if (typeof saved.count === 'number') _dbPersistErrors = saved.count;
-        if (Array.isArray(saved.log)) {
-          _dbPersistErrorLog.length = 0;
-          _dbPersistErrorLog.push(...saved.log.slice(-100));
-        }
-        continue;
+function mergeKvRowsIntoStore(rows: Array<{ table_name: string; row_id: string; data: unknown }>): void {
+  for (const row of rows) {
+    // Error-log counter row is meta — not application data
+    if (row.table_name === 'db_error_log' && row.row_id === 'counter') {
+      const saved = row.data as { count?: number; log?: PersistErrorEntry[] };
+      if (typeof saved.count === 'number') _dbPersistErrors = saved.count;
+      if (Array.isArray(saved.log)) {
+        _dbPersistErrorLog.length = 0;
+        _dbPersistErrorLog.push(...saved.log.slice(-100));
       }
-      if (!store[row.table_name]) store[row.table_name] = [];
-      store[row.table_name].push(row.data as Record<string, unknown>);
+      continue;
     }
-
-    // Rebuild _likesLastInsert from the freshly loaded likes so the 500 ms
-    // cooldown window survives a server restart.  For each (liker, liked, type)
-    // triple we keep the timestamp of the most-recent insert; entries older than
-    // the 10-second prune window are skipped — they wouldn't block anything anyway.
-    const cutoff = Date.now() - 10_000;
-    for (const like of (store['likes'] ?? [])) {
-      const liker = like['liker_id'];
-      const liked  = like['liked_id'];
-      const htype  = like['heart_type'];
-      if (!liker || !liked || !htype) continue;
-      const createdMs = like['created_at'] ? new Date(like['created_at'] as string).getTime() : 0;
-      if (createdMs < cutoff) continue; // already expired — don't bother
-      const key = `${liker}:${liked}:${htype}`;
-      const prev = _likesLastInsert.get(key) ?? 0;
-      if (createdMs > prev) _likesLastInsert.set(key, createdMs);
-    }
-    if (_likesLastInsert.size > 0) {
-      logger.info({ count: _likesLastInsert.size }, '[db] Seeded _likesLastInsert from DB on startup');
-    }
-  } catch (e) {
-    logger.error({ err: e }, '[db] Failed to load from DB');
+    if (!store[row.table_name]) store[row.table_name] = [];
+    store[row.table_name].push(row.data as Record<string, unknown>);
   }
+}
+
+function seedLikesLastInsertFromStore(): void {
+  const cutoff = Date.now() - 10_000;
+  for (const like of (store['likes'] ?? [])) {
+    const liker = like['liker_id'];
+    const liked  = like['liked_id'];
+    const htype  = like['heart_type'];
+    if (!liker || !liked || !htype) continue;
+    const createdMs = like['created_at'] ? new Date(like['created_at'] as string).getTime() : 0;
+    if (createdMs < cutoff) continue;
+    const key = `${liker}:${liked}:${htype}`;
+    const prev = _likesLastInsert.get(key) ?? 0;
+    if (createdMs > prev) _likesLastInsert.set(key, createdMs);
+  }
+  if (_likesLastInsert.size > 0) {
+    logger.info({ count: _likesLastInsert.size }, '[db] Seeded _likesLastInsert from DB on startup');
+  }
+}
+
+const HOT_TABLES = ['app_settings', 'profiles'];
+
+async function loadHotTablesFromDb(): Promise<void> {
+  try {
+    const { rows } = await pool.query(
+      'SELECT table_name, row_id, data FROM app_kv_rows WHERE table_name = ANY($1::text[]) ORDER BY updated_at ASC',
+      [HOT_TABLES],
+    );
+    mergeKvRowsIntoStore(rows);
+  } catch (e) {
+    logger.error({ err: e }, '[db] Failed to load hot tables from DB');
+  }
+}
+
+async function loadRemainingTablesFromDb(): Promise<void> {
+  try {
+    const { rows } = await pool.query(
+      'SELECT table_name, row_id, data FROM app_kv_rows WHERE table_name <> ALL($1::text[]) ORDER BY updated_at ASC',
+      [HOT_TABLES],
+    );
+    mergeKvRowsIntoStore(rows);
+    seedLikesLastInsertFromStore();
+  } catch (e) {
+    logger.error({ err: e }, '[db] Failed to load remaining tables from DB');
+  }
+}
+
+async function loadFromDb(): Promise<void> {
+  await loadHotTablesFromDb();
+  await loadRemainingTablesFromDb();
 }
 
 // ─── Seed data (only if DB is empty) ─────────────────────────────────────────
@@ -754,7 +779,7 @@ async function ensureAppSettingsSecrets(): Promise<void> {
 
 async function seedIfNeeded(): Promise<void> {
   await ensureStorageSchema();
-  await loadFromDb();
+  await loadHotTablesFromDb();
   await repairAppSettingsIfNeeded();
   await ensureAppSettingsSecrets();
   if (!getTable('app_settings').length) {
@@ -1063,6 +1088,7 @@ const dbReadyPromise = seedIfNeeded()
   });
 
 dbReadyPromise
+  .then(() => loadRemainingTablesFromDb())
   .then(() => setupListenClient())
   .then(() => loadImagesFromDb())
   .catch(e => logger.error({ err: e }, '[db] startup initialization failed'));
@@ -2993,6 +3019,15 @@ router.get('/ready', (_req: Request, res: Response) => {
     const testSecrets = panelTestSecrets(settings.test_password as string | undefined);
     res.json({
       ready: true,
+      settings: {
+        session_active: settings.session_active === true,
+        entry_password: String(settings.entry_password ?? ''),
+        timer_end_at: (settings.timer_end_at as string | null | undefined) ?? null,
+        timer_label: (settings.timer_label as string | null | undefined) ?? null,
+        reset_signal: (settings.reset_signal as string | null | undefined) ?? null,
+        reset_password: (settings.reset_password as string | null | undefined) ?? null,
+        functions_locked: settings.functions_locked === true,
+      },
       login: {
         adminConfigured: adminSecrets.length > 0,
         testConfigured: testSecrets.length > 0,
