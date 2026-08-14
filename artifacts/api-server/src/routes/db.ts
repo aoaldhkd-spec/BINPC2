@@ -1634,7 +1634,11 @@ function smartBroadcast(table: string, row: Record<string, unknown> | null, even
 }
 
 // ─── Web Push: 메시지/하트 삽입 시 수신자에게 알림 전송 ──────────────────────
-async function sendPushForEvent(table: string, row: Record<string, unknown>): Promise<void> {
+async function sendPushForEvent(
+  table: string,
+  row: Record<string, unknown>,
+  actorId?: string | null,
+): Promise<void> {
   let recipientId: string | null = null;
   let payload: PushPayload | null = null;
 
@@ -1658,6 +1662,19 @@ async function sendPushForEvent(table: string, row: Record<string, unknown>): Pr
       row.heart_type === 'blue' ? '💙' :
       row.heart_type === 'pink' ? '💗' : '💚';
     payload = { title: `${heartEmoji} ${nick}님`, body: '하트를 보냈어요!', tag: `like-${row.liker_id as string}`, url: '/' };
+  } else if (table === 'chats' && actorId) {
+    const u1 = String(row.user1_id ?? '');
+    const u2 = String(row.user2_id ?? '');
+    recipientId = u1 === String(actorId) ? u2 : u1;
+    if (!recipientId || recipientId === String(actorId)) return;
+    const opener = getTable('profiles').find(p => p.id === actorId);
+    const nick = (opener?.nickname as string) ?? '누군가';
+    payload = {
+      title: `💬 ${nick}님`,
+      body: '채팅방을 열었어요',
+      tag: `chat-open-${String(row.id ?? '')}`,
+      url: '/',
+    };
   }
 
   if (!recipientId || !payload) return;
@@ -2302,9 +2319,9 @@ router.post('/op', async (req: Request, res: Response) => {
             if (_receiverId) unreadCountsCache.delete(String(_receiverId));
           }
         }
-        // 메시지·하트 삽입 시 수신자 핸드폰으로 푸시 알림 전송
-        if (table === 'messages' || table === 'likes') {
-          sendPushForEvent(table, newRow).catch(e => logger.error({ err: e }, '[db] background task error'));
+        // 메시지·하트·채팅방 생성 시 수신자 핸드폰으로 푸시 알림 전송
+        if (table === 'messages' || table === 'likes' || table === 'chats') {
+          sendPushForEvent(table, newRow, requesterId).catch(e => logger.error({ err: e }, '[db] background task error'));
         }
       }
       if (selectAfterWrite) return res.json({ data: single ? inserted[0] ?? null : inserted, error: null });

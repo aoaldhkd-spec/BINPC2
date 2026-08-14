@@ -9,6 +9,7 @@
  */
 
 import type { Database } from '../types/database';
+import { tableNeedsSession } from './db-auth-tables';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const API = '/api/db';
@@ -23,11 +24,15 @@ let _sessionReady = true;
 let _sessionReadyResolve: (() => void) | null = null;
 let _sessionReadyPromise: Promise<void> = Promise.resolve();
 
-/** 쓰기·인증 SELECT 전 loginSession 성공까지 대기 (타임아웃으로 미인증 요청을 풀지 않음). */
-async function _waitForSession(): Promise<void> {
-  if (_sessionReady) return;
+/** 쓰기·인증 SELECT 전 loginSession 성공까지 대기. 실패 시 false (무한 대기·미인증 요청 방지). */
+async function _waitForSession(): Promise<boolean> {
+  if (_sessionReady) return true;
   if (_currentUserId) void loginSession(_currentUserId);
-  await _sessionReadyPromise;
+  await Promise.race([
+    _sessionReadyPromise,
+    new Promise<void>(r => setTimeout(r, FETCH_TIMEOUT)),
+  ]);
+  return _sessionReady;
 }
 
 function _markSessionReady() {
@@ -214,10 +219,16 @@ class QueryBuilder {
   }
 
   private async _runAsync(): Promise<DbResult<unknown>> {
-    // SELECT는 세션 대기 없이 공개 조회 가능; INSERT/UPDATE/DELETE는 세션 수립 후에만 전송
-    const needsSession = this._op !== 'select';
-    if (needsSession && _currentUserId && !_sessionReady) {
-      await _waitForSession();
+    const hasUser = Boolean(_currentUserId);
+    const needsAuth = tableNeedsSession(this._table, this._op, hasUser);
+    if (needsAuth) {
+      const sessionOk = await _waitForSession();
+      if (!sessionOk) {
+        return {
+          data: null,
+          error: { message: '로그인 세션이 필요합니다. 잠시 후 다시 시도해 주세요.', code: 'UNAUTHORIZED' },
+        };
+      }
     }
     return apiFetch('/op', {
       table: this._table,

@@ -403,7 +403,10 @@ export function useChat({
             return [newChatEntry, ...prev];
           });
         } else {
-          console.error('[openChat] 채팅방 생성 실패:', createErr?.message);
+          const errMsg = typeof createErr === 'object' && createErr !== null && 'message' in createErr
+            ? String((createErr as { message: unknown }).message)
+            : String(createErr ?? 'unknown');
+          console.error('[openChat] 채팅방 생성 실패:', errMsg);
           // DB unique constraint 충돌 등으로 insert 실패 시 재조회
           const { data: retryChat } = await supabase
             .from('chats').select('*').eq('user1_id', user1Id).eq('user2_id', user2Id).maybeSingle();
