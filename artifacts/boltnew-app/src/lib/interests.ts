@@ -70,3 +70,62 @@ export const BIO_CATEGORIES = [
 ] as const;
 
 export type BioCategory = typeof BIO_CATEGORIES[number];
+
+/** 선택 UI에 쓰이는 전체 관심사 태그 (중복 없음) */
+export const ALL_BIO_TAGS: readonly string[] = BIO_CATEGORIES.flatMap((c) => [...c.tags]);
+
+/**
+ * 프로필에서 관심사 태그 추출 — bio·interests 불일치/형식 혼재 대응
+ * (가입: interests=문자열, 편집: 배열 저장 등)
+ */
+export function parseProfileInterests(profile: {
+  interests?: string | string[] | null;
+  bio?: string | null;
+}): string[] {
+  const candidates: string[] = [];
+
+  const pushParts = (raw: unknown) => {
+    if (raw == null) return;
+    if (Array.isArray(raw)) {
+      for (const item of raw) {
+        const s = String(item ?? '').trim();
+        if (s) candidates.push(s);
+      }
+      return;
+    }
+    if (typeof raw !== 'string') return;
+    const s = raw.trim();
+    if (!s) return;
+    if (s.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(s) as unknown;
+        if (Array.isArray(parsed)) {
+          pushParts(parsed);
+          return;
+        }
+      } catch {
+        // comma split fallback
+      }
+    }
+    for (const part of s.split(/[,，、]+/)) {
+      const t = part.trim();
+      if (t) candidates.push(t);
+    }
+  };
+
+  pushParts(profile.interests);
+  if (candidates.length === 0) pushParts(profile.bio);
+
+  const canonical = new Set(ALL_BIO_TAGS);
+  const out: string[] = [];
+  for (const tag of candidates) {
+    const clean = tag.replace(/^#+/, '').trim();
+    if (!clean) continue;
+    const resolved = canonical.has(clean)
+      ? clean
+      : ALL_BIO_TAGS.find((t) => t === clean || t.replace(/\s/g, '') === clean.replace(/\s/g, ''));
+    const finalTag = resolved ?? clean;
+    if (!out.includes(finalTag)) out.push(finalTag);
+  }
+  return out;
+}

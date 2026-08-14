@@ -3,15 +3,12 @@ import type { Profile } from '../types/app';
 import { MBTI_COLORS, domSubLabel } from '../lib/utils';
 import { getPositionLabel, getPositionStyle, getKoreanAge } from '../lib/profile';
 import { getZodiac } from '../lib/fortune';
+import { parseProfileInterests } from '../lib/interests';
 
 export function ProfileInfoBadges({ profile }: { profile: Profile }) {
   const age = getKoreanAge(profile.birth_year);
   const ds = domSubLabel(profile.dom_sub_score ?? null);
-  // interests(초기설정 배열) 또는 bio(이후 편집 문자열) 중 값이 있는 쪽을 사용
-  const rawInterests = profile.interests || profile.bio;
-  const interests = Array.isArray(rawInterests)
-    ? rawInterests.filter(Boolean).slice(0, 4)
-    : rawInterests ? String(rawInterests).split(/[,，、\s]+/).filter(Boolean).slice(0, 4) : [];
+  const interests = parseProfileInterests(profile).slice(0, 4);
 
   const posLabel = getPositionLabel(profile.personality_score ?? 50);
   const posStyle = getPositionStyle(profile.personality_score ?? 50);

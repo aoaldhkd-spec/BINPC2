@@ -7,7 +7,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../lib/theme';
 import type { Profile, ContactShare, Suggestion, Chat, MainTab, GroupChat, ProfileView, UserSignal } from '../types/app';
-import { BIO_CATEGORIES } from '../lib/interests';
+import { BIO_CATEGORIES, parseProfileInterests } from '../lib/interests';
 import { HeartType, HEART_TYPES, heartMeta } from '../lib/constants';
 import { getPositionLabel, getPositionBg, getPositionStyle, getDomSubLabel, getDomSubBg, getKoreanAge, genAvatar } from '../lib/profile';
 import { containsBannedNicknameWord } from '../lib/bannedWords';
@@ -1226,7 +1226,7 @@ export function MainScreen({
     }
     if (!interestInitRef.current) {
       interestInitRef.current = true;
-      setEditInterests(me.bio ? me.bio.split(',').map(t => t.trim()).filter(Boolean) : []);
+      setEditInterests(parseProfileInterests(me));
     }
     // 운세탭 생월생일 섹션: 미설정 상태면 자동으로 펼치기 (최초 1회)
     if (!fortuneBirthAutoOpenedRef.current) {
@@ -1262,8 +1262,8 @@ export function MainScreen({
     setInterestSaving(true);
     try {
       const bioStr = editInterests.join(', ');
-      await supabase.from('profiles').update({ bio: bioStr, interests: editInterests } as never).eq('id', currentUserId);
-      onUpdateProfile({ id: currentUserId, bio: bioStr, interests: editInterests as unknown as string });
+      await supabase.from('profiles').update({ bio: bioStr, interests: bioStr } as never).eq('id', currentUserId);
+      onUpdateProfile({ id: currentUserId, bio: bioStr, interests: bioStr });
       interestInitRef.current = false;
       setProfileEditSection(null);
       onRefreshProfiles();
@@ -1576,7 +1576,7 @@ export function MainScreen({
               const posColor = getPositionBg(me.personality_score ?? 50);
               const domLabel = getDomSubLabel(me.dom_sub_score ?? null);
               const domColor = getDomSubBg(me.dom_sub_score ?? null);
-              const bioTags = me.bio ? me.bio.split(',').map(t => t.trim()).filter(Boolean) : [];
+              const bioTags = parseProfileInterests(me);
               const hidePersonality = (me as { hide_personality?: boolean }).hide_personality ?? true;
               const handleToggleHidePersonality = async () => {
                 const next = !hidePersonality;
@@ -2117,9 +2117,9 @@ export function MainScreen({
                 if (next.length >= 2 && editInterests.length < 2 && currentUserId) {
                   const bioStr = next.join(', ');
                   setInterestSaving(true);
-                  supabase.from('profiles').update({ bio: bioStr, interests: next } as never).eq('id', currentUserId)
+                  supabase.from('profiles').update({ bio: bioStr, interests: bioStr } as never).eq('id', currentUserId)
                     .then(() => {
-                      onUpdateProfile({ id: currentUserId!, bio: bioStr, interests: next as unknown as string });
+                      onUpdateProfile({ id: currentUserId!, bio: bioStr, interests: bioStr });
                       interestInitRef.current = false;
                       setInterestSaving(false);
                       onRefreshProfiles();

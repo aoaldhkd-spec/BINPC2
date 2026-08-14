@@ -5,6 +5,7 @@ import {
   BarChart3, Trophy, Heart, Users, TrendingUp, Award,
 } from 'lucide-react';
 import { getKoreanAge, getPositionLabel } from '../lib/profile';
+import { parseProfileInterests } from '../lib/interests';
 import { HEART_META, HeartType } from '../lib/constants';
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
@@ -105,11 +106,7 @@ export function StatsTab({ profiles, darkMode }: { profiles: Profile[]; darkMode
       if (p.mbti) mbtiCounts.set(p.mbti, (mbtiCounts.get(p.mbti) ?? 0) + 1);
       const pos = getPositionLabel(p.personality_score ?? 50);
       positionCounts.set(pos, (positionCounts.get(pos) ?? 0) + 1);
-      const interests = Array.isArray(p.interests)
-        ? p.interests as string[]
-        : typeof p.interests === 'string' && p.interests
-          ? (p.interests as string).split(',').map((s) => s.trim()).filter(Boolean)
-          : [];
+      const interests = parseProfileInterests(p);
       interests.forEach((i) => {
         interestCounts.set(i, (interestCounts.get(i) ?? 0) + 1);
       });
