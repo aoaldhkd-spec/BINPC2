@@ -117,14 +117,19 @@ function updateCredentials(patch) {
     ...Object.entries(patch).map(([k, v]) => `${k}: ${v}`),
     'Revoke exposed chat tokens in Render dashboard + Supabase Access Tokens if still active.',
   ].join('\n');
-  if (!text.includes('BINPC2 security rotation')) {
-    text = `BINPC2 security rotation — store safely, then delete this file.\nGenerated: ${stamp}\n${block}\n`;
+
+  if (!text.trim()) {
+    text = `BINPC2 security credentials — store safely, then delete this file.\nLast updated: ${stamp}\n${block}\n`;
   } else {
-    text = text.replace(/\n--- Token rotation[\s\S]*?(?=\n--- |\nadmin_|$)/, `\n${block}\n`);
+    text = text.replace(/\n--- Token rotation[\s\S]*?(?=\n--- |\nAdmin login|$)/, `\n${block}\n`);
     if (!text.includes('--- Token rotation')) text += block + '\n';
     for (const [k, v] of Object.entries(patch)) {
       const re = new RegExp(`^${k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:.*$`, 'm');
       if (re.test(text)) text = text.replace(re, `${k}: ${v}`);
+      else text = text.replace(/(--- Automation tokens[^\n]*\n)/, `$1${k}: ${v}\n`);
+    }
+    if (/^Last updated:/m.test(text)) {
+      text = text.replace(/^Last updated:.*$/m, `Last updated: ${stamp}`);
     }
   }
   writeFileSync(OUT_PATH, text, 'utf8');

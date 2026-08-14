@@ -17,6 +17,14 @@ declare module 'express-session' {
 
 const router = Router();
 
+class RpcAuthError extends Error {
+  statusCode = 403;
+  constructor(message: string) {
+    super(message);
+    this.name = 'RpcAuthError';
+  }
+}
+
 // ─── Admin token — HMAC 기반 (서버 재시작 후에도 유효, in-memory Set 불필요) ──
 // 토큰 = HMAC-SHA256(key = SESSION_SECRET + adminPassword, data = 'admin-session')
 // 서버는 현재 admin_password를 읽어 HMAC을 재계산한 뒤 timingSafeEqual로 비교
@@ -949,13 +957,26 @@ function autoMatchGroupChat(userId: string, profile: Record<string, unknown>): v
   }
 }
 
-// Kick off async initialization
-seedIfNeeded()
+// Kick off async initialization — all /api/db routes wait for this before handling requests
+const dbInitPromise = seedIfNeeded()
   .then(() => cleanupLegacyTables())
   .then(() => startDailyEntryPasswordRenewal())
   .then(() => startHeartDrainLoop())
-  .then(() => setupListenClient())
-  .catch(e => logger.error({ err: e }, '[db] startup initialization failed'));
+  .then(() => setupListenClient());
+
+dbInitPromise.catch(e => logger.error({ err: e }, '[db] startup initialization failed'));
+
+router.use(async (_req, res, next) => {
+  try {
+    await dbInitPromise;
+    next();
+  } catch (e) {
+    logger.error({ err: e }, '[db] init gate failed');
+    if (!res.headersSent) {
+      res.status(503).json({ data: null, error: { message: 'Database initializing, retry shortly' } });
+    }
+  }
+});
 
 // 30초마다 전체 테이블 네이티브 DB 재동기화
 // — 관리자·테스트 패널의 Supabase 직접 쓰기도 30초 내 자동 반영 (NOTIFY 미지원 경로 보정)
@@ -2291,9 +2312,9 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
   function checkPassword() {
     const provided = (args.p_admin_password as string) ?? '';
     const token = (args.adminToken as string) ?? '';
-    if (!adminPw) throw new Error('관리자 비밀번호가 서버에 설정되지 않았습니다.');
+    if (!adminPw) throw new RpcAuthError('관리자 비밀번호가 서버에 설정되지 않았습니다. 잠시 후 다시 시도하세요.');
     const isValidToken = token.length > 0 && token === deriveAdminToken(adminPw);
-    if (provided !== adminPw && !isValidToken) throw new Error('비밀번호가 일치하지 않습니다.');
+    if (provided !== adminPw && !isValidToken) throw new RpcAuthError('비밀번호가 일치하지 않습니다.');
   }
 
   try {
@@ -2554,6 +2575,9 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         return res.status(404).json({ data: null, error: { message: `Unknown RPC: ${name}` } });
     }
   } catch (e) {
+    if (e instanceof RpcAuthError) {
+      return res.status(403).json({ data: null, error: { message: e.message } });
+    }
     logger.error({ err: e, rpc: name }, '[rpc] Unexpected error');
     if (!res.headersSent) res.status(500).json({ data: null, error: { message: String(e) } });
     return;

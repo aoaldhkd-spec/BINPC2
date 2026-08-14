@@ -31,7 +31,7 @@ async function main() {
   if (!adminPassword) throw new Error('Admin password missing in credentials file');
 
   console.log('[restore] trying login + admin_update_settings...');
-  for (const bootstrapPw of ['116606', adminPassword]) {
+  for (const bootstrapPw of [adminPassword, '116606']) {
     const login = await rpc('admin_create_session', {
       p_phone: '010-3878-6740',
       p_admin_password: bootstrapPw,
