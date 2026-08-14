@@ -7,8 +7,7 @@ import { logger } from './logger';
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 
 function resolveFrontendDist(): string {
-  // dist/index.mjs → artifacts/api-server/dist → ../../boltnew-app/dist/public
-  return path.resolve(moduleDir, '../../boltnew-app/dist/public');
+  return path.resolve(moduleDir, '../public');
 }
 
 /** Serve the Vite production build from the same origin as /api (Render single-URL deploy). */
