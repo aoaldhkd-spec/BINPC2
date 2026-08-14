@@ -577,6 +577,30 @@ function App() {
   // loading-main 지수 백오프 재시도에서 항상 최신 함수 참조 유지
   loadProfilesRef.current = loadProfiles;
 
+  const loadUserSignals = useCallback(() => {
+    supabase.from('user_signals').select('*')
+      .then(({ data }: { data: unknown }) => {
+        if (Array.isArray(data)) setUserSignals(data as UserSignal[]);
+      }).catch(() => {});
+  }, []);
+
+  const handleUserSignalUpdate = useCallback((row: UserSignal) => {
+    setUserSignals(prev => {
+      const idx = prev.findIndex(s => s.user_id === row.user_id);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = row;
+        return next;
+      }
+      return [...prev, row];
+    });
+  }, []);
+
+  const refreshProfilesTab = useCallback(() => {
+    loadProfiles();
+    loadUserSignals();
+  }, [loadProfiles, loadUserSignals]);
+
 
   const loadSuggestions = useCallback(async (userId: string) => {
     const { data } = await supabase.from('suggestions').select('*').eq('profile_id', userId).order('created_at', { ascending: false });
@@ -881,10 +905,7 @@ function App() {
         })
       .subscribe();
     // user_signals 전체 로드 (전광판 + 카드 뒤면용)
-    supabase.from('user_signals').select('*')
-      .then(({ data }: { data: unknown }) => {
-        if (Array.isArray(data)) setUserSignals(data as UserSignal[]);
-      }).catch(() => {});
+    loadUserSignals();
     // SSE: user_signals INSERT/UPDATE 구독 (전원 공개 — PRIVATE_TABLES 미포함)
     const signalsCh = supabase
       .channel('user-signals-all')
@@ -904,8 +925,7 @@ function App() {
         })
       .subscribe();
     return () => { supabase.removeChannel(blockedCh); supabase.removeChannel(viewsCh); supabase.removeChannel(signalsCh); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUserId]);
+  }, [currentUserId, loadUserSignals]);
 
   // Re-validate profile when the user returns to the app (Android/iOS back, home button, tab switch)
   useEffect(() => {
@@ -987,10 +1007,6 @@ function App() {
     if (!currentUserId) return;
     loadChatList(currentUserId);
   }, [currentUserId, loadChatList]);
-
-  const refreshProfilesTab = useCallback(() => {
-    loadProfiles();
-  }, [loadProfiles]);
 
 
   const handleNicknameSetup = async (data: {
@@ -1410,6 +1426,7 @@ function App() {
         onClearGroupMsgCount={() => setNewGroupMsgCount(0)}
         onOpenGroupChat={(groupId) => { void openGroupChat(groupId).then(() => setView('group-chat')).catch(e => console.error('[openGroupChat]', e)); }}
         userSignals={userSignals}
+        onUserSignalUpdate={handleUserSignalUpdate}
         blockedUserIds={(() => {
           const s = new Set<string>();
           blockedUsers.forEach(b => {

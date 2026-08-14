@@ -547,10 +547,8 @@ export const ProfileCard = memo(function ProfileCard({
     return () => ro.disconnect();
   }, [statusMsg]);
 
-  // 컨테이너 비율 3:4 = 0.75
-  // 이미지 비율이 0.75보다 크면(정사각형·가로형) → 너비로 제한, 위아래 빈공간
-  // 이미지 비율이 0.75보다 작으면(세로형)       → 높이로 제한, 좌우 빈공간
-  const CRATIO = 3 / 4;
+  // 컨테이너 비율 4:5 — 3:4보다 낮아 카드가 그리드에서 덜 튀어나옴
+  const CRATIO = 4 / 5;
   const r = naturalRatio ?? CRATIO;
   const flipZoneStyle: React.CSSProperties = r >= CRATIO
     ? {
@@ -575,11 +573,55 @@ export const ProfileCard = memo(function ProfileCard({
   }, [showMenu]);
 
   return (
-    <div className="group relative min-w-0 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+    <div className="group relative min-w-0 max-w-full bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
 
-      {/* ··· 메뉴 — 전광판 아래에 배치해 겹침 방지 */}
+      {/* ── 전광판 — 사진과 분리된 상단 영역 (겹침 없음) ── */}
+      {statusMsg?.trim() && (
+        <div
+          ref={tickerBarRef}
+          className="relative z-10 w-full overflow-hidden shrink-0"
+          style={{
+            height: '20px',
+            background: 'linear-gradient(90deg,#0f172a 0%,#115e59 100%)',
+            borderBottom: '1px solid rgba(45,212,191,0.35)',
+            display: 'flex',
+            alignItems: 'center',
+            paddingLeft: '6px',
+            paddingRight: '6px',
+            animation: 'ticker-fadein 0.3s ease',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <span
+            ref={tickerSpanRef}
+            style={{
+              fontSize: '9px', fontWeight: 700,
+              color: '#99f6e4', letterSpacing: '0.02em',
+              whiteSpace: 'nowrap',
+              display: 'inline-block',
+              flexShrink: 0,
+              ...(tickerOffset > 0
+                ? {
+                    ['--ticker-offset' as string]: `-${tickerOffset}px`,
+                    animation: `ticker-scroll ${Math.max(4, Math.round(tickerOffset / 30) + 3)}s ease-in-out infinite`,
+                  }
+                : {
+                    overflow: 'hidden', textOverflow: 'ellipsis',
+                    maxWidth: '100%',
+                    animation: 'ticker-flash 2.2s ease-in-out infinite',
+                  }
+              ),
+            }}
+          >{statusMsg}</span>
+        </div>
+      )}
+
+      {/* ── 사진 영역 ──────────────────────────────────────────────────────── */}
+      <div className="relative min-w-0">
+
+      {/* ··· 메뉴 — 사진 우상단 */}
       {(onBlock || onContactShare || onViewFortune) && (
-        <div className={`absolute right-1.5 z-20 ${statusMsg?.trim() ? 'top-7' : 'top-1.5'}`}>
+        <div className="absolute right-1 top-1 z-20">
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -626,57 +668,13 @@ export const ProfileCard = memo(function ProfileCard({
         {/* ── 3:4 외부 컨테이너 — 플립 없음, 빈공간(배경색)만 표시 ── */}
         <div
           style={{
-            aspectRatio: '3/4', position: 'relative',
+            aspectRatio: '4/5', position: 'relative',
             backgroundColor: '#f3f4f6',
-            borderRadius: '12px 12px 0 0',
             overflow: 'hidden',
             cursor: 'pointer',
           }}
           onClick={(e) => { e.stopPropagation(); setIsFlipped(f => !f); }}
         >
-          {/* 상태 메시지 — 외부 컨테이너 상단, 플립과 무관하게 항상 표시 */}
-          {statusMsg?.trim() && (
-            <div
-              ref={tickerBarRef}
-              className="absolute top-0 left-0 right-0 z-10"
-              style={{
-                height: '24px',
-                background: 'rgba(0,0,0,0.52)',
-                backdropFilter: 'blur(4px)',
-                display: 'flex', alignItems: 'center',
-                paddingLeft: '8px',
-                paddingRight: (onBlock || onContactShare || onViewFortune) ? '30px' : '8px',
-                animation: 'ticker-fadein 0.3s ease',
-                overflow: 'hidden',
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <span
-                ref={tickerSpanRef}
-                style={{
-                  fontSize: '10px', fontWeight: 600,
-                  color: 'rgba(255,255,255,0.92)', letterSpacing: '0.02em',
-                  whiteSpace: 'nowrap',
-                  display: 'inline-block',
-                  flexShrink: 0,
-                  ...(tickerOffset > 0
-                    ? {
-                        // 텍스트가 넘침 → 슬라이드 마키 모드
-                        ['--ticker-offset' as string]: `-${tickerOffset}px`,
-                        animation: `ticker-scroll ${Math.max(4, Math.round(tickerOffset / 30) + 3)}s ease-in-out infinite`,
-                      }
-                    : {
-                        // 텍스트가 여유 있음 → 중앙 정렬 + 깜빡임
-                        overflow: 'hidden', textOverflow: 'ellipsis',
-                        maxWidth: '100%',
-                        animation: 'ticker-flash 2.2s ease-in-out infinite',
-                      }
-                  ),
-                }}
-              >{statusMsg}</span>
-            </div>
-          )}
-
           {/* ── 플립 존 — 실제 사진이 렌더되는 영역에만 3D 뒤집기 적용 ── */}
           <div style={{ perspective: '1000px', ...flipZoneStyle }}>
             <div style={{
@@ -785,49 +783,30 @@ export const ProfileCard = memo(function ProfileCard({
 
             </div>
           </div>{/* /플립 존 */}
-        </div>{/* /3:4 외부 컨테이너 */}
+        </div>{/* /4:5 사진 컨테이너 */}
 
-        {/* ── 닉네임(왼쪽) + 나이(오른쪽) overlay — 사진 영역 하단 고정 ── */}
-        <div className="absolute inset-x-0 bottom-0 px-2 pb-2 pointer-events-none flex items-end justify-between gap-1 min-w-0" style={{ zIndex: 5 }}>
-          {/* 닉네임 — 그라디언트 frosted glass */}
-          <div className="inline-flex items-center min-w-0 max-w-[68%] rounded-lg px-2 py-0.5"
-            style={{
-              background: 'linear-gradient(135deg,rgba(0,0,0,0.72) 0%,rgba(30,30,30,0.62) 100%)',
-              backdropFilter: 'blur(6px)',
-              WebkitBackdropFilter: 'blur(6px)',
-              border: '1px solid rgba(255,255,255,0.13)',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
-            }}>
-            <span className="font-black text-[13px] leading-tight truncate" style={{ color: '#fff', textShadow: '0 1px 3px rgba(0,0,0,0.6)' }}>{profile.nickname}</span>
-          </div>
-          {/* 나이 — 포인트 컬러 틴트 */}
-          {age && (
-            <div className="flex-shrink-0 rounded-lg px-1.5 py-0.5"
-              style={{
-                background: 'linear-gradient(135deg,rgba(6,182,212,0.55) 0%,rgba(20,184,166,0.45) 100%)',
-                backdropFilter: 'blur(6px)',
-                WebkitBackdropFilter: 'blur(6px)',
-                border: '1px solid rgba(255,255,255,0.18)',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
-              }}>
-              <span className="font-black text-[11px] leading-tight whitespace-nowrap" style={{ color: '#fff', textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>{age}</span>
-            </div>
-          )}
-        </div>
+      </div>{/* /사진 영역 */}
 
-      </div>{/* /사진 영역 wrapper */}
+      {/* ── 닉네임 + 나이 — 사진 아래 (사진과 겹치지 않음) ── */}
+      <div className="px-1.5 pt-1 pb-0.5 flex items-center justify-between gap-1 min-w-0 cursor-pointer"
+        onClick={() => onSelect(profile)}>
+        <span className="font-black text-[11px] leading-tight truncate min-w-0 flex-1 text-gray-900">{profile.nickname}</span>
+        {age && (
+          <span className="flex-shrink-0 text-[10px] font-bold text-teal-600 bg-teal-50 border border-teal-100 rounded px-1 py-px whitespace-nowrap">{age}</span>
+        )}
+      </div>
 
       {/* ── 성향 + MBTI ─────────────────────────────────────────────────────────── */}
-      <div className="px-2 pt-1.5 pb-1 flex flex-wrap items-center gap-1 cursor-pointer min-w-0"
+      <div className="px-1.5 pt-0.5 pb-0.5 flex flex-wrap items-center gap-0.5 cursor-pointer min-w-0 overflow-hidden"
         onClick={() => onSelect(profile)}>
         {/* 왼쪽: 성향 배지 */}
-        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md leading-tight border shrink-0"
+        <span className="text-[9px] font-bold px-1 py-px rounded leading-tight border shrink-0 max-w-[48%] truncate"
           style={{ backgroundColor: posStyle.bg, color: posStyle.text, borderColor: posStyle.border }}>
           {posLabel}
         </span>
         {/* 오른쪽: MBTI */}
         {msStyle && (
-          <span className="text-[10px] font-black px-1.5 py-0.5 rounded-md leading-tight border shrink-0 ml-auto"
+          <span className="text-[9px] font-black px-1 py-px rounded leading-tight border shrink-0 ml-auto max-w-[48%] truncate"
             style={{ backgroundColor: msStyle.bg + 'dd', color: msStyle.color, borderColor: msStyle.border }}>
             {profile.mbti}
           </span>
@@ -836,9 +815,9 @@ export const ProfileCard = memo(function ProfileCard({
 
       {/* ── 관심사 (최대 2개, 항상 표시) ───────────────────────────────────────── */}
       {bioTags.length > 0 && (
-        <div className="px-2 pb-1 flex flex-wrap gap-x-1 gap-y-0.5 overflow-hidden cursor-pointer min-w-0" onClick={() => onSelect(profile)}>
+        <div className="px-1.5 pb-0.5 flex flex-wrap gap-x-1 gap-y-0 overflow-hidden cursor-pointer min-w-0" onClick={() => onSelect(profile)}>
           {bioTags.slice(0, 2).map(tag => (
-            <span key={tag} className="text-[10px] font-semibold truncate max-w-full" style={tagStyle}>#{tag}</span>
+            <span key={tag} className="text-[9px] font-semibold truncate max-w-full" style={tagStyle}>#{tag}</span>
           ))}
         </div>
       )}
@@ -851,11 +830,11 @@ export const ProfileCard = memo(function ProfileCard({
               🔒 현재 잠금 중
             </div>
           )}
-          <div className="px-2 pb-2 pt-1 flex gap-1.5" style={{ borderTop: `1px solid ${dividerColor}` }}>
+          <div className="px-1.5 pb-1.5 pt-0.5 flex gap-1" style={{ borderTop: `1px solid ${dividerColor}` }}>
             <button
               onClick={(e) => { if (locked) { showLockToast(e); return; } e.stopPropagation(); onLike(profile.id); }}
               disabled={!locked && isLiked && heartCount >= 4}
-              className={`flex-1 min-w-0 flex items-center justify-center gap-0.5 py-1.5 rounded-lg border active:scale-95 transition-transform ${locked ? 'opacity-50' : ''}`}
+              className={`flex-1 min-w-0 flex items-center justify-center gap-0.5 py-1 rounded-md border active:scale-95 transition-transform ${locked ? 'opacity-50' : ''}`}
               style={heartBtnStyle}
             >
               {isLiked && sentHeartType
@@ -871,7 +850,7 @@ export const ProfileCard = memo(function ProfileCard({
             </button>
             <button
               onClick={(e) => { if (locked) { showLockToast(e); return; } e.stopPropagation(); onOpenChat(profile); }}
-              className={`flex-1 min-w-0 flex items-center justify-center gap-0.5 py-1.5 rounded-lg border active:scale-95 transition-transform ${locked ? 'opacity-50' : ''}`}
+              className={`flex-1 min-w-0 flex items-center justify-center gap-0.5 py-1 rounded-md border active:scale-95 transition-transform ${locked ? 'opacity-50' : ''}`}
               style={chatBtnStyle}
             >
               <MessageCircle className="w-3.5 h-3.5 shrink-0" style={{ color: '#0ea5e9' }} strokeWidth={2} />
@@ -913,6 +892,7 @@ export function MainScreen({
   onUnblock,
   onViewFortune,
   userSignals = [] as UserSignal[],
+  onUserSignalUpdate,
 }: {
   profiles: Profile[]; currentUserId: string | null; likedIds: Set<string>; sentHeartTypes: Map<string, HeartType>; sentHeartsPerPerson: Map<string, Set<HeartType>>; likeStatuses: Map<string, string>;
   profileMap: Map<string, Profile>; mainTab: MainTab;
@@ -967,6 +947,7 @@ export function MainScreen({
   onUnblock?: (blockId: string) => void;
   onViewFortune?: (p: Profile) => void;
   userSignals?: UserSignal[];
+  onUserSignalUpdate?: (row: UserSignal) => void;
 }) {
   const heartCount = useCallback((t: HeartType) => { let c = 0; sentHeartsPerPerson.forEach(types => { if (types.has(t)) c++; }); return c; }, [sentHeartsPerPerson]);
   const tableNumber: number | null = null;
@@ -1565,7 +1546,7 @@ export function MainScreen({
 
             {/* ── 참여자 그리드 (이 영역만 스크롤) ───────── */}
             <div className="overflow-y-auto -mx-4 px-4 pb-6" style={{ maxHeight: 'calc(100dvh - 330px)', minHeight: 160 }}>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5 md:gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 sm:gap-2">
             {filteredProfiles.filter(p => p.id !== currentUserId).map((profile) => (
               <ProfileCard
                 key={profile.id}
@@ -1586,7 +1567,7 @@ export function MainScreen({
               />
             ))}
             {filteredProfiles.filter(p => p.id !== currentUserId).length === 0 && (
-              <div className="col-span-2 md:col-span-3 text-center py-20">
+              <div className="col-span-2 sm:col-span-3 text-center py-20">
                 <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                 <p className="text-gray-500">{profileSearch || profilePersonalityFilter || profileMbtiFilter ? '검색 결과가 없습니다.' : '아직 다른 참가자가 없습니다.'}</p>
               </div>
@@ -2507,6 +2488,7 @@ export function MainScreen({
                               const ideal_msg = [idealTags.join(','), idealFreeText.trim()].filter(Boolean).join('\n') || null;
                               const row = { id: existing?.id ?? crypto.randomUUID(), user_id: currentUserId, status_msg: signalStatusMsg.trim() || null, ideal_msg, created_at: existing?.created_at ?? new Date().toISOString() };
                               await supabase.from('user_signals').upsert(row as never, { onConflict: 'user_id' });
+                              onUserSignalUpdate?.(row as UserSignal);
                               // [Fix-6] 저장 완료 후 섹션 자동 닫기
                               setProfileEditSection(null);
                             } catch (e) { console.error('[statusMsg save]', e); }
@@ -2567,6 +2549,7 @@ export function MainScreen({
                               const ideal_msg = [idealTags.join(','), idealFreeText.trim()].filter(Boolean).join('\n') || null;
                               const row = { id: existing?.id ?? crypto.randomUUID(), user_id: currentUserId, status_msg: signalStatusMsg.trim() || null, ideal_msg, created_at: existing?.created_at ?? new Date().toISOString() };
                               await supabase.from('user_signals').upsert(row as never, { onConflict: 'user_id' });
+                              onUserSignalUpdate?.(row as UserSignal);
                               // [Fix-6] 저장 완료 후 섹션 자동 닫기
                               setProfileEditSection(null);
                             } catch (e) { console.error('[ideal save]', e); }
