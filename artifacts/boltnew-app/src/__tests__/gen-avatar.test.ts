@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { genAvatar } from '../lib/profile';
+import { genAvatar, hasUploadedPhoto, getAvatarSrc } from '../lib/profile';
 
 describe('genAvatar', () => {
   it('같은 닉네임은 같은 SVG를 생성한다', () => {
@@ -20,5 +20,19 @@ describe('genAvatar', () => {
     const svg = decodeURIComponent(genAvatar('민수').replace(/^data:image\/svg\+xml;charset=utf-8,/, ''));
     expect(svg).not.toContain('<text');
     expect(svg).not.toContain('민');
+  });
+
+  it('hasUploadedPhoto: webp 프리셋·업로드는 true, null·svg·dicebear는 false', () => {
+    expect(hasUploadedPhoto(null)).toBe(false);
+    expect(hasUploadedPhoto('')).toBe(false);
+    expect(hasUploadedPhoto('https://cdn.example/avatars/av1.webp')).toBe(true);
+    expect(hasUploadedPhoto(genAvatar('test'))).toBe(false);
+    expect(hasUploadedPhoto('https://api.dicebear.com/7.x/thumbs/svg?seed=x')).toBe(false);
+  });
+
+  it('getAvatarSrc: 사진 없으면 genAvatar, webp는 유지', () => {
+    const webp = 'https://cdn.example/avatars/av1.webp';
+    expect(getAvatarSrc(null, '민수')).toBe(genAvatar('민수'));
+    expect(getAvatarSrc(webp, '민수')).toBe(webp);
   });
 });
