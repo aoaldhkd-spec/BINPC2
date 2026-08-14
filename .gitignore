@@ -15,6 +15,7 @@ node_modules
 .env
 .env.*
 !.env.example
+.security-credentials.txt
 
 # IDEs and editors
 /.idea

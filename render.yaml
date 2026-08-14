@@ -6,7 +6,7 @@ services:
     name: binpc2-api
     runtime: node
     plan: starter
-    buildCommand: corepack pnpm install && corepack pnpm --filter @workspace/boltnew-app build && corepack pnpm --filter @workspace/api-server build
+    buildCommand: corepack pnpm install && corepack pnpm --filter @workspace/api-server build
     startCommand: corepack pnpm --filter @workspace/api-server start
     healthCheckPath: /api/healthz
     envVars:
