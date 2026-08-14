@@ -799,18 +799,28 @@ export const ProfileCard = memo(function ProfileCard({
               {menuButton}
             </div>
           )}
+
+          {/* 하단 흰 전광판 — 닉·나이 (사진 위 겹침) */}
+          <div
+            className="absolute bottom-0 left-0 right-0 z-30 flex items-center min-h-[20px] px-1.5 py-0.5 cursor-pointer pointer-events-auto"
+            style={{
+              background: 'rgba(255,255,255,0.94)',
+              borderTop: '1px solid rgba(229,231,235,0.95)',
+              boxShadow: '0 -2px 8px rgba(0,0,0,0.07)',
+            }}
+            onClick={(e) => { e.stopPropagation(); onSelect(profile); }}
+          >
+            <span className="font-extrabold text-[10px] sm:text-[11px] truncate min-w-0 flex-1 text-gray-950 leading-none">{profile.nickname}</span>
+            {profile.birth_year != null && (
+              <span className="flex-shrink-0 text-[9px] sm:text-[10px] font-bold text-gray-600 tabular-nums whitespace-nowrap ml-1 leading-none">{age}</span>
+            )}
+          </div>
       </div>{/* /3:4 사진 */}
 
-      {/* ── 프로필 정보 — 사진 아래 (닉·나이·성향·MBTI) ── */}
-      <div className="relative z-10 shrink-0 min-w-0 bg-white border-t border-gray-200 px-1.5 pt-1 pb-0 cursor-pointer"
+      {/* ── 성향·MBTI ── */}
+      <div className="relative z-10 shrink-0 min-w-0 bg-white px-1.5 pt-1.5 pb-0 cursor-pointer"
         onClick={() => onSelect(profile)}>
-        <div className="flex items-center gap-1 min-w-0 leading-none">
-          <span className="font-extrabold text-[10px] sm:text-[11px] truncate min-w-0 flex-1 text-gray-950">{profile.nickname}</span>
-          {profile.birth_year != null && (
-            <span className="flex-shrink-0 text-[9px] sm:text-[10px] font-bold text-gray-600 tabular-nums whitespace-nowrap">{age}</span>
-          )}
-        </div>
-        <div className="flex items-center gap-0.5 min-w-0 mt-1 overflow-hidden">
+        <div className="flex items-center gap-0.5 min-w-0 overflow-hidden">
           <span className="text-[8px] sm:text-[9px] font-extrabold px-1.5 py-0.5 rounded leading-none border min-w-0 max-w-[52%] truncate shadow-sm"
             style={{ backgroundColor: posStyle.bg, color: posStyle.text, borderColor: posStyle.border }}>
             {posLabel}
@@ -832,7 +842,7 @@ export const ProfileCard = memo(function ProfileCard({
               🔒 현재 잠금 중
             </div>
           )}
-          <div className="shrink-0 px-1.5 pt-0.5 pb-0.5 flex gap-1" style={{ borderTop: `1px solid ${dividerColor}` }}>
+          <div className="shrink-0 px-1.5 pt-1 pb-1 flex gap-1" style={{ borderTop: `1px solid ${dividerColor}` }}>
             <button
               onClick={(e) => { if (locked) { showLockToast(e); return; } e.stopPropagation(); onLike(profile.id); }}
               disabled={!locked && isLiked && heartCount >= 4}
