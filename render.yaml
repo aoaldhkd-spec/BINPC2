@@ -1,5 +1,5 @@
 # API server — connect Supabase Postgres with DIRECT/session port (not 6543 pooler).
-# After deploy, set Netlify env API_URL to this service URL.
+# Plan: starter ($7/mo) — always-on. After deploy, set Netlify env API_URL to this service URL.
 
 services:
   - type: web
