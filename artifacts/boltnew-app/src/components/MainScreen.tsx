@@ -507,6 +507,16 @@ export const ProfileCard = memo(function ProfileCard({
     lockToastTimerRef.current = setTimeout(() => setLockToast(false), 1400);
   };
 
+  // 이미지 naturalRatio → contain 시 빈공간 유지, 실제 사진 영역만 플립/표시
+  const [naturalRatio, setNaturalRatio] = useState<number | null>(null);
+  const handleImgLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const { naturalWidth: w, naturalHeight: h } = e.currentTarget;
+    if (w && h) setNaturalRatio(w / h);
+  };
+  useEffect(() => {
+    setNaturalRatio(null);
+  }, [profile.photo_url, profile.nickname]);
+
   // 상태 메시지 자동 마키 — 텍스트가 바 너비를 초과하면 슬라이드 애니메이션 적용
   const tickerBarRef = useRef<HTMLDivElement>(null);
   const tickerSpanRef = useRef<HTMLSpanElement>(null);
@@ -532,6 +542,21 @@ export const ProfileCard = memo(function ProfileCard({
     ro.observe(bar);
     return () => ro.disconnect();
   }, [statusMsg]);
+
+  // 3:4 카드 — 사진 원본 비율 유지(양옆·위아래 잘림 방지)
+  const CRATIO = 3 / 4;
+  const r = naturalRatio ?? CRATIO;
+  const flipZoneStyle: React.CSSProperties = r >= CRATIO
+    ? {
+        position: 'absolute', left: 0, right: 0,
+        top: `${((1 - CRATIO / r) / 2) * 100}%`,
+        height: `${(CRATIO / r) * 100}%`,
+      }
+    : {
+        position: 'absolute', top: 0, bottom: 0,
+        left: `${((1 - r / CRATIO) / 2) * 100}%`,
+        width: `${(r / CRATIO) * 100}%`,
+      };
 
   // ⋯ 메뉴 — 바깥 클릭 시만 닫기 (메뉴 항목 pointerdown에서 즉시 닫히면 클릭 불가)
   useEffect(() => {
@@ -655,8 +680,8 @@ export const ProfileCard = memo(function ProfileCard({
           overflow: 'hidden',
         }}
       >
-          {/* ── 플립 존 — 3:4 영역 전체에 3D 뒤집기 적용 ── */}
-          <div className="absolute inset-0" style={{ perspective: '1000px' }}>
+          {/* ── 플립 존 — 실제 사진이 그려지는 영역만 3D 뒤집기 ── */}
+          <div style={{ perspective: '1000px', ...flipZoneStyle }}>
             <div style={{
               width: '100%', height: '100%',
               transformStyle: 'preserve-3d',
@@ -679,6 +704,7 @@ export const ProfileCard = memo(function ProfileCard({
                   alt={profile.nickname}
                   loading="lazy"
                   decoding="async"
+                  onLoad={handleImgLoad}
                   onError={(e) => { (e.target as HTMLImageElement).src = genAvatar(profile.nickname); }}
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 />
