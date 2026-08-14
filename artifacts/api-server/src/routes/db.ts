@@ -1161,14 +1161,15 @@ function autoMatchGroupChat(userId: string, profile: Record<string, unknown>): v
 
 // Seed must finish before /api/db handles traffic. LISTEN/NOTIFY is background-only —
 // blocking requests on Postgres LISTEN connect hung chat INSERT + SSE on Render boot.
+// cleanupLegacyTables는 부팅 경로에서 제외 — 콜드스타트·재배포 직후 채팅/하트 503 대기 시간 단축.
 const dbReadyPromise = seedIfNeeded()
-  .then(() => cleanupLegacyTables())
   .then(() => {
     startDailyEntryPasswordRenewal();
     startHeartDrainLoop();
   });
 
 dbReadyPromise
+  .then(() => cleanupLegacyTables())
   .then(() => loadRemainingTablesFromDb())
   .then(() => setupListenClient())
   .then(() => loadImagesFromDb())

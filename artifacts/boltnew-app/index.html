@@ -30,6 +30,13 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Gowun+Dodum&display=swap" rel="stylesheet">
+    <!-- JS 번들 로드 전 Render API 워밍 — 콜드스타트·재배포 직후 채팅/하트 첫 요청 지연 완화 -->
+    <script>
+      try {
+        fetch('/api/healthz', { cache: 'no-store' });
+        fetch('/api/db/ready', { cache: 'no-store', credentials: 'include' });
+      } catch (_) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

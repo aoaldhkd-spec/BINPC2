@@ -1,6 +1,7 @@
 import './lib/dns-ipv4-first.js';
 import app from "./app";
 import { logger } from "./lib/logger";
+import { pgPool } from "./lib/pg-pool.js";
 import { gracefulShutdown } from "./routes/db";
 
 // ── 전역 비동기 예외 처리 — 서버 프로세스 다운 방지 ─────────────────────────
@@ -33,6 +34,10 @@ const server = app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+  // 첫 유저 요청 전에 PG 커넥션·DNS 워밍 — Render 콜드스타트 후 첫 채팅/하트 지연 완화
+  void pgPool.query('SELECT 1')
+    .then(() => logger.info('PG pool warmed'))
+    .catch((err) => logger.warn({ err }, 'PG warm-up failed'));
 });
 
 // ── Graceful shutdown: SIGTERM(컨테이너 종료)·SIGINT(Ctrl+C) 시 자원 정리 ──
