@@ -530,7 +530,7 @@ export const ProfileCard = memo(function ProfileCard({
   const [tickerOffset, setTickerOffset] = useState(0); // 슬라이드할 px 거리
   const hasTicker = Boolean(statusMsg?.trim());
   const hasMenu = Boolean(onBlock || onContactShare || onViewFortune);
-  const showTopBar = hasTicker;
+  const showTopBar = hasTicker || hasMenu;
   useEffect(() => {
     const bar = tickerBarRef.current;
     const span = tickerSpanRef.current;
@@ -599,44 +599,50 @@ export const ProfileCard = memo(function ProfileCard({
   return (
     <div className="group relative flex flex-col min-w-0 max-w-full bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
 
-      {/* ── 상단 스트립: 전광판 + ⋯ (사진 밖) ── */}
+      {/* ── 상단 스트립: 전광판 + ⋯ (사진 밖, 우상단 위치 유지) ── */}
       {showTopBar && (
         <div
-          className="relative z-20 flex items-stretch shrink-0 min-h-[18px]"
+          className="relative z-20 flex items-stretch shrink-0 min-h-[22px]"
           style={{
-            background: 'linear-gradient(90deg,rgba(15,23,42,0.92) 0%,rgba(17,94,89,0.92) 100%)',
-            borderBottom: '1px solid rgba(45,212,191,0.45)',
+            background: hasTicker
+              ? 'linear-gradient(90deg,rgba(15,23,42,0.92) 0%,rgba(17,94,89,0.92) 100%)'
+              : 'linear-gradient(90deg,rgba(15,23,42,0.88) 0%,rgba(30,41,59,0.88) 100%)',
+            borderBottom: hasTicker ? '1px solid rgba(45,212,191,0.45)' : '1px solid rgba(255,255,255,0.08)',
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          <div
-            ref={tickerBarRef}
-            className="flex-1 min-w-0 overflow-hidden flex items-center px-1.5"
-            style={{ animation: 'ticker-fadein 0.3s ease' }}
-          >
-            <span
-              ref={tickerSpanRef}
-              style={{
-                fontSize: '9px', fontWeight: 800,
-                color: '#ccfbf1', letterSpacing: '0.03em',
-                textShadow: '0 0 6px rgba(45,212,191,0.55)',
-                whiteSpace: 'nowrap',
-                display: 'inline-block',
-                flexShrink: 0,
-                ...(tickerOffset > 0
-                  ? {
-                      ['--ticker-offset' as string]: `-${tickerOffset}px`,
-                      animation: `ticker-scroll ${Math.max(4, Math.round(tickerOffset / 30) + 3)}s ease-in-out infinite`,
-                    }
-                  : {
-                      overflow: 'hidden', textOverflow: 'ellipsis',
-                      maxWidth: '100%',
-                      animation: 'ticker-flash 2.2s ease-in-out infinite',
-                    }
-                ),
-              }}
-            >{statusMsg}</span>
-          </div>
+          {hasTicker ? (
+            <div
+              ref={tickerBarRef}
+              className="flex-1 min-w-0 overflow-hidden flex items-center px-1.5"
+              style={{ animation: 'ticker-fadein 0.3s ease' }}
+            >
+              <span
+                ref={tickerSpanRef}
+                style={{
+                  fontSize: '9px', fontWeight: 800,
+                  color: '#ccfbf1', letterSpacing: '0.03em',
+                  textShadow: '0 0 6px rgba(45,212,191,0.55)',
+                  whiteSpace: 'nowrap',
+                  display: 'inline-block',
+                  flexShrink: 0,
+                  ...(tickerOffset > 0
+                    ? {
+                        ['--ticker-offset' as string]: `-${tickerOffset}px`,
+                        animation: `ticker-scroll ${Math.max(4, Math.round(tickerOffset / 30) + 3)}s ease-in-out infinite`,
+                      }
+                    : {
+                        overflow: 'hidden', textOverflow: 'ellipsis',
+                        maxWidth: '100%',
+                        animation: 'ticker-flash 2.2s ease-in-out infinite',
+                      }
+                  ),
+                }}
+              >{statusMsg}</span>
+            </div>
+          ) : (
+            <div className="flex-1 min-w-0" aria-hidden />
+          )}
           {hasMenu && (
             <div className="shrink-0 flex items-center pr-0.5 pl-0.5">
               {menuButton}
@@ -790,17 +796,10 @@ export const ProfileCard = memo(function ProfileCard({
 
             </div>
           </div>{/* /플립 존 */}
-
-          {/* ··· 메뉴 — 전광판 없을 때 사진 우상단 */}
-          {hasMenu && !showTopBar && (
-            <div className="absolute right-1 top-1 z-40">
-              {menuButton}
-            </div>
-          )}
       </div>{/* /3:4 사진 */}
 
       {/* ── 프로필 정보 — 사진 아래 (닉·나이·성향·MBTI) ── */}
-      <div className="relative z-10 shrink-0 min-w-0 bg-white border-t border-gray-200 px-1.5 pt-1 pb-0 cursor-pointer"
+      <div className="relative z-10 shrink-0 min-w-0 bg-white border-t border-gray-200 px-1.5 pt-0.5 pb-0 cursor-pointer"
         onClick={() => onSelect(profile)}>
         <div className="flex items-center gap-1 min-w-0 leading-none">
           <span className="font-extrabold text-[10px] sm:text-[11px] truncate min-w-0 flex-1 text-gray-950">{profile.nickname}</span>
@@ -808,7 +807,7 @@ export const ProfileCard = memo(function ProfileCard({
             <span className="flex-shrink-0 text-[9px] sm:text-[10px] font-bold text-gray-600 tabular-nums">{age}</span>
           )}
         </div>
-        <div className="flex items-center gap-0.5 min-w-0 mt-1 overflow-hidden">
+        <div className="flex items-center gap-0.5 min-w-0 mt-0.5 overflow-hidden">
           <span className="text-[8px] sm:text-[9px] font-extrabold px-1.5 py-0.5 rounded leading-none border min-w-0 max-w-[52%] truncate shadow-sm"
             style={{ backgroundColor: posStyle.bg, color: posStyle.text, borderColor: posStyle.border }}>
             {posLabel}
@@ -830,11 +829,11 @@ export const ProfileCard = memo(function ProfileCard({
               🔒 현재 잠금 중
             </div>
           )}
-          <div className="shrink-0 px-1.5 pt-0.5 pb-0 flex gap-1" style={{ borderTop: `1px solid ${dividerColor}` }}>
+          <div className="shrink-0 px-1.5 pt-0 pb-0 flex gap-1" style={{ borderTop: `1px solid ${dividerColor}` }}>
             <button
               onClick={(e) => { if (locked) { showLockToast(e); return; } e.stopPropagation(); onLike(profile.id); }}
               disabled={!locked && isLiked && heartCount >= 4}
-              className={`flex-1 min-w-0 flex items-center justify-center gap-0.5 py-0.5 rounded border active:scale-95 transition-transform ${locked ? 'opacity-50' : ''}`}
+              className={`flex-1 min-w-0 flex items-center justify-center gap-0.5 py-px rounded border active:scale-95 transition-transform ${locked ? 'opacity-50' : ''}`}
               style={heartBtnStyle}
             >
               {isLiked && sentHeartType
@@ -850,7 +849,7 @@ export const ProfileCard = memo(function ProfileCard({
             </button>
             <button
               onClick={(e) => { if (locked) { showLockToast(e); return; } e.stopPropagation(); onOpenChat(profile); }}
-              className={`flex-1 min-w-0 flex items-center justify-center gap-0.5 py-0.5 rounded border active:scale-95 transition-transform ${locked ? 'opacity-50' : ''}`}
+              className={`flex-1 min-w-0 flex items-center justify-center gap-0.5 py-px rounded border active:scale-95 transition-transform ${locked ? 'opacity-50' : ''}`}
               style={chatBtnStyle}
             >
               <MessageCircle className="w-3 h-3 shrink-0" style={{ color: '#0ea5e9' }} strokeWidth={2} />
