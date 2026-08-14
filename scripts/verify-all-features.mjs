@@ -52,15 +52,14 @@ async function main() {
   const testLogin = await rpc('test_verify_password', { p_test_password: testPw });
   checks.push(['test_login', testLogin.status === 200 && testLogin.json?.data ? 'OK' : `FAIL ${testLogin.status}`]);
 
+  const settingsRes = await op({ op: 'select', table: 'app_settings' });
+  const sessionActive = settingsRes?.json?.data?.[0]?.session_active;
+  checks.push(['session_active_readable', typeof sessionActive === 'boolean' ? 'OK' : 'FAIL']);
+
   if (adminToken) {
-    const on = await rpc('admin_toggle_session', { adminToken, p_admin_password: adminPw, p_active: true });
-    checks.push(['meeting_start', on.status === 200 && !on.json?.error ? 'OK' : `FAIL ${on.status}`]);
-    const settings = await op({ op: 'select', table: 'app_settings' });
-    checks.push(['session_active', settings?.json?.data?.[0]?.session_active === true ? 'OK' : 'FAIL']);
-    await rpc('admin_toggle_session', { adminToken, p_admin_password: adminPw, p_active: false });
+    checks.push(['meeting_toggle_rpc', 'SKIP (prod session left unchanged)']);
   } else {
-    checks.push(['meeting_start', 'SKIP']);
-    checks.push(['session_active', 'SKIP']);
+    checks.push(['meeting_toggle_rpc', 'SKIP']);
   }
 
   const drain = await rpc('admin_drain_unused_hearts', { p_admin_password: 'x', p_drain_count: 1 });

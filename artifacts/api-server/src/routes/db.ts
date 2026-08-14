@@ -1269,21 +1269,52 @@ function notifyOtherInstances(table: string, ev: string, newRow: Record<string, 
   _drainNotifyQueue();
 }
 
+function pickLatestAppSettingsRow(rows: Record<string, unknown>[]): Record<string, unknown> | null {
+  if (!rows.length) return null;
+  let best = rows[0];
+  let bestTs = String(best.updated_at ?? '');
+  for (let i = 1; i < rows.length; i++) {
+    const ts = String(rows[i].updated_at ?? '');
+    if (ts >= bestTs) {
+      best = rows[i];
+      bestTs = ts;
+    }
+  }
+  return best;
+}
+
+/** DB resync 시 오래된 session_active가 메모리를 덮어쓰지 않도록 updated_at 기준 병합 */
+function applyAppSettingsFromDbRows(dbRows: Record<string, unknown>[]): boolean {
+  const dbRow = pickLatestAppSettingsRow(dbRows);
+  if (!dbRow) return false;
+  const memRow = (getTable('app_settings')[0] ?? null) as Record<string, unknown> | null;
+  if (!memRow) {
+    store['app_settings'] = [dbRow];
+    return true;
+  }
+  const memTs = String(memRow.updated_at ?? '');
+  const dbTs = String(dbRow.updated_at ?? '');
+  if (dbTs >= memTs) {
+    const changed = memTs !== dbTs || memRow.session_active !== dbRow.session_active;
+    store['app_settings'] = [dbRow];
+    return changed;
+  }
+  dbPersistRow('app_settings', memRow).catch(e => logger.warn({ err: e }, '[db] heal stale app_settings in DB'));
+  return false;
+}
+
 /** hot 테이블(profiles·seats·app_settings)을 app_kv_rows에서 재동기화 — LISTEN gap 보정 전용 */
 async function resyncHotTablesFromDb(): Promise<void> {
-  const hotTables = ['profiles', 'app_settings'];
   try {
-    const { rows } = await pool.query(
-      `SELECT table_name, data FROM app_kv_rows WHERE table_name = ANY($1::text[])`,
-      [hotTables],
-    );
-    const grouped: Record<string, Record<string, unknown>[]> = {};
-    for (const r of rows) {
-      if (!grouped[r.table_name as string]) grouped[r.table_name as string] = [];
-      grouped[r.table_name as string].push(r.data as Record<string, unknown>);
+    const [profileRes, settingsRes] = await Promise.all([
+      pool.query(`SELECT data FROM app_kv_rows WHERE table_name = 'profiles'`),
+      pool.query(`SELECT data FROM app_kv_rows WHERE table_name = 'app_settings' ORDER BY updated_at DESC`),
+    ]);
+    if (profileRes.rows.length) {
+      store['profiles'] = profileRes.rows.map(r => r.data as Record<string, unknown>);
     }
-    for (const tbl of hotTables) {
-      if (grouped[tbl]?.length) store[tbl] = grouped[tbl];
+    if (settingsRes.rows.length) {
+      applyAppSettingsFromDbRows(settingsRes.rows.map(r => r.data as Record<string, unknown>));
     }
     logger.info({}, '[db] hot-table resync complete');
   } catch (e) {
@@ -1334,6 +1365,18 @@ async function resyncAllFromNativeDb(): Promise<void> {
       if (grouped[tbl] === undefined) continue;
       const prev = store[tbl];
       const prevFp = tableFingerprint(prev ?? []);
+      if (tbl === 'app_settings') {
+        const settingsChanged = applyAppSettingsFromDbRows(grouped[tbl]);
+        if (settingsChanged) {
+          const latest = getTable('app_settings')[0] as Record<string, unknown>;
+          broadcastAll({
+            type: 'change', table: 'app_settings', event: 'UPDATE',
+            newRow: sanitizeSettings(latest),
+            oldRow: sanitizeSettings((prev?.[0] ?? {}) as Record<string, unknown>),
+          });
+        }
+        continue;
+      }
       store[tbl] = grouped[tbl];
       const nextFp = tableFingerprint(grouped[tbl]);
       if (prevFp !== nextFp) {
@@ -2522,8 +2565,16 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         const current = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
         const updated = mergeAppSettings(current, { session_active: active });
         store['app_settings'] = [updated];
+        try {
+          await dbPersistRow('app_settings', updated);
+        } catch (e) {
+          logger.error({ err: e }, '[db] admin_toggle_session persist failed');
+          return res.status(503).json({
+            data: null,
+            error: { message: '회의 상태 저장 실패 — 잠시 후 다시 시도해 주세요.', code: 'PERSIST_FAILED' },
+          });
+        }
         broadcastAll({ type: 'change', table: 'app_settings', event: 'UPDATE', newRow: sanitizeSettings(updated), oldRow: sanitizeSettings(current) });
-        dbPersistRow('app_settings', updated).catch(e => logger.error({ err: e }, '[db] background task error'));
         return res.json({ data: { session_active: active }, error: null });
       }
 

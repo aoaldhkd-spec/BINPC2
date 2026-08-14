@@ -509,12 +509,18 @@ function App() {
           setView('entry-1');
           return;
         }
-        setSessionActive(p.session_active);
-        // 관리자 '회식 시작' → session_active=true 감지 시
-        // 대기 중인 신규 접속자 자동으로 닉네임 설정 화면으로 이동
-        if (p.session_active && !ls.getItem(MATCHING_USER_KEY)) {
-          setShownWaiting(true);
-          setView('entry-1');
+        if (typeof p.session_active === 'boolean') {
+          setSessionActive(p.session_active);
+          // 관리자 '회식 시작' → session_active=true 감지 시
+          // 대기 중인 신규 접속자 자동으로 닉네임 설정 화면으로 이동
+          if (p.session_active && !ls.getItem(MATCHING_USER_KEY)) {
+            setShownWaiting(true);
+            setView('entry-1');
+          }
+          // 회의 종료 시 대기 화면으로 복귀 (관리자가 종료 누르지 않아도 SSE로 반영)
+          if (!p.session_active && userIdRef.current) {
+            setShownWaiting(false);
+          }
         }
         setTimerEndAt(p.timer_end_at ?? null);
         setTimerLabel(p.timer_label ?? null);
@@ -1007,7 +1013,10 @@ function App() {
       // 재연결 중 바뀐 타이머·게임·잠금 상태 재동기화
       supabase.from('app_settings').select('session_active, timer_end_at, timer_label, reset_signal').eq('id', 1).single().then(({ data }: { data: any }) => {
         if (!data) return;
-        setSessionActive(data.session_active);
+        if (typeof data.session_active === 'boolean') {
+          setSessionActive(data.session_active);
+          if (!data.session_active && userIdRef.current) setShownWaiting(false);
+        }
         setTimerEndAt(data.timer_end_at ?? null);
         setTimerLabel(data.timer_label ?? null);
       }).catch(() => {});

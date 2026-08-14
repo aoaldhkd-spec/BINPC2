@@ -2269,7 +2269,13 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       })
       // ── app_settings ─────────────────────────────────────────────────
       .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-        setSettings(payload.new as AppSettings);
+        const row = payload.new;
+        if (row._bulk_resync) {
+          void loadAll();
+          return;
+        }
+        if (row.id == null && typeof row.session_active !== 'boolean') return;
+        setSettings(prev => (prev ? { ...prev, ...row } : row) as AppSettings);
       })
       // ── anonymous_reports ────────────────────────────────────────────
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'anonymous_reports' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
@@ -2386,13 +2392,8 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     const newVal = !(settings.session_active ?? false);
     setSettings(prev => prev ? { ...prev, session_active: newVal } : prev);
     try {
-      // api-server가 유저 SSE 브로드캐스트의 단일 진실 소스 — RPC를 먼저 실행
+      // api-server RPC만 사용 — DB 저장·SSE 브로드캐스트 단일 경로 (이중 쓰기로 resync 시 상태 되돌림 방지)
       await adminApiRpc('admin_toggle_session', { p_active: newVal });
-      // 관리자 UI용 KV 동기화 (실패해도 RPC 성공이면 유저에게는 반영됨)
-      const { error } = await adminSupabase.from('app_settings')
-        .update({ session_active: newVal, updated_at: new Date().toISOString() })
-        .eq('id', 1);
-      if (error) console.warn('[admin] app_settings KV sync:', error.message);
     } catch (e) {
       setSettings(prev => prev ? { ...prev, session_active: !newVal } : prev);
       const msg = e instanceof Error ? e.message : String(e);
