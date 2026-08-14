@@ -5,6 +5,7 @@ import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { createSessionMiddleware } from "./lib/session";
+import { mountProductionSpa } from "./lib/static-spa";
 
 // ─── Per-IP sliding-window rate limiter ───────────────────────────────────────
 // Tracks request timestamps per IP in a sliding window.
@@ -146,6 +147,8 @@ app.use('/api/db/auth/sse-token',   makeRateLimiter(10, 60_000, 'sse-token'));
 app.use('/api/db/rpc',              makeRateLimiter(30, 60_000, 'rpc'));
 
 app.use("/api", router);
+
+mountProductionSpa(app);
 
 // ── 전역 Express 에러 미들웨어 — 모든 라우트 핸들러의 throw/reject를 포착 ────
 // Express async 핸들러가 throw하면 next(err)로 넘어와 여기서 처리.
