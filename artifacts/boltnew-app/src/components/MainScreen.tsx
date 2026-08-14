@@ -517,18 +517,11 @@ export const ProfileCard = memo(function ProfileCard({
     lockToastTimerRef.current = setTimeout(() => setLockToast(false), 1400);
   };
 
-  // 이미지 naturalRatio를 추적해 플립 존(실제 사진 영역)을 계산
-  // objectFit:contain 상태에서 빈공간은 그대로 두고 사진 영역만 뒤집기 위해 사용
-  const [naturalRatio, setNaturalRatio] = useState<number | null>(null);
-  const handleImgLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
-    const { naturalWidth: w, naturalHeight: h } = e.currentTarget;
-    if (w && h) setNaturalRatio(w / h);
-  };
-
   // 상태 메시지 자동 마키 — 텍스트가 바 너비를 초과하면 슬라이드 애니메이션 적용
   const tickerBarRef = useRef<HTMLDivElement>(null);
   const tickerSpanRef = useRef<HTMLSpanElement>(null);
   const [tickerOffset, setTickerOffset] = useState(0); // 슬라이드할 px 거리
+  const hasTicker = Boolean(statusMsg?.trim());
   useEffect(() => {
     const bar = tickerBarRef.current;
     const span = tickerSpanRef.current;
@@ -543,23 +536,6 @@ export const ProfileCard = memo(function ProfileCard({
     ro.observe(bar);
     return () => ro.disconnect();
   }, [statusMsg]);
-
-  // 3:4 세로 — 카드 사진 기본 비율 (위아래 높이 유지)
-  const CRATIO = 3 / 4;
-  const r = naturalRatio ?? CRATIO;
-  const flipZoneStyle: React.CSSProperties = r >= CRATIO
-    ? {
-        // 위아래 여백: 사진이 너비 꽉 참, 높이는 0.75/r 비율
-        position: 'absolute', left: 0, right: 0,
-        top:    `${((1 - CRATIO / r) / 2) * 100}%`,
-        height: `${(CRATIO / r) * 100}%`,
-      }
-    : {
-        // 좌우 여백: 사진이 높이 꽉 참, 너비는 r/0.75 비율
-        position: 'absolute', top: 0, bottom: 0,
-        left:  `${((1 - r / CRATIO) / 2) * 100}%`,
-        width: `${(r / CRATIO) * 100}%`,
-      };
 
   // ⋯ 메뉴 — 바깥 클릭 시만 닫기 (메뉴 항목 pointerdown에서 즉시 닫히면 클릭 불가)
   useEffect(() => {
@@ -580,56 +556,6 @@ export const ProfileCard = memo(function ProfileCard({
       {/* ── 사진 (3:4 — 전광판은 오버레이, 카드 높이 동일) ── */}
       <div className="relative w-full shrink-0 min-w-0 bg-gray-100">
 
-      {/* ··· 메뉴 — 사진 우상단 */}
-      {(onBlock || onContactShare || onViewFortune) && (
-        <div className="absolute right-1 top-1 z-30">
-          <button
-            ref={menuBtnRef}
-            type="button"
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => {
-              e.stopPropagation();
-              if (showMenu) { setShowMenu(false); setMenuPos(null); return; }
-              const rect = e.currentTarget.getBoundingClientRect();
-              setMenuPos({ top: rect.bottom + 6, right: Math.max(8, window.innerWidth - rect.right) });
-              setShowMenu(true);
-            }}
-            className="w-6 h-6 rounded-full bg-black/40 flex items-center justify-center active:scale-90 transition-transform"
-            aria-label="더보기"
-            aria-expanded={showMenu}
-          >
-            <MoreHorizontal className="w-3.5 h-3.5 text-white pointer-events-none" />
-          </button>
-          {showMenu && menuPos && (
-            <div
-              ref={menuRef}
-              role="menu"
-              style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 9999, minWidth: '192px' }}
-              className={`rounded-2xl shadow-2xl border overflow-hidden ${isCardDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100'}`}
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={(e) => e.stopPropagation()}
-            >
-              {onContactShare && (
-                <button type="button" role="menuitem" onClick={(e) => { e.stopPropagation(); setShowMenu(false); setMenuPos(null); onContactShare(profile); }}
-                  className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 ${isCardDark ? 'text-teal-400 hover:bg-slate-700' : 'text-teal-600 hover:bg-teal-50'}`}>💌 연락처 보내기</button>
-              )}
-              {onViewFortune && (
-                <button type="button" role="menuitem" onClick={(e) => { e.stopPropagation(); setShowMenu(false); setMenuPos(null); onViewFortune(profile); }}
-                  className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 border-t ${isCardDark ? 'text-violet-400 hover:bg-slate-700 border-slate-700' : 'text-violet-600 hover:bg-violet-50 border-gray-50'}`}>🔮 사주 보기</button>
-              )}
-              {onBlock && (
-                <>
-                  <button type="button" role="menuitem" onClick={(e) => { e.stopPropagation(); setShowMenu(false); setMenuPos(null); onBlock(profile.id, 'block'); }}
-                    className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 border-t ${isCardDark ? 'text-red-400 hover:bg-slate-700 border-slate-700' : 'text-red-500 hover:bg-red-50 border-gray-50'}`}>🚫 차단하기</button>
-                  <button type="button" role="menuitem" onClick={(e) => { e.stopPropagation(); setShowMenu(false); setMenuPos(null); onBlock(profile.id, 'hide'); }}
-                    className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 border-t ${isCardDark ? 'text-slate-300 hover:bg-slate-700 border-slate-700' : 'text-gray-600 hover:bg-gray-50 border-gray-50'}`}>👻 나를 못 보게 하기</button>
-                </>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
       {/* ── 3:4 사진 컨테이너 (텍스트 영역과 완전 분리) ── */}
       <div
         className="relative z-0 w-full shrink-0 isolate"
@@ -639,8 +565,57 @@ export const ProfileCard = memo(function ProfileCard({
           overflow: 'hidden',
         }}
       >
+          {/* ··· 메뉴 — 사진 우상단 (전광판 아래) */}
+          {(onBlock || onContactShare || onViewFortune) && (
+            <div className={`absolute right-1 z-40 ${hasTicker ? 'top-[18px]' : 'top-1'}`}>
+              <button
+                ref={menuBtnRef}
+                type="button"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (showMenu) { setShowMenu(false); setMenuPos(null); return; }
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setMenuPos({ top: rect.bottom + 6, right: Math.max(8, window.innerWidth - rect.right) });
+                  setShowMenu(true);
+                }}
+                className="w-7 h-7 rounded-full bg-black/60 ring-1 ring-white/30 shadow-md flex items-center justify-center active:scale-90 transition-transform"
+                aria-label="더보기"
+                aria-expanded={showMenu}
+              >
+                <MoreHorizontal className="w-3.5 h-3.5 text-white pointer-events-none" />
+              </button>
+              {showMenu && menuPos && (
+                <div
+                  ref={menuRef}
+                  role="menu"
+                  style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 9999, minWidth: '192px' }}
+                  className={`rounded-2xl shadow-2xl border overflow-hidden ${isCardDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100'}`}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {onContactShare && (
+                    <button type="button" role="menuitem" onClick={(e) => { e.stopPropagation(); setShowMenu(false); setMenuPos(null); onContactShare(profile); }}
+                      className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 ${isCardDark ? 'text-teal-400 hover:bg-slate-700' : 'text-teal-600 hover:bg-teal-50'}`}>💌 연락처 보내기</button>
+                  )}
+                  {onViewFortune && (
+                    <button type="button" role="menuitem" onClick={(e) => { e.stopPropagation(); setShowMenu(false); setMenuPos(null); onViewFortune(profile); }}
+                      className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 border-t ${isCardDark ? 'text-violet-400 hover:bg-slate-700 border-slate-700' : 'text-violet-600 hover:bg-violet-50 border-gray-50'}`}>🔮 사주 보기</button>
+                  )}
+                  {onBlock && (
+                    <>
+                      <button type="button" role="menuitem" onClick={(e) => { e.stopPropagation(); setShowMenu(false); setMenuPos(null); onBlock(profile.id, 'block'); }}
+                        className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 border-t ${isCardDark ? 'text-red-400 hover:bg-slate-700 border-slate-700' : 'text-red-500 hover:bg-red-50 border-gray-50'}`}>🚫 차단하기</button>
+                      <button type="button" role="menuitem" onClick={(e) => { e.stopPropagation(); setShowMenu(false); setMenuPos(null); onBlock(profile.id, 'hide'); }}
+                        className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 border-t ${isCardDark ? 'text-slate-300 hover:bg-slate-700 border-slate-700' : 'text-gray-600 hover:bg-gray-50 border-gray-50'}`}>👻 나를 못 보게 하기</button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
           {/* ── 전광판 — 사진 위 오버레이 (없어도 카드 높이 동일) ── */}
-          {statusMsg?.trim() && (
+          {hasTicker && (
             <div
               ref={tickerBarRef}
               className="absolute top-0 left-0 right-0 z-20 overflow-hidden"
@@ -680,8 +655,8 @@ export const ProfileCard = memo(function ProfileCard({
               >{statusMsg}</span>
             </div>
           )}
-          {/* ── 플립 존 — 실제 사진이 렌더되는 영역에만 3D 뒤집기 적용 ── */}
-          <div style={{ perspective: '1000px', ...flipZoneStyle }}>
+          {/* ── 플립 존 — 3:4 영역 전체에 3D 뒤집기 적용 ── */}
+          <div className="absolute inset-0" style={{ perspective: '1000px' }}>
             <div style={{
               width: '100%', height: '100%',
               transformStyle: 'preserve-3d',
@@ -704,7 +679,6 @@ export const ProfileCard = memo(function ProfileCard({
                   alt={profile.nickname}
                   loading="lazy"
                   decoding="async"
-                  onLoad={handleImgLoad}
                   onError={(e) => { (e.target as HTMLImageElement).src = genAvatar(profile.nickname); }}
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 />
@@ -1533,7 +1507,7 @@ export function MainScreen({
             </div>
 
             {/* ── 참여자 그리드 (이 영역만 스크롤) ───────── */}
-            <div className="overflow-y-auto -mx-4 px-4 pb-6" style={{ maxHeight: 'calc(100dvh - 330px)', minHeight: 160 }}>
+            <div className="overflow-y-auto -mx-4 px-4 pb-2" style={{ maxHeight: 'calc(100dvh - 330px)', minHeight: 160 }}>
             <div className="grid grid-cols-3 gap-1 sm:gap-1.5 items-start">
             {filteredProfiles.filter(p => p.id !== currentUserId).map((profile) => (
               <ProfileCard
@@ -1807,9 +1781,9 @@ export function MainScreen({
                             })();
                             return (
                               <button key={v.id} type="button" onClick={() => onSelect(vp)} className={`w-full flex items-center gap-3 p-2 rounded-xl text-left cursor-pointer active:scale-[0.98] transition-transform ${darkMode ? 'bg-slate-700/40 hover:bg-slate-700/70' : 'bg-gray-50 hover:bg-gray-100'}`}>
-                                <img src={vp.photo_url || `https://api.dicebear.com/7.x/thumbs/svg?seed=${encodeURIComponent(vp.nickname)}`} alt={vp.nickname}
+                                <img src={getAvatarSrc(vp.photo_url, vp.nickname)} alt={vp.nickname}
                                   className="w-9 h-9 rounded-full object-cover flex-shrink-0"
-                                  onError={(e) => { (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/thumbs/svg?seed=${encodeURIComponent(vp.nickname)}`; }} />
+                                  onError={(e) => { (e.target as HTMLImageElement).src = genAvatar(vp.nickname); }} />
                                 <div className="flex-1 min-w-0">
                                   <p className={`text-xs font-black truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>{vp.nickname}</p>
                                   {vp.mbti && <p className={`text-[10px] ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{vp.mbti}</p>}
@@ -2631,9 +2605,9 @@ export function MainScreen({
                               if (!bp) return null;
                               return (
                                 <div key={b.id} className={`flex items-center gap-3 p-2 rounded-xl ${darkMode ? 'bg-slate-700/40' : 'bg-gray-50'}`}>
-                                  <img src={bp.photo_url || `https://api.dicebear.com/7.x/thumbs/svg?seed=${encodeURIComponent(bp.nickname)}`} alt={bp.nickname}
+                                  <img src={getAvatarSrc(bp.photo_url, bp.nickname)} alt={bp.nickname}
                                     className="w-9 h-9 rounded-full object-cover flex-shrink-0"
-                                    onError={(e) => { (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/thumbs/svg?seed=${encodeURIComponent(bp.nickname)}`; }} />
+                                    onError={(e) => { (e.target as HTMLImageElement).src = genAvatar(bp.nickname); }} />
                                   <div className="flex-1 min-w-0">
                                     <p className={`text-xs font-black truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>{bp.nickname}</p>
                                     <p className={`text-[10px] ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{b.block_type === 'block' ? '🚫 차단됨' : '👻 나를 못 보게 함'}</p>

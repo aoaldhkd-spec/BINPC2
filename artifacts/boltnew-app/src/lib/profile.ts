@@ -79,32 +79,30 @@ function avatarPaletteIndex(nickname: string): number {
   return Math.abs(h);
 }
 
-/** 부드러운 파스텔 그라디언트 + 포인트 컬러 (닉네임별로 다양하게 분산) */
-const AVATAR_PALETTE: Array<{ from: string; to: string; accent: string }> = [
-  { from: '#dbeafe', to: '#bfdbfe', accent: '#2563eb' },
-  { from: '#cffafe', to: '#a5f3fc', accent: '#0891b2' },
-  { from: '#d1fae5', to: '#a7f3d0', accent: '#059669' },
-  { from: '#ecfccb', to: '#d9f99d', accent: '#65a30d' },
-  { from: '#fef3c7', to: '#fde68a', accent: '#d97706' },
-  { from: '#fce7f3', to: '#fbcfe8', accent: '#db2777' },
-  { from: '#ede9fe', to: '#ddd6fe', accent: '#7c3aed' },
-  { from: '#ffe4e6', to: '#fecdd3', accent: '#e11d48' },
-  { from: '#e0e7ff', to: '#c7d2fe', accent: '#4f46e5' },
-  { from: '#ccfbf1', to: '#99f6e4', accent: '#0d9488' },
-  { from: '#fae8ff', to: '#f5d0fe', accent: '#a855f7' },
-  { from: '#ffedd5', to: '#fed7aa', accent: '#ea580c' },
+/** 부드러운 파스텔 그라디언트 (닉네임별로 다양하게 분산, 텍스트 없음) */
+const AVATAR_PALETTE: Array<{ from: string; to: string }> = [
+  { from: '#dbeafe', to: '#bfdbfe' },
+  { from: '#cffafe', to: '#a5f3fc' },
+  { from: '#d1fae5', to: '#a7f3d0' },
+  { from: '#ecfccb', to: '#d9f99d' },
+  { from: '#fef3c7', to: '#fde68a' },
+  { from: '#fce7f3', to: '#fbcfe8' },
+  { from: '#ede9fe', to: '#ddd6fe' },
+  { from: '#ffe4e6', to: '#fecdd3' },
+  { from: '#e0e7ff', to: '#c7d2fe' },
+  { from: '#ccfbf1', to: '#99f6e4' },
+  { from: '#fae8ff', to: '#f5d0fe' },
+  { from: '#ffedd5', to: '#fed7aa' },
 ];
 
 export function genAvatar(nickname: string): string {
   const nick = nickname.trim() || '?';
-  const { from, to, accent } = AVATAR_PALETTE[avatarPaletteIndex(nick) % AVATAR_PALETTE.length];
-  const initial = nick.charAt(0);
+  const { from, to } = AVATAR_PALETTE[avatarPaletteIndex(nick) % AVATAR_PALETTE.length];
   const svg = [
     '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400">',
     `<defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">`,
     `<stop offset="0%" stop-color="${from}"/><stop offset="100%" stop-color="${to}"/></linearGradient></defs>`,
     '<rect width="400" height="400" fill="url(#g)"/>',
-    `<text x="200" y="228" text-anchor="middle" font-family="system-ui,sans-serif" font-size="148" font-weight="600" fill="${accent}" opacity="0.88">${initial}</text>`,
     '</svg>',
   ].join('');
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;

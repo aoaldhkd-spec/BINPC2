@@ -1,7 +1,7 @@
 import '../lib/dns-ipv4-first.js';
 import session from 'express-session';
 import connectPgSimple from 'connect-pg-simple';
-import { buildPgOptions } from './pg-options.js';
+import { pgPool } from './pg-pool.js';
 
 const SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -18,7 +18,7 @@ export function createSessionMiddleware() {
   const store = process.env.NODE_ENV === 'test'
     ? undefined
     : new PgSessionStore({
-        conObject: buildPgOptions(),
+        pool: pgPool,
         createTableIfMissing: true,
         tableName: 'app_sessions',
         pruneSessionInterval: 15 * 60,
@@ -31,9 +31,10 @@ export function createSessionMiddleware() {
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      sameSite: 'strict',
+      sameSite: 'lax',
       secure: process.env.NODE_ENV === 'production',
       maxAge: SESSION_MAX_AGE_MS,
+      path: '/',
     },
   });
 }

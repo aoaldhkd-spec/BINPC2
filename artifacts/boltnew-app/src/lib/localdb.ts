@@ -54,7 +54,12 @@ function _markSessionPending() {
 // 503(서버 과부하·콜드스타트) 및 네트워크 오류 시 지수 백오프 재시도
 const MAX_BUSY_RETRIES = 5;
 
-async function apiFetch(path: string, body?: unknown, extraHeaders?: Record<string, string>): Promise<{ data: unknown; error: unknown }> {
+async function apiFetch(
+  path: string,
+  body?: unknown,
+  extraHeaders?: Record<string, string>,
+  authRetry = false,
+): Promise<{ data: unknown; error: unknown }> {
   for (let attempt = 0; attempt <= MAX_BUSY_RETRIES; attempt++) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT);
@@ -78,7 +83,17 @@ async function apiFetch(path: string, body?: unknown, extraHeaders?: Record<stri
       if (!resp.ok) {
         const text = await resp.text().catch(() => '');
         try {
-          const json = JSON.parse(text) as { data?: unknown; error?: { message?: string } };
+          const json = JSON.parse(text) as { data?: unknown; error?: { message?: string; code?: string } };
+          if (path === '/op' && resp.status === 401 && !authRetry && _currentUserId) {
+            _markSessionPending();
+            _clearSessionBearer();
+            if (await loginSession(_currentUserId)) {
+              const retryBody = body && typeof body === 'object' && !Array.isArray(body)
+                ? { ...(body as Record<string, unknown>), sessionToken: _sessionBearerToken ?? undefined }
+                : body;
+              return apiFetch(path, retryBody, extraHeaders, true);
+            }
+          }
           return {
             data: json.data ?? null,
             error: json.error ?? { message: `HTTP ${resp.status}` },
@@ -243,6 +258,7 @@ class QueryBuilder {
       selectAfterWrite: this._selectAfterWrite,
       // 세션 쿠키가 없을 때 requesterId를 보내면 서버가 401 — 프로필 목록 등 SELECT는 null로 공개 조회
       requesterId: (_sessionReady && _currentUserId) ? _currentUserId : null,
+      sessionToken: (_sessionReady && _sessionBearerToken) ? _sessionBearerToken : undefined,
       adminToken: localStorage.getItem('admin_token_v1') ?? undefined, // admin bypass: included when logged in as admin
       testToken: localStorage.getItem('test_token_v1') ?? undefined,
     }) as Promise<DbResult<unknown>>;
@@ -265,6 +281,44 @@ let _es: EventSource | null = null;
 const _sseListeners = new Set<(e: SseEvent) => void>();
 let _sseErrorSince: number | null = null;
 let _currentUserId: string | null = null;
+
+// Bearer sessionToken — Netlify 프록시에서 connect.sid 쿠키가 끊겨도 /op·SSE 인증 유지
+let _sessionBearerToken: string | null = null;
+const SESS_BEARER_KEY = 'session_bearer_v1';
+const SESS_BEARER_UID_KEY = 'session_bearer_uid_v1';
+const SESS_BEARER_EXP_KEY = 'session_bearer_exp_v1';
+
+function _saveSessionBearer(userId: string, token: string, expiresAt: number) {
+  _sessionBearerToken = token;
+  try {
+    sessionStorage.setItem(SESS_BEARER_KEY, token);
+    sessionStorage.setItem(SESS_BEARER_UID_KEY, userId);
+    sessionStorage.setItem(SESS_BEARER_EXP_KEY, String(expiresAt));
+  } catch { /* ignore */ }
+}
+
+function _loadSessionBearer(userId: string): boolean {
+  try {
+    const uid = sessionStorage.getItem(SESS_BEARER_UID_KEY);
+    const token = sessionStorage.getItem(SESS_BEARER_KEY);
+    const exp = parseInt(sessionStorage.getItem(SESS_BEARER_EXP_KEY) ?? '0', 10);
+    if (uid === userId && token && Math.floor(Date.now() / 1000) < exp - 60) {
+      _sessionBearerToken = token;
+      return true;
+    }
+  } catch { /* ignore */ }
+  _sessionBearerToken = null;
+  return false;
+}
+
+function _clearSessionBearer() {
+  _sessionBearerToken = null;
+  try {
+    sessionStorage.removeItem(SESS_BEARER_KEY);
+    sessionStorage.removeItem(SESS_BEARER_UID_KEY);
+    sessionStorage.removeItem(SESS_BEARER_EXP_KEY);
+  } catch { /* ignore */ }
+}
 
 // SSE 재연결 감지 — 첫 연결이 아닌 재연결일 때 등록된 콜백 호출
 let _sseHasConnected = false;     // 최초 연결 완료 여부
@@ -335,6 +389,7 @@ export function setLocalDbUserId(userId: string | null) {
   if (_es) { _es.close(); _es = null; }
   if (!userId) {
     // 로그아웃: 토큰 캐시 삭제, 세션 게이트 즉시 해제
+    _clearSessionBearer();
     _markSessionReady();
     try { localStorage.removeItem(SSE_TOK_KEY); localStorage.removeItem(SSE_TOK_EXP_KEY); } catch { /* ignore */ }
     if (_sseListeners.size > 0) ensureSse(); // 익명 SSE 유지
@@ -343,6 +398,8 @@ export function setLocalDbUserId(userId: string | null) {
   // userId가 바뀐 경우: loginSession 완료 전까지 /op 요청을 게이트로 차단
   // → 서버 세션(구 UUID)과 body.requesterId(신 UUID) 불일치로 인한 403 차단 방지
   _markSessionPending();
+  if (_loadSessionBearer(userId)) _markSessionReady();
+  void loginSession(userId);
   // 캐시 토큰이 있으면 즉시 인증 SSE로 연결. 없으면 토큰 발급 후 setSseToken이 연결합니다.
   if (_sseListeners.size > 0) ensureSse();
   void fetchSseToken(userId);
@@ -769,6 +826,8 @@ export async function fetchAndSetSseToken(userId: string, attempt = 0): Promise<
     const resp = await fetch(`${API}/auth/sse-token`, {
       method: 'POST',
       credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, sessionToken: _sessionBearerToken }),
     });
     if (!resp.ok) {
       scheduleRetry(`HTTP ${resp.status}`);
@@ -863,6 +922,10 @@ async function loginSession(userId: string, attempt = 0): Promise<boolean> {
       return false;
     }
     _pendingPinCode = null;
+    const data = await resp.json().catch(() => ({})) as { sessionToken?: string; sessionExpiresAt?: number };
+    if (data.sessionToken && data.sessionExpiresAt) {
+      _saveSessionBearer(userId, data.sessionToken, data.sessionExpiresAt);
+    }
     if (_currentUserId === userId) _markSessionReady();
     return true;
   } catch {

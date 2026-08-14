@@ -211,7 +211,8 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   // backgroundColor 파라미터가 있는 URL(프리셋 아바타)은 배경이 있으므로 그대로 유지.
   const avatarSrc = (url: string | null | undefined, nick: string): string => {
     if (!url) return genAvatar(nick);
-    if (url.includes('dicebear') && !url.includes('backgroundColor')) return genAvatar(nick);
+    if (url.includes('dicebear')) return genAvatar(nick);
+    if (url.startsWith('data:image/svg')) return genAvatar(nick);
     return url;
   };
 

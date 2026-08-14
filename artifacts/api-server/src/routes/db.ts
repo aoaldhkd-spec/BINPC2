@@ -86,12 +86,7 @@ function verifyTestToken(provided: string | null | undefined): boolean {
 const sseAdminClients = new Set<Response>();
 
 // ─── PostgreSQL connection pool ────────────────────────────────────────────────
-const pool = new pg.Pool({
-  ...buildPgOptions(),
-  max: Number(process.env.PG_POOL_MAX ?? 12),
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
-});
+import { pgPool as pool } from '../lib/pg-pool.js';
 
 // 인스턴스마다 고유 ID — 자신이 보낸 NOTIFY를 수신해도 중복 처리 방지
 const INSTANCE_ID = crypto.randomUUID();
@@ -1747,15 +1742,15 @@ router.post('/op', async (req: Request, res: Response) => {
   // ─ requesterId 세션 바인딩 — 구조분해 이전에 실행해야 local const에 올바른 값이 들어감 ─
   // 인증된 세션이 있는 경우: body requesterId와 불일치하면 즉시 차단, 일치하거나 null이면 세션값으로 확정
   {
-    const _sessId = (req.session as { userId?: string })?.userId;
-    const _bodyReqId = (req.body as Record<string, unknown>).requesterId as string | null | undefined;
-    if (_sessId && _bodyReqId != null && String(_bodyReqId) !== _sessId) {
+    const bodyRec = req.body as Record<string, unknown>;
+    const _authId = resolveAuthUserId(req, bodyRec);
+    const _bodyReqId = bodyRec.requesterId as string | null | undefined;
+    if (_authId && _bodyReqId != null && String(_bodyReqId) !== _authId) {
       _activeOpCount--;
-      logger.warn({ ip: req.ip, session: _sessId, claimed: _bodyReqId }, '[SECURITY] requesterId body-spoof attempt blocked');
+      logger.warn({ ip: req.ip, session: _authId, claimed: _bodyReqId }, '[SECURITY] requesterId body-spoof attempt blocked');
       return res.status(403).json({ data: null, error: { message: 'Forbidden: requesterId must match authenticated session', code: 'FORBIDDEN' } });
     }
-    // 세션 userId로 확정 → 이후 구조분해 시 requesterId가 올바른 값을 가짐
-    if (_sessId) (req.body as Record<string, unknown>).requesterId = _sessId;
+    if (_authId) bodyRec.requesterId = _authId;
   }
 
   // ─ req.body 타입 방어: JSON 파싱 실패·비객체 전송 시 safe fallback ─────────
@@ -1791,7 +1786,7 @@ router.post('/op', async (req: Request, res: Response) => {
   const isAdmin = verifyAdminToken(adminToken);
   const isTestSession = verifyTestToken(testToken);
   const canReadPrivateTables = isAdmin || isTestSession;
-  const sessionUserId = req.session.userId;
+  const sessionUserId = resolveAuthUserId(req, req.body as Record<string, unknown>);
 
   // requesterId는 인증 수단이 아니라 세션 사용자와의 일치 검사용입니다.
   // 테스트 환경의 기존 단위 테스트만 메모리 세션 없이 직접 가드를 검증합니다.
@@ -3525,6 +3520,48 @@ router.post('/push/notify', async (req: Request, res: Response): Promise<void> =
 // SESSION_SECRET는 app.ts에서 필수 검증하므로 여기서는 항상 유효한 값
 const SSE_TOKEN_SECRET = process.env.SESSION_SECRET!;
 const SSE_TOKEN_EXPIRY_SEC = 3600; // 1 hour
+const SESSION_TOKEN_EXPIRY_SEC = 7 * 24 * 60 * 60; // 7 days — cookie 대체·Netlify 프록시 대응
+
+function issueSessionToken(userId: string): { token: string; expiresAt: number } {
+  const exp = Math.floor(Date.now() / 1000) + SESSION_TOKEN_EXPIRY_SEC;
+  const mac = createHmac('sha256', SSE_TOKEN_SECRET)
+    .update(`session:${userId}:${exp}`)
+    .digest('hex');
+  return { token: `${exp}:${mac}`, expiresAt: exp };
+}
+
+function verifySessionToken(userId: string, token: string): boolean {
+  const colonIdx = token.indexOf(':');
+  if (colonIdx < 1) return false;
+  const expStr = token.slice(0, colonIdx);
+  const mac = token.slice(colonIdx + 1);
+  const exp = Number(expStr);
+  if (!Number.isFinite(exp) || Math.floor(Date.now() / 1000) > exp) return false;
+  const expected = createHmac('sha256', SSE_TOKEN_SECRET)
+    .update(`session:${userId}:${expStr}`)
+    .digest('hex');
+  try {
+    return timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(mac, 'hex'));
+  } catch {
+    return false;
+  }
+}
+
+/** 쿠키 세션 또는 Bearer sessionToken 으로 인증된 userId */
+function resolveAuthUserId(req: Request, body: Record<string, unknown>): string | null {
+  const cookieId = (req.session as { userId?: string })?.userId;
+  if (cookieId) return String(cookieId);
+  const token = typeof body.sessionToken === 'string' ? body.sessionToken : null;
+  const claimed = typeof body.requesterId === 'string' ? body.requesterId : null;
+  if (token && claimed && verifySessionToken(claimed, token)) return claimed;
+  return null;
+}
+
+function finishLogin(res: Response, req: Request, userId: string) {
+  req.session.userId = userId;
+  const { token: sessionToken, expiresAt: sessionExpiresAt } = issueSessionToken(userId);
+  return res.json({ ok: true, sessionToken, sessionExpiresAt });
+}
 
 function issueSseToken(userId: string): { token: string; expiresAt: number } {
   const exp = Math.floor(Date.now() / 1000) + SSE_TOKEN_EXPIRY_SEC;
@@ -3613,8 +3650,7 @@ router.post('/auth/login', (req: Request, res: Response) => {
     deviceSecrets.push(newDs);
     dbPersistRow('device_secrets', newDs).catch(e => logger.error({ err: e }, '[db] background task error'));
     logger.info({ userId }, '[auth] first-claim device registered');
-    req.session.userId = userId;
-    return res.json({ ok: true });
+    return finishLogin(res, req, userId);
   }
   // 재인증: 타이밍 안전 비교
   let matched = false;
@@ -3634,8 +3670,7 @@ router.post('/auth/login', (req: Request, res: Response) => {
       if (idx >= 0) deviceSecrets[idx] = rebound; else deviceSecrets.push(rebound);
       dbPersistRow('device_secrets', rebound).catch(e => logger.error({ err: e }, '[db] device re-bind persist failed'));
       logger.info({ userId }, '[auth] device re-bound via PIN recovery');
-      req.session.userId = userId;
-      return res.json({ ok: true });
+      return finishLogin(res, req, userId);
     }
     logger.warn({ userId, ip: req.ip }, '[auth] device secret mismatch — access denied (re-bind blocked)');
     return res.status(401).json({
@@ -3643,8 +3678,7 @@ router.post('/auth/login', (req: Request, res: Response) => {
       code: 'DEVICE_MISMATCH',
     });
   }
-  req.session.userId = userId;
-  return res.json({ ok: true });
+  return finishLogin(res, req, userId);
   } catch (e) {
     logger.error({ err: e }, '[auth/login] Unexpected error');
     return res.status(500).json({ error: '로그인 처리 중 오류가 발생했습니다.' });
@@ -3655,7 +3689,13 @@ router.post('/auth/login', (req: Request, res: Response) => {
 // 세션이 없거나 userId가 일치하지 않으면 401 반환
 router.post('/auth/sse-token', (req: Request, res: Response) => {
   try {
-    const sessionUserId = req.session?.userId;
+    const body = (req.body != null && typeof req.body === 'object' && !Array.isArray(req.body))
+      ? req.body as { userId?: string; sessionToken?: string }
+      : {};
+    let sessionUserId = req.session?.userId ?? null;
+    if (!sessionUserId && body.userId && body.sessionToken && verifySessionToken(body.userId, body.sessionToken)) {
+      sessionUserId = body.userId;
+    }
     if (!sessionUserId) {
       return res.status(401).json({ error: 'Not authenticated — call /auth/login first' });
     }

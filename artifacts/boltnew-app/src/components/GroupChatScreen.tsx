@@ -10,12 +10,12 @@ import { ArrowLeft, Send, LogOut } from 'lucide-react';
 import { AppErrorBoundary } from './AppErrorBoundary';
 import type { GroupChat, GroupMessage, Profile } from '../types/app';
 
-const genAvatar = (nick: string) =>
-  `https://api.dicebear.com/7.x/thumbs/svg?seed=${encodeURIComponent(nick)}`;
+import { genAvatar } from '../lib/profile';
 
 const getAvatarSrc = (photoUrl: string | null | undefined, nick: string): string => {
   if (!photoUrl) return genAvatar(nick);
-  if (photoUrl.includes('dicebear') && photoUrl.includes('thumbs')) return genAvatar(nick);
+  if (photoUrl.includes('dicebear')) return genAvatar(nick);
+  if (photoUrl.startsWith('data:image/svg')) return genAvatar(nick);
   return photoUrl;
 };
 

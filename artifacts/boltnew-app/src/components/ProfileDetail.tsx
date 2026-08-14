@@ -8,11 +8,18 @@ import type { Profile } from '../types/app';
 // heartMeta: HeartType → HEART_TYPES 메타데이터 조회 (unknown 타입 방어: 첫 번째 항목으로 폴백)
 const heartMeta = (t: HeartType) => HEART_TYPES.find(h => h.type === t) ?? HEART_TYPES[0];
 
-// DiceBear 투명 SVG나 null → genAvatar 폴백, 실제 사진은 그대로 반환
+// DiceBear·구형 SVG data URL → genAvatar 폴백, 실제 사진은 그대로 반환
 function profileAvatarSrc(url: string | null | undefined, nick: string): string {
   if (!url) return genAvatar(nick);
-  if (url.includes('dicebear') && !url.includes('backgroundColor')) return genAvatar(nick);
+  if (url.includes('dicebear')) return genAvatar(nick);
+  if (url.startsWith('data:image/svg')) return genAvatar(nick);
   return url;
+}
+function hasUploadedPhoto(url: string | null | undefined): boolean {
+  if (!url) return false;
+  if (url.includes('dicebear')) return false;
+  if (url.startsWith('data:image/svg')) return false;
+  return true;
 }
 function onImgErr(nick: string) {
   return (e: SyntheticEvent<HTMLImageElement>) => { e.currentTarget.src = genAvatar(nick); };
@@ -21,9 +28,7 @@ function onImgErr(nick: string) {
 // ── 프로필 사진 헤더 — 실제 사진 있으면 표시, 없으면 성향 색상 + 라벨 ──────────
 function PhotoHeader({ profile }: { profile: Profile }) {
   const [imgError, setImgError] = useState(false);
-  // DiceBear URL이 아닌 진짜 사진 URL인지 판별
-  const hasRealPhoto = !!(profile.photo_url && !profile.photo_url.includes('dicebear'));
-  const showPhoto = hasRealPhoto && !imgError;
+  const showPhoto = hasUploadedPhoto(profile.photo_url) && !imgError;
 
   if (showPhoto) {
     return (
@@ -38,30 +43,14 @@ function PhotoHeader({ profile }: { profile: Profile }) {
     );
   }
 
-  // 사진 없는 경우 — genAvatar(DiceBear colored) 또는 성향 그라디언트
-  const avatarUrl = profileAvatarSrc(profile.photo_url, profile.nickname);
-  const isDicebearColored = avatarUrl.includes('dicebear') && avatarUrl.includes('backgroundColor');
-
   return (
-    <div
-      className="aspect-[4/3] flex items-center justify-center"
-      style={{ backgroundColor: getPositionBg(profile.personality_score ?? 50) }}
-    >
-      {isDicebearColored ? (
-        // 컬러 아바타(DiceBear) → 중앙에 크게 표시
-        <img
-          src={avatarUrl}
-          alt={profile.nickname}
-          className="w-32 h-32 rounded-full shadow-2xl border-4 border-white/30"
-          onError={onImgErr(profile.nickname)}
-        />
-      ) : (
-        // 아바타 없는 경우 — 성향 라벨 텍스트
-        <div className="flex flex-col items-center gap-2">
-          <span className="text-4xl font-black text-white">{getPositionLabel(profile.personality_score ?? 50)}</span>
-          {profile.mbti && <span className="text-2xl font-bold text-white/80">{profile.mbti}</span>}
-        </div>
-      )}
+    <div className="aspect-[4/3]">
+      <img
+        src={profileAvatarSrc(profile.photo_url, profile.nickname)}
+        alt={profile.nickname}
+        className="w-full h-full object-cover"
+        onError={onImgErr(profile.nickname)}
+      />
     </div>
   );
 }
