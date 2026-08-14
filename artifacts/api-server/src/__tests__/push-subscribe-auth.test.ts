@@ -25,7 +25,13 @@ vi.mock('pg', () => {
     on      = () => {};
     end     = () => Promise.resolve();
   }
-  return { default: { Pool: MockPool } };
+  class MockClient {
+    connect = () => Promise.resolve();
+    query   = () => Promise.resolve({ rows: [] });
+    on      = () => {};
+    end     = () => Promise.resolve();
+  }
+  return { default: { Pool: MockPool, Client: MockClient } };
 });
 
 vi.mock('web-push', () => ({

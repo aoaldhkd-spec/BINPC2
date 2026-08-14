@@ -4,6 +4,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { VAPID_PUBLIC_KEY, sendPush, type PushPayload } from '../lib/push';
 import { resolvePin, pinPoolParams } from '../lib/pin';
 import { logger } from '../lib/logger';
+import { createImageAccessPolicy } from '../lib/image-access';
 
 // express-session의 SessionData에 userId 필드 추가
 declare module 'express-session' {
@@ -32,6 +33,23 @@ function verifyAdminToken(provided: string | null | undefined): boolean {
   try {
     return timingSafeEqual(Buffer.from(provided, 'hex'), Buffer.from(expected, 'hex'));
   } catch { return false; }
+}
+
+function deriveTestToken(testPassword: string): string {
+  const secret = (process.env.SESSION_SECRET ?? 'fallback-secret') + testPassword;
+  return createHmac('sha256', secret).update('test-session').digest('hex');
+}
+
+function verifyTestToken(provided: string | null | undefined): boolean {
+  if (!provided || typeof provided !== 'string') return false;
+  const settings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
+  const testPassword = ((settings.test_password as string | null | undefined) ?? '').trim() || '116606';
+  const expected = deriveTestToken(testPassword);
+  try {
+    return timingSafeEqual(Buffer.from(provided, 'hex'), Buffer.from(expected, 'hex'));
+  } catch {
+    return false;
+  }
 }
 
 // 관리자 SSE 연결 집합 — 일반 sseUserMap과 분리해 모든 이벤트(private 포함) 수신
@@ -68,6 +86,10 @@ const ALLOWED_OP_TABLES = new Set([
   'blocked_users', 'profile_views',
   // 상태·이상형 신호
   'user_signals',
+  // 테스트 대시보드 전용 좌석 데이터
+  'seats',
+  // 서버가 계산하고 사용자는 자신의 잔여 수만 조회
+  'heart_balances',
 ]);
 
 // ─── SSE Event Ring Buffer — Last-Event-ID 재전송으로 재연결 시 이벤트 유실 방지 ──
@@ -475,7 +497,26 @@ async function dbPersistImage(path: string, dataUrl: string): Promise<void> {
   }
 }
 
-// ─── Startup: load all data from DB into memory ───────────────────────────────
+// ─── Startup: initialize storage schema and load data ────────────────────────
+async function ensureStorageSchema(): Promise<void> {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS app_kv_rows (
+      table_name text NOT NULL,
+      row_id text NOT NULL,
+      data jsonb NOT NULL,
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (table_name, row_id)
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS app_image_store (
+      path text PRIMARY KEY,
+      data_url text NOT NULL,
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+}
+
 async function loadFromDb(): Promise<void> {
   try {
     const { rows } = await pool.query('SELECT table_name, row_id, data FROM app_kv_rows ORDER BY updated_at ASC');
@@ -524,6 +565,7 @@ async function loadFromDb(): Promise<void> {
 
 // ─── Seed data (only if DB is empty) ─────────────────────────────────────────
 async function seedIfNeeded(): Promise<void> {
+  await ensureStorageSchema();
   await loadFromDb();
   if (!getTable('app_settings').length) {
     const settings = {
@@ -950,10 +992,10 @@ async function setupListenClient(): Promise<void> {
   }
 }
 
-// [Fix] NOTIFY 직렬 큐 — 150명 동시 쓰기 시 pool 과부하 방지
-// 최대 32개 대기, 초과 시 가장 오래된 항목 드롭 (최신 이벤트 우선)
+// NOTIFY 직렬 큐 — 동시 쓰기 시 pool 과부하 방지.
+// 같은 row의 대기 이벤트는 최신 상태로 합쳐 유실 가능성과 큐 사용량을 줄입니다.
 const _notifyQueue: string[] = [];
-const NOTIFY_QUEUE_MAX = 32;
+const NOTIFY_QUEUE_MAX = 256;
 let _notifyBusy = false;
 function _drainNotifyQueue() {
   if (_notifyBusy || _notifyQueue.length === 0) return;
@@ -976,7 +1018,21 @@ function notifyOtherInstances(table: string, ev: string, newRow: Record<string, 
   } else {
     msg = payload;
   }
-  // [Fix] 큐 초과 시 오래된 항목 드롭 — 풀 포화 방지
+  const rowId = (newRow ?? oldRow)?.['id'];
+  if (rowId != null) {
+    for (let i = _notifyQueue.length - 1; i >= 0; i--) {
+      try {
+        const queued = JSON.parse(_notifyQueue[i]) as { table?: string; id?: unknown; newRow?: Record<string, unknown>; oldRow?: Record<string, unknown> };
+        const queuedId = queued.id ?? (queued.newRow ?? queued.oldRow)?.['id'];
+        if (queued.table === table && String(queuedId) === String(rowId)) {
+          _notifyQueue[i] = msg;
+          return;
+        }
+      } catch {
+        // 손상된 항목은 drain 단계에서 실패하도록 그대로 두고 다음 항목을 확인합니다.
+      }
+    }
+  }
   if (_notifyQueue.length >= NOTIFY_QUEUE_MAX) _notifyQueue.shift();
   _notifyQueue.push(msg);
   _drainNotifyQueue();
@@ -1140,6 +1196,14 @@ function sanitizeProfile(row: Record<string, unknown>): Record<string, unknown> 
   delete s['kakao_id'];
   delete s['instagram_id'];
   return s;
+}
+
+function sanitizeProfileForViewer(
+  row: Record<string, unknown>,
+  viewerId: string | null | undefined,
+): Record<string, unknown> {
+  if (viewerId && String(row.id) === String(viewerId)) return row;
+  return row.contact_private === true ? sanitizeProfile(row) : row;
 }
 
 /** app_settings row에서 관리자 비밀번호를 제거하여 유저 SSE에 노출되지 않도록 */
@@ -1367,6 +1431,7 @@ router.post('/op', async (req: Request, res: Response) => {
     selectAfterWrite,
     requesterId,
     adminToken,
+    testToken,
   } = req.body as {
     table: string; op: string;
     filters: FilterSpec[]; orders: { col: string; asc: boolean }[];
@@ -1374,10 +1439,22 @@ router.post('/op', async (req: Request, res: Response) => {
     payload?: unknown; conflictCols?: string[]; selectAfterWrite?: boolean;
     requesterId?: string | null;
     adminToken?: string | null;
+    testToken?: string | null;
   };
 
   // 관리자 토큰 검증 — HMAC 재계산으로 검증 (서버 재시작 후에도 유효)
   const isAdmin = verifyAdminToken(adminToken);
+  const isTestSession = verifyTestToken(testToken);
+  const canReadPrivateTables = isAdmin || isTestSession;
+  const sessionUserId = req.session.userId;
+
+  // requesterId는 인증 수단이 아니라 세션 사용자와의 일치 검사용입니다.
+  // 테스트 환경의 기존 단위 테스트만 메모리 세션 없이 직접 가드를 검증합니다.
+  if (process.env.NODE_ENV !== 'test' && requesterId && !sessionUserId && !isAdmin) {
+    _activeOpCount--;
+    logger.warn({ requesterId, ip: req.ip }, '[SECURITY] unauthenticated requesterId blocked');
+    return res.status(401).json({ data: null, error: { message: 'Authentication required', code: 'UNAUTHORIZED' } });
+  }
 
   // ─ 페이로드 타입 방어: table/op는 반드시 문자열이어야 함 ─────────────────────
   if (typeof table !== 'string' || typeof op !== 'string') {
@@ -1453,6 +1530,16 @@ router.post('/op', async (req: Request, res: Response) => {
     return res.status(400).json({ data: null, error: { message: 'Invalid table', code: 'INVALID_TABLE' } });
   }
 
+  if (table === 'seats' && !isAdmin && !isTestSession) {
+    _activeOpCount--;
+    return res.status(403).json({ data: null, error: { message: 'Test dashboard authentication required', code: 'FORBIDDEN' } });
+  }
+
+  if (table === 'heart_balances' && op !== 'select' && !isAdmin) {
+    _activeOpCount--;
+    return res.status(403).json({ data: null, error: { message: 'Forbidden: server-managed table', code: 'FORBIDDEN' } });
+  }
+
   if (!store[table]) store[table] = [];
   const tableData = store[table];
 
@@ -1465,7 +1552,7 @@ router.post('/op', async (req: Request, res: Response) => {
       //   규칙 3: 해당 채팅방 참여자가 아니면 접근 불가
       //   규칙 4: 존재하지 않는 chat_id로 요청 시 빈 배열 반환 (정보 노출 차단)
       if (table === 'messages') {
-        if (!isAdmin) {
+        if (!canReadPrivateTables) {
           if (!requesterId) {
             logger.warn({ ip: req.ip }, '[SECURITY] IDOR: messages SELECT without requesterId blocked');
             return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
@@ -1514,7 +1601,7 @@ router.post('/op', async (req: Request, res: Response) => {
       // requesterId 없이 chats를 전체 덤프하면 모든 채팅 참여자가 노출됨 → 차단.
       // 관리자는 전체 채팅방 조회 허용 (감사 목적).
       if (table === 'chats') {
-        if (isAdmin) {
+        if (canReadPrivateTables) {
           // 관리자: 필터/정렬/페이지 그대로 적용하되 참여자 스코프 제한 없음
           const adminResult = applyFilters(tableData, normalizedFilters);
           for (const { col, asc } of safeOrders) {
@@ -1560,7 +1647,7 @@ router.post('/op', async (req: Request, res: Response) => {
       // ─ IDOR guard: likes SELECT ────────────────────────────────────────────
       // 좋아요 조회는 requesterId 필수 — 익명 스크래핑 차단.
       // 인증된 사용자는 전체 좋아요 조회 가능 (랭킹 집계 목적).
-      if (table === 'likes' && !isAdmin) {
+      if (table === 'likes' && !canReadPrivateTables) {
         if (!requesterId) {
           logger.warn({ ip: req.ip }, '[SECURITY] IDOR: likes SELECT without requesterId blocked');
           return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
@@ -1619,6 +1706,13 @@ router.post('/op', async (req: Request, res: Response) => {
         return res.json({ data: crData, error: null });
       }
 
+      if (table === 'heart_balances' && !isAdmin) {
+        const idFilter = normalizedFilters.find(f => f.type === 'eq' && f.col === 'id');
+        if (!requesterId || !idFilter || !('val' in idFilter) || String(idFilter.val) !== String(requesterId)) {
+          return res.status(403).json({ data: null, error: { message: 'Forbidden: own balance only', code: 'FORBIDDEN' } });
+        }
+      }
+
       let result = applyFilters(tableData, normalizedFilters);
       for (const { col, asc } of safeOrders) {
         result.sort((a, b) => {
@@ -1633,7 +1727,15 @@ router.post('/op', async (req: Request, res: Response) => {
       if (limit != null) result = result.slice(0, limit);
       // ─ app_settings: 비관리자 응답에서 admin_password 제거 (SELECT 경유 유출 방지) ─
       if (table === 'app_settings' && !isAdmin) {
-        result = result.map(r => { const s = { ...r }; delete s['admin_password']; return s; });
+        result = result.map(r => {
+          const s = { ...r };
+          delete s['admin_password'];
+          delete s['test_password'];
+          return s;
+        });
+      }
+      if (table === 'profiles' && !isAdmin) {
+        result = result.map(r => sanitizeProfileForViewer(r, requesterId));
       }
       if (single) {
         if (!result.length) return res.json({ data: null, error: { message: 'Row not found', code: 'PGRST116' } });
@@ -1874,6 +1976,10 @@ router.post('/op', async (req: Request, res: Response) => {
         logger.warn({ ip: req.ip }, '[SECURITY] IDOR: messages UPDATE without requesterId blocked');
         return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
       }
+      if (table === 'likes' && !isAdmin && !requesterId) {
+        logger.warn({ ip: req.ip }, '[SECURITY] IDOR: likes UPDATE without requesterId blocked');
+        return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+      }
       // requesterId가 있는 경우, 자신 소유의 행만 수정 가능하도록 검증
       if (requesterId) {
         const rowsToUpdate = applyFilters(tableData, normalizedFilters);
@@ -1889,7 +1995,14 @@ router.post('/op', async (req: Request, res: Response) => {
               String(existingRow.sender_id) !== String(requesterId)) {
             logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: UPDATE messages blocked');
             return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신의 메시지만 수정할 수 있습니다.', code: 'FORBIDDEN' } });
-          }          // chat_reads: 자신의 읽음 기록만 수정 가능
+          }
+          // likes: 하트를 받은 사용자만 수락·거절 상태를 변경할 수 있음
+          if (!isAdmin && table === 'likes' && existingRow.liked_id != null &&
+              String(existingRow.liked_id) !== String(requesterId)) {
+            logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: UPDATE likes blocked');
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: 받은 하트만 변경할 수 있습니다.', code: 'FORBIDDEN' } });
+          }
+          // chat_reads: 자신의 읽음 기록만 수정 가능
           if (table === 'chat_reads' && existingRow.reader_id != null &&
               String(existingRow.reader_id) !== String(requesterId)) {
             logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: UPDATE chat_reads blocked');
@@ -2059,7 +2172,7 @@ router.post('/op', async (req: Request, res: Response) => {
 const ALLOWED_RPCS = new Set([
   'admin_create_session', 'admin_invalidate_session', 'admin_auth_phone',
   'admin_update_settings', 'test_resync', 'test_clear_hearts', 'admin_force_resync_all',
-  'test_update_settings', 'admin_full_reset', 'admin_event_end_reset',
+  'test_verify_password', 'test_update_settings', 'admin_full_reset', 'admin_event_end_reset',
   'admin_update_profile',
   'admin_delete_profile',
   'admin_trigger_heart_drain',   // 하트 드레인 즉시 실행 (수동 트리거)
@@ -2146,6 +2259,15 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         return res.json({ data: null, error: null });
       }
 
+      case 'test_verify_password': {
+        const provided = ((args.p_test_password as string | undefined) ?? '').trim();
+        const expected = ((settings.test_password as string | null | undefined) ?? '').trim() || '116606';
+        if (!provided || provided !== expected) {
+          return res.status(403).json({ data: false, error: { message: '테스트 비밀번호가 올바르지 않습니다.' } });
+        }
+        return res.json({ data: deriveTestToken(expected), error: null });
+      }
+
       case 'test_resync': {
         // 테스트 대시보드 → 모든 관련 테이블을 DB에서 강제 리로드
         const pTestPw2 = (args.p_test_password as string | undefined) ?? '';
@@ -2169,7 +2291,13 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         _likesLastInsert.clear();
         dbDeleteTable('likes').catch(e => logger.error({ err: e }, '[rpc] test_clear_hearts DB 삭제 실패'));
         for (const like of allLikes) {
-          broadcastAll({ type: 'change', table: 'likes', event: 'DELETE', newRow: like, oldRow: like });
+          smartBroadcast('likes', like, {
+            type: 'change',
+            table: 'likes',
+            event: 'DELETE',
+            newRow: null,
+            oldRow: like,
+          });
         }
         logger.info({ count: allLikes.length }, '[rpc] test_clear_hearts: 하트 전체 삭제');
         return res.json({ data: { cleared: allLikes.length }, error: null });
@@ -2286,11 +2414,11 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         // p_drain_count: -1(기본)=전부회수, 1~8=해당 개수만 차감
         // p_heart_type: 'red'|'blue'|'pink'|'green' (없으면 전체 하트 기준)
         checkPassword();
-        const rawDrainCount = body.p_drain_count as number | undefined;
+        const rawDrainCount = args.p_drain_count as number | undefined;
         const drainCount = (rawDrainCount != null && Number.isFinite(rawDrainCount))
           ? Math.round(rawDrainCount)
           : -1; // 기본: 전부 회수
-        const rawHeartType = body.p_heart_type as string | undefined;
+        const rawHeartType = args.p_heart_type as string | undefined;
         const heartType = (['red', 'blue', 'pink', 'green'] as const).includes(rawHeartType as never)
           ? rawHeartType : undefined;
         const drainResult = await drainUnusedHearts(drainCount, heartType);
@@ -2420,12 +2548,17 @@ router.post('/broadcast', (req: Request, res: Response) => {
 const ALLOWED_IMAGE_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 // base64 인코딩 시 ~4/3 오버헤드 → 5MB 원본 ≈ 9MB JSON 문자열
 const MAX_IMAGE_DATAURL_BYTES = 9_000_000;
+const imageAccess = createImageAccessPolicy(getTable);
 
 router.post('/storage-upload', async (req: Request, res: Response) => {
   try {
   // ─ req.body 타입 방어
   if (req.body == null || typeof req.body !== 'object' || Array.isArray(req.body)) {
     return res.status(400).json({ data: null, error: 'Invalid request body' });
+  }
+  const userId = req.session.userId;
+  if (!userId) {
+    return res.status(401).json({ data: null, error: { message: 'Authentication required' } });
   }
   const { path: imgPath, dataUrl } = req.body as { path?: string; dataUrl?: string };
   // ─ 경로 검증: 디렉터리 트래버설 / 임의 덮어쓰기 방지
@@ -2435,6 +2568,9 @@ router.post('/storage-upload', async (req: Request, res: Response) => {
     imgPath.length > 512 || !/^[\w\-./]+$/.test(imgPath)
   ) {
     return res.status(400).json({ data: null, error: 'Invalid path' });
+  }
+  if (!imageAccess.canUpload(imgPath, userId)) {
+    return res.status(403).json({ data: null, error: { message: 'Forbidden image path' } });
   }
   // ─ Per-IP rate limit: 이미지 스팸 방지
   const uploadIp = String(req.ip ?? req.socket.remoteAddress ?? 'unknown');
@@ -2483,12 +2619,47 @@ router.post('/storage-upload', async (req: Request, res: Response) => {
   }
 });
 
+// 메시지 저장 실패·채팅방 전환 시 방금 업로드한 고아 이미지를 정리합니다.
+router.post('/storage-remove', async (req: Request, res: Response) => {
+  try {
+    const userId = req.session.userId;
+    const paths = (req.body as { paths?: unknown })?.paths;
+    if (!userId) {
+      return res.status(401).json({ data: null, error: { message: 'Authentication required' } });
+    }
+    if (!Array.isArray(paths) || paths.length === 0 || paths.length > 10 ||
+        paths.some(p => typeof p !== 'string' || p.includes('..') || p.startsWith('/') ||
+          p.length > 512 || !/^[\w\-./]+$/.test(p))) {
+      return res.status(400).json({ data: null, error: { message: 'Invalid paths' } });
+    }
+
+    const stringPaths = paths as string[];
+    const authorized = stringPaths.every(p => imageAccess.canRemove(p, userId));
+    if (!authorized) {
+      return res.status(403).json({ data: null, error: { message: 'Forbidden' } });
+    }
+
+    for (const p of stringPaths) delete imageStore[p];
+    await pool.query('DELETE FROM app_image_store WHERE path = ANY($1::text[])', [stringPaths]);
+    return res.json({ data: null, error: null });
+  } catch (e) {
+    logger.error({ err: e }, '[storage-remove] Unexpected error');
+    return res.status(500).json({ data: null, error: { message: 'Internal server error' } });
+  }
+});
+
 router.get('/storage-image', (req: Request, res: Response): void => {
   try {
   // ─ req.query.p 타입 방어: Express는 ?p=a&p=b 시 배열을 반환 → 명시적 string 검증
   const rawP = req.query.p;
   if (!rawP || typeof rawP !== 'string') { res.status(400).json({ error: 'Invalid path parameter' }); return; }
   const path = rawP;
+  const userId = req.session.userId;
+  const adminToken = typeof req.query.adminToken === 'string' ? req.query.adminToken : null;
+  if (!verifyAdminToken(adminToken) && (!userId || !imageAccess.canRead(path, userId))) {
+    res.status(userId ? 403 : 401).json({ error: 'Authentication required' });
+    return;
+  }
   const dataUrl = imageStore[path];
   if (!dataUrl) { res.status(404).json({ error: 'Not found' }); return; }
   const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
@@ -2497,7 +2668,7 @@ router.get('/storage-image', (req: Request, res: Response): void => {
     res.setHeader('Content-Type', mime);
     res.setHeader('X-Content-Type-Options', 'nosniff');   // prevent MIME sniffing
     res.setHeader('Content-Disposition', 'inline');        // don't treat as download
-    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.setHeader('Cache-Control', 'private, max-age=86400');
     res.send(Buffer.from(b64, 'base64'));
     return;
   }
@@ -2568,8 +2739,14 @@ router.post('/admin/clear-db-errors', async (req: Request, res: Response) => {
 let _healthCache: { ts: number; body: unknown } | null = null;
 const HEALTH_CACHE_TTL_MS = 10_000;
 
-router.get('/health', async (_req: Request, res: Response) => {
+router.get('/health', async (req: Request, res: Response) => {
   try {
+  const adminToken = typeof req.headers['x-admin-token'] === 'string'
+    ? req.headers['x-admin-token']
+    : null;
+  if (!verifyAdminToken(adminToken)) {
+    return res.status(401).json({ ok: false, error: 'Admin authentication required' });
+  }
   if (_healthCache && Date.now() - _healthCache.ts < HEALTH_CACHE_TTL_MS) {
     return res.json(_healthCache.body);
   }
@@ -3141,7 +3318,8 @@ router.get('/events', (req: Request, res: Response) => {
   // 서버는 해당 seq 이후의 ring buffer 항목을 필터링해 순서대로 재전송.
   // 클라이언트 측 applySseInsert/applyLoadMessages가 중복을 멱등하게 처리하므로 안전.
   {
-    const rawLastId = req.headers['last-event-id'];
+    const rawLastId = req.headers['last-event-id']
+      ?? (typeof req.query.lastEventId === 'string' ? req.query.lastEventId : null);
     const lastSeq = rawLastId ? parseInt(String(rawLastId), 10) : 0;
     if (lastSeq > 0 && Number.isFinite(lastSeq) && !isNaN(lastSeq)) {
       const missed = _ringGetSince(lastSeq, userId, isAdminSse);

@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
 import {
-  CheckCircle, X, XCircle,
+  X,
 } from 'lucide-react';
-import { supabase, setLocalDbUserId, getSseToken, fetchAndSetSseToken, getDeviceSecret, onSseReconnect, onSseDisconnect } from './lib/supabase';
+import { supabase, setLocalDbUserId, fetchAndSetSseToken, getDeviceSecret, onSseReconnect, onSseDisconnect } from './lib/supabase';
 import { genAvatar } from './lib/profile';
 import { HeartType } from './lib/constants';
 // ─── 분리된 타입·유틸·컴포넌트 imports ────────────────────────────────────────
@@ -12,8 +12,6 @@ import type {
 } from './types/app';
 import { useGroupChat } from './hooks/useGroupChat';
 import { GroupChatScreen } from './components/GroupChatScreen';
-import { heartMeta } from './lib/constants';
-import ChatScreen from './components/ChatScreen';
 import { ChatErrorBoundary } from './components/ChatErrorBoundary';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
 import ProfileDetail from './components/ProfileDetail';
@@ -39,76 +37,25 @@ import {
   ENTRY_VERIFIED_KEY, SCANNED_CONTACTS_KEY,
 } from './lib/constants';
 import { ls } from './lib/storage';
-import { MainScreen } from './components/MainScreen';
 import { useHearts } from './hooks/useHearts';
 import { useChat } from './hooks/useChat';
+import { registerPushSub } from './lib/webPush';
+import {
+  BottomNotification,
+  type BottomNotificationData,
+} from './components/BottomNotification';
+import {
+  ShareEventNotification,
+  type ShareEventNotificationData,
+} from './components/ShareEventNotification';
+
+const ChatScreen = lazy(() => import('./components/ChatScreen'));
+const MainScreen = lazy(() => import('./components/MainScreen').then(m => ({ default: m.MainScreen })));
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 
 
 
-
-// ── Web Push helpers ───────────────────────────────────────────────────────────
-function urlBase64ToUint8Array(base64String: string): Uint8Array {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-  const rawData = window.atob(base64);
-  const output = new Uint8Array(rawData.length);
-  for (let i = 0; i < rawData.length; i++) output[i] = rawData.charCodeAt(i);
-  return output;
-}
-
-async function registerPushSub(userId: string): Promise<void> {
-  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return;
-  try {
-    // 알림 권한 확인 / 요청
-    if (Notification.permission === 'denied') return;
-    if (Notification.permission === 'default') {
-      const perm = await Notification.requestPermission().catch(() => 'denied' as NotificationPermission);
-      if (perm !== 'granted') return;
-    }
-
-    const swUrl = (import.meta.env.BASE_URL as string).replace(/\/$/, '') + '/sw.js';
-    const reg = await navigator.serviceWorker.register(swUrl, { scope: import.meta.env.BASE_URL as string });
-    await navigator.serviceWorker.ready;
-
-    // VAPID 키 취득 (타임아웃 10초)
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 10_000);
-    let keyRes: Response | null = null;
-    try {
-      keyRes = await fetch('/api/db/push/vapid-key', { signal: ctrl.signal }).catch(() => null);
-    } finally {
-      clearTimeout(timer); // fetch reject/throw 시에도 반드시 타이머 해제
-    }
-    if (!keyRes?.ok) return;
-
-    const { key } = await keyRes.json() as { key?: string };
-    if (!key) return;
-
-    let sub = await reg.pushManager.getSubscription().catch(() => null);
-    if (!sub) {
-      sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(key) as unknown as ArrayBuffer,
-      }).catch(() => null);
-    }
-    if (!sub) return;
-
-    const sseToken = getSseToken();
-    if (!sseToken) {
-      console.warn('[push] SSE 토큰 없음 — 구독 등록 건너뜀');
-      return;
-    }
-    await fetch('/api/db/push/subscribe', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-sse-token': sseToken },
-      body: JSON.stringify({ userId, subscription: sub.toJSON() }),
-    }).catch(() => null);
-  } catch (e) {
-    console.warn('[push] 등록 건너뜀:', (e as Error)?.message ?? e);
-  }
-}
 
 function App() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(() => {
@@ -165,7 +112,7 @@ function App() {
       return Array.isArray(parsed) ? (parsed as Profile[]) : [];
     } catch { return []; }
   });
-  const [shareEventNotif, setShareEventNotif] = useState<{ type: 'accepted' | 'rejected'; fromUserId: string } | null>(null);
+  const [shareEventNotif, setShareEventNotif] = useState<ShareEventNotificationData | null>(null);
   const seenContactEventIdsRef = useRef<Set<string>>(new Set());
   const [contactViewShare, setContactViewShare] = useState<{ share: ContactShare; profile: Profile } | null>(null);
   const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null);
@@ -232,7 +179,7 @@ function App() {
   const [timerEndAt, setTimerEndAt] = useState<string | null>(null);
   const [timerLabel, setTimerLabel] = useState<string | null>(null);
   const [rejectionNotif, setRejectionNotif] = useState<string | null>(null); // nickname of person who rejected
-  const [bottomNotif, setBottomNotif] = useState<{ type: 'heart' | 'chat' | 'message' | 'contact' | 'system'; nickname?: string; message?: string; heartType?: HeartType } | null>(null);
+  const [bottomNotif, setBottomNotif] = useState<BottomNotificationData | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const confettiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const confettiInnerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1306,7 +1253,7 @@ function App() {
   );
   if (view === 'chat' && selectedProfile && chatId) return (
     <ChatErrorBoundary onReset={() => { chatIdRef.current = null; setChatId(null); setView('main'); }}>
-      <>
+      <Suspense fallback={<div className="h-screen bg-white" />}>
         <ChatScreen
           chatId={chatId}
           messages={messages}
@@ -1329,7 +1276,7 @@ function App() {
           initialInput={chatDraftRef.current.get(chatId) ?? ''}
           onInputChange={(v) => chatDraftRef.current.set(chatId, v)}
         />
-      </>
+      </Suspense>
     </ChatErrorBoundary>
   );
 
@@ -1374,45 +1321,17 @@ function App() {
       {/* Bottom notification: new heart / chat */}
       {bottomNotif && (
         <AppErrorBoundary screenName="하단 알림" onReset={() => setBottomNotif(null)}>
-          <div className="fixed bottom-20 left-0 right-0 z-[150] flex justify-center px-4 pointer-events-none">
-            <div className={`px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 pointer-events-auto cursor-pointer ${bottomNotif.type === 'heart' ? 'bg-rose-500' : bottomNotif.type === 'contact' ? 'bg-emerald-500' : bottomNotif.type === 'system' ? 'bg-amber-600' : 'bg-cyan-600'}`}>
-              <span className="text-lg">{bottomNotif.type === 'heart' ? (bottomNotif.heartType ? heartMeta(bottomNotif.heartType).emoji : '❤️') : bottomNotif.type === 'contact' ? '📱' : bottomNotif.type === 'system' ? '💛' : '💬'}</span>
-              <div className="flex-1">
-                {bottomNotif.type === 'heart' && (
-                  <>
-                    <p className="text-sm font-bold text-white">{bottomNotif.nickname}님이 {bottomNotif.heartType ? heartMeta(bottomNotif.heartType).label : '하트'}를 보냈습니다!</p>
-                    <button onClick={() => { setMainTab('status'); setBottomNotif(null); }} className="text-xs text-white/80 underline">내 상태 탭으로 이동</button>
-                  </>
-                )}
-                {bottomNotif.type === 'chat' && (
-                  <>
-                    <p className="text-sm font-bold text-white">{bottomNotif.nickname}님과 채팅이 열렸습니다!</p>
-                    <button onClick={() => { setMainTab('chats'); setBottomNotif(null); }} className="text-xs text-white/80 underline">채팅 탭으로 이동</button>
-                  </>
-                )}
-                {bottomNotif.type === 'message' && (
-                  <>
-                    <p className="text-sm font-bold text-white">새로운 채팅이 왔습니다.</p>
-                    <button onClick={() => { setMainTab('chats'); setBottomNotif(null); }} className="text-xs text-white/90 bg-white/20 px-2 py-0.5 rounded-lg font-semibond mt-0.5">채팅탭</button>
-                  </>
-                )}
-                {bottomNotif.type === 'contact' && (
-                  <>
-                    <p className="text-sm font-bold text-white">{bottomNotif.nickname}님이 연락처를 공유했습니다!</p>
-                    <button onClick={() => { setMainTab('status'); setBottomNotif(null); }} className="text-xs text-white/80 underline">내 상태 탭에서 확인</button>
-                  </>
-                )}
-                {bottomNotif.type === 'system' && (
-                  <p className="text-sm font-bold text-white">{bottomNotif.message ?? '알림'}</p>
-                )}
-              </div>
-              <button onClick={(e) => { e.stopPropagation(); setBottomNotif(null); }} className="text-white/60 hover:text-white text-lg ml-1">×</button>
-            </div>
-          </div>
+          <BottomNotification
+            notification={bottomNotif}
+            onClose={() => setBottomNotif(null)}
+            onGoToStatus={() => { setMainTab('status'); setBottomNotif(null); }}
+            onGoToChats={() => { setMainTab('chats'); setBottomNotif(null); }}
+          />
         </AppErrorBoundary>
       )}
       <AppErrorBoundary screenName="메인 화면" onReset={() => { setView('main'); setMainTab('profiles'); }}>
-      <MainScreen
+      <Suspense fallback={<div className="min-h-screen bg-slate-900" />}>
+        <MainScreen
         profiles={profiles}
         currentUserId={currentUserId}
         likedIds={likedIds}
@@ -1500,7 +1419,8 @@ function App() {
         onBlock={handleBlock}
         myBlockList={blockedUsers.filter(b => b.user_id === currentUserId)}
         onUnblock={handleUnblock}
-      />
+        />
+      </Suspense>
       </AppErrorBoundary>
       {likeConfirmTarget && (
         <LikeConfirmDialog
@@ -1515,26 +1435,11 @@ function App() {
         const fromProfile = profiles.find(p => p.id === shareEventNotif.fromUserId);
         const name = fromProfile?.nickname ?? '상대방';
         return (
-          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[400] w-80 max-w-[90vw]">
-            <div className={`rounded-2xl shadow-2xl p-4 border-2 flex items-start gap-3 ${shareEventNotif.type === 'accepted' ? 'bg-teal-50 border-teal-300' : 'bg-gray-50 border-gray-300'}`}>
-              <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${shareEventNotif.type === 'accepted' ? 'bg-teal-100' : 'bg-gray-200'}`}>
-                {shareEventNotif.type === 'accepted' ? <CheckCircle className="w-5 h-5 text-teal-600" /> : <XCircle className="w-5 h-5 text-gray-500" />}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className={`text-sm font-black ${shareEventNotif.type === 'accepted' ? 'text-teal-800' : 'text-gray-700'}`}>
-                  {shareEventNotif.type === 'accepted' ? '연락처 공유 완료' : '연락처 공유 거부'}
-                </p>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {shareEventNotif.type === 'accepted'
-                    ? `${name}님이 연락처를 공유했습니다. 프로필에서 확인하세요.`
-                    : `${name}님이 연락처 공유를 거부하였습니다.`}
-                </p>
-              </div>
-              <button onClick={() => setShareEventNotif(null)} className="text-gray-400 hover:text-gray-600 flex-shrink-0">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
+          <ShareEventNotification
+            notification={shareEventNotif}
+            nickname={name}
+            onClose={() => setShareEventNotif(null)}
+          />
         );
       })()}
       {contactShareTarget && (

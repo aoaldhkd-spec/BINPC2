@@ -14,6 +14,8 @@ interface Props {
   screenName?: string;
   /** 복구 버튼 클릭 시 호출 — 부모가 상태를 초기화할 수 있음 */
   onReset?: () => void;
+  /** 전역 앱 오류에는 기존의 어두운 전체 화면 UI를 사용 */
+  variant?: 'screen' | 'app';
 }
 
 interface State {
@@ -50,6 +52,23 @@ export class AppErrorBoundary extends Component<Props, State> {
     if (!this.state.hasError) return this.props.children;
 
     const screen = this.props.screenName ?? '화면';
+    if (this.props.variant === 'app') {
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col items-center justify-center p-6 text-center gap-4">
+          <span className="text-5xl">⚡</span>
+          <div>
+            <p className="text-white font-black text-lg mb-1">앱에서 오류가 발생했습니다</p>
+            <p className="text-slate-400 text-sm">잠시 후 다시 시도해 주세요</p>
+          </div>
+          <button
+            onClick={this.handleReset}
+            className="px-6 py-3 bg-teal-500 hover:bg-teal-400 text-white font-black rounded-2xl transition-all"
+          >
+            새로고침
+          </button>
+        </div>
+      );
+    }
 
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-white gap-4 px-8 text-center">

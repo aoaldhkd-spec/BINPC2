@@ -1,10 +1,10 @@
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import helmet from "helmet";
-import session from "express-session";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { createSessionMiddleware } from "./lib/session";
 
 // ─── Per-IP sliding-window rate limiter ───────────────────────────────────────
 // Tracks request timestamps per IP in a sliding window.
@@ -37,13 +37,15 @@ setInterval(() => {
  * ambiguous when multiple limiters share the same store.
  *
  * IP is taken from `req.ip`, which Express populates from the rightmost
- * trusted proxy hop when `trust proxy` is configured.  This cannot be
- * spoofed by the client: Replit's reverse proxy always appends the real
- * remote address, and `trust proxy: 1` tells Express to trust exactly one
- * hop, so any client-injected X-Forwarded-For entries are ignored.
+ * trusted proxy hop when `trust proxy` is configured. `trust proxy: 1`
+ * tells Express to trust exactly one upstream proxy hop.
  */
 function makeRateLimiter(maxRequests: number, windowMs: number, namespace: string) {
   return (req: Request, res: Response, next: NextFunction): void => {
+    if (process.env.NODE_ENV === 'test') {
+      next();
+      return;
+    }
     // req.ip is set by Express after applying the trust-proxy setting.
     // Fall back to the raw socket address only if somehow unset.
     const ip = req.ip ?? req.socket.remoteAddress ?? 'unknown';
@@ -78,19 +80,11 @@ function makeRateLimiter(maxRequests: number, windowMs: number, namespace: strin
   };
 }
 
-// SESSION_SECRET는 반드시 환경변수로 설정되어야 합니다.
-// 개발 환경에서도 빈 값 없이 사용하세요.
-const SESSION_SECRET = process.env.SESSION_SECRET;
-if (!SESSION_SECRET) {
-  throw new Error('SESSION_SECRET environment variable is required');
-}
-
 const app: Express = express();
 
-// Trust exactly one upstream proxy hop (Replit's reverse proxy).
-// This lets Express populate req.ip from the rightmost X-Forwarded-For entry
-// added by Replit's infrastructure, which the client cannot spoof.
-app.set('trust proxy', 1);
+// 운영 환경에서는 기존과 동일하게 프록시 한 단계를 신뢰합니다.
+// 로컬에서는 직접 접속하므로 전달된 IP 헤더를 신뢰하지 않습니다.
+app.set('trust proxy', process.env.NODE_ENV === 'production' ? 1 : false);
 
 // ─── Security headers (helmet) ────────────────────────────────────────────────
 // Helmet sets X-Frame-Options, X-Content-Type-Options, X-XSS-Protection,
@@ -103,18 +97,7 @@ app.use(helmet({
 }));
 
 // 세션 미들웨어 — userId를 httpOnly 서명 쿠키로 관리
-app.use(session({
-  secret: SESSION_SECRET,
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    httpOnly: true,
-    sameSite: 'strict',
-    // trust proxy:1 이 설정되어 있으므로 Replit 프록시의 HTTPS가 올바르게 감지됨
-    secure: process.env.NODE_ENV !== 'test', // 테스트 환경 제외 항상 secure
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7일
-  },
-}));
+app.use(createSessionMiddleware());
 
 app.use(
   pinoHttp({
@@ -135,7 +118,7 @@ app.use(
     },
   }),
 );
-// Same-origin only: frontend & backend share the same Replit domain.
+// Same-origin only: frontend & backend share the same origin.
 // origin:false sends no CORS headers → browser same-origin policy blocks
 // cross-site requests automatically, closing CSRF-style API attacks.
 app.use(cors({ origin: false }));
@@ -146,14 +129,15 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Per-IP rate limits applied before the main router.
 // The third argument is a stable namespace that isolates each endpoint's
 // quota bucket regardless of how Express resolves req.path at the mount point.
-//   /api/auth/login       — 5 req/s : one shot per login attempt; blocks brute-force
-//   /api/op               — 30 req/s: burst-safe for initial data load (~10-15 req/s)
+//   /api/db/auth/login    — 5 req/s : one shot per login attempt; blocks brute-force
+//   /api/db/op            — 30 req/s: burst-safe for initial data load (~10-15 req/s)
 //   /api/db/storage-upload— 20 per 60 s: image uploads are large; prevent spam uploads
 //   /api/db/events        — 20 per 60 s: SSE connections; blocks token-farming bots
 //   /api/db/unread-counts — 60 per 60 s: polling at ~1 req/s max per client
-app.use('/api/auth/login',          makeRateLimiter(5,  1_000,  'auth-login'));
-app.use('/api/op',                  makeRateLimiter(30, 1_000,  'op'));
+app.use('/api/db/auth/login',       makeRateLimiter(5,  1_000,  'auth-login'));
+app.use('/api/db/op',               makeRateLimiter(30, 1_000,  'op'));
 app.use('/api/db/storage-upload',   makeRateLimiter(20, 60_000, 'storage-upload'));
+app.use('/api/db/storage-remove',   makeRateLimiter(20, 60_000, 'storage-remove'));
 app.use('/api/db/events',           makeRateLimiter(20, 60_000, 'sse-events'));
 app.use('/api/db/unread-counts',    makeRateLimiter(60, 60_000, 'unread-counts'));
 // SSE 토큰 발급: 분당 10회 (토큰 파밍 봇 차단)

@@ -21,7 +21,7 @@
  * 14. /auth/login    — deviceSecret 不一致時は再バインドせず 401
  */
 
-import { describe, it, expect, vi, beforeAll } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { createHmac } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
 
@@ -39,6 +39,8 @@ function makeSseToken(userId: string, secret = TEST_SSE_SECRET, offsetSec = 0): 
   return `${exp}:${mac}`;
 }
 import request from 'supertest';
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 
 // ── 必ずアプリ import より前に宣言 ────────────────────────────────────────────
 // vitest がこのブロックをファイル先頭に hoisting するため、
@@ -57,7 +59,13 @@ vi.mock('pg', () => {
     on      = () => {};
     end     = () => Promise.resolve();
   }
-  return { default: { Pool: MockPool } };
+  class MockClient {
+    connect = () => Promise.resolve();
+    query   = () => Promise.resolve({ rows: [] });
+    on      = () => {};
+    end     = () => Promise.resolve();
+  }
+  return { default: { Pool: MockPool, Client: MockClient } };
 });
 
 vi.mock('web-push', () => ({
@@ -78,6 +86,21 @@ async function op(body: Record<string, unknown>) {
     .post('/api/db/op')
     .set('Content-Type', 'application/json')
     .send(body);
+}
+
+async function loginAgent(userId: string) {
+  await op({
+    op: 'insert',
+    table: 'profiles',
+    payload: { id: userId, nickname: `test-${userId}` },
+  });
+  const agent = request.agent(app);
+  const login = await agent
+    .post('/api/db/auth/login')
+    .set('Content-Type', 'application/json')
+    .send({ userId, deviceSecret: `secret-${userId}` });
+  expect(login.status).toBe(200);
+  return agent;
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -305,6 +328,140 @@ describe('[Security] /unread-counts — SSE トークン IDOR ガード', () => 
   });
 });
 
+describe('[Security] heart_balances — 본인 조회 전용', () => {
+  it('본인 id 필터가 있으면 조회를 허용한다', async () => {
+    const userId = randomUUID();
+    const res = await op({
+      op: 'select',
+      table: 'heart_balances',
+      requesterId: userId,
+      filters: [{ type: 'eq', col: 'id', val: userId }],
+      maybeSingle: true,
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it('일반 사용자의 직접 수정을 차단한다', async () => {
+    const userId = randomUUID();
+    const res = await op({
+      op: 'update',
+      table: 'heart_balances',
+      requesterId: userId,
+      filters: [{ type: 'eq', col: 'id', val: userId }],
+      payload: { heart_count: 999 },
+    });
+    expect(res.status).toBe(403);
+    expect(res.body.error?.code).toBe('FORBIDDEN');
+  });
+});
+
+describe('[Security] profiles / likes / storage', () => {
+  it('비공개 프로필의 연락처는 다른 사용자 SELECT 응답에서 제거한다', async () => {
+    const ownerId = randomUUID();
+    await op({
+      op: 'insert',
+      table: 'profiles',
+      payload: {
+        id: ownerId,
+        nickname: `private-${ownerId}`,
+        contact_private: true,
+        phone_number: '010-1234-5678',
+        kakao_id: 'secret-kakao',
+        instagram_id: 'secret-insta',
+      },
+    });
+
+    const res = await op({
+      op: 'select',
+      table: 'profiles',
+      requesterId: randomUUID(),
+      filters: [{ type: 'eq', col: 'id', val: ownerId }],
+      maybeSingle: true,
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.phone_number).toBeUndefined();
+    expect(res.body.data.kakao_id).toBeUndefined();
+    expect(res.body.data.instagram_id).toBeUndefined();
+  });
+
+  it('하트를 받지 않은 사용자의 status UPDATE를 차단한다', async () => {
+    const likerId = randomUUID();
+    const likedId = randomUUID();
+    const inserted = await op({
+      op: 'insert',
+      table: 'likes',
+      requesterId: likerId,
+      payload: { liker_id: likerId, liked_id: likedId, heart_type: 'pink', status: 'pending' },
+      selectAfterWrite: true,
+      single: true,
+    });
+    const likeId = inserted.body.data.id as string;
+
+    const res = await op({
+      op: 'update',
+      table: 'likes',
+      requesterId: randomUUID(),
+      filters: [{ type: 'eq', col: 'id', val: likeId }],
+      payload: { status: 'accepted' },
+    });
+
+    expect(res.status).toBe(403);
+    expect(res.body.error?.code).toBe('FORBIDDEN');
+  });
+
+  it('인증되지 않은 이미지 업로드와 조회를 차단한다', async () => {
+    const upload = await request(app)
+      .post('/api/db/storage-upload')
+      .send({ path: 'profile-photos/anonymous', dataUrl: 'data:image/jpeg;base64,/9j/' });
+    expect(upload.status).toBe(401);
+
+    const read = await request(app)
+      .get('/api/db/storage-image?p=profile-photos%2Fanonymous');
+    expect(read.status).toBe(401);
+  });
+
+  it('자신의 프로필 이미지만 업로드·삭제할 수 있다', async () => {
+    const ownerId = randomUUID();
+    const otherId = randomUUID();
+    const owner = await loginAgent(ownerId);
+    const other = await loginAgent(otherId);
+    const path = `profile-photos/${ownerId}`;
+
+    const upload = await owner
+      .post('/api/db/storage-upload')
+      .send({ path, dataUrl: 'data:image/jpeg;base64,/9j/' });
+    expect(upload.status).toBe(200);
+
+    const forbiddenDelete = await other
+      .post('/api/db/storage-remove')
+      .send({ paths: [path] });
+    expect(forbiddenDelete.status).toBe(403);
+
+    const ownerDelete = await owner
+      .post('/api/db/storage-remove')
+      .send({ paths: [path] });
+    expect(ownerDelete.status).toBe(200);
+  });
+});
+
+describe('[Security] test dashboard password', () => {
+  it('app_settings 일반 조회에서 test_password를 노출하지 않는다', async () => {
+    const res = await op({ op: 'select', table: 'app_settings' });
+    expect(res.status).toBe(200);
+    expect(res.body.data[0]?.test_password).toBeUndefined();
+    expect(res.body.data[0]?.admin_password).toBeUndefined();
+  });
+
+  it('서버 RPC가 잘못된 테스트 비밀번호를 거부한다', async () => {
+    const res = await request(app)
+      .post('/api/db/rpc/test_verify_password')
+      .send({ p_test_password: 'definitely-wrong' });
+    expect(res.status).toBe(403);
+    expect(res.body.data).toBe(false);
+  });
+});
+
 // ════════════════════════════════════════════════════════════════════════════════
 // /auth/login — deviceSecret 不一致は再バインドせず 401
 // ════════════════════════════════════════════════════════════════════════════════
@@ -359,5 +516,185 @@ describe('[Security] /auth/login — device secret 再バインド禁止', () =>
       .send({ userId, deviceSecret: 'my-secret-xyz' });
     expect(reLogin.status).toBe(200);
     expect(reLogin.body.ok).toBe(true);
+  });
+});
+
+function listenApp(): Promise<http.Server> {
+  return new Promise((resolve) => {
+    const server = http.createServer(app);
+    server.listen(0, '127.0.0.1', () => resolve(server));
+  });
+}
+
+function readSseUntil(port: number, path: string, predicate: (buf: string) => boolean, timeoutMs = 4000): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let buf = '';
+    const req = http.get({
+      hostname: '127.0.0.1',
+      port,
+      path,
+      headers: { Accept: 'text/event-stream' },
+    }, (res) => {
+      res.setEncoding('utf8');
+      res.on('data', (chunk: string) => {
+        buf += chunk;
+        if (predicate(buf)) {
+          req.destroy();
+          resolve(buf);
+        }
+      });
+    });
+    req.on('error', (err) => {
+      if ((err as NodeJS.ErrnoException).code === 'ECONNRESET') return;
+      reject(err);
+    });
+    const timer = setTimeout(() => {
+      req.destroy();
+      reject(new Error(`SSE timeout. got: ${buf.slice(0, 800)}`));
+    }, timeoutMs);
+    req.on('close', () => clearTimeout(timer));
+  });
+}
+
+describe('[Realtime] 인증 SSE 채팅 전달', () => {
+  it('상대가 INSERT한 메시지를 인증 SSE로 실시간 수신한다', async () => {
+    const a = randomUUID();
+    const b = randomUUID();
+    const agentA = await loginAgent(a);
+    const agentB = await loginAgent(b);
+
+    const chatRes = await agentA
+      .post('/api/db/op')
+      .set('Content-Type', 'application/json')
+      .send({
+        op: 'insert',
+        table: 'chats',
+        requesterId: a,
+        payload: { user1_id: a, user2_id: b },
+        selectAfterWrite: true,
+        single: true,
+      });
+    expect(chatRes.status).toBe(200);
+    const chatId = chatRes.body.data.id as string;
+
+    const tokenRes = await agentB.post('/api/db/auth/sse-token');
+    expect(tokenRes.status).toBe(200);
+    const token = tokenRes.body.token as string;
+
+    const marker = `hello-from-a-${chatId.slice(0, 8)}`;
+    const server = await listenApp();
+    const { port } = server.address() as AddressInfo;
+    try {
+      const path = `/api/db/events?userId=${encodeURIComponent(b)}&token=${encodeURIComponent(token)}`;
+      await new Promise<void>((resolve, reject) => {
+        let buf = '';
+        let inserted = false;
+        const req = http.get({
+          hostname: '127.0.0.1',
+          port,
+          path,
+          headers: { Accept: 'text/event-stream' },
+        }, (res) => {
+          res.setEncoding('utf8');
+          res.on('data', (chunk: string) => {
+            buf += chunk;
+            if (!inserted && buf.includes('"type":"ping"')) {
+              inserted = true;
+              void agentA
+                .post('/api/db/op')
+                .set('Content-Type', 'application/json')
+                .send({
+                  op: 'insert',
+                  table: 'messages',
+                  requesterId: a,
+                  payload: {
+                    chat_id: chatId,
+                    sender_id: a,
+                    content: marker,
+                    client_id: randomUUID(),
+                  },
+                  selectAfterWrite: true,
+                  single: true,
+                })
+                .then((r) => {
+                  if (r.status !== 200) {
+                    req.destroy();
+                    reject(new Error(`insert failed ${r.status}`));
+                  }
+                });
+            }
+            if (buf.includes(marker)) {
+              req.destroy();
+              resolve();
+            }
+          });
+        });
+        req.on('error', (err) => {
+          if ((err as NodeJS.ErrnoException).code === 'ECONNRESET') return;
+          reject(err);
+        });
+        const timer = setTimeout(() => {
+          req.destroy();
+          reject(new Error(`SSE timeout. got: ${buf.slice(0, 800)}`));
+        }, 4000);
+        req.on('close', () => clearTimeout(timer));
+      });
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
+  it('lastEventId 쿼리로 링버퍼 미수신 메시지를 재전송한다', async () => {
+    const a = randomUUID();
+    const b = randomUUID();
+    const agentA = await loginAgent(a);
+    const agentB = await loginAgent(b);
+
+    const chatRes = await agentA
+      .post('/api/db/op')
+      .set('Content-Type', 'application/json')
+      .send({
+        op: 'insert',
+        table: 'chats',
+        requesterId: a,
+        payload: { user1_id: a, user2_id: b },
+        selectAfterWrite: true,
+        single: true,
+      });
+    expect(chatRes.status).toBe(200);
+    const chatId = chatRes.body.data.id as string;
+
+    const marker = `replay-${chatId.slice(0, 8)}`;
+    const insertRes = await agentA
+      .post('/api/db/op')
+      .set('Content-Type', 'application/json')
+      .send({
+        op: 'insert',
+        table: 'messages',
+        requesterId: a,
+        payload: {
+          chat_id: chatId,
+          sender_id: a,
+          content: marker,
+          client_id: randomUUID(),
+        },
+        selectAfterWrite: true,
+        single: true,
+      });
+    expect(insertRes.status).toBe(200);
+
+    const tokenRes = await agentB.post('/api/db/auth/sse-token');
+    expect(tokenRes.status).toBe(200);
+    const token = tokenRes.body.token as string;
+
+    const server = await listenApp();
+    const { port } = server.address() as AddressInfo;
+    try {
+      const path = `/api/db/events?userId=${encodeURIComponent(b)}&token=${encodeURIComponent(token)}&lastEventId=1`;
+      const stream = await readSseUntil(port, path, (buf) => buf.includes(marker));
+      expect(stream).toContain(marker);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
   });
 });

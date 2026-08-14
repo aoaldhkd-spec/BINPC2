@@ -23,6 +23,14 @@ type AnonymousReport = Database['public']['Tables']['anonymous_reports']['Row'];
 
 const ADMIN_SESSION_KEY = 'admin_session_v1';
 const ADMIN_TOKEN_KEY = 'admin_token_v1';
+const MAX_ADMIN_MESSAGES = 5_000;
+
+function withAdminImageToken(url: string): string {
+  const token = localStorage.getItem(ADMIN_TOKEN_KEY);
+  if (!token || !url.startsWith('/api/db/storage-image')) return url;
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}adminToken=${encodeURIComponent(token)}`;
+}
 
 // ─── api-server 직접 호출 헬퍼 ───────────────────────────────────────────────
 // Supabase 직접 업데이트는 api-server 인메모리 스토어를 갱신하지 않음 →
@@ -293,19 +301,12 @@ function NotificationTab({ tableCount, settings, onSetTimer }: {
     if (!message.trim()) return;
     setSending(true);
     const fullMsg = message.trim();
-    // Supabase insert + 삽입된 행 반환
-    const { data: inserted, error: insertErr } = await adminSupabase
+    const { error: insertErr } = await adminSupabase
       .from('notifications').insert({ message: fullMsg, type, target, is_active: true }).select().single();
     if (insertErr) {
       alert(`알림 전송 실패: ${insertErr.message}`);
       setSending(false);
       return;
-    }
-    // api-server 동기화 → SSE로 모든 유저에게 즉시 전송
-    // (Supabase 직접 insert는 api-server 인메모리/SSE를 거치지 않아 유저에게 도달 안 함)
-    if (inserted) {
-      adminApiOp('notifications', 'insert', inserted as Record<string, unknown>)
-        .catch(e => console.warn('[admin] api-server 알림 동기화 실패:', e));
     }
     if (withTimer) {
       const mins = parseInt(timerMinutes, 10);
@@ -1731,7 +1732,7 @@ function ChatsTab({ chats, messages, profileMap, onDeleteChat, onClearAll, onRef
                               {new Date(msg.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
                             </span>
                             {msg.image_url ? (
-                              <img src={msg.image_url} alt="이미지" className="mt-1 max-w-[120px] rounded-lg border border-gray-200" />
+                              <img src={withAdminImageToken(msg.image_url)} alt="이미지" className="mt-1 max-w-[120px] rounded-lg border border-gray-200" />
                             ) : (
                               <p className="text-sm text-gray-800 break-words">{msg.content}</p>
                             )}
@@ -2289,7 +2290,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     if (hi) setHistories(hi);
     if (li) setLikes(li);
     if (ch) setAllChats(ch);
-    if (msgs) setAllMessages(msgs);
+    if (msgs) setAllMessages(msgs.slice(-MAX_ADMIN_MESSAGES));
     if (sug) setSuggestions(sug as Suggestion[]);
     if (anon) setAnonymousReports(anon as AnonymousReport[]);
   }, []);
@@ -2362,7 +2363,11 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' },
         (payload: { new: Record<string, unknown> }) => {
-          setAllMessages(prev => [...prev, payload.new as Message]);
+          const message = payload.new as Message;
+          setAllMessages(prev => {
+            if (!message?.id || prev.some(existing => existing.id === message.id)) return prev;
+            return [...prev, message].slice(-MAX_ADMIN_MESSAGES);
+          });
         })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' },
         (payload: { old: Record<string, unknown> }) => {
@@ -2384,7 +2389,10 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const fetchDbHealth = useCallback(async () => {
     setDbHealthLoading(true);
     try {
-      const resp = await fetch('/api/db/health');
+      const adminToken = localStorage.getItem(ADMIN_TOKEN_KEY) ?? '';
+      const resp = await fetch('/api/db/health', {
+        headers: { 'x-admin-token': adminToken },
+      });
       if (resp.ok) {
         const data = await resp.json() as DbHealthData;
         setDbHealth(data);

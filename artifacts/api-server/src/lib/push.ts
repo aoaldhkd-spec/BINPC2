@@ -3,16 +3,19 @@ import pino from 'pino';
 
 const logger = pino({ name: 'push' });
 
-// VAPID 키 — 이 프로젝트 전용으로 생성된 키
-const VAPID_PUBLIC_KEY =
-  'BOaIcP3QYU_BLwEGQfGaAx0zzcIsF3OOztU-ow8aoVkEvL7iUMCNttcuF03SN_kYlLFcfoe1zi10HT6te-AGxcA';
-const VAPID_PRIVATE_KEY = 'eLRUkrQDIiIEXRvlG4or45XbHPgqOr3qyLHHVDgvjv8';
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY ?? '';
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY ?? '';
+const vapidConfigured = Boolean(VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY);
 
-webpush.setVapidDetails(
-  'mailto:admin@boltnew.app',
-  VAPID_PUBLIC_KEY,
-  VAPID_PRIVATE_KEY,
-);
+if (vapidConfigured) {
+  webpush.setVapidDetails(
+    'mailto:admin@boltnew.app',
+    VAPID_PUBLIC_KEY,
+    VAPID_PRIVATE_KEY,
+  );
+} else {
+  logger.warn('VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY missing — web push disabled');
+}
 
 export { VAPID_PUBLIC_KEY };
 
@@ -33,6 +36,7 @@ export interface PushSub {
  * 구독이 만료(410/404)된 경우 false 반환 → 호출 측에서 삭제.
  */
 export async function sendPush(sub: PushSub, payload: PushPayload): Promise<boolean> {
+  if (!vapidConfigured) return true;
   try {
     await webpush.sendNotification(
       { endpoint: sub.endpoint, keys: { auth: sub.keys.auth, p256dh: sub.keys.p256dh } },

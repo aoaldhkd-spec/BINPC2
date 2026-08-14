@@ -222,6 +222,7 @@ class QueryBuilder {
       selectAfterWrite: this._selectAfterWrite,
       requesterId: _currentUserId, // IDOR guard: server verifies ownership for sensitive tables
       adminToken: localStorage.getItem('admin_token_v1') ?? undefined, // admin bypass: included when logged in as admin
+      testToken: localStorage.getItem('test_token_v1') ?? undefined,
     }) as Promise<DbResult<unknown>>;
   }
 }
@@ -254,6 +255,7 @@ const _disconnectCallbacks = new Set<() => void>();
 // 좀비 상태 → 강제로 닫고 재연결. (프록시가 SSE를 silent-drop해도 감지 가능)
 let _lastPingAt = 0; // 마지막 ping/메시지 수신 시각 (0 = 아직 미연결)
 const PING_TIMEOUT_MS = 15_000; // 15초 = 서버 ping 주기(5s) × 3
+let _lastEventId = '';
 
 /** SSE 재연결 후 호출될 콜백을 등록합니다. 반환값은 해제 함수입니다. */
 export function onSseReconnect(fn: () => void): () => void {
@@ -303,6 +305,8 @@ export function setLocalDbUserId(userId: string | null) {
   if (_currentUserId === userId) return;
   _currentUserId = userId;
   _sseToken = null; // 사용자 변경 시 이전 토큰 폐기
+  _lastEventId = '';
+  try { sessionStorage.removeItem('sse_last_event_id'); } catch { /* ignore */ }
   // userId 변경 → 이전 userId 대상 재시도 타이머 취소 (오래된 userId로 재시도되는 경쟁 방지)
   if (_sseTokenRetryTimer) { clearTimeout(_sseTokenRetryTimer); _sseTokenRetryTimer = null; }
   if (_tokenRefreshTimer) { clearTimeout(_tokenRefreshTimer); _tokenRefreshTimer = null; }
@@ -317,7 +321,7 @@ export function setLocalDbUserId(userId: string | null) {
   // userId가 바뀐 경우: loginSession 완료 전까지 /op 요청을 게이트로 차단
   // → 서버 세션(구 UUID)과 body.requesterId(신 UUID) 불일치로 인한 403 차단 방지
   _markSessionPending();
-  // 토큰이 없으므로 일단 익명으로 연결하고, 토큰 발급 후 자동 재연결
+  // 캐시 토큰이 있으면 즉시 인증 SSE로 연결. 없으면 토큰 발급 후 setSseToken이 연결합니다.
   if (_sseListeners.size > 0) ensureSse();
   void fetchSseToken(userId);
 }
@@ -349,9 +353,11 @@ function calcSseBackoffMs(): number {
 }
 
 function createSse() {
+  if (!_lastEventId) {
+    try { _lastEventId = sessionStorage.getItem('sse_last_event_id') ?? ''; } catch { /* ignore */ }
+  }
   const params: string[] = [];
   // userId와 token은 반드시 함께 제공해야 함 — token 없이 userId만 보내면 서버가 401 반환
-  // token을 아직 발급받지 못한 경우에는 익명으로 연결하여 401 루프 방지
   if (_currentUserId && _sseToken) {
     params.push(`userId=${encodeURIComponent(_currentUserId)}`);
     params.push(`token=${encodeURIComponent(_sseToken)}`);
@@ -359,9 +365,14 @@ function createSse() {
   // 관리자 토큰이 있으면 관리자 SSE 연결로 업그레이드 (모든 이벤트 수신)
   const adminToken = (() => { try { return localStorage.getItem('admin_token_v1'); } catch { return null; } })();
   if (adminToken && !_currentUserId) params.push(`adminToken=${encodeURIComponent(adminToken)}`);
+  if (_lastEventId) params.push(`lastEventId=${encodeURIComponent(_lastEventId)}`);
   const url = params.length ? `${API}/events?${params.join('&')}` : `${API}/events`;
   const es = new EventSource(url);
   es.onmessage = (ev) => {
+    if (ev.lastEventId) {
+      _lastEventId = ev.lastEventId;
+      try { sessionStorage.setItem('sse_last_event_id', _lastEventId); } catch { /* ignore */ }
+    }
     _lastPingAt = Date.now(); // Ping 감시: 마지막 수신 시각 갱신
     _sseErrorSince = null; // 메시지 수신 = 연결 정상
 
@@ -436,6 +447,10 @@ function createSse() {
 }
 
 function ensureSse() {
+  // 로그인 사용자는 토큰이 생기기 전 익명 SSE에 붙지 않습니다.
+  // 익명 연결은 채팅·하트 같은 비공개 이벤트를 받지 못해 메시지 누락의 주원인입니다.
+  if (_currentUserId && !_sseToken) return;
+
   // [백오프 쿨다운] 연속 실패 후 정해진 시간 전에는 재연결 시도 안 함
   // 단, 서버 재시작 복구 모드 중에는 백오프를 무시하고 즉시 재시도
   if (!inShutdownRecovery() && _sseNextAllowedRetry && Date.now() < _sseNextAllowedRetry) return;
@@ -471,6 +486,7 @@ setInterval(() => {
     _es = null;
     _sseNeedsResync = true;
     if (_sseHasConnected) _disconnectCallbacks.forEach(fn => { try { fn(); } catch {} });
+    fireReconnectCallbacks();
   }
 
   ensureSse();
@@ -649,6 +665,13 @@ const mockStorage = {
       getPublicUrl(path: string): { data: { publicUrl: string } } {
         return { data: { publicUrl: `${API}/storage-image?p=${encodeURIComponent(path)}` } };
       },
+      async remove(paths: string[]): Promise<{ data: null; error: { message: string } | null }> {
+        const result = await apiFetch('/storage-remove', { paths });
+        return {
+          data: null,
+          error: result.error as { message: string } | null,
+        };
+      },
     };
   },
 };
@@ -675,8 +698,11 @@ export const supabase: any = {
   storage: mockStorage,
 };
 
-// Start SSE connection early so the first subscription is instant
-ensureSse();
+function fireReconnectCallbacks() {
+  _sseNeedsResync = false;
+  _sseHasConnected = true;
+  _reconnectCallbacks.forEach(fn => { try { fn(); } catch {} });
+}
 
 /**
  * 세션 수립 후 SSE 토큰을 서버에서 발급받아 저장합니다.
@@ -763,9 +789,12 @@ export function setSseToken(token: string, expiresAt: number) {
       if (_currentUserId) fetchAndSetSseToken(_currentUserId).catch(() => {});
     }, refreshIn);
   }
-  // 새 토큰으로 SSE 재연결
+  // 새 토큰으로 SSE 재연결. 브라우저가 EventSource를 새로 만들면 Last-Event-ID 헤더가
+  // 사라지므로 lastEventId 쿼리와 HTTP 재동기화를 함께 수행합니다.
+  _sseNeedsResync = true;
   if (_es) { _es.close(); _es = null; }
   if (_sseListeners.size > 0) ensureSse();
+  fireReconnectCallbacks();
 }
 
 const DEVICE_SECRET_PREFIX = 'bolt_device_secret_';

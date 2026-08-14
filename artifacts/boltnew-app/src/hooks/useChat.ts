@@ -76,7 +76,6 @@ export function useChat({
   const chatListRef = useRef<Chat[]>([]);
   chatListRef.current = chatList;
 
-  const perChatChannelsRef = useRef<Map<string, ReturnType<typeof supabase.channel>>>(new Map());
   const [unreadChatCounts, setUnreadChatCounts] = useState<Record<string, number>>({});
   // ref 사본: async 컨텍스트에서 stale closure 없이 최신값 읽기
   const unreadChatCountsRef = useRef<Record<string, number>>({});
@@ -175,6 +174,7 @@ export function useChat({
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chats' },
         (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
           try {
+            if (!payload?.new || typeof payload.new !== 'object') return;
             const c = payload.new as { user1_id?: string; user2_id?: string; id?: string; created_at?: string };
             if (!c.id || (c.user1_id !== uid && c.user2_id !== uid)) return;
             const newChat: Chat = {
@@ -501,6 +501,8 @@ export function useChat({
     const handler = () => {
       if (document.visibilityState === 'visible') {
         void syncUnreadCounts();
+        const uid = currentUserIdRef.current;
+        if (uid) void loadChatList(uid);
         // 탭 복귀 시 active 채팅방 메시지도 즉시 당겨옴 (SSE가 끊긴 사이 누락된 메시지 복구)
         const activeChatId = chatIdRef.current;
         if (activeChatId) void loadMessages(activeChatId);
@@ -508,7 +510,7 @@ export function useChat({
     };
     document.addEventListener('visibilitychange', handler);
     return () => document.removeEventListener('visibilitychange', handler);
-  }, [syncUnreadCounts, loadMessages]);
+  }, [syncUnreadCounts, loadMessages, loadChatList]);
 
   // ── 15초 주기 동기화 — SSE 드롭 시 메시지·미읽음·채팅 목록 복구 ──────────────
   // active 채팅방 메시지도 함께 리로드해 SSE 끊김 기간 동안 누락된 메시지를 채움
@@ -633,6 +635,7 @@ export function useChat({
       sender_id: snapUserId,
       content: trimmed,
       created_at: new Date().toISOString(),
+      client_id: clientUUID,
     } as Message;
 
     setMessages(prev => {
@@ -735,7 +738,7 @@ export function useChat({
 
     try {
       const ext = file.name.split('.').pop() ?? 'jpg';
-      const path = `${snapChatId}/${clientId}.${ext}`;
+      const path = `${snapChatId}/${snapUserId}/${clientId}.${ext}`;
       const { data, error } = await supabase.storage.from('chat-images').upload(path, file, { contentType: file.type || 'image/jpeg' });
       if (error) { rollback(); return error.message; }
       if (!data) { rollback(); return '업로드 실패'; }

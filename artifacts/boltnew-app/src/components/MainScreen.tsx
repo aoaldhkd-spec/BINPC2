@@ -1408,11 +1408,14 @@ export function MainScreen({
           if (!dataUrl) { setPhotoUploading(false); return; }
           const compressed = await compressImage(dataUrl);
           const path = `profile-photos/${currentUserId}`;
-          await fetch('/api/db/storage-upload', {
+          const uploadResponse = await fetch('/api/db/storage-upload', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ path, dataUrl: compressed }),
           });
+          if (!uploadResponse.ok) {
+            throw new Error(`사진 업로드 실패 (${uploadResponse.status})`);
+          }
           const photoUrl = `/api/db/storage-image?p=${encodeURIComponent(path)}&t=${Date.now()}`;
           await supabase.from('profiles').update({ photo_url: photoUrl } as never).eq('id', currentUserId);
           onUpdateProfile({ id: currentUserId, photo_url: photoUrl });
