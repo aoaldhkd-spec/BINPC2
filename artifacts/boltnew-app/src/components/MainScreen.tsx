@@ -551,16 +551,17 @@ export const ProfileCard = memo(function ProfileCard({
       {/* ── 사진 (3:4 — 전광판은 오버레이, 카드 높이 동일) ── */}
       <div className="relative w-full shrink-0 min-w-0 bg-gray-100">
 
-      {/* ── 3:4 사진 컨테이너 ── */}
+      {/* ── 3:4 사진 컨테이너 (텍스트 영역과 완전 분리) ── */}
       <div
         className="relative z-0 w-full shrink-0 isolate"
         style={{
           aspectRatio: '3/4',
+          width: '100%',
           background: photoBg,
           overflow: 'hidden',
         }}
       >
-          {/* ── 플립 존 — 3:4 영역 전체에 3D 뒤집기 적용 ── */}
+          {/* ── 플립 존 — 3:4 영역 전체 (사진 풀사이즈) ── */}
           <div className="absolute inset-0 z-0" style={{ perspective: '1000px' }}>
             <div style={{
               width: '100%', height: '100%',
@@ -585,7 +586,7 @@ export const ProfileCard = memo(function ProfileCard({
                   loading="lazy"
                   decoding="async"
                   onError={(e) => { (e.target as HTMLImageElement).src = genAvatar(profile.nickname); }}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  className="absolute inset-0 w-full h-full object-cover block"
                 />
               </div>
 
@@ -663,11 +664,11 @@ export const ProfileCard = memo(function ProfileCard({
             </div>
           </div>{/* /플립 존 */}
 
-          {/* ── 전광판 — 사진 위 오버레이 (플립 레이어 위, 원래 위치) ── */}
+          {/* ── 전광판 — 플립 위 오버레이 ── */}
           {hasTicker && (
             <div
               ref={tickerBarRef}
-              className="absolute top-0 left-0 right-0 z-20 overflow-hidden"
+              className="absolute top-0 left-0 right-0 z-20 overflow-hidden pointer-events-none"
               style={{
                 height: '16px',
                 background: 'linear-gradient(90deg,rgba(15,23,42,0.92) 0%,rgba(17,94,89,0.92) 100%)',
@@ -678,7 +679,6 @@ export const ProfileCard = memo(function ProfileCard({
                 paddingRight: '5px',
                 animation: 'ticker-fadein 0.3s ease',
               }}
-              onClick={(e) => e.stopPropagation()}
             >
               <span
                 ref={tickerSpanRef}
@@ -705,7 +705,7 @@ export const ProfileCard = memo(function ProfileCard({
             </div>
           )}
 
-          {/* ··· 메뉴 — 사진 우상단 (전광판 아래, 플립 밖 z-40) */}
+          {/* ··· 메뉴 — 사진 우상단 (전광판 아래) */}
           {hasMenu && (
             <div className={`absolute right-1 z-40 ${hasTicker ? 'top-[18px]' : 'top-1'}`}>
               <button
