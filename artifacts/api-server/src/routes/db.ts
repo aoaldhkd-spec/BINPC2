@@ -18,8 +18,8 @@ declare module 'express-session' {
 const router = Router();
 
 /** 관리자·테스트 패널 표준 비밀번호 — redeploy/resync 후에도 자동 복구 */
-const PANEL_DEFAULT_PASSWORD = '166606';
-const LEGACY_PANEL_PASSWORDS = ['116606', PANEL_DEFAULT_PASSWORD] as const;
+const PANEL_DEFAULT_PASSWORD = '116606';
+const LEGACY_PANEL_PASSWORDS = ['166606', PANEL_DEFAULT_PASSWORD] as const;
 
 class RpcAuthError extends Error {
   statusCode = 403;
@@ -609,7 +609,7 @@ function defaultAppSettings(): Record<string, unknown> {
     reset_signal: null,
     game_state: null,
     entry_password: koreanDateMMDD(),
-    reset_password: null,
+    reset_password: PANEL_DEFAULT_PASSWORD,
     test_password: bootstrapTest || PANEL_DEFAULT_PASSWORD,
     qr_base_url: PRODUCTION_QR_BASE,
     heart_drain_enabled: false,
@@ -726,6 +726,10 @@ async function ensureAppSettingsSecrets(): Promise<void> {
   }
   if (!currentTest || isDefaultPanelPassword(currentTest) || (bootstrapTest && currentTest !== bootstrapTest)) {
     patch.test_password = targetTest;
+  }
+  const currentReset = row.reset_password == null ? '' : String(row.reset_password);
+  if (!currentReset || isDefaultPanelPassword(currentReset)) {
+    patch.reset_password = PANEL_DEFAULT_PASSWORD;
   }
   if (row.heart_drain_enabled) patch.heart_drain_enabled = false;
   if (isLocalQrUrl(row.qr_base_url)) patch.qr_base_url = PRODUCTION_QR_BASE;

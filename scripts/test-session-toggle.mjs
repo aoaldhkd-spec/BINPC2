@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /** Verify admin can toggle session_active on production. */
 const API = (process.env.API_PUBLIC_URL || 'https://binpc2.onrender.com').replace(/\/$/, '');
-const PW = (process.env.PANEL_PASSWORD || '166606').trim();
+const PW = (process.env.PANEL_PASSWORD || '116606').trim();
 
 async function rpc(name, args) {
   const res = await fetch(`${API}/api/db/rpc/${name}`, {

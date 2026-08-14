@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const CRED_PATH = resolve(__dirname, '../artifacts/api-server/.security-credentials.txt');
 const API_URL = (process.env.API_PUBLIC_URL || 'https://binpc2.onrender.com').replace(/\/$/, '');
-const PANEL_PASSWORD = (process.env.PANEL_PASSWORD || '166606').trim();
+const PANEL_PASSWORD = (process.env.PANEL_PASSWORD || '116606').trim();
 
 function readCred(prefix) {
   if (!existsSync(CRED_PATH)) return '';
@@ -36,8 +36,8 @@ async function main() {
     credAdmin,
     credTest,
     targetAdmin,
-    '166606',
     '116606',
+    '166606',
     'Rg9JSp6MsIkrDN94KlulaQ',
     'aC-n37p7gPiFwTId',
   ].filter((v, i, a) => v && a.indexOf(v) === i);
@@ -59,6 +59,7 @@ async function main() {
       p_payload: {
         admin_password: targetAdmin,
         test_password: targetTest,
+        reset_password: targetAdmin,
         qr_base_url: 'https://binpc2.netlify.app',
       },
     });

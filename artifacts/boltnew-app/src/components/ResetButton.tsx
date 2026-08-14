@@ -46,7 +46,7 @@ export function ResetButton({ onReset, darkMode, resetPassword, onEasterEgg }: {
   const eggTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const confirm = () => {
-    const correctPw = resetPassword ?? '166606';
+    const correctPw = resetPassword ?? '116606';
     if (pw === correctPw) { setOpen(false); setPw(''); setErr(false); onReset(); }
     else { setErr(true); setPw(''); }
   };
@@ -212,7 +212,7 @@ export function ResetButton({ onReset, darkMode, resetPassword, onEasterEgg }: {
             <input type="password" value={adminPw} onChange={e => { setAdminPw(e.target.value); setAdminErr(false); }}
               onKeyDown={e => {
                 if (e.key === 'Enter') {
-                  if (adminPw === (resetPassword ?? '166606')) { setAdminOpen(false); const base = import.meta.env.BASE_URL; window.history.pushState({}, '', base + 'admin'); window.dispatchEvent(new PopStateEvent('popstate')); }
+                  if (adminPw === (resetPassword ?? '116606')) { setAdminOpen(false); const base = import.meta.env.BASE_URL; window.history.pushState({}, '', base + 'admin'); window.dispatchEvent(new PopStateEvent('popstate')); }
                   else { setAdminErr(true); setAdminPw(''); }
                 }
               }}
@@ -223,7 +223,7 @@ export function ResetButton({ onReset, darkMode, resetPassword, onEasterEgg }: {
               <button onClick={() => { setAdminOpen(false); setAdminPw(''); setAdminErr(false); }}
                 className="flex-1 py-2.5 rounded-xl border-2 border-gray-200 text-gray-500 text-sm font-semibold hover:bg-gray-50 transition-all">취소</button>
               <button onClick={() => {
-                  if (adminPw === (resetPassword ?? '166606')) { setAdminOpen(false); const base = import.meta.env.BASE_URL; window.history.pushState({}, '', base + 'admin'); window.dispatchEvent(new PopStateEvent('popstate')); }
+                  if (adminPw === (resetPassword ?? '116606')) { setAdminOpen(false); const base = import.meta.env.BASE_URL; window.history.pushState({}, '', base + 'admin'); window.dispatchEvent(new PopStateEvent('popstate')); }
                   else { setAdminErr(true); setAdminPw(''); }
                 }}
                 className="flex-1 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-600 text-white text-sm font-bold transition-all">확인</button>

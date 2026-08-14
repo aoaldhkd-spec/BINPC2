@@ -23,6 +23,7 @@ type AnonymousReport = Database['public']['Tables']['anonymous_reports']['Row'];
 
 const ADMIN_SESSION_KEY = 'admin_session_v1';
 const ADMIN_TOKEN_KEY = 'admin_token_v1';
+const ADMIN_PW_KEY = 'admin_pw_v1';
 const MAX_ADMIN_MESSAGES = 5_000;
 
 function withAdminImageToken(url: string): string {
@@ -40,6 +41,7 @@ const ADMIN_API = '/api/db';
 
 async function adminApiRpc(name: string, args: Record<string, unknown>): Promise<void> {
   const token = localStorage.getItem(ADMIN_TOKEN_KEY) ?? '';
+  const password = sessionStorage.getItem(ADMIN_PW_KEY) ?? '';
   let lastErr: Error | null = null;
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
@@ -47,7 +49,7 @@ async function adminApiRpc(name: string, args: Record<string, unknown>): Promise
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ ...args, adminToken: token }),
+        body: JSON.stringify({ ...args, adminToken: token, p_admin_password: password }),
       });
       if (res.status === 503 && attempt < 4) {
         await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
@@ -186,12 +188,13 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
         setError(
           msg.includes('HTTP') || msg.includes('fetch') || msg.includes('abort') || msg.includes('network') || msg.includes('503')
             ? '서버 연결에 실패했습니다. 잠시 후 다시 시도해주세요.'
-            : '비밀번호가 올바르지 않습니다. (관리자 기본 비밀번호: 166606)',
+            : '비밀번호가 올바르지 않습니다. (관리자 비밀번호: 116606)',
         );
         setLoading(false);
         return;
       }
       setAdminToken(token ?? null);
+      sessionStorage.setItem(ADMIN_PW_KEY, password);
       localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify({ phone, authedAt: Date.now() }));
       onLogin();
     } catch {
@@ -2020,12 +2023,12 @@ function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onSaveTest
         }} className="space-y-4">
           <div className="bg-amber-50 rounded-xl p-3 border border-amber-200 text-xs text-amber-700 leading-relaxed">
             유저가 술번개 로고를 탭하면 뜨는 <strong>처음으로 돌아가기</strong> 비밀번호입니다.<br />
-            미설정 시 기본값(166606)이 사용됩니다.
+            미설정 시 기본값(116606)이 사용됩니다.
           </div>
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">현재 비밀번호</label>
             <p className="text-sm font-black text-gray-800 bg-gray-50 rounded-xl px-4 py-3 border border-gray-200 tracking-widest">
-              {settings?.reset_password ? settings.reset_password : '(기본값 166606)'}
+              {settings?.reset_password ? settings.reset_password : '(기본값 116606)'}
             </p>
           </div>
           <div>
@@ -2080,12 +2083,12 @@ function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onSaveTest
         }} className="space-y-4">
           <div className="bg-violet-50 rounded-xl p-3 border border-violet-200 text-xs text-violet-700 leading-relaxed">
             <strong>테스트 전용 접속 코드</strong>입니다. 이 코드로 접속하면 테스트 대시보드로 이동합니다.<br />
-            미설정 시 기본값 <span className="font-black text-violet-700">166606</span>이 사용됩니다.
+            미설정 시 기본값 <span className="font-black text-violet-700">116606</span>이 사용됩니다.
           </div>
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">현재 테스트 코드</label>
             <p className="text-sm font-black text-gray-800 bg-gray-50 rounded-xl px-4 py-3 border border-gray-200 tracking-widest">
-              {(settings as any)?.test_password ? (settings as any).test_password : '166606 (기본값)'}
+              {(settings as any)?.test_password ? (settings as any).test_password : '116606 (기본값)'}
             </p>
           </div>
           <div>
@@ -2357,17 +2360,24 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     const newVal = !(settings.session_active ?? false);
     setSettings(prev => prev ? { ...prev, session_active: newVal } : prev);
     try {
-      const { error } = await adminSupabase.from('app_settings')
-        .update({ session_active: newVal, updated_at: new Date().toISOString() })
-        .eq('id', 1);
-      if (error) throw new Error(error.message);
+      // api-server가 유저 SSE 브로드캐스트의 단일 진실 소스 — RPC를 먼저 실행
       await adminApiRpc('admin_update_settings', {
         p_payload: { session_active: newVal },
       });
+      // 관리자 UI용 KV 동기화 (실패해도 RPC 성공이면 유저에게는 반영됨)
+      const { error } = await adminSupabase.from('app_settings')
+        .update({ session_active: newVal, updated_at: new Date().toISOString() })
+        .eq('id', 1);
+      if (error) console.warn('[admin] app_settings KV sync:', error.message);
     } catch (e) {
       setSettings(prev => prev ? { ...prev, session_active: !newVal } : prev);
       const msg = e instanceof Error ? e.message : String(e);
-      alert(`회식 시작/종료 실패: ${msg}\n\n관리자 로그아웃 후 비밀번호(166606)로 다시 로그인해 주세요.`);
+      if (/만료|403|일치/.test(msg)) {
+        sessionStorage.removeItem(ADMIN_PW_KEY);
+        localStorage.removeItem(ADMIN_TOKEN_KEY);
+        localStorage.removeItem(ADMIN_SESSION_KEY);
+      }
+      alert(`회식 시작/종료 실패: ${msg}\n\n로그아웃 후 비밀번호(116606)로 다시 로그인해 주세요.`);
     }
   };
 
@@ -2806,6 +2816,7 @@ export default function AdminApp() {
       const session = loadAdminSession();
       if (!session || !token) {
         localStorage.removeItem(ADMIN_SESSION_KEY);
+        sessionStorage.removeItem(ADMIN_PW_KEY);
         setAdminToken(null);
         if (!cancelled) { setIsLoggedIn(false); setCheckingSession(false); }
         return;
@@ -2821,6 +2832,7 @@ export default function AdminApp() {
           if (res.ok && json.data && !json.error) setIsLoggedIn(true);
           else {
             localStorage.removeItem(ADMIN_SESSION_KEY);
+            sessionStorage.removeItem(ADMIN_PW_KEY);
             setAdminToken(null);
             setIsLoggedIn(false);
           }
@@ -2829,6 +2841,7 @@ export default function AdminApp() {
       } catch {
         if (!cancelled) {
           localStorage.removeItem(ADMIN_SESSION_KEY);
+          sessionStorage.removeItem(ADMIN_PW_KEY);
           setAdminToken(null);
           setIsLoggedIn(false);
           setCheckingSession(false);
@@ -2852,6 +2865,7 @@ export default function AdminApp() {
       const token = localStorage.getItem(ADMIN_TOKEN_KEY);
       if (token) { try { await supabase.rpc('admin_invalidate_session', { p_token: token }); } catch {} }
       localStorage.removeItem(ADMIN_SESSION_KEY);
+      sessionStorage.removeItem(ADMIN_PW_KEY);
       setAdminToken(null);
       setIsLoggedIn(false);
       window.location.href = '/';
