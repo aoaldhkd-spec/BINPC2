@@ -2375,7 +2375,7 @@ router.post('/op', async (req: Request, res: Response) => {
 // 알 수 없는 RPC 이름으로의 호출을 즉시 404로 차단 — 내부 구현 노출 및 퍼징 방지
 const ALLOWED_RPCS = new Set([
   'admin_create_session', 'admin_invalidate_session', 'admin_auth_phone',
-  'admin_update_settings', 'test_resync', 'test_clear_hearts', 'admin_force_resync_all',
+  'admin_update_settings', 'admin_toggle_session', 'test_resync', 'test_clear_hearts', 'admin_force_resync_all',
   'test_verify_password', 'test_update_settings', 'admin_full_reset', 'admin_event_end_reset',
   'admin_update_profile',
   'admin_delete_profile',
@@ -2466,6 +2466,17 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
       case 'admin_auth_phone':
         checkPassword();
         return res.json({ data: null, error: null });
+
+      case 'admin_toggle_session': {
+        checkPassword();
+        const active = args.p_active === true;
+        const current = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
+        const updated = mergeAppSettings(current, { session_active: active });
+        store['app_settings'] = [updated];
+        broadcastAll({ type: 'change', table: 'app_settings', event: 'UPDATE', newRow: sanitizeSettings(updated), oldRow: sanitizeSettings(current) });
+        dbPersistRow('app_settings', updated).catch(e => logger.error({ err: e }, '[db] background task error'));
+        return res.json({ data: { session_active: active }, error: null });
+      }
 
       case 'admin_update_settings': {
         // 관리자 패널 → api-server 인메모리 app_settings 동기화

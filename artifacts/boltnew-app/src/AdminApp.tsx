@@ -39,11 +39,51 @@ function withAdminImageToken(url: string): string {
 // Supabase 업데이트 후 api-server RPC도 함께 호출해야 함.
 const ADMIN_API = '/api/db';
 
+interface AdminSession { phone: string; authedAt: number; }
+
+function setAdminToken(token: string | null) {
+  if (token) localStorage.setItem(ADMIN_TOKEN_KEY, token);
+  else localStorage.removeItem(ADMIN_TOKEN_KEY);
+}
+
+function loadAdminSession(): AdminSession | null {
+  try {
+    const raw = localStorage.getItem(ADMIN_SESSION_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw) as AdminSession;
+    if (Date.now() - s.authedAt > 86400000 * 30) { localStorage.removeItem(ADMIN_SESSION_KEY); return null; }
+    return s;
+  } catch { return null; }
+}
+
+function getAdminPassword(): string {
+  return localStorage.getItem(ADMIN_PW_KEY) ?? '';
+}
+
+/** 저장된 비밀번호로 adminToken 재발급 — redeploy·비밀번호 변경 후 RPC 403 방지 */
+async function refreshAdminToken(): Promise<boolean> {
+  const password = getAdminPassword();
+  const session = loadAdminSession();
+  if (!password || !session) return false;
+  try {
+    const { data, error } = await supabase.rpc('admin_create_session', {
+      p_phone: session.phone,
+      p_admin_password: password,
+    });
+    if (!error && typeof data === 'string' && data) {
+      setAdminToken(data);
+      return true;
+    }
+  } catch { /* ignore */ }
+  return false;
+}
+
 async function adminApiRpc(name: string, args: Record<string, unknown>): Promise<void> {
-  const token = localStorage.getItem(ADMIN_TOKEN_KEY) ?? '';
-  const password = sessionStorage.getItem(ADMIN_PW_KEY) ?? '';
+  let tokenRefreshed = false;
   let lastErr: Error | null = null;
   for (let attempt = 0; attempt < 5; attempt++) {
+    const token = localStorage.getItem(ADMIN_TOKEN_KEY) ?? '';
+    const password = getAdminPassword() || String(args.p_admin_password ?? '');
     try {
       const res = await fetch(`${ADMIN_API}/rpc/${name}`, {
         method: 'POST',
@@ -56,6 +96,10 @@ async function adminApiRpc(name: string, args: Record<string, unknown>): Promise
         continue;
       }
       if (res.status === 403) {
+        if (!tokenRefreshed && await refreshAdminToken()) {
+          tokenRefreshed = true;
+          continue;
+        }
         throw new Error('관리자 세션이 만료되었습니다. 로그아웃 후 다시 로그인해 주세요.');
       }
       if (!res.ok) throw new Error(`api-server RPC ${name} 오류: HTTP ${res.status}`);
@@ -120,24 +164,6 @@ async function adminApiOp(
 // Local mock: admin client is the same as the regular client
 const adminSupabase = supabase;
 
-function setAdminToken(token: string | null) {
-  // Local mock: token is not needed; just update localStorage for session tracking
-  if (token) localStorage.setItem(ADMIN_TOKEN_KEY, token);
-  else localStorage.removeItem(ADMIN_TOKEN_KEY);
-}
-
-interface AdminSession { phone: string; authedAt: number; }
-
-function loadAdminSession(): AdminSession | null {
-  try {
-    const raw = localStorage.getItem(ADMIN_SESSION_KEY);
-    if (!raw) return null;
-    const s = JSON.parse(raw) as AdminSession;
-    if (Date.now() - s.authedAt > 86400000 * 30) { localStorage.removeItem(ADMIN_SESSION_KEY); return null; }
-    return s;
-  } catch { return null; }
-}
-
 // ─── Login Screen ─────────────────────────────────────────────────────────────
 
 function LoginScreen({ onLogin }: { onLogin: () => void }) {
@@ -194,7 +220,7 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
         return;
       }
       setAdminToken(token ?? null);
-      sessionStorage.setItem(ADMIN_PW_KEY, password);
+      localStorage.setItem(ADMIN_PW_KEY, password);
       localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify({ phone, authedAt: Date.now() }));
       onLogin();
     } catch {
@@ -2361,9 +2387,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     setSettings(prev => prev ? { ...prev, session_active: newVal } : prev);
     try {
       // api-server가 유저 SSE 브로드캐스트의 단일 진실 소스 — RPC를 먼저 실행
-      await adminApiRpc('admin_update_settings', {
-        p_payload: { session_active: newVal },
-      });
+      await adminApiRpc('admin_toggle_session', { p_active: newVal });
       // 관리자 UI용 KV 동기화 (실패해도 RPC 성공이면 유저에게는 반영됨)
       const { error } = await adminSupabase.from('app_settings')
         .update({ session_active: newVal, updated_at: new Date().toISOString() })
@@ -2373,7 +2397,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       setSettings(prev => prev ? { ...prev, session_active: !newVal } : prev);
       const msg = e instanceof Error ? e.message : String(e);
       if (/만료|403|일치/.test(msg)) {
-        sessionStorage.removeItem(ADMIN_PW_KEY);
+        localStorage.removeItem(ADMIN_PW_KEY);
         localStorage.removeItem(ADMIN_TOKEN_KEY);
         localStorage.removeItem(ADMIN_SESSION_KEY);
       }
@@ -2385,7 +2409,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     const { error } = await adminSupabase.from('app_settings').update({ timer_end_at: endAt, timer_label: label, updated_at: new Date().toISOString() }).eq('id', 1);
     if (error) { alert(`타이머 설정 실패: ${error.message}`); return; }
     setSettings(prev => prev ? { ...prev, timer_end_at: endAt, timer_label: label } : prev);
-    adminApiRpc('admin_update_settings', { p_admin_password: settings?.admin_password ?? '', p_payload: { timer_end_at: endAt, timer_label: label } })
+    adminApiRpc('admin_update_settings', { p_payload: { timer_end_at: endAt, timer_label: label } })
       .catch(e => console.warn('[admin] api-server 타이머 동기화 실패:', e));
   };
 
@@ -2406,7 +2430,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       await adminSupabase.from('session_history').insert({ seats_snapshot: [] });
       // api-server 전체 초기화 (인메모리 스토어 + SSE broadcast → 모든 유저에게 즉시 반영)
       // Supabase 직접 삭제만으로는 api-server 인메모리가 그대로 남아 유저에게 반영 안 됨
-      await adminApiRpc('admin_event_end_reset', { p_admin_password: settings?.admin_password ?? '' });
+      await adminApiRpc('admin_event_end_reset', {});
       // 병렬 삭제 (Supabase 네이티브 테이블 — 관리자 화면용)
       await Promise.all([
         adminSupabase.from('profiles').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
@@ -2420,7 +2444,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       const { error: sigErr } = await adminSupabase.from('app_settings').update({ reset_signal: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', 1);
       if (sigErr) throw new Error(sigErr.message);
       // api-server reset_signal 동기화
-      adminApiRpc('admin_update_settings', { p_admin_password: settings?.admin_password ?? '', p_payload: { reset_signal: new Date().toISOString() } })
+      adminApiRpc('admin_update_settings', { p_payload: { reset_signal: new Date().toISOString() } })
         .catch(() => null);
       const hasData = backupProfiles.length > 0 || backupLikes.length > 0 || backupChats.length > 0 || backupSuggestions.length > 0;
       showRecovery('전체 초기화', '🗑️', hasData ? async () => {
@@ -2527,7 +2551,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     const { data } = await adminSupabase.from('app_settings').select('*').eq('id', 1).single();
     if (data) setSettings(data);
     // api-server 동기화: checkPassword()가 새 비밀번호를 즉시 인식하도록
-    adminApiRpc('admin_update_settings', { p_admin_password: settings?.admin_password ?? '', p_payload: { admin_phone: phone, admin_password: password } })
+    adminApiRpc('admin_update_settings', { p_payload: { admin_phone: phone, admin_password: password } })
       .catch(e => console.warn('[admin] api-server 자격증명 동기화 실패:', e));
   };
 
@@ -2535,7 +2559,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     await adminSupabase.from('app_settings').update({ entry_password: entryPassword || null, updated_at: new Date().toISOString() }).eq('id', 1);
     const { data } = await adminSupabase.from('app_settings').select('*').eq('id', 1).single();
     if (data) setSettings(data);
-    adminApiRpc('admin_update_settings', { p_admin_password: settings?.admin_password ?? '', p_payload: { entry_password: entryPassword || null } })
+    adminApiRpc('admin_update_settings', { p_payload: { entry_password: entryPassword || null } })
       .catch(e => console.warn('[admin] api-server 입장비밀번호 동기화 실패:', e));
   };
 
@@ -2543,7 +2567,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     await adminSupabase.from('app_settings').update({ reset_password: resetPassword || null, updated_at: new Date().toISOString() }).eq('id', 1);
     const { data } = await adminSupabase.from('app_settings').select('*').eq('id', 1).single();
     if (data) setSettings(data);
-    adminApiRpc('admin_update_settings', { p_admin_password: settings?.admin_password ?? '', p_payload: { reset_password: resetPassword || null } })
+    adminApiRpc('admin_update_settings', { p_payload: { reset_password: resetPassword || null } })
       .catch(e => console.warn('[admin] api-server 리셋비밀번호 동기화 실패:', e));
   };
 
@@ -2551,23 +2575,23 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     await adminSupabase.from('app_settings').update({ test_password: testPassword || null, updated_at: new Date().toISOString() }).eq('id', 1);
     const { data } = await adminSupabase.from('app_settings').select('*').eq('id', 1).single();
     if (data) setSettings(data);
-    adminApiRpc('admin_update_settings', { p_admin_password: settings?.admin_password ?? '', p_payload: { test_password: testPassword || null } })
+    adminApiRpc('admin_update_settings', { p_payload: { test_password: testPassword || null } })
       .catch(e => console.warn('[admin] api-server 테스트비밀번호 동기화 실패:', e));
   };
 
   const handleToggleFunctionsLock = async () => {
-    // 기능 잠금 토글 (functions_locked) — 채팅·건의·게임 등
     if (!settings) return;
     const newVal = !((settings as any).functions_locked ?? false);
     setSettings(prev => prev ? { ...prev, functions_locked: newVal } as any : prev);
-    const { error } = await adminSupabase.from('app_settings').update({ functions_locked: newVal, updated_at: new Date().toISOString() }).eq('id', 1);
-    if (error) {
+    try {
+      await adminApiRpc('admin_update_settings', { p_payload: { functions_locked: newVal } });
+      await adminSupabase.from('app_settings')
+        .update({ functions_locked: newVal, updated_at: new Date().toISOString() })
+        .eq('id', 1);
+    } catch (e) {
       setSettings(prev => prev ? { ...prev, functions_locked: !newVal } as any : prev);
-      console.error('[admin] 기능 잠금 토글 실패:', error.message);
-      return;
+      console.error('[admin] 기능 잠금 토글 실패:', e instanceof Error ? e.message : e);
     }
-    adminApiRpc('admin_update_settings', { p_admin_password: settings.admin_password ?? '', p_payload: { functions_locked: newVal } })
-      .catch(e => console.warn('[admin] api-server 기능잠금 동기화 실패:', e));
   };
 
   const handleDeleteProfile = async (profileId: string) => {
@@ -2664,7 +2688,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const { error } = await adminSupabase.from('app_settings').update({ qr_base_url: url, updated_at: new Date().toISOString() } as never).eq('id', 1);
   if (error) { alert(`QR URL 저장 실패: ${error.message}`); return; }
   setSettings(prev => prev ? { ...prev, qr_base_url: url } as never : prev);
-  adminApiRpc('admin_update_settings', { p_admin_password: settings?.admin_password ?? '', p_payload: { qr_base_url: url } })
+  adminApiRpc('admin_update_settings', { p_payload: { qr_base_url: url } })
     .catch(e => console.warn('[admin] api-server QR URL 동기화 실패:', e));
 }} />}
             {settingsSubTab === 'admin' && <CredentialsTab settings={settings} onSave={handleSaveCredentials} onSaveEntry={handleSaveEntryPassword} onSaveReset={handleSaveResetPassword} onSaveTest={handleSaveTestPassword} />}
@@ -2812,15 +2836,18 @@ export default function AdminApp() {
   useEffect(() => {
     let cancelled = false;
     async function verifySession() {
-      const token = localStorage.getItem(ADMIN_TOKEN_KEY);
       const session = loadAdminSession();
+      let token = localStorage.getItem(ADMIN_TOKEN_KEY);
       if (!session || !token) {
         localStorage.removeItem(ADMIN_SESSION_KEY);
-        sessionStorage.removeItem(ADMIN_PW_KEY);
+        localStorage.removeItem(ADMIN_PW_KEY);
         setAdminToken(null);
         if (!cancelled) { setIsLoggedIn(false); setCheckingSession(false); }
         return;
       }
+      // 저장된 비밀번호로 토큰 선제 갱신 (redeploy 후 회의시작 403 방지)
+      if (getAdminPassword()) await refreshAdminToken();
+      token = localStorage.getItem(ADMIN_TOKEN_KEY);
       try {
         const res = await fetch(`${ADMIN_API}/op`, {
           method: 'POST',
@@ -2832,7 +2859,7 @@ export default function AdminApp() {
           if (res.ok && json.data && !json.error) setIsLoggedIn(true);
           else {
             localStorage.removeItem(ADMIN_SESSION_KEY);
-            sessionStorage.removeItem(ADMIN_PW_KEY);
+            localStorage.removeItem(ADMIN_PW_KEY);
             setAdminToken(null);
             setIsLoggedIn(false);
           }
@@ -2841,7 +2868,7 @@ export default function AdminApp() {
       } catch {
         if (!cancelled) {
           localStorage.removeItem(ADMIN_SESSION_KEY);
-          sessionStorage.removeItem(ADMIN_PW_KEY);
+          localStorage.removeItem(ADMIN_PW_KEY);
           setAdminToken(null);
           setIsLoggedIn(false);
           setCheckingSession(false);
@@ -2865,7 +2892,7 @@ export default function AdminApp() {
       const token = localStorage.getItem(ADMIN_TOKEN_KEY);
       if (token) { try { await supabase.rpc('admin_invalidate_session', { p_token: token }); } catch {} }
       localStorage.removeItem(ADMIN_SESSION_KEY);
-      sessionStorage.removeItem(ADMIN_PW_KEY);
+      localStorage.removeItem(ADMIN_PW_KEY);
       setAdminToken(null);
       setIsLoggedIn(false);
       window.location.href = '/';

@@ -17,9 +17,10 @@ async function main() {
   if (!login.json.data) throw new Error(`login failed ${login.status}`);
   const token = login.json.data;
 
-  const on = await rpc('admin_update_settings', {
+  const on = await rpc('admin_toggle_session', {
     adminToken: token,
-    p_payload: { session_active: true },
+    p_admin_password: PW,
+    p_active: true,
   });
   if (on.status !== 200 || on.json.error) throw new Error(`session on failed: ${on.json.error?.message}`);
 
@@ -31,9 +32,10 @@ async function main() {
   const active = settings?.data?.[0]?.session_active;
   console.log(`session_active after ON: ${active}`);
 
-  const off = await rpc('admin_update_settings', {
+  const off = await rpc('admin_toggle_session', {
     adminToken: token,
-    p_payload: { session_active: false },
+    p_admin_password: PW,
+    p_active: false,
   });
   if (off.status !== 200 || off.json.error) throw new Error(`session off failed`);
 
