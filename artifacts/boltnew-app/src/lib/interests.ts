@@ -129,3 +129,22 @@ export function parseProfileInterests(profile: {
   }
   return out;
 }
+
+/** 카드·프로필용 관심사 태그 색 (카테고리별 파스텔) */
+export function getInterestTagStyle(tag: string): { bg: string; text: string; border: string } {
+  const fallback = { bg: '#f0f9ff', text: '#0369a1', border: '#bae6fd' };
+  const byLabel: Record<string, { bg: string; text: string; border: string }> = {
+    '뜨밤 & 기타': { bg: '#fdf2f8', text: '#db2777', border: '#fbcfe8' },
+    '스포츠/활동': { bg: '#f0fdf4', text: '#15803d', border: '#bbf7d0' },
+    '음식/음주': { bg: '#fffbeb', text: '#b45309', border: '#fde68a' },
+    '취미/라이프': { bg: '#f0f9ff', text: '#0369a1', border: '#bae6fd' },
+    '엔터/미디어': { bg: '#fff1f2', text: '#e11d48', border: '#fecdd3' },
+    '여가/사교': { bg: '#fff7ed', text: '#c2410c', border: '#fed7aa' },
+  };
+  for (const cat of BIO_CATEGORIES) {
+    if ((cat.tags as readonly string[]).includes(tag)) {
+      return byLabel[cat.label] ?? fallback;
+    }
+  }
+  return fallback;
+}

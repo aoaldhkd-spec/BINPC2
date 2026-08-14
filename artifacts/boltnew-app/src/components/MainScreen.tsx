@@ -7,7 +7,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../lib/theme';
 import type { Profile, ContactShare, Suggestion, Chat, MainTab, GroupChat, ProfileView, UserSignal } from '../types/app';
-import { BIO_CATEGORIES, parseProfileInterests } from '../lib/interests';
+import { BIO_CATEGORIES, parseProfileInterests, getInterestTagStyle } from '../lib/interests';
 import { HeartType, HEART_TYPES, heartMeta } from '../lib/constants';
 import { getPositionLabel, getPositionBg, getPositionStyle, getDomSubLabel, getDomSubBg, getKoreanAge, genAvatar, getAvatarSrc, getAvatarGradientCss, hasUploadedPhoto } from '../lib/profile';
 import { containsBannedNicknameWord } from '../lib/bannedWords';
@@ -484,6 +484,7 @@ export const ProfileCard = memo(function ProfileCard({
   const idealFree = idealParts[1]?.trim() ?? '';
   const age = getKoreanAge(profile.birth_year);
   const msStyle = profile.mbti ? getMbtiStyle(profile.mbti) : null;
+  const interestTags = parseProfileInterests(profile).slice(0, 2);
   const heartBtnStyle = isCardDark
     ? { backgroundColor: 'rgba(251,113,133,0.13)', borderColor: 'rgba(251,113,133,0.28)' }
     : { backgroundColor: '#fff1f2', borderColor: '#fecdd3' };
@@ -817,8 +818,8 @@ export const ProfileCard = memo(function ProfileCard({
           </div>
       </div>{/* /3:4 사진 */}
 
-      {/* ── 성향·MBTI ── */}
-      <div className="relative z-10 shrink-0 min-w-0 bg-white px-1.5 pt-1.5 pb-0 cursor-pointer"
+      {/* ── 성향·MBTI·관심사 (사진 밖 — 이상형 뒷면과 분리) ── */}
+      <div className="relative z-10 shrink-0 min-w-0 bg-white px-1.5 pt-1.5 pb-0.5 cursor-pointer"
         onClick={() => onSelect(profile)}>
         <div className="flex items-center gap-0.5 min-w-0 overflow-hidden">
           <span className="text-[8px] sm:text-[9px] font-extrabold px-1.5 py-0.5 rounded leading-none border min-w-0 max-w-[52%] truncate shadow-sm"
@@ -832,6 +833,21 @@ export const ProfileCard = memo(function ProfileCard({
             </span>
           )}
         </div>
+        {interestTags.length > 0 && (
+          <div className="flex items-stretch gap-1 min-w-0 mt-1">
+            {interestTags.map((tag) => {
+              const ist = getInterestTagStyle(tag);
+              return (
+                <span
+                  key={tag}
+                  className="flex-1 min-w-0 text-[9px] font-bold px-1 py-1 rounded-md leading-tight border truncate text-center shadow-sm"
+                  style={{ backgroundColor: ist.bg, color: ist.text, borderColor: ist.border }}
+                  title={tag}
+                >#{tag}</span>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* ── 하트 + 채팅 버튼 ── */}
