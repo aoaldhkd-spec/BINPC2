@@ -40,14 +40,37 @@ const ADMIN_API = '/api/db';
 
 async function adminApiRpc(name: string, args: Record<string, unknown>): Promise<void> {
   const token = localStorage.getItem(ADMIN_TOKEN_KEY) ?? '';
-  const res = await fetch(`${ADMIN_API}/rpc/${name}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...args, adminToken: token }),
-  });
-  if (!res.ok) throw new Error(`api-server RPC ${name} 오류: HTTP ${res.status}`);
-  const json = (await res.json()) as { data: unknown; error: { message: string } | null };
-  if (json.error) throw new Error(json.error.message);
+  let lastErr: Error | null = null;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      const res = await fetch(`${ADMIN_API}/rpc/${name}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ ...args, adminToken: token }),
+      });
+      if (res.status === 503 && attempt < 4) {
+        await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
+        continue;
+      }
+      if (res.status === 403) {
+        throw new Error('관리자 세션이 만료되었습니다. 로그아웃 후 다시 로그인해 주세요.');
+      }
+      if (!res.ok) throw new Error(`api-server RPC ${name} 오류: HTTP ${res.status}`);
+      const json = (await res.json()) as { data: unknown; error: { message: string } | null };
+      if (json.error) throw new Error(json.error.message);
+      return;
+    } catch (e) {
+      lastErr = e instanceof Error ? e : new Error(String(e));
+      const retryable = /503|fetch|network|abort/i.test(lastErr.message);
+      if (retryable && attempt < 4) {
+        await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
+        continue;
+      }
+      throw lastErr;
+    }
+  }
+  throw lastErr ?? new Error(`api-server RPC ${name} failed`);
 }
 
 /** api-server /op SELECT — 인메모리 데이터 직접 조회 (Supabase KV가 아닌 api-server 스토어) */
@@ -163,7 +186,7 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
         setError(
           msg.includes('HTTP') || msg.includes('fetch') || msg.includes('abort') || msg.includes('network') || msg.includes('503')
             ? '서버 연결에 실패했습니다. 잠시 후 다시 시도해주세요.'
-            : '비밀번호가 올바르지 않습니다. (보안 업데이트로 변경됨 — credentials 파일의 Admin login 확인)',
+            : '비밀번호가 올바르지 않습니다. (관리자 기본 비밀번호: 166606)',
         );
         setLoading(false);
         return;
@@ -1997,12 +2020,12 @@ function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onSaveTest
         }} className="space-y-4">
           <div className="bg-amber-50 rounded-xl p-3 border border-amber-200 text-xs text-amber-700 leading-relaxed">
             유저가 술번개 로고를 탭하면 뜨는 <strong>처음으로 돌아가기</strong> 비밀번호입니다.<br />
-            미설정 시 기본값(116606)이 사용됩니다.
+            미설정 시 기본값(166606)이 사용됩니다.
           </div>
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">현재 비밀번호</label>
             <p className="text-sm font-black text-gray-800 bg-gray-50 rounded-xl px-4 py-3 border border-gray-200 tracking-widest">
-              {settings?.reset_password ? settings.reset_password : '(기본값 116606)'}
+              {settings?.reset_password ? settings.reset_password : '(기본값 166606)'}
             </p>
           </div>
           <div>
@@ -2057,12 +2080,12 @@ function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onSaveTest
         }} className="space-y-4">
           <div className="bg-violet-50 rounded-xl p-3 border border-violet-200 text-xs text-violet-700 leading-relaxed">
             <strong>테스트 전용 접속 코드</strong>입니다. 이 코드로 접속하면 테스트 대시보드로 이동합니다.<br />
-            미설정 시 기본값 <span className="font-black text-violet-700">116606</span>이 사용됩니다.
+            미설정 시 기본값 <span className="font-black text-violet-700">166606</span>이 사용됩니다.
           </div>
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">현재 테스트 코드</label>
             <p className="text-sm font-black text-gray-800 bg-gray-50 rounded-xl px-4 py-3 border border-gray-200 tracking-widest">
-              {(settings as any)?.test_password ? (settings as any).test_password : '116606 (기본값)'}
+              {(settings as any)?.test_password ? (settings as any).test_password : '166606 (기본값)'}
             </p>
           </div>
           <div>
@@ -2334,14 +2357,17 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     const newVal = !(settings.session_active ?? false);
     setSettings(prev => prev ? { ...prev, session_active: newVal } : prev);
     try {
+      const { error } = await adminSupabase.from('app_settings')
+        .update({ session_active: newVal, updated_at: new Date().toISOString() })
+        .eq('id', 1);
+      if (error) throw new Error(error.message);
       await adminApiRpc('admin_update_settings', {
-        p_admin_password: '',
         p_payload: { session_active: newVal },
       });
     } catch (e) {
       setSettings(prev => prev ? { ...prev, session_active: !newVal } : prev);
       const msg = e instanceof Error ? e.message : String(e);
-      alert(`회식 시작/종료 실패: ${msg}\n\n관리자 로그아웃 후 다시 로그인해 주세요.`);
+      alert(`회식 시작/종료 실패: ${msg}\n\n관리자 로그아웃 후 비밀번호(166606)로 다시 로그인해 주세요.`);
     }
   };
 

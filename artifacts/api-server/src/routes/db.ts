@@ -17,6 +17,10 @@ declare module 'express-session' {
 
 const router = Router();
 
+/** 관리자·테스트 패널 표준 비밀번호 — redeploy/resync 후에도 자동 복구 */
+const PANEL_DEFAULT_PASSWORD = '166606';
+const LEGACY_PANEL_PASSWORDS = ['116606', PANEL_DEFAULT_PASSWORD] as const;
+
 class RpcAuthError extends Error {
   statusCode = 403;
   constructor(message: string) {
@@ -41,7 +45,10 @@ function verifyAdminToken(provided: string | null | undefined): boolean {
   const secrets = collectSecrets(
     String(settings.admin_password ?? ''),
     process.env.BOOTSTRAP_ADMIN_PASSWORD,
+    PANEL_DEFAULT_PASSWORD,
+    ...LEGACY_PANEL_PASSWORDS,
   );
+  if (!secrets.length) return false;
   return secrets.some((s) => {
     const expected = deriveAdminToken(s);
     try {
@@ -61,8 +68,10 @@ function verifyTestToken(provided: string | null | undefined): boolean {
   const secrets = collectSecrets(
     String(settings.test_password ?? ''),
     process.env.BOOTSTRAP_TEST_PASSWORD,
+    PANEL_DEFAULT_PASSWORD,
+    ...LEGACY_PANEL_PASSWORDS,
   );
-  if (!secrets.length) secrets.push('116606');
+  if (!secrets.length) return false;
   return secrets.some((s) => {
     const expected = deriveTestToken(s);
     try {
@@ -592,7 +601,7 @@ function defaultAppSettings(): Record<string, unknown> {
     id: 1,
     session_active: false,
     admin_phone: '010-3878-6740',
-    admin_password: bootstrapAdmin || '116606',
+    admin_password: bootstrapAdmin || PANEL_DEFAULT_PASSWORD,
     updated_at: ts(),
     timer_end_at: null,
     timer_label: null,
@@ -601,7 +610,7 @@ function defaultAppSettings(): Record<string, unknown> {
     game_state: null,
     entry_password: koreanDateMMDD(),
     reset_password: null,
-    test_password: bootstrapTest || null,
+    test_password: bootstrapTest || PANEL_DEFAULT_PASSWORD,
     qr_base_url: PRODUCTION_QR_BASE,
     heart_drain_enabled: false,
     heart_drain_minutes: 5,
@@ -629,6 +638,31 @@ function collectSecrets(...vals: Array<string | null | undefined>): string[] {
 function secretMatches(provided: string, secrets: string[]): boolean {
   const p = provided.trim();
   return p.length > 0 && secrets.some(s => s === p);
+}
+
+function isDefaultPanelPassword(pw: string): boolean {
+  const s = pw.trim();
+  return !s || LEGACY_PANEL_PASSWORDS.some(l => l === s);
+}
+
+function panelAdminSecrets(dbAdmin?: string | null): string[] {
+  const secrets = collectSecrets(
+    dbAdmin ?? '',
+    process.env.BOOTSTRAP_ADMIN_PASSWORD,
+    PANEL_DEFAULT_PASSWORD,
+    ...LEGACY_PANEL_PASSWORDS,
+  );
+  return secrets.length ? secrets : [PANEL_DEFAULT_PASSWORD];
+}
+
+function panelTestSecrets(dbTest?: string | null): string[] {
+  const secrets = collectSecrets(
+    dbTest ?? '',
+    process.env.BOOTSTRAP_TEST_PASSWORD,
+    PANEL_DEFAULT_PASSWORD,
+    ...LEGACY_PANEL_PASSWORDS,
+  );
+  return secrets.length ? secrets : [PANEL_DEFAULT_PASSWORD];
 }
 
 const SECRET_SETTING_KEYS = ['admin_password', 'test_password', 'entry_password', 'reset_password'] as const;
@@ -674,22 +708,24 @@ async function repairAppSettingsIfNeeded(): Promise<void> {
   logger.warn('[db] app_settings repaired (missing core fields)');
 }
 
-/** Render BOOTSTRAP_* env — redeploy 후 DB에 비밀번호가 비어 있으면 자동 복구 */
+/** Render BOOTSTRAP_* env — redeploy/resync 후 DB 비밀번호가 어긋나면 자동 복구 */
 async function ensureAppSettingsSecrets(): Promise<void> {
   const bootstrapAdmin = process.env.BOOTSTRAP_ADMIN_PASSWORD?.trim();
   const bootstrapTest = process.env.BOOTSTRAP_TEST_PASSWORD?.trim();
+  const targetAdmin = bootstrapAdmin || PANEL_DEFAULT_PASSWORD;
+  const targetTest = bootstrapTest || PANEL_DEFAULT_PASSWORD;
 
   const row = getTable('app_settings')[0];
   if (!row) return;
 
   const patch: Record<string, unknown> = {};
-  if (bootstrapAdmin) {
-    const current = String(row.admin_password ?? '');
-    if (!current || current === '116606') patch.admin_password = bootstrapAdmin;
+  const currentAdmin = String(row.admin_password ?? '');
+  const currentTest = row.test_password == null ? '' : String(row.test_password);
+  if (!currentAdmin || isDefaultPanelPassword(currentAdmin) || (bootstrapAdmin && currentAdmin !== bootstrapAdmin)) {
+    patch.admin_password = targetAdmin;
   }
-  if (bootstrapTest) {
-    const current = row.test_password == null ? '' : String(row.test_password);
-    if (!current || current === '116606') patch.test_password = bootstrapTest;
+  if (!currentTest || isDefaultPanelPassword(currentTest) || (bootstrapTest && currentTest !== bootstrapTest)) {
+    patch.test_password = targetTest;
   }
   if (row.heart_drain_enabled) patch.heart_drain_enabled = false;
   if (isLocalQrUrl(row.qr_base_url)) patch.qr_base_url = PRODUCTION_QR_BASE;
@@ -2364,13 +2400,8 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
   const args = (req.body ?? {}) as Record<string, unknown>;
 
   const settings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
-  const adminPw = String(settings.admin_password ?? '').trim();
-  const adminSecrets = collectSecrets(adminPw, process.env.BOOTSTRAP_ADMIN_PASSWORD);
-  const testSecrets = collectSecrets(
-    String(settings.test_password ?? ''),
-    process.env.BOOTSTRAP_TEST_PASSWORD,
-  );
-  if (!testSecrets.length) testSecrets.push('116606');
+  const adminSecrets = panelAdminSecrets(settings.admin_password as string | undefined);
+  const testSecrets = panelTestSecrets(settings.test_password as string | undefined);
 
   function checkPassword() {
     const provided = (args.p_admin_password as string) ?? '';
@@ -2404,8 +2435,9 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         }
         const providedPw = String(args.p_admin_password ?? '').trim();
         const adminTokenArg = String(args.adminToken ?? '').trim();
-        // 실제로 일치한 비밀번호로 토큰 생성 — bootstrap 로그인 시 adminPw(116606) 토큰 불일치 방지
-        let tokenKey = adminPw || adminSecrets[0];
+        const dbAdmin = String(settings.admin_password ?? '').trim();
+        // 실제로 일치한 비밀번호로 토큰 생성 — bootstrap 로그인 시 DB/기본값 불일치 방지
+        let tokenKey = dbAdmin || adminSecrets[0];
         if (secretMatches(providedPw, adminSecrets)) {
           tokenKey = providedPw;
         } else if (adminTokenArg) {
@@ -2414,7 +2446,7 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         }
         const adminToken = deriveAdminToken(tokenKey);
         const bootstrapAdmin = process.env.BOOTSTRAP_ADMIN_PASSWORD?.trim();
-        if (bootstrapAdmin && providedPw === bootstrapAdmin && (!adminPw || adminPw === '116606')) {
+        if (bootstrapAdmin && providedPw === bootstrapAdmin && (!dbAdmin || isDefaultPanelPassword(dbAdmin))) {
           const current = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
           const updated = mergeAppSettings(current, { admin_password: bootstrapAdmin });
           store['app_settings'] = [updated];
@@ -2459,7 +2491,7 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         const provided = String(args.p_test_password ?? '').trim();
         const bootstrapTest = process.env.BOOTSTRAP_TEST_PASSWORD?.trim();
         const dbTest = String(settings.test_password ?? '').trim();
-        if (bootstrapTest && provided === bootstrapTest && (!dbTest || dbTest === '116606')) {
+        if (bootstrapTest && provided === bootstrapTest && (!dbTest || isDefaultPanelPassword(dbTest))) {
           const current = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
           const updated = mergeAppSettings(current, { test_password: bootstrapTest });
           store['app_settings'] = [updated];
@@ -2910,15 +2942,8 @@ const HEALTH_CACHE_TTL_MS = 10_000;
 router.get('/ready', (_req: Request, res: Response) => {
   try {
     const settings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
-    const adminSecrets = collectSecrets(
-      String(settings.admin_password ?? ''),
-      process.env.BOOTSTRAP_ADMIN_PASSWORD,
-    );
-    const testSecrets = collectSecrets(
-      String(settings.test_password ?? ''),
-      process.env.BOOTSTRAP_TEST_PASSWORD,
-    );
-    if (!testSecrets.length) testSecrets.push('116606');
+    const adminSecrets = panelAdminSecrets(settings.admin_password as string | undefined);
+    const testSecrets = panelTestSecrets(settings.test_password as string | undefined);
     res.json({
       ready: true,
       login: {

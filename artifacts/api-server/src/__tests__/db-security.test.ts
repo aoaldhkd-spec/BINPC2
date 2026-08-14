@@ -506,7 +506,7 @@ describe('[Security] test dashboard password', () => {
     await request(app)
       .post('/api/db/rpc/admin_update_settings')
       .send({
-        p_admin_password: '116606',
+        p_admin_password: '166606',
         p_payload: { admin_password: customAdmin, test_password: customTest },
       });
 
@@ -567,7 +567,7 @@ describe('[Security] test dashboard password', () => {
     await request(app)
       .post('/api/db/rpc/admin_update_settings')
       .send({
-        p_admin_password: '116606',
+        p_admin_password: '166606',
         p_payload: { heart_drain_enabled: true, heart_drain_minutes: 3 },
       });
 
