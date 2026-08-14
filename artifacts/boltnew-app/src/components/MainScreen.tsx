@@ -546,9 +546,10 @@ export const ProfileCard = memo(function ProfileCard({
     return () => ro.disconnect();
   }, [statusMsg]);
 
-  // 3:4 카드 — 사진 원본 비율 유지(양옆·위아래 잘림 방지); 파스텔은 영역 전체 채움
+  // 3:4 카드 — flipZone으로 원본 비율 유지; 파스텔(genAvatar 1:1)도 사진과 동일 크기
   const CRATIO = 3 / 4;
-  const r = pastelFill ? CRATIO : (naturalRatio ?? CRATIO);
+  const PASTEL_RATIO = 1; // genAvatar 400×400 정사각
+  const r = pastelFill ? PASTEL_RATIO : (naturalRatio ?? CRATIO);
   const flipZoneStyle: React.CSSProperties = r >= CRATIO
     ? {
         position: 'absolute', left: 0, right: 0,
