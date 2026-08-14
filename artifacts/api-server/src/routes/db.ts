@@ -38,11 +38,16 @@ function deriveAdminToken(adminPassword: string): string {
 function verifyAdminToken(provided: string | null | undefined): boolean {
   if (!provided || typeof provided !== 'string') return false;
   const settings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
-  const adminPw = (settings.admin_password as string) ?? '';
-  const expected = deriveAdminToken(adminPw);
-  try {
-    return timingSafeEqual(Buffer.from(provided, 'hex'), Buffer.from(expected, 'hex'));
-  } catch { return false; }
+  const secrets = collectSecrets(
+    String(settings.admin_password ?? ''),
+    process.env.BOOTSTRAP_ADMIN_PASSWORD,
+  );
+  return secrets.some((s) => {
+    const expected = deriveAdminToken(s);
+    try {
+      return timingSafeEqual(Buffer.from(provided, 'hex'), Buffer.from(expected, 'hex'));
+    } catch { return false; }
+  });
 }
 
 function deriveTestToken(testPassword: string): string {
@@ -53,13 +58,19 @@ function deriveTestToken(testPassword: string): string {
 function verifyTestToken(provided: string | null | undefined): boolean {
   if (!provided || typeof provided !== 'string') return false;
   const settings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
-  const testPassword = ((settings.test_password as string | null | undefined) ?? '').trim() || '116606';
-  const expected = deriveTestToken(testPassword);
-  try {
-    return timingSafeEqual(Buffer.from(provided, 'hex'), Buffer.from(expected, 'hex'));
-  } catch {
-    return false;
-  }
+  const secrets = collectSecrets(
+    String(settings.test_password ?? ''),
+    process.env.BOOTSTRAP_TEST_PASSWORD,
+  );
+  if (!secrets.length) secrets.push('116606');
+  return secrets.some((s) => {
+    const expected = deriveTestToken(s);
+    try {
+      return timingSafeEqual(Buffer.from(provided, 'hex'), Buffer.from(expected, 'hex'));
+    } catch {
+      return false;
+    }
+  });
 }
 
 // 관리자 SSE 연결 집합 — 일반 sseUserMap과 분리해 모든 이벤트(private 포함) 수신
@@ -591,12 +602,33 @@ function defaultAppSettings(): Record<string, unknown> {
     entry_password: koreanDateMMDD(),
     reset_password: null,
     test_password: bootstrapTest || null,
-    qr_base_url: null,
+    qr_base_url: PRODUCTION_QR_BASE,
     heart_drain_enabled: false,
     heart_drain_minutes: 5,
     heart_initial_count: 8,
     active_tables: null,
   };
+}
+
+const PRODUCTION_QR_BASE = 'https://binpc2.netlify.app';
+
+function isLocalQrUrl(url: unknown): boolean {
+  const s = String(url ?? '');
+  return !s || /localhost|127\.0\.0\.1|0\.0\.0\.0/i.test(s);
+}
+
+function collectSecrets(...vals: Array<string | null | undefined>): string[] {
+  const out: string[] = [];
+  for (const v of vals) {
+    const s = (v ?? '').trim();
+    if (s && !out.includes(s)) out.push(s);
+  }
+  return out;
+}
+
+function secretMatches(provided: string, secrets: string[]): boolean {
+  const p = provided.trim();
+  return p.length > 0 && secrets.some(s => s === p);
 }
 
 function mergeAppSettings(
@@ -605,6 +637,7 @@ function mergeAppSettings(
 ): Record<string, unknown> {
   const merged = { ...defaultAppSettings(), ...current, ...patch, id: 1, updated_at: ts() };
   merged.heart_drain_enabled = false;
+  if (isLocalQrUrl(merged.qr_base_url)) merged.qr_base_url = PRODUCTION_QR_BASE;
   return merged;
 }
 
@@ -636,7 +669,6 @@ async function repairAppSettingsIfNeeded(): Promise<void> {
 async function ensureAppSettingsSecrets(): Promise<void> {
   const bootstrapAdmin = process.env.BOOTSTRAP_ADMIN_PASSWORD?.trim();
   const bootstrapTest = process.env.BOOTSTRAP_TEST_PASSWORD?.trim();
-  if (!bootstrapAdmin && !bootstrapTest) return;
 
   const row = getTable('app_settings')[0];
   if (!row) return;
@@ -651,12 +683,13 @@ async function ensureAppSettingsSecrets(): Promise<void> {
     if (!current || current === '116606') patch.test_password = bootstrapTest;
   }
   if (row.heart_drain_enabled) patch.heart_drain_enabled = false;
+  if (isLocalQrUrl(row.qr_base_url)) patch.qr_base_url = PRODUCTION_QR_BASE;
   if (!Object.keys(patch).length) return;
 
   const updated = mergeAppSettings(row, patch);
   store['app_settings'] = [updated];
   await dbPersistRow('app_settings', updated);
-  logger.warn('[db] app_settings secrets synced from bootstrap env');
+  logger.warn('[db] app_settings secrets/qr synced from bootstrap env');
 }
 
 async function seedIfNeeded(): Promise<void> {
@@ -2314,14 +2347,29 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
   const args = (req.body ?? {}) as Record<string, unknown>;
 
   const settings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
-  const adminPw = (settings.admin_password as string) ?? '';
+  const adminPw = String(settings.admin_password ?? '').trim();
+  const adminSecrets = collectSecrets(adminPw, process.env.BOOTSTRAP_ADMIN_PASSWORD);
+  const testSecrets = collectSecrets(
+    String(settings.test_password ?? ''),
+    process.env.BOOTSTRAP_TEST_PASSWORD,
+  );
+  if (!testSecrets.length) testSecrets.push('116606');
 
   function checkPassword() {
     const provided = (args.p_admin_password as string) ?? '';
     const token = (args.adminToken as string) ?? '';
-    if (!adminPw) throw new RpcAuthError('관리자 비밀번호가 서버에 설정되지 않았습니다. 잠시 후 다시 시도하세요.');
-    const isValidToken = token.length > 0 && token === deriveAdminToken(adminPw);
-    if (provided !== adminPw && !isValidToken) throw new RpcAuthError('비밀번호가 일치하지 않습니다.');
+    if (!adminSecrets.length) throw new RpcAuthError('관리자 비밀번호가 서버에 설정되지 않았습니다. 잠시 후 다시 시도하세요.');
+    const isValidToken = token.length > 0 && adminSecrets.some(s => token === deriveAdminToken(s));
+    if (!secretMatches(provided, adminSecrets) && !isValidToken) {
+      throw new RpcAuthError('비밀번호가 일치하지 않습니다.');
+    }
+  }
+
+  function checkTestPassword() {
+    const provided = String(args.p_test_password ?? '').trim();
+    if (!secretMatches(provided, testSecrets)) {
+      throw new RpcAuthError('테스트 비밀번호가 올바르지 않습니다.');
+    }
   }
 
   try {
@@ -2338,7 +2386,16 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
           return res.status(403).json({ data: null, error: { message: '전화번호 또는 비밀번호가 올바르지 않습니다.' } });
         }
         // HMAC 기반 토큰 — 서버 재시작 후에도 동일 토큰이 재계산되어 유효
-        const adminToken = deriveAdminToken(adminPw);
+        const tokenKey = adminPw || adminSecrets[0];
+        const adminToken = deriveAdminToken(tokenKey);
+        const providedPw = String(args.p_admin_password ?? '').trim();
+        const bootstrapAdmin = process.env.BOOTSTRAP_ADMIN_PASSWORD?.trim();
+        if (bootstrapAdmin && providedPw === bootstrapAdmin && (!adminPw || adminPw === '116606')) {
+          const current = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
+          const updated = mergeAppSettings(current, { admin_password: bootstrapAdmin });
+          store['app_settings'] = [updated];
+          dbPersistRow('app_settings', updated).catch(e => logger.error({ err: e }, '[db] persist bootstrap admin password'));
+        }
         return res.json({ data: adminToken, error: null });
       }
 
@@ -2374,32 +2431,27 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
       }
 
       case 'test_verify_password': {
-        const provided = ((args.p_test_password as string | undefined) ?? '').trim();
-        const expected = ((settings.test_password as string | null | undefined) ?? '').trim() || '116606';
-        if (!provided || provided !== expected) {
-          return res.status(403).json({ data: false, error: { message: '테스트 비밀번호가 올바르지 않습니다.' } });
+        checkTestPassword();
+        const provided = String(args.p_test_password ?? '').trim();
+        const bootstrapTest = process.env.BOOTSTRAP_TEST_PASSWORD?.trim();
+        const dbTest = String(settings.test_password ?? '').trim();
+        if (bootstrapTest && provided === bootstrapTest && (!dbTest || dbTest === '116606')) {
+          const current = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
+          const updated = mergeAppSettings(current, { test_password: bootstrapTest });
+          store['app_settings'] = [updated];
+          dbPersistRow('app_settings', updated).catch(e => logger.error({ err: e }, '[db] persist bootstrap test password'));
         }
-        return res.json({ data: deriveTestToken(expected), error: null });
+        return res.json({ data: deriveTestToken(provided), error: null });
       }
 
       case 'test_resync': {
-        // 테스트 대시보드 → 모든 관련 테이블을 DB에서 강제 리로드
-        const pTestPw2 = (args.p_test_password as string | undefined) ?? '';
-        const correctTestPw2 = ((settings.test_password as string | null | undefined) ?? '').trim() || '116606';
-        if (pTestPw2.trim() !== correctTestPw2) {
-          return res.status(403).json({ data: null, error: { message: '테스트 비밀번호가 올바르지 않습니다.' } });
-        }
+        checkTestPassword();
         resyncAllFromNativeDb().catch(e => logger.error({ err: e }, '[rpc] test_resync 실패'));
         return res.json({ data: null, error: null });
       }
 
       case 'test_clear_hearts': {
-        // 테스트 대시보드 → likes 테이블 전체 삭제 (in-memory + DB)
-        const pTestPwH = (args.p_test_password as string | undefined) ?? '';
-        const correctTestPwH = ((settings.test_password as string | null | undefined) ?? '').trim() || '116606';
-        if (pTestPwH.trim() !== correctTestPwH) {
-          return res.status(403).json({ data: null, error: { message: '테스트 비밀번호가 올바르지 않습니다.' } });
-        }
+        checkTestPassword();
         const allLikes = getTable('likes');
         store['likes'] = [];
         _likesLastInsert.clear();
@@ -2425,13 +2477,7 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
       }
 
       case 'test_update_settings': {
-        // 테스트 대시보드 → api-server 인메모리 app_settings 동기화
-        // 관리자 비밀번호 없이 테스트 비밀번호로 인증 (session_active / active_tables 전용)
-        const pTestPw = (args.p_test_password as string | undefined) ?? '';
-        const correctTestPw = ((settings.test_password as string | null | undefined) ?? '').trim() || '116606';
-        if (pTestPw.trim() !== correctTestPw) {
-          return res.status(403).json({ data: null, error: { message: '테스트 비밀번호가 올바르지 않습니다.' } });
-        }
+        checkTestPassword();
         const testPayload = (args.p_payload as Record<string, unknown>) ?? {};
         // 허용 필드 제한 — 테스트 대시보드는 세션·테이블 설정만 변경 가능
         const ALLOWED_TEST_FIELDS = new Set(['session_active', 'active_tables']);

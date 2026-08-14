@@ -10,6 +10,13 @@ import { TestGate } from './components/TestGate';
 
 const AdminApp = lazy(() => import('./AdminApp'));
 
+if ('serviceWorker' in navigator) {
+  const swUrl = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/sw.js?v=20260814c`;
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register(swUrl, { scope: import.meta.env.BASE_URL as string }).catch(() => {});
+  });
+}
+
 // ─── 라우팅 ───────────────────────────────────────────────────────────────────
 function Root() {
   const [path, setPath] = useState(window.location.pathname);

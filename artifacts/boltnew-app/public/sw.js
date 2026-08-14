@@ -1,9 +1,13 @@
 // Service Worker — 푸시 알림 + HTML 캐시 무효화
+const CACHE_VERSION = 'binpc2-20260814c';
 
-// SW 설치 즉시 활성화 (대기 없이)
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    caches.keys().then((keys) => Promise.all(
+      keys.filter((k) => k !== CACHE_VERSION).map((k) => caches.delete(k)),
+    )).then(() => self.clients.claim()),
+  );
 });
 
 // HTML 요청은 항상 네트워크 우선 — 재배포 후 구버전 HTML이 캐시되는 문제 방지

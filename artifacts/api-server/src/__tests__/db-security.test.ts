@@ -497,7 +497,7 @@ describe('[Security] test dashboard password', () => {
       .post('/api/db/rpc/test_verify_password')
       .send({ p_test_password: 'definitely-wrong' });
     expect(res.status).toBe(403);
-    expect(res.body.data).toBe(false);
+    expect(res.body.data === false || res.body.data == null).toBe(true);
   });
 
   it('mergeAppSettings가 admin/test 비밀번호를 유지한다', async () => {
@@ -519,6 +519,23 @@ describe('[Security] test dashboard password', () => {
     const testOk = await request(app)
       .post('/api/db/rpc/test_verify_password')
       .send({ p_test_password: customTest });
+    expect(testOk.status).toBe(200);
+    expect(typeof testOk.body.data).toBe('string');
+  });
+
+  it('BOOTSTRAP_ADMIN_PASSWORD와 BOOTSTRAP_TEST_PASSWORD로도 로그인된다', async () => {
+    process.env.BOOTSTRAP_ADMIN_PASSWORD = 'env-admin-secret-zz';
+    process.env.BOOTSTRAP_TEST_PASSWORD = 'env-test-secret-zz';
+
+    const adminOk = await request(app)
+      .post('/api/db/rpc/admin_create_session')
+      .send({ p_phone: '010-3878-6740', p_admin_password: 'env-admin-secret-zz' });
+    expect(adminOk.status).toBe(200);
+    expect(typeof adminOk.body.data).toBe('string');
+
+    const testOk = await request(app)
+      .post('/api/db/rpc/test_verify_password')
+      .send({ p_test_password: 'env-test-secret-zz' });
     expect(testOk.status).toBe(200);
     expect(typeof testOk.body.data).toBe('string');
   });

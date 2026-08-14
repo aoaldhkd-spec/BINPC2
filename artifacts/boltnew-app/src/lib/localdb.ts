@@ -12,7 +12,7 @@ import type { Database } from '../types/database';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const API = '/api/db';
-const FETCH_TIMEOUT = 4_000; // ms
+const FETCH_TIMEOUT = 15_000; // 모바일·Render 콜드스타트 대비 (기존 4s는 폰에서 로그인 타임아웃)
 
 // ─── Session readiness gate ───────────────────────────────────────────────────
 // 문제: setLocalDbUserId(newUUID) → _currentUserId 즉시 갱신 → /op 요청 날림
@@ -74,7 +74,15 @@ async function apiFetch(path: string, body?: unknown, extraHeaders?: Record<stri
       }
       if (!resp.ok) {
         const text = await resp.text().catch(() => '');
-        return { data: null, error: { message: `HTTP ${resp.status}: ${text}` } };
+        try {
+          const json = JSON.parse(text) as { data?: unknown; error?: { message?: string } };
+          return {
+            data: json.data ?? null,
+            error: json.error ?? { message: `HTTP ${resp.status}` },
+          };
+        } catch {
+          return { data: null, error: { message: `HTTP ${resp.status}: ${text}` } };
+        }
       }
       return await resp.json();
     } catch (e) {

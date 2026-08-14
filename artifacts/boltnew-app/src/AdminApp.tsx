@@ -139,6 +139,16 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
       //  보안 강화로 비관리자 응답에서 admin_password가 제거돼 로그인 불가 문제 발생)
       const { data: token, error: rpcErr } = await supabase.rpc('admin_create_session', { p_phone: phone, p_admin_password: password });
       if (rpcErr) {
+        const msg = String((rpcErr as { message?: string }).message ?? '');
+        setError(
+          msg.includes('HTTP') || msg.includes('fetch') || msg.includes('abort') || msg.includes('network')
+            ? '서버 연결에 실패했습니다. 잠시 후 다시 시도해주세요.'
+            : '전화번호 또는 비밀번호가 올바르지 않습니다.',
+        );
+        setLoading(false);
+        return;
+      }
+      if (typeof token !== 'string' || !token) {
         setError('전화번호 또는 비밀번호가 올바르지 않습니다.');
         setLoading(false);
         return;
@@ -721,7 +731,10 @@ function AdminQrTab({ settings, onSaveQrBase }: { settings: AppSettings | null; 
   // DB 우선, localStorage 폴백 (기존 설정 마이그레이션용)
   const [customBase, setCustomBase] = useState(() => {
     const dbVal = (settings as Record<string, unknown> | null)?.qr_base_url as string | null | undefined;
-    return normalizeBase(dbVal ?? localStorage.getItem('qr_base_url') ?? window.location.origin);
+    const raw = dbVal ?? localStorage.getItem('qr_base_url') ?? 'https://binpc2.netlify.app';
+    const normalized = normalizeBase(raw);
+    if (!normalized || /localhost|127\.0\.0\.1/i.test(normalized)) return 'https://binpc2.netlify.app';
+    return normalized;
   });
   const [editingBase, setEditingBase] = useState(false);
   const [baseInput, setBaseInput] = useState(customBase);
@@ -733,8 +746,11 @@ function AdminQrTab({ settings, onSaveQrBase }: { settings: AppSettings | null; 
     const dbVal = (settings as Record<string, unknown> | null)?.qr_base_url as string | null | undefined;
     if (dbVal) {
       const normalized = normalizeBase(dbVal);
-      setCustomBase(normalized);
-      setBaseInput(normalized);
+      const safe = !normalized || /localhost|127\.0\.0\.1/i.test(normalized)
+        ? 'https://binpc2.netlify.app'
+        : normalized;
+      setCustomBase(safe);
+      setBaseInput(safe);
     }
   }, [settings]);
 
@@ -743,6 +759,10 @@ function AdminQrTab({ settings, onSaveQrBase }: { settings: AppSettings | null; 
     if (val && !val.startsWith('http://') && !val.startsWith('https://')) {
       val = 'https://' + val;
     }
+    if (val && /localhost|127\.0\.0\.1/i.test(val)) {
+      val = 'https://binpc2.netlify.app';
+    }
+    if (!val) val = 'https://binpc2.netlify.app';
     setCustomBase(val);
     setBaseInput(val);
     localStorage.setItem('qr_base_url', val); // 폴백 백업
