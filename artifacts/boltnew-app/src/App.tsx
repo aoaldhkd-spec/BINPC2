@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import { supabase, setLocalDbUserId, setDeviceRecoveryPin, fetchAndSetSseToken, getDeviceSecret, onSseReconnect, onSseDisconnect } from './lib/supabase';
 import { genAvatar } from './lib/profile';
+import { findProfileById, isCompleteProfile } from './lib/profile-session';
 import { HeartType } from './lib/constants';
 // ─── 분리된 타입·유틸·컴포넌트 imports ────────────────────────────────────────
 import type {
@@ -117,9 +118,14 @@ function App() {
   const [contactViewShare, setContactViewShare] = useState<{ share: ContactShare; profile: Profile } | null>(null);
   const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null);
   const [view, setView] = useState<View>(() => {
-    if (ls.getItem(MATCHING_USER_KEY)) return 'main';
+    // localStorage UUID만으로 main 진입 금지 — 서버 프로필 검증 후 전환
+    if (ls.getItem(MATCHING_USER_KEY)) return 'loading-main';
     return 'entry-1';
   });
+  /** 프로필 부트스트랩: checking=검증 중, ok=완료, recover=복구번호 필요, register=신규 등록 필요 */
+  const [profileBoot, setProfileBoot] = useState<'checking' | 'ok' | 'recover' | 'register'>(
+    () => (ls.getItem(MATCHING_USER_KEY) ? 'checking' : 'register'),
+  );
   const [mainTab, setMainTab] = useState<MainTab>('profiles');
   const [fortuneCompatTarget, setFortuneCompatTarget] = useState<string | undefined>(undefined);
   const [fortuneModalTarget, setFortuneModalTarget] = useState<Profile | null>(null);
@@ -222,25 +228,26 @@ function App() {
     return () => window.removeEventListener('storage', onStorage);
   }, []);
 
-  // loading-main 무한 갇힘 방지 — 지수 백오프 재시도(최대 3회) + 강제 전환
-  // ※ Rules of Hooks: 모든 useEffect는 조건부 return 이전에 위치해야 함
+  // loading-main: 내 프로필(닉네임+고유번호) 확인될 때만 main — 없으면 복구/등록 화면
   useEffect(() => {
     if (view !== 'loading-main') return;
     let cancelled = false;
 
-    // 빠른 경로: 프로필이 이미 로드돼 있으면 200ms 내 main 전환
+    const tryEnterMain = (myProfile: Profile | undefined | null): boolean => {
+      if (!myProfile || !isCompleteProfile(myProfile)) return false;
+      setProfileBoot('ok');
+      setView('main');
+      return true;
+    };
+
     const pollId = setInterval(() => {
       if (cancelled) { clearInterval(pollId); return; }
-      if ((profilesRef.current?.length ?? 0) > 0) {
-        clearInterval(pollId);
-        setView('main');
-      }
+      const me = findProfileById(profilesRef.current, userIdRef.current);
+      if (tryEnterMain(me)) clearInterval(pollId);
     }, 200);
 
-    // 지수 백오프 재시도 — 고부하(100명 동시 진입)로 서버 응답이 늦어도 재시도로 극복
-    // 첫 재시도: 1초, 두 번째: 2초, 세 번째: 4초 후 최종 강제 전환
     let attempt = 0;
-    const MAX_ATTEMPTS = 3;
+    const MAX_ATTEMPTS = 8;
     const BASE_DELAY_MS = 1_000;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -249,36 +256,61 @@ function App() {
         if (cancelled) return;
         attempt++;
         try {
-          const loaded = await loadProfilesRef.current();
-          if (cancelled) return;
-          if ((loaded?.length ?? 0) > 0) {
+          const uid = userIdRef.current;
+          if (!uid) {
             clearInterval(pollId);
-            setView('main');
+            setProfileBoot('register');
+            setView('entry-1');
+            return;
+          }
+          const allProfiles = await loadProfilesRef.current();
+          if (cancelled) return;
+          let me = findProfileById(allProfiles, uid);
+          if (!me) {
+            const { data: direct } = await supabase.from('profiles').select('*').eq('id', uid).maybeSingle();
+            if (direct) {
+              me = direct as Profile;
+              setProfiles(prev => prev.some(p => p.id === me!.id) ? prev.map(p => p.id === me!.id ? me! : p) : [me!, ...prev]);
+            }
+          }
+          if (tryEnterMain(me)) {
+            clearInterval(pollId);
+            return;
+          }
+          // 다른 참가자는 있는데 내 프로필만 없음 → 관리자 리셋·기기 변경 — 복구번호로
+          if (allProfiles.length > 0 && !me) {
+            clearInterval(pollId);
+            ls.removeItem(MATCHING_USER_KEY);
+            ls.removeItem(MATCHING_DRAFT_KEY);
+            setCurrentUserId(null);
+            setProfileBoot('recover');
+            setView('entry-recover');
             return;
           }
         } catch {
-          // 네트워크 오류 → 다음 재시도로 계속
+          // 네트워크 오류 — 재시도
         }
         if (!cancelled) {
           if (attempt < MAX_ATTEMPTS) {
-            scheduleRetry(BASE_DELAY_MS * Math.pow(2, attempt));
+            scheduleRetry(BASE_DELAY_MS * Math.pow(2, Math.min(attempt, 4)));
           } else {
-            // 최대 재시도 소진 → 강제 전환 (프로필 없어도 main으로)
+            // 서버 기동 중일 수 있음 — 기존 유저를 entry-1로 팅기지 않고 복구 화면 안내
             clearInterval(pollId);
-            setView('main');
+            setProfileBoot('recover');
+            setView('entry-recover');
           }
         }
       }, delay);
     };
 
-    scheduleRetry(BASE_DELAY_MS); // 1초 후 첫 재시도
+    scheduleRetry(BASE_DELAY_MS);
 
     return () => {
       cancelled = true;
       clearInterval(pollId);
       if (retryTimer) clearTimeout(retryTimer);
     };
-  }, [view]); // loadProfilesRef는 ref이므로 deps 불필요
+  }, [view]);
 
   // SSE 연결 실패 시 polling fallback — SSE 없이도 프로필·채팅·하트 최소 기능 유지
   // connStatus가 'error'로 전환되면 5초마다 재로드 (SSE 복구 시 자동 정지, 중복 없음)
@@ -655,53 +687,69 @@ function App() {
     const rejNotifTimerIds: ReturnType<typeof setTimeout>[] = [];
     // cancelled 플래그 — 언마운트 후 비동기 콜백이 setState를 호출하는 것을 방지
     let cancelled = false;
-    loadProfiles().catch(() => []).then((allProfiles) => {
+    loadProfiles().catch(() => []).then(async (allProfiles) => {
       if (cancelled) return;
-      // 프로필 목록이 비어있으면 서버 기동 중이거나 네트워크 오류 — 세션 유지
-      // 실제 프로필 삭제는 reset_signal SSE로 처리되므로 여기서 aggressive하게 지우지 않음
       if (!allProfiles || allProfiles.length === 0) return;
-      // 신규 가입 직후: DB 반영 지연으로 인한 false-positive 세션 삭제 방지
-      // isNewRegistration이 true이면 방금 insert한 프로필이므로 삭제하지 않고 바로 main으로 이동
       if (isNewRegistration.current) {
         isNewRegistration.current = false;
-        setView('main');
-        setMainTab('status');
+        const me = findProfileById(allProfiles, currentUserId);
+        if (isCompleteProfile(me)) {
+          setProfileBoot('ok');
+          setView('main');
+          setMainTab('status');
+        } else {
+          setView('loading-main');
+        }
         return;
       }
-      // If the profile no longer exists (e.g. admin reset the session), clear stale state
-      // 안정성: DB 전파 지연으로 인한 false-positive 방지 — 2초 후 한 번 더 확인
-      if (!allProfiles.some((p: { id: string }) => p.id === currentUserId)) {
+      let me = findProfileById(allProfiles, currentUserId);
+      if (!me) {
         retryTimerId = setTimeout(async () => {
           const retry = await loadProfiles();
-          if (retry.length > 0 && !retry.some((p: { id: string }) => p.id === currentUserId)) {
+          me = findProfileById(retry, currentUserId);
+          if (!me) {
+            const { data: direct } = await supabase.from('profiles').select('*').eq('id', currentUserId).maybeSingle();
+            if (direct) me = direct as Profile;
+          }
+          if (me && isCompleteProfile(me)) {
+            setProfileBoot('ok');
+            if (view !== 'chat' && view !== 'profile' && view !== 'group-chat') setView('main');
+            return;
+          }
+          if (retry.length > 0 && !me) {
             ls.removeItem(MATCHING_USER_KEY);
             ls.removeItem(MATCHING_DRAFT_KEY);
             setCurrentUserId(null);
             setShownWaiting(false);
-            setView('entry-1');
+            setProfileBoot('recover');
+            setView('entry-recover');
           }
         }, 2000);
         return;
       }
-      setView('main');
-      // 고유번호 없는 기존 사용자 자동 생성
-      const me = allProfiles.find((p: { id: string }) => p.id === currentUserId);
-      if (me && !(me as { pin_code?: string | null }).pin_code) {
+      if (isCompleteProfile(me)) {
+        setProfileBoot('ok');
+        if (view !== 'chat' && view !== 'profile' && view !== 'group-chat' && view !== 'loading-main') {
+          setView('main');
+        }
+      } else {
+        setView('loading-main');
+      }
+      // 고유번호 없으면 서버에서 직접 재조회 (클라이언트 임의 PIN 생성 금지)
+      if (me && !me.pin_code) {
         (async () => {
           try {
-            const seedPin = String(Math.floor(1000 + Math.random() * 9000));
-            const { data: updated } = await supabase
+            const { data: refreshed } = await supabase
               .from('profiles')
-              .update({ pin_code: seedPin })
+              .select('*')
               .eq('id', currentUserId)
-              .select('pin_code')
-              .single();
-            const assigned = (updated as { pin_code?: string } | null)?.pin_code;
-            if (assigned) {
-              setProfiles(prev => prev.map(p => p.id === currentUserId ? { ...p, pin_code: assigned } : p));
+              .maybeSingle();
+            if (refreshed && (refreshed as Profile).pin_code) {
+              setProfiles(prev => prev.map(p => p.id === currentUserId ? (refreshed as Profile) : p));
+              setProfileBoot('ok');
             }
           } catch (err) {
-            console.warn('[pin-gen] 고유번호 자동 생성 실패:', err);
+            console.warn('[pin] 고유번호 재조회 실패:', err);
           }
         })();
       }
@@ -965,12 +1013,12 @@ function App() {
       // ⚠️ 세션 제거는 allProfiles.length > 0 인 경우에만: 빈 결과 = 서버 오류/기동 중
       loadProfiles().then((allProfiles) => {
         if (allProfiles.length > 0 && !allProfiles.some((p: { id: string }) => p.id === storedId)) {
-          // 실제로 프로필이 삭제된 경우(관리자 리셋)만 세션 제거
           ls.removeItem(MATCHING_USER_KEY);
           ls.removeItem(MATCHING_DRAFT_KEY);
           setCurrentUserId(null);
           setShownWaiting(false);
-          setView('entry-1');
+          setProfileBoot('recover');
+          setView('entry-recover');
         } else {
           // Refresh data on returning to app
           loadReceivedLikes(storedId);
@@ -1098,10 +1146,10 @@ function App() {
       ls.setItem(MATCHING_USER_KEY, profile.id);
       ls.removeItem(MATCHING_DRAFT_KEY);
       isNewRegistration.current = true;
-      // 새 프로필을 즉시 로컬 상태에 추가 — DB 반영 지연/SSE 타이밍에 무관하게 세션 유지
       setProfiles(prev => prev.some(p => p.id === profile.id) ? prev : [profile as Profile, ...prev]);
-      setView('loading-main');
       setCurrentUserId(profile.id);
+      setProfileBoot('checking');
+      setView('loading-main');
     }
     } catch (e) {
       console.error('[handleNicknameSetup] 오류:', e);
@@ -1117,6 +1165,7 @@ function App() {
     ls.removeItem(MATCHING_DRAFT_KEY);
     setCurrentUserId(null);
     setShownWaiting(false);
+    setProfileBoot('register');
     setView('entry-1');
   };
 
@@ -1136,6 +1185,7 @@ function App() {
         isNewRegistration.current = true;
         setProfiles(prev => prev.some(p => p.id === profile.id) ? prev : [profile as Profile, ...prev]);
         setCurrentUserId(profile.id);
+        setProfileBoot('checking');
         void fetchAndSetSseToken(profile.id as string);
         setView('loading-main');
       } else {
@@ -1183,11 +1233,15 @@ function App() {
     [receivedLikers, receivedHeartTypes, acknowledgedComplimentIds, contactSharedWithIds],
   );
 
-  // showWaiting: WaitingOverlay를 표시할 조건
-  //   - 프로필 없음(신규 접속자) → 항상 대기 화면
-  //   - 프로필 있어도 sessionActive=false → 회의 시작 전이면 차단
-  //   - shownWaiting: 입장하기 클릭 or 회의 시작 감지 후 true
-  const showWaiting = !shownWaiting && (!currentUserId || sessionActive === false);
+  const myProfile = currentUserId ? profileMap.get(currentUserId) : null;
+  const hasValidProfile = isCompleteProfile(myProfile ?? undefined);
+
+  // 신규(프로필 없음·userId 없음) 또는 session 미시작 → WaitingOverlay
+  // stale userId(프로필 없음)는 별도 복구/검증 흐름 — WaitingOverlay로 막지 않음
+  const showWaiting = !shownWaiting && (
+    (!currentUserId && !hasValidProfile)
+    || (hasValidProfile && sessionActive === false)
+  );
   // QR 스캔 후 미등록 사용자: 자리 QR URL 파라미터는 pendingSeatId/pendingSeatPath에 보존됨.
   // 등록 완료 후 currentUserId useEffect에서 자동으로 자리 배정 처리됨
 
@@ -1213,6 +1267,35 @@ function App() {
     onEnter={() => setShownWaiting(true)}
     onRecover={handleProfileRecovery}
   />;
+
+  // 프로필 미완료·미검증 — 메인 진입 차단 (신규 → 등록, 기존 → 복구번호)
+  if (currentUserId && !hasValidProfile && profileBoot !== 'ok') {
+    if (profileBoot === 'recover' || view === 'entry-recover') {
+      return (
+        <ProfileRecoveryScreen
+          onRecover={handleProfileRecovery}
+          onBack={() => { setProfileBoot('register'); setView('entry-1'); }}
+        />
+      );
+    }
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col items-center justify-center gap-4">
+        <div className="w-12 h-12 rounded-full border-4 border-teal-500/30 border-t-teal-500 animate-spin" />
+        <p className="text-sm text-slate-400 font-semibold">프로필 확인 중...</p>
+      </div>
+    );
+  }
+  if (!currentUserId && !hasValidProfile && view !== 'entry-1' && view !== 'entry-recover' && view !== 'loading-main') {
+    return (
+      <NicknameSetupScreen
+        onSubmit={handleNicknameSetup}
+        loading={loading}
+        registrationError={registrationError}
+        onReset={reset}
+        onShowRecovery={() => setView('entry-recover')}
+      />
+    );
+  }
 
   if (view === 'loading-main') return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col items-center justify-center gap-4">

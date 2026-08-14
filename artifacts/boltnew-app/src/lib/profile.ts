@@ -70,16 +70,42 @@ export function getKoreanAge(birthYear: number | null): string {
 }
 
 // ─── 아바타 SVG 생성 ─────────────────────────────────────────────────────────
-const AVATAR_COLORS_FOR_GEN = [
-  '#0891b2','#0d9488','#059669','#16a34a','#ca8a04',
-  '#d97706','#ea580c','#dc2626','#db2777','#9333ea',
-  '#2563eb','#06b6d4','#10b981','#f97316','#a855f7',
+/** 닉네임 전체를 해시 — 첫 글자만 쓰면 한글 닉네임이 주황색에 몰림 */
+function avatarPaletteIndex(nickname: string): number {
+  let h = 0;
+  for (let i = 0; i < nickname.length; i++) {
+    h = ((h << 5) - h + nickname.charCodeAt(i)) | 0;
+  }
+  return Math.abs(h);
+}
+
+/** 부드러운 파스텔 그라디언트 + 포인트 컬러 (닉네임별로 다양하게 분산) */
+const AVATAR_PALETTE: Array<{ from: string; to: string; accent: string }> = [
+  { from: '#dbeafe', to: '#bfdbfe', accent: '#2563eb' },
+  { from: '#cffafe', to: '#a5f3fc', accent: '#0891b2' },
+  { from: '#d1fae5', to: '#a7f3d0', accent: '#059669' },
+  { from: '#ecfccb', to: '#d9f99d', accent: '#65a30d' },
+  { from: '#fef3c7', to: '#fde68a', accent: '#d97706' },
+  { from: '#fce7f3', to: '#fbcfe8', accent: '#db2777' },
+  { from: '#ede9fe', to: '#ddd6fe', accent: '#7c3aed' },
+  { from: '#ffe4e6', to: '#fecdd3', accent: '#e11d48' },
+  { from: '#e0e7ff', to: '#c7d2fe', accent: '#4f46e5' },
+  { from: '#ccfbf1', to: '#99f6e4', accent: '#0d9488' },
+  { from: '#fae8ff', to: '#f5d0fe', accent: '#a855f7' },
+  { from: '#ffedd5', to: '#fed7aa', accent: '#ea580c' },
 ];
 
 export function genAvatar(nickname: string): string {
-  const bg = AVATAR_COLORS_FOR_GEN[(nickname.charCodeAt(0) ?? 0) % AVATAR_COLORS_FOR_GEN.length];
-  // 1:1 정사각형(400×400) 단색 SVG — 카드가 3:4 컨테이너이므로 위아래 12.5% 흰 여백 생김
-  // → 실제 1:1 사진과 동일한 레이아웃으로 모든 카드가 통일됨
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><rect width="400" height="400" fill="${bg}"/></svg>`;
+  const nick = nickname.trim() || '?';
+  const { from, to, accent } = AVATAR_PALETTE[avatarPaletteIndex(nick) % AVATAR_PALETTE.length];
+  const initial = nick.charAt(0);
+  const svg = [
+    '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400">',
+    `<defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">`,
+    `<stop offset="0%" stop-color="${from}"/><stop offset="100%" stop-color="${to}"/></linearGradient></defs>`,
+    '<rect width="400" height="400" fill="url(#g)"/>',
+    `<text x="200" y="228" text-anchor="middle" font-family="system-ui,sans-serif" font-size="148" font-weight="600" fill="${accent}" opacity="0.88">${initial}</text>`,
+    '</svg>',
+  ].join('');
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }

@@ -23,13 +23,11 @@ let _sessionReady = true;
 let _sessionReadyResolve: (() => void) | null = null;
 let _sessionReadyPromise: Promise<void> = Promise.resolve();
 
-/** loginSession 완료까지 대기. FETCH_TIMEOUT(15s)과 맞춰 콜드스타트·모바일 지연 대응. */
+/** 쓰기·인증 SELECT 전 loginSession 성공까지 대기 (타임아웃으로 미인증 요청을 풀지 않음). */
 async function _waitForSession(): Promise<void> {
   if (_sessionReady) return;
-  await Promise.race([
-    _sessionReadyPromise,
-    new Promise<void>(r => setTimeout(r, FETCH_TIMEOUT)),
-  ]);
+  if (_currentUserId) void loginSession(_currentUserId);
+  await _sessionReadyPromise;
 }
 
 function _markSessionReady() {
@@ -216,8 +214,11 @@ class QueryBuilder {
   }
 
   private async _runAsync(): Promise<DbResult<unknown>> {
-    // 세션이 수립될 때까지 대기 (loginSession 완료 전 /op 요청 전면 차단 방지)
-    await _waitForSession();
+    // SELECT는 세션 대기 없이 공개 조회 가능; INSERT/UPDATE/DELETE는 세션 수립 후에만 전송
+    const needsSession = this._op !== 'select';
+    if (needsSession && _currentUserId && !_sessionReady) {
+      await _waitForSession();
+    }
     return apiFetch('/op', {
       table: this._table,
       op: this._op,
@@ -229,7 +230,8 @@ class QueryBuilder {
       payload: this._payload,
       conflictCols: this._conflictCols,
       selectAfterWrite: this._selectAfterWrite,
-      requesterId: _currentUserId, // IDOR guard: server verifies ownership for sensitive tables
+      // 세션 쿠키가 없을 때 requesterId를 보내면 서버가 401 — 프로필 목록 등 SELECT는 null로 공개 조회
+      requesterId: (_sessionReady && _currentUserId) ? _currentUserId : null,
       adminToken: localStorage.getItem('admin_token_v1') ?? undefined, // admin bypass: included when logged in as admin
       testToken: localStorage.getItem('test_token_v1') ?? undefined,
     }) as Promise<DbResult<unknown>>;
@@ -755,7 +757,7 @@ export async function fetchAndSetSseToken(userId: string, attempt = 0): Promise<
     // 2단계: 세션이 수립된 브라우저에만 SSE 토큰 발급
     const resp = await fetch(`${API}/auth/sse-token`, {
       method: 'POST',
-      credentials: 'same-origin',
+      credentials: 'include',
     });
     if (!resp.ok) {
       scheduleRetry(`HTTP ${resp.status}`);
@@ -819,7 +821,9 @@ export function setDeviceRecoveryPin(pin: string | null): void {
  * deviceSecret은 localStorage에만 있는 값이므로
  * userId만 아는 공격자는 세션을 얻을 수 없습니다.
  */
-async function loginSession(userId: string): Promise<boolean> {
+const LOGIN_MAX_ATTEMPTS = 4;
+
+async function loginSession(userId: string, attempt = 0): Promise<boolean> {
   try {
     const deviceSecret = getDeviceSecret(userId);
     const resp = await fetch(`${API}/auth/login`, {
@@ -830,25 +834,31 @@ async function loginSession(userId: string): Promise<boolean> {
         deviceSecret,
         ...( _pendingPinCode ? { pinCode: _pendingPinCode } : {}),
       }),
-      credentials: 'same-origin',
+      credentials: 'include',
     });
     if (!resp.ok) {
       if (resp.status === 401) {
         const body = await resp.json().catch(() => ({})) as { code?: string };
         if (body.code === 'DEVICE_MISMATCH') {
           console.warn('[localdb] 기기 불일치 — 고유번호(PIN)로 프로필 복구를 이용하세요.');
+          return false;
         }
       }
-      if (_currentUserId === userId) _markSessionReady();
+      if (attempt + 1 < LOGIN_MAX_ATTEMPTS) {
+        const delay = resp.status === 429 ? 3_000 * (attempt + 1) : 1_000 * Math.pow(2, attempt);
+        await new Promise<void>(r => setTimeout(r, delay));
+        return loginSession(userId, attempt + 1);
+      }
       return false;
     }
     _pendingPinCode = null;
-    // 성공: 서버 세션이 userId로 갱신됨 → /op 요청 차단 해제
     if (_currentUserId === userId) _markSessionReady();
     return true;
   } catch {
-    // 네트워크 오류: 게이트 해제 후 익명 폴백
-    if (_currentUserId === userId) _markSessionReady();
+    if (attempt + 1 < LOGIN_MAX_ATTEMPTS) {
+      await new Promise<void>(r => setTimeout(r, 1_000 * Math.pow(2, attempt)));
+      return loginSession(userId, attempt + 1);
+    }
     return false;
   }
 }

@@ -1112,6 +1112,8 @@ router.use(async (_req, res, next) => {
 
 // 120초마다 DB 재동기화 — NOTIFY가 실시간 반영, 변경 없으면 SSE 브로드캐스트 생략
 setInterval(() => { resyncAllFromNativeDb().catch(e => logger.error({ err: e }, '[db] resync failed')); }, 120_000);
+// 25초마다 hot 테이블 재동기화 — 다중 Render 인스턴스 split-brain 완화
+setInterval(() => { resyncHotTablesFromDb().catch(e => logger.warn({ err: e }, '[db] hot resync failed')); }, 25_000);
 
 function tableFingerprint(rows: Record<string, unknown>[]): string {
   let maxTs = '';
@@ -1304,18 +1306,64 @@ function applyAppSettingsFromDbRows(dbRows: Record<string, unknown>[]): boolean 
 }
 
 /** hot 테이블(profiles·seats·app_settings)을 app_kv_rows에서 재동기화 — LISTEN gap 보정 전용 */
+const REALTIME_MERGE_TABLES = new Set(['profiles', 'chats', 'likes', 'messages']);
+const _lastDbMerge = new Map<string, number>();
+const DB_MERGE_THROTTLE_MS = 2_500;
+
+/** SELECT 직전 인스턴스 간 split-brain 완화 — PG 최신 행을 in-memory store에 병합 */
+async function mergeTableFromDbIfStale(table: string): Promise<void> {
+  const now = Date.now();
+  const last = _lastDbMerge.get(table) ?? 0;
+  if (now - last < DB_MERGE_THROTTLE_MS) return;
+  _lastDbMerge.set(table, now);
+  try {
+    const limit = RESYNC_TABLE_LIMIT[table] ?? 5000;
+    const { rows } = await pool.query(
+      `SELECT data FROM app_kv_rows WHERE table_name = $1 ORDER BY updated_at DESC LIMIT $2`,
+      [table, limit],
+    );
+    if (!rows.length) return;
+    if (!store[table]) store[table] = [];
+    const memRows = store[table];
+    const byId = new Map(memRows.map(r => [String(r['id']), r]));
+    for (const row of rows) {
+      const data = row.data as Record<string, unknown>;
+      const id = String(data['id'] ?? '');
+      if (!id) continue;
+      const existing = byId.get(id);
+      const dbTs = String(data.updated_at ?? data.created_at ?? '');
+      const memTs = existing ? String(existing.updated_at ?? existing.created_at ?? '') : '';
+      if (!existing) {
+        memRows.push(data);
+        byId.set(id, data);
+      } else if (dbTs >= memTs) {
+        const idx = memRows.findIndex(r => String(r['id']) === id);
+        if (idx >= 0) memRows[idx] = data;
+        byId.set(id, data);
+      }
+    }
+  } catch (e) {
+    logger.warn({ err: e, table }, '[db] mergeTableFromDbIfStale failed');
+  }
+}
+
 async function resyncHotTablesFromDb(): Promise<void> {
   try {
-    const [profileRes, settingsRes] = await Promise.all([
-      pool.query(`SELECT data FROM app_kv_rows WHERE table_name = 'profiles'`),
-      pool.query(`SELECT data FROM app_kv_rows WHERE table_name = 'app_settings' ORDER BY updated_at DESC`),
-    ]);
-    if (profileRes.rows.length) {
-      store['profiles'] = profileRes.rows.map(r => r.data as Record<string, unknown>);
-    }
-    if (settingsRes.rows.length) {
-      applyAppSettingsFromDbRows(settingsRes.rows.map(r => r.data as Record<string, unknown>));
-    }
+    const hotTables = ['profiles', 'chats', 'likes', 'messages', 'app_settings'] as const;
+    const limits: Record<string, number> = { profiles: 10000, chats: 5000, likes: 5000, messages: 5000, app_settings: 10 };
+    await Promise.all(hotTables.map(async (tbl) => {
+      const limit = limits[tbl] ?? 5000;
+      const { rows } = await pool.query(
+        `SELECT data FROM app_kv_rows WHERE table_name = $1 ORDER BY updated_at DESC LIMIT $2`,
+        [tbl, limit],
+      );
+      if (!rows.length) return;
+      if (tbl === 'app_settings') {
+        applyAppSettingsFromDbRows(rows.map(r => r.data as Record<string, unknown>));
+      } else {
+        store[tbl] = rows.map(r => r.data as Record<string, unknown>);
+      }
+    }));
     logger.info({}, '[db] hot-table resync complete');
   } catch (e) {
     logger.warn({ err: e }, '[db] hot-table resync failed');
@@ -1821,11 +1869,15 @@ router.post('/op', async (req: Request, res: Response) => {
   }
 
   if (!store[table]) store[table] = [];
-  const tableData = store[table];
+  let tableData = store[table];
 
   try {
     // ── SELECT ──────────────────────────────────────────────────────────────
     if (op === 'select') {
+      if (REALTIME_MERGE_TABLES.has(table)) {
+        await mergeTableFromDbIfStale(table);
+        tableData = store[table];
+      }
       // ─ IDOR guard (강화): messages SELECT
       //   규칙 1: requesterId 없으면 메시지 접근 불가 (비인증 요청 차단)
       //   규칙 2: chat_id 필터 없으면 메시지 전체 덤프 불가
