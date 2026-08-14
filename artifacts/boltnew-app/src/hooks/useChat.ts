@@ -44,6 +44,7 @@ import { onSseReconnect, getSseToken } from '../lib/localdb';
 import type { Profile, Message, Chat, View } from '../types/app';
 import { HeartType } from '../lib/constants';
 import { applySseInsert, applyLoadMessages } from '../lib/chat-reducers';
+import { chatPairKey, dedupeChatList, pickCanonicalChat } from '../lib/chat-pair';
 
 interface UseChatDeps {
   currentUserId: string | null;
@@ -182,7 +183,9 @@ export function useChat({
               created_at: c.created_at ?? new Date().toISOString(), lastMessage: '', messageCount: 0,
             };
             setChatList(prev => {
+              const pairKey = chatPairKey(c.user1_id ?? '', c.user2_id ?? '');
               if (prev.some(x => x.id === c.id)) return prev;
+              if (prev.some(x => chatPairKey(x.user1_id, x.user2_id) === pairKey)) return prev;
               const next = [newChat, ...prev];
               chatListRef.current = next;
               return next;
@@ -322,16 +325,31 @@ export function useChat({
         .in('chat_id', chatIds).order('created_at', { ascending: false }).limit(Math.max(chatIds.length * 20, 100));
       if (gen !== loadChatListGenRef.current) return;
 
+      const msgCountByChat = new Map<string, number>();
       const latestByChat = new Map<string, { content: string; image_url?: string; created_at: string }>();
       if (allMsgs) {
         for (const m of allMsgs as { chat_id: string; content: string; image_url?: string; created_at: string }[]) {
+          msgCountByChat.set(m.chat_id, (msgCountByChat.get(m.chat_id) ?? 0) + 1);
           if (!latestByChat.has(m.chat_id)) latestByChat.set(m.chat_id, { content: m.content, image_url: m.image_url, created_at: m.created_at });
         }
       }
 
-      const enriched: Chat[] = data.map((c: { id: string; user1_id: string; user2_id: string; created_at: string }) => {
-        const latest = latestByChat.get(c.id);
-        return { ...c, lastMessage: latest?.image_url ? '📷 사진' : (latest?.content ?? ''), messageCount: 0 };
+      const deduped = dedupeChatList(
+        data as { id: string; user1_id: string; user2_id: string; created_at: string }[],
+        msgCountByChat,
+      );
+
+      const enriched: Chat[] = deduped.map((c) => {
+        const pk = chatPairKey(c.user1_id, c.user2_id);
+        const siblings = (data as { id: string; user1_id: string; user2_id: string; created_at: string }[])
+          .filter(x => chatPairKey(x.user1_id, x.user2_id) === pk);
+        let bestLatest = latestByChat.get(c.id);
+        for (const s of siblings) {
+          const lat = latestByChat.get(s.id);
+          if (lat && (!bestLatest || lat.created_at > bestLatest.created_at)) bestLatest = lat;
+        }
+        const totalMsgs = siblings.reduce((sum, s) => sum + (msgCountByChat.get(s.id) ?? 0), 0);
+        return { ...c, lastMessage: bestLatest?.image_url ? '📷 사진' : (bestLatest?.content ?? ''), messageCount: totalMsgs };
       });
       setChatList(enriched);
       void syncUnreadCountsRef.current?.();
@@ -342,6 +360,7 @@ export function useChat({
 
   // ── 채팅방 열기 ──────────────────────────────────────────────────────────────
   const openChatGenRef = useRef(0);
+  const openChatInflightRef = useRef<Map<string, Promise<string | null>>>(new Map());
   const selfInitiatedPairTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Fix #10: openChat 내 에러 알림 setTimeout — 언마운트 시 미취소로 stale setState 발생 방지
   const openChatNotifTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -383,44 +402,66 @@ export function useChat({
     }, 5000);
 
     try {
-      const { data: existingChat } = await supabase
-        .from('chats').select('*').eq('user1_id', user1Id).eq('user2_id', user2Id).maybeSingle();
-      if (gen !== openChatGenRef.current) return;
-
-      let resolvedChatId: string | null = null;
-      if (existingChat) {
-        resolvedChatId = existingChat.id;
-      } else {
-        const { data: newChat, error: createErr } = await supabase
-          .from('chats').insert({ user1_id: user1Id, user2_id: user2Id }).select().single();
+      const pairKey = chatPairKey(user1Id, user2Id);
+      const inflight = openChatInflightRef.current.get(pairKey);
+      if (inflight) {
+        const waitedId = await inflight;
         if (gen !== openChatGenRef.current) return;
-
-        if (newChat) {
-          resolvedChatId = newChat.id;
-          const newChatEntry: Chat = { ...newChat, lastMessage: '', messageCount: 0 };
-          setChatList(prev => {
-            if (prev.some(c => c.id === newChat.id)) return prev;
-            return [newChatEntry, ...prev];
-          });
-        } else {
-          const errMsg = typeof createErr === 'object' && createErr !== null && 'message' in createErr
-            ? String((createErr as { message: unknown }).message)
-            : String(createErr ?? 'unknown');
-          console.error('[openChat] 채팅방 생성 실패:', errMsg);
-          // DB unique constraint 충돌 등으로 insert 실패 시 재조회
-          const { data: retryChat } = await supabase
-            .from('chats').select('*').eq('user1_id', user1Id).eq('user2_id', user2Id).maybeSingle();
-          if (gen !== openChatGenRef.current) return;
-          if (retryChat) {
-            resolvedChatId = retryChat.id;
-            const retryChatEntry: Chat = { ...retryChat, lastMessage: '', messageCount: 0 };
-            setChatList(prev => {
-              if (prev.some(c => c.id === retryChat.id)) return prev;
-              return [retryChatEntry, ...prev];
-            });
-          }
+        if (waitedId) {
+          chatIdRef.current = waitedId;
+          setChatId(waitedId);
+          return;
         }
       }
+
+      const doOpen = async (): Promise<string | null> => {
+        const { data: pairChats, error: listErr } = await supabase
+          .from('chats').select('*').eq('user1_id', user1Id).eq('user2_id', user2Id);
+        if (listErr) console.error('[openChat] 조회 오류:', listErr.message);
+
+        let resolvedChatId: string | null = null;
+        const existingList = (pairChats ?? []) as Chat[];
+        if (existingList.length > 0) {
+          resolvedChatId = pickCanonicalChat(existingList)?.id ?? existingList[0].id;
+        } else {
+          const { data: newChat, error: createErr } = await supabase
+            .from('chats').insert({ user1_id: user1Id, user2_id: user2Id }).select().single();
+          if (newChat) {
+            resolvedChatId = newChat.id;
+            const newChatEntry: Chat = { ...newChat, lastMessage: '', messageCount: 0 };
+            setChatList(prev => {
+              const pk = chatPairKey(user1Id, user2Id);
+              if (prev.some(c => chatPairKey(c.user1_id, c.user2_id) === pk)) return prev;
+              if (prev.some(c => c.id === newChat.id)) return prev;
+              return [newChatEntry, ...prev];
+            });
+          } else {
+            const errMsg = typeof createErr === 'object' && createErr !== null && 'message' in createErr
+              ? String((createErr as { message: unknown }).message)
+              : String(createErr ?? 'unknown');
+            console.error('[openChat] 채팅방 생성 실패:', errMsg);
+            const { data: retryChats } = await supabase
+              .from('chats').select('*').eq('user1_id', user1Id).eq('user2_id', user2Id);
+            const retryList = (retryChats ?? []) as Chat[];
+            if (retryList.length > 0) {
+              resolvedChatId = pickCanonicalChat(retryList)?.id ?? retryList[0].id;
+            }
+          }
+        }
+        return resolvedChatId;
+      };
+
+      const openPromise = doOpen();
+      openChatInflightRef.current.set(pairKey, openPromise);
+      let resolvedChatId: string | null;
+      try {
+        resolvedChatId = await openPromise;
+      } finally {
+        if (openChatInflightRef.current.get(pairKey) === openPromise) {
+          openChatInflightRef.current.delete(pairKey);
+        }
+      }
+      if (gen !== openChatGenRef.current) return;
 
       if (!resolvedChatId) {
         console.error('[openChat] 채팅방 ID 결정 불가 — 메인으로 복귀');

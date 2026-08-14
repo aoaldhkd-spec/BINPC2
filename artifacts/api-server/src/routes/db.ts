@@ -432,6 +432,92 @@ function getTable(name: string): Record<string, unknown>[] {
   return store[name];
 }
 
+/** user1/user2 쌍 키 (항상 lex sort) */
+function chatPairKey(u1: string, u2: string): string {
+  const [a, b] = [String(u1), String(u2)].sort();
+  return `${a}:${b}`;
+}
+
+function countMessagesForChat(chatId: string): number {
+  return getTable('messages').filter(m => String(m.chat_id) === String(chatId)).length;
+}
+
+/** 동일 user 쌍의 모든 chat id (메시지 조회·병합용) */
+function chatIdsForPair(u1: string, u2: string): string[] {
+  const key = chatPairKey(u1, u2);
+  return getTable('chats')
+    .filter(c => chatPairKey(String(c.user1_id), String(c.user2_id)) === key)
+    .map(c => String(c.id));
+}
+
+function pickCanonicalChatRow(group: Record<string, unknown>[]): Record<string, unknown> {
+  return [...group].sort((a, b) => {
+    const diff = countMessagesForChat(String(b.id)) - countMessagesForChat(String(a.id));
+    if (diff !== 0) return diff;
+    return String(a.created_at ?? a.id).localeCompare(String(b.created_at ?? b.id));
+  })[0];
+}
+
+/** 중복 1:1 채팅방 병합 — 메시지·읽음을 canonical 방으로 이전 */
+async function dedupeChatsInStore(): Promise<number> {
+  const chats = getTable('chats');
+  if (chats.length < 2) return 0;
+  const groups = new Map<string, Record<string, unknown>[]>();
+  for (const c of chats) {
+    const u1 = String(c.user1_id ?? '');
+    const u2 = String(c.user2_id ?? '');
+    if (!u1 || !u2 || u1 === u2) continue;
+    const key = chatPairKey(u1, u2);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(c);
+  }
+  let merged = 0;
+  for (const group of groups.values()) {
+    if (group.length <= 1) continue;
+    const canonical = pickCanonicalChatRow(group);
+    const canonicalId = String(canonical.id);
+    for (const dup of group) {
+      const dupId = String(dup.id);
+      if (dupId === canonicalId) continue;
+      for (const msg of getTable('messages')) {
+        if (String(msg.chat_id) === dupId) {
+          msg.chat_id = canonicalId;
+          void dbPersistRow('messages', msg);
+        }
+      }
+      const reads = getTable('chat_reads');
+      for (let i = reads.length - 1; i >= 0; i--) {
+        const cr = reads[i];
+        if (String(cr.chat_id) !== dupId) continue;
+        const readerId = String(cr.reader_id ?? '');
+        const existing = reads.find(
+          r => String(r.chat_id) === canonicalId && String(r.reader_id) === readerId,
+        );
+        if (existing) {
+          const crTs = String(cr.read_at ?? '');
+          const exTs = String(existing.read_at ?? '');
+          if (crTs > exTs) existing.read_at = cr.read_at;
+          void dbPersistRow('chat_reads', existing);
+          reads.splice(i, 1);
+          void dbDeleteRow('chat_reads', String(cr.id));
+        } else {
+          cr.chat_id = canonicalId;
+          cr.id = `${canonicalId}__${readerId}`;
+          void dbPersistRow('chat_reads', cr);
+        }
+      }
+      const idx = chats.findIndex(c => String(c.id) === dupId);
+      if (idx >= 0) chats.splice(idx, 1);
+      void dbDeleteRow('chats', dupId);
+      merged++;
+    }
+  }
+  if (merged > 0) {
+    logger.info({ merged }, '[db] dedupeChatsInStore merged duplicate chat rooms');
+  }
+  return merged;
+}
+
 // ─── PostgreSQL persistence helpers ───────────────────────────────────────────
 // [Part1-Fix4] Per-(table, row_id) write serialization — 동시 upsert 순서 역전 방지
 // 동일 키의 새 write는 이전 promise 완료 후 실행 → 오래된 스냅샷이 최신 데이터를 덮어쓰지 않음
@@ -1306,10 +1392,10 @@ const _lastDbMerge = new Map<string, number>();
 const DB_MERGE_THROTTLE_MS = 2_500;
 
 /** SELECT 직전 인스턴스 간 split-brain 완화 — PG 최신 행을 in-memory store에 병합 */
-async function mergeTableFromDbIfStale(table: string): Promise<void> {
+async function mergeTableFromDbIfStale(table: string, force = false): Promise<void> {
   const now = Date.now();
   const last = _lastDbMerge.get(table) ?? 0;
-  if (now - last < DB_MERGE_THROTTLE_MS) return;
+  if (!force && now - last < DB_MERGE_THROTTLE_MS) return;
   _lastDbMerge.set(table, now);
   try {
     const limit = RESYNC_TABLE_LIMIT[table] ?? 5000;
@@ -1337,6 +1423,7 @@ async function mergeTableFromDbIfStale(table: string): Promise<void> {
         byId.set(id, data);
       }
     }
+    if (table === 'chats') await dedupeChatsInStore();
   } catch (e) {
     logger.warn({ err: e, table }, '[db] mergeTableFromDbIfStale failed');
   }
@@ -1359,6 +1446,7 @@ async function resyncHotTablesFromDb(): Promise<void> {
         store[tbl] = rows.map(r => r.data as Record<string, unknown>);
       }
     }));
+    await dedupeChatsInStore();
     logger.info({}, '[db] hot-table resync complete');
   } catch (e) {
     logger.warn({ err: e }, '[db] hot-table resync failed');
@@ -1912,14 +2000,32 @@ router.post('/op', async (req: Request, res: Response) => {
           }
 
           if (chatIdEqF) {
-            // 단일 채팅방 접근 — 참여자 검증
-            const chat = getTable('chats').find(c => c.id === chatIdEqF.val);
+            // 단일 채팅방 접근 — 참여자 검증 (+ 동일 쌍 중복 방 메시지 통합)
+            const chat = getTable('chats').find(c => String(c.id) === String(chatIdEqF.val));
             if (!chat) {
               return res.json({ data: [], error: null }); // 존재하지 않는 채팅방 → 빈 배열
             }
             if (String(chat.user1_id) !== String(requesterId) && String(chat.user2_id) !== String(requesterId)) {
               logger.warn({ requesterId, chatId: chatIdEqF.val, ip: req.ip }, '[SECURITY] IDOR: messages SELECT by non-participant blocked');
               return res.status(403).json({ data: null, error: { message: 'Forbidden: not a chat participant', code: 'FORBIDDEN' } });
+            }
+            const siblingIds = chatIdsForPair(String(chat.user1_id), String(chat.user2_id));
+            if (siblingIds.length > 1) {
+              const scoped = getTable('messages').filter(m => siblingIds.includes(String(m.chat_id)));
+              const otherFilters = normalizedFilters.filter(f => !(f.type === 'eq' && f.col === 'chat_id'));
+              let scopedResult = applyFilters(scoped, otherFilters);
+              for (const { col, asc } of safeOrders) {
+                scopedResult.sort((a, b) => {
+                  const av = a[col]; const bv = b[col];
+                  if (av === bv) return 0;
+                  if (av == null) return asc ? -1 : 1;
+                  if (bv == null) return asc ? 1 : -1;
+                  return (av < bv ? -1 : 1) * (asc ? 1 : -1);
+                });
+              }
+              if (limit != null) scopedResult = scopedResult.slice(0, limit);
+              const scopedData = single ? (scopedResult[0] ?? null) : maybeSingle ? (scopedResult[0] ?? null) : scopedResult;
+              return res.json({ data: scopedData, error: null });
             }
           }
 
@@ -1971,8 +2077,16 @@ router.post('/op', async (req: Request, res: Response) => {
         const chatScope = tableData.filter(c =>
           String(c.user1_id) === String(requesterId) || String(c.user2_id) === String(requesterId)
         );
-        // 이후 로직이 filteredChats 기반으로 동작하도록 임시 교체 (읽기 전용)
-        const scopedResult = applyFilters(chatScope, normalizedFilters);
+        const dedupedScope: Record<string, unknown>[] = [];
+        const seenPairs = new Set<string>();
+        for (const c of chatScope) {
+          const pk = chatPairKey(String(c.user1_id), String(c.user2_id));
+          if (seenPairs.has(pk)) continue;
+          const siblings = chatScope.filter(x => chatPairKey(String(x.user1_id), String(x.user2_id)) === pk);
+          dedupedScope.push(pickCanonicalChatRow(siblings));
+          seenPairs.add(pk);
+        }
+        const scopedResult = applyFilters(dedupedScope, normalizedFilters);
         for (const { col, asc } of safeOrders) {
           scopedResult.sort((a, b) => {
             const av = a[col]; const bv = b[col];
@@ -2105,6 +2219,11 @@ router.post('/op', async (req: Request, res: Response) => {
     // ── INSERT ──────────────────────────────────────────────────────────────
     if (op === 'insert') {
       if (payload == null) return res.status(400).json({ data: null, error: { message: 'payload is required for insert', code: '22023' } });
+      if (table === 'chats') {
+        await mergeTableFromDbIfStale('chats', true);
+        await dedupeChatsInStore();
+        tableData = store[table];
+      }
       const inputs = Array.isArray(payload) ? payload as Record<string, unknown>[] : [payload as Record<string, unknown>];
       const inserted: Record<string, unknown>[] = [];
       // Fix #4: O(n²) → O(n) — profiles 삽입 시 루프 밖에서 Set 1회만 빌드
@@ -2137,6 +2256,15 @@ router.post('/op', async (req: Request, res: Response) => {
           if (effectiveRow.chat_id == null) {
             logger.warn({ requesterId, ip: req.ip }, '[SECURITY] IDOR: messages INSERT without chat_id blocked');
             return res.status(400).json({ data: null, error: { message: 'chat_id is required for messages', code: 'INVALID_INPUT' } });
+          }
+          const msgChat = getTable('chats').find(c => String(c.id) === String(effectiveRow.chat_id));
+          if (msgChat) {
+            const pk = chatPairKey(String(msgChat.user1_id), String(msgChat.user2_id));
+            const siblings = getTable('chats').filter(c => chatPairKey(String(c.user1_id), String(c.user2_id)) === pk);
+            if (siblings.length > 1) {
+              const canonical = pickCanonicalChatRow(siblings);
+              effectiveRow = { ...effectiveRow, chat_id: canonical.id };
+            }
           }
           // 채팅방 참여자 검증 — 채팅방에 속하지 않은 사용자가 메시지를 삽입하는 공격 차단
           const targetChat = getTable('chats').find(c => c.id === effectiveRow.chat_id);
