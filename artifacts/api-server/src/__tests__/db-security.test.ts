@@ -736,6 +736,125 @@ describe('[Realtime] 인증 SSE 채팅 전달', () => {
     }
   });
 
+  it('A가 만든 채팅방을 B가 SELECT와 SSE로 모두 수신한다', async () => {
+    const a = randomUUID();
+    const b = randomUUID();
+    const agentA = await loginAgent(a);
+    const agentB = await loginAgent(b);
+
+    const tokenRes = await agentB.post('/api/db/auth/sse-token');
+    expect(tokenRes.status).toBe(200);
+    const token = tokenRes.body.token as string;
+
+    const server = await listenApp();
+    const { port } = server.address() as AddressInfo;
+    try {
+      const path = `/api/db/events?userId=${encodeURIComponent(b)}&token=${encodeURIComponent(token)}`;
+      let chatId = '';
+      await new Promise<void>((resolve, reject) => {
+        let buf = '';
+        let inserted = false;
+        let done = false;
+        const finish = () => {
+          if (done) return;
+          done = true;
+          req.destroy();
+          resolve();
+        };
+        const req = http.get({
+          hostname: '127.0.0.1',
+          port,
+          path,
+          headers: { Accept: 'text/event-stream' },
+        }, (res) => {
+          res.setEncoding('utf8');
+          res.on('data', (chunk: string) => {
+            buf += chunk;
+            if (!inserted && buf.includes('"type":"ping"')) {
+              inserted = true;
+              void agentA
+                .post('/api/db/op')
+                .set('Content-Type', 'application/json')
+                .send({
+                  op: 'insert',
+                  table: 'chats',
+                  requesterId: a,
+                  payload: { user1_id: a, user2_id: b },
+                  selectAfterWrite: true,
+                  single: true,
+                })
+                .then((r) => {
+                  if (r.status !== 200 || !r.body.data?.id) {
+                    if (!done) {
+                      done = true;
+                      req.destroy();
+                      reject(new Error(`chat insert failed ${r.status}`));
+                    }
+                    return;
+                  }
+                  chatId = r.body.data.id as string;
+                  if (buf.includes(chatId) && buf.includes('"table":"chats"')) finish();
+                });
+            }
+            if (chatId && buf.includes(chatId) && buf.includes('"table":"chats"') && buf.includes('"INSERT"')) {
+              finish();
+            }
+          });
+        });
+        req.on('error', (err) => {
+          if ((err as NodeJS.ErrnoException).code === 'ECONNRESET') return;
+          reject(err);
+        });
+        const timer = setTimeout(() => {
+          req.destroy();
+          reject(new Error(`chat SSE timeout. got: ${buf.slice(0, 800)}`));
+        }, 4000);
+        req.on('close', () => clearTimeout(timer));
+      });
+
+      const listB = await agentB
+        .post('/api/db/op')
+        .set('Content-Type', 'application/json')
+        .send({
+          op: 'select',
+          table: 'chats',
+          requesterId: b,
+          filters: [{ type: 'or', expr: `user1_id.eq.${b},user2_id.eq.${b}` }],
+        });
+      expect(listB.status).toBe(200);
+      expect(Array.isArray(listB.body.data)).toBe(true);
+      expect(listB.body.data.some((c: { id: string }) => c.id === chatId)).toBe(true);
+
+      const marker = `pair-${chatId.slice(0, 8)}`;
+      const msgRes = await agentA
+        .post('/api/db/op')
+        .set('Content-Type', 'application/json')
+        .send({
+          op: 'insert',
+          table: 'messages',
+          requesterId: a,
+          payload: { chat_id: chatId, sender_id: a, content: marker, client_id: randomUUID() },
+          selectAfterWrite: true,
+          single: true,
+        });
+      expect(msgRes.status).toBe(200);
+
+      const msgsB = await agentB
+        .post('/api/db/op')
+        .set('Content-Type', 'application/json')
+        .send({
+          op: 'select',
+          table: 'messages',
+          requesterId: b,
+          filters: [{ type: 'eq', col: 'chat_id', val: chatId }],
+        });
+      expect(msgsB.status).toBe(200);
+      expect((msgsB.body.data as { content: string }[]).some((m) => m.content === marker)).toBe(true);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
   it('lastEventId 쿼리로 링버퍼 미수신 메시지를 재전송한다', async () => {
     const a = randomUUID();
     const b = randomUUID();

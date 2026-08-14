@@ -12,5 +12,6 @@ export function buildPgOptions(): pg.ClientConfig {
   return {
     connectionString: withPgSslParams(raw),
     ssl: raw ? { rejectUnauthorized: false } : undefined,
+    connectionTimeoutMillis: 5_000,
   };
 }

@@ -58,6 +58,7 @@ async function apiFetch(path: string, body?: unknown, extraHeaders?: Record<stri
     try {
       const resp = await fetch(`${API}${path}`, {
         method: body !== undefined ? 'POST' : 'GET',
+        credentials: 'include',
         headers: body !== undefined
           ? { 'Content-Type': 'application/json', ...extraHeaders }
           : (extraHeaders ?? undefined),

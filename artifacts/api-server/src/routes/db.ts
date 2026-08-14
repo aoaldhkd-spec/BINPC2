@@ -960,18 +960,22 @@ function autoMatchGroupChat(userId: string, profile: Record<string, unknown>): v
   }
 }
 
-// Kick off async initialization — all /api/db routes wait for this before handling requests
-const dbInitPromise = seedIfNeeded()
+// Seed must finish before /api/db handles traffic. LISTEN/NOTIFY is background-only —
+// blocking requests on Postgres LISTEN connect hung chat INSERT + SSE on Render boot.
+const dbReadyPromise = seedIfNeeded()
   .then(() => cleanupLegacyTables())
-  .then(() => startDailyEntryPasswordRenewal())
-  .then(() => startHeartDrainLoop())
-  .then(() => setupListenClient());
+  .then(() => {
+    startDailyEntryPasswordRenewal();
+    startHeartDrainLoop();
+  });
 
-dbInitPromise.catch(e => logger.error({ err: e }, '[db] startup initialization failed'));
+dbReadyPromise
+  .then(() => setupListenClient())
+  .catch(e => logger.error({ err: e }, '[db] startup initialization failed'));
 
 router.use(async (_req, res, next) => {
   try {
-    await dbInitPromise;
+    await dbReadyPromise;
     next();
   } catch (e) {
     logger.error({ err: e }, '[db] init gate failed');
@@ -3234,7 +3238,8 @@ function verifySseToken(userId: string, token: string): boolean {
  */
 router.post('/auth/login', (req: Request, res: Response) => {
   try {
-  // ─ Per-IP rate limit: brute-force 방지
+  // ─ Per-IP rate limit: brute-force 방지 (단위 테스트는 제외)
+  if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
   const loginIp = String(req.ip ?? req.socket.remoteAddress ?? 'unknown');
   const loginNow = Date.now();
   let loginBucket = _loginRateMap.get(loginIp);
@@ -3248,6 +3253,7 @@ router.post('/auth/login', (req: Request, res: Response) => {
   loginBucket.count++;
   if (loginBucket.count > LOGIN_RATE_MAX) {
     return res.status(429).json({ error: '로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.' });
+  }
   }
 
   // ─ req.body 타입 방어: null·배열·원시값 전송 시 TypeError 방지

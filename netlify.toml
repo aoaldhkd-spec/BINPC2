@@ -9,6 +9,12 @@
   NODE_VERSION = "22"
   COREPACK_ENABLE_DOWNLOAD_PROMPT = "0"
 
+[[headers]]
+  for = "/api/db/events"
+  [headers.values]
+    Cache-Control = "no-cache, no-transform"
+    X-Accel-Buffering = "no"
+
 [[redirects]]
   from = "/api/*"
   to = ":env(API_URL)/api/:splat"

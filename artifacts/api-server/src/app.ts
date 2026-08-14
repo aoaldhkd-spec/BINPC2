@@ -43,7 +43,7 @@ setInterval(() => {
  */
 function makeRateLimiter(maxRequests: number, windowMs: number, namespace: string) {
   return (req: Request, res: Response, next: NextFunction): void => {
-    if (process.env.NODE_ENV === 'test') {
+    if (process.env.NODE_ENV === 'test' || process.env.VITEST) {
       next();
       return;
     }
