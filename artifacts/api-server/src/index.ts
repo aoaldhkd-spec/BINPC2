@@ -1,3 +1,4 @@
+import './lib/dns-ipv4-first.js';
 import app from "./app";
 import { logger } from "./lib/logger";
 import { gracefulShutdown } from "./routes/db";
