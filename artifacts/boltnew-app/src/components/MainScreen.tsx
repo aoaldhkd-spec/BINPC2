@@ -546,9 +546,10 @@ export const ProfileCard = memo(function ProfileCard({
     return () => ro.disconnect();
   }, [statusMsg]);
 
-  // 3:4 카드 — flipZone: 사진·파스텔 동일 로직 (naturalRatio 기준)
+  // flipZone — 파스텔·프리셋 아바타는 1:1(정사각), 업로드 사진은 naturalRatio
   const CRATIO = 3 / 4;
-  const r = naturalRatio ?? CRATIO;
+  const AVATAR_RATIO = 1;
+  const r = pastelFill ? AVATAR_RATIO : (naturalRatio ?? CRATIO);
   const flipZoneStyle: React.CSSProperties = r >= CRATIO
     ? {
         position: 'absolute', left: 0, right: 0,
@@ -702,15 +703,19 @@ export const ProfileCard = memo(function ProfileCard({
                 }}
                 onClick={(e) => { e.stopPropagation(); setIsFlipped(true); }}
               >
-                <img
-                  src={pastelFill ? getAvatarSrc(profile.photo_url, profile.nickname) : profile.photo_url!}
-                  alt={profile.nickname}
-                  loading="lazy"
-                  decoding="async"
-                  onLoad={handleImgLoad}
-                  onError={() => setImgFailed(true)}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
+                {pastelFill ? (
+                  <div className="absolute inset-0" style={{ background: photoBg }} aria-hidden />
+                ) : (
+                  <img
+                    src={profile.photo_url!}
+                    alt={profile.nickname}
+                    loading="lazy"
+                    decoding="async"
+                    onLoad={handleImgLoad}
+                    onError={() => setImgFailed(true)}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                )}
               </div>
 
               {/* 뒷면: 이상형 — 탭하면 앞면(사진)으로 복귀 */}
