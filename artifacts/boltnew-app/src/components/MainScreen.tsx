@@ -544,8 +544,8 @@ export const ProfileCard = memo(function ProfileCard({
     return () => ro.disconnect();
   }, [statusMsg]);
 
-  // 4:3 — 2열 그리드에서 높이 절약 (정사각보다 낮음)
-  const CRATIO = 4 / 3;
+  // 3:4 세로 — 카드 사진 기본 비율 (위아래 높이 유지)
+  const CRATIO = 3 / 4;
   const r = naturalRatio ?? CRATIO;
   const flipZoneStyle: React.CSSProperties = r >= CRATIO
     ? {
@@ -671,16 +671,14 @@ export const ProfileCard = memo(function ProfileCard({
         </div>
       )}
 
-      {/* ── 4:3 사진 컨테이너 (텍스트 영역과 완전 분리) ── */}
+      {/* ── 3:4 사진 컨테이너 (텍스트 영역과 완전 분리) ── */}
       <div
         className="relative z-0 w-full shrink-0 isolate"
         style={{
-          aspectRatio: '4/3',
+          aspectRatio: '3/4',
           backgroundColor: '#f3f4f6',
           overflow: 'hidden',
-          cursor: 'pointer',
         }}
-        onClick={(e) => { e.stopPropagation(); setIsFlipped(f => !f); }}
       >
           {/* ── 플립 존 — 실제 사진이 렌더되는 영역에만 3D 뒤집기 적용 ── */}
           <div style={{ perspective: '1000px', ...flipZoneStyle }}>
@@ -691,12 +689,16 @@ export const ProfileCard = memo(function ProfileCard({
               transform: isFlipped ? 'rotateY(180deg)' : 'none',
             }}>
 
-              {/* 앞면: 사진 */}
-              <div style={{
-                position: 'absolute', inset: 0,
-                backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden',
-                overflow: 'hidden',
-              }}>
+              {/* 앞면: 사진 — 탭하면 이상형 뒷면 */}
+              <div
+                className="absolute inset-0 cursor-pointer"
+                style={{
+                  backfaceVisibility: 'hidden',
+                  WebkitBackfaceVisibility: 'hidden',
+                  overflow: 'hidden',
+                }}
+                onClick={(e) => { e.stopPropagation(); setIsFlipped(true); }}
+              >
                 <img
                   src={getAvatarSrc(profile.photo_url, profile.nickname)}
                   alt={profile.nickname}
@@ -708,7 +710,7 @@ export const ProfileCard = memo(function ProfileCard({
                 />
               </div>
 
-              {/* 뒷면: 이상형 — 작은 화면 스크롤·줄바꿈 */}
+              {/* 뒷면: 이상형 — 클릭해도 앞면으로 뒤집히지 않음 */}
               <div
                 className="absolute inset-0 flex flex-col min-h-0"
                 style={{
@@ -717,19 +719,31 @@ export const ProfileCard = memo(function ProfileCard({
                   transform: 'rotateY(180deg)',
                   background: 'linear-gradient(165deg,#1a082a 0%,#3a0f52 40%,#4a1570 100%)',
                 }}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
               >
                 <div className="pointer-events-none absolute inset-0"
                   style={{ background: 'radial-gradient(ellipse at 50% 0%,rgba(255,100,200,0.28) 0%,transparent 60%)' }} />
 
-                <div className="relative z-[1] shrink-0 flex items-center justify-center gap-1 px-2 pt-1.5 pb-0.5">
-                  <span className="text-xs leading-none" aria-hidden>💗</span>
-                  <span className="text-[8px] sm:text-[9px] font-black tracking-[0.1em] text-pink-100">나의 이상형</span>
+                <div className="relative z-[1] shrink-0 flex items-center justify-between gap-1 px-2 pt-1.5 pb-0.5">
+                  <div className="flex items-center justify-center gap-1 min-w-0 flex-1">
+                    <span className="text-xs leading-none" aria-hidden>💗</span>
+                    <span className="text-[8px] sm:text-[9px] font-black tracking-[0.1em] text-pink-100">나의 이상형</span>
+                  </div>
+                  <button
+                    type="button"
+                    aria-label="사진으로 돌아가기"
+                    onClick={(e) => { e.stopPropagation(); setIsFlipped(false); }}
+                    className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-pink-100/90 active:scale-90"
+                    style={{ background: 'rgba(255,160,220,0.2)', border: '1px solid rgba(255,160,220,0.35)' }}
+                  >
+                    ✕
+                  </button>
                 </div>
 
                 <div
                   className="relative z-[1] flex-1 min-h-0 overflow-y-auto overscroll-contain px-1.5 py-0.5"
                   style={{ WebkitOverflowScrolling: 'touch' }}
-                  onClick={(e) => e.stopPropagation()}
                 >
                   {!idealTags.length && !idealFree ? (
                     <p className="text-[8px] sm:text-[9px] text-center text-pink-200/55 leading-relaxed m-0 py-1">
@@ -780,7 +794,7 @@ export const ProfileCard = memo(function ProfileCard({
 
             </div>
           </div>{/* /플립 존 */}
-      </div>{/* /4:3 사진 */}
+      </div>{/* /3:4 사진 */}
 
       </div>{/* /사진 영역 */}
 
