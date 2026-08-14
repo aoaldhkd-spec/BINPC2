@@ -631,11 +631,20 @@ function secretMatches(provided: string, secrets: string[]): boolean {
   return p.length > 0 && secrets.some(s => s === p);
 }
 
+const SECRET_SETTING_KEYS = ['admin_password', 'test_password', 'entry_password', 'reset_password'] as const;
+
 function mergeAppSettings(
   current: Record<string, unknown>,
   patch: Record<string, unknown>,
 ): Record<string, unknown> {
-  const merged = { ...defaultAppSettings(), ...current, ...patch, id: 1, updated_at: ts() };
+  // 빈/null 패치값으로 DB 비밀번호가 지워지는 것을 방지 (관리자 패널·resync 안전망)
+  const safePatch = { ...patch };
+  for (const key of SECRET_SETTING_KEYS) {
+    if (key in safePatch && (safePatch[key] == null || String(safePatch[key]).trim() === '')) {
+      delete safePatch[key];
+    }
+  }
+  const merged = { ...defaultAppSettings(), ...current, ...safePatch, id: 1, updated_at: ts() };
   merged.heart_drain_enabled = false;
   if (isLocalQrUrl(merged.qr_base_url)) merged.qr_base_url = PRODUCTION_QR_BASE;
   return merged;
@@ -1006,6 +1015,11 @@ dbReadyPromise
   .then(() => setupListenClient())
   .catch(e => logger.error({ err: e }, '[db] startup initialization failed'));
 
+// redeploy·resync 후에도 BOOTSTRAP env → DB 비밀번호 자동 동기화
+setInterval(() => {
+  ensureAppSettingsSecrets().catch(e => logger.error({ err: e }, '[db] periodic secret sync failed'));
+}, 5 * 60 * 1000);
+
 router.use(async (_req, res, next) => {
   try {
     await dbReadyPromise;
@@ -1242,6 +1256,9 @@ async function resyncAllFromNativeDb(): Promise<void> {
       }
     }
     logger.info('[db] full resync complete (via app_kv_rows)');
+    // resync가 app_settings를 덮어쓴 뒤 비밀번호·QR URL 자동 복구
+    await repairAppSettingsIfNeeded();
+    await ensureAppSettingsSecrets();
   } catch (e) {
     logger.warn({ err: e }, '[db] resyncAllFromNativeDb 실패');
   } finally {
@@ -2385,10 +2402,17 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         if (adminPhoneSetting && normalizeP(providedPhone) !== normalizeP(adminPhoneSetting)) {
           return res.status(403).json({ data: null, error: { message: '전화번호 또는 비밀번호가 올바르지 않습니다.' } });
         }
-        // HMAC 기반 토큰 — 서버 재시작 후에도 동일 토큰이 재계산되어 유효
-        const tokenKey = adminPw || adminSecrets[0];
-        const adminToken = deriveAdminToken(tokenKey);
         const providedPw = String(args.p_admin_password ?? '').trim();
+        const adminTokenArg = String(args.adminToken ?? '').trim();
+        // 실제로 일치한 비밀번호로 토큰 생성 — bootstrap 로그인 시 adminPw(116606) 토큰 불일치 방지
+        let tokenKey = adminPw || adminSecrets[0];
+        if (secretMatches(providedPw, adminSecrets)) {
+          tokenKey = providedPw;
+        } else if (adminTokenArg) {
+          const matched = adminSecrets.find(s => adminTokenArg === deriveAdminToken(s));
+          if (matched) tokenKey = matched;
+        }
+        const adminToken = deriveAdminToken(tokenKey);
         const bootstrapAdmin = process.env.BOOTSTRAP_ADMIN_PASSWORD?.trim();
         if (bootstrapAdmin && providedPw === bootstrapAdmin && (!adminPw || adminPw === '116606')) {
           const current = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
@@ -2881,6 +2905,36 @@ router.post('/admin/clear-db-errors', async (req: Request, res: Response) => {
 // 10초 캐시: O(messages+likes+profiles) 전체 스캔 + 2 DB 쿼리를 연속 요청마다 반복하지 않도록
 let _healthCache: { ts: number; body: unknown } | null = null;
 const HEALTH_CACHE_TTL_MS = 10_000;
+
+/** 공개 readiness — 로그인·채팅 핵심 기능 사전 점검 (인증 불필요) */
+router.get('/ready', (_req: Request, res: Response) => {
+  try {
+    const settings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
+    const adminSecrets = collectSecrets(
+      String(settings.admin_password ?? ''),
+      process.env.BOOTSTRAP_ADMIN_PASSWORD,
+    );
+    const testSecrets = collectSecrets(
+      String(settings.test_password ?? ''),
+      process.env.BOOTSTRAP_TEST_PASSWORD,
+    );
+    if (!testSecrets.length) testSecrets.push('116606');
+    res.json({
+      ready: true,
+      login: {
+        adminConfigured: adminSecrets.length > 0,
+        testConfigured: testSecrets.length > 0,
+      },
+      functions_locked: settings.functions_locked === true,
+      heart_drain_enabled: settings.heart_drain_enabled === true,
+      qr_base_url: settings.qr_base_url ?? null,
+      checkedAt: new Date().toISOString(),
+    });
+  } catch (e) {
+    logger.error({ err: e }, '[ready] Unexpected error');
+    res.status(500).json({ ready: false, error: 'Ready check failed' });
+  }
+});
 
 router.get('/health', async (req: Request, res: Response) => {
   try {

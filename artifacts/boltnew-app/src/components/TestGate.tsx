@@ -33,19 +33,39 @@ export function TestGate() {
     setLoading(true);
 
     const trimmedPassword = password.trim();
-    const { data, error: verifyError } = await supabase.rpc('test_verify_password', {
-      p_test_password: trimmedPassword,
-    });
+    let token: string | null = null;
+    let verifyError: { message?: string } | null = null;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const { data, error } = await supabase.rpc('test_verify_password', {
+        p_test_password: trimmedPassword,
+      });
+      if (!error && typeof data === 'string' && data) {
+        token = data;
+        break;
+      }
+      verifyError = error as { message?: string } | null;
+      const msg = String(verifyError?.message ?? '');
+      const retryable = msg.includes('503') || msg.includes('HTTP') || msg.includes('fetch')
+        || msg.includes('abort') || msg.includes('network') || msg.includes('Max retries')
+        || msg.includes('initializing');
+      if (!retryable || attempt === 4) break;
+      await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
+    }
 
-    if (verifyError || typeof data !== 'string' || !data) {
-      setError(verifyError?.message ?? '비밀번호가 올바르지 않습니다.');
+    if (!token) {
+      const msg = String(verifyError?.message ?? '');
+      setError(
+        msg.includes('503') || msg.includes('HTTP') || msg.includes('fetch') || msg.includes('network')
+          ? '서버 연결에 실패했습니다. 잠시 후 다시 시도해주세요.'
+          : (verifyError?.message ?? '비밀번호가 올바르지 않습니다.'),
+      );
       setLoading(false);
       return;
     }
 
     localStorage.setItem(TEST_SESSION_KEY, JSON.stringify({ authedAt: Date.now() }));
     localStorage.setItem(TEST_PASSWORD_KEY, trimmedPassword);
-    localStorage.setItem(TEST_TOKEN_KEY, data);
+    localStorage.setItem(TEST_TOKEN_KEY, token);
     setAuthed(true);
     setLoading(false);
   };

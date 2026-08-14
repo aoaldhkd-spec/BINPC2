@@ -523,6 +523,29 @@ describe('[Security] test dashboard password', () => {
     expect(typeof testOk.body.data).toBe('string');
   });
 
+  it('admin_update_settings가 빈 test_password 패치로 비밀번호를 지우지 않는다', async () => {
+    const customAdmin = 'custom-admin-pw-xyz';
+    const customTest = 'keep-this-test-pw-99';
+    await request(app)
+      .post('/api/db/rpc/admin_update_settings')
+      .send({
+        p_admin_password: customAdmin,
+        p_payload: { test_password: customTest },
+      });
+
+    await request(app)
+      .post('/api/db/rpc/admin_update_settings')
+      .send({
+        p_admin_password: customAdmin,
+        p_payload: { test_password: null },
+      });
+
+    const testOk = await request(app)
+      .post('/api/db/rpc/test_verify_password')
+      .send({ p_test_password: customTest });
+    expect(testOk.status).toBe(200);
+  });
+
   it('BOOTSTRAP_ADMIN_PASSWORD와 BOOTSTRAP_TEST_PASSWORD로도 로그인된다', async () => {
     process.env.BOOTSTRAP_ADMIN_PASSWORD = 'env-admin-secret-zz';
     process.env.BOOTSTRAP_TEST_PASSWORD = 'env-test-secret-zz';

@@ -134,22 +134,29 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
     setError('');
     setLoading(true);
     try {
-      // 전화번호·비밀번호 검증은 서버 사이드에서만 처리
-      // (이전에는 app_settings.admin_password를 클라이언트에서 직접 읽었으나
-      //  보안 강화로 비관리자 응답에서 admin_password가 제거돼 로그인 불가 문제 발생)
-      const { data: token, error: rpcErr } = await supabase.rpc('admin_create_session', { p_phone: phone, p_admin_password: password });
-      if (rpcErr) {
-        const msg = String((rpcErr as { message?: string }).message ?? '');
+      let token: string | null = null;
+      let lastErr: { message?: string } | null = null;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const { data, error: rpcErr } = await supabase.rpc('admin_create_session', { p_phone: phone, p_admin_password: password });
+        if (!rpcErr && typeof data === 'string' && data) {
+          token = data;
+          break;
+        }
+        lastErr = rpcErr as { message?: string } | null;
+        const msg = String(lastErr?.message ?? '');
+        const retryable = msg.includes('503') || msg.includes('HTTP') || msg.includes('fetch')
+          || msg.includes('abort') || msg.includes('network') || msg.includes('Max retries')
+          || msg.includes('initializing');
+        if (!retryable || attempt === 4) break;
+        await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
+      }
+      if (!token) {
+        const msg = String(lastErr?.message ?? '');
         setError(
-          msg.includes('HTTP') || msg.includes('fetch') || msg.includes('abort') || msg.includes('network')
+          msg.includes('HTTP') || msg.includes('fetch') || msg.includes('abort') || msg.includes('network') || msg.includes('503')
             ? '서버 연결에 실패했습니다. 잠시 후 다시 시도해주세요.'
             : '전화번호 또는 비밀번호가 올바르지 않습니다.',
         );
-        setLoading(false);
-        return;
-      }
-      if (typeof token !== 'string' || !token) {
-        setError('전화번호 또는 비밀번호가 올바르지 않습니다.');
         setLoading(false);
         return;
       }
@@ -157,7 +164,7 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
       localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify({ phone, authedAt: Date.now() }));
       onLogin();
     } catch {
-      setError('전화번호 또는 비밀번호가 올바르지 않습니다.');
+      setError('서버 연결에 실패했습니다. 잠시 후 다시 시도해주세요.');
     }
     setLoading(false);
   };

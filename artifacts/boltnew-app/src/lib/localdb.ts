@@ -23,12 +23,12 @@ let _sessionReady = true;
 let _sessionReadyResolve: (() => void) | null = null;
 let _sessionReadyPromise: Promise<void> = Promise.resolve();
 
-/** loginSession 완료까지 대기. 최대 5초 타임아웃으로 무한 블로킹 방지. */
+/** loginSession 완료까지 대기. FETCH_TIMEOUT(15s)과 맞춰 콜드스타트·모바일 지연 대응. */
 async function _waitForSession(): Promise<void> {
   if (_sessionReady) return;
   await Promise.race([
     _sessionReadyPromise,
-    new Promise<void>(r => setTimeout(r, 5_000)),
+    new Promise<void>(r => setTimeout(r, FETCH_TIMEOUT)),
   ]);
 }
 
@@ -48,8 +48,8 @@ function _markSessionPending() {
 }
 
 // ─── Fetch helper ─────────────────────────────────────────────────────────────
-// 503(서버 과부하) 및 네트워크 오류 시 지수 백오프 재시도 — 100명 동시 진입 고부하 대응
-const MAX_BUSY_RETRIES = 3;
+// 503(서버 과부하·콜드스타트) 및 네트워크 오류 시 지수 백오프 재시도
+const MAX_BUSY_RETRIES = 5;
 
 async function apiFetch(path: string, body?: unknown, extraHeaders?: Record<string, string>): Promise<{ data: unknown; error: unknown }> {
   for (let attempt = 0; attempt <= MAX_BUSY_RETRIES; attempt++) {
@@ -68,8 +68,8 @@ async function apiFetch(path: string, body?: unknown, extraHeaders?: Record<stri
       clearTimeout(timer);
       // 503 서버 과부하 — Retry-After 헤더 또는 지수 백오프 후 재시도
       if (resp.status === 503 && attempt < MAX_BUSY_RETRIES) {
-        const retryAfterSec = parseInt(resp.headers.get('Retry-After') ?? '1', 10);
-        await new Promise<void>(r => setTimeout(r, Math.min(retryAfterSec * 1000, 4_000)));
+        const retryAfterSec = parseInt(resp.headers.get('Retry-After') ?? '2', 10);
+        await new Promise<void>(r => setTimeout(r, Math.min(retryAfterSec * 1000, 8_000)));
         continue;
       }
       if (!resp.ok) {
