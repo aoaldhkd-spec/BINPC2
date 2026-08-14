@@ -95,9 +95,27 @@ const AVATAR_PALETTE: Array<{ from: string; to: string }> = [
   { from: '#ffedd5', to: '#fed7aa' },
 ];
 
+/** 실제 업로드·프리셋 webp만 사진으로 취급 — null/dicebear/구형 SVG → genAvatar */
+export function hasUploadedPhoto(url: string | null | undefined): boolean {
+  if (!url || !url.trim()) return false;
+  if (url.includes('dicebear')) return false;
+  if (url.startsWith('data:image/svg')) return false;
+  return true;
+}
+
+export function getAvatarGradient(nickname: string): { from: string; to: string } {
+  const nick = nickname.trim() || '?';
+  return AVATAR_PALETTE[avatarPaletteIndex(nick) % AVATAR_PALETTE.length];
+}
+
+export function getAvatarSrc(url: string | null | undefined, nick: string): string {
+  if (!hasUploadedPhoto(url)) return genAvatar(nick);
+  return url!;
+}
+
 export function genAvatar(nickname: string): string {
   const nick = nickname.trim() || '?';
-  const { from, to } = AVATAR_PALETTE[avatarPaletteIndex(nick) % AVATAR_PALETTE.length];
+  const { from, to } = getAvatarGradient(nick);
   const svg = [
     '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400">',
     `<defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">`,
