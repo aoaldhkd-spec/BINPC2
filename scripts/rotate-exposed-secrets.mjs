@@ -138,6 +138,39 @@ async function verifyDb() {
   throw new Error('API health check failed after DATABASE_URL update');
 }
 
+async function restoreAdminSettingsAfterDeploy() {
+  const adminPassword = (process.env.ADMIN_PASSWORD || '').trim();
+  const testPassword = (process.env.TEST_PASSWORD || '').trim();
+  if (!adminPassword) {
+    console.log('[5/5] Skipped admin settings restore (set ADMIN_PASSWORD to auto-restore)');
+    return;
+  }
+  console.log('[5/5] Restoring admin/test passwords after redeploy...');
+  for (const bootstrapPw of ['116606', adminPassword]) {
+    const login = await rpc('admin_create_session', {
+      p_phone: '010-3878-6740',
+      p_admin_password: bootstrapPw,
+    });
+    if (login.status !== 200 || !login.json.data) continue;
+    const token = login.json.data;
+    const patch = {
+      admin_password: adminPassword,
+      qr_base_url: process.env.QR_BASE_URL || 'https://binpc2.netlify.app',
+      ...(testPassword ? { test_password: testPassword } : {}),
+    };
+    const upd = await rpc('admin_update_settings', {
+      p_admin_password: bootstrapPw,
+      adminToken: token,
+      p_payload: patch,
+    });
+    if (upd.status === 200 && !upd.json.error) {
+      console.log('  [OK] admin settings restored');
+      return;
+    }
+  }
+  console.warn('  [warn] Could not restore admin settings — log in with default 116606 and set password manually');
+}
+
 async function main() {
   if (!RENDER_API_KEY) throw new Error('Set RENDER_API_KEY (use the NEW key after dashboard rotation)');
 
@@ -174,6 +207,7 @@ async function main() {
   });
   await waitForRenderLive(svc.id);
   await verifyDb();
+  await restoreAdminSettingsAfterDeploy();
 
   if (NETLIFY_AUTH_TOKEN) {
     console.log('[4/4] Netlify redeploy (optional)...');
