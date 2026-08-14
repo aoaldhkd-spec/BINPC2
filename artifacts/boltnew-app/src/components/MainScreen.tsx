@@ -530,7 +530,7 @@ export const ProfileCard = memo(function ProfileCard({
   const [tickerOffset, setTickerOffset] = useState(0); // 슬라이드할 px 거리
   const hasTicker = Boolean(statusMsg?.trim());
   const hasMenu = Boolean(onBlock || onContactShare || onViewFortune);
-  const showTopBar = hasTicker || hasMenu;
+  const showTopBar = hasTicker;
   useEffect(() => {
     const bar = tickerBarRef.current;
     const span = tickerSpanRef.current;
@@ -583,13 +583,15 @@ export const ProfileCard = memo(function ProfileCard({
     setShowMenu(true);
   };
 
-  const menuButton = hasMenu ? (
+  const menuButton = (onDarkBg: boolean) => hasMenu ? (
     <button
       ref={menuBtnRef}
       type="button"
       onPointerDown={(e) => e.stopPropagation()}
       onClick={openCardMenu}
-      className="w-6 h-6 rounded-full bg-black/50 ring-1 ring-white/25 flex items-center justify-center active:scale-90 transition-transform shrink-0"
+      className={`w-6 h-6 rounded-full flex items-center justify-center active:scale-90 transition-transform shrink-0 ${
+        onDarkBg ? 'bg-black/50 ring-1 ring-white/25' : 'bg-gray-800/75 ring-1 ring-gray-300/40'
+      }`}
       aria-label="더보기"
       aria-expanded={showMenu}
     >
@@ -600,53 +602,47 @@ export const ProfileCard = memo(function ProfileCard({
   return (
     <div className="group relative flex flex-col min-w-0 max-w-full bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
 
-      {/* ── 상단 스트립: 전광판 + ⋯ (사진 밖, 우상단 위치 유지) ── */}
+      {/* ── 상단 스트립: 전광판 + ⋯ (상태 메시지 있을 때만) ── */}
       {showTopBar && (
         <div
           className="relative z-20 flex items-stretch shrink-0 min-h-[22px]"
           style={{
-            background: hasTicker
-              ? 'linear-gradient(90deg,rgba(15,23,42,0.92) 0%,rgba(17,94,89,0.92) 100%)'
-              : 'linear-gradient(90deg,rgba(15,23,42,0.88) 0%,rgba(30,41,59,0.88) 100%)',
-            borderBottom: hasTicker ? '1px solid rgba(45,212,191,0.45)' : '1px solid rgba(255,255,255,0.08)',
+            background: 'linear-gradient(90deg,rgba(15,23,42,0.92) 0%,rgba(17,94,89,0.92) 100%)',
+            borderBottom: '1px solid rgba(45,212,191,0.45)',
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          {hasTicker ? (
-            <div
-              ref={tickerBarRef}
-              className="flex-1 min-w-0 overflow-hidden flex items-center px-1.5"
-              style={{ animation: 'ticker-fadein 0.3s ease' }}
-            >
-              <span
-                ref={tickerSpanRef}
-                style={{
-                  fontSize: '9px', fontWeight: 800,
-                  color: '#ccfbf1', letterSpacing: '0.03em',
-                  textShadow: '0 0 6px rgba(45,212,191,0.55)',
-                  whiteSpace: 'nowrap',
-                  display: 'inline-block',
-                  flexShrink: 0,
-                  ...(tickerOffset > 0
-                    ? {
-                        ['--ticker-offset' as string]: `-${tickerOffset}px`,
-                        animation: `ticker-scroll ${Math.max(4, Math.round(tickerOffset / 30) + 3)}s ease-in-out infinite`,
-                      }
-                    : {
-                        overflow: 'hidden', textOverflow: 'ellipsis',
-                        maxWidth: '100%',
-                        animation: 'ticker-flash 2.2s ease-in-out infinite',
-                      }
-                  ),
-                }}
-              >{statusMsg}</span>
-            </div>
-          ) : (
-            <div className="flex-1 min-w-0" aria-hidden />
-          )}
+          <div
+            ref={tickerBarRef}
+            className="flex-1 min-w-0 overflow-hidden flex items-center px-1.5"
+            style={{ animation: 'ticker-fadein 0.3s ease' }}
+          >
+            <span
+              ref={tickerSpanRef}
+              style={{
+                fontSize: '9px', fontWeight: 800,
+                color: '#ccfbf1', letterSpacing: '0.03em',
+                textShadow: '0 0 6px rgba(45,212,191,0.55)',
+                whiteSpace: 'nowrap',
+                display: 'inline-block',
+                flexShrink: 0,
+                ...(tickerOffset > 0
+                  ? {
+                      ['--ticker-offset' as string]: `-${tickerOffset}px`,
+                      animation: `ticker-scroll ${Math.max(4, Math.round(tickerOffset / 30) + 3)}s ease-in-out infinite`,
+                    }
+                  : {
+                      overflow: 'hidden', textOverflow: 'ellipsis',
+                      maxWidth: '100%',
+                      animation: 'ticker-flash 2.2s ease-in-out infinite',
+                    }
+                ),
+              }}
+            >{statusMsg}</span>
+          </div>
           {hasMenu && (
             <div className="shrink-0 flex items-center pr-0.5 pl-0.5">
-              {menuButton}
+              {menuButton(true)}
             </div>
           )}
         </div>
@@ -802,6 +798,11 @@ export const ProfileCard = memo(function ProfileCard({
       {/* ── 프로필 정보 — 사진 아래 (닉·나이·성향·MBTI) ── */}
       <div className="relative z-10 shrink-0 min-w-0 bg-white border-t border-gray-200 px-1.5 pt-0.5 pb-0 cursor-pointer"
         onClick={() => onSelect(profile)}>
+        {hasMenu && !showTopBar && (
+          <div className="absolute right-0.5 top-0.5 z-20" onClick={(e) => e.stopPropagation()}>
+            {menuButton(false)}
+          </div>
+        )}
         <div className="flex items-center gap-1 min-w-0 leading-none">
           <span className="font-extrabold text-[10px] sm:text-[11px] truncate min-w-0 flex-1 text-gray-950">{profile.nickname}</span>
           {profile.birth_year && (
