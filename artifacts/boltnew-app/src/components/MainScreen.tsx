@@ -577,48 +577,7 @@ export const ProfileCard = memo(function ProfileCard({
   return (
     <div className="group relative flex flex-col min-w-0 max-w-full bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
 
-      {/* ── 전광판 — 사진 위, 별도 영역 ── */}
-      {statusMsg?.trim() && (
-        <div
-          ref={tickerBarRef}
-          className="relative z-10 w-full overflow-hidden shrink-0"
-          style={{
-            height: '14px',
-            background: 'linear-gradient(90deg,#0f172a 0%,#115e59 100%)',
-            borderBottom: '1px solid rgba(45,212,191,0.35)',
-            display: 'flex',
-            alignItems: 'center',
-            paddingLeft: '4px',
-            paddingRight: '4px',
-            animation: 'ticker-fadein 0.3s ease',
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <span
-            ref={tickerSpanRef}
-            style={{
-              fontSize: '8px', fontWeight: 700,
-              color: '#99f6e4', letterSpacing: '0.02em',
-              whiteSpace: 'nowrap',
-              display: 'inline-block',
-              flexShrink: 0,
-              ...(tickerOffset > 0
-                ? {
-                    ['--ticker-offset' as string]: `-${tickerOffset}px`,
-                    animation: `ticker-scroll ${Math.max(4, Math.round(tickerOffset / 30) + 3)}s ease-in-out infinite`,
-                  }
-                : {
-                    overflow: 'hidden', textOverflow: 'ellipsis',
-                    maxWidth: '100%',
-                    animation: 'ticker-flash 2.2s ease-in-out infinite',
-                  }
-              ),
-            }}
-          >{statusMsg}</span>
-        </div>
-      )}
-
-      {/* ── 사진 (정사각, 텍스트와 완전 분리) ── */}
+      {/* ── 사진 (3:4 — 전광판은 오버레이, 카드 높이 동일) ── */}
       <div className="relative w-full shrink-0 min-w-0 bg-gray-100">
 
       {/* ··· 메뉴 — 사진 우상단 */}
@@ -680,6 +639,47 @@ export const ProfileCard = memo(function ProfileCard({
           overflow: 'hidden',
         }}
       >
+          {/* ── 전광판 — 사진 위 오버레이 (없어도 카드 높이 동일) ── */}
+          {statusMsg?.trim() && (
+            <div
+              ref={tickerBarRef}
+              className="absolute top-0 left-0 right-0 z-20 overflow-hidden"
+              style={{
+                height: '16px',
+                background: 'linear-gradient(90deg,rgba(15,23,42,0.92) 0%,rgba(17,94,89,0.92) 100%)',
+                borderBottom: '1px solid rgba(45,212,191,0.45)',
+                display: 'flex',
+                alignItems: 'center',
+                paddingLeft: '5px',
+                paddingRight: '5px',
+                animation: 'ticker-fadein 0.3s ease',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <span
+                ref={tickerSpanRef}
+                style={{
+                  fontSize: '9px', fontWeight: 800,
+                  color: '#ccfbf1', letterSpacing: '0.03em',
+                  textShadow: '0 0 6px rgba(45,212,191,0.55)',
+                  whiteSpace: 'nowrap',
+                  display: 'inline-block',
+                  flexShrink: 0,
+                  ...(tickerOffset > 0
+                    ? {
+                        ['--ticker-offset' as string]: `-${tickerOffset}px`,
+                        animation: `ticker-scroll ${Math.max(4, Math.round(tickerOffset / 30) + 3)}s ease-in-out infinite`,
+                      }
+                    : {
+                        overflow: 'hidden', textOverflow: 'ellipsis',
+                        maxWidth: '100%',
+                        animation: 'ticker-flash 2.2s ease-in-out infinite',
+                      }
+                  ),
+                }}
+              >{statusMsg}</span>
+            </div>
+          )}
           {/* ── 플립 존 — 실제 사진이 렌더되는 영역에만 3D 뒤집기 적용 ── */}
           <div style={{ perspective: '1000px', ...flipZoneStyle }}>
             <div style={{
@@ -726,7 +726,7 @@ export const ProfileCard = memo(function ProfileCard({
 
                 <div className="relative z-[1] shrink-0 flex items-center justify-center gap-1 px-2 pt-1.5 pb-0.5">
                   <span className="text-xs leading-none" aria-hidden>💗</span>
-                  <span className="text-[8px] sm:text-[9px] font-black tracking-[0.1em] text-pink-100">나의 이상형</span>
+                  <span className="text-[9px] sm:text-[10px] font-black tracking-[0.08em] text-pink-50 drop-shadow-sm">나의 이상형</span>
                 </div>
 
                 <div
@@ -734,7 +734,7 @@ export const ProfileCard = memo(function ProfileCard({
                   style={{ WebkitOverflowScrolling: 'touch' }}
                 >
                   {!idealTags.length && !idealFree ? (
-                    <p className="text-[8px] sm:text-[9px] text-center text-pink-200/55 leading-relaxed m-0 py-1">
+                    <p className="text-[9px] sm:text-[10px] text-center text-pink-100/80 leading-relaxed m-0 py-1 font-medium">
                       아직 작성하지 않았어요 🌸
                     </p>
                   ) : (
@@ -744,11 +744,12 @@ export const ProfileCard = memo(function ProfileCard({
                           {idealTags.map(t => (
                             <span
                               key={t}
-                              className="inline-block max-w-full text-[7px] sm:text-[8px] font-bold leading-tight px-1 py-px rounded-full border break-words text-center"
+                              className="inline-block max-w-full text-[8px] sm:text-[9px] font-extrabold leading-tight px-1.5 py-0.5 rounded-full border break-words text-center"
                               style={{
-                                background: 'rgba(255,160,220,0.16)',
-                                borderColor: 'rgba(255,160,220,0.4)',
-                                color: '#ffeaf6',
+                                background: 'rgba(255,160,220,0.22)',
+                                borderColor: 'rgba(255,200,230,0.65)',
+                                color: '#fff5fb',
+                                textShadow: '0 1px 2px rgba(0,0,0,0.35)',
                               }}
                             >{t}</span>
                           ))}
@@ -756,8 +757,8 @@ export const ProfileCard = memo(function ProfileCard({
                       )}
                       {idealFree && (
                         <p
-                          className="text-[7px] sm:text-[8px] text-center leading-snug mt-0.5 mb-0 px-0.5 break-words whitespace-pre-wrap"
-                          style={{ color: 'rgba(255,230,245,0.88)' }}
+                          className="text-[8px] sm:text-[9px] text-center leading-snug mt-1 mb-0 px-0.5 break-words whitespace-pre-wrap font-semibold"
+                          style={{ color: 'rgba(255,245,252,0.95)', textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}
                         >
                           {idealFree}
                         </p>
@@ -786,23 +787,23 @@ export const ProfileCard = memo(function ProfileCard({
 
       </div>{/* /사진 영역 */}
 
-      {/* ── 프로필 정보 — 사진 아래 흰 영역 (나이·닉네임 절대 겹침 없음) ── */}
-      <div className="relative z-10 shrink-0 min-w-0 bg-white border-t border-gray-100 px-1.5 py-0.5 cursor-pointer"
+      {/* ── 프로필 정보 — 사진 아래 (닉·나이·성향·MBTI) ── */}
+      <div className="relative z-10 shrink-0 min-w-0 bg-white border-t border-gray-200 px-1.5 py-1 cursor-pointer"
         onClick={() => onSelect(profile)}>
         <div className="flex items-center gap-1 min-w-0 leading-none">
-          <span className="font-bold text-[9px] sm:text-[10px] truncate min-w-0 flex-1 text-gray-900">{profile.nickname}</span>
+          <span className="font-extrabold text-[10px] sm:text-[11px] truncate min-w-0 flex-1 text-gray-950">{profile.nickname}</span>
           {profile.birth_year && (
-            <span className="flex-shrink-0 text-[8px] sm:text-[9px] font-medium text-gray-400 tabular-nums">{age}</span>
+            <span className="flex-shrink-0 text-[9px] sm:text-[10px] font-bold text-gray-600 tabular-nums">{age}</span>
           )}
         </div>
-        <div className="flex items-center gap-0.5 min-w-0 mt-0.5 overflow-hidden">
-          <span className="text-[7px] sm:text-[8px] font-bold px-1 py-px rounded leading-none border min-w-0 max-w-[54%] truncate"
+        <div className="flex items-center gap-0.5 min-w-0 mt-1 overflow-hidden">
+          <span className="text-[8px] sm:text-[9px] font-extrabold px-1.5 py-0.5 rounded leading-none border min-w-0 max-w-[52%] truncate shadow-sm"
             style={{ backgroundColor: posStyle.bg, color: posStyle.text, borderColor: posStyle.border }}>
             {posLabel}
           </span>
           {msStyle && (
-            <span className="text-[7px] sm:text-[8px] font-black px-1 py-px rounded leading-none border shrink-0 ml-auto max-w-[44%] truncate"
-              style={{ backgroundColor: msStyle.bg + 'dd', color: msStyle.color, borderColor: msStyle.border }}>
+            <span className="text-[8px] sm:text-[9px] font-black px-1.5 py-0.5 rounded leading-none border shrink-0 ml-auto max-w-[46%] truncate shadow-sm"
+              style={{ backgroundColor: msStyle.bg, color: msStyle.color, borderColor: msStyle.border }}>
               {profile.mbti}
             </span>
           )}
@@ -1533,7 +1534,7 @@ export function MainScreen({
 
             {/* ── 참여자 그리드 (이 영역만 스크롤) ───────── */}
             <div className="overflow-y-auto -mx-4 px-4 pb-6" style={{ maxHeight: 'calc(100dvh - 330px)', minHeight: 160 }}>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 sm:gap-2 items-start">
+            <div className="grid grid-cols-3 gap-1 sm:gap-1.5 items-start">
             {filteredProfiles.filter(p => p.id !== currentUserId).map((profile) => (
               <ProfileCard
                 key={profile.id}
@@ -1554,7 +1555,7 @@ export function MainScreen({
               />
             ))}
             {filteredProfiles.filter(p => p.id !== currentUserId).length === 0 && (
-              <div className="col-span-2 sm:col-span-3 text-center py-20">
+              <div className="col-span-3 text-center py-20">
                 <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                 <p className="text-gray-500">{profileSearch || profilePersonalityFilter || profileMbtiFilter ? '검색 결과가 없습니다.' : '아직 다른 참가자가 없습니다.'}</p>
               </div>
