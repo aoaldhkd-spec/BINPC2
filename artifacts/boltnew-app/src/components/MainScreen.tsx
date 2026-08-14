@@ -513,6 +513,7 @@ export const ProfileCard = memo(function ProfileCard({
   const [tickerOffset, setTickerOffset] = useState(0); // 슬라이드할 px 거리
   const hasTicker = Boolean(statusMsg?.trim());
   const hasMenu = Boolean(onBlock || onContactShare || onViewFortune);
+  const showTopBar = hasTicker;
   const avatarGrad = getAvatarGradient(profile.nickname);
   const photoBg = hasUploadedPhoto(profile.photo_url)
     ? '#f3f4f6'
@@ -545,24 +546,117 @@ export const ProfileCard = memo(function ProfileCard({
     return () => document.removeEventListener('pointerdown', close);
   }, [showMenu]);
 
+  const openCardMenu = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    if (showMenu) { setShowMenu(false); setMenuPos(null); return; }
+    const rect = e.currentTarget.getBoundingClientRect();
+    setMenuPos({ top: rect.bottom + 6, right: Math.max(8, window.innerWidth - rect.right) });
+    setShowMenu(true);
+  };
+
+  const menuButton = hasMenu ? (
+    <button
+      ref={menuBtnRef}
+      type="button"
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={openCardMenu}
+      className="w-6 h-6 rounded-full bg-black/50 ring-1 ring-white/25 flex items-center justify-center active:scale-90 transition-transform shrink-0"
+      aria-label="더보기"
+      aria-expanded={showMenu}
+    >
+      <MoreHorizontal className="w-3 h-3 text-white pointer-events-none" />
+    </button>
+  ) : null;
+
   return (
     <div className="group relative flex flex-col min-w-0 max-w-full bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
 
-      {/* ── 사진 (3:4 — 전광판은 오버레이, 카드 높이 동일) ── */}
-      <div className="relative w-full shrink-0 min-w-0 bg-gray-100">
+      {/* ── 상단 스트립: 전광판 + ⋯ (사진 밖) ── */}
+      {showTopBar && (
+        <div
+          className="relative z-20 flex items-stretch shrink-0 min-h-[18px]"
+          style={{
+            background: 'linear-gradient(90deg,rgba(15,23,42,0.92) 0%,rgba(17,94,89,0.92) 100%)',
+            borderBottom: '1px solid rgba(45,212,191,0.45)',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div
+            ref={tickerBarRef}
+            className="flex-1 min-w-0 overflow-hidden flex items-center px-1.5"
+            style={{ animation: 'ticker-fadein 0.3s ease' }}
+          >
+            <span
+              ref={tickerSpanRef}
+              style={{
+                fontSize: '9px', fontWeight: 800,
+                color: '#ccfbf1', letterSpacing: '0.03em',
+                textShadow: '0 0 6px rgba(45,212,191,0.55)',
+                whiteSpace: 'nowrap',
+                display: 'inline-block',
+                flexShrink: 0,
+                ...(tickerOffset > 0
+                  ? {
+                      ['--ticker-offset' as string]: `-${tickerOffset}px`,
+                      animation: `ticker-scroll ${Math.max(4, Math.round(tickerOffset / 30) + 3)}s ease-in-out infinite`,
+                    }
+                  : {
+                      overflow: 'hidden', textOverflow: 'ellipsis',
+                      maxWidth: '100%',
+                      animation: 'ticker-flash 2.2s ease-in-out infinite',
+                    }
+                ),
+              }}
+            >{statusMsg}</span>
+          </div>
+          {hasMenu && (
+            <div className="shrink-0 flex items-center pr-0.5 pl-0.5">
+              {menuButton}
+            </div>
+          )}
+        </div>
+      )}
 
-      {/* ── 3:4 사진 컨테이너 (텍스트 영역과 완전 분리) ── */}
+      {/* ⋯ 드롭다운 (fixed) */}
+      {showMenu && menuPos && (
+        <div
+          ref={menuRef}
+          role="menu"
+          style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 9999, minWidth: '192px' }}
+          className={`rounded-2xl shadow-2xl border overflow-hidden ${isCardDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100'}`}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {onContactShare && (
+            <button type="button" role="menuitem" onClick={(e) => { e.stopPropagation(); setShowMenu(false); setMenuPos(null); onContactShare(profile); }}
+              className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 ${isCardDark ? 'text-teal-400 hover:bg-slate-700' : 'text-teal-600 hover:bg-teal-50'}`}>💌 연락처 보내기</button>
+          )}
+          {onViewFortune && (
+            <button type="button" role="menuitem" onClick={(e) => { e.stopPropagation(); setShowMenu(false); setMenuPos(null); onViewFortune(profile); }}
+              className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 border-t ${isCardDark ? 'text-violet-400 hover:bg-slate-700 border-slate-700' : 'text-violet-600 hover:bg-violet-50 border-gray-50'}`}>🔮 사주 보기</button>
+          )}
+          {onBlock && (
+            <>
+              <button type="button" role="menuitem" onClick={(e) => { e.stopPropagation(); setShowMenu(false); setMenuPos(null); onBlock(profile.id, 'block'); }}
+                className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 border-t ${isCardDark ? 'text-red-400 hover:bg-slate-700 border-slate-700' : 'text-red-500 hover:bg-red-50 border-gray-50'}`}>🚫 차단하기</button>
+              <button type="button" role="menuitem" onClick={(e) => { e.stopPropagation(); setShowMenu(false); setMenuPos(null); onBlock(profile.id, 'hide'); }}
+                className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 border-t ${isCardDark ? 'text-slate-300 hover:bg-slate-700 border-slate-700' : 'text-gray-600 hover:bg-gray-50 border-gray-50'}`}>👻 나를 못 보게 하기</button>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ── 3:4 사진 (오버레이 없음) ── */}
       <div
         className="relative z-0 w-full shrink-0 isolate"
         style={{
           aspectRatio: '3/4',
-          width: '100%',
           background: photoBg,
           overflow: 'hidden',
         }}
       >
-          {/* ── 플립 존 — 3:4 영역 전체 (사진 풀사이즈) ── */}
-          <div className="absolute inset-0 z-0" style={{ perspective: '1000px' }}>
+          {/* ── 플립 존 — 3:4 영역 전체에 3D 뒤집기 적용 ── */}
+          <div className="absolute inset-0" style={{ perspective: '1000px' }}>
             <div style={{
               width: '100%', height: '100%',
               transformStyle: 'preserve-3d',
@@ -586,7 +680,7 @@ export const ProfileCard = memo(function ProfileCard({
                   loading="lazy"
                   decoding="async"
                   onError={(e) => { (e.target as HTMLImageElement).src = genAvatar(profile.nickname); }}
-                  className="absolute inset-0 w-full h-full object-cover block"
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 />
               </div>
 
@@ -664,102 +758,16 @@ export const ProfileCard = memo(function ProfileCard({
             </div>
           </div>{/* /플립 존 */}
 
-          {/* ── 전광판 — 플립 위 오버레이 ── */}
-          {hasTicker && (
-            <div
-              ref={tickerBarRef}
-              className="absolute top-0 left-0 right-0 z-20 overflow-hidden pointer-events-none"
-              style={{
-                height: '16px',
-                background: 'linear-gradient(90deg,rgba(15,23,42,0.92) 0%,rgba(17,94,89,0.92) 100%)',
-                borderBottom: '1px solid rgba(45,212,191,0.45)',
-                display: 'flex',
-                alignItems: 'center',
-                paddingLeft: '5px',
-                paddingRight: '5px',
-                animation: 'ticker-fadein 0.3s ease',
-              }}
-            >
-              <span
-                ref={tickerSpanRef}
-                style={{
-                  fontSize: '9px', fontWeight: 800,
-                  color: '#ccfbf1', letterSpacing: '0.03em',
-                  textShadow: '0 0 6px rgba(45,212,191,0.55)',
-                  whiteSpace: 'nowrap',
-                  display: 'inline-block',
-                  flexShrink: 0,
-                  ...(tickerOffset > 0
-                    ? {
-                        ['--ticker-offset' as string]: `-${tickerOffset}px`,
-                        animation: `ticker-scroll ${Math.max(4, Math.round(tickerOffset / 30) + 3)}s ease-in-out infinite`,
-                      }
-                    : {
-                        overflow: 'hidden', textOverflow: 'ellipsis',
-                        maxWidth: '100%',
-                        animation: 'ticker-flash 2.2s ease-in-out infinite',
-                      }
-                  ),
-                }}
-              >{statusMsg}</span>
-            </div>
-          )}
-
-          {/* ··· 메뉴 — 사진 우상단 (전광판 아래) */}
-          {hasMenu && (
-            <div className={`absolute right-1 z-40 ${hasTicker ? 'top-[18px]' : 'top-1'}`}>
-              <button
-                ref={menuBtnRef}
-                type="button"
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (showMenu) { setShowMenu(false); setMenuPos(null); return; }
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  setMenuPos({ top: rect.bottom + 6, right: Math.max(8, window.innerWidth - rect.right) });
-                  setShowMenu(true);
-                }}
-                className="w-7 h-7 rounded-full bg-black/60 ring-1 ring-white/30 shadow-md flex items-center justify-center active:scale-90 transition-transform"
-                aria-label="더보기"
-                aria-expanded={showMenu}
-              >
-                <MoreHorizontal className="w-3.5 h-3.5 text-white pointer-events-none" />
-              </button>
-              {showMenu && menuPos && (
-                <div
-                  ref={menuRef}
-                  role="menu"
-                  style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 9999, minWidth: '192px' }}
-                  className={`rounded-2xl shadow-2xl border overflow-hidden ${isCardDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100'}`}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {onContactShare && (
-                    <button type="button" role="menuitem" onClick={(e) => { e.stopPropagation(); setShowMenu(false); setMenuPos(null); onContactShare(profile); }}
-                      className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 ${isCardDark ? 'text-teal-400 hover:bg-slate-700' : 'text-teal-600 hover:bg-teal-50'}`}>💌 연락처 보내기</button>
-                  )}
-                  {onViewFortune && (
-                    <button type="button" role="menuitem" onClick={(e) => { e.stopPropagation(); setShowMenu(false); setMenuPos(null); onViewFortune(profile); }}
-                      className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 border-t ${isCardDark ? 'text-violet-400 hover:bg-slate-700 border-slate-700' : 'text-violet-600 hover:bg-violet-50 border-gray-50'}`}>🔮 사주 보기</button>
-                  )}
-                  {onBlock && (
-                    <>
-                      <button type="button" role="menuitem" onClick={(e) => { e.stopPropagation(); setShowMenu(false); setMenuPos(null); onBlock(profile.id, 'block'); }}
-                        className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 border-t ${isCardDark ? 'text-red-400 hover:bg-slate-700 border-slate-700' : 'text-red-500 hover:bg-red-50 border-gray-50'}`}>🚫 차단하기</button>
-                      <button type="button" role="menuitem" onClick={(e) => { e.stopPropagation(); setShowMenu(false); setMenuPos(null); onBlock(profile.id, 'hide'); }}
-                        className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 border-t ${isCardDark ? 'text-slate-300 hover:bg-slate-700 border-slate-700' : 'text-gray-600 hover:bg-gray-50 border-gray-50'}`}>👻 나를 못 보게 하기</button>
-                    </>
-                  )}
-                </div>
-              )}
+          {/* ··· 메뉴 — 전광판 없을 때 사진 우상단 */}
+          {hasMenu && !showTopBar && (
+            <div className="absolute right-1 top-1 z-40">
+              {menuButton}
             </div>
           )}
       </div>{/* /3:4 사진 */}
 
-      </div>{/* /사진 영역 */}
-
       {/* ── 프로필 정보 — 사진 아래 (닉·나이·성향·MBTI) ── */}
-      <div className="relative z-10 shrink-0 min-w-0 bg-white border-t border-gray-200 px-1.5 py-1 cursor-pointer"
+      <div className="relative z-10 shrink-0 min-w-0 bg-white border-t border-gray-200 px-1.5 pt-1 pb-0 cursor-pointer"
         onClick={() => onSelect(profile)}>
         <div className="flex items-center gap-1 min-w-0 leading-none">
           <span className="font-extrabold text-[10px] sm:text-[11px] truncate min-w-0 flex-1 text-gray-950">{profile.nickname}</span>
@@ -789,7 +797,7 @@ export const ProfileCard = memo(function ProfileCard({
               🔒 현재 잠금 중
             </div>
           )}
-          <div className="shrink-0 px-1.5 pb-1 pt-0.5 flex gap-1" style={{ borderTop: `1px solid ${dividerColor}` }}>
+          <div className="shrink-0 px-1.5 pt-0.5 pb-0 flex gap-1" style={{ borderTop: `1px solid ${dividerColor}` }}>
             <button
               onClick={(e) => { if (locked) { showLockToast(e); return; } e.stopPropagation(); onLike(profile.id); }}
               disabled={!locked && isLiked && heartCount >= 4}
@@ -1504,7 +1512,7 @@ export function MainScreen({
             </div>
 
             {/* ── 참여자 그리드 (이 영역만 스크롤) ───────── */}
-            <div className="overflow-y-auto -mx-4 px-4 pb-2" style={{ maxHeight: 'calc(100dvh - 330px)', minHeight: 160 }}>
+            <div className="overflow-y-auto -mx-4 px-4 pb-0" style={{ maxHeight: 'calc(100dvh - 330px)', minHeight: 160 }}>
             <div className="grid grid-cols-3 gap-1 sm:gap-1.5 items-start">
             {filteredProfiles.filter(p => p.id !== currentUserId).map((profile) => (
               <ProfileCard
