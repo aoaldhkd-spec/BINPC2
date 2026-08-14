@@ -489,16 +489,11 @@ export const ProfileCard = memo(function ProfileCard({
 
   const posLabel = getPositionLabel(profile.personality_score ?? 50);
   const posStyle = getPositionStyle(profile.personality_score ?? 50);
-  // bio(편집 후) 또는 interests(초기 설정) 중 값이 있는 쪽 사용
-  const rawBio = profile.bio || (Array.isArray(profile.interests)
-    ? (profile.interests as string[]).join(', ')
-    : profile.interests ? String(profile.interests) : '');
-  const bioTags = rawBio ? rawBio.split(',').map((t: string) => t.trim()).filter(Boolean).slice(0, 2) : [];
+  const idealParts = (idealMsg ?? '').split('\n');
+  const idealTags = idealParts[0] ? idealParts[0].split(',').map(t => t.trim()).filter(Boolean) : [];
+  const idealFree = idealParts[1]?.trim() ?? '';
   const age = getKoreanAge(profile.birth_year);
   const msStyle = profile.mbti ? getMbtiStyle(profile.mbti) : null;
-  // 테마 적응형 스타일 (Tailwind 오버라이드 없이 항상 올바른 색상 보장)
-  // 카드 배경이 항상 bg-white이므로 태그는 배경·테두리 없이 텍스트만
-  const tagStyle = { backgroundColor: 'transparent', color: '#6b7280', borderColor: 'transparent' };
   const heartBtnStyle = isCardDark
     ? { backgroundColor: 'rgba(251,113,133,0.13)', borderColor: 'rgba(251,113,133,0.28)' }
     : { backgroundColor: '#fff1f2', borderColor: '#fecdd3' };
@@ -547,8 +542,8 @@ export const ProfileCard = memo(function ProfileCard({
     return () => ro.disconnect();
   }, [statusMsg]);
 
-  // 컨테이너 비율 4:5 — 3:4보다 낮아 카드가 그리드에서 덜 튀어나옴
-  const CRATIO = 4 / 5;
+  // 4:3 — 2열 그리드에서 높이 절약 (정사각보다 낮음)
+  const CRATIO = 4 / 3;
   const r = naturalRatio ?? CRATIO;
   const flipZoneStyle: React.CSSProperties = r >= CRATIO
     ? {
@@ -573,21 +568,21 @@ export const ProfileCard = memo(function ProfileCard({
   }, [showMenu]);
 
   return (
-    <div className="group relative min-w-0 max-w-full bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+    <div className="group relative flex flex-col min-w-0 max-w-full bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
 
-      {/* ── 전광판 — 사진과 분리된 상단 영역 (겹침 없음) ── */}
+      {/* ── 전광판 — 사진 위, 별도 영역 ── */}
       {statusMsg?.trim() && (
         <div
           ref={tickerBarRef}
           className="relative z-10 w-full overflow-hidden shrink-0"
           style={{
-            height: '20px',
+            height: '14px',
             background: 'linear-gradient(90deg,#0f172a 0%,#115e59 100%)',
             borderBottom: '1px solid rgba(45,212,191,0.35)',
             display: 'flex',
             alignItems: 'center',
-            paddingLeft: '6px',
-            paddingRight: '6px',
+            paddingLeft: '4px',
+            paddingRight: '4px',
             animation: 'ticker-fadein 0.3s ease',
           }}
           onClick={(e) => e.stopPropagation()}
@@ -595,7 +590,7 @@ export const ProfileCard = memo(function ProfileCard({
           <span
             ref={tickerSpanRef}
             style={{
-              fontSize: '9px', fontWeight: 700,
+              fontSize: '8px', fontWeight: 700,
               color: '#99f6e4', letterSpacing: '0.02em',
               whiteSpace: 'nowrap',
               display: 'inline-block',
@@ -616,8 +611,8 @@ export const ProfileCard = memo(function ProfileCard({
         </div>
       )}
 
-      {/* ── 사진 영역 ──────────────────────────────────────────────────────── */}
-      <div className="relative min-w-0">
+      {/* ── 사진 (정사각, 텍스트와 완전 분리) ── */}
+      <div className="relative w-full shrink-0 min-w-0 bg-gray-100">
 
       {/* ··· 메뉴 — 사진 우상단 */}
       {(onBlock || onContactShare || onViewFortune) && (
@@ -662,19 +657,17 @@ export const ProfileCard = memo(function ProfileCard({
         </div>
       )}
 
-      {/* ── 사진 영역 wrapper (이름/나이 overlay 고정용) ──────────────────────── */}
-      <div style={{ position: 'relative' }}>
-
-        {/* ── 3:4 외부 컨테이너 — 플립 없음, 빈공간(배경색)만 표시 ── */}
-        <div
-          style={{
-            aspectRatio: '4/5', position: 'relative',
-            backgroundColor: '#f3f4f6',
-            overflow: 'hidden',
-            cursor: 'pointer',
-          }}
-          onClick={(e) => { e.stopPropagation(); setIsFlipped(f => !f); }}
-        >
+      {/* ── 4:3 사진 컨테이너 (텍스트 영역과 완전 분리) ── */}
+      <div
+        className="relative z-0 w-full shrink-0 isolate"
+        style={{
+          aspectRatio: '4/3',
+          backgroundColor: '#f3f4f6',
+          overflow: 'hidden',
+          cursor: 'pointer',
+        }}
+        onClick={(e) => { e.stopPropagation(); setIsFlipped(f => !f); }}
+      >
           {/* ── 플립 존 — 실제 사진이 렌더되는 영역에만 3D 뒤집기 적용 ── */}
           <div style={{ perspective: '1000px', ...flipZoneStyle }}>
             <div style={{
@@ -701,128 +694,106 @@ export const ProfileCard = memo(function ProfileCard({
                 />
               </div>
 
-              {/* 뒷면: 이상형 */}
-              <div style={{
-                position: 'absolute', inset: 0,
-                backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden',
-                transform: 'rotateY(180deg)',
-                background: 'linear-gradient(170deg,#1a082a 0%,#3a0f52 35%,#5a1870 65%,#28083c 100%)',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between',
-                padding: '12px 10px 10px', overflow: 'hidden',
-              }}>
-                {/* 배경 글로우 */}
-                <div style={{ position:'absolute', inset:0, pointerEvents:'none',
-                  background:'radial-gradient(ellipse at 50% 10%,rgba(255,100,200,0.35) 0%,transparent 55%)' }} />
-                <div style={{ position:'absolute', inset:0, pointerEvents:'none',
-                  background:'radial-gradient(ellipse at 50% 95%,rgba(140,60,255,0.28) 0%,transparent 50%)' }} />
-                {/* 별 장식 */}
-                <span style={{position:'absolute',top:'7%',left:'9%',fontSize:'10px',opacity:0.45}}>✦</span>
-                <span style={{position:'absolute',top:'5%',right:'11%',fontSize:'8px',opacity:0.35}}>✦</span>
-                <span style={{position:'absolute',bottom:'12%',left:'7%',fontSize:'8px',opacity:0.3}}>✦</span>
-                <span style={{position:'absolute',bottom:'8%',right:'9%',fontSize:'10px',opacity:0.4}}>✦</span>
+              {/* 뒷면: 이상형 — 작은 화면 스크롤·줄바꿈 */}
+              <div
+                className="absolute inset-0 flex flex-col min-h-0"
+                style={{
+                  backfaceVisibility: 'hidden',
+                  WebkitBackfaceVisibility: 'hidden',
+                  transform: 'rotateY(180deg)',
+                  background: 'linear-gradient(165deg,#1a082a 0%,#3a0f52 40%,#4a1570 100%)',
+                }}
+              >
+                <div className="pointer-events-none absolute inset-0"
+                  style={{ background: 'radial-gradient(ellipse at 50% 0%,rgba(255,100,200,0.28) 0%,transparent 60%)' }} />
 
-                {/* 상단: 하트 + 제목 */}
-                <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:'5px',position:'relative',zIndex:1,width:'100%'}}>
-                  <div style={{fontSize:'42px',lineHeight:1,
-                    filter:'drop-shadow(0 0 14px rgba(255,80,160,1)) drop-shadow(0 0 28px rgba(255,80,160,0.5))'}}>💗</div>
-                  <p style={{color:'#ffd6f0',fontSize:'11px',fontWeight:900,
-                    letterSpacing:'0.22em',textTransform:'uppercase',margin:0}}>
-                    나의 이상형
-                  </p>
-                  <div style={{width:'36px',height:'1px',background:'rgba(255,180,230,0.45)'}} />
+                <div className="relative z-[1] shrink-0 flex items-center justify-center gap-1 px-2 pt-1.5 pb-0.5">
+                  <span className="text-xs leading-none" aria-hidden>💗</span>
+                  <span className="text-[8px] sm:text-[9px] font-black tracking-[0.1em] text-pink-100">나의 이상형</span>
                 </div>
 
-                {/* 중단: 태그 목록 — 한 줄씩 가운데 정렬 */}
-                <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',
-                  gap:'5px',width:'100%',position:'relative',zIndex:1,padding:'4px 0',overflowY:'hidden'}}>
-                  {(() => {
-                    const parts = (idealMsg ?? '').split('\n');
-                    const tags = parts[0] ? parts[0].split(',').map(t=>t.trim()).filter(Boolean) : [];
-                    const free = parts[1] ?? '';
-                    if (!tags.length && !free) return (
-                      <p style={{color:'rgba(255,210,240,0.5)',fontSize:'12px',
-                        textAlign:'center',lineHeight:1.7,margin:0}}>
-                        아직 작성하지<br/>않았어요 🌸
-                      </p>
-                    );
-                    return (
-                      <>
-                        {tags.map(t=>(
-                          <div key={t} style={{
-                            width:'100%',textAlign:'center',
-                            padding:'4px 8px',borderRadius:'16px',
-                            background:'rgba(255,160,220,0.14)',
-                            border:'1px solid rgba(255,160,220,0.38)',
-                            color:'#ffeaf6',fontSize:'12px',fontWeight:700,
-                            letterSpacing:'0.02em',
-                          }}>{t}</div>
-                        ))}
-                        {free && (
-                          <p style={{color:'rgba(255,230,245,0.8)',fontSize:'11px',
-                            textAlign:'center',lineHeight:1.6,margin:'2px 0 0',fontStyle:'italic'}}>
-                            "{free}"
-                          </p>
-                        )}
-                      </>
-                    );
-                  })()}
+                <div
+                  className="relative z-[1] flex-1 min-h-0 overflow-y-auto overscroll-contain px-1.5 py-0.5"
+                  style={{ WebkitOverflowScrolling: 'touch' }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {!idealTags.length && !idealFree ? (
+                    <p className="text-[8px] sm:text-[9px] text-center text-pink-200/55 leading-relaxed m-0 py-1">
+                      아직 작성하지 않았어요 🌸
+                    </p>
+                  ) : (
+                    <>
+                      {idealTags.length > 0 && (
+                        <div className="flex flex-wrap justify-center gap-0.5">
+                          {idealTags.map(t => (
+                            <span
+                              key={t}
+                              className="inline-block max-w-full text-[7px] sm:text-[8px] font-bold leading-tight px-1 py-px rounded-full border break-words text-center"
+                              style={{
+                                background: 'rgba(255,160,220,0.16)',
+                                borderColor: 'rgba(255,160,220,0.4)',
+                                color: '#ffeaf6',
+                              }}
+                            >{t}</span>
+                          ))}
+                        </div>
+                      )}
+                      {idealFree && (
+                        <p
+                          className="text-[7px] sm:text-[8px] text-center leading-snug mt-0.5 mb-0 px-0.5 break-words whitespace-pre-wrap"
+                          style={{ color: 'rgba(255,230,245,0.88)' }}
+                        >
+                          {idealFree}
+                        </p>
+                      )}
+                    </>
+                  )}
                 </div>
 
-                {/* 하단: 버튼 */}
                 <button
-                  onClick={(e)=>{e.stopPropagation();onSelect(profile);}}
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onSelect(profile); }}
+                  className="relative z-[1] shrink-0 mx-1.5 mb-1 w-[calc(100%-0.75rem)] py-0.5 rounded-md text-[8px] sm:text-[9px] font-bold active:scale-95 transition-transform"
                   style={{
-                    position:'relative',zIndex:1,width:'100%',
-                    background:'rgba(255,160,220,0.22)',border:'1px solid rgba(255,160,220,0.55)',
-                    color:'#ffd6f0',fontSize:'12px',fontWeight:800,
-                    padding:'7px 0',borderRadius:'16px',cursor:'pointer',
-                    letterSpacing:'0.03em',
+                    background: 'rgba(255,160,220,0.22)',
+                    border: '1px solid rgba(255,160,220,0.5)',
+                    color: '#ffd6f0',
                   }}
-                >프로필 보기 →</button>
+                >
+                  프로필 보기 →
+                </button>
               </div>
 
             </div>
           </div>{/* /플립 존 */}
-        </div>{/* /4:5 사진 컨테이너 */}
+      </div>{/* /4:3 사진 */}
 
       </div>{/* /사진 영역 */}
 
-      {/* ── 닉네임 + 나이 — 사진 아래 (사진과 겹치지 않음) ── */}
-      <div className="px-1.5 pt-1 pb-0.5 flex items-center justify-between gap-1 min-w-0 cursor-pointer"
+      {/* ── 프로필 정보 — 사진 아래 흰 영역 (나이·닉네임 절대 겹침 없음) ── */}
+      <div className="relative z-10 shrink-0 min-w-0 bg-white border-t border-gray-100 px-1.5 py-0.5 cursor-pointer"
         onClick={() => onSelect(profile)}>
-        <span className="font-black text-[11px] leading-tight truncate min-w-0 flex-1 text-gray-900">{profile.nickname}</span>
-        {age && (
-          <span className="flex-shrink-0 text-[10px] font-bold text-teal-600 bg-teal-50 border border-teal-100 rounded px-1 py-px whitespace-nowrap">{age}</span>
-        )}
-      </div>
-
-      {/* ── 성향 + MBTI ─────────────────────────────────────────────────────────── */}
-      <div className="px-1.5 pt-0.5 pb-0.5 flex flex-wrap items-center gap-0.5 cursor-pointer min-w-0 overflow-hidden"
-        onClick={() => onSelect(profile)}>
-        {/* 왼쪽: 성향 배지 */}
-        <span className="text-[9px] font-bold px-1 py-px rounded leading-tight border shrink-0 max-w-[48%] truncate"
-          style={{ backgroundColor: posStyle.bg, color: posStyle.text, borderColor: posStyle.border }}>
-          {posLabel}
-        </span>
-        {/* 오른쪽: MBTI */}
-        {msStyle && (
-          <span className="text-[9px] font-black px-1 py-px rounded leading-tight border shrink-0 ml-auto max-w-[48%] truncate"
-            style={{ backgroundColor: msStyle.bg + 'dd', color: msStyle.color, borderColor: msStyle.border }}>
-            {profile.mbti}
-          </span>
-        )}
-      </div>
-
-      {/* ── 관심사 (최대 2개, 항상 표시) ───────────────────────────────────────── */}
-      {bioTags.length > 0 && (
-        <div className="px-1.5 pb-0.5 flex flex-wrap gap-x-1 gap-y-0 overflow-hidden cursor-pointer min-w-0" onClick={() => onSelect(profile)}>
-          {bioTags.slice(0, 2).map(tag => (
-            <span key={tag} className="text-[9px] font-semibold truncate max-w-full" style={tagStyle}>#{tag}</span>
-          ))}
+        <div className="flex items-center gap-1 min-w-0 leading-none">
+          <span className="font-bold text-[9px] sm:text-[10px] truncate min-w-0 flex-1 text-gray-900">{profile.nickname}</span>
+          {profile.birth_year && (
+            <span className="flex-shrink-0 text-[8px] sm:text-[9px] font-medium text-gray-400 tabular-nums">{age}</span>
+          )}
         </div>
-      )}
+        <div className="flex items-center gap-0.5 min-w-0 mt-0.5 overflow-hidden">
+          <span className="text-[7px] sm:text-[8px] font-bold px-1 py-px rounded leading-none border min-w-0 max-w-[54%] truncate"
+            style={{ backgroundColor: posStyle.bg, color: posStyle.text, borderColor: posStyle.border }}>
+            {posLabel}
+          </span>
+          {msStyle && (
+            <span className="text-[7px] sm:text-[8px] font-black px-1 py-px rounded leading-none border shrink-0 ml-auto max-w-[44%] truncate"
+              style={{ backgroundColor: msStyle.bg + 'dd', color: msStyle.color, borderColor: msStyle.border }}>
+              {profile.mbti}
+            </span>
+          )}
+        </div>
+      </div>
 
-      {/* ── 하트 + 채팅 버튼 — 항상 표시, 절대 플립 안 됨, z-index 보장 ────────── */}
+      {/* ── 하트 + 채팅 버튼 ── */}
       {canLike && (
         <div className="relative" onClick={(e) => e.stopPropagation()}>
           {lockToast && (
@@ -830,31 +801,31 @@ export const ProfileCard = memo(function ProfileCard({
               🔒 현재 잠금 중
             </div>
           )}
-          <div className="px-1.5 pb-1.5 pt-0.5 flex gap-1" style={{ borderTop: `1px solid ${dividerColor}` }}>
+          <div className="shrink-0 px-1.5 pb-1 pt-0.5 flex gap-1" style={{ borderTop: `1px solid ${dividerColor}` }}>
             <button
               onClick={(e) => { if (locked) { showLockToast(e); return; } e.stopPropagation(); onLike(profile.id); }}
               disabled={!locked && isLiked && heartCount >= 4}
-              className={`flex-1 min-w-0 flex items-center justify-center gap-0.5 py-1 rounded-md border active:scale-95 transition-transform ${locked ? 'opacity-50' : ''}`}
+              className={`flex-1 min-w-0 flex items-center justify-center gap-0.5 py-0.5 rounded border active:scale-95 transition-transform ${locked ? 'opacity-50' : ''}`}
               style={heartBtnStyle}
             >
               {isLiked && sentHeartType
-                ? <span className="text-xs leading-none relative shrink-0">
+                ? <span className="text-[10px] leading-none relative shrink-0">
                     {heartMeta(sentHeartType).emoji}
                     {heartCount > 1 && (
-                      <span className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 text-white text-[7px] font-black rounded-full flex items-center justify-center">{heartCount}</span>
+                      <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-rose-500 text-white text-[6px] font-black rounded-full flex items-center justify-center">{heartCount}</span>
                     )}
                   </span>
-                : <Heart className="w-3.5 h-3.5 shrink-0" style={{ fill: isLiked ? '#e11d48' : 'transparent', stroke: '#e11d48', strokeWidth: 2 }} />
+                : <Heart className="w-3 h-3 shrink-0" style={{ fill: isLiked ? '#e11d48' : 'transparent', stroke: '#e11d48', strokeWidth: 2 }} />
               }
-              <span className="text-[10px] font-bold truncate" style={{ color: '#e11d48' }}>하트</span>
+              <span className="text-[9px] font-bold truncate" style={{ color: '#e11d48' }}>하트</span>
             </button>
             <button
               onClick={(e) => { if (locked) { showLockToast(e); return; } e.stopPropagation(); onOpenChat(profile); }}
-              className={`flex-1 min-w-0 flex items-center justify-center gap-0.5 py-1 rounded-md border active:scale-95 transition-transform ${locked ? 'opacity-50' : ''}`}
+              className={`flex-1 min-w-0 flex items-center justify-center gap-0.5 py-0.5 rounded border active:scale-95 transition-transform ${locked ? 'opacity-50' : ''}`}
               style={chatBtnStyle}
             >
-              <MessageCircle className="w-3.5 h-3.5 shrink-0" style={{ color: '#0ea5e9' }} strokeWidth={2} />
-              <span className="text-[10px] font-bold truncate" style={{ color: '#0ea5e9' }}>채팅</span>
+              <MessageCircle className="w-3 h-3 shrink-0" style={{ color: '#0ea5e9' }} strokeWidth={2} />
+              <span className="text-[9px] font-bold truncate" style={{ color: '#0ea5e9' }}>채팅</span>
             </button>
           </div>
         </div>
@@ -1546,7 +1517,7 @@ export function MainScreen({
 
             {/* ── 참여자 그리드 (이 영역만 스크롤) ───────── */}
             <div className="overflow-y-auto -mx-4 px-4 pb-6" style={{ maxHeight: 'calc(100dvh - 330px)', minHeight: 160 }}>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 sm:gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 sm:gap-2 items-start">
             {filteredProfiles.filter(p => p.id !== currentUserId).map((profile) => (
               <ProfileCard
                 key={profile.id}
