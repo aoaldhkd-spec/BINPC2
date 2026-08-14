@@ -506,6 +506,8 @@ export const ProfileCard = memo(function ProfileCard({
   const [lockToast, setLockToast] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [menuPos, setMenuPos] = useState<{top:number;right:number}|null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const menuBtnRef = useRef<HTMLButtonElement>(null);
   const [isFlipped, setIsFlipped] = useState(false);
   const lockToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showLockToast = (e: React.MouseEvent) => {
@@ -559,12 +561,17 @@ export const ProfileCard = memo(function ProfileCard({
         width: `${(r / CRATIO) * 100}%`,
       };
 
-  // [Fix-9] ⋯ 메뉴 외부 클릭 시 닫기 — fixed 위치이므로 부모 overflow:hidden 영향 없음
+  // ⋯ 메뉴 — 바깥 클릭 시만 닫기 (메뉴 항목 pointerdown에서 즉시 닫히면 클릭 불가)
   useEffect(() => {
     if (!showMenu) return;
-    const close = () => { setShowMenu(false); setMenuPos(null); };
-    document.addEventListener('pointerdown', close, true);
-    return () => document.removeEventListener('pointerdown', close, true);
+    const close = (e: PointerEvent) => {
+      const t = e.target as Node;
+      if (menuRef.current?.contains(t) || menuBtnRef.current?.contains(t)) return;
+      setShowMenu(false);
+      setMenuPos(null);
+    };
+    document.addEventListener('pointerdown', close);
+    return () => document.removeEventListener('pointerdown', close);
   }, [showMenu]);
 
   return (
@@ -616,8 +623,11 @@ export const ProfileCard = memo(function ProfileCard({
 
       {/* ··· 메뉴 — 사진 우상단 */}
       {(onBlock || onContactShare || onViewFortune) && (
-        <div className="absolute right-1 top-1 z-20">
+        <div className="absolute right-1 top-1 z-30">
           <button
+            ref={menuBtnRef}
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
               if (showMenu) { setShowMenu(false); setMenuPos(null); return; }
@@ -627,28 +637,32 @@ export const ProfileCard = memo(function ProfileCard({
             }}
             className="w-6 h-6 rounded-full bg-black/40 flex items-center justify-center active:scale-90 transition-transform"
             aria-label="더보기"
+            aria-expanded={showMenu}
           >
-            <MoreHorizontal className="w-3.5 h-3.5 text-white" />
+            <MoreHorizontal className="w-3.5 h-3.5 text-white pointer-events-none" />
           </button>
           {showMenu && menuPos && (
             <div
+              ref={menuRef}
+              role="menu"
               style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 9999, minWidth: '192px' }}
               className={`rounded-2xl shadow-2xl border overflow-hidden ${isCardDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100'}`}
+              onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => e.stopPropagation()}
             >
               {onContactShare && (
-                <button onClick={(e) => { e.stopPropagation(); setShowMenu(false); setMenuPos(null); onContactShare(profile); }}
+                <button type="button" role="menuitem" onClick={(e) => { e.stopPropagation(); setShowMenu(false); setMenuPos(null); onContactShare(profile); }}
                   className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 ${isCardDark ? 'text-teal-400 hover:bg-slate-700' : 'text-teal-600 hover:bg-teal-50'}`}>💌 연락처 보내기</button>
               )}
               {onViewFortune && (
-                <button onClick={(e) => { e.stopPropagation(); setShowMenu(false); setMenuPos(null); onViewFortune(profile); }}
+                <button type="button" role="menuitem" onClick={(e) => { e.stopPropagation(); setShowMenu(false); setMenuPos(null); onViewFortune(profile); }}
                   className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 border-t ${isCardDark ? 'text-violet-400 hover:bg-slate-700 border-slate-700' : 'text-violet-600 hover:bg-violet-50 border-gray-50'}`}>🔮 사주 보기</button>
               )}
               {onBlock && (
                 <>
-                  <button onClick={(e) => { e.stopPropagation(); setShowMenu(false); setMenuPos(null); onBlock(profile.id, 'block'); }}
+                  <button type="button" role="menuitem" onClick={(e) => { e.stopPropagation(); setShowMenu(false); setMenuPos(null); onBlock(profile.id, 'block'); }}
                     className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 border-t ${isCardDark ? 'text-red-400 hover:bg-slate-700 border-slate-700' : 'text-red-500 hover:bg-red-50 border-gray-50'}`}>🚫 차단하기</button>
-                  <button onClick={(e) => { e.stopPropagation(); setShowMenu(false); setMenuPos(null); onBlock(profile.id, 'hide'); }}
+                  <button type="button" role="menuitem" onClick={(e) => { e.stopPropagation(); setShowMenu(false); setMenuPos(null); onBlock(profile.id, 'hide'); }}
                     className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 border-t ${isCardDark ? 'text-slate-300 hover:bg-slate-700 border-slate-700' : 'text-gray-600 hover:bg-gray-50 border-gray-50'}`}>👻 나를 못 보게 하기</button>
                 </>
               )}
