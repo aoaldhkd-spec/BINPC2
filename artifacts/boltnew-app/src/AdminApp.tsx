@@ -121,6 +121,14 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    supabase.from('app_settings').select('admin_phone').eq('id', 1).maybeSingle()
+      .then(({ data }: { data: { admin_phone?: string } | null }) => {
+        if (data?.admin_phone) setPhone(data.admin_phone);
+      })
+      .catch(() => {});
+  }, []);
+
   const formatPhone = (v: string) => {
     const d = v.replace(/\D/g, '').slice(0, 11);
     if (d.length <= 3) return d;
@@ -2762,7 +2770,57 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 // ─── AdminApp Root ────────────────────────────────────────────────────────────
 
 export default function AdminApp() {
-  const [isLoggedIn, setIsLoggedIn] = useState(() => loadAdminSession() !== null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function verifySession() {
+      const token = localStorage.getItem(ADMIN_TOKEN_KEY);
+      const session = loadAdminSession();
+      if (!session || !token) {
+        localStorage.removeItem(ADMIN_SESSION_KEY);
+        setAdminToken(null);
+        if (!cancelled) { setIsLoggedIn(false); setCheckingSession(false); }
+        return;
+      }
+      try {
+        const res = await fetch(`${ADMIN_API}/op`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ table: 'app_settings', op: 'select', adminToken: token }),
+        });
+        const json = await res.json() as { data: unknown; error: unknown };
+        if (!cancelled) {
+          if (res.ok && json.data && !json.error) setIsLoggedIn(true);
+          else {
+            localStorage.removeItem(ADMIN_SESSION_KEY);
+            setAdminToken(null);
+            setIsLoggedIn(false);
+          }
+          setCheckingSession(false);
+        }
+      } catch {
+        if (!cancelled) {
+          localStorage.removeItem(ADMIN_SESSION_KEY);
+          setAdminToken(null);
+          setIsLoggedIn(false);
+          setCheckingSession(false);
+        }
+      }
+    }
+    void verifySession();
+    return () => { cancelled = true; };
+  }, []);
+
+  if (checkingSession) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="w-10 h-10 rounded-full border-4 border-white/20 border-t-white animate-spin" />
+      </div>
+    );
+  }
+
   return isLoggedIn ? (
     <AdminDashboard onLogout={async () => {
       const token = localStorage.getItem(ADMIN_TOKEN_KEY);

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } fro
 import {
   X,
 } from 'lucide-react';
-import { supabase, setLocalDbUserId, fetchAndSetSseToken, getDeviceSecret, onSseReconnect, onSseDisconnect } from './lib/supabase';
+import { supabase, setLocalDbUserId, setDeviceRecoveryPin, fetchAndSetSseToken, getDeviceSecret, onSseReconnect, onSseDisconnect } from './lib/supabase';
 import { genAvatar } from './lib/profile';
 import { HeartType } from './lib/constants';
 // ─── 분리된 타입·유틸·컴포넌트 imports ────────────────────────────────────────
@@ -409,30 +409,16 @@ function App() {
 
   useEffect(() => {
     let cancelled = false;
-    // 네트워크 지연 시 fallback — 세 조건 모두 해제해야 로딩 스피너가 사라짐
-    // 300ms: Vite 콜드컴파일·서버 기동 후 충분한 여유, 체감 대기 최소화
-    const timeout = setTimeout(() => {
-      if (!cancelled) {
-        setAppLoading(false);
-        setSessionActive(prev => prev ?? true);
-        setEntryPassword(prev => prev ?? '');
-      }
-    }, 300);
-    supabase.from('app_settings').select('session_active, timer_end_at, timer_label, reset_signal, reset_password, entry_password').eq('id', 1).single().then(({ data }: { data: any }) => {
-      if (cancelled) return;
-      clearTimeout(timeout);
-      setAppLoading(false);
-      // loading 게이트 해제는 reset 분기보다 먼저 — early return 시에도 앱이 멈추지 않도록
-      const ep = (data as { entry_password?: string | null })?.entry_password ?? '';
-      setSessionActive(data?.session_active ?? false);
+
+    const applySettings = (data: Record<string, unknown> | null) => {
+      if (cancelled || !data) return;
+      const ep = (data.entry_password as string | null | undefined) ?? '';
+      setSessionActive(Boolean(data.session_active));
       setEntryPassword(ep);
       setEntryVerified(!ep || ls.getItem(ENTRY_VERIFIED_KEY) === ep);
       const localReset = ls.getItem(MATCHING_LAST_RESET_KEY);
-      const serverReset = data?.reset_signal ?? null;
+      const serverReset = (data.reset_signal as string | null | undefined) ?? null;
       if (serverReset && serverReset !== localReset) {
-        // 신규 브라우저(localStorage 없음)에서는 reset_signal이 항상 다름 →
-        // 기존: early return 전에 sessionActive/entryPassword 미설정 → 무한 로딩
-        // 수정: 이미 위에서 설정 완료 후 reset 처리 진행
         ls.setItem(MATCHING_LAST_RESET_KEY, serverReset);
         ls.removeItem(MATCHING_USER_KEY);
         ls.removeItem(MATCHING_DRAFT_KEY);
@@ -447,11 +433,34 @@ function App() {
         setView('entry-1');
         return;
       }
-      setTimerEndAt(data?.timer_end_at ?? null);
-      setTimerLabel(data?.timer_label ?? null);
-      if (data?.functions_locked != null) setFunctionsLocked(data.functions_locked);
-      setResetPassword((data as { reset_password?: string | null })?.reset_password ?? null);
-    }).catch(() => {});
+      setTimerEndAt((data.timer_end_at as string | null | undefined) ?? null);
+      setTimerLabel((data.timer_label as string | null | undefined) ?? null);
+      if (data.functions_locked != null) setFunctionsLocked(Boolean(data.functions_locked));
+      setResetPassword((data.reset_password as string | null | undefined) ?? null);
+    };
+
+    async function loadSettings(attempt = 0): Promise<void> {
+      const { data, error } = await supabase
+        .from('app_settings')
+        .select('session_active, timer_end_at, timer_label, reset_signal, reset_password, entry_password, functions_locked')
+        .eq('id', 1)
+        .single();
+      if (cancelled) return;
+      if (error || !data) {
+        if (attempt < 6) {
+          await new Promise(r => setTimeout(r, Math.min(2000 * (attempt + 1), 8000)));
+          return loadSettings(attempt + 1);
+        }
+        setAppLoading(false);
+        setSessionActive(false);
+        setEntryPassword('');
+        return;
+      }
+      setAppLoading(false);
+      applySettings(data as Record<string, unknown>);
+    }
+
+    void loadSettings();
     const settingsChannel = supabase
       .channel('app-settings-user')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_settings' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
@@ -539,7 +548,6 @@ function App() {
 
     return () => {
       cancelled = true;
-      clearTimeout(timeout); // 언마운트 시 타임아웃 정리 (메모리 누수 방지)
       shareNotifTimerIds.forEach(clearTimeout);
       supabase.removeChannel(settingsChannel);
       supabase.removeChannel(notifChannel);
@@ -1075,7 +1083,7 @@ function App() {
     setView('entry-1');
   };
 
-  const handleProfileRecovery = async (profileId: string) => {
+  const handleProfileRecovery = async (profileId: string, pinCode: string) => {
     setLoading(true);
     try {
       const { data: profile } = await supabase
@@ -1086,12 +1094,12 @@ function App() {
       if (profile) {
         ls.setItem(MATCHING_USER_KEY, profile.id);
         ls.removeItem(MATCHING_DRAFT_KEY);
-        // isNewRegistration = true → useEffect가 false-positive 체크(setView('entry-1') 타임아웃)를
-        // 건너뛰고 바로 setView('main')으로 이동 (handleNicknameSetup과 동일 패턴)
+        setDeviceRecoveryPin(pinCode);
         isNewRegistration.current = true;
         setProfiles(prev => prev.some(p => p.id === profile.id) ? prev : [profile as Profile, ...prev]);
         setCurrentUserId(profile.id);
-        setView('loading-main'); // 복구 확인 중 spinner 표시
+        await fetchAndSetSseToken(profile.id as string);
+        setView('loading-main');
       } else {
         alert('프로필을 찾을 수 없습니다. 관리자에게 문의하세요.');
         setView('entry-1');

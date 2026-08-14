@@ -1,4 +1,4 @@
-import { lazy, useState, type FormEvent } from 'react';
+import { lazy, useState, useEffect, type FormEvent } from 'react';
 import { AlertTriangle, Shield } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
@@ -22,10 +22,52 @@ function loadTestSession(): boolean {
 }
 
 export function TestGate() {
-  const [authed, setAuthed] = useState(loadTestSession);
+  const [authed, setAuthed] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    async function verifySession() {
+      const token = localStorage.getItem(TEST_TOKEN_KEY);
+      const hasSession = loadTestSession();
+      if (!hasSession || !token) {
+        localStorage.removeItem(TEST_SESSION_KEY);
+        localStorage.removeItem(TEST_TOKEN_KEY);
+        if (!cancelled) { setAuthed(false); setCheckingSession(false); }
+        return;
+      }
+      try {
+        const res = await fetch('/api/db/op', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ table: 'app_settings', op: 'select', testToken: token }),
+        });
+        const json = await res.json() as { data: unknown; error: unknown };
+        if (!cancelled) {
+          if (res.ok && json.data && !json.error) setAuthed(true);
+          else {
+            localStorage.removeItem(TEST_SESSION_KEY);
+            localStorage.removeItem(TEST_TOKEN_KEY);
+            localStorage.removeItem(TEST_PASSWORD_KEY);
+            setAuthed(false);
+          }
+          setCheckingSession(false);
+        }
+      } catch {
+        if (!cancelled) {
+          localStorage.removeItem(TEST_SESSION_KEY);
+          localStorage.removeItem(TEST_TOKEN_KEY);
+          setAuthed(false);
+          setCheckingSession(false);
+        }
+      }
+    }
+    void verifySession();
+    return () => { cancelled = true; };
+  }, []);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -69,6 +111,14 @@ export function TestGate() {
     setAuthed(true);
     setLoading(false);
   };
+
+  if (checkingSession) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="w-10 h-10 rounded-full border-4 border-white/20 border-t-white animate-spin" />
+      </div>
+    );
+  }
 
   if (authed) return <TestDashboard />;
 

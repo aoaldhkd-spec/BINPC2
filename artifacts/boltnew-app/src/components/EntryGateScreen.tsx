@@ -35,6 +35,10 @@ export function EntryGateScreen({ entryPassword, onVerified }: { entryPassword: 
     }
   };
 
+  const todayHint = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit' })
+    .format(new Date())
+    .replace(/[^\d]/g, '');
+
   return (
     <div
       className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center p-6"
@@ -65,7 +69,7 @@ export function EntryGateScreen({ entryPassword, onVerified }: { entryPassword: 
             </div>
             {!error && (
               <p className="mt-2 text-center text-cyan-400/80 text-[11px] font-semibold">
-                💡 입장 코드는 <span className="font-black text-cyan-300">오늘 날짜</span>입니다 (숫자 4개)
+                💡 입장 코드는 <span className="font-black text-cyan-300">오늘 날짜</span>입니다 (예: {todayHint || 'MMDD'})
               </p>
             )}
           </div>

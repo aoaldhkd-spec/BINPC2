@@ -807,6 +807,13 @@ export function setSseToken(token: string, expiresAt: number) {
 }
 
 const DEVICE_SECRET_PREFIX = 'bolt_device_secret_';
+/** PIN 프로필 복구 시 /auth/login에 pinCode 전달 — 새 기기 device re-bind */
+let _pendingPinCode: string | null = null;
+
+export function setDeviceRecoveryPin(pin: string | null): void {
+  _pendingPinCode = pin ? pin.trim() : null;
+}
+
 /**
  * userId + deviceSecret으로 서버 세션을 수립합니다.
  * deviceSecret은 localStorage에만 있는 값이므로
@@ -818,25 +825,24 @@ async function loginSession(userId: string): Promise<boolean> {
     const resp = await fetch(`${API}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, deviceSecret }),
+      body: JSON.stringify({
+        userId,
+        deviceSecret,
+        ...( _pendingPinCode ? { pinCode: _pendingPinCode } : {}),
+      }),
       credentials: 'same-origin',
     });
     if (!resp.ok) {
       if (resp.status === 401) {
         const body = await resp.json().catch(() => ({})) as { code?: string };
-        if (body.code === 'NEEDS_MIGRATION') {
-          // 서버는 first-claim을 허용하므로 이 분기는 도달하지 않아야 함
-          // 만약 도달했다면 기기 secret 해시가 불일치한 것 — localStorage 초기화 후 재시도 필요
-          console.warn(
-            '[localdb] SSE 인증 실패: 기기 secret 해시 불일치 — ' +
-            '이 기기에서 재가입하거나 localStorage를 초기화하면 해결됩니다.',
-          );
+        if (body.code === 'DEVICE_MISMATCH') {
+          console.warn('[localdb] 기기 불일치 — 고유번호(PIN)로 프로필 복구를 이용하세요.');
         }
       }
-      // 실패해도 게이트 해제 — 앱이 무한 대기하지 않도록 (5초 타임아웃 폴백도 있음)
       if (_currentUserId === userId) _markSessionReady();
       return false;
     }
+    _pendingPinCode = null;
     // 성공: 서버 세션이 userId로 갱신됨 → /op 요청 차단 해제
     if (_currentUserId === userId) _markSessionReady();
     return true;

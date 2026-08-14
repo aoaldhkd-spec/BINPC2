@@ -2395,11 +2395,11 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         // 관리자 비밀번호 서버 사이드 검증
         // (클라이언트가 app_settings.admin_password를 직접 읽는 것을 방지하기 위해 여기서만 검증)
         checkPassword();
-        // 전화번호 검증 — admin_phone이 설정된 경우
+        // 전화번호 검증 — 입력한 경우에만 (비밀번호만으로도 로그인 가능)
         const adminPhoneSetting = (settings.admin_phone as string | undefined) ?? '';
         const providedPhone = (args.p_phone as string | undefined) ?? '';
         const normalizeP = (s: string) => s.replace(/[^0-9]/g, '');
-        if (adminPhoneSetting && normalizeP(providedPhone) !== normalizeP(adminPhoneSetting)) {
+        if (adminPhoneSetting && providedPhone.trim() && normalizeP(providedPhone) !== normalizeP(adminPhoneSetting)) {
           return res.status(403).json({ data: null, error: { message: '전화번호 또는 비밀번호가 올바르지 않습니다.' } });
         }
         const providedPw = String(args.p_admin_password ?? '').trim();
@@ -3360,7 +3360,7 @@ router.post('/auth/login', (req: Request, res: Response) => {
   if (req.body == null || typeof req.body !== 'object' || Array.isArray(req.body)) {
     return res.status(400).json({ error: 'Request body must be a JSON object' });
   }
-  const { userId, deviceSecret } = req.body as { userId?: string; deviceSecret?: string };
+  const { userId, deviceSecret, pinCode } = req.body as { userId?: string; deviceSecret?: string; pinCode?: string };
   if (!userId || typeof userId !== 'string') {
     return res.status(400).json({ error: 'Missing userId' });
   }
@@ -3399,12 +3399,20 @@ router.post('/auth/login', (req: Request, res: Response) => {
   } catch { /* 해시 길이 불일치 → mismatch */ }
 
   if (!matched) {
-    // 다른 기기의 deviceSecret으로 기존 계정을 탈취하는 공격 차단:
-    // 이미 등록된 계정은 재바인딩 없이 401 반환.
-    // 새 기기에서 같은 계정을 사용하려면 기존 기기의 localStorage 데이터가 필요함.
+    const profilePin = String(profile.pin_code ?? '').trim();
+    const providedPin = String(pinCode ?? '').trim();
+    if (profilePin && providedPin && profilePin === providedPin) {
+      const rebound = { id: userId, user_id: userId, secret_hash: submittedHash };
+      const idx = deviceSecrets.findIndex(r => r.user_id === userId);
+      if (idx >= 0) deviceSecrets[idx] = rebound; else deviceSecrets.push(rebound);
+      dbPersistRow('device_secrets', rebound).catch(e => logger.error({ err: e }, '[db] device re-bind persist failed'));
+      logger.info({ userId }, '[auth] device re-bound via PIN recovery');
+      req.session.userId = userId;
+      return res.json({ ok: true });
+    }
     logger.warn({ userId, ip: req.ip }, '[auth] device secret mismatch — access denied (re-bind blocked)');
     return res.status(401).json({
-      error: '이미 다른 기기에서 등록된 계정입니다. 기존 기기의 데이터가 필요합니다.',
+      error: '이미 다른 기기에서 등록된 계정입니다. 고유번호(PIN)로 프로필 복구를 이용해 주세요.',
       code: 'DEVICE_MISMATCH',
     });
   }

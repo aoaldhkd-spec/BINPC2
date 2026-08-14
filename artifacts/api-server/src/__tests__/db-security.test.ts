@@ -635,19 +635,46 @@ describe('[Security] /auth/login — device secret 再バインド禁止', () =>
       payload: { id: userId, nickname: 'test-user-2' },
     });
 
-    // first-claim
     await request(app)
       .post('/api/db/auth/login')
       .set('Content-Type', 'application/json')
       .send({ userId, deviceSecret: 'my-secret-xyz' });
 
-    // 同じ secret で再ログイン → 成功
     const reLogin = await request(app)
       .post('/api/db/auth/login')
       .set('Content-Type', 'application/json')
       .send({ userId, deviceSecret: 'my-secret-xyz' });
     expect(reLogin.status).toBe(200);
     expect(reLogin.body.ok).toBe(true);
+  });
+
+  it('PIN으로 새 기기 device re-bind 허용', async () => {
+    const userId = randomUUID();
+
+    await op({
+      op: 'insert',
+      table: 'profiles',
+      payload: { id: userId, nickname: 'pin-user', pin_code: '4321' },
+    });
+
+    await request(app)
+      .post('/api/db/auth/login')
+      .set('Content-Type', 'application/json')
+      .send({ userId, deviceSecret: 'original-secret-aaa' });
+
+    const wrongDevice = await request(app)
+      .post('/api/db/auth/login')
+      .set('Content-Type', 'application/json')
+      .send({ userId, deviceSecret: 'new-phone-secret-bbb' });
+    expect(wrongDevice.status).toBe(401);
+    expect(wrongDevice.body.code).toBe('DEVICE_MISMATCH');
+
+    const pinRecover = await request(app)
+      .post('/api/db/auth/login')
+      .set('Content-Type', 'application/json')
+      .send({ userId, deviceSecret: 'new-phone-secret-bbb', pinCode: '4321' });
+    expect(pinRecover.status).toBe(200);
+    expect(pinRecover.body.ok).toBe(true);
   });
 });
 

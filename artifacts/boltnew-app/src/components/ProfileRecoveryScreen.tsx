@@ -6,7 +6,7 @@ export function ProfileRecoveryScreen({
   onRecover,
   onBack,
 }: {
-  onRecover: (profileId: string) => void;
+  onRecover: (profileId: string, pinCode: string) => void;
   onBack: () => void;
 }) {
   const [digits, setDigits] = useState<[string, string, string, string]>(['', '', '', '']);
@@ -37,7 +37,7 @@ export function ProfileRecoveryScreen({
         setDigits(['', '', '', '']);
         setTimeout(() => ref0.current?.focus(), 80);
       } else {
-        onRecover(data.id as string);
+        onRecover(data.id as string, code);
       }
     } catch {
       setError('오류가 발생했어요. 잠시 후 다시 시도해 주세요.');
