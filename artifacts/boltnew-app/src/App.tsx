@@ -204,7 +204,6 @@ function App() {
   const [profileVisitors, setProfileVisitors] = useState<ProfileView[]>([]);
   const [newVisitCount, setNewVisitCount] = useState(0);
   const [userSignals, setUserSignals] = useState<UserSignal[]>([]);
-  const [heartDrainEnabled, setHeartDrainEnabled] = useState(false);
   const [myHeartCount, setMyHeartCount] = useState<number | null>(null);
   const myHeartCountRef = useRef<number | null>(null);
   myHeartCountRef.current = myHeartCount;
@@ -486,7 +485,6 @@ function App() {
         setTimerEndAt(p.timer_end_at ?? null);
         setTimerLabel(p.timer_label ?? null);
         if ((p as any).functions_locked != null) setFunctionsLocked((p as any).functions_locked);
-        if ((p as any).heart_drain_enabled != null) setHeartDrainEnabled(!!(p as any).heart_drain_enabled);
         if (p.reset_password !== undefined) setResetPassword(p.reset_password ?? null);
         if (p.entry_password !== undefined) {
           const ep = p.entry_password ?? '';
@@ -1389,7 +1387,6 @@ function App() {
         onViewFortune={(p) => { setFortuneModalTarget(p); void recordProfileView(p.id); }}
         fortuneCompatTarget={fortuneCompatTarget}
         myHeartCount={myHeartCount}
-        heartDrainEnabled={heartDrainEnabled}
         groupChats={groupChats}
         unreadGroupCounts={unreadGroupCounts}
         newGroupMsgCount={newGroupMsgCount}

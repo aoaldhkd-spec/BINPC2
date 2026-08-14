@@ -1103,7 +1103,7 @@ function DbHealthTab({ health, loading, onRefresh, onClearErrors }: { health: Db
 
 function DashboardTab({ settings, profiles, onToggleSession, onEventEndReset, onToggleFunctionsLock,
   onClearLikes, onClearChats, onClearProfiles, onClearHistory,
-  restoreMap, onDrainUnusedHearts }: {
+  restoreMap }: {
   settings: AppSettings | null; profiles: Profile[];
   onToggleSession: () => void; onEventEndReset: () => void;
   onToggleFunctionsLock: () => void;
@@ -1112,16 +1112,10 @@ function DashboardTab({ settings, profiles, onToggleSession, onEventEndReset, on
   onClearProfiles: () => Promise<void>;
   onClearHistory: () => Promise<void>;
   restoreMap: Map<string, () => Promise<void>>;
-  onDrainUnusedHearts: (drainCount: number, heartType: 'all' | 'red' | 'blue' | 'pink' | 'green') => Promise<{ nickname: string; count: number; remaining: number }[]>;
 }) {
   const [confirmToggle, setConfirmToggle] = useState(false);
   const [confirmEventEnd, setConfirmEventEnd] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
-  const [drainResult, setDrainResult] = useState<{ nickname: string; count: number; remaining: number }[] | null>(null);
-  const [draining, setDraining] = useState(false);
-  // -1 = 전부 회수, 1~8 = 선택한 개수만 차감
-  const [drainCount, setDrainCount] = useState<number>(-1);
-  const [drainHeartType, setDrainHeartType] = useState<'all' | 'red' | 'blue' | 'pink' | 'green'>('all');
   const isActive = settings?.session_active ?? false;
   const isFunctionsLocked = (settings as any)?.functions_locked ?? false;
 
@@ -1201,136 +1195,6 @@ function DashboardTab({ settings, profiles, onToggleSession, onEventEndReset, on
               <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${isFunctionsLocked ? 'left-4' : 'left-0.5'}`} />
             </div>
           </button>
-        </div>
-      </div>
-
-
-      {/* 💛 하트 드레인 시스템 */}
-      <div>
-        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 px-1">💛 하트 차감</h3>
-        <div className="rounded-2xl border-2 border-yellow-200 bg-yellow-50 p-4 space-y-3">
-          <div className="flex items-start gap-3">
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-black text-yellow-800">하트 개수 자동 차감</p>
-              <p className="text-[10px] text-yellow-600 mt-0.5 leading-relaxed">
-                {(settings as any)?.heart_drain_enabled
-                  ? `✅ 활성 — ${(settings as any)?.heart_drain_minutes ?? 5}분마다 하트 1개 차감`
-                  : '⏸️ 비활성 — 하트 개수가 줄지 않음'}
-              </p>
-            </div>
-            <button
-              onClick={async () => {
-                const newVal = !((settings as any)?.heart_drain_enabled ?? false);
-                await adminApiRpc('admin_update_settings', {
-                  p_admin_password: settings?.admin_password ?? '',
-                  p_payload: { heart_drain_enabled: newVal },
-                }).catch(console.error);
-              }}
-              className={`relative w-10 h-6 rounded-full transition-all flex-shrink-0 ${(settings as any)?.heart_drain_enabled ? 'bg-yellow-500' : 'bg-slate-300'}`}
-            >
-              <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${(settings as any)?.heart_drain_enabled ? 'left-4' : 'left-0.5'}`} />
-            </button>
-          </div>
-
-          <div>
-            <label className="text-[10px] font-black text-yellow-700 block mb-1">차감 간격 (분)</label>
-            <input
-              type="number" min={1} max={60}
-              defaultValue={(settings as any)?.heart_drain_minutes ?? 5}
-              onBlur={async (e) => {
-                const v = Math.max(1, Math.min(60, parseInt(e.target.value) || 5));
-                e.target.value = String(v);
-                await adminApiRpc('admin_update_settings', {
-                  p_admin_password: settings?.admin_password ?? '',
-                  p_payload: { heart_drain_minutes: v },
-                }).catch(console.error);
-              }}
-              className="w-full rounded-xl border border-yellow-300 bg-white px-3 py-1.5 text-sm font-bold text-yellow-900 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-            />
-          </div>
-
-          {/* 미사용 하트 회수 — 목적 하트 선택 */}
-          <div>
-            <label className="text-[10px] font-black text-yellow-700 block mb-1">
-              차감 목적 <span className="font-normal text-yellow-500">(선택한 하트를 안 쓴 사람에게만 적용)</span>
-            </label>
-            <div className="flex gap-1.5 flex-wrap mb-2">
-              {([
-                { type: 'all',   emoji: '🔘', label: '전체' },
-                { type: 'red',   emoji: '❤️', label: '맘에 드는' },
-                { type: 'blue',  emoji: '💙', label: '친구' },
-                { type: 'pink',  emoji: '💗', label: '뜨밤' },
-                { type: 'green', emoji: '💚', label: '칭찬' },
-              ] as const).map(h => (
-                <button
-                  key={h.type}
-                  onClick={() => setDrainHeartType(h.type)}
-                  className={`rounded-lg px-2.5 py-1 text-[11px] font-black border transition-all flex items-center gap-1 ${
-                    drainHeartType === h.type
-                      ? 'bg-yellow-500 text-white border-yellow-600 shadow-sm'
-                      : 'bg-white text-yellow-700 border-yellow-300 hover:bg-yellow-50'
-                  }`}
-                >
-                  <span>{h.emoji}</span><span>{h.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* 미사용 하트 회수 — 차감 개수 선택 */}
-          <div>
-            <label className="text-[10px] font-black text-yellow-700 block mb-1">
-              차감 개수 <span className="font-normal text-yellow-500">(하트를 한 번도 안 쓴 사람에게 적용)</span>
-            </label>
-            <div className="flex gap-1.5 flex-wrap mb-2">
-              {([-1, 1, 2, 3, 4, 5, 6, 7, 8] as const).map(n => (
-                <button
-                  key={n}
-                  onClick={() => setDrainCount(n)}
-                  className={`rounded-lg px-2.5 py-1 text-[11px] font-black border transition-all ${
-                    drainCount === n
-                      ? 'bg-yellow-500 text-white border-yellow-600 shadow-sm'
-                      : 'bg-white text-yellow-700 border-yellow-300 hover:bg-yellow-50'
-                  }`}
-                >
-                  {n === -1 ? '전부' : `${n}개`}
-                </button>
-              ))}
-            </div>
-          </div>
-          <button
-            disabled={draining}
-            onClick={async () => {
-              setDraining(true);
-              setDrainResult(null);
-              try {
-                const result = await onDrainUnusedHearts(drainCount, drainHeartType);
-                setDrainResult(result);
-              } finally { setDraining(false); }
-            }}
-            className="w-full rounded-xl py-2 px-3 bg-yellow-500 hover:bg-yellow-600 text-white text-xs font-black active:scale-95 transition-all shadow-sm disabled:opacity-50"
-          >
-            {draining ? '회수 중…' : `💸 미사용 하트 회수${drainCount === -1 ? ' (전부)' : ` (${drainCount}개)`}${drainHeartType !== 'all' ? ` — ${drainHeartType === 'red' ? '❤️' : drainHeartType === 'blue' ? '💙' : drainHeartType === 'pink' ? '💗' : '💚'}만` : ''}`}
-          </button>
-
-          {/* 회수 결과 */}
-          {drainResult !== null && (
-            <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-3 max-h-48 overflow-y-auto">
-              {drainResult.length === 0
-                ? <p className="text-xs text-yellow-700 font-bold">✅ 회수 대상 없음 (모두 하트 사용했거나 이미 0개)</p>
-                : <>
-                    <p className="text-[10px] font-black text-yellow-800 mb-2">🗂 {drainResult.length}명 처리됨</p>
-                    {drainResult.map((r, i) => (
-                      <div key={i} className="flex justify-between items-center text-[10px] text-yellow-900 py-0.5">
-                        <span className="truncate flex-1">{r.nickname}</span>
-                        <span className="font-black ml-2 text-red-600 flex-shrink-0">−{r.count}개</span>
-                        <span className="font-bold ml-1.5 text-yellow-700 flex-shrink-0">→ 잔여 {r.remaining}개</span>
-                      </div>
-                    ))}
-                  </>
-              }
-            </div>
-          )}
         </div>
       </div>
 
@@ -2635,30 +2499,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       .catch(e => console.warn('[admin] api-server 기능잠금 동기화 실패:', e));
   };
 
-  const handleDrainUnusedHearts = async (drainCount: number, heartType: 'all' | 'red' | 'blue' | 'pink' | 'green' = 'all'): Promise<{ nickname: string; count: number; remaining: number }[]> => {
-    if (!settings) return [];
-    try {
-      const token = localStorage.getItem(ADMIN_TOKEN_KEY) ?? '';
-      const res = await fetch(`${ADMIN_API}/rpc/admin_drain_unused_hearts`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          p_admin_password: settings.admin_password ?? '',
-          adminToken: token,
-          p_drain_count: drainCount,
-          ...(heartType !== 'all' && { p_heart_type: heartType }),
-        }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = (await res.json()) as { data: { drained: { nickname: string; count: number; remaining: number }[] } | null; error: { message: string } | null };
-      if (json.error) throw new Error(json.error.message);
-      return json.data?.drained ?? [];
-    } catch (e) {
-      console.warn('[admin] 미사용 하트 회수 실패:', e);
-      return [];
-    }
-  };
-
   const handleDeleteProfile = async (profileId: string) => {
     await adminSupabase.from('profiles').delete().eq('id', profileId);
     setProfiles(prev => prev.filter(p => p.id !== profileId));
@@ -2747,8 +2587,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                 onToggleFunctionsLock={handleToggleFunctionsLock}
                 onClearLikes={handleClearLikes} onClearChats={handleClearAllChats}
                 onClearProfiles={handleClearProfiles}
-                onClearHistory={handleClearHistory} restoreMap={restoreMap}
-                onDrainUnusedHearts={handleDrainUnusedHearts} />
+                onClearHistory={handleClearHistory} restoreMap={restoreMap} />
             )}
             {settingsSubTab === 'qr' && <AdminQrTab settings={settings} onSaveQrBase={async (url) => {
   const { error } = await adminSupabase.from('app_settings').update({ qr_base_url: url, updated_at: new Date().toISOString() } as never).eq('id', 1);

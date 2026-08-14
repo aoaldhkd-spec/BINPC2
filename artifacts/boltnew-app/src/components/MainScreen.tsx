@@ -902,7 +902,7 @@ export function MainScreen({
   onSubmitAnonymousReport,
   timerEndAt, timerLabel, onRefreshStatus, onRefreshChat, onRefreshProfiles, darkMode, onToggleDark, onShowQr, onShowContactQr, onScanQr, scannedContacts, onClearScannedContact, functionsLocked = false, onShowTutorial,
   newMsgCount, onClearMsgCount, unreadChatCounts, onClearChatUnread: _onClearChatUnread, resetPassword,
-  onUpdateProfile, fortuneCompatTarget, myHeartCount, heartDrainEnabled,
+  onUpdateProfile, fortuneCompatTarget, myHeartCount,
   groupChats = [], unreadGroupCounts = {}, newGroupMsgCount: _newGroupMsgCount = 0, onClearGroupMsgCount: _onClearGroupMsgCount, onOpenGroupChat,
   blockedUserIds = new Set<string>(), hiddenByIds = new Set<string>(),
   profileVisitors = [] as ProfileView[],
@@ -952,7 +952,6 @@ export function MainScreen({
   onUpdateProfile: (update: Record<string, unknown> & { id: string }) => void;
   fortuneCompatTarget?: string;
   myHeartCount?: number | null;
-  heartDrainEnabled?: boolean;
   groupChats?: GroupChat[];
   unreadGroupCounts?: Record<string, number>;
   newGroupMsgCount?: number;

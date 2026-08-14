@@ -603,7 +603,9 @@ function mergeAppSettings(
   current: Record<string, unknown>,
   patch: Record<string, unknown>,
 ): Record<string, unknown> {
-  return { ...defaultAppSettings(), ...current, ...patch, id: 1, updated_at: ts() };
+  const merged = { ...defaultAppSettings(), ...current, ...patch, id: 1, updated_at: ts() };
+  merged.heart_drain_enabled = false;
+  return merged;
 }
 
 /** DB에 id/session_active 등 핵심 필드가 빠진 app_settings를 자동 복구 */
@@ -648,6 +650,7 @@ async function ensureAppSettingsSecrets(): Promise<void> {
     const current = row.test_password == null ? '' : String(row.test_password);
     if (!current || current === '116606') patch.test_password = bootstrapTest;
   }
+  if (row.heart_drain_enabled) patch.heart_drain_enabled = false;
   if (!Object.keys(patch).length) return;
 
   const updated = mergeAppSettings(row, patch);
@@ -2516,31 +2519,10 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         return res.json({ data: null, error: null });
       }
 
-      case 'admin_drain_unused_hearts': {
-        // 하나도 안 쓴 유저의 하트를 drainCount만큼 차감 — 영향 받은 유저 목록 반환
-        // p_drain_count: -1(기본)=전부회수, 1~8=해당 개수만 차감
-        // p_heart_type: 'red'|'blue'|'pink'|'green' (없으면 전체 하트 기준)
-        checkPassword();
-        const rawDrainCount = args.p_drain_count as number | undefined;
-        const drainCount = (rawDrainCount != null && Number.isFinite(rawDrainCount))
-          ? Math.round(rawDrainCount)
-          : -1; // 기본: 전부 회수
-        const rawHeartType = args.p_heart_type as string | undefined;
-        const heartType = (['red', 'blue', 'pink', 'green'] as const).includes(rawHeartType as never)
-          ? rawHeartType : undefined;
-        const drainResult = await drainUnusedHearts(drainCount, heartType);
-        logger.info({ affected: drainResult.length, drainCount }, '[rpc] admin_drain_unused_hearts');
-        return res.json({ data: { drained: drainResult }, error: null });
-      }
-
+      case 'admin_drain_unused_hearts':
       case 'admin_trigger_heart_drain': {
-        // 하트 드레인 즉시 수동 실행 — 설정 무관하게 한 번 강제 실행
         checkPassword();
-        const savedEnabled = (getTable('app_settings')[0] as Record<string, unknown>).heart_drain_enabled;
-        (getTable('app_settings')[0] as Record<string, unknown>).heart_drain_enabled = true;
-        await heartDrainLoop();
-        if (!savedEnabled) (getTable('app_settings')[0] as Record<string, unknown>).heart_drain_enabled = false;
-        return res.json({ data: null, error: null });
+        return res.status(403).json({ data: null, error: { message: '하트 차감 기능은 비활성화되었습니다.' } });
       }
 
       case 'admin_reset_heart_balances': {

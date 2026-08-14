@@ -522,6 +522,36 @@ describe('[Security] test dashboard password', () => {
     expect(testOk.status).toBe(200);
     expect(typeof testOk.body.data).toBe('string');
   });
+
+  it('admin_update_settings는 heart_drain_enabled를 항상 false로 유지한다', async () => {
+    await request(app)
+      .post('/api/db/rpc/admin_update_settings')
+      .send({
+        p_admin_password: '116606',
+        p_payload: { heart_drain_enabled: true, heart_drain_minutes: 3 },
+      });
+
+    const res = await op({ op: 'select', table: 'app_settings' });
+    expect(res.status).toBe(200);
+    expect(res.body.data[0]?.heart_drain_enabled).toBe(false);
+  });
+
+  it('admin_drain_unused_hearts RPC는 비활성화된다', async () => {
+    const login = await request(app)
+      .post('/api/db/rpc/admin_create_session')
+      .send({ p_phone: '010-3878-6740', p_admin_password: 'custom-admin-pw-xyz' });
+    expect(login.status).toBe(200);
+
+    const res = await request(app)
+      .post('/api/db/rpc/admin_drain_unused_hearts')
+      .send({
+        p_admin_password: 'custom-admin-pw-xyz',
+        adminToken: login.body.data,
+        p_drain_count: 1,
+      });
+    expect(res.status).toBe(403);
+    expect(res.body.error?.message).toContain('비활성화');
+  });
 });
 
 // ════════════════════════════════════════════════════════════════════════════════
