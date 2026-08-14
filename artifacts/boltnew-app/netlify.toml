@@ -1,0 +1,23 @@
+# Frontend (participant + admin SPA)
+# Netlify site env: API_URL = https://YOUR-API.onrender.com  (no trailing slash)
+
+[build]
+  base = "/"
+  command = "corepack pnpm install && corepack pnpm --filter @workspace/boltnew-app build"
+  publish = "artifacts/boltnew-app/dist/public"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# API proxy — browser keeps same-origin /api/* (cookies + SSE)
+[[redirects]]
+  from = "/api/*"
+  to = ":env(API_URL)/api/:splat"
+  status = 200
+  force = true
+
+# SPA routes (/admin, /test, deep links)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

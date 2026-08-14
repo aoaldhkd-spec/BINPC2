@@ -1,0 +1,24 @@
+# API server — connect Supabase Postgres with DIRECT/session port (not 6543 pooler).
+# After deploy, set Netlify env API_URL to this service URL.
+
+services:
+  - type: web
+    name: binpc2-api
+    runtime: node
+    plan: starter
+    buildCommand: corepack pnpm install && corepack pnpm --filter @workspace/api-server build
+    startCommand: corepack pnpm --filter @workspace/api-server start
+    healthCheckPath: /api/healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "8080"
+      - key: DATABASE_URL
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false

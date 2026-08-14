@@ -1737,6 +1737,19 @@ router.post('/op', async (req: Request, res: Response) => {
       if (table === 'profiles' && !isAdmin) {
         result = result.map(r => sanitizeProfileForViewer(r, requesterId));
       }
+      // likes: 랭킹/통계는 liked_id·heart_type·status만 필요 — 보낸 사람(liker_id)은 본인 조회 때만 노출
+      if (table === 'likes' && !isAdmin) {
+        const ownSentOnly = normalizedFilters.some(
+          f => f.type === 'eq' && f.col === 'liker_id' && requesterId && String(f.val) === String(requesterId),
+        );
+        if (!ownSentOnly) {
+          result = result.map(r => {
+            const s = { ...r };
+            delete s['liker_id'];
+            return s;
+          });
+        }
+      }
       if (single) {
         if (!result.length) return res.json({ data: null, error: { message: 'Row not found', code: 'PGRST116' } });
         return res.json({ data: result[0], error: null });

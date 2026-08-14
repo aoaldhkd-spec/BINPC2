@@ -385,6 +385,45 @@ describe('[Security] profiles / likes / storage', () => {
     expect(res.body.data.instagram_id).toBeUndefined();
   });
 
+  it('하트 전체 조회 시 liker_id를 숨기고 본인 보낸 하트 조회만 liker_id를 노출한다', async () => {
+    const likerId = randomUUID();
+    const likedId = randomUUID();
+    await op({
+      op: 'insert',
+      table: 'profiles',
+      payload: { id: likerId, nickname: 'liker-a' },
+    });
+    await op({
+      op: 'insert',
+      table: 'profiles',
+      payload: { id: likedId, nickname: 'liked-b' },
+    });
+    await op({
+      op: 'insert',
+      table: 'likes',
+      requesterId: likerId,
+      payload: { liker_id: likerId, liked_id: likedId, heart_type: 'red', status: 'pending' },
+    });
+
+    const allRes = await op({
+      op: 'select',
+      table: 'likes',
+      requesterId: likedId,
+    });
+    expect(allRes.status).toBe(200);
+    expect(allRes.body.data[0]?.liker_id).toBeUndefined();
+    expect(allRes.body.data[0]?.liked_id).toBe(likedId);
+
+    const ownRes = await op({
+      op: 'select',
+      table: 'likes',
+      requesterId: likerId,
+      filters: [{ type: 'eq', col: 'liker_id', val: likerId }],
+    });
+    expect(ownRes.status).toBe(200);
+    expect(ownRes.body.data[0]?.liker_id).toBe(likerId);
+  });
+
   it('하트를 받지 않은 사용자의 status UPDATE를 차단한다', async () => {
     const likerId = randomUUID();
     const likedId = randomUUID();
