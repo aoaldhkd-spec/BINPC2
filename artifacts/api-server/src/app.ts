@@ -97,12 +97,30 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
 }));
 
-// 세션 미들웨어 — userId를 httpOnly 서명 쿠키로 관리
-app.use(createSessionMiddleware());
+// 세션 미들웨어 — SSE·헬스체크는 HMAC/토큰 인증이라 PG 세션 조회 생략
+const sessionMiddleware = createSessionMiddleware();
+const SESSIONLESS_PATHS = [
+  '/api/healthz',
+  '/api/db/events',
+  '/api/db/unread-counts',
+  '/api/db/push/vapid-key',
+];
+app.use((req, res, next) => {
+  const path = req.path;
+  if (SESSIONLESS_PATHS.some(p => path === p || path.startsWith(`${p}?`))) {
+    return next();
+  }
+  return sessionMiddleware(req, res, next);
+});
 
 app.use(
   pinoHttp({
     logger,
+    autoLogging: {
+      ignore: (req) =>
+        req.url?.startsWith('/api/healthz') === true ||
+        req.url?.startsWith('/api/db/events') === true,
+    },
     serializers: {
       req(req) {
         return {

@@ -710,35 +710,23 @@ export const ProfileCard = memo(function ProfileCard({
                 />
               </div>
 
-              {/* 뒷면: 이상형 — 클릭해도 앞면으로 뒤집히지 않음 */}
+              {/* 뒷면: 이상형 — 탭하면 앞면(사진)으로 복귀 */}
               <div
-                className="absolute inset-0 flex flex-col min-h-0"
+                className="absolute inset-0 flex flex-col min-h-0 cursor-pointer"
                 style={{
                   backfaceVisibility: 'hidden',
                   WebkitBackfaceVisibility: 'hidden',
                   transform: 'rotateY(180deg)',
                   background: 'linear-gradient(165deg,#1a082a 0%,#3a0f52 40%,#4a1570 100%)',
                 }}
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e) => { e.stopPropagation(); setIsFlipped(false); }}
               >
                 <div className="pointer-events-none absolute inset-0"
                   style={{ background: 'radial-gradient(ellipse at 50% 0%,rgba(255,100,200,0.28) 0%,transparent 60%)' }} />
 
-                <div className="relative z-[1] shrink-0 flex items-center justify-between gap-1 px-2 pt-1.5 pb-0.5">
-                  <div className="flex items-center justify-center gap-1 min-w-0 flex-1">
-                    <span className="text-xs leading-none" aria-hidden>💗</span>
-                    <span className="text-[8px] sm:text-[9px] font-black tracking-[0.1em] text-pink-100">나의 이상형</span>
-                  </div>
-                  <button
-                    type="button"
-                    aria-label="사진으로 돌아가기"
-                    onClick={(e) => { e.stopPropagation(); setIsFlipped(false); }}
-                    className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-pink-100/90 active:scale-90"
-                    style={{ background: 'rgba(255,160,220,0.2)', border: '1px solid rgba(255,160,220,0.35)' }}
-                  >
-                    ✕
-                  </button>
+                <div className="relative z-[1] shrink-0 flex items-center justify-center gap-1 px-2 pt-1.5 pb-0.5">
+                  <span className="text-xs leading-none" aria-hidden>💗</span>
+                  <span className="text-[8px] sm:text-[9px] font-black tracking-[0.1em] text-pink-100">나의 이상형</span>
                 </div>
 
                 <div
@@ -781,7 +769,7 @@ export const ProfileCard = memo(function ProfileCard({
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); onSelect(profile); }}
-                  className="relative z-[1] shrink-0 mx-1.5 mb-1 w-[calc(100%-0.75rem)] py-0.5 rounded-md text-[8px] sm:text-[9px] font-bold active:scale-95 transition-transform"
+                  className="relative z-[1] shrink-0 mx-1.5 mb-1 w-[calc(100%-0.75rem)] py-0.5 rounded-md text-[8px] sm:text-[9px] font-bold active:scale-95 transition-transform pointer-events-auto"
                   style={{
                     background: 'rgba(255,160,220,0.22)',
                     border: '1px solid rgba(255,160,220,0.5)',

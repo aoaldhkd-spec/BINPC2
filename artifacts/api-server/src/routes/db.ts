@@ -88,9 +88,9 @@ const sseAdminClients = new Set<Response>();
 // ─── PostgreSQL connection pool ────────────────────────────────────────────────
 const pool = new pg.Pool({
   ...buildPgOptions(),
-  max: 50,                  // 100명 동시접속 대비 (기본값 10에서 상향)
-  idleTimeoutMillis: 30000, // idle 커넥션 30초 후 해제
-  connectionTimeoutMillis: 5000, // 5초 안에 커넥션 못 얻으면 에러
+  max: Number(process.env.PG_POOL_MAX ?? 12),
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
 });
 
 // 인스턴스마다 고유 ID — 자신이 보낸 NOTIFY를 수신해도 중복 처리 방지
@@ -545,6 +545,21 @@ async function ensureStorageSchema(): Promise<void> {
       updated_at timestamptz NOT NULL DEFAULT now()
     )
   `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS app_kv_rows_table_updated_idx
+      ON app_kv_rows (table_name, updated_at DESC)
+  `);
+}
+
+async function loadImagesFromDb(): Promise<void> {
+  try {
+    const imgs = await pool.query('SELECT path, data_url FROM app_image_store');
+    for (const img of imgs.rows) {
+      imageStore[img.path] = img.data_url;
+    }
+  } catch (e) {
+    logger.warn({ err: e }, '[db] image preload failed');
+  }
 }
 
 async function loadFromDb(): Promise<void> {
@@ -563,10 +578,6 @@ async function loadFromDb(): Promise<void> {
       }
       if (!store[row.table_name]) store[row.table_name] = [];
       store[row.table_name].push(row.data as Record<string, unknown>);
-    }
-    const imgs = await pool.query('SELECT path, data_url FROM app_image_store');
-    for (const img of imgs.rows) {
-      imageStore[img.path] = img.data_url;
     }
 
     // Rebuild _likesLastInsert from the freshly loaded likes so the 500 ms
@@ -1053,6 +1064,7 @@ const dbReadyPromise = seedIfNeeded()
 
 dbReadyPromise
   .then(() => setupListenClient())
+  .then(() => loadImagesFromDb())
   .catch(e => logger.error({ err: e }, '[db] startup initialization failed'));
 
 // redeploy·resync 후에도 BOOTSTRAP env → DB 비밀번호 자동 동기화
@@ -1072,9 +1084,17 @@ router.use(async (_req, res, next) => {
   }
 });
 
-// 30초마다 전체 테이블 네이티브 DB 재동기화
-// — 관리자·테스트 패널의 Supabase 직접 쓰기도 30초 내 자동 반영 (NOTIFY 미지원 경로 보정)
-setInterval(() => { resyncAllFromNativeDb().catch(e => logger.error({ err: e }, '[db] resync failed')); }, 30_000);
+// 120초마다 DB 재동기화 — NOTIFY가 실시간 반영, 변경 없으면 SSE 브로드캐스트 생략
+setInterval(() => { resyncAllFromNativeDb().catch(e => logger.error({ err: e }, '[db] resync failed')); }, 120_000);
+
+function tableFingerprint(rows: Record<string, unknown>[]): string {
+  let maxTs = '';
+  for (const r of rows) {
+    const ts = String(r.updated_at ?? r.created_at ?? '');
+    if (ts > maxTs) maxTs = ts;
+  }
+  return `${rows.length}:${maxTs}`;
+}
 
 // ─── Cross-instance sync via PostgreSQL LISTEN/NOTIFY ─────────────────────────
 // autoscale 환경에서 여러 인스턴스가 뜰 때 store + SSE를 동기화한다.
@@ -1285,9 +1305,12 @@ async function resyncAllFromNativeDb(): Promise<void> {
       grouped[tbl].push(r.data as Record<string, unknown>);
     }
     for (const { tbl } of FULL_RESYNC_TABLES) {
-      if (grouped[tbl] !== undefined) {
-        const prev = store[tbl];
-        store[tbl] = grouped[tbl];
+      if (grouped[tbl] === undefined) continue;
+      const prev = store[tbl];
+      const prevFp = tableFingerprint(prev ?? []);
+      store[tbl] = grouped[tbl];
+      const nextFp = tableFingerprint(grouped[tbl]);
+      if (prevFp !== nextFp) {
         broadcastAll({
           type: 'change', table: tbl, event: 'UPDATE',
           newRow: { _bulk_resync: true, count: store[tbl].length },
@@ -2861,7 +2884,7 @@ router.post('/storage-remove', async (req: Request, res: Response) => {
   }
 });
 
-router.get('/storage-image', (req: Request, res: Response): void => {
+router.get('/storage-image', async (req: Request, res: Response): Promise<void> => {
   try {
   // ─ req.query.p 타입 방어: Express는 ?p=a&p=b 시 배열을 반환 → 명시적 string 검증
   const rawP = req.query.p;
@@ -2873,7 +2896,16 @@ router.get('/storage-image', (req: Request, res: Response): void => {
     res.status(userId ? 403 : 401).json({ error: 'Authentication required' });
     return;
   }
-  const dataUrl = imageStore[path];
+  let dataUrl = imageStore[path];
+  if (!dataUrl) {
+    try {
+      const { rows } = await pool.query('SELECT data_url FROM app_image_store WHERE path = $1 LIMIT 1', [path]);
+      dataUrl = rows[0]?.data_url as string | undefined;
+      if (dataUrl) imageStore[path] = dataUrl;
+    } catch (e) {
+      logger.warn({ err: e, path }, '[storage-image] lazy load failed');
+    }
+  }
   if (!dataUrl) { res.status(404).json({ error: 'Not found' }); return; }
   const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
   if (match) {
@@ -3523,7 +3555,7 @@ router.get('/events', (req: Request, res: Response) => {
   // keep-alive ping(5s)이 7번 연속 ACK 없이 쌓이면 Node가 socket.destroy()를 호출해
   // 브라우저가 즉시 EventSource.onerror를 받고 재연결을 시작하도록 강제
   // (TCP keep-alive만으로는 프록시/방화벽이 silent-drop 시 수십 분 좀비가 될 수 있음)
-  const SOCKET_TIMEOUT_MS = 35_000; // 5s ping × 7 = 35s
+  const SOCKET_TIMEOUT_MS = 105_000; // 15s ping × 7
   // Task #153: cleanupConn이 아래에서 선언되므로 forward reference로 호출
   let _cleanupConnRef: () => void = () => {};
   req.socket.setTimeout(SOCKET_TIMEOUT_MS);
@@ -3581,7 +3613,7 @@ router.get('/events', (req: Request, res: Response) => {
     }
   }
 
-  // Keep-alive every 5s — 짧게 유지해 프록시/방화벽 idle 차단 방지
+  // Keep-alive every 15s — 프록시 idle 차단 방지, 5s 대비 서버 부하 감소
   const keepalive = setInterval(() => {
     // res.writable이 false면 이미 닫힌 소켓 — cleanupConn 호출 후 정리
     if (!res.writable || res.writableEnded) { clearInterval(keepalive); cleanupConn(); return; }
@@ -3594,7 +3626,7 @@ router.get('/events', (req: Request, res: Response) => {
       clearInterval(keepalive);
       cleanupConn(); // write 예외 시에도 sseUserMap에서 반드시 제거
     }
-  }, 5000);
+  }, 15_000);
   // _sseCleanup에 등록 — _send write 실패 시에도 keepalive 해제 + IP 카운터 감소 보장
   // (cleanupConn에서 _sseConnPerIp 감소를 제거하고 여기서 통합 처리)
   _sseCleanup.set(res, () => { clearInterval(keepalive); _undoSseConnCount(); });
