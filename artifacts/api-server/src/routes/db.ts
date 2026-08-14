@@ -567,11 +567,13 @@ async function loadFromDb(): Promise<void> {
 
 // ─── Seed data (only if DB is empty) ─────────────────────────────────────────
 function defaultAppSettings(): Record<string, unknown> {
+  const bootstrapAdmin = process.env.BOOTSTRAP_ADMIN_PASSWORD?.trim();
+  const bootstrapTest = process.env.BOOTSTRAP_TEST_PASSWORD?.trim();
   return {
     id: 1,
     session_active: false,
     admin_phone: '010-3878-6740',
-    admin_password: '116606',
+    admin_password: bootstrapAdmin || '116606',
     updated_at: ts(),
     timer_end_at: null,
     timer_label: null,
@@ -580,7 +582,7 @@ function defaultAppSettings(): Record<string, unknown> {
     game_state: null,
     entry_password: koreanDateMMDD(),
     reset_password: null,
-    test_password: null,
+    test_password: bootstrapTest || null,
     qr_base_url: null,
     heart_drain_enabled: false,
     heart_drain_minutes: 5,
@@ -593,20 +595,7 @@ function mergeAppSettings(
   current: Record<string, unknown>,
   patch: Record<string, unknown>,
 ): Record<string, unknown> {
-  const structuralDefaults: Record<string, unknown> = {
-    id: 1,
-    session_active: false,
-    timer_end_at: null,
-    timer_label: null,
-    functions_locked: false,
-    reset_signal: null,
-    game_state: null,
-    entry_password: koreanDateMMDD(),
-    heart_drain_enabled: false,
-    heart_drain_minutes: 5,
-    heart_initial_count: 8,
-  };
-  return { ...structuralDefaults, ...current, ...patch, id: 1, updated_at: ts() };
+  return { ...defaultAppSettings(), ...current, ...patch, id: 1, updated_at: ts() };
 }
 
 /** DB에 id/session_active 등 핵심 필드가 빠진 app_settings를 자동 복구 */
@@ -622,7 +611,10 @@ async function repairAppSettingsIfNeeded(): Promise<void> {
   const broken = row.id == null
     || row.session_active === undefined
     || row.admin_password === undefined
-    || row.entry_password === undefined;
+    || row.admin_password === null
+    || row.admin_password === ''
+    || row.entry_password === undefined
+    || row.test_password === undefined;
   if (!broken) return;
   const repaired = mergeAppSettings(row, {});
   store['app_settings'] = [repaired];
@@ -630,10 +622,37 @@ async function repairAppSettingsIfNeeded(): Promise<void> {
   logger.warn('[db] app_settings repaired (missing core fields)');
 }
 
+/** Render BOOTSTRAP_* env — redeploy 후 DB에 비밀번호가 비어 있으면 자동 복구 */
+async function ensureAppSettingsSecrets(): Promise<void> {
+  const bootstrapAdmin = process.env.BOOTSTRAP_ADMIN_PASSWORD?.trim();
+  const bootstrapTest = process.env.BOOTSTRAP_TEST_PASSWORD?.trim();
+  if (!bootstrapAdmin && !bootstrapTest) return;
+
+  const row = getTable('app_settings')[0];
+  if (!row) return;
+
+  const patch: Record<string, unknown> = {};
+  if (bootstrapAdmin) {
+    const current = String(row.admin_password ?? '');
+    if (!current || current === '116606') patch.admin_password = bootstrapAdmin;
+  }
+  if (bootstrapTest) {
+    const current = row.test_password == null ? '' : String(row.test_password);
+    if (!current || current === '116606') patch.test_password = bootstrapTest;
+  }
+  if (!Object.keys(patch).length) return;
+
+  const updated = mergeAppSettings(row, patch);
+  store['app_settings'] = [updated];
+  await dbPersistRow('app_settings', updated);
+  logger.warn('[db] app_settings secrets synced from bootstrap env');
+}
+
 async function seedIfNeeded(): Promise<void> {
   await ensureStorageSchema();
   await loadFromDb();
   await repairAppSettingsIfNeeded();
+  await ensureAppSettingsSecrets();
   if (!getTable('app_settings').length) {
     const settings = defaultAppSettings();
     store['app_settings'] = [settings];
@@ -2272,9 +2291,9 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
   function checkPassword() {
     const provided = (args.p_admin_password as string) ?? '';
     const token = (args.adminToken as string) ?? '';
-    // adminToken(HMAC)으로도 인증 가능 — 비밀번호 대신 토큰을 전달한 경우도 허용
-    const isValidToken = token.length > 0 && adminPw.length > 0 && token === deriveAdminToken(adminPw);
-    if (adminPw && provided !== adminPw && !isValidToken) throw new Error('비밀번호가 일치하지 않습니다.');
+    if (!adminPw) throw new Error('관리자 비밀번호가 서버에 설정되지 않았습니다.');
+    const isValidToken = token.length > 0 && token === deriveAdminToken(adminPw);
+    if (provided !== adminPw && !isValidToken) throw new Error('비밀번호가 일치하지 않습니다.');
   }
 
   try {

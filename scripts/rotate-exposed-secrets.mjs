@@ -50,6 +50,14 @@ function setEnvValue(text, key, value) {
     : `${text.trimEnd()}\n${line}\n`;
 }
 
+function readCredFromFile(labelPrefix) {
+  if (!existsSync(OUT_PATH)) return '';
+  for (const line of readFileSync(OUT_PATH, 'utf8').split('\n')) {
+    if (line.startsWith(labelPrefix)) return line.split(':').slice(1).join(':').trim();
+  }
+  return '';
+}
+
 function buildPoolerUrl(password) {
   const user = `postgres.${SUPABASE_PROJECT_REF}`;
   return `postgresql://${encodeURIComponent(user)}:${encodeURIComponent(password)}@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres`;
@@ -139,10 +147,10 @@ async function verifyDb() {
 }
 
 async function restoreAdminSettingsAfterDeploy() {
-  const adminPassword = (process.env.ADMIN_PASSWORD || '').trim();
-  const testPassword = (process.env.TEST_PASSWORD || '').trim();
+  const adminPassword = (process.env.ADMIN_PASSWORD || readCredFromFile('Admin login (/admin)')).trim();
+  const testPassword = (process.env.TEST_PASSWORD || readCredFromFile('Test dashboard password')).trim();
   if (!adminPassword) {
-    console.log('[5/5] Skipped admin settings restore (set ADMIN_PASSWORD to auto-restore)');
+    console.log('[5/5] Skipped admin settings restore (no Admin login in credentials)');
     return;
   }
   console.log('[5/5] Restoring admin/test passwords after redeploy...');

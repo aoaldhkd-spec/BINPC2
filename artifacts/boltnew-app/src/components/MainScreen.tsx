@@ -575,11 +575,11 @@ export const ProfileCard = memo(function ProfileCard({
   }, [showMenu]);
 
   return (
-    <div className="group relative bg-white rounded-2xl shadow-sm border border-gray-100">
+    <div className="group relative min-w-0 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
 
-      {/* ··· 메뉴 — 카드 최상단에 배치, overflow:hidden 밖이라 클릭 완전 보장 */}
+      {/* ··· 메뉴 — 전광판 아래에 배치해 겹침 방지 */}
       {(onBlock || onContactShare || onViewFortune) && (
-        <div className="absolute top-1 right-1 z-20">
+        <div className={`absolute right-1.5 z-20 ${statusMsg?.trim() ? 'top-7' : 'top-1.5'}`}>
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -640,11 +640,12 @@ export const ProfileCard = memo(function ProfileCard({
               ref={tickerBarRef}
               className="absolute top-0 left-0 right-0 z-10"
               style={{
-                height: '22px',
+                height: '24px',
                 background: 'rgba(0,0,0,0.52)',
                 backdropFilter: 'blur(4px)',
                 display: 'flex', alignItems: 'center',
-                paddingLeft: '6px', paddingRight: '6px',
+                paddingLeft: '8px',
+                paddingRight: (onBlock || onContactShare || onViewFortune) ? '30px' : '8px',
                 animation: 'ticker-fadein 0.3s ease',
                 overflow: 'hidden',
               }}
@@ -653,7 +654,7 @@ export const ProfileCard = memo(function ProfileCard({
               <span
                 ref={tickerSpanRef}
                 style={{
-                  fontSize: '11px', fontWeight: 500,
+                  fontSize: '10px', fontWeight: 600,
                   color: 'rgba(255,255,255,0.92)', letterSpacing: '0.02em',
                   whiteSpace: 'nowrap',
                   display: 'inline-block',
@@ -787,9 +788,9 @@ export const ProfileCard = memo(function ProfileCard({
         </div>{/* /3:4 외부 컨테이너 */}
 
         {/* ── 닉네임(왼쪽) + 나이(오른쪽) overlay — 사진 영역 하단 고정 ── */}
-        <div className="absolute inset-x-0 bottom-0 px-2 pb-2 pointer-events-none flex items-end justify-between gap-1.5" style={{ zIndex: 5 }}>
+        <div className="absolute inset-x-0 bottom-0 px-2 pb-2 pointer-events-none flex items-end justify-between gap-1 min-w-0" style={{ zIndex: 5 }}>
           {/* 닉네임 — 그라디언트 frosted glass */}
-          <div className="inline-flex items-center min-w-0 rounded-xl px-2.5 py-1"
+          <div className="inline-flex items-center min-w-0 max-w-[68%] rounded-lg px-2 py-0.5"
             style={{
               background: 'linear-gradient(135deg,rgba(0,0,0,0.72) 0%,rgba(30,30,30,0.62) 100%)',
               backdropFilter: 'blur(6px)',
@@ -797,11 +798,11 @@ export const ProfileCard = memo(function ProfileCard({
               border: '1px solid rgba(255,255,255,0.13)',
               boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
             }}>
-            <span className="font-black text-[15px] leading-tight truncate" style={{ color: '#fff', textShadow: '0 1px 3px rgba(0,0,0,0.6)' }}>{profile.nickname}</span>
+            <span className="font-black text-[13px] leading-tight truncate" style={{ color: '#fff', textShadow: '0 1px 3px rgba(0,0,0,0.6)' }}>{profile.nickname}</span>
           </div>
           {/* 나이 — 포인트 컬러 틴트 */}
           {age && (
-            <div className="flex-shrink-0 rounded-xl px-2 py-1"
+            <div className="flex-shrink-0 rounded-lg px-1.5 py-0.5"
               style={{
                 background: 'linear-gradient(135deg,rgba(6,182,212,0.55) 0%,rgba(20,184,166,0.45) 100%)',
                 backdropFilter: 'blur(6px)',
@@ -809,7 +810,7 @@ export const ProfileCard = memo(function ProfileCard({
                 border: '1px solid rgba(255,255,255,0.18)',
                 boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
               }}>
-              <span className="font-black text-[13px] leading-tight" style={{ color: '#fff', textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>{age}</span>
+              <span className="font-black text-[11px] leading-tight whitespace-nowrap" style={{ color: '#fff', textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>{age}</span>
             </div>
           )}
         </div>
@@ -817,16 +818,16 @@ export const ProfileCard = memo(function ProfileCard({
       </div>{/* /사진 영역 wrapper */}
 
       {/* ── 성향 + MBTI ─────────────────────────────────────────────────────────── */}
-      <div className="px-2.5 pt-2 pb-1 flex items-center justify-between gap-1 cursor-pointer"
+      <div className="px-2 pt-1.5 pb-1 flex flex-wrap items-center gap-1 cursor-pointer min-w-0"
         onClick={() => onSelect(profile)}>
         {/* 왼쪽: 성향 배지 */}
-        <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg leading-tight border"
+        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md leading-tight border shrink-0"
           style={{ backgroundColor: posStyle.bg, color: posStyle.text, borderColor: posStyle.border }}>
           {posLabel}
         </span>
         {/* 오른쪽: MBTI */}
         {msStyle && (
-          <span className="text-[10px] font-black px-1.5 py-0.5 rounded-lg leading-tight border"
+          <span className="text-[10px] font-black px-1.5 py-0.5 rounded-md leading-tight border shrink-0 ml-auto"
             style={{ backgroundColor: msStyle.bg + 'dd', color: msStyle.color, borderColor: msStyle.border }}>
             {profile.mbti}
           </span>
@@ -835,9 +836,9 @@ export const ProfileCard = memo(function ProfileCard({
 
       {/* ── 관심사 (최대 2개, 항상 표시) ───────────────────────────────────────── */}
       {bioTags.length > 0 && (
-        <div className="px-2.5 pb-1.5 flex gap-1 overflow-hidden cursor-pointer" onClick={() => onSelect(profile)}>
+        <div className="px-2 pb-1 flex flex-wrap gap-x-1 gap-y-0.5 overflow-hidden cursor-pointer min-w-0" onClick={() => onSelect(profile)}>
           {bioTags.slice(0, 2).map(tag => (
-            <span key={tag} className="text-[11px] font-semibold whitespace-nowrap flex-shrink-0" style={tagStyle}>#{tag}</span>
+            <span key={tag} className="text-[10px] font-semibold truncate max-w-full" style={tagStyle}>#{tag}</span>
           ))}
         </div>
       )}
@@ -850,31 +851,31 @@ export const ProfileCard = memo(function ProfileCard({
               🔒 현재 잠금 중
             </div>
           )}
-          <div className="px-2 pb-2 pt-0.5 flex gap-1.5 mt-1" style={{ borderTop: `1px solid ${dividerColor}` }}>
+          <div className="px-2 pb-2 pt-1 flex gap-1.5" style={{ borderTop: `1px solid ${dividerColor}` }}>
             <button
               onClick={(e) => { if (locked) { showLockToast(e); return; } e.stopPropagation(); onLike(profile.id); }}
               disabled={!locked && isLiked && heartCount >= 4}
-              className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-xl border active:scale-95 transition-transform ${locked ? 'opacity-50' : ''}`}
+              className={`flex-1 min-w-0 flex items-center justify-center gap-0.5 py-1.5 rounded-lg border active:scale-95 transition-transform ${locked ? 'opacity-50' : ''}`}
               style={heartBtnStyle}
             >
               {isLiked && sentHeartType
-                ? <span className="text-xs leading-none relative">
+                ? <span className="text-xs leading-none relative shrink-0">
                     {heartMeta(sentHeartType).emoji}
                     {heartCount > 1 && (
                       <span className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 text-white text-[7px] font-black rounded-full flex items-center justify-center">{heartCount}</span>
                     )}
                   </span>
-                : <Heart className="w-3.5 h-3.5" style={{ fill: isLiked ? '#e11d48' : 'transparent', stroke: '#e11d48', strokeWidth: 2 }} />
+                : <Heart className="w-3.5 h-3.5 shrink-0" style={{ fill: isLiked ? '#e11d48' : 'transparent', stroke: '#e11d48', strokeWidth: 2 }} />
               }
-              <span className="text-[10px] font-bold" style={{ color: '#e11d48' }}>하트</span>
+              <span className="text-[10px] font-bold truncate" style={{ color: '#e11d48' }}>하트</span>
             </button>
             <button
               onClick={(e) => { if (locked) { showLockToast(e); return; } e.stopPropagation(); onOpenChat(profile); }}
-              className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-xl border active:scale-95 transition-transform ${locked ? 'opacity-50' : ''}`}
+              className={`flex-1 min-w-0 flex items-center justify-center gap-0.5 py-1.5 rounded-lg border active:scale-95 transition-transform ${locked ? 'opacity-50' : ''}`}
               style={chatBtnStyle}
             >
-              <MessageCircle className="w-3.5 h-3.5" style={{ color: '#0ea5e9' }} strokeWidth={2} />
-              <span className="text-[10px] font-bold" style={{ color: '#0ea5e9' }}>채팅</span>
+              <MessageCircle className="w-3.5 h-3.5 shrink-0" style={{ color: '#0ea5e9' }} strokeWidth={2} />
+              <span className="text-[10px] font-bold truncate" style={{ color: '#0ea5e9' }}>채팅</span>
             </button>
           </div>
         </div>
@@ -1565,7 +1566,7 @@ export function MainScreen({
 
             {/* ── 참여자 그리드 (이 영역만 스크롤) ───────── */}
             <div className="overflow-y-auto -mx-4 px-4 pb-6" style={{ maxHeight: 'calc(100dvh - 330px)', minHeight: 160 }}>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5 md:gap-2">
             {filteredProfiles.filter(p => p.id !== currentUserId).map((profile) => (
               <ProfileCard
                 key={profile.id}
@@ -1586,7 +1587,7 @@ export function MainScreen({
               />
             ))}
             {filteredProfiles.filter(p => p.id !== currentUserId).length === 0 && (
-              <div className="col-span-2 sm:col-span-3 lg:col-span-4 text-center py-20">
+              <div className="col-span-2 md:col-span-3 text-center py-20">
                 <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                 <p className="text-gray-500">{profileSearch || profilePersonalityFilter || profileMbtiFilter ? '검색 결과가 없습니다.' : '아직 다른 참가자가 없습니다.'}</p>
               </div>

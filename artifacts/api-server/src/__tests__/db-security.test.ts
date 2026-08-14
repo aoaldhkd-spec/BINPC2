@@ -499,6 +499,29 @@ describe('[Security] test dashboard password', () => {
     expect(res.status).toBe(403);
     expect(res.body.data).toBe(false);
   });
+
+  it('mergeAppSettings가 admin/test 비밀번호를 유지한다', async () => {
+    const customAdmin = 'custom-admin-pw-xyz';
+    const customTest = 'custom-test-pw-abc';
+    await request(app)
+      .post('/api/db/rpc/admin_update_settings')
+      .send({
+        p_admin_password: '116606',
+        p_payload: { admin_password: customAdmin, test_password: customTest },
+      });
+
+    const adminOk = await request(app)
+      .post('/api/db/rpc/admin_create_session')
+      .send({ p_phone: '010-3878-6740', p_admin_password: customAdmin });
+    expect(adminOk.status).toBe(200);
+    expect(typeof adminOk.body.data).toBe('string');
+
+    const testOk = await request(app)
+      .post('/api/db/rpc/test_verify_password')
+      .send({ p_test_password: customTest });
+    expect(testOk.status).toBe(200);
+    expect(typeof testOk.body.data).toBe('string');
+  });
 });
 
 // ════════════════════════════════════════════════════════════════════════════════

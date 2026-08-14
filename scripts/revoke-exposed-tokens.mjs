@@ -27,8 +27,8 @@ function readCred(key) {
   const text = readFileSync(OUT_PATH, 'utf8');
   const map = {
     NETLIFY_AUTH_TOKEN: /Netlify PAT \(NEW\):\s*(\S+)/,
-    RENDER_API_KEY: /Render API key \(NEW\):\s*(\S+)/,
-    SUPABASE_ACCESS_TOKEN: /Supabase access token \(NEW\):\s*(\S+)/,
+    RENDER_API_KEY: /Render API key[^:]*:\s*(\S+)/,
+    SUPABASE_ACCESS_TOKEN: /Supabase access token[^:]*:\s*(\S+)/,
   };
   return text.match(map[key])?.[1]?.trim() ?? '';
 }
