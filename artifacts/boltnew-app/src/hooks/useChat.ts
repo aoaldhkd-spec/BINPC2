@@ -190,7 +190,7 @@ export function useChat({
               chatListRef.current = next;
               return next;
             });
-            const pairKey = `${c.user1_id}:${c.user2_id}`;
+            const pairKey = chatPairKey(c.user1_id ?? '', c.user2_id ?? '');
             if (selfInitiatedPairRef.current !== pairKey) {
               const otherId = c.user1_id === uid ? c.user2_id : c.user1_id;
               const otherProfile = profilesRef.current.find(p => p.id === otherId);
@@ -395,7 +395,7 @@ export function useChat({
     const user2Id = currentUserId < otherProfile.id ? otherProfile.id : currentUserId;
 
     if (selfInitiatedPairTimerRef.current !== null) clearTimeout(selfInitiatedPairTimerRef.current);
-    selfInitiatedPairRef.current = `${user1Id}:${user2Id}`;
+    selfInitiatedPairRef.current = chatPairKey(user1Id, user2Id);
     selfInitiatedPairTimerRef.current = setTimeout(() => {
       selfInitiatedPairRef.current = null;
       selfInitiatedPairTimerRef.current = null;

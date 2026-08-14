@@ -795,7 +795,7 @@ function mergeAppSettings(
       delete safePatch[key];
     }
   }
-  const merged = { ...defaultAppSettings(), ...current, ...safePatch, id: 1, updated_at: ts() };
+  const merged: Record<string, unknown> = { ...defaultAppSettings(), ...current, ...safePatch, id: 1, updated_at: ts() };
   merged.heart_drain_enabled = false;
   if (isLocalQrUrl(merged.qr_base_url)) merged.qr_base_url = PRODUCTION_QR_BASE;
   return merged;
@@ -3166,7 +3166,7 @@ router.get('/storage-image', async (req: Request, res: Response): Promise<void> 
     res.status(userId ? 403 : 401).json({ error: 'Authentication required' });
     return;
   }
-  let dataUrl = imageStore[path];
+  let dataUrl: string | undefined = imageStore[path];
   if (!dataUrl) {
     try {
       const { rows } = await pool.query('SELECT data_url FROM app_image_store WHERE path = $1 LIMIT 1', [path]);
