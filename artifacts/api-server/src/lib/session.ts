@@ -1,19 +1,9 @@
 import '../lib/dns-ipv4-first.js';
 import session from 'express-session';
 import connectPgSimple from 'connect-pg-simple';
+import { buildPgOptions } from './pg-options.js';
 
 const SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
-
-function buildPgConObject() {
-  const raw = process.env.DATABASE_URL ?? '';
-  const connectionString = raw && !raw.includes('sslmode=')
-    ? `${raw}${raw.includes('?') ? '&' : '?'}sslmode=require`
-    : raw;
-  return {
-    connectionString,
-    ssl: raw ? { rejectUnauthorized: false } : undefined,
-  };
-}
 
 export function createSessionMiddleware() {
   const secret = process.env.SESSION_SECRET;
@@ -28,7 +18,7 @@ export function createSessionMiddleware() {
   const store = process.env.NODE_ENV === 'test'
     ? undefined
     : new PgSessionStore({
-        conObject: buildPgConObject(),
+        conObject: buildPgOptions(),
         createTableIfMissing: true,
         tableName: 'app_sessions',
         pruneSessionInterval: 15 * 60,

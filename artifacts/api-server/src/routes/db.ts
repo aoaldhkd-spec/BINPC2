@@ -5,6 +5,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { VAPID_PUBLIC_KEY, sendPush, type PushPayload } from '../lib/push';
 import { resolvePin, pinPoolParams } from '../lib/pin';
 import { logger } from '../lib/logger';
+import { buildPgOptions } from '../lib/pg-options.js';
 import { createImageAccessPolicy } from '../lib/image-access';
 
 // express-session의 SessionData에 userId 필드 추가
@@ -57,17 +58,6 @@ function verifyTestToken(provided: string | null | undefined): boolean {
 const sseAdminClients = new Set<Response>();
 
 // ─── PostgreSQL connection pool ────────────────────────────────────────────────
-function buildPgOptions(): pg.ClientConfig {
-  const raw = process.env.DATABASE_URL ?? '';
-  const connectionString = raw && !raw.includes('sslmode=')
-    ? `${raw}${raw.includes('?') ? '&' : '?'}sslmode=require`
-    : raw;
-  return {
-    connectionString,
-    ssl: raw ? { rejectUnauthorized: false } : undefined,
-  };
-}
-
 const pool = new pg.Pool({
   ...buildPgOptions(),
   max: 50,                  // 100명 동시접속 대비 (기본값 10에서 상향)
@@ -2759,20 +2749,21 @@ router.get('/storage-image', (req: Request, res: Response): void => {
 // ─── Admin: clear DB error counter ───────────────────────────────────────────
 router.post('/admin/clear-db-errors', async (req: Request, res: Response) => {
   try {
-  // ─ req.body 타입 방어
   if (req.body == null || typeof req.body !== 'object' || Array.isArray(req.body)) {
     return res.status(400).json({ ok: false, error: 'Request body must be a JSON object' });
   }
-  // Require admin password for safety
+  const adminTokenHeader = typeof req.headers['x-admin-token'] === 'string'
+    ? req.headers['x-admin-token']
+    : null;
   const { adminPassword } = req.body as { adminPassword?: string };
-  if (typeof adminPassword !== 'string') {
-    return res.status(400).json({ ok: false, error: 'adminPassword must be a string' });
-  }
+  const tokenOk = verifyAdminToken(adminTokenHeader);
   const settings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
   const expectedPw = (settings.admin_password as string) ?? '';
-  // 비밀번호가 설정돼 있지 않아도 반드시 거부 — 설정 전 관리자가 먼저 비밀번호를 세팅해야 함
-  if (!expectedPw || adminPassword !== expectedPw) {
-    return res.status(403).json({ ok: false, error: 'Invalid admin password' });
+  const passwordOk = typeof adminPassword === 'string'
+    && !!expectedPw
+    && adminPassword === expectedPw;
+  if (!tokenOk && !passwordOk) {
+    return res.status(403).json({ ok: false, error: 'Admin authentication required' });
   }
 
   _dbPersistErrors = 0;
@@ -2841,6 +2832,7 @@ router.get('/health', async (req: Request, res: Response) => {
   // DB counts for last 5 minutes (best-effort)
   let dbMessages = -1;
   let dbLikes = -1;
+  let dbQueryError: string | null = null;
   try {
     const [mRes, lRes] = await Promise.all([
       pool.query(
@@ -2854,7 +2846,10 @@ router.get('/health', async (req: Request, res: Response) => {
     ]);
     dbMessages = parseInt(mRes.rows[0].count as string, 10);
     dbLikes = parseInt(lRes.rows[0].count as string, 10);
-  } catch { /* db unreachable — leave as -1 */ }
+  } catch (e) {
+    dbQueryError = e instanceof Error ? e.message : String(e);
+    logger.warn({ err: e }, '[health] DB count query failed');
+  }
 
   const sseTotal = [...sseUserMap.values()].reduce((s, c) => s + c.size, 0) + sseAnonClients.size;
 
@@ -2876,6 +2871,7 @@ router.get('/health', async (req: Request, res: Response) => {
 
   const alarms: string[] = [];
   if (recentPersistErrors > 0) alarms.push(`${recentPersistErrors} DB persist error(s) in last 5 min`);
+  if (dbQueryError) alarms.push(`DB query failed: ${dbQueryError.slice(0, 120)}`);
   if (messageLag !== null && messageLag > LOSS_ALARM_THRESHOLD) alarms.push(`message lag: inMem=${inMemMessages} db=${dbMessages} (>${LOSS_ALARM_THRESHOLD})`);
   if (likeLag    !== null && likeLag    > LOSS_ALARM_THRESHOLD) alarms.push(`like lag: inMem=${inMemLikes} db=${dbLikes} (>${LOSS_ALARM_THRESHOLD})`);
   if (pinRemaining <= PIN_ALARM_THRESHOLD) alarms.push(`PIN pool nearly full: ${pinRemaining} slot(s) remaining of ${_pinPoolSize}`);

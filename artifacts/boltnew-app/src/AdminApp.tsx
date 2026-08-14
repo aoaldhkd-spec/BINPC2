@@ -2232,6 +2232,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [settingsSubTab, setSettingsSubTab] = useState<SettingsSubTab>('control');
   const [heartSubTab, setHeartSubTab] = useState<HeartSubTab>('hearts');
   const [dbHealth, setDbHealth] = useState<DbHealthData | null>(null);
+  const [dbHealthAuthError, setDbHealthAuthError] = useState(false);
   const [dbHealthLoading, setDbHealthLoading] = useState(false);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -2393,6 +2394,12 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       const resp = await fetch('/api/db/health', {
         headers: { 'x-admin-token': adminToken },
       });
+      if (resp.status === 401) {
+        setDbHealthAuthError(true);
+        setDbHealth(null);
+        return;
+      }
+      setDbHealthAuthError(false);
       if (resp.ok) {
         const data = await resp.json() as DbHealthData;
         setDbHealth(data);
@@ -2402,16 +2409,19 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   }, []);
 
   const handleClearDbErrors = useCallback(async () => {
-    const adminPassword = (settings as Record<string, unknown> | null)?.admin_password as string ?? '';
+    const adminToken = localStorage.getItem(ADMIN_TOKEN_KEY) ?? '';
     try {
       await fetch('/api/db/admin/clear-db-errors', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ adminPassword }),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-token': adminToken,
+        },
+        body: JSON.stringify({}),
       });
     } catch { /* ignore */ }
     await fetchDbHealth();
-  }, [settings, fetchDbHealth]);
+  }, [fetchDbHealth]);
 
   useEffect(() => {
     fetchDbHealth();
@@ -2748,7 +2758,16 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     .catch(e => console.warn('[admin] api-server QR URL 동기화 실패:', e));
 }} />}
             {settingsSubTab === 'admin' && <CredentialsTab settings={settings} onSave={handleSaveCredentials} onSaveEntry={handleSaveEntryPassword} onSaveReset={handleSaveResetPassword} onSaveTest={handleSaveTestPassword} />}
-            {settingsSubTab === 'db' && <DbHealthTab health={dbHealth} loading={dbHealthLoading} onRefresh={fetchDbHealth} onClearErrors={handleClearDbErrors} />}
+            {settingsSubTab === 'db' && (
+              <>
+                {dbHealthAuthError && (
+                  <div className="mx-4 mt-4 bg-amber-50 border border-amber-300 rounded-xl p-3 text-xs text-amber-800">
+                    DB 헬스 조회 인증이 만료됐습니다. 로그아웃 후 다시 로그인해 주세요.
+                  </div>
+                )}
+                <DbHealthTab health={dbHealth} loading={dbHealthLoading} onRefresh={fetchDbHealth} onClearErrors={handleClearDbErrors} />
+              </>
+            )}
           </div>
         )}
         {tab === 'profiles' && (
