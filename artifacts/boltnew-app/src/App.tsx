@@ -409,6 +409,14 @@ function App() {
 
   useEffect(() => {
     let cancelled = false;
+    // API 콜드스타트·재시도 중에도 12초 후에는 프리뷰/대기 화면 표시 (무한 스피너 방지)
+    const safetyTimer = setTimeout(() => {
+      if (!cancelled) {
+        setAppLoading(false);
+        setSessionActive(prev => (prev === null ? false : prev));
+        setEntryPassword(prev => (prev === null ? '' : prev));
+      }
+    }, 12_000);
 
     const applySettings = (data: Record<string, unknown> | null) => {
       if (cancelled || !data) return;
@@ -548,6 +556,7 @@ function App() {
 
     return () => {
       cancelled = true;
+      clearTimeout(safetyTimer);
       shareNotifTimerIds.forEach(clearTimeout);
       supabase.removeChannel(settingsChannel);
       supabase.removeChannel(notifChannel);

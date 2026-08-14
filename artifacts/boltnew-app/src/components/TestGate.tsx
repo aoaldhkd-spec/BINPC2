@@ -99,7 +99,7 @@ export function TestGate() {
       setError(
         msg.includes('503') || msg.includes('HTTP') || msg.includes('fetch') || msg.includes('network')
           ? '서버 연결에 실패했습니다. 잠시 후 다시 시도해주세요.'
-          : (verifyError?.message ?? '비밀번호가 올바르지 않습니다.'),
+          : '비밀번호가 올바르지 않습니다. (보안 업데이트로 변경됨 — credentials 파일의 Test dashboard password 확인)',
       );
       setLoading(false);
       return;
