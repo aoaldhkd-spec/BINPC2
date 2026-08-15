@@ -10,10 +10,17 @@
   COREPACK_ENABLE_DOWNLOAD_PROMPT = "0"
 
 [[headers]]
+  for = "/api/*"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, no-transform"
+    X-Accel-Buffering = "no"
+
+[[headers]]
   for = "/api/db/events"
   [headers.values]
-    Cache-Control = "no-cache, no-transform"
+    Cache-Control = "no-cache, no-store, no-transform"
     X-Accel-Buffering = "no"
+    Content-Type = "text/event-stream; charset=utf-8"
 
 [[headers]]
   for = "/"

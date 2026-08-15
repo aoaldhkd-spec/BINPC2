@@ -1,7 +1,7 @@
 import '../lib/dns-ipv4-first.js';
 import { Router, type Request, type Response } from 'express';
 import pg from 'pg';
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { VAPID_PUBLIC_KEY, sendPush, type PushPayload } from '../lib/push';
 import { resolvePin, pinPoolParams } from '../lib/pin';
 import { logger } from '../lib/logger';
@@ -233,6 +233,58 @@ const IMAGE_MAGIC: Record<string, number[]> = {
 const LIKES_MAX_PER_USER_PER_MIN = 20; // 1분에 20개 초과 시 429
 const _userLikeMinuteBuckets = new Map<string, { count: number; resetAt: number }>();
 
+/**
+ * 멀티 인스턴스 공용 rate limit — app_kv_rows 로 직렬화.
+ * 테스트/DB 장애 시에는 in-memory 로 폴백.
+ */
+async function claimDistributedRateSlot(
+  rowId: string,
+  minIntervalMs: number,
+): Promise<boolean> {
+  if (process.env.NODE_ENV === 'test' || process.env.VITEST) return true;
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO app_kv_rows (table_name, row_id, data, updated_at)
+       VALUES ('rate_limits', $1, '{}'::jsonb, NOW())
+       ON CONFLICT (table_name, row_id) DO UPDATE
+       SET updated_at = NOW()
+       WHERE app_kv_rows.updated_at < NOW() - ($2::double precision * INTERVAL '1 millisecond')
+       RETURNING row_id`,
+      [rowId, minIntervalMs],
+    );
+    return rows.length > 0;
+  } catch (e) {
+    logger.warn({ err: e, rowId }, '[db] distributed rate slot failed — memory fallback');
+    return true; // 호출측 memory 가드가 처리
+  }
+}
+
+async function claimDistributedMinuteQuota(
+  rowId: string,
+  maxPerMinute: number,
+): Promise<boolean> {
+  if (process.env.NODE_ENV === 'test' || process.env.VITEST) return true;
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO app_kv_rows (table_name, row_id, data, updated_at)
+       VALUES ('rate_limits', $1, jsonb_build_object('count', 1), NOW())
+       ON CONFLICT (table_name, row_id) DO UPDATE
+       SET data = jsonb_build_object(
+             'count',
+             LEAST($2::int, COALESCE((app_kv_rows.data->>'count')::int, 0) + 1)
+           ),
+           updated_at = NOW()
+       WHERE COALESCE((app_kv_rows.data->>'count')::int, 0) < $2::int
+       RETURNING (data->>'count')::int AS count`,
+      [rowId, maxPerMinute],
+    );
+    return rows.length > 0;
+  } catch (e) {
+    logger.warn({ err: e, rowId }, '[db] distributed minute quota failed — memory fallback');
+    return true;
+  }
+}
+
 // ─── DB persist error tracking ────────────────────────────────────────────────
 let _dbPersistErrors = 0;
 interface PersistErrorEntry { table: string; time: number; msg: string }
@@ -436,6 +488,95 @@ function getTable(name: string): Record<string, unknown>[] {
 function chatPairKey(u1: string, u2: string): string {
   const [a, b] = [String(u1), String(u2)].sort();
   return `${a}:${b}`;
+}
+
+/** 멀티 인스턴스에서도 동일 쌍 → 동일 row id (중복 채팅방 생성 방지) */
+function deterministicChatId(u1: string, u2: string): string {
+  return `c_${createHash('sha256').update(chatPairKey(u1, u2)).digest('hex').slice(0, 32)}`;
+}
+
+/** 채팅 쌍 생성 직렬화 — 인스턴스 간 race 를 PG advisory lock 으로 차단 */
+async function withChatPairLock<T>(pairKey: string, fn: () => Promise<T>): Promise<T> {
+  const { rows } = await pool.query<{ h: number }>('SELECT hashtext($1)::int AS h', [pairKey]);
+  const lockId = rows[0]?.h ?? 0;
+  await pool.query('SELECT pg_advisory_lock($1)', [lockId]);
+  try {
+    return await fn();
+  } finally {
+    await pool.query('SELECT pg_advisory_unlock($1)', [lockId]).catch(() => {});
+  }
+}
+
+/** 내구성이 필수인 테이블 — persist 성공 후에만 SSE/응답 */
+const CRITICAL_PERSIST_TABLES = new Set([
+  'messages', 'likes', 'chats', 'chat_reads',
+  'contact_shares', 'contact_share_events', 'group_messages',
+]);
+
+/** SSE 타겟 수집 (테스트·브로드캐스트 공용) — 프라이빗 이벤트 유실 방지 */
+export function collectBroadcastTargets(
+  table: string,
+  row: Record<string, unknown> | null,
+  findChat: (chatId: string) => Record<string, unknown> | undefined = (id) =>
+    getTable('chats').find(c => String(c['id']) === String(id)),
+): string[] {
+  if (!row) return [];
+  const targets: string[] = [];
+  const push = (v: unknown) => {
+    if (v != null && v !== '') targets.push(String(v));
+  };
+
+  if (table === 'messages') {
+    const chat = findChat(String(row['chat_id'] ?? ''));
+    if (chat) {
+      push(chat['user1_id']);
+      push(chat['user2_id']);
+    }
+    // 채팅방이 아직 메모리에 없어도 메시지에 스탬프된 참가자로 전달
+    push(row['chat_user1_id']);
+    push(row['chat_user2_id']);
+  } else if (table === 'likes') {
+    push(row['liker_id']);
+    push(row['liked_id']);
+  } else if (table === 'chats') {
+    push(row['user1_id']);
+    push(row['user2_id']);
+  } else if (table === 'contact_shares') {
+    // 실제 스키마: liker_id / liked_id (구 필드명도 호환)
+    push(row['liker_id']);
+    push(row['liked_id']);
+    push(row['sharer_id']);
+    push(row['receiver_id']);
+  } else if (table === 'contact_share_events') {
+    push(row['from_user_id']);
+    push(row['to_user_id']);
+    push(row['sender_id']);
+    push(row['recipient_id']);
+  } else if (table === 'heart_balances') {
+    push(row['id']);
+  } else if (table === 'group_messages') {
+    const gParts = getTable('group_participants').filter(p => p.group_id === row['group_id']);
+    for (const gp of gParts) push(gp.user_id);
+  } else if (table === 'group_participants') {
+    push(row['user_id']);
+  } else if (table === 'chat_reads') {
+    push(row['user_id']);
+    push(row['reader_id']);
+    if (row['chat_id'] && row['reader_id']) {
+      const chat = findChat(String(row['chat_id']));
+      if (chat) {
+        const otherId = chat['user1_id'] === row['reader_id'] ? chat['user2_id'] : chat['user1_id'];
+        push(otherId);
+      }
+    }
+  } else if (table === 'blocked_users') {
+    push(row['user_id']);
+    push(row['target_id']);
+  } else if (table === 'profile_views') {
+    push(row['viewed_id']);
+  }
+
+  return [...new Set(targets)];
 }
 
 function countMessagesForChat(chatId: string): number {
@@ -1632,52 +1773,7 @@ function _smartBroadcastLocal(table: string, row: Record<string, unknown> | null
     if (!PRIVATE_TABLES.has(table)) broadcastAll(event);
     return;
   }
-  const targets: string[] = [];
-  if (table === 'messages') {
-    const chat = getTable('chats').find(c => c['id'] === row['chat_id']);
-    if (chat) targets.push(chat['user1_id'] as string, chat['user2_id'] as string);
-  } else if (table === 'likes') {
-    if (row['liker_id']) targets.push(row['liker_id'] as string);
-    if (row['liked_id']) targets.push(row['liked_id'] as string);
-  } else if (table === 'chats') {
-    if (row['user1_id']) targets.push(row['user1_id'] as string);
-    if (row['user2_id']) targets.push(row['user2_id'] as string);
-  } else if (table === 'contact_shares' || table === 'contact_share_events') {
-    ['sharer_id','receiver_id','sender_id','recipient_id','user1_id','user2_id']
-      .forEach(k => { if (row[k]) targets.push(row[k] as string); });
-  } else if (table === 'heart_balances') {
-    // 하트 잔여 수는 본인에게만 전달 (id 필드 = userId)
-    if (row['id']) targets.push(row['id'] as string);
-  } else if (table === 'group_messages') {
-    // 단톡방 메시지: 방 참여자 전원에게 전달
-    const gParts = getTable('group_participants').filter(p => p.group_id === row['group_id']);
-    for (const gp of gParts) {
-      if (gp.user_id) targets.push(gp.user_id as string);
-    }
-  } else if (table === 'group_participants') {
-    // 단톡방 참여자 배정: 해당 유저에게만 전달
-    if (row['user_id']) targets.push(row['user_id'] as string);
-  } else if (table === 'chat_reads') {
-    // reader_id에게도 전달 (자신의 읽음 확인)
-    if (row['user_id'])   targets.push(row['user_id']   as string);
-    if (row['reader_id']) targets.push(row['reader_id'] as string);
-    // 상대방에게도 전달 — 읽음 표시("1") 해제에 필요
-    // reader_id가 읽었다는 사실을 채팅 상대방도 알아야 자신의 메시지 옆 "1"이 사라짐
-    if (row['chat_id'] && row['reader_id']) {
-      const chat = getTable('chats').find(c => c.id === row['chat_id']);
-      if (chat) {
-        const otherId = chat['user1_id'] === row['reader_id'] ? chat['user2_id'] : chat['user1_id'];
-        if (otherId && otherId !== row['reader_id']) targets.push(otherId as string);
-      }
-    }
-  } else if (table === 'blocked_users') {
-    // 차단/숨기기: 차단자와 피차단자 모두에게 전달 (상호 필터링)
-    if (row['user_id'])  targets.push(row['user_id']  as string);
-    if (row['target_id']) targets.push(row['target_id'] as string);
-  } else if (table === 'profile_views') {
-    // 프로필 방문: 방문 받은 사람에게만 전달 (내 방문자 목록용)
-    if (row['viewed_id']) targets.push(row['viewed_id'] as string);
-  }
+  const targets = collectBroadcastTargets(table, row);
 
   if (targets.length > 0) {
     // 프로필 포함 이벤트라도 수신자가 명확하면 해당 유저에게만 전달
@@ -1702,8 +1798,10 @@ function _smartBroadcastLocal(table: string, row: Record<string, unknown> | null
     } else {
       broadcastAll(event);
     }
+  } else {
+    // 프라이빗 테이블인데 수신자를 특정 못한 경우 → 드롭하되 관측 가능하게 경고
+    logger.warn({ table, rowId: row['id'], chatId: row['chat_id'] }, '[sse] private event dropped — no targets');
   }
-  // 프라이빗 테이블인데 수신자를 특정 못한 경우 → 조용히 드롭 (전체 유출 방지)
 }
 
 /** 로컬 SSE 전송 + 다른 인스턴스에 NOTIFY 전파 */
@@ -2221,8 +2319,17 @@ router.post('/op', async (req: Request, res: Response) => {
     if (op === 'insert') {
       if (payload == null) return res.status(400).json({ data: null, error: { message: 'payload is required for insert', code: '22023' } });
       if (table === 'chats') {
-        await mergeTableFromDbIfStale('chats', true);
-        await dedupeChatsInStore();
+        // 동일 유저 쌍 생성을 인스턴스 간에 직렬화
+        const raw0 = (Array.isArray(payload) ? payload[0] : payload) as Record<string, unknown> | null;
+        const lockKey = raw0?.user1_id != null && raw0?.user2_id != null
+          ? chatPairKey(String(raw0.user1_id), String(raw0.user2_id))
+          : null;
+        const prepChats = async () => {
+          await mergeTableFromDbIfStale('chats', true);
+          await dedupeChatsInStore();
+        };
+        if (lockKey) await withChatPairLock(lockKey, prepChats);
+        else await prepChats();
         tableData = store[table];
       }
       const inputs = Array.isArray(payload) ? payload as Record<string, unknown>[] : [payload as Record<string, unknown>];
@@ -2273,6 +2380,12 @@ router.post('/op', async (req: Request, res: Response) => {
             logger.warn({ requesterId, chatId: effectiveRow.chat_id, ip: req.ip }, '[SECURITY] IDOR: message INSERT by non-participant blocked');
             return res.status(403).json({ data: null, error: { message: 'Forbidden: not a chat participant', code: 'FORBIDDEN' } });
           }
+          // 멀티 인스턴스에서 chats 테이블이 아직 메모리에 없어도 SSE가 전달되도록 참가자 스탬프
+          effectiveRow = {
+            ...effectiveRow,
+            chat_user1_id: targetChat.user1_id,
+            chat_user2_id: targetChat.user2_id,
+          };
         }
         // chats: requesterId 필수 + 본인이 user1_id 또는 user2_id여야 함
         if (table === 'chats') {
@@ -2347,6 +2460,14 @@ router.post('/op', async (req: Request, res: Response) => {
             if (selectAfterWrite) return res.json({ data: single ? existing : [existing], error: null });
             return res.json({ data: null, error: null });
           }
+          // 멀티 인스턴스: 동일 쌍 → 동일 row_id 로 persist 충돌 시 하나로 합쳐짐
+          const detId = deterministicChatId(uid1, uid2);
+          const byId = tableData.find(r => String(r.id) === detId);
+          if (byId) {
+            if (selectAfterWrite) return res.json({ data: single ? byId : [byId], error: null });
+            return res.json({ data: null, error: null });
+          }
+          effectiveRow = { ...effectiveRow, id: detId };
         }
         // messages 테이블: client_id(UUID) 기반 멱등성 — 네트워크 재시도로 인한 중복 메시지 삽입 방지
         if (table === 'messages' && effectiveRow.client_id != null) {
@@ -2363,7 +2484,7 @@ router.post('/op', async (req: Request, res: Response) => {
           const dupLike = tableData.find(r =>
             r.liker_id === effectiveRow.liker_id && r.liked_id === effectiveRow.liked_id && r.heart_type === effectiveRow.heart_type
           );
-          if (dupLike) return res.json({ data: null, error: null }); // 무음 중복 차단
+          if (dupLike) return res.json({ data: single ? dupLike : [dupLike], error: null }); // 멱등: 기존 row 반환
 
           // 타입별 글로벌 한도: 동일 heart_type을 최대 2명에게만 보낼 수 있음 (클라이언트 우회 방지)
           const sameTypeCount = tableData.filter(r =>
@@ -2379,8 +2500,25 @@ router.post('/op', async (req: Request, res: Response) => {
           const rateKey = `${effectiveRow.liker_id}:${effectiveRow.liked_id}:${effectiveRow.heart_type}`;
           const lastMs = _likesLastInsert.get(rateKey) ?? 0;
           if (Date.now() - lastMs < LIKES_MIN_INTERVAL_MS) {
-            // Rapid duplicate — silently ignore (client-side lock should have prevented this)
-            return res.json({ data: null, error: null });
+            // Rapid duplicate — return existing row if any (never silent null success)
+            const recent = tableData.find(r =>
+              r.liker_id === effectiveRow.liker_id &&
+              r.liked_id === effectiveRow.liked_id &&
+              r.heart_type === effectiveRow.heart_type
+            );
+            if (recent) return res.json({ data: single ? recent : [recent], error: null });
+            return res.status(429).json({ data: null, error: { message: '하트를 너무 빠르게 보내고 있습니다. 잠시 후 다시 시도해 주세요.', code: 'RATE_LIMIT' } });
+          }
+          // 멀티 인스턴스: PG 공용 슬롯 (로컬 Map 만으로는 인스턴스별 우회 가능)
+          const distributedOk = await claimDistributedRateSlot(`like_pair:${rateKey}`, LIKES_MIN_INTERVAL_MS);
+          if (!distributedOk) {
+            const recent = tableData.find(r =>
+              r.liker_id === effectiveRow.liker_id &&
+              r.liked_id === effectiveRow.liked_id &&
+              r.heart_type === effectiveRow.heart_type
+            );
+            if (recent) return res.json({ data: single ? recent : [recent], error: null });
+            return res.status(429).json({ data: null, error: { message: '하트를 너무 빠르게 보내고 있습니다. 잠시 후 다시 시도해 주세요.', code: 'RATE_LIMIT' } });
           }
           _likesLastInsert.set(rateKey, Date.now());
 
@@ -2396,8 +2534,20 @@ router.post('/op', async (req: Request, res: Response) => {
           if (ubucket.count > LIKES_MAX_PER_USER_PER_MIN) {
             return res.status(429).json({ data: null, error: { message: '하트를 너무 빠르게 보내고 있습니다. 잠시 후 다시 시도해 주세요.', code: 'RATE_LIMIT' } });
           }
+          const minuteBucket = Math.floor(nowMs / 60_000);
+          const minuteOk = await claimDistributedMinuteQuota(
+            `like_min:${liker}:${minuteBucket}`,
+            LIKES_MAX_PER_USER_PER_MIN,
+          );
+          if (!minuteOk) {
+            return res.status(429).json({ data: null, error: { message: '하트를 너무 빠르게 보내고 있습니다. 잠시 후 다시 시도해 주세요.', code: 'RATE_LIMIT' } });
+          }
         }
-        const newRow: Record<string, unknown> = { id: genId(), created_at: ts(), ...effectiveRow };
+        const newRow: Record<string, unknown> = {
+          created_at: ts(),
+          ...effectiveRow,
+          id: (effectiveRow.id as string | undefined) ?? genId(),
+        };
         if (table === 'session_history' && !newRow.ended_at) newRow.ended_at = ts();
 
         // 프로필 생성 시 device secret을 원자적으로 바인딩 — TOFU 레이스 윈도우 제거
@@ -2423,8 +2573,27 @@ router.post('/op', async (req: Request, res: Response) => {
           if (newRow.nickname) _insertNickSet!.add(newRow.nickname as string);
           if (newRow.pin_code) _insertPinSet!.add(newRow.pin_code as string);
         }
-        smartBroadcast(table, newRow, { type: 'change', table, event: 'INSERT', newRow, oldRow: null });
-        dbPersistRow(table, newRow).catch(e => logger.error({ err: e }, '[db] background task error'));
+
+        // 핵심 테이블: DB 저장 성공 후에만 SSE 전파 — "전달됐는데 저장 안 됨" 방지
+        if (CRITICAL_PERSIST_TABLES.has(table)) {
+          try {
+            await dbPersistRow(table, newRow);
+          } catch (e) {
+            const idx = tableData.findIndex(r => r.id === newRow.id);
+            if (idx >= 0) tableData.splice(idx, 1);
+            const iidx = inserted.findIndex(r => r.id === newRow.id);
+            if (iidx >= 0) inserted.splice(iidx, 1);
+            logger.error({ err: e, table, rowId: newRow.id }, '[db] critical persist failed — rolled back memory');
+            return res.status(503).json({
+              data: null,
+              error: { message: '저장에 실패했습니다. 잠시 후 다시 시도해 주세요.', code: 'PERSIST_FAILED' },
+            });
+          }
+          smartBroadcast(table, newRow, { type: 'change', table, event: 'INSERT', newRow, oldRow: null });
+        } else {
+          smartBroadcast(table, newRow, { type: 'change', table, event: 'INSERT', newRow, oldRow: null });
+          dbPersistRow(table, newRow).catch(e => logger.error({ err: e }, '[db] background task error'));
+        }
         // #33: 신규 프로필 등록 시 PIN 풀 사용량 확인 — 85% 초과 시 관리자 푸시 알림
         if (table === 'profiles') {
           checkAndNotifyAdminPinPool().catch(e => logger.error({ err: e }, '[db] background task error'));
@@ -2520,8 +2689,24 @@ router.post('/op', async (req: Request, res: Response) => {
           const newRow = { ...oldRow, ...patch };
           tableData[i] = newRow;
           updated.push(newRow);
-          smartBroadcast(table, newRow, { type: 'change', table, event: 'UPDATE', newRow, oldRow });
-          dbPersistRow(table, newRow).catch(e => logger.error({ err: e }, '[db] background task error'));
+          if (CRITICAL_PERSIST_TABLES.has(table)) {
+            try {
+              await dbPersistRow(table, newRow);
+            } catch (e) {
+              tableData[i] = oldRow; // rollback
+              const uidx = updated.findIndex(r => r.id === newRow.id);
+              if (uidx >= 0) updated.splice(uidx, 1);
+              logger.error({ err: e, table, rowId: newRow.id }, '[db] critical UPDATE persist failed');
+              return res.status(503).json({
+                data: null,
+                error: { message: '저장에 실패했습니다. 잠시 후 다시 시도해 주세요.', code: 'PERSIST_FAILED' },
+              });
+            }
+            smartBroadcast(table, newRow, { type: 'change', table, event: 'UPDATE', newRow, oldRow });
+          } else {
+            smartBroadcast(table, newRow, { type: 'change', table, event: 'UPDATE', newRow, oldRow });
+            dbPersistRow(table, newRow).catch(e => logger.error({ err: e }, '[db] background task error'));
+          }
           // chat_reads 갱신 시 해당 유저 unread 캐시 즉시 무효화
           if (table === 'chat_reads' && newRow.reader_id) {
             unreadCountsCache.delete(String(newRow.reader_id));
@@ -2567,8 +2752,23 @@ router.post('/op', async (req: Request, res: Response) => {
           const newRow = { ...oldRow, ...row };
           tableData[idx] = newRow;
           upserted.push(newRow);
-          smartBroadcast(table, newRow, { type: 'change', table, event: 'UPDATE', newRow, oldRow });
-          dbPersistRow(table, newRow).catch(e => logger.error({ err: e }, '[db] background task error'));
+          if (CRITICAL_PERSIST_TABLES.has(table)) {
+            try {
+              await dbPersistRow(table, newRow);
+            } catch (e) {
+              tableData[idx] = oldRow;
+              upserted.pop();
+              logger.error({ err: e, table, rowId: newRow.id }, '[db] critical UPSERT persist failed');
+              return res.status(503).json({
+                data: null,
+                error: { message: '저장에 실패했습니다. 잠시 후 다시 시도해 주세요.', code: 'PERSIST_FAILED' },
+              });
+            }
+            smartBroadcast(table, newRow, { type: 'change', table, event: 'UPDATE', newRow, oldRow });
+          } else {
+            smartBroadcast(table, newRow, { type: 'change', table, event: 'UPDATE', newRow, oldRow });
+            dbPersistRow(table, newRow).catch(e => logger.error({ err: e }, '[db] background task error'));
+          }
           // chat_reads 갱신 시 해당 유저 unread 캐시 즉시 무효화
           if (table === 'chat_reads' && newRow.reader_id) {
             unreadCountsCache.delete(String(newRow.reader_id));
@@ -2582,8 +2782,24 @@ router.post('/op', async (req: Request, res: Response) => {
           tableData.push(base);
           _idxById?.set(base.id, tableData.length - 1); // Map 갱신 (배치 내 후속 항목 O(1) 조회)
           upserted.push(base);
-          smartBroadcast(table, base, { type: 'change', table, event: 'INSERT', newRow: base, oldRow: null });
-          dbPersistRow(table, base).catch(e => logger.error({ err: e }, '[db] background task error'));
+          if (CRITICAL_PERSIST_TABLES.has(table)) {
+            try {
+              await dbPersistRow(table, base);
+            } catch (e) {
+              const bi = tableData.findIndex(r => r.id === base.id);
+              if (bi >= 0) tableData.splice(bi, 1);
+              upserted.pop();
+              logger.error({ err: e, table, rowId: base.id }, '[db] critical UPSERT insert persist failed');
+              return res.status(503).json({
+                data: null,
+                error: { message: '저장에 실패했습니다. 잠시 후 다시 시도해 주세요.', code: 'PERSIST_FAILED' },
+              });
+            }
+            smartBroadcast(table, base, { type: 'change', table, event: 'INSERT', newRow: base, oldRow: null });
+          } else {
+            smartBroadcast(table, base, { type: 'change', table, event: 'INSERT', newRow: base, oldRow: null });
+            dbPersistRow(table, base).catch(e => logger.error({ err: e }, '[db] background task error'));
+          }
           if (table === 'chat_reads' && base.reader_id) {
             unreadCountsCache.delete(String(base.reader_id));
           }
@@ -3869,14 +4085,16 @@ router.get('/events', (req: Request, res: Response) => {
     else _sseConnPerIp.set(sseIp, c - 1);
   };
 
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-store, no-transform');
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no');
+  // CDN/프록시가 gzip으로 묶지 않도록 — SSE 청크 지연 방지
+  res.setHeader('Content-Encoding', 'identity');
   res.flushHeaders();
 
   // ── 소켓 레벨 타임아웃 — 좀비 TCP 연결 방어 ─────────────────────────────────
-  // keep-alive ping(5s)이 7번 연속 ACK 없이 쌓이면 Node가 socket.destroy()를 호출해
+  // keep-alive ping(15s) 기준으로 여유 있게 설정 (미수신 시 Node가 socket.destroy)
   // 브라우저가 즉시 EventSource.onerror를 받고 재연결을 시작하도록 강제
   // (TCP keep-alive만으로는 프록시/방화벽이 silent-drop 시 수십 분 좀비가 될 수 있음)
   const SOCKET_TIMEOUT_MS = 105_000; // 15s ping × 7

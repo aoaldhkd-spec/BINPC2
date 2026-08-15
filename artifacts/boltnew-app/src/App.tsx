@@ -794,8 +794,9 @@ function App() {
         (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => setProfiles((prev) => prev.filter((p) => p.id !== (payload.old as Profile).id)))
       .subscribe();
 
-    const likesChannel = supabase
-      .channel('realtime:likes')
+    // 하트/연락처/제안/잔여하트 — 단일 채널로 묶어 SSE 리스너 수 감소 (EventSource는 공유)
+    const userRealtimeChannel = supabase
+      .channel(`realtime:user-bundle:${currentUserId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'likes', filter: `liker_id=eq.${currentUserId}` },
         (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
           const row = payload.new as { liked_id: string; heart_type: HeartType };
@@ -812,27 +813,20 @@ function App() {
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'likes', filter: `liker_id=eq.${currentUserId}` },
         (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
           const updated = payload.new as { liked_id: string; status: string };
-          // likeStatuses에 보낸 하트 응답 상태 즉시 반영 (거부됨 배지 표시용)
           setLikeStatuses(prev => new Map(prev).set(updated.liked_id, updated.status));
           if (updated.status === 'rejected') {
-            // profilesRef로 최신 데이터 참조 (stale 클로저 방지)
             const rejectedProfile = profilesRef.current.find(p => p.id === updated.liked_id);
             const nick = rejectedProfile?.nickname ?? '상대방';
             setRejectionNotif(nick);
             rejNotifTimerIds.push(setTimeout(() => setRejectionNotif(null), 5000));
           } else if (updated.status === 'accepted') {
             loadContactShareData(currentUserId);
-            // 수락 알림: 보낸 사람에게도 피드백 제공
             const acceptedProfile = profilesRef.current.find(p => p.id === updated.liked_id);
             const nick = acceptedProfile?.nickname ?? '상대방';
             setBottomNotif({ type: 'chat', nickname: `💚 ${nick}님이 하트를 수락했어요` });
             rejNotifTimerIds.push(setTimeout(() => setBottomNotif(prev => prev?.nickname === `💚 ${nick}님이 하트를 수락했어요` ? null : prev), 5000));
           }
         })
-      .subscribe();
-
-    const receivedLikesChannel = supabase
-      .channel('realtime:received-likes')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'likes', filter: `liked_id=eq.${currentUserId}` },
         async (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
           try {
@@ -850,13 +844,8 @@ function App() {
             }
           } catch (e) { console.warn('[realtime:likes]', e); }
         })
-      // 받은 하트의 상태 변경(수락/거절)을 실시간 반영 — INSERT 전용이면 다른 기기에서 처리한 수락이 누락됨
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'likes', filter: `liked_id=eq.${currentUserId}` },
         () => { loadReceivedLikesRef.current?.(currentUserId).catch(() => {}); })
-      .subscribe();
-
-    const contactSharesChannel = supabase
-      .channel('realtime:contact-shares')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'contact_shares', filter: `liker_id=eq.${currentUserId}` },
         async (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
           try {
@@ -874,12 +863,6 @@ function App() {
           const share = payload.new as ContactShare;
           setReceivedContactShares(prev => prev.map(s => s.liked_id === share.liked_id ? share : s));
         })
-      .subscribe();
-
-    // chats INSERT/DELETE는 useChat의 user-events-${uid} 통합 채널이 처리 — 중복 구독 제거됨
-
-    const suggestionsChannel = supabase
-      .channel('realtime:suggestions')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'suggestions', filter: `profile_id=eq.${currentUserId}` }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         const s = payload.new as Suggestion;
         setSuggestions(prev => prev.map(x => x.id === s.id ? s : x));
@@ -888,11 +871,6 @@ function App() {
         const s = payload.new as Suggestion;
         setSuggestions(prev => prev.some(x => x.id === s.id) ? prev : [s, ...prev]);
       })
-      .subscribe();
-
-    // ─── 하트 잔여 수 실시간 구독 + 초기 로드 ─────────────────────────────────
-    const heartBalanceChannel = supabase
-      .channel(`realtime:heart_balances:${currentUserId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'heart_balances', filter: `id=eq.${currentUserId}` },
         (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
           const row = payload.new as { heart_count?: number };
@@ -905,6 +883,8 @@ function App() {
           }
         })
       .subscribe();
+    // chats INSERT/DELETE는 useChat의 user-events-${uid} 통합 채널이 처리 — 중복 구독 제거됨
+
     supabase.from('heart_balances').select('heart_count').eq('id', currentUserId).maybeSingle()
       .then(({ data }: { data: any }) => {
         if (data && typeof data.heart_count === 'number') setMyHeartCount(data.heart_count);
@@ -921,11 +901,7 @@ function App() {
       if (confettiTimerRef.current) { clearTimeout(confettiTimerRef.current); confettiTimerRef.current = null; }
       if (confettiInnerTimerRef.current) { clearTimeout(confettiInnerTimerRef.current); confettiInnerTimerRef.current = null; }
       supabase.removeChannel(profileChannel);
-      supabase.removeChannel(likesChannel);
-      supabase.removeChannel(receivedLikesChannel);
-      supabase.removeChannel(contactSharesChannel);
-      supabase.removeChannel(suggestionsChannel);
-      supabase.removeChannel(heartBalanceChannel);
+      supabase.removeChannel(userRealtimeChannel);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- loadXxx are stable useCallbacks; setState/refs are stable
   }, [currentUserId, loadProfiles, loadLikes, loadReceivedLikes, loadContactShareData, loadChatList, loadSuggestions]);
@@ -951,9 +927,9 @@ function App() {
         if (Array.isArray(data)) setProfileVisitors(data as ProfileView[]);
       }).catch(() => {});
 
-    // SSE: blocked_users 신규 삽입 구독
-    const blockedCh = supabase
-      .channel(`blocked-users-${uid}`)
+    // SSE: blocked_users / profile_views — 단일 채널
+    const privacyCh = supabase
+      .channel(`privacy-${uid}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'blocked_users' },
         (payload: { new: Record<string, unknown> }) => {
           try {
@@ -963,10 +939,6 @@ function App() {
             }
           } catch (e) { console.warn('[blocked_users SSE]', e); }
         })
-      .subscribe();
-    // SSE: profile_views 신규 삽입 구독
-    const viewsCh = supabase
-      .channel(`profile-views-${uid}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'profile_views' },
         (payload: { new: Record<string, unknown> }) => {
           try {
@@ -1000,7 +972,7 @@ function App() {
           } catch (e) { console.warn('[user_signals SSE UPDATE]', e); }
         })
       .subscribe();
-    return () => { supabase.removeChannel(blockedCh); supabase.removeChannel(viewsCh); supabase.removeChannel(signalsCh); };
+    return () => { supabase.removeChannel(privacyCh); supabase.removeChannel(signalsCh); };
   }, [currentUserId, loadUserSignals]);
 
   // Re-validate profile when the user returns to the app (Android/iOS back, home button, tab switch)

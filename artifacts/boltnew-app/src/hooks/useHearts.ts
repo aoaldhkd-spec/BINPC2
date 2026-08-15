@@ -164,8 +164,10 @@ export function useHearts(
       }
     } catch {
       // 타임아웃 또는 네트워크 오류 — 사용자에게 명시적으로 알림
+      // 서버는 성공했을 수 있으므로 보낸 하트 목록만 재동기화해 상태 불일치 방지
       setLikeError('연결이 불안정합니다. 잠시 후 다시 시도해 주세요.');
       setLikeConfirmTarget(null);
+      void loadLikes(likerId);
     } finally {
       likeInFlightRef.current = false;
     }

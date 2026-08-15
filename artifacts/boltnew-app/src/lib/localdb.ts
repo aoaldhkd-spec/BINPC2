@@ -327,10 +327,10 @@ const _reconnectCallbacks = new Set<() => void>();
 const _disconnectCallbacks = new Set<() => void>();
 
 // ── Ping 감시 (좀비 클라이언트 방어) ─────────────────────────────────────────
-// 서버는 5초마다 ping을 보냄. 15초(3번) 이상 ping이 없으면 SSE가 겉만 살아있는
-// 좀비 상태 → 강제로 닫고 재연결. (프록시가 SSE를 silent-drop해도 감지 가능)
+// 서버 keep-alive 주기: 15초. 타임아웃은 그 3배(45초)로 잡아 지터/지연으로 인한
+// 오탐 재연결 폭풍을 막습니다. (이전: 15초 타임아웃 = 서버 주기와 동일 → 잦은 끊김)
 let _lastPingAt = 0; // 마지막 ping/메시지 수신 시각 (0 = 아직 미연결)
-const PING_TIMEOUT_MS = 15_000; // 15초 = 서버 ping 주기(5s) × 3
+const PING_TIMEOUT_MS = 45_000; // 서버 ping 15s × 3
 let _lastEventId = '';
 
 /** SSE 재연결 후 호출될 콜백을 등록합니다. 반환값은 해제 함수입니다. */
@@ -551,7 +551,7 @@ function ensureSse() {
 setInterval(() => {
   if (_sseListeners.size === 0) return;
 
-  // ── Ping 감시: 15초 이상 서버 ping 미수신 → 좀비 SSE 강제 재연결 ──────────────
+  // ── Ping 감시: 서버 keep-alive(15s)의 3배(45s) 이상 미수신 → 좀비 SSE 강제 재연결 ──
   // _lastPingAt > 0: 한 번 이상 연결된 적 있음
   // 현재 OPEN 상태지만 ping이 오지 않는다면 프록시가 연결을 silent-drop한 것
   if (
@@ -559,7 +559,6 @@ setInterval(() => {
     _es && _es.readyState === EventSource.OPEN &&
     Date.now() - _lastPingAt > PING_TIMEOUT_MS
   ) {
-    console.warn('[SSE] ping timeout — force reconnect');
     _lastPingAt = 0;
     _es.close();
     _es = null;
