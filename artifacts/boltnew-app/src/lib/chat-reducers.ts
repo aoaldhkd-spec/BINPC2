@@ -21,7 +21,48 @@ import type { Message } from '../types/app';
  *    false-positive matches when a user sends the same text twice quickly.
  * 4. Otherwise append as a new message.
  */
-export function applySseInsert(prev: Message[], newMsg: Message): Message[] {
+export function messageBelongsToChat(msg: Message, chatId: string | null | undefined): boolean {
+  if (!chatId) return false;
+  if (msg.id.startsWith('__opt_')) return !msg.chat_id || msg.chat_id === chatId;
+  return msg.chat_id === chatId;
+}
+
+/**
+ * 상대가 내 1:1 방을 열어 DB chat_reads.read_at 이 갱신된 뒤에만
+ * 내가 보낸 메시지의 미읽음('1')을 지운다.
+ * - 내 자신의 read 이벤트는 무시
+ * - partnerId가 있으면 그 사람만 인정
+ * - read_at 없는 이벤트는 절대 지우지 않음 (조기 소거 방지)
+ * - 메시지별로 created_at <= read_at 인 것만 지움 (옛 read_at으로 새 메시지 '1' 제거 방지)
+ */
+export function applyPartnerReadReceipt(
+  unreadIds: ReadonlySet<string>,
+  messages: readonly Message[],
+  currentUserId: string,
+  readerId: string | undefined,
+  readAt: string | undefined,
+  partnerId?: string | null,
+): Set<string> {
+  const next = new Set(unreadIds);
+  if (!readerId || readerId === currentUserId) return next;
+  if (partnerId && readerId !== partnerId) return next;
+  if (!readAt) return next;
+  const readTime = new Date(readAt).getTime();
+  if (!Number.isFinite(readTime)) return next;
+  for (const m of messages) {
+    if (!next.has(m.id)) continue;
+    if (m.sender_id !== currentUserId) continue;
+    if (m.id.startsWith('__opt_')) continue;
+    const t = new Date(m.created_at).getTime();
+    if (Number.isFinite(t) && t <= readTime) next.delete(m.id);
+  }
+  return next;
+}
+
+export function applySseInsert(prev: Message[], newMsg: Message, expectedChatId?: string | null): Message[] {
+  if (expectedChatId) {
+    if (!newMsg.chat_id || newMsg.chat_id !== expectedChatId) return prev;
+  }
   // 1. Already present by DB id — skip (idempotent guard)
   if (prev.some((m) => m.id === newMsg.id)) return prev;
 

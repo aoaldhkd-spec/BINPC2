@@ -81,8 +81,12 @@ describe('collectBroadcastTargets', () => {
     expect(targets.sort()).toEqual(['D', 'L']);
   });
 
-  it('private table with no targets returns empty (must not broadcast-all)', () => {
-    const targets = collectBroadcastTargets('contact_shares', { id: 'x' }, () => undefined);
-    expect(targets).toEqual([]);
+  it('chat_reads targets the other participant in the same chat', () => {
+    const targets = collectBroadcastTargets(
+      'chat_reads',
+      { id: 'r1', chat_id: 'c1', reader_id: 'user-b', read_at: '2026-08-16T00:00:00.000Z' },
+      () => ({ id: 'c1', user1_id: 'user-a', user2_id: 'user-b' }),
+    );
+    expect(targets.sort()).toEqual(['user-a', 'user-b']);
   });
 });

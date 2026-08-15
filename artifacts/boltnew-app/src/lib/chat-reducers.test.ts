@@ -7,7 +7,7 @@
  *     exactly as useChat does: sendMessage → SSE INSERT → loadMessages
  */
 import { describe, it, expect } from 'vitest';
-import { applySseInsert, applyLoadMessages } from './chat-reducers';
+import { applySseInsert, applyLoadMessages, messageBelongsToChat, applyPartnerReadReceipt } from './chat-reducers';
 import type { Message } from '../types/app';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -434,5 +434,93 @@ describe('end-to-end: loadMessages after retry removes ghost optimistic entry', 
     expect(state).toHaveLength(1);
     expect(state[0].id).toBe('db-full-chain');
     expect(state.some((m) => m.id.startsWith('__opt_'))).toBe(false);
+  });
+});
+
+describe('messageBelongsToChat / applySseInsert chat isolation', () => {
+  it('rejects DB rows with empty chat_id', () => {
+    expect(messageBelongsToChat(makeMsg({ id: 'x', chat_id: '' }), 'chat-1')).toBe(false);
+    expect(messageBelongsToChat(makeMsg({ id: 'x', chat_id: 'chat-2' }), 'chat-1')).toBe(false);
+    expect(messageBelongsToChat(makeMsg({ id: 'x', chat_id: 'chat-1' }), 'chat-1')).toBe(true);
+  });
+
+  it('allows optimistic placeholders only for the active chat', () => {
+    expect(messageBelongsToChat(makeOptimistic('u1', { chat_id: 'chat-1' }), 'chat-1')).toBe(true);
+    expect(messageBelongsToChat(makeOptimistic('u1', { chat_id: 'chat-2' }), 'chat-1')).toBe(false);
+    expect(messageBelongsToChat(makeOptimistic('u1', { chat_id: '' }), 'chat-1')).toBe(true);
+  });
+
+  it('applySseInsert ignores a different chat_id even if payload looks valid', () => {
+    const prev = [makeMsg({ id: 'keep', chat_id: 'chat-1' })];
+    const leaked = makeMsg({ id: 'group-leak', chat_id: 'group-or-other', sender_id: 'user-b', content: '혼선' });
+    const next = applySseInsert(prev, leaked, 'chat-1');
+    expect(next).toHaveLength(1);
+    expect(next[0].id).toBe('keep');
+  });
+
+  it('applySseInsert ignores messages with missing chat_id when expectedChatId is set', () => {
+    const prev = [makeMsg({ id: 'keep' })];
+    const orphan = makeMsg({ id: 'orphan', chat_id: '' });
+    expect(applySseInsert(prev, orphan, 'chat-1')).toEqual(prev);
+  });
+});
+
+describe('applyPartnerReadReceipt', () => {
+  const me = 'user-a';
+  const partner = 'user-b';
+  const older = makeMsg({
+    id: 'm-old',
+    sender_id: me,
+    created_at: '2026-07-31T10:00:00.000Z',
+  });
+  const newer = makeMsg({
+    id: 'm-new',
+    sender_id: me,
+    created_at: '2026-07-31T10:05:00.000Z',
+  });
+
+  it('does not clear unread when read_at is missing', () => {
+    const unread = new Set(['m-old', 'm-new']);
+    const next = applyPartnerReadReceipt(unread, [older, newer], me, partner, undefined, partner);
+    expect([...next].sort()).toEqual(['m-new', 'm-old']);
+  });
+
+  it('does not clear unread for the current user\'s own read event', () => {
+    const unread = new Set(['m-old']);
+    const next = applyPartnerReadReceipt(unread, [older], me, me, '2026-07-31T11:00:00.000Z', partner);
+    expect(next.has('m-old')).toBe(true);
+  });
+
+  it('does not clear unread for a third-party reader', () => {
+    const unread = new Set(['m-old']);
+    const next = applyPartnerReadReceipt(unread, [older], me, 'user-c', '2026-07-31T11:00:00.000Z', partner);
+    expect(next.has('m-old')).toBe(true);
+  });
+
+  it('clears only messages created at or before partner read_at', () => {
+    const unread = new Set(['m-old', 'm-new']);
+    const next = applyPartnerReadReceipt(
+      unread,
+      [older, newer],
+      me,
+      partner,
+      '2026-07-31T10:02:00.000Z',
+      partner,
+    );
+    expect(next.has('m-old')).toBe(false);
+    expect(next.has('m-new')).toBe(true);
+  });
+
+  it('does not clear newer messages using a stale partner read_at', () => {
+    const unread = new Set(['m-new']);
+    const next = applyPartnerReadReceipt(
+      unread,
+      [older, newer],
+      me,
+      partner,
+      '2026-07-31T10:00:00.000Z',
+      partner,
+    );
+    expect(next.has('m-new')).toBe(true);
   });
 });

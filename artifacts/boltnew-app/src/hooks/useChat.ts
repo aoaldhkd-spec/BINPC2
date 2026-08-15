@@ -43,7 +43,7 @@ import { supabase } from '../lib/supabase';
 import { onSseReconnect, getSseToken, isSseHealthy } from '../lib/localdb';
 import type { Profile, Message, Chat, View } from '../types/app';
 import { HeartType } from '../lib/constants';
-import { applySseInsert, applyLoadMessages } from '../lib/chat-reducers';
+import { applySseInsert, applyLoadMessages, messageBelongsToChat } from '../lib/chat-reducers';
 import { chatPairKey, dedupeChatList, pickCanonicalChat } from '../lib/chat-pair';
 
 interface UseChatDeps {
@@ -108,14 +108,15 @@ export function useChat({
             const raw = payload.new;
             if (!raw || typeof raw.id !== 'string' || !raw.id || typeof raw.sender_id !== 'string') return;
             const newMsg = raw as unknown as Message;
+            // chat_id 없는 이벤트·타방 메시지는 활성 1:1 목록에 절대 넣지 않음
+            if (typeof newMsg.chat_id !== 'string' || !newMsg.chat_id) return;
             if (chatIdRef.current === newMsg.chat_id) {
               // 활성 채팅방: 메시지 목록에 추가 (client_id 기반 dedup)
               setMessages(prev => {
-                const next = applySseInsert(prev, newMsg);
-                // [Fix-1] 방어 로직: 현재 채팅방 chat_id와 다른 메시지 완전 차단 (섞임 방지)
                 const activeCid = chatIdRef.current;
+                const next = applySseInsert(prev, newMsg, activeCid);
                 const safe = activeCid
-                  ? next.filter(m => !m.chat_id || m.chat_id === activeCid || m.id.startsWith('__opt_'))
+                  ? next.filter(m => messageBelongsToChat(m, activeCid))
                   : next;
                 return safe.length > MAX_MESSAGES ? safe.slice(-MAX_MESSAGES) : safe;
               });
@@ -226,8 +227,8 @@ export function useChat({
       if (error) { console.error('[loadMessages] DB 오류:', error.message); return false; }
       if (data) setMessages(prev => {
         const result = applyLoadMessages(prev, data as Message[]);
-        // [Fix-1] 쿼리 결과 chat_id 재검증 — 채팅방 전환 경쟁 조건으로 섞임 원천 차단
-        const filtered = result.filter(m => !m.chat_id || m.chat_id === cid || m.id.startsWith('__opt_'));
+        // [Fix-1] 쿼리 결과 chat_id 재검증 — 빈 chat_id·타방·단톡 메시지 원천 차단
+        const filtered = result.filter(m => messageBelongsToChat(m, cid));
         return filtered.length > MAX_MESSAGES ? filtered.slice(-MAX_MESSAGES) : filtered;
       });
       return true;
@@ -732,9 +733,13 @@ export function useChat({
           }).select().single();
 
           if (!error && insertedMsg) {
-            // 성공: optimistic → 실제 DB 행으로 즉시 교체
+            const saved = insertedMsg as Message;
+            if (saved.chat_id && saved.chat_id !== snapChatId) return;
             if (chatIdRef.current === snapChatId) {
-              setMessages(prev => prev.map(m => m.id === optimisticId ? insertedMsg as Message : m));
+              setMessages(prev => {
+                const next = prev.map(m => m.id === optimisticId ? saved : m);
+                return next.filter(m => messageBelongsToChat(m, snapChatId));
+              });
             }
             return;
           }
@@ -744,7 +749,12 @@ export function useChat({
           if (error) {
             const { data: existing } = await supabase.from('messages').select('*').eq('client_id', clientUUID).maybeSingle();
             if (existing && chatIdRef.current === snapChatId) {
-              setMessages(prev => prev.map(m => m.id === optimisticId ? existing as Message : m));
+              const saved = existing as Message;
+              if (saved.chat_id && saved.chat_id !== snapChatId) return;
+              setMessages(prev => {
+                const next = prev.map(m => m.id === optimisticId ? saved : m);
+                return next.filter(m => messageBelongsToChat(m, snapChatId));
+              });
               return; // 분실 복구 성공
             }
             lastErr = error;
@@ -831,7 +841,13 @@ export function useChat({
       // 성공: optimistic(blob URL) → 실제 DB 행(CDN URL)으로 즉시 교체
       URL.revokeObjectURL(localBlobUrl);
       if (insertedMsg && chatIdRef.current === snapChatId) {
-        setMessages(prev => prev.map(m => m.id === optimisticId ? insertedMsg as Message : m));
+        const saved = insertedMsg as Message;
+        if (!saved.chat_id || saved.chat_id === snapChatId) {
+          setMessages(prev => {
+            const next = prev.map(m => m.id === optimisticId ? saved : m);
+            return next.filter(m => messageBelongsToChat(m, snapChatId));
+          });
+        }
       }
       return null;
     } catch (err) {

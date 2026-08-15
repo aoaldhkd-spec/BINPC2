@@ -1060,3 +1060,130 @@ describe('[Security] DELETE IDOR + ready secrets', () => {
     expect(Object.prototype.hasOwnProperty.call(res.body.settings ?? {}, 'reset_password')).toBe(false);
   });
 });
+
+describe('[Security] chat_reads partner receipt + 1:1 isolation', () => {
+  it('같은 방 상대의 read_at 은 조회되고, 제3자에게는 숨겨진다', async () => {
+    const a = randomUUID();
+    const b = randomUUID();
+    const c = randomUUID();
+    await op({ op: 'insert', table: 'profiles', payload: { id: a, nickname: `ra-${a}` } });
+    await op({ op: 'insert', table: 'profiles', payload: { id: b, nickname: `rb-${b}` } });
+    await op({ op: 'insert', table: 'profiles', payload: { id: c, nickname: `rc-${c}` } });
+
+    const chatRes = await op({
+      op: 'insert',
+      table: 'chats',
+      requesterId: a,
+      payload: { user1_id: a, user2_id: b },
+      selectAfterWrite: true,
+      single: true,
+    });
+    expect(chatRes.status).toBe(200);
+    const chatId = chatRes.body.data.id as string;
+    expect(chatId).toBeTruthy();
+
+    const readAt = '2026-08-16T00:00:00.000Z';
+    const upsert = await op({
+      op: 'upsert',
+      table: 'chat_reads',
+      requesterId: b,
+      payload: { id: `${chatId}__${b}`, chat_id: chatId, reader_id: b, read_at: readAt },
+      selectAfterWrite: true,
+    });
+    expect(upsert.status).toBe(200);
+
+    const asPartner = await op({
+      op: 'select',
+      table: 'chat_reads',
+      requesterId: a,
+      filters: [
+        { type: 'eq', col: 'chat_id', val: chatId },
+        { type: 'eq', col: 'reader_id', val: b },
+      ],
+      maybeSingle: true,
+    });
+    expect(asPartner.status).toBe(200);
+    expect(asPartner.body.data?.reader_id).toBe(b);
+    expect(asPartner.body.data?.read_at).toBe(readAt);
+
+    const asOutsider = await op({
+      op: 'select',
+      table: 'chat_reads',
+      requesterId: c,
+      filters: [
+        { type: 'eq', col: 'chat_id', val: chatId },
+        { type: 'eq', col: 'reader_id', val: b },
+      ],
+      maybeSingle: true,
+    });
+    expect(asOutsider.status).toBe(200);
+    expect(asOutsider.body.data).toBeNull();
+  });
+
+  it('비참여자의 chat_reads UPSERT 는 403', async () => {
+    const a = randomUUID();
+    const b = randomUUID();
+    const c = randomUUID();
+    const chatRes = await op({
+      op: 'insert',
+      table: 'chats',
+      requesterId: a,
+      payload: { user1_id: a, user2_id: b },
+      selectAfterWrite: true,
+      single: true,
+    });
+    const chatId = chatRes.body.data.id as string;
+    const res = await op({
+      op: 'upsert',
+      table: 'chat_reads',
+      requesterId: c,
+      payload: { id: `${chatId}__${c}`, chat_id: chatId, reader_id: c, read_at: new Date().toISOString() },
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it('1:1 메시지 INSERT 는 참여자만 가능하고 상대 SELECT 에 나타난다', async () => {
+    const a = randomUUID();
+    const b = randomUUID();
+    const c = randomUUID();
+    const chatRes = await op({
+      op: 'insert',
+      table: 'chats',
+      requesterId: a,
+      payload: { user1_id: a, user2_id: b },
+      selectAfterWrite: true,
+      single: true,
+    });
+    expect(chatRes.status).toBe(200);
+    const chatId = chatRes.body.data.id as string;
+
+    const sent = await op({
+      op: 'insert',
+      table: 'messages',
+      requesterId: a,
+      payload: { chat_id: chatId, sender_id: a, content: 'hello-b', client_id: randomUUID() },
+      selectAfterWrite: true,
+      single: true,
+    });
+    expect(sent.status).toBe(200);
+    expect(sent.body.data?.chat_id).toBe(chatId);
+    expect(sent.body.data?.content).toBe('hello-b');
+
+    const asB = await op({
+      op: 'select',
+      table: 'messages',
+      requesterId: b,
+      filters: [{ type: 'eq', col: 'chat_id', val: chatId }],
+    });
+    expect(asB.status).toBe(200);
+    expect(asB.body.data.some((m: { content: string }) => m.content === 'hello-b')).toBe(true);
+
+    const asC = await op({
+      op: 'select',
+      table: 'messages',
+      requesterId: c,
+      filters: [{ type: 'eq', col: 'chat_id', val: chatId }],
+    });
+    expect(asC.status).toBe(403);
+  });
+});

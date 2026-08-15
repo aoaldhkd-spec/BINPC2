@@ -190,9 +190,17 @@ setInterval(() => {
   pruneRateMap(_uploadRateMap, now);
 }, 2 * 60 * 1000);
 
-// /events (SSE): IP당 최대 동시 연결 수 (5개)
+// /events (SSE): IP당 최대 동시 연결. 인증된 재연결은 NAT 공인 IP 한도를 넘어도 per-user cap 적용.
 const _sseConnPerIp = new Map<string, number>();
 const SSE_MAX_CONN_PER_IP = Number(process.env.SSE_MAX_CONN_PER_IP ?? 200);
+const SSE_MAX_TOTAL = Number(process.env.SSE_MAX_TOTAL ?? 4000);
+const SSE_MAX_CONN_PER_USER = Number(process.env.SSE_MAX_CONN_PER_USER ?? 4);
+
+function sseLiveCount(): number {
+  let n = sseAnonClients.size + sseAdminClients.size;
+  for (const s of sseUserMap.values()) n += s.size;
+  return n;
+}
 
 // ─── Image magic-bytes map ─────────────────────────────────────────────────────
 // MIME 헤더 조작으로 악성 파일을 이미지로 위장하는 공격 차단
@@ -492,6 +500,13 @@ export function collectBroadcastTargets(
     findChat,
     (gid) => getTable('group_participants').filter(p => p.group_id === gid),
   );
+}
+
+function isChatParticipant(chatId: unknown, userId: string): boolean {
+  if (chatId == null || chatId === '' || !userId) return false;
+  const chat = getTable('chats').find(c => String(c.id) === String(chatId));
+  if (!chat) return false;
+  return String(chat.user1_id) === String(userId) || String(chat.user2_id) === String(userId);
 }
 
 function countMessagesForChat(chatId: string): number {
@@ -1635,6 +1650,7 @@ function _send(client: Response, conns: Set<Response>, payload: string) {
     // write 실패 = 클라이언트 연결 끊김 → keepalive interval 즉시 정리 (req.close 미발화 대비)
     _sseCleanup.get(client)?.();
     _sseCleanup.delete(client);
+    try { client.end(); } catch { /* ignore */ }
   }
   if (conns.size === 0) {
     for (const [uid, s] of sseUserMap) { if (s === conns) { sseUserMap.delete(uid); break; } }
@@ -1696,6 +1712,18 @@ const PRIVATE_TABLES = new Set([
   // user_signals는 공개 — 전광판/카드에서 모두가 볼 수 있음 (연락처 등 민감정보 없음)
 ]);
 
+function _stripInternalBroadcastFields(table: string, event: Record<string, unknown>): Record<string, unknown> {
+  if (table !== 'messages') return event;
+  const strip = (row: unknown) => {
+    if (!row || typeof row !== 'object' || Array.isArray(row)) return row;
+    const r = { ...(row as Record<string, unknown>) };
+    delete r.chat_user1_id;
+    delete r.chat_user2_id;
+    return r;
+  };
+  return { ...event, newRow: strip(event['newRow']), oldRow: strip(event['oldRow']) };
+}
+
 /** 테이블 종류에 따라 자동으로 수신자 판단 — 로컬 SSE 전송 전용 (NOTIFY 없음) */
 function _smartBroadcastLocal(table: string, row: Record<string, unknown> | null, event: Record<string, unknown>) {
   // row가 없는 경우(DELETE payload 없음): 프라이빗 테이블이면 드롭, 공개 테이블만 전체 전송
@@ -1704,10 +1732,11 @@ function _smartBroadcastLocal(table: string, row: Record<string, unknown> | null
     return;
   }
   const targets = collectBroadcastTargets(table, row);
+  const safeEvent = _stripInternalBroadcastFields(table, event);
 
   if (targets.length > 0) {
     // 프로필 포함 이벤트라도 수신자가 명확하면 해당 유저에게만 전달
-    broadcastToUsers(targets, event);
+    broadcastToUsers(targets, safeEvent);
   } else if (!PRIVATE_TABLES.has(table)) {
     // 공개 테이블(seats, profiles, app_settings 등)만 전체 브로드캐스트 허용
     // profiles → 연락처 필드 제거, app_settings → admin_password 제거
@@ -1755,7 +1784,7 @@ async function sendPushForEvent(
   let payload: PushPayload | null = null;
 
   if (table === 'messages') {
-    const chat = getTable('chats').find(c => c.id === row.chat_id);
+    const chat = getTable('chats').find(c => String(c.id) === String(row.chat_id));
     if (!chat) return;
     recipientId = (chat.user1_id === row.sender_id ? chat.user2_id : chat.user1_id) as string;
     const sender = getTable('profiles').find(p => p.id === row.sender_id);
@@ -2074,7 +2103,7 @@ router.post('/op', async (req: Request, res: Response) => {
             // 복수 채팅방 일괄 조회 (loadChatList) — 요청자가 참여하지 않는 채팅방 ID 차단
             const chats = getTable('chats');
             const illegalChatId = (chatIdInF.vals as string[]).find(cid => {
-              const chat = chats.find(c => c.id === cid);
+              const chat = chats.find(c => String(c.id) === String(cid));
               if (!chat) return false; // 존재하지 않으면 결과가 없으므로 무해
               return String(chat.user1_id) !== String(requesterId) && String(chat.user2_id) !== String(requesterId);
             });
@@ -2182,13 +2211,21 @@ router.post('/op', async (req: Request, res: Response) => {
       }
 
       // ─ IDOR guard: chat_reads SELECT ──────────────────────────────────────
-      // 읽음 기록은 자신의 것(reader_id)만 조회 가능 — 타인의 읽음 여부 스크래핑 차단.
+      // 자신의 읽음 기록 + 내가 참여한 1:1 방의 상대 읽음 기록만 허용.
+      // 타인 방 스크래핑은 차단하되, 상대 read_at 폴링('1' 표시)은 동작해야 함.
       if (table === 'chat_reads' && !isAdmin) {
         if (!requesterId) {
           logger.warn({ ip: req.ip }, '[SECURITY] IDOR: chat_reads SELECT without requesterId blocked');
           return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
         }
-        const crScope = tableData.filter(r => String(r.reader_id) === String(requesterId));
+        const crScope = tableData.filter(r => {
+          if (String(r.reader_id) === String(requesterId)) return true;
+          // 같은 1:1 방 상대의 read_at 만 허용 — 프론트 '1' 폴링에 필요.
+          // 참여하지 않은 방·제3자 읽음 기록은 절대 노출하지 않음.
+          const chat = getTable('chats').find(c => String(c.id) === String(r.chat_id));
+          if (!chat) return false;
+          return String(chat.user1_id) === String(requesterId) || String(chat.user2_id) === String(requesterId);
+        });
         const crResult = applyFilters(crScope, normalizedFilters);
         for (const { col, asc } of safeOrders) {
           crResult.sort((a, b) => {
@@ -2364,7 +2401,8 @@ router.post('/op', async (req: Request, res: Response) => {
             }
           }
           // 채팅방 참여자 검증 — 채팅방에 속하지 않은 사용자가 메시지를 삽입하는 공격 차단
-          const targetChat = getTable('chats').find(c => c.id === effectiveRow.chat_id);
+          // id 타입(string/uuid) 불일치로 참가자 검증이 실패하면 전송 불가가 되므로 String 비교 강제
+          const targetChat = getTable('chats').find(c => String(c.id) === String(effectiveRow.chat_id));
           if (!targetChat || (String(targetChat.user1_id) !== String(requesterId) && String(targetChat.user2_id) !== String(requesterId))) {
             logger.warn({ requesterId, chatId: effectiveRow.chat_id, ip: req.ip }, '[SECURITY] IDOR: message INSERT by non-participant blocked');
             return res.status(403).json({ data: null, error: { message: 'Forbidden: not a chat participant', code: 'FORBIDDEN' } });
@@ -2411,10 +2449,16 @@ router.post('/op', async (req: Request, res: Response) => {
             return res.status(403).json({ data: null, error: { message: 'Forbidden: not a group participant', code: 'FORBIDDEN' } });
           }
         }
-        // chat_reads: reader_id를 requesterId로 강제 설정 (클라이언트 조작 방지)
-        // 단순 불일치 검사 대신 강제 덮어쓰기 — omit 공격도 차단
-        if (table === 'chat_reads' && requesterId) {
+        // chat_reads: reader_id를 requesterId로 강제 + 해당 채팅 참여자만 기록 가능
+        if (table === 'chat_reads') {
+          if (!requesterId) {
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+          }
           effectiveRow = { ...effectiveRow, reader_id: requesterId };
+          if (!isChatParticipant(effectiveRow.chat_id, requesterId)) {
+            logger.warn({ requesterId, chatId: effectiveRow.chat_id, ip: req.ip }, '[SECURITY] IDOR: chat_reads INSERT by non-participant blocked');
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: not a chat participant', code: 'FORBIDDEN' } });
+          }
         }
         // likes: liker_id를 requesterId로 강제 설정 (클라이언트 조작 방지)
         // omit 공격(liker_id 없이 전송) + mismatch 공격 동시 차단
@@ -2595,7 +2639,7 @@ router.post('/op', async (req: Request, res: Response) => {
         }
         // Fix #8: 메시지 삽입 시 수신자 unread 캐시 즉시 무효화 (TTL 2s 대기 없음)
         if (table === 'messages' && newRow.sender_id && newRow.chat_id) {
-          const _msgChat = getTable('chats').find(c => c.id === newRow.chat_id);
+          const _msgChat = getTable('chats').find(c => String(c.id) === String(newRow.chat_id));
           if (_msgChat) {
             const _receiverId = _msgChat.user1_id === newRow.sender_id ? _msgChat.user2_id : _msgChat.user1_id;
             if (_receiverId) unreadCountsCache.delete(String(_receiverId));
@@ -2717,6 +2761,19 @@ router.post('/op', async (req: Request, res: Response) => {
       const upserted: Record<string, unknown>[] = [];
 
       // ─ IDOR guard: UPSERT ownership check ─────────────────────────────
+      if (table === 'chat_reads') {
+        if (!requesterId) {
+          return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+        }
+        for (const row of inputs) {
+          if (!row) continue;
+          row.reader_id = requesterId;
+          if (!isChatParticipant(row.chat_id, requesterId)) {
+            logger.warn({ requesterId, chatId: row.chat_id }, '[SECURITY] IDOR: UPSERT chat_reads by non-participant blocked');
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: not a chat participant', code: 'FORBIDDEN' } });
+          }
+        }
+      }
       if (requesterId) {
         for (const row of inputs) {
           if (!row) continue;
@@ -4173,20 +4230,44 @@ router.get('/events', (req: Request, res: Response) => {
     return;
   }
 
-  // ─ Per-IP SSE connection limit: 동일 IP 대량 연결 방지
-  const sseIp = String(req.ip ?? req.socket.remoteAddress ?? 'unknown');
-  const currentConns = _sseConnPerIp.get(sseIp) ?? 0;
-  if (currentConns >= SSE_MAX_CONN_PER_IP) {
-    res.status(429).json({ error: 'Too many SSE connections from this IP' });
+  // 전역 SSE 상한 — 프로세스 메모리/FD 고갈 방지
+  if (sseLiveCount() >= SSE_MAX_TOTAL) {
+    res.setHeader('Retry-After', '3');
+    res.status(429).json({ error: 'Server at SSE capacity', code: 'SSE_CAPACITY' });
     return;
   }
-  _sseConnPerIp.set(sseIp, currentConns + 1);
-  // [Fix] 조기 반환 시 IP 카운터 복원 헬퍼 — 아래 익명 cap 429에서 사용
+
+  // ─ Per-IP SSE connection limit: 동일 IP 대량 연결 방지
+  // 인증된 유저(유효 SSE 토큰)는 행사장 NAT에서 IP 한도를 넘겨도 접속 허용.
+  // per-user cap + 전역 SSE_MAX_TOTAL 이 서버를 보호한다.
+  const sseIp = String(req.ip ?? req.socket.remoteAddress ?? 'unknown');
+  const currentConns = _sseConnPerIp.get(sseIp) ?? 0;
+  let countedIp = false;
+  if (currentConns >= SSE_MAX_CONN_PER_IP) {
+    if (!userId) {
+      res.setHeader('Retry-After', '5');
+      res.status(429).json({ error: 'Too many SSE connections from this IP', code: 'RATE_LIMIT' });
+      return;
+    }
+  } else {
+    _sseConnPerIp.set(sseIp, currentConns + 1);
+    countedIp = true;
+  }
   const _undoSseConnCount = () => {
+    if (!countedIp) return;
+    countedIp = false;
     const c = _sseConnPerIp.get(sseIp) ?? 1;
     if (c <= 1) _sseConnPerIp.delete(sseIp);
     else _sseConnPerIp.set(sseIp, c - 1);
   };
+
+  // 익명 상한은 헤더 flush 전에 검사해야 429 JSON이 전달됨
+  if (!isAdminSse && !userId && sseAnonClients.size >= 100) {
+    _undoSseConnCount();
+    res.setHeader('Retry-After', '5');
+    res.status(429).json({ error: 'Too many anonymous SSE connections', code: 'RATE_LIMIT' });
+    return;
+  }
 
   res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
   res.setHeader('Cache-Control', 'no-cache, no-store, no-transform');
@@ -4220,7 +4301,7 @@ router.get('/events', (req: Request, res: Response) => {
     if (!sseUserMap.has(userId)) sseUserMap.set(userId, new Set());
     const userConns = sseUserMap.get(userId)!;
     // 탭 과다 방지: 사용자당 최대 4개 연결. 초과 시 가장 오래된 연결 종료
-    if (userConns.size >= 4) {
+    if (userConns.size >= SSE_MAX_CONN_PER_USER) {
       const oldest = userConns.values().next().value;
       // keepalive interval도 반드시 해제 — 미해제 시 메모리 누수
       _sseCleanup.get(oldest)?.();
@@ -4230,13 +4311,6 @@ router.get('/events', (req: Request, res: Response) => {
     }
     userConns.add(res);
   } else {
-    // 익명 연결 최대 100개 제한 — 미인증 연결에 의한 리소스 고갈 방지
-    if (sseAnonClients.size >= 100) {
-      _undoSseConnCount(); // [Fix] 카운터 증가 취소 — 거부된 연결이 IP 슬롯 점유하지 않도록
-      res.status(429).end();
-      return;
-    }
-    // Task #1: userId 없는 익명 SSE — 앱 정상 경로에서는 발생하지 않으므로 의심 접근 기록
     logger.debug({ ip: req.ip, anonCount: sseAnonClients.size }, '[sse] 익명 SSE 연결 (userId 없음) — 앱 외부 접근 의심');
     sseAnonClients.add(res);
   }
@@ -4297,6 +4371,7 @@ router.get('/events', (req: Request, res: Response) => {
   _cleanupConnRef = cleanupConn;
   req.on('close', cleanupConn);
   req.on('aborted', cleanupConn); // Node.js HTTP/1.1 강제 종료 대비
+  req.socket.on('close', cleanupConn); // 프록시가 HTTP close 없이 소켓만 끊는 경우 teardown 지연 방지
 
   // Initial ping — cleanupConn 선언 이후에 write. 이미 닫힌 응답이면 즉시 정리.
   try { res.write('data: {"type":"ping"}\n\n'); } catch { cleanupConn(); }

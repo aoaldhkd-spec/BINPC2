@@ -9,6 +9,7 @@ import { getZodiac, getOhaeng, getCompatibility, getOhaengCompat, getNumerologyC
 import { StickerSVG, STICKER_LABELS, STICKER_BG, STICKER_COUNT, STICKER_PACKS } from '../stickers';
 import { hasBannedWord } from '../lib/utils';
 import type { Message, Profile, ContactShare } from '../types/app';
+import { applyPartnerReadReceipt } from '../lib/chat-reducers';
 
 // ─── ChatScreen ───────────────────────────────────────────────────────────────
 // 1:1 채팅 화면. 스티커·이모지·이미지·연락처 공유·궁합·사주 기능 포함.
@@ -175,7 +176,28 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   const initialMsgIds = useRef(new Set(messages.map(m => m.id)));
   const messagesRef = useRef(messages); // 항상 최신 messages를 가리키는 ref
   messagesRef.current = messages;
+  const partnerIdRef = useRef(otherProfile?.id);
+  partnerIdRef.current = otherProfile?.id;
   const [myUnreadIds, setMyUnreadIds] = useState<Set<string>>(new Set());
+
+  const applyPartnerReadToUi = useCallback((readerId: string | undefined, readAt: string | undefined) => {
+    setMyUnreadIds(prev => {
+      const next = applyPartnerReadReceipt(
+        prev,
+        messagesRef.current,
+        currentUserId,
+        readerId,
+        readAt,
+        partnerIdRef.current,
+      );
+      if (next.size !== prev.size) {
+        for (const id of prev) {
+          if (!next.has(id)) initialMsgIds.current.add(id);
+        }
+      }
+      return next.size === prev.size ? prev : next;
+    });
+  }, [currentUserId]);
 
   // chatId 변경 시 채팅방별 로컬 상태를 전부 초기화한다.
   // 이전 방의 initialMsgIds·reactions·replyTo 등이 새 방에 잔류하면
@@ -316,28 +338,19 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
       .channel(`chat_reads:${chatId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_reads', filter: `chat_id=eq.${chatId}` },
         (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-          const row = (payload as { new?: { reader_id?: string; read_at?: string } }).new;
-          if (row?.reader_id && row.reader_id !== currentUserId) {
-            // [Fix-2] read_at 타임스탬프 비교: 파트너의 read_at이 내 최신 메시지 created_at 이후여야만 읽음 처리
-            // 이전 세션의 오래된 read_at으로 "1"이 잘못 사라지는 버그 방지
-            if (row.read_at) {
-              const readTime = new Date(row.read_at as string).getTime();
-              const myMsgs = messagesRef.current.filter(m => m.sender_id === currentUserId && !m.id.startsWith('__opt_'));
-              const latestMsgTime = myMsgs.reduce((max, m) => Math.max(max, new Date(m.created_at).getTime()), 0);
-              if (latestMsgTime === 0 || readTime >= latestMsgTime) {
-                messagesRef.current.forEach(m => initialMsgIds.current.add(m.id));
-                setMyUnreadIds(new Set());
-              }
-            } else {
-              // read_at 없이 이벤트 도착: 안전하게 전부 읽음 처리
-              messagesRef.current.forEach(m => initialMsgIds.current.add(m.id));
-              setMyUnreadIds(new Set());
-            }
+          try {
+            const row = (payload as { new?: { reader_id?: string; read_at?: string; chat_id?: string } }).new;
+            if (!row?.reader_id) return;
+            if (row.chat_id && row.chat_id !== chatId) return;
+            // DB chat_reads.read_at 이 갱신된 뒤에만, 그 시각 이전 메시지의 '1'만 제거
+            applyPartnerReadToUi(row.reader_id, row.read_at);
+          } catch (e) {
+            console.warn('[chat_reads/sse]', e);
           }
         })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [chatId, currentUserId]);
+  }, [chatId, currentUserId, applyPartnerReadToUi]);
 
   // ── 읽음 폴링 폴백 ────────────────────────────────────────────────────────────
   // SSE 이벤트가 유실됐을 때를 대비해, "1"이 표시 중인 동안만 5초마다 chat_reads를
@@ -354,21 +367,14 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
           .eq('reader_id', partnerId)
           .maybeSingle();
         if (data?.read_at) {
-          // [Fix-2] 타임스탬프 비교: 파트너의 read_at >= 내 최신 메시지 created_at 이어야만 읽음 처리
-          const readTime = new Date(data.read_at).getTime();
-          const myMsgs = messagesRef.current.filter(m => m.sender_id === currentUserId && !m.id.startsWith('__opt_'));
-          const latestMsgTime = myMsgs.reduce((max, m) => Math.max(max, new Date(m.created_at).getTime()), 0);
-          if (latestMsgTime === 0 || readTime >= latestMsgTime) {
-            messagesRef.current.forEach(m => initialMsgIds.current.add(m.id));
-            setMyUnreadIds(new Set());
-          }
+          applyPartnerReadToUi(partnerId, data.read_at);
         }
       } catch (_) { /* 네트워크 오류는 무시 */ }
     };
     checkPartnerRead();
     const interval = setInterval(checkPartnerRead, 5000);
     return () => clearInterval(interval);
-  }, [chatId, otherProfile?.id, myUnreadIds.size]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [chatId, otherProfile?.id, myUnreadIds.size, applyPartnerReadToUi]);
 
   const isContactCard = (content: string | null) => !!content?.startsWith('__contact__');
   const parseContactCard = (content: string) => content.replace(/^__contact__\n?/, '').split('\n').filter(Boolean);
