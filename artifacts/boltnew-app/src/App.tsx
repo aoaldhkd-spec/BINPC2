@@ -2,7 +2,8 @@ import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } fro
 import {
   X,
 } from 'lucide-react';
-import { supabase, setLocalDbUserId, setDeviceRecoveryPin, fetchAndSetSseToken, getDeviceSecret, onSseReconnect, onSseDisconnect } from './lib/supabase';
+import { supabase, setLocalDbUserId, setDeviceRecoveryPin, fetchAndSetSseToken, getDeviceSecret, onSseReconnect } from './lib/supabase';
+import { subscribeNetUi, resetNetUiForRetry, type NetUiStatus } from './lib/net-health';
 import { genAvatar } from './lib/profile';
 import { findProfileById, isCompleteProfile } from './lib/profile-session';
 import { HeartType } from './lib/constants';
@@ -76,31 +77,10 @@ function App() {
     }
   }, [currentUserId]);
 
-  const _handleChannelStatus = useCallback((status: string) => {
-    if (status === 'SUBSCRIBED') {
-      // 재연결 성공 → 두 타이머 모두 취소하고 팝업 즉시 숨김
-      if (reconnectTimerRef.current) { clearTimeout(reconnectTimerRef.current); reconnectTimerRef.current = null; }
-      if (reconnectErrorTimerRef.current) { clearTimeout(reconnectErrorTimerRef.current); reconnectErrorTimerRef.current = null; }
-      setConnStatus('ok');
-    } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-      // 이미 타이머가 걸려 있으면 중복 등록 방지
-      if (reconnectTimerRef.current) return;
-      // 8초 조용히 재연결 시도 → 그래도 안 되면 "연결 지연 중" 팝업
-      reconnectTimerRef.current = setTimeout(() => {
-        reconnectTimerRef.current = null;
-        setConnStatus('reconnecting');
-        // 추가 30초 지나도 복구 안 되면 "연결 실패 + 새로고침" 팝업
-        reconnectErrorTimerRef.current = setTimeout(() => {
-          reconnectErrorTimerRef.current = null;
-          setConnStatus('error');
-        }, 30_000);
-      }, 8_000);
-    }
-  }, []);
   const [appLoading, setAppLoading] = useState(true);
-  const [connStatus, setConnStatus] = useState<'ok' | 'reconnecting' | 'error'>('ok');
-  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const reconnectErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [connStatus, setConnStatus] = useState<NetUiStatus>('ok');
+  // 네트워크 UI는 net-health 단일 소스 — 순간 단절 모달 폭풍 방지
+  useEffect(() => subscribeNetUi(setConnStatus), []);
   const [sessionActive, setSessionActive] = useState<boolean | null>(null);
   // Existing users skip the waiting overlay entirely and go straight to main.
   // New users go straight to nickname setup — no waiting overlay.
@@ -313,16 +293,18 @@ function App() {
   }, [view]);
 
   // SSE 연결 실패 시 polling fallback — SSE 없이도 프로필·채팅·하트 최소 기능 유지
-  // connStatus가 'error'로 전환되면 5초마다 재로드 (SSE 복구 시 자동 정지, 중복 없음)
+  // reconnecting/error 동안 주기적 DB 재동기화 (모달은 error일 때만 강하게 표시)
   useEffect(() => {
-    if (connStatus !== 'error' || !currentUserId) return;
+    if (connStatus === 'ok' || !currentUserId) return;
     const uid = currentUserId;
-    const pollId = setInterval(() => {
+    const tick = () => {
       loadProfilesRef.current().catch(() => {});
       loadChatListRef.current?.(uid).catch(() => {});
       loadReceivedLikesRef.current?.(uid).catch(() => {});
       loadLikesRef.current?.(uid).catch(() => {});
-    }, 5_000);
+    };
+    tick();
+    const pollId = setInterval(tick, connStatus === 'error' ? 5_000 : 8_000);
     return () => { clearInterval(pollId); };
   }, [connStatus, currentUserId]);
 
@@ -896,8 +878,6 @@ function App() {
       if (initTimerId1) clearTimeout(initTimerId1);
       if (initTimerId2) clearTimeout(initTimerId2);
       rejNotifTimerIds.forEach(clearTimeout);
-      // reconnectTimerRef는 effect 외부 ref이므로 여기서도 정리
-      if (reconnectTimerRef.current) { clearTimeout(reconnectTimerRef.current); reconnectTimerRef.current = null; }
       if (confettiTimerRef.current) { clearTimeout(confettiTimerRef.current); confettiTimerRef.current = null; }
       if (confettiInnerTimerRef.current) { clearTimeout(confettiInnerTimerRef.current); confettiInnerTimerRef.current = null; }
       supabase.removeChannel(profileChannel);
@@ -1011,26 +991,14 @@ function App() {
     registerPushSub(currentUserId);
   }, [currentUserId]);
 
-  // #24: SSE 연결 상태 변화 → connStatus 동기화 + 재연결 시 채팅목록·받은하트 즉시 리로드
-  // onSseDisconnect: SSE 오류 첫 감지 시 'reconnecting' → 1.5s 후 'error' (fallback polling 시작)
-  // onSseReconnect:  재연결 성공 시 'ok'로 복귀 (fallback polling 자동 정지) + 놓친 데이터 리로드
-  useEffect(() => {
-    const unsubDisconnect = onSseDisconnect(() => {
-      _handleChannelStatus('CLOSED');
-    });
-    return unsubDisconnect;
-  }, [_handleChannelStatus]);
-
+  // SSE 재연결 시 DB Source-of-Truth 재동기화 (UI 모달은 net-health가 담당)
   useEffect(() => {
     if (!currentUserId) return;
     const unsubReconnect = onSseReconnect(() => {
-      _handleChannelStatus('SUBSCRIBED');
       loadChatList(currentUserId);
       loadReceivedLikes(currentUserId);
-      loadLikes(currentUserId);          // 보낸 하트 상태도 재동기화
-      // SSE 재연결 시 누락된 시트·프로필·설정 변경도 동기화
+      loadLikes(currentUserId);
       loadProfiles();
-      // 재연결 중 바뀐 타이머·게임·잠금 상태 재동기화
       supabase.from('app_settings').select('session_active, timer_end_at, timer_label, reset_signal').eq('id', 1).single().then(({ data }: { data: any }) => {
         if (!data) return;
         if (typeof data.session_active === 'boolean') {
@@ -1042,8 +1010,7 @@ function App() {
       }).catch(() => {});
     });
     return unsubReconnect;
-  // [Part1-Fix5] loadLikes·loadProfiles deps 추가 — stale closure 차단
-  }, [currentUserId, loadChatList, loadReceivedLikes, loadLikes, loadProfiles, _handleChannelStatus]);
+  }, [currentUserId, loadChatList, loadReceivedLikes, loadLikes, loadProfiles]);
 
 
   // Manual refresh for status and chat tabs
@@ -1393,9 +1360,23 @@ function App() {
         />
       )}
 
-      {/* Reconnect overlay */}
       {connStatus !== 'ok' && (
-        <ReconnectOverlay status={connStatus} onRetry={() => window.location.reload()} />
+        <ReconnectOverlay
+          status={connStatus}
+          onRetry={() => {
+            resetNetUiForRetry();
+            const uid = userIdRef.current;
+            if (uid) {
+              fetchAndSetSseToken(uid).catch(() => {});
+              loadChatListRef.current?.(uid).catch(() => {});
+              loadReceivedLikesRef.current?.(uid).catch(() => {});
+              loadLikesRef.current?.(uid).catch(() => {});
+              loadProfilesRef.current().catch(() => {});
+            } else {
+              window.location.reload();
+            }
+          }}
+        />
       )}
       {/* Broadcast notification modal */}
       {activeNotif && (

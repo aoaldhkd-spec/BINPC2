@@ -132,6 +132,17 @@ app.use((req, res, next) => {
 app.use(
   pinoHttp({
     logger,
+    genReqId(req, res) {
+      const incoming = req.headers['x-request-id'];
+      const id = typeof incoming === 'string' && incoming.length > 0 && incoming.length < 80
+        ? incoming
+        : `s_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+      res.setHeader('x-request-id', id);
+      return id;
+    },
+    customProps(req) {
+      return { requestId: req.id };
+    },
     autoLogging: {
       ignore: (req) =>
         req.url?.startsWith('/api/healthz') === true ||

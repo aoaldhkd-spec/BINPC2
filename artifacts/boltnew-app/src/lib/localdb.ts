@@ -10,6 +10,10 @@
 
 import type { Database } from '../types/database';
 import { tableNeedsSession } from './db-auth-tables';
+import { diag, newRequestId, installDiagGlobal } from './diag';
+import { reportLinkDown, reportLinkUp, reportBrowserOffline, reportBrowserOnline } from './net-health';
+
+installDiagGlobal();
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 // HTTP API는 동일 출처(/api/db → Netlify 프록시)를 유지.
@@ -18,6 +22,37 @@ const API = '/api/db';
 const SSE_ORIGIN = (import.meta.env.VITE_SSE_ORIGIN as string | undefined)?.replace(/\/$/, '') ?? '';
 const SSE_API = SSE_ORIGIN ? `${SSE_ORIGIN}/api/db` : API;
 const FETCH_TIMEOUT = 15_000; // 모바일·Render 콜드스타트 대비 (기존 4s는 폰에서 로그인 타임아웃)
+
+/** 의도적 SSE 재연결(토큰 갱신 등) 중 disconnect 콜백 억제 */
+let _suppressDisconnectUntil = 0;
+function suppressDisconnectBriefly(ms = 4_000) {
+  _suppressDisconnectUntil = Date.now() + ms;
+}
+
+/** disconnect 오탐 방지 — 수 초 지속된 끊김만 UI/리스너에 알림 */
+let _disconnectNotifyTimer: ReturnType<typeof setTimeout> | null = null;
+const DISCONNECT_NOTIFY_MS = 4_000;
+
+function scheduleDisconnectNotify(reason: string) {
+  if (Date.now() < _suppressDisconnectUntil) return;
+  if (_disconnectNotifyTimer) return;
+  _disconnectNotifyTimer = setTimeout(() => {
+    _disconnectNotifyTimer = null;
+    // 그 사이 복구됐으면 무시
+    if (_es && _es.readyState === EventSource.OPEN && !_sseNeedsResync) return;
+    if (Date.now() < _suppressDisconnectUntil) return;
+    diag('warn', 'sse', `disconnect:${reason}`);
+    reportLinkDown(`sse:${reason}`);
+    _disconnectCallbacks.forEach(fn => { try { fn(); } catch {} });
+  }, DISCONNECT_NOTIFY_MS);
+}
+
+function cancelDisconnectNotify() {
+  if (_disconnectNotifyTimer) {
+    clearTimeout(_disconnectNotifyTimer);
+    _disconnectNotifyTimer = null;
+  }
+}
 
 // ─── Session readiness gate ───────────────────────────────────────────────────
 // 문제: setLocalDbUserId(newUUID) → _currentUserId 즉시 갱신 → /op 요청 날림
@@ -64,22 +99,34 @@ async function apiFetch(
   extraHeaders?: Record<string, string>,
   authRetry = false,
 ): Promise<{ data: unknown; error: unknown }> {
+  const requestId = (extraHeaders?.['x-request-id'] ?? newRequestId());
+  const started = Date.now();
+  const opHint = (() => {
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return path;
+    const b = body as Record<string, unknown>;
+    return `${path}:${String(b.op ?? '')}:${String(b.table ?? '')}`;
+  })();
+
   for (let attempt = 0; attempt <= MAX_BUSY_RETRIES; attempt++) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT);
     try {
+      const headers: Record<string, string> = {
+        'x-request-id': requestId,
+        ...(extraHeaders ?? {}),
+      };
+      if (body !== undefined) headers['Content-Type'] = 'application/json';
       const resp = await fetch(`${API}${path}`, {
         method: body !== undefined ? 'POST' : 'GET',
         credentials: 'include',
-        headers: body !== undefined
-          ? { 'Content-Type': 'application/json', ...extraHeaders }
-          : (extraHeaders ?? undefined),
+        headers,
         body: body !== undefined ? JSON.stringify(body) : undefined,
         signal: ctrl.signal,
       });
       clearTimeout(timer);
       // 503 서버 과부하 — Retry-After 헤더 또는 지수 백오프 후 재시도
       if (resp.status === 503 && attempt < MAX_BUSY_RETRIES) {
+        diag('warn', 'api', '503-retry', { corr: requestId, data: { op: opHint, attempt } });
         const retryAfterSec = parseInt(resp.headers.get('Retry-After') ?? '2', 10);
         await new Promise<void>(r => setTimeout(r, Math.min(retryAfterSec * 1000, 8_000)));
         continue;
@@ -95,29 +142,49 @@ async function apiFetch(
               const retryBody = body && typeof body === 'object' && !Array.isArray(body)
                 ? { ...(body as Record<string, unknown>), sessionToken: _sessionBearerToken ?? undefined }
                 : body;
-              return apiFetch(path, retryBody, extraHeaders, true);
+              return apiFetch(path, retryBody, { ...extraHeaders, 'x-request-id': requestId }, true);
             }
+          }
+          if (resp.status >= 500) {
+            diag('error', 'api', `http-${resp.status}`, {
+              corr: requestId,
+              ms: Date.now() - started,
+              data: { op: opHint, code: json.error?.code },
+            });
+          } else if (resp.status !== 429 && resp.status !== 403) {
+            diag('warn', 'api', `http-${resp.status}`, {
+              corr: requestId,
+              ms: Date.now() - started,
+              data: { op: opHint, code: json.error?.code },
+            });
           }
           return {
             data: json.data ?? null,
             error: json.error ?? { message: `HTTP ${resp.status}` },
           };
         } catch {
-          return { data: null, error: { message: `HTTP ${resp.status}: ${text}` } };
+          diag('error', 'api', `http-${resp.status}-raw`, { corr: requestId, ms: Date.now() - started, data: { op: opHint } });
+          return { data: null, error: { message: `HTTP ${resp.status}` } };
         }
+      }
+      if (attempt > 0) {
+        diag('info', 'api', 'ok-after-retry', { corr: requestId, ms: Date.now() - started, data: { op: opHint, attempt } });
       }
       return await resp.json();
     } catch (e) {
       clearTimeout(timer);
       if (attempt < MAX_BUSY_RETRIES) {
+        diag('warn', 'api', 'net-retry', { corr: requestId, data: { op: opHint, attempt } });
         // 네트워크 오류 — 지수 백오프 후 재시도 (500ms → 1000ms → 2000ms)
         await new Promise<void>(r => setTimeout(r, 500 * Math.pow(2, attempt)));
         continue;
       }
       const msg = e instanceof Error ? e.message : String(e);
+      diag('error', 'api', 'net-fail', { corr: requestId, ms: Date.now() - started, data: { op: opHint, err: msg.slice(0, 80) } });
       return { data: null, error: { message: msg } };
     }
   }
+  diag('error', 'api', 'max-retries', { corr: requestId, ms: Date.now() - started, data: { op: opHint } });
   return { data: null, error: { message: 'Max retries exceeded' } };
 }
 
@@ -397,6 +464,7 @@ export function setLocalDbUserId(userId: string | null) {
   // userId 변경 → 이전 userId 대상 재시도 타이머 취소 (오래된 userId로 재시도되는 경쟁 방지)
   if (_sseTokenRetryTimer) { clearTimeout(_sseTokenRetryTimer); _sseTokenRetryTimer = null; }
   if (_tokenRefreshTimer) { clearTimeout(_tokenRefreshTimer); _tokenRefreshTimer = null; }
+  suppressDisconnectBriefly(5_000);
   if (_es) { _es.close(); _es = null; }
   if (!userId) {
     // 로그아웃: 토큰 캐시 삭제, 세션 게이트 즉시 해제
@@ -465,6 +533,7 @@ function createSse() {
     }
     _lastPingAt = Date.now(); // Ping 감시: 마지막 수신 시각 갱신
     _sseErrorSince = null; // 메시지 수신 = 연결 정상
+    cancelDisconnectNotify();
 
     // ── 서버 재시작 신호: 백오프 없이 즉시 재연결 ──────────────────────────────
     // 서버가 SIGTERM/SIGINT 수신 시 모든 SSE 클라이언트에 {"type":"shutdown"}을 보냄.
@@ -477,10 +546,10 @@ function createSse() {
         // 실패 카운터·백오프 초기화
         _sseFailCount = 0;
         _sseNextAllowedRetry = 0;
-        // 끊김 콜백 → UI 재연결 오버레이 표시
+        // 끊김 콜백 → UI 재연결 오버레이 표시 (debounced)
         if (_sseHasConnected) {
           _sseNeedsResync = true;
-          _disconnectCallbacks.forEach(fn => { try { fn(); } catch {} });
+          scheduleDisconnectNotify('shutdown');
         }
         // ★ 핵심: es.close()를 호출하지 않음.
         //   서버가 'retry: 100\n' 필드를 보낸 후 res.end()로 연결을 닫으면,
@@ -498,7 +567,12 @@ function createSse() {
     // 재연결 감지: 이전에 한 번 이상 연결됐었고, 끊김 이후 첫 메시지
     if (_sseHasConnected && _sseNeedsResync) {
       _sseNeedsResync = false;
+      diag('info', 'sse', 'reconnected');
+      reportLinkUp('sse-message');
       _reconnectCallbacks.forEach(fn => { try { fn(); } catch {} });
+    } else if (_sseHasConnected) {
+      // 정상 수신 — 링크 업 유지 (모달 타이머가 떠 있었다면 해제)
+      reportLinkUp('sse-healthy');
     }
     _sseHasConnected = true;
     try {
@@ -516,9 +590,9 @@ function createSse() {
     const wasConnected = _sseHasConnected;
     if (!_sseErrorSince) {
       _sseErrorSince = Date.now();
-      // 이전에 한 번이라도 연결된 적 있으면 끊김 콜백 실행
+      // 이전에 한 번이라도 연결된 적 있으면 — 즉시 모달하지 말고 debounce
       if (wasConnected) {
-        _disconnectCallbacks.forEach(fn => { try { fn(); } catch {} });
+        scheduleDisconnectNotify('onerror');
       }
     }
     // 끊겼음을 기록 — 다음 메시지 수신 시 재연결 콜백 실행
@@ -570,12 +644,16 @@ setInterval(() => {
     _es && _es.readyState === EventSource.OPEN &&
     Date.now() - _lastPingAt > PING_TIMEOUT_MS
   ) {
+    diag('warn', 'sse', 'zombie-ping-timeout');
     _lastPingAt = 0;
+    suppressDisconnectBriefly(3_000);
     _es.close();
     _es = null;
     _sseNeedsResync = true;
-    if (_sseHasConnected) _disconnectCallbacks.forEach(fn => { try { fn(); } catch {} });
-    fireReconnectCallbacks();
+    // 끊김만 알림 — 복구 콜백은 실제 메시지 수신 시에만 (오탐 모달 방지)
+    scheduleDisconnectNotify('zombie');
+    ensureSse();
+    return;
   }
 
   ensureSse();
@@ -585,6 +663,7 @@ setInterval(() => {
 if (typeof document !== 'undefined') {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && _sseListeners.size > 0) {
+      diag('debug', 'sse', 'visibility-visible');
       ensureSse();
     }
   });
@@ -594,12 +673,18 @@ if (typeof document !== 'undefined') {
 // SSE는 TCP 연결이라 visibilitychange와 독립적으로 끊길 수 있음
 if (typeof window !== 'undefined') {
   window.addEventListener('online', () => {
+    reportBrowserOnline();
     if (_sseListeners.size > 0) {
       // 백오프 쿨다운 초기화 — 네트워크가 돌아왔으므로 즉시 재연결 허용
       _sseNextAllowedRetry = 0;
-      _sseFailCount = 0;
+      suppressDisconnectBriefly(2_000);
       ensureSse();
+      diag('info', 'net', 'browser-online');
     }
+  });
+  window.addEventListener('offline', () => {
+    reportBrowserOffline();
+    diag('warn', 'net', 'browser-offline');
   });
 }
 
@@ -788,8 +873,12 @@ export const supabase: any = {
 };
 
 function fireReconnectCallbacks() {
+  // 데이터 재동기화 콜백만 — "연결 성공" UI는 실제 SSE 메시지 수신 경로에서 처리
+  cancelDisconnectNotify();
   _sseNeedsResync = false;
   _sseHasConnected = true;
+  reportLinkUp('sse-resync');
+  diag('info', 'sse', 'resync-callbacks');
   _reconnectCallbacks.forEach(fn => { try { fn(); } catch {} });
 }
 
@@ -882,10 +971,12 @@ export function setSseToken(token: string, expiresAt: number) {
   }
   // 새 토큰으로 SSE 재연결. 브라우저가 EventSource를 새로 만들면 Last-Event-ID 헤더가
   // 사라지므로 lastEventId 쿼리와 HTTP 재동기화를 함께 수행합니다.
+  // 의도적 재연결이므로 disconnect 모달/콜백을 잠시 억제하고,
+  // 복구 콜백은 실제 SSE 메시지 수신 시에만 실행 (오탐 방지).
+  suppressDisconnectBriefly(5_000);
   _sseNeedsResync = true;
   if (_es) { _es.close(); _es = null; }
   if (_sseListeners.size > 0) ensureSse();
-  fireReconnectCallbacks();
 }
 
 const DEVICE_SECRET_PREFIX = 'bolt_device_secret_';

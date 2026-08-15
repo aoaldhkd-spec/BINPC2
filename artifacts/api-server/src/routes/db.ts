@@ -1960,9 +1960,13 @@ function applyFilters(
 
 // ─── DB operation endpoint ────────────────────────────────────────────────────
 router.post('/op', async (req: Request, res: Response) => {
+  const requestId = String(req.headers['x-request-id'] ?? req.id ?? '');
+  if (requestId) res.setHeader('x-request-id', requestId);
+
   // 동시 요청이 상한선을 초과하면 503 반환 — 클라이언트가 지수 백오프 후 재시도
   if (_activeOpCount >= MAX_CONCURRENT_OPS) {
     res.status(503).setHeader('Retry-After', '1');
+    logger.warn({ requestId, code: 'BUSY' }, '[op] concurrent cap');
     return res.json({ data: null, error: { message: 'Server busy — retry in 1s', code: 'BUSY' } });
   }
   _activeOpCount++;
@@ -2028,6 +2032,14 @@ router.post('/op', async (req: Request, res: Response) => {
   if (typeof table !== 'string' || typeof op !== 'string') {
     _activeOpCount--;
     return res.status(400).json({ data: null, error: { message: 'table and op must be strings', code: 'INVALID_INPUT' } });
+  }
+
+  // 핵심 쓰기 작업만 requestId 로깅 (관측용, 본문/비밀 제외)
+  if (
+    (op === 'insert' || op === 'update' || op === 'upsert' || op === 'delete') &&
+    (table === 'messages' || table === 'chats' || table === 'likes' || table === 'contact_shares')
+  ) {
+    logger.info({ requestId, op, table }, '[op] critical-write');
   }
 
   // ─ op 허용 목록: 알 수 없는 op는 즉시 거부 ────────────────────────────────────
