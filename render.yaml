@@ -15,7 +15,17 @@ services:
       - key: NODE_ENV
         value: production
       - key: PG_POOL_MAX
-        value: "12"
+        value: "30"
+      - key: SSE_MAX_CONN_PER_IP
+        value: "250"
+      - key: RL_LOGIN_PER_SEC
+        value: "40"
+      - key: RL_OP_PER_SEC
+        value: "120"
+      - key: RL_SSE_CONN_PER_MIN
+        value: "400"
+      - key: RL_SSE_TOKEN_PER_MIN
+        value: "400"
       - key: PORT
         value: "8080"
       - key: DATABASE_URL

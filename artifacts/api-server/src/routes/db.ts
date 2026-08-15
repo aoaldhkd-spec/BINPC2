@@ -218,7 +218,7 @@ setInterval(() => {
 
 // /events (SSE): IP당 최대 동시 연결 수 (5개)
 const _sseConnPerIp = new Map<string, number>();
-const SSE_MAX_CONN_PER_IP = 5;
+const SSE_MAX_CONN_PER_IP = Number(process.env.SSE_MAX_CONN_PER_IP ?? 200);
 
 // ─── Image magic-bytes map ─────────────────────────────────────────────────────
 // MIME 헤더 조작으로 악성 파일을 이미지로 위장하는 공격 차단

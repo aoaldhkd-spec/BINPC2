@@ -163,23 +163,24 @@ app.use(cors({ origin: false }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Per-IP rate limits applied before the main router.
-// The third argument is a stable namespace that isolates each endpoint's
-// quota bucket regardless of how Express resolves req.path at the mount point.
-//   /api/db/auth/login    — 5 req/s : one shot per login attempt; blocks brute-force
-//   /api/db/op            — 30 req/s: burst-safe for initial data load (~10-15 req/s)
-//   /api/db/storage-upload— 20 per 60 s: image uploads are large; prevent spam uploads
-//   /api/db/events        — 20 per 60 s: SSE connections; blocks token-farming bots
-//   /api/db/unread-counts — 60 per 60 s: polling at ~1 req/s max per client
-app.use('/api/db/auth/login',       makeRateLimiter(5,  1_000,  'auth-login'));
-app.use('/api/db/op',               makeRateLimiter(30, 1_000,  'op'));
+// Per-IP rate limits — 술번개(동시 입장 버스트) 규모를 기본으로 두고 env로 조절 가능.
+//   login     : 초당 N (동시 입장)
+//   op        : 초당 N (초기 데이터 로드 + 채팅)
+//   events    : 분당 N (SSE 연결 버스트; 옛 20/min 은 파티 WiFi 에서 즉시 고갈)
+//   sse-token : 분당 N
+const RL_LOGIN_PER_SEC = Number(process.env.RL_LOGIN_PER_SEC ?? 40);
+const RL_OP_PER_SEC = Number(process.env.RL_OP_PER_SEC ?? 120);
+const RL_SSE_CONN_PER_MIN = Number(process.env.RL_SSE_CONN_PER_MIN ?? 400);
+const RL_SSE_TOKEN_PER_MIN = Number(process.env.RL_SSE_TOKEN_PER_MIN ?? 400);
+const RL_UNREAD_PER_MIN = Number(process.env.RL_UNREAD_PER_MIN ?? 600);
+
+app.use('/api/db/auth/login',       makeRateLimiter(RL_LOGIN_PER_SEC, 1_000, 'auth-login'));
+app.use('/api/db/op',               makeRateLimiter(RL_OP_PER_SEC, 1_000, 'op'));
 app.use('/api/db/storage-upload',   makeRateLimiter(20, 60_000, 'storage-upload'));
 app.use('/api/db/storage-remove',   makeRateLimiter(20, 60_000, 'storage-remove'));
-app.use('/api/db/events',           makeRateLimiter(20, 60_000, 'sse-events'));
-app.use('/api/db/unread-counts',    makeRateLimiter(60, 60_000, 'unread-counts'));
-// SSE 토큰 발급: 분당 10회 (토큰 파밍 봇 차단)
-app.use('/api/db/auth/sse-token',   makeRateLimiter(10, 60_000, 'sse-token'));
-// RPC 어드민 엔드포인트: 분당 30회 (비밀번호 브루트포스 방어)
+app.use('/api/db/events',           makeRateLimiter(RL_SSE_CONN_PER_MIN, 60_000, 'sse-events'));
+app.use('/api/db/unread-counts',    makeRateLimiter(RL_UNREAD_PER_MIN, 60_000, 'unread-counts'));
+app.use('/api/db/auth/sse-token',   makeRateLimiter(RL_SSE_TOKEN_PER_MIN, 60_000, 'sse-token'));
 app.use('/api/db/rpc',              makeRateLimiter(30, 60_000, 'rpc'));
 
 app.use("/api", router);
