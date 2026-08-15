@@ -199,8 +199,9 @@ export function useHearts(
         }
       }
     } catch {
-      // 서버 실패 시 낙관적 상태 롤백
+      // 서버 실패 시 낙관적 상태 롤백 + 사용자 알림
       setReceivedLikers(prevLikers);
+      setLikeError('하트 응답에 실패했습니다. 잠시 후 다시 시도해 주세요.');
     } finally {
       heartResponseInFlightRef.current = null;
     }

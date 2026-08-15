@@ -349,6 +349,13 @@ export function onSseDisconnect(fn: () => void): () => void {
   return () => _disconnectCallbacks.delete(fn);
 }
 
+/** 최근 ping/메시지 기준 SSE가 살아 있는지 — 폴링 간격 완화용 */
+export function isSseHealthy(maxAgeMs = 25_000): boolean {
+  if (!_sseHasConnected || _sseNeedsResync) return false;
+  if (!_lastPingAt) return false;
+  return Date.now() - _lastPingAt < maxAgeMs;
+}
+
 // SSE 인증 토큰 — 서버에서 발급한 HMAC 토큰으로 자신의 이벤트만 수신 가능
 let _sseToken: string | null = null;
 

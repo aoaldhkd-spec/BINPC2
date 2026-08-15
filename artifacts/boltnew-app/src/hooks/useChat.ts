@@ -40,7 +40,7 @@ function _loadPendingQueue(): PendingMsg[] {
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { onSseReconnect, getSseToken } from '../lib/localdb';
+import { onSseReconnect, getSseToken, isSseHealthy } from '../lib/localdb';
 import type { Profile, Message, Chat, View } from '../types/app';
 import { HeartType } from '../lib/constants';
 import { applySseInsert, applyLoadMessages } from '../lib/chat-reducers';
@@ -268,16 +268,21 @@ export function useChat({
     // 여기서는 채팅방 전환 시 메시지 로드만 수행
     loadMessages(chatId);
 
-    // SSE 불안정 시 폴링 폴백 — 3초마다 확인 (applyLoadMessages가 dedup 처리)
-    // 3회 연속 실패 시 20초 쿨다운 후 자동 재개 (영구 중단 → 일시 정지)
-    // [안전장치 6] isPolling 플래그로 이전 폴링이 완료되기 전 중복 실행 차단
+    // SSE 불안정 시 폴링 폴백
+    // - SSE healthy: 12초 (NAT/rate-limit 부하 완화)
+    // - SSE unhealthy: 3초
+    // 3회 연속 실패 시 20초 쿨다운 후 자동 재개
     let pollFailCount = 0;
     let isPolling = false;
-    let pollPausedUntil = 0; // 이 시각(ms) 전에는 폴링 skip — 일시 정지 구현
+    let pollPausedUntil = 0;
+    let lastTick = 0;
     const pollInterval = setInterval(async () => {
       if (chatIdRef.current !== chatId) return;
-      if (Date.now() < pollPausedUntil) return; // 쿨다운 중 — 대기
-      if (isPolling) return; // 이전 폴링이 아직 실행 중 — skip (간격 중첩 방지)
+      if (Date.now() < pollPausedUntil) return;
+      if (isPolling) return;
+      const intervalMs = isSseHealthy() ? 12_000 : 3_000;
+      if (Date.now() - lastTick < intervalMs - 50) return;
+      lastTick = Date.now();
       isPolling = true;
       try {
         const ok = await loadMessages(chatId);
@@ -285,14 +290,13 @@ export function useChat({
           pollFailCount = 0;
           pollPausedUntil = 0;
         } else if (++pollFailCount >= 3) {
-          // 3회 연속 실패 → 20초 쿨다운 후 재시도 (서버 과부하 방지 + 복구 보장)
           pollPausedUntil = Date.now() + 20_000;
           pollFailCount = 0;
         }
       } finally {
         isPolling = false;
       }
-    }, 3_000);
+    }, 1_000);
 
     return () => {
       clearInterval(pollInterval);

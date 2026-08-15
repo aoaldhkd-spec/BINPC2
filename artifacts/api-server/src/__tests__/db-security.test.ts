@@ -976,3 +976,46 @@ describe('[Realtime] 인증 SSE 채팅 전달', () => {
     }
   });
 });
+
+describe('[Security] DELETE IDOR + ready secrets', () => {
+  it('chats DELETE — 비참여자는 403', async () => {
+    const a = randomUUID();
+    const b = randomUUID();
+    const c = randomUUID();
+    const agentA = await loginAgent(a);
+    const agentC = await loginAgent(c);
+
+    const chatRes = await agentA
+      .post('/api/db/op')
+      .set('Content-Type', 'application/json')
+      .send({
+        op: 'insert',
+        table: 'chats',
+        requesterId: a,
+        payload: { user1_id: a, user2_id: b },
+        selectAfterWrite: true,
+        single: true,
+      });
+    expect(chatRes.status).toBe(200);
+    const chatId = chatRes.body.data.id as string;
+
+    const del = await agentC
+      .post('/api/db/op')
+      .set('Content-Type', 'application/json')
+      .send({
+        op: 'delete',
+        table: 'chats',
+        requesterId: c,
+        filters: [{ type: 'eq', col: 'id', val: chatId }],
+      });
+    expect(del.status).toBe(403);
+    expect(del.body.error?.code).toBe('FORBIDDEN');
+  });
+
+  it('/ready 응답에 reset_password 가 없다', async () => {
+    const res = await request(app).get('/api/db/ready');
+    expect(res.status).toBe(200);
+    expect(res.body.settings?.reset_password).toBeUndefined();
+    expect(Object.prototype.hasOwnProperty.call(res.body.settings ?? {}, 'reset_password')).toBe(false);
+  });
+});

@@ -192,7 +192,7 @@ function sanitizeRow(tbl: string, row: Record<string, unknown>): Record<string, 
 // ─── Concurrency limiter — graceful 503 when too many concurrent /op requests ──
 // /op는 in-memory 서빙이지만 Node.js 이벤트 루프 포화 방지용 상한선
 let _activeOpCount = 0;
-const MAX_CONCURRENT_OPS = 80;
+const MAX_CONCURRENT_OPS = Number(process.env.MAX_CONCURRENT_OPS ?? 200);
 
 // ─── Per-IP rate limiters ─────────────────────────────────────────────────────
 // /auth/login: brute-force 방지 (분당 10회)
@@ -510,7 +510,8 @@ async function withChatPairLock<T>(pairKey: string, fn: () => Promise<T>): Promi
 /** 내구성이 필수인 테이블 — persist 성공 후에만 SSE/응답 */
 const CRITICAL_PERSIST_TABLES = new Set([
   'messages', 'likes', 'chats', 'chat_reads',
-  'contact_shares', 'contact_share_events', 'group_messages',
+  'contact_shares', 'contact_share_events',
+  'group_messages', 'group_chats', 'group_participants',
 ]);
 
 /** SSE 타겟 수집 (테스트·브로드캐스트 공용) — 프라이빗 이벤트 유실 방지 */
@@ -1243,8 +1244,19 @@ function autoMatchGroupChat(userId: string, profile: Record<string, unknown>): v
           id: targetGroupId, ...newGroupData, max_members: 9999, created_at: ts(),
         };
         (store['group_chats'] as Record<string, unknown>[]).push(newGroup);
-        dbPersistRow('group_chats', newGroup).catch(e => logger.error({ err: e }, '[db] background task error'));
-        broadcastAll({ type: 'change', table: 'group_chats', event: 'INSERT', newRow: newGroup, oldRow: null });
+        void dbPersistRow('group_chats', newGroup)
+          .then(() => {
+            smartBroadcast('group_chats', newGroup, {
+              type: 'change', table: 'group_chats', event: 'INSERT', newRow: newGroup, oldRow: null,
+            });
+          })
+          .catch(e => {
+            // persist 실패 시 메모리에서도 제거해 재시도 가능 상태 유지
+            store['group_chats'] = (store['group_chats'] as Record<string, unknown>[]).filter(
+              g => String(g.id) !== String(targetGroupId),
+            );
+            logger.error({ err: e }, '[autoMatchGroupChat] group_chats persist failed');
+          });
       }
       if (alreadyInIds.has(targetGroupId)) return; // 이미 이 방에 있음
       const newPart: Record<string, unknown> = {
@@ -1252,10 +1264,19 @@ function autoMatchGroupChat(userId: string, profile: Record<string, unknown>): v
       };
       (store['group_participants'] as Record<string, unknown>[]).push(newPart);
       alreadyInIds.add(targetGroupId);
-      dbPersistRow('group_participants', newPart).catch(e => logger.error({ err: e }, '[db] background task error'));
-      _smartBroadcastLocal('group_participants', newPart, {
-        type: 'change', table: 'group_participants', event: 'INSERT', newRow: newPart, oldRow: null,
-      });
+      void dbPersistRow('group_participants', newPart)
+        .then(() => {
+          smartBroadcast('group_participants', newPart, {
+            type: 'change', table: 'group_participants', event: 'INSERT', newRow: newPart, oldRow: null,
+          });
+        })
+        .catch(e => {
+          store['group_participants'] = (store['group_participants'] as Record<string, unknown>[]).filter(
+            p => String(p.id) !== String(newPart.id),
+          );
+          alreadyInIds.delete(targetGroupId);
+          logger.error({ err: e }, '[autoMatchGroupChat] group_participants persist failed');
+        });
     };
 
     // ── 나이대 계산 ──────────────────────────────────────────────────────────
@@ -1573,8 +1594,9 @@ async function mergeTableFromDbIfStale(table: string, force = false): Promise<vo
 
 async function resyncHotTablesFromDb(): Promise<void> {
   try {
+    // messages/likes/chats 는 절대 wholesale replace 하지 않음 — LIMIT 때문에 오래된 방이 메모리에서 증발함
     const hotTables = ['profiles', 'chats', 'likes', 'messages', 'app_settings'] as const;
-    const limits: Record<string, number> = { profiles: 10000, chats: 5000, likes: 5000, messages: 5000, app_settings: 10 };
+    const limits: Record<string, number> = { profiles: 10000, chats: 8000, likes: 8000, messages: 15000, app_settings: 10 };
     await Promise.all(hotTables.map(async (tbl) => {
       const limit = limits[tbl] ?? 5000;
       const { rows } = await pool.query(
@@ -1584,12 +1606,30 @@ async function resyncHotTablesFromDb(): Promise<void> {
       if (!rows.length) return;
       if (tbl === 'app_settings') {
         applyAppSettingsFromDbRows(rows.map(r => r.data as Record<string, unknown>));
-      } else {
-        store[tbl] = rows.map(r => r.data as Record<string, unknown>);
+        return;
+      }
+      if (!store[tbl]) store[tbl] = [];
+      const memRows = store[tbl];
+      const byId = new Map(memRows.map(r => [String(r['id']), r]));
+      for (const row of rows) {
+        const data = row.data as Record<string, unknown>;
+        const id = String(data['id'] ?? '');
+        if (!id) continue;
+        const existing = byId.get(id);
+        const dbTs = String(data.updated_at ?? data.created_at ?? '');
+        const memTs = existing ? String(existing.updated_at ?? existing.created_at ?? '') : '';
+        if (!existing) {
+          memRows.push(data);
+          byId.set(id, data);
+        } else if (dbTs >= memTs) {
+          const idx = memRows.findIndex(r => String(r['id']) === id);
+          if (idx >= 0) memRows[idx] = data;
+          byId.set(id, data);
+        }
       }
     }));
     await dedupeChatsInStore();
-    logger.info({}, '[db] hot-table resync complete');
+    logger.info({}, '[db] hot-table resync complete (merge-by-id)');
   } catch (e) {
     logger.warn({ err: e }, '[db] hot-table resync failed');
   }
@@ -1759,10 +1799,11 @@ function sanitizeProfileForViewer(
   return row.contact_private === true ? sanitizeProfile(row) : row;
 }
 
-/** app_settings row에서 관리자 비밀번호를 제거하여 유저 SSE에 노출되지 않도록 */
+/** app_settings row에서 관리자·리셋 비밀번호를 제거하여 유저 SSE에 노출되지 않도록 */
 function sanitizeSettings(row: Record<string, unknown>): Record<string, unknown> {
   const s = { ...row };
-  delete s['admin_password']; // 관리자 비밀번호 유저 클라이언트 노출 방지
+  delete s['admin_password'];
+  delete s['reset_password']; // 리셋 비번은 관리자 전용 — 유저 클라이언트/SSE 노출 금지
   return s;
 }
 
@@ -2263,6 +2304,52 @@ router.post('/op', async (req: Request, res: Response) => {
         return res.json({ data: crData, error: null });
       }
 
+      // ─ IDOR guard: group_messages / group_participants SELECT ───────────────
+      if ((table === 'group_messages' || table === 'group_participants') && !canReadPrivateTables) {
+        if (!requesterId) {
+          logger.warn({ table, ip: req.ip }, '[SECURITY] IDOR: group SELECT without requesterId blocked');
+          return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+        }
+        const myGroupIds = new Set(
+          getTable('group_participants')
+            .filter(p => String(p.user_id) === String(requesterId))
+            .map(p => String(p.group_id)),
+        );
+        if (table === 'group_participants') {
+          const gpScope = tableData.filter(r => myGroupIds.has(String(r.group_id)));
+          const gpResult = applyFilters(gpScope, normalizedFilters);
+          for (const { col, asc } of safeOrders) {
+            gpResult.sort((a, b) => {
+              const av = a[col]; const bv = b[col];
+              if (av === bv) return 0;
+              if (av == null) return asc ? -1 : 1;
+              if (bv == null) return asc ? 1 : -1;
+              return (av < bv ? -1 : 1) * (asc ? 1 : -1);
+            });
+          }
+          const gpLimit = limit != null ? Math.floor(limit) : undefined;
+          const gpLimited = gpLimit != null ? gpResult.slice(0, gpLimit) : gpResult;
+          const gpData = single ? (gpLimited[0] ?? null) : maybeSingle ? (gpLimited[0] ?? null) : gpLimited;
+          return res.json({ data: gpData, error: null });
+        }
+        // group_messages: 참여 중인 방만
+        const gmScope = tableData.filter(r => myGroupIds.has(String(r.group_id)));
+        const gmResult = applyFilters(gmScope, normalizedFilters);
+        for (const { col, asc } of safeOrders) {
+          gmResult.sort((a, b) => {
+            const av = a[col]; const bv = b[col];
+            if (av === bv) return 0;
+            if (av == null) return asc ? -1 : 1;
+            if (bv == null) return asc ? 1 : -1;
+            return (av < bv ? -1 : 1) * (asc ? 1 : -1);
+          });
+        }
+        const gmLimit = limit != null ? Math.floor(limit) : undefined;
+        const gmLimited = gmLimit != null ? gmResult.slice(0, gmLimit) : gmResult;
+        const gmData = single ? (gmLimited[0] ?? null) : maybeSingle ? (gmLimited[0] ?? null) : gmLimited;
+        return res.json({ data: gmData, error: null });
+      }
+
       if (table === 'heart_balances' && !isAdmin) {
         const idFilter = normalizedFilters.find(f => f.type === 'eq' && f.col === 'id');
         if (!requesterId || !idFilter || !('val' in idFilter) || String(idFilter.val) !== String(requesterId)) {
@@ -2288,6 +2375,7 @@ router.post('/op', async (req: Request, res: Response) => {
           const s = { ...r };
           delete s['admin_password'];
           delete s['test_password'];
+          delete s['reset_password'];
           return s;
         });
       }
@@ -2814,34 +2902,63 @@ router.post('/op', async (req: Request, res: Response) => {
       const toDelete = applyFilters(tableData, normalizedFilters);
 
       // ─ IDOR guard: 민감 테이블 DELETE는 requesterId 필수 ────────────────
-      // UPDATE와 동일 정책 — 미인증 삭제로 타인 데이터를 지우는 공격 차단
       if (!isAdmin && !requesterId) {
-        if (table === 'messages' || table === 'likes' || table === 'chat_reads') {
+        if (
+          table === 'messages' || table === 'likes' || table === 'chat_reads' ||
+          table === 'chats' || table === 'contact_shares' || table === 'contact_share_events' ||
+          table === 'group_messages' || table === 'group_participants' || table === 'group_chats'
+        ) {
           logger.warn({ table, ip: req.ip }, '[SECURITY] IDOR: DELETE without requesterId blocked');
           return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
         }
       }
 
       // ─ IDOR guard: DELETE ownership check ──────────────────────────────
-      if (requesterId) {
+      if (requesterId && !isAdmin) {
         for (const existingRow of toDelete) {
-          // likes: 자신이 보낸 하트만 삭제 가능
           if (table === 'likes' && existingRow.liker_id != null &&
               String(existingRow.liker_id) !== String(requesterId)) {
             logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: DELETE likes blocked');
             return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신이 보낸 하트만 취소할 수 있습니다.', code: 'FORBIDDEN' } });
           }
-          // messages: 자신이 보낸 메시지만 삭제 가능
           if (table === 'messages' && existingRow.sender_id != null &&
               String(existingRow.sender_id) !== String(requesterId)) {
             logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: DELETE messages blocked');
             return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신의 메시지만 삭제할 수 있습니다.', code: 'FORBIDDEN' } });
           }
-          // group_participants: 자신의 참여만 삭제 가능 (나가기 기능)
-          if (table === 'group_participants' && existingRow.user_id != null && !isAdmin &&
+          if (table === 'chats') {
+            const u1 = String(existingRow.user1_id ?? '');
+            const u2 = String(existingRow.user2_id ?? '');
+            if (u1 !== String(requesterId) && u2 !== String(requesterId)) {
+              logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: DELETE chats blocked');
+              return res.status(403).json({ data: null, error: { message: 'Forbidden: 참여한 채팅방만 삭제할 수 있습니다.', code: 'FORBIDDEN' } });
+            }
+          }
+          if (table === 'group_participants' && existingRow.user_id != null &&
               String(existingRow.user_id) !== String(requesterId)) {
             logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: DELETE group_participants blocked');
             return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신의 참여만 나갈 수 있습니다.', code: 'FORBIDDEN' } });
+          }
+          if (table === 'group_messages' && existingRow.sender_id != null &&
+              String(existingRow.sender_id) !== String(requesterId)) {
+            logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: DELETE group_messages blocked');
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신의 단톡 메시지만 삭제할 수 있습니다.', code: 'FORBIDDEN' } });
+          }
+          if (table === 'group_chats') {
+            logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: DELETE group_chats blocked');
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: 단톡방 삭제는 관리자만 가능합니다.', code: 'FORBIDDEN' } });
+          }
+          if (table === 'contact_shares' || table === 'contact_share_events') {
+            const owners = [
+              existingRow.liker_id, existingRow.liked_id,
+              existingRow.sharer_id, existingRow.receiver_id,
+              existingRow.from_user_id, existingRow.to_user_id,
+              existingRow.sender_id, existingRow.recipient_id,
+            ].map(v => v != null ? String(v) : '').filter(Boolean);
+            if (owners.length > 0 && !owners.includes(String(requesterId))) {
+              logger.warn({ requesterId, rowId: existingRow.id, table }, '[SECURITY] IDOR: DELETE contact share blocked');
+              return res.status(403).json({ data: null, error: { message: 'Forbidden: 관련 당사자만 삭제할 수 있습니다.', code: 'FORBIDDEN' } });
+            }
           }
         }
       }
@@ -2851,13 +2968,33 @@ router.post('/op', async (req: Request, res: Response) => {
           if (row.user_id) leftGroupUsers.add(row.user_id as string);
         }
       }
-      store[table] = tableData.filter(r => !applyFilters([r], normalizedFilters).length);
-      // ─ 배치 삭제 최적화: N개의 개별 DELETE → 단일 IN-clause 쿼리로 통합 (N+1 제거)
+
       const deleteIds = toDelete.map(r => String(r.id)).filter(Boolean);
+      const previousRows = [...toDelete];
+      store[table] = tableData.filter(r => !applyFilters([r], normalizedFilters).length);
+
+      if (deleteIds.length > 0) {
+        if (CRITICAL_PERSIST_TABLES.has(table)) {
+          try {
+            await dbDeleteRows(table, deleteIds);
+          } catch (e) {
+            // persist 실패 시 메모리 롤백 — 응답/브로드캐스트 전에 복구
+            for (const row of previousRows) {
+              if (!store[table].some(r => String(r.id) === String(row.id))) {
+                store[table].push(row);
+              }
+            }
+            logger.error({ err: e, table, deleteIds }, '[db] critical DELETE persist failed — rolled back');
+            return res.status(503).json({ data: null, error: { message: '일시적 저장 오류입니다. 잠시 후 다시 시도해주세요.', code: 'PERSIST_FAILED' } });
+          }
+        } else {
+          dbDeleteRows(table, deleteIds).catch(e => logger.error({ err: e }, '[db] background task error'));
+        }
+      }
+
       for (const row of toDelete) {
         smartBroadcast(table, row, { type: 'change', table, event: 'DELETE', newRow: null, oldRow: row });
       }
-      if (deleteIds.length > 0) dbDeleteRows(table, deleteIds).catch(e => logger.error({ err: e }, '[db] background task error'));
       return res.json({ data: null, error: null });
     }
 
@@ -3485,7 +3622,7 @@ router.get('/ready', (_req: Request, res: Response) => {
         timer_end_at: (settings.timer_end_at as string | null | undefined) ?? null,
         timer_label: (settings.timer_label as string | null | undefined) ?? null,
         reset_signal: (settings.reset_signal as string | null | undefined) ?? null,
-        reset_password: (settings.reset_password as string | null | undefined) ?? null,
+        // reset_password 는 공개 readiness에 노출하지 않음 (관리자 패널/RPC만)
         functions_locked: settings.functions_locked === true,
       },
       login: {

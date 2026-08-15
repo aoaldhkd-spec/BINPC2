@@ -246,8 +246,9 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
         }
       }
       if (!success) {
-        // 3회 실패 → 낙관적 메시지 롤백
+        // 3회 실패 → 낙관적 메시지 롤백 + 사용자 알림
         setGroupMessages(prev => prev.filter(m => m.id !== optimisticId));
+        setBottomNotif({ type: 'error', nickname: '단톡 전송 실패 — 잠시 후 다시 시도해 주세요' });
       }
     } finally {
       sendingGroupRef.current.delete(snapGroupId);

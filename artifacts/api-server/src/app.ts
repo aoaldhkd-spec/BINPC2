@@ -50,7 +50,21 @@ function makeRateLimiter(maxRequests: number, windowMs: number, namespace: strin
     // req.ip is set by Express after applying the trust-proxy setting.
     // Fall back to the raw socket address only if somehow unset.
     const ip = req.ip ?? req.socket.remoteAddress ?? 'unknown';
-    const key = `${namespace}:${ip}`;
+    // Venue NAT: 같은 WiFi IP를 수십~수백 명이 공유하면 IP 버킷이 즉시 고갈됨.
+    // 인증된 사용자(requesterId / session)가 있으면 사용자 단위로 분리해 파티 규모를 견딤.
+    const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body)
+      ? (req.body as Record<string, unknown>)
+      : null;
+    const bodyUid = body?.requesterId != null ? String(body.requesterId) : '';
+    const sessionUid = (() => {
+      try {
+        const s = (req as Request & { session?: { userId?: string } }).session;
+        return s?.userId ? String(s.userId) : '';
+      } catch { return ''; }
+    })();
+    const loginNick = body?.nickname != null ? String(body.nickname).trim() : '';
+    const identity = bodyUid || sessionUid || (namespace === 'auth-login' && loginNick ? `nick:${loginNick}` : '');
+    const key = identity ? `${namespace}:id:${identity}` : `${namespace}:ip:${ip}`;
     const now = Date.now();
     const cutoff = now - windowMs;
 
