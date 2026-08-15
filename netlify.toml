@@ -8,6 +8,8 @@
 [build.environment]
   NODE_VERSION = "22"
   COREPACK_ENABLE_DOWNLOAD_PROMPT = "0"
+  # SSE는 Netlify 프록시 버퍼링을 우회해 Render API로 직접 연결
+  VITE_SSE_ORIGIN = "https://binpc2.onrender.com"
 
 [[headers]]
   for = "/api/*"

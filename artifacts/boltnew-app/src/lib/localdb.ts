@@ -12,7 +12,11 @@ import type { Database } from '../types/database';
 import { tableNeedsSession } from './db-auth-tables';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
+// HTTP API는 동일 출처(/api/db → Netlify 프록시)를 유지.
+// SSE만 Render로 직접 연결 — Netlify 프록시가 event-stream 을 버퍼링해 실시간 유실이 발생함.
 const API = '/api/db';
+const SSE_ORIGIN = (import.meta.env.VITE_SSE_ORIGIN as string | undefined)?.replace(/\/$/, '') ?? '';
+const SSE_API = SSE_ORIGIN ? `${SSE_ORIGIN}/api/db` : API;
 const FETCH_TIMEOUT = 15_000; // 모바일·Render 콜드스타트 대비 (기존 4s는 폰에서 로그인 타임아웃)
 
 // ─── Session readiness gate ───────────────────────────────────────────────────
@@ -445,7 +449,7 @@ function createSse() {
   const adminToken = (() => { try { return localStorage.getItem('admin_token_v1'); } catch { return null; } })();
   if (adminToken && !_currentUserId) params.push(`adminToken=${encodeURIComponent(adminToken)}`);
   if (_lastEventId) params.push(`lastEventId=${encodeURIComponent(_lastEventId)}`);
-  const url = params.length ? `${API}/events?${params.join('&')}` : `${API}/events`;
+  const url = params.length ? `${SSE_API}/events?${params.join('&')}` : `${SSE_API}/events`;
   const es = new EventSource(url);
   es.onmessage = (ev) => {
     if (ev.lastEventId) {

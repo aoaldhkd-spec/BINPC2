@@ -209,6 +209,8 @@ async function main() {
   if (!found) fails.push('message not in DB for B');
 
   streamB.stop();
+  // abort 정리 중 unhandled rejection 방지
+  streamB.done.catch(() => {});
 
   if (fails.length) {
     console.error('\n❌ FAIL', fails);

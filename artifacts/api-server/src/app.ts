@@ -139,9 +139,25 @@ app.use(
     },
   }),
 );
-// Same-origin only: frontend & backend share the same origin.
-// origin:false sends no CORS headers → browser same-origin policy blocks
-// cross-site requests automatically, closing CSRF-style API attacks.
+// HTTP API는 same-origin(Netlify 프록시)만 허용 — CSRF 차단.
+// SSE(/api/db/events)만 Netlify→Render 직접 연결을 위해 CORS 허용
+// (Netlify 프록시는 event-stream 버퍼링으로 실시간 이벤트를 유실시킴)
+const SSE_CORS_ORIGINS = new Set(
+  String(process.env.SSE_CORS_ORIGINS ?? 'https://binpc2.netlify.app')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean),
+);
+app.use('/api/db/events', cors({
+  origin(origin, cb) {
+    if (!origin) return cb(null, true); // same-origin / non-browser
+    if (SSE_CORS_ORIGINS.has(origin) || origin.endsWith('.netlify.app')) return cb(null, true);
+    return cb(null, false);
+  },
+  methods: ['GET', 'HEAD', 'OPTIONS'],
+  allowedHeaders: ['Last-Event-ID', 'Accept', 'Cache-Control'],
+  maxAge: 86400,
+}));
 app.use(cors({ origin: false }));
 // 최대 이미지 크기(~7MB base64) 고려해 10MB로 제한 — 50MB는 DoS 위험
 app.use(express.json({ limit: '10mb' }));
