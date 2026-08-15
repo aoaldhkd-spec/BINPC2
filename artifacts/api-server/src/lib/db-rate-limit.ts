@@ -1,0 +1,43 @@
+/**
+ * IP/키 단위 in-memory rate limit. persist/SSE store 와 독립.
+ * 분산 quota(`app_kv_rows`)는 db.ts 에 그대로 둔다.
+ */
+
+export type RateBucket = { count: number; resetAt: number };
+
+export const RATE_MAP_MAX_SIZE = 50_000;
+export const LOGIN_RATE_MAX = 10;
+export const LOGIN_RATE_WINDOW_MS = 60_000;
+export const UPLOAD_RATE_MAX = 10;
+export const UPLOAD_RATE_WINDOW_MS = 60_000;
+
+export const loginRateMap = new Map<string, RateBucket>();
+export const uploadRateMap = new Map<string, RateBucket>();
+export const broadcastRateMap = new Map<string, RateBucket>();
+
+export function pruneRateMap(map: Map<string, RateBucket>, now = Date.now()): void {
+  for (const [k, v] of map) if (v.resetAt < now) map.delete(k);
+}
+
+/**
+ * 기존 db.ts 버킷 로직과 동일: 창이 끝나면 리셋, 초과 시 limited.
+ * maxMapSize 가 있으면 새 키 추가 전에 상한을 검사한다.
+ */
+export function consumeRateLimit(
+  map: Map<string, RateBucket>,
+  key: string,
+  opts: { now?: number; windowMs: number; max: number; maxMapSize?: number },
+): 'ok' | 'limited' | 'map_full' {
+  const now = opts.now ?? Date.now();
+  let bucket = map.get(key);
+  if (!bucket || now > bucket.resetAt) {
+    if (!bucket && opts.maxMapSize != null && map.size >= opts.maxMapSize) {
+      return 'map_full';
+    }
+    bucket = { count: 0, resetAt: now + opts.windowMs };
+    map.set(key, bucket);
+  }
+  bucket.count++;
+  if (bucket.count > opts.max) return 'limited';
+  return 'ok';
+}

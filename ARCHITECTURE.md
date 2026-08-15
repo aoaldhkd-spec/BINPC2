@@ -25,10 +25,13 @@ Prefer **single Render instance**. Multi-instance는 NOTIFY로 일부 동기화�
 | `artifacts/boltnew-app/src/lib/diag.ts` | 관측/`__BINPC_DIAG__` |
 | `artifacts/boltnew-app/src/components/MainScreen.tsx` | 메인 탭 UI |
 | `artifacts/boltnew-app/src/components/ChatScreen.tsx` | 채팅 UI |
-| `artifacts/boltnew-app/src/AdminApp.tsx` | 관리자 패널 (탭 함수들이 같은 파일에 있음) |
-| `artifacts/api-server/src/routes/db.ts` | `/op`, RPC, SSE, persist, rate-limit (핵심) |
+| `artifacts/boltnew-app/src/AdminApp.tsx` | 관리자 셸 (로그인·대시보드 배선) |
+| `artifacts/boltnew-app/src/admin/` | 관리자 탭 UI (HeartsTab, ChatsTab, CredentialsTab 등) |
+| `artifacts/api-server/src/routes/db.ts` | `/op`, RPC, SSE, persist (핵심) |
 | `artifacts/api-server/src/lib/db-sanitize.ts` | 입력/SSE sanitize |
 | `artifacts/api-server/src/lib/db-chat-ids.ts` | `chatPairKey` / `deterministicChatId` |
+| `artifacts/api-server/src/lib/db-broadcast-targets.ts` | SSE 수신자 목록 (순수) |
+| `artifacts/api-server/src/lib/db-rate-limit.ts` | IP rate-limit 맵/헬퍼 |
 | `scripts/verify-all-features.mjs` | 프로덕션 스모크 |
 
 ## Feature → files (읽기 범위)
@@ -44,7 +47,7 @@ UI: `MainScreen.tsx`, `LikeConfirmDialog.tsx`, `ProfileDetail.tsx` → `useHeart
 **건드리면 안 됨:** persist-before-broadcast, SSE ring buffer, merge-by-id resync, subscription cleanup, retry/backoff.
 
 ### Admin
-`AdminApp.tsx` only (tabs are local functions). Settings RPC: `admin_update_settings` / `patchAdminSettings`.
+`AdminApp.tsx` (데이터 로드/RPC) + `src/admin/*Tab.tsx`. Settings RPC: `admin_update_settings` / `patchAdminSettings`.
 
 ## Data flow (happy path)
 

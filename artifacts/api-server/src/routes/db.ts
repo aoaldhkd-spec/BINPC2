@@ -14,6 +14,19 @@ import {
   sanitizeSettings,
 } from '../lib/db-sanitize';
 import { chatPairKey, deterministicChatId } from '../lib/db-chat-ids';
+import { collectBroadcastTargets as collectBroadcastTargetsImpl } from '../lib/db-broadcast-targets';
+import {
+  RATE_MAP_MAX_SIZE,
+  LOGIN_RATE_MAX,
+  LOGIN_RATE_WINDOW_MS,
+  UPLOAD_RATE_MAX,
+  UPLOAD_RATE_WINDOW_MS,
+  loginRateMap as _loginRateMap,
+  uploadRateMap as _uploadRateMap,
+  broadcastRateMap as _broadcastRateMap,
+  pruneRateMap,
+  consumeRateLimit,
+} from '../lib/db-rate-limit';
 
 // express-session의 SessionData에 userId 필드 추가
 declare module 'express-session' {
@@ -170,26 +183,11 @@ function _ringGetSince(lastSeq: number, userId: string | null, isAdmin: boolean)
 let _activeOpCount = 0;
 const MAX_CONCURRENT_OPS = Number(process.env.MAX_CONCURRENT_OPS ?? 300);
 
-// ─── Per-IP rate limiters ─────────────────────────────────────────────────────
-// /auth/login: brute-force 방지 (분당 10회)
-const _loginRateMap = new Map<string, { count: number; resetAt: number }>();
-// Rate map 크기 상한 — IP 폭탄 시 OOM 방지
-const RATE_MAP_MAX_SIZE = 50_000;
-const LOGIN_RATE_MAX = 10;
-const LOGIN_RATE_WINDOW_MS = 60_000;
-
-// /storage-upload: 이미지 스팸 방지 (분당 10회)
-const _uploadRateMap = new Map<string, { count: number; resetAt: number }>();
-const UPLOAD_RATE_MAX = 10;
-const UPLOAD_RATE_WINDOW_MS = 60_000;
-
-// ─── Rate map 주기적 pruning + 상한 ─────────────────────────────────────────
-// 공격자가 무수한 IP로 요청하면 Map이 무한 증가 → 2분마다 만료 항목 제거
-// 재발방지: Map 크기가 상한(50000) 초과 시 새 IP 추가 자체를 거부 (OOM 방지)
+// ─── Per-IP rate limiters: ../lib/db-rate-limit.ts ─────────────────────────────
 setInterval(() => {
   const now = Date.now();
-  for (const [k, v] of _loginRateMap) if (v.resetAt < now) _loginRateMap.delete(k);
-  for (const [k, v] of _uploadRateMap) if (v.resetAt < now) _uploadRateMap.delete(k);
+  pruneRateMap(_loginRateMap, now);
+  pruneRateMap(_uploadRateMap, now);
 }, 2 * 60 * 1000);
 
 // /events (SSE): IP당 최대 동시 연결 수 (5개)
@@ -481,70 +479,19 @@ const CRITICAL_PERSIST_TABLES = new Set([
   'group_messages', 'group_chats', 'group_participants',
 ]);
 
-/** SSE 타겟 수집 (테스트·브로드캐스트 공용) — 프라이빗 이벤트 유실 방지 */
+/** SSE 타겟 수집 (테스트·브로드캐스트 공용) — 구현은 db-broadcast-targets.ts */
 export function collectBroadcastTargets(
   table: string,
   row: Record<string, unknown> | null,
   findChat: (chatId: string) => Record<string, unknown> | undefined = (id) =>
     getTable('chats').find(c => String(c['id']) === String(id)),
 ): string[] {
-  if (!row) return [];
-  const targets: string[] = [];
-  const push = (v: unknown) => {
-    if (v != null && v !== '') targets.push(String(v));
-  };
-
-  if (table === 'messages') {
-    const chat = findChat(String(row['chat_id'] ?? ''));
-    if (chat) {
-      push(chat['user1_id']);
-      push(chat['user2_id']);
-    }
-    // 채팅방이 아직 메모리에 없어도 메시지에 스탬프된 참가자로 전달
-    push(row['chat_user1_id']);
-    push(row['chat_user2_id']);
-  } else if (table === 'likes') {
-    push(row['liker_id']);
-    push(row['liked_id']);
-  } else if (table === 'chats') {
-    push(row['user1_id']);
-    push(row['user2_id']);
-  } else if (table === 'contact_shares') {
-    // 실제 스키마: liker_id / liked_id (구 필드명도 호환)
-    push(row['liker_id']);
-    push(row['liked_id']);
-    push(row['sharer_id']);
-    push(row['receiver_id']);
-  } else if (table === 'contact_share_events') {
-    push(row['from_user_id']);
-    push(row['to_user_id']);
-    push(row['sender_id']);
-    push(row['recipient_id']);
-  } else if (table === 'heart_balances') {
-    push(row['id']);
-  } else if (table === 'group_messages') {
-    const gParts = getTable('group_participants').filter(p => p.group_id === row['group_id']);
-    for (const gp of gParts) push(gp.user_id);
-  } else if (table === 'group_participants') {
-    push(row['user_id']);
-  } else if (table === 'chat_reads') {
-    push(row['user_id']);
-    push(row['reader_id']);
-    if (row['chat_id'] && row['reader_id']) {
-      const chat = findChat(String(row['chat_id']));
-      if (chat) {
-        const otherId = chat['user1_id'] === row['reader_id'] ? chat['user2_id'] : chat['user1_id'];
-        push(otherId);
-      }
-    }
-  } else if (table === 'blocked_users') {
-    push(row['user_id']);
-    push(row['target_id']);
-  } else if (table === 'profile_views') {
-    push(row['viewed_id']);
-  }
-
-  return [...new Set(targets)];
+  return collectBroadcastTargetsImpl(
+    table,
+    row,
+    findChat,
+    (gid) => getTable('group_participants').filter(p => p.group_id === gid),
+  );
 }
 
 function countMessagesForChat(chatId: string): number {
@@ -3209,17 +3156,15 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         // 유저 화면 리셋/관리자 진입 — 클라이언트에 비번을 심지 않고 서버에서만 검증
         if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
           const ip = String(req.ip ?? req.socket.remoteAddress ?? 'unknown');
-          const now = Date.now();
-          let bucket = _loginRateMap.get(`panel:${ip}`);
-          if (!bucket || now > bucket.resetAt) {
-            if (!bucket && _loginRateMap.size >= RATE_MAP_MAX_SIZE) {
-              return res.status(429).json({ data: null, error: { message: '요청이 너무 많습니다.', code: 'RATE_LIMITED' } });
-            }
-            bucket = { count: 0, resetAt: now + LOGIN_RATE_WINDOW_MS };
-            _loginRateMap.set(`panel:${ip}`, bucket);
+          const panelRate = consumeRateLimit(_loginRateMap, `panel:${ip}`, {
+            windowMs: LOGIN_RATE_WINDOW_MS,
+            max: LOGIN_RATE_MAX,
+            maxMapSize: RATE_MAP_MAX_SIZE,
+          });
+          if (panelRate === 'map_full') {
+            return res.status(429).json({ data: null, error: { message: '요청이 너무 많습니다.', code: 'RATE_LIMITED' } });
           }
-          bucket.count++;
-          if (bucket.count > LOGIN_RATE_MAX) {
+          if (panelRate === 'limited') {
             return res.status(429).json({ data: null, error: { message: '시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.', code: 'RATE_LIMITED' } });
           }
         }
@@ -3343,11 +3288,8 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
 // ─── Broadcast endpoint (for channel.send()) ──────────────────────────────────
 // 반드시 SESSION_SECRET 또는 admin RPC 비밀번호를 헤더로 전달해야 사용 가능
 // IP별 레이트 리밋 (5초 윈도우, 최대 30회) — 스팸/악의적 남용 추가 방어
-const _broadcastRateMap = new Map<string, { count: number; resetAt: number }>();
-// Fix #2: _broadcastRateMap 만료 항목 5분마다 정리 — 고유 IP 항목 무한 축적 방지
 setInterval(() => {
-  const now = Date.now();
-  for (const [k, b] of _broadcastRateMap) if (b.resetAt < now) _broadcastRateMap.delete(k);
+  pruneRateMap(_broadcastRateMap);
 }, 5 * 60 * 1000);
 router.post('/broadcast', (req: Request, res: Response) => {
   try {
@@ -3361,14 +3303,8 @@ router.post('/broadcast', (req: Request, res: Response) => {
   // x-forwarded-for는 Express가 배열로 파싱할 수 있음 — typeof 검사 후 안전하게 첫 IP 추출
   const xfwd = req.headers['x-forwarded-for'];
   const ip = (typeof xfwd === 'string' ? xfwd : Array.isArray(xfwd) ? xfwd[0] : req.socket?.remoteAddress ?? 'unknown').split(',')[0].trim();
-  const now = Date.now();
-  let bucket = _broadcastRateMap.get(ip);
-  if (!bucket || now > bucket.resetAt) {
-    bucket = { count: 0, resetAt: now + 5_000 };
-    _broadcastRateMap.set(ip, bucket);
-  }
-  bucket.count++;
-  if (bucket.count > 30) {
+  const broadcastRate = consumeRateLimit(_broadcastRateMap, ip, { windowMs: 5_000, max: 30 });
+  if (broadcastRate !== 'ok') {
     res.status(429).json({ ok: false, error: 'Too many broadcasts' });
     return;
   }
@@ -3440,17 +3376,15 @@ router.post('/storage-upload', async (req: Request, res: Response) => {
   }
   // ─ Per-IP rate limit: 이미지 스팸 방지
   const uploadIp = String(req.ip ?? req.socket.remoteAddress ?? 'unknown');
-  const uploadNow = Date.now();
-  let uploadBucket = _uploadRateMap.get(uploadIp);
-  if (!uploadBucket || uploadNow > uploadBucket.resetAt) {
-    if (!uploadBucket && _uploadRateMap.size >= RATE_MAP_MAX_SIZE) {
-      return res.status(429).json({ data: null, error: '요청이 너무 많습니다.' });
-    }
-    uploadBucket = { count: 0, resetAt: uploadNow + UPLOAD_RATE_WINDOW_MS };
-    _uploadRateMap.set(uploadIp, uploadBucket);
+  const uploadRate = consumeRateLimit(_uploadRateMap, uploadIp, {
+    windowMs: UPLOAD_RATE_WINDOW_MS,
+    max: UPLOAD_RATE_MAX,
+    maxMapSize: RATE_MAP_MAX_SIZE,
+  });
+  if (uploadRate === 'map_full') {
+    return res.status(429).json({ data: null, error: '요청이 너무 많습니다.' });
   }
-  uploadBucket.count++;
-  if (uploadBucket.count > UPLOAD_RATE_MAX) {
+  if (uploadRate === 'limited') {
     return res.status(429).json({ data: null, error: '이미지를 너무 자주 업로드하고 있습니다. 잠시 후 다시 시도해 주세요.' });
   }
 
@@ -4094,17 +4028,15 @@ router.post('/auth/login', (req: Request, res: Response) => {
   // ─ Per-IP rate limit: brute-force 방지 (단위 테스트는 제외)
   if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
   const loginIp = String(req.ip ?? req.socket.remoteAddress ?? 'unknown');
-  const loginNow = Date.now();
-  let loginBucket = _loginRateMap.get(loginIp);
-  if (!loginBucket || loginNow > loginBucket.resetAt) {
-    if (!loginBucket && _loginRateMap.size >= RATE_MAP_MAX_SIZE) {
-      return res.status(429).json({ error: '요청이 너무 많습니다.' });
-    }
-    loginBucket = { count: 0, resetAt: loginNow + LOGIN_RATE_WINDOW_MS };
-    _loginRateMap.set(loginIp, loginBucket);
+  const loginRate = consumeRateLimit(_loginRateMap, loginIp, {
+    windowMs: LOGIN_RATE_WINDOW_MS,
+    max: LOGIN_RATE_MAX,
+    maxMapSize: RATE_MAP_MAX_SIZE,
+  });
+  if (loginRate === 'map_full') {
+    return res.status(429).json({ error: '요청이 너무 많습니다.' });
   }
-  loginBucket.count++;
-  if (loginBucket.count > LOGIN_RATE_MAX) {
+  if (loginRate === 'limited') {
     return res.status(429).json({ error: '로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.' });
   }
   }
