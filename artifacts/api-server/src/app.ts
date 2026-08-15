@@ -168,10 +168,10 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 //   op        : 초당 N (초기 데이터 로드 + 채팅)
 //   events    : 분당 N (SSE 연결 버스트; 옛 20/min 은 파티 WiFi 에서 즉시 고갈)
 //   sse-token : 분당 N
-const RL_LOGIN_PER_SEC = Number(process.env.RL_LOGIN_PER_SEC ?? 40);
-const RL_OP_PER_SEC = Number(process.env.RL_OP_PER_SEC ?? 120);
-const RL_SSE_CONN_PER_MIN = Number(process.env.RL_SSE_CONN_PER_MIN ?? 400);
-const RL_SSE_TOKEN_PER_MIN = Number(process.env.RL_SSE_TOKEN_PER_MIN ?? 400);
+const RL_LOGIN_PER_SEC = Number(process.env.RL_LOGIN_PER_SEC ?? 80);
+const RL_OP_PER_SEC = Number(process.env.RL_OP_PER_SEC ?? 150);
+const RL_SSE_CONN_PER_MIN = Number(process.env.RL_SSE_CONN_PER_MIN ?? 500);
+const RL_SSE_TOKEN_PER_MIN = Number(process.env.RL_SSE_TOKEN_PER_MIN ?? 500);
 const RL_UNREAD_PER_MIN = Number(process.env.RL_UNREAD_PER_MIN ?? 600);
 
 app.use('/api/db/auth/login',       makeRateLimiter(RL_LOGIN_PER_SEC, 1_000, 'auth-login'));

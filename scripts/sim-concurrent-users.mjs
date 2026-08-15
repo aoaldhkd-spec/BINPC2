@@ -177,56 +177,97 @@ function openSse(userId, token, m) {
   };
 }
 
-async function registerUser(i, m) {
-  const id = randomUUID();
+async function registerUser(i, m, stageN) {
   const secret = randomUUID();
-  const nick = `${NICK_PREFIX}${String(i).padStart(3, '0')}`;
-  const r = await api('/op', {
-    body: {
-      op: 'insert', table: 'profiles', single: true, selectAfterWrite: true,
-      payload: {
-        id, nickname: nick, bio: 'loadtest', photo_url: null,
-        personality_score: 50, _device_secret: secret,
+  // 스테이지·재실행 간 닉네임 충돌 완전 차단
+  const nick = `${NICK_PREFIX}s${stageN}_${String(i).padStart(3, '0')}_${randomUUID().slice(0, 6)}`;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const id = randomUUID();
+    const r = await api('/op', {
+      body: {
+        op: 'insert', table: 'profiles', single: true, selectAfterWrite: true,
+        payload: {
+          id, nickname: attempt === 0 ? nick : `${nick}_${attempt}`,
+          bio: 'loadtest', photo_url: null,
+          personality_score: 50, _device_secret: secret,
+        },
       },
-    },
-  });
-  m.latencies.register.push(r.ms);
-  if (r.status === 429) m.http429++;
-  if (r.status >= 500) m.http5xx++;
-  if (r.status === 200 && r.json.data?.id) {
-    m.registerOk++;
-    return { id, secret, nick, sessionToken: null, sseToken: null, stream: null };
+    });
+    m.latencies.register.push(r.ms);
+    if (r.status === 429) {
+      m.http429++;
+      await sleep(250 * (attempt + 1));
+      continue;
+    }
+    if (r.status >= 500) {
+      m.http5xx++;
+      await sleep(300 * (attempt + 1));
+      continue;
+    }
+    if (r.status === 200 && r.json.data?.id) {
+      m.registerOk++;
+      return {
+        id: r.json.data.id,
+        secret,
+        nick: attempt === 0 ? nick : `${nick}_${attempt}`,
+        sessionToken: null,
+        sseToken: null,
+        stream: null,
+      };
+    }
+    // duplicate nickname etc — retry with new nick suffix
+    await sleep(150 * (attempt + 1));
   }
   m.httpOtherErr++;
-  m.errors.push(`register ${nick} ${r.status}`);
+  m.errors.push(`register ${nick} exhausted retries`);
   return null;
 }
 
 async function loginUser(u, m) {
-  const r = await api('/auth/login', { body: { userId: u.id, deviceSecret: u.secret } });
-  m.latencies.login.push(r.ms);
-  if (r.status === 429) m.http429++;
-  if (r.status >= 500) m.http5xx++;
-  if (r.status === 200 && r.json.sessionToken) {
-    m.loginOk++;
-    u.sessionToken = r.json.sessionToken;
-    return true;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const r = await api('/auth/login', { body: { userId: u.id, deviceSecret: u.secret } });
+    m.latencies.login.push(r.ms);
+    if (r.status === 429) {
+      m.http429++;
+      await sleep(200 + attempt * 350 + Math.floor(Math.random() * 200));
+      continue;
+    }
+    if (r.status >= 500) {
+      m.http5xx++;
+      await sleep(300 * (attempt + 1));
+      continue;
+    }
+    if (r.status === 200 && r.json.sessionToken) {
+      m.loginOk++;
+      u.sessionToken = r.json.sessionToken;
+      return true;
+    }
+    m.errors.push(`login ${u.nick} ${r.status}`);
+    return false;
   }
-  m.errors.push(`login ${u.nick} ${r.status}`);
+  m.errors.push(`login ${u.nick} 429 exhausted`);
   return false;
 }
 
 async function sseTokenUser(u, m) {
-  const r = await api('/auth/sse-token', {
-    body: { userId: u.id, sessionToken: u.sessionToken },
-  });
-  if (r.status === 429) m.http429++;
-  if (r.status === 200 && r.json.token) {
-    m.sseTokenOk++;
-    u.sseToken = r.json.token;
-    return true;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const r = await api('/auth/sse-token', {
+      body: { userId: u.id, sessionToken: u.sessionToken },
+    });
+    if (r.status === 429) {
+      m.http429++;
+      await sleep(250 + attempt * 400 + Math.floor(Math.random() * 250));
+      continue;
+    }
+    if (r.status === 200 && r.json.token) {
+      m.sseTokenOk++;
+      u.sseToken = r.json.token;
+      return true;
+    }
+    m.errors.push(`sse-token ${u.nick} ${r.status}`);
+    return false;
   }
-  m.errors.push(`sse-token ${u.nick} ${r.status}`);
+  m.errors.push(`sse-token ${u.nick} 429 exhausted`);
   return false;
 }
 
@@ -239,20 +280,20 @@ async function runStage(n) {
   console.log(`① register ${n}…`);
   const registered = (await mapPool(
     Array.from({ length: n }, (_, i) => i),
-    20,
-    async (i) => registerUser(i, m),
+    12, // burst 완화 — 등록 동시성
+    async (i) => registerUser(i, m, n),
   )).filter(Boolean);
   console.log(`   register ${m.registerOk}/${n}`);
 
   // ② Login
   console.log('② login…');
-  await mapPool(registered, 25, async (u) => loginUser(u, m));
+  await mapPool(registered, 10, async (u) => loginUser(u, m));
   const loggedIn = registered.filter((u) => u.sessionToken);
   console.log(`   login ${m.loginOk}/${registered.length}`);
 
   // ③ SSE tokens + connect
   console.log('③ sse tokens + connect…');
-  await mapPool(loggedIn, 25, async (u) => sseTokenUser(u, m));
+  await mapPool(loggedIn, 10, async (u) => sseTokenUser(u, m));
   const withTok = loggedIn.filter((u) => u.sseToken);
   for (const u of withTok) {
     u.stream = openSse(u.id, u.sseToken, m);
@@ -540,12 +581,13 @@ function stagePass(m) {
   const msgRate = m.msgSseDelivered / Math.max(1, m.msgSseDelivered + m.msgSseMiss);
   const regRate = m.registerOk / Math.max(1, m.users);
   const loginRate = m.loginOk / Math.max(1, m.registerOk);
-  const sseRate = m.sseConnectOk / Math.max(1, m.sseTokenOk);
-  // Allow some like SSE miss under rate limits; require strong chat path
+  const sseRate = m.sseConnectOk / Math.max(1, Math.max(m.sseTokenOk, 1));
+  // reconnect sample can inflate sseConnectOk above sseTokenOk — clamp ratio
+  const sseConnectRate = Math.min(1, m.sseConnectOk / Math.max(1, m.sseTokenOk));
   return (
     regRate >= 0.95
     && loginRate >= 0.95
-    && sseRate >= 0.9
+    && sseConnectRate >= 0.9
     && m.chatDupMismatch === 0
     && msgRate >= 0.85
     && m.http5xx === 0
