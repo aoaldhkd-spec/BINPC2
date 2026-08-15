@@ -120,6 +120,8 @@ const SESSIONLESS_PATHS = [
   '/api/db/push/vapid-key',
   '/api/db/ready',
   '/api/db/by-pin',
+  '/api/db/op',
+  '/api/db/rpc',
 ];
 app.use((req, res, next) => {
   const path = req.path;

@@ -67,6 +67,15 @@ function newMetrics() {
     httpOtherErr: 0,
     reconnectOk: 0,
     reconnectFail: 0,
+    pinRecoverOk: 0,
+    pinRecoverFail: 0,
+    seatsOk: 0,
+    seatsFail: 0,
+    readyP50: 0,
+    adminBroadcastOk: 0,
+    adminBroadcastMiss: 0,
+    adminBroadcastMs: [],
+    rssMb: 0,
     latencies: {
       register: [],
       login: [],
@@ -210,6 +219,7 @@ async function registerUser(i, m, stageN) {
         id: r.json.data.id,
         secret,
         nick: attempt === 0 ? nick : `${nick}_${attempt}`,
+        pin: r.json.data.pin_code ? String(r.json.data.pin_code) : null,
         sessionToken: null,
         sseToken: null,
         stream: null,
@@ -544,6 +554,110 @@ async function runStage(n) {
   m.reconnectOk += reOk;
   console.log(`   reconnected sample ${reOk}`);
 
+  // ⑪ /ready 폭격 + 좌석 SELECT + PIN 복구 + 관리자 브로드캐스트
+  console.log('⑪ ready/seats/pin/admin broadcast…');
+  m.rssMb = Math.round(process.memoryUsage().rss / 1048576);
+  const readyLat = [];
+  await mapPool(loggedIn.slice(0, Math.min(loggedIn.length, 40)), 20, async () => {
+    const t0 = Date.now();
+    try {
+      const res = await fetch(API.replace(/\/api\/db$/, '') + '/api/db/ready', { signal: AbortSignal.timeout(10_000) });
+      readyLat.push(Date.now() - t0);
+      if (!res.ok) m.httpOtherErr++;
+    } catch {
+      m.httpOtherErr++;
+      readyLat.push(Date.now() - t0);
+    }
+  });
+  m.readyP50 = pct(readyLat, 50);
+
+  await mapPool(loggedIn.slice(0, Math.min(loggedIn.length, 30)), 15, async (u) => {
+    const r = await api('/op', {
+      sessionToken: u.sessionToken,
+      body: { op: 'select', table: 'seats', requesterId: u.id },
+    });
+    if (r.status === 200) m.seatsOk++; else m.seatsFail++;
+    m.latencies.op.push(r.ms);
+  });
+
+  const pinSample = registered.filter((u) => u.pin && u.nick).slice(0, Math.min(12, registered.length));
+  await mapPool(pinSample, 6, async (u) => {
+    try {
+      const step1 = await fetch(`${API}/by-pin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin: u.pin }),
+        signal: AbortSignal.timeout(10_000),
+      });
+      const j1 = await step1.json().catch(() => ({}));
+      if (step1.status !== 200 || j1?.data?.step !== 'confirm') {
+        m.pinRecoverFail++;
+        return;
+      }
+      const step2 = await fetch(`${API}/by-pin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin: u.pin, nickname: u.nick }),
+        signal: AbortSignal.timeout(10_000),
+      });
+      const j2 = await step2.json().catch(() => ({}));
+      if (step2.status === 200 && j2?.data?.id === u.id) m.pinRecoverOk++;
+      else m.pinRecoverFail++;
+    } catch {
+      m.pinRecoverFail++;
+    }
+  });
+
+  const PANEL_PW = String(process.env.PANEL_PASSWORD || '116606').trim();
+  try {
+    const loginAdmin = await api('/rpc/admin_create_session', {
+      body: { p_phone: '010-3878-6740', p_admin_password: PANEL_PW },
+    });
+    const adminToken = loginAdmin.json?.data;
+    if (adminToken && withTok.length) {
+      const probe = `lt_${RUN_ID}_${Date.now()}`;
+      const sendAt = Date.now();
+      const tog = await api('/rpc/admin_update_settings', {
+        body: {
+          adminToken,
+          p_admin_password: PANEL_PW,
+          p_payload: { timer_label: probe },
+        },
+      });
+      if (tog.status === 200 && !tog.json.error) {
+        const waits = await Promise.all(
+          withTok.slice(0, Math.min(withTok.length, 80)).map((u) =>
+            u.stream?.waitFor(
+              (d) => d.type === 'change' && d.table === 'app_settings'
+                && String(d.newRow?.timer_label ?? '') === probe,
+              8_000,
+            ),
+          ),
+        );
+        const hits = waits.filter(Boolean);
+        m.adminBroadcastOk = hits.length;
+        m.adminBroadcastMiss = Math.min(withTok.length, 80) - hits.length;
+        for (const h of hits) {
+          if (h?.at) m.adminBroadcastMs.push(h.at - sendAt);
+        }
+        await api('/rpc/admin_update_settings', {
+          body: {
+            adminToken,
+            p_admin_password: PANEL_PW,
+            p_payload: { timer_label: null },
+          },
+        });
+      }
+    }
+  } catch (e) {
+    m.errors.push(`admin broadcast ${String(e).slice(0, 80)}`);
+  }
+
+  if (global.gc) {
+    global.gc();
+  }
+  m.rssMb = Math.round(process.memoryUsage().rss / 1048576);
+
   // ⑩ hold chaos window
   console.log(`⑩ hold ${HOLD_MS}ms…`);
   await sleep(HOLD_MS);
@@ -573,6 +687,9 @@ function printStage(m) {
   console.log(`msg send ok/fail=${m.msgSendOk}/${m.msgSendFail} sse=${rate(m.msgSseDelivered, m.msgSseMiss)} select=${rate(m.msgSelectOk, m.msgSelectMiss)}`);
   console.log(`like ok/fail/idem=${m.likeOk}/${m.likeFail}/${m.likeDupIdempotent} sse=${rate(m.likeSseDelivered, m.likeSseMiss)}`);
   console.log(`http 429=${m.http429} 5xx=${m.http5xx} otherErr=${m.httpOtherErr}`);
+  console.log(`ready p50=${m.readyP50}ms seats ok/fail=${m.seatsOk}/${m.seatsFail} pin ${m.pinRecoverOk}/${m.pinRecoverOk + m.pinRecoverFail}`);
+  console.log(`admin settings SSE ${m.adminBroadcastOk} hit / ${m.adminBroadcastOk + m.adminBroadcastMiss}  p50=${pct(m.adminBroadcastMs, 50).toFixed(0)}ms p95=${pct(m.adminBroadcastMs, 95).toFixed(0)}ms`);
+  console.log(`sim rss=${m.rssMb}MB`);
   console.log(`lat ms  register p50=${pct(m.latencies.register, 50).toFixed(0)} p95=${pct(m.latencies.register, 95).toFixed(0)}`);
   console.log(`lat ms  login    p50=${pct(m.latencies.login, 50).toFixed(0)} p95=${pct(m.latencies.login, 95).toFixed(0)}`);
   console.log(`lat ms  msgSSE   p50=${pct(m.latencies.msgDeliver, 50).toFixed(0)} p95=${pct(m.latencies.msgDeliver, 95).toFixed(0)} avg=${avg(m.latencies.msgDeliver).toFixed(0)}`);

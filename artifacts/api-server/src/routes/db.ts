@@ -1657,22 +1657,25 @@ function _send(client: Response, conns: Set<Response>, payload: string) {
   }
 }
 
+const SSE_BROADCAST_SYNC_MAX = Number(process.env.SSE_BROADCAST_SYNC_MAX ?? 400);
+const SSE_BROADCAST_CHUNK = Number(process.env.SSE_BROADCAST_CHUNK ?? 100);
+
 /** 모든 클라이언트에게 전송 (공개 이벤트: seats, profiles, app_settings, games 등) */
 function broadcastAll(event: Record<string, unknown>) {
   const json = JSON.stringify(event);
   const seq = _ringAdd(json, 'all');
   const payload = `id: ${seq}\ndata: ${json}\n\n`;
-  // Fix #6: 스냅샷 후 50개씩 청킹 — 150명×2연결=300 write()가 이벤트 루프를 블로킹하지 않도록
   const batch: Array<[Response, Set<Response>]> = [];
   for (const [, conns] of sseUserMap) for (const c of conns) batch.push([c, conns]);
   for (const c of sseAnonClients) batch.push([c, sseAnonClients]);
-  for (const c of sseAdminClients) batch.push([c, sseAdminClients]); // 관리자도 공개 이벤트 수신
-  if (batch.length <= 50) {
+  for (const c of sseAdminClients) batch.push([c, sseAdminClients]);
+  // 행사장 규모(≤400 연결)는 한 틱에 전송 — 관리자 잠금/회의 시작 지연을 청킹이 키우지 않게
+  if (batch.length <= SSE_BROADCAST_SYNC_MAX) {
     for (const [c, conns] of batch) _send(c, conns, payload);
     return;
   }
   const doChunk = (i: number) => {
-    const end = Math.min(i + 50, batch.length);
+    const end = Math.min(i + SSE_BROADCAST_CHUNK, batch.length);
     for (let j = i; j < end; j++) _send(batch[j][0], batch[j][1], payload);
     if (end < batch.length) setImmediate(() => doChunk(end));
   };
@@ -3831,11 +3834,24 @@ router.get('/unread-counts', (req: Request, res: Response) => {
 });
 
 // ─── PIN lookup ───────────────────────────────────────────────────────────────
-// 고유코드 조회 — IP당 15분에 최대 5회 시도 제한
+// 행사장 NAT: IP 공용 한도는 넉넉히, 동일 PIN 무차별 대입은 별도 버킷으로 차단
 const _pinAttempts = new Map<string, { count: number; resetAt: number }>();
-const PIN_MAX = 5;
+const PIN_MAX_PER_IP = Number(process.env.PIN_MAX_PER_IP ?? 200);
+const PIN_MAX_PER_PIN = Number(process.env.PIN_MAX_PER_PIN ?? 8);
 const PIN_WINDOW_MS = 15 * 60 * 1000;
-// [Fix] 만료된 PIN 시도 기록 주기적 정리 — 무한 Map 성장 방지 (5분마다 sweep)
+
+function consumePinBucket(key: string, max: number): boolean {
+  const now = Date.now();
+  const prev = _pinAttempts.get(key);
+  if (prev && prev.resetAt > now) {
+    if (prev.count >= max) return false;
+    prev.count++;
+    return true;
+  }
+  _pinAttempts.set(key, { count: 1, resetAt: now + PIN_WINDOW_MS });
+  return true;
+}
+
 setInterval(() => {
   const now = Date.now();
   for (const [ip, rec] of _pinAttempts) {
@@ -3846,16 +3862,6 @@ setInterval(() => {
 router.post('/by-pin', (req: Request, res: Response) => {
   try {
   const ip = String(req.ip ?? 'unknown');
-  const now = Date.now();
-  const prev = _pinAttempts.get(ip);
-  if (prev && prev.resetAt > now) {
-    if (prev.count >= PIN_MAX) {
-      return res.status(429).json({ data: null, error: { message: '시도 횟수를 초과했습니다. 15분 후 다시 시도해주세요.' } });
-    }
-    prev.count++;
-  } else {
-    _pinAttempts.set(ip, { count: 1, resetAt: now + PIN_WINDOW_MS });
-  }
 
   // ─ 페이로드 타입 방어
   if (req.body == null || typeof req.body !== 'object' || Array.isArray(req.body)) {
@@ -3868,6 +3874,9 @@ router.post('/by-pin', (req: Request, res: Response) => {
   // pin은 반드시 문자열, 최대 8자 (4~5자리 숫자 코드)
   if (!pin || typeof pin !== 'string' || pin.length === 0 || pin.length > 8) {
     return res.status(400).json({ data: null, error: { message: 'PIN required (max 8 chars)' } });
+  }
+  if (!consumePinBucket(`ip:${ip}`, PIN_MAX_PER_IP) || !consumePinBucket(`pin:${pin}`, PIN_MAX_PER_PIN)) {
+    return res.status(429).json({ data: null, error: { message: '시도 횟수를 초과했습니다. 15분 후 다시 시도해주세요.' } });
   }
   // nickname은 선택적이되, 전달된 경우 문자열이어야 함, 최대 30자
   if (nickname != null && (typeof nickname !== 'string' || nickname.length > 30)) {

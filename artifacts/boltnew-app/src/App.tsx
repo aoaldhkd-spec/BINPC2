@@ -434,14 +434,14 @@ function App() {
 
   useEffect(() => {
     let cancelled = false;
-    // API 콜드스타트·재시도 중에도 6초 후에는 프리뷰/대기 화면 표시 (무한 스피너 방지)
+    // API 콜드스타트·재시도 중에도 2.5초 후에는 프리뷰/대기 화면 표시 (무한 스피너 방지)
     const safetyTimer = setTimeout(() => {
       if (!cancelled) {
         setAppLoading(false);
         setSessionActive(prev => (prev === null ? false : prev));
         setEntryPassword(prev => (prev === null ? '' : prev));
       }
-    }, 6_000);
+    }, 2_500);
 
     const applySettings = (data: Record<string, unknown> | null) => {
       if (cancelled || !data) return;
@@ -1008,15 +1008,20 @@ function App() {
       loadReceivedLikes(currentUserId);
       loadLikes(currentUserId);
       loadProfiles();
-      supabase.from('app_settings').select('session_active, timer_end_at, timer_label, reset_signal').eq('id', 1).single().then(({ data }: { data: any }) => {
-        if (!data) return;
-        if (typeof data.session_active === 'boolean') {
-          setSessionActive(data.session_active);
-          if (!data.session_active && userIdRef.current) setShownWaiting(false);
-        }
-        setTimerEndAt(data.timer_end_at ?? null);
-        setTimerLabel(data.timer_label ?? null);
-      }).catch(() => {});
+      fetch('/api/db/ready', { signal: AbortSignal.timeout(8_000) })
+        .then(r => r.ok ? r.json() : null)
+        .then((json: { settings?: Record<string, unknown> } | null) => {
+          const data = json?.settings;
+          if (!data) return;
+          if (typeof data.session_active === 'boolean') {
+            setSessionActive(data.session_active);
+            if (!data.session_active && userIdRef.current) setShownWaiting(false);
+          }
+          setTimerEndAt((data.timer_end_at as string | null | undefined) ?? null);
+          setTimerLabel((data.timer_label as string | null | undefined) ?? null);
+          if (data.functions_locked != null) setFunctionsLocked(Boolean(data.functions_locked));
+        })
+        .catch(() => {});
     });
     return unsubReconnect;
   }, [currentUserId, loadChatList, loadReceivedLikes, loadLikes, loadProfiles]);

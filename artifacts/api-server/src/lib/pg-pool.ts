@@ -4,7 +4,7 @@ import { buildPgOptions } from './pg-options.js';
 /** Shared PG pool — sessions, KV store, LISTEN/NOTIFY */
 export const pgPool = new pg.Pool({
   ...buildPgOptions(),
-  max: Number(process.env.PG_POOL_MAX ?? 12),
+  max: Number(process.env.PG_POOL_MAX ?? 24),
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 5_000,
 });
