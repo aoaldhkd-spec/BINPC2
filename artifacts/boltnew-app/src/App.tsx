@@ -195,7 +195,6 @@ function App() {
   myHeartCountRef.current = myHeartCount;
   const [functionsLocked, setFunctionsLocked] = useState(false);
   const [registrationError, setRegistrationError] = useState<string | null>(null);
-  const [resetPassword, setResetPassword] = useState<string | null>(null);
   const [entryPassword, setEntryPassword] = useState<string | null>(null); // null = 아직 로드 전
   const [entryVerified, setEntryVerified] = useState(false);
   const [darkMode, setDarkMode] = useState(() => ls.getItem('dark_mode') === '1');
@@ -458,7 +457,6 @@ function App() {
       setTimerEndAt((data.timer_end_at as string | null | undefined) ?? null);
       setTimerLabel((data.timer_label as string | null | undefined) ?? null);
       if (data.functions_locked != null) setFunctionsLocked(Boolean(data.functions_locked));
-      setResetPassword((data.reset_password as string | null | undefined) ?? null);
     };
 
     async function loadSettings(attempt = 0): Promise<void> {
@@ -481,7 +479,7 @@ function App() {
 
       const { data, error } = await supabase
         .from('app_settings')
-        .select('session_active, timer_end_at, timer_label, reset_signal, reset_password, entry_password, functions_locked')
+        .select('session_active, timer_end_at, timer_label, reset_signal, entry_password, functions_locked')
         .eq('id', 1)
         .single();
       if (cancelled) return;
@@ -503,7 +501,7 @@ function App() {
     const settingsChannel = supabase
       .channel('app-settings-user')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_settings' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-        const p = payload.new as { session_active: boolean; timer_end_at: string | null; timer_label: string | null; reset_signal: string | null; reset_password: string | null; entry_password: string | null };
+        const p = payload.new as { session_active: boolean; timer_end_at: string | null; timer_label: string | null; reset_signal: string | null; entry_password: string | null };
         // Admin triggered a full reset: wipe local user identity and force back to nickname setup
         if (p.reset_signal && p.reset_signal !== ls.getItem(MATCHING_LAST_RESET_KEY)) {
           ls.setItem(MATCHING_LAST_RESET_KEY, p.reset_signal);
@@ -539,7 +537,6 @@ function App() {
         setTimerEndAt(p.timer_end_at ?? null);
         setTimerLabel(p.timer_label ?? null);
         if ((p as any).functions_locked != null) setFunctionsLocked((p as any).functions_locked);
-        if (p.reset_password !== undefined) setResetPassword(p.reset_password ?? null);
         if (p.entry_password !== undefined) {
           const ep = p.entry_password ?? '';
           setEntryPassword(ep);
@@ -1465,7 +1462,6 @@ function App() {
         onClearMsgCount={() => setNewMsgCount(0)}
         unreadChatCounts={unreadChatCounts}
         onClearChatUnread={(chatId) => setUnreadChatCounts(prev => { const n = { ...prev }; delete n[chatId]; return n; })}
-        resetPassword={resetPassword}
         onViewFortune={(p) => { setFortuneModalTarget(p); void recordProfileView(p.id); }}
         fortuneCompatTarget={fortuneCompatTarget}
         myHeartCount={myHeartCount}

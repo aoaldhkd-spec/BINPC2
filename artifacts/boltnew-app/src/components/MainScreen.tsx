@@ -908,7 +908,7 @@ export function MainScreen({
   onContactShareOpen: _onContactShareOpen, onContactViewOpen, onHeartResponse, onDeleteChat, onDeleteAllChats, onSubmitSuggestion, onOpenChat,
   onSubmitAnonymousReport,
   timerEndAt, timerLabel, onRefreshStatus, onRefreshChat, onRefreshProfiles, darkMode, onToggleDark, onShowQr, onShowContactQr, onScanQr, scannedContacts, onClearScannedContact, functionsLocked = false, onShowTutorial,
-  newMsgCount, onClearMsgCount, unreadChatCounts, onClearChatUnread: _onClearChatUnread, resetPassword,
+  newMsgCount, onClearMsgCount, unreadChatCounts, onClearChatUnread: _onClearChatUnread,
   onUpdateProfile, fortuneCompatTarget, myHeartCount,
   groupChats = [], unreadGroupCounts = {}, newGroupMsgCount: _newGroupMsgCount = 0, onClearGroupMsgCount: _onClearGroupMsgCount, onOpenGroupChat,
   blockedUserIds = new Set<string>(), hiddenByIds = new Set<string>(),
@@ -956,7 +956,6 @@ export function MainScreen({
   onClearMsgCount: () => void;
   unreadChatCounts: Record<string, number>;
   onClearChatUnread: (chatId: string) => void;
-  resetPassword: string | null;
   onUpdateProfile: (update: Record<string, unknown> & { id: string }) => void;
   fortuneCompatTarget?: string;
   myHeartCount?: number | null;
@@ -1467,7 +1466,7 @@ export function MainScreen({
           </div>
           {/* 중앙: 타이틀 */}
           <div className="justify-self-center">
-            <ResetButton onReset={onReset} darkMode={darkMode} resetPassword={resetPassword} onEasterEgg={() => onSubmitSuggestion('__술주세요__', '')} />
+            <ResetButton onReset={onReset} darkMode={darkMode} onEasterEgg={() => onSubmitSuggestion('__술주세요__', '')} />
           </div>
           {/* 우: 하트 */}
           <div className="justify-self-end flex items-center gap-2">

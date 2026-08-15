@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Users } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 const FIXED_TITLE = '범일NPC는 30살!';
 const RANDOM_SUFFIX = [
@@ -30,25 +31,62 @@ function speakLine(line: string) {
   };
 }
 
-export function ResetButton({ onReset, darkMode, resetPassword, onEasterEgg }: {
+async function verifyPanelPassword(kind: 'reset' | 'admin', password: string): Promise<boolean> {
+  try {
+    const { data, error } = await supabase.rpc('verify_panel_password', {
+      p_kind: kind,
+      p_password: password,
+    });
+    if (error) return false;
+    return !!(data as { ok?: boolean } | null)?.ok;
+  } catch {
+    return false;
+  }
+}
+
+export function ResetButton({ onReset, darkMode, onEasterEgg }: {
   onReset: () => void; variant?: string; darkMode?: boolean; resetPassword?: string | null; onEasterEgg?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [pw, setPw] = useState('');
   const [err, setErr] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
   const [adminPw, setAdminPw] = useState('');
   const [adminErr, setAdminErr] = useState(false);
+  const [adminBusy, setAdminBusy] = useState(false);
   const [showEgg, setShowEgg] = useState(false);
   const [eggLine, setEggLine] = useState<[string,string]>([FIXED_TITLE, RANDOM_SUFFIX[0]]);
   const logoClickCount = useRef(0);
   const logoClickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const eggTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const confirm = () => {
-    const correctPw = resetPassword ?? '116606';
-    if (pw === correctPw) { setOpen(false); setPw(''); setErr(false); onReset(); }
+  const confirm = async () => {
+    if (busy) return;
+    setBusy(true);
+    setErr(false);
+    const ok = await verifyPanelPassword('reset', pw);
+    setBusy(false);
+    if (ok) { setOpen(false); setPw(''); setErr(false); onReset(); }
     else { setErr(true); setPw(''); }
+  };
+
+  const confirmAdmin = async () => {
+    if (adminBusy) return;
+    setAdminBusy(true);
+    setAdminErr(false);
+    const ok = await verifyPanelPassword('admin', adminPw);
+    setAdminBusy(false);
+    if (ok) {
+      setAdminOpen(false);
+      setAdminPw('');
+      const base = import.meta.env.BASE_URL;
+      window.history.pushState({}, '', base + 'admin');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    } else {
+      setAdminErr(true);
+      setAdminPw('');
+    }
   };
 
   const handleLogoClick = () => {
@@ -192,14 +230,14 @@ export function ResetButton({ onReset, darkMode, resetPassword, onEasterEgg }: {
             <p className="text-sm font-bold text-gray-800 mb-1">처음으로 돌아가기</p>
             <p className="text-xs text-gray-500 mb-4">비밀번호를 입력하세요</p>
             <input type="password" value={pw} onChange={(e) => { setPw(e.target.value); setErr(false); }}
-              onKeyDown={(e) => e.key === 'Enter' && confirm()} placeholder="비밀번호" autoFocus
+              onKeyDown={(e) => { if (e.key === 'Enter') void confirm(); }} placeholder="비밀번호" autoFocus disabled={busy}
               className={`w-full px-3 py-2.5 rounded-xl border-2 text-sm text-center font-bold outline-none mb-3 ${err ? 'border-red-400 bg-red-50 text-red-700' : 'border-gray-200 focus:border-cyan-400'}`} />
             {err && <p className="text-xs text-red-500 text-center mb-3">비밀번호가 틀렸습니다</p>}
             <div className="flex gap-2">
               <button type="button" onClick={() => { setOpen(false); setPw(''); setErr(false); }}
                 className="flex-1 py-2 rounded-xl border-2 border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-all">취소</button>
-              <button type="button" onClick={confirm}
-                className="flex-1 py-2 rounded-xl bg-cyan-500 text-white text-sm font-semibold hover:bg-cyan-600 transition-all">확인</button>
+              <button type="button" onClick={() => void confirm()} disabled={busy}
+                className="flex-1 py-2 rounded-xl bg-cyan-500 text-white text-sm font-semibold hover:bg-cyan-600 transition-all disabled:opacity-60">{busy ? '확인 중…' : '확인'}</button>
             </div>
           </div>
         </div>
@@ -210,23 +248,15 @@ export function ResetButton({ onReset, darkMode, resetPassword, onEasterEgg }: {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xs p-6 space-y-4" onClick={e => e.stopPropagation()}>
             <div className="text-center"><span className="text-3xl">🔐</span><h3 className="text-gray-900 font-black text-lg mt-2">관리자 확인</h3><p className="text-gray-400 text-xs mt-1">비밀번호를 입력하세요</p></div>
             <input type="password" value={adminPw} onChange={e => { setAdminPw(e.target.value); setAdminErr(false); }}
-              onKeyDown={e => {
-                if (e.key === 'Enter') {
-                  if (adminPw === (resetPassword ?? '116606')) { setAdminOpen(false); const base = import.meta.env.BASE_URL; window.history.pushState({}, '', base + 'admin'); window.dispatchEvent(new PopStateEvent('popstate')); }
-                  else { setAdminErr(true); setAdminPw(''); }
-                }
-              }}
-              placeholder="비밀번호" autoFocus
+              onKeyDown={e => { if (e.key === 'Enter') void confirmAdmin(); }}
+              placeholder="비밀번호" autoFocus disabled={adminBusy}
               className={`w-full border-2 text-center text-lg font-bold rounded-xl px-4 py-3 focus:outline-none placeholder-gray-300 ${adminErr ? 'border-red-400 bg-red-50 text-red-700' : 'border-gray-200 focus:border-cyan-500'}`} />
             {adminErr && <p className="text-red-500 text-xs text-center font-bold">❌ 비밀번호가 틀렸습니다</p>}
             <div className="flex gap-2">
               <button onClick={() => { setAdminOpen(false); setAdminPw(''); setAdminErr(false); }}
                 className="flex-1 py-2.5 rounded-xl border-2 border-gray-200 text-gray-500 text-sm font-semibold hover:bg-gray-50 transition-all">취소</button>
-              <button onClick={() => {
-                  if (adminPw === (resetPassword ?? '116606')) { setAdminOpen(false); const base = import.meta.env.BASE_URL; window.history.pushState({}, '', base + 'admin'); window.dispatchEvent(new PopStateEvent('popstate')); }
-                  else { setAdminErr(true); setAdminPw(''); }
-                }}
-                className="flex-1 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-600 text-white text-sm font-bold transition-all">확인</button>
+              <button onClick={() => void confirmAdmin()} disabled={adminBusy}
+                className="flex-1 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-600 text-white text-sm font-bold transition-all disabled:opacity-60">{adminBusy ? '확인 중…' : '확인'}</button>
             </div>
           </div>
         </div>

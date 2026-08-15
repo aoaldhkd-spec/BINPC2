@@ -227,7 +227,7 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
         setError(
           msg.includes('HTTP') || msg.includes('fetch') || msg.includes('abort') || msg.includes('network') || msg.includes('503')
             ? '서버 연결에 실패했습니다. 잠시 후 다시 시도해주세요.'
-            : '비밀번호가 올바르지 않습니다. (관리자 비밀번호: 116606)',
+            : '비밀번호가 올바르지 않습니다.',
         );
         setLoading(false);
         return;
@@ -2112,12 +2112,12 @@ function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onSaveTest
         <form onSubmit={handleSaveResetPw} className="space-y-4">
           <div className="bg-amber-50 rounded-xl p-3 border border-amber-200 text-xs text-amber-700 leading-relaxed">
             유저가 술번개 로고를 탭하면 뜨는 <strong>처음으로 돌아가기</strong> 비밀번호입니다.<br />
-            미설정 시 기본값(116606)이 사용됩니다.
+            미설정 시 서버 기본 비밀번호가 사용됩니다.
           </div>
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">현재 비밀번호</label>
             <p className="text-sm font-black text-gray-800 bg-gray-50 rounded-xl px-4 py-3 border border-gray-200 tracking-widest">
-              {settings?.reset_password ? settings.reset_password : '(기본값 116606)'}
+              {settings?.reset_password ? settings.reset_password : '(서버 기본값)'}
             </p>
           </div>
           <div>
@@ -2163,12 +2163,12 @@ function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onSaveTest
         <form onSubmit={handleSaveTestPw} className="space-y-4">
           <div className="bg-violet-50 rounded-xl p-3 border border-violet-200 text-xs text-violet-700 leading-relaxed">
             <strong>테스트 전용 접속 코드</strong>입니다. 이 코드로 접속하면 테스트 대시보드로 이동합니다.<br />
-            미설정 시 기본값 <span className="font-black text-violet-700">116606</span>이 사용됩니다.
+            미설정 시 서버 기본 코드가 사용됩니다.
           </div>
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">현재 테스트 코드</label>
             <p className="text-sm font-black text-gray-800 bg-gray-50 rounded-xl px-4 py-3 border border-gray-200 tracking-widest">
-              {(settings as any)?.test_password ? (settings as any).test_password : '116606 (기본값)'}
+              {(settings as any)?.test_password ? (settings as any).test_password : '(서버 기본값)'}
             </p>
           </div>
           <div>
@@ -2456,7 +2456,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         localStorage.removeItem(ADMIN_TOKEN_KEY);
         localStorage.removeItem(ADMIN_SESSION_KEY);
       }
-      alert(`회식 시작/종료 실패: ${msg}\n\n로그아웃 후 비밀번호(116606)로 다시 로그인해 주세요.`);
+      alert(`회식 시작/종료 실패: ${msg}\n\n로그아웃 후 관리자 비밀번호로 다시 로그인해 주세요.`);
     }
   };
 

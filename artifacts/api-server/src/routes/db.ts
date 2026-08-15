@@ -1799,11 +1799,12 @@ function sanitizeProfileForViewer(
   return row.contact_private === true ? sanitizeProfile(row) : row;
 }
 
-/** app_settings row에서 관리자·리셋 비밀번호를 제거하여 유저 SSE에 노출되지 않도록 */
+/** app_settings row에서 관리자·리셋·테스트 비밀번호를 제거하여 유저 SSE에 노출되지 않도록 */
 function sanitizeSettings(row: Record<string, unknown>): Record<string, unknown> {
   const s = { ...row };
   delete s['admin_password'];
   delete s['reset_password']; // 리셋 비번은 관리자 전용 — 유저 클라이언트/SSE 노출 금지
+  delete s['test_password'];
   return s;
 }
 
@@ -3027,6 +3028,7 @@ const ALLOWED_RPCS = new Set([
   'admin_create_session', 'admin_invalidate_session', 'admin_auth_phone',
   'admin_update_settings', 'admin_toggle_session', 'test_resync', 'test_clear_hearts', 'admin_force_resync_all',
   'test_verify_password', 'test_update_settings', 'admin_full_reset', 'admin_event_end_reset',
+  'verify_panel_password',
   'admin_update_profile',
   'admin_delete_profile',
   'admin_trigger_heart_drain',   // 하트 드레인 즉시 실행 (수동 트리거)
@@ -3262,6 +3264,49 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         return res.json({ data: null, error: null });
       }
 
+      case 'verify_panel_password': {
+        // 유저 화면 리셋/관리자 진입 — 클라이언트에 비번을 심지 않고 서버에서만 검증
+        if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
+          const ip = String(req.ip ?? req.socket.remoteAddress ?? 'unknown');
+          const now = Date.now();
+          let bucket = _loginRateMap.get(`panel:${ip}`);
+          if (!bucket || now > bucket.resetAt) {
+            if (!bucket && _loginRateMap.size >= RATE_MAP_MAX_SIZE) {
+              return res.status(429).json({ data: null, error: { message: '요청이 너무 많습니다.', code: 'RATE_LIMITED' } });
+            }
+            bucket = { count: 0, resetAt: now + LOGIN_RATE_WINDOW_MS };
+            _loginRateMap.set(`panel:${ip}`, bucket);
+          }
+          bucket.count++;
+          if (bucket.count > LOGIN_RATE_MAX) {
+            return res.status(429).json({ data: null, error: { message: '시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.', code: 'RATE_LIMITED' } });
+          }
+        }
+        const kind = String(args.p_kind ?? 'reset');
+        const provided = String(args.p_password ?? '').trim();
+        if (!provided || provided.length > 100) {
+          return res.status(400).json({ data: null, error: { message: 'Invalid password', code: 'INVALID_INPUT' } });
+        }
+        let ok = false;
+        if (kind === 'reset') {
+          const secrets = collectSecrets(
+            settings.reset_password as string | undefined,
+            PANEL_DEFAULT_PASSWORD,
+            ...LEGACY_PANEL_PASSWORDS,
+          );
+          ok = secretMatches(provided, secrets);
+        } else if (kind === 'admin') {
+          ok = secretMatches(provided, panelAdminSecrets(settings.admin_password as string | undefined));
+        } else if (kind === 'test') {
+          ok = secretMatches(provided, panelTestSecrets(settings.test_password as string | undefined));
+        } else {
+          return res.status(400).json({ data: null, error: { message: 'Invalid kind', code: 'INVALID_INPUT' } });
+        }
+        if (!ok) {
+          return res.status(401).json({ data: { ok: false }, error: { message: '비밀번호가 올바르지 않습니다.', code: 'UNAUTHORIZED' } });
+        }
+        return res.json({ data: { ok: true }, error: null });
+      }
 
       case 'admin_update_profile': {
         checkPassword(); // 관리자 비밀번호 없이 타인 프로필 수정 방지
