@@ -307,7 +307,8 @@ class QueryBuilder {
   private async _runAsync(): Promise<DbResult<unknown>> {
     const hasUser = Boolean(_currentUserId);
     const needsAuth = tableNeedsSession(this._table, this._op, hasUser);
-    if (needsAuth) {
+    const testTok = typeof localStorage !== 'undefined' ? (localStorage.getItem('test_token_v1') ?? '') : '';
+    if (needsAuth && !testTok) {
       const sessionOk = await _waitForSession();
       if (!sessionOk) {
         return {
@@ -1004,6 +1005,9 @@ async function loginSession(userId: string, attempt = 0): Promise<boolean> {
         userId,
         deviceSecret,
         ...( _pendingPinCode ? { pinCode: _pendingPinCode } : {}),
+        ...(typeof localStorage !== 'undefined' && localStorage.getItem('test_token_v1')
+          ? { testToken: localStorage.getItem('test_token_v1') }
+          : {}),
       }),
       credentials: 'include',
     });

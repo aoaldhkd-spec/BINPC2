@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from './lib/supabase';
+import { supabase, getDeviceSecret, setDeviceRecoveryPin } from './lib/supabase';
 import type { Database } from './types/database';
 import {
   Users, Heart, MessageCircle,
@@ -146,7 +146,10 @@ export default function TestDashboard() {
     const mbti = MBTI_LIST[Math.floor(Math.random() * MBTI_LIST.length)];
     const bio = BIO_LIST[Math.floor(Math.random() * BIO_LIST.length)];
     const score = Math.floor(Math.random() * 100);
+    const id = crypto.randomUUID();
     const { data, error } = await supabase.from('profiles').insert({
+      id,
+      _device_secret: getDeviceSecret(id),
       nickname: nick, bio, photo_url: genAvatar(nick),
       personality_score: score, dom_sub_score: null, mbti,
     }).select().single();
@@ -170,17 +173,22 @@ export default function TestDashboard() {
     const existing = new Set(profiles.map(p => p.nickname));
     const candidates = allPairs.filter(nick => !existing.has(nick));
     const shuffled = [...candidates].sort(() => Math.random() - 0.5).slice(0, count);
-    const entries = shuffled.map(nick => ({
-      nickname: nick,
-      bio: BIO_LIST[Math.floor(Math.random() * BIO_LIST.length)],
-      photo_url: genAvatar(nick),
-      personality_score: Math.floor(Math.random() * 100),
-      dom_sub_score: null,
-      mbti: MBTI_LIST[Math.floor(Math.random() * MBTI_LIST.length)],
-    }));
+    const entries = shuffled.map(nick => {
+      const id = crypto.randomUUID();
+      return {
+        id,
+        _device_secret: getDeviceSecret(id),
+        nickname: nick,
+        bio: BIO_LIST[Math.floor(Math.random() * BIO_LIST.length)],
+        photo_url: genAvatar(nick),
+        personality_score: Math.floor(Math.random() * 100),
+        dom_sub_score: null,
+        mbti: MBTI_LIST[Math.floor(Math.random() * MBTI_LIST.length)],
+      };
+    });
     if (entries.length === 0) { notify('생성할 수 있는 닉네임이 없습니다 (최대 260개)', false); setLoading(null); return; }
-    const { error: upsertErr } = await supabase.from('profiles').upsert(entries, { onConflict: 'nickname', ignoreDuplicates: true });
-    if (upsertErr) { notify(`더미 생성 실패: ${upsertErr.message}`, false); setLoading(null); return; }
+    const { error: insertErr } = await supabase.from('profiles').insert(entries);
+    if (insertErr) { notify(`더미 생성 실패: ${insertErr.message}`, false); setLoading(null); return; }
     // api-server 인메모리 동기화 → 메인 앱에 즉시 반영
     await testResync();
     await load();
@@ -192,6 +200,26 @@ export default function TestDashboard() {
     localStorage.setItem('matching_app_user_id', id);
     setMyUserId(id);
     notify('내 유저 변경됨');
+  };
+
+  const enterAsUser = async (id: string) => {
+    setLoading('enter');
+    let p = profiles.find(x => x.id === id) ?? null;
+    if (p && !String(p.pin_code ?? '').trim()) {
+      const { data } = await supabase
+        .from('profiles')
+        .update({ pin_code: String(1000 + Math.floor(Math.random() * 9000)) })
+        .eq('id', id)
+        .select()
+        .single();
+      if (data) p = data as Profile;
+    }
+    localStorage.setItem('matching_app_user_id', id);
+    setMyUserId(id);
+    const pin = String(p?.pin_code ?? '').trim();
+    if (pin) setDeviceRecoveryPin(pin);
+    notify(`${p?.nickname ?? '더미'}로 입장합니다`);
+    window.location.href = '/';
   };
 
   const deleteProfile = async (id: string) => {
@@ -361,6 +389,7 @@ export default function TestDashboard() {
                   <p className="font-bold text-white text-sm">{myProfile.nickname}</p>
                   <p className="text-xs text-slate-400">{myProfile.mbti} · {myProfile.bio} · {mySeat ? `${mySeat.seat_label}` : '자리 없음'}</p>
                 </div>
+                <Btn label="이 계정으로 입장" onClick={() => enterAsUser(myProfile.id)} color="teal" small disabled={loading === 'enter'} />
                 <Btn label="초기화" onClick={() => { localStorage.removeItem('matching_app_user_id'); setMyUserId(null); notify('계정 초기화됨'); }} color="red" small />
               </>
             ) : (
@@ -385,9 +414,13 @@ export default function TestDashboard() {
         {/* 세션 제어 */}
         <Section title="세션 제어" icon={<Play className="w-4 h-4" />}>
           <div className="flex gap-2">
-            <a href="/" className="flex-1 text-center text-sm py-3 bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold rounded-xl border border-slate-600 transition-all">
-              유저 화면 열기 →
-            </a>
+            <button
+              type="button"
+              onClick={() => { if (myUserId) void enterAsUser(myUserId); else window.location.href = '/'; }}
+              className="flex-1 text-center text-sm py-3 bg-teal-600 hover:bg-teal-500 text-white font-bold rounded-xl border border-teal-500 transition-all"
+            >
+              {myUserId ? '선택한 더미로 유저 화면 입장 →' : '유저 화면 열기 →'}
+            </button>
             <a href="/admin" className="flex-1 text-center text-sm py-3 bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold rounded-xl border border-slate-600 transition-all">
               관리자 화면 열기 →
             </a>
@@ -425,8 +458,10 @@ export default function TestDashboard() {
                 <img src={p.photo_url} className="w-7 h-7 rounded-full flex-shrink-0" />
                 <span className="text-xs font-semibold text-slate-200 flex-1 truncate">{p.nickname}</span>
                 <Tag text={p.mbti ?? '?'} color="slate" />
+                {p.pin_code && <Tag text={`PIN ${p.pin_code}`} color="teal" />}
                 {p.id === myUserId && <Tag text="나" color="teal" />}
-                <button onClick={() => setMyUser(p.id)} className="text-[10px] px-2 py-0.5 bg-teal-500/20 hover:bg-teal-500/40 text-teal-300 rounded-full border border-teal-500/30 transition-all shrink-0">내꺼로</button>
+                <button onClick={() => void enterAsUser(p.id)} className="text-[10px] px-2 py-0.5 bg-teal-500/20 hover:bg-teal-500/40 text-teal-300 rounded-full border border-teal-500/30 transition-all shrink-0">입장</button>
+                <button onClick={() => setMyUser(p.id)} className="text-[10px] px-2 py-0.5 bg-slate-500/20 hover:bg-slate-500/40 text-slate-300 rounded-full border border-slate-500/30 transition-all shrink-0">선택</button>
                 <button onClick={() => deleteProfile(p.id)} disabled={loading === `del-${p.id}`} className="text-[10px] px-2 py-0.5 bg-red-500/20 hover:bg-red-500/40 text-red-300 rounded-full border border-red-500/30 transition-all shrink-0">삭제</button>
               </div>
             ))}

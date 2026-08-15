@@ -676,6 +676,47 @@ describe('[Security] /auth/login — device secret 再バインド禁止', () =>
     expect(pinRecover.status).toBe(200);
     expect(pinRecover.body.ok).toBe(true);
   });
+
+  it('profiles UPSERT 신규 행에 PIN을 부여한다', async () => {
+    const nick = `up-${randomUUID().slice(0, 8)}`;
+    const res = await op({
+      op: 'upsert',
+      table: 'profiles',
+      payload: { nickname: nick, bio: 'dummy' },
+      conflictCols: ['nickname'],
+      selectAfterWrite: true,
+    });
+    expect(res.status).toBe(200);
+    const row = Array.isArray(res.body.data) ? res.body.data[0] : res.body.data;
+    expect(row?.nickname).toBe(nick);
+    expect(String(row?.pin_code ?? '')).toMatch(/^\d{4,5}$/);
+  });
+
+  it('테스트 토큰으로 다른 기기에서 dummy 로그인을 허용한다', async () => {
+    const userId = randomUUID();
+    await op({
+      op: 'insert',
+      table: 'profiles',
+      payload: { id: userId, nickname: `tok-${userId.slice(0, 6)}` },
+    });
+    await request(app)
+      .post('/api/db/auth/login')
+      .set('Content-Type', 'application/json')
+      .send({ userId, deviceSecret: 'original-secret-aaa' });
+
+    const testLogin = await request(app)
+      .post('/api/db/rpc/test_verify_password')
+      .send({ p_test_password: '116606' });
+    expect(testLogin.status).toBe(200);
+    const testToken = testLogin.body.data as string;
+
+    const impersonate = await request(app)
+      .post('/api/db/auth/login')
+      .set('Content-Type', 'application/json')
+      .send({ userId, deviceSecret: 'test-dashboard-secret', testToken });
+    expect(impersonate.status).toBe(200);
+    expect(impersonate.body.ok).toBe(true);
+  });
 });
 
 function listenApp(): Promise<http.Server> {
