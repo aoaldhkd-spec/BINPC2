@@ -192,7 +192,7 @@ function sanitizeRow(tbl: string, row: Record<string, unknown>): Record<string, 
 // ─── Concurrency limiter — graceful 503 when too many concurrent /op requests ──
 // /op는 in-memory 서빙이지만 Node.js 이벤트 루프 포화 방지용 상한선
 let _activeOpCount = 0;
-const MAX_CONCURRENT_OPS = Number(process.env.MAX_CONCURRENT_OPS ?? 200);
+const MAX_CONCURRENT_OPS = Number(process.env.MAX_CONCURRENT_OPS ?? 300);
 
 // ─── Per-IP rate limiters ─────────────────────────────────────────────────────
 // /auth/login: brute-force 방지 (분당 10회)

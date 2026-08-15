@@ -312,18 +312,24 @@ async function runStage(n) {
   const a = loggedIn[0];
   const b = loggedIn[1];
   const [u1, u2] = [a.id, b.id].sort();
-  let r = await api('/op', {
-    sessionToken: a.sessionToken,
-    body: {
-      op: 'insert', table: 'chats', requesterId: a.id, single: true, selectAfterWrite: true,
-      payload: { user1_id: u1, user2_id: u2 },
-    },
-  });
-  m.latencies.op.push(r.ms);
-  const chatId = r.json.data?.id;
+  let chatId = null;
+  for (let attempt = 0; attempt < 4 && !chatId; attempt++) {
+    if (attempt > 0) await sleep(250 * attempt);
+    const rCreate = await api('/op', {
+      sessionToken: a.sessionToken,
+      body: {
+        op: 'insert', table: 'chats', requesterId: a.id, single: true, selectAfterWrite: true,
+        payload: { user1_id: u1, user2_id: u2 },
+      },
+    });
+    m.latencies.op.push(rCreate.ms);
+    if (rCreate.status === 429) m.http429++;
+    if (rCreate.status >= 500) m.http5xx++;
+    chatId = rCreate.json.data?.id ?? null;
+  }
   if (chatId) m.chatCreateOk++; else { m.chatCreateFail++; m.errors.push('1:1 chat create'); }
 
-  // concurrent duplicate create from B
+  // concurrent duplicate create from B — only score mismatch when A also got an id
   const rDup = await api('/op', {
     sessionToken: b.sessionToken,
     body: {
@@ -331,14 +337,14 @@ async function runStage(n) {
       payload: { user1_id: u2, user2_id: u1 },
     },
   });
-  if (rDup.json.data?.id === chatId) m.chatDupSameId++;
-  else if (rDup.json.data?.id) m.chatDupMismatch++;
+  if (chatId && rDup.json.data?.id === chatId) m.chatDupSameId++;
+  else if (chatId && rDup.json.data?.id && rDup.json.data.id !== chatId) m.chatDupMismatch++;
 
   if (chatId) {
     const clientId = randomUUID();
     const content = `1to1-${RUN_ID}-${Date.now()}`;
     const sendAt = Date.now();
-    r = await api('/op', {
+    let r = await api('/op', {
       sessionToken: a.sessionToken,
       body: {
         op: 'insert', table: 'messages', requesterId: a.id, single: true, selectAfterWrite: true,

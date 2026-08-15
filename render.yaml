@@ -19,7 +19,7 @@ services:
       - key: SSE_MAX_CONN_PER_IP
         value: "300"
       - key: MAX_CONCURRENT_OPS
-        value: "200"
+        value: "300"
       - key: RL_LOGIN_PER_SEC
         value: "60"
       - key: RL_OP_PER_SEC
