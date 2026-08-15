@@ -389,14 +389,28 @@ export function useChat({
     if (!currentUserId) return;
     const gen = ++openChatGenRef.current;
 
-    setMessages([]);
-    setSelectedProfile(otherProfile);
-    chatIdRef.current = null;
-    setChatId(null);
-    setView('chat');
-
     const user1Id = currentUserId < otherProfile.id ? currentUserId : otherProfile.id;
     const user2Id = currentUserId < otherProfile.id ? otherProfile.id : currentUserId;
+    const pairKey = chatPairKey(user1Id, user2Id);
+    const cachedMatches = chatListRef.current.filter(
+      c => chatPairKey(c.user1_id, c.user2_id) === pairKey,
+    );
+    const cachedId = pickCanonicalChat(cachedMatches)?.id ?? null;
+
+    setMessages([]);
+    setSelectedProfile(otherProfile);
+    if (cachedId) {
+      // 목록에 이미 있는 방은 서버 왕복 전에 바로 열어 화면 넘김 지연을 없앤다.
+      chatIdRef.current = cachedId;
+      const countToRemove = unreadChatCountsRef.current[cachedId] ?? 0;
+      setChatId(cachedId);
+      setUnreadChatCounts(prev => { const n = { ...prev }; delete n[cachedId]; return n; });
+      if (countToRemove > 0) setNewMsgCount(c => Math.max(0, c - countToRemove));
+    } else {
+      chatIdRef.current = null;
+      setChatId(null);
+    }
+    setView('chat');
 
     if (selfInitiatedPairTimerRef.current !== null) clearTimeout(selfInitiatedPairTimerRef.current);
     selfInitiatedPairRef.current = chatPairKey(user1Id, user2Id);
@@ -406,7 +420,6 @@ export function useChat({
     }, 5000);
 
     try {
-      const pairKey = chatPairKey(user1Id, user2Id);
       const inflight = openChatInflightRef.current.get(pairKey);
       if (inflight) {
         const waitedId = await inflight;
@@ -469,6 +482,8 @@ export function useChat({
 
       if (!resolvedChatId) {
         console.error('[openChat] 채팅방 ID 결정 불가 — 메인으로 복귀');
+        chatIdRef.current = null;
+        setChatId(null);
         setView('main');
         setBottomNotif({ type: 'chat', nickname: '채팅방을 열 수 없습니다. 잠시 후 다시 시도해주세요.' });
         if (openChatNotifTimerRef.current) clearTimeout(openChatNotifTimerRef.current);
@@ -480,13 +495,17 @@ export function useChat({
       // unreadChatCountsRef.current は毎レンダーで更新されるため、ここで読めば最新値を取得できる.
       // setChatId → effect の前に setUnreadChatCounts を呼ぶと effect 内で removed=0 になるため
       // ここで count を読んでから両方まとめてクリアする (effect は no-op になるが二重減算は発生しない).
-      const countToRemove = unreadChatCountsRef.current[resolvedChatId!] ?? 0;
-      setChatId(resolvedChatId);
-      setUnreadChatCounts(prev => { const n = { ...prev }; delete n[resolvedChatId!]; return n; });
-      if (countToRemove > 0) setNewMsgCount(c => Math.max(0, c - countToRemove));
+      if (resolvedChatId !== cachedId) {
+        const countToRemove = unreadChatCountsRef.current[resolvedChatId] ?? 0;
+        setChatId(resolvedChatId);
+        setUnreadChatCounts(prev => { const n = { ...prev }; delete n[resolvedChatId]; return n; });
+        if (countToRemove > 0) setNewMsgCount(c => Math.max(0, c - countToRemove));
+      }
     } catch (err) {
       console.error('[openChat] 예외:', err);
       if (gen === openChatGenRef.current) {
+        chatIdRef.current = null;
+        setChatId(null);
         setView('main');
         setBottomNotif({ type: 'chat', nickname: '채팅방 연결 중 오류가 발생했습니다.' });
         if (openChatNotifTimerRef.current) clearTimeout(openChatNotifTimerRef.current);

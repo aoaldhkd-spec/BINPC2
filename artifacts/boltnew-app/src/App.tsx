@@ -51,8 +51,10 @@ import {
   type ShareEventNotificationData,
 } from './components/ShareEventNotification';
 
-const ChatScreen = lazy(() => import('./components/ChatScreen'));
-const MainScreen = lazy(() => import('./components/MainScreen').then(m => ({ default: m.MainScreen })));
+const loadChatScreen = () => import('./components/ChatScreen');
+const loadMainScreen = () => import('./components/MainScreen').then(m => ({ default: m.MainScreen }));
+const ChatScreen = lazy(loadChatScreen);
+const MainScreen = lazy(loadMainScreen);
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 
@@ -81,6 +83,11 @@ function App() {
   const [connStatus, setConnStatus] = useState<NetUiStatus>('ok');
   // 네트워크 UI는 net-health 단일 소스 — 순간 단절 모달 폭풍 방지
   useEffect(() => subscribeNetUi(setConnStatus), []);
+  // 스플래시 동안 메인/채팅 청크 미리 받아 화면 넘김 지연 제거
+  useEffect(() => {
+    void loadMainScreen();
+    void loadChatScreen();
+  }, []);
   const [sessionActive, setSessionActive] = useState<boolean | null>(null);
   // Existing users skip the waiting overlay entirely and go straight to main.
   // New users go straight to nickname setup — no waiting overlay.
@@ -219,10 +226,14 @@ function App() {
       return true;
     };
 
-    const pollId = setInterval(() => {
-      if (cancelled) { clearInterval(pollId); return; }
+    const pollTick = () => {
+      if (cancelled) return false;
       const me = findProfileById(profilesRef.current, userIdRef.current);
-      if (tryEnterMain(me)) clearInterval(pollId);
+      return tryEnterMain(me);
+    };
+    pollTick();
+    const pollId = setInterval(() => {
+      if (pollTick()) clearInterval(pollId);
     }, 200);
 
     let attempt = 0;
@@ -282,7 +293,8 @@ function App() {
       }, delay);
     };
 
-    scheduleRetry(BASE_DELAY_MS);
+    // 첫 조회는 즉시 — 닉네임 저장 직후·돌아오는 유저가 1초를 기다리지 않음. 실패 시에만 지수 백오프.
+    scheduleRetry(0);
 
     return () => {
       cancelled = true;
@@ -1257,91 +1269,7 @@ function App() {
     />
   );
 
-  if (view === 'profile' && selectedProfile) return (
-    <AppErrorBoundary screenName="프로필" onReset={() => setView('main')}>
-    <>
-      <ProfileDetail
-        profile={selectedProfile}
-        isMe={selectedProfile.id === currentUserId}
-        isLiked={likedIds.has(selectedProfile.id)}
-        heartType={sentHeartTypes.get(selectedProfile.id)}
-        sentHeartsCount={sentHeartsPerPerson.get(selectedProfile.id)?.size ?? 0}
-        locked={functionsLocked}
-        onLike={() => { if (!functionsLocked) handleLike(selectedProfile.id); }}
-        onChat={() => { openChat(selectedProfile); }}
-        onBack={() => { setLikeConfirmTarget(null); setView('main'); }}
-        onViewFortune={selectedProfile.birth_year && selectedProfile.birth_month && selectedProfile.birth_day ? () => {
-          setFortuneCompatTarget(selectedProfile.id);
-          setMainTab('fortune');
-          setLikeConfirmTarget(null);
-          setView('main');
-        } : undefined}
-      />
-      {likeConfirmTarget && (
-        <LikeConfirmDialog
-          target={likeConfirmTarget}
-          likedByType={likedByTypeRecord()}
-          sentTypesForTarget={sentHeartsPerPerson.get(likeConfirmTarget.id) ?? new Set()}
-          onConfirm={execLikeWithConfetti}
-          onCancel={() => setLikeConfirmTarget(null)}
-        />
-      )}
-      <ConfettiOverlay show={showConfetti} />
-    </>
-    </AppErrorBoundary>
-  );
-  if (view === 'group-chat' && activeGroupId) {
-    const activeGroup = groupChats.find(g => g.id === activeGroupId) ?? null;
-    return (
-      <GroupChatScreen
-        group={activeGroup}
-        messages={groupMessages}
-        currentUserId={currentUserId}
-        profileMap={profileMap}
-        darkMode={darkMode}
-        onBack={() => { closeGroupChat(); setView('main'); }}
-        onSendMessage={sendGroupMessage}
-        onLeave={async () => { if (activeGroupId) await leaveGroupChat(activeGroupId); setView('main'); }}
-      />
-    );
-  }
-
-  if (view === 'chat' && selectedProfile && !chatId) return (
-    <div className="flex items-center justify-center h-screen bg-white">
-      <div className="text-center">
-        <div className="w-8 h-8 border-4 border-pink-400 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-        <p className="text-sm text-gray-400">채팅방 열는 중…</p>
-      </div>
-    </div>
-  );
-  if (view === 'chat' && selectedProfile && chatId) return (
-    <ChatErrorBoundary onReset={() => { chatIdRef.current = null; setChatId(null); setView('main'); }}>
-      <Suspense fallback={<div className="h-screen bg-white" />}>
-        <ChatScreen
-          chatId={chatId}
-          messages={messages}
-          currentUserId={currentUserId!}
-          otherProfile={selectedProfile}
-          onSend={sendMessage}
-          onSendImage={sendImage}
-          onBack={() => { chatIdRef.current = null; setChatId(null); setView('main'); }}
-          onDeleteMessage={deleteMessage}
-          currentUserProfile={profiles.find(p => p.id === currentUserId) ?? null}
-          receivedContactShares={receivedContactShares}
-          contactSharedWithIds={contactSharedWithIds}
-          onGoToTab={(tab) => {
-            chatIdRef.current = null;
-            setChatId(null);
-            setView('main');
-            setMainTab(tab as MainTab);
-          }}
-          onUpdateProfile={(update) => setProfiles(prev => prev.map(p => p.id === update.id ? { ...p, ...update } : p))}
-          initialInput={chatDraftRef.current.get(chatId) ?? ''}
-          onInputChange={(v) => chatDraftRef.current.set(chatId, v)}
-        />
-      </Suspense>
-    </ChatErrorBoundary>
-  );
+  const isSubScreen = view === 'profile' || view === 'chat' || view === 'group-chat';
 
   return (
     <>
@@ -1406,6 +1334,7 @@ function App() {
           />
         </AppErrorBoundary>
       )}
+      <div className={isSubScreen ? 'hidden' : undefined} aria-hidden={isSubScreen}>
       <AppErrorBoundary screenName="메인 화면" onReset={() => { setView('main'); setMainTab('profiles'); }}>
       <Suspense fallback={<div className="min-h-screen bg-slate-900" />}>
         <MainScreen
@@ -1498,6 +1427,82 @@ function App() {
         />
       </Suspense>
       </AppErrorBoundary>
+      </div>
+      {view === 'profile' && selectedProfile && (
+        <div className="fixed inset-0 z-40 overflow-y-auto bg-white">
+          <AppErrorBoundary screenName="프로필" onReset={() => setView('main')}>
+            <ProfileDetail
+              profile={selectedProfile}
+              isMe={selectedProfile.id === currentUserId}
+              isLiked={likedIds.has(selectedProfile.id)}
+              heartType={sentHeartTypes.get(selectedProfile.id)}
+              sentHeartsCount={sentHeartsPerPerson.get(selectedProfile.id)?.size ?? 0}
+              locked={functionsLocked}
+              onLike={() => { if (!functionsLocked) handleLike(selectedProfile.id); }}
+              onChat={() => { openChat(selectedProfile); }}
+              onBack={() => { setLikeConfirmTarget(null); setView('main'); }}
+              onViewFortune={selectedProfile.birth_year && selectedProfile.birth_month && selectedProfile.birth_day ? () => {
+                setFortuneCompatTarget(selectedProfile.id);
+                setMainTab('fortune');
+                setLikeConfirmTarget(null);
+                setView('main');
+              } : undefined}
+            />
+          </AppErrorBoundary>
+        </div>
+      )}
+      {view === 'group-chat' && activeGroupId && (
+        <div className="fixed inset-0 z-40">
+          <GroupChatScreen
+            group={groupChats.find(g => g.id === activeGroupId) ?? null}
+            messages={groupMessages}
+            currentUserId={currentUserId}
+            profileMap={profileMap}
+            darkMode={darkMode}
+            onBack={() => { closeGroupChat(); setView('main'); }}
+            onSendMessage={sendGroupMessage}
+            onLeave={async () => { if (activeGroupId) await leaveGroupChat(activeGroupId); setView('main'); }}
+          />
+        </div>
+      )}
+      {view === 'chat' && selectedProfile && !chatId && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-white">
+          <div className="text-center">
+            <div className="w-8 h-8 border-4 border-pink-400 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+            <p className="text-sm text-gray-400">채팅방 열는 중…</p>
+          </div>
+        </div>
+      )}
+      {view === 'chat' && selectedProfile && chatId && (
+        <div className="fixed inset-0 z-40">
+          <ChatErrorBoundary onReset={() => { chatIdRef.current = null; setChatId(null); setView('main'); }}>
+            <Suspense fallback={<div className="h-screen bg-white" />}>
+              <ChatScreen
+                chatId={chatId}
+                messages={messages}
+                currentUserId={currentUserId!}
+                otherProfile={selectedProfile}
+                onSend={sendMessage}
+                onSendImage={sendImage}
+                onBack={() => { chatIdRef.current = null; setChatId(null); setView('main'); }}
+                onDeleteMessage={deleteMessage}
+                currentUserProfile={profiles.find(p => p.id === currentUserId) ?? null}
+                receivedContactShares={receivedContactShares}
+                contactSharedWithIds={contactSharedWithIds}
+                onGoToTab={(tab) => {
+                  chatIdRef.current = null;
+                  setChatId(null);
+                  setView('main');
+                  setMainTab(tab as MainTab);
+                }}
+                onUpdateProfile={(update) => setProfiles(prev => prev.map(p => p.id === update.id ? { ...p, ...update } : p))}
+                initialInput={chatDraftRef.current.get(chatId) ?? ''}
+                onInputChange={(v) => chatDraftRef.current.set(chatId, v)}
+              />
+            </Suspense>
+          </ChatErrorBoundary>
+        </div>
+      )}
       {likeConfirmTarget && (
         <LikeConfirmDialog
           target={likeConfirmTarget}
@@ -1507,6 +1512,8 @@ function App() {
           onCancel={() => setLikeConfirmTarget(null)}
         />
       )}
+      <ConfettiOverlay show={showConfetti} />
+      <div className={isSubScreen ? 'hidden' : undefined} aria-hidden={isSubScreen}>
       {shareEventNotif && (() => {
         const fromProfile = profiles.find(p => p.id === shareEventNotif.fromUserId);
         const name = fromProfile?.nickname ?? '상대방';
@@ -1570,8 +1577,6 @@ function App() {
           onClose={() => setScannedContactProfile(null)}
         />
       )}
-      <ConfettiOverlay show={showConfetti} />
-
       {/* ── 사주 궁합 팝업 모달 ── */}
       {fortuneModalTarget && (
         <div className="fixed inset-0 z-[200] flex flex-col bg-slate-900/95 backdrop-blur-sm overflow-y-auto">
@@ -1597,6 +1602,7 @@ function App() {
           </div>
         </div>
       )}
+      </div>
     </>
   );
 }

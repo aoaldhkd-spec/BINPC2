@@ -16,7 +16,7 @@ Prefer **single Render instance**. Multi-instance는 NOTIFY로 일부 동기화�
 
 | Path | Role |
 |------|------|
-| `artifacts/boltnew-app/src/App.tsx` | 유저 앱 셸: 세션/라우팅/설정/프로필 로드 |
+| `artifacts/boltnew-app/src/App.tsx` | 유저 앱 셸: 세션/라우팅/설정/프로필 로드. 채팅·프로필은 메인 위에 오버레이(메인 언마운트 금지) |
 | `artifacts/boltnew-app/src/hooks/useChat.ts` | 1:1 채팅 상태·전송·재시도·오프라인 큐 |
 | `artifacts/boltnew-app/src/hooks/useHearts.ts` | 하트/좋아요·연락처 공유 |
 | `artifacts/boltnew-app/src/hooks/useGroupChat.ts` | 단체 채팅 |
