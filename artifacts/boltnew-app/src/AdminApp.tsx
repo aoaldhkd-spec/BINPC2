@@ -12,6 +12,11 @@ import type { Database } from './types/database';
 import { getPositionLabel, getDomSubLabel, getKoreanAge } from './lib/profile';
 import { HEART_TYPE_META } from './lib/constants';
 
+/**
+ * Admin panel — tabs live in this file as local functions (LoginScreen, DashboardTab, …).
+ * See ARCHITECTURE.md. Prefer editing one tab function at a time; do not rewrite RPC helpers lightly.
+ */
+
 type Profile = Database['public']['Tables']['profiles']['Row'];
 type AppSettings = Database['public']['Tables']['app_settings']['Row'];
 type SessionHistory = Database['public']['Tables']['session_history']['Row'];

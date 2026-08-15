@@ -7,6 +7,7 @@ out-tsc
 *.tsbuildinfo
 .expo
 .expo-shared
+**/.vite/
 
 # dependencies
 node_modules
@@ -37,9 +38,11 @@ node_modules
 /.sass-cache
 /connect.lock
 /coverage
+**/coverage/
 /libpeerconnection.log
 npm-debug.log
 yarn-error.log
+*.log
 testem.log
 /typings
 
@@ -60,3 +63,4 @@ Thumbs.db
 **/.replit-artifact/
 **/test-results/
 **/playwright-report/
+**/blob-report/

@@ -74,11 +74,6 @@ export type MainTab =
   | 'profiles' | 'status' | 'chats' | 'suggestions'
   | 'game' | 'tutorial' | 'stats' | 'ranking' | 'fortune' | 'settings';
 
-
-
-export type NickTpl = { template: string; label: string; type: 'any' | 'action' };
-export type UserGameSubTab = 'balance' | 'ladder' | 'roulette';
-export interface LadderBar { row: number; col: number; }
 export type TutorialSlide = {
   emoji: string;
   title: string;

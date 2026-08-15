@@ -24,7 +24,7 @@
 | S1 | 새 테이블 SELECT → `requesterId` 소유자 스코프 추가 여부 | `db.ts` SELECT 블록 |
 | S2 | 새 테이블 INSERT → liker_id/reader_id/sender_id는 `requesterId`로 **강제 덮어쓰기** (불일치 체크만으로 부족) | `db.ts` INSERT 블록 |
 | S3 | 새 테이블 DELETE → 민감 테이블은 `requesterId` 필수화 | `db.ts` DELETE 블록 |
-| S4 | 새 자유 텍스트 필드 → `FIELD_LIMITS`에 등록 | `db.ts:120` |
+| S4 | 새 자유 텍스트 필드 → `FIELD_LIMITS`에 등록 | `db-sanitize.ts` |
 | S5 | 새 RPC → `ALLOWED_RPCS` Set에 추가 | `db.ts` ALLOWED_RPCS 선언부 |
 | S6 | 새 Map 선언 → 주기적 pruning 추가 (공격자 IP 폭탄 방지) | `setInterval` 패턴 참조 |
 

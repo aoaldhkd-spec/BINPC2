@@ -1,4 +1,8 @@
 import { useState, useEffect, useRef, useCallback, useMemo, Suspense, lazy, Component, ReactNode, memo } from 'react';
+/**
+ * Main user shell UI (tabs: profiles/chats/status/…).
+ * State/realtime: App.tsx + hooks (useChat/useHearts). See ARCHITECTURE.md.
+ */
 import {
   Heart, MessageCircle, Users, ChevronDown, CheckCircle,
   Eye, X, BookOpen,

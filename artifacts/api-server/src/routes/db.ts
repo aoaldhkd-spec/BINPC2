@@ -1,12 +1,19 @@
 import '../lib/dns-ipv4-first.js';
 import { Router, type Request, type Response } from 'express';
 import pg from 'pg';
-import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { VAPID_PUBLIC_KEY, sendPush, type PushPayload } from '../lib/push';
 import { resolvePin, pinPoolParams } from '../lib/pin';
 import { logger } from '../lib/logger';
 import { buildPgOptions } from '../lib/pg-options.js';
 import { createImageAccessPolicy } from '../lib/image-access';
+import {
+  sanitizeRow,
+  sanitizeProfile,
+  sanitizeProfileForViewer,
+  sanitizeSettings,
+} from '../lib/db-sanitize';
+import { chatPairKey, deterministicChatId } from '../lib/db-chat-ids';
 
 // express-session의 SessionData에 userId 필드 추가
 declare module 'express-session' {
@@ -156,38 +163,7 @@ function _ringGetSince(lastSeq: number, userId: string | null, isAdmin: boolean)
   });
 }
 
-// ─── Input sanitization ───────────────────────────────────────────────────────
-// Strips dangerous control characters (keeps \t, \n, \r for normal text),
-// removes HTML/XML tags entirely (stored-XSS prevention),
-// strips Unicode direction-override characters (RTL override attack),
-// and enforces per-field length limits to prevent oversized payloads.
-function sanitizeStr(val: unknown, maxLen: number): unknown {
-  if (typeof val !== 'string') return val;
-  return val
-    .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, '') // strip C0 control chars
-    .replace(/[\u200b-\u200f\u202a-\u202e\u2060-\u2064\u206a-\u206f\ufeff]/g, '') // strip Unicode direction/zero-width overrides (RTL attack)
-    .replace(/<[^>]*>/g, '')                              // strip HTML/XML tags → no stored XSS
-    .slice(0, maxLen);
-}
-const FIELD_LIMITS: Record<string, Record<string, number>> = {
-  profiles:          { nickname: 30, bio: 500, status_message: 100, kakao_id: 100, instagram_id: 100, phone_number: 30 },
-  messages:          { content: 2000 },
-  // ─ 아래 테이블의 유저 입력 필드도 HTML·제어 문자 제거 적용 ─────────────────
-  notifications:     { content: 300, title: 100 },
-  suggestions:       { content: 500, contact_info: 100 }, // contact_info 추가: 이전에 미등록으로 비위생 저장 가능
-  anonymous_reports: { content: 500, reason: 200 },
-  group_chats:    { name: 60, interest_tag: 30, age_group: 10 },
-  group_messages: { content: 2000 },
-};
-function sanitizeRow(tbl: string, row: Record<string, unknown>): Record<string, unknown> {
-  const limits = FIELD_LIMITS[tbl];
-  if (!limits) return row;
-  const r: Record<string, unknown> = { ...row };
-  for (const [field, maxLen] of Object.entries(limits)) {
-    if (field in r) r[field] = sanitizeStr(r[field], maxLen);
-  }
-  return r;
-}
+// sanitize helpers: ../lib/db-sanitize.ts
 
 // ─── Concurrency limiter — graceful 503 when too many concurrent /op requests ──
 // /op는 in-memory 서빙이지만 Node.js 이벤트 루프 포화 방지용 상한선
@@ -484,16 +460,7 @@ function getTable(name: string): Record<string, unknown>[] {
   return store[name];
 }
 
-/** user1/user2 쌍 키 (항상 lex sort) */
-function chatPairKey(u1: string, u2: string): string {
-  const [a, b] = [String(u1), String(u2)].sort();
-  return `${a}:${b}`;
-}
-
-/** 멀티 인스턴스에서도 동일 쌍 → 동일 row id (중복 채팅방 생성 방지) */
-function deterministicChatId(u1: string, u2: string): string {
-  return `c_${createHash('sha256').update(chatPairKey(u1, u2)).digest('hex').slice(0, 32)}`;
-}
+// chatPairKey / deterministicChatId: ../lib/db-chat-ids.ts
 
 /** 채팅 쌍 생성 직렬화 — 인스턴스 간 race 를 PG advisory lock 으로 차단 */
 async function withChatPairLock<T>(pairKey: string, fn: () => Promise<T>): Promise<T> {
@@ -1781,32 +1748,6 @@ const PRIVATE_TABLES = new Set([
   'blocked_users', 'profile_views',
   // user_signals는 공개 — 전광판/카드에서 모두가 볼 수 있음 (연락처 등 민감정보 없음)
 ]);
-
-/** 프로필 row에서 민감 연락처 필드를 제거하여 전체 브로드캐스트 안전하게 만들기 */
-function sanitizeProfile(row: Record<string, unknown>): Record<string, unknown> {
-  const s = { ...row };
-  delete s['phone_number'];
-  delete s['kakao_id'];
-  delete s['instagram_id'];
-  return s;
-}
-
-function sanitizeProfileForViewer(
-  row: Record<string, unknown>,
-  viewerId: string | null | undefined,
-): Record<string, unknown> {
-  if (viewerId && String(row.id) === String(viewerId)) return row;
-  return row.contact_private === true ? sanitizeProfile(row) : row;
-}
-
-/** app_settings row에서 관리자·리셋·테스트 비밀번호를 제거하여 유저 SSE에 노출되지 않도록 */
-function sanitizeSettings(row: Record<string, unknown>): Record<string, unknown> {
-  const s = { ...row };
-  delete s['admin_password'];
-  delete s['reset_password']; // 리셋 비번은 관리자 전용 — 유저 클라이언트/SSE 노출 금지
-  delete s['test_password'];
-  return s;
-}
 
 /** 테이블 종류에 따라 자동으로 수신자 판단 — 로컬 SSE 전송 전용 (NOTIFY 없음) */
 function _smartBroadcastLocal(table: string, row: Record<string, unknown> | null, event: Record<string, unknown>) {

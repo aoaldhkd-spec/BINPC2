@@ -1,0 +1,12 @@
+---
+description: Read ARCHITECTURE.md before large edits; keep chat/hearts/SSE stability
+alwaysApply: true
+---
+
+# Architecture map first
+
+기능 수정 전에 루트 `ARCHITECTURE.md`를 읽고, 해당 기능의 “Feature → files”에 나온 파일만 연다.
+
+- 채팅/하트/실시간/네트워크의 retry·reconnect·persist-before-broadcast·dedupe·resync는 삭제하지 않는다.
+- `db.ts` / `localdb.ts` / `useChat.ts` / `net-health.ts`는 동작 변경 없이 필요한 부분만 고친다.
+- 전면 리라이트·DB 초기화·인증 교체는 금지.

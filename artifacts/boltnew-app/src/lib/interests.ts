@@ -69,8 +69,6 @@ export const BIO_CATEGORIES = [
   },
 ] as const;
 
-export type BioCategory = typeof BIO_CATEGORIES[number];
-
 /** 선택 UI에 쓰이는 전체 관심사 태그 (중복 없음) */
 export const ALL_BIO_TAGS: readonly string[] = BIO_CATEGORIES.flatMap((c) => [...c.tags]);
 
