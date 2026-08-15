@@ -3154,9 +3154,18 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         const current = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
         const updated = mergeAppSettings(current, sanitizedSettingsPayload);
         store['app_settings'] = [updated];
+        try {
+          await dbPersistRow('app_settings', updated);
+        } catch (e) {
+          store['app_settings'] = [current];
+          logger.error({ err: e }, '[db] admin_update_settings persist failed');
+          return res.status(503).json({
+            data: null,
+            error: { message: '설정 저장 실패 — 잠시 후 다시 시도해 주세요.', code: 'PERSIST_FAILED' },
+          });
+        }
         broadcastAll({ type: 'change', table: 'app_settings', event: 'UPDATE', newRow: sanitizeSettings(updated), oldRow: sanitizeSettings(current) });
-        dbPersistRow('app_settings', updated).catch(e => logger.error({ err: e }, '[db] background task error'));
-        return res.json({ data: null, error: null });
+        return res.json({ data: updated, error: null });
       }
 
       case 'test_verify_password': {

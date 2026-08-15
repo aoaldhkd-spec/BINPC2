@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, type Dispatch, type SetStateAction } from 'react';
 import {
   Shield, LogOut, Trash2, Users,
   LayoutGrid, X, AlertTriangle, ChevronDown,
@@ -81,7 +81,10 @@ async function refreshAdminToken(): Promise<boolean> {
 async function adminApiRpc(name: string, args: Record<string, unknown>): Promise<void> {
   let tokenRefreshed = false;
   let lastErr: Error | null = null;
-  for (let attempt = 0; attempt < 5; attempt++) {
+  // 설정 저장은 체감 지연이 치명적 — 짧은 재시도. 대형 리셋만 여유 있게.
+  const maxAttempts = name === 'admin_update_settings' || name === 'admin_toggle_session' ? 3 : 5;
+  const baseDelay = name === 'admin_update_settings' || name === 'admin_toggle_session' ? 400 : 1200;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const token = localStorage.getItem(ADMIN_TOKEN_KEY) ?? '';
     const password = getAdminPassword() || String(args.p_admin_password ?? '');
     try {
@@ -90,9 +93,10 @@ async function adminApiRpc(name: string, args: Record<string, unknown>): Promise
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ ...args, adminToken: token, p_admin_password: password }),
+        signal: AbortSignal.timeout(12_000),
       });
-      if (res.status === 503 && attempt < 4) {
-        await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
+      if (res.status === 503 && attempt < maxAttempts - 1) {
+        await new Promise(r => setTimeout(r, baseDelay * (attempt + 1)));
         continue;
       }
       if (res.status === 403) {
@@ -108,15 +112,24 @@ async function adminApiRpc(name: string, args: Record<string, unknown>): Promise
       return;
     } catch (e) {
       lastErr = e instanceof Error ? e : new Error(String(e));
-      const retryable = /503|fetch|network|abort/i.test(lastErr.message);
-      if (retryable && attempt < 4) {
-        await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
+      const retryable = /503|fetch|network|abort|timeout/i.test(lastErr.message);
+      if (retryable && attempt < maxAttempts - 1) {
+        await new Promise(r => setTimeout(r, baseDelay * (attempt + 1)));
         continue;
       }
       throw lastErr;
     }
   }
   throw lastErr ?? new Error(`api-server RPC ${name} failed`);
+}
+
+/** 설정 패치 — RPC 단일 경로 (이중 쓰기/전체 SELECT 제거 → 저장 체감 지연 해소) */
+async function patchAdminSettings(
+  payload: Record<string, unknown>,
+  setSettings: Dispatch<SetStateAction<AppSettings | null>>,
+): Promise<void> {
+  setSettings(prev => (prev ? { ...prev, ...payload, updated_at: new Date().toISOString() } as AppSettings : prev));
+  await adminApiRpc('admin_update_settings', { p_payload: payload });
 }
 
 /** api-server /op SELECT — 인메모리 데이터 직접 조회 (Supabase KV가 아닌 api-server 스토어) */
@@ -1445,6 +1458,13 @@ function HeartsTab({ likes, profileMap, onClear, onRefresh }: { likes: Like[]; p
               <div className="flex flex-col items-center gap-0.5">
                 <Heart className={`w-4 h-4 ${htMeta.color}`} />
                 <span className="text-[9px] font-bold text-gray-400">{htMeta.label}</span>
+                {like.created_at && (
+                  <span className="text-[9px] text-gray-400 tabular-nums leading-none mt-0.5">
+                    {new Date(like.created_at).toLocaleString('ko-KR', {
+                      month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit',
+                    })}
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-2 justify-end">
                 <span className="text-sm font-semibold text-gray-800 truncate">{liked?.nickname ?? '알 수 없음'}</span>
@@ -1866,10 +1886,10 @@ function ProfilesTabSection({ profiles, settings: _settings, onClear, onDeletePr
 
 function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onSaveTest }: {
   settings: AppSettings | null;
-  onSave: (phone: string, password: string) => void;
-  onSaveEntry: (entryPassword: string) => void;
-  onSaveReset: (resetPassword: string) => void;
-  onSaveTest: (pw: string) => void;
+  onSave: (phone: string, password: string) => void | Promise<void>;
+  onSaveEntry: (entryPassword: string) => void | Promise<void>;
+  onSaveReset: (resetPassword: string) => void | Promise<void>;
+  onSaveTest: (pw: string) => void | Promise<void>;
 }) {
   const [activeTab, setActiveTab] = useState<'admin' | 'entry' | 'reset' | 'test'>('admin');
   // Admin tab state
@@ -1898,6 +1918,11 @@ function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onSaveTest
   const [savedTest, setSavedTest] = useState(false);
   const [errTest, setErrTest] = useState('');
 
+  const [savingAdmin, setSavingAdmin] = useState(false);
+  const [savingEntry, setSavingEntry] = useState(false);
+  const [savingReset, setSavingReset] = useState(false);
+  const [savingTest, setSavingTest] = useState(false);
+
   const formatPhone = (v: string) => {
     const d = v.replace(/\D/g, '').slice(0, 11);
     if (d.length <= 3) return d;
@@ -1905,26 +1930,73 @@ function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onSaveTest
     return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`;
   };
 
-  const handleSaveAdmin = (e: React.FormEvent) => {
+  const handleSaveAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrAdmin('');
     if (password.length < 4) { setErrAdmin('비밀번호는 4자 이상이어야 합니다.'); return; }
     if (password !== confirm) { setErrAdmin('비밀번호 확인이 일치하지 않습니다.'); return; }
-    onSave(phone, password);
-    setSavedAdmin(true);
-    setPassword(''); setConfirm('');
-    setTimeout(() => setSavedAdmin(false), 2500);
+    setSavingAdmin(true);
+    try {
+      await onSave(phone, password);
+      setSavedAdmin(true);
+      setPassword(''); setConfirm('');
+      setTimeout(() => setSavedAdmin(false), 2500);
+    } catch (err) {
+      setErrAdmin(err instanceof Error ? err.message : '저장 실패');
+    } finally {
+      setSavingAdmin(false);
+    }
   };
 
-  const handleSaveEntryPw = (e: React.FormEvent) => {
+  const handleSaveEntryPw = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrEntry('');
     if (entryPw.length < 4) { setErrEntry('입장 코드는 4자 이상이어야 합니다.'); return; }
     if (entryPw !== entryConfirm) { setErrEntry('입장 코드 확인이 일치하지 않습니다.'); return; }
-    onSaveEntry(entryPw);
-    setSavedEntry(true);
-    setEntryPw(''); setEntryConfirm('');
-    setTimeout(() => setSavedEntry(false), 2500);
+    setSavingEntry(true);
+    try {
+      await onSaveEntry(entryPw);
+      setSavedEntry(true);
+      setTimeout(() => setSavedEntry(false), 2500);
+    } catch (err) {
+      setErrEntry(err instanceof Error ? err.message : '저장 실패');
+    } finally {
+      setSavingEntry(false);
+    }
+  };
+
+  const handleSaveResetPw = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrReset('');
+    if (resetPw.length < 4) { setErrReset('비밀번호는 4자 이상이어야 합니다.'); return; }
+    if (resetPw !== resetConfirm) { setErrReset('비밀번호 확인이 일치하지 않습니다.'); return; }
+    setSavingReset(true);
+    try {
+      await onSaveReset(resetPw);
+      setSavedReset(true);
+      setTimeout(() => setSavedReset(false), 2500);
+    } catch (err) {
+      setErrReset(err instanceof Error ? err.message : '저장 실패');
+    } finally {
+      setSavingReset(false);
+    }
+  };
+
+  const handleSaveTestPw = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrTest('');
+    if (testPw.length < 4) { setErrTest('코드는 4자 이상이어야 합니다.'); return; }
+    if (testPw !== testConfirm) { setErrTest('코드 확인이 일치하지 않습니다.'); return; }
+    setSavingTest(true);
+    try {
+      await onSaveTest(testPw);
+      setSavedTest(true);
+      setTimeout(() => setSavedTest(false), 2500);
+    } catch (err) {
+      setErrTest(err instanceof Error ? err.message : '저장 실패');
+    } finally {
+      setSavingTest(false);
+    }
   };
 
   return (
@@ -1979,9 +2051,9 @@ function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onSaveTest
               <AlertTriangle className="w-4 h-4 flex-shrink-0" />{errAdmin}
             </div>
           )}
-          <button type="submit"
-            className={`w-full py-3 font-semibold rounded-xl transition-all ${savedAdmin ? 'bg-teal-500 text-white' : 'bg-slate-800 text-white hover:bg-slate-700'}`}>
-            {savedAdmin ? '✓ 저장 완료!' : '변경 저장'}
+          <button type="submit" disabled={savingAdmin}
+            className={`w-full py-3 font-semibold rounded-xl transition-all disabled:opacity-60 ${savedAdmin ? 'bg-teal-500 text-white' : 'bg-slate-800 text-white hover:bg-slate-700'}`}>
+            {savedAdmin ? '✓ 저장 완료!' : savingAdmin ? '저장 중…' : '변경 저장'}
           </button>
         </form>
       )}
@@ -2021,9 +2093,9 @@ function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onSaveTest
             </div>
           )}
           <div className="flex gap-2">
-            <button type="submit"
-              className={`flex-1 py-3 font-semibold rounded-xl transition-all ${savedEntry ? 'bg-teal-500 text-white' : 'bg-sky-600 text-white hover:bg-sky-700'}`}>
-              {savedEntry ? '✓ 저장 완료!' : '코드 저장'}
+            <button type="submit" disabled={savingEntry}
+              className={`flex-1 py-3 font-semibold rounded-xl transition-all disabled:opacity-60 ${savedEntry ? 'bg-teal-500 text-white' : 'bg-sky-600 text-white hover:bg-sky-700'}`}>
+              {savedEntry ? '✓ 저장 완료!' : savingEntry ? '저장 중…' : '코드 저장'}
             </button>
             {settings?.entry_password && (
               <button type="button"
@@ -2037,16 +2109,7 @@ function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onSaveTest
       )}
 
       {activeTab === 'reset' && (
-        <form onSubmit={(e) => {
-          e.preventDefault();
-          setErrReset('');
-          if (resetPw.length < 4) { setErrReset('비밀번호는 4자 이상이어야 합니다.'); return; }
-          if (resetPw !== resetConfirm) { setErrReset('비밀번호 확인이 일치하지 않습니다.'); return; }
-          onSaveReset(resetPw);
-          setSavedReset(true);
-          setResetPw(''); setResetConfirm('');
-          setTimeout(() => setSavedReset(false), 2500);
-        }} className="space-y-4">
+        <form onSubmit={handleSaveResetPw} className="space-y-4">
           <div className="bg-amber-50 rounded-xl p-3 border border-amber-200 text-xs text-amber-700 leading-relaxed">
             유저가 술번개 로고를 탭하면 뜨는 <strong>처음으로 돌아가기</strong> 비밀번호입니다.<br />
             미설정 시 기본값(116606)이 사용됩니다.
@@ -2081,9 +2144,9 @@ function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onSaveTest
             </div>
           )}
           <div className="flex gap-2">
-            <button type="submit"
-              className={`flex-1 py-3 font-semibold rounded-xl transition-all ${savedReset ? 'bg-teal-500 text-white' : 'bg-amber-500 text-white hover:bg-amber-600'}`}>
-              {savedReset ? '✓ 저장 완료!' : '비밀번호 저장'}
+            <button type="submit" disabled={savingReset}
+              className={`flex-1 py-3 font-semibold rounded-xl transition-all disabled:opacity-60 ${savedReset ? 'bg-teal-500 text-white' : 'bg-amber-500 text-white hover:bg-amber-600'}`}>
+              {savedReset ? '✓ 저장 완료!' : savingReset ? '저장 중…' : '비밀번호 저장'}
             </button>
             {settings?.reset_password && (
               <button type="button"
@@ -2097,16 +2160,7 @@ function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onSaveTest
       )}
 
       {activeTab === 'test' && (
-        <form onSubmit={(e) => {
-          e.preventDefault();
-          setErrTest('');
-          if (testPw.length < 4) { setErrTest('비밀번호는 4자 이상이어야 합니다.'); return; }
-          if (testPw !== testConfirm) { setErrTest('비밀번호 확인이 일치하지 않습니다.'); return; }
-          onSaveTest(testPw);
-          setSavedTest(true);
-          setTestPw(''); setTestConfirm('');
-          setTimeout(() => setSavedTest(false), 2500);
-        }} className="space-y-4">
+        <form onSubmit={handleSaveTestPw} className="space-y-4">
           <div className="bg-violet-50 rounded-xl p-3 border border-violet-200 text-xs text-violet-700 leading-relaxed">
             <strong>테스트 전용 접속 코드</strong>입니다. 이 코드로 접속하면 테스트 대시보드로 이동합니다.<br />
             미설정 시 기본값 <span className="font-black text-violet-700">116606</span>이 사용됩니다.
@@ -2141,9 +2195,9 @@ function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onSaveTest
             </div>
           )}
           <div className="flex gap-2">
-            <button type="submit"
-              className={`flex-1 py-3 font-semibold rounded-xl transition-all ${savedTest ? 'bg-teal-500 text-white' : 'bg-violet-600 text-white hover:bg-violet-700'}`}>
-              {savedTest ? '✓ 저장 완료!' : '코드 저장'}
+            <button type="submit" disabled={savingTest}
+              className={`flex-1 py-3 font-semibold rounded-xl transition-all disabled:opacity-60 ${savedTest ? 'bg-teal-500 text-white' : 'bg-violet-600 text-white hover:bg-violet-700'}`}>
+              {savedTest ? '✓ 저장 완료!' : savingTest ? '저장 중…' : '코드 저장'}
             </button>
             {(settings as any)?.test_password && (
               <button type="button"
@@ -2407,11 +2461,11 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   };
 
   const handleSetTimer = async (endAt: string | null, label: string | null) => {
-    const { error } = await adminSupabase.from('app_settings').update({ timer_end_at: endAt, timer_label: label, updated_at: new Date().toISOString() }).eq('id', 1);
-    if (error) { alert(`타이머 설정 실패: ${error.message}`); return; }
-    setSettings(prev => prev ? { ...prev, timer_end_at: endAt, timer_label: label } : prev);
-    adminApiRpc('admin_update_settings', { p_payload: { timer_end_at: endAt, timer_label: label } })
-      .catch(e => console.warn('[admin] api-server 타이머 동기화 실패:', e));
+    try {
+      await patchAdminSettings({ timer_end_at: endAt, timer_label: label }, setSettings);
+    } catch (e) {
+      alert(`타이머 설정 실패: ${e instanceof Error ? e.message : String(e)}`);
+    }
   };
 
   const handleEventEndReset = async () => {
@@ -2548,47 +2602,28 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   };
 
   const handleSaveCredentials = async (phone: string, password: string) => {
-    await adminSupabase.from('app_settings').update({ admin_phone: phone, admin_password: password, updated_at: new Date().toISOString() }).eq('id', 1);
-    const { data } = await adminSupabase.from('app_settings').select('*').eq('id', 1).single();
-    if (data) setSettings(data);
-    // api-server 동기화: checkPassword()가 새 비밀번호를 즉시 인식하도록
-    adminApiRpc('admin_update_settings', { p_payload: { admin_phone: phone, admin_password: password } })
-      .catch(e => console.warn('[admin] api-server 자격증명 동기화 실패:', e));
+    // RPC 단일 경로 — 이중 쓰기(업데이트+재조회+RPC) 제거로 저장 지연 해소
+    localStorage.setItem(ADMIN_PW_KEY, password);
+    await patchAdminSettings({ admin_phone: phone, admin_password: password }, setSettings);
   };
 
   const handleSaveEntryPassword = async (entryPassword: string) => {
-    await adminSupabase.from('app_settings').update({ entry_password: entryPassword || null, updated_at: new Date().toISOString() }).eq('id', 1);
-    const { data } = await adminSupabase.from('app_settings').select('*').eq('id', 1).single();
-    if (data) setSettings(data);
-    adminApiRpc('admin_update_settings', { p_payload: { entry_password: entryPassword || null } })
-      .catch(e => console.warn('[admin] api-server 입장비밀번호 동기화 실패:', e));
+    await patchAdminSettings({ entry_password: entryPassword || null }, setSettings);
   };
 
   const handleSaveResetPassword = async (resetPassword: string) => {
-    await adminSupabase.from('app_settings').update({ reset_password: resetPassword || null, updated_at: new Date().toISOString() }).eq('id', 1);
-    const { data } = await adminSupabase.from('app_settings').select('*').eq('id', 1).single();
-    if (data) setSettings(data);
-    adminApiRpc('admin_update_settings', { p_payload: { reset_password: resetPassword || null } })
-      .catch(e => console.warn('[admin] api-server 리셋비밀번호 동기화 실패:', e));
+    await patchAdminSettings({ reset_password: resetPassword || null }, setSettings);
   };
 
   const handleSaveTestPassword = async (testPassword: string) => {
-    await adminSupabase.from('app_settings').update({ test_password: testPassword || null, updated_at: new Date().toISOString() }).eq('id', 1);
-    const { data } = await adminSupabase.from('app_settings').select('*').eq('id', 1).single();
-    if (data) setSettings(data);
-    adminApiRpc('admin_update_settings', { p_payload: { test_password: testPassword || null } })
-      .catch(e => console.warn('[admin] api-server 테스트비밀번호 동기화 실패:', e));
+    await patchAdminSettings({ test_password: testPassword || null }, setSettings);
   };
 
   const handleToggleFunctionsLock = async () => {
     if (!settings) return;
     const newVal = !((settings as any).functions_locked ?? false);
-    setSettings(prev => prev ? { ...prev, functions_locked: newVal } as any : prev);
     try {
-      await adminApiRpc('admin_update_settings', { p_payload: { functions_locked: newVal } });
-      await adminSupabase.from('app_settings')
-        .update({ functions_locked: newVal, updated_at: new Date().toISOString() })
-        .eq('id', 1);
+      await patchAdminSettings({ functions_locked: newVal }, setSettings);
     } catch (e) {
       setSettings(prev => prev ? { ...prev, functions_locked: !newVal } as any : prev);
       console.error('[admin] 기능 잠금 토글 실패:', e instanceof Error ? e.message : e);
@@ -2686,12 +2721,12 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                 onClearHistory={handleClearHistory} restoreMap={restoreMap} />
             )}
             {settingsSubTab === 'qr' && <AdminQrTab settings={settings} onSaveQrBase={async (url) => {
-  const { error } = await adminSupabase.from('app_settings').update({ qr_base_url: url, updated_at: new Date().toISOString() } as never).eq('id', 1);
-  if (error) { alert(`QR URL 저장 실패: ${error.message}`); return; }
-  setSettings(prev => prev ? { ...prev, qr_base_url: url } as never : prev);
-  adminApiRpc('admin_update_settings', { p_payload: { qr_base_url: url } })
-    .catch(e => console.warn('[admin] api-server QR URL 동기화 실패:', e));
-}} />}
+              try {
+                await patchAdminSettings({ qr_base_url: url }, setSettings);
+              } catch (e) {
+                alert(`QR URL 저장 실패: ${e instanceof Error ? e.message : String(e)}`);
+              }
+            }} />}
             {settingsSubTab === 'admin' && <CredentialsTab settings={settings} onSave={handleSaveCredentials} onSaveEntry={handleSaveEntryPassword} onSaveReset={handleSaveResetPassword} onSaveTest={handleSaveTestPassword} />}
             {settingsSubTab === 'db' && (
               <>
