@@ -112,7 +112,7 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   initialInput?: string;
   /** 부모가 초안을 보존하도록 변경 시 호출 */
   onInputChange?: (v: string) => void;
-  /** 서로 시그널 첫 1:1 — 칩은 입력만 채움 (자동 전송 없음) */
+  /** 서로 하트 첫 1:1 — 칩은 입력만 채움 (자동 전송 없음) */
   showSignalOpeners?: boolean;
 }) {
   const { theme, setTheme } = useTheme();

@@ -15,24 +15,28 @@ export const SIGNAL_FIRST_CHIPS = [
 ] as const;
 
 export const NUDGE_MESSAGES = [
-  '💕 아직 하트를 보내지 않았어요. 마음에 드는 사람에게 하트를 보내보세요!',
-  '👀 나와 잘 맞는 사람이 있어요. 시그널을 확인해보세요.',
-  '💕 오늘의 시그널 미션을 확인해보세요. 서로 다른 3명에게 하트를 보내보세요!',
+  '❤️ 마음에 드는 사람에게 하트를 직접 보내보세요.',
+  '👀 나와 잘 맞는 사람을 시그널 탭에서 추천받을 수 있어요.',
+  '💕 서로 다른 3명에게 하트를 보내면 시그널 추천이 열려요.',
 ] as const;
 
 export const NUDGE_MAX = 3;
 export const SIGNAL_MISSION_GOAL = 3;
+export const SIGNAL_MISSION_TITLE = '오늘의 미션';
 export const SIGNAL_MISSION_COPY = '서로 다른 3명에게 하트 보내기';
 export const SIGNAL_GUIDE_TITLE = '시그널 설명서';
-export const SIGNAL_GUIDE_LEAD = '서로 다른 3명에게 하트를 보내면, 나와 잘 맞는 사람을 한 명씩 추천해 줘요.';
+export const SIGNAL_GUIDE_LEAD = '시그널은 앱이 사람을 추천하는 기능이에요. 서로 다른 3명에게 하트를 보내면 추천이 열려요.';
 export const SIGNAL_GUIDE_POINTS = [
+  '시그널은 추천이에요. 하트는 내가 고른 사람에게 직접 보내는 관심이에요.',
   '내 이상형 ↔ 상대 특징, 상대 이상형 ↔ 내 특징, 공통 관심사 — 하나만 같아도 추천돼요.',
-  '관심/하트 보내기는 참여자 카드에서 쓰던 하트 그대로예요.',
-  '서로 시그널을 보내면 채팅을 시작할 수 있어요.',
+  '서로 하트를 보내면 채팅을 시작할 수 있어요.',
   '상대가 적어 둔 이상형·특징 문장은 안 보여요. 몇 개가 맞았는지만 알려줘요.',
 ] as const;
 export const SIGNAL_GUIDE_CTA = '참여자에게 하트 보내기';
-export const SIGNAL_EMPTY_DECK_TITLE = '지금 추천할 시그널이 없어요';
+export const SIGNAL_CARD_SKIP_CTA = '다음';
+export const SIGNAL_CARD_PROFILE_CTA = '프로필 보기';
+export const SIGNAL_CARD_HEART_CTA = '하트 보내기';
+export const SIGNAL_EMPTY_DECK_TITLE = '지금 추천할 사람이 없어요';
 export const SIGNAL_EMPTY_DECK_HINT = '이상형·특징·관심사가 맞는 사람이 아직 없거나, 이미 다 봤어요';
 
 export function isSignalDeckUnlocked(missionCount: number): boolean {

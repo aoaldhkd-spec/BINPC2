@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isIncomingHeartToastTarget, MUTUAL_SIGNAL_TOAST } from './heart-toast';
+import { incomingInterestToast, isIncomingHeartToastTarget, MUTUAL_HEART_TOAST } from './heart-toast';
 
 describe('isIncomingHeartToastTarget', () => {
   it('shows the toast only to the liked recipient', () => {
@@ -15,9 +15,11 @@ describe('isIncomingHeartToastTarget', () => {
   });
 });
 
-describe('mutual signal toast copy', () => {
-  it('says 서로 시그널, not 서로 하트', () => {
-    expect(MUTUAL_SIGNAL_TOAST).toContain('서로 시그널');
-    expect(MUTUAL_SIGNAL_TOAST).not.toContain('서로 하트');
+describe('mutual heart toast copy', () => {
+  it('says 서로 하트, not 서로 시그널', () => {
+    expect(MUTUAL_HEART_TOAST).toContain('서로 하트');
+    expect(MUTUAL_HEART_TOAST).not.toContain('서로 시그널');
+    expect(incomingInterestToast('상대')).toContain('하트를 보냈어요');
+    expect(incomingInterestToast('상대')).not.toContain('시그널');
   });
 });

@@ -1,6 +1,14 @@
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
+  NUDGE_MESSAGES,
+  SIGNAL_CARD_HEART_CTA,
+  SIGNAL_CARD_PROFILE_CTA,
+  SIGNAL_GUIDE_LEAD,
   SIGNAL_GUIDE_POINTS,
+  SIGNAL_MISSION_COPY,
   SIGNAL_MISSION_GOAL,
   hasInterestHeart,
   isSignalDeckUnlocked,
@@ -9,15 +17,33 @@ import {
   recommendSignals,
 } from './signal-match';
 
+const signalTabSrc = readFileSync(
+  join(dirname(fileURLToPath(import.meta.url)), '../components/SignalTab.tsx'),
+  'utf8',
+);
+
 describe('signal copy + unlock invariants', () => {
   it('locks the deck before 3 unique hearts and unlocks after', () => {
     expect(isSignalDeckUnlocked(2)).toBe(false);
     expect(isSignalDeckUnlocked(SIGNAL_MISSION_GOAL)).toBe(true);
   });
 
-  it('uses 서로 시그널 CTA, not 서로 하트', () => {
-    expect(SIGNAL_GUIDE_POINTS.some((p) => p.includes('서로 시그널을 보내면 채팅을 시작할 수 있어요'))).toBe(true);
-    expect(SIGNAL_GUIDE_POINTS.some((p) => p.includes('서로 하트'))).toBe(false);
+  it('treats signal as recommendation and heart as the send action', () => {
+    const guide = [SIGNAL_GUIDE_LEAD, ...SIGNAL_GUIDE_POINTS, SIGNAL_MISSION_COPY].join(' ');
+    expect(guide).toContain('추천');
+    expect(guide).toContain('하트');
+    expect(guide).toContain('서로 하트를 보내면 채팅을 시작할 수 있어요');
+    expect(guide).not.toContain('시그널 보내기');
+    expect(guide).not.toContain('서로 시그널');
+    expect(SIGNAL_CARD_HEART_CTA).toBe('하트 보내기');
+    expect(SIGNAL_CARD_PROFILE_CTA).toBe('프로필 보기');
+    expect(SIGNAL_CARD_HEART_CTA).not.toContain('시그널');
+    expect(NUDGE_MESSAGES.some((m) => m.includes('시그널 탭에서 추천'))).toBe(true);
+    expect(NUDGE_MESSAGES.some((m) => m.includes('하트를 직접 보내'))).toBe(true);
+    expect(NUDGE_MESSAGES.join(' ')).not.toContain('시그널 보내기');
+    expect(signalTabSrc).not.toContain('시그널 보내기');
+    expect(signalTabSrc).toContain('SIGNAL_CARD_HEART_CTA');
+    expect(signalTabSrc).toContain('onLike');
   });
 
   it('never puts raw ideal/feature free text on reason chips', () => {

@@ -22,7 +22,7 @@ import {
   readNudgeCount,
   writeNudgeCount,
 } from './lib/signal-match';
-import { isIncomingHeartToastTarget, MUTUAL_SIGNAL_TOAST } from './lib/heart-toast';
+import { incomingInterestToast, isIncomingHeartToastTarget, MUTUAL_HEART_TOAST } from './lib/heart-toast';
 import { SignalNudgeBanner } from './components/SignalNudgeBanner';
 // ─── 분리된 타입·유틸·컴포넌트 imports ────────────────────────────────────────
 import type {
@@ -821,10 +821,10 @@ function App() {
             next.set(row.liked_id, s);
             return next;
           });
-          // 내가 관심을 보냈고 상대도 이미 관심을 보냈으면 서로 시그널 (수신자 전용 토스트와 대칭)
+          // 내가 하트를 보냈고 상대도 이미 하트를 보냈으면 서로 하트 (수신자 전용 토스트와 대칭)
           if (isInterestHeart(row.heart_type) && isInterestHeart(receivedHeartTypesRef.current.get(row.liked_id))) {
             const nick = profilesRef.current.find(p => p.id === row.liked_id)?.nickname ?? '상대방';
-            setBottomNotif({ type: 'signal', signalKind: 'mutual', nickname: nick, profileId: row.liked_id, message: MUTUAL_SIGNAL_TOAST });
+            setBottomNotif({ type: 'signal', signalKind: 'mutual', nickname: nick, profileId: row.liked_id, message: MUTUAL_HEART_TOAST });
           }
         })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'likes', filter: `liker_id=eq.${currentUserId}` },
@@ -863,9 +863,9 @@ function App() {
               const heartNick = data?.nickname ?? '누군가';
               const ht = row.heart_type ?? 'red';
               if (isInterestHeart(ht) && hasInterestHeart(sentHeartsPerPersonRef.current.get(likerId))) {
-                setBottomNotif({ type: 'signal', signalKind: 'mutual', nickname: heartNick, profileId: likerId, message: MUTUAL_SIGNAL_TOAST });
+                setBottomNotif({ type: 'signal', signalKind: 'mutual', nickname: heartNick, profileId: likerId, message: MUTUAL_HEART_TOAST });
               } else if (isInterestHeart(ht)) {
-                setBottomNotif({ type: 'signal', signalKind: 'received', nickname: heartNick, profileId: likerId, message: `💕 ${heartNick}님이 회원님에게 관심을 보냈어요.` });
+                setBottomNotif({ type: 'signal', signalKind: 'received', nickname: heartNick, profileId: likerId, message: incomingInterestToast(heartNick) });
               } else {
                 setBottomNotif({ type: 'heart', nickname: heartNick, heartType: ht });
               }

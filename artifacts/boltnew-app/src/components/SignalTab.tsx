@@ -4,6 +4,9 @@ import type { Profile, UserSignal } from '../types/app';
 import type { HeartType } from '../lib/constants';
 import { getKoreanAge, getAvatarSrc, hasUploadedPhoto, getAvatarGradientCss, isSwipeGestureVerifyProfile } from '../lib/profile';
 import {
+  SIGNAL_CARD_HEART_CTA,
+  SIGNAL_CARD_PROFILE_CTA,
+  SIGNAL_CARD_SKIP_CTA,
   SIGNAL_EMPTY_DECK_HINT,
   SIGNAL_EMPTY_DECK_TITLE,
   SIGNAL_GUIDE_CTA,
@@ -12,6 +15,7 @@ import {
   SIGNAL_GUIDE_TITLE,
   SIGNAL_MISSION_COPY,
   SIGNAL_MISSION_GOAL,
+  SIGNAL_MISSION_TITLE,
   countTodayInterestMission,
   hasInterestHeart,
   isSignalDeckUnlocked,
@@ -167,7 +171,7 @@ export function SignalTab({
     <div className="space-y-3 pb-24">
       <div className={`rounded-2xl border px-4 py-3 ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-rose-50 border-rose-200'}`}>
         <p className={`text-sm font-black ${darkMode ? 'text-white' : 'text-rose-800'}`}>
-          💕 오늘의 시그널 미션
+          💕 {SIGNAL_MISSION_TITLE}
         </p>
         <p className={`text-xs mt-0.5 ${darkMode ? 'text-slate-300' : 'text-rose-600'}`}>
           {SIGNAL_MISSION_COPY}
@@ -277,17 +281,32 @@ export function SignalTab({
                     : 'bg-gray-50 border-gray-200 text-gray-700'
                 }`}
               >
-                다음
+                {SIGNAL_CARD_SKIP_CTA}
               </button>
               <button
                 type="button"
-                disabled={!!functionsLocked}
-                onClick={() => { if (!functionsLocked) onLike(card.id); }}
-                className="flex-[1.4] py-3 rounded-2xl text-sm font-black text-white bg-rose-500 hover:bg-rose-600 disabled:opacity-40 active:scale-95 transition-all"
+                onClick={() => onSelect(card)}
+                className={`flex-1 py-3 rounded-2xl text-sm font-black border active:scale-95 transition-all ${
+                  darkMode
+                    ? 'bg-slate-600 border-slate-400 text-white'
+                    : 'bg-white border-rose-200 text-rose-700'
+                }`}
               >
-                💕 시그널 보내기
+                {SIGNAL_CARD_PROFILE_CTA}
               </button>
             </div>
+            <button
+              type="button"
+              disabled={!!functionsLocked}
+              onClick={() => { if (!functionsLocked) onLike(card.id); }}
+              className={`w-full py-2.5 rounded-2xl text-sm font-bold border active:scale-95 transition-all disabled:opacity-40 ${
+                darkMode
+                  ? 'bg-transparent border-rose-400/60 text-rose-200'
+                  : 'bg-rose-50 border-rose-200 text-rose-600'
+              }`}
+            >
+              ❤️ {SIGNAL_CARD_HEART_CTA}
+            </button>
           </div>
         </div>
       )}

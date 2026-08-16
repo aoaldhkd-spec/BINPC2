@@ -3,7 +3,7 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { BottomNotification } from '../components/BottomNotification';
-import { MUTUAL_SIGNAL_TOAST } from '../lib/heart-toast';
+import { MUTUAL_HEART_TOAST } from '../lib/heart-toast';
 
 describe('BottomNotification', () => {
   it('sits above ChatScreen (z-[9999]) so recipient toasts stay visible', () => {
@@ -19,7 +19,7 @@ describe('BottomNotification', () => {
     expect(root.className).toContain('z-[10050]');
   });
 
-  it('shows 서로 시그널 mutual CTA, not 서로 하트', () => {
+  it('shows 서로 하트 mutual CTA, not 서로 시그널', () => {
     render(
       <BottomNotification
         notification={{ type: 'signal', signalKind: 'mutual', nickname: '상대' }}
@@ -28,7 +28,7 @@ describe('BottomNotification', () => {
         onGoToChats={vi.fn()}
       />,
     );
-    expect(screen.getByText(MUTUAL_SIGNAL_TOAST)).toBeTruthy();
-    expect(screen.queryByText(/서로 하트/)).toBeNull();
+    expect(screen.getByText(MUTUAL_HEART_TOAST)).toBeTruthy();
+    expect(screen.queryByText(/서로 시그널/)).toBeNull();
   });
 });

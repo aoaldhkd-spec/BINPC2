@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import type { HeartType } from '../lib/constants';
 import { heartMeta } from '../lib/constants';
-import { MUTUAL_SIGNAL_TOAST } from '../lib/heart-toast';
+import { incomingInterestToast, MUTUAL_HEART_TOAST } from '../lib/heart-toast';
 
 export type BottomNotificationData = {
   type: 'heart' | 'chat' | 'message' | 'contact' | 'system' | 'signal';
@@ -76,8 +76,8 @@ export function BottomNotification({
               <p className="text-sm font-bold text-white">
                 {notification.message
                   ?? (notification.signalKind === 'mutual'
-                    ? MUTUAL_SIGNAL_TOAST
-                    : `💕 ${notification.nickname || '누군가'}님이 회원님에게 관심을 보냈어요.`)}
+                    ? MUTUAL_HEART_TOAST
+                    : incomingInterestToast(notification.nickname || '누군가'))}
               </p>
               {notification.signalKind === 'mutual' && onStartChat && (
                 <button onClick={onStartChat} className="text-xs text-white/90 bg-white/20 px-2 py-0.5 rounded-lg font-semibold mt-0.5">채팅 시작하기</button>
