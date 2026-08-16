@@ -1429,12 +1429,6 @@ function App() {
           onClose={() => dismissSignalNudge(false)}
         />
       )}
-      {showResetPassword ? (
-        <ResetPasswordSheet
-          onCancel={() => setShowResetPassword(false)}
-          onConfirm={() => { setShowResetPassword(false); reset(); }}
-        />
-      ) : (
       <div className={isSubScreen ? 'hidden' : undefined} aria-hidden={isSubScreen}>
       <AppErrorBoundary screenName="메인 화면" onReset={() => { setView('main'); setMainTab('profiles'); }}>
       <Suspense fallback={<div className="min-h-screen bg-slate-900" />}>
@@ -1530,6 +1524,11 @@ function App() {
       </Suspense>
       </AppErrorBoundary>
       </div>
+      {showResetPassword && (
+        <ResetPasswordSheet
+          onCancel={() => setShowResetPassword(false)}
+          onConfirm={() => { setShowResetPassword(false); reset(); }}
+        />
       )}
       {view === 'profile' && selectedProfile && (
         <div className="fixed inset-0 z-40 overflow-y-auto bg-white">

@@ -45,7 +45,7 @@ async function verifyPanelPassword(kind: 'reset' | 'admin', password: string): P
   }
 }
 
-/** Full-screen opaque sheet — App renders this INSTEAD of MainScreen so no cards can show through. */
+/** Centered password popup over the live app — dim backdrop, not a black takeover. */
 export function ResetPasswordSheet({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: () => void }) {
   const [pw, setPw] = useState('');
   const [err, setErr] = useState(false);
@@ -62,7 +62,7 @@ export function ResetPasswordSheet({ onCancel, onConfirm }: { onCancel: () => vo
   };
 
   return (
-    <div className="fixed inset-0 z-[500] flex items-center justify-center bg-black" style={{ backgroundColor: '#000000' }}>
+    <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
       <div className="bg-white rounded-2xl p-6 w-72 shadow-2xl">
         <p className="text-sm font-bold text-gray-800 mb-1">처음으로 돌아가기</p>
         <p className="text-xs text-gray-500 mb-4">비밀번호를 입력하세요</p>
@@ -270,8 +270,7 @@ export function ResetButton({ onReset, darkMode, onEasterEgg, onUiLockChange, on
 
       {open && createPortal(
         <div
-          className="fixed inset-0 z-[400] flex items-center justify-center bg-black"
-          style={{ backgroundColor: '#000000' }}
+          className="fixed inset-0 z-[400] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
           onClick={() => { setOpen(false); setPw(''); setErr(false); }}
         >
           <div className="bg-white rounded-2xl p-6 w-72 shadow-2xl" onClick={(e) => e.stopPropagation()}>
@@ -293,8 +292,7 @@ export function ResetButton({ onReset, darkMode, onEasterEgg, onUiLockChange, on
       )}
       {adminOpen && createPortal(
         <div
-          className="fixed inset-0 z-[400] flex items-center justify-center p-4 bg-black"
-          style={{ backgroundColor: '#000000' }}
+          className="fixed inset-0 z-[400] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
           onClick={() => { setAdminOpen(false); setAdminPw(''); setAdminErr(false); }}
         >
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xs p-6 space-y-4" onClick={e => e.stopPropagation()}>

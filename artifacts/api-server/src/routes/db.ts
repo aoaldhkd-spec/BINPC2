@@ -1034,6 +1034,8 @@ const ACTIVE_KV_TABLES = new Set([
   'app_image_store', 'heart_balances',
   // 옵트인 단체 채팅
   'group_chats', 'group_participants', 'group_messages',
+  // 명시적 단톡 나가기 — 자동 재입장 방지 (서버 전용)
+  'group_opt_outs',
   // 차단·숨기기 / 프로필 방문자
   'blocked_users', 'profile_views',
   // 상태·이상형 신호
@@ -1195,10 +1197,10 @@ async function drainUnusedHearts(drainCount: number = -1, heartType?: string): P
 setTimeout(() => { drainUnusedHearts().catch(e => logger.error({ err: e }, '[db] background task error')); }, 10 * 60 * 1_000);
 
 // 사람당 단톡 입장 수 상한 (방 인원 정원이 아님 — 방 인원은 제한 없음)
-const MAX_GROUPS_PER_USER = 3;
+const MAX_GROUPS_PER_USER = 4;
 // 방 인원 상한 없음. 정원 초과로 방을 나누지 않음.
 const UNLIMITED_GROUP_MEMBERS = 999999;
-const GROUP_LIMIT_MESSAGE = '단체 채팅은 최대 3개까지 입장할 수 있어요.';
+const GROUP_LIMIT_MESSAGE = '단체 채팅은 최대 4개까지 입장할 수 있어요.';
 
 const OPT_IN_GROUP_ROOMS: Array<{
   id: string; name: string; interest_tag: string; room_kind: string;
@@ -1207,7 +1209,63 @@ const OPT_IN_GROUP_ROOMS: Array<{
   { id: 'group_afterparty_drink', name: '2차 술 갈 분', interest_tag: '2차술', room_kind: 'afterparty_drink' },
 ];
 
-/** 카탈로그 방만 보장. 참여자를 자동으로 넣지 않음. */
+function matchesAfterpartySpec(g: Record<string, unknown>, spec: { id: string; name: string; interest_tag: string; room_kind: string }): boolean {
+  return String(g.id) === spec.id
+    || String(g.name) === spec.name
+    || String(g.interest_tag) === spec.interest_tag
+    || String(g.room_kind ?? '') === spec.room_kind
+    || (spec.room_kind === 'afterparty_club' && String(g.name ?? '').includes('2차 클럽'))
+    || (spec.room_kind === 'afterparty_drink' && String(g.name ?? '').includes('2차 술'));
+}
+
+const mergedGroupIds = new Map<string, string>();
+function rememberMergedGroup(fromId: string, toId: string) {
+  if (!fromId || fromId === toId) return;
+  mergedGroupIds.set(fromId, toId);
+  if (mergedGroupIds.size > 2000) {
+    const first = mergedGroupIds.keys().next().value;
+    if (first) mergedGroupIds.delete(first);
+  }
+}
+function resolveMergedGroupId(groupId: string): string {
+  let cur = groupId;
+  for (let i = 0; i < 8; i++) {
+    const mapped = mergedGroupIds.get(cur);
+    if (mapped && mapped !== cur) { cur = mapped; continue; }
+    const row = getTable('group_chats').find(g => String(g.id) === cur);
+    const into = row ? String(row.merged_into ?? '') : '';
+    if (into && into !== cur) { cur = into; continue; }
+    break;
+  }
+  return cur;
+}
+
+async function mergeGroupInto(dupId: string, canonicalId: string): Promise<void> {
+  if (!dupId || dupId === canonicalId) return;
+  rememberMergedGroup(dupId, canonicalId);
+  const parts = getTable('group_participants');
+  for (const p of [...parts]) {
+    if (String(p.group_id) !== dupId) continue;
+    const uid = String(p.user_id ?? '');
+    const already = parts.some(x => String(x.group_id) === canonicalId && String(x.user_id) === uid);
+    if (already) {
+      store['group_participants'] = getTable('group_participants').filter(x => String(x.id) !== String(p.id));
+      void dbDeleteRow('group_participants', String(p.id));
+    } else {
+      p.group_id = canonicalId;
+      p.id = `${canonicalId}__${uid}`;
+      void dbPersistRow('group_participants', p);
+    }
+  }
+  for (const m of getTable('group_messages')) {
+    if (String(m.group_id) === dupId) {
+      m.group_id = canonicalId;
+      void dbPersistRow('group_messages', m);
+    }
+  }
+}
+
+/** 카탈로그 방만 보장. 참여자를 자동으로 넣지 않음. 2차 방 중복은 canonical 으로 숨김+이전. */
 async function ensureOptInGroupRooms(): Promise<void> {
   try {
     const groups = getTable('group_chats');
@@ -1223,43 +1281,57 @@ async function ensureOptInGroupRooms(): Promise<void> {
       }
     }
     for (const spec of OPT_IN_GROUP_ROOMS) {
-      const existing = groups.find(g =>
-        String(g.id) === spec.id
-        || String(g.name) === spec.name
-        || String(g.interest_tag) === spec.interest_tag
-        || String(g.room_kind ?? '') === spec.room_kind,
-      );
-      if (existing) {
-        existing.name = spec.name;
-        existing.interest_tag = spec.interest_tag;
-        existing.room_kind = spec.room_kind;
-        existing.max_members = UNLIMITED_GROUP_MEMBERS;
-        if (existing.age_group === undefined) existing.age_group = null;
+      const matches = groups.filter(g => matchesAfterpartySpec(g, spec));
+      let canonical = matches.find(g => String(g.id) === spec.id)
+        ?? [...matches].sort((a, b) => String(a.created_at ?? a.id).localeCompare(String(b.created_at ?? b.id)))[0];
+      if (!canonical) {
+        canonical = {
+          id: spec.id,
+          name: spec.name,
+          interest_tag: spec.interest_tag,
+          room_kind: spec.room_kind,
+          age_group: null,
+          max_members: UNLIMITED_GROUP_MEMBERS,
+          hidden: false,
+          created_at: ts(),
+        };
+        groups.push(canonical);
         try {
-          await dbPersistRow('group_chats', existing);
+          await dbPersistRow('group_chats', canonical);
+          smartBroadcast('group_chats', canonical, {
+            type: 'change', table: 'group_chats', event: 'INSERT', newRow: canonical, oldRow: null,
+          });
         } catch (e) {
-          logger.error({ err: e, groupId: existing.id }, '[ensureOptInGroupRooms] existing room persist failed');
+          store['group_chats'] = groups.filter(g => String(g.id) !== spec.id);
+          logger.error({ err: e, groupId: spec.id }, '[ensureOptInGroupRooms] seed persist failed');
+          continue;
         }
-        continue;
+      } else {
+        canonical.name = spec.name;
+        canonical.interest_tag = spec.interest_tag;
+        canonical.room_kind = spec.room_kind;
+        canonical.max_members = UNLIMITED_GROUP_MEMBERS;
+        canonical.hidden = false;
+        canonical.merged_into = null;
+        if (canonical.age_group === undefined) canonical.age_group = null;
+        try {
+          await dbPersistRow('group_chats', canonical);
+        } catch (e) {
+          logger.error({ err: e, groupId: canonical.id }, '[ensureOptInGroupRooms] existing room persist failed');
+        }
       }
-      const row: Record<string, unknown> = {
-        id: spec.id,
-        name: spec.name,
-        interest_tag: spec.interest_tag,
-        room_kind: spec.room_kind,
-        age_group: null,
-        max_members: UNLIMITED_GROUP_MEMBERS,
-        created_at: ts(),
-      };
-      groups.push(row);
-      try {
-        await dbPersistRow('group_chats', row);
-        smartBroadcast('group_chats', row, {
-          type: 'change', table: 'group_chats', event: 'INSERT', newRow: row, oldRow: null,
-        });
-      } catch (e) {
-        store['group_chats'] = groups.filter(g => String(g.id) !== spec.id);
-        logger.error({ err: e, groupId: spec.id }, '[ensureOptInGroupRooms] seed persist failed');
+      const canonicalId = String(canonical.id);
+      for (const dup of matches) {
+        const dupId = String(dup.id);
+        if (dupId === canonicalId) continue;
+        await mergeGroupInto(dupId, canonicalId);
+        dup.hidden = true;
+        dup.merged_into = canonicalId;
+        try {
+          await dbPersistRow('group_chats', dup);
+        } catch (e) {
+          logger.error({ err: e, groupId: dupId }, '[ensureOptInGroupRooms] hide dup persist failed');
+        }
       }
     }
   } catch (e) {
@@ -1267,7 +1339,7 @@ async function ensureOptInGroupRooms(): Promise<void> {
   }
 }
 
-const AUTO_ROOM_INTEREST_AGE = 'interest_age';
+const AUTO_ROOM_AGE_DECADE = 'age_decade';
 const AUTO_ROOM_BIRTH_YEAR = 'birth_year';
 
 function ageBandFromYear(year: unknown): string {
@@ -1277,12 +1349,81 @@ function ageBandFromYear(year: unknown): string {
   return `${Math.max(10, band)}대`;
 }
 
-function firstInterestTag(profile: Record<string, unknown>): string {
-  const raw = String(profile.bio ?? profile.interests ?? '');
-  return raw
-    .split(/[,，、\s|/]+/)
-    .map(s => s.replace(/[^0-9A-Za-z가-힣_]/g, ''))
-    .find(s => s.length >= 2) ?? '';
+function autoRoomOptKey(kind: string, extra: string): string {
+  return `${kind}:${extra}`;
+}
+
+function hasGroupOptOut(userId: string, optKey: string): boolean {
+  return getTable('group_opt_outs').some(
+    r => String(r.user_id) === userId && String(r.opt_key) === optKey,
+  );
+}
+
+function optKeyForGroup(group: Record<string, unknown> | undefined, groupId: string): string {
+  const kind = String(group?.room_kind ?? '');
+  if (kind === AUTO_ROOM_AGE_DECADE) return autoRoomOptKey(kind, String(group?.age_group ?? ''));
+  if (kind === AUTO_ROOM_BIRTH_YEAR) return autoRoomOptKey(kind, String(group?.interest_tag ?? group?.name ?? ''));
+  if (kind === 'afterparty_club' || kind === 'afterparty_drink') return kind;
+  return groupId;
+}
+
+async function recordGroupOptOut(part: Record<string, unknown>): Promise<void> {
+  const userId = String(part.user_id ?? '');
+  const groupId = String(part.group_id ?? '');
+  if (!userId || !groupId) return;
+  const group = getTable('group_chats').find(g => String(g.id) === groupId);
+  const optKey = optKeyForGroup(group, groupId);
+  const row: Record<string, unknown> = {
+    id: `${userId}__${optKey}`,
+    user_id: userId,
+    group_id: groupId,
+    room_kind: String(group?.room_kind ?? ''),
+    opt_key: optKey,
+    created_at: ts(),
+  };
+  const outs = getTable('group_opt_outs');
+  const idx = outs.findIndex(r => String(r.id) === String(row.id));
+  if (idx >= 0) outs[idx] = row;
+  else outs.push(row);
+  try {
+    await dbPersistRow('group_opt_outs', row);
+  } catch (e) {
+    logger.error({ err: e, userId, groupId }, '[recordGroupOptOut] persist failed');
+  }
+}
+
+async function clearGroupOptOut(userId: string, groupId: string): Promise<void> {
+  const group = getTable('group_chats').find(g => String(g.id) === groupId);
+  const optKey = optKeyForGroup(group, groupId);
+  const outs = getTable('group_opt_outs');
+  const gone = outs.filter(r => String(r.user_id) === userId && (String(r.opt_key) === optKey || String(r.group_id) === groupId));
+  if (!gone.length) return;
+  store['group_opt_outs'] = outs.filter(r => !gone.includes(r));
+  for (const r of gone) {
+    void dbDeleteRow('group_opt_outs', String(r.id));
+  }
+}
+
+function isLeftoverInterestRoom(g: Record<string, unknown>): boolean {
+  const kind = String(g.room_kind ?? '');
+  const name = String(g.name ?? '');
+  if (kind === 'afterparty_club' || kind === 'afterparty_drink') return false;
+  if (kind === AUTO_ROOM_BIRTH_YEAR || /^\d{4}년생 모임$/.test(name)) return false;
+  if (kind === AUTO_ROOM_AGE_DECADE || /^\d+대 모임$/.test(name)) return false;
+  return kind === 'interest_age' || /대\s+.+\s*모임/.test(name) || /모임\s*모임/.test(name);
+}
+
+async function removeParticipant(userId: string, groupId: string, recordOptOut: boolean): Promise<void> {
+  const parts = getTable('group_participants');
+  const part = parts.find(p => String(p.group_id) === groupId && String(p.user_id) === userId);
+  if (!part) return;
+  store['group_participants'] = parts.filter(p => String(p.id) !== String(part.id));
+  try {
+    await dbDeleteRow('group_participants', String(part.id));
+  } catch (e) {
+    logger.error({ err: e, userId, groupId }, '[removeParticipant] persist failed');
+  }
+  if (recordOptOut) await recordGroupOptOut(part);
 }
 
 async function joinOrCreateAutoRoom(userId: string, spec: {
@@ -1290,13 +1431,22 @@ async function joinOrCreateAutoRoom(userId: string, spec: {
   name: string;
   interest_tag: string;
   age_group: string | null;
+  optKey: string;
 }): Promise<void> {
+  if (hasGroupOptOut(userId, spec.optKey)) return;
   const groups = getTable('group_chats');
-  let room = groups.find(g =>
-    String(g.room_kind ?? '') === spec.room_kind
-    && String(g.interest_tag ?? '') === spec.interest_tag
-    && String(g.age_group ?? '') === String(spec.age_group ?? ''),
-  );
+  let room = groups.find(g => {
+    if (String(g.hidden ?? '') === 'true' || g.hidden === true) return false;
+    if (spec.room_kind === AUTO_ROOM_AGE_DECADE) {
+      return (String(g.room_kind ?? '') === AUTO_ROOM_AGE_DECADE && String(g.age_group ?? '') === String(spec.age_group ?? ''))
+        || String(g.name) === spec.name;
+    }
+    if (spec.room_kind === AUTO_ROOM_BIRTH_YEAR) {
+      return (String(g.room_kind ?? '') === AUTO_ROOM_BIRTH_YEAR && (String(g.interest_tag ?? '') === spec.interest_tag || String(g.name) === spec.name))
+        || String(g.name) === spec.name;
+    }
+    return false;
+  });
   if (!room) {
     room = {
       id: genId(),
@@ -1305,6 +1455,7 @@ async function joinOrCreateAutoRoom(userId: string, spec: {
       age_group: spec.age_group,
       room_kind: spec.room_kind,
       max_members: UNLIMITED_GROUP_MEMBERS,
+      hidden: false,
       created_at: ts(),
     };
     groups.push(room);
@@ -1318,6 +1469,12 @@ async function joinOrCreateAutoRoom(userId: string, spec: {
       logger.error({ err: e, userId }, '[autoMatchGroupChat] room persist failed');
       return;
     }
+  } else {
+    room.name = spec.name;
+    room.interest_tag = spec.interest_tag;
+    room.room_kind = spec.room_kind;
+    room.age_group = spec.age_group;
+    room.max_members = UNLIMITED_GROUP_MEMBERS;
   }
   const kind = String(room.room_kind ?? '');
   if (kind === 'afterparty_club' || kind === 'afterparty_drink') return;
@@ -1342,26 +1499,33 @@ async function joinOrCreateAutoRoom(userId: string, spec: {
   }
 }
 
-/** 관심사+나이 / 같은 해 출생 두 방만 자동 입장. 2차 클럽·2차 술은 넣지 않음. */
+/** 년생 + N대 두 방만 자동 입장. 관심사 이름 없음. 2차는 넣지 않음. 명시적 나가기는 재입장하지 않음. */
 async function autoMatchGroupChat(userId: string, profile: Record<string, unknown>): Promise<void> {
   if (!userId) return;
   try {
     const ageBand = ageBandFromYear(profile.birth_year);
-    const tag = firstInterestTag(profile);
-    const interestKey = tag || '모임';
-    await joinOrCreateAutoRoom(userId, {
-      room_kind: AUTO_ROOM_INTEREST_AGE,
-      name: tag ? `${ageBand} ${tag} 모임` : `${ageBand} 모임`,
-      interest_tag: interestKey,
-      age_group: ageBand,
-    });
     const year = Number(profile.birth_year);
+    const parts = getTable('group_participants').filter(p => String(p.user_id) === userId);
+    for (const p of parts) {
+      const g = getTable('group_chats').find(row => String(row.id) === String(p.group_id));
+      if (g && isLeftoverInterestRoom(g)) {
+        await removeParticipant(userId, String(p.group_id), false);
+      }
+    }
+    await joinOrCreateAutoRoom(userId, {
+      room_kind: AUTO_ROOM_AGE_DECADE,
+      name: `${ageBand} 모임`,
+      interest_tag: ageBand,
+      age_group: ageBand,
+      optKey: autoRoomOptKey(AUTO_ROOM_AGE_DECADE, ageBand),
+    });
     if (Number.isFinite(year) && year >= 1900 && year <= 2100) {
       await joinOrCreateAutoRoom(userId, {
         room_kind: AUTO_ROOM_BIRTH_YEAR,
         name: `${year}년생 모임`,
         interest_tag: `${year}년생`,
         age_group: null,
+        optKey: autoRoomOptKey(AUTO_ROOM_BIRTH_YEAR, `${year}년생`),
       });
     }
   } catch (e) {
@@ -2402,7 +2566,11 @@ router.post('/op', async (req: Request, res: Response) => {
         const myGroupIds = new Set(
           getTable('group_participants')
             .filter(p => String(p.user_id) === String(requesterId))
-            .map(p => String(p.group_id)),
+            .flatMap(p => {
+              const raw = String(p.group_id);
+              const resolved = resolveMergedGroupId(raw);
+              return raw === resolved ? [raw] : [raw, resolved];
+            }),
         );
         if (table === 'group_participants') {
           const gpScope = tableData.filter(r => myGroupIds.has(String(r.group_id)));
@@ -2421,8 +2589,11 @@ router.post('/op', async (req: Request, res: Response) => {
           const gpData = single ? (gpLimited[0] ?? null) : maybeSingle ? (gpLimited[0] ?? null) : gpLimited;
           return res.json({ data: gpData, error: null });
         }
-        // group_messages: 참여 중인 방만
-        const gmScope = tableData.filter(r => myGroupIds.has(String(r.group_id)));
+        // group_messages: 참여 중인 방만 (병합된 옛 id 포함)
+        const gmScope = tableData.filter(r => {
+          const gid = String(r.group_id);
+          return myGroupIds.has(gid) || myGroupIds.has(resolveMergedGroupId(gid));
+        });
         const gmResult = applyFilters(gmScope, normalizedFilters);
         for (const { col, asc } of safeOrders) {
           gmResult.sort((a, b) => {
@@ -2624,6 +2795,7 @@ router.post('/op', async (req: Request, res: Response) => {
           if (effectiveRow.group_id == null) {
             return res.status(400).json({ data: null, error: { message: 'group_id is required for group_messages', code: 'INVALID_INPUT' } });
           }
+          effectiveRow = { ...effectiveRow, group_id: resolveMergedGroupId(String(effectiveRow.group_id)) };
           const isParticipant = getTable('group_participants').some(
             p => String(p.group_id) === String(effectiveRow.group_id) && String(p.user_id) === String(requesterId),
           );
@@ -2632,7 +2804,7 @@ router.post('/op', async (req: Request, res: Response) => {
             return res.status(403).json({ data: null, error: { message: 'Forbidden: not a group participant', code: 'FORBIDDEN' } });
           }
         }
-        // group_participants: 본인만 입장, 방당 인원 제한 없음, 사람당 최대 3개 방
+        // group_participants: 본인만 입장, 방당 인원 제한 없음, 사람당 최대 4개 방
         if (table === 'group_participants') {
           if (!requesterId) {
             logger.warn({ ip: req.ip }, '[SECURITY] IDOR: group_participants INSERT without requesterId blocked');
@@ -2645,7 +2817,7 @@ router.post('/op', async (req: Request, res: Response) => {
           if (effectiveRow.group_id == null || String(effectiveRow.group_id) === '') {
             return res.status(400).json({ data: null, error: { message: 'group_id is required for group_participants', code: 'INVALID_INPUT' } });
           }
-          const groupId = String(effectiveRow.group_id);
+          const groupId = resolveMergedGroupId(String(effectiveRow.group_id));
           const groupExists = getTable('group_chats').some(g => String(g.id) === groupId);
           if (!groupExists) {
             return res.status(400).json({ data: null, error: { message: '존재하지 않는 단톡방입니다.', code: 'INVALID_INPUT' } });
@@ -2670,6 +2842,7 @@ router.post('/op', async (req: Request, res: Response) => {
             user_id: requesterId,
             joined_at: effectiveRow.joined_at ?? ts(),
           };
+          await clearGroupOptOut(String(requesterId), groupId);
         }
         // group_chats: 카탈로그는 서버 시드. 일반 유저 방 생성 금지 (테스트는 시드용 INSERT 허용)
         if (table === 'group_chats' && !isAdmin && process.env.NODE_ENV !== 'test') {
@@ -3227,6 +3400,9 @@ router.post('/op', async (req: Request, res: Response) => {
       }
 
       for (const row of toDelete) {
+        if (table === 'group_participants') {
+          await recordGroupOptOut(row);
+        }
         smartBroadcast(table, row, { type: 'change', table, event: 'DELETE', newRow: null, oldRow: row });
       }
       return res.json({ data: null, error: null });

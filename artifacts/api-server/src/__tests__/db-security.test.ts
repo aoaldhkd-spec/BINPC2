@@ -1379,7 +1379,7 @@ describe('[Security] chat_reads partner receipt + 1:1 isolation', () => {
 });
 
 // ════════════════════════════════════════════════════════════════════════════════
-// 단체 채팅 — 클릭 입장 · 사람당 최대 3방 · 방 인원 제한 없음 · IDOR
+// 단체 채팅 — 클릭 입장 · 사람당 최대 4방 · 방 인원 제한 없음 · IDOR
 // ════════════════════════════════════════════════════════════════════════════════
 
 describe('[Security] group chats auto 2 + opt-in 2차', () => {
@@ -1396,7 +1396,7 @@ describe('[Security] group chats auto 2 + opt-in 2차', () => {
     return id;
   }
 
-  it('프로필 INSERT 시 관심사·나이 / 출생연도 두 방만 자동 입장하고 2차는 넣지 않음', async () => {
+  it('프로필 INSERT 시 년생·N대 두 방만 자동 입장하고 관심사·2차는 넣지 않음', async () => {
     const uid = `g-auto2-${randomUUID()}`;
     const created = await op({
       op: 'insert',
@@ -1431,20 +1431,23 @@ describe('[Security] group chats auto 2 + opt-in 2차', () => {
     const mine = (Array.isArray(rooms.body.data) ? rooms.body.data : [])
       .filter((g: { id: string }) => groupIds.includes(g.id));
     const kinds = mine.map((g: { room_kind?: string; name?: string }) => String(g.room_kind ?? ''));
-    expect(kinds.sort()).toEqual(['birth_year', 'interest_age']);
+    expect(kinds.sort()).toEqual(['age_decade', 'birth_year']);
     expect(mine.some((g: { name?: string }) => String(g.name ?? '').includes('2차'))).toBe(false);
+    expect(mine.every((g: { name?: string }) => /^(?:\d{4}년생 모임|\d+대 모임)$/.test(String(g.name ?? '')))).toBe(true);
+    expect(mine.some((g: { name?: string }) => String(g.name ?? '').includes('등산') || String(g.name ?? '').includes('영화'))).toBe(false);
   });
 
-  it('group_participants INSERT 는 사람당 최대 3개 방 (방 정원 아님)', async () => {
-    const uid = `g-max3-${randomUUID()}`;
+  it('group_participants INSERT 는 사람당 최대 4개 방 (방 정원 아님)', async () => {
+    const uid = `g-max4-${randomUUID()}`;
     const ids = await Promise.all([
-      seedGroup(`g3a-${uid}`, '방A'),
-      seedGroup(`g3b-${uid}`, '방B'),
-      seedGroup(`g3c-${uid}`, '방C'),
-      seedGroup(`g3d-${uid}`, '방D'),
+      seedGroup(`g4a-${uid}`, '방A'),
+      seedGroup(`g4b-${uid}`, '방B'),
+      seedGroup(`g4c-${uid}`, '방C'),
+      seedGroup(`g4d-${uid}`, '방D'),
+      seedGroup(`g4e-${uid}`, '방E'),
     ]);
 
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 4; i++) {
       const join = await op({
         op: 'insert',
         table: 'group_participants',
@@ -1457,15 +1460,15 @@ describe('[Security] group chats auto 2 + opt-in 2차', () => {
       expect(join.body.error).toBeNull();
     }
 
-    const fourth = await op({
+    const fifth = await op({
       op: 'insert',
       table: 'group_participants',
       requesterId: uid,
-      payload: { group_id: ids[3], user_id: uid },
+      payload: { group_id: ids[4], user_id: uid },
     });
-    expect(fourth.status).toBe(400);
-    expect(fourth.body.error?.code).toBe('GROUP_LIMIT');
-    expect(fourth.body.error?.message).toMatch(/최대 3개/);
+    expect(fifth.status).toBe(400);
+    expect(fifth.body.error?.code).toBe('GROUP_LIMIT');
+    expect(fifth.body.error?.message).toMatch(/최대 4개/);
   });
 
   it('비참여자 group_messages INSERT 는 403', async () => {
@@ -1559,5 +1562,62 @@ describe('[Security] group chats auto 2 + opt-in 2차', () => {
       payload: { group_id: gid, user_id: uid },
     });
     expect(join2.status).toBe(200);
+  });
+
+  it('자동 방에서 나가면 프로필 저장 후에도 다시 넣지 않는다', async () => {
+    const uid = `g-nrejoin-${randomUUID()}`;
+    const created = await op({
+      op: 'insert',
+      table: 'profiles',
+      payload: {
+        id: uid,
+        nickname: `nr-${uid.replace(/-/g, '').slice(0, 12)}`,
+        bio: '등산',
+        mbti: 'INFP',
+        birth_year: 1995,
+      },
+      requesterId: uid,
+    });
+    expect(created.status).toBe(200);
+
+    const parts1 = await op({
+      op: 'select',
+      table: 'group_participants',
+      requesterId: uid,
+      filters: [{ type: 'eq', col: 'user_id', val: uid }],
+    });
+    const rows1 = Array.isArray(parts1.body.data) ? parts1.body.data : [];
+    expect(rows1).toHaveLength(2);
+    const leaveId = String(rows1[0].group_id);
+
+    const leave = await op({
+      op: 'delete',
+      table: 'group_participants',
+      requesterId: uid,
+      filters: [
+        { type: 'eq', col: 'group_id', val: leaveId },
+        { type: 'eq', col: 'user_id', val: uid },
+      ],
+    });
+    expect(leave.status).toBe(200);
+
+    const updated = await op({
+      op: 'update',
+      table: 'profiles',
+      requesterId: uid,
+      filters: [{ type: 'eq', col: 'id', val: uid }],
+      payload: { bio: '등산, 영화' },
+    });
+    expect(updated.status).toBe(200);
+
+    const parts2 = await op({
+      op: 'select',
+      table: 'group_participants',
+      requesterId: uid,
+      filters: [{ type: 'eq', col: 'user_id', val: uid }],
+    });
+    const rows2 = Array.isArray(parts2.body.data) ? parts2.body.data : [];
+    expect(rows2).toHaveLength(1);
+    expect(rows2.some((r: { group_id: string }) => String(r.group_id) === leaveId)).toBe(false);
   });
 });

@@ -80,7 +80,7 @@ export function MainScreen({
   timerEndAt, timerLabel, onRefreshStatus, onRefreshChat, onRefreshProfiles, darkMode, onToggleDark, onShowContactQr, onScanQr, scannedContacts, onClearScannedContact, functionsLocked = false, onShowTutorial,
   newMsgCount: _newMsgCount, onClearMsgCount: _onClearMsgCount, unreadChatCounts, onClearChatUnread: _onClearChatUnread,
   onUpdateProfile, fortuneCompatTarget, myHeartCount,
-  groupChats = [], unreadGroupCounts = {}, newGroupMsgCount: _newGroupMsgCount = 0, onClearGroupMsgCount: _onClearGroupMsgCount, onOpenGroupChat, onJoinGroupChat, joiningGroupId = null,
+  groupChats = [], unreadGroupCounts = {}, newGroupMsgCount: _newGroupMsgCount = 0, onClearGroupMsgCount: _onClearGroupMsgCount, onOpenGroupChat, onJoinGroupChat, onLeaveGroupChat, joiningGroupId = null,
   blockedUserIds = new Set<string>(), hiddenByIds = new Set<string>(),
   profileVisitors = [] as ProfileView[],
   newVisitCount = 0,
@@ -93,6 +93,7 @@ export function MainScreen({
   userSignals = [] as UserSignal[],
   onUserSignalUpdate,
   onMissionComplete,
+  onOpenResetPassword,
 }: {
   profiles: Profile[]; currentUserId: string | null; likedIds: Set<string>; sentHeartTypes: Map<string, HeartType>; sentHeartsPerPerson: Map<string, Set<HeartType>>; likeStatuses: Map<string, string>;
   profileMap: Map<string, Profile>; mainTab: MainTab;
@@ -134,6 +135,7 @@ export function MainScreen({
   onClearGroupMsgCount?: () => void;
   onOpenGroupChat?: (groupId: string) => void;
   onJoinGroupChat?: (groupId: string) => void;
+  onLeaveGroupChat?: (groupId: string) => void | Promise<void>;
   joiningGroupId?: string | null;
   blockedUserIds?: Set<string>;
   hiddenByIds?: Set<string>;
@@ -148,6 +150,7 @@ export function MainScreen({
   userSignals?: UserSignal[];
   onUserSignalUpdate?: (row: UserSignal) => void;
   onMissionComplete?: () => void;
+  onOpenResetPassword?: () => void;
 }) {
   const heartCount = useCallback((t: HeartType) => { let c = 0; sentHeartsPerPerson.forEach(types => { if (types.has(t)) c++; }); return c; }, [sentHeartsPerPerson]);
 
@@ -380,6 +383,8 @@ export function MainScreen({
   const [interestFilter, setInterestFilter] = useState<string | null>(BIO_CATEGORIES[0].label);
   const [interestSaving, setInterestSaving] = useState(false);
   const interestInitRef = useRef(false);
+  const [leaveGroupTarget, setLeaveGroupTarget] = useState<GroupChat | null>(null);
+  const [leavingGroupId, setLeavingGroupId] = useState<string | null>(null);
 
   // 프로필 로드 시 편집 상태 초기화 (최초 1회)
   useEffect(() => {
@@ -605,7 +610,7 @@ export function MainScreen({
           </div>
           {/* 중앙: 타이틀 */}
           <div className="justify-self-center">
-            <ResetButton onReset={onReset} darkMode={darkMode} />
+            <ResetButton onReset={onReset} darkMode={darkMode} onOpenResetPassword={onOpenResetPassword} />
           </div>
           {/* 우: 하트 */}
           <div className="justify-self-end flex items-center gap-2">
@@ -1899,7 +1904,7 @@ export function MainScreen({
             {chatSubTab === 'group' && (
               <>
                 <p className={`text-[11px] font-bold px-1 ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>
-                  참여 {groupChats.filter(g => g.joined).length}/{MAX_GROUPS_PER_USER} · 두 방은 자동, 2차만 직접 입장
+                  참여 {groupChats.filter(g => g.joined).length}/{MAX_GROUPS_PER_USER} · 년생·N대 자동, 2차는 들락날락
                 </p>
                 {groupChats.length === 0 ? (
                   <div className="text-center py-16">
@@ -1963,13 +1968,28 @@ export function MainScreen({
                               {group.memberCount ?? 0}명
                             </span>
                             {joined ? (
-                              unread > 0 ? (
-                                <span className="min-w-[22px] h-[22px] px-1.5 bg-rose-500 text-white text-[11px] font-black rounded-full flex items-center justify-center shadow-sm">
-                                  {unread > 99 ? '99+' : unread}
-                                </span>
-                              ) : (
-                                <span className={`text-[10px] font-bold ${darkMode ? 'text-teal-400' : 'text-teal-600'}`}>참여 중</span>
-                              )
+                              <>
+                                {unread > 0 ? (
+                                  <span className="min-w-[22px] h-[22px] px-1.5 bg-rose-500 text-white text-[11px] font-black rounded-full flex items-center justify-center shadow-sm">
+                                    {unread > 99 ? '99+' : unread}
+                                  </span>
+                                ) : (
+                                  <span className={`text-[10px] font-bold ${darkMode ? 'text-teal-400' : 'text-teal-600'}`}>참여 중</span>
+                                )}
+                                <button
+                                  type="button"
+                                  disabled={leavingGroupId === group.id}
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    setLeaveGroupTarget(group);
+                                  }}
+                                  className={`text-[10px] font-black px-2 py-1 rounded-full active:scale-95 disabled:opacity-50 ${
+                                    darkMode ? 'bg-slate-700 text-slate-200' : 'bg-gray-100 text-gray-600'
+                                  }`}
+                                >
+                                  {leavingGroupId === group.id ? '나가는 중…' : '나가기'}
+                                </button>
+                              </>
                             ) : (
                               <button
                                 type="button"
@@ -1994,6 +2014,41 @@ export function MainScreen({
                   </div>
                 )}
               </>
+            )}
+            {leaveGroupTarget && (
+              <div className="fixed inset-x-0 bottom-0 z-50 flex items-end justify-center px-4 pb-8 pointer-events-none">
+                <div
+                  className={`pointer-events-auto w-full max-w-sm rounded-2xl p-4 shadow-2xl border ${
+                    darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'
+                  }`}
+                  onClick={e => e.stopPropagation()}
+                >
+                  <p className={`font-black text-sm ${darkMode ? 'text-white' : 'text-gray-900'}`}>이 방에서 나갈까요?</p>
+                  <p className={`text-xs mt-1 ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                    방은 그대로예요. 나만 빠지고, 나중에 다시 들어올 수 있어요.
+                  </p>
+                  <div className="flex gap-2 mt-3">
+                    <button
+                      type="button"
+                      onClick={() => setLeaveGroupTarget(null)}
+                      className={`flex-1 py-2 rounded-xl text-sm font-bold ${darkMode ? 'bg-slate-700 text-white' : 'bg-gray-100 text-gray-700'}`}
+                    >취소</button>
+                    <button
+                      type="button"
+                      disabled={!!leavingGroupId}
+                      onClick={async () => {
+                        const id = leaveGroupTarget.id;
+                        setLeavingGroupId(id);
+                        try { await onLeaveGroupChat?.(id); } finally {
+                          setLeavingGroupId(null);
+                          setLeaveGroupTarget(null);
+                        }
+                      }}
+                      className="flex-1 py-2 rounded-xl text-sm font-bold bg-red-500 text-white disabled:opacity-50"
+                    >나가기</button>
+                  </div>
+                </div>
+              </div>
             )}
 
             {/* ── 1:1 채팅 섹션 (기존) ── */}
