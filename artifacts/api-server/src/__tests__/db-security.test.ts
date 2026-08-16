@@ -1432,9 +1432,108 @@ describe('[Security] group chats auto 2 + opt-in 2차', () => {
       .filter((g: { id: string }) => groupIds.includes(g.id));
     const kinds = mine.map((g: { room_kind?: string; name?: string }) => String(g.room_kind ?? ''));
     expect(kinds.sort()).toEqual(['age_decade', 'birth_year']);
+    expect(mine.some((g: { name?: string }) => String(g.name ?? '') === '20대 모임')).toBe(true);
+    expect(mine.some((g: { name?: string }) => String(g.name ?? '') === '1998년생 모임')).toBe(true);
     expect(mine.some((g: { name?: string }) => String(g.name ?? '').includes('2차'))).toBe(false);
     expect(mine.every((g: { name?: string }) => /^(?:\d{4}년생 모임|\d+대 모임)$/.test(String(g.name ?? '')))).toBe(true);
     expect(mine.some((g: { name?: string }) => String(g.name ?? '').includes('등산') || String(g.name ?? '').includes('영화'))).toBe(false);
+  });
+
+  it('N대 모임은 시드되어 목록에 있고 관심사 이름 방은 자동 입장되지 않는다', async () => {
+    const leftoverId = `legacy-photo-${randomUUID()}`;
+    const leftover = await op({
+      op: 'insert',
+      table: 'group_chats',
+      payload: {
+        id: leftoverId,
+        name: '30대 사진찍기 모임',
+        interest_tag: '사진찍기',
+        age_group: '30대',
+        max_members: 999999,
+        room_kind: 'interest_age',
+      },
+      requesterId: 'seed-admin',
+      selectAfterWrite: true,
+      single: true,
+    });
+    expect(leftover.status).toBe(200);
+
+    const rooms = await op({
+      op: 'select',
+      table: 'group_chats',
+      requesterId: `seed-cat-${randomUUID()}`,
+    });
+    expect(rooms.status).toBe(200);
+    const list = Array.isArray(rooms.body.data) ? rooms.body.data : [];
+    const names = list.map((g: { name?: string }) => String(g.name ?? ''));
+    expect(names).toContain('20대 모임');
+    expect(names).toContain('30대 모임');
+    expect(names).toContain('30대 사진찍기 모임');
+
+    const uid = `g-nolegacy-${randomUUID()}`;
+    const created = await op({
+      op: 'insert',
+      table: 'profiles',
+      payload: {
+        id: uid,
+        nickname: `nl-${uid.replace(/-/g, '').slice(0, 12)}`,
+        bio: '사진찍기',
+        mbti: 'ISFP',
+        birth_year: 1995,
+      },
+      requesterId: uid,
+    });
+    expect(created.status).toBe(200);
+    const parts = await op({
+      op: 'select',
+      table: 'group_participants',
+      requesterId: uid,
+      filters: [{ type: 'eq', col: 'user_id', val: uid }],
+    });
+    const rows = Array.isArray(parts.body.data) ? parts.body.data : [];
+    const groupIds = rows.map((r: { group_id: string }) => r.group_id);
+    expect(groupIds).not.toContain(leftoverId);
+    const mineFromSelect = await op({
+      op: 'select',
+      table: 'group_chats',
+      requesterId: uid,
+    });
+    const all = Array.isArray(mineFromSelect.body.data) ? mineFromSelect.body.data : [];
+    const joined = all.filter((g: { id: string }) => groupIds.includes(g.id));
+    expect(joined.some((g: { name?: string }) => String(g.name ?? '') === '30대 모임')).toBe(true);
+    expect(joined.some((g: { name?: string }) => String(g.name ?? '') === '1995년생 모임')).toBe(true);
+    expect(joined.some((g: { name?: string }) => String(g.name ?? '').includes('사진'))).toBe(false);
+  });
+
+  it('생년이 없으면 기타 모임을 만들지 않는다', async () => {
+    const uid = `g-noyear-${randomUUID()}`;
+    const created = await op({
+      op: 'insert',
+      table: 'profiles',
+      payload: {
+        id: uid,
+        nickname: `ny-${uid.replace(/-/g, '').slice(0, 12)}`,
+        bio: '영화',
+        mbti: 'INTP',
+      },
+      requesterId: uid,
+    });
+    expect(created.status).toBe(200);
+    const parts = await op({
+      op: 'select',
+      table: 'group_participants',
+      requesterId: uid,
+      filters: [{ type: 'eq', col: 'user_id', val: uid }],
+    });
+    const rows = Array.isArray(parts.body.data) ? parts.body.data : [];
+    expect(rows).toHaveLength(0);
+    const rooms = await op({
+      op: 'select',
+      table: 'group_chats',
+      requesterId: uid,
+    });
+    const list = Array.isArray(rooms.body.data) ? rooms.body.data : [];
+    expect(list.some((g: { name?: string }) => String(g.name ?? '').includes('기타'))).toBe(false);
   });
 
   it('group_participants INSERT 는 사람당 최대 4개 방 (방 정원 아님)', async () => {

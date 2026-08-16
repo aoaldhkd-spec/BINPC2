@@ -1334,6 +1334,46 @@ async function ensureOptInGroupRooms(): Promise<void> {
         }
       }
     }
+    // N대 모임은 관심사 없이 카탈로그에 항상 존재해야 한다. 년생 방은 프로필 조회 때 만든다.
+    for (const band of ['10대', '20대', '30대', '40대', '50대', '60대', '70대']) {
+      const id = `group_age_${band.replace('대', '')}`;
+      const name = `${band} 모임`;
+      let room = groups.find(g => String(g.id) === id)
+        ?? groups.find(g => String(g.name) === name);
+      if (!room) {
+        room = {
+          id,
+          name,
+          interest_tag: band,
+          age_group: band,
+          room_kind: 'age_decade',
+          max_members: UNLIMITED_GROUP_MEMBERS,
+          hidden: false,
+          created_at: ts(),
+        };
+        groups.push(room);
+        try {
+          await dbPersistRow('group_chats', room);
+        } catch (e) {
+          store['group_chats'] = groups.filter(g => String(g.id) !== id);
+          logger.error({ err: e, groupId: id }, '[ensureOptInGroupRooms] age room seed persist failed');
+          continue;
+        }
+      } else {
+        room.name = name;
+        room.interest_tag = band;
+        room.age_group = band;
+        room.room_kind = 'age_decade';
+        room.max_members = UNLIMITED_GROUP_MEMBERS;
+        room.hidden = false;
+        room.merged_into = null;
+        try {
+          await dbPersistRow('group_chats', room);
+        } catch (e) {
+          logger.error({ err: e, groupId: String(room.id) }, '[ensureOptInGroupRooms] age room persist failed');
+        }
+      }
+    }
   } catch (e) {
     logger.error({ err: e }, '[ensureOptInGroupRooms] 오류');
   }
@@ -1342,12 +1382,22 @@ async function ensureOptInGroupRooms(): Promise<void> {
 const AUTO_ROOM_AGE_DECADE = 'age_decade';
 const AUTO_ROOM_BIRTH_YEAR = 'birth_year';
 
-function ageBandFromYear(year: unknown): string {
+function ageBandFromYear(year: unknown): string | null {
   const y = Number(year);
-  if (!Number.isFinite(y) || y < 1900 || y > 2100) return '기타';
+  if (!Number.isFinite(y) || y < 1900 || y > 2100) return null;
   const band = Math.floor((2026 - y) / 10) * 10;
   return `${Math.max(10, band)}대`;
 }
+
+function canonicalAgeRoomId(ageBand: string): string {
+  return `group_age_${ageBand.replace(/대$/, '')}`;
+}
+
+function canonicalYearRoomId(year: number): string {
+  return `group_birth_${year}`;
+}
+
+const autoMatchInFlight = new Map<string, Promise<void>>();
 
 function autoRoomOptKey(kind: string, extra: string): string {
   return `${kind}:${extra}`;
@@ -1432,24 +1482,14 @@ async function joinOrCreateAutoRoom(userId: string, spec: {
   interest_tag: string;
   age_group: string | null;
   optKey: string;
+  canonicalId?: string;
 }): Promise<void> {
-  if (hasGroupOptOut(userId, spec.optKey)) return;
   const groups = getTable('group_chats');
-  let room = groups.find(g => {
-    if (String(g.hidden ?? '') === 'true' || g.hidden === true) return false;
-    if (spec.room_kind === AUTO_ROOM_AGE_DECADE) {
-      return (String(g.room_kind ?? '') === AUTO_ROOM_AGE_DECADE && String(g.age_group ?? '') === String(spec.age_group ?? ''))
-        || String(g.name) === spec.name;
-    }
-    if (spec.room_kind === AUTO_ROOM_BIRTH_YEAR) {
-      return (String(g.room_kind ?? '') === AUTO_ROOM_BIRTH_YEAR && (String(g.interest_tag ?? '') === spec.interest_tag || String(g.name) === spec.name))
-        || String(g.name) === spec.name;
-    }
-    return false;
-  });
+  let room = groups.find(g => spec.canonicalId && String(g.id) === spec.canonicalId)
+    ?? groups.find(g => String(g.name) === spec.name && String(g.hidden ?? '') !== 'true' && g.hidden !== true);
   if (!room) {
     room = {
-      id: genId(),
+      id: spec.canonicalId || genId(),
       name: spec.name,
       interest_tag: spec.interest_tag,
       age_group: spec.age_group,
@@ -1475,7 +1515,15 @@ async function joinOrCreateAutoRoom(userId: string, spec: {
     room.room_kind = spec.room_kind;
     room.age_group = spec.age_group;
     room.max_members = UNLIMITED_GROUP_MEMBERS;
+    room.hidden = false;
+    room.merged_into = null;
+    try {
+      await dbPersistRow('group_chats', room);
+    } catch (e) {
+      logger.error({ err: e, userId, groupId: String(room.id) }, '[autoMatchGroupChat] room update persist failed');
+    }
   }
+  if (hasGroupOptOut(userId, spec.optKey)) return;
   const kind = String(room.room_kind ?? '');
   if (kind === 'afterparty_club' || kind === 'afterparty_drink') return;
   const parts = getTable('group_participants');
@@ -1512,13 +1560,16 @@ async function autoMatchGroupChat(userId: string, profile: Record<string, unknow
         await removeParticipant(userId, String(p.group_id), false);
       }
     }
-    await joinOrCreateAutoRoom(userId, {
-      room_kind: AUTO_ROOM_AGE_DECADE,
-      name: `${ageBand} 모임`,
-      interest_tag: ageBand,
-      age_group: ageBand,
-      optKey: autoRoomOptKey(AUTO_ROOM_AGE_DECADE, ageBand),
-    });
+    if (ageBand) {
+      await joinOrCreateAutoRoom(userId, {
+        room_kind: AUTO_ROOM_AGE_DECADE,
+        name: `${ageBand} 모임`,
+        interest_tag: ageBand,
+        age_group: ageBand,
+        optKey: autoRoomOptKey(AUTO_ROOM_AGE_DECADE, ageBand),
+        canonicalId: canonicalAgeRoomId(ageBand),
+      });
+    }
     if (Number.isFinite(year) && year >= 1900 && year <= 2100) {
       await joinOrCreateAutoRoom(userId, {
         room_kind: AUTO_ROOM_BIRTH_YEAR,
@@ -1526,11 +1577,23 @@ async function autoMatchGroupChat(userId: string, profile: Record<string, unknow
         interest_tag: `${year}년생`,
         age_group: null,
         optKey: autoRoomOptKey(AUTO_ROOM_BIRTH_YEAR, `${year}년생`),
+        canonicalId: canonicalYearRoomId(year),
       });
     }
   } catch (e) {
     logger.error({ err: e, userId }, '[autoMatchGroupChat] 오류');
   }
+}
+
+async function autoMatchGroupChatGuarded(userId: string, profile: Record<string, unknown>): Promise<void> {
+  const running = autoMatchInFlight.get(userId);
+  if (running) {
+    await running;
+    return;
+  }
+  const pending = autoMatchGroupChat(userId, profile).finally(() => autoMatchInFlight.delete(userId));
+  autoMatchInFlight.set(userId, pending);
+  await pending;
 }
 
 // Seed must finish before /api/db handles traffic. LISTEN/NOTIFY is background-only —
@@ -2563,6 +2626,11 @@ router.post('/op', async (req: Request, res: Response) => {
           logger.warn({ table, ip: req.ip }, '[SECURITY] IDOR: group SELECT without requesterId blocked');
           return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
         }
+        if (table === 'group_participants') {
+          const me = getTable('profiles').find(p => String(p.id) === String(requesterId));
+          if (me) await autoMatchGroupChatGuarded(String(requesterId), me);
+          tableData = store['group_participants'];
+        }
         const myGroupIds = new Set(
           getTable('group_participants')
             .filter(p => String(p.user_id) === String(requesterId))
@@ -2617,6 +2685,11 @@ router.post('/op', async (req: Request, res: Response) => {
         }
       }
 
+      if (table === 'group_chats' && requesterId) {
+        const me = getTable('profiles').find(p => String(p.id) === String(requesterId));
+        if (me) await autoMatchGroupChatGuarded(String(requesterId), me);
+        tableData = store['group_chats'];
+      }
       let result = applyFilters(tableData, normalizedFilters);
       for (const { col, asc } of safeOrders) {
         result.sort((a, b) => {
@@ -3052,7 +3125,7 @@ router.post('/op', async (req: Request, res: Response) => {
         // #33: 신규 프로필 등록 시 PIN 풀 사용량 확인 — 85% 초과 시 관리자 푸시 알림
         if (table === 'profiles') {
           checkAndNotifyAdminPinPool().catch(e => logger.error({ err: e }, '[db] background task error'));
-          await autoMatchGroupChat(String(newRow.id), newRow);
+          await autoMatchGroupChatGuarded(String(newRow.id), newRow);
         }
         // chat_reads 삽입 시 해당 유저 unread 캐시 즉시 무효화
         if (table === 'chat_reads' && newRow.reader_id) {
@@ -3169,7 +3242,7 @@ router.post('/op', async (req: Request, res: Response) => {
       }
       if (table === 'profiles') {
         for (const row of updated) {
-          await autoMatchGroupChat(String(row.id), row);
+          await autoMatchGroupChatGuarded(String(row.id), row);
         }
       }
       if (selectAfterWrite) return res.json({ data: single ? updated[0] ?? null : updated, error: null });
@@ -3303,7 +3376,7 @@ router.post('/op', async (req: Request, res: Response) => {
       }
       if (table === 'profiles') {
         for (const row of upserted) {
-          await autoMatchGroupChat(String(row.id), row);
+          await autoMatchGroupChatGuarded(String(row.id), row);
         }
       }
       if (selectAfterWrite) return res.json({ data: upserted, error: null });

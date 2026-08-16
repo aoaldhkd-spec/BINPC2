@@ -123,21 +123,22 @@ export function groupRoomVisual(group: GroupLike): {
 
 export function isLegacyInterestAutoRoom(group: GroupLike): boolean {
   if (afterpartyKind(group)) return false;
+  const name = String(group.name ?? '');
+  if (/^\d{4}년생 모임$/.test(name) || /^\d+대 모임$/.test(name)) return false;
   const kind = group.room_kind ?? '';
   if (kind === 'interest_age') return true;
-  const name = String(group.name ?? '');
-  if (/^\d{4}년생 모임$/.test(name)) return false;
-  if (/^\d+대 모임$/.test(name)) return false;
-  if (kind === 'birth_year' || kind === 'age_decade') return false;
+  if (kind === 'birth_year' || kind === 'age_decade') {
+    return /대\s+.+\s*모임/.test(name) || /모임\s*모임/.test(name);
+  }
   return /대\s+.+\s*모임/.test(name) || /모임\s*모임/.test(name);
 }
 
 function isYearRoom(group: GroupLike): boolean {
-  return group.room_kind === 'birth_year' || /^\d{4}년생 모임$/.test(String(group.name ?? ''));
+  return /^\d{4}년생 모임$/.test(String(group.name ?? ''));
 }
 
 function isDecadeRoom(group: GroupLike): boolean {
-  return group.room_kind === 'age_decade' || /^\d+대 모임$/.test(String(group.name ?? ''));
+  return /^\d+대 모임$/.test(String(group.name ?? ''));
 }
 
 export function ageBandFromYear(year: unknown): string | null {
@@ -160,7 +161,7 @@ export function isVisibleCatalogRoom(
   const year = opts?.myBirthYear;
   if (year && isYearRoom(group) && String(group.name) === `${year}년생 모임`) return true;
   const band = year ? ageBandFromYear(year) : null;
-  if (band && isDecadeRoom(group) && (String(group.name) === `${band} 모임` || String(group.age_group ?? '') === band)) {
+  if (band && isDecadeRoom(group) && String(group.name) === `${band} 모임`) {
     return true;
   }
   return false;

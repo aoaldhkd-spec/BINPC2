@@ -79,10 +79,9 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
   // ── 단톡방 목록 로드 (참여 중 + 입장 가능 카탈로그) ─────────────────────────
   const loadGroupChats = useCallback(async (userId: string): Promise<void> => {
     try {
-      const [partsRes, groupsRes] = await Promise.all([
-        supabase.from('group_participants').select('*').eq('user_id', userId),
-        supabase.from('group_chats').select('*'),
-      ]);
+      // 참가 조회가 N대/년생 방을 만든 뒤에 목록을 읽는다 (병렬이면 빈 카탈로그가 올 수 있음)
+      const partsRes = await supabase.from('group_participants').select('*').eq('user_id', userId);
+      const groupsRes = await supabase.from('group_chats').select('*');
       const parts = (partsRes.data ?? []) as GroupParticipant[];
       const groupIds = parts.map(p => p.group_id);
       setMyGroupIds(groupIds);

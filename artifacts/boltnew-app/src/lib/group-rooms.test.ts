@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { GroupChat } from '../types/app';
 import {
   MAX_GROUPS_PER_USER,
+  ageBandFromYear,
   catalogGroupRooms,
   countUnreadGroupMessages,
   groupLimitMessage,
@@ -51,10 +52,41 @@ describe('group-rooms catalog', () => {
     expect(list.every(g => !g.name.includes('사진') && !g.name.includes('기타'))).toBe(true);
   });
 
+  it('shows the matching N대 room even when the user is not joined', () => {
+    const list = catalogGroupRooms([
+      room({ id: 'group_age_20', name: '20대 모임', room_kind: 'age_decade', age_group: '20대', interest_tag: '20대' }),
+      room({ id: 'group_age_30', name: '30대 모임', room_kind: 'age_decade', age_group: '30대', interest_tag: '30대' }),
+      room({ id: 'legacy', name: '30대 사진찍기 모임', room_kind: 'interest_age', age_group: '30대', interest_tag: '사진찍기' }),
+      room({ id: 'y', name: '1995년생 모임', room_kind: 'birth_year', interest_tag: '1995년생' }),
+    ], { myBirthYear: 1995, joinedIds: [] });
+    expect(list.map(g => g.name).sort()).toEqual(['1995년생 모임', '30대 모임']);
+    expect(list.find(g => g.name === '30대 모임')?.joined).toBe(false);
+    expect(list.some(g => g.name.includes('사진'))).toBe(false);
+  });
+
+  it('shows 20대 모임 for a 1998 birth year and hides other decades', () => {
+    const list = catalogGroupRooms([
+      room({ id: 'group_age_20', name: '20대 모임', room_kind: 'age_decade', age_group: '20대' }),
+      room({ id: 'group_age_30', name: '30대 모임', room_kind: 'age_decade', age_group: '30대' }),
+      room({ id: 'legacy', name: '20대 뜨밤 모임', room_kind: 'interest_age', age_group: '20대' }),
+    ], { myBirthYear: 1998, joinedIds: [] });
+    expect(list.map(g => g.name)).toEqual(['20대 모임']);
+  });
+
+  it('maps birth year to decade band without 기타', () => {
+    expect(ageBandFromYear(1998)).toBe('20대');
+    expect(ageBandFromYear(1995)).toBe('30대');
+    expect(ageBandFromYear(2007)).toBe('10대');
+    expect(ageBandFromYear(null)).toBeNull();
+    expect(ageBandFromYear('기타')).toBeNull();
+  });
+
   it('flags interest+age leftovers', () => {
     expect(isLegacyInterestAutoRoom(room({ id: '1', name: '20대 뜨밤 모임', room_kind: 'interest_age' }))).toBe(true);
     expect(isLegacyInterestAutoRoom(room({ id: '2', name: '30대 모임', room_kind: 'age_decade' }))).toBe(false);
     expect(isLegacyInterestAutoRoom(room({ id: '3', name: '1995년생 모임', room_kind: 'birth_year' }))).toBe(false);
+    expect(isLegacyInterestAutoRoom(room({ id: '4', name: '30대 모임', room_kind: 'interest_age' }))).toBe(false);
+    expect(isLegacyInterestAutoRoom(room({ id: '5', name: '30대 사진찍기 모임', room_kind: 'age_decade', age_group: '30대' }))).toBe(true);
   });
 
   it('sums unread counts as a number', () => {
