@@ -15,6 +15,7 @@ import {
   groupLimitMessage,
   readGroupLastReads,
   resolveCatalogGroupId,
+  siblingGroupIds,
   sumUnreadCounts,
   writeGroupLastRead,
 } from '../lib/group-rooms';
@@ -67,6 +68,7 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
   const [myGroupIds, setMyGroupIds] = useState<string[]>([]);
   const myGroupIdsRef = useRef<string[]>([]);
   myGroupIdsRef.current = myGroupIds;
+  const [groupParticipants, setGroupParticipants] = useState<GroupParticipant[]>([]);
 
   const currentUserIdRef = useRef(currentUserId);
   currentUserIdRef.current = currentUserId;
@@ -98,6 +100,13 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
       const latestByGroup = new Map<string, string>();
       const unreadByGroup: Record<string, number> = {};
       const lastReads = readGroupLastReads(userId);
+      for (const p of parts) {
+        const serverRead = p.last_read_at;
+        if (typeof serverRead === 'string' && serverRead && (!lastReads[p.group_id] || serverRead > lastReads[p.group_id])) {
+          lastReads[p.group_id] = serverRead;
+          writeGroupLastRead(userId, p.group_id, serverRead);
+        }
+      }
       if (groupIds.length > 0) {
         const { data: msgs } = await supabase.from('group_messages')
           .select('group_id, content, image_url, created_at, sender_id')
@@ -181,10 +190,39 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
     }
   }, []);
 
+  const loadGroupParticipants = useCallback(async (groupId: string): Promise<void> => {
+    try {
+      const { data } = await supabase.from('group_participants').select('*').eq('group_id', groupId);
+      if (activeGroupIdRef.current !== groupId) return;
+      setGroupParticipants((data ?? []) as GroupParticipant[]);
+    } catch (e) {
+      console.warn('[loadGroupParticipants]', e);
+    }
+  }, []);
+
+  const markGroupRead = useCallback(async (groupId: string): Promise<void> => {
+    const userId = currentUserIdRef.current;
+    if (!userId || !groupId) return;
+    const at = new Date().toISOString();
+    writeGroupLastRead(userId, groupId, at);
+    setGroupParticipants(prev => prev.map(p =>
+      p.user_id === userId && p.group_id === groupId ? { ...p, last_read_at: at } : p,
+    ));
+    try {
+      await supabase.from('group_participants')
+        .update({ last_read_at: at })
+        .eq('group_id', groupId)
+        .eq('user_id', userId);
+    } catch (e) {
+      console.warn('[markGroupRead]', e);
+    }
+  }, []);
+
   // ── 단톡방 열기 (이미 입장한 방만) ──────────────────────────────────────────
   const openGroupChat = useCallback(async (groupId: string): Promise<void> => {
     if (!myGroupIdsRef.current.includes(groupId)) return;
     setGroupMessages([]);
+    setGroupParticipants([]);
     setActiveGroupId(groupId);
     activeGroupIdRef.current = groupId;
     // 미읽음 초기화
@@ -192,8 +230,12 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
     setUnreadGroupCounts(prev => { const n = { ...prev }; delete n[groupId]; return n; });
     if (removed > 0) setNewGroupMsgCount(c => Math.max(0, c - removed));
     if (currentUserIdRef.current) writeGroupLastRead(currentUserIdRef.current, groupId);
-    await loadGroupMessages(groupId).catch(() => {});
-  }, [loadGroupMessages]);
+    await Promise.all([
+      loadGroupMessages(groupId).catch(() => {}),
+      loadGroupParticipants(groupId),
+    ]);
+    void markGroupRead(groupId);
+  }, [loadGroupMessages, loadGroupParticipants, markGroupRead]);
 
   // ── 단톡방 입장 (클릭 전용, 자동 입장 없음) ────────────────────────────────
   const joinGroupChat = useCallback(async (groupId: string): Promise<boolean> => {
@@ -217,7 +259,11 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
         setBottomNotif({ type: 'error', nickname: msg });
         return false;
       }
-      setMyGroupIds(prev => prev.includes(groupId) ? prev : [...prev, groupId]);
+      setMyGroupIds(prev => {
+        const next = prev.includes(groupId) ? prev : [...prev, groupId];
+        myGroupIdsRef.current = next;
+        return next;
+      });
       await loadGroupChats(userId);
       return true;
     } catch (e) {
@@ -234,29 +280,40 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
     setActiveGroupId(null);
     activeGroupIdRef.current = null;
     setGroupMessages([]);
+    setGroupParticipants([]);
   }, []);
 
   // ── 단톡방 나가기 (카탈로그에는 남고, 다시 입장 가능) ───────────────────────
   const leaveGroupChat = useCallback(async (groupId: string): Promise<void> => {
     const userId = currentUserIdRef.current;
     if (!userId) return;
+    const ids = siblingGroupIds(rawGroupsRef.current, groupId);
     try {
-      await supabase
-        .from('group_participants')
-        .delete()
-        .eq('group_id', groupId)
-        .eq('user_id', userId);
+      for (const id of ids) {
+        await supabase
+          .from('group_participants')
+          .delete()
+          .eq('group_id', id)
+          .eq('user_id', userId);
+      }
     } catch (e) {
       console.error('[leaveGroupChat] 삭제 오류:', e);
     }
-    setMyGroupIds(prev => prev.filter(id => id !== groupId));
-    myGroupIdsRef.current = myGroupIdsRef.current.filter(id => id !== groupId);
-    if (activeGroupIdRef.current === groupId) {
+    const idSet = new Set(ids);
+    setMyGroupIds(prev => prev.filter(id => !idSet.has(id)));
+    myGroupIdsRef.current = myGroupIdsRef.current.filter(id => !idSet.has(id));
+    if (activeGroupIdRef.current && idSet.has(activeGroupIdRef.current)) {
       setActiveGroupId(null);
       activeGroupIdRef.current = null;
       setGroupMessages([]);
+      setGroupParticipants([]);
     }
-    setUnreadGroupCounts(prev => { const n = { ...prev }; delete n[groupId]; return n; });
+    setUnreadGroupCounts(prev => {
+      const n = { ...prev };
+      for (const id of ids) delete n[id];
+      delete n[groupId];
+      return n;
+    });
     await loadGroupChats(userId);
   }, [loadGroupChats]);
 
@@ -343,6 +400,7 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
               const next = applyGroupInsert(prev, m);
               return next.length > MAX_GROUP_MESSAGES ? next.slice(-MAX_GROUP_MESSAGES) : next;
             });
+            if (m.sender_id !== uid) void markGroupRead(m.group_id);
           } else if (m.sender_id !== uid) {
             // 비활성 그룹 중복 방지 (재연결 시 동일 메시지 재수신 대비)
             if (seenInactiveGroupMsgIds.current.has(m.id)) return;
@@ -361,19 +419,45 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
         } catch { /* SSE 파싱 오류 무시 */ }
       })
       .on('postgres_changes', {
-        event: 'INSERT', schema: 'public', table: 'group_participants',
+        event: '*', schema: 'public', table: 'group_participants',
       }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         try {
-          const p = payload.new as GroupParticipant;
-          if (!p?.group_id) return;
-          if (p.user_id === uid) {
-            setMyGroupIds(prev => prev.includes(p.group_id) ? prev : [...prev, p.group_id]);
+          const hasNew = !!(payload.new && (payload.new.id || payload.new.group_id));
+          const hasOld = !!(payload.old && (payload.old.id || payload.old.group_id));
+          const event = hasNew && hasOld ? 'UPDATE' : hasNew ? 'INSERT' : 'DELETE';
+          const incoming = (hasNew ? payload.new : payload.old) as GroupParticipant;
+          if (!incoming?.group_id) return;
+          if (event === 'INSERT' && incoming.user_id === uid) {
+            setMyGroupIds(prev => prev.includes(incoming.group_id) ? prev : [...prev, incoming.group_id]);
             void loadGroupChats(uid);
             return;
           }
-          if (myGroupIdsRef.current.includes(p.group_id)) {
+          if (event === 'DELETE' && incoming.user_id === uid) {
+            setMyGroupIds(prev => prev.filter(id => id !== incoming.group_id));
+            myGroupIdsRef.current = myGroupIdsRef.current.filter(id => id !== incoming.group_id);
+            void loadGroupChats(uid);
+          }
+          if (activeGroupIdRef.current === incoming.group_id) {
+            setGroupParticipants(prev => {
+              if (event === 'DELETE' || !payload.new) {
+                return prev.filter(p => p.id !== incoming.id && !(p.user_id === incoming.user_id && p.group_id === incoming.group_id));
+              }
+              const row = payload.new as GroupParticipant;
+              const idx = prev.findIndex(p => p.id === row.id || (p.user_id === row.user_id && p.group_id === row.group_id));
+              if (idx < 0) return [...prev, row];
+              const next = [...prev];
+              next[idx] = { ...next[idx], ...row };
+              return next;
+            });
+          }
+          if (event === 'INSERT' && incoming.user_id !== uid && myGroupIdsRef.current.includes(incoming.group_id)) {
             setGroupChats(prev => prev.map(g =>
-              g.id === p.group_id ? { ...g, memberCount: (g.memberCount ?? 0) + 1 } : g
+              g.id === incoming.group_id ? { ...g, memberCount: (g.memberCount ?? 0) + 1 } : g
+            ));
+          }
+          if (event === 'DELETE' && incoming.user_id !== uid && myGroupIdsRef.current.includes(incoming.group_id)) {
+            setGroupChats(prev => prev.map(g =>
+              g.id === incoming.group_id ? { ...g, memberCount: Math.max(0, (g.memberCount ?? 1) - 1) } : g
             ));
           }
         } catch { /* SSE 파싱 오류 무시 */ }
@@ -392,6 +476,7 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
       setMyGroupIds([]);
       setActiveGroupId(null);
       setGroupMessages([]);
+      setGroupParticipants([]);
       setUnreadGroupCounts({});
       setNewGroupMsgCount(0);
       setJoiningGroupId(null);
@@ -402,6 +487,7 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
     groupChats, setGroupChats,
     activeGroupId, setActiveGroupId, activeGroupIdRef,
     groupMessages, setGroupMessages,
+    groupParticipants,
     unreadGroupCounts, setUnreadGroupCounts,
     newGroupMsgCount, setNewGroupMsgCount,
     myGroupIds, myGroupIdsRef,

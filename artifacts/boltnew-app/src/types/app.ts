@@ -48,6 +48,7 @@ export type GroupParticipant = {
   group_id: string;
   user_id: string;
   joined_at: string;
+  last_read_at?: string | null;
 };
 
 export type BlockedUser = {

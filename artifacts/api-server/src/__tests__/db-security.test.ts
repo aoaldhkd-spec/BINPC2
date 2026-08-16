@@ -1679,6 +1679,45 @@ describe('[Security] group chats auto 2 + opt-in 2차', () => {
     }
   });
 
+  it('group_participants last_read_at 는 본인만 갱신 가능', async () => {
+    const a = `g-read-a-${randomUUID()}`;
+    const b = `g-read-b-${randomUUID()}`;
+    const gid = `g-read-${randomUUID()}`;
+    await seedGroup(gid, '읽음방');
+    expect((await op({
+      op: 'insert', table: 'group_participants', requesterId: a,
+      payload: { group_id: gid, user_id: a },
+    })).status).toBe(200);
+    expect((await op({
+      op: 'insert', table: 'group_participants', requesterId: b,
+      payload: { group_id: gid, user_id: b },
+    })).status).toBe(200);
+
+    const mine = await op({
+      op: 'update',
+      table: 'group_participants',
+      requesterId: a,
+      payload: { last_read_at: '2026-08-16T03:00:00.000Z' },
+      filters: [
+        { type: 'eq', col: 'group_id', val: gid },
+        { type: 'eq', col: 'user_id', val: a },
+      ],
+    });
+    expect(mine.status).toBe(200);
+
+    const stolen = await op({
+      op: 'update',
+      table: 'group_participants',
+      requesterId: a,
+      payload: { last_read_at: '2026-08-16T04:00:00.000Z' },
+      filters: [
+        { type: 'eq', col: 'group_id', val: gid },
+        { type: 'eq', col: 'user_id', val: b },
+      ],
+    });
+    expect(stolen.status).toBe(403);
+  });
+
   it('나가기 후 같은 방에 다시 입장할 수 있음', async () => {
     const uid = `g-rejoin-${randomUUID()}`;
     const gid = `g-rejoin-room-${randomUUID()}`;

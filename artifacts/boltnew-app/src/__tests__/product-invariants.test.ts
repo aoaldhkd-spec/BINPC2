@@ -60,6 +60,22 @@ describe('product copy + notification invariants', () => {
     expect(main).toContain('unreadForChat');
   });
 
+  it('단톡 입장 즉시 열고 나가기·키보드·읽음 숫자가 연결된다', () => {
+    const app = read('App.tsx');
+    const group = read('components/GroupChatScreen.tsx');
+    const hook = read('hooks/useGroupChat.ts');
+    expect(app).toContain('leaveGroupChatGuarded');
+    expect(app).toContain('onLeaveGroupChat');
+    expect(app).toContain("setView('group-chat')");
+    expect(group).toContain('visualViewport');
+    expect(group).toContain('unreadMemberCount');
+    expect(group).toContain('functionsLocked');
+    expect(group).toContain('disabled={composerLocked}');
+    expect(hook).toContain('markGroupRead');
+    expect(hook).toContain('last_read_at');
+    expect(hook).toContain('siblingGroupIds');
+  });
+
   it('단톡 catalog is year + decade + opt-in 2차, cap 4', () => {
     expect(MAX_GROUPS_PER_USER).toBe(4);
     const main = read('components/MainScreen.tsx');

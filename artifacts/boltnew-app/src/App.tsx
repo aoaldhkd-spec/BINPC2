@@ -379,6 +379,7 @@ function App() {
     groupChats,
     activeGroupId,
     groupMessages,
+    groupParticipants,
     unreadGroupCounts,
     newGroupMsgCount, setNewGroupMsgCount,
     openGroupChat,
@@ -465,8 +466,17 @@ function App() {
 
   const joinGroupChatGuarded = useCallback(async (groupId: string) => {
     if (functionsLockedRef.current) { showFunctionsLockToast(); return; }
-    return joinGroupChat(groupId);
-  }, [joinGroupChat, showFunctionsLockToast]);
+    const ok = await joinGroupChat(groupId);
+    if (!ok) return;
+    await openGroupChat(groupId);
+    setView('group-chat');
+  }, [joinGroupChat, openGroupChat, showFunctionsLockToast]);
+
+  const leaveGroupChatGuarded = useCallback(async (groupId: string) => {
+    if (functionsLockedRef.current) { showFunctionsLockToast(); return; }
+    await leaveGroupChat(groupId);
+    setView('main');
+  }, [leaveGroupChat, showFunctionsLockToast]);
 
   const sendGroupMessageGuarded = useCallback(async (content: string) => {
     if (functionsLockedRef.current) { showFunctionsLockToast(); return; }
@@ -490,7 +500,7 @@ function App() {
     execLikeWithConfetti(...args);
   }, [execLikeWithConfetti, showFunctionsLockToast, setLikeConfirmTarget]);
 
-  // 잠금이 켜지면 채팅·시그널·단톡·운세 화면에서 참여자 탭으로 되돌림
+  // 잠금이 켜지면 채팅·시그널·단톡·운세 화면에서 참여자 탭으로 되돌림. 통계·랭킹은 유지.
   useEffect(() => {
     if (!functionsLocked) return;
     let kicked = false;
@@ -1628,7 +1638,8 @@ function App() {
         newGroupMsgCount={newGroupMsgCount}
         onClearGroupMsgCount={() => setNewGroupMsgCount(0)}
         onOpenGroupChat={(groupId) => { void openGroupChatGuarded(groupId).catch(e => console.error('[openGroupChat]', e)); }}
-        onJoinGroupChat={(groupId) => { void joinGroupChatGuarded(groupId); }}
+        onJoinGroupChat={(groupId) => { void joinGroupChatGuarded(groupId).catch(e => console.error('[joinGroupChat]', e)); }}
+        onLeaveGroupChat={(groupId) => { void leaveGroupChatGuarded(groupId).catch(e => console.error('[leaveGroupChat]', e)); }}
         joiningGroupId={joiningGroupId}
         userSignals={userSignals}
         onUserSignalUpdate={handleUserSignalUpdate}
@@ -1695,12 +1706,14 @@ function App() {
           <GroupChatScreen
             group={groupChats.find(g => g.id === activeGroupId) ?? null}
             messages={groupMessages}
+            participants={groupParticipants}
             currentUserId={currentUserId}
             profileMap={profileMap}
             darkMode={darkMode}
+            functionsLocked={functionsLocked}
             onBack={() => { closeGroupChat(); setView('main'); }}
             onSendMessage={sendGroupMessageGuarded}
-            onLeave={async () => { if (activeGroupId) await leaveGroupChat(activeGroupId); setView('main'); }}
+            onLeave={async () => { if (activeGroupId) await leaveGroupChatGuarded(activeGroupId); }}
           />
         </div>
       )}

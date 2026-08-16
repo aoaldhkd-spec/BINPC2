@@ -319,7 +319,7 @@ export function MainScreen({
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 기능 잠금(functionsLocked) 시 이동 불가 탭 — 시그널·채팅·운세·통계·랭킹
+  // 기능 잠금(functionsLocked) 시 이동 불가 탭 — 시그널·채팅·운세 (통계·랭킹은 열림)
   const LOCKED_TABS = SOCIAL_LOCKED_TABS;
 
   // MY 버튼 팝업 열림 상태
@@ -2051,6 +2051,7 @@ export function MainScreen({
                       type="button"
                       disabled={!!leavingGroupId}
                       onClick={async () => {
+                        if (guardLockedAction()) { setLeaveGroupTarget(null); return; }
                         const id = leaveGroupTarget.id;
                         setLeavingGroupId(id);
                         try { await onLeaveGroupChat?.(id); } finally {

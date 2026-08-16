@@ -3205,6 +3205,17 @@ router.post('/op', async (req: Request, res: Response) => {
         logger.warn({ ip: req.ip }, '[SECURITY] IDOR: likes UPDATE without requesterId blocked');
         return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
       }
+      if (table === 'group_participants') {
+        if (!requesterId) {
+          logger.warn({ ip: req.ip }, '[SECURITY] IDOR: group_participants UPDATE without requesterId blocked');
+          return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+        }
+        const readAt = patch.last_read_at;
+        if (typeof readAt !== 'string' || !readAt.trim()) {
+          return res.status(400).json({ data: null, error: { message: 'last_read_at is required', code: 'INVALID_INPUT' } });
+        }
+        patch = { last_read_at: readAt };
+      }
       // requesterId가 있는 경우, 자신 소유의 행만 수정 가능하도록 검증
       if (requesterId) {
         const rowsToUpdate = applyFilters(tableData, normalizedFilters);
@@ -3232,6 +3243,11 @@ router.post('/op', async (req: Request, res: Response) => {
               String(existingRow.reader_id) !== String(requesterId)) {
             logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: UPDATE chat_reads blocked');
             return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신의 읽음 기록만 수정할 수 있습니다.', code: 'FORBIDDEN' } });
+          }
+          if (table === 'group_participants' && existingRow.user_id != null &&
+              String(existingRow.user_id) !== String(requesterId)) {
+            logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: UPDATE group_participants blocked');
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신의 참여만 수정할 수 있습니다.', code: 'FORBIDDEN' } });
           }
         }
       }

@@ -7,8 +7,10 @@ import {
   countUnreadGroupMessages,
   groupLimitMessage,
   isLegacyInterestAutoRoom,
+  siblingGroupIds,
   sumUnreadCounts,
   unreadForGroup,
+  unreadMemberCount,
 } from './group-rooms';
 
 function room(partial: Partial<GroupChat> & Pick<GroupChat, 'id' | 'name'>): GroupChat {
@@ -126,6 +128,31 @@ describe('group-rooms catalog', () => {
     ];
     expect(countUnreadGroupMessages(msgs, { myId: 'A', lastReadAt: '2026-08-16T01:30:00.000Z' })).toBe(2);
     expect(countUnreadGroupMessages(msgs, { myId: 'B', lastReadAt: null })).toBe(1);
+  });
+
+  it('counts unread members one-by-one and excludes self / later joiners', () => {
+    const msg = { sender_id: 'me', created_at: '2026-08-16T02:00:00.000Z' };
+    const parts = [
+      { user_id: 'me', last_read_at: '2026-08-16T02:01:00.000Z', joined_at: '2026-08-16T00:00:00.000Z' },
+      { user_id: 'a', last_read_at: null, joined_at: '2026-08-16T00:00:00.000Z' },
+      { user_id: 'b', last_read_at: '2026-08-16T01:59:00.000Z', joined_at: '2026-08-16T00:00:00.000Z' },
+      { user_id: 'c', last_read_at: '2026-08-16T02:00:00.000Z', joined_at: '2026-08-16T00:00:00.000Z' },
+      { user_id: 'd', last_read_at: null, joined_at: '2026-08-16T03:00:00.000Z' },
+    ];
+    expect(unreadMemberCount(msg, parts, 'me')).toBe(2);
+    const afterA = parts.map(p => p.user_id === 'a' ? { ...p, last_read_at: '2026-08-16T02:05:00.000Z' } : p);
+    expect(unreadMemberCount(msg, afterA, 'me')).toBe(1);
+    const afterB = afterA.map(p => p.user_id === 'b' ? { ...p, last_read_at: '2026-08-16T02:06:00.000Z' } : p);
+    expect(unreadMemberCount(msg, afterB, 'me')).toBe(0);
+  });
+
+  it('collects 2차 sibling ids so leave removes every copy', () => {
+    const raw = [
+      room({ id: 'dup-drink', name: '2차 술 갈 분', interest_tag: '2차술', room_kind: 'afterparty_drink' }),
+      room({ id: 'group_afterparty_drink', name: '2차 술 갈 분', interest_tag: '2차술', room_kind: 'afterparty_drink' }),
+    ];
+    expect(siblingGroupIds(raw, 'group_afterparty_drink').sort()).toEqual(['dup-drink', 'group_afterparty_drink']);
+    expect(siblingGroupIds(raw, 'y')).toEqual(['y']);
   });
 
   it('folds duplicate 2차 room unread onto the catalog id', () => {

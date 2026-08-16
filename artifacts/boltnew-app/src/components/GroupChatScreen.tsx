@@ -1,15 +1,15 @@
 /**
  * GroupChatScreen — 옵트인 단톡방 화면
- * - 그룹 이름·태그·참여자 수 헤더
- * - 낙관적 메시지 전송 (sending 상태 opacity 처리)
- * - 전역 AppErrorBoundary 래핑
+ * - 1:1 ChatScreen과 같은 visualViewport / safe-area / 하단 스크롤
+ * - 내 메시지: 아직 안 읽은 다른 멤버 수 (카카오식, 1씩 감소)
+ * - functionsLocked 일 때만 입력 비활성
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { ArrowLeft, Send, LogOut } from 'lucide-react';
 import { AppErrorBoundary } from './AppErrorBoundary';
-import type { GroupChat, GroupMessage, Profile } from '../types/app';
-import { groupRoomVisual } from '../lib/group-rooms';
+import type { GroupChat, GroupMessage, GroupParticipant, Profile } from '../types/app';
+import { groupRoomVisual, unreadMemberCount } from '../lib/group-rooms';
 
 import { genAvatar } from '../lib/profile';
 
@@ -23,9 +23,11 @@ const getAvatarSrc = (photoUrl: string | null | undefined, nick: string): string
 interface GroupChatScreenProps {
   group: GroupChat | null;
   messages: GroupMessage[];
+  participants?: GroupParticipant[];
   currentUserId: string | null;
   profileMap: Map<string, Profile>;
   darkMode: boolean;
+  functionsLocked?: boolean;
   onBack: () => void;
   onSendMessage: (content: string) => Promise<void>;
   onLeave?: () => Promise<void>;
@@ -34,9 +36,11 @@ interface GroupChatScreenProps {
 export function GroupChatScreen({
   group,
   messages,
+  participants = [],
   currentUserId,
   profileMap,
   darkMode,
+  functionsLocked = false,
   onBack,
   onSendMessage,
   onLeave,
@@ -47,15 +51,32 @@ export function GroupChatScreen({
   const [sending, setSending] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const [vpStyle, setVpStyle] = useState<React.CSSProperties>({ top: 0, height: '100dvh' });
 
-  // 새 메시지 오면 스크롤
+  useEffect(() => {
+    const vv = window.visualViewport;
+    const apply = (top: number, height: number) => setVpStyle({ top, height });
+    if (!vv) { apply(0, window.innerHeight); return; }
+    const update = () => apply(vv.offsetTop, vv.height);
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    update();
+    return () => { vv.removeEventListener('resize', update); vv.removeEventListener('scroll', update); };
+  }, []);
+
+  useEffect(() => {
+    document.body.dataset.view = 'chat';
+    return () => { delete document.body.dataset.view; };
+  }, []);
+
   useEffect(() => {
     try { endRef.current?.scrollIntoView({ behavior: 'smooth' }); } catch { /* ignore */ }
   }, [messages]);
 
   const handleSend = useCallback(async () => {
     const text = input.trim();
-    if (!text || sending || text.length > 1000) return;
+    if (!text || sending || functionsLocked || text.length > 1000) return;
     setInput('');
     setSending(true);
     try {
@@ -64,10 +85,9 @@ export function GroupChatScreen({
       console.error('[GroupChatScreen] 전송 오류:', e);
     } finally {
       setSending(false);
-      // 전송 후 입력창 포커스 복귀
       setTimeout(() => textareaRef.current?.focus(), 50);
     }
-  }, [input, sending, onSendMessage]);
+  }, [input, sending, functionsLocked, onSendMessage]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -79,15 +99,19 @@ export function GroupChatScreen({
   if (!group) return null;
 
   const visual = groupRoomVisual(group);
+  const composerLocked = !!functionsLocked;
 
   return (
     <AppErrorBoundary screenName="단체 채팅" onReset={onBack}>
-      <div className={`flex flex-col h-screen ${darkMode ? 'bg-slate-900' : 'bg-gray-50'}`}>
-        {/* ─── 헤더 ─────────────────────────────────────────────────────────── */}
+      <div
+        className={`fixed left-0 right-0 flex flex-col z-[9999] ${darkMode ? 'bg-slate-900' : 'bg-gray-100'}`}
+        style={{ ...vpStyle, paddingTop: 'env(safe-area-inset-top)' }}
+      >
         <div className={`flex items-center gap-3 px-4 py-3 border-b flex-shrink-0 ${
           darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
         }`}>
           <button
+            type="button"
             onClick={onBack}
             className={`p-1.5 rounded-full transition-colors ${
               darkMode ? 'hover:bg-slate-700' : 'hover:bg-gray-100'
@@ -100,7 +124,7 @@ export function GroupChatScreen({
               {visual.emoji} {group.name}
             </p>
             <p className={`text-[10px] ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
-              {group.memberCount ?? 0}명 참여 중
+              {group.memberCount ?? participants.length ?? 0}명 참여 중
             </p>
           </div>
           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${
@@ -110,6 +134,7 @@ export function GroupChatScreen({
           </span>
           {onLeave && (
             <button
+              type="button"
               onClick={() => setShowLeaveConfirm(true)}
               className={`p-1.5 rounded-full transition-colors flex-shrink-0 ${darkMode ? 'hover:bg-slate-700 text-slate-400' : 'hover:bg-gray-100 text-gray-400'}`}
               title="단톡방 나가기"
@@ -119,18 +144,19 @@ export function GroupChatScreen({
           )}
         </div>
 
-        {/* ─── 나가기 확인 다이얼로그 ─────────────────────────────────────────── */}
         {showLeaveConfirm && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50">
             <div className={`mx-6 rounded-2xl p-5 shadow-2xl w-full max-w-xs ${darkMode ? 'bg-slate-800' : 'bg-white'}`}>
               <p className={`font-black text-base mb-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>단톡방 나가기</p>
               <p className={`text-sm mb-4 ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>이 방에서 나갑니다. 나중에 다시 입장할 수 있어요.</p>
               <div className="flex gap-2">
                 <button
+                  type="button"
                   onClick={() => setShowLeaveConfirm(false)}
                   className={`flex-1 py-2 rounded-xl text-sm font-bold ${darkMode ? 'bg-slate-700 text-white' : 'bg-gray-100 text-gray-700'}`}
                 >취소</button>
                 <button
+                  type="button"
                   disabled={leaving}
                   onClick={async () => {
                     if (!onLeave) return;
@@ -144,8 +170,16 @@ export function GroupChatScreen({
           </div>
         )}
 
-        {/* ─── 메시지 목록 ──────────────────────────────────────────────────── */}
-        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2 min-h-0">
+        <main
+          ref={messagesContainerRef}
+          className="flex-1 overflow-y-auto min-h-0 px-4 py-3 space-y-2"
+          onClick={(e) => {
+            const target = e.target as HTMLElement;
+            if (!target.closest('button, a, textarea, input, [role="button"]')) {
+              textareaRef.current?.blur();
+            }
+          }}
+        >
           {messages.length === 0 && (
             <div className="flex flex-col items-center justify-center h-full gap-3 select-none">
               <span className="text-5xl opacity-30">💬</span>
@@ -158,9 +192,9 @@ export function GroupChatScreen({
             const isMe = msg.sender_id === currentUserId;
             const sender = profileMap.get(msg.sender_id);
             const isOptimistic = msg.id.startsWith('__opt_');
+            const unreadN = isMe && currentUserId ? unreadMemberCount(msg, participants, currentUserId) : 0;
             return (
               <div key={msg.id} className={`flex gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
-                {/* 상대 아바타 */}
                 {!isMe && (
                   <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 mt-5 bg-gray-200">
                     {sender ? (
@@ -183,14 +217,12 @@ export function GroupChatScreen({
                 )}
 
                 <div className={`flex flex-col gap-0.5 max-w-[72%] ${isMe ? 'items-end' : 'items-start'}`}>
-                  {/* 닉네임 (상대방만) */}
                   {!isMe && (
                     <span className={`text-[10px] font-bold px-1 ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>
                       {sender?.nickname ?? '(알 수 없음)'}
                     </span>
                   )}
 
-                  {/* 메시지 버블 */}
                   {msg.image_url && !isOptimistic ? (
                     <img
                       src={msg.image_url}
@@ -215,47 +247,58 @@ export function GroupChatScreen({
                     </div>
                   )}
 
-                  {/* 시각 */}
-                  <span className={`text-[9px] px-1 ${darkMode ? 'text-slate-600' : 'text-gray-300'}`}>
-                    {new Date(msg.created_at).toLocaleTimeString('ko-KR', {
-                      hour: '2-digit', minute: '2-digit',
-                    })}
-                  </span>
+                  <div className={`flex items-center gap-1 px-1 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+                    {isMe && unreadN > 0 && (
+                      <span className="text-[11px] font-black text-yellow-400 leading-none">{unreadN}</span>
+                    )}
+                    <span className={`text-[9px] ${darkMode ? 'text-slate-600' : 'text-gray-300'}`}>
+                      {new Date(msg.created_at).toLocaleTimeString('ko-KR', {
+                        hour: '2-digit', minute: '2-digit',
+                      })}
+                    </span>
+                  </div>
                 </div>
               </div>
             );
           })}
           <div ref={endRef} />
-        </div>
+        </main>
 
-        {/* ─── 입력창 ────────────────────────────────────────────────────────── */}
-        <div className={`px-4 py-3 border-t flex-shrink-0 ${
+        <footer className={`px-4 py-3 border-t flex-shrink-0 ${
           darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
-        }`}>
+        }`} style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
           <div className="flex gap-2 items-end">
             <textarea
               ref={textareaRef}
               value={input}
-              onChange={e => setInput(e.target.value)}
+              onChange={e => { if (!composerLocked && e.target.value.length <= 1000) setInput(e.target.value); }}
               onKeyDown={handleKeyDown}
-              placeholder="메시지를 입력하세요… (Enter 전송)"
+              onFocus={() => {
+                setTimeout(() => {
+                  endRef.current?.scrollIntoView({ behavior: 'instant' as ScrollBehavior });
+                }, 350);
+              }}
+              placeholder={composerLocked ? '행사 중에는 단톡을 사용할 수 없어요' : '메시지를 입력하세요… (Enter 전송)'}
               rows={1}
+              disabled={composerLocked}
+              readOnly={composerLocked}
               style={{ resize: 'none' }}
-              className={`flex-1 rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 ${
+              className={`flex-1 rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 disabled:opacity-60 ${
                 darkMode
                   ? 'bg-slate-700 text-white placeholder-slate-400'
                   : 'bg-gray-100 text-gray-900 placeholder-gray-400'
               }`}
             />
             <button
+              type="button"
               onClick={() => void handleSend()}
-              disabled={!input.trim() || sending}
+              disabled={composerLocked || !input.trim() || sending}
               className="w-10 h-10 flex items-center justify-center rounded-full bg-teal-500 hover:bg-teal-600 disabled:opacity-40 active:scale-95 transition-all flex-shrink-0"
             >
               <Send className="w-4 h-4 text-white" />
             </button>
           </div>
-        </div>
+        </footer>
       </div>
     </AppErrorBoundary>
   );

@@ -64,6 +64,31 @@ export function countUnreadGroupMessages(
   return n;
 }
 
+/** 내 메시지 기준, 아직 읽지 않은 다른 멤버 수 (본인 제외). 0이면 숨김. */
+export function unreadMemberCount(
+  msg: { sender_id?: string; created_at?: string },
+  participants: ReadonlyArray<{ user_id: string; last_read_at?: string | null; joined_at?: string | null }>,
+  myId: string,
+): number {
+  if (!msg.created_at || !myId) return 0;
+  let n = 0;
+  for (const p of participants) {
+    if (String(p.user_id) === String(myId)) continue;
+    if (p.joined_at && p.joined_at > msg.created_at) continue;
+    if (!p.last_read_at || p.last_read_at < msg.created_at) n += 1;
+  }
+  return n;
+}
+
+export function siblingGroupIds(groups: GroupChat[] | undefined | null, groupId: string): string[] {
+  if (!groupId) return [];
+  if (!groups?.length) return [groupId];
+  const kind = afterpartyKind(groups.find(g => g.id === groupId) ?? { id: groupId, name: '', interest_tag: '' });
+  if (!kind) return [groupId];
+  const ids = groups.filter(g => afterpartyKind(g) === kind).map(g => g.id);
+  return ids.length ? [...new Set(ids)] : [groupId];
+}
+
 export function unreadForGroup(
   counts: Record<string, number> | undefined | null,
   groupId: string,
