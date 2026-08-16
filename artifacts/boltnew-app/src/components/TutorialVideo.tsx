@@ -791,13 +791,14 @@ export function TutorialVideo({
   })();
 
   const DESIGN_H = 248;
+  const COMPACT_STAGE_H = 120;
   const stageRef = useRef<HTMLDivElement>(null);
-  const [stageH, setStageH] = useState(DESIGN_H);
+  const [stageH, setStageH] = useState(compact ? COMPACT_STAGE_H : DESIGN_H);
   useEffect(() => {
     if (!compact) return;
     const el = stageRef.current;
     if (!el) return;
-    const sync = () => setStageH(el.clientHeight || DESIGN_H);
+    const sync = () => setStageH(el.clientHeight || COMPACT_STAGE_H);
     sync();
     const ro = new ResizeObserver(sync);
     ro.observe(el);
@@ -813,10 +814,10 @@ export function TutorialVideo({
   const player = (
     <div className={`relative w-full min-h-0 overflow-hidden bg-black flex flex-col ${
       embedded
-        ? 'h-full rounded-[1.35rem] border-[3px] border-zinc-800 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]'
+        ? `${compact ? '' : 'h-full '} ${compact ? 'rounded-[1.05rem] border-2' : 'rounded-[1.35rem] border-[3px]'} border-zinc-800 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]`
         : 'max-w-xs rounded-[1.75rem] shadow-2xl border-[3px] border-zinc-800'
     }`}>
-      <div className={`flex items-center gap-1.5 flex-shrink-0 ${compact ? 'px-2.5 pt-1.5 pb-1' : 'px-3 pt-2.5 pb-1.5'}`}>
+      <div className={`flex items-center gap-1.5 flex-shrink-0 ${compact ? 'px-2 pt-1 pb-0.5' : 'px-3 pt-2.5 pb-1.5'}`}>
         <span className="relative flex h-2 w-2 flex-shrink-0">
           <span className="absolute inset-0 rounded-full bg-red-500 animate-ping opacity-60" />
           <span className="relative h-2 w-2 rounded-full bg-red-500" />
@@ -831,12 +832,12 @@ export function TutorialVideo({
           </button>
         )}
       </div>
-      <p className={`text-zinc-500 text-center leading-none flex-shrink-0 ${compact ? 'text-[8px] pb-1' : 'text-[9px] pb-1.5'}`}>{scene.sub}</p>
+      <p className={`text-zinc-500 text-center leading-none flex-shrink-0 ${compact ? 'text-[8px] pb-0.5' : 'text-[9px] pb-1.5'}`}>{scene.sub}</p>
 
       <div
         ref={stageRef}
-        className={`overflow-hidden bg-slate-900 relative ${compact ? 'mx-1.5 flex-1 min-h-0 rounded-xl' : 'mx-2 mb-1 rounded-2xl'}`}
-        style={compact ? undefined : { height: sceneH }}
+        className={`overflow-hidden bg-slate-900 relative ${compact ? 'mx-1 flex-shrink-0 rounded-lg' : 'mx-2 mb-1 rounded-2xl'}`}
+        style={compact ? { height: COMPACT_STAGE_H } : { height: sceneH }}
       >
         <div
           key={sceneIdx}
@@ -852,8 +853,8 @@ export function TutorialVideo({
         </div>
       </div>
 
-      <div className={`flex-shrink-0 ${compact ? 'px-2.5 pt-1.5 pb-1.5' : 'px-3 pt-2 pb-3'}`}>
-        <div className="flex items-center gap-2 mb-1.5">
+      <div className={`flex-shrink-0 ${compact ? 'px-2 pt-1 pb-1' : 'px-3 pt-2 pb-3'}`}>
+        <div className={`flex items-center gap-2 ${compact ? 'mb-1' : 'mb-1.5'}`}>
           <span className="text-[8px] text-zinc-500 font-mono w-6">{clock}</span>
           <div className="flex-1 flex gap-0.5">
             {playlist.map((sceneNo, i) => (
@@ -867,18 +868,18 @@ export function TutorialVideo({
         </div>
         <div className="flex items-center gap-1.5">
           <button onClick={() => goPlay(playIdx - 1)} disabled={playIdx === 0}
-            className={`${compact ? 'w-7 h-7' : 'w-8 h-8'} rounded-full bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 flex items-center justify-center transition-all`}>
-            <SkipBack className={`${compact ? 'w-3.5 h-3.5' : 'w-4 h-4'} text-zinc-200`} />
+            className={`${compact ? 'w-6 h-6' : 'w-8 h-8'} rounded-full bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 flex items-center justify-center transition-all`}>
+            <SkipBack className={`${compact ? 'w-3 h-3' : 'w-4 h-4'} text-zinc-200`} />
           </button>
           <button onClick={() => setPlaying(p => !p)}
-            className={`flex-1 flex items-center justify-center gap-1.5 rounded-full bg-white text-black font-black transition-all active:scale-95 ${compact ? 'py-1 text-[11px]' : 'py-2 text-[12px] gap-2'}`}>
-            {playing ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+            className={`flex-1 flex items-center justify-center gap-1.5 rounded-full bg-white text-black font-black transition-all active:scale-95 ${compact ? 'py-0.5 text-[10px]' : 'py-2 text-[12px] gap-2'}`}>
+            {playing ? <Pause className={`${compact ? 'w-3 h-3' : 'w-3.5 h-3.5'}`} /> : <Play className={`${compact ? 'w-3 h-3' : 'w-3.5 h-3.5'}`} />}
             {playing ? '일시정지' : '재생'}
           </button>
           <button
             onClick={() => playIdx === playlist.length - 1 ? (embedded ? goPlay(0) : onClose()) : goPlay(playIdx + 1)}
-            className={`${compact ? 'w-7 h-7' : 'w-8 h-8'} rounded-full bg-zinc-800 hover:bg-zinc-700 flex items-center justify-center transition-all`}>
-            <SkipForward className={`${compact ? 'w-3.5 h-3.5' : 'w-4 h-4'} text-zinc-200`} />
+            className={`${compact ? 'w-6 h-6' : 'w-8 h-8'} rounded-full bg-zinc-800 hover:bg-zinc-700 flex items-center justify-center transition-all`}>
+            <SkipForward className={`${compact ? 'w-3 h-3' : 'w-4 h-4'} text-zinc-200`} />
           </button>
         </div>
       </div>
