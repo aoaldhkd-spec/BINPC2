@@ -1584,7 +1584,6 @@ function App() {
         onSelect={(p) => { setLikeConfirmTarget(null); setSelectedProfile(p); setView('profile'); recordProfileView(p.id); }}
         onReset={reset}
         onOpenResetPassword={() => setShowResetPassword(true)}
-        onProfileClickFromMap={(p) => { setLikeConfirmTarget(null); setSelectedProfile(p); setView('profile'); recordProfileView(p.id); }}
         receivedLikers={receivedLikers}
         receivedHeartTypes={receivedHeartTypes}
         sentHeartTypes={sentHeartTypes}

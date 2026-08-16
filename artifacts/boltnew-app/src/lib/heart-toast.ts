@@ -14,8 +14,6 @@ export function isIncomingHeartToastTarget(
 }
 
 export const MUTUAL_HEART_TOAST = '💕 서로 하트를 보내면 채팅을 시작할 수 있어요!';
-/** @deprecated 시그널은 추천. 상호 해금은 하트. */
-export const MUTUAL_SIGNAL_TOAST = MUTUAL_HEART_TOAST;
 
 export function incomingInterestToast(nickname: string): string {
   return `💕 ${nickname}님이 회원님에게 하트를 보냈어요.`;

@@ -74,7 +74,7 @@ class StatusErrorBoundary extends Component<
 
 export function MainScreen({
   profiles, currentUserId, likedIds, sentHeartTypes, sentHeartsPerPerson, likeStatuses, profileMap, mainTab,
-  onTabChange, onLike, onSelect, onReset, onProfileClickFromMap: _onProfileClickFromMap,
+  onTabChange, onLike, onSelect, onReset,
   receivedLikers, receivedHeartTypes, sentLikedProfiles, contactSharedWithIds, acknowledgedComplimentIds,
   receivedContactShares, pendingHeartsCount, chatList,
   onContactShareOpen: _onContactShareOpen, onContactViewOpen, onHeartResponse, onDeleteChat, onDeleteAllChats, onOpenChat,
@@ -100,7 +100,6 @@ export function MainScreen({
   profileMap: Map<string, Profile>; mainTab: MainTab;
   onTabChange: (t: MainTab) => void; onLike: (id: string) => void;
   onSelect: (p: Profile) => void; onReset: () => void;
-  onProfileClickFromMap: (profile: Profile) => void;
   receivedLikers: Profile[]; receivedHeartTypes: Map<string, HeartType>; sentLikedProfiles: Profile[];
   contactSharedWithIds: Set<string>; acknowledgedComplimentIds: Set<string>; receivedContactShares: ContactShare[];
   pendingHeartsCount: number; chatList: Chat[];
@@ -155,7 +154,6 @@ export function MainScreen({
 }) {
   const heartCount = useCallback((t: HeartType) => { let c = 0; sentHeartsPerPerson.forEach(types => { if (types.has(t)) c++; }); return c; }, [sentHeartsPerPerson]);
 
-  const _currentUserNickname = useMemo(() => profiles.find(p => p.id === currentUserId)?.nickname ?? '', [profiles, currentUserId]);
   const [profileSearch, setProfileSearch] = useState('');
   const [profilePersonalityFilter, setProfilePersonalityFilter] = useState<string | null>(null);
   const [showVisitors, setShowVisitors] = useState(false);

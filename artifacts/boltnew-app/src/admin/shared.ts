@@ -1,16 +1,6 @@
-import { useState, useEffect, useCallback, useRef, type Dispatch, type SetStateAction } from 'react';
-import {
-  Shield, LogOut, Trash2, Users,
-  LayoutGrid, X, AlertTriangle, ChevronDown,
-  Heart, MessageCircle, Send, CheckCircle, BellRing, Eye, EyeOff,
-  PlayCircle, StopCircle, Timer, RefreshCw, Sparkles,
-  Lock, Unlock, Search, Database as DatabaseIcon, Activity,
-} from 'lucide-react';
+import { type Dispatch, type SetStateAction } from 'react';
 import { supabase } from '../lib/supabase';
-import { setLocalDbUserId, supabase as ldbSupabase } from '../lib/localdb';
 import type { Database } from '../types/database';
-import { getPositionLabel, getDomSubLabel, getKoreanAge } from '../lib/profile';
-import { HEART_TYPE_META } from '../lib/constants';
 
 export type Profile = Database['public']['Tables']['profiles']['Row'];
 export type AppSettings = Database['public']['Tables']['app_settings']['Row'];
