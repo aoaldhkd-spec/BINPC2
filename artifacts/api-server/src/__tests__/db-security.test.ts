@@ -861,6 +861,89 @@ function readSseUntil(port: number, path: string, predicate: (buf: string) => bo
   });
 }
 
+describe('[Security] test_update_settings SSE must not leak panel passwords', () => {
+  it('세션 토글 SSE에 admin/test/reset 비밀번호가 없다', async () => {
+    const customAdmin = 'sse-admin-secret-do-not-leak';
+    const customTest = 'sse-test-secret-do-not-leak';
+    const customReset = 'sse-reset-secret-do-not-leak';
+    const setPw = await request(app)
+      .post('/api/db/rpc/admin_update_settings')
+      .send({
+        p_admin_password: '116606',
+        p_payload: {
+          admin_password: customAdmin,
+          test_password: customTest,
+          reset_password: customReset,
+        },
+      });
+    expect(setPw.status).toBe(200);
+
+    const userId = randomUUID();
+    const agent = await loginAgent(userId);
+    const tokenRes = await agent.post('/api/db/auth/sse-token');
+    expect(tokenRes.status).toBe(200);
+    const token = tokenRes.body.token as string;
+
+    const server = await listenApp();
+    const { port } = server.address() as AddressInfo;
+    try {
+      const path = `/api/db/events?userId=${encodeURIComponent(userId)}&token=${encodeURIComponent(token)}`;
+      const buf = await new Promise<string>((resolve, reject) => {
+        let acc = '';
+        let toggled = false;
+        const req = http.get({
+          hostname: '127.0.0.1',
+          port,
+          path,
+          headers: { Accept: 'text/event-stream' },
+        }, (res) => {
+          res.setEncoding('utf8');
+          res.on('data', (chunk: string) => {
+            acc += chunk;
+            if (!toggled && acc.includes('"type":"ping"')) {
+              toggled = true;
+              void request(app)
+                .post('/api/db/rpc/test_update_settings')
+                .send({ p_test_password: customTest, p_payload: { session_active: true } })
+                .then((rpcRes) => {
+                  if (rpcRes.status !== 200) {
+                    req.destroy();
+                    reject(new Error(`test_update_settings ${rpcRes.status}`));
+                  }
+                })
+                .catch((e) => {
+                  req.destroy();
+                  reject(e);
+                });
+            }
+            if (acc.includes('"table":"app_settings"') && acc.includes('session_active')) {
+              req.destroy();
+              resolve(acc);
+            }
+          });
+        });
+        req.on('error', (err) => {
+          if ((err as NodeJS.ErrnoException).code === 'ECONNRESET') return;
+          reject(err);
+        });
+        setTimeout(() => {
+          req.destroy();
+          reject(new Error(`SSE settings leak timeout. got: ${acc.slice(0, 800)}`));
+        }, 6000);
+      });
+      expect(buf).toContain('"table":"app_settings"');
+      expect(buf).not.toContain(customAdmin);
+      expect(buf).not.toContain(customTest);
+      expect(buf).not.toContain(customReset);
+      expect(buf).not.toContain('"admin_password"');
+      expect(buf).not.toContain('"test_password"');
+      expect(buf).not.toContain('"reset_password"');
+    } finally {
+      await new Promise<void>((r) => server.close(() => r()));
+    }
+  });
+});
+
 describe('[Realtime] 인증 SSE 채팅 전달', () => {
   it('상대가 INSERT한 메시지를 인증 SSE로 실시간 수신한다', async () => {
     const a = randomUUID();

@@ -3753,7 +3753,13 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         const currentSettings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
         const updatedSettings = { ...currentSettings, ...filteredPayload, updated_at: new Date().toISOString() };
         store['app_settings'] = [updatedSettings];
-        broadcastAll({ type: 'change', table: 'app_settings', event: 'UPDATE', newRow: updatedSettings, oldRow: currentSettings });
+        broadcastAll({
+          type: 'change',
+          table: 'app_settings',
+          event: 'UPDATE',
+          newRow: sanitizeSettings(updatedSettings),
+          oldRow: sanitizeSettings(currentSettings),
+        });
         dbPersistRow('app_settings', updatedSettings).catch(e => logger.error({ err: e }, '[db] background task error'));
         return res.json({ data: null, error: null });
       }
