@@ -90,8 +90,8 @@ const BASIC: Topic[] = [
     title: '내 설정 · 프로필',
     color: 'from-cyan-500 to-sky-600',
     tips: [
-      { icon: '🔑', title: '고유번호', desc: '맨 위 4자리. 폰 바꾸면 이걸로 복구.' },
-      { icon: '📷', title: '사진·닉네임', desc: '사진/아바타. 닉 2~6글자, 1회만 변경.' },
+      { icon: '🔑', title: '고유번호', desc: '맨 위 4자리. 폰 바꾸면 복구.' },
+      { icon: '📷', title: '사진·닉네임', desc: '사진/아바타. 2~6글자, 1회만 변경.' },
       { icon: '🎯', title: '관심사', desc: '2~5개. 시그널 매칭에 쓰여요.' },
       { icon: '📋', title: '연락처', desc: '카톡·인스타·전화. 수락하면 전달.' },
       { icon: '💬', title: '한마디', desc: '카드 위 전광판에 스크롤돼요.' },
@@ -325,10 +325,15 @@ function FillerPanel({ kind, darkMode }: { kind: FillerKind; darkMode?: boolean 
   const nowrapFiller = kind === 'group' || kind === 'chat';
   return (
     <div
-      className={`flex-1 ${pin ? 'min-h-[88px]' : 'min-h-[64px]'} flex flex-col items-center justify-center rounded-2xl px-3 py-2 text-center ${
+      className={`flex-1 ${pin ? 'min-h-[120px]' : 'min-h-[64px]'} flex flex-col items-center justify-center rounded-2xl px-3 ${pin ? 'py-3' : 'py-2'} text-center ${
         darkMode ? f.darkShell : f.shell
       }`}
     >
+      {pin && (
+        <span className="mb-2 inline-flex items-center justify-center px-6 py-2.5 rounded-full text-[16px] font-black tracking-tight text-white shadow-md bg-gradient-to-r from-amber-500 to-orange-500">
+          관리자문의
+        </span>
+      )}
       <FillerArt kind={kind} darkMode={darkMode} />
       <p className={`${pin ? 'text-[16px]' : 'text-[13px]'} font-black tracking-tight ${nowrapFiller ? 'whitespace-nowrap' : ''} ${darkMode ? 'text-white' : 'text-slate-800'}`}>
         {f.title}
