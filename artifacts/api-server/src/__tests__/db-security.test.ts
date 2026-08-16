@@ -1382,7 +1382,7 @@ describe('[Security] chat_reads partner receipt + 1:1 isolation', () => {
 // 단체 채팅 — 클릭 입장 · 사람당 최대 3방 · 방 인원 제한 없음 · IDOR
 // ════════════════════════════════════════════════════════════════════════════════
 
-describe('[Security] group chats opt-in', () => {
+describe('[Security] group chats auto 2 + opt-in 2차', () => {
   async function seedGroup(id: string, name: string) {
     const res = await op({
       op: 'insert',
@@ -1396,15 +1396,15 @@ describe('[Security] group chats opt-in', () => {
     return id;
   }
 
-  it('프로필 INSERT 시 단톡에 자동 입장하지 않음', async () => {
-    const uid = `g-noauto-${randomUUID()}`;
+  it('프로필 INSERT 시 관심사·나이 / 출생연도 두 방만 자동 입장하고 2차는 넣지 않음', async () => {
+    const uid = `g-auto2-${randomUUID()}`;
     const created = await op({
       op: 'insert',
       table: 'profiles',
       payload: {
         id: uid,
         nickname: `na-${uid.replace(/-/g, '').slice(0, 12)}`,
-        bio: '클럽 술 관심사',
+        bio: '등산, 영화',
         mbti: 'ENFP',
         birth_year: 1998,
       },
@@ -1420,7 +1420,19 @@ describe('[Security] group chats opt-in', () => {
     });
     expect(parts.status).toBe(200);
     const rows = Array.isArray(parts.body.data) ? parts.body.data : (parts.body.data ? [parts.body.data] : []);
-    expect(rows).toHaveLength(0);
+    expect(rows).toHaveLength(2);
+
+    const groupIds = rows.map((r: { group_id: string }) => r.group_id);
+    const rooms = await op({
+      op: 'select',
+      table: 'group_chats',
+      requesterId: uid,
+    });
+    const mine = (Array.isArray(rooms.body.data) ? rooms.body.data : [])
+      .filter((g: { id: string }) => groupIds.includes(g.id));
+    const kinds = mine.map((g: { room_kind?: string; name?: string }) => String(g.room_kind ?? ''));
+    expect(kinds.sort()).toEqual(['birth_year', 'interest_age']);
+    expect(mine.some((g: { name?: string }) => String(g.name ?? '').includes('2차'))).toBe(false);
   });
 
   it('group_participants INSERT 는 사람당 최대 3개 방 (방 정원 아님)', async () => {

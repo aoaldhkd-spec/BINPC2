@@ -17,6 +17,7 @@ type Topic = {
   footer?: string;
   filler?: FillerKind;
   wideTips?: boolean;
+  nowrapTips?: boolean;
 };
 
 const BASIC: Topic[] = [
@@ -45,7 +46,7 @@ const BASIC: Topic[] = [
         title: '위에 있는 탭',
         tips: [
           { icon: '👥', title: '참여자', desc: '오늘 온 사람들 카드가 여기.' },
-          { icon: '💕', title: '시그널', desc: '누구나 열림. 미션 전엔 설명서.' },
+          { icon: '💕', title: '시그널', desc: '미션 전엔 설명서. 하트 3명이면 추천.' },
           { icon: '📊', title: '통계', desc: '오늘 오간 하트 수랑 비율.' },
           { icon: '🏆', title: '랭킹', desc: '하트 많이 받은 사람 TOP 10.' },
         ],
@@ -74,13 +75,12 @@ const BASIC: Topic[] = [
     title: '시그널, 미션 먼저',
     color: 'from-fuchsia-500 to-rose-500',
     filler: 'signal',
+    wideTips: true,
     tips: [
-      { icon: '📑', title: '누구나 열림', desc: '두 번째 탭. 누구나 들어가요.' },
-      { icon: '📖', title: '미션 전', desc: '추천 대신 설명서 + 하트 0/3.' },
-      { icon: '🎯', title: '오늘의 미션', desc: '다른 3명에게 하트. 3/3면 추천 해금.' },
-      { icon: '🃏', title: '3/3 이후', desc: '이상형·나의 특징·관심사 겹치면 뜸. 받은 하트만 아님.' },
-      { icon: '💕', title: '관심 보내기', desc: '다음 / 💕 관심. 기존 하트랑 같음.' },
-      { icon: '💞', title: '서로 시그널', desc: '서로 시그널을 보내면 채팅. 넛지도 시그널로.' },
+      { icon: '📖', title: '미션 전', desc: '탭은 열려도 추천은 잠김. 설명서 + 하트 0/3.' },
+      { icon: '🎯', title: '오늘의 미션', desc: '다른 3명에게 하트. 3/3면 시그널 덱 해금.' },
+      { icon: '🃏', title: '3/3 이후', desc: '이상형·특징·관심사 겹치면 뜸. 받은 하트만 아님.' },
+      { icon: '💕', title: '시그널 보내기', desc: '다음 / 💕 시그널. 카드 하트랑은 다른 버튼.' },
     ],
   },
   {
@@ -89,17 +89,16 @@ const BASIC: Topic[] = [
     label: '내설정',
     title: '내 설정 · 프로필',
     color: 'from-cyan-500 to-sky-600',
+    wideTips: true,
     tips: [
-      { icon: '🔑', title: '고유번호', desc: '맨 위 4자리. 폰 바꾸면 복구.' },
-      { icon: '📷', title: '사진·아바타', desc: '사진 올리거나 기본 아바타.' },
-      { icon: '🏷️', title: '닉네임', desc: '2~6글자. 단 1회만 변경.' },
-      { icon: '🎯', title: '관심사', desc: '최소 2개, 최대 5개. 시그널용.' },
-      { icon: '📋', title: '연락처', desc: '카카오·인스타·전화. 수락 시 전달.' },
-      { icon: '🔮', title: '생월일', desc: '월·일만. 운세·사주·궁합에 반영.' },
-      { icon: '💬', title: '한마디·이상형·특징', desc: '한마디·이상형·나의 특징. 칩 고르면 시그널 매칭에 쓰여요.' },
-      { icon: '👁', title: '성향 공개', desc: '돔/섭 공개 토글. 기본은 숨김.' },
-      { icon: '🔔', title: '방문자 알림', desc: '내 프로필 보면 MY에 표시.' },
-      { icon: '🚫', title: '차단·숨기기', desc: '차단은 서로, 👻는 상대만 못 봄.' },
+      { icon: '🔑', title: '고유번호', desc: '맨 위 4자리. 폰 바꾸면 이걸로 복구.' },
+      { icon: '📷', title: '사진·닉네임', desc: '사진/아바타. 닉 2~6글자, 1회만 변경.' },
+      { icon: '🎯', title: '관심사', desc: '2~5개. 시그널 매칭에 쓰여요.' },
+      { icon: '📋', title: '연락처', desc: '카톡·인스타·전화. 수락하면 전달.' },
+      { icon: '💬', title: '한마디', desc: '카드 위 전광판에 스크롤돼요.' },
+      { icon: '💘', title: '이상형', desc: '성격·술·텐션·흡연 칩. 시그널용.' },
+      { icon: '🌟', title: '나의 특징', desc: '같은 칩. 포지션은 닉네임 설정.' },
+      { icon: '🚫', title: '성향·차단', desc: '돔/섭은 기본 숨김. 차단은 서로.' },
     ],
     video: [1, 2],
   },
@@ -125,14 +124,16 @@ const BASIC: Topic[] = [
     id: 'group',
     emoji: '👥',
     label: '단톡',
-    title: '단톡, 직접 들어가',
+    title: '단톡, 두 방은 자동',
     color: 'from-teal-500 to-emerald-600',
     filler: 'group',
+    wideTips: true,
+    nowrapTips: true,
     tips: [
-      { icon: '📍', title: '여는 곳', desc: 'MY → 내 채팅 → 단체 채팅. 1:1이랑 별개.' },
-      { icon: '🚪', title: '입장', desc: '입장 눌러 들어가. 자동 입장 아님.' },
-      { icon: '🍻', title: '이런 방', desc: '2차 클럽 갈 분, 2차 술 갈 분.' },
-      { icon: '3️⃣', title: '한도', desc: '한 사람 방 3개까지. 정원 무제한.' },
+      { icon: '📍', title: '여는 곳', desc: 'MY → 내 채팅 → 단체 채팅' },
+      { icon: '✨', title: '자동 입장', desc: '관심사·나이 / 같은 해 출생, 두 방' },
+      { icon: '🚪', title: '직접 입장', desc: '2차 클럽·2차 술만 직접 입장' },
+      { icon: '3️⃣', title: '한도', desc: '자동 2 + 2차 1개 · 정원 무제한' },
     ],
   },
 ];
@@ -145,10 +146,10 @@ const ADVANCED: Topic[] = [
     title: '고유번호 캡처 필수',
     color: 'from-amber-500 to-orange-500',
     filler: 'pin',
+    wideTips: true,
     tips: [
       { icon: '📍', title: '어디에', desc: 'MY → 내 상태 4자리. 입장 핀이랑 다름.' },
       { icon: '📱', title: '폰 바꿈', desc: '다시 만들지 마. 이 번호로 복구.' },
-      { icon: '⚠️', title: '모르면', desc: '관리자에게 닉네임 말하고 찾아 달라고.' },
     ],
     footer: '입장 핀이랑 고유번호는 다른 거예요',
   },
@@ -159,47 +160,48 @@ const ADVANCED: Topic[] = [
     title: '몰라도 되는데 알면 이득',
     color: 'from-violet-500 to-purple-600',
     filler: 'hidden',
+    wideTips: true,
     tips: [
       { icon: '🔄', title: '카드 뒤집기', desc: '사진 탭하면 뒷면에 이상형.' },
       { icon: '💚', title: '칭찬 하트', desc: '💚은 칭찬만. 연락처 공유 없음.' },
-      { icon: '📷', title: '연락처 QR', desc: 'MY → 내 상태 QR. 상대는 찍기.' },
       { icon: '🚫', title: '차단·숨기기', desc: '차단은 서로. 👻는 상대만 못 봄.' },
       { icon: '👁', title: '방문자', desc: 'MY → 내 상태. 프로필 본 사람.' },
-      { icon: '🔮', title: '내 운세', desc: 'MY → 내 운세. 타로·사주·궁합.' },
     ],
   },
 ];
 
-function TipCard({ tip, panel, text, muted, dense }: {
+function TipCard({ tip, panel, text, muted, dense, nowrap }: {
   tip: Tip;
   panel: string;
   text: string;
   muted: string;
   dense?: boolean;
+  nowrap?: boolean;
 }) {
   return (
-    <div className={`flex gap-2 rounded-xl border items-center ${dense ? 'px-2 py-1.5 min-h-[42px]' : 'px-2.5 py-1.5'} ${panel}`}>
-      <span className={`${dense ? 'text-[12px]' : 'text-[14px]'} leading-none flex-shrink-0`}>{tip.icon}</span>
-      <div className="min-w-0">
-        <p className={`${dense ? 'text-[11px]' : 'text-[12px]'} font-black leading-tight ${text}`}>{tip.title}</p>
-        <p className={`${dense ? 'text-[10px] leading-tight whitespace-nowrap' : 'text-[11px] leading-snug mt-0.5 break-keep'} ${muted}`}>{tip.desc}</p>
+    <div className={`flex gap-2 rounded-xl border items-center ${dense ? 'px-2.5 py-1.5 min-h-[44px]' : 'px-3 py-2'} ${panel}`}>
+      <span className={`${dense ? 'text-[13px]' : 'text-[15px]'} leading-none flex-shrink-0`}>{tip.icon}</span>
+      <div className="min-w-0 flex-1">
+        <p className={`${dense ? 'text-[12px]' : 'text-[13px]'} font-black leading-tight ${text}`}>{tip.title}</p>
+        <p className={`${dense ? 'text-[11px] leading-snug mt-0.5' : 'text-[12px] leading-snug mt-0.5'} ${nowrap ? 'whitespace-nowrap' : 'break-keep'} ${muted}`}>{tip.desc}</p>
       </div>
     </div>
   );
 }
 
-function TipGrid({ tips, panel, text, muted, stack, dense }: {
+function TipGrid({ tips, panel, text, muted, stack, dense, nowrap }: {
   tips: Tip[];
   panel: string;
   text: string;
   muted: string;
   stack?: boolean;
   dense?: boolean;
+  nowrap?: boolean;
 }) {
   return (
     <div className={`grid ${dense ? 'gap-1' : 'gap-1.5'} ${stack || tips.length <= 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
       {tips.map((tip) => (
-        <TipCard key={tip.title} tip={tip} panel={panel} text={text} muted={muted} dense={dense} />
+        <TipCard key={tip.title} tip={tip} panel={panel} text={text} muted={muted} dense={dense} nowrap={nowrap} />
       ))}
     </div>
   );
@@ -257,24 +259,17 @@ function FillerArt({ kind, darkMode }: { kind: FillerKind; darkMode?: boolean })
   }
   if (kind === 'pin') {
     return (
-      <div className="relative h-12 w-28 mb-1.5 flex flex-col items-center" aria-hidden>
-        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-[20px] shadow-sm ${darkMode ? 'bg-amber-900/70 ring-2 ring-amber-500/50' : 'bg-amber-100 ring-2 ring-amber-300'}`}>🔑</div>
-        <div className="absolute bottom-0 flex gap-1.5">
-          {[0, 1, 2, 3].map((i) => (
-            <span key={i} className={`w-1.5 h-1.5 rounded-full ${darkMode ? 'bg-amber-400' : 'bg-amber-500'}`} />
-          ))}
-        </div>
+      <div className="relative h-8 w-20 mb-1 flex flex-col items-center" aria-hidden>
+        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[16px] shadow-sm ${darkMode ? 'bg-amber-900/70 ring-2 ring-amber-500/50' : 'bg-amber-100 ring-2 ring-amber-300'}`}>🔑</div>
       </div>
     );
   }
   return (
-    <div className="relative h-12 w-28 mb-1.5" aria-hidden>
-      <div className={`absolute left-1/2 top-0 -translate-x-1/2 w-11 h-12 rounded-[0.85rem] rotate-[-8deg] ${darkMode ? 'bg-violet-900/80' : 'bg-violet-200'}`} />
-      <div className={`absolute left-1/2 top-0 -translate-x-1/2 w-11 h-12 rounded-[0.85rem] rotate-[7deg] flex flex-col items-center justify-center ${darkMode ? 'bg-fuchsia-950 ring-1 ring-fuchsia-400/40' : 'bg-white ring-1 ring-fuchsia-200'} shadow-sm`}>
-        <span className="text-[18px] leading-none">🔮</span>
-        <span className="text-[8px] mt-0.5">✨ 🎴</span>
+    <div className="relative h-10 w-24 mb-1" aria-hidden>
+      <div className={`absolute left-1/2 top-0 -translate-x-1/2 w-9 h-10 rounded-[0.85rem] rotate-[-8deg] ${darkMode ? 'bg-violet-900/80' : 'bg-violet-200'}`} />
+      <div className={`absolute left-1/2 top-0 -translate-x-1/2 w-9 h-10 rounded-[0.85rem] rotate-[7deg] flex flex-col items-center justify-center ${darkMode ? 'bg-fuchsia-950 ring-1 ring-fuchsia-400/40' : 'bg-white ring-1 ring-fuchsia-200'} shadow-sm`}>
+        <span className="text-[16px] leading-none">🔄</span>
       </div>
-      <span className="absolute right-0 top-0 text-[13px]">🌙</span>
     </div>
   );
 }
@@ -289,7 +284,7 @@ const FILLERS: Record<FillerKind, { title: string; line: string; quote: string; 
   },
   signal: {
     title: '먼저 하트 3명',
-    line: '0/3 미션 끝나면 추천이 열려요',
+    line: '0/3 미션 끝나면 시그널 덱이 열려요',
     quote: '이상형·관심사로 매칭. 받은 하트만 아님',
     shell: 'bg-gradient-to-br from-rose-50 via-fuchsia-50 to-white border border-rose-100',
     darkShell: 'bg-gradient-to-br from-slate-800/90 via-rose-950/50 to-slate-900 border border-rose-900/50',
@@ -302,22 +297,22 @@ const FILLERS: Record<FillerKind, { title: string; line: string; quote: string; 
     darkShell: 'bg-gradient-to-br from-slate-800/90 via-indigo-950/50 to-slate-900 border border-indigo-900/60',
   },
   group: {
-    title: '알아서 들어가는 거 아님',
-    line: '방 보고 입장. 한 사람 3개까지',
-    quote: '2차 클럽·술, 분위기 맞는 방으로',
+    title: '두 방은 알아서 들어감',
+    line: '2차 클럽·2차 술만 직접 입장',
+    quote: '자동 2 + 2차 1개, 정원은 없음',
     shell: 'bg-gradient-to-br from-teal-50 via-emerald-50 to-white border border-teal-100',
     darkShell: 'bg-gradient-to-br from-slate-800/90 via-teal-950/50 to-slate-900 border border-teal-900/60',
   },
   pin: {
-    title: '고유번호 캡처 필수',
-    line: '폰 바꾸면 진짜 끝. 이 4자리로 복구',
-    quote: '입장 핀이랑 다른 거예요. 헷갈리지 마요',
+    title: '모르면?',
+    line: '관리자에게 닉네임 말하고 찾아 달라고',
+    quote: '입장 핀이랑 다른 거예요. 캡처 필수',
     shell: 'bg-gradient-to-br from-amber-50 via-orange-50 to-white border border-amber-100',
     darkShell: 'bg-gradient-to-br from-slate-800/90 via-amber-950/40 to-slate-900 border border-amber-900/50',
   },
   hidden: {
     title: '몰라도 되는데, 알면 이득',
-    line: '카드 뒤집기 · QR · 운세, 숨겨둔 버튼 있음',
+    line: '카드 뒤집기 · 칭찬 하트 · 방문자',
     quote: '사진 탭하면 이상형 나옴. 진짜임',
     shell: 'bg-gradient-to-br from-violet-50 via-fuchsia-50 to-white border border-violet-100',
     darkShell: 'bg-gradient-to-br from-slate-800/90 via-violet-950/50 to-slate-900 border border-violet-900/60',
@@ -326,20 +321,22 @@ const FILLERS: Record<FillerKind, { title: string; line: string; quote: string; 
 
 function FillerPanel({ kind, darkMode }: { kind: FillerKind; darkMode?: boolean }) {
   const f = FILLERS[kind];
+  const pin = kind === 'pin';
+  const group = kind === 'group';
   return (
     <div
-      className={`flex-1 min-h-[72px] flex flex-col items-center justify-center rounded-2xl px-3 py-2 text-center ${
+      className={`flex-1 ${pin ? 'min-h-[88px]' : 'min-h-[64px]'} flex flex-col items-center justify-center rounded-2xl px-3 py-2 text-center ${
         darkMode ? f.darkShell : f.shell
       }`}
     >
       <FillerArt kind={kind} darkMode={darkMode} />
-      <p className={`text-[13px] font-black tracking-tight ${darkMode ? 'text-white' : 'text-slate-800'}`}>
+      <p className={`${pin ? 'text-[16px]' : 'text-[13px]'} font-black tracking-tight ${darkMode ? 'text-white' : 'text-slate-800'}`}>
         {f.title}
       </p>
-      <p className={`text-[11px] leading-snug mt-0.5 ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+      <p className={`${pin ? 'text-[13px]' : 'text-[11px]'} ${group ? 'whitespace-nowrap' : 'leading-snug'} mt-0.5 ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
         {f.line}
       </p>
-      <p className={`text-[10px] mt-1 ${darkMode ? 'text-white/55' : 'text-slate-500'}`}>
+      <p className={`${pin ? 'text-[12px]' : 'text-[10px]'} ${group ? 'whitespace-nowrap' : ''} mt-1 ${darkMode ? 'text-white/55' : 'text-slate-500'}`}>
         {f.quote}
       </p>
     </div>
@@ -444,9 +441,9 @@ export function TutorialModal({ onClose, darkMode }: {
             ) : topic.id === 'settings' ? (
               <>
                 <div className="flex-shrink-0">
-                  <TipGrid tips={topic.tips} panel={panel} text={text} muted={muted} dense />
+                  <TipGrid tips={topic.tips} panel={panel} text={text} muted={muted} stack dense />
                 </div>
-                <div className="flex-1 min-h-[180px]">
+                <div className="flex-1 min-h-[140px]">
                   <TutorialVideo
                     key={`${mode}-${topic.id}`}
                     embedded
@@ -460,7 +457,7 @@ export function TutorialModal({ onClose, darkMode }: {
             ) : (
               <>
                 <div className="flex-shrink-0">
-                  <TipGrid tips={topic.tips} panel={panel} text={text} muted={muted} stack={topic.wideTips} />
+                  <TipGrid tips={topic.tips} panel={panel} text={text} muted={muted} stack={topic.wideTips} nowrap={topic.nowrapTips} />
                 </div>
                 <div className="flex-1 min-h-0">
                   <TutorialVideo
@@ -489,7 +486,7 @@ export function TutorialModal({ onClose, darkMode }: {
                   </div>
                 ))}
                 {topic.tips.length > 0 && (
-                  <TipGrid tips={topic.tips} panel={panel} text={text} muted={muted} />
+                  <TipGrid tips={topic.tips} panel={panel} text={text} muted={muted} stack={topic.wideTips} nowrap={topic.nowrapTips} />
                 )}
                 {topic.footer && (
                   <p className={`text-[11px] leading-snug ${muted}`}>{topic.footer}</p>

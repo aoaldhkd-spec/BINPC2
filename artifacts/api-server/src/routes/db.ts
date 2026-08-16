@@ -1267,6 +1267,108 @@ async function ensureOptInGroupRooms(): Promise<void> {
   }
 }
 
+const AUTO_ROOM_INTEREST_AGE = 'interest_age';
+const AUTO_ROOM_BIRTH_YEAR = 'birth_year';
+
+function ageBandFromYear(year: unknown): string {
+  const y = Number(year);
+  if (!Number.isFinite(y) || y < 1900 || y > 2100) return '기타';
+  const band = Math.floor((2026 - y) / 10) * 10;
+  return `${Math.max(10, band)}대`;
+}
+
+function firstInterestTag(profile: Record<string, unknown>): string {
+  const raw = String(profile.bio ?? profile.interests ?? '');
+  return raw
+    .split(/[,，、\s|/]+/)
+    .map(s => s.replace(/[^0-9A-Za-z가-힣_]/g, ''))
+    .find(s => s.length >= 2) ?? '';
+}
+
+async function joinOrCreateAutoRoom(userId: string, spec: {
+  room_kind: string;
+  name: string;
+  interest_tag: string;
+  age_group: string | null;
+}): Promise<void> {
+  const groups = getTable('group_chats');
+  let room = groups.find(g =>
+    String(g.room_kind ?? '') === spec.room_kind
+    && String(g.interest_tag ?? '') === spec.interest_tag
+    && String(g.age_group ?? '') === String(spec.age_group ?? ''),
+  );
+  if (!room) {
+    room = {
+      id: genId(),
+      name: spec.name,
+      interest_tag: spec.interest_tag,
+      age_group: spec.age_group,
+      room_kind: spec.room_kind,
+      max_members: UNLIMITED_GROUP_MEMBERS,
+      created_at: ts(),
+    };
+    groups.push(room);
+    try {
+      await dbPersistRow('group_chats', room);
+      smartBroadcast('group_chats', room, {
+        type: 'change', table: 'group_chats', event: 'INSERT', newRow: room, oldRow: null,
+      });
+    } catch (e) {
+      store['group_chats'] = groups.filter(g => String(g.id) !== String(room!.id));
+      logger.error({ err: e, userId }, '[autoMatchGroupChat] room persist failed');
+      return;
+    }
+  }
+  const kind = String(room.room_kind ?? '');
+  if (kind === 'afterparty_club' || kind === 'afterparty_drink') return;
+  const parts = getTable('group_participants');
+  if (parts.some(p => String(p.group_id) === String(room.id) && String(p.user_id) === userId)) return;
+  if (parts.filter(p => String(p.user_id) === userId).length >= MAX_GROUPS_PER_USER) return;
+  const part = {
+    id: `${room.id}__${userId}`,
+    group_id: String(room.id),
+    user_id: userId,
+    joined_at: ts(),
+  };
+  parts.push(part);
+  try {
+    await dbPersistRow('group_participants', part);
+    smartBroadcast('group_participants', part, {
+      type: 'change', table: 'group_participants', event: 'INSERT', newRow: part, oldRow: null,
+    });
+  } catch (e) {
+    store['group_participants'] = parts.filter(p => String(p.id) !== part.id);
+    logger.error({ err: e, userId }, '[autoMatchGroupChat] join persist failed');
+  }
+}
+
+/** 관심사+나이 / 같은 해 출생 두 방만 자동 입장. 2차 클럽·2차 술은 넣지 않음. */
+async function autoMatchGroupChat(userId: string, profile: Record<string, unknown>): Promise<void> {
+  if (!userId) return;
+  try {
+    const ageBand = ageBandFromYear(profile.birth_year);
+    const tag = firstInterestTag(profile);
+    const interestKey = tag || '모임';
+    await joinOrCreateAutoRoom(userId, {
+      room_kind: AUTO_ROOM_INTEREST_AGE,
+      name: tag ? `${ageBand} ${tag} 모임` : `${ageBand} 모임`,
+      interest_tag: interestKey,
+      age_group: ageBand,
+    });
+    const year = Number(profile.birth_year);
+    if (Number.isFinite(year) && year >= 1900 && year <= 2100) {
+      await joinOrCreateAutoRoom(userId, {
+        room_kind: AUTO_ROOM_BIRTH_YEAR,
+        name: `${year}년생 모임`,
+        interest_tag: `${year}년생`,
+        age_group: null,
+      });
+    }
+  } catch (e) {
+    logger.error({ err: e, userId }, '[autoMatchGroupChat] 오류');
+  }
+}
+
 // Seed must finish before /api/db handles traffic. LISTEN/NOTIFY is background-only —
 // blocking requests on Postgres LISTEN connect hung chat INSERT + SSE on Render boot.
 // cleanupLegacyTables는 부팅 경로에서 제외 — 콜드스타트·재배포 직후 채팅/하트 503 대기 시간 단축.
@@ -2777,6 +2879,7 @@ router.post('/op', async (req: Request, res: Response) => {
         // #33: 신규 프로필 등록 시 PIN 풀 사용량 확인 — 85% 초과 시 관리자 푸시 알림
         if (table === 'profiles') {
           checkAndNotifyAdminPinPool().catch(e => logger.error({ err: e }, '[db] background task error'));
+          await autoMatchGroupChat(String(newRow.id), newRow);
         }
         // chat_reads 삽입 시 해당 유저 unread 캐시 즉시 무효화
         if (table === 'chat_reads' && newRow.reader_id) {
@@ -2889,6 +2992,11 @@ router.post('/op', async (req: Request, res: Response) => {
           if (table === 'chat_reads' && newRow.reader_id) {
             unreadCountsCache.delete(String(newRow.reader_id));
           }
+        }
+      }
+      if (table === 'profiles') {
+        for (const row of updated) {
+          await autoMatchGroupChat(String(row.id), row);
         }
       }
       if (selectAfterWrite) return res.json({ data: single ? updated[0] ?? null : updated, error: null });
@@ -3018,6 +3126,11 @@ router.post('/op', async (req: Request, res: Response) => {
           if (table === 'chat_reads' && base.reader_id) {
             unreadCountsCache.delete(String(base.reader_id));
           }
+        }
+      }
+      if (table === 'profiles') {
+        for (const row of upserted) {
+          await autoMatchGroupChat(String(row.id), row);
         }
       }
       if (selectAfterWrite) return res.json({ data: upserted, error: null });

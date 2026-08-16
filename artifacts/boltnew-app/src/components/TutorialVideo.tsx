@@ -84,10 +84,11 @@ function Tip({ text, show, dir = 'bottom' }: { text: string; show: boolean; dir?
   );
 }
 
-// ── 앱 탭바 ───────────────────────────────────────────────────────────────────
+// ── 앱 탭바 (현재 라이브: 참여자 | 시그널 | 통계 | 랭킹) ─────────────────────
 function Tabs({ active, hl }: { active: string; hl?: string }) {
   const row1 = [
     { id: 'profiles', e: '👥', l: '참여자' },
+    { id: 'signal', e: '💕', l: '시그널' },
     { id: 'stats', e: '📊', l: '통계' },
     { id: 'ranking', e: '🏆', l: '랭킹' },
   ];
@@ -95,13 +96,22 @@ function Tabs({ active, hl }: { active: string; hl?: string }) {
     <div className="border-t border-slate-700 bg-slate-900 px-0.5 pt-0.5 pb-1">
       <div className="flex">
         {row1.map(t => (
-          <div key={t.id} className={`relative flex-1 flex flex-col items-center py-1 rounded-lg ${active === t.id ? 'bg-teal-500/20' : ''}`}>
+          <div key={t.id} className={`relative flex-1 flex flex-col items-center py-1 rounded-lg ${active === t.id ? 'bg-cyan-500/20' : ''}`}>
             <Ring on={hl === t.id} />
             <span className="text-[13px] leading-none">{t.e}</span>
-            <span className={`text-[7px] font-bold mt-0.5 ${active === t.id ? 'text-teal-400' : 'text-slate-500'}`}>{t.l}</span>
+            <span className={`text-[7px] font-bold mt-0.5 ${active === t.id ? 'text-cyan-400' : 'text-slate-500'}`}>{t.l}</span>
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+function MyFab({ hl }: { hl?: boolean }) {
+  return (
+    <div className={`absolute right-2 bottom-10 z-30 w-9 h-9 rounded-full flex items-center justify-center text-[10px] font-black tracking-widest text-white shadow-lg ${hl ? 'bg-cyan-400 ring-2 ring-cyan-200' : 'bg-cyan-500'}`}>
+      <Ring on={!!hl} color="ring-cyan-300" />
+      MY
     </div>
   );
 }
@@ -214,87 +224,98 @@ function S2({ step }: { step: number }) {
           </div>
         )}
       </div>
-      <Tabs active="status" hl={step === 0 ? 'status' : undefined} />
+      <MyFab hl={step === 0} />
+      <Tabs active="profiles" />
     </div>
   );
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Scene 3: 프로필 정보 등록 (관심사·생월일·연락처)
+// Scene 3: 내설정 — 한마디→전광판, 이상형·특징 칩 (포지션/MBTI 칩 없음)
 // ══════════════════════════════════════════════════════════════════════════════
 function S3({ step }: { step: number }) {
-  const interestOptions = [
-    { emoji: '🎵', label: '음악' }, { emoji: '✈️', label: '여행' },
-    { emoji: '🍕', label: '맛집' }, { emoji: '🏃', label: '운동' },
-    { emoji: '🎮', label: '게임' }, { emoji: '📚', label: '독서' },
-    { emoji: '🎨', label: '그림' }, { emoji: '☕', label: '카페' },
-  ];
-  const [selected, setSelected] = useState<number[]>([]);
-  const [showContact, setShowContact] = useState(false);
-  useEffect(() => {
-    if (step >= 2) setSelected([0]);          // 음악 선택
-    if (step >= 3) setSelected([0, 1]);       // 여행도 선택
-    if (step >= 5) setShowContact(true);
-  }, [step]);
+  const status = step >= 2 ? '퇴근 후 맥주 한잔 같이해요 🍺' : '';
+  const showTicker = step >= 4;
+  const showIdeal = step >= 6;
+  const showFeat = step >= 8;
+  const idealOn = step >= 7;
+  const featOn = step >= 9;
   return (
-    <div className="h-full flex flex-col bg-slate-900 px-3 pt-3 gap-2 overflow-hidden">
-      <p className="text-slate-400 text-[10px] font-bold">MY → 내 설정 → 프로필 편집</p>
+    <div className="h-full flex flex-col bg-slate-900 overflow-hidden relative">
+      <div className="flex-1 px-2.5 pt-2 space-y-1.5 overflow-hidden">
+        <p className="text-slate-400 text-[9px] font-bold">MY → 내 설정</p>
 
-      {/* 관심사 */}
-      <div className={`relative bg-slate-800 border rounded-2xl p-2.5 transition-all duration-300 ${step >= 1 && step <= 3 ? 'border-teal-500/70' : 'border-slate-700'}`}>
-        <Ring on={step === 1} />
-        <Tip text="관심사 2개 이상 선택!" show={step === 1} dir="right" />
-        <p className="text-slate-400 text-[9px] font-bold mb-1.5">🌟 관심사</p>
-        <div className="flex flex-wrap gap-1.5">
-          {interestOptions.map((it, i) => (
-            <div key={it.label}
-              className={`relative flex items-center gap-1 px-2 py-1 rounded-xl text-[9px] font-black transition-all duration-300
-                ${selected.includes(i) ? 'bg-teal-500 text-white scale-105' : 'bg-slate-700 text-slate-400'}
-                ${step === 2 && i === 0 ? 'ring-2 ring-teal-300' : ''}
-                ${step === 3 && i === 1 ? 'ring-2 ring-teal-300' : ''}`}>
-              <span>{it.emoji}</span>
-              <span>{it.label}</span>
+        {!showTicker && (
+          <div className={`relative bg-slate-800 border rounded-xl p-2 transition-all duration-300 ${step <= 3 ? 'border-cyan-400/70' : 'border-slate-700'}`}>
+            <Ring on={step <= 1} color="ring-cyan-400" />
+            <Tip text="한마디 = 카드 위 전광판!" show={step === 1} dir="bottom" />
+            <p className="text-white text-[10px] font-black">💬 오늘의 한마디</p>
+            <div className={`mt-1.5 rounded-lg px-2 py-1.5 text-[10px] font-bold border ${status ? 'border-cyan-400 text-cyan-100 bg-slate-700' : 'border-slate-600 text-slate-500'}`}>
+              {status || '예: 퇴근 후 맥주 한잔 같이해요 🍺'}
             </div>
-          ))}
-        </div>
-        {selected.length >= 2 && (
-          <p className="text-teal-400 text-[8px] mt-1.5 font-bold animate-in fade-in duration-300">✅ 관심사가 저장되었습니다!</p>
+            {step >= 3 && <p className="text-cyan-400 text-[8px] mt-1 font-bold">저장 → 전광판에 바로 뜸</p>}
+          </div>
+        )}
+
+        {showTicker && !showIdeal && (
+          <div className="relative w-[7.2rem] mx-auto rounded-xl overflow-hidden border border-slate-600 bg-slate-800 animate-in fade-in duration-300">
+            <div className="relative h-24 bg-gradient-to-br from-teal-700 to-slate-800">
+              <div
+                className="absolute top-0 inset-x-0 z-10 flex items-center min-h-[16px] px-1.5"
+                style={{ background: 'linear-gradient(90deg,rgba(15,23,42,0.88),rgba(17,94,89,0.88))', borderBottom: '1px solid rgba(45,212,191,0.4)' }}
+              >
+                <span className="text-[8px] font-extrabold text-teal-100 whitespace-nowrap" style={{ animation: 'ticker-flash 2.2s ease-in-out infinite' }}>
+                  {status}
+                </span>
+              </div>
+              <div className="absolute bottom-0 inset-x-0 bg-white/95 px-1.5 py-0.5 flex items-center">
+                <span className="text-[9px] font-black text-gray-950">하늘다람쥐</span>
+                <span className="ml-auto text-[8px] font-bold text-gray-600">28</span>
+              </div>
+            </div>
+            <div className="bg-white px-1.5 py-1 flex gap-1">
+              <div className="flex-1 py-0.5 rounded border border-rose-200 text-center text-[8px] font-bold text-rose-500">하트</div>
+              <div className="flex-1 py-0.5 rounded border border-sky-200 text-center text-[8px] font-bold text-sky-500">채팅</div>
+            </div>
+            <Tip text="이게 전광판!" show={step === 4 || step === 5} dir="bottom" />
+          </div>
+        )}
+
+        {showIdeal && (
+          <div className={`relative bg-slate-800 border rounded-xl p-2 transition-all duration-300 ${step < 8 ? 'border-rose-400/70' : 'border-slate-700'}`}>
+            <Ring on={step === 6} color="ring-rose-400" />
+            <Tip text="이상형 칩 — 포지션/MBTI 없음" show={step === 6} dir="bottom" />
+            <p className="text-white text-[10px] font-black">💘 이상형</p>
+            <p className="text-[8px] text-slate-500 font-bold mt-1">성격 💫 · 술 🍺 · 텐션 🎢 · 흡연 🚭</p>
+            <div className="flex flex-wrap gap-1 mt-1">
+              {['다정한', '한두잔', '텐션맞춤', '비흡연'].map((tag, i) => (
+                <span key={tag} className={`px-1.5 py-0.5 rounded-full text-[8px] font-bold border ${idealOn && i < 2 ? 'text-white border-transparent' : 'text-slate-400 border-slate-600'}`}
+                  style={idealOn && i < 2 ? { background: 'linear-gradient(135deg,#e11d48,#be185d)' } : {}}>
+                  {tag}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {showFeat && (
+          <div className="relative bg-slate-800 border border-violet-400/70 rounded-xl p-2 animate-in fade-in duration-300">
+            <Ring on={step >= 8} color="ring-violet-400" />
+            <p className="text-white text-[10px] font-black">🌟 나의 특징</p>
+            <p className="text-[8px] text-slate-500 font-bold mt-1">같은 칩. 포지션은 닉네임 설정</p>
+            <div className="flex flex-wrap gap-1 mt-1">
+              {['시크한', '술조금', '텐션중', '비흡연'].map((tag, i) => (
+                <span key={tag} className={`px-1.5 py-0.5 rounded-full text-[8px] font-bold border ${featOn && i < 2 ? 'text-white border-transparent' : 'text-slate-400 border-slate-600'}`}
+                  style={featOn && i < 2 ? { background: 'linear-gradient(135deg,#7c3aed,#6d28d9)' } : {}}>
+                  {tag}
+                </span>
+              ))}
+            </div>
+          </div>
         )}
       </div>
-
-      {/* 생월일 */}
-      <div className={`relative bg-slate-800 border rounded-2xl p-2.5 transition-all duration-300 ${step === 4 ? 'border-violet-500/70' : 'border-slate-700'}`}>
-        <Ring on={step === 4} color="ring-violet-400" />
-        <Tip text="생월·생일 입력 → 운세·궁합 활성화!" show={step === 4} dir="right" />
-        <p className="text-slate-400 text-[9px] font-bold mb-1.5">🎂 생월·생일</p>
-        <div className="flex gap-2">
-          <div className={`flex-1 bg-slate-700 rounded-xl px-2 py-1.5 text-center transition-all duration-300 ${step === 4 ? 'ring-2 ring-violet-400 text-white' : 'text-slate-400'} text-[11px] font-black`}>
-            {step >= 4 ? '3월' : '-- 월'}
-          </div>
-          <div className={`flex-1 bg-slate-700 rounded-xl px-2 py-1.5 text-center transition-all duration-300 ${step === 4 ? 'ring-2 ring-violet-400 text-white' : 'text-slate-400'} text-[11px] font-black`}>
-            {step >= 4 ? '15일' : '-- 일'}
-          </div>
-        </div>
-        {step >= 4 && <p className="text-violet-400 text-[8px] mt-1 font-bold">✨ 등록하면 운세·궁합 기능이 열려요!</p>}
-      </div>
-
-      {/* 연락처 */}
-      {showContact && (
-        <div className="relative bg-slate-800 border border-rose-500/50 rounded-2xl p-2.5 animate-in slide-in-from-bottom-2 duration-500">
-          <Ring on={step === 5} color="ring-rose-400" />
-          <Tip text="연락처 등록 → 상대와 공유 가능!" show={step === 5} dir="right" />
-          <p className="text-slate-400 text-[9px] font-bold mb-1.5">📱 연락처</p>
-          <div className="space-y-1">
-            {[{icon:'K',label:'카카오톡',val:'my_kakao',color:'text-yellow-400'},{icon:'@',label:'인스타그램',val:'@my_insta',color:'text-pink-400'}].map(c => (
-              <div key={c.label} className="flex items-center gap-2 bg-slate-700 rounded-xl px-2 py-1.5">
-                <span className={`font-black text-[11px] w-4 text-center ${c.color}`}>{c.icon}</span>
-                <span className="text-slate-300 text-[10px] flex-1">{c.val}</span>
-                <span className="text-teal-400 text-[8px] font-bold">저장됨 ✓</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      <MyFab hl={step === 0} />
+      <Tabs active="profiles" />
     </div>
   );
 }
@@ -599,7 +620,8 @@ function S7({ step }: { step: number }) {
           ))}
         </div>
       </div>
-      <Tabs active="status" hl={step === 0 ? 'status' : undefined} />
+      <MyFab hl={step === 0} />
+      <Tabs active="profiles" />
     </div>
   );
 }
@@ -634,8 +656,8 @@ const SCENES: SceneDef[] = [
   {
     title: '아바타(동물) 변경하기', sub: 'MY → 내 설정 → 아바타를 눌러 동물 선택',
     steps: [
-      { cx: 25,  cy: 248, dur: 1000 },              // 내 상태 탭 가리킴
-      { cx: 25,  cy: 248, click: true,  dur: 800 },
+      { cx: 210, cy: 210, dur: 1000 },              // MY 버튼
+      { cx: 210, cy: 210, click: true,  dur: 800 },
       { cx: 50,  cy: 85,  dur: 1100 },              // 아바타 탭으로 이동
       { cx: 50,  cy: 85,  click: true,  dur: 800 },
       { cx: 148, cy: 158, dur: 1200 },              // 여우로 이동
@@ -645,18 +667,19 @@ const SCENES: SceneDef[] = [
     render: s => <S2 step={s} />,
   },
   {
-    title: '관심사·생월일·연락처 등록', sub: 'MY → 내 설정 → 프로필 편집에서 등록',
+    title: '한마디는 전광판, 칩은 시그널', sub: 'MY → 내 설정에서 한마디 쓰면 카드 위에 뜸',
     steps: [
-      { cx: 124, cy: 80,  dur: 1100 },              // 관심사 섹션 소개
-      { cx: 55,  cy: 105, click: false, dur: 1000 }, // 음악으로 이동
-      { cx: 55,  cy: 105, click: true,  dur: 800 },  // 음악 선택
-      { cx: 110, cy: 105, click: false, dur: 1000 }, // 여행으로 이동
-      { cx: 110, cy: 105, click: true,  dur: 900 },  // 여행 선택 → 저장됨
-      { cx: 124, cy: 165, click: false, dur: 1200 }, // 생월일로 이동
-      { cx: 80,  cy: 178, click: false, dur: 900 },  // 월 선택
-      { cx: 80,  cy: 178, click: true,  dur: 800 },
-      { cx: 124, cy: 225, click: false, dur: 1100 }, // 연락처로 이동
-      { cx: 124, cy: 240, click: false, dur: 1800 }, // 감상
+      { cx: 210, cy: 210, dur: 900 },               // MY
+      { cx: 124, cy: 70,  dur: 1000 },              // 한마디 섹션
+      { cx: 124, cy: 95,  click: true,  dur: 800 },  // 입력
+      { cx: 124, cy: 118, click: true,  dur: 800 },  // 저장
+      { cx: 124, cy: 120, dur: 1200 },              // 전광판 카드
+      { cx: 124, cy: 80,  dur: 1100 },              // 전광판 가리킴
+      { cx: 124, cy: 70,  dur: 1000 },              // 이상형
+      { cx: 70,  cy: 110, click: true,  dur: 800 },  // 칩
+      { cx: 124, cy: 150, dur: 1000 },              // 특징
+      { cx: 70,  cy: 185, click: true,  dur: 900 },
+      { cx: 124, cy: 140, dur: 1600 },
     ],
     render: s => <S3 step={s} />,
   },
@@ -709,10 +732,8 @@ const SCENES: SceneDef[] = [
   {
     title: '받은 하트 & 보낸 하트 확인', sub: 'MY → 내 상태에서 하트 주고받은 내역 확인',
     steps: [
-      // step 0 — 내 상태 탭 가리킴 (탭 하이라이트)
-      { cx: 25,  cy: 248, dur: 1100 },
-      // step 1 — 탭 클릭 → 받은 하트 섹션 pink border
-      { cx: 25,  cy: 248, click: true,  dur: 900 },
+      { cx: 210, cy: 210, dur: 1100 },              // MY
+      { cx: 210, cy: 210, click: true,  dur: 900 },
       // step 2 — 받은 하트 섹션으로 커서 이동 (Ring on)
       { cx: 124, cy: 95,  dur: 1100 },
       // step 3 — 첫 번째 항목 강조 + 수락/거절 버튼 등장

@@ -1940,7 +1940,7 @@ export function MainScreen({
             {chatSubTab === 'group' && (
               <>
                 <p className={`text-[11px] font-bold px-1 ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>
-                  참여 {groupChats.filter(g => g.joined).length}/{MAX_GROUPS_PER_USER} · 입장 버튼을 눌러 들어가요
+                  참여 {groupChats.filter(g => g.joined).length}/{MAX_GROUPS_PER_USER} · 두 방은 자동, 2차만 직접 입장
                 </p>
                 {groupChats.length === 0 ? (
                   <div className="text-center py-16">
@@ -1949,7 +1949,7 @@ export function MainScreen({
                       아직 열린 단톡방이 없어요
                     </p>
                     <p className={`text-xs mt-1 ${darkMode ? 'text-slate-500' : 'text-gray-300'}`}>
-                      2차 클럽·술 방이 곧 목록에 나타나요. 클릭해서 입장하세요!
+                      관심사·나이 / 같은 해 방은 자동이에요. 2차 클럽·술은 눌러서 입장!
                     </p>
                   </div>
                 ) : (

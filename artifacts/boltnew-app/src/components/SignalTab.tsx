@@ -285,7 +285,7 @@ export function SignalTab({
                 onClick={() => { if (!functionsLocked) onLike(card.id); }}
                 className="flex-[1.4] py-3 rounded-2xl text-sm font-black text-white bg-rose-500 hover:bg-rose-600 disabled:opacity-40 active:scale-95 transition-all"
               >
-                💕 하트 보내기
+                💕 시그널 보내기
               </button>
             </div>
           </div>

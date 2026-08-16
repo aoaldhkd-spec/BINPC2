@@ -1,6 +1,6 @@
 /**
  * useGroupChat — 단체 채팅 상태 관리 훅
- * - 카탈로그 방은 목록에 보이고, 입장은 클릭(입장)만. 자동 배정 없음
+ * - 관심사·나이 / 출생연도 두 방은 서버 자동 입장. 2차 클럽·2차 술은 클릭 입장
  * - SSE 단일 연결로 실시간 수신 (supabase.channel → localdb SSE 백엔드)
  * - group_messages: client_id 기반 낙관적 업데이트 + 3회 재시도
  */
