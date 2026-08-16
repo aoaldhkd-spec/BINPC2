@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi, afterEach } from 'vitest';
 import type { GroupChat } from '../types/app';
 import {
   MAX_GROUPS_PER_USER,
@@ -15,6 +15,9 @@ import {
   isJoinedGroupId,
   groupRoomVisual,
   AFTERPARTY_CLUB_ID,
+  clearAllGroupLastReads,
+  writeGroupLastRead,
+  groupLastReadStorageKey,
 } from './group-rooms';
 
 function room(partial: Partial<GroupChat> & Pick<GroupChat, 'id' | 'name'>): GroupChat {
@@ -205,5 +208,30 @@ describe('group-rooms catalog', () => {
     ];
     expect(countJoinedCatalogRooms(raw, ['y', 'a', 'dup-drink'], { myBirthYear: 1998 })).toBe(3);
     expect(isJoinedGroupId(raw, ['dup-drink'], 'group_afterparty_drink')).toBe(true);
+  });
+});
+
+describe('group last-read leftover cleanup', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('clears group_last_read_v1_* keys and leaves other storage alone', () => {
+    const mem: Record<string, string> = {};
+    const ls = {
+      get length() { return Object.keys(mem).length; },
+      key(i: number) { return Object.keys(mem)[i] ?? null; },
+      getItem(k: string) { return Object.prototype.hasOwnProperty.call(mem, k) ? mem[k] : null; },
+      setItem(k: string, v: string) { mem[k] = String(v); },
+      removeItem(k: string) { delete mem[k]; },
+    };
+    vi.stubGlobal('localStorage', ls);
+    writeGroupLastRead('u1', 'g1', '2026-01-01T00:00:00.000Z');
+    mem[groupLastReadStorageKey('u2')] = '{"g2":"t"}';
+    mem.matching_app_user_id = 'keep-me';
+    clearAllGroupLastReads();
+    expect(mem.matching_app_user_id).toBe('keep-me');
+    expect(mem[groupLastReadStorageKey('u1')]).toBeUndefined();
+    expect(mem[groupLastReadStorageKey('u2')]).toBeUndefined();
   });
 });

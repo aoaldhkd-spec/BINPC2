@@ -167,7 +167,6 @@ export function ChatsTab({ chats, messages, profileMap, onDeleteChat, onClearAll
         <ConfirmDialog title="채팅 전체 이력 삭제"
           message="모든 채팅방과 메시지를 영구 삭제합니다. 이 작업은 되돌릴 수 없습니다."
           danger
-          confirmText="전체삭제"
           onConfirm={doClearAll}
           onCancel={() => setConfirmClearAll(false)}
         />

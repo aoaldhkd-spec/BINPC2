@@ -3971,9 +3971,15 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
           'contact_shares', 'contact_share_events',
           'notifications',
           'signal_sends',
+          'group_chats', 'group_participants', 'group_messages', 'group_opt_outs',
         ];
         // 프라이빗 테이블은 row 내용 없이 "전체 초기화" 신호만 전송 (민감 데이터 유출 방지)
-        const RESET_PRIVATE = new Set(['likes', 'chats', 'messages', 'contact_shares', 'contact_share_events', 'chat_reads', 'anonymous_reports', 'signal_sends']);
+        const RESET_PRIVATE = new Set([
+          'likes', 'chats', 'messages', 'contact_shares', 'contact_share_events',
+          'chat_reads', 'anonymous_reports', 'signal_sends',
+          'group_chats', 'group_participants', 'group_messages', 'group_opt_outs',
+        ]);
+        const persistDeletes: Promise<void>[] = [];
         for (const t of tablesToClear) {
           const old = store[t] ?? [];
           store[t] = [];
@@ -3987,8 +3993,13 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
           } else {
             for (const row of old) broadcastAll({ type: 'change', table: t, event: 'DELETE', newRow: null, oldRow: row });
           }
-          dbDeleteTable(t).catch(e => logger.error({ err: e }, '[db] background task error'));
+          persistDeletes.push(dbDeleteTable(t).catch(e => logger.error({ err: e }, '[db] background task error')));
         }
+        mergedGroupIds.clear();
+        autoMatchInFlight.clear();
+        // PG wipe가 끝난 뒤 빈 카탈로그 방을 다시 심는다 (시드가 삭제 레이스에 지워지지 않게)
+        await Promise.all(persistDeletes);
+        await ensureOptInGroupRooms();
         return res.json({ data: null, error: null });
       }
 

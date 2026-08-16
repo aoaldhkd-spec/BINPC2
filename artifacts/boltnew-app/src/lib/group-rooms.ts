@@ -50,6 +50,19 @@ export function writeGroupLastRead(userId: string, groupId: string, at: string =
   return next;
 }
 
+/** 전체 초기화 시 유저별 단톡 읽음 시각 leftover 제거 */
+export function clearAllGroupLastReads(): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('group_last_read_v1_')) keys.push(k);
+    }
+    for (const k of keys) localStorage.removeItem(k);
+  } catch { /* private mode */ }
+}
+
 export function countUnreadGroupMessages(
   messages: ReadonlyArray<{ sender_id?: string; created_at?: string; group_id?: string }>,
   opts: { myId: string; lastReadAt?: string | null },

@@ -151,7 +151,7 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
               <span className="text-xs font-black text-red-600 bg-red-100 border border-red-300 px-2 py-0.5 rounded-full">위험</span>
               <h3 className="font-bold text-red-900 text-sm">회식 종료 전체 초기화</h3>
             </div>
-            <p className="text-xs text-red-600 mt-0.5 font-semibold">참여자·하트·채팅·공지·이력 모두 삭제 — 복구 불가</p>
+            <p className="text-xs text-red-600 mt-0.5 font-semibold">참여자·하트·채팅·단체채팅·공지·이력 모두 삭제 — 복구 불가</p>
           </div>
           <button onClick={() => setConfirmEventEnd(true)}
             className="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 bg-red-600 text-white rounded-xl font-semibold text-sm hover:bg-red-700 transition-all border-2 border-red-800">
@@ -180,7 +180,7 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
       )}
       {confirmEventEnd && (
         <ConfirmDialog title="회식 종료 전체 초기화"
-          message={`참여자 · 하트 · 채팅 · 공지 · 이력\n모든 데이터를 초기화합니다.\n\n진짜로 전체 초기화하시겠습니까?`}
+          message={`참여자 · 하트 · 채팅 · 단체채팅 · 공지 · 이력\n모든 데이터를 초기화합니다.\n\n진짜로 전체 초기화하시겠습니까?`}
           danger
           onConfirm={() => { setConfirmEventEnd(false); onEventEndReset(); }}
           onCancel={() => setConfirmEventEnd(false)}
