@@ -89,7 +89,6 @@ const BASIC: Topic[] = [
     label: '내설정',
     title: '내 설정 · 프로필',
     color: 'from-cyan-500 to-sky-600',
-    wideTips: true,
     tips: [
       { icon: '🔑', title: '고유번호', desc: '맨 위 4자리. 폰 바꾸면 이걸로 복구.' },
       { icon: '📷', title: '사진·닉네임', desc: '사진/아바타. 닉 2~6글자, 1회만 변경.' },
@@ -109,15 +108,16 @@ const BASIC: Topic[] = [
     title: '채팅, 이렇게만 알면 됨',
     color: 'from-blue-500 to-indigo-500',
     filler: 'chat',
+    nowrapTips: true,
     tips: [
-      { icon: '💬', title: '여는 곳', desc: 'MY → 내 채팅. 단톡은 옆 탭.' },
-      { icon: '😊', title: '이모지', desc: '입력줄 옆 😊. 글자에 붙여 넣음.' },
-      { icon: '🎨', title: '스티커', desc: '+ 다음 🎨. 이모지랑 다른 버튼.' },
-      { icon: '📷', title: '사진', desc: '+ 다음 이미지. 사진 전송.' },
-      { icon: '⚡', title: '빠른 메시지', desc: '+ 다음 ⚡. 한 줄 바로 전송.' },
-      { icon: '📱', title: '연락처·궁합', desc: '위 공유로 연락처, 🔮로 궁합.' },
-      { icon: '👉', title: '스와이프 답장', desc: '옆으로 밀면 그 말에 답장.' },
-      { icon: '👆', title: '길게 누르기', desc: '길게 누르면 답장·복사·삭제.' },
+      { icon: '💬', title: '여는 곳', desc: 'MY → 내 채팅 · 단톡은 옆' },
+      { icon: '😊', title: '이모지', desc: '입력줄 옆 😊에 붙여 넣음' },
+      { icon: '🎨', title: '스티커', desc: '+ 다음 🎨 · 이모지와 다름' },
+      { icon: '📷', title: '사진', desc: '+ 다음 이미지로 전송' },
+      { icon: '⚡', title: '빠른 메시지', desc: '+ 다음 ⚡ 한 줄 전송' },
+      { icon: '📱', title: '연락처·궁합', desc: '위 공유 · 🔮 궁합' },
+      { icon: '👉', title: '스와이프 답장', desc: '옆으로 밀면 그 말 답장' },
+      { icon: '👆', title: '길게 누르기', desc: '길게 → 답장·복사·삭제' },
     ],
   },
   {
@@ -179,10 +179,10 @@ function TipCard({ tip, panel, text, muted, dense, nowrap }: {
   nowrap?: boolean;
 }) {
   return (
-    <div className={`flex gap-2 rounded-xl border items-center ${dense ? 'px-2.5 py-1.5 min-h-[44px]' : 'px-3 py-2'} ${panel}`}>
-      <span className={`${dense ? 'text-[13px]' : 'text-[15px]'} leading-none flex-shrink-0`}>{tip.icon}</span>
+    <div className={`flex gap-2 rounded-xl border ${dense ? 'px-2.5 py-1.5 min-h-[44px]' : 'px-3 py-2'} ${nowrap ? 'items-center' : 'items-start'} ${panel}`}>
+      <span className={`${dense ? 'text-[13px]' : 'text-[15px]'} leading-none flex-shrink-0 ${nowrap ? '' : 'mt-0.5'}`}>{tip.icon}</span>
       <div className="min-w-0 flex-1">
-        <p className={`${dense ? 'text-[12px]' : 'text-[13px]'} font-black leading-tight ${text}`}>{tip.title}</p>
+        <p className={`${dense ? 'text-[12px]' : 'text-[13px]'} font-black leading-tight ${nowrap ? 'whitespace-nowrap' : ''} ${text}`}>{tip.title}</p>
         <p className={`${dense ? 'text-[11px] leading-snug mt-0.5' : 'text-[12px] leading-snug mt-0.5'} ${nowrap ? 'whitespace-nowrap' : 'break-keep'} ${muted}`}>{tip.desc}</p>
       </div>
     </div>
@@ -322,7 +322,7 @@ const FILLERS: Record<FillerKind, { title: string; line: string; quote: string; 
 function FillerPanel({ kind, darkMode }: { kind: FillerKind; darkMode?: boolean }) {
   const f = FILLERS[kind];
   const pin = kind === 'pin';
-  const group = kind === 'group';
+  const nowrapFiller = kind === 'group' || kind === 'chat';
   return (
     <div
       className={`flex-1 ${pin ? 'min-h-[88px]' : 'min-h-[64px]'} flex flex-col items-center justify-center rounded-2xl px-3 py-2 text-center ${
@@ -330,13 +330,13 @@ function FillerPanel({ kind, darkMode }: { kind: FillerKind; darkMode?: boolean 
       }`}
     >
       <FillerArt kind={kind} darkMode={darkMode} />
-      <p className={`${pin ? 'text-[16px]' : 'text-[13px]'} font-black tracking-tight ${darkMode ? 'text-white' : 'text-slate-800'}`}>
+      <p className={`${pin ? 'text-[16px]' : 'text-[13px]'} font-black tracking-tight ${nowrapFiller ? 'whitespace-nowrap' : ''} ${darkMode ? 'text-white' : 'text-slate-800'}`}>
         {f.title}
       </p>
-      <p className={`${pin ? 'text-[13px]' : 'text-[11px]'} ${group ? 'whitespace-nowrap' : 'leading-snug'} mt-0.5 ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+      <p className={`${pin ? 'text-[13px]' : 'text-[11px]'} ${nowrapFiller ? 'whitespace-nowrap' : 'leading-snug'} mt-0.5 ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
         {f.line}
       </p>
-      <p className={`${pin ? 'text-[12px]' : 'text-[10px]'} ${group ? 'whitespace-nowrap' : ''} mt-1 ${darkMode ? 'text-white/55' : 'text-slate-500'}`}>
+      <p className={`${pin ? 'text-[12px]' : 'text-[10px]'} ${nowrapFiller ? 'whitespace-nowrap' : ''} mt-1 ${darkMode ? 'text-white/55' : 'text-slate-500'}`}>
         {f.quote}
       </p>
     </div>
@@ -441,9 +441,9 @@ export function TutorialModal({ onClose, darkMode }: {
             ) : topic.id === 'settings' ? (
               <>
                 <div className="flex-shrink-0">
-                  <TipGrid tips={topic.tips} panel={panel} text={text} muted={muted} stack dense />
+                  <TipGrid tips={topic.tips} panel={panel} text={text} muted={muted} dense />
                 </div>
-                <div className="flex-1 min-h-[140px]">
+                <div className="flex-1 min-h-[118px]">
                   <TutorialVideo
                     key={`${mode}-${topic.id}`}
                     embedded
