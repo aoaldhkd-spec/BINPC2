@@ -1208,4 +1208,89 @@ describe('[Security] chat_reads partner receipt + 1:1 isolation', () => {
     });
     expect(asC.status).toBe(403);
   });
+
+  it('같은 두 사람이 방을 여러 번·역순으로 열어도 채팅방은 1개이고 상대도 메시지를 본다', async () => {
+    const a = randomUUID();
+    const b = randomUUID();
+    const first = await op({
+      op: 'insert',
+      table: 'chats',
+      requesterId: a,
+      payload: { user1_id: a, user2_id: b },
+      selectAfterWrite: true,
+      single: true,
+    });
+    expect(first.status).toBe(200);
+    const chatId = first.body.data.id as string;
+
+    const reversed = await op({
+      op: 'insert',
+      table: 'chats',
+      requesterId: b,
+      payload: { user1_id: b, user2_id: a },
+      selectAfterWrite: true,
+      single: true,
+    });
+    expect(reversed.status).toBe(200);
+    expect(reversed.body.data.id).toBe(chatId);
+
+    const again = await op({
+      op: 'insert',
+      table: 'chats',
+      requesterId: a,
+      payload: { user1_id: a, user2_id: b },
+      selectAfterWrite: true,
+      single: true,
+    });
+    expect(again.body.data.id).toBe(chatId);
+
+    const listA = await op({ op: 'select', table: 'chats', requesterId: a });
+    const listB = await op({ op: 'select', table: 'chats', requesterId: b });
+    const roomsA = (listA.body.data as { id: string; user1_id: string; user2_id: string }[])
+      .filter(c => [c.user1_id, c.user2_id].includes(a) && [c.user1_id, c.user2_id].includes(b));
+    const roomsB = (listB.body.data as { id: string; user1_id: string; user2_id: string }[])
+      .filter(c => [c.user1_id, c.user2_id].includes(a) && [c.user1_id, c.user2_id].includes(b));
+    expect(roomsA).toHaveLength(1);
+    expect(roomsB).toHaveLength(1);
+    expect(roomsA[0].id).toBe(chatId);
+    expect(roomsB[0].id).toBe(chatId);
+
+    const sent = await op({
+      op: 'insert',
+      table: 'messages',
+      requesterId: a,
+      payload: { chat_id: chatId, sender_id: a, content: 'pair-one-room', client_id: randomUUID() },
+      selectAfterWrite: true,
+      single: true,
+    });
+    expect(sent.status).toBe(200);
+
+    const asB = await op({
+      op: 'select',
+      table: 'messages',
+      requesterId: b,
+      filters: [{ type: 'eq', col: 'chat_id', val: chatId }],
+    });
+    expect(asB.status).toBe(200);
+    expect(asB.body.data.some((m: { content: string }) => m.content === 'pair-one-room')).toBe(true);
+
+    const reply = await op({
+      op: 'insert',
+      table: 'messages',
+      requesterId: b,
+      payload: { chat_id: chatId, sender_id: b, content: 'seen-by-a', client_id: randomUUID() },
+      selectAfterWrite: true,
+      single: true,
+    });
+    expect(reply.status).toBe(200);
+
+    const asA = await op({
+      op: 'select',
+      table: 'messages',
+      requesterId: a,
+      filters: [{ type: 'eq', col: 'chat_id', val: chatId }],
+    });
+    expect(asA.body.data.some((m: { content: string }) => m.content === 'seen-by-a')).toBe(true);
+    expect(asA.body.data.some((m: { content: string }) => m.content === 'pair-one-room')).toBe(true);
+  });
 });

@@ -519,6 +519,62 @@ function chatIdsForPair(u1: string, u2: string): string[] {
     .map(c => String(c.id));
 }
 
+/** 병합된 옛 방 id → canonical (프로세스 동안 SELECT 리다이렉트) */
+const mergedChatIds = new Map<string, string>();
+function rememberMergedChat(fromId: string, toId: string) {
+  if (!fromId || fromId === toId) return;
+  mergedChatIds.set(fromId, toId);
+  if (mergedChatIds.size > 2000) {
+    const first = mergedChatIds.keys().next().value;
+    if (first) mergedChatIds.delete(first);
+  }
+}
+
+function resolveMergedChatId(chatId: string): string {
+  let cur = chatId;
+  for (let i = 0; i < 8; i++) {
+    const next = mergedChatIds.get(cur);
+    if (!next || next === cur) break;
+    cur = next;
+  }
+  return cur;
+}
+
+/** 방 단위로 PG에서 메시지를 메모리에 합침 — 전역 LIMIT 때문에 옛 대화가 비는 것 방지 */
+async function mergeMessagesForChatIds(chatIds: string[]): Promise<void> {
+  const ids = [...new Set(chatIds.map(String).filter(Boolean))];
+  if (!ids.length) return;
+  try {
+    const { rows } = await pool.query(
+      `SELECT data FROM app_kv_rows
+       WHERE table_name = 'messages'
+         AND data->>'chat_id' = ANY($1::text[])`,
+      [ids],
+    );
+    if (!rows.length) return;
+    const memRows = getTable('messages');
+    const byId = new Map(memRows.map(r => [String(r['id']), r]));
+    for (const row of rows) {
+      const data = row.data as Record<string, unknown>;
+      const id = String(data['id'] ?? '');
+      if (!id) continue;
+      const existing = byId.get(id);
+      const dbTs = String(data.updated_at ?? data.created_at ?? '');
+      const memTs = existing ? String(existing.updated_at ?? existing.created_at ?? '') : '';
+      if (!existing) {
+        memRows.push(data);
+        byId.set(id, data);
+      } else if (dbTs >= memTs) {
+        const idx = memRows.findIndex(r => String(r['id']) === id);
+        if (idx >= 0) memRows[idx] = data;
+        byId.set(id, data);
+      }
+    }
+  } catch (e) {
+    logger.warn({ err: e }, '[db] mergeMessagesForChatIds failed');
+  }
+}
+
 function pickCanonicalChatRow(group: Record<string, unknown>[]): Record<string, unknown> {
   return [...group].sort((a, b) => {
     const diff = countMessagesForChat(String(b.id)) - countMessagesForChat(String(a.id));
@@ -578,6 +634,7 @@ async function dedupeChatsInStore(): Promise<number> {
       const idx = chats.findIndex(c => String(c.id) === dupId);
       if (idx >= 0) chats.splice(idx, 1);
       void dbDeleteRow('chats', dupId);
+      rememberMergedChat(dupId, canonicalId);
       merged++;
     }
   }
@@ -2066,7 +2123,9 @@ router.post('/op', async (req: Request, res: Response) => {
 
           if (chatIdEqF) {
             // 단일 채팅방 접근 — 참여자 검증 (+ 동일 쌍 중복 방 메시지 통합)
-            const chat = getTable('chats').find(c => String(c.id) === String(chatIdEqF.val));
+            await mergeTableFromDbIfStale('chats');
+            const wantId = resolveMergedChatId(String(chatIdEqF.val));
+            const chat = getTable('chats').find(c => String(c.id) === wantId);
             if (!chat) {
               return res.json({ data: [], error: null }); // 존재하지 않는 채팅방 → 빈 배열
             }
@@ -2075,23 +2134,25 @@ router.post('/op', async (req: Request, res: Response) => {
               return res.status(403).json({ data: null, error: { message: 'Forbidden: not a chat participant', code: 'FORBIDDEN' } });
             }
             const siblingIds = chatIdsForPair(String(chat.user1_id), String(chat.user2_id));
-            if (siblingIds.length > 1) {
-              const scoped = getTable('messages').filter(m => siblingIds.includes(String(m.chat_id)));
-              const otherFilters = normalizedFilters.filter(f => !(f.type === 'eq' && f.col === 'chat_id'));
-              let scopedResult = applyFilters(scoped, otherFilters);
-              for (const { col, asc } of safeOrders) {
-                scopedResult.sort((a, b) => {
-                  const av = a[col]; const bv = b[col];
-                  if (av === bv) return 0;
-                  if (av == null) return asc ? -1 : 1;
-                  if (bv == null) return asc ? 1 : -1;
-                  return (av < bv ? -1 : 1) * (asc ? 1 : -1);
-                });
-              }
-              if (limit != null) scopedResult = scopedResult.slice(0, limit);
-              const scopedData = single ? (scopedResult[0] ?? null) : maybeSingle ? (scopedResult[0] ?? null) : scopedResult;
-              return res.json({ data: scopedData, error: null });
+            const lookupIds = [...new Set([wantId, ...siblingIds])];
+            await mergeMessagesForChatIds(lookupIds);
+            const scoped = getTable('messages')
+              .filter(m => lookupIds.includes(String(m.chat_id)))
+              .map(m => (String(m.chat_id) === wantId ? m : { ...m, chat_id: wantId }));
+            const otherFilters = normalizedFilters.filter(f => !(f.type === 'eq' && f.col === 'chat_id'));
+            let scopedResult = applyFilters(scoped, otherFilters);
+            for (const { col, asc } of safeOrders) {
+              scopedResult.sort((a, b) => {
+                const av = a[col]; const bv = b[col];
+                if (av === bv) return 0;
+                if (av == null) return asc ? -1 : 1;
+                if (bv == null) return asc ? 1 : -1;
+                return (av < bv ? -1 : 1) * (asc ? 1 : -1);
+              });
             }
+            if (limit != null) scopedResult = scopedResult.slice(0, Math.floor(limit));
+            const scopedData = single ? (scopedResult[0] ?? null) : maybeSingle ? (scopedResult[0] ?? null) : scopedResult;
+            return res.json({ data: scopedData, error: null });
           }
 
           if (chatIdInF) {

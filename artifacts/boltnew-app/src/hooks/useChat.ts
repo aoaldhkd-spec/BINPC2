@@ -149,7 +149,10 @@ export function useChat({
                 // [Fix-I] 최신 메시지 도착 시 해당 채팅을 목록 최상단으로 이동
                 setChatList(prev => {
                   const idx = prev.findIndex(c => c.id === newMsg.chat_id);
-                  if (idx === -1) return prev;
+                  if (idx === -1) {
+                    void loadChatList(uid);
+                    return prev;
+                  }
                   const updated = { ...prev[idx], lastMessage: preview };
                   const next = [...prev];
                   next.splice(idx, 1);
