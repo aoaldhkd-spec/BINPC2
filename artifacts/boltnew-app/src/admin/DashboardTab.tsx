@@ -106,7 +106,7 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
                 {isFunctionsLocked ? '🔒 채팅·기능 잠금 중' : '💬 채팅·기능 열려있음'}
               </p>
               <p className={`text-[10px] mt-0.5 ${isFunctionsLocked ? 'text-red-500' : 'text-slate-400'}`}>
-                {isFunctionsLocked ? '하트·채팅·시그널·단톡·운세 사용 불가 — 탭하여 해제' : '하트·채팅·시그널·단톡·운세 모두 사용 가능 — 탭하여 잠금'}
+                {isFunctionsLocked ? '하트·채팅·시그널·단톡·운세 사용 불가 — 통계·랭킹은 그대로 — 탭하여 해제' : '하트·채팅·시그널·단톡·운세 잠금 가능 — 통계·랭킹은 항상 열림 — 탭하여 잠금'}
               </p>
             </div>
             <div className={`relative w-10 h-6 rounded-full transition-all flex-shrink-0 ${isFunctionsLocked ? 'bg-red-500' : 'bg-slate-300'}`}>

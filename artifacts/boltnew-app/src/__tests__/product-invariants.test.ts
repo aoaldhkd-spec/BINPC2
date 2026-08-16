@@ -78,6 +78,8 @@ describe('product copy + notification invariants', () => {
     expect(lock).toContain("'signal'");
     expect(lock).toContain("'chats'");
     expect(lock).toContain("'fortune'");
+    expect(lock).not.toContain("'stats'");
+    expect(lock).not.toContain("'ranking'");
     expect(main).toContain('SOCIAL_LOCKED_TABS');
     expect(main).toContain('guardLockedAction');
     expect(app).toContain('openChatGuarded');
@@ -85,6 +87,8 @@ describe('product copy + notification invariants', () => {
     expect(app).toContain('sendImageGuarded');
     expect(app).toContain('sendGroupMessageGuarded');
     expect(app).toContain('joinGroupChatGuarded');
+    expect(app).toContain('leaveGroupChatGuarded');
+    expect(app).toContain('onLeaveGroupChat');
     expect(app).toContain('handleMainTabChange');
     expect(app).toContain('FUNCTIONS_LOCK_KICK_TOAST');
     expect(app).toContain("handleMainTabChange('chats')");
@@ -95,6 +99,7 @@ describe('product copy + notification invariants', () => {
     expect(app).toContain("table: 'app_settings'");
     expect(app).toContain('{showResetPassword && (');
     expect(dash).toContain('하트·채팅·시그널·단톡·운세 사용 불가');
+    expect(dash).toContain('통계·랭킹은 그대로');
     expect(signal).toContain('행사 중에는 시그널을 사용할 수 없어요');
     expect(detail).toContain('onViewFortune');
     expect(db).toContain('FUNCTIONS_LOCKED_INSERT_TABLES');
