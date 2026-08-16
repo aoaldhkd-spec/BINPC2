@@ -175,7 +175,6 @@ export interface Database {
           active_tables: number[] | null;
           reset_signal: string | null;
           table_labels: Record<string, string> | null;
-          game_state: Json | null;
         };
         Insert: {
           id?: number;
@@ -192,7 +191,6 @@ export interface Database {
           active_tables?: number[] | null;
           reset_signal?: string | null;
           table_labels?: Record<string, string> | null;
-          game_state?: Json | null;
         };
         Update: {
           id?: number;
@@ -209,7 +207,6 @@ export interface Database {
           active_tables?: number[] | null;
           reset_signal?: string | null;
           table_labels?: Record<string, string> | null;
-          game_state?: Json | null;
         };
         Relationships: [];
       };
@@ -217,33 +214,6 @@ export interface Database {
         Row: { id: string; ended_at: string; seats_snapshot: Json; };
         Insert: { id?: string; ended_at?: string; seats_snapshot: Json; };
         Update: { id?: string; ended_at?: string; seats_snapshot?: Json; };
-        Relationships: [];
-      };
-      balance_games: {
-        Row: {
-          id: string; creator_id: string | null; creator_nickname: string | null;
-          scope: 'global' | 'table'; table_number: number | null;
-          question: string; option_a: string; option_b: string;
-          status: 'active' | 'ended'; created_at: string; ended_at: string | null;
-        };
-        Insert: {
-          id?: string; creator_id?: string | null; creator_nickname?: string | null;
-          scope?: 'global' | 'table'; table_number?: number | null;
-          question: string; option_a: string; option_b: string;
-          status?: 'active' | 'ended'; created_at?: string; ended_at?: string | null;
-        };
-        Update: {
-          id?: string; creator_id?: string | null; creator_nickname?: string | null;
-          scope?: 'global' | 'table'; table_number?: number | null;
-          question?: string; option_a?: string; option_b?: string;
-          status?: 'active' | 'ended'; created_at?: string; ended_at?: string | null;
-        };
-        Relationships: [];
-      };
-      balance_votes: {
-        Row: { id: string; game_id: string; voter_id: string; option: 'a' | 'b'; created_at: string; };
-        Insert: { id?: string; game_id: string; voter_id: string; option: 'a' | 'b'; created_at?: string; };
-        Update: { id?: string; game_id?: string; voter_id?: string; option?: 'a' | 'b'; created_at?: string; };
         Relationships: [];
       };
       anonymous_reports: {
@@ -256,30 +226,6 @@ export interface Database {
         Row: { id: string; message: string; type: string; target: string; is_active: boolean; created_at: string; };
         Insert: { id?: string; message: string; type: string; target: string; is_active?: boolean; created_at?: string; };
         Update: { id?: string; message?: string; type?: string; target?: string; is_active?: boolean; created_at?: string; };
-        Relationships: [];
-      };
-      qa_games: {
-        Row: { id: string; question: string; correct_answer: string | null; status: 'active' | 'ended'; scope: string; created_at: string; ended_at: string | null; };
-        Insert: { id?: string; question: string; correct_answer?: string | null; status?: 'active' | 'ended'; scope?: string; created_at?: string; ended_at?: string | null; };
-        Update: { id?: string; question?: string; correct_answer?: string | null; status?: 'active' | 'ended'; scope?: string; created_at?: string; ended_at?: string | null; };
-        Relationships: [];
-      };
-      qa_answers: {
-        Row: { id: string; game_id: string; user_id: string; nickname: string | null; table_number: number | null; answer: string; submitted_at: string; is_correct: boolean; };
-        Insert: { id?: string; game_id: string; user_id: string; nickname?: string | null; table_number?: number | null; answer: string; submitted_at?: string; is_correct?: boolean; };
-        Update: { id?: string; game_id?: string; user_id?: string; nickname?: string | null; table_number?: number | null; answer?: string; submitted_at?: string; is_correct?: boolean; };
-        Relationships: [];
-      };
-      image_games: {
-        Row: { id: string; question: string; penalty: string | null; status: 'active' | 'ended'; scope: string; table_number: number | null; created_at: string; ended_at: string | null; };
-        Insert: { id?: string; question: string; penalty?: string | null; status?: 'active' | 'ended'; scope?: string; table_number?: number | null; created_at?: string; ended_at?: string | null; };
-        Update: { id?: string; question?: string; penalty?: string | null; status?: 'active' | 'ended'; scope?: string; table_number?: number | null; created_at?: string; ended_at?: string | null; };
-        Relationships: [];
-      };
-      image_votes: {
-        Row: { id: string; game_id: string; voter_id: string; voted_profile_id: string; created_at: string; };
-        Insert: { id?: string; game_id: string; voter_id: string; voted_profile_id: string; created_at?: string; };
-        Update: { id?: string; game_id?: string; voter_id?: string; voted_profile_id?: string; created_at?: string; };
         Relationships: [];
       };
       contact_share_events: {

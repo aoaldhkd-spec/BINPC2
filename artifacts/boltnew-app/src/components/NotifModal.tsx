@@ -4,7 +4,6 @@ const NOTIF_STYLES: Record<string, { bar: string; icon: string; label: string }>
   info:   { bar: 'bg-blue-600',    icon: '📢', label: '공지' },
   urgent: { bar: 'bg-red-600',     icon: '🚨', label: '긴급' },
   event:  { bar: 'bg-amber-500',   icon: '🎉', label: '이벤트' },
-  game:   { bar: 'bg-violet-600',  icon: '🎮', label: '진행·게임' },
 };
 
 export function NotifModal({ notif, onClose }: { notif: { id: string; message: string; type: string; target: string }; onClose: () => void }) {

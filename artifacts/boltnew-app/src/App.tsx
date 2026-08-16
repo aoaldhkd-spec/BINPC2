@@ -15,7 +15,7 @@ import {
 import { HeartType } from './lib/constants';
 // ─── 분리된 타입·유틸·컴포넌트 imports ────────────────────────────────────────
 import type {
-  Profile, ContactShare, Suggestion,
+  Profile, ContactShare,
   Chat, View, MainTab, GroupChat, BlockedUser, ProfileView, UserSignal,
 } from './types/app';
 import { useGroupChat } from './hooks/useGroupChat';
@@ -170,7 +170,6 @@ function App() {
   // ?share=<profileId> URL 파라미터 — 프로필 QR 스캔 시 연락처 자동 수신
   const [pendingShareId] = useState<string | null>(() => new URLSearchParams(window.location.search).get('share'));
 
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [activeNotif, setActiveNotif] = useState<{ id: string; message: string; type: string; target: string } | null>(null);
   const [timerEndAt, setTimerEndAt] = useState<string | null>(null);
@@ -470,7 +469,6 @@ function App() {
         setSentHeartTypes(new Map());
         setAcknowledgedComplimentIds(new Set());
         setReceivedLikers([]);
-        setSuggestions([]);
         setView('entry-1');
         return;
       }
@@ -533,7 +531,6 @@ function App() {
           setLikedIds(new Set());
           setReceivedLikers([]);
           setChatList([]);
-          setSuggestions([]);
           // 추가 상태 초기화 — 하트·알림이 리셋 후에도 남아있는 버그 방지
           setSentHeartTypes(new Map());
           setSentHeartsPerPerson(new Map());
@@ -656,19 +653,6 @@ function App() {
   }, [loadProfiles, loadUserSignals]);
 
 
-  const loadSuggestions = useCallback(async (userId: string) => {
-    const { data } = await supabase.from('suggestions').select('*').eq('profile_id', userId).order('created_at', { ascending: false });
-    if (data) setSuggestions(data as Suggestion[]);
-  }, []);
-
-
-  const submitAnonymousReport = async (content: string) => {
-    if (!content.trim()) return;
-    const { error } = await supabase.from('anonymous_reports').insert({ content: content.trim() });
-    if (error) throw new Error(error.message ?? '전송 실패');
-  };
-
-
   useEffect(() => {
     if (!currentUserId) return;
     // #52: 계정 전환 시 이전 유저의 하트 상태가 잠깐 보이는 현상 방지
@@ -682,7 +666,6 @@ function App() {
     // 타이머 ID 추적 — 언마운트 시 clearTimeout으로 stale setState 방지
     let retryTimerId: ReturnType<typeof setTimeout> | null = null;
     let initTimerId1: ReturnType<typeof setTimeout> | null = null;
-    let initTimerId2: ReturnType<typeof setTimeout> | null = null;
     const rejNotifTimerIds: ReturnType<typeof setTimeout>[] = [];
     // cancelled 플래그 — 언마운트 후 비동기 콜백이 setState를 호출하는 것을 방지
     let cancelled = false;
@@ -759,9 +742,6 @@ function App() {
       loadContactShareData(currentUserId);
       loadChatList(currentUserId);
     }, 300);
-    initTimerId2 = setTimeout(() => {
-      loadSuggestions(currentUserId);
-    }, 600);
 
     // ── ?share=<profileId> 처리: 연락처 QR 스캔 → 연락처 모달 표시 ──
     if (pendingShareId && pendingShareId !== currentUserId) {
@@ -862,14 +842,6 @@ function App() {
           const share = payload.new as ContactShare;
           setReceivedContactShares(prev => prev.map(s => s.liked_id === share.liked_id ? share : s));
         })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'suggestions', filter: `profile_id=eq.${currentUserId}` }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-        const s = payload.new as Suggestion;
-        setSuggestions(prev => prev.map(x => x.id === s.id ? s : x));
-      })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'suggestions', filter: `profile_id=eq.${currentUserId}` }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-        const s = payload.new as Suggestion;
-        setSuggestions(prev => prev.some(x => x.id === s.id) ? prev : [s, ...prev]);
-      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'heart_balances', filter: `id=eq.${currentUserId}` },
         (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
           const row = payload.new as { heart_count?: number };
@@ -893,7 +865,6 @@ function App() {
       cancelled = true;
       if (retryTimerId) clearTimeout(retryTimerId);
       if (initTimerId1) clearTimeout(initTimerId1);
-      if (initTimerId2) clearTimeout(initTimerId2);
       rejNotifTimerIds.forEach(clearTimeout);
       if (confettiTimerRef.current) { clearTimeout(confettiTimerRef.current); confettiTimerRef.current = null; }
       if (confettiInnerTimerRef.current) { clearTimeout(confettiInnerTimerRef.current); confettiInnerTimerRef.current = null; }
@@ -901,7 +872,7 @@ function App() {
       supabase.removeChannel(userRealtimeChannel);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- loadXxx are stable useCallbacks; setState/refs are stable
-  }, [currentUserId, loadProfiles, loadLikes, loadReceivedLikes, loadContactShareData, loadChatList, loadSuggestions]);
+  }, [currentUserId, loadProfiles, loadLikes, loadReceivedLikes, loadContactShareData, loadChatList]);
 
   // ─── 차단·숨기기 / 방문자 기록 로드 ─────────────────────────────────────────
   useEffect(() => {
@@ -994,13 +965,12 @@ function App() {
           loadLikes(storedId);
           loadChatList(storedId);
           loadContactShareData(storedId);
-          loadSuggestions(storedId);
         }
       }).catch(() => { /* 네트워크 오류 → 세션 유지, 데이터는 다음 리프레시 때 갱신 */ });
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [loadProfiles, loadReceivedLikes, loadLikes, loadChatList, loadContactShareData, loadSuggestions]);
+  }, [loadProfiles, loadReceivedLikes, loadLikes, loadChatList, loadContactShareData]);
 
   // Web push 구독 — 로그인 완료 후 알림 권한 요청 및 구독 등록
   useEffect(() => {
@@ -1163,23 +1133,6 @@ function App() {
     }
   };
 
-
-  const submitSuggestion = async (content: string, contactInfo: string) => {
-    if (!currentUserId || !content.trim()) return;
-    const currentProfile = profiles.find(p => p.id === currentUserId);
-    try {
-      const { data } = await supabase.from('suggestions').insert({
-        profile_id: currentUserId,
-        nickname: currentProfile?.nickname ?? null,
-        content: content.trim(),
-        contact_info: contactInfo.trim() || null,
-      }).select().single();
-      if (data) setSuggestions(prev => [data as Suggestion, ...prev]);
-    } catch (e) {
-      console.error('[submitSuggestion] 오류:', e);
-      throw e; // 호출자(MainScreen)의 finally에서 버튼 상태 복구
-    }
-  };
 
   // useMemo: 매 렌더마다 filter 재계산 방지 — 모든 early return 전에 선언 (Rules of Hooks 준수)
   const sentLikedProfiles = useMemo(
@@ -1389,15 +1342,12 @@ function App() {
         receivedContactShares={receivedContactShares}
         pendingHeartsCount={pendingHeartsCount}
         chatList={chatList}
-        suggestions={suggestions}
         onContactShareOpen={(profile) => setContactShareTarget(profile)}
         onContactViewOpen={(share, profile) => setContactViewShare({ share, profile })}
         onHeartResponse={handleHeartResponse}
         onDeleteChat={deleteChat}
         onDeleteAllChats={deleteAllChats}
-        onSubmitSuggestion={submitSuggestion}
         onOpenChat={openChat}
-        onSubmitAnonymousReport={submitAnonymousReport}
         timerEndAt={timerEndAt}
         timerLabel={timerLabel}
         onRefreshStatus={refreshStatusTab}

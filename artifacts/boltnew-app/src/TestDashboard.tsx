@@ -418,7 +418,7 @@ export default function TestDashboard() {
 
         {/* 더미 프로필 대량 생성 */}
         <Section title="더미 프로필 대량 생성" icon={<UserPlus className="w-4 h-4" />} defaultOpen={false}>
-          <p className="text-xs text-slate-400">하트·채팅·게임 기능 테스트에 필요한 더미 유저들을 생성합니다.</p>
+          <p className="text-xs text-slate-400">하트·채팅 기능 테스트에 필요한 더미 유저들을 생성합니다.</p>
 
           {/* 슬라이더 */}
           <div className="space-y-1.5">

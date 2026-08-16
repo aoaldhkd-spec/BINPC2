@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../lib/theme';
-import type { Profile, ContactShare, Suggestion, Chat, MainTab, GroupChat, ProfileView, UserSignal } from '../types/app';
+import type { Profile, ContactShare, Chat, MainTab, GroupChat, ProfileView, UserSignal } from '../types/app';
 import { BIO_CATEGORIES, parseProfileInterests, getInterestTagStyle } from '../lib/interests';
 import { HeartType, HEART_TYPES, heartMeta } from '../lib/constants';
 import { getPositionLabel, getPositionBg, getPositionStyle, getDomSubLabel, getDomSubBg, getKoreanAge, genAvatar, getAvatarSrc, getAvatarGradientCss, hasUploadedPhoto } from '../lib/profile';
@@ -77,9 +77,8 @@ export function MainScreen({
   profiles, currentUserId, likedIds, sentHeartTypes, sentHeartsPerPerson, likeStatuses, profileMap, mainTab,
   onTabChange, onLike, onSelect, onReset, onProfileClickFromMap: _onProfileClickFromMap,
   receivedLikers, receivedHeartTypes, sentLikedProfiles, contactSharedWithIds, acknowledgedComplimentIds,
-  receivedContactShares, pendingHeartsCount, chatList, suggestions,
-  onContactShareOpen: _onContactShareOpen, onContactViewOpen, onHeartResponse, onDeleteChat, onDeleteAllChats, onSubmitSuggestion, onOpenChat,
-  onSubmitAnonymousReport,
+  receivedContactShares, pendingHeartsCount, chatList,
+  onContactShareOpen: _onContactShareOpen, onContactViewOpen, onHeartResponse, onDeleteChat, onDeleteAllChats, onOpenChat,
   timerEndAt, timerLabel, onRefreshStatus, onRefreshChat, onRefreshProfiles, darkMode, onToggleDark, onShowContactQr, onScanQr, scannedContacts, onClearScannedContact, functionsLocked = false, onShowTutorial,
   newMsgCount, onClearMsgCount, unreadChatCounts, onClearChatUnread: _onClearChatUnread,
   onUpdateProfile, fortuneCompatTarget, myHeartCount,
@@ -102,15 +101,13 @@ export function MainScreen({
   onProfileClickFromMap: (profile: Profile) => void;
   receivedLikers: Profile[]; receivedHeartTypes: Map<string, HeartType>; sentLikedProfiles: Profile[];
   contactSharedWithIds: Set<string>; acknowledgedComplimentIds: Set<string>; receivedContactShares: ContactShare[];
-  pendingHeartsCount: number; chatList: Chat[]; suggestions: Suggestion[];
+  pendingHeartsCount: number; chatList: Chat[];
   onContactShareOpen: (profile: Profile) => void;
   onContactViewOpen: (share: ContactShare, profile: Profile) => void;
   onHeartResponse: (likerId: string, response: 'accepted' | 'rejected') => void;
   onDeleteChat: (chat: Chat) => void;
   onDeleteAllChats: () => void;
-  onSubmitSuggestion: (content: string, contactInfo: string) => Promise<void>;
   onOpenChat: (profile: Profile) => void;
-  onSubmitAnonymousReport: (content: string) => Promise<void>;
   timerEndAt: string | null;
   timerLabel: string | null;
   onRefreshStatus: () => void;
@@ -205,15 +202,6 @@ export function MainScreen({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profiles, profileSearch, profilePersonalityFilter, profileMbtiFilter, currentUserId, blockedUserIds, hiddenByIds]);
 
-  const [suggestionContent, setSuggestionContent] = useState('');
-  const [suggestionContact, setSuggestionContact] = useState('');
-  const [suggestionSubmitting, setSuggestionSubmitting] = useState(false);
-  const [reportText, setReportText] = useState('');
-  const reportSentKey = `reportSent_${currentUserId}`;
-  const [reportSent, setReportSentRaw] = useState(() => ls.getItem(reportSentKey) === '1');
-  const setReportSent = (v: boolean) => { if (v) ls.setItem(reportSentKey, '1'); else ls.removeItem(reportSentKey); setReportSentRaw(v); };
-  const [reportError, setReportError] = useState<string | null>(null);
-  const [drinkPicker, setDrinkPicker] = useState<string | null>(null);
   const [refreshedTab, setRefreshedTab] = useState<string | null>(null);
 
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -327,38 +315,6 @@ export function MainScreen({
     if (t === 'profiles') setSeenProfilesCount(profiles.length);
     if (t === 'chats') { onClearMsgCount(); }
     onTabChange(t);
-  };
-
-  const QUICK_REPORTS = [
-    { label: '화장실이 급해요 🚽', text: '화장실이 급해요' },
-    { label: '물 주세요 💧', text: '물 주세요' },
-    { label: '소주잔 주세요', text: '소주잔 주세요' },
-    { label: '맥주잔 주세요', text: '맥주잔 주세요' },
-    { label: '종이컵 주세요', text: '종이컵 주세요' },
-    { label: '젓가락 주세요', text: '젓가락 주세요' },
-    { label: '휴지 주세요', text: '휴지 주세요' },
-    { label: '물티슈 주세요', text: '물티슈 주세요' },
-    { label: '너무 더워요 🥵', text: '너무 더워요' },
-    { label: '너무 추워요 🥶', text: '너무 추워요' },
-    { label: '음악 너무 커요 🔊', text: '음악 너무 커요' },
-  ];
-
-  const DRINK_OPTIONS: Record<string, { label: string; choices: string[] }> = {
-    '맥주': { label: '맥주 종류 선택', choices: ['카스', '켈리', '테라'] },
-    '소주': { label: '소주 종류 선택', choices: ['진로', '대선', '참이슬', '좋은데이'] },
-    '음료수': { label: '음료수 종류 선택', choices: ['코카콜라제로', '펩시제로', '웰치스', '스프라이트'] },
-  };
-
-  const sendReport = async (text: string) => {
-    setReportError(null);
-    try {
-      await onSubmitAnonymousReport(text);
-      setDrinkPicker(null);
-      setReportSent(true);
-      setReportText('');
-    } catch {
-      setReportError('신고 전송 실패 — 잠시 후 다시 시도해 주세요');
-    }
   };
 
   // ── 사주 탭 생월·생일 편집 상태 ─────────────────────────────────────────────
@@ -637,7 +593,7 @@ export function MainScreen({
           </div>
           {/* 중앙: 타이틀 */}
           <div className="justify-self-center">
-            <ResetButton onReset={onReset} darkMode={darkMode} onEasterEgg={() => onSubmitSuggestion('__술주세요__', '')} />
+            <ResetButton onReset={onReset} darkMode={darkMode} />
           </div>
           {/* 우: 하트 */}
           <div className="justify-self-end flex items-center gap-2">
@@ -2077,144 +2033,6 @@ export function MainScreen({
           </div>
         )}
 
-        {/* ─── 건의함 탭 (관리자에게 요청) ─── */}
-        {mainTab === 'suggestions' && (
-          <div className="max-w-lg mx-auto space-y-4">
-            <div className={`rounded-2xl shadow-sm p-5 transition-colors duration-300 ${darkMode ? 'bg-slate-800 border border-slate-600' : 'bg-white'}`}>
-              <h3 className={`text-base font-black mb-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}>관리자(방장)에게 요청</h3>
-              <p className={`text-xs mb-4 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
-                익명으로 전송됩니다.
-              </p>
-
-              {reportSent ? (
-                <div className="flex flex-col items-center gap-3 py-4">
-                  <div className="w-12 h-12 rounded-full bg-teal-100 flex items-center justify-center">
-                    <CheckCircle className="w-6 h-6 text-teal-500" />
-                  </div>
-                  <p className="text-sm font-bold text-teal-700">이미 전달됐습니다!</p>
-                  <p className="text-xs text-gray-400 text-center">관리자에게 내용이 전달되었습니다.<br/>추가 건의가 필요하시면 아래 버튼을 눌러주세요.</p>
-                  <button onClick={() => setReportSent(false)}
-                    className="px-4 py-2 text-xs font-bold text-gray-500 border border-gray-200 rounded-xl hover:border-gray-400 hover:text-gray-700 transition-all">
-                    다시 보내기
-                  </button>
-                </div>
-              ) : (
-                <>
-                  {/* 음료 종류 선택 picker */}
-                  {drinkPicker && DRINK_OPTIONS[drinkPicker] && (
-                    <div className="mb-4 p-4 bg-cyan-50 border border-cyan-200 rounded-2xl">
-                      <div className="flex items-center justify-between mb-3">
-                        <p className="text-sm font-black text-cyan-700">{DRINK_OPTIONS[drinkPicker].label}</p>
-                        <button onClick={() => setDrinkPicker(null)} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {DRINK_OPTIONS[drinkPicker].choices.map(c => (
-                          <button key={c} onClick={() => sendReport(`${drinkPicker} 주세요 (${c})`)}
-                            className="px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white text-sm font-bold rounded-xl transition-all active:scale-95">
-                            {c}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Quick buttons */}
-                  {!drinkPicker && (
-                    <>
-                      {/* 음료 버튼 */}
-                      <div className="flex flex-wrap gap-2 mb-3">
-                        {(['맥주', '소주', '음료수'] as const).map(d => (
-                          <button key={d} onClick={() => setDrinkPicker(d)}
-                            className="px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-bold rounded-xl border border-amber-200 hover:border-amber-400 transition-all active:scale-95">
-                            {d} 주세요 🍺
-                          </button>
-                        ))}
-                      </div>
-                      <div className="flex flex-wrap gap-2 mb-4">
-                        {QUICK_REPORTS.map((r) => (
-                          <button key={r.text} onClick={() => sendReport(r.text)}
-                            className="px-3 py-2 bg-gray-50 hover:bg-cyan-50 text-gray-700 hover:text-cyan-700 text-xs font-semibold rounded-xl border border-gray-200 hover:border-cyan-300 transition-all active:scale-95">
-                            {r.label}
-                          </button>
-                        ))}
-                      </div>
-                    </>
-                  )}
-
-                  {reportError && (
-                    <p className="text-xs text-red-500 font-semibold mb-2">{reportError}</p>
-                  )}
-
-                  {/* Custom message */}
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={reportText}
-                      onChange={e => setReportText(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter' && reportText.trim()) sendReport(reportText); }}
-                      placeholder="직접 입력..."
-                      maxLength={100}
-                      className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-300"
-                    />
-                    <button
-                      disabled={!reportText.trim()}
-                      onClick={() => sendReport(reportText)}
-                      className="px-4 py-2.5 bg-cyan-500 hover:bg-cyan-600 disabled:opacity-40 text-white font-bold rounded-xl transition-all text-sm"
-                    >전송</button>
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* 공식 건의사항 (스타벅스 이벤트) */}
-            <details className="group">
-              <summary className="list-none flex items-center gap-2 cursor-pointer py-2">
-                <ChevronDown className="w-4 h-4 text-amber-500 transition-transform group-open:rotate-180" />
-                <span className="text-sm font-bold text-amber-600">공식 건의사항 (채택 시 스타벅스 ☕)</span>
-              </summary>
-              <div className={`rounded-2xl shadow-sm p-5 mt-2 space-y-3 transition-colors duration-300 ${darkMode ? 'bg-slate-800 border border-slate-600' : 'bg-white'}`}>
-                <p className="text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-xl border border-amber-200">
-                  채택된 분께는 <span className="font-black">스타벅스 아이스 아메리카노</span>가 지급됩니다!
-                </p>
-                <textarea value={suggestionContent} onChange={e => setSuggestionContent(e.target.value)}
-                  placeholder="앱 개선 건의사항을 작성해주세요..." maxLength={500}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-300 min-h-[80px]" />
-                <div>
-                  <input type="text" value={suggestionContact} onChange={e => setSuggestionContact(e.target.value)}
-                    placeholder="연락처 (채택 시 선물 발송용)"
-                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" />
-                  <p className="text-[11px] text-red-500 mt-1">※ 본인 연락처가 아닐 경우 지급이 제한될 수 있습니다.</p>
-                </div>
-                <button disabled={!suggestionContent.trim() || suggestionSubmitting}
-                  onClick={async () => { setSuggestionSubmitting(true); try { await onSubmitSuggestion(suggestionContent, suggestionContact); setSuggestionContent(''); setSuggestionContact(''); } catch { /* 오류는 App.tsx에서 로깅 */ } finally { setSuggestionSubmitting(false); } }}
-                  className="w-full py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-semibold rounded-xl disabled:opacity-40 transition-all">
-                  {suggestionSubmitting ? '제출 중...' : '건의사항 제출'}
-                </button>
-                {suggestions.length > 0 && (
-                  <div className="space-y-2 pt-2">
-                    {suggestions.map(s => (
-                      <div key={s.id} className="p-3 bg-gray-50 rounded-xl space-y-1">
-                        <div className="flex items-start gap-2">
-                          <p className="text-sm text-gray-700 flex-1">{s.content}</p>
-                          <span className={`flex-shrink-0 px-2 py-0.5 text-[10px] font-bold rounded-full ${
-                            s.status === 'accepted' ? 'bg-teal-100 text-teal-700' : s.status === 'rejected' ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-500'
-                          }`}>{s.status === 'accepted' ? '채택' : s.status === 'rejected' ? '미채택' : '검토 중'}</span>
-                        </div>
-                        {s.admin_reason && (
-                          <p className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">관리자: {s.admin_reason}</p>
-                        )}
-                        {s.admin_response && (
-                          <p className="text-xs text-teal-700 bg-teal-50 border border-teal-200 px-2 py-1.5 rounded-lg font-medium">💬 답변: {s.admin_response}</p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </details>
-          </div>
-        )}
-
         {/* ─── 통계 탭 ─── */}
         {mainTab === 'stats' && (
           <StatsTab profiles={profiles} darkMode={darkMode} />
@@ -2225,7 +2043,7 @@ export function MainScreen({
           <RankingTab darkMode={darkMode} profiles={profiles} />
         )}
 
-        {/* ─── 운세 탭 (게임·운세 하위) ─── */}
+        {/* ─── 운세 탭 ─── */}
         {mainTab === 'fortune' && (
           <div className="min-h-[60vh] w-full overflow-x-hidden">
             {/* ── 생월·생일 설정 카드 ── */}

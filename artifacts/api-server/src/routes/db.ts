@@ -793,7 +793,6 @@ function defaultAppSettings(): Record<string, unknown> {
     timer_label: null,
     functions_locked: false,
     reset_signal: null,
-    game_state: null,
     entry_password: koreanDateMMDD(),
     reset_password: PANEL_DEFAULT_PASSWORD,
     test_password: bootstrapTest || PANEL_DEFAULT_PASSWORD,

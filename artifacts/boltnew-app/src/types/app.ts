@@ -6,8 +6,6 @@ import type { Database } from './database';
 export type Profile = Database['public']['Tables']['profiles']['Row'];
 export type Message = Database['public']['Tables']['messages']['Row'];
 export type ContactShare = Database['public']['Tables']['contact_shares']['Row'];
-export type Suggestion = Database['public']['Tables']['suggestions']['Row'];
-export type AnonymousReport = Database['public']['Tables']['anonymous_reports']['Row'];
 
 export type Chat = {
   id: string;
@@ -71,8 +69,8 @@ export type UserSignal = {
   created_at: string;
 };
 export type MainTab =
-  | 'profiles' | 'status' | 'chats' | 'suggestions'
-  | 'game' | 'tutorial' | 'stats' | 'ranking' | 'fortune' | 'settings';
+  | 'profiles' | 'status' | 'chats'
+  | 'stats' | 'ranking' | 'fortune' | 'settings';
 
 export type TutorialSlide = {
   emoji: string;

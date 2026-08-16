@@ -12,7 +12,7 @@ import {
   withAdminImageToken, setAdminToken, loadAdminSession, getAdminPassword, refreshAdminToken,
   adminApiRpc, patchAdminSettings, adminApiSelect, adminSupabase,
   ADMIN_TOKEN_KEY, ADMIN_PW_KEY, ADMIN_SESSION_KEY, ADMIN_API, MAX_ADMIN_MESSAGES,
-  type Profile, type AppSettings, type SessionHistory, type Like, type Chat, type Message, type Suggestion, type AnonymousReport, type DbHealthData,
+  type Profile, type AppSettings, type SessionHistory, type Like, type Chat, type Message, type DbHealthData,
 } from './admin/shared';
 import { LoginScreen } from './admin/LoginScreen';
 import { ConfirmDialog } from './admin/ConfirmDialog';
@@ -45,26 +45,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [likes, setLikes] = useState<Like[]>([]);
   const [allChats, setAllChats] = useState<Chat[]>([]);
   const [allMessages, setAllMessages] = useState<Message[]>([]);
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
-  const [_anonymousReports, setAnonymousReports] = useState<AnonymousReport[]>([]);
-  const [newReportPopup, setNewReportPopup] = useState<AnonymousReport | null>(null);
-  const [drinkPopup, setDrinkPopup] = useState(false);
-  // 관리자 팝업 — TTS 알림
-  useEffect(() => {
-    if (!drinkPopup) return;
-    if (!('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel();
-    const lines = ['손님이 술을 요청하고 있어요! 빨리 가져다 드리세요!', '아저씨!! 술 주세요!!'];
-    let i = 0;
-    const say = () => {
-      const utter = new SpeechSynthesisUtterance(lines[i] ?? lines[0]);
-      utter.lang = 'ko-KR'; utter.rate = 0.85; utter.pitch = 1.6; utter.volume = 1;
-      utter.onend = () => { i++; if (i < lines.length) say(); };
-      window.speechSynthesis.speak(utter);
-    };
-    say();
-  }, [drinkPopup]);
-
   // Recovery banner (floating top)
   const [recovery, setRecovery] = useState<{ label: string; emoji: string; restore: (() => Promise<void>) | null; timerId: ReturnType<typeof setTimeout> } | null>(null);
   // Persistent restore map — key → restore function (shown as buttons in DashboardTab)
@@ -81,15 +61,13 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const profileMap = new Map(profiles.map((p) => [p.id, p]));
 
   const loadAll = useCallback(async () => {
-    const [{ data: s }, { data: pr }, { data: hi }, { data: li }, { data: ch }, { data: msgs }, { data: sug }, { data: anon }] = await Promise.all([
+    const [{ data: s }, { data: pr }, { data: hi }, { data: li }, { data: ch }, { data: msgs }] = await Promise.all([
       adminSupabase.from('app_settings').select('*').eq('id', 1).single(),
       adminSupabase.from('profiles').select('*').order('created_at', { ascending: false }),
       adminSupabase.from('session_history').select('*').order('ended_at', { ascending: false }),
       adminApiSelect<Like>('likes', [{ column: 'created_at', ascending: false }]),
       adminApiSelect<Chat>('chats', [{ column: 'created_at', ascending: false }]),
       adminApiSelect<Message>('messages', [{ column: 'created_at', ascending: true }]),
-      adminSupabase.from('suggestions').select('*').order('created_at', { ascending: false }),
-      adminSupabase.from('anonymous_reports').select('*').order('created_at', { ascending: false }),
     ]);
     if (s) setSettings(s);
     if (pr) setProfiles(pr);
@@ -97,8 +75,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     if (li) setLikes(li);
     if (ch) setAllChats(ch);
     if (msgs) setAllMessages(msgs.slice(-MAX_ADMIN_MESSAGES));
-    if (sug) setSuggestions(sug as Suggestion[]);
-    if (anon) setAnonymousReports(anon as AnonymousReport[]);
   }, []);
 
   useEffect(() => {
@@ -130,30 +106,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         }
         if (row.id == null && typeof row.session_active !== 'boolean') return;
         setSettings(prev => (prev ? { ...prev, ...row } : row) as AppSettings);
-      })
-      // ── anonymous_reports ────────────────────────────────────────────
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'anonymous_reports' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-        const report = payload.new as AnonymousReport;
-        setAnonymousReports(prev => [report, ...prev]);
-        setNewReportPopup(report);
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'anonymous_reports' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-        setAnonymousReports(prev => prev.map(r => r.id === (payload.new as AnonymousReport).id ? payload.new as AnonymousReport : r));
-      })
-      // ── suggestions: 페이로드 기반 증분 업데이트 ─────────────────────
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'suggestions' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-        const s = payload.new as Suggestion;
-        if (s.content === '__술주세요__') {
-          setDrinkPopup(true);
-        } else {
-          setSuggestions(prev => [s, ...prev]);
-        }
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'suggestions' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-        setSuggestions(prev => prev.map(s => s.id === (payload.new as Suggestion).id ? payload.new as Suggestion : s));
-      })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'suggestions' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-        setSuggestions(prev => prev.filter(s => s.id !== (payload.old as Suggestion).id));
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -273,7 +225,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     const backupLikes = [...likes];
     const backupChats = [...allChats];
     const backupMsgs = [...allMessages];
-    const backupSuggestions = [...suggestions];
     const backupHistories = [...histories];
     // 백업 데이터 수집 — 실패해도 초기화 진행
     const [notifRes] = await Promise.allSettled([
@@ -301,7 +252,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       // api-server reset_signal 동기화
       adminApiRpc('admin_update_settings', { p_payload: { reset_signal: new Date().toISOString() } })
         .catch(() => null);
-      const hasData = backupProfiles.length > 0 || backupLikes.length > 0 || backupChats.length > 0 || backupSuggestions.length > 0;
+      const hasData = backupProfiles.length > 0 || backupLikes.length > 0 || backupChats.length > 0;
       showRecovery('전체 초기화', '🗑️', hasData ? async () => {
         // 복구 upsert — 개별 실패는 로그만
         await Promise.allSettled([
@@ -309,7 +260,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           ...backupLikes.map(l => adminSupabase.from('likes').upsert({ id: l.id, liker_id: l.liker_id, liked_id: l.liked_id, heart_type: l.heart_type, status: l.status, created_at: l.created_at })),
           ...backupChats.map(c => adminSupabase.from('chats').upsert(c)),
           ...backupMsgs.map(m => adminSupabase.from('messages').upsert(m)),
-          ...backupSuggestions.map(s => adminSupabase.from('suggestions').upsert({ id: s.id, content: s.content, created_at: s.created_at })),
           ...backupHistories.map(h => adminSupabase.from('session_history').upsert({ id: h.id, seats_snapshot: [], created_at: (h as { created_at?: string }).created_at })),
           ...(safeData(notifRes) ?? []).map((n: unknown) => adminSupabase.from('notifications').upsert(n)),
         ]);
@@ -593,72 +543,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         </div>
       )}
 
-      {/* 🍻 아저씨 술주세요 이스터에그 팝업 — 풀스크린 임팩트 */}
-      {drinkPopup && (
-        <div className="fixed inset-0 z-[300] flex flex-col items-center justify-center bg-amber-400 p-6 text-center" style={{ animation: 'drinkShake 0.4s ease-in-out' }}>
-          <style>{`
-            @keyframes drinkShake {
-              0%,100%{transform:rotate(0deg)}
-              20%{transform:rotate(-4deg) scale(1.04)}
-              40%{transform:rotate(4deg) scale(1.06)}
-              60%{transform:rotate(-3deg) scale(1.03)}
-              80%{transform:rotate(3deg) scale(1.05)}
-            }
-            @keyframes beerBounce {
-              0%,100%{transform:translateY(0) scale(1)}
-              30%{transform:translateY(-24px) scale(1.15)}
-              60%{transform:translateY(-10px) scale(1.08)}
-            }
-            @keyframes textPulse {
-              0%,100%{opacity:1;transform:scale(1)}
-              50%{opacity:0.85;transform:scale(1.06)}
-            }
-          `}</style>
-
-          <div style={{ animation: 'beerBounce 0.7s ease-in-out infinite' }} className="text-[120px] leading-none select-none">🍺</div>
-
-          <p className="mt-6 text-white font-black leading-tight select-none"
-            style={{ fontSize: 'clamp(2.2rem, 10vw, 4rem)', textShadow: '0 3px 12px rgba(0,0,0,0.25)', animation: 'textPulse 0.9s ease-in-out infinite' }}>
-            아저씨!!<br />술 주세요!!
-          </p>
-
-          <p className="mt-4 text-amber-100 font-bold text-lg select-none">손님이 술을 요청하고 있어요 🙏</p>
-
-          <button
-            onClick={() => setDrinkPopup(false)}
-            className="mt-10 px-12 py-5 bg-white text-amber-500 font-black text-xl rounded-3xl shadow-2xl active:scale-95 transition-transform"
-            style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}
-          >
-            넵! 바로 드릴게요 🫡
-          </button>
-        </div>
-      )}
-
-      {/* 익명 건의 실시간 팝업 */}
-      {newReportPopup && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setNewReportPopup(null)}>
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 space-y-4" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-orange-100 flex items-center justify-center flex-shrink-0">
-                <span className="text-xl">📩</span>
-              </div>
-              <div>
-                <p className="text-xs font-bold text-orange-500 uppercase tracking-widest">새 익명 건의</p>
-                {newReportPopup.table_number && (
-                  <p className="text-xs text-gray-500 font-semibold">{newReportPopup.table_number}번 테이블</p>
-                )}
-              </div>
-            </div>
-            <div className="bg-orange-50 rounded-2xl px-4 py-3 border border-orange-100">
-              <p className="text-sm font-semibold text-gray-800 leading-relaxed">{newReportPopup.content}</p>
-            </div>
-            <div className="flex gap-3">
-              <button onClick={() => { setTab('chats'); setNewReportPopup(null); }} className="flex-1 py-2.5 bg-orange-500 text-white font-bold rounded-xl hover:bg-orange-600 transition-all text-sm">채팅으로 이동</button>
-              <button onClick={() => setNewReportPopup(null)} className="flex-1 py-2.5 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition-all text-sm">확인</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
