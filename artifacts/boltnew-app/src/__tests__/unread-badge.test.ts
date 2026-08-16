@@ -20,6 +20,10 @@ import { renderHook, act, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Profile } from '../types/app';
 
+function unreadTotal(counts: Record<string, number> | undefined) {
+  return Object.values(counts ?? {}).reduce((a, n) => a + n, 0);
+}
+
 // ─── Module mocks (hoisted before imports) ──────────────────────────────────
 
 // Track fetch calls per-test
@@ -159,7 +163,7 @@ describe('useChat — syncUnreadCounts called after loadChatList (restart sequen
     expect(unreadCall).toContain(`userId=${encodeURIComponent(TEST_USER_ID)}`);
   });
 
-  it('badge (newMsgCount) reflects messages received while app was closed', async () => {
+  it('badge (unreadChatCounts total) reflects messages received while app was closed', async () => {
     // Arrange
     chatQB._setData([makeChatRow(CHAT_A), makeChatRow(CHAT_B)]);
     setupFetch({ [CHAT_A]: 2, [CHAT_B]: 3 });
@@ -172,7 +176,7 @@ describe('useChat — syncUnreadCounts called after loadChatList (restart sequen
 
     // Assert: badge total = 2 + 3 = 5
     await waitFor(() => {
-      expect(result.current.newMsgCount).toBe(5);
+      expect(unreadTotal(result.current.unreadChatCounts)).toBe(5);
     });
   });
 
@@ -203,7 +207,7 @@ describe('useChat — syncUnreadCounts called after loadChatList (restart sequen
     });
 
     await waitFor(() => {
-      expect(result.current.newMsgCount).toBe(0);
+      expect(unreadTotal(result.current.unreadChatCounts)).toBe(0);
     });
   });
 
@@ -244,7 +248,7 @@ describe('useChat — open chat is excluded from badge on restart', () => {
 
     // Badge must only count CHAT_B (6), not CHAT_A (4)
     await waitFor(() => {
-      expect(result.current.newMsgCount).toBe(6);
+      expect(unreadTotal(result.current.unreadChatCounts)).toBe(6);
     });
     expect(result.current.unreadChatCounts).not.toHaveProperty(CHAT_A);
     expect(result.current.unreadChatCounts[CHAT_B]).toBe(6);
@@ -265,14 +269,12 @@ describe('useChat — syncUnreadCounts is called once on mount (currentUserId be
   });
 });
 
-describe('useChat — openChat clears both per-chat badge and global newMsgCount', () => {
-  it('newMsgCount decrements correctly when openChat clears unread for the resolved chat', async () => {
+describe('useChat — openChat clears per-chat unread badge', () => {
+  it('unreadChatCounts drop when openChat clears unread for the resolved chat', async () => {
     // Scenario: user has 1 unread in CHAT_A. They open the chat list and click the chat.
     // openChat calls setUnreadChatCounts (clearing CHAT_A) before the chatId effect fires.
-    // The bug (regressed): if openChat did NOT read the count before calling
-    // setUnreadChatCounts, the chatId effect would find removed=0 and never decrement newMsgCount.
     //
-    // Verifies that after openChat resolves: unreadChatCounts[CHAT_A] is gone AND newMsgCount===0.
+    // Verifies that after openChat resolves: unreadChatCounts[CHAT_A] is gone.
 
     // Arrange: chat list shows CHAT_A; unread-counts endpoint returns { [CHAT_A]: 1 }
     chatQB._setData([makeChatRow(CHAT_A)]);
@@ -284,11 +286,11 @@ describe('useChat — openChat clears both per-chat badge and global newMsgCount
 
     const { result } = renderHook(() => useChat(BASE_DEPS));
 
-    // 1. Load chat list → triggers syncUnreadCounts which sets newMsgCount = 1
+    // 1. Load chat list → triggers syncUnreadCounts which sets unreadChatCounts[CHAT_A] = 1
     await act(async () => {
       await result.current.loadChatList(TEST_USER_ID);
     });
-    expect(result.current.newMsgCount).toBe(1);
+    expect(unreadTotal(result.current.unreadChatCounts)).toBe(1);
     expect(result.current.unreadChatCounts[CHAT_A]).toBe(1);
 
     // 2. Open the chat — openChat must clear both per-chat count AND global badge
@@ -312,7 +314,7 @@ describe('useChat — openChat clears both per-chat badge and global newMsgCount
 
     // Both the per-chat bubble and the global badge must be cleared in the same cycle
     expect(result.current.unreadChatCounts[CHAT_A]).toBeUndefined();
-    expect(result.current.newMsgCount).toBe(0);
+    expect(unreadTotal(result.current.unreadChatCounts)).toBe(0);
   });
 });
 
@@ -328,7 +330,7 @@ describe('useChat — error resilience', () => {
     });
 
     // Hook must not throw; badge stays at 0 (no data applied)
-    expect(result.current.newMsgCount).toBe(0);
+    expect(unreadTotal(result.current.unreadChatCounts)).toBe(0);
   });
 
   it('hook remains stable when fetch rejects (network error)', async () => {
@@ -342,6 +344,6 @@ describe('useChat — error resilience', () => {
       await result.current.loadChatList(TEST_USER_ID);
     });
 
-    expect(result.current.newMsgCount).toBe(0);
+    expect(unreadTotal(result.current.unreadChatCounts)).toBe(0);
   });
 });
