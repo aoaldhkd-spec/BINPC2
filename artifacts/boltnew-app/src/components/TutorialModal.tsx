@@ -135,15 +135,6 @@ const BASIC: Topic[] = [
       { icon: '3️⃣', title: '한도', desc: '한 사람 방 3개까지. 정원 무제한.' },
     ],
   },
-  {
-    id: 'chat-video',
-    emoji: '▶️',
-    label: '채팅영상',
-    title: '채팅 따라해 보기',
-    color: 'from-indigo-500 to-blue-600',
-    tips: [],
-    video: [3, 4, 5],
-  },
 ];
 
 const ADVANCED: Topic[] = [
