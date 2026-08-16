@@ -627,6 +627,42 @@ function S7({ step }: { step: number }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// Scene 8: 시그널 카드 — 왼쪽 패스 / 오른쪽 시그널
+// ══════════════════════════════════════════════════════════════════════════════
+function S8({ step }: { step: number }) {
+  const offset = step === 2 ? -56 : step === 4 ? 64 : 0;
+  return (
+    <div className="h-full flex flex-col bg-slate-900 px-3 pt-2 pb-1">
+      <p className="text-[9px] font-black text-slate-500 uppercase tracking-wider mb-1.5">시그널 탭 · 틴더처럼</p>
+      <div className={`flex justify-between text-[8px] font-black mb-1.5 ${step >= 1 ? 'text-rose-200' : 'text-slate-500'}`}>
+        <span>왼쪽 = 패스(별로)</span>
+        <span>오른쪽 = 시그널 보내기</span>
+      </div>
+      <div className="relative flex-1 min-h-0">
+        <div
+          className="absolute inset-x-2 top-0 rounded-2xl overflow-hidden border border-rose-400/40 bg-slate-800 shadow-lg transition-transform duration-300"
+          style={{ transform: `translateX(${offset}px) rotate(${offset / 18}deg)` }}
+        >
+          <div className="h-28 bg-gradient-to-br from-rose-400 to-fuchsia-600 flex items-center justify-center text-3xl">🦊</div>
+          <div className="px-2 py-1.5">
+            <p className="text-white text-[11px] font-black">황금여우 <span className="text-[9px] font-semibold text-white/70">28세</span></p>
+            <p className="text-[8px] text-rose-200 font-bold mt-0.5">← 패스(별로) · 시그널 보내기 →</p>
+          </div>
+          <Ring on={step === 1 || step === 2 || step === 4} color="ring-rose-400" />
+        </div>
+        {step === 2 && (
+          <div className="absolute left-1 top-10 text-[10px] font-black text-slate-200">← 패스</div>
+        )}
+        {step === 4 && (
+          <div className="absolute right-1 top-10 text-[10px] font-black text-rose-300">시그널 →</div>
+        )}
+      </div>
+      <Tabs active="signal" />
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // 장면 정의
 // ══════════════════════════════════════════════════════════════════════════════
 interface Step { cx: number; cy: number; click?: boolean; dur: number; }
@@ -748,6 +784,18 @@ const SCENES: SceneDef[] = [
       { cx: 124, cy: 225, dur: 2200 },
     ],
     render: s => <S7 step={s} />,
+  },
+  {
+    title: '시그널은 밀어보세요', sub: '왼쪽 = 패스(별로) · 오른쪽 = 시그널 보내기',
+    steps: [
+      { cx: 90,  cy: 70,  dur: 1100 },
+      { cx: 70,  cy: 130, dur: 1100 },
+      { cx: 40,  cy: 130, dur: 1000 },
+      { cx: 180, cy: 130, dur: 1100 },
+      { cx: 210, cy: 130, dur: 1000 },
+      { cx: 124, cy: 150, dur: 1800 },
+    ],
+    render: s => <S8 step={s} />,
   },
 ];
 

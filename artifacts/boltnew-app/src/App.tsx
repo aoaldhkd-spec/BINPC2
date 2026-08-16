@@ -962,6 +962,7 @@ function App() {
     });
     loadLikes(currentUserId);
     loadReceivedLikes(currentUserId);
+    void loadSignalActions(currentUserId);
     initTimerId1 = setTimeout(() => {
       loadContactShareData(currentUserId);
       loadChatList(currentUserId);
@@ -1103,6 +1104,40 @@ function App() {
             }
           }
         })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'signal_sends', filter: `sender_id=eq.${currentUserId}` },
+        (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
+          const row = payload.new as SignalSend;
+          if (row.receiver_id) {
+            setSignalActedIds((prev) => {
+              if (prev.has(row.receiver_id)) return prev;
+              return new Set([...prev, row.receiver_id]);
+            });
+          }
+        })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'signal_sends', filter: `receiver_id=eq.${currentUserId}` },
+        async (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
+          try {
+            const row = payload.new as SignalSend;
+            if (row.action !== 'send' || !row.sender_id || row.sender_id === currentUserId) return;
+            const { data } = await supabase.from('profiles').select('*').eq('id', row.sender_id).maybeSingle();
+            if (data) {
+              setReceivedSignalSenders((prev) => {
+                if (prev.find((p) => p.id === data.id)) return prev;
+                return [data as Profile, ...prev];
+              });
+            }
+            const nick = (data as Profile | null)?.nickname ?? '누군가';
+            setBottomNotif({
+              type: 'signal',
+              signalKind: 'received',
+              nickname: nick,
+              profileId: row.sender_id,
+              message: incomingSignalToast(nick),
+            });
+          } catch (e) {
+            console.warn('[realtime:signal_sends]', e);
+          }
+        })
       .subscribe();
     // chats INSERT/DELETE는 useChat의 user-events-${uid} 통합 채널이 처리 — 중복 구독 제거됨
 
@@ -1122,7 +1157,7 @@ function App() {
       supabase.removeChannel(userRealtimeChannel);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- loadXxx are stable useCallbacks; setState/refs are stable
-  }, [currentUserId, loadProfiles, loadLikes, loadReceivedLikes, loadContactShareData, loadChatList]);
+  }, [currentUserId, loadProfiles, loadLikes, loadReceivedLikes, loadContactShareData, loadChatList, loadSignalActions]);
 
   // ─── 차단·숨기기 / 방문자 기록 로드 ─────────────────────────────────────────
   useEffect(() => {
@@ -1213,6 +1248,7 @@ function App() {
           // Refresh data on returning to app
           loadReceivedLikes(storedId);
           loadLikes(storedId);
+          void loadSignalActions(storedId);
           loadChatList(storedId);
           loadContactShareData(storedId);
         }
@@ -1220,7 +1256,7 @@ function App() {
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [loadProfiles, loadReceivedLikes, loadLikes, loadChatList, loadContactShareData]);
+  }, [loadProfiles, loadReceivedLikes, loadLikes, loadChatList, loadContactShareData, loadSignalActions]);
 
   // Web push 구독 — 로그인 완료 후 알림 권한 요청 및 구독 등록
   useEffect(() => {
@@ -1235,6 +1271,7 @@ function App() {
       loadChatList(currentUserId);
       loadReceivedLikes(currentUserId);
       loadLikes(currentUserId);
+      void loadSignalActions(currentUserId);
       loadProfiles();
       fetch('/api/db/ready', { signal: AbortSignal.timeout(8_000) })
         .then(r => r.ok ? r.json() : null)
@@ -1252,7 +1289,7 @@ function App() {
         .catch(() => {});
     });
     return unsubReconnect;
-  }, [currentUserId, loadChatList, loadReceivedLikes, loadLikes, loadProfiles]);
+  }, [currentUserId, loadChatList, loadReceivedLikes, loadLikes, loadProfiles, loadSignalActions]);
 
 
   // Manual refresh for status and chat tabs
@@ -1260,8 +1297,9 @@ function App() {
     if (!currentUserId) return;
     loadReceivedLikes(currentUserId);
     loadLikes(currentUserId);
+    void loadSignalActions(currentUserId);
     loadContactShareData(currentUserId);
-  }, [currentUserId, loadReceivedLikes, loadLikes, loadContactShareData]);
+  }, [currentUserId, loadReceivedLikes, loadLikes, loadContactShareData, loadSignalActions]);
 
   const refreshChatTab = useCallback(() => {
     if (!currentUserId) return;
@@ -1607,13 +1645,13 @@ function App() {
             onGoToSignal={() => { handleMainTabChange('signal'); setBottomNotif(null); }}
             onViewProfile={() => {
               const id = bottomNotif.profileId;
-              const p = (id && (profiles.find(x => x.id === id) ?? receivedLikers.find(x => x.id === id))) || null;
+              const p = (id && (profiles.find(x => x.id === id) ?? receivedLikers.find(x => x.id === id) ?? receivedSignalSenders.find(x => x.id === id))) || null;
               if (p) { setSelectedProfile(p); setView('profile'); }
               setBottomNotif(null);
             }}
             onStartChat={() => {
               const id = bottomNotif.profileId;
-              const p = (id && (profiles.find(x => x.id === id) ?? receivedLikers.find(x => x.id === id))) || null;
+              const p = (id && (profiles.find(x => x.id === id) ?? receivedLikers.find(x => x.id === id) ?? receivedSignalSenders.find(x => x.id === id))) || null;
               if (p) void openChatGuarded(p);
               setBottomNotif(null);
             }}
@@ -1698,6 +1736,10 @@ function App() {
         userSignals={userSignals}
         onUserSignalUpdate={handleUserSignalUpdate}
         onMissionComplete={handleMissionComplete}
+        receivedSignalSenders={receivedSignalSenders}
+        signalActedIds={signalActedIds}
+        onSendSignal={handleSendSignal}
+        onPassSignal={handlePassSignal}
         blockedUserIds={(() => {
           const s = new Set<string>();
           blockedUsers.forEach(b => {

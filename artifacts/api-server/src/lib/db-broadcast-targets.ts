@@ -27,6 +27,9 @@ export function collectBroadcastTargets(
   } else if (table === 'likes') {
     push(row['liker_id']);
     push(row['liked_id']);
+  } else if (table === 'signal_sends') {
+    push(row['sender_id']);
+    if (row['action'] === 'send') push(row['receiver_id']);
   } else if (table === 'chats') {
     push(row['user1_id']);
     push(row['user2_id']);

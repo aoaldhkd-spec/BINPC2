@@ -15,7 +15,8 @@ vi.mock('../lib/supabase', () => ({
 
 describe('SignalTab — functions lock', () => {
   it('functionsLocked=true: 시그널 덱 대신 잠금 안내를 보여 준다', () => {
-    const onLike = vi.fn();
+    const onSendSignal = vi.fn();
+    const onPassSignal = vi.fn();
     const onSelect = vi.fn();
     render(
       <SignalTab
@@ -27,12 +28,14 @@ describe('SignalTab — functions lock', () => {
         hiddenByIds={new Set()}
         functionsLocked
         darkMode={false}
-        onLike={onLike}
+        onSendSignal={onSendSignal}
+        onPassSignal={onPassSignal}
         onSelect={onSelect}
       />,
     );
     expect(screen.getByText(/시그널을 사용할 수 없어요/)).toBeTruthy();
-    expect(onLike).not.toHaveBeenCalled();
+    expect(onSendSignal).not.toHaveBeenCalled();
+    expect(onPassSignal).not.toHaveBeenCalled();
     expect(onSelect).not.toHaveBeenCalled();
   });
 });

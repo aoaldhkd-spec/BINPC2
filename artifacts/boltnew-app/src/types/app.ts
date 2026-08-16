@@ -74,6 +74,16 @@ export type UserSignal = {
   feature_msg?: string | null; // 나의 특징 (시그널 매칭, 카드에 원문 비공개)
   created_at: string;
 };
+
+export type SignalSendAction = 'send' | 'pass';
+
+export type SignalSend = {
+  id: string;
+  sender_id: string;
+  receiver_id: string;
+  action: SignalSendAction;
+  created_at: string;
+};
 export type MainTab =
   | 'profiles' | 'signal' | 'status' | 'chats'
   | 'stats' | 'ranking' | 'fortune' | 'settings';

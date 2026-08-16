@@ -3,23 +3,38 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { MUTUAL_HEART_TOAST } from '../lib/heart-toast';
-import { SIGNAL_CARD_HEART_CTA, SIGNAL_CARD_PROFILE_CTA } from '../lib/signal-match';
+import { SIGNAL_CARD_SIGNAL_CTA, SIGNAL_CARD_PROFILE_CTA, SIGNAL_SWIPE_LEFT_EXPLAIN, SIGNAL_SWIPE_RIGHT_EXPLAIN } from '../lib/signal-match';
 import { MAX_GROUPS_PER_USER } from '../lib/group-rooms';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel: string) => readFileSync(join(root, rel), 'utf8');
 
 describe('product copy + notification invariants', () => {
-  it('시그널 is recommendation; 하트 is the send action', () => {
+  it('시그널 deck CTA is 시그널 보내기; swipe left/right is explained', () => {
     const signalTab = read('components/SignalTab.tsx');
     const heartToast = read('lib/heart-toast.ts');
-    expect(signalTab).not.toContain('시그널 보내기');
-    expect(signalTab).toContain('SIGNAL_CARD_HEART_CTA');
-    expect(SIGNAL_CARD_HEART_CTA).toBe('하트 보내기');
+    expect(signalTab).toContain('SIGNAL_CARD_SIGNAL_CTA');
+    expect(signalTab).toContain('onSendSignal');
+    expect(signalTab).not.toContain('onLike');
+    expect(SIGNAL_CARD_SIGNAL_CTA).toBe('시그널 보내기');
     expect(SIGNAL_CARD_PROFILE_CTA).toBe('프로필 보기');
+    expect(SIGNAL_SWIPE_LEFT_EXPLAIN).toContain('패스');
+    expect(SIGNAL_SWIPE_RIGHT_EXPLAIN).toContain('시그널');
     expect(MUTUAL_HEART_TOAST).toContain('서로 하트');
     expect(MUTUAL_HEART_TOAST).not.toContain('서로 시그널');
     expect(heartToast).not.toContain('서로 시그널');
+  });
+
+  it('튜토리얼과 시그널 설명서에 왼쪽 패스 / 오른쪽 시그널이 있다', () => {
+    const modal = read('components/TutorialModal.tsx');
+    const video = read('components/TutorialVideo.tsx');
+    const guide = read('lib/signal-match.ts');
+    expect(modal).toContain('왼쪽 = 패스');
+    expect(modal).toContain('오른쪽 = 시그널');
+    expect(video).toContain('왼쪽 = 패스(별로)');
+    expect(video).toContain('오른쪽 = 시그널 보내기');
+    expect(guide).toContain('왼쪽 = 패스(별로)');
+    expect(guide).toContain('오른쪽 = 시그널 보내기');
   });
 
   it('BottomNotification sits above ChatScreen', () => {

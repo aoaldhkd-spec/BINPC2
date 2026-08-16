@@ -91,6 +91,21 @@ describe('collectBroadcastTargets', () => {
     expect(targets.sort()).toEqual(['D', 'L']);
   });
 
+  it('signal_sends notifies receiver only on send, not on pass', () => {
+    const sendTargets = collectTargetsImpl('signal_sends', {
+      sender_id: 'S',
+      receiver_id: 'R',
+      action: 'send',
+    }, () => undefined);
+    expect(sendTargets.sort()).toEqual(['R', 'S']);
+    const passTargets = collectTargetsImpl('signal_sends', {
+      sender_id: 'S',
+      receiver_id: 'R',
+      action: 'pass',
+    }, () => undefined);
+    expect(passTargets).toEqual(['S']);
+  });
+
   it('chat_reads targets the other participant in the same chat', () => {
     const targets = collectBroadcastTargets(
       'chat_reads',

@@ -4,12 +4,14 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   NUDGE_MESSAGES,
-  SIGNAL_CARD_HEART_CTA,
+  SIGNAL_CARD_SIGNAL_CTA,
   SIGNAL_CARD_PROFILE_CTA,
   SIGNAL_GUIDE_LEAD,
   SIGNAL_GUIDE_POINTS,
   SIGNAL_MISSION_COPY,
   SIGNAL_MISSION_GOAL,
+  SIGNAL_SWIPE_LEFT_EXPLAIN,
+  SIGNAL_SWIPE_RIGHT_EXPLAIN,
   hasInterestHeart,
   isSignalDeckUnlocked,
   matchSignalPair,
@@ -28,22 +30,23 @@ describe('signal copy + unlock invariants', () => {
     expect(isSignalDeckUnlocked(SIGNAL_MISSION_GOAL)).toBe(true);
   });
 
-  it('treats signal as recommendation and heart as the send action', () => {
+  it('treats signal send as a swipe action and keeps chat on mutual hearts', () => {
     const guide = [SIGNAL_GUIDE_LEAD, ...SIGNAL_GUIDE_POINTS, SIGNAL_MISSION_COPY].join(' ');
     expect(guide).toContain('추천');
     expect(guide).toContain('하트');
-    expect(guide).toContain('서로 하트를 보내면 채팅을 시작할 수 있어요');
-    expect(guide).not.toContain('시그널 보내기');
-    expect(guide).not.toContain('서로 시그널');
-    expect(SIGNAL_CARD_HEART_CTA).toBe('하트 보내기');
+    expect(guide).toContain('채팅은 서로 하트를 보내야 열려요');
+    expect(guide).toContain('시그널 보내기');
+    expect(guide).toMatch(/왼쪽.*패스/);
+    expect(guide).toMatch(/오른쪽.*시그널/);
+    expect(SIGNAL_CARD_SIGNAL_CTA).toBe('시그널 보내기');
     expect(SIGNAL_CARD_PROFILE_CTA).toBe('프로필 보기');
-    expect(SIGNAL_CARD_HEART_CTA).not.toContain('시그널');
+    expect(SIGNAL_SWIPE_LEFT_EXPLAIN).toBe('왼쪽 = 패스(별로)');
+    expect(SIGNAL_SWIPE_RIGHT_EXPLAIN).toBe('오른쪽 = 시그널 보내기');
     expect(NUDGE_MESSAGES.some((m) => m.includes('시그널 탭에서 추천'))).toBe(true);
     expect(NUDGE_MESSAGES.some((m) => m.includes('하트를 직접 보내'))).toBe(true);
-    expect(NUDGE_MESSAGES.join(' ')).not.toContain('시그널 보내기');
-    expect(signalTabSrc).not.toContain('시그널 보내기');
-    expect(signalTabSrc).toContain('SIGNAL_CARD_HEART_CTA');
-    expect(signalTabSrc).toContain('onLike');
+    expect(signalTabSrc).toContain('SIGNAL_CARD_SIGNAL_CTA');
+    expect(signalTabSrc).toContain('onSendSignal');
+    expect(signalTabSrc).not.toContain('onLike');
   });
 
   it('never puts raw ideal/feature free text on reason chips', () => {
@@ -105,5 +108,20 @@ describe('signal pool filters', () => {
       rng: () => 0,
     });
     expect(ranked.map((r) => r.profileId)).toEqual(['green-only']);
+  });
+
+  it('excludes already sent or passed signal targets from the deck', () => {
+    const ranked = recommendSignals({
+      myId: 'me',
+      myProfile: { personality_score: 80, mbti: 'ENFP', interests: '운동' },
+      myIdealMsg: '다정한',
+      candidates: [
+        { profile: { id: 'fresh', personality_score: 15, mbti: 'INFJ', interests: '독서' }, featureMsg: '다정한' },
+        { profile: { id: 'passed', personality_score: 15, mbti: 'INFJ', interests: '독서' }, featureMsg: '다정한' },
+      ],
+      alreadySignaledIds: new Set(['passed']),
+      rng: () => 0,
+    });
+    expect(ranked.map((r) => r.profileId)).toEqual(['fresh']);
   });
 });

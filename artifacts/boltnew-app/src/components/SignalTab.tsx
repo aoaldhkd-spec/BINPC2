@@ -4,8 +4,8 @@ import type { Profile, UserSignal } from '../types/app';
 import type { HeartType } from '../lib/constants';
 import { getKoreanAge, getAvatarSrc, hasUploadedPhoto, getAvatarGradientCss, isSwipeGestureVerifyProfile } from '../lib/profile';
 import {
-  SIGNAL_CARD_HEART_CTA,
   SIGNAL_CARD_PROFILE_CTA,
+  SIGNAL_CARD_SIGNAL_CTA,
   SIGNAL_CARD_SKIP_CTA,
   SIGNAL_EMPTY_DECK_HINT,
   SIGNAL_EMPTY_DECK_TITLE,
@@ -16,6 +16,11 @@ import {
   SIGNAL_MISSION_COPY,
   SIGNAL_MISSION_GOAL,
   SIGNAL_MISSION_TITLE,
+  SIGNAL_SWIPE_HINT,
+  SIGNAL_SWIPE_LEFT_EXPLAIN,
+  SIGNAL_SWIPE_LEFT_LABEL,
+  SIGNAL_SWIPE_RIGHT_EXPLAIN,
+  SIGNAL_SWIPE_RIGHT_LABEL,
   countTodayInterestMission,
   hasInterestHeart,
   isSignalDeckUnlocked,
@@ -25,16 +30,20 @@ import {
   type SignalMatch,
 } from '../lib/signal-match';
 
+const SWIPE_COMMIT_PX = 72;
+
 export function SignalTab({
   profiles,
   currentUserId,
   userSignals,
   sentHeartsPerPerson,
+  alreadySignaledIds,
   blockedUserIds,
   hiddenByIds,
   functionsLocked,
   darkMode,
-  onLike,
+  onSendSignal,
+  onPassSignal,
   onSelect,
   onGoProfiles,
   onMissionComplete,
@@ -43,11 +52,13 @@ export function SignalTab({
   currentUserId: string | null;
   userSignals: UserSignal[];
   sentHeartsPerPerson: Map<string, Set<HeartType>>;
+  alreadySignaledIds?: Set<string>;
   blockedUserIds: Set<string>;
   hiddenByIds: Set<string>;
   functionsLocked?: boolean;
   darkMode: boolean;
-  onLike: (id: string) => void;
+  onSendSignal: (id: string) => void;
+  onPassSignal: (id: string) => void;
   onSelect: (p: Profile) => void;
   onGoProfiles?: () => void;
   onMissionComplete?: () => void;
@@ -55,6 +66,9 @@ export function SignalTab({
   const [skippedIds, setSkippedIds] = useState<Set<string>>(new Set());
   const [missionCount, setMissionCount] = useState(0);
   const [imgFailed, setImgFailed] = useState(false);
+  const [dragX, setDragX] = useState(0);
+  const dragRef = useRef<{ x: number; y: number; dragging: boolean } | null>(null);
+  const didSwipeRef = useRef(false);
 
   const me = useMemo(
     () => profiles.find((p) => p.id === currentUserId) ?? null,
@@ -87,6 +101,7 @@ export function SignalTab({
   }, [sentHeartsPerPerson]);
 
   const unlocked = isSignalDeckUnlocked(missionCount);
+  const signaled = alreadySignaledIds ?? new Set<string>();
 
   const deck = useMemo(() => {
     if (!unlocked || !me || !currentUserId) return [] as Array<SignalMatch & { profile: Profile }>;
@@ -109,6 +124,7 @@ export function SignalTab({
       blockedIds: blockedUserIds,
       hiddenIds: hiddenByIds,
       alreadyInterestedIds,
+      alreadySignaledIds: signaled,
       likedAllTypeIds,
     });
     return ranked
@@ -119,7 +135,7 @@ export function SignalTab({
       .filter((x): x is SignalMatch & { profile: Profile } => x != null);
   }, [
     unlocked, me, currentUserId, mySignal, profiles,
-    signalByUser, skippedIds, blockedUserIds, hiddenByIds, alreadyInterestedIds, likedAllTypeIds,
+    signalByUser, skippedIds, blockedUserIds, hiddenByIds, alreadyInterestedIds, signaled, likedAllTypeIds,
   ]);
 
   const current = deck[0] ?? null;
@@ -160,12 +176,60 @@ export function SignalTab({
 
   useEffect(() => {
     setImgFailed(false);
+    setDragX(0);
+    dragRef.current = null;
   }, [current?.profile.id]);
+
+  const advanceLocal = useCallback((id: string) => {
+    setSkippedIds((prev) => new Set([...prev, id]));
+  }, []);
+
+  const passCard = useCallback((id: string) => {
+    if (functionsLocked) return;
+    advanceLocal(id);
+    onPassSignal(id);
+  }, [functionsLocked, advanceLocal, onPassSignal]);
+
+  const sendCard = useCallback((id: string) => {
+    if (functionsLocked) return;
+    advanceLocal(id);
+    onSendSignal(id);
+  }, [functionsLocked, advanceLocal, onSendSignal]);
 
   const card = current?.profile;
   const pastel = !card || !hasUploadedPhoto(card.photo_url) || imgFailed;
   const photoSrc = card ? getAvatarSrc(card.photo_url, card.nickname) : '';
   const progress = Math.min(SIGNAL_MISSION_GOAL, missionCount);
+  const swipeHintOpacity = Math.min(1, Math.abs(dragX) / SWIPE_COMMIT_PX);
+  const passing = dragX < -12;
+  const sending = dragX > 12;
+
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (functionsLocked || !card) return;
+    didSwipeRef.current = false;
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* */ }
+    dragRef.current = { x: e.clientX, y: e.clientY, dragging: false };
+  };
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = dragRef.current;
+    if (!d) return;
+    const dx = e.clientX - d.x;
+    const dy = e.clientY - d.y;
+    if (!d.dragging && Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.15) {
+      d.dragging = true;
+      didSwipeRef.current = true;
+    }
+    if (d.dragging) setDragX(dx);
+  };
+  const onPointerUp = () => {
+    const d = dragRef.current;
+    dragRef.current = null;
+    const x = dragX;
+    setDragX(0);
+    if (!card || !d?.dragging) return;
+    if (x >= SWIPE_COMMIT_PX) sendCard(card.id);
+    else if (x <= -SWIPE_COMMIT_PX) passCard(card.id);
+  };
 
   return (
     <div className="space-y-3 pb-24">
@@ -211,6 +275,18 @@ export function SignalTab({
           <p className={`text-xs mt-1.5 leading-relaxed ${darkMode ? 'text-slate-300' : 'text-gray-600'}`}>
             {SIGNAL_GUIDE_LEAD}
           </p>
+          <div className={`mt-4 rounded-2xl px-3 py-3 ${darkMode ? 'bg-slate-700/80' : 'bg-rose-50 border border-rose-100'}`}>
+            <p className={`text-[11px] font-black text-center ${darkMode ? 'text-rose-200' : 'text-rose-700'}`}>
+              틴더처럼 밀어보세요
+            </p>
+            <p className={`text-xs font-bold text-center mt-1 ${darkMode ? 'text-slate-200' : 'text-gray-700'}`}>
+              {SIGNAL_SWIPE_HINT}
+            </p>
+            <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] font-bold">
+              <p className={darkMode ? 'text-slate-300' : 'text-gray-600'}>{SIGNAL_SWIPE_LEFT_EXPLAIN}</p>
+              <p className={`text-right ${darkMode ? 'text-rose-200' : 'text-rose-600'}`}>{SIGNAL_SWIPE_RIGHT_EXPLAIN}</p>
+            </div>
+          </div>
           <ul className={`mt-3 space-y-2 text-xs leading-relaxed ${darkMode ? 'text-slate-300' : 'text-gray-600'}`}>
             {SIGNAL_GUIDE_POINTS.map((line) => (
               <li key={line} className="flex gap-2">
@@ -238,87 +314,128 @@ export function SignalTab({
           </p>
         </div>
       ) : (
-        <div className={`rounded-3xl overflow-hidden border shadow-lg ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'}`}>
-          <button
-            type="button"
-            onClick={() => { if (!functionsLocked) onSelect(card); }}
-            className="block w-full text-left"
-          >
+        <div className="space-y-2">
+          <div className={`rounded-2xl px-3 py-2 flex items-center justify-between text-[11px] font-black ${
+            darkMode ? 'bg-slate-800 border border-slate-600 text-slate-200' : 'bg-white border border-rose-100 text-gray-700'
+          }`}>
+            <span>{SIGNAL_SWIPE_LEFT_EXPLAIN}</span>
+            <span className={darkMode ? 'text-rose-200' : 'text-rose-600'}>{SIGNAL_SWIPE_RIGHT_EXPLAIN}</span>
+          </div>
+          <div className={`rounded-3xl overflow-hidden border shadow-lg ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'}`}>
             <div
-              className="relative w-full"
+              className="relative select-none touch-pan-y"
               style={{
-                paddingBottom: '120%',
-                background: pastel ? getAvatarGradientCss(card.nickname) : '#111',
+                transform: `translateX(${dragX}px) rotate(${dragX / 28}deg)`,
+                transition: dragRef.current?.dragging ? 'none' : 'transform 180ms ease-out',
               }}
+              onPointerDown={onPointerDown}
+              onPointerMove={onPointerMove}
+              onPointerUp={onPointerUp}
+              onPointerCancel={onPointerUp}
             >
-              <img
-                src={photoSrc}
-                alt=""
-                onError={() => setImgFailed(true)}
-                className={`absolute inset-0 w-full h-full ${pastel ? 'object-cover opacity-90' : 'object-cover'}`}
-              />
-              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-4 pt-10 pb-3">
-                <p className="text-white text-xl font-black leading-tight">
-                  {card.nickname}
-                  <span className="ml-2 text-sm font-semibold text-white/80">{getKoreanAge(card.birth_year)}</span>
-                </p>
-                {card.mbti && (
-                  <p className="text-[11px] font-bold text-white/80 mt-0.5">{card.mbti}</p>
-                )}
-              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (functionsLocked || didSwipeRef.current) return;
+                  onSelect(card);
+                }}
+                className="block w-full text-left"
+              >
+                <div
+                  className="relative w-full overflow-hidden"
+                  style={{
+                    aspectRatio: '5 / 6',
+                    background: pastel ? getAvatarGradientCss(card.nickname) : '#111',
+                  }}
+                >
+                  <img
+                    src={photoSrc}
+                    alt=""
+                    onError={() => setImgFailed(true)}
+                    className={`absolute inset-0 w-full h-full ${pastel ? 'object-contain' : 'object-cover object-center'}`}
+                    draggable={false}
+                  />
+                  <div className="absolute inset-x-0 top-3 flex justify-between px-3 pointer-events-none">
+                    <span
+                      className="rounded-xl border-2 border-slate-200 bg-black/45 px-2.5 py-1 text-[11px] font-black text-white"
+                      style={{ opacity: passing ? swipeHintOpacity : 0.92 }}
+                    >
+                      ← {SIGNAL_SWIPE_LEFT_LABEL}
+                    </span>
+                    <span
+                      className="rounded-xl border-2 border-rose-300 bg-rose-500/80 px-2.5 py-1 text-[11px] font-black text-white"
+                      style={{ opacity: sending ? swipeHintOpacity : 0.92 }}
+                    >
+                      {SIGNAL_SWIPE_RIGHT_LABEL} →
+                    </span>
+                  </div>
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-4 pt-10 pb-3">
+                    <p className="text-white text-xl font-black leading-tight">
+                      {card.nickname}
+                      <span className="ml-2 text-sm font-semibold text-white/80">{getKoreanAge(card.birth_year)}</span>
+                    </p>
+                    {card.mbti && (
+                      <p className="text-[11px] font-bold text-white/80 mt-0.5">{card.mbti}</p>
+                    )}
+                  </div>
+                </div>
+              </button>
             </div>
-          </button>
-          <div className="px-4 py-3 space-y-2">
-            <div className="flex flex-wrap gap-1.5">
-              {current.reasons.map((r) => (
-                <span
-                  key={r.key}
-                  className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${
-                    darkMode ? 'bg-rose-500/20 text-rose-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
+            <div className="px-4 py-3 space-y-2">
+              <p className={`text-[11px] font-bold text-center ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                {SIGNAL_SWIPE_HINT}
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {current.reasons.map((r) => (
+                  <span
+                    key={r.key}
+                    className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${
+                      darkMode ? 'bg-rose-500/20 text-rose-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
+                    }`}
+                  >
+                    {r.label}
+                  </span>
+                ))}
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  disabled={!!functionsLocked}
+                  onClick={() => { if (!functionsLocked) passCard(card.id); }}
+                  className={`flex-1 py-3 rounded-2xl text-sm font-bold border active:scale-95 transition-all disabled:opacity-40 ${
+                    darkMode
+                      ? 'bg-slate-700 border-slate-500 text-slate-200'
+                      : 'bg-gray-50 border-gray-200 text-gray-700'
                   }`}
                 >
-                  {r.label}
-                </span>
-              ))}
-            </div>
-            <div className="flex gap-2 pt-1">
+                  {SIGNAL_CARD_SKIP_CTA}
+                </button>
+                <button
+                  type="button"
+                  disabled={!!functionsLocked}
+                  onClick={() => { if (!functionsLocked) onSelect(card); }}
+                  className={`flex-1 py-3 rounded-2xl text-sm font-black border active:scale-95 transition-all disabled:opacity-40 ${
+                    darkMode
+                      ? 'bg-slate-600 border-slate-400 text-white'
+                      : 'bg-white border-rose-200 text-rose-700'
+                  }`}
+                >
+                  {SIGNAL_CARD_PROFILE_CTA}
+                </button>
+              </div>
               <button
                 type="button"
                 disabled={!!functionsLocked}
-                onClick={() => { if (!functionsLocked) setSkippedIds((prev) => new Set([...prev, card.id])); }}
-                className={`flex-1 py-3 rounded-2xl text-sm font-bold border active:scale-95 transition-all disabled:opacity-40 ${
+                onClick={() => { if (!functionsLocked) sendCard(card.id); }}
+                className={`w-full py-2.5 rounded-2xl text-sm font-bold border active:scale-95 transition-all disabled:opacity-40 ${
                   darkMode
-                    ? 'bg-slate-700 border-slate-500 text-slate-200'
-                    : 'bg-gray-50 border-gray-200 text-gray-700'
+                    ? 'bg-transparent border-rose-400/60 text-rose-200'
+                    : 'bg-rose-50 border-rose-200 text-rose-600'
                 }`}
               >
-                {SIGNAL_CARD_SKIP_CTA}
-              </button>
-              <button
-                type="button"
-                disabled={!!functionsLocked}
-                onClick={() => { if (!functionsLocked) onSelect(card); }}
-                className={`flex-1 py-3 rounded-2xl text-sm font-black border active:scale-95 transition-all disabled:opacity-40 ${
-                  darkMode
-                    ? 'bg-slate-600 border-slate-400 text-white'
-                    : 'bg-white border-rose-200 text-rose-700'
-                }`}
-              >
-                {SIGNAL_CARD_PROFILE_CTA}
+                💕 {SIGNAL_CARD_SIGNAL_CTA}
               </button>
             </div>
-            <button
-              type="button"
-              disabled={!!functionsLocked}
-              onClick={() => { if (!functionsLocked) onLike(card.id); }}
-              className={`w-full py-2.5 rounded-2xl text-sm font-bold border active:scale-95 transition-all disabled:opacity-40 ${
-                darkMode
-                  ? 'bg-transparent border-rose-400/60 text-rose-200'
-                  : 'bg-rose-50 border-rose-200 text-rose-600'
-              }`}
-            >
-              ❤️ {SIGNAL_CARD_HEART_CTA}
-            </button>
           </div>
         </div>
       )}

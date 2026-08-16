@@ -28,7 +28,7 @@ import { TimerBanner } from './TimerBanner';
 import { RefreshBtn } from './RefreshBtn';
 
 import { AVATAR_CATEGORIES } from '../lib/avatar-catalog';
-import { IDEAL_TAG_GROUPS, FEATURE_TAG_GROUPS, encodeSignalMsg } from '../lib/signal-match';
+import { IDEAL_TAG_GROUPS, FEATURE_TAG_GROUPS, encodeSignalMsg, SIGNAL_INBOX_EMPTY, SIGNAL_INBOX_LINE, SIGNAL_INBOX_TITLE } from '../lib/signal-match';
 import { ProfileCard } from './ProfileCard';
 import { ResetButton } from './ResetButton';
 import { SignalTab } from './SignalTab';
@@ -96,6 +96,10 @@ export function MainScreen({
   onUserSignalUpdate,
   onMissionComplete,
   onOpenResetPassword,
+  receivedSignalSenders = [] as Profile[],
+  signalActedIds = new Set<string>(),
+  onSendSignal,
+  onPassSignal,
 }: {
   profiles: Profile[]; currentUserId: string | null; likedIds: Set<string>; sentHeartTypes: Map<string, HeartType>; sentHeartsPerPerson: Map<string, Set<HeartType>>; likeStatuses: Map<string, string>;
   profileMap: Map<string, Profile>; mainTab: MainTab;
@@ -148,6 +152,10 @@ export function MainScreen({
   onUserSignalUpdate?: (row: UserSignal) => void;
   onMissionComplete?: () => void;
   onOpenResetPassword?: () => void;
+  receivedSignalSenders?: Profile[];
+  signalActedIds?: Set<string>;
+  onSendSignal?: (id: string) => void;
+  onPassSignal?: (id: string) => void;
 }) {
   const heartCount = useCallback((t: HeartType) => { let c = 0; sentHeartsPerPerson.forEach(types => { if (types.has(t)) c++; }); return c; }, [sentHeartsPerPerson]);
 
@@ -339,6 +347,7 @@ export function MainScreen({
   // ── 내 상태 탭 카드 접기/펼치기 ────────────────────────────────────────────
   const [profileEditOpen, setProfileEditOpen] = useState(true);
   const [receivedHeartsOpen, setReceivedHeartsOpen] = useState(true);
+  const [receivedSignalsOpen, setReceivedSignalsOpen] = useState(true);
   const [sentHeartsOpen, setSentHeartsOpen] = useState(true);
 
   // ── 프로필 편집 통합 상태 (한 섹션만 열림) ──────────────────────────────────
@@ -526,8 +535,8 @@ export function MainScreen({
     onRefreshProfiles();
     setProfileEditSection(null);
   };
-  // 이미지 압축: 최대 1200px, JPEG 품질 0.92 — 화질 유지 + 메모리/DB 과부하 방지
-  const compressImage = (dataUrl: string, maxPx = 1200, quality = 0.92): Promise<string> =>
+  // 이미지 압축: 최대 1400px, JPEG 품질 0.92 — 시그널 카드 화질 유지 + imageStore(80/32MB) 한도 안
+  const compressImage = (dataUrl: string, maxPx = 1400, quality = 0.92): Promise<string> =>
     new Promise((resolve) => {
       const img = new Image();
       img.onload = () => {
@@ -1100,6 +1109,54 @@ export function MainScreen({
                       </div>
                     );
                   })}
+                </div>
+              )}
+              </div>
+              )}
+            </div>
+
+            {/* 받은 시그널 */}
+            <div className={`rounded-2xl shadow-sm transition-colors duration-300 overflow-hidden ${darkMode ? 'bg-slate-800 border border-slate-600' : 'bg-white'}`}>
+              <button
+                onClick={() => setReceivedSignalsOpen(o => !o)}
+                className={`w-full flex items-center justify-between px-5 py-4 ${darkMode ? 'hover:bg-slate-700/40' : 'hover:bg-gray-50'}`}
+              >
+                <h3 className={`text-sm font-bold uppercase tracking-wider ${darkMode ? 'text-slate-200' : 'text-gray-500'}`}>💕 {SIGNAL_INBOX_TITLE}</h3>
+                <div className="flex items-center gap-2">
+                  {receivedSignalSenders.length > 0 && (
+                    <span className="px-2 py-0.5 bg-rose-100 text-rose-600 text-xs font-bold rounded-full">
+                      {receivedSignalSenders.length}명
+                    </span>
+                  )}
+                  <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${receivedSignalsOpen ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
+                </div>
+              </button>
+              {receivedSignalsOpen && (
+              <div className="px-5 pb-5">
+              {receivedSignalSenders.length === 0 ? (
+                <div className="text-center py-8">
+                  <Heart className={`w-10 h-10 mx-auto mb-2 ${darkMode ? 'text-slate-500' : 'text-gray-200'}`} />
+                  <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{SIGNAL_INBOX_EMPTY}</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {receivedSignalSenders.map((sender) => (
+                    <button
+                      key={sender.id}
+                      type="button"
+                      onClick={() => onSelect(sender)}
+                      className={`w-full text-left p-3 rounded-xl ${darkMode ? 'bg-slate-700/70 hover:bg-slate-700' : 'bg-gray-50 hover:bg-gray-100'}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <ProfileAvatar profile={sender} size="sm" rounded="xl" />
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{sender.nickname}</p>
+                          <p className={`text-xs ${darkMode ? 'text-rose-300' : 'text-rose-600'}`}>💕 {SIGNAL_INBOX_LINE}</p>
+                        </div>
+                      </div>
+                      <ProfileInfoBadges profile={sender} />
+                    </button>
+                  ))}
                 </div>
               )}
               </div>
@@ -2191,7 +2248,9 @@ export function MainScreen({
             hiddenByIds={hiddenByIds}
             functionsLocked={functionsLocked}
             darkMode={darkMode}
-            onLike={onLike}
+            alreadySignaledIds={signalActedIds}
+            onSendSignal={(id) => { if (!functionsLocked) onSendSignal?.(id); }}
+            onPassSignal={(id) => { if (!functionsLocked) onPassSignal?.(id); }}
             onSelect={onSelect}
             onGoProfiles={() => onTabChange('profiles')}
             onMissionComplete={onMissionComplete}

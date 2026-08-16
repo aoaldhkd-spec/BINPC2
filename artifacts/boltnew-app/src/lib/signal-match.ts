@@ -27,17 +27,30 @@ export const SIGNAL_MISSION_COPY = '서로 다른 3명에게 하트 보내기';
 export const SIGNAL_GUIDE_TITLE = '시그널 설명서';
 export const SIGNAL_GUIDE_LEAD = '시그널은 앱이 사람을 추천하는 기능이에요. 서로 다른 3명에게 하트를 보내면 추천이 열려요.';
 export const SIGNAL_GUIDE_POINTS = [
-  '시그널은 추천이에요. 하트는 내가 고른 사람에게 직접 보내는 관심이에요.',
+  '카드를 왼쪽으로 밀면 패스(별로), 오른쪽으로 밀면 시그널 보내기예요.',
+  '시그널은 관심 표시예요. 채팅은 서로 하트를 보내야 열려요.',
   '내 이상형 ↔ 상대 특징, 상대 이상형 ↔ 내 특징, 공통 관심사 — 하나만 같아도 추천돼요.',
-  '서로 하트를 보내면 채팅을 시작할 수 있어요.',
   '상대가 적어 둔 이상형·특징 문장은 안 보여요. 몇 개가 맞았는지만 알려줘요.',
 ] as const;
 export const SIGNAL_GUIDE_CTA = '참여자에게 하트 보내기';
-export const SIGNAL_CARD_SKIP_CTA = '다음';
+export const SIGNAL_CARD_SKIP_CTA = '패스';
 export const SIGNAL_CARD_PROFILE_CTA = '프로필 보기';
 export const SIGNAL_CARD_HEART_CTA = '하트 보내기';
+export const SIGNAL_CARD_SIGNAL_CTA = '시그널 보내기';
+export const SIGNAL_SWIPE_LEFT_LABEL = '패스';
+export const SIGNAL_SWIPE_RIGHT_LABEL = '시그널';
+export const SIGNAL_SWIPE_LEFT_EXPLAIN = '왼쪽 = 패스(별로)';
+export const SIGNAL_SWIPE_RIGHT_EXPLAIN = '오른쪽 = 시그널 보내기';
+export const SIGNAL_SWIPE_HINT = '← 패스(별로) · 시그널 보내기 →';
 export const SIGNAL_EMPTY_DECK_TITLE = '지금 추천할 사람이 없어요';
 export const SIGNAL_EMPTY_DECK_HINT = '이상형·특징·관심사가 맞는 사람이 아직 없거나, 이미 다 봤어요';
+export const SIGNAL_INBOX_TITLE = '받은 시그널';
+export const SIGNAL_INBOX_EMPTY = '아직 받은 시그널이 없습니다.';
+export const SIGNAL_INBOX_LINE = '시그널을 보냈습니다';
+
+export function incomingSignalToast(nickname: string): string {
+  return `💕 ${nickname}님이 시그널을 보냈어요.`;
+}
 
 export function isSignalDeckUnlocked(missionCount: number): boolean {
   return missionCount >= SIGNAL_MISSION_GOAL;
@@ -578,6 +591,8 @@ export function recommendSignals(args: {
   hiddenIds?: Set<string>;
   /** 이미 비-그린 하트를 보낸 사람 — 덱에서 제외 */
   alreadyInterestedIds?: Set<string>;
+  /** 이미 시그널을 보내거나 패스한 사람 — 덱에서 제외 */
+  alreadySignaledIds?: Set<string>;
   /** 하트 4종을 모두 보낸 사람 */
   likedAllTypeIds?: Set<string>;
   rng?: () => number;
@@ -585,6 +600,7 @@ export function recommendSignals(args: {
   const blocked = args.blockedIds ?? new Set<string>();
   const hidden = args.hiddenIds ?? new Set<string>();
   const already = args.alreadyInterestedIds ?? new Set<string>();
+  const signaled = args.alreadySignaledIds ?? new Set<string>();
   const likedAll = args.likedAllTypeIds ?? new Set<string>();
   const matches: SignalMatch[] = [];
 
@@ -592,7 +608,7 @@ export function recommendSignals(args: {
     const id = c.profile.id;
     if (!id || id === args.myId) continue;
     if (blocked.has(id) || hidden.has(id)) continue;
-    if (already.has(id) || likedAll.has(id)) continue;
+    if (already.has(id) || signaled.has(id) || likedAll.has(id)) continue;
     if (!isOppositePosition(args.myProfile.personality_score, c.profile.personality_score)) continue;
     const m = matchSignalPair({
       myProfile: args.myProfile,

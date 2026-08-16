@@ -46,7 +46,7 @@ const BASIC: Topic[] = [
         title: '위에 있는 탭',
         tips: [
           { icon: '👥', title: '참여자', desc: '오늘 온 사람들 카드가 여기.' },
-          { icon: '💕', title: '시그널', desc: '미션 전엔 설명서. 하트 3명이면 추천.' },
+          { icon: '💕', title: '시그널', desc: '미션 전엔 설명서. 열리면 왼쪽 패스 · 오른쪽 시그널.' },
           { icon: '📊', title: '통계', desc: '오늘 오간 하트 수랑 비율.' },
           { icon: '🏆', title: '랭킹', desc: '하트 많이 받은 사람 TOP 10.' },
         ],
@@ -79,9 +79,11 @@ const BASIC: Topic[] = [
     tips: [
       { icon: '📖', title: '미션 전', desc: '탭은 열려도 추천은 잠김. 설명서 + 하트 0/3.' },
       { icon: '🎯', title: '오늘의 미션', desc: '다른 3명에게 하트 보내기. 3/3면 추천 해금.' },
-      { icon: '🃏', title: '시그널 = 추천', desc: '앱이 맞는 사람을 보여줘요. 보내는 기능 아님.' },
-      { icon: '❤️', title: '하트 = 직접 보내기', desc: '카드에서 하트. 참여자 카드와 같아요.' },
+      { icon: '👈', title: '왼쪽 = 패스', desc: '별로면 왼쪽으로 밀어요. 패스예요.' },
+      { icon: '👉', title: '오른쪽 = 시그널', desc: '관심 있으면 오른쪽으로 밀어 시그널 보내기.' },
+      { icon: '💬', title: '채팅은 하트', desc: '시그널만으로는 채팅이 안 열려요. 서로 하트여야 해요.' },
     ],
+    video: [7],
   },
   {
     id: 'settings',
@@ -284,8 +286,8 @@ const FILLERS: Record<FillerKind, { title: string; line: string; quote: string; 
   },
   signal: {
     title: '먼저 하트 3명',
-    line: '0/3 미션 끝나면 시그널 덱이 열려요',
-    quote: '이상형·관심사로 매칭. 받은 하트만 아님',
+    line: '열린 뒤에는 틴더처럼 밀어요. 왼쪽 패스 · 오른쪽 시그널',
+    quote: '채팅은 서로 하트. 시그널만으로는 안 열려요',
     shell: 'bg-gradient-to-br from-rose-50 via-fuchsia-50 to-white border border-rose-100',
     darkShell: 'bg-gradient-to-br from-slate-800/90 via-rose-950/50 to-slate-900 border border-rose-900/50',
   },

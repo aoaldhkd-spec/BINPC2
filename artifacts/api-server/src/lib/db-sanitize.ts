@@ -20,6 +20,7 @@ export const FIELD_LIMITS: Record<string, Record<string, number>> = {
   group_chats: { name: 60, interest_tag: 30, age_group: 10, room_kind: 30 },
   group_messages: { content: 2000 },
   user_signals: { status_msg: 80, ideal_msg: 500, feature_msg: 500 },
+  signal_sends: { action: 8 },
 };
 
 export function sanitizeRow(tbl: string, row: Record<string, unknown>): Record<string, unknown> {

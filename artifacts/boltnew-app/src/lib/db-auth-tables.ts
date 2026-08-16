@@ -13,6 +13,7 @@ export const SESSION_SCOPED_TABLES = new Set([
   'profile_views',
   'blocked_users',
   'user_signals',
+  'signal_sends',
 ]);
 
 export function tableNeedsSession(table: string, op: string, hasUserId: boolean): boolean {
