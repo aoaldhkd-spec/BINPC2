@@ -45,7 +45,32 @@ async function verifyPanelPassword(kind: 'reset' | 'admin', password: string): P
   }
 }
 
-/** Centered password popup over the live app — dim backdrop, not a black takeover. */
+/** Dim only — never opaque black. Inline rgba so Tailwind/theme cannot turn this into a black sheet. */
+const PASSWORD_DIM: React.CSSProperties = {
+  backgroundColor: 'rgba(0, 0, 0, 0.4)',
+};
+
+function PasswordDimLayer({
+  z, onClick, children,
+}: {
+  z: number;
+  onClick?: () => void;
+  children: React.ReactNode;
+}) {
+  return createPortal(
+    <div
+      data-password-overlay="dim"
+      className="fixed inset-0 flex items-center justify-center p-4"
+      style={{ ...PASSWORD_DIM, zIndex: z }}
+      onClick={onClick}
+    >
+      {children}
+    </div>,
+    document.body,
+  );
+}
+
+/** Centered password popup over the live MainScreen — dim backdrop, not a black takeover. */
 export function ResetPasswordSheet({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: () => void }) {
   const [pw, setPw] = useState('');
   const [err, setErr] = useState(false);
@@ -62,7 +87,7 @@ export function ResetPasswordSheet({ onCancel, onConfirm }: { onCancel: () => vo
   };
 
   return (
-    <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+    <PasswordDimLayer z={500}>
       <div className="bg-white rounded-2xl p-6 w-72 shadow-2xl">
         <p className="text-sm font-bold text-gray-800 mb-1">처음으로 돌아가기</p>
         <p className="text-xs text-gray-500 mb-4">비밀번호를 입력하세요</p>
@@ -77,7 +102,7 @@ export function ResetPasswordSheet({ onCancel, onConfirm }: { onCancel: () => vo
             className="flex-1 py-2 rounded-xl bg-cyan-500 text-white text-sm font-semibold hover:bg-cyan-600 transition-all disabled:opacity-60">{busy ? '확인 중…' : '확인'}</button>
         </div>
       </div>
-    </div>
+    </PasswordDimLayer>
   );
 }
 
@@ -268,11 +293,8 @@ export function ResetButton({ onReset, darkMode, onEasterEgg, onUiLockChange, on
         </div>
       )}
 
-      {open && createPortal(
-        <div
-          className="fixed inset-0 z-[400] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-          onClick={() => { setOpen(false); setPw(''); setErr(false); }}
-        >
+      {open && (
+        <PasswordDimLayer z={400} onClick={() => { setOpen(false); setPw(''); setErr(false); }}>
           <div className="bg-white rounded-2xl p-6 w-72 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <p className="text-sm font-bold text-gray-800 mb-1">처음으로 돌아가기</p>
             <p className="text-xs text-gray-500 mb-4">비밀번호를 입력하세요</p>
@@ -287,14 +309,10 @@ export function ResetButton({ onReset, darkMode, onEasterEgg, onUiLockChange, on
                 className="flex-1 py-2 rounded-xl bg-cyan-500 text-white text-sm font-semibold hover:bg-cyan-600 transition-all disabled:opacity-60">{busy ? '확인 중…' : '확인'}</button>
             </div>
           </div>
-        </div>,
-        document.body
+        </PasswordDimLayer>
       )}
-      {adminOpen && createPortal(
-        <div
-          className="fixed inset-0 z-[400] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-          onClick={() => { setAdminOpen(false); setAdminPw(''); setAdminErr(false); }}
-        >
+      {adminOpen && (
+        <PasswordDimLayer z={400} onClick={() => { setAdminOpen(false); setAdminPw(''); setAdminErr(false); }}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xs p-6 space-y-4" onClick={e => e.stopPropagation()}>
             <div className="text-center"><span className="text-3xl">🔐</span><h3 className="text-gray-900 font-black text-lg mt-2">관리자 확인</h3><p className="text-gray-400 text-xs mt-1">비밀번호를 입력하세요</p></div>
             <input type="password" value={adminPw} onChange={e => { setAdminPw(e.target.value); setAdminErr(false); }}
@@ -309,8 +327,7 @@ export function ResetButton({ onReset, darkMode, onEasterEgg, onUiLockChange, on
                 className="flex-1 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-600 text-white text-sm font-bold transition-all disabled:opacity-60">{adminBusy ? '확인 중…' : '확인'}</button>
             </div>
           </div>
-        </div>,
-        document.body
+        </PasswordDimLayer>
       )}
     </>
   );

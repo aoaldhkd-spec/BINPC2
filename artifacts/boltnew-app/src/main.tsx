@@ -11,7 +11,7 @@ import { TestGate } from './components/TestGate';
 const AdminApp = lazy(() => import('./AdminApp'));
 
 if ('serviceWorker' in navigator) {
-  const swUrl = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/sw.js?v=20260814c`;
+  const swUrl = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/sw.js?v=20260816-pw-dim`;
   window.addEventListener('load', () => {
     navigator.serviceWorker.register(swUrl, { scope: import.meta.env.BASE_URL as string }).catch(() => {});
   });

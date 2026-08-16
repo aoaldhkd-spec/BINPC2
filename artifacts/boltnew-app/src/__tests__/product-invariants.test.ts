@@ -38,6 +38,19 @@ describe('product copy + notification invariants', () => {
     expect(app).toMatch(/n\.target === 'all'/);
   });
 
+  it('처음으로 돌아가기 is a dim popup over mounted MainScreen', () => {
+    const reset = read('components/ResetButton.tsx');
+    const app = read('App.tsx');
+    expect(reset).toContain("backgroundColor: 'rgba(0, 0, 0, 0.4)'");
+    expect(reset).toContain('data-password-overlay="dim"');
+    expect(reset).not.toContain("backgroundColor: '#000000'");
+    expect(reset).not.toMatch(/className="[^"]*\bbg-black(?:\s|")/);
+    expect(reset).not.toContain('backdrop-blur');
+    expect(app).not.toMatch(/showResetPassword \?/);
+    expect(app).toContain('{showResetPassword && (');
+    expect(app).toContain('<MainScreen');
+  });
+
   it('채팅 탭 진입만으로 미읽음 숫자를 지우지 않는다', () => {
     const main = read('components/MainScreen.tsx');
     expect(main).not.toMatch(/if \(mainTab === 'chats'\) onClearMsgCount/);
