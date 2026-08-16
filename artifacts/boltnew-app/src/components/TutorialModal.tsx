@@ -1,271 +1,260 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, ArrowLeft, ArrowRight } from 'lucide-react';
-import type { TutorialSlide } from '../types/app';
 import { TutorialVideo } from './TutorialVideo';
 
-const SLIDE_SHORT_LABELS = ['환영', '공지', '하트', '채팅', '운세', '💡팁'];
+type Topic = {
+  id: string;
+  emoji: string;
+  label: string;
+  title: string;
+  color: string;
+  tips: { icon: string; title: string; desc: string }[];
+  video?: number[];
+};
 
-// 고정 높이(h-60 = 240px) 안에서 딱 맞도록 공통 컨테이너
-function Body({ children }: { children: React.ReactNode }) {
-  return <div className="h-60 overflow-hidden">{children}</div>;
-}
-
-// 설명 + 단계 2단 구조
-function SlideWithSteps({ desc, steps, color, darkMode }: {
-  desc: string; steps: string[]; color: string; darkMode?: boolean;
-}) {
-  return (
-    <Body>
-      <div className="px-5 pt-3 pb-3 space-y-2.5 h-full flex flex-col justify-between">
-        <p className={`text-[13px] leading-relaxed ${darkMode ? 'text-slate-300' : 'text-gray-600'}`}>{desc}</p>
-        <div className={`rounded-2xl p-3 space-y-2 flex-1 ${darkMode ? 'bg-slate-800/80 border border-slate-700' : 'bg-slate-50 border border-slate-200'}`}>
-          <p className={`text-[9px] font-black uppercase tracking-widest ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>📌 이렇게 사용해요</p>
-          {steps.map((step, i) => (
-            <div key={i} className="flex items-start gap-2.5">
-              <span className={`flex-shrink-0 w-[18px] h-[18px] rounded-full text-white text-[9px] font-black flex items-center justify-center mt-0.5 leading-none bg-gradient-to-br ${color}`}>{i + 1}</span>
-              <p className={`text-[13px] leading-snug ${darkMode ? 'text-slate-300' : 'text-gray-600'}`}>{step}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </Body>
-  );
-}
-
-const TUTORIAL_SLIDES: TutorialSlide[] = [
-  /* 0 — 환영 */
+const BASIC: Topic[] = [
   {
+    id: 'start',
     emoji: '🥂',
-    title: '범일NPC 술번개에 오신 걸 환영해요!',
+    label: '시작',
+    title: '이 앱으로 오늘 하는 일',
     color: 'from-cyan-500 to-teal-500',
-    renderBody: (darkMode) => (
-      <Body>
-        <div className="px-5 pt-3 pb-3 flex flex-col gap-2.5 h-full justify-between">
-          <p className={`text-[13px] font-bold text-center ${darkMode ? 'text-slate-200' : 'text-gray-800'}`}>
-            오늘 함께하게 되어 정말 반가워요! 🎉
-          </p>
-          <div className="grid grid-cols-2 gap-2 flex-1">
-            {([
-              { icon: '❤️', label: '하트 보내기', sub: '종류별 2개, 총 8개' },
-              { icon: '💬', label: '1:1 채팅', sub: '수락 시 자동 오픈' },
-              { icon: '📱', label: '연락처 교환', sub: '채팅에서 공유' },
-              { icon: '🔮', label: '사주·궁합', sub: '운세 탭에서 확인' },
-            ] as { icon: string; label: string; sub: string }[]).map(({ icon, label, sub }) => (
-              <div key={label} className={`flex items-center gap-2.5 px-3 py-0 rounded-2xl ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-gradient-to-br from-cyan-50 to-teal-50 border border-cyan-100'}`}>
-                <span className="text-xl leading-none flex-shrink-0">{icon}</span>
-                <div>
-                  <p className={`text-[13px] font-black leading-tight ${darkMode ? 'text-slate-200' : 'text-cyan-900'}`}>{label}</p>
-                  <p className={`text-[11px] leading-snug mt-0.5 ${darkMode ? 'text-slate-500' : 'text-cyan-600'}`}>{sub}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-          <p className={`text-[11px] text-center ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>
-            👇 탭을 눌러 각 기능을 확인하세요
-          </p>
-        </div>
-      </Body>
-    ),
+    tips: [
+      { icon: '👥', title: '참여자', desc: '아래 참여자 탭에서 오늘 온 사람들을 봐요.' },
+      { icon: '❤️', title: '하트', desc: '마음에 드는 카드의 하트를 누르면 보낼 수 있어요.' },
+      { icon: '💬', title: '채팅', desc: '상대가 하트를 받으면 채팅이 열리고, 채팅 탭에서 이어가요.' },
+      { icon: '🙋', title: '내 상태', desc: '내 사진·닉네임·관심사는 내 상태 탭에서 고쳐요.' },
+    ],
   },
-
-  /* 1 — 공지사항 */
   {
-    emoji: '📋',
-    title: '공지사항 (필독!)',
-    color: 'from-teal-500 to-cyan-600',
-    renderBody: (darkMode) => (
-      <Body>
-        <div className="px-5 pt-3 pb-3 h-full">
-          <div className={`rounded-2xl p-3 space-y-2 h-full ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-teal-50 border border-teal-100'}`}>
-            {[
-              '술 강요가 없는 자유로운 분위기입니다',
-              '정치, 종교, 지역감정, 패드립은 허용되지 않습니다',
-              '욕설, 반말 등은 영구밴이 될 수 있습니다',
-              '화장실, 담배는 함께 이동해 주세요',
-              '급하신 분은 먼저 허락을 받고 이동 부탁드립니다',
-              '불법 복제·도용 시 민형사상 책임질 수 있습니다',
-            ].map((text, i) => (
-              <div key={i} className="flex items-start gap-2.5">
-                <span className={`flex-shrink-0 w-[18px] h-[18px] rounded-full text-[9px] font-black flex items-center justify-center mt-0.5 leading-none ${darkMode ? 'bg-teal-700 text-teal-200' : 'bg-teal-500 text-white'}`}>{i + 1}</span>
-                <p className={`text-[13px] leading-snug ${darkMode ? 'text-slate-300' : 'text-teal-900'}`}>{text}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </Body>
-    ),
-  },
-
-  /* 2 — 하트 */
-  {
+    id: 'heart',
     emoji: '❤️',
-    title: '하트 보내기',
+    label: '하트',
+    title: '하트는 이렇게 보내요',
     color: 'from-pink-500 to-rose-500',
-    renderBody: (darkMode) => (
-      <SlideWithSteps darkMode={darkMode} color="from-pink-500 to-rose-500"
-        desc="참여자 탭에서 마음에 드는 분에게 하트를 보내세요. 종류별 2개씩 총 8개 사용 가능."
-        steps={[
-          '참여자 탭 → 카드 오른쪽 위 🤍 버튼 터치',
-          '하트 종류 선택 (❤️💙🧡💚)',
-          '❤️💙🧡 수락 시 연락처 교환 & 채팅 오픈!',
-          '💚 칭찬 하트는 수락 즉시 확인 (채팅 없음)',
-        ]}
-      />
-    ),
+    tips: [
+      { icon: '🤍', title: '보내는 곳', desc: '참여자 카드 오른쪽 위 하트 버튼을 눌러요.' },
+      { icon: '8️⃣', title: '개수', desc: '❤️💙💗💚 종류마다 2개, 오늘 총 8개예요.' },
+      { icon: '✅', title: '수락되면', desc: '상대가 받으면 채팅방이 생기고 연락처를 나눌 수 있어요.' },
+    ],
+    video: [6],
   },
-
-  /* 3 — 채팅 */
   {
+    id: 'chat',
     emoji: '💬',
-    title: '채팅',
+    label: '채팅',
+    title: '채팅은 하트 다음에 열려요',
     color: 'from-blue-500 to-indigo-500',
-    renderBody: (darkMode) => (
-      <SlideWithSteps darkMode={darkMode} color="from-blue-500 to-indigo-500"
-        desc="하트를 수락하면 채팅방이 자동으로 열려요. 채팅에서 연락처를 공유할 수 있어요."
-        steps={[
-          '채팅 탭 → 대화 상대 선택',
-          '메시지 입력 후 전송 / 📷 사진 첨부 가능',
-          '채팅방 하단 📱 버튼 → 카카오·인스타·전화 공유',
-          '운세 탭에서 채팅 상대와의 궁합 바로 확인!',
-        ]}
-      />
-    ),
+    tips: [
+      { icon: '💬', title: '채팅 탭', desc: '아래 채팅 탭에서 열린 대화를 골라요.' },
+      { icon: '⌨️', title: '보내기', desc: '글을 치고 보내면 되고, 사진도 첨부할 수 있어요.' },
+      { icon: '📱', title: '연락처', desc: '채팅방 안에서 카카오·인스타·전화를 공유할 수 있어요.' },
+    ],
   },
-
-  /* 4 — 운세·사주·궁합 */
   {
+    id: 'fortune',
     emoji: '🔮',
-    title: '운세 · 사주 · 궁합',
+    label: '운세',
+    title: '타로·사주·궁합',
     color: 'from-purple-500 to-pink-500',
-    renderBody: (darkMode) => (
-      <SlideWithSteps darkMode={darkMode} color="from-purple-500 to-pink-500"
-        desc="타로·사주·궁합으로 오늘의 운세와 오늘 만난 분과의 궁합을 확인해 보세요!"
-        steps={[
-          '운세 탭 → 타로 / 사주 / 궁합 선택',
-          '사주를 보려면 내 상태 탭에서 생월·생일 먼저 입력',
-          '궁합: 마음에 드는 분 선택 후 4가지 방식 분석',
-          '채팅방 ♀♂ 버튼으로 상대방과 궁합 바로 확인',
-        ]}
-      />
-    ),
+    tips: [
+      { icon: '🔮', title: '운세 탭', desc: '아래에서 운세를 열면 타로·사주·궁합이 있어요.' },
+      { icon: '📅', title: '사주', desc: '내 상태에 생월·생일을 넣어야 사주가 나와요.' },
+    ],
   },
-
-  /* 5 — 숨겨진 기능 TIP */
   {
-    emoji: '💡',
-    title: '숨겨진 기능 팁',
-    color: 'from-violet-500 to-purple-600',
-    renderBody: (darkMode) => (
-      <Body>
-        <div className="px-5 pt-3 pb-3 h-full flex flex-col gap-2.5">
-          <p className={`text-[12px] ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>
-            대부분 모르는 기능이에요 👀
-          </p>
-          <div className="flex flex-col gap-2 flex-1 justify-between">
-            {([
-              { icon: '🖼️', title: '아바타 변경', desc: '내 상태 탭 → 프로필 사진 탭 → 스타일 선택' },
-              { icon: '📷', title: '사진 채팅', desc: '채팅방 📎 버튼으로 이미지 전송 가능' },
-              { icon: '🔮', title: '궁합 확인', desc: '운세 탭 → 참여자 선택 → 4가지 방식 분석' },
-            ] as { icon: string; title: string; desc: string }[]).map(({ icon, title, desc }) => (
-              <div key={title} className={`flex items-center gap-3 px-4 py-0 rounded-2xl flex-1 ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-violet-50 border border-violet-100'}`}>
-                <span className="text-xl flex-shrink-0">{icon}</span>
-                <div>
-                  <p className={`text-[13px] font-black leading-tight ${darkMode ? 'text-slate-200' : 'text-violet-900'}`}>{title}</p>
-                  <p className={`text-[12px] leading-snug mt-0.5 ${darkMode ? 'text-slate-400' : 'text-violet-600/80'}`}>{desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </Body>
-    ),
+    id: 'rules',
+    emoji: '📋',
+    label: '공지',
+    title: '오늘만 꼭 지켜 주세요',
+    color: 'from-teal-500 to-cyan-600',
+    tips: [
+      { icon: '🍺', title: '술 강요 없음', desc: '마시고 싶은 만큼만. 안 마셔도 됩니다.' },
+      { icon: '🚫', title: '금지', desc: '정치·종교·지역감정·패드립·욕설·반말은 영구밴될 수 있어요.' },
+      { icon: '🚶', title: '자리 비울 때', desc: '화장실·담배는 같이 가고, 급하면 먼저 말하고 나가 주세요.' },
+    ],
   },
 ];
 
-export function TutorialModal({ page, onChangePage, onClose, darkMode }: {
-  page: number;
-  onChangePage: (p: number) => void;
+const ADVANCED: Topic[] = [
+  {
+    id: 'pin',
+    emoji: '🔑',
+    label: '고유번호',
+    title: '폰 바뀌면 이걸로 복구해요',
+    color: 'from-amber-500 to-orange-500',
+    tips: [
+      { icon: '📍', title: '어디에 있나', desc: '내 상태 탭 프로필 카드의 4자리 숫자예요. 캡처해 두세요.' },
+      { icon: '📱', title: '기기 바꿨을 때', desc: '새 폰에서 프로필을 다시 만들지 말고, 입장 화면의 고유번호 복구를 누르세요.' },
+      { icon: '⚠️', title: '모르면', desc: '관리자에게 닉네임을 말하고 찾아 달라고 하세요. 번호 없으면 계정이 새로 생깁니다.' },
+    ],
+  },
+  {
+    id: 'hidden',
+    emoji: '👀',
+    label: '숨은기능',
+    title: '대부분 모르는 것들',
+    color: 'from-violet-500 to-purple-600',
+    tips: [
+      { icon: '🔄', title: '카드 뒤집기', desc: '참여자 사진을 탭하면 그 사람의 이상형이 뒷면에 나와요.' },
+      { icon: '💚', title: '칭찬 하트', desc: '💚만 보내면 채팅·연락처가 열리지 않아요. 칭찬만 전달됩니다.' },
+      { icon: '📷', title: '연락처 QR', desc: '내 상태 → 연락처 QR을 보여 주고, 상대는 QR 찍기로 저장해요.' },
+      { icon: '🚫', title: '차단·숨기기', desc: '카드 ⋯ 메뉴에서 차단(서로 안 보임) 또는 숨기기(나만 안 보임).' },
+      { icon: '👁', title: '방문자', desc: '내 상태 탭에서 내 프로필을 열어본 사람을 볼 수 있어요.' },
+      { icon: '🔮', title: '채팅 궁합', desc: '채팅방 ♀♂ 버튼으로 상대와의 궁합을 바로 봐요.' },
+    ],
+    video: [1],
+  },
+  {
+    id: 'chat-tips',
+    emoji: '✨',
+    label: '채팅팁',
+    title: '채팅창에 숨겨 둔 조작',
+    color: 'from-indigo-500 to-blue-600',
+    tips: [
+      { icon: '😊', title: '스티커·이모지', desc: '입력창 왼쪽 😊 → 이모지 / 스티커 팩' },
+      { icon: '⚡', title: '빠른 메시지', desc: '⚡ 버튼으로 자주 쓰는 한 줄을 바로 보내요.' },
+      { icon: '📷', title: '사진', desc: '카메라 버튼으로 이미지를 보낼 수 있어요.' },
+      { icon: '👉', title: '스와이프 답장', desc: '상대 메시지를 옆으로 밀면 그 말에 답장이 걸려요.' },
+      { icon: '👆', title: '길게 누르기', desc: '내 메시지를 길게 누르면 삭제 메뉴가 나와요.' },
+    ],
+    video: [3, 4, 5],
+  },
+];
+
+export function TutorialModal({ onClose, darkMode }: {
+  page?: number;
+  onChangePage?: (p: number) => void;
   onClose: () => void;
   darkMode?: boolean;
 }) {
-  const [videoMode, setVideoMode] = useState(false);
-  const slide = TUTORIAL_SLIDES[page];
-  const isLast = page === TUTORIAL_SLIDES.length - 1;
+  const [mode, setMode] = useState<'basic' | 'advanced'>('basic');
+  const [topicIdx, setTopicIdx] = useState(0);
+  const [showVideo, setShowVideo] = useState(true);
 
-  if (videoMode) {
-    return <TutorialVideo onClose={() => setVideoMode(false)} />;
-  }
+  const topics = mode === 'basic' ? BASIC : ADVANCED;
+  const safeIdx = Math.min(topicIdx, topics.length - 1);
+  const topic = topics[safeIdx];
+  const isLast = safeIdx === topics.length - 1;
+
+  useEffect(() => { setShowVideo(true); }, [mode, safeIdx]);
+
+  const panel = darkMode ? 'bg-slate-800/80 border-slate-700' : 'bg-slate-50 border-slate-200';
+  const muted = darkMode ? 'text-slate-400' : 'text-gray-500';
+  const text = darkMode ? 'text-slate-200' : 'text-gray-800';
+
+  const switchMode = (next: 'basic' | 'advanced') => {
+    setMode(next);
+    setTopicIdx(0);
+  };
 
   return (
-    <div className="fixed inset-0 z-[150] flex items-center justify-center p-5 bg-black/70 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-[150] flex items-end sm:items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
       <div
-        className={`relative w-full max-w-sm rounded-3xl shadow-2xl flex flex-col overflow-hidden ${darkMode ? 'bg-slate-900' : 'bg-white'}`}
+        className={`relative w-full max-w-md max-h-[92vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden ${darkMode ? 'bg-slate-900' : 'bg-white'}`}
         onClick={e => e.stopPropagation()}
       >
-        {/* 닫기 */}
         <button onClick={onClose}
-          className="absolute top-3.5 right-3.5 z-10 w-8 h-8 flex items-center justify-center rounded-full bg-black/25 hover:bg-black/45 text-white transition-all">
+          className="absolute top-3 right-3 z-10 w-8 h-8 flex items-center justify-center rounded-full bg-black/25 hover:bg-black/45 text-white">
           <X className="w-4 h-4" />
         </button>
 
-        {/* 동영상 버튼 */}
-        <button onClick={() => setVideoMode(true)}
-          className="absolute top-3.5 left-3.5 z-10 flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-black/30 hover:bg-black/50 transition-all">
-          <span className="text-white text-[10px]">▶</span>
-          <span className="text-white text-[10px] font-bold">동영상</span>
-        </button>
-
-        {/* 헤더 */}
-        <div className={`bg-gradient-to-br ${slide.color} px-6 py-5 text-center flex flex-col items-center justify-center flex-shrink-0`}>
-          <div className="text-3xl mb-1.5">{slide.emoji}</div>
-          <h2 className="text-[13px] font-black text-white leading-snug px-4">{slide.title}</h2>
+        <div className={`bg-gradient-to-br ${topic.color} px-5 pt-5 pb-4 pr-12 flex-shrink-0`}>
+          <p className="text-white/80 text-[11px] font-bold tracking-wide">도움말</p>
+          <h2 className="text-white font-black text-[17px] leading-snug mt-1">{topic.emoji} {topic.title}</h2>
         </div>
 
-        {/* 탭 네비게이션 (2행 × 3열) */}
-        <div className={`flex-shrink-0 border-b ${darkMode ? 'border-slate-700 bg-slate-900' : 'border-gray-100 bg-white'}`}>
-          <div className="grid grid-cols-3 gap-1 px-2.5 py-2">
-            {TUTORIAL_SLIDES.map((s, i) => (
-              <button key={i} onClick={() => onChangePage(i)}
-                className={`flex flex-col items-center gap-1 py-2 rounded-xl transition-all active:scale-95 ${
-                  i === page
-                    ? `bg-gradient-to-br ${s.color} shadow-sm`
-                    : darkMode ? 'hover:bg-slate-800' : 'hover:bg-gray-50'
+        <div className={`flex-shrink-0 px-3 pt-3 ${darkMode ? 'bg-slate-900' : 'bg-white'}`}>
+          <div className={`grid grid-cols-2 p-1 rounded-2xl ${darkMode ? 'bg-slate-800' : 'bg-gray-100'}`}>
+            <button type="button" onClick={() => switchMode('basic')}
+              className={`py-2 rounded-xl text-[13px] font-black transition-all ${
+                mode === 'basic'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : darkMode ? 'text-slate-400' : 'text-gray-500'
+              }`}>
+              기본
+            </button>
+            <button type="button" onClick={() => switchMode('advanced')}
+              className={`py-2 rounded-xl text-[13px] font-black transition-all ${
+                mode === 'advanced'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : darkMode ? 'text-slate-400' : 'text-gray-500'
+              }`}>
+              심화
+            </button>
+          </div>
+          {mode === 'advanced' && (
+            <p className={`text-center text-[10px] font-semibold mt-1.5 ${muted}`}>잘 모를 만한 기능만 모아 두었어요</p>
+          )}
+        </div>
+
+        <div className={`flex-shrink-0 px-3 py-2 border-b ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
+          <div className="flex gap-1 overflow-x-auto">
+            {topics.map((t, i) => (
+              <button key={t.id} onClick={() => setTopicIdx(i)}
+                className={`flex-shrink-0 px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-all active:scale-95 ${
+                  i === safeIdx
+                    ? `bg-gradient-to-br ${t.color} text-white shadow-sm`
+                    : darkMode ? 'text-slate-500 hover:bg-slate-800' : 'text-gray-400 hover:bg-gray-50'
                 }`}>
-                <span className="text-sm leading-none">{s.emoji}</span>
-                <span className={`text-[9px] font-bold leading-none text-center ${
-                  i === page ? 'text-white' : darkMode ? 'text-slate-500' : 'text-gray-400'
-                }`}>{SLIDE_SHORT_LABELS[i]}</span>
+                {t.emoji} {t.label}
               </button>
             ))}
           </div>
         </div>
 
-        {/* 슬라이드 본문 — 고정 높이 h-60, 스크롤 없음 */}
-        {slide.renderBody ? slide.renderBody(darkMode) : (
-          <Body>
-            <div className={`px-5 py-4 h-full text-[12px] leading-relaxed whitespace-pre-line ${darkMode ? 'text-slate-300' : 'text-gray-600'}`}>
-              {slide.desc}
+        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2.5">
+          {topic.tips.map((tip) => (
+            <div key={tip.title} className={`flex gap-3 rounded-2xl border px-3 py-2.5 ${panel}`}>
+              <span className="text-lg leading-none mt-0.5 flex-shrink-0">{tip.icon}</span>
+              <div className="min-w-0">
+                <p className={`text-[13px] font-black leading-tight ${text}`}>{tip.title}</p>
+                <p className={`text-[12px] leading-snug mt-0.5 ${muted}`}>{tip.desc}</p>
+              </div>
             </div>
-          </Body>
-        )}
+          ))}
 
-        {/* 하단 버튼 */}
-        <div className={`flex-shrink-0 px-5 py-4 flex gap-2.5 border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
-          {page > 0 ? (
-            <button onClick={() => onChangePage(page - 1)}
-              className={`flex-[2] flex items-center justify-center gap-1.5 py-3 rounded-2xl text-sm font-semibold border transition-all active:scale-95 ${darkMode ? 'border-slate-700 text-slate-300 hover:bg-slate-800' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+          {topic.video && (
+            <div className="pt-1">
+              <p className={`text-[11px] font-bold mb-2 ${muted}`}>영상</p>
+              {showVideo && (
+                <TutorialVideo
+                  key={`${mode}-${topic.id}`}
+                  embedded
+                  sceneIndices={topic.video}
+                  onClose={() => setShowVideo(false)}
+                />
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className={`flex-shrink-0 px-4 py-3 flex gap-2 border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
+          {safeIdx > 0 ? (
+            <button onClick={() => setTopicIdx(safeIdx - 1)}
+              className={`flex-[2] flex items-center justify-center gap-1 py-3 rounded-2xl text-sm font-semibold border ${darkMode ? 'border-slate-700 text-slate-300' : 'border-gray-200 text-gray-600'}`}>
               <ArrowLeft className="w-4 h-4" /> 이전
+            </button>
+          ) : mode === 'advanced' ? (
+            <button onClick={() => switchMode('basic')}
+              className={`flex-[2] py-3 rounded-2xl text-sm font-semibold border ${darkMode ? 'border-slate-700 text-slate-300' : 'border-gray-200 text-gray-600'}`}>
+              기본으로
             </button>
           ) : (
             <button onClick={onClose}
-              className={`flex-[2] flex items-center justify-center gap-1.5 py-3 rounded-2xl text-sm font-semibold border transition-all active:scale-95 ${darkMode ? 'border-slate-700 text-slate-300 hover:bg-slate-800' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
+              className={`flex-[2] py-3 rounded-2xl text-sm font-semibold border ${darkMode ? 'border-slate-700 text-slate-300' : 'border-gray-200 text-gray-500'}`}>
               닫기
             </button>
           )}
           <button
-            onClick={isLast ? onClose : () => onChangePage(page + 1)}
-            className={`flex-[3] flex items-center justify-center gap-1.5 py-3 rounded-2xl text-sm font-bold text-white transition-all active:scale-95 bg-gradient-to-r ${slide.color} hover:opacity-90 shadow-sm`}>
-            {isLast ? '시작하기 🎉' : <>다음 <ArrowRight className="w-4 h-4" /></>}
+            onClick={() => {
+              if (!isLast) { setTopicIdx(safeIdx + 1); return; }
+              if (mode === 'basic') { switchMode('advanced'); return; }
+              onClose();
+            }}
+            className={`flex-[3] flex items-center justify-center gap-1 py-3 rounded-2xl text-sm font-bold text-white bg-gradient-to-r ${topic.color}`}
+          >
+            {isLast && mode === 'advanced' ? '알겠어요' : isLast && mode === 'basic' ? '심화 보기' : <>다음 <ArrowRight className="w-4 h-4" /></>}
           </button>
         </div>
       </div>

@@ -732,8 +732,19 @@ const SCENES: SceneDef[] = [
 // ══════════════════════════════════════════════════════════════════════════════
 // 메인 플레이어
 // ══════════════════════════════════════════════════════════════════════════════
-export function TutorialVideo({ onClose }: { onClose: () => void }) {
-  const [sceneIdx, setSceneIdx] = useState(0);
+export function TutorialVideo({
+  onClose,
+  embedded = false,
+  sceneIndices,
+}: {
+  onClose: () => void;
+  embedded?: boolean;
+  sceneIndices?: number[];
+}) {
+  const playlist = (sceneIndices?.length ? sceneIndices : SCENES.map((_, i) => i))
+    .filter((i) => i >= 0 && i < SCENES.length);
+  const [playIdx, setPlayIdx] = useState(0);
+  const sceneIdx = playlist[Math.min(playIdx, playlist.length - 1)] ?? 0;
   const [stepIdx, setStepIdx] = useState(0);
   const [playing, setPlaying] = useState(true);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -745,11 +756,11 @@ export function TutorialVideo({ onClose }: { onClose: () => void }) {
     if (timerRef.current !== null) { clearTimeout(timerRef.current); timerRef.current = null; }
   }, []);
 
-  const goScene = useCallback((idx: number) => {
+  const goPlay = useCallback((nextPlay: number) => {
     clearTimer();
-    setSceneIdx(Math.max(0, Math.min(SCENES.length - 1, idx)));
+    setPlayIdx(Math.max(0, Math.min(playlist.length - 1, nextPlay)));
     setStepIdx(0);
-  }, [clearTimer]);
+  }, [clearTimer, playlist.length]);
 
   // 스텝 자동 전진 — playing 상태일 때만
   useEffect(() => {
@@ -758,15 +769,14 @@ export function TutorialVideo({ onClose }: { onClose: () => void }) {
     timerRef.current = setTimeout(() => {
       if (stepIdx < scene.steps.length - 1) {
         setStepIdx(p => p + 1);
-      } else if (sceneIdx < SCENES.length - 1) {
-        goScene(sceneIdx + 1);
+      } else if (playIdx < playlist.length - 1) {
+        goPlay(playIdx + 1);
       } else {
-        // 마지막 장면 종료 → 처음으로 루프
-        goScene(0);
+        goPlay(0);
       }
     }, s.dur);
     return clearTimer;
-  }, [playing, stepIdx, sceneIdx, scene, clearTimer, goScene]);
+  }, [playing, stepIdx, playIdx, scene, playlist.length, clearTimer, goPlay]);
 
   // 언마운트 시 타이머 정리
   useEffect(() => clearTimer, [clearTimer]);
@@ -778,66 +788,64 @@ export function TutorialVideo({ onClose }: { onClose: () => void }) {
     return Math.min(100, (done / total) * 100);
   })();
 
+  const player = (
+    <div className={`relative w-full overflow-hidden bg-slate-900 ${embedded ? 'rounded-2xl border border-slate-700' : 'max-w-xs rounded-3xl shadow-2xl border border-slate-700'}`}>
+      <div className="flex items-start gap-2 px-3 pt-3 pb-1.5">
+        <div className="flex-1 min-w-0">
+          <p className="text-white font-black text-[13px] leading-tight">{scene.title}</p>
+          <p className="text-slate-400 text-[10px] mt-0.5 leading-tight">{scene.sub}</p>
+        </div>
+        {!embedded && (
+          <button onClick={onClose}
+            className="w-7 h-7 rounded-full bg-slate-700 hover:bg-slate-600 flex items-center justify-center text-slate-300 text-xs transition-all flex-shrink-0">
+            ✕
+          </button>
+        )}
+      </div>
+
+      <div className="flex gap-0.5 px-3 mb-2">
+        {playlist.map((sceneNo, i) => (
+          <button key={sceneNo} onClick={() => goPlay(i)} className="flex-1 h-1 rounded-full overflow-hidden bg-slate-700">
+            <div className="h-full bg-teal-400 transition-all duration-100"
+              style={{ width: i < playIdx ? '100%' : i === playIdx ? `${progress}%` : '0%' }} />
+          </button>
+        ))}
+      </div>
+
+      <div className="mx-3 mb-2 rounded-2xl overflow-hidden border border-slate-700 bg-slate-900 relative"
+        style={{ height: embedded ? 220 : 280 }}>
+        <div key={sceneIdx} className="w-full h-full animate-in fade-in duration-300">
+          {scene.render(stepIdx)}
+        </div>
+        <Cursor x={step.cx} y={step.cy} clicking={step.click ?? false} />
+      </div>
+
+      <div className="flex items-center gap-2 px-3 pb-3">
+        <button onClick={() => goPlay(playIdx - 1)} disabled={playIdx === 0}
+          className="w-8 h-8 rounded-full bg-slate-700 hover:bg-slate-600 disabled:opacity-30 flex items-center justify-center transition-all">
+          <SkipBack className="w-4 h-4 text-slate-300" />
+        </button>
+        <button onClick={() => setPlaying(p => !p)}
+          className="flex-1 flex items-center justify-center gap-2 py-2 rounded-2xl bg-teal-500 hover:bg-teal-400 text-white font-black text-[12px] transition-all active:scale-95">
+          {playing ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+          {playing ? '일시정지' : '재생'}
+        </button>
+        <button
+          onClick={() => playIdx === playlist.length - 1 ? (embedded ? goPlay(0) : onClose()) : goPlay(playIdx + 1)}
+          className="w-8 h-8 rounded-full bg-slate-700 hover:bg-slate-600 flex items-center justify-center transition-all">
+          <SkipForward className="w-4 h-4 text-slate-300" />
+        </button>
+        <span className="text-[9px] text-slate-500 font-bold w-8 text-right">{playIdx + 1}/{playlist.length}</span>
+      </div>
+    </div>
+  );
+
+  if (embedded) return player;
+
   return (
     <div className="fixed inset-0 z-[150] flex items-end justify-center sm:items-center p-4 bg-black/85 backdrop-blur-sm"
       onClick={onClose}>
-      <div className="relative w-full max-w-xs rounded-3xl shadow-2xl overflow-hidden bg-slate-900 border border-slate-700"
-        onClick={e => e.stopPropagation()}>
-
-        {/* 헤더 */}
-        <div className="flex items-start gap-2 px-4 pt-3 pb-2">
-          <div className="flex-1 min-w-0">
-            <p className="text-white font-black text-[13px] leading-tight">{scene.title}</p>
-            <p className="text-slate-400 text-[10px] mt-0.5 leading-tight">{scene.sub}</p>
-          </div>
-          <div className="flex items-center gap-1.5 flex-shrink-0 mt-0.5">
-            <button onClick={onClose}
-              className="w-7 h-7 rounded-full bg-slate-700 hover:bg-slate-600 flex items-center justify-center text-slate-300 text-xs transition-all">
-              ✕
-            </button>
-          </div>
-        </div>
-
-        {/* 진행 바 */}
-        <div className="flex gap-0.5 px-4 mb-2">
-          {SCENES.map((_, i) => (
-            <button key={i} onClick={() => goScene(i)} className="flex-1 h-1 rounded-full overflow-hidden bg-slate-700">
-              <div className="h-full bg-teal-400 transition-all duration-100"
-                style={{ width: i < sceneIdx ? '100%' : i === sceneIdx ? `${progress}%` : '0%' }} />
-            </button>
-          ))}
-        </div>
-
-        {/* 앱 화면 — key 로 장면 교체 시 fade-in 적용 */}
-        <div className="mx-4 mb-3 rounded-2xl overflow-hidden border border-slate-700 bg-slate-900 relative"
-          style={{ height: 280 }}>
-          <div key={sceneIdx} className="w-full h-full animate-in fade-in duration-300">
-            {scene.render(stepIdx)}
-          </div>
-          <Cursor x={step.cx} y={step.cy} clicking={step.click ?? false} />
-        </div>
-
-        {/* 컨트롤 */}
-        <div className="flex items-center gap-2 px-4 pb-4">
-          <button onClick={() => goScene(sceneIdx - 1)} disabled={sceneIdx === 0}
-            className="w-9 h-9 rounded-full bg-slate-700 hover:bg-slate-600 disabled:opacity-30 flex items-center justify-center transition-all">
-            <SkipBack className="w-4 h-4 text-slate-300" />
-          </button>
-          <button onClick={() => setPlaying(p => !p)}
-            className="flex-1 flex items-center justify-center gap-2 py-2 rounded-2xl bg-teal-500 hover:bg-teal-400 text-white font-black text-[13px] transition-all active:scale-95">
-            {playing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-            {playing ? '일시정지' : '재생'}
-          </button>
-          <button onClick={() => sceneIdx === SCENES.length - 1 ? onClose() : goScene(sceneIdx + 1)}
-            className="w-9 h-9 rounded-full bg-slate-700 hover:bg-slate-600 flex items-center justify-center transition-all">
-            <SkipForward className="w-4 h-4 text-slate-300" />
-          </button>
-        </div>
-
-        <div className="absolute bottom-[52px] right-5">
-          <span className="text-[9px] text-slate-600 font-bold">{sceneIdx + 1} / {SCENES.length}</span>
-        </div>
-      </div>
+      <div onClick={e => e.stopPropagation()}>{player}</div>
     </div>
   );
 }

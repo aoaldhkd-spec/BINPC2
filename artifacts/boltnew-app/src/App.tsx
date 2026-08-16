@@ -122,7 +122,6 @@ function App() {
   const [fortuneCompatTarget, setFortuneCompatTarget] = useState<string | undefined>(undefined);
   const [fortuneModalTarget, setFortuneModalTarget] = useState<Profile | null>(null);
   const [showTutorialModal, setShowTutorialModal] = useState(false);
-  const [tutorialPage, setTutorialPage] = useState(0);
   const [showContactQr, setShowContactQr] = useState(false);
   const [showQrScanner, setShowQrScanner] = useState(false);
   const [scannedContactProfile, setScannedContactProfile] = useState<import('./types/app').Profile | null>(null);
@@ -1259,8 +1258,6 @@ function App() {
       {/* Tutorial modal */}
       {showTutorialModal && (
         <TutorialModal
-          page={tutorialPage}
-          onChangePage={setTutorialPage}
           onClose={() => {
             setShowTutorialModal(false);
           }}
@@ -1365,7 +1362,7 @@ function App() {
           return next;
         })}
         functionsLocked={functionsLocked}
-        onShowTutorial={() => { setTutorialPage(0); setShowTutorialModal(true); }}
+        onShowTutorial={() => { setShowTutorialModal(true); }}
         newMsgCount={newMsgCount}
         onClearMsgCount={() => setNewMsgCount(0)}
         unreadChatCounts={unreadChatCounts}

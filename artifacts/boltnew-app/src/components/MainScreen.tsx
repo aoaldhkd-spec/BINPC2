@@ -5,7 +5,7 @@ import { useState, useEffect, useRef, useCallback, useMemo, Suspense, lazy, Comp
  */
 import {
   Heart, MessageCircle, Users, ChevronDown, CheckCircle,
-  Eye, X, BookOpen,
+  Eye, X, HelpCircle,
   QrCode, Camera, Search, MoreHorizontal,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -576,10 +576,10 @@ export function MainScreen({
           <div className="justify-self-start flex items-center gap-1">
             <button
               onClick={() => onShowTutorial()}
-              className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-all active:scale-95 ${darkMode ? 'text-slate-400 hover:text-cyan-400 hover:bg-slate-800' : 'text-gray-500 hover:text-cyan-600 hover:bg-cyan-50'}`}
+              title="도움말"
+              className={`p-2 rounded-xl transition-all ${darkMode ? 'bg-slate-700 text-cyan-300 hover:bg-slate-600' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
             >
-              <BookOpen className="w-5 h-5" />
-              <span className="text-[9px] font-semibold">튜토리얼</span>
+              <HelpCircle className="w-4 h-4" />
             </button>
             <button onClick={onToggleDark}
               className={`p-2 rounded-xl transition-all ${darkMode ? 'bg-slate-700 text-amber-400 hover:bg-slate-600' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
