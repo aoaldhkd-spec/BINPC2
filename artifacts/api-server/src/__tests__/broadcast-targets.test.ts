@@ -31,6 +31,7 @@ vi.mock('web-push', () => ({
 }));
 
 import { collectBroadcastTargets } from '../routes/db.js';
+import { collectBroadcastTargets as collectTargetsImpl } from '../lib/db-broadcast-targets.js';
 
 describe('collectBroadcastTargets', () => {
   it('contact_shares uses liker_id/liked_id (not legacy sharer_id)', () => {
@@ -97,5 +98,25 @@ describe('collectBroadcastTargets', () => {
       () => ({ id: 'c1', user1_id: 'user-a', user2_id: 'user-b' }),
     );
     expect(targets.sort()).toEqual(['user-a', 'user-b']);
+  });
+
+  it('group_messages targets only group_participants', () => {
+    const targets = collectTargetsImpl(
+      'group_messages',
+      { id: 'gm1', group_id: 'g1', sender_id: 'u1', content: 'hi' },
+      () => undefined,
+      (gid) => String(gid) === 'g1' ? [{ user_id: 'u1' }, { user_id: 'u2' }] : [{ user_id: 'u9' }],
+    );
+    expect(targets.sort()).toEqual(['u1', 'u2']);
+  });
+
+  it('group_participants INSERT notifies the joiner and current members', () => {
+    const targets = collectTargetsImpl(
+      'group_participants',
+      { id: 'g1__u3', group_id: 'g1', user_id: 'u3' },
+      () => undefined,
+      (gid) => String(gid) === 'g1' ? [{ user_id: 'u1' }, { user_id: 'u3' }] : [],
+    );
+    expect(targets.sort()).toEqual(['u1', 'u3']);
   });
 });

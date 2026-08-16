@@ -48,6 +48,8 @@ export function collectBroadcastTargets(
     for (const gp of gParts) push(gp.user_id);
   } else if (table === 'group_participants') {
     push(row['user_id']);
+    const gParts = groupParticipantsFor(row['group_id']);
+    for (const gp of gParts) push(gp.user_id);
   } else if (table === 'chat_reads') {
     push(row['user_id']);
     push(row['reader_id']);

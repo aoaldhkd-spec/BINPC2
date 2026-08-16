@@ -1377,3 +1377,175 @@ describe('[Security] chat_reads partner receipt + 1:1 isolation', () => {
     expect(asA.body.data.some((m: { content: string }) => m.content === 'pair-one-room')).toBe(true);
   });
 });
+
+// ════════════════════════════════════════════════════════════════════════════════
+// 단체 채팅 — 클릭 입장 · 사람당 최대 3방 · 방 인원 제한 없음 · IDOR
+// ════════════════════════════════════════════════════════════════════════════════
+
+describe('[Security] group chats opt-in', () => {
+  async function seedGroup(id: string, name: string) {
+    const res = await op({
+      op: 'insert',
+      table: 'group_chats',
+      payload: { id, name, interest_tag: name.slice(0, 10), age_group: null, max_members: 999999, room_kind: 'test' },
+      requesterId: 'seed-admin',
+      selectAfterWrite: true,
+      single: true,
+    });
+    expect(res.status).toBe(200);
+    return id;
+  }
+
+  it('프로필 INSERT 시 단톡에 자동 입장하지 않음', async () => {
+    const uid = `g-noauto-${randomUUID()}`;
+    const created = await op({
+      op: 'insert',
+      table: 'profiles',
+      payload: {
+        id: uid,
+        nickname: `na-${uid.replace(/-/g, '').slice(0, 12)}`,
+        bio: '클럽 술 관심사',
+        mbti: 'ENFP',
+        birth_year: 1998,
+      },
+      requesterId: uid,
+    });
+    expect(created.status).toBe(200);
+
+    const parts = await op({
+      op: 'select',
+      table: 'group_participants',
+      requesterId: uid,
+      filters: [{ type: 'eq', col: 'user_id', val: uid }],
+    });
+    expect(parts.status).toBe(200);
+    const rows = Array.isArray(parts.body.data) ? parts.body.data : (parts.body.data ? [parts.body.data] : []);
+    expect(rows).toHaveLength(0);
+  });
+
+  it('group_participants INSERT 는 사람당 최대 3개 방 (방 정원 아님)', async () => {
+    const uid = `g-max3-${randomUUID()}`;
+    const ids = await Promise.all([
+      seedGroup(`g3a-${uid}`, '방A'),
+      seedGroup(`g3b-${uid}`, '방B'),
+      seedGroup(`g3c-${uid}`, '방C'),
+      seedGroup(`g3d-${uid}`, '방D'),
+    ]);
+
+    for (let i = 0; i < 3; i++) {
+      const join = await op({
+        op: 'insert',
+        table: 'group_participants',
+        requesterId: uid,
+        payload: { group_id: ids[i], user_id: uid },
+        selectAfterWrite: true,
+        single: true,
+      });
+      expect(join.status).toBe(200);
+      expect(join.body.error).toBeNull();
+    }
+
+    const fourth = await op({
+      op: 'insert',
+      table: 'group_participants',
+      requesterId: uid,
+      payload: { group_id: ids[3], user_id: uid },
+    });
+    expect(fourth.status).toBe(400);
+    expect(fourth.body.error?.code).toBe('GROUP_LIMIT');
+    expect(fourth.body.error?.message).toMatch(/최대 3개/);
+  });
+
+  it('비참여자 group_messages INSERT 는 403', async () => {
+    const member = `g-mem-${randomUUID()}`;
+    const stranger = `g-str-${randomUUID()}`;
+    const gid = `g-msg-${randomUUID()}`;
+    await seedGroup(gid, '메시지방');
+
+    const join = await op({
+      op: 'insert',
+      table: 'group_participants',
+      requesterId: member,
+      payload: { group_id: gid, user_id: member },
+    });
+    expect(join.status).toBe(200);
+
+    const blocked = await op({
+      op: 'insert',
+      table: 'group_messages',
+      requesterId: stranger,
+      payload: { group_id: gid, sender_id: stranger, content: 'nope', client_id: randomUUID() },
+    });
+    expect(blocked.status).toBe(403);
+    expect(blocked.body.error?.code).toBe('FORBIDDEN');
+
+    const ok = await op({
+      op: 'insert',
+      table: 'group_messages',
+      requesterId: member,
+      payload: { group_id: gid, sender_id: member, content: 'hello-group', client_id: randomUUID() },
+      selectAfterWrite: true,
+      single: true,
+    });
+    expect(ok.status).toBe(200);
+    expect(ok.body.data?.content).toBe('hello-group');
+
+    const leaked = await op({
+      op: 'select',
+      table: 'group_messages',
+      requesterId: stranger,
+      filters: [{ type: 'eq', col: 'group_id', val: gid }],
+    });
+    expect(leaked.status).toBe(200);
+    const leakedRows = Array.isArray(leaked.body.data) ? leaked.body.data : [];
+    expect(leakedRows).toHaveLength(0);
+  });
+
+  it('한 방에 9명도 입장 가능 (방 인원 상한 없음)', async () => {
+    const gid = `g-crowd-${randomUUID()}`;
+    await seedGroup(gid, '만원방');
+    for (let i = 0; i < 9; i++) {
+      const uid = `crowd-${i}-${gid.slice(0, 8)}`;
+      const join = await op({
+        op: 'insert',
+        table: 'group_participants',
+        requesterId: uid,
+        payload: { group_id: gid, user_id: uid },
+      });
+      expect(join.status).toBe(200);
+    }
+  });
+
+  it('나가기 후 같은 방에 다시 입장할 수 있음', async () => {
+    const uid = `g-rejoin-${randomUUID()}`;
+    const gid = `g-rejoin-room-${randomUUID()}`;
+    await seedGroup(gid, '재입장방');
+
+    const join1 = await op({
+      op: 'insert',
+      table: 'group_participants',
+      requesterId: uid,
+      payload: { group_id: gid, user_id: uid },
+    });
+    expect(join1.status).toBe(200);
+
+    const leave = await op({
+      op: 'delete',
+      table: 'group_participants',
+      requesterId: uid,
+      filters: [
+        { type: 'eq', col: 'group_id', val: gid },
+        { type: 'eq', col: 'user_id', val: uid },
+      ],
+    });
+    expect(leave.status).toBe(200);
+
+    const join2 = await op({
+      op: 'insert',
+      table: 'group_participants',
+      requesterId: uid,
+      payload: { group_id: gid, user_id: uid },
+    });
+    expect(join2.status).toBe(200);
+  });
+});

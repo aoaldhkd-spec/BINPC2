@@ -11,6 +11,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../lib/theme';
 import type { Profile, ContactShare, Chat, MainTab, GroupChat, ProfileView, UserSignal } from '../types/app';
+import { groupRoomVisual, MAX_GROUPS_PER_USER } from '../lib/group-rooms';
 import { BIO_CATEGORIES, parseProfileInterests, getInterestTagStyle } from '../lib/interests';
 import { HeartType, HEART_TYPES, heartMeta } from '../lib/constants';
 import { getPositionLabel, getPositionBg, getPositionStyle, getDomSubLabel, getDomSubBg, getKoreanAge, genAvatar, getAvatarSrc, getAvatarGradientCss, hasUploadedPhoto } from '../lib/profile';
@@ -77,7 +78,7 @@ export function MainScreen({
   timerEndAt, timerLabel, onRefreshStatus, onRefreshChat, onRefreshProfiles, darkMode, onToggleDark, onShowContactQr, onScanQr, scannedContacts, onClearScannedContact, functionsLocked = false, onShowTutorial,
   newMsgCount, onClearMsgCount, unreadChatCounts, onClearChatUnread: _onClearChatUnread,
   onUpdateProfile, fortuneCompatTarget, myHeartCount,
-  groupChats = [], unreadGroupCounts = {}, newGroupMsgCount: _newGroupMsgCount = 0, onClearGroupMsgCount: _onClearGroupMsgCount, onOpenGroupChat,
+  groupChats = [], unreadGroupCounts = {}, newGroupMsgCount: _newGroupMsgCount = 0, onClearGroupMsgCount: _onClearGroupMsgCount, onOpenGroupChat, onJoinGroupChat, joiningGroupId = null,
   blockedUserIds = new Set<string>(), hiddenByIds = new Set<string>(),
   profileVisitors = [] as ProfileView[],
   newVisitCount = 0,
@@ -130,6 +131,8 @@ export function MainScreen({
   newGroupMsgCount?: number;
   onClearGroupMsgCount?: () => void;
   onOpenGroupChat?: (groupId: string) => void;
+  onJoinGroupChat?: (groupId: string) => void;
+  joiningGroupId?: string | null;
   blockedUserIds?: Set<string>;
   hiddenByIds?: Set<string>;
   profileVisitors?: ProfileView[];
@@ -1853,52 +1856,82 @@ export function MainScreen({
                   </span>
                 )}
               </button>
-              {/* 단체채팅 — 준비 중 (코드 유지, UI만 잠금) */}
               <button
-                disabled
-                className={`flex-1 py-1.5 text-xs font-black rounded-lg cursor-not-allowed opacity-40 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}
+                onClick={() => setChatSubTab('group')}
+                className={`flex-1 py-1.5 text-xs font-black rounded-lg transition-all ${
+                  chatSubTab === 'group'
+                    ? (darkMode ? 'bg-slate-600 text-white shadow-sm' : 'bg-white text-gray-900 shadow-sm')
+                    : (darkMode ? 'text-slate-400' : 'text-gray-500')
+                }`}
               >
-                🔒 단체 채팅
+                👥 단체 채팅
+                {Object.values(unreadGroupCounts).some(n => n > 0) && (
+                  <span className="ml-1 inline-flex items-center justify-center min-w-[16px] h-4 px-1 text-[10px] font-black bg-rose-500 text-white rounded-full">
+                    {Object.values(unreadGroupCounts).reduce((a, b) => a + b, 0)}
+                  </span>
+                )}
               </button>
             </div>
 
             {/* ── 단체 채팅 목록 ── */}
             {chatSubTab === 'group' && (
               <>
+                <p className={`text-[11px] font-bold px-1 ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                  참여 {groupChats.filter(g => g.joined).length}/{MAX_GROUPS_PER_USER} · 입장 버튼을 눌러 들어가요
+                </p>
                 {groupChats.length === 0 ? (
                   <div className="text-center py-16">
                     <span className="text-5xl block mb-3 opacity-30">👥</span>
                     <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
-                      관심사·나이대 기반 단톡방에 자동 배정됩니다
+                      아직 열린 단톡방이 없어요
                     </p>
                     <p className={`text-xs mt-1 ${darkMode ? 'text-slate-500' : 'text-gray-300'}`}>
-                      프로필 bio에 관심사를 적으면 비슷한 사람들과 연결돼요!
+                      2차 클럽·술 방이 곧 목록에 나타나요. 클릭해서 입장하세요!
                     </p>
                   </div>
                 ) : (
                   <div className="space-y-2">
                     {groupChats.map(group => {
                       const unread = unreadGroupCounts[group.id] ?? 0;
+                      const visual = groupRoomVisual(group);
+                      const joined = !!group.joined;
+                      const joining = joiningGroupId === group.id;
                       return (
                         <div
                           key={group.id}
-                          onClick={() => onOpenGroupChat?.(group.id)}
-                          className={`rounded-2xl shadow-sm p-4 flex items-center gap-3 cursor-pointer transition-colors duration-300 active:scale-[0.98] ${
-                            darkMode ? 'bg-slate-800 border border-slate-600 hover:bg-slate-700' : 'bg-white hover:bg-gray-50'
-                          }`}
+                          onClick={() => { if (joined) onOpenGroupChat?.(group.id); }}
+                          className={`rounded-2xl shadow-sm p-4 flex items-center gap-3 transition-colors duration-300 ${
+                            joined ? 'cursor-pointer active:scale-[0.98]' : ''
+                          } ${
+                            visual.afterparty
+                              ? (darkMode ? 'bg-violet-950/40 border border-violet-500/40' : 'bg-violet-50 border border-violet-200')
+                              : (darkMode ? 'bg-slate-800 border border-slate-600' : 'bg-white')
+                          } ${joined && !visual.afterparty ? (darkMode ? 'hover:bg-slate-700' : 'hover:bg-gray-50') : ''}`}
                         >
-                          {/* 그룹 아이콘 */}
                           <div className={`w-12 h-12 rounded-full flex-shrink-0 flex items-center justify-center text-2xl ${
-                            darkMode ? 'bg-teal-500/20' : 'bg-teal-50'
+                            visual.afterparty
+                              ? (darkMode ? 'bg-violet-500/20' : 'bg-violet-100')
+                              : (darkMode ? 'bg-teal-500/20' : 'bg-teal-50')
                           }`}>
-                            👥
+                            {visual.emoji}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className={`text-sm font-bold truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                              {group.name}
-                            </p>
+                            <div className="flex items-center gap-1.5">
+                              {visual.afterparty && (
+                                <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full flex-shrink-0 ${
+                                  darkMode ? 'bg-violet-500/30 text-violet-200' : 'bg-violet-200 text-violet-800'
+                                }`}>
+                                  2차
+                                </span>
+                              )}
+                              <p className={`text-sm font-bold truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                                {group.name}
+                              </p>
+                            </div>
                             <p className={`text-xs truncate ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
-                              {group.lastMessage || '메시지 없음'}
+                              {joined
+                                ? (group.lastMessage || '메시지 없음')
+                                : '입장하면 대화에 참여할 수 있어요'}
                             </p>
                           </div>
                           <div className="flex flex-col items-end gap-1 flex-shrink-0">
@@ -1907,10 +1940,30 @@ export function MainScreen({
                             }`}>
                               {group.memberCount ?? 0}명
                             </span>
-                            {unread > 0 && (
-                              <span className="min-w-[22px] h-[22px] px-1.5 bg-rose-500 text-white text-[11px] font-black rounded-full flex items-center justify-center shadow-sm">
-                                {unread > 99 ? '99+' : unread}
-                              </span>
+                            {joined ? (
+                              unread > 0 ? (
+                                <span className="min-w-[22px] h-[22px] px-1.5 bg-rose-500 text-white text-[11px] font-black rounded-full flex items-center justify-center shadow-sm">
+                                  {unread > 99 ? '99+' : unread}
+                                </span>
+                              ) : (
+                                <span className={`text-[10px] font-bold ${darkMode ? 'text-teal-400' : 'text-teal-600'}`}>참여 중</span>
+                              )
+                            ) : (
+                              <button
+                                type="button"
+                                disabled={joining}
+                                onClick={e => {
+                                  e.stopPropagation();
+                                  onJoinGroupChat?.(group.id);
+                                }}
+                                className={`text-[11px] font-black px-3 py-1.5 rounded-full active:scale-95 disabled:opacity-50 ${
+                                  visual.afterparty
+                                    ? 'bg-violet-500 text-white'
+                                    : 'bg-teal-500 text-white'
+                                }`}
+                              >
+                                {joining ? '입장 중…' : '입장'}
+                              </button>
                             )}
                           </div>
                         </div>

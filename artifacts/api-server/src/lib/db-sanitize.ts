@@ -18,7 +18,7 @@ export const FIELD_LIMITS: Record<string, Record<string, number>> = {
   notifications: { content: 300, title: 100 },
   suggestions: { content: 500, contact_info: 100 },
   anonymous_reports: { content: 500, reason: 200 },
-  group_chats: { name: 60, interest_tag: 30, age_group: 10 },
+  group_chats: { name: 60, interest_tag: 30, age_group: 10, room_kind: 30 },
   group_messages: { content: 2000 },
 };
 

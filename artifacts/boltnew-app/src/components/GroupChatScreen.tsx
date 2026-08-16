@@ -1,6 +1,6 @@
 /**
- * GroupChatScreen — 자동 매칭 단톡방 화면
- * - 그룹 이름·관심사 태그·참여자 수 헤더
+ * GroupChatScreen — 옵트인 단톡방 화면
+ * - 그룹 이름·태그·참여자 수 헤더
  * - 낙관적 메시지 전송 (sending 상태 opacity 처리)
  * - 전역 AppErrorBoundary 래핑
  */
@@ -9,6 +9,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { ArrowLeft, Send, LogOut } from 'lucide-react';
 import { AppErrorBoundary } from './AppErrorBoundary';
 import type { GroupChat, GroupMessage, Profile } from '../types/app';
+import { groupRoomVisual } from '../lib/group-rooms';
 
 import { genAvatar } from '../lib/profile';
 
@@ -77,6 +78,8 @@ export function GroupChatScreen({
 
   if (!group) return null;
 
+  const visual = groupRoomVisual(group);
+
   return (
     <AppErrorBoundary screenName="단체 채팅" onReset={onBack}>
       <div className={`flex flex-col h-screen ${darkMode ? 'bg-slate-900' : 'bg-gray-50'}`}>
@@ -94,7 +97,7 @@ export function GroupChatScreen({
           </button>
           <div className="flex-1 min-w-0">
             <p className={`font-black text-sm truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-              👥 {group.name}
+              {visual.emoji} {group.name}
             </p>
             <p className={`text-[10px] ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
               {group.memberCount ?? 0}명 참여 중
@@ -103,7 +106,7 @@ export function GroupChatScreen({
           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${
             darkMode ? 'bg-teal-500/20 text-teal-400' : 'bg-teal-50 text-teal-600'
           }`}>
-            #{group.interest_tag}
+            {visual.label}
           </span>
           {onLeave && (
             <button
@@ -121,7 +124,7 @@ export function GroupChatScreen({
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50">
             <div className={`mx-6 rounded-2xl p-5 shadow-2xl w-full max-w-xs ${darkMode ? 'bg-slate-800' : 'bg-white'}`}>
               <p className={`font-black text-base mb-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>단톡방 나가기</p>
-              <p className={`text-sm mb-4 ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>나가면 다시 들어올 수 없습니다. 정말 나가시겠습니까?</p>
+              <p className={`text-sm mb-4 ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>이 방에서 나갑니다. 나중에 다시 입장할 수 있어요.</p>
               <div className="flex gap-2">
                 <button
                   onClick={() => setShowLeaveConfirm(false)}

@@ -25,8 +25,10 @@ export type GroupChat = {
   age_group: string | null;
   max_members: number;
   created_at: string;
+  room_kind?: string | null;
   lastMessage?: string;
   memberCount?: number;
+  joined?: boolean;
 };
 
 export type GroupMessage = {

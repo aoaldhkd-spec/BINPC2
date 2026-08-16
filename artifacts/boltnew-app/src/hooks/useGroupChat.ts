@@ -1,6 +1,6 @@
 /**
- * useGroupChat — 단체 채팅(자동 매칭 단톡방) 상태 관리 훅
- * - 관심사/나이대 기반 자동 배정 그룹 채팅
+ * useGroupChat — 단체 채팅 상태 관리 훅
+ * - 카탈로그 방은 목록에 보이고, 입장은 클릭(입장)만. 자동 배정 없음
  * - SSE 단일 연결로 실시간 수신 (supabase.channel → localdb SSE 백엔드)
  * - group_messages: client_id 기반 낙관적 업데이트 + 3회 재시도
  */
@@ -8,6 +8,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Profile, GroupChat, GroupMessage, GroupParticipant } from '../types/app';
+import { MAX_GROUPS_PER_USER, groupLimitMessage, sortGroupRooms } from '../lib/group-rooms';
 
 const MAX_GROUP_MESSAGES = 300;
 const MAX_MSG_LEN = 1000; // 메시지 최대 길이 — useChat과 동일 기준
@@ -49,6 +50,7 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
   const unreadGroupCountsRef = useRef<Record<string, number>>({});
   unreadGroupCountsRef.current = unreadGroupCounts;
   const [newGroupMsgCount, setNewGroupMsgCount] = useState(0);
+  const [joiningGroupId, setJoiningGroupId] = useState<string | null>(null);
 
   const [myGroupIds, setMyGroupIds] = useState<string[]>([]);
   const myGroupIdsRef = useRef<string[]>([]);
@@ -62,56 +64,47 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
   // 비활성 그룹 SSE 중복 방지 (재연결 시 동일 메시지 재수신 대비)
   const seenInactiveGroupMsgIds = useRef(new Set<string>());
 
-  // ── 단톡방 목록 로드 ─────────────────────────────────────────────────────────
+  // ── 단톡방 목록 로드 (참여 중 + 입장 가능 카탈로그) ─────────────────────────
   const loadGroupChats = useCallback(async (userId: string): Promise<void> => {
     try {
-      // 1. 내 참여 목록
-      const { data: parts } = await supabase.from('group_participants').select('*').eq('user_id', userId);
-      if (!parts || (parts as GroupParticipant[]).length === 0) {
-        setGroupChats([]);
-        setMyGroupIds([]);
-        return;
-      }
-      const groupIds = (parts as GroupParticipant[]).map(p => p.group_id);
+      const [partsRes, groupsRes] = await Promise.all([
+        supabase.from('group_participants').select('*').eq('user_id', userId),
+        supabase.from('group_chats').select('*'),
+      ]);
+      const parts = (partsRes.data ?? []) as GroupParticipant[];
+      const groupIds = parts.map(p => p.group_id);
       setMyGroupIds(groupIds);
       myGroupIdsRef.current = groupIds;
 
-      // §17 성능: groups·msgs·allParts 3개 쿼리를 병렬 실행 (groupIds 확보 후 순서 무관)
-      const [groupsRes, msgsRes, allPartsRes] = await Promise.all([
-        supabase.from('group_chats').select('*').in('id', groupIds),
-        supabase.from('group_messages')
+      const groups = (groupsRes.data ?? []) as GroupChat[];
+      if (!groups.length) {
+        setGroupChats([]);
+        return;
+      }
+
+      const latestByGroup = new Map<string, string>();
+      if (groupIds.length > 0) {
+        const { data: msgs } = await supabase.from('group_messages')
           .select('group_id, content, image_url, created_at')
           .in('group_id', groupIds)
           .order('created_at', { ascending: false })
-          .limit(Math.max(groupIds.length * 10, 50)),
-        supabase.from('group_participants')
-          .select('group_id')
-          .in('group_id', groupIds),
-      ]);
-      const groups = groupsRes.data;
-      if (!groups) return;
-
-      const latestByGroup = new Map<string, string>();
-      if (msgsRes.data) {
-        for (const m of msgsRes.data as { group_id: string; content: string; image_url?: string }[]) {
-          if (!latestByGroup.has(m.group_id)) {
-            latestByGroup.set(m.group_id, m.image_url ? '📷 사진' : m.content);
+          .limit(Math.max(groupIds.length * 10, 50));
+        if (msgs) {
+          for (const m of msgs as { group_id: string; content: string; image_url?: string }[]) {
+            if (!latestByGroup.has(m.group_id)) {
+              latestByGroup.set(m.group_id, m.image_url ? '📷 사진' : m.content);
+            }
           }
         }
       }
 
-      const memberCount = new Map<string, number>();
-      if (allPartsRes.data) {
-        for (const p of allPartsRes.data as { group_id: string }[]) {
-          memberCount.set(p.group_id, (memberCount.get(p.group_id) ?? 0) + 1);
-        }
-      }
-
-      const enriched: GroupChat[] = (groups as GroupChat[]).map(g => ({
+      const enriched: GroupChat[] = groups.map(g => ({
         ...g,
+        joined: groupIds.includes(g.id),
         lastMessage: latestByGroup.get(g.id) ?? '',
-        memberCount: memberCount.get(g.id) ?? 0,
+        memberCount: g.memberCount ?? 0,
       }));
+      enriched.sort(sortGroupRooms);
       setGroupChats(enriched);
     } catch (e) {
       console.error('[loadGroupChats] 오류:', e);
@@ -147,8 +140,9 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
     }
   }, []);
 
-  // ── 단톡방 열기 ──────────────────────────────────────────────────────────────
+  // ── 단톡방 열기 (이미 입장한 방만) ──────────────────────────────────────────
   const openGroupChat = useCallback(async (groupId: string): Promise<void> => {
+    if (!myGroupIdsRef.current.includes(groupId)) return;
     setGroupMessages([]);
     setActiveGroupId(groupId);
     activeGroupIdRef.current = groupId;
@@ -159,6 +153,40 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
     await loadGroupMessages(groupId).catch(() => {});
   }, [loadGroupMessages]);
 
+  // ── 단톡방 입장 (클릭 전용, 자동 입장 없음) ────────────────────────────────
+  const joinGroupChat = useCallback(async (groupId: string): Promise<boolean> => {
+    const userId = currentUserIdRef.current;
+    if (!userId || !groupId) return false;
+    if (myGroupIdsRef.current.includes(groupId)) return true;
+    if (myGroupIdsRef.current.length >= MAX_GROUPS_PER_USER) {
+      setBottomNotif({ type: 'error', nickname: groupLimitMessage() });
+      return false;
+    }
+    setJoiningGroupId(groupId);
+    try {
+      const { error } = await supabase.from('group_participants').insert({
+        group_id: groupId,
+        user_id: userId,
+      });
+      if (error) {
+        const msg = error.code === 'GROUP_LIMIT' || (error.message ?? '').includes('최대 3')
+          ? groupLimitMessage()
+          : (error.message || '입장에 실패했어요. 잠시 후 다시 시도해 주세요.');
+        setBottomNotif({ type: 'error', nickname: msg });
+        return false;
+      }
+      setMyGroupIds(prev => prev.includes(groupId) ? prev : [...prev, groupId]);
+      await loadGroupChats(userId);
+      return true;
+    } catch (e) {
+      console.error('[joinGroupChat] 오류:', e);
+      setBottomNotif({ type: 'error', nickname: '입장에 실패했어요. 잠시 후 다시 시도해 주세요.' });
+      return false;
+    } finally {
+      setJoiningGroupId(null);
+    }
+  }, [loadGroupChats, setBottomNotif]);
+
   // ── 단톡방 닫기 ──────────────────────────────────────────────────────────────
   const closeGroupChat = useCallback((): void => {
     setActiveGroupId(null);
@@ -166,7 +194,7 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
     setGroupMessages([]);
   }, []);
 
-  // ── 단톡방 나가기 (영구 퇴장) ────────────────────────────────────────────────
+  // ── 단톡방 나가기 (카탈로그에는 남고, 다시 입장 가능) ───────────────────────
   const leaveGroupChat = useCallback(async (groupId: string): Promise<void> => {
     const userId = currentUserIdRef.current;
     if (!userId) return;
@@ -179,16 +207,16 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
     } catch (e) {
       console.error('[leaveGroupChat] 삭제 오류:', e);
     }
-    // 로컬 상태 업데이트 (서버 응답과 무관하게 즉시 반영)
     setMyGroupIds(prev => prev.filter(id => id !== groupId));
-    setGroupChats(prev => prev.filter(g => g.id !== groupId));
+    myGroupIdsRef.current = myGroupIdsRef.current.filter(id => id !== groupId);
     if (activeGroupIdRef.current === groupId) {
       setActiveGroupId(null);
       activeGroupIdRef.current = null;
       setGroupMessages([]);
     }
     setUnreadGroupCounts(prev => { const n = { ...prev }; delete n[groupId]; return n; });
-  }, []);
+    await loadGroupChats(userId);
+  }, [loadGroupChats]);
 
   // ── 메시지 전송 (낙관적 + 3회 재시도) ────────────────────────────────────────
   const sendGroupMessage = useCallback(async (content: string): Promise<void> => {
@@ -253,7 +281,7 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
     } finally {
       sendingGroupRef.current.delete(snapGroupId);
     }
-  }, []);
+  }, [setBottomNotif]);
 
   // ── SSE 구독: group_messages + group_participants ─────────────────────────────
   useEffect(() => {
@@ -296,9 +324,17 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
       }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         try {
           const p = payload.new as GroupParticipant;
-          if (!p?.group_id || p.user_id !== uid) return;
-          setMyGroupIds(prev => prev.includes(p.group_id) ? prev : [...prev, p.group_id]);
-          void loadGroupChats(uid);
+          if (!p?.group_id) return;
+          if (p.user_id === uid) {
+            setMyGroupIds(prev => prev.includes(p.group_id) ? prev : [...prev, p.group_id]);
+            void loadGroupChats(uid);
+            return;
+          }
+          if (myGroupIdsRef.current.includes(p.group_id)) {
+            setGroupChats(prev => prev.map(g =>
+              g.id === p.group_id ? { ...g, memberCount: (g.memberCount ?? 0) + 1 } : g
+            ));
+          }
         } catch { /* SSE 파싱 오류 무시 */ }
       })
       .subscribe();
@@ -317,6 +353,7 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
       setGroupMessages([]);
       setUnreadGroupCounts({});
       setNewGroupMsgCount(0);
+      setJoiningGroupId(null);
     }
   }, [currentUserId, loadGroupChats]);
 
@@ -327,9 +364,11 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
     unreadGroupCounts, setUnreadGroupCounts,
     newGroupMsgCount, setNewGroupMsgCount,
     myGroupIds, myGroupIdsRef,
+    joiningGroupId,
     loadGroupChats,
     loadGroupMessages,
     openGroupChat,
+    joinGroupChat,
     closeGroupChat,
     sendGroupMessage,
     leaveGroupChat,

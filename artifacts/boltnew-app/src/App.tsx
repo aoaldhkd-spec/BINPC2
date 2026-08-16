@@ -364,6 +364,8 @@ function App() {
     unreadGroupCounts,
     newGroupMsgCount, setNewGroupMsgCount,
     openGroupChat,
+    joinGroupChat,
+    joiningGroupId,
     closeGroupChat,
     sendGroupMessage,
     leaveGroupChat,
@@ -812,10 +814,10 @@ function App() {
             next.set(row.liked_id, s);
             return next;
           });
-          // 내가 관심을 보냈고 상대도 이미 관심을 보냈으면 맞관심 (수신자 전용 토스트와 대칭)
+          // 내가 관심을 보냈고 상대도 이미 관심을 보냈으면 서로 시그널 (수신자 전용 토스트와 대칭)
           if (isInterestHeart(row.heart_type) && isInterestHeart(receivedHeartTypesRef.current.get(row.liked_id))) {
             const nick = profilesRef.current.find(p => p.id === row.liked_id)?.nickname ?? '상대방';
-            setBottomNotif({ type: 'signal', signalKind: 'mutual', nickname: nick, profileId: row.liked_id, message: '💕 서로 관심을 보냈어요!' });
+            setBottomNotif({ type: 'signal', signalKind: 'mutual', nickname: nick, profileId: row.liked_id, message: '💕 서로 시그널을 보내면 채팅을 시작할 수 있어요!' });
           }
         })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'likes', filter: `liker_id=eq.${currentUserId}` },
@@ -854,7 +856,7 @@ function App() {
               const heartNick = data?.nickname ?? '누군가';
               const ht = row.heart_type ?? 'red';
               if (isInterestHeart(ht) && hasInterestHeart(sentHeartsPerPersonRef.current.get(likerId))) {
-                setBottomNotif({ type: 'signal', signalKind: 'mutual', nickname: heartNick, profileId: likerId, message: '💕 서로 관심을 보냈어요!' });
+                setBottomNotif({ type: 'signal', signalKind: 'mutual', nickname: heartNick, profileId: likerId, message: '💕 서로 시그널을 보내면 채팅을 시작할 수 있어요!' });
               } else if (isInterestHeart(ht)) {
                 setBottomNotif({ type: 'signal', signalKind: 'received', nickname: heartNick, profileId: likerId, message: `💕 ${heartNick}님이 회원님에게 관심을 보냈어요.` });
               } else {
@@ -1476,6 +1478,8 @@ function App() {
         newGroupMsgCount={newGroupMsgCount}
         onClearGroupMsgCount={() => setNewGroupMsgCount(0)}
         onOpenGroupChat={(groupId) => { void openGroupChat(groupId).then(() => setView('group-chat')).catch(e => console.error('[openGroupChat]', e)); }}
+        onJoinGroupChat={(groupId) => { void joinGroupChat(groupId); }}
+        joiningGroupId={joiningGroupId}
         userSignals={userSignals}
         onUserSignalUpdate={handleUserSignalUpdate}
         onMissionComplete={handleMissionComplete}

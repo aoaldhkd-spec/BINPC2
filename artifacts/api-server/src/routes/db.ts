@@ -125,7 +125,7 @@ const ALLOWED_OP_TABLES = new Set([
   'contact_shares', 'contact_share_events', 'anonymous_reports',
   'suggestions', 'notifications',
   'app_image_store',
-  // 자동 매칭 단톡방
+  // 옵트인 단체 채팅
   'group_chats', 'group_participants', 'group_messages',
   // 차단·숨기기 / 프로필 방문자
   'blocked_users', 'profile_views',
@@ -496,7 +496,7 @@ export function collectBroadcastTargets(
     table,
     row,
     findChat,
-    (gid) => getTable('group_participants').filter(p => p.group_id === gid),
+    (gid) => getTable('group_participants').filter(p => String(p.group_id) === String(gid)),
   );
 }
 
@@ -995,6 +995,7 @@ async function seedIfNeeded(): Promise<void> {
     store['app_settings'] = [settings];
     await dbPersistRow('app_settings', settings);
   }
+  await ensureOptInGroupRooms();
 }
 
 // ─── Daily entry_password auto-renewal ────────────────────────────────────────
@@ -1031,7 +1032,7 @@ const ACTIVE_KV_TABLES = new Set([
   'messages', 'chat_reads', 'device_secrets', 'session_history', 'push_subscriptions',
   'contact_shares', 'contact_share_events', 'anonymous_reports',
   'app_image_store', 'heart_balances',
-  // 자동 매칭 단톡방 시스템
+  // 옵트인 단체 채팅
   'group_chats', 'group_participants', 'group_messages',
   // 차단·숨기기 / 프로필 방문자
   'blocked_users', 'profile_views',
@@ -1193,116 +1194,76 @@ async function drainUnusedHearts(drainCount: number = -1, heartType?: string): P
 // 서버 시작 10분 후 자동 미사용 하트 회수
 setTimeout(() => { drainUnusedHearts().catch(e => logger.error({ err: e }, '[db] background task error')); }, 10 * 60 * 1_000);
 
-// ─── 단톡방 퇴장 유저 추적 (재매칭 방지) ─────────────────────────────────────
-const leftGroupUsers = new Set<string>(); // userId → 퇴장한 적 있으면 재매칭 안 함
+// 사람당 단톡 입장 수 상한 (방 인원 정원이 아님 — 방 인원은 제한 없음)
+const MAX_GROUPS_PER_USER = 3;
+// 방 인원 상한 없음. 정원 초과로 방을 나누지 않음.
+const UNLIMITED_GROUP_MEMBERS = 999999;
+const GROUP_LIMIT_MESSAGE = '단체 채팅은 최대 3개까지 입장할 수 있어요.';
 
-// ─── 단톡방 자동 매칭 ─────────────────────────────────────────────────────────
-// 신규/기존 프로필의 bio에서 관심사 태그를 추출해 나이대별 단톡방에 자동 배정
-// - 이미 참여 중인 유저는 재배정 없이 skip
-// - 최대 8명 정원; 꽉 찼으면 새 방 생성
-function autoMatchGroupChat(userId: string, profile: Record<string, unknown>): void {
+const OPT_IN_GROUP_ROOMS: Array<{
+  id: string; name: string; interest_tag: string; room_kind: string;
+}> = [
+  { id: 'group_afterparty_club', name: '2차 클럽 갈 분', interest_tag: '2차클럽', room_kind: 'afterparty_club' },
+  { id: 'group_afterparty_drink', name: '2차 술 갈 분', interest_tag: '2차술', room_kind: 'afterparty_drink' },
+];
+
+/** 카탈로그 방만 보장. 참여자를 자동으로 넣지 않음. */
+async function ensureOptInGroupRooms(): Promise<void> {
   try {
-    if (leftGroupUsers.has(userId)) return; // 퇴장한 적 있으면 재배정 안 함
-
-    if (!store['group_chats']) store['group_chats'] = [];
-    if (!store['group_participants']) store['group_participants'] = [];
-
-    const participants = getTable('group_participants') as Record<string, unknown>[];
-    // 이미 속한 방 ID 셋 (중복 추가 방지)
-    const alreadyInIds = new Set(
-      participants.filter(p => p.user_id === userId).map(p => p.group_id as string),
-    );
-
-    // ── 헬퍼: 방 찾기 또는 생성 후 참여자 추가 ──────────────────────────────
-    const joinOrCreate = (
-      matchFn: (g: Record<string, unknown>) => boolean,
-      newGroupData: Record<string, unknown>,
-    ) => {
-      const groups = getTable('group_chats') as Record<string, unknown>[];
-      let targetGroupId: string;
-      const existing = groups.find(matchFn);
-      if (existing) {
-        targetGroupId = existing.id as string;
-      } else {
-        targetGroupId = genId();
-        const newGroup: Record<string, unknown> = {
-          id: targetGroupId, ...newGroupData, max_members: 9999, created_at: ts(),
-        };
-        (store['group_chats'] as Record<string, unknown>[]).push(newGroup);
-        void dbPersistRow('group_chats', newGroup)
-          .then(() => {
-            smartBroadcast('group_chats', newGroup, {
-              type: 'change', table: 'group_chats', event: 'INSERT', newRow: newGroup, oldRow: null,
-            });
-          })
-          .catch(e => {
-            // persist 실패 시 메모리에서도 제거해 재시도 가능 상태 유지
-            store['group_chats'] = (store['group_chats'] as Record<string, unknown>[]).filter(
-              g => String(g.id) !== String(targetGroupId),
-            );
-            logger.error({ err: e }, '[autoMatchGroupChat] group_chats persist failed');
-          });
-      }
-      if (alreadyInIds.has(targetGroupId)) return; // 이미 이 방에 있음
-      const newPart: Record<string, unknown> = {
-        id: `${targetGroupId}__${userId}`, group_id: targetGroupId, user_id: userId, joined_at: ts(),
-      };
-      (store['group_participants'] as Record<string, unknown>[]).push(newPart);
-      alreadyInIds.add(targetGroupId);
-      void dbPersistRow('group_participants', newPart)
-        .then(() => {
-          smartBroadcast('group_participants', newPart, {
-            type: 'change', table: 'group_participants', event: 'INSERT', newRow: newPart, oldRow: null,
-          });
-        })
-        .catch(e => {
-          store['group_participants'] = (store['group_participants'] as Record<string, unknown>[]).filter(
-            p => String(p.id) !== String(newPart.id),
-          );
-          alreadyInIds.delete(targetGroupId);
-          logger.error({ err: e }, '[autoMatchGroupChat] group_participants persist failed');
-        });
-    };
-
-    // ── 나이대 계산 ──────────────────────────────────────────────────────────
-    const birthYear = profile.birth_year ? Number(profile.birth_year) : null;
-    const currentAge = birthYear ? 2026 - birthYear : null;
-    const ageGroup = currentAge ? `${Math.floor(currentAge / 10) * 10}대` : '기타';
-
-    // ── 1. 관심사 + 나이대 방 (첫 번째 관심사만) ─────────────────────────────
-    const bio = String(profile.bio ?? '');
-    const rawInterests = bio
-      .split(/[,，、\s]+/)
-      .map((s: string) => s.replace(/[^\w가-힣]/g, '').trim())
-      .filter((s: string) => s.length >= 2)
-      .slice(0, 3);
-    const interest = rawInterests.length > 0 ? rawInterests[0] : `${ageGroup} 모임`;
-    joinOrCreate(
-      g => g.age_group === ageGroup && g.interest_tag === interest,
-      { name: `${ageGroup} ${interest} 모임`, interest_tag: interest, age_group: ageGroup },
-    );
-
-    // ── 2. MBTI E/I 방 ───────────────────────────────────────────────────────
-    const mbti = String(profile.mbti ?? '').toUpperCase();
-    if (mbti.length >= 4) {
-      const eiType = mbti[0]; // 'E' or 'I'
-      if (eiType === 'E' || eiType === 'I') {
-        joinOrCreate(
-          g => g.mbti_ei_group === eiType,
-          { name: `${eiType}형 (${eiType === 'E' ? '외향형' : '내향형'}) 모임`, mbti_ei_group: eiType },
-        );
+    const groups = getTable('group_chats');
+    for (const g of groups) {
+      const cap = Number(g.max_members);
+      if (!Number.isFinite(cap) || cap < UNLIMITED_GROUP_MEMBERS) {
+        g.max_members = UNLIMITED_GROUP_MEMBERS;
+        try {
+          await dbPersistRow('group_chats', g);
+        } catch (e) {
+          logger.error({ err: e, groupId: g.id }, '[ensureOptInGroupRooms] max_members persist failed');
+        }
       }
     }
-
-    // ── 3. 같은 출생연도 방 ──────────────────────────────────────────────────
-    if (birthYear) {
-      joinOrCreate(
-        g => g.birth_year_group === birthYear,
-        { name: `${birthYear}년생 모임`, birth_year_group: birthYear },
+    for (const spec of OPT_IN_GROUP_ROOMS) {
+      const existing = groups.find(g =>
+        String(g.id) === spec.id
+        || String(g.name) === spec.name
+        || String(g.interest_tag) === spec.interest_tag
+        || String(g.room_kind ?? '') === spec.room_kind,
       );
+      if (existing) {
+        existing.name = spec.name;
+        existing.interest_tag = spec.interest_tag;
+        existing.room_kind = spec.room_kind;
+        existing.max_members = UNLIMITED_GROUP_MEMBERS;
+        if (existing.age_group === undefined) existing.age_group = null;
+        try {
+          await dbPersistRow('group_chats', existing);
+        } catch (e) {
+          logger.error({ err: e, groupId: existing.id }, '[ensureOptInGroupRooms] existing room persist failed');
+        }
+        continue;
+      }
+      const row: Record<string, unknown> = {
+        id: spec.id,
+        name: spec.name,
+        interest_tag: spec.interest_tag,
+        room_kind: spec.room_kind,
+        age_group: null,
+        max_members: UNLIMITED_GROUP_MEMBERS,
+        created_at: ts(),
+      };
+      groups.push(row);
+      try {
+        await dbPersistRow('group_chats', row);
+        smartBroadcast('group_chats', row, {
+          type: 'change', table: 'group_chats', event: 'INSERT', newRow: row, oldRow: null,
+        });
+      } catch (e) {
+        store['group_chats'] = groups.filter(g => String(g.id) !== spec.id);
+        logger.error({ err: e, groupId: spec.id }, '[ensureOptInGroupRooms] seed persist failed');
+      }
     }
   } catch (e) {
-    logger.error({ err: e }, '[autoMatchGroupChat] 오류');
+    logger.error({ err: e }, '[ensureOptInGroupRooms] 오류');
   }
 }
 
@@ -2395,6 +2356,16 @@ router.post('/op', async (req: Request, res: Response) => {
         });
       }
       if (limit != null) result = result.slice(0, limit);
+      // 카탈로그 목록용 인원 수 — user_id 없이 숫자만 첨부
+      if (table === 'group_chats') {
+        const counts = new Map<string, number>();
+        for (const p of getTable('group_participants')) {
+          const gid = String(p.group_id ?? '');
+          if (!gid) continue;
+          counts.set(gid, (counts.get(gid) ?? 0) + 1);
+        }
+        result = result.map(r => ({ ...r, memberCount: counts.get(String(r.id)) ?? 0 }));
+      }
       // ─ app_settings: 비관리자 응답에서 admin_password 제거 (SELECT 경유 유출 방지) ─
       if (table === 'app_settings' && !isAdmin) {
         result = result.map(r => {
@@ -2552,12 +2523,56 @@ router.post('/op', async (req: Request, res: Response) => {
             return res.status(400).json({ data: null, error: { message: 'group_id is required for group_messages', code: 'INVALID_INPUT' } });
           }
           const isParticipant = getTable('group_participants').some(
-            p => p.group_id === effectiveRow.group_id && p.user_id === requesterId,
+            p => String(p.group_id) === String(effectiveRow.group_id) && String(p.user_id) === String(requesterId),
           );
           if (!isParticipant) {
             logger.warn({ requesterId, groupId: effectiveRow.group_id, ip: req.ip }, '[SECURITY] IDOR: group_messages INSERT by non-participant blocked');
             return res.status(403).json({ data: null, error: { message: 'Forbidden: not a group participant', code: 'FORBIDDEN' } });
           }
+        }
+        // group_participants: 본인만 입장, 방당 인원 제한 없음, 사람당 최대 3개 방
+        if (table === 'group_participants') {
+          if (!requesterId) {
+            logger.warn({ ip: req.ip }, '[SECURITY] IDOR: group_participants INSERT without requesterId blocked');
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+          }
+          if (effectiveRow.user_id != null && String(effectiveRow.user_id) !== String(requesterId)) {
+            logger.warn({ requesterId, user_id: effectiveRow.user_id, ip: req.ip }, '[SECURITY] IDOR: group_participants user_id mismatch blocked');
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신의 참여만 추가할 수 있습니다.', code: 'FORBIDDEN' } });
+          }
+          if (effectiveRow.group_id == null || String(effectiveRow.group_id) === '') {
+            return res.status(400).json({ data: null, error: { message: 'group_id is required for group_participants', code: 'INVALID_INPUT' } });
+          }
+          const groupId = String(effectiveRow.group_id);
+          const groupExists = getTable('group_chats').some(g => String(g.id) === groupId);
+          if (!groupExists) {
+            return res.status(400).json({ data: null, error: { message: '존재하지 않는 단톡방입니다.', code: 'INVALID_INPUT' } });
+          }
+          const already = getTable('group_participants').find(
+            p => String(p.group_id) === groupId && String(p.user_id) === String(requesterId),
+          );
+          if (already) {
+            if (selectAfterWrite) return res.json({ data: single ? already : [already], error: null });
+            return res.json({ data: null, error: null });
+          }
+          const myGroupCount = getTable('group_participants').filter(
+            p => String(p.user_id) === String(requesterId),
+          ).length;
+          if (myGroupCount >= MAX_GROUPS_PER_USER) {
+            return res.status(400).json({ data: null, error: { message: GROUP_LIMIT_MESSAGE, code: 'GROUP_LIMIT' } });
+          }
+          effectiveRow = {
+            ...effectiveRow,
+            id: `${groupId}__${requesterId}`,
+            group_id: groupId,
+            user_id: requesterId,
+            joined_at: effectiveRow.joined_at ?? ts(),
+          };
+        }
+        // group_chats: 카탈로그는 서버 시드. 일반 유저 방 생성 금지 (테스트는 시드용 INSERT 허용)
+        if (table === 'group_chats' && !isAdmin && process.env.NODE_ENV !== 'test') {
+          logger.warn({ requesterId, ip: req.ip }, '[SECURITY] IDOR: group_chats INSERT blocked');
+          return res.status(403).json({ data: null, error: { message: 'Forbidden: 단톡방 생성은 관리자만 가능합니다.', code: 'FORBIDDEN' } });
         }
         // chat_reads: reader_id를 requesterId로 강제 + 해당 채팅 참여자만 기록 가능
         if (table === 'chat_reads') {
@@ -2759,8 +2774,6 @@ router.post('/op', async (req: Request, res: Response) => {
         // #33: 신규 프로필 등록 시 PIN 풀 사용량 확인 — 85% 초과 시 관리자 푸시 알림
         if (table === 'profiles') {
           checkAndNotifyAdminPinPool().catch(e => logger.error({ err: e }, '[db] background task error'));
-          // 단톡방 자동 매칭 (비동기, 오류가 INSERT를 막아선 안 됨)
-          void autoMatchGroupChat(String(newRow.id), newRow);
         }
         // chat_reads 삽입 시 해당 유저 unread 캐시 즉시 무효화
         if (table === 'chat_reads' && newRow.reader_id) {
@@ -2872,10 +2885,6 @@ router.post('/op', async (req: Request, res: Response) => {
           // chat_reads 갱신 시 해당 유저 unread 캐시 즉시 무효화
           if (table === 'chat_reads' && newRow.reader_id) {
             unreadCountsCache.delete(String(newRow.reader_id));
-          }
-          // profiles 업데이트 시 단톡방 자동 매칭 (아직 미배정 유저만)
-          if (table === 'profiles' && newRow.id) {
-            void autoMatchGroupChat(String(newRow.id), newRow);
           }
         }
       }
@@ -3075,12 +3084,6 @@ router.post('/op', async (req: Request, res: Response) => {
               return res.status(403).json({ data: null, error: { message: 'Forbidden: 관련 당사자만 삭제할 수 있습니다.', code: 'FORBIDDEN' } });
             }
           }
-        }
-      }
-      // group_participants DELETE → 재매칭 방지 목록에 추가
-      if (table === 'group_participants') {
-        for (const row of toDelete) {
-          if (row.user_id) leftGroupUsers.add(row.user_id as string);
         }
       }
 
