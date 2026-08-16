@@ -736,11 +736,13 @@ export function TutorialVideo({
   onClose,
   embedded = false,
   compact = false,
+  fill = false,
   sceneIndices,
 }: {
   onClose: () => void;
   embedded?: boolean;
   compact?: boolean;
+  fill?: boolean;
   sceneIndices?: number[];
 }) {
   const playlist = (sceneIndices?.length ? sceneIndices : SCENES.map((_, i) => i))
@@ -792,19 +794,20 @@ export function TutorialVideo({
 
   const DESIGN_H = 248;
   const COMPACT_STAGE_H = 120;
+  const scaleStage = compact || fill;
   const stageRef = useRef<HTMLDivElement>(null);
   const [stageH, setStageH] = useState(compact ? COMPACT_STAGE_H : DESIGN_H);
   useEffect(() => {
-    if (!compact) return;
+    if (!scaleStage) return;
     const el = stageRef.current;
     if (!el) return;
-    const sync = () => setStageH(el.clientHeight || COMPACT_STAGE_H);
+    const sync = () => setStageH(el.clientHeight || (compact ? COMPACT_STAGE_H : DESIGN_H));
     sync();
     const ro = new ResizeObserver(sync);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [compact]);
-  const sceneScale = compact ? Math.min(1, stageH / DESIGN_H) : 1;
+  }, [scaleStage, compact]);
+  const sceneScale = scaleStage ? Math.min(1, stageH / DESIGN_H) : 1;
   const sceneH = embedded ? 220 : 280;
   const clock = (() => {
     const total = scene.steps.reduce((a, s) => a + s.dur, 0);
@@ -814,7 +817,7 @@ export function TutorialVideo({
   const player = (
     <div className={`relative w-full min-h-0 overflow-hidden bg-black flex flex-col ${
       embedded
-        ? `${compact ? '' : 'h-full '} ${compact ? 'rounded-[1.05rem] border-2' : 'rounded-[1.35rem] border-[3px]'} border-zinc-800 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]`
+        ? `${compact && !fill ? '' : 'h-full '} ${compact ? 'rounded-[1.05rem] border-2' : 'rounded-[1.35rem] border-[3px]'} border-zinc-800 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]`
         : 'max-w-xs rounded-[1.75rem] shadow-2xl border-[3px] border-zinc-800'
     }`}>
       <div className={`flex items-center gap-1.5 flex-shrink-0 ${compact ? 'px-2 pt-1 pb-0.5' : 'px-3 pt-2.5 pb-1.5'}`}>
@@ -836,13 +839,15 @@ export function TutorialVideo({
 
       <div
         ref={stageRef}
-        className={`overflow-hidden bg-slate-900 relative ${compact ? 'mx-1 flex-shrink-0 rounded-lg' : 'mx-2 mb-1 rounded-2xl'}`}
-        style={compact ? { height: COMPACT_STAGE_H } : { height: sceneH }}
+        className={`overflow-hidden bg-slate-900 relative ${
+          compact ? 'mx-1 rounded-lg' : 'mx-2 mb-1 rounded-2xl'
+        } ${fill ? 'flex-1 min-h-0' : 'flex-shrink-0'}`}
+        style={fill ? undefined : compact ? { height: COMPACT_STAGE_H } : { height: sceneH }}
       >
         <div
           key={sceneIdx}
           className="w-full animate-in fade-in duration-300 relative"
-          style={compact ? {
+          style={scaleStage ? {
             height: DESIGN_H,
             transform: `scale(${sceneScale})`,
             transformOrigin: 'top center',
