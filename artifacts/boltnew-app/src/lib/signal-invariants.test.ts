@@ -47,6 +47,11 @@ describe('signal copy + unlock invariants', () => {
     expect(signalTabSrc).toContain('SIGNAL_CARD_SIGNAL_CTA');
     expect(signalTabSrc).toContain('onSendSignal');
     expect(signalTabSrc).not.toContain('onLike');
+    expect(signalTabSrc).toContain('persistedMissionCount');
+    expect(signalTabSrc).toContain('swipeLockRef');
+    expect(signalTabSrc).toContain('shouldCommitSwipe');
+    expect(signalTabSrc).toContain('signal-swipe-next');
+    expect(signalTabSrc).not.toMatch(/sessionStreak|consecutiveStreak/);
   });
 
   it('never puts raw ideal/feature free text on reason chips', () => {
