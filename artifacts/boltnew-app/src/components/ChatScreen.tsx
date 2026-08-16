@@ -183,6 +183,7 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   // containerRef 제거 — vpStyle(React state)로 교체됨
 
   const initialMsgIds = useRef(new Set(messages.map(m => m.id)));
+  const openedAtRef = useRef(Date.now());
   const messagesRef = useRef(messages); // 항상 최신 messages를 가리키는 ref
   messagesRef.current = messages;
   const partnerIdRef = useRef(otherProfile?.id);
@@ -212,7 +213,8 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   // 이전 방의 initialMsgIds·reactions·replyTo 등이 새 방에 잔류하면
   // "새 메시지" 마킹 오작동, 엉뚱한 답장 UI 잔존 등의 버그가 발생한다.
   useEffect(() => {
-    initialMsgIds.current = new Set(messages.map(m => m.id));
+    openedAtRef.current = Date.now();
+    initialMsgIds.current = new Set();
     setMyUnreadIds(new Set());
     setReplyTo(null);
     setContextMenu(null);
@@ -338,7 +340,13 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   }, [showMyInfoEdit, currentUserProfile]);
 
   useEffect(() => {
-    const newMyMsgs = messages.filter(m => m.sender_id === currentUserId && !initialMsgIds.current.has(m.id));
+    const openedAt = openedAtRef.current - 2_000;
+    const newMyMsgs = messages.filter(m => {
+      if (m.sender_id !== currentUserId) return false;
+      if (initialMsgIds.current.has(m.id)) return false;
+      const t = new Date(m.created_at).getTime();
+      return Number.isFinite(t) && t >= openedAt;
+    });
     if (newMyMsgs.length > 0) {
       setMyUnreadIds(prev => new Set([...prev, ...newMyMsgs.map(m => m.id)]));
     }
@@ -348,13 +356,12 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
     if (!chatId) return;
     const ch = supabase
       .channel(`chat_reads:${chatId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_reads', filter: `chat_id=eq.${chatId}` },
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_reads' },
         (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
           try {
             const row = (payload as { new?: { reader_id?: string; read_at?: string; chat_id?: string } }).new;
             if (!row?.reader_id) return;
-            if (row.chat_id && row.chat_id !== chatId) return;
-            // DB chat_reads.read_at 이 갱신된 뒤에만, 그 시각 이전 메시지의 '1'만 제거
+            // sibling 방 id 로 온 read_at 도 같은 1:1 쌍이면 반영
             applyPartnerReadToUi(row.reader_id, row.read_at);
           } catch (e) {
             console.warn('[chat_reads/sse]', e);
@@ -374,13 +381,14 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
       try {
         const { data } = await supabase
           .from('chat_reads')
-          .select('read_at')
-          .eq('chat_id', chatId)
-          .eq('reader_id', partnerId)
-          .maybeSingle();
-        if (data?.read_at) {
-          applyPartnerReadToUi(partnerId, data.read_at);
+          .select('read_at, chat_id')
+          .eq('reader_id', partnerId);
+        const rows = Array.isArray(data) ? data : (data ? [data] : []);
+        let best: string | undefined;
+        for (const r of rows as { read_at?: string }[]) {
+          if (r?.read_at && (!best || r.read_at > best)) best = r.read_at;
         }
+        if (best) applyPartnerReadToUi(partnerId, best);
       } catch (_) { /* 네트워크 오류는 무시 */ }
     };
     checkPartnerRead();
