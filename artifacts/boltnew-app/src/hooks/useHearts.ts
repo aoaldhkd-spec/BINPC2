@@ -1,7 +1,8 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Profile, ContactShare } from '../types/app';
 import { HeartType } from '../lib/constants';
+import { countTodayInterestMission, type LikeRowForMission } from '../lib/signal-match';
 
 export function useHearts(
   currentUserId: string | null,
@@ -20,6 +21,7 @@ export function useHearts(
   const [receivedContactShares, setReceivedContactShares] = useState<ContactShare[]>([]);
   const [likeConfirmTarget, setLikeConfirmTarget] = useState<Profile | null>(null);
   const [contactShareTarget, setContactShareTarget] = useState<Profile | null>(null);
+  const [outgoingLikeRows, setOutgoingLikeRows] = useState<LikeRowForMission[]>([]);
   // useRef로 선언 — React 리렌더 전에 두 번 호출돼도 같은 참조를 공유해 race 방지
   const likeInFlightRef = useRef(false);
   // 하트 응답(수락/거절) 중복 클릭 방지용 ref
@@ -46,13 +48,14 @@ export function useHearts(
     setReceivedContactShares([]);
     setLikeConfirmTarget(null);
     setContactShareTarget(null);
+    setOutgoingLikeRows([]);
   }, [currentUserId]);
 
   // ✅ try/catch + 세대 카운터 — 계정 전환 중 in-flight 응답이 새 사용자 state를 덮어쓰는 race 방지
   const loadLikes = useCallback(async (userId: string) => {
     const gen = ++loadLikesGenRef.current;
     try {
-      const { data, error } = await supabase.from('likes').select('liked_id, status, heart_type').eq('liker_id', userId);
+      const { data, error } = await supabase.from('likes').select('liked_id, status, heart_type, created_at').eq('liker_id', userId);
       if (gen !== loadLikesGenRef.current) return; // 계정이 바뀐 경우 stale 응답 폐기
       if (error) { console.warn('[useHearts] loadLikes error', error.message); return; }
       if (data) {
@@ -66,6 +69,11 @@ export function useHearts(
           hmap.set(l.liked_id, s);
         });
         setSentHeartsPerPerson(hmap);
+        setOutgoingLikeRows(data.map((l: { liked_id: string; heart_type: string | null; created_at?: string | null }) => ({
+          liked_id: l.liked_id,
+          heart_type: l.heart_type ?? 'red',
+          created_at: l.created_at ?? null,
+        })));
       }
     } catch { /* 네트워크 오류 — stale state 유지 */ }
   }, []);
@@ -148,6 +156,10 @@ export function useHearts(
           s.add(heartType);
           next.set(targetId, s);
           return next;
+        });
+        setOutgoingLikeRows(prev => {
+          if (prev.some(r => r.liked_id === targetId && (r.heart_type ?? 'red') === heartType)) return prev;
+          return [...prev, { liked_id: targetId, heart_type: heartType, created_at: new Date().toISOString() }];
         });
         setLikeConfirmTarget(null);
       } else {
@@ -253,6 +265,20 @@ export function useHearts(
     setContactShareTarget(null);
   };
 
+  const noteOutgoingLike = useCallback((row: LikeRowForMission) => {
+    if (!row.liked_id) return;
+    setOutgoingLikeRows(prev => {
+      const ht = row.heart_type ?? 'red';
+      if (prev.some(r => r.liked_id === row.liked_id && (r.heart_type ?? 'red') === ht)) return prev;
+      return [...prev, { liked_id: row.liked_id, heart_type: ht, created_at: row.created_at ?? new Date().toISOString() }];
+    });
+  }, []);
+
+  const signalMissionCount = useMemo(
+    () => countTodayInterestMission(outgoingLikeRows),
+    [outgoingLikeRows],
+  );
+
   return {
     likedIds, setLikedIds,
     sentHeartTypes, setSentHeartTypes,
@@ -276,5 +302,7 @@ export function useHearts(
     handleHeartResponse,
     handleContactShare,
     handleContactShareReject,
+    signalMissionCount,
+    noteOutgoingLike,
   };
 }

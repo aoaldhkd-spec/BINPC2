@@ -533,6 +533,37 @@ describe('countTodayInterestMission', () => {
     ], new Date('2026-08-16T12:00:00+09:00'));
     expect(n).toBe(1);
   });
+
+  it('unlocks at cumulative unique 3, not a consecutive session streak', () => {
+    const now = new Date('2026-08-16T20:00:00+09:00');
+    const afterLeave = countTodayInterestMission([
+      { liked_id: 'a', heart_type: 'red', created_at: `${today}T01:00:00.000Z` },
+      { liked_id: 'b', heart_type: 'blue', created_at: `${today}T04:00:00.000Z` },
+      { liked_id: 'c', heart_type: 'pink', created_at: `${today}T10:00:00.000Z` },
+    ], now);
+    expect(isSignalDeckUnlocked(afterLeave)).toBe(true);
+    expect(afterLeave).toBe(3);
+  });
+
+  it('still counts prior hearts after remount/re-enter (same likes recomputed)', () => {
+    const likes = [
+      { liked_id: 'a', heart_type: 'red', created_at: todayIso },
+      { liked_id: 'b', heart_type: 'green', created_at: todayIso },
+      { liked_id: 'c', heart_type: 'pink', created_at: todayIso },
+    ];
+    const now = new Date('2026-08-16T12:00:00+09:00');
+    expect(countTodayInterestMission(likes, now)).toBe(3);
+    expect(countTodayInterestMission(likes, now)).toBe(3);
+  });
+
+  it('counts rows missing created_at so leave/re-enter does not drop them', () => {
+    const n = countTodayInterestMission([
+      { liked_id: 'a', heart_type: 'red' },
+      { liked_id: 'b', heart_type: 'blue', created_at: todayIso },
+      { liked_id: 'c', heart_type: 'green' },
+    ], new Date('2026-08-16T12:00:00+09:00'));
+    expect(n).toBe(3);
+  });
 });
 
 describe('nudge eligibility + reason chips', () => {

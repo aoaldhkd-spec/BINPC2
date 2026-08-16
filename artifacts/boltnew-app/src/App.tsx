@@ -59,6 +59,7 @@ import {
   ENTRY_VERIFIED_KEY, SCANNED_CONTACTS_KEY,
 } from './lib/constants';
 import { ls } from './lib/storage';
+import { clearAllGroupLastReads } from './lib/group-rooms';
 import { useHearts } from './hooks/useHearts';
 import { useChat } from './hooks/useChat';
 import { registerPushSub } from './lib/webPush';
@@ -409,6 +410,7 @@ function App() {
     loadLikes, loadReceivedLikes, loadContactShareData, likedByTypeRecord,
     handleLike, executeLike, handleHeartResponse, handleContactShare,
     likeError, setLikeError,
+    signalMissionCount, noteOutgoingLike,
   } = useHearts(currentUserId, profiles, profileMap, openChat);
 
   // 하트 전송 실패 알림 — executeLike가 error를 set하면 바텀 토스트로 표시
@@ -675,6 +677,7 @@ function App() {
         ls.setItem(MATCHING_LAST_RESET_KEY, serverReset);
         ls.removeItem(MATCHING_USER_KEY);
         ls.removeItem(MATCHING_DRAFT_KEY);
+        clearAllGroupLastReads();
         setCurrentUserId(null);
         setShownWaiting(false);
         setProfiles([]);
@@ -754,6 +757,7 @@ function App() {
           ls.setItem(MATCHING_LAST_RESET_KEY, p.reset_signal);
           ls.removeItem(MATCHING_USER_KEY);
           ls.removeItem(MATCHING_DRAFT_KEY);
+          clearAllGroupLastReads();
           setCurrentUserId(null);
           setShownWaiting(false);
           setProfiles([]);
@@ -1025,7 +1029,7 @@ function App() {
       .channel(`realtime:user-bundle:${currentUserId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'likes', filter: `liker_id=eq.${currentUserId}` },
         (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-          const row = payload.new as { liked_id: string; heart_type: HeartType };
+          const row = payload.new as { liked_id: string; heart_type: HeartType; created_at?: string };
           setLikedIds((prev) => new Set([...prev, row.liked_id]));
           setSentHeartTypes((prev) => new Map(prev).set(row.liked_id, row.heart_type ?? 'red'));
           setSentHeartsPerPerson(prev => {
@@ -1034,6 +1038,11 @@ function App() {
             s.add(row.heart_type ?? 'red');
             next.set(row.liked_id, s);
             return next;
+          });
+          noteOutgoingLike({
+            liked_id: row.liked_id,
+            heart_type: row.heart_type ?? 'red',
+            created_at: row.created_at ?? new Date().toISOString(),
           });
           // 내가 하트를 보냈고 상대도 이미 하트를 보냈으면 서로 하트 (수신자 전용 토스트와 대칭)
           if (isInterestHeart(row.heart_type) && isInterestHeart(receivedHeartTypesRef.current.get(row.liked_id))) {
@@ -1173,7 +1182,7 @@ function App() {
       supabase.removeChannel(userRealtimeChannel);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- loadXxx are stable useCallbacks; setState/refs are stable
-  }, [currentUserId, loadProfiles, loadLikes, loadReceivedLikes, loadContactShareData, loadChatList, loadSignalActions]);
+  }, [currentUserId, loadProfiles, loadLikes, loadReceivedLikes, loadContactShareData, loadChatList, loadSignalActions, noteOutgoingLike]);
 
   // ─── 차단·숨기기 / 방문자 기록 로드 ─────────────────────────────────────────
   useEffect(() => {
@@ -1754,6 +1763,7 @@ function App() {
         userSignals={userSignals}
         onUserSignalUpdate={handleUserSignalUpdate}
         onMissionComplete={handleMissionComplete}
+        signalMissionCount={signalMissionCount}
         receivedSignalSenders={receivedSignalSenders}
         signalActedIds={signalActedIds}
         onSendSignal={handleSendSignal}

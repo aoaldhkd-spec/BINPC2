@@ -644,7 +644,11 @@ export type LikeRowForMission = {
   created_at?: string | null;
 };
 
-/** 오늘(KST) 성공한 하트(전 종류) like의 고유 liked_id 수. 같은 사람 반복은 1. */
+/**
+ * 오늘(KST) 성공한 하트(전 종류) like의 고유 liked_id 수.
+ * 누적(unique outgoing)이지 세션 연속 스트릭이 아니다. 같은 사람 반복은 1.
+ * created_at 이 없으면 오늘 보낸 것으로 본다 — 나갔다 재진입 시 카운트 유실 방지.
+ */
 export function countTodayInterestMission(
   likes: LikeRowForMission[],
   now: Date = new Date(),
@@ -654,10 +658,11 @@ export function countTodayInterestMission(
   for (const row of likes) {
     if (!isAnyHeart(row.heart_type ?? 'red')) continue;
     if (!row.liked_id) continue;
-    if (!row.created_at) continue;
-    const created = new Date(row.created_at);
-    if (Number.isNaN(created.getTime())) continue;
-    if (seoulDateKey(created) !== today) continue;
+    if (row.created_at) {
+      const created = new Date(row.created_at);
+      if (Number.isNaN(created.getTime())) continue;
+      if (seoulDateKey(created) !== today) continue;
+    }
     unique.add(row.liked_id);
   }
   return unique.size;
