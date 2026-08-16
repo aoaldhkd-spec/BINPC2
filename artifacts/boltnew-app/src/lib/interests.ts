@@ -14,7 +14,7 @@ export const BIO_CATEGORIES = [
   },
   {
     label: '스포츠/활동',
-    tags: ['운동', '헬스', '필라테스/요가', '골프', '테니스', '자전거', '등산', '낚시', '수영', '클라이밍', '축구/풋살', '배드민턴', '볼링', '스키/보드'],
+    tags: ['운동', '헬스', '크로스핏', '필라테스/요가', '골프', '테니스', '자전거', '러닝', '등산', '낚시', '수영', '서핑', '클라이밍', '복싱', '축구/풋살', '배드민턴', '볼링', '스키/보드'],
     color: {
       label: 'text-green-500',
       normal: 'bg-green-50 border-green-200 text-green-700 hover:bg-green-500 hover:border-green-500 hover:text-white',
@@ -36,7 +36,7 @@ export const BIO_CATEGORIES = [
   },
   {
     label: '취미/라이프',
-    tags: ['여행', '쇼핑', '반려동물', '사진찍기', '독서', '드라이브', '인테리어', '원예/식물', '자기계발', '명상/요가'],
+    tags: ['여행', '캠핑', '쇼핑', '반려동물', '사진찍기', '독서', '드라이브', '인테리어', '원예/식물', '자기계발', '명상/요가'],
     color: {
       label: 'text-sky-500',
       normal: 'bg-sky-50 border-sky-200 text-sky-700 hover:bg-sky-500 hover:border-sky-500 hover:text-white',
