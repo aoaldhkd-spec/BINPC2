@@ -65,9 +65,20 @@ async function main() {
   const drain = await rpc('admin_drain_unused_hearts', { p_admin_password: 'x', p_drain_count: 1 });
   checks.push(['heart_drain_gone', drain.status === 404 ? 'OK' : `FAIL ${drain.status}`]);
 
+  const readyBody = await fetch(`${API}/api/db/ready`).then(r => r.json()).catch(() => ({}));
+  const leftover = readyBody?.legacy_leftovers ?? {};
+  const leftoverOk = leftover.kv_tables === 0 && leftover.settings_rows === 0 && leftover.history_rows === 0;
+  checks.push(['legacy_leftovers_gone', leftoverOk ? 'OK' : `FAIL (${JSON.stringify(leftover)})`]);
+
   const settings = await op({ op: 'select', table: 'app_settings' });
-  checks.push(['heart_drain_off', settings?.json?.data?.[0]?.heart_drain_enabled ? 'FAIL (still on)' : 'OK']);
-  checks.push(['entry_password_mmdd', /^\d{4}$/.test(String(settings?.json?.data?.[0]?.entry_password ?? '')) ? settings.json.data[0].entry_password : 'FAIL']);
+  const settingsRow = settings?.json?.data?.[0] ?? {};
+  const leftoverSettingKeys = ['heart_drain_enabled', 'heart_drain_minutes', 'seating_locked', 'seats_snapshot', 'seating_map', 'seats', 'seat_layout']
+    .filter(k => Object.prototype.hasOwnProperty.call(settingsRow, k));
+  checks.push(['heart_drain_off', leftoverSettingKeys.length ? `FAIL (keys ${leftoverSettingKeys.join(',')})` : 'OK']);
+  checks.push(['entry_password_mmdd', /^\d{4}$/.test(String(settingsRow.entry_password ?? '')) ? settingsRow.entry_password : 'FAIL']);
+
+  const seatsGone = await op({ op: 'select', table: 'seats' });
+  checks.push(['legacy_seats_table_blocked', seatsGone.status === 400 ? 'OK' : `FAIL ${seatsGone.status}`]);
 
   for (const [name, result] of checks) console.log(`  ${name}: ${result}`);
   if (checks.some(([, r]) => String(r).startsWith('FAIL'))) process.exit(1);

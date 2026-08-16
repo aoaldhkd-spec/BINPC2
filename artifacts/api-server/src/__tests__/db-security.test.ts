@@ -1293,6 +1293,12 @@ describe('[Security] DELETE IDOR + ready secrets', () => {
     expect(res.status).toBe(200);
     expect(res.body.settings?.reset_password).toBeUndefined();
     expect(Object.prototype.hasOwnProperty.call(res.body.settings ?? {}, 'reset_password')).toBe(false);
+    expect(res.body.legacy_leftovers).toEqual(expect.objectContaining({
+      kv_tables: expect.any(Number),
+      settings_rows: expect.any(Number),
+      history_rows: expect.any(Number),
+    }));
+    expect(JSON.stringify(res.body)).not.toMatch(/admin_password|test_password|reset_password/);
   });
 });
 

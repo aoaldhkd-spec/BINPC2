@@ -812,7 +812,11 @@ function mergeKvRowsIntoStore(rows: Array<{ table_name: string; row_id: string; 
     // 시스템·삭제된 기능 테이블은 앱 store에 올리지 않음 (rate_limits는 PG 전용)
     if (SYSTEM_KV_TABLES.has(row.table_name) || LEGACY_KV_TABLES.has(row.table_name)) continue;
     if (!store[row.table_name]) store[row.table_name] = [];
-    store[row.table_name].push(row.data as Record<string, unknown>);
+    let data = row.data as Record<string, unknown>;
+    if (row.table_name === 'session_history') {
+      data = stripLegacySessionHistoryKeys(data);
+    }
+    store[row.table_name].push(data);
   }
 }
 
@@ -948,8 +952,22 @@ const LEGACY_APP_SETTINGS_KEYS = [
   'seat_layout',
 ] as const;
 
-/** session_history 행에 남은 옛 좌석맵 키 */
+/** session_history 행에 남은 옛 좌석맵 키 — 행 자체는 유지 */
 const LEGACY_SESSION_HISTORY_KEYS = ['seats_snapshot', 'seating_locked', 'seating_map'] as const;
+
+function stripLegacySessionHistoryKeys(row: Record<string, unknown>): Record<string, unknown> {
+  if (!LEGACY_SESSION_HISTORY_KEYS.some(k => k in row)) return row;
+  const next = { ...row };
+  for (const k of LEGACY_SESSION_HISTORY_KEYS) delete next[k];
+  return next;
+}
+
+/** Postgres leftover 잔량 — 값/PII 없이 개수만. -1 은 아직 클린업 전. */
+let _legacyLeftovers = {
+  kv_tables: -1,
+  settings_rows: -1,
+  history_rows: -1,
+};
 
 function settingsHaveLegacyKeys(row: Record<string, unknown>): boolean {
   return LEGACY_APP_SETTINGS_KEYS.some(k => k in row);
@@ -1123,62 +1141,79 @@ const LEGACY_KV_TABLES = new Set([
 /** app_kv_rows 에만 두고 인메모리 store에는 올리지 않는 시스템 행 */
 const SYSTEM_KV_TABLES = new Set(['rate_limits', 'db_error_log']);
 
+async function countLegacyLeftovers(): Promise<{ kv_tables: number; settings_rows: number; history_rows: number }> {
+  const [kv, settings, hist] = await Promise.all([
+    pool.query<{ n: number }>(
+      `SELECT COUNT(DISTINCT table_name)::int AS n FROM app_kv_rows
+       WHERE table_name IN ('suggestions','seats','seating','seating_map','seat_assignments','seats_snapshot')`,
+    ),
+    pool.query<{ n: number }>(
+      `SELECT COUNT(*)::int AS n FROM app_kv_rows
+       WHERE table_name = 'app_settings'
+         AND (data ? 'heart_drain_enabled' OR data ? 'heart_drain_minutes' OR data ? 'seating_locked'
+              OR data ? 'seats_snapshot' OR data ? 'seating_map' OR data ? 'seats' OR data ? 'seat_layout')`,
+    ),
+    pool.query<{ n: number }>(
+      `SELECT COUNT(*)::int AS n FROM app_kv_rows
+       WHERE table_name = 'session_history'
+         AND (data ? 'seats_snapshot' OR data ? 'seating_locked' OR data ? 'seating_map')`,
+    ),
+  ]);
+  return {
+    kv_tables: kv.rows[0]?.n ?? 0,
+    settings_rows: settings.rows[0]?.n ?? 0,
+    history_rows: hist.rows[0]?.n ?? 0,
+  };
+}
+
 async function cleanupLegacyTables(): Promise<void> {
   try {
-    const { rows } = await pool.query<{ table_name: string }>(
-      `SELECT DISTINCT table_name FROM app_kv_rows`,
-    );
-    const present = rows.map(r => r.table_name);
-    const legacyTables = [...new Set([
-      ...present.filter(t => LEGACY_KV_TABLES.has(t) || (!ACTIVE_KV_TABLES.has(t) && !SYSTEM_KV_TABLES.has(t))),
-    ])];
-
-    if (legacyTables.length === 0) {
-      logger.info('[db] cleanupLegacyTables: 삭제할 레거시 테이블 없음');
-    } else {
-      for (const t of legacyTables) {
-        const res = await pool.query(
-          `DELETE FROM app_kv_rows WHERE table_name = $1`, [t],
-        );
-        delete store[t];
+    // 지정 leftover 테이블만 삭제 — 미등록 테이블 전체 삭제(inversion)는 병렬 기능 데이터를 지울 수 있어 하지 않음
+    for (const t of LEGACY_KV_TABLES) {
+      const res = await pool.query(
+        `DELETE FROM app_kv_rows WHERE table_name = $1`, [t],
+      );
+      delete store[t];
+      if ((res.rowCount ?? 0) > 0) {
         logger.info({ table: t, deleted: res.rowCount }, '[db] cleanupLegacyTables: 레거시 테이블 삭제');
       }
     }
 
-    // app_settings JSON에서 레거시 키를 Postgres에 실제로 제거 (RAM strip만으로는 재시작 후 복원됨)
+    // jsonb - text 체인 — $1::text[] 바인딩 실패 시 키가 PG에 남는 것을 방지
     const settingsStrip = await pool.query(
       `UPDATE app_kv_rows
-       SET data = data - $1::text[], updated_at = NOW()
-       WHERE table_name = 'app_settings' AND data ?| $1::text[]`,
-      [[...LEGACY_APP_SETTINGS_KEYS]],
+       SET data = data - 'heart_drain_enabled' - 'heart_drain_minutes' - 'seating_locked'
+                      - 'seats_snapshot' - 'seating_map' - 'seats' - 'seat_layout',
+           updated_at = NOW()
+       WHERE table_name = 'app_settings'
+         AND (data ? 'heart_drain_enabled' OR data ? 'heart_drain_minutes' OR data ? 'seating_locked'
+              OR data ? 'seats_snapshot' OR data ? 'seating_map' OR data ? 'seats' OR data ? 'seat_layout')`,
     );
     if ((settingsStrip.rowCount ?? 0) > 0) {
       const mem = getTable('app_settings')[0];
       if (mem && settingsHaveLegacyKeys(mem)) {
-        const stripped = stripLegacySettingsKeys(mem);
-        store['app_settings'] = [stripped];
+        store['app_settings'] = [stripLegacySettingsKeys(mem)];
       }
       logger.info({ stripped: settingsStrip.rowCount, keys: [...LEGACY_APP_SETTINGS_KEYS] }, '[db] cleanupLegacyTables: app_settings 레거시 키 삭제');
     }
 
-    // session_history 의 옛 좌석맵 키만 제거 — 히스토리 행 자체는 유지
     const histStrip = await pool.query(
       `UPDATE app_kv_rows
-       SET data = data - $1::text[], updated_at = NOW()
-       WHERE table_name = 'session_history' AND data ?| $1::text[]`,
-      [[...LEGACY_SESSION_HISTORY_KEYS]],
+       SET data = data - 'seats_snapshot' - 'seating_locked' - 'seating_map',
+           updated_at = NOW()
+       WHERE table_name = 'session_history'
+         AND (data ? 'seats_snapshot' OR data ? 'seating_locked' OR data ? 'seating_map')`,
     );
     if ((histStrip.rowCount ?? 0) > 0) {
       const histRows = store['session_history'];
       if (Array.isArray(histRows)) {
-        store['session_history'] = histRows.map(r => {
-          const next = { ...r };
-          for (const k of LEGACY_SESSION_HISTORY_KEYS) delete next[k];
-          return next;
-        });
+        store['session_history'] = histRows.map(r => stripLegacySessionHistoryKeys(r));
       }
       logger.info({ stripped: histStrip.rowCount }, '[db] cleanupLegacyTables: session_history 좌석맵 키 삭제');
     }
+
+    _legacyLeftovers = await countLegacyLeftovers();
+    logger.info({ ..._legacyLeftovers, activeTables: ACTIVE_KV_TABLES.size }, '[db] cleanupLegacyTables: leftover remaining');
   } catch (e) {
     logger.warn({ err: e }, '[db] cleanupLegacyTables 실패');
   }
@@ -1717,8 +1752,11 @@ dbReadyPromise
   .catch(e => logger.error({ err: e }, '[db] startup initialization failed'));
 
 // redeploy·resync 후에도 BOOTSTRAP env → DB 비밀번호 자동 동기화
+// leftover JSON 키는 부팅 cleanup이 실패해도 이 주기로 재시도 (재배포 없이 PG에서 제거)
 setInterval(() => {
-  ensureAppSettingsSecrets().catch(e => logger.error({ err: e }, '[db] periodic secret sync failed'));
+  ensureAppSettingsSecrets()
+    .then(() => cleanupLegacyTables())
+    .catch(e => logger.error({ err: e }, '[db] periodic secret/legacy sync failed'));
 }, 5 * 60 * 1000);
 
 router.use(async (_req, res, next) => {
@@ -4368,6 +4406,12 @@ router.get('/ready', (_req: Request, res: Response) => {
       },
       functions_locked: settings.functions_locked === true,
       qr_base_url: settings.qr_base_url ?? null,
+      // leftover 잔량만 (키 값·비밀번호·PII 없음). 0 이면 PG에서 제거 완료.
+      legacy_leftovers: {
+        kv_tables: _legacyLeftovers.kv_tables,
+        settings_rows: _legacyLeftovers.settings_rows,
+        history_rows: _legacyLeftovers.history_rows,
+      },
       checkedAt: new Date().toISOString(),
     });
   } catch (e) {
