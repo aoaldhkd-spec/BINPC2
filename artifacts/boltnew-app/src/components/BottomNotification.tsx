@@ -75,7 +75,7 @@ export function BottomNotification({
               <p className="text-sm font-bold text-white">
                 {notification.message
                   ?? (notification.signalKind === 'mutual'
-                    ? '💕 서로 관심을 보냈어요!'
+                    ? '💕 서로 시그널을 보내면 채팅을 시작할 수 있어요!'
                     : `💕 ${notification.nickname || '누군가'}님이 회원님에게 관심을 보냈어요.`)}
               </p>
               {notification.signalKind === 'mutual' && onStartChat && (
