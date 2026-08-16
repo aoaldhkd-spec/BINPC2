@@ -11,7 +11,13 @@
 import type { Database } from '../types/database';
 import { tableNeedsSession } from './db-auth-tables';
 import { diag, newRequestId, installDiagGlobal } from './diag';
-import { reportLinkDown, reportLinkUp, reportBrowserOffline, reportBrowserOnline } from './net-health';
+import {
+  reportLinkDown,
+  reportLinkUp,
+  reportBrowserOffline,
+  reportBrowserOnline,
+  sseReadyStateBlocksNetDownUi,
+} from './net-health';
 
 installDiagGlobal();
 
@@ -26,21 +32,28 @@ const FETCH_TIMEOUT = 15_000; // 모바일·Render 콜드스타트 대비 (기�
 /** 의도적 SSE 재연결(토큰 갱신 등) 중 disconnect 콜백 억제 */
 let _suppressDisconnectUntil = 0;
 function suppressDisconnectBriefly(ms = 4_000) {
-  _suppressDisconnectUntil = Date.now() + ms;
+  _suppressDisconnectUntil = Math.max(_suppressDisconnectUntil, Date.now() + ms);
 }
 
-/** disconnect 오탐 방지 — 수 초 지속된 끊김만 UI/리스너에 알림 */
+/** disconnect 오탐 방지 — 핸드셰이크·자동재시도가 끝날 때까지 UI 보류 */
 let _disconnectNotifyTimer: ReturnType<typeof setTimeout> | null = null;
-const DISCONNECT_NOTIFY_MS = 4_000;
+const DISCONNECT_NOTIFY_MS = 8_000;
 
 function scheduleDisconnectNotify(reason: string) {
   if (Date.now() < _suppressDisconnectUntil) return;
   if (_disconnectNotifyTimer) return;
   _disconnectNotifyTimer = setTimeout(() => {
     _disconnectNotifyTimer = null;
-    // 그 사이 복구됐으면 무시
-    if (_es && _es.readyState === EventSource.OPEN && !_sseNeedsResync) return;
-    if (Date.now() < _suppressDisconnectUntil) return;
+    if (Date.now() < _suppressDisconnectUntil) {
+      scheduleDisconnectNotify(reason);
+      return;
+    }
+    const downFor = _sseErrorSince ? Date.now() - _sseErrorSince : DISCONNECT_NOTIFY_MS;
+    // OPEN(첫 ping 대기) / 짧은 CONNECTING 은 네트워크 실패가 아님 — 타이머만 연장
+    if (sseReadyStateBlocksNetDownUi(_es?.readyState, downFor)) {
+      scheduleDisconnectNotify(reason);
+      return;
+    }
     diag('warn', 'sse', `disconnect:${reason}`);
     reportLinkDown(`sse:${reason}`);
     _disconnectCallbacks.forEach(fn => { try { fn(); } catch {} });
@@ -465,7 +478,7 @@ export function setLocalDbUserId(userId: string | null) {
   // userId 변경 → 이전 userId 대상 재시도 타이머 취소 (오래된 userId로 재시도되는 경쟁 방지)
   if (_sseTokenRetryTimer) { clearTimeout(_sseTokenRetryTimer); _sseTokenRetryTimer = null; }
   if (_tokenRefreshTimer) { clearTimeout(_tokenRefreshTimer); _tokenRefreshTimer = null; }
-  suppressDisconnectBriefly(5_000);
+  suppressDisconnectBriefly(15_000);
   if (_es) { _es.close(); _es = null; }
   if (!userId) {
     // 로그아웃: 토큰 캐시 삭제, 세션 게이트 즉시 해제
@@ -588,6 +601,8 @@ function createSse() {
     } catch {}
   };
   es.onerror = () => {
+    // 일부 브라우저는 OPEN 상태에서도 onerror를 한 번 쏨 — 단절로 보지 않음
+    if (es.readyState === EventSource.OPEN) return;
     const wasConnected = _sseHasConnected;
     if (!_sseErrorSince) {
       _sseErrorSince = Date.now();
@@ -620,10 +635,10 @@ function ensureSse() {
   // 단, 서버 재시작 복구 모드 중에는 백오프를 무시하고 즉시 재시도
   if (!inShutdownRecovery() && _sseNextAllowedRetry && Date.now() < _sseNextAllowedRetry) return;
 
-  // CONNECTING 상태가 3초 이상 지속되면 강제 재연결 (느린 네트워크 환경 허용)
+  // CONNECTING 상태가 12초 이상 지속되면 강제 재연결 (행사장 Wi‑Fi·Render 핸드셰이크)
   // ★ 복구 모드 중에는 강제 닫기 생략 — 브라우저가 retry:100 지연값을 기억한 채로
   //   자체 재시도 중이므로 es.close()를 호출하면 그 지연값이 리셋된다.
-  if (!inShutdownRecovery() && _es && _es.readyState === EventSource.CONNECTING && _sseErrorSince && Date.now() - _sseErrorSince > 3_000) {
+  if (!inShutdownRecovery() && _es && _es.readyState === EventSource.CONNECTING && _sseErrorSince && Date.now() - _sseErrorSince > 12_000) {
     _es.close();
     _es = null;
     _sseErrorSince = null;
@@ -647,7 +662,7 @@ setInterval(() => {
   ) {
     diag('warn', 'sse', 'zombie-ping-timeout');
     _lastPingAt = 0;
-    suppressDisconnectBriefly(3_000);
+    suppressDisconnectBriefly(12_000);
     _es.close();
     _es = null;
     _sseNeedsResync = true;
@@ -678,7 +693,7 @@ if (typeof window !== 'undefined') {
     if (_sseListeners.size > 0) {
       // 백오프 쿨다운 초기화 — 네트워크가 돌아왔으므로 즉시 재연결 허용
       _sseNextAllowedRetry = 0;
-      suppressDisconnectBriefly(2_000);
+      suppressDisconnectBriefly(12_000);
       ensureSse();
       diag('info', 'net', 'browser-online');
     }
@@ -974,7 +989,7 @@ export function setSseToken(token: string, expiresAt: number) {
   // 사라지므로 lastEventId 쿼리와 HTTP 재동기화를 함께 수행합니다.
   // 의도적 재연결이므로 disconnect 모달/콜백을 잠시 억제하고,
   // 복구 콜백은 실제 SSE 메시지 수신 시에만 실행 (오탐 방지).
-  suppressDisconnectBriefly(5_000);
+  suppressDisconnectBriefly(15_000);
   _sseNeedsResync = true;
   if (_es) { _es.close(); _es = null; }
   if (_sseListeners.size > 0) ensureSse();

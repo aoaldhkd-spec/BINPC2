@@ -13,8 +13,15 @@ export type NetUiStatus = 'ok' | 'reconnecting' | 'error';
 
 type Listener = (status: NetUiStatus) => void;
 
-const QUIET_MS = 12_000;       // 이 시간 안에 복구되면 모달 없음
-const ERROR_AFTER_MS = 40_000; // 재연결 표시 후 이만큼 더 실패하면 error 모달
+/** SSE ping(15s) + 느린 핸드셰이크보다 길게 — 한 번 재연결로는 배너 없음 */
+export const NET_QUIET_MS = 20_000;
+/** 재연결 배너 후 이만큼 더 실패하면 error 모달 */
+export const NET_ERROR_AFTER_MS = 40_000;
+/** navigator.offline 깜빡임 debounce (행사장 Wi‑Fi) */
+export const NET_OFFLINE_QUIET_MS = 3_000;
+/** CONNECTING이 이 시간 미만이면 UI 단절로 보지 않음 */
+export const NET_SSE_CONNECTING_GRACE_MS = 20_000;
+
 const RECOVER_DEBOUNCE_MS = 400;
 
 let _ui: NetUiStatus = 'ok';
@@ -43,10 +50,62 @@ function clearTimers() {
   if (_recoverTimer) { clearTimeout(_recoverTimer); _recoverTimer = null; }
 }
 
+function armErrorTimer() {
+  if (_errorTimer) { clearTimeout(_errorTimer); _errorTimer = null; }
+  _errorTimer = setTimeout(() => {
+    _errorTimer = null;
+    if (_rawDownSince == null) return;
+    if (!_errorModalShown) {
+      _errorModalShown = true;
+      emit('error');
+    }
+  }, NET_ERROR_AFTER_MS);
+}
+
+function armQuietTimer(ms: number) {
+  if (_quietTimer) { clearTimeout(_quietTimer); _quietTimer = null; }
+  _quietTimer = setTimeout(() => {
+    _quietTimer = null;
+    if (_rawDownSince == null) return; // 이미 복구됨
+    emit('reconnecting');
+    _errorModalShown = false;
+    armErrorTimer();
+  }, ms);
+}
+
+/**
+ * 예상된 클라이언트/서버 오류는 네트워크 단절로 취급하지 않음.
+ * seats 테이블 제거 400, NAT 429 등이 /op 경로에서 down으로 잘못 보고돼도 UI 금지.
+ */
+export function shouldIgnoreDownReason(reason: string): boolean {
+  const r = reason.toLowerCase();
+  return (
+    r.includes('429') ||
+    r.includes('rate_limit') ||
+    r.includes('seats') ||
+    r.includes('table_not_allowed')
+  );
+}
+
+/**
+ * EventSource readyState가 UI 단절 보고를 막아야 하는지.
+ * 0 CONNECTING / 1 OPEN / 2 CLOSED (브라우저 EventSource와 동일)
+ */
+export function sseReadyStateBlocksNetDownUi(
+  readyState: number | null | undefined,
+  downForMs: number,
+  connectingGraceMs = NET_SSE_CONNECTING_GRACE_MS,
+): boolean {
+  if (readyState === 1) return true; // OPEN — 첫 ping 대기 포함, 단절 아님
+  if (readyState === 0 && downForMs < connectingGraceMs) return true; // 핸드셰이크 중
+  return false;
+}
+
 /** SSE/네트워크 단절 신호 (오탐 가능 — 즉시 모달 띄우지 않음) */
 export function reportLinkDown(reason: string): void {
-  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-    // 완전 오프라인은 바로 reconnecting 안내 (단, error는 유지 시간 후)
+  if (shouldIgnoreDownReason(reason)) {
+    diag('debug', 'net', `ignore-down:${reason}`);
+    return;
   }
   if (_rawDownSince == null) {
     _rawDownSince = Date.now();
@@ -54,31 +113,19 @@ export function reportLinkDown(reason: string): void {
     diag('warn', 'net', `down:${reason}`, { corr: _episodeCorr });
   }
   if (_quietTimer || _ui !== 'ok') return;
-  _quietTimer = setTimeout(() => {
-    _quietTimer = null;
-    if (_rawDownSince == null) return; // 이미 복구됨
-    emit('reconnecting');
-    _errorModalShown = false;
-    _errorTimer = setTimeout(() => {
-      _errorTimer = null;
-      if (_rawDownSince == null) return;
-      if (!_errorModalShown) {
-        _errorModalShown = true;
-        emit('error');
-      }
-    }, ERROR_AFTER_MS);
-  }, QUIET_MS);
+  armQuietTimer(NET_QUIET_MS);
 }
 
-/** 링크 복구 — 모달/타이머 즉시 해제 */
+/** 링크 복구 — quiet/error 타이머는 즉시 취소 (debounce 중 배너 오탐 방지) */
 export function reportLinkUp(reason: string): void {
   if (_rawDownSince == null && _ui === 'ok') return;
+  _rawDownSince = null;
+  if (_quietTimer) { clearTimeout(_quietTimer); _quietTimer = null; }
+  if (_errorTimer) { clearTimeout(_errorTimer); _errorTimer = null; }
   if (_recoverTimer) clearTimeout(_recoverTimer);
   _recoverTimer = setTimeout(() => {
     _recoverTimer = null;
-    const wasDown = _rawDownSince != null || _ui !== 'ok';
-    _rawDownSince = null;
-    clearTimers();
+    const wasDown = _ui !== 'ok';
     if (wasDown) {
       diag('info', 'net', `up:${reason}`, { corr: _episodeCorr ?? undefined });
     }
@@ -90,15 +137,21 @@ export function reportLinkUp(reason: string): void {
 
 export function reportBrowserOffline(): void {
   reportLinkDown('browser-offline');
-  // 오프라인은 조용 대기 없이 바로 재연결 UI
-  clearTimers();
-  emit('reconnecting');
-  _errorTimer = setTimeout(() => {
-    _errorTimer = null;
-    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-      emit('error');
+  if (_ui !== 'ok') return;
+  // 행사장 Wi‑Fi / 모바일 라디오가 offline을 깜빡여도 즉시 배너 금지.
+  // 짧은 debounce 후에도 실제 오프라인이면 재연결 UI.
+  if (_quietTimer) { clearTimeout(_quietTimer); _quietTimer = null; }
+  _quietTimer = setTimeout(() => {
+    _quietTimer = null;
+    if (_rawDownSince == null) return;
+    if (typeof navigator !== 'undefined' && navigator.onLine === true) {
+      reportLinkUp('offline-flicker');
+      return;
     }
-  }, ERROR_AFTER_MS);
+    emit('reconnecting');
+    _errorModalShown = false;
+    armErrorTimer();
+  }, NET_OFFLINE_QUIET_MS);
 }
 
 export function reportBrowserOnline(): void {
@@ -126,8 +179,5 @@ export function resetNetUiForRetry(): void {
   _episodeCorr = newCorrId('net');
   clearTimers();
   emit('reconnecting');
-  _errorTimer = setTimeout(() => {
-    _errorTimer = null;
-    if (_rawDownSince != null) emit('error');
-  }, ERROR_AFTER_MS);
+  armErrorTimer();
 }
