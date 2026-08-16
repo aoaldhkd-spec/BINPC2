@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  FEATURE_TAG_GROUPS,
   IDEAL_TAG_GROUPS,
   SIGNAL_GUIDE_TITLE,
   SIGNAL_MISSION_COPY,
@@ -12,16 +13,19 @@ import {
   isAnyHeart,
   isInterestHeart,
   isNudgeEligible,
+  isOppositePosition,
   isSignalDeckUnlocked,
   matchSignalPair,
   parseFeatureTags,
   parseIdealTags,
+  positionSide,
   rankByMatchWeighted,
   reasonsLeakIdealText,
   reasonsLeakPrivateText,
   recommendSignals,
   resolveFeatureTags,
   seoulDateKey,
+  tagsAreSynonyms,
   type FeatureProfile,
 } from './signal-match';
 
@@ -163,7 +167,7 @@ describe('feature_msg matching', () => {
       myFeatureMsg: '탑',
       candidates: [
         {
-          profile: { ...themFit, id: 'ok', interests: '독서', mbti: 'ISTJ', personality_score: 80 },
+          profile: { ...themFit, id: 'ok', interests: '독서', mbti: 'ISTJ', personality_score: 20 },
           featureMsg: '다정한,키큰',
         },
         {
@@ -550,5 +554,170 @@ describe('nudge eligibility + reason chips', () => {
       '✨ 공통 관심사 3개',
       '💕 서로 잘 맞는 조건이 있어요',
     ]);
+  });
+});
+
+describe('이상형 / 나의 특징 chip groups', () => {
+  const pickerLabels = [...IDEAL_TAG_GROUPS, ...FEATURE_TAG_GROUPS].map((g) => g.label);
+  const pickerTags = [...IDEAL_TAG_GROUPS, ...FEATURE_TAG_GROUPS].flatMap((g) => [...g.tags]);
+
+  it('keeps 얼굴상/체형/매력/성격/라이프 and 술/텐션/흡연', () => {
+    for (const label of ['얼굴상 👀', '체형 💪', '매력 ✨', '성격 💫', '라이프 🍻', '술 🍺', '텐션 🎢', '흡연 🚭']) {
+      expect(IDEAL_TAG_GROUPS.some((g) => g.label === label), label).toBe(true);
+      expect(FEATURE_TAG_GROUPS.some((g) => g.label === label), label).toBe(true);
+    }
+  });
+
+  it('removes 포지션 and MBTI chips from both pickers', () => {
+    expect(pickerLabels.some((l) => l.includes('포지션'))).toBe(false);
+    expect(pickerLabels.some((l) => l.includes('MBTI'))).toBe(false);
+    expect(pickerTags).not.toContain('바텀');
+    expect(pickerTags).not.toContain('올');
+    expect(pickerTags).not.toContain('탑');
+    expect(pickerTags).not.toContain('비선호');
+    expect(pickerTags).not.toContain('MBTI E');
+  });
+
+  it('does not add 말투 / 테이블 / 페이스', () => {
+    expect(pickerLabels.some((l) => /말투|테이블|페이스/.test(l))).toBe(false);
+    expect(pickerTags).not.toContain('말투');
+    expect(pickerTags).not.toContain('테이블');
+    expect(pickerTags).not.toContain('페이스');
+  });
+
+  it('uses the same 성격 chips on both pickers', () => {
+    const ideal = IDEAL_TAG_GROUPS.find((g) => g.label === '성격 💫')!.tags;
+    const feature = FEATURE_TAG_GROUPS.find((g) => g.label === '성격 💫')!.tags;
+    expect([...ideal]).toEqual(['다정한', '시크한', '장난끼있는', '차분한', '유머있는', '솔직한', '리드하는', '챙겨주는']);
+    expect([...feature]).toEqual([...ideal]);
+  });
+});
+
+describe('성격 exact match + drink/tension/smoke synonyms', () => {
+  it('matches 성격 chips by exact string both ways', () => {
+    const m = matchSignalPair({
+      myProfile: { ...me, interests: '영화' },
+      theirProfile: { ...themFit, interests: '독서' },
+      myIdealMsg: '시크한,솔직한',
+      theirFeatureMsg: '시크한,리드하는',
+      theirIdealMsg: '챙겨주는',
+      myFeatureMsg: '챙겨주는,유머있는',
+    });
+    expect(m).not.toBeNull();
+    expect(m!.myIdealHits).toBe(1);
+    expect(m!.theirIdealHits).toBe(1);
+    expect(reasonsLeakPrivateText(m!.reasons, '시크한,솔직한', '시크한,리드하는')).toBe(false);
+  });
+
+  it('does not match unrelated 성격 chips', () => {
+    const m = matchSignalPair({
+      myProfile: { ...me, interests: '영화' },
+      theirProfile: { ...themFit, interests: '독서' },
+      myIdealMsg: '시크한',
+      theirFeatureMsg: '장난끼있는',
+    });
+    expect(m).toBeNull();
+  });
+
+  it('matches conservative synonym pairs and rejects over-matches', () => {
+    const pairs: Array<[string, string]> = [
+      ['안마심', '안마심'],
+      ['한두잔', '술조금'],
+      ['세게마심', '술잘마심'],
+      ['분위기술', '취하면수다'],
+      ['취하면귀여운', '취하면수다'],
+      ['텐션폭발', '텐션높음'],
+      ['텐션낮음', '낯가림'],
+      ['텐션맞춤', '텐션중'],
+      ['관찰형', '낯가림'],
+      ['비흡연', '비흡연'],
+      ['흡연OK', '흡연'],
+      ['전자담배만', '전자담배'],
+      ['밖에서만', '흡연'],
+    ];
+    for (const [ideal, feature] of pairs) {
+      expect(tagsAreSynonyms(ideal, feature), `${ideal}↔${feature}`).toBe(true);
+      const m = matchSignalPair({
+        myProfile: { ...me, interests: '영화' },
+        theirProfile: { ...themFit, interests: '독서' },
+        myIdealMsg: ideal,
+        theirFeatureMsg: feature,
+      });
+      expect(m?.myIdealHits, `${ideal}→${feature}`).toBe(1);
+    }
+
+    const misses: Array<[string, string]> = [
+      ['세게마심', '술조금'],
+      ['안마심', '술잘마심'],
+      ['흡연OK', '비흡연'],
+      ['비흡연', '흡연'],
+      ['전자담배만', '흡연'],
+      ['텐션폭발', '텐션중'],
+      ['텐션맞춤', '텐션높음'],
+      ['관찰형', '텐션높음'],
+      ['텐션폭발', '금방친해짐'],
+    ];
+    for (const [ideal, feature] of misses) {
+      expect(tagsAreSynonyms(ideal, feature), `${ideal}≁${feature}`).toBe(false);
+      const m = matchSignalPair({
+        myProfile: { ...me, interests: '영화' },
+        theirProfile: { ...themFit, interests: '독서' },
+        myIdealMsg: ideal,
+        theirFeatureMsg: feature,
+      });
+      expect(m, `${ideal} should not hit ${feature}`).toBeNull();
+    }
+  });
+});
+
+describe('opposite position filter', () => {
+  it('classifies nickname-setup scores', () => {
+    expect(positionSide(-1)).toBe('none');
+    expect(positionSide(15)).toBe('bottom');
+    expect(positionSide(35)).toBe('bottom');
+    expect(positionSide(50)).toBe('vers');
+    expect(positionSide(70)).toBe('top');
+    expect(positionSide(100)).toBe('top');
+    expect(positionSide(null)).toBe('unknown');
+    expect(positionSide(undefined)).toBe('unknown');
+  });
+
+  it('treats 바텀/올텀 ↔ 올탑/퓨어탑 as opposite, same side as not', () => {
+    expect(isOppositePosition(15, 100)).toBe(true);
+    expect(isOppositePosition(35, 70)).toBe(true);
+    expect(isOppositePosition(100, 15)).toBe(true);
+    expect(isOppositePosition(15, 35)).toBe(false);
+    expect(isOppositePosition(70, 100)).toBe(false);
+    expect(isOppositePosition(80, 80)).toBe(false);
+  });
+
+  it('lets 올 match only the poles, not another 올', () => {
+    expect(isOppositePosition(50, 15)).toBe(true);
+    expect(isOppositePosition(50, 100)).toBe(true);
+    expect(isOppositePosition(50, 50)).toBe(false);
+  });
+
+  it('excludes 비선호 and missing scores', () => {
+    expect(isOppositePosition(-1, 15)).toBe(false);
+    expect(isOppositePosition(15, -1)).toBe(false);
+    expect(isOppositePosition(null, 15)).toBe(false);
+    expect(isOppositePosition(80, undefined)).toBe(false);
+  });
+
+  it('recommendSignals includes opposite and drops same / missing', () => {
+    const ranked = recommendSignals({
+      myId: 'me',
+      myProfile: { ...me, personality_score: 80, interests: '영화' },
+      myIdealMsg: '다정한',
+      candidates: [
+        { profile: { ...themFit, id: 'opp', personality_score: 15, interests: '독서' }, featureMsg: '다정한' },
+        { profile: { ...themFit, id: 'same', personality_score: 100, interests: '독서' }, featureMsg: '다정한' },
+        { profile: { ...themFit, id: 'vers-ok', personality_score: 50, interests: '독서' }, featureMsg: '다정한' },
+        { profile: { ...themFit, id: 'none', personality_score: -1, interests: '독서' }, featureMsg: '다정한' },
+        { profile: { ...themFit, id: 'missing', personality_score: null, interests: '독서' }, featureMsg: '다정한' },
+      ],
+      rng: () => 0,
+    });
+    expect(new Set(ranked.map((r) => r.profileId))).toEqual(new Set(['opp', 'vers-ok']));
   });
 });

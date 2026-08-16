@@ -39,14 +39,29 @@ export function isSignalDeckUnlocked(missionCount: number): boolean {
   return missionCount >= SIGNAL_MISSION_GOAL;
 }
 
-/** MainScreen 이상형 피커와 동일. 태그 → 나의 특징 필드 매핑은 IDEAL_TAG_SPECS. */
-export const IDEAL_TAG_GROUPS = [
+/** 이상형·나의 특징 공통 그룹. 포지션/MBTI는 닉네임 설정 필드라 칩에서 제외. */
+const CORE_TAG_GROUPS = [
   { label: '얼굴상 👀', tags: ['감자상', '댕댕이상', '고양이상', '곰상', '여우상', '공룡상', '토끼상', '눈웃음'] },
   { label: '체형 💪', tags: ['키큰', '슬림', '근육있는', '통통귀여운', '보통체형'] },
   { label: '매력 ✨', tags: ['섹끼있는', '다정한', '귀여운', '반전매력', '차분한', '웃음많은', '텐션높은', '술잘마시는'] },
-  { label: '포지션 🎯', tags: ['바텀', '올', '탑', '비선호'] },
-  { label: 'MBTI 🧠', tags: ['MBTI E', 'MBTI I', 'MBTI N', 'MBTI S', 'MBTI T', 'MBTI F', 'MBTI J', 'MBTI P'] },
+  { label: '성격 💫', tags: ['다정한', '시크한', '장난끼있는', '차분한', '유머있는', '솔직한', '리드하는', '챙겨주는'] },
   { label: '라이프 🍻', tags: ['술좋아', '운동', '카페', '집콕', '여행'] },
+] as const;
+
+/** MainScreen 이상형 피커. 태그 → 프로필 휴리스틱은 IDEAL_TAG_SPECS. */
+export const IDEAL_TAG_GROUPS = [
+  ...CORE_TAG_GROUPS,
+  { label: '술 🍺', tags: ['안마심', '한두잔', '분위기술', '세게마심', '취하면귀여운'] },
+  { label: '텐션 🎢', tags: ['텐션맞춤', '텐션낮음', '텐션폭발', '관찰형'] },
+  { label: '흡연 🚭', tags: ['비흡연', '흡연OK', '전자담배만', '밖에서만'] },
+] as const;
+
+/** MainScreen 나의 특징 피커. 술/텐션/흡연 라벨이 이상형과 다름. */
+export const FEATURE_TAG_GROUPS = [
+  ...CORE_TAG_GROUPS,
+  { label: '술 🍺', tags: ['술조금', '술잘마심', '안마심', '취하면수다'] },
+  { label: '텐션 🎢', tags: ['텐션중', '텐션높음', '낯가림', '금방친해짐'] },
+  { label: '흡연 🚭', tags: ['흡연', '비흡연', '전자담배'] },
 ] as const;
 
 export type IdealFeatureField =
@@ -92,10 +107,15 @@ export const IDEAL_TAG_SPECS: readonly IdealTagSpec[] = [
   { tag: '근육있는', group: '체형 💪', field: 'interests+status_msg+bio', aliases: [...MUSCLE_INTERESTS, '근육있는', '근육'] },
   ...specsFor('매력 ✨', 'status_msg+bio', ['섹끼있는', '다정한', '귀여운', '반전매력', '차분한', '웃음많은', '텐션높은']),
   { tag: '술잘마시는', group: '매력 ✨', field: 'interests+status_msg+bio', aliases: [...DRINK_INTERESTS, '술잘마시는', '술좋아'] },
-  ...specsFor('포지션 🎯', 'personality_score', IDEAL_TAG_GROUPS[3].tags),
-  ...specsFor('MBTI 🧠', 'mbti', IDEAL_TAG_GROUPS[4].tags),
+  ...specsFor('성격 💫', 'status_msg+bio', ['시크한', '장난끼있는', '유머있는', '솔직한', '리드하는', '챙겨주는']),
+  // 레거시 저장 태그용. 칩 UI에는 포지션/MBTI 없음.
+  ...specsFor('포지션 🎯', 'personality_score', ['바텀', '올', '탑', '비선호']),
+  ...specsFor('MBTI 🧠', 'mbti', ['MBTI E', 'MBTI I', 'MBTI N', 'MBTI S', 'MBTI T', 'MBTI F', 'MBTI J', 'MBTI P']),
   { tag: '술좋아', group: '라이프 🍻', field: 'interests+status_msg+bio', aliases: [...DRINK_INTERESTS, '술좋아', '술잘마시는'] },
   ...specsFor('라이프 🍻', 'interests', ['운동', '카페', '집콕', '여행']),
+  ...specsFor('술 🍺', 'status_msg+bio', ['안마심', '한두잔', '분위기술', '세게마심', '취하면귀여운']),
+  ...specsFor('텐션 🎢', 'status_msg+bio', ['텐션맞춤', '텐션낮음', '텐션폭발', '관찰형']),
+  ...specsFor('흡연 🚭', 'status_msg+bio', ['비흡연', '흡연OK', '전자담배만', '밖에서만']),
 ];
 
 const IDEAL_TAG_SPEC_BY_NORM = new Map<string, IdealTagSpec>();
@@ -165,6 +185,66 @@ export function resolveFeatureTags(
   return collectFeatureTokens(profile, statusMsg);
 }
 
+function normalizeTag(tag: string): string {
+  return tag.replace(/\s+/g, '').toLowerCase();
+}
+
+/**
+ * 이상형 칩 ↔ 나의 특징 칩 동의어 (양방향).
+ * 같은 글자(안마심·비흡연)는 정확 일치로 처리하므로 쌍에 넣지 않음.
+ * 관찰형↔낯가림만 보수적으로 연결. 금방친해짐·텐션폭발 등은 묶지 않음.
+ */
+export const TAG_SYNONYM_PAIRS: ReadonlyArray<readonly [string, string]> = [
+  ['한두잔', '술조금'],
+  ['세게마심', '술잘마심'],
+  ['세게마심', '술잘마시는'],
+  ['술잘마시는', '술잘마심'],
+  ['분위기술', '취하면수다'],
+  ['취하면귀여운', '취하면수다'],
+  ['텐션폭발', '텐션높음'],
+  ['텐션폭발', '텐션높은'],
+  ['텐션높은', '텐션높음'],
+  ['텐션낮음', '낯가림'],
+  ['텐션맞춤', '텐션중'],
+  ['관찰형', '낯가림'],
+  ['흡연OK', '흡연'],
+  ['전자담배만', '전자담배'],
+  ['밖에서만', '흡연'],
+];
+
+function buildSynonymLookup(): Map<string, Set<string>> {
+  const map = new Map<string, Set<string>>();
+  const add = (a: string, b: string) => {
+    const na = normalizeTag(a);
+    const nb = normalizeTag(b);
+    if (!map.has(na)) map.set(na, new Set());
+    if (!map.has(nb)) map.set(nb, new Set());
+    map.get(na)!.add(nb);
+    map.get(nb)!.add(na);
+  };
+  for (const [a, b] of TAG_SYNONYM_PAIRS) add(a, b);
+  return map;
+}
+
+const TAG_SYNONYM_LOOKUP = buildSynonymLookup();
+
+export function tagsAreSynonyms(a: string, b: string): boolean {
+  const na = normalizeTag(a);
+  const nb = normalizeTag(b);
+  if (na === nb) return true;
+  return TAG_SYNONYM_LOOKUP.get(na)?.has(nb) ?? false;
+}
+
+/** 칩↔칩 비교. substring 금지(흡연이 비흡연에 먹히지 않게). */
+export function countSynonymTagHits(idealTags: string[], featureTags: string[]): number {
+  if (idealTags.length === 0 || featureTags.length === 0) return 0;
+  let hits = 0;
+  for (const tag of idealTags) {
+    if (featureTags.some((f) => tagsAreSynonyms(tag, f))) hits += 1;
+  }
+  return hits;
+}
+
 export function countIdealVsFeatures(
   idealTags: string[],
   args: {
@@ -175,12 +255,8 @@ export function countIdealVsFeatures(
 ): number {
   if (idealTags.length === 0) return 0;
   const explicit = parseFeatureTags(args.featureMsg);
-  if (explicit.length > 0) return countTagHits(idealTags, explicit);
+  if (explicit.length > 0) return countSynonymTagHits(idealTags, explicit);
   return countIdealTagHits(idealTags, args.profile, args.statusMsg);
-}
-
-function normalizeTag(tag: string): string {
-  return tag.replace(/\s+/g, '').toLowerCase();
 }
 
 const MBTI_LETTER_RE = /^mbti[einjstfp]$/;
@@ -203,6 +279,40 @@ export function positionFamilies(score: number | null | undefined): string[] {
   if (s >= 25 && s <= 64) out.push('올');
   if (s >= 51) out.push('탑');
   return out;
+}
+
+/**
+ * 닉네임 설정 포지션(`profiles.personality_score`).
+ * 선택값: 비선호(-1), 바텀(15), 올텀(35), 올(50), 올탑(70), 퓨어탑(100).
+ * null/undefined는 unknown — 기본 50으로 채우지 않음.
+ */
+export type PositionSide = 'bottom' | 'top' | 'vers' | 'none' | 'unknown';
+
+export function positionSide(score: number | null | undefined): PositionSide {
+  if (score === null || score === undefined || Number.isNaN(Number(score))) return 'unknown';
+  if (score < 0) return 'none';
+  if (score === 50) return 'vers';
+  if (score <= 49) return 'bottom';
+  return 'top';
+}
+
+/**
+ * 시그널 덱 하드 필터: 반대 포지션만.
+ * bottom(0–49: 바텀·올텀) ↔ top(51+: 올탑·퓨어탑·탑).
+ * 올(50)은 양극(top/bottom)과만 — 올↔올은 같은 쪽이라 제외.
+ * 비선호·미설정은 보수적으로 제외.
+ */
+export function isOppositePosition(
+  myScore: number | null | undefined,
+  theirScore: number | null | undefined,
+): boolean {
+  const mine = positionSide(myScore);
+  const theirs = positionSide(theirScore);
+  if (mine === 'unknown' || theirs === 'unknown') return false;
+  if (mine === 'none' || theirs === 'none') return false;
+  if (mine === 'vers') return theirs === 'top' || theirs === 'bottom';
+  if (theirs === 'vers') return mine === 'top' || mine === 'bottom';
+  return (mine === 'top' && theirs === 'bottom') || (mine === 'bottom' && theirs === 'top');
 }
 
 function mbtiLetters(mbti: string | null | undefined): string[] {
@@ -453,7 +563,7 @@ export type RecommendCandidate = {
   statusMsg?: string | null;
 };
 
-/** 미션 3/3 이후 추천 풀: 전원 중 OR 매칭. 받은 하트로 제한하지 않음. */
+/** 미션 3/3 이후 추천 풀: 반대 포지션 + OR 매칭. 받은 하트로 제한하지 않음. */
 export function recommendSignals(args: {
   myId: string;
   myProfile: FeatureProfile;
@@ -480,6 +590,7 @@ export function recommendSignals(args: {
     if (!id || id === args.myId) continue;
     if (blocked.has(id) || hidden.has(id)) continue;
     if (already.has(id) || likedAll.has(id)) continue;
+    if (!isOppositePosition(args.myProfile.personality_score, c.profile.personality_score)) continue;
     const m = matchSignalPair({
       myProfile: args.myProfile,
       theirProfile: c.profile,

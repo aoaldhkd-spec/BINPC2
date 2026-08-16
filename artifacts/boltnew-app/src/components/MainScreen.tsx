@@ -25,7 +25,7 @@ import { TimerBanner } from './TimerBanner';
 import { RefreshBtn } from './RefreshBtn';
 
 import { AVATAR_CATEGORIES } from '../lib/avatar-catalog';
-import { IDEAL_TAG_GROUPS, encodeSignalMsg } from '../lib/signal-match';
+import { IDEAL_TAG_GROUPS, FEATURE_TAG_GROUPS, encodeSignalMsg } from '../lib/signal-match';
 import { ProfileCard } from './ProfileCard';
 import { ResetButton } from './ResetButton';
 import { SignalTab } from './SignalTab';
@@ -1744,7 +1744,7 @@ export function MainScreen({
                     </button>
                     {showFeaturesEdit && (
                       <div className={`px-4 pb-4 space-y-3 ${darkMode ? 'bg-slate-700/20' : 'bg-gray-50/50'}`}>
-                        {IDEAL_TAG_GROUPS.map(group => (
+                        {FEATURE_TAG_GROUPS.map(group => (
                           <div key={group.label}>
                             <p className={`text-[9px] font-black uppercase tracking-widest mb-1.5 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>{group.label}</p>
                             <div className="flex flex-wrap gap-1.5">
