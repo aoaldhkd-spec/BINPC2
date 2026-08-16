@@ -47,6 +47,7 @@ import { NicknameSetupScreen } from './components/NicknameSetupScreen';
 import { EntryGateScreen } from './components/EntryGateScreen';
 import { ProfileRecoveryScreen } from './components/ProfileRecoveryScreen';
 import { TutorialModal } from './components/TutorialModal';
+import { ResetPasswordSheet } from './components/ResetButton';
 import { QrScannerModal } from './components/QrScannerModal';
 import { ContactRevealModal } from './components/ContactRevealModal';
 import {
@@ -189,6 +190,7 @@ function App() {
   const [rejectionNotif, setRejectionNotif] = useState<string | null>(null); // nickname of person who rejected
   const [bottomNotif, setBottomNotif] = useState<BottomNotificationData | null>(null);
   const [signalNudge, setSignalNudge] = useState<string | null>(null);
+  const [showResetPassword, setShowResetPassword] = useState(false);
   const signalNudgeSessionRef = useRef(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const confettiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -801,7 +803,11 @@ function App() {
         }))
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' },
         (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) =>
-          setProfiles((prev) => prev.map((p) => p.id === (payload.new as Profile).id ? { ...p, ...(payload.new as Profile) } : p)))
+          setProfiles((prev) => {
+            const incoming = payload.new as Profile;
+            const next = prev.map((p) => p.id === incoming.id ? { ...p, ...incoming } : p);
+            return excludeSwipeGestureVerifyProfiles(next, userIdRef.current);
+          }))
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'profiles' },
         (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => setProfiles((prev) => prev.filter((p) => p.id !== (payload.old as Profile).id)))
       .subscribe();
@@ -1416,13 +1422,19 @@ function App() {
           />
         </AppErrorBoundary>
       )}
-      {signalNudge && view === 'main' && mainTab !== 'signal' && (
+      {signalNudge && view === 'main' && mainTab !== 'signal' && !showResetPassword && (
         <SignalNudgeBanner
           message={signalNudge}
           onOpen={() => dismissSignalNudge(true)}
           onClose={() => dismissSignalNudge(false)}
         />
       )}
+      {showResetPassword ? (
+        <ResetPasswordSheet
+          onCancel={() => setShowResetPassword(false)}
+          onConfirm={() => { setShowResetPassword(false); reset(); }}
+        />
+      ) : (
       <div className={isSubScreen ? 'hidden' : undefined} aria-hidden={isSubScreen}>
       <AppErrorBoundary screenName="메인 화면" onReset={() => { setView('main'); setMainTab('profiles'); }}>
       <Suspense fallback={<div className="min-h-screen bg-slate-900" />}>
@@ -1438,6 +1450,7 @@ function App() {
         onLike={handleLikeGuarded}
         onSelect={(p) => { setLikeConfirmTarget(null); setSelectedProfile(p); setView('profile'); recordProfileView(p.id); }}
         onReset={reset}
+        onOpenResetPassword={() => setShowResetPassword(true)}
         onProfileClickFromMap={(p) => { setLikeConfirmTarget(null); setSelectedProfile(p); setView('profile'); recordProfileView(p.id); }}
         receivedLikers={receivedLikers}
         receivedHeartTypes={receivedHeartTypes}
@@ -1517,6 +1530,7 @@ function App() {
       </Suspense>
       </AppErrorBoundary>
       </div>
+      )}
       {view === 'profile' && selectedProfile && (
         <div className="fixed inset-0 z-40 overflow-y-auto bg-white">
           <AppErrorBoundary screenName="프로필" onReset={() => setView('main')}>

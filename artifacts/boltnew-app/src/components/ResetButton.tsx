@@ -1,4 +1,5 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Users } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
@@ -44,8 +45,46 @@ async function verifyPanelPassword(kind: 'reset' | 'admin', password: string): P
   }
 }
 
-export function ResetButton({ onReset, darkMode, onEasterEgg }: {
+/** Full-screen opaque sheet — App renders this INSTEAD of MainScreen so no cards can show through. */
+export function ResetPasswordSheet({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: () => void }) {
+  const [pw, setPw] = useState('');
+  const [err, setErr] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const confirm = async () => {
+    if (busy) return;
+    setBusy(true);
+    setErr(false);
+    const ok = await verifyPanelPassword('reset', pw);
+    setBusy(false);
+    if (ok) onConfirm();
+    else { setErr(true); setPw(''); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[500] flex items-center justify-center bg-black" style={{ backgroundColor: '#000000' }}>
+      <div className="bg-white rounded-2xl p-6 w-72 shadow-2xl">
+        <p className="text-sm font-bold text-gray-800 mb-1">처음으로 돌아가기</p>
+        <p className="text-xs text-gray-500 mb-4">비밀번호를 입력하세요</p>
+        <input type="password" value={pw} onChange={(e) => { setPw(e.target.value); setErr(false); }}
+          onKeyDown={(e) => { if (e.key === 'Enter') void confirm(); }} placeholder="비밀번호" autoFocus disabled={busy}
+          className={`w-full px-3 py-2.5 rounded-xl border-2 text-sm text-center font-bold outline-none mb-3 ${err ? 'border-red-400 bg-red-50 text-red-700' : 'border-gray-200 focus:border-cyan-400'}`} />
+        {err && <p className="text-xs text-red-500 text-center mb-3">비밀번호가 틀렸습니다</p>}
+        <div className="flex gap-2">
+          <button type="button" onClick={onCancel}
+            className="flex-1 py-2 rounded-xl border-2 border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-all">취소</button>
+          <button type="button" onClick={() => void confirm()} disabled={busy}
+            className="flex-1 py-2 rounded-xl bg-cyan-500 text-white text-sm font-semibold hover:bg-cyan-600 transition-all disabled:opacity-60">{busy ? '확인 중…' : '확인'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function ResetButton({ onReset, darkMode, onEasterEgg, onUiLockChange, onOpenResetPassword }: {
   onReset: () => void; variant?: string; darkMode?: boolean; resetPassword?: string | null; onEasterEgg?: () => void;
+  onUiLockChange?: (locked: boolean) => void;
+  onOpenResetPassword?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [pw, setPw] = useState('');
@@ -60,6 +99,11 @@ export function ResetButton({ onReset, darkMode, onEasterEgg }: {
   const logoClickCount = useRef(0);
   const logoClickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const eggTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    onUiLockChange?.(open || adminOpen);
+    return () => onUiLockChange?.(false);
+  }, [open, adminOpen, onUiLockChange]);
 
   const confirm = async () => {
     if (busy) return;
@@ -115,7 +159,7 @@ export function ResetButton({ onReset, darkMode, onEasterEgg }: {
           <Users className="w-7 h-7" />
         </button>
         <div className="text-left select-none">
-          <button type="button" onClick={() => setOpen(true)} className="block group cursor-pointer" title="처음으로 돌아가기">
+          <button type="button" onClick={() => { if (onOpenResetPassword) onOpenResetPassword(); else setOpen(true); }} className="block group cursor-pointer" title="처음으로 돌아가기">
             <p className={`text-[10px] font-black tracking-widest uppercase leading-none transition-colors ${darkMode ? 'text-cyan-400 group-hover:text-cyan-300' : 'text-cyan-600 group-hover:text-cyan-700'}`}>범일NPC</p>
           </button>
           <button type="button" onClick={handleLogoClick} className="block cursor-pointer active:scale-95 transition-transform" title="술번개">
@@ -224,8 +268,12 @@ export function ResetButton({ onReset, darkMode, onEasterEgg }: {
         </div>
       )}
 
-      {open && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => { setOpen(false); setPw(''); setErr(false); }}>
+      {open && createPortal(
+        <div
+          className="fixed inset-0 z-[400] flex items-center justify-center bg-black"
+          style={{ backgroundColor: '#000000' }}
+          onClick={() => { setOpen(false); setPw(''); setErr(false); }}
+        >
           <div className="bg-white rounded-2xl p-6 w-72 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <p className="text-sm font-bold text-gray-800 mb-1">처음으로 돌아가기</p>
             <p className="text-xs text-gray-500 mb-4">비밀번호를 입력하세요</p>
@@ -240,11 +288,15 @@ export function ResetButton({ onReset, darkMode, onEasterEgg }: {
                 className="flex-1 py-2 rounded-xl bg-cyan-500 text-white text-sm font-semibold hover:bg-cyan-600 transition-all disabled:opacity-60">{busy ? '확인 중…' : '확인'}</button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
-      {adminOpen && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
-          onClick={() => { setAdminOpen(false); setAdminPw(''); setAdminErr(false); }}>
+      {adminOpen && createPortal(
+        <div
+          className="fixed inset-0 z-[400] flex items-center justify-center p-4 bg-black"
+          style={{ backgroundColor: '#000000' }}
+          onClick={() => { setAdminOpen(false); setAdminPw(''); setAdminErr(false); }}
+        >
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xs p-6 space-y-4" onClick={e => e.stopPropagation()}>
             <div className="text-center"><span className="text-3xl">🔐</span><h3 className="text-gray-900 font-black text-lg mt-2">관리자 확인</h3><p className="text-gray-400 text-xs mt-1">비밀번호를 입력하세요</p></div>
             <input type="password" value={adminPw} onChange={e => { setAdminPw(e.target.value); setAdminErr(false); }}
@@ -259,7 +311,8 @@ export function ResetButton({ onReset, darkMode, onEasterEgg }: {
                 className="flex-1 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-600 text-white text-sm font-bold transition-all disabled:opacity-60">{adminBusy ? '확인 중…' : '확인'}</button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

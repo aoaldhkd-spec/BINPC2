@@ -92,6 +92,7 @@ export function MainScreen({
   userSignals = [] as UserSignal[],
   onUserSignalUpdate,
   onMissionComplete,
+  onOpenResetPassword,
 }: {
   profiles: Profile[]; currentUserId: string | null; likedIds: Set<string>; sentHeartTypes: Map<string, HeartType>; sentHeartsPerPerson: Map<string, Set<HeartType>>; likeStatuses: Map<string, string>;
   profileMap: Map<string, Profile>; mainTab: MainTab;
@@ -147,11 +148,13 @@ export function MainScreen({
   userSignals?: UserSignal[];
   onUserSignalUpdate?: (row: UserSignal) => void;
   onMissionComplete?: () => void;
+  onOpenResetPassword?: () => void;
 }) {
   const heartCount = useCallback((t: HeartType) => { let c = 0; sentHeartsPerPerson.forEach(types => { if (types.has(t)) c++; }); return c; }, [sentHeartsPerPerson]);
 
   const _currentUserNickname = useMemo(() => profiles.find(p => p.id === currentUserId)?.nickname ?? '', [profiles, currentUserId]);
   const [profileSearch, setProfileSearch] = useState('');
+  const [passwordUiLocked, setPasswordUiLocked] = useState(false);
   const [profilePersonalityFilter, setProfilePersonalityFilter] = useState<string | null>(null);
   const [showVisitors, setShowVisitors] = useState(false);
   const [profileMbtiFilter, setProfileMbtiFilter] = useState<string | null>(null);
@@ -609,7 +612,7 @@ export function MainScreen({
           </div>
           {/* 중앙: 타이틀 */}
           <div className="justify-self-center">
-            <ResetButton onReset={onReset} darkMode={darkMode} />
+            <ResetButton onReset={onReset} darkMode={darkMode} onUiLockChange={setPasswordUiLocked} onOpenResetPassword={onOpenResetPassword} />
           </div>
           {/* 우: 하트 */}
           <div className="justify-self-end flex items-center gap-2">
@@ -662,6 +665,7 @@ export function MainScreen({
 
       </header>
 
+      {!passwordUiLocked && (
       <main className="max-w-7xl mx-auto px-4 py-6 scrollbar-styled-light">
         {mainTab === 'profiles' && (
           <>
@@ -2234,6 +2238,7 @@ export function MainScreen({
         )}
 
       </main>
+      )}
 
       {/* ── MY 버튼 (우하단 고정 원형) + 팝업 ── */}
       {(() => {

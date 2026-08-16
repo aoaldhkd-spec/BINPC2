@@ -122,17 +122,59 @@ export function getAvatarSrc(url: string | null | undefined, nick: string): stri
 /** Playwright smoke marker from scripts/verify-chat-gestures.mjs — never show in the live deck. */
 export const SWIPE_GESTURE_VERIFY_MARKER = 'swipe-gesture-verify';
 
+function normalizeFixtureText(value: unknown): string {
+  if (value == null) return '';
+  if (Array.isArray(value)) return value.map(normalizeFixtureText).join('\n');
+  if (typeof value === 'object') {
+    return Object.values(value as Record<string, unknown>).map(normalizeFixtureText).join('\n');
+  }
+  // ProfileCard / ProfileDetail prefix `#` onto bio·interest tags — strip it before matching.
+  return String(value).toLowerCase().replace(/#/g, '').trim();
+}
+
+function collectRenderableProfileText(p: object): string {
+  const rec = p as Record<string, unknown>;
+  const named = [
+    rec.bio,
+    rec.nickname,
+    rec.interests,
+    rec.display_name,
+    rec.displayName,
+    rec.name,
+    rec.status_msg,
+    rec.status_message,
+    rec.tagline,
+  ];
+  const parts = named.map(normalizeFixtureText);
+  for (const [key, val] of Object.entries(rec)) {
+    if (key === 'id' || key === 'photo_url' || key === 'created_at' || key === '_device_secret') continue;
+    if (typeof val === 'string' || Array.isArray(val)) parts.push(normalizeFixtureText(val));
+  }
+  return parts.join('\n');
+}
+
 export function isSwipeGestureVerifyProfile(p: {
   bio?: string | null;
   interests?: string | string[] | null;
   nickname?: string | null;
+  display_name?: string | null;
+  name?: string | null;
+  status_msg?: string | null;
+} | null | undefined): boolean {
+  if (!p) return false;
+  const blob = collectRenderableProfileText(p);
+  if (blob.includes(SWIPE_GESTURE_VERIFY_MARKER)) return true;
+  return blob.split(/[\s,，、]+/).some((token) => token === SWIPE_GESTURE_VERIFY_MARKER);
+}
+
+/** True only when bio or nickname is exactly the smoke marker (optional leading #). Safe for admin delete. */
+export function isExactSwipeGestureVerifyFixture(p: {
+  bio?: string | null;
+  nickname?: string | null;
+  interests?: string | string[] | null;
 }): boolean {
-  const blob = [
-    p.bio ?? '',
-    Array.isArray(p.interests) ? p.interests.join(',') : (p.interests ?? ''),
-    p.nickname ?? '',
-  ].join('\n').toLowerCase();
-  return blob.includes(SWIPE_GESTURE_VERIFY_MARKER);
+  const fields = [p.bio, p.nickname, ...(Array.isArray(p.interests) ? p.interests : [p.interests])];
+  return fields.some((field) => normalizeFixtureText(field) === SWIPE_GESTURE_VERIFY_MARKER);
 }
 
 /** Drop leftover swipe-gesture fixtures. Keep `keepId` so a smoke-test session still has its own row. */
