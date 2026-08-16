@@ -175,10 +175,10 @@ function ProfileDetail({ profile, isMe, isLiked, heartType, sentHeartsCount, loc
         )}
         {/* 궁합 버튼 */}
         {!isMe && profile.birth_year && profile.birth_month && profile.birth_day && onViewFortune && (
-          <button onClick={onViewFortune}
-            className="w-full py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold rounded-2xl transition-all flex items-center justify-center gap-2 shadow-sm text-sm"
+          <button onClick={() => { if (locked) { showLockToast(); return; } onViewFortune(); }}
+            className={`w-full py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold rounded-2xl transition-all flex items-center justify-center gap-2 shadow-sm text-sm ${locked ? 'opacity-60' : ''}`}
           >
-            <span>💕</span> 이 사람과 궁합 보기
+            <span>💕</span> {locked ? '🔒 이 사람과 궁합 보기' : '이 사람과 궁합 보기'}
           </button>
         )}
       </main>

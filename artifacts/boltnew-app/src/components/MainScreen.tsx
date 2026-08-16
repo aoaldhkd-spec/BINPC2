@@ -31,6 +31,7 @@ import { IDEAL_TAG_GROUPS, FEATURE_TAG_GROUPS, encodeSignalMsg } from '../lib/si
 import { ProfileCard } from './ProfileCard';
 import { ResetButton } from './ResetButton';
 import { SignalTab } from './SignalTab';
+import { FUNCTIONS_LOCK_TOAST, SOCIAL_LOCKED_TABS } from '../lib/functions-lock';
 const FortuneTab = lazy(() => import('./FortuneTab'));
 
 export { ProfileCard };
@@ -318,14 +319,14 @@ export function MainScreen({
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 기능 잠금(functionsLocked) 시 이동 불가 탭
-  const LOCKED_TABS = new Set<MainTab>(['chats', 'fortune', 'stats', 'ranking']);
+  // 기능 잠금(functionsLocked) 시 이동 불가 탭 — 시그널·채팅·운세·통계·랭킹
+  const LOCKED_TABS = SOCIAL_LOCKED_TABS;
 
   // MY 버튼 팝업 열림 상태
   const [myMenuOpen, setMyMenuOpen] = useState(false);
 
   const handleTabChange = (t: MainTab) => {
-    if (functionsLocked && LOCKED_TABS.has(t)) return; // 기능 잠금 중 → 탭 이동 차단
+    if (functionsLocked && LOCKED_TABS.has(t)) { showChatSearchLockToast(); return; }
     if (t === 'status') { setSeenHeartsCount(pendingHeartsCount); setSeenContactsCount(receivedContactShares.length); onClearVisitCount?.(); }
     if (t === 'profiles') setSeenProfilesCount(profiles.length);
     onTabChange(t);
@@ -335,6 +336,11 @@ export function MainScreen({
   const [chatSearch, setChatSearch] = useState('');
   const [chatSearchLockToast, setChatSearchLockToast] = useState(false);
   const showChatSearchLockToast = () => { setChatSearchLockToast(true); setTimeout(() => setChatSearchLockToast(false), 1400); };
+  const guardLockedAction = (): boolean => {
+    if (!functionsLocked) return false;
+    showChatSearchLockToast();
+    return true;
+  };
   // ── 내 상태 탭 카드 접기/펼치기 ────────────────────────────────────────────
   const [profileEditOpen, setProfileEditOpen] = useState(true);
   const [receivedHeartsOpen, setReceivedHeartsOpen] = useState(true);
@@ -664,6 +670,13 @@ export function MainScreen({
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-6 scrollbar-styled-light">
+        {chatSearchLockToast && (
+          <div className="fixed top-24 left-0 right-0 z-[80] flex justify-center pointer-events-none">
+            <div className="text-center text-[11px] font-bold text-white bg-gray-800/90 rounded-full px-3 py-1">
+              {FUNCTIONS_LOCK_TOAST}
+            </div>
+          </div>
+        )}
         {mainTab === 'profiles' && (
           <>
             {/* 검색 + 필터 바 */}
@@ -1071,7 +1084,7 @@ export function MainScreen({
                         {isGreen ? (
                           !isAcked && (
                             <button
-                              onClick={() => onHeartResponse(liker.id, 'accepted')}
+                              onClick={() => { if (guardLockedAction()) return; onHeartResponse(liker.id, 'accepted'); }}
                               className={`w-full py-2 mt-2.5 text-xs font-bold text-white rounded-xl transition-all ${hm.solidBg} ${hm.solidHover}`}
                             >{'확인'}</button>
                           )
@@ -1079,11 +1092,11 @@ export function MainScreen({
                           !shared && (
                             <div className="flex gap-2 mt-2.5">
                               <button
-                                onClick={() => onHeartResponse(liker.id, 'rejected')}
+                                onClick={() => { if (guardLockedAction()) return; onHeartResponse(liker.id, 'rejected'); }}
                                 className="flex-1 py-2 text-xs font-bold bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                               >거절</button>
                               <button
-                                onClick={() => onHeartResponse(liker.id, 'accepted')}
+                                onClick={() => { if (guardLockedAction()) return; onHeartResponse(liker.id, 'accepted'); }}
                                 className={`flex-2 flex-grow py-2 text-xs font-bold text-white rounded-xl transition-all ${hm.solidBg} ${hm.solidHover}`}
                               >{'수락 + 연락처 공유'}</button>
                             </div>
@@ -1926,7 +1939,7 @@ export function MainScreen({
                       return (
                         <div
                           key={group.id}
-                          onClick={() => { if (joined) onOpenGroupChat?.(group.id); }}
+                          onClick={() => { if (joined) { if (guardLockedAction()) return; onOpenGroupChat?.(group.id); } }}
                           className={`rounded-2xl shadow-sm p-4 flex items-center gap-3 transition-colors duration-300 ${
                             joined ? 'cursor-pointer active:scale-[0.98]' : ''
                           } ${
@@ -1996,6 +2009,7 @@ export function MainScreen({
                                 disabled={joining}
                                 onClick={e => {
                                   e.stopPropagation();
+                                  if (guardLockedAction()) return;
                                   onJoinGroupChat?.(group.id);
                                 }}
                                 className={`text-[11px] font-black px-3 py-1.5 rounded-full active:scale-95 disabled:opacity-50 ${
@@ -2069,7 +2083,7 @@ export function MainScreen({
             {/* 채팅 검색 잠금 토스트 */}
             {chatSearchLockToast && (
               <div className="text-center text-[11px] font-bold text-white bg-gray-800/90 rounded-full px-3 py-1 pointer-events-none">
-                🔒 현재 잠금 중
+                {FUNCTIONS_LOCK_TOAST}
               </div>
             )}
             {/* 검색 결과 */}
@@ -2130,7 +2144,7 @@ export function MainScreen({
                 const chatUnread = unreadForChat(unreadChatCounts, chat.id);
                 return (
                   <div key={chat.id}
-                    onClick={() => otherProfile && onOpenChat(otherProfile)}
+                    onClick={() => { if (guardLockedAction()) return; otherProfile && onOpenChat(otherProfile); }}
                     className={`rounded-2xl shadow-sm p-4 flex items-center gap-3 cursor-pointer transition-colors duration-300 active:scale-[0.98] ${darkMode ? 'bg-slate-800 border border-slate-600 hover:bg-slate-700' : 'bg-white hover:bg-gray-50'}`}>
                     <div className="relative w-12 h-12 rounded-full overflow-hidden flex-shrink-0 bg-gray-200">
                       {otherProfile ? (

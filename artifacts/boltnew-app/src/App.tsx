@@ -23,6 +23,7 @@ import {
   writeNudgeCount,
 } from './lib/signal-match';
 import { incomingInterestToast, isIncomingHeartToastTarget, MUTUAL_HEART_TOAST } from './lib/heart-toast';
+import { FUNCTIONS_LOCK_KICK_TOAST, FUNCTIONS_LOCK_TOAST, SOCIAL_LOCKED_TABS } from './lib/functions-lock';
 import { SignalNudgeBanner } from './components/SignalNudgeBanner';
 // ─── 분리된 타입·유틸·컴포넌트 imports ────────────────────────────────────────
 import type {
@@ -220,6 +221,18 @@ function App() {
   const myHeartCountRef = useRef<number | null>(null);
   myHeartCountRef.current = myHeartCount;
   const [functionsLocked, setFunctionsLocked] = useState(false);
+  const functionsLockedRef = useRef(false);
+  functionsLockedRef.current = functionsLocked;
+  const [functionsLockToast, setFunctionsLockToast] = useState<string | null>(null);
+  const functionsLockToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showFunctionsLockToast = useCallback((msg: string = FUNCTIONS_LOCK_TOAST) => {
+    if (functionsLockToastTimerRef.current) clearTimeout(functionsLockToastTimerRef.current);
+    setFunctionsLockToast(msg);
+    functionsLockToastTimerRef.current = setTimeout(() => {
+      functionsLockToastTimerRef.current = null;
+      setFunctionsLockToast(null);
+    }, 1800);
+  }, []);
   const [registrationError, setRegistrationError] = useState<string | null>(null);
   const [entryPassword, setEntryPassword] = useState<string | null>(null); // null = 아직 로드 전
   const [entryVerified, setEntryVerified] = useState(false);
@@ -415,9 +428,101 @@ function App() {
 
   // 기능 잠금 중에는 하트 전송 차단 (LOCKED_TABS와 동일한 보호 수준)
   const handleLikeGuarded = useCallback((profileId: string) => {
-    if (functionsLocked) return;
+    if (functionsLocked) { showFunctionsLockToast(); return; }
     handleLike(profileId);
-  }, [functionsLocked, handleLike]);
+  }, [functionsLocked, handleLike, showFunctionsLockToast]);
+
+  const handleHeartResponseGuarded = useCallback((likerId: string, response: 'accepted' | 'rejected') => {
+    if (functionsLocked) { showFunctionsLockToast(); return; }
+    return handleHeartResponse(likerId, response);
+  }, [functionsLocked, handleHeartResponse, showFunctionsLockToast]);
+
+  const handleContactShareGuarded = useCallback((likerId: string, kakao: string, instagram: string, phone: string) => {
+    if (functionsLocked) { showFunctionsLockToast(); return; }
+    return handleContactShare(likerId, kakao, instagram, phone);
+  }, [functionsLocked, handleContactShare, showFunctionsLockToast]);
+
+  const openChatGuarded = useCallback((profile: Profile) => {
+    if (functionsLockedRef.current) { showFunctionsLockToast(); return Promise.resolve(); }
+    return openChat(profile);
+  }, [openChat, showFunctionsLockToast]);
+
+  const sendMessageGuarded = useCallback(async (content: string) => {
+    if (functionsLockedRef.current) { showFunctionsLockToast(); return; }
+    return sendMessage(content);
+  }, [sendMessage, showFunctionsLockToast]);
+
+  const sendImageGuarded = useCallback(async (file: File): Promise<string | null> => {
+    if (functionsLockedRef.current) { showFunctionsLockToast(); return null; }
+    return sendImage(file);
+  }, [sendImage, showFunctionsLockToast]);
+
+  const openGroupChatGuarded = useCallback(async (groupId: string) => {
+    if (functionsLockedRef.current) { showFunctionsLockToast(); return; }
+    await openGroupChat(groupId);
+    setView('group-chat');
+  }, [openGroupChat, showFunctionsLockToast]);
+
+  const joinGroupChatGuarded = useCallback(async (groupId: string) => {
+    if (functionsLockedRef.current) { showFunctionsLockToast(); return; }
+    return joinGroupChat(groupId);
+  }, [joinGroupChat, showFunctionsLockToast]);
+
+  const sendGroupMessageGuarded = useCallback(async (content: string) => {
+    if (functionsLockedRef.current) { showFunctionsLockToast(); return; }
+    return sendGroupMessage(content);
+  }, [sendGroupMessage, showFunctionsLockToast]);
+
+  const handleMainTabChange = useCallback((t: MainTab) => {
+    if (functionsLocked && SOCIAL_LOCKED_TABS.has(t)) {
+      showFunctionsLockToast();
+      return;
+    }
+    setMainTab(t);
+  }, [functionsLocked, showFunctionsLockToast]);
+
+  const execLikeGuarded = useCallback((...args: Parameters<typeof executeLike>) => {
+    if (functionsLockedRef.current) {
+      setLikeConfirmTarget(null);
+      showFunctionsLockToast();
+      return;
+    }
+    execLikeWithConfetti(...args);
+  }, [execLikeWithConfetti, showFunctionsLockToast, setLikeConfirmTarget]);
+
+  // 잠금이 켜지면 채팅·시그널·단톡·운세 화면에서 참여자 탭으로 되돌림
+  useEffect(() => {
+    if (!functionsLocked) return;
+    let kicked = false;
+    if (view === 'chat' || view === 'group-chat') {
+      chatIdRef.current = null;
+      setChatId(null);
+      closeGroupChat();
+      setView('main');
+      kicked = true;
+    }
+    if (SOCIAL_LOCKED_TABS.has(mainTab)) {
+      setMainTab('profiles');
+      kicked = true;
+    }
+    if (fortuneModalTarget) {
+      setFortuneModalTarget(null);
+      kicked = true;
+    }
+    if (fortuneCompatTarget) {
+      setFortuneCompatTarget(undefined);
+      kicked = true;
+    }
+    if (likeConfirmTarget) {
+      setLikeConfirmTarget(null);
+      kicked = true;
+    }
+    if (contactShareTarget) {
+      setContactShareTarget(null);
+      kicked = true;
+    }
+    if (kicked) showFunctionsLockToast(FUNCTIONS_LOCK_KICK_TOAST);
+  }, [functionsLocked, view, mainTab, fortuneModalTarget, fortuneCompatTarget, likeConfirmTarget, contactShareTarget, closeGroupChat, setChatId, showFunctionsLockToast]);
 
   // ─── 차단·숨기기 처리 ─────────────────────────────────────────────────────
   const handleBlock = useCallback(async (targetId: string, type: 'block' | 'hide') => {
@@ -547,10 +652,26 @@ function App() {
     }
 
     void loadSettings();
+    const settingsPoll = setInterval(() => {
+      fetch('/api/db/ready', { signal: AbortSignal.timeout(5_000) })
+        .then(r => r.ok ? r.json() : null)
+        .then((json: { settings?: Record<string, unknown> } | null) => {
+          if (cancelled || !json?.settings) return;
+          applySettings(json.settings);
+        })
+        .catch(() => {});
+    }, 4_000);
     const settingsChannel = supabase
       .channel('app-settings-user')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_settings' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-        const p = payload.new as { session_active: boolean; timer_end_at: string | null; timer_label: string | null; reset_signal: string | null; entry_password: string | null };
+        const p = payload.new as {
+          session_active: boolean;
+          timer_end_at: string | null;
+          timer_label: string | null;
+          reset_signal: string | null;
+          entry_password: string | null;
+          functions_locked?: boolean;
+        };
         // Admin triggered a full reset: wipe local user identity and force back to nickname setup
         if (p.reset_signal && p.reset_signal !== ls.getItem(MATCHING_LAST_RESET_KEY)) {
           ls.setItem(MATCHING_LAST_RESET_KEY, p.reset_signal);
@@ -584,7 +705,7 @@ function App() {
         }
         setTimerEndAt(p.timer_end_at ?? null);
         setTimerLabel(p.timer_label ?? null);
-        if ((p as any).functions_locked != null) setFunctionsLocked((p as any).functions_locked);
+        if (p.functions_locked != null) setFunctionsLocked(Boolean(p.functions_locked));
         if (p.entry_password !== undefined) {
           const ep = p.entry_password ?? '';
           setEntryPassword(ep);
@@ -639,6 +760,7 @@ function App() {
     return () => {
       cancelled = true;
       clearTimeout(safetyTimer);
+      clearInterval(settingsPoll);
       shareNotifTimerIds.forEach(clearTimeout);
       supabase.removeChannel(settingsChannel);
       supabase.removeChannel(notifChannel);
@@ -1231,8 +1353,8 @@ function App() {
     setSignalNudge(null);
     signalNudgeSessionRef.current = true;
     if (currentUserId) writeNudgeCount(currentUserId, readNudgeCount(currentUserId) + 1);
-    if (goToTab) setMainTab('signal');
-  }, [currentUserId]);
+    if (goToTab) handleMainTabChange('signal');
+  }, [currentUserId, handleMainTabChange]);
 
   const handleMissionComplete = useCallback(() => {
     setBottomNotif({
@@ -1399,14 +1521,21 @@ function App() {
         </AppErrorBoundary>
       )}
       {/* Bottom notification: new heart / chat */}
+      {functionsLockToast && (
+        <div className="fixed bottom-28 left-0 right-0 z-[10060] flex justify-center px-4 pointer-events-none">
+          <div className="bg-gray-800/95 text-white px-4 py-2 rounded-full shadow-xl text-[12px] font-bold">
+            {functionsLockToast}
+          </div>
+        </div>
+      )}
       {bottomNotif && (
         <AppErrorBoundary screenName="하단 알림" onReset={() => setBottomNotif(null)}>
           <BottomNotification
             notification={bottomNotif}
             onClose={() => setBottomNotif(null)}
             onGoToStatus={() => { setMainTab('status'); setBottomNotif(null); }}
-            onGoToChats={() => { setMainTab('chats'); setBottomNotif(null); }}
-            onGoToSignal={() => { setMainTab('signal'); setBottomNotif(null); }}
+            onGoToChats={() => { handleMainTabChange('chats'); setBottomNotif(null); }}
+            onGoToSignal={() => { handleMainTabChange('signal'); setBottomNotif(null); }}
             onViewProfile={() => {
               const id = bottomNotif.profileId;
               const p = (id && (profiles.find(x => x.id === id) ?? receivedLikers.find(x => x.id === id))) || null;
@@ -1416,7 +1545,7 @@ function App() {
             onStartChat={() => {
               const id = bottomNotif.profileId;
               const p = (id && (profiles.find(x => x.id === id) ?? receivedLikers.find(x => x.id === id))) || null;
-              if (p) void openChat(p);
+              if (p) void openChatGuarded(p);
               setBottomNotif(null);
             }}
           />
@@ -1440,7 +1569,7 @@ function App() {
         likeStatuses={likeStatuses}
         profileMap={profileMap}
         mainTab={mainTab}
-        onTabChange={setMainTab}
+        onTabChange={handleMainTabChange}
         onLike={handleLikeGuarded}
         onSelect={(p) => { setLikeConfirmTarget(null); setSelectedProfile(p); setView('profile'); recordProfileView(p.id); }}
         onReset={reset}
@@ -1455,12 +1584,15 @@ function App() {
         receivedContactShares={receivedContactShares}
         pendingHeartsCount={pendingHeartsCount}
         chatList={chatList}
-        onContactShareOpen={(profile) => setContactShareTarget(profile)}
+        onContactShareOpen={(profile) => {
+          if (functionsLocked) { showFunctionsLockToast(); return; }
+          setContactShareTarget(profile);
+        }}
         onContactViewOpen={(share, profile) => setContactViewShare({ share, profile })}
-        onHeartResponse={handleHeartResponse}
+        onHeartResponse={handleHeartResponseGuarded}
         onDeleteChat={deleteChat}
         onDeleteAllChats={deleteAllChats}
-        onOpenChat={openChat}
+        onOpenChat={openChatGuarded}
         timerEndAt={timerEndAt}
         timerLabel={timerLabel}
         onRefreshStatus={refreshStatusTab}
@@ -1483,7 +1615,11 @@ function App() {
         onClearMsgCount={() => setNewMsgCount(0)}
         unreadChatCounts={unreadChatCounts}
         onClearChatUnread={(chatId) => setUnreadChatCounts(prev => { const n = { ...prev }; delete n[chatId]; return n; })}
-        onViewFortune={(p) => { setFortuneModalTarget(p); void recordProfileView(p.id); }}
+        onViewFortune={(p) => {
+          if (functionsLocked) { showFunctionsLockToast(); return; }
+          setFortuneModalTarget(p);
+          void recordProfileView(p.id);
+        }}
         onViewProfile={(p) => { void recordProfileView(p.id); }}
         fortuneCompatTarget={fortuneCompatTarget}
         myHeartCount={myHeartCount}
@@ -1491,8 +1627,8 @@ function App() {
         unreadGroupCounts={unreadGroupCounts}
         newGroupMsgCount={newGroupMsgCount}
         onClearGroupMsgCount={() => setNewGroupMsgCount(0)}
-        onOpenGroupChat={(groupId) => { void openGroupChat(groupId).then(() => setView('group-chat')).catch(e => console.error('[openGroupChat]', e)); }}
-        onJoinGroupChat={(groupId) => { void joinGroupChat(groupId); }}
+        onOpenGroupChat={(groupId) => { void openGroupChatGuarded(groupId).catch(e => console.error('[openGroupChat]', e)); }}
+        onJoinGroupChat={(groupId) => { void joinGroupChatGuarded(groupId); }}
         joiningGroupId={joiningGroupId}
         userSignals={userSignals}
         onUserSignalUpdate={handleUserSignalUpdate}
@@ -1541,11 +1677,12 @@ function App() {
               sentHeartsCount={sentHeartsPerPerson.get(selectedProfile.id)?.size ?? 0}
               locked={functionsLocked}
               onLike={() => { if (!functionsLocked) handleLike(selectedProfile.id); }}
-              onChat={() => { openChat(selectedProfile); }}
+              onChat={() => { void openChatGuarded(selectedProfile); }}
               onBack={() => { setLikeConfirmTarget(null); setView('main'); }}
               onViewFortune={selectedProfile.birth_year && selectedProfile.birth_month && selectedProfile.birth_day ? () => {
+                if (functionsLocked) { showFunctionsLockToast(); return; }
                 setFortuneCompatTarget(selectedProfile.id);
-                setMainTab('fortune');
+                handleMainTabChange('fortune');
                 setLikeConfirmTarget(null);
                 setView('main');
               } : undefined}
@@ -1562,7 +1699,7 @@ function App() {
             profileMap={profileMap}
             darkMode={darkMode}
             onBack={() => { closeGroupChat(); setView('main'); }}
-            onSendMessage={sendGroupMessage}
+            onSendMessage={sendGroupMessageGuarded}
             onLeave={async () => { if (activeGroupId) await leaveGroupChat(activeGroupId); setView('main'); }}
           />
         </div>
@@ -1584,8 +1721,8 @@ function App() {
                 messages={messages}
                 currentUserId={currentUserId!}
                 otherProfile={selectedProfile}
-                onSend={sendMessage}
-                onSendImage={sendImage}
+                onSend={sendMessageGuarded}
+                onSendImage={sendImageGuarded}
                 onBack={() => { chatIdRef.current = null; setChatId(null); setView('main'); }}
                 onDeleteMessage={deleteMessage}
                 currentUserProfile={profiles.find(p => p.id === currentUserId) ?? null}
@@ -1595,7 +1732,7 @@ function App() {
                   chatIdRef.current = null;
                   setChatId(null);
                   setView('main');
-                  setMainTab(tab as MainTab);
+                  handleMainTabChange(tab as MainTab);
                 }}
                 onUpdateProfile={(update) => setProfiles(prev => prev.map(p => p.id === update.id ? { ...p, ...update } : p))}
                 initialInput={chatDraftRef.current.get(chatId) ?? ''}
@@ -1615,7 +1752,7 @@ function App() {
           target={likeConfirmTarget}
           likedByType={likedByTypeRecord()}
           sentTypesForTarget={sentHeartsPerPerson.get(likeConfirmTarget.id) ?? new Set()}
-          onConfirm={execLikeWithConfetti}
+          onConfirm={execLikeGuarded}
           onCancel={() => setLikeConfirmTarget(null)}
         />
       )}
@@ -1637,7 +1774,7 @@ function App() {
           liker={contactShareTarget}
           alreadyShared={contactSharedWithIds.has(contactShareTarget.id)}
           myProfile={currentUserId ? (profileMap.get(currentUserId) ?? null) : null}
-          onSubmit={(kakao, instagram, phone) => handleContactShare(contactShareTarget.id, kakao, instagram, phone)}
+          onSubmit={(kakao, instagram, phone) => handleContactShareGuarded(contactShareTarget.id, kakao, instagram, phone)}
           onClose={() => setContactShareTarget(null)}
         />
       )}

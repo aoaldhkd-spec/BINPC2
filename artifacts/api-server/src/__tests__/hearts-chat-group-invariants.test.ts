@@ -1,8 +1,10 @@
 /**
  * 하트·1:1·단톡 A↔B 재발방지. db-security 와 분리해 다른 에이전트와 충돌을 피한다.
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { randomUUID } from 'node:crypto';
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 
 const TEST_SSE_SECRET = vi.hoisted(() => {
   const secret = 'test-sse-secret-for-unit-tests';
@@ -395,5 +397,171 @@ describe('[Chat] third party cannot see A↔B', () => {
       filters: [{ type: 'eq', col: 'chat_id', val: chatId }],
     });
     expect(asC.status).toBe(403);
+  });
+});
+
+async function setFunctionsLocked(locked: boolean) {
+  const passwords = ['116606', 'custom-admin-pw-xyz', process.env.BOOTSTRAP_ADMIN_PASSWORD].filter(Boolean);
+  let lastStatus = 0;
+  for (const pw of passwords) {
+    const res = await request(app)
+      .post('/api/db/rpc/admin_update_settings')
+      .send({ p_admin_password: pw, p_payload: { functions_locked: locked } });
+    lastStatus = res.status;
+    if (res.status === 200) return;
+  }
+  throw new Error(`admin_update_settings functions_locked=${locked} failed (${lastStatus})`);
+}
+
+describe('[Lock] functions_locked rejects matching writes and broadcasts', () => {
+  afterEach(async () => {
+    try { await setFunctionsLocked(false); } catch { /* unlock best-effort */ }
+  });
+
+  it('잠금 중 likes / messages / group_messages / group_participants INSERT 는 403, 해제 후 허용', async () => {
+    const a = randomUUID();
+    const b = randomUUID();
+    await op({ op: 'insert', table: 'profiles', payload: { id: a, nickname: `lk-${a.slice(0, 8)}` } });
+    await op({ op: 'insert', table: 'profiles', payload: { id: b, nickname: `lk-${b.slice(0, 8)}` } });
+    const chat = await op({
+      op: 'insert',
+      table: 'chats',
+      requesterId: a,
+      payload: { user1_id: a, user2_id: b },
+      selectAfterWrite: true,
+      single: true,
+    });
+    expect(chat.status).toBe(200);
+    const chatId = chat.body.data.id as string;
+    const gid = `glock-${randomUUID()}`;
+    expect((await op({
+      op: 'insert',
+      table: 'group_chats',
+      payload: { id: gid, name: '잠금방', interest_tag: 'lock', age_group: null, max_members: 999, room_kind: 'test' },
+      requesterId: 'seed-admin',
+    })).status).toBe(200);
+
+    await setFunctionsLocked(true);
+
+    const likeLocked = await op({
+      op: 'insert',
+      table: 'likes',
+      requesterId: a,
+      payload: { liker_id: a, liked_id: b, heart_type: 'red' },
+    });
+    expect(likeLocked.status).toBe(403);
+    expect(likeLocked.body.error?.code).toBe('FUNCTIONS_LOCKED');
+
+    const msgLocked = await op({
+      op: 'insert',
+      table: 'messages',
+      requesterId: a,
+      payload: { chat_id: chatId, sender_id: a, content: 'nope', client_id: randomUUID() },
+    });
+    expect(msgLocked.status).toBe(403);
+    expect(msgLocked.body.error?.code).toBe('FUNCTIONS_LOCKED');
+
+    const joinLocked = await op({
+      op: 'insert',
+      table: 'group_participants',
+      requesterId: a,
+      payload: { group_id: gid, user_id: a },
+    });
+    expect(joinLocked.status).toBe(403);
+    expect(joinLocked.body.error?.code).toBe('FUNCTIONS_LOCKED');
+
+    const readyLocked = await request(app).get('/api/db/ready');
+    expect(readyLocked.status).toBe(200);
+    expect(readyLocked.body.functions_locked).toBe(true);
+    expect(readyLocked.body.settings?.functions_locked).toBe(true);
+
+    await setFunctionsLocked(false);
+
+    expect((await op({
+      op: 'insert',
+      table: 'group_participants',
+      requesterId: a,
+      payload: { group_id: gid, user_id: a },
+    })).status).toBe(200);
+
+    const likeOk = await op({
+      op: 'insert',
+      table: 'likes',
+      requesterId: a,
+      payload: { liker_id: a, liked_id: b, heart_type: 'red' },
+    });
+    expect(likeOk.status).toBe(200);
+
+    const msgOk = await op({
+      op: 'insert',
+      table: 'messages',
+      requesterId: a,
+      payload: { chat_id: chatId, sender_id: a, content: 'ok', client_id: randomUUID() },
+    });
+    expect(msgOk.status).toBe(200);
+
+    const groupOk = await op({
+      op: 'insert',
+      table: 'group_messages',
+      requesterId: a,
+      payload: { group_id: gid, sender_id: a, content: 'ok', client_id: randomUUID() },
+    });
+    expect(groupOk.status).toBe(200);
+  });
+
+  it('functions_locked 변경은 app_settings SSE로 브로드캐스트된다', async () => {
+    const userId = randomUUID();
+    await op({ op: 'insert', table: 'profiles', payload: { id: userId, nickname: `sse-${userId.slice(0, 8)}` } });
+    const agent = request.agent(app);
+    const login = await agent.post('/api/db/auth/login').send({ userId, deviceSecret: `sec-${userId}` });
+    expect(login.status).toBe(200);
+    const tokenRes = await agent.post('/api/db/auth/sse-token');
+    expect(tokenRes.status).toBe(200);
+    const token = tokenRes.body.token as string;
+
+    const server = await new Promise<http.Server>((resolve) => {
+      const s = http.createServer(app);
+      s.listen(0, '127.0.0.1', () => resolve(s));
+    });
+    const { port } = server.address() as AddressInfo;
+    try {
+      const path = `/api/db/events?userId=${encodeURIComponent(userId)}&token=${encodeURIComponent(token)}`;
+      await new Promise<void>((resolve, reject) => {
+        let buf = '';
+        let toggled = false;
+        const req = http.get({
+          hostname: '127.0.0.1',
+          port,
+          path,
+          headers: { Accept: 'text/event-stream' },
+        }, (res) => {
+          res.setEncoding('utf8');
+          res.on('data', (chunk: string) => {
+            buf += chunk;
+            if (!toggled && buf.includes('"type":"ping"')) {
+              toggled = true;
+              void setFunctionsLocked(true).catch((e) => {
+                req.destroy();
+                reject(e);
+              });
+            }
+            if (buf.includes('"table":"app_settings"') && buf.includes('functions_locked')) {
+              req.destroy();
+              resolve();
+            }
+          });
+        });
+        req.on('error', (err) => {
+          if ((err as NodeJS.ErrnoException).code === 'ECONNRESET') return;
+          reject(err);
+        });
+        setTimeout(() => {
+          req.destroy();
+          reject(new Error(`SSE lock broadcast timeout. got: ${buf.slice(0, 800)}`));
+        }, 6000);
+      });
+    } finally {
+      await new Promise<void>((r) => server.close(() => r()));
+    }
   });
 });

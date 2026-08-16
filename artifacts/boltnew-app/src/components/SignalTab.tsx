@@ -192,7 +192,17 @@ export function SignalTab({
         )}
       </div>
 
-      {!unlocked ? (
+      {functionsLocked ? (
+        <div className={`rounded-2xl border px-5 py-12 text-center ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'}`}>
+          <p className="text-3xl mb-2">🔒</p>
+          <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+            행사 중에는 시그널을 사용할 수 없어요
+          </p>
+          <p className={`text-xs mt-1 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
+            하트·채팅·시그널·단톡·운세가 잠시 멈춰 있어요
+          </p>
+        </div>
+      ) : !unlocked ? (
         <div className={`rounded-2xl border px-5 py-6 ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'}`}>
           <p className="text-2xl mb-2">📖</p>
           <p className={`text-sm font-black ${darkMode ? 'text-white' : 'text-gray-900'}`}>
@@ -231,7 +241,7 @@ export function SignalTab({
         <div className={`rounded-3xl overflow-hidden border shadow-lg ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'}`}>
           <button
             type="button"
-            onClick={() => onSelect(card)}
+            onClick={() => { if (!functionsLocked) onSelect(card); }}
             className="block w-full text-left"
           >
             <div
@@ -274,8 +284,9 @@ export function SignalTab({
             <div className="flex gap-2 pt-1">
               <button
                 type="button"
-                onClick={() => setSkippedIds((prev) => new Set([...prev, card.id]))}
-                className={`flex-1 py-3 rounded-2xl text-sm font-bold border active:scale-95 transition-all ${
+                disabled={!!functionsLocked}
+                onClick={() => { if (!functionsLocked) setSkippedIds((prev) => new Set([...prev, card.id])); }}
+                className={`flex-1 py-3 rounded-2xl text-sm font-bold border active:scale-95 transition-all disabled:opacity-40 ${
                   darkMode
                     ? 'bg-slate-700 border-slate-500 text-slate-200'
                     : 'bg-gray-50 border-gray-200 text-gray-700'
@@ -285,8 +296,9 @@ export function SignalTab({
               </button>
               <button
                 type="button"
-                onClick={() => onSelect(card)}
-                className={`flex-1 py-3 rounded-2xl text-sm font-black border active:scale-95 transition-all ${
+                disabled={!!functionsLocked}
+                onClick={() => { if (!functionsLocked) onSelect(card); }}
+                className={`flex-1 py-3 rounded-2xl text-sm font-black border active:scale-95 transition-all disabled:opacity-40 ${
                   darkMode
                     ? 'bg-slate-600 border-slate-400 text-white'
                     : 'bg-white border-rose-200 text-rose-700'
