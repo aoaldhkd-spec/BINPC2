@@ -12,32 +12,22 @@ type Topic = {
   tips: Tip[];
   video?: number[];
   fill?: { emoji: string; title: string; desc: string };
+  compactBox?: boolean;
 };
 
 const BASIC: Topic[] = [
   {
-    id: 'rules-1',
+    id: 'rules',
     emoji: '📋',
-    label: '공지1',
+    label: '공지',
     title: '오늘만 꼭 지켜 주세요',
     color: 'from-teal-500 to-cyan-600',
+    compactBox: true,
     tips: [
       { icon: '🍺', title: '술 강요 없음', desc: '마시고 싶은 만큼만. 안 마셔도 됩니다. 잔을 채우라고 보채지 마세요.' },
       { icon: '🗳️', title: '정치·종교', desc: '정치·종교 이야기는 하지 마세요. 분위기가 깨지고 영구밴될 수 있어요.' },
       { icon: '🚫', title: '지역·패드립', desc: '지역감정·패드립은 즉시 퇴장·영구밴입니다.' },
-    ],
-    fill: { emoji: '📋', title: '오늘 이 자리의 약속', desc: '편한 회식 · 서로 존중' },
-  },
-  {
-    id: 'rules-2',
-    emoji: '📢',
-    label: '공지2',
-    title: '말투·자리·개인정보',
-    color: 'from-cyan-600 to-teal-500',
-    tips: [
       { icon: '🗣️', title: '욕설·반말', desc: '욕설·반말은 영구밴될 수 있어요. 처음 보는 사이니 존댓말로.' },
-      { icon: '🚶', title: '자리 비울 때', desc: '화장실·담배는 같이 가고, 급하면 먼저 말하고 나가 주세요.' },
-      { icon: '📍', title: '자리 이동', desc: '진행 안내가 나오면 지정 자리로 옮겨 주세요. 혼자 빠지지 마세요.' },
     ],
     fill: { emoji: '🔒', title: '연락처·개인정보', desc: '번호·SNS는 강요 금지. 모임 끝나면 입력 정보는 파기됩니다.' },
   },
@@ -274,6 +264,28 @@ export function TutorialModal({ onClose, darkMode }: {
                 />
               </div>
             </>
+          ) : topic.compactBox ? (
+            <div className={`flex-shrink-0 rounded-2xl border px-3 py-2.5 ${panel}`}>
+              <div className="flex flex-col gap-2">
+                {topic.tips.map((tip) => (
+                  <div key={tip.title} className="flex gap-2">
+                    <span className="text-sm leading-none mt-0.5 flex-shrink-0">{tip.icon}</span>
+                    <div className="min-w-0">
+                      <p className={`text-[11px] font-black leading-tight ${text}`}>{tip.title}</p>
+                      <p className={`text-[10px] leading-snug mt-0.5 ${muted}`}>{tip.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {topic.fill && (
+                <p className={`mt-2 pt-2 border-t text-[10px] leading-snug ${darkMode ? 'border-slate-700' : 'border-slate-200'} ${muted}`}>
+                  <span className="mr-1">{topic.fill.emoji}</span>
+                  <span className={`font-black ${text}`}>{topic.fill.title}</span>
+                  {' · '}
+                  {topic.fill.desc}
+                </p>
+              )}
+            </div>
           ) : (
             <div className="flex-1 min-h-0 flex flex-col gap-2">
               {topic.tips.map((tip) => (
