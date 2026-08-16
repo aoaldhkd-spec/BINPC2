@@ -4,6 +4,7 @@ import {
   shouldShowEntryGate,
   shouldShowNicknameSetup,
   shouldShowRecoveryScreen,
+  shouldAutoSkipWaiting,
 } from './entry-gate';
 
 describe('shouldShowWaitingOverlay', () => {
@@ -28,17 +29,51 @@ describe('shouldShowWaitingOverlay', () => {
     })).toBe(false);
   });
 
-  it('skips landing after recovery (shownWaiting) and for testers', () => {
+  it('skips landing after recovery (shownWaiting)', () => {
     expect(shouldShowWaitingOverlay({
       shownWaiting: true,
       currentUserId: null,
       hasValidProfile: false,
     })).toBe(false);
+  });
+
+  it('shows landing when a tester goes back from nickname setup', () => {
     expect(shouldShowWaitingOverlay({
       shownWaiting: false,
       currentUserId: null,
       hasValidProfile: false,
       isTester: true,
+    })).toBe(true);
+  });
+});
+
+describe('shouldAutoSkipWaiting', () => {
+  it('skips waiting only when the session turns on', () => {
+    expect(shouldAutoSkipWaiting({
+      sessionActive: true,
+      wasSessionActive: false,
+      hasStoredUser: false,
+    })).toBe(true);
+  });
+
+  it('does not skip waiting on later settings updates while the session stays on', () => {
+    expect(shouldAutoSkipWaiting({
+      sessionActive: true,
+      wasSessionActive: true,
+      hasStoredUser: false,
+    })).toBe(false);
+  });
+
+  it('does not skip waiting on first load or for stored accounts', () => {
+    expect(shouldAutoSkipWaiting({
+      sessionActive: true,
+      wasSessionActive: null,
+      hasStoredUser: false,
+    })).toBe(false);
+    expect(shouldAutoSkipWaiting({
+      sessionActive: true,
+      wasSessionActive: false,
+      hasStoredUser: true,
     })).toBe(false);
   });
 });
@@ -91,7 +126,17 @@ describe('shouldShowNicknameSetup', () => {
       currentUserId: null,
       hasValidProfile: false,
       view: 'entry-1',
+      shownWaiting: true,
     })).toBe(true);
+  });
+
+  it('skips nickname setup after going back to the waiting landing', () => {
+    expect(shouldShowNicknameSetup({
+      currentUserId: null,
+      hasValidProfile: false,
+      view: 'entry-1',
+      shownWaiting: false,
+    })).toBe(false);
   });
 
   it('skips nickname setup when already identified (dummy / recovery / revisit)', () => {

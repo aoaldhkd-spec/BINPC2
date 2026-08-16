@@ -552,7 +552,7 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
         <button type="button" onClick={goPrev}
           className="flex-[2] flex items-center justify-center gap-1.5 py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold text-sm rounded-2xl transition-all active:scale-95">
           <ArrowLeft className="w-4 h-4" />
-          {step === 1 ? '처음으로' : '이전'}
+          {step === 1 ? '이전하기' : '이전'}
         </button>
 
         {step < 5 ? (

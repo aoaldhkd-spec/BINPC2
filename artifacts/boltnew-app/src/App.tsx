@@ -11,6 +11,7 @@ import {
   shouldShowEntryGate,
   shouldShowNicknameSetup,
   shouldShowRecoveryScreen,
+  shouldAutoSkipWaiting,
 } from './lib/entry-gate';
 import { HeartType } from './lib/constants';
 import {
@@ -108,9 +109,16 @@ function App() {
     void loadChatScreen();
   }, []);
   const [sessionActive, setSessionActive] = useState<boolean | null>(null);
+  const sessionActiveRef = useRef<boolean | null>(null);
   // Existing users skip the waiting overlay entirely and go straight to main.
   // New users go straight to nickname setup — no waiting overlay.
-  const [shownWaiting, setShownWaiting] = useState(() => Boolean(ls.getItem(MATCHING_USER_KEY)));
+  const [shownWaiting, setShownWaiting] = useState(() => {
+    try {
+      return Boolean(ls.getItem(MATCHING_USER_KEY) || localStorage.getItem('test_token_v1'));
+    } catch {
+      return Boolean(ls.getItem(MATCHING_USER_KEY));
+    }
+  });
   const [profiles, setProfiles] = useState<Profile[]>(() => {
     try {
       const cached = ls.getItem(MATCHING_PROFILES_CACHE_KEY);
@@ -656,7 +664,9 @@ function App() {
     const applySettings = (data: Record<string, unknown> | null) => {
       if (cancelled || !data) return;
       const ep = (data.entry_password as string | null | undefined) ?? '';
-      setSessionActive(Boolean(data.session_active));
+      const nextActive = Boolean(data.session_active);
+      sessionActiveRef.current = nextActive;
+      setSessionActive(nextActive);
       setEntryPassword(ep);
       setEntryVerified(!ep || ls.getItem(ENTRY_VERIFIED_KEY) === ep);
       const localReset = ls.getItem(MATCHING_LAST_RESET_KEY);
@@ -758,10 +768,16 @@ function App() {
           return;
         }
         if (typeof p.session_active === 'boolean') {
+          const wasActive = sessionActiveRef.current;
+          sessionActiveRef.current = p.session_active;
           setSessionActive(p.session_active);
-          // 관리자 '회식 시작' → session_active=true 감지 시
-          // 대기 중인 신규 접속자 자동으로 닉네임 설정 화면으로 이동
-          if (p.session_active && !ls.getItem(MATCHING_USER_KEY)) {
+          // 회식이 꺼짐→켜짐으로 바뀌는 순간에만 대기 랜딩을 건너뛴다.
+          // 이미 켜진 채 설정이 갱신되면 닉네임 1단계 뒤로가기를 덮어쓰지 않는다.
+          if (shouldAutoSkipWaiting({
+            sessionActive: p.session_active,
+            wasSessionActive: wasActive,
+            hasStoredUser: Boolean(ls.getItem(MATCHING_USER_KEY)),
+          })) {
             setShownWaiting(true);
             setView('entry-1');
           }
@@ -1279,6 +1295,7 @@ function App() {
           const data = json?.settings;
           if (!data) return;
           if (typeof data.session_active === 'boolean') {
+            sessionActiveRef.current = data.session_active;
             setSessionActive(data.session_active);
             if (!data.session_active && userIdRef.current) setShownWaiting(false);
           }
@@ -1499,6 +1516,7 @@ function App() {
     currentUserId,
     hasValidProfile,
     view,
+    shownWaiting,
   });
   if (appLoading || sessionActive === null || entryPassword === null) return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col items-center justify-center gap-4 px-6 text-center">

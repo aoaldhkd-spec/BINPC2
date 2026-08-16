@@ -53,6 +53,19 @@ describe('product copy + notification invariants', () => {
     expect(app).toMatch(/n\.target === 'all'/);
   });
 
+  it('닉네임 설정 1단계 이전하기는 대기 랜딩으로 돌아가고 회식 중 설정 갱신에 덮이지 않는다', () => {
+    const nick = read('components/NicknameSetupScreen.tsx');
+    const app = read('App.tsx');
+    const gate = read('lib/entry-gate.ts');
+    expect(nick).toContain("step === 1 ? '이전하기' : '이전'");
+    expect(nick).toContain('else onReset()');
+    expect(app).toContain('onReset={reset}');
+    expect(app).toContain('shouldAutoSkipWaiting');
+    expect(app).toContain('shownWaiting,');
+    expect(gate).toContain('opts.shownWaiting === false');
+    expect(gate).toContain('wasSessionActive === false');
+  });
+
   it('처음으로 돌아가기 is a dim popup over mounted MainScreen', () => {
     const reset = read('components/ResetButton.tsx');
     const app = read('App.tsx');
