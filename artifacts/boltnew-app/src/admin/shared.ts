@@ -18,7 +18,6 @@ export type SessionHistory = Database['public']['Tables']['session_history']['Ro
 export type Like = Database['public']['Tables']['likes']['Row'];
 export type Chat = Database['public']['Tables']['chats']['Row'];
 export type Message = Database['public']['Tables']['messages']['Row'];
-export type Suggestion = Database['public']['Tables']['suggestions']['Row'];
 export type AnonymousReport = Database['public']['Tables']['anonymous_reports']['Row'];
 
 export const ADMIN_SESSION_KEY = 'admin_session_v1';

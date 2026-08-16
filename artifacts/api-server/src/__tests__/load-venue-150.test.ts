@@ -165,8 +165,9 @@ describe('venue load 50/100/150 (in-process)', () => {
         .get(`/api/db/events?userId=${encodeURIComponent(u.id)}&token=${encodeURIComponent(tokens[i].body.token)}`)
         .buffer(false)
         .parse((res, cb) => {
-          res.on('data', () => { res.destroy(); cb(null, 'ok'); });
-          res.on('error', () => cb(null, 'err'));
+          const stream = res as unknown as { destroy?: () => void; on: (ev: string, fn: () => void) => void };
+          stream.on('data', () => { stream.destroy?.(); cb(null, 'ok'); });
+          stream.on('error', () => cb(null, 'err'));
         }),
     ));
     expect(sse.filter((r) => r.status === 200).length).toBeGreaterThan(20);

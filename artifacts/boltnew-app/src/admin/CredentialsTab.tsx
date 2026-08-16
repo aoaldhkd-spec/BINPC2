@@ -13,7 +13,7 @@ import {
   withAdminImageToken, setAdminToken, loadAdminSession, getAdminPassword, refreshAdminToken,
   adminApiRpc, patchAdminSettings, adminApiSelect, adminApiOp, adminSupabase,
   ADMIN_TOKEN_KEY, ADMIN_PW_KEY, ADMIN_SESSION_KEY, ADMIN_API, MAX_ADMIN_MESSAGES,
-  type Profile, type AppSettings, type SessionHistory, type Like, type Chat, type Message, type Suggestion, type AnonymousReport, type DbHealthData, type AdminSession,
+  type Profile, type AppSettings, type SessionHistory, type Like, type Chat, type Message, type AnonymousReport, type DbHealthData, type AdminSession,
 } from './shared';
 
 export function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onSaveTest }: {

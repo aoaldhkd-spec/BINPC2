@@ -8,7 +8,7 @@
     "build": "node ./build.mjs",
     "start": "node --dns-result-order=ipv4first --env-file-if-exists=.env --enable-source-maps ./dist/index.mjs",
     "setup:env": "node ./scripts/setup-env.mjs",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -b ../../lib/api-zod && tsc -p tsconfig.json --noEmit",
     "test:pin": "node --test tests/pin-exhaustion.test.mjs",
     "test:admin-push": "node --test tests/admin-db-failure-push.test.mjs",
     "lint": "eslint src --max-warnings 0",

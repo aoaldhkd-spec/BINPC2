@@ -113,7 +113,31 @@ const INSTANCE_ID = crypto.randomUUID();
 
 // ─── In-memory cache (loaded from DB on startup, write-through on every change)
 const store: Record<string, Record<string, unknown>[]> = {};
-const imageStore: Record<string, string> = {};
+/** RAM 캐시. 넘치면 오래된 항목부터 지우고, 조회 시 Postgres에서 다시 채움. */
+const IMAGE_STORE_MAX_ENTRIES = 80;
+const IMAGE_STORE_MAX_CHARS = 32 * 1024 * 1024;
+const imageStore = new Map<string, string>();
+
+function imageStoreGet(path: string): string | undefined {
+  return imageStore.get(path);
+}
+
+function pruneImageStore(): void {
+  let chars = 0;
+  for (const v of imageStore.values()) chars += v.length;
+  while (imageStore.size > IMAGE_STORE_MAX_ENTRIES || chars > IMAGE_STORE_MAX_CHARS) {
+    const first = imageStore.keys().next().value as string | undefined;
+    if (!first) break;
+    chars -= imageStore.get(first)?.length ?? 0;
+    imageStore.delete(first);
+  }
+}
+
+function imageStoreSet(path: string, dataUrl: string): void {
+  imageStore.delete(path);
+  imageStore.set(path, dataUrl);
+  pruneImageStore();
+}
 
 // ─── Allowed tables for /op ────────────────────────────────────────────────────
 // Allowlist prevents access to internal or non-existent tables.
@@ -764,7 +788,7 @@ async function loadImagesFromDb(): Promise<void> {
   try {
     const imgs = await pool.query('SELECT path, data_url FROM app_image_store');
     for (const img of imgs.rows) {
-      imageStore[img.path] = img.data_url;
+      imageStoreSet(img.path, img.data_url);
     }
   } catch (e) {
     logger.warn({ err: e }, '[db] image preload failed');
@@ -4066,7 +4090,7 @@ router.post('/storage-upload', async (req: Request, res: Response) => {
       return res.status(400).json({ data: null, error: 'Image content does not match declared type' });
     }
   }
-  imageStore[imgPath] = dataUrl;
+  imageStoreSet(imgPath, dataUrl);
   dbPersistImage(imgPath, dataUrl).catch(e => logger.error({ err: e }, '[db] background task error'));
   return res.json({ data: { path: imgPath }, error: null });
   } catch (e) {
@@ -4095,7 +4119,7 @@ router.post('/storage-remove', async (req: Request, res: Response) => {
       return res.status(403).json({ data: null, error: { message: 'Forbidden' } });
     }
 
-    for (const p of stringPaths) delete imageStore[p];
+    for (const p of stringPaths) imageStore.delete(p);
     await pool.query('DELETE FROM app_image_store WHERE path = ANY($1::text[])', [stringPaths]);
     return res.json({ data: null, error: null });
   } catch (e) {
@@ -4116,12 +4140,12 @@ router.get('/storage-image', async (req: Request, res: Response): Promise<void> 
     res.status(userId ? 403 : 401).json({ error: 'Authentication required' });
     return;
   }
-  let dataUrl: string | undefined = imageStore[path];
+  let dataUrl: string | undefined = imageStoreGet(path);
   if (!dataUrl) {
     try {
       const { rows } = await pool.query('SELECT data_url FROM app_image_store WHERE path = $1 LIMIT 1', [path]);
       dataUrl = rows[0]?.data_url as string | undefined;
-      if (dataUrl) imageStore[path] = dataUrl;
+      if (dataUrl) imageStoreSet(path, dataUrl);
     } catch (e) {
       logger.warn({ err: e, path }, '[storage-image] lazy load failed');
     }
