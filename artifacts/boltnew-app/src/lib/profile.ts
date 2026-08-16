@@ -119,6 +119,35 @@ export function getAvatarSrc(url: string | null | undefined, nick: string): stri
   return url!;
 }
 
+/** Playwright smoke marker from scripts/verify-chat-gestures.mjs — never show in the live deck. */
+export const SWIPE_GESTURE_VERIFY_MARKER = 'swipe-gesture-verify';
+
+export function isSwipeGestureVerifyProfile(p: {
+  bio?: string | null;
+  interests?: string | string[] | null;
+  nickname?: string | null;
+}): boolean {
+  const blob = [
+    p.bio ?? '',
+    Array.isArray(p.interests) ? p.interests.join(',') : (p.interests ?? ''),
+    p.nickname ?? '',
+  ].join('\n').toLowerCase();
+  return blob.includes(SWIPE_GESTURE_VERIFY_MARKER);
+}
+
+/** Drop leftover swipe-gesture fixtures. Keep `keepId` so a smoke-test session still has its own row. */
+export function excludeSwipeGestureVerifyProfiles<T extends {
+  id?: string;
+  bio?: string | null;
+  interests?: string | string[] | null;
+  nickname?: string | null;
+}>(list: T[], keepId?: string | null): T[] {
+  return list.filter((p) => {
+    if (!isSwipeGestureVerifyProfile(p)) return true;
+    return Boolean(keepId && p.id === keepId);
+  });
+}
+
 export function genAvatar(nickname: string): string {
   const nick = nickname.trim() || '?';
   const { from, to } = getAvatarGradient(nick);

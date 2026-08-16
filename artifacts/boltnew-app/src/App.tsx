@@ -4,7 +4,7 @@ import {
 } from 'lucide-react';
 import { supabase, setLocalDbUserId, setDeviceRecoveryPin, fetchAndSetSseToken, getDeviceSecret, onSseReconnect } from './lib/supabase';
 import { subscribeNetUi, resetNetUiForRetry, type NetUiStatus } from './lib/net-health';
-import { genAvatar } from './lib/profile';
+import { excludeSwipeGestureVerifyProfiles, genAvatar, isSwipeGestureVerifyProfile } from './lib/profile';
 import { findProfileById, isCompleteProfile } from './lib/profile-session';
 import {
   shouldShowWaitingOverlay,
@@ -113,7 +113,9 @@ function App() {
       const cached = ls.getItem(MATCHING_PROFILES_CACHE_KEY);
       if (!cached) return [];
       const parsed = JSON.parse(cached);
-      return Array.isArray(parsed) ? (parsed as Profile[]) : [];
+      return Array.isArray(parsed)
+        ? excludeSwipeGestureVerifyProfiles(parsed as Profile[], ls.getItem(MATCHING_USER_KEY))
+        : [];
     } catch { return []; }
   });
   const [shareEventNotif, setShareEventNotif] = useState<ShareEventNotificationData | null>(null);
@@ -647,10 +649,12 @@ function App() {
   const loadProfiles = useCallback(async () => {
     const { data } = await supabase.from('profiles').select('*').order('created_at', { ascending: false });
     if (data) {
-      setProfiles(data);
-      try { ls.setItem(MATCHING_PROFILES_CACHE_KEY, JSON.stringify(data)); } catch { /* quota */ }
+      const visible = excludeSwipeGestureVerifyProfiles(data as Profile[], userIdRef.current);
+      setProfiles(visible);
+      try { ls.setItem(MATCHING_PROFILES_CACHE_KEY, JSON.stringify(visible)); } catch { /* quota */ }
+      return visible;
     }
-    return data ?? [];
+    return [];
   }, []);
   // loading-main 지수 백오프 재시도에서 항상 최신 함수 참조 유지
   loadProfilesRef.current = loadProfiles;
@@ -790,8 +794,10 @@ function App() {
       .channel('realtime:profiles')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'profiles' },
         (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => setProfiles((prev) => {
-          if (prev.find((p) => p.id === (payload.new as Profile).id)) return prev;
-          return [payload.new as Profile, ...prev];
+          const incoming = payload.new as Profile;
+          if (isSwipeGestureVerifyProfile(incoming) && incoming.id !== userIdRef.current) return prev;
+          if (prev.find((p) => p.id === incoming.id)) return prev;
+          return [incoming, ...prev];
         }))
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' },
         (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) =>

@@ -15,7 +15,7 @@ import { groupRoomVisual, MAX_GROUPS_PER_USER } from '../lib/group-rooms';
 import { BIO_CATEGORIES, parseProfileInterests } from '../lib/interests';
 import { InterestPicker } from './InterestPicker';
 import { HeartType, HEART_TYPES, heartMeta } from '../lib/constants';
-import { getPositionLabel, getPositionBg, getPositionStyle, getDomSubLabel, getDomSubBg, getKoreanAge, genAvatar, getAvatarSrc, getAvatarGradientCss, hasUploadedPhoto } from '../lib/profile';
+import { getPositionLabel, getPositionBg, getPositionStyle, getDomSubLabel, getDomSubBg, getKoreanAge, genAvatar, getAvatarSrc, getAvatarGradientCss, hasUploadedPhoto, isSwipeGestureVerifyProfile } from '../lib/profile';
 import { containsBannedNicknameWord } from '../lib/bannedWords';
 import { getMbtiStyle, koreanMatch } from '../lib/utils';
 import { ls } from '../lib/storage';
@@ -184,6 +184,8 @@ export function MainScreen({
   const filteredProfiles = useMemo(() => {
     return [...profiles]
       .filter(p => {
+        // Playwright swipe-gesture fixtures must never appear in the live 3-col deck
+        if (isSwipeGestureVerifyProfile(p) && p.id !== currentUserId) return false;
         // 차단·숨기기 필터 (상호 차단 or 상대방이 나를 숨긴 경우 제외)
         if (blockedUserIds.has(p.id) || hiddenByIds.has(p.id)) return false;
         if (profileSearch) {
@@ -2021,7 +2023,7 @@ export function MainScreen({
             )}
             {/* 검색 결과 */}
             {chatSearch.trim() && (() => {
-              const results = profiles.filter(p => p.id !== currentUserId && (
+              const results = profiles.filter(p => p.id !== currentUserId && !isSwipeGestureVerifyProfile(p) && (
                 koreanMatch(p.nickname, chatSearch) ||
                 (!!p.mbti && koreanMatch(p.mbti, chatSearch)) ||
                 koreanMatch(getPositionLabel(p.personality_score ?? 50), chatSearch)

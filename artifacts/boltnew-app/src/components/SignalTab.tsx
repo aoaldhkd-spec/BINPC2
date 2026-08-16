@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Profile, UserSignal } from '../types/app';
 import type { HeartType } from '../lib/constants';
-import { getKoreanAge, getAvatarSrc, hasUploadedPhoto, getAvatarGradientCss } from '../lib/profile';
+import { getKoreanAge, getAvatarSrc, hasUploadedPhoto, getAvatarGradientCss, isSwipeGestureVerifyProfile } from '../lib/profile';
 import {
   SIGNAL_EMPTY_DECK_HINT,
   SIGNAL_EMPTY_DECK_TITLE,
@@ -95,7 +95,7 @@ export function SignalTab({
       myFeatureMsg: mySignal?.feature_msg,
       myStatusMsg: mySignal?.status_msg,
       candidates: profiles
-        .filter((p) => !skippedIds.has(p.id))
+        .filter((p) => !skippedIds.has(p.id) && !isSwipeGestureVerifyProfile(p))
         .map((p) => ({
           profile: p,
           idealMsg: signalByUser.get(p.id)?.ideal_msg,
