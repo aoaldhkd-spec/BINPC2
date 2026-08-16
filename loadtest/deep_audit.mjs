@@ -1,7 +1,7 @@
 /**
  * deep_audit.mjs — 3-area deep-dive stress test
  *
- * Area 1: General user features (chat, games, hearts, seat, badge sync, message loss)
+ * Area 1: General user features (chat, games, hearts, badge sync, message loss)
  * Area 2: Admin dashboard realtime control (ms-level broadcast timing under load)
  * Area 3: Tester/memory integrity (50→100→150 VU staged + GC verification)
  *
@@ -131,27 +131,27 @@ async function cleanupVUs(vus) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// AREA 1 — 일반 유저 기능: 채팅·게임·하트·좌석·사주 심층 분석
+// AREA 1 — 일반 유저 기능: 채팅·게임·하트·사주 심층 분석
 // ═══════════════════════════════════════════════════════════════════════════════
 async function area1(vus) {
   console.log('\n');
   console.log('╔══════════════════════════════════════════════════════════════════╗');
-  console.log('║  AREA 1 — 일반 유저 기능  (채팅·게임·하트·좌석·사주)           ║');
+  console.log('║  AREA 1 — 일반 유저 기능  (채팅·게임·하트·사주)                ║');
   console.log('╚══════════════════════════════════════════════════════════════════╝');
 
-  // ── 1-A: 좌석 선택 150명 동시 (upsert race 검증) ──────────────────────────
-  console.log('\n  [1-A] 좌석 선택 150명 동시 — upsert 경합·데이터 정합성 ─────────');
-  const seatResults = await Promise.all(vus.map((vu, i) =>
+  // ── 1-A: 프로필 SELECT 150명 동시 ─────────────────────────────────────────
+  console.log('\n  [1-A] 프로필 SELECT 150명 동시 ────────────────────────────────');
+  const profileResults = await Promise.all(vus.map((vu) =>
     req('POST', '/op', {
-      table: 'seats', op: 'upsert',
-      payload: { id: `${(i % 15) + 1}-${(i % 10) + 1}`, table_number: (i % 15) + 1,
-                  seat_position: (i % 10) + 1, user_id: vu.id, status: 'occupied', created_at: ts() },
-      conflictCols: ['id'],
+      table: 'profiles', op: 'select',
+      requesterId: vu.id,
+      filters: [{ type: 'eq', col: 'id', val: vu.id }],
+      maybeSingle: true,
     })
   ));
-  const seatOk = seatResults.filter(r => r.ok).length;
-  stats('좌석 upsert (150동시)', seatResults.map(r => r.latMs));
-  console.log(`  결과: ${seatOk}/150 성공  실패: ${150 - seatOk}`);
+  const profileOk = profileResults.filter(r => r.ok).length;
+  stats('프로필 select (150동시)', profileResults.map(r => r.latMs));
+  console.log(`  결과: ${profileOk}/150 성공  실패: ${150 - profileOk}`);
 
   // ── 1-B: 채팅방 생성 + 메시지 전송 → 유실 감지 ────────────────────────────
   console.log('\n  [1-B] 채팅방 생성 + 225메시지 동시 전송 → 메시지 유실 감지 ─────');
@@ -554,13 +554,7 @@ async function area3() {
   const vus100 = [...vus50, ...vus100add];
   console.log(`  100명 누적  wall=${((performance.now()-t100)/1000).toFixed(2)}s`);
 
-  // 100 VU 부하 (채팅 + 하트 + 좌석)
-  await Promise.all(vus100.map((vu, i) => req('POST', '/op', {
-    table: 'seats', op: 'upsert',
-    payload: { id: `${(i%20)+1}-${(i%10)+1}`, table_number: (i%20)+1, seat_position: (i%10)+1,
-                user_id: vu.id, status: 'occupied', created_at: ts() },
-    conflictCols: ['id'],
-  })));
+  // 100 VU 부하 (하트)
   await Promise.all(vus100.map((vu, i) => req('POST', '/op', {
     table: 'likes', op: 'upsert',
     payload: { id: `${vu.id}:${vus100[(i+1)%100].id}:red`,

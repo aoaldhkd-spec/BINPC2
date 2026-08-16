@@ -31,7 +31,6 @@ import { NicknameSetupScreen } from './components/NicknameSetupScreen';
 import { EntryGateScreen } from './components/EntryGateScreen';
 import { ProfileRecoveryScreen } from './components/ProfileRecoveryScreen';
 import { TutorialModal } from './components/TutorialModal';
-import { ProfileQrModal } from './components/ProfileQrModal';
 import { QrScannerModal } from './components/QrScannerModal';
 import { ContactRevealModal } from './components/ContactRevealModal';
 import {
@@ -119,7 +118,6 @@ function App() {
   const [fortuneModalTarget, setFortuneModalTarget] = useState<Profile | null>(null);
   const [showTutorialModal, setShowTutorialModal] = useState(false);
   const [tutorialPage, setTutorialPage] = useState(0);
-  const [showProfileQr, setShowProfileQr] = useState(false);
   const [showContactQr, setShowContactQr] = useState(false);
   const [showQrScanner, setShowQrScanner] = useState(false);
   const [scannedContactProfile, setScannedContactProfile] = useState<import('./types/app').Profile | null>(null);
@@ -658,7 +656,7 @@ function App() {
   }, []);
 
 
-  const submitAnonymousReport = async (content: string, _tableNumber: number | null) => {
+  const submitAnonymousReport = async (content: string) => {
     if (!content.trim()) return;
     const { error } = await supabase.from('anonymous_reports').insert({ content: content.trim() });
     if (error) throw new Error(error.message ?? '전송 실패');
@@ -1203,9 +1201,6 @@ function App() {
     hasValidProfile,
     isTester,
   });
-  // QR 스캔 후 미등록 사용자: 자리 QR URL 파라미터는 pendingSeatId/pendingSeatPath에 보존됨.
-  // 등록 완료 후 currentUserId useEffect에서 자동으로 자리 배정 처리됨
-
   if (appLoading || sessionActive === null || entryPassword === null) return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col items-center justify-center gap-4 px-6 text-center">
       <div className="w-12 h-12 rounded-full border-4 border-teal-500/30 border-t-teal-500 animate-spin" />
@@ -1389,7 +1384,6 @@ function App() {
         onRefreshProfiles={refreshProfilesTab}
         darkMode={darkMode}
         onToggleDark={() => { const next = !darkMode; setDarkMode(next); ls.setItem('dark_mode', next ? '1' : '0'); }}
-        onShowQr={() => setShowProfileQr(true)}
         onShowContactQr={() => setShowContactQr(true)}
         onScanQr={() => setShowQrScanner(true)}
         scannedContacts={scannedContacts}
@@ -1552,14 +1546,6 @@ function App() {
           share={contactViewShare.share}
           likedProfile={contactViewShare.profile}
           onClose={() => setContactViewShare(null)}
-        />
-      )}
-      {showProfileQr && currentUserId && (
-        <ProfileQrModal
-          profileId={currentUserId}
-          pinCode={profileMap.get(currentUserId)?.pin_code ?? null}
-          onClose={() => setShowProfileQr(false)}
-          onPinGenerated={(pin) => setProfiles(prev => prev.map(p => p.id === currentUserId ? { ...p, pin_code: pin } : p))}
         />
       )}
       {showContactQr && currentUserId && profileMap.get(currentUserId) && (

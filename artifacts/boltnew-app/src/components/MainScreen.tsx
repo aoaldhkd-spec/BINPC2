@@ -80,7 +80,7 @@ export function MainScreen({
   receivedContactShares, pendingHeartsCount, chatList, suggestions,
   onContactShareOpen: _onContactShareOpen, onContactViewOpen, onHeartResponse, onDeleteChat, onDeleteAllChats, onSubmitSuggestion, onOpenChat,
   onSubmitAnonymousReport,
-  timerEndAt, timerLabel, onRefreshStatus, onRefreshChat, onRefreshProfiles, darkMode, onToggleDark, onShowQr, onShowContactQr, onScanQr, scannedContacts, onClearScannedContact, functionsLocked = false, onShowTutorial,
+  timerEndAt, timerLabel, onRefreshStatus, onRefreshChat, onRefreshProfiles, darkMode, onToggleDark, onShowContactQr, onScanQr, scannedContacts, onClearScannedContact, functionsLocked = false, onShowTutorial,
   newMsgCount, onClearMsgCount, unreadChatCounts, onClearChatUnread: _onClearChatUnread,
   onUpdateProfile, fortuneCompatTarget, myHeartCount,
   groupChats = [], unreadGroupCounts = {}, newGroupMsgCount: _newGroupMsgCount = 0, onClearGroupMsgCount: _onClearGroupMsgCount, onOpenGroupChat,
@@ -110,7 +110,7 @@ export function MainScreen({
   onDeleteAllChats: () => void;
   onSubmitSuggestion: (content: string, contactInfo: string) => Promise<void>;
   onOpenChat: (profile: Profile) => void;
-  onSubmitAnonymousReport: (content: string, tableNumber: number | null) => Promise<void>;
+  onSubmitAnonymousReport: (content: string) => Promise<void>;
   timerEndAt: string | null;
   timerLabel: string | null;
   onRefreshStatus: () => void;
@@ -118,7 +118,6 @@ export function MainScreen({
   onRefreshProfiles: () => void;
   darkMode: boolean;
   onToggleDark: () => void;
-  onShowQr: () => void;
   onShowContactQr: () => void;
   onScanQr: () => void;
   scannedContacts: Array<{ id: string; nickname: string; mbti?: string | null; photo_url?: string | null; kakao_id?: string | null; instagram_id?: string | null; phone_number?: string | null; contact_private?: boolean | null; scanned_at: string }>;
@@ -150,7 +149,6 @@ export function MainScreen({
   onUserSignalUpdate?: (row: UserSignal) => void;
 }) {
   const heartCount = useCallback((t: HeartType) => { let c = 0; sentHeartsPerPerson.forEach(types => { if (types.has(t)) c++; }); return c; }, [sentHeartsPerPerson]);
-  const tableNumber: number | null = null;
 
   const _currentUserNickname = useMemo(() => profiles.find(p => p.id === currentUserId)?.nickname ?? '', [profiles, currentUserId]);
   const [profileSearch, setProfileSearch] = useState('');
@@ -354,7 +352,7 @@ export function MainScreen({
   const sendReport = async (text: string) => {
     setReportError(null);
     try {
-      await onSubmitAnonymousReport(text, tableNumber);
+      await onSubmitAnonymousReport(text);
       setDrinkPicker(null);
       setReportSent(true);
       setReportText('');
@@ -2085,8 +2083,7 @@ export function MainScreen({
             <div className={`rounded-2xl shadow-sm p-5 transition-colors duration-300 ${darkMode ? 'bg-slate-800 border border-slate-600' : 'bg-white'}`}>
               <h3 className={`text-base font-black mb-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}>관리자(방장)에게 요청</h3>
               <p className={`text-xs mb-4 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
-                익명으로 전송되며, 관리자에게 어느 테이블에서 보냈는지 함께 전달됩니다.
-                {tableNumber && <span className="ml-1 font-bold text-teal-600">({tableNumber}번 테이블)</span>}
+                익명으로 전송됩니다.
               </p>
 
               {reportSent ? (

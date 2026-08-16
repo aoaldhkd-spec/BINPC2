@@ -65,7 +65,7 @@ export function ProfilesTabSection({ profiles, settings: _settings, onClear, onD
           type="text"
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="닉네임, MBTI, 지역, 관심사, 좌석, 고유번호 검색…"
+          placeholder="닉네임, MBTI, 지역, 관심사, 고유번호 검색…"
           className="w-full pl-8 pr-8 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-cyan-400 focus:bg-white transition-all"
         />
         {search && (

@@ -213,39 +213,6 @@ export interface Database {
         };
         Relationships: [];
       };
-      seats: {
-        Row: {
-          id: string;
-          table_number: number;
-          seat_position: number;
-          seat_label: string;
-          profile_id: string | null;
-          status: 'empty' | 'occupied';
-          registered_at: string | null;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          table_number: number;
-          seat_position: number;
-          seat_label: string;
-          profile_id?: string | null;
-          status?: 'empty' | 'occupied';
-          registered_at?: string | null;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          table_number?: number;
-          seat_position?: number;
-          seat_label?: string;
-          profile_id?: string | null;
-          status?: 'empty' | 'occupied';
-          registered_at?: string | null;
-          created_at?: string;
-        };
-        Relationships: [];
-      };
       session_history: {
         Row: { id: string; ended_at: string; seats_snapshot: Json; };
         Insert: { id?: string; ended_at?: string; seats_snapshot: Json; };
@@ -344,28 +311,8 @@ export interface Database {
         Args: { p_admin_password: string };
         Returns: undefined;
       };
-      admin_force_seat: {
-        Args: { p_profile_id: string; p_seat_id: string; p_admin_password: string };
-        Returns: undefined;
-      };
-      admin_clear_seat: {
-        Args: { p_seat_id: string; p_admin_password: string };
-        Returns: undefined;
-      };
       admin_delete_profile: {
         Args: { p_profile_id: string; p_admin_password: string };
-        Returns: undefined;
-      };
-      admin_reset_all_seats: {
-        Args: { p_admin_password: string };
-        Returns: undefined;
-      };
-      admin_clear_profile_seat: {
-        Args: { p_profile_id: string; p_admin_password: string };
-        Returns: undefined;
-      };
-      admin_swap_seats: {
-        Args: { p_seat_a_id: string; p_seat_b_id: string; p_admin_password: string };
         Returns: undefined;
       };
       admin_update_profile: {

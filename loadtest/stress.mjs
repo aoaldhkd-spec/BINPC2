@@ -86,29 +86,6 @@ async function phase1() {
   return vus.filter((_, i) => results[i].ok);
 }
 
-// ─── Phase 2a: concurrent seat selection (150 users) ─────────────────────────
-async function phase2a(vus) {
-  console.log('\n━━━ Phase 2a: 150 VU concurrent seat selection ━━━━━━━━━━━━━━━━━');
-  const results = await Promise.all(vus.map((vu, i) =>
-    req('POST', '/op', {
-      table: 'seats',
-      op: 'upsert',
-      payload: {
-        id: `${(i % 10) + 1}-${(i % 15) + 1}`,
-        table_number: (i % 10) + 1,
-        seat_position: (i % 15) + 1,
-        user_id: vu.id,
-        status: 'occupied',
-        created_at: ts(),
-      },
-      onConflict: 'id',
-    })
-  ));
-  const ok = results.filter(r => r.ok).length;
-  stats('seat upsert', results.map(r => r.latMs));
-  console.log(`  ok=${ok}/${VU_COUNT}`);
-}
-
 // ─── Phase 2b: concurrent chat & message sending ─────────────────────────────
 async function phase2b(vus) {
   console.log('\n━━━ Phase 2b: concurrent chat open + message send ━━━━━━━━━━━━━━');
@@ -293,7 +270,6 @@ console.log('══════════════════════�
 const totalT = performance.now();
 await phase0();
 const vus = await phase1();
-await phase2a(vus);
 await phase2b(vus);
 await phase2c(vus);
 await phase3(vus);

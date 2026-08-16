@@ -102,7 +102,7 @@ describe('notifyAdminDbFailure — payload correctness', () => {
     const calls = [];
     const { notifyAdminDbFailure } = makeNotifier(payload => { calls.push(payload); });
 
-    await notifyAdminDbFailure('seats', 'ECONNRESET');
+    await notifyAdminDbFailure('profiles', 'ECONNRESET');
 
     assert.equal(calls[0].tag, 'db-persist-error');
   });
@@ -130,7 +130,7 @@ describe('notifyAdminDbFailure — long error truncation', () => {
     const { notifyAdminDbFailure } = makeNotifier(payload => { calls.push(payload); });
 
     const exactErr = 'B'.repeat(80);
-    await notifyAdminDbFailure('seats', exactErr);
+    await notifyAdminDbFailure('profiles', exactErr);
 
     assert.equal(calls.length, 1);
     assert.ok(!calls[0].body.includes('…'), 'expected no truncation for 80-char message');

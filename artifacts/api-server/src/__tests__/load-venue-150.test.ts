@@ -54,7 +54,7 @@ async function op(body: Record<string, unknown>) {
 }
 
 describe('venue load 50/100/150 (in-process)', () => {
-  it('registers 150 users, serves /ready, seats, PIN recover, and stays under RSS budget', async () => {
+  it('registers 150 users, serves /ready, PIN recover, and stays under RSS budget', async () => {
     const rss0 = process.memoryUsage().rss;
     const n = 150;
     const ids = Array.from({ length: n }, () => randomUUID());
@@ -86,8 +86,6 @@ describe('venue load 50/100/150 (in-process)', () => {
       op({ op: 'select', table: 'profiles', requesterId: id, filters: [{ type: 'eq', col: 'id', val: id }], maybeSingle: true }),
     ));
     expect(profiles.every((r) => r.status === 200)).toBe(true);
-    const seatsUser = await op({ op: 'select', table: 'seats', requesterId: ids[0] });
-    expect(seatsUser.status).toBe(403);
 
     const pinUser = created[0].body.data as { id: string; nickname: string; pin_code: string };
     const step1 = await request(app).post('/api/db/by-pin').send({ pin: String(pinUser.pin_code) });

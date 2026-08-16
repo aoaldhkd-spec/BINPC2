@@ -298,7 +298,6 @@ describe('useChat — openChat clears both per-chat badge and global newMsgCount
       bio: '',
       mbti: null,
       photo_url: null,
-      seat_number: null,
       personality_score: 50,
       birth_year: null,
       is_admin: false,

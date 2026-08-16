@@ -69,8 +69,6 @@ function newMetrics() {
     reconnectFail: 0,
     pinRecoverOk: 0,
     pinRecoverFail: 0,
-    seatsOk: 0,
-    seatsFail: 0,
     readyP50: 0,
     adminBroadcastOk: 0,
     adminBroadcastMiss: 0,
@@ -554,8 +552,8 @@ async function runStage(n) {
   m.reconnectOk += reOk;
   console.log(`   reconnected sample ${reOk}`);
 
-  // ⑪ /ready 폭격 + 좌석 SELECT + PIN 복구 + 관리자 브로드캐스트
-  console.log('⑪ ready/seats/pin/admin broadcast…');
+  // ⑪ /ready 폭격 + PIN 복구 + 관리자 브로드캐스트
+  console.log('⑪ ready/pin/admin broadcast…');
   m.rssMb = Math.round(process.memoryUsage().rss / 1048576);
   const readyLat = [];
   await mapPool(loggedIn.slice(0, Math.min(loggedIn.length, 40)), 20, async () => {
@@ -570,15 +568,6 @@ async function runStage(n) {
     }
   });
   m.readyP50 = pct(readyLat, 50);
-
-  await mapPool(loggedIn.slice(0, Math.min(loggedIn.length, 30)), 15, async (u) => {
-    const r = await api('/op', {
-      sessionToken: u.sessionToken,
-      body: { op: 'select', table: 'seats', requesterId: u.id },
-    });
-    if (r.status === 200) m.seatsOk++; else m.seatsFail++;
-    m.latencies.op.push(r.ms);
-  });
 
   const pinSample = registered.filter((u) => u.pin && u.nick).slice(0, Math.min(12, registered.length));
   await mapPool(pinSample, 6, async (u) => {
@@ -687,7 +676,7 @@ function printStage(m) {
   console.log(`msg send ok/fail=${m.msgSendOk}/${m.msgSendFail} sse=${rate(m.msgSseDelivered, m.msgSseMiss)} select=${rate(m.msgSelectOk, m.msgSelectMiss)}`);
   console.log(`like ok/fail/idem=${m.likeOk}/${m.likeFail}/${m.likeDupIdempotent} sse=${rate(m.likeSseDelivered, m.likeSseMiss)}`);
   console.log(`http 429=${m.http429} 5xx=${m.http5xx} otherErr=${m.httpOtherErr}`);
-  console.log(`ready p50=${m.readyP50}ms seats ok/fail=${m.seatsOk}/${m.seatsFail} pin ${m.pinRecoverOk}/${m.pinRecoverOk + m.pinRecoverFail}`);
+  console.log(`ready p50=${m.readyP50}ms pin ${m.pinRecoverOk}/${m.pinRecoverOk + m.pinRecoverFail}`);
   console.log(`admin settings SSE ${m.adminBroadcastOk} hit / ${m.adminBroadcastOk + m.adminBroadcastMiss}  p50=${pct(m.adminBroadcastMs, 50).toFixed(0)}ms p95=${pct(m.adminBroadcastMs, 95).toFixed(0)}ms`);
   console.log(`sim rss=${m.rssMb}MB`);
   console.log(`lat ms  register p50=${pct(m.latencies.register, 50).toFixed(0)} p95=${pct(m.latencies.register, 95).toFixed(0)}`);

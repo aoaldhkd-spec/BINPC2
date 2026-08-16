@@ -131,8 +131,6 @@ const ALLOWED_OP_TABLES = new Set([
   'blocked_users', 'profile_views',
   // 상태·이상형 신호
   'user_signals',
-  // 테스트 대시보드 전용 좌석 데이터
-  'seats',
   // 서버가 계산하고 사용자는 자신의 잔여 수만 조회
   'heart_balances',
 ]);
@@ -1478,7 +1476,7 @@ function applyAppSettingsFromDbRows(dbRows: Record<string, unknown>[]): boolean 
   return false;
 }
 
-/** hot 테이블(profiles·seats·app_settings)을 app_kv_rows에서 재동기화 — LISTEN gap 보정 전용 */
+/** hot 테이블(profiles·app_settings)을 app_kv_rows에서 재동기화 — LISTEN gap 보정 전용 */
 const REALTIME_MERGE_TABLES = new Set(['profiles', 'chats', 'likes', 'messages']);
 const _lastDbMerge = new Map<string, number>();
 const DB_MERGE_THROTTLE_MS = 2_500;
@@ -1660,7 +1658,7 @@ function _send(client: Response, conns: Set<Response>, payload: string) {
 const SSE_BROADCAST_SYNC_MAX = Number(process.env.SSE_BROADCAST_SYNC_MAX ?? 400);
 const SSE_BROADCAST_CHUNK = Number(process.env.SSE_BROADCAST_CHUNK ?? 100);
 
-/** 모든 클라이언트에게 전송 (공개 이벤트: seats, profiles, app_settings, games 등) */
+/** 모든 클라이언트에게 전송 (공개 이벤트: profiles, app_settings, games 등) */
 function broadcastAll(event: Record<string, unknown>) {
   const json = JSON.stringify(event);
   const seq = _ringAdd(json, 'all');
@@ -1741,7 +1739,7 @@ function _smartBroadcastLocal(table: string, row: Record<string, unknown> | null
     // 프로필 포함 이벤트라도 수신자가 명확하면 해당 유저에게만 전달
     broadcastToUsers(targets, safeEvent);
   } else if (!PRIVATE_TABLES.has(table)) {
-    // 공개 테이블(seats, profiles, app_settings 등)만 전체 브로드캐스트 허용
+    // 공개 테이블(profiles, app_settings 등)만 전체 브로드캐스트 허용
     // profiles → 연락처 필드 제거, app_settings → admin_password 제거
     if (table === 'profiles') {
       const safeEvent = {
@@ -2029,11 +2027,6 @@ router.post('/op', async (req: Request, res: Response) => {
   if (!ALLOWED_OP_TABLES.has(table)) {
     _activeOpCount--;
     return res.status(400).json({ data: null, error: { message: 'Invalid table', code: 'INVALID_TABLE' } });
-  }
-
-  if (table === 'seats' && !isAdmin && !isTestSession) {
-    _activeOpCount--;
-    return res.status(403).json({ data: null, error: { message: 'Test dashboard authentication required', code: 'FORBIDDEN' } });
   }
 
   if (table === 'heart_balances' && op !== 'select' && !isAdmin) {

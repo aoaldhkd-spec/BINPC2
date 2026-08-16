@@ -123,7 +123,7 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
           {([
             { key: 'likes', emoji: '❤️', label: '하트', desc: '모든 하트 기록 삭제', bg: 'bg-pink-50 border-pink-200 hover:bg-pink-100', title: '하트 초기화', msg: '모든 하트(좋아요) 기록을 삭제합니다.', fn: onClearLikes },
             { key: 'chats', emoji: '💬', label: '채팅', desc: '채팅·메시지 전체 삭제', bg: 'bg-teal-50 border-teal-200 hover:bg-teal-100', title: '채팅 초기화', msg: '모든 채팅방과 메시지를 삭제합니다.', fn: onClearChats },
-            { key: 'profiles', emoji: '👤', label: '참여자', desc: '모든 프로필 삭제', bg: 'bg-indigo-50 border-indigo-200 hover:bg-indigo-100', title: '참여자 초기화', msg: '모든 참여자 프로필을 삭제합니다. 좌석도 함께 비워집니다.', fn: onClearProfiles },
+            { key: 'profiles', emoji: '👤', label: '참여자', desc: '모든 프로필 삭제', bg: 'bg-indigo-50 border-indigo-200 hover:bg-indigo-100', title: '참여자 초기화', msg: '모든 참여자 프로필을 삭제합니다.', fn: onClearProfiles },
             { key: 'history', emoji: '📋', label: '이력', desc: '회식 이력 모두 삭제', bg: 'bg-emerald-50 border-emerald-200 hover:bg-emerald-100', title: '이력 초기화', msg: '저장된 회식 이력을 모두 삭제합니다.', fn: onClearHistory },
           ] as const).map(item => {
             const hasRestore = restoreMap.has(item.key);
@@ -165,7 +165,7 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
               <span className="text-xs font-black text-red-600 bg-red-100 border border-red-300 px-2 py-0.5 rounded-full">위험</span>
               <h3 className="font-bold text-red-900 text-sm">회식 종료 전체 초기화</h3>
             </div>
-            <p className="text-xs text-red-600 mt-0.5 font-semibold">좌석·참여자·하트·채팅·공지·게임·건의·이력 모두 삭제 — 복구 불가</p>
+            <p className="text-xs text-red-600 mt-0.5 font-semibold">참여자·하트·채팅·공지·게임·건의·이력 모두 삭제 — 복구 불가</p>
           </div>
           <button onClick={() => setConfirmEventEnd(true)}
             className="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 bg-red-600 text-white rounded-xl font-semibold text-sm hover:bg-red-700 transition-all border-2 border-red-800">
@@ -194,7 +194,7 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
       )}
       {confirmEventEnd && (
         <ConfirmDialog title="회식 종료 전체 초기화"
-          message={`좌석 · 참여자 · 하트 · 채팅 · 공지 · 게임 · 건의 · 이력\n모든 데이터를 초기화합니다.\n\n진짜로 전체 초기화하시겠습니까?`}
+          message={`참여자 · 하트 · 채팅 · 공지 · 게임 · 건의 · 이력\n모든 데이터를 초기화합니다.\n\n진짜로 전체 초기화하시겠습니까?`}
           danger
           onConfirm={() => { setConfirmEventEnd(false); onEventEndReset(); }}
           onCancel={() => setConfirmEventEnd(false)}

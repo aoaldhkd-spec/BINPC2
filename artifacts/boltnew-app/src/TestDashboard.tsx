@@ -10,7 +10,6 @@ import { genAvatar } from './lib/profile';
 import { MBTI_LIST, BIO_LIST, LETTERS } from './lib/constants';
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
-type Seat = Database['public']['Tables']['seats']['Row'];
 type Like = Database['public']['Tables']['likes']['Row'];
 type Chat = Database['public']['Tables']['chats']['Row'];
 
@@ -86,11 +85,9 @@ async function testResync(): Promise<void> {
 // ─── Main TestDashboard ───────────────────────────────────────────────────────
 export default function TestDashboard() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [seats, setSeats] = useState<Seat[]>([]);
   const [likes, setLikes] = useState<Like[]>([]);
   const [chats, setChats] = useState<Chat[]>([]);
   const [sessionActive, setSessionActive] = useState<boolean | null>(null);
-  const [_activeTables, setActiveTables] = useState<number[] | null>(null);
   const [loading, setLoading] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [myUserId, setMyUserId] = useState<string | null>(() => localStorage.getItem('matching_app_user_id'));
@@ -102,28 +99,23 @@ export default function TestDashboard() {
   };
 
   const load = async () => {
-    const [p, s, l, c, settings] = await Promise.all([
+    const [p, l, c, settings] = await Promise.all([
       supabase.from('profiles').select('*').order('created_at', { ascending: false }),
-      supabase.from('seats').select('*').order('table_number').order('seat_position'),
       supabase.from('likes').select('*').order('created_at', { ascending: false }),
       supabase.from('chats').select('*').order('created_at', { ascending: false }),
-      supabase.from('app_settings').select('session_active, active_tables').eq('id', 1).single(),
+      supabase.from('app_settings').select('session_active').eq('id', 1).single(),
     ]);
     if (p.data) setProfiles(p.data);
-    if (s.data) setSeats(s.data);
     if (l.data) setLikes(l.data);
     if (c.data) setChats(c.data);
     if (settings.data) {
       setSessionActive(settings.data.session_active);
-      setActiveTables((settings.data.active_tables as number[] | null) ?? null);
     }
   };
 
   useEffect(() => { load().catch(e => console.error('[TestDashboard] load 실패:', e)); }, []);
 
   const myProfile = profiles.find(p => p.id === myUserId);
-  const occupied = seats.filter(s => s.status === 'occupied').length;
-  const mySeat = seats.find(s => s.profile_id === myUserId);
 
   // ── Session ────────────────────────────────────────────────────────────────
   const _toggleSession = async () => {
@@ -224,7 +216,6 @@ export default function TestDashboard() {
 
   const deleteProfile = async (id: string) => {
     setLoading(`del-${id}`);
-    await supabase.from('seats').update({ profile_id: null, status: 'empty', registered_at: null }).eq('profile_id', id);
     await supabase.from('likes').delete().or(`liker_id.eq.${id},liked_id.eq.${id}`);
     await supabase.from('profiles').delete().eq('id', id);
     if (myUserId === id) { localStorage.removeItem('matching_app_user_id'); setMyUserId(null); }
@@ -235,9 +226,8 @@ export default function TestDashboard() {
   };
 
   const deleteAllProfiles = async () => {
-    if (!confirm('모든 프로필과 자리를 초기화할까요?')) return;
+    if (!confirm('모든 프로필을 초기화할까요?')) return;
     setLoading('deleteAll');
-    await supabase.from('seats').update({ profile_id: null, status: 'empty', registered_at: null }).neq('id', '00000000-0000-0000-0000-000000000000');
     await supabase.from('likes').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     await supabase.from('chats').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     await supabase.from('profiles').delete().neq('id', '00000000-0000-0000-0000-000000000000');
@@ -365,10 +355,9 @@ export default function TestDashboard() {
 
       <div className="max-w-2xl mx-auto p-4 space-y-4 pb-16">
         {/* Status bar */}
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           {[
             { label: '프로필', val: profiles.length, color: 'text-cyan-400' },
-            { label: '착석', val: `${occupied}/${seats.length}`, color: 'text-teal-400' },
             { label: '하트', val: likes.length, color: 'text-rose-400' },
             { label: '채팅', val: chats.length, color: 'text-violet-400' },
           ].map(s => (
@@ -387,7 +376,7 @@ export default function TestDashboard() {
                 <img src={myProfile.photo_url} className="w-10 h-10 rounded-full" />
                 <div className="flex-1 min-w-0">
                   <p className="font-bold text-white text-sm">{myProfile.nickname}</p>
-                  <p className="text-xs text-slate-400">{myProfile.mbti} · {myProfile.bio} · {mySeat ? `${mySeat.seat_label}` : '자리 없음'}</p>
+                  <p className="text-xs text-slate-400">{myProfile.mbti} · {myProfile.bio}</p>
                 </div>
                 <Btn label="이 계정으로 입장" onClick={() => enterAsUser(myProfile.id)} color="teal" small disabled={loading === 'enter'} />
                 <Btn label="초기화" onClick={() => { localStorage.removeItem('matching_app_user_id'); setMyUserId(null); notify('계정 초기화됨'); }} color="red" small />
