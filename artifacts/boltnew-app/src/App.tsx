@@ -6,7 +6,12 @@ import { supabase, setLocalDbUserId, setDeviceRecoveryPin, fetchAndSetSseToken, 
 import { subscribeNetUi, resetNetUiForRetry, type NetUiStatus } from './lib/net-health';
 import { genAvatar } from './lib/profile';
 import { findProfileById, isCompleteProfile } from './lib/profile-session';
-import { shouldShowWaitingOverlay } from './lib/entry-gate';
+import {
+  shouldShowWaitingOverlay,
+  shouldShowEntryGate,
+  shouldShowNicknameSetup,
+  shouldShowRecoveryScreen,
+} from './lib/entry-gate';
 import { HeartType } from './lib/constants';
 // ─── 분리된 타입·유틸·컴포넌트 imports ────────────────────────────────────────
 import type {
@@ -433,7 +438,9 @@ function App() {
 
   useEffect(() => {
     let cancelled = false;
-    // API 콜드스타트·재시도 중에도 2.5초 후에는 프리뷰/대기 화면 표시 (무한 스피너 방지)
+    // API 콜드스타트·재시도 중에도 2.5초 후에는 스피너만 해제.
+    // entryPassword는 비우지 않음 — 빈 값으로 강제하면 대기 랜딩이 먼저 뜨고
+    // /ready 이후 입장 코드 화면으로 한 번 더 바뀐다.
     const safetyTimer = setTimeout(() => {
       if (!cancelled) {
         setAppLoading(false);
@@ -441,7 +448,6 @@ function App() {
         if (!ls.getItem(MATCHING_USER_KEY)) {
           setSessionActive(prev => (prev === null ? false : prev));
         }
-        setEntryPassword(prev => (prev === null ? '' : prev));
       }
     }, 2_500);
 
@@ -1141,6 +1147,7 @@ function App() {
         setProfiles(prev => prev.some(p => p.id === profile.id) ? prev : [profile as Profile, ...prev]);
         setCurrentUserId(profile.id);
         setProfileBoot('checking');
+        setEntryVerified(true);
         void fetchAndSetSseToken(profile.id as string);
         setView('loading-main');
       } else {
@@ -1201,6 +1208,22 @@ function App() {
     hasValidProfile,
     isTester,
   });
+  const showEntryGate = shouldShowEntryGate({
+    entryPassword,
+    entryVerified,
+    currentUserId,
+    isTester,
+  });
+  const showRecovery = shouldShowRecoveryScreen({
+    hasValidProfile,
+    profileBoot,
+    view,
+  });
+  const showNicknameSetup = shouldShowNicknameSetup({
+    currentUserId,
+    hasValidProfile,
+    view,
+  });
   if (appLoading || sessionActive === null || entryPassword === null) return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col items-center justify-center gap-4 px-6 text-center">
       <div className="w-12 h-12 rounded-full border-4 border-teal-500/30 border-t-teal-500 animate-spin" />
@@ -1208,8 +1231,8 @@ function App() {
       <p className="text-sm font-bold text-slate-400">조ㄹ라 잠시만 기다려주세요! 🍺</p>
     </div>
   );
-  // 입장 코드 게이트: 설정되어 있고 아직 인증 안 됐으면 입력 화면 표시
-  if (!!entryPassword && !entryVerified) return (
+  // 입장 코드 게이트: 미식별 방문자만. 더미/복구/재방문은 스킵
+  if (showEntryGate && entryPassword) return (
     <EntryGateScreen
       onVerified={() => {
         ls.setItem(ENTRY_VERIFIED_KEY, entryPassword);
@@ -1226,7 +1249,7 @@ function App() {
 
   // 프로필 미완료·미검증 — 메인 진입 차단 (신규 → 등록, 기존 → 복구번호)
   if (currentUserId && !hasValidProfile && profileBoot !== 'ok') {
-    if (profileBoot === 'recover' || view === 'entry-recover') {
+    if (showRecovery) {
       return (
         <ProfileRecoveryScreen
           onRecover={handleProfileRecovery}
@@ -1241,17 +1264,6 @@ function App() {
       </div>
     );
   }
-  if (!currentUserId && !hasValidProfile && view !== 'entry-1' && view !== 'entry-recover' && view !== 'loading-main') {
-    return (
-      <NicknameSetupScreen
-        onSubmit={handleNicknameSetup}
-        loading={loading}
-        registrationError={registrationError}
-        onReset={reset}
-        onShowRecovery={() => setView('entry-recover')}
-      />
-    );
-  }
 
   if (view === 'loading-main') return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col items-center justify-center gap-4">
@@ -1260,14 +1272,14 @@ function App() {
     </div>
   );
 
-  if (view === 'entry-recover') return (
+  if (showRecovery) return (
     <ProfileRecoveryScreen
       onRecover={handleProfileRecovery}
       onBack={() => setView('entry-1')}
     />
   );
 
-  if (view === 'entry-1') return (
+  if (showNicknameSetup) return (
     <NicknameSetupScreen
       onSubmit={handleNicknameSetup}
       loading={loading}
@@ -1276,6 +1288,16 @@ function App() {
       onShowRecovery={() => setView('entry-recover')}
     />
   );
+
+  // 식별된 유저인데 view가 아직 첫 방문 화면이면 잘못된 페이지 대신 로딩
+  if (currentUserId && (view === 'entry-1' || view === 'entry-recover')) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col items-center justify-center gap-4">
+        <div className="w-12 h-12 rounded-full border-4 border-teal-500/30 border-t-teal-500 animate-spin" />
+        <p className="text-sm text-slate-400 font-semibold">프로필 확인 중...</p>
+      </div>
+    );
+  }
 
   const isSubScreen = view === 'profile' || view === 'chat' || view === 'group-chat';
 
