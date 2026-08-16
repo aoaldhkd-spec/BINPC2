@@ -793,7 +793,7 @@ export function TutorialVideo({
   })();
 
   const DESIGN_H = 248;
-  const COMPACT_STAGE_H = 120;
+  const COMPACT_STAGE_H = 168;
   const scaleStage = compact || fill;
   const stageRef = useRef<HTMLDivElement>(null);
   const [stageH, setStageH] = useState(compact ? COMPACT_STAGE_H : DESIGN_H);

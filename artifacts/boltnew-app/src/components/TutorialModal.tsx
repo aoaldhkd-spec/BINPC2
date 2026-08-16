@@ -4,6 +4,7 @@ import { TutorialVideo } from './TutorialVideo';
 
 type Tip = { icon: string; title: string; desc: string };
 type Section = { emoji: string; title: string; tips: Tip[]; footer?: string };
+type FillerKind = 'guide' | 'chat' | 'pin' | 'hidden';
 type Topic = {
   id: string;
   emoji: string;
@@ -14,7 +15,7 @@ type Topic = {
   video?: number[];
   sections?: Section[];
   footer?: string;
-  welcome?: boolean;
+  filler?: FillerKind;
 };
 
 const BASIC: Topic[] = [
@@ -25,7 +26,7 @@ const BASIC: Topic[] = [
     title: '오늘만 꼭 지켜 주세요',
     color: 'from-teal-500 to-cyan-600',
     tips: [],
-    welcome: true,
+    filler: 'guide',
     sections: [
       {
         emoji: '📋',
@@ -51,20 +52,30 @@ const BASIC: Topic[] = [
     ],
   },
   {
-    id: 'heart-settings',
+    id: 'heart',
     emoji: '❤️',
-    label: '하트·설정',
-    title: '하트 보내기 · 내 설정',
+    label: '하트',
+    title: '하트 보내기',
     color: 'from-pink-500 to-rose-500',
     tips: [
       { icon: '🤍', title: '보내는 곳', desc: '참여자 카드 아래쪽 하트. 오른쪽 위가 아니에요.' },
       { icon: '8️⃣', title: '개수', desc: '❤️호감 💙친구 💗뜨밤 💚칭찬 · 종류마다 2개, 오늘 8개.' },
       { icon: '✅', title: '수락되면', desc: '연락처를 나눌 수 있어요. 채팅방은 자동으로 안 생겨요.' },
+    ],
+    video: [6],
+  },
+  {
+    id: 'settings',
+    emoji: '⚙️',
+    label: '내설정',
+    title: '내 설정 · 프로필',
+    color: 'from-cyan-500 to-sky-600',
+    tips: [
       { icon: '🏷️', title: '닉네임·관심사', desc: 'MY → 내 설정 → 프로필 편집에서 고쳐요.' },
       { icon: '📷', title: '사진·아바타', desc: '같은 내 설정에서 사진 올리거나 아바타를 골라요.' },
       { icon: '📅', title: '생월·연락처', desc: '생월일은 내 설정 또는 내 운세. 연락처도 내 설정.' },
     ],
-    video: [6, 1, 2],
+    video: [1, 2],
   },
   {
     id: 'chat',
@@ -72,7 +83,7 @@ const BASIC: Topic[] = [
     label: '채팅',
     title: '채팅은 이렇게 해요',
     color: 'from-blue-500 to-indigo-500',
-    welcome: true,
+    filler: 'chat',
     tips: [
       { icon: '💬', title: '여는 곳', desc: '카드의 채팅, 또는 MY → 내 채팅. 하트와 별개예요.' },
       { icon: '😊', title: '스티커·이모지', desc: '입력창 왼쪽 😊 → 이모지 / 스티커 팩' },
@@ -101,7 +112,7 @@ const ADVANCED: Topic[] = [
     label: '고유번호',
     title: '내 고유번호',
     color: 'from-amber-500 to-orange-500',
-    welcome: true,
+    filler: 'pin',
     tips: [
       { icon: '📍', title: '어디에', desc: 'MY → 내 상태의 4자리. 입장 핀과 달라요.' },
       { icon: '📱', title: '기기 바꿈', desc: '새 폰에서 프로필을 다시 만들지 말고 복구.' },
@@ -115,7 +126,7 @@ const ADVANCED: Topic[] = [
     label: '숨은기능',
     title: '알아두면 좋은 숨은 기능',
     color: 'from-violet-500 to-purple-600',
-    welcome: true,
+    filler: 'hidden',
     tips: [
       { icon: '🔄', title: '카드 뒤집기', desc: '참여자 사진을 탭하면 이상형이 뒷면에 나와요.' },
       { icon: '💚', title: '칭찬 하트', desc: '💚은 칭찬만. 수락해도 연락처 공유가 안 떠요.' },
@@ -159,24 +170,104 @@ function TipGrid({ tips, panel, text, muted }: {
   );
 }
 
-function WelcomePanel({ darkMode }: { darkMode?: boolean }) {
+function FillerArt({ kind, darkMode }: { kind: FillerKind; darkMode?: boolean }) {
+  if (kind === 'guide') {
+    return (
+      <div className="relative h-12 w-28 mb-1.5" aria-hidden>
+        <div className={`absolute inset-x-6 top-0.5 h-11 rounded-2xl rotate-[-6deg] ${darkMode ? 'bg-amber-900/40' : 'bg-amber-100'}`} />
+        <div className={`absolute inset-x-5 top-1 h-10 rounded-2xl rotate-[5deg] ${darkMode ? 'bg-teal-800/70' : 'bg-teal-100'}`} />
+        <div className={`absolute inset-x-7 top-1.5 h-9 rounded-2xl flex items-center justify-center ${darkMode ? 'bg-slate-800' : 'bg-white'} shadow-sm`}>
+          <span className="text-[22px] leading-none">🥂</span>
+        </div>
+        <span className="absolute -right-0.5 top-0 text-[12px]">✨</span>
+        <span className="absolute -left-1 bottom-0 text-[14px]">🌙</span>
+      </div>
+    );
+  }
+  if (kind === 'chat') {
+    return (
+      <div className="relative h-12 w-28 mb-1.5" aria-hidden>
+        <div className={`absolute left-1 top-0.5 w-14 h-7 rounded-2xl rounded-bl-sm flex items-center justify-center text-[11px] ${darkMode ? 'bg-slate-700 text-slate-200' : 'bg-white text-slate-600'} shadow-sm`}>안녕</div>
+        <div className={`absolute right-0 bottom-0 w-[4.25rem] h-7 rounded-2xl rounded-br-sm flex items-center justify-center gap-0.5 ${darkMode ? 'bg-indigo-600 text-white' : 'bg-indigo-500 text-white'} shadow-sm`}>
+          <span className="text-[10px] font-black">반가워</span>
+          <span className="text-[11px]">💌</span>
+        </div>
+        <span className="absolute right-1 top-0 text-[13px]">💭</span>
+      </div>
+    );
+  }
+  if (kind === 'pin') {
+    return (
+      <div className="relative h-12 w-28 mb-1.5 flex flex-col items-center" aria-hidden>
+        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-[20px] shadow-sm ${darkMode ? 'bg-amber-900/70 ring-2 ring-amber-500/50' : 'bg-amber-100 ring-2 ring-amber-300'}`}>🔑</div>
+        <div className="absolute bottom-0 flex gap-1.5">
+          {[0, 1, 2, 3].map((i) => (
+            <span key={i} className={`w-1.5 h-1.5 rounded-full ${darkMode ? 'bg-amber-400' : 'bg-amber-500'}`} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="relative h-12 w-28 mb-1.5" aria-hidden>
+      <div className={`absolute left-1/2 top-0 -translate-x-1/2 w-11 h-12 rounded-[0.85rem] rotate-[-8deg] ${darkMode ? 'bg-violet-900/80' : 'bg-violet-200'}`} />
+      <div className={`absolute left-1/2 top-0 -translate-x-1/2 w-11 h-12 rounded-[0.85rem] rotate-[7deg] flex flex-col items-center justify-center ${darkMode ? 'bg-fuchsia-950 ring-1 ring-fuchsia-400/40' : 'bg-white ring-1 ring-fuchsia-200'} shadow-sm`}>
+        <span className="text-[18px] leading-none">🔮</span>
+        <span className="text-[8px] mt-0.5">✨ 🎴</span>
+      </div>
+      <span className="absolute right-0 top-0 text-[13px]">🌙</span>
+    </div>
+  );
+}
+
+const FILLERS: Record<FillerKind, { title: string; line: string; quote: string; shell: string; darkShell: string }> = {
+  guide: {
+    title: '환영합니다',
+    line: '오늘 모임을 이용해주셔서 감사합니다',
+    quote: '좋은 인연이 오늘 여기서 시작되길',
+    shell: 'bg-gradient-to-br from-teal-50 via-white to-amber-50 border border-teal-100',
+    darkShell: 'bg-gradient-to-br from-slate-800/90 via-slate-800/60 to-teal-950/40 border border-slate-700',
+  },
+  chat: {
+    title: '따뜻한 한 마디면 충분해요',
+    line: '채팅은 하트와 별개, 마음만 건네요',
+    quote: '오늘 밤의 인사는 여기서 남겨 두세요',
+    shell: 'bg-gradient-to-br from-sky-50 via-indigo-50 to-white border border-indigo-100',
+    darkShell: 'bg-gradient-to-br from-slate-800/90 via-indigo-950/50 to-slate-900 border border-indigo-900/60',
+  },
+  pin: {
+    title: '네 자리는 나만의 열쇠',
+    line: '기기 바꿔도 이 번호로 다시 만나요',
+    quote: '입장 핀과 다른, 오늘의 나',
+    shell: 'bg-gradient-to-br from-amber-50 via-orange-50 to-white border border-amber-100',
+    darkShell: 'bg-gradient-to-br from-slate-800/90 via-amber-950/40 to-slate-900 border border-amber-900/50',
+  },
+  hidden: {
+    title: '살짝 숨겨 둔 길',
+    line: '카드를 뒤집고, QR을 보여주고, 운세를 펼쳐 보세요',
+    quote: '아는 사람만 오늘이 조금 더 특별해져요',
+    shell: 'bg-gradient-to-br from-violet-50 via-fuchsia-50 to-white border border-violet-100',
+    darkShell: 'bg-gradient-to-br from-slate-800/90 via-violet-950/50 to-slate-900 border border-violet-900/60',
+  },
+};
+
+function FillerPanel({ kind, darkMode }: { kind: FillerKind; darkMode?: boolean }) {
+  const f = FILLERS[kind];
   return (
     <div
-      className={`flex-1 min-h-[88px] flex flex-col items-center justify-center rounded-2xl px-4 py-3 text-center ${
-        darkMode
-          ? 'bg-gradient-to-br from-slate-800/90 via-slate-800/60 to-teal-950/40 border border-slate-700'
-          : 'bg-gradient-to-br from-teal-50 via-white to-amber-50 border border-teal-100'
+      className={`flex-1 min-h-[72px] flex flex-col items-center justify-center rounded-2xl px-3 py-2 text-center ${
+        darkMode ? f.darkShell : f.shell
       }`}
     >
-      <div className="text-[28px] leading-none mb-1.5" aria-hidden>🥂</div>
-      <p className={`text-[14px] font-black tracking-tight ${darkMode ? 'text-white' : 'text-slate-800'}`}>
-        환영합니다
+      <FillerArt kind={kind} darkMode={darkMode} />
+      <p className={`text-[13px] font-black tracking-tight ${darkMode ? 'text-white' : 'text-slate-800'}`}>
+        {f.title}
       </p>
-      <p className={`text-[12px] leading-snug mt-1 ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-        오늘 모임을 이용해주셔서 감사합니다
+      <p className={`text-[11px] leading-snug mt-0.5 ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+        {f.line}
       </p>
-      <p className={`text-[11px] italic mt-1.5 ${darkMode ? 'text-teal-300/80' : 'text-teal-700/80'}`}>
-        좋은 인연이 오늘 여기서 시작되길
+      <p className={`text-[10px] italic mt-1 ${darkMode ? 'text-white/55' : 'text-slate-500'}`}>
+        {f.quote}
       </p>
     </div>
   );
@@ -314,7 +405,7 @@ export function TutorialModal({ onClose, darkMode }: {
                   <p className={`text-[11px] leading-snug ${muted}`}>{topic.footer}</p>
                 )}
               </div>
-              {topic.welcome && <WelcomePanel darkMode={darkMode} />}
+              {topic.filler && <FillerPanel kind={topic.filler} darkMode={darkMode} />}
             </div>
           )}
         </div>
