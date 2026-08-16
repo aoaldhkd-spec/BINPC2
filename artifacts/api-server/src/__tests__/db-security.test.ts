@@ -1466,9 +1466,17 @@ describe('[Security] group chats auto 2 + opt-in 2차', () => {
     expect(rooms.status).toBe(200);
     const list = Array.isArray(rooms.body.data) ? rooms.body.data : [];
     const names = list.map((g: { name?: string }) => String(g.name ?? ''));
+    const visible = list
+      .filter((g: { hidden?: boolean; merged_into?: string | null }) => !g.hidden && !g.merged_into)
+      .map((g: { name?: string }) => String(g.name ?? ''));
     expect(names).toContain('20대 모임');
     expect(names).toContain('30대 모임');
     expect(names).toContain('30대 사진찍기 모임');
+    expect(visible).not.toContain('10대 모임');
+    expect(visible).not.toContain('40대 모임');
+    expect(visible).not.toContain('50대 모임');
+    expect(visible).not.toContain('60대 모임');
+    expect(visible).not.toContain('70대 모임');
 
     const uid = `g-nolegacy-${randomUUID()}`;
     const created = await op({
@@ -1503,6 +1511,47 @@ describe('[Security] group chats auto 2 + opt-in 2차', () => {
     expect(joined.some((g: { name?: string }) => String(g.name ?? '') === '30대 모임')).toBe(true);
     expect(joined.some((g: { name?: string }) => String(g.name ?? '') === '1995년생 모임')).toBe(true);
     expect(joined.some((g: { name?: string }) => String(g.name ?? '').includes('사진'))).toBe(false);
+  });
+
+  it('40대 이상은 30대 모임에 들어가고 10대/40대 방은 만들지 않는다', async () => {
+    const uid = `g-age40-${randomUUID()}`;
+    const created = await op({
+      op: 'insert',
+      table: 'profiles',
+      payload: {
+        id: uid,
+        nickname: `a4-${uid.replace(/-/g, '').slice(0, 12)}`,
+        bio: '영화',
+        mbti: 'INFJ',
+        birth_year: 1980,
+      },
+      requesterId: uid,
+    });
+    expect(created.status).toBe(200);
+    const parts = await op({
+      op: 'select',
+      table: 'group_participants',
+      requesterId: uid,
+      filters: [{ type: 'eq', col: 'user_id', val: uid }],
+    });
+    const rows = Array.isArray(parts.body.data) ? parts.body.data : [];
+    const groupIds = rows.map((r: { group_id: string }) => r.group_id);
+    const rooms = await op({
+      op: 'select',
+      table: 'group_chats',
+      requesterId: uid,
+    });
+    const all = Array.isArray(rooms.body.data) ? rooms.body.data : [];
+    const joined = all.filter((g: { id: string }) => groupIds.includes(g.id));
+    expect(joined.some((g: { name?: string }) => String(g.name ?? '') === '30대 모임')).toBe(true);
+    expect(joined.some((g: { name?: string }) => String(g.name ?? '') === '1980년생 모임')).toBe(true);
+    expect(joined.some((g: { name?: string }) => String(g.name ?? '') === '40대 모임')).toBe(false);
+    expect(joined.some((g: { name?: string }) => String(g.name ?? '') === '10대 모임')).toBe(false);
+    const visible = all
+      .filter((g: { hidden?: boolean; merged_into?: string | null }) => !g.hidden && !g.merged_into)
+      .map((g: { name?: string }) => String(g.name ?? ''));
+    expect(visible).not.toContain('10대 모임');
+    expect(visible).not.toContain('50대 모임');
   });
 
   it('생년이 없으면 기타 모임을 만들지 않는다', async () => {

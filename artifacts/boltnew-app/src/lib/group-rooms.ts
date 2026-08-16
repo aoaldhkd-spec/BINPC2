@@ -141,11 +141,15 @@ function isDecadeRoom(group: GroupLike): boolean {
   return /^\d+대 모임$/.test(String(group.name ?? ''));
 }
 
+const VISIBLE_AGE_ROOM_NAMES = new Set(['20대 모임', '30대 모임']);
+
 export function ageBandFromYear(year: unknown): string | null {
   const y = Number(year);
   if (!Number.isFinite(y) || y < 1900 || y > 2100) return null;
-  const band = Math.floor((2026 - y) / 10) * 10;
-  return `${Math.max(10, band)}대`;
+  const age = 2026 - y;
+  if (age < 20) return null;
+  if (age < 30) return '20대';
+  return '30대';
 }
 
 export function isVisibleCatalogRoom(
@@ -156,6 +160,7 @@ export function isVisibleCatalogRoom(
   if (afterpartyKind(group)) return true;
   if (isLegacyInterestAutoRoom(group)) return false;
   if (!isYearRoom(group) && !isDecadeRoom(group)) return false;
+  if (isDecadeRoom(group) && !VISIBLE_AGE_ROOM_NAMES.has(String(group.name))) return false;
   const joined = opts?.joinedIds?.includes(group.id);
   if (joined) return true;
   const year = opts?.myBirthYear;

@@ -928,6 +928,18 @@ function mergeAppSettings(
   return merged;
 }
 
+/** 행사 중 매칭/소셜 쓰기 — likes·1:1·단톡 메시지·단톡 입장 */
+const FUNCTIONS_LOCKED_INSERT_TABLES = new Set([
+  'likes',
+  'messages',
+  'group_messages',
+  'group_participants',
+]);
+
+function isFunctionsLocked(): boolean {
+  return (getTable('app_settings')[0] as Record<string, unknown> | undefined)?.functions_locked === true;
+}
+
 /** DB에 id/session_active 등 핵심 필드가 빠진 app_settings를 자동 복구 */
 async function repairAppSettingsIfNeeded(): Promise<void> {
   const row = getTable('app_settings')[0];
@@ -1334,8 +1346,8 @@ async function ensureOptInGroupRooms(): Promise<void> {
         }
       }
     }
-    // N대 모임은 관심사 없이 카탈로그에 항상 존재해야 한다. 년생 방은 프로필 조회 때 만든다.
-    for (const band of ['10대', '20대', '30대', '40대', '50대', '60대', '70대']) {
+    // 보이는 N대 방은 20대·30대만. 10대/40~70대는 시드하지 않고, 이미 있으면 숨긴다(삭제 없음).
+    for (const band of VISIBLE_AGE_BANDS) {
       const id = `group_age_${band.replace('대', '')}`;
       const name = `${band} 모임`;
       let room = groups.find(g => String(g.id) === id)
@@ -1374,6 +1386,15 @@ async function ensureOptInGroupRooms(): Promise<void> {
         }
       }
     }
+    for (const g of groups) {
+      if (!isRetiredAgeRoom(g) || g.hidden === true) continue;
+      g.hidden = true;
+      try {
+        await dbPersistRow('group_chats', g);
+      } catch (e) {
+        logger.error({ err: e, groupId: String(g.id) }, '[ensureOptInGroupRooms] hide leftover age room failed');
+      }
+    }
   } catch (e) {
     logger.error({ err: e }, '[ensureOptInGroupRooms] 오류');
   }
@@ -1381,12 +1402,25 @@ async function ensureOptInGroupRooms(): Promise<void> {
 
 const AUTO_ROOM_AGE_DECADE = 'age_decade';
 const AUTO_ROOM_BIRTH_YEAR = 'birth_year';
+const VISIBLE_AGE_BANDS = ['20대', '30대'] as const;
+const RETIRED_AGE_ROOM_RE = /^(10|40|50|60|70)대 모임$/;
+
+function isRetiredAgeRoom(g: Record<string, unknown>): boolean {
+  const name = String(g.name ?? '');
+  const id = String(g.id ?? '');
+  const band = String(g.age_group ?? '');
+  return RETIRED_AGE_ROOM_RE.test(name)
+    || /^group_age_(10|40|50|60|70)$/.test(id)
+    || /^(10|40|50|60|70)대$/.test(band);
+}
 
 function ageBandFromYear(year: unknown): string | null {
   const y = Number(year);
   if (!Number.isFinite(y) || y < 1900 || y > 2100) return null;
-  const band = Math.floor((2026 - y) / 10) * 10;
-  return `${Math.max(10, band)}대`;
+  const age = 2026 - y;
+  if (age < 20) return null;
+  if (age < 30) return '20대';
+  return '30대';
 }
 
 function canonicalAgeRoomId(ageBand: string): string {
@@ -2770,6 +2804,12 @@ router.post('/op', async (req: Request, res: Response) => {
     // ── INSERT ──────────────────────────────────────────────────────────────
     if (op === 'insert') {
       if (payload == null) return res.status(400).json({ data: null, error: { message: 'payload is required for insert', code: '22023' } });
+      if (!isAdmin && isFunctionsLocked() && FUNCTIONS_LOCKED_INSERT_TABLES.has(table)) {
+        return res.status(403).json({
+          data: null,
+          error: { message: '행사 중에는 하트·채팅·시그널·단톡을 사용할 수 없습니다.', code: 'FUNCTIONS_LOCKED' },
+        });
+      }
       if (table === 'chats') {
         // 동일 유저 쌍 생성을 인스턴스 간에 직렬화
         const raw0 = (Array.isArray(payload) ? payload[0] : payload) as Record<string, unknown> | null;

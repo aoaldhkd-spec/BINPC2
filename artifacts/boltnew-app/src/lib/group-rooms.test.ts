@@ -76,9 +76,33 @@ describe('group-rooms catalog', () => {
   it('maps birth year to decade band without 기타', () => {
     expect(ageBandFromYear(1998)).toBe('20대');
     expect(ageBandFromYear(1995)).toBe('30대');
-    expect(ageBandFromYear(2007)).toBe('10대');
+    expect(ageBandFromYear(1986)).toBe('30대');
+    expect(ageBandFromYear(1976)).toBe('30대');
+    expect(ageBandFromYear(2007)).toBeNull();
     expect(ageBandFromYear(null)).toBeNull();
     expect(ageBandFromYear('기타')).toBeNull();
+  });
+
+  it('maps 40+ into 30대 모임 and hides leftover 10대/50대 rooms', () => {
+    const list = catalogGroupRooms([
+      room({ id: 'group_age_10', name: '10대 모임', room_kind: 'age_decade', age_group: '10대' }),
+      room({ id: 'group_age_20', name: '20대 모임', room_kind: 'age_decade', age_group: '20대' }),
+      room({ id: 'group_age_30', name: '30대 모임', room_kind: 'age_decade', age_group: '30대' }),
+      room({ id: 'group_age_40', name: '40대 모임', room_kind: 'age_decade', age_group: '40대' }),
+      room({ id: 'group_age_50', name: '50대 모임', room_kind: 'age_decade', age_group: '50대' }),
+      room({ id: 'y', name: '1980년생 모임', room_kind: 'birth_year', interest_tag: '1980년생' }),
+    ], { myBirthYear: 1980, joinedIds: ['group_age_40', 'y'] });
+    expect(list.map(g => g.name).sort()).toEqual(['1980년생 모임', '30대 모임']);
+    expect(list.some(g => /^(10|40|50|60|70)대 모임$/.test(g.name))).toBe(false);
+  });
+
+  it('does not put under-20 into 20대 모임', () => {
+    const list = catalogGroupRooms([
+      room({ id: 'group_age_20', name: '20대 모임', room_kind: 'age_decade', age_group: '20대' }),
+      room({ id: 'group_age_30', name: '30대 모임', room_kind: 'age_decade', age_group: '30대' }),
+      room({ id: 'y', name: '2007년생 모임', room_kind: 'birth_year', interest_tag: '2007년생' }),
+    ], { myBirthYear: 2007, joinedIds: ['y'] });
+    expect(list.map(g => g.name)).toEqual(['2007년생 모임']);
   });
 
   it('flags interest+age leftovers', () => {
