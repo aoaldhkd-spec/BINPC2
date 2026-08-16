@@ -10,6 +10,15 @@ import { StickerSVG, STICKER_LABELS, STICKER_BG, STICKER_COUNT, STICKER_PACKS } 
 import { hasBannedWord } from '../lib/utils';
 import type { Message, Profile, ContactShare } from '../types/app';
 import { applyPartnerReadReceipt } from '../lib/chat-reducers';
+import {
+  LONG_PRESS_MS,
+  MENU_CLICK_GUARD_MS,
+  SWIPE_ACTIVATE_PX,
+  clampSwipeOffset,
+  shouldCancelLongPress,
+  shouldCommitSwipeReply,
+  shouldTreatAsHorizontalSwipe,
+} from '../lib/chat-msg-gestures';
 
 // ─── ChatScreen ───────────────────────────────────────────────────────────────
 // 1:1 채팅 화면. 스티커·이모지·이미지·연락처 공유·궁합·사주 기능 포함.
@@ -223,7 +232,10 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   const [myInfoSaving, setMyInfoSaving] = useState(false);
 
   const [swipeState, setSwipeState] = useState<{ msgId: string; offsetX: number } | null>(null);
-  const swipeTouchRef = useRef<{ msgId: string; startX: number; startY: number; swiping: boolean } | null>(null);
+  const swipeTouchRef = useRef<{ msgId: string; startX: number; startY: number; swiping: boolean; offsetX: number } | null>(null);
+  const lastTouchAt = useRef(0);
+  const menuIgnoreClickUntil = useRef(0);
+  const mouseGestureCleanup = useRef<(() => void) | null>(null);
 
   const [imageViewer, setImageViewer] = useState<string | null>(null);
   const [reactions, setReactions] = useState<Record<string, string>>({});
@@ -520,57 +532,103 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
     return () => {
       if (longPressTimer.current) clearTimeout(longPressTimer.current);
       if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
+      mouseGestureCleanup.current?.();
     };
   }, []);
 
   const cancelLP = () => { if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; } };
 
-  // 메시지 핸들러를 useCallback으로 안정화 — messages 리스트 렌더 시 불필요한 자식 재렌더 방지
-  const onMsgTouchStart = useCallback((e: React.TouchEvent, msg: Message) => {
-    if (!e.touches.length) return;
-    const t = e.touches[0];
-    swipeTouchRef.current = { msgId: msg.id, startX: t.clientX, startY: t.clientY, swiping: false };
-    longPressTimer.current = setTimeout(() => {
-      if (!swipeTouchRef.current?.swiping) {
-        setContextMenu({ msgId: msg.id, content: msg.content ?? '', isMine: msg.sender_id === currentUserId, imgUrl: msg.image_url ?? undefined, x: t.clientX, y: t.clientY });
-      }
-    }, 500);
+  const openMsgMenu = useCallback((msg: Message, x: number, y: number, fromLongPress: boolean) => {
+    if (fromLongPress) menuIgnoreClickUntil.current = Date.now() + MENU_CLICK_GUARD_MS;
+    setContextMenu({
+      msgId: msg.id,
+      content: msg.content ?? '',
+      isMine: msg.sender_id === currentUserId,
+      imgUrl: msg.image_url ?? undefined,
+      x,
+      y,
+    });
   }, [currentUserId]);
 
-  const onMsgTouchMove = useCallback((e: React.TouchEvent, msg: Message) => {
+  const startMsgGesture = useCallback((msg: Message, x: number, y: number) => {
+    swipeTouchRef.current = { msgId: msg.id, startX: x, startY: y, swiping: false, offsetX: 0 };
+    cancelLP();
+    longPressTimer.current = setTimeout(() => {
+      if (!swipeTouchRef.current?.swiping) openMsgMenu(msg, x, y, true);
+    }, LONG_PRESS_MS);
+  }, [openMsgMenu]);
+
+  const moveMsgGesture = useCallback((msg: Message, x: number, y: number) => {
     const ref = swipeTouchRef.current;
     if (!ref || ref.msgId !== msg.id) return;
-    if (!e.touches.length) return;
-    const t = e.touches[0];
-    const dx = t.clientX - ref.startX;
-    const dy = t.clientY - ref.startY;
-    if (Math.abs(dx) > 6 || Math.abs(dy) > 6) cancelLP();
-    if (!ref.swiping && Math.abs(dy) > Math.abs(dx) + 4) return;
-    if (Math.abs(dx) > 10) {
+    const dx = x - ref.startX;
+    const dy = y - ref.startY;
+    if (shouldCancelLongPress(dx, dy)) cancelLP();
+    if (!shouldTreatAsHorizontalSwipe(dx, dy, ref.swiping)) return;
+    if (ref.swiping || Math.abs(dx) > SWIPE_ACTIVATE_PX) {
       ref.swiping = true;
-      const clamped = Math.sign(dx) * Math.min(Math.abs(dx), 72);
-      setSwipeState({ msgId: msg.id, offsetX: clamped });
+      ref.offsetX = clampSwipeOffset(dx);
+      setSwipeState({ msgId: msg.id, offsetX: ref.offsetX });
     }
   }, []);
 
-  const onMsgTouchEnd = useCallback((_e: React.TouchEvent, msg: Message) => {
+  const endMsgGesture = useCallback((msg: Message) => {
     cancelLP();
-    if (swipeTouchRef.current?.swiping === false &&
-        swipeState?.msgId === msg.id && Math.abs(swipeState.offsetX) >= 55) {
+    const ref = swipeTouchRef.current;
+    if (ref?.msgId === msg.id && shouldCommitSwipeReply(ref.swiping, ref.offsetX)) {
       const snippet = msg.image_url ? '[이미지]' : (msg.content ?? '').slice(0, 40);
       setReplyTo({ id: msg.id, snippet, isMe: msg.sender_id === currentUserId });
-      // focusTimerRef로 관리 — 언마운트 시 clearTimeout 가능
       if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
       focusTimerRef.current = setTimeout(() => { focusTimerRef.current = null; inputRef.current?.focus(); }, 100);
     }
     swipeTouchRef.current = null;
     setSwipeState(null);
-  }, [swipeState, currentUserId]);
+  }, [currentUserId]);
+
+  // 메시지 핸들러를 useCallback으로 안정화 — messages 리스트 렌더 시 불필요한 자식 재렌더 방지
+  const onMsgTouchStart = useCallback((e: React.TouchEvent, msg: Message) => {
+    lastTouchAt.current = Date.now();
+    if (!e.touches.length) return;
+    const t = e.touches[0];
+    startMsgGesture(msg, t.clientX, t.clientY);
+  }, [startMsgGesture]);
+
+  const onMsgTouchMove = useCallback((e: React.TouchEvent, msg: Message) => {
+    if (!e.touches.length) return;
+    const t = e.touches[0];
+    moveMsgGesture(msg, t.clientX, t.clientY);
+  }, [moveMsgGesture]);
+
+  const onMsgTouchEnd = useCallback((_e: React.TouchEvent, msg: Message) => {
+    lastTouchAt.current = Date.now();
+    endMsgGesture(msg);
+  }, [endMsgGesture]);
+
+  const onMsgMouseDown = useCallback((e: React.MouseEvent, msg: Message) => {
+    if (e.button !== 0) return;
+    if (Date.now() - lastTouchAt.current < 800) return;
+    startMsgGesture(msg, e.clientX, e.clientY);
+    const onMove = (ev: MouseEvent) => moveMsgGesture(msg, ev.clientX, ev.clientY);
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      mouseGestureCleanup.current = null;
+      endMsgGesture(msg);
+    };
+    mouseGestureCleanup.current?.();
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    mouseGestureCleanup.current = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [startMsgGesture, moveMsgGesture, endMsgGesture]);
 
   const handleMsgContextMenu = useCallback((e: React.MouseEvent, msg: Message) => {
     e.preventDefault();
-    setContextMenu({ msgId: msg.id, content: msg.content ?? '', isMine: msg.sender_id === currentUserId, imgUrl: msg.image_url ?? undefined, x: e.clientX, y: e.clientY });
-  }, [currentUserId]);
+    cancelLP();
+    openMsgMenu(msg, e.clientX, e.clientY, false);
+  }, [openMsgMenu]);
 
   const handleTap = useCallback((msg: Message) => {
     const now = Date.now();
@@ -897,7 +955,10 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
 
       {/* 롱프레스 컨텍스트 메뉴 */}
       {contextMenu && (
-        <div className="fixed inset-0 z-50" onClick={() => setContextMenu(null)}>
+        <div className="fixed inset-0 z-50" onClick={() => {
+          if (Date.now() < menuIgnoreClickUntil.current) return;
+          setContextMenu(null);
+        }}>
           <div
             className="absolute bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden min-w-[170px]"
             style={{
@@ -1065,10 +1126,20 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
                 )}
                 <div
                   className={`flex items-end gap-1 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}
-                  style={{ transform: `translateX(${swipeX}px)`, transition: isSwiping ? 'none' : 'transform 0.2s ease-out' }}
+                  data-msg-id={msg.id}
+                  style={{
+                    transform: `translateX(${swipeX}px)`,
+                    transition: isSwiping ? 'none' : 'transform 0.2s ease-out',
+                    touchAction: 'pan-y',
+                    userSelect: 'none',
+                    WebkitUserSelect: 'none',
+                    WebkitTouchCallout: 'none',
+                  } as React.CSSProperties}
                   onTouchStart={(e) => onMsgTouchStart(e, msg)}
                   onTouchMove={(e) => onMsgTouchMove(e, msg)}
                   onTouchEnd={(e) => onMsgTouchEnd(e, msg)}
+                  onTouchCancel={(e) => onMsgTouchEnd(e, msg)}
+                  onMouseDown={(e) => onMsgMouseDown(e, msg)}
                   onContextMenu={(e) => handleMsgContextMenu(e, msg)}
                   onClick={() => handleTap(msg)}>
 
