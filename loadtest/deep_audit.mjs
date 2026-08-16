@@ -377,7 +377,7 @@ async function area2(vus) {
     const cmdR = await req('POST', '/op', {
       table: 'app_settings', op: 'update',
       filters: [{ type: 'eq', col: 'id', val: 1 }],
-      payload: { seating_locked: true },
+      payload: { timer_label: true },
     });
     const cmdLatMs = performance.now() - cmdT;
 
@@ -404,7 +404,7 @@ async function area2(vus) {
       await req('POST', '/op', {
         table: 'app_settings', op: 'update',
         filters: [{ type: 'eq', col: 'id', val: 1 }],
-        payload: { seating_locked: i % 2 === 0 },
+        payload: { timer_label: i % 2 === 0 },
       });
       const r = await p;
       broadcastLats.push(r.timedOut ? performance.now() - t : r.latMs);
@@ -415,7 +415,7 @@ async function area2(vus) {
     await req('POST', '/op', {
       table: 'app_settings', op: 'update',
       filters: [{ type: 'eq', col: 'id', val: 1 }],
-      payload: { seating_locked: false },
+      payload: { timer_label: false },
     });
   }
 
@@ -441,10 +441,10 @@ async function area2(vus) {
   // 2라운드 부하 + 동시에 관리자 명령
   const [bgResult, ...cmdResults] = await Promise.all([
     bgRound(),
-    measureCmd('① seating_locked=true', () => req('POST', '/op', {
+    measureCmd('① timer_label=true', () => req('POST', '/op', {
       table: 'app_settings', op: 'update',
       filters: [{ type: 'eq', col: 'id', val: 1 }],
-      payload: { seating_locked: true },
+      payload: { timer_label: true },
     })),
     measureCmd('② RPC: admin_create_session', () =>
       req('POST', '/rpc/admin_create_session', { p_admin_password: ADMIN_PW })
@@ -457,9 +457,9 @@ async function area2(vus) {
   stats('  배경 프로필 조회 (100명)', bgResult.map(r => r.latMs), '  ');
   console.log(`  배경 부하 결과: ${bgOk}/100 성공`);
 
-  // seating_locked 복원
+  // timer_label 복원
   await req('POST', '/op', { table: 'app_settings', op: 'update',
-    filters: [{ type: 'eq', col: 'id', val: 1 }], payload: { seating_locked: false } });
+    filters: [{ type: 'eq', col: 'id', val: 1 }], payload: { timer_label: false } });
   await req('POST', '/rpc/admin_create_session', { p_admin_password: ADMIN_PW }); // session 복원
 
   // ── 2-C: 브로드캐스트 채널 직접 퍼포먼스 — /op update 응답 → SSE 팬아웃 ───
@@ -481,19 +481,19 @@ async function area2(vus) {
     const lock = await measureCmd(`  잠금/해제 #${i+1}`, () => req('POST', '/op', {
       table: 'app_settings', op: 'update',
       filters: [{ type: 'eq', col: 'id', val: 1 }],
-      payload: { seating_locked: i % 2 === 0 },
+      payload: { timer_label: i % 2 === 0 },
     }));
     lockTimes.push(lock.ms);
   }
   await req('POST', '/op', { table: 'app_settings', op: 'update',
-    filters: [{ type: 'eq', col: 'id', val: 1 }], payload: { seating_locked: false } });
+    filters: [{ type: 'eq', col: 'id', val: 1 }], payload: { timer_label: false } });
   stats('  잠금/해제 5회 정밀', lockTimes, '  ');
 
   // ── 2-D: RPC 전체 관리자 명령 레이턴시 목록 ──────────────────────────────
   console.log('\n  [2-D] 관리자 RPC 전체 레이턴시 측정 ──────────────────────────');
   const rpcCmds = [
     ['admin_create_session', { p_admin_password: ADMIN_PW }],
-    ['admin_update_settings', { p_admin_password: ADMIN_PW, session_active: true, seating_locked: false }],
+    ['admin_update_settings', { p_admin_password: ADMIN_PW, session_active: true, timer_label: false }],
     ['admin_update_profile', { p_admin_password: ADMIN_PW, profile_id: vus[0].id, updates: { personality_score: 80 } }],
   ];
   for (const [name, args] of rpcCmds) {

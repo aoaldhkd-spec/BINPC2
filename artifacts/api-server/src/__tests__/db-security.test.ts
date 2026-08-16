@@ -652,20 +652,26 @@ describe('[Security] test dashboard password', () => {
   });
 
   it('BOOTSTRAP_ADMIN_PASSWORD와 BOOTSTRAP_TEST_PASSWORD로도 로그인된다', async () => {
+    const prevAdmin = process.env.BOOTSTRAP_ADMIN_PASSWORD;
+    const prevTest = process.env.BOOTSTRAP_TEST_PASSWORD;
     process.env.BOOTSTRAP_ADMIN_PASSWORD = 'env-admin-secret-zz';
     process.env.BOOTSTRAP_TEST_PASSWORD = 'env-test-secret-zz';
+    try {
+      const adminOk = await request(app)
+        .post('/api/db/rpc/admin_create_session')
+        .send({ p_phone: '010-3878-6740', p_admin_password: 'env-admin-secret-zz' });
+      expect(adminOk.status).toBe(200);
+      expect(typeof adminOk.body.data).toBe('string');
 
-    const adminOk = await request(app)
-      .post('/api/db/rpc/admin_create_session')
-      .send({ p_phone: '010-3878-6740', p_admin_password: 'env-admin-secret-zz' });
-    expect(adminOk.status).toBe(200);
-    expect(typeof adminOk.body.data).toBe('string');
-
-    const testOk = await request(app)
-      .post('/api/db/rpc/test_verify_password')
-      .send({ p_test_password: 'env-test-secret-zz' });
-    expect(testOk.status).toBe(200);
-    expect(typeof testOk.body.data).toBe('string');
+      const testOk = await request(app)
+        .post('/api/db/rpc/test_verify_password')
+        .send({ p_test_password: 'env-test-secret-zz' });
+      expect(testOk.status).toBe(200);
+      expect(typeof testOk.body.data).toBe('string');
+    } finally {
+      process.env.BOOTSTRAP_ADMIN_PASSWORD = prevAdmin;
+      process.env.BOOTSTRAP_TEST_PASSWORD = prevTest;
+    }
   });
 
   it('하트 차감 RPC는 더 이상 존재하지 않는다', async () => {

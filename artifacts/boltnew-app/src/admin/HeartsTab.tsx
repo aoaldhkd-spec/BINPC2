@@ -1,20 +1,7 @@
-import { useState, useEffect, useCallback, useRef, type Dispatch, type SetStateAction } from 'react';
-import {
-  Shield, LogOut, Trash2, Users,
-  LayoutGrid, X, AlertTriangle, ChevronDown,
-  Heart, MessageCircle, Send, CheckCircle, BellRing, Eye, EyeOff,
-  PlayCircle, StopCircle, Timer, RefreshCw, Sparkles,
-  Lock, Unlock, Search, Database as DatabaseIcon, Activity,
-} from 'lucide-react';
-import { supabase } from '../lib/supabase';
-import { getPositionLabel, getDomSubLabel, getKoreanAge } from '../lib/profile';
+import { useState } from 'react';
+import { Trash2, Heart, RefreshCw } from 'lucide-react';
 import { HEART_TYPE_META } from '../lib/constants';
-import {
-  withAdminImageToken, setAdminToken, loadAdminSession, getAdminPassword, refreshAdminToken,
-  adminApiRpc, patchAdminSettings, adminApiSelect, adminApiOp, adminSupabase,
-  ADMIN_TOKEN_KEY, ADMIN_PW_KEY, ADMIN_SESSION_KEY, ADMIN_API, MAX_ADMIN_MESSAGES,
-  type Profile, type AppSettings, type SessionHistory, type Like, type Chat, type Message, type AnonymousReport, type DbHealthData, type AdminSession,
-} from './shared';
+import type { Profile, Like } from './shared';
 import { ConfirmDialog } from './ConfirmDialog';
 
 // ─── Hearts Tab ───────────────────────────────────────────────────────────────

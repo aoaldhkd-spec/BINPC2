@@ -185,12 +185,12 @@ async function phase3(vus) {
     table: 'app_settings',
     op: 'update',
     filters: [{ column: 'id', op: 'eq', value: 1 }],
-    payload: { seating_locked: true },
+    payload: { timer_label: true },
   });
   const lockMs = performance.now() - lockT;
 
   await bgPromise;
-  console.log(`  admin lock (seating_locked=true): ${lockMs.toFixed(0)}ms  ok=${lockR.ok}  status=${lockR.status}`);
+  console.log(`  admin lock (timer_label=true): ${lockMs.toFixed(0)}ms  ok=${lockR.ok}  status=${lockR.status}`);
 
   // Unlock
   const unlockT = performance.now();
@@ -198,7 +198,7 @@ async function phase3(vus) {
     table: 'app_settings',
     op: 'update',
     filters: [{ column: 'id', op: 'eq', value: 1 }],
-    payload: { seating_locked: false },
+    payload: { timer_label: false },
   });
   console.log(`  admin unlock: ${(performance.now() - unlockT).toFixed(0)}ms  ok=${unlockR.ok}`);
 
