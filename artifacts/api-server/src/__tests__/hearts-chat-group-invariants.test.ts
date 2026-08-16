@@ -440,6 +440,16 @@ describe('[Lock] functions_locked rejects matching writes and broadcasts', () =>
       payload: { id: gid, name: '잠금방', interest_tag: 'lock', age_group: null, max_members: 999, room_kind: 'test' },
       requesterId: 'seed-admin',
     })).status).toBe(200);
+    const pendingLike = await op({
+      op: 'insert',
+      table: 'likes',
+      requesterId: a,
+      payload: { liker_id: a, liked_id: b, heart_type: 'green', status: 'pending' },
+      selectAfterWrite: true,
+      single: true,
+    });
+    expect(pendingLike.status).toBe(200);
+    const likeId = pendingLike.body.data.id as string;
 
     await setFunctionsLocked(true);
 
@@ -469,6 +479,35 @@ describe('[Lock] functions_locked rejects matching writes and broadcasts', () =>
     });
     expect(joinLocked.status).toBe(403);
     expect(joinLocked.body.error?.code).toBe('FUNCTIONS_LOCKED');
+
+    const c = randomUUID();
+    const chatLocked = await op({
+      op: 'insert',
+      table: 'chats',
+      requesterId: a,
+      payload: { user1_id: a, user2_id: c },
+    });
+    expect(chatLocked.status).toBe(403);
+    expect(chatLocked.body.error?.code).toBe('FUNCTIONS_LOCKED');
+
+    const shareLocked = await op({
+      op: 'insert',
+      table: 'contact_shares',
+      requesterId: a,
+      payload: { liker_id: a, liked_id: b },
+    });
+    expect(shareLocked.status).toBe(403);
+    expect(shareLocked.body.error?.code).toBe('FUNCTIONS_LOCKED');
+
+    const likeUpdateLocked = await op({
+      op: 'update',
+      table: 'likes',
+      requesterId: b,
+      filters: [{ type: 'eq', col: 'id', val: likeId }],
+      payload: { status: 'accepted' },
+    });
+    expect(likeUpdateLocked.status).toBe(403);
+    expect(likeUpdateLocked.body.error?.code).toBe('FUNCTIONS_LOCKED');
 
     const readyLocked = await request(app).get('/api/db/ready');
     expect(readyLocked.status).toBe(200);

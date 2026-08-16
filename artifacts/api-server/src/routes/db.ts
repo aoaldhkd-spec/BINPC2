@@ -928,12 +928,18 @@ function mergeAppSettings(
   return merged;
 }
 
-/** 행사 중 매칭/소셜 쓰기 — likes·1:1·단톡 메시지·단톡 입장 */
+/** 행사 중 매칭/소셜 쓰기 — 하트·1:1 방/메시지·연락처 공유·단톡 */
 const FUNCTIONS_LOCKED_INSERT_TABLES = new Set([
   'likes',
   'messages',
+  'chats',
+  'contact_shares',
   'group_messages',
   'group_participants',
+]);
+const FUNCTIONS_LOCKED_UPDATE_TABLES = new Set([
+  'likes',
+  'contact_shares',
 ]);
 
 function isFunctionsLocked(): boolean {
@@ -3192,6 +3198,12 @@ router.post('/op', async (req: Request, res: Response) => {
     if (op === 'update') {
       if (table === 'app_settings' && !isAdmin) {
         return res.status(403).json({ data: null, error: { message: 'Forbidden: admin only', code: 'FORBIDDEN' } });
+      }
+      if (!isAdmin && isFunctionsLocked() && FUNCTIONS_LOCKED_UPDATE_TABLES.has(table)) {
+        return res.status(403).json({
+          data: null,
+          error: { message: '행사 중에는 하트·채팅·시그널·단톡을 사용할 수 없습니다.', code: 'FUNCTIONS_LOCKED' },
+        });
       }
       let patch = sanitizeRow(table, payload as Record<string, unknown>);
 
