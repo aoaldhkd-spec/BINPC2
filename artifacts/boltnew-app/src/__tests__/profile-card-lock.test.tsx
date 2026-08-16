@@ -59,6 +59,7 @@ function renderCard({
 }: { seatingLocked?: boolean; functionsLocked?: boolean } = {}) {
   const onLike = vi.fn();
   const onSelect = vi.fn();
+  const onView = vi.fn();
   const onOpenChat = vi.fn();
   render(
     <ProfileCard
@@ -70,10 +71,11 @@ function renderCard({
       locked={seatingLocked || functionsLocked}
       onLike={onLike}
       onSelect={onSelect}
+      onView={onView}
       onOpenChat={onOpenChat}
     />
   );
-  return { onLike, onSelect, onOpenChat };
+  return { onLike, onSelect, onView, onOpenChat };
 }
 
 afterEach(() => cleanup());
@@ -103,5 +105,13 @@ describe('ProfileCard — lock guard (seat-lock + functions-lock regression)', (
     fireEvent.click(screen.getByRole('button', { name: /채팅/i }));
     expect(onLike).toHaveBeenCalledTimes(1);
     expect(onOpenChat).toHaveBeenCalledTimes(1);
+  });
+
+  it('photo tap records a visit via onView without opening profile detail', () => {
+    const { onSelect, onView } = renderCard();
+    fireEvent.click(screen.getByTestId('profile-card-photo'));
+    expect(onView).toHaveBeenCalledTimes(1);
+    expect(onView).toHaveBeenCalledWith(PROFILE);
+    expect(onSelect).not.toHaveBeenCalled();
   });
 });

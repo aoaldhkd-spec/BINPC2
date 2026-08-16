@@ -72,6 +72,15 @@ describe('collectBroadcastTargets', () => {
     expect(targets.sort()).toEqual(['user-a', 'user-b']);
   });
 
+  it('profile_views targets the viewed person so their 방문자 list updates', () => {
+    const targets = collectBroadcastTargets('profile_views', {
+      id: 'v1',
+      viewer_id: 'visitor',
+      viewed_id: 'host',
+    }, () => undefined);
+    expect(targets).toEqual(['host']);
+  });
+
   it('likes targets both parties', () => {
     const targets = collectBroadcastTargets('likes', {
       liker_id: 'L',

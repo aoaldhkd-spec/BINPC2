@@ -91,6 +91,7 @@ export function MainScreen({
   myBlockList = [] as import('../types/app').BlockedUser[],
   onUnblock,
   onViewFortune,
+  onViewProfile,
   userSignals = [] as UserSignal[],
   onUserSignalUpdate,
 }: {
@@ -142,6 +143,7 @@ export function MainScreen({
   myBlockList?: import('../types/app').BlockedUser[];
   onUnblock?: (blockId: string) => void;
   onViewFortune?: (p: Profile) => void;
+  onViewProfile?: (p: Profile) => void;
   userSignals?: UserSignal[];
   onUserSignalUpdate?: (row: UserSignal) => void;
 }) {
@@ -717,6 +719,7 @@ export function MainScreen({
                 locked={functionsLocked}
                 onLike={onLike}
                 onSelect={onSelect}
+                onView={onViewProfile}
                 onOpenChat={onOpenChat}
                 onBlock={onBlock}
                 onContactShare={_onContactShareOpen}

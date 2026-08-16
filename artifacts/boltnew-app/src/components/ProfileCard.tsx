@@ -10,7 +10,7 @@ import { getMbtiStyle } from '../lib/utils';
 // ─── ProfileCard (memoized — 하트/채팅 상태 변경 시 해당 카드만 재렌더) ────────
 
 export const ProfileCard = memo(function ProfileCard({
-  profile, isLiked, sentHeartType, heartCount, canLike, locked, onLike, onSelect, onOpenChat, onBlock, onContactShare, onViewFortune, idealMsg, statusMsg,
+  profile, isLiked, sentHeartType, heartCount, canLike, locked, onLike, onSelect, onView, onOpenChat, onBlock, onContactShare, onViewFortune, idealMsg, statusMsg,
 }: {
   profile: Profile;
   isLiked: boolean;
@@ -20,6 +20,7 @@ export const ProfileCard = memo(function ProfileCard({
   locked?: boolean;
   onLike: (id: string) => void;
   onSelect: (p: Profile) => void;
+  onView?: (p: Profile) => void;
   onOpenChat: (p: Profile) => void;
   onBlock?: (id: string, type: 'block' | 'hide') => void;
   onContactShare?: (p: Profile) => void;
@@ -210,7 +211,8 @@ export const ProfileCard = memo(function ProfileCard({
                   WebkitBackfaceVisibility: 'hidden',
                   overflow: 'hidden',
                 }}
-                onClick={(e) => { e.stopPropagation(); setIsFlipped(true); }}
+                data-testid="profile-card-photo"
+                onClick={(e) => { e.stopPropagation(); setIsFlipped(true); onView?.(profile); }}
               >
                 {pastelFill ? (
                   <div className="absolute inset-0" style={{ background: photoBg }} aria-hidden />

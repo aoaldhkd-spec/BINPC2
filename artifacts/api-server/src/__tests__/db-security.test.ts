@@ -446,6 +446,89 @@ describe('[Security] profiles / likes / storage', () => {
     expect(ownRes.body.data[0]?.liker_id).toBe(likerId);
   });
 
+  it('방문자 전체 조회 시 viewer_id를 숨기고 내 프로필 방문자 조회만 viewer_id를 노출한다', async () => {
+    const viewerId = randomUUID();
+    const viewedId = randomUUID();
+    await op({
+      op: 'insert',
+      table: 'profiles',
+      payload: { id: viewerId, nickname: 'viewer-a' },
+    });
+    await op({
+      op: 'insert',
+      table: 'profiles',
+      payload: { id: viewedId, nickname: 'viewed-b' },
+    });
+    await op({
+      op: 'insert',
+      table: 'profile_views',
+      requesterId: viewerId,
+      payload: { viewer_id: viewerId, viewed_id: viewedId, viewed_at: new Date().toISOString() },
+    });
+
+    const allRes = await op({
+      op: 'select',
+      table: 'profile_views',
+      requesterId: viewedId,
+    });
+    expect(allRes.status).toBe(200);
+    expect(allRes.body.data[0]?.viewer_id).toBeUndefined();
+    expect(allRes.body.data[0]?.viewed_id).toBe(viewedId);
+
+    const inboxRes = await op({
+      op: 'select',
+      table: 'profile_views',
+      requesterId: viewedId,
+      filters: [{ type: 'eq', col: 'viewed_id', val: viewedId }],
+    });
+    expect(inboxRes.status).toBe(200);
+    expect(inboxRes.body.data[0]?.viewer_id).toBe(viewerId);
+
+    const ownRes = await op({
+      op: 'select',
+      table: 'profile_views',
+      requesterId: viewerId,
+      filters: [{ type: 'eq', col: 'viewer_id', val: viewerId }],
+    });
+    expect(ownRes.status).toBe(200);
+    expect(ownRes.body.data[0]?.viewer_id).toBe(viewerId);
+  });
+
+  it('profile_views INSERT는 requesterId 없이 403, viewer_id는 세션 사용자로 강제한다', async () => {
+    const viewerId = randomUUID();
+    const viewedId = randomUUID();
+    const spoofId = randomUUID();
+    await op({
+      op: 'insert',
+      table: 'profiles',
+      payload: { id: viewerId, nickname: 'viewer-force' },
+    });
+    await op({
+      op: 'insert',
+      table: 'profiles',
+      payload: { id: viewedId, nickname: 'viewed-force' },
+    });
+
+    const noAuth = await op({
+      op: 'insert',
+      table: 'profile_views',
+      payload: { viewer_id: viewerId, viewed_id: viewedId },
+    });
+    expect(noAuth.status).toBe(403);
+
+    const spoof = await op({
+      op: 'insert',
+      table: 'profile_views',
+      requesterId: viewerId,
+      payload: { viewer_id: spoofId, viewed_id: viewedId, viewed_at: new Date().toISOString() },
+      selectAfterWrite: true,
+      single: true,
+    });
+    expect(spoof.status).toBe(200);
+    expect(spoof.body.data?.viewer_id).toBe(viewerId);
+    expect(spoof.body.data?.viewed_id).toBe(viewedId);
+  });
+
   it('하트를 받지 않은 사용자의 status UPDATE를 차단한다', async () => {
     const likerId = randomUUID();
     const likedId = randomUUID();
