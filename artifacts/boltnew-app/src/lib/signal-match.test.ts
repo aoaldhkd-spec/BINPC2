@@ -561,11 +561,20 @@ describe('이상형 / 나의 특징 chip groups', () => {
   const pickerLabels = [...IDEAL_TAG_GROUPS, ...FEATURE_TAG_GROUPS].map((g) => g.label);
   const pickerTags = [...IDEAL_TAG_GROUPS, ...FEATURE_TAG_GROUPS].flatMap((g) => [...g.tags]);
 
-  it('keeps 얼굴상/체형/매력/성격/라이프 and 술/텐션/흡연', () => {
-    for (const label of ['얼굴상 👀', '체형 💪', '매력 ✨', '성격 💫', '라이프 🍻', '술 🍺', '텐션 🎢', '흡연 🚭']) {
+  it('keeps 얼굴상/체형/매력/성격 and 술/텐션/흡연', () => {
+    for (const label of ['얼굴상 👀', '체형 💪', '매력 ✨', '성격 💫', '술 🍺', '텐션 🎢', '흡연 🚭']) {
       expect(IDEAL_TAG_GROUPS.some((g) => g.label === label), label).toBe(true);
       expect(FEATURE_TAG_GROUPS.some((g) => g.label === label), label).toBe(true);
     }
+  });
+
+  it('does not offer 라이프 chips (those belong in 관심사)', () => {
+    expect(pickerLabels).not.toContain('라이프 🍻');
+    for (const tag of ['술좋아', '운동', '카페', '집콕', '여행']) {
+      expect(pickerTags).not.toContain(tag);
+    }
+    expect(getIdealTagSpec('술좋아')?.group).toBe('라이프 🍻');
+    expect(getIdealTagSpec('여행')?.group).toBe('라이프 🍻');
   });
 
   it('removes 포지션 and MBTI chips from both pickers', () => {

@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { getPositionBg, getDomSubBg } from '../lib/profile';
 import { containsBannedNicknameWord } from '../lib/bannedWords';
 import { BIO_CATEGORIES } from '../lib/interests';
+import { InterestPicker } from './InterestPicker';
 
 // ─── 데이터 ────────────────────────────────────────────────────────────────────
 
@@ -445,57 +446,12 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
                 }`}>{selectedBio.length} / 5</div>
               </div>
 
-              {/* 선택된 태그 */}
-              {selectedBio.length > 0 && (
-                <div className="flex gap-1.5 flex-wrap p-2.5 bg-cyan-50 rounded-2xl border border-cyan-100 min-h-[36px]">
-                  {selectedBio.map(tag => (
-                    <button key={tag} type="button" onClick={() => toggleBio(tag)}
-                      className="flex items-center gap-1 px-2.5 py-1 bg-cyan-500 text-white text-xs font-bold rounded-lg hover:bg-cyan-600 transition-all active:scale-95">
-                      {tag} <span className="opacity-70 text-[10px]">×</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {/* 카테고리 탭 */}
-              <div className="flex flex-wrap gap-1.5">
-                {BIO_CATEGORIES.map(cat => {
-                  const active = bioFilter === cat.label;
-                  const hasSelected = cat.tags.some(t => selectedBio.includes(t));
-                  return (
-                    <button key={cat.label} type="button" onClick={() => setBioFilter(cat.label)}
-                      className={`relative flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-black border-2 transition-all ${
-                        active ? `${cat.color.selected} border-transparent` : `bg-white border-gray-200 ${cat.color.label}`
-                      }`}>
-                      {cat.label}
-                      {hasSelected && !active && (
-                        <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-cyan-500 rounded-full border border-white" />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* 태그 목록 */}
-              {BIO_CATEGORIES.filter(cat => cat.label === bioFilter).map(cat => (
-                <div key={cat.label} className="flex flex-wrap gap-2">
-                  {cat.tags.map(tag => {
-                    const selected = selectedBio.includes(tag);
-                    const disabled = !selected && atMaxBio;
-                    return (
-                      <button key={tag} type="button" onClick={() => toggleBio(tag)} disabled={disabled}
-                        className={`px-3 py-2 rounded-xl text-sm font-semibold border-2 transition-all active:scale-95 ${
-                          selected ? cat.color.selected :
-                          disabled ? 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed' :
-                          cat.color.normal
-                        }`}>
-                        {tag === '뜨밤' && <span className="mr-1">🔥</span>}
-                        {tag}
-                      </button>
-                    );
-                  })}
-                </div>
-              ))}
+              <InterestPicker
+                selected={selectedBio}
+                onToggle={toggleBio}
+                filter={bioFilter}
+                onFilter={setBioFilter}
+              />
             </div>
           )}
 

@@ -45,7 +45,6 @@ const CORE_TAG_GROUPS = [
   { label: '체형 💪', tags: ['키큰', '슬림', '근육있는', '통통귀여운', '보통체형'] },
   { label: '매력 ✨', tags: ['섹끼있는', '다정한', '귀여운', '반전매력', '차분한', '웃음많은', '텐션높은', '술잘마시는'] },
   { label: '성격 💫', tags: ['다정한', '시크한', '장난끼있는', '차분한', '유머있는', '솔직한', '리드하는', '챙겨주는'] },
-  { label: '라이프 🍻', tags: ['술좋아', '운동', '카페', '집콕', '여행'] },
 ] as const;
 
 /** MainScreen 이상형 피커. 태그 → 프로필 휴리스틱은 IDEAL_TAG_SPECS. */
@@ -108,7 +107,7 @@ export const IDEAL_TAG_SPECS: readonly IdealTagSpec[] = [
   ...specsFor('매력 ✨', 'status_msg+bio', ['섹끼있는', '다정한', '귀여운', '반전매력', '차분한', '웃음많은', '텐션높은']),
   { tag: '술잘마시는', group: '매력 ✨', field: 'interests+status_msg+bio', aliases: [...DRINK_INTERESTS, '술잘마시는', '술좋아'] },
   ...specsFor('성격 💫', 'status_msg+bio', ['시크한', '장난끼있는', '유머있는', '솔직한', '리드하는', '챙겨주는']),
-  // 레거시 저장 태그용. 칩 UI에는 포지션/MBTI 없음.
+  // 레거시 저장 태그용. 칩 UI에는 포지션/MBTI/라이프 없음(라이프는 관심사).
   ...specsFor('포지션 🎯', 'personality_score', ['바텀', '올', '탑', '비선호']),
   ...specsFor('MBTI 🧠', 'mbti', ['MBTI E', 'MBTI I', 'MBTI N', 'MBTI S', 'MBTI T', 'MBTI F', 'MBTI J', 'MBTI P']),
   { tag: '술좋아', group: '라이프 🍻', field: 'interests+status_msg+bio', aliases: [...DRINK_INTERESTS, '술좋아', '술잘마시는'] },

@@ -12,7 +12,8 @@ import { supabase } from '../lib/supabase';
 import { useTheme } from '../lib/theme';
 import type { Profile, ContactShare, Chat, MainTab, GroupChat, ProfileView, UserSignal } from '../types/app';
 import { groupRoomVisual, MAX_GROUPS_PER_USER } from '../lib/group-rooms';
-import { BIO_CATEGORIES, parseProfileInterests, getInterestTagStyle } from '../lib/interests';
+import { BIO_CATEGORIES, parseProfileInterests } from '../lib/interests';
+import { InterestPicker } from './InterestPicker';
 import { HeartType, HEART_TYPES, heartMeta } from '../lib/constants';
 import { getPositionLabel, getPositionBg, getPositionStyle, getDomSubLabel, getDomSubBg, getKoreanAge, genAvatar, getAvatarSrc, getAvatarGradientCss, hasUploadedPhoto } from '../lib/profile';
 import { containsBannedNicknameWord } from '../lib/bannedWords';
@@ -1287,7 +1288,6 @@ export function MainScreen({
               if (!me) return null;
               const currentTags = me.bio ? me.bio.split(',').map(t => t.trim()).filter(Boolean) : [];
               const hasBd = !!(me.birth_month && me.birth_day);
-              const atMax = editInterests.length >= 5;
               const toggleTag = (tag: string) => {
                 // 함수형 업데이트 대신 직접 계산 — setTimeout 클로저 stale 문제 방지
                 const next = editInterests.includes(tag)
@@ -1473,52 +1473,13 @@ export function MainScreen({
                     </button>
                     {showInterestEdit && (
                       <div className={`px-4 pb-4 space-y-3 ${darkMode ? 'bg-slate-700/20' : 'bg-gray-50/50'}`}>
-                        {editInterests.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5 p-2.5 rounded-xl border bg-cyan-50 border-cyan-100">
-                            {editInterests.map(tag => (
-                              <button key={tag} type="button" onClick={() => toggleTag(tag)}
-                                className="flex items-center gap-1 px-2.5 py-1 bg-cyan-500 text-white text-xs font-semibold rounded-lg hover:bg-cyan-600 transition-all active:scale-95">
-                                {tag} <span className="opacity-70 text-[10px]">×</span>
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                        <div className="flex gap-1.5 flex-wrap">
-                          {BIO_CATEGORIES.map(cat => {
-                            const active = interestFilter === cat.label;
-                            const hasSelected = cat.tags.some(t => editInterests.includes(t));
-                            return (
-                              <button key={cat.label} type="button" onClick={() => setInterestFilter(cat.label)}
-                                className={`relative px-3 py-1.5 rounded-full text-xs font-black border transition-all ${active ? `${cat.color.selected} border-transparent` : (darkMode ? `bg-slate-700 border-slate-600 ${cat.color.label} hover:border-current` : `bg-white border-gray-200 ${cat.color.label} hover:border-current`)}`}>
-                                {cat.label}
-                                {hasSelected && !active && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-cyan-500 rounded-full border border-white" />}
-                              </button>
-                            );
-                          })}
-                        </div>
-                        <div className="space-y-2.5">
-                          {BIO_CATEGORIES.filter(cat => interestFilter === null || interestFilter === cat.label).map(cat => (
-                            <div key={cat.label} className={interestFilter === null ? `rounded-xl border ${cat.color.border} overflow-hidden` : ''}>
-                              {interestFilter === null && (
-                                <div className={`px-3 py-1.5 ${cat.color.bg}`}>
-                                  <span className={`text-[11px] font-black ${cat.color.label}`}>{cat.label}</span>
-                                </div>
-                              )}
-                              <div className={`flex flex-wrap gap-1.5 ${interestFilter === null ? 'p-2.5' : ''}`}>
-                                {cat.tags.map(tag => {
-                                  const selected = editInterests.includes(tag);
-                                  const disabled = !selected && atMax;
-                                  return (
-                                    <button key={tag} type="button" onClick={() => toggleTag(tag)} disabled={disabled}
-                                      className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all active:scale-95 ${selected ? cat.color.selected : disabled ? (darkMode ? 'bg-slate-700 text-slate-600 border-slate-700 cursor-not-allowed' : 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed') : cat.color.normal}`}>
-                                      {tag === '뜨밤' && <span className="mr-1">🔥</span>}{tag}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
+                        <InterestPicker
+                          selected={editInterests}
+                          onToggle={toggleTag}
+                          filter={interestFilter ?? BIO_CATEGORIES[0].label}
+                          onFilter={(label) => setInterestFilter(label)}
+                          darkMode={darkMode}
+                        />
                         <button onClick={saveInterests} disabled={interestSaving || editInterests.length < 2}
                           className="w-full py-2.5 bg-teal-500 hover:bg-teal-600 text-white font-bold rounded-xl text-sm active:scale-[0.98] transition-all disabled:opacity-40">
                           {interestSaving ? '저장 중...' : `관심사 저장 (${editInterests.length}개 선택됨)`}
