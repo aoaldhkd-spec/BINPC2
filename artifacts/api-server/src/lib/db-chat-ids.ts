@@ -10,3 +10,8 @@ export function chatPairKey(u1: string, u2: string): string {
 export function deterministicChatId(u1: string, u2: string): string {
   return `c_${createHash('sha256').update(chatPairKey(u1, u2)).digest('hex').slice(0, 32)}`;
 }
+
+/** 보낸 사람 → 받은 사람 시그널 한 줄. 방향이 있으므로 sort 하지 않음. */
+export function deterministicSignalId(senderId: string, receiverId: string): string {
+  return `sig_${createHash('sha256').update(`${senderId}\0${receiverId}`).digest('hex').slice(0, 32)}`;
+}
