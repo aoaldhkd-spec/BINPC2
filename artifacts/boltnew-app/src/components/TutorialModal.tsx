@@ -4,7 +4,7 @@ import { TutorialVideo } from './TutorialVideo';
 
 type Tip = { icon: string; title: string; desc: string };
 type Section = { emoji: string; title: string; tips: Tip[]; footer?: string };
-type FillerKind = 'guide' | 'chat' | 'pin' | 'hidden';
+type FillerKind = 'guide' | 'signal' | 'chat' | 'pin' | 'hidden';
 type Topic = {
   id: string;
   emoji: string;
@@ -16,6 +16,7 @@ type Topic = {
   sections?: Section[];
   footer?: string;
   filler?: FillerKind;
+  wideTips?: boolean;
 };
 
 const BASIC: Topic[] = [
@@ -23,7 +24,7 @@ const BASIC: Topic[] = [
     id: 'guide',
     emoji: '📋',
     label: '안내',
-    title: '오늘만 꼭 지켜 주세요',
+    title: '오늘만 이 정도는 지켜줘',
     color: 'from-teal-500 to-cyan-600',
     tips: [],
     filler: 'guide',
@@ -32,20 +33,21 @@ const BASIC: Topic[] = [
         emoji: '📋',
         title: '공지',
         tips: [
-          { icon: '🍺', title: '술 강요 없음', desc: '마시고 싶은 만큼만. 잔을 채우라고 보채지 마세요.' },
-          { icon: '🗳️', title: '정치·종교', desc: '정치·종교 이야기는 하지 마세요. 영구밴될 수 있어요.' },
-          { icon: '🚫', title: '지역·패드립', desc: '지역감정·패드립은 즉시 퇴장·영구밴입니다.' },
-          { icon: '🗣️', title: '욕설·반말', desc: '욕설·반말은 영구밴. 처음 보는 사이니 존댓말로.' },
+          { icon: '🍺', title: '술 강요 없음', desc: '마시고 싶은 만큼만. 잔 채우라고 보채지 마요.' },
+          { icon: '🗳️', title: '정치·종교', desc: '정치·종교 토크는 패스. 걸리면 영구밴이에요.' },
+          { icon: '🚫', title: '지역·패드립', desc: '지역감정·패드립은 바로 퇴장·영구밴.' },
+          { icon: '🗣️', title: '욕설·반말', desc: '욕·반말은 영구밴. 처음 보는 사이니까 존댓말로.' },
         ],
-        footer: '🔒 번호·SNS는 강요 금지. 모임 끝나면 입력 정보는 파기됩니다.',
+        footer: '🔒 번호·SNS 강요 금지. 끝나면 입력 정보는 파기돼요.',
       },
       {
         emoji: '🥂',
-        title: '시작 · 상단탭',
+        title: '위에 있는 탭',
         tips: [
-          { icon: '👥', title: '참여자', desc: '오늘 온 사람 카드가 여기 모여 있어요.' },
-          { icon: '📊', title: '통계', desc: '오늘 오간 하트 수와 종류별 비율.' },
-          { icon: '🏆', title: '랭킹', desc: '하트를 많이 받은 사람 TOP 10.' },
+          { icon: '👥', title: '참여자', desc: '오늘 온 사람들 카드가 여기 모여 있어요.' },
+          { icon: '💕', title: '시그널', desc: '나한테 하트 보낸 사람, 한 장씩.' },
+          { icon: '📊', title: '통계', desc: '오늘 오간 하트 수랑 비율.' },
+          { icon: '🏆', title: '랭킹', desc: '하트 많이 받은 사람 TOP 10.' },
         ],
         footer: '하트는 카드 아래 · 채팅·설정은 오른쪽 아래 MY',
       },
@@ -57,6 +59,7 @@ const BASIC: Topic[] = [
     label: '하트',
     title: '하트 보내기',
     color: 'from-pink-500 to-rose-500',
+    wideTips: true,
     tips: [
       { icon: '🤍', title: '보내는 곳', desc: '참여자 카드 아래쪽 하트. 오른쪽 위가 아니에요.' },
       { icon: '8️⃣', title: '개수', desc: '❤️호감 💙친구 💗뜨밤 💚칭찬 · 종류마다 2개, 오늘 8개.' },
@@ -65,11 +68,28 @@ const BASIC: Topic[] = [
     video: [6],
   },
   {
+    id: 'signal',
+    emoji: '💕',
+    label: '시그널',
+    title: '시그널, 한 장씩',
+    color: 'from-fuchsia-500 to-rose-500',
+    filler: 'signal',
+    tips: [
+      { icon: '📑', title: '상단 탭', desc: '참여자 · 시그널 · 통계 · 랭킹. 시그널은 두 번째.' },
+      { icon: '🃏', title: '카드 한 장', desc: '다음으로 넘기거나 💕 관심 보내기(기존 하트).' },
+      { icon: '💌', title: '누가 나와요', desc: '나한테 하트 보낸 사람. 이상형·관심사 맞으면 더 잘 떠요. 상대 이상형 원문은 비공개.' },
+      { icon: '💞', title: '서로 하트', desc: '양쪽이 하트면 채팅 시작.' },
+      { icon: '🎯', title: '오늘의 미션', desc: '서로 다른 3명에게 하트 보내기 0/3' },
+      { icon: '📣', title: '작은 배너', desc: '넛지 뜨면 누르면 시그널 탭으로 가요.' },
+    ],
+  },
+  {
     id: 'settings',
     emoji: '⚙️',
     label: '내설정',
     title: '내 설정 · 프로필',
     color: 'from-cyan-500 to-sky-600',
+    wideTips: true,
     tips: [
       { icon: '🏷️', title: '닉네임·관심사', desc: 'MY → 내 설정 → 프로필 편집에서 고쳐요.' },
       { icon: '📷', title: '사진·아바타', desc: '같은 내 설정에서 사진 올리거나 아바타를 골라요.' },
@@ -81,14 +101,15 @@ const BASIC: Topic[] = [
     id: 'chat',
     emoji: '💬',
     label: '채팅',
-    title: '채팅은 이렇게 해요',
+    title: '채팅, 이렇게만 알면 됨',
     color: 'from-blue-500 to-indigo-500',
     filler: 'chat',
     tips: [
-      { icon: '💬', title: '여는 곳', desc: '카드의 채팅, 또는 MY → 내 채팅. 하트와 별개예요.' },
-      { icon: '😊', title: '스티커·이모지', desc: '입력창 왼쪽 😊 → 이모지 / 스티커 팩' },
-      { icon: '📷', title: '사진', desc: '카메라 버튼으로 이미지를 보내요.' },
-      { icon: '⚡', title: '빠른 메시지', desc: '⚡ 로 자주 쓰는 한 줄을 바로 보내요.' },
+      { icon: '💬', title: '여는 곳', desc: '카드의 채팅, 또는 MY → 내 채팅. 하트랑 별개예요.' },
+      { icon: '😊', title: '이모지', desc: '입력줄 + 옆 😊. 글자에 붙여 넣어요.' },
+      { icon: '🎨', title: '스티커', desc: '+ 누르면 🎨. 이모지랑 다른 버튼이에요.' },
+      { icon: '📷', title: '사진', desc: '+ 누르면 이미지 버튼. 사진을 보내요.' },
+      { icon: '⚡', title: '빠른 메시지', desc: '+ 누르면 ⚡. 자주 쓰는 한 줄 바로 전송.' },
       { icon: '📱', title: '연락처·궁합', desc: '채팅방 위 공유로 연락처, 🔮 로 궁합.' },
       { icon: '👉', title: '스와이프 답장', desc: '메시지를 옆으로 밀면 그 말에 답장이 걸려요.' },
       { icon: '👆', title: '길게 누르기', desc: '길게 누르면 답장·복사, 내 메시지는 삭제도 돼요.' },
@@ -110,21 +131,21 @@ const ADVANCED: Topic[] = [
     id: 'pin',
     emoji: '🔑',
     label: '고유번호',
-    title: '내 고유번호',
+    title: '고유번호 캡처 필수',
     color: 'from-amber-500 to-orange-500',
     filler: 'pin',
     tips: [
-      { icon: '📍', title: '어디에', desc: 'MY → 내 상태의 4자리. 입장 핀과 달라요.' },
-      { icon: '📱', title: '기기 바꿈', desc: '새 폰에서 프로필을 다시 만들지 말고 복구.' },
-      { icon: '⚠️', title: '모르면', desc: '관리자에게 닉네임을 말하고 찾아 달라고 하세요.' },
+      { icon: '📍', title: '어디에', desc: 'MY → 내 상태의 4자리. 입장 핀이랑 달라요.' },
+      { icon: '📱', title: '폰 바꿈', desc: '새 폰에서 프로필 다시 만들지 말고 이 번호로 복구.' },
+      { icon: '⚠️', title: '모르면', desc: '관리자에게 닉네임 말하고 찾아 달라고 하세요.' },
     ],
-    footer: '입장 때 누른 4자리 ≠ 내 상태의 고유번호',
+    footer: '입장 핀이랑 고유번호는 다른 거예요',
   },
   {
     id: 'hidden',
     emoji: '✨',
     label: '숨은기능',
-    title: '알아두면 좋은 숨은 기능',
+    title: '몰라도 되는데 알면 이득',
     color: 'from-violet-500 to-purple-600',
     filler: 'hidden',
     tips: [
@@ -155,14 +176,15 @@ function TipCard({ tip, panel, text, muted }: {
   );
 }
 
-function TipGrid({ tips, panel, text, muted }: {
+function TipGrid({ tips, panel, text, muted, stack }: {
   tips: Tip[];
   panel: string;
   text: string;
   muted: string;
+  stack?: boolean;
 }) {
   return (
-    <div className={`grid gap-1.5 ${tips.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+    <div className={`grid gap-1.5 ${stack || tips.length <= 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
       {tips.map((tip) => (
         <TipCard key={tip.title} tip={tip} panel={panel} text={text} muted={muted} />
       ))}
@@ -181,6 +203,18 @@ function FillerArt({ kind, darkMode }: { kind: FillerKind; darkMode?: boolean })
         </div>
         <span className="absolute -right-0.5 top-0 text-[12px]">✨</span>
         <span className="absolute -left-1 bottom-0 text-[14px]">🌙</span>
+      </div>
+    );
+  }
+  if (kind === 'signal') {
+    return (
+      <div className="relative h-12 w-28 mb-1.5" aria-hidden>
+        <div className={`absolute left-3 top-1 w-16 h-10 rounded-xl rotate-[-8deg] ${darkMode ? 'bg-rose-950/80' : 'bg-rose-100'}`} />
+        <div className={`absolute left-7 top-0.5 w-16 h-10 rounded-xl rotate-[6deg] flex items-center justify-center ${darkMode ? 'bg-fuchsia-950 ring-1 ring-fuchsia-400/40' : 'bg-white ring-1 ring-rose-200'} shadow-sm`}>
+          <span className="text-[18px] leading-none">💕</span>
+        </div>
+        <span className="absolute right-0 top-0 text-[12px]">✨</span>
+        <span className={`absolute left-0 bottom-0 text-[10px] font-black ${darkMode ? 'text-rose-300' : 'text-rose-500'}`}>0/3</span>
       </div>
     );
   }
@@ -222,30 +256,37 @@ function FillerArt({ kind, darkMode }: { kind: FillerKind; darkMode?: boolean })
 
 const FILLERS: Record<FillerKind, { title: string; line: string; quote: string; shell: string; darkShell: string }> = {
   guide: {
-    title: '환영합니다',
-    line: '오늘 모임을 이용해주셔서 감사합니다',
-    quote: '좋은 인연이 오늘 여기서 시작되길',
+    title: '오늘 하나만 건져도 이득',
+    line: '규칙은 짧게, 텐션은 자유롭게',
+    quote: '존댓말로 시작하면 반은 먹고 들어감',
     shell: 'bg-gradient-to-br from-teal-50 via-white to-amber-50 border border-teal-100',
     darkShell: 'bg-gradient-to-br from-slate-800/90 via-slate-800/60 to-teal-950/40 border border-slate-700',
   },
+  signal: {
+    title: '받은 하트부터 확인',
+    line: '한 장씩 넘기고, 끌리면 관심 보내기',
+    quote: '서로 하트면 채팅 시작. 그게 시그널',
+    shell: 'bg-gradient-to-br from-rose-50 via-fuchsia-50 to-white border border-rose-100',
+    darkShell: 'bg-gradient-to-br from-slate-800/90 via-rose-950/50 to-slate-900 border border-rose-900/50',
+  },
   chat: {
-    title: '따뜻한 한 마디면 충분해요',
-    line: '채팅은 하트와 별개, 마음만 건네요',
-    quote: '오늘 밤의 인사는 여기서 남겨 두세요',
+    title: '말 거는 게 제일 어려움 인정',
+    line: '하트랑 채팅은 따로. 그냥 먼저 쳐도 됨',
+    quote: '한 줄이면 충분, 소설 쓸 필요 없음',
     shell: 'bg-gradient-to-br from-sky-50 via-indigo-50 to-white border border-indigo-100',
     darkShell: 'bg-gradient-to-br from-slate-800/90 via-indigo-950/50 to-slate-900 border border-indigo-900/60',
   },
   pin: {
-    title: '네 자리는 나만의 열쇠',
-    line: '기기 바꿔도 이 번호로 다시 만나요',
-    quote: '입장 핀과 다른, 오늘의 나',
+    title: '고유번호 캡처 필수',
+    line: '폰 바꾸면 진짜 끝. 이 4자리로 복구',
+    quote: '입장 핀이랑 다른 거예요. 헷갈리지 마요',
     shell: 'bg-gradient-to-br from-amber-50 via-orange-50 to-white border border-amber-100',
     darkShell: 'bg-gradient-to-br from-slate-800/90 via-amber-950/40 to-slate-900 border border-amber-900/50',
   },
   hidden: {
-    title: '살짝 숨겨 둔 길',
-    line: '카드를 뒤집고, QR을 보여주고, 운세를 펼쳐 보세요',
-    quote: '아는 사람만 오늘이 조금 더 특별해져요',
+    title: '몰라도 되는데, 알면 이득',
+    line: '카드 뒤집기 · QR · 운세, 숨겨둔 버튼 있음',
+    quote: '사진 탭하면 이상형 나옴. 진짜임',
     shell: 'bg-gradient-to-br from-violet-50 via-fuchsia-50 to-white border border-violet-100',
     darkShell: 'bg-gradient-to-br from-slate-800/90 via-violet-950/50 to-slate-900 border border-violet-900/60',
   },
@@ -266,7 +307,7 @@ function FillerPanel({ kind, darkMode }: { kind: FillerKind; darkMode?: boolean 
       <p className={`text-[11px] leading-snug mt-0.5 ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
         {f.line}
       </p>
-      <p className={`text-[10px] italic mt-1 ${darkMode ? 'text-white/55' : 'text-slate-500'}`}>
+      <p className={`text-[10px] mt-1 ${darkMode ? 'text-white/55' : 'text-slate-500'}`}>
         {f.quote}
       </p>
     </div>
@@ -371,13 +412,14 @@ export function TutorialModal({ onClose, darkMode }: {
             ) : (
               <>
                 <div className="flex-shrink-0">
-                  <TipGrid tips={topic.tips} panel={panel} text={text} muted={muted} />
+                  <TipGrid tips={topic.tips} panel={panel} text={text} muted={muted} stack={topic.wideTips} />
                 </div>
                 <div className="flex-1 min-h-0">
                   <TutorialVideo
                     key={`${mode}-${topic.id}`}
                     embedded
                     compact
+                    fill
                     sceneIndices={topic.video}
                     onClose={() => setShowVideo(false)}
                   />

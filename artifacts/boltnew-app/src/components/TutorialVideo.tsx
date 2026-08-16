@@ -325,7 +325,7 @@ function S4({ step }: { step: number }) {
       {/* 이모지 팔레트 */}
       {showEmoji && !showSticker && (
         <div className="bg-slate-800 border-t border-slate-700 p-2 animate-in slide-in-from-bottom-2 duration-300">
-          <p className="text-slate-400 text-[9px] font-bold mb-1.5">😊 이모지 — 😊 버튼을 눌러 열어요</p>
+          <p className="text-slate-400 text-[9px] font-bold mb-1.5">😊 이모지 — 입력줄 + 옆 😊</p>
           <div className="grid grid-cols-8 gap-1">
             {emojis.map((e, i) => (
               <div key={e} className={`relative h-8 w-8 rounded-xl flex items-center justify-center text-xl transition-all duration-200 ${step === 2 && i === 3 ? 'bg-teal-500/30 ring-2 ring-teal-400 scale-110' : 'bg-slate-700'}`}>
@@ -340,7 +340,7 @@ function S4({ step }: { step: number }) {
       {/* 스티커 팔레트 */}
       {showSticker && (
         <div className="bg-slate-800 border-t border-slate-700 p-2 animate-in slide-in-from-bottom-2 duration-300">
-          <p className="text-slate-400 text-[9px] font-bold mb-1.5">🎊 스티커 — 스티커 버튼으로 전송</p>
+          <p className="text-slate-400 text-[9px] font-bold mb-1.5">🎨 스티커 — + 누른 다음 🎨</p>
           <div className="grid grid-cols-6 gap-1">
             {stickers.map((s, i) => (
               <div key={s} className={`relative h-10 w-10 rounded-xl flex items-center justify-center text-2xl transition-all ${step === 4 && i === 0 ? 'bg-teal-500/30 ring-2 ring-teal-400 scale-110' : 'bg-slate-700'}`}>
@@ -355,10 +355,11 @@ function S4({ step }: { step: number }) {
       {/* 입력창 */}
       {!showEmoji && !showSticker && (
         <div className="px-3 pb-3">
-          <div className="flex items-center gap-2 bg-slate-700 rounded-2xl px-3 py-2">
+          <div className="flex items-center gap-1.5 bg-slate-700 rounded-2xl px-2 py-2">
+            <div className="w-7 h-7 rounded-full bg-slate-600 flex items-center justify-center text-sm text-slate-300">+</div>
             <div className={`relative w-7 h-7 rounded-full flex items-center justify-center text-base transition-all ${step === 1 ? 'bg-teal-500/30 ring-2 ring-teal-400' : 'bg-slate-600'}`}>
               <Ring on={step === 0} />
-              <Tip text="😊 버튼 탭!" show={step === 0} dir="top" />
+              <Tip text="😊 이모지" show={step === 0} dir="top" />
               😊
             </div>
             <span className="flex-1 text-slate-500 text-[11px]">메시지 입력…</span>
@@ -660,7 +661,7 @@ const SCENES: SceneDef[] = [
     render: s => <S3 step={s} />,
   },
   {
-    title: '이모지 & 스티커 전송', sub: '채팅창 😊 버튼 → 이모지 / 스티커 선택',
+    title: '이모지랑 스티커는 따로', sub: '입력줄 😊 는 이모지 · + 다음 🎨 는 스티커',
     steps: [
       { cx: 45,  cy: 250, dur: 1000 },              // 😊 버튼 가리킴
       { cx: 45,  cy: 250, click: true,  dur: 800 },
