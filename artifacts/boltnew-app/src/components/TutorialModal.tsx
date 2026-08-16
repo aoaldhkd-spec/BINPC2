@@ -78,7 +78,7 @@ const BASIC: Topic[] = [
       { icon: '📑', title: '누구나 열림', desc: '참여자 · 시그널 · 통계 · 랭킹. 시그널은 두 번째, 누구나 들어가요.' },
       { icon: '📖', title: '미션 전', desc: '추천 카드 대신 시그널 설명서 + 하트 보내기 0/3.' },
       { icon: '🎯', title: '오늘의 미션', desc: '서로 다른 3명에게 하트 보내기. 3/3 돼야 추천이 열려요.' },
-      { icon: '🃏', title: '3/3 이후', desc: '카드 한 장씩. 이상형↔특징, 관심사 맞으면 떠요.' },
+      { icon: '🃏', title: '3/3 이후', desc: '이상형↔특징, 관심사 겹치면 떠요. 받은 하트만 보는 탭 아님.' },
       { icon: '💕', title: '관심 보내기', desc: '다음 / 💕 관심 보내기. 기존 하트랑 같아요.' },
       { icon: '💞', title: '맞관심', desc: '서로 하트면 채팅 시작. 넛지 배너도 시그널 탭으로.' },
     ],
@@ -91,9 +91,16 @@ const BASIC: Topic[] = [
     color: 'from-cyan-500 to-sky-600',
     wideTips: true,
     tips: [
-      { icon: '🏷️', title: '닉네임·관심사', desc: 'MY → 내 설정 → 프로필 편집에서 고쳐요.' },
-      { icon: '📷', title: '사진·아바타', desc: '같은 내 설정에서 사진 올리거나 아바타를 골라요.' },
-      { icon: '📅', title: '생월·연락처', desc: '생월일은 내 설정 또는 내 운세. 연락처도 내 설정.' },
+      { icon: '🔑', title: '고유번호', desc: '맨 위 4자리. 복사해 두세요. 폰 바꾸면 이걸로 복구.' },
+      { icon: '📷', title: '사진·아바타', desc: '사진 올리거나 기본 아바타 고르기. 종류는 적어요.' },
+      { icon: '🏷️', title: '닉네임', desc: '2~6글자. 단 1회만 바꿀 수 있어요. 신중하게.' },
+      { icon: '🎯', title: '관심사', desc: '최소 2개, 최대 5개. 시그널 추천에도 쓰여요.' },
+      { icon: '📋', title: '연락처', desc: '카카오·인스타·전화. 공유 수락해야 전달. 비공개도 됨.' },
+      { icon: '🔮', title: '생월일', desc: '월·일만. 운세·사주·궁합에 반영돼요.' },
+      { icon: '💬', title: '한마디·이상형', desc: '오늘의 한마디 + 이상형 태그. 시그널 매칭에 들어가요.' },
+      { icon: '👁', title: '성향 공개', desc: '돔/섭을 남에게 보여줄지 토글. 기본은 숨김.' },
+      { icon: '🔔', title: '방문자 알림', desc: '내 프로필 보면 MY에 표시. 끄면 알림만 꺼져요.' },
+      { icon: '🚫', title: '차단·숨기기', desc: '목록에서 풀기도 돼요. 차단은 서로, 👻는 상대만 못 봄.' },
     ],
     video: [1, 2],
   },
@@ -159,34 +166,36 @@ const ADVANCED: Topic[] = [
   },
 ];
 
-function TipCard({ tip, panel, text, muted }: {
+function TipCard({ tip, panel, text, muted, dense }: {
   tip: Tip;
   panel: string;
   text: string;
   muted: string;
+  dense?: boolean;
 }) {
   return (
-    <div className={`flex gap-2 rounded-xl border px-2.5 py-1.5 ${panel}`}>
-      <span className="text-[14px] leading-none mt-0.5 flex-shrink-0">{tip.icon}</span>
+    <div className={`flex gap-2 rounded-xl border ${dense ? 'px-2 py-0.5' : 'px-2.5 py-1.5'} ${panel}`}>
+      <span className={`${dense ? 'text-[12px]' : 'text-[14px]'} leading-none mt-0.5 flex-shrink-0`}>{tip.icon}</span>
       <div className="min-w-0">
-        <p className={`text-[12px] font-black leading-tight ${text}`}>{tip.title}</p>
-        <p className={`text-[11px] leading-snug mt-0.5 ${muted}`}>{tip.desc}</p>
+        <p className={`${dense ? 'text-[11px]' : 'text-[12px]'} font-black leading-tight ${text}`}>{tip.title}</p>
+        <p className={`${dense ? 'text-[10px] leading-tight' : 'text-[11px] leading-snug mt-0.5'} ${muted}`}>{tip.desc}</p>
       </div>
     </div>
   );
 }
 
-function TipGrid({ tips, panel, text, muted, stack }: {
+function TipGrid({ tips, panel, text, muted, stack, dense }: {
   tips: Tip[];
   panel: string;
   text: string;
   muted: string;
   stack?: boolean;
+  dense?: boolean;
 }) {
   return (
-    <div className={`grid gap-1.5 ${stack || tips.length <= 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+    <div className={`grid ${dense ? 'gap-1' : 'gap-1.5'} ${stack || tips.length <= 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
       {tips.map((tip) => (
-        <TipCard key={tip.title} tip={tip} panel={panel} text={text} muted={muted} />
+        <TipCard key={tip.title} tip={tip} panel={panel} text={text} muted={muted} dense={dense} />
       ))}
     </div>
   );
@@ -263,9 +272,9 @@ const FILLERS: Record<FillerKind, { title: string; line: string; quote: string; 
     darkShell: 'bg-gradient-to-br from-slate-800/90 via-slate-800/60 to-teal-950/40 border border-slate-700',
   },
   signal: {
-    title: '미션 3/3 돼야 추천 오픈',
-    line: '그전까지는 설명서만. 하트 3명부터',
-    quote: '맞관심이면 채팅. 그게 시그널',
+    title: '먼저 하트 3명',
+    line: '0/3 미션 끝나면 추천이 열려요',
+    quote: '이상형·관심사로 매칭. 받은 하트만 아님',
     shell: 'bg-gradient-to-br from-rose-50 via-fuchsia-50 to-white border border-rose-100',
     darkShell: 'bg-gradient-to-br from-slate-800/90 via-rose-950/50 to-slate-900 border border-rose-900/50',
   },
@@ -409,6 +418,22 @@ export function TutorialModal({ onClose, darkMode }: {
                   onClose={() => setShowVideo(false)}
                 />
               </div>
+            ) : topic.id === 'settings' ? (
+              <>
+                <div className="flex-shrink-0">
+                  <TipGrid tips={topic.tips} panel={panel} text={text} muted={muted} stack dense />
+                </div>
+                <div className="flex-1 min-h-0 max-h-[148px]">
+                  <TutorialVideo
+                    key={`${mode}-${topic.id}`}
+                    embedded
+                    compact
+                    fill
+                    sceneIndices={topic.video}
+                    onClose={() => setShowVideo(false)}
+                  />
+                </div>
+              </>
             ) : (
               <>
                 <div className="flex-shrink-0">
