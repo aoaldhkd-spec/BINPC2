@@ -13,7 +13,7 @@ import {
   sanitizeProfileForViewer,
   sanitizeSettings,
 } from '../lib/db-sanitize';
-import { chatPairKey, deterministicChatId } from '../lib/db-chat-ids';
+import { chatPairKey, deterministicChatId, deterministicSignalId } from '../lib/db-chat-ids';
 import { collectBroadcastTargets as collectBroadcastTargetsImpl } from '../lib/db-broadcast-targets';
 import {
   RATE_MAP_MAX_SIZE,
@@ -154,6 +154,8 @@ const ALLOWED_OP_TABLES = new Set([
   'blocked_users', 'profile_views',
   // 상태·이상형 신호
   'user_signals',
+  // 시그널 보내기/패스 (하트 likes 와 분리)
+  'signal_sends',
   // 서버가 계산하고 사용자는 자신의 잔여 수만 조회
   'heart_balances',
 ]);
@@ -506,6 +508,7 @@ const CRITICAL_PERSIST_TABLES = new Set([
   'messages', 'likes', 'chats', 'chat_reads',
   'contact_shares', 'contact_share_events',
   'group_messages', 'group_chats', 'group_participants',
+  'signal_sends',
 ]);
 
 /** SSE 타겟 수집 (테스트·브로드캐스트 공용) — 구현은 db-broadcast-targets.ts */
@@ -806,6 +809,8 @@ function mergeKvRowsIntoStore(rows: Array<{ table_name: string; row_id: string; 
       }
       continue;
     }
+    // 시스템·삭제된 기능 테이블은 앱 store에 올리지 않음 (rate_limits는 PG 전용)
+    if (SYSTEM_KV_TABLES.has(row.table_name) || LEGACY_KV_TABLES.has(row.table_name)) continue;
     if (!store[row.table_name]) store[row.table_name] = [];
     store[row.table_name].push(row.data as Record<string, unknown>);
   }
@@ -932,6 +937,30 @@ function panelTestSecrets(dbTest?: string | null): string[] {
 
 const SECRET_SETTING_KEYS = ['admin_password', 'test_password', 'entry_password', 'reset_password'] as const;
 
+/** 삭제된 기능이 app_settings JSON에 남긴 키 — 메모리·Postgres 모두에서 제거 */
+const LEGACY_APP_SETTINGS_KEYS = [
+  'heart_drain_enabled',
+  'heart_drain_minutes',
+  'seating_locked',
+  'seats_snapshot',
+  'seating_map',
+  'seats',
+  'seat_layout',
+] as const;
+
+/** session_history 행에 남은 옛 좌석맵 키 */
+const LEGACY_SESSION_HISTORY_KEYS = ['seats_snapshot', 'seating_locked', 'seating_map'] as const;
+
+function settingsHaveLegacyKeys(row: Record<string, unknown>): boolean {
+  return LEGACY_APP_SETTINGS_KEYS.some(k => k in row);
+}
+
+function stripLegacySettingsKeys(row: Record<string, unknown>): Record<string, unknown> {
+  const next = { ...row };
+  for (const k of LEGACY_APP_SETTINGS_KEYS) delete next[k];
+  return next;
+}
+
 function mergeAppSettings(
   current: Record<string, unknown>,
   patch: Record<string, unknown>,
@@ -944,9 +973,7 @@ function mergeAppSettings(
     }
   }
   const merged: Record<string, unknown> = { ...defaultAppSettings(), ...current, ...safePatch, id: 1, updated_at: ts() };
-  delete merged.heart_drain_enabled;
-  delete merged.heart_drain_minutes;
-  delete merged.seating_locked;
+  for (const k of LEGACY_APP_SETTINGS_KEYS) delete merged[k];
   if (isLocalQrUrl(merged.qr_base_url)) merged.qr_base_url = PRODUCTION_QR_BASE;
   return merged;
 }
@@ -959,6 +986,7 @@ const FUNCTIONS_LOCKED_INSERT_TABLES = new Set([
   'contact_shares',
   'group_messages',
   'group_participants',
+  'signal_sends',
 ]);
 const FUNCTIONS_LOCKED_UPDATE_TABLES = new Set([
   'likes',
@@ -1017,7 +1045,7 @@ async function ensureAppSettingsSecrets(): Promise<void> {
     patch.reset_password = PANEL_DEFAULT_PASSWORD;
   }
   if (isLocalQrUrl(row.qr_base_url)) patch.qr_base_url = PRODUCTION_QR_BASE;
-  const needsStrip = 'heart_drain_enabled' in row || 'heart_drain_minutes' in row || 'seating_locked' in row;
+  const needsStrip = settingsHaveLegacyKeys(row);
   if (!Object.keys(patch).length && !needsStrip) return;
 
   const updated = mergeAppSettings(row, patch);
@@ -1081,28 +1109,75 @@ const ACTIVE_KV_TABLES = new Set([
   'blocked_users', 'profile_views',
   // 상태·이상형 신호
   'user_signals',
+  'signal_sends',
+  // PG 전용 메타 — 앱 데이터가 아님. inversion cleanup에서 지우면 안 됨
+  'rate_limits', 'db_error_log',
 ]);
+
+/** 기능 삭제 후 남은 논리 테이블 — 재시작마다 Postgres 행을 지운다 */
+const LEGACY_KV_TABLES = new Set([
+  'suggestions',
+  'seats', 'seating', 'seating_map', 'seat_assignments', 'seats_snapshot',
+]);
+
+/** app_kv_rows 에만 두고 인메모리 store에는 올리지 않는 시스템 행 */
+const SYSTEM_KV_TABLES = new Set(['rate_limits', 'db_error_log']);
 
 async function cleanupLegacyTables(): Promise<void> {
   try {
     const { rows } = await pool.query<{ table_name: string }>(
       `SELECT DISTINCT table_name FROM app_kv_rows`,
     );
-    const legacyTables = rows
-      .map(r => r.table_name)
-      .filter(t => !ACTIVE_KV_TABLES.has(t));
+    const present = rows.map(r => r.table_name);
+    const legacyTables = [...new Set([
+      ...present.filter(t => LEGACY_KV_TABLES.has(t) || (!ACTIVE_KV_TABLES.has(t) && !SYSTEM_KV_TABLES.has(t))),
+    ])];
 
     if (legacyTables.length === 0) {
       logger.info('[db] cleanupLegacyTables: 삭제할 레거시 테이블 없음');
-      return;
+    } else {
+      for (const t of legacyTables) {
+        const res = await pool.query(
+          `DELETE FROM app_kv_rows WHERE table_name = $1`, [t],
+        );
+        delete store[t];
+        logger.info({ table: t, deleted: res.rowCount }, '[db] cleanupLegacyTables: 레거시 테이블 삭제');
+      }
     }
 
-    // 각 레거시 테이블의 모든 행을 삭제
-    for (const t of legacyTables) {
-      const res = await pool.query(
-        `DELETE FROM app_kv_rows WHERE table_name = $1`, [t],
-      );
-      logger.info({ table: t, deleted: res.rowCount }, '[db] cleanupLegacyTables: 레거시 테이블 삭제');
+    // app_settings JSON에서 레거시 키를 Postgres에 실제로 제거 (RAM strip만으로는 재시작 후 복원됨)
+    const settingsStrip = await pool.query(
+      `UPDATE app_kv_rows
+       SET data = data - $1::text[], updated_at = NOW()
+       WHERE table_name = 'app_settings' AND data ?| $1::text[]`,
+      [[...LEGACY_APP_SETTINGS_KEYS]],
+    );
+    if ((settingsStrip.rowCount ?? 0) > 0) {
+      const mem = getTable('app_settings')[0];
+      if (mem && settingsHaveLegacyKeys(mem)) {
+        const stripped = stripLegacySettingsKeys(mem);
+        store['app_settings'] = [stripped];
+      }
+      logger.info({ stripped: settingsStrip.rowCount, keys: [...LEGACY_APP_SETTINGS_KEYS] }, '[db] cleanupLegacyTables: app_settings 레거시 키 삭제');
+    }
+
+    // session_history 의 옛 좌석맵 키만 제거 — 히스토리 행 자체는 유지
+    const histStrip = await pool.query(
+      `UPDATE app_kv_rows
+       SET data = data - $1::text[], updated_at = NOW()
+       WHERE table_name = 'session_history' AND data ?| $1::text[]`,
+      [[...LEGACY_SESSION_HISTORY_KEYS]],
+    );
+    if ((histStrip.rowCount ?? 0) > 0) {
+      const histRows = store['session_history'];
+      if (Array.isArray(histRows)) {
+        store['session_history'] = histRows.map(r => {
+          const next = { ...r };
+          for (const k of LEGACY_SESSION_HISTORY_KEYS) delete next[k];
+          return next;
+        });
+      }
+      logger.info({ stripped: histStrip.rowCount }, '[db] cleanupLegacyTables: session_history 좌석맵 키 삭제');
     }
   } catch (e) {
     logger.warn({ err: e }, '[db] cleanupLegacyTables 실패');
@@ -1346,10 +1421,48 @@ function hasGroupOptOut(userId: string, optKey: string): boolean {
 
 function optKeyForGroup(group: Record<string, unknown> | undefined, groupId: string): string {
   const kind = String(group?.room_kind ?? '');
-  if (kind === AUTO_ROOM_AGE_DECADE) return autoRoomOptKey(kind, String(group?.age_group ?? ''));
-  if (kind === AUTO_ROOM_BIRTH_YEAR) return autoRoomOptKey(kind, String(group?.interest_tag ?? group?.name ?? ''));
-  if (kind === 'afterparty_club' || kind === 'afterparty_drink') return kind;
-  return groupId;
+  const name = String(group?.name ?? '');
+  const tag = String(group?.interest_tag ?? '');
+  const age = String(group?.age_group ?? '');
+  if (kind === AUTO_ROOM_AGE_DECADE || /^\d+대 모임$/.test(name)) {
+    const band = age || name.match(/^(\d+대)/)?.[1] || tag;
+    return autoRoomOptKey(AUTO_ROOM_AGE_DECADE, String(band));
+  }
+  if (kind === AUTO_ROOM_BIRTH_YEAR || /^\d{4}년생 모임$/.test(name)) {
+    const yearTag = /^\d{4}년생$/.test(tag)
+      ? tag
+      : (name.match(/^(\d{4}년생)/)?.[1] || tag);
+    return autoRoomOptKey(AUTO_ROOM_BIRTH_YEAR, String(yearTag));
+  }
+  if (kind === 'afterparty_club' || tag === '2차클럽' || name.includes('2차 클럽')) return 'afterparty_club';
+  if (kind === 'afterparty_drink' || tag === '2차술' || name.includes('2차 술')) return 'afterparty_drink';
+  return resolveMergedGroupId(groupId);
+}
+
+function groupIdsInSameLeaveSlot(groupId: string): Set<string> {
+  const resolved = resolveMergedGroupId(groupId);
+  const ids = new Set<string>([groupId, resolved]);
+  const target = getTable('group_chats').find(g => String(g.id) === resolved || String(g.id) === groupId);
+  if (!target) return ids;
+  const ap = afterpartySlotKey(target);
+  const name = String(target.name ?? '');
+  const yearOrAge = /^\d{4}년생 모임$/.test(name) || /^\d+대 모임$/.test(name);
+  for (const g of getTable('group_chats')) {
+    const gid = String(g.id);
+    if (ap && afterpartySlotKey(g) === ap) ids.add(gid);
+    else if (yearOrAge && String(g.name) === name) ids.add(gid);
+  }
+  return ids;
+}
+
+function participantRowsToLeave(userId: string, groupId: string): Record<string, unknown>[] {
+  if (!userId || !groupId) return [];
+  const ids = groupIdsInSameLeaveSlot(groupId);
+  return getTable('group_participants').filter(p => {
+    if (String(p.user_id) !== userId) return false;
+    const gid = String(p.group_id ?? '');
+    return ids.has(gid) || ids.has(resolveMergedGroupId(gid));
+  });
 }
 
 async function recordGroupOptOut(part: Record<string, unknown>): Promise<void> {
@@ -1508,6 +1621,7 @@ async function joinOrCreateAutoRoom(userId: string, spec: {
   const parts = getTable('group_participants');
   if (parts.some(p => String(p.group_id) === String(room.id) && String(p.user_id) === userId)) return;
   if (countUserGroupSlots(userId) >= MAX_GROUPS_PER_USER) return;
+  if (hasGroupOptOut(userId, spec.optKey)) return;
   const part = {
     id: `${room.id}__${userId}`,
     group_id: String(room.id),
@@ -1517,11 +1631,15 @@ async function joinOrCreateAutoRoom(userId: string, spec: {
   parts.push(part);
   try {
     await dbPersistRow('group_participants', part);
+    if (hasGroupOptOut(userId, spec.optKey)) {
+      await removeParticipant(userId, String(room.id), false);
+      return;
+    }
     smartBroadcast('group_participants', part, {
       type: 'change', table: 'group_participants', event: 'INSERT', newRow: part, oldRow: null,
     });
   } catch (e) {
-    store['group_participants'] = parts.filter(p => String(p.id) !== part.id);
+    store['group_participants'] = getTable('group_participants').filter(p => String(p.id) !== part.id);
     logger.error({ err: e, userId }, '[autoMatchGroupChat] join persist failed');
   }
 }
@@ -1558,6 +1676,14 @@ async function autoMatchGroupChat(userId: string, profile: Record<string, unknow
         optKey: autoRoomOptKey(AUTO_ROOM_BIRTH_YEAR, `${year}년생`),
         canonicalId: canonicalYearRoomId(year),
       });
+    }
+    const mine = getTable('group_participants').filter(p => String(p.user_id) === userId);
+    for (const p of mine) {
+      const gid = String(p.group_id ?? '');
+      const g = getTable('group_chats').find(row => String(row.id) === gid);
+      if (hasGroupOptOut(userId, optKeyForGroup(g, gid))) {
+        await removeParticipant(userId, gid, false);
+      }
     }
   } catch (e) {
     logger.error({ err: e, userId }, '[autoMatchGroupChat] 오류');
@@ -1786,16 +1912,24 @@ function pickLatestAppSettingsRow(rows: Record<string, unknown>[]): Record<strin
 function applyAppSettingsFromDbRows(dbRows: Record<string, unknown>[]): boolean {
   const dbRow = pickLatestAppSettingsRow(dbRows);
   if (!dbRow) return false;
+  const hadLegacy = settingsHaveLegacyKeys(dbRow);
+  const cleaned = stripLegacySettingsKeys(dbRow);
   const memRow = (getTable('app_settings')[0] ?? null) as Record<string, unknown> | null;
   if (!memRow) {
-    store['app_settings'] = [dbRow];
+    store['app_settings'] = [cleaned];
+    if (hadLegacy) {
+      dbPersistRow('app_settings', cleaned).catch(e => logger.warn({ err: e }, '[db] persist stripped app_settings'));
+    }
     return true;
   }
   const memTs = String(memRow.updated_at ?? '');
   const dbTs = String(dbRow.updated_at ?? '');
   if (dbTs >= memTs) {
     const changed = memTs !== dbTs || memRow.session_active !== dbRow.session_active;
-    store['app_settings'] = [dbRow];
+    store['app_settings'] = [cleaned];
+    if (hadLegacy) {
+      dbPersistRow('app_settings', cleaned).catch(e => logger.warn({ err: e }, '[db] persist stripped app_settings'));
+    }
     return changed;
   }
   dbPersistRow('app_settings', memRow).catch(e => logger.warn({ err: e }, '[db] heal stale app_settings in DB'));
@@ -2034,6 +2168,7 @@ const PRIVATE_TABLES = new Set([
   'heart_balances',
   'group_messages', 'group_participants',
   'blocked_users', 'profile_views',
+  'signal_sends',
   // user_signals는 공개 — 전광판/카드에서 모두가 볼 수 있음 (연락처 등 민감정보 없음)
 ]);
 
@@ -2128,6 +2263,11 @@ async function sendPushForEvent(
       row.heart_type === 'blue' ? '💙' :
       row.heart_type === 'pink' ? '💗' : '💚';
     payload = { title: `${heartEmoji} ${nick}님`, body: '하트를 보냈어요!', tag: `like-${row.liker_id as string}`, url: '/' };
+  } else if (table === 'signal_sends' && row.action === 'send') {
+    recipientId = row.receiver_id as string;
+    const sender = getTable('profiles').find(p => p.id === row.sender_id);
+    const nick = (sender?.nickname as string) ?? '누군가';
+    payload = { title: `💕 ${nick}님`, body: '시그널을 보냈어요!', tag: `signal-${row.sender_id as string}`, url: '/' };
   } else if (table === 'chats' && actorId) {
     const u1 = String(row.user1_id ?? '');
     const u2 = String(row.user2_id ?? '');
@@ -2280,7 +2420,7 @@ router.post('/op', async (req: Request, res: Response) => {
   // 핵심 쓰기 작업만 requestId 로깅 (관측용, 본문/비밀 제외)
   if (
     (op === 'insert' || op === 'update' || op === 'upsert' || op === 'delete') &&
-    (table === 'messages' || table === 'chats' || table === 'likes' || table === 'contact_shares')
+    (table === 'messages' || table === 'chats' || table === 'likes' || table === 'contact_shares' || table === 'signal_sends')
   ) {
     logger.info({ requestId, op, table }, '[op] critical-write');
   }
@@ -2504,6 +2644,19 @@ router.post('/op', async (req: Request, res: Response) => {
           logger.warn({ ip: req.ip }, '[SECURITY] IDOR: likes SELECT without requesterId blocked');
           return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
         }
+      }
+
+      // ─ IDOR guard: signal_sends SELECT ─────────────────────────────────────
+      // 보낸 사람은 자신의 발신(send+pass)만. 받은 사람은 incoming send만 (pass 비공개).
+      if (table === 'signal_sends' && !canReadPrivateTables) {
+        if (!requesterId) {
+          logger.warn({ ip: req.ip }, '[SECURITY] IDOR: signal_sends SELECT without requesterId blocked');
+          return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+        }
+        tableData = tableData.filter(r => {
+          if (String(r.sender_id) === String(requesterId)) return true;
+          return String(r.receiver_id) === String(requesterId) && r.action === 'send';
+        });
       }
 
       // ─ IDOR guard: profile_views SELECT ───────────────────────────────────
@@ -2925,6 +3078,32 @@ router.post('/op', async (req: Request, res: Response) => {
           }
           effectiveRow = { ...effectiveRow, liker_id: requesterId };
         }
+        // signal_sends: requesterId 필수 + sender_id 강제. 하트(likes)와 별도 액션.
+        if (table === 'signal_sends') {
+          if (!requesterId) {
+            logger.warn({ ip: req.ip }, '[SECURITY] IDOR: signal_sends INSERT without requesterId blocked');
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+          }
+          const receiverId = effectiveRow.receiver_id != null ? String(effectiveRow.receiver_id) : '';
+          const action = effectiveRow.action === 'pass' ? 'pass' : effectiveRow.action === 'send' ? 'send' : '';
+          if (!receiverId) {
+            return res.status(400).json({ data: null, error: { message: 'receiver_id is required', code: 'INVALID_INPUT' } });
+          }
+          if (!action) {
+            return res.status(400).json({ data: null, error: { message: 'action must be send or pass', code: 'INVALID_INPUT' } });
+          }
+          if (receiverId === String(requesterId)) {
+            return res.status(400).json({ data: null, error: { message: 'cannot signal yourself', code: 'INVALID_INPUT' } });
+          }
+          const detId = deterministicSignalId(String(requesterId), receiverId);
+          const existingSig = tableData.find(r => String(r.id) === detId)
+            ?? tableData.find(r => String(r.sender_id) === String(requesterId) && String(r.receiver_id) === receiverId);
+          if (existingSig) {
+            if (selectAfterWrite) return res.json({ data: single ? existingSig : [existingSig], error: null });
+            return res.json({ data: null, error: null });
+          }
+          effectiveRow = { ...effectiveRow, sender_id: requesterId, receiver_id: receiverId, action, id: detId };
+        }
         // profile_views: viewer_id를 requesterId로 강제 (omit·mismatch 차단). 자기 자신 방문은 기록하지 않음.
         if (table === 'profile_views') {
           if (!requesterId) {
@@ -3120,7 +3299,7 @@ router.post('/op', async (req: Request, res: Response) => {
           }
         }
         // 메시지·하트·채팅방 생성 시 수신자 핸드폰으로 푸시 알림 전송
-        if (table === 'messages' || table === 'likes' || table === 'chats') {
+        if (table === 'messages' || table === 'likes' || table === 'chats' || (table === 'signal_sends' && newRow.action === 'send')) {
           sendPushForEvent(table, newRow, requesterId).catch(e => logger.error({ err: e }, '[db] background task error'));
         }
       }
@@ -3150,6 +3329,9 @@ router.post('/op', async (req: Request, res: Response) => {
       if (table === 'likes' && !isAdmin && !requesterId) {
         logger.warn({ ip: req.ip }, '[SECURITY] IDOR: likes UPDATE without requesterId blocked');
         return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+      }
+      if (table === 'signal_sends' && !isAdmin) {
+        return res.status(403).json({ data: null, error: { message: 'Forbidden: signal actions cannot be updated', code: 'FORBIDDEN' } });
       }
       if (table === 'group_participants') {
         if (!requesterId) {
@@ -3253,6 +3435,9 @@ router.post('/op', async (req: Request, res: Response) => {
 
     // ── UPSERT ──────────────────────────────────────────────────────────────
     if (op === 'upsert') {
+      if (table === 'signal_sends' && !isAdmin) {
+        return res.status(403).json({ data: null, error: { message: 'Forbidden: use insert for signal actions', code: 'FORBIDDEN' } });
+      }
       const inputs = (Array.isArray(payload) ? payload as Record<string, unknown>[] : [payload as Record<string, unknown>])
         .map(row => sanitizeRow(table, row)); // XSS 방어: UPSERT payload도 sanitize
       const upserted: Record<string, unknown>[] = [];
@@ -3387,14 +3572,15 @@ router.post('/op', async (req: Request, res: Response) => {
 
     // ── DELETE ──────────────────────────────────────────────────────────────
     if (op === 'delete') {
-      const toDelete = applyFilters(tableData, normalizedFilters);
+      let toDelete = applyFilters(tableData, normalizedFilters);
 
       // ─ IDOR guard: 민감 테이블 DELETE는 requesterId 필수 ────────────────
       if (!isAdmin && !requesterId) {
         if (
           table === 'messages' || table === 'likes' || table === 'chat_reads' ||
           table === 'chats' || table === 'contact_shares' || table === 'contact_share_events' ||
-          table === 'group_messages' || table === 'group_participants' || table === 'group_chats'
+          table === 'group_messages' || table === 'group_participants' || table === 'group_chats' ||
+          table === 'signal_sends'
         ) {
           logger.warn({ table, ip: req.ip }, '[SECURITY] IDOR: DELETE without requesterId blocked');
           return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
@@ -3408,6 +3594,11 @@ router.post('/op', async (req: Request, res: Response) => {
               String(existingRow.liker_id) !== String(requesterId)) {
             logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: DELETE likes blocked');
             return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신이 보낸 하트만 취소할 수 있습니다.', code: 'FORBIDDEN' } });
+          }
+          if (table === 'signal_sends' && existingRow.sender_id != null &&
+              String(existingRow.sender_id) !== String(requesterId)) {
+            logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: DELETE signal_sends blocked');
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신이 보낸 시그널만 취소할 수 있습니다.', code: 'FORBIDDEN' } });
           }
           if (table === 'messages' && existingRow.sender_id != null &&
               String(existingRow.sender_id) !== String(requesterId)) {
@@ -3451,9 +3642,31 @@ router.post('/op', async (req: Request, res: Response) => {
         }
       }
 
-      const deleteIds = toDelete.map(r => String(r.id)).filter(Boolean);
+      if (table === 'group_participants' && requesterId && !isAdmin) {
+        const gidF = normalizedFilters.find(f => f.type === 'eq' && f.col === 'group_id');
+        const uidF = normalizedFilters.find(f => f.type === 'eq' && f.col === 'user_id');
+        const seeds = toDelete.length > 0
+          ? toDelete
+          : (gidF && uidF && 'val' in gidF && 'val' in uidF
+            ? [{ user_id: uidF.val, group_id: gidF.val }]
+            : []);
+        const byId = new Map<string, Record<string, unknown>>();
+        for (const row of seeds) {
+          if (String(row.user_id) !== String(requesterId)) continue;
+          for (const extra of participantRowsToLeave(String(row.user_id), String(row.group_id ?? ''))) {
+            byId.set(String(extra.id), extra);
+          }
+        }
+        if (byId.size > 0) toDelete = [...byId.values()];
+      }
+
+      const deleteIds = [...new Set(toDelete.map(r => String(r.id)).filter(Boolean))];
       const previousRows = [...toDelete];
-      store[table] = tableData.filter(r => !applyFilters([r], normalizedFilters).length);
+      const deleteIdSet = new Set(deleteIds);
+      store[table] = tableData.filter(r => {
+        if (r.id != null && deleteIdSet.has(String(r.id))) return false;
+        return !applyFilters([r], normalizedFilters).length;
+      });
 
       if (deleteIds.length > 0) {
         if (CRITICAL_PERSIST_TABLES.has(table)) {
@@ -3719,9 +3932,10 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
           'profiles', 'likes', 'anonymous_reports', 'chats', 'messages',
           'contact_shares', 'contact_share_events',
           'notifications',
+          'signal_sends',
         ];
         // 프라이빗 테이블은 row 내용 없이 "전체 초기화" 신호만 전송 (민감 데이터 유출 방지)
-        const RESET_PRIVATE = new Set(['likes', 'chats', 'messages', 'contact_shares', 'contact_share_events', 'chat_reads', 'anonymous_reports']);
+        const RESET_PRIVATE = new Set(['likes', 'chats', 'messages', 'contact_shares', 'contact_share_events', 'chat_reads', 'anonymous_reports', 'signal_sends']);
         for (const t of tablesToClear) {
           const old = store[t] ?? [];
           store[t] = [];

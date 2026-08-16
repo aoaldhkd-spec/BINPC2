@@ -722,6 +722,28 @@ describe('[Security] test dashboard password', () => {
       .send({ p_admin_password: '116606', p_drain_count: 1 });
     expect(res.status).toBe(404);
   });
+
+  it('admin_update_settings가 레거시 seating/heart-drain 키를 저장하지 않는다', async () => {
+    const res = await request(app)
+      .post('/api/db/rpc/admin_update_settings')
+      .send({
+        p_admin_password: '116606',
+        p_payload: {
+          heart_drain_enabled: true,
+          heart_drain_minutes: 15,
+          seating_locked: true,
+          seats_snapshot: { leftover: true },
+          timer_label: 'legacy-strip',
+        },
+      });
+    expect(res.status).toBe(200);
+    const row = res.body.data as Record<string, unknown>;
+    expect(row.timer_label).toBe('legacy-strip');
+    expect(row.heart_drain_enabled).toBeUndefined();
+    expect(row.heart_drain_minutes).toBeUndefined();
+    expect(row.seating_locked).toBeUndefined();
+    expect(row.seats_snapshot).toBeUndefined();
+  });
 });
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -1971,5 +1993,107 @@ describe('[Security] group chats auto 2 + opt-in 2차', () => {
     const rows2 = Array.isArray(parts2.body.data) ? parts2.body.data : [];
     expect(rows2).toHaveLength(1);
     expect(rows2.some((r: { group_id: string }) => String(r.group_id) === leaveId)).toBe(false);
+  });
+
+  it('년생 방에서 나가면 참가자 SELECT 해도 다시 넣지 않는다', async () => {
+    const uid = `g-nrejoin-sel-${randomUUID()}`;
+    const created = await op({
+      op: 'insert',
+      table: 'profiles',
+      payload: {
+        id: uid,
+        nickname: `ns-${uid.replace(/-/g, '').slice(0, 12)}`,
+        bio: '영화',
+        mbti: 'INFP',
+        birth_year: 1995,
+      },
+      requesterId: uid,
+    });
+    expect(created.status).toBe(200);
+
+    const rooms = await op({ op: 'select', table: 'group_chats', requesterId: uid });
+    const yearRoom = (Array.isArray(rooms.body.data) ? rooms.body.data : [])
+      .find((g: { name?: string }) => String(g.name) === '1995년생 모임');
+    expect(yearRoom?.id).toBeTruthy();
+    const leaveId = String(yearRoom.id);
+
+    const leave = await op({
+      op: 'delete',
+      table: 'group_participants',
+      requesterId: uid,
+      filters: [
+        { type: 'eq', col: 'group_id', val: leaveId },
+        { type: 'eq', col: 'user_id', val: uid },
+      ],
+    });
+    expect(leave.status).toBe(200);
+
+    const parts2 = await op({
+      op: 'select',
+      table: 'group_participants',
+      requesterId: uid,
+      filters: [{ type: 'eq', col: 'user_id', val: uid }],
+    });
+    const rows2 = Array.isArray(parts2.body.data) ? parts2.body.data : [];
+    expect(rows2.some((r: { group_id: string }) => String(r.group_id) === leaveId)).toBe(false);
+    expect(rows2).toHaveLength(1);
+  });
+
+  it('2차 클럽 나가기는 숨은 중복 방 참여까지 지운다', async () => {
+    const uid = `g-clubdup-${randomUUID()}`;
+    expect((await op({
+      op: 'insert',
+      table: 'profiles',
+      payload: {
+        id: uid,
+        nickname: `cd-${uid.replace(/-/g, '').slice(0, 12)}`,
+        bio: '영화',
+        mbti: 'ENFP',
+        birth_year: 1998,
+      },
+      requesterId: uid,
+    })).status).toBe(200);
+
+    const dupId = `dup-club-${uid}`;
+    expect((await op({
+      op: 'insert',
+      table: 'group_chats',
+      payload: {
+        id: dupId,
+        name: '2차 클럽 갈 분',
+        interest_tag: '2차클럽',
+        room_kind: 'afterparty_club',
+        max_members: 999999,
+      },
+      requesterId: 'seed-admin',
+    })).status).toBe(200);
+
+    const joined = await op({
+      op: 'insert',
+      table: 'group_participants',
+      requesterId: uid,
+      payload: { group_id: dupId, user_id: uid },
+    });
+    expect(joined.status).toBe(200);
+
+    const leave = await op({
+      op: 'delete',
+      table: 'group_participants',
+      requesterId: uid,
+      filters: [
+        { type: 'eq', col: 'group_id', val: 'group_afterparty_club' },
+        { type: 'eq', col: 'user_id', val: uid },
+      ],
+    });
+    expect(leave.status).toBe(200);
+
+    const parts = await op({
+      op: 'select',
+      table: 'group_participants',
+      requesterId: uid,
+      filters: [{ type: 'eq', col: 'user_id', val: uid }],
+    });
+    const rows = Array.isArray(parts.body.data) ? parts.body.data : [];
+    expect(rows.some((r: { group_id: string }) => ['group_afterparty_club', dupId].includes(String(r.group_id)))).toBe(false);
   });
 });
