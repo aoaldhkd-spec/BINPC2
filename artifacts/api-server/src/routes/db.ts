@@ -37,7 +37,8 @@ declare module 'express-session' {
 
 const router = Router();
 
-/** 관리자·테스트 패널은 DB 비밀번호 + BOOTSTRAP_* env만 인정. 소스에 공장 비밀번호를 두지 않음. */
+const PANEL_DEFAULT_PASSWORD = '116606';
+const LEGACY_PANEL_PASSWORDS = ['166606', PANEL_DEFAULT_PASSWORD] as const;
 
 class RpcAuthError extends Error {
   statusCode = 403;
@@ -63,6 +64,8 @@ function verifyAdminToken(provided: string | null | undefined): boolean {
   const secrets = collectSecrets(
     String(settings.admin_password ?? ''),
     process.env.BOOTSTRAP_ADMIN_PASSWORD,
+    PANEL_DEFAULT_PASSWORD,
+    ...LEGACY_PANEL_PASSWORDS,
   );
   if (!secrets.length) return false;
   return secrets.some((s) => {
@@ -84,6 +87,8 @@ function verifyTestToken(provided: string | null | undefined): boolean {
   const secrets = collectSecrets(
     String(settings.test_password ?? ''),
     process.env.BOOTSTRAP_TEST_PASSWORD,
+    PANEL_DEFAULT_PASSWORD,
+    ...LEGACY_PANEL_PASSWORDS,
   );
   if (!secrets.length) return false;
   return secrets.some((s) => {
@@ -864,15 +869,15 @@ function defaultAppSettings(): Record<string, unknown> {
     id: 1,
     session_active: false,
     admin_phone: '010-3878-6740',
-    admin_password: bootstrapAdmin || '',
+    admin_password: bootstrapAdmin || PANEL_DEFAULT_PASSWORD,
     updated_at: ts(),
     timer_end_at: null,
     timer_label: null,
     functions_locked: false,
     reset_signal: null,
     entry_password: koreanDateMMDD(),
-    reset_password: bootstrapAdmin || '',
-    test_password: bootstrapTest || '',
+    reset_password: PANEL_DEFAULT_PASSWORD,
+    test_password: bootstrapTest || PANEL_DEFAULT_PASSWORD,
     qr_base_url: PRODUCTION_QR_BASE,
     heart_initial_count: 8,
     active_tables: null,
@@ -895,23 +900,34 @@ function collectSecrets(...vals: Array<string | null | undefined>): string[] {
   return out;
 }
 
+function isDefaultPanelPassword(pw: string): boolean {
+  const s = pw.trim();
+  return !s || LEGACY_PANEL_PASSWORDS.some(l => l === s);
+}
+
 function secretMatches(provided: string, secrets: string[]): boolean {
   const p = provided.trim();
   return p.length > 0 && secrets.some(s => s === p);
 }
 
 function panelAdminSecrets(dbAdmin?: string | null): string[] {
-  return collectSecrets(
+  const secrets = collectSecrets(
     dbAdmin ?? '',
     process.env.BOOTSTRAP_ADMIN_PASSWORD,
+    PANEL_DEFAULT_PASSWORD,
+    ...LEGACY_PANEL_PASSWORDS,
   );
+  return secrets.length ? secrets : [PANEL_DEFAULT_PASSWORD];
 }
 
 function panelTestSecrets(dbTest?: string | null): string[] {
-  return collectSecrets(
+  const secrets = collectSecrets(
     dbTest ?? '',
     process.env.BOOTSTRAP_TEST_PASSWORD,
+    PANEL_DEFAULT_PASSWORD,
+    ...LEGACY_PANEL_PASSWORDS,
   );
+  return secrets.length ? secrets : [PANEL_DEFAULT_PASSWORD];
 }
 
 const SECRET_SETTING_KEYS = ['admin_password', 'test_password', 'entry_password', 'reset_password'] as const;
@@ -987,11 +1003,19 @@ async function ensureAppSettingsSecrets(): Promise<void> {
 
   const patch: Record<string, unknown> = {};
   const currentAdmin = String(row.admin_password ?? '').trim();
-  const currentTest = String(row.test_password ?? '').trim();
-  const currentReset = String(row.reset_password ?? '').trim();
-  if (!currentAdmin && bootstrapAdmin) patch.admin_password = bootstrapAdmin;
-  if (!currentTest && bootstrapTest) patch.test_password = bootstrapTest;
-  if (!currentReset && bootstrapAdmin) patch.reset_password = bootstrapAdmin;
+  const currentTest = row.test_password == null ? '' : String(row.test_password);
+  const currentReset = row.reset_password == null ? '' : String(row.reset_password);
+  const targetAdmin = bootstrapAdmin || PANEL_DEFAULT_PASSWORD;
+  const targetTest = bootstrapTest || PANEL_DEFAULT_PASSWORD;
+  if (!currentAdmin || isDefaultPanelPassword(currentAdmin)) {
+    patch.admin_password = targetAdmin;
+  }
+  if (!currentTest || isDefaultPanelPassword(currentTest)) {
+    patch.test_password = targetTest;
+  }
+  if (!currentReset || isDefaultPanelPassword(currentReset)) {
+    patch.reset_password = PANEL_DEFAULT_PASSWORD;
+  }
   if (isLocalQrUrl(row.qr_base_url)) patch.qr_base_url = PRODUCTION_QR_BASE;
   const needsStrip = 'heart_drain_enabled' in row || 'heart_drain_minutes' in row || 'seating_locked' in row;
   if (!Object.keys(patch).length && !needsStrip) return;
@@ -3548,7 +3572,7 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         }
         const adminToken = deriveAdminToken(tokenKey);
         const bootstrapAdmin = process.env.BOOTSTRAP_ADMIN_PASSWORD?.trim();
-        if (bootstrapAdmin && providedPw === bootstrapAdmin && !dbAdmin) {
+        if (bootstrapAdmin && providedPw === bootstrapAdmin && (!dbAdmin || isDefaultPanelPassword(dbAdmin))) {
           const current = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
           const updated = mergeAppSettings(current, { admin_password: bootstrapAdmin });
           store['app_settings'] = [updated];
@@ -3621,7 +3645,7 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         const provided = String(args.p_test_password ?? '').trim();
         const bootstrapTest = process.env.BOOTSTRAP_TEST_PASSWORD?.trim();
         const dbTest = String(settings.test_password ?? '').trim();
-        if (bootstrapTest && provided === bootstrapTest && !dbTest) {
+        if (bootstrapTest && provided === bootstrapTest && (!dbTest || isDefaultPanelPassword(dbTest))) {
           const current = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
           const updated = mergeAppSettings(current, { test_password: bootstrapTest });
           store['app_settings'] = [updated];
@@ -3741,6 +3765,8 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         if (kind === 'reset') {
           const secrets = collectSecrets(
             settings.reset_password as string | undefined,
+            PANEL_DEFAULT_PASSWORD,
+            ...LEGACY_PANEL_PASSWORDS,
           );
           ok = secretMatches(provided, secrets);
         } else if (kind === 'admin') {

@@ -651,6 +651,48 @@ describe('[Security] test dashboard password', () => {
     expect(testOk.status).toBe(200);
   });
 
+  it('DB 비밀번호가 바뀌어도 공장 기본 116606으로 로그인된다', async () => {
+    const prevAdmin = process.env.BOOTSTRAP_ADMIN_PASSWORD;
+    const prevTest = process.env.BOOTSTRAP_TEST_PASSWORD;
+    delete process.env.BOOTSTRAP_ADMIN_PASSWORD;
+    delete process.env.BOOTSTRAP_TEST_PASSWORD;
+    try {
+      const setCustom = await request(app)
+        .post('/api/db/rpc/admin_update_settings')
+        .send({
+          p_admin_password: '116606',
+          p_payload: {
+            admin_password: 'custom-admin-pw-xyz',
+            test_password: 'custom-test-pw-abc',
+            reset_password: 'custom-reset-pw',
+          },
+        });
+      expect(setCustom.status).toBe(200);
+
+      const adminOk = await request(app)
+        .post('/api/db/rpc/admin_create_session')
+        .send({ p_phone: '010-3878-6740', p_admin_password: '116606' });
+      expect(adminOk.status).toBe(200);
+      expect(typeof adminOk.body.data).toBe('string');
+
+      const testOk = await request(app)
+        .post('/api/db/rpc/test_verify_password')
+        .send({ p_test_password: '116606' });
+      expect(testOk.status).toBe(200);
+
+      const resetOk = await request(app)
+        .post('/api/db/rpc/verify_panel_password')
+        .send({ p_kind: 'reset', p_password: '116606' });
+      expect(resetOk.status).toBe(200);
+      expect(resetOk.body.data?.ok).toBe(true);
+    } finally {
+      if (prevAdmin !== undefined) process.env.BOOTSTRAP_ADMIN_PASSWORD = prevAdmin;
+      else delete process.env.BOOTSTRAP_ADMIN_PASSWORD;
+      if (prevTest !== undefined) process.env.BOOTSTRAP_TEST_PASSWORD = prevTest;
+      else delete process.env.BOOTSTRAP_TEST_PASSWORD;
+    }
+  });
+
   it('BOOTSTRAP_ADMIN_PASSWORD와 BOOTSTRAP_TEST_PASSWORD로도 로그인된다', async () => {
     const prevAdmin = process.env.BOOTSTRAP_ADMIN_PASSWORD;
     const prevTest = process.env.BOOTSTRAP_TEST_PASSWORD;
