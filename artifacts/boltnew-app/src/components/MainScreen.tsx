@@ -26,6 +26,7 @@ import { RefreshBtn } from './RefreshBtn';
 import { AVATAR_CATEGORIES } from '../lib/avatar-catalog';
 import { ProfileCard } from './ProfileCard';
 import { ResetButton } from './ResetButton';
+import { SignalTab } from './SignalTab';
 const FortuneTab = lazy(() => import('./FortuneTab'));
 
 export { ProfileCard };
@@ -94,6 +95,7 @@ export function MainScreen({
   onViewProfile,
   userSignals = [] as UserSignal[],
   onUserSignalUpdate,
+  onMissionComplete,
 }: {
   profiles: Profile[]; currentUserId: string | null; likedIds: Set<string>; sentHeartTypes: Map<string, HeartType>; sentHeartsPerPerson: Map<string, Set<HeartType>>; likeStatuses: Map<string, string>;
   profileMap: Map<string, Profile>; mainTab: MainTab;
@@ -146,6 +148,7 @@ export function MainScreen({
   onViewProfile?: (p: Profile) => void;
   userSignals?: UserSignal[];
   onUserSignalUpdate?: (row: UserSignal) => void;
+  onMissionComplete?: () => void;
 }) {
   const heartCount = useCallback((t: HeartType) => { let c = 0; sentHeartsPerPerson.forEach(types => { if (types.has(t)) c++; }); return c; }, [sentHeartsPerPerson]);
 
@@ -618,11 +621,12 @@ export function MainScreen({
           </div>
         </div>
         {timerEndAt && <TimerBanner endAt={timerEndAt} label={timerLabel ?? ''} />}
-        {/* ── 탭 바 (1행 × 3열: 참여자 | 통계 | 랭킹) ── */}
+        {/* ── 탭 바 (1행 × 4열: 참여자 | 시그널 | 통계 | 랭킹) ── */}
         <div className={`max-w-7xl mx-auto border-t-2 ${darkMode ? 'bg-slate-900 border-slate-700' : 'bg-gray-50 border-gray-200'}`}>
           <div className="flex">
             {([
               { id: 'profiles' as MainTab, icon: '👥', label: '참여자', badge: seenProfilesCount < 0 ? 0 : Math.max(0, profiles.length - seenProfilesCount) },
+              { id: 'signal' as MainTab, icon: '💕', label: '시그널' },
               { id: 'stats' as MainTab, icon: '📊', label: '통계' },
               { id: 'ranking' as MainTab, icon: '🏆', label: '랭킹' },
             ] as Array<{ id: MainTab; icon: string; label: string; badge?: number }>).map((t, ci, arr) => {
@@ -2039,6 +2043,23 @@ export function MainScreen({
             )}
             </>}
           </div>
+        )}
+
+        {/* ─── 시그널 탭 ─── */}
+        {mainTab === 'signal' && (
+          <SignalTab
+            profiles={profiles}
+            currentUserId={currentUserId}
+            userSignals={userSignals}
+            sentHeartsPerPerson={sentHeartsPerPerson}
+            blockedUserIds={blockedUserIds}
+            hiddenByIds={hiddenByIds}
+            functionsLocked={functionsLocked}
+            darkMode={darkMode}
+            onLike={onLike}
+            onSelect={onSelect}
+            onMissionComplete={onMissionComplete}
+          />
         )}
 
         {/* ─── 통계 탭 ─── */}

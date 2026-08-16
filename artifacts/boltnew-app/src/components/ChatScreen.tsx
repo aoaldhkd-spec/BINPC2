@@ -19,6 +19,7 @@ import {
   shouldCommitSwipeReply,
   shouldTreatAsHorizontalSwipe,
 } from '../lib/chat-msg-gestures';
+import { SIGNAL_FIRST_CHIPS } from '../lib/signal-match';
 
 // ─── ChatScreen ───────────────────────────────────────────────────────────────
 // 1:1 채팅 화면. 스티커·이모지·이미지·연락처 공유·궁합·사주 기능 포함.
@@ -95,7 +96,7 @@ const QUICK_MSGS = [
 ];
 const QUICK_REACTIONS = ['❤️', '😂', '👍', '🔥', '😮', '😢'];
 
-function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onSendImage, onBack, onDeleteMessage, currentUserProfile, receivedContactShares, contactSharedWithIds, onGoToTab, onUpdateProfile, initialInput, onInputChange }: {
+function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onSendImage, onBack, onDeleteMessage, currentUserProfile, receivedContactShares, contactSharedWithIds, onGoToTab, onUpdateProfile, initialInput, onInputChange, showSignalOpeners }: {
   chatId: string;
   messages: Message[]; currentUserId: string; otherProfile: Profile;
   onSend: (content: string) => Promise<void> | void;
@@ -111,6 +112,8 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   initialInput?: string;
   /** 부모가 초안을 보존하도록 변경 시 호출 */
   onInputChange?: (v: string) => void;
+  /** 맞관심 첫 1:1 — 칩은 입력만 채움 (자동 전송 없음) */
+  showSignalOpeners?: boolean;
 }) {
   const { theme, setTheme } = useTheme();
   const handleCycleTheme = () => {
@@ -1488,6 +1491,30 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
         {chatError && (
           <div className="max-w-3xl mx-auto px-3 pt-2">
             <p className="text-xs text-red-500 bg-red-50 px-3 py-1.5 rounded-lg border border-red-200">{chatError}</p>
+          </div>
+        )}
+        {showSignalOpeners && messages.length === 0 && (
+          <div className="max-w-3xl mx-auto px-3 pt-2 flex flex-wrap gap-1.5">
+            {SIGNAL_FIRST_CHIPS.map((chip) => (
+              <button
+                key={chip}
+                type="button"
+                onClick={() => {
+                  setInput(chip);
+                  onInputChange?.(chip);
+                  requestAnimationFrame(() => {
+                    if (inputRef.current) {
+                      inputRef.current.style.height = 'auto';
+                      inputRef.current.style.height = Math.min(inputRef.current.scrollHeight, 120) + 'px';
+                      inputRef.current.focus();
+                    }
+                  });
+                }}
+                className="text-[11px] font-bold px-2.5 py-1.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 active:scale-95 transition-all"
+              >
+                {chip}
+              </button>
+            ))}
           </div>
         )}
         {replyTo && (

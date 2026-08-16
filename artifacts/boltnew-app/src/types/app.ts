@@ -69,7 +69,7 @@ export type UserSignal = {
   created_at: string;
 };
 export type MainTab =
-  | 'profiles' | 'status' | 'chats'
+  | 'profiles' | 'signal' | 'status' | 'chats'
   | 'stats' | 'ranking' | 'fortune' | 'settings';
 
 export type TutorialSlide = {

@@ -13,6 +13,16 @@ import {
   shouldShowRecoveryScreen,
 } from './lib/entry-gate';
 import { HeartType } from './lib/constants';
+import {
+  NUDGE_MAX,
+  NUDGE_MESSAGES,
+  hasInterestHeart,
+  isInterestHeart,
+  isNudgeEligible,
+  readNudgeCount,
+  writeNudgeCount,
+} from './lib/signal-match';
+import { SignalNudgeBanner } from './components/SignalNudgeBanner';
 // ─── 분리된 타입·유틸·컴포넌트 imports ────────────────────────────────────────
 import type {
   Profile, ContactShare,
@@ -175,6 +185,8 @@ function App() {
   const [timerLabel, setTimerLabel] = useState<string | null>(null);
   const [rejectionNotif, setRejectionNotif] = useState<string | null>(null); // nickname of person who rejected
   const [bottomNotif, setBottomNotif] = useState<BottomNotificationData | null>(null);
+  const [signalNudge, setSignalNudge] = useState<string | null>(null);
+  const signalNudgeSessionRef = useRef(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const confettiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const confettiInnerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -383,6 +395,10 @@ function App() {
   loadChatListRef.current = loadChatList;
   loadReceivedLikesRef.current = loadReceivedLikes;
   loadLikesRef.current = loadLikes;
+  const sentHeartsPerPersonRef = useRef(sentHeartsPerPerson);
+  sentHeartsPerPersonRef.current = sentHeartsPerPerson;
+  const receivedHeartTypesRef = useRef(receivedHeartTypes);
+  receivedHeartTypesRef.current = receivedHeartTypes;
 
   // 하트 보내는 쪽도 폭죽 🎊
   const execLikeWithConfetti = useCallback((...args: Parameters<typeof executeLike>) => {
@@ -796,6 +812,11 @@ function App() {
             next.set(row.liked_id, s);
             return next;
           });
+          // 내가 관심을 보냈고 상대도 이미 관심을 보냈으면 맞관심 (수신자 전용 토스트와 대칭)
+          if (isInterestHeart(row.heart_type) && isInterestHeart(receivedHeartTypesRef.current.get(row.liked_id))) {
+            const nick = profilesRef.current.find(p => p.id === row.liked_id)?.nickname ?? '상대방';
+            setBottomNotif({ type: 'signal', signalKind: 'mutual', nickname: nick, profileId: row.liked_id, message: '💕 서로 관심을 보냈어요!' });
+          }
         })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'likes', filter: `liker_id=eq.${currentUserId}` },
         (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
@@ -831,12 +852,19 @@ function App() {
                 });
               }
               const heartNick = data?.nickname ?? '누군가';
-              setBottomNotif({ type: 'heart', nickname: heartNick, heartType: row.heart_type ?? 'red' });
+              const ht = row.heart_type ?? 'red';
+              if (isInterestHeart(ht) && hasInterestHeart(sentHeartsPerPersonRef.current.get(likerId))) {
+                setBottomNotif({ type: 'signal', signalKind: 'mutual', nickname: heartNick, profileId: likerId, message: '💕 서로 관심을 보냈어요!' });
+              } else if (isInterestHeart(ht)) {
+                setBottomNotif({ type: 'signal', signalKind: 'received', nickname: heartNick, profileId: likerId, message: `💕 ${heartNick}님이 회원님에게 관심을 보냈어요.` });
+              } else {
+                setBottomNotif({ type: 'heart', nickname: heartNick, heartType: ht });
+              }
             } else {
               setBottomNotif({ type: 'heart', nickname: '누군가', heartType: row.heart_type ?? 'red' });
             }
             triggerConfetti();
-            rejNotifTimerIds.push(setTimeout(() => setBottomNotif(prev => prev?.type === 'heart' ? null : prev), 5000));
+            rejNotifTimerIds.push(setTimeout(() => setBottomNotif(prev => (prev?.type === 'heart' || prev?.type === 'signal') ? null : prev), 5000));
           } catch (e) { console.warn('[realtime:likes]', e); }
         })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'likes', filter: `liked_id=eq.${currentUserId}` },
@@ -1164,6 +1192,41 @@ function App() {
     [receivedLikers, receivedHeartTypes, acknowledgedComplimentIds, contactSharedWithIds],
   );
 
+  const heartSendTotal = useMemo(() => {
+    let n = 0;
+    sentHeartsPerPerson.forEach((types) => { n += types.size; });
+    return n;
+  }, [sentHeartsPerPerson]);
+
+  useEffect(() => {
+    if (!currentUserId || view !== 'main' || mainTab === 'signal') return;
+    if (signalNudgeSessionRef.current) return;
+    if (!isNudgeEligible(heartSendTotal, likedIds.size)) return;
+    const shown = readNudgeCount(currentUserId);
+    if (shown >= NUDGE_MAX) return;
+    const t = setTimeout(() => {
+      if (signalNudgeSessionRef.current) return;
+      if (view !== 'main') return;
+      setSignalNudge(NUDGE_MESSAGES[shown % NUDGE_MESSAGES.length]);
+    }, 8_000);
+    return () => clearTimeout(t);
+  }, [currentUserId, view, mainTab, heartSendTotal, likedIds.size]);
+
+  const dismissSignalNudge = useCallback((goToTab: boolean) => {
+    setSignalNudge(null);
+    signalNudgeSessionRef.current = true;
+    if (currentUserId) writeNudgeCount(currentUserId, readNudgeCount(currentUserId) + 1);
+    if (goToTab) setMainTab('signal');
+  }, [currentUserId]);
+
+  const handleMissionComplete = useCallback(() => {
+    setBottomNotif({
+      type: 'signal',
+      signalKind: 'mission',
+      message: '🎉 미션 완료! 새로운 추천 상대를 확인해보세요.',
+    });
+  }, []);
+
   const myProfile = currentUserId ? profileMap.get(currentUserId) : null;
   const hasValidProfile = isCompleteProfile(myProfile ?? undefined);
 
@@ -1328,8 +1391,28 @@ function App() {
             onClose={() => setBottomNotif(null)}
             onGoToStatus={() => { setMainTab('status'); setBottomNotif(null); }}
             onGoToChats={() => { setMainTab('chats'); setBottomNotif(null); }}
+            onGoToSignal={() => { setMainTab('signal'); setBottomNotif(null); }}
+            onViewProfile={() => {
+              const id = bottomNotif.profileId;
+              const p = (id && (profiles.find(x => x.id === id) ?? receivedLikers.find(x => x.id === id))) || null;
+              if (p) { setSelectedProfile(p); setView('profile'); }
+              setBottomNotif(null);
+            }}
+            onStartChat={() => {
+              const id = bottomNotif.profileId;
+              const p = (id && (profiles.find(x => x.id === id) ?? receivedLikers.find(x => x.id === id))) || null;
+              if (p) void openChat(p);
+              setBottomNotif(null);
+            }}
           />
         </AppErrorBoundary>
+      )}
+      {signalNudge && view === 'main' && mainTab !== 'signal' && (
+        <SignalNudgeBanner
+          message={signalNudge}
+          onOpen={() => dismissSignalNudge(true)}
+          onClose={() => dismissSignalNudge(false)}
+        />
       )}
       <div className={isSubScreen ? 'hidden' : undefined} aria-hidden={isSubScreen}>
       <AppErrorBoundary screenName="메인 화면" onReset={() => { setView('main'); setMainTab('profiles'); }}>
@@ -1395,6 +1478,7 @@ function App() {
         onOpenGroupChat={(groupId) => { void openGroupChat(groupId).then(() => setView('group-chat')).catch(e => console.error('[openGroupChat]', e)); }}
         userSignals={userSignals}
         onUserSignalUpdate={handleUserSignalUpdate}
+        onMissionComplete={handleMissionComplete}
         blockedUserIds={(() => {
           const s = new Set<string>();
           blockedUsers.forEach(b => {
@@ -1492,6 +1576,11 @@ function App() {
                 onUpdateProfile={(update) => setProfiles(prev => prev.map(p => p.id === update.id ? { ...p, ...update } : p))}
                 initialInput={chatDraftRef.current.get(chatId) ?? ''}
                 onInputChange={(v) => chatDraftRef.current.set(chatId, v)}
+                showSignalOpeners={
+                  !!(selectedProfile
+                    && hasInterestHeart(sentHeartsPerPerson.get(selectedProfile.id))
+                    && isInterestHeart(receivedHeartTypes.get(selectedProfile.id)))
+                }
               />
             </Suspense>
           </ChatErrorBoundary>
