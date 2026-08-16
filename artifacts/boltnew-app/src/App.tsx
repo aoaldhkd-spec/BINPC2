@@ -6,6 +6,7 @@ import { supabase, setLocalDbUserId, setDeviceRecoveryPin, fetchAndSetSseToken, 
 import { subscribeNetUi, resetNetUiForRetry, type NetUiStatus } from './lib/net-health';
 import { genAvatar } from './lib/profile';
 import { findProfileById, isCompleteProfile } from './lib/profile-session';
+import { shouldShowWaitingOverlay } from './lib/entry-gate';
 import { HeartType } from './lib/constants';
 // ─── 분리된 타입·유틸·컴포넌트 imports ────────────────────────────────────────
 import type {
@@ -91,7 +92,7 @@ function App() {
   const [sessionActive, setSessionActive] = useState<boolean | null>(null);
   // Existing users skip the waiting overlay entirely and go straight to main.
   // New users go straight to nickname setup — no waiting overlay.
-  const [shownWaiting, setShownWaiting] = useState(false);
+  const [shownWaiting, setShownWaiting] = useState(() => Boolean(ls.getItem(MATCHING_USER_KEY)));
   const [profiles, setProfiles] = useState<Profile[]>(() => {
     try {
       const cached = ls.getItem(MATCHING_PROFILES_CACHE_KEY);
@@ -438,7 +439,10 @@ function App() {
     const safetyTimer = setTimeout(() => {
       if (!cancelled) {
         setAppLoading(false);
-        setSessionActive(prev => (prev === null ? false : prev));
+        // 더미/복구 재입장: sessionActive를 false로 강제하면 대기 랜딩이 한 프레임 깜빡인다
+        if (!ls.getItem(MATCHING_USER_KEY)) {
+          setSessionActive(prev => (prev === null ? false : prev));
+        }
         setEntryPassword(prev => (prev === null ? '' : prev));
       }
     }, 2_500);
@@ -1189,12 +1193,16 @@ function App() {
   const myProfile = currentUserId ? profileMap.get(currentUserId) : null;
   const hasValidProfile = isCompleteProfile(myProfile ?? undefined);
 
-  // 신규(프로필 없음·userId 없음) 또는 session 미시작 → WaitingOverlay
-  // stale userId(프로필 없음)는 별도 복구/검증 흐름 — WaitingOverlay로 막지 않음
-  const showWaiting = !shownWaiting && (
-    (!currentUserId && !hasValidProfile)
-    || (hasValidProfile && sessionActive === false)
-  );
+  // 신규 방문자만 참여자 대기 랜딩. 더미/복구/재방문(userId 있음)은 loading-main → 메인
+  const isTester = (() => {
+    try { return Boolean(localStorage.getItem('test_token_v1')); } catch { return false; }
+  })();
+  const showWaiting = shouldShowWaitingOverlay({
+    shownWaiting,
+    currentUserId,
+    hasValidProfile,
+    isTester,
+  });
   // QR 스캔 후 미등록 사용자: 자리 QR URL 파라미터는 pendingSeatId/pendingSeatPath에 보존됨.
   // 등록 완료 후 currentUserId useEffect에서 자동으로 자리 배정 처리됨
 
