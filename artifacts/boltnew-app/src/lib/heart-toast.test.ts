@@ -13,6 +13,13 @@ describe('isIncomingHeartToastTarget', () => {
   it('never toasts the sender even if the liked_id filter is missing', () => {
     expect(isIncomingHeartToastTarget('A', { liker_id: 'A', liked_id: 'A' })).toBe(false);
   });
+
+  it('A→B heart toasts B only; B→A heart toasts A only', () => {
+    expect(isIncomingHeartToastTarget('B', { liker_id: 'A', liked_id: 'B' })).toBe(true);
+    expect(isIncomingHeartToastTarget('A', { liker_id: 'A', liked_id: 'B' })).toBe(false);
+    expect(isIncomingHeartToastTarget('A', { liker_id: 'B', liked_id: 'A' })).toBe(true);
+    expect(isIncomingHeartToastTarget('B', { liker_id: 'B', liked_id: 'A' })).toBe(false);
+  });
 });
 
 describe('mutual heart toast copy', () => {

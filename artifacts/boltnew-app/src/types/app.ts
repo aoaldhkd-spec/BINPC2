@@ -26,6 +26,8 @@ export type GroupChat = {
   max_members: number;
   created_at: string;
   room_kind?: string | null;
+  hidden?: boolean | null;
+  merged_into?: string | null;
   lastMessage?: string;
   memberCount?: number;
   joined?: boolean;

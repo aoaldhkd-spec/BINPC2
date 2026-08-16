@@ -1,6 +1,6 @@
 /**
  * useGroupChat — 단체 채팅 상태 관리 훅
- * - 관심사·나이 / 출생연도 두 방은 서버 자동 입장. 2차 클럽·2차 술은 클릭 입장
+ * - 년생 / N대 두 방은 서버 자동 입장. 2차 클럽·2차 술은 클릭 입장·나가기
  * - SSE 단일 연결로 실시간 수신 (supabase.channel → localdb SSE 백엔드)
  * - group_messages: client_id 기반 낙관적 업데이트 + 3회 재시도
  */
@@ -8,7 +8,16 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Profile, GroupChat, GroupMessage, GroupParticipant } from '../types/app';
-import { MAX_GROUPS_PER_USER, groupLimitMessage, sortGroupRooms } from '../lib/group-rooms';
+import {
+  MAX_GROUPS_PER_USER,
+  catalogGroupRooms,
+  countUnreadGroupMessages,
+  groupLimitMessage,
+  readGroupLastReads,
+  resolveCatalogGroupId,
+  sumUnreadCounts,
+  writeGroupLastRead,
+} from '../lib/group-rooms';
 
 const MAX_GROUP_MESSAGES = 300;
 const MAX_MSG_LEN = 1000; // 메시지 최대 길이 — useChat과 동일 기준
@@ -41,6 +50,9 @@ interface UseGroupChatDeps {
 
 export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: UseGroupChatDeps) {
   const [groupChats, setGroupChats] = useState<GroupChat[]>([]);
+  const groupChatsRef = useRef<GroupChat[]>([]);
+  groupChatsRef.current = groupChats;
+  const rawGroupsRef = useRef<GroupChat[]>([]);
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const activeGroupIdRef = useRef<string | null>(null);
   activeGroupIdRef.current = activeGroupId;
@@ -81,19 +93,33 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
         setGroupChats([]);
         return;
       }
+      const me = profilesRef.current.find(p => p.id === userId);
+      const myBirthYear = Number(me?.birth_year);
 
       const latestByGroup = new Map<string, string>();
+      const unreadByGroup: Record<string, number> = {};
+      const lastReads = readGroupLastReads(userId);
       if (groupIds.length > 0) {
         const { data: msgs } = await supabase.from('group_messages')
-          .select('group_id, content, image_url, created_at')
+          .select('group_id, content, image_url, created_at, sender_id')
           .in('group_id', groupIds)
           .order('created_at', { ascending: false })
-          .limit(Math.max(groupIds.length * 10, 50));
+          .limit(Math.max(groupIds.length * 40, 200));
         if (msgs) {
-          for (const m of msgs as { group_id: string; content: string; image_url?: string }[]) {
+          const byGroup = new Map<string, Array<{ group_id: string; content: string; image_url?: string; created_at: string; sender_id: string }>>();
+          for (const m of msgs as { group_id: string; content: string; image_url?: string; created_at: string; sender_id: string }[]) {
             if (!latestByGroup.has(m.group_id)) {
               latestByGroup.set(m.group_id, m.image_url ? '📷 사진' : m.content);
             }
+            const list = byGroup.get(m.group_id) ?? [];
+            list.push(m);
+            byGroup.set(m.group_id, list);
+          }
+          for (const [gid, list] of byGroup) {
+            unreadByGroup[gid] = countUnreadGroupMessages(list, {
+              myId: userId,
+              lastReadAt: lastReads[gid] ?? null,
+            });
           }
         }
       }
@@ -104,8 +130,24 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
         lastMessage: latestByGroup.get(g.id) ?? '',
         memberCount: g.memberCount ?? 0,
       }));
-      enriched.sort(sortGroupRooms);
-      setGroupChats(enriched);
+      rawGroupsRef.current = enriched;
+      const catalog = catalogGroupRooms(enriched, {
+        myBirthYear: Number.isFinite(myBirthYear) ? myBirthYear : null,
+        joinedIds: groupIds,
+      });
+      const remappedUnread: Record<string, number> = {};
+      for (const [gid, n] of Object.entries(unreadByGroup)) {
+        if (n <= 0) continue;
+        const key = resolveCatalogGroupId(enriched, gid);
+        remappedUnread[key] = (remappedUnread[key] ?? 0) + n;
+      }
+      if (activeGroupIdRef.current) delete remappedUnread[activeGroupIdRef.current];
+      setUnreadGroupCounts(remappedUnread);
+      setNewGroupMsgCount(sumUnreadCounts(remappedUnread));
+      const joinedCatalog = catalog.filter(g => g.joined).map(g => g.id);
+      setMyGroupIds([...new Set([...groupIds, ...joinedCatalog])]);
+      myGroupIdsRef.current = [...new Set([...groupIds, ...joinedCatalog])];
+      setGroupChats(catalog);
     } catch (e) {
       console.error('[loadGroupChats] 오류:', e);
     }
@@ -150,6 +192,7 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
     const removed = unreadGroupCountsRef.current[groupId] ?? 0;
     setUnreadGroupCounts(prev => { const n = { ...prev }; delete n[groupId]; return n; });
     if (removed > 0) setNewGroupMsgCount(c => Math.max(0, c - removed));
+    if (currentUserIdRef.current) writeGroupLastRead(currentUserIdRef.current, groupId);
     await loadGroupMessages(groupId).catch(() => {});
   }, [loadGroupMessages]);
 
@@ -169,7 +212,7 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
         user_id: userId,
       });
       if (error) {
-        const msg = error.code === 'GROUP_LIMIT' || (error.message ?? '').includes('최대 3')
+        const msg = error.code === 'GROUP_LIMIT' || (error.message ?? '').includes('최대 4') || (error.message ?? '').includes('최대 3')
           ? groupLimitMessage()
           : (error.message || '입장에 실패했어요. 잠시 후 다시 시도해 주세요.');
         setBottomNotif({ type: 'error', nickname: msg });
@@ -312,10 +355,9 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
             setGroupChats(prev => prev.map(g =>
               g.id === m.group_id ? { ...g, lastMessage: m.image_url ? '📷 사진' : m.content } : g
             ));
-            setUnreadGroupCounts(prev => ({ ...prev, [m.group_id]: (prev[m.group_id] ?? 0) + 1 }));
+            const catalogId = resolveCatalogGroupId(rawGroupsRef.current.length ? rawGroupsRef.current : groupChatsRef.current, m.group_id);
+            setUnreadGroupCounts(prev => ({ ...prev, [catalogId]: (prev[catalogId] ?? 0) + 1 }));
             setNewGroupMsgCount(n => n + 1);
-            const sender = profilesRef.current.find(p => p.id === m.sender_id);
-            setBottomNotif({ type: 'message', nickname: `[단톡] ${sender?.nickname ?? ''}` });
           }
         } catch { /* SSE 파싱 오류 무시 */ }
       })

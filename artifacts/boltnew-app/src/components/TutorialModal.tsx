@@ -131,9 +131,9 @@ const BASIC: Topic[] = [
     nowrapTips: true,
     tips: [
       { icon: '📍', title: '여는 곳', desc: 'MY → 내 채팅 → 단체 채팅' },
-      { icon: '✨', title: '자동 입장', desc: '관심사·나이 / 같은 해 출생, 두 방' },
-      { icon: '🚪', title: '직접 입장', desc: '2차 클럽·2차 술만 직접 입장' },
-      { icon: '3️⃣', title: '한도', desc: '자동 2 + 2차 1개 · 정원 무제한' },
+      { icon: '✨', title: '자동 입장', desc: '년생 모임 · N대 모임, 두 방' },
+      { icon: '🚪', title: '2차', desc: '술·클럽 각 1방. 나가기·입장 자유' },
+      { icon: '4️⃣', title: '한도', desc: '자동 2 + 2차 2 · 정원 무제한' },
     ],
   },
 ];
@@ -299,7 +299,7 @@ const FILLERS: Record<FillerKind, { title: string; line: string; quote: string; 
   group: {
     title: '두 방은 알아서 들어감',
     line: '2차 클럽·2차 술만 직접 입장',
-    quote: '자동 2 + 2차 1개, 정원은 없음',
+    quote: '년생·N대 자동, 2차는 들락날락',
     shell: 'bg-gradient-to-br from-teal-50 via-emerald-50 to-white border border-teal-100',
     darkShell: 'bg-gradient-to-br from-slate-800/90 via-teal-950/50 to-slate-900 border border-teal-900/60',
   },

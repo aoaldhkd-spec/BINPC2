@@ -45,6 +45,7 @@ import type { Profile, Message, Chat, View } from '../types/app';
 import { HeartType } from '../lib/constants';
 import { applySseInsert, applyLoadMessages, messageBelongsToChat } from '../lib/chat-reducers';
 import { chatPairKey, dedupeChatList, pickCanonicalChat } from '../lib/chat-pair';
+import { buildChatIdAliasMap, incrementUnreadForIncoming, isIncomingChatToastTarget } from '../lib/chat-unread';
 
 interface UseChatDeps {
   currentUserId: string | null;
@@ -89,6 +90,7 @@ export function useChat({
   const [chatList, setChatList] = useState<Chat[]>([]);
   const chatListRef = useRef<Chat[]>([]);
   chatListRef.current = chatList;
+  const siblingToCanonicalRef = useRef<Map<string, string>>(new Map());
 
   const [unreadChatCounts, setUnreadChatCounts] = useState<Record<string, number>>({});
   // ref 사본: async 컨텍스트에서 stale closure 없이 최신값 읽기
@@ -166,9 +168,10 @@ export function useChat({
               // 비활성 채팅방의 상대 메시지: preview 갱신 + 최상단으로 이동 + 미읽음 증가
               const preview = newMsg.image_url ? '📷 사진' : newMsg.content;
               if (typeof newMsg.chat_id === 'string') {
+                const listId = siblingToCanonicalRef.current.get(newMsg.chat_id) ?? newMsg.chat_id;
                 // [Fix-I] 최신 메시지 도착 시 해당 채팅을 목록 최상단으로 이동
                 setChatList(prev => {
-                  const idx = prev.findIndex(c => c.id === newMsg.chat_id);
+                  const idx = prev.findIndex(c => c.id === newMsg.chat_id || c.id === listId);
                   if (idx === -1) {
                     void loadChatList(uid);
                     return prev;
@@ -178,11 +181,13 @@ export function useChat({
                   next.splice(idx, 1);
                   return [updated, ...next];
                 });
-                setUnreadChatCounts(prev => ({ ...prev, [newMsg.chat_id!]: (prev[newMsg.chat_id!] ?? 0) + 1 }));
+                setUnreadChatCounts(prev => incrementUnreadForIncoming(prev, newMsg.chat_id!, siblingToCanonicalRef.current));
               }
               const senderProfile = profilesRef.current.find(p => p.id === newMsg.sender_id);
               setNewMsgCount(n => n + 1);
-              setBottomNotif({ type: 'message', nickname: senderProfile?.nickname ?? '' });
+              if (isIncomingChatToastTarget(uid, newMsg.sender_id, false)) {
+                setBottomNotif({ type: 'message', nickname: senderProfile?.nickname ?? '' });
+              }
             }
           } catch (e) { console.warn('[user-events/msg-insert]', e); }
         })
@@ -397,8 +402,10 @@ export function useChat({
         }
       }
 
+      const rawChats = data as { id: string; user1_id: string; user2_id: string; created_at: string }[];
+      siblingToCanonicalRef.current = buildChatIdAliasMap(rawChats);
       const deduped = dedupeChatList(
-        data as { id: string; user1_id: string; user2_id: string; created_at: string }[],
+        rawChats,
         msgCountByChat,
       );
 

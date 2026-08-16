@@ -231,7 +231,7 @@ describe('[Chat] persist-before-broadcast + sibling visibility', () => {
   });
 });
 
-describe('[Group] max 3 + unlimited members + both see message', () => {
+describe('[Group] max 4 + unlimited members + both see message', () => {
   async function seedGroup(id: string, name: string) {
     const res = await op({
       op: 'insert',
@@ -245,15 +245,16 @@ describe('[Group] max 3 + unlimited members + both see message', () => {
     return id;
   }
 
-  it('4번째 단톡 입장은 거부하고, 방 인원 8명 제한은 없다', async () => {
+  it('5번째 단톡 입장은 거부하고, 방 인원 8명 제한은 없다', async () => {
     const uid = `inv-max-${randomUUID()}`;
     const ids = await Promise.all([
       seedGroup(`inv-a-${uid}`, '방A'),
       seedGroup(`inv-b-${uid}`, '방B'),
       seedGroup(`inv-c-${uid}`, '방C'),
       seedGroup(`inv-d-${uid}`, '방D'),
+      seedGroup(`inv-e-${uid}`, '방E'),
     ]);
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 4; i++) {
       const join = await op({
         op: 'insert',
         table: 'group_participants',
@@ -262,14 +263,14 @@ describe('[Group] max 3 + unlimited members + both see message', () => {
       });
       expect(join.status).toBe(200);
     }
-    const fourth = await op({
+    const fifth = await op({
       op: 'insert',
       table: 'group_participants',
       requesterId: uid,
-      payload: { group_id: ids[3], user_id: uid },
+      payload: { group_id: ids[4], user_id: uid },
     });
-    expect(fourth.status).toBe(400);
-    expect(fourth.body.error?.code).toBe('GROUP_LIMIT');
+    expect(fifth.status).toBe(400);
+    expect(fifth.body.error?.code).toBe('GROUP_LIMIT');
 
     const crowdId = `inv-crowd-${randomUUID()}`;
     await seedGroup(crowdId, '만원');
@@ -325,5 +326,74 @@ describe('[Group] max 3 + unlimited members + both see message', () => {
       filters: [{ type: 'eq', col: 'group_id', val: gid }],
     });
     expect((asA.body.data as { content: string }[]).some((m) => m.content === 'group-hi')).toBe(true);
+  });
+
+  it('나가기는 참여만 지우고 방은 남긴다', async () => {
+    const a = `lv-${randomUUID()}`;
+    const gid = `gleave-${randomUUID()}`;
+    await seedGroup(gid, '남기는방');
+    expect((await op({
+      op: 'insert', table: 'group_participants', requesterId: a,
+      payload: { group_id: gid, user_id: a },
+    })).status).toBe(200);
+
+    const leave = await op({
+      op: 'delete',
+      table: 'group_participants',
+      requesterId: a,
+      filters: [
+        { type: 'eq', col: 'group_id', val: gid },
+        { type: 'eq', col: 'user_id', val: a },
+      ],
+    });
+    expect(leave.status).toBe(200);
+
+    const room = await op({
+      op: 'select',
+      table: 'group_chats',
+      requesterId: a,
+      filters: [{ type: 'eq', col: 'id', val: gid }],
+    });
+    expect(room.status).toBe(200);
+    expect((room.body.data as { id: string }[]).some((g) => g.id === gid)).toBe(true);
+
+    const destroy = await op({
+      op: 'delete',
+      table: 'group_chats',
+      requesterId: a,
+      filters: [{ type: 'eq', col: 'id', val: gid }],
+    });
+    expect(destroy.status).toBe(403);
+  });
+});
+
+describe('[Chat] third party cannot see A↔B', () => {
+  it('C 는 A-B 메시지를 SELECT 하지 못한다', async () => {
+    const a = randomUUID();
+    const b = randomUUID();
+    const c = randomUUID();
+    const chat = await op({
+      op: 'insert',
+      table: 'chats',
+      requesterId: a,
+      payload: { user1_id: a, user2_id: b },
+      selectAfterWrite: true,
+      single: true,
+    });
+    const chatId = chat.body.data.id as string;
+    expect((await op({
+      op: 'insert',
+      table: 'messages',
+      requesterId: a,
+      payload: { chat_id: chatId, sender_id: a, content: 'secret-ab', client_id: randomUUID() },
+    })).status).toBe(200);
+
+    const asC = await op({
+      op: 'select',
+      table: 'messages',
+      requesterId: c,
+      filters: [{ type: 'eq', col: 'chat_id', val: chatId }],
+    });
+    expect(asC.status).toBe(403);
   });
 });

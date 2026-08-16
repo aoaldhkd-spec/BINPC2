@@ -11,7 +11,8 @@ import {
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../lib/theme';
 import type { Profile, ContactShare, Chat, MainTab, GroupChat, ProfileView, UserSignal } from '../types/app';
-import { groupRoomVisual, MAX_GROUPS_PER_USER } from '../lib/group-rooms';
+import { groupRoomVisual, MAX_GROUPS_PER_USER, sumUnreadCounts, unreadForGroup } from '../lib/group-rooms';
+import { unreadForChat } from '../lib/chat-unread';
 import { BIO_CATEGORIES, parseProfileInterests } from '../lib/interests';
 import { InterestPicker } from './InterestPicker';
 import { HeartType, HEART_TYPES, heartMeta } from '../lib/constants';
@@ -77,7 +78,7 @@ export function MainScreen({
   receivedContactShares, pendingHeartsCount, chatList,
   onContactShareOpen: _onContactShareOpen, onContactViewOpen, onHeartResponse, onDeleteChat, onDeleteAllChats, onOpenChat,
   timerEndAt, timerLabel, onRefreshStatus, onRefreshChat, onRefreshProfiles, darkMode, onToggleDark, onShowContactQr, onScanQr, scannedContacts, onClearScannedContact, functionsLocked = false, onShowTutorial,
-  newMsgCount, onClearMsgCount, unreadChatCounts, onClearChatUnread: _onClearChatUnread,
+  newMsgCount: _newMsgCount, onClearMsgCount: _onClearMsgCount, unreadChatCounts, onClearChatUnread: _onClearChatUnread,
   onUpdateProfile, fortuneCompatTarget, myHeartCount,
   groupChats = [], unreadGroupCounts = {}, newGroupMsgCount: _newGroupMsgCount = 0, onClearGroupMsgCount: _onClearGroupMsgCount, onOpenGroupChat, onJoinGroupChat, joiningGroupId = null,
   blockedUserIds = new Set<string>(), hiddenByIds = new Set<string>(),
@@ -92,7 +93,6 @@ export function MainScreen({
   userSignals = [] as UserSignal[],
   onUserSignalUpdate,
   onMissionComplete,
-  onOpenResetPassword,
 }: {
   profiles: Profile[]; currentUserId: string | null; likedIds: Set<string>; sentHeartTypes: Map<string, HeartType>; sentHeartsPerPerson: Map<string, Set<HeartType>>; likeStatuses: Map<string, string>;
   profileMap: Map<string, Profile>; mainTab: MainTab;
@@ -148,13 +148,11 @@ export function MainScreen({
   userSignals?: UserSignal[];
   onUserSignalUpdate?: (row: UserSignal) => void;
   onMissionComplete?: () => void;
-  onOpenResetPassword?: () => void;
 }) {
   const heartCount = useCallback((t: HeartType) => { let c = 0; sentHeartsPerPerson.forEach(types => { if (types.has(t)) c++; }); return c; }, [sentHeartsPerPerson]);
 
   const _currentUserNickname = useMemo(() => profiles.find(p => p.id === currentUserId)?.nickname ?? '', [profiles, currentUserId]);
   const [profileSearch, setProfileSearch] = useState('');
-  const [passwordUiLocked, setPasswordUiLocked] = useState(false);
   const [profilePersonalityFilter, setProfilePersonalityFilter] = useState<string | null>(null);
   const [showVisitors, setShowVisitors] = useState(false);
   const [profileMbtiFilter, setProfileMbtiFilter] = useState<string | null>(null);
@@ -291,11 +289,7 @@ export function MainScreen({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mainTab, receivedContactShares.length, pendingHeartsCount]);
 
-  // 내 채팅 탭 진입 시 전역 채팅 배지 클리어 (방별 unread는 openChat이 처리)
-  useEffect(() => {
-    if (mainTab === 'chats') onClearMsgCount();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mainTab]);
+  // 채팅 탭만 열었다고 미읽음 숫자를 지우지 않는다. 방별 unread는 openChat이 처리.
 
   // visibility 핸들러에서 stale closure 없이 최신 값 참조 (useEffect deps에 넣지 않아도 항상 최신)
   const pendingHeartsCountRef = useRef(pendingHeartsCount);
@@ -331,7 +325,6 @@ export function MainScreen({
     if (functionsLocked && LOCKED_TABS.has(t)) return; // 기능 잠금 중 → 탭 이동 차단
     if (t === 'status') { setSeenHeartsCount(pendingHeartsCount); setSeenContactsCount(receivedContactShares.length); onClearVisitCount?.(); }
     if (t === 'profiles') setSeenProfilesCount(profiles.length);
-    if (t === 'chats') { onClearMsgCount(); }
     onTabChange(t);
   };
 
@@ -612,7 +605,7 @@ export function MainScreen({
           </div>
           {/* 중앙: 타이틀 */}
           <div className="justify-self-center">
-            <ResetButton onReset={onReset} darkMode={darkMode} onUiLockChange={setPasswordUiLocked} onOpenResetPassword={onOpenResetPassword} />
+            <ResetButton onReset={onReset} darkMode={darkMode} />
           </div>
           {/* 우: 하트 */}
           <div className="justify-self-end flex items-center gap-2">
@@ -665,7 +658,6 @@ export function MainScreen({
 
       </header>
 
-      {!passwordUiLocked && (
       <main className="max-w-7xl mx-auto px-4 py-6 scrollbar-styled-light">
         {mainTab === 'profiles' && (
           <>
@@ -1880,9 +1872,9 @@ export function MainScreen({
                 }`}
               >
                 💬 내 채팅 (1:1)
-                {Object.values(unreadChatCounts).some(n => n > 0) && (
+                {sumUnreadCounts(unreadChatCounts) > 0 && (
                   <span className="ml-1 inline-flex items-center justify-center min-w-[16px] h-4 px-1 text-[10px] font-black bg-rose-500 text-white rounded-full">
-                    {Object.values(unreadChatCounts).reduce((a, b) => a + b, 0)}
+                    {sumUnreadCounts(unreadChatCounts)}
                   </span>
                 )}
               </button>
@@ -1895,9 +1887,9 @@ export function MainScreen({
                 }`}
               >
                 👥 단체 채팅
-                {Object.values(unreadGroupCounts).some(n => n > 0) && (
+                {sumUnreadCounts(unreadGroupCounts) > 0 && (
                   <span className="ml-1 inline-flex items-center justify-center min-w-[16px] h-4 px-1 text-[10px] font-black bg-rose-500 text-white rounded-full">
-                    {Object.values(unreadGroupCounts).reduce((a, b) => a + b, 0)}
+                    {sumUnreadCounts(unreadGroupCounts)}
                   </span>
                 )}
               </button>
@@ -1916,13 +1908,13 @@ export function MainScreen({
                       아직 열린 단톡방이 없어요
                     </p>
                     <p className={`text-xs mt-1 ${darkMode ? 'text-slate-500' : 'text-gray-300'}`}>
-                      관심사·나이 / 같은 해 방은 자동이에요. 2차 클럽·술은 눌러서 입장!
+                      년생·나이대 방은 자동이에요. 2차 클럽·술은 눌러서 입장!
                     </p>
                   </div>
                 ) : (
                   <div className="space-y-2">
                     {groupChats.map(group => {
-                      const unread = unreadGroupCounts[group.id] ?? 0;
+                      const unread = unreadForGroup(unreadGroupCounts, group.id, groupChats);
                       const visual = groupRoomVisual(group);
                       const joined = !!group.joined;
                       const joining = joiningGroupId === group.id;
@@ -2080,6 +2072,7 @@ export function MainScreen({
               chatList.map((chat) => {
                 const otherId = chat.user1_id === currentUserId ? chat.user2_id : chat.user1_id;
                 const otherProfile = profileMap.get(otherId);
+                const chatUnread = unreadForChat(unreadChatCounts, chat.id);
                 return (
                   <div key={chat.id}
                     onClick={() => otherProfile && onOpenChat(otherProfile)}
@@ -2104,9 +2097,9 @@ export function MainScreen({
                       </p>
                     </div>
                     <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                      {(unreadChatCounts[chat.id] ?? 0) > 0 && (
+                      {chatUnread > 0 && (
                         <span className="min-w-[22px] h-[22px] px-1.5 bg-rose-500 text-white text-[11px] font-black rounded-full flex items-center justify-center shadow-sm">
-                          {unreadChatCounts[chat.id] > 99 ? '99+' : unreadChatCounts[chat.id]}
+                          {chatUnread > 99 ? '99+' : chatUnread}
                         </span>
                       )}
                       <button
@@ -2238,17 +2231,18 @@ export function MainScreen({
         )}
 
       </main>
-      )}
 
       {/* ── MY 버튼 (우하단 고정 원형) + 팝업 ── */}
       {(() => {
         const myTabActive = mainTab === 'status' || mainTab === 'chats' || mainTab === 'fortune' || mainTab === 'settings';
         const heartsBadge = Math.max(0, pendingHeartsCount - seenHeartsCount) + newContactsCount + newVisitCount;
-        const myBadgeTotal = heartsBadge + newMsgCount;
+        const chatUnreadTotal = sumUnreadCounts(unreadChatCounts);
+        const groupUnreadTotal = sumUnreadCounts(unreadGroupCounts);
+        const myBadgeTotal = heartsBadge + chatUnreadTotal + groupUnreadTotal;
 
         const MY_ITEMS: Array<{ id: MainTab; icon: string; label: string; badge?: number }> = [
           { id: 'status',   icon: '💝', label: '내 상태',  badge: heartsBadge },
-          { id: 'chats',    icon: '💬', label: '내 채팅',  badge: newMsgCount },
+          { id: 'chats',    icon: '💬', label: '내 채팅',  badge: chatUnreadTotal + groupUnreadTotal },
           { id: 'fortune',  icon: '🔮', label: '내 운세' },
           { id: 'settings', icon: '⚙️', label: '내 설정' },
         ];
