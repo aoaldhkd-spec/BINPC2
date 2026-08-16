@@ -3,6 +3,15 @@ import { ArrowLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { getPositionBg, getDomSubBg } from '../lib/profile';
 import { containsBannedNicknameWord } from '../lib/bannedWords';
+import {
+  clampNicknameInput,
+  countGraphemes,
+  isNicknameImeComposing,
+  isNicknameLengthValid,
+  NICKNAME_MAX_GRAPHEMES,
+  nicknameCompositionAllowed,
+  shouldBlockNicknameBeforeInput,
+} from '../lib/nickname-input';
 import { BIO_CATEGORIES } from '../lib/interests';
 import { InterestPicker } from './InterestPicker';
 
@@ -98,6 +107,10 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
   const [checkingDup, setCheckingDup] = useState(false);
   const [dupChecked, setDupChecked] = useState(false);
   const dupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const customInputRef = useRef('');
+  const nickInputElRef = useRef<HTMLInputElement>(null);
+  const nickComposingRef = useRef(false);
+  const nickFinishSyllableRef = useRef(false);
 
   // MBTI
   const [mbti, setMbti] = useState<string | null>(null);
@@ -128,10 +141,11 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
   // ── 닉네임 검증 ───────────────────────────────────────────────────────────────
   const validateCustom = useCallback(async (val: string) => {
     const trimmed = val.trim();
-    if (trimmed.length === 0) { setCustomError(null); setDupChecked(false); return; }
-    if (trimmed.length > 6) { setCustomError('최대 6글자까지 입력할 수 있어요'); setDupChecked(false); return; }
+    const n = countGraphemes(trimmed);
+    if (n === 0) { setCustomError(null); setDupChecked(false); return; }
+    if (n > NICKNAME_MAX_GRAPHEMES) { setCustomError('최대 6글자까지 입력할 수 있어요'); setDupChecked(false); return; }
     if (containsBannedNicknameWord(trimmed)) { setCustomError('사용할 수 없는 단어가 포함되어 있어요'); setDupChecked(false); return; }
-    if (trimmed.length < 2) { setCustomError('최소 2글자 이상 입력하세요'); setDupChecked(false); return; }
+    if (n < 2) { setCustomError('최소 2글자 이상 입력하세요'); setDupChecked(false); return; }
     setCustomError(null);
     setCheckingDup(true);
     setDupChecked(false);
@@ -148,13 +162,22 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
     setCheckingDup(false);
   }, []);
 
-  const handleCustomChange = (val: string) => {
-    const sliced = [...val].slice(0, 6).join('');
-    setCustomInput(sliced);
+  const applyCustomInput = (val: string, isComposing: boolean) => {
+    const next = clampNicknameInput(val, {
+      isComposing,
+      previous: customInputRef.current,
+      allowFinishSyllable: nickFinishSyllableRef.current,
+    });
+    customInputRef.current = next;
+    setCustomInput(next);
+    if (nickInputElRef.current && nickInputElRef.current.value !== next) {
+      nickInputElRef.current.value = next;
+    }
     setDupChecked(false);
     setCustomError(null);
     if (dupTimerRef.current) clearTimeout(dupTimerRef.current);
-    dupTimerRef.current = setTimeout(() => validateCustom(sliced), 500);
+    if (isComposing) return;
+    dupTimerRef.current = setTimeout(() => validateCustom(next), 500);
   };
 
   const toggleBio = (tag: string) => {
@@ -164,7 +187,7 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
 
   // ── 유효성 ────────────────────────────────────────────────────────────────────
   const customFinalNick = customInput.trim();
-  const customValid = customFinalNick.length >= 2 && customFinalNick.length <= 6 && !customError && dupChecked;
+  const customValid = isNicknameLengthValid(customFinalNick) && !customError && dupChecked;
   const atMaxBio = selectedBio.length >= 5;
 
   const isStepValid = (s: Step): boolean => {
@@ -262,16 +285,33 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="text-sm font-bold text-gray-700">닉네임 입력</label>
-                  <span className={`text-xs font-bold tabular-nums ${customInput.length >= 6 ? 'text-rose-500' : 'text-gray-400'}`}>
-                    {customInput.length} / 6
+                  <span className={`text-xs font-bold tabular-nums ${countGraphemes(customInput) >= NICKNAME_MAX_GRAPHEMES ? 'text-rose-500' : 'text-gray-400'}`}>
+                    {Math.min(countGraphemes(customInput), NICKNAME_MAX_GRAPHEMES)} / {NICKNAME_MAX_GRAPHEMES}
                   </span>
                 </div>
                 <div className="relative">
                   <input
+                    ref={nickInputElRef}
                     type="text"
                     value={customInput}
-                    onChange={e => handleCustomChange(e.target.value)}
-                    maxLength={6}
+                    onCompositionStart={() => {
+                      nickComposingRef.current = true;
+                      nickFinishSyllableRef.current = nicknameCompositionAllowed(customInputRef.current);
+                    }}
+                    onCompositionEnd={(e) => {
+                      nickComposingRef.current = false;
+                      nickFinishSyllableRef.current = false;
+                      applyCustomInput(e.currentTarget.value, false);
+                    }}
+                    onBeforeInput={(e) => {
+                      if (shouldBlockNicknameBeforeInput(customInputRef.current, NICKNAME_MAX_GRAPHEMES, nickFinishSyllableRef.current)) {
+                        e.preventDefault();
+                      }
+                    }}
+                    onChange={(e) => {
+                      const composing = isNicknameImeComposing(nickComposingRef.current, e.nativeEvent);
+                      applyCustomInput(e.target.value, composing);
+                    }}
                     placeholder="예: 서울고수"
                     autoFocus
                     className={`w-full px-4 py-3.5 rounded-2xl border-2 text-base font-bold transition-all outline-none bg-white ${
@@ -292,7 +332,7 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
                     ⚠ {customError}
                   </p>
                 )}
-                {dupChecked && !customError && customInput.trim().length >= 2 && (
+                {dupChecked && !customError && isNicknameLengthValid(customInput) && (
                   <div className="px-4 py-3 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-2xl border border-emerald-200">
                     <p className="text-xs text-gray-400 mb-0.5">사용할 닉네임</p>
                     <p className="text-xl font-black text-emerald-700">{customInput.trim()}</p>

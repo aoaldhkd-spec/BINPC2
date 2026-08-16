@@ -19,6 +19,14 @@ import { InterestPicker } from './InterestPicker';
 import { HeartType, HEART_TYPES, heartMeta } from '../lib/constants';
 import { getPositionLabel, getPositionBg, getPositionStyle, getDomSubLabel, getDomSubBg, getKoreanAge, genAvatar, getAvatarSrc, getAvatarGradientCss, hasUploadedPhoto, isSwipeGestureVerifyProfile } from '../lib/profile';
 import { containsBannedNicknameWord } from '../lib/bannedWords';
+import {
+  clampNicknameInput,
+  countGraphemes,
+  isNicknameImeComposing,
+  NICKNAME_MAX_GRAPHEMES,
+  nicknameCompositionAllowed,
+  shouldBlockNicknameBeforeInput,
+} from '../lib/nickname-input';
 import { getMbtiStyle, koreanMatch } from '../lib/utils';
 import { ls } from '../lib/storage';
 import ProfileAvatar from './ProfileAvatar';
@@ -95,6 +103,7 @@ export function MainScreen({
   userSignals = [] as UserSignal[],
   onUserSignalUpdate,
   onMissionComplete,
+  signalMissionCount = 0,
   onOpenResetPassword,
   receivedSignalSenders = [] as Profile[],
   signalActedIds = new Set<string>(),
@@ -151,6 +160,7 @@ export function MainScreen({
   userSignals?: UserSignal[];
   onUserSignalUpdate?: (row: UserSignal) => void;
   onMissionComplete?: () => void;
+  signalMissionCount?: number;
   onOpenResetPassword?: () => void;
   receivedSignalSenders?: Profile[];
   signalActedIds?: Set<string>;
@@ -383,6 +393,10 @@ export function MainScreen({
   const [nicknameEditDupOk, setNicknameEditDupOk] = useState(false);
   const [nicknameEditSaving, setNicknameEditSaving] = useState(false);
   const nickEditTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const nicknameEditInputRef = useRef('');
+  const nickEditElRef = useRef<HTMLInputElement>(null);
+  const nickEditComposingRef = useRef(false);
+  const nickEditFinishSyllableRef = useRef(false);
   // 언마운트 시 닉네임 디바운스 타이머 취소
   useEffect(() => {
     return () => { if (nickEditTimerRef.current) clearTimeout(nickEditTimerRef.current); };
@@ -466,9 +480,10 @@ export function MainScreen({
 
   const validateNicknameEdit = useCallback(async (val: string, currentNick: string) => {
     const t = val.trim();
+    const n = countGraphemes(t);
     if (!t) { setNicknameEditError(null); setNicknameEditDupOk(false); return; }
-    if (t.length < 2) { setNicknameEditError('최소 2글자 이상 입력하세요'); setNicknameEditDupOk(false); return; }
-    if (t.length > 6) { setNicknameEditError('최대 6글자까지 입력할 수 있어요'); setNicknameEditDupOk(false); return; }
+    if (n < 2) { setNicknameEditError('최소 2글자 이상 입력하세요'); setNicknameEditDupOk(false); return; }
+    if (n > NICKNAME_MAX_GRAPHEMES) { setNicknameEditError('최대 6글자까지 입력할 수 있어요'); setNicknameEditDupOk(false); return; }
     if (containsBannedNicknameWord(t)) { setNicknameEditError('사용할 수 없는 단어가 포함되어 있어요'); setNicknameEditDupOk(false); return; }
     if (t === currentNick) { setNicknameEditError('현재 닉네임과 동일해요'); setNicknameEditDupOk(false); return; }
     setNicknameEditChecking(true);
@@ -481,13 +496,22 @@ export function MainScreen({
     setNicknameEditChecking(false);
   }, []);
 
-  const handleNicknameEditChange = (val: string, currentNick: string) => {
-    const sliced = [...val].slice(0, 6).join('');
-    setNicknameEditInput(sliced);
+  const applyNicknameEditInput = (val: string, isComposing: boolean, currentNick: string) => {
+    const next = clampNicknameInput(val, {
+      isComposing,
+      previous: nicknameEditInputRef.current,
+      allowFinishSyllable: nickEditFinishSyllableRef.current,
+    });
+    nicknameEditInputRef.current = next;
+    setNicknameEditInput(next);
+    if (nickEditElRef.current && nickEditElRef.current.value !== next) {
+      nickEditElRef.current.value = next;
+    }
     setNicknameEditDupOk(false);
     setNicknameEditError(null);
     if (nickEditTimerRef.current) clearTimeout(nickEditTimerRef.current);
-    nickEditTimerRef.current = setTimeout(() => validateNicknameEdit(sliced, currentNick), 500);
+    if (isComposing) return;
+    nickEditTimerRef.current = setTimeout(() => validateNicknameEdit(next, currentNick), 500);
   };
 
   const saveNickname = async (currentNick: string) => {
@@ -499,6 +523,8 @@ export function MainScreen({
       await supabase.from('profiles').update({ nickname: trimmed, nickname_changed: true } as never).eq('id', currentUserId);
       onUpdateProfile({ id: currentUserId, nickname: trimmed, nickname_changed: true });
       setProfileEditSection(null);
+      nicknameEditInputRef.current = '';
+      nickEditFinishSyllableRef.current = false;
       setNicknameEditInput('');
       setNicknameEditDupOk(false);
       onRefreshProfiles();
@@ -1382,6 +1408,8 @@ export function MainScreen({
                   // 이미 1회 변경한 경우 열기 차단
                   if ((me as { nickname_changed?: boolean }).nickname_changed) return;
                   if (profileEditSection !== 'nickname') {
+                    nicknameEditInputRef.current = '';
+                    nickEditFinishSyllableRef.current = false;
                     setNicknameEditInput('');
                     setNicknameEditError(null);
                     setNicknameEditDupOk(false);
@@ -1496,9 +1524,26 @@ export function MainScreen({
                               </p>
                             </div>
                             <div className="relative">
-                              <input type="text" value={nicknameEditInput}
-                                onChange={(e) => handleNicknameEditChange(e.target.value, me.nickname)}
-                                maxLength={6} autoFocus placeholder="새 닉네임 (2~6글자)"
+                              <input ref={nickEditElRef} type="text" value={nicknameEditInput}
+                                onCompositionStart={() => {
+                                  nickEditComposingRef.current = true;
+                                  nickEditFinishSyllableRef.current = nicknameCompositionAllowed(nicknameEditInputRef.current);
+                                }}
+                                onCompositionEnd={(e) => {
+                                  nickEditComposingRef.current = false;
+                                  nickEditFinishSyllableRef.current = false;
+                                  applyNicknameEditInput(e.currentTarget.value, false, me.nickname);
+                                }}
+                                onBeforeInput={(e) => {
+                                  if (shouldBlockNicknameBeforeInput(nicknameEditInputRef.current, NICKNAME_MAX_GRAPHEMES, nickEditFinishSyllableRef.current)) {
+                                    e.preventDefault();
+                                  }
+                                }}
+                                onChange={(e) => {
+                                  const composing = isNicknameImeComposing(nickEditComposingRef.current, e.nativeEvent);
+                                  applyNicknameEditInput(e.target.value, composing, me.nickname);
+                                }}
+                                autoFocus placeholder="새 닉네임 (2~6글자)"
                                 className={`w-full px-3 py-2 rounded-lg border-2 text-sm font-bold transition-all outline-none ${
                                   darkMode ? 'bg-slate-800 text-white placeholder-slate-500' : 'bg-white text-gray-900'
                                 } ${nicknameEditError ? 'border-rose-400' : nicknameEditDupOk ? 'border-emerald-400' : darkMode ? 'border-slate-500 focus:border-cyan-500' : 'border-gray-300 focus:border-cyan-400'}`}
@@ -2244,6 +2289,7 @@ export function MainScreen({
             currentUserId={currentUserId}
             userSignals={userSignals}
             sentHeartsPerPerson={sentHeartsPerPerson}
+            persistedMissionCount={signalMissionCount}
             blockedUserIds={blockedUserIds}
             hiddenByIds={hiddenByIds}
             functionsLocked={functionsLocked}
