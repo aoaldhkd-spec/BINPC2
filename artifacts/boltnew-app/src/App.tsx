@@ -372,7 +372,10 @@ function App() {
   useEffect(() => {
     if (!likeError) return;
     setBottomNotif({ type: 'chat', nickname: '', message: likeError });
-    const t = setTimeout(() => { setBottomNotif(null); setLikeError(null); }, 4_000);
+    const t = setTimeout(() => {
+      setBottomNotif(prev => prev?.message === likeError ? null : prev);
+      setLikeError(null);
+    }, 4_000);
     return () => clearTimeout(t);
   }, [likeError, setLikeError]);
 
@@ -427,8 +430,14 @@ function App() {
   }, [currentUserId]);
 
   // ─── 프로필 열 때 방문 기록 ───────────────────────────────────────────────
+  // 카드 사진 탭(뒤집기)과 상세/사주 오픈이 연속되면 같은 상대에 대해 중복 INSERT 방지
+  const recentProfileViewsRef = useRef<Map<string, number>>(new Map());
   const recordProfileView = useCallback(async (viewedId: string) => {
     if (!currentUserId || viewedId === currentUserId) return;
+    const now = Date.now();
+    const last = recentProfileViewsRef.current.get(viewedId) ?? 0;
+    if (now - last < 60_000) return;
+    recentProfileViewsRef.current.set(viewedId, now);
     const row: ProfileView = { id: crypto.randomUUID(), viewer_id: currentUserId, viewed_id: viewedId, viewed_at: new Date().toISOString() };
     try { await supabase.from('profile_views').insert(row as never); } catch {}
   }, [currentUserId]);
@@ -808,22 +817,26 @@ function App() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'likes', filter: `liked_id=eq.${currentUserId}` },
         async (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
           try {
-            const row = payload.new as { liker_id: string; heart_type: HeartType };
+            const row = payload.new as { liker_id?: string; heart_type: HeartType };
             const likerId = row.liker_id;
             // 수신자 전용 — 보낸 사람 토스트 방지 (필터가 깨져도 가드)
-            if (!likerId || likerId === currentUserId) return;
-            setReceivedHeartTypes(prev => new Map(prev).set(likerId, row.heart_type ?? 'red'));
-            const { data } = await supabase.from('profiles').select('*').eq('id', likerId).maybeSingle();
-            if (data) {
-              setReceivedLikers((prev) => {
-                if (prev.find((p) => p.id === data.id)) return prev;
-                return [data, ...prev];
-              });
+            if (likerId && likerId === currentUserId) return;
+            if (likerId) {
+              setReceivedHeartTypes(prev => new Map(prev).set(likerId, row.heart_type ?? 'red'));
+              const { data } = await supabase.from('profiles').select('*').eq('id', likerId).maybeSingle();
+              if (data) {
+                setReceivedLikers((prev) => {
+                  if (prev.find((p) => p.id === data.id)) return prev;
+                  return [data, ...prev];
+                });
+              }
+              const heartNick = data?.nickname ?? '누군가';
+              setBottomNotif({ type: 'heart', nickname: heartNick, heartType: row.heart_type ?? 'red' });
+            } else {
+              setBottomNotif({ type: 'heart', nickname: '누군가', heartType: row.heart_type ?? 'red' });
             }
-            const heartNick = data?.nickname ?? '누군가';
-            setBottomNotif({ type: 'heart', nickname: heartNick, heartType: row.heart_type ?? 'red' });
             triggerConfetti();
-            rejNotifTimerIds.push(setTimeout(() => setBottomNotif(prev => prev?.type === 'heart' && prev.nickname === heartNick ? null : prev), 5000));
+            rejNotifTimerIds.push(setTimeout(() => setBottomNotif(prev => prev?.type === 'heart' ? null : prev), 5000));
           } catch (e) { console.warn('[realtime:likes]', e); }
         })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'likes', filter: `liked_id=eq.${currentUserId}` },
@@ -1372,6 +1385,7 @@ function App() {
         unreadChatCounts={unreadChatCounts}
         onClearChatUnread={(chatId) => setUnreadChatCounts(prev => { const n = { ...prev }; delete n[chatId]; return n; })}
         onViewFortune={(p) => { setFortuneModalTarget(p); void recordProfileView(p.id); }}
+        onViewProfile={(p) => { void recordProfileView(p.id); }}
         fortuneCompatTarget={fortuneCompatTarget}
         myHeartCount={myHeartCount}
         groupChats={groupChats}

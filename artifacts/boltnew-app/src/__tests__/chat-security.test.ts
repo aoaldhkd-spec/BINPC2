@@ -90,6 +90,7 @@ vi.mock('../lib/localdb', () => ({
   onSseReconnect: vi.fn(() => () => {}),
   onSseDisconnect: vi.fn(() => () => {}),
   getSseToken: vi.fn(() => 'test-sse-token'),
+  isSseHealthy: vi.fn(() => true),
 }));
 
 vi.mock('../lib/sounds', () => ({

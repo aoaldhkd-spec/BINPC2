@@ -71,6 +71,19 @@ export function useChat({
 
   // 내가 직접 연 채팅방 pair 기록 — SSE INSERT 알림 억제용
   const selfInitiatedPairRef = useRef<string | null>(null);
+  // 서버가 canonical 로 재매핑한 옛 sibling chat_id 도 열린 방으로 인정
+  const roomChatIdsRef = useRef<Set<string>>(new Set());
+  const activePairKeyRef = useRef<string | null>(null);
+  const activePartnerIdRef = useRef<string | null>(null);
+  const partnerOpenToastAtRef = useRef<Map<string, number>>(new Map());
+
+  const rememberRoomChatId = (id: string | null | undefined) => {
+    if (id) roomChatIdsRef.current.add(id);
+  };
+  const isActiveRoomChat = (id: string | null | undefined) => {
+    if (!id) return false;
+    return chatIdRef.current === id || roomChatIdsRef.current.has(id);
+  };
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [chatList, setChatList] = useState<Chat[]>([]);
@@ -110,13 +123,20 @@ export function useChat({
             const newMsg = raw as unknown as Message;
             // chat_id 없는 이벤트·타방 메시지는 활성 1:1 목록에 절대 넣지 않음
             if (typeof newMsg.chat_id !== 'string' || !newMsg.chat_id) return;
-            if (chatIdRef.current === newMsg.chat_id) {
+            const fromActivePartner = !!(
+              chatIdRef.current &&
+              activePartnerIdRef.current &&
+              newMsg.sender_id === activePartnerIdRef.current
+            );
+            if (isActiveRoomChat(newMsg.chat_id) || fromActivePartner) {
+              rememberRoomChatId(newMsg.chat_id);
               // 활성 채팅방: 메시지 목록에 추가 (client_id 기반 dedup)
               setMessages(prev => {
                 const activeCid = chatIdRef.current;
-                const next = applySseInsert(prev, newMsg, activeCid);
+                const aliases = roomChatIdsRef.current;
+                const next = applySseInsert(prev, newMsg, activeCid, aliases);
                 const safe = activeCid
-                  ? next.filter(m => messageBelongsToChat(m, activeCid))
+                  ? next.filter(m => messageBelongsToChat(m, activeCid, aliases))
                   : next;
                 return safe.length > MAX_MESSAGES ? safe.slice(-MAX_MESSAGES) : safe;
               });
@@ -171,7 +191,7 @@ export function useChat({
           try {
             const deleted = payload.old as { id?: string; chat_id?: string };
             if (!deleted.id || typeof deleted.id !== 'string') return;
-            if (chatIdRef.current === deleted.chat_id) {
+            if (isActiveRoomChat(deleted.chat_id)) {
               setMessages(prev => prev.filter(m => m.id !== deleted.id));
             }
           } catch (e) { console.warn('[user-events/msg-delete]', e); }
@@ -199,9 +219,30 @@ export function useChat({
               const otherId = c.user1_id === uid ? c.user2_id : c.user1_id;
               const otherProfile = profilesRef.current.find(p => p.id === otherId);
               setBottomNotif({ type: 'chat', nickname: otherProfile?.nickname ?? '' });
+              partnerOpenToastAtRef.current.set(pairKey, Date.now());
             }
             void loadChatList(uid);
           } catch (e) { console.warn('[user-events/chat-insert]', e); }
+        })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_reads' },
+        (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
+          try {
+            const row = payload.new as { reader_id?: string; chat_id?: string; read_at?: string };
+            if (!row?.reader_id || row.reader_id === uid) return;
+            if (!row.chat_id || !row.read_at) return;
+            // 내가 그 방 안에 있으면 말풍선 '1' 처리만 — 토스트 없음
+            if (isActiveRoomChat(row.chat_id)) return;
+            const chat = chatListRef.current.find(c => c.id === row.chat_id);
+            if (!chat) return;
+            const pairKey = chatPairKey(chat.user1_id, chat.user2_id);
+            if (selfInitiatedPairRef.current === pairKey) return;
+            const last = partnerOpenToastAtRef.current.get(pairKey) ?? 0;
+            if (Date.now() - last < 90_000) return;
+            partnerOpenToastAtRef.current.set(pairKey, Date.now());
+            const otherId = chat.user1_id === uid ? chat.user2_id : chat.user1_id;
+            const otherProfile = profilesRef.current.find(p => p.id === otherId);
+            setBottomNotif({ type: 'chat', nickname: otherProfile?.nickname ?? '' });
+          } catch (e) { console.warn('[user-events/chat-reads]', e); }
         })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'chats' },
         (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
@@ -230,8 +271,12 @@ export function useChat({
       if (error) { console.error('[loadMessages] DB 오류:', error.message); return false; }
       if (data) setMessages(prev => {
         const result = applyLoadMessages(prev, data as Message[]);
+        rememberRoomChatId(cid);
+        for (const m of data as Message[]) rememberRoomChatId(m.chat_id);
+        const aliases = roomChatIdsRef.current;
         // [Fix-1] 쿼리 결과 chat_id 재검증 — 빈 chat_id·타방·단톡 메시지 원천 차단
-        const filtered = result.filter(m => messageBelongsToChat(m, cid));
+        // 서버 sibling merge 가 canonical id 로 바꿔 돌려줘도 열린 방 별칭이면 유지
+        const filtered = result.filter(m => messageBelongsToChat(m, cid, aliases));
         return filtered.length > MAX_MESSAGES ? filtered.slice(-MAX_MESSAGES) : filtered;
       });
       return true;
@@ -244,15 +289,21 @@ export function useChat({
   // ── 채팅방 진입/전환 ─────────────────────────────────────────────────────────
   useEffect(() => {
     setMessages([]);
-    if (!chatId) return;
+    if (!chatId) {
+      roomChatIdsRef.current = new Set();
+      activePairKeyRef.current = null;
+      activePartnerIdRef.current = null;
+      return;
+    }
     chatIdRef.current = chatId;
+    rememberRoomChatId(chatId);
 
     // 채팅방 열 때: unread 카운트 낙관적 삭제 + 전체 배지 감소
     // upsert 실패 시 뱃지 복원 (catch) — 서버 상태와 UI 불일치 방지
     const removed = unreadChatCountsRef.current[chatId] ?? 0;
     setUnreadChatCounts(prev => { const n = { ...prev }; delete n[chatId]; return n; });
     if (removed > 0) setNewMsgCount(c => Math.max(0, c - removed));
-    // 낙관적 읽음 보호: 30초간 syncUnreadCounts가 이 채팅방을 unread로 복원하지 않도록
+    // 낙관적 읽음 보호: upsert 완료 전 syncUnreadCounts 가 이 방을 unread 로 되돌리지 않게
     recentlyReadRef.current.set(chatId, Date.now());
 
     if (currentUserId) {
@@ -261,7 +312,9 @@ export function useChat({
         chat_id: chatId,
         reader_id: currentUserId,
         read_at: new Date().toISOString(),
-      }, { onConflict: 'id' }).then(() => {}).catch(() => {
+      }, { onConflict: 'id' }).then(() => {
+        recentlyReadRef.current.delete(chatId);
+      }).catch(() => {
         // upsert 실패: 맹목적 restore 대신 syncUnreadCounts로 서버 상태에서 재동기화
         // 이유: restore 사이에 다른 채팅방 오픈/sync가 발생했을 수 있어 stale count를 더하면 배지가 틀려짐
         syncUnreadCountsRef.current?.().catch(() => {});
@@ -310,7 +363,9 @@ export function useChat({
           chat_id: chatId,
           reader_id: currentUserId,
           read_at: new Date().toISOString(),
-        }, { onConflict: 'id' }).then(() => {}).catch(() => {});
+        }, { onConflict: 'id' }).then(() => {
+          recentlyReadRef.current.delete(chatId);
+        }).catch(() => {});
       }
     };
   }, [chatId, loadMessages, currentUserId]);
@@ -366,6 +421,18 @@ export function useChat({
     }
   }, []);
 
+  // 열린 방이 서버 canonical 로 합쳐졌으면 sibling id 를 별칭으로 유지 (setChatId 하면 메시지 클리어됨)
+  useEffect(() => {
+    const pair = activePairKeyRef.current;
+    const cid = chatIdRef.current;
+    if (!pair || !cid) return;
+    const matches = chatList.filter(c => chatPairKey(c.user1_id, c.user2_id) === pair);
+    const canonical = pickCanonicalChat(matches)?.id;
+    if (!canonical) return;
+    rememberRoomChatId(cid);
+    rememberRoomChatId(canonical);
+  }, [chatList]);
+
   // ── 채팅방 열기 ──────────────────────────────────────────────────────────────
   const openChatGenRef = useRef(0);
   const openChatInflightRef = useRef<Map<string, Promise<string | null>>>(new Map());
@@ -396,6 +463,8 @@ export function useChat({
     const user1Id = currentUserId < otherProfile.id ? currentUserId : otherProfile.id;
     const user2Id = currentUserId < otherProfile.id ? otherProfile.id : currentUserId;
     const pairKey = chatPairKey(user1Id, user2Id);
+    activePairKeyRef.current = pairKey;
+    activePartnerIdRef.current = otherProfile.id;
     const cachedMatches = chatListRef.current.filter(
       c => chatPairKey(c.user1_id, c.user2_id) === pairKey,
     );
@@ -406,6 +475,7 @@ export function useChat({
     if (cachedId) {
       // 목록에 이미 있는 방은 서버 왕복 전에 바로 열어 화면 넘김 지연을 없앤다.
       chatIdRef.current = cachedId;
+      rememberRoomChatId(cachedId);
       const countToRemove = unreadChatCountsRef.current[cachedId] ?? 0;
       setChatId(cachedId);
       setUnreadChatCounts(prev => { const n = { ...prev }; delete n[cachedId]; return n; });
@@ -496,6 +566,7 @@ export function useChat({
       }
 
       chatIdRef.current = resolvedChatId;
+      rememberRoomChatId(resolvedChatId);
       // unreadChatCountsRef.current は毎レンダーで更新されるため、ここで読めば最新値を取得できる.
       // setChatId → effect の前に setUnreadChatCounts を呼ぶと effect 内で removed=0 になるため
       // ここで count を読んでから両方まとめてクリアする (effect は no-op になるが二重減算は発生しない).
@@ -533,9 +604,10 @@ export function useChat({
       if (gen !== syncGenRef.current) return; // JSON 파싱 사이에 더 최신 요청이 시작됐으면 버림
       setUnreadChatCounts(prev => {
         const next = { ...data };
-        // 현재 열려 있는 채팅방은 항상 unread 제외
+        // 현재 열려 있는 채팅방(sibling alias 포함)은 항상 unread 제외
         if (chatIdRef.current) delete next[chatIdRef.current];
-        // 낙관적 읽음 보호: 30초 이내에 읽은 채팅방은 서버가 아직 반영 못해도 읽음 유지
+        for (const alias of roomChatIdsRef.current) delete next[alias];
+        // 낙관적 읽음 보호: upsert 완료 전(최대 30초)에만 서버 stale count 복원 차단
         const now = Date.now();
         for (const [cid, ts] of recentlyReadRef.current) {
           if (now - ts < 30_000) {
@@ -553,6 +625,7 @@ export function useChat({
       const total = Object.entries(data)
         .filter(([cid]) => {
           if (cid === chatIdRef.current) return false;
+          if (roomChatIdsRef.current.has(cid)) return false;
           const readTs = recentlyReadRef.current.get(cid);
           if (readTs && now - readTs < 30_000) return false;
           return true;
@@ -710,7 +783,7 @@ export function useChat({
     } as Message;
 
     setMessages(prev => {
-      if (chatIdRef.current !== snapChatId) return prev;
+      if (!isActiveRoomChat(snapChatId)) return prev;
       return [...prev, optimisticMsg];
     });
     setChatList(prev => prev.map(c => c.id === snapChatId ? { ...c, lastMessage: trimmed } : c));
@@ -724,7 +797,7 @@ export function useChat({
         if (attempt > 0) {
           await new Promise<void>(r => setTimeout(r, Math.pow(2, attempt - 1) * 1000));
           // 대기 중 채팅방이 바뀌면 중단 (낙관적 메시지는 그대로 — 폴링이 reconcile)
-          if (chatIdRef.current !== snapChatId) return;
+          if (!isActiveRoomChat(snapChatId)) return;
         }
 
         try {
@@ -737,11 +810,12 @@ export function useChat({
 
           if (!error && insertedMsg) {
             const saved = insertedMsg as Message;
-            if (saved.chat_id && saved.chat_id !== snapChatId) return;
-            if (chatIdRef.current === snapChatId) {
+            rememberRoomChatId(snapChatId);
+            rememberRoomChatId(saved.chat_id);
+            if (isActiveRoomChat(snapChatId) || isActiveRoomChat(saved.chat_id)) {
               setMessages(prev => {
                 const next = prev.map(m => m.id === optimisticId ? saved : m);
-                return next.filter(m => messageBelongsToChat(m, snapChatId));
+                return next.filter(m => messageBelongsToChat(m, snapChatId, roomChatIdsRef.current));
               });
             }
             return;
@@ -751,12 +825,12 @@ export function useChat({
           // 같은 client_id로 DB를 조회해 이미 저장된 행이 있으면 교체 후 성공
           if (error) {
             const { data: existing } = await supabase.from('messages').select('*').eq('client_id', clientUUID).maybeSingle();
-            if (existing && chatIdRef.current === snapChatId) {
+            if (existing && (isActiveRoomChat(snapChatId) || isActiveRoomChat((existing as Message).chat_id))) {
               const saved = existing as Message;
-              if (saved.chat_id && saved.chat_id !== snapChatId) return;
+              rememberRoomChatId(saved.chat_id);
               setMessages(prev => {
                 const next = prev.map(m => m.id === optimisticId ? saved : m);
-                return next.filter(m => messageBelongsToChat(m, snapChatId));
+                return next.filter(m => messageBelongsToChat(m, snapChatId, roomChatIdsRef.current));
               });
               return; // 분실 복구 성공
             }
@@ -764,7 +838,7 @@ export function useChat({
           }
         } catch (err) {
           lastErr = err;
-          if (chatIdRef.current !== snapChatId) return; // 방 변경 시 조용히 중단
+          if (!isActiveRoomChat(snapChatId)) return; // 방 변경 시 조용히 중단
         }
       }
 
@@ -799,7 +873,7 @@ export function useChat({
     } as Message;
 
     setMessages(prev => {
-      if (chatIdRef.current !== snapChatId) return prev;
+      if (!isActiveRoomChat(snapChatId)) return prev;
       const next = [...prev, optimisticMsg];
       return next.length > MAX_MESSAGES ? next.slice(-MAX_MESSAGES) : next;
     });
@@ -824,7 +898,7 @@ export function useChat({
       if (!data) { rollback(); return '업로드 실패'; }
 
       // 업로드 완료 후 채팅방/사용자가 바뀌었으면 고아 파일 정리 후 중단
-      if (chatIdRef.current !== snapChatId || currentUserIdRef.current !== snapUserId) {
+      if (!isActiveRoomChat(snapChatId) || currentUserIdRef.current !== snapUserId) {
         supabase.storage.from('chat-images').remove([data.path]).catch(() => {});
         rollback();
         return null;
@@ -843,14 +917,13 @@ export function useChat({
       }
       // 성공: optimistic(blob URL) → 실제 DB 행(CDN URL)으로 즉시 교체
       URL.revokeObjectURL(localBlobUrl);
-      if (insertedMsg && chatIdRef.current === snapChatId) {
+      if (insertedMsg && isActiveRoomChat(snapChatId)) {
         const saved = insertedMsg as Message;
-        if (!saved.chat_id || saved.chat_id === snapChatId) {
-          setMessages(prev => {
-            const next = prev.map(m => m.id === optimisticId ? saved : m);
-            return next.filter(m => messageBelongsToChat(m, snapChatId));
-          });
-        }
+        rememberRoomChatId(saved.chat_id);
+        setMessages(prev => {
+          const next = prev.map(m => m.id === optimisticId ? saved : m);
+          return next.filter(m => messageBelongsToChat(m, snapChatId, roomChatIdsRef.current));
+        });
       }
       return null;
     } catch (err) {

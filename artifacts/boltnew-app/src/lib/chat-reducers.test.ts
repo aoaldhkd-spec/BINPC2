@@ -463,6 +463,14 @@ describe('messageBelongsToChat / applySseInsert chat isolation', () => {
     const orphan = makeMsg({ id: 'orphan', chat_id: '' });
     expect(applySseInsert(prev, orphan, 'chat-1')).toEqual(prev);
   });
+
+  it('keeps sibling-room messages when allowedChatIds includes the remapped chat_id', () => {
+    expect(messageBelongsToChat(makeMsg({ id: 'sib', chat_id: 'canonical' }), 'legacy', ['canonical'])).toBe(true);
+    const prev = [makeMsg({ id: 'keep', chat_id: 'legacy' })];
+    const fromCanonical = makeMsg({ id: 'from-partner', chat_id: 'canonical', sender_id: 'user-b', content: 'in-room' });
+    const next = applySseInsert(prev, fromCanonical, 'legacy', ['canonical']);
+    expect(next.some((m) => m.id === 'from-partner')).toBe(true);
+  });
 });
 
 describe('applyPartnerReadReceipt', () => {

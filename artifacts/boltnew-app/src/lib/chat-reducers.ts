@@ -21,10 +21,20 @@ import type { Message } from '../types/app';
  *    false-positive matches when a user sends the same text twice quickly.
  * 4. Otherwise append as a new message.
  */
-export function messageBelongsToChat(msg: Message, chatId: string | null | undefined): boolean {
+export function messageBelongsToChat(
+  msg: Message,
+  chatId: string | null | undefined,
+  allowedChatIds?: Iterable<string> | null,
+): boolean {
   if (!chatId) return false;
-  if (msg.id.startsWith('__opt_')) return !msg.chat_id || msg.chat_id === chatId;
-  return msg.chat_id === chatId;
+  const allowed = new Set<string>([chatId]);
+  if (allowedChatIds) {
+    for (const id of allowedChatIds) {
+      if (id) allowed.add(id);
+    }
+  }
+  if (msg.id.startsWith('__opt_')) return !msg.chat_id || allowed.has(msg.chat_id);
+  return !!msg.chat_id && allowed.has(msg.chat_id);
 }
 
 /**
@@ -59,9 +69,14 @@ export function applyPartnerReadReceipt(
   return next;
 }
 
-export function applySseInsert(prev: Message[], newMsg: Message, expectedChatId?: string | null): Message[] {
+export function applySseInsert(
+  prev: Message[],
+  newMsg: Message,
+  expectedChatId?: string | null,
+  allowedChatIds?: Iterable<string> | null,
+): Message[] {
   if (expectedChatId) {
-    if (!newMsg.chat_id || newMsg.chat_id !== expectedChatId) return prev;
+    if (!messageBelongsToChat(newMsg, expectedChatId, allowedChatIds)) return prev;
   }
   // 1. Already present by DB id — skip (idempotent guard)
   if (prev.some((m) => m.id === newMsg.id)) return prev;

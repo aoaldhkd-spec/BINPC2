@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import type { HeartType } from '../lib/constants';
 import { heartMeta } from '../lib/constants';
 
@@ -21,14 +22,20 @@ export function BottomNotification({
   onGoToStatus,
   onGoToChats,
 }: BottomNotificationProps) {
+  useEffect(() => {
+    const t = setTimeout(onClose, 5_000);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- onClose is an inline setter; restart only when toast content changes
+  }, [notification]);
+
   return (
-    <div className="fixed bottom-20 left-0 right-0 z-[210] flex justify-center px-4 pointer-events-none">
+    <div className="fixed bottom-24 left-0 right-0 z-[10100] flex justify-center px-4 pointer-events-none">
       <div className={`px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 pointer-events-auto cursor-pointer ${notification.type === 'heart' ? 'bg-rose-500' : notification.type === 'contact' ? 'bg-emerald-500' : notification.type === 'system' ? 'bg-amber-600' : 'bg-cyan-600'}`}>
         <span className="text-lg">{notification.type === 'heart' ? (notification.heartType ? heartMeta(notification.heartType).emoji : '❤️') : notification.type === 'contact' ? '📱' : notification.type === 'system' ? '💛' : '💬'}</span>
         <div className="flex-1">
           {notification.type === 'heart' && (
             <>
-              <p className="text-sm font-bold text-white">{notification.nickname}님이 {notification.heartType ? heartMeta(notification.heartType).label : '하트'}를 보냈습니다!</p>
+              <p className="text-sm font-bold text-white">{notification.nickname || '누군가'}님이 {notification.heartType ? heartMeta(notification.heartType).label : '하트'}를 보냈습니다!</p>
               <button onClick={onGoToStatus} className="text-xs text-white/80 underline">내 상태 탭으로 이동</button>
             </>
           )}

@@ -502,7 +502,9 @@ export function collectBroadcastTargets(
 
 function isChatParticipant(chatId: unknown, userId: string): boolean {
   if (chatId == null || chatId === '' || !userId) return false;
-  const chat = getTable('chats').find(c => String(c.id) === String(chatId));
+  const resolved = resolveMergedChatId(String(chatId));
+  const chat = getTable('chats').find(c => String(c.id) === resolved)
+    ?? getTable('chats').find(c => String(c.id) === String(chatId));
   if (!chat) return false;
   return String(chat.user1_id) === String(userId) || String(chat.user2_id) === String(userId);
 }
@@ -2238,6 +2240,18 @@ router.post('/op', async (req: Request, res: Response) => {
         }
       }
 
+      // ─ IDOR guard: profile_views SELECT ───────────────────────────────────
+      // 내 프로필 방문자(viewed_id=me) 또는 내가 본 기록(viewer_id=me)만.
+      if (table === 'profile_views' && !canReadPrivateTables) {
+        if (!requesterId) {
+          logger.warn({ ip: req.ip }, '[SECURITY] IDOR: profile_views SELECT without requesterId blocked');
+          return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+        }
+        tableData = tableData.filter(r =>
+          String(r.viewer_id) === String(requesterId) || String(r.viewed_id) === String(requesterId)
+        );
+      }
+
       // ─ IDOR guard: contact_shares SELECT ─────────────────────────────────
       // 연락처 공유 내역은 보낸 사람(liker_id) 또는 받은 사람(liked_id)만 조회 가능.
       // requesterId 없이 전체 덤프하면 모든 연락처 공유 기록이 노출됨 → 차단.
@@ -2278,11 +2292,29 @@ router.post('/op', async (req: Request, res: Response) => {
           if (String(r.reader_id) === String(requesterId)) return true;
           // 같은 1:1 방 상대의 read_at 만 허용 — 프론트 '1' 폴링에 필요.
           // 참여하지 않은 방·제3자 읽음 기록은 절대 노출하지 않음.
-          const chat = getTable('chats').find(c => String(c.id) === String(r.chat_id));
+          const resolved = resolveMergedChatId(String(r.chat_id ?? ''));
+          const chat = getTable('chats').find(c => String(c.id) === resolved || String(c.id) === String(r.chat_id));
           if (!chat) return false;
           return String(chat.user1_id) === String(requesterId) || String(chat.user2_id) === String(requesterId);
         });
-        const crResult = applyFilters(crScope, normalizedFilters);
+        const chatIdEqCr = normalizedFilters.find(f => f.type === 'eq' && f.col === 'chat_id') as { type: 'eq'; col: string; val: unknown } | undefined;
+        const siblingIds = new Set<string>();
+        if (chatIdEqCr) {
+          const want = String(chatIdEqCr.val);
+          siblingIds.add(want);
+          siblingIds.add(resolveMergedChatId(want));
+          const chat = getTable('chats').find(c => siblingIds.has(String(c.id)));
+          if (chat) {
+            for (const id of chatIdsForPair(String(chat.user1_id), String(chat.user2_id))) siblingIds.add(id);
+          }
+        }
+        const crFilters = chatIdEqCr
+          ? normalizedFilters.filter(f => !(f.type === 'eq' && f.col === 'chat_id'))
+          : normalizedFilters;
+        const crScoped = chatIdEqCr
+          ? crScope.filter(r => siblingIds.has(String(r.chat_id)))
+          : crScope;
+        const crResult = applyFilters(crScoped, crFilters);
         for (const { col, asc } of safeOrders) {
           crResult.sort((a, b) => {
             const av = a[col]; const bv = b[col];
@@ -2393,6 +2425,23 @@ router.post('/op', async (req: Request, res: Response) => {
           });
         }
       }
+      // profile_views: 방문자(viewer_id)는 본인 방문 기록 또는 내 프로필 방문자 조회 때만 노출.
+      // 좋아요 inbox(liker_id)와 동일 — 무필터 덤프에서 viewer_id를 지우면 방문자 목록이 비어 보임.
+      if (table === 'profile_views' && !isAdmin) {
+        const ownViewedOnly = normalizedFilters.some(
+          f => f.type === 'eq' && f.col === 'viewed_id' && requesterId && String(f.val) === String(requesterId),
+        );
+        const ownViewerOnly = normalizedFilters.some(
+          f => f.type === 'eq' && f.col === 'viewer_id' && requesterId && String(f.val) === String(requesterId),
+        );
+        if (!ownViewedOnly && !ownViewerOnly) {
+          result = result.map(r => {
+            const s = { ...r };
+            delete s['viewer_id'];
+            return s;
+          });
+        }
+      }
       if (single) {
         if (!result.length) return res.json({ data: null, error: { message: 'Row not found', code: 'PGRST116' } });
         return res.json({ data: result[0], error: null });
@@ -2451,6 +2500,7 @@ router.post('/op', async (req: Request, res: Response) => {
             logger.warn({ requesterId, ip: req.ip }, '[SECURITY] IDOR: messages INSERT without chat_id blocked');
             return res.status(400).json({ data: null, error: { message: 'chat_id is required for messages', code: 'INVALID_INPUT' } });
           }
+          effectiveRow = { ...effectiveRow, chat_id: resolveMergedChatId(String(effectiveRow.chat_id)) };
           const msgChat = getTable('chats').find(c => String(c.id) === String(effectiveRow.chat_id));
           if (msgChat) {
             const pk = chatPairKey(String(msgChat.user1_id), String(msgChat.user2_id));
@@ -2515,6 +2565,10 @@ router.post('/op', async (req: Request, res: Response) => {
             return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
           }
           effectiveRow = { ...effectiveRow, reader_id: requesterId };
+          if (effectiveRow.chat_id != null) {
+            effectiveRow = { ...effectiveRow, chat_id: resolveMergedChatId(String(effectiveRow.chat_id)) };
+            effectiveRow.id = `${effectiveRow.chat_id}__${requesterId}`;
+          }
           if (!isChatParticipant(effectiveRow.chat_id, requesterId)) {
             logger.warn({ requesterId, chatId: effectiveRow.chat_id, ip: req.ip }, '[SECURITY] IDOR: chat_reads INSERT by non-participant blocked');
             return res.status(403).json({ data: null, error: { message: 'Forbidden: not a chat participant', code: 'FORBIDDEN' } });
@@ -2524,6 +2578,21 @@ router.post('/op', async (req: Request, res: Response) => {
         // omit 공격(liker_id 없이 전송) + mismatch 공격 동시 차단
         if (table === 'likes' && requesterId) {
           effectiveRow = { ...effectiveRow, liker_id: requesterId };
+        }
+        // profile_views: viewer_id를 requesterId로 강제 (omit·mismatch 차단). 자기 자신 방문은 기록하지 않음.
+        if (table === 'profile_views') {
+          if (!requesterId) {
+            logger.warn({ ip: req.ip }, '[SECURITY] IDOR: profile_views INSERT without requesterId blocked');
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+          }
+          if (effectiveRow.viewed_id == null || String(effectiveRow.viewed_id) === '') {
+            return res.status(400).json({ data: null, error: { message: 'viewed_id is required', code: 'INVALID_INPUT' } });
+          }
+          if (String(effectiveRow.viewed_id) === String(requesterId)) {
+            if (selectAfterWrite) return res.json({ data: single ? null : [], error: null });
+            return res.json({ data: null, error: null });
+          }
+          effectiveRow = { ...effectiveRow, viewer_id: requesterId };
         }
 
         if (table === 'profiles') {
@@ -2828,6 +2897,10 @@ router.post('/op', async (req: Request, res: Response) => {
         for (const row of inputs) {
           if (!row) continue;
           row.reader_id = requesterId;
+          if (row.chat_id != null) {
+            row.chat_id = resolveMergedChatId(String(row.chat_id));
+            row.id = `${row.chat_id}__${requesterId}`;
+          }
           if (!isChatParticipant(row.chat_id, requesterId)) {
             logger.warn({ requesterId, chatId: row.chat_id }, '[SECURITY] IDOR: UPSERT chat_reads by non-participant blocked');
             return res.status(403).json({ data: null, error: { message: 'Forbidden: not a chat participant', code: 'FORBIDDEN' } });
@@ -3852,27 +3925,45 @@ router.get('/unread-counts', (req: Request, res: Response) => {
     const readAtByChat = new Map<string, string>();
     for (const r of getTable('chat_reads')) {
       if (r.reader_id === userId && r.chat_id && r.read_at) {
-        readAtByChat.set(r.chat_id as string, r.read_at as string);
+        const cid = resolveMergedChatId(String(r.chat_id));
+        const prev = readAtByChat.get(cid);
+        if (!prev || String(r.read_at) > prev) readAtByChat.set(cid, r.read_at as string);
       }
     }
 
     // 전체 메시지를 chat_id 기준으로 미리 인덱싱 — O(msgs) 1회 스캔
     const msgsByChatId = new Map<string, typeof store[string]>();
     for (const m of getTable('messages')) {
-      const cid = m.chat_id as string;
+      const cid = resolveMergedChatId(String(m.chat_id ?? ''));
       if (!msgsByChatId.has(cid)) msgsByChatId.set(cid, []);
       msgsByChatId.get(cid)!.push(m);
     }
 
     const counts: Record<string, number> = {};
+    const seenPairs = new Set<string>();
     for (const chat of chats) {
-      const chatId = chat.id as string;
-      const readAt = readAtByChat.get(chatId);
-      const msgs = msgsByChatId.get(chatId) ?? [];
+      const pk = chatPairKey(String(chat.user1_id), String(chat.user2_id));
+      if (seenPairs.has(pk)) continue;
+      seenPairs.add(pk);
+      const siblings = chats.filter(c => chatPairKey(String(c.user1_id), String(c.user2_id)) === pk);
+      const canonical = pickCanonicalChatRow(siblings);
+      const chatId = String(canonical.id);
+      const siblingIds = siblings.map(c => String(c.id));
+      let readAt: string | undefined;
+      for (const sid of siblingIds) {
+        const ra = readAtByChat.get(sid) ?? readAtByChat.get(resolveMergedChatId(sid));
+        if (ra && (!readAt || ra > readAt)) readAt = ra;
+      }
       let unreadCount = 0;
-      for (const m of msgs) {
-        if (m.sender_id === userId) continue;
-        if (!readAt || (m.created_at as string) > readAt) unreadCount++;
+      const seenMsg = new Set<string>();
+      for (const sid of [...new Set([...siblingIds, chatId])]) {
+        for (const m of msgsByChatId.get(sid) ?? []) {
+          const mid = String(m.id ?? '');
+          if (mid && seenMsg.has(mid)) continue;
+          if (mid) seenMsg.add(mid);
+          if (m.sender_id === userId) continue;
+          if (!readAt || (m.created_at as string) > readAt) unreadCount++;
+        }
       }
       if (unreadCount > 0) counts[chatId] = unreadCount;
     }
