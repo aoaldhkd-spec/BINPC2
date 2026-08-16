@@ -82,11 +82,23 @@ export function unreadMemberCount(
 
 export function siblingGroupIds(groups: GroupChat[] | undefined | null, groupId: string): string[] {
   if (!groupId) return [];
-  if (!groups?.length) return [groupId];
-  const kind = afterpartyKind(groups.find(g => g.id === groupId) ?? { id: groupId, name: '', interest_tag: '' });
-  if (!kind) return [groupId];
-  const ids = groups.filter(g => afterpartyKind(g) === kind).map(g => g.id);
-  return ids.length ? [...new Set(ids)] : [groupId];
+  const ids = new Set<string>([groupId]);
+  if (!groups?.length) return [...ids];
+  const target = groups.find(g => g.id === groupId) ?? { id: groupId, name: '', interest_tag: '' };
+  const kind = afterpartyKind(target);
+  if (kind) {
+    for (const g of groups) {
+      if (afterpartyKind(g) === kind) ids.add(g.id);
+    }
+    return [...ids];
+  }
+  const name = String(target.name ?? '');
+  if (/^\d{4}년생 모임$/.test(name) || /^\d+대 모임$/.test(name)) {
+    for (const g of groups) {
+      if (g.name === name) ids.add(g.id);
+    }
+  }
+  return [...ids];
 }
 
 export function unreadForGroup(
@@ -130,20 +142,21 @@ export function afterpartyKind(group: GroupLike): 'club' | 'drink' | null {
 
 export function groupRoomVisual(group: GroupLike): {
   emoji: string;
+  glyph: 'club' | 'drink' | 'year' | 'age' | 'group';
   afterparty: boolean;
   label: string;
 } {
   const ap = afterpartyKind(group);
-  if (ap === 'club') return { emoji: '🪩', afterparty: true, label: '2차 클럽' };
-  if (ap === 'drink') return { emoji: '🍻', afterparty: true, label: '2차 술' };
+  if (ap === 'club') return { emoji: '🎧', glyph: 'club', afterparty: true, label: '2차 클럽' };
+  if (ap === 'drink') return { emoji: '🍻', glyph: 'drink', afterparty: true, label: '2차 술' };
   const name = group.name ?? '';
   if (/^\d{4}년생 모임$/.test(name) || group.room_kind === 'birth_year') {
-    return { emoji: '🎂', afterparty: false, label: '년생' };
+    return { emoji: '🎂', glyph: 'year', afterparty: false, label: '년생' };
   }
   if (/^\d+대 모임$/.test(name) || group.room_kind === 'age_decade') {
-    return { emoji: '👥', afterparty: false, label: '나이대' };
+    return { emoji: '👥', glyph: 'age', afterparty: false, label: '나이대' };
   }
-  return { emoji: '👥', afterparty: false, label: '단톡' };
+  return { emoji: '👥', glyph: 'group', afterparty: false, label: '단톡' };
 }
 
 export function isLegacyInterestAutoRoom(group: GroupLike): boolean {

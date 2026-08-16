@@ -75,6 +75,7 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
 
   const sendingGroupRef = useRef(new Set<string>());
   const loadGenRef = useRef(0);
+  const recentlyLeftRef = useRef(new Set<string>());
   // 비활성 그룹 SSE 중복 방지 (재연결 시 동일 메시지 재수신 대비)
   const seenInactiveGroupMsgIds = useRef(new Set<string>());
 
@@ -86,8 +87,10 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
       const groupsRes = await supabase.from('group_chats').select('*');
       const parts = (partsRes.data ?? []) as GroupParticipant[];
       const groupIds = parts.map(p => p.group_id);
-      setMyGroupIds(groupIds);
-      myGroupIdsRef.current = groupIds;
+      const left = recentlyLeftRef.current;
+      const visibleIds = groupIds.filter(id => !left.has(id));
+      setMyGroupIds(visibleIds);
+      myGroupIdsRef.current = visibleIds;
 
       const groups = (groupsRes.data ?? []) as GroupChat[];
       if (!groups.length) {
@@ -134,14 +137,14 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
 
       const enriched: GroupChat[] = groups.map(g => ({
         ...g,
-        joined: groupIds.includes(g.id),
+        joined: visibleIds.includes(g.id),
         lastMessage: latestByGroup.get(g.id) ?? '',
         memberCount: g.memberCount ?? 0,
       }));
       rawGroupsRef.current = enriched;
       const catalog = catalogGroupRooms(enriched, {
         myBirthYear: Number.isFinite(myBirthYear) ? myBirthYear : null,
-        joinedIds: groupIds,
+        joinedIds: visibleIds,
       });
       const remappedUnread: Record<string, number> = {};
       for (const [gid, n] of Object.entries(unreadByGroup)) {
@@ -151,8 +154,8 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
       }
       if (activeGroupIdRef.current) delete remappedUnread[activeGroupIdRef.current];
       setUnreadGroupCounts(remappedUnread);
-      setMyGroupIds(groupIds);
-      myGroupIdsRef.current = groupIds;
+      setMyGroupIds(visibleIds);
+      myGroupIdsRef.current = visibleIds;
       setGroupChats(catalog);
     } catch (e) {
       console.error('[loadGroupChats] 오류:', e);
@@ -261,6 +264,10 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
         setBottomNotif({ type: 'error', nickname: msg });
         return false;
       }
+      recentlyLeftRef.current.delete(groupId);
+      for (const id of siblingGroupIds(rawGroupsRef.current, groupId)) {
+        recentlyLeftRef.current.delete(id);
+      }
       setMyGroupIds(prev => {
         const next = prev.includes(groupId) ? prev : [...prev, groupId];
         myGroupIdsRef.current = next;
@@ -292,23 +299,33 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
   // ── 단톡방 나가기 (카탈로그에는 남고, 다시 입장 가능) ───────────────────────
   const leaveGroupChat = useCallback(async (groupId: string): Promise<void> => {
     const userId = currentUserIdRef.current;
-    if (!userId) return;
-    const ids = siblingGroupIds(rawGroupsRef.current, groupId);
-    try {
-      for (const id of ids) {
-        await supabase
-          .from('group_participants')
-          .delete()
-          .eq('group_id', id)
-          .eq('user_id', userId);
-      }
-    } catch (e) {
-      console.error('[leaveGroupChat] 삭제 오류:', e);
-    }
+    if (!userId || !groupId) return;
+    const raw = rawGroupsRef.current;
+    const ids = siblingGroupIds(raw, groupId);
+    const catalogId = resolveCatalogGroupId(raw, groupId) || groupId;
     const idSet = new Set(ids);
-    setMyGroupIds(prev => prev.filter(id => !idSet.has(id)));
-    myGroupIdsRef.current = myGroupIdsRef.current.filter(id => !idSet.has(id));
-    if (activeGroupIdRef.current && idSet.has(activeGroupIdRef.current)) {
+    idSet.add(groupId);
+    idSet.add(catalogId);
+
+    const isLeavingId = (id: string) =>
+      idSet.has(id) || resolveCatalogGroupId(raw, id) === catalogId || siblingGroupIds(raw, groupId).includes(id);
+
+    for (const id of idSet) recentlyLeftRef.current.add(id);
+    window.setTimeout(() => {
+      for (const id of idSet) recentlyLeftRef.current.delete(id);
+    }, 15_000);
+
+    setMyGroupIds(prev => {
+      const next = prev.filter(id => !isLeavingId(id));
+      myGroupIdsRef.current = next;
+      return next;
+    });
+    setGroupChats(prev => prev.map(g => (isLeavingId(g.id) ? { ...g, joined: false } : g)));
+    if (rawGroupsRef.current.length) {
+      rawGroupsRef.current = rawGroupsRef.current.map(g => (isLeavingId(g.id) ? { ...g, joined: false } : g));
+    }
+    const active = activeGroupIdRef.current;
+    if (active && isLeavingId(active)) {
       setActiveGroupId(null);
       activeGroupIdRef.current = null;
       setGroupMessages([]);
@@ -316,10 +333,24 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
     }
     setUnreadGroupCounts(prev => {
       const n = { ...prev };
-      for (const id of ids) delete n[id];
+      for (const id of idSet) delete n[id];
       delete n[groupId];
+      delete n[catalogId];
       return n;
     });
+
+    try {
+      for (const id of idSet) {
+        const { error } = await supabase
+          .from('group_participants')
+          .delete()
+          .eq('group_id', id)
+          .eq('user_id', userId);
+        if (error) console.error('[leaveGroupChat] 삭제 오류:', error.message);
+      }
+    } catch (e) {
+      console.error('[leaveGroupChat] 삭제 오류:', e);
+    }
     await loadGroupChats(userId);
   }, [loadGroupChats]);
 
@@ -433,6 +464,7 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
           const incoming = (hasNew ? payload.new : payload.old) as GroupParticipant;
           if (!incoming?.group_id) return;
           if (event === 'INSERT' && incoming.user_id === uid) {
+            if (recentlyLeftRef.current.has(incoming.group_id)) return;
             setMyGroupIds(prev => prev.includes(incoming.group_id) ? prev : [...prev, incoming.group_id]);
             void loadGroupChats(uid);
             return;

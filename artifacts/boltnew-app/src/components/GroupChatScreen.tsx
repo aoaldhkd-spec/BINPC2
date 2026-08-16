@@ -10,6 +10,7 @@ import { ArrowLeft, Send, LogOut } from 'lucide-react';
 import { AppErrorBoundary } from './AppErrorBoundary';
 import type { GroupChat, GroupMessage, GroupParticipant, Profile } from '../types/app';
 import { groupRoomVisual, unreadMemberCount } from '../lib/group-rooms';
+import { GroupRoomIcon } from './GroupRoomIcon';
 
 import { genAvatar } from '../lib/profile';
 
@@ -120,8 +121,9 @@ export function GroupChatScreen({
             <ArrowLeft className={`w-5 h-5 ${darkMode ? 'text-white' : 'text-gray-700'}`} />
           </button>
           <div className="flex-1 min-w-0">
-            <p className={`font-black text-sm truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-              {visual.emoji} {group.name}
+            <p className={`font-black text-sm truncate flex items-center gap-1.5 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+              <GroupRoomIcon group={group} size={visual.glyph === 'club' ? 20 : 18} />
+              <span className="truncate">{group.name}</span>
             </p>
             <p className={`text-[10px] ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
               {group.memberCount ?? participants.length ?? 0}명 참여 중

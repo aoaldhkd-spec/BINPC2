@@ -12,6 +12,7 @@ import { supabase } from '../lib/supabase';
 import { useTheme } from '../lib/theme';
 import type { Profile, ContactShare, Chat, MainTab, GroupChat, ProfileView, UserSignal } from '../types/app';
 import { groupRoomVisual, MAX_GROUPS_PER_USER, sumUnreadCounts, unreadForGroup } from '../lib/group-rooms';
+import { GroupRoomIcon } from './GroupRoomIcon';
 import { unreadForChat } from '../lib/chat-unread';
 import { BIO_CATEGORIES, parseProfileInterests } from '../lib/interests';
 import { InterestPicker } from './InterestPicker';
@@ -1942,12 +1943,12 @@ export function MainScreen({
                               : (darkMode ? 'bg-slate-800 border border-slate-600' : 'bg-white')
                           } ${joined && !visual.afterparty ? (darkMode ? 'hover:bg-slate-700' : 'hover:bg-gray-50') : ''}`}
                         >
-                          <div className={`w-12 h-12 rounded-full flex-shrink-0 flex items-center justify-center text-2xl ${
+                          <div className={`w-12 h-12 rounded-full flex-shrink-0 flex items-center justify-center overflow-hidden ${
                             visual.afterparty
                               ? (darkMode ? 'bg-violet-500/20' : 'bg-violet-100')
                               : (darkMode ? 'bg-teal-500/20' : 'bg-teal-50')
                           }`}>
-                            {visual.emoji}
+                            <GroupRoomIcon group={group} size={visual.glyph === 'club' ? 48 : 28} />
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5">

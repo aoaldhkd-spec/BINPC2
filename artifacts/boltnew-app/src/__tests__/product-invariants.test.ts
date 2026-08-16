@@ -75,6 +75,13 @@ describe('product copy + notification invariants', () => {
     expect(hook).toContain('markGroupRead');
     expect(hook).toContain('last_read_at');
     expect(hook).toContain('siblingGroupIds');
+    expect(hook).toContain('joined: false');
+    expect(hook).toContain('recentlyLeftRef');
+    expect(app).toMatch(/closeGroupChat\(\);\s*setView\('main'\)/);
+    expect(group).toContain('GroupRoomIcon');
+    expect(read('components/MainScreen.tsx')).toContain('GroupRoomIcon');
+    expect(read('lib/group-rooms.ts')).not.toContain('🪩');
+    expect(read('components/GroupRoomIcon.tsx')).toContain('ClubNeonIcon');
   });
 
   it('단톡 catalog is year + decade + opt-in 2차, cap 4', () => {

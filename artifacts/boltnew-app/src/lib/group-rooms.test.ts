@@ -13,6 +13,8 @@ import {
   unreadMemberCount,
   countJoinedCatalogRooms,
   isJoinedGroupId,
+  groupRoomVisual,
+  AFTERPARTY_CLUB_ID,
 } from './group-rooms';
 
 function room(partial: Partial<GroupChat> & Pick<GroupChat, 'id' | 'name'>): GroupChat {
@@ -155,6 +157,34 @@ describe('group-rooms catalog', () => {
     ];
     expect(siblingGroupIds(raw, 'group_afterparty_drink').sort()).toEqual(['dup-drink', 'group_afterparty_drink']);
     expect(siblingGroupIds(raw, 'y')).toEqual(['y']);
+  });
+
+  it('collects year-room duplicate ids so leave sticks', () => {
+    const raw = [
+      room({ id: 'y-old', name: '1995년생 모임', room_kind: 'birth_year', interest_tag: '1995년생' }),
+      room({ id: 'group_birth_1995', name: '1995년생 모임', room_kind: 'birth_year', interest_tag: '1995년생' }),
+    ];
+    expect(siblingGroupIds(raw, 'group_birth_1995').sort()).toEqual(['group_birth_1995', 'y-old']);
+  });
+
+  it('club glyph is a club mark, not the Win10-missing disco ball', () => {
+    const v = groupRoomVisual(room({
+      id: AFTERPARTY_CLUB_ID,
+      name: '2차 클럽 갈 분',
+      interest_tag: '2차클럽',
+      room_kind: 'afterparty_club',
+    }));
+    expect(v.glyph).toBe('club');
+    expect(v.emoji).not.toBe('🪩');
+    expect(v.label).toBe('2차 클럽');
+    const drink = groupRoomVisual(room({
+      id: 'group_afterparty_drink',
+      name: '2차 술 갈 분',
+      interest_tag: '2차술',
+      room_kind: 'afterparty_drink',
+    }));
+    expect(drink.glyph).toBe('drink');
+    expect(drink.emoji).toBe('🍻');
   });
 
   it('folds duplicate 2차 room unread onto the catalog id', () => {

@@ -17,6 +17,7 @@ import {
   NUDGE_MAX,
   NUDGE_MESSAGES,
   hasInterestHeart,
+  incomingSignalToast,
   isInterestHeart,
   isNudgeEligible,
   readNudgeCount,
@@ -28,7 +29,7 @@ import { SignalNudgeBanner } from './components/SignalNudgeBanner';
 // ─── 분리된 타입·유틸·컴포넌트 imports ────────────────────────────────────────
 import type {
   Profile, ContactShare,
-  Chat, View, MainTab, GroupChat, BlockedUser, ProfileView, UserSignal,
+  Chat, View, MainTab, GroupChat, BlockedUser, ProfileView, UserSignal, SignalSend,
 } from './types/app';
 import { useGroupChat } from './hooks/useGroupChat';
 import { GroupChatScreen } from './components/GroupChatScreen';
@@ -217,6 +218,8 @@ function App() {
   const [profileVisitors, setProfileVisitors] = useState<ProfileView[]>([]);
   const [newVisitCount, setNewVisitCount] = useState(0);
   const [userSignals, setUserSignals] = useState<UserSignal[]>([]);
+  const [signalActedIds, setSignalActedIds] = useState<Set<string>>(new Set());
+  const [receivedSignalSenders, setReceivedSignalSenders] = useState<Profile[]>([]);
   const [myHeartCount, setMyHeartCount] = useState<number | null>(null);
   const myHeartCountRef = useRef<number | null>(null);
   myHeartCountRef.current = myHeartCount;
@@ -442,6 +445,60 @@ function App() {
     return handleContactShare(likerId, kakao, instagram, phone);
   }, [functionsLocked, handleContactShare, showFunctionsLockToast]);
 
+  const persistSignalAction = useCallback(async (profileId: string, action: 'send' | 'pass') => {
+    if (!currentUserId || profileId === currentUserId) return;
+    if (functionsLockedRef.current) { showFunctionsLockToast(); return; }
+    setSignalActedIds((prev) => {
+      if (prev.has(profileId)) return prev;
+      return new Set([...prev, profileId]);
+    });
+    try {
+      const { error } = await supabase.from('signal_sends').insert({
+        sender_id: currentUserId,
+        receiver_id: profileId,
+        action,
+      } as never);
+      if (error) console.warn('[signal_sends]', error.message);
+    } catch (e) {
+      console.warn('[signal_sends]', e);
+    }
+  }, [currentUserId, showFunctionsLockToast]);
+
+  const handleSendSignal = useCallback((profileId: string) => {
+    void persistSignalAction(profileId, 'send');
+  }, [persistSignalAction]);
+
+  const handlePassSignal = useCallback((profileId: string) => {
+    void persistSignalAction(profileId, 'pass');
+  }, [persistSignalAction]);
+
+  const loadSignalActions = useCallback(async (userId: string) => {
+    try {
+      const [{ data: outgoing }, { data: incoming }] = await Promise.all([
+        supabase.from('signal_sends').select('receiver_id, action').eq('sender_id', userId),
+        supabase.from('signal_sends').select('sender_id, action').eq('receiver_id', userId),
+      ]);
+      const acted = new Set<string>();
+      for (const row of (outgoing ?? []) as Array<{ receiver_id?: string }>) {
+        if (row.receiver_id) acted.add(row.receiver_id);
+      }
+      setSignalActedIds(acted);
+      const senderIds = [...new Set(
+        ((incoming ?? []) as Array<{ sender_id?: string; action?: string }>)
+          .filter((r) => r.action === 'send' && r.sender_id)
+          .map((r) => r.sender_id as string),
+      )];
+      if (senderIds.length === 0) {
+        setReceivedSignalSenders([]);
+        return;
+      }
+      const { data: ps } = await supabase.from('profiles').select('*').in('id', senderIds);
+      if (ps) setReceivedSignalSenders(ps as Profile[]);
+    } catch {
+      /* stale */
+    }
+  }, []);
+
   const openChatGuarded = useCallback((profile: Profile) => {
     if (functionsLockedRef.current) { showFunctionsLockToast(); return Promise.resolve(); }
     return openChat(profile);
@@ -473,9 +530,10 @@ function App() {
 
   const leaveGroupChatGuarded = useCallback(async (groupId: string) => {
     if (functionsLockedRef.current) { showFunctionsLockToast(); return; }
-    await leaveGroupChat(groupId);
+    closeGroupChat();
     setView('main');
-  }, [leaveGroupChat, showFunctionsLockToast]);
+    await leaveGroupChat(groupId);
+  }, [leaveGroupChat, closeGroupChat, showFunctionsLockToast]);
 
   const sendGroupMessageGuarded = useCallback(async (content: string) => {
     if (functionsLockedRef.current) { showFunctionsLockToast(); return; }
@@ -827,6 +885,8 @@ function App() {
     setReceivedHeartTypes(new Map());
     setLikeStatuses(new Map());
     setReceivedLikers([]);
+    setSignalActedIds(new Set());
+    setReceivedSignalSenders([]);
     // 타이머 ID 추적 — 언마운트 시 clearTimeout으로 stale setState 방지
     let retryTimerId: ReturnType<typeof setTimeout> | null = null;
     let initTimerId1: ReturnType<typeof setTimeout> | null = null;
