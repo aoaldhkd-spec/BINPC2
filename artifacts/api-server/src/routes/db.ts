@@ -2315,12 +2315,16 @@ router.post('/op', async (req: Request, res: Response) => {
       if (table === 'profiles' && !isAdmin) {
         result = result.map(r => sanitizeProfileForViewer(r, requesterId));
       }
-      // likes: 랭킹/통계는 liked_id·heart_type·status만 필요 — 보낸 사람(liker_id)은 본인 조회 때만 노출
+      // likes: 랭킹/통계 덤프는 liked_id·heart_type·status만 필요.
+      // 보낸 사람(liker_id)은 본인 발신(liker_id=me) 또는 본인 수신함(liked_id=me) 조회 때만 노출.
       if (table === 'likes' && !isAdmin) {
         const ownSentOnly = normalizedFilters.some(
           f => f.type === 'eq' && f.col === 'liker_id' && requesterId && String(f.val) === String(requesterId),
         );
-        if (!ownSentOnly) {
+        const ownInboxOnly = normalizedFilters.some(
+          f => f.type === 'eq' && f.col === 'liked_id' && requesterId && String(f.val) === String(requesterId),
+        );
+        if (!ownSentOnly && !ownInboxOnly) {
           result = result.map(r => {
             const s = { ...r };
             delete s['liker_id'];

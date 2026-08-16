@@ -371,7 +371,7 @@ function App() {
   // 하트 전송 실패 알림 — executeLike가 error를 set하면 바텀 토스트로 표시
   useEffect(() => {
     if (!likeError) return;
-    setBottomNotif({ type: 'chat', nickname: likeError });
+    setBottomNotif({ type: 'chat', nickname: '', message: likeError });
     const t = setTimeout(() => { setBottomNotif(null); setLikeError(null); }, 4_000);
     return () => clearTimeout(t);
   }, [likeError, setLikeError]);
@@ -801,8 +801,8 @@ function App() {
             loadContactShareData(currentUserId);
             const acceptedProfile = profilesRef.current.find(p => p.id === updated.liked_id);
             const nick = acceptedProfile?.nickname ?? '상대방';
-            setBottomNotif({ type: 'chat', nickname: `💚 ${nick}님이 하트를 수락했어요` });
-            rejNotifTimerIds.push(setTimeout(() => setBottomNotif(prev => prev?.nickname === `💚 ${nick}님이 하트를 수락했어요` ? null : prev), 5000));
+            setBottomNotif({ type: 'chat', nickname: nick, message: `💚 ${nick}님이 하트를 수락했어요` });
+            rejNotifTimerIds.push(setTimeout(() => setBottomNotif(prev => prev?.message === `💚 ${nick}님이 하트를 수락했어요` ? null : prev), 5000));
           }
         })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'likes', filter: `liked_id=eq.${currentUserId}` },
@@ -810,6 +810,8 @@ function App() {
           try {
             const row = payload.new as { liker_id: string; heart_type: HeartType };
             const likerId = row.liker_id;
+            // 수신자 전용 — 보낸 사람 토스트 방지 (필터가 깨져도 가드)
+            if (!likerId || likerId === currentUserId) return;
             setReceivedHeartTypes(prev => new Map(prev).set(likerId, row.heart_type ?? 'red'));
             const { data } = await supabase.from('profiles').select('*').eq('id', likerId).maybeSingle();
             if (data) {
@@ -817,9 +819,11 @@ function App() {
                 if (prev.find((p) => p.id === data.id)) return prev;
                 return [data, ...prev];
               });
-              setBottomNotif({ type: 'heart', nickname: data.nickname, heartType: row.heart_type ?? 'red' });
-              triggerConfetti();
             }
+            const heartNick = data?.nickname ?? '누군가';
+            setBottomNotif({ type: 'heart', nickname: heartNick, heartType: row.heart_type ?? 'red' });
+            triggerConfetti();
+            rejNotifTimerIds.push(setTimeout(() => setBottomNotif(prev => prev?.type === 'heart' && prev.nickname === heartNick ? null : prev), 5000));
           } catch (e) { console.warn('[realtime:likes]', e); }
         })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'likes', filter: `liked_id=eq.${currentUserId}` },

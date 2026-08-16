@@ -22,7 +22,7 @@ export function BottomNotification({
   onGoToChats,
 }: BottomNotificationProps) {
   return (
-    <div className="fixed bottom-20 left-0 right-0 z-[150] flex justify-center px-4 pointer-events-none">
+    <div className="fixed bottom-20 left-0 right-0 z-[210] flex justify-center px-4 pointer-events-none">
       <div className={`px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 pointer-events-auto cursor-pointer ${notification.type === 'heart' ? 'bg-rose-500' : notification.type === 'contact' ? 'bg-emerald-500' : notification.type === 'system' ? 'bg-amber-600' : 'bg-cyan-600'}`}>
         <span className="text-lg">{notification.type === 'heart' ? (notification.heartType ? heartMeta(notification.heartType).emoji : '❤️') : notification.type === 'contact' ? '📱' : notification.type === 'system' ? '💛' : '💬'}</span>
         <div className="flex-1">
@@ -34,8 +34,10 @@ export function BottomNotification({
           )}
           {notification.type === 'chat' && (
             <>
-              <p className="text-sm font-bold text-white">{notification.nickname}님과 채팅이 열렸습니다!</p>
-              <button onClick={onGoToChats} className="text-xs text-white/80 underline">채팅 탭으로 이동</button>
+              <p className="text-sm font-bold text-white">{notification.message ?? (notification.nickname ? `${notification.nickname}님이 채팅방을 열었어요` : '채팅방을 열었어요')}</p>
+              {!notification.message && (
+                <button onClick={onGoToChats} className="text-xs text-white/80 underline">채팅 탭으로 이동</button>
+              )}
             </>
           )}
           {notification.type === 'message' && (

@@ -385,7 +385,7 @@ describe('[Security] profiles / likes / storage', () => {
     expect(res.body.data.instagram_id).toBeUndefined();
   });
 
-  it('하트 전체 조회 시 liker_id를 숨기고 본인 보낸 하트 조회만 liker_id를 노출한다', async () => {
+  it('하트 전체 조회 시 liker_id를 숨기고 본인 보낸/받은 하트 조회만 liker_id를 노출한다', async () => {
     const likerId = randomUUID();
     const likedId = randomUUID();
     await op({
@@ -405,6 +405,7 @@ describe('[Security] profiles / likes / storage', () => {
       payload: { liker_id: likerId, liked_id: likedId, heart_type: 'red', status: 'pending' },
     });
 
+    // 수신자 무필터/랭킹 덤프 — liker_id 숨김
     const allRes = await op({
       op: 'select',
       table: 'likes',
@@ -414,6 +415,27 @@ describe('[Security] profiles / likes / storage', () => {
     expect(allRes.body.data[0]?.liker_id).toBeUndefined();
     expect(allRes.body.data[0]?.liked_id).toBe(likedId);
 
+    // 제3자 무필터 랭킹 덤프 — liker_id 숨김
+    const rankingRes = await op({
+      op: 'select',
+      table: 'likes',
+      requesterId: randomUUID(),
+    });
+    expect(rankingRes.status).toBe(200);
+    expect(rankingRes.body.data[0]?.liker_id).toBeUndefined();
+    expect(rankingRes.body.data[0]?.liked_id).toBe(likedId);
+
+    // 수신함: liked_id === requesterId — liker_id 필수
+    const inboxRes = await op({
+      op: 'select',
+      table: 'likes',
+      requesterId: likedId,
+      filters: [{ type: 'eq', col: 'liked_id', val: likedId }],
+    });
+    expect(inboxRes.status).toBe(200);
+    expect(inboxRes.body.data[0]?.liker_id).toBe(likerId);
+
+    // 본인 발신: liker_id === requesterId — liker_id 유지
     const ownRes = await op({
       op: 'select',
       table: 'likes',

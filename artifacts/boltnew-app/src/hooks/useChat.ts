@@ -51,7 +51,7 @@ interface UseChatDeps {
   profilesRef: React.MutableRefObject<Profile[]>;
   setSelectedProfile: (p: Profile | null) => void;
   setView: (v: View) => void;
-  setBottomNotif: (n: { type: 'heart' | 'chat' | 'message' | 'contact'; nickname: string; heartType?: HeartType } | null) => void;
+  setBottomNotif: (n: { type: 'heart' | 'chat' | 'message' | 'contact'; nickname: string; heartType?: HeartType; message?: string } | null) => void;
 }
 
 export function useChat({
@@ -195,7 +195,7 @@ export function useChat({
             if (selfInitiatedPairRef.current !== pairKey) {
               const otherId = c.user1_id === uid ? c.user2_id : c.user1_id;
               const otherProfile = profilesRef.current.find(p => p.id === otherId);
-              if (otherProfile) setBottomNotif({ type: 'chat', nickname: otherProfile.nickname });
+              setBottomNotif({ type: 'chat', nickname: otherProfile?.nickname ?? '' });
             }
             void loadChatList(uid);
           } catch (e) { console.warn('[user-events/chat-insert]', e); }
@@ -486,7 +486,7 @@ export function useChat({
         chatIdRef.current = null;
         setChatId(null);
         setView('main');
-        setBottomNotif({ type: 'chat', nickname: '채팅방을 열 수 없습니다. 잠시 후 다시 시도해주세요.' });
+        setBottomNotif({ type: 'chat', nickname: '', message: '채팅방을 열 수 없습니다. 잠시 후 다시 시도해주세요.' });
         if (openChatNotifTimerRef.current) clearTimeout(openChatNotifTimerRef.current);
         openChatNotifTimerRef.current = setTimeout(() => { openChatNotifTimerRef.current = null; setBottomNotif(null); }, 3000);
         return;
@@ -508,7 +508,7 @@ export function useChat({
         chatIdRef.current = null;
         setChatId(null);
         setView('main');
-        setBottomNotif({ type: 'chat', nickname: '채팅방 연결 중 오류가 발생했습니다.' });
+        setBottomNotif({ type: 'chat', nickname: '', message: '채팅방 연결 중 오류가 발생했습니다.' });
         if (openChatNotifTimerRef.current) clearTimeout(openChatNotifTimerRef.current);
         openChatNotifTimerRef.current = setTimeout(() => { openChatNotifTimerRef.current = null; setBottomNotif(null); }, 3000);
       }

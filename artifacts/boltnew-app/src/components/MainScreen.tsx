@@ -242,8 +242,9 @@ export function MainScreen({
   // 방문자 알림 ON/OFF 설정 (localStorage)
   const [visitorNotif, setVisitorNotif] = useState(() => localStorage.getItem('visitor_notification') !== '0');
 
-  // On initial data load, set baseline seen counts so pre-existing data doesn't show as unread.
-  // 조건: localStorage에 이전 값이 없을 때만 baseline 설정 (seen>0이면 이미 올바른 값이 있는 것)
+  // On initial data load, baseline profiles/contacts so pre-existing rows don't look "new".
+  // Hearts: do NOT auto-baseline. seen=0 (no localStorage / never opened 내 상태) must
+  // keep showing MY(n) for unread hearts already present on login.
   const baselineSetRef = useRef(false);
   useEffect(() => {
     if (baselineSetRef.current) return;
@@ -251,8 +252,6 @@ export function MainScreen({
     const hasAnyData = profiles.length > 0 || pendingHeartsCount > 0 || receivedContactShares.length > 0;
     if (!hasAnyData) return;
     baselineSetRef.current = true;
-    // localStorage에서 복원한 seen 값이 이미 있으면 덮어쓰지 않음 (새로 온 배지 보존)
-    if (seenHeartsCount === 0) setSeenHeartsCount(pendingHeartsCount);
     if (seenContactsCount === 0) setSeenContactsCount(receivedContactShares.length);
     if (seenProfilesCount === -1 || seenProfilesCount === 0) setSeenProfilesCount(profiles.length);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -278,6 +277,12 @@ export function MainScreen({
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mainTab, receivedContactShares.length, pendingHeartsCount]);
+
+  // 내 채팅 탭 진입 시 전역 채팅 배지 클리어 (방별 unread는 openChat이 처리)
+  useEffect(() => {
+    if (mainTab === 'chats') onClearMsgCount();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mainTab]);
 
   // visibility 핸들러에서 stale closure 없이 최신 값 참조 (useEffect deps에 넣지 않아도 항상 최신)
   const pendingHeartsCountRef = useRef(pendingHeartsCount);
@@ -2197,7 +2202,7 @@ export function MainScreen({
               style={{ boxShadow: (myTabActive || myMenuOpen) ? '0 4px 20px rgba(6,182,212,0.45)' : darkMode ? '0 4px 16px rgba(0,0,0,0.5)' : '0 4px 16px rgba(0,0,0,0.15)' }}
             >
               <span className="text-[15px] font-black leading-none tracking-widest">MY</span>
-              {myBadgeTotal > 0 && !myMenuOpen && (
+              {myBadgeTotal > 0 && (
                 <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center shadow-sm">
                   {myBadgeTotal > 99 ? '99+' : myBadgeTotal}
                 </span>
