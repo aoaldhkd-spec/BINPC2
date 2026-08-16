@@ -1,19 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import {
+  IDEAL_TAG_GROUPS,
+  SIGNAL_GUIDE_TITLE,
   SIGNAL_MISSION_COPY,
+  SIGNAL_MISSION_GOAL,
   buildReasonChips,
   countTodayInterestMission,
+  getIdealTagSpec,
   hasInterestHeart,
-  incomingSignalPoolIds,
   isAnyHeart,
   isInterestHeart,
   isNudgeEligible,
+  isSignalDeckUnlocked,
   matchSignalPair,
   parseIdealTags,
   rankByMatchWeighted,
   reasonsLeakIdealText,
   recommendSignals,
   seoulDateKey,
+  type FeatureProfile,
 } from './signal-match';
 
 const me = {
@@ -137,7 +142,6 @@ describe('recommendSignals filters', () => {
       myId: 'me',
       myProfile: me,
       myIdealMsg: '운동',
-      incomingLikerIds: new Set(['me', 'blocked', 'hidden', 'liked', 'ok']),
       candidates: [
         { profile: { ...me, id: 'me' }, idealMsg: '운동' },
         { profile: { ...themFit, id: 'blocked' }, idealMsg: null },
@@ -153,38 +157,20 @@ describe('recommendSignals filters', () => {
     expect(ranked.map((r) => r.profileId)).toEqual(['ok']);
   });
 
-  it('only recommends incoming heart senders', () => {
+  it('recommends OR matches who did not send a heart', () => {
     const ranked = recommendSignals({
       myId: 'me',
       myProfile: me,
       myIdealMsg: '운동',
-      incomingLikerIds: new Set(['incoming']),
       candidates: [
         { profile: { ...themFit, id: 'stranger' }, idealMsg: null },
-        { profile: { ...themFit, id: 'incoming' }, idealMsg: null },
       ],
       rng: () => 0,
     });
-    expect(ranked.map((r) => r.profileId)).toEqual(['incoming']);
+    expect(ranked.map((r) => r.profileId)).toEqual(['stranger']);
   });
 
-  it('returns empty when incoming pool is empty (no fallback to everyone)', () => {
-    const ranked = recommendSignals({
-      myId: 'me',
-      myProfile: me,
-      myIdealMsg: '운동',
-      incomingLikerIds: new Set(),
-      candidates: [
-        { profile: { ...themFit, id: 'a' }, idealMsg: null },
-        { profile: { ...themFit, id: 'b' }, idealMsg: null },
-      ],
-      rng: () => 0,
-    });
-    expect(ranked).toEqual([]);
-    expect(incomingSignalPoolIds({ myId: 'me', incomingLikerIds: [] }).size).toBe(0);
-  });
-
-  it('keeps an incoming sender even without OR match', () => {
+  it('does not include unmatched people just because they sent a heart', () => {
     const noMatch = {
       id: 'incoming-nomatch',
       personality_score: 20,
@@ -196,20 +182,17 @@ describe('recommendSignals filters', () => {
       myId: 'me',
       myProfile: { ...me, interests: '영화' },
       myIdealMsg: '공룡상',
-      incomingLikerIds: new Set(['incoming-nomatch']),
       candidates: [{ profile: noMatch, idealMsg: '곰상' }],
       rng: () => 0,
     });
-    expect(ranked.map((r) => r.profileId)).toEqual(['incoming-nomatch']);
-    expect(ranked[0].matchCount).toBe(0);
+    expect(ranked).toEqual([]);
   });
 
-  it('skips incoming sender after mutual non-green heart, keeps 맞관심 CTA otherwise', () => {
+  it('skips already-hearted people, keeps OR match otherwise', () => {
     const mutual = recommendSignals({
       myId: 'me',
       myProfile: me,
       myIdealMsg: '운동',
-      incomingLikerIds: new Set(['them']),
       candidates: [{ profile: { ...themFit, id: 'them' }, idealMsg: null }],
       alreadyInterestedIds: new Set(['them']),
       rng: () => 0,
@@ -220,12 +203,167 @@ describe('recommendSignals filters', () => {
       myId: 'me',
       myProfile: me,
       myIdealMsg: '운동',
-      incomingLikerIds: new Set(['them']),
       candidates: [{ profile: { ...themFit, id: 'them' }, idealMsg: null }],
       alreadyInterestedIds: new Set(),
       rng: () => 0,
     });
     expect(stillNeedReply.map((r) => r.profileId)).toEqual(['them']);
+  });
+});
+
+describe('mission unlock vs guide', () => {
+  it('locks the swipe deck until 3 unique heart sends', () => {
+    expect(isSignalDeckUnlocked(0)).toBe(false);
+    expect(isSignalDeckUnlocked(2)).toBe(false);
+    expect(isSignalDeckUnlocked(SIGNAL_MISSION_GOAL)).toBe(true);
+    expect(isSignalDeckUnlocked(4)).toBe(true);
+    expect(SIGNAL_GUIDE_TITLE).toBe('시그널 설명서');
+  });
+});
+
+const MBTI_BY_LETTER: Record<string, string> = {
+  E: 'ENFP', I: 'INFJ', N: 'ENFP', S: 'ISTJ', T: 'ISTJ', F: 'ENFP', J: 'INFJ', P: 'ENFP',
+};
+
+function syntheticForTag(tag: string): { profile: FeatureProfile & { id: string }; statusMsg?: string } {
+  const spec = getIdealTagSpec(tag);
+  const base = { id: 'them', personality_score: 50, mbti: 'ISTJ', interests: '독서', bio: null as string | null };
+  if (!spec) return { profile: { ...base, bio: tag }, statusMsg: tag };
+  if (spec.field === 'personality_score') {
+    const score = tag === '비선호' ? -1 : tag === '바텀' ? 20 : tag === '탑' ? 80 : 50;
+    return { profile: { ...base, personality_score: score } };
+  }
+  if (spec.field === 'mbti') {
+    const letter = tag.replace(/MBTI\s*/i, '').trim();
+    return { profile: { ...base, mbti: MBTI_BY_LETTER[letter] ?? 'ENFP' } };
+  }
+  if (spec.field === 'interests' || spec.field === 'interests+status_msg+bio') {
+    return { profile: { ...base, interests: spec.aliases[0] } };
+  }
+  return { profile: { ...base, bio: spec.aliases[0] }, statusMsg: spec.aliases[0] };
+}
+
+describe('ideal tag → 나의 특징 map', () => {
+  it('maps every picker tag to a feature field', () => {
+    for (const group of IDEAL_TAG_GROUPS) {
+      for (const tag of group.tags) {
+        const spec = getIdealTagSpec(tag);
+        expect(spec, tag).toBeTruthy();
+        expect(spec!.field).toBeTruthy();
+      }
+    }
+  });
+
+  it('hits a synthetic profile for every major group tag', () => {
+    for (const group of IDEAL_TAG_GROUPS) {
+      for (const tag of group.tags) {
+        const { profile, statusMsg } = syntheticForTag(tag);
+        const m = matchSignalPair({
+          myProfile: { personality_score: 50, mbti: 'ISTJ', interests: '영화' },
+          theirProfile: profile,
+          myIdealMsg: tag,
+          theirIdealMsg: null,
+          theirStatusMsg: statusMsg,
+        });
+        expect(m, `${group.label} ${tag}`).not.toBeNull();
+        expect(m!.myIdealHits, `${group.label} ${tag}`).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('얼굴상 곰상 matches status/bio, not unrelated interests', () => {
+    const hit = matchSignalPair({
+      myProfile: { personality_score: 50, mbti: 'ISTJ', interests: '영화' },
+      theirProfile: { id: 't', personality_score: 50, mbti: 'ISTJ', interests: '독서', bio: '곰상' },
+      myIdealMsg: '곰상',
+    });
+    const miss = matchSignalPair({
+      myProfile: { personality_score: 50, mbti: 'ISTJ', interests: '영화' },
+      theirProfile: { id: 't', personality_score: 50, mbti: 'ISTJ', interests: '독서' },
+      myIdealMsg: '곰상',
+    });
+    expect(hit?.myIdealHits).toBeGreaterThan(0);
+    expect(miss).toBeNull();
+  });
+
+  it('키큰 matches bio/status, not interests-only', () => {
+    const hit = matchSignalPair({
+      myProfile: { personality_score: 50, mbti: 'ISTJ', interests: '영화' },
+      theirProfile: { id: 't', personality_score: 50, mbti: 'ISTJ', interests: '독서', bio: '키 큰 편' },
+      myIdealMsg: '키큰',
+    });
+    const miss = matchSignalPair({
+      myProfile: { personality_score: 50, mbti: 'ISTJ', interests: '영화' },
+      theirProfile: { id: 't', personality_score: 50, mbti: 'ISTJ', interests: '독서' },
+      myIdealMsg: '키큰',
+    });
+    expect(hit?.myIdealHits).toBeGreaterThan(0);
+    expect(miss).toBeNull();
+  });
+
+  it('술잘마시는 / 술좋아 hit drinking interests', () => {
+    const drinker = { id: 't', personality_score: 50, mbti: 'ISTJ', interests: '술자리, 와인' };
+    const dry = { id: 't', personality_score: 50, mbti: 'ISTJ', interests: '독서' };
+    expect(matchSignalPair({
+      myProfile: { personality_score: 50, mbti: 'ISTJ', interests: '영화' },
+      theirProfile: drinker,
+      myIdealMsg: '술잘마시는',
+    })?.myIdealHits).toBeGreaterThan(0);
+    expect(matchSignalPair({
+      myProfile: { personality_score: 50, mbti: 'ISTJ', interests: '영화' },
+      theirProfile: drinker,
+      myIdealMsg: '술좋아',
+    })?.myIdealHits).toBeGreaterThan(0);
+    expect(matchSignalPair({
+      myProfile: { personality_score: 50, mbti: 'ISTJ', interests: '영화' },
+      theirProfile: dry,
+      myIdealMsg: '술좋아',
+    })).toBeNull();
+  });
+
+  it('MBTI E hits ENFP and does not hit INFJ or 운동', () => {
+    const e = matchSignalPair({
+      myProfile: { personality_score: 50, mbti: 'ISTJ', interests: '영화' },
+      theirProfile: { id: 't', personality_score: 50, mbti: 'ENFP', interests: '독서' },
+      myIdealMsg: 'MBTI E',
+    });
+    const i = matchSignalPair({
+      myProfile: { personality_score: 50, mbti: 'ISTJ', interests: '영화' },
+      theirProfile: { id: 't', personality_score: 50, mbti: 'INFJ', interests: '독서' },
+      myIdealMsg: 'MBTI E',
+    });
+    const sport = matchSignalPair({
+      myProfile: { personality_score: 50, mbti: 'ISTJ', interests: '영화' },
+      theirProfile: { id: 't', personality_score: 50, mbti: 'ISTJ', interests: '운동' },
+      myIdealMsg: 'MBTI E',
+    });
+    expect(e?.myIdealHits).toBeGreaterThan(0);
+    expect(i).toBeNull();
+    expect(sport).toBeNull();
+  });
+
+  it('포지션 바텀 hits score 20 and not score 80', () => {
+    const bottom = matchSignalPair({
+      myProfile: { personality_score: 80, mbti: 'ENFP', interests: '영화' },
+      theirProfile: { id: 't', personality_score: 20, mbti: 'ISTJ', interests: '독서' },
+      myIdealMsg: '바텀',
+    });
+    const top = matchSignalPair({
+      myProfile: { personality_score: 80, mbti: 'ENFP', interests: '영화' },
+      theirProfile: { id: 't', personality_score: 80, mbti: 'ISTJ', interests: '독서' },
+      myIdealMsg: '바텀',
+    });
+    expect(bottom?.myIdealHits).toBeGreaterThan(0);
+    expect(top).toBeNull();
+  });
+
+  it('근육있는 hits 헬스 interest', () => {
+    const m = matchSignalPair({
+      myProfile: { personality_score: 50, mbti: 'ISTJ', interests: '영화' },
+      theirProfile: { id: 't', personality_score: 50, mbti: 'ISTJ', interests: '헬스' },
+      myIdealMsg: '근육있는',
+    });
+    expect(m?.myIdealHits).toBeGreaterThan(0);
   });
 });
 

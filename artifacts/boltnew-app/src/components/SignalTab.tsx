@@ -4,13 +4,17 @@ import type { Profile, UserSignal } from '../types/app';
 import type { HeartType } from '../lib/constants';
 import { getKoreanAge, getAvatarSrc, hasUploadedPhoto, getAvatarGradientCss } from '../lib/profile';
 import {
-  SIGNAL_EMPTY_INCOMING_HINT,
-  SIGNAL_EMPTY_INCOMING_TITLE,
+  SIGNAL_EMPTY_DECK_HINT,
+  SIGNAL_EMPTY_DECK_TITLE,
+  SIGNAL_GUIDE_CTA,
+  SIGNAL_GUIDE_LEAD,
+  SIGNAL_GUIDE_POINTS,
+  SIGNAL_GUIDE_TITLE,
   SIGNAL_MISSION_COPY,
   SIGNAL_MISSION_GOAL,
   countTodayInterestMission,
   hasInterestHeart,
-  incomingSignalPoolIds,
+  isSignalDeckUnlocked,
   missionToastKey,
   recommendSignals,
   seoulDateKey,
@@ -21,7 +25,6 @@ export function SignalTab({
   profiles,
   currentUserId,
   userSignals,
-  receivedLikers,
   sentHeartsPerPerson,
   blockedUserIds,
   hiddenByIds,
@@ -29,12 +32,12 @@ export function SignalTab({
   darkMode,
   onLike,
   onSelect,
+  onGoProfiles,
   onMissionComplete,
 }: {
   profiles: Profile[];
   currentUserId: string | null;
   userSignals: UserSignal[];
-  receivedLikers: Profile[];
   sentHeartsPerPerson: Map<string, Set<HeartType>>;
   blockedUserIds: Set<string>;
   hiddenByIds: Set<string>;
@@ -42,6 +45,7 @@ export function SignalTab({
   darkMode: boolean;
   onLike: (id: string) => void;
   onSelect: (p: Profile) => void;
+  onGoProfiles?: () => void;
   onMissionComplete?: () => void;
 }) {
   const [skippedIds, setSkippedIds] = useState<Set<string>>(new Set());
@@ -78,46 +82,24 @@ export function SignalTab({
     return s;
   }, [sentHeartsPerPerson]);
 
-  const incomingLikerIds = useMemo(
-    () => new Set(receivedLikers.map((p) => p.id)),
-    [receivedLikers],
-  );
-
-  const incomingPool = useMemo(() => {
-    if (!currentUserId) return new Set<string>();
-    return incomingSignalPoolIds({
-      myId: currentUserId,
-      incomingLikerIds,
-      blockedIds: blockedUserIds,
-      hiddenIds: hiddenByIds,
-    });
-  }, [currentUserId, incomingLikerIds, blockedUserIds, hiddenByIds]);
+  const unlocked = isSignalDeckUnlocked(missionCount);
 
   const deck = useMemo(() => {
-    if (!me || !currentUserId) return [] as Array<SignalMatch & { profile: Profile }>;
+    if (!unlocked || !me || !currentUserId) return [] as Array<SignalMatch & { profile: Profile }>;
     const byId = new Map<string, Profile>();
     for (const p of profiles) byId.set(p.id, p);
-    for (const p of receivedLikers) {
-      if (!byId.has(p.id)) byId.set(p.id, p);
-    }
     const ranked = recommendSignals({
       myId: currentUserId,
       myProfile: me,
       myIdealMsg: mySignal?.ideal_msg,
       myStatusMsg: mySignal?.status_msg,
-      incomingLikerIds,
-      candidates: [...incomingPool]
-        .filter((id) => !skippedIds.has(id))
-        .map((id) => {
-          const p = byId.get(id);
-          if (!p) return null;
-          return {
-            profile: p,
-            idealMsg: signalByUser.get(p.id)?.ideal_msg,
-            statusMsg: signalByUser.get(p.id)?.status_msg,
-          };
-        })
-        .filter((c): c is { profile: Profile; idealMsg: string | undefined; statusMsg: string | undefined } => c != null),
+      candidates: profiles
+        .filter((p) => !skippedIds.has(p.id))
+        .map((p) => ({
+          profile: p,
+          idealMsg: signalByUser.get(p.id)?.ideal_msg,
+          statusMsg: signalByUser.get(p.id)?.status_msg,
+        })),
       blockedIds: blockedUserIds,
       hiddenIds: hiddenByIds,
       alreadyInterestedIds,
@@ -130,7 +112,7 @@ export function SignalTab({
       })
       .filter((x): x is SignalMatch & { profile: Profile } => x != null);
   }, [
-    me, currentUserId, mySignal, profiles, receivedLikers, incomingLikerIds, incomingPool,
+    unlocked, me, currentUserId, mySignal, profiles,
     signalByUser, skippedIds, blockedUserIds, hiddenByIds, alreadyInterestedIds, likedAllTypeIds,
   ]);
 
@@ -199,21 +181,44 @@ export function SignalTab({
             {progress}/{SIGNAL_MISSION_GOAL}
           </span>
         </div>
-        {progress >= SIGNAL_MISSION_GOAL && (
+        {unlocked && (
           <p className="text-xs font-bold text-emerald-500 mt-2">🎉 미션 완료! 새로운 추천 상대를 확인해보세요.</p>
         )}
       </div>
 
-      {!card ? (
+      {!unlocked ? (
+        <div className={`rounded-2xl border px-5 py-6 ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'}`}>
+          <p className="text-2xl mb-2">📖</p>
+          <p className={`text-sm font-black ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+            {SIGNAL_GUIDE_TITLE}
+          </p>
+          <p className={`text-xs mt-1.5 leading-relaxed ${darkMode ? 'text-slate-300' : 'text-gray-600'}`}>
+            {SIGNAL_GUIDE_LEAD}
+          </p>
+          <ul className={`mt-3 space-y-2 text-xs leading-relaxed ${darkMode ? 'text-slate-300' : 'text-gray-600'}`}>
+            {SIGNAL_GUIDE_POINTS.map((line) => (
+              <li key={line} className="flex gap-2">
+                <span className="text-rose-400 font-black">·</span>
+                <span>{line}</span>
+              </li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            onClick={() => onGoProfiles?.()}
+            className="mt-5 w-full py-3 rounded-2xl text-sm font-black text-white bg-rose-500 hover:bg-rose-600 active:scale-95 transition-all"
+          >
+            {SIGNAL_GUIDE_CTA}
+          </button>
+        </div>
+      ) : !card ? (
         <div className={`rounded-2xl border px-5 py-12 text-center ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'}`}>
           <p className="text-3xl mb-2">💕</p>
           <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-            {incomingPool.size === 0 ? SIGNAL_EMPTY_INCOMING_TITLE : '지금 추천할 시그널이 없어요'}
+            {SIGNAL_EMPTY_DECK_TITLE}
           </p>
           <p className={`text-xs mt-1 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
-            {incomingPool.size === 0
-              ? SIGNAL_EMPTY_INCOMING_HINT
-              : '받은 하트 중에서 다음에 볼 카드가 없어요'}
+            {SIGNAL_EMPTY_DECK_HINT}
           </p>
         </div>
       ) : (

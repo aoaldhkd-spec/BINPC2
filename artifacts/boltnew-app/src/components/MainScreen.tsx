@@ -24,6 +24,7 @@ import { TimerBanner } from './TimerBanner';
 import { RefreshBtn } from './RefreshBtn';
 
 import { AVATAR_CATEGORIES } from '../lib/avatar-catalog';
+import { IDEAL_TAG_GROUPS } from '../lib/signal-match';
 import { ProfileCard } from './ProfileCard';
 import { ResetButton } from './ResetButton';
 import { SignalTab } from './SignalTab';
@@ -66,13 +67,6 @@ class StatusErrorBoundary extends Component<
 
 
 // ─── MainScreen ───────────────────────────────────────────────────────────────
-
-// ── 이상형 태그 그룹 ─────────────────────────────────────────────────────────
-const IDEAL_TAG_GROUPS = [
-  { label: '얼굴상 👀', tags: ['감자상', '댕댕이상', '고양이상', '곰상', '여우상', '공룡상', '토끼상', '눈웃음'] },
-  { label: '체형 💪', tags: ['키큰', '슬림', '근육있는', '통통귀여운', '보통체형'] },
-  { label: '매력 ✨', tags: ['섹끼있는', '다정한', '귀여운', '반전매력', '차분한', '웃음많은', '텐션높은', '술잘마시는'] },
-] as const;
 
 export function MainScreen({
   profiles, currentUserId, likedIds, sentHeartTypes, sentHeartsPerPerson, likeStatuses, profileMap, mainTab,
@@ -2051,7 +2045,6 @@ export function MainScreen({
             profiles={profiles}
             currentUserId={currentUserId}
             userSignals={userSignals}
-            receivedLikers={receivedLikers}
             sentHeartsPerPerson={sentHeartsPerPerson}
             blockedUserIds={blockedUserIds}
             hiddenByIds={hiddenByIds}
@@ -2059,6 +2052,7 @@ export function MainScreen({
             darkMode={darkMode}
             onLike={onLike}
             onSelect={onSelect}
+            onGoProfiles={() => onTabChange('profiles')}
             onMissionComplete={onMissionComplete}
           />
         )}

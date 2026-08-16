@@ -45,7 +45,8 @@ UI: `MainScreen.tsx`, `LikeConfirmDialog.tsx`, `ProfileDetail.tsx` → `useHeart
 ### Signal (시그널)
 UI: `SignalTab.tsx` + MainScreen tab `signal` + `SignalNudgeBanner.tsx` + `BottomNotification` signal CTAs  
 Match: `lib/signal-match.ts` (OR: my ideal↔their features, their ideal↔my features, shared interests)  
-Pool: incoming likes only (`receivedLikers` / `liked_id === me`) — no fallback to everyone  
+Unlock: deck only after today's mission 3/3 (unique outgoing hearts, all types). Before that: 시그널 설명서 + progress  
+Pool: all profiles with OR match — not limited to incoming likes. Exclude self/blocked/hidden/already-hearted  
 Hearts/chat reuse: `handleLike` / `LikeConfirmDialog` / `openChat` — do not reimplement likes or 1:1 send  
 Mission: count distinct `liked_id` today from outgoing `likes` SELECT (KST), all heart types including green
 
