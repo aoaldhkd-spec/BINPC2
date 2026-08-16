@@ -4,9 +4,13 @@ import type { Profile, UserSignal } from '../types/app';
 import type { HeartType } from '../lib/constants';
 import { getKoreanAge, getAvatarSrc, hasUploadedPhoto, getAvatarGradientCss } from '../lib/profile';
 import {
+  SIGNAL_EMPTY_INCOMING_HINT,
+  SIGNAL_EMPTY_INCOMING_TITLE,
+  SIGNAL_MISSION_COPY,
   SIGNAL_MISSION_GOAL,
   countTodayInterestMission,
   hasInterestHeart,
+  incomingSignalPoolIds,
   missionToastKey,
   recommendSignals,
   seoulDateKey,
@@ -17,6 +21,7 @@ export function SignalTab({
   profiles,
   currentUserId,
   userSignals,
+  receivedLikers,
   sentHeartsPerPerson,
   blockedUserIds,
   hiddenByIds,
@@ -29,6 +34,7 @@ export function SignalTab({
   profiles: Profile[];
   currentUserId: string | null;
   userSignals: UserSignal[];
+  receivedLikers: Profile[];
   sentHeartsPerPerson: Map<string, Set<HeartType>>;
   blockedUserIds: Set<string>;
   hiddenByIds: Set<string>;
@@ -72,26 +78,51 @@ export function SignalTab({
     return s;
   }, [sentHeartsPerPerson]);
 
+  const incomingLikerIds = useMemo(
+    () => new Set(receivedLikers.map((p) => p.id)),
+    [receivedLikers],
+  );
+
+  const incomingPool = useMemo(() => {
+    if (!currentUserId) return new Set<string>();
+    return incomingSignalPoolIds({
+      myId: currentUserId,
+      incomingLikerIds,
+      blockedIds: blockedUserIds,
+      hiddenIds: hiddenByIds,
+    });
+  }, [currentUserId, incomingLikerIds, blockedUserIds, hiddenByIds]);
+
   const deck = useMemo(() => {
     if (!me || !currentUserId) return [] as Array<SignalMatch & { profile: Profile }>;
+    const byId = new Map<string, Profile>();
+    for (const p of profiles) byId.set(p.id, p);
+    for (const p of receivedLikers) {
+      if (!byId.has(p.id)) byId.set(p.id, p);
+    }
     const ranked = recommendSignals({
       myId: currentUserId,
       myProfile: me,
       myIdealMsg: mySignal?.ideal_msg,
       myStatusMsg: mySignal?.status_msg,
-      candidates: profiles
-        .filter((p) => p.id !== currentUserId && !skippedIds.has(p.id))
-        .map((p) => ({
-          profile: p,
-          idealMsg: signalByUser.get(p.id)?.ideal_msg,
-          statusMsg: signalByUser.get(p.id)?.status_msg,
-        })),
+      incomingLikerIds,
+      candidates: [...incomingPool]
+        .filter((id) => !skippedIds.has(id))
+        .map((id) => {
+          const p = byId.get(id);
+          if (!p) return null;
+          return {
+            profile: p,
+            idealMsg: signalByUser.get(p.id)?.ideal_msg,
+            statusMsg: signalByUser.get(p.id)?.status_msg,
+          };
+        })
+        .filter((c): c is { profile: Profile; idealMsg: string | undefined; statusMsg: string | undefined } => c != null),
       blockedIds: blockedUserIds,
       hiddenIds: hiddenByIds,
       alreadyInterestedIds,
       likedAllTypeIds,
     });
-    const byId = new Map(profiles.map((p) => [p.id, p]));
     return ranked
       .map((m) => {
         const profile = byId.get(m.profileId);
@@ -99,8 +130,8 @@ export function SignalTab({
       })
       .filter((x): x is SignalMatch & { profile: Profile } => x != null);
   }, [
-    me, currentUserId, mySignal, profiles, signalByUser, skippedIds,
-    blockedUserIds, hiddenByIds, alreadyInterestedIds, likedAllTypeIds,
+    me, currentUserId, mySignal, profiles, receivedLikers, incomingLikerIds, incomingPool,
+    signalByUser, skippedIds, blockedUserIds, hiddenByIds, alreadyInterestedIds, likedAllTypeIds,
   ]);
 
   const current = deck[0] ?? null;
@@ -155,7 +186,7 @@ export function SignalTab({
           💕 오늘의 시그널 미션
         </p>
         <p className={`text-xs mt-0.5 ${darkMode ? 'text-slate-300' : 'text-rose-600'}`}>
-          서로 다른 3명에게 관심 보내기
+          {SIGNAL_MISSION_COPY}
         </p>
         <div className="mt-2 flex items-center gap-2">
           <div className={`flex-1 h-2 rounded-full overflow-hidden ${darkMode ? 'bg-slate-700' : 'bg-rose-100'}`}>
@@ -177,10 +208,12 @@ export function SignalTab({
         <div className={`rounded-2xl border px-5 py-12 text-center ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'}`}>
           <p className="text-3xl mb-2">💕</p>
           <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-            지금 추천할 시그널이 없어요
+            {incomingPool.size === 0 ? SIGNAL_EMPTY_INCOMING_TITLE : '지금 추천할 시그널이 없어요'}
           </p>
           <p className={`text-xs mt-1 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
-            이상형·관심사를 더 적어두면 맞는 사람을 찾아드려요
+            {incomingPool.size === 0
+              ? SIGNAL_EMPTY_INCOMING_HINT
+              : '받은 하트 중에서 다음에 볼 카드가 없어요'}
           </p>
         </div>
       ) : (
@@ -245,7 +278,7 @@ export function SignalTab({
                 onClick={() => { if (!functionsLocked) onLike(card.id); }}
                 className="flex-[1.4] py-3 rounded-2xl text-sm font-black text-white bg-rose-500 hover:bg-rose-600 disabled:opacity-40 active:scale-95 transition-all"
               >
-                💕 관심 보내기
+                💕 하트 보내기
               </button>
             </div>
           </div>

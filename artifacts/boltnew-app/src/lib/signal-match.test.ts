@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  SIGNAL_MISSION_COPY,
   buildReasonChips,
   countTodayInterestMission,
   hasInterestHeart,
+  incomingSignalPoolIds,
+  isAnyHeart,
   isInterestHeart,
   isNudgeEligible,
   matchSignalPair,
@@ -37,6 +40,15 @@ describe('isInterestHeart', () => {
     expect(isInterestHeart('green')).toBe(false);
     expect(hasInterestHeart(new Set(['green']))).toBe(false);
     expect(hasInterestHeart(new Set(['green', 'red']))).toBe(true);
+  });
+
+  it('counts every heart type as a real send for the mission', () => {
+    expect(isAnyHeart('red')).toBe(true);
+    expect(isAnyHeart('blue')).toBe(true);
+    expect(isAnyHeart('pink')).toBe(true);
+    expect(isAnyHeart('green')).toBe(true);
+    expect(isAnyHeart('unknown')).toBe(false);
+    expect(SIGNAL_MISSION_COPY).toBe('서로 다른 3명에게 하트 보내기');
   });
 });
 
@@ -125,6 +137,7 @@ describe('recommendSignals filters', () => {
       myId: 'me',
       myProfile: me,
       myIdealMsg: '운동',
+      incomingLikerIds: new Set(['me', 'blocked', 'hidden', 'liked', 'ok']),
       candidates: [
         { profile: { ...me, id: 'me' }, idealMsg: '운동' },
         { profile: { ...themFit, id: 'blocked' }, idealMsg: null },
@@ -138,6 +151,81 @@ describe('recommendSignals filters', () => {
       rng: () => 0,
     });
     expect(ranked.map((r) => r.profileId)).toEqual(['ok']);
+  });
+
+  it('only recommends incoming heart senders', () => {
+    const ranked = recommendSignals({
+      myId: 'me',
+      myProfile: me,
+      myIdealMsg: '운동',
+      incomingLikerIds: new Set(['incoming']),
+      candidates: [
+        { profile: { ...themFit, id: 'stranger' }, idealMsg: null },
+        { profile: { ...themFit, id: 'incoming' }, idealMsg: null },
+      ],
+      rng: () => 0,
+    });
+    expect(ranked.map((r) => r.profileId)).toEqual(['incoming']);
+  });
+
+  it('returns empty when incoming pool is empty (no fallback to everyone)', () => {
+    const ranked = recommendSignals({
+      myId: 'me',
+      myProfile: me,
+      myIdealMsg: '운동',
+      incomingLikerIds: new Set(),
+      candidates: [
+        { profile: { ...themFit, id: 'a' }, idealMsg: null },
+        { profile: { ...themFit, id: 'b' }, idealMsg: null },
+      ],
+      rng: () => 0,
+    });
+    expect(ranked).toEqual([]);
+    expect(incomingSignalPoolIds({ myId: 'me', incomingLikerIds: [] }).size).toBe(0);
+  });
+
+  it('keeps an incoming sender even without OR match', () => {
+    const noMatch = {
+      id: 'incoming-nomatch',
+      personality_score: 20,
+      mbti: 'ISTJ',
+      interests: '독서',
+      bio: null,
+    };
+    const ranked = recommendSignals({
+      myId: 'me',
+      myProfile: { ...me, interests: '영화' },
+      myIdealMsg: '공룡상',
+      incomingLikerIds: new Set(['incoming-nomatch']),
+      candidates: [{ profile: noMatch, idealMsg: '곰상' }],
+      rng: () => 0,
+    });
+    expect(ranked.map((r) => r.profileId)).toEqual(['incoming-nomatch']);
+    expect(ranked[0].matchCount).toBe(0);
+  });
+
+  it('skips incoming sender after mutual non-green heart, keeps 맞관심 CTA otherwise', () => {
+    const mutual = recommendSignals({
+      myId: 'me',
+      myProfile: me,
+      myIdealMsg: '운동',
+      incomingLikerIds: new Set(['them']),
+      candidates: [{ profile: { ...themFit, id: 'them' }, idealMsg: null }],
+      alreadyInterestedIds: new Set(['them']),
+      rng: () => 0,
+    });
+    expect(mutual).toEqual([]);
+
+    const stillNeedReply = recommendSignals({
+      myId: 'me',
+      myProfile: me,
+      myIdealMsg: '운동',
+      incomingLikerIds: new Set(['them']),
+      candidates: [{ profile: { ...themFit, id: 'them' }, idealMsg: null }],
+      alreadyInterestedIds: new Set(),
+      rng: () => 0,
+    });
+    expect(stillNeedReply.map((r) => r.profileId)).toEqual(['them']);
   });
 });
 
@@ -161,7 +249,7 @@ describe('countTodayInterestMission', () => {
   const todayIso = `${today}T03:00:00.000Z`;
   const yesterdayIso = '2026-08-15T03:00:00.000Z';
 
-  it('counts unique people with a successful non-green like today', () => {
+  it('counts unique people with any successful heart today including green', () => {
     const n = countTodayInterestMission([
       { liked_id: 'a', heart_type: 'red', created_at: todayIso },
       { liked_id: 'a', heart_type: 'blue', created_at: todayIso },
@@ -169,7 +257,7 @@ describe('countTodayInterestMission', () => {
       { liked_id: 'c', heart_type: 'green', created_at: todayIso },
       { liked_id: 'd', heart_type: 'red', created_at: yesterdayIso },
     ], new Date('2026-08-16T12:00:00+09:00'));
-    expect(n).toBe(2);
+    expect(n).toBe(3);
   });
 
   it('does not increment for repeat hearts to the same person', () => {
@@ -177,15 +265,16 @@ describe('countTodayInterestMission', () => {
       { liked_id: 'a', heart_type: 'red', created_at: todayIso },
       { liked_id: 'a', heart_type: 'pink', created_at: todayIso },
       { liked_id: 'a', heart_type: 'blue', created_at: todayIso },
+      { liked_id: 'a', heart_type: 'green', created_at: todayIso },
     ], new Date('2026-08-16T20:00:00+09:00'));
     expect(n).toBe(1);
   });
 
-  it('ignores green-only rows', () => {
+  it('counts green-only rows as a heart send', () => {
     const n = countTodayInterestMission([
       { liked_id: 'a', heart_type: 'green', created_at: todayIso },
     ], new Date('2026-08-16T12:00:00+09:00'));
-    expect(n).toBe(0);
+    expect(n).toBe(1);
   });
 });
 

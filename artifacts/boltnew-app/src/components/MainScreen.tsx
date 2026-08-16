@@ -2051,6 +2051,7 @@ export function MainScreen({
             profiles={profiles}
             currentUserId={currentUserId}
             userSignals={userSignals}
+            receivedLikers={receivedLikers}
             sentHeartsPerPerson={sentHeartsPerPerson}
             blockedUserIds={blockedUserIds}
             hiddenByIds={hiddenByIds}
