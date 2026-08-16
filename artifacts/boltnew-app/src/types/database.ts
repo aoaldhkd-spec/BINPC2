@@ -102,45 +102,6 @@ export interface Database {
         };
         Relationships: [];
       };
-      suggestions: {
-        Row: {
-          id: string;
-          profile_id: string | null;
-          nickname: string | null;
-          content: string;
-          status: 'pending' | 'accepted' | 'rejected';
-          admin_reason: string | null;
-          admin_response: string | null;
-          admin_responded_at: string | null;
-          contact_info: string | null;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          profile_id?: string | null;
-          nickname?: string | null;
-          content: string;
-          status?: 'pending' | 'accepted' | 'rejected';
-          admin_reason?: string | null;
-          admin_response?: string | null;
-          admin_responded_at?: string | null;
-          contact_info?: string | null;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          profile_id?: string | null;
-          nickname?: string | null;
-          content?: string;
-          status?: 'pending' | 'accepted' | 'rejected';
-          admin_reason?: string | null;
-          admin_response?: string | null;
-          admin_responded_at?: string | null;
-          contact_info?: string | null;
-          created_at?: string;
-        };
-        Relationships: [];
-      };
       chats: {
         Row: { id: string; user1_id: string; user2_id: string; created_at: string; };
         Insert: { id?: string; user1_id: string; user2_id: string; created_at?: string; };
@@ -171,7 +132,7 @@ export interface Database {
           updated_at: string;
           timer_end_at: string | null;
           timer_label: string | null;
-          seating_locked: boolean | null;
+          functions_locked: boolean | null;
           active_tables: number[] | null;
           reset_signal: string | null;
           table_labels: Record<string, string> | null;
@@ -187,7 +148,7 @@ export interface Database {
           updated_at?: string;
           timer_end_at?: string | null;
           timer_label?: string | null;
-          seating_locked?: boolean | null;
+          functions_locked?: boolean | null;
           active_tables?: number[] | null;
           reset_signal?: string | null;
           table_labels?: Record<string, string> | null;
@@ -203,7 +164,7 @@ export interface Database {
           updated_at?: string;
           timer_end_at?: string | null;
           timer_label?: string | null;
-          seating_locked?: boolean | null;
+          functions_locked?: boolean | null;
           active_tables?: number[] | null;
           reset_signal?: string | null;
           table_labels?: Record<string, string> | null;
@@ -211,9 +172,9 @@ export interface Database {
         Relationships: [];
       };
       session_history: {
-        Row: { id: string; ended_at: string; seats_snapshot: Json; };
-        Insert: { id?: string; ended_at?: string; seats_snapshot: Json; };
-        Update: { id?: string; ended_at?: string; seats_snapshot?: Json; };
+        Row: { id: string; ended_at: string; created_at?: string; };
+        Insert: { id?: string; ended_at?: string; created_at?: string; };
+        Update: { id?: string; ended_at?: string; created_at?: string; };
         Relationships: [];
       };
       anonymous_reports: {

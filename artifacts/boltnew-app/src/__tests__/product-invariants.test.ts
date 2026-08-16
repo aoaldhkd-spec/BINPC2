@@ -67,6 +67,7 @@ describe('product copy + notification invariants', () => {
     expect(app).toContain('leaveGroupChatGuarded');
     expect(app).toContain('onLeaveGroupChat');
     expect(app).toContain("setView('group-chat')");
+    expect(app).toMatch(/void openGroupChat\(groupId\);\s*setView\('group-chat'\)/);
     expect(group).toContain('visualViewport');
     expect(group).toContain('unreadMemberCount');
     expect(group).toContain('functionsLocked');

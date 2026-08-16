@@ -327,7 +327,7 @@ describe('chat-read-status: re-syncing unread counts returns 0 after leaving', (
     });
   });
 
-  it('badge (newMsgCount) remains 0 for a chat that was open when messages arrived', async () => {
+  it('badge remains 0 for a chat that was open when messages arrived', async () => {
     // Server says 0 unread for CHAT_ID after the read was recorded
     setupFetch({ [CHAT_ID]: 0 });
 
@@ -351,7 +351,7 @@ describe('chat-read-status: re-syncing unread counts returns 0 after leaving', (
 
     await waitFor(() => {
       // Total badge should be 0 (no unread chats after sync)
-      expect(result.current.newMsgCount).toBe(0);
+      expect(result.current.unreadChatCounts[CHAT_ID] ?? 0).toBe(0);
     });
   });
 
@@ -377,8 +377,5 @@ describe('chat-read-status: re-syncing unread counts returns 0 after leaving', (
     await waitFor(() => {
       expect(result.current.unreadChatCounts[CHAT_ID]).toBeUndefined();
     });
-
-    // Badge must reflect the removal too
-    expect(result.current.newMsgCount).toBe(0);
   });
 });

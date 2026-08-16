@@ -97,8 +97,6 @@ export function useChat({
   const unreadChatCountsRef = useRef<Record<string, number>>({});
   unreadChatCountsRef.current = unreadChatCounts;
 
-  const [newMsgCount, setNewMsgCount] = useState(0);
-
   // ── 낙관적 읽음 보호: 최근 30초 내에 읽은 채팅방 추적 ────────────────────────
   // syncUnreadCounts가 서버 응답으로 전체 상태를 덮어쓸 때,
   // upsert 응답이 아직 서버에 도달하지 않은 채팅방을 다시 unread로 표시하는 것을 방지.
@@ -184,7 +182,6 @@ export function useChat({
                 setUnreadChatCounts(prev => incrementUnreadForIncoming(prev, newMsg.chat_id!, siblingToCanonicalRef.current));
               }
               const senderProfile = profilesRef.current.find(p => p.id === newMsg.sender_id);
-              setNewMsgCount(n => n + 1);
               if (isIncomingChatToastTarget(uid, newMsg.sender_id, false)) {
                 setBottomNotif({ type: 'message', nickname: senderProfile?.nickname ?? '' });
               }
@@ -305,9 +302,7 @@ export function useChat({
 
     // 채팅방 열 때: unread 카운트 낙관적 삭제 + 전체 배지 감소
     // upsert 실패 시 뱃지 복원 (catch) — 서버 상태와 UI 불일치 방지
-    const removed = unreadChatCountsRef.current[chatId] ?? 0;
     setUnreadChatCounts(prev => { const n = { ...prev }; delete n[chatId]; return n; });
-    if (removed > 0) setNewMsgCount(c => Math.max(0, c - removed));
     // 낙관적 읽음 보호: upsert 완료 전 syncUnreadCounts 가 이 방을 unread 로 되돌리지 않게
     recentlyReadRef.current.set(chatId, Date.now());
 
@@ -483,10 +478,8 @@ export function useChat({
       // 목록에 이미 있는 방은 서버 왕복 전에 바로 열어 화면 넘김 지연을 없앤다.
       chatIdRef.current = cachedId;
       rememberRoomChatId(cachedId);
-      const countToRemove = unreadChatCountsRef.current[cachedId] ?? 0;
       setChatId(cachedId);
       setUnreadChatCounts(prev => { const n = { ...prev }; delete n[cachedId]; return n; });
-      if (countToRemove > 0) setNewMsgCount(c => Math.max(0, c - countToRemove));
     } else {
       chatIdRef.current = null;
       setChatId(null);
@@ -578,10 +571,8 @@ export function useChat({
       // setChatId → effect の前に setUnreadChatCounts を呼ぶと effect 内で removed=0 になるため
       // ここで count を読んでから両方まとめてクリアする (effect は no-op になるが二重減算は発生しない).
       if (resolvedChatId !== cachedId) {
-        const countToRemove = unreadChatCountsRef.current[resolvedChatId] ?? 0;
         setChatId(resolvedChatId);
         setUnreadChatCounts(prev => { const n = { ...prev }; delete n[resolvedChatId]; return n; });
-        if (countToRemove > 0) setNewMsgCount(c => Math.max(0, c - countToRemove));
       }
     } catch (err) {
       console.error('[openChat] 예외:', err);
@@ -628,17 +619,6 @@ export function useChat({
         if (prevKeys.length === nextKeys.length && nextKeys.every(k => prev[k] === next[k])) return prev;
         return next;
       });
-      const now = Date.now();
-      const total = Object.entries(data)
-        .filter(([cid]) => {
-          if (cid === chatIdRef.current) return false;
-          if (roomChatIdsRef.current.has(cid)) return false;
-          const readTs = recentlyReadRef.current.get(cid);
-          if (readTs && now - readTs < 30_000) return false;
-          return true;
-        })
-        .reduce((sum, [, n]) => sum + n, 0);
-      setNewMsgCount(total);
     } catch { /* 네트워크 오류 무시 — 다음 재연결 때 재시도 */ }
   }, []); // currentUserIdRef/chatIdRef는 항상 최신 ref라 deps 불필요
 
@@ -996,7 +976,6 @@ export function useChat({
     chatList, setChatList,
     chatListRef,
     unreadChatCounts, setUnreadChatCounts,
-    newMsgCount, setNewMsgCount,
     loadChatList,
     loadMessages,
     openChat,

@@ -668,34 +668,11 @@ describe('[Security] test dashboard password', () => {
     expect(typeof testOk.body.data).toBe('string');
   });
 
-  it('admin_update_settings는 heart_drain_enabled를 항상 false로 유지한다', async () => {
-    await request(app)
-      .post('/api/db/rpc/admin_update_settings')
-      .send({
-        p_admin_password: '116606',
-        p_payload: { heart_drain_enabled: true, heart_drain_minutes: 3 },
-      });
-
-    const res = await op({ op: 'select', table: 'app_settings' });
-    expect(res.status).toBe(200);
-    expect(res.body.data[0]?.heart_drain_enabled).toBe(false);
-  });
-
-  it('admin_drain_unused_hearts RPC는 비활성화된다', async () => {
-    const login = await request(app)
-      .post('/api/db/rpc/admin_create_session')
-      .send({ p_phone: '010-3878-6740', p_admin_password: 'custom-admin-pw-xyz' });
-    expect(login.status).toBe(200);
-
+  it('하트 차감 RPC는 더 이상 존재하지 않는다', async () => {
     const res = await request(app)
       .post('/api/db/rpc/admin_drain_unused_hearts')
-      .send({
-        p_admin_password: 'custom-admin-pw-xyz',
-        adminToken: login.body.data,
-        p_drain_count: 1,
-      });
-    expect(res.status).toBe(403);
-    expect(res.body.error?.message).toContain('비활성화');
+      .send({ p_admin_password: '116606', p_drain_count: 1 });
+    expect(res.status).toBe(404);
   });
 });
 
@@ -1832,6 +1809,63 @@ describe('[Security] group chats auto 2 + opt-in 2차', () => {
       payload: { group_id: gid, user_id: uid },
     });
     expect(join2.status).toBe(200);
+  });
+
+  it('년생·N대 자동 입장 후에도 2차 술과 2차 클럽을 둘 다 입장할 수 있다', async () => {
+    const uid = `g-bothap-${randomUUID()}`;
+    const leftoverId = `legacy-photo-${uid}`;
+    expect((await op({
+      op: 'insert',
+      table: 'group_chats',
+      payload: {
+        id: leftoverId,
+        name: '20대 사진찍기 모임',
+        interest_tag: '사진찍기',
+        age_group: '20대',
+        max_members: 999999,
+        room_kind: 'interest_age',
+      },
+      requesterId: 'seed-admin',
+    })).status).toBe(200);
+
+    const created = await op({
+      op: 'insert',
+      table: 'profiles',
+      payload: {
+        id: uid,
+        nickname: `ba-${uid.replace(/-/g, '').slice(0, 12)}`,
+        bio: '영화',
+        mbti: 'ENFP',
+        birth_year: 1998,
+      },
+      requesterId: uid,
+    });
+    expect(created.status).toBe(200);
+
+    expect((await op({
+      op: 'insert',
+      table: 'group_participants',
+      requesterId: uid,
+      payload: { group_id: leftoverId, user_id: uid },
+    })).status).toBe(200);
+
+    const drink = await op({
+      op: 'insert',
+      table: 'group_participants',
+      requesterId: uid,
+      payload: { group_id: 'group_afterparty_drink', user_id: uid },
+    });
+    expect(drink.status).toBe(200);
+    expect(drink.body.error).toBeNull();
+
+    const club = await op({
+      op: 'insert',
+      table: 'group_participants',
+      requesterId: uid,
+      payload: { group_id: 'group_afterparty_club', user_id: uid },
+    });
+    expect(club.status).toBe(200);
+    expect(club.body.error).toBeNull();
   });
 
   it('자동 방에서 나가면 프로필 저장 후에도 다시 넣지 않는다', async () => {

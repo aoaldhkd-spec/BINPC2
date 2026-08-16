@@ -206,6 +206,20 @@ function pickCanonicalAfterparty(rooms: GroupChat[], kind: 'club' | 'drink'): Gr
   )[0];
 }
 
+export function countJoinedCatalogRooms(
+  groups: GroupChat[],
+  joinedIds: string[],
+  opts?: { myBirthYear?: number | null },
+): number {
+  return catalogGroupRooms(groups, { ...opts, joinedIds }).filter(g => g.joined).length;
+}
+
+export function isJoinedGroupId(groups: GroupChat[] | undefined | null, joinedIds: string[], groupId: string): boolean {
+  if (!groupId) return false;
+  if (joinedIds.includes(groupId)) return true;
+  return siblingGroupIds(groups, groupId).some(id => joinedIds.includes(id));
+}
+
 export function catalogGroupRooms(
   groups: GroupChat[],
   opts?: { myBirthYear?: number | null; joinedIds?: string[] },

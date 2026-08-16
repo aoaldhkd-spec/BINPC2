@@ -44,12 +44,12 @@ async function main() {
     body: JSON.stringify({ op: 'select', table: 'app_settings' }),
   }).then((r) => r.json());
   const drain = settings?.data?.[0]?.heart_drain_enabled;
-  checks.push(['heart_drain_enabled', drain === false ? 'OK (false)' : `FAIL (${drain})`]);
+  checks.push(['heart_drain_enabled', drain ? `FAIL (${drain})` : 'OK']);
   checks.push(['entry_password', settings?.data?.[0]?.entry_password ?? 'missing']);
   checks.push(['qr_base_url', settings?.data?.[0]?.qr_base_url ?? 'missing']);
 
   const drainRpc = await rpc('admin_drain_unused_hearts', { p_admin_password: 'x', p_drain_count: 1 });
-  checks.push(['drain_rpc_blocked', drainRpc.status === 403 ? 'OK' : `FAIL ${drainRpc.status}`]);
+  checks.push(['drain_rpc_gone', drainRpc.status === 404 ? 'OK' : `FAIL ${drainRpc.status}`]);
 
   if (adminPassword) {
     const admin = await rpc('admin_create_session', {

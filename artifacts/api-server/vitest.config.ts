@@ -14,6 +14,8 @@ export default defineConfig({
       SESSION_SECRET: 'test-session-secret-for-vitest-only',
       NODE_ENV: 'test',
       DATABASE_URL: 'postgresql://test:test@localhost:5432/test_db',
+      BOOTSTRAP_ADMIN_PASSWORD: '116606',
+      BOOTSTRAP_TEST_PASSWORD: '116606',
     },
   },
 });

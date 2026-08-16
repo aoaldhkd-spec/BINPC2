@@ -233,7 +233,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     const safeData = (r: PromiseSettledResult<{ data: unknown[] | null }>) =>
       r.status === 'fulfilled' ? (r.value as { data: unknown[] | null }).data : null;
     try {
-      await adminSupabase.from('session_history').insert({ seats_snapshot: [] });
+      await adminSupabase.from('session_history').insert({ ended_at: new Date().toISOString() });
       // api-server 전체 초기화 (인메모리 스토어 + SSE broadcast → 모든 유저에게 즉시 반영)
       // Supabase 직접 삭제만으로는 api-server 인메모리가 그대로 남아 유저에게 반영 안 됨
       await adminApiRpc('admin_event_end_reset', {});
@@ -245,7 +245,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         adminSupabase.from('messages').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
         adminSupabase.from('chats').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
         adminSupabase.from('notifications').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
-        adminSupabase.from('suggestions').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
       ]);
       const { error: sigErr } = await adminSupabase.from('app_settings').update({ reset_signal: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', 1);
       if (sigErr) throw new Error(sigErr.message);
@@ -260,7 +259,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           ...backupLikes.map(l => adminSupabase.from('likes').upsert({ id: l.id, liker_id: l.liker_id, liked_id: l.liked_id, heart_type: l.heart_type, status: l.status, created_at: l.created_at })),
           ...backupChats.map(c => adminSupabase.from('chats').upsert(c)),
           ...backupMsgs.map(m => adminSupabase.from('messages').upsert(m)),
-          ...backupHistories.map(h => adminSupabase.from('session_history').upsert({ id: h.id, seats_snapshot: [], created_at: (h as { created_at?: string }).created_at })),
+          ...backupHistories.map(h => adminSupabase.from('session_history').upsert({ id: h.id, ended_at: h.ended_at, created_at: (h as { created_at?: string }).created_at })),
           ...(safeData(notifRes) ?? []).map((n: unknown) => adminSupabase.from('notifications').upsert(n)),
         ]);
         await loadAll();
@@ -344,7 +343,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     adminApiRpc('admin_force_resync_all', {}).catch(e => console.warn('[admin] resync:', e));
     showRecovery('회식 이력', '📋', backup.length > 0 ? async () => {
       for (const h of backup) {
-        await adminSupabase.from('session_history').upsert({ id: h.id, seats_snapshot: [], ended_at: (h as Record<string, unknown>)['ended_at'] as string ?? h.ended_at });
+        await adminSupabase.from('session_history').upsert({ id: h.id, ended_at: (h as Record<string, unknown>)['ended_at'] as string ?? h.ended_at });
       }
       await loadAll();
       setRecovery(null);

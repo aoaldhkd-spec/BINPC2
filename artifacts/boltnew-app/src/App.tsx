@@ -370,7 +370,7 @@ function App() {
 
   const {
     chatId, setChatId, chatIdRef, messages, chatList, setChatList,
-    unreadChatCounts, setUnreadChatCounts, newMsgCount, setNewMsgCount,
+    unreadChatCounts, setUnreadChatCounts,
     loadChatList, openChat, sendMessage, sendImage,
     deleteChat, deleteAllChats, deleteMessage,
   } = useChat({ currentUserId, profilesRef, setSelectedProfile, setView, setBottomNotif });
@@ -381,7 +381,6 @@ function App() {
     groupMessages,
     groupParticipants,
     unreadGroupCounts,
-    newGroupMsgCount, setNewGroupMsgCount,
     openGroupChat,
     joinGroupChat,
     joiningGroupId,
@@ -460,7 +459,7 @@ function App() {
 
   const openGroupChatGuarded = useCallback(async (groupId: string) => {
     if (functionsLockedRef.current) { showFunctionsLockToast(); return; }
-    await openGroupChat(groupId);
+    void openGroupChat(groupId);
     setView('group-chat');
   }, [openGroupChat, showFunctionsLockToast]);
 
@@ -468,7 +467,7 @@ function App() {
     if (functionsLockedRef.current) { showFunctionsLockToast(); return; }
     const ok = await joinGroupChat(groupId);
     if (!ok) return;
-    await openGroupChat(groupId);
+    void openGroupChat(groupId);
     setView('group-chat');
   }, [joinGroupChat, openGroupChat, showFunctionsLockToast]);
 
@@ -1620,8 +1619,6 @@ function App() {
         })}
         functionsLocked={functionsLocked}
         onShowTutorial={() => { setShowTutorialModal(true); }}
-        newMsgCount={newMsgCount}
-        onClearMsgCount={() => setNewMsgCount(0)}
         unreadChatCounts={unreadChatCounts}
         onClearChatUnread={(chatId) => setUnreadChatCounts(prev => { const n = { ...prev }; delete n[chatId]; return n; })}
         onViewFortune={(p) => {
@@ -1634,8 +1631,6 @@ function App() {
         myHeartCount={myHeartCount}
         groupChats={groupChats}
         unreadGroupCounts={unreadGroupCounts}
-        newGroupMsgCount={newGroupMsgCount}
-        onClearGroupMsgCount={() => setNewGroupMsgCount(0)}
         onOpenGroupChat={(groupId) => { void openGroupChatGuarded(groupId).catch(e => console.error('[openGroupChat]', e)); }}
         onJoinGroupChat={(groupId) => { void joinGroupChatGuarded(groupId).catch(e => console.error('[joinGroupChat]', e)); }}
         onLeaveGroupChat={(groupId) => { void leaveGroupChatGuarded(groupId).catch(e => console.error('[leaveGroupChat]', e)); }}

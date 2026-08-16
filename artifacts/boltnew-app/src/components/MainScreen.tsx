@@ -79,9 +79,9 @@ export function MainScreen({
   receivedContactShares, pendingHeartsCount, chatList,
   onContactShareOpen: _onContactShareOpen, onContactViewOpen, onHeartResponse, onDeleteChat, onDeleteAllChats, onOpenChat,
   timerEndAt, timerLabel, onRefreshStatus, onRefreshChat, onRefreshProfiles, darkMode, onToggleDark, onShowContactQr, onScanQr, scannedContacts, onClearScannedContact, functionsLocked = false, onShowTutorial,
-  newMsgCount: _newMsgCount, onClearMsgCount: _onClearMsgCount, unreadChatCounts, onClearChatUnread: _onClearChatUnread,
+  unreadChatCounts, onClearChatUnread: _onClearChatUnread,
   onUpdateProfile, fortuneCompatTarget, myHeartCount,
-  groupChats = [], unreadGroupCounts = {}, newGroupMsgCount: _newGroupMsgCount = 0, onClearGroupMsgCount: _onClearGroupMsgCount, onOpenGroupChat, onJoinGroupChat, onLeaveGroupChat, joiningGroupId = null,
+  groupChats = [], unreadGroupCounts = {}, onOpenGroupChat, onJoinGroupChat, onLeaveGroupChat, joiningGroupId = null,
   blockedUserIds = new Set<string>(), hiddenByIds = new Set<string>(),
   profileVisitors = [] as ProfileView[],
   newVisitCount = 0,
@@ -122,8 +122,6 @@ export function MainScreen({
   onClearScannedContact: (id: string) => void;
   functionsLocked?: boolean;
   onShowTutorial: () => void;
-  newMsgCount: number;
-  onClearMsgCount: () => void;
   unreadChatCounts: Record<string, number>;
   onClearChatUnread: (chatId: string) => void;
   onUpdateProfile: (update: Record<string, unknown> & { id: string }) => void;
@@ -131,8 +129,6 @@ export function MainScreen({
   myHeartCount?: number | null;
   groupChats?: GroupChat[];
   unreadGroupCounts?: Record<string, number>;
-  newGroupMsgCount?: number;
-  onClearGroupMsgCount?: () => void;
   onOpenGroupChat?: (groupId: string) => void;
   onJoinGroupChat?: (groupId: string) => void;
   onLeaveGroupChat?: (groupId: string) => void | Promise<void>;

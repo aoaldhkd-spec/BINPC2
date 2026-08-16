@@ -63,10 +63,10 @@ async function main() {
   }
 
   const drain = await rpc('admin_drain_unused_hearts', { p_admin_password: 'x', p_drain_count: 1 });
-  checks.push(['heart_drain_blocked', drain.status === 403 ? 'OK' : `FAIL ${drain.status}`]);
+  checks.push(['heart_drain_gone', drain.status === 404 ? 'OK' : `FAIL ${drain.status}`]);
 
   const settings = await op({ op: 'select', table: 'app_settings' });
-  checks.push(['heart_drain_off', settings?.json?.data?.[0]?.heart_drain_enabled === false ? 'OK' : 'FAIL']);
+  checks.push(['heart_drain_off', settings?.json?.data?.[0]?.heart_drain_enabled ? 'FAIL (still on)' : 'OK']);
   checks.push(['entry_password_mmdd', /^\d{4}$/.test(String(settings?.json?.data?.[0]?.entry_password ?? '')) ? settings.json.data[0].entry_password : 'FAIL']);
 
   for (const [name, result] of checks) console.log(`  ${name}: ${result}`);

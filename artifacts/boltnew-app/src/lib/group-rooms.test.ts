@@ -11,6 +11,8 @@ import {
   sumUnreadCounts,
   unreadForGroup,
   unreadMemberCount,
+  countJoinedCatalogRooms,
+  isJoinedGroupId,
 } from './group-rooms';
 
 function room(partial: Partial<GroupChat> & Pick<GroupChat, 'id' | 'name'>): GroupChat {
@@ -161,5 +163,17 @@ describe('group-rooms catalog', () => {
       room({ id: 'group_afterparty_drink', name: '2차 술 갈 분', interest_tag: '2차술', room_kind: 'afterparty_drink' }),
     ];
     expect(unreadForGroup({ 'dup-drink': 4 }, 'group_afterparty_drink', raw)).toBe(4);
+  });
+
+  it('duplicate 2차 rooms count as one slot so the other 2차 still fits under cap 4', () => {
+    const raw = [
+      room({ id: 'y', name: '1998년생 모임', room_kind: 'birth_year' }),
+      room({ id: 'a', name: '20대 모임', room_kind: 'age_decade', age_group: '20대' }),
+      room({ id: 'dup-drink', name: '2차 술 갈 분', interest_tag: '2차술', room_kind: 'afterparty_drink' }),
+      room({ id: 'group_afterparty_drink', name: '2차 술 갈 분', interest_tag: '2차술', room_kind: 'afterparty_drink' }),
+      room({ id: 'group_afterparty_club', name: '2차 클럽 갈 분', interest_tag: '2차클럽', room_kind: 'afterparty_club' }),
+    ];
+    expect(countJoinedCatalogRooms(raw, ['y', 'a', 'dup-drink'], { myBirthYear: 1998 })).toBe(3);
+    expect(isJoinedGroupId(raw, ['dup-drink'], 'group_afterparty_drink')).toBe(true);
   });
 });

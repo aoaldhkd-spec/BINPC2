@@ -37,9 +37,7 @@ declare module 'express-session' {
 
 const router = Router();
 
-/** 관리자·테스트 패널 표준 비밀번호 — redeploy/resync 후에도 자동 복구 */
-const PANEL_DEFAULT_PASSWORD = '116606';
-const LEGACY_PANEL_PASSWORDS = ['166606', PANEL_DEFAULT_PASSWORD] as const;
+/** 관리자·테스트 패널은 DB 비밀번호 + BOOTSTRAP_* env만 인정. 소스에 공장 비밀번호를 두지 않음. */
 
 class RpcAuthError extends Error {
   statusCode = 403;
@@ -65,8 +63,6 @@ function verifyAdminToken(provided: string | null | undefined): boolean {
   const secrets = collectSecrets(
     String(settings.admin_password ?? ''),
     process.env.BOOTSTRAP_ADMIN_PASSWORD,
-    PANEL_DEFAULT_PASSWORD,
-    ...LEGACY_PANEL_PASSWORDS,
   );
   if (!secrets.length) return false;
   return secrets.some((s) => {
@@ -88,8 +84,6 @@ function verifyTestToken(provided: string | null | undefined): boolean {
   const secrets = collectSecrets(
     String(settings.test_password ?? ''),
     process.env.BOOTSTRAP_TEST_PASSWORD,
-    PANEL_DEFAULT_PASSWORD,
-    ...LEGACY_PANEL_PASSWORDS,
   );
   if (!secrets.length) return false;
   return secrets.some((s) => {
@@ -147,7 +141,7 @@ const ALLOWED_OP_TABLES = new Set([
   'session_history', 'device_secrets', 'app_kv_rows',
   // Extra tables used by the app
   'contact_shares', 'contact_share_events', 'anonymous_reports',
-  'suggestions', 'notifications',
+  'notifications',
   'app_image_store',
   // 옵트인 단체 채팅
   'group_chats', 'group_participants', 'group_messages',
@@ -870,18 +864,16 @@ function defaultAppSettings(): Record<string, unknown> {
     id: 1,
     session_active: false,
     admin_phone: '010-3878-6740',
-    admin_password: bootstrapAdmin || PANEL_DEFAULT_PASSWORD,
+    admin_password: bootstrapAdmin || '',
     updated_at: ts(),
     timer_end_at: null,
     timer_label: null,
     functions_locked: false,
     reset_signal: null,
     entry_password: koreanDateMMDD(),
-    reset_password: PANEL_DEFAULT_PASSWORD,
-    test_password: bootstrapTest || PANEL_DEFAULT_PASSWORD,
+    reset_password: bootstrapAdmin || '',
+    test_password: bootstrapTest || '',
     qr_base_url: PRODUCTION_QR_BASE,
-    heart_drain_enabled: false,
-    heart_drain_minutes: 5,
     heart_initial_count: 8,
     active_tables: null,
   };
@@ -908,29 +900,18 @@ function secretMatches(provided: string, secrets: string[]): boolean {
   return p.length > 0 && secrets.some(s => s === p);
 }
 
-function isDefaultPanelPassword(pw: string): boolean {
-  const s = pw.trim();
-  return !s || LEGACY_PANEL_PASSWORDS.some(l => l === s);
-}
-
 function panelAdminSecrets(dbAdmin?: string | null): string[] {
-  const secrets = collectSecrets(
+  return collectSecrets(
     dbAdmin ?? '',
     process.env.BOOTSTRAP_ADMIN_PASSWORD,
-    PANEL_DEFAULT_PASSWORD,
-    ...LEGACY_PANEL_PASSWORDS,
   );
-  return secrets.length ? secrets : [PANEL_DEFAULT_PASSWORD];
 }
 
 function panelTestSecrets(dbTest?: string | null): string[] {
-  const secrets = collectSecrets(
+  return collectSecrets(
     dbTest ?? '',
     process.env.BOOTSTRAP_TEST_PASSWORD,
-    PANEL_DEFAULT_PASSWORD,
-    ...LEGACY_PANEL_PASSWORDS,
   );
-  return secrets.length ? secrets : [PANEL_DEFAULT_PASSWORD];
 }
 
 const SECRET_SETTING_KEYS = ['admin_password', 'test_password', 'entry_password', 'reset_password'] as const;
@@ -947,7 +928,9 @@ function mergeAppSettings(
     }
   }
   const merged: Record<string, unknown> = { ...defaultAppSettings(), ...current, ...safePatch, id: 1, updated_at: ts() };
-  merged.heart_drain_enabled = false;
+  delete merged.heart_drain_enabled;
+  delete merged.heart_drain_minutes;
+  delete merged.seating_locked;
   if (isLocalQrUrl(merged.qr_base_url)) merged.qr_base_url = PRODUCTION_QR_BASE;
   return merged;
 }
@@ -998,28 +981,20 @@ async function repairAppSettingsIfNeeded(): Promise<void> {
 async function ensureAppSettingsSecrets(): Promise<void> {
   const bootstrapAdmin = process.env.BOOTSTRAP_ADMIN_PASSWORD?.trim();
   const bootstrapTest = process.env.BOOTSTRAP_TEST_PASSWORD?.trim();
-  const targetAdmin = bootstrapAdmin || PANEL_DEFAULT_PASSWORD;
-  const targetTest = bootstrapTest || PANEL_DEFAULT_PASSWORD;
 
   const row = getTable('app_settings')[0];
   if (!row) return;
 
   const patch: Record<string, unknown> = {};
-  const currentAdmin = String(row.admin_password ?? '');
-  const currentTest = row.test_password == null ? '' : String(row.test_password);
-  if (!currentAdmin || isDefaultPanelPassword(currentAdmin) || (bootstrapAdmin && currentAdmin !== bootstrapAdmin)) {
-    patch.admin_password = targetAdmin;
-  }
-  if (!currentTest || isDefaultPanelPassword(currentTest) || (bootstrapTest && currentTest !== bootstrapTest)) {
-    patch.test_password = targetTest;
-  }
-  const currentReset = row.reset_password == null ? '' : String(row.reset_password);
-  if (!currentReset || isDefaultPanelPassword(currentReset)) {
-    patch.reset_password = PANEL_DEFAULT_PASSWORD;
-  }
-  if (row.heart_drain_enabled) patch.heart_drain_enabled = false;
+  const currentAdmin = String(row.admin_password ?? '').trim();
+  const currentTest = String(row.test_password ?? '').trim();
+  const currentReset = String(row.reset_password ?? '').trim();
+  if (!currentAdmin && bootstrapAdmin) patch.admin_password = bootstrapAdmin;
+  if (!currentTest && bootstrapTest) patch.test_password = bootstrapTest;
+  if (!currentReset && bootstrapAdmin) patch.reset_password = bootstrapAdmin;
   if (isLocalQrUrl(row.qr_base_url)) patch.qr_base_url = PRODUCTION_QR_BASE;
-  if (!Object.keys(patch).length) return;
+  const needsStrip = 'heart_drain_enabled' in row || 'heart_drain_minutes' in row || 'seating_locked' in row;
+  if (!Object.keys(patch).length && !needsStrip) return;
 
   const updated = mergeAppSettings(row, patch);
   store['app_settings'] = [updated];
@@ -1070,7 +1045,7 @@ function startDailyEntryPasswordRenewal(): void {
 // 새 기능을 추가할 때는 이 Set에도 테이블명을 추가할 것.
 // 기능을 삭제할 때는 이 Set에서 제거하기만 하면 다음 재시작 시 데이터도 자동 삭제된다.
 const ACTIVE_KV_TABLES = new Set([
-  'profiles', 'app_settings', 'notifications', 'likes', 'chats', 'suggestions',
+  'profiles', 'app_settings', 'notifications', 'likes', 'chats',
   'messages', 'chat_reads', 'device_secrets', 'session_history', 'push_subscriptions',
   'contact_shares', 'contact_share_events', 'anonymous_reports',
   'app_image_store', 'heart_balances',
@@ -1109,134 +1084,6 @@ async function cleanupLegacyTables(): Promise<void> {
     logger.warn({ err: e }, '[db] cleanupLegacyTables 실패');
   }
 }
-
-// ─── Heart Drain System ──────────────────────────────────────────────────────
-// 설정된 분 동안 하트를 보내지 않은 유저의 하트 잔여 수를 1 차감.
-// heart_drain_enabled=true 인 경우에만 자동 실행 (매 분 루프).
-async function heartDrainLoop(): Promise<void> {
-  const settings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
-  if (!settings.heart_drain_enabled) return;
-
-  const drainMinutes = Math.max(1, Number(settings.heart_drain_minutes ?? 5));
-  const initialCount = Math.max(1, Number(settings.heart_initial_count ?? 10));
-  const now = Date.now();
-  const cutoffIso = new Date(now - drainMinutes * 60_000).toISOString();
-  const nowIso = new Date(now).toISOString();
-
-  const profiles  = getTable('profiles');
-  const likes     = getTable('likes');
-  if (!store['heart_balances']) store['heart_balances'] = [];
-  const balances  = getTable('heart_balances');
-
-  // 유저별 마지막 하트 전송 시각 O(n) 집계
-  const lastLikeByUser = new Map<string, string>();
-  for (const like of likes) {
-    const uid = like.liker_id as string;
-    const ca  = like.created_at as string;
-    if (!uid || !ca) continue;
-    const cur = lastLikeByUser.get(uid);
-    if (!cur || ca > cur) lastLikeByUser.set(uid, ca);
-  }
-
-  const persists: Promise<void>[] = [];
-  for (const profile of profiles) {
-    const userId = profile.id as string;
-    if (!userId) continue;
-
-    // 최근 N분 안에 하트를 보냈으면 차감 대상 아님
-    const lastLike = lastLikeByUser.get(userId);
-    if (lastLike && lastLike >= cutoffIso) continue;
-
-    const balRow  = balances.find(b => b.id === userId);
-    const current = (balRow?.heart_count as number) ?? initialCount;
-    if (current <= 0) continue;
-
-    // 동일 창구 안에서 이미 차감됐으면 건너뜀
-    const lastDrainAt = balRow?.last_drain_at as string | undefined;
-    if (lastDrainAt && lastDrainAt >= cutoffIso) continue;
-
-    const newRow: Record<string, unknown> = {
-      id: userId, heart_count: current - 1, last_drain_at: nowIso, updated_at: nowIso,
-    };
-    const idx = (store['heart_balances'] as Record<string, unknown>[]).findIndex(b => b.id === userId);
-    if (idx >= 0) (store['heart_balances'] as Record<string, unknown>[])[idx] = newRow;
-    else (store['heart_balances'] as Record<string, unknown>[]).push(newRow);
-
-    persists.push(dbPersistRow('heart_balances', newRow).catch(e => logger.error({ err: e }, '[db] background task error')));
-    _smartBroadcastLocal('heart_balances', newRow, {
-      type: 'change', table: 'heart_balances', event: 'UPDATE', newRow, oldRow: balRow ?? {},
-    });
-  }
-
-  if (persists.length > 0) {
-    await Promise.all(persists);
-    logger.info({ drained: persists.length }, '[heart-drain] 하트 차감 완료');
-  }
-}
-
-function startHeartDrainLoop(): void {
-  setInterval(() => { heartDrainLoop().catch(e => logger.error({ err: e }, '[db] background task error')); }, 60_000);
-}
-
-// ─── 미사용 하트 회수 ────────────────────────────────────────────────────────
-// 하나도 보내지 않은 유저의 하트를 drainCount만큼 차감한다 (기본: 전부 회수).
-// admin_drain_unused_hearts RPC와 10분 타이머 양쪽에서 호출.
-// drainCount=-1 이면 잔여 하트 전부 회수 (0으로 만들기)
-async function drainUnusedHearts(drainCount: number = -1, heartType?: string): Promise<{ userId: string; nickname: string; count: number; remaining: number }[]> {
-  const profiles = getTable('profiles');
-  const likes    = getTable('likes');
-  if (!store['heart_balances']) store['heart_balances'] = [];
-  const balances = getTable('heart_balances');
-  const settings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
-  const initialCount = Math.max(1, Number(settings.heart_initial_count ?? 8));
-
-  // 해당 목적(heartType)으로 하트를 보낸 유저 Set
-  // heartType이 없으면 어떤 하트든 보낸 유저 전체
-  const sentLikeUsers = new Set(
-    (likes as Record<string, unknown>[])
-      .filter(l => !heartType || l.heart_type === heartType)
-      .map(l => l.liker_id as string)
-      .filter(Boolean),
-  );
-
-  const nowIso = new Date().toISOString();
-  const drained: { userId: string; nickname: string; count: number; remaining: number }[] = [];
-  const persists: Promise<void>[] = [];
-
-  for (const profile of profiles) {
-    const userId = profile.id as string;
-    if (!userId || sentLikeUsers.has(userId)) continue; // 하트 보낸 유저는 제외
-
-    const balRow  = balances.find(b => b.id === userId);
-    const current = (balRow?.heart_count as number) ?? initialCount;
-    if (current <= 0) continue;
-
-    // drainCount < 0 → 전부 회수 (0으로 만들기); 양수면 그만큼만 차감
-    const toDrain  = drainCount < 0 ? current : Math.min(drainCount, current);
-    const newCount = Math.max(0, current - toDrain);
-    const newRow: Record<string, unknown> = {
-      id: userId, heart_count: newCount, last_drain_at: nowIso, updated_at: nowIso,
-    };
-    const idx = (store['heart_balances'] as Record<string, unknown>[]).findIndex(b => b.id === userId);
-    if (idx >= 0) (store['heart_balances'] as Record<string, unknown>[])[idx] = newRow;
-    else (store['heart_balances'] as Record<string, unknown>[]).push(newRow);
-
-    persists.push(dbPersistRow('heart_balances', newRow).catch(e => logger.error({ err: e }, '[db] background task error')));
-    _smartBroadcastLocal('heart_balances', newRow, {
-      type: 'change', table: 'heart_balances', event: 'UPDATE', newRow, oldRow: balRow ?? {},
-    });
-    drained.push({ userId, nickname: (profile.nickname as string) ?? userId, count: toDrain, remaining: newCount });
-  }
-
-  if (persists.length > 0) {
-    await Promise.all(persists);
-    logger.info({ drained: drained.length, drainCount }, '[drain-unused] 미사용 하트 회수 완료');
-  }
-  return drained;
-}
-
-// 서버 시작 10분 후 자동 미사용 하트 회수
-setTimeout(() => { drainUnusedHearts().catch(e => logger.error({ err: e }, '[db] background task error')); }, 10 * 60 * 1_000);
 
 // 사람당 단톡 입장 수 상한 (방 인원 정원이 아님 — 방 인원은 제한 없음)
 const MAX_GROUPS_PER_USER = 4;
@@ -1527,6 +1374,50 @@ function isLeftoverInterestRoom(g: Record<string, unknown>): boolean {
   return kind === 'interest_age' || /대\s+.+\s*모임/.test(name) || /모임\s*모임/.test(name);
 }
 
+function afterpartySlotKey(g: Record<string, unknown>): 'afterparty_club' | 'afterparty_drink' | null {
+  if (matchesAfterpartySpec(g, OPT_IN_GROUP_ROOMS[0])) return 'afterparty_club';
+  if (matchesAfterpartySpec(g, OPT_IN_GROUP_ROOMS[1])) return 'afterparty_drink';
+  return null;
+}
+
+/** 한도 계산용. 숨긴 중복 2차·레거시 관심사/은퇴 N대는 칸을 차지하지 않음. */
+function groupLimitSlotKey(g: Record<string, unknown> | undefined, groupId: string): string | null {
+  if (!g) return null;
+  if (g.hidden === true) return null;
+  const into = String(g.merged_into ?? '');
+  if (into && into !== String(g.id)) return null;
+  if (isLeftoverInterestRoom(g) || isRetiredAgeRoom(g)) return null;
+  const ap = afterpartySlotKey(g);
+  if (ap) return ap;
+  const name = String(g.name ?? '');
+  if (/^\d{4}년생 모임$/.test(name)) return `year:${name}`;
+  if (/^\d+대 모임$/.test(name)) return `age:${name}`;
+  return String(g.id || groupId);
+}
+
+function countUserGroupSlots(userId: string): number {
+  const keys = new Set<string>();
+  for (const p of getTable('group_participants')) {
+    if (String(p.user_id) !== userId) continue;
+    const gid = String(p.group_id ?? '');
+    const g = getTable('group_chats').find(row => String(row.id) === gid);
+    const key = groupLimitSlotKey(g, gid);
+    if (key) keys.add(key);
+  }
+  return keys.size;
+}
+
+async function pruneNonCatalogMemberships(userId: string): Promise<void> {
+  const mine = getTable('group_participants').filter(p => String(p.user_id) === userId);
+  for (const p of mine) {
+    const gid = String(p.group_id ?? '');
+    const g = getTable('group_chats').find(row => String(row.id) === gid);
+    if (groupLimitSlotKey(g, gid) == null) {
+      await removeParticipant(userId, gid, false);
+    }
+  }
+}
+
 async function removeParticipant(userId: string, groupId: string, recordOptOut: boolean): Promise<void> {
   const parts = getTable('group_participants');
   const part = parts.find(p => String(p.group_id) === groupId && String(p.user_id) === userId);
@@ -1592,7 +1483,7 @@ async function joinOrCreateAutoRoom(userId: string, spec: {
   if (kind === 'afterparty_club' || kind === 'afterparty_drink') return;
   const parts = getTable('group_participants');
   if (parts.some(p => String(p.group_id) === String(room.id) && String(p.user_id) === userId)) return;
-  if (parts.filter(p => String(p.user_id) === userId).length >= MAX_GROUPS_PER_USER) return;
+  if (countUserGroupSlots(userId) >= MAX_GROUPS_PER_USER) return;
   const part = {
     id: `${room.id}__${userId}`,
     group_id: String(room.id),
@@ -1666,7 +1557,6 @@ async function autoMatchGroupChatGuarded(userId: string, profile: Record<string,
 const dbReadyPromise = seedIfNeeded()
   .then(() => {
     startDailyEntryPasswordRenewal();
-    startHeartDrainLoop();
   });
 
 dbReadyPromise
@@ -1982,7 +1872,6 @@ const FULL_RESYNC_TABLES: Array<{ tbl: string; order?: string }> = [
   { tbl: 'notifications', order: 'ORDER BY created_at DESC' },
   { tbl: 'likes',         order: 'ORDER BY created_at DESC LIMIT 5000' },
   { tbl: 'chats',         order: 'ORDER BY created_at DESC LIMIT 5000' },
-  { tbl: 'suggestions',   order: 'ORDER BY created_at DESC LIMIT 500' },
 ];
 
 let _fullResyncRunning = false;
@@ -1992,7 +1881,6 @@ const RESYNC_TABLE_LIMIT: Record<string, number> = {
   notifications: 200,
   likes: 5000,
   chats: 5000,
-  suggestions: 500,
 };
 
 async function resyncAllFromNativeDb(): Promise<void> {
@@ -2972,10 +2860,8 @@ router.post('/op', async (req: Request, res: Response) => {
             if (selectAfterWrite) return res.json({ data: single ? already : [already], error: null });
             return res.json({ data: null, error: null });
           }
-          const myGroupCount = getTable('group_participants').filter(
-            p => String(p.user_id) === String(requesterId),
-          ).length;
-          if (myGroupCount >= MAX_GROUPS_PER_USER) {
+          await pruneNonCatalogMemberships(String(requesterId));
+          if (countUserGroupSlots(String(requesterId)) >= MAX_GROUPS_PER_USER) {
             return res.status(400).json({ data: null, error: { message: GROUP_LIMIT_MESSAGE, code: 'GROUP_LIMIT' } });
           }
           effectiveRow = {
@@ -3593,9 +3479,7 @@ const ALLOWED_RPCS = new Set([
   'verify_panel_password',
   'admin_update_profile',
   'admin_delete_profile',
-  'admin_trigger_heart_drain',   // 하트 드레인 즉시 실행 (수동 트리거)
   'admin_reset_heart_balances',  // 모든 유저 하트 잔여 수 초기화
-  'admin_drain_unused_hearts',   // 하나도 안 쓴 유저 하트 0으로 회수
 ]);
 
 // ─── RPC endpoint ─────────────────────────────────────────────────────────────
@@ -3664,7 +3548,7 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         }
         const adminToken = deriveAdminToken(tokenKey);
         const bootstrapAdmin = process.env.BOOTSTRAP_ADMIN_PASSWORD?.trim();
-        if (bootstrapAdmin && providedPw === bootstrapAdmin && (!dbAdmin || isDefaultPanelPassword(dbAdmin))) {
+        if (bootstrapAdmin && providedPw === bootstrapAdmin && !dbAdmin) {
           const current = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
           const updated = mergeAppSettings(current, { admin_password: bootstrapAdmin });
           store['app_settings'] = [updated];
@@ -3737,7 +3621,7 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         const provided = String(args.p_test_password ?? '').trim();
         const bootstrapTest = process.env.BOOTSTRAP_TEST_PASSWORD?.trim();
         const dbTest = String(settings.test_password ?? '').trim();
-        if (bootstrapTest && provided === bootstrapTest && (!dbTest || isDefaultPanelPassword(dbTest))) {
+        if (bootstrapTest && provided === bootstrapTest && !dbTest) {
           const current = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
           const updated = mergeAppSettings(current, { test_password: bootstrapTest });
           store['app_settings'] = [updated];
@@ -3810,7 +3694,7 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         const tablesToClear = [
           'profiles', 'likes', 'anonymous_reports', 'chats', 'messages',
           'contact_shares', 'contact_share_events',
-          'notifications', 'suggestions',
+          'notifications',
         ];
         // 프라이빗 테이블은 row 내용 없이 "전체 초기화" 신호만 전송 (민감 데이터 유출 방지)
         const RESET_PRIVATE = new Set(['likes', 'chats', 'messages', 'contact_shares', 'contact_share_events', 'chat_reads', 'anonymous_reports']);
@@ -3857,8 +3741,6 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         if (kind === 'reset') {
           const secrets = collectSecrets(
             settings.reset_password as string | undefined,
-            PANEL_DEFAULT_PASSWORD,
-            ...LEGACY_PANEL_PASSWORDS,
           );
           ok = secretMatches(provided, secrets);
         } else if (kind === 'admin') {
@@ -3916,12 +3798,6 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
           dbDeleteRow('profiles', profileId).catch(e => logger.error({ err: e }, '[db] background task error'));
         }
         return res.json({ data: null, error: null });
-      }
-
-      case 'admin_drain_unused_hearts':
-      case 'admin_trigger_heart_drain': {
-        checkPassword();
-        return res.status(403).json({ data: null, error: { message: '하트 차감 기능은 비활성화되었습니다.' } });
       }
 
       case 'admin_reset_heart_balances': {
@@ -4251,7 +4127,6 @@ router.get('/ready', (_req: Request, res: Response) => {
         testConfigured: testSecrets.length > 0,
       },
       functions_locked: settings.functions_locked === true,
-      heart_drain_enabled: settings.heart_drain_enabled === true,
       qr_base_url: settings.qr_base_url ?? null,
       checkedAt: new Date().toISOString(),
     });

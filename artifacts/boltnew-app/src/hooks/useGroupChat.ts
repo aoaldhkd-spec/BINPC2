@@ -11,12 +11,13 @@ import type { Profile, GroupChat, GroupMessage, GroupParticipant } from '../type
 import {
   MAX_GROUPS_PER_USER,
   catalogGroupRooms,
+  countJoinedCatalogRooms,
   countUnreadGroupMessages,
   groupLimitMessage,
+  isJoinedGroupId,
   readGroupLastReads,
   resolveCatalogGroupId,
   siblingGroupIds,
-  sumUnreadCounts,
   writeGroupLastRead,
 } from '../lib/group-rooms';
 
@@ -62,7 +63,6 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
   const [unreadGroupCounts, setUnreadGroupCounts] = useState<Record<string, number>>({});
   const unreadGroupCountsRef = useRef<Record<string, number>>({});
   unreadGroupCountsRef.current = unreadGroupCounts;
-  const [newGroupMsgCount, setNewGroupMsgCount] = useState(0);
   const [joiningGroupId, setJoiningGroupId] = useState<string | null>(null);
 
   const [myGroupIds, setMyGroupIds] = useState<string[]>([]);
@@ -151,10 +151,8 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
       }
       if (activeGroupIdRef.current) delete remappedUnread[activeGroupIdRef.current];
       setUnreadGroupCounts(remappedUnread);
-      setNewGroupMsgCount(sumUnreadCounts(remappedUnread));
-      const joinedCatalog = catalog.filter(g => g.joined).map(g => g.id);
-      setMyGroupIds([...new Set([...groupIds, ...joinedCatalog])]);
-      myGroupIdsRef.current = [...new Set([...groupIds, ...joinedCatalog])];
+      setMyGroupIds(groupIds);
+      myGroupIdsRef.current = groupIds;
       setGroupChats(catalog);
     } catch (e) {
       console.error('[loadGroupChats] 오류:', e);
@@ -220,29 +218,33 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
 
   // ── 단톡방 열기 (이미 입장한 방만) ──────────────────────────────────────────
   const openGroupChat = useCallback(async (groupId: string): Promise<void> => {
-    if (!myGroupIdsRef.current.includes(groupId)) return;
+    if (!isJoinedGroupId(rawGroupsRef.current, myGroupIdsRef.current, groupId)) return;
+    const openId = resolveCatalogGroupId(rawGroupsRef.current, groupId) || groupId;
     setGroupMessages([]);
     setGroupParticipants([]);
-    setActiveGroupId(groupId);
-    activeGroupIdRef.current = groupId;
-    // 미읽음 초기화
-    const removed = unreadGroupCountsRef.current[groupId] ?? 0;
-    setUnreadGroupCounts(prev => { const n = { ...prev }; delete n[groupId]; return n; });
-    if (removed > 0) setNewGroupMsgCount(c => Math.max(0, c - removed));
-    if (currentUserIdRef.current) writeGroupLastRead(currentUserIdRef.current, groupId);
+    setActiveGroupId(openId);
+    activeGroupIdRef.current = openId;
+    setUnreadGroupCounts(prev => {
+      const n = { ...prev };
+      delete n[openId];
+      delete n[groupId];
+      return n;
+    });
+    if (currentUserIdRef.current) writeGroupLastRead(currentUserIdRef.current, openId);
     await Promise.all([
-      loadGroupMessages(groupId).catch(() => {}),
-      loadGroupParticipants(groupId),
+      loadGroupMessages(openId).catch(() => {}),
+      loadGroupParticipants(openId),
     ]);
-    void markGroupRead(groupId);
+    void markGroupRead(openId);
   }, [loadGroupMessages, loadGroupParticipants, markGroupRead]);
 
   // ── 단톡방 입장 (클릭 전용, 자동 입장 없음) ────────────────────────────────
   const joinGroupChat = useCallback(async (groupId: string): Promise<boolean> => {
     const userId = currentUserIdRef.current;
     if (!userId || !groupId) return false;
-    if (myGroupIdsRef.current.includes(groupId)) return true;
-    if (myGroupIdsRef.current.length >= MAX_GROUPS_PER_USER) {
+    if (isJoinedGroupId(rawGroupsRef.current, myGroupIdsRef.current, groupId)) return true;
+    const occupied = countJoinedCatalogRooms(rawGroupsRef.current, myGroupIdsRef.current);
+    if (occupied >= MAX_GROUPS_PER_USER) {
       setBottomNotif({ type: 'error', nickname: groupLimitMessage() });
       return false;
     }
@@ -264,7 +266,11 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
         myGroupIdsRef.current = next;
         return next;
       });
-      await loadGroupChats(userId);
+      setGroupChats(prev => {
+        const canon = resolveCatalogGroupId(rawGroupsRef.current.length ? rawGroupsRef.current : prev, groupId);
+        return prev.map(g => (g.id === groupId || g.id === canon) ? { ...g, joined: true } : g);
+      });
+      void loadGroupChats(userId);
       return true;
     } catch (e) {
       console.error('[joinGroupChat] 오류:', e);
@@ -414,7 +420,6 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
             ));
             const catalogId = resolveCatalogGroupId(rawGroupsRef.current.length ? rawGroupsRef.current : groupChatsRef.current, m.group_id);
             setUnreadGroupCounts(prev => ({ ...prev, [catalogId]: (prev[catalogId] ?? 0) + 1 }));
-            setNewGroupMsgCount(n => n + 1);
           }
         } catch { /* SSE 파싱 오류 무시 */ }
       })
@@ -478,7 +483,6 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
       setGroupMessages([]);
       setGroupParticipants([]);
       setUnreadGroupCounts({});
-      setNewGroupMsgCount(0);
       setJoiningGroupId(null);
     }
   }, [currentUserId, loadGroupChats]);
@@ -489,7 +493,6 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
     groupMessages, setGroupMessages,
     groupParticipants,
     unreadGroupCounts, setUnreadGroupCounts,
-    newGroupMsgCount, setNewGroupMsgCount,
     myGroupIds, myGroupIdsRef,
     joiningGroupId,
     loadGroupChats,
