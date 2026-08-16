@@ -78,7 +78,7 @@ function Tip({ text, show, dir = 'bottom' }: { text: string; show: boolean; dir?
     right: 'left-full top-1/2 -translate-y-1/2 ml-2',
   }[dir];
   return (
-    <div className={`absolute ${pos} z-40 bg-teal-500 text-white text-[9px] font-black px-2 py-1 rounded-lg whitespace-nowrap shadow-lg animate-in fade-in duration-200`}>
+    <div className={`absolute ${pos} z-40 bg-teal-500 text-white text-[9px] font-black px-2 py-1 rounded-lg break-keep [word-break:keep-all] text-pretty max-w-[9.5rem] leading-tight text-center shadow-lg animate-in fade-in duration-200`}>
       {text}
     </div>
   );
@@ -863,7 +863,7 @@ export function TutorialVideo({
   })();
 
   const DESIGN_H = 248;
-  const COMPACT_STAGE_H = 168;
+  const COMPACT_STAGE_H = 128;
   const scaleStage = compact || fill;
   const stageRef = useRef<HTMLDivElement>(null);
   const [stageH, setStageH] = useState(compact ? COMPACT_STAGE_H : DESIGN_H);
@@ -890,14 +890,14 @@ export function TutorialVideo({
         ? `${compact && !fill ? '' : 'h-full '} ${compact ? 'rounded-[1.05rem] border-2' : 'rounded-[1.35rem] border-[3px]'} border-zinc-800 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]`
         : 'max-w-xs rounded-[1.75rem] shadow-2xl border-[3px] border-zinc-800'
     }`}>
-      <div className={`flex items-center gap-1.5 flex-shrink-0 ${compact ? 'px-2 pt-1 pb-0.5' : 'px-3 pt-2.5 pb-1.5'}`}>
-        <span className="relative flex h-2 w-2 flex-shrink-0">
+      <div className={`flex items-center gap-1 flex-shrink-0 ${compact ? 'px-1.5 pt-0.5 pb-0' : 'px-3 pt-2.5 pb-1.5'}`}>
+        <span className={`relative flex flex-shrink-0 ${compact ? 'h-1.5 w-1.5' : 'h-2 w-2'}`}>
           <span className="absolute inset-0 rounded-full bg-red-500 animate-ping opacity-60" />
-          <span className="relative h-2 w-2 rounded-full bg-red-500" />
+          <span className={`relative rounded-full bg-red-500 ${compact ? 'h-1.5 w-1.5' : 'h-2 w-2'}`} />
         </span>
-        <span className="text-[9px] text-red-400 font-black tracking-wider">REC</span>
-        <p className={`flex-1 min-w-0 text-center text-white font-bold truncate ${compact ? 'text-[10px]' : 'text-[12px]'}`}>{scene.title}</p>
-        <span className="text-[9px] text-zinc-400 font-mono tabular-nums">{clock}</span>
+        <span className={`${compact ? 'text-[8px]' : 'text-[9px]'} text-red-400 font-black tracking-wider`}>REC</span>
+        <p className={`flex-1 min-w-0 text-center text-white font-bold truncate ${compact ? 'text-[9px]' : 'text-[12px]'}`}>{scene.title}</p>
+        <span className={`${compact ? 'text-[8px]' : 'text-[9px]'} text-zinc-400 font-mono tabular-nums`}>{clock}</span>
         {!embedded && (
           <button onClick={onClose}
             className="w-6 h-6 rounded-full bg-zinc-800 hover:bg-zinc-700 flex items-center justify-center text-zinc-300 text-[10px] flex-shrink-0">
@@ -905,7 +905,7 @@ export function TutorialVideo({
           </button>
         )}
       </div>
-      <p className={`text-zinc-500 text-center leading-none flex-shrink-0 ${compact ? 'text-[8px] pb-0.5' : 'text-[9px] pb-1.5'}`}>{scene.sub}</p>
+      <p className={`text-zinc-500 text-center leading-tight flex-shrink-0 truncate px-1.5 break-keep ${compact ? 'text-[7px] pb-0' : 'text-[9px] pb-1.5'}`}>{scene.sub}</p>
 
       <div
         ref={stageRef}
@@ -928,8 +928,8 @@ export function TutorialVideo({
         </div>
       </div>
 
-      <div className={`flex-shrink-0 ${compact ? 'px-2 pt-1 pb-1' : 'px-3 pt-2 pb-3'}`}>
-        <div className={`flex items-center gap-2 ${compact ? 'mb-1' : 'mb-1.5'}`}>
+      <div className={`flex-shrink-0 ${compact ? 'px-1.5 pt-0.5 pb-0.5' : 'px-3 pt-2 pb-3'}`}>
+        <div className={`flex items-center gap-1.5 ${compact ? 'mb-0.5' : 'mb-1.5'}`}>
           <span className="text-[8px] text-zinc-500 font-mono w-6">{clock}</span>
           <div className="flex-1 flex gap-0.5">
             {playlist.map((sceneNo, i) => (
@@ -947,7 +947,7 @@ export function TutorialVideo({
             <SkipBack className={`${compact ? 'w-3 h-3' : 'w-4 h-4'} text-zinc-200`} />
           </button>
           <button onClick={() => setPlaying(p => !p)}
-            className={`flex-1 flex items-center justify-center gap-1.5 rounded-full bg-white text-black font-black transition-all active:scale-95 ${compact ? 'py-0.5 text-[10px]' : 'py-2 text-[12px] gap-2'}`}>
+            className={`flex-1 flex items-center justify-center gap-1 rounded-full bg-white text-black font-black transition-all active:scale-95 ${compact ? 'py-0 text-[9px]' : 'py-2 text-[12px] gap-2'}`}>
             {playing ? <Pause className={`${compact ? 'w-3 h-3' : 'w-3.5 h-3.5'}`} /> : <Play className={`${compact ? 'w-3 h-3' : 'w-3.5 h-3.5'}`} />}
             {playing ? '일시정지' : '재생'}
           </button>

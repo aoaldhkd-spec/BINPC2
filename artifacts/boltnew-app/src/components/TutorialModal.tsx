@@ -46,7 +46,7 @@ const BASIC: Topic[] = [
         title: '위에 있는 탭',
         tips: [
           { icon: '👥', title: '참여자', desc: '오늘 온 사람들 카드가 여기.' },
-          { icon: '💕', title: '시그널', desc: '미션 전엔 설명서. 열리면 왼쪽 패스 · 오른쪽 시그널.' },
+          { icon: '💕', title: '시그널', desc: '미션 전엔 설명서. 열리면 패스·시그널.' },
           { icon: '📊', title: '통계', desc: '오늘 오간 하트 수랑 비율.' },
           { icon: '🏆', title: '랭킹', desc: '하트 많이 받은 사람 TOP 10.' },
         ],
@@ -63,7 +63,7 @@ const BASIC: Topic[] = [
     wideTips: true,
     tips: [
       { icon: '🤍', title: '보내는 곳', desc: '카드 아래 하트. 오른쪽 위 아님.' },
-      { icon: '8️⃣', title: '개수', desc: '❤️호감 💙친구 💗뜨밤 💚칭찬 · 종류당 2개, 오늘 8개.' },
+      { icon: '8️⃣', title: '개수', desc: '❤️호감 💙친구 💗뜨밤 💚칭찬 · 종류당 2개, 오늘 8개' },
       { icon: '✅', title: '수락되면', desc: '연락처 나눌 수 있음. 채팅방 자동 생성 없음.' },
     ],
     video: [6],
@@ -172,7 +172,9 @@ const ADVANCED: Topic[] = [
   },
 ];
 
-function TipCard({ tip, panel, text, muted, dense, nowrap }: {
+const KR_WRAP = 'break-keep [word-break:keep-all] [line-break:strict] [overflow-wrap:break-word] text-pretty';
+
+function TipCard({ tip, panel, text, muted, dense }: {
   tip: Tip;
   panel: string;
   text: string;
@@ -181,11 +183,13 @@ function TipCard({ tip, panel, text, muted, dense, nowrap }: {
   nowrap?: boolean;
 }) {
   return (
-    <div className={`flex gap-2 rounded-xl border ${dense ? 'px-2.5 py-1.5 min-h-[44px]' : 'px-3 py-2'} ${nowrap ? 'items-center' : 'items-start'} ${panel}`}>
-      <span className={`${dense ? 'text-[13px]' : 'text-[15px]'} leading-none flex-shrink-0 ${nowrap ? '' : 'mt-0.5'}`}>{tip.icon}</span>
+    <div className={`flex gap-1.5 rounded-lg border items-start ${dense ? 'px-1.5 py-1' : 'px-2 py-1.5'} ${panel}`}>
+      <span className={`${dense ? 'text-[12px]' : 'text-[13px]'} leading-none flex-shrink-0 mt-px`}>{tip.icon}</span>
       <div className="min-w-0 flex-1">
-        <p className={`${dense ? 'text-[12px]' : 'text-[13px]'} font-black leading-tight ${nowrap ? 'whitespace-nowrap' : ''} ${text}`}>{tip.title}</p>
-        <p className={`${dense ? 'text-[11px] leading-snug mt-0.5' : 'text-[12px] leading-snug mt-0.5'} ${nowrap ? 'whitespace-nowrap' : 'break-keep'} ${muted}`}>{tip.desc}</p>
+        <p className={`text-[11px] font-black leading-none tracking-tight whitespace-nowrap overflow-hidden text-ellipsis ${text}`}>{tip.title}</p>
+        <p className={`${dense ? 'text-[10px] leading-snug mt-0.5' : 'text-[10px] leading-snug mt-0.5'} ${KR_WRAP} ${muted}`}>
+          {tip.desc.replace(/([.·])\s+/g, '$1\u200b ')}
+        </p>
       </div>
     </div>
   );
@@ -201,7 +205,7 @@ function TipGrid({ tips, panel, text, muted, stack, dense, nowrap }: {
   nowrap?: boolean;
 }) {
   return (
-    <div className={`grid ${dense ? 'gap-1' : 'gap-1.5'} ${stack || tips.length <= 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+    <div className={`grid ${dense ? 'gap-1' : 'gap-1'} ${stack || tips.length <= 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
       {tips.map((tip) => (
         <TipCard key={tip.title} tip={tip} panel={panel} text={text} muted={muted} dense={dense} nowrap={nowrap} />
       ))}
@@ -212,65 +216,65 @@ function TipGrid({ tips, panel, text, muted, stack, dense, nowrap }: {
 function FillerArt({ kind, darkMode }: { kind: FillerKind; darkMode?: boolean }) {
   if (kind === 'guide') {
     return (
-      <div className="relative h-12 w-28 mb-1.5" aria-hidden>
-        <div className={`absolute inset-x-6 top-0.5 h-11 rounded-2xl rotate-[-6deg] ${darkMode ? 'bg-amber-900/40' : 'bg-amber-100'}`} />
-        <div className={`absolute inset-x-5 top-1 h-10 rounded-2xl rotate-[5deg] ${darkMode ? 'bg-teal-800/70' : 'bg-teal-100'}`} />
-        <div className={`absolute inset-x-7 top-1.5 h-9 rounded-2xl flex items-center justify-center ${darkMode ? 'bg-slate-800' : 'bg-white'} shadow-sm`}>
-          <span className="text-[22px] leading-none">🥂</span>
+      <div className="relative h-8 w-20 mb-1" aria-hidden>
+        <div className={`absolute inset-x-4 top-0.5 h-7 rounded-xl rotate-[-6deg] ${darkMode ? 'bg-amber-900/40' : 'bg-amber-100'}`} />
+        <div className={`absolute inset-x-3.5 top-1 h-6 rounded-xl rotate-[5deg] ${darkMode ? 'bg-teal-800/70' : 'bg-teal-100'}`} />
+        <div className={`absolute inset-x-5 top-1 h-6 rounded-xl flex items-center justify-center ${darkMode ? 'bg-slate-800' : 'bg-white'} shadow-sm`}>
+          <span className="text-[16px] leading-none">🥂</span>
         </div>
-        <span className="absolute -right-0.5 top-0 text-[12px]">✨</span>
-        <span className="absolute -left-1 bottom-0 text-[14px]">🌙</span>
+        <span className="absolute -right-0.5 top-0 text-[9px]">✨</span>
+        <span className="absolute -left-0.5 bottom-0 text-[10px]">🌙</span>
       </div>
     );
   }
   if (kind === 'signal') {
     return (
-      <div className="relative h-12 w-28 mb-1.5" aria-hidden>
-        <div className={`absolute left-3 top-1 w-16 h-10 rounded-xl rotate-[-8deg] ${darkMode ? 'bg-rose-950/80' : 'bg-rose-100'}`} />
-        <div className={`absolute left-7 top-0.5 w-16 h-10 rounded-xl rotate-[6deg] flex items-center justify-center ${darkMode ? 'bg-fuchsia-950 ring-1 ring-fuchsia-400/40' : 'bg-white ring-1 ring-rose-200'} shadow-sm`}>
-          <span className="text-[18px] leading-none">💕</span>
+      <div className="relative h-8 w-20 mb-1" aria-hidden>
+        <div className={`absolute left-2 top-1 w-11 h-6 rounded-lg rotate-[-8deg] ${darkMode ? 'bg-rose-950/80' : 'bg-rose-100'}`} />
+        <div className={`absolute left-5 top-0.5 w-11 h-6 rounded-lg rotate-[6deg] flex items-center justify-center ${darkMode ? 'bg-fuchsia-950 ring-1 ring-fuchsia-400/40' : 'bg-white ring-1 ring-rose-200'} shadow-sm`}>
+          <span className="text-[14px] leading-none">💕</span>
         </div>
-        <span className="absolute right-0 top-0 text-[12px]">✨</span>
-        <span className={`absolute left-0 bottom-0 text-[10px] font-black ${darkMode ? 'text-rose-300' : 'text-rose-500'}`}>0/3</span>
+        <span className="absolute right-0 top-0 text-[9px]">✨</span>
+        <span className={`absolute left-0 bottom-0 text-[8px] font-black ${darkMode ? 'text-rose-300' : 'text-rose-500'}`}>0/3</span>
       </div>
     );
   }
   if (kind === 'chat') {
     return (
-      <div className="relative h-12 w-28 mb-1.5" aria-hidden>
-        <div className={`absolute left-1 top-0.5 w-14 h-7 rounded-2xl rounded-bl-sm flex items-center justify-center text-[11px] ${darkMode ? 'bg-slate-700 text-slate-200' : 'bg-white text-slate-600'} shadow-sm`}>안녕</div>
-        <div className={`absolute right-0 bottom-0 w-[4.25rem] h-7 rounded-2xl rounded-br-sm flex items-center justify-center gap-0.5 ${darkMode ? 'bg-indigo-600 text-white' : 'bg-indigo-500 text-white'} shadow-sm`}>
-          <span className="text-[10px] font-black">반가워</span>
-          <span className="text-[11px]">💌</span>
+      <div className="relative h-8 w-20 mb-1" aria-hidden>
+        <div className={`absolute left-0.5 top-0.5 w-10 h-5 rounded-xl rounded-bl-sm flex items-center justify-center text-[8px] ${darkMode ? 'bg-slate-700 text-slate-200' : 'bg-white text-slate-600'} shadow-sm`}>안녕</div>
+        <div className={`absolute right-0 bottom-0 w-12 h-5 rounded-xl rounded-br-sm flex items-center justify-center gap-0.5 ${darkMode ? 'bg-indigo-600 text-white' : 'bg-indigo-500 text-white'} shadow-sm`}>
+          <span className="text-[8px] font-black">반가워</span>
+          <span className="text-[9px]">💌</span>
         </div>
-        <span className="absolute right-1 top-0 text-[13px]">💭</span>
+        <span className="absolute right-0.5 top-0 text-[10px]">💭</span>
       </div>
     );
   }
   if (kind === 'group') {
     return (
-      <div className="relative h-12 w-28 mb-1.5" aria-hidden>
-        <div className={`absolute left-2 top-1.5 w-10 h-9 rounded-2xl rotate-[-8deg] ${darkMode ? 'bg-teal-900/70' : 'bg-teal-100'}`} />
-        <div className={`absolute left-8 top-0.5 w-12 h-10 rounded-2xl flex items-center justify-center ${darkMode ? 'bg-emerald-950 ring-1 ring-emerald-400/40' : 'bg-white ring-1 ring-teal-200'} shadow-sm`}>
-          <span className="text-[18px] leading-none">👥</span>
+      <div className="relative h-8 w-20 mb-1" aria-hidden>
+        <div className={`absolute left-1.5 top-1 w-7 h-6 rounded-xl rotate-[-8deg] ${darkMode ? 'bg-teal-900/70' : 'bg-teal-100'}`} />
+        <div className={`absolute left-6 top-0.5 w-8 h-7 rounded-xl flex items-center justify-center ${darkMode ? 'bg-emerald-950 ring-1 ring-emerald-400/40' : 'bg-white ring-1 ring-teal-200'} shadow-sm`}>
+          <span className="text-[14px] leading-none">👥</span>
         </div>
-        <span className="absolute right-0 top-0 text-[12px]">🍻</span>
-        <span className="absolute right-1 bottom-0 text-[11px]">🚪</span>
+        <span className="absolute right-0 top-0 text-[9px]">🍻</span>
+        <span className="absolute right-0.5 bottom-0 text-[9px]">🚪</span>
       </div>
     );
   }
   if (kind === 'pin') {
     return (
-      <div className="relative h-8 w-20 mb-1 flex flex-col items-center" aria-hidden>
-        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[16px] shadow-sm ${darkMode ? 'bg-amber-900/70 ring-2 ring-amber-500/50' : 'bg-amber-100 ring-2 ring-amber-300'}`}>🔑</div>
+      <div className="relative h-6 w-14 mb-0.5 flex flex-col items-center" aria-hidden>
+        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[13px] shadow-sm ${darkMode ? 'bg-amber-900/70 ring-2 ring-amber-500/50' : 'bg-amber-100 ring-2 ring-amber-300'}`}>🔑</div>
       </div>
     );
   }
   return (
-    <div className="relative h-10 w-24 mb-1" aria-hidden>
-      <div className={`absolute left-1/2 top-0 -translate-x-1/2 w-9 h-10 rounded-[0.85rem] rotate-[-8deg] ${darkMode ? 'bg-violet-900/80' : 'bg-violet-200'}`} />
-      <div className={`absolute left-1/2 top-0 -translate-x-1/2 w-9 h-10 rounded-[0.85rem] rotate-[7deg] flex flex-col items-center justify-center ${darkMode ? 'bg-fuchsia-950 ring-1 ring-fuchsia-400/40' : 'bg-white ring-1 ring-fuchsia-200'} shadow-sm`}>
-        <span className="text-[16px] leading-none">🔄</span>
+    <div className="relative h-7 w-16 mb-0.5" aria-hidden>
+      <div className={`absolute left-1/2 top-0 -translate-x-1/2 w-7 h-7 rounded-lg rotate-[-8deg] ${darkMode ? 'bg-violet-900/80' : 'bg-violet-200'}`} />
+      <div className={`absolute left-1/2 top-0 -translate-x-1/2 w-7 h-7 rounded-lg rotate-[7deg] flex flex-col items-center justify-center ${darkMode ? 'bg-fuchsia-950 ring-1 ring-fuchsia-400/40' : 'bg-white ring-1 ring-fuchsia-200'} shadow-sm`}>
+        <span className="text-[13px] leading-none">🔄</span>
       </div>
     </div>
   );
@@ -286,7 +290,7 @@ const FILLERS: Record<FillerKind, { title: string; line: string; quote: string; 
   },
   signal: {
     title: '먼저 하트 3명',
-    line: '열린 뒤에는 틴더처럼 밀어요. 왼쪽 패스 · 오른쪽 시그널',
+    line: '열린 뒤엔 틴더처럼. 왼쪽 패스 · 오른쪽 시그널',
     quote: '채팅은 서로 하트. 시그널만으로는 안 열려요',
     shell: 'bg-gradient-to-br from-rose-50 via-fuchsia-50 to-white border border-rose-100',
     darkShell: 'bg-gradient-to-br from-slate-800/90 via-rose-950/50 to-slate-900 border border-rose-900/50',
@@ -324,27 +328,26 @@ const FILLERS: Record<FillerKind, { title: string; line: string; quote: string; 
 function FillerPanel({ kind, darkMode }: { kind: FillerKind; darkMode?: boolean }) {
   const f = FILLERS[kind];
   const pin = kind === 'pin';
-  const nowrapFiller = kind === 'group' || kind === 'chat';
   return (
     <div
-      className={`flex-1 ${pin ? 'min-h-[120px]' : 'min-h-[64px]'} flex flex-col items-center justify-center rounded-2xl px-3 ${pin ? 'py-3' : 'py-2'} text-center ${
+      className={`flex-shrink-0 flex flex-col items-center justify-center rounded-xl px-2.5 ${pin ? 'py-2' : 'py-1.5'} text-center ${
         darkMode ? f.darkShell : f.shell
       }`}
     >
       {pin && (
-        <span className="mb-2 inline-flex items-center justify-center px-6 py-2.5 rounded-full text-[16px] font-black tracking-tight text-white shadow-md bg-gradient-to-r from-amber-500 to-orange-500">
+        <span className="mb-1 inline-flex items-center justify-center px-3.5 py-1 rounded-full text-[12px] font-black tracking-tight text-white shadow-sm bg-gradient-to-r from-amber-500 to-orange-500">
           관리자문의
         </span>
       )}
       <FillerArt kind={kind} darkMode={darkMode} />
-      <p className={`${pin ? 'text-[16px]' : 'text-[13px]'} font-black tracking-tight ${nowrapFiller ? 'whitespace-nowrap' : ''} ${darkMode ? 'text-white' : 'text-slate-800'}`}>
+      <p className={`${pin ? 'text-[13px]' : 'text-[12px]'} font-black tracking-tight leading-tight ${KR_WRAP} ${darkMode ? 'text-white' : 'text-slate-800'}`}>
         {f.title}
       </p>
-      <p className={`${pin ? 'text-[13px]' : 'text-[11px]'} ${nowrapFiller ? 'whitespace-nowrap' : 'leading-snug'} mt-0.5 ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-        {f.line}
+      <p className={`${pin ? 'text-[11px]' : 'text-[10px]'} leading-snug mt-0.5 ${KR_WRAP} ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+        {f.line.replace(/([.·])\s+/g, '$1\u200b ')}
       </p>
-      <p className={`${pin ? 'text-[12px]' : 'text-[10px]'} ${nowrapFiller ? 'whitespace-nowrap' : ''} mt-1 ${darkMode ? 'text-white/55' : 'text-slate-500'}`}>
-        {f.quote}
+      <p className={`${pin ? 'text-[10px]' : 'text-[9px]'} leading-snug mt-0.5 ${KR_WRAP} ${darkMode ? 'text-white/55' : 'text-slate-500'}`}>
+        {f.quote.replace(/([.·])\s+/g, '$1\u200b ')}
       </p>
     </div>
   );
@@ -379,26 +382,42 @@ export function TutorialModal({ onClose, darkMode }: {
     setTopicIdx(0);
   };
 
+  const videoBlock = topic.video ? (
+    <div className={`flex-shrink-0 ${videoOnly ? 'h-[12.5rem]' : topic.id === 'settings' ? 'h-[9.75rem]' : 'h-[11rem]'}`}>
+      <TutorialVideo
+        key={`${mode}-${topic.id}`}
+        embedded
+        compact
+        fill
+        sceneIndices={topic.video}
+        onClose={() => setShowVideo(false)}
+      />
+    </div>
+  ) : null;
+
   return (
-    <div className="fixed inset-0 z-[150] flex items-center justify-center p-2 sm:p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-[150] flex items-center justify-center p-2.5 bg-black/70 backdrop-blur-sm"
+      onClick={onClose}
+    >
       <div
-        className={`relative w-full max-w-md h-[min(100dvh-12px,720px)] rounded-3xl shadow-2xl flex flex-col overflow-hidden ${darkMode ? 'bg-slate-900' : 'bg-white'}`}
+        className={`relative w-full max-w-[21.25rem] min-h-0 max-h-[min(100dvh-1.75rem,32.5rem)] rounded-2xl shadow-2xl flex flex-col overflow-hidden ${darkMode ? 'bg-slate-900' : 'bg-white'}`}
         onClick={e => e.stopPropagation()}
       >
         <button onClick={onClose}
-          className="absolute top-2 right-2 z-10 w-8 h-8 flex items-center justify-center rounded-full bg-black/25 hover:bg-black/45 text-white">
-          <X className="w-4 h-4" />
+          className="absolute top-1.5 right-1.5 z-10 w-7 h-7 flex items-center justify-center rounded-full bg-black/25 hover:bg-black/45 text-white">
+          <X className="w-3.5 h-3.5" />
         </button>
 
-        <div className={`bg-gradient-to-br ${topic.color} px-3.5 pt-3 pb-2 pr-12 flex-shrink-0`}>
-          <p className="text-white/80 text-[10px] font-bold tracking-wide">도움말</p>
-          <h2 className="text-white font-black text-[15px] leading-snug mt-0.5">{topic.emoji} {topic.title}</h2>
+        <div className={`bg-gradient-to-br ${topic.color} px-3 pt-2 pb-1.5 pr-10 flex-shrink-0`}>
+          <p className="text-white/80 text-[9px] font-bold tracking-wide">도움말</p>
+          <h2 className={`text-white font-black text-[13px] leading-tight mt-px ${KR_WRAP}`}>{topic.emoji} {topic.title}</h2>
         </div>
 
-        <div className={`flex-shrink-0 px-3 pt-1.5 ${darkMode ? 'bg-slate-900' : 'bg-white'}`}>
-          <div className={`grid grid-cols-2 p-0.5 rounded-2xl ${darkMode ? 'bg-slate-800' : 'bg-gray-100'}`}>
+        <div className={`flex-shrink-0 px-2.5 pt-1.5 ${darkMode ? 'bg-slate-900' : 'bg-white'}`}>
+          <div className={`grid grid-cols-2 p-0.5 rounded-xl ${darkMode ? 'bg-slate-800' : 'bg-gray-100'}`}>
             <button type="button" onClick={() => switchMode('basic')}
-              className={`py-1 rounded-xl text-[11px] font-black transition-all ${
+              className={`py-0.5 rounded-lg text-[10px] font-black transition-all ${
                 mode === 'basic'
                   ? 'bg-white text-gray-900 shadow-sm'
                   : darkMode ? 'text-slate-400' : 'text-gray-500'
@@ -406,7 +425,7 @@ export function TutorialModal({ onClose, darkMode }: {
               기본
             </button>
             <button type="button" onClick={() => switchMode('advanced')}
-              className={`py-1 rounded-xl text-[11px] font-black transition-all ${
+              className={`py-0.5 rounded-lg text-[10px] font-black transition-all ${
                 mode === 'advanced'
                   ? 'bg-white text-gray-900 shadow-sm'
                   : darkMode ? 'text-slate-400' : 'text-gray-500'
@@ -417,11 +436,11 @@ export function TutorialModal({ onClose, darkMode }: {
         </div>
 
         {showChips && (
-          <div className={`flex-shrink-0 px-3 py-1.5 border-b ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
-            <div className="flex gap-1 overflow-x-auto">
+          <div className={`flex-shrink-0 px-2.5 py-1 border-b ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
+            <div className="flex gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {topics.map((t, i) => (
                 <button key={t.id} onClick={() => setTopicIdx(i)}
-                  className={`flex-shrink-0 px-2 py-1 rounded-xl text-[11px] font-bold transition-all active:scale-95 ${
+                  className={`flex-shrink-0 px-1.5 py-0.5 rounded-lg text-[10px] font-bold whitespace-nowrap transition-all active:scale-95 ${
                     i === safeIdx
                       ? `bg-gradient-to-br ${t.color} text-white shadow-sm`
                       : darkMode ? 'text-slate-500 hover:bg-slate-800' : 'text-gray-400 hover:bg-gray-50'
@@ -433,91 +452,63 @@ export function TutorialModal({ onClose, darkMode }: {
           </div>
         )}
 
-        <div className="flex-1 min-h-0 overflow-hidden px-3 py-1.5 flex flex-col gap-1.5">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-2.5 py-1.5 flex flex-col gap-1.5">
           {hasVideo && topic.video ? (
             videoOnly ? (
-              <div className="flex-1 min-h-0">
-                <TutorialVideo
-                  key={`${mode}-${topic.id}`}
-                  embedded
-                  fill
-                  sceneIndices={topic.video}
-                  onClose={() => setShowVideo(false)}
-                />
-              </div>
+              videoBlock
             ) : topic.id === 'settings' ? (
               <>
                 <div className="flex-shrink-0">
                   <TipGrid tips={topic.tips} panel={panel} text={text} muted={muted} dense />
                 </div>
-                <div className="flex-1 min-h-[118px]">
-                  <TutorialVideo
-                    key={`${mode}-${topic.id}`}
-                    embedded
-                    compact
-                    fill
-                    sceneIndices={topic.video}
-                    onClose={() => setShowVideo(false)}
-                  />
-                </div>
+                {videoBlock}
               </>
             ) : (
               <>
                 <div className="flex-shrink-0">
-                  <TipGrid tips={topic.tips} panel={panel} text={text} muted={muted} stack={topic.wideTips} nowrap={topic.nowrapTips} />
+                  <TipGrid tips={topic.tips} panel={panel} text={text} muted={muted} stack={topic.wideTips} />
                 </div>
-                <div className="flex-1 min-h-0">
-                  <TutorialVideo
-                    key={`${mode}-${topic.id}`}
-                    embedded
-                    compact
-                    fill
-                    sceneIndices={topic.video}
-                    onClose={() => setShowVideo(false)}
-                  />
-                </div>
+                {videoBlock}
               </>
             )
           ) : (
-            <div className="flex-1 min-h-0 flex flex-col gap-2 overflow-hidden">
-              <div className="flex-shrink-0 flex flex-col gap-2">
-                {(topic.sections ?? []).map((section) => (
-                  <div key={section.title}>
-                    <p className={`text-[12px] font-black mb-1 ${text}`}>{section.emoji} {section.title}</p>
-                    <TipGrid tips={section.tips} panel={panel} text={text} muted={muted} />
-                    {section.footer && (
-                      <p className={`mt-1 text-[11px] leading-snug ${muted}`}>
-                        {section.footer}
-                      </p>
-                    )}
-                  </div>
-                ))}
-                {topic.tips.length > 0 && (
-                  <TipGrid tips={topic.tips} panel={panel} text={text} muted={muted} stack={topic.wideTips} nowrap={topic.nowrapTips} />
-                )}
-                {topic.footer && (
-                  <p className={`text-[11px] leading-snug ${muted}`}>{topic.footer}</p>
-                )}
-              </div>
+            <div className="flex flex-col gap-1.5">
+              {(topic.sections ?? []).map((section) => (
+                <div key={section.title}>
+                  <p className={`text-[11px] font-black mb-1 ${text}`}>{section.emoji} {section.title}</p>
+                  <TipGrid tips={section.tips} panel={panel} text={text} muted={muted} />
+                  {section.footer && (
+                    <p className={`mt-1 text-[10px] leading-snug ${KR_WRAP} ${muted}`}>
+                      {section.footer.replace(/([.·])\s+/g, '$1\u200b ')}
+                    </p>
+                  )}
+                </div>
+              ))}
+              {topic.tips.length > 0 && (
+                <TipGrid tips={topic.tips} panel={panel} text={text} muted={muted} stack={topic.wideTips} />
+              )}
+              {topic.footer && (
+                <p className={`text-[10px] leading-snug ${KR_WRAP} ${muted}`}>{topic.footer.replace(/([.·])\s+/g, '$1\u200b ')}</p>
+              )}
               {topic.filler && <FillerPanel kind={topic.filler} darkMode={darkMode} />}
             </div>
           )}
         </div>
 
-        <div className={`flex-shrink-0 px-3 py-1.5 flex gap-2 border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
+        <div className={`flex-shrink-0 px-2.5 pt-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] flex gap-1.5 border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
           {safeIdx > 0 ? (
             <button onClick={() => setTopicIdx(safeIdx - 1)}
-              className={`flex-[2] flex items-center justify-center gap-1 py-2 rounded-2xl text-[13px] font-semibold border ${darkMode ? 'border-slate-700 text-slate-300' : 'border-gray-200 text-gray-600'}`}>
-              <ArrowLeft className="w-4 h-4" /> 이전
+              className={`flex-[2] flex items-center justify-center gap-0.5 py-1.5 rounded-xl text-[12px] font-semibold whitespace-nowrap border ${darkMode ? 'border-slate-700 text-slate-300' : 'border-gray-200 text-gray-600'}`}>
+              <ArrowLeft className="w-3.5 h-3.5" /> 이전
             </button>
           ) : mode === 'advanced' ? (
             <button onClick={() => switchMode('basic')}
-              className={`flex-[2] py-2 rounded-2xl text-[13px] font-semibold border ${darkMode ? 'border-slate-700 text-slate-300' : 'border-gray-200 text-gray-600'}`}>
+              className={`flex-[2] py-1.5 rounded-xl text-[12px] font-semibold whitespace-nowrap border ${darkMode ? 'border-slate-700 text-slate-300' : 'border-gray-200 text-gray-600'}`}>
               기본으로
             </button>
           ) : (
             <button onClick={onClose}
-              className={`flex-[2] py-2 rounded-2xl text-[13px] font-semibold border ${darkMode ? 'border-slate-700 text-slate-300' : 'border-gray-200 text-gray-500'}`}>
+              className={`flex-[2] py-1.5 rounded-xl text-[12px] font-semibold whitespace-nowrap border ${darkMode ? 'border-slate-700 text-slate-300' : 'border-gray-200 text-gray-500'}`}>
               닫기
             </button>
           )}
@@ -527,9 +518,9 @@ export function TutorialModal({ onClose, darkMode }: {
               if (mode === 'basic') { switchMode('advanced'); return; }
               onClose();
             }}
-            className={`flex-[3] flex items-center justify-center gap-1 py-2 rounded-2xl text-[13px] font-bold text-white bg-gradient-to-r ${topic.color}`}
+            className={`flex-[3] flex items-center justify-center gap-0.5 py-1.5 rounded-xl text-[12px] font-bold whitespace-nowrap text-white bg-gradient-to-r ${topic.color}`}
           >
-            {isLast && mode === 'advanced' ? '알겠어요' : isLast && mode === 'basic' ? '심화 보기' : <>다음 <ArrowRight className="w-4 h-4" /></>}
+            {isLast && mode === 'advanced' ? '알겠어요' : isLast && mode === 'basic' ? '심화 보기' : <>다음 <ArrowRight className="w-3.5 h-3.5" /></>}
           </button>
         </div>
       </div>
