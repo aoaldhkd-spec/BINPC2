@@ -92,12 +92,14 @@ export function SignalTab({
       myId: currentUserId,
       myProfile: me,
       myIdealMsg: mySignal?.ideal_msg,
+      myFeatureMsg: mySignal?.feature_msg,
       myStatusMsg: mySignal?.status_msg,
       candidates: profiles
         .filter((p) => !skippedIds.has(p.id))
         .map((p) => ({
           profile: p,
           idealMsg: signalByUser.get(p.id)?.ideal_msg,
+          featureMsg: signalByUser.get(p.id)?.feature_msg,
           statusMsg: signalByUser.get(p.id)?.status_msg,
         })),
       blockedIds: blockedUserIds,

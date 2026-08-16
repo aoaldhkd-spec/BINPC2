@@ -1,6 +1,6 @@
 /**
  * 💕 시그널 — 순수 매칭·미션·넛지 헬퍼.
- * 이상형 원문(ideal_msg 자유 텍스트)은 이유 칩에 절대 넣지 않는다.
+ * 이상형·특징 원문(ideal_msg / feature_msg 자유 텍스트)은 이유 칩에 절대 넣지 않는다.
  */
 import { parseProfileInterests } from './interests';
 import { getPositionLabel } from './profile';
@@ -29,7 +29,7 @@ export const SIGNAL_GUIDE_POINTS = [
   '내 이상형 ↔ 상대 특징, 상대 이상형 ↔ 내 특징, 공통 관심사 — 하나만 같아도 추천돼요.',
   '관심/하트 보내기는 참여자 카드에서 쓰던 하트 그대로예요.',
   '서로 시그널을 보내면 채팅을 시작할 수 있어요.',
-  '상대가 적어 둔 이상형 문장은 안 보여요. 몇 개가 맞았는지만 알려줘요.',
+  '상대가 적어 둔 이상형·특징 문장은 안 보여요. 몇 개가 맞았는지만 알려줘요.',
 ] as const;
 export const SIGNAL_GUIDE_CTA = '참여자에게 하트 보내기';
 export const SIGNAL_EMPTY_DECK_TITLE = '지금 추천할 시그널이 없어요';
@@ -145,6 +145,38 @@ export function parseIdealTags(idealMsg: string | null | undefined): string[] {
     if (t && !out.includes(t)) out.push(t);
   }
   return out;
+}
+
+/** feature_msg 형식은 ideal_msg와 동일: "태그1,태그2\n자유텍스트" */
+export const parseFeatureTags = parseIdealTags;
+
+export function encodeSignalMsg(tags: string[], freeText: string): string | null {
+  return [tags.join(','), freeText.trim()].filter(Boolean).join('\n') || null;
+}
+
+/** feature_msg 태그가 있으면 그걸 쓰고, 비어 있을 때만 프로필 휴리스틱. */
+export function resolveFeatureTags(
+  featureMsg: string | null | undefined,
+  profile: FeatureProfile,
+  statusMsg?: string | null,
+): string[] {
+  const explicit = parseFeatureTags(featureMsg);
+  if (explicit.length > 0) return explicit;
+  return collectFeatureTokens(profile, statusMsg);
+}
+
+export function countIdealVsFeatures(
+  idealTags: string[],
+  args: {
+    featureMsg?: string | null;
+    profile: FeatureProfile;
+    statusMsg?: string | null;
+  },
+): number {
+  if (idealTags.length === 0) return 0;
+  const explicit = parseFeatureTags(args.featureMsg);
+  if (explicit.length > 0) return countTagHits(idealTags, explicit);
+  return countIdealTagHits(idealTags, args.profile, args.statusMsg);
 }
 
 function normalizeTag(tag: string): string {
@@ -380,6 +412,8 @@ export function matchSignalPair(args: {
   theirProfile: FeatureProfile & { id: string };
   myIdealMsg?: string | null;
   theirIdealMsg?: string | null;
+  myFeatureMsg?: string | null;
+  theirFeatureMsg?: string | null;
   myStatusMsg?: string | null;
   theirStatusMsg?: string | null;
 }): SignalMatch | null {
@@ -388,8 +422,16 @@ export function matchSignalPair(args: {
   const myInterests = parseProfileInterests(args.myProfile);
   const theirInterests = parseProfileInterests(args.theirProfile);
 
-  const myIdealHits = countIdealTagHits(myIdeal, args.theirProfile, args.theirStatusMsg);
-  const theirIdealHits = countIdealTagHits(theirIdeal, args.myProfile, args.myStatusMsg);
+  const myIdealHits = countIdealVsFeatures(myIdeal, {
+    featureMsg: args.theirFeatureMsg,
+    profile: args.theirProfile,
+    statusMsg: args.theirStatusMsg,
+  });
+  const theirIdealHits = countIdealVsFeatures(theirIdeal, {
+    featureMsg: args.myFeatureMsg,
+    profile: args.myProfile,
+    statusMsg: args.myStatusMsg,
+  });
   const sharedInterestCount = myInterests.filter((t) => theirInterests.includes(t)).length;
 
   // OR: 어느 한 축만 맞아도 추천
@@ -407,6 +449,7 @@ export function matchSignalPair(args: {
 export type RecommendCandidate = {
   profile: FeatureProfile & { id: string };
   idealMsg?: string | null;
+  featureMsg?: string | null;
   statusMsg?: string | null;
 };
 
@@ -415,6 +458,7 @@ export function recommendSignals(args: {
   myId: string;
   myProfile: FeatureProfile;
   myIdealMsg?: string | null;
+  myFeatureMsg?: string | null;
   myStatusMsg?: string | null;
   candidates: RecommendCandidate[];
   blockedIds?: Set<string>;
@@ -441,6 +485,8 @@ export function recommendSignals(args: {
       theirProfile: c.profile,
       myIdealMsg: args.myIdealMsg,
       theirIdealMsg: c.idealMsg,
+      myFeatureMsg: args.myFeatureMsg,
+      theirFeatureMsg: c.featureMsg,
       myStatusMsg: args.myStatusMsg,
       theirStatusMsg: c.statusMsg,
     });
@@ -519,4 +565,11 @@ export function reasonsLeakIdealText(reasons: SignalReasonChip[], idealMsg: stri
     .filter((s) => s.length >= 2);
   const blob = reasons.map((r) => r.label).join(' ');
   return privateBits.some((bit) => blob.includes(bit));
+}
+
+export function reasonsLeakPrivateText(
+  reasons: SignalReasonChip[],
+  ...msgs: Array<string | null | undefined>
+): boolean {
+  return msgs.some((msg) => reasonsLeakIdealText(reasons, msg));
 }

@@ -25,7 +25,7 @@ import { TimerBanner } from './TimerBanner';
 import { RefreshBtn } from './RefreshBtn';
 
 import { AVATAR_CATEGORIES } from '../lib/avatar-catalog';
-import { IDEAL_TAG_GROUPS } from '../lib/signal-match';
+import { IDEAL_TAG_GROUPS, encodeSignalMsg } from '../lib/signal-match';
 import { ProfileCard } from './ProfileCard';
 import { ResetButton } from './ResetButton';
 import { SignalTab } from './SignalTab';
@@ -157,13 +157,15 @@ export function MainScreen({
   // 채팅 탭 내 서브탭: 1:1 채팅 / 단체 채팅
   const [chatSubTab, setChatSubTab] = useState<'direct' | 'group'>('direct');
 
-  // ── 상태·이상형 입력 상태 ──────────────────────────────────────────────────────
+  // ── 상태·이상형·나의 특징 입력 상태 ────────────────────────────────────────────
   const [signalStatusMsg, setSignalStatusMsg] = useState('');
   const [idealTags, setIdealTags] = useState<string[]>([]);
   const [idealFreeText, setIdealFreeText] = useState('');
+  const [featureTags, setFeatureTags] = useState<string[]>([]);
+  const [featureFreeText, setFeatureFreeText] = useState('');
   const [signalSaving, setSignalSaving] = useState(false);
   // 내 user_signals 초기값 동기화
-  // ideal_msg 형식: "태그1,태그2\n기타자유텍스트" (줄바꿈으로 구분)
+  // ideal_msg / feature_msg 형식: "태그1,태그2\n기타자유텍스트" (줄바꿈으로 구분)
   useEffect(() => {
     const my = userSignals.find(s => s.user_id === currentUserId);
     if (my) {
@@ -171,6 +173,9 @@ export function MainScreen({
       const parts = (my.ideal_msg ?? '').split('\n');
       setIdealTags(parts[0] ? parts[0].split(',').map(t => t.trim()).filter(Boolean) : []);
       setIdealFreeText(parts[1] ?? '');
+      const featParts = (my.feature_msg ?? '').split('\n');
+      setFeatureTags(featParts[0] ? featParts[0].split(',').map(t => t.trim()).filter(Boolean) : []);
+      setFeatureFreeText(featParts[1] ?? '');
     }
   }, [userSignals, currentUserId]);
 
@@ -334,13 +339,14 @@ export function MainScreen({
   const [sentHeartsOpen, setSentHeartsOpen] = useState(true);
 
   // ── 프로필 편집 통합 상태 (한 섹션만 열림) ──────────────────────────────────
-  const [profileEditSection, setProfileEditSection] = useState<'avatar' | 'nickname' | 'birth' | 'interests' | 'statusMsg' | 'ideal' | 'contact' | 'blocklist' | null>(null);
+  const [profileEditSection, setProfileEditSection] = useState<'avatar' | 'nickname' | 'birth' | 'interests' | 'statusMsg' | 'ideal' | 'features' | 'contact' | 'blocklist' | null>(null);
   const showBirthEdit = profileEditSection === 'birth';
   const showInterestEdit = profileEditSection === 'interests';
   const showAvatarPicker = profileEditSection === 'avatar';
   const showNicknameEdit = profileEditSection === 'nickname';
   const showStatusMsgEdit = profileEditSection === 'statusMsg';
   const showIdealEdit = profileEditSection === 'ideal';
+  const showFeaturesEdit = profileEditSection === 'features';
   const showContactInEdit = profileEditSection === 'contact';
   const showBlockInEdit = profileEditSection === 'blocklist';
   const [showFortuneBirthEdit, setShowFortuneBirthEdit] = useState(false);
@@ -1303,7 +1309,7 @@ export function MainScreen({
                   setProfileEditSection(null);
                 }
               };
-              const toggleSection = (s: 'avatar' | 'nickname' | 'birth' | 'interests' | 'statusMsg' | 'ideal' | 'contact' | 'blocklist') => {
+              const toggleSection = (s: 'avatar' | 'nickname' | 'birth' | 'interests' | 'statusMsg' | 'ideal' | 'features' | 'contact' | 'blocklist') => {
                 if (s === 'nickname') {
                   // 이미 1회 변경한 경우 열기 차단
                   if ((me as { nickname_changed?: boolean }).nickname_changed) return;
@@ -1648,8 +1654,7 @@ export function MainScreen({
                             setSignalSaving(true);
                             try {
                               const existing = userSignals.find(s => s.user_id === currentUserId);
-                              const ideal_msg = [idealTags.join(','), idealFreeText.trim()].filter(Boolean).join('\n') || null;
-                              const row = { id: existing?.id ?? crypto.randomUUID(), user_id: currentUserId, status_msg: signalStatusMsg.trim() || null, ideal_msg, created_at: existing?.created_at ?? new Date().toISOString() };
+                              const row = { id: existing?.id ?? crypto.randomUUID(), user_id: currentUserId, status_msg: signalStatusMsg.trim() || null, ideal_msg: encodeSignalMsg(idealTags, idealFreeText), feature_msg: encodeSignalMsg(featureTags, featureFreeText), created_at: existing?.created_at ?? new Date().toISOString() };
                               await supabase.from('user_signals').upsert(row as never, { onConflict: 'user_id' });
                               onUserSignalUpdate?.(row as UserSignal);
                               // [Fix-6] 저장 완료 후 섹션 자동 닫기
@@ -1709,8 +1714,7 @@ export function MainScreen({
                             setSignalSaving(true);
                             try {
                               const existing = userSignals.find(s => s.user_id === currentUserId);
-                              const ideal_msg = [idealTags.join(','), idealFreeText.trim()].filter(Boolean).join('\n') || null;
-                              const row = { id: existing?.id ?? crypto.randomUUID(), user_id: currentUserId, status_msg: signalStatusMsg.trim() || null, ideal_msg, created_at: existing?.created_at ?? new Date().toISOString() };
+                              const row = { id: existing?.id ?? crypto.randomUUID(), user_id: currentUserId, status_msg: signalStatusMsg.trim() || null, ideal_msg: encodeSignalMsg(idealTags, idealFreeText), feature_msg: encodeSignalMsg(featureTags, featureFreeText), created_at: existing?.created_at ?? new Date().toISOString() };
                               await supabase.from('user_signals').upsert(row as never, { onConflict: 'user_id' });
                               onUserSignalUpdate?.(row as UserSignal);
                               // [Fix-6] 저장 완료 후 섹션 자동 닫기
@@ -1721,6 +1725,65 @@ export function MainScreen({
                           disabled={signalSaving}
                           className="w-full py-2.5 bg-rose-500 hover:bg-rose-600 text-white font-bold rounded-xl text-sm active:scale-[0.98] transition-all disabled:opacity-40">
                           {signalSaving ? '저장 중...' : '이상형 저장'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ── 나의 특징 ── */}
+                  <div className={`border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
+                    <button onClick={() => toggleSection('features')} className="w-full flex items-center gap-3 px-4 py-3 text-left">
+                      <span className="text-xl flex-shrink-0">🌟</span>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>나의 특징</p>
+                        <p className={`text-[11px] truncate ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
+                          {featureTags.length > 0 ? featureTags.slice(0, 3).join(' · ') + (featureTags.length > 3 ? ' …' : '') : featureFreeText.trim() || '미설정'}
+                        </p>
+                      </div>
+                      <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${showFeaturesEdit ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
+                    </button>
+                    {showFeaturesEdit && (
+                      <div className={`px-4 pb-4 space-y-3 ${darkMode ? 'bg-slate-700/20' : 'bg-gray-50/50'}`}>
+                        {IDEAL_TAG_GROUPS.map(group => (
+                          <div key={group.label}>
+                            <p className={`text-[9px] font-black uppercase tracking-widest mb-1.5 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>{group.label}</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {group.tags.map(tag => {
+                                const selected = featureTags.includes(tag);
+                                return (
+                                  <button key={tag}
+                                    onClick={() => setFeatureTags(prev => selected ? prev.filter(t => t !== tag) : [...prev, tag])}
+                                    className={`px-2.5 py-1 rounded-full text-[11px] font-bold border transition-all active:scale-90 ${selected ? 'text-white border-transparent' : darkMode ? 'text-slate-400 border-slate-600 bg-slate-700/50 hover:border-violet-500/50' : 'text-gray-500 border-gray-200 bg-gray-50 hover:border-violet-300'}`}
+                                    style={selected ? { background: 'linear-gradient(135deg,#7c3aed,#6d28d9)' } : {}}
+                                  >{tag}</button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                        <div>
+                          <p className={`text-[9px] font-black uppercase tracking-widest mb-1.5 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>기타 ✏️</p>
+                          <input type="text" value={featureFreeText} onChange={(e) => setFeatureFreeText(e.target.value.slice(0, 30))}
+                            placeholder="예: 말 걸기 쉬운 편, 텐션 중간" maxLength={30}
+                            className={`w-full px-3 py-2.5 rounded-xl text-sm border focus:outline-none focus:border-violet-400 transition-colors ${darkMode ? 'bg-slate-700 border-slate-500 text-white placeholder:text-slate-500' : 'bg-gray-50 border-gray-200 text-gray-800 placeholder:text-gray-400'}`} />
+                          <p className={`text-[10px] mt-0.5 text-right ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>{featureFreeText.length}/30</p>
+                        </div>
+                        <button
+                          onClick={async () => {
+                            if (!currentUserId || signalSaving) return;
+                            setSignalSaving(true);
+                            try {
+                              const existing = userSignals.find(s => s.user_id === currentUserId);
+                              const row = { id: existing?.id ?? crypto.randomUUID(), user_id: currentUserId, status_msg: signalStatusMsg.trim() || null, ideal_msg: encodeSignalMsg(idealTags, idealFreeText), feature_msg: encodeSignalMsg(featureTags, featureFreeText), created_at: existing?.created_at ?? new Date().toISOString() };
+                              await supabase.from('user_signals').upsert(row as never, { onConflict: 'user_id' });
+                              onUserSignalUpdate?.(row as UserSignal);
+                              setProfileEditSection(null);
+                            } catch (e) { console.error('[feature save]', e); }
+                            finally { setSignalSaving(false); }
+                          }}
+                          disabled={signalSaving}
+                          className="w-full py-2.5 bg-violet-500 hover:bg-violet-600 text-white font-bold rounded-xl text-sm active:scale-[0.98] transition-all disabled:opacity-40">
+                          {signalSaving ? '저장 중...' : '특징 저장'}
                         </button>
                       </div>
                     )}

@@ -6,6 +6,7 @@ import {
   SIGNAL_MISSION_GOAL,
   buildReasonChips,
   countTodayInterestMission,
+  encodeSignalMsg,
   getIdealTagSpec,
   hasInterestHeart,
   isAnyHeart,
@@ -13,10 +14,13 @@ import {
   isNudgeEligible,
   isSignalDeckUnlocked,
   matchSignalPair,
+  parseFeatureTags,
   parseIdealTags,
   rankByMatchWeighted,
   reasonsLeakIdealText,
+  reasonsLeakPrivateText,
   recommendSignals,
+  resolveFeatureTags,
   seoulDateKey,
   type FeatureProfile,
 } from './signal-match';
@@ -60,6 +64,117 @@ describe('isInterestHeart', () => {
 describe('parseIdealTags', () => {
   it('reads first-line tags and ignores free-text line', () => {
     expect(parseIdealTags('다정한,키큰\n비밀 이상형 문장')).toEqual(['다정한', '키큰']);
+  });
+});
+
+describe('feature_msg matching', () => {
+  it('encodes and parses the same chip + free-text format as ideal_msg', () => {
+    expect(encodeSignalMsg(['다정한', '키큰'], '말 걸기 쉬운 편')).toBe('다정한,키큰\n말 걸기 쉬운 편');
+    expect(parseFeatureTags('다정한,키큰\n비밀 특징 문장')).toEqual(['다정한', '키큰']);
+  });
+
+  it('matches my ideal tags against their feature_msg tags', () => {
+    const m = matchSignalPair({
+      myProfile: { ...me, interests: '영화' },
+      theirProfile: { ...themFit, interests: '독서', mbti: 'ISTJ', personality_score: 80 },
+      myIdealMsg: '다정한,키큰',
+      theirFeatureMsg: '다정한,웃음많은\n남에게 안 보여줄 특징문장XYZ',
+    });
+    expect(m).not.toBeNull();
+    expect(m!.myIdealHits).toBe(1);
+    expect(m!.theirIdealHits).toBe(0);
+    expect(m!.reasons.every((r) => !r.label.includes('남에게 안 보여줄 특징문장XYZ'))).toBe(true);
+    expect(reasonsLeakPrivateText(m!.reasons, '다정한,키큰', '다정한,웃음많은\n남에게 안 보여줄 특징문장XYZ')).toBe(false);
+  });
+
+  it('matches their ideal tags against my feature_msg tags', () => {
+    const m = matchSignalPair({
+      myProfile: { ...me, personality_score: 20, interests: '영화' },
+      theirProfile: { ...themFit, interests: '독서' },
+      theirIdealMsg: '탑,MBTI E',
+      myFeatureMsg: '탑,차분한',
+    });
+    expect(m).not.toBeNull();
+    expect(m!.theirIdealHits).toBe(1);
+    expect(m!.myIdealHits).toBe(0);
+  });
+
+  it('uses feature_msg tags instead of profile heuristic when set', () => {
+    const withFeatures = matchSignalPair({
+      myProfile: { personality_score: 50, mbti: 'ISTJ', interests: '영화' },
+      theirProfile: { id: 't', personality_score: 20, mbti: 'ENFP', interests: '운동' },
+      myIdealMsg: 'MBTI E',
+      theirFeatureMsg: '곰상',
+    });
+    expect(withFeatures).toBeNull();
+
+    const fallback = matchSignalPair({
+      myProfile: { personality_score: 50, mbti: 'ISTJ', interests: '영화' },
+      theirProfile: { id: 't', personality_score: 20, mbti: 'ENFP', interests: '독서' },
+      myIdealMsg: 'MBTI E',
+      theirFeatureMsg: null,
+    });
+    expect(fallback?.myIdealHits).toBeGreaterThan(0);
+  });
+
+  it('falls back to personality/MBTI/interests/status only when feature_msg is empty', () => {
+    expect(resolveFeatureTags(null, { personality_score: 80, mbti: 'ENFP', interests: '카페' })).toEqual(
+      expect.arrayContaining(['탑', 'ENFP', '카페']),
+    );
+    expect(resolveFeatureTags('곰상,다정한', { personality_score: 80, mbti: 'ENFP', interests: '카페' })).toEqual([
+      '곰상',
+      '다정한',
+    ]);
+  });
+
+  it('still recommends on shared interests when feature tags miss', () => {
+    const m = matchSignalPair({
+      myProfile: me,
+      theirProfile: themFit,
+      myIdealMsg: '공룡상',
+      theirIdealMsg: '곰상',
+      myFeatureMsg: '여우상',
+      theirFeatureMsg: '토끼상',
+    });
+    expect(m).not.toBeNull();
+    expect(m!.sharedInterestCount).toBe(1);
+    expect(m!.myIdealHits).toBe(0);
+    expect(m!.theirIdealHits).toBe(0);
+  });
+
+  it('never puts feature_msg raw text on reason chips', () => {
+    const secret = '나만아는특징문장XYZ';
+    const m = matchSignalPair({
+      myProfile: me,
+      theirProfile: themFit,
+      myIdealMsg: '운동',
+      theirFeatureMsg: `다정한\n${secret}`,
+    });
+    expect(m).not.toBeNull();
+    expect(reasonsLeakIdealText(m!.reasons, `다정한\n${secret}`)).toBe(false);
+    expect(m!.reasons.every((r) => !r.label.includes(secret))).toBe(true);
+  });
+
+  it('recommendSignals uses featureMsg on candidates', () => {
+    const ranked = recommendSignals({
+      myId: 'me',
+      myProfile: { ...me, interests: '영화' },
+      myIdealMsg: '다정한',
+      myFeatureMsg: '탑',
+      candidates: [
+        {
+          profile: { ...themFit, id: 'ok', interests: '독서', mbti: 'ISTJ', personality_score: 80 },
+          featureMsg: '다정한,키큰',
+        },
+        {
+          profile: { ...themFit, id: 'miss', interests: '독서', mbti: 'ENFP' },
+          featureMsg: '곰상',
+        },
+      ],
+      rng: () => 0,
+    });
+    expect(ranked.map((r) => r.profileId)).toEqual(['ok']);
+    expect(ranked[0].myIdealHits).toBe(1);
   });
 });
 
