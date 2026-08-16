@@ -1,0 +1,329 @@
+/**
+ * 하트·1:1·단톡 A↔B 재발방지. db-security 와 분리해 다른 에이전트와 충돌을 피한다.
+ */
+import { describe, it, expect, vi } from 'vitest';
+import { randomUUID } from 'node:crypto';
+
+const TEST_SSE_SECRET = vi.hoisted(() => {
+  const secret = 'test-sse-secret-for-unit-tests';
+  process.env.SESSION_SECRET = secret;
+  return secret;
+});
+void TEST_SSE_SECRET;
+
+vi.mock('pg', () => {
+  const mockClient = {
+    query: () => Promise.resolve({ rows: [] }),
+    release: () => {},
+    on: () => {},
+  };
+  class MockPool {
+    connect = () => Promise.resolve(mockClient);
+    query = () => Promise.resolve({ rows: [] });
+    on = () => {};
+    end = () => Promise.resolve();
+  }
+  class MockClient {
+    connect = () => Promise.resolve();
+    query = () => Promise.resolve({ rows: [] });
+    on = () => {};
+    end = () => Promise.resolve();
+  }
+  return { default: { Pool: MockPool, Client: MockClient } };
+});
+
+vi.mock('web-push', () => ({
+  default: {
+    setVapidDetails: vi.fn(),
+    sendNotification: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+
+import request from 'supertest';
+import app from '../app.js';
+import { collectBroadcastTargets } from '../routes/db.js';
+import { deterministicChatId } from '../lib/db-chat-ids.js';
+
+async function op(body: Record<string, unknown>) {
+  return request(app)
+    .post('/api/db/op')
+    .set('Content-Type', 'application/json')
+    .send(body);
+}
+
+describe('[Hearts] A likes B bidirectional + ranking strip', () => {
+  it('requesterId 없이 likes INSERT 는 403', async () => {
+    const res = await op({
+      op: 'insert',
+      table: 'likes',
+      payload: { liker_id: 'spoof', liked_id: randomUUID(), heart_type: 'red' },
+    });
+    expect(res.status).toBe(403);
+    expect(res.body.error?.code).toBe('FORBIDDEN');
+  });
+
+  it('A→B 하트: B inbox 는 liker_id, A sent 유지, 랭킹은 liker_id 숨김, 브로드캐스트는 A+B만', async () => {
+    const a = randomUUID();
+    const b = randomUUID();
+    const c = randomUUID();
+    await op({ op: 'insert', table: 'profiles', payload: { id: a, nickname: `ha-${a.slice(0, 8)}` } });
+    await op({ op: 'insert', table: 'profiles', payload: { id: b, nickname: `hb-${b.slice(0, 8)}` } });
+
+    const sent = await op({
+      op: 'insert',
+      table: 'likes',
+      requesterId: a,
+      payload: { liker_id: 'spoof-as-c', liked_id: b, heart_type: 'red', status: 'pending' },
+      selectAfterWrite: true,
+      single: true,
+    });
+    expect(sent.status).toBe(200);
+    expect(sent.body.data?.liker_id).toBe(a);
+    expect(sent.body.data?.liked_id).toBe(b);
+
+    const inboxB = await op({
+      op: 'select',
+      table: 'likes',
+      requesterId: b,
+      filters: [{ type: 'eq', col: 'liked_id', val: b }],
+    });
+    expect(inboxB.status).toBe(200);
+    expect(inboxB.body.data[0]?.liker_id).toBe(a);
+
+    const sentA = await op({
+      op: 'select',
+      table: 'likes',
+      requesterId: a,
+      filters: [{ type: 'eq', col: 'liker_id', val: a }],
+    });
+    expect(sentA.body.data[0]?.liker_id).toBe(a);
+    expect(sentA.body.data[0]?.liked_id).toBe(b);
+
+    const ranking = await op({
+      op: 'select',
+      table: 'likes',
+      requesterId: c,
+    });
+    expect(ranking.status).toBe(200);
+    const row = (ranking.body.data as { liked_id?: string; liker_id?: string }[])
+      .find((r) => r.liked_id === b);
+    expect(row).toBeTruthy();
+    expect(row?.liker_id).toBeUndefined();
+
+    const targets = collectBroadcastTargets('likes', sent.body.data);
+    expect(targets.sort()).toEqual([a, b].sort());
+    expect(targets).not.toContain(c);
+  });
+});
+
+describe('[Chat] persist-before-broadcast + sibling visibility', () => {
+  it('A→B / B→A 는 같은 canonical chat_id 이고 양쪽 메시지가 서로 보인다', async () => {
+    const a = randomUUID();
+    const b = randomUUID();
+    const fromA = await op({
+      op: 'insert',
+      table: 'chats',
+      requesterId: a,
+      payload: { user1_id: a, user2_id: b },
+      selectAfterWrite: true,
+      single: true,
+    });
+    const fromB = await op({
+      op: 'insert',
+      table: 'chats',
+      requesterId: b,
+      payload: { user1_id: b, user2_id: a },
+      selectAfterWrite: true,
+      single: true,
+    });
+    expect(fromA.status).toBe(200);
+    expect(fromB.status).toBe(200);
+    const chatId = fromA.body.data.id as string;
+    expect(fromB.body.data.id).toBe(chatId);
+    expect(chatId).toBe(deterministicChatId(a, b));
+
+    const msgA = await op({
+      op: 'insert',
+      table: 'messages',
+      requesterId: a,
+      payload: { chat_id: chatId, sender_id: a, content: 'from-a', client_id: randomUUID() },
+      selectAfterWrite: true,
+      single: true,
+    });
+    expect(msgA.status).toBe(200);
+
+    const seenByB = await op({
+      op: 'select',
+      table: 'messages',
+      requesterId: b,
+      filters: [{ type: 'eq', col: 'chat_id', val: chatId }],
+    });
+    expect(seenByB.body.data.some((m: { content: string }) => m.content === 'from-a')).toBe(true);
+
+    const msgB = await op({
+      op: 'insert',
+      table: 'messages',
+      requesterId: b,
+      payload: { chat_id: chatId, sender_id: b, content: 'from-b', client_id: randomUUID() },
+      selectAfterWrite: true,
+      single: true,
+    });
+    expect(msgB.status).toBe(200);
+
+    const seenByA = await op({
+      op: 'select',
+      table: 'messages',
+      requesterId: a,
+      filters: [{ type: 'eq', col: 'chat_id', val: chatId }],
+    });
+    const contents = (seenByA.body.data as { content: string }[]).map((m) => m.content);
+    expect(contents).toEqual(expect.arrayContaining(['from-a', 'from-b']));
+
+    const targets = collectBroadcastTargets(
+      'messages',
+      { ...msgA.body.data, chat_user1_id: a, chat_user2_id: b },
+      () => ({ id: chatId, user1_id: a, user2_id: b }),
+    );
+    expect(targets.sort()).toEqual([a, b].sort());
+  });
+
+  it('duplicate client_id INSERT 는 한 행만 남긴다 (SSE dedupe 전제)', async () => {
+    const a = randomUUID();
+    const b = randomUUID();
+    const chat = await op({
+      op: 'insert',
+      table: 'chats',
+      requesterId: a,
+      payload: { user1_id: a, user2_id: b },
+      selectAfterWrite: true,
+      single: true,
+    });
+    const chatId = chat.body.data.id as string;
+    const clientId = randomUUID();
+    const first = await op({
+      op: 'insert',
+      table: 'messages',
+      requesterId: a,
+      payload: { chat_id: chatId, sender_id: a, content: 'once', client_id: clientId },
+      selectAfterWrite: true,
+      single: true,
+    });
+    const retry = await op({
+      op: 'insert',
+      table: 'messages',
+      requesterId: a,
+      payload: { chat_id: chatId, sender_id: a, content: 'once', client_id: clientId },
+      selectAfterWrite: true,
+      single: true,
+    });
+    expect(first.status).toBe(200);
+    expect(retry.status).toBe(200);
+    expect(retry.body.data.id).toBe(first.body.data.id);
+
+    const list = await op({
+      op: 'select',
+      table: 'messages',
+      requesterId: b,
+      filters: [{ type: 'eq', col: 'chat_id', val: chatId }],
+    });
+    const same = (list.body.data as { client_id: string }[]).filter((m) => m.client_id === clientId);
+    expect(same).toHaveLength(1);
+  });
+});
+
+describe('[Group] max 3 + unlimited members + both see message', () => {
+  async function seedGroup(id: string, name: string) {
+    const res = await op({
+      op: 'insert',
+      table: 'group_chats',
+      payload: { id, name, interest_tag: name.slice(0, 10), age_group: null, max_members: 999999, room_kind: 'test' },
+      requesterId: 'seed-admin',
+      selectAfterWrite: true,
+      single: true,
+    });
+    expect(res.status).toBe(200);
+    return id;
+  }
+
+  it('4번째 단톡 입장은 거부하고, 방 인원 8명 제한은 없다', async () => {
+    const uid = `inv-max-${randomUUID()}`;
+    const ids = await Promise.all([
+      seedGroup(`inv-a-${uid}`, '방A'),
+      seedGroup(`inv-b-${uid}`, '방B'),
+      seedGroup(`inv-c-${uid}`, '방C'),
+      seedGroup(`inv-d-${uid}`, '방D'),
+    ]);
+    for (let i = 0; i < 3; i++) {
+      const join = await op({
+        op: 'insert',
+        table: 'group_participants',
+        requesterId: uid,
+        payload: { group_id: ids[i], user_id: uid },
+      });
+      expect(join.status).toBe(200);
+    }
+    const fourth = await op({
+      op: 'insert',
+      table: 'group_participants',
+      requesterId: uid,
+      payload: { group_id: ids[3], user_id: uid },
+    });
+    expect(fourth.status).toBe(400);
+    expect(fourth.body.error?.code).toBe('GROUP_LIMIT');
+
+    const crowdId = `inv-crowd-${randomUUID()}`;
+    await seedGroup(crowdId, '만원');
+    for (let i = 0; i < 9; i++) {
+      const member = `inv-c9-${i}-${crowdId.slice(0, 6)}`;
+      const join = await op({
+        op: 'insert',
+        table: 'group_participants',
+        requesterId: member,
+        payload: { group_id: crowdId, user_id: member },
+      });
+      expect(join.status).toBe(200);
+    }
+  });
+
+  it('단톡 메시지는 양쪽 참여자가 SELECT 로 본다', async () => {
+    const a = `ga-${randomUUID()}`;
+    const b = `gb-${randomUUID()}`;
+    const gid = `gmsg-${randomUUID()}`;
+    await seedGroup(gid, '양방향');
+    expect((await op({
+      op: 'insert', table: 'group_participants', requesterId: a,
+      payload: { group_id: gid, user_id: a },
+    })).status).toBe(200);
+    expect((await op({
+      op: 'insert', table: 'group_participants', requesterId: b,
+      payload: { group_id: gid, user_id: b },
+    })).status).toBe(200);
+
+    const sent = await op({
+      op: 'insert',
+      table: 'group_messages',
+      requesterId: a,
+      payload: { group_id: gid, sender_id: a, content: 'group-hi', client_id: randomUUID() },
+      selectAfterWrite: true,
+      single: true,
+    });
+    expect(sent.status).toBe(200);
+
+    const asB = await op({
+      op: 'select',
+      table: 'group_messages',
+      requesterId: b,
+      filters: [{ type: 'eq', col: 'group_id', val: gid }],
+    });
+    expect(asB.status).toBe(200);
+    expect((asB.body.data as { content: string }[]).some((m) => m.content === 'group-hi')).toBe(true);
+
+    const asA = await op({
+      op: 'select',
+      table: 'group_messages',
+      requesterId: a,
+      filters: [{ type: 'eq', col: 'group_id', val: gid }],
+    });
+    expect((asA.body.data as { content: string }[]).some((m) => m.content === 'group-hi')).toBe(true);
+  });
+});

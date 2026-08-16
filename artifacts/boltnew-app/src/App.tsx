@@ -22,6 +22,7 @@ import {
   readNudgeCount,
   writeNudgeCount,
 } from './lib/signal-match';
+import { isIncomingHeartToastTarget, MUTUAL_SIGNAL_TOAST } from './lib/heart-toast';
 import { SignalNudgeBanner } from './components/SignalNudgeBanner';
 // ─── 분리된 타입·유틸·컴포넌트 imports ────────────────────────────────────────
 import type {
@@ -817,7 +818,7 @@ function App() {
           // 내가 관심을 보냈고 상대도 이미 관심을 보냈으면 서로 시그널 (수신자 전용 토스트와 대칭)
           if (isInterestHeart(row.heart_type) && isInterestHeart(receivedHeartTypesRef.current.get(row.liked_id))) {
             const nick = profilesRef.current.find(p => p.id === row.liked_id)?.nickname ?? '상대방';
-            setBottomNotif({ type: 'signal', signalKind: 'mutual', nickname: nick, profileId: row.liked_id, message: '💕 서로 시그널을 보내면 채팅을 시작할 수 있어요!' });
+            setBottomNotif({ type: 'signal', signalKind: 'mutual', nickname: nick, profileId: row.liked_id, message: MUTUAL_SIGNAL_TOAST });
           }
         })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'likes', filter: `liker_id=eq.${currentUserId}` },
@@ -840,10 +841,10 @@ function App() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'likes', filter: `liked_id=eq.${currentUserId}` },
         async (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
           try {
-            const row = payload.new as { liker_id?: string; heart_type: HeartType };
+            const row = payload.new as { liker_id?: string; liked_id?: string; heart_type: HeartType };
             const likerId = row.liker_id;
-            // 수신자 전용 — 보낸 사람 토스트 방지 (필터가 깨져도 가드)
-            if (likerId && likerId === currentUserId) return;
+            // 수신자 전용 — 보낸 사람·제3자 토스트 방지 (필터가 깨져도 가드)
+            if (!isIncomingHeartToastTarget(currentUserId, { liker_id: likerId, liked_id: row.liked_id ?? currentUserId })) return;
             if (likerId) {
               setReceivedHeartTypes(prev => new Map(prev).set(likerId, row.heart_type ?? 'red'));
               const { data } = await supabase.from('profiles').select('*').eq('id', likerId).maybeSingle();
@@ -856,7 +857,7 @@ function App() {
               const heartNick = data?.nickname ?? '누군가';
               const ht = row.heart_type ?? 'red';
               if (isInterestHeart(ht) && hasInterestHeart(sentHeartsPerPersonRef.current.get(likerId))) {
-                setBottomNotif({ type: 'signal', signalKind: 'mutual', nickname: heartNick, profileId: likerId, message: '💕 서로 시그널을 보내면 채팅을 시작할 수 있어요!' });
+                setBottomNotif({ type: 'signal', signalKind: 'mutual', nickname: heartNick, profileId: likerId, message: MUTUAL_SIGNAL_TOAST });
               } else if (isInterestHeart(ht)) {
                 setBottomNotif({ type: 'signal', signalKind: 'received', nickname: heartNick, profileId: likerId, message: `💕 ${heartNick}님이 회원님에게 관심을 보냈어요.` });
               } else {

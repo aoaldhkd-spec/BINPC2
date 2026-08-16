@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import type { HeartType } from '../lib/constants';
 import { heartMeta } from '../lib/constants';
+import { MUTUAL_SIGNAL_TOAST } from '../lib/heart-toast';
 
 export type BottomNotificationData = {
   type: 'heart' | 'chat' | 'message' | 'contact' | 'system' | 'signal';
@@ -37,7 +38,7 @@ export function BottomNotification({
   }, [notification]);
 
   return (
-    <div className="fixed bottom-24 left-0 right-0 z-[35] flex justify-center px-4 pointer-events-none">
+    <div className="fixed bottom-24 left-0 right-0 z-[10050] flex justify-center px-4 pointer-events-none">
       <div className={`px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 pointer-events-auto cursor-pointer ${notification.type === 'heart' || notification.type === 'signal' ? 'bg-rose-500' : notification.type === 'contact' ? 'bg-emerald-500' : notification.type === 'system' ? 'bg-amber-600' : 'bg-cyan-600'}`}>
         <span className="text-lg">{notification.type === 'signal' ? '💕' : notification.type === 'heart' ? (notification.heartType ? heartMeta(notification.heartType).emoji : '❤️') : notification.type === 'contact' ? '📱' : notification.type === 'system' ? '💛' : '💬'}</span>
         <div className="flex-1">
@@ -75,7 +76,7 @@ export function BottomNotification({
               <p className="text-sm font-bold text-white">
                 {notification.message
                   ?? (notification.signalKind === 'mutual'
-                    ? '💕 서로 시그널을 보내면 채팅을 시작할 수 있어요!'
+                    ? MUTUAL_SIGNAL_TOAST
                     : `💕 ${notification.nickname || '누군가'}님이 회원님에게 관심을 보냈어요.`)}
               </p>
               {notification.signalKind === 'mutual' && onStartChat && (

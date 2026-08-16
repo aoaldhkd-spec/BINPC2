@@ -2589,9 +2589,12 @@ router.post('/op', async (req: Request, res: Response) => {
             return res.status(403).json({ data: null, error: { message: 'Forbidden: not a chat participant', code: 'FORBIDDEN' } });
           }
         }
-        // likes: liker_id를 requesterId로 강제 설정 (클라이언트 조작 방지)
-        // omit 공격(liker_id 없이 전송) + mismatch 공격 동시 차단
-        if (table === 'likes' && requesterId) {
+        // likes: requesterId 필수 + liker_id를 세션 사용자로 강제 (omit·mismatch 차단)
+        if (table === 'likes') {
+          if (!requesterId) {
+            logger.warn({ ip: req.ip }, '[SECURITY] IDOR: likes INSERT without requesterId blocked');
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+          }
           effectiveRow = { ...effectiveRow, liker_id: requesterId };
         }
         // profile_views: viewer_id를 requesterId로 강제 (omit·mismatch 차단). 자기 자신 방문은 기록하지 않음.
