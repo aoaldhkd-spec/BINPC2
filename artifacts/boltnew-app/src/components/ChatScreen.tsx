@@ -8,7 +8,7 @@ import { genAvatar } from '../lib/profile';
 import { getCompatibility, getOhaengCompat, getNumerologyCompat, getMbtiCompat, getTodayFortune } from '../lib/fortune';
 import { hasBannedWord } from '../lib/utils';
 import type { Message, Profile, ContactShare } from '../types/app';
-import { applyPartnerReadReceipt } from '../lib/chat-reducers';
+import { computeMyUnreadIds } from '../lib/chat-reducers';
 import {
   LONG_PRESS_MS,
   MENU_CLICK_GUARD_MS,
@@ -160,23 +160,18 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   const partnerIdRef = useRef(otherProfile?.id);
   partnerIdRef.current = otherProfile?.id;
   const [myUnreadIds, setMyUnreadIds] = useState<Set<string>>(new Set());
+  // undefined = 상대 read_at 미조회. null = 조회됨·기록 없음. string = 마지막 읽은 시각.
+  const [partnerReadAt, setPartnerReadAt] = useState<string | null | undefined>(undefined);
+  const partnerReadAtRef = useRef<string | null | undefined>(undefined);
+  partnerReadAtRef.current = partnerReadAt;
 
   const applyPartnerReadToUi = useCallback((readerId: string | undefined, readAt: string | undefined) => {
-    setMyUnreadIds(prev => {
-      const next = applyPartnerReadReceipt(
-        prev,
-        messagesRef.current,
-        currentUserId,
-        readerId,
-        readAt,
-        partnerIdRef.current,
-      );
-      if (next.size !== prev.size) {
-        for (const id of prev) {
-          if (!next.has(id)) initialMsgIds.current.add(id);
-        }
-      }
-      return next.size === prev.size ? prev : next;
+    if (!readerId || readerId === currentUserId) return;
+    if (partnerIdRef.current && readerId !== partnerIdRef.current) return;
+    if (!readAt) return;
+    setPartnerReadAt(prev => {
+      if (prev === undefined || prev === null) return readAt;
+      return readAt > prev ? readAt : prev;
     });
   }, [currentUserId]);
 
@@ -186,6 +181,7 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   useEffect(() => {
     openedAtRef.current = Date.now();
     initialMsgIds.current = new Set();
+    setPartnerReadAt(undefined);
     setMyUnreadIds(new Set());
     setReplyTo(null);
     setContextMenu(null);
@@ -311,17 +307,44 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   }, [showMyInfoEdit, currentUserProfile]);
 
   useEffect(() => {
-    const openedAt = openedAtRef.current - 2_000;
-    const newMyMsgs = messages.filter(m => {
-      if (m.sender_id !== currentUserId) return false;
-      if (initialMsgIds.current.has(m.id)) return false;
-      const t = new Date(m.created_at).getTime();
-      return Number.isFinite(t) && t >= openedAt;
+    const next = computeMyUnreadIds(
+      messages,
+      currentUserId,
+      partnerReadAt,
+      openedAtRef.current,
+    );
+    setMyUnreadIds(prev => {
+      if (prev.size === next.size && [...prev].every(id => next.has(id))) return prev;
+      return next;
     });
-    if (newMyMsgs.length > 0) {
-      setMyUnreadIds(prev => new Set([...prev, ...newMyMsgs.map(m => m.id)]));
-    }
-  }, [messages, currentUserId]);
+  }, [messages, currentUserId, partnerReadAt]);
+
+  // 방 입장 즉시 상대 read_at 조회 — 재입장 때도 '1'이 맞게 남거나 지워지게.
+  useEffect(() => {
+    if (!chatId || !otherProfile?.id) return;
+    const partnerId = otherProfile.id;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { data } = await supabase
+          .from('chat_reads')
+          .select('read_at, chat_id')
+          .eq('reader_id', partnerId)
+          .eq('chat_id', chatId);
+        if (cancelled) return;
+        const rows = Array.isArray(data) ? data : (data ? [data] : []);
+        let best: string | undefined;
+        for (const r of rows as { read_at?: string }[]) {
+          if (r?.read_at && (!best || r.read_at > best)) best = r.read_at;
+        }
+        if (best) applyPartnerReadToUi(partnerId, best);
+        else setPartnerReadAt(prev => (prev === undefined ? null : prev));
+      } catch {
+        if (!cancelled) setPartnerReadAt(prev => (prev === undefined ? null : prev));
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [chatId, otherProfile?.id, applyPartnerReadToUi]);
 
   useEffect(() => {
     if (!chatId) return;
@@ -353,13 +376,15 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
         const { data } = await supabase
           .from('chat_reads')
           .select('read_at, chat_id')
-          .eq('reader_id', partnerId);
+          .eq('reader_id', partnerId)
+          .eq('chat_id', chatId);
         const rows = Array.isArray(data) ? data : (data ? [data] : []);
         let best: string | undefined;
         for (const r of rows as { read_at?: string }[]) {
           if (r?.read_at && (!best || r.read_at > best)) best = r.read_at;
         }
         if (best) applyPartnerReadToUi(partnerId, best);
+        else if (partnerReadAtRef.current === undefined) setPartnerReadAt(null);
       } catch (_) { /* 네트워크 오류는 무시 */ }
     };
     checkPartnerRead();

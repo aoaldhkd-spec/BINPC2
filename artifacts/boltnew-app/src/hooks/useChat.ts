@@ -46,7 +46,7 @@ import type { Profile, Message, Chat, View } from '../types/app';
 import { HeartType } from '../lib/constants';
 import { applySseInsert, applySseToRoomCaches, applyLoadMessages, messageBelongsToChat } from '../lib/chat-reducers';
 import { chatPairKey, dedupeChatList, pickCanonicalChat } from '../lib/chat-pair';
-import { buildChatIdAliasMap, incrementUnreadForIncoming, isIncomingChatToastTarget } from '../lib/chat-unread';
+import { buildChatIdAliasMap, incrementUnreadForIncoming, isIncomingChatToastTarget, remapUnreadToCanonical, clearUnreadForChat } from '../lib/chat-unread';
 import { diag } from '../lib/diag';
 
 interface UseChatDeps {
@@ -418,7 +418,7 @@ export function useChat({
 
     // 채팅방 열 때: unread 카운트 낙관적 삭제 + 전체 배지 감소
     // upsert 실패 시 뱃지 복원 (catch) — 서버 상태와 UI 불일치 방지
-    setUnreadChatCounts(prev => { const n = { ...prev }; delete n[chatId]; return n; });
+    setUnreadChatCounts(prev => clearUnreadForChat(prev, chatId, siblingToCanonicalRef.current));
     // 낙관적 읽음 보호: upsert 완료 전 syncUnreadCounts 가 이 방을 unread 로 되돌리지 않게
     recentlyRead.set(chatId, Date.now());
 
@@ -606,7 +606,7 @@ export function useChat({
       chatIdRef.current = cachedId;
       rememberRoomChatId(cachedId);
       setChatId(cachedId);
-      setUnreadChatCounts(prev => { const n = { ...prev }; delete n[cachedId]; return n; });
+      setUnreadChatCounts(prev => clearUnreadForChat(prev, cachedId, siblingToCanonicalRef.current));
     } else {
       chatIdRef.current = null;
       setChatId(null);
@@ -634,11 +634,14 @@ export function useChat({
 
       const doOpen = async (): Promise<string | null> => {
         const { data: pairChats, error: listErr } = await supabase
-          .from('chats').select('*').eq('user1_id', user1Id).eq('user2_id', user2Id);
+          .from('chats').select('*')
+          .or(`user1_id.eq.${user1Id},user2_id.eq.${user1Id}`);
         if (listErr) console.error('[openChat] 조회 오류:', listErr.message);
 
         let resolvedChatId: string | null = null;
-        const existingList = (pairChats ?? []) as Chat[];
+        const existingList = ((pairChats ?? []) as Chat[]).filter(
+          c => chatPairKey(c.user1_id, c.user2_id) === pairKey,
+        );
         if (existingList.length > 0) {
           resolvedChatId = pickCanonicalChat(existingList)?.id ?? existingList[0].id;
         } else {
@@ -659,8 +662,11 @@ export function useChat({
               : String(createErr ?? 'unknown');
             console.error('[openChat] 채팅방 생성 실패:', errMsg);
             const { data: retryChats } = await supabase
-              .from('chats').select('*').eq('user1_id', user1Id).eq('user2_id', user2Id);
-            const retryList = (retryChats ?? []) as Chat[];
+              .from('chats').select('*')
+              .or(`user1_id.eq.${user1Id},user2_id.eq.${user1Id}`);
+            const retryList = ((retryChats ?? []) as Chat[]).filter(
+              c => chatPairKey(c.user1_id, c.user2_id) === pairKey,
+            );
             if (retryList.length > 0) {
               resolvedChatId = pickCanonicalChat(retryList)?.id ?? retryList[0].id;
             }
@@ -672,9 +678,14 @@ export function useChat({
       const openPromise = doOpen();
       openChatInflightRef.current.set(pairKey, openPromise);
       let resolvedChatId: string | null;
+      let timeoutId: ReturnType<typeof setTimeout> | null = null;
       try {
-        resolvedChatId = await openPromise;
+        const timeoutPromise = new Promise<null>((resolve) => {
+          timeoutId = setTimeout(() => resolve(null), 12_000);
+        });
+        resolvedChatId = await Promise.race([openPromise, timeoutPromise]);
       } finally {
+        if (timeoutId) clearTimeout(timeoutId);
         if (openChatInflightRef.current.get(pairKey) === openPromise) {
           openChatInflightRef.current.delete(pairKey);
         }
@@ -682,6 +693,8 @@ export function useChat({
       if (gen !== openChatGenRef.current) return;
 
       if (!resolvedChatId) {
+        if (cachedId) return;
+        openChatGenRef.current += 1;
         console.error('[openChat] 채팅방 ID 결정 불가 — 메인으로 복귀');
         chatIdRef.current = null;
         setChatId(null);
@@ -699,7 +712,7 @@ export function useChat({
       // ここで count を読んでから両方まとめてクリアする (effect は no-op になるが二重減算は発生しない).
       if (resolvedChatId !== cachedId) {
         setChatId(resolvedChatId);
-        setUnreadChatCounts(prev => { const n = { ...prev }; delete n[resolvedChatId]; return n; });
+        setUnreadChatCounts(prev => clearUnreadForChat(prev, resolvedChatId, siblingToCanonicalRef.current));
       }
     } catch (err) {
       console.error('[openChat] 예외:', err);
@@ -732,18 +745,17 @@ export function useChat({
       if (!data) return;
       if (gen !== syncGenRef.current) return; // JSON 파싱 사이에 더 최신 요청이 시작됐으면 버림
       setUnreadChatCounts(prev => {
-        const next = { ...data };
-        // 현재 열려 있는 채팅방(sibling alias 포함)은 항상 unread 제외
-        if (chatIdRef.current) delete next[chatIdRef.current];
-        for (const alias of roomChatIdsRef.current) delete next[alias];
-        // 낙관적 읽음 보호: upsert 완료 전(최대 30초)에만 서버 stale count 복원 차단
+        const alias = siblingToCanonicalRef.current;
+        let next = remapUnreadToCanonical(data, alias);
+        const active = chatIdRef.current;
+        if (active) next = clearUnreadForChat(next, active, alias);
+        for (const aliasId of roomChatIdsRef.current) {
+          next = clearUnreadForChat(next, aliasId, alias);
+        }
         const now = Date.now();
         for (const [cid, ts] of recentlyReadRef.current) {
-          if (now - ts < 30_000) {
-            delete next[cid];
-          } else {
-            recentlyReadRef.current.delete(cid); // 만료된 항목 정리
-          }
+          if (now - ts < 30_000) next = clearUnreadForChat(next, cid, alias);
+          else recentlyReadRef.current.delete(cid);
         }
         const prevKeys = Object.keys(prev);
         const nextKeys = Object.keys(next);

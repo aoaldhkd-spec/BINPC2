@@ -80,6 +80,38 @@ export function applyPartnerReadReceipt(
   return next;
 }
 
+/**
+ * 내 말풍선 '1' — 상대 read_at 기준으로 매번 다시 계산.
+ * 세션 입장 시각만 쓰면 재입장 때 '1'이 사라지고, 낙관적→실 id 교체 때 다시 붙는다.
+ * partnerReadAt === undefined 이면 아직 미조회: 이번 방문에서 보낸 것만 표시 (깜빡임 방지).
+ */
+export function computeMyUnreadIds(
+  messages: readonly Message[],
+  currentUserId: string,
+  partnerReadAt: string | null | undefined,
+  openedAtMs: number,
+): Set<string> {
+  const next = new Set<string>();
+  const known = partnerReadAt !== undefined;
+  const readTime = typeof partnerReadAt === 'string' ? new Date(partnerReadAt).getTime() : NaN;
+  const visitFloor = openedAtMs - 2_000;
+  for (const m of messages) {
+    if (m.sender_id !== currentUserId) continue;
+    if (m.id.startsWith('__opt_')) {
+      next.add(m.id);
+      continue;
+    }
+    const t = new Date(m.created_at).getTime();
+    if (!Number.isFinite(t)) continue;
+    if (known) {
+      if (!partnerReadAt || !Number.isFinite(readTime) || t > readTime) next.add(m.id);
+    } else if (t >= visitFloor) {
+      next.add(m.id);
+    }
+  }
+  return next;
+}
+
 export function applySseInsert(
   prev: Message[],
   newMsg: Message,

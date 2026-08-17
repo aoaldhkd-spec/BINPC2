@@ -69,6 +69,20 @@ export function incrementUnreadForIncoming(
   return { ...counts, [key]: (counts[key] ?? 0) + 1 };
 }
 
+/** 열린 방(sibling 별칭 포함)의 미읽음 키를 전부 지운다. */
+export function clearUnreadForChat(
+  counts: Record<string, number> | undefined | null,
+  chatId: string,
+  alias?: ReadonlyMap<string, string> | null,
+): Record<string, number> {
+  const next: Record<string, number> = { ...(counts ?? {}) };
+  const key = canonicalChatId(chatId, alias);
+  for (const id of Object.keys(next)) {
+    if (id === chatId || id === key || canonicalChatId(id, alias) === key) delete next[id];
+  }
+  return next;
+}
+
 /** 1:1 메시지 토스트는 수신자만. 보낸 사람·열린 방·제3자는 없음. */
 export function isIncomingChatToastTarget(
   currentUserId: string | null | undefined,

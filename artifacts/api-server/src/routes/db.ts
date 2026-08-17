@@ -488,6 +488,13 @@ function ts(): string {
   return new Date().toISOString();
 }
 
+/** chat_reads.write 는 서버 시계 — 폰 시계가 느리면 말풍선 '1'이 안 지워진다. */
+function stampChatReadAt(row: Record<string, unknown>): void {
+  const now = ts();
+  const provided = String(row.read_at ?? '');
+  row.read_at = provided > now ? provided : now;
+}
+
 function koreanDateMMDD(): string {
   const now = new Date();
   // 새벽 3시 이전(00:00~02:59 KST)은 전날로 취급 — 3시간을 빼고 날짜를 계산
@@ -3227,7 +3234,17 @@ router.post('/op', async (req: Request, res: Response) => {
           const gid = String(r.group_id);
           return myGroupIds.has(gid) || myGroupIds.has(resolveMergedGroupId(gid));
         });
-        const gmResult = applyFilters(gmScope, normalizedFilters);
+        const gmFilters = normalizedFilters.map(f => {
+          if (f.type === 'eq' && f.col === 'group_id') {
+            return { ...f, val: resolveMergedGroupId(String(f.val)) };
+          }
+          if (f.type === 'in' && f.col === 'group_id') {
+            const vals = [...new Set((f.vals as unknown[]).map(v => resolveMergedGroupId(String(v))))];
+            return { ...f, vals };
+          }
+          return f;
+        });
+        const gmResult = applyFilters(gmScope, gmFilters);
         for (const { col, asc } of safeOrders) {
           gmResult.sort((a, b) => {
             const av = a[col]; const bv = b[col];
@@ -3518,6 +3535,7 @@ router.post('/op', async (req: Request, res: Response) => {
             logger.warn({ requesterId, chatId: effectiveRow.chat_id, ip: req.ip }, '[SECURITY] IDOR: chat_reads INSERT by non-participant blocked');
             return res.status(403).json({ data: null, error: { message: 'Forbidden: not a chat participant', code: 'FORBIDDEN' } });
           }
+          stampChatReadAt(effectiveRow);
         }
         // likes: requesterId 필수 + liker_id를 세션 사용자로 강제 (omit·mismatch 차단)
         if (table === 'likes') {
@@ -3954,6 +3972,7 @@ router.post('/op', async (req: Request, res: Response) => {
         }
         patch = { ...patch, pin_code: pinResult.pin };
       }
+      if (table === 'chat_reads') stampChatReadAt(patch);
       const updated: Record<string, unknown>[] = [];
       for (let i = 0; i < tableData.length; i++) {
         if (applyFilters([tableData[i]], normalizedFilters).length) {
@@ -4062,6 +4081,7 @@ router.post('/op', async (req: Request, res: Response) => {
             logger.warn({ requesterId, chatId: row.chat_id }, '[SECURITY] IDOR: UPSERT chat_reads by non-participant blocked');
             return res.status(403).json({ data: null, error: { message: 'Forbidden: not a chat participant', code: 'FORBIDDEN' } });
           }
+          stampChatReadAt(row);
         }
       }
       if (requesterId) {

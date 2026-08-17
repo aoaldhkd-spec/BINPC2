@@ -5,6 +5,7 @@ import {
   isIncomingChatToastTarget,
   remapUnreadToCanonical,
   unreadForChat,
+  clearUnreadForChat,
 } from './chat-unread';
 
 const pair = [
@@ -34,6 +35,14 @@ describe('A↔B unread counts vs sibling chat_id', () => {
     expect(unreadForChat(remapped, 'canonical', alias)).toBe(3);
     expect(remapped.other).toBe(4);
     expect(Object.values(remapped).reduce((a, b) => a + b, 0)).toBe(7);
+  });
+
+  it('clears sibling and canonical keys together when the room is opened', () => {
+    const alias = buildChatIdAliasMap(pair);
+    const next = clearUnreadForChat({ 'old-sibling': 2, canonical: 1, other: 4 }, 'old-sibling', alias);
+    expect(next['old-sibling']).toBeUndefined();
+    expect(next.canonical).toBeUndefined();
+    expect(next.other).toBe(4);
   });
 });
 

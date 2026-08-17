@@ -152,7 +152,16 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
         const key = resolveCatalogGroupId(enriched, gid);
         remappedUnread[key] = (remappedUnread[key] ?? 0) + n;
       }
-      if (activeGroupIdRef.current) delete remappedUnread[activeGroupIdRef.current];
+      const active = activeGroupIdRef.current;
+      if (active) {
+        const remappedActive = resolveCatalogGroupId(enriched, active);
+        if (remappedActive && remappedActive !== active) {
+          setActiveGroupId(remappedActive);
+          activeGroupIdRef.current = remappedActive;
+        }
+        delete remappedUnread[activeGroupIdRef.current ?? active];
+        delete remappedUnread[active];
+      }
       setUnreadGroupCounts(remappedUnread);
       setMyGroupIds(visibleIds);
       myGroupIdsRef.current = visibleIds;
@@ -166,7 +175,11 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
   const loadGroupMessages = useCallback(async (groupId: string): Promise<boolean> => {
     const gen = ++loadGenRef.current;
     try {
-      const queryIds = siblingGroupIds(rawGroupsRef.current, groupId);
+      const queryIds = [...new Set([
+        ...siblingGroupIds(rawGroupsRef.current, groupId),
+        resolveCatalogGroupId(rawGroupsRef.current, groupId),
+        groupId,
+      ].filter(Boolean))];
       const { data, error } = await supabase.from('group_messages').select('*')
         .in('group_id', queryIds).order('created_at', { ascending: true });
       if (gen !== loadGenRef.current) return false;
@@ -194,7 +207,11 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
 
   const loadGroupParticipants = useCallback(async (groupId: string): Promise<void> => {
     try {
-      const queryIds = siblingGroupIds(rawGroupsRef.current, groupId);
+      const queryIds = [...new Set([
+        ...siblingGroupIds(rawGroupsRef.current, groupId),
+        resolveCatalogGroupId(rawGroupsRef.current, groupId),
+        groupId,
+      ].filter(Boolean))];
       const { data } = await supabase.from('group_participants').select('*').in('group_id', queryIds);
       const active = activeGroupIdRef.current;
       if (active !== groupId && !queryIds.includes(active ?? '')) return;
@@ -514,6 +531,30 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
             ));
           }
         } catch { /* SSE 파싱 오류 무시 */ }
+      })
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'group_chats',
+      }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
+        try {
+          const oldId = String((payload.old as { id?: string } | undefined)?.id ?? '');
+          const newId = String((payload.new as { id?: string } | undefined)?.id ?? '');
+          const mergedInto = String((payload.new as { merged_into?: string } | undefined)?.merged_into ?? '');
+          const gone = oldId && !newId;
+          if (!gone && !mergedInto) return;
+          const leftover = oldId || newId;
+          const rooms = rawGroupsRef.current;
+          const canon = mergedInto || resolveCatalogGroupId(rooms, leftover);
+          const active = activeGroupIdRef.current;
+          if (active && leftover && (active === leftover || siblingGroupIds(rooms, leftover).includes(active))) {
+            if (canon && canon !== active) {
+              setActiveGroupId(canon);
+              activeGroupIdRef.current = canon;
+              void loadGroupMessages(canon);
+              void loadGroupParticipants(canon);
+            }
+          }
+          if (currentUserIdRef.current) void loadGroupChats(currentUserIdRef.current);
+        } catch { /* ignore */ }
       })
       .subscribe();
     return () => { supabase.removeChannel(ch); };

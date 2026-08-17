@@ -7,7 +7,9 @@
  *     exactly as useChat does: sendMessage → SSE INSERT → loadMessages
  */
 import { describe, it, expect } from 'vitest';
-import { applySseInsert, applySseToRoomCaches, applyLoadMessages, messageBelongsToChat, applyPartnerReadReceipt } from './chat-reducers';
+import {
+  applySseInsert, applySseToRoomCaches, applyLoadMessages, messageBelongsToChat, applyPartnerReadReceipt, computeMyUnreadIds,
+} from './chat-reducers';
 import type { Message } from '../types/app';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -575,5 +577,49 @@ describe('applyPartnerReadReceipt', () => {
       partner,
     );
     expect(next.has('m-new')).toBe(true);
+  });
+});
+
+describe('computeMyUnreadIds', () => {
+  const me = 'user-a';
+  const openedAt = new Date('2026-07-31T12:00:00.000Z').getTime();
+  const mineOld = makeMsg({
+    id: 'm-old',
+    sender_id: me,
+    created_at: '2026-07-31T10:00:00.000Z',
+  });
+  const mineNew = makeMsg({
+    id: 'm-new',
+    sender_id: me,
+    created_at: '2026-07-31T12:00:01.000Z',
+  });
+  const theirs = makeMsg({
+    id: 'm-theirs',
+    sender_id: 'user-b',
+    created_at: '2026-07-31T12:00:02.000Z',
+  });
+
+  it('keeps historical unread after re-entry once partner read_at is known', () => {
+    const ids = computeMyUnreadIds([mineOld, mineNew, theirs], me, '2026-07-31T09:00:00.000Z', openedAt);
+    expect(ids.has('m-old')).toBe(true);
+    expect(ids.has('m-new')).toBe(true);
+    expect(ids.has('m-theirs')).toBe(false);
+  });
+
+  it('clears historical 1 after partner has read, including on re-entry', () => {
+    const ids = computeMyUnreadIds([mineOld, mineNew], me, '2026-07-31T12:05:00.000Z', openedAt);
+    expect(ids.size).toBe(0);
+  });
+
+  it('does not flash historical 1 before partner read_at is fetched', () => {
+    const ids = computeMyUnreadIds([mineOld, mineNew], me, undefined, openedAt);
+    expect(ids.has('m-old')).toBe(false);
+    expect(ids.has('m-new')).toBe(true);
+  });
+
+  it('treats optimistic rows as unread until they are confirmed and read', () => {
+    const opt = makeMsg({ id: '__opt_abc', sender_id: me, created_at: '2026-07-31T10:00:00.000Z' });
+    const ids = computeMyUnreadIds([opt], me, '2026-07-31T12:05:00.000Z', openedAt);
+    expect(ids.has('__opt_abc')).toBe(true);
   });
 });
