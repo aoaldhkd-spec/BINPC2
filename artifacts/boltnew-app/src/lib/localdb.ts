@@ -352,7 +352,8 @@ class QueryBuilder {
 
 // ─── SSE realtime ─────────────────────────────────────────────────────────────
 interface SseEvent {
-  type: 'change' | 'broadcast' | 'ping';
+  type: 'change' | 'broadcast' | 'ping' | 'instance' | 'shutdown';
+  instanceId?: string;
   table?: string;
   event?: 'INSERT' | 'UPDATE' | 'DELETE';
   newRow?: Record<string, unknown> | null;
@@ -410,6 +411,65 @@ let _sseHasConnected = false;     // 최초 연결 완료 여부
 let _sseNeedsResync = false;      // 끊겼다가 재연결 대기 중 여부
 const _reconnectCallbacks = new Set<() => void>();
 const _disconnectCallbacks = new Set<() => void>();
+const SSE_INSTANCE_KEY = 'sse_server_instance_v1';
+let _serverInstanceId: string | null = null;
+let _serverInstanceLoaded = false;
+
+function rememberServerInstance(instanceId: unknown): boolean {
+  if (typeof instanceId !== 'string' || !/^[A-Za-z0-9._:-]{1,128}$/.test(instanceId)) return false;
+  if (!_serverInstanceLoaded) {
+    _serverInstanceLoaded = true;
+    try { _serverInstanceId = sessionStorage.getItem(SSE_INSTANCE_KEY); } catch { /* ignore */ }
+  }
+  const switched = _serverInstanceId != null && _serverInstanceId !== instanceId;
+  _serverInstanceId = instanceId;
+  try { sessionStorage.setItem(SSE_INSTANCE_KEY, instanceId); } catch { /* ignore */ }
+  return switched;
+}
+
+// 재연결 리싱크 합치기 — instance 핸드셰이크·_bulk_resync·zombie 재연결이 몇 백 ms 안에
+// 연달아 오면 App.tsx + useChat 의 콜백이 매번 ~10개의 /op 요청을 쏜다(재연결 폭풍 → 429).
+// leading-edge 로 첫 리싱크는 즉시 실행하고, 창 안의 중복은 한 번의 trailing 실행으로 합친다.
+// (버리지 않고 합치는 것 — 마지막 상태 재동기화는 반드시 한 번 더 보장된다.)
+const RESYNC_COALESCE_MS = 1_500;
+let _lastResyncRunAt = 0;
+let _pendingResyncTimer: ReturnType<typeof setTimeout> | null = null;
+let _coalescedResyncCount = 0;
+
+function _invokeReconnectCallbacks(): void {
+  _lastResyncRunAt = Date.now();
+  _reconnectCallbacks.forEach(fn => { try { fn(); } catch {} });
+}
+
+/** 재연결 리싱크 실행 — 짧은 창 안의 중복 호출은 1회로 합쳐진다. */
+function runReconnectResync(): void {
+  const waited = Date.now() - _lastResyncRunAt;
+  if (waited >= RESYNC_COALESCE_MS) {
+    _invokeReconnectCallbacks();
+    return;
+  }
+  if (_pendingResyncTimer) { _coalescedResyncCount++; return; }
+  _coalescedResyncCount++;
+  _pendingResyncTimer = setTimeout(() => {
+    _pendingResyncTimer = null;
+    diag('debug', 'sse', 'resync-coalesced', { data: { merged: _coalescedResyncCount } });
+    _coalescedResyncCount = 0;
+    _invokeReconnectCallbacks();
+  }, RESYNC_COALESCE_MS - waited);
+}
+
+function markSseMessageConnected(forceResync = false, reason = 'reconnected'): void {
+  const shouldResync = forceResync || (_sseHasConnected && _sseNeedsResync);
+  if (shouldResync) {
+    _sseNeedsResync = false;
+    diag('info', 'sse', reason);
+    reportLinkUp('sse-message');
+    runReconnectResync();
+  } else if (_sseHasConnected) {
+    reportLinkUp('sse-healthy');
+  }
+  _sseHasConnected = true;
+}
 
 // ── Ping 감시 (좀비 클라이언트 방어) ─────────────────────────────────────────
 // 서버 keep-alive 주기: 15초. 타임아웃은 그 3배(45초)로 잡아 지터/지연으로 인한
@@ -430,6 +490,11 @@ export function onSseDisconnect(fn: () => void): () => void {
   return () => _disconnectCallbacks.delete(fn);
 }
 
+/** 테스트용 — 장시간 세션에서 리스너/EventSource 누수 검증 */
+export function sseDebugState(): { listeners: number; hasEventSource: boolean } {
+  return { listeners: _sseListeners.size, hasEventSource: _es != null };
+}
+
 /** 최근 ping/메시지 기준 SSE가 살아 있는지 — 폴링 간격 완화용 */
 export function isSseHealthy(maxAgeMs = 25_000): boolean {
   if (!_sseHasConnected || _sseNeedsResync) return false;
@@ -439,10 +504,40 @@ export function isSseHealthy(maxAgeMs = 25_000): boolean {
 
 // SSE 인증 토큰 — 서버에서 발급한 HMAC 토큰으로 자신의 이벤트만 수신 가능
 let _sseToken: string | null = null;
+/** 현재 토큰 만료 시각(Unix 초). 0 = 만료 시각 미상. */
+let _sseTokenExp = 0;
 
 let _tokenRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 const SSE_TOK_KEY = 'sse_tok';
 const SSE_TOK_EXP_KEY = 'sse_tok_exp';
+
+// 서버 토큰 TTL 은 1시간. setTimeout 단독 갱신은 모바일 백그라운드 스로틀링으로
+// 자주 늦게 발화하고, 그 사이 만료된 토큰으로 /events·/unread-counts 를 계속 때려
+// 401 폭풍 + [SECURITY] 오탐 로그를 만든다. 아래 값으로 주기 점검하며 선제 갱신한다.
+const SSE_TOKEN_REFRESH_LEAD_SEC = 300; // 만료 5분 전부터 갱신 시도
+const SSE_TOKEN_MIN_REFRESH_GAP_MS = 30_000; // 갱신 재시도 최소 간격 (요청 증폭 방지)
+let _lastTokenRefreshStartedAt = 0;
+
+/** 남은 토큰 수명(초). 토큰이 없으면 0, 만료 시각 미상이면 Infinity. */
+function sseTokenSecondsLeft(): number {
+  if (!_sseToken) return 0;
+  if (!_sseTokenExp) return Number.POSITIVE_INFINITY;
+  return _sseTokenExp - Math.floor(Date.now() / 1000);
+}
+
+/** 지금 서버에 보내도 401 이 나지 않을 토큰인지 (시계 오차 10초 여유). */
+function hasUsableSseToken(): boolean {
+  return sseTokenSecondsLeft() > 10;
+}
+
+/** 만료가 임박했으면 선제 재발급. 이미 진행 중이면 아무것도 하지 않는다. */
+function refreshSseTokenIfStale(): void {
+  if (!_currentUserId) return;
+  if (sseTokenSecondsLeft() > SSE_TOKEN_REFRESH_LEAD_SEC) return;
+  if (Date.now() - _lastTokenRefreshStartedAt < SSE_TOKEN_MIN_REFRESH_GAP_MS) return;
+  if (_sseTokenRetryTimer) return; // 백오프 재시도 예약됨 — 중복 발사 금지
+  void fetchAndSetSseToken(_currentUserId).catch(() => {});
+}
 
 // SSE 토큰 재시도 타이머 — userId 변경 시 명시적으로 취소
 let _sseTokenRetryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -459,11 +554,14 @@ function fetchSseToken(userId: string): void {
     const exp = parseInt(localStorage.getItem(SSE_TOK_EXP_KEY) ?? '0', 10);
     if (cached && Math.floor(Date.now() / 1000) < exp - 120) {
       _sseToken = cached;
+      // 캐시 복원 경로는 setSseToken 을 거치지 않으므로 만료 시각을 여기서 기록한다.
+      // (기록하지 않으면 남은 수명을 알 수 없어 선제 갱신이 동작하지 않는다.)
+      _sseTokenExp = exp;
     }
   } catch { /* ignore */ }
   // userId가 일치할 때만 SSE 재연결 (userId 변경 경합 방지)
   if (_currentUserId === userId) {
-    if (_es) { _es.close(); _es = null; }
+    closeSse();
     if (_sseListeners.size > 0) ensureSse();
   }
 }
@@ -473,13 +571,15 @@ export function setLocalDbUserId(userId: string | null) {
   if (_currentUserId === userId) return;
   _currentUserId = userId;
   _sseToken = null; // 사용자 변경 시 이전 토큰 폐기
+  _sseTokenExp = 0;
+  _lastTokenRefreshStartedAt = 0;
   _lastEventId = '';
   try { sessionStorage.removeItem('sse_last_event_id'); } catch { /* ignore */ }
   // userId 변경 → 이전 userId 대상 재시도 타이머 취소 (오래된 userId로 재시도되는 경쟁 방지)
   if (_sseTokenRetryTimer) { clearTimeout(_sseTokenRetryTimer); _sseTokenRetryTimer = null; }
   if (_tokenRefreshTimer) { clearTimeout(_tokenRefreshTimer); _tokenRefreshTimer = null; }
   suppressDisconnectBriefly(15_000);
-  if (_es) { _es.close(); _es = null; }
+  closeSse();
   if (!userId) {
     // 로그아웃: 토큰 캐시 삭제, 세션 게이트 즉시 해제
     _clearSessionBearer();
@@ -549,12 +649,13 @@ function createSse() {
     _sseErrorSince = null; // 메시지 수신 = 연결 정상
     cancelDisconnectNotify();
 
+    let data: SseEvent | null = null;
+    try { data = JSON.parse(ev.data) as SseEvent; } catch { /* malformed payload: connection is still alive */ }
+
     // ── 서버 재시작 신호: 백오프 없이 즉시 재연결 ──────────────────────────────
     // 서버가 SIGTERM/SIGINT 수신 시 모든 SSE 클라이언트에 {"type":"shutdown"}을 보냄.
     // 클라이언트는 백오프 카운터를 초기화하고 즉시 재연결하여 60s 대기를 1s 이하로 단축.
-    try {
-      const peek = JSON.parse(ev.data) as { type?: string };
-      if (peek.type === 'shutdown') {
+    if (data?.type === 'shutdown') {
         // 빠른 복구 모드 활성화 — SSE_SHUTDOWN_RECOVERY_MS 동안 onerror 시 백오프 누적 없음
         _shutdownRecoveryUntil = Date.now() + SSE_SHUTDOWN_RECOVERY_MS;
         // 실패 카운터·백오프 초기화
@@ -571,30 +672,24 @@ function createSse() {
         //   여기서 es.close()를 호출하면 retry 지연값이 버려지고
         //   새 EventSource는 브라우저 기본값(~3s)으로 초기화된다.
         //   → 서버가 연결을 닫을 때 onerror가 자연스럽게 발생하도록 위임.
-        return;
-      }
-    } catch { /* JSON 파싱 실패 시 무시하고 정상 흐름 유지 */ }
+      return;
+    }
 
     // 재연결 성공 → 실패 카운터·백오프 타이머 초기화
     _sseFailCount = 0;
     _sseNextAllowedRetry = 0;
-    // 재연결 감지: 이전에 한 번 이상 연결됐었고, 끊김 이후 첫 메시지
-    if (_sseHasConnected && _sseNeedsResync) {
-      _sseNeedsResync = false;
-      diag('info', 'sse', 'reconnected');
-      reportLinkUp('sse-message');
-      _reconnectCallbacks.forEach(fn => { try { fn(); } catch {} });
-    } else if (_sseHasConnected) {
-      // 정상 수신 — 링크 업 유지 (모달 타이머가 떠 있었다면 해제)
-      reportLinkUp('sse-healthy');
+    if (data?.type === 'instance') {
+      const switched = rememberServerInstance(data.instanceId);
+      markSseMessageConnected(switched, switched ? 'server-instance-switched' : 'reconnected');
+      return;
     }
-    _sseHasConnected = true;
-    try {
-      const data = JSON.parse(ev.data) as SseEvent;
+    // 재연결 감지: 이전에 한 번 이상 연결됐었고, 끊김 이후 첫 메시지
+    markSseMessageConnected();
+    if (data) {
       // api-server 전체 리싱크 신호 (_bulk_resync:true) → 재연결 콜백 실행해 전체 데이터 리로드
       // resyncAllFromNativeDb() 호출 후 브로드캐스트되는 신호; 정상 row 이벤트와 구분
       if (data.type === 'change' && (data.newRow as Record<string, unknown> | null)?._bulk_resync) {
-        _reconnectCallbacks.forEach(fn => { try { fn(); } catch {} });
+        runReconnectResync();
         return; // 개별 리스너에게 전파 불필요
       }
       if (
@@ -616,7 +711,7 @@ function createSse() {
         });
       }
       _sseListeners.forEach(fn => { try { fn(data); } catch {} });
-    } catch {}
+    }
   };
   es.onerror = () => {
     // 일부 브라우저는 OPEN 상태에서도 onerror를 한 번 쏨 — 단절로 보지 않음
@@ -633,6 +728,12 @@ function createSse() {
     if (wasConnected) _sseNeedsResync = true;
     // CLOSED 상태면 실패 카운터 증가 후 백오프 쿨다운 설정
     // 단, 서버 재시작 복구 모드 중에는 카운터 증가·백오프 생략 (예상된 실패이므로)
+    if (_currentUserId && !hasUsableSseToken()) {
+      try { es.close(); } catch { /* ignore */ }
+      if (_es === es) _es = null;
+      refreshSseTokenIfStale();
+      return;
+    }
     if (es.readyState === EventSource.CLOSED) {
       if (!inShutdownRecovery()) {
         _sseFailCount = Math.min(_sseFailCount + 1, 4); // 최대 4 (≈ 8s base 백오프, 지터 포함 최대 ~10s)
@@ -644,10 +745,25 @@ function createSse() {
   return es;
 }
 
+function closeSse(reason = 'close') {
+  if (!_es) return;
+  try { _es.close(); } catch { /* ignore */ }
+  _es = null;
+  if (reason) diag('debug', 'sse', reason);
+}
+
 function ensureSse() {
   // 로그인 사용자는 토큰이 생기기 전 익명 SSE에 붙지 않습니다.
   // 익명 연결은 채팅·하트 같은 비공개 이벤트를 받지 못해 메시지 누락의 주원인입니다.
-  if (_currentUserId && !_sseToken) return;
+  // 만료된 토큰도 마찬가지로 사용하지 않습니다 — 서버가 401 로 끊고 EventSource 가
+  // 곧바로 같은 토큰으로 재시도해 무한 401 루프가 됩니다. 대신 재발급을 트리거합니다.
+  if (_currentUserId && !hasUsableSseToken()) {
+    // 브라우저 내장 EventSource 는 401 이후 같은 URL(만료 토큰)로 자동 재시도한다.
+    // 닫지 않으면 행사 중후반에 401 폭풍 → IP rate-limit → 전 기능 멈춤으로 번진다.
+    closeSse('expired-token-close');
+    refreshSseTokenIfStale();
+    return;
+  }
 
   // [백오프 쿨다운] 연속 실패 후 정해진 시간 전에는 재연결 시도 안 함
   // 단, 서버 재시작 복구 모드 중에는 백오프를 무시하고 즉시 재시도
@@ -657,8 +773,7 @@ function ensureSse() {
   // ★ 복구 모드 중에는 강제 닫기 생략 — 브라우저가 retry:100 지연값을 기억한 채로
   //   자체 재시도 중이므로 es.close()를 호출하면 그 지연값이 리셋된다.
   if (!inShutdownRecovery() && _es && _es.readyState === EventSource.CONNECTING && _sseErrorSince && Date.now() - _sseErrorSince > 12_000) {
-    _es.close();
-    _es = null;
+    closeSse('connecting-timeout');
     _sseErrorSince = null;
   }
   if (_es && _es.readyState !== EventSource.CLOSED) return;
@@ -668,6 +783,9 @@ function ensureSse() {
 
 // 2초마다 연결 상태 점검 — 끊어진 SSE를 자동 복구 (백오프 중에는 ensureSse가 자체 skip)
 setInterval(() => {
+  // 토큰 만료 선제 갱신은 리스너 유무와 무관 — 만료된 토큰으로 /unread-counts 등이 401 나는 것도 막는다.
+  refreshSseTokenIfStale();
+
   if (_sseListeners.size === 0) return;
 
   // ── Ping 감시: 서버 keep-alive(15s)의 3배(45s) 이상 미수신 → 좀비 SSE 강제 재연결 ──
@@ -681,8 +799,7 @@ setInterval(() => {
     diag('warn', 'sse', 'zombie-ping-timeout');
     _lastPingAt = 0;
     suppressDisconnectBriefly(12_000);
-    _es.close();
-    _es = null;
+    closeSse();
     _sseNeedsResync = true;
     // 끊김만 알림 — 복구 콜백은 실제 메시지 수신 시에만 (오탐 모달 방지)
     scheduleDisconnectNotify('zombie');
@@ -839,10 +956,7 @@ class LocalRealtimeChannel {
       // Fix #11: 마지막 구독자가 떠나면 SSE 연결 즉시 해제
       // — idle 연결이 서버 sseUserMap에 남아 자원(메모리+keep-alive) 낭비하던 문제 해결
       // 다음 subscribe() 호출 시 ensureSse()가 즉시 재연결하므로 기능 영향 없음
-      if (_sseListeners.size === 0 && _es) {
-        _es.close();
-        _es = null;
-      }
+      if (_sseListeners.size === 0) closeSse('idle');
     }
     this.statusCb?.('CLOSED');
   }
@@ -917,9 +1031,26 @@ export const supabase: any = {
  * 익명 SSE 영구 고착을 방지하는 핵심 함수 — 토큰 없이는 채팅·하트 이벤트를 수신할 수 없음.
  * attempt: 현재 재시도 횟수 (내부용, 외부 호출 시 생략)
  */
-export async function fetchAndSetSseToken(userId: string, attempt = 0): Promise<void> {
+let _sseTokenFetchInFlight: { userId: string; promise: Promise<void> } | null = null;
+
+export function fetchAndSetSseToken(userId: string, attempt = 0): Promise<void> {
+  // App.tsx 의 여러 경로(userId effect · 프로필 로드 · 복구)가 같은 순간에 호출한다.
+  // 합치지 않으면 부팅 한 번에 /auth/login + /auth/sse-token 이 여러 벌 나간다.
+  if (_sseTokenFetchInFlight && _sseTokenFetchInFlight.userId === userId) {
+    return _sseTokenFetchInFlight.promise;
+  }
+  const promise = _fetchAndSetSseToken(userId, attempt);
+  const entry = { userId, promise };
+  _sseTokenFetchInFlight = entry;
+  return promise.finally(() => {
+    if (_sseTokenFetchInFlight === entry) _sseTokenFetchInFlight = null;
+  });
+}
+
+async function _fetchAndSetSseToken(userId: string, attempt: number): Promise<void> {
   // 이전 재시도 타이머 초기화 (중복 재시도 방지)
   if (_sseTokenRetryTimer) { clearTimeout(_sseTokenRetryTimer); _sseTokenRetryTimer = null; }
+  _lastTokenRefreshStartedAt = Date.now();
 
   /** 모든 실패 경로에서 호출 — 지수 백오프(5s→10s→20s→40s→최대 60s) + 지터로 재시도 예약 */
   const scheduleRetry = (reason: string) => {
@@ -971,14 +1102,23 @@ export async function fetchAndSetSseToken(userId: string, attempt = 0): Promise<
   }
 }
 
-/** 현재 SSE 토큰 반환 — push/subscribe 등 인증이 필요한 요청에서 헤더로 사용 */
+/**
+ * 현재 SSE 토큰 반환 — push/subscribe·unread-counts 등 인증이 필요한 요청에서 사용.
+ * 만료된 토큰은 서버에서 401 + [SECURITY] 경고 로그를 만들 뿐이므로 null 로 취급하고
+ * 동시에 재발급을 예약한다. 호출부는 null 이면 요청 자체를 건너뛰면 된다.
+ */
 export function getSseToken(): string | null {
+  if (!hasUsableSseToken()) {
+    refreshSseTokenIfStale();
+    return null;
+  }
   return _sseToken;
 }
 
 /** 서버에서 발급받은 SSE 토큰 저장 및 SSE 재연결. expiresAt은 Unix 초. */
 export function setSseToken(token: string, expiresAt: number) {
   _sseToken = token;
+  _sseTokenExp = expiresAt;
   // #4: localStorage에 토큰 캐시 저장 → 앱 재시작 후에도 재연결 없이 즉시 재사용
   try {
     localStorage.setItem(SSE_TOK_KEY, token);
@@ -999,7 +1139,7 @@ export function setSseToken(token: string, expiresAt: number) {
   // 복구 콜백은 실제 SSE 메시지 수신 시에만 실행 (오탐 방지).
   suppressDisconnectBriefly(15_000);
   _sseNeedsResync = true;
-  if (_es) { _es.close(); _es = null; }
+  closeSse();
   if (_sseListeners.size > 0) ensureSse();
 }
 
@@ -1018,7 +1158,22 @@ export function setDeviceRecoveryPin(pin: string | null): void {
  */
 const LOGIN_MAX_ATTEMPTS = 4;
 
-async function loginSession(userId: string, attempt = 0): Promise<boolean> {
+// 세션 수립은 반드시 한 번에 하나만 — 부팅 시 setLocalDbUserId · fetchAndSetSseToken ·
+// 세션 게이트를 기다리는 모든 /op 쿼리가 각자 loginSession 을 부르면 기기 한 대가
+// /auth/login 을 6~10번 쏜다. 행사장 NAT 처럼 IP 를 공유하면 그대로 429 가 된다.
+let _loginInFlight: { userId: string; promise: Promise<boolean> } | null = null;
+
+function loginSession(userId: string): Promise<boolean> {
+  if (_loginInFlight && _loginInFlight.userId === userId) return _loginInFlight.promise;
+  const promise = _loginSessionAttempt(userId, 0);
+  const entry = { userId, promise };
+  _loginInFlight = entry;
+  return promise.finally(() => {
+    if (_loginInFlight === entry) _loginInFlight = null;
+  });
+}
+
+async function _loginSessionAttempt(userId: string, attempt: number): Promise<boolean> {
   try {
     const deviceSecret = getDeviceSecret(userId);
     const resp = await fetch(`${API}/auth/login`, {
@@ -1035,17 +1190,19 @@ async function loginSession(userId: string, attempt = 0): Promise<boolean> {
       credentials: 'include',
     });
     if (!resp.ok) {
+      // 401 은 결정적 인증 실패(기기 불일치·알 수 없는 userId)다. 같은 자격증명으로
+      // 재시도해도 결과가 바뀌지 않으므로 401 을 3번 더 만들 뿐 — 즉시 포기한다.
       if (resp.status === 401) {
         const body = await resp.json().catch(() => ({})) as { code?: string };
         if (body.code === 'DEVICE_MISMATCH') {
           console.warn('[localdb] 기기 불일치 — 고유번호(PIN)로 프로필 복구를 이용하세요.');
-          return false;
         }
+        return false;
       }
       if (attempt + 1 < LOGIN_MAX_ATTEMPTS) {
         const delay = resp.status === 429 ? 3_000 * (attempt + 1) : 1_000 * Math.pow(2, attempt);
         await new Promise<void>(r => setTimeout(r, delay));
-        return loginSession(userId, attempt + 1);
+        return _loginSessionAttempt(userId, attempt + 1);
       }
       return false;
     }
@@ -1059,7 +1216,7 @@ async function loginSession(userId: string, attempt = 0): Promise<boolean> {
   } catch {
     if (attempt + 1 < LOGIN_MAX_ATTEMPTS) {
       await new Promise<void>(r => setTimeout(r, 1_000 * Math.pow(2, attempt)));
-      return loginSession(userId, attempt + 1);
+      return _loginSessionAttempt(userId, attempt + 1);
     }
     return false;
   }

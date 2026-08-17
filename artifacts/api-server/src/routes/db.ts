@@ -33,6 +33,7 @@ import {
   consumeRateLimit,
   resetRateLimit,
 } from '../lib/db-rate-limit';
+import { mergeDbRowsIntoMemory, shouldBroadcastBulkResync } from '../lib/db-store-merge';
 import {
   recordExpiredSseToken,
   recordMissingSseToken,
@@ -1986,8 +1987,10 @@ router.use(async (_req, res, next) => {
   }
 });
 
-// 120초마다 DB 재동기화 — NOTIFY가 실시간 반영, 변경 없으면 SSE 브로드캐스트 생략
-setInterval(() => { resyncAllFromNativeDb().catch(e => logger.error({ err: e }, '[db] resync failed')); }, 120_000).unref();
+// 120초마다 DB 재동기화 — merge-by-id, 클라이언트 전체 리로드(_bulk_resync)는 쏘지 않음
+setInterval(() => { resyncAllFromNativeDb('periodic').catch(e => logger.error({ err: e }, '[db] resync failed')); }, 120_000).unref();
+// 분산 rate_limits KV 가 행사 내내 쌓여 PG 가 느려지지 않게 만료 행 정리
+setInterval(() => { pruneDistributedRateLimits().catch(e => logger.warn({ err: e }, '[db] rate_limits prune failed')); }, 5 * 60 * 1000).unref();
 // 25초마다 hot 테이블 재동기화 — 다중 Render 인스턴스 split-brain 완화
 setInterval(() => { resyncHotTablesFromDb().catch(e => logger.warn({ err: e }, '[db] hot resync failed')); }, 25_000).unref();
 
@@ -2324,7 +2327,20 @@ const RESYNC_TABLE_LIMIT: Record<string, number> = {
   chats: 5000,
 };
 
-async function resyncAllFromNativeDb(): Promise<void> {
+async function pruneDistributedRateLimits(): Promise<void> {
+  if (process.env.NODE_ENV === 'test' || process.env.VITEST) return;
+  try {
+    await pool.query(
+      `DELETE FROM app_kv_rows
+       WHERE table_name = 'rate_limits'
+         AND updated_at < NOW() - INTERVAL '10 minutes'`,
+    );
+  } catch (e) {
+    logger.warn({ err: e }, '[db] rate_limits prune failed');
+  }
+}
+
+async function resyncAllFromNativeDb(reason: 'periodic' | 'forced' = 'periodic'): Promise<void> {
   if (_fullResyncRunning) return; // 이전 리싱크가 아직 실행 중이면 skip
   _fullResyncRunning = true;
   try {
@@ -2342,6 +2358,7 @@ async function resyncAllFromNativeDb(): Promise<void> {
       if (!grouped[tbl]) grouped[tbl] = [];
       grouped[tbl].push(r.data as Record<string, unknown>);
     }
+    const notifyClients = shouldBroadcastBulkResync(reason);
     for (const { tbl } of FULL_RESYNC_TABLES) {
       if (grouped[tbl] === undefined) continue;
       const prev = store[tbl];
@@ -2350,17 +2367,19 @@ async function resyncAllFromNativeDb(): Promise<void> {
         const settingsChanged = applyAppSettingsFromDbRows(grouped[tbl]);
         if (settingsChanged) {
           const latest = getTable('app_settings')[0] as Record<string, unknown>;
-          broadcastAll({
-            type: 'change', table: 'app_settings', event: 'UPDATE',
+          broadcastAll({ type: 'change', table: 'app_settings', event: 'UPDATE',
             newRow: sanitizeSettings(latest),
             oldRow: sanitizeSettings((prev?.[0] ?? {}) as Record<string, unknown>),
           });
         }
         continue;
       }
-      store[tbl] = grouped[tbl];
-      const nextFp = tableFingerprint(grouped[tbl]);
-      if (prevFp !== nextFp) {
+      // wholesale replace(LIMIT)는 오래된 likes/chats 를 메모리에서 지우고
+      // fingerprint 가 바뀔 때마다 전원 클라이언트 리로드 폭풍을 만든다.
+      if (!store[tbl]) store[tbl] = [];
+      mergeDbRowsIntoMemory(store[tbl], grouped[tbl]);
+      const nextFp = tableFingerprint(store[tbl]);
+      if (notifyClients && prevFp !== nextFp) {
         broadcastAll({
           type: 'change', table: tbl, event: 'UPDATE',
           newRow: { _bulk_resync: true, count: store[tbl].length },
@@ -2368,7 +2387,7 @@ async function resyncAllFromNativeDb(): Promise<void> {
         });
       }
     }
-    logger.info('[db] full resync complete (via app_kv_rows)');
+    logger.info({ reason }, '[db] full resync complete (via app_kv_rows)');
     // resync가 app_settings를 덮어쓴 뒤 비밀번호·QR URL 자동 복구
     await repairAppSettingsIfNeeded();
     await ensureAppSettingsSecrets();
@@ -4365,7 +4384,7 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
 
       case 'test_resync': {
         checkTestPassword();
-        resyncAllFromNativeDb().catch(e => logger.error({ err: e }, '[rpc] test_resync 실패'));
+        resyncAllFromNativeDb('forced').catch(e => logger.error({ err: e }, '[rpc] test_resync 실패'));
         return res.json({ data: null, error: null });
       }
 
@@ -4391,7 +4410,7 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
       case 'admin_force_resync_all': {
         // 관리자 패널 → 전체 테이블 강제 리싱크 (Supabase 직접 쓰기 후 즉시 반영용)
         checkPassword();
-        resyncAllFromNativeDb().catch(e => logger.error({ err: e }, '[rpc] admin_force_resync_all 실패'));
+        resyncAllFromNativeDb('forced').catch(e => logger.error({ err: e }, '[rpc] admin_force_resync_all 실패'));
         return res.json({ data: null, error: null });
       }
 
