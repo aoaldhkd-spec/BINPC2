@@ -157,4 +157,35 @@ describe('SignalTab Tinder-like swipe', () => {
     expect(onSendSignal).toHaveBeenCalledTimes(1);
     expect(onPassSignal).not.toHaveBeenCalled();
   });
+
+  it('restores the card when send persist returns false', async () => {
+    vi.useFakeTimers();
+    const onSendSignal = vi.fn().mockResolvedValue(false);
+    const onPassSignal = vi.fn();
+    render(
+      <SignalTab
+        profiles={[ME, A, B]}
+        currentUserId={ME.id}
+        userSignals={[signal(ME.id), signal(A.id), signal(B.id)]}
+        sentHeartsPerPerson={new Map()}
+        persistedMissionCount={3}
+        alreadySignaledIds={new Set()}
+        blockedUserIds={new Set()}
+        hiddenByIds={new Set()}
+        darkMode={false}
+        onSendSignal={onSendSignal}
+        onPassSignal={onPassSignal}
+        onSelect={vi.fn()}
+      />,
+    );
+    const firstName = screen.getByTestId('signal-swipe-front').textContent;
+    swipe(screen.getByTestId('signal-swipe-front'), SWIPE_COMMIT_PX + 40);
+    await act(async () => {
+      vi.advanceTimersByTime(SWIPE_EXIT_MS + 80);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(onSendSignal).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('signal-swipe-front').textContent).toBe(firstName);
+  });
 });

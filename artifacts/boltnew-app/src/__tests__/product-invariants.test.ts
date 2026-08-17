@@ -173,4 +173,18 @@ describe('product copy + notification invariants', () => {
     expect(mainEntry).not.toContain('createParticipantNav');
     expect(mainEntry).toContain('AdminApp');
   });
+
+  it('프로필·채팅 화면 넘김은 메인 언마운트 없이 CSS transform 이다', () => {
+    const app = read('App.tsx');
+    const css = read('index.css');
+    const main = read('components/MainScreen.tsx');
+    expect(css).toContain('binpc-screen-in');
+    expect(css).toContain('translate3d(100%, 0, 0)');
+    expect(app).toContain('binpc-screen-in');
+    expect(app).toContain('inert={isSubScreen');
+    expect(app).toContain("className={isSubScreen ? 'pointer-events-none' : undefined}");
+    expect(main).toContain('KeepTab');
+    expect(main).toContain("visitedTabsRef.current.has('signal')");
+    expect(main).toContain("visitedTabsRef.current.has('chats')");
+  });
 });

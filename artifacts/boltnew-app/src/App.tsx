@@ -497,9 +497,9 @@ function App() {
     return handleContactShare(likerId, kakao, instagram, phone);
   }, [functionsLocked, handleContactShare, showFunctionsLockToast]);
 
-  const persistSignalAction = useCallback(async (profileId: string, action: 'send' | 'pass') => {
-    if (!currentUserId || profileId === currentUserId) return;
-    if (functionsLockedRef.current) { showFunctionsLockToast(); return; }
+  const persistSignalAction = useCallback(async (profileId: string, action: 'send' | 'pass'): Promise<boolean> => {
+    if (!currentUserId || profileId === currentUserId) return false;
+    if (functionsLockedRef.current) { showFunctionsLockToast(); return false; }
     let added = false;
     setSignalActedIds((prev) => {
       if (prev.has(profileId)) return prev;
@@ -523,19 +523,34 @@ function App() {
       if (error) {
         console.warn('[signal_sends]', error.message);
         rollback();
+        setBottomNotif({
+          type: 'system',
+          message: action === 'send'
+            ? '시그널 전송에 실패했습니다. 잠시 후 다시 시도해 주세요.'
+            : '패스 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.',
+        });
+        return false;
       }
+      return true;
     } catch (e) {
       console.warn('[signal_sends]', e);
       rollback();
+      setBottomNotif({
+        type: 'system',
+        message: action === 'send'
+          ? '시그널 전송에 실패했습니다. 잠시 후 다시 시도해 주세요.'
+          : '패스 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.',
+      });
+      return false;
     }
   }, [currentUserId, showFunctionsLockToast]);
 
   const handleSendSignal = useCallback((profileId: string) => {
-    void persistSignalAction(profileId, 'send');
+    return persistSignalAction(profileId, 'send');
   }, [persistSignalAction]);
 
   const handlePassSignal = useCallback((profileId: string) => {
-    void persistSignalAction(profileId, 'pass');
+    return persistSignalAction(profileId, 'pass');
   }, [persistSignalAction]);
 
   const loadSignalActions = useCallback(async (userId: string) => {
@@ -679,6 +694,16 @@ function App() {
     const ids = [...new Set([...drop, ...extra])];
     if (ids.length) participantNav.dropMatching(ids);
   }, [view, participantNav]);
+
+  // 오버레이를 display:none 으로 메인을 접지 않으므로, 뒤 스크롤만 잠근다.
+  useEffect(() => {
+    const sub = view === 'profile' || view === 'chat' || view === 'group-chat';
+    if (!sub) return;
+    const html = document.documentElement;
+    const prev = html.style.overflow;
+    html.style.overflow = 'hidden';
+    return () => { html.style.overflow = prev; };
+  }, [view]);
 
   const execLikeGuarded = useCallback((...args: Parameters<typeof executeLike>) => {
     if (functionsLockedRef.current) {
@@ -1838,7 +1863,11 @@ function App() {
           onClose={() => dismissSignalNudge(false)}
         />
       )}
-      <div className={isSubScreen ? 'hidden' : undefined} aria-hidden={isSubScreen}>
+      <div
+        className={isSubScreen ? 'pointer-events-none' : undefined}
+        aria-hidden={isSubScreen}
+        inert={isSubScreen || undefined}
+      >
       <AppErrorBoundary screenName="메인 화면" onReset={() => { setView('main'); setMainTab('profiles'); }}>
       <Suspense fallback={<div className="min-h-screen bg-slate-900" />}>
         <MainScreen
@@ -1933,7 +1962,7 @@ function App() {
         />
       )}
       {view === 'profile' && selectedProfile && (
-        <div className="safe-fullscreen fixed inset-0 z-40 overflow-y-auto bg-white">
+        <div className="binpc-screen-in safe-fullscreen fixed inset-0 z-40 overflow-y-auto bg-white">
           <AppErrorBoundary screenName="프로필" onReset={() => setView('main')}>
             <ProfileDetail
               profile={selectedProfile}
@@ -1962,7 +1991,7 @@ function App() {
         </div>
       )}
       {view === 'group-chat' && activeGroupId && (
-        <div className="fixed inset-0 z-40 min-w-0">
+        <div className="binpc-screen-in fixed inset-0 z-40 min-w-0">
           <GroupChatScreen
             group={groupChats.find(g => g.id === activeGroupId) ?? null}
             messages={groupMessages}
@@ -1978,7 +2007,7 @@ function App() {
         </div>
       )}
       {view === 'chat' && selectedProfile && !chatId && (
-        <div className="safe-fullscreen fixed inset-0 z-40 flex items-center justify-center bg-white">
+        <div className="binpc-screen-in safe-fullscreen fixed inset-0 z-40 flex items-center justify-center bg-white">
           <div className="text-center">
             <div className="w-8 h-8 border-4 border-pink-400 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
             <p className="text-sm text-gray-400">채팅방 열는 중…</p>
@@ -1986,7 +2015,7 @@ function App() {
         </div>
       )}
       {view === 'chat' && selectedProfile && chatId && (
-        <div className="fixed inset-0 z-40 min-w-0">
+        <div className="binpc-screen-in fixed inset-0 z-40 min-w-0">
           <ChatErrorBoundary onReset={() => { chatIdRef.current = null; setChatId(null); setView('main'); }}>
             <Suspense fallback={<div className="h-screen bg-white" />}>
               <ChatScreen

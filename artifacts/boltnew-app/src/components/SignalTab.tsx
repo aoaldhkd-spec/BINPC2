@@ -136,8 +136,8 @@ export function SignalTab({
   hiddenByIds: Set<string>;
   functionsLocked?: boolean;
   darkMode: boolean;
-  onSendSignal: (id: string) => void;
-  onPassSignal: (id: string) => void;
+  onSendSignal: (id: string) => void | boolean | Promise<void | boolean>;
+  onPassSignal: (id: string) => void | boolean | Promise<void | boolean>;
   onSelect: (p: Profile) => void;
   onGoProfiles?: () => void;
   onMissionComplete?: () => void;
@@ -301,8 +301,16 @@ export function SignalTab({
 
   const applySideEffect = useCallback((id: string, dir: 'left' | 'right') => {
     advanceLocal(id);
-    if (dir === 'right') onSendSignal(id);
-    else onPassSignal(id);
+    const result = dir === 'right' ? onSendSignal(id) : onPassSignal(id);
+    void Promise.resolve(result).then((ok) => {
+      if (ok !== false) return;
+      setSkippedIds((prev) => {
+        if (!prev.has(id)) return prev;
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    });
   }, [advanceLocal, onSendSignal, onPassSignal]);
 
   const finishExit = useCallback(() => {

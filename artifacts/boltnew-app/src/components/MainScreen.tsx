@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo, Suspense, lazy } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, Suspense, lazy, type ReactNode } from 'react';
 /**
  * Main user shell UI (tabs: profiles/chats/status/…).
  * State/realtime: App.tsx + hooks (useChat/useHearts). See ARCHITECTURE.md.
@@ -47,6 +47,14 @@ const FortuneTab = lazy(() => import('./FortuneTab'));
 
 export { ProfileCard };
 
+function KeepTab({ id, mainTab, children }: { id: MainTab; mainTab: MainTab; children: ReactNode }) {
+  const active = mainTab === id;
+  return (
+    <div hidden={!active} aria-hidden={!active}>
+      {children}
+    </div>
+  );
+}
 
 // ─── MainScreen ───────────────────────────────────────────────────────────────
 
@@ -133,8 +141,8 @@ export function MainScreen({
   onOpenResetPassword?: () => void;
   receivedSignalSenders?: Profile[];
   signalActedIds?: Set<string>;
-  onSendSignal?: (id: string) => void;
-  onPassSignal?: (id: string) => void;
+  onSendSignal?: (id: string) => void | boolean | Promise<void | boolean>;
+  onPassSignal?: (id: string) => void | boolean | Promise<void | boolean>;
 }) {
   const heartCount = useCallback((t: HeartType) => { let c = 0; sentHeartsPerPerson.forEach(types => { if (types.has(t)) c++; }); return c; }, [sentHeartsPerPerson]);
 
@@ -264,6 +272,8 @@ export function MainScreen({
   seenHeartsCountRef.current = seenHeartsCount;
   const seenContactsCountRef = useRef(seenContactsCount);
   seenContactsCountRef.current = seenContactsCount;
+  const visitedTabsRef = useRef<Set<MainTab>>(new Set(['profiles']));
+  visitedTabsRef.current.add(mainTab);
 
   // 앱 재방문(페이지 포커스) 시 새로 온 게 없으면 배지 자동 클리어
   useEffect(() => {
@@ -615,7 +625,8 @@ export function MainScreen({
             </div>
           </div>
         )}
-        {mainTab === 'profiles' && (
+        {visitedTabsRef.current.has('profiles') && (
+        <KeepTab id="profiles" mainTab={mainTab}>
           <>
             {/* 검색 + 필터 바 */}
             <div className="space-y-2 mb-3">
@@ -699,6 +710,7 @@ export function MainScreen({
           </div>
           </div>{/* /scroll-wrapper */}
           </>
+        </KeepTab>
         )}
 
         {mainTab === 'status' && (
@@ -1900,7 +1912,8 @@ export function MainScreen({
         )}
 
         {/* ─── 채팅 탭 ─── */}
-        {mainTab === 'chats' && (
+        {visitedTabsRef.current.has('chats') && (
+        <KeepTab id="chats" mainTab={mainTab}>
           <MainChatsTab
             darkMode={darkMode}
             chatSubTab={chatSubTab}
@@ -1932,10 +1945,12 @@ export function MainScreen({
             onRefreshChats={() => doRefresh('chats', onRefreshChat)}
             chatsRefreshed={refreshedTab === 'chats'}
           />
+        </KeepTab>
         )}
 
         {/* ─── 시그널 탭 ─── */}
-        {mainTab === 'signal' && (
+        {visitedTabsRef.current.has('signal') && (
+        <KeepTab id="signal" mainTab={mainTab}>
           <SignalTab
             profiles={profiles}
             currentUserId={currentUserId}
@@ -1947,12 +1962,13 @@ export function MainScreen({
             functionsLocked={functionsLocked}
             darkMode={darkMode}
             alreadySignaledIds={signalActedIds}
-            onSendSignal={(id) => { if (!functionsLocked) onSendSignal?.(id); }}
-            onPassSignal={(id) => { if (!functionsLocked) onPassSignal?.(id); }}
+            onSendSignal={(id) => { if (!functionsLocked) return onSendSignal?.(id); }}
+            onPassSignal={(id) => { if (!functionsLocked) return onPassSignal?.(id); }}
             onSelect={onSelect}
             onGoProfiles={() => onTabChange('profiles')}
             onMissionComplete={onMissionComplete}
           />
+        </KeepTab>
         )}
 
         {/* ─── 통계 탭 ─── */}

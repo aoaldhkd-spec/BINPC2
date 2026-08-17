@@ -30,6 +30,20 @@ body[data-view="chat"] .theme-switcher-panel { display: none !important; }
 /* backdrop: fixed inset-0 z-[9997] — chat view에서도 숨김 */
 body[data-view="chat"] .fixed.inset-0.z-\[9997\] { display: none !important; }
 
+/* 프로필·채팅·단톡 오버레이: 리마운트 대신 GPU translate (Back 히스토리와 같은 틱에 레이아웃 재계산 방지) */
+@keyframes binpc-screen-in {
+  from { transform: translate3d(100%, 0, 0); }
+  to { transform: translate3d(0, 0, 0); }
+}
+.binpc-screen-in {
+  animation: binpc-screen-in 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+  backface-visibility: hidden;
+}
+@media (prefers-reduced-motion: reduce) {
+  .binpc-screen-in { animation: none; }
+}
+
 @layer base {
   * { box-sizing: border-box; }
 
