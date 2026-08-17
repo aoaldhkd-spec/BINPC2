@@ -2345,7 +2345,7 @@ function applyAppSettingsFromDbRows(dbRows: Record<string, unknown>[]): boolean 
 }
 
 /** hot 테이블(profiles·app_settings)을 app_kv_rows에서 재동기화 — LISTEN gap 보정 전용 */
-const REALTIME_MERGE_TABLES = new Set(['profiles', 'chats', 'likes', 'messages']);
+const REALTIME_MERGE_TABLES = new Set(['profiles', 'chats', 'likes', 'messages', 'contact_shares']);
 const _lastDbMerge = new Map<string, number>();
 const DB_MERGE_THROTTLE_MS = 2_500;
 
@@ -2436,8 +2436,9 @@ const FULL_RESYNC_TABLES: Array<{ tbl: string; order?: string }> = [
   { tbl: 'profiles' },
   { tbl: 'app_settings' },
   { tbl: 'notifications', order: 'ORDER BY created_at DESC' },
-  { tbl: 'likes',         order: 'ORDER BY created_at DESC LIMIT 5000' },
-  { tbl: 'chats',         order: 'ORDER BY created_at DESC LIMIT 5000' },
+  { tbl: 'likes',           order: 'ORDER BY created_at DESC LIMIT 5000' },
+  { tbl: 'chats',           order: 'ORDER BY created_at DESC LIMIT 5000' },
+  { tbl: 'contact_shares',  order: 'ORDER BY created_at DESC LIMIT 5000' },
 ];
 
 let _fullResyncRunning = false;
@@ -2447,6 +2448,7 @@ const RESYNC_TABLE_LIMIT: Record<string, number> = {
   notifications: 200,
   likes: 5000,
   chats: 5000,
+  contact_shares: 5000,
 };
 
 async function pruneDistributedRateLimits(): Promise<void> {
@@ -3714,44 +3716,40 @@ router.post('/op', async (req: Request, res: Response) => {
         }
         // likes 테이블: 동일 liker+liked+heart_type 중복 방지 (빠른 연속 클릭으로 인한 중복 하트 삽입 방지)
         if (table === 'likes' && effectiveRow.liker_id != null && effectiveRow.liked_id != null && effectiveRow.heart_type != null) {
-          const dupLike = tableData.find(r =>
-            r.liker_id === effectiveRow.liker_id && r.liked_id === effectiveRow.liked_id && r.heart_type === effectiveRow.heart_type
-          );
+          const likeLiker = String(effectiveRow.liker_id);
+          const likeLiked = String(effectiveRow.liked_id);
+          const likeType = String(effectiveRow.heart_type);
+          const likeTriple = (r: Record<string, unknown>) =>
+            String(r.liker_id) === likeLiker && String(r.liked_id) === likeLiked && String(r.heart_type) === likeType;
+          const dupLike = tableData.find(likeTriple);
           if (dupLike) return res.json({ data: single ? dupLike : [dupLike], error: null }); // 멱등: 기존 row 반환
           const referenceCheck = await ensureWriteReferences(table, effectiveRow);
           if (!referenceCheck.ok) return sendReferenceFailure(res, referenceCheck);
 
           // 타입별 글로벌 한도: 동일 heart_type을 최대 2명에게만 보낼 수 있음 (클라이언트 우회 방지)
           const sameTypeCount = tableData.filter(r =>
-            r.liker_id === effectiveRow.liker_id && r.heart_type === effectiveRow.heart_type
+            String(r.liker_id) === likeLiker && String(r.heart_type) === likeType
           ).length;
           if (sameTypeCount >= 2) {
-            return res.status(429).json({ data: null, error: { message: '같은 종류의 하트는 최대 2명에게만 보낼 수 있습니다.', code: 'HEART_LIMIT' } });
+            // 400: HEART_LIMIT을 429로 주면 클라이언트가 NAT 429로 재시도해 지연·이중전송처럼 보임
+            return res.status(400).json({ data: null, error: { message: '같은 종류의 하트는 최대 2명에게만 보낼 수 있습니다.', code: 'HEART_LIMIT' } });
           }
 
           // Time-bucket rate limiter: at most 1 like per 500 ms per (liker, liked, type) triple
           // Keyed on all three dimensions so different heart types can still be sent concurrently;
           // only the exact same (liker, liked, type) combination is throttled within the window.
-          const rateKey = `${effectiveRow.liker_id}:${effectiveRow.liked_id}:${effectiveRow.heart_type}`;
+          const rateKey = `${likeLiker}:${likeLiked}:${likeType}`;
           const lastMs = _likesLastInsert.get(rateKey) ?? 0;
           if (Date.now() - lastMs < LIKES_MIN_INTERVAL_MS) {
             // Rapid duplicate — return existing row if any (never silent null success)
-            const recent = tableData.find(r =>
-              r.liker_id === effectiveRow.liker_id &&
-              r.liked_id === effectiveRow.liked_id &&
-              r.heart_type === effectiveRow.heart_type
-            );
+            const recent = tableData.find(likeTriple);
             if (recent) return res.json({ data: single ? recent : [recent], error: null });
             return res.status(429).json({ data: null, error: { message: '하트를 너무 빠르게 보내고 있습니다. 잠시 후 다시 시도해 주세요.', code: 'RATE_LIMIT' } });
           }
           // 멀티 인스턴스: PG 공용 슬롯 (로컬 Map 만으로는 인스턴스별 우회 가능)
           const distributedOk = await claimDistributedRateSlot(`like_pair:${rateKey}`, LIKES_MIN_INTERVAL_MS);
           if (!distributedOk) {
-            const recent = tableData.find(r =>
-              r.liker_id === effectiveRow.liker_id &&
-              r.liked_id === effectiveRow.liked_id &&
-              r.heart_type === effectiveRow.heart_type
-            );
+            const recent = tableData.find(likeTriple);
             if (recent) return res.json({ data: single ? recent : [recent], error: null });
             return res.status(429).json({ data: null, error: { message: '하트를 너무 빠르게 보내고 있습니다. 잠시 후 다시 시도해 주세요.', code: 'RATE_LIMIT' } });
           }
@@ -3786,6 +3784,10 @@ router.post('/op', async (req: Request, res: Response) => {
           id: (effectiveRow.id as string | undefined) ?? genId(),
         };
         if (table === 'session_history' && !newRow.ended_at) newRow.ended_at = ts();
+        // 클라이언트 시계가 created_at을 덮어쓰면 토스트 스킵·정렬이 어긋남 (채팅 read_at과 같은 계열)
+        if (table === 'likes' || table === 'contact_shares' || table === 'contact_share_events') {
+          newRow.created_at = ts();
+        }
 
         // 프로필 생성 시 device secret을 원자적으로 바인딩 — TOFU 레이스 윈도우 제거
         // 클라이언트가 _device_secret 필드를 포함해 INSERT하면 서버가 HMAC 해시를 저장하고

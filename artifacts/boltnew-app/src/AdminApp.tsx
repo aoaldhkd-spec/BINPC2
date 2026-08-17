@@ -180,6 +180,18 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
             return [like, ...prev];
           });
         })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'likes' },
+        (payload: { new: Record<string, unknown> }) => {
+          const like = payload.new as Like;
+          if (!like?.id) return;
+          setLikes(prev => {
+            const idx = prev.findIndex(existing => existing.id === like.id);
+            if (idx === -1) return [like, ...prev];
+            const next = [...prev];
+            next[idx] = { ...next[idx], ...like };
+            return next;
+          });
+        })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'likes' },
         (payload: { old: Record<string, unknown> }) => {
           setLikes(prev => prev.filter(l => l.id !== (payload.old as Like).id));

@@ -1013,7 +1013,7 @@ export function MainScreen({
                           {shared && (
                             <button
                               onClick={() => {
-                                const share = receivedContactShares.find(s => s.liker_id === liker.id);
+                                const share = receivedContactShares.find(s => s.liked_id === liker.id);
                                 if (share) onContactViewOpen(share, liker);
                               }}
                               className="flex items-center gap-1 px-2.5 py-1 bg-teal-50 text-teal-600 text-xs font-bold rounded-full border border-teal-200 hover:bg-teal-100 transition-all">

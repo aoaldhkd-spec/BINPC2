@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Profile, ContactShare } from '../types/app';
 import { HeartType } from '../lib/constants';
-import { countTodayInterestMission, type LikeRowForMission } from '../lib/signal-match';
+import { countTodayInterestMission, isInterestHeart, type LikeRowForMission } from '../lib/signal-match';
 import {
   mergeMapAfterSnapshot,
   mergeRowsAfterSnapshot,
@@ -52,6 +52,14 @@ export function useHearts(
   const likeInFlightRef = useRef(false);
   // 하트 응답(수락/거절) 중복 클릭 방지용 ref
   const heartResponseInFlightRef = useRef<string | null>(null);
+  const contactShareInFlightRef = useRef(false);
+
+  /** 같은 사람이 칭찬+호감을 보내면 호감을 남긴다. last-wins면 수락/채팅 언락이 사라짐. */
+  const preferReceivedHeartType = (existing: HeartType | undefined, incoming: HeartType): HeartType => {
+    if (isInterestHeart(incoming)) return incoming;
+    if (existing && isInterestHeart(existing)) return existing;
+    return incoming;
+  };
   // 하트 전송 실패 메시지 — 호출 측에서 BottomNotif 등으로 표시
   const [likeError, setLikeError] = useState<string | null>(null);
   // 세대 카운터 — 계정 전환 중 in-flight 응답이 새 사용자 state를 덮어쓰는 race 방지
@@ -95,8 +103,16 @@ export function useHearts(
       if (error) { console.warn('[useHearts] loadLikes error', error.message); return; }
       if (data) {
         const fetchedLikedIds = new Set<string>(data.map((l: { liked_id: string }) => l.liked_id));
-        const fetchedHeartTypes = new Map<string, HeartType>(data.map((l: { liked_id: string; heart_type: string | null }) => [l.liked_id, (l.heart_type ?? 'red') as HeartType]));
-        const fetchedStatuses = new Map<string, string>(data.map((l: { liked_id: string; status: string }) => [l.liked_id, l.status]));
+        const fetchedHeartTypes = new Map<string, HeartType>();
+        const fetchedStatuses = new Map<string, string>();
+        for (const l of data as Array<{ liked_id: string; heart_type: string | null; status: string }>) {
+          const ht = (l.heart_type ?? 'red') as HeartType;
+          fetchedHeartTypes.set(l.liked_id, preferReceivedHeartType(fetchedHeartTypes.get(l.liked_id), ht));
+          const prevStatus = fetchedStatuses.get(l.liked_id);
+          if (l.status === 'accepted' || prevStatus === 'accepted') fetchedStatuses.set(l.liked_id, 'accepted');
+          else if (l.status === 'pending' || prevStatus === 'pending') fetchedStatuses.set(l.liked_id, 'pending');
+          else fetchedStatuses.set(l.liked_id, l.status);
+        }
         setLikedIds(current => mergeSetAfterSnapshot(fetchedLikedIds, atStart.likedIds, current));
         setSentHeartTypes(current => mergeMapAfterSnapshot(fetchedHeartTypes, atStart.sentHeartTypes, current));
         setLikeStatuses(current => mergeMapAfterSnapshot(fetchedStatuses, atStart.likeStatuses, current));
@@ -139,7 +155,11 @@ export function useHearts(
       const { data } = await supabase.from('likes').select('id, liker_id, status, heart_type, created_at').eq('liked_id', userId);
       if (gen !== loadReceivedLikesGenRef.current) return; // 계정이 바뀐 경우 stale 응답 폐기
       const rows = data ?? [];
-      const fetchedHeartTypes = new Map<string, HeartType>(rows.map((l: { liker_id: string; heart_type: string | null }) => [l.liker_id, (l.heart_type ?? 'red') as HeartType]));
+      const fetchedHeartTypes = new Map<string, HeartType>();
+      for (const l of rows as Array<{ liker_id: string; heart_type: string | null }>) {
+        const ht = (l.heart_type ?? 'red') as HeartType;
+        fetchedHeartTypes.set(l.liker_id, preferReceivedHeartType(fetchedHeartTypes.get(l.liker_id), ht));
+      }
       const fetchedAcknowledged = new Set<string>(rows.filter((l: { liker_id: string; status: string; heart_type: string | null }) => l.status === 'accepted' && (l.heart_type ?? 'red') === 'green').map((l: { liker_id: string }) => l.liker_id));
       setReceivedHeartTypes(current => mergeMapAfterSnapshot(fetchedHeartTypes, atStart.heartTypes, current));
       setAcknowledgedComplimentIds(current => mergeSetAfterSnapshot(fetchedAcknowledged, atStart.acknowledged, current));
@@ -221,22 +241,27 @@ export function useHearts(
     setLikeConfirmTarget(target);
   };
 
-  const executeLike = async (heartType: HeartType) => {
-    if (!currentUserId || !likeConfirmTarget) return;
-    if (likeInFlightRef.current) return;
-    if (heartCountByType(heartType) >= 2) return;
-    if (sentHeartsPerPerson.get(likeConfirmTarget.id)?.has(heartType)) return;
+  const executeLike = async (heartType: HeartType): Promise<boolean> => {
+    if (!currentUserId || !likeConfirmTarget) return false;
+    if (likeInFlightRef.current) return false;
+    if (heartCountByType(heartType) >= 2) {
+      setLikeError('같은 종류의 하트는 최대 2명에게만 보낼 수 있습니다.');
+      setLikeConfirmTarget(null);
+      return false;
+    }
+    if (sentHeartsPerPerson.get(likeConfirmTarget.id)?.has(heartType)) {
+      setLikeError('이미 보낸 하트입니다.');
+      setLikeConfirmTarget(null);
+      return false;
+    }
     likeInFlightRef.current = true;
     // 진입 시점 스냅샷 — await 중 상태 변경으로 stale 클로저 방지
     const targetId = likeConfirmTarget.id;
     const likerId = currentUserId;
     try {
-      // Promise.race로 8초 타임아웃 강제 — localdb.ts가 AbortSignal을 지원하지 않으므로 race 패턴 사용
-      const insertPromise = supabase.from('likes').insert({ liker_id: likerId, liked_id: targetId, heart_type: heartType });
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('timeout')), 8_000)
-      );
-      const { error } = await Promise.race([insertPromise, timeoutPromise]) as { error: unknown };
+      // localdb apiFetch가 15s 타임아웃 + 429/502/503 재시도를 담당. 짧은 race는
+      // NAT 429 재시도 중 거짓 실패를 만들고, 서버 insert는 계속 진행된다.
+      const { error } = await supabase.from('likes').insert({ liker_id: likerId, liked_id: targetId, heart_type: heartType }) as { error: unknown };
       if (!error) {
         setLikedIds((prev) => new Set([...prev, targetId]));
         setSentHeartTypes((prev) => new Map(prev).set(targetId, heartType));
@@ -247,29 +272,38 @@ export function useHearts(
           next.set(targetId, s);
           return next;
         });
+        setLikeStatuses(prev => {
+          if (prev.has(targetId)) return prev;
+          return new Map(prev).set(targetId, 'pending');
+        });
         setOutgoingLikeRows(prev => {
           if (prev.some(r => r.liked_id === targetId && (r.heart_type ?? 'red') === heartType)) return prev;
           return [...prev, { liked_id: targetId, heart_type: heartType, created_at: new Date().toISOString() }];
         });
         setLikeConfirmTarget(null);
+        return true;
       } else {
-        // ← 핵심 수정: 서버 오류(429·500 등) 시 모달을 닫되 사용자에게 실패 알림
-        // 기존 코드는 에러 시에도 setLikeConfirmTarget(null)을 호출해 모달이 조용히 닫혔음
-        const errMsg = typeof error === 'object' && error !== null && 'message' in error
-          ? String((error as { message: unknown }).message)
-          : String(error);
-        const isRateLimit = errMsg.includes('429') || errMsg.includes('rate') || errMsg.includes('too many');
-        setLikeError(isRateLimit
-          ? '하트를 너무 많이 보냈습니다. 잠시 후 다시 시도해 주세요. 💔'
-          : '하트 전송에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+        const errObj = (typeof error === 'object' && error !== null) ? error as { message?: unknown; code?: unknown } : null;
+        const errMsg = errObj?.message != null ? String(errObj.message) : String(error);
+        const errCode = errObj?.code != null ? String(errObj.code) : '';
+        const isHeartLimit = errCode === 'HEART_LIMIT' || errMsg.includes('최대 2명');
+        const isRateLimit = errCode === 'RATE_LIMIT' || errMsg.includes('429') || errMsg.includes('rate') || errMsg.includes('too many');
+        setLikeError(isHeartLimit
+          ? '같은 종류의 하트는 최대 2명에게만 보낼 수 있습니다.'
+          : isRateLimit
+            ? '하트를 너무 많이 보냈습니다. 잠시 후 다시 시도해 주세요. 💔'
+            : '하트 전송에 실패했습니다. 잠시 후 다시 시도해 주세요.');
         setLikeConfirmTarget(null);
+        void loadLikes(likerId);
+        return false;
       }
     } catch {
-      // 타임아웃 또는 네트워크 오류 — 사용자에게 명시적으로 알림
+      // 네트워크 오류 — 사용자에게 명시적으로 알림
       // 서버는 성공했을 수 있으므로 보낸 하트 목록만 재동기화해 상태 불일치 방지
       setLikeError('연결이 불안정합니다. 잠시 후 다시 시도해 주세요.');
       setLikeConfirmTarget(null);
       void loadLikes(likerId);
+      return false;
     } finally {
       likeInFlightRef.current = false;
     }
@@ -312,6 +346,8 @@ export function useHearts(
   // ✅ contact_share_events insert 실패를 별도로 처리 (non-fatal)
   const handleContactShare = async (likerId: string, kakao: string, instagram: string, phone: string) => {
     if (!currentUserId) return;
+    if (contactShareInFlightRef.current) return;
+    contactShareInFlightRef.current = true;
     try {
       const { error } = await supabase.from('contact_shares').upsert({
         liker_id: likerId,
@@ -334,11 +370,13 @@ export function useHearts(
         setContactShareTarget(null);
         // 하트 수락과 1:1 채팅 개설은 분리됨 — 채팅은 사용자가 직접 채팅탭에서 시작
       } else {
-        alert(`연락처 공유 실패: ${error.message}`);
+        setLikeError(`연락처 공유 실패: ${error.message}`);
       }
     } catch (e) {
       console.error('[useHearts] handleContactShare 오류:', e);
-      alert('연락처 공유 중 오류가 발생했습니다. 다시 시도해 주세요.');
+      setLikeError('연락처 공유 중 오류가 발생했습니다. 다시 시도해 주세요.');
+    } finally {
+      contactShareInFlightRef.current = false;
     }
   };
 

@@ -480,10 +480,10 @@ function App() {
     });
   }, [currentUserId, likedIds, likeStatuses, receivedContactShares, receivedHeartTypes]);
 
-  // 하트 보내는 쪽도 폭죽 🎊
-  const execLikeWithConfetti = useCallback((...args: Parameters<typeof executeLike>) => {
-    executeLike(...args);
-    triggerConfetti();
+  // 하트 보내는 쪽도 폭죽 🎊 — 전송 성공 후에만 (실패 시 폭죽은 오해만 줌)
+  const execLikeWithConfetti = useCallback(async (...args: Parameters<typeof executeLike>) => {
+    const ok = await executeLike(...args);
+    if (ok) triggerConfetti();
   }, [executeLike, triggerConfetti]);
 
   // 기능 잠금 중에는 하트 전송 차단 (LOCKED_TABS와 동일한 보호 수준)
@@ -994,15 +994,18 @@ function App() {
           seenContactEventIdsRef.current = new Set(arr.slice(-300));
         }
         const eventAgeMs = row.created_at ? Date.now() - new Date(row.created_at).getTime() : 0;
+        // 폰 시계가 서버보다 빠르면 live 이벤트도 30초+로 보여 토스트가 스킵됨.
+        // 음수(폰이 느림)는 live. 2분 초과만 링 재전송으로 본다.
+        const isStaleReplay = eventAgeMs > 120_000;
         if (row.event_type === 'accepted') {
           // replay된 이벤트가 오래됐어도 토스트만 생략하고 durable contact_shares
           // 상태는 반드시 DB에서 복구한다.
           void loadContactShareData(myId);
-          if (eventAgeMs > 30_000) return;
+          if (isStaleReplay) return;
           setShareEventNotif({ type: 'accepted', fromUserId: row.from_user_id });
           shareNotifTimerIds.push(setTimeout(() => setShareEventNotif(null), 5000));
         } else if (row.event_type === 'rejected') {
-          if (eventAgeMs > 30_000) return;
+          if (isStaleReplay) return;
           setShareEventNotif({ type: 'rejected', fromUserId: row.from_user_id });
           shareNotifTimerIds.push(setTimeout(() => setShareEventNotif(null), 5000));
         }
@@ -1196,7 +1199,13 @@ function App() {
         (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
           const row = payload.new as { id?: string; liked_id: string; heart_type: HeartType; created_at?: string };
           setLikedIds((prev) => new Set([...prev, row.liked_id]));
-          setSentHeartTypes((prev) => new Map(prev).set(row.liked_id, row.heart_type ?? 'red'));
+          setSentHeartTypes((prev) => {
+            const incoming = row.heart_type ?? 'red';
+            const existing = prev.get(row.liked_id);
+            if (incoming === 'green' && existing && isInterestHeart(existing)) return prev;
+            return new Map(prev).set(row.liked_id, incoming);
+          });
+          setLikeStatuses(prev => prev.has(row.liked_id) ? prev : new Map(prev).set(row.liked_id, 'pending'));
           setSentHeartsPerPerson(prev => {
             const next = new Map(prev);
             const s = new Set(next.get(row.liked_id) ?? []);
@@ -1242,13 +1251,20 @@ function App() {
             // 수신자 전용 — 보낸 사람·제3자 토스트 방지 (필터가 깨져도 가드)
             if (!isIncomingHeartToastTarget(currentUserId, { liker_id: likerId, liked_id: row.liked_id ?? currentUserId })) return;
             if (likerId) {
-              setReceivedHeartTypes(prev => new Map(prev).set(likerId, row.heart_type ?? 'red'));
+              const incomingHt = row.heart_type ?? 'red';
+              setReceivedHeartTypes(prev => {
+                const existing = prev.get(likerId);
+                if (incomingHt === 'green' && existing && isInterestHeart(existing)) return prev;
+                return new Map(prev).set(likerId, incomingHt);
+              });
               const { data } = await supabase.from('profiles').select('*').eq('id', likerId).maybeSingle();
               if (data) {
                 setReceivedLikers((prev) => {
                   if (prev.find((p) => p.id === data.id)) return prev;
                   return [data, ...prev];
                 });
+              } else {
+                loadReceivedLikesRef.current?.(currentUserId)?.catch(() => {});
               }
               const heartNick = data?.nickname ?? '누군가';
               const ht = row.heart_type ?? 'red';
@@ -1805,6 +1821,7 @@ function App() {
               loadChatListRef.current?.(uid).catch(() => {});
               loadReceivedLikesRef.current?.(uid).catch(() => {});
               loadLikesRef.current?.(uid).catch(() => {});
+              loadContactShareDataRef.current?.(uid).catch(() => {});
               loadProfilesRef.current().catch(() => {});
             } else {
               window.location.reload();
