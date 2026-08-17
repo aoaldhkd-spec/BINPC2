@@ -47,6 +47,23 @@ describe('admin login helpers', () => {
   });
 });
 
+describe('credentials tab copy', () => {
+  const credentials = readFileSync(join(root, 'admin/CredentialsTab.tsx'), 'utf8');
+  const adminApp = readFileSync(join(root, 'AdminApp.tsx'), 'utf8');
+
+  it('does not tell operators that a retired server default still works', () => {
+    expect(credentials).not.toMatch(/서버 기본값/);
+    expect(credentials).not.toMatch(/서버 기본 비밀번호/);
+    expect(credentials).not.toMatch(/서버 기본 코드/);
+  });
+
+  it('exposes the 접속정보 tab that saves admin_password through patchAdminSettings', () => {
+    expect(adminApp).toMatch(/label: '접속정보'/);
+    expect(adminApp).toMatch(/patchAdminSettings\(\{ admin_phone: phone, admin_password: password \}/);
+    expect(adminApp).toMatch(/settingsSubTab === 'admin' && <CredentialsTab/);
+  });
+});
+
 describe('mobile-page-center viewport', () => {
   it('does not shrink login/gate pages with 100dvh when the keyboard opens', () => {
     const css = readFileSync(join(root, 'index.css'), 'utf8');

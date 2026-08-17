@@ -235,7 +235,7 @@ export function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onS
         <form onSubmit={handleSaveResetPw} className="space-y-4">
           <div className="bg-amber-50 rounded-xl p-3 border border-amber-200 text-xs text-amber-700 leading-relaxed">
             유저가 술번개 로고를 탭하면 뜨는 <strong>처음으로 돌아가기</strong> 비밀번호입니다.<br />
-            미설정 시 서버 기본 비밀번호가 사용됩니다.
+            여기에 저장한 값이 바로 사용됩니다. 예전에 공개됐던 기본값은 통하지 않습니다.
           </div>
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">현재 상태</label>
@@ -288,7 +288,7 @@ export function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onS
         <form onSubmit={handleSaveTestPw} className="space-y-4">
           <div className="bg-violet-50 rounded-xl p-3 border border-violet-200 text-xs text-violet-700 leading-relaxed">
             <strong>테스트 전용 접속 코드</strong>입니다. 이 코드로 접속하면 테스트 대시보드로 이동합니다.<br />
-            미설정 시 서버 기본 코드가 사용됩니다.
+            여기에 저장한 값이 바로 사용됩니다. 예전에 공개됐던 기본값은 통하지 않습니다.
           </div>
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">현재 상태</label>

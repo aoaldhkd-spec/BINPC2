@@ -30,6 +30,20 @@ describe('longevity recurrence guards (server)', () => {
     expect(dbTs).toMatch(/table_name = 'rate_limits'/);
   });
 
+  it('admin RPC hydrates app_settings from DB before password checks', () => {
+    const rpcStart = dbTs.indexOf("router.post('/rpc/:name'");
+    const hydrateAt = dbTs.indexOf('await hydrateAppSettingsFromDb()', rpcStart);
+    const createSession = dbTs.indexOf("case 'admin_create_session'", rpcStart);
+    const updateSettings = dbTs.indexOf("case 'admin_update_settings'", rpcStart);
+    expect(rpcStart).toBeGreaterThan(0);
+    expect(hydrateAt).toBeGreaterThan(rpcStart);
+    expect(createSession).toBeGreaterThan(hydrateAt);
+    expect(updateSettings).toBeGreaterThan(hydrateAt);
+    expect(dbTs).toMatch(/store\['app_settings'\] = \[updated\]/);
+    expect(dbTs).toMatch(/await dbPersistRow\('app_settings', updated\)/);
+    expect(dbTs).toMatch(/resetPanelLoginLimiter\(req\)/);
+  });
+
   it('150 distinct venue logins on one NAT IP stay under the IP burst cap', () => {
     const map = new Map();
     const ip = '203.0.113.10';

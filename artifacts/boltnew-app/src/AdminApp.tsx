@@ -563,7 +563,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               {([
                 { id: 'control' as SettingsSubTab, label: '대시보드' },
                 { id: 'qr' as SettingsSubTab, label: 'QR코드' },
-                { id: 'admin' as SettingsSubTab, label: '관리자 설정' },
+                { id: 'admin' as SettingsSubTab, label: '접속정보' },
                 { id: 'db' as SettingsSubTab, label: 'DB헬스', errorBadge: (dbHealth?.persistErrors ?? 0) > 0 },
               ]).map(st => (
                 <button key={st.id} onClick={() => setSettingsSubTab(st.id)}
