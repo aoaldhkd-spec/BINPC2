@@ -190,6 +190,19 @@ export async function adminApiOp(
 // Local mock: admin client is the same as the regular client
 export const adminSupabase = supabase;
 
+export interface DbHealthHttpMetrics {
+  since: string;
+  unauthorized: Record<string, number>;
+  forbidden: Record<string, number>;
+  rateLimited: Record<string, number>;
+  expiredSseTokens: number;
+  missingSseTokens: number;
+  sseConnectionsAccepted: number;
+  sseConnectionsClosed: number;
+  uploadRejections: Record<string, number>;
+  uploadsAccepted: number;
+}
+
 export interface DbHealthData {
   persistErrors: number;
   recentErrors: { table: string; time: number; msg: string }[];
@@ -200,4 +213,5 @@ export interface DbHealthData {
   alarms: string[];
   ok: boolean;
   checkedAt: string;
+  httpMetrics?: DbHealthHttpMetrics;
 }

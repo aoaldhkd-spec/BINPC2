@@ -156,6 +156,38 @@ export function DbHealthTab({ health, loading, onRefresh, onClearErrors }: { hea
         </div>
       </div>
 
+      {/* Auth / rate-limit / upload observability — integers only, no PII */}
+      {health?.httpMetrics && (
+        <div>
+          <p className="text-xs font-semibold text-gray-500 mb-2">인증·제한·업로드 (프로세스 시작 이후)</p>
+          <div className="grid grid-cols-2 gap-3">
+            <CountBox
+              label="401 합계"
+              value={Object.values(health.httpMetrics.unauthorized).reduce((a, b) => a + b, 0)}
+              sub={`SSE만료 ${health.httpMetrics.expiredSseTokens} · 토큰없음 ${health.httpMetrics.missingSseTokens}`}
+              warn={Object.values(health.httpMetrics.unauthorized).reduce((a, b) => a + b, 0) > 50}
+            />
+            <CountBox
+              label="429 합계"
+              value={Object.values(health.httpMetrics.rateLimited).reduce((a, b) => a + b, 0)}
+              sub={`403 ${Object.values(health.httpMetrics.forbidden).reduce((a, b) => a + b, 0)}`}
+              warn={Object.values(health.httpMetrics.rateLimited).reduce((a, b) => a + b, 0) > 0}
+            />
+            <CountBox
+              label="SSE 수락/종료"
+              value={`${health.httpMetrics.sseConnectionsAccepted}/${health.httpMetrics.sseConnectionsClosed}`}
+              sub="연결 누적"
+            />
+            <CountBox
+              label="사진 업로드"
+              value={health.httpMetrics.uploadsAccepted}
+              sub={`거절 8/9M캡 ${health.httpMetrics.uploadRejections.size_cap ?? 0} · MIME ${health.httpMetrics.uploadRejections.mime ?? 0}`}
+              warn={(health.httpMetrics.uploadRejections.size_cap ?? 0) > 0}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Stats row */}
       <div className="grid grid-cols-3 gap-3">
         <CountBox

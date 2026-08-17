@@ -1,22 +1,20 @@
-import { useState, useEffect, useRef, useCallback, useMemo, Suspense, lazy, Component, ReactNode } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, Suspense, lazy } from 'react';
 /**
  * Main user shell UI (tabs: profiles/chats/status/…).
  * State/realtime: App.tsx + hooks (useChat/useHearts). See ARCHITECTURE.md.
  */
 import {
-  Heart, MessageCircle, Users, ChevronDown, CheckCircle,
+  Heart, Users, ChevronDown, CheckCircle,
   Eye, X, HelpCircle,
-  QrCode, Camera, Search,
+  QrCode, Camera,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { Profile, ContactShare, Chat, MainTab, GroupChat, ProfileView, UserSignal } from '../types/app';
-import { groupRoomVisual, MAX_GROUPS_PER_USER, sumUnreadCounts, unreadForGroup } from '../lib/group-rooms';
-import { GroupRoomIcon } from './GroupRoomIcon';
-import { unreadForChat } from '../lib/chat-unread';
+import { sumUnreadCounts } from '../lib/group-rooms';
 import { BIO_CATEGORIES, parseProfileInterests } from '../lib/interests';
 import { InterestPicker } from './InterestPicker';
 import { HeartType, HEART_TYPES, heartMeta } from '../lib/constants';
-import { getPositionLabel, getPositionBg, getDomSubLabel, getDomSubBg, genAvatar, getAvatarSrc, isSwipeGestureVerifyProfile } from '../lib/profile';
+import { getPositionLabel, getPositionBg, getDomSubLabel, getDomSubBg, genAvatar, getAvatarSrc } from '../lib/profile';
 import { containsBannedNicknameWord } from '../lib/bannedWords';
 import {
   clampNicknameInput,
@@ -26,7 +24,6 @@ import {
   nicknameCompositionAllowed,
   shouldBlockNicknameBeforeInput,
 } from '../lib/nickname-input';
-import { koreanMatch } from '../lib/utils';
 import { ls } from '../lib/storage';
 import ProfileAvatar from './ProfileAvatar';
 import { StatsTab, RankingTab } from './StatsTabs';
@@ -41,42 +38,13 @@ import { ProfileCard } from './ProfileCard';
 import { ResetButton } from './ResetButton';
 import { SignalTab } from './SignalTab';
 import { FUNCTIONS_LOCK_TOAST, SOCIAL_LOCKED_TABS } from '../lib/functions-lock';
+import { filterProfilesForDeck } from '../lib/profile-deck-filter';
+import type { ScannedContact } from '../lib/profile-contact-helpers';
+import StatusErrorBoundary from './StatusErrorBoundary';
+import { MainChatsTab } from './MainChatsTab';
 const FortuneTab = lazy(() => import('./FortuneTab'));
 
 export { ProfileCard };
-
-// ─── StatusErrorBoundary ──────────────────────────────────────────────────────
-
-class StatusErrorBoundary extends Component<
-  { children: ReactNode },
-  { hasError: boolean; error: Error | null }
-> {
-  constructor(props: { children: ReactNode }) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
-  static getDerivedStateFromError(error: Error) {
-    return { hasError: true, error };
-  }
-  componentDidCatch(error: Error, info: { componentStack: string }) {
-    console.error('[StatusErrorBoundary]', error, info);
-  }
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="flex flex-col items-center justify-center py-20 gap-3 text-center">
-          <p className="text-red-500 font-bold text-sm">내 상태 탭 오류가 발생했습니다.</p>
-          <p className="text-gray-400 text-xs">{this.state.error?.message}</p>
-          <button
-            onClick={() => this.setState({ hasError: false, error: null })}
-            className="px-4 py-2 bg-cyan-500 text-white text-xs font-bold rounded-xl"
-          >다시 시도</button>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
 
 
 // ─── MainScreen ───────────────────────────────────────────────────────────────
@@ -132,7 +100,7 @@ export function MainScreen({
   onToggleDark: () => void;
   onShowContactQr: () => void;
   onScanQr: () => void;
-  scannedContacts: Array<{ id: string; nickname: string; mbti?: string | null; photo_url?: string | null; kakao_id?: string | null; instagram_id?: string | null; phone_number?: string | null; contact_private?: boolean | null; scanned_at: string }>;
+  scannedContacts: ScannedContact[];
   onClearScannedContact: (id: string) => void;
   functionsLocked?: boolean;
   onShowTutorial: () => void;
@@ -199,35 +167,14 @@ export function MainScreen({
   }, [userSignals, currentUserId]);
 
   // 참여자 목록 — 필터·정렬을 매 렌더마다 재계산하지 않도록 메모이제이션
-  const filteredProfiles = useMemo(() => {
-    return [...profiles]
-      .filter(p => {
-        // Playwright swipe-gesture fixtures must never appear in the live 3-col deck
-        if (isSwipeGestureVerifyProfile(p) && p.id !== currentUserId) return false;
-        // 차단·숨기기 필터 (상호 차단 or 상대방이 나를 숨긴 경우 제외)
-        if (blockedUserIds.has(p.id) || hiddenByIds.has(p.id)) return false;
-        if (profileSearch) {
-          const matchNick = koreanMatch(p.nickname, profileSearch);
-          const matchMbti = !!p.mbti && koreanMatch(p.mbti, profileSearch);
-          const matchPos = koreanMatch(getPositionLabel(p.personality_score ?? 50), profileSearch);
-          if (!matchNick && !matchMbti && !matchPos) return false;
-        }
-        if (profilePersonalityFilter) {
-          const score = p.personality_score ?? 50;
-          if (profilePersonalityFilter === '비선호' && score >= 0) return false;
-          if (profilePersonalityFilter === '바텀계열' && (score < 0 || score > 49)) return false;
-          if (profilePersonalityFilter === '올계열' && (score < 50 || score > 55)) return false;
-          if (profilePersonalityFilter === '탑계열' && score < 56) return false;
-        }
-        if (profileMbtiFilter && p.mbti !== profileMbtiFilter) return false;
-        return true;
-      })
-      .sort((a, b) => {
-        if (a.id === currentUserId) return -1;
-        if (b.id === currentUserId) return 1;
-        return 0;
-      });
-  }, [profiles, profileSearch, profilePersonalityFilter, profileMbtiFilter, currentUserId, blockedUserIds, hiddenByIds]);
+  const filteredProfiles = useMemo(() => filterProfilesForDeck(profiles, {
+    currentUserId,
+    search: profileSearch,
+    personality: profilePersonalityFilter,
+    mbti: profileMbtiFilter,
+    blockedUserIds,
+    hiddenByIds,
+  }), [profiles, profileSearch, profilePersonalityFilter, profileMbtiFilter, currentUserId, blockedUserIds, hiddenByIds]);
 
   const [refreshedTab, setRefreshedTab] = useState<string | null>(null);
 
@@ -552,6 +499,7 @@ export function MainScreen({
   // ── 프로필 사진 업로드 + 기본 아바타 피커 ────────────────────────────────────
   const [photoUploading, setPhotoUploading] = useState(false);
   const [avatarCatIdx, setAvatarCatIdx] = useState(0);
+  const [showLegacyPhotoNotice, setShowLegacyPhotoNotice] = useState(true);
   // 고정 storage path를 쓰는 기존 사진도 앱 재진입 시 브라우저 캐시가 아닌 현재 값을 조회한다.
   const [photoCacheBust, setPhotoCacheBust] = useState(() => Date.now());
 
@@ -604,9 +552,9 @@ export function MainScreen({
   };
 
   return (
-    <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'bg-slate-950' : 'bg-gray-50'}`}>
+    <div className={`app-viewport min-w-0 transition-colors duration-300 ${darkMode ? 'bg-slate-950' : 'bg-gray-50'}`}>
       <header className={`sticky top-0 z-10 transition-colors duration-300 ${darkMode ? 'bg-slate-900 border-b-2 border-slate-700 shadow-slate-950/50' : 'bg-white shadow-sm'}`}>
-        <div className="max-w-7xl mx-auto px-4 py-3 grid grid-cols-3 items-center">
+        <div className="max-w-7xl mx-auto px-3 min-[360px]:px-4 py-2.5 min-[360px]:py-3 grid grid-cols-[auto_minmax(0,1fr)_auto] gap-1 items-center">
           {/* 좌: 튜토리얼 + 다크모드 + 배경음악 */}
           <div className="justify-self-start flex items-center gap-1">
             <button
@@ -627,12 +575,12 @@ export function MainScreen({
             </button>
           </div>
           {/* 중앙: 타이틀 */}
-          <div className="justify-self-center">
+          <div className="justify-self-center min-w-0">
             <ResetButton onReset={onReset} darkMode={darkMode} onOpenResetPassword={onOpenResetPassword} />
           </div>
           {/* 우: 하트 */}
-          <div className="justify-self-end flex items-center gap-2">
-            <div className="flex items-center gap-1.5">
+          <div className="justify-self-end flex items-center">
+            <div className="flex items-center gap-1 min-[390px]:gap-1.5">
               {HEART_TYPES.map(h => {
                 const used = heartCount(h.type);
                 return (
@@ -681,7 +629,7 @@ export function MainScreen({
 
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-6 scrollbar-styled-light">
+      <main className="max-w-7xl mx-auto px-3 min-[360px]:px-4 py-4 min-[390px]:py-6 pb-24 scrollbar-styled-light">
         {chatSearchLockToast && (
           <div className="fixed top-24 left-0 right-0 z-[80] flex justify-center pointer-events-none">
             <div className="text-center text-[11px] font-bold text-white bg-gray-800/90 rounded-full px-3 py-1">
@@ -742,7 +690,7 @@ export function MainScreen({
             </div>
 
             {/* ── 참여자 그리드 (이 영역만 스크롤) ───────── */}
-            <div className="overflow-y-auto -mx-4 px-4 pb-0" style={{ maxHeight: 'calc(100dvh - 330px)', minHeight: 160 }}>
+            <div className="overflow-y-auto -mx-3 min-[360px]:-mx-4 px-3 min-[360px]:px-4 pb-0" style={{ maxHeight: 'calc(100dvh - 330px)', minHeight: 160 }}>
             <div className="grid grid-cols-3 gap-1 sm:gap-1.5 items-start">
             {filteredProfiles.filter(p => p.id !== currentUserId).map((profile) => (
               <ProfileCard
@@ -1431,6 +1379,24 @@ export function MainScreen({
                     </button>
                     {showAvatarPicker && (
                       <div className={`px-4 pb-4 ${darkMode ? 'bg-slate-700/20' : 'bg-gray-50/50'}`}>
+                        {showLegacyPhotoNotice && (
+                          <div
+                            data-testid="legacy-photo-quality-notice"
+                            className={`mb-3 flex w-full min-w-0 items-start gap-2 rounded-xl border p-3 text-[11px] leading-relaxed ${darkMode ? 'border-cyan-500/30 bg-cyan-500/10 text-cyan-100' : 'border-cyan-200 bg-cyan-50 text-cyan-800'}`}
+                          >
+                            <p className="min-w-0 flex-1 break-words">
+                              예전에 올린 사진은 새 화질 기준을 적용하려면 원본 카메라·갤러리 파일이 필요해요. 앱에 저장된 사본은 잃은 디테일을 되살릴 수 없습니다. 지금 사진을 꼭 다시 올릴 필요는 없어요.
+                            </p>
+                            <button
+                              type="button"
+                              aria-label="사진 화질 안내 닫기"
+                              onClick={() => setShowLegacyPhotoNotice(false)}
+                              className={`touch-target -m-2 flex flex-shrink-0 items-center justify-center rounded-full ${darkMode ? 'text-cyan-200 hover:bg-white/10' : 'text-cyan-700 hover:bg-cyan-100'}`}
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        )}
                         <label className={`flex items-center gap-3 p-3 mb-3 rounded-xl border-2 border-dashed cursor-pointer transition-all ${darkMode ? 'border-slate-600 hover:border-cyan-500 bg-slate-800/60' : 'border-gray-200 hover:border-cyan-400 bg-white'}`}>
                           <Camera className={`w-5 h-5 flex-shrink-0 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
                           <div className="flex-1">
@@ -1957,314 +1923,37 @@ export function MainScreen({
 
         {/* ─── 채팅 탭 ─── */}
         {mainTab === 'chats' && (
-          <div className="max-w-lg mx-auto space-y-3">
-            {/* ── 1:1 / 단체 채팅 전환 서브탭 ── */}
-            <div className={`flex rounded-xl p-0.5 ${darkMode ? 'bg-slate-700' : 'bg-gray-100'}`}>
-              <button
-                onClick={() => setChatSubTab('direct')}
-                className={`flex-1 py-1.5 text-xs font-black rounded-lg transition-all ${
-                  chatSubTab === 'direct'
-                    ? (darkMode ? 'bg-slate-600 text-white shadow-sm' : 'bg-white text-gray-900 shadow-sm')
-                    : (darkMode ? 'text-slate-400' : 'text-gray-500')
-                }`}
-              >
-                💬 내 채팅 (1:1)
-                {sumUnreadCounts(unreadChatCounts) > 0 && (
-                  <span className="ml-1 inline-flex items-center justify-center min-w-[16px] h-4 px-1 text-[10px] font-black bg-rose-500 text-white rounded-full">
-                    {sumUnreadCounts(unreadChatCounts)}
-                  </span>
-                )}
-              </button>
-              <button
-                onClick={() => setChatSubTab('group')}
-                className={`flex-1 py-1.5 text-xs font-black rounded-lg transition-all ${
-                  chatSubTab === 'group'
-                    ? (darkMode ? 'bg-slate-600 text-white shadow-sm' : 'bg-white text-gray-900 shadow-sm')
-                    : (darkMode ? 'text-slate-400' : 'text-gray-500')
-                }`}
-              >
-                👥 단체 채팅
-                {sumUnreadCounts(unreadGroupCounts) > 0 && (
-                  <span className="ml-1 inline-flex items-center justify-center min-w-[16px] h-4 px-1 text-[10px] font-black bg-rose-500 text-white rounded-full">
-                    {sumUnreadCounts(unreadGroupCounts)}
-                  </span>
-                )}
-              </button>
-            </div>
-
-            {/* ── 단체 채팅 목록 ── */}
-            {chatSubTab === 'group' && (
-              <>
-                <p className={`text-[11px] font-bold px-1 ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>
-                  참여 {groupChats.filter(g => g.joined).length}/{MAX_GROUPS_PER_USER} · 년생·N대 자동, 2차는 들락날락
-                </p>
-                {groupChats.length === 0 ? (
-                  <div className="text-center py-16">
-                    <span className="text-5xl block mb-3 opacity-30">👥</span>
-                    <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
-                      아직 열린 단톡방이 없어요
-                    </p>
-                    <p className={`text-xs mt-1 ${darkMode ? 'text-slate-500' : 'text-gray-300'}`}>
-                      년생·나이대 방은 자동이에요. 2차 클럽·술은 눌러서 입장!
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {groupChats.map(group => {
-                      const unread = unreadForGroup(unreadGroupCounts, group.id, groupChats);
-                      const visual = groupRoomVisual(group);
-                      const joined = !!group.joined;
-                      const joining = joiningGroupId === group.id;
-                      return (
-                        <div
-                          key={group.id}
-                          onClick={() => { if (joined) { if (guardLockedAction()) return; onOpenGroupChat?.(group.id); } }}
-                          className={`rounded-2xl shadow-sm p-4 flex items-center gap-3 transition-colors duration-300 ${
-                            joined ? 'cursor-pointer active:scale-[0.98]' : ''
-                          } ${
-                            visual.afterparty
-                              ? (darkMode ? 'bg-violet-950/40 border border-violet-500/40' : 'bg-violet-50 border border-violet-200')
-                              : (darkMode ? 'bg-slate-800 border border-slate-600' : 'bg-white')
-                          } ${joined && !visual.afterparty ? (darkMode ? 'hover:bg-slate-700' : 'hover:bg-gray-50') : ''}`}
-                        >
-                          <div className={`w-12 h-12 rounded-full flex-shrink-0 flex items-center justify-center overflow-hidden ${
-                            visual.afterparty
-                              ? (darkMode ? 'bg-violet-500/20' : 'bg-violet-100')
-                              : (darkMode ? 'bg-teal-500/20' : 'bg-teal-50')
-                          }`}>
-                            <GroupRoomIcon group={group} size={visual.glyph === 'club' ? 48 : 28} />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              {visual.afterparty && (
-                                <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full flex-shrink-0 ${
-                                  darkMode ? 'bg-violet-500/30 text-violet-200' : 'bg-violet-200 text-violet-800'
-                                }`}>
-                                  2차
-                                </span>
-                              )}
-                              <p className={`text-sm font-bold truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                                {group.name}
-                              </p>
-                            </div>
-                            <p className={`text-xs truncate ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
-                              {joined
-                                ? (group.lastMessage || '메시지 없음')
-                                : '입장하면 대화에 참여할 수 있어요'}
-                            </p>
-                          </div>
-                          <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                              darkMode ? 'bg-teal-500/20 text-teal-400' : 'bg-teal-50 text-teal-600'
-                            }`}>
-                              {group.memberCount ?? 0}명
-                            </span>
-                            {joined ? (
-                              <>
-                                {unread > 0 ? (
-                                  <span className="min-w-[22px] h-[22px] px-1.5 bg-rose-500 text-white text-[11px] font-black rounded-full flex items-center justify-center shadow-sm">
-                                    {unread > 99 ? '99+' : unread}
-                                  </span>
-                                ) : (
-                                  <span className={`text-[10px] font-bold ${darkMode ? 'text-teal-400' : 'text-teal-600'}`}>참여 중</span>
-                                )}
-                                <button
-                                  type="button"
-                                  disabled={leavingGroupId === group.id}
-                                  onClick={e => {
-                                    e.stopPropagation();
-                                    setLeaveGroupTarget(group);
-                                  }}
-                                  className={`text-[10px] font-black px-2 py-1 rounded-full active:scale-95 disabled:opacity-50 ${
-                                    darkMode ? 'bg-slate-700 text-slate-200' : 'bg-gray-100 text-gray-600'
-                                  }`}
-                                >
-                                  {leavingGroupId === group.id ? '나가는 중…' : '나가기'}
-                                </button>
-                              </>
-                            ) : (
-                              <button
-                                type="button"
-                                disabled={joining}
-                                onClick={e => {
-                                  e.stopPropagation();
-                                  if (guardLockedAction()) return;
-                                  onJoinGroupChat?.(group.id);
-                                }}
-                                className={`text-[11px] font-black px-3 py-1.5 rounded-full active:scale-95 disabled:opacity-50 ${
-                                  visual.afterparty
-                                    ? 'bg-violet-500 text-white'
-                                    : 'bg-teal-500 text-white'
-                                }`}
-                              >
-                                {joining ? '입장 중…' : '입장'}
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </>
-            )}
-            {leaveGroupTarget && (
-              <div className="fixed inset-x-0 bottom-0 z-50 flex items-end justify-center px-4 pb-8 pointer-events-none">
-                <div
-                  className={`pointer-events-auto w-full max-w-sm rounded-2xl p-4 shadow-2xl border ${
-                    darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'
-                  }`}
-                  onClick={e => e.stopPropagation()}
-                >
-                  <p className={`font-black text-sm ${darkMode ? 'text-white' : 'text-gray-900'}`}>이 방에서 나갈까요?</p>
-                  <p className={`text-xs mt-1 ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>
-                    방은 그대로예요. 나만 빠지고, 나중에 다시 들어올 수 있어요.
-                  </p>
-                  <div className="flex gap-2 mt-3">
-                    <button
-                      type="button"
-                      onClick={() => setLeaveGroupTarget(null)}
-                      className={`flex-1 py-2 rounded-xl text-sm font-bold ${darkMode ? 'bg-slate-700 text-white' : 'bg-gray-100 text-gray-700'}`}
-                    >취소</button>
-                    <button
-                      type="button"
-                      disabled={!!leavingGroupId}
-                      onClick={async () => {
-                        if (guardLockedAction()) { setLeaveGroupTarget(null); return; }
-                        const id = leaveGroupTarget.id;
-                        setLeavingGroupId(id);
-                        try { await onLeaveGroupChat?.(id); } finally {
-                          setLeavingGroupId(null);
-                          setLeaveGroupTarget(null);
-                        }
-                      }}
-                      className="flex-1 py-2 rounded-xl text-sm font-bold bg-red-500 text-white disabled:opacity-50"
-                    >나가기</button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* ── 1:1 채팅 섹션 (기존) ── */}
-            {chatSubTab === 'direct' && <>
-            {/* ── 닉네임 검색으로 채팅 시작 ── */}
-            <div className={`relative rounded-xl border overflow-hidden transition-colors ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'}`}>
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-              <input
-                value={chatSearch}
-                onChange={e => setChatSearch(e.target.value)}
-                placeholder="닉네임 · MBTI · 성향 · 초성 검색"
-                className={`w-full pl-9 pr-9 py-2.5 text-sm bg-transparent focus:outline-none ${darkMode ? 'text-white placeholder-slate-500' : 'text-gray-900 placeholder-gray-400'}`}
-              />
-              {chatSearch && (
-                <button onClick={() => setChatSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm leading-none">✕</button>
-              )}
-            </div>
-            {/* 채팅 검색 잠금 토스트 */}
-            {chatSearchLockToast && (
-              <div className="text-center text-[11px] font-bold text-white bg-gray-800/90 rounded-full px-3 py-1 pointer-events-none">
-                {FUNCTIONS_LOCK_TOAST}
-              </div>
-            )}
-            {/* 검색 결과 */}
-            {chatSearch.trim() && (() => {
-              const results = profiles.filter(p => p.id !== currentUserId && !isSwipeGestureVerifyProfile(p) && (
-                koreanMatch(p.nickname, chatSearch) ||
-                (!!p.mbti && koreanMatch(p.mbti, chatSearch)) ||
-                koreanMatch(getPositionLabel(p.personality_score ?? 50), chatSearch)
-              ));
-              return results.length > 0 ? (
-                <div className="space-y-1">
-                  {results.map(p => {
-                    const hasChat = chatList.some(c => c.user1_id === p.id || c.user2_id === p.id);
-                    return (
-                      <div key={p.id}
-                        onClick={() => { if (functionsLocked) { showChatSearchLockToast(); return; } onOpenChat(p); setChatSearch(''); }}
-                        className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors ${darkMode ? 'bg-slate-800 hover:bg-slate-700 border border-slate-700' : 'bg-white hover:bg-gray-50 border border-gray-100'}`}>
-                        <div className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0 bg-gray-200">
-                          <img src={getAvatarSrc(p.photo_url, p.nickname)} alt={p.nickname} className="w-full h-full object-cover"
-                            onError={(e) => { (e.target as HTMLImageElement).src = genAvatar(p.nickname); }} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-sm font-bold truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>{p.nickname}</p>
-                          {p.mbti && <p className={`text-[10px] ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>{p.mbti}</p>}
-                        </div>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${hasChat ? (darkMode ? 'bg-teal-500/20 text-teal-400' : 'bg-teal-50 text-teal-600') : (darkMode ? 'bg-cyan-500/20 text-cyan-400' : 'bg-cyan-50 text-cyan-600')}`}>
-                          {hasChat ? '채팅 있음' : '대화 시작 →'}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className={`text-center text-sm py-3 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>"{chatSearch}" 검색 결과 없음</p>
-              );
-            })()}
-            <div className="flex items-center justify-between">
-              <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>수락한 상대방과의 채팅 내역</p>
-              <div className="flex items-center gap-2">
-                {chatList.length > 0 && (
-                  <button
-                    onClick={onDeleteAllChats}
-                    className="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-500 text-[11px] font-bold rounded-lg border border-red-200 transition-all active:scale-95"
-                  >전체 삭제</button>
-                )}
-                <RefreshBtn onRefresh={() => doRefresh('chats', onRefreshChat)} refreshed={refreshedTab === 'chats'} />
-              </div>
-            </div>
-            {chatList.length === 0 ? (
-              <div className="text-center py-16">
-                <MessageCircle className={`w-12 h-12 mx-auto mb-3 ${darkMode ? 'text-slate-500' : 'text-gray-200'}`} />
-                <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>아직 채팅 내역이 없습니다.</p>
-              </div>
-            ) : (
-              chatList.map((chat) => {
-                const otherId = chat.user1_id === currentUserId ? chat.user2_id : chat.user1_id;
-                const otherProfile = profileMap.get(otherId);
-                const chatUnread = unreadForChat(unreadChatCounts, chat.id);
-                return (
-                  <div key={chat.id}
-                    onClick={() => {
-                      if (guardLockedAction()) return;
-                      if (otherProfile) onOpenChat(otherProfile);
-                    }}
-                    className={`rounded-2xl shadow-sm p-4 flex items-center gap-3 cursor-pointer transition-colors duration-300 active:scale-[0.98] ${darkMode ? 'bg-slate-800 border border-slate-600 hover:bg-slate-700' : 'bg-white hover:bg-gray-50'}`}>
-                    <div className="relative w-12 h-12 rounded-full overflow-hidden flex-shrink-0 bg-gray-200">
-                      {otherProfile ? (
-                        <img src={getAvatarSrc(otherProfile.photo_url, otherProfile.nickname)} alt={otherProfile.nickname} className="w-full h-full object-cover"
-                          onError={(e) => { (e.target as HTMLImageElement).src = genAvatar(otherProfile.nickname); }} />
-                      ) : (
-                        <div className={`w-full h-full flex items-center justify-center text-xs ${darkMode ? 'bg-slate-700 text-slate-400' : 'bg-gray-200 text-gray-400'}`}>?</div>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{otherProfile?.nickname ?? '알 수 없음'}</p>
-                      <p className={`text-xs truncate ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
-                        {(() => {
-                          const lm = chat.lastMessage || '';
-                          if (lm.startsWith('__contact__')) return '📱 연락처 공유';
-                          if (lm.startsWith('__reply__')) return '↩️ ' + lm.replace(/^__reply__[^\n]*\n?/, '').slice(0, 30);
-                          return lm || '메시지 없음';
-                        })()}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                      {chatUnread > 0 && (
-                        <span className="min-w-[22px] h-[22px] px-1.5 bg-rose-500 text-white text-[11px] font-black rounded-full flex items-center justify-center shadow-sm">
-                          {chatUnread > 99 ? '99+' : chatUnread}
-                        </span>
-                      )}
-                      <button
-                        onClick={() => onDeleteChat(chat)}
-                        className="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-500 text-xs font-bold rounded-xl border border-red-200 transition-all"
-                      >삭제</button>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-            </>}
-          </div>
+          <MainChatsTab
+            darkMode={darkMode}
+            chatSubTab={chatSubTab}
+            onChangeSubTab={setChatSubTab}
+            unreadChatCounts={unreadChatCounts}
+            unreadGroupCounts={unreadGroupCounts}
+            groupChats={groupChats}
+            joiningGroupId={joiningGroupId}
+            leavingGroupId={leavingGroupId}
+            onSetLeavingGroupId={setLeavingGroupId}
+            leaveGroupTarget={leaveGroupTarget}
+            onSetLeaveGroupTarget={setLeaveGroupTarget}
+            onOpenGroupChat={onOpenGroupChat}
+            onJoinGroupChat={onJoinGroupChat}
+            onLeaveGroupChat={onLeaveGroupChat}
+            guardLockedAction={guardLockedAction}
+            functionsLocked={functionsLocked}
+            showChatSearchLockToast={showChatSearchLockToast}
+            chatSearchLockToast={chatSearchLockToast}
+            chatSearch={chatSearch}
+            onChangeChatSearch={setChatSearch}
+            profiles={profiles}
+            currentUserId={currentUserId}
+            profileMap={profileMap}
+            chatList={chatList}
+            onOpenChat={onOpenChat}
+            onDeleteChat={onDeleteChat}
+            onDeleteAllChats={onDeleteAllChats}
+            onRefreshChats={() => doRefresh('chats', onRefreshChat)}
+            chatsRefreshed={refreshedTab === 'chats'}
+          />
         )}
 
         {/* ─── 시그널 탭 ─── */}
@@ -2411,7 +2100,7 @@ export function MainScreen({
 
             {/* 팝업 메뉴 */}
             {myMenuOpen && (
-              <div className={`fixed bottom-24 right-4 z-50 rounded-2xl shadow-2xl border overflow-hidden min-w-[160px] transition-all ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'}`}>
+              <div className={`fixed bottom-[calc(max(1rem,env(safe-area-inset-bottom))+4.5rem)] right-[max(1rem,env(safe-area-inset-right))] z-50 rounded-2xl shadow-2xl border overflow-hidden min-w-[160px] transition-all ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'}`}>
                 {MY_ITEMS.map((item, idx) => {
                   const locked = functionsLocked && LOCKED_TABS.has(item.id);
                   const active = mainTab === item.id;
@@ -2444,7 +2133,7 @@ export function MainScreen({
             {/* MY 원형 버튼 */}
             <button
               onClick={() => setMyMenuOpen(v => !v)}
-              className={`fixed bottom-6 right-4 z-50 w-14 h-14 rounded-full shadow-xl flex flex-col items-center justify-center gap-0 transition-all active:scale-90 select-none ${
+              className={`fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-50 w-14 h-14 rounded-full shadow-xl flex flex-col items-center justify-center gap-0 transition-all active:scale-90 select-none ${
                 myTabActive || myMenuOpen
                   ? 'bg-gradient-to-br from-cyan-500 to-teal-500 text-white border-2 border-white/40'
                   : darkMode

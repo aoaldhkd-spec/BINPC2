@@ -4684,6 +4684,7 @@ router.post('/storage-upload', async (req: Request, res: Response) => {
   }
   const userId = req.session.userId;
   if (!userId) {
+    recordUploadRejected('unauthenticated');
     return res.status(401).json({ data: null, error: { message: 'Authentication required' } });
   }
   const { path: imgPath, dataUrl } = req.body as { path?: string; dataUrl?: string };
@@ -4693,9 +4694,11 @@ router.post('/storage-upload', async (req: Request, res: Response) => {
     imgPath.includes('..') || imgPath.startsWith('/') ||
     imgPath.length > 512 || !/^[\w\-./]+$/.test(imgPath)
   ) {
+    recordUploadRejected('path');
     return res.status(400).json({ data: null, error: 'Invalid path' });
   }
   if (!imageAccess.canUpload(imgPath, userId)) {
+    recordUploadRejected('forbidden');
     return res.status(403).json({ data: null, error: { message: 'Forbidden image path' } });
   }
   // ─ Per-IP rate limit: 이미지 스팸 방지
@@ -4706,9 +4709,11 @@ router.post('/storage-upload', async (req: Request, res: Response) => {
     maxMapSize: RATE_MAP_MAX_SIZE,
   });
   if (uploadRate === 'map_full') {
+    recordUploadRejected('rate_limited');
     return res.status(429).json({ data: null, error: '요청이 너무 많습니다.' });
   }
   if (uploadRate === 'limited') {
+    recordUploadRejected('rate_limited');
     return res.status(429).json({ data: null, error: '이미지를 너무 자주 업로드하고 있습니다. 잠시 후 다시 시도해 주세요.' });
   }
 
@@ -4718,10 +4723,12 @@ router.post('/storage-upload', async (req: Request, res: Response) => {
   }
   const mimeMatch = dataUrl.match(/^data:([^;]+);base64,/);
   if (!mimeMatch || !ALLOWED_IMAGE_MIMES.has(mimeMatch[1])) {
+    recordUploadRejected('mime');
     return res.status(400).json({ data: null, error: 'Invalid image type' });
   }
-  // ─ 크기 제한 (~5MB 원본)
+  // ─ 크기 제한 (~5MB 원본). 클라이언트 압축 상한은 8M 문자, 서버는 9M.
   if (dataUrl.length > MAX_IMAGE_DATAURL_BYTES) {
+    recordUploadRejected('size_cap');
     return res.status(413).json({ data: null, error: 'Image too large (max 5MB)' });
   }
   // ─ Magic bytes 검증: MIME 헤더 조작으로 악성 파일 위장 차단
@@ -4733,6 +4740,7 @@ router.post('/storage-upload', async (req: Request, res: Response) => {
       signature.bytes.every((byte, index) => rawBytes[signature.offset + index] === byte)
     );
     if (!matched) {
+      recordUploadRejected('magic');
       return res.status(400).json({ data: null, error: 'Image content does not match declared type' });
     }
   }
@@ -4740,6 +4748,7 @@ router.post('/storage-upload', async (req: Request, res: Response) => {
   // DB 저장 실패를 성공으로 응답하면 서버 재시작 후 깨진 프로필 사진이 남는다.
   await dbPersistImage(imgPath, dataUrl);
   imageStoreSet(imgPath, dataUrl);
+  recordUploadAccepted();
   return res.json({ data: { path: imgPath }, error: null });
   } catch (e) {
     logger.error({ err: e }, '[storage-upload] Unexpected error');
@@ -4996,6 +5005,7 @@ router.get('/health', async (req: Request, res: Response) => {
     sseConnections: sseTotal,
     thresholds: { lossAlarm: LOSS_ALARM_THRESHOLD, likesMinIntervalMs: LIKES_MIN_INTERVAL_MS },
     integrity: _integrityDiagnostics,
+    httpMetrics: snapshotHttpMetrics(),
     checkedAt: new Date().toISOString(),
   };
   _healthCache = { ts: Date.now(), body };
@@ -5638,6 +5648,7 @@ router.get('/events', (req: Request, res: Response) => {
     logger.debug({ ip: req.ip, anonCount: sseAnonClients.size }, '[sse] 익명 SSE 연결 (userId 없음) — 앱 외부 접근 의심');
     sseAnonClients.add(res);
   }
+  recordSseAccepted();
 
   // ── Last-Event-ID 기반 미수신 이벤트 재전송 ──────────────────────────────────
   // 브라우저 EventSource는 이전 연결에서 수신한 마지막 id 값을 재연결 시
@@ -5679,6 +5690,7 @@ router.get('/events', (req: Request, res: Response) => {
   const cleanupConn = () => {
     if (_cleaned) return;
     _cleaned = true;
+    recordSseClosed();
     _sseCleanup.get(res)?.();
     _sseCleanup.delete(res);
     if (isAdminSse) {
