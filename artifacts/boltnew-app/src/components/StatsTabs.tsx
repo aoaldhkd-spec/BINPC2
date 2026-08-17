@@ -4,28 +4,64 @@ import type { Database } from '../types/database';
 import {
   BarChart3, Trophy, Heart, Users, TrendingUp, Award,
 } from 'lucide-react';
-import { getKoreanAge, getPositionLabel } from '../lib/profile';
 import { parseProfileInterests } from '../lib/interests';
 import { HEART_META, HeartType } from '../lib/constants';
+import { collectProfileBreakdowns, countTodayHeartStats, rankByReceivedHearts } from '../lib/stats-ranking';
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
 type Like = Database['public']['Tables']['likes']['Row'];
-const CHART_COLORS = ['#0891b2', '#0d9488', '#059669', '#16a34a', '#65a30d', '#ca8a04', '#d97706', '#ea580c', '#dc2626', '#db2777', '#9333ea', '#7c3aed'];
 
-function ageBand(by: number | null): string | null {
-  const ageStr = getKoreanAge(by);
-  if (ageStr === '나이 미입력') return null;
-  const age = parseInt(ageStr, 10);
-  if (isNaN(age)) return null;
-  const decade = Math.floor(age / 10) * 10;
-  return `${decade}대`;
+const PUBLIC_LIKES_POLL_MS = 30_000;
+
+function usePublicLikes() {
+  const [allLikes, setAllLikes] = useState<Like[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    let tries = 0;
+
+    const load = () => {
+      const fail = () => {
+        if (!active || tries >= 3) return;
+        tries += 1;
+        retryTimer = setTimeout(load, 800 * tries);
+      };
+      supabase.from('likes').select('id, liked_id, heart_type, status, created_at').then(({ data }: { data: unknown }) => {
+        if (!active) return;
+        if (Array.isArray(data)) {
+          setAllLikes(data as Like[]);
+          tries = 0;
+          return;
+        }
+        fail();
+      }, fail);
+    };
+
+    load();
+    const poll = setInterval(load, PUBLIC_LIKES_POLL_MS);
+    const onVis = () => {
+      if (document.visibilityState === 'visible') load();
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      active = false;
+      window.clearTimeout(retryTimer);
+      window.clearInterval(poll);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, []);
+
+  return allLikes;
 }
+
+const CHART_COLORS = ['#0891b2', '#0d9488', '#059669', '#16a34a', '#65a30d', '#ca8a04', '#d97706', '#ea580c', '#dc2626', '#db2777', '#9333ea', '#7c3aed'];
 
 function BarRow({ label, count, max, color, dark }: { label: string; count: number; max: number; color: string; dark: boolean }) {
   const pct = max > 0 ? Math.max(2, (count / max) * 100) : 0;
   return (
     <div className="flex items-center gap-2.5">
-      <span className={`text-xs font-semibold w-16 sm:w-20 shrink-0 text-right leading-tight break-keep ${dark ? 'text-slate-300' : 'text-gray-600'}`}>{label}</span>
+      <span className={`text-xs font-semibold w-20 sm:w-24 shrink-0 text-right leading-tight break-keep ${dark ? 'text-slate-300' : 'text-gray-600'}`}>{label}</span>
       <div className={`flex-1 h-6 rounded-lg overflow-hidden relative ${dark ? 'bg-slate-700' : 'bg-gray-100'}`}>
         <div className="h-full rounded-lg transition-all duration-500" style={{ width: `${pct}%`, background: color }} />
         <span className={`absolute inset-y-0 right-2 flex items-center text-[11px] font-bold ${dark ? 'text-slate-200' : 'text-gray-700'}`}>{count}</span>
@@ -66,72 +102,13 @@ function EmptyNote({ text, dark }: { text: string; dark: boolean }) {
   return <p className={`text-center text-xs py-4 ${dark ? 'text-slate-400' : 'text-gray-400'}`}>{text}</p>;
 }
 
-
-// ─── 통계 탭 ──────────────────────────────────────────────────────────────────
-function extractCityLevel(location: string): string {
-  const parts = location.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return location;
-  const first = parts[0];
-  // 광역시·특별시·특별자치시·특별자치도 → 첫 단어만
-  if (first.endsWith('특별시') || first.endsWith('광역시') || first.endsWith('특별자치시') || first.endsWith('특별자치도')) {
-    return first;
-  }
-  // 도 + 시/군 → 두 단어
-  if (parts.length >= 2 && (parts[1].endsWith('시') || parts[1].endsWith('군'))) {
-    return `${first} ${parts[1]}`;
-  }
-  return first;
-}
-
 export function StatsTab({ profiles, darkMode }: { profiles: Profile[]; darkMode: boolean }) {
-  const [allLikes, setAllLikes] = useState<Like[]>([]);
-
-  useEffect(() => {
-    let active = true;
-    supabase.from('likes').select('*').then(({ data }: { data: any }) => {
-      if (active && data) setAllLikes(data as Like[]);
-    });
-    return () => { active = false; };
-  }, []);
+  const allLikes = usePublicLikes();
 
   const stats = useMemo(() => {
-    const mbtiCounts = new Map<string, number>();
-    const positionCounts = new Map<string, number>();
-    const interestCounts = new Map<string, number>();
-    const locationCounts = new Map<string, number>();
-    const ageCounts = new Map<string, number>();
-    const heartCounts: Record<HeartType, number> = { red: 0, blue: 0, pink: 0, green: 0 };
-
-    profiles.forEach((p) => {
-      if (p.mbti) mbtiCounts.set(p.mbti, (mbtiCounts.get(p.mbti) ?? 0) + 1);
-      const pos = getPositionLabel(p.personality_score ?? 50);
-      positionCounts.set(pos, (positionCounts.get(pos) ?? 0) + 1);
-      const interests = parseProfileInterests(p);
-      interests.forEach((i) => {
-        interestCounts.set(i, (interestCounts.get(i) ?? 0) + 1);
-      });
-      if (p.location) { const city = extractCityLevel(p.location); locationCounts.set(city, (locationCounts.get(city) ?? 0) + 1); }
-      const band = ageBand(p.birth_year);
-      if (band) ageCounts.set(band, (ageCounts.get(band) ?? 0) + 1);
-    });
-
-    allLikes.forEach((l) => {
-      const t = (l.heart_type ?? 'red') as HeartType;
-      heartCounts[t] = (heartCounts[t] ?? 0) + 1;
-    });
-
-    const totalHearts = allLikes.length;
-    const matched = allLikes.filter((l) => l.status === 'accepted').length;
-
-    return {
-      mbti: [...mbtiCounts.entries()].sort((a, b) => b[1] - a[1]),
-      position: [...positionCounts.entries()].sort((a, b) => b[1] - a[1]),
-      interest: [...interestCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10),
-      location: [...locationCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8),
-      age: [...ageCounts.entries()].sort((a, b) => a[0].localeCompare(b[0])),
-      heart: heartCounts,
-      totalHearts, matched,
-    };
+    const breakdowns = collectProfileBreakdowns(profiles, parseProfileInterests);
+    const { heart, totalHearts, matched } = countTodayHeartStats(allLikes);
+    return { ...breakdowns, heart, totalHearts, matched };
   }, [profiles, allLikes]);
 
   const maxMbti = Math.max(1, ...stats.mbti.map((e) => e[1]));
@@ -146,7 +123,7 @@ export function StatsTab({ profiles, darkMode }: { profiles: Profile[]; darkMode
       <div className="flex items-center gap-2 px-1">
         <BarChart3 className="w-5 h-5 text-cyan-500" />
         <h2 className={`text-lg font-black ${darkMode ? 'text-white' : 'text-gray-800'}`}>오늘의 통계</h2>
-        <span className={`text-[11px] ml-auto ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>익명 집계 · 개인 식별 없음</span>
+        <span className={`text-[11px] ml-auto ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>하트는 오늘(한국시간) · 익명 집계</span>
       </div>
 
       <div className="grid grid-cols-3 gap-3">
@@ -231,44 +208,26 @@ export function StatsTab({ profiles, darkMode }: { profiles: Profile[]; darkMode
 
 // ─── 랭킹 탭 ──────────────────────────────────────────────────────────────────
 export function RankingTab({ darkMode, profiles: propProfiles }: { darkMode: boolean; profiles?: Profile[] }) {
-  const [allLikes, setAllLikes] = useState<Like[]>([]);
+  const allLikes = usePublicLikes();
   const [fetchedProfiles, setFetchedProfiles] = useState<Profile[]>([]);
 
   useEffect(() => {
     if (propProfiles) return;
     let active = true;
-    supabase.from('profiles').select('*').then(({ data }: { data: any }) => {
-      if (active && data) setFetchedProfiles(data as Profile[]);
+    supabase.from('profiles').select('*').then(({ data }: { data: unknown }) => {
+      if (active && Array.isArray(data)) setFetchedProfiles(data as Profile[]);
     });
     return () => { active = false; };
   }, [propProfiles]);
 
-  useEffect(() => {
-    let active = true;
-    supabase.from('likes').select('*').then(({ data }: { data: any }) => {
-      if (active && data) setAllLikes(data as Like[]);
-    });
-    return () => { active = false; };
-  }, []);
-
+  const allProfiles = propProfiles ?? fetchedProfiles;
   const ranked = useMemo(() => {
-    const counts = new Map<string, Record<HeartType, number>>();
-    allLikes.forEach((l) => {
-      const t = (l.heart_type ?? 'red') as HeartType;
-      const cur = counts.get(l.liked_id) ?? { red: 0, blue: 0, pink: 0, green: 0 };
-      cur[t] = (cur[t] ?? 0) + 1;
-      counts.set(l.liked_id, cur);
-    });
-    const arr = [...counts.entries()].map(([id, hearts]) => {
-      const total = hearts.red + hearts.blue + hearts.pink + hearts.green;
-      return { id, hearts, total };
-    }).sort((a, b) => b.total - a.total).slice(0, 10);
-    return arr;
-  }, [allLikes]);
+    const knownIds = allProfiles.length > 0 ? new Set(allProfiles.map((p) => p.id)) : undefined;
+    return rankByReceivedHearts(allLikes, { knownIds, limit: 10 });
+  }, [allLikes, allProfiles]);
 
   const maxTotal = ranked.length > 0 ? ranked[0].total : 1;
   const medalColors = ['#f59e0b', '#94a3b8', '#b45309'];
-  const allProfiles = propProfiles ?? fetchedProfiles;
   const profileMap = new Map(allProfiles.map(p => [p.id, p]));
 
   return (
@@ -298,16 +257,16 @@ export function RankingTab({ darkMode, profiles: propProfiles }: { darkMode: boo
         </div>
       ) : (
         <div className="space-y-2.5">
-          {ranked.map((r, i) => {
+          {ranked.map((r) => {
             const profile = profileMap.get(r.id);
-            const isTop3 = i < 3;
-            const medal = i === 0 ? '👑' : i === 1 ? '🥈' : '🥉';
+            const isTop3 = r.rank <= 3;
+            const medal = r.rank === 1 ? '👑' : r.rank === 2 ? '🥈' : '🥉';
             return (
               <div key={r.id} className={`rounded-2xl p-4 border shadow-sm transition-colors duration-300 ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-100'}`}>
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-full flex items-center justify-center font-black text-white text-sm flex-shrink-0 shrink-0"
-                    style={{ background: isTop3 ? medalColors[i] : '#0891b2' }}>
-                    {isTop3 ? medal : i + 1}
+                    style={{ background: isTop3 ? medalColors[r.rank - 1] : '#0891b2' }}>
+                    {isTop3 ? medal : r.rank}
                   </div>
                   {profile?.photo_url ? (
                     <img src={profile.photo_url} alt={profile.nickname} className="w-9 h-9 rounded-full object-cover flex-shrink-0" loading="lazy" />
