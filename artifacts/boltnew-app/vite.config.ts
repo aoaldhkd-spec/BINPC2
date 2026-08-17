@@ -33,7 +33,11 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
-          if (id.includes('node_modules')) return 'vendor';
+          if (id.includes('node_modules')) {
+            // Keep QR libs out of first-load vendor; loaded with QrScanner / ContactDisplay.
+            if (/[\\/](?:jsqr|qrcode)(?:[\\/]|$)/.test(id)) return 'qr';
+            return 'vendor';
+          }
         },
       },
     },

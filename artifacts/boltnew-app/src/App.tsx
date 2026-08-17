@@ -41,7 +41,6 @@ import ProfileDetail from './components/ProfileDetail';
 import ReconnectOverlay from './components/ReconnectOverlay';
 import { NotifModal } from './components/NotifModal';
 import { ConfettiOverlay } from './components/ConfettiOverlay';
-import { ContactDisplayModal } from './components/ContactDisplayModal';
 import { LikeConfirmDialog } from './components/LikeConfirmDialog';
 import { ContactShareModal } from './components/ContactShareModal';
 import { ContactViewModal } from './components/ContactViewModal';
@@ -50,9 +49,7 @@ import { WaitingOverlay } from './components/WaitingOverlay';
 import { NicknameSetupScreen } from './components/NicknameSetupScreen';
 import { EntryGateScreen } from './components/EntryGateScreen';
 import { ProfileRecoveryScreen } from './components/ProfileRecoveryScreen';
-import { TutorialModal } from './components/TutorialModal';
 import { ResetPasswordSheet } from './components/ResetButton';
-import { QrScannerModal } from './components/QrScannerModal';
 import { ContactRevealModal } from './components/ContactRevealModal';
 import {
   MATCHING_USER_KEY, MATCHING_DRAFT_KEY, MATCHING_LAST_RESET_KEY,
@@ -84,6 +81,14 @@ const loadChatScreen = () => import('./components/ChatScreen');
 const loadMainScreen = () => import('./components/MainScreen').then(m => ({ default: m.MainScreen }));
 const ChatScreen = lazy(loadChatScreen);
 const MainScreen = lazy(loadMainScreen);
+const TutorialModal = lazy(() => import('./components/TutorialModal').then(m => ({ default: m.TutorialModal })));
+const QrScannerModal = lazy(() => import('./components/QrScannerModal').then(m => ({ default: m.QrScannerModal })));
+const ContactDisplayModal = lazy(() => import('./components/ContactDisplayModal').then(m => ({ default: m.ContactDisplayModal })));
+const overlayLazyFallback = (
+  <div className="fixed inset-0 z-[200] flex items-center justify-center pointer-events-none">
+    <div className="h-5 w-5 rounded-full border-2 border-slate-400/25 border-t-slate-300 animate-spin" />
+  </div>
+);
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 
@@ -1777,14 +1782,16 @@ function App() {
       <NavLayer id="qr-scanner" open={showQrScanner} onClose={() => setShowQrScanner(false)} />
       <NavLayer id="scanned-contact" open={!!scannedContactProfile} onClose={() => setScannedContactProfile(null)} />
       <NavLayer id="fortune-modal" open={!!fortuneModalTarget} onClose={() => setFortuneModalTarget(null)} />
-      {/* Tutorial modal */}
+      {/* Tutorial modal — JS (TutorialVideo) loads on first open */}
       {showTutorialModal && (
-        <TutorialModal
-          onClose={() => {
-            setShowTutorialModal(false);
-          }}
-          darkMode={darkMode}
-        />
+        <Suspense fallback={overlayLazyFallback}>
+          <TutorialModal
+            onClose={() => {
+              setShowTutorialModal(false);
+            }}
+            darkMode={darkMode}
+          />
+        </Suspense>
       )}
 
       {connStatus !== 'ok' && (
@@ -2088,24 +2095,28 @@ function App() {
         />
       )}
       {showContactQr && currentUserId && profileMap.get(currentUserId) && (
-        <ContactDisplayModal
-          profile={profileMap.get(currentUserId)!}
-          onClose={() => setShowContactQr(false)}
-        />
+        <Suspense fallback={overlayLazyFallback}>
+          <ContactDisplayModal
+            profile={profileMap.get(currentUserId)!}
+            onClose={() => setShowContactQr(false)}
+          />
+        </Suspense>
       )}
-      {/* QR 카메라 스캐너 */}
+      {/* QR 카메라 스캐너 — jsqr loads on first open */}
       {showQrScanner && (
-        <QrScannerModal
-          darkMode={darkMode}
-          onClose={() => setShowQrScanner(false)}
-          onDetected={async (profileId) => {
-            setShowQrScanner(false);
-            const cached = profiles.find(p => p.id === profileId);
-            if (cached) { saveScannedContact(cached); setScannedContactProfile(cached); return; }
-            const { data } = await supabase.from('profiles').select('*').eq('id', profileId).maybeSingle();
-            if (data) { saveScannedContact(data as import('./types/app').Profile); setScannedContactProfile(data as import('./types/app').Profile); }
-          }}
-        />
+        <Suspense fallback={overlayLazyFallback}>
+          <QrScannerModal
+            darkMode={darkMode}
+            onClose={() => setShowQrScanner(false)}
+            onDetected={async (profileId) => {
+              setShowQrScanner(false);
+              const cached = profiles.find(p => p.id === profileId);
+              if (cached) { saveScannedContact(cached); setScannedContactProfile(cached); return; }
+              const { data } = await supabase.from('profiles').select('*').eq('id', profileId).maybeSingle();
+              if (data) { saveScannedContact(data as import('./types/app').Profile); setScannedContactProfile(data as import('./types/app').Profile); }
+            }}
+          />
+        </Suspense>
       )}
       {/* 연락처 스캔 결과 모달 */}
       {scannedContactProfile && (
