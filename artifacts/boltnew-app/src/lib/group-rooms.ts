@@ -194,6 +194,78 @@ function isDecadeRoom(group: GroupLike): boolean {
 
 const VISIBLE_AGE_ROOM_NAMES = new Set(['20대 모임', '30대 모임']);
 
+export type AdminGroupRoomBucket = 'catalog' | 'birth_year' | 'other';
+
+/** ○○년생 모임 — 출생연도마다 1개. 관리자 집계에서 빼지 않는다. */
+export function isAdminBirthYearRoom(group: GroupLike): boolean {
+  if (group.room_kind === 'birth_year') return true;
+  if (isYearRoom(group)) return true;
+  return /^group_birth_\d{4}$/.test(group.id);
+}
+
+/** 유저 목록에 항상 보이는 4방: 2차 클럽·2차 술·20대·30대 */
+export function isAdminCatalogListingRoom(group: GroupLike): boolean {
+  if (isAdminBirthYearRoom(group)) return false;
+  if (afterpartyKind(group)) return true;
+  if (VISIBLE_AGE_ROOM_NAMES.has(String(group.name ?? ''))) return true;
+  const band = String(group.age_group ?? '');
+  return group.room_kind === 'age_decade' && (band === '20대' || band === '30대');
+}
+
+/**
+ * 관리자 집계용. 년생은 hidden이어도 센다.
+ * hidden/merged 중복 행은 null (카탈로그 복제본).
+ */
+export function adminGroupRoomBucket(group: GroupLike): AdminGroupRoomBucket | null {
+  if (isAdminBirthYearRoom(group)) return 'birth_year';
+  if (group.hidden || group.merged_into) return null;
+  if (isAdminCatalogListingRoom(group)) return 'catalog';
+  return 'other';
+}
+
+export function adminGroupRoomCounts(groups: readonly GroupLike[]): {
+  total: number;
+  catalog: number;
+  birthYear: number;
+  other: number;
+} {
+  let catalog = 0;
+  let birthYear = 0;
+  let other = 0;
+  for (const group of groups) {
+    const bucket = adminGroupRoomBucket(group);
+    if (bucket === 'catalog') catalog += 1;
+    else if (bucket === 'birth_year') birthYear += 1;
+    else if (bucket === 'other') other += 1;
+  }
+  return { total: catalog + birthYear + other, catalog, birthYear, other };
+}
+
+export function adminGroupRoomsByBucket(groups: readonly GroupLike[]): {
+  catalog: GroupLike[];
+  birthYear: GroupLike[];
+  other: GroupLike[];
+} {
+  const catalog: GroupLike[] = [];
+  const birthYear: GroupLike[] = [];
+  const other: GroupLike[] = [];
+  for (const group of groups) {
+    const bucket = adminGroupRoomBucket(group);
+    if (bucket === 'catalog') catalog.push(group);
+    else if (bucket === 'birth_year') birthYear.push(group);
+    else if (bucket === 'other') other.push(group);
+  }
+  return { catalog, birthYear, other };
+}
+
+/** 예: 전체 6개 방 · 목록 방 4 · 년생 방 2 */
+export function formatAdminGroupRoomCounts(groups: readonly GroupLike[]): string {
+  const counts = adminGroupRoomCounts(groups);
+  const parts = [`목록 방 ${counts.catalog}`, `년생 방 ${counts.birthYear}`];
+  if (counts.other > 0) parts.push(`기타 ${counts.other}`);
+  return `전체 ${counts.total}개 방 · ${parts.join(' · ')}`;
+}
+
 export function ageBandFromYear(year: unknown): string | null {
   const y = Number(year);
   if (!Number.isFinite(y) || y < 1900 || y > 2100) return null;

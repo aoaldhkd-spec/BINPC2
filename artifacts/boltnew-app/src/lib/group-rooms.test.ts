@@ -18,6 +18,8 @@ import {
   clearAllGroupLastReads,
   writeGroupLastRead,
   groupLastReadStorageKey,
+  adminGroupRoomCounts,
+  formatAdminGroupRoomCounts,
 } from './group-rooms';
 
 function room(partial: Partial<GroupChat> & Pick<GroupChat, 'id' | 'name'>): GroupChat {
@@ -208,6 +210,38 @@ describe('group-rooms catalog', () => {
     ];
     expect(countJoinedCatalogRooms(raw, ['y', 'a', 'dup-drink'], { myBirthYear: 1998 })).toBe(3);
     expect(isJoinedGroupId(raw, ['dup-drink'], 'group_afterparty_drink')).toBe(true);
+  });
+});
+
+describe('admin group room counts', () => {
+  it('splits catalog, birth-year, and leftover instead of one fake total', () => {
+    const groups = [
+      room({ id: 'group_afterparty_club', name: '2차 클럽 갈 분', room_kind: 'afterparty_club' }),
+      room({ id: 'group_afterparty_drink', name: '2차 술 갈 분', room_kind: 'afterparty_drink' }),
+      room({ id: 'group_age_20', name: '20대 모임', room_kind: 'age_decade', age_group: '20대' }),
+      room({ id: 'group_age_30', name: '30대 모임', room_kind: 'age_decade', age_group: '30대' }),
+      room({ id: 'group_birth_1995', name: '1995년생 모임', room_kind: 'birth_year' }),
+      room({ id: 'group_birth_1998', name: '1998년생 모임', room_kind: 'birth_year' }),
+      room({ id: 'legacy', name: '30대 사진찍기 모임', room_kind: 'interest_age', age_group: '30대' }),
+    ];
+    expect(adminGroupRoomCounts(groups)).toEqual({
+      total: 7, catalog: 4, birthYear: 2, other: 1,
+    });
+    expect(formatAdminGroupRoomCounts(groups)).toBe(
+      '전체 7개 방 · 목록 방 4 · 년생 방 2 · 기타 1',
+    );
+  });
+
+  it('counts birth-year rooms even when hidden, and skips merged catalog dupes', () => {
+    const groups = [
+      room({ id: 'group_afterparty_club', name: '2차 클럽 갈 분', room_kind: 'afterparty_club' }),
+      room({ id: 'dup-club', name: '2차 클럽 갈 분', room_kind: 'afterparty_club', hidden: true, merged_into: 'group_afterparty_club' }),
+      room({ id: 'group_birth_1995', name: '1995년생 모임', room_kind: 'birth_year', hidden: true }),
+    ];
+    expect(adminGroupRoomCounts(groups)).toEqual({
+      total: 2, catalog: 1, birthYear: 1, other: 0,
+    });
+    expect(formatAdminGroupRoomCounts(groups)).toBe('전체 2개 방 · 목록 방 1 · 년생 방 1');
   });
 });
 
