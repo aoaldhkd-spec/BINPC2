@@ -224,7 +224,7 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
     setSwipeState(null);
     setReactions({});
     setImageViewer(null);
-  }, [chatId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [chatId]);
 
   const [contextMenu, setContextMenu] = useState<{ msgId: string; content: string; isMine: boolean; imgUrl?: string; x: number; y: number } | null>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -677,6 +677,29 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   const declinedReqTypes = useMemo(() => new Set(
     messages.filter(m => isInfoDecline(m.content)).map(m => parseInfoReqType(m.content!))
   ), [messages]);
+  // 입력·스와이프 같은 로컬 상태가 바뀔 때 500개 메시지의 날짜/특수 포맷을
+  // 매번 다시 파싱하지 않는다. 메시지 배열이 실제로 바뀔 때만 계산한다.
+  const messageMeta = useMemo(() => new Map(messages.map(msg => {
+    const isCard = isContactCard(msg.content);
+    const isSticker = !isCard && isStickerMsg(msg.content);
+    const stickerIdx = isSticker ? parseStickerIdx(msg.content!) : -1;
+    const isReply = !isCard && !isSticker && isReplyMsg(msg.content);
+    const replyData = isReply ? parseReply(msg.content!) : null;
+    const isInfoReqMsg = !isCard && !isSticker && !isReply && isInfoReq(msg.content);
+    const isInfoAckMsg = !isCard && !isSticker && !isReply && !isInfoReqMsg && isInfoAck(msg.content);
+    const isInfoDeclineMsg = !isCard && !isSticker && !isReply && !isInfoReqMsg && !isInfoAckMsg && isInfoDecline(msg.content);
+    return [msg.id, {
+      time: new Date(msg.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
+      isCard,
+      isSticker,
+      stickerIdx,
+      isReply,
+      replyData,
+      isInfoReqMsg,
+      isInfoAckMsg,
+      isInfoDeclineMsg,
+    }] as const;
+  })), [messages]);
 
   const hasContact = !!(currentUserProfile?.kakao_id || currentUserProfile?.instagram_id || currentUserProfile?.phone_number);
 
@@ -1113,15 +1136,10 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
         <div className="max-w-3xl mx-auto px-4 py-4 space-y-1">
           {messages.map((msg) => {
             const isMe = msg.sender_id === currentUserId;
-            const time = new Date(msg.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
-            const isCard = isContactCard(msg.content);
-            const isSticker = !isCard && isStickerMsg(msg.content);
-            const stickerIdx = isSticker ? parseStickerIdx(msg.content!) : -1;
-            const isReply = !isCard && !isSticker && isReplyMsg(msg.content);
-            const replyData = isReply ? parseReply(msg.content!) : null;
-            const isInfoReqMsg     = !isCard && !isSticker && !isReply && isInfoReq(msg.content);
-            const isInfoAckMsg     = !isCard && !isSticker && !isReply && !isInfoReqMsg && isInfoAck(msg.content);
-            const isInfoDeclineMsg = !isCard && !isSticker && !isReply && !isInfoReqMsg && !isInfoAckMsg && isInfoDecline(msg.content);
+            const {
+              time, isCard, isSticker, stickerIdx, isReply, replyData,
+              isInfoReqMsg, isInfoAckMsg, isInfoDeclineMsg,
+            } = messageMeta.get(msg.id)!;
             const reaction = reactions[msg.id];
             const isSwiping = swipeState?.msgId === msg.id;
             const swipeX = isSwiping ? swipeState!.offsetX : 0;

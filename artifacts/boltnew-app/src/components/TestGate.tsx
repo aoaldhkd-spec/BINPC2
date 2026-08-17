@@ -1,8 +1,9 @@
-import { lazy, useState, useEffect, type FormEvent } from 'react';
+import { lazy, Suspense, useState, useEffect, type FormEvent } from 'react';
 import { AlertTriangle, Shield } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
-const TestDashboard = lazy(() => import('../TestDashboard'));
+const loadTestDashboard = () => import('../TestDashboard');
+const TestDashboard = lazy(loadTestDashboard);
 const TEST_SESSION_KEY = 'test_session_v1';
 const TEST_PASSWORD_KEY = 'test_pw_v1';
 const TEST_TOKEN_KEY = 'test_token_v1';
@@ -39,6 +40,8 @@ export function TestGate() {
         if (!cancelled) { setAuthed(false); setCheckingSession(false); }
         return;
       }
+      // 세션 검증과 대시보드 청크 다운로드를 병렬 처리해 재진입 대기를 줄인다.
+      void loadTestDashboard();
       try {
         const res = await fetch('/api/db/op', {
           method: 'POST',
@@ -73,6 +76,8 @@ export function TestGate() {
     event.preventDefault();
     setError('');
     setLoading(true);
+    // 비밀번호 확인 왕복 중 대시보드를 미리 받아 성공 직후 바로 전환한다.
+    void loadTestDashboard();
 
     const trimmedPassword = password.trim();
     let token: string | null = null;
@@ -120,7 +125,17 @@ export function TestGate() {
     );
   }
 
-  if (authed) return <TestDashboard />;
+  if (authed) {
+    return (
+      <Suspense fallback={
+        <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-full border-4 border-white/20 border-t-white animate-spin" />
+        </div>
+      }>
+        <TestDashboard />
+      </Suspense>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">

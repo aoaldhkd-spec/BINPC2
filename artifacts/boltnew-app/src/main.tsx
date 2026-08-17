@@ -1,5 +1,5 @@
 // @refresh reset
-import { StrictMode, useState, useEffect, lazy, Suspense } from 'react';
+import { StrictMode, useState, useEffect, lazy, Suspense, startTransition } from 'react';
 import { createRoot } from 'react-dom/client';
 import './index.css';
 import App from './App';
@@ -7,8 +7,10 @@ import { ThemeProvider } from './lib/theme';
 import { ThemeSwitcher } from './components/ThemeSwitcher';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
 import { TestGate } from './components/TestGate';
+import { clientNavigationHref, resolveClientNavigation } from './lib/client-navigation';
 
-const AdminApp = lazy(() => import('./AdminApp'));
+const loadAdminApp = () => import('./AdminApp');
+const AdminApp = lazy(loadAdminApp);
 
 if ('serviceWorker' in navigator) {
   const swUrl = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/sw.js?v=20260816-pw-dim`;
@@ -20,14 +22,56 @@ if ('serviceWorker' in navigator) {
 // ─── 라우팅 ───────────────────────────────────────────────────────────────────
 function Root() {
   const [path, setPath] = useState(window.location.pathname);
+  const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
   useEffect(() => {
-    const onPop = () => setPath(window.location.pathname);
-    window.addEventListener('popstate', onPop);
-    return () => window.removeEventListener('popstate', onPop);
-  }, []);
+    const syncPath = () => startTransition(() => setPath(window.location.pathname));
+    const onClick = (event: MouseEvent) => {
+      if (
+        event.defaultPrevented
+        || event.button !== 0
+        || event.metaKey
+        || event.ctrlKey
+        || event.shiftKey
+        || event.altKey
+      ) return;
 
-  const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const anchor = target.closest<HTMLAnchorElement>('a[href]');
+      if (!anchor || anchor.target || anchor.hasAttribute('download')) return;
+
+      const next = resolveClientNavigation(anchor.href, window.location.href, base);
+      if (!next) return;
+
+      event.preventDefault();
+      const href = clientNavigationHref(next);
+      if (href !== `${window.location.pathname}${window.location.search}${window.location.hash}`) {
+        window.history.pushState({}, '', href);
+      }
+      syncPath();
+      window.scrollTo(0, 0);
+    };
+    const onPointerOver = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const anchor = target.closest<HTMLAnchorElement>('a[href]');
+      if (!anchor) return;
+      const next = resolveClientNavigation(anchor.href, window.location.href, base);
+      if (next?.pathname.startsWith(`${base}/admin`)) void loadAdminApp();
+    };
+
+    const onPop = () => syncPath();
+    window.addEventListener('popstate', onPop);
+    document.addEventListener('click', onClick);
+    document.addEventListener('pointerover', onPointerOver, { passive: true });
+    return () => {
+      window.removeEventListener('popstate', onPop);
+      document.removeEventListener('click', onClick);
+      document.removeEventListener('pointerover', onPointerOver);
+    };
+  }, [base]);
+
   const normalized = path.replace(new RegExp(`^${base}`), '') || '/';
 
   if (normalized.startsWith('/admin')) return <AppErrorBoundary variant="app" onReset={() => window.location.reload()}><AdminApp /></AppErrorBoundary>;

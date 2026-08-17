@@ -14,6 +14,7 @@
  */
 
 const MAX_MESSAGES = 500; // 채팅방당 최대 메시지 보유 수 (메모리 누수 방지)
+const MAX_CACHED_CHAT_ROOMS = 8; // 최근 방만 메모리에 유지해 계정 장시간 사용 시 증가 방지
 
 // 오프라인 큐 항목 타입 — 모듈 레벨 선언으로 HMR 호환성 유지
 // userId: 큐에 쌓일 당시 로그인 유저 — flush 시 다른 유저로 전환됐으면 해당 항목 폐기
@@ -87,6 +88,19 @@ export function useChat({
   };
 
   const [messages, setMessages] = useState<Message[]>([]);
+  const messagesRef = useRef<Message[]>(messages);
+  messagesRef.current = messages;
+  const messageCacheRef = useRef<Map<string, Message[]>>(new Map());
+  const cacheRoomMessages = useCallback((id: string, rows: Message[]) => {
+    const cache = messageCacheRef.current;
+    cache.delete(id);
+    cache.set(id, rows.slice(-MAX_MESSAGES));
+    while (cache.size > MAX_CACHED_CHAT_ROOMS) {
+      const oldestId = cache.keys().next().value as string | undefined;
+      if (!oldestId) break;
+      cache.delete(oldestId);
+    }
+  }, []);
   const [chatList, setChatList] = useState<Chat[]>([]);
   const chatListRef = useRef<Chat[]>([]);
   chatListRef.current = chatList;
@@ -105,6 +119,10 @@ export function useChat({
   const syncGenRef = useRef(0);
   // [Fix-E] 비활성 채팅 미읽음 중복 카운트 방지 — SSE/폴링 중복 이벤트로 인한 overcount 차단
   const seenUnreadMsgIdsRef = useRef(new Set<string>());
+
+  useEffect(() => {
+    messageCacheRef.current.clear();
+  }, [currentUserId]);
 
   // ── 단일 통합 SSE 채널: messages + chats 처리 ────────────────────────────────
   // 이전: chat별 perChatChannels(N채널) + chat:${chatId}(활성채팅) + new-chats(2채널) = 최대 N+3개 채널
@@ -279,32 +297,38 @@ export function useChat({
         // [Fix-1] 쿼리 결과 chat_id 재검증 — 빈 chat_id·타방·단톡 메시지 원천 차단
         // 서버 sibling merge 가 canonical id 로 바꿔 돌려줘도 열린 방 별칭이면 유지
         const filtered = result.filter(m => messageBelongsToChat(m, cid, aliases));
-        return filtered.length > MAX_MESSAGES ? filtered.slice(-MAX_MESSAGES) : filtered;
+        const visible = filtered.length > MAX_MESSAGES ? filtered.slice(-MAX_MESSAGES) : filtered;
+        cacheRoomMessages(cid, visible);
+        return visible;
       });
       return true;
     } catch (err) {
       console.error('[loadMessages] 네트워크 오류:', err);
       return false;
     }
-  }, []);
+  }, [cacheRoomMessages]);
 
   // ── 채팅방 진입/전환 ─────────────────────────────────────────────────────────
   useEffect(() => {
-    setMessages([]);
     if (!chatId) {
+      ++loadGenRef.current; // 닫힌 뒤 도착한 이전 방 응답이 화면을 되살리지 않게 무효화
+      setMessages([]);
       roomChatIdsRef.current = new Set();
       activePairKeyRef.current = null;
       activePartnerIdRef.current = null;
       return;
     }
+    // 서버 동기화가 끝나기 전 최근 내용을 먼저 보여 전환 시 빈 화면을 없앤다.
+    setMessages(messageCacheRef.current.get(chatId) ?? []);
     chatIdRef.current = chatId;
     rememberRoomChatId(chatId);
+    const recentlyRead = recentlyReadRef.current;
 
     // 채팅방 열 때: unread 카운트 낙관적 삭제 + 전체 배지 감소
     // upsert 실패 시 뱃지 복원 (catch) — 서버 상태와 UI 불일치 방지
     setUnreadChatCounts(prev => { const n = { ...prev }; delete n[chatId]; return n; });
     // 낙관적 읽음 보호: upsert 완료 전 syncUnreadCounts 가 이 방을 unread 로 되돌리지 않게
-    recentlyReadRef.current.set(chatId, Date.now());
+    recentlyRead.set(chatId, Date.now());
 
     if (currentUserId) {
       supabase.from('chat_reads').upsert({
@@ -313,7 +337,7 @@ export function useChat({
         reader_id: currentUserId,
         read_at: new Date().toISOString(),
       }, { onConflict: 'id' }).then(() => {
-        recentlyReadRef.current.delete(chatId);
+        recentlyRead.delete(chatId);
       }).catch(() => {
         // upsert 실패: 맹목적 restore 대신 syncUnreadCounts로 서버 상태에서 재동기화
         // 이유: restore 사이에 다른 채팅방 오픈/sync가 발생했을 수 있어 stale count를 더하면 배지가 틀려짐
@@ -356,6 +380,7 @@ export function useChat({
     }, 1_000);
 
     return () => {
+      cacheRoomMessages(chatId, messagesRef.current);
       clearInterval(pollInterval);
       if (currentUserId) {
         supabase.from('chat_reads').upsert({
@@ -364,11 +389,11 @@ export function useChat({
           reader_id: currentUserId,
           read_at: new Date().toISOString(),
         }, { onConflict: 'id' }).then(() => {
-          recentlyReadRef.current.delete(chatId);
+          recentlyRead.delete(chatId);
         }).catch(() => {});
       }
     };
-  }, [chatId, loadMessages, currentUserId]);
+  }, [chatId, loadMessages, currentUserId, cacheRoomMessages]);
 
   // ── 채팅 목록 로드 ────────────────────────────────────────────────────────────
   const syncUnreadCountsRef = useRef<(() => Promise<void>) | null>(null);
@@ -472,7 +497,6 @@ export function useChat({
     );
     const cachedId = pickCanonicalChat(cachedMatches)?.id ?? null;
 
-    setMessages([]);
     setSelectedProfile(otherProfile);
     if (cachedId) {
       // 목록에 이미 있는 방은 서버 왕복 전에 바로 열어 화면 넘김 지연을 없앤다.
@@ -931,6 +955,7 @@ export function useChat({
       const { error: chatErr } = await supabase.from('chats').delete().eq('id', chatToDelete.id);
       if (chatErr) { alert('채팅방 삭제 실패: ' + chatErr.message); return; }
       setChatList(prev => prev.filter(c => c.id !== chatToDelete.id));
+      messageCacheRef.current.delete(chatToDelete.id);
     } catch (ex) {
       console.error('[useChat] deleteChat 네트워크 오류:', ex);
       alert('네트워크 오류로 삭제에 실패했습니다. 다시 시도해 주세요.');
@@ -951,7 +976,10 @@ export function useChat({
         } catch { return null; }
       }));
       const deletedIds = results.filter((id): id is string => id !== null);
-      if (deletedIds.length > 0) setChatList(prev => prev.filter(c => !deletedIds.includes(c.id)));
+      if (deletedIds.length > 0) {
+        for (const id of deletedIds) messageCacheRef.current.delete(id);
+        setChatList(prev => prev.filter(c => !deletedIds.includes(c.id)));
+      }
     } catch (ex) {
       console.error('[useChat] deleteAllChats 네트워크 오류:', ex);
       alert('네트워크 오류로 일부 채팅 삭제에 실패했습니다.');

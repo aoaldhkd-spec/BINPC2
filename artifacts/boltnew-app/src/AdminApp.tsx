@@ -1,36 +1,42 @@
-import { useState, useEffect, useCallback, useRef, type Dispatch, type SetStateAction } from 'react';
 import {
-  Shield, LogOut, Trash2, Users,
-  LayoutGrid, X, AlertTriangle, ChevronDown,
-  Heart, MessageCircle, Send, CheckCircle, BellRing, Eye, EyeOff,
-  PlayCircle, StopCircle, Timer, RefreshCw, Sparkles,
-  Lock, Unlock, Search, Database as DatabaseIcon, Activity,
+  lazy, Suspense, useState, useEffect, useCallback, useMemo,
+} from 'react';
+import {
+  Shield, LogOut, Users, LayoutGrid, Heart, MessageCircle, BellRing,
 } from 'lucide-react';
 import { supabase } from './lib/supabase';
 import { setLocalDbUserId, supabase as ldbSupabase } from './lib/localdb';
 import {
-  withAdminImageToken, setAdminToken, loadAdminSession, getAdminPassword, refreshAdminToken,
+  setAdminToken, loadAdminSession, getAdminPassword, refreshAdminToken,
   adminApiRpc, patchAdminSettings, adminApiSelect, adminSupabase,
   ADMIN_TOKEN_KEY, ADMIN_PW_KEY, ADMIN_SESSION_KEY, ADMIN_API, MAX_ADMIN_MESSAGES,
   type Profile, type AppSettings, type SessionHistory, type Like, type Chat, type Message, type DbHealthData,
 } from './admin/shared';
 import { LoginScreen } from './admin/LoginScreen';
-import { ConfirmDialog } from './admin/ConfirmDialog';
 import { NotificationTab } from './admin/NotificationTab';
-import { AdminQrTab } from './admin/AdminQrTab';
-import { DbHealthTab } from './admin/DbHealthTab';
 import { DashboardTab } from './admin/DashboardTab';
-import { HeartsTab } from './admin/HeartsTab';
-import { PopularityTab } from './admin/PopularityTab';
-import { ChatsTab } from './admin/ChatsTab';
-import { ProfilesTabSection } from './admin/ProfilesTabSection';
-import { CredentialsTab } from './admin/CredentialsTab';
+
+const AdminQrTab = lazy(() => import('./admin/AdminQrTab').then(m => ({ default: m.AdminQrTab })));
+const DbHealthTab = lazy(() => import('./admin/DbHealthTab').then(m => ({ default: m.DbHealthTab })));
+const HeartsTab = lazy(() => import('./admin/HeartsTab').then(m => ({ default: m.HeartsTab })));
+const PopularityTab = lazy(() => import('./admin/PopularityTab').then(m => ({ default: m.PopularityTab })));
+const ChatsTab = lazy(() => import('./admin/ChatsTab').then(m => ({ default: m.ChatsTab })));
+const ProfilesTabSection = lazy(() => import('./admin/ProfilesTabSection').then(m => ({ default: m.ProfilesTabSection })));
+const CredentialsTab = lazy(() => import('./admin/CredentialsTab').then(m => ({ default: m.CredentialsTab })));
 
 // ─── Admin Dashboard ──────────────────────────────────────────────────────────
 
 type AdminTab = 'settings' | 'profiles' | 'hearts' | 'chats' | 'notify';
 type SettingsSubTab = 'control' | 'qr' | 'admin' | 'db';
 type HeartSubTab = 'hearts' | 'popularity';
+
+function AdminTabFallback() {
+  return (
+    <div className="min-h-48 flex items-center justify-center">
+      <div className="w-8 h-8 rounded-full border-4 border-slate-200 border-t-teal-500 animate-spin" />
+    </div>
+  );
+}
 
 function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [tab, setTab] = useState<AdminTab>('settings');
@@ -58,31 +64,42 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const setSeenMessagesCount = (n: number) => { localStorage.setItem('admin_seen_messages', String(n)); setSeenMessagesCountRaw(n); };
   const setSeenProfilesCount = (n: number) => { localStorage.setItem('admin_seen_profiles', String(n)); setSeenProfilesCountRaw(n); };
 
-  const profileMap = new Map(profiles.map((p) => [p.id, p]));
+  const profileMap = useMemo(() => new Map(profiles.map((p) => [p.id, p])), [profiles]);
 
-  const loadAll = useCallback(async () => {
-    const [{ data: s }, { data: pr }, { data: hi }, { data: li }, { data: ch }, { data: msgs }] = await Promise.all([
+  const loadCore = useCallback(async () => {
+    const [{ data: s }, { data: pr }, { data: hi }] = await Promise.all([
       adminSupabase.from('app_settings').select('*').eq('id', 1).single(),
       adminSupabase.from('profiles').select('*').order('created_at', { ascending: false }),
       adminSupabase.from('session_history').select('*').order('ended_at', { ascending: false }),
-      adminApiSelect<Like>('likes', [{ column: 'created_at', ascending: false }]),
-      adminApiSelect<Chat>('chats', [{ column: 'created_at', ascending: false }]),
-      adminApiSelect<Message>('messages', [{ column: 'created_at', ascending: true }]),
     ]);
     if (s) setSettings(s);
     if (pr) setProfiles(pr);
     if (hi) setHistories(hi);
+  }, []);
+
+  const loadActivity = useCallback(async () => {
+    const [{ data: li }, { data: ch }, { data: msgs }] = await Promise.all([
+      adminApiSelect<Like>('likes', [{ column: 'created_at', ascending: false }]),
+      adminApiSelect<Chat>('chats', [{ column: 'created_at', ascending: false }]),
+      adminApiSelect<Message>('messages', [{ column: 'created_at', ascending: true }]),
+    ]);
     if (li) setLikes(li);
     if (ch) setAllChats(ch);
     if (msgs) setAllMessages(msgs.slice(-MAX_ADMIN_MESSAGES));
   }, []);
+
+  const loadAll = useCallback(async () => {
+    await Promise.all([loadCore(), loadActivity()]);
+  }, [loadActivity, loadCore]);
 
   useEffect(() => {
     // 관리자 SSE 핵심 수정: 일반 유저 userId가 localStorage에 남아 있으면
     // localdb가 adminToken 조건(userId===null)을 만족 못해 admin SSE가 아닌 user SSE로 연결됨.
     // → setLocalDbUserId(null)로 userId를 초기화하여 adminToken이 SSE URL에 포함되도록 강제.
     setLocalDbUserId(null);
-    loadAll();
+    void loadCore();
+    // 첫 화면과 입력 반응이 그려진 다음 대용량 하트·채팅 데이터를 받는다.
+    const activityTimer = window.setTimeout(() => { void loadActivity(); }, 150);
     const channel = supabase
       .channel('admin-realtime')
       // ── profiles: 페이로드 기반 증분 업데이트 ───────────────────────
@@ -108,8 +125,11 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         setSettings(prev => (prev ? { ...prev, ...row } : row) as AppSettings);
       })
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [loadAll]);
+    return () => {
+      window.clearTimeout(activityTimer);
+      supabase.removeChannel(channel);
+    };
+  }, [loadActivity, loadAll, loadCore]);
 
   // ── api-server SSE 실시간 동기화: likes · messages · chats ──────────────────
   // api-server는 이 세 테이블을 app_kv_rows에 저장하므로 Supabase Realtime이 아닌
@@ -187,10 +207,13 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   }, [fetchDbHealth]);
 
   useEffect(() => {
-    fetchDbHealth();
+    const initialTimer = window.setTimeout(() => { void fetchDbHealth(); }, 300);
     // 5초 주기로 SSE 연결 수 갱신 (기존 30초는 실시간성이 너무 낮음)
     const id = setInterval(fetchDbHealth, 5_000);
-    return () => clearInterval(id);
+    return () => {
+      window.clearTimeout(initialTimer);
+      clearInterval(id);
+    };
   }, [fetchDbHealth]);
 
   const handleToggleSession = async () => {
@@ -443,6 +466,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       </header>
 
       <main className="max-w-4xl mx-auto">
+        <Suspense fallback={<AdminTabFallback />}>
         {tab === 'settings' && (
           <div>
             <div className="flex border-b border-gray-200 bg-white px-4">
@@ -514,6 +538,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         )}
         {tab === 'chats' && <ChatsTab chats={allChats} messages={allMessages} profileMap={profileMap} onDeleteChat={handleDeleteChat} onClearAll={handleClearAllChats} onRefresh={loadAll} />}
         {tab === 'notify' && <NotificationTab tableCount={0} settings={settings} onSetTimer={handleSetTimer} />}
+        </Suspense>
       </main>
 
       {/* 초기화 복구 배너 (non-blocking) */}
@@ -564,18 +589,28 @@ export default function AdminApp() {
         if (!cancelled) { setIsLoggedIn(false); setCheckingSession(false); }
         return;
       }
-      // 저장된 비밀번호로 토큰 선제 갱신 (redeploy 후 회의시작 403 방지)
-      if (getAdminPassword()) await refreshAdminToken();
-      token = localStorage.getItem(ADMIN_TOKEN_KEY);
       try {
-        const res = await fetch(`${ADMIN_API}/op`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ table: 'app_settings', op: 'select', adminToken: token }),
-        });
-        const json = await res.json() as { data: unknown; error: unknown };
+        const tokenWorks = async (candidate: string | null) => {
+          if (!candidate) return false;
+          const res = await fetch(`${ADMIN_API}/op`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ table: 'app_settings', op: 'select', adminToken: candidate }),
+          });
+          const json = await res.json() as { data: unknown; error: unknown };
+          return res.ok && !!json.data && !json.error;
+        };
+
+        // 평소에는 저장된 토큰 한 번만 확인한다. 배포로 토큰이 만료된 경우에만
+        // 비밀번호 기반 갱신 후 재검증해 매 진입의 불필요한 왕복을 없앤다.
+        let valid = await tokenWorks(token);
+        if (!valid && getAdminPassword()) {
+          await refreshAdminToken();
+          token = localStorage.getItem(ADMIN_TOKEN_KEY);
+          valid = await tokenWorks(token);
+        }
         if (!cancelled) {
-          if (res.ok && json.data && !json.error) setIsLoggedIn(true);
+          if (valid) setIsLoggedIn(true);
           else {
             localStorage.removeItem(ADMIN_SESSION_KEY);
             localStorage.removeItem(ADMIN_PW_KEY);
