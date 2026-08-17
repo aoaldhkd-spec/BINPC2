@@ -2345,7 +2345,7 @@ function applyAppSettingsFromDbRows(dbRows: Record<string, unknown>[]): boolean 
 }
 
 /** hot 테이블(profiles·app_settings)을 app_kv_rows에서 재동기화 — LISTEN gap 보정 전용 */
-const REALTIME_MERGE_TABLES = new Set(['profiles', 'chats', 'likes', 'messages', 'contact_shares']);
+const REALTIME_MERGE_TABLES = new Set(['profiles', 'chats', 'likes', 'messages', 'contact_shares', 'signal_sends']);
 const _lastDbMerge = new Map<string, number>();
 const DB_MERGE_THROTTLE_MS = 2_500;
 
@@ -2439,6 +2439,7 @@ const FULL_RESYNC_TABLES: Array<{ tbl: string; order?: string }> = [
   { tbl: 'likes',           order: 'ORDER BY created_at DESC LIMIT 5000' },
   { tbl: 'chats',           order: 'ORDER BY created_at DESC LIMIT 5000' },
   { tbl: 'contact_shares',  order: 'ORDER BY created_at DESC LIMIT 5000' },
+  { tbl: 'signal_sends',    order: 'ORDER BY created_at DESC LIMIT 5000' },
 ];
 
 let _fullResyncRunning = false;
@@ -2449,6 +2450,7 @@ const RESYNC_TABLE_LIMIT: Record<string, number> = {
   likes: 5000,
   chats: 5000,
   contact_shares: 5000,
+  signal_sends: 5000,
 };
 
 async function pruneDistributedRateLimits(): Promise<void> {

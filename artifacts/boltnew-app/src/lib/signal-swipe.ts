@@ -54,3 +54,17 @@ export function updateSwipeVelocity(prevVx: number, sampleDx: number, dtMs: numb
 export function cardTransform(dx: number): string {
   return `translate3d(${dx}px, 0, 0) rotate(${cardRotateDeg(dx)}deg)`;
 }
+
+/** After a failed send/pass persist, keep that card in front — do not reshuffle it away. */
+export function pinRestoredCard<T extends { profileId: string }>(
+  deck: T[],
+  restoredId: string | null,
+): T[] {
+  if (!restoredId || deck.length < 2) return deck;
+  const idx = deck.findIndex((c) => c.profileId === restoredId);
+  if (idx <= 0) return deck;
+  const next = deck.slice();
+  const [card] = next.splice(idx, 1);
+  next.unshift(card);
+  return next;
+}

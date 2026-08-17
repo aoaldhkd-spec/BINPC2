@@ -54,6 +54,20 @@ describe('signal copy + unlock invariants', () => {
     expect(signalTabSrc).not.toMatch(/sessionStreak|consecutiveStreak/);
   });
 
+  it('App loadSignalActions merges by id and does not wipe inbox on SELECT error', () => {
+    const appSrc = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), '../App.tsx'),
+      'utf8',
+    );
+    expect(appSrc).toContain('mergeSetAfterSnapshot');
+    expect(appSrc).toContain('resolveSignalInboxProfiles');
+    expect(appSrc).toContain('outgoingRes.error');
+    expect(appSrc).toContain('incomingRes.error');
+    expect(appSrc).toContain('loadSignalActionsRef');
+    expect(appSrc).toContain('nudgeDestinationTab');
+    expect(appSrc).not.toMatch(/if \(senderIds\.length === 0\) \{\s*setReceivedSignalSenders\(\[\]\)/);
+  });
+
   it('never puts raw ideal/feature free text on reason chips', () => {
     const secretIdeal = '나만아는비밀이상형XYZ';
     const secretFeat = '나만아는비밀특징XYZ';

@@ -22,9 +22,12 @@ import {
   incomingSignalToast,
   isInterestHeart,
   isNudgeEligible,
+  nudgeDestinationTab,
   readNudgeCount,
+  resolveSignalInboxProfiles,
   writeNudgeCount,
 } from './lib/signal-match';
+import { mergeRowsAfterSnapshot, mergeSetAfterSnapshot } from './lib/realtime-merge';
 import { incomingInterestToast, isIncomingHeartToastTarget, MUTUAL_HEART_TOAST } from './lib/heart-toast';
 import { FUNCTIONS_LOCK_KICK_TOAST, FUNCTIONS_LOCK_TOAST, SOCIAL_LOCKED_TABS } from './lib/functions-lock';
 import { SignalNudgeBanner } from './components/SignalNudgeBanner';
@@ -244,6 +247,13 @@ function App() {
   const [userSignals, setUserSignals] = useState<UserSignal[]>([]);
   const [signalActedIds, setSignalActedIds] = useState<Set<string>>(new Set());
   const [receivedSignalSenders, setReceivedSignalSenders] = useState<Profile[]>([]);
+  const signalActedIdsRef = useRef(signalActedIds);
+  signalActedIdsRef.current = signalActedIds;
+  const receivedSignalSendersRef = useRef(receivedSignalSenders);
+  receivedSignalSendersRef.current = receivedSignalSenders;
+  const loadSignalGenRef = useRef(0);
+  const loadSignalActionsRef = useRef<((userId: string) => Promise<void>) | null>(null);
+  const signalNudgeIndexRef = useRef(0);
   const [myHeartCount, setMyHeartCount] = useState<number | null>(null);
   const myHeartCountRef = useRef<number | null>(null);
   myHeartCountRef.current = myHeartCount;
@@ -373,6 +383,7 @@ function App() {
       loadReceivedLikesRef.current?.(uid).catch(() => {});
       loadLikesRef.current?.(uid).catch(() => {});
       loadContactShareDataRef.current?.(uid).catch(() => {});
+      loadSignalActionsRef.current?.(uid).catch(() => {});
     };
     tick();
     const pollId = setInterval(tick, connStatus === 'error' ? 5_000 : 8_000);
@@ -505,6 +516,7 @@ function App() {
   const persistSignalAction = useCallback(async (profileId: string, action: 'send' | 'pass'): Promise<boolean> => {
     if (!currentUserId || profileId === currentUserId) return false;
     if (functionsLockedRef.current) { showFunctionsLockToast(); return false; }
+    if (signalActedIdsRef.current.has(profileId)) return true;
     let added = false;
     setSignalActedIds((prev) => {
       if (prev.has(profileId)) return prev;
@@ -559,31 +571,53 @@ function App() {
   }, [persistSignalAction]);
 
   const loadSignalActions = useCallback(async (userId: string) => {
+    const gen = ++loadSignalGenRef.current;
+    const actedAtStart = new Set(signalActedIdsRef.current);
+    const inboxAtStart = [...receivedSignalSendersRef.current];
     try {
-      const [{ data: outgoing }, { data: incoming }] = await Promise.all([
+      const [outgoingRes, incomingRes] = await Promise.all([
         supabase.from('signal_sends').select('receiver_id, action').eq('sender_id', userId),
         supabase.from('signal_sends').select('sender_id, action').eq('receiver_id', userId),
       ]);
-      const acted = new Set<string>();
-      for (const row of (outgoing ?? []) as Array<{ receiver_id?: string }>) {
-        if (row.receiver_id) acted.add(row.receiver_id);
+      if (gen !== loadSignalGenRef.current) return;
+      if (outgoingRes.error) {
+        console.warn('[signal_sends] outgoing select', outgoingRes.error.message);
+      } else {
+        const fetched = new Set<string>();
+        for (const row of (outgoingRes.data ?? []) as Array<{ receiver_id?: string }>) {
+          if (row.receiver_id) fetched.add(row.receiver_id);
+        }
+        setSignalActedIds((current) => mergeSetAfterSnapshot(fetched, actedAtStart, current));
       }
-      setSignalActedIds(acted);
+      if (incomingRes.error) {
+        console.warn('[signal_sends] incoming select', incomingRes.error.message);
+        return;
+      }
       const senderIds = [...new Set(
-        ((incoming ?? []) as Array<{ sender_id?: string; action?: string }>)
+        ((incomingRes.data ?? []) as Array<{ sender_id?: string; action?: string }>)
           .filter((r) => r.action === 'send' && r.sender_id)
           .map((r) => r.sender_id as string),
       )];
-      if (senderIds.length === 0) {
-        setReceivedSignalSenders([]);
-        return;
+      let fetchedProfiles: Profile[] = [];
+      if (senderIds.length > 0) {
+        const { data: ps, error: psErr } = await supabase.from('profiles').select('*').in('id', senderIds);
+        if (gen !== loadSignalGenRef.current) return;
+        if (psErr) console.warn('[signal_sends] inbox profiles', psErr.message);
+        fetchedProfiles = (ps ?? []) as Profile[];
       }
-      const { data: ps } = await supabase.from('profiles').select('*').in('id', senderIds);
-      if (ps) setReceivedSignalSenders(ps as Profile[]);
+      if (gen !== loadSignalGenRef.current) return;
+      const resolved = resolveSignalInboxProfiles(
+        senderIds,
+        fetchedProfiles,
+        inboxAtStart,
+        profilesRef.current,
+      );
+      setReceivedSignalSenders((current) => mergeRowsAfterSnapshot(resolved, inboxAtStart, current, (p) => p.id));
     } catch {
-      /* stale */
+      /* stale — keep previous inbox / acted lock */
     }
   }, []);
+  loadSignalActionsRef.current = loadSignalActions;
 
   const openChatGuarded = useCallback((profile: Profile) => {
     if (functionsLockedRef.current) { showFunctionsLockToast(); return Promise.resolve(); }
@@ -1073,6 +1107,7 @@ function App() {
     setReceivedHeartTypes(new Map());
     setLikeStatuses(new Map());
     setReceivedLikers([]);
+    loadSignalGenRef.current += 1;
     setSignalActedIds(new Set());
     setReceivedSignalSenders([]);
     // 타이머 ID 추적 — 언마운트 시 clearTimeout으로 stale setState 방지
@@ -1331,13 +1366,16 @@ function App() {
             const row = payload.new as SignalSend;
             if (row.action !== 'send' || !row.sender_id || row.sender_id === currentUserId) return;
             const { data } = await supabase.from('profiles').select('*').eq('id', row.sender_id).maybeSingle();
-            if (data) {
+            const profile = (data as Profile | null)
+              ?? profilesRef.current.find((p) => p.id === row.sender_id)
+              ?? null;
+            if (profile) {
               setReceivedSignalSenders((prev) => {
-                if (prev.find((p) => p.id === data.id)) return prev;
-                return [data as Profile, ...prev];
+                if (prev.find((p) => p.id === profile.id)) return prev;
+                return [profile, ...prev];
               });
             }
-            const nick = (data as Profile | null)?.nickname ?? '누군가';
+            const nick = profile?.nickname ?? '누군가';
             setBottomNotif({
               type: 'signal',
               signalKind: 'received',
@@ -1658,7 +1696,8 @@ function App() {
     const t = setTimeout(() => {
       if (signalNudgeSessionRef.current) return;
       if (view !== 'main') return;
-      setSignalNudge(NUDGE_MESSAGES[shown % NUDGE_MESSAGES.length]);
+      signalNudgeIndexRef.current = shown % NUDGE_MESSAGES.length;
+      setSignalNudge(NUDGE_MESSAGES[signalNudgeIndexRef.current]);
     }, 8_000);
     return () => clearTimeout(t);
   }, [currentUserId, view, mainTab, heartSendTotal, likedIds.size]);
@@ -1667,7 +1706,7 @@ function App() {
     setSignalNudge(null);
     signalNudgeSessionRef.current = true;
     if (currentUserId) writeNudgeCount(currentUserId, readNudgeCount(currentUserId) + 1);
-    if (goToTab) handleMainTabChange('signal');
+    if (goToTab) handleMainTabChange(nudgeDestinationTab(signalNudgeIndexRef.current));
   }, [currentUserId, handleMainTabChange]);
 
   const handleMissionComplete = useCallback(() => {
@@ -1822,6 +1861,7 @@ function App() {
               loadReceivedLikesRef.current?.(uid).catch(() => {});
               loadLikesRef.current?.(uid).catch(() => {});
               loadContactShareDataRef.current?.(uid).catch(() => {});
+              loadSignalActionsRef.current?.(uid).catch(() => {});
               loadProfilesRef.current().catch(() => {});
             } else {
               window.location.reload();

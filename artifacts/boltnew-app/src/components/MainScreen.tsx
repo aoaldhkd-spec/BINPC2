@@ -1962,8 +1962,8 @@ export function MainScreen({
             functionsLocked={functionsLocked}
             darkMode={darkMode}
             alreadySignaledIds={signalActedIds}
-            onSendSignal={(id) => { if (!functionsLocked) return onSendSignal?.(id); }}
-            onPassSignal={(id) => { if (!functionsLocked) return onPassSignal?.(id); }}
+            onSendSignal={(id) => { if (functionsLocked) return false; return onSendSignal?.(id); }}
+            onPassSignal={(id) => { if (functionsLocked) return false; return onPassSignal?.(id); }}
             onSelect={onSelect}
             onGoProfiles={() => onTabChange('profiles')}
             onMissionComplete={onMissionComplete}

@@ -36,6 +36,7 @@ import {
   SWIPE_STACK_LIFT,
   cardTransform,
   nextCardScale,
+  pinRestoredCard,
   shouldCommitSwipe,
   stampOpacity,
   swipeExitX,
@@ -143,6 +144,7 @@ export function SignalTab({
   onMissionComplete?: () => void;
 }) {
   const [skippedIds, setSkippedIds] = useState<Set<string>>(new Set());
+  const [restoredFrontId, setRestoredFrontId] = useState<string | null>(null);
   const [fetchedMissionCount, setFetchedMissionCount] = useState<number | null>(null);
   const [imgFailedIds, setImgFailedIds] = useState<Set<string>>(new Set());
   const [dragX, setDragX] = useState(0);
@@ -227,15 +229,16 @@ export function SignalTab({
       alreadySignaledIds: signaled,
       likedAllTypeIds,
     });
-    return ranked
+    const built = ranked
       .map((m) => {
         const profile = byId.get(m.profileId);
         return profile ? { ...m, profile } : null;
       })
       .filter((x): x is DeckCard => x != null);
+    return pinRestoredCard(built, restoredFrontId);
   }, [
     unlocked, me, currentUserId, mySignal, profiles,
-    signalByUser, skippedIds, blockedUserIds, hiddenByIds, alreadyInterestedIds, signaled, likedAllTypeIds,
+    signalByUser, skippedIds, restoredFrontId, blockedUserIds, hiddenByIds, alreadyInterestedIds, signaled, likedAllTypeIds,
   ]);
 
   const current = deck[0] ?? null;
@@ -296,6 +299,7 @@ export function SignalTab({
   }, []);
 
   const advanceLocal = useCallback((id: string) => {
+    setRestoredFrontId(null);
     setSkippedIds((prev) => new Set([...prev, id]));
   }, []);
 
@@ -304,6 +308,7 @@ export function SignalTab({
     const result = dir === 'right' ? onSendSignal(id) : onPassSignal(id);
     void Promise.resolve(result).then((ok) => {
       if (ok !== false) return;
+      setRestoredFrontId(id);
       setSkippedIds((prev) => {
         if (!prev.has(id)) return prev;
         const next = new Set(prev);

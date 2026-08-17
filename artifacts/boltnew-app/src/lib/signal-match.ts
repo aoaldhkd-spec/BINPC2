@@ -672,6 +672,35 @@ export function isNudgeEligible(heartSendTotal: number, likedUniqueCount: number
   return heartSendTotal < 1 || likedUniqueCount < 2;
 }
 
+/** 하트 유도 문구는 참여자 탭, 시그널 추천 문구만 시그널 탭. */
+export function nudgeDestinationTab(index: number): 'profiles' | 'signal' {
+  const len = NUDGE_MESSAGES.length;
+  const i = ((index % len) + len) % len;
+  return NUDGE_MESSAGES[i].includes('시그널 탭') ? 'signal' : 'profiles';
+}
+
+/** 받은 시그널 프로필: SELECT 결과 + 기존 inbox + 로컬 프로필 캐시. 빈 fetch로 지우지 않음. */
+export function resolveSignalInboxProfiles<T extends { id: string }>(
+  senderIds: string[],
+  fetched: readonly T[],
+  prev: readonly T[],
+  fallback: readonly T[],
+): T[] {
+  const byId = new Map<string, T>();
+  for (const p of fallback) byId.set(p.id, p);
+  for (const p of prev) byId.set(p.id, p);
+  for (const p of fetched) byId.set(p.id, p);
+  const out: T[] = [];
+  const seen = new Set<string>();
+  for (const id of senderIds) {
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    const p = byId.get(id);
+    if (p) out.push(p);
+  }
+  return out;
+}
+
 export function readNudgeCount(userId: string, getItem: (k: string) => string | null = (k) => {
   try { return localStorage.getItem(k); } catch { return null; }
 }): number {

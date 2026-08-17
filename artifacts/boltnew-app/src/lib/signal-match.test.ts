@@ -16,6 +16,7 @@ import {
   isOppositePosition,
   isSignalDeckUnlocked,
   matchSignalPair,
+  nudgeDestinationTab,
   parseFeatureTags,
   parseIdealTags,
   positionSide,
@@ -24,6 +25,7 @@ import {
   reasonsLeakPrivateText,
   recommendSignals,
   resolveFeatureTags,
+  resolveSignalInboxProfiles,
   seoulDateKey,
   tagsAreSynonyms,
   type FeatureProfile,
@@ -571,6 +573,20 @@ describe('nudge eligibility + reason chips', () => {
     expect(isNudgeEligible(0, 0)).toBe(true);
     expect(isNudgeEligible(1, 1)).toBe(true);
     expect(isNudgeEligible(3, 2)).toBe(false);
+  });
+
+  it('opens profiles for heart copy and signal tab only for the signal-tab nudge', () => {
+    expect(nudgeDestinationTab(0)).toBe('profiles');
+    expect(nudgeDestinationTab(1)).toBe('signal');
+    expect(nudgeDestinationTab(2)).toBe('profiles');
+  });
+
+  it('keeps inbox senders when profile fetch is partial', () => {
+    const prev = [{ id: 'a', nickname: 'A' }, { id: 'b', nickname: 'B' }];
+    const fetched = [{ id: 'a', nickname: 'A2' }];
+    const out = resolveSignalInboxProfiles(['a', 'b', 'c'], fetched, prev, [{ id: 'c', nickname: 'C' }]);
+    expect(out.map((p) => p.id)).toEqual(['a', 'b', 'c']);
+    expect(out[0].nickname).toBe('A2');
   });
 
   it('builds safe reason labels', () => {

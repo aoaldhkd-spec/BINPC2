@@ -9,6 +9,7 @@ import {
   shouldCommitSwipe,
   stampOpacity,
   swipeExitX,
+  pinRestoredCard,
   updateSwipeVelocity,
 } from './signal-swipe';
 
@@ -68,5 +69,14 @@ describe('transform helpers', () => {
     const vx = updateSwipeVelocity(0, 20, 16);
     expect(vx).toBeGreaterThan(0);
     expect(updateSwipeVelocity(1, 20, 0)).toBe(1);
+  });
+});
+
+describe('pinRestoredCard', () => {
+  it('moves the failed persist card back to the front', () => {
+    const deck = [{ profileId: 'alpha' }, { profileId: 'beta' }, { profileId: 'gamma' }];
+    expect(pinRestoredCard(deck, 'beta').map((c) => c.profileId)).toEqual(['beta', 'alpha', 'gamma']);
+    expect(pinRestoredCard(deck, null)).toBe(deck);
+    expect(pinRestoredCard(deck, 'alpha')).toBe(deck);
   });
 });
