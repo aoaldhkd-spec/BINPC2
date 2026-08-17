@@ -110,8 +110,12 @@ describe('[Realtime] long-session stability', () => {
     expect(SSE_TOKEN_TTL_SEC).toBe(3600);
     expect(SSE_TOKEN_REFRESH_LEAD_SEC).toBe(720);
     expect(SSE_TOKEN_REFRESH_LEAD_SEC).toBe(Math.floor(SSE_TOKEN_TTL_SEC * 0.2));
-    expect(localdbSrc).toMatch(/refreshSseTokenIfStale\(\);/);
+    expect(localdbSrc).toMatch(/refreshSseTokenIfStale\(\)/);
     expect(localdbSrc).toMatch(/토큰 만료 선제 갱신은 리스너 유무와 무관/);
+    expect(localdbSrc).toMatch(/recoverSseAfterSleep/);
+    expect(localdbSrc).toMatch(/SSE_TOKEN_WAKE_REFRESH_LEAD_SEC/);
+    expect(localdbSrc).toMatch(/wake-ring-stale/);
+    expect(localdbSrc).toMatch(/type === 'catchup'/);
   });
 
   it('source: client caches that grow with time stay capped', () => {

@@ -26,6 +26,7 @@ import {
   LOGIN_RATE_MAX_PER_IP,
   LOGIN_RATE_WINDOW_MS,
   UPLOAD_RATE_MAX,
+  UPLOAD_RATE_MAX_PER_IP,
   UPLOAD_RATE_WINDOW_MS,
   loginRateMap as _loginRateMap,
   uploadRateMap as _uploadRateMap,
@@ -33,6 +34,7 @@ import {
   pruneRateMap,
   consumeRateLimit,
   venueLoginRateKeys,
+  venueUploadRateKeys,
   resetRateLimit,
 } from '../lib/db-rate-limit';
 import { mergeDbRowsIntoMemory, shouldBroadcastBulkResync } from '../lib/db-store-merge';
@@ -4734,19 +4736,27 @@ router.post('/storage-upload', async (req: Request, res: Response) => {
     recordUploadRejected('forbidden');
     return res.status(403).json({ data: null, error: { message: 'Forbidden image path' } });
   }
-  // ─ Per-IP rate limit: 이미지 스팸 방지
+  // ─ Per-user + NAT IP burst: 이미지 스팸 방지 (공인 IP 한 줄로 전원 429 금지)
   const uploadIp = String(req.ip ?? req.socket.remoteAddress ?? 'unknown');
-  const uploadRate = consumeRateLimit(_uploadRateMap, uploadIp, {
+  const uploadKeys = venueUploadRateKeys(userId, uploadIp);
+  const uploadUserRate = consumeRateLimit(_uploadRateMap, uploadKeys.userKey, {
     windowMs: UPLOAD_RATE_WINDOW_MS,
     max: UPLOAD_RATE_MAX,
     maxMapSize: RATE_MAP_MAX_SIZE,
   });
-  if (uploadRate === 'map_full') {
+  const uploadIpBurst = consumeRateLimit(_uploadRateMap, uploadKeys.ipBurstKey, {
+    windowMs: UPLOAD_RATE_WINDOW_MS,
+    max: UPLOAD_RATE_MAX_PER_IP,
+    maxMapSize: RATE_MAP_MAX_SIZE,
+  });
+  if (uploadUserRate === 'map_full' || uploadIpBurst === 'map_full') {
     recordUploadRejected('rate_limited');
+    res.setHeader('Retry-After', '5');
     return res.status(429).json({ data: null, error: '요청이 너무 많습니다.' });
   }
-  if (uploadRate === 'limited') {
+  if (uploadUserRate === 'limited' || uploadIpBurst === 'limited') {
     recordUploadRejected('rate_limited');
+    res.setHeader('Retry-After', '5');
     return res.status(429).json({ data: null, error: '이미지를 너무 자주 업로드하고 있습니다. 잠시 후 다시 시도해 주세요.' });
   }
 
@@ -5462,9 +5472,11 @@ router.post('/auth/login', (req: Request, res: Response) => {
     maxMapSize: RATE_MAP_MAX_SIZE,
   });
   if (userRate === 'map_full' || ipBurst === 'map_full') {
+    res.setHeader('Retry-After', '5');
     return res.status(429).json({ error: '요청이 너무 많습니다.' });
   }
   if (userRate === 'limited' || ipBurst === 'limited') {
+    res.setHeader('Retry-After', '5');
     return res.status(429).json({ error: '로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.' });
   }
   }
@@ -5694,8 +5706,17 @@ router.get('/events', (req: Request, res: Response) => {
     const lastSeq = rawLastId ? parseInt(String(rawLastId), 10) : 0;
     if (lastSeq > 0 && Number.isFinite(lastSeq) && !isNaN(lastSeq)) {
       const missed = _ringGetSince(lastSeq, userId, isAdminSse);
-      for (const entry of missed) {
-        try { res.write(`id: ${entry.seq}\ndata: ${entry.json}\n\n`); } catch { break; }
+      // 슬립 후 링 전체가 쏟아지면 채팅이 멈춘다. 소량은 재전송, 대량은 HTTP merge-by-id.
+      const RING_REPLAY_MAX = 200;
+      if (missed.length > RING_REPLAY_MAX) {
+        const latest = _sseRingBuffer.length ? _sseRingBuffer[_sseRingBuffer.length - 1].seq : lastSeq;
+        try {
+          res.write(`id: ${latest}\ndata: ${JSON.stringify({ type: 'catchup', missed: missed.length })}\n\n`);
+        } catch { /* ignore */ }
+      } else {
+        for (const entry of missed) {
+          try { res.write(`id: ${entry.seq}\ndata: ${entry.json}\n\n`); } catch { break; }
+        }
       }
     }
   }

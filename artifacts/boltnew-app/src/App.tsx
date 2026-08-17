@@ -1299,24 +1299,14 @@ function App() {
       if (document.visibilityState !== 'visible') return;
       const storedId = ls.getItem(MATCHING_USER_KEY);
       if (!storedId) return;
-      // 포그라운드 복귀 시 전체 데이터 리프레시
-      // ⚠️ 세션 제거는 allProfiles.length > 0 인 경우에만: 빈 결과 = 서버 오류/기동 중
+      // 포그라운드 복귀 시 데이터만 조용히 갱신. 목록이 비거나 잘려도 7일 세션을 끊지 않는다.
       loadProfiles().then((allProfiles) => {
-        if (allProfiles.length > 0 && !allProfiles.some((p: { id: string }) => p.id === storedId)) {
-          ls.removeItem(MATCHING_USER_KEY);
-          ls.removeItem(MATCHING_DRAFT_KEY);
-          setCurrentUserId(null);
-          setShownWaiting(false);
-          setProfileBoot('recover');
-          setView('entry-recover');
-        } else {
-          // Refresh data on returning to app
-          loadReceivedLikes(storedId);
-          loadLikes(storedId);
-          void loadSignalActions(storedId);
-          loadChatList(storedId);
-          loadContactShareData(storedId);
-        }
+        if (allProfiles.length === 0) return;
+        loadReceivedLikes(storedId);
+        loadLikes(storedId);
+        void loadSignalActions(storedId);
+        loadChatList(storedId);
+        loadContactShareData(storedId);
       }).catch(() => { /* 네트워크 오류 → 세션 유지, 데이터는 다음 리프레시 때 갱신 */ });
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { consumeRateLimit, pruneRateMap, resetRateLimit, venueLoginRateKeys } from '../lib/db-rate-limit.js';
+import { consumeRateLimit, pruneRateMap, resetRateLimit, venueLoginRateKeys, venueUploadRateKeys } from '../lib/db-rate-limit.js';
 
 describe('consumeRateLimit', () => {
   it('allows up to max then limits', () => {
@@ -40,6 +40,13 @@ describe('consumeRateLimit', () => {
   it('venueLoginRateKeys isolate per-user brute force from shared NAT IP', () => {
     const a = venueLoginRateKeys('alice', '10.0.0.1');
     const b = venueLoginRateKeys('bob', '10.0.0.1');
+    expect(a.userKey).not.toBe(b.userKey);
+    expect(a.ipBurstKey).toBe(b.ipBurstKey);
+  });
+
+  it('venueUploadRateKeys isolate per-user spam from shared NAT IP', () => {
+    const a = venueUploadRateKeys('alice', '10.0.0.1');
+    const b = venueUploadRateKeys('bob', '10.0.0.1');
     expect(a.userKey).not.toBe(b.userKey);
     expect(a.ipBurstKey).toBe(b.ipBurstKey);
   });

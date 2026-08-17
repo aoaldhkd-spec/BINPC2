@@ -18,6 +18,8 @@ describe('longevity recurrence guards (server)', () => {
     expect(dbTs).not.toMatch(/setInterval\(\(\) => \{ resyncAllFromNativeDb\('forced'\)/);
     expect(dbTs).toMatch(/const notifyClients = shouldBroadcastBulkResync\(reason\)/);
     expect(dbTs).toMatch(/if \(notifyClients && prevFp !== nextFp\)/);
+    expect(dbTs).toMatch(/RING_REPLAY_MAX/);
+    expect(dbTs).toMatch(/type: 'catchup'/);
   });
 
   it('periodic sync must not emit _bulk_resync to all clients', () => {

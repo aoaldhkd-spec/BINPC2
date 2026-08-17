@@ -137,11 +137,15 @@ async function apiFetch(
         signal: ctrl.signal,
       });
       clearTimeout(timer);
-      // 503 서버 과부하 — Retry-After 헤더 또는 지수 백오프 후 재시도
-      if (resp.status === 503 && attempt < MAX_BUSY_RETRIES) {
-        diag('warn', 'api', '503-retry', { corr: requestId, data: { op: opHint, attempt } });
-        const retryAfterSec = parseInt(resp.headers.get('Retry-After') ?? '2', 10);
-        await new Promise<void>(r => setTimeout(r, Math.min(retryAfterSec * 1000, 8_000)));
+      // 503 콜드스타트·502/504 프록시·429 NAT 버스트는 첫 실패를 에러로 올리지 않고 재시도
+      if (
+        (resp.status === 503 || resp.status === 502 || resp.status === 504 || resp.status === 429)
+        && attempt < MAX_BUSY_RETRIES
+      ) {
+        diag('warn', 'api', `${resp.status}-retry`, { corr: requestId, data: { op: opHint, attempt } });
+        const fallbackSec = resp.status === 429 ? '3' : '2';
+        const retryAfterSec = parseInt(resp.headers.get('Retry-After') ?? fallbackSec, 10);
+        await new Promise<void>(r => setTimeout(r, Math.min(Math.max(retryAfterSec, 1) * 1000, 8_000)));
         continue;
       }
       if (!resp.ok) {
@@ -352,7 +356,9 @@ class QueryBuilder {
 
 // ─── SSE realtime ─────────────────────────────────────────────────────────────
 interface SseEvent {
-  type: 'change' | 'broadcast' | 'ping' | 'instance' | 'shutdown';
+  type: 'change' | 'broadcast' | 'ping' | 'instance' | 'shutdown' | 'catchup';
+  instanceId?: string;
+  missed?: number;
   instanceId?: string;
   table?: string;
   event?: 'INSERT' | 'UPDATE' | 'DELETE';
@@ -539,6 +545,10 @@ const SSE_TOK_EXP_KEY = 'sse_tok_exp';
 // 를 빼면 localdb-long-session 테스트가 실패한다.
 export const SSE_TOKEN_TTL_SEC = 3600;
 export const SSE_TOKEN_REFRESH_LEAD_SEC = Math.floor(SSE_TOKEN_TTL_SEC * 0.2); // 720s = 80% TTL
+/** 탭 복귀 시에는 더 일찍 갱신 — 잠든 동안 만료된 토큰으로 EventSource 401 재시도를 막는다. */
+export const SSE_TOKEN_WAKE_REFRESH_LEAD_SEC = 20 * 60;
+/** 서버 SSE 링 TTL(20분)과 맞춤. 이보다 오래 끊기면 Last-Event-ID 재전송을 포기하고 HTTP merge. */
+const SSE_RING_STALE_MS = 20 * 60 * 1_000;
 const SSE_TOKEN_MIN_REFRESH_GAP_MS = 30_000; // 갱신 재시도 최소 간격 (요청 증폭 방지)
 let _lastTokenRefreshStartedAt = 0;
 
@@ -563,10 +573,14 @@ function hasUsableSseToken(): boolean {
 }
 
 /** 만료가 임박했으면 선제 재발급. 이미 진행 중이면 아무것도 하지 않는다. */
-function refreshSseTokenIfStale(): void {
+function refreshSseTokenIfStale(opts?: { wake?: boolean }): void {
   if (!_currentUserId) return;
-  if (sseTokenSecondsLeft() > SSE_TOKEN_REFRESH_LEAD_SEC) return;
-  if (Date.now() - _lastTokenRefreshStartedAt < SSE_TOKEN_MIN_REFRESH_GAP_MS) return;
+  const lead = opts?.wake ? SSE_TOKEN_WAKE_REFRESH_LEAD_SEC : SSE_TOKEN_REFRESH_LEAD_SEC;
+  const left = sseTokenSecondsLeft();
+  if (left > lead) return;
+  // 만료·임박 복귀는 30초 쿨다운을 건너뛰어 401 EventSource 재시도를 막는다.
+  const minGap = opts?.wake && left <= 30 ? 2_000 : SSE_TOKEN_MIN_REFRESH_GAP_MS;
+  if (Date.now() - _lastTokenRefreshStartedAt < minGap) return;
   if (_sseTokenRetryTimer) return; // 백오프 재시도 예약됨 — 중복 발사 금지
   void fetchAndSetSseToken(_currentUserId).catch(() => {});
 }
@@ -715,6 +729,11 @@ function createSse() {
       markSseMessageConnected(switched, switched ? 'server-instance-switched' : 'reconnected');
       return;
     }
+    // 링 재전송이 너무 커서 서버가 스킵함 → HTTP merge-by-id. _bulk_resync(전체 리로드) 아님.
+    if (data?.type === 'catchup') {
+      markSseMessageConnected(true, 'sse-catchup');
+      return;
+    }
     // 재연결 감지: 이전에 한 번 이상 연결됐었고, 끊김 이후 첫 메시지
     markSseMessageConnected();
     if (data) {
@@ -844,13 +863,44 @@ setInterval(() => {
   ensureSse();
 }, 2_000);
 
-// 탭/앱 포그라운드 복귀 시 즉시 SSE 재연결 확인
+/**
+ * 폰/탭 슬립 복귀 — 타이머·EventSource 가 멈춘 뒤 만료 토큰으로 401 폭풍이 나지 않게
+ * 토큰을 먼저 갱신하고, 링 TTL 을 넘긴 Last-Event-ID 는 버린 뒤 HTTP merge-by-id 로 따라잡는다.
+ * 예상된 재연결은 에러 UI 를 띄우지 않는다. _bulk_resync 는 여기서 쓰지 않는다.
+ */
+function recoverSseAfterSleep(reason: 'visible' | 'online'): void {
+  diag('debug', 'sse', `wake:${reason}`);
+  suppressDisconnectBriefly(20_000);
+  cancelDisconnectNotify();
+  _sseNextAllowedRetry = 0;
+
+  const sleptMs = _lastPingAt > 0 ? Date.now() - _lastPingAt : 0;
+  const ringStale = sleptMs > SSE_RING_STALE_MS;
+  if (ringStale && _lastEventId) {
+    _lastEventId = '';
+    try { sessionStorage.removeItem('sse_last_event_id'); } catch { /* ignore */ }
+    _sseNeedsResync = true;
+    diag('info', 'sse', 'wake-ring-stale');
+  }
+
+  const zombie = !!_es && (
+    _es.readyState !== EventSource.OPEN
+    || (_lastPingAt > 0 && Date.now() - _lastPingAt > PING_TIMEOUT_MS)
+  );
+  if (zombie) {
+    closeSse('wake-reconnect');
+    _sseNeedsResync = true;
+  }
+
+  if (_currentUserId) refreshSseTokenIfStale({ wake: true });
+  if (_sseListeners.size > 0) ensureSse();
+  if (ringStale && _sseHasConnected) runReconnectResync();
+}
+
+// 탭/앱 포그라운드 복귀 시 즉시 토큰 점검 + SSE 재연결 (만료 URL 로 브라우저 401 재시도 금지)
 if (typeof document !== 'undefined') {
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && _sseListeners.size > 0) {
-      diag('debug', 'sse', 'visibility-visible');
-      ensureSse();
-    }
+    if (document.visibilityState === 'visible') recoverSseAfterSleep('visible');
   });
 }
 
@@ -859,13 +909,8 @@ if (typeof document !== 'undefined') {
 if (typeof window !== 'undefined') {
   window.addEventListener('online', () => {
     reportBrowserOnline();
-    if (_sseListeners.size > 0) {
-      // 백오프 쿨다운 초기화 — 네트워크가 돌아왔으므로 즉시 재연결 허용
-      _sseNextAllowedRetry = 0;
-      suppressDisconnectBriefly(12_000);
-      ensureSse();
-      diag('info', 'net', 'browser-online');
-    }
+    recoverSseAfterSleep('online');
+    diag('info', 'net', 'browser-online');
   });
   window.addEventListener('offline', () => {
     reportBrowserOffline();
@@ -1092,7 +1137,7 @@ async function _fetchAndSetSseToken(userId: string, attempt: number): Promise<vo
     const baseDelay = Math.min(Math.pow(2, attempt) * 5_000, 60_000);
     const jitter = Math.random() * 2_000; // thundering herd 방지
     const delayMs = baseDelay + jitter;
-    console.warn(`[SSE] 토큰 발급 실패 (${reason}) — ${(delayMs / 1_000).toFixed(1)}s 후 재시도 #${attempt + 1}`);
+    diag('warn', 'sse', 'token-retry', { data: { reason: reason.slice(0, 80), attempt: attempt + 1, delayMs } });
     _sseTokenRetryTimer = setTimeout(() => {
       _sseTokenRetryTimer = null;
       if (_currentUserId === userId) fetchAndSetSseToken(userId, attempt + 1).catch(() => {});
@@ -1121,6 +1166,11 @@ async function _fetchAndSetSseToken(userId: string, attempt: number): Promise<vo
       body: JSON.stringify({ userId, sessionToken: _sessionBearerToken }),
     });
     if (!resp.ok) {
+      // 세션이 죽은 것처럼 보여도 7일 기기 세션이 살아 있으면 재로그인 후 조용히 재발급.
+      // 앱에서 로그아웃하지 않는다. /op 전체를 게이트하지 않는다.
+      if (resp.status === 401) {
+        _clearSessionBearer();
+      }
       scheduleRetry(`HTTP ${resp.status}`);
       return;
     }
@@ -1172,11 +1222,13 @@ export function setSseToken(token: string, expiresAt: number) {
     }, refreshIn);
   }
   // 새 토큰으로 SSE 재연결. 브라우저가 EventSource를 새로 만들면 Last-Event-ID 헤더가
-  // 사라지므로 lastEventId 쿼리와 HTTP 재동기화를 함께 수행합니다.
-  // 의도적 재연결이므로 disconnect 모달/콜백을 잠시 억제하고,
-  // 복구 콜백은 실제 SSE 메시지 수신 시에만 실행 (오탐 방지).
+  // 사라지므로 lastEventId 쿼리로 링 캐치업한다. 건강한 선제 갱신마다 HTTP 전체 리로드하면
+  // 48분마다 채팅이 끊기므로, 끊겼던 경우에만 merge-by-id 콜백을 예약한다.
+  const needsCatchup = _sseNeedsResync
+    || !_sseHasConnected
+    || (_lastPingAt > 0 && Date.now() - _lastPingAt > PING_TIMEOUT_MS);
   suppressDisconnectBriefly(15_000);
-  _sseNeedsResync = true;
+  if (needsCatchup) _sseNeedsResync = true;
   closeSse();
   if (_sseListeners.size > 0) ensureSse();
 }
@@ -1234,6 +1286,12 @@ async function _loginSessionAttempt(userId: string, attempt: number): Promise<bo
         const body = await resp.json().catch(() => ({})) as { code?: string };
         if (body.code === 'DEVICE_MISMATCH') {
           console.warn('[localdb] 기기 불일치 — 고유번호(PIN)로 프로필 복구를 이용하세요.');
+          return false;
+        }
+        // Unknown userId 등은 콜드스타트 중 빈 스토어일 수 있음 — 로그아웃하지 않고 조용히 재시도
+        if (attempt + 1 < LOGIN_MAX_ATTEMPTS) {
+          await new Promise<void>(r => setTimeout(r, 1_000 * Math.pow(2, attempt)));
+          return _loginSessionAttempt(userId, attempt + 1);
         }
         return false;
       }

@@ -6,6 +6,7 @@ services:
     name: binpc2-api
     runtime: node
     plan: starter
+    numInstances: 1 # SSE is process-local — do not autoscale past 1
     buildCommand: corepack pnpm install && corepack pnpm --filter @workspace/api-server build
     startCommand: corepack pnpm --filter @workspace/api-server start
     healthCheckPath: /api/healthz

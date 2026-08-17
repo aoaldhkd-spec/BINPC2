@@ -220,7 +220,7 @@ const RL_UNREAD_PER_MIN = Number(process.env.RL_UNREAD_PER_MIN ?? 600);
 
 app.use('/api/db/auth/login',       makeRateLimiter(RL_LOGIN_PER_SEC, 1_000, 'auth-login'));
 app.use('/api/db/op',               makeRateLimiter(RL_OP_PER_SEC, 1_000, 'op'));
-app.use('/api/db/storage-upload',   makeRateLimiter(20, 60_000, 'storage-upload'));
+app.use('/api/db/storage-upload',   makeRateLimiter(120, 60_000, 'storage-upload'));
 app.use('/api/db/storage-remove',   makeRateLimiter(20, 60_000, 'storage-remove'));
 app.use('/api/db/events',           makeRateLimiter(RL_SSE_CONN_PER_MIN, 60_000, 'sse-events'));
 app.use('/api/db/unread-counts',    makeRateLimiter(RL_UNREAD_PER_MIN, 60_000, 'unread-counts'));

@@ -88,10 +88,13 @@ describe('net-health', () => {
     expect(nh.shouldIgnoreDownReason('TABLE_NOT_ALLOWED seats')).toBe(true);
     expect(nh.shouldIgnoreDownReason('sse:429')).toBe(true);
     expect(nh.shouldIgnoreDownReason('RATE_LIMIT')).toBe(true);
+    expect(nh.shouldIgnoreDownReason('sse:401')).toBe(true);
+    expect(nh.shouldIgnoreDownReason('sse:zombie')).toBe(true);
     expect(nh.shouldIgnoreDownReason('sse:onerror')).toBe(false);
 
     nh.reportLinkDown('op:400:seats');
     nh.reportLinkDown('http:429');
+    nh.reportLinkDown('sse:401');
     vi.advanceTimersByTime(nh.NET_QUIET_MS + 5_000);
     expect(nh.getNetUiStatus()).toBe('ok');
   });

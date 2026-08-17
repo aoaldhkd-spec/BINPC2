@@ -9,9 +9,11 @@ export const RATE_MAP_MAX_SIZE = 50_000;
 export const LOGIN_RATE_MAX = 10;
 export const LOGIN_RATE_WINDOW_MS = 60_000;
 /** 행사장 NAT: 150명이 같은 공인 IP로 입장·토큰갱신. 계정당 10회 한도는 유지. */
-export const LOGIN_RATE_MAX_PER_IP = 300;
+export const LOGIN_RATE_MAX_PER_IP = 600;
 export const UPLOAD_RATE_MAX = 10;
 export const UPLOAD_RATE_WINDOW_MS = 60_000;
+/** 행사장 NAT: 업로드도 계정당 한도 + 공인 IP 버스트 상한. */
+export const UPLOAD_RATE_MAX_PER_IP = 300;
 
 export const loginRateMap = new Map<string, RateBucket>();
 export const uploadRateMap = new Map<string, RateBucket>();
@@ -27,6 +29,15 @@ export function venueLoginRateKeys(userId: string | undefined, ip: string): { us
   return {
     userKey: uid ? `login-user:${uid}` : `login-ip:${ip}`,
     ipBurstKey: `login-ip-burst:${ip}`,
+  };
+}
+
+/** 업로드 한도: 계정당 스팸 10/min + NAT IP 버스트 상한. */
+export function venueUploadRateKeys(userId: string | undefined, ip: string): { userKey: string; ipBurstKey: string } {
+  const uid = userId?.trim();
+  return {
+    userKey: uid ? `upload-user:${uid}` : `upload-ip:${ip}`,
+    ipBurstKey: `upload-ip-burst:${ip}`,
   };
 }
 

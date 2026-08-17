@@ -374,6 +374,12 @@ export function useChat({
         const filtered = result.filter(m => messageBelongsToChat(m, cid, aliases));
         const visible = filtered.length > MAX_MESSAGES ? filtered.slice(-MAX_MESSAGES) : filtered;
         cacheRoomMessages(cid, visible);
+        if (
+          visible.length === prev.length
+          && visible.every((m, i) => m.id === prev[i].id && m.content === prev[i].content)
+        ) {
+          return prev;
+        }
         const last = visible[visible.length - 1];
         diag('debug', 'chat', 'state-merge', {
           corr: last?.id ?? `room:${cid}:${gen}`,
@@ -435,10 +441,8 @@ export function useChat({
     // 여기서는 채팅방 전환 시 메시지 로드만 수행
     loadMessages(chatId);
 
-    // SSE 불안정 시 폴링 폴백
-    // - SSE healthy: 12초 (NAT/rate-limit 부하 완화)
-    // - SSE unhealthy: 3초
-    // 3회 연속 실패 시 20초 쿨다운 후 자동 재개
+    // SSE 가 살아 있으면 INSERT 는 실시간으로 온다. 12초 전체 리로드는 채팅이 끊기므로
+    // 끊김 복구용으로만 남긴다 (삭제하지 않음).
     let pollFailCount = 0;
     let isPolling = false;
     let pollPausedUntil = 0;
@@ -447,7 +451,8 @@ export function useChat({
       if (chatIdRef.current !== chatId) return;
       if (Date.now() < pollPausedUntil) return;
       if (isPolling) return;
-      const intervalMs = isSseHealthy() ? 12_000 : 3_000;
+      if (isSseHealthy()) return;
+      const intervalMs = 3_000;
       if (Date.now() - lastTick < intervalMs - 50) return;
       lastTick = Date.now();
       isPolling = true;
@@ -527,7 +532,19 @@ export function useChat({
         const totalMsgs = siblings.reduce((sum, s) => sum + (msgCountByChat.get(s.id) ?? 0), 0);
         return { ...c, lastMessage: bestLatest?.image_url ? '📷 사진' : (bestLatest?.content ?? ''), messageCount: totalMsgs };
       });
-      setChatList(enriched);
+      setChatList(prev => {
+        if (
+          prev.length === enriched.length
+          && prev.every((c, i) =>
+            c.id === enriched[i].id
+            && c.lastMessage === enriched[i].lastMessage
+            && c.messageCount === enriched[i].messageCount
+          )
+        ) {
+          return prev;
+        }
+        return enriched;
+      });
       void syncUnreadCountsRef.current?.();
     } catch (err) {
       console.error('[loadChatList] 오류:', err);

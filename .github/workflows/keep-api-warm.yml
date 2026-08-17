@@ -2,7 +2,8 @@ name: Keep API warm
 
 on:
   schedule:
-    # Render free tier: 15분 idle 후 sleep — 10분마다 핑
+    # Render starter is always-on; still ping after deploys / brief process restarts.
+    # GitHub cron can drift; 10 min is enough to keep health checks warm.
     - cron: '*/10 * * * *'
   workflow_dispatch:
 

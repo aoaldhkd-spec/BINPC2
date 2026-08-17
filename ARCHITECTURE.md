@@ -77,9 +77,9 @@ Mission: count distinct `liked_id` today from outgoing `likes` SELECT (KST), all
 
 ## Ops notes (known, not code bugs)
 
-- **NAT 429:** 같은 공인 IP(행사장 Wi‑Fi)에서 IP rate-limit이 묶이면 429. 핵심 경로는 user-key로 완화됨. 남은 IP 한도는 의도적 방어.
-- **Cold-start:** Render 유휴 후 첫 요청 지연. `scripts/keep-api-warm` / GitHub Action으로 완화.
-- **Multi-instance:** SSE는 인스턴스 로컬 → 가능하면 인스턴스 1개 유지.
+- **NAT 429:** 같은 공인 IP(행사장 Wi‑Fi)에서 IP rate-limit이 묶이면 429. 로그인·업로드·SSE는 user-key + 넉넉한 IP 버스트. 남은 IP 한도는 의도적 방어.
+- **Cold-start:** Render 유휴/재시작 후 첫 요청 지연. `scripts/keep-api-warm` / GitHub Action(10분)으로 완화. 클라이언트는 502/503/429를 첫 실패에 에러 UI 없이 재시도.
+- **Multi-instance:** SSE는 인스턴스 로컬 → `render.yaml` `numInstances: 1` 로 고정.
 
 ## Do not touch casually
 
