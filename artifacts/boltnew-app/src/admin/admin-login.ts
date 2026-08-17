@@ -35,3 +35,14 @@ export function readSubmittedPassword(
 ): string {
   return String(field?.value || reactState || '').trim();
 }
+
+/** After login, open 접속정보 when the URL asks for it. Does not skip auth. */
+export function initialAdminSettingsSubTab(
+  search = typeof window === 'undefined' ? '' : window.location.search,
+  hash = typeof window === 'undefined' ? '' : window.location.hash,
+): 'admin' | 'control' {
+  const q = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search);
+  if (q.get('settings') === 'admin' || q.get('tab') === 'credentials') return 'admin';
+  if (/credentials|접속정보/.test(hash)) return 'admin';
+  return 'control';
+}

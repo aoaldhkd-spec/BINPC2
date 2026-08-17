@@ -6,6 +6,7 @@ import {
   isRetiredPublicPanelPassword,
   mapPanelLoginError,
   readSubmittedPassword,
+  initialAdminSettingsSubTab,
   TEST_ADMIN_HINT,
 } from './admin-login';
 
@@ -41,6 +42,13 @@ describe('admin login helpers', () => {
     expect(readSubmittedPassword(null, 'from-state')).toBe('from-state');
   });
 
+  it('opens 접속정보 from the URL without skipping auth', () => {
+    expect(initialAdminSettingsSubTab('?settings=admin', '')).toBe('admin');
+    expect(initialAdminSettingsSubTab('?tab=credentials', '')).toBe('admin');
+    expect(initialAdminSettingsSubTab('', '#credentials')).toBe('admin');
+    expect(initialAdminSettingsSubTab('', '')).toBe('control');
+  });
+
   it('test-admin hint never claims a filled password will work', () => {
     expect(TEST_ADMIN_HINT).toContain('전화번호만');
     expect(TEST_ADMIN_HINT).toContain('예전 공개 기본값');
@@ -61,6 +69,16 @@ describe('credentials tab copy', () => {
     expect(adminApp).toMatch(/label: '접속정보'/);
     expect(adminApp).toMatch(/patchAdminSettings\(\{ admin_phone: phone, admin_password: password \}/);
     expect(adminApp).toMatch(/settingsSubTab === 'admin' && <CredentialsTab/);
+  });
+
+  it('plants a local operator session only in Vite DEV, never as a public skip', () => {
+    expect(adminApp).toMatch(/import\.meta\.env\.DEV/);
+    expect(adminApp).toMatch(/\/__dev\/admin-session/);
+    const viteConfig = readFileSync(join(root, '../vite.config.ts'), 'utf8');
+    const plugin = readFileSync(join(root, '../vite-dev-admin-session.ts'), 'utf8');
+    expect(viteConfig).toMatch(/viteDevAdminSession/);
+    expect(plugin).toMatch(/apply:\s*'serve'/);
+    expect(plugin).not.toMatch(/116606/);
   });
 });
 

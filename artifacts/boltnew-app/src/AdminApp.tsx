@@ -15,6 +15,7 @@ import {
   type GroupChat, type GroupMessage, type GroupParticipant, type SignalSend, type DbHealthData,
 } from './admin/shared';
 import { LoginScreen } from './admin/LoginScreen';
+import { initialAdminSettingsSubTab } from './admin/admin-login';
 import { NotificationTab } from './admin/NotificationTab';
 import { DashboardTab } from './admin/DashboardTab';
 
@@ -42,7 +43,9 @@ function AdminTabFallback() {
 
 function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [tab, setTab] = useState<AdminTab>('settings');
-  const [settingsSubTab, setSettingsSubTab] = useState<SettingsSubTab>('control');
+  const [settingsSubTab, setSettingsSubTab] = useState<SettingsSubTab>(
+    () => initialAdminSettingsSubTab(),
+  );
   const [heartSubTab, setHeartSubTab] = useState<HeartSubTab>('hearts');
   const [dbHealth, setDbHealth] = useState<DbHealthData | null>(null);
   const [dbHealthAuthError, setDbHealthAuthError] = useState(false);
@@ -676,8 +679,26 @@ export default function AdminApp() {
   useEffect(() => {
     let cancelled = false;
     async function verifySession() {
-      const session = loadAdminSession();
+      let session = loadAdminSession();
       let token = localStorage.getItem(ADMIN_TOKEN_KEY);
+      if ((!session || !token) && import.meta.env.DEV) {
+        try {
+          const boot = await fetch('/__dev/admin-session', { cache: 'no-store' });
+          if (boot.ok) {
+            const data = await boot.json() as { token?: string; password?: string; phone?: string };
+            if (data.token && data.password) {
+              localStorage.setItem(ADMIN_TOKEN_KEY, data.token);
+              localStorage.setItem(ADMIN_PW_KEY, data.password);
+              localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify({
+                phone: data.phone || '010-3878-6740',
+                authedAt: Date.now(),
+              }));
+              token = data.token;
+              session = loadAdminSession();
+            }
+          }
+        } catch { /* local operator bootstrap is optional */ }
+      }
       if (!session || !token) {
         localStorage.removeItem(ADMIN_SESSION_KEY);
         localStorage.removeItem(ADMIN_PW_KEY);
