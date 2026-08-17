@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { genAvatar, hasUploadedPhoto, getAvatarSrc } from '../lib/profile';
+import { genAvatar, hasUploadedPhoto, getAvatarSrc, isPresetAvatar } from '../lib/profile';
 
 describe('genAvatar', () => {
   it('같은 닉네임은 같은 SVG를 생성한다', () => {
@@ -34,5 +34,17 @@ describe('genAvatar', () => {
     const webp = 'https://cdn.example/avatars/av1.webp';
     expect(getAvatarSrc(null, '민수')).toBe(genAvatar('민수'));
     expect(getAvatarSrc(webp, '민수')).toBe(webp);
+  });
+
+  it('storage 사진은 요청한 버전으로 캐시를 무효화한다', () => {
+    const stored = '/api/db/storage-image?p=profile-photos%2Fuser-1';
+    expect(getAvatarSrc(stored, '민수', 1234)).toBe(`${stored}&v=1234`);
+    expect(getAvatarSrc(genAvatar('민수'), '민수', 1234)).toBe(genAvatar('민수'));
+  });
+
+  it('bundled WebP presets are distinguished from uploaded photos', () => {
+    expect(isPresetAvatar('/avatars/av360.webp')).toBe(true);
+    expect(isPresetAvatar('/app/avatars/av1.webp?v=2')).toBe(true);
+    expect(isPresetAvatar('/api/db/storage-image?p=profile-photos%2Fuser-1')).toBe(false);
   });
 });

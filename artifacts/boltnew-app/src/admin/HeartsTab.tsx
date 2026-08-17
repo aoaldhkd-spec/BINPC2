@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Trash2, Heart, RefreshCw } from 'lucide-react';
-import { HEART_TYPE_META } from '../lib/constants';
 import type { Profile, Like } from './shared';
 import { ConfirmDialog } from './ConfirmDialog';
 

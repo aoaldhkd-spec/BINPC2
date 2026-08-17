@@ -7,7 +7,7 @@
  *     exactly as useChat does: sendMessage → SSE INSERT → loadMessages
  */
 import { describe, it, expect } from 'vitest';
-import { applySseInsert, applyLoadMessages, messageBelongsToChat, applyPartnerReadReceipt } from './chat-reducers';
+import { applySseInsert, applySseToRoomCaches, applyLoadMessages, messageBelongsToChat, applyPartnerReadReceipt } from './chat-reducers';
 import type { Message } from '../types/app';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -211,6 +211,20 @@ describe('applySseInsert', () => {
   });
 });
 
+describe('applySseToRoomCaches', () => {
+  it('puts an inactive-room SSE body in raw and canonical caches before entry', () => {
+    const incoming = makeMsg({ id: 'inactive-message', chat_id: 'duplicate-room', sender_id: 'user-b' });
+    const next = applySseToRoomCaches(
+      new Map([['canonical-room', [makeMsg({ id: 'existing', chat_id: 'canonical-room' })]]]),
+      incoming,
+      ['duplicate-room', 'canonical-room'],
+    );
+
+    expect(next.get('duplicate-room')?.map(message => message.id)).toEqual(['inactive-message']);
+    expect(next.get('canonical-room')?.map(message => message.id)).toEqual(['existing', 'inactive-message']);
+  });
+});
+
 // ─── applyLoadMessages ───────────────────────────────────────────────────────
 
 describe('applyLoadMessages', () => {
@@ -265,13 +279,44 @@ describe('applyLoadMessages', () => {
     expect(next.some((m) => m.id === `__opt_${landed}`)).toBe(false);
   });
 
-  it('returns only DB rows when there are no optimistic messages', () => {
-    const prev: Message[] = [makeMsg({ id: 'old-1' }), makeMsg({ id: 'old-2' })];
-    const data: Message[] = [makeMsg({ id: 'fresh-1' }), makeMsg({ id: 'fresh-2' })];
+  it('preserves an SSE row received after a stale fetch started', () => {
+    const existing = makeMsg({ id: 'old-1' });
+    const idsAtRequestStart = new Set([existing.id]);
+    const sseRow = makeMsg({
+      id: 'sse-after-fetch-start',
+      sender_id: 'user-b',
+      created_at: '2026-07-31T10:00:01.000Z',
+    });
 
-    const next = applyLoadMessages(prev, data);
+    // reconnect callback starts the fetch, then the first replayed event arrives
+    const stateAfterReplay = applySseInsert([existing], sseRow);
+    const staleFetchSnapshot = [existing];
+    const next = applyLoadMessages(stateAfterReplay, staleFetchSnapshot, { idsAtRequestStart });
 
-    expect(next.map((m) => m.id)).toEqual(['fresh-1', 'fresh-2']);
+    expect(next.map((m) => m.id)).toEqual(['old-1', 'sse-after-fetch-start']);
+  });
+
+  it('does not resurrect a message deleted while a fetch was in flight', () => {
+    const deleted = makeMsg({ id: 'deleted-during-fetch' });
+    const idsAtRequestStart = new Set([deleted.id]);
+
+    const next = applyLoadMessages([], [deleted], {
+      idsAtRequestStart,
+      deletedIds: new Set([deleted.id]),
+    });
+
+    expect(next).toEqual([]);
+  });
+
+  it('authoritatively removes rows that existed before the fetch', () => {
+    const old1 = makeMsg({ id: 'old-1' });
+    const old2 = makeMsg({ id: 'old-2' });
+    const fresh = makeMsg({ id: 'fresh-1' });
+    const next = applyLoadMessages([old1, old2], [fresh], {
+      idsAtRequestStart: new Set([old1.id, old2.id]),
+    });
+
+    expect(next.map((m) => m.id)).toEqual(['fresh-1']);
   });
 
   it('returns empty list when data is empty and no pending optimistic messages exist', () => {

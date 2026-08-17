@@ -111,10 +111,15 @@ describe('diag', () => {
     vi.resetModules();
     const d = await import('../lib/diag');
     const corr = d.newCorrId('t');
-    d.diag('error', 'api', 'fail', { corr, data: { token: 'secret', table: 'messages' } });
+    d.diag('error', 'api', 'fail', {
+      corr,
+      data: { token: 'secret', table: 'messages', messageId: 'msg-1', content: 'private' },
+    });
     const found = d.findDiagByCorr(corr);
     expect(found.length).toBeGreaterThan(0);
     expect(found[0].data?.token).toBe('[redacted]');
     expect(found[0].data?.table).toBe('messages');
+    expect(found[0].data?.messageId).toBe('msg-1');
+    expect(found[0].data?.content).toBe('[redacted]');
   });
 });

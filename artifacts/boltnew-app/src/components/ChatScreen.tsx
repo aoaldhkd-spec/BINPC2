@@ -20,6 +20,7 @@ import {
   shouldTreatAsHorizontalSwipe,
 } from '../lib/chat-msg-gestures';
 import { SIGNAL_FIRST_CHIPS } from '../lib/signal-match';
+import { diag } from '../lib/diag';
 
 // ─── ChatScreen ───────────────────────────────────────────────────────────────
 // 1:1 채팅 화면. 스티커·이모지·이미지·연락처 공유·궁합·사주 기능 포함.
@@ -189,6 +190,22 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   const openedAtRef = useRef(Date.now());
   const messagesRef = useRef(messages); // 항상 최신 messages를 가리키는 ref
   messagesRef.current = messages;
+  const lastRenderedMessageIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const last = messages[messages.length - 1];
+    if (!last || lastRenderedMessageIdRef.current === last.id) return;
+    lastRenderedMessageIdRef.current = last.id;
+    diag('debug', 'chat', 'render', {
+      corr: last.id,
+      data: {
+        messageId: last.id,
+        roomId: chatId,
+        createdAt: last.created_at,
+        count: messages.length,
+      },
+    });
+  }, [chatId, messages]);
   const partnerIdRef = useRef(otherProfile?.id);
   partnerIdRef.current = otherProfile?.id;
   const [myUnreadIds, setMyUnreadIds] = useState<Set<string>>(new Set());

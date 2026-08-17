@@ -8,7 +8,7 @@
  * 4. Valid token + matching userId            → 200
  */
 
-import { describe, it, expect, vi, beforeAll } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import request from 'supertest';
 import { createHmac } from 'node:crypto';
 

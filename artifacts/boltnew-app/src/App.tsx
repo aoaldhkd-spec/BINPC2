@@ -3,6 +3,7 @@ import {
   X,
 } from 'lucide-react';
 import { supabase, setLocalDbUserId, setDeviceRecoveryPin, fetchAndSetSseToken, getDeviceSecret, onSseReconnect } from './lib/supabase';
+import { diag } from './lib/diag';
 import { subscribeNetUi, resetNetUiForRetry, type NetUiStatus } from './lib/net-health';
 import { excludeSwipeGestureVerifyProfiles, genAvatar, isSwipeGestureVerifyProfile } from './lib/profile';
 import { findProfileById, isCompleteProfile } from './lib/profile-session';
@@ -30,7 +31,7 @@ import { SignalNudgeBanner } from './components/SignalNudgeBanner';
 // ─── 분리된 타입·유틸·컴포넌트 imports ────────────────────────────────────────
 import type {
   Profile, ContactShare,
-  Chat, View, MainTab, GroupChat, BlockedUser, ProfileView, UserSignal, SignalSend,
+  View, MainTab, BlockedUser, ProfileView, UserSignal, SignalSend,
 } from './types/app';
 import { useGroupChat } from './hooks/useGroupChat';
 import { GroupChatScreen } from './components/GroupChatScreen';
@@ -191,6 +192,7 @@ function App() {
   const chatDraftRef = useRef<Map<string, string>>(new Map());
   const loadReceivedLikesRef = useRef<((userId: string) => Promise<void>) | null>(null);
   const loadLikesRef = useRef<((userId: string) => Promise<void>) | null>(null);
+  const loadContactShareDataRef = useRef<((userId: string) => Promise<void>) | null>(null);
   // ?share=<profileId> URL 파라미터 — 프로필 QR 스캔 시 연락처 자동 수신
   const [pendingShareId] = useState<string | null>(() => new URLSearchParams(window.location.search).get('share'));
 
@@ -357,6 +359,7 @@ function App() {
       loadChatListRef.current?.(uid).catch(() => {});
       loadReceivedLikesRef.current?.(uid).catch(() => {});
       loadLikesRef.current?.(uid).catch(() => {});
+      loadContactShareDataRef.current?.(uid).catch(() => {});
     };
     tick();
     const pollId = setInterval(tick, connStatus === 'error' ? 5_000 : 8_000);
@@ -428,10 +431,41 @@ function App() {
   loadChatListRef.current = loadChatList;
   loadReceivedLikesRef.current = loadReceivedLikes;
   loadLikesRef.current = loadLikes;
+  loadContactShareDataRef.current = loadContactShareData;
   const sentHeartsPerPersonRef = useRef(sentHeartsPerPerson);
   sentHeartsPerPersonRef.current = sentHeartsPerPerson;
   const receivedHeartTypesRef = useRef(receivedHeartTypes);
   receivedHeartTypesRef.current = receivedHeartTypes;
+  const pendingRealtimeRenderTraceRef = useRef<{
+    feature: 'hearts' | 'contact';
+    rowId: string | null;
+    createdAt: string | null;
+  } | null>(null);
+  const traceRealtimeStateMerge = useCallback((
+    feature: 'hearts' | 'contact',
+    row: { id?: string; created_at?: string },
+  ) => {
+    const trace = {
+      feature,
+      rowId: row.id ?? null,
+      createdAt: row.created_at ?? null,
+    };
+    pendingRealtimeRenderTraceRef.current = trace;
+    diag('debug', feature, 'state-merge', {
+      corr: trace.rowId ?? undefined,
+      data: { rowId: trace.rowId, createdAt: trace.createdAt, source: 'sse' },
+    });
+  }, []);
+
+  useEffect(() => {
+    const trace = pendingRealtimeRenderTraceRef.current;
+    if (!trace) return;
+    pendingRealtimeRenderTraceRef.current = null;
+    diag('debug', trace.feature, 'render', {
+      corr: trace.rowId ?? undefined,
+      data: { rowId: trace.rowId, createdAt: trace.createdAt, userId: currentUserId },
+    });
+  }, [currentUserId, likedIds, likeStatuses, receivedContactShares, receivedHeartTypes]);
 
   // 하트 보내는 쪽도 폭죽 🎊
   const execLikeWithConfetti = useCallback((...args: Parameters<typeof executeLike>) => {
@@ -599,7 +633,7 @@ function App() {
       kicked = true;
     }
     if (kicked) showFunctionsLockToast(FUNCTIONS_LOCK_KICK_TOAST);
-  }, [functionsLocked, view, mainTab, fortuneModalTarget, fortuneCompatTarget, likeConfirmTarget, contactShareTarget, closeGroupChat, setChatId, showFunctionsLockToast]);
+  }, [functionsLocked, view, mainTab, fortuneModalTarget, fortuneCompatTarget, likeConfirmTarget, contactShareTarget, chatIdRef, closeGroupChat, setChatId, setContactShareTarget, setLikeConfirmTarget, showFunctionsLockToast]);
 
   // ─── 차단·숨기기 처리 ─────────────────────────────────────────────────────
   const handleBlock = useCallback(async (targetId: string, type: 'block' | 'hide') => {
@@ -827,17 +861,20 @@ function App() {
         const row = payload.new as { id?: string; from_user_id: string; to_user_id: string; event_type: string; created_at?: string };
         const myId = userIdRef.current;
         if (!myId || row.to_user_id !== myId) return;
-        // 재연결 시 오래된 이벤트 재전송 방지: 30초 초과 이벤트 무시
-        if (row.created_at && Date.now() - new Date(row.created_at).getTime() > 8000) return;
         // 동일 이벤트 중복 처리 방지
         const eventKey = row.id ?? `${row.from_user_id}:${row.event_type}:${row.created_at}`;
         if (seenContactEventIdsRef.current.has(eventKey)) return;
         seenContactEventIdsRef.current.add(eventKey);
+        const eventAgeMs = row.created_at ? Date.now() - new Date(row.created_at).getTime() : 0;
         if (row.event_type === 'accepted') {
+          // replay된 이벤트가 오래됐어도 토스트만 생략하고 durable contact_shares
+          // 상태는 반드시 DB에서 복구한다.
+          void loadContactShareData(myId);
+          if (eventAgeMs > 30_000) return;
           setShareEventNotif({ type: 'accepted', fromUserId: row.from_user_id });
           shareNotifTimerIds.push(setTimeout(() => setShareEventNotif(null), 5000));
-          loadContactShareData(myId);
         } else if (row.event_type === 'rejected') {
+          if (eventAgeMs > 30_000) return;
           setShareEventNotif({ type: 'rejected', fromUserId: row.from_user_id });
           shareNotifTimerIds.push(setTimeout(() => setShareEventNotif(null), 5000));
         }
@@ -1029,7 +1066,7 @@ function App() {
       .channel(`realtime:user-bundle:${currentUserId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'likes', filter: `liker_id=eq.${currentUserId}` },
         (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-          const row = payload.new as { liked_id: string; heart_type: HeartType; created_at?: string };
+          const row = payload.new as { id?: string; liked_id: string; heart_type: HeartType; created_at?: string };
           setLikedIds((prev) => new Set([...prev, row.liked_id]));
           setSentHeartTypes((prev) => new Map(prev).set(row.liked_id, row.heart_type ?? 'red'));
           setSentHeartsPerPerson(prev => {
@@ -1049,10 +1086,11 @@ function App() {
             const nick = profilesRef.current.find(p => p.id === row.liked_id)?.nickname ?? '상대방';
             setBottomNotif({ type: 'signal', signalKind: 'mutual', nickname: nick, profileId: row.liked_id, message: MUTUAL_HEART_TOAST });
           }
+          traceRealtimeStateMerge('hearts', row);
         })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'likes', filter: `liker_id=eq.${currentUserId}` },
         (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-          const updated = payload.new as { liked_id: string; status: string };
+          const updated = payload.new as { id?: string; liked_id: string; status: string; created_at?: string };
           setLikeStatuses(prev => new Map(prev).set(updated.liked_id, updated.status));
           if (updated.status === 'rejected') {
             const rejectedProfile = profilesRef.current.find(p => p.id === updated.liked_id);
@@ -1066,11 +1104,12 @@ function App() {
             setBottomNotif({ type: 'chat', nickname: nick, message: `💚 ${nick}님이 하트를 수락했어요` });
             rejNotifTimerIds.push(setTimeout(() => setBottomNotif(prev => prev?.message === `💚 ${nick}님이 하트를 수락했어요` ? null : prev), 5000));
           }
+          traceRealtimeStateMerge('hearts', updated);
         })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'likes', filter: `liked_id=eq.${currentUserId}` },
         async (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
           try {
-            const row = payload.new as { liker_id?: string; liked_id?: string; heart_type: HeartType };
+            const row = payload.new as { id?: string; liker_id?: string; liked_id?: string; heart_type: HeartType; created_at?: string };
             const likerId = row.liker_id;
             // 수신자 전용 — 보낸 사람·제3자 토스트 방지 (필터가 깨져도 가드)
             if (!isIncomingHeartToastTarget(currentUserId, { liker_id: likerId, liked_id: row.liked_id ?? currentUserId })) return;
@@ -1097,6 +1136,7 @@ function App() {
             }
             triggerConfetti();
             rejNotifTimerIds.push(setTimeout(() => setBottomNotif(prev => (prev?.type === 'heart' || prev?.type === 'signal') ? null : prev), 5000));
+            traceRealtimeStateMerge('hearts', row);
           } catch (e) { console.warn('[realtime:likes]', e); }
         })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'likes', filter: `liked_id=eq.${currentUserId}` },
@@ -1109,6 +1149,7 @@ function App() {
               if (prev.find(s => s.liked_id === share.liked_id)) return prev.map(s => s.liked_id === share.liked_id ? share : s);
               return [share, ...prev];
             });
+            traceRealtimeStateMerge('contact', share);
             const { data } = await supabase.from('profiles').select('nickname').eq('id', share.liked_id).maybeSingle();
             setBottomNotif({ type: 'contact', nickname: data?.nickname ?? '' });
           } catch (e) { console.warn('[realtime:contact-shares]', e); }
@@ -1117,6 +1158,7 @@ function App() {
         (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
           const share = payload.new as ContactShare;
           setReceivedContactShares(prev => prev.map(s => s.liked_id === share.liked_id ? share : s));
+          traceRealtimeStateMerge('contact', share);
         })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'heart_balances', filter: `id=eq.${currentUserId}` },
         (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
@@ -1182,7 +1224,7 @@ function App() {
       supabase.removeChannel(userRealtimeChannel);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- loadXxx are stable useCallbacks; setState/refs are stable
-  }, [currentUserId, loadProfiles, loadLikes, loadReceivedLikes, loadContactShareData, loadChatList, loadSignalActions, noteOutgoingLike]);
+  }, [currentUserId, loadProfiles, loadLikes, loadReceivedLikes, loadContactShareData, loadChatList, loadSignalActions, noteOutgoingLike, traceRealtimeStateMerge]);
 
   // ─── 차단·숨기기 / 방문자 기록 로드 ─────────────────────────────────────────
   useEffect(() => {
@@ -1296,6 +1338,7 @@ function App() {
       loadChatList(currentUserId);
       loadReceivedLikes(currentUserId);
       loadLikes(currentUserId);
+      loadContactShareData(currentUserId);
       void loadSignalActions(currentUserId);
       loadProfiles();
       fetch('/api/db/ready', { signal: AbortSignal.timeout(8_000) })
@@ -1315,7 +1358,7 @@ function App() {
         .catch(() => {});
     });
     return unsubReconnect;
-  }, [currentUserId, loadChatList, loadReceivedLikes, loadLikes, loadProfiles, loadSignalActions]);
+  }, [currentUserId, loadChatList, loadReceivedLikes, loadLikes, loadContactShareData, loadProfiles, loadSignalActions]);
 
 
   // Manual refresh for status and chat tabs

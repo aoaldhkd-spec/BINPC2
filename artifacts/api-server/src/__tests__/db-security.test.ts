@@ -274,6 +274,295 @@ describe('[Security] requesterId スプーフィング防止', () => {
   });
 });
 
+describe('[Security] private /op tables and relationship ownership', () => {
+  it.each(['app_kv_rows', 'device_secrets', 'push_subscriptions'])(
+    '%s는 generic /op SELECT/INSERT 모두 400으로 차단한다',
+    async (table) => {
+      const read = await op({ op: 'select', table, requesterId: randomUUID() });
+      expect(read.status).toBe(400);
+      expect(read.body.error?.code).toBe('INVALID_TABLE');
+
+      const write = await op({
+        op: 'insert',
+        table,
+        requesterId: randomUUID(),
+        payload: { id: randomUUID(), secret: 'must-not-be-stored' },
+      });
+      expect(write.status).toBe(400);
+      expect(write.body.error?.code).toBe('INVALID_TABLE');
+    },
+  );
+
+  it('push 구독 전용 endpoint는 유효한 소유자 토큰이 없으면 401이다', async () => {
+    const res = await request(app)
+      .post('/api/db/push/subscribe')
+      .send({
+        userId: randomUUID(),
+        subscription: {
+          endpoint: 'https://push.example.test/subscription',
+          keys: { auth: 'auth-key', p256dh: 'p256dh-key' },
+        },
+      });
+    expect(res.status).toBe(401);
+  });
+
+  it('production에서 세션 없이 requesterId만 주장하면 관계 조회도 401이다', async () => {
+    const prevNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    try {
+      const res = await op({
+        op: 'select',
+        table: 'blocked_users',
+        requesterId: randomUUID(),
+      });
+      expect(res.status).toBe(401);
+      expect(res.body.error?.code).toBe('UNAUTHORIZED');
+    } finally {
+      if (prevNodeEnv === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = prevNodeEnv;
+    }
+  });
+
+  it('blocked_users는 관계 당사자만 읽고 작성자만 수정·삭제하며 user_id를 강제한다', async () => {
+    const owner = randomUUID();
+    const target = randomUUID();
+    const outsider = randomUUID();
+    const inserted = await op({
+      op: 'insert',
+      table: 'blocked_users',
+      requesterId: owner,
+      payload: {
+        id: randomUUID(),
+        user_id: outsider,
+        target_id: target,
+        block_type: 'block',
+      },
+      selectAfterWrite: true,
+      single: true,
+    });
+    expect(inserted.status).toBe(200);
+    expect(inserted.body.data.user_id).toBe(owner);
+    const rowId = inserted.body.data.id as string;
+
+    const idCollision = await op({
+      op: 'insert',
+      table: 'blocked_users',
+      requesterId: target,
+      payload: { id: rowId, user_id: target, target_id: owner, block_type: 'hide' },
+    });
+    expect(idCollision.status).toBe(403);
+    expect(idCollision.body.error?.code).toBe('FORBIDDEN');
+
+    const unauthenticated = await op({ op: 'select', table: 'blocked_users' });
+    expect(unauthenticated.status).toBe(403);
+    expect(unauthenticated.body.error?.code).toBe('FORBIDDEN');
+
+    const asTarget = await op({ op: 'select', table: 'blocked_users', requesterId: target });
+    expect(asTarget.status).toBe(200);
+    expect(asTarget.body.data.some((row: { id: string }) => row.id === rowId)).toBe(true);
+
+    const asOutsider = await op({ op: 'select', table: 'blocked_users', requesterId: outsider });
+    expect(asOutsider.status).toBe(200);
+    expect(asOutsider.body.data.some((row: { id: string }) => row.id === rowId)).toBe(false);
+
+    const stolenUpdate = await op({
+      op: 'update',
+      table: 'blocked_users',
+      requesterId: target,
+      filters: [{ type: 'eq', col: 'id', val: rowId }],
+      payload: { block_type: 'hide' },
+    });
+    expect(stolenUpdate.status).toBe(403);
+    expect(stolenUpdate.body.error?.code).toBe('FORBIDDEN');
+
+    const stolenDelete = await op({
+      op: 'delete',
+      table: 'blocked_users',
+      requesterId: target,
+      filters: [{ type: 'eq', col: 'id', val: rowId }],
+    });
+    expect(stolenDelete.status).toBe(403);
+    expect(stolenDelete.body.error?.code).toBe('FORBIDDEN');
+  });
+
+  it('blocked_users는 대상 누락·자기 차단을 400으로 거부한다', async () => {
+    const owner = randomUUID();
+    const missingTarget = await op({
+      op: 'insert',
+      table: 'blocked_users',
+      requesterId: owner,
+      payload: { block_type: 'block' },
+    });
+    expect(missingTarget.status).toBe(400);
+    expect(missingTarget.body.error?.code).toBe('INVALID_INPUT');
+
+    const selfBlock = await op({
+      op: 'insert',
+      table: 'blocked_users',
+      requesterId: owner,
+      payload: { target_id: owner, block_type: 'block' },
+    });
+    expect(selfBlock.status).toBe(400);
+    expect(selfBlock.body.error?.code).toBe('INVALID_INPUT');
+  });
+
+  it('contact_shares/events는 발신자를 강제하고 당사자 조회·작성자 변경만 허용한다', async () => {
+    const sharer = randomUUID();
+    const recipient = randomUUID();
+    const outsider = randomUUID();
+
+    const share = await op({
+      op: 'upsert',
+      table: 'contact_shares',
+      requesterId: sharer,
+      payload: {
+        id: randomUUID(),
+        liker_id: recipient,
+        liked_id: outsider,
+        kakao: 'safe-kakao',
+      },
+      conflictCols: ['liker_id', 'liked_id'],
+      selectAfterWrite: true,
+    });
+    expect(share.status).toBe(200);
+    expect(share.body.data[0].liked_id).toBe(sharer);
+    const shareId = share.body.data[0].id as string;
+
+    const event = await op({
+      op: 'insert',
+      table: 'contact_share_events',
+      requesterId: sharer,
+      payload: {
+        id: randomUUID(),
+        from_user_id: outsider,
+        to_user_id: recipient,
+        event_type: 'accepted',
+      },
+      selectAfterWrite: true,
+      single: true,
+    });
+    expect(event.status).toBe(200);
+    expect(event.body.data.from_user_id).toBe(sharer);
+    const eventId = event.body.data.id as string;
+
+    const conflictTakeover = await op({
+      op: 'upsert',
+      table: 'contact_shares',
+      requesterId: outsider,
+      payload: { liker_id: recipient, liked_id: outsider, kakao: 'forged' },
+      conflictCols: ['liker_id'],
+    });
+    expect(conflictTakeover.status).toBe(403);
+    expect(conflictTakeover.body.error?.code).toBe('FORBIDDEN');
+
+    const eventIdCollision = await op({
+      op: 'insert',
+      table: 'contact_share_events',
+      requesterId: outsider,
+      payload: {
+        id: eventId,
+        from_user_id: outsider,
+        to_user_id: recipient,
+        event_type: 'rejected',
+      },
+    });
+    expect(eventIdCollision.status).toBe(403);
+    expect(eventIdCollision.body.error?.code).toBe('FORBIDDEN');
+
+    const noEventAuth = await op({ op: 'select', table: 'contact_share_events' });
+    expect(noEventAuth.status).toBe(403);
+    expect(noEventAuth.body.error?.code).toBe('FORBIDDEN');
+
+    const recipientShares = await op({ op: 'select', table: 'contact_shares', requesterId: recipient });
+    expect(recipientShares.body.data.some((row: { id: string }) => row.id === shareId)).toBe(true);
+    const recipientEvents = await op({ op: 'select', table: 'contact_share_events', requesterId: recipient });
+    expect(recipientEvents.body.data.some((row: { id: string }) => row.id === eventId)).toBe(true);
+
+    const outsiderShares = await op({ op: 'select', table: 'contact_shares', requesterId: outsider });
+    expect(outsiderShares.body.data.some((row: { id: string }) => row.id === shareId)).toBe(false);
+    const outsiderEvents = await op({ op: 'select', table: 'contact_share_events', requesterId: outsider });
+    expect(outsiderEvents.body.data.some((row: { id: string }) => row.id === eventId)).toBe(false);
+
+    const stolenShareUpdate = await op({
+      op: 'update',
+      table: 'contact_shares',
+      requesterId: recipient,
+      filters: [{ type: 'eq', col: 'id', val: shareId }],
+      payload: { phone: 'forged' },
+    });
+    expect(stolenShareUpdate.status).toBe(403);
+    expect(stolenShareUpdate.body.error?.code).toBe('FORBIDDEN');
+
+    const stolenEventDelete = await op({
+      op: 'delete',
+      table: 'contact_share_events',
+      requesterId: recipient,
+      filters: [{ type: 'eq', col: 'id', val: eventId }],
+    });
+    expect(stolenEventDelete.status).toBe(403);
+    expect(stolenEventDelete.body.error?.code).toBe('FORBIDDEN');
+  });
+
+  it('contact_shares/events는 상대 ID 누락을 400으로 거부한다', async () => {
+    const requesterId = randomUUID();
+    const share = await op({
+      op: 'upsert',
+      table: 'contact_shares',
+      requesterId,
+      payload: { kakao: 'missing-recipient' },
+    });
+    expect(share.status).toBe(400);
+    expect(share.body.error?.code).toBe('INVALID_INPUT');
+
+    const event = await op({
+      op: 'insert',
+      table: 'contact_share_events',
+      requesterId,
+      payload: { event_type: 'accepted' },
+    });
+    expect(event.status).toBe(400);
+    expect(event.body.error?.code).toBe('INVALID_INPUT');
+  });
+
+  it('관리자·테스트 토큰은 관계 테이블 감사 조회를 유지한다', async () => {
+    const owner = randomUUID();
+    const target = randomUUID();
+    const seeded = await op({
+      op: 'insert',
+      table: 'blocked_users',
+      requesterId: owner,
+      payload: { id: randomUUID(), target_id: target, block_type: 'block' },
+      selectAfterWrite: true,
+      single: true,
+    });
+    const rowId = seeded.body.data.id as string;
+
+    const adminLogin = await request(app)
+      .post('/api/db/rpc/admin_create_session')
+      .send({ p_admin_password: '116606' });
+    expect(adminLogin.status).toBe(200);
+    const adminRead = await op({
+      op: 'select',
+      table: 'blocked_users',
+      adminToken: adminLogin.body.data,
+    });
+    expect(adminRead.status).toBe(200);
+    expect(adminRead.body.data.some((row: { id: string }) => row.id === rowId)).toBe(true);
+
+    const testLogin = await request(app)
+      .post('/api/db/rpc/test_verify_password')
+      .send({ p_test_password: '116606' });
+    expect(testLogin.status).toBe(200);
+    const testRead = await op({
+      op: 'select',
+      table: 'blocked_users',
+      testToken: testLogin.body.data,
+    });
+    expect(testRead.status).toBe(200);
+    expect(testRead.body.data.some((row: { id: string }) => row.id === rowId)).toBe(true);
+  });
+});
+
 // ════════════════════════════════════════════════════════════════════════════════
 // /unread-counts IDOR ガード — SSE トークン認証
 // ════════════════════════════════════════════════════════════════════════════════
@@ -565,6 +854,39 @@ describe('[Security] profiles / likes / storage', () => {
     expect(read.status).toBe(401);
   });
 
+  it('프로필 업로드 MIME과 magic bytes를 JPEG/PNG/WebP/GIF로 제한한다', async () => {
+    const ownerId = randomUUID();
+    const owner = await loginAgent(ownerId);
+    const path = `profile-photos/${ownerId}`;
+    const imageFixtures = [
+      { mime: 'image/jpeg', bytes: [0xFF, 0xD8, 0xFF] },
+      { mime: 'image/png', bytes: [0x89, 0x50, 0x4E, 0x47] },
+      { mime: 'image/gif', bytes: [0x47, 0x49, 0x46, 0x38] },
+      {
+        mime: 'image/webp',
+        bytes: [0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50],
+      },
+    ];
+
+    for (const fixture of imageFixtures) {
+      const dataUrl = `data:${fixture.mime};base64,${Buffer.from(fixture.bytes).toString('base64')}`;
+      const upload = await owner.post('/api/db/storage-upload').send({ path, dataUrl });
+      expect(upload.status, fixture.mime).toBe(200);
+    }
+
+    const disguisedWebp = await owner.post('/api/db/storage-upload').send({
+      path,
+      dataUrl: `data:image/webp;base64,${Buffer.from('RIFFnot-NOPE').toString('base64')}`,
+    });
+    expect(disguisedWebp.status).toBe(400);
+
+    const heic = await owner.post('/api/db/storage-upload').send({
+      path,
+      dataUrl: `data:image/heic;base64,${Buffer.from('heic').toString('base64')}`,
+    });
+    expect(heic.status).toBe(400);
+  });
+
   it('자신의 프로필 이미지만 업로드·삭제할 수 있다', async () => {
     const ownerId = randomUUID();
     const otherId = randomUUID();
@@ -651,9 +973,10 @@ describe('[Security] test dashboard password', () => {
     expect(testOk.status).toBe(200);
   });
 
-  it('DB 비밀번호가 바뀌어도 공장 기본 116606으로 로그인된다', async () => {
+  it('production에서는 공개된 공장 기본 비밀번호를 거부하고 DB 비밀번호만 허용한다', async () => {
     const prevAdmin = process.env.BOOTSTRAP_ADMIN_PASSWORD;
     const prevTest = process.env.BOOTSTRAP_TEST_PASSWORD;
+    const prevNodeEnv = process.env.NODE_ENV;
     delete process.env.BOOTSTRAP_ADMIN_PASSWORD;
     delete process.env.BOOTSTRAP_TEST_PASSWORD;
     try {
@@ -669,23 +992,41 @@ describe('[Security] test dashboard password', () => {
         });
       expect(setCustom.status).toBe(200);
 
-      const adminOk = await request(app)
+      process.env.NODE_ENV = 'production';
+
+      const defaultAdmin = await request(app)
         .post('/api/db/rpc/admin_create_session')
         .send({ p_phone: '010-3878-6740', p_admin_password: '116606' });
-      expect(adminOk.status).toBe(200);
-      expect(typeof adminOk.body.data).toBe('string');
+      expect(defaultAdmin.status).toBe(403);
 
-      const testOk = await request(app)
+      const defaultTest = await request(app)
         .post('/api/db/rpc/test_verify_password')
         .send({ p_test_password: '116606' });
-      expect(testOk.status).toBe(200);
+      expect(defaultTest.status).toBe(403);
 
-      const resetOk = await request(app)
+      const defaultReset = await request(app)
         .post('/api/db/rpc/verify_panel_password')
         .send({ p_kind: 'reset', p_password: '116606' });
-      expect(resetOk.status).toBe(200);
-      expect(resetOk.body.data?.ok).toBe(true);
+      expect(defaultReset.status).toBe(401);
+
+      const customAdmin = await request(app)
+        .post('/api/db/rpc/admin_create_session')
+        .send({ p_phone: '010-3878-6740', p_admin_password: 'custom-admin-pw-xyz' });
+      expect(customAdmin.status).toBe(200);
+
+      const customTest = await request(app)
+        .post('/api/db/rpc/test_verify_password')
+        .send({ p_test_password: 'custom-test-pw-abc' });
+      expect(customTest.status).toBe(200);
+
+      const customReset = await request(app)
+        .post('/api/db/rpc/verify_panel_password')
+        .send({ p_kind: 'reset', p_password: 'custom-reset-pw' });
+      expect(customReset.status).toBe(200);
+      expect(customReset.body.data?.ok).toBe(true);
     } finally {
+      if (prevNodeEnv !== undefined) process.env.NODE_ENV = prevNodeEnv;
+      else delete process.env.NODE_ENV;
       if (prevAdmin !== undefined) process.env.BOOTSTRAP_ADMIN_PASSWORD = prevAdmin;
       else delete process.env.BOOTSTRAP_ADMIN_PASSWORD;
       if (prevTest !== undefined) process.env.BOOTSTRAP_TEST_PASSWORD = prevTest;

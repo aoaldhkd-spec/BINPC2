@@ -53,6 +53,14 @@ export function EntryGateScreen({ entryPassword, onVerified }: { entryPassword: 
           className={`bg-slate-800/70 backdrop-blur-sm rounded-3xl p-6 border border-slate-700/60 shadow-2xl space-y-4 ${shake ? 'animate-[shake_0.45s_ease-in-out]' : ''}`}>
           <div>
             <label className="block text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2">입장 코드</label>
+            <div className="mb-3 rounded-2xl border-2 border-cyan-400/60 bg-cyan-400/10 px-4 py-3 text-center">
+              <p className="text-base font-black text-cyan-200">
+                입장 코드는 <span className="text-lg text-white underline decoration-cyan-400 decoration-2 underline-offset-4">오늘 날짜</span>입니다
+              </p>
+              <p className="mt-1 text-sm font-bold text-cyan-300">
+                월·일 4자리로 입력해 주세요 (예: {todayHint || 'MMDD'})
+              </p>
+            </div>
             <div className="relative">
               <input type={showPw ? 'text' : 'password'} value={input}
                 onChange={e => { setInput(e.target.value); setError(false); }}
@@ -67,11 +75,6 @@ export function EntryGateScreen({ entryPassword, onVerified }: { entryPassword: 
             <div className={`overflow-hidden transition-all duration-200 ${error ? 'max-h-8 mt-2' : 'max-h-0'}`}>
               <p className="text-red-400 text-xs text-center font-bold">❌ 입장 코드가 올바르지 않습니다</p>
             </div>
-            {!error && (
-              <p className="mt-2 text-center text-cyan-400/80 text-[11px] font-semibold">
-                💡 입장 코드는 <span className="font-black text-cyan-300">오늘 날짜</span>입니다 (예: {todayHint || 'MMDD'})
-              </p>
-            )}
           </div>
           <button type="submit" disabled={verifying}
             className={`w-full text-white font-black py-4 rounded-2xl transition-all text-base shadow-lg shadow-cyan-900/30 ${verifying ? 'bg-cyan-700/60 cursor-not-allowed' : 'bg-cyan-600 hover:bg-cyan-500 active:scale-[0.97]'}`}>

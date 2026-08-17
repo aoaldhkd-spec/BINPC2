@@ -61,12 +61,7 @@ function deriveAdminToken(adminPassword: string): string {
 function verifyAdminToken(provided: string | null | undefined): boolean {
   if (!provided || typeof provided !== 'string') return false;
   const settings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
-  const secrets = collectSecrets(
-    String(settings.admin_password ?? ''),
-    process.env.BOOTSTRAP_ADMIN_PASSWORD,
-    PANEL_DEFAULT_PASSWORD,
-    ...LEGACY_PANEL_PASSWORDS,
-  );
+  const secrets = panelAdminSecrets(String(settings.admin_password ?? ''));
   if (!secrets.length) return false;
   return secrets.some((s) => {
     const expected = deriveAdminToken(s);
@@ -84,12 +79,7 @@ function deriveTestToken(testPassword: string): string {
 function verifyTestToken(provided: string | null | undefined): boolean {
   if (!provided || typeof provided !== 'string') return false;
   const settings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
-  const secrets = collectSecrets(
-    String(settings.test_password ?? ''),
-    process.env.BOOTSTRAP_TEST_PASSWORD,
-    PANEL_DEFAULT_PASSWORD,
-    ...LEGACY_PANEL_PASSWORDS,
-  );
+  const secrets = panelTestSecrets(String(settings.test_password ?? ''));
   if (!secrets.length) return false;
   return secrets.some((s) => {
     const expected = deriveTestToken(s);
@@ -142,8 +132,8 @@ function imageStoreSet(path: string, dataUrl: string): void {
 // Allowlist prevents access to internal or non-existent tables.
 const ALLOWED_OP_TABLES = new Set([
   'profiles', 'chats', 'messages', 'likes', 'chat_reads',
-  'app_settings', 'push_subscriptions',
-  'session_history', 'device_secrets', 'app_kv_rows',
+  'app_settings',
+  'session_history',
   // Extra tables used by the app
   'contact_shares', 'contact_share_events', 'anonymous_reports',
   'notifications',
@@ -211,7 +201,7 @@ setInterval(() => {
   const now = Date.now();
   pruneRateMap(_loginRateMap, now);
   pruneRateMap(_uploadRateMap, now);
-}, 2 * 60 * 1000);
+}, 2 * 60 * 1000).unref();
 
 // /events (SSE): IP당 최대 동시 연결. 인증된 재연결은 NAT 공인 IP 한도를 넘어도 per-user cap 적용.
 const _sseConnPerIp = new Map<string, number>();
@@ -227,11 +217,14 @@ function sseLiveCount(): number {
 
 // ─── Image magic-bytes map ─────────────────────────────────────────────────────
 // MIME 헤더 조작으로 악성 파일을 이미지로 위장하는 공격 차단
-const IMAGE_MAGIC: Record<string, number[]> = {
-  'image/jpeg': [0xFF, 0xD8, 0xFF],
-  'image/png':  [0x89, 0x50, 0x4E, 0x47],
-  'image/gif':  [0x47, 0x49, 0x46, 0x38],
-  'image/webp': [0x52, 0x49, 0x46, 0x46], // RIFF header
+const IMAGE_MAGIC: Record<string, Array<{ offset: number; bytes: number[] }>> = {
+  'image/jpeg': [{ offset: 0, bytes: [0xFF, 0xD8, 0xFF] }],
+  'image/png':  [{ offset: 0, bytes: [0x89, 0x50, 0x4E, 0x47] }],
+  'image/gif':  [{ offset: 0, bytes: [0x47, 0x49, 0x46, 0x38] }],
+  'image/webp': [
+    { offset: 0, bytes: [0x52, 0x49, 0x46, 0x46] }, // RIFF
+    { offset: 8, bytes: [0x57, 0x45, 0x42, 0x50] }, // WEBP
+  ],
 };
 
 // ─── Per-user global likes rate limit (독립 조합 스팸 방지) ──────────────────────
@@ -458,13 +451,13 @@ const LIKES_MIN_INTERVAL_MS = 500;
 setInterval(() => {
   const cutoff = Date.now() - 10_000;
   for (const [k, t] of _likesLastInsert) if (t < cutoff) _likesLastInsert.delete(k);
-}, 10_000);
+}, 10_000).unref();
 
 // Fix #1: _userLikeMinuteBuckets 만료 버킷 5분마다 정리 — 무한 메모리 누수 방지
 setInterval(() => {
   const now = Date.now();
   for (const [k, b] of _userLikeMinuteBuckets) if (b.resetAt < now) _userLikeMinuteBuckets.delete(k);
-}, 5 * 60 * 1000);
+}, 5 * 60 * 1000).unref();
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function genId(): string {
@@ -676,6 +669,22 @@ async function dedupeChatsInStore(): Promise<number> {
 // [Part1-Fix4] Per-(table, row_id) write serialization — 동시 upsert 순서 역전 방지
 // 동일 키의 새 write는 이전 promise 완료 후 실행 → 오래된 스냅샷이 최신 데이터를 덮어쓰지 않음
 const _dbWriteLocks = new Map<string, Promise<void>>();
+const REALTIME_TRACE_TABLES = new Set([
+  'messages',
+  'chats',
+  'likes',
+  'contact_shares',
+  'contact_share_events',
+]);
+
+function realtimeTraceMeta(table: string, row: Record<string, unknown>) {
+  return {
+    table,
+    rowId: typeof row.id === 'string' ? row.id : null,
+    roomId: typeof row.chat_id === 'string' ? row.chat_id : null,
+    createdAt: typeof row.created_at === 'string' ? row.created_at : null,
+  };
+}
 
 async function dbPersistRow(tableName: string, row: Record<string, unknown>): Promise<void> {
   const rowId = String(row.id ?? genId());
@@ -712,6 +721,9 @@ async function _execDbPersistRow(tableName: string, rowId: string, row: Record<s
       notifyAdminDbFailure(tableName, String(e)).catch(e2 => logger.error({ err: e2 }, '[db] notifyAdminDbFailure failed'));
       throw e;
     }
+  }
+  if (REALTIME_TRACE_TABLES.has(tableName)) {
+    logger.info(realtimeTraceMeta(tableName, row), '[realtime] db-save');
   }
 }
 
@@ -865,11 +877,6 @@ async function loadRemainingTablesFromDb(): Promise<void> {
   }
 }
 
-async function loadFromDb(): Promise<void> {
-  await loadHotTablesFromDb();
-  await loadRemainingTablesFromDb();
-}
-
 // ─── Seed data (only if DB is empty) ─────────────────────────────────────────
 function defaultAppSettings(): Record<string, unknown> {
   const bootstrapAdmin = process.env.BOOTSTRAP_ADMIN_PASSWORD?.trim();
@@ -919,24 +926,31 @@ function secretMatches(provided: string, secrets: string[]): boolean {
   return p.length > 0 && secrets.some(s => s === p);
 }
 
+/**
+ * Factory credentials are convenient only for local/test bootstrap. Render runs
+ * with NODE_ENV=production, where accepting a password published in this
+ * repository would make every panel operation publicly accessible.
+ */
+function panelSecretsForRuntime(...configured: Array<string | null | undefined>): string[] {
+  const secrets = collectSecrets(...configured);
+  if (process.env.NODE_ENV !== 'production') {
+    return collectSecrets(...secrets, PANEL_DEFAULT_PASSWORD, ...LEGACY_PANEL_PASSWORDS);
+  }
+  return secrets.filter(secret => !isDefaultPanelPassword(secret));
+}
+
 function panelAdminSecrets(dbAdmin?: string | null): string[] {
-  const secrets = collectSecrets(
+  return panelSecretsForRuntime(
     dbAdmin ?? '',
     process.env.BOOTSTRAP_ADMIN_PASSWORD,
-    PANEL_DEFAULT_PASSWORD,
-    ...LEGACY_PANEL_PASSWORDS,
   );
-  return secrets.length ? secrets : [PANEL_DEFAULT_PASSWORD];
 }
 
 function panelTestSecrets(dbTest?: string | null): string[] {
-  const secrets = collectSecrets(
+  return panelSecretsForRuntime(
     dbTest ?? '',
     process.env.BOOTSTRAP_TEST_PASSWORD,
-    PANEL_DEFAULT_PASSWORD,
-    ...LEGACY_PANEL_PASSWORDS,
   );
-  return secrets.length ? secrets : [PANEL_DEFAULT_PASSWORD];
 }
 
 const SECRET_SETTING_KEYS = ['admin_password', 'test_password', 'entry_password', 'reset_password'] as const;
@@ -1053,13 +1067,13 @@ async function ensureAppSettingsSecrets(): Promise<void> {
   const currentReset = row.reset_password == null ? '' : String(row.reset_password);
   const targetAdmin = bootstrapAdmin || PANEL_DEFAULT_PASSWORD;
   const targetTest = bootstrapTest || PANEL_DEFAULT_PASSWORD;
-  if (!currentAdmin || isDefaultPanelPassword(currentAdmin)) {
+  if ((!currentAdmin || isDefaultPanelPassword(currentAdmin)) && currentAdmin !== targetAdmin) {
     patch.admin_password = targetAdmin;
   }
-  if (!currentTest || isDefaultPanelPassword(currentTest)) {
+  if ((!currentTest || isDefaultPanelPassword(currentTest)) && currentTest !== targetTest) {
     patch.test_password = targetTest;
   }
-  if (!currentReset || isDefaultPanelPassword(currentReset)) {
+  if ((!currentReset || isDefaultPanelPassword(currentReset)) && currentReset !== PANEL_DEFAULT_PASSWORD) {
     patch.reset_password = PANEL_DEFAULT_PASSWORD;
   }
   if (isLocalQrUrl(row.qr_base_url)) patch.qr_base_url = PRODUCTION_QR_BASE;
@@ -1107,7 +1121,7 @@ function startDailyEntryPasswordRenewal(): void {
     // admin_password 제거 후 브로드캐스트 — 유저 클라이언트에 관리자 비밀번호 노출 방지
     broadcastAll({ type: 'change', table: 'app_settings', event: 'UPDATE', newRow: sanitizeSettings(updated), oldRow: sanitizeSettings(settings as Record<string, unknown>) });
   };
-  setInterval(check, 60_000);
+  setInterval(check, 60_000).unref();
 }
 
 // ─── 기능 삭제 후 남은 레거시 테이블 자동 정리 ──────────────────────────────────
@@ -1757,7 +1771,7 @@ setInterval(() => {
   ensureAppSettingsSecrets()
     .then(() => cleanupLegacyTables())
     .catch(e => logger.error({ err: e }, '[db] periodic secret/legacy sync failed'));
-}, 5 * 60 * 1000);
+}, 5 * 60 * 1000).unref();
 
 router.use(async (_req, res, next) => {
   try {
@@ -1772,9 +1786,9 @@ router.use(async (_req, res, next) => {
 });
 
 // 120초마다 DB 재동기화 — NOTIFY가 실시간 반영, 변경 없으면 SSE 브로드캐스트 생략
-setInterval(() => { resyncAllFromNativeDb().catch(e => logger.error({ err: e }, '[db] resync failed')); }, 120_000);
+setInterval(() => { resyncAllFromNativeDb().catch(e => logger.error({ err: e }, '[db] resync failed')); }, 120_000).unref();
 // 25초마다 hot 테이블 재동기화 — 다중 Render 인스턴스 split-brain 완화
-setInterval(() => { resyncHotTablesFromDb().catch(e => logger.warn({ err: e }, '[db] hot resync failed')); }, 25_000);
+setInterval(() => { resyncHotTablesFromDb().catch(e => logger.warn({ err: e }, '[db] hot resync failed')); }, 25_000).unref();
 
 function tableFingerprint(rows: Record<string, unknown>[]): string {
   let maxTs = '';
@@ -2263,6 +2277,12 @@ function _smartBroadcastLocal(table: string, row: Record<string, unknown> | null
 
 /** 로컬 SSE 전송 + 다른 인스턴스에 NOTIFY 전파 */
 function smartBroadcast(table: string, row: Record<string, unknown> | null, event: Record<string, unknown>) {
+  if (row && REALTIME_TRACE_TABLES.has(table)) {
+    logger.info({
+      ...realtimeTraceMeta(table, row),
+      event: typeof event.event === 'string' ? event.event : null,
+    }, '[realtime] emit');
+  }
   _smartBroadcastLocal(table, row, event);
   notifyOtherInstances(
     table,
@@ -2709,10 +2729,23 @@ router.post('/op', async (req: Request, res: Response) => {
         );
       }
 
+      // ─ IDOR guard: blocked_users / contact_share_events SELECT ───────────
+      // 관계 당사자만 읽을 수 있고 관리자·테스트 감사 세션만 전체 조회 가능.
+      if ((table === 'blocked_users' || table === 'contact_share_events') && !canReadPrivateTables) {
+        if (!requesterId) {
+          logger.warn({ table, ip: req.ip }, '[SECURITY] IDOR: relationship SELECT without requesterId blocked');
+          return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+        }
+        tableData = tableData.filter(r => table === 'blocked_users'
+          ? String(r.user_id) === String(requesterId) || String(r.target_id) === String(requesterId)
+          : String(r.from_user_id) === String(requesterId) || String(r.to_user_id) === String(requesterId)
+        );
+      }
+
       // ─ IDOR guard: contact_shares SELECT ─────────────────────────────────
       // 연락처 공유 내역은 보낸 사람(liker_id) 또는 받은 사람(liked_id)만 조회 가능.
       // requesterId 없이 전체 덤프하면 모든 연락처 공유 기록이 노출됨 → 차단.
-      if (table === 'contact_shares' && !isAdmin) {
+      if (table === 'contact_shares' && !canReadPrivateTables) {
         if (!requesterId) {
           logger.warn({ ip: req.ip }, '[SECURITY] IDOR: contact_shares SELECT without requesterId blocked');
           return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
@@ -3157,6 +3190,66 @@ router.post('/op', async (req: Request, res: Response) => {
           }
           effectiveRow = { ...effectiveRow, viewer_id: requesterId };
         }
+        // blocked_users: 차단을 건 사용자 identity는 세션으로 고정.
+        if (table === 'blocked_users' && !isAdmin) {
+          if (!requesterId) {
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+          }
+          const existingById = effectiveRow.id == null
+            ? undefined
+            : tableData.find(r => String(r.id) === String(effectiveRow.id));
+          if (existingById && String(existingById.user_id ?? '') !== String(requesterId)) {
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: row owner mismatch', code: 'FORBIDDEN' } });
+          }
+          const targetId = String(effectiveRow.target_id ?? '');
+          if (!targetId) {
+            return res.status(400).json({ data: null, error: { message: 'target_id is required', code: 'INVALID_INPUT' } });
+          }
+          if (targetId === String(requesterId)) {
+            return res.status(400).json({ data: null, error: { message: 'cannot block yourself', code: 'INVALID_INPUT' } });
+          }
+          effectiveRow = { ...effectiveRow, user_id: requesterId, target_id: targetId };
+        }
+        // contact_shares: 연락처를 실제로 공유하는 사용자는 liked_id(현재 하트 수신자).
+        if (table === 'contact_shares' && !isAdmin) {
+          if (!requesterId) {
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+          }
+          const existingById = effectiveRow.id == null
+            ? undefined
+            : tableData.find(r => String(r.id) === String(effectiveRow.id));
+          if (existingById && String(existingById.liked_id ?? '') !== String(requesterId)) {
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: row owner mismatch', code: 'FORBIDDEN' } });
+          }
+          const recipientId = String(effectiveRow.liker_id ?? '');
+          if (!recipientId) {
+            return res.status(400).json({ data: null, error: { message: 'liker_id is required', code: 'INVALID_INPUT' } });
+          }
+          if (recipientId === String(requesterId)) {
+            return res.status(400).json({ data: null, error: { message: 'cannot share contact with yourself', code: 'INVALID_INPUT' } });
+          }
+          effectiveRow = { ...effectiveRow, liked_id: requesterId, liker_id: recipientId };
+        }
+        // contact_share_events: 이벤트 발신자는 항상 인증된 세션 사용자.
+        if (table === 'contact_share_events' && !isAdmin) {
+          if (!requesterId) {
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+          }
+          const existingById = effectiveRow.id == null
+            ? undefined
+            : tableData.find(r => String(r.id) === String(effectiveRow.id));
+          if (existingById && String(existingById.from_user_id ?? '') !== String(requesterId)) {
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: row owner mismatch', code: 'FORBIDDEN' } });
+          }
+          const toUserId = String(effectiveRow.to_user_id ?? '');
+          if (!toUserId) {
+            return res.status(400).json({ data: null, error: { message: 'to_user_id is required', code: 'INVALID_INPUT' } });
+          }
+          if (toUserId === String(requesterId)) {
+            return res.status(400).json({ data: null, error: { message: 'cannot send contact event to yourself', code: 'INVALID_INPUT' } });
+          }
+          effectiveRow = { ...effectiveRow, from_user_id: requesterId, to_user_id: toUserId };
+        }
 
         if (table === 'profiles') {
           const { use5Digit, poolSize } = _pinParams!;
@@ -3368,6 +3461,30 @@ router.post('/op', async (req: Request, res: Response) => {
         logger.warn({ ip: req.ip }, '[SECURITY] IDOR: likes UPDATE without requesterId blocked');
         return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
       }
+      if (
+        !isAdmin &&
+        (table === 'blocked_users' || table === 'contact_shares' || table === 'contact_share_events') &&
+        !requesterId
+      ) {
+        logger.warn({ table, ip: req.ip }, '[SECURITY] IDOR: relationship UPDATE without requesterId blocked');
+        return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+      }
+      if (!isAdmin && requesterId) {
+        if (table === 'blocked_users') {
+          delete patch.id;
+          patch = { ...patch, user_id: requesterId };
+        }
+        if (table === 'contact_shares') {
+          delete patch.id;
+          delete patch.liker_id;
+          patch = { ...patch, liked_id: requesterId };
+        }
+        if (table === 'contact_share_events') {
+          delete patch.id;
+          delete patch.to_user_id;
+          patch = { ...patch, from_user_id: requesterId };
+        }
+      }
       if (table === 'signal_sends' && !isAdmin) {
         return res.status(403).json({ data: null, error: { message: 'Forbidden: signal actions cannot be updated', code: 'FORBIDDEN' } });
       }
@@ -3414,6 +3531,18 @@ router.post('/op', async (req: Request, res: Response) => {
               String(existingRow.user_id) !== String(requesterId)) {
             logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: UPDATE group_participants blocked');
             return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신의 참여만 수정할 수 있습니다.', code: 'FORBIDDEN' } });
+          }
+          if (!isAdmin && table === 'blocked_users' && String(existingRow.user_id ?? '') !== String(requesterId)) {
+            logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: UPDATE blocked_users blocked');
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신이 만든 차단만 수정할 수 있습니다.', code: 'FORBIDDEN' } });
+          }
+          if (!isAdmin && table === 'contact_shares' && String(existingRow.liked_id ?? '') !== String(requesterId)) {
+            logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: UPDATE contact_shares blocked');
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신이 공유한 연락처만 수정할 수 있습니다.', code: 'FORBIDDEN' } });
+          }
+          if (!isAdmin && table === 'contact_share_events' && String(existingRow.from_user_id ?? '') !== String(requesterId)) {
+            logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: UPDATE contact_share_events blocked');
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신이 보낸 이벤트만 수정할 수 있습니다.', code: 'FORBIDDEN' } });
           }
         }
       }
@@ -3481,6 +3610,47 @@ router.post('/op', async (req: Request, res: Response) => {
       const upserted: Record<string, unknown>[] = [];
 
       // ─ IDOR guard: UPSERT ownership check ─────────────────────────────
+      if (
+        !isAdmin &&
+        (table === 'blocked_users' || table === 'contact_shares' || table === 'contact_share_events')
+      ) {
+        if (!requesterId) {
+          return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+        }
+        for (const row of inputs) {
+          if (!row) continue;
+          const existingById = row.id == null ? undefined : tableData.find(r => String(r.id) === String(row.id));
+          if (existingById) {
+            const owner = table === 'blocked_users'
+              ? existingById.user_id
+              : table === 'contact_shares'
+                ? existingById.liked_id
+                : existingById.from_user_id;
+            if (String(owner ?? '') !== String(requesterId)) {
+              return res.status(403).json({ data: null, error: { message: 'Forbidden: row owner mismatch', code: 'FORBIDDEN' } });
+            }
+          }
+          if (table === 'blocked_users') {
+            const targetId = String(row.target_id ?? '');
+            if (!targetId || targetId === String(requesterId)) {
+              return res.status(400).json({ data: null, error: { message: 'invalid target_id', code: 'INVALID_INPUT' } });
+            }
+            row.user_id = requesterId;
+          } else if (table === 'contact_shares') {
+            const recipientId = String(row.liker_id ?? '');
+            if (!recipientId || recipientId === String(requesterId)) {
+              return res.status(400).json({ data: null, error: { message: 'invalid liker_id', code: 'INVALID_INPUT' } });
+            }
+            row.liked_id = requesterId;
+          } else {
+            const toUserId = String(row.to_user_id ?? '');
+            if (!toUserId || toUserId === String(requesterId)) {
+              return res.status(400).json({ data: null, error: { message: 'invalid to_user_id', code: 'INVALID_INPUT' } });
+            }
+            row.from_user_id = requesterId;
+          }
+        }
+      }
       if (table === 'chat_reads') {
         if (!requesterId) {
           return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
@@ -3518,6 +3688,20 @@ router.post('/op', async (req: Request, res: Response) => {
           idx = _idxById!.get(row.id) ?? -1;
         }
         if (idx >= 0) {
+          if (
+            !isAdmin &&
+            requesterId &&
+            (table === 'blocked_users' || table === 'contact_shares' || table === 'contact_share_events')
+          ) {
+            const existingOwner = table === 'blocked_users'
+              ? tableData[idx].user_id
+              : table === 'contact_shares'
+                ? tableData[idx].liked_id
+                : tableData[idx].from_user_id;
+            if (String(existingOwner ?? '') !== String(requesterId)) {
+              return res.status(403).json({ data: null, error: { message: 'Forbidden: row owner mismatch', code: 'FORBIDDEN' } });
+            }
+          }
           const oldRow = { ...tableData[idx] };
           const newRow = { ...oldRow, ...row };
           tableData[idx] = newRow;
@@ -3618,7 +3802,7 @@ router.post('/op', async (req: Request, res: Response) => {
           table === 'messages' || table === 'likes' || table === 'chat_reads' ||
           table === 'chats' || table === 'contact_shares' || table === 'contact_share_events' ||
           table === 'group_messages' || table === 'group_participants' || table === 'group_chats' ||
-          table === 'signal_sends'
+          table === 'signal_sends' || table === 'blocked_users'
         ) {
           logger.warn({ table, ip: req.ip }, '[SECURITY] IDOR: DELETE without requesterId blocked');
           return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
@@ -3665,17 +3849,17 @@ router.post('/op', async (req: Request, res: Response) => {
             logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: DELETE group_chats blocked');
             return res.status(403).json({ data: null, error: { message: 'Forbidden: 단톡방 삭제는 관리자만 가능합니다.', code: 'FORBIDDEN' } });
           }
-          if (table === 'contact_shares' || table === 'contact_share_events') {
-            const owners = [
-              existingRow.liker_id, existingRow.liked_id,
-              existingRow.sharer_id, existingRow.receiver_id,
-              existingRow.from_user_id, existingRow.to_user_id,
-              existingRow.sender_id, existingRow.recipient_id,
-            ].map(v => v != null ? String(v) : '').filter(Boolean);
-            if (owners.length > 0 && !owners.includes(String(requesterId))) {
-              logger.warn({ requesterId, rowId: existingRow.id, table }, '[SECURITY] IDOR: DELETE contact share blocked');
-              return res.status(403).json({ data: null, error: { message: 'Forbidden: 관련 당사자만 삭제할 수 있습니다.', code: 'FORBIDDEN' } });
-            }
+          if (table === 'blocked_users' && String(existingRow.user_id ?? '') !== String(requesterId)) {
+            logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: DELETE blocked_users blocked');
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신이 만든 차단만 삭제할 수 있습니다.', code: 'FORBIDDEN' } });
+          }
+          if (table === 'contact_shares' && String(existingRow.liked_id ?? '') !== String(requesterId)) {
+            logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: DELETE contact_shares blocked');
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신이 공유한 연락처만 삭제할 수 있습니다.', code: 'FORBIDDEN' } });
+          }
+          if (table === 'contact_share_events' && String(existingRow.from_user_id ?? '') !== String(requesterId)) {
+            logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: DELETE contact_share_events blocked');
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신이 보낸 이벤트만 삭제할 수 있습니다.', code: 'FORBIDDEN' } });
           }
         }
       }
@@ -4026,11 +4210,7 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         }
         let ok = false;
         if (kind === 'reset') {
-          const secrets = collectSecrets(
-            settings.reset_password as string | undefined,
-            PANEL_DEFAULT_PASSWORD,
-            ...LEGACY_PANEL_PASSWORDS,
-          );
+          const secrets = panelSecretsForRuntime(settings.reset_password as string | undefined);
           ok = secretMatches(provided, secrets);
         } else if (kind === 'admin') {
           ok = secretMatches(provided, panelAdminSecrets(settings.admin_password as string | undefined));
@@ -4135,7 +4315,7 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
 // IP별 레이트 리밋 (5초 윈도우, 최대 30회) — 스팸/악의적 남용 추가 방어
 setInterval(() => {
   pruneRateMap(_broadcastRateMap);
-}, 5 * 60 * 1000);
+}, 5 * 60 * 1000).unref();
 router.post('/broadcast', (req: Request, res: Response) => {
   try {
   // ✅ 인증: 클라이언트 SSE 토큰(HMAC)으로 검증 — SESSION_SECRET 클라이언트 노출 없이 안전
@@ -4249,14 +4429,18 @@ router.post('/storage-upload', async (req: Request, res: Response) => {
   const expectedMagic = IMAGE_MAGIC[mimeMatch[1]];
   if (expectedMagic) {
     const base64Body = dataUrl.split(',')[1] ?? '';
-    const rawBytes = Buffer.from(base64Body.slice(0, 12), 'base64');
-    const matched = expectedMagic.every((b, i) => rawBytes[i] === b);
+    const rawBytes = Buffer.from(base64Body.slice(0, 24), 'base64');
+    const matched = expectedMagic.every(signature =>
+      signature.bytes.every((byte, index) => rawBytes[signature.offset + index] === byte)
+    );
     if (!matched) {
       return res.status(400).json({ data: null, error: 'Image content does not match declared type' });
     }
   }
+  // 프로필 row가 이 경로를 저장하기 전에 이미지 자체가 durable해야 한다.
+  // DB 저장 실패를 성공으로 응답하면 서버 재시작 후 깨진 프로필 사진이 남는다.
+  await dbPersistImage(imgPath, dataUrl);
   imageStoreSet(imgPath, dataUrl);
-  dbPersistImage(imgPath, dataUrl).catch(e => logger.error({ err: e }, '[db] background task error'));
   return res.json({ data: { path: imgPath }, error: null });
   } catch (e) {
     logger.error({ err: e }, '[storage-upload] Unexpected error');
@@ -4531,7 +4715,7 @@ const UNREAD_CACHE_TTL_MS = 2_000;
 setInterval(() => {
   const cutoff = Date.now() - UNREAD_CACHE_TTL_MS;
   for (const [k, v] of unreadCountsCache) if (v.ts < cutoff) unreadCountsCache.delete(k);
-}, 30_000);
+}, 30_000).unref();
 
 router.get('/unread-counts', (req: Request, res: Response) => {
   const userId = typeof req.query.userId === 'string' && req.query.userId ? req.query.userId : null;

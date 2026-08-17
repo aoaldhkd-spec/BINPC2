@@ -597,6 +597,24 @@ function createSse() {
         _reconnectCallbacks.forEach(fn => { try { fn(); } catch {} });
         return; // 개별 리스너에게 전파 불필요
       }
+      if (
+        data.type === 'change'
+        && data.table
+        && ['messages', 'likes', 'contact_shares', 'contact_share_events'].includes(data.table)
+      ) {
+        const row = data.newRow ?? data.oldRow;
+        const rowId = typeof row?.id === 'string' ? row.id : null;
+        diag('debug', 'realtime', 'client-receive', {
+          corr: rowId ?? ev.lastEventId ?? undefined,
+          data: {
+            table: data.table,
+            event: data.event,
+            rowId,
+            roomId: typeof row?.chat_id === 'string' ? row.chat_id : null,
+            createdAt: typeof row?.created_at === 'string' ? row.created_at : null,
+          },
+        });
+      }
       _sseListeners.forEach(fn => { try { fn(data); } catch {} });
     } catch {}
   };
@@ -887,16 +905,6 @@ export const supabase: any = {
 
   storage: mockStorage,
 };
-
-function fireReconnectCallbacks() {
-  // 데이터 재동기화 콜백만 — "연결 성공" UI는 실제 SSE 메시지 수신 경로에서 처리
-  cancelDisconnectNotify();
-  _sseNeedsResync = false;
-  _sseHasConnected = true;
-  reportLinkUp('sse-resync');
-  diag('info', 'sse', 'resync-callbacks');
-  _reconnectCallbacks.forEach(fn => { try { fn(); } catch {} });
-}
 
 /**
  * 세션 수립 후 SSE 토큰을 서버에서 발급받아 저장합니다.

@@ -1,4 +1,4 @@
-import { getPositionBg, getPositionLabel } from '../lib/profile';
+import { hasUploadedPhoto, getPositionBg } from '../lib/profile';
 import type { Database } from '../types/database';
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
@@ -13,7 +13,7 @@ const SIZE_MAP = {
 };
 
 interface Props {
-  profile: Pick<Profile, 'personality_score' | 'mbti' | 'nickname'>;
+  profile: Pick<Profile, 'personality_score' | 'mbti' | 'nickname' | 'photo_url'>;
   size?: keyof typeof SIZE_MAP;
   rounded?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'full';
   className?: string;
@@ -22,7 +22,6 @@ interface Props {
 export default function ProfileAvatar({ profile, size = 'md', rounded = 'xl', className = '' }: Props) {
   const score = profile.personality_score ?? 50;
   const bg    = getPositionBg(score);
-  const label = getPositionLabel(score);
   const s     = SIZE_MAP[size];
 
   return (
@@ -30,11 +29,21 @@ export default function ProfileAvatar({ profile, size = 'md', rounded = 'xl', cl
       className={`${s.outer} rounded-${rounded} overflow-hidden flex-shrink-0 relative ${className}`}
       style={{ backgroundColor: bg }}
     >
-      {/* 사람 실루엣만 — 텍스트 일절 없음 */}
+      {/* 기존 실루엣을 fallback으로 유지하고 등록된 사진만 그 위에 표시한다. */}
       <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
         <circle cx="50" cy="38" r="22" fill="rgba(255,255,255,0.28)" />
         <ellipse cx="50" cy="94" rx="34" ry="24" fill="rgba(255,255,255,0.28)" />
       </svg>
+      {hasUploadedPhoto(profile.photo_url) && (
+        <img
+          src={profile.photo_url}
+          alt={profile.nickname}
+          className="absolute inset-0 w-full h-full object-cover"
+          onError={(event) => {
+            event.currentTarget.style.display = 'none';
+          }}
+        />
+      )}
     </div>
   );
 }

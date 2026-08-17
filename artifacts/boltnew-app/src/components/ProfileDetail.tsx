@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, type SyntheticEvent } from 'react';
 import { ArrowLeft, Heart, MessageCircle, MapPin } from 'lucide-react';
-import { getPositionLabel, getPositionBg, getDomSubLabel, getDomSubBg, getKoreanAge, genAvatar, getAvatarSrc, hasUploadedPhoto } from '../lib/profile';
+import { getPositionLabel, getPositionBg, getDomSubLabel, getDomSubBg, getKoreanAge, genAvatar, getAvatarSrc, hasUploadedPhoto, isPresetAvatar } from '../lib/profile';
 import { HEART_TYPES, HeartType } from '../lib/constants';
 import ProfileScoreBar from './ProfileScoreBar';
 import type { Profile } from '../types/app';
@@ -16,6 +16,7 @@ function onImgErr(nick: string) {
 function PhotoHeader({ profile }: { profile: Profile }) {
   const [imgError, setImgError] = useState(false);
   const showPhoto = hasUploadedPhoto(profile.photo_url) && !imgError;
+  const presetAvatar = isPresetAvatar(profile.photo_url);
 
   if (showPhoto) {
     return (
@@ -23,7 +24,7 @@ function PhotoHeader({ profile }: { profile: Profile }) {
         <img
           src={profile.photo_url!}
           alt={profile.nickname}
-          className="w-full h-full object-cover"
+          className={`w-full h-full ${presetAvatar ? 'object-contain bg-slate-900' : 'object-cover'}`}
           onError={() => setImgError(true)}
         />
       </div>

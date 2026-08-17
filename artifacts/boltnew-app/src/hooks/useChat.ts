@@ -44,9 +44,10 @@ import { supabase } from '../lib/supabase';
 import { onSseReconnect, getSseToken, isSseHealthy } from '../lib/localdb';
 import type { Profile, Message, Chat, View } from '../types/app';
 import { HeartType } from '../lib/constants';
-import { applySseInsert, applyLoadMessages, messageBelongsToChat } from '../lib/chat-reducers';
+import { applySseInsert, applySseToRoomCaches, applyLoadMessages, messageBelongsToChat } from '../lib/chat-reducers';
 import { chatPairKey, dedupeChatList, pickCanonicalChat } from '../lib/chat-pair';
 import { buildChatIdAliasMap, incrementUnreadForIncoming, isIncomingChatToastTarget } from '../lib/chat-unread';
+import { diag } from '../lib/diag';
 
 interface UseChatDeps {
   currentUserId: string | null;
@@ -105,6 +106,24 @@ export function useChat({
   const chatListRef = useRef<Chat[]>([]);
   chatListRef.current = chatList;
   const siblingToCanonicalRef = useRef<Map<string, string>>(new Map());
+  const deletedMessageIdsRef = useRef<Set<string>>(new Set());
+  const cacheRealtimeMessage = useCallback((message: Message, activeRoomId?: string | null) => {
+    const roomIds = new Set<string>([message.chat_id]);
+    const canonicalId = siblingToCanonicalRef.current.get(message.chat_id);
+    if (canonicalId) roomIds.add(canonicalId);
+    if (activeRoomId) roomIds.add(activeRoomId);
+    const nextCache = applySseToRoomCaches(messageCacheRef.current, message, roomIds);
+    for (const roomId of roomIds) {
+      const rows = nextCache.get(roomId);
+      if (rows) cacheRoomMessages(roomId, rows);
+    }
+  }, [cacheRoomMessages]);
+  const removeCachedMessage = useCallback((messageId: string) => {
+    for (const [roomId, cached] of messageCacheRef.current) {
+      const next = cached.filter(message => message.id !== messageId);
+      if (next.length !== cached.length) cacheRoomMessages(roomId, next);
+    }
+  }, [cacheRoomMessages]);
 
   const [unreadChatCounts, setUnreadChatCounts] = useState<Record<string, number>>({});
   // ref 사본: async 컨텍스트에서 stale closure 없이 최신값 읽기
@@ -122,6 +141,7 @@ export function useChat({
 
   useEffect(() => {
     messageCacheRef.current.clear();
+    deletedMessageIdsRef.current.clear();
   }, [currentUserId]);
 
   // ── 단일 통합 SSE 채널: messages + chats 처리 ────────────────────────────────
@@ -141,12 +161,17 @@ export function useChat({
             const newMsg = raw as unknown as Message;
             // chat_id 없는 이벤트·타방 메시지는 활성 1:1 목록에 절대 넣지 않음
             if (typeof newMsg.chat_id !== 'string' || !newMsg.chat_id) return;
+            deletedMessageIdsRef.current.delete(newMsg.id);
             const fromActivePartner = !!(
               chatIdRef.current &&
               activePartnerIdRef.current &&
               newMsg.sender_id === activePartnerIdRef.current
             );
-            if (isActiveRoomChat(newMsg.chat_id) || fromActivePartner) {
+            const isForActiveRoom = isActiveRoomChat(newMsg.chat_id) || fromActivePartner;
+            // 토스트와 본문은 같은 change 이벤트에서 파생한다. 비활성/열리는 중인
+            // 방도 캐시에 먼저 반영해 알림 후 입장했을 때 즉시 본문이 보이게 한다.
+            cacheRealtimeMessage(newMsg, isForActiveRoom ? chatIdRef.current : null);
+            if (isForActiveRoom) {
               rememberRoomChatId(newMsg.chat_id);
               // 활성 채팅방: 메시지 목록에 추가 (client_id 기반 dedup)
               setMessages(prev => {
@@ -156,7 +181,18 @@ export function useChat({
                 const safe = activeCid
                   ? next.filter(m => messageBelongsToChat(m, activeCid, aliases))
                   : next;
-                return safe.length > MAX_MESSAGES ? safe.slice(-MAX_MESSAGES) : safe;
+                const visible = safe.length > MAX_MESSAGES ? safe.slice(-MAX_MESSAGES) : safe;
+                diag('debug', 'chat', 'state-merge', {
+                  corr: newMsg.id,
+                  data: {
+                    messageId: newMsg.id,
+                    roomId: activeCid ?? newMsg.chat_id,
+                    createdAt: newMsg.created_at,
+                    source: 'sse',
+                    count: visible.length,
+                  },
+                });
+                return visible;
               });
               // [Fix-H] 활성 채팅방에 상대방 메시지 도착 시 즉시 서버 읽음 표시
               // 채팅방을 열 때뿐 아니라 새 메시지가 오는 순간에도 read_at 갱신 → 다른 기기 뱃지 즉시 해소
@@ -211,6 +247,12 @@ export function useChat({
           try {
             const deleted = payload.old as { id?: string; chat_id?: string };
             if (!deleted.id || typeof deleted.id !== 'string') return;
+            deletedMessageIdsRef.current.add(deleted.id);
+            if (deletedMessageIdsRef.current.size > 500) {
+              const oldest = deletedMessageIdsRef.current.values().next().value as string | undefined;
+              if (oldest) deletedMessageIdsRef.current.delete(oldest);
+            }
+            removeCachedMessage(deleted.id);
             if (isActiveRoomChat(deleted.chat_id)) {
               setMessages(prev => prev.filter(m => m.id !== deleted.id));
             }
@@ -278,19 +320,41 @@ export function useChat({
         })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
+  // loadChatList is declared later and reached only from the async listener;
+  // including it here would read the const during its temporal dead zone.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUserId]);
+  }, [currentUserId, cacheRealtimeMessage, removeCachedMessage, profilesRef, setBottomNotif]);
 
   // ── 활성 채팅방 메시지 로드 ───────────────────────────────────────────────────
   const loadGenRef = useRef(0);
   const loadMessages = useCallback(async (cid: string): Promise<boolean> => {
     const gen = ++loadGenRef.current;
+    const aliasesAtRequestStart = new Set(roomChatIdsRef.current);
+    aliasesAtRequestStart.add(cid);
+    const rowsAtRequestStart = [
+      ...(messageCacheRef.current.get(cid) ?? []),
+      ...messagesRef.current.filter(message => messageBelongsToChat(message, cid, aliasesAtRequestStart)),
+    ];
+    const idsAtRequestStart = new Set(rowsAtRequestStart.map(message => message.id));
+    diag('debug', 'chat', 'fetch-start', {
+      corr: `room:${cid}:${gen}`,
+      data: { roomId: cid, requestVersion: gen, count: idsAtRequestStart.size },
+    });
     try {
       const { data, error } = await supabase.from('messages').select('*').eq('chat_id', cid).order('created_at', { ascending: true });
-      if (gen !== loadGenRef.current) return false; // stale 응답 버림
+      if (gen !== loadGenRef.current) {
+        diag('debug', 'chat', 'fetch-stale-discard', {
+          corr: `room:${cid}:${gen}`,
+          data: { roomId: cid, requestVersion: gen },
+        });
+        return false;
+      }
       if (error) { console.error('[loadMessages] DB 오류:', error.message); return false; }
       if (data) setMessages(prev => {
-        const result = applyLoadMessages(prev, data as Message[]);
+        const result = applyLoadMessages(prev, data as Message[], {
+          idsAtRequestStart,
+          deletedIds: deletedMessageIdsRef.current,
+        });
         rememberRoomChatId(cid);
         for (const m of data as Message[]) rememberRoomChatId(m.chat_id);
         const aliases = roomChatIdsRef.current;
@@ -299,6 +363,17 @@ export function useChat({
         const filtered = result.filter(m => messageBelongsToChat(m, cid, aliases));
         const visible = filtered.length > MAX_MESSAGES ? filtered.slice(-MAX_MESSAGES) : filtered;
         cacheRoomMessages(cid, visible);
+        const last = visible[visible.length - 1];
+        diag('debug', 'chat', 'state-merge', {
+          corr: last?.id ?? `room:${cid}:${gen}`,
+          data: {
+            messageId: last?.id ?? null,
+            roomId: cid,
+            createdAt: last?.created_at ?? null,
+            source: 'fetch',
+            count: visible.length,
+          },
+        });
         return visible;
       });
       return true;

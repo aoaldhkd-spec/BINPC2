@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo, Suspense, lazy, Component, ReactNode, memo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, Suspense, lazy, Component, ReactNode } from 'react';
 /**
  * Main user shell UI (tabs: profiles/chats/status/…).
  * State/realtime: App.tsx + hooks (useChat/useHearts). See ARCHITECTURE.md.
@@ -6,10 +6,9 @@ import { useState, useEffect, useRef, useCallback, useMemo, Suspense, lazy, Comp
 import {
   Heart, MessageCircle, Users, ChevronDown, CheckCircle,
   Eye, X, HelpCircle,
-  QrCode, Camera, Search, MoreHorizontal,
+  QrCode, Camera, Search,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { useTheme } from '../lib/theme';
 import type { Profile, ContactShare, Chat, MainTab, GroupChat, ProfileView, UserSignal } from '../types/app';
 import { groupRoomVisual, MAX_GROUPS_PER_USER, sumUnreadCounts, unreadForGroup } from '../lib/group-rooms';
 import { GroupRoomIcon } from './GroupRoomIcon';
@@ -17,7 +16,7 @@ import { unreadForChat } from '../lib/chat-unread';
 import { BIO_CATEGORIES, parseProfileInterests } from '../lib/interests';
 import { InterestPicker } from './InterestPicker';
 import { HeartType, HEART_TYPES, heartMeta } from '../lib/constants';
-import { getPositionLabel, getPositionBg, getPositionStyle, getDomSubLabel, getDomSubBg, getKoreanAge, genAvatar, getAvatarSrc, getAvatarGradientCss, hasUploadedPhoto, isSwipeGestureVerifyProfile } from '../lib/profile';
+import { getPositionLabel, getPositionBg, getDomSubLabel, getDomSubBg, genAvatar, getAvatarSrc, isSwipeGestureVerifyProfile } from '../lib/profile';
 import { containsBannedNicknameWord } from '../lib/bannedWords';
 import {
   clampNicknameInput,
@@ -27,7 +26,7 @@ import {
   nicknameCompositionAllowed,
   shouldBlockNicknameBeforeInput,
 } from '../lib/nickname-input';
-import { getMbtiStyle, koreanMatch } from '../lib/utils';
+import { koreanMatch } from '../lib/utils';
 import { ls } from '../lib/storage';
 import ProfileAvatar from './ProfileAvatar';
 import { StatsTab, RankingTab } from './StatsTabs';
@@ -36,6 +35,7 @@ import { TimerBanner } from './TimerBanner';
 import { RefreshBtn } from './RefreshBtn';
 
 import { AVATAR_CATEGORIES } from '../lib/avatar-catalog';
+import { compressProfilePhoto, PROFILE_PHOTO_ACCEPT, validateProfilePhotoFile } from '../lib/profile-photo';
 import { IDEAL_TAG_GROUPS, FEATURE_TAG_GROUPS, encodeSignalMsg, SIGNAL_INBOX_EMPTY, SIGNAL_INBOX_LINE, SIGNAL_INBOX_TITLE } from '../lib/signal-match';
 import { ProfileCard } from './ProfileCard';
 import { ResetButton } from './ResetButton';
@@ -89,7 +89,7 @@ export function MainScreen({
   onContactShareOpen: _onContactShareOpen, onContactViewOpen, onHeartResponse, onDeleteChat, onDeleteAllChats, onOpenChat,
   timerEndAt, timerLabel, onRefreshStatus, onRefreshChat, onRefreshProfiles, darkMode, onToggleDark, onShowContactQr, onScanQr, scannedContacts, onClearScannedContact, functionsLocked = false, onShowTutorial,
   unreadChatCounts, onClearChatUnread: _onClearChatUnread,
-  onUpdateProfile, fortuneCompatTarget, myHeartCount,
+  onUpdateProfile, fortuneCompatTarget, myHeartCount: _myHeartCount,
   groupChats = [], unreadGroupCounts = {}, onOpenGroupChat, onJoinGroupChat, onLeaveGroupChat, joiningGroupId = null,
   blockedUserIds = new Set<string>(), hiddenByIds = new Set<string>(),
   profileVisitors = [] as ProfileView[],
@@ -227,7 +227,6 @@ export function MainScreen({
         if (b.id === currentUserId) return 1;
         return 0;
       });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profiles, profileSearch, profilePersonalityFilter, profileMbtiFilter, currentUserId, blockedUserIds, hiddenByIds]);
 
   const [refreshedTab, setRefreshedTab] = useState<string | null>(null);
@@ -553,72 +552,55 @@ export function MainScreen({
   // ── 프로필 사진 업로드 + 기본 아바타 피커 ────────────────────────────────────
   const [photoUploading, setPhotoUploading] = useState(false);
   const [avatarCatIdx, setAvatarCatIdx] = useState(0);
+  // 고정 storage path를 쓰는 기존 사진도 앱 재진입 시 브라우저 캐시가 아닌 현재 값을 조회한다.
+  const [photoCacheBust, setPhotoCacheBust] = useState(() => Date.now());
 
   const handleSelectPresetAvatar = async (avatarUrl: string) => {
     if (!currentUserId) return;
-    await supabase.from('profiles').update({ photo_url: avatarUrl } as never).eq('id', currentUserId);
+    const { error } = await supabase.from('profiles').update({ photo_url: avatarUrl } as never).eq('id', currentUserId);
+    if (error) {
+      alert('아바타 저장 중 오류가 발생했습니다. 다시 시도해 주세요.');
+      return;
+    }
     onUpdateProfile({ id: currentUserId, photo_url: avatarUrl });
     onRefreshProfiles();
     setProfileEditSection(null);
   };
-  // 이미지 압축: 최대 1400px, JPEG 품질 0.92 — 시그널 카드 화질 유지 + imageStore(80/32MB) 한도 안
-  const compressImage = (dataUrl: string, maxPx = 1400, quality = 0.92): Promise<string> =>
-    new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => {
-        const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
-        const w = Math.round(img.width * scale);
-        const h = Math.round(img.height * scale);
-        const canvas = document.createElement('canvas');
-        canvas.width = w;
-        canvas.height = h;
-        canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL('image/jpeg', quality));
-      };
-      img.onerror = () => resolve(dataUrl); // 압축 실패 시 원본 사용
-      img.src = dataUrl;
-    });
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !currentUserId) return;
+    e.target.value = '';
+    const validation = validateProfilePhotoFile(file);
+    if (!validation.ok) {
+      alert(validation.message);
+      return;
+    }
     setPhotoUploading(true);
     try {
-      const reader = new FileReader();
-      reader.onerror = () => {
-        console.error('[MainScreen] FileReader 오류');
-        alert('파일을 읽는 중 오류가 발생했습니다. 다시 시도해 주세요.');
-        setPhotoUploading(false);
-      };
-      reader.onload = async (ev) => {
-        try {
-          const dataUrl = ev.target?.result as string;
-          if (!dataUrl) { setPhotoUploading(false); return; }
-          const compressed = await compressImage(dataUrl);
-          const path = `profile-photos/${currentUserId}`;
-          const uploadResponse = await fetch('/api/db/storage-upload', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ path, dataUrl: compressed }),
-          });
-          if (!uploadResponse.ok) {
-            throw new Error(`사진 업로드 실패 (${uploadResponse.status})`);
-          }
-          const photoUrl = `/api/db/storage-image?p=${encodeURIComponent(path)}&t=${Date.now()}`;
-          await supabase.from('profiles').update({ photo_url: photoUrl } as never).eq('id', currentUserId);
-          onUpdateProfile({ id: currentUserId, photo_url: photoUrl });
-          onRefreshProfiles();
-        } catch (e) {
-          console.error('[MainScreen] 사진 업로드 실패:', e);
-          alert('사진 업로드 중 오류가 발생했습니다. 다시 시도해 주세요.');
-        } finally {
-          setPhotoUploading(false);
-        }
-      };
-      reader.readAsDataURL(file);
-    } catch { setPhotoUploading(false); }
-    // 같은 파일 재선택 허용
-    e.target.value = '';
+      const compressed = await compressProfilePhoto(file);
+      const path = `profile-photos/${currentUserId}`;
+      const uploadResponse = await fetch('/api/db/storage-upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path, dataUrl: compressed }),
+      });
+      if (!uploadResponse.ok) {
+        throw new Error(`사진 업로드 실패 (${uploadResponse.status})`);
+      }
+      const version = Date.now();
+      const photoUrl = `/api/db/storage-image?p=${encodeURIComponent(path)}&t=${version}`;
+      const { error } = await supabase.from('profiles').update({ photo_url: photoUrl } as never).eq('id', currentUserId);
+      if (error) throw new Error(error.message);
+      setPhotoCacheBust(version);
+      onUpdateProfile({ id: currentUserId, photo_url: photoUrl });
+      onRefreshProfiles();
+    } catch (error) {
+      console.error('[MainScreen] 사진 업로드 실패:', error);
+      alert(error instanceof Error ? error.message : '사진 업로드 중 오류가 발생했습니다. 다시 시도해 주세요.');
+    } finally {
+      setPhotoUploading(false);
+    }
   };
 
   return (
@@ -805,15 +787,6 @@ export function MainScreen({
               const domLabel = getDomSubLabel(me.dom_sub_score ?? null);
               const domColor = getDomSubBg(me.dom_sub_score ?? null);
               const bioTags = parseProfileInterests(me);
-              const hidePersonality = (me as { hide_personality?: boolean }).hide_personality ?? true;
-              const handleToggleHidePersonality = async () => {
-                const next = !hidePersonality;
-                if (!currentUserId) return;
-                try {
-                  await supabase.from('profiles').update({ hide_personality: next } as never).eq('id', currentUserId);
-                  onUpdateProfile({ id: currentUserId, hide_personality: next } as never);
-                } catch (e) { console.error('[hide_personality]', e); }
-              };
               return (
                 <div className={`rounded-3xl p-5 border shadow-xl transition-colors duration-300 ${darkMode ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600' : 'bg-white border-gray-100'}`}>
                   <div className="flex items-center justify-between mb-3">
@@ -832,8 +805,12 @@ export function MainScreen({
                     <div className="flex-shrink-0 flex flex-col items-center gap-1 pt-[17px]">
                       <div className="relative w-32 h-32">
                         <label className={`block w-full h-full rounded-2xl overflow-hidden border-2 border-cyan-500/50 shadow-lg shadow-cyan-500/20 cursor-pointer group ${photoUploading ? 'cursor-wait' : ''}`}>
-                          <img src={getAvatarSrc(me.photo_url, me.nickname)} alt={me.nickname} className="w-full h-full object-cover"
-                            onError={(e) => { (e.target as HTMLImageElement).src = genAvatar(me.nickname); }} />
+                          <img src={getAvatarSrc(me.photo_url, me.nickname, photoCacheBust)} alt={me.nickname} className="w-full h-full object-cover"
+                            onError={(e) => {
+                              const image = e.currentTarget;
+                              image.onerror = null;
+                              image.src = genAvatar(me.nickname);
+                            }} />
                           <div className={`absolute inset-0 flex flex-col items-center justify-center photo-overlay transition-all ${photoUploading ? 'bg-black/60' : 'bg-black/0 group-hover:bg-black/50'}`}>
                             {photoUploading ? (
                               <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -844,7 +821,7 @@ export function MainScreen({
                               </div>
                             )}
                           </div>
-                          <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} disabled={photoUploading} />
+                          <input type="file" accept={PROFILE_PHOTO_ACCEPT} className="hidden" onChange={handlePhotoUpload} disabled={photoUploading} />
                         </label>
                         {!photoUploading && (
                           <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-cyan-500 border-2 border-slate-900 flex items-center justify-center pointer-events-none shadow">
@@ -1436,11 +1413,16 @@ export function MainScreen({
                   {/* ── 사진·아바타 ── */}
                   <div className={`border-b ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
                     <button onClick={() => toggleSection('avatar')} className="w-full flex items-center gap-3 px-4 py-3 text-left">
-                      {me.photo_url ? (
-                        <img src={me.photo_url} alt="" className="w-9 h-9 rounded-xl object-cover flex-shrink-0 border border-white/10" />
-                      ) : (
-                        <div className="w-9 h-9 rounded-xl bg-teal-500 flex items-center justify-center text-white font-black text-sm flex-shrink-0">{me.nickname?.[0] ?? '?'}</div>
-                      )}
+                      <img
+                        src={getAvatarSrc(me.photo_url, me.nickname, photoCacheBust)}
+                        alt={me.nickname}
+                        className="w-9 h-9 rounded-xl object-cover flex-shrink-0 border border-white/10"
+                        onError={(e) => {
+                          const image = e.currentTarget;
+                          image.onerror = null;
+                          image.src = genAvatar(me.nickname);
+                        }}
+                      />
                       <div className="flex-1 min-w-0">
                         <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>사진 · 아바타</p>
                         <p className={`text-[11px] ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>탭하여 사진 또는 아바타 변경</p>
@@ -1453,10 +1435,10 @@ export function MainScreen({
                           <Camera className={`w-5 h-5 flex-shrink-0 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
                           <div className="flex-1">
                             <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-700'}`}>내 사진 업로드</p>
-                            <p className={`text-[11px] ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>JPG/PNG · 자동 압축</p>
+                            <p className={`text-[11px] ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>JPG/PNG/WebP/GIF · 자동 압축</p>
                           </div>
                           {photoUploading && <div className="w-5 h-5 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />}
-                          <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} disabled={photoUploading} />
+                          <input type="file" accept={PROFILE_PHOTO_ACCEPT} className="hidden" onChange={handlePhotoUpload} disabled={photoUploading} />
                         </label>
                         <p className={`text-[11px] font-black mb-1 ${darkMode ? 'text-slate-300' : 'text-gray-600'}`}>🎨 기본 아바타 선택</p>
                         <p className={`text-[9px] mb-2 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>⚠️ 저작권으로 인하여 아래와 같은 아바타 밖에 만들지 못합니다.</p>
@@ -2242,7 +2224,10 @@ export function MainScreen({
                 const chatUnread = unreadForChat(unreadChatCounts, chat.id);
                 return (
                   <div key={chat.id}
-                    onClick={() => { if (guardLockedAction()) return; otherProfile && onOpenChat(otherProfile); }}
+                    onClick={() => {
+                      if (guardLockedAction()) return;
+                      if (otherProfile) onOpenChat(otherProfile);
+                    }}
                     className={`rounded-2xl shadow-sm p-4 flex items-center gap-3 cursor-pointer transition-colors duration-300 active:scale-[0.98] ${darkMode ? 'bg-slate-800 border border-slate-600 hover:bg-slate-700' : 'bg-white hover:bg-gray-50'}`}>
                     <div className="relative w-12 h-12 rounded-full overflow-hidden flex-shrink-0 bg-gray-200">
                       {otherProfile ? (

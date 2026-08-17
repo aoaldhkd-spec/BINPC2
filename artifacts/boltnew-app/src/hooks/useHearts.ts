@@ -3,12 +3,18 @@ import { supabase } from '../lib/supabase';
 import type { Profile, ContactShare } from '../types/app';
 import { HeartType } from '../lib/constants';
 import { countTodayInterestMission, type LikeRowForMission } from '../lib/signal-match';
+import {
+  mergeMapAfterSnapshot,
+  mergeRowsAfterSnapshot,
+  mergeSetAfterSnapshot,
+} from '../lib/realtime-merge';
+import { diag } from '../lib/diag';
 
 export function useHearts(
   currentUserId: string | null,
   profiles: Profile[],
-  profileMap: Map<string, Profile>,
-  onOpenChat: (profile: Profile) => void,
+  _profileMap: Map<string, Profile>,
+  _onOpenChat: (profile: Profile) => void,
 ) {
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [sentHeartTypes, setSentHeartTypes] = useState<Map<string, HeartType>>(new Map());
@@ -22,6 +28,26 @@ export function useHearts(
   const [likeConfirmTarget, setLikeConfirmTarget] = useState<Profile | null>(null);
   const [contactShareTarget, setContactShareTarget] = useState<Profile | null>(null);
   const [outgoingLikeRows, setOutgoingLikeRows] = useState<LikeRowForMission[]>([]);
+  const likedIdsRef = useRef(likedIds);
+  const sentHeartTypesRef = useRef(sentHeartTypes);
+  const sentHeartsPerPersonRef = useRef(sentHeartsPerPerson);
+  const likeStatusesRef = useRef(likeStatuses);
+  const outgoingLikeRowsRef = useRef(outgoingLikeRows);
+  const receivedHeartTypesRef = useRef(receivedHeartTypes);
+  const acknowledgedComplimentIdsRef = useRef(acknowledgedComplimentIds);
+  const receivedLikersRef = useRef(receivedLikers);
+  const contactSharedWithIdsRef = useRef(contactSharedWithIds);
+  const receivedContactSharesRef = useRef(receivedContactShares);
+  likedIdsRef.current = likedIds;
+  sentHeartTypesRef.current = sentHeartTypes;
+  sentHeartsPerPersonRef.current = sentHeartsPerPerson;
+  likeStatusesRef.current = likeStatuses;
+  outgoingLikeRowsRef.current = outgoingLikeRows;
+  receivedHeartTypesRef.current = receivedHeartTypes;
+  acknowledgedComplimentIdsRef.current = acknowledgedComplimentIds;
+  receivedLikersRef.current = receivedLikers;
+  contactSharedWithIdsRef.current = contactSharedWithIds;
+  receivedContactSharesRef.current = receivedContactShares;
   // useRef로 선언 — React 리렌더 전에 두 번 호출돼도 같은 참조를 공유해 race 방지
   const likeInFlightRef = useRef(false);
   // 하트 응답(수락/거절) 중복 클릭 방지용 ref
@@ -31,12 +57,14 @@ export function useHearts(
   // 세대 카운터 — 계정 전환 중 in-flight 응답이 새 사용자 state를 덮어쓰는 race 방지
   const loadLikesGenRef = useRef(0);
   const loadReceivedLikesGenRef = useRef(0);
+  const loadContactShareGenRef = useRef(0);
 
   // 계정 전환(또는 로그아웃) 시 즉시 이전 사용자 하트 state를 초기화하고
   // 세대 카운터를 올려 in-flight 요청이 새 사용자 state를 덮어쓰지 못하게 한다.
   useEffect(() => {
     loadLikesGenRef.current += 1;
     loadReceivedLikesGenRef.current += 1;
+    loadContactShareGenRef.current += 1;
     setLikedIds(new Set());
     setSentHeartTypes(new Map());
     setSentHeartsPerPerson(new Map());
@@ -54,26 +82,47 @@ export function useHearts(
   // ✅ try/catch + 세대 카운터 — 계정 전환 중 in-flight 응답이 새 사용자 state를 덮어쓰는 race 방지
   const loadLikes = useCallback(async (userId: string) => {
     const gen = ++loadLikesGenRef.current;
+    const atStart = {
+      likedIds: new Set(likedIdsRef.current),
+      sentHeartTypes: new Map(sentHeartTypesRef.current),
+      sentHeartsPerPerson: new Map(sentHeartsPerPersonRef.current),
+      likeStatuses: new Map(likeStatusesRef.current),
+      outgoingLikeRows: [...outgoingLikeRowsRef.current],
+    };
     try {
-      const { data, error } = await supabase.from('likes').select('liked_id, status, heart_type, created_at').eq('liker_id', userId);
+      const { data, error } = await supabase.from('likes').select('id, liked_id, status, heart_type, created_at').eq('liker_id', userId);
       if (gen !== loadLikesGenRef.current) return; // 계정이 바뀐 경우 stale 응답 폐기
       if (error) { console.warn('[useHearts] loadLikes error', error.message); return; }
       if (data) {
-        setLikedIds(new Set(data.map((l: { liked_id: string }) => l.liked_id)));
-        setSentHeartTypes(new Map(data.map((l: { liked_id: string; heart_type: string | null }) => [l.liked_id, (l.heart_type ?? 'red') as HeartType])));
-        setLikeStatuses(new Map(data.map((l: { liked_id: string; status: string }) => [l.liked_id, l.status])));
+        const fetchedLikedIds = new Set<string>(data.map((l: { liked_id: string }) => l.liked_id));
+        const fetchedHeartTypes = new Map<string, HeartType>(data.map((l: { liked_id: string; heart_type: string | null }) => [l.liked_id, (l.heart_type ?? 'red') as HeartType]));
+        const fetchedStatuses = new Map<string, string>(data.map((l: { liked_id: string; status: string }) => [l.liked_id, l.status]));
+        setLikedIds(current => mergeSetAfterSnapshot(fetchedLikedIds, atStart.likedIds, current));
+        setSentHeartTypes(current => mergeMapAfterSnapshot(fetchedHeartTypes, atStart.sentHeartTypes, current));
+        setLikeStatuses(current => mergeMapAfterSnapshot(fetchedStatuses, atStart.likeStatuses, current));
         const hmap = new Map<string, Set<HeartType>>();
         data.forEach((l: { liked_id: string; heart_type: string | null }) => {
           const s = hmap.get(l.liked_id) ?? new Set<HeartType>();
           s.add((l.heart_type ?? 'red') as HeartType);
           hmap.set(l.liked_id, s);
         });
-        setSentHeartsPerPerson(hmap);
-        setOutgoingLikeRows(data.map((l: { liked_id: string; heart_type: string | null; created_at?: string | null }) => ({
+        setSentHeartsPerPerson(current => mergeMapAfterSnapshot(hmap, atStart.sentHeartsPerPerson, current));
+        const fetchedRows = data.map((l: { liked_id: string; heart_type: string | null; created_at?: string | null }) => ({
           liked_id: l.liked_id,
           heart_type: l.heart_type ?? 'red',
           created_at: l.created_at ?? null,
-        })));
+        }));
+        setOutgoingLikeRows(current => mergeRowsAfterSnapshot(
+          fetchedRows,
+          atStart.outgoingLikeRows,
+          current,
+          row => `${row.liked_id}:${row.heart_type}`,
+        ));
+        const last = data[data.length - 1] as { id?: string; created_at?: string | null } | undefined;
+        diag('debug', 'hearts', 'state-merge', {
+          corr: last?.id ?? `likes:${userId}:${gen}`,
+          data: { rowId: last?.id ?? null, createdAt: last?.created_at ?? null, source: 'fetch', count: data.length },
+        });
       }
     } catch { /* 네트워크 오류 — stale state 유지 */ }
   }, []);
@@ -81,30 +130,71 @@ export function useHearts(
   // ✅ try/catch + 세대 카운터 — 계정 전환 중 in-flight 응답이 새 사용자 state를 덮어쓰는 race 방지
   const loadReceivedLikes = useCallback(async (userId: string) => {
     const gen = ++loadReceivedLikesGenRef.current;
+    const atStart = {
+      heartTypes: new Map(receivedHeartTypesRef.current),
+      acknowledged: new Set(acknowledgedComplimentIdsRef.current),
+      likers: [...receivedLikersRef.current],
+    };
     try {
-      const { data } = await supabase.from('likes').select('liker_id, status, heart_type').eq('liked_id', userId);
+      const { data } = await supabase.from('likes').select('id, liker_id, status, heart_type, created_at').eq('liked_id', userId);
       if (gen !== loadReceivedLikesGenRef.current) return; // 계정이 바뀐 경우 stale 응답 폐기
-      if (!data?.length) { setReceivedLikers([]); setReceivedHeartTypes(new Map()); setAcknowledgedComplimentIds(new Set()); return; }
-      setReceivedHeartTypes(new Map(data.map((l: { liker_id: string; heart_type: string | null }) => [l.liker_id, (l.heart_type ?? 'red') as HeartType])));
-      setAcknowledgedComplimentIds(new Set(data.filter((l: { liker_id: string; status: string; heart_type: string | null }) => l.status === 'accepted' && (l.heart_type ?? 'red') === 'green').map((l: { liker_id: string }) => l.liker_id)));
-      const activeLikerIds = data.filter((l: { liker_id: string; status: string }) => l.status !== 'rejected').map((l: { liker_id: string }) => l.liker_id);
-      if (!activeLikerIds.length) { setReceivedLikers([]); return; }
+      const rows = data ?? [];
+      const fetchedHeartTypes = new Map<string, HeartType>(rows.map((l: { liker_id: string; heart_type: string | null }) => [l.liker_id, (l.heart_type ?? 'red') as HeartType]));
+      const fetchedAcknowledged = new Set<string>(rows.filter((l: { liker_id: string; status: string; heart_type: string | null }) => l.status === 'accepted' && (l.heart_type ?? 'red') === 'green').map((l: { liker_id: string }) => l.liker_id));
+      setReceivedHeartTypes(current => mergeMapAfterSnapshot(fetchedHeartTypes, atStart.heartTypes, current));
+      setAcknowledgedComplimentIds(current => mergeSetAfterSnapshot(fetchedAcknowledged, atStart.acknowledged, current));
+      if (!rows.length) {
+        setReceivedLikers(current => mergeRowsAfterSnapshot([], atStart.likers, current, profile => profile.id));
+        return;
+      }
+      const activeLikerIds = rows.filter((l: { liker_id: string; status: string }) => l.status !== 'rejected').map((l: { liker_id: string }) => l.liker_id);
+      if (!activeLikerIds.length) {
+        setReceivedLikers(current => mergeRowsAfterSnapshot([], atStart.likers, current, profile => profile.id));
+        return;
+      }
       const { data: ps } = await supabase.from('profiles').select('*').in('id', activeLikerIds);
       if (gen !== loadReceivedLikesGenRef.current) return; // 두 번째 await 후에도 재확인
-      if (ps) setReceivedLikers(ps);
+      if (ps) setReceivedLikers(current => mergeRowsAfterSnapshot(ps, atStart.likers, current, profile => profile.id));
+      const last = rows[rows.length - 1] as { id?: string; created_at?: string | null } | undefined;
+      diag('debug', 'hearts', 'state-merge', {
+        corr: last?.id ?? `received-likes:${userId}:${gen}`,
+        data: { rowId: last?.id ?? null, createdAt: last?.created_at ?? null, source: 'fetch', count: rows.length },
+      });
     } catch { /* 네트워크 오류 — stale state 유지 */ }
   }, []);
 
   // ✅ try/catch 추가
   const loadContactShareData = useCallback(async (userId: string) => {
+    const gen = ++loadContactShareGenRef.current;
+    const atStart = {
+      sharedWithIds: new Set(contactSharedWithIdsRef.current),
+      receivedShares: [...receivedContactSharesRef.current],
+    };
     try {
       // Fix #9: 두 독립 쿼리를 Promise.all로 병렬 실행 → 레이턴시 ~50% 감소
       const [sharedResult, receivedResult] = await Promise.all([
         supabase.from('contact_shares').select('liker_id').eq('liked_id', userId),
         supabase.from('contact_shares').select('*').eq('liker_id', userId),
       ]);
-      if (sharedResult.data) setContactSharedWithIds(new Set(sharedResult.data.map((s: { liker_id: string }) => s.liker_id)));
-      if (receivedResult.data) setReceivedContactShares(receivedResult.data as ContactShare[]);
+      if (gen !== loadContactShareGenRef.current) return;
+      if (sharedResult.data) {
+        const fetched = new Set<string>(sharedResult.data.map((s: { liker_id: string }) => s.liker_id));
+        setContactSharedWithIds(current => mergeSetAfterSnapshot(fetched, atStart.sharedWithIds, current));
+      }
+      if (receivedResult.data) {
+        const fetched = receivedResult.data as ContactShare[];
+        setReceivedContactShares(current => mergeRowsAfterSnapshot(
+          fetched,
+          atStart.receivedShares,
+          current,
+          share => share.id ?? `${share.liker_id}:${share.liked_id}`,
+        ));
+        const last = fetched[fetched.length - 1];
+        diag('debug', 'contact', 'state-merge', {
+          corr: last?.id ?? `contact:${userId}:${gen}`,
+          data: { rowId: last?.id ?? null, createdAt: last?.created_at ?? null, source: 'fetch', count: fetched.length },
+        });
+      }
     } catch { /* 네트워크 오류 — stale state 유지 */ }
   }, []);
 

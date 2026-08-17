@@ -131,7 +131,6 @@ describe('venue load 50/100/150 (in-process)', () => {
     const grewMb = (rss1 - rss0) / 1048576;
     expect(grewMb).toBeLessThan(250);
 
-    // eslint-disable-next-line no-console
     console.log(JSON.stringify({
       registerP50: pct(lat, 50), registerP95: pct(lat, 95),
       readyP50: pct(readyLat, 50), readyP95: pct(readyLat, 95),

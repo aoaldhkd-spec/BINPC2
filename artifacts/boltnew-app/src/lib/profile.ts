@@ -103,6 +103,12 @@ export function hasUploadedPhoto(url: string | null | undefined): boolean {
   return true;
 }
 
+/** Bundled square WebP preset. Large non-square views should contain, not crop, it. */
+export function isPresetAvatar(url: string | null | undefined): boolean {
+  if (!url) return false;
+  return /(?:^|\/)avatars\/av\d+\.webp(?:[?#]|$)/i.test(url);
+}
+
 export function getAvatarGradient(nickname: string): { from: string; to: string } {
   const nick = nickname.trim() || '?';
   return AVATAR_PALETTE[avatarPaletteIndex(nick) % AVATAR_PALETTE.length];
@@ -114,9 +120,21 @@ export function getAvatarGradientCss(nickname: string): string {
   return `linear-gradient(135deg, ${from} 0%, ${to} 100%)`;
 }
 
-export function getAvatarSrc(url: string | null | undefined, nick: string): string {
+export function getAvatarSrc(
+  url: string | null | undefined,
+  nick: string,
+  cacheBust?: string | number,
+): string {
   if (!hasUploadedPhoto(url)) return genAvatar(nick);
-  return url!;
+  const src = url!;
+  if (
+    cacheBust == null ||
+    !src.includes('/api/db/storage-image') ||
+    src.startsWith('data:')
+  ) {
+    return src;
+  }
+  return `${src}${src.includes('?') ? '&' : '?'}v=${encodeURIComponent(String(cacheBust))}`;
 }
 
 /** Playwright smoke marker from scripts/verify-chat-gestures.mjs — never show in the live deck. */

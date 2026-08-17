@@ -43,12 +43,13 @@ export function newRequestId(): string {
 }
 
 const SENSITIVE_KEY = /pass|secret|token|authorization|cookie|kakao|phone|content|message|body|password/i;
+const SAFE_IDENTIFIER_KEY = /^(?:message|room|chat|row|event|like|contact|client|user|sender|receiver|fromUser|toUser)?_?id$/i;
 
 function scrub(data?: Record<string, unknown>): Record<string, unknown> | undefined {
   if (!data) return undefined;
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(data)) {
-    if (SENSITIVE_KEY.test(k)) {
+    if (SENSITIVE_KEY.test(k) && !SAFE_IDENTIFIER_KEY.test(k)) {
       out[k] = '[redacted]';
       continue;
     }

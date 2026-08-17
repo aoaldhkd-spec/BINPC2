@@ -8,6 +8,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Profile, GroupChat, GroupMessage, GroupParticipant } from '../types/app';
+import type { BottomNotificationData } from '../components/BottomNotification';
 import {
   MAX_GROUPS_PER_USER,
   catalogGroupRooms,
@@ -46,8 +47,7 @@ function applyGroupInsert(prev: GroupMessage[], newMsg: GroupMessage): GroupMess
 interface UseGroupChatDeps {
   currentUserId: string | null;
   profilesRef: React.MutableRefObject<Profile[]>;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  setBottomNotif: (n: any) => void;
+  setBottomNotif: React.Dispatch<React.SetStateAction<BottomNotificationData | null>>;
 }
 
 export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: UseGroupChatDeps) {
@@ -160,7 +160,7 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
     } catch (e) {
       console.error('[loadGroupChats] 오류:', e);
     }
-  }, []);
+  }, [profilesRef]);
 
   // ── 단톡방 메시지 로드 ───────────────────────────────────────────────────────
   const loadGroupMessages = useCallback(async (groupId: string): Promise<boolean> => {
@@ -248,7 +248,7 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
     if (isJoinedGroupId(rawGroupsRef.current, myGroupIdsRef.current, groupId)) return true;
     const occupied = countJoinedCatalogRooms(rawGroupsRef.current, myGroupIdsRef.current);
     if (occupied >= MAX_GROUPS_PER_USER) {
-      setBottomNotif({ type: 'error', nickname: groupLimitMessage() });
+      setBottomNotif({ type: 'system', message: groupLimitMessage() });
       return false;
     }
     setJoiningGroupId(groupId);
@@ -261,7 +261,7 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
         const msg = error.code === 'GROUP_LIMIT' || (error.message ?? '').includes('최대 4') || (error.message ?? '').includes('최대 3')
           ? groupLimitMessage()
           : (error.message || '입장에 실패했어요. 잠시 후 다시 시도해 주세요.');
-        setBottomNotif({ type: 'error', nickname: msg });
+        setBottomNotif({ type: 'system', message: msg });
         return false;
       }
       recentlyLeftRef.current.delete(groupId);
@@ -281,7 +281,7 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
       return true;
     } catch (e) {
       console.error('[joinGroupChat] 오류:', e);
-      setBottomNotif({ type: 'error', nickname: '입장에 실패했어요. 잠시 후 다시 시도해 주세요.' });
+      setBottomNotif({ type: 'system', message: '입장에 실패했어요. 잠시 후 다시 시도해 주세요.' });
       return false;
     } finally {
       setJoiningGroupId(null);
@@ -412,7 +412,7 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
       if (!success) {
         // 3회 실패 → 낙관적 메시지 롤백 + 사용자 알림
         setGroupMessages(prev => prev.filter(m => m.id !== optimisticId));
-        setBottomNotif({ type: 'error', nickname: '단톡 전송 실패 — 잠시 후 다시 시도해 주세요' });
+        setBottomNotif({ type: 'system', message: '단톡 전송 실패 — 잠시 후 다시 시도해 주세요' });
       }
     } finally {
       sendingGroupRef.current.delete(snapGroupId);

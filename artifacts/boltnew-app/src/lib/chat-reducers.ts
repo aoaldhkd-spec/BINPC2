@@ -4,10 +4,21 @@
  *
  * 안전 장치:
  * - applySseInsert: DB id 중복 체크(1) → client_id 정확 매칭(2) → fuzzy 매칭(3, 창 2초) → 새 메시지 append(4)
- * - applyLoadMessages: DB 행이 정원 — optimistic 중 DB에 없는 것만 보존 → created_at 정렬
+ * - applyLoadMessages: fetch 시작 뒤 도착한 realtime 행과 optimistic을 보존 → created_at 정렬
  */
 
 import type { Message } from '../types/app';
+
+function sortMessages(messages: Message[]): Message[] {
+  return messages.sort((a, b) => {
+    const at = new Date(a.created_at).getTime();
+    const bt = new Date(b.created_at).getTime();
+    if (!Number.isFinite(at) && !Number.isFinite(bt)) return 0;
+    if (!Number.isFinite(at)) return -1;
+    if (!Number.isFinite(bt)) return 1;
+    return at - bt;
+  });
+}
 
 /**
  * Applied when an SSE INSERT event arrives for the currently-open chat.
@@ -78,8 +89,15 @@ export function applySseInsert(
   if (expectedChatId) {
     if (!messageBelongsToChat(newMsg, expectedChatId, allowedChatIds)) return prev;
   }
-  // 1. Already present by DB id — skip (idempotent guard)
-  if (prev.some((m) => m.id === newMsg.id)) return prev;
+  // 1. Already present by DB id — idempotent. A matching optimistic ghost may
+  // still coexist after an HTTP/SSE race, so remove that ghost while keeping
+  // the confirmed row.
+  if (prev.some((m) => m.id === newMsg.id)) {
+    if (!newMsg.client_id) return prev;
+    const optimisticId = `__opt_${newMsg.client_id}`;
+    const withoutGhost = prev.filter(m => m.id !== optimisticId);
+    return withoutGhost.length === prev.length ? prev : sortMessages(withoutGhost);
+  }
 
   // 2. Exact client_id match — replace optimistic placeholder
   if (newMsg.client_id) {
@@ -87,7 +105,7 @@ export function applySseInsert(
     if (optIdx !== -1) {
       const next = [...prev];
       next[optIdx] = newMsg;
-      return next;
+      return sortMessages(next);
     }
   }
 
@@ -106,42 +124,75 @@ export function applySseInsert(
   if (fuzzyIdx !== -1) {
     const next = [...prev];
     next[fuzzyIdx] = newMsg;
-    return next;
+    return sortMessages(next);
   }
 
   // 4. New message from another source — append then sort by created_at
   // SSE 이벤트가 네트워크 지연으로 순서가 뒤바뀌어 도착해도 시간 순서 보장
-  const next = [...prev, newMsg];
-  next.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  return sortMessages([...prev, newMsg]);
+}
+
+/** Apply one realtime message to every cache key that can open its room. */
+export function applySseToRoomCaches(
+  cache: ReadonlyMap<string, Message[]>,
+  message: Message,
+  roomIds: Iterable<string>,
+): Map<string, Message[]> {
+  const next = new Map(cache);
+  for (const roomId of new Set(roomIds)) {
+    if (!roomId) continue;
+    next.set(
+      roomId,
+      applySseInsert(next.get(roomId) ?? [], message, roomId, [message.chat_id]),
+    );
+  }
   return next;
 }
 
 /**
  * Applied when loadMessages returns DB rows for the active chat.
  *
- * Rules:
- * 1. Accept all DB rows as the authoritative list.
- * 2. Keep optimistic messages (`__opt_*`) that are NOT yet reflected in the
- *    DB — identified by neither their id nor their client_id appearing in DB.
- * 3. Strip optimistic messages whose client_id IS in the DB (insert succeeded).
- * 4. Sort merged list by created_at so optimistic messages land in the right place.
+ * `idsAtRequestStart` is the message snapshot captured immediately before the
+ * fetch. Confirmed rows that appear in current state but not in that snapshot
+ * arrived while the request was in flight (usually via SSE), so a stale fetch
+ * must preserve them. Rows already present at request start remain
+ * authoritative to the DB result, allowing genuine deletions to disappear.
  */
-export function applyLoadMessages(prev: Message[], data: Message[]): Message[] {
-  const dbIds = new Set(data.map((m) => m.id));
+export function applyLoadMessages(
+  prev: Message[],
+  data: Message[],
+  options?: {
+    idsAtRequestStart?: ReadonlySet<string>;
+    deletedIds?: ReadonlySet<string>;
+  },
+): Message[] {
+  const deletedIds = options?.deletedIds ?? new Set<string>();
+  const idsAtRequestStart = options?.idsAtRequestStart ?? new Set(prev.map(m => m.id));
+  const uniqueData = [...new Map(
+    data.filter(m => !deletedIds.has(m.id)).map(m => [m.id, m]),
+  ).values()];
+  const dbIds = new Set(uniqueData.map((m) => m.id));
   const dbClientIds = new Set<string>(
-    data.flatMap((m) => (m.client_id != null ? [m.client_id] : [])),
+    uniqueData.flatMap((m) => (m.client_id != null ? [m.client_id] : [])),
   );
 
-  // 아직 DB에 반영되지 않은 optimistic 메시지만 보존
+  // 아직 DB에 반영되지 않은 optimistic 메시지 보존
   const optimistic = prev.filter(
     (m) =>
       m.id.startsWith('__opt_') &&
+      !deletedIds.has(m.id) &&
       !dbIds.has(m.id) &&
       !dbClientIds.has(m.id.replace('__opt_', '')),
   );
 
-  // DB rows + 미반영 optimistic을 created_at 기준으로 정렬
-  const merged = [...data, ...optimistic];
-  merged.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-  return merged;
+  // fetch 시작 후 realtime/HTTP 확정으로 추가된 DB 행 보존
+  const concurrentConfirmed = prev.filter(m =>
+    !m.id.startsWith('__opt_')
+    && !idsAtRequestStart.has(m.id)
+    && !dbIds.has(m.id)
+    && !deletedIds.has(m.id)
+    && (!m.client_id || !dbClientIds.has(m.client_id)),
+  );
+
+  return sortMessages([...uniqueData, ...concurrentConfirmed, ...optimistic]);
 }

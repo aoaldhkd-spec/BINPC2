@@ -90,7 +90,7 @@ type Step = 1 | 2 | 3 | 4 | 5;
 
 // ─── NicknameSetupScreen ──────────────────────────────────────────────────────
 
-export function NicknameSetupScreen({ onSubmit, loading, registrationError, onReset, onShowRecovery }: {
+export function NicknameSetupScreen({ onSubmit, loading, registrationError, onReset, onShowRecovery: _onShowRecovery }: {
   onSubmit: (data: {
     birthYear: number; birthMonth: number | null; birthDay: number | null;
     location: string; mbti: string; interests: string[];

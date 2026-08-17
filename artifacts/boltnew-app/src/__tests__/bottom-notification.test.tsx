@@ -31,4 +31,17 @@ describe('BottomNotification', () => {
     expect(screen.getByText(MUTUAL_HEART_TOAST)).toBeTruthy();
     expect(screen.queryByText(/서로 시그널/)).toBeNull();
   });
+
+  it('renders group-chat failure copy through the supported system notification', () => {
+    const message = '단톡 전송 실패 — 잠시 후 다시 시도해 주세요';
+    render(
+      <BottomNotification
+        notification={{ type: 'system', message }}
+        onClose={vi.fn()}
+        onGoToStatus={vi.fn()}
+        onGoToChats={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(message)).toBeTruthy();
+  });
 });
