@@ -540,25 +540,13 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
             </button>
           </div>
         </div>
-        <div className="max-w-4xl mx-auto px-2 grid grid-cols-5 pb-0">
-          {TABS.map((t) => (
-            <button key={t.id} onClick={() => handleTabChange(t.id)}
-              className={`touch-target relative flex min-w-0 items-center justify-center gap-1 px-0.5 py-2 text-[10px] min-[360px]:text-[11px] font-semibold border-b-2 transition-all ${
-                tab === t.id ? 'border-teal-400 text-white' : 'border-transparent text-slate-400 hover:text-slate-200'
-              }`}>
-              {t.icon}
-              <span className="truncate">{t.label}</span>
-              {t.badge !== undefined && t.badge > 0 && (
-                <span className="ml-0.5 px-1.5 py-0.5 bg-rose-500 text-white text-[10px] font-bold rounded-full leading-none">
-                  {t.badge}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
       </header>
 
-      <main className="max-w-4xl mx-auto">
+      <main className={`max-w-4xl mx-auto ${
+        tab === 'chats'
+          ? 'pb-[calc(6.5rem+env(safe-area-inset-bottom))]'
+          : 'pb-[calc(3.5rem+env(safe-area-inset-bottom))]'
+      }`}>
         <Suspense fallback={<AdminTabFallback />}>
         {tab === 'settings' && (
           <div>
@@ -639,6 +627,25 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         {tab === 'notify' && <NotificationTab tableCount={0} settings={settings} onSetTimer={handleSetTimer} />}
         </Suspense>
       </main>
+
+      <nav aria-label="관리자 메뉴" className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-700 bg-slate-900 text-white pb-[env(safe-area-inset-bottom)]">
+        <div className="mx-auto grid h-14 max-w-4xl grid-cols-5">
+          {TABS.map((t) => (
+            <button key={t.id} onClick={() => handleTabChange(t.id)}
+              className={`touch-target relative flex min-w-0 flex-col items-center justify-center gap-0.5 px-0.5 text-[10px] min-[360px]:text-[11px] font-semibold transition-all ${
+                tab === t.id ? 'text-teal-300' : 'text-slate-400 hover:text-slate-200'
+              }`}>
+              {t.icon}
+              <span className="truncate">{t.label}</span>
+              {t.badge !== undefined && t.badge > 0 && (
+                <span className="absolute right-1 top-1 min-w-[16px] px-1 py-0.5 bg-rose-500 text-white text-[10px] font-bold rounded-full leading-none">
+                  {t.badge}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      </nav>
 
       {/* 초기화 복구 배너 (non-blocking) */}
       {recovery && (

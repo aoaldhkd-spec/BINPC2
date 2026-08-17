@@ -127,21 +127,23 @@ export function ChatsTab({
 
   return (
     <div>
-      <div className="grid grid-cols-3 border-b border-gray-200 bg-white px-2 min-[360px]:px-4">
-        {([
-          { id: 'direct' as HistoryView, label: '1:1 채팅', count: messages.length },
-          { id: 'groups' as HistoryView, label: '단체채팅', count: groupMessages.length },
-          { id: 'signals' as HistoryView, label: '시그널', count: signalSends.length },
-        ]).map(item => (
-          <button key={item.id} onClick={() => setHistoryView(item.id)}
-            className={`touch-target min-w-0 border-b-2 px-1 py-2.5 text-[11px] min-[360px]:text-xs font-semibold transition-all ${
-              historyView === item.id ? 'border-cyan-500 text-cyan-700' : 'border-transparent text-gray-500'
-            }`}>
-            <span className="truncate">{item.label}</span>
-            <span className="ml-1 text-[10px] text-gray-400">{item.count}</span>
-          </button>
-        ))}
-      </div>
+      <nav aria-label="채팅 구분" className="fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom))] z-20 border-t border-gray-200 bg-white">
+        <div className="mx-auto grid h-12 max-w-4xl grid-cols-3">
+          {([
+            { id: 'direct' as HistoryView, label: '1:1 채팅', count: messages.length },
+            { id: 'groups' as HistoryView, label: '단체채팅', count: groupMessages.length },
+            { id: 'signals' as HistoryView, label: '시그널', count: signalSends.length },
+          ]).map(item => (
+            <button key={item.id} onClick={() => setHistoryView(item.id)}
+              className={`touch-target min-w-0 border-t-2 px-1 text-[11px] min-[360px]:text-xs font-semibold transition-all ${
+                historyView === item.id ? 'border-cyan-500 text-cyan-700' : 'border-transparent text-gray-500'
+              }`}>
+              <span className="truncate">{item.label}</span>
+              <span className="ml-1 text-[10px] text-gray-400">{item.count}</span>
+            </button>
+          ))}
+        </div>
+      </nav>
 
       {historyError && historyView !== 'direct' && (
         <div role="alert" className="mx-3 mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">

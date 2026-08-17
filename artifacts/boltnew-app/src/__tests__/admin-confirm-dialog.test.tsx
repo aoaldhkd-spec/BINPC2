@@ -167,6 +167,7 @@ describe('admin ConfirmDialog', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: /단체채팅/ }));
+    expect(screen.getByRole('navigation', { name: '채팅 구분' })).toBeTruthy();
     expect(screen.getByText(/전체 6개 방 · 목록 방 4 · 년생 방 2/)).toBeTruthy();
     expect(screen.queryByText(/^[0-9]+개 방 ·/)).toBeNull();
     expect(screen.getByText(/1995년생 모임/)).toBeTruthy();
