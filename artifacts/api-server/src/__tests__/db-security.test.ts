@@ -2102,6 +2102,112 @@ describe('[Security] group chats auto 2 + opt-in 2차', () => {
     expect(visible).not.toContain('50대 모임');
   });
 
+  it('남아 있는 10대/40대 방은 숨기지 않고 삭제한다', async () => {
+    const leftoverUser = `g-retired-mem-${randomUUID()}`;
+    const teenId = `group_age_10_${randomUUID()}`;
+    const fortyId = `group_age_40_${randomUUID()}`;
+    const teen = await op({
+      op: 'insert',
+      table: 'group_chats',
+      payload: {
+        id: teenId,
+        name: '10대 모임',
+        interest_tag: '10대',
+        age_group: '10대',
+        max_members: 999999,
+        room_kind: 'age_decade',
+        hidden: true,
+      },
+      requesterId: 'seed-admin',
+      selectAfterWrite: true,
+      single: true,
+    });
+    expect(teen.status).toBe(200);
+    const forty = await op({
+      op: 'insert',
+      table: 'group_chats',
+      payload: {
+        id: fortyId,
+        name: '40대 모임',
+        interest_tag: '40대',
+        age_group: '40대',
+        max_members: 999999,
+        room_kind: 'age_decade',
+        hidden: false,
+      },
+      requesterId: 'seed-admin',
+      selectAfterWrite: true,
+      single: true,
+    });
+    expect(forty.status).toBe(200);
+
+    const joinTeen = await op({
+      op: 'insert',
+      table: 'group_participants',
+      requesterId: leftoverUser,
+      payload: { group_id: teenId, user_id: leftoverUser },
+    });
+    expect(joinTeen.status).toBe(200);
+    const teenMsg = await op({
+      op: 'insert',
+      table: 'group_messages',
+      requesterId: leftoverUser,
+      payload: { group_id: teenId, sender_id: leftoverUser, content: 'leftover-teen-msg' },
+    });
+    expect(teenMsg.status).toBe(200);
+
+    const uid = `g-purge-age-${randomUUID()}`;
+    const created = await op({
+      op: 'insert',
+      table: 'profiles',
+      payload: {
+        id: uid,
+        nickname: `pg-${uid.replace(/-/g, '').slice(0, 12)}`,
+        bio: '영화',
+        mbti: 'ENFP',
+        birth_year: 1998,
+      },
+      requesterId: uid,
+    });
+    expect(created.status).toBe(200);
+
+    const rooms = await op({
+      op: 'select',
+      table: 'group_chats',
+      requesterId: uid,
+    });
+    expect(rooms.status).toBe(200);
+    const list = Array.isArray(rooms.body.data) ? rooms.body.data : [];
+    const names = list.map((g: { name?: string }) => String(g.name ?? ''));
+    const ids = list.map((g: { id?: string }) => String(g.id ?? ''));
+    expect(names).not.toContain('10대 모임');
+    expect(names).not.toContain('40대 모임');
+    expect(ids).not.toContain(teenId);
+    expect(ids).not.toContain(fortyId);
+    expect(list.some((g: { name?: string; hidden?: boolean }) => String(g.name ?? '') === '10대 모임' && g.hidden === true)).toBe(false);
+    expect(names).toContain('20대 모임');
+    expect(names).toContain('30대 모임');
+    expect(names).toContain('1998년생 모임');
+
+    const leftoverParts = await op({
+      op: 'select',
+      table: 'group_participants',
+      requesterId: leftoverUser,
+      filters: [{ type: 'eq', col: 'user_id', val: leftoverUser }],
+    });
+    const leftoverRows = Array.isArray(leftoverParts.body.data) ? leftoverParts.body.data : [];
+    expect(leftoverRows.some((p: { group_id?: string }) => String(p.group_id) === teenId)).toBe(false);
+
+    const leftoverMsgs = await op({
+      op: 'select',
+      table: 'group_messages',
+      requesterId: leftoverUser,
+      filters: [{ type: 'eq', col: 'group_id', val: teenId }],
+    });
+    const leftoverMsgRows = Array.isArray(leftoverMsgs.body.data) ? leftoverMsgs.body.data : [];
+    expect(leftoverMsgRows).toHaveLength(0);
+  });
+
   it('생년이 없으면 기타 모임을 만들지 않는다', async () => {
     const uid = `g-noyear-${randomUUID()}`;
     const created = await op({

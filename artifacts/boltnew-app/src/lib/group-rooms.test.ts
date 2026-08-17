@@ -92,7 +92,7 @@ describe('group-rooms catalog', () => {
     expect(ageBandFromYear('기타')).toBeNull();
   });
 
-  it('maps 40+ into 30대 모임 and hides leftover 10대/50대 rooms', () => {
+  it('maps 40+ into 30대 모임 and does not show leftover 10대/50대 rooms', () => {
     const list = catalogGroupRooms([
       room({ id: 'group_age_10', name: '10대 모임', room_kind: 'age_decade', age_group: '10대' }),
       room({ id: 'group_age_20', name: '20대 모임', room_kind: 'age_decade', age_group: '20대' }),

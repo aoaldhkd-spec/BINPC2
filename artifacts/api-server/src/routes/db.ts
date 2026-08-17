@@ -1572,7 +1572,7 @@ async function ensureOptInGroupRooms(): Promise<void> {
         }
       }
     }
-    // 보이는 N대 방은 20대·30대만. 10대/40~70대는 시드하지 않고, 이미 있으면 숨긴다(삭제 없음).
+    // 보이는 N대 방은 20대·30대만. 10대/40~70대는 시드하지 않고, 이미 있으면 관련 행과 함께 삭제한다.
     for (const band of VISIBLE_AGE_BANDS) {
       const id = `group_age_${band.replace('대', '')}`;
       const name = `${band} 모임`;
@@ -1612,15 +1612,7 @@ async function ensureOptInGroupRooms(): Promise<void> {
         }
       }
     }
-    for (const g of groups) {
-      if (!isRetiredAgeRoom(g) || g.hidden === true) continue;
-      g.hidden = true;
-      try {
-        await dbPersistRow('group_chats', g);
-      } catch (e) {
-        logger.error({ err: e, groupId: String(g.id) }, '[ensureOptInGroupRooms] hide leftover age room failed');
-      }
-    }
+    await purgeRetiredAgeRooms();
   } catch (e) {
     logger.error({ err: e }, '[ensureOptInGroupRooms] 오류');
   }
@@ -1638,6 +1630,46 @@ function isRetiredAgeRoom(g: Record<string, unknown>): boolean {
   return RETIRED_AGE_ROOM_RE.test(name)
     || /^group_age_(10|40|50|60|70)$/.test(id)
     || /^(10|40|50|60|70)대$/.test(band);
+}
+
+async function purgeRetiredAgeRooms(): Promise<void> {
+  const retired = getTable('group_chats').filter(g => isRetiredAgeRoom(g));
+  for (const g of retired) {
+    await deleteRetiredAgeRoom(g);
+  }
+}
+
+async function deleteRetiredAgeRoom(g: Record<string, unknown>): Promise<void> {
+  const groupId = String(g.id ?? '');
+  if (!groupId) return;
+  const msgs = getTable('group_messages').filter(m => String(m.group_id) === groupId);
+  for (const m of msgs) {
+    smartBroadcast('group_messages', m, { type: 'change', table: 'group_messages', event: 'DELETE', newRow: null, oldRow: m });
+  }
+  if (msgs.length) {
+    const msgIds = msgs.map(m => String(m.id)).filter(Boolean);
+    store['group_messages'] = getTable('group_messages').filter(m => String(m.group_id) !== groupId);
+    await dbDeleteRows('group_messages', msgIds);
+  }
+  const parts = getTable('group_participants').filter(p => String(p.group_id) === groupId);
+  for (const p of parts) {
+    const uid = String(p.user_id ?? '');
+    if (uid) await removeParticipant(uid, groupId, false);
+    smartBroadcast('group_participants', p, { type: 'change', table: 'group_participants', event: 'DELETE', newRow: null, oldRow: p });
+  }
+  const outs = getTable('group_opt_outs').filter(r => String(r.group_id) === groupId);
+  if (outs.length) {
+    const outIds = outs.map(r => String(r.id)).filter(Boolean);
+    store['group_opt_outs'] = getTable('group_opt_outs').filter(r => String(r.group_id) !== groupId);
+    await dbDeleteRows('group_opt_outs', outIds);
+  }
+  store['group_chats'] = getTable('group_chats').filter(x => String(x.id) !== groupId);
+  try {
+    await dbDeleteRow('group_chats', groupId);
+  } catch (e) {
+    logger.error({ err: e, groupId }, '[deleteRetiredAgeRoom] group_chats persist failed');
+  }
+  smartBroadcast('group_chats', g, { type: 'change', table: 'group_chats', event: 'DELETE', newRow: null, oldRow: g });
 }
 
 function ageBandFromYear(year: unknown): string | null {
@@ -1898,6 +1930,7 @@ async function joinOrCreateAutoRoom(userId: string, spec: {
 async function autoMatchGroupChat(userId: string, profile: Record<string, unknown>): Promise<void> {
   if (!userId) return;
   try {
+    await purgeRetiredAgeRooms();
     const ageBand = ageBandFromYear(profile.birth_year);
     const year = Number(profile.birth_year);
     const parts = getTable('group_participants').filter(p => String(p.user_id) === userId);
