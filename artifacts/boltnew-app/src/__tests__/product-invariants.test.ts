@@ -81,11 +81,12 @@ describe('product copy + notification invariants', () => {
 
   it('채팅 탭 진입만으로 미읽음 숫자를 지우지 않는다', () => {
     const main = read('components/MainScreen.tsx');
+    const chats = read('components/MainChatsTab.tsx');
     expect(main).not.toMatch(/if \(mainTab === 'chats'\) onClearMsgCount/);
     expect(main).not.toMatch(/if \(t === 'chats'\) \{ onClearMsgCount/);
     expect(main).toContain('sumUnreadCounts(unreadChatCounts)');
     expect(main).toContain('sumUnreadCounts(unreadGroupCounts)');
-    expect(main).toContain('unreadForChat');
+    expect(chats).toContain('unreadForChat');
   });
 
   it('단톡 입장 즉시 열고 나가기·키보드·읽음 숫자가 연결된다', () => {
@@ -107,16 +108,16 @@ describe('product copy + notification invariants', () => {
     expect(hook).toContain('recentlyLeftRef');
     expect(app).toMatch(/closeGroupChat\(\);\s*setView\('main'\)/);
     expect(group).toContain('GroupRoomIcon');
-    expect(read('components/MainScreen.tsx')).toContain('GroupRoomIcon');
+    expect(read('components/MainChatsTab.tsx')).toContain('GroupRoomIcon');
     expect(read('lib/group-rooms.ts')).not.toContain('🪩');
     expect(read('components/GroupRoomIcon.tsx')).toContain('ClubNeonIcon');
   });
 
   it('단톡 catalog is year + decade + opt-in 2차, cap 4', () => {
     expect(MAX_GROUPS_PER_USER).toBe(4);
-    const main = read('components/MainScreen.tsx');
-    expect(main).not.toContain('관심사·나이 / 같은 해 방은 자동');
-    expect(main).toContain('년생·나이대 방은 자동');
+    const chats = read('components/MainChatsTab.tsx');
+    expect(chats).not.toContain('관심사·나이 / 같은 해 방은 자동');
+    expect(chats).toContain('년생·나이대 방은 자동');
   });
 
   it('functions_locked covers signal/group/chat re-entry, kick, and live settings', () => {
@@ -157,5 +158,19 @@ describe('product copy + notification invariants', () => {
     expect(db).toContain('FUNCTIONS_LOCKED_INSERT_TABLES');
     expect(db).toContain("code: 'FUNCTIONS_LOCKED'");
     expect(db).toContain('broadcastAll({ type: \'change\', table: \'app_settings\'');
+  });
+
+  it('participant system Back uses History API and does not wrap AdminApp', () => {
+    const app = read('App.tsx');
+    const mainEntry = read('main.tsx');
+    const nav = read('lib/participant-nav-history.ts');
+    expect(app).toContain('createParticipantNav');
+    expect(app).toContain('goParticipantBack');
+    expect(app).toContain('screen:profile');
+    expect(app).toContain('ParticipantNavProvider');
+    expect(nav).toContain('trapped-root');
+    expect(nav).toContain('handlePopState');
+    expect(mainEntry).not.toContain('createParticipantNav');
+    expect(mainEntry).toContain('AdminApp');
   });
 });

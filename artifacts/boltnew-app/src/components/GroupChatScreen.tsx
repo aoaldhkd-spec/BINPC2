@@ -13,6 +13,7 @@ import { groupRoomVisual, unreadMemberCount } from '../lib/group-rooms';
 import { GroupRoomIcon } from './GroupRoomIcon';
 
 import { genAvatar } from '../lib/profile';
+import { NavLayer } from '../hooks/useParticipantNav';
 
 const getAvatarSrc = (photoUrl: string | null | undefined, nick: string): string => {
   if (!photoUrl) return genAvatar(nick);
@@ -105,16 +106,22 @@ export function GroupChatScreen({
   return (
     <AppErrorBoundary screenName="단체 채팅" onReset={onBack}>
       <div
-        className={`fixed left-0 right-0 flex flex-col z-[9999] ${darkMode ? 'bg-slate-900' : 'bg-gray-100'}`}
-        style={{ ...vpStyle, paddingTop: 'env(safe-area-inset-top)' }}
+        className={`fixed left-0 right-0 min-w-0 flex flex-col z-[9999] ${darkMode ? 'bg-slate-900' : 'bg-gray-100'}`}
+        style={{
+          ...vpStyle,
+          paddingTop: 'env(safe-area-inset-top)',
+          paddingLeft: 'env(safe-area-inset-left)',
+          paddingRight: 'env(safe-area-inset-right)',
+        }}
       >
+        <NavLayer id="group-leave" open={showLeaveConfirm} onClose={() => setShowLeaveConfirm(false)} />
         <div className={`flex items-center gap-3 px-4 py-3 border-b flex-shrink-0 ${
           darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
         }`}>
           <button
             type="button"
             onClick={onBack}
-            className={`p-1.5 rounded-full transition-colors ${
+            className={`touch-target rounded-full transition-colors flex items-center justify-center ${
               darkMode ? 'hover:bg-slate-700' : 'hover:bg-gray-100'
             }`}
           >
@@ -147,7 +154,7 @@ export function GroupChatScreen({
         </div>
 
         {showLeaveConfirm && (
-          <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50">
+          <div className="safe-overlay fixed inset-0 z-[80] flex items-center justify-center bg-black/50">
             <div className={`mx-6 rounded-2xl p-5 shadow-2xl w-full max-w-xs ${darkMode ? 'bg-slate-800' : 'bg-white'}`}>
               <p className={`font-black text-base mb-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>단톡방 나가기</p>
               <p className={`text-sm mb-4 ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>이 방에서 나갑니다. 나중에 다시 입장할 수 있어요.</p>
@@ -295,7 +302,7 @@ export function GroupChatScreen({
               type="button"
               onClick={() => void handleSend()}
               disabled={composerLocked || !input.trim() || sending}
-              className="w-10 h-10 flex items-center justify-center rounded-full bg-teal-500 hover:bg-teal-600 disabled:opacity-40 active:scale-95 transition-all flex-shrink-0"
+              className="touch-target flex items-center justify-center rounded-full bg-teal-500 hover:bg-teal-600 disabled:opacity-40 active:scale-95 transition-all flex-shrink-0"
             >
               <Send className="w-4 h-4 text-white" />
             </button>

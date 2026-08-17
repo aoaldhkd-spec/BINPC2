@@ -63,6 +63,8 @@ import { ls } from './lib/storage';
 import { clearAllGroupLastReads } from './lib/group-rooms';
 import { useHearts } from './hooks/useHearts';
 import { useChat } from './hooks/useChat';
+import { createParticipantNav, isParticipantAppPath } from './lib/participant-nav-history';
+import { NavLayer, ParticipantNavProvider } from './hooks/useParticipantNav';
 import { registerPushSub } from './lib/webPush';
 import {
   BottomNotification,
@@ -89,6 +91,10 @@ const MainScreen = lazy(loadMainScreen);
 
 
 function App() {
+  const participantNavRef = useRef<ReturnType<typeof createParticipantNav> | null>(null);
+  if (!participantNavRef.current) participantNavRef.current = createParticipantNav();
+  const participantNav = participantNavRef.current;
+
   const [currentUserId, setCurrentUserId] = useState<string | null>(() => {
     return ls.getItem(MATCHING_USER_KEY) ?? null;
   });
@@ -115,6 +121,20 @@ function App() {
     void loadMainScreen();
     void loadChatScreen();
   }, []);
+
+  // Participant-only History trap: Android Back / iOS swipe close overlays, not the SPA.
+  useEffect(() => {
+    const nav = participantNav;
+    nav.install();
+    const onPop = () => {
+      if (!isParticipantAppPath(window.location.pathname, import.meta.env.BASE_URL.replace(/\/$/, ''))) return;
+      nav.handlePopState();
+    };
+    window.addEventListener('popstate', onPop);
+    return () => {
+      window.removeEventListener('popstate', onPop);
+    };
+  }, [participantNav]);
   const [sessionActive, setSessionActive] = useState<boolean | null>(null);
   const sessionActiveRef = useRef<boolean | null>(null);
   // Existing users skip the waiting overlay entirely and go straight to main.
@@ -594,6 +614,72 @@ function App() {
     setMainTab(t);
   }, [functionsLocked, showFunctionsLockToast]);
 
+  const screenStackRef = useRef<Array<'profile' | 'chat' | 'group-chat'>>([]);
+  const navDrivenViewRef = useRef(false);
+  const closeChatLayerRef = useRef(() => {});
+  const closeProfileLayerRef = useRef(() => {});
+  const closeGroupLayerRef = useRef(() => {});
+
+  closeChatLayerRef.current = () => {
+    navDrivenViewRef.current = true;
+    chatIdRef.current = null;
+    setChatId(null);
+    if (screenStackRef.current.at(-1) === 'chat') screenStackRef.current.pop();
+    const prev = screenStackRef.current.at(-1);
+    setView(prev === 'profile' ? 'profile' : 'main');
+  };
+  closeProfileLayerRef.current = () => {
+    navDrivenViewRef.current = true;
+    setLikeConfirmTarget(null);
+    if (screenStackRef.current.at(-1) === 'profile') screenStackRef.current.pop();
+    setView('main');
+  };
+  closeGroupLayerRef.current = () => {
+    navDrivenViewRef.current = true;
+    if (screenStackRef.current.at(-1) === 'group-chat') screenStackRef.current.pop();
+    closeGroupChat();
+    setView('main');
+  };
+
+  const goParticipantBack = useCallback(() => {
+    if (participantNav.depth() > 0) participantNav.requestBack();
+    else if (view === 'chat') closeChatLayerRef.current();
+    else if (view === 'profile') closeProfileLayerRef.current();
+    else if (view === 'group-chat') closeGroupLayerRef.current();
+  }, [participantNav, view]);
+
+  useEffect(() => {
+    if (view === 'profile' || view === 'chat' || view === 'group-chat') {
+      if (screenStackRef.current.at(-1) !== view) {
+        screenStackRef.current.push(view);
+        const close = view === 'chat'
+          ? () => closeChatLayerRef.current()
+          : view === 'profile'
+            ? () => closeProfileLayerRef.current()
+            : () => closeGroupLayerRef.current();
+        participantNav.push(`screen:${view}`, close);
+      }
+      navDrivenViewRef.current = false;
+      return;
+    }
+    if (navDrivenViewRef.current) {
+      navDrivenViewRef.current = false;
+      return;
+    }
+    const drop: string[] = [];
+    while (true) {
+      const top = screenStackRef.current.at(-1);
+      if (top !== 'profile' && top !== 'chat' && top !== 'group-chat') break;
+      screenStackRef.current.pop();
+      drop.push(`screen:${top}`);
+    }
+    const extra = participantNav.layers().filter(id =>
+      drop.includes(id) || id.startsWith('chat-') || id === 'group-leave',
+    );
+    const ids = [...new Set([...drop, ...extra])];
+    if (ids.length) participantNav.dropMatching(ids);
+  }, [view, participantNav]);
+
   const execLikeGuarded = useCallback((...args: Parameters<typeof executeLike>) => {
     if (functionsLockedRef.current) {
       setLikeConfirmTarget(null);
@@ -1039,7 +1125,7 @@ function App() {
 
     // ── ?share=<profileId> 처리: 연락처 QR 스캔 → 연락처 모달 표시 ──
     if (pendingShareId && pendingShareId !== currentUserId) {
-      window.history.replaceState({}, '', window.location.pathname);
+      window.history.replaceState(window.history.state ?? {}, '', window.location.pathname);
       (async () => {
         try {
           const { data: shareProfile } = await supabase.from('profiles').select('*').eq('id', pendingShareId).maybeSingle();
@@ -1654,7 +1740,18 @@ function App() {
   const isSubScreen = view === 'profile' || view === 'chat' || view === 'group-chat';
 
   return (
+    <ParticipantNavProvider nav={participantNav}>
     <>
+      <NavLayer id="tutorial" open={showTutorialModal} onClose={() => setShowTutorialModal(false)} />
+      <NavLayer id="notif" open={!!activeNotif} onClose={() => setActiveNotif(null)} />
+      <NavLayer id="reset-password" open={showResetPassword} onClose={() => setShowResetPassword(false)} />
+      <NavLayer id="like-confirm" open={!!likeConfirmTarget} onClose={() => setLikeConfirmTarget(null)} />
+      <NavLayer id="contact-share" open={!!contactShareTarget} onClose={() => setContactShareTarget(null)} />
+      <NavLayer id="contact-view" open={!!contactViewShare} onClose={() => setContactViewShare(null)} />
+      <NavLayer id="contact-qr" open={showContactQr} onClose={() => setShowContactQr(false)} />
+      <NavLayer id="qr-scanner" open={showQrScanner} onClose={() => setShowQrScanner(false)} />
+      <NavLayer id="scanned-contact" open={!!scannedContactProfile} onClose={() => setScannedContactProfile(null)} />
+      <NavLayer id="fortune-modal" open={!!fortuneModalTarget} onClose={() => setFortuneModalTarget(null)} />
       {/* Tutorial modal */}
       {showTutorialModal && (
         <TutorialModal
@@ -1847,13 +1944,18 @@ function App() {
               locked={functionsLocked}
               onLike={() => { if (!functionsLocked) handleLike(selectedProfile.id); }}
               onChat={() => { void openChatGuarded(selectedProfile); }}
-              onBack={() => { setLikeConfirmTarget(null); setView('main'); }}
+              onBack={goParticipantBack}
               onViewFortune={selectedProfile.birth_year && selectedProfile.birth_month && selectedProfile.birth_day ? () => {
                 if (functionsLocked) { showFunctionsLockToast(); return; }
                 setFortuneCompatTarget(selectedProfile.id);
-                handleMainTabChange('fortune');
                 setLikeConfirmTarget(null);
+                if (screenStackRef.current.at(-1) === 'profile') screenStackRef.current.pop();
+                navDrivenViewRef.current = true;
+                if (participantNav.topId() === 'screen:profile') {
+                  participantNav.replaceTop('tab:away', () => handleMainTabChange('profiles'));
+                }
                 setView('main');
+                handleMainTabChange('fortune');
               } : undefined}
             />
           </AppErrorBoundary>
@@ -1869,7 +1971,7 @@ function App() {
             profileMap={profileMap}
             darkMode={darkMode}
             functionsLocked={functionsLocked}
-            onBack={() => { closeGroupChat(); setView('main'); }}
+            onBack={goParticipantBack}
             onSendMessage={sendGroupMessageGuarded}
             onLeave={async () => { if (activeGroupId) await leaveGroupChatGuarded(activeGroupId); }}
           />
@@ -1894,7 +1996,7 @@ function App() {
                 otherProfile={selectedProfile}
                 onSend={sendMessageGuarded}
                 onSendImage={sendImageGuarded}
-                onBack={() => { chatIdRef.current = null; setChatId(null); setView('main'); }}
+                onBack={goParticipantBack}
                 onDeleteMessage={deleteMessage}
                 currentUserProfile={profiles.find(p => p.id === currentUserId) ?? null}
                 receivedContactShares={receivedContactShares}
@@ -2011,6 +2113,7 @@ function App() {
       )}
       </div>
     </>
+    </ParticipantNavProvider>
   );
 }
 

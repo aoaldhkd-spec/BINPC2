@@ -25,6 +25,7 @@ import {
   shouldBlockNicknameBeforeInput,
 } from '../lib/nickname-input';
 import { ls } from '../lib/storage';
+import { NavLayer, useOptionalParticipantNav } from '../hooks/useParticipantNav';
 import ProfileAvatar from './ProfileAvatar';
 import { StatsTab, RankingTab } from './StatsTabs';
 import { ProfileInfoBadges } from './ProfileInfoBadges';
@@ -290,6 +291,7 @@ export function MainScreen({
 
   // MY 버튼 팝업 열림 상태
   const [myMenuOpen, setMyMenuOpen] = useState(false);
+  const participantNav = useOptionalParticipantNav();
 
   const handleTabChange = (t: MainTab) => {
     if (functionsLocked && LOCKED_TABS.has(t)) { showChatSearchLockToast(); return; }
@@ -560,6 +562,8 @@ export function MainScreen({
 
   return (
     <div className={`app-viewport min-w-0 transition-colors duration-300 ${darkMode ? 'bg-slate-950' : 'bg-gray-50'}`}>
+      <NavLayer id="tab:away" open={mainTab !== 'profiles'} onClose={() => onTabChange('profiles')} />
+      <NavLayer id="my-menu" open={myMenuOpen} onClose={() => setMyMenuOpen(false)} />
       <header className={`sticky top-0 z-10 transition-colors duration-300 ${darkMode ? 'bg-slate-900 border-b-2 border-slate-700 shadow-slate-950/50' : 'bg-white shadow-sm'}`}>
         <div className="max-w-7xl mx-auto px-3 min-[360px]:px-4 py-2.5 min-[360px]:py-3 grid grid-cols-[auto_minmax(0,1fr)_auto] gap-1 items-center">
           {/* 좌: 튜토리얼 + 다크모드 + 배경음악 */}
@@ -2119,7 +2123,15 @@ export function MainScreen({
                     <button
                       key={item.id}
                       disabled={locked}
-                      onClick={() => { if (locked) return; setMyMenuOpen(false); handleTabChange(item.id); }}
+                      onClick={() => {
+                        if (locked) return;
+                        setMyMenuOpen(false);
+                        if (participantNav?.topId() === 'my-menu') {
+                          if (participantNav.has('tab:away')) participantNav.notifyClosed('my-menu');
+                          else participantNav.replaceTop('tab:away', () => onTabChange('profiles'));
+                        }
+                        handleTabChange(item.id);
+                      }}
                       className={`w-full flex items-center gap-3 px-4 py-3 transition-all active:scale-95 ${idx > 0 ? (darkMode ? 'border-t border-slate-700' : 'border-t border-gray-100') : ''} ${
                         active
                           ? darkMode ? 'bg-cyan-500/20 text-cyan-400' : 'bg-cyan-50 text-cyan-700'

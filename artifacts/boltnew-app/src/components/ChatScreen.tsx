@@ -38,6 +38,7 @@ import ChatMessageRow from './ChatMessageRow';
 import ChatQuickMsgsPanel from './ChatQuickMsgsPanel';
 import ChatSajuModal from './ChatSajuModal';
 import ChatStickerPanel from './ChatStickerPanel';
+import { NavLayer } from '../hooks/useParticipantNav';
 
 // ─── ChatScreen ───────────────────────────────────────────────────────────────
 // 1:1 채팅 화면. 스티커·이모지·이미지·연락처 공유·궁합·사주 기능 포함.
@@ -414,8 +415,8 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   const handleSendQuickMsg = useCallback((qm: string) => { onSend(qm); setShowQuickMsgs(false); }, [onSend]);
   const closeSajuModal = useCallback(() => setShowSajuModal(false), []);
   const closeCompatModal = useCallback(() => setShowCompatModal(false), []);
-  const goRegisterBirthFromSaju = useCallback(() => { setShowSajuModal(false); onGoToTab?.('fortune'); onBack(); }, [onGoToTab, onBack]);
-  const goRegisterBirthFromCompat = useCallback(() => { setShowCompatModal(false); onGoToTab?.('fortune'); onBack(); }, [onGoToTab, onBack]);
+  const goRegisterBirthFromSaju = useCallback(() => { setShowSajuModal(false); onGoToTab?.('fortune'); }, [onGoToTab]);
+  const goRegisterBirthFromCompat = useCallback(() => { setShowCompatModal(false); onGoToTab?.('fortune'); }, [onGoToTab]);
 
   // ── 내 정보 저장 ──────────────────────────────────────────────────────────────
   const handleSaveMyInfo = async () => {
@@ -647,6 +648,13 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
         paddingRight: 'env(safe-area-inset-right)',
       }}
     >
+      <NavLayer id="chat-my-info" open={showMyInfoEdit} onClose={() => setShowMyInfoEdit(false)} />
+      <NavLayer id="chat-contact" open={showTheirContact} onClose={() => setShowTheirContact(false)} />
+      <NavLayer id="chat-no-contact" open={showNoContactModal} onClose={() => setShowNoContactModal(false)} />
+      <NavLayer id="chat-saju" open={showSajuModal} onClose={() => setShowSajuModal(false)} />
+      <NavLayer id="chat-compat" open={showCompatModal} onClose={() => setShowCompatModal(false)} />
+      <NavLayer id="chat-photo" open={!!imageViewer} onClose={() => setImageViewer(null)} />
+      <NavLayer id="chat-context" open={!!contextMenu} onClose={() => setContextMenu(null)} />
 
       {/* 상대방 연락처 보기 모달 */}
       {showTheirContact && theirShare && (
@@ -714,7 +722,7 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
             </p>
             <div className="space-y-2">
               <button
-                onClick={() => { setShowNoContactModal(false); onGoToTab?.('status'); onBack(); }}
+                onClick={() => { setShowNoContactModal(false); onGoToTab?.('status'); }}
                 className="w-full py-3 bg-gradient-to-r from-cyan-500 to-teal-500 text-white font-bold rounded-xl text-sm active:scale-95 transition-all">
                 📋 내 상태 탭에서 등록하러 가기
               </button>
