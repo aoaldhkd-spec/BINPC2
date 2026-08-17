@@ -8,18 +8,27 @@ interface Props {
   darkMode?: boolean;
 }
 
-// QR 코드 URL에서 profileId 추출
-// 지원 형식: ?share=<uuid> 또는 ?userId=<uuid>
+const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+
+// 연락처 QR: PROFID:<uuid> (ContactDisplayModal) · URL ?share= / ?userId= · raw uuid
 function extractProfileId(text: string): string | null {
-  try {
-    // 전체 URL인 경우
-    const url = new URL(text);
-    return url.searchParams.get('share') ?? url.searchParams.get('userId');
-  } catch {
-    // 상대 경로 또는 쿼리 스트링 직접
-    const match = text.match(/[?&]share=([0-9a-f-]{36})/i) ?? text.match(/[?&]userId=([0-9a-f-]{36})/i);
-    return match?.[1] ?? null;
+  const trimmed = text.trim();
+  const profid = trimmed.match(/^PROFID:(.+)$/i);
+  if (profid?.[1]) {
+    const id = profid[1].trim();
+    return UUID_RE.test(id) ? id : null;
   }
+  try {
+    const url = new URL(trimmed);
+    const fromQuery = url.searchParams.get('share') ?? url.searchParams.get('userId');
+    if (fromQuery && UUID_RE.test(fromQuery)) return fromQuery;
+  } catch {
+    /* not a URL */
+  }
+  const match = trimmed.match(/[?&]share=([0-9a-f-]{36})/i) ?? trimmed.match(/[?&]userId=([0-9a-f-]{36})/i);
+  if (match?.[1]) return match[1];
+  const raw = trimmed.match(UUID_RE);
+  return raw?.[0] ?? null;
 }
 
 export function QrScannerModal({ onDetected, onClose, darkMode: _darkMode }: Props) {

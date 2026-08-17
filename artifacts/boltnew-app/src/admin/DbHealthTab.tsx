@@ -231,7 +231,7 @@ export function DbHealthTab({ health, loading, onRefresh, onClearErrors }: { hea
       {health && (
         <p className="text-[10px] text-gray-400 text-center flex items-center justify-center gap-1">
           <Activity className="w-3 h-3" />
-          마지막 확인: {new Date(health.checkedAt).toLocaleTimeString('ko-KR')} · 30초마다 자동 갱신
+          마지막 확인: {new Date(health.checkedAt).toLocaleTimeString('ko-KR')} · 5초마다 자동 갱신
         </p>
       )}
       {!health && !loading && (

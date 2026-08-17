@@ -1346,7 +1346,7 @@ function App() {
             const prev = myHeartCountRef.current;
             setMyHeartCount(row.heart_count);
             if (prev !== null && row.heart_count < prev) {
-              setBottomNotif({ type: 'like', message: `💛 하트가 ${row.heart_count}개 남았어요!` } as any);
+              setBottomNotif({ type: 'system', message: `💛 하트가 ${row.heart_count}개 남았어요!` });
             }
           }
         })

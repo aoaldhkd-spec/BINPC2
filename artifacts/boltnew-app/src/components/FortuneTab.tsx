@@ -45,6 +45,16 @@ function ScoreBar({ score, color = 'purple' }: { score: number; color?: string }
 }
 
 // ── 생년월일 셀렉트 ────────────────────────────────────────────────────────
+function formatBirthLabel(
+  year: number | null | undefined,
+  month: number | null | undefined,
+  day: number | null | undefined,
+): string {
+  if (!year) return '';
+  if (month != null && day != null) return `${year}년 ${month}월 ${day}일`;
+  return `${year}년생`;
+}
+
 function BirthSelect({ label, value, options, onChange }: {
   label: string; value: number; options: number[]; onChange: (v: number) => void;
 }) {
@@ -319,7 +329,7 @@ export default function FortuneTab({
                 <div className="text-center">
                   <p className="text-white font-black text-lg">오늘의 사주 운세</p>
                   <p className="text-slate-400 text-xs mt-1">
-                    {myProfile!.birth_year}년 {myProfile!.birth_month}월 {myProfile!.birth_day}일 기준
+                    {formatBirthLabel(myProfile!.birth_year, myProfile!.birth_month, myProfile!.birth_day)} 기준
                   </p>
                   <p className="text-slate-600 text-[10px] mt-0.5">사주 = 태어난 날의 하늘 기운으로 운명을 읽어요</p>
                 </div>
@@ -400,7 +410,7 @@ export default function FortuneTab({
                   <div className="flex-1 min-w-0">
                     <p className="text-white text-sm font-black break-keep">{myProfile?.nickname ?? '나'}</p>
                     <p className="text-slate-400 text-[10px] leading-snug">
-                      {myProfile!.birth_year}년 {myProfile!.birth_month}월 {myProfile!.birth_day}일 ·{' '}
+                      {formatBirthLabel(myProfile!.birth_year, myProfile!.birth_month, myProfile!.birth_day)} ·{' '}
                       {getZodiac(myProfile!.birth_year!).name}띠 · {getOhaeng(myProfile!.birth_year!)}
                       {myProfile?.mbti ? ` · ${myProfile.mbti}` : ''}
                     </p>
@@ -439,8 +449,8 @@ export default function FortuneTab({
                       className="w-full bg-slate-700 border border-slate-600 text-white text-sm rounded-xl px-3 py-2.5">
                       <option value="">-- 상대를 선택하세요 --</option>
                       {otherProfiles.map(p => (
-                        <option key={p.id} value={p.id} disabled={!p.birth_year || !p.birth_month || !p.birth_day}>
-                          {p.nickname}{!p.birth_year || !p.birth_month || !p.birth_day ? ' (생년월일 없음)' : ''}
+                        <option key={p.id} value={p.id} disabled={!p.birth_year}>
+                          {p.nickname}{!p.birth_year ? ' (생년 없음)' : ''}
                         </option>
                       ))}
                     </select>

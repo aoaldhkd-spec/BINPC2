@@ -283,7 +283,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     return () => { ldbSupabase.removeChannel(ch); };
   }, []);
 
-  // ─── DB health polling (30s interval) ──────────────────────────────────────
+  // ─── DB health polling (5s interval) ──────────────────────────────────────
   const fetchDbHealth = useCallback(async () => {
     setDbHealthLoading(true);
     try {

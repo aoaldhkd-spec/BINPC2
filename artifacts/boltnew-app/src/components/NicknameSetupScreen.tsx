@@ -90,7 +90,7 @@ type Step = 1 | 2 | 3 | 4 | 5;
 
 // ─── NicknameSetupScreen ──────────────────────────────────────────────────────
 
-export function NicknameSetupScreen({ onSubmit, loading, registrationError, onReset, onShowRecovery: _onShowRecovery }: {
+export function NicknameSetupScreen({ onSubmit, loading, registrationError, onReset, onShowRecovery }: {
   onSubmit: (data: {
     birthYear: number; birthMonth: number | null; birthDay: number | null;
     location: string; mbti: string; interests: string[];
@@ -237,6 +237,15 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
             <h2 className="text-white font-black text-xl leading-tight">{STEP_LABELS[step - 1]}</h2>
           </div>
         </div>
+        {onShowRecovery && step === 1 && (
+          <button
+            type="button"
+            onClick={onShowRecovery}
+            className="mb-3 w-full py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-bold transition-all active:scale-[0.98]"
+          >
+            🔑 이미 가입했다면 고유번호로 복구
+          </button>
+        )}
 
         {/* 5단계 진행 표시 */}
         <div className="flex items-center gap-0">

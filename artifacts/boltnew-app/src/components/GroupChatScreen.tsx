@@ -79,12 +79,14 @@ export function GroupChatScreen({
   const handleSend = useCallback(async () => {
     const text = input.trim();
     if (!text || sending || functionsLocked || text.length > 1000) return;
+    const savedInput = input;
     setInput('');
     setSending(true);
     try {
       await onSendMessage(text);
     } catch (e) {
       console.error('[GroupChatScreen] 전송 오류:', e);
+      setInput(savedInput);
     } finally {
       setSending(false);
       setTimeout(() => textareaRef.current?.focus(), 50);
