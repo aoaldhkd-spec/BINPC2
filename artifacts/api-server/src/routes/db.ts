@@ -23,6 +23,7 @@ import {
 import {
   RATE_MAP_MAX_SIZE,
   LOGIN_RATE_MAX,
+  LOGIN_RATE_MAX_PER_IP,
   LOGIN_RATE_WINDOW_MS,
   UPLOAD_RATE_MAX,
   UPLOAD_RATE_WINDOW_MS,
@@ -31,6 +32,7 @@ import {
   broadcastRateMap as _broadcastRateMap,
   pruneRateMap,
   consumeRateLimit,
+  venueLoginRateKeys,
   resetRateLimit,
 } from '../lib/db-rate-limit';
 import { mergeDbRowsIntoMemory, shouldBroadcastBulkResync } from '../lib/db-store-merge';
@@ -1988,6 +1990,8 @@ router.use(async (_req, res, next) => {
 });
 
 // 120초마다 DB 재동기화 — merge-by-id, 클라이언트 전체 리로드(_bulk_resync)는 쏘지 않음
+// FORBIDDEN: resyncAllFromNativeDb('forced') 로 바꾸지 말 것. forced 는 전원 탭에
+// _bulk_resync 를 쏴 2분마다 재연결 폭풍이 된다. longevity-guards 테스트가 이 문자열을 고정한다.
 setInterval(() => { resyncAllFromNativeDb('periodic').catch(e => logger.error({ err: e }, '[db] resync failed')); }, 120_000).unref();
 // 분산 rate_limits KV 가 행사 내내 쌓여 PG 가 느려지지 않게 만료 행 정리
 setInterval(() => { pruneDistributedRateLimits().catch(e => logger.warn({ err: e }, '[db] rate_limits prune failed')); }, 5 * 60 * 1000).unref();
@@ -5399,15 +5403,25 @@ router.post('/auth/login', (req: Request, res: Response) => {
   // ─ Per-IP rate limit: brute-force 방지 (단위 테스트는 제외)
   if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
   const loginIp = String(req.ip ?? req.socket.remoteAddress ?? 'unknown');
-  const loginRate = consumeRateLimit(_loginRateMap, loginIp, {
+  const claimedUser = (req.body != null && typeof req.body === 'object' && !Array.isArray(req.body)
+    && typeof (req.body as { userId?: unknown }).userId === 'string')
+    ? (req.body as { userId: string }).userId
+    : '';
+  const keys = venueLoginRateKeys(claimedUser || undefined, loginIp);
+  const userRate = consumeRateLimit(_loginRateMap, keys.userKey, {
     windowMs: LOGIN_RATE_WINDOW_MS,
     max: LOGIN_RATE_MAX,
     maxMapSize: RATE_MAP_MAX_SIZE,
   });
-  if (loginRate === 'map_full') {
+  const ipBurst = consumeRateLimit(_loginRateMap, keys.ipBurstKey, {
+    windowMs: LOGIN_RATE_WINDOW_MS,
+    max: LOGIN_RATE_MAX_PER_IP,
+    maxMapSize: RATE_MAP_MAX_SIZE,
+  });
+  if (userRate === 'map_full' || ipBurst === 'map_full') {
     return res.status(429).json({ error: '요청이 너무 많습니다.' });
   }
-  if (loginRate === 'limited') {
+  if (userRate === 'limited' || ipBurst === 'limited') {
     return res.status(429).json({ error: '로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.' });
   }
   }
@@ -5513,10 +5527,21 @@ router.get('/events', (req: Request, res: Response) => {
   const isAdminSse = verifyAdminToken(adminTokenParam);
 
   // userId가 있으면 반드시 유효한 토큰 필요 — 없거나 만료/위조된 경우 거부
-  if (userId && (!token || !verifySseToken(userId, token))) {
-    // Task #1/#3: 침입 탐지용 서버 로그 — pino logger로 구조화 (grep/alert 용이)
-    logger.warn({ userId, hasToken: !!token, ip: req.ip }, '[sse] 인증 실패: 유효하지 않은 토큰으로 SSE 접근 시도 — 침입 탐지');
-    res.status(401).json({ error: 'Invalid or missing SSE token' });
+  if (userId && (!token || classifySseToken(userId, token) !== 'valid')) {
+    const state = !token ? 'missing' : classifySseToken(userId, token);
+    if (state === 'expired') {
+      // 만료는 정상 수명 종료. 침입 warn 으로 남기면 5시간 로그가 401 스팸이 된다.
+      recordExpiredSseToken();
+      logger.debug({ userId, ip: req.ip }, '[sse] token expired — client should refresh');
+      res.status(401).json({ error: 'Invalid or missing SSE token', code: 'SSE_TOKEN_EXPIRED' });
+    } else if (state === 'missing') {
+      recordMissingSseToken();
+      logger.warn({ userId, hasToken: false, ip: req.ip }, '[sse] 인증 실패: 유효하지 않은 토큰으로 SSE 접근 시도 — 침입 탐지');
+      res.status(401).json({ error: 'Invalid or missing SSE token', code: 'SSE_TOKEN_INVALID' });
+    } else {
+      logger.warn({ userId, hasToken: !!token, ip: req.ip }, '[sse] 인증 실패: 유효하지 않은 토큰으로 SSE 접근 시도 — 침입 탐지');
+      res.status(401).json({ error: 'Invalid or missing SSE token', code: 'SSE_TOKEN_INVALID' });
+    }
     return;
   }
 

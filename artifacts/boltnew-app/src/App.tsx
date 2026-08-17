@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } fro
 import {
   X,
 } from 'lucide-react';
-import { supabase, setLocalDbUserId, setDeviceRecoveryPin, fetchAndSetSseToken, getDeviceSecret, onSseReconnect } from './lib/supabase';
+import { supabase, setLocalDbUserId, setDeviceRecoveryPin, fetchAndSetSseToken, getDeviceSecret, onSseReconnect, isSseHealthy } from './lib/supabase';
 import { diag } from './lib/diag';
 import { subscribeNetUi, resetNetUiForRetry, type NetUiStatus } from './lib/net-health';
 import { excludeSwipeGestureVerifyProfiles, genAvatar, isSwipeGestureVerifyProfile } from './lib/profile';
@@ -72,6 +72,11 @@ import {
   ShareEventNotification,
   type ShareEventNotificationData,
 } from './components/ShareEventNotification';
+import {
+  derivePrivacyProfileIds,
+  upsertScannedContact,
+  type ScannedContact,
+} from './lib/profile-contact-helpers';
 
 const loadChatScreen = () => import('./components/ChatScreen');
 const loadMainScreen = () => import('./components/MainScreen').then(m => ({ default: m.MainScreen }));
@@ -153,30 +158,13 @@ function App() {
   const [scannedContactProfile, setScannedContactProfile] = useState<import('./types/app').Profile | null>(null);
 
   // ── 스캔한 연락처 (localStorage 영구 보관) ─────────────────────────────────
-  type ScannedContact = {
-    id: string; nickname: string; mbti?: string | null; photo_url?: string | null;
-    kakao_id?: string | null; instagram_id?: string | null; phone_number?: string | null;
-    contact_private?: boolean | null; scanned_at: string;
-  };
   const [scannedContacts, setScannedContacts] = useState<ScannedContact[]>(() => {
     try { return JSON.parse(ls.getItem(SCANNED_CONTACTS_KEY) ?? '[]') as ScannedContact[]; } catch { return []; }
   });
-  const saveScannedContact = (profile: import('./types/app').Profile) => {
+  const saveScannedContact = (profile: Profile) => {
     if (!profile.id) return;
-    const entry: ScannedContact = {
-      id: profile.id,
-      nickname: (profile as { nickname?: string }).nickname ?? '?',
-      mbti: profile.mbti,
-      photo_url: profile.photo_url,
-      kakao_id: (profile as { kakao_id?: string | null }).kakao_id,
-      instagram_id: (profile as { instagram_id?: string | null }).instagram_id,
-      phone_number: (profile as { phone_number?: string | null }).phone_number,
-      contact_private: (profile as { contact_private?: boolean | null }).contact_private,
-      scanned_at: new Date().toISOString(),
-    };
     setScannedContacts(prev => {
-      const filtered = prev.filter(c => c.id !== entry.id);
-      const next = [entry, ...filtered].slice(0, 50);
+      const next = upsertScannedContact(prev, profile, new Date().toISOString());
       try { ls.setItem(SCANNED_CONTACTS_KEY, JSON.stringify(next)); } catch { /* quota */ }
       return next;
     });
@@ -766,7 +754,13 @@ function App() {
     }
 
     void loadSettings();
+    let lastReadyAt = 0;
     const settingsPoll = setInterval(() => {
+      // SSE 가 살아 있으면 설정은 app_settings 채널로 온다. 4초 /ready 를 150명이
+      // 5시간 때리면 서버만 바빠지고 기능은 그대로다. 끊겼을 때만 빠르게 폴링.
+      const gap = isSseHealthy() ? 30_000 : 4_000;
+      if (Date.now() - lastReadyAt < gap) return;
+      lastReadyAt = Date.now();
       fetch('/api/db/ready', { signal: AbortSignal.timeout(5_000) })
         .then(r => r.ok ? r.json() : null)
         .then((json: { settings?: Record<string, unknown> } | null) => {
@@ -865,6 +859,10 @@ function App() {
         const eventKey = row.id ?? `${row.from_user_id}:${row.event_type}:${row.created_at}`;
         if (seenContactEventIdsRef.current.has(eventKey)) return;
         seenContactEventIdsRef.current.add(eventKey);
+        if (seenContactEventIdsRef.current.size > 500) {
+          const arr = [...seenContactEventIdsRef.current];
+          seenContactEventIdsRef.current = new Set(arr.slice(-300));
+        }
         const eventAgeMs = row.created_at ? Date.now() - new Date(row.created_at).getTime() : 0;
         if (row.event_type === 'accepted') {
           // replay된 이벤트가 오래됐어도 토스트만 생략하고 durable contact_shares
@@ -1510,6 +1508,10 @@ function App() {
     sentHeartsPerPerson.forEach((types) => { n += types.size; });
     return n;
   }, [sentHeartsPerPerson]);
+  const privacyProfileIds = useMemo(
+    () => derivePrivacyProfileIds(blockedUsers, currentUserId),
+    [blockedUsers, currentUserId],
+  );
 
   useEffect(() => {
     if (!currentUserId || view !== 'main' || mainTab === 'signal') return;
@@ -1686,21 +1688,21 @@ function App() {
       {/* Heart rejection notification */}
       {rejectionNotif && (
         <AppErrorBoundary screenName="거절 알림" onReset={() => setRejectionNotif(null)}>
-          <div className="fixed bottom-20 left-0 right-0 z-[150] flex justify-center px-4 pointer-events-none">
-            <div className="bg-gray-800 text-white px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 pointer-events-auto animate-bounce">
+          <div className="fixed bottom-[calc(max(1rem,env(safe-area-inset-bottom))+4rem)] left-0 right-0 z-[150] flex justify-center px-4 pointer-events-none">
+            <div className="max-w-full bg-gray-800 text-white px-4 min-[360px]:px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 pointer-events-auto animate-bounce">
               <span className="text-lg">💔</span>
               <div>
                 <p className="text-sm font-bold">{rejectionNotif}님이 하트를 거절했습니다</p>
               </div>
-              <button onClick={() => setRejectionNotif(null)} className="text-white/60 hover:text-white text-lg ml-2">×</button>
+              <button onClick={() => setRejectionNotif(null)} className="touch-target text-white/60 hover:text-white text-lg flex-shrink-0 flex items-center justify-center">×</button>
             </div>
           </div>
         </AppErrorBoundary>
       )}
       {/* Bottom notification: new heart / chat */}
       {functionsLockToast && (
-        <div className="fixed bottom-28 left-0 right-0 z-[10060] flex justify-center px-4 pointer-events-none">
-          <div className="bg-gray-800/95 text-white px-4 py-2 rounded-full shadow-xl text-[12px] font-bold">
+        <div className="fixed bottom-[calc(max(1rem,env(safe-area-inset-bottom))+4.5rem)] left-0 right-0 z-[10060] flex justify-center px-3 min-[360px]:px-4 pointer-events-none">
+          <div className="max-w-full bg-gray-800/95 text-white px-4 py-2 rounded-full shadow-xl text-[12px] font-bold">
             {functionsLockToast}
           </div>
         </div>
@@ -1811,23 +1813,8 @@ function App() {
         signalActedIds={signalActedIds}
         onSendSignal={handleSendSignal}
         onPassSignal={handlePassSignal}
-        blockedUserIds={(() => {
-          const s = new Set<string>();
-          blockedUsers.forEach(b => {
-            if (b.block_type === 'block') {
-              if (b.user_id === currentUserId) s.add(b.target_id);
-              else if (b.target_id === currentUserId) s.add(b.user_id);
-            }
-          });
-          return s;
-        })()}
-        hiddenByIds={(() => {
-          const s = new Set<string>();
-          blockedUsers.forEach(b => {
-            if (b.block_type === 'hide' && b.target_id === currentUserId) s.add(b.user_id);
-          });
-          return s;
-        })()}
+        blockedUserIds={privacyProfileIds.blockedUserIds}
+        hiddenByIds={privacyProfileIds.hiddenByIds}
         profileVisitors={profileVisitors}
         newVisitCount={newVisitCount}
         onClearVisitCount={() => setNewVisitCount(0)}
@@ -1845,7 +1832,7 @@ function App() {
         />
       )}
       {view === 'profile' && selectedProfile && (
-        <div className="fixed inset-0 z-40 overflow-y-auto bg-white">
+        <div className="safe-fullscreen fixed inset-0 z-40 overflow-y-auto bg-white">
           <AppErrorBoundary screenName="프로필" onReset={() => setView('main')}>
             <ProfileDetail
               profile={selectedProfile}
@@ -1869,7 +1856,7 @@ function App() {
         </div>
       )}
       {view === 'group-chat' && activeGroupId && (
-        <div className="fixed inset-0 z-40">
+        <div className="fixed inset-0 z-40 min-w-0">
           <GroupChatScreen
             group={groupChats.find(g => g.id === activeGroupId) ?? null}
             messages={groupMessages}
@@ -1885,7 +1872,7 @@ function App() {
         </div>
       )}
       {view === 'chat' && selectedProfile && !chatId && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-white">
+        <div className="safe-fullscreen fixed inset-0 z-40 flex items-center justify-center bg-white">
           <div className="text-center">
             <div className="w-8 h-8 border-4 border-pink-400 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
             <p className="text-sm text-gray-400">채팅방 열는 중…</p>
@@ -1893,7 +1880,7 @@ function App() {
         </div>
       )}
       {view === 'chat' && selectedProfile && chatId && (
-        <div className="fixed inset-0 z-40">
+        <div className="fixed inset-0 z-40 min-w-0">
           <ChatErrorBoundary onReset={() => { chatIdRef.current = null; setChatId(null); setView('main'); }}>
             <Suspense fallback={<div className="h-screen bg-white" />}>
               <ChatScreen
@@ -1995,7 +1982,7 @@ function App() {
       )}
       {/* ── 사주 궁합 팝업 모달 ── */}
       {fortuneModalTarget && (
-        <div className="fixed inset-0 z-[200] flex flex-col bg-slate-900/95 backdrop-blur-sm overflow-y-auto">
+        <div className="safe-fullscreen fixed inset-0 z-[200] flex flex-col bg-slate-900/95 backdrop-blur-sm overflow-y-auto">
           <div className="flex items-center justify-between px-4 pt-4 pb-2 flex-shrink-0">
             <p className="text-white font-black text-sm">🔮 {fortuneModalTarget.nickname}님과의 궁합</p>
             <button

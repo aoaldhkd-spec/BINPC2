@@ -1694,6 +1694,26 @@ describe('[Security] DELETE IDOR + ready secrets', () => {
   });
 });
 
+describe('[Longevity] expired SSE token is 401 JSON, not an open EventSource stream', () => {
+  it('서명 유효·만료된 토큰은 SSE_TOKEN_EXPIRED 이고 event-stream 이 아니다', async () => {
+    const userId = randomUUID();
+    const token = makeSseToken(userId, TEST_SSE_SECRET, -4000);
+    const res = await request(app)
+      .get(`/api/db/events?userId=${encodeURIComponent(userId)}&token=${encodeURIComponent(token)}`);
+    expect(res.status).toBe(401);
+    expect(res.body.code).toBe('SSE_TOKEN_EXPIRED');
+    expect(String(res.headers['content-type'] ?? '')).not.toMatch(/text\/event-stream/);
+  });
+
+  it('위조 토큰은 SSE_TOKEN_INVALID', async () => {
+    const userId = randomUUID();
+    const res = await request(app)
+      .get(`/api/db/events?userId=${encodeURIComponent(userId)}&token=${encodeURIComponent('999:deadbeef')}`);
+    expect(res.status).toBe(401);
+    expect(res.body.code).toBe('SSE_TOKEN_INVALID');
+  });
+});
+
 describe('[Security] chat_reads partner receipt + 1:1 isolation', () => {
   it('같은 방 상대의 read_at 은 조회되고, 제3자에게는 숨겨진다', async () => {
     const a = randomUUID();

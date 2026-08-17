@@ -8,6 +8,8 @@ export type RateBucket = { count: number; resetAt: number };
 export const RATE_MAP_MAX_SIZE = 50_000;
 export const LOGIN_RATE_MAX = 10;
 export const LOGIN_RATE_WINDOW_MS = 60_000;
+/** 행사장 NAT: 150명이 같은 공인 IP로 입장·토큰갱신. 계정당 10회 한도는 유지. */
+export const LOGIN_RATE_MAX_PER_IP = 300;
 export const UPLOAD_RATE_MAX = 10;
 export const UPLOAD_RATE_WINDOW_MS = 60_000;
 
@@ -17,6 +19,15 @@ export const broadcastRateMap = new Map<string, RateBucket>();
 
 export function pruneRateMap(map: Map<string, RateBucket>, now = Date.now()): void {
   for (const [k, v] of map) if (v.resetAt < now) map.delete(k);
+}
+
+/** 로그인 한도: 계정당 brute-force 10/min + NAT IP 버스트 상한. */
+export function venueLoginRateKeys(userId: string | undefined, ip: string): { userKey: string; ipBurstKey: string } {
+  const uid = userId?.trim();
+  return {
+    userKey: uid ? `login-user:${uid}` : `login-ip:${ip}`,
+    ipBurstKey: `login-ip-burst:${ip}`,
+  };
 }
 
 /** 비밀번호 변경 성공 시 해당 클라이언트의 로그인 버킷만 해제 — 한도는 유지 */

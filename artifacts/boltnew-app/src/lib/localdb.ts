@@ -406,6 +406,16 @@ function _clearSessionBearer() {
   } catch { /* ignore */ }
 }
 
+function hasUsableSessionBearer(): boolean {
+  if (!_sessionBearerToken) return false;
+  try {
+    const exp = parseInt(sessionStorage.getItem(SESS_BEARER_EXP_KEY) ?? '0', 10);
+    return Math.floor(Date.now() / 1000) < exp - 60;
+  } catch {
+    return true;
+  }
+}
+
 // SSE 재연결 감지 — 첫 연결이 아닌 재연결일 때 등록된 콜백 호출
 let _sseHasConnected = false;     // 최초 연결 완료 여부
 let _sseNeedsResync = false;      // 끊겼다가 재연결 대기 중 여부
@@ -490,9 +500,21 @@ export function onSseDisconnect(fn: () => void): () => void {
   return () => _disconnectCallbacks.delete(fn);
 }
 
-/** 테스트용 — 장시간 세션에서 리스너/EventSource 누수 검증 */
-export function sseDebugState(): { listeners: number; hasEventSource: boolean } {
-  return { listeners: _sseListeners.size, hasEventSource: _es != null };
+/** 테스트용 — 장시간 세션에서 리스너/EventSource 누수·토큰 선제 갱신 검증 */
+export function sseDebugState(): {
+  listeners: number;
+  hasEventSource: boolean;
+  eventSourceReadyState: number | null;
+  tokenSecondsLeft: number;
+  hasRefreshTimer: boolean;
+} {
+  return {
+    listeners: _sseListeners.size,
+    hasEventSource: _es != null,
+    eventSourceReadyState: _es ? _es.readyState : null,
+    tokenSecondsLeft: sseTokenSecondsLeft(),
+    hasRefreshTimer: _tokenRefreshTimer != null,
+  };
 }
 
 /** 최근 ping/메시지 기준 SSE가 살아 있는지 — 폴링 간격 완화용 */
@@ -511,12 +533,22 @@ let _tokenRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 const SSE_TOK_KEY = 'sse_tok';
 const SSE_TOK_EXP_KEY = 'sse_tok_exp';
 
-// 서버 토큰 TTL 은 1시간. setTimeout 단독 갱신은 모바일 백그라운드 스로틀링으로
-// 자주 늦게 발화하고, 그 사이 만료된 토큰으로 /events·/unread-counts 를 계속 때려
-// 401 폭풍 + [SECURITY] 오탐 로그를 만든다. 아래 값으로 주기 점검하며 선제 갱신한다.
-const SSE_TOKEN_REFRESH_LEAD_SEC = 300; // 만료 5분 전부터 갱신 시도
+// 서버 토큰 TTL 은 1시간. 만료 뒤에만 갱신하면 EventSource 가 같은 URL 로 401 재시도
+// → NAT 공인 IP 429 로 번진다. 수명의 80% 지점(남은 20%)에서 선제 갱신한다.
+// 가드: SSE_TOKEN_REFRESH_LEAD_SEC 를 0 으로 되돌리거나 2s 점검에서 refreshSseTokenIfStale
+// 를 빼면 localdb-long-session 테스트가 실패한다.
+export const SSE_TOKEN_TTL_SEC = 3600;
+export const SSE_TOKEN_REFRESH_LEAD_SEC = Math.floor(SSE_TOKEN_TTL_SEC * 0.2); // 720s = 80% TTL
 const SSE_TOKEN_MIN_REFRESH_GAP_MS = 30_000; // 갱신 재시도 최소 간격 (요청 증폭 방지)
 let _lastTokenRefreshStartedAt = 0;
+
+/** 150명이 동시에 입장하면 토큰 만료도 몰린다. userId 해시로 0~2분 분산. */
+function sseRefreshJitterMs(userId: string | null): number {
+  if (!userId) return 0;
+  let h = 0;
+  for (let i = 0; i < userId.length; i++) h = (h * 31 + userId.charCodeAt(i)) >>> 0;
+  return h % 120_000;
+}
 
 /** 남은 토큰 수명(초). 토큰이 없으면 0, 만료 시각 미상이면 Infinity. */
 function sseTokenSecondsLeft(): number {
@@ -548,11 +580,11 @@ let _sseTokenRetryTimer: ReturnType<typeof setTimeout> | null = null;
  * 이 함수는 캐시 확인 + SSE 재연결만 수행합니다.
  */
 function fetchSseToken(userId: string): void {
-  // localStorage 캐시 확인 (만료 2분 전까지 재사용)
+  // localStorage 캐시 확인 — 선제 갱신 창(TTL 80%)에 들어갔으면 재사용하지 않음
   try {
     const cached = localStorage.getItem(SSE_TOK_KEY);
     const exp = parseInt(localStorage.getItem(SSE_TOK_EXP_KEY) ?? '0', 10);
-    if (cached && Math.floor(Date.now() / 1000) < exp - 120) {
+    if (cached && Math.floor(Date.now() / 1000) < exp - SSE_TOKEN_REFRESH_LEAD_SEC) {
       _sseToken = cached;
       // 캐시 복원 경로는 setSseToken 을 거치지 않으므로 만료 시각을 여기서 기록한다.
       // (기록하지 않으면 남은 수명을 알 수 없어 선제 갱신이 동작하지 않는다.)
@@ -758,8 +790,10 @@ function ensureSse() {
   // 만료된 토큰도 마찬가지로 사용하지 않습니다 — 서버가 401 로 끊고 EventSource 가
   // 곧바로 같은 토큰으로 재시도해 무한 401 루프가 됩니다. 대신 재발급을 트리거합니다.
   if (_currentUserId && !hasUsableSseToken()) {
+    // FORBIDDEN: 만료 EventSource 를 열린 채로 두지 말 것.
     // 브라우저 내장 EventSource 는 401 이후 같은 URL(만료 토큰)로 자동 재시도한다.
-    // 닫지 않으면 행사 중후반에 401 폭풍 → IP rate-limit → 전 기능 멈춤으로 번진다.
+    // 닫지 않으면 행사 중후반에 401 폭풍 → IP rate-limit → 채팅/하트/시그널 전부 429.
+    // localdb-long-session 테스트가 closeSse('expired-token-close') 를 요구한다.
     closeSse('expired-token-close');
     refreshSseTokenIfStale();
     return;
@@ -1066,12 +1100,15 @@ async function _fetchAndSetSseToken(userId: string, attempt: number): Promise<vo
   };
 
   try {
-    // 1단계: 기기 secret으로 서버 세션 수립
-    const loggedIn = await loginSession(userId);
-    if (!loggedIn) {
-      // device_not_bound·네트워크 오류 모두 재시도 (익명 SSE 영구 고착 방지)
-      scheduleRetry('loginSession 실패');
-      return;
+    // 세션 Bearer 가 아직 유효하면 /auth/login 을 다시 치지 않는다.
+    // 150명이 48분마다 login 을 같은 NAT IP 로 치면 분당 10회 IP 한도에 걸린다.
+    if (!hasUsableSessionBearer()) {
+      const loggedIn = await loginSession(userId);
+      if (!loggedIn) {
+        // device_not_bound·네트워크 오류 모두 재시도 (익명 SSE 영구 고착 방지)
+        scheduleRetry('loginSession 실패');
+        return;
+      }
     }
     // 경합 방지: 비동기 대기 중 계정이 바뀐 경우 토큰을 설치하지 않음
     if (_currentUserId !== userId) return;
@@ -1126,8 +1163,9 @@ export function setSseToken(token: string, expiresAt: number) {
   } catch { /* storage quota 초과 시 무시 — 메모리 캐시로 폴백 */ }
   // 기존 타이머 정리
   if (_tokenRefreshTimer) { clearTimeout(_tokenRefreshTimer); _tokenRefreshTimer = null; }
-  // 만료 5분 전에 자동 재발급 스케줄링
-  const refreshIn = (expiresAt - Math.floor(Date.now() / 1000) - 300) * 1000;
+  // 수명의 80% 지점(+ userId 지터)에서 재발급. 만료 후에만 갱신하면 401 폭풍이 된다.
+  const refreshIn = (expiresAt - Math.floor(Date.now() / 1000) - SSE_TOKEN_REFRESH_LEAD_SEC) * 1000
+    - sseRefreshJitterMs(_currentUserId);
   if (_currentUserId && refreshIn > 0) {
     _tokenRefreshTimer = setTimeout(() => {
       if (_currentUserId) fetchAndSetSseToken(_currentUserId).catch(() => {});

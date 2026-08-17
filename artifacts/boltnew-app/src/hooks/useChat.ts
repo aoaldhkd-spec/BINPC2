@@ -80,6 +80,17 @@ export function useChat({
   const activePartnerIdRef = useRef<string | null>(null);
   const partnerOpenToastAtRef = useRef<Map<string, number>>(new Map());
 
+  const rememberPartnerToast = (pairKey: string) => {
+    const map = partnerOpenToastAtRef.current;
+    const now = Date.now();
+    for (const [k, t] of map) if (now - t > 10 * 60_000) map.delete(k);
+    map.set(pairKey, now);
+    while (map.size > 200) {
+      const oldest = map.keys().next().value;
+      if (oldest === undefined) break;
+      map.delete(oldest);
+    }
+  };
   const rememberRoomChatId = (id: string | null | undefined) => {
     if (id) roomChatIdsRef.current.add(id);
   };
@@ -281,7 +292,7 @@ export function useChat({
               const otherId = c.user1_id === uid ? c.user2_id : c.user1_id;
               const otherProfile = profilesRef.current.find(p => p.id === otherId);
               setBottomNotif({ type: 'chat', nickname: otherProfile?.nickname ?? '' });
-              partnerOpenToastAtRef.current.set(pairKey, Date.now());
+              rememberPartnerToast(pairKey);
             }
             void loadChatList(uid);
           } catch (e) { console.warn('[user-events/chat-insert]', e); }
@@ -300,7 +311,7 @@ export function useChat({
             if (selfInitiatedPairRef.current === pairKey) return;
             const last = partnerOpenToastAtRef.current.get(pairKey) ?? 0;
             if (Date.now() - last < 90_000) return;
-            partnerOpenToastAtRef.current.set(pairKey, Date.now());
+            rememberPartnerToast(pairKey);
             const otherId = chat.user1_id === uid ? chat.user2_id : chat.user1_id;
             const otherProfile = profilesRef.current.find(p => p.id === otherId);
             setBottomNotif({ type: 'chat', nickname: otherProfile?.nickname ?? '' });
@@ -689,10 +700,14 @@ export function useChat({
   // ── 미읽음 재동기화 ──────────────────────────────────────────────────────────
   const syncUnreadCounts = useCallback(async () => {
     if (!currentUserIdRef.current) return;
+    // /unread-counts 는 유효한 SSE 토큰을 요구한다. 토큰이 아직 없거나 만료됐으면
+    // 요청해봐야 401 + 서버 [SECURITY] 경고 로그만 남는다. 아래 15초 주기 동기화와
+    // SSE 재연결 콜백이 토큰 도착 후 다시 부르므로 여기서는 조용히 건너뛴다.
+    const token = getSseToken();
+    if (!token) return;
     const gen = ++syncGenRef.current; // 이 요청의 고유 세대 번호
     try {
-      const token = getSseToken();
-      const tokenParam = token ? `&token=${encodeURIComponent(token)}` : '';
+      const tokenParam = `&token=${encodeURIComponent(token)}`;
       const resp = await fetch(`/api/db/unread-counts?userId=${encodeURIComponent(currentUserIdRef.current)}${tokenParam}`);
       if (!resp.ok) return;
       if (gen !== syncGenRef.current) return; // 더 최신 요청이 이미 진행 중 → 이 응답은 버림
@@ -749,9 +764,11 @@ export function useChat({
     if (!currentUserId) return;
     const uid = currentUserId;
     const id = setInterval(() => {
+      // SSE 가 살아 있으면 INSERT/unread 는 실시간으로 온다. 15초 전체 리로드는
+      // 끊김 복구용으로 남긴다 (삭제하지 않음). 150명×5시간이면 /op 폭주가 된다.
+      if (isSseHealthy()) return;
       void syncUnreadCounts();
       void loadChatList(uid);
-      // active 채팅방이 열려 있으면 메시지도 동기화 (폴링 일시정지 중 gap 메우기)
       const activeChatId = chatIdRef.current;
       if (activeChatId) void loadMessages(activeChatId);
     }, 15_000);
@@ -966,7 +983,7 @@ export function useChat({
     setChatList(prev => prev.map(c => c.id === snapChatId ? { ...c, lastMessage: '📷 사진' } : c));
 
     const rollback = () => {
-      URL.revokeObjectURL(localBlobUrl);
+      URL.revokeObjectURL(localBlobUrl); // blob URL must not remain after swap/rollback — 5h leak
       setMessages(prev => prev.filter(m => m.id !== optimisticId));
       // 낙관적으로 설정한 값인 경우에만 복원
       setChatList(prev => prev.map(c =>
@@ -1002,7 +1019,7 @@ export function useChat({
         return msgErr.message;
       }
       // 성공: optimistic(blob URL) → 실제 DB 행(CDN URL)으로 즉시 교체
-      URL.revokeObjectURL(localBlobUrl);
+      URL.revokeObjectURL(localBlobUrl); // blob URL must not remain after swap/rollback — 5h leak
       if (insertedMsg && isActiveRoomChat(snapChatId)) {
         const saved = insertedMsg as Message;
         rememberRoomChatId(saved.chat_id);

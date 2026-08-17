@@ -6,6 +6,7 @@ import router from "./routes";
 import { logger } from "./lib/logger";
 import { createSessionMiddleware } from "./lib/session";
 import { mountProductionSpa } from "./lib/static-spa";
+import { classifyRoute, recordForbidden, recordRateLimited, recordUnauthorized } from "./lib/http-metrics";
 
 // ─── Per-IP sliding-window rate limiter ───────────────────────────────────────
 // Tracks request timestamps per IP in a sliding window.
@@ -63,7 +64,8 @@ function makeRateLimiter(maxRequests: number, windowMs: number, namespace: strin
       } catch { return ''; }
     })();
     const loginNick = body?.nickname != null ? String(body.nickname).trim() : '';
-    const identity = bodyUid || sessionUid || (namespace === 'auth-login' && loginNick ? `nick:${loginNick}` : '');
+    const queryUid = typeof req.query?.userId === 'string' ? String(req.query.userId) : '';
+    const identity = bodyUid || sessionUid || queryUid || (namespace === 'auth-login' && loginNick ? `nick:${loginNick}` : '');
     const key = identity ? `${namespace}:id:${identity}` : `${namespace}:ip:${ip}`;
     const now = Date.now();
     const cutoff = now - windowMs;
@@ -110,6 +112,21 @@ app.use(helmet({
   contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false,
 }));
+
+// ─── Auth/rate-limit 결과 집계 ────────────────────────────────────────────────
+// 401/403/429 를 라우트 분류별 정수 카운터로만 모은다 (관리자 DB헬스 탭에서 조회).
+// 본문·쿼리·IP·userId 는 기록하지 않는다.
+app.use((req, res, next) => {
+  res.on('finish', () => {
+    const status = res.statusCode;
+    if (status !== 401 && status !== 403 && status !== 429) return;
+    const route = classifyRoute(req.path);
+    if (status === 401) recordUnauthorized(route);
+    else if (status === 403) recordForbidden(route);
+    else recordRateLimited(route);
+  });
+  next();
+});
 
 // 세션 미들웨어 — SSE·헬스체크는 HMAC/토큰 인증이라 PG 세션 조회 생략
 const sessionMiddleware = createSessionMiddleware();
