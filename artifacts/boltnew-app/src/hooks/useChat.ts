@@ -842,7 +842,7 @@ export function useChat({
             _savePendingQueue(pendingQueueRef.current); // [Part1-Fix3] localStorage 동기화
           } else if (error) {
             // client_id로 이미 저장됐는지 확인 (이전 시도 응답 분실)
-            const { data: existing } = await supabase.from('messages').select('*').eq('client_id', item.clientId).maybeSingle();
+            const { data: existing } = await supabase.from('messages').select('*').eq('chat_id', item.chatId).eq('client_id', item.clientId).maybeSingle();
             if (existing) {
               setMessages(prev => prev.map(m => m.id === item.optimisticId ? existing as Message : m));
               pendingQueueRef.current = pendingQueueRef.current.filter(q => q.clientId !== item.clientId);
@@ -956,7 +956,7 @@ export function useChat({
           // Insert 실패했지만 이전 시도의 응답이 분실된 경우를 처리:
           // 같은 client_id로 DB를 조회해 이미 저장된 행이 있으면 교체 후 성공
           if (error) {
-            const { data: existing } = await supabase.from('messages').select('*').eq('client_id', clientUUID).maybeSingle();
+            const { data: existing } = await supabase.from('messages').select('*').eq('chat_id', snapChatId).eq('client_id', clientUUID).maybeSingle();
             if (existing && (isActiveRoomChat(snapChatId) || isActiveRoomChat((existing as Message).chat_id))) {
               const saved = existing as Message;
               rememberRoomChatId(saved.chat_id);

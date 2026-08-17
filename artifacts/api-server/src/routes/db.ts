@@ -2676,7 +2676,7 @@ async function sendPushForEvent(
   if (table === 'messages') {
     const chat = getTable('chats').find(c => String(c.id) === String(row.chat_id));
     if (!chat) return;
-    recipientId = (chat.user1_id === row.sender_id ? chat.user2_id : chat.user1_id) as string;
+    recipientId = (String(chat.user1_id) === String(row.sender_id) ? chat.user2_id : chat.user1_id) as string;
     const sender = getTable('profiles').find(p => p.id === row.sender_id);
     const nick = (sender?.nickname as string) ?? '누군가';
     let body = (row.content as string) ?? '';
@@ -2911,10 +2911,12 @@ router.post('/op', async (req: Request, res: Response) => {
     if (fr.op != null) return { ...fr, type: fr.op, op: undefined } as unknown as FilterSpec;
     return fr as unknown as FilterSpec;
   }).filter((f): f is FilterSpec => {
-    // 필터 요소 유효성: col은 문자열, type은 문자열이어야 함
+    // 필터 요소 유효성: eq/neq/in 은 col, or 는 expr
     if (f == null) return false;
     const fr = f as unknown as Record<string, unknown>;
-    return typeof fr.col === 'string' && fr.col.length > 0 && typeof fr.type === 'string';
+    if (typeof fr.type !== 'string') return false;
+    if (fr.type === 'or') return typeof fr.expr === 'string' && fr.expr.length > 0;
+    return typeof fr.col === 'string' && fr.col.length > 0;
   });
 
   // ─ Table allowlist: reject unknown/internal tables immediately
@@ -3005,6 +3007,15 @@ router.post('/op', async (req: Request, res: Response) => {
               logger.warn({ requesterId, chatId: illegalChatId, ip: req.ip }, '[SECURITY] IDOR: messages SELECT (in) includes non-participant chat blocked');
               return res.status(403).json({ data: null, error: { message: 'Forbidden: not a chat participant', code: 'FORBIDDEN' } });
             }
+            // sibling 방 메시지까지 포함 — 목록 lastMessage/미읽음이 옛 chat_id 행을 놓치지 않게
+            const expanded = new Set((chatIdInF.vals as unknown[]).map(v => String(v)));
+            for (const cid of [...expanded]) {
+              const chat = chats.find(c => String(c.id) === cid);
+              if (!chat) continue;
+              for (const id of chatIdsForPair(String(chat.user1_id), String(chat.user2_id))) expanded.add(id);
+            }
+            chatIdInF.vals = [...expanded];
+            await mergeMessagesForChatIds([...expanded]);
           }
         }
         // isAdmin: 모든 메시지 조회 허용 (관리자 감사용)
@@ -3833,7 +3844,7 @@ router.post('/op', async (req: Request, res: Response) => {
         if (table === 'messages' && newRow.sender_id && newRow.chat_id) {
           const _msgChat = getTable('chats').find(c => String(c.id) === String(newRow.chat_id));
           if (_msgChat) {
-            const _receiverId = _msgChat.user1_id === newRow.sender_id ? _msgChat.user2_id : _msgChat.user1_id;
+            const _receiverId = String(_msgChat.user1_id) === String(newRow.sender_id) ? _msgChat.user2_id : _msgChat.user1_id;
             if (_receiverId) unreadCountsCache.delete(String(_receiverId));
           }
         }
@@ -5192,12 +5203,14 @@ router.get('/unread-counts', (req: Request, res: Response) => {
       return res.json({ data: cached.data, error: null });
     }
 
-    const chats = getTable('chats').filter(c => c.user1_id === userId || c.user2_id === userId);
+    const chats = getTable('chats').filter(c =>
+      String(c.user1_id) === String(userId) || String(c.user2_id) === String(userId)
+    );
 
     // Build a map of chatId → read_at for this user
     const readAtByChat = new Map<string, string>();
     for (const r of getTable('chat_reads')) {
-      if (r.reader_id === userId && r.chat_id && r.read_at) {
+      if (String(r.reader_id) === String(userId) && r.chat_id && r.read_at) {
         const cid = resolveMergedChatId(String(r.chat_id));
         const prev = readAtByChat.get(cid);
         if (!prev || String(r.read_at) > prev) readAtByChat.set(cid, r.read_at as string);
@@ -5234,7 +5247,7 @@ router.get('/unread-counts', (req: Request, res: Response) => {
           const mid = String(m.id ?? '');
           if (mid && seenMsg.has(mid)) continue;
           if (mid) seenMsg.add(mid);
-          if (m.sender_id === userId) continue;
+          if (String(m.sender_id) === String(userId)) continue;
           if (!readAt || (m.created_at as string) > readAt) unreadCount++;
         }
       }
