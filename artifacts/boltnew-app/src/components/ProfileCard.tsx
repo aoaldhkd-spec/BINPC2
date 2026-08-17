@@ -6,6 +6,7 @@ import { parseProfileInterests, getInterestTagStyle } from '../lib/interests';
 import { HeartType, heartMeta } from '../lib/constants';
 import { getPositionLabel, getPositionStyle, getKoreanAge, hasUploadedPhoto, getAvatarGradientCss } from '../lib/profile';
 import { getMbtiStyle } from '../lib/utils';
+import { cardMenuBox } from '../lib/card-menu-box';
 
 // ─── ProfileCard (memoized — 하트/채팅 상태 변경 시 해당 카드만 재렌더) ────────
 
@@ -51,7 +52,7 @@ export const ProfileCard = memo(function ProfileCard({
   // 잠금 토스트 (컴포넌트 최상단 — Rules of Hooks 준수)
   const [lockToast, setLockToast] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
-  const [menuPos, setMenuPos] = useState<{top:number;right:number}|null>(null);
+  const [menuPos, setMenuPos] = useState<{top:number;left:number;width:number}|null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuBtnRef = useRef<HTMLButtonElement>(null);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -135,7 +136,7 @@ export const ProfileCard = memo(function ProfileCard({
     e.stopPropagation();
     if (showMenu) { setShowMenu(false); setMenuPos(null); return; }
     const rect = e.currentTarget.getBoundingClientRect();
-    setMenuPos({ top: rect.bottom + 6, right: Math.max(8, window.innerWidth - rect.right) });
+    setMenuPos(cardMenuBox(rect, window.innerWidth, window.innerHeight));
     setShowMenu(true);
   };
 
@@ -145,7 +146,7 @@ export const ProfileCard = memo(function ProfileCard({
       type="button"
       onPointerDown={(e) => e.stopPropagation()}
       onClick={openCardMenu}
-      className="w-5 h-5 rounded-full bg-black/55 ring-1 ring-white/30 flex items-center justify-center active:scale-90 transition-transform shrink-0 shadow-sm"
+      className="w-8 h-8 rounded-full bg-black/55 ring-1 ring-white/30 flex items-center justify-center active:scale-90 transition-transform shrink-0 shadow-sm"
       aria-label="더보기"
       aria-expanded={showMenu}
     >
@@ -161,25 +162,25 @@ export const ProfileCard = memo(function ProfileCard({
         <div
           ref={menuRef}
           role="menu"
-          style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 9999, minWidth: '192px' }}
-          className={`rounded-2xl shadow-2xl border overflow-hidden ${isCardDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100'}`}
+          style={{ position: 'fixed', top: menuPos.top, left: menuPos.left, width: menuPos.width, zIndex: 9999 }}
+          className={`max-h-[calc(100dvh-1rem)] rounded-2xl shadow-2xl border overflow-y-auto ${isCardDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100'}`}
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
         >
           {onContactShare && (
             <button type="button" role="menuitem" onClick={(e) => { e.stopPropagation(); setShowMenu(false); setMenuPos(null); if (locked) { showLockToast(e); return; } onContactShare(profile); }}
-              className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 ${isCardDark ? 'text-teal-400 hover:bg-slate-700' : 'text-teal-600 hover:bg-teal-50'}`}>💌 연락처 보내기</button>
+              className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 whitespace-nowrap ${isCardDark ? 'text-teal-400 hover:bg-slate-700' : 'text-teal-600 hover:bg-teal-50'}`}>💌 연락처 보내기</button>
           )}
           {onViewFortune && (
             <button type="button" role="menuitem" onClick={(e) => { e.stopPropagation(); setShowMenu(false); setMenuPos(null); if (locked) { showLockToast(e); return; } onViewFortune(profile); }}
-              className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 border-t ${isCardDark ? 'text-violet-400 hover:bg-slate-700 border-slate-700' : 'text-violet-600 hover:bg-violet-50 border-gray-50'}`}>🔮 사주 보기</button>
+              className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 whitespace-nowrap border-t ${isCardDark ? 'text-violet-400 hover:bg-slate-700 border-slate-700' : 'text-violet-600 hover:bg-violet-50 border-gray-50'}`}>🔮 사주 보기</button>
           )}
           {onBlock && (
             <>
               <button type="button" role="menuitem" onClick={(e) => { e.stopPropagation(); setShowMenu(false); setMenuPos(null); onBlock(profile.id, 'block'); }}
-                className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 border-t ${isCardDark ? 'text-red-400 hover:bg-slate-700 border-slate-700' : 'text-red-500 hover:bg-red-50 border-gray-50'}`}>🚫 차단하기</button>
+                className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 whitespace-nowrap border-t ${isCardDark ? 'text-red-400 hover:bg-slate-700 border-slate-700' : 'text-red-500 hover:bg-red-50 border-gray-50'}`}>🚫 차단하기</button>
               <button type="button" role="menuitem" onClick={(e) => { e.stopPropagation(); setShowMenu(false); setMenuPos(null); onBlock(profile.id, 'hide'); }}
-                className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 border-t ${isCardDark ? 'text-slate-300 hover:bg-slate-700 border-slate-700' : 'text-gray-600 hover:bg-gray-50 border-gray-50'}`}>👻 나를 못 보게 하기</button>
+                className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 whitespace-nowrap border-t ${isCardDark ? 'text-slate-300 hover:bg-slate-700 border-slate-700' : 'text-gray-600 hover:bg-gray-50 border-gray-50'}`}>👻 나를 못 보게 하기</button>
             </>
           )}
         </div>
@@ -418,7 +419,7 @@ export const ProfileCard = memo(function ProfileCard({
             <button
               onClick={(e) => { if (locked) { showLockToast(e); return; } e.stopPropagation(); onLike(profile.id); }}
               disabled={!locked && isLiked && heartCount >= 4}
-              className={`flex-1 min-w-0 flex items-center justify-center gap-0.5 py-0.5 rounded border active:scale-95 transition-transform ${locked ? 'opacity-50' : ''}`}
+              className={`flex-1 min-w-0 min-h-11 flex items-center justify-center gap-0.5 py-0.5 rounded border active:scale-95 transition-transform ${locked ? 'opacity-50' : ''}`}
               style={heartBtnStyle}
             >
               {isLiked && sentHeartType
@@ -434,7 +435,7 @@ export const ProfileCard = memo(function ProfileCard({
             </button>
             <button
               onClick={(e) => { if (locked) { showLockToast(e); return; } e.stopPropagation(); onOpenChat(profile); }}
-              className={`flex-1 min-w-0 flex items-center justify-center gap-0.5 py-0.5 rounded border active:scale-95 transition-transform ${locked ? 'opacity-50' : ''}`}
+              className={`flex-1 min-w-0 min-h-11 flex items-center justify-center gap-0.5 py-0.5 rounded border active:scale-95 transition-transform ${locked ? 'opacity-50' : ''}`}
               style={chatBtnStyle}
             >
               <MessageCircle className="w-3 h-3 shrink-0" style={{ color: '#0ea5e9' }} strokeWidth={2} />
