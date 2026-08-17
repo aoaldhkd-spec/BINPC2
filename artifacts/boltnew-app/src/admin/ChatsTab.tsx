@@ -126,8 +126,8 @@ export function ChatsTab({
   };
 
   return (
-    <div>
-      <nav aria-label="채팅 구분" className="fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom))] z-20 border-t border-gray-200 bg-white">
+    <div className="pb-[calc(3rem+env(safe-area-inset-bottom))]">
+      <nav aria-label="채팅 구분" className="fixed inset-x-0 bottom-0 z-20 border-t border-gray-200 bg-white pb-[env(safe-area-inset-bottom)]">
         <div className="mx-auto grid h-12 max-w-4xl grid-cols-3">
           {([
             { id: 'direct' as HistoryView, label: '1:1 채팅', count: messages.length },
