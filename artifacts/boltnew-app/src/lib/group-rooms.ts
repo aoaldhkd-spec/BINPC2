@@ -385,12 +385,22 @@ export function catalogGroupRooms(
 
 export function resolveCatalogGroupId(groups: GroupChat[], groupId: string): string {
   if (!groupId) return groupId;
-  if (!groups?.length) return groupId;
-  const catalog = catalogGroupRooms(groups);
-  if (catalog.some(g => g.id === groupId)) return groupId;
+  const target = groups?.find(g => g.id === groupId) ?? { id: groupId, name: '', interest_tag: '' };
+  const kind = afterpartyKind(target);
+  if (kind) {
+    const matches = (groups ?? []).filter(g => afterpartyKind(g) === kind);
+    return matches.length ? pickCanonicalAfterparty(matches, kind).id : groupId;
+  }
   const sibs = siblingGroupIds(groups, groupId);
-  const mapped = catalog.find(g => sibs.includes(g.id));
-  return mapped?.id ?? groupId;
+  const rooms = (groups ?? []).filter(g => sibs.includes(g.id));
+  const canonical = rooms.find(g => preferCanonicalGroupId(g.id) === 0);
+  if (canonical) return canonical.id;
+  if (rooms.length > 1) {
+    return [...rooms].sort((a, b) =>
+      String(a.created_at ?? a.id).localeCompare(String(b.created_at ?? b.id)),
+    )[0].id;
+  }
+  return groupId;
 }
 
 export function sortGroupRooms(a: GroupChat, b: GroupChat): number {

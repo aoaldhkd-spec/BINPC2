@@ -480,19 +480,33 @@ function App() {
   const persistSignalAction = useCallback(async (profileId: string, action: 'send' | 'pass') => {
     if (!currentUserId || profileId === currentUserId) return;
     if (functionsLockedRef.current) { showFunctionsLockToast(); return; }
+    let added = false;
     setSignalActedIds((prev) => {
       if (prev.has(profileId)) return prev;
+      added = true;
       return new Set([...prev, profileId]);
     });
+    const rollback = () => {
+      if (!added) return;
+      setSignalActedIds(prev => {
+        const next = new Set(prev);
+        next.delete(profileId);
+        return next;
+      });
+    };
     try {
       const { error } = await supabase.from('signal_sends').insert({
         sender_id: currentUserId,
         receiver_id: profileId,
         action,
       } as never);
-      if (error) console.warn('[signal_sends]', error.message);
+      if (error) {
+        console.warn('[signal_sends]', error.message);
+        rollback();
+      }
     } catch (e) {
       console.warn('[signal_sends]', e);
+      rollback();
     }
   }, [currentUserId, showFunctionsLockToast]);
 

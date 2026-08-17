@@ -174,7 +174,11 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       .channel('admin-ldb-changes')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'likes' },
         (payload: { new: Record<string, unknown> }) => {
-          setLikes(prev => [payload.new as Like, ...prev]);
+          const like = payload.new as Like;
+          setLikes(prev => {
+            if (!like?.id || prev.some(existing => existing.id === like.id)) return prev;
+            return [like, ...prev];
+          });
         })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'likes' },
         (payload: { old: Record<string, unknown> }) => {
@@ -194,7 +198,11 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chats' },
         (payload: { new: Record<string, unknown> }) => {
-          setAllChats(prev => [payload.new as Chat, ...prev]);
+          const chat = payload.new as Chat;
+          setAllChats(prev => {
+            if (!chat?.id || prev.some(existing => existing.id === chat.id)) return prev;
+            return [chat, ...prev];
+          });
         })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'chats' },
         (payload: { old: Record<string, unknown> }) => {

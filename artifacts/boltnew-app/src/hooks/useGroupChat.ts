@@ -166,8 +166,9 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
   const loadGroupMessages = useCallback(async (groupId: string): Promise<boolean> => {
     const gen = ++loadGenRef.current;
     try {
+      const queryIds = siblingGroupIds(rawGroupsRef.current, groupId);
       const { data, error } = await supabase.from('group_messages').select('*')
-        .eq('group_id', groupId).order('created_at', { ascending: true });
+        .in('group_id', queryIds).order('created_at', { ascending: true });
       if (gen !== loadGenRef.current) return false;
       if (error) { console.error('[loadGroupMessages] DB 오류:', error.message); return false; }
       if (data) {
@@ -193,9 +194,19 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
 
   const loadGroupParticipants = useCallback(async (groupId: string): Promise<void> => {
     try {
-      const { data } = await supabase.from('group_participants').select('*').eq('group_id', groupId);
-      if (activeGroupIdRef.current !== groupId) return;
-      setGroupParticipants((data ?? []) as GroupParticipant[]);
+      const queryIds = siblingGroupIds(rawGroupsRef.current, groupId);
+      const { data } = await supabase.from('group_participants').select('*').in('group_id', queryIds);
+      const active = activeGroupIdRef.current;
+      if (active !== groupId && !queryIds.includes(active ?? '')) return;
+      const rows = (data ?? []) as GroupParticipant[];
+      const byUser = new Map<string, GroupParticipant>();
+      for (const p of rows) {
+        const existing = byUser.get(p.user_id);
+        if (!existing || (p.last_read_at && (!existing.last_read_at || p.last_read_at > existing.last_read_at))) {
+          byUser.set(p.user_id, { ...p, group_id: groupId });
+        }
+      }
+      setGroupParticipants([...byUser.values()]);
     } catch (e) {
       console.warn('[loadGroupParticipants]', e);
     }
@@ -205,15 +216,16 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
     const userId = currentUserIdRef.current;
     if (!userId || !groupId) return;
     const at = new Date().toISOString();
-    writeGroupLastRead(userId, groupId, at);
+    const allIds = siblingGroupIds(rawGroupsRef.current, groupId);
+    for (const id of allIds) writeGroupLastRead(userId, id, at);
     setGroupParticipants(prev => prev.map(p =>
-      p.user_id === userId && p.group_id === groupId ? { ...p, last_read_at: at } : p,
+      p.user_id === userId && allIds.includes(p.group_id) ? { ...p, last_read_at: at } : p,
     ));
     try {
-      await supabase.from('group_participants')
+      await Promise.all(allIds.map(id => supabase.from('group_participants')
         .update({ last_read_at: at })
-        .eq('group_id', groupId)
-        .eq('user_id', userId);
+        .eq('group_id', id)
+        .eq('user_id', userId)));
     } catch (e) {
       console.warn('[markGroupRead]', e);
     }
@@ -431,13 +443,18 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
         try {
           const m = payload.new as GroupMessage;
           if (!m?.id || !m.group_id || !m.sender_id) return;
-          if (!myGroupIdsRef.current.includes(m.group_id)) return;
-          if (activeGroupIdRef.current === m.group_id) {
+          const rooms = rawGroupsRef.current.length ? rawGroupsRef.current : groupChatsRef.current;
+          const catalogId = resolveCatalogGroupId(rooms, m.group_id);
+          const sibs = siblingGroupIds(rooms, m.group_id);
+          if (!sibs.some(id => myGroupIdsRef.current.includes(id)) && !myGroupIdsRef.current.includes(m.group_id)) return;
+          const active = activeGroupIdRef.current;
+          const inActive = !!active && (active === m.group_id || active === catalogId || sibs.includes(active));
+          if (inActive) {
             setGroupMessages(prev => {
               const next = applyGroupInsert(prev, m);
               return next.length > MAX_GROUP_MESSAGES ? next.slice(-MAX_GROUP_MESSAGES) : next;
             });
-            if (m.sender_id !== uid) void markGroupRead(m.group_id);
+            if (m.sender_id !== uid) void markGroupRead(active || m.group_id);
           } else if (m.sender_id !== uid) {
             // 비활성 그룹 중복 방지 (재연결 시 동일 메시지 재수신 대비)
             if (seenInactiveGroupMsgIds.current.has(m.id)) return;
@@ -447,9 +464,8 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
               if (first) seenInactiveGroupMsgIds.current.delete(first);
             }
             setGroupChats(prev => prev.map(g =>
-              g.id === m.group_id ? { ...g, lastMessage: m.image_url ? '📷 사진' : m.content } : g
+              (g.id === catalogId || g.id === m.group_id) ? { ...g, lastMessage: m.image_url ? '📷 사진' : m.content } : g
             ));
-            const catalogId = resolveCatalogGroupId(rawGroupsRef.current.length ? rawGroupsRef.current : groupChatsRef.current, m.group_id);
             setUnreadGroupCounts(prev => ({ ...prev, [catalogId]: (prev[catalogId] ?? 0) + 1 }));
           }
         } catch { /* SSE 파싱 오류 무시 */ }
