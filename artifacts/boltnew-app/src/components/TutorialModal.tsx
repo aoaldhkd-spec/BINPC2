@@ -43,7 +43,7 @@ const BASIC: Topic[] = [
       },
       {
         emoji: '🥂',
-        title: '위에 있는 탭',
+        title: '아래 있는 탭',
         tips: [
           { icon: '👥', title: '참여자', desc: '오늘 온 사람들 카드가 여기.' },
           { icon: '💕', title: '시그널', desc: '미션 전엔 설명서. 열리면 패스·시그널.' },
@@ -397,15 +397,16 @@ export function TutorialModal({ onClose, darkMode }: {
 
   return (
     <div
-      className="fixed inset-0 z-[150] flex items-center justify-center p-2.5 bg-black/70 backdrop-blur-sm"
+      className="safe-overlay fixed inset-0 z-[150] flex items-center justify-center bg-black/70 backdrop-blur-sm"
+      style={{ '--overlay-pad': '0.625rem' } as React.CSSProperties}
       onClick={onClose}
     >
       <div
-        className={`relative w-full max-w-[21.25rem] min-h-0 max-h-[min(100dvh-1.75rem,32.5rem)] rounded-2xl shadow-2xl flex flex-col overflow-hidden ${darkMode ? 'bg-slate-900' : 'bg-white'}`}
+        className={`mobile-flow-card relative w-full max-w-[21.25rem] min-h-0 rounded-2xl shadow-2xl flex flex-col overflow-hidden ${darkMode ? 'bg-slate-900' : 'bg-white'}`}
         onClick={e => e.stopPropagation()}
       >
         <button onClick={onClose}
-          className="absolute top-1.5 right-1.5 z-10 w-7 h-7 flex items-center justify-center rounded-full bg-black/25 hover:bg-black/45 text-white">
+          className="touch-target absolute top-0 right-0 z-10 flex items-center justify-center rounded-full bg-black/25 hover:bg-black/45 text-white">
           <X className="w-3.5 h-3.5" />
         </button>
 
@@ -498,17 +499,17 @@ export function TutorialModal({ onClose, darkMode }: {
         <div className={`flex-shrink-0 px-2.5 pt-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] flex gap-1.5 border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
           {safeIdx > 0 ? (
             <button onClick={() => setTopicIdx(safeIdx - 1)}
-              className={`flex-[2] flex items-center justify-center gap-0.5 py-1.5 rounded-xl text-[12px] font-semibold whitespace-nowrap border ${darkMode ? 'border-slate-700 text-slate-300' : 'border-gray-200 text-gray-600'}`}>
+              className={`touch-target flex-[2] flex items-center justify-center gap-0.5 py-1.5 rounded-xl text-[12px] font-semibold whitespace-nowrap border ${darkMode ? 'border-slate-700 text-slate-300' : 'border-gray-200 text-gray-600'}`}>
               <ArrowLeft className="w-3.5 h-3.5" /> 이전
             </button>
           ) : mode === 'advanced' ? (
             <button onClick={() => switchMode('basic')}
-              className={`flex-[2] py-1.5 rounded-xl text-[12px] font-semibold whitespace-nowrap border ${darkMode ? 'border-slate-700 text-slate-300' : 'border-gray-200 text-gray-600'}`}>
+              className={`touch-target flex-[2] py-1.5 rounded-xl text-[12px] font-semibold whitespace-nowrap border ${darkMode ? 'border-slate-700 text-slate-300' : 'border-gray-200 text-gray-600'}`}>
               기본으로
             </button>
           ) : (
             <button onClick={onClose}
-              className={`flex-[2] py-1.5 rounded-xl text-[12px] font-semibold whitespace-nowrap border ${darkMode ? 'border-slate-700 text-slate-300' : 'border-gray-200 text-gray-500'}`}>
+              className={`touch-target flex-[2] py-1.5 rounded-xl text-[12px] font-semibold whitespace-nowrap border ${darkMode ? 'border-slate-700 text-slate-300' : 'border-gray-200 text-gray-500'}`}>
               닫기
             </button>
           )}
@@ -518,7 +519,7 @@ export function TutorialModal({ onClose, darkMode }: {
               if (mode === 'basic') { switchMode('advanced'); return; }
               onClose();
             }}
-            className={`flex-[3] flex items-center justify-center gap-0.5 py-1.5 rounded-xl text-[12px] font-bold whitespace-nowrap text-white bg-gradient-to-r ${topic.color}`}
+            className={`touch-target flex-[3] flex items-center justify-center gap-0.5 py-1.5 rounded-xl text-[12px] font-bold whitespace-nowrap text-white bg-gradient-to-r ${topic.color}`}
           >
             {isLast && mode === 'advanced' ? '알겠어요' : isLast && mode === 'basic' ? '심화 보기' : <>다음 <ArrowRight className="w-3.5 h-3.5" /></>}
           </button>

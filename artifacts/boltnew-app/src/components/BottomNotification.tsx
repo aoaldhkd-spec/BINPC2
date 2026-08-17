@@ -38,10 +38,10 @@ export function BottomNotification({
   }, [notification]);
 
   return (
-    <div className="fixed bottom-24 left-0 right-0 z-[10050] flex justify-center px-4 pointer-events-none">
-      <div className={`px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 pointer-events-auto cursor-pointer ${notification.type === 'heart' || notification.type === 'signal' ? 'bg-rose-500' : notification.type === 'contact' ? 'bg-emerald-500' : notification.type === 'system' ? 'bg-amber-600' : 'bg-cyan-600'}`}>
+    <div className="fixed bottom-[calc(max(1rem,env(safe-area-inset-bottom))+4.5rem+var(--participant-tabbar,0px))] left-0 right-0 z-[10050] flex justify-center px-3 min-[360px]:px-4 pointer-events-none">
+      <div className={`max-w-full px-4 min-[360px]:px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 pointer-events-auto cursor-pointer ${notification.type === 'heart' || notification.type === 'signal' ? 'bg-rose-500' : notification.type === 'contact' ? 'bg-emerald-500' : notification.type === 'system' ? 'bg-amber-600' : 'bg-cyan-600'}`}>
         <span className="text-lg">{notification.type === 'signal' ? '💕' : notification.type === 'heart' ? (notification.heartType ? heartMeta(notification.heartType).emoji : '❤️') : notification.type === 'contact' ? '📱' : notification.type === 'system' ? '💛' : '💬'}</span>
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           {notification.type === 'heart' && (
             <>
               <p className="text-sm font-bold text-white">{notification.nickname || '누군가'}님이 {notification.heartType ? heartMeta(notification.heartType).label : '하트'}를 보냈습니다!</p>
@@ -91,7 +91,7 @@ export function BottomNotification({
             </>
           )}
         </div>
-        <button onClick={(e) => { e.stopPropagation(); onClose(); }} className="text-white/60 hover:text-white text-lg ml-1">×</button>
+        <button onClick={(e) => { e.stopPropagation(); onClose(); }} className="touch-target text-white/60 hover:text-white text-lg flex-shrink-0 flex items-center justify-center">×</button>
       </div>
     </div>
   );

@@ -1692,7 +1692,7 @@ function App() {
       {/* Heart rejection notification */}
       {rejectionNotif && (
         <AppErrorBoundary screenName="거절 알림" onReset={() => setRejectionNotif(null)}>
-          <div className="fixed bottom-[calc(max(1rem,env(safe-area-inset-bottom))+4rem)] left-0 right-0 z-[150] flex justify-center px-4 pointer-events-none">
+          <div className="fixed bottom-[calc(max(1rem,env(safe-area-inset-bottom))+4rem+var(--participant-tabbar,0px))] left-0 right-0 z-[150] flex justify-center px-4 pointer-events-none">
             <div className="max-w-full bg-gray-800 text-white px-4 min-[360px]:px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 pointer-events-auto animate-bounce">
               <span className="text-lg">💔</span>
               <div>
@@ -1705,7 +1705,7 @@ function App() {
       )}
       {/* Bottom notification: new heart / chat */}
       {functionsLockToast && (
-        <div className="fixed bottom-[calc(max(1rem,env(safe-area-inset-bottom))+4.5rem)] left-0 right-0 z-[10060] flex justify-center px-3 min-[360px]:px-4 pointer-events-none">
+        <div className="fixed bottom-[calc(max(1rem,env(safe-area-inset-bottom))+4.5rem+var(--participant-tabbar,0px))] left-0 right-0 z-[10060] flex justify-center px-3 min-[360px]:px-4 pointer-events-none">
           <div className="max-w-full bg-gray-800/95 text-white px-4 py-2 rounded-full shadow-xl text-[12px] font-bold">
             {functionsLockToast}
           </div>

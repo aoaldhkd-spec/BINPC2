@@ -72,7 +72,7 @@ export function ThemeSwitcher() {
       {/* Panel */}
       {open && (
         <div
-          className="theme-switcher-panel fixed bottom-[4.5rem] left-3 z-[9998] w-64 overflow-hidden"
+          className="theme-switcher-panel fixed bottom-[calc(max(0.75rem,env(safe-area-inset-bottom))+3.5rem+var(--participant-tabbar,0px))] left-[max(0.75rem,env(safe-area-inset-left))] z-[9998] w-64 max-w-[calc(100vw-1.5rem)] max-h-[calc(100dvh-5rem)] overflow-y-auto overflow-x-hidden"
           style={{
             background: current.panel.bg,
             border: `${isY2k || isMinimal ? '2px' : '1px'} solid ${current.panel.border}`,
@@ -150,7 +150,7 @@ export function ThemeSwitcher() {
       {/* FAB — 테마별 스타일 */}
       <button
         onClick={() => setOpen(p => !p)}
-        className="theme-switcher-btn fixed bottom-5 left-3 z-[9998] flex items-center gap-1.5 transition-all duration-150 active:scale-90"
+        className="theme-switcher-btn touch-target fixed bottom-[calc(max(0.75rem,env(safe-area-inset-bottom))+var(--participant-tabbar,0px))] left-[max(0.75rem,env(safe-area-inset-left))] z-[9998] flex items-center gap-1.5 transition-all duration-150 active:scale-90"
         style={{
           background: current.fab.bg,
           color: current.fab.text,

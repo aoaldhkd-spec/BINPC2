@@ -278,6 +278,13 @@ export function MainScreen({
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 하단 탭바 높이 — 테마 스위치·토스트가 탭을 가리지 않게
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty('--participant-tabbar', '4.5rem');
+    return () => root.style.removeProperty('--participant-tabbar');
+  }, []);
+
   // 기능 잠금(functionsLocked) 시 이동 불가 탭 — 시그널·채팅·운세 (통계·랭킹은 열림)
   const LOCKED_TABS = SOCIAL_LOCKED_TABS;
 
@@ -594,42 +601,9 @@ export function MainScreen({
           </div>
         </div>
         {timerEndAt && <TimerBanner endAt={timerEndAt} label={timerLabel ?? ''} />}
-        {/* ── 탭 바 (1행 × 4열: 참여자 | 시그널 | 통계 | 랭킹) ── */}
-        <div className={`max-w-7xl mx-auto border-t-2 ${darkMode ? 'bg-slate-900 border-slate-700' : 'bg-gray-50 border-gray-200'}`}>
-          <div className="flex">
-            {([
-              { id: 'profiles' as MainTab, icon: '👥', label: '참여자', badge: seenProfilesCount < 0 ? 0 : Math.max(0, profiles.length - seenProfilesCount) },
-              { id: 'signal' as MainTab, icon: '💕', label: '시그널' },
-              { id: 'stats' as MainTab, icon: '📊', label: '통계' },
-              { id: 'ranking' as MainTab, icon: '🏆', label: '랭킹' },
-            ] as Array<{ id: MainTab; icon: string; label: string; badge?: number }>).map((t, ci, arr) => {
-              const locked = functionsLocked && LOCKED_TABS.has(t.id);
-              const active = mainTab === t.id;
-              return (
-                <button key={t.id} onClick={() => handleTabChange(t.id)} disabled={locked}
-                  className={`relative flex-1 py-3 flex flex-col items-center gap-1 transition-all active:scale-95 border-b-2 ${ci < arr.length - 1 ? (darkMode ? 'border-r border-slate-700/30' : 'border-r border-gray-200/70') : ''} ${
-                    locked ? `opacity-35 cursor-not-allowed border-b-transparent ${darkMode ? 'text-slate-500' : 'text-gray-400'}` :
-                    active ? darkMode ? 'border-b-cyan-500 text-cyan-400 bg-cyan-500/10' : 'border-b-cyan-500 text-cyan-700 bg-cyan-50' :
-                    darkMode ? 'border-b-transparent text-slate-400' : 'border-b-transparent text-gray-500'
-                  }`}>
-                  <span className="text-lg leading-none">{locked ? '🔒' : t.icon}</span>
-                  <span className="relative inline-flex text-[10px] font-bold leading-tight">
-                    {t.label}
-                    {!locked && (t.badge ?? 0) > 0 && (
-                      <span className="absolute -top-1 -right-3 min-w-[13px] h-[13px] px-0.5 bg-rose-500 text-white text-[8px] font-black rounded-full flex items-center justify-center">
-                        {t.badge}
-                      </span>
-                    )}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
       </header>
 
-      <main className="max-w-7xl mx-auto px-3 min-[360px]:px-4 py-4 min-[390px]:py-6 pb-24 scrollbar-styled-light">
+      <main className="max-w-7xl mx-auto px-3 min-[360px]:px-4 py-4 min-[390px]:py-6 pb-[calc(8.5rem+env(safe-area-inset-bottom,0px))] scrollbar-styled-light">
         {chatSearchLockToast && (
           <div className="fixed top-24 left-0 right-0 z-[80] flex justify-center pointer-events-none">
             <div className="text-center text-[11px] font-bold text-white bg-gray-800/90 rounded-full px-3 py-1">
@@ -2076,6 +2050,43 @@ export function MainScreen({
 
       </main>
 
+      {/* ── 하단 탭 바 (참여자 | 시그널 | 통계 | 랭킹) — 관리자/테스트 탭은 상단 유지 ── */}
+      <nav
+        aria-label="참여자 메뉴"
+        className={`fixed bottom-0 left-0 right-0 z-40 border-t pb-[max(0.4rem,env(safe-area-inset-bottom,0px))] ${darkMode ? 'bg-slate-900 border-slate-700' : 'bg-white border-gray-200'}`}
+      >
+        <div className="max-w-7xl mx-auto flex">
+          {([
+            { id: 'profiles' as MainTab, icon: '👥', label: '참여자', badge: seenProfilesCount < 0 ? 0 : Math.max(0, profiles.length - seenProfilesCount) },
+            { id: 'signal' as MainTab, icon: '💕', label: '시그널' },
+            { id: 'stats' as MainTab, icon: '📊', label: '통계' },
+            { id: 'ranking' as MainTab, icon: '🏆', label: '랭킹' },
+          ] as Array<{ id: MainTab; icon: string; label: string; badge?: number }>).map((t, ci, arr) => {
+            const locked = functionsLocked && LOCKED_TABS.has(t.id);
+            const active = mainTab === t.id;
+            return (
+              <button key={t.id} type="button" onClick={() => handleTabChange(t.id)} disabled={locked}
+                aria-label={t.label} aria-current={active ? 'page' : undefined}
+                className={`touch-target relative flex-1 py-2.5 min-[360px]:py-3 flex flex-col items-center justify-center gap-1 transition-all active:scale-95 border-t-2 ${ci < arr.length - 1 ? (darkMode ? 'border-r border-slate-700/30' : 'border-r border-gray-200/70') : ''} ${
+                  locked ? `opacity-35 cursor-not-allowed border-t-transparent ${darkMode ? 'text-slate-500' : 'text-gray-400'}` :
+                  active ? darkMode ? 'border-t-cyan-500 text-cyan-400 bg-cyan-500/10' : 'border-t-cyan-500 text-cyan-700 bg-cyan-50' :
+                  darkMode ? 'border-t-transparent text-slate-400' : 'border-t-transparent text-gray-500'
+                }`}>
+                <span className="text-lg leading-none">{locked ? '🔒' : t.icon}</span>
+                <span className="relative inline-flex text-[10px] font-bold leading-tight">
+                  {t.label}
+                  {!locked && (t.badge ?? 0) > 0 && (
+                    <span className="absolute -top-1 -right-3 min-w-[13px] h-[13px] px-0.5 bg-rose-500 text-white text-[8px] font-black rounded-full flex items-center justify-center">
+                      {t.badge}
+                    </span>
+                  )}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+
       {/* ── MY 버튼 (우하단 고정 원형) + 팝업 ── */}
       {(() => {
         const myTabActive = mainTab === 'status' || mainTab === 'chats' || mainTab === 'fortune' || mainTab === 'settings';
@@ -2100,7 +2111,7 @@ export function MainScreen({
 
             {/* 팝업 메뉴 */}
             {myMenuOpen && (
-              <div className={`fixed bottom-[calc(max(1rem,env(safe-area-inset-bottom))+4.5rem)] right-[max(1rem,env(safe-area-inset-right))] z-50 rounded-2xl shadow-2xl border overflow-hidden min-w-[160px] transition-all ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'}`}>
+              <div className={`fixed bottom-[calc(9rem+env(safe-area-inset-bottom,0px))] right-[max(1rem,env(safe-area-inset-right))] z-50 rounded-2xl shadow-2xl border overflow-hidden min-w-[160px] transition-all ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'}`}>
                 {MY_ITEMS.map((item, idx) => {
                   const locked = functionsLocked && LOCKED_TABS.has(item.id);
                   const active = mainTab === item.id;
@@ -2133,7 +2144,7 @@ export function MainScreen({
             {/* MY 원형 버튼 */}
             <button
               onClick={() => setMyMenuOpen(v => !v)}
-              className={`fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-50 w-14 h-14 rounded-full shadow-xl flex flex-col items-center justify-center gap-0 transition-all active:scale-90 select-none ${
+              className={`fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] right-[max(1rem,env(safe-area-inset-right))] z-50 w-14 h-14 rounded-full shadow-xl flex flex-col items-center justify-center gap-0 transition-all active:scale-90 select-none ${
                 myTabActive || myMenuOpen
                   ? 'bg-gradient-to-br from-cyan-500 to-teal-500 text-white border-2 border-white/40'
                   : darkMode
