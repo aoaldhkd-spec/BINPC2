@@ -2620,4 +2620,97 @@ describe('[Security] group chats auto 2 + opt-in 2차', () => {
     const rows = Array.isArray(parts.body.data) ? parts.body.data : [];
     expect(rows.some((r: { group_id: string }) => ['group_afterparty_club', dupId].includes(String(r.group_id)))).toBe(false);
   });
+
+  it('같은 이름 2차·N대 방은 canonical 한 줄로 합친다', async () => {
+    const uid = `g-dedupe-${randomUUID()}`;
+    const dupAge = `dup-age20-${uid}`;
+    const dupDrink = `dup-drink-${uid}`;
+    expect((await op({
+      op: 'insert',
+      table: 'group_chats',
+      payload: {
+        id: dupAge,
+        name: '20대 모임',
+        interest_tag: '20대',
+        age_group: '20대',
+        max_members: 999999,
+        room_kind: 'age_decade',
+      },
+      requesterId: 'seed-admin',
+    })).status).toBe(200);
+    expect((await op({
+      op: 'insert',
+      table: 'group_chats',
+      payload: {
+        id: dupDrink,
+        name: '2차 술갈분',
+        interest_tag: '2차술',
+        max_members: 999999,
+        room_kind: 'afterparty_drink',
+      },
+      requesterId: 'seed-admin',
+    })).status).toBe(200);
+
+    expect((await op({
+      op: 'insert',
+      table: 'group_participants',
+      requesterId: uid,
+      payload: { group_id: dupAge, user_id: uid },
+    })).status).toBe(200);
+    expect((await op({
+      op: 'insert',
+      table: 'group_messages',
+      requesterId: uid,
+      payload: { group_id: dupAge, sender_id: uid, content: 'keep-me-age' },
+    })).status).toBe(200);
+    expect((await op({
+      op: 'insert',
+      table: 'group_participants',
+      requesterId: uid,
+      payload: { group_id: dupDrink, user_id: uid },
+    })).status).toBe(200);
+
+    const rooms = await op({
+      op: 'select',
+      table: 'group_chats',
+      requesterId: uid,
+    });
+    expect(rooms.status).toBe(200);
+    const list = Array.isArray(rooms.body.data) ? rooms.body.data : [];
+    const twenties = list.filter((g: { name?: string }) => String(g.name ?? '') === '20대 모임');
+    const thirties = list.filter((g: { name?: string }) => String(g.name ?? '') === '30대 모임');
+    const drinks = list.filter((g: { room_kind?: string }) => String(g.room_kind ?? '') === 'afterparty_drink');
+    const clubs = list.filter((g: { room_kind?: string }) => String(g.room_kind ?? '') === 'afterparty_club');
+    expect(twenties).toHaveLength(1);
+    expect(twenties[0].id).toBe('group_age_20');
+    expect(thirties).toHaveLength(1);
+    expect(thirties[0].id).toBe('group_age_30');
+    expect(drinks).toHaveLength(1);
+    expect(drinks[0].id).toBe('group_afterparty_drink');
+    expect(clubs).toHaveLength(1);
+    expect(clubs[0].id).toBe('group_afterparty_club');
+    expect(list.some((g: { id?: string }) => String(g.id) === dupAge)).toBe(false);
+    expect(list.some((g: { id?: string }) => String(g.id) === dupDrink)).toBe(false);
+
+    const parts = await op({
+      op: 'select',
+      table: 'group_participants',
+      requesterId: uid,
+      filters: [{ type: 'eq', col: 'user_id', val: uid }],
+    });
+    const partRows = Array.isArray(parts.body.data) ? parts.body.data : [];
+    expect(partRows.some((p: { group_id?: string }) => String(p.group_id) === 'group_age_20')).toBe(true);
+    expect(partRows.some((p: { group_id?: string }) => String(p.group_id) === dupAge)).toBe(false);
+    expect(partRows.filter((p: { group_id?: string }) => String(p.group_id) === 'group_afterparty_drink')).toHaveLength(1);
+    expect(partRows.some((p: { group_id?: string }) => String(p.group_id) === dupDrink)).toBe(false);
+
+    const msgs = await op({
+      op: 'select',
+      table: 'group_messages',
+      requesterId: uid,
+      filters: [{ type: 'eq', col: 'group_id', val: 'group_age_20' }],
+    });
+    const msgRows = Array.isArray(msgs.body.data) ? msgs.body.data : [];
+    expect(msgRows.some((m: { content?: string }) => String(m.content) === 'keep-me-age')).toBe(true);
+  });
 });

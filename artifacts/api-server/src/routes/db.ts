@@ -1449,13 +1449,45 @@ const OPT_IN_GROUP_ROOMS: Array<{
   { id: 'group_afterparty_drink', name: '2차 술 갈 분', interest_tag: '2차술', room_kind: 'afterparty_drink' },
 ];
 
+function compactGroupName(value: unknown): string {
+  return String(value ?? '').replace(/\s+/g, '');
+}
+
 function matchesAfterpartySpec(g: Record<string, unknown>, spec: { id: string; name: string; interest_tag: string; room_kind: string }): boolean {
+  const name = String(g.name ?? '');
+  const compact = compactGroupName(name);
   return String(g.id) === spec.id
-    || String(g.name) === spec.name
+    || name === spec.name
+    || compact === compactGroupName(spec.name)
     || String(g.interest_tag) === spec.interest_tag
     || String(g.room_kind ?? '') === spec.room_kind
-    || (spec.room_kind === 'afterparty_club' && String(g.name ?? '').includes('2차 클럽'))
-    || (spec.room_kind === 'afterparty_drink' && String(g.name ?? '').includes('2차 술'));
+    || (spec.room_kind === 'afterparty_club' && (name.includes('2차 클럽') || compact.includes('2차클럽')))
+    || (spec.room_kind === 'afterparty_drink' && (name.includes('2차 술') || compact.includes('2차술')));
+}
+
+function matchesVisibleAgeBand(g: Record<string, unknown>, band: string): boolean {
+  if (String(g.id) === `group_age_${band.replace(/대$/, '')}`) return true;
+  const compact = compactGroupName(g.name);
+  return compact === compactGroupName(`${band} 모임`);
+}
+
+function birthYearOfGroup(g: Record<string, unknown>): number | null {
+  const idm = String(g.id ?? '').match(/^group_birth_(\d{4})$/);
+  if (idm) return Number(idm[1]);
+  const namem = String(g.name ?? '').match(/^(\d{4})년생\s*모임$/);
+  if (namem) return Number(namem[1]);
+  return null;
+}
+
+function collapseDuplicateGroupChatIds(): void {
+  const rows = getTable('group_chats');
+  const byId = new Map<string, Record<string, unknown>>();
+  for (const g of rows) {
+    const id = String(g.id ?? '');
+    if (!id) continue;
+    byId.set(id, g);
+  }
+  if (byId.size !== rows.length) store['group_chats'] = [...byId.values()];
 }
 
 const mergedGroupIds = new Map<string, string>();
@@ -1487,14 +1519,17 @@ async function mergeGroupInto(dupId: string, canonicalId: string): Promise<void>
   for (const p of [...parts]) {
     if (String(p.group_id) !== dupId) continue;
     const uid = String(p.user_id ?? '');
+    const oldId = String(p.id);
     const already = parts.some(x => String(x.group_id) === canonicalId && String(x.user_id) === uid);
     if (already) {
-      store['group_participants'] = getTable('group_participants').filter(x => String(x.id) !== String(p.id));
-      void dbDeleteRow('group_participants', String(p.id));
+      store['group_participants'] = getTable('group_participants').filter(x => String(x.id) !== oldId);
+      void dbDeleteRow('group_participants', oldId);
     } else {
+      const newId = `${canonicalId}__${uid}`;
       p.group_id = canonicalId;
-      p.id = `${canonicalId}__${uid}`;
+      p.id = newId;
       void dbPersistRow('group_participants', p);
+      if (oldId && oldId !== newId) void dbDeleteRow('group_participants', oldId);
     }
   }
   for (const m of getTable('group_messages')) {
@@ -1503,11 +1538,105 @@ async function mergeGroupInto(dupId: string, canonicalId: string): Promise<void>
       void dbPersistRow('group_messages', m);
     }
   }
+  for (const r of getTable('group_opt_outs')) {
+    if (String(r.group_id) === dupId) {
+      r.group_id = canonicalId;
+      void dbPersistRow('group_opt_outs', r);
+    }
+  }
 }
 
-/** 카탈로그 방만 보장. 참여자를 자동으로 넣지 않음. 2차 방 중복은 canonical 으로 숨김+이전. */
-async function ensureOptInGroupRooms(): Promise<void> {
+async function deleteDuplicateGroupChat(g: Record<string, unknown>): Promise<void> {
+  const groupId = String(g.id ?? '');
+  if (!groupId) return;
+  const rows = getTable('group_chats');
+  for (let i = rows.length - 1; i >= 0; i--) {
+    if (String(rows[i].id) === groupId) rows.splice(i, 1);
+  }
   try {
+    await dbDeleteRow('group_chats', groupId);
+  } catch (e) {
+    logger.error({ err: e, groupId }, '[ensureOptInGroupRooms] dup delete persist failed');
+  }
+  smartBroadcast('group_chats', g, {
+    type: 'change', table: 'group_chats', event: 'DELETE', newRow: null, oldRow: g,
+  });
+}
+
+async function mergeMatchesIntoCanonical(
+  matches: Record<string, unknown>[],
+  canonical: Record<string, unknown>,
+): Promise<void> {
+  const canonicalId = String(canonical.id);
+  const seen = new Set<string>();
+  for (const dup of matches) {
+    const dupId = String(dup.id ?? '');
+    if (!dupId || dupId === canonicalId || seen.has(dupId)) continue;
+    seen.add(dupId);
+    await mergeGroupInto(dupId, canonicalId);
+    await deleteDuplicateGroupChat(dup);
+  }
+}
+
+async function upsertCanonicalGroupRoom(spec: {
+  id: string; name: string; interest_tag: string; room_kind: string; age_group?: string | null;
+}): Promise<Record<string, unknown> | null> {
+  const groups = getTable('group_chats');
+  let room = groups.find(g => String(g.id) === spec.id);
+  if (!room) {
+    room = {
+      id: spec.id,
+      name: spec.name,
+      interest_tag: spec.interest_tag,
+      room_kind: spec.room_kind,
+      age_group: spec.age_group === undefined ? null : spec.age_group,
+      max_members: UNLIMITED_GROUP_MEMBERS,
+      hidden: false,
+      merged_into: null,
+      created_at: ts(),
+    };
+    groups.push(room);
+    try {
+      await dbPersistRow('group_chats', room);
+      smartBroadcast('group_chats', room, {
+        type: 'change', table: 'group_chats', event: 'INSERT', newRow: room, oldRow: null,
+      });
+    } catch (e) {
+      store['group_chats'] = getTable('group_chats').filter(g => String(g.id) !== spec.id);
+      logger.error({ err: e, groupId: spec.id }, '[ensureOptInGroupRooms] seed persist failed');
+      return null;
+    }
+    return room;
+  }
+  room.name = spec.name;
+  room.interest_tag = spec.interest_tag;
+  room.room_kind = spec.room_kind;
+  room.max_members = UNLIMITED_GROUP_MEMBERS;
+  room.hidden = false;
+  room.merged_into = null;
+  if (spec.age_group !== undefined) room.age_group = spec.age_group;
+  else if (room.age_group === undefined) room.age_group = null;
+  try {
+    await dbPersistRow('group_chats', room);
+  } catch (e) {
+    logger.error({ err: e, groupId: spec.id }, '[ensureOptInGroupRooms] existing room persist failed');
+  }
+  return room;
+}
+
+/** 카탈로그 방만 보장. 참여자를 자동으로 넣지 않음. 2차·N대 중복은 canonical 으로 이전 후 삭제. */
+let ensureOptInGroupRoomsInFlight: Promise<void> | null = null;
+async function ensureOptInGroupRooms(): Promise<void> {
+  if (ensureOptInGroupRoomsInFlight) return ensureOptInGroupRoomsInFlight;
+  ensureOptInGroupRoomsInFlight = ensureOptInGroupRoomsWork().finally(() => {
+    ensureOptInGroupRoomsInFlight = null;
+  });
+  return ensureOptInGroupRoomsInFlight;
+}
+
+async function ensureOptInGroupRoomsWork(): Promise<void> {
+  try {
+    collapseDuplicateGroupChatIds();
     const groups = getTable('group_chats');
     for (const g of groups) {
       const cap = Number(g.max_members);
@@ -1521,98 +1650,44 @@ async function ensureOptInGroupRooms(): Promise<void> {
       }
     }
     for (const spec of OPT_IN_GROUP_ROOMS) {
-      const matches = groups.filter(g => matchesAfterpartySpec(g, spec));
-      let canonical = matches.find(g => String(g.id) === spec.id)
-        ?? [...matches].sort((a, b) => String(a.created_at ?? a.id).localeCompare(String(b.created_at ?? b.id)))[0];
-      if (!canonical) {
-        canonical = {
-          id: spec.id,
-          name: spec.name,
-          interest_tag: spec.interest_tag,
-          room_kind: spec.room_kind,
-          age_group: null,
-          max_members: UNLIMITED_GROUP_MEMBERS,
-          hidden: false,
-          created_at: ts(),
-        };
-        groups.push(canonical);
-        try {
-          await dbPersistRow('group_chats', canonical);
-          smartBroadcast('group_chats', canonical, {
-            type: 'change', table: 'group_chats', event: 'INSERT', newRow: canonical, oldRow: null,
-          });
-        } catch (e) {
-          store['group_chats'] = groups.filter(g => String(g.id) !== spec.id);
-          logger.error({ err: e, groupId: spec.id }, '[ensureOptInGroupRooms] seed persist failed');
-          continue;
-        }
-      } else {
-        canonical.name = spec.name;
-        canonical.interest_tag = spec.interest_tag;
-        canonical.room_kind = spec.room_kind;
-        canonical.max_members = UNLIMITED_GROUP_MEMBERS;
-        canonical.hidden = false;
-        canonical.merged_into = null;
-        if (canonical.age_group === undefined) canonical.age_group = null;
-        try {
-          await dbPersistRow('group_chats', canonical);
-        } catch (e) {
-          logger.error({ err: e, groupId: canonical.id }, '[ensureOptInGroupRooms] existing room persist failed');
-        }
-      }
-      const canonicalId = String(canonical.id);
-      for (const dup of matches) {
-        const dupId = String(dup.id);
-        if (dupId === canonicalId) continue;
-        await mergeGroupInto(dupId, canonicalId);
-        dup.hidden = true;
-        dup.merged_into = canonicalId;
-        try {
-          await dbPersistRow('group_chats', dup);
-        } catch (e) {
-          logger.error({ err: e, groupId: dupId }, '[ensureOptInGroupRooms] hide dup persist failed');
-        }
-      }
+      const canonical = await upsertCanonicalGroupRoom(spec);
+      if (!canonical) continue;
+      const matches = getTable('group_chats').filter(g => matchesAfterpartySpec(g, spec));
+      await mergeMatchesIntoCanonical(matches, canonical);
     }
-    // 보이는 N대 방은 20대·30대만. 10대/40~70대는 시드하지 않고, 이미 있으면 관련 행과 함께 삭제한다.
+    // 보이는 N대 방은 20대·30대만. 같은 이름 중복은 canonical 으로 합친다. 10대/40~70대는 시드하지 않는다.
     for (const band of VISIBLE_AGE_BANDS) {
       const id = `group_age_${band.replace('대', '')}`;
       const name = `${band} 모임`;
-      let room = groups.find(g => String(g.id) === id)
-        ?? groups.find(g => String(g.name) === name);
-      if (!room) {
-        room = {
-          id,
-          name,
-          interest_tag: band,
-          age_group: band,
-          room_kind: 'age_decade',
-          max_members: UNLIMITED_GROUP_MEMBERS,
-          hidden: false,
-          created_at: ts(),
-        };
-        groups.push(room);
-        try {
-          await dbPersistRow('group_chats', room);
-        } catch (e) {
-          store['group_chats'] = groups.filter(g => String(g.id) !== id);
-          logger.error({ err: e, groupId: id }, '[ensureOptInGroupRooms] age room seed persist failed');
-          continue;
-        }
-      } else {
-        room.name = name;
-        room.interest_tag = band;
-        room.age_group = band;
-        room.room_kind = 'age_decade';
-        room.max_members = UNLIMITED_GROUP_MEMBERS;
-        room.hidden = false;
-        room.merged_into = null;
-        try {
-          await dbPersistRow('group_chats', room);
-        } catch (e) {
-          logger.error({ err: e, groupId: String(room.id) }, '[ensureOptInGroupRooms] age room persist failed');
-        }
-      }
+      const canonical = await upsertCanonicalGroupRoom({
+        id, name, interest_tag: band, room_kind: 'age_decade', age_group: band,
+      });
+      if (!canonical) continue;
+      const matches = getTable('group_chats').filter(g => matchesVisibleAgeBand(g, band));
+      await mergeMatchesIntoCanonical(matches, canonical);
+    }
+    const byYear = new Map<number, Record<string, unknown>[]>();
+    for (const g of getTable('group_chats')) {
+      const year = birthYearOfGroup(g);
+      if (year == null) continue;
+      const list = byYear.get(year) ?? [];
+      list.push(g);
+      byYear.set(year, list);
+    }
+    for (const [year, rooms] of byYear) {
+      if (rooms.length < 2) continue;
+      const canonical = await upsertCanonicalGroupRoom({
+        id: `group_birth_${year}`,
+        name: `${year}년생 모임`,
+        interest_tag: `${year}년생`,
+        room_kind: 'birth_year',
+        age_group: null,
+      });
+      if (!canonical) continue;
+      await mergeMatchesIntoCanonical(
+        getTable('group_chats').filter(g => birthYearOfGroup(g) === year),
+        canonical,
+      );
     }
     await purgeRetiredAgeRooms();
   } catch (e) {
@@ -1932,7 +2007,7 @@ async function joinOrCreateAutoRoom(userId: string, spec: {
 async function autoMatchGroupChat(userId: string, profile: Record<string, unknown>): Promise<void> {
   if (!userId) return;
   try {
-    await purgeRetiredAgeRooms();
+    await ensureOptInGroupRooms();
     const ageBand = ageBandFromYear(profile.birth_year);
     const year = Number(profile.birth_year);
     const parts = getTable('group_participants').filter(p => String(p.user_id) === userId);
@@ -1997,6 +2072,7 @@ const dbReadyPromise = seedIfNeeded()
 dbReadyPromise
   .then(() => cleanupLegacyTables())
   .then(() => loadRemainingTablesFromDb())
+  .then(() => ensureOptInGroupRooms())
   .then(() => {
     startIntegrityDiagnostics();
     return setupListenClient();
@@ -3174,9 +3250,12 @@ router.post('/op', async (req: Request, res: Response) => {
         }
       }
 
-      if (table === 'group_chats' && requesterId) {
-        const me = getTable('profiles').find(p => String(p.id) === String(requesterId));
-        if (me) await autoMatchGroupChatGuarded(String(requesterId), me);
+      if (table === 'group_chats') {
+        await ensureOptInGroupRooms();
+        if (requesterId) {
+          const me = getTable('profiles').find(p => String(p.id) === String(requesterId));
+          if (me) await autoMatchGroupChatGuarded(String(requesterId), me);
+        }
         tableData = store['group_chats'];
       }
       let result = applyFilters(tableData, normalizedFilters);

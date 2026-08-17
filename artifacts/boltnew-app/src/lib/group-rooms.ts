@@ -144,10 +144,11 @@ export function afterpartyKind(group: GroupLike): 'club' | 'drink' | null {
   const kind = group.room_kind ?? '';
   const tag = group.interest_tag ?? '';
   const name = group.name ?? '';
-  if (kind === 'afterparty_club' || tag === '2차클럽' || group.id === AFTERPARTY_CLUB_ID || name.includes('2차 클럽')) {
+  const compact = name.replace(/\s+/g, '');
+  if (kind === 'afterparty_club' || tag === '2차클럽' || group.id === AFTERPARTY_CLUB_ID || name.includes('2차 클럽') || compact.includes('2차클럽')) {
     return 'club';
   }
-  if (kind === 'afterparty_drink' || tag === '2차술' || group.id === AFTERPARTY_DRINK_ID || name.includes('2차 술')) {
+  if (kind === 'afterparty_drink' || tag === '2차술' || group.id === AFTERPARTY_DRINK_ID || name.includes('2차 술') || compact.includes('2차술')) {
     return 'drink';
   }
   return null;
@@ -223,21 +224,59 @@ export function adminGroupRoomBucket(group: GroupLike): AdminGroupRoomBucket | n
   return 'other';
 }
 
+/** 2차·N대·년생 복제본을 같은 키로 묶는다. hidden 플래그가 없어도 목록 8이 되지 않게. */
+export function catalogRoomDedupeKey(group: GroupLike): string | null {
+  const ap = afterpartyKind(group);
+  if (ap) return `ap:${ap}`;
+  if (isAdminBirthYearRoom(group)) {
+    const year = String(group.name ?? '').match(/^(\d{4})/)?.[1]
+      ?? String(group.id).match(/(\d{4})/)?.[1];
+    return year ? `y:${year}` : `y:${group.id}`;
+  }
+  const name = String(group.name ?? '');
+  const fromName = name.match(/^(\d+)대/)?.[1];
+  const band = String(group.age_group ?? '') || (fromName ? `${fromName}대` : '');
+  if (
+    VISIBLE_AGE_ROOM_NAMES.has(name)
+    || ((band === '20대' || band === '30대') && (isDecadeRoom(group) || group.room_kind === 'age_decade'))
+  ) {
+    return `a:${band || name}`;
+  }
+  return null;
+}
+
+function preferCanonicalGroupId(id: string): number {
+  return /^group_(afterparty_|age_|birth_)/.test(id) ? 0 : 1;
+}
+
+function uniqueAdminRooms(
+  groups: readonly GroupLike[],
+  bucket: AdminGroupRoomBucket,
+): GroupLike[] {
+  const seen = new Set<string>();
+  const out: GroupLike[] = [];
+  const sorted = [...groups].sort((a, b) =>
+    preferCanonicalGroupId(String(a.id)) - preferCanonicalGroupId(String(b.id)),
+  );
+  for (const group of sorted) {
+    if (adminGroupRoomBucket(group) !== bucket) continue;
+    const key = catalogRoomDedupeKey(group) ?? `id:${group.id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(group);
+  }
+  return out;
+}
+
 export function adminGroupRoomCounts(groups: readonly GroupLike[]): {
   total: number;
   catalog: number;
   birthYear: number;
   other: number;
 } {
-  let catalog = 0;
-  let birthYear = 0;
-  let other = 0;
-  for (const group of groups) {
-    const bucket = adminGroupRoomBucket(group);
-    if (bucket === 'catalog') catalog += 1;
-    else if (bucket === 'birth_year') birthYear += 1;
-    else if (bucket === 'other') other += 1;
-  }
+  const catalog = uniqueAdminRooms(groups, 'catalog').length;
+  const birthYear = uniqueAdminRooms(groups, 'birth_year').length;
+  const other = uniqueAdminRooms(groups, 'other').length;
   return { total: catalog + birthYear + other, catalog, birthYear, other };
 }
 
@@ -246,16 +285,11 @@ export function adminGroupRoomsByBucket(groups: readonly GroupLike[]): {
   birthYear: GroupLike[];
   other: GroupLike[];
 } {
-  const catalog: GroupLike[] = [];
-  const birthYear: GroupLike[] = [];
-  const other: GroupLike[] = [];
-  for (const group of groups) {
-    const bucket = adminGroupRoomBucket(group);
-    if (bucket === 'catalog') catalog.push(group);
-    else if (bucket === 'birth_year') birthYear.push(group);
-    else if (bucket === 'other') other.push(group);
-  }
-  return { catalog, birthYear, other };
+  return {
+    catalog: uniqueAdminRooms(groups, 'catalog'),
+    birthYear: uniqueAdminRooms(groups, 'birth_year'),
+    other: uniqueAdminRooms(groups, 'other'),
+  };
 }
 
 /** 예: 전체 6개 방 · 목록 방 4 · 년생 방 2 */
@@ -336,10 +370,13 @@ export function catalogGroupRooms(
   const rest = groups.filter(g => !afterpartyKind(g) && isVisibleCatalogRoom(g, opts));
   const seen = new Set<string>();
   for (const g of rest) {
-    const key = isYearRoom(g) ? `y:${g.name}` : `a:${g.age_group || g.name}`;
+    const key = catalogRoomDedupeKey(g) ?? `id:${g.id}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    out.push({ ...g, joined: !!(g.joined || joinedIds.has(g.id)) });
+    const siblings = rest.filter(x => (catalogRoomDedupeKey(x) ?? `id:${x.id}`) === key);
+    const preferId = siblings.find(x => preferCanonicalGroupId(x.id) === 0)?.id;
+    const picked = (preferId ? siblings.find(x => x.id === preferId) : null) ?? g;
+    out.push({ ...picked, joined: siblings.some(x => !!(x.joined || joinedIds.has(x.id))) });
   }
 
   out.sort(sortGroupRooms);
@@ -347,12 +384,13 @@ export function catalogGroupRooms(
 }
 
 export function resolveCatalogGroupId(groups: GroupChat[], groupId: string): string {
-  const kind = afterpartyKind(groups.find(g => g.id === groupId) ?? { id: groupId, name: '', interest_tag: '' });
-  if (kind) {
-    const canonical = catalogGroupRooms(groups).find(g => afterpartyKind(g) === kind);
-    return canonical?.id ?? groupId;
-  }
-  return groupId;
+  if (!groupId) return groupId;
+  if (!groups?.length) return groupId;
+  const catalog = catalogGroupRooms(groups);
+  if (catalog.some(g => g.id === groupId)) return groupId;
+  const sibs = siblingGroupIds(groups, groupId);
+  const mapped = catalog.find(g => sibs.includes(g.id));
+  return mapped?.id ?? groupId;
 }
 
 export function sortGroupRooms(a: GroupChat, b: GroupChat): number {

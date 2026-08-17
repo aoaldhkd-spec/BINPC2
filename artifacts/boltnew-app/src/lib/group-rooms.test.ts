@@ -4,6 +4,7 @@ import {
   MAX_GROUPS_PER_USER,
   ageBandFromYear,
   catalogGroupRooms,
+  resolveCatalogGroupId,
   countUnreadGroupMessages,
   groupLimitMessage,
   isLegacyInterestAutoRoom,
@@ -50,6 +51,27 @@ describe('group-rooms catalog', () => {
     expect(names.filter(n => n.includes('2차 클럽'))).toHaveLength(1);
     expect(list.find(g => g.name.includes('2차 술'))?.id).toBe('group_afterparty_drink');
     expect(list.find(g => g.name.includes('2차 클럽'))?.id).toBe('group_afterparty_club');
+  });
+
+  it('collapses 2차 술갈분 spelling leftover onto the drink room', () => {
+    const list = catalogGroupRooms([
+      room({ id: 'dup-drink', name: '2차 술갈분' }),
+      room({ id: 'group_afterparty_drink', name: '2차 술 갈 분', interest_tag: '2차술', room_kind: 'afterparty_drink' }),
+    ]);
+    expect(list).toHaveLength(1);
+    expect(list[0].id).toBe('group_afterparty_drink');
+  });
+
+  it('collapses two 20대 모임 rows onto the canonical id', () => {
+    const list = catalogGroupRooms([
+      room({ id: 'dup-20', name: '20대 모임', room_kind: 'age_decade' }),
+      room({ id: 'group_age_20', name: '20대 모임', room_kind: 'age_decade', age_group: '20대' }),
+      room({ id: 'group_age_30', name: '30대 모임', room_kind: 'age_decade', age_group: '30대' }),
+    ], { myBirthYear: 1998, joinedIds: ['dup-20'] });
+    expect(list.filter(g => g.name === '20대 모임')).toHaveLength(1);
+    expect(list.find(g => g.name === '20대 모임')?.id).toBe('group_age_20');
+    expect(list.find(g => g.name === '20대 모임')?.joined).toBe(true);
+    expect(list.some(g => g.name === '30대 모임')).toBe(false);
   });
 
   it('hides leftover interest auto rooms and keeps year + decade names', () => {
@@ -242,6 +264,42 @@ describe('admin group room counts', () => {
       total: 2, catalog: 1, birthYear: 1, other: 0,
     });
     expect(formatAdminGroupRoomCounts(groups)).toBe('전체 2개 방 · 목록 방 1 · 년생 방 1');
+  });
+
+  it('collapses unmarked catalog duplicates so 목록 stays 4', () => {
+    const groups = [
+      room({ id: 'group_afterparty_club', name: '2차 클럽 갈 분', room_kind: 'afterparty_club' }),
+      room({ id: 'dup-club', name: '2차 클럽 갈 분', room_kind: 'afterparty_club' }),
+      room({ id: 'group_afterparty_drink', name: '2차 술 갈 분', room_kind: 'afterparty_drink' }),
+      room({ id: 'dup-drink', name: '2차 술 갈 분', room_kind: 'afterparty_drink' }),
+      room({ id: 'group_age_20', name: '20대 모임', room_kind: 'age_decade', age_group: '20대' }),
+      room({ id: 'dup-20', name: '20대 모임', room_kind: 'age_decade', age_group: '20대' }),
+      room({ id: 'group_age_30', name: '30대 모임', room_kind: 'age_decade', age_group: '30대' }),
+      room({ id: 'dup-30', name: '30대 모임', room_kind: 'age_decade', age_group: '30대' }),
+      room({ id: 'group_birth_1995', name: '1995년생 모임', room_kind: 'birth_year' }),
+      room({ id: 'group_birth_1998', name: '1998년생 모임', room_kind: 'birth_year' }),
+    ];
+    expect(adminGroupRoomCounts(groups)).toEqual({
+      total: 6, catalog: 4, birthYear: 2, other: 0,
+    });
+    expect(formatAdminGroupRoomCounts(groups)).toBe('전체 6개 방 · 목록 방 4 · 년생 방 2');
+  });
+
+  it('maps decade duplicate ids onto the canonical catalog id', () => {
+    const raw = [
+      room({ id: 'dup-20', name: '20대 모임', room_kind: 'age_decade', age_group: '20대' }),
+      room({ id: 'group_age_20', name: '20대 모임', room_kind: 'age_decade', age_group: '20대' }),
+    ];
+    expect(resolveCatalogGroupId(raw, 'dup-20')).toBe('group_age_20');
+  });
+
+  it('marks decade room joined when the user is in a duplicate id', () => {
+    const list = catalogGroupRooms([
+      room({ id: 'group_age_20', name: '20대 모임', room_kind: 'age_decade', age_group: '20대' }),
+      room({ id: 'dup-20', name: '20대 모임', room_kind: 'age_decade', age_group: '20대' }),
+    ], { myBirthYear: 1998, joinedIds: ['dup-20'] });
+    expect(list.find(g => g.name === '20대 모임')?.id).toBe('group_age_20');
+    expect(list.find(g => g.name === '20대 모임')?.joined).toBe(true);
   });
 });
 
