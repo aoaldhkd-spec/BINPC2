@@ -1,0 +1,65 @@
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
+import {
+  isRetiredPublicPanelPassword,
+  mapPanelLoginError,
+  readSubmittedPassword,
+  TEST_ADMIN_HINT,
+} from './admin-login';
+
+const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+
+describe('admin login helpers', () => {
+  it('does not treat an empty or custom password as a retired public default', () => {
+    expect(isRetiredPublicPanelPassword('')).toBe(false);
+    expect(isRetiredPublicPanelPassword('custom-admin-pw')).toBe(false);
+  });
+
+  it('recognizes the retired public defaults without inventing a new secret', () => {
+    expect(isRetiredPublicPanelPassword('116606')).toBe(true);
+    expect(isRetiredPublicPanelPassword('166606')).toBe(true);
+  });
+
+  it('distinguishes 429 from 401/403', () => {
+    expect(mapPanelLoginError('HTTP 429')).toBe('시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.');
+    expect(mapPanelLoginError('RATE_LIMITED')).toBe('시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.');
+    expect(mapPanelLoginError('시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.')).toBe(
+      '시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.',
+    );
+    expect(mapPanelLoginError('비밀번호가 일치하지 않습니다.')).toBe('비밀번호가 올바르지 않습니다.');
+  });
+
+  it('explains when a retired public default was submitted', () => {
+    expect(mapPanelLoginError('비밀번호가 일치하지 않습니다.', '116606')).toContain('예전 공개 기본');
+  });
+
+  it('prefers the DOM autofill value over empty React state', () => {
+    const field = { value: 'from-autofill' } as HTMLInputElement;
+    expect(readSubmittedPassword(field, '')).toBe('from-autofill');
+    expect(readSubmittedPassword(null, 'from-state')).toBe('from-state');
+  });
+
+  it('test-admin hint never claims a filled password will work', () => {
+    expect(TEST_ADMIN_HINT).toContain('전화번호만');
+    expect(TEST_ADMIN_HINT).toContain('예전 공개 기본값');
+  });
+});
+
+describe('mobile-page-center viewport', () => {
+  it('does not shrink login/gate pages with 100dvh when the keyboard opens', () => {
+    const css = readFileSync(join(root, 'index.css'), 'utf8');
+    const pageCenterStart = css.indexOf('.mobile-page-center {');
+    expect(pageCenterStart).toBeGreaterThan(0);
+    const after = css.slice(pageCenterStart);
+    const firstBlock = after.slice(0, after.indexOf('.safe-overlay'));
+    expect(firstBlock).toContain('100svh');
+    expect(firstBlock).toContain('100lvh');
+    const pageCenterBodies = [...firstBlock.matchAll(/\.mobile-page-center\s*\{([^}]*)\}/g)].map(m => m[1]);
+    expect(pageCenterBodies.length).toBeGreaterThan(0);
+    for (const body of pageCenterBodies) {
+      expect(body).not.toMatch(/min-height:\s*calc\(100dvh/);
+    }
+  });
+});

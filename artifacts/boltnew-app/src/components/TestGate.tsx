@@ -1,6 +1,7 @@
-import { lazy, Suspense, useState, useEffect, type FormEvent } from 'react';
+import { lazy, Suspense, useState, useEffect, useRef, type FormEvent } from 'react';
 import { AlertTriangle, Shield } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { mapPanelLoginError, readSubmittedPassword } from '../admin/admin-login';
 
 const loadTestDashboard = () => import('../TestDashboard');
 const TestDashboard = lazy(loadTestDashboard);
@@ -28,6 +29,7 @@ export function TestGate() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const passwordRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -79,7 +81,7 @@ export function TestGate() {
     // 비밀번호 확인 왕복 중 대시보드를 미리 받아 성공 직후 바로 전환한다.
     void loadTestDashboard();
 
-    const trimmedPassword = password.trim();
+    const trimmedPassword = readSubmittedPassword(passwordRef.current, password);
     let token: string | null = null;
     let verifyError: { message?: string } | null = null;
     for (let attempt = 0; attempt < 5; attempt++) {
@@ -92,22 +94,17 @@ export function TestGate() {
       }
       verifyError = error as { message?: string } | null;
       const msg = String(verifyError?.message ?? '');
-      const retryable = msg.includes('503') || msg.includes('HTTP') || msg.includes('fetch')
+      const retryable = (msg.includes('503') || msg.includes('HTTP') || msg.includes('fetch')
         || msg.includes('abort') || msg.includes('network') || msg.includes('Max retries')
-        || msg.includes('initializing');
+        || msg.includes('initializing'))
+        && !/429|RATE_LIMIT|너무 많/i.test(msg);
       if (!retryable || attempt === 4) break;
       await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
     }
 
     if (!token) {
       const msg = String(verifyError?.message ?? '');
-      setError(
-        /429|너무 많|RATE_LIMIT/i.test(msg)
-          ? '시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.'
-          : msg.includes('503') || msg.includes('HTTP') || msg.includes('fetch') || msg.includes('network')
-            ? '서버 연결에 실패했습니다. 잠시 후 다시 시도해주세요.'
-            : '비밀번호가 올바르지 않습니다.',
-      );
+      setError(mapPanelLoginError(msg, trimmedPassword));
       setLoading(false);
       return;
     }
@@ -153,13 +150,14 @@ export function TestGate() {
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">비밀번호</label>
             <input
+              ref={passwordRef}
               type="password"
               value={password}
               onChange={event => setPassword(event.target.value)}
               placeholder="비밀번호 입력"
-              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-slate-500 focus:border-transparent outline-none transition-all text-gray-800"
+              autoComplete="current-password"
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-slate-500 focus:border-transparent outline-none transition-all text-gray-800 [scroll-margin:0]"
               required
-              autoFocus
             />
           </div>
           {error && (

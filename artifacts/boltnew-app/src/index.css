@@ -33,7 +33,7 @@ body[data-view="chat"] .fixed.inset-0.z-\[9997\] { display: none !important; }
 @layer base {
   * { box-sizing: border-box; }
 
-  html, body {
+  body {
     /* iOS 바운스 스크롤 방지 */
     overscroll-behavior: none;
     /* iOS safe area padding */
@@ -1362,3 +1362,157 @@ html[data-theme="minimal"] .bg-gradient-to-b,
 [data-theme="minimal"] .text-slate-600   { color: #52525b !important; }
 [data-theme="minimal"] .text-slate-700   { color: #3f3f46 !important; }
 [data-theme="minimal"] .text-zinc-200    { color: #27272a !important; }
+
+/* ════════════════════════════════════════════════════════════════
+   MOBILE VIEWPORT FOUNDATIONS
+   Shared safeguards for narrow phones, notches, dynamic browser bars,
+   short landscape viewports, and long Korean/user-entered text.
+════════════════════════════════════════════════════════════════ */
+
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  min-width: 0;
+  min-height: 100%;
+  background-color: #0f172a;
+}
+
+body {
+  margin: 0;
+  padding:
+    var(--safe-top)
+    var(--safe-right)
+    var(--safe-bottom)
+    var(--safe-left);
+}
+
+img,
+video,
+canvas {
+  max-width: 100%;
+}
+
+:where(.flex, .grid) > * {
+  min-width: 0;
+}
+
+:where(p, h1, h2, h3, h4, label, button, a, td, th) {
+  overflow-wrap: anywhere;
+}
+
+/* Tailwind's screen utilities use static vh. Keep vh as the fallback, then
+   prefer the small/dynamic viewport so mobile browser chrome cannot clip UI. */
+.min-h-screen,
+.app-viewport {
+  min-height: calc(100vh - var(--safe-top) - var(--safe-bottom));
+  min-height: calc(100svh - var(--safe-top) - var(--safe-bottom));
+}
+
+.h-screen {
+  height: calc(100vh - var(--safe-top) - var(--safe-bottom));
+  height: calc(100svh - var(--safe-top) - var(--safe-bottom));
+}
+
+@supports (height: 100dvh) {
+  .min-h-screen,
+  .app-viewport {
+    min-height: calc(100dvh - var(--safe-top) - var(--safe-bottom));
+  }
+
+  .h-screen {
+    height: calc(100dvh - var(--safe-top) - var(--safe-bottom));
+  }
+
+}
+
+.mobile-page-center {
+  /* svh/lvh stay stable when the mobile keyboard opens. 100dvh shrinks with the
+     keyboard and can leave the login card stuck at the top over empty page. */
+  min-height: calc(100vh - var(--safe-top) - var(--safe-bottom));
+  min-height: calc(100svh - var(--safe-top) - var(--safe-bottom));
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  overflow-anchor: none;
+}
+
+@supports (height: 100lvh) {
+  .mobile-page-center {
+    min-height: calc(100lvh - var(--safe-top) - var(--safe-bottom));
+  }
+}
+
+.mobile-flow-card {
+  max-height: calc(100vh - var(--safe-top) - var(--safe-bottom) - 2rem);
+  max-height: calc(100svh - var(--safe-top) - var(--safe-bottom) - 2rem);
+}
+
+@supports (height: 100dvh) {
+  .mobile-flow-card {
+    max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 2rem);
+  }
+}
+
+.safe-overlay {
+  --overlay-pad: 1rem;
+  padding:
+    max(var(--overlay-pad), var(--safe-top))
+    max(var(--overlay-pad), var(--safe-right))
+    max(var(--overlay-pad), var(--safe-bottom))
+    max(var(--overlay-pad), var(--safe-left));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.safe-overlay > :first-child {
+  margin-block: auto;
+}
+
+.safe-fullscreen {
+  padding-top: var(--safe-top);
+  padding-right: var(--safe-right);
+  padding-bottom: var(--safe-bottom);
+  padding-left: var(--safe-left);
+}
+
+.safe-bottom-fixed {
+  bottom: max(1rem, var(--safe-bottom));
+}
+
+.safe-bottom-panel {
+  padding-bottom: max(0.75rem, var(--safe-bottom));
+}
+
+.touch-target {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+@media (max-width: 359px) {
+  .mobile-pad {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  .mobile-card-pad {
+    padding: 1rem;
+  }
+}
+
+@media (max-height: 560px) and (orientation: landscape) {
+  .mobile-page-center {
+    justify-content: flex-start;
+  }
+
+  .mobile-flow-card {
+    max-height: calc(100svh - var(--safe-top) - var(--safe-bottom) - 1rem);
+  }
+}
