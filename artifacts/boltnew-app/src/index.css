@@ -1374,8 +1374,12 @@ html[data-theme="minimal"] .bg-gradient-to-b,
   --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
-  /* MainScreen 하단 탭바 높이. 참여자 셸에서만 4.5rem으로 올린다. */
+  /* MainScreen 하단 탭바 높이. 참여자 셸에서만 올린다. */
   --participant-tabbar: 0px;
+  /* Icons sit above iPhone home indicator / Android 3-button (~48px) / gesture bar.
+     env(safe-area-inset-bottom) is 0 in many Android Chrome tabs — 3rem (48px) floor
+     covers that; when the OS reports an inset, add 8px so taps aren't flush. */
+  --tabbar-safe-bottom: max(3rem, calc(env(safe-area-inset-bottom, 0px) + 0.5rem));
 }
 
 html,
@@ -1483,6 +1487,12 @@ canvas {
   padding-right: var(--safe-right);
   padding-bottom: var(--safe-bottom);
   padding-left: var(--safe-left);
+}
+
+.participant-tabbar {
+  padding-bottom: var(--tabbar-safe-bottom);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
 }
 
 .safe-bottom-fixed {

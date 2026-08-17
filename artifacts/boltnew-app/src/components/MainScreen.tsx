@@ -278,10 +278,10 @@ export function MainScreen({
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 하단 탭바 높이 — 테마 스위치·토스트가 탭을 가리지 않게
+  // 하단 탭바 높이 — 테마 스위치·토스트가 탭·시스템 홈/뒤로가기를 가리지 않게
   useEffect(() => {
     const root = document.documentElement;
-    root.style.setProperty('--participant-tabbar', '4.5rem');
+    root.style.setProperty('--participant-tabbar', 'calc(4.5rem + var(--tabbar-safe-bottom))');
     return () => root.style.removeProperty('--participant-tabbar');
   }, []);
 
@@ -603,7 +603,7 @@ export function MainScreen({
         {timerEndAt && <TimerBanner endAt={timerEndAt} label={timerLabel ?? ''} />}
       </header>
 
-      <main className="max-w-7xl mx-auto px-3 min-[360px]:px-4 py-4 min-[390px]:py-6 pb-[calc(8.5rem+env(safe-area-inset-bottom,0px))] scrollbar-styled-light">
+      <main className="max-w-7xl mx-auto px-3 min-[360px]:px-4 py-4 min-[390px]:py-6 pb-[calc(8.5rem+var(--tabbar-safe-bottom))] scrollbar-styled-light">
         {chatSearchLockToast && (
           <div className="fixed top-24 left-0 right-0 z-[80] flex justify-center pointer-events-none">
             <div className="text-center text-[11px] font-bold text-white bg-gray-800/90 rounded-full px-3 py-1">
@@ -664,7 +664,7 @@ export function MainScreen({
             </div>
 
             {/* ── 참여자 그리드 (이 영역만 스크롤) ───────── */}
-            <div className="overflow-y-auto -mx-3 min-[360px]:-mx-4 px-3 min-[360px]:px-4 pb-0" style={{ maxHeight: 'calc(100dvh - 330px)', minHeight: 160 }}>
+            <div className="overflow-y-auto -mx-3 min-[360px]:-mx-4 px-3 min-[360px]:px-4 pb-0" style={{ maxHeight: 'calc(100dvh - 330px - var(--tabbar-safe-bottom))', minHeight: 160 }}>
             <div className="grid grid-cols-3 gap-1 sm:gap-1.5 items-start">
             {filteredProfiles.filter(p => p.id !== currentUserId).map((profile) => (
               <ProfileCard
@@ -2053,7 +2053,7 @@ export function MainScreen({
       {/* ── 하단 탭 바 (참여자 | 시그널 | 통계 | 랭킹) — 관리자/테스트 탭은 상단 유지 ── */}
       <nav
         aria-label="참여자 메뉴"
-        className={`fixed bottom-0 left-0 right-0 z-40 border-t pb-[max(0.4rem,env(safe-area-inset-bottom,0px))] ${darkMode ? 'bg-slate-900 border-slate-700' : 'bg-white border-gray-200'}`}
+        className={`participant-tabbar fixed bottom-0 left-0 right-0 z-40 border-t ${darkMode ? 'bg-slate-900 border-slate-700' : 'bg-white border-gray-200'}`}
       >
         <div className="max-w-7xl mx-auto flex">
           {([
@@ -2111,7 +2111,7 @@ export function MainScreen({
 
             {/* 팝업 메뉴 */}
             {myMenuOpen && (
-              <div className={`fixed bottom-[calc(9rem+env(safe-area-inset-bottom,0px))] right-[max(1rem,env(safe-area-inset-right))] z-50 rounded-2xl shadow-2xl border overflow-hidden min-w-[160px] transition-all ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'}`}>
+              <div className={`fixed bottom-[calc(9rem+var(--tabbar-safe-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-50 rounded-2xl shadow-2xl border overflow-hidden min-w-[160px] transition-all ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'}`}>
                 {MY_ITEMS.map((item, idx) => {
                   const locked = functionsLocked && LOCKED_TABS.has(item.id);
                   const active = mainTab === item.id;
@@ -2144,7 +2144,7 @@ export function MainScreen({
             {/* MY 원형 버튼 */}
             <button
               onClick={() => setMyMenuOpen(v => !v)}
-              className={`fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] right-[max(1rem,env(safe-area-inset-right))] z-50 w-14 h-14 rounded-full shadow-xl flex flex-col items-center justify-center gap-0 transition-all active:scale-90 select-none ${
+              className={`fixed bottom-[calc(4.5rem+var(--tabbar-safe-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-50 w-14 h-14 rounded-full shadow-xl flex flex-col items-center justify-center gap-0 transition-all active:scale-90 select-none ${
                 myTabActive || myMenuOpen
                   ? 'bg-gradient-to-br from-cyan-500 to-teal-500 text-white border-2 border-white/40'
                   : darkMode
