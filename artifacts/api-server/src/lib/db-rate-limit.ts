@@ -19,6 +19,11 @@ export function pruneRateMap(map: Map<string, RateBucket>, now = Date.now()): vo
   for (const [k, v] of map) if (v.resetAt < now) map.delete(k);
 }
 
+/** 비밀번호 변경 성공 시 해당 클라이언트의 로그인 버킷만 해제 — 한도는 유지 */
+export function resetRateLimit(map: Map<string, RateBucket>, key: string): void {
+  map.delete(key);
+}
+
 /**
  * 기존 db.ts 버킷 로직과 동일: 창이 끝나면 리셋, 초과 시 limited.
  * maxMapSize 가 있으면 새 키 추가 전에 상한을 검사한다.

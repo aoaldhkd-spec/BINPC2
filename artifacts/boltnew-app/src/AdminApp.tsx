@@ -10,7 +10,9 @@ import {
   setAdminToken, loadAdminSession, getAdminPassword, refreshAdminToken,
   adminApiRpc, patchAdminSettings, adminApiSelect, adminSupabase,
   ADMIN_TOKEN_KEY, ADMIN_PW_KEY, ADMIN_SESSION_KEY, ADMIN_API, MAX_ADMIN_MESSAGES,
-  type Profile, type AppSettings, type SessionHistory, type Like, type Chat, type Message, type DbHealthData,
+  MAX_ADMIN_GROUP_MESSAGES, MAX_ADMIN_GROUP_PARTICIPANTS, MAX_ADMIN_SIGNAL_SENDS,
+  type Profile, type AppSettings, type SessionHistory, type Like, type Chat, type Message,
+  type GroupChat, type GroupMessage, type GroupParticipant, type SignalSend, type DbHealthData,
 } from './admin/shared';
 import { LoginScreen } from './admin/LoginScreen';
 import { NotificationTab } from './admin/NotificationTab';
@@ -51,6 +53,12 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [likes, setLikes] = useState<Like[]>([]);
   const [allChats, setAllChats] = useState<Chat[]>([]);
   const [allMessages, setAllMessages] = useState<Message[]>([]);
+  const [groupChats, setGroupChats] = useState<GroupChat[]>([]);
+  const [groupMessages, setGroupMessages] = useState<GroupMessage[]>([]);
+  const [groupParticipants, setGroupParticipants] = useState<GroupParticipant[]>([]);
+  const [signalSends, setSignalSends] = useState<SignalSend[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   // Recovery banner (floating top)
   const [recovery, setRecovery] = useState<{ label: string; emoji: string; restore: (() => Promise<void>) | null; timerId: ReturnType<typeof setTimeout> } | null>(null);
   // Persistent restore map — key → restore function (shown as buttons in DashboardTab)
@@ -78,14 +86,38 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   }, []);
 
   const loadActivity = useCallback(async () => {
-    const [{ data: li }, { data: ch }, { data: msgs }] = await Promise.all([
-      adminApiSelect<Like>('likes', [{ column: 'created_at', ascending: false }]),
-      adminApiSelect<Chat>('chats', [{ column: 'created_at', ascending: false }]),
-      adminApiSelect<Message>('messages', [{ column: 'created_at', ascending: true }]),
-    ]);
-    if (li) setLikes(li);
-    if (ch) setAllChats(ch);
-    if (msgs) setAllMessages(msgs.slice(-MAX_ADMIN_MESSAGES));
+    setHistoryLoading(true);
+    setHistoryError(null);
+    try {
+      const [
+        { data: li }, { data: ch }, { data: msgs }, { data: groups },
+        { data: groupMsgs }, { data: participants }, { data: signals },
+      ] = await Promise.all([
+        adminApiSelect<Like>('likes', [{ column: 'created_at', ascending: false }]),
+        adminApiSelect<Chat>('chats', [{ column: 'created_at', ascending: false }]),
+        adminApiSelect<Message>('messages', [{ column: 'created_at', ascending: true }]),
+        adminApiSelect<GroupChat>('group_chats', [{ column: 'created_at', ascending: false }], 250),
+        adminApiSelect<GroupMessage>('group_messages', [{ column: 'created_at', ascending: false }], MAX_ADMIN_GROUP_MESSAGES),
+        adminApiSelect<GroupParticipant>('group_participants', [{ column: 'joined_at', ascending: false }], MAX_ADMIN_GROUP_PARTICIPANTS),
+        adminApiSelect<SignalSend>('signal_sends', [{ column: 'created_at', ascending: false }], MAX_ADMIN_SIGNAL_SENDS),
+      ]);
+      if (li) setLikes(li);
+      if (ch) setAllChats(ch);
+      if (msgs) setAllMessages(msgs.slice(-MAX_ADMIN_MESSAGES));
+      if (groups) setGroupChats(groups);
+      if (groupMsgs) setGroupMessages(groupMsgs.slice(0, MAX_ADMIN_GROUP_MESSAGES));
+      if (participants) setGroupParticipants(participants.slice(0, MAX_ADMIN_GROUP_PARTICIPANTS));
+      if (signals) setSignalSends(signals.slice(0, MAX_ADMIN_SIGNAL_SENDS));
+      const failed = [
+        groups == null && '단체방',
+        groupMsgs == null && '단체 메시지',
+        participants == null && '참여자 수',
+        signals == null && '시그널',
+      ].filter(Boolean);
+      if (failed.length > 0) setHistoryError(`${failed.join(', ')} 조회 실패`);
+    } finally {
+      setHistoryLoading(false);
+    }
   }, []);
 
   const loadAll = useCallback(async () => {
@@ -131,8 +163,8 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     };
   }, [loadActivity, loadAll, loadCore]);
 
-  // ── api-server SSE 실시간 동기화: likes · messages · chats ──────────────────
-  // api-server는 이 세 테이블을 app_kv_rows에 저장하므로 Supabase Realtime이 아닌
+  // ── api-server SSE 실시간 동기화: 활동·채팅·시그널 ─────────────────────────
+  // api-server는 이 테이블들을 app_kv_rows에 저장하므로 Supabase Realtime이 아닌
   // localdb SSE 채널을 써야 실시간 변경을 받을 수 있다.
   useEffect(() => {
     const ch = ldbSupabase
@@ -164,6 +196,65 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'chats' },
         (payload: { old: Record<string, unknown> }) => {
           setAllChats(prev => prev.filter(c => c.id !== (payload.old as Chat).id));
+        })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'group_chats' },
+        (payload: { new: Record<string, unknown> }) => {
+          const room = payload.new as GroupChat;
+          setGroupChats(prev => [room, ...prev.filter(item => item.id !== room.id)]);
+        })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'group_chats' },
+        (payload: { new: Record<string, unknown> }) => {
+          const room = payload.new as GroupChat;
+          setGroupChats(prev => prev.map(item => item.id === room.id ? room : item));
+        })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'group_chats' },
+        (payload: { old: Record<string, unknown> }) => {
+          setGroupChats(prev => prev.filter(item => item.id !== (payload.old as GroupChat).id));
+        })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'group_messages' },
+        (payload: { new: Record<string, unknown> }) => {
+          const message = payload.new as GroupMessage;
+          setGroupMessages(prev =>
+            [message, ...prev.filter(item => item.id !== message.id)].slice(0, MAX_ADMIN_GROUP_MESSAGES));
+        })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'group_messages' },
+        (payload: { new: Record<string, unknown> }) => {
+          const message = payload.new as GroupMessage;
+          setGroupMessages(prev => prev.map(item => item.id === message.id ? message : item));
+        })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'group_messages' },
+        (payload: { old: Record<string, unknown> }) => {
+          setGroupMessages(prev => prev.filter(item => item.id !== (payload.old as GroupMessage).id));
+        })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'group_participants' },
+        (payload: { new: Record<string, unknown> }) => {
+          const participant = payload.new as GroupParticipant;
+          setGroupParticipants(prev =>
+            [participant, ...prev.filter(item => item.id !== participant.id)].slice(0, MAX_ADMIN_GROUP_PARTICIPANTS));
+        })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'group_participants' },
+        (payload: { new: Record<string, unknown> }) => {
+          const participant = payload.new as GroupParticipant;
+          setGroupParticipants(prev => prev.map(item => item.id === participant.id ? participant : item));
+        })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'group_participants' },
+        (payload: { old: Record<string, unknown> }) => {
+          setGroupParticipants(prev => prev.filter(item => item.id !== (payload.old as GroupParticipant).id));
+        })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'signal_sends' },
+        (payload: { new: Record<string, unknown> }) => {
+          const signal = payload.new as SignalSend;
+          setSignalSends(prev =>
+            [signal, ...prev.filter(item => item.id !== signal.id)].slice(0, MAX_ADMIN_SIGNAL_SENDS));
+        })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'signal_sends' },
+        (payload: { new: Record<string, unknown> }) => {
+          const signal = payload.new as SignalSend;
+          setSignalSends(prev => prev.map(item => item.id === signal.id ? signal : item));
+        })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'signal_sends' },
+        (payload: { old: Record<string, unknown> }) => {
+          setSignalSends(prev => prev.filter(item => item.id !== (payload.old as SignalSend).id));
         })
       .subscribe();
     return () => { ldbSupabase.removeChannel(ch); };
@@ -374,8 +465,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   };
 
   const handleSaveCredentials = async (phone: string, password: string) => {
-    // RPC 단일 경로 — 이중 쓰기(업데이트+재조회+RPC) 제거로 저장 지연 해소
-    localStorage.setItem(ADMIN_PW_KEY, password);
+    // 저장 성공 후에만 localStorage·토큰을 갱신 (실패 시 옛 비밀번호로 로그인 유지)
     await patchAdminSettings({ admin_phone: phone, admin_password: password }, setSettings);
   };
 
@@ -426,7 +516,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="app-viewport min-w-0 bg-gray-50">
       <header className="bg-slate-900 text-white sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-3 py-2.5 flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-1.5 flex-1 min-w-0">
@@ -438,10 +528,10 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             <a href="/test"
-              className="flex items-center gap-1 text-xs text-violet-300 hover:text-violet-100 transition-colors px-2 py-1 rounded-lg bg-violet-700/40 hover:bg-violet-700/60 border border-violet-600/40">
+              className="touch-target flex items-center gap-1 text-xs text-violet-300 hover:text-violet-100 transition-colors px-2 py-1 rounded-lg bg-violet-700/40 hover:bg-violet-700/60 border border-violet-600/40">
               🧪 테스터
             </a>
-            <button onClick={onLogout} className="flex items-center gap-1 text-xs text-slate-300 hover:text-white transition-colors">
+            <button onClick={onLogout} className="touch-target flex items-center gap-1 text-xs text-slate-300 hover:text-white transition-colors">
               <LogOut className="w-3.5 h-3.5" />
               로그아웃
             </button>
@@ -450,7 +540,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         <div className="max-w-4xl mx-auto px-2 grid grid-cols-5 pb-0">
           {TABS.map((t) => (
             <button key={t.id} onClick={() => handleTabChange(t.id)}
-              className={`relative flex items-center justify-center gap-1 px-1 py-2 text-[11px] font-semibold border-b-2 transition-all ${
+              className={`touch-target relative flex min-w-0 items-center justify-center gap-1 px-0.5 py-2 text-[10px] min-[360px]:text-[11px] font-semibold border-b-2 transition-all ${
                 tab === t.id ? 'border-teal-400 text-white' : 'border-transparent text-slate-400 hover:text-slate-200'
               }`}>
               {t.icon}
@@ -469,7 +559,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         <Suspense fallback={<AdminTabFallback />}>
         {tab === 'settings' && (
           <div>
-            <div className="flex border-b border-gray-200 bg-white px-4">
+            <div className="grid grid-cols-4 border-b border-gray-200 bg-white px-2 min-[360px]:px-4">
               {([
                 { id: 'control' as SettingsSubTab, label: '대시보드' },
                 { id: 'qr' as SettingsSubTab, label: 'QR코드' },
@@ -477,7 +567,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                 { id: 'db' as SettingsSubTab, label: 'DB헬스', errorBadge: (dbHealth?.persistErrors ?? 0) > 0 },
               ]).map(st => (
                 <button key={st.id} onClick={() => setSettingsSubTab(st.id)}
-                  className={`relative px-4 py-2.5 text-xs font-semibold border-b-2 transition-all ${settingsSubTab === st.id ? 'border-teal-500 text-teal-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+                  className={`touch-target relative min-w-0 px-0.5 min-[390px]:px-2 py-2.5 text-[10px] min-[360px]:text-xs font-semibold border-b-2 transition-all ${settingsSubTab === st.id ? 'border-teal-500 text-teal-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
                   {st.label}
                   {'errorBadge' in st && st.errorBadge && (
                     <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full" />
@@ -536,14 +626,20 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
             {heartSubTab === 'popularity' && <PopularityTab likes={likes} profileMap={profileMap} />}
           </div>
         )}
-        {tab === 'chats' && <ChatsTab chats={allChats} messages={allMessages} profileMap={profileMap} onDeleteChat={handleDeleteChat} onClearAll={handleClearAllChats} onRefresh={loadAll} />}
+        {tab === 'chats' && <ChatsTab
+          chats={allChats} messages={allMessages}
+          groupChats={groupChats} groupMessages={groupMessages}
+          groupParticipants={groupParticipants} signalSends={signalSends}
+          profileMap={profileMap} historyLoading={historyLoading} historyError={historyError}
+          onDeleteChat={handleDeleteChat} onClearAll={handleClearAllChats} onRefresh={loadAll}
+        />}
         {tab === 'notify' && <NotificationTab tableCount={0} settings={settings} onSetTimer={handleSetTimer} />}
         </Suspense>
       </main>
 
       {/* 초기화 복구 배너 (non-blocking) */}
       {recovery && (
-        <div className={`fixed top-0 left-0 right-0 z-[400] flex items-center gap-3 px-4 py-3 shadow-lg transition-all ${recovery.restore ? 'bg-teal-600' : 'bg-gray-700'}`}>
+        <div className={`fixed top-[env(safe-area-inset-top)] left-[env(safe-area-inset-left)] right-[env(safe-area-inset-right)] z-[400] flex items-center gap-2 min-[360px]:gap-3 px-3 min-[360px]:px-4 py-3 shadow-lg transition-all ${recovery.restore ? 'bg-teal-600' : 'bg-gray-700'}`}>
           <span className="text-2xl flex-shrink-0">{recovery.emoji}</span>
           <div className="flex-1 min-w-0">
             <p className="text-white font-black text-sm leading-tight">{recovery.label} 초기화 완료</p>

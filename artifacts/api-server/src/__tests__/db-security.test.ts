@@ -410,6 +410,9 @@ describe('[Security] private /op tables and relationship ownership', () => {
     const sharer = randomUUID();
     const recipient = randomUUID();
     const outsider = randomUUID();
+    await op({ op: 'insert', table: 'profiles', payload: { id: sharer, nickname: `cs-${sharer}` } });
+    await op({ op: 'insert', table: 'profiles', payload: { id: recipient, nickname: `cr-${recipient}` } });
+    await op({ op: 'insert', table: 'profiles', payload: { id: outsider, nickname: `co-${outsider}` } });
 
     const share = await op({
       op: 'upsert',
@@ -821,6 +824,8 @@ describe('[Security] profiles / likes / storage', () => {
   it('하트를 받지 않은 사용자의 status UPDATE를 차단한다', async () => {
     const likerId = randomUUID();
     const likedId = randomUUID();
+    await op({ op: 'insert', table: 'profiles', payload: { id: likerId, nickname: `ul-${likerId}` } });
+    await op({ op: 'insert', table: 'profiles', payload: { id: likedId, nickname: `ud-${likedId}` } });
     const inserted = await op({
       op: 'insert',
       table: 'likes',
@@ -1032,6 +1037,52 @@ describe('[Security] test dashboard password', () => {
       if (prevTest !== undefined) process.env.BOOTSTRAP_TEST_PASSWORD = prevTest;
       else delete process.env.BOOTSTRAP_TEST_PASSWORD;
     }
+  });
+
+  it('패널에서 저장한 비밀번호가 로그인에 쓰이고 응답에 원문을 넣지 않는다', async () => {
+    const customAdmin = 'panel-kv-login-admin-1';
+    const customTest = 'panel-kv-login-test-1';
+    const customReset = 'panel-kv-login-reset-1';
+    const saved = await request(app)
+      .post('/api/db/rpc/admin_update_settings')
+      .send({
+        p_admin_password: '116606',
+        p_payload: { admin_password: customAdmin, test_password: customTest, reset_password: customReset },
+      });
+    expect(saved.status).toBe(200);
+    expect(saved.body.data?.admin_password).toBeUndefined();
+    expect(saved.body.data?.test_password).toBeUndefined();
+    expect(saved.body.data?.reset_password).toBeUndefined();
+    expect(saved.body.data?.admin_password_set).toBe(true);
+    expect(saved.body.data?.test_password_set).toBe(true);
+    expect(saved.body.data?.reset_password_set).toBe(true);
+
+    const adminOk = await request(app)
+      .post('/api/db/rpc/admin_create_session')
+      .send({ p_phone: '010-3878-6740', p_admin_password: customAdmin });
+    expect(adminOk.status).toBe(200);
+    expect(typeof adminOk.body.data).toBe('string');
+
+    const toggle = await request(app)
+      .post('/api/db/rpc/admin_toggle_session')
+      .send({ p_admin_password: customAdmin, p_active: true });
+    expect(toggle.status).toBe(200);
+
+    const stillOk = await request(app)
+      .post('/api/db/rpc/admin_create_session')
+      .send({ p_phone: '010-3878-6740', p_admin_password: customAdmin });
+    expect(stillOk.status).toBe(200);
+
+    const testOk = await request(app)
+      .post('/api/db/rpc/test_verify_password')
+      .send({ p_test_password: customTest });
+    expect(testOk.status).toBe(200);
+
+    const resetOk = await request(app)
+      .post('/api/db/rpc/verify_panel_password')
+      .send({ p_kind: 'reset', p_password: customReset });
+    expect(resetOk.status).toBe(200);
+    expect(resetOk.body.data?.ok).toBe(true);
   });
 
   it('BOOTSTRAP_ADMIN_PASSWORD와 BOOTSTRAP_TEST_PASSWORD로도 로그인된다', async () => {

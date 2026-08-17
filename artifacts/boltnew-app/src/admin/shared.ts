@@ -1,9 +1,14 @@
 import { type Dispatch, type SetStateAction } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Database } from '../types/database';
+export type { GroupChat, GroupMessage, GroupParticipant, SignalSend } from '../types/app';
 
 export type Profile = Database['public']['Tables']['profiles']['Row'];
-export type AppSettings = Database['public']['Tables']['app_settings']['Row'];
+export type AppSettings = Database['public']['Tables']['app_settings']['Row'] & {
+  admin_password_set?: boolean;
+  test_password_set?: boolean;
+  reset_password_set?: boolean;
+};
 export type SessionHistory = Database['public']['Tables']['session_history']['Row'];
 export type Like = Database['public']['Tables']['likes']['Row'];
 export type Chat = Database['public']['Tables']['chats']['Row'];
@@ -14,6 +19,9 @@ export const ADMIN_SESSION_KEY = 'admin_session_v1';
 export const ADMIN_TOKEN_KEY = 'admin_token_v1';
 export const ADMIN_PW_KEY = 'admin_pw_v1';
 export const MAX_ADMIN_MESSAGES = 5_000;
+export const MAX_ADMIN_GROUP_MESSAGES = 1_000;
+export const MAX_ADMIN_GROUP_PARTICIPANTS = 2_000;
+export const MAX_ADMIN_SIGNAL_SENDS = 1_000;
 
 export function withAdminImageToken(url: string): string {
   const token = localStorage.getItem(ADMIN_TOKEN_KEY);
@@ -117,18 +125,34 @@ export async function patchAdminSettings(
   payload: Record<string, unknown>,
   setSettings: Dispatch<SetStateAction<AppSettings | null>>,
 ): Promise<void> {
-  setSettings(prev => (prev ? { ...prev, ...payload, updated_at: new Date().toISOString() } as AppSettings : prev));
+  setSettings(prev => {
+    if (!prev) return prev;
+    const next = { ...prev, ...payload, updated_at: new Date().toISOString() } as AppSettings;
+    if (typeof payload.admin_password === 'string' && payload.admin_password.trim()) next.admin_password_set = true;
+    if (typeof payload.test_password === 'string' && payload.test_password.trim()) next.test_password_set = true;
+    if (typeof payload.reset_password === 'string' && payload.reset_password.trim()) next.reset_password_set = true;
+    delete (next as { admin_password?: string }).admin_password;
+    delete (next as { test_password?: string }).test_password;
+    delete (next as { reset_password?: string }).reset_password;
+    return next;
+  });
   await adminApiRpc('admin_update_settings', { p_payload: payload });
+  if (typeof payload.admin_password === 'string' && payload.admin_password.trim()) {
+    localStorage.setItem(ADMIN_PW_KEY, payload.admin_password);
+    await refreshAdminToken();
+  }
 }
 
 /** api-server /op SELECT — 인메모리 데이터 직접 조회 (Supabase KV가 아닌 api-server 스토어) */
 export async function adminApiSelect<T>(
   table: string,
   orderBy?: Array<{ column: string; ascending: boolean }>,
+  limit?: number,
 ): Promise<{ data: T[] | null }> {
   const token = localStorage.getItem(ADMIN_TOKEN_KEY) ?? '';
   const body: Record<string, unknown> = { table, op: 'select', adminToken: token };
-  if (orderBy) body.orderBy = orderBy;
+  if (orderBy) body.orders = orderBy.map(({ column, ascending }) => ({ col: column, asc: ascending }));
+  if (limit != null) body.limit = limit;
   try {
     const res = await fetch(`${ADMIN_API}/op`, {
       method: 'POST',

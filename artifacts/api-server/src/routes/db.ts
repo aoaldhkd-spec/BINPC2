@@ -16,6 +16,11 @@ import {
 import { chatPairKey, deterministicChatId, deterministicSignalId } from '../lib/db-chat-ids';
 import { collectBroadcastTargets as collectBroadcastTargetsImpl } from '../lib/db-broadcast-targets';
 import {
+  collectIntegrityDiagnostics,
+  writeReferencesFor,
+  type IntegrityDiagnostics,
+} from '../lib/db-integrity';
+import {
   RATE_MAP_MAX_SIZE,
   LOGIN_RATE_MAX,
   LOGIN_RATE_WINDOW_MS,
@@ -26,7 +31,17 @@ import {
   broadcastRateMap as _broadcastRateMap,
   pruneRateMap,
   consumeRateLimit,
+  resetRateLimit,
 } from '../lib/db-rate-limit';
+import {
+  recordExpiredSseToken,
+  recordMissingSseToken,
+  recordSseAccepted,
+  recordSseClosed,
+  recordUploadAccepted,
+  recordUploadRejected,
+  snapshotHttpMetrics,
+} from '../lib/http-metrics';
 
 // express-session의 SessionData에 userId 필드 추가
 declare module 'express-session' {
@@ -480,6 +495,118 @@ function koreanDateMMDD(): string {
 function getTable(name: string): Record<string, unknown>[] {
   if (!store[name]) store[name] = [];
   return store[name];
+}
+
+type ReferenceCheck = { ok: true } | { ok: false; unavailable: boolean };
+
+function mergeRefreshedRows(table: string, rows: Array<{ data?: unknown }>): void {
+  const target = getTable(table);
+  for (const result of rows) {
+    const row = result.data as Record<string, unknown> | null | undefined;
+    const id = String(row?.id ?? '');
+    if (!row || !id) continue;
+    const idx = target.findIndex(existing => String(existing.id) === id);
+    if (idx >= 0) target[idx] = row;
+    else target.push(row);
+  }
+}
+
+/** RAM miss only: make one narrow PG read for the referenced row ids. */
+async function refreshReferencedRows(table: string, ids: string[]): Promise<boolean> {
+  const wanted = [...new Set(ids.map(String).filter(Boolean))];
+  if (!wanted.length) return true;
+  try {
+    const { rows } = await pool.query(
+      `SELECT data FROM app_kv_rows
+       WHERE table_name = $1 AND row_id = ANY($2::text[])`,
+      [table, wanted],
+    );
+    mergeRefreshedRows(table, rows);
+    return true;
+  } catch (e) {
+    logger.warn({ err: e, table }, '[integrity] targeted reference refresh failed');
+    return false;
+  }
+}
+
+async function ensureWriteReferences(
+  sourceTable: string,
+  row: Record<string, unknown>,
+): Promise<ReferenceCheck> {
+  const refs = writeReferencesFor(sourceTable, row);
+  const missingByTable = new Map<string, string[]>();
+  for (const ref of refs) {
+    if (ref.id && getTable(ref.table).some(candidate => String(candidate.id) === ref.id)) continue;
+    const ids = missingByTable.get(ref.table) ?? [];
+    ids.push(ref.id);
+    missingByTable.set(ref.table, ids);
+  }
+  for (const [table, ids] of missingByTable) {
+    if (!(await refreshReferencedRows(table, ids))) return { ok: false, unavailable: true };
+  }
+  for (const ref of refs) {
+    if (!ref.id || !getTable(ref.table).some(candidate => String(candidate.id) === ref.id)) {
+      return { ok: false, unavailable: false };
+    }
+  }
+  return { ok: true };
+}
+
+function sendReferenceFailure(res: Response, check: Exclude<ReferenceCheck, { ok: true }>) {
+  if (check.unavailable) {
+    return res.status(503).json({
+      data: null,
+      error: { message: '관계 데이터 확인에 실패했습니다. 잠시 후 다시 시도해 주세요.', code: 'REFERENCE_REFRESH_FAILED' },
+    });
+  }
+  return res.status(400).json({
+    data: null,
+    error: { message: '참조 대상이 존재하지 않습니다.', code: 'INVALID_REFERENCE' },
+  });
+}
+
+/** Membership can arrive through NOTIFY after the room row, so refresh this pair once on a miss. */
+async function refreshGroupParticipant(groupId: string, userId: string): Promise<'found' | 'missing' | 'unavailable'> {
+  try {
+    const { rows } = await pool.query(
+      `SELECT data FROM app_kv_rows
+       WHERE table_name = 'group_participants'
+         AND data->>'group_id' = $1
+         AND data->>'user_id' = $2
+       LIMIT 1`,
+      [groupId, userId],
+    );
+    mergeRefreshedRows('group_participants', rows);
+    return getTable('group_participants').some(
+      row => String(row.group_id) === groupId && String(row.user_id) === userId,
+    ) ? 'found' : 'missing';
+  } catch (e) {
+    logger.warn({ err: e, table: 'group_participants' }, '[integrity] targeted membership refresh failed');
+    return 'unavailable';
+  }
+}
+
+const _integrityScanMaxRaw = Number(process.env.INTEGRITY_SCAN_MAX_ROWS ?? 20_000);
+const _integrityScanIntervalRaw = Number(process.env.INTEGRITY_SCAN_INTERVAL_MS ?? 5 * 60 * 1000);
+const INTEGRITY_SCAN_MAX_ROWS = Number.isFinite(_integrityScanMaxRaw)
+  ? Math.max(1, Math.floor(_integrityScanMaxRaw))
+  : 20_000;
+const INTEGRITY_SCAN_INTERVAL_MS = Number.isFinite(_integrityScanIntervalRaw)
+  ? Math.max(30_000, Math.floor(_integrityScanIntervalRaw))
+  : 5 * 60 * 1000;
+let _integrityDiagnostics: IntegrityDiagnostics = collectIntegrityDiagnostics(store, INTEGRITY_SCAN_MAX_ROWS);
+let _integrityDiagnosticsStarted = false;
+
+function runIntegrityDiagnostics(): void {
+  _integrityDiagnostics = collectIntegrityDiagnostics(store, INTEGRITY_SCAN_MAX_ROWS);
+  logger.info({ integrity: _integrityDiagnostics }, '[integrity] bounded orphan counts');
+}
+
+function startIntegrityDiagnostics(): void {
+  if (_integrityDiagnosticsStarted) return;
+  _integrityDiagnosticsStarted = true;
+  runIntegrityDiagnostics();
+  setInterval(runIntegrityDiagnostics, INTEGRITY_SCAN_INTERVAL_MS).unref();
 }
 
 // chatPairKey / deterministicChatId: ../lib/db-chat-ids.ts
@@ -1010,6 +1137,70 @@ function mergeAppSettings(
   return merged;
 }
 
+function explicitSecretKeys(payload: Record<string, unknown>): Set<string> {
+  const keys = new Set<string>();
+  for (const key of SECRET_SETTING_KEYS) {
+    if (key in payload && payload[key] != null && String(payload[key]).trim() !== '') keys.add(key);
+  }
+  return keys;
+}
+
+/** 비비밀번호 설정 저장이 Postgres에 이미 있는 패널 비밀번호를 덮어쓰지 않게 함 */
+async function overlayDbSecrets(
+  row: Record<string, unknown>,
+  explicit: Set<string>,
+): Promise<Record<string, unknown>> {
+  try {
+    const { rows } = await pool.query(
+      `SELECT data FROM app_kv_rows WHERE table_name = 'app_settings' ORDER BY updated_at DESC LIMIT 1`,
+    );
+    const db = rows[0]?.data as Record<string, unknown> | undefined;
+    if (!db || typeof db !== 'object') return row;
+    const next = { ...row };
+    for (const key of SECRET_SETTING_KEYS) {
+      if (explicit.has(key)) continue;
+      if (db[key] != null && String(db[key]).trim() !== '') next[key] = db[key];
+    }
+    return next;
+  } catch (e) {
+    logger.warn({ err: e }, '[db] overlayDbSecrets failed — using in-memory secrets');
+    return row;
+  }
+}
+
+/** 로그인·검증은 Postgres KV를 우선. 인메모리만 보면 다른 인스턴스의 변경이 무시됨 */
+async function hydrateAppSettingsFromDb(): Promise<Record<string, unknown>> {
+  try {
+    const { rows } = await pool.query(
+      `SELECT data FROM app_kv_rows WHERE table_name = 'app_settings' ORDER BY updated_at DESC LIMIT 1`,
+    );
+    const data = rows[0]?.data as Record<string, unknown> | undefined;
+    if (data && typeof data === 'object' && !Array.isArray(data)) {
+      const cleaned = stripLegacySettingsKeys(data);
+      store['app_settings'] = [cleaned];
+      return cleaned;
+    }
+  } catch (e) {
+    logger.warn({ err: e }, '[db] hydrate app_settings from DB failed — using memory');
+  }
+  return (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
+}
+
+function publicAppSettingsView(row: Record<string, unknown>, forAdmin: boolean): Record<string, unknown> {
+  const s = sanitizeSettings(row);
+  if (forAdmin) {
+    s.admin_password_set = panelAdminSecrets(row.admin_password as string | undefined).length > 0;
+    s.test_password_set = panelTestSecrets(row.test_password as string | undefined).length > 0;
+    s.reset_password_set = panelSecretsForRuntime(row.reset_password as string | undefined).length > 0;
+  }
+  return s;
+}
+
+function resetPanelLoginLimiter(req: Request): void {
+  const ip = String(req.ip ?? req.socket.remoteAddress ?? 'unknown');
+  resetRateLimit(_loginRateMap, `panel:${ip}`);
+}
+
 /** 행사 중 매칭/소셜 쓰기 — 하트·1:1 방/메시지·연락처 공유·단톡 */
 const FUNCTIONS_LOCKED_INSERT_TABLES = new Set([
   'likes',
@@ -1080,7 +1271,8 @@ async function ensureAppSettingsSecrets(): Promise<void> {
   const needsStrip = settingsHaveLegacyKeys(row);
   if (!Object.keys(patch).length && !needsStrip) return;
 
-  const updated = mergeAppSettings(row, patch);
+  const merged = mergeAppSettings(row, patch);
+  const updated = await overlayDbSecrets(merged, explicitSecretKeys(patch));
   store['app_settings'] = [updated];
   await dbPersistRow('app_settings', updated);
   logger.warn('[db] app_settings secrets/qr synced from bootstrap env');
@@ -1114,12 +1306,18 @@ function startDailyEntryPasswordRenewal(): void {
     if (currentPw === today) return;
     _renewalInProgress = true;
     const updated = { ...settings, entry_password: today, updated_at: ts() };
-    store['app_settings'][0] = updated;
-    dbPersistRow('app_settings', updated)
+    void overlayDbSecrets(updated, new Set(['entry_password']))
+      .then(toStore => {
+        store['app_settings'][0] = toStore;
+        return dbPersistRow('app_settings', toStore).then(() => {
+          smartBroadcast('app_settings', toStore, {
+            type: 'change', table: 'app_settings', event: 'UPDATE',
+            newRow: toStore, oldRow: settings as Record<string, unknown>,
+          });
+        });
+      })
       .catch(e => logger.error({ err: e }, '[db] background task error'))
       .finally(() => { _renewalInProgress = false; });
-    // admin_password 제거 후 브로드캐스트 — 유저 클라이언트에 관리자 비밀번호 노출 방지
-    broadcastAll({ type: 'change', table: 'app_settings', event: 'UPDATE', newRow: sanitizeSettings(updated), oldRow: sanitizeSettings(settings as Record<string, unknown>) });
   };
   setInterval(check, 60_000).unref();
 }
@@ -1761,7 +1959,10 @@ const dbReadyPromise = seedIfNeeded()
 dbReadyPromise
   .then(() => cleanupLegacyTables())
   .then(() => loadRemainingTablesFromDb())
-  .then(() => setupListenClient())
+  .then(() => {
+    startIntegrityDiagnostics();
+    return setupListenClient();
+  })
   .then(() => loadImagesFromDb())
   .catch(e => logger.error({ err: e }, '[db] startup initialization failed'));
 
@@ -1860,6 +2061,21 @@ async function setupListenClient(): Promise<void> {
           const id = newRow['id'];
           if (!store[tbl].some(r => r['id'] === id)) store[tbl].push(newRow);
         } else if (env.ev === 'UPDATE' && newRow) {
+          // 비밀번호가 빠진(sanitize된) app_settings는 메모리에 덮어쓰지 않고 DB에서 다시 읽는다.
+          if (tbl === 'app_settings' && SECRET_SETTING_KEYS.some(k => !(k in newRow))) {
+            const sid = String(newRow['id'] ?? 1);
+            pool.query(
+              `SELECT data FROM app_kv_rows WHERE table_name = $1 AND row_id = $2 LIMIT 1`,
+              [tbl, sid],
+            ).then(result => {
+              const row = (result.rows[0]?.data ?? null) as Record<string, unknown> | null;
+              if (!row) return;
+              if (!store[tbl]) store[tbl] = [];
+              const sidx = store[tbl].findIndex(r => r['id'] === row['id'] || r['id'] === 1);
+              if (sidx >= 0) store[tbl][sidx] = row; else store[tbl].push(row);
+            }).catch(e => logger.warn({ err: e }, '[db] app_settings NOTIFY refetch failed'));
+            return;
+          }
           const id = newRow['id'];
           const idx = store[tbl].findIndex(r => r['id'] === id);
           if (idx >= 0) store[tbl][idx] = newRow; else store[tbl].push(newRow);
@@ -1914,19 +2130,7 @@ function _drainNotifyQueue() {
     .finally(() => { _notifyBusy = false; _drainNotifyQueue(); });
 }
 
-/** 다른 인스턴스에 변경 사항 전파. 이미지 테이블 제외. 8 KB 초과 시 tombstone 전송 */
-function notifyOtherInstances(table: string, ev: string, newRow: Record<string, unknown> | null, oldRow: Record<string, unknown> | null): void {
-  if (table === 'app_image_store') return; // 이미지 data URL은 수 KB — 제외
-  const payload = JSON.stringify({ src: INSTANCE_ID, table, ev, newRow, oldRow });
-  let msg: string;
-  if (payload.length > 7900) {
-    const id = (newRow ?? oldRow)?.['id'];
-    if (!id) return;
-    msg = JSON.stringify({ src: INSTANCE_ID, table, ev, id, _tombstone: true });
-  } else {
-    msg = payload;
-  }
-  const rowId = (newRow ?? oldRow)?.['id'];
+function enqueueNotify(msg: string, table: string, rowId: unknown): void {
   if (rowId != null) {
     for (let i = _notifyQueue.length - 1; i >= 0; i--) {
       try {
@@ -1944,6 +2148,27 @@ function notifyOtherInstances(table: string, ev: string, newRow: Record<string, 
   if (_notifyQueue.length >= NOTIFY_QUEUE_MAX) _notifyQueue.shift();
   _notifyQueue.push(msg);
   _drainNotifyQueue();
+}
+
+/** 다른 인스턴스에 변경 사항 전파. 이미지 테이블 제외. 8 KB 초과 시 tombstone 전송 */
+function notifyOtherInstances(table: string, ev: string, newRow: Record<string, unknown> | null, oldRow: Record<string, unknown> | null): void {
+  if (table === 'app_image_store') return; // 이미지 data URL은 수 KB — 제외
+  const id = (newRow ?? oldRow)?.['id'];
+  // app_settings 비밀번호는 NOTIFY 페이로드에 넣지 않고 DB에서 다시 읽는다.
+  if (table === 'app_settings') {
+    if (id == null) return;
+    enqueueNotify(JSON.stringify({ src: INSTANCE_ID, table, ev, id, _tombstone: true }), table, id);
+    return;
+  }
+  const payload = JSON.stringify({ src: INSTANCE_ID, table, ev, newRow, oldRow });
+  let msg: string;
+  if (payload.length > 7900) {
+    if (!id) return;
+    msg = JSON.stringify({ src: INSTANCE_ID, table, ev, id, _tombstone: true });
+  } else {
+    msg = payload;
+  }
+  enqueueNotify(msg, table, id);
 }
 
 function pickLatestAppSettingsRow(rows: Record<string, unknown>[]): Record<string, unknown> | null {
@@ -1984,8 +2209,14 @@ function applyAppSettingsFromDbRows(dbRows: Record<string, unknown>[]): boolean 
     }
     return changed;
   }
-  dbPersistRow('app_settings', memRow).catch(e => logger.warn({ err: e }, '[db] heal stale app_settings in DB'));
-  return false;
+  // 메모리가 더 최신(세션 토글 등)이어도 비밀번호는 항상 DB 값을 쓴다.
+  // 예전 "heal" persist는 다른 인스턴스의 옛 비밀번호로 패널 변경을 되돌렸다.
+  const merged = { ...memRow };
+  for (const key of SECRET_SETTING_KEYS) {
+    if (cleaned[key] != null && String(cleaned[key]).trim() !== '') merged[key] = cleaned[key];
+  }
+  store['app_settings'] = [stripLegacySettingsKeys(merged)];
+  return SECRET_SETTING_KEYS.some(k => String(memRow[k] ?? '') !== String(merged[k] ?? ''));
 }
 
 /** hot 테이블(profiles·app_settings)을 app_kv_rows에서 재동기화 — LISTEN gap 보정 전용 */
@@ -2912,15 +3143,9 @@ router.post('/op', async (req: Request, res: Response) => {
         }
         result = result.map(r => ({ ...r, memberCount: counts.get(String(r.id)) ?? 0 }));
       }
-      // ─ app_settings: 비관리자 응답에서 admin_password 제거 (SELECT 경유 유출 방지) ─
-      if (table === 'app_settings' && !isAdmin) {
-        result = result.map(r => {
-          const s = { ...r };
-          delete s['admin_password'];
-          delete s['test_password'];
-          delete s['reset_password'];
-          return s;
-        });
+      // ─ app_settings: 비밀번호 원문은 관리자에게도 내려주지 않음. 관리자는 *_set 플래그만.
+      if (table === 'app_settings') {
+        result = result.map(r => publicAppSettingsView(r, isAdmin));
       }
       if (table === 'profiles' && !isAdmin) {
         result = result.map(r => sanitizeProfileForViewer(r, requesterId));
@@ -3024,6 +3249,8 @@ router.post('/op', async (req: Request, res: Response) => {
             return res.status(400).json({ data: null, error: { message: 'chat_id is required for messages', code: 'INVALID_INPUT' } });
           }
           effectiveRow = { ...effectiveRow, chat_id: resolveMergedChatId(String(effectiveRow.chat_id)) };
+          const referenceCheck = await ensureWriteReferences(table, effectiveRow);
+          if (!referenceCheck.ok && referenceCheck.unavailable) return sendReferenceFailure(res, referenceCheck);
           const msgChat = getTable('chats').find(c => String(c.id) === String(effectiveRow.chat_id));
           if (msgChat) {
             const pk = chatPairKey(String(msgChat.user1_id), String(msgChat.user2_id));
@@ -3075,9 +3302,18 @@ router.post('/op', async (req: Request, res: Response) => {
             return res.status(400).json({ data: null, error: { message: 'group_id is required for group_messages', code: 'INVALID_INPUT' } });
           }
           effectiveRow = { ...effectiveRow, group_id: resolveMergedGroupId(String(effectiveRow.group_id)) };
-          const isParticipant = getTable('group_participants').some(
+          const groupReference = await ensureWriteReferences(table, effectiveRow);
+          if (!groupReference.ok && groupReference.unavailable) return sendReferenceFailure(res, groupReference);
+          let isParticipant = getTable('group_participants').some(
             p => String(p.group_id) === String(effectiveRow.group_id) && String(p.user_id) === String(requesterId),
           );
+          if (!isParticipant) {
+            const refreshed = await refreshGroupParticipant(String(effectiveRow.group_id), String(requesterId));
+            if (refreshed === 'unavailable') {
+              return sendReferenceFailure(res, { ok: false, unavailable: true });
+            }
+            isParticipant = refreshed === 'found';
+          }
           if (!isParticipant) {
             logger.warn({ requesterId, groupId: effectiveRow.group_id, ip: req.ip }, '[SECURITY] IDOR: group_messages INSERT by non-participant blocked');
             return res.status(403).json({ data: null, error: { message: 'Forbidden: not a group participant', code: 'FORBIDDEN' } });
@@ -3097,6 +3333,9 @@ router.post('/op', async (req: Request, res: Response) => {
             return res.status(400).json({ data: null, error: { message: 'group_id is required for group_participants', code: 'INVALID_INPUT' } });
           }
           const groupId = resolveMergedGroupId(String(effectiveRow.group_id));
+          effectiveRow = { ...effectiveRow, group_id: groupId, user_id: requesterId };
+          const groupReference = await ensureWriteReferences(table, effectiveRow);
+          if (!groupReference.ok && groupReference.unavailable) return sendReferenceFailure(res, groupReference);
           const groupExists = getTable('group_chats').some(g => String(g.id) === groupId);
           if (!groupExists) {
             return res.status(400).json({ data: null, error: { message: '존재하지 않는 단톡방입니다.', code: 'INVALID_INPUT' } });
@@ -3136,6 +3375,8 @@ router.post('/op', async (req: Request, res: Response) => {
             effectiveRow = { ...effectiveRow, chat_id: resolveMergedChatId(String(effectiveRow.chat_id)) };
             effectiveRow.id = `${effectiveRow.chat_id}__${requesterId}`;
           }
+          const referenceCheck = await ensureWriteReferences(table, effectiveRow);
+          if (!referenceCheck.ok && referenceCheck.unavailable) return sendReferenceFailure(res, referenceCheck);
           if (!isChatParticipant(effectiveRow.chat_id, requesterId)) {
             logger.warn({ requesterId, chatId: effectiveRow.chat_id, ip: req.ip }, '[SECURITY] IDOR: chat_reads INSERT by non-participant blocked');
             return res.status(403).json({ data: null, error: { message: 'Forbidden: not a chat participant', code: 'FORBIDDEN' } });
@@ -3174,6 +3415,8 @@ router.post('/op', async (req: Request, res: Response) => {
             return res.json({ data: null, error: null });
           }
           effectiveRow = { ...effectiveRow, sender_id: requesterId, receiver_id: receiverId, action, id: detId };
+          const referenceCheck = await ensureWriteReferences(table, effectiveRow);
+          if (!referenceCheck.ok) return sendReferenceFailure(res, referenceCheck);
         }
         // profile_views: viewer_id를 requesterId로 강제 (omit·mismatch 차단). 자기 자신 방문은 기록하지 않음.
         if (table === 'profile_views') {
@@ -3189,6 +3432,8 @@ router.post('/op', async (req: Request, res: Response) => {
             return res.json({ data: null, error: null });
           }
           effectiveRow = { ...effectiveRow, viewer_id: requesterId };
+          const referenceCheck = await ensureWriteReferences(table, effectiveRow);
+          if (!referenceCheck.ok) return sendReferenceFailure(res, referenceCheck);
         }
         // blocked_users: 차단을 건 사용자 identity는 세션으로 고정.
         if (table === 'blocked_users' && !isAdmin) {
@@ -3229,6 +3474,8 @@ router.post('/op', async (req: Request, res: Response) => {
             return res.status(400).json({ data: null, error: { message: 'cannot share contact with yourself', code: 'INVALID_INPUT' } });
           }
           effectiveRow = { ...effectiveRow, liked_id: requesterId, liker_id: recipientId };
+          const referenceCheck = await ensureWriteReferences(table, effectiveRow);
+          if (!referenceCheck.ok) return sendReferenceFailure(res, referenceCheck);
         }
         // contact_share_events: 이벤트 발신자는 항상 인증된 세션 사용자.
         if (table === 'contact_share_events' && !isAdmin) {
@@ -3249,6 +3496,8 @@ router.post('/op', async (req: Request, res: Response) => {
             return res.status(400).json({ data: null, error: { message: 'cannot send contact event to yourself', code: 'INVALID_INPUT' } });
           }
           effectiveRow = { ...effectiveRow, from_user_id: requesterId, to_user_id: toUserId };
+          const referenceCheck = await ensureWriteReferences(table, effectiveRow);
+          if (!referenceCheck.ok) return sendReferenceFailure(res, referenceCheck);
         }
 
         if (table === 'profiles') {
@@ -3303,6 +3552,8 @@ router.post('/op', async (req: Request, res: Response) => {
             r.liker_id === effectiveRow.liker_id && r.liked_id === effectiveRow.liked_id && r.heart_type === effectiveRow.heart_type
           );
           if (dupLike) return res.json({ data: single ? dupLike : [dupLike], error: null }); // 멱등: 기존 row 반환
+          const referenceCheck = await ensureWriteReferences(table, effectiveRow);
+          if (!referenceCheck.ok) return sendReferenceFailure(res, referenceCheck);
 
           // 타입별 글로벌 한도: 동일 heart_type을 최대 2명에게만 보낼 수 있음 (클라이언트 우회 방지)
           const sameTypeCount = tableData.filter(r =>
@@ -3361,6 +3612,8 @@ router.post('/op', async (req: Request, res: Response) => {
             return res.status(429).json({ data: null, error: { message: '하트를 너무 빠르게 보내고 있습니다. 잠시 후 다시 시도해 주세요.', code: 'RATE_LIMIT' } });
           }
         }
+        const referenceCheck = await ensureWriteReferences(table, effectiveRow);
+        if (!referenceCheck.ok) return sendReferenceFailure(res, referenceCheck);
         const newRow: Record<string, unknown> = {
           created_at: ts(),
           ...effectiveRow,
@@ -3450,6 +3703,11 @@ router.post('/op', async (req: Request, res: Response) => {
         });
       }
       let patch = sanitizeRow(table, payload as Record<string, unknown>);
+      const rowsToUpdate = applyFilters(tableData, normalizedFilters);
+      for (const existingRow of rowsToUpdate) {
+        const referenceCheck = await ensureWriteReferences(table, { ...existingRow, ...patch });
+        if (!referenceCheck.ok) return sendReferenceFailure(res, referenceCheck);
+      }
 
       // ─ IDOR guard: UPDATE ownership check ──────────────────────────────
       // messages UPDATE는 requesterId 필수 — 미인증 UPDATE로 타인 메시지 수정 차단
@@ -3501,7 +3759,6 @@ router.post('/op', async (req: Request, res: Response) => {
       }
       // requesterId가 있는 경우, 자신 소유의 행만 수정 가능하도록 검증
       if (requesterId) {
-        const rowsToUpdate = applyFilters(tableData, normalizedFilters);
         for (const existingRow of rowsToUpdate) {
           // profiles: 자신의 프로필만 수정 가능
           if (table === 'profiles' && existingRow.id != null &&
@@ -3662,6 +3919,8 @@ router.post('/op', async (req: Request, res: Response) => {
             row.chat_id = resolveMergedChatId(String(row.chat_id));
             row.id = `${row.chat_id}__${requesterId}`;
           }
+          const referenceCheck = await ensureWriteReferences(table, row);
+          if (!referenceCheck.ok) return sendReferenceFailure(res, referenceCheck);
           if (!isChatParticipant(row.chat_id, requesterId)) {
             logger.warn({ requesterId, chatId: row.chat_id }, '[SECURITY] IDOR: UPSERT chat_reads by non-participant blocked');
             return res.status(403).json({ data: null, error: { message: 'Forbidden: not a chat participant', code: 'FORBIDDEN' } });
@@ -3677,6 +3936,11 @@ router.post('/op', async (req: Request, res: Response) => {
             logger.warn({ requesterId, reader_id: row.reader_id }, '[SECURITY] IDOR: UPSERT chat_reads blocked');
             return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신의 읽음 기록만 생성할 수 있습니다.', code: 'FORBIDDEN' } });
           }        }
+      }
+      for (const row of inputs) {
+        if (!row) continue;
+        const referenceCheck = await ensureWriteReferences(table, row);
+        if (!referenceCheck.ok) return sendReferenceFailure(res, referenceCheck);
       }
       // Fix #7: O(n²) → O(n) — id 기반 UPSERT 시 Map 인덱스로 O(1) 조회
       const _idxById = !safeConflictCols.length ? new Map(tableData.map((r, i) => [r.id, i])) : null;
@@ -3960,6 +4224,7 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
   }
   const args = (req.body ?? {}) as Record<string, unknown>;
 
+  await hydrateAppSettingsFromDb();
   const settings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
   const adminSecrets = panelAdminSecrets(settings.admin_password as string | undefined);
   const testSecrets = panelTestSecrets(settings.test_password as string | undefined);
@@ -4028,7 +4293,8 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         checkPassword();
         const active = args.p_active === true;
         const current = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
-        const updated = mergeAppSettings(current, { session_active: active });
+        const merged = mergeAppSettings(current, { session_active: active });
+        const updated = await overlayDbSecrets(merged, new Set());
         store['app_settings'] = [updated];
         try {
           await dbPersistRow('app_settings', updated);
@@ -4039,7 +4305,10 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
             error: { message: '회의 상태 저장 실패 — 잠시 후 다시 시도해 주세요.', code: 'PERSIST_FAILED' },
           });
         }
-        broadcastAll({ type: 'change', table: 'app_settings', event: 'UPDATE', newRow: sanitizeSettings(updated), oldRow: sanitizeSettings(current) });
+        smartBroadcast('app_settings', updated, {
+          type: 'change', table: 'app_settings', event: 'UPDATE',
+          newRow: updated, oldRow: current,
+        });
         return res.json({ data: { session_active: active }, error: null });
       }
 
@@ -4059,7 +4328,8 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
           ])
         );
         const current = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
-        const updated = mergeAppSettings(current, sanitizedSettingsPayload);
+        const merged = mergeAppSettings(current, sanitizedSettingsPayload);
+        const updated = await overlayDbSecrets(merged, explicitSecretKeys(sanitizedSettingsPayload));
         store['app_settings'] = [updated];
         try {
           await dbPersistRow('app_settings', updated);
@@ -4071,8 +4341,12 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
             error: { message: '설정 저장 실패 — 잠시 후 다시 시도해 주세요.', code: 'PERSIST_FAILED' },
           });
         }
-        broadcastAll({ type: 'change', table: 'app_settings', event: 'UPDATE', newRow: sanitizeSettings(updated), oldRow: sanitizeSettings(current) });
-        return res.json({ data: updated, error: null });
+        smartBroadcast('app_settings', updated, {
+          type: 'change', table: 'app_settings', event: 'UPDATE',
+          newRow: updated, oldRow: current,
+        });
+        resetPanelLoginLimiter(req);
+        return res.json({ data: publicAppSettingsView(updated, true), error: null });
       }
 
       case 'test_verify_password': {
@@ -4130,14 +4404,15 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
           Object.entries(testPayload).filter(([k]) => ALLOWED_TEST_FIELDS.has(k))
         );
         const currentSettings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
-        const updatedSettings = { ...currentSettings, ...filteredPayload, updated_at: new Date().toISOString() };
+        const mergedSettings = { ...currentSettings, ...filteredPayload, updated_at: new Date().toISOString() };
+        const updatedSettings = await overlayDbSecrets(mergedSettings, new Set());
         store['app_settings'] = [updatedSettings];
-        broadcastAll({
+        smartBroadcast('app_settings', updatedSettings, {
           type: 'change',
           table: 'app_settings',
           event: 'UPDATE',
-          newRow: sanitizeSettings(updatedSettings),
-          oldRow: sanitizeSettings(currentSettings),
+          newRow: updatedSettings,
+          oldRow: currentSettings,
         });
         dbPersistRow('app_settings', updatedSettings).catch(e => logger.error({ err: e }, '[db] background task error'));
         return res.json({ data: null, error: null });
@@ -4222,6 +4497,7 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         if (!ok) {
           return res.status(401).json({ data: { ok: false }, error: { message: '비밀번호가 올바르지 않습니다.', code: 'UNAUTHORIZED' } });
         }
+        resetPanelLoginLimiter(req);
         return res.json({ data: { ok: true }, error: null });
       }
 
@@ -4598,6 +4874,7 @@ router.get('/ready', (_req: Request, res: Response) => {
       login: {
         adminConfigured: adminSecrets.length > 0,
         testConfigured: testSecrets.length > 0,
+        resetConfigured: panelSecretsForRuntime(settings.reset_password as string | undefined).length > 0,
       },
       functions_locked: settings.functions_locked === true,
       qr_base_url: settings.qr_base_url ?? null,
@@ -4695,6 +4972,7 @@ router.get('/health', async (req: Request, res: Response) => {
     ok: alarms.length === 0,         // quick pass/fail for monitoring
     sseConnections: sseTotal,
     thresholds: { lossAlarm: LOSS_ALARM_THRESHOLD, likesMinIntervalMs: LIKES_MIN_INTERVAL_MS },
+    integrity: _integrityDiagnostics,
     checkedAt: new Date().toISOString(),
   };
   _healthCache = { ts: Date.now(), body };
@@ -5052,21 +5330,37 @@ function issueSseToken(userId: string): { token: string; expiresAt: number } {
   return { token: `${exp}:${mac}`, expiresAt: exp };
 }
 
-function verifySseToken(userId: string, token: string): boolean {
+/**
+ * SSE 토큰 상태 구분.
+ *
+ * `expired` = 서명은 이 서버 비밀키로 정상 검증되지만 exp 가 지난 것 → 정상 사용자의
+ * 토큰 갱신 실패다. `invalid` = 서명 불일치·형식 오류 → 위조 시도일 수 있다.
+ * 둘을 섞어 warn 으로 남기면 만료 스팸에 묻혀 진짜 침입 신호를 놓친다.
+ */
+type SseTokenState = 'valid' | 'expired' | 'invalid';
+
+function classifySseToken(userId: string, token: string): SseTokenState {
   const colonIdx = token.indexOf(':');
-  if (colonIdx < 1) return false;
+  if (colonIdx < 1) return 'invalid';
   const expStr = token.slice(0, colonIdx);
   const mac = token.slice(colonIdx + 1);
   const exp = Number(expStr);
-  if (!Number.isFinite(exp) || Math.floor(Date.now() / 1000) > exp) return false;
+  if (!Number.isFinite(exp)) return 'invalid';
   const expected = createHmac('sha256', SSE_TOKEN_SECRET)
     .update(`${userId}:${exp}`)
     .digest('hex');
+  let signatureOk = false;
   try {
-    return timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(mac, 'hex'));
+    signatureOk = timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(mac, 'hex'));
   } catch {
-    return false;
+    return 'invalid';
   }
+  if (!signatureOk) return 'invalid';
+  return Math.floor(Date.now() / 1000) > exp ? 'expired' : 'valid';
+}
+
+function verifySseToken(userId: string, token: string): boolean {
+  return classifySseToken(userId, token) === 'valid';
 }
 
 /**
@@ -5253,6 +5547,15 @@ router.get('/events', (req: Request, res: Response) => {
   // CDN/프록시가 gzip으로 묶지 않도록 — SSE 청크 지연 방지
   res.setHeader('Content-Encoding', 'identity');
   res.flushHeaders();
+  // Non-private process identifier lets the client detect a cross-instance reconnect.
+  // It is deliberately sent before ring replay because event sequence numbers are process-local.
+  try {
+    res.write(`data: ${JSON.stringify({ type: 'instance', instanceId: INSTANCE_ID })}\n\n`);
+  } catch {
+    _undoSseConnCount();
+    try { res.end(); } catch { /* ignore */ }
+    return;
+  }
 
   // ── 소켓 레벨 타임아웃 — 좀비 TCP 연결 방어 ─────────────────────────────────
   // keep-alive ping(15s) 기준으로 여유 있게 설정 (미수신 시 Node가 socket.destroy)

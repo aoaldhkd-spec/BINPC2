@@ -138,8 +138,13 @@ export function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onS
       {activeTab === 'admin' && (
         <form onSubmit={handleSaveAdmin} className="space-y-4">
           <div className="bg-amber-50 rounded-xl p-3 border border-amber-200 text-xs text-amber-700 leading-relaxed">
-            관리자 접속 정보를 변경합니다. 저장 후 자동 로그아웃되지 않으므로 기억해 두세요.
+            관리자 접속 정보를 변경합니다. 저장이 끝나면 그 비밀번호가 바로 로그인에 쓰입니다. 기억해 두세요.
           </div>
+          <p className="text-xs text-gray-500 bg-gray-50 rounded-xl px-4 py-3 border border-gray-200">
+            {settings?.admin_password_set
+              ? '관리자 비밀번호: 설정됨'
+              : '관리자 비밀번호: 아직 저장되지 않음 (예전에 공개됐던 기본값은 더 이상 통하지 않습니다)'}
+          </p>
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">관리자 전화번호</label>
             <input type="tel" value={phone} onChange={(e) => setPhone(formatPhone(e.target.value))}
@@ -233,9 +238,11 @@ export function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onS
             미설정 시 서버 기본 비밀번호가 사용됩니다.
           </div>
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">현재 비밀번호</label>
-            <p className="text-sm font-black text-gray-800 bg-gray-50 rounded-xl px-4 py-3 border border-gray-200 tracking-widest">
-              {settings?.reset_password ? settings.reset_password : '(서버 기본값)'}
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">현재 상태</label>
+            <p className="text-sm font-black text-gray-800 bg-gray-50 rounded-xl px-4 py-3 border border-gray-200">
+              {settings?.reset_password_set
+                ? '설정됨 — 아래에 새 값을 저장하면 바로 적용됩니다'
+                : '아직 저장되지 않음 — 예전에 공개됐던 기본값은 더 이상 통하지 않습니다'}
             </p>
           </div>
           <div>
@@ -266,7 +273,7 @@ export function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onS
               className={`flex-1 py-3 font-semibold rounded-xl transition-all disabled:opacity-60 ${savedReset ? 'bg-teal-500 text-white' : 'bg-amber-500 text-white hover:bg-amber-600'}`}>
               {savedReset ? '✓ 저장 완료!' : savingReset ? '저장 중…' : '비밀번호 저장'}
             </button>
-            {settings?.reset_password && (
+            {settings?.reset_password_set && (
               <button type="button"
                 onClick={() => { onSaveReset(''); setSavedReset(true); setTimeout(() => setSavedReset(false), 2500); }}
                 className="px-4 py-3 font-semibold rounded-xl bg-red-100 text-red-600 hover:bg-red-200 transition-all text-sm">
@@ -284,9 +291,11 @@ export function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onS
             미설정 시 서버 기본 코드가 사용됩니다.
           </div>
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">현재 테스트 코드</label>
-            <p className="text-sm font-black text-gray-800 bg-gray-50 rounded-xl px-4 py-3 border border-gray-200 tracking-widest">
-              {(settings as any)?.test_password ? (settings as any).test_password : '(서버 기본값)'}
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">현재 상태</label>
+            <p className="text-sm font-black text-gray-800 bg-gray-50 rounded-xl px-4 py-3 border border-gray-200">
+              {settings?.test_password_set
+                ? '설정됨 — 아래에 새 값을 저장하면 바로 적용됩니다'
+                : '아직 저장되지 않음 — 예전에 공개됐던 기본값은 더 이상 통하지 않습니다'}
             </p>
           </div>
           <div>
@@ -317,7 +326,7 @@ export function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onS
               className={`flex-1 py-3 font-semibold rounded-xl transition-all disabled:opacity-60 ${savedTest ? 'bg-teal-500 text-white' : 'bg-violet-600 text-white hover:bg-violet-700'}`}>
               {savedTest ? '✓ 저장 완료!' : savingTest ? '저장 중…' : '코드 저장'}
             </button>
-            {(settings as any)?.test_password && (
+            {settings?.test_password_set && (
               <button type="button"
                 onClick={() => { onSaveTest(''); setSavedTest(true); setTimeout(() => setSavedTest(false), 2500); }}
                 className="px-4 py-3 font-semibold rounded-xl bg-red-100 text-red-600 hover:bg-red-200 transition-all text-sm">

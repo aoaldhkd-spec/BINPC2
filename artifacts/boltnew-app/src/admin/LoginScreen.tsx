@@ -51,9 +51,11 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
       if (!token) {
         const msg = String(lastErr?.message ?? '');
         setError(
-          msg.includes('HTTP') || msg.includes('fetch') || msg.includes('abort') || msg.includes('network') || msg.includes('503')
-            ? '서버 연결에 실패했습니다. 잠시 후 다시 시도해주세요.'
-            : '비밀번호가 올바르지 않습니다.',
+          /429|너무 많|RATE_LIMIT/i.test(msg)
+            ? '시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.'
+            : msg.includes('HTTP') || msg.includes('fetch') || msg.includes('abort') || msg.includes('network') || msg.includes('503')
+              ? '서버 연결에 실패했습니다. 잠시 후 다시 시도해주세요.'
+              : '비밀번호가 올바르지 않습니다.',
         );
         setLoading(false);
         return;
@@ -69,17 +71,17 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
+    <div className="mobile-page-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-3 min-[360px]:p-4">
       <div className="w-full max-w-sm">
         <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
-          <div className="bg-gradient-to-r from-slate-700 to-slate-900 px-8 py-7 text-center">
+          <div className="bg-gradient-to-r from-slate-700 to-slate-900 px-5 min-[360px]:px-8 py-6 min-[360px]:py-7 text-center">
             <div className="w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center mx-auto mb-3">
               <Shield className="w-7 h-7 text-white" />
             </div>
             <h1 className="text-xl font-bold text-white">관리자 로그인</h1>
             <p className="text-slate-300 text-sm mt-1">관리자 전용 페이지입니다</p>
           </div>
-          <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <form onSubmit={handleSubmit} className="p-4 min-[360px]:p-6 space-y-4">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">전화번호</label>
               <input type="tel" value={phone} onChange={(e) => setPhone(formatPhone(e.target.value))}
