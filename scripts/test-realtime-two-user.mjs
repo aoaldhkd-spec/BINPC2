@@ -4,6 +4,8 @@
  * Usage: node scripts/test-realtime-two-user.mjs
  * Env: NETLIFY_URL (default https://binpc2.netlify.app) or API_BASE
  */
+import { isFunctionsLocked } from './lib/functions-lock.mjs';
+
 const SITE = (process.env.NETLIFY_URL || process.env.API_BASE || 'https://binpc2.netlify.app').replace(/\/$/, '');
 const API = SITE.includes('/api') ? SITE.replace(/\/$/, '') : `${SITE}/api/db`;
 
@@ -107,6 +109,10 @@ function openSse(userId, token) {
 }
 
 async function main() {
+  if (await isFunctionsLocked(API)) {
+    console.log('SKIP — FUNCTIONS_LOCKED (행사 중 하트·채팅 잠금, 버그 아님)');
+    return;
+  }
   const idA = crypto.randomUUID();
   const idB = crypto.randomUUID();
   const secA = crypto.randomUUID();

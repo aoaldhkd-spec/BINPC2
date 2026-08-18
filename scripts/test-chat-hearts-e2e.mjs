@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 /** E2E: register → login sessionToken → like + chat through Netlify proxy */
+import { isFunctionsLocked } from './lib/functions-lock.mjs';
+
 const SITE = (process.env.NETLIFY_URL || 'https://binpc2.netlify.app').replace(/\/$/, '');
 const API = `${SITE}/api/db`;
 
@@ -45,6 +47,10 @@ async function login(jar, userId, deviceSecret) {
 }
 
 async function main() {
+  if (await isFunctionsLocked(`${SITE}/api/db`)) {
+    console.log('SKIP — FUNCTIONS_LOCKED (행사 중 하트·채팅 잠금, 버그 아님)');
+    return;
+  }
   const idA = crypto.randomUUID();
   const idB = crypto.randomUUID();
   const secA = crypto.randomUUID();

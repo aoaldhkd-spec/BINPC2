@@ -114,6 +114,39 @@ async function main() {
   const heartBalancesGone = await op({ op: 'select', table: 'heart_balances' });
   checks.push(['heart_balances_table_blocked', heartBalancesGone.status === 400 ? 'OK' : `FAIL ${heartBalancesGone.status}`]);
 
+  const locked = readyBody?.functions_locked === true || readyBody?.settings?.functions_locked === true;
+  checks.push(['functions_locked', locked ? 'LOCKED (heart/chat E2E need unlock)' : 'OPEN']);
+
+  const photoScript = resolve(__dirname, 'test-profile-photo-upload.mjs');
+  const photoRun = spawnSync(process.execPath, [photoScript], {
+    cwd: resolve(__dirname, '..'),
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    timeout: 60_000,
+  });
+  checks.push([
+    'mobile_photo_upload',
+    photoRun.status === 0 ? 'OK (iPhone/Galaxy sessionToken path)' : `FAIL (exit ${photoRun.status ?? 1})`,
+  ]);
+
+  if (locked) {
+    checks.push(['mobile_chat_hearts_e2e', 'SKIP (FUNCTIONS_LOCKED)']);
+    checks.push(['mobile_realtime_2user', 'SKIP (FUNCTIONS_LOCKED)']);
+  } else {
+    for (const [name, script] of [
+      ['mobile_chat_hearts_e2e', 'test-chat-hearts-e2e.mjs'],
+      ['mobile_realtime_2user', 'test-realtime-two-user.mjs'],
+    ]) {
+      const run = spawnSync(process.execPath, [resolve(__dirname, script)], {
+        cwd: resolve(__dirname, '..'),
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+        timeout: 120_000,
+      });
+      checks.push([name, run.status === 0 ? 'OK' : `FAIL (exit ${run.status ?? 1})`]);
+    }
+  }
+
   for (const [name, result] of checks) console.log(`  ${name}: ${result}`);
   if (checks.some(([, r]) => String(r).startsWith('FAIL'))) process.exit(1);
 }
