@@ -1756,7 +1756,8 @@ async function deleteRetiredAgeRoom(g: Record<string, unknown>): Promise<void> {
 function ageBandFromYear(year: unknown): string | null {
   const y = Number(year);
   if (!Number.isFinite(y) || y < 1900 || y > 2100) return null;
-  const age = new Date().getFullYear() - y;
+  // 프로필 한국식 나이와 동일: 출생연도 기준 연도 차 + 1
+  const age = new Date().getFullYear() - y + 1;
   if (age < 20) return null;
   if (age < 30) return '20대';
   return '30대';

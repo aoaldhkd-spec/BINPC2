@@ -303,7 +303,8 @@ export function formatAdminGroupRoomCounts(groups: readonly GroupLike[]): string
 export function ageBandFromYear(year: unknown): string | null {
   const y = Number(year);
   if (!Number.isFinite(y) || y < 1900 || y > 2100) return null;
-  const age = 2026 - y;
+  // 프로필 표시(getKoreanAge)와 동일: 출생연도 기준 한국식 나이(연도 차 + 1)
+  const age = 2026 - y + 1;
   if (age < 20) return null;
   if (age < 30) return '20대';
   return '30대';

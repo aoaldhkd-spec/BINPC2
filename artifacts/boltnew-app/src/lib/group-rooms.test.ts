@@ -97,6 +97,14 @@ describe('group-rooms catalog', () => {
     expect(list.some(g => g.name.includes('사진'))).toBe(false);
   });
 
+  it('shows 30대 모임 for a 1997 birth year (Korean age 30)', () => {
+    const list = catalogGroupRooms([
+      room({ id: 'group_age_20', name: '20대 모임', room_kind: 'age_decade', age_group: '20대' }),
+      room({ id: 'group_age_30', name: '30대 모임', room_kind: 'age_decade', age_group: '30대' }),
+    ], { myBirthYear: 1997, joinedIds: [] });
+    expect(list.map(g => g.name)).toEqual(['30대 모임']);
+  });
+
   it('shows 20대 모임 for a 1998 birth year and hides other decades', () => {
     const list = catalogGroupRooms([
       room({ id: 'group_age_20', name: '20대 모임', room_kind: 'age_decade', age_group: '20대' }),
@@ -111,9 +119,16 @@ describe('group-rooms catalog', () => {
     expect(ageBandFromYear(1995)).toBe('30대');
     expect(ageBandFromYear(1986)).toBe('30대');
     expect(ageBandFromYear(1976)).toBe('30대');
-    expect(ageBandFromYear(2007)).toBeNull();
+    expect(ageBandFromYear(2008)).toBeNull();
     expect(ageBandFromYear(null)).toBeNull();
     expect(ageBandFromYear('기타')).toBeNull();
+  });
+
+  it('uses Korean age for 2026 decade boundaries (1996–2000)', () => {
+    expect(ageBandFromYear(1996)).toBe('30대'); // 31세
+    expect(ageBandFromYear(1997)).toBe('30대'); // 30세 — was wrongly 20대 with intl age
+    expect(ageBandFromYear(1998)).toBe('20대'); // 29세
+    expect(ageBandFromYear(2000)).toBe('20대'); // 27세
   });
 
   it('maps 40+ into 30대 모임 and does not show leftover 10대/50대 rooms', () => {
@@ -133,9 +148,9 @@ describe('group-rooms catalog', () => {
     const list = catalogGroupRooms([
       room({ id: 'group_age_20', name: '20대 모임', room_kind: 'age_decade', age_group: '20대' }),
       room({ id: 'group_age_30', name: '30대 모임', room_kind: 'age_decade', age_group: '30대' }),
-      room({ id: 'y', name: '2007년생 모임', room_kind: 'birth_year', interest_tag: '2007년생' }),
-    ], { myBirthYear: 2007, joinedIds: ['y'] });
-    expect(list.map(g => g.name)).toEqual(['2007년생 모임']);
+      room({ id: 'y', name: '2008년생 모임', room_kind: 'birth_year', interest_tag: '2008년생' }),
+    ], { myBirthYear: 2008, joinedIds: ['y'] });
+    expect(list.map(g => g.name)).toEqual(['2008년생 모임']);
   });
 
   it('flags interest+age leftovers', () => {
