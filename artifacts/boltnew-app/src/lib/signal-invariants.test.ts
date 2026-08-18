@@ -74,6 +74,8 @@ describe('signal copy + unlock invariants', () => {
     expect(mainSrc).toContain('exchanged-contacts');
     expect(mainSrc).not.toContain('receivedSignalsRef');
     expect(mainSrc).not.toContain('jumpToSignals');
+    expect(mainSrc).toContain('sentHeartEntries');
+    expect(mainSrc).toMatch(/보낸 하트[\s\S]*grid grid-cols-2/);
     expect(appSrc).not.toMatch(/if \(senderIds\.length === 0\) \{\s*setReceivedSignalSenders\(\[\]\)/);
   });
 

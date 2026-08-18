@@ -152,6 +152,22 @@ export function MainScreen({
 }) {
   const heartCount = useCallback((t: HeartType) => { let c = 0; sentHeartsPerPerson.forEach(types => { if (types.has(t)) c++; }); return c; }, [sentHeartsPerPerson]);
 
+  const sentHeartEntries = useMemo(() => {
+    const entries: { profile: Profile; heartType: HeartType }[] = [];
+    const typeOrder = HEART_TYPES.map((h) => h.type);
+    for (const profile of sentLikedProfiles) {
+      const types = sentHeartsPerPerson.get(profile.id);
+      if (types && types.size > 0) {
+        for (const ht of typeOrder) {
+          if (types.has(ht)) entries.push({ profile, heartType: ht });
+        }
+      } else {
+        entries.push({ profile, heartType: sentHeartTypes.get(profile.id) ?? 'red' });
+      }
+    }
+    return entries;
+  }, [sentLikedProfiles, sentHeartsPerPerson, sentHeartTypes]);
+
   const [profileSearch, setProfileSearch] = useState('');
   const [profilePersonalityFilter, setProfilePersonalityFilter] = useState<string | null>(null);
   const [profileCardGrid, setProfileCardGridRaw] = useState<ProfileCardGridMode>(() => readProfileCardGridMode());
@@ -1176,77 +1192,54 @@ export function MainScreen({
               </button>
               {sentHeartsOpen && (
               <div className="px-5 pb-5">
-              {sentLikedProfiles.length === 0 ? (
+              {sentHeartEntries.length === 0 ? (
                 <div className="text-center py-8">
                   <Heart className={`w-10 h-10 mx-auto mb-2 ${darkMode ? 'text-slate-500' : 'text-gray-200'}`} />
                   <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>아직 보낸 하트가 없습니다.</p>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {sentLikedProfiles.map((liked) => {
+                <div className="grid grid-cols-2 gap-2.5">
+                  {sentHeartEntries.map(({ profile: liked, heartType: ht }) => {
                     const share = receivedContactShares.find((s) => s.liked_id === liked.id);
-                    const ht = sentHeartTypes.get(liked.id) ?? 'red';
                     const hm = heartMeta(ht);
+                    const statusLabel = share
+                      ? '연락처'
+                      : ht === 'green'
+                        ? '전달 완료'
+                        : likeStatuses.get(liked.id) === 'rejected'
+                          ? '거부됨'
+                          : likeStatuses.get(liked.id) === 'accepted'
+                            ? '수락됨'
+                            : '대기 중';
+                    const statusClass = share
+                      ? darkMode ? 'bg-teal-500/20 text-teal-300 border-teal-500/30' : 'bg-teal-50 text-teal-600 border-teal-200'
+                      : ht === 'green'
+                        ? darkMode ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-emerald-50 text-emerald-600 border-emerald-200'
+                        : likeStatuses.get(liked.id) === 'rejected'
+                          ? darkMode ? 'bg-red-500/20 text-red-300 border-red-500/30' : 'bg-red-50 text-red-500 border-red-200'
+                          : likeStatuses.get(liked.id) === 'accepted'
+                            ? darkMode ? 'bg-teal-500/20 text-teal-300 border-teal-500/30' : 'bg-teal-50 text-teal-600 border-teal-200'
+                            : darkMode ? 'bg-slate-600/50 text-slate-300 border-slate-500/40' : 'bg-gray-100 text-gray-500 border-gray-200';
                     return (
-                      <div key={liked.id}
-                        className={`flex flex-col p-3 rounded-xl transition-all ${darkMode ? 'bg-slate-700/70' : 'bg-gray-50'}`}>
-                        <div className="flex items-center gap-3">
-                          <ProfileAvatar profile={liked} size="sm" rounded="xl" />
-                          <div className="flex-1 min-w-0">
-                            <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{liked.nickname}</p>
-                            <p className={`text-xs ${hm.text}`}>{hm.emoji} {hm.label}</p>
-                          </div>
-                          {share ? (
-                            <span className="flex items-center gap-1 px-2.5 py-1 bg-teal-50 text-teal-600 text-xs font-bold rounded-full border border-teal-200 cursor-pointer" onClick={() => onContactViewOpen(share, liked)}>
-                              <Eye className="w-3 h-3" />
-                              연락처 확인
-                            </span>
-                          ) : ht === 'green' ? (
-                            <span className="px-2.5 py-1 bg-emerald-50 text-emerald-500 text-xs rounded-full">
-                              전달 완료
-                            </span>
-                          ) : likeStatuses.get(liked.id) === 'rejected' ? (
-                            <span className="px-2.5 py-1 bg-red-50 text-red-400 text-xs rounded-full">
-                              💔 거부됨
-                            </span>
-                          ) : likeStatuses.get(liked.id) === 'accepted' ? (
-                            <span className="px-2.5 py-1 bg-teal-50 text-teal-500 text-xs rounded-full">
-                              ✓ 수락됨
-                            </span>
-                          ) : (
-                            <span className="px-2.5 py-1 bg-gray-100 text-gray-400 text-xs rounded-full">
-                              대기 중
-                            </span>
-                          )}
-                        </div>
-                        <ProfileInfoBadges profile={liked} />
-                        {share && (share.kakao || share.instagram || share.phone) && (
-                          <div className="mt-2.5 bg-teal-50 border border-teal-200 rounded-xl p-3 space-y-1.5">
-                            <p className={`text-[10px] font-black uppercase tracking-widest ${darkMode ? 'text-teal-300' : 'text-teal-600'} mb-1`}>{liked.nickname}님이 공유한 연락처</p>
-                            {share.kakao && (
-                              <div className="flex items-center gap-2">
-                                <span className="w-5 h-5 rounded-lg bg-yellow-400 text-white flex items-center justify-center text-[10px] font-black flex-shrink-0">K</span>
-                                <span className="text-xs font-bold text-gray-800 flex-1">{share.kakao}</span>
-                                <button onClick={() => navigator.clipboard?.writeText(share.kakao!).catch(() => {})} className="text-[10px] text-gray-400 hover:text-teal-600 transition-all">복사</button>
-                              </div>
-                            )}
-                            {share.instagram && (
-                              <div className="flex items-center gap-2">
-                                <span className="w-5 h-5 rounded-lg bg-pink-500 text-white flex items-center justify-center text-[10px] font-black flex-shrink-0">@</span>
-                                <span className="text-xs font-bold text-gray-800 flex-1">@{share.instagram}</span>
-                                <button onClick={() => navigator.clipboard?.writeText(share.instagram!).catch(() => {})} className="text-[10px] text-gray-400 hover:text-teal-600 transition-all">복사</button>
-                              </div>
-                            )}
-                            {share.phone && (
-                              <div className="flex items-center gap-2">
-                                <span className="w-5 h-5 rounded-lg bg-green-500 text-white flex items-center justify-center text-[10px] font-black flex-shrink-0">#</span>
-                                <span className="text-xs font-bold text-gray-800 flex-1">{share.phone}</span>
-                                <button onClick={() => navigator.clipboard?.writeText(share.phone!).catch(() => {})} className="text-[10px] text-gray-400 hover:text-teal-600 transition-all">복사</button>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
+                      <button
+                        key={`${liked.id}-${ht}`}
+                        type="button"
+                        onClick={() => {
+                          if (share) onContactViewOpen(share, liked);
+                          else onSelect(liked);
+                        }}
+                        className={`flex flex-col items-center gap-1.5 min-h-[104px] p-2.5 rounded-xl text-center transition-all active:scale-[0.98] ${darkMode ? 'bg-slate-700/70 hover:bg-slate-700' : 'bg-gray-50 hover:bg-gray-100'}`}
+                      >
+                        <ProfileAvatar profile={liked} size="sm" rounded="xl" />
+                        <p className={`w-full text-xs font-bold truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>{liked.nickname}</p>
+                        <p className={`text-[11px] font-bold leading-none ${hm.text}`}>
+                          <span className="text-base leading-none" aria-hidden>{hm.emoji}</span>{' '}
+                          <span>{hm.label}</span>
+                        </p>
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${statusClass}`}>
+                          {statusLabel}
+                        </span>
+                      </button>
                     );
                   })}
                 </div>
