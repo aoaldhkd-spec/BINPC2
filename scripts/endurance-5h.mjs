@@ -209,19 +209,39 @@ function createSseSession(ctx, userKey) {
     const r = await fetchFreshToken();
     log({ type: 'sse-refresh', user: userKey, reason, expiresAt: r.expiresAt });
     stream = openSse(id(), r.token, () => fetchFreshToken());
+    stream.done.catch(() => {}).finally(() => {
+      if (!stopped && stream) {
+        stream = null;
+        log({ type: 'sse-drop', user: userKey, msg: 'connection closed — will reconnect next cycle' });
+      }
+    });
     scheduleProactiveRefresh();
     return stream;
   }
 
+  let stopped = false;
+
   return {
     async start() {
+      stopped = false;
       await refreshAndReconnect('initial');
       await sleep(600);
+      return stream;
+    },
+    async ensureConnected() {
+      if (stopped) return stream;
+      const nowSec = Math.floor(Date.now() / 1000);
+      const tokenStale = expiresAt && nowSec >= expiresAt - SSE_TOKEN_REFRESH_LEAD_SEC;
+      if (!stream || tokenStale) {
+        await refreshAndReconnect(tokenStale ? 'token-stale' : 'reconnect');
+        await sleep(600);
+      }
       return stream;
     },
     getStream: () => stream,
     getToken: () => token,
     stop() {
+      stopped = true;
       clearRefreshTimer();
       if (stream) {
         stream.stop();
@@ -293,8 +313,8 @@ async function runCycle(ctx, cycle, sseB) {
   const msgBody = `end-${RUN_ID}-c${cycle}-${Date.now()}`;
   const fails = [];
 
+  await sseB.ensureConnected();
   const streamB = sseB.getStream();
-  if (!streamB) fails.push('SSE stream B not connected');
 
   const msgR = await op(jarA, tokenA, {
     op: 'insert', table: 'messages', requesterId: idA, single: true, selectAfterWrite: true,
