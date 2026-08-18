@@ -66,7 +66,7 @@ export function MainScreen({
   onContactShareOpen: _onContactShareOpen, onContactViewOpen, onHeartResponse, onDeleteChat, onDeleteAllChats, onOpenChat,
   timerEndAt, timerLabel, onRefreshStatus, onRefreshChat, onRefreshProfiles, darkMode, onToggleDark, onShowContactQr, onScanQr, scannedContacts, onClearScannedContact, functionsLocked = false, onShowTutorial,
   unreadChatCounts, onClearChatUnread: _onClearChatUnread,
-  onUpdateProfile, fortuneCompatTarget, myHeartCount: _myHeartCount,
+  onUpdateProfile, fortuneCompatTarget,
   groupChats = [], unreadGroupCounts = {}, onOpenGroupChat, onJoinGroupChat, onLeaveGroupChat, joiningGroupId = null,
   blockedUserIds = new Set<string>(), hiddenByIds = new Set<string>(),
   profileVisitors = [] as ProfileView[],
@@ -117,7 +117,6 @@ export function MainScreen({
   onClearChatUnread: (chatId: string) => void;
   onUpdateProfile: (update: Record<string, unknown> & { id: string }) => void;
   fortuneCompatTarget?: string;
-  myHeartCount?: number | null;
   groupChats?: GroupChat[];
   unreadGroupCounts?: Record<string, number>;
   onOpenGroupChat?: (groupId: string) => void;

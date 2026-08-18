@@ -44,8 +44,6 @@ export function collectBroadcastTargets(
     push(row['to_user_id']);
     push(row['sender_id']);
     push(row['recipient_id']);
-  } else if (table === 'heart_balances') {
-    push(row['id']);
   } else if (table === 'group_messages') {
     const gParts = groupParticipantsFor(row['group_id']);
     for (const gp of gParts) push(gp.user_id);

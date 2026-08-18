@@ -34,6 +34,15 @@ import { collectBroadcastTargets } from '../routes/db.js';
 import { collectBroadcastTargets as collectTargetsImpl } from '../lib/db-broadcast-targets.js';
 
 describe('collectBroadcastTargets', () => {
+  it('anonymous_reports has no user SSE targets (admin-only delivery)', () => {
+    const targets = collectTargetsImpl('anonymous_reports', {
+      id: 'r1',
+      content: 'report body',
+      created_at: '2026-08-18T00:00:00.000Z',
+    }, () => undefined);
+    expect(targets).toEqual([]);
+  });
+
   it('contact_shares uses liker_id/liked_id (not legacy sharer_id)', () => {
     const targets = collectBroadcastTargets('contact_shares', {
       id: '1',

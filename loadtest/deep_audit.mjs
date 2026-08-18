@@ -1,58 +1,32 @@
 /**
- * deep_audit.mjs — 3-area deep-dive stress test
+ * deep_audit.mjs — 3-area deep-dive stress test (current API)
  *
- * Area 1: General user features (chat, games, hearts, badge sync, message loss)
- * Area 2: Admin dashboard realtime control (ms-level broadcast timing under load)
- * Area 3: Tester/memory integrity (50→100→150 VU staged + GC verification)
- *
+ * Requires api-server on http://localhost:8080
  * Run: node loadtest/deep_audit.mjs
  */
-import { performance } from 'perf_hooks';
-import { createHash } from 'crypto';
-import http from 'http';
+import { performance } from 'node:perf_hooks';
+import { createHash } from 'node:crypto';
+import http from 'node:http';
+import { createLoadClient, stats, pct } from './lib/client.mjs';
 
-const BASE       = 'http://localhost:8080/api/db';
-const ADMIN_PW   = '116606';
-const FULL_VU    = 150;
+const { registerVu, op, rpc, unreadCounts, req, ADMIN_PW } = createLoadClient();
+const FULL_VU = Number(process.env.LOADTEST_VU ?? 150);
 
-// ─── helpers ──────────────────────────────────────────────────────────────────
+// ─── helpers (legacy stats kept for area reports) ─────────────────────────────
 const uid    = () => createHash('sha256').update(Math.random() + Date.now().toString()).digest('hex').slice(0, 10);
 const ts     = () => new Date().toISOString();
 const sleep  = ms => new Promise(r => setTimeout(r, ms));
 const pad    = (s, n = 32) => String(s).padEnd(n);
 
-async function req(method, path, body) {
-  const t0 = performance.now();
-  try {
-    const r = await fetch(`${BASE}${path}`, {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      body: body != null ? JSON.stringify(body) : undefined,
-      signal: AbortSignal.timeout(10_000),
-    });
-    const latMs = performance.now() - t0;
-    const json = await r.json().catch(() => ({}));
-    return { ok: r.ok, status: r.status, latMs, data: json };
-  } catch (e) {
-    return { ok: false, status: 0, latMs: performance.now() - t0, err: e.message };
-  }
+async function makeVU(idx) {
+  const vu = await registerVu(`감사봇${idx}`, idx);
+  return vu ? { id: vu.id, idx, ...vu } : null;
 }
 
-function pct(arr, p) {
-  const s = [...arr].sort((a, b) => a - b);
-  return s[Math.floor(s.length * p / 100)] ?? 0;
-}
-function stats(label, samples, indent = '  ') {
-  const s = [...samples].sort((a, b) => a - b);
-  if (!s.length) { console.log(`${indent}${pad(label, 36)}  (no samples)`); return; }
-  const avg = s.reduce((a, b) => a + b, 0) / s.length;
-  const min = s[0] ?? 0;
-  const max = s[s.length - 1] ?? 0;
-  console.log(
-    `${indent}${pad(label, 36)}` +
-    `  min=${min.toFixed(0)}ms  p50=${pct(s, 50).toFixed(0)}ms  p95=${pct(s, 95).toFixed(0)}ms` +
-    `  p99=${pct(s, 99).toFixed(0)}ms  max=${max.toFixed(0)}ms  avg=${avg.toFixed(0)}ms  n=${s.length}`
-  );
+async function cleanupVUs(vus) {
+  await Promise.all(vus.map(vu =>
+    op(vu, { op: 'delete', table: 'profiles', filters: [{ type: 'eq', col: 'id', val: vu.id }] }),
+  ));
 }
 
 function heapMB() {
@@ -105,29 +79,12 @@ async function waitSseEvent(predicate, t0, timeoutMs = 4000) {
 }
 
 // ─── REGISTER helpers ─────────────────────────────────────────────────────────
-async function makeVU(idx) {
-  const id = `audit-${uid()}`;
-  const r = await req('POST', '/op', {
-    table: 'profiles', op: 'insert',
-    payload: { id, nickname: `감사봇${idx}`, created_at: ts(), personality_score: 50,
-                birth_year: 1995 + (idx % 10), birth_month: (idx % 12) + 1, birth_day: (idx % 28) + 1 },
-  });
-  return r.ok ? { id, idx } : null;
-}
-
 async function registerVUs(n, label) {
   const t0 = performance.now();
   const results = await Promise.all(Array.from({ length: n }, (_, i) => makeVU(i)));
   const vus = results.filter(Boolean);
-  const lats = results.map(r => r ? /* re-measure */ 0 : 0); // latency measured per call in makeVU
   console.log(`  ✅ 등록 완료: ${vus.length}/${n}  wall=${((performance.now()-t0)/1000).toFixed(2)}s`);
   return vus;
-}
-
-async function cleanupVUs(vus) {
-  await Promise.all(vus.map(vu =>
-    req('POST', '/op', { table: 'profiles', op: 'delete', filters: [{ type: 'eq', col: 'id', val: vu.id }] })
-  ));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -142,12 +99,11 @@ async function area1(vus) {
   // ── 1-A: 프로필 SELECT 150명 동시 ─────────────────────────────────────────
   console.log('\n  [1-A] 프로필 SELECT 150명 동시 ────────────────────────────────');
   const profileResults = await Promise.all(vus.map((vu) =>
-    req('POST', '/op', {
+    op(vu, {
       table: 'profiles', op: 'select',
-      requesterId: vu.id,
       filters: [{ type: 'eq', col: 'id', val: vu.id }],
       maybeSingle: true,
-    })
+    }),
   ));
   const profileOk = profileResults.filter(r => r.ok).length;
   stats('프로필 select (150동시)', profileResults.map(r => r.latMs));
@@ -161,13 +117,12 @@ async function area1(vus) {
   // 채팅방 생성
   const chatT = performance.now();
   const chatResults = await Promise.all(pairs.map(([a, b]) => {
-    const [u1, u2] = a.id < b.id ? [a, b] : [b, a];
-    const chatId = `${u1.id}::${u2.id}`;
-    return req('POST', '/op', {
-      table: 'chats', op: 'upsert',
-      payload: { id: chatId, user1_id: u1.id, user2_id: u2.id, created_at: ts() },
-      conflictCols: ['id'],
-    }).then(r => ({ ...r, chatId }));
+    const u1 = a.id < b.id ? a.id : b.id;
+    const u2 = a.id < b.id ? b.id : a.id;
+    return op(a, {
+      table: 'chats', op: 'insert', single: true, selectAfterWrite: true,
+      payload: { user1_id: u1, user2_id: u2 },
+    }).then(r => ({ ...r, chatId: r.json?.data?.id }));
   }));
   const chatOk = chatResults.filter(r => r.ok).length;
   stats('채팅방 생성 (75쌍)', chatResults.map(r => r.latMs));
@@ -180,11 +135,13 @@ async function area1(vus) {
     for (let m = 0; m < 3; m++) {
       const cid = uid();
       clientIds.push(cid);
-      msgOps.push(req('POST', '/op', {
-        table: 'messages', op: 'insert',
-        payload: { id: uid(), chat_id: chatId,
-                    sender_id: m % 2 === 0 ? a.id : b.id,
-                    content: `유실감지_${m}`, created_at: ts(), client_id: cid },
+      msgOps.push(op(m % 2 === 0 ? a : b, {
+        table: 'messages', op: 'insert', single: true,
+        payload: {
+          chat_id: chatId,
+          sender_id: m % 2 === 0 ? a.id : b.id,
+          content: `유실감지_${m}`, client_id: cid,
+        },
       }));
     }
   });
@@ -197,11 +154,11 @@ async function area1(vus) {
   // 메시지 유실 검증 — /health의 inMemory.messages vs 실제 insert 건수
   await sleep(300); // persist write-through 대기
   const h1 = await req('GET', '/health');
-  const inMem = h1.data?.inMemory?.messages ?? -1;
-  const dbCnt = h1.data?.db?.messages ?? -1;
-  const lag   = h1.data?.lag?.messages ?? '?';
-  console.log(`  📊 메시지 유실 감지: inMem=${inMem}  DB=${dbCnt}  lag=${lag}  alarms=${JSON.stringify(h1.data?.alarms ?? [])}`);
-  if (h1.data?.alarms?.length) {
+  const inMem = h1.json?.inMemory?.messages ?? -1;
+  const dbCnt = h1.json?.db?.messages ?? -1;
+  const lag   = h1.json?.lag?.messages ?? '?';
+  console.log(`  📊 메시지 유실 감지: inMem=${inMem}  DB=${dbCnt}  lag=${lag}  alarms=${JSON.stringify(h1.json?.alarms ?? [])}`);
+  if (h1.json?.alarms?.length) {
     console.log(`  ⚠️  알람 발생: ${h1.data.alarms.join(' | ')}`);
   } else {
     console.log(`  ✅ 메시지 유실 없음 (lag ≤ 5 임계값 이하)`);
@@ -214,10 +171,10 @@ async function area1(vus) {
   const chatA = chatResults[0]?.chatId;
   const chatB = chatResults[1]?.chatId;
   const switchOps = chatA && chatB ? switchUsers.flatMap(vu => [
-    req('POST', '/op', { table: 'messages', op: 'select',
+    op(vu, { table: 'messages', op: 'select',
       filters: [{ type: 'eq', col: 'chat_id', val: chatA }],
       orders: [{ col: 'created_at', asc: true }], limit: 50 }),
-    req('POST', '/op', { table: 'messages', op: 'select',
+    op(vu, { table: 'messages', op: 'select',
       filters: [{ type: 'eq', col: 'chat_id', val: chatB }],
       orders: [{ col: 'created_at', asc: true }], limit: 50 }),
   ]) : [];
@@ -233,18 +190,14 @@ async function area1(vus) {
   // ── 1-D: 배지 동기화 — unread-counts 150명 동시 ────────────────────────────
   console.log('\n  [1-D] 미읽음 배지 동기화 — 150명 동시 /unread-counts ───────────');
   const badgeT = performance.now();
-  const badgeResults = await Promise.all(vus.map(vu =>
-    req('GET', `/unread-counts?userId=${vu.id}`)
-  ));
+  const badgeResults = await Promise.all(vus.map(vu => unreadCounts(vu)));
   const badgeOk = badgeResults.filter(r => r.ok).length;
   stats('/unread-counts (150동시)', badgeResults.map(r => r.latMs));
   console.log(`  결과: ${badgeOk}/150 성공  wall=${((performance.now()-badgeT)/1000).toFixed(2)}s`);
 
   // TTL 캐시 효과 측정 — 동일 userId 즉시 재조회
   const cacheT = performance.now();
-  const cacheResults = await Promise.all(vus.slice(0, 50).map(vu =>
-    req('GET', `/unread-counts?userId=${vu.id}`)
-  ));
+  const cacheResults = await Promise.all(vus.slice(0, 50).map(vu => unreadCounts(vu)));
   stats('캐시 재조회 (50명, 즉시)', cacheResults.map(r => r.latMs));
   console.log(`  캐시 효과: 첫 요청 p50=${pct(badgeResults.map(r=>r.latMs), 50).toFixed(0)}ms → 캐시 p50=${pct(cacheResults.map(r=>r.latMs), 50).toFixed(0)}ms`);
 
@@ -253,11 +206,9 @@ async function area1(vus) {
   const heartT = performance.now();
   const heartOps = vus.map((vu, i) => {
     const target = vus[(i + 1) % FULL_VU];
-    return req('POST', '/op', {
-      table: 'likes', op: 'upsert',
-      payload: { id: `${vu.id}:${target.id}:red`, liker_id: vu.id, liked_id: target.id,
-                  heart_type: 'red', status: 'pending', created_at: ts() },
-      conflictCols: ['id'],
+    return op(vu, {
+      table: 'likes', op: 'insert',
+      payload: { liker_id: vu.id, liked_id: target.id, heart_type: 'red', status: 'pending' },
     });
   });
   const heartResults = await Promise.all(heartOps);
@@ -279,33 +230,8 @@ async function area1(vus) {
   stats('프로필 단건 조회 (150동시)', fortuneResults.map(r => r.latMs));
   console.log(`  결과: ${fortuneOk}/150 성공  (사주 계산은 클라이언트 연산, 서버는 데이터 제공)`);
 
-  // ── 1-G: 밸런스 게임 투표 150명 동시 ────────────────────────────────────────
-  console.log('\n  [1-G] 밸런스 게임 투표 — 150명 동시 ───────────────────────────');
-  // 게임 먼저 생성
-  const gameId = uid();
-  const gameR = await req('POST', '/op', {
-    table: 'balance_games', op: 'insert',
-    payload: { id: gameId, question: '부하테스트 질문', option_a: 'A선택지', option_b: 'B선택지',
-                status: 'active', scope: 'global', created_at: ts() },
-  });
-  if (gameR.ok) {
-    const voteResults = await Promise.all(vus.map((vu, i) =>
-      req('POST', '/op', {
-        table: 'balance_votes', op: 'upsert',
-        payload: { id: `${gameId}:${vu.id}`, game_id: gameId, user_id: vu.id,
-                    option: i % 2 === 0 ? 'a' : 'b', created_at: ts() },
-        conflictCols: ['id'],
-      })
-    ));
-    const voteOk = voteResults.filter(r => r.ok).length;
-    stats('게임 투표 (150동시)', voteResults.map(r => r.latMs));
-    console.log(`  결과: ${voteOk}/150 성공`);
-    // cleanup game
-    await req('POST', '/op', { table: 'balance_games', op: 'delete',
-      filters: [{ type: 'eq', col: 'id', val: gameId }] });
-  } else {
-    console.log(`  ⚠️  게임 생성 실패, 투표 테스트 건너뜀`);
-  }
+  // ── 1-G: 밸런스 게임 — 제거됨 (balance_games 테이블 미지원) ─────────────────
+  console.log('\n  [1-G] 밸런스 게임 — SKIP (balance_games 테이블 없음) ─────────');
 
   // ── 1-H: DB 커넥션 풀 포화 테스트 — 80개 동시 (max_concurrent_ops 한계) ───
   console.log('\n  [1-H] DB 커넥션 풀 포화 — 80개 동시 요청 (max_concurrent_ops=80) ─');
@@ -447,10 +373,10 @@ async function area2(vus) {
       payload: { timer_label: true },
     })),
     measureCmd('② RPC: admin_create_session', () =>
-      req('POST', '/rpc/admin_create_session', { p_admin_password: ADMIN_PW })
+      rpc('admin_create_session', { p_admin_password: ADMIN_PW }),
     ),
-    measureCmd('③ RPC: admin_end_session', () =>
-      req('POST', '/rpc/admin_end_session', { p_admin_password: ADMIN_PW })
+    measureCmd('③ RPC: admin_toggle_session', () =>
+      rpc('admin_toggle_session', { p_admin_password: ADMIN_PW, p_active: true }),
     ),
   ]);
   const bgOk = bgResult.filter(r => r.ok).length;

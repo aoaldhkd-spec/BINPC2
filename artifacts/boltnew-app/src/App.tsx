@@ -256,9 +256,6 @@ function App() {
   const loadSignalGenRef = useRef(0);
   const loadSignalActionsRef = useRef<((userId: string) => Promise<void>) | null>(null);
   const signalNudgeIndexRef = useRef(0);
-  const [myHeartCount, setMyHeartCount] = useState<number | null>(null);
-  const myHeartCountRef = useRef<number | null>(null);
-  myHeartCountRef.current = myHeartCount;
   const [functionsLocked, setFunctionsLocked] = useState(false);
   const functionsLockedRef = useRef(false);
   functionsLockedRef.current = functionsLocked;
@@ -1343,17 +1340,6 @@ function App() {
           setReceivedContactShares(prev => prev.map(s => s.liked_id === share.liked_id ? share : s));
           traceRealtimeStateMerge('contact', share);
         })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'heart_balances', filter: `id=eq.${currentUserId}` },
-        (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-          const row = payload.new as { heart_count?: number };
-          if (typeof row?.heart_count === 'number') {
-            const prev = myHeartCountRef.current;
-            setMyHeartCount(row.heart_count);
-            if (prev !== null && row.heart_count < prev) {
-              setBottomNotif({ type: 'system', message: `💛 하트가 ${row.heart_count}개 남았어요!` });
-            }
-          }
-        })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'signal_sends', filter: `sender_id=eq.${currentUserId}` },
         (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
           const row = payload.new as SignalSend;
@@ -1393,11 +1379,6 @@ function App() {
         })
       .subscribe();
     // chats INSERT/DELETE는 useChat의 user-events-${uid} 통합 채널이 처리 — 중복 구독 제거됨
-
-    supabase.from('heart_balances').select('heart_count').eq('id', currentUserId).maybeSingle()
-      .then(({ data }: { data: any }) => {
-        if (data && typeof data.heart_count === 'number') setMyHeartCount(data.heart_count);
-      }).catch(() => {});
 
     return () => {
       cancelled = true;
@@ -1996,7 +1977,6 @@ function App() {
         }}
         onViewProfile={(p) => { void recordProfileView(p.id); }}
         fortuneCompatTarget={fortuneCompatTarget}
-        myHeartCount={myHeartCount}
         groupChats={groupChats}
         unreadGroupCounts={unreadGroupCounts}
         onOpenGroupChat={(groupId) => { void openGroupChatGuarded(groupId).catch(e => console.error('[openGroupChat]', e)); }}

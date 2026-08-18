@@ -166,8 +166,6 @@ const ALLOWED_OP_TABLES = new Set([
   'user_signals',
   // 시그널 보내기/패스 (하트 likes 와 분리)
   'signal_sends',
-  // 서버가 계산하고 사용자는 자신의 잔여 수만 조회
-  'heart_balances',
 ]);
 
 // ─── SSE Event Ring Buffer — Last-Event-ID 재전송으로 재연결 시 이벤트 유실 방지 ──
@@ -1034,7 +1032,6 @@ function defaultAppSettings(): Record<string, unknown> {
     reset_password: PANEL_DEFAULT_PASSWORD,
     test_password: bootstrapTest || PANEL_DEFAULT_PASSWORD,
     qr_base_url: PRODUCTION_QR_BASE,
-    heart_initial_count: 8,
     active_tables: null,
   };
 }
@@ -1342,7 +1339,7 @@ const ACTIVE_KV_TABLES = new Set([
   'profiles', 'app_settings', 'notifications', 'likes', 'chats',
   'messages', 'chat_reads', 'device_secrets', 'session_history', 'push_subscriptions',
   'contact_shares', 'contact_share_events', 'anonymous_reports',
-  'app_image_store', 'heart_balances',
+  'app_image_store',
   // 옵트인 단체 채팅
   'group_chats', 'group_participants', 'group_messages',
   // 명시적 단톡 나가기 — 자동 재입장 방지 (서버 전용)
@@ -2593,12 +2590,14 @@ function broadcastToUsers(userIds: string[], event: Record<string, unknown>) {
 const PRIVATE_TABLES = new Set([
   'messages', 'likes', 'chats',
   'contact_shares', 'contact_share_events', 'chat_reads',
-  'heart_balances',
   'group_messages', 'group_participants',
   'blocked_users', 'profile_views',
   'signal_sends',
   // user_signals는 공개 — 전광판/카드에서 모두가 볼 수 있음 (연락처 등 민감정보 없음)
 ]);
+
+/** 관리자 SSE 전용 — 일반 유저에게 브로드캐스트 금지 */
+const ADMIN_ONLY_PRIVATE_TABLES = new Set(['anonymous_reports']);
 
 function _stripInternalBroadcastFields(table: string, event: Record<string, unknown>): Record<string, unknown> {
   if (table !== 'messages') return event;
@@ -2612,8 +2611,20 @@ function _stripInternalBroadcastFields(table: string, event: Record<string, unkn
   return { ...event, newRow: strip(event['newRow']), oldRow: strip(event['oldRow']) };
 }
 
+/** 관리자 SSE 연결에만 전송 (익명 신고 등) */
+function broadcastAdminOnly(event: Record<string, unknown>) {
+  const json = JSON.stringify(event);
+  const seq = _ringAdd(json, []);
+  const payload = `id: ${seq}\ndata: ${json}\n\n`;
+  for (const c of sseAdminClients) _send(c, sseAdminClients, payload);
+}
+
 /** 테이블 종류에 따라 자동으로 수신자 판단 — 로컬 SSE 전송 전용 (NOTIFY 없음) */
 function _smartBroadcastLocal(table: string, row: Record<string, unknown> | null, event: Record<string, unknown>) {
+  if (ADMIN_ONLY_PRIVATE_TABLES.has(table)) {
+    broadcastAdminOnly(_stripInternalBroadcastFields(table, event));
+    return;
+  }
   // row가 없는 경우(DELETE payload 없음): 프라이빗 테이블이면 드롭, 공개 테이블만 전체 전송
   if (!row) {
     if (!PRIVATE_TABLES.has(table)) broadcastAll(event);
@@ -2927,11 +2938,6 @@ router.post('/op', async (req: Request, res: Response) => {
   if (!ALLOWED_OP_TABLES.has(table)) {
     _activeOpCount--;
     return res.status(400).json({ data: null, error: { message: 'Invalid table', code: 'INVALID_TABLE' } });
-  }
-
-  if (table === 'heart_balances' && op !== 'select' && !isAdmin) {
-    _activeOpCount--;
-    return res.status(403).json({ data: null, error: { message: 'Forbidden: server-managed table', code: 'FORBIDDEN' } });
   }
 
   if (!store[table]) store[table] = [];
@@ -3273,13 +3279,6 @@ router.post('/op', async (req: Request, res: Response) => {
         const gmLimited = gmLimit != null ? gmResult.slice(0, gmLimit) : gmResult;
         const gmData = single ? (gmLimited[0] ?? null) : maybeSingle ? (gmLimited[0] ?? null) : gmLimited;
         return res.json({ data: gmData, error: null });
-      }
-
-      if (table === 'heart_balances' && !isAdmin) {
-        const idFilter = normalizedFilters.find(f => f.type === 'eq' && f.col === 'id');
-        if (!requesterId || !idFilter || !('val' in idFilter) || String(idFilter.val) !== String(requesterId)) {
-          return res.status(403).json({ data: null, error: { message: 'Forbidden: own balance only', code: 'FORBIDDEN' } });
-        }
       }
 
       if (table === 'group_chats') {
@@ -4374,7 +4373,6 @@ const ALLOWED_RPCS = new Set([
   'verify_panel_password',
   'admin_update_profile',
   'admin_delete_profile',
-  'admin_reset_heart_balances',  // 모든 유저 하트 잔여 수 초기화
 ]);
 
 // ─── RPC endpoint ─────────────────────────────────────────────────────────────
@@ -4715,33 +4713,6 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
           dbDeleteRow('profiles', profileId).catch(e => logger.error({ err: e }, '[db] background task error'));
         }
         return res.json({ data: null, error: null });
-      }
-
-      case 'admin_reset_heart_balances': {
-        // 모든 유저의 하트 잔여 수를 heart_initial_count로 초기화
-        checkPassword();
-        const initCount = Math.max(1, Number((settings as Record<string, unknown>).heart_initial_count ?? 10));
-        const allProfiles = getTable('profiles');
-        const nowIso2 = new Date().toISOString();
-        if (!store['heart_balances']) store['heart_balances'] = [];
-        const resetPersists: Promise<void>[] = [];
-        for (const p of allProfiles) {
-          const userId = p.id as string;
-          if (!userId) continue;
-          const newRow: Record<string, unknown> = {
-            id: userId, heart_count: initCount, last_drain_at: null, updated_at: nowIso2,
-          };
-          const idx = (store['heart_balances'] as Record<string, unknown>[]).findIndex(b => b.id === userId);
-          if (idx >= 0) (store['heart_balances'] as Record<string, unknown>[])[idx] = newRow;
-          else (store['heart_balances'] as Record<string, unknown>[]).push(newRow);
-          resetPersists.push(dbPersistRow('heart_balances', newRow).catch(e => logger.error({ err: e }, '[db] background task error')));
-          _smartBroadcastLocal('heart_balances', newRow, {
-            type: 'change', table: 'heart_balances', event: 'UPDATE', newRow, oldRow: {},
-          });
-        }
-        await Promise.all(resetPersists);
-        logger.info({ reset: allProfiles.length }, '[rpc] admin_reset_heart_balances 완료');
-        return res.json({ data: { reset: allProfiles.length }, error: null });
       }
 
       default:

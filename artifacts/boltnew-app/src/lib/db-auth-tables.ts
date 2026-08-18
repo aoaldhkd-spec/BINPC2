@@ -6,7 +6,6 @@ export const SESSION_SCOPED_TABLES = new Set([
   'chat_reads',
   'contact_shares',
   'contact_share_events',
-  'heart_balances',
   'group_chats',
   'group_participants',
   'group_messages',

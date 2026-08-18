@@ -620,33 +620,6 @@ describe('[Security] /unread-counts — SSE トークン IDOR ガード', () => 
   });
 });
 
-describe('[Security] heart_balances — 본인 조회 전용', () => {
-  it('본인 id 필터가 있으면 조회를 허용한다', async () => {
-    const userId = randomUUID();
-    const res = await op({
-      op: 'select',
-      table: 'heart_balances',
-      requesterId: userId,
-      filters: [{ type: 'eq', col: 'id', val: userId }],
-      maybeSingle: true,
-    });
-    expect(res.status).toBe(200);
-  });
-
-  it('일반 사용자의 직접 수정을 차단한다', async () => {
-    const userId = randomUUID();
-    const res = await op({
-      op: 'update',
-      table: 'heart_balances',
-      requesterId: userId,
-      filters: [{ type: 'eq', col: 'id', val: userId }],
-      payload: { heart_count: 999 },
-    });
-    expect(res.status).toBe(403);
-    expect(res.body.error?.code).toBe('FORBIDDEN');
-  });
-});
-
 describe('[Security] profiles / likes / storage', () => {
   it('비공개 프로필의 연락처는 다른 사용자 SELECT 응답에서 제거한다', async () => {
     const ownerId = randomUUID();
