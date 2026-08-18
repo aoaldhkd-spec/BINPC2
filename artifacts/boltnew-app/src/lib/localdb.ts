@@ -359,7 +359,6 @@ interface SseEvent {
   type: 'change' | 'broadcast' | 'ping' | 'instance' | 'shutdown' | 'catchup';
   instanceId?: string;
   missed?: number;
-  instanceId?: string;
   table?: string;
   event?: 'INSERT' | 'UPDATE' | 'DELETE';
   newRow?: Record<string, unknown> | null;

@@ -116,8 +116,8 @@ const BASE_DEPS = {
   setBottomNotif: vi.fn(),
 };
 
-function makeChatRow(id: string) {
-  return { id, user1_id: TEST_USER_ID, user2_id: 'user-other', created_at: '2026-07-31T00:00:00Z' };
+function makeChatRow(id: string, otherId = `other-${id.slice(-3)}`) {
+  return { id, user1_id: TEST_USER_ID, user2_id: otherId, created_at: '2026-07-31T00:00:00Z' };
 }
 
 function setupFetch(unreadData: Record<string, number> | null, ok = true) {
@@ -282,7 +282,7 @@ describe('useChat — openChat clears per-chat unread badge', () => {
 
     // Make chatQB.maybeSingle return the existing chat so openChat resolves to CHAT_A
     // (chatQB is reused for supabase.from('chats') lookups inside openChat)
-    chatQB.maybeSingle = vi.fn().mockResolvedValue({ data: { id: CHAT_A, user1_id: TEST_USER_ID, user2_id: 'other-user' }, error: null });
+    chatQB.maybeSingle = vi.fn().mockResolvedValue({ data: { id: CHAT_A, user1_id: TEST_USER_ID, user2_id: 'other-aaa' }, error: null });
 
     const { result } = renderHook(() => useChat(BASE_DEPS));
 
@@ -295,7 +295,7 @@ describe('useChat — openChat clears per-chat unread badge', () => {
 
     // 2. Open the chat — openChat must clear both per-chat count AND global badge
     const otherProfile: Profile = {
-      id: 'other-user',
+      id: 'other-aaa',
       nickname: 'Other',
       pin_code: '1234',
       bio: '',

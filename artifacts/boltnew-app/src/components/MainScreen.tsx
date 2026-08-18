@@ -293,7 +293,7 @@ export function MainScreen({
   useEffect(() => {
     const root = document.documentElement;
     root.style.setProperty('--participant-tabbar', 'calc(4.5rem + var(--tabbar-safe-bottom))');
-    return () => root.style.removeProperty('--participant-tabbar');
+    return () => { root.style.removeProperty('--participant-tabbar'); };
   }, []);
 
   // 기능 잠금(functionsLocked) 시 이동 불가 탭 — 시그널·채팅·운세 (통계·랭킹은 열림)

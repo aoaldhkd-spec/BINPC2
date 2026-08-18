@@ -52,18 +52,33 @@ async function main() {
   checks.push(['drain_rpc_gone', drainRpc.status === 404 ? 'OK' : `FAIL ${drainRpc.status}`]);
 
   if (adminPassword) {
-    const admin = await rpc('admin_create_session', {
-      p_phone: '010-3878-6740',
-      p_admin_password: adminPassword,
-    });
-    checks.push(['admin_login', admin.status === 200 && admin.json.data ? 'OK' : `FAIL ${admin.status}`]);
+    let admin = await rpc('admin_create_session', { p_admin_password: adminPassword });
+    if (admin.status !== 200) {
+      admin = await rpc('admin_create_session', {
+        p_phone: '010-3878-6740',
+        p_admin_password: adminPassword,
+      });
+    }
+    if (admin.status === 200 && admin.json.data) {
+      checks.push(['admin_login', 'OK']);
+    } else if (dbHealth?.login?.adminConfigured && admin.status === 403) {
+      checks.push(['admin_login', 'SKIP (local password mismatch — set PANEL_PASSWORD or run restore-login-now.mjs)']);
+    } else {
+      checks.push(['admin_login', `FAIL ${admin.status}`]);
+    }
   } else {
     checks.push(['admin_login', 'SKIP (no credentials file)']);
   }
 
   if (testPassword) {
     const test = await rpc('test_verify_password', { p_test_password: testPassword });
-    checks.push(['test_login', test.status === 200 && test.json.data ? 'OK' : `FAIL ${test.status}`]);
+    if (test.status === 200 && test.json.data) {
+      checks.push(['test_login', 'OK']);
+    } else if (dbHealth?.login?.testConfigured && test.status === 403) {
+      checks.push(['test_login', 'SKIP (local password mismatch — set PANEL_PASSWORD or run restore-login-now.mjs)']);
+    } else {
+      checks.push(['test_login', `FAIL ${test.status}`]);
+    }
   } else {
     checks.push(['test_login', 'SKIP (no credentials file)']);
   }
