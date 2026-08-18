@@ -105,6 +105,20 @@ describe('[Realtime] long-session stability', () => {
     expect(localdbSrc).toMatch(/refreshSseTokenIfStale\(\)/);
   });
 
+  it('source: fetchSseToken cache restore schedules proactive refresh timer', () => {
+    expect(localdbSrc).toMatch(/scheduleSseTokenRefresh/);
+    expect(localdbSrc).toMatch(/restoredFromCache/);
+    expect(localdbSrc).toMatch(/80% 창 — 즉시 재발급/);
+  });
+
+  it('source: endurance soak must track expiresAt and proactive 80% refresh', () => {
+    const enduranceSrc = readFileSync(join(here, '../../../../scripts/endurance-5h.mjs'), 'utf8');
+    expect(enduranceSrc).toMatch(/SSE_TOKEN_REFRESH_LEAD_SEC/);
+    expect(enduranceSrc).toMatch(/expiresAt/);
+    expect(enduranceSrc).toMatch(/scheduleProactiveRefresh|proactive-80pct/);
+    expect(enduranceSrc).toMatch(/401/);
+  });
+
   it('source: token refresh lead is 20% of 1h TTL (proactive, not only after 401)', async () => {
     const { SSE_TOKEN_REFRESH_LEAD_SEC, SSE_TOKEN_TTL_SEC } = await import('../lib/localdb');
     expect(SSE_TOKEN_TTL_SEC).toBe(3600);

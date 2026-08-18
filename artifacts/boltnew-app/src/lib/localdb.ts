@@ -592,22 +592,44 @@ let _sseTokenRetryTimer: ReturnType<typeof setTimeout> | null = null;
  * 실제 토큰 발급은 fetchAndSetSseToken(App.tsx에서 호출)이 담당합니다.
  * 이 함수는 캐시 확인 + SSE 재연결만 수행합니다.
  */
+/** setSseToken·캐시 복원 공통 — 80% TTL 지점(+ userId 지터)에서 선제 재발급 예약 */
+function scheduleSseTokenRefresh(expiresAt: number): void {
+  if (_tokenRefreshTimer) { clearTimeout(_tokenRefreshTimer); _tokenRefreshTimer = null; }
+  const refreshIn = (expiresAt - Math.floor(Date.now() / 1000) - SSE_TOKEN_REFRESH_LEAD_SEC) * 1000
+    - sseRefreshJitterMs(_currentUserId);
+  if (!_currentUserId) return;
+  if (refreshIn > 0) {
+    _tokenRefreshTimer = setTimeout(() => {
+      if (_currentUserId) fetchAndSetSseToken(_currentUserId).catch(() => {});
+    }, refreshIn);
+  } else {
+    refreshSseTokenIfStale();
+  }
+}
+
 function fetchSseToken(userId: string): void {
   // localStorage 캐시 확인 — 선제 갱신 창(TTL 80%)에 들어갔으면 재사용하지 않음
+  let restoredFromCache = false;
   try {
     const cached = localStorage.getItem(SSE_TOK_KEY);
     const exp = parseInt(localStorage.getItem(SSE_TOK_EXP_KEY) ?? '0', 10);
-    if (cached && Math.floor(Date.now() / 1000) < exp - SSE_TOKEN_REFRESH_LEAD_SEC) {
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (cached && exp > nowSec + 10 && nowSec < exp - SSE_TOKEN_REFRESH_LEAD_SEC) {
       _sseToken = cached;
-      // 캐시 복원 경로는 setSseToken 을 거치지 않으므로 만료 시각을 여기서 기록한다.
-      // (기록하지 않으면 남은 수명을 알 수 없어 선제 갱신이 동작하지 않는다.)
       _sseTokenExp = exp;
+      scheduleSseTokenRefresh(exp);
+      restoredFromCache = true;
+    } else if (_currentUserId === userId && (!cached || exp <= nowSec + 10 || nowSec >= exp - SSE_TOKEN_REFRESH_LEAD_SEC)) {
+      // 캐시 없음·만료·80% 창 — 즉시 재발급 (장시간 idle 후 401 방지)
+      void fetchAndSetSseToken(userId).catch(() => {});
     }
   } catch { /* ignore */ }
   // userId가 일치할 때만 SSE 재연결 (userId 변경 경합 방지)
   if (_currentUserId === userId) {
-    closeSse();
-    if (_sseListeners.size > 0) ensureSse();
+    if (restoredFromCache || _sseToken) {
+      closeSse();
+      if (_sseListeners.size > 0) ensureSse();
+    }
   }
 }
 
@@ -1229,16 +1251,7 @@ export function setSseToken(token: string, expiresAt: number) {
     localStorage.setItem(SSE_TOK_KEY, token);
     localStorage.setItem(SSE_TOK_EXP_KEY, String(expiresAt));
   } catch { /* storage quota 초과 시 무시 — 메모리 캐시로 폴백 */ }
-  // 기존 타이머 정리
-  if (_tokenRefreshTimer) { clearTimeout(_tokenRefreshTimer); _tokenRefreshTimer = null; }
-  // 수명의 80% 지점(+ userId 지터)에서 재발급. 만료 후에만 갱신하면 401 폭풍이 된다.
-  const refreshIn = (expiresAt - Math.floor(Date.now() / 1000) - SSE_TOKEN_REFRESH_LEAD_SEC) * 1000
-    - sseRefreshJitterMs(_currentUserId);
-  if (_currentUserId && refreshIn > 0) {
-    _tokenRefreshTimer = setTimeout(() => {
-      if (_currentUserId) fetchAndSetSseToken(_currentUserId).catch(() => {});
-    }, refreshIn);
-  }
+  scheduleSseTokenRefresh(expiresAt);
   // 새 토큰으로 SSE 재연결. 브라우저가 EventSource를 새로 만들면 Last-Event-ID 헤더가
   // 사라지므로 lastEventId 쿼리로 링 캐치업한다. 건강한 선제 갱신마다 HTTP 전체 리로드하면
   // 48분마다 채팅이 끊기므로, 끊겼던 경우에만 merge-by-id 콜백을 예약한다.
