@@ -244,6 +244,9 @@ describe('product copy + notification invariants', () => {
     expect(endurance).toMatch(/ensureConnected/);
     expect(endurance).toMatch(/isOpFunctionsLocked|FUNCTIONS_LOCKED mid-run/);
     expect(endurance).toMatch(/return 'locked'|result === 'locked'/);
+    expect(endurance).toMatch(/admin_event_end_reset/);
+    expect(endurance).toMatch(/acquireEnduranceLock/);
+    expect(endurance).toMatch(/429|Rate limit/i);
     expect(lock).toContain('isOpFunctionsLocked');
   });
 

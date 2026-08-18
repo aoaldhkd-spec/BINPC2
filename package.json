@@ -8,8 +8,9 @@
     "typecheck:libs": "tsc --build",
     "typecheck": "corepack pnpm run typecheck:libs && corepack pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
     "audit:code": "node scripts/full-code-audit.mjs",
+    "verify:guards": "node scripts/verify-recurrence-guards.mjs",
     "test:unit": "corepack pnpm -r --filter \"./artifacts/**\" --if-present run test:unit",
-    "verify": "node scripts/full-code-audit.mjs && node scripts/verify-all-features.mjs",
+    "verify": "node scripts/verify-recurrence-guards.mjs && node scripts/full-code-audit.mjs && node scripts/verify-all-features.mjs",
     "endurance:5h": "node scripts/endurance-5h.mjs"
   },
   "private": true,

@@ -38,6 +38,16 @@ async function op(body) {
 }
 
 function runStaticAudit() {
+  const guardsScript = resolve(__dirname, 'verify-recurrence-guards.mjs');
+  const guards = spawnSync(process.execPath, [guardsScript], {
+    cwd: resolve(__dirname, '..'),
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  if (guards.stdout) process.stdout.write(guards.stdout);
+  if (guards.stderr) process.stderr.write(guards.stderr);
+  if (guards.status !== 0) return `FAIL guards (exit ${guards.status ?? 1})`;
+
   const auditScript = resolve(__dirname, 'full-code-audit.mjs');
   const result = spawnSync(process.execPath, [auditScript], {
     cwd: resolve(__dirname, '..'),

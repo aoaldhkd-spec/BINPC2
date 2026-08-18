@@ -105,6 +105,15 @@ describe('longevity recurrence guards (server)', () => {
   it('load-venue-150 register p95 threshold stays CI-realistic', () => {
     const loadTest = readFileSync(join(here, 'load-venue-150.test.ts'), 'utf8');
     expect(loadTest).toMatch(/pct\(lat, 95\)\)\.toBeLessThan\(/);
+    expect(loadTest).toMatch(/toBeLessThan\(3_500\)/);
+    expect(loadTest).toMatch(/pct\(readyLat, 95\)\)\.toBeLessThan\(1_500\)/);
     expect(loadTest).not.toMatch(/toBeLessThan\(2_000\)/);
+  });
+
+  it('keep-api-warm script and scheduled CI exist (Render cold-start)', () => {
+    const warmScript = readFileSync(join(here, '../../../../scripts/keep-api-warm.mjs'), 'utf8');
+    const warmCi = readFileSync(join(here, '../../../../.github/workflows/keep-api-warm.yml'), 'utf8');
+    expect(warmScript).toContain('/api/healthz');
+    expect(warmCi).toMatch(/keep-api-warm\.mjs/);
   });
 });

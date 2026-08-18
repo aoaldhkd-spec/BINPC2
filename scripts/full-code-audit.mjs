@@ -197,6 +197,9 @@ try {
     ['endurance_sse_401_retry', /openSseWithRetry|401/],
     ['endurance_sse_ensure_connected', /ensureConnected/],
     ['endurance_functions_locked_mid_run', /isOpFunctionsLocked|FUNCTIONS_LOCKED mid-run/],
+    ['endurance_parallel_lock', /acquireEnduranceLock/],
+    ['endurance_admin_reset_doc', /admin_event_end_reset/],
+    ['endurance_rate_limit_note', /429|Rate limit/i],
   ];
   for (const [id, re] of enduranceGuards) {
     if (!re.test(enduranceSrc)) {
@@ -309,5 +312,20 @@ try {
     console.log(`  ${f.rel}:${f.line} [${f.id}] ${f.text}`);
   }
 } catch { /* ignore */ }
+
+// Render cold-start mitigation — keep-api-warm script + scheduled CI
+for (const [rel, id] of [
+  ['scripts/keep-api-warm.mjs', 'keep_api_warm_script'],
+  ['.github/workflows/keep-api-warm.yml', 'keep_api_warm_ci'],
+]) {
+  try {
+    readFileSync(resolve(ROOT, rel), 'utf8');
+  } catch {
+    const f = { rel, line: 1, id, sev: 'error', text: `missing ${rel}` };
+    allFindings.push(f);
+    errors.push(f);
+    console.log(`  ${f.rel}:${f.line} [${f.id}] ${f.text}`);
+  }
+}
 
 process.exit(errors.length ? 1 : 0);

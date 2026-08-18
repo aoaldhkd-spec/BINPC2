@@ -12,8 +12,17 @@
  *   ENDURANCE_HOURS   default 5
  *   ENDURANCE_INTERVAL_MS  cycle interval (default 5 min)
  *   ENDURANCE_METRICS_FILE  jsonl log path
+ *   ENDURANCE_LOCK_FILE       default scripts/.soak-results/endurance.lock
+ *   ENDURANCE_LOCK_STALE_MS   stale lock override (default 6h)
+ *   ENDURANCE_FORCE_LOCK=1    run even if another lock is active (not recommended)
+ *
+ * Ops / recurrence (cannot fix inside this script):
+ *   - SSE 401 @ 1h: proactive 80% token refresh + ensureConnected each cycle (mirrors localdb.ts).
+ *   - admin_event_end_reset: wipes ALL participant rows — soak users disappear; stop before admin reset.
+ *   - Rate limit 429: run ONE endurance at a time (Render numInstances:1). Parallel soaks share NAT IP.
+ *   - functions_locked: exit 2 at start; mid-run admin lock skips cycle (not fail streak).
  */
-import { appendFileSync, mkdirSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isOpFunctionsLocked } from './lib/functions-lock.mjs';
@@ -24,6 +33,10 @@ const INTERVAL_MS = Number(process.env.ENDURANCE_INTERVAL_MS || 5 * 60 * 1000);
 const RUN_ID = `end_${Date.now()}`;
 const METRICS = resolve(process.env.ENDURANCE_METRICS_FILE
   || `scripts/.soak-results/${RUN_ID}.jsonl`);
+const LOCK_PATH = resolve(process.env.ENDURANCE_LOCK_FILE
+  || 'scripts/.soak-results/endurance.lock');
+const LOCK_STALE_MS = Number(process.env.ENDURANCE_LOCK_STALE_MS || 6 * 60 * 60 * 1000);
+const FORCE_LOCK = process.env.ENDURANCE_FORCE_LOCK === '1';
 const DURATION_MS = HOURS * 60 * 60 * 1000;
 
 // 앱 localdb.ts 와 동일 — 1h TTL, 80% 지점(720s 남을 때) 선제 갱신
@@ -253,6 +266,42 @@ function createSseSession(ctx, userKey) {
   };
 }
 
+function acquireEnduranceLock() {
+  mkdirSync(dirname(LOCK_PATH), { recursive: true });
+  if (existsSync(LOCK_PATH) && !FORCE_LOCK) {
+    try {
+      const prev = JSON.parse(readFileSync(LOCK_PATH, 'utf8'));
+      const age = Date.now() - Number(prev.startedAt || 0);
+      if (age >= 0 && age < LOCK_STALE_MS && prev.pid !== process.pid) {
+        log({
+          type: 'abort',
+          ok: false,
+          msg: `Parallel endurance blocked — active runId=${prev.runId} pid=${prev.pid} (${Math.round(age / 60000)}m ago). Set ENDURANCE_FORCE_LOCK=1 to override.`,
+        });
+        process.exit(3);
+      }
+    } catch {
+      /* corrupt lock — overwrite */
+    }
+  }
+  writeFileSync(LOCK_PATH, JSON.stringify({
+    runId: RUN_ID,
+    pid: process.pid,
+    startedAt: Date.now(),
+    api: API,
+    hours: HOURS,
+  }), 'utf8');
+  log({ type: 'lock', msg: `RUN_ID=${RUN_ID} lock=${LOCK_PATH}` });
+}
+
+function releaseEnduranceLock() {
+  try {
+    if (!existsSync(LOCK_PATH)) return;
+    const cur = JSON.parse(readFileSync(LOCK_PATH, 'utf8'));
+    if (cur.runId === RUN_ID && cur.pid === process.pid) unlinkSync(LOCK_PATH);
+  } catch { /* ignore */ }
+}
+
 async function checkFunctionsUnlocked() {
   const r = await op(new Map(), null, {
     op: 'select', table: 'app_settings', limit: 1,
@@ -357,7 +406,9 @@ async function runCycle(ctx, cycle, sseB) {
 async function main() {
   console.log(`Endurance: ${HOURS}h, interval ${INTERVAL_MS}ms, API ${API}`);
   console.log(`Metrics: ${METRICS}`);
+  console.log(`RUN_ID=${RUN_ID} — do not run parallel endurance (429 / shared NAT)`);
   console.log(`SSE proactive refresh at 80% TTL (${SSE_TOKEN_REFRESH_LEAD_SEC}s lead)`);
+  acquireEnduranceLock();
   await checkFunctionsUnlocked();
 
   const ctx = await setupUsers();
@@ -394,6 +445,7 @@ async function main() {
     log({ type: 'done', ok: true, cycles: cycle, elapsedMs: Date.now() - ctx.startedAt, msg: `${HOURS}h endurance passed` });
   } finally {
     sseB.stop();
+    releaseEnduranceLock();
   }
 }
 
