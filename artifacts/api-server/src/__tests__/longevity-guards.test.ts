@@ -11,6 +11,16 @@ import { shouldBroadcastBulkResync } from '../lib/db-store-merge.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const dbTs = readFileSync(join(here, '../routes/db.ts'), 'utf8');
+const broadcastTargetsTs = readFileSync(join(here, '../lib/db-broadcast-targets.ts'), 'utf8');
+const dbSecurityTest = readFileSync(join(here, 'db-security.test.ts'), 'utf8');
+
+/** Global heart pool (heart_balances) was removed — per-type / per-person limits stay. */
+const HEART_BALANCE_BANNED = [
+  'heart_balances',
+  'myHeartCount',
+  'heart_initial_count',
+  'admin_reset_heart',
+] as const;
 
 describe('longevity recurrence guards (server)', () => {
   it('120s periodic path must call resyncAllFromNativeDb("periodic"), never "forced"', () => {
@@ -44,6 +54,16 @@ describe('longevity recurrence guards (server)', () => {
     expect(dbTs).toMatch(/store\['app_settings'\] = \[updated\]/);
     expect(dbTs).toMatch(/await dbPersistRow\('app_settings', updated\)/);
     expect(dbTs).toMatch(/resetPanelLoginLimiter\(req\)/);
+  });
+
+  it('heart_balances global pool stays removed from server (recurrence guard)', () => {
+    for (const token of HEART_BALANCE_BANNED) {
+      expect(dbTs).not.toContain(token);
+      expect(broadcastTargetsTs).not.toContain(token);
+    }
+    for (const token of HEART_BALANCE_BANNED) {
+      expect(dbSecurityTest).not.toContain(token);
+    }
   });
 
   it('150 distinct venue logins on one NAT IP stay under the IP burst cap', () => {

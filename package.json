@@ -6,7 +6,10 @@
     "preinstall": "node scripts/ensure-pnpm.mjs",
     "build": "corepack pnpm run typecheck && corepack pnpm -r --if-present run build",
     "typecheck:libs": "tsc --build",
-    "typecheck": "corepack pnpm run typecheck:libs && corepack pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
+    "typecheck": "corepack pnpm run typecheck:libs && corepack pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
+    "audit:code": "node scripts/full-code-audit.mjs",
+    "test:unit": "corepack pnpm -r --filter \"./artifacts/**\" --if-present run test:unit",
+    "verify": "node scripts/full-code-audit.mjs && node scripts/verify-all-features.mjs"
   },
   "private": true,
   "devDependencies": {

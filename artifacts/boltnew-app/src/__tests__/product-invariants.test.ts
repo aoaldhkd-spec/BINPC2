@@ -9,6 +9,30 @@ import { MAX_GROUPS_PER_USER } from '../lib/group-rooms';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel: string) => readFileSync(join(root, rel), 'utf8');
 
+const HEART_BALANCE_BANNED = [
+  'heart_balances',
+  'myHeartCount',
+  'heart_initial_count',
+  'admin_reset_heart',
+] as const;
+
+describe('heart_balances recurrence guard (client)', () => {
+  it('global heart pool symbols stay out of participant app sources', () => {
+    const files = [
+      'App.tsx',
+      'components/MainScreen.tsx',
+      'lib/db-auth-tables.ts',
+      'hooks/useHearts.ts',
+    ];
+    for (const rel of files) {
+      const src = read(rel);
+      for (const token of HEART_BALANCE_BANNED) {
+        expect(src, `${rel} must not contain ${token}`).not.toContain(token);
+      }
+    }
+  });
+});
+
 describe('product copy + notification invariants', () => {
   it('시그널 deck CTA is 시그널 보내기; swipe left/right is explained', () => {
     const signalTab = read('components/SignalTab.tsx');

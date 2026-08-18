@@ -11,6 +11,15 @@ const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const EXT = new Set(['.ts', '.tsx', '.js', '.mjs']);
 const SKIP_DIRS = new Set(['node_modules', 'dist', '.git', 'coverage', '.vite']);
 
+/** Removed features — must not reappear in app/server code (not guard tests). */
+const BANNED_REGRESSION = [
+  { id: 'heart_balances_table', re: /heart_balances/, sev: 'error' },
+  { id: 'my_heart_count_state', re: /\bmyHeartCount\b/, sev: 'error' },
+  { id: 'heart_initial_count', re: /heart_initial_count/, sev: 'error' },
+  { id: 'admin_reset_heart', re: /admin_reset_heart/, sev: 'error' },
+];
+const BANNED_SKIP = /(?:__tests__|\.test\.(?:ts|tsx|mjs)$|longevity-guards|product-invariants|full-code-audit|verify-all-features)/;
+
 const PATTERNS = [
   { id: 'ts_ignore', re: /@ts-ignore|@ts-expect-error/, sev: 'warn' },
   { id: 'empty_catch', re: /catch\s*\([^)]*\)\s*\{\s*\}/, sev: 'warn' },
@@ -55,13 +64,23 @@ function auditFile(absPath) {
   const lines = content.split('\n');
   const findings = [];
 
+  const scanBanned = rel.startsWith('artifacts/') && !BANNED_SKIP.test(rel);
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const n = i + 1;
     for (const { id, re, sev } of PATTERNS) {
       if (id === 'duplicate_key') continue;
+      if (id === 'eval_usage' && /\/tests\/.*\.spec\.(ts|tsx)$/.test(rel)) continue;
       if (re.test(line)) {
         findings.push({ rel, line: n, id, sev, text: line.trim().slice(0, 120) });
+      }
+    }
+    if (scanBanned) {
+      for (const { id, re, sev } of BANNED_REGRESSION) {
+        if (re.test(line)) {
+          findings.push({ rel, line: n, id, sev, text: line.trim().slice(0, 120) });
+        }
       }
     }
   }

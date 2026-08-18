@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /** Full production smoke test — hearts, chat, admin, test, session, realtime readiness. */
 import { readFileSync, existsSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -36,8 +37,21 @@ async function op(body) {
   return { status: res.status, json: await res.json().catch(() => ({})) };
 }
 
+function runStaticAudit() {
+  const auditScript = resolve(__dirname, 'full-code-audit.mjs');
+  const result = spawnSync(process.execPath, [auditScript], {
+    cwd: resolve(__dirname, '..'),
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  if (result.stdout) process.stdout.write(result.stdout);
+  if (result.stderr) process.stderr.write(result.stderr);
+  return result.status === 0 ? 'OK' : `FAIL (exit ${result.status ?? 1})`;
+}
+
 async function main() {
   const checks = [];
+  checks.push(['full_code_audit', runStaticAudit()]);
   const adminPw = readCred('Admin login (/admin)') || PW;
   const testPw = readCred('Test dashboard password') || PW;
 
@@ -96,6 +110,9 @@ async function main() {
 
   const seatsGone = await op({ op: 'select', table: 'seats' });
   checks.push(['legacy_seats_table_blocked', seatsGone.status === 400 ? 'OK' : `FAIL ${seatsGone.status}`]);
+
+  const heartBalancesGone = await op({ op: 'select', table: 'heart_balances' });
+  checks.push(['heart_balances_table_blocked', heartBalancesGone.status === 400 ? 'OK' : `FAIL ${heartBalancesGone.status}`]);
 
   for (const [name, result] of checks) console.log(`  ${name}: ${result}`);
   if (checks.some(([, r]) => String(r).startsWith('FAIL'))) process.exit(1);
