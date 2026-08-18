@@ -38,8 +38,8 @@ export function BottomNotification({
   }, [notification]);
 
   return (
-    <div className="fixed bottom-[calc(max(1rem,env(safe-area-inset-bottom))+4.5rem+var(--participant-tabbar,0px))] left-0 right-0 z-[10050] flex justify-center px-3 min-[360px]:px-4 pointer-events-none">
-      <div className={`max-w-full px-4 min-[360px]:px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 pointer-events-auto cursor-pointer ${notification.type === 'heart' || notification.type === 'signal' ? 'bg-rose-500' : notification.type === 'contact' ? 'bg-emerald-500' : notification.type === 'system' ? 'bg-amber-600' : 'bg-cyan-600'}`}>
+    <div className="fixed bottom-[calc(0.75rem+var(--participant-tabbar,0px))] left-0 right-0 z-[10050] flex justify-center px-3 min-[360px]:px-4 pointer-events-none">
+      <div className={`max-w-full px-3.5 min-[360px]:px-4 py-2.5 rounded-2xl shadow-xl flex items-center gap-2.5 pointer-events-auto cursor-pointer ${notification.type === 'heart' || notification.type === 'signal' ? 'bg-rose-500' : notification.type === 'contact' ? 'bg-emerald-500' : notification.type === 'system' ? 'bg-amber-600' : 'bg-cyan-600'}`}>
         <span className="text-lg">{notification.type === 'signal' ? '💕' : notification.type === 'heart' ? (notification.heartType ? heartMeta(notification.heartType).emoji : '❤️') : notification.type === 'contact' ? '📱' : notification.type === 'system' ? '💛' : '💬'}</span>
         <div className="flex-1 min-w-0">
           {notification.type === 'heart' && (

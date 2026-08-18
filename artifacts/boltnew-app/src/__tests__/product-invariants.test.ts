@@ -66,6 +66,9 @@ describe('product copy + notification invariants', () => {
     const chat = read('components/ChatScreen.tsx');
     expect(toast).toContain('z-[10050]');
     expect(chat).toContain('z-[9999]');
+    // participant-tabbar already includes tab height + safe inset — no double 4.5rem stack
+    expect(toast).toContain('var(--participant-tabbar');
+    expect(toast).not.toMatch(/4\.5rem\+var\(--participant-tabbar/);
   });
 
   it('단톡 is quiet: no group-message modal popup', () => {

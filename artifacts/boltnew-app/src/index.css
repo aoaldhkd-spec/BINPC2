@@ -1390,10 +1390,9 @@ html[data-theme="minimal"] .bg-gradient-to-b,
   --safe-left: env(safe-area-inset-left, 0px);
   /* MainScreen 하단 탭바 높이. 참여자 셸에서만 올린다. */
   --participant-tabbar: 0px;
-  /* Icons sit above iPhone home indicator / Android 3-button (~48px) / gesture bar.
-     env(safe-area-inset-bottom) is 0 in many Android Chrome tabs — 3rem (48px) floor
-     covers that; when the OS reports an inset, add 8px so taps aren't flush. */
-  --tabbar-safe-bottom: max(3rem, calc(env(safe-area-inset-bottom, 0px) + 0.5rem));
+  /* iPhone/PWA: OS reports home-indicator inset. Galaxy Chrome often reports 0 — use a
+     small floor only (3rem was too tall on Android). participant-tabbar adds this once. */
+  --tabbar-safe-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
 }
 
 html,
