@@ -33,7 +33,7 @@ import { TimerBanner } from './TimerBanner';
 import { RefreshBtn } from './RefreshBtn';
 
 import { AVATAR_CATEGORIES } from '../lib/avatar-catalog';
-import { compressProfilePhoto, PROFILE_PHOTO_ACCEPT, validateProfilePhotoFile } from '../lib/profile-photo';
+import { compressProfilePhoto, PROFILE_PHOTO_ACCEPT, uploadProfilePhotoDataUrl, validateProfilePhotoFile } from '../lib/profile-photo';
 import { IDEAL_TAG_GROUPS, FEATURE_TAG_GROUPS, encodeSignalMsg, SIGNAL_INBOX_EMPTY, SIGNAL_INBOX_LINE, SIGNAL_INBOX_TITLE } from '../lib/signal-match';
 import { ProfileCard } from './ProfileCard';
 import { ResetButton } from './ResetButton';
@@ -557,14 +557,7 @@ export function MainScreen({
     try {
       const compressed = await compressProfilePhoto(file);
       const path = `profile-photos/${currentUserId}`;
-      const uploadResponse = await fetch('/api/db/storage-upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path, dataUrl: compressed }),
-      });
-      if (!uploadResponse.ok) {
-        throw new Error(`사진 업로드 실패 (${uploadResponse.status})`);
-      }
+      await uploadProfilePhotoDataUrl(path, compressed);
       const version = Date.now();
       const photoUrl = `/api/db/storage-image?p=${encodeURIComponent(path)}&t=${version}`;
       const { error } = await supabase.from('profiles').update({ photo_url: photoUrl } as never).eq('id', currentUserId);

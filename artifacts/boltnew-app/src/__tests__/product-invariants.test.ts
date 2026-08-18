@@ -61,6 +61,13 @@ describe('product copy + notification invariants', () => {
     expect(guide).toContain('오른쪽 = 시그널 보내기');
   });
 
+  it('profile photo upload sends session cookie', () => {
+    const main = read('components/MainScreen.tsx');
+    const lib = read('lib/profile-photo.ts');
+    expect(main).toContain('uploadProfilePhotoDataUrl');
+    expect(lib).toMatch(/storage-upload[\s\S]*credentials:\s*'include'/);
+  });
+
   it('BottomNotification sits above ChatScreen', () => {
     const toast = read('components/BottomNotification.tsx');
     const chat = read('components/ChatScreen.tsx');
