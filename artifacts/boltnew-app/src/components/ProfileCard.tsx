@@ -11,7 +11,7 @@ import { cardMenuBox } from '../lib/card-menu-box';
 // ─── ProfileCard (memoized — 하트/채팅 상태 변경 시 해당 카드만 재렌더) ────────
 
 export const ProfileCard = memo(function ProfileCard({
-  profile, isLiked, sentHeartType, heartCount, canLike, locked, onLike, onSelect, onView, onOpenChat, onBlock, onContactShare, onViewFortune, idealMsg, statusMsg,
+  profile, isLiked, sentHeartType, heartCount, canLike, locked, compact = false, onLike, onSelect, onView, onOpenChat, onBlock, onContactShare, onViewFortune, idealMsg, statusMsg,
 }: {
   profile: Profile;
   isLiked: boolean;
@@ -19,6 +19,8 @@ export const ProfileCard = memo(function ProfileCard({
   heartCount: number;
   canLike: boolean;
   locked?: boolean;
+  /** 작게 보기 — 성향·관심사 영역 생략, 버튼·플립은 유지 */
+  compact?: boolean;
   onLike: (id: string) => void;
   onSelect: (p: Profile) => void;
   onView?: (p: Profile) => void;
@@ -375,37 +377,39 @@ export const ProfileCard = memo(function ProfileCard({
           </div>
       </div>{/* /3:4 사진 */}
 
-      {/* ── 성향·MBTI·관심사 (사진 밖 — 이상형 뒷면과 분리) ── */}
-      <div className="relative z-10 shrink-0 min-w-0 bg-white px-1.5 pt-1.5 pb-0.5 cursor-pointer"
-        onClick={() => onSelect(profile)}>
-        <div className="flex items-center gap-0.5 min-w-0 overflow-hidden">
-          <span className="text-[8px] sm:text-[9px] font-extrabold px-1.5 py-0.5 rounded leading-none border min-w-0 max-w-[52%] truncate shadow-sm"
-            style={{ backgroundColor: posStyle.bg, color: posStyle.text, borderColor: posStyle.border }}>
-            {posLabel}
-          </span>
-          {msStyle && (
-            <span className="text-[8px] sm:text-[9px] font-black px-1.5 py-0.5 rounded leading-none border shrink-0 ml-auto max-w-[46%] truncate shadow-sm"
-              style={{ backgroundColor: msStyle.bg, color: msStyle.color, borderColor: msStyle.border }}>
-              {profile.mbti}
+      {/* ── 성향·MBTI·관심사 (작게 보기에서는 생략) ── */}
+      {!compact && (
+        <div className="relative z-10 shrink-0 min-w-0 bg-white px-1.5 pt-1.5 pb-0.5 cursor-pointer"
+          onClick={() => onSelect(profile)}>
+          <div className="flex items-center gap-0.5 min-w-0 overflow-hidden">
+            <span className="text-[8px] sm:text-[9px] font-extrabold px-1.5 py-0.5 rounded leading-none border min-w-0 max-w-[52%] truncate shadow-sm"
+              style={{ backgroundColor: posStyle.bg, color: posStyle.text, borderColor: posStyle.border }}>
+              {posLabel}
             </span>
+            {msStyle && (
+              <span className="text-[8px] sm:text-[9px] font-black px-1.5 py-0.5 rounded leading-none border shrink-0 ml-auto max-w-[46%] truncate shadow-sm"
+                style={{ backgroundColor: msStyle.bg, color: msStyle.color, borderColor: msStyle.border }}>
+                {profile.mbti}
+              </span>
+            )}
+          </div>
+          {interestTags.length > 0 && (
+            <div className="flex items-stretch gap-1 min-w-0 mt-1">
+              {interestTags.map((tag) => {
+                const ist = getInterestTagStyle(tag);
+                return (
+                  <span
+                    key={tag}
+                    className="flex-1 min-w-0 text-[9px] font-bold px-1 py-1 rounded-md leading-tight border truncate text-center shadow-sm"
+                    style={{ backgroundColor: ist.bg, color: ist.text, borderColor: ist.border }}
+                    title={tag}
+                  >#{tag}</span>
+                );
+              })}
+            </div>
           )}
         </div>
-        {interestTags.length > 0 && (
-          <div className="flex items-stretch gap-1 min-w-0 mt-1">
-            {interestTags.map((tag) => {
-              const ist = getInterestTagStyle(tag);
-              return (
-                <span
-                  key={tag}
-                  className="flex-1 min-w-0 text-[9px] font-bold px-1 py-1 rounded-md leading-tight border truncate text-center shadow-sm"
-                  style={{ backgroundColor: ist.bg, color: ist.text, borderColor: ist.border }}
-                  title={tag}
-                >#{tag}</span>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      )}
 
       {/* ── 하트 + 채팅 버튼 ── */}
       {canLike && (
