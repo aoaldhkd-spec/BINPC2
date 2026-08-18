@@ -7,6 +7,7 @@ import {
   SIGNAL_CARD_PROFILE_CTA,
   SIGNAL_CARD_SIGNAL_CTA,
   SIGNAL_CARD_SKIP_CTA,
+  SIGNAL_EMOJI,
   SIGNAL_EMPTY_DECK_HINT,
   SIGNAL_EMPTY_DECK_TITLE,
   SIGNAL_GUIDE_CTA,
@@ -433,7 +434,7 @@ export function SignalTab({
     <div className="space-y-3 overflow-x-clip pb-24">
       <div className={`rounded-2xl border px-4 py-3 ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-rose-50 border-rose-200'}`}>
         <p className={`text-sm font-black ${darkMode ? 'text-white' : 'text-rose-800'}`}>
-          💕 {SIGNAL_MISSION_TITLE}
+          🎯 {SIGNAL_MISSION_TITLE}
         </p>
         <p className={`text-xs mt-0.5 ${darkMode ? 'text-slate-300' : 'text-rose-600'}`}>
           {SIGNAL_MISSION_COPY}
@@ -503,7 +504,7 @@ export function SignalTab({
         </div>
       ) : !card ? (
         <div className={`rounded-2xl border px-5 py-12 text-center ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'}`}>
-          <p className="text-3xl mb-2">💕</p>
+          <p className="text-3xl mb-2">{SIGNAL_EMOJI}</p>
           <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
             {SIGNAL_EMPTY_DECK_TITLE}
           </p>
@@ -630,7 +631,7 @@ export function SignalTab({
                   : 'bg-rose-50 border-rose-200 text-rose-600'
               }`}
             >
-              💕 {SIGNAL_CARD_SIGNAL_CTA}
+              {SIGNAL_EMOJI} {SIGNAL_CARD_SIGNAL_CTA}
             </button>
           </div>
         </div>

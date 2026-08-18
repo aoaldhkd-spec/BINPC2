@@ -599,7 +599,7 @@ describe('nudge eligibility + reason chips', () => {
     expect(chips.map((c) => c.label)).toEqual([
       '🎯 이상형 조건 2개 일치',
       '✨ 공통 관심사 3개',
-      '💕 서로 잘 맞는 조건이 있어요',
+      '✨ 서로 잘 맞는 조건이 있어요',
     ]);
   });
 });

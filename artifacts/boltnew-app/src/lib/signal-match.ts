@@ -1,7 +1,10 @@
 /**
- * 💕 시그널 — 순수 매칭·미션·넛지 헬퍼.
+ * 📡 시그널 — 순수 매칭·미션 헬퍼.
+ * UX: 하트(💕/💌/색 하트)는 1:1 관심·채팅解錠. 시그널(📡)은 추천 덱·가벼운 관심 표시.
+ * 채팅은 여전히 상호 하트만. 시그널은 받은/보낸 시그널 목록에서 확인.
  * 이상형·특징 원문(ideal_msg / feature_msg 자유 텍스트)은 이유 칩에 절대 넣지 않는다.
  */
+export const SIGNAL_EMOJI = '📡';
 import { parseProfileInterests } from './interests';
 import { getPositionLabel } from './profile';
 
@@ -47,9 +50,12 @@ export const SIGNAL_EMPTY_DECK_HINT = '이상형·특징·관심사가 맞는 �
 export const SIGNAL_INBOX_TITLE = '받은 시그널';
 export const SIGNAL_INBOX_EMPTY = '아직 받은 시그널이 없습니다.';
 export const SIGNAL_INBOX_LINE = '시그널을 보냈습니다';
+export const SIGNAL_SENT_TITLE = '보낸 시그널';
+export const SIGNAL_SENT_EMPTY = '아직 보낸 시그널이 없습니다.';
+export const SIGNAL_SENT_LINE = '시그널을 보냈어요';
 
 export function incomingSignalToast(nickname: string): string {
-  return `💕 ${nickname}님이 시그널을 보냈어요.`;
+  return `${SIGNAL_EMOJI} ${nickname}님이 시그널을 보냈어요.`;
 }
 
 export function isSignalDeckUnlocked(missionCount: number): boolean {
@@ -528,7 +534,7 @@ export function buildReasonChips(match: Omit<SignalMatch, 'reasons' | 'profileId
     (match.myIdealHits > 0 && match.theirIdealHits > 0)
     || (idealTotal > 0 && match.sharedInterestCount > 0)
   ) {
-    reasons.push({ key: 'fit', label: '💕 서로 잘 맞는 조건이 있어요' });
+    reasons.push({ key: 'fit', label: '✨ 서로 잘 맞는 조건이 있어요' });
   }
   return reasons;
 }

@@ -16,21 +16,14 @@ import {
 } from './lib/entry-gate';
 import { HeartType } from './lib/constants';
 import {
-  NUDGE_MAX,
-  NUDGE_MESSAGES,
   hasInterestHeart,
   incomingSignalToast,
   isInterestHeart,
-  isNudgeEligible,
-  nudgeDestinationTab,
-  readNudgeCount,
   resolveSignalInboxProfiles,
-  writeNudgeCount,
 } from './lib/signal-match';
 import { mergeRowsAfterSnapshot, mergeSetAfterSnapshot } from './lib/realtime-merge';
 import { incomingInterestToast, isIncomingHeartToastTarget, MUTUAL_HEART_TOAST } from './lib/heart-toast';
 import { FUNCTIONS_LOCK_KICK_TOAST, FUNCTIONS_LOCK_TOAST, SOCIAL_LOCKED_TABS } from './lib/functions-lock';
-import { SignalNudgeBanner } from './components/SignalNudgeBanner';
 // ─── 분리된 타입·유틸·컴포넌트 imports ────────────────────────────────────────
 import type {
   Profile, ContactShare,
@@ -220,9 +213,7 @@ function App() {
   const [timerLabel, setTimerLabel] = useState<string | null>(null);
   const [rejectionNotif, setRejectionNotif] = useState<string | null>(null); // nickname of person who rejected
   const [bottomNotif, setBottomNotif] = useState<BottomNotificationData | null>(null);
-  const [signalNudge, setSignalNudge] = useState<string | null>(null);
   const [showResetPassword, setShowResetPassword] = useState(false);
-  const signalNudgeSessionRef = useRef(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const confettiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const confettiInnerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -249,13 +240,15 @@ function App() {
   const [userSignals, setUserSignals] = useState<UserSignal[]>([]);
   const [signalActedIds, setSignalActedIds] = useState<Set<string>>(new Set());
   const [receivedSignalSenders, setReceivedSignalSenders] = useState<Profile[]>([]);
+  const [sentSignalReceivers, setSentSignalReceivers] = useState<Profile[]>([]);
   const signalActedIdsRef = useRef(signalActedIds);
   signalActedIdsRef.current = signalActedIds;
   const receivedSignalSendersRef = useRef(receivedSignalSenders);
   receivedSignalSendersRef.current = receivedSignalSenders;
+  const sentSignalReceiversRef = useRef(sentSignalReceivers);
+  sentSignalReceiversRef.current = sentSignalReceivers;
   const loadSignalGenRef = useRef(0);
   const loadSignalActionsRef = useRef<((userId: string) => Promise<void>) | null>(null);
-  const signalNudgeIndexRef = useRef(0);
   const [functionsLocked, setFunctionsLocked] = useState(false);
   const functionsLockedRef = useRef(false);
   functionsLockedRef.current = functionsLocked;
@@ -547,6 +540,15 @@ function App() {
         });
         return false;
       }
+      if (action === 'send') {
+        const profile = profilesRef.current.find((p) => p.id === profileId);
+        if (profile) {
+          setSentSignalReceivers((prev) => {
+            if (prev.find((p) => p.id === profileId)) return prev;
+            return [profile, ...prev];
+          });
+        }
+      }
       return true;
     } catch (e) {
       console.warn('[signal_sends]', e);
@@ -573,47 +575,67 @@ function App() {
     const gen = ++loadSignalGenRef.current;
     const actedAtStart = new Set(signalActedIdsRef.current);
     const inboxAtStart = [...receivedSignalSendersRef.current];
+    const outboxAtStart = [...sentSignalReceiversRef.current];
     try {
       const [outgoingRes, incomingRes] = await Promise.all([
         supabase.from('signal_sends').select('receiver_id, action').eq('sender_id', userId),
         supabase.from('signal_sends').select('sender_id, action').eq('receiver_id', userId),
       ]);
       if (gen !== loadSignalGenRef.current) return;
+      const outgoingRows = (outgoingRes.data ?? []) as Array<{ receiver_id?: string; action?: string }>;
       if (outgoingRes.error) {
         console.warn('[signal_sends] outgoing select', outgoingRes.error.message);
       } else {
         const fetched = new Set<string>();
-        for (const row of (outgoingRes.data ?? []) as Array<{ receiver_id?: string }>) {
+        for (const row of outgoingRows) {
           if (row.receiver_id) fetched.add(row.receiver_id);
         }
         setSignalActedIds((current) => mergeSetAfterSnapshot(fetched, actedAtStart, current));
       }
+      const receiverIds = [...new Set(
+        outgoingRows.filter((r) => r.action === 'send' && r.receiver_id).map((r) => r.receiver_id as string),
+      )];
+      let outboxProfiles: Profile[] = [];
+      if (!outgoingRes.error && receiverIds.length > 0) {
+        const { data: ps, error: psErr } = await supabase.from('profiles').select('*').in('id', receiverIds);
+        if (gen !== loadSignalGenRef.current) return;
+        if (psErr) console.warn('[signal_sends] outbox profiles', psErr.message);
+        else outboxProfiles = (ps ?? []) as Profile[];
+      }
       if (incomingRes.error) {
         console.warn('[signal_sends] incoming select', incomingRes.error.message);
-        return;
-      }
-      const senderIds = [...new Set(
-        ((incomingRes.data ?? []) as Array<{ sender_id?: string; action?: string }>)
-          .filter((r) => r.action === 'send' && r.sender_id)
-          .map((r) => r.sender_id as string),
-      )];
-      let fetchedProfiles: Profile[] = [];
-      if (senderIds.length > 0) {
-        const { data: ps, error: psErr } = await supabase.from('profiles').select('*').in('id', senderIds);
+      } else {
+        const senderIds = [...new Set(
+          ((incomingRes.data ?? []) as Array<{ sender_id?: string; action?: string }>)
+            .filter((r) => r.action === 'send' && r.sender_id)
+            .map((r) => r.sender_id as string),
+        )];
+        let fetchedProfiles: Profile[] = [];
+        if (senderIds.length > 0) {
+          const { data: ps, error: psErr } = await supabase.from('profiles').select('*').in('id', senderIds);
+          if (gen !== loadSignalGenRef.current) return;
+          if (psErr) console.warn('[signal_sends] inbox profiles', psErr.message);
+          fetchedProfiles = (ps ?? []) as Profile[];
+        }
         if (gen !== loadSignalGenRef.current) return;
-        if (psErr) console.warn('[signal_sends] inbox profiles', psErr.message);
-        fetchedProfiles = (ps ?? []) as Profile[];
+        const resolved = resolveSignalInboxProfiles(
+          senderIds,
+          fetchedProfiles,
+          inboxAtStart,
+          profilesRef.current,
+        );
+        setReceivedSignalSenders((current) => mergeRowsAfterSnapshot(resolved, inboxAtStart, current, (p) => p.id));
       }
       if (gen !== loadSignalGenRef.current) return;
-      const resolved = resolveSignalInboxProfiles(
-        senderIds,
-        fetchedProfiles,
-        inboxAtStart,
+      const resolvedOutbox = resolveSignalInboxProfiles(
+        receiverIds,
+        outboxProfiles,
+        outboxAtStart,
         profilesRef.current,
       );
-      setReceivedSignalSenders((current) => mergeRowsAfterSnapshot(resolved, inboxAtStart, current, (p) => p.id));
+      setSentSignalReceivers((current) => mergeRowsAfterSnapshot(resolvedOutbox, outboxAtStart, current, (p) => p.id));
     } catch {
-      /* stale — keep previous inbox / acted lock */
+      /* stale — keep previous inbox / outbox / acted lock */
     }
   }, []);
   loadSignalActionsRef.current = loadSignalActions;
@@ -1305,9 +1327,9 @@ function App() {
               const heartNick = data?.nickname ?? '누군가';
               const ht = row.heart_type ?? 'red';
               if (isInterestHeart(ht) && hasInterestHeart(sentHeartsPerPersonRef.current.get(likerId))) {
-                setBottomNotif({ type: 'signal', signalKind: 'mutual', nickname: heartNick, profileId: likerId, message: MUTUAL_HEART_TOAST });
+                setBottomNotif({ type: 'heart', nickname: heartNick, profileId: likerId, message: MUTUAL_HEART_TOAST, heartMutual: true });
               } else if (isInterestHeart(ht)) {
-                setBottomNotif({ type: 'signal', signalKind: 'received', nickname: heartNick, profileId: likerId, message: incomingInterestToast(heartNick) });
+                setBottomNotif({ type: 'heart', nickname: heartNick, heartType: ht, profileId: likerId, message: incomingInterestToast(heartNick) });
               } else {
                 setBottomNotif({ type: 'heart', nickname: heartNick, heartType: ht });
               }
@@ -1348,6 +1370,15 @@ function App() {
               if (prev.has(row.receiver_id)) return prev;
               return new Set([...prev, row.receiver_id]);
             });
+            if (row.action === 'send') {
+              const profile = profilesRef.current.find((p) => p.id === row.receiver_id) ?? null;
+              if (profile) {
+                setSentSignalReceivers((prev) => {
+                  if (prev.find((p) => p.id === profile.id)) return prev;
+                  return [profile, ...prev];
+                });
+              }
+            }
           }
         })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'signal_sends', filter: `receiver_id=eq.${currentUserId}` },
@@ -1662,37 +1693,10 @@ function App() {
     [receivedLikers, receivedHeartTypes, acknowledgedComplimentIds, contactSharedWithIds],
   );
 
-  const heartSendTotal = useMemo(() => {
-    let n = 0;
-    sentHeartsPerPerson.forEach((types) => { n += types.size; });
-    return n;
-  }, [sentHeartsPerPerson]);
   const privacyProfileIds = useMemo(
     () => derivePrivacyProfileIds(blockedUsers, currentUserId),
     [blockedUsers, currentUserId],
   );
-
-  useEffect(() => {
-    if (!currentUserId || view !== 'main' || mainTab === 'signal') return;
-    if (signalNudgeSessionRef.current) return;
-    if (!isNudgeEligible(heartSendTotal, likedIds.size)) return;
-    const shown = readNudgeCount(currentUserId);
-    if (shown >= NUDGE_MAX) return;
-    const t = setTimeout(() => {
-      if (signalNudgeSessionRef.current) return;
-      if (view !== 'main') return;
-      signalNudgeIndexRef.current = shown % NUDGE_MESSAGES.length;
-      setSignalNudge(NUDGE_MESSAGES[signalNudgeIndexRef.current]);
-    }, 8_000);
-    return () => clearTimeout(t);
-  }, [currentUserId, view, mainTab, heartSendTotal, likedIds.size]);
-
-  const dismissSignalNudge = useCallback((goToTab: boolean) => {
-    setSignalNudge(null);
-    signalNudgeSessionRef.current = true;
-    if (currentUserId) writeNudgeCount(currentUserId, readNudgeCount(currentUserId) + 1);
-    if (goToTab) handleMainTabChange(nudgeDestinationTab(signalNudgeIndexRef.current));
-  }, [currentUserId, handleMainTabChange]);
 
   const handleMissionComplete = useCallback(() => {
     setBottomNotif({
@@ -1892,25 +1896,18 @@ function App() {
             onGoToSignal={() => { handleMainTabChange('signal'); setBottomNotif(null); }}
             onViewProfile={() => {
               const id = bottomNotif.profileId;
-              const p = (id && (profiles.find(x => x.id === id) ?? receivedLikers.find(x => x.id === id) ?? receivedSignalSenders.find(x => x.id === id))) || null;
+              const p = (id && (profiles.find(x => x.id === id) ?? receivedLikers.find(x => x.id === id) ?? receivedSignalSenders.find(x => x.id === id) ?? sentSignalReceivers.find(x => x.id === id))) || null;
               if (p) { setSelectedProfile(p); setView('profile'); }
               setBottomNotif(null);
             }}
             onStartChat={() => {
               const id = bottomNotif.profileId;
-              const p = (id && (profiles.find(x => x.id === id) ?? receivedLikers.find(x => x.id === id) ?? receivedSignalSenders.find(x => x.id === id))) || null;
+              const p = (id && (profiles.find(x => x.id === id) ?? receivedLikers.find(x => x.id === id) ?? receivedSignalSenders.find(x => x.id === id) ?? sentSignalReceivers.find(x => x.id === id))) || null;
               if (p) void openChatGuarded(p);
               setBottomNotif(null);
             }}
           />
         </AppErrorBoundary>
-      )}
-      {signalNudge && view === 'main' && mainTab !== 'signal' && !showResetPassword && (
-        <SignalNudgeBanner
-          message={signalNudge}
-          onOpen={() => dismissSignalNudge(true)}
-          onClose={() => dismissSignalNudge(false)}
-        />
       )}
       <div
         className={isSubScreen ? 'pointer-events-none' : undefined}
@@ -1988,6 +1985,7 @@ function App() {
         onMissionComplete={handleMissionComplete}
         signalMissionCount={signalMissionCount}
         receivedSignalSenders={receivedSignalSenders}
+        sentSignalReceivers={sentSignalReceivers}
         signalActedIds={signalActedIds}
         onSendSignal={handleSendSignal}
         onPassSignal={handlePassSignal}

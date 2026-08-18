@@ -3,13 +3,13 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
-  NUDGE_MESSAGES,
   SIGNAL_CARD_SIGNAL_CTA,
   SIGNAL_CARD_PROFILE_CTA,
   SIGNAL_GUIDE_LEAD,
   SIGNAL_GUIDE_POINTS,
   SIGNAL_MISSION_COPY,
   SIGNAL_MISSION_GOAL,
+  SIGNAL_SENT_TITLE,
   SIGNAL_SWIPE_LEFT_EXPLAIN,
   SIGNAL_SWIPE_RIGHT_EXPLAIN,
   hasInterestHeart,
@@ -42,8 +42,6 @@ describe('signal copy + unlock invariants', () => {
     expect(SIGNAL_CARD_PROFILE_CTA).toBe('프로필 보기');
     expect(SIGNAL_SWIPE_LEFT_EXPLAIN).toBe('왼쪽 = 패스(별로)');
     expect(SIGNAL_SWIPE_RIGHT_EXPLAIN).toBe('오른쪽 = 시그널 보내기');
-    expect(NUDGE_MESSAGES.some((m) => m.includes('시그널 탭에서 추천'))).toBe(true);
-    expect(NUDGE_MESSAGES.some((m) => m.includes('하트를 직접 보내'))).toBe(true);
     expect(signalTabSrc).toContain('SIGNAL_CARD_SIGNAL_CTA');
     expect(signalTabSrc).toContain('onSendSignal');
     expect(signalTabSrc).not.toContain('onLike');
@@ -59,12 +57,18 @@ describe('signal copy + unlock invariants', () => {
       join(dirname(fileURLToPath(import.meta.url)), '../App.tsx'),
       'utf8',
     );
+    const mainSrc = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), '../components/MainScreen.tsx'),
+      'utf8',
+    );
     expect(appSrc).toContain('mergeSetAfterSnapshot');
     expect(appSrc).toContain('resolveSignalInboxProfiles');
     expect(appSrc).toContain('outgoingRes.error');
     expect(appSrc).toContain('incomingRes.error');
     expect(appSrc).toContain('loadSignalActionsRef');
-    expect(appSrc).toContain('nudgeDestinationTab');
+    expect(appSrc).toContain('sentSignalReceivers');
+    expect(appSrc).not.toContain('SignalNudgeBanner');
+    expect(mainSrc).toContain(SIGNAL_SENT_TITLE);
     expect(appSrc).not.toMatch(/if \(senderIds\.length === 0\) \{\s*setReceivedSignalSenders\(\[\]\)/);
   });
 

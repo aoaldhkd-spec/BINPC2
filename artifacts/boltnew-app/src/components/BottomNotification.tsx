@@ -2,12 +2,14 @@ import { useEffect } from 'react';
 import type { HeartType } from '../lib/constants';
 import { heartMeta } from '../lib/constants';
 import { incomingInterestToast, MUTUAL_HEART_TOAST } from '../lib/heart-toast';
+import { SIGNAL_EMOJI } from '../lib/signal-match';
 
 export type BottomNotificationData = {
   type: 'heart' | 'chat' | 'message' | 'contact' | 'system' | 'signal';
   nickname?: string;
   message?: string;
   heartType?: HeartType;
+  heartMutual?: boolean;
   signalKind?: 'received' | 'mutual' | 'mission';
   profileId?: string;
 };
@@ -40,12 +42,19 @@ export function BottomNotification({
   return (
     <div className="fixed bottom-[calc(0.75rem+var(--participant-tabbar,0px))] left-0 right-0 z-[10050] flex justify-center px-3 min-[360px]:px-4 pointer-events-none">
       <div className={`max-w-full px-3.5 min-[360px]:px-4 py-2.5 rounded-2xl shadow-xl flex items-center gap-2.5 pointer-events-auto cursor-pointer ${notification.type === 'heart' || notification.type === 'signal' ? 'bg-rose-500' : notification.type === 'contact' ? 'bg-emerald-500' : notification.type === 'system' ? 'bg-amber-600' : 'bg-cyan-600'}`}>
-        <span className="text-lg">{notification.type === 'signal' ? '💕' : notification.type === 'heart' ? (notification.heartType ? heartMeta(notification.heartType).emoji : '❤️') : notification.type === 'contact' ? '📱' : notification.type === 'system' ? '💛' : '💬'}</span>
+        <span className="text-lg">{notification.type === 'signal' ? SIGNAL_EMOJI : notification.type === 'heart' ? (notification.heartType ? heartMeta(notification.heartType).emoji : '❤️') : notification.type === 'contact' ? '📱' : notification.type === 'system' ? '💛' : '💬'}</span>
         <div className="flex-1 min-w-0">
           {notification.type === 'heart' && (
             <>
-              <p className="text-sm font-bold text-white">{notification.nickname || '누군가'}님이 {notification.heartType ? heartMeta(notification.heartType).label : '하트'}를 보냈습니다!</p>
-              <button onClick={onGoToStatus} className="text-xs text-white/80 underline">내 상태 탭으로 이동</button>
+              <p className="text-sm font-bold text-white">
+                {notification.message
+                  ?? `${notification.nickname || '누군가'}님이 ${notification.heartType ? heartMeta(notification.heartType).label : '하트'}를 보냈습니다!`}
+              </p>
+              {notification.heartMutual && onStartChat ? (
+                <button onClick={onStartChat} className="text-xs text-white/90 bg-white/20 px-2 py-0.5 rounded-lg font-semibold mt-0.5">채팅 시작하기</button>
+              ) : (
+                <button onClick={onGoToStatus} className="text-xs text-white/80 underline">내 상태 탭으로 이동</button>
+              )}
             </>
           )}
           {notification.type === 'chat' && (

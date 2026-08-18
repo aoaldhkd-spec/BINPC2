@@ -6,7 +6,7 @@ import { useState, useEffect, useRef, useCallback, useMemo, Suspense, lazy, type
 import {
   Heart, Users, ChevronDown, CheckCircle,
   Eye, X, HelpCircle,
-  QrCode, Camera,
+  QrCode, Camera, LayoutGrid, Grid2x2, Grid3x3,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { Profile, ContactShare, Chat, MainTab, GroupChat, ProfileView, UserSignal } from '../types/app';
@@ -35,12 +35,16 @@ import { RefreshBtn } from './RefreshBtn';
 import { AVATAR_CATEGORIES } from '../lib/avatar-catalog';
 import { compressProfilePhoto, PROFILE_PHOTO_ACCEPT, validateProfilePhotoFile } from '../lib/profile-photo';
 import { uploadStorageDataUrl } from '../lib/localdb';
-import { IDEAL_TAG_GROUPS, FEATURE_TAG_GROUPS, encodeSignalMsg, SIGNAL_INBOX_EMPTY, SIGNAL_INBOX_LINE, SIGNAL_INBOX_TITLE } from '../lib/signal-match';
+import { IDEAL_TAG_GROUPS, FEATURE_TAG_GROUPS, encodeSignalMsg, SIGNAL_EMOJI, SIGNAL_INBOX_EMPTY, SIGNAL_INBOX_LINE, SIGNAL_INBOX_TITLE, SIGNAL_SENT_EMPTY, SIGNAL_SENT_LINE, SIGNAL_SENT_TITLE } from '../lib/signal-match';
 import { ProfileCard } from './ProfileCard';
 import { ResetButton } from './ResetButton';
 import { SignalTab } from './SignalTab';
 import { FUNCTIONS_LOCK_TOAST, SOCIAL_LOCKED_TABS } from '../lib/functions-lock';
 import { filterProfilesForDeck } from '../lib/profile-deck-filter';
+import {
+  readProfileCardGridMode, writeProfileCardGridMode, profileGridClassName, profileGridColSpan,
+  type ProfileCardGridMode,
+} from '../lib/profile-card-grid';
 import type { ScannedContact } from '../lib/profile-contact-helpers';
 import StatusErrorBoundary from './StatusErrorBoundary';
 import { MainChatsTab } from './MainChatsTab';
@@ -84,6 +88,7 @@ export function MainScreen({
   signalMissionCount = 0,
   onOpenResetPassword,
   receivedSignalSenders = [] as Profile[],
+  sentSignalReceivers = [] as Profile[],
   signalActedIds = new Set<string>(),
   onSendSignal,
   onPassSignal,
@@ -140,6 +145,7 @@ export function MainScreen({
   signalMissionCount?: number;
   onOpenResetPassword?: () => void;
   receivedSignalSenders?: Profile[];
+  sentSignalReceivers?: Profile[];
   signalActedIds?: Set<string>;
   onSendSignal?: (id: string) => void | boolean | Promise<void | boolean>;
   onPassSignal?: (id: string) => void | boolean | Promise<void | boolean>;
@@ -148,6 +154,12 @@ export function MainScreen({
 
   const [profileSearch, setProfileSearch] = useState('');
   const [profilePersonalityFilter, setProfilePersonalityFilter] = useState<string | null>(null);
+  const [profileCardGrid, setProfileCardGridRaw] = useState<ProfileCardGridMode>(() => readProfileCardGridMode());
+  const setProfileCardGrid = (mode: ProfileCardGridMode) => {
+    writeProfileCardGridMode(mode);
+    setProfileCardGridRaw(mode);
+  };
+  const profileGridColSpanClass = profileGridColSpan(profileCardGrid) === 2 ? 'col-span-2' : 'col-span-3';
   const [showVisitors, setShowVisitors] = useState(false);
   const [profileMbtiFilter, setProfileMbtiFilter] = useState<string | null>(null);
   // 채팅 탭 내 서브탭: 1:1 채팅 / 단체 채팅
@@ -334,6 +346,7 @@ export function MainScreen({
   const [profileEditOpen, setProfileEditOpen] = useState(true);
   const [receivedHeartsOpen, setReceivedHeartsOpen] = useState(true);
   const [receivedSignalsOpen, setReceivedSignalsOpen] = useState(true);
+  const [sentSignalsOpen, setSentSignalsOpen] = useState(true);
   const [sentHeartsOpen, setSentHeartsOpen] = useState(true);
 
   // ── 프로필 편집 통합 상태 (한 섹션만 열림) ──────────────────────────────────
@@ -681,15 +694,46 @@ export function MainScreen({
                   );
                 })}
               </div>
+              {/* 카드 보기 — 작게 / 2열 / 3열 */}
+              <div
+                role="group"
+                aria-label="참여자 카드 보기"
+                className="flex items-center gap-2"
+              >
+                <span className="text-[10px] font-bold text-gray-400 shrink-0">보기</span>
+                <div className="flex flex-1 min-w-0 p-0.5 rounded-xl bg-gray-100 border border-gray-200">
+                  {([
+                    { mode: 'compact' as const, label: '작게', Icon: LayoutGrid, title: '작게 보기 (3열·간략)' },
+                    { mode: '2' as const, label: '2개', Icon: Grid2x2, title: '한 줄에 2개' },
+                    { mode: '3' as const, label: '3개', Icon: Grid3x3, title: '한 줄에 3개' },
+                  ]).map(({ mode, label, Icon, title }) => {
+                    const active = profileCardGrid === mode;
+                    return (
+                      <button
+                        key={mode}
+                        type="button"
+                        title={title}
+                        aria-pressed={active}
+                        onClick={() => setProfileCardGrid(mode)}
+                        className={`flex-1 min-w-0 flex items-center justify-center gap-0.5 py-1.5 rounded-lg text-[10px] font-bold transition-all ${active ? 'bg-white text-teal-700 shadow-sm ring-1 ring-teal-200' : 'text-gray-500 hover:text-gray-700'}`}
+                      >
+                        <Icon className="w-3.5 h-3.5 shrink-0" aria-hidden />
+                        <span className="truncate">{label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
 
             {/* ── 참여자 그리드 (이 영역만 스크롤) ───────── */}
             <div className="overflow-y-auto -mx-3 min-[360px]:-mx-4 px-3 min-[360px]:px-4 pb-0" style={{ maxHeight: 'calc(100dvh - 330px - var(--tabbar-safe-bottom))', minHeight: 160 }}>
-            <div className="grid grid-cols-3 gap-1 sm:gap-1.5 items-start">
+            <div className={profileGridClassName(profileCardGrid)}>
             {filteredProfiles.filter(p => p.id !== currentUserId).map((profile) => (
               <ProfileCard
                 key={profile.id}
                 profile={profile}
+                compact={profileCardGrid === 'compact'}
                 isLiked={likedIds.has(profile.id)}
                 sentHeartType={sentHeartTypes.get(profile.id)}
                 heartCount={sentHeartsPerPerson.get(profile.id)?.size ?? 0}
@@ -707,7 +751,7 @@ export function MainScreen({
               />
             ))}
             {filteredProfiles.filter(p => p.id !== currentUserId).length === 0 && (
-              <div className="col-span-3 text-center py-20">
+              <div className={`${profileGridColSpanClass} text-center py-20`}>
                 <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                 <p className="text-gray-500">{profileSearch || profilePersonalityFilter || profileMbtiFilter ? '검색 결과가 없습니다.' : '아직 다른 참가자가 없습니다.'}</p>
               </div>
@@ -1067,7 +1111,7 @@ export function MainScreen({
                 onClick={() => setReceivedSignalsOpen(o => !o)}
                 className={`w-full flex items-center justify-between px-5 py-4 ${darkMode ? 'hover:bg-slate-700/40' : 'hover:bg-gray-50'}`}
               >
-                <h3 className={`text-sm font-bold uppercase tracking-wider ${darkMode ? 'text-slate-200' : 'text-gray-500'}`}>💕 {SIGNAL_INBOX_TITLE}</h3>
+                <h3 className={`text-sm font-bold uppercase tracking-wider ${darkMode ? 'text-slate-200' : 'text-gray-500'}`}>{SIGNAL_EMOJI} {SIGNAL_INBOX_TITLE}</h3>
                 <div className="flex items-center gap-2">
                   {receivedSignalSenders.length > 0 && (
                     <span className="px-2 py-0.5 bg-rose-100 text-rose-600 text-xs font-bold rounded-full">
@@ -1081,7 +1125,7 @@ export function MainScreen({
               <div className="px-5 pb-5">
               {receivedSignalSenders.length === 0 ? (
                 <div className="text-center py-8">
-                  <Heart className={`w-10 h-10 mx-auto mb-2 ${darkMode ? 'text-slate-500' : 'text-gray-200'}`} />
+                  <span className="text-3xl block mb-2" aria-hidden>{SIGNAL_EMOJI}</span>
                   <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{SIGNAL_INBOX_EMPTY}</p>
                 </div>
               ) : (
@@ -1097,10 +1141,58 @@ export function MainScreen({
                         <ProfileAvatar profile={sender} size="sm" rounded="xl" />
                         <div className="flex-1 min-w-0">
                           <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{sender.nickname}</p>
-                          <p className={`text-xs ${darkMode ? 'text-rose-300' : 'text-rose-600'}`}>💕 {SIGNAL_INBOX_LINE}</p>
+                          <p className={`text-xs ${darkMode ? 'text-violet-300' : 'text-violet-600'}`}>{SIGNAL_EMOJI} {SIGNAL_INBOX_LINE}</p>
                         </div>
                       </div>
                       <ProfileInfoBadges profile={sender} />
+                    </button>
+                  ))}
+                </div>
+              )}
+              </div>
+              )}
+            </div>
+
+            {/* 보낸 시그널 */}
+            <div className={`rounded-2xl shadow-sm transition-colors duration-300 overflow-hidden ${darkMode ? 'bg-slate-800 border border-slate-600' : 'bg-white'}`}>
+              <button
+                onClick={() => setSentSignalsOpen(o => !o)}
+                className={`w-full flex items-center justify-between px-5 py-4 ${darkMode ? 'hover:bg-slate-700/40' : 'hover:bg-gray-50'}`}
+              >
+                <h3 className={`text-sm font-bold uppercase tracking-wider ${darkMode ? 'text-slate-200' : 'text-gray-500'}`}>{SIGNAL_EMOJI} {SIGNAL_SENT_TITLE}</h3>
+                <div className="flex items-center gap-2">
+                  {sentSignalReceivers.length > 0 && (
+                    <span className="px-2 py-0.5 bg-violet-100 text-violet-600 text-xs font-bold rounded-full">
+                      {sentSignalReceivers.length}명
+                    </span>
+                  )}
+                  <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${sentSignalsOpen ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
+                </div>
+              </button>
+              {sentSignalsOpen && (
+              <div className="px-5 pb-5">
+              {sentSignalReceivers.length === 0 ? (
+                <div className="text-center py-8">
+                  <span className="text-3xl block mb-2" aria-hidden>{SIGNAL_EMOJI}</span>
+                  <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{SIGNAL_SENT_EMPTY}</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {sentSignalReceivers.map((receiver) => (
+                    <button
+                      key={receiver.id}
+                      type="button"
+                      onClick={() => onSelect(receiver)}
+                      className={`w-full text-left p-3 rounded-xl ${darkMode ? 'bg-slate-700/70 hover:bg-slate-700' : 'bg-gray-50 hover:bg-gray-100'}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <ProfileAvatar profile={receiver} size="sm" rounded="xl" />
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{receiver.nickname}</p>
+                          <p className={`text-xs ${darkMode ? 'text-violet-300' : 'text-violet-600'}`}>{SIGNAL_EMOJI} {SIGNAL_SENT_LINE}</p>
+                        </div>
+                      </div>
+                      <ProfileInfoBadges profile={receiver} />
                     </button>
                   ))}
                 </div>
@@ -2083,7 +2175,7 @@ export function MainScreen({
         <div className="max-w-7xl mx-auto flex">
           {([
             { id: 'profiles' as MainTab, icon: '👥', label: '참여자', badge: seenProfilesCount < 0 ? 0 : Math.max(0, profiles.length - seenProfilesCount) },
-            { id: 'signal' as MainTab, icon: '💕', label: '시그널' },
+            { id: 'signal' as MainTab, icon: SIGNAL_EMOJI, label: '시그널' },
             { id: 'stats' as MainTab, icon: '📊', label: '통계' },
             { id: 'ranking' as MainTab, icon: '🏆', label: '랭킹' },
           ] as Array<{ id: MainTab; icon: string; label: string; badge?: number }>).map((t, ci, arr) => {
