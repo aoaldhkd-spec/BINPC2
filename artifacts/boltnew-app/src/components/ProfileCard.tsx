@@ -19,7 +19,7 @@ export const ProfileCard = memo(function ProfileCard({
   heartCount: number;
   canLike: boolean;
   locked?: boolean;
-  /** 작게 보기 — 한 줄 1장·1:1 정사각 사진(전체 너비) */
+  /** 작게 보기 — 3열 그리드·1:1 정사각 사진 */
   compact?: boolean;
   onLike: (id: string) => void;
   onSelect: (p: Profile) => void;
@@ -190,9 +190,9 @@ export const ProfileCard = memo(function ProfileCard({
 
       {/* ── 프로필 사진 (작게=1:1, 기본=3:4) ── */}
       <div
-        className="relative z-0 w-full shrink-0 isolate"
+        className={`relative z-0 w-full shrink-0 isolate${compact ? ' aspect-square' : ''}`}
         style={{
-          aspectRatio: compact ? '1/1' : '3/4',
+          ...(compact ? {} : { aspectRatio: '3/4' }),
           background: photoBg,
           overflow: 'hidden',
         }}

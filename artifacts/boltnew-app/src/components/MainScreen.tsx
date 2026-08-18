@@ -692,7 +692,7 @@ export function MainScreen({
                   className="shrink-0 flex p-0.5 rounded-xl bg-gray-100 border border-gray-200"
                 >
                   {([
-                    { mode: 'compact' as const, label: '작게', Icon: LayoutGrid, title: '작게 보기 (한 줄 1장·1:1)' },
+                    { mode: 'compact' as const, label: '작게', Icon: LayoutGrid, title: '작게 보기 (한 줄 3장·1:1)' },
                     { mode: '2' as const, label: '2', Icon: Grid2x2, title: '한 줄에 2개' },
                     { mode: '3' as const, label: '3', Icon: Grid3x3, title: '한 줄에 3개' },
                   ]).map(({ mode, label, Icon, title }) => {
