@@ -31,9 +31,9 @@ describe('profile-card-grid', () => {
     expect(readProfileCardGridMode()).toBe('3');
   });
 
-  it('compact mode uses 3 columns with tighter gap', () => {
-    expect(profileGridColSpan('compact')).toBe(3);
-    expect(profileGridClassName('compact')).toContain('grid-cols-3');
-    expect(profileGridClassName('compact')).toContain('gap-0.5');
+  it('compact mode uses single column full width', () => {
+    expect(profileGridColSpan('compact')).toBe(1);
+    expect(profileGridClassName('compact')).toContain('grid-cols-1');
+    expect(profileGridClassName('compact')).toContain('gap-2');
   });
 });

@@ -159,7 +159,10 @@ export function MainScreen({
     writeProfileCardGridMode(mode);
     setProfileCardGridRaw(mode);
   };
-  const profileGridColSpanClass = profileGridColSpan(profileCardGrid) === 2 ? 'col-span-2' : 'col-span-3';
+  const profileGridColSpanClass =
+    profileGridColSpan(profileCardGrid) === 1 ? 'col-span-1'
+    : profileGridColSpan(profileCardGrid) === 2 ? 'col-span-2'
+    : 'col-span-3';
   const [showVisitors, setShowVisitors] = useState(false);
   const [profileMbtiFilter, setProfileMbtiFilter] = useState<string | null>(null);
   // 채팅 탭 내 서브탭: 1:1 채팅 / 단체 채팅
@@ -664,23 +667,52 @@ export function MainScreen({
               <p className="text-[10px] text-gray-400 px-1 -mt-0.5">
                 💡 닉네임·MBTI·성향(탑/바텀/올)·초성으로 검색할 수 있어요
               </p>
-              {/* 성향 필터 */}
-              <div className={`flex gap-1.5 overflow-x-auto pb-1 scrollbar-styled-light`}>
-                {[null,'바텀계열','올계열','탑계열','비선호'].map(f => {
-                  const colorMap: Record<string, string> = {
-                    '바텀계열': 'bg-green-500 text-white border-green-500',
-                    '올계열':   'bg-amber-500 text-white border-amber-500',
-                    '탑계열':   'bg-blue-500 text-white border-blue-500',
-                    '비선호':   'bg-gray-500 text-white border-gray-500',
-                  };
-                  const active = profilePersonalityFilter === f;
-                  return (
-                    <button key={String(f)} onClick={() => setProfilePersonalityFilter(active ? null : f)}
-                      className={`flex-shrink-0 px-2.5 py-1 rounded-full text-xs font-bold border transition-all ${active ? (f ? colorMap[f] : 'bg-teal-500 text-white border-teal-500') : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'}`}>
-                      {f ?? '전체'}
-                    </button>
-                  );
-                })}
+              {/* 성향 필터 + 카드 보기 (작게 / 2열 / 3열) */}
+              <div className="flex items-center gap-1.5 min-w-0">
+                <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-styled-light flex-1 min-w-0">
+                  {[null,'바텀계열','올계열','탑계열','비선호'].map(f => {
+                    const colorMap: Record<string, string> = {
+                      '바텀계열': 'bg-green-500 text-white border-green-500',
+                      '올계열':   'bg-amber-500 text-white border-amber-500',
+                      '탑계열':   'bg-blue-500 text-white border-blue-500',
+                      '비선호':   'bg-gray-500 text-white border-gray-500',
+                    };
+                    const active = profilePersonalityFilter === f;
+                    return (
+                      <button key={String(f)} onClick={() => setProfilePersonalityFilter(active ? null : f)}
+                        className={`flex-shrink-0 px-2.5 py-1 rounded-full text-xs font-bold border transition-all ${active ? (f ? colorMap[f] : 'bg-teal-500 text-white border-teal-500') : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'}`}>
+                        {f ?? '전체'}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div
+                  role="group"
+                  aria-label="참여자 카드 보기"
+                  className="shrink-0 flex p-0.5 rounded-xl bg-gray-100 border border-gray-200"
+                >
+                  {([
+                    { mode: 'compact' as const, label: '작게', Icon: LayoutGrid, title: '작게 보기 (한 줄 1장·1:1)' },
+                    { mode: '2' as const, label: '2', Icon: Grid2x2, title: '한 줄에 2개' },
+                    { mode: '3' as const, label: '3', Icon: Grid3x3, title: '한 줄에 3개' },
+                  ]).map(({ mode, label, Icon, title }) => {
+                    const active = profileCardGrid === mode;
+                    return (
+                      <button
+                        key={mode}
+                        type="button"
+                        title={title}
+                        aria-label={title}
+                        aria-pressed={active}
+                        onClick={() => setProfileCardGrid(mode)}
+                        className={`flex items-center justify-center gap-0.5 px-1.5 min-[360px]:px-2 py-1 rounded-lg text-[9px] min-[360px]:text-[10px] font-bold transition-all ${active ? 'bg-white text-teal-700 shadow-sm ring-1 ring-teal-200' : 'text-gray-500 hover:text-gray-700'}`}
+                      >
+                        <Icon className="w-3 h-3 min-[360px]:w-3.5 min-[360px]:h-3.5 shrink-0" aria-hidden />
+                        <span className="hidden min-[360px]:inline">{label}{mode !== 'compact' ? '개' : ''}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
               {/* MBTI 필터 — 8열 2행 고정 그리드 (스크롤 없음, 전체 버튼 없음) */}
               <div className="grid grid-cols-8 gap-1">
@@ -693,36 +725,6 @@ export function MainScreen({
                     </button>
                   );
                 })}
-              </div>
-              {/* 카드 보기 — 작게 / 2열 / 3열 */}
-              <div
-                role="group"
-                aria-label="참여자 카드 보기"
-                className="flex items-center gap-2"
-              >
-                <span className="text-[10px] font-bold text-gray-400 shrink-0">보기</span>
-                <div className="flex flex-1 min-w-0 p-0.5 rounded-xl bg-gray-100 border border-gray-200">
-                  {([
-                    { mode: 'compact' as const, label: '작게', Icon: LayoutGrid, title: '작게 보기 (3열·간략)' },
-                    { mode: '2' as const, label: '2개', Icon: Grid2x2, title: '한 줄에 2개' },
-                    { mode: '3' as const, label: '3개', Icon: Grid3x3, title: '한 줄에 3개' },
-                  ]).map(({ mode, label, Icon, title }) => {
-                    const active = profileCardGrid === mode;
-                    return (
-                      <button
-                        key={mode}
-                        type="button"
-                        title={title}
-                        aria-pressed={active}
-                        onClick={() => setProfileCardGrid(mode)}
-                        className={`flex-1 min-w-0 flex items-center justify-center gap-0.5 py-1.5 rounded-lg text-[10px] font-bold transition-all ${active ? 'bg-white text-teal-700 shadow-sm ring-1 ring-teal-200' : 'text-gray-500 hover:text-gray-700'}`}
-                      >
-                        <Icon className="w-3.5 h-3.5 shrink-0" aria-hidden />
-                        <span className="truncate">{label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
               </div>
             </div>
 
