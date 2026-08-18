@@ -322,8 +322,8 @@ async function runCycle(ctx, cycle, sseB) {
     payload: { chat_id: chatId, sender_id: idA, content: msgBody, client_id: crypto.randomUUID() },
   });
   if (isOpFunctionsLocked(msgR)) {
-    log({ type: 'skip', ok: false, msg: 'FUNCTIONS_LOCKED mid-run — admin locked during soak (not a fail streak)' });
-    process.exit(2);
+    log({ type: 'skip', ok: true, msg: 'FUNCTIONS_LOCKED mid-run — skipping cycle (not fail streak)' });
+    return 'locked';
   }
   if (msgR.status !== 200 || !msgR.json.data?.id) fails.push(`msg insert ${msgR.status}`);
 
@@ -374,8 +374,10 @@ async function main() {
   try {
     while (Date.now() < deadline) {
       cycle += 1;
-      const ok = await runCycle(ctx, cycle, sseB);
-      if (!ok) {
+      const result = await runCycle(ctx, cycle, sseB);
+      if (result === 'locked') {
+        // Admin locked mid-run — skip cycle, do not abort soak or increment fail streak
+      } else if (!result) {
         failStreak += 1;
         if (failStreak >= 3) {
           log({ type: 'abort', ok: false, msg: '3 consecutive cycle failures' });

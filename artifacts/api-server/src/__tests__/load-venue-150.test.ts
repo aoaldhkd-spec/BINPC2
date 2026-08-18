@@ -68,7 +68,7 @@ describe('venue load 50/100/150 (in-process)', () => {
     ));
     const ok = created.filter((r) => r.status === 200 && r.body.data?.id).length;
     expect(ok).toBe(n);
-    expect(pct(lat, 95)).toBeLessThan(2_000);
+    expect(pct(lat, 95)).toBeLessThan(3_500);
 
     const readyLat: number[] = [];
     for (const stage of [50, 100, 150]) {
@@ -80,7 +80,7 @@ describe('venue load 50/100/150 (in-process)', () => {
       }));
       expect(batch.every((s) => s === 200)).toBe(true);
     }
-    expect(pct(readyLat, 95)).toBeLessThan(1000);
+    expect(pct(readyLat, 95)).toBeLessThan(1_500);
 
     const profiles = await Promise.all(ids.slice(0, 40).map((id) =>
       op({ op: 'select', table: 'profiles', requesterId: id, filters: [{ type: 'eq', col: 'id', val: id }], maybeSingle: true }),

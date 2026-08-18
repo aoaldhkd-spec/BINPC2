@@ -18,6 +18,11 @@ const BANNED_REGRESSION = [
   { id: 'heart_initial_count', re: /heart_initial_count/, sev: 'error' },
   { id: 'admin_reset_heart', re: /admin_reset_heart/, sev: 'error' },
 ];
+/** Removed features — participant app only (server keeps legacy cleanup SQL) */
+const CLIENT_BANNED = [
+  { id: 'seating_tables_client', re: /seating_locked|seats_snapshot|seating_map|\bseat_layout\b/, sev: 'error' },
+  { id: 'heart_drain_client', re: /heart_drain/, sev: 'error' },
+];
 /** iPhone/Galaxy mobile UI regressions */
 const MOBILE_BANNED = [
   { id: 'tabbar_toast_double_stack', re: /4\.5rem\+var\(--participant-tabbar/, sev: 'error' },
@@ -91,6 +96,7 @@ function auditFile(absPath) {
   const findings = [];
 
   const scanBanned = rel.startsWith('artifacts/') && !BANNED_SKIP.test(rel);
+  const scanClientBanned = rel.startsWith('artifacts/boltnew-app/src/') && !BANNED_SKIP.test(rel);
   const scanMobile = rel.startsWith('artifacts/boltnew-app/src/') && !BANNED_SKIP.test(rel);
 
   for (let i = 0; i < lines.length; i++) {
@@ -105,6 +111,13 @@ function auditFile(absPath) {
     }
     if (scanBanned) {
       for (const { id, re, sev } of BANNED_REGRESSION) {
+        if (re.test(line)) {
+          findings.push({ rel, line: n, id, sev, text: line.trim().slice(0, 120) });
+        }
+      }
+    }
+    if (scanClientBanned) {
+      for (const { id, re, sev } of CLIENT_BANNED) {
         if (re.test(line)) {
           findings.push({ rel, line: n, id, sev, text: line.trim().slice(0, 120) });
         }

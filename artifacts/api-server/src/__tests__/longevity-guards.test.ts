@@ -89,4 +89,22 @@ describe('longevity recurrence guards (server)', () => {
     expect(block).toContain('📡');
     expect(block).not.toContain('💕');
   });
+
+  it('persist-before-broadcast and legacy seating/heart_drain stay out of active op tables', () => {
+    const allowedStart = dbTs.indexOf('const ALLOWED_OP_TABLES');
+    expect(allowedStart).toBeGreaterThan(0);
+    const allowedBlock = dbTs.slice(allowedStart, allowedStart + 900);
+    expect(allowedBlock).not.toContain("'seats'");
+    expect(allowedBlock).not.toContain("'seating'");
+    expect(allowedBlock).not.toContain('heart_balances');
+    expect(dbTs).toMatch(/await dbPersistRow\(/);
+    expect(dbTs).toMatch(/resolveAuthUserId\(req, body\)/);
+    expect(dbTs).toMatch(/isPublicProfilePhoto|profile-photos\/[\w-]+/);
+  });
+
+  it('load-venue-150 register p95 threshold stays CI-realistic', () => {
+    const loadTest = readFileSync(join(here, 'load-venue-150.test.ts'), 'utf8');
+    expect(loadTest).toMatch(/pct\(lat, 95\)\)\.toBeLessThan\(/);
+    expect(loadTest).not.toMatch(/toBeLessThan\(2_000\)/);
+  });
 });

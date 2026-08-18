@@ -243,7 +243,54 @@ describe('product copy + notification invariants', () => {
     );
     expect(endurance).toMatch(/ensureConnected/);
     expect(endurance).toMatch(/isOpFunctionsLocked|FUNCTIONS_LOCKED mid-run/);
+    expect(endurance).toMatch(/return 'locked'|result === 'locked'/);
     expect(lock).toContain('isOpFunctionsLocked');
+  });
+
+  it('mobile safe-area: Galaxy tabbar + iOS 16px input + viewport-fit=cover', () => {
+    const html = readFileSync(join(root, '../index.html'), 'utf8');
+    const css = read('index.css');
+    const main = read('components/MainScreen.tsx');
+    expect(html).toContain('viewport-fit=cover');
+    expect(css).toMatch(/font-size:\s*max\(16px/);
+    expect(css).toContain('--tabbar-safe-bottom');
+    expect(css).toContain('.participant-tabbar');
+    expect(main).toContain('--participant-tabbar');
+    expect(main).toContain('--tabbar-safe-bottom');
+  });
+
+  it('HEIC upload rejected with user-facing message', () => {
+    const photo = read('lib/profile-photo.ts');
+    expect(photo).toMatch(/HEIC|heic/);
+    expect(photo).toContain('JPG, PNG, WebP');
+  });
+
+  it('profile-card-grid density modes stay wired and tested', () => {
+    const grid = read('lib/profile-card-grid.ts');
+    const gridTest = read('lib/profile-card-grid.test.ts');
+    const main = read('components/MainScreen.tsx');
+    expect(grid).toContain("'compact'");
+    expect(grid).toContain("'2'");
+    expect(grid).toContain("'3'");
+    expect(gridTest).toContain('grid-cols-2');
+    expect(gridTest).toContain('grid-cols-3');
+    expect(main).toContain('readProfileCardGridMode');
+    expect(main).toContain('profileGridClassName');
+  });
+
+  it('verify scripts treat admin password mismatch and FUNCTIONS_LOCKED as SKIP', () => {
+    const verify = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), '../../../../scripts/verify-all-features.mjs'),
+      'utf8',
+    );
+    expect(verify).toContain('SKIP (local password mismatch');
+    expect(verify).toContain('SKIP (FUNCTIONS_LOCKED)');
+  });
+
+  it('localdb uses optional VITE_SSE_ORIGIN for Render-direct SSE', () => {
+    const db = read('lib/localdb.ts');
+    expect(db).toContain('VITE_SSE_ORIGIN');
+    expect(db).toMatch(/SSE_ORIGIN[\s\S]*events/);
   });
 
   it('participant system Back uses History API and does not wrap AdminApp', () => {
