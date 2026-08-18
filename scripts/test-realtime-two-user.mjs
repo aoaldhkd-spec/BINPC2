@@ -6,8 +6,11 @@
  */
 import { isFunctionsLocked } from './lib/functions-lock.mjs';
 
-const SITE = (process.env.NETLIFY_URL || process.env.API_BASE || 'https://binpc2.netlify.app').replace(/\/$/, '');
-const API = SITE.includes('/api') ? SITE.replace(/\/$/, '') : `${SITE}/api/db`;
+const SITE = (process.env.NETLIFY_URL || 'https://binpc2.netlify.app').replace(/\/$/, '');
+// HTTP는 Netlify 프록시, SSE는 Render 직접 — 앱(localdb.ts)과 동일 (Netlify가 event-stream 버퍼링)
+const API = (process.env.API_BASE || `${SITE}/api/db`).replace(/\/$/, '');
+const SSE_ORIGIN = (process.env.SSE_ORIGIN || process.env.VITE_SSE_ORIGIN || 'https://binpc2.onrender.com').replace(/\/$/, '');
+const SSE_API = `${SSE_ORIGIN}/api/db`;
 
 function parseCookies(setCookieHeaders) {
   const jar = new Map();
@@ -64,7 +67,7 @@ async function sseToken(jar, sessionToken, userId) {
 }
 
 function openSse(userId, token) {
-  const url = `${API}/events?userId=${encodeURIComponent(userId)}&token=${encodeURIComponent(token)}`;
+  const url = `${SSE_API}/events?userId=${encodeURIComponent(userId)}&token=${encodeURIComponent(token)}`;
   const events = [];
   let buffer = '';
   const ac = new AbortController();
@@ -123,7 +126,7 @@ async function main() {
   const jarB = new Map();
   const fails = [];
 
-  console.log('API:', API);
+  console.log('API:', API, '| SSE:', SSE_API);
 
   let r = await op(jarA, null, {
     op: 'insert', table: 'profiles', single: true, selectAfterWrite: true,
