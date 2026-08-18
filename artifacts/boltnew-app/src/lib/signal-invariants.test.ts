@@ -68,7 +68,12 @@ describe('signal copy + unlock invariants', () => {
     expect(appSrc).toContain('loadSignalActionsRef');
     expect(appSrc).toContain('sentSignalReceivers');
     expect(appSrc).not.toContain('SignalNudgeBanner');
+    expect(mainSrc).toContain('statusQuickSheet');
     expect(mainSrc).toContain(SIGNAL_SENT_TITLE);
+    expect(mainSrc).toContain('교환된 연락처');
+    expect(mainSrc).toContain('exchanged-contacts');
+    expect(mainSrc).not.toContain('receivedSignalsRef');
+    expect(mainSrc).not.toContain('jumpToSignals');
     expect(appSrc).not.toMatch(/if \(senderIds\.length === 0\) \{\s*setReceivedSignalSenders\(\[\]\)/);
   });
 

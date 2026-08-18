@@ -349,14 +349,9 @@ export function MainScreen({
   const [profileEditOpen, setProfileEditOpen] = useState(true);
   const [receivedHeartsOpen, setReceivedHeartsOpen] = useState(true);
   const [sentHeartsOpen, setSentHeartsOpen] = useState(true);
-  const receivedSignalsRef = useRef<HTMLDivElement>(null);
-  const sentSignalsRef = useRef<HTMLDivElement>(null);
-  const jumpToSignals = useCallback((target: 'received' | 'sent') => {
-    const el = target === 'received' ? receivedSignalsRef.current : sentSignalsRef.current;
-    requestAnimationFrame(() => {
-      el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
-  }, []);
+  type StatusQuickSheet = 'received-signal' | 'sent-signal' | 'exchanged-contacts';
+  const [statusQuickSheet, setStatusQuickSheet] = useState<StatusQuickSheet | null>(null);
+  const closeStatusQuickSheet = useCallback(() => setStatusQuickSheet(null), []);
 
   // ── 프로필 편집 통합 상태 (한 섹션만 열림) ──────────────────────────────────
   const [profileEditSection, setProfileEditSection] = useState<'avatar' | 'nickname' | 'birth' | 'interests' | 'statusMsg' | 'ideal' | 'features' | 'contact' | 'blocklist' | null>(null);
@@ -889,39 +884,60 @@ export function MainScreen({
                     </div>
                   </div>
 
-                  {/* ── 시그널 빠른 이동 (프로필 사진 옆 영역) ── */}
-                  <div
-                    role="group"
-                    aria-label="시그널 목록 보기"
-                    className={`mt-3 flex p-1 rounded-2xl border shadow-sm ${darkMode ? 'bg-slate-900/70 border-slate-600/80' : 'bg-gradient-to-r from-rose-50/90 via-white to-violet-50/90 border-rose-100'}`}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => jumpToSignals('received')}
-                      className={`flex-1 flex items-center justify-center gap-1 min-h-[44px] px-2 py-2.5 rounded-xl text-[11px] font-black transition-all active:scale-[0.98] ${darkMode ? 'text-rose-200 hover:bg-rose-500/15' : 'text-rose-700 hover:bg-rose-100/80'}`}
+                  {/* ── 시그널 · 교환 연락처 빠른 보기 (프로필 카드 pill) ── */}
+                  <div className="mt-3 space-y-2">
+                    <div
+                      role="group"
+                      aria-label="시그널 목록 보기"
+                      className={`flex p-1 rounded-2xl border shadow-sm ${darkMode ? 'bg-slate-900/70 border-slate-600/80' : 'bg-gradient-to-r from-rose-50/90 via-white to-violet-50/90 border-rose-100'}`}
                     >
-                      <span aria-hidden>{SIGNAL_EMOJI}</span>
-                      <span className="truncate">받은 시그널</span>
-                      {receivedSignalSenders.length > 0 && (
-                        <span className={`flex-shrink-0 min-w-[1.25rem] px-1.5 py-0.5 rounded-full text-[10px] font-black tabular-nums ${darkMode ? 'bg-rose-500/25 text-rose-200' : 'bg-rose-100 text-rose-600'}`}>
-                          {receivedSignalSenders.length}
-                        </span>
-                      )}
-                    </button>
-                    <div className={`w-px self-stretch my-1.5 ${darkMode ? 'bg-slate-600' : 'bg-rose-100'}`} aria-hidden />
-                    <button
-                      type="button"
-                      onClick={() => jumpToSignals('sent')}
-                      className={`flex-1 flex items-center justify-center gap-1 min-h-[44px] px-2 py-2.5 rounded-xl text-[11px] font-black transition-all active:scale-[0.98] ${darkMode ? 'text-violet-200 hover:bg-violet-500/15' : 'text-violet-700 hover:bg-violet-100/80'}`}
+                      <button
+                        type="button"
+                        onClick={() => setStatusQuickSheet('received-signal')}
+                        className={`flex-1 flex items-center justify-center gap-1 min-h-[44px] px-2 py-2.5 rounded-xl text-[11px] font-black transition-all active:scale-[0.98] ${darkMode ? 'text-rose-200 hover:bg-rose-500/15' : 'text-rose-700 hover:bg-rose-100/80'}`}
+                      >
+                        <span aria-hidden>{SIGNAL_EMOJI}</span>
+                        <span className="truncate">받은 시그널</span>
+                        {receivedSignalSenders.length > 0 && (
+                          <span className={`flex-shrink-0 min-w-[1.25rem] px-1.5 py-0.5 rounded-full text-[10px] font-black tabular-nums ${darkMode ? 'bg-rose-500/25 text-rose-200' : 'bg-rose-100 text-rose-600'}`}>
+                            {receivedSignalSenders.length}
+                          </span>
+                        )}
+                      </button>
+                      <div className={`w-px self-stretch my-1.5 ${darkMode ? 'bg-slate-600' : 'bg-rose-100'}`} aria-hidden />
+                      <button
+                        type="button"
+                        onClick={() => setStatusQuickSheet('sent-signal')}
+                        className={`flex-1 flex items-center justify-center gap-1 min-h-[44px] px-2 py-2.5 rounded-xl text-[11px] font-black transition-all active:scale-[0.98] ${darkMode ? 'text-violet-200 hover:bg-violet-500/15' : 'text-violet-700 hover:bg-violet-100/80'}`}
+                      >
+                        <span aria-hidden>{SIGNAL_EMOJI}</span>
+                        <span className="truncate">보낸 시그널</span>
+                        {sentSignalReceivers.length > 0 && (
+                          <span className={`flex-shrink-0 min-w-[1.25rem] px-1.5 py-0.5 rounded-full text-[10px] font-black tabular-nums ${darkMode ? 'bg-violet-500/25 text-violet-200' : 'bg-violet-100 text-violet-600'}`}>
+                            {sentSignalReceivers.length}
+                          </span>
+                        )}
+                      </button>
+                    </div>
+                    <div
+                      role="group"
+                      aria-label="교환된 연락처 보기"
+                      className={`flex p-1 rounded-2xl border shadow-sm ${darkMode ? 'bg-slate-900/70 border-slate-600/80' : 'bg-gradient-to-r from-emerald-50/90 via-white to-cyan-50/90 border-emerald-100'}`}
                     >
-                      <span aria-hidden>{SIGNAL_EMOJI}</span>
-                      <span className="truncate">보낸 시그널</span>
-                      {sentSignalReceivers.length > 0 && (
-                        <span className={`flex-shrink-0 min-w-[1.25rem] px-1.5 py-0.5 rounded-full text-[10px] font-black tabular-nums ${darkMode ? 'bg-violet-500/25 text-violet-200' : 'bg-violet-100 text-violet-600'}`}>
-                          {sentSignalReceivers.length}
-                        </span>
-                      )}
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => setStatusQuickSheet('exchanged-contacts')}
+                        className={`flex-1 flex items-center justify-center gap-1 min-h-[44px] px-2 py-2.5 rounded-xl text-[11px] font-black transition-all active:scale-[0.98] ${darkMode ? 'text-emerald-200 hover:bg-emerald-500/15' : 'text-emerald-700 hover:bg-emerald-100/80'}`}
+                      >
+                        <span aria-hidden>📱</span>
+                        <span className="truncate">교환된 연락처</span>
+                        {receivedContactShares.length > 0 && (
+                          <span className={`flex-shrink-0 min-w-[1.25rem] px-1.5 py-0.5 rounded-full text-[10px] font-black tabular-nums ${darkMode ? 'bg-emerald-500/25 text-emerald-200' : 'bg-emerald-100 text-emerald-600'}`}>
+                            {receivedContactShares.length}
+                          </span>
+                        )}
+                      </button>
+                    </div>
                   </div>
 
                   {/* ── QR / 고유번호 ── */}
@@ -1149,143 +1165,6 @@ export function MainScreen({
               )}
             </div>
 
-            {/* 받은 시그널 */}
-            <div
-              ref={receivedSignalsRef}
-              className={`scroll-mt-3 rounded-2xl shadow-sm transition-colors duration-300 overflow-hidden ${darkMode ? 'bg-slate-800 border border-slate-600' : 'bg-white'}`}
-            >
-              <div className="px-5 pt-4 pb-1 flex items-center gap-2">
-                <h3 className={`text-xs font-black uppercase tracking-widest ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{SIGNAL_EMOJI} {SIGNAL_INBOX_TITLE}</h3>
-                {receivedSignalSenders.length > 0 && (
-                  <span className={`ml-auto px-2 py-0.5 text-[10px] font-bold rounded-full ${darkMode ? 'bg-rose-500/20 text-rose-300' : 'bg-rose-100 text-rose-600'}`}>
-                    {receivedSignalSenders.length}명
-                  </span>
-                )}
-              </div>
-              <div className="px-5 pb-5">
-              {receivedSignalSenders.length === 0 ? (
-                <div className="text-center py-8">
-                  <span className="text-3xl block mb-2" aria-hidden>{SIGNAL_EMOJI}</span>
-                  <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{SIGNAL_INBOX_EMPTY}</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {receivedSignalSenders.map((sender) => (
-                    <button
-                      key={sender.id}
-                      type="button"
-                      onClick={() => onSelect(sender)}
-                      className={`w-full text-left p-3 rounded-xl ${darkMode ? 'bg-slate-700/70 hover:bg-slate-700' : 'bg-gray-50 hover:bg-gray-100'}`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <ProfileAvatar profile={sender} size="sm" rounded="xl" />
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{sender.nickname}</p>
-                          <p className={`text-xs ${darkMode ? 'text-violet-300' : 'text-violet-600'}`}>{SIGNAL_EMOJI} {SIGNAL_INBOX_LINE}</p>
-                        </div>
-                      </div>
-                      <ProfileInfoBadges profile={sender} />
-                    </button>
-                  ))}
-                </div>
-              )}
-              </div>
-            </div>
-
-            {/* 보낸 시그널 */}
-            <div
-              ref={sentSignalsRef}
-              className={`scroll-mt-3 rounded-2xl shadow-sm transition-colors duration-300 overflow-hidden ${darkMode ? 'bg-slate-800 border border-slate-600' : 'bg-white'}`}
-            >
-              <div className="px-5 pt-4 pb-1 flex items-center gap-2">
-                <h3 className={`text-xs font-black uppercase tracking-widest ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{SIGNAL_EMOJI} {SIGNAL_SENT_TITLE}</h3>
-                {sentSignalReceivers.length > 0 && (
-                  <span className={`ml-auto px-2 py-0.5 text-[10px] font-bold rounded-full ${darkMode ? 'bg-violet-500/20 text-violet-300' : 'bg-violet-100 text-violet-600'}`}>
-                    {sentSignalReceivers.length}명
-                  </span>
-                )}
-              </div>
-              <div className="px-5 pb-5">
-              {sentSignalReceivers.length === 0 ? (
-                <div className="text-center py-8">
-                  <span className="text-3xl block mb-2" aria-hidden>{SIGNAL_EMOJI}</span>
-                  <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{SIGNAL_SENT_EMPTY}</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {sentSignalReceivers.map((receiver) => (
-                    <button
-                      key={receiver.id}
-                      type="button"
-                      onClick={() => onSelect(receiver)}
-                      className={`w-full text-left p-3 rounded-xl ${darkMode ? 'bg-slate-700/70 hover:bg-slate-700' : 'bg-gray-50 hover:bg-gray-100'}`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <ProfileAvatar profile={receiver} size="sm" rounded="xl" />
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{receiver.nickname}</p>
-                          <p className={`text-xs ${darkMode ? 'text-violet-300' : 'text-violet-600'}`}>{SIGNAL_EMOJI} {SIGNAL_SENT_LINE}</p>
-                        </div>
-                      </div>
-                      <ProfileInfoBadges profile={receiver} />
-                    </button>
-                  ))}
-                </div>
-              )}
-              </div>
-            </div>
-
-            {/* 교환된 연락처 */}
-            {receivedContactShares.length > 0 && (
-              <div className={`rounded-2xl shadow-sm p-5 transition-colors duration-300 ${darkMode ? 'bg-slate-800 border border-slate-600' : 'bg-white'}`}>
-                <div className="flex items-center gap-2 mb-4">
-                  <div className={`w-7 h-7 rounded-xl flex items-center justify-center ${darkMode ? 'bg-teal-900/60' : 'bg-teal-50'}`}>
-                    <span className="text-sm">📱</span>
-                  </div>
-                  <h3 className={`text-sm font-bold uppercase tracking-wider ${darkMode ? 'text-slate-200' : 'text-gray-700'}`}>교환된 연락처</h3>
-                  <span className="ml-auto px-2 py-0.5 bg-teal-100 text-teal-700 text-xs font-bold rounded-full">{receivedContactShares.length}개</span>
-                </div>
-                <div className="space-y-2">
-                  {receivedContactShares.map((share) => {
-                    const sharedProfile = profileMap.get(share.liked_id);
-                    return (
-                      <div key={share.id} className={`rounded-xl p-3 ${darkMode ? 'bg-teal-900/30 border border-teal-800' : 'bg-teal-50 border border-teal-100'}`}>
-                        <div className="flex items-center gap-2 mb-2">
-                          {sharedProfile && <ProfileAvatar profile={sharedProfile} size="xs" rounded="lg" />}
-                          <p className={`text-xs font-bold ${darkMode ? 'text-teal-300' : 'text-teal-800'}`}>
-                            {sharedProfile?.nickname ?? '알 수 없음'}
-                          </p>
-                          <button
-                            onClick={() => sharedProfile && onContactViewOpen(share, sharedProfile)}
-                            className={`ml-auto flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-bold border transition-all ${darkMode ? 'bg-teal-800 border-teal-700 text-teal-200 hover:bg-teal-700' : 'bg-white border-teal-200 text-teal-600 hover:bg-teal-100'}`}
-                          >
-                            <Eye className="w-3 h-3" />보기
-                          </button>
-                        </div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {share.kakao && (
-                            <span className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-bold ${darkMode ? 'bg-yellow-900/40 text-yellow-300' : 'bg-yellow-50 text-yellow-700'}`}>
-                              <span className="text-[10px]">K</span>{share.kakao}
-                            </span>
-                          )}
-                          {share.instagram && (
-                            <span className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-bold ${darkMode ? 'bg-pink-900/40 text-pink-300' : 'bg-pink-50 text-pink-700'}`}>
-                              IG {share.instagram}
-                            </span>
-                          )}
-                          {share.phone && (
-                            <span className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-bold ${darkMode ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-50 text-blue-700'}`}>
-                              📞 {share.phone}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-              )}
-
             {/* 보낸 하트 */}
             <div className={`rounded-2xl shadow-sm transition-colors duration-300 overflow-hidden ${darkMode ? 'bg-slate-800 border border-slate-600' : 'bg-white'}`}>
               <button
@@ -1378,6 +1257,144 @@ export function MainScreen({
 
             </div>
           </div>
+
+          {statusQuickSheet && (
+            <div
+              className="fixed inset-0 z-[70] flex items-end justify-center bg-black/60 backdrop-blur-sm"
+              onClick={closeStatusQuickSheet}
+              role="presentation"
+            >
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="status-quick-sheet-title"
+                className={`w-full max-w-lg max-h-[min(85vh,640px)] rounded-t-3xl shadow-2xl overflow-hidden flex flex-col animate-[slideUp_0.25s_ease-out] ${darkMode ? 'bg-slate-900 border-t border-slate-600' : 'bg-white'}`}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className={`flex items-center gap-3 px-5 py-4 border-b flex-shrink-0 ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
+                  <h2 id="status-quick-sheet-title" className={`flex-1 text-sm font-black uppercase tracking-wider ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                    {statusQuickSheet === 'received-signal' && <>{SIGNAL_EMOJI} {SIGNAL_INBOX_TITLE}</>}
+                    {statusQuickSheet === 'sent-signal' && <>{SIGNAL_EMOJI} {SIGNAL_SENT_TITLE}</>}
+                    {statusQuickSheet === 'exchanged-contacts' && <>📱 교환된 연락처</>}
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={closeStatusQuickSheet}
+                    aria-label="닫기"
+                    className={`p-2 rounded-xl transition-all active:scale-95 ${darkMode ? 'text-slate-400 hover:bg-slate-800 hover:text-white' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700'}`}
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                <div className="flex-1 overflow-y-auto px-5 py-4">
+                  {statusQuickSheet === 'received-signal' && (
+                    receivedSignalSenders.length === 0 ? (
+                      <div className="text-center py-10">
+                        <span className="text-3xl block mb-2" aria-hidden>{SIGNAL_EMOJI}</span>
+                        <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{SIGNAL_INBOX_EMPTY}</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {receivedSignalSenders.map((sender) => (
+                          <button
+                            key={sender.id}
+                            type="button"
+                            onClick={() => { closeStatusQuickSheet(); onSelect(sender); }}
+                            className={`w-full text-left p-3 rounded-xl ${darkMode ? 'bg-slate-800 hover:bg-slate-700' : 'bg-gray-50 hover:bg-gray-100'}`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <ProfileAvatar profile={sender} size="sm" rounded="xl" />
+                              <div className="flex-1 min-w-0">
+                                <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{sender.nickname}</p>
+                                <p className={`text-xs ${darkMode ? 'text-rose-300' : 'text-rose-600'}`}>{SIGNAL_EMOJI} {SIGNAL_INBOX_LINE}</p>
+                              </div>
+                            </div>
+                            <ProfileInfoBadges profile={sender} />
+                          </button>
+                        ))}
+                      </div>
+                    )
+                  )}
+                  {statusQuickSheet === 'sent-signal' && (
+                    sentSignalReceivers.length === 0 ? (
+                      <div className="text-center py-10">
+                        <span className="text-3xl block mb-2" aria-hidden>{SIGNAL_EMOJI}</span>
+                        <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{SIGNAL_SENT_EMPTY}</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {sentSignalReceivers.map((receiver) => (
+                          <button
+                            key={receiver.id}
+                            type="button"
+                            onClick={() => { closeStatusQuickSheet(); onSelect(receiver); }}
+                            className={`w-full text-left p-3 rounded-xl ${darkMode ? 'bg-slate-800 hover:bg-slate-700' : 'bg-gray-50 hover:bg-gray-100'}`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <ProfileAvatar profile={receiver} size="sm" rounded="xl" />
+                              <div className="flex-1 min-w-0">
+                                <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{receiver.nickname}</p>
+                                <p className={`text-xs ${darkMode ? 'text-violet-300' : 'text-violet-600'}`}>{SIGNAL_EMOJI} {SIGNAL_SENT_LINE}</p>
+                              </div>
+                            </div>
+                            <ProfileInfoBadges profile={receiver} />
+                          </button>
+                        ))}
+                      </div>
+                    )
+                  )}
+                  {statusQuickSheet === 'exchanged-contacts' && (
+                    receivedContactShares.length === 0 ? (
+                      <div className="text-center py-10">
+                        <span className="text-3xl block mb-2" aria-hidden>📱</span>
+                        <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>아직 교환된 연락처가 없습니다.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {receivedContactShares.map((share) => {
+                          const sharedProfile = profileMap.get(share.liked_id);
+                          return (
+                            <div key={share.id} className={`rounded-xl p-3 ${darkMode ? 'bg-emerald-950/40 border border-emerald-900/60' : 'bg-emerald-50 border border-emerald-100'}`}>
+                              <div className="flex items-center gap-2 mb-2">
+                                {sharedProfile && <ProfileAvatar profile={sharedProfile} size="xs" rounded="lg" />}
+                                <p className={`text-xs font-bold ${darkMode ? 'text-emerald-300' : 'text-emerald-800'}`}>
+                                  {sharedProfile?.nickname ?? '알 수 없음'}
+                                </p>
+                                <button
+                                  type="button"
+                                  onClick={() => sharedProfile && onContactViewOpen(share, sharedProfile)}
+                                  className={`ml-auto flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-bold border transition-all ${darkMode ? 'bg-emerald-900/60 border-emerald-700 text-emerald-200 hover:bg-emerald-800' : 'bg-white border-emerald-200 text-emerald-600 hover:bg-emerald-100'}`}
+                                >
+                                  <Eye className="w-3 h-3" />보기
+                                </button>
+                              </div>
+                              <div className="flex flex-wrap gap-1.5">
+                                {share.kakao && (
+                                  <span className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-bold ${darkMode ? 'bg-yellow-900/40 text-yellow-300' : 'bg-yellow-50 text-yellow-700'}`}>
+                                    <span className="text-[10px]">K</span>{share.kakao}
+                                  </span>
+                                )}
+                                {share.instagram && (
+                                  <span className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-bold ${darkMode ? 'bg-pink-900/40 text-pink-300' : 'bg-pink-50 text-pink-700'}`}>
+                                    IG {share.instagram}
+                                  </span>
+                                )}
+                                {share.phone && (
+                                  <span className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-bold ${darkMode ? 'bg-cyan-900/40 text-cyan-300' : 'bg-cyan-50 text-cyan-700'}`}>
+                                    📞 {share.phone}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
           </StatusErrorBoundary>
         )}
 
