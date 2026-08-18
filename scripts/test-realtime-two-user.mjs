@@ -5,6 +5,7 @@
  * Env: NETLIFY_URL (default https://binpc2.netlify.app) or API_BASE
  */
 import { isFunctionsLocked } from './lib/functions-lock.mjs';
+import { createPersonaPair, profilePayload } from './lib/test-personas.mjs';
 
 const SITE = (process.env.NETLIFY_URL || 'https://binpc2.netlify.app').replace(/\/$/, '');
 // HTTP는 Netlify 프록시, SSE는 Render 직접 — 앱(localdb.ts)과 동일 (Netlify가 event-stream 버퍼링)
@@ -120,22 +121,22 @@ async function main() {
   const idB = crypto.randomUUID();
   const secA = crypto.randomUUID();
   const secB = crypto.randomUUID();
-  const nickA = `rtA${Date.now() % 100000}`;
-  const nickB = `rtB${Date.now() % 100000}`;
+  const [personaA, personaB] = createPersonaPair();
   const jarA = new Map();
   const jarB = new Map();
   const fails = [];
 
   console.log('API:', API, '| SSE:', SSE_API);
+  console.log('Personas:', personaA.nickname, '↔', personaB.nickname);
 
   let r = await op(jarA, null, {
     op: 'insert', table: 'profiles', single: true, selectAfterWrite: true,
-    payload: { id: idA, nickname: nickA, bio: 'rt', photo_url: null, personality_score: 50, _device_secret: secA },
+    payload: profilePayload({ id: idA, secret: secA, persona: personaA }),
   });
   if (r.status !== 200 || !r.json.data?.id) fails.push(`register A ${r.status}`);
   r = await op(jarB, null, {
     op: 'insert', table: 'profiles', single: true, selectAfterWrite: true,
-    payload: { id: idB, nickname: nickB, bio: 'rt', photo_url: null, personality_score: 50, _device_secret: secB },
+    payload: profilePayload({ id: idB, secret: secB, persona: personaB }),
   });
   if (r.status !== 200 || !r.json.data?.id) fails.push(`register B ${r.status}`);
 

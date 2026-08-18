@@ -3,6 +3,7 @@
  * Profile photo upload E2E — sessionToken auth (Netlify/iPhone Safari path).
  * Usage: node scripts/test-profile-photo-upload.mjs
  */
+import { createTestPersona, profilePayload } from './lib/test-personas.mjs';
 const API = (process.env.API_BASE || 'https://binpc2.onrender.com/api/db').replace(/\/$/, '');
 const SITE = (process.env.NETLIFY_URL || 'https://binpc2.netlify.app').replace(/\/$/, '');
 
@@ -23,15 +24,16 @@ async function op(body, jar) {
 async function main() {
   const id = crypto.randomUUID();
   const secret = crypto.randomUUID();
-  const nick = `ph${Date.now() % 100000}`;
+  const persona = createTestPersona();
   const fails = [];
 
   console.log('API:', API);
   console.log('Netlify:', SITE);
+  console.log('Persona:', persona.nickname, '|', persona.interests);
 
   let r = await op({
     op: 'insert', table: 'profiles', single: true, selectAfterWrite: true,
-    payload: { id, nickname: nick, bio: 'photo-test', photo_url: null, personality_score: 50, _device_secret: secret },
+    payload: profilePayload({ id, secret, persona }),
   });
   if (r.status !== 200) fails.push(`register ${r.status}`);
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /** E2E: register → login sessionToken → like + chat through Netlify proxy */
 import { isFunctionsLocked } from './lib/functions-lock.mjs';
+import { createPersonaPair, profilePayload } from './lib/test-personas.mjs';
 
 const SITE = (process.env.NETLIFY_URL || 'https://binpc2.netlify.app').replace(/\/$/, '');
 const API = `${SITE}/api/db`;
@@ -55,20 +56,17 @@ async function main() {
   const idB = crypto.randomUUID();
   const secA = crypto.randomUUID();
   const secB = crypto.randomUUID();
-  const nickA = `e2eA${Date.now() % 100000}`;
-  const nickB = `e2eB${Date.now() % 100000}`;
+  const [personaA, personaB] = createPersonaPair();
   const jarA = new Map();
   const jarB = new Map();
 
   console.log('Site:', SITE);
+  console.log('Personas:', personaA.nickname, '↔', personaB.nickname);
 
   // Register A (no session)
   let r = await op(jarA, null, {
     op: 'insert', table: 'profiles', single: true, selectAfterWrite: true,
-    payload: {
-      id: idA, nickname: nickA, bio: 'test', photo_url: null,
-      personality_score: 50, _device_secret: secA,
-    },
+    payload: profilePayload({ id: idA, secret: secA, persona: personaA }),
   });
   if (r.status !== 200 || !r.json.data?.id) {
     console.error('register A FAIL', r.status, r.json);
@@ -78,10 +76,7 @@ async function main() {
 
   r = await op(jarB, null, {
     op: 'insert', table: 'profiles', single: true, selectAfterWrite: true,
-    payload: {
-      id: idB, nickname: nickB, bio: 'test', photo_url: null,
-      personality_score: 50, _device_secret: secB,
-    },
+    payload: profilePayload({ id: idB, secret: secB, persona: personaB }),
   });
   if (r.status !== 200 || !r.json.data?.id) {
     console.error('register B FAIL', r.status, r.json);

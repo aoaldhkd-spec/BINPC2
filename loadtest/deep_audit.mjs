@@ -19,7 +19,7 @@ const sleep  = ms => new Promise(r => setTimeout(r, ms));
 const pad    = (s, n = 32) => String(s).padEnd(n);
 
 async function makeVU(idx) {
-  const vu = await registerVu(`감사봇${idx}`, idx);
+  const vu = await registerVu(null, idx);
   return vu ? { id: vu.id, idx, ...vu } : null;
 }
 

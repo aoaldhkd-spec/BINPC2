@@ -6,6 +6,7 @@
  * - 양쪽 SSE 수신 + DB SELECT 일치
  */
 import { randomUUID } from 'node:crypto';
+import { createTestPersona, profilePayload } from './lib/test-personas.mjs';
 
 const API = (process.env.API_BASE || 'https://binpc2.onrender.com/api/db').replace(/\/$/, '');
 
@@ -62,29 +63,30 @@ function openSse(userId, token) {
   };
 }
 
-async function registerAndLogin(tag) {
+async function registerAndLogin(index) {
   const id = randomUUID();
   const secret = randomUUID();
-  const nick = `mt_${tag}_${id.slice(0, 6)}`;
+  const persona = createTestPersona({ index });
   const reg = await api('/op', {
     body: {
       op: 'insert', table: 'profiles', single: true, selectAfterWrite: true,
-      payload: { id, nickname: nick, bio: 'mutual-test', _device_secret: secret },
+      payload: profilePayload({ id, secret, persona }),
     },
   });
-  if (reg.status !== 200 || !reg.json.data?.id) throw new Error(`register ${tag} failed`);
+  if (reg.status !== 200 || !reg.json.data?.id) throw new Error(`register ${persona.nickname} failed`);
   const login = await api('/auth/login', { body: { userId: id, deviceSecret: secret } });
   if (login.status !== 200 || !login.json.sessionToken) throw new Error(`login ${tag} ${login.status}`);
   const tok = await api('/auth/sse-token', { body: { userId: id, sessionToken: login.json.sessionToken } });
   if (tok.status !== 200 || !tok.json.token) throw new Error(`sse-token ${tag}`);
-  return { id, nick, sessionToken: login.json.sessionToken, sseToken: tok.json.token };
+  return { id, nick: persona.nickname, persona, sessionToken: login.json.sessionToken, sseToken: tok.json.token };
 }
 
 async function main() {
   console.log('Mutual chat+hearts test');
   console.log('API=', API);
-  const a = await registerAndLogin('a');
-  const b = await registerAndLogin('b');
+  const a = await registerAndLogin(0);
+  const b = await registerAndLogin(1);
+  console.log('Personas:', a.persona.nickname, '↔', b.persona.nickname);
   const streamA = openSse(a.id, a.sseToken);
   const streamB = openSse(b.id, b.sseToken);
   await sleep(1200);

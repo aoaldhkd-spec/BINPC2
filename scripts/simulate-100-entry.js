@@ -24,6 +24,7 @@ import { performance } from 'perf_hooks';
 import http from 'http';
 import https from 'https';
 import { randomUUID } from 'crypto';
+import { createTestPersona, profilePayload } from './lib/test-personas.mjs';
 
 // ─── CLI 파싱 ──────────────────────────────────────────────────────────────────
 const args = process.argv.slice(2);
@@ -71,7 +72,8 @@ const nodeFetch = typeof fetch !== 'undefined' ? fetch : async (url, opts = {}) 
 
 // ─── 단일 사용자 입장 시뮬레이션 ───────────────────────────────────────────────
 async function simulateOneUser(userIndex) {
-  const nickname = `테스트유저_${Date.now()}_${userIndex}`;
+  const persona = createTestPersona({ index: userIndex });
+  const userId = randomUUID();
   const deviceSecret = randomUUID();
   const startAt = performance.now();
   let retries503 = 0;
@@ -92,23 +94,19 @@ async function simulateOneUser(userIndex) {
             table: 'profiles',
             op: 'insert',
             filters: [], orders: [], payload: {
-              nickname,
-              bio: '스트레스 테스트',
-              photo_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(nickname)}`,
-              personality_score: 50,
-              dom_sub_score: 50,
-              mbti: 'ISTJ',
-              birth_year: 1995,
-              birth_month: 6,
-              birth_day: 15,
-              location: '서울',
-              interests: '음악',
-              contact_private: false,
-              kakao_id: null,
-              instagram_id: null,
-              phone_number: null,
-              pin_code: String(1000 + Math.floor(Math.random() * 9000)),
-              _device_secret: deviceSecret,
+              ...profilePayload({
+                id: userId,
+                secret: deviceSecret,
+                persona,
+                overrides: {
+                  photo_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(persona.nickname)}`,
+                  pin_code: String(1000 + Math.floor(Math.random() * 9000)),
+                  contact_private: false,
+                  kakao_id: null,
+                  instagram_id: null,
+                  phone_number: null,
+                },
+              }),
             },
             conflictCols: [],
             selectAfterWrite: true,

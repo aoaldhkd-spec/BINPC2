@@ -26,6 +26,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, unlinkSync, writeF
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isOpFunctionsLocked } from './lib/functions-lock.mjs';
+import { createPersonaPair, profilePayload } from './lib/test-personas.mjs';
 
 const API = (process.env.API_BASE || 'https://binpc2.onrender.com/api/db').replace(/\/$/, '');
 const HOURS = Number(process.env.ENDURANCE_HOURS || 5);
@@ -318,17 +319,16 @@ async function setupUsers() {
   const idB = crypto.randomUUID();
   const secA = crypto.randomUUID();
   const secB = crypto.randomUUID();
-  const nickA = `enA_${RUN_ID.slice(-6)}`;
-  const nickB = `enB_${RUN_ID.slice(-6)}`;
+  const [personaA, personaB] = createPersonaPair();
   const jarA = new Map();
   const jarB = new Map();
 
-  for (const [jar, id, nick, sec] of [[jarA, idA, nickA, secA], [jarB, idB, nickB, secB]]) {
+  for (const [jar, id, persona, sec] of [[jarA, idA, personaA, secA], [jarB, idB, personaB, secB]]) {
     const r = await op(jar, null, {
       op: 'insert', table: 'profiles', single: true, selectAfterWrite: true,
-      payload: { id, nickname: nick, bio: 'endurance', photo_url: null, personality_score: 50, _device_secret: sec },
+      payload: profilePayload({ id, secret: sec, persona }),
     });
-    if (r.status !== 200 || !r.json.data?.id) throw new Error(`register ${nick} ${r.status}`);
+    if (r.status !== 200 || !r.json.data?.id) throw new Error(`register ${persona.nickname} ${r.status}`);
   }
 
   const loginA = await login(jarA, idA, secA);

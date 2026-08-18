@@ -3,6 +3,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
+import { createTestPersona, profilePayload } from '../../scripts/lib/test-personas.mjs';
 
 export function createLoadClient(baseUrl = process.env.LOADTEST_BASE || 'http://localhost:8080/api/db') {
   const BASE = baseUrl.replace(/\/$/, '');
@@ -36,30 +37,27 @@ export function createLoadClient(baseUrl = process.env.LOADTEST_BASE || 'http://
   }
 
   /** Register profile + login; returns VU handle for op(). */
-  async function registerVu(nickname, idx = 0) {
+  async function registerVu(nicknameHint, idx = 0) {
     const id = randomUUID();
     const deviceSecret = randomUUID();
+    const persona = createTestPersona({
+      index: idx,
+      ...(typeof nicknameHint === 'string' && !/^(부하|감사봇)/.test(nicknameHint)
+        ? { nickname: nicknameHint }
+        : {}),
+    });
     const reg = await req('POST', '/op', {
       op: 'insert',
       table: 'profiles',
       single: true,
       selectAfterWrite: true,
-      payload: {
-        id,
-        nickname,
-        created_at: new Date().toISOString(),
-        personality_score: 50,
-        birth_year: 1995 + (idx % 10),
-        birth_month: (idx % 12) + 1,
-        birth_day: (idx % 28) + 1,
-        _device_secret: deviceSecret,
-      },
+      payload: profilePayload({ id, secret: deviceSecret, persona }),
     });
     if (!reg.ok || !reg.json?.data?.id) return null;
     const sessionToken = await login(id, deviceSecret);
     if (!sessionToken) return null;
     const token = await sseToken(id, sessionToken);
-    return { id, deviceSecret, sessionToken, sseToken: token, nickname, pin_code: reg.json.data.pin_code };
+    return { id, deviceSecret, sessionToken, sseToken: token, nickname: persona.nickname, pin_code: reg.json.data.pin_code };
   }
 
   async function op(vu, body) {

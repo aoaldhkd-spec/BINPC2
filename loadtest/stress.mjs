@@ -28,7 +28,7 @@ async function phase1() {
   console.log(`\n━━━ Phase 1: ${VU_COUNT} VU register + login ━━━━━━━━━━━━━━━`);
   const t0 = performance.now();
   const results = await Promise.all(
-    Array.from({ length: VU_COUNT }, (_, i) => registerVu(`부하${i + 1}`, i)),
+    Array.from({ length: VU_COUNT }, (_, i) => registerVu(null, i)),
   );
   const vus = results.filter(Boolean);
   const lats = results.map(r => r ? 50 : 500);

@@ -4,7 +4,7 @@
  *
  * 실제 사용자 행동 흐름 기반 대규모 동시사용 검증 (테스트 전용 계정만 사용).
  *
- * 닉네임 prefix: lt_{runId}_…  → 운영 계정과 명확히 분리
+ * 닉네임: realistic Korean personas + numeric suffix (scripts/lib/test-personas.mjs)
  *
  * Usage:
  *   node scripts/sim-concurrent-users.mjs
@@ -19,6 +19,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import { createTestPersona, profilePayload, reserveNickname } from './lib/test-personas.mjs';
 
 const API = (process.env.API_BASE || 'https://binpc2.onrender.com/api/db').replace(/\/$/, '');
 const STAGES = String(process.env.STAGES || '10,30,50,100,150')
@@ -28,7 +29,6 @@ const STAGES = String(process.env.STAGES || '10,30,50,100,150')
 const HOLD_MS = Number(process.env.HOLD_MS || 8000);
 const DO_CLEANUP = process.env.CLEANUP === '1';
 const RUN_ID = randomUUID().slice(0, 8);
-const NICK_PREFIX = `lt_${RUN_ID}_`;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const pct = (arr, p) => {
@@ -186,18 +186,20 @@ function openSse(userId, token, m) {
 
 async function registerUser(i, m, stageN) {
   const secret = randomUUID();
-  // 스테이지·재실행 간 닉네임 충돌 완전 차단
-  const nick = `${NICK_PREFIX}s${stageN}_${String(i).padStart(3, '0')}_${randomUUID().slice(0, 6)}`;
+  const persona = createTestPersona({ index: stageN * 1000 + i });
   for (let attempt = 0; attempt < 4; attempt++) {
     const id = randomUUID();
+    const nickname = attempt === 0
+      ? persona.nickname
+      : reserveNickname({ index: stageN * 1000 + i + attempt * 5000 });
     const r = await api('/op', {
       body: {
         op: 'insert', table: 'profiles', single: true, selectAfterWrite: true,
-        payload: {
-          id, nickname: attempt === 0 ? nick : `${nick}_${attempt}`,
-          bio: 'loadtest', photo_url: null,
-          personality_score: 50, _device_secret: secret,
-        },
+        payload: profilePayload({
+          id,
+          secret,
+          persona: { ...persona, nickname },
+        }),
       },
     });
     m.latencies.register.push(r.ms);
@@ -216,7 +218,7 @@ async function registerUser(i, m, stageN) {
       return {
         id: r.json.data.id,
         secret,
-        nick: attempt === 0 ? nick : `${nick}_${attempt}`,
+        nick: nickname,
         pin: r.json.data.pin_code ? String(r.json.data.pin_code) : null,
         sessionToken: null,
         sseToken: null,
@@ -227,7 +229,7 @@ async function registerUser(i, m, stageN) {
     await sleep(150 * (attempt + 1));
   }
   m.httpOtherErr++;
-  m.errors.push(`register ${nick} exhausted retries`);
+  m.errors.push(`register ${persona.nickname} exhausted retries`);
   return null;
 }
 
@@ -710,8 +712,8 @@ async function main() {
   console.log(`\nSIM concurrent users`);
   console.log(`API=${API}`);
   console.log(`STAGES=${STAGES.join(',')}`);
-  console.log(`NICK_PREFIX=${NICK_PREFIX} (test-only)`);
-  console.log(`NOTE: uses Render API directly; does not touch admin/real nicknames\n`);
+  console.log(`RUN_ID=${RUN_ID} (test-only)`);
+  console.log(`NOTE: uses Render API directly; realistic persona nicknames via test-personas.mjs\n`);
 
   // health
   try {
