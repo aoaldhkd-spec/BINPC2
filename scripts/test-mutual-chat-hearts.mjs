@@ -75,9 +75,9 @@ async function registerAndLogin(index) {
   });
   if (reg.status !== 200 || !reg.json.data?.id) throw new Error(`register ${persona.nickname} failed`);
   const login = await api('/auth/login', { body: { userId: id, deviceSecret: secret } });
-  if (login.status !== 200 || !login.json.sessionToken) throw new Error(`login ${tag} ${login.status}`);
+  if (login.status !== 200 || !login.json.sessionToken) throw new Error(`login ${persona.nickname} ${login.status}`);
   const tok = await api('/auth/sse-token', { body: { userId: id, sessionToken: login.json.sessionToken } });
-  if (tok.status !== 200 || !tok.json.token) throw new Error(`sse-token ${tag}`);
+  if (tok.status !== 200 || !tok.json.token) throw new Error(`sse-token ${persona.nickname}`);
   return { id, nick: persona.nickname, persona, sessionToken: login.json.sessionToken, sseToken: tok.json.token };
 }
 
