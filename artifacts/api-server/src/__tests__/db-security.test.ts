@@ -821,7 +821,7 @@ describe('[Security] profiles / likes / storage', () => {
     expect(res.body.error?.code).toBe('FORBIDDEN');
   });
 
-  it('인증되지 않은 이미지 업로드와 조회를 차단한다', async () => {
+  it('인증되지 않은 이미지 업로드는 차단하고, 프로필 사진 조회는 공개한다', async () => {
     const upload = await request(app)
       .post('/api/db/storage-upload')
       .send({ path: 'profile-photos/anonymous', dataUrl: 'data:image/jpeg;base64,/9j/' });
@@ -829,7 +829,30 @@ describe('[Security] profiles / likes / storage', () => {
 
     const read = await request(app)
       .get('/api/db/storage-image?p=profile-photos%2Fanonymous');
-    expect(read.status).toBe(401);
+    expect(read.status).toBe(404);
+  });
+
+  it('storage-upload는 sessionToken만으로도 인증된다 (Netlify 쿠키 단절 대비)', async () => {
+    const ownerId = randomUUID();
+    await op({
+      op: 'insert',
+      table: 'profiles',
+      payload: { id: ownerId, nickname: `tok-${ownerId.slice(0, 8)}` },
+    });
+    const login = await request(app)
+      .post('/api/db/auth/login')
+      .set('Content-Type', 'application/json')
+      .send({ userId: ownerId, deviceSecret: `secret-${ownerId}` });
+    expect(login.status).toBe(200);
+    const sessionToken = login.body.sessionToken as string;
+    expect(sessionToken).toBeTruthy();
+
+    const path = `profile-photos/${ownerId}`;
+    const dataUrl = 'data:image/jpeg;base64,/9j/4AAQ';
+    const upload = await request(app)
+      .post('/api/db/storage-upload')
+      .send({ path, dataUrl, requesterId: ownerId, sessionToken });
+    expect(upload.status).toBe(200);
   });
 
   it('프로필 업로드 MIME과 magic bytes를 JPEG/PNG/WebP/GIF로 제한한다', async () => {

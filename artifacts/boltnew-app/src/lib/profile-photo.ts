@@ -148,18 +148,3 @@ export async function compressProfilePhoto(
   }
   return compressed;
 }
-
-/** Profile photo upload — must send session cookie (same as localdb apiFetch). */
-export async function uploadProfilePhotoDataUrl(path: string, dataUrl: string): Promise<void> {
-  const res = await fetch('/api/db/storage-upload', {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path, dataUrl }),
-  });
-  if (res.ok) return;
-  const body = await res.json().catch(() => ({} as { error?: string | { message?: string } }));
-  const err = body?.error;
-  const msg = typeof err === 'string' ? err : err?.message;
-  throw new Error(msg ?? `사진 업로드 실패 (${res.status})`);
-}

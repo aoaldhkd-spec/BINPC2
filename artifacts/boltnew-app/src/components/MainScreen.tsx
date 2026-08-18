@@ -33,7 +33,8 @@ import { TimerBanner } from './TimerBanner';
 import { RefreshBtn } from './RefreshBtn';
 
 import { AVATAR_CATEGORIES } from '../lib/avatar-catalog';
-import { compressProfilePhoto, PROFILE_PHOTO_ACCEPT, uploadProfilePhotoDataUrl, validateProfilePhotoFile } from '../lib/profile-photo';
+import { compressProfilePhoto, PROFILE_PHOTO_ACCEPT, validateProfilePhotoFile } from '../lib/profile-photo';
+import { uploadStorageDataUrl } from '../lib/localdb';
 import { IDEAL_TAG_GROUPS, FEATURE_TAG_GROUPS, encodeSignalMsg, SIGNAL_INBOX_EMPTY, SIGNAL_INBOX_LINE, SIGNAL_INBOX_TITLE } from '../lib/signal-match';
 import { ProfileCard } from './ProfileCard';
 import { ResetButton } from './ResetButton';
@@ -557,7 +558,7 @@ export function MainScreen({
     try {
       const compressed = await compressProfilePhoto(file);
       const path = `profile-photos/${currentUserId}`;
-      await uploadProfilePhotoDataUrl(path, compressed);
+      await uploadStorageDataUrl(path, compressed, currentUserId);
       const version = Date.now();
       const photoUrl = `/api/db/storage-image?p=${encodeURIComponent(path)}&t=${version}`;
       const { error } = await supabase.from('profiles').update({ photo_url: photoUrl } as never).eq('id', currentUserId);
@@ -565,6 +566,7 @@ export function MainScreen({
       setPhotoCacheBust(version);
       onUpdateProfile({ id: currentUserId, photo_url: photoUrl });
       onRefreshProfiles();
+      setProfileEditSection(null);
     } catch (error) {
       console.error('[MainScreen] 사진 업로드 실패:', error);
       alert(error instanceof Error ? error.message : '사진 업로드 중 오류가 발생했습니다. 다시 시도해 주세요.');

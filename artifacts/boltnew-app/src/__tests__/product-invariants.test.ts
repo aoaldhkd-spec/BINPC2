@@ -61,11 +61,14 @@ describe('product copy + notification invariants', () => {
     expect(guide).toContain('오른쪽 = 시그널 보내기');
   });
 
-  it('profile photo upload sends session cookie', () => {
+  it('profile photo upload uses sessionToken via localdb (Netlify cookie gap)', () => {
     const main = read('components/MainScreen.tsx');
-    const lib = read('lib/profile-photo.ts');
-    expect(main).toContain('uploadProfilePhotoDataUrl');
-    expect(lib).toMatch(/storage-upload[\s\S]*credentials:\s*'include'/);
+    const db = read('lib/localdb.ts');
+    const routes = read('../../api-server/src/routes/db.ts');
+    expect(main).toContain('uploadStorageDataUrl');
+    expect(db).toContain('uploadStorageDataUrl');
+    expect(db).toMatch(/storage-upload[\s\S]*sessionToken/);
+    expect(routes).toMatch(/resolveAuthUserId\(req, body\)/);
   });
 
   it('BottomNotification sits above ChatScreen', () => {

@@ -1056,8 +1056,8 @@ const mockStorage = {
             reader.onerror = () => reject(reader.error);
             reader.readAsDataURL(file);
           });
-          const result = await apiFetch('/storage-upload', { path, dataUrl }) as { data: { path: string } | null; error: { message: string } | null };
-          return result;
+          await uploadStorageDataUrl(path, dataUrl, _currentUserId ?? undefined);
+          return { data: { path }, error: null };
         } catch (e) {
           return { data: null, error: { message: String(e) } };
         }
@@ -1075,6 +1075,25 @@ const mockStorage = {
     };
   },
 };
+
+/** Netlify 프록시에서 connect.sid 쿠키가 끊겨도 sessionToken으로 storage 인증 ( /op 와 동일 ). */
+export async function uploadStorageDataUrl(
+  path: string,
+  dataUrl: string,
+  userId?: string | null,
+): Promise<void> {
+  const uid = userId ?? _currentUserId;
+  if (!uid) throw new Error('로그인 세션이 필요합니다.');
+  const result = await apiFetch('/storage-upload', {
+    path,
+    dataUrl,
+    requesterId: uid,
+    sessionToken: (_sessionReady && _sessionBearerToken) ? _sessionBearerToken : undefined,
+  }) as { data: { path: string } | null; error: { message: string } | null };
+  if (result.error) {
+    throw new Error(result.error.message ?? '사진 업로드 실패');
+  }
+}
 
 // ─── Public mock client ───────────────────────────────────────────────────────
 export const supabase: any = {

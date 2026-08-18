@@ -4802,12 +4802,13 @@ router.post('/storage-upload', async (req: Request, res: Response) => {
   if (req.body == null || typeof req.body !== 'object' || Array.isArray(req.body)) {
     return res.status(400).json({ data: null, error: 'Invalid request body' });
   }
-  const userId = req.session.userId;
+  const body = req.body as Record<string, unknown>;
+  const userId = resolveAuthUserId(req, body);
   if (!userId) {
     recordUploadRejected('unauthenticated');
     return res.status(401).json({ data: null, error: { message: 'Authentication required' } });
   }
-  const { path: imgPath, dataUrl } = req.body as { path?: string; dataUrl?: string };
+  const { path: imgPath, dataUrl } = body as { path?: string; dataUrl?: string };
   // ─ 경로 검증: 디렉터리 트래버설 / 임의 덮어쓰기 방지
   if (
     !imgPath || typeof imgPath !== 'string' ||
@@ -4887,8 +4888,11 @@ router.post('/storage-upload', async (req: Request, res: Response) => {
 // 메시지 저장 실패·채팅방 전환 시 방금 업로드한 고아 이미지를 정리합니다.
 router.post('/storage-remove', async (req: Request, res: Response) => {
   try {
-    const userId = req.session.userId;
-    const paths = (req.body as { paths?: unknown })?.paths;
+    const body = (req.body != null && typeof req.body === 'object' && !Array.isArray(req.body))
+      ? req.body as Record<string, unknown>
+      : {};
+    const userId = resolveAuthUserId(req, body);
+    const paths = body.paths;
     if (!userId) {
       return res.status(401).json({ data: null, error: { message: 'Authentication required' } });
     }
@@ -4919,9 +4923,14 @@ router.get('/storage-image', async (req: Request, res: Response): Promise<void> 
   const rawP = req.query.p;
   if (!rawP || typeof rawP !== 'string') { res.status(400).json({ error: 'Invalid path parameter' }); return; }
   const path = rawP;
-  const userId = req.session.userId;
+  const userId = (req.session as { userId?: string })?.userId ?? null;
   const adminToken = typeof req.query.adminToken === 'string' ? req.query.adminToken : null;
-  if (!verifyAdminToken(adminToken) && (!userId || !imageAccess.canRead(path, userId))) {
+  const isPublicProfilePhoto = /^profile-photos\/[\w-]+$/.test(path);
+  if (
+    !verifyAdminToken(adminToken) &&
+    !isPublicProfilePhoto &&
+    (!userId || !imageAccess.canRead(path, userId))
+  ) {
     res.status(userId ? 403 : 401).json({ error: 'Authentication required' });
     return;
   }
