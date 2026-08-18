@@ -153,6 +153,7 @@ export function useChat({
   useEffect(() => {
     messageCacheRef.current.clear();
     deletedMessageIdsRef.current.clear();
+    seenUnreadMsgIdsRef.current.clear();
   }, [currentUserId]);
 
   // ── 단일 통합 SSE 채널: messages + chats 처리 ────────────────────────────────
@@ -352,7 +353,17 @@ export function useChat({
       data: { roomId: cid, requestVersion: gen, count: idsAtRequestStart.size },
     });
     try {
-      const { data, error } = await supabase.from('messages').select('*').eq('chat_id', cid).order('created_at', { ascending: true });
+      const queryIds = [...new Set([
+        cid,
+        ...roomChatIdsRef.current,
+        ...[...siblingToCanonicalRef.current.entries()]
+          .filter(([alias, canon]) => alias === cid || canon === cid)
+          .flatMap(([alias, canon]) => [alias, canon]),
+      ].filter(Boolean))];
+      const q = queryIds.length <= 1
+        ? supabase.from('messages').select('*').eq('chat_id', cid)
+        : supabase.from('messages').select('*').in('chat_id', queryIds);
+      const { data, error } = await q.order('created_at', { ascending: true });
       if (gen !== loadGenRef.current) {
         diag('debug', 'chat', 'fetch-stale-discard', {
           corr: `room:${cid}:${gen}`,
@@ -811,6 +822,11 @@ export function useChat({
   const pendingQueueRef = useRef<PendingMsg[]>(_loadPendingQueue());
   const isFlushingRef = useRef(false);
 
+  useEffect(() => {
+    pendingQueueRef.current = pendingQueueRef.current.filter(q => !currentUserId || q.userId === currentUserId);
+    _savePendingQueue(pendingQueueRef.current);
+  }, [currentUserId]);
+
   const flushPendingQueue = useCallback(async () => {
     if (isFlushingRef.current || pendingQueueRef.current.length === 0) return;
     isFlushingRef.current = true;
@@ -1110,8 +1126,11 @@ export function useChat({
   const deleteMessage = async (msgId: string) => {
     try {
       const { error } = await supabase.from('messages').delete().eq('id', msgId);
-      if (!error) setMessages(prev => prev.filter(m => m.id !== msgId));
-      else console.warn('[useChat] deleteMessage 오류:', error.message);
+      if (!error) {
+        deletedMessageIdsRef.current.add(msgId);
+        removeCachedMessage(msgId);
+        setMessages(prev => prev.filter(m => m.id !== msgId));
+      } else console.warn('[useChat] deleteMessage 오류:', error.message);
     } catch (ex) {
       console.error('[useChat] deleteMessage 네트워크 오류:', ex);
     }

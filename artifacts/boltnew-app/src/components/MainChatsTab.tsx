@@ -305,7 +305,7 @@ export function MainChatsTab({
         <div className="flex items-center gap-2">
           {chatList.length > 0 && (
             <button
-              onClick={onDeleteAllChats}
+              onClick={() => { if (guardLockedAction()) return; onDeleteAllChats(); }}
               className="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-500 text-[11px] font-bold rounded-lg border border-red-200 transition-all active:scale-95"
             >전체 삭제</button>
           )}
@@ -355,7 +355,7 @@ export function MainChatsTab({
                   </span>
                 )}
                 <button
-                  onClick={() => onDeleteChat(chat)}
+                  onClick={() => { if (guardLockedAction()) return; onDeleteChat(chat); }}
                   className="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-500 text-xs font-bold rounded-xl border border-red-200 transition-all"
                 >삭제</button>
               </div>

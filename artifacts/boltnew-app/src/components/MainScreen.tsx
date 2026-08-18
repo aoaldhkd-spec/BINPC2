@@ -229,6 +229,17 @@ export function MainScreen({
   // Hearts: do NOT auto-baseline. seen=0 (no localStorage / never opened 내 상태) must
   // keep showing MY(n) for unread hearts already present on login.
   const baselineSetRef = useRef(false);
+
+  // 계정 전환 시 localStorage 키가 바뀌므로 seen 카운트를 다시 로드
+  useEffect(() => {
+    const hv = ls.getItem(heartsKey);
+    setSeenHeartsCountRaw(hv !== null ? parseInt(hv, 10) : 0);
+    const pv = ls.getItem(profilesKey);
+    setSeenProfilesCountRaw(pv !== null ? parseInt(pv, 10) : -1);
+    const cv = ls.getItem(contactsKey);
+    setSeenContactsCountRaw(cv !== null ? parseInt(cv, 10) : 0);
+    baselineSetRef.current = false;
+  }, [currentUserId, heartsKey, contactsKey, profilesKey]);
   useEffect(() => {
     if (baselineSetRef.current) return;
     // 데이터가 아직 하나도 로드되지 않은 초기 상태면 대기 (빈 값으로 baseline 설정 방지)

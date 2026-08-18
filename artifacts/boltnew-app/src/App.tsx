@@ -173,6 +173,8 @@ function App() {
     if (ls.getItem(MATCHING_USER_KEY)) return 'loading-main';
     return 'entry-1';
   });
+  const viewRef = useRef(view);
+  viewRef.current = view;
   /** 프로필 부트스트랩: checking=검증 중, ok=완료, recover=복구번호 필요, register=신규 등록 필요 */
   const [profileBoot, setProfileBoot] = useState<'checking' | 'ok' | 'recover' | 'register'>(
     () => (ls.getItem(MATCHING_USER_KEY) ? 'checking' : 'register'),
@@ -1142,7 +1144,8 @@ function App() {
           }
           if (me && isCompleteProfile(me)) {
             setProfileBoot('ok');
-            if (view !== 'chat' && view !== 'profile' && view !== 'group-chat') setView('main');
+            const v = viewRef.current;
+            if (v !== 'chat' && v !== 'profile' && v !== 'group-chat') setView('main');
             return;
           }
           if (retry.length > 0 && !me) {
@@ -1158,7 +1161,8 @@ function App() {
       }
       if (isCompleteProfile(me)) {
         setProfileBoot('ok');
-        if (view !== 'chat' && view !== 'profile' && view !== 'group-chat' && view !== 'loading-main') {
+        const v = viewRef.current;
+        if (v !== 'chat' && v !== 'profile' && v !== 'group-chat' && v !== 'loading-main') {
           setView('main');
         }
       } else {

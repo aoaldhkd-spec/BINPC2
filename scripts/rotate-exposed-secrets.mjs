@@ -133,6 +133,15 @@ async function waitForRenderLive(serviceId, timeoutMs = 600_000) {
   throw new Error('Render deploy timed out');
 }
 
+async function rpc(name, args) {
+  const res = await fetch(`${API_PUBLIC_URL}/api/db/rpc/${name}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(args),
+  });
+  return { status: res.status, json: await res.json().catch(() => ({})) };
+}
+
 async function verifyDb() {
   for (let i = 0; i < 12; i++) {
     const res = await fetch(`${API_PUBLIC_URL}/api/healthz`);

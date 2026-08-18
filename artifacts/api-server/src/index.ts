@@ -2,7 +2,7 @@ import './lib/dns-ipv4-first.js';
 import app from "./app";
 import { logger } from "./lib/logger";
 import { pgPool } from "./lib/pg-pool.js";
-import { gracefulShutdown } from "./routes/db";
+import { gracefulShutdown, prepareForShutdown } from "./routes/db";
 
 // ── 전역 비동기 예외 처리 — 서버 프로세스 다운 방지 ─────────────────────────
 process.on('unhandledRejection', (reason) => {
@@ -44,6 +44,7 @@ const server = app.listen(port, (err) => {
 // DB 커넥션·LISTEN 클라이언트·SSE 소켓이 강제 종료되지 않도록 순서대로 정리
 async function shutdown(signal: string) {
   logger.info({ signal }, 'Graceful shutdown initiated');
+  try { await prepareForShutdown(); } catch (e) { logger.error({ err: e }, 'Error during pre-shutdown flush'); }
   // 1) 새 HTTP 연결 차단
   server.close(() => logger.info('HTTP server closed'));
   // 2) DB 커넥션 풀·LISTEN 클라이언트 정리

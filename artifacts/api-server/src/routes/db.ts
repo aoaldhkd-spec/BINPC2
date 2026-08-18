@@ -444,17 +444,11 @@ function broadcastShutdownToAllSseClients(): Promise<void> {
   ]);
 }
 
-// Flush on graceful shutdown so the final counter value is never lost
-process.once('SIGTERM', () => {
-  broadcastShutdownToAllSseClients()
-    .then(() => flushErrorStateToDB())
-    .finally(() => process.exit(0));
-});
-process.once('SIGINT',  () => {
-  broadcastShutdownToAllSseClients()
-    .then(() => flushErrorStateToDB())
-    .finally(() => process.exit(0));
-});
+/** index.ts SIGTERM/SIGINT — SSE shutdown 알림 + 에러 카운터 flush */
+export async function prepareForShutdown(): Promise<void> {
+  await broadcastShutdownToAllSseClients();
+  await flushErrorStateToDB();
+}
 
 // SSE clients — userId별 연결 관리 (보안: 민감 이벤트는 당사자에게만 전송)
 const sseUserMap = new Map<string, Set<Response>>();   // userId → 연결 집합
@@ -625,13 +619,18 @@ function startIntegrityDiagnostics(): void {
 
 /** 채팅 쌍 생성 직렬화 — 인스턴스 간 race 를 PG advisory lock 으로 차단 */
 async function withChatPairLock<T>(pairKey: string, fn: () => Promise<T>): Promise<T> {
-  const { rows } = await pool.query<{ h: number }>('SELECT hashtext($1)::int AS h', [pairKey]);
-  const lockId = rows[0]?.h ?? 0;
-  await pool.query('SELECT pg_advisory_lock($1)', [lockId]);
+  const client = await pool.connect();
   try {
-    return await fn();
+    const { rows } = await client.query<{ h: number }>('SELECT hashtext($1)::int AS h', [pairKey]);
+    const lockId = rows[0]?.h ?? 0;
+    await client.query('SELECT pg_advisory_lock($1)', [lockId]);
+    try {
+      return await fn();
+    } finally {
+      await client.query('SELECT pg_advisory_unlock($1)', [lockId]).catch(() => {});
+    }
   } finally {
-    await pool.query('SELECT pg_advisory_unlock($1)', [lockId]).catch(() => {});
+    client.release();
   }
 }
 
@@ -887,6 +886,7 @@ async function dbDeleteRows(tableName: string, rowIds: string[]): Promise<void> 
     );
   } catch (e) {
     logger.error({ err: e, tableName, count: rowIds.length }, '[db] dbDeleteRows (batch) failed');
+    throw e;
   }
 }
 
@@ -1759,7 +1759,7 @@ async function deleteRetiredAgeRoom(g: Record<string, unknown>): Promise<void> {
 function ageBandFromYear(year: unknown): string | null {
   const y = Number(year);
   if (!Number.isFinite(y) || y < 1900 || y > 2100) return null;
-  const age = 2026 - y;
+  const age = new Date().getFullYear() - y;
   if (age < 20) return null;
   if (age < 30) return '20대';
   return '30대';
@@ -5339,9 +5339,10 @@ router.post('/by-pin', (req: Request, res: Response) => {
     return res.json({ data: null, error: { message: '닉네임이 일치하지 않습니다. 본인 닉네임을 정확히 입력해주세요.' } });
   }
 
-  // 성공 — rate limit 리셋
-  _pinAttempts.delete(ip);
-  return res.json({ data: found, error: null });
+  // 성공 — rate limit 리셋 (버킷 키는 consumePinBucket 과 동일)
+  _pinAttempts.delete(`ip:${ip}`);
+  _pinAttempts.delete(`pin:${pin}`);
+  return res.json({ data: { id: found['id'] }, error: null });
   } catch (e) {
     logger.error({ err: e }, '[by-pin] Unexpected error');
     return res.status(500).json({ data: null, error: { message: '서버 내부 오류가 발생했습니다.' } });

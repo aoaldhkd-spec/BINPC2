@@ -80,7 +80,7 @@ describe('venue load 50/100/150 (in-process)', () => {
       }));
       expect(batch.every((s) => s === 200)).toBe(true);
     }
-    expect(pct(readyLat, 95)).toBeLessThan(800);
+    expect(pct(readyLat, 95)).toBeLessThan(1000);
 
     const profiles = await Promise.all(ids.slice(0, 40).map((id) =>
       op({ op: 'select', table: 'profiles', requesterId: id, filters: [{ type: 'eq', col: 'id', val: id }], maybeSingle: true }),

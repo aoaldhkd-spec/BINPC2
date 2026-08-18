@@ -10,7 +10,7 @@
 import type { Message } from '../types/app';
 
 function sortMessages(messages: Message[]): Message[] {
-  return messages.sort((a, b) => {
+  return [...messages].sort((a, b) => {
     const at = new Date(a.created_at).getTime();
     const bt = new Date(b.created_at).getTime();
     if (!Number.isFinite(at) && !Number.isFinite(bt)) return 0;
