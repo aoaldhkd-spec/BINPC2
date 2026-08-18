@@ -148,4 +148,23 @@ for (const f of files) {
 }
 for (const [d, c] of Object.entries(byDir).sort()) console.log(`  ${d}: ${c} files`);
 
+// 장시간 soak — SSE 1h TTL 만료로 401 나지 않도록 선제 갱신 필수 (재발방지)
+const endurancePath = resolve(ROOT, 'scripts/endurance-5h.mjs');
+try {
+  const enduranceSrc = readFileSync(endurancePath, 'utf8');
+  const enduranceGuards = [
+    ['endurance_sse_expires_at', /expiresAt/],
+    ['endurance_sse_proactive_refresh', /SSE_TOKEN_REFRESH_LEAD_SEC|sseNeedsRefresh/],
+    ['endurance_sse_401_retry', /openSseWithRetry|401/],
+  ];
+  for (const [id, re] of enduranceGuards) {
+    if (!re.test(enduranceSrc)) {
+      const f = { rel: 'scripts/endurance-5h.mjs', line: 1, id, sev: 'error', text: `missing ${id}` };
+      allFindings.push(f);
+      errors.push(f);
+      console.log(`  ${f.rel}:${f.line} [${f.id}] ${f.text}`);
+    }
+  }
+} catch { /* ignore */ }
+
 process.exit(errors.length ? 1 : 0);

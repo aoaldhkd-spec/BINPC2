@@ -25,6 +25,10 @@ const METRICS = resolve(process.env.ENDURANCE_METRICS_FILE
   || `scripts/.soak-results/${RUN_ID}.jsonl`);
 const DURATION_MS = HOURS * 60 * 60 * 1000;
 
+// 앱 localdb.ts 와 동일 — 1h TTL, 80% 지점(720s 남을 때) 선제 갱신
+const SSE_TOKEN_TTL_SEC = 3600;
+const SSE_TOKEN_REFRESH_LEAD_SEC = Math.floor(SSE_TOKEN_TTL_SEC * 0.2);
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function log(event) {
@@ -76,7 +80,7 @@ async function login(jar, userId, deviceSecret) {
   return { status: res.status, json };
 }
 
-async function sseToken(jar, sessionToken, userId) {
+async function fetchSseToken(jar, sessionToken, userId) {
   const res = await fetch(`${API}/auth/sse-token`, {
     method: 'POST',
     headers: {
@@ -87,16 +91,27 @@ async function sseToken(jar, sessionToken, userId) {
     signal: AbortSignal.timeout(30_000),
   });
   const json = await res.json().catch(() => ({}));
-  return json.token ?? json.sseToken ?? null;
+  const token = json.token ?? json.sseToken ?? null;
+  const expiresAt = json.expiresAt
+    ?? (token && token.includes(':') ? parseInt(token.split(':')[0], 10) : 0)
+    ?? (Math.floor(Date.now() / 1000) + SSE_TOKEN_TTL_SEC);
+  return { status: res.status, token, expiresAt, json };
 }
 
-function openSse(userId, token) {
-  const url = `${API}/events?userId=${encodeURIComponent(userId)}&token=${encodeURIComponent(token)}`;
+/** SSE 연결 — 401 시 on401Refresh 한 번 호출 후 재시도 */
+function openSse(userId, token, on401Refresh) {
   const events = [];
   let buffer = '';
   const ac = new AbortController();
-  const done = (async () => {
+
+  const readLoop = async (tok, canRetry) => {
+    const url = `${API}/events?userId=${encodeURIComponent(userId)}&token=${encodeURIComponent(tok)}`;
     const res = await fetch(url, { headers: { Accept: 'text/event-stream' }, signal: ac.signal });
+    if (res.status === 401 && canRetry && on401Refresh) {
+      const fresh = await on401Refresh();
+      if (fresh?.token) return readLoop(fresh.token, false);
+      throw new Error('SSE HTTP 401 after token refresh');
+    }
     if (!res.ok || !res.body) throw new Error(`SSE HTTP ${res.status}`);
     const reader = res.body.getReader();
     const dec = new TextDecoder();
@@ -112,7 +127,10 @@ function openSse(userId, token) {
         try { events.push(JSON.parse(dataLine.slice(5).trim())); } catch { /* ping */ }
       }
     }
-  })();
+  };
+
+  const done = readLoop(token, true);
+
   return {
     events,
     stop: () => ac.abort(),
@@ -126,6 +144,91 @@ function openSse(userId, token) {
       return null;
     },
     done,
+  };
+}
+
+/** 장시간 SSE — expiresAt 추적, 80% TTL 선제 갱신, 갱신 시 스트림 재연결 */
+function createSseSession(ctx, userKey) {
+  let stream = null;
+  let refreshTimer = null;
+  let token = null;
+  let expiresAt = 0;
+
+  const jar = () => (userKey === 'A' ? ctx.jarA : ctx.jarB);
+  const id = () => (userKey === 'A' ? ctx.idA : ctx.idB);
+  const secret = () => (userKey === 'A' ? ctx.secA : ctx.secB);
+  const getSession = () => (userKey === 'A' ? ctx.tokenA : ctx.tokenB);
+  const setSession = (t) => { if (userKey === 'A') ctx.tokenA = t; else ctx.tokenB = t; };
+  const setSse = (t, exp) => {
+    token = t;
+    expiresAt = exp;
+    if (userKey === 'A') { ctx.sseTokA = t; ctx.sseExpA = exp; }
+    else { ctx.sseTokB = t; ctx.sseExpB = exp; }
+  };
+
+  function clearRefreshTimer() {
+    if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
+  }
+
+  function scheduleProactiveRefresh() {
+    clearRefreshTimer();
+    if (!expiresAt) return;
+    const refreshInMs = (expiresAt - Math.floor(Date.now() / 1000) - SSE_TOKEN_REFRESH_LEAD_SEC) * 1000;
+    const delay = Math.max(refreshInMs, 1_000);
+    refreshTimer = setTimeout(() => { void refreshAndReconnect('proactive-80pct'); }, delay);
+    log({
+      type: 'sse-schedule',
+      user: userKey,
+      refreshInSec: Math.round(delay / 1000),
+      expiresAt,
+    });
+  }
+
+  async function fetchFreshToken() {
+    let sessionToken = getSession();
+    let r = await fetchSseToken(jar(), sessionToken, id());
+    if (!r.token) {
+      const lg = await login(jar(), id(), secret());
+      sessionToken = lg.json.sessionToken;
+      if (!sessionToken) throw new Error(`session refresh ${userKey}`);
+      setSession(sessionToken);
+      r = await fetchSseToken(jar(), sessionToken, id());
+    }
+    if (!r.token || !r.expiresAt) throw new Error(`sse token refresh ${userKey}`);
+    setSse(r.token, r.expiresAt);
+    return r;
+  }
+
+  async function refreshAndReconnect(reason) {
+    clearRefreshTimer();
+    if (stream) {
+      stream.stop();
+      stream.done.catch(() => {});
+      stream = null;
+    }
+    const r = await fetchFreshToken();
+    log({ type: 'sse-refresh', user: userKey, reason, expiresAt: r.expiresAt });
+    stream = openSse(id(), r.token, () => fetchFreshToken());
+    scheduleProactiveRefresh();
+    return stream;
+  }
+
+  return {
+    async start() {
+      await refreshAndReconnect('initial');
+      await sleep(600);
+      return stream;
+    },
+    getStream: () => stream,
+    getToken: () => token,
+    stop() {
+      clearRefreshTimer();
+      if (stream) {
+        stream.stop();
+        stream.done.catch(() => {});
+        stream = null;
+      }
+    },
   };
 }
 
@@ -164,9 +267,9 @@ async function setupUsers() {
   const tokenB = loginB.json.sessionToken;
   if (!tokenA || !tokenB) throw new Error('sessionToken missing');
 
-  const sseTokA = await sseToken(jarA, tokenA, idA);
-  const sseTokB = await sseToken(jarB, tokenB, idB);
-  if (!sseTokA || !sseTokB) throw new Error('sse token missing');
+  const tokA = await fetchSseToken(jarA, tokenA, idA);
+  const tokB = await fetchSseToken(jarB, tokenB, idB);
+  if (!tokA.token || !tokB.token) throw new Error('sse token missing');
 
   const u1 = idA < idB ? idA : idB;
   const u2 = idA < idB ? idB : idA;
@@ -177,16 +280,21 @@ async function setupUsers() {
   const chatId = chatR.json.data?.id;
   if (!chatId) throw new Error('chat create failed');
 
-  return { idA, idB, jarA, jarB, tokenA, tokenB, sseTokA, sseTokB, chatId };
+  return {
+    idA, idB, secA, secB, jarA, jarB, tokenA, tokenB,
+    sseTokA: tokA.token, sseTokB: tokB.token,
+    sseExpA: tokA.expiresAt, sseExpB: tokB.expiresAt,
+    chatId,
+  };
 }
 
-async function runCycle(ctx, cycle) {
-  const { idA, idB, jarA, jarB, tokenA, tokenB, sseTokB, chatId } = ctx;
+async function runCycle(ctx, cycle, sseB) {
+  const { idA, idB, jarA, jarB, tokenA, tokenB, chatId } = ctx;
   const msgBody = `end-${RUN_ID}-c${cycle}-${Date.now()}`;
   const fails = [];
 
-  const streamB = openSse(idB, sseTokB);
-  await sleep(600);
+  const streamB = sseB.getStream();
+  if (!streamB) fails.push('SSE stream B not connected');
 
   const msgR = await op(jarA, tokenA, {
     op: 'insert', table: 'messages', requesterId: idA, single: true, selectAfterWrite: true,
@@ -194,9 +302,11 @@ async function runCycle(ctx, cycle) {
   });
   if (msgR.status !== 200 || !msgR.json.data?.id) fails.push(`msg insert ${msgR.status}`);
 
-  const msgEvt = await streamB.waitFor(
-    (e) => e.type === 'change' && e.table === 'messages' && e.event === 'INSERT' && e.newRow?.content === msgBody,
-  );
+  const msgEvt = streamB
+    ? await streamB.waitFor(
+      (e) => e.type === 'change' && e.table === 'messages' && e.event === 'INSERT' && e.newRow?.content === msgBody,
+    )
+    : null;
   if (!msgEvt) fails.push('msg SSE miss');
 
   const selR = await op(jarB, tokenB, {
@@ -206,48 +316,62 @@ async function runCycle(ctx, cycle) {
   const msgs = Array.isArray(selR.json.data) ? selR.json.data : [];
   if (!msgs.some((m) => m.content === msgBody)) fails.push('msg DB miss');
 
-  streamB.stop();
-  streamB.done.catch(() => {});
-
   const ok = fails.length === 0;
-  log({ type: 'cycle', cycle, ok, fails, msgCount: msgs.length, elapsedMs: Date.now() - ctx.startedAt });
+  log({
+    type: 'cycle',
+    cycle,
+    ok,
+    fails,
+    msgCount: msgs.length,
+    sseExpB: ctx.sseExpB,
+    elapsedMs: Date.now() - ctx.startedAt,
+  });
   return ok;
 }
 
 async function main() {
   console.log(`Endurance: ${HOURS}h, interval ${INTERVAL_MS}ms, API ${API}`);
   console.log(`Metrics: ${METRICS}`);
+  console.log(`SSE proactive refresh at 80% TTL (${SSE_TOKEN_REFRESH_LEAD_SEC}s lead)`);
   await checkFunctionsUnlocked();
 
   const ctx = await setupUsers();
   ctx.startedAt = Date.now();
-  log({ type: 'start', hours: HOURS, intervalMs: INTERVAL_MS });
+  log({ type: 'start', hours: HOURS, intervalMs: INTERVAL_MS, sseExpB: ctx.sseExpB });
+
+  const sseB = createSseSession(ctx, 'B');
+  await sseB.start();
 
   const deadline = Date.now() + DURATION_MS;
   let cycle = 0;
   let failStreak = 0;
 
-  while (Date.now() < deadline) {
-    cycle += 1;
-    const ok = await runCycle(ctx, cycle);
-    if (!ok) {
-      failStreak += 1;
-      if (failStreak >= 3) {
-        log({ type: 'abort', ok: false, msg: '3 consecutive cycle failures' });
-        process.exit(1);
+  try {
+    while (Date.now() < deadline) {
+      cycle += 1;
+      const ok = await runCycle(ctx, cycle, sseB);
+      if (!ok) {
+        failStreak += 1;
+        if (failStreak >= 3) {
+          log({ type: 'abort', ok: false, msg: '3 consecutive cycle failures' });
+          process.exit(1);
+        }
+      } else {
+        failStreak = 0;
       }
-    } else {
-      failStreak = 0;
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) break;
+      await sleep(Math.min(INTERVAL_MS, remaining));
     }
-    const remaining = deadline - Date.now();
-    if (remaining <= 0) break;
-    await sleep(Math.min(INTERVAL_MS, remaining));
-  }
 
-  log({ type: 'done', ok: true, cycles: cycle, elapsedMs: Date.now() - ctx.startedAt, msg: `${HOURS}h endurance passed` });
+    log({ type: 'done', ok: true, cycles: cycle, elapsedMs: Date.now() - ctx.startedAt, msg: `${HOURS}h endurance passed` });
+  } finally {
+    sseB.stop();
+  }
 }
 
 main().catch((e) => {
+  console.error(e);
   log({ type: 'fatal', ok: false, msg: e instanceof Error ? e.message : String(e) });
   process.exit(1);
 });
