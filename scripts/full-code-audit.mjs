@@ -23,6 +23,27 @@ const MOBILE_BANNED = [
   { id: 'tabbar_toast_double_stack', re: /4\.5rem\+var\(--participant-tabbar/, sev: 'error' },
   { id: 'storage_upload_raw_fetch', re: /fetch\([^)]*['"]\/api\/db\/storage-upload/, sev: 'error' },
 ];
+/** Per-file recurrence bans (path suffix match) */
+const FILE_SCOPED_BANNED = [
+  {
+    fileSuffix: 'artifacts/boltnew-app/src/components/ProfileCard.tsx',
+    id: 'profile_card_heart_chat_min_h_11',
+    re: /min-h-11/,
+    sev: 'error',
+  },
+  {
+    fileSuffix: 'artifacts/boltnew-app/src/components/ProfileCard.tsx',
+    id: 'profile_card_marquee_menu_w8',
+    re: /\bw-8 h-8\b/,
+    sev: 'error',
+  },
+  {
+    fileSuffix: 'artifacts/boltnew-app/src/App.tsx',
+    id: 'signal_nudge_banner_import',
+    re: /SignalNudgeBanner/,
+    sev: 'error',
+  },
+];
 const BANNED_SKIP = /(?:__tests__|\.test\.(?:ts|tsx|mjs)$|longevity-guards|product-invariants|full-code-audit|verify-all-features)/;
 
 const PATTERNS = [
@@ -96,6 +117,11 @@ function auditFile(absPath) {
         }
       }
     }
+    for (const { fileSuffix, id, re, sev } of FILE_SCOPED_BANNED) {
+      if (rel === fileSuffix && re.test(line)) {
+        findings.push({ rel, line: n, id, sev, text: line.trim().slice(0, 120) });
+      }
+    }
   }
 
   for (const dup of checkDuplicateInterfaceKeys(content, rel)) {
@@ -156,6 +182,8 @@ try {
     ['endurance_sse_expires_at', /expiresAt/],
     ['endurance_sse_proactive_refresh', /SSE_TOKEN_REFRESH_LEAD_SEC|sseNeedsRefresh/],
     ['endurance_sse_401_retry', /openSseWithRetry|401/],
+    ['endurance_sse_ensure_connected', /ensureConnected/],
+    ['endurance_functions_locked_mid_run', /isOpFunctionsLocked|FUNCTIONS_LOCKED mid-run/],
   ];
   for (const [id, re] of enduranceGuards) {
     if (!re.test(enduranceSrc)) {
@@ -164,6 +192,108 @@ try {
       errors.push(f);
       console.log(`  ${f.rel}:${f.line} [${f.id}] ${f.text}`);
     }
+  }
+} catch { /* ignore */ }
+
+// 2-user realtime — HTTP는 Netlify, SSE는 Render 직접 (Netlify event-stream 버퍼링 재발방지)
+const realtimePath = resolve(ROOT, 'scripts/test-realtime-two-user.mjs');
+try {
+  const realtimeSrc = readFileSync(realtimePath, 'utf8');
+  const realtimeGuards = [
+    ['realtime_sse_origin_separate', /SSE_ORIGIN|SSE_API/],
+    ['realtime_sse_not_netlify_api', /`\$\{SSE_API\}\/events/],
+    ['realtime_sse_render_default', /binpc2\.onrender\.com/],
+  ];
+  for (const [id, re] of realtimeGuards) {
+    if (!re.test(realtimeSrc)) {
+      const f = { rel: 'scripts/test-realtime-two-user.mjs', line: 1, id, sev: 'error', text: `missing ${id}` };
+      allFindings.push(f);
+      errors.push(f);
+      console.log(`  ${f.rel}:${f.line} [${f.id}] ${f.text}`);
+    }
+  }
+  if (/\$\{API\}\/events/.test(realtimeSrc)) {
+    const f = {
+      rel: 'scripts/test-realtime-two-user.mjs',
+      line: 1,
+      id: 'realtime_sse_via_netlify_api',
+      sev: 'error',
+      text: 'SSE must not use ${API}/events (Netlify buffers event-stream)',
+    };
+    allFindings.push(f);
+    errors.push(f);
+    console.log(`  ${f.rel}:${f.line} [${f.id}] ${f.text}`);
+  }
+} catch { /* ignore */ }
+
+// localdb.ts — 80% TTL 선제 SSE 갱신 (1h 401 재발방지)
+const localdbPath = resolve(ROOT, 'artifacts/boltnew-app/src/lib/localdb.ts');
+try {
+  const localdbSrc = readFileSync(localdbPath, 'utf8');
+  const localdbGuards = [
+    ['localdb_sse_80pct_refresh', /80%|SSE_TOKEN_REFRESH_LEAD_SEC/],
+    ['localdb_sse_expired_close', /closeSse\('expired-token-close'\)/],
+    ['localdb_schedule_sse_refresh', /scheduleSseTokenRefresh/],
+  ];
+  for (const [id, re] of localdbGuards) {
+    if (!re.test(localdbSrc)) {
+      const f = { rel: 'artifacts/boltnew-app/src/lib/localdb.ts', line: 1, id, sev: 'error', text: `missing ${id}` };
+      allFindings.push(f);
+      errors.push(f);
+      console.log(`  ${f.rel}:${f.line} [${f.id}] ${f.text}`);
+    }
+  }
+} catch { /* ignore */ }
+
+// signal_sends push — 📡 not 💕 (하트·시그널 이모지 혼동 재발방지)
+const dbPath = resolve(ROOT, 'artifacts/api-server/src/routes/db.ts');
+try {
+  const dbSrc = readFileSync(dbPath, 'utf8');
+  const sigIdx = dbSrc.indexOf("table === 'signal_sends'");
+  if (sigIdx >= 0) {
+    const sigBlock = dbSrc.slice(sigIdx, sigIdx + 400);
+    if (sigBlock.includes('💕')) {
+      const f = {
+        rel: 'artifacts/api-server/src/routes/db.ts',
+        line: 1,
+        id: 'signal_push_uses_heart_emoji',
+        sev: 'error',
+        text: 'signal_sends push title must use 📡 not 💕',
+      };
+      allFindings.push(f);
+      errors.push(f);
+      console.log(`  ${f.rel}:${f.line} [${f.id}] ${f.text}`);
+    }
+    if (!sigBlock.includes('📡')) {
+      const f = {
+        rel: 'artifacts/api-server/src/routes/db.ts',
+        line: 1,
+        id: 'signal_push_missing_signal_emoji',
+        sev: 'error',
+        text: 'signal_sends push title must include 📡',
+      };
+      allFindings.push(f);
+      errors.push(f);
+      console.log(`  ${f.rel}:${f.line} [${f.id}] ${f.text}`);
+    }
+  }
+} catch { /* ignore */ }
+
+// functions-lock helper — endurance mid-run SKIP 공용
+const lockPath = resolve(ROOT, 'scripts/lib/functions-lock.mjs');
+try {
+  const lockSrc = readFileSync(lockPath, 'utf8');
+  if (!/isOpFunctionsLocked/.test(lockSrc)) {
+    const f = {
+      rel: 'scripts/lib/functions-lock.mjs',
+      line: 1,
+      id: 'functions_lock_op_helper',
+      sev: 'error',
+      text: 'missing isOpFunctionsLocked for mid-run SKIP',
+    };
+    allFindings.push(f);
+    errors.push(f);
+    console.log(`  ${f.rel}:${f.line} [${f.id}] ${f.text}`);
   }
 } catch { /* ignore */ }
 

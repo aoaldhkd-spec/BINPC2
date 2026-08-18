@@ -2712,7 +2712,7 @@ async function sendPushForEvent(
     recipientId = row.receiver_id as string;
     const sender = getTable('profiles').find(p => p.id === row.sender_id);
     const nick = (sender?.nickname as string) ?? '누군가';
-    payload = { title: `💕 ${nick}님`, body: '시그널을 보냈어요!', tag: `signal-${row.sender_id as string}`, url: '/' };
+    payload = { title: `📡 ${nick}님`, body: '시그널을 보냈어요!', tag: `signal-${row.sender_id as string}`, url: '/' };
   } else if (table === 'chats' && actorId) {
     const u1 = String(row.user1_id ?? '');
     const u2 = String(row.user2_id ?? '');

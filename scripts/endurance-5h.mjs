@@ -16,6 +16,7 @@
 import { appendFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isOpFunctionsLocked } from './lib/functions-lock.mjs';
 
 const API = (process.env.API_BASE || 'https://binpc2.onrender.com/api/db').replace(/\/$/, '');
 const HOURS = Number(process.env.ENDURANCE_HOURS || 5);
@@ -320,6 +321,10 @@ async function runCycle(ctx, cycle, sseB) {
     op: 'insert', table: 'messages', requesterId: idA, single: true, selectAfterWrite: true,
     payload: { chat_id: chatId, sender_id: idA, content: msgBody, client_id: crypto.randomUUID() },
   });
+  if (isOpFunctionsLocked(msgR)) {
+    log({ type: 'skip', ok: false, msg: 'FUNCTIONS_LOCKED mid-run — admin locked during soak (not a fail streak)' });
+    process.exit(2);
+  }
   if (msgR.status !== 200 || !msgR.json.data?.id) fails.push(`msg insert ${msgR.status}`);
 
   const msgEvt = streamB

@@ -117,6 +117,8 @@ describe('[Realtime] long-session stability', () => {
     expect(enduranceSrc).toMatch(/expiresAt/);
     expect(enduranceSrc).toMatch(/scheduleProactiveRefresh|proactive-80pct/);
     expect(enduranceSrc).toMatch(/401/);
+    expect(enduranceSrc).toMatch(/ensureConnected/);
+    expect(enduranceSrc).toMatch(/isOpFunctionsLocked|FUNCTIONS_LOCKED mid-run/);
   });
 
   it('source: token refresh lead is 20% of 1h TTL (proactive, not only after 401)', async () => {

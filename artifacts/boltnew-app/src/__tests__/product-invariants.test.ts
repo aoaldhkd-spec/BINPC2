@@ -197,6 +197,55 @@ describe('product copy + notification invariants', () => {
     expect(db).toContain('broadcastAll({ type: \'change\', table: \'app_settings\'');
   });
 
+  it('ProfileCard keeps compact heart/chat buttons (no min-h-11 bloat)', () => {
+    const card = read('components/ProfileCard.tsx');
+    expect(card).not.toMatch(/min-h-11/);
+    expect(card).not.toMatch(/\bw-8 h-8\b/);
+    expect(card).toMatch(/w-5 h-5/);
+    expect(card).toMatch(/py-0\.5/);
+  });
+
+  it('App must not re-add SignalNudgeBanner heart nudge overlay', () => {
+    const app = read('App.tsx');
+    expect(app).not.toContain('SignalNudgeBanner');
+  });
+
+  it('signal_sends push notification uses 📡 not 💕 (distinct from hearts)', () => {
+    const db = readFileSync(join(root, '../../api-server/src/routes/db.ts'), 'utf8');
+    const idx = db.indexOf("table === 'signal_sends'");
+    expect(idx).toBeGreaterThan(0);
+    const block = db.slice(idx, idx + 400);
+    expect(block).toContain('📡');
+    expect(block).not.toContain('💕');
+    const bottom = read('components/BottomNotification.tsx');
+    expect(bottom).toContain('SIGNAL_EMOJI');
+  });
+
+  it('realtime E2E script uses Render for SSE not Netlify proxy', () => {
+    const script = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), '../../../../scripts/test-realtime-two-user.mjs'),
+      'utf8',
+    );
+    expect(script).toMatch(/SSE_ORIGIN|SSE_API/);
+    expect(script).toMatch(/`\$\{SSE_API\}\/events/);
+    expect(script).not.toMatch(/\$\{API\}\/events/);
+    expect(script).toContain('binpc2.onrender.com');
+  });
+
+  it('endurance soak guards SSE idle drop and mid-run FUNCTIONS_LOCKED SKIP', () => {
+    const endurance = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), '../../../../scripts/endurance-5h.mjs'),
+      'utf8',
+    );
+    const lock = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), '../../../../scripts/lib/functions-lock.mjs'),
+      'utf8',
+    );
+    expect(endurance).toMatch(/ensureConnected/);
+    expect(endurance).toMatch(/isOpFunctionsLocked|FUNCTIONS_LOCKED mid-run/);
+    expect(lock).toContain('isOpFunctionsLocked');
+  });
+
   it('participant system Back uses History API and does not wrap AdminApp', () => {
     const app = read('App.tsx');
     const mainEntry = read('main.tsx');

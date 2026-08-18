@@ -5,3 +5,8 @@ export async function isFunctionsLocked(apiBase = 'https://binpc2.onrender.com/a
   const body = await res.json().catch(() => ({}));
   return body?.functions_locked === true || body?.settings?.functions_locked === true;
 }
+
+/** /op 응답이 mid-run FUNCTIONS_LOCKED 인지 (endurance·E2E 공용) */
+export function isOpFunctionsLocked({ status, json } = {}) {
+  return status === 403 && json?.error?.code === 'FUNCTIONS_LOCKED';
+}

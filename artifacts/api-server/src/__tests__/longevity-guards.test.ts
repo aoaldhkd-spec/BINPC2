@@ -81,4 +81,12 @@ describe('longevity recurrence guards (server)', () => {
     }
     expect(consumeRateLimit(map, brute.userKey, { now: 2, windowMs: 60_000, max: LOGIN_RATE_MAX })).toBe('limited');
   });
+
+  it('signal push title uses 📡 emoji not 💕', () => {
+    const sigIdx = dbTs.indexOf("table === 'signal_sends'");
+    expect(sigIdx).toBeGreaterThan(0);
+    const block = dbTs.slice(sigIdx, sigIdx + 400);
+    expect(block).toContain('📡');
+    expect(block).not.toContain('💕');
+  });
 });
