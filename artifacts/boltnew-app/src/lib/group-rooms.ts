@@ -1,4 +1,7 @@
 import type { GroupChat } from '../types/app';
+import { groupAgeDecadeBand as ageBandFromYear } from './korean-age';
+
+export { ageBandFromYear };
 
 /** 사람당 입장 가능한 단톡 수. 방 정원(인원) 제한이 아님. */
 export const MAX_GROUPS_PER_USER = 4;
@@ -298,16 +301,6 @@ export function formatAdminGroupRoomCounts(groups: readonly GroupLike[]): string
   const parts = [`목록 방 ${counts.catalog}`, `년생 방 ${counts.birthYear}`];
   if (counts.other > 0) parts.push(`기타 ${counts.other}`);
   return `전체 ${counts.total}개 방 · ${parts.join(' · ')}`;
-}
-
-export function ageBandFromYear(year: unknown): string | null {
-  const y = Number(year);
-  if (!Number.isFinite(y) || y < 1900 || y > 2100) return null;
-  // 프로필 표시(getKoreanAge)와 동일: 출생연도 기준 한국식 나이(연도 차 + 1)
-  const age = 2026 - y + 1;
-  if (age < 20) return null;
-  if (age < 30) return '20대';
-  return '30대';
 }
 
 export function isVisibleCatalogRoom(

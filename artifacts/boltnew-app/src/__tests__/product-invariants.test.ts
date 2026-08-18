@@ -324,3 +324,33 @@ describe('product copy + notification invariants', () => {
     expect(main).toContain("visitedTabsRef.current.has('chats')");
   });
 });
+
+describe('Korean age recurrence guard', () => {
+  it('나이 계산은 korean-age 모듈 한 곳(+1)을 쓰고 만 나이(연도 차만) 중복이 없다', () => {
+    const ageLib = read('lib/korean-age.ts');
+    const profile = read('lib/profile.ts');
+    const groupRooms = read('lib/group-rooms.ts');
+    const stats = read('lib/stats-ranking.ts');
+    const db = readFileSync(join(root, '../../api-server/src/routes/db.ts'), 'utf8');
+    const serverAge = readFileSync(join(root, '../../api-server/src/lib/korean-age.ts'), 'utf8');
+
+    expect(ageLib).toMatch(/\+\s*1/);
+    expect(ageLib).toContain('koreanAgeFromBirthYear');
+    expect(profile).toContain("from './korean-age'");
+    expect(groupRooms).toContain("from './korean-age'");
+    expect(stats).toContain("from './korean-age'");
+    expect(db).toContain('groupAgeDecadeBand');
+    expect(serverAge).toMatch(/\+\s*1/);
+
+    for (const [rel, src] of [
+      ['lib/profile.ts', profile],
+      ['lib/group-rooms.ts', groupRooms],
+      ['lib/stats-ranking.ts', stats],
+      ['api-server db.ts', db],
+    ] as const) {
+      expect(src, `${rel} must not inline intl age (year diff without +1)`).not.toMatch(
+        /getFullYear\(\)\s*-\s*\w+\s*;(?![\s\S]{0,40}\+\s*1)/,
+      );
+    }
+  });
+});

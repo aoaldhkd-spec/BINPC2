@@ -1984,6 +1984,45 @@ describe('[Security] group chats auto 2 + opt-in 2차', () => {
     expect(mine.some((g: { name?: string }) => String(g.name ?? '').includes('등산') || String(g.name ?? '').includes('영화'))).toBe(false);
   });
 
+  it('97년생(한국식 30세)은 30대 모임에 자동 입장한다', async () => {
+    const uid = `g-kage97-${randomUUID()}`;
+    const created = await op({
+      op: 'insert',
+      table: 'profiles',
+      payload: {
+        id: uid,
+        nickname: `k97-${uid.replace(/-/g, '').slice(0, 12)}`,
+        bio: '영화',
+        mbti: 'ENFP',
+        birth_year: 1997,
+      },
+      requesterId: uid,
+    });
+    expect(created.status).toBe(200);
+
+    const parts = await op({
+      op: 'select',
+      table: 'group_participants',
+      requesterId: uid,
+      filters: [{ type: 'eq', col: 'user_id', val: uid }],
+    });
+    expect(parts.status).toBe(200);
+    const rows = Array.isArray(parts.body.data) ? parts.body.data : (parts.body.data ? [parts.body.data] : []);
+    expect(rows).toHaveLength(2);
+
+    const groupIds = rows.map((r: { group_id: string }) => r.group_id);
+    const rooms = await op({
+      op: 'select',
+      table: 'group_chats',
+      requesterId: uid,
+    });
+    const mine = (Array.isArray(rooms.body.data) ? rooms.body.data : [])
+      .filter((g: { id: string }) => groupIds.includes(g.id));
+    expect(mine.some((g: { name?: string }) => String(g.name ?? '') === '30대 모임')).toBe(true);
+    expect(mine.some((g: { name?: string }) => String(g.name ?? '') === '1997년생 모임')).toBe(true);
+    expect(mine.some((g: { name?: string }) => String(g.name ?? '') === '20대 모임')).toBe(false);
+  });
+
   it('N대 모임은 시드되어 목록에 있고 관심사 이름 방은 자동 입장되지 않는다', async () => {
     const leftoverId = `legacy-photo-${randomUUID()}`;
     const leftover = await op({

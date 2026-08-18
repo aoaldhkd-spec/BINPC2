@@ -157,6 +157,25 @@ mustNotMatch('artifacts/boltnew-app/src/App.tsx', '14_no_signal_nudge_banner', [
 // 15. GitHub CI — test:unit + audit:code
 mustMatch('.github/workflows/verify.yml', '15_ci_unit_audit', [/pnpm run audit:code/, /test:unit/]);
 
+// 16. Korean age (+1) — centralized korean-age.ts, no intl age in profile/group/db
+mustMatch('artifacts/boltnew-app/src/lib/korean-age.ts', '16_korean_age_client', [
+  /koreanAgeFromBirthYear/,
+  /\+\s*1/,
+  /groupAgeDecadeBand/,
+]);
+mustMatch('artifacts/api-server/src/lib/korean-age.ts', '16_korean_age_server', [
+  /koreanAgeFromBirthYear/,
+  /\+\s*1/,
+  /groupAgeDecadeBand/,
+]);
+mustMatch('artifacts/boltnew-app/src/lib/profile.ts', '16_profile_uses_korean_age', [/from '\.\/korean-age'/]);
+mustMatch('artifacts/boltnew-app/src/lib/group-rooms.ts', '16_group_rooms_korean_age', [/from '\.\/korean-age'/]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '16_db_group_age', [/groupAgeDecadeBand/]);
+mustNotMatch('artifacts/boltnew-app/src/lib/group-rooms.ts', '16_no_hardcoded_2026_age', [/2026\s*-\s*y\s*\+\s*1/]);
+mustNotMatch('artifacts/api-server/src/routes/db.ts', '16_db_no_inline_age', [
+  /getFullYear\(\)\s*-\s*y\s*\+\s*1/,
+]);
+
 console.log('\n=== verify-recurrence-guards ===\n');
 for (const r of results) {
   console.log(`  ${r.ok ? 'OK' : 'FAIL'}  ${r.id}${r.detail && !r.ok ? ` — ${r.detail}` : ''}`);

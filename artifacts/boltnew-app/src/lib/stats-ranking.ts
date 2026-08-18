@@ -2,6 +2,9 @@ import { seoulDateKey, isAnyHeart } from './signal-match';
 import { ALL_BIO_TAGS } from './interests';
 import { MBTI_LIST, type HeartType } from './constants';
 import { getPositionLabel } from './profile';
+import { ageBandFromBirthYear, seoulCalendarYear } from './korean-age';
+
+export { seoulCalendarYear };
 
 export type PublicLikeRow = {
   id?: string;
@@ -127,17 +130,9 @@ export function extractCityLevel(location: string): string {
   return first;
 }
 
-export function seoulCalendarYear(now: Date = new Date()): number {
-  const y = Number(now.toLocaleString('en-US', { timeZone: 'Asia/Seoul', year: 'numeric' }));
-  return Number.isFinite(y) ? y : now.getFullYear();
-}
 
 export function ageBand(birthYear: number | null | undefined, now: Date = new Date()): string | null {
-  if (birthYear == null || !Number.isFinite(birthYear) || birthYear < 1900) return null;
-  const age = seoulCalendarYear(now) - birthYear + 1;
-  if (age < 0 || age > 120) return null;
-  const decade = Math.floor(age / 10) * 10;
-  return `${decade}대`;
+  return ageBandFromBirthYear(birthYear, now);
 }
 
 export function normalizeMbti(raw: string | null | undefined): string | null {

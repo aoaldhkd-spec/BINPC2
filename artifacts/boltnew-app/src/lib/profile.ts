@@ -63,11 +63,7 @@ export function getPositionStyle(score: number): { bg: string; text: string; bor
 }
 
 // ─── 나이 계산 ────────────────────────────────────────────────────────────────
-export function getKoreanAge(birthYear: number | null): string {
-  if (!birthYear) return '나이 미입력';
-  const age = new Date().getFullYear() - birthYear + 1;
-  return `${age}세`;
-}
+export { formatKoreanAge as getKoreanAge } from './korean-age';
 
 // ─── 아바타 SVG 생성 ─────────────────────────────────────────────────────────
 /** 닉네임 전체를 해시 — 첫 글자만 쓰면 한글 닉네임이 주황색에 몰림 */

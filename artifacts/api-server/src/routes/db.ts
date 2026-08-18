@@ -38,6 +38,7 @@ import {
   resetRateLimit,
 } from '../lib/db-rate-limit';
 import { mergeDbRowsIntoMemory, shouldBroadcastBulkResync } from '../lib/db-store-merge';
+import { groupAgeDecadeBand } from '../lib/korean-age.js';
 import {
   recordExpiredSseToken,
   recordMissingSseToken,
@@ -1754,13 +1755,7 @@ async function deleteRetiredAgeRoom(g: Record<string, unknown>): Promise<void> {
 }
 
 function ageBandFromYear(year: unknown): string | null {
-  const y = Number(year);
-  if (!Number.isFinite(y) || y < 1900 || y > 2100) return null;
-  // 프로필 한국식 나이와 동일: 출생연도 기준 연도 차 + 1
-  const age = new Date().getFullYear() - y + 1;
-  if (age < 20) return null;
-  if (age < 30) return '20대';
-  return '30대';
+  return groupAgeDecadeBand(year);
 }
 
 function canonicalAgeRoomId(ageBand: string): string {
