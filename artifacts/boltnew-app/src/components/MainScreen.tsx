@@ -1659,7 +1659,7 @@ export function MainScreen({
                     <button onClick={() => toggleSection('statusMsg')} className="w-full flex items-center gap-3 px-4 py-3 text-left">
                       <span className="text-xl flex-shrink-0">💬</span>
                       <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>오늘의 한마디</p>
+                        <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>오늘의한마디(전광판)</p>
                         <p className={`text-[11px] truncate ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{signalStatusMsg.trim() || '미설정'}</p>
                       </div>
                       <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${showStatusMsgEdit ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
