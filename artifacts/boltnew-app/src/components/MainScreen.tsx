@@ -1251,35 +1251,50 @@ export function MainScreen({
             </div>
           </div>
 
-          {statusQuickSheet && (
+          {statusQuickSheet && (() => {
+            const modalAccent = statusQuickSheet === 'received-signal'
+              ? {
+                  header: darkMode ? 'bg-rose-950/60 border-rose-500/30 text-rose-100' : 'bg-rose-50/90 border-rose-100 text-rose-800',
+                  shell: darkMode ? 'bg-slate-900 border border-rose-500/25 shadow-rose-500/10' : 'bg-white border border-rose-100 shadow-rose-100/50',
+                }
+              : statusQuickSheet === 'sent-signal'
+                ? {
+                    header: darkMode ? 'bg-violet-950/60 border-violet-500/30 text-violet-100' : 'bg-violet-50/90 border-violet-100 text-violet-800',
+                    shell: darkMode ? 'bg-slate-900 border border-violet-500/25 shadow-violet-500/10' : 'bg-white border border-violet-100 shadow-violet-100/50',
+                  }
+                : {
+                    header: darkMode ? 'bg-emerald-950/60 border-emerald-500/30 text-emerald-100' : 'bg-emerald-50/90 border-emerald-100 text-emerald-800',
+                    shell: darkMode ? 'bg-slate-900 border border-emerald-500/25 shadow-emerald-500/10' : 'bg-white border border-emerald-100 shadow-emerald-100/50',
+                  };
+            return (
             <div
-              className="fixed inset-0 z-[70] flex items-end justify-center bg-black/60 backdrop-blur-sm"
+              className="safe-overlay fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]"
               onClick={closeStatusQuickSheet}
               role="presentation"
             >
               <div
                 role="dialog"
                 aria-modal="true"
-                aria-labelledby="status-quick-sheet-title"
-                className={`w-full max-w-lg max-h-[min(85vh,640px)] rounded-t-3xl shadow-2xl overflow-hidden flex flex-col animate-[slideUp_0.25s_ease-out] ${darkMode ? 'bg-slate-900 border-t border-slate-600' : 'bg-white'}`}
+                aria-labelledby="status-quick-modal-title"
+                className={`w-full max-w-md max-h-[min(88dvh,calc(100dvh-var(--safe-top)-var(--safe-bottom)-2rem))] rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-[scaleIn_0.25s_ease-out] ${modalAccent.shell}`}
                 onClick={(e) => e.stopPropagation()}
               >
-                <div className={`flex items-center gap-3 px-5 py-4 border-b flex-shrink-0 ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
-                  <h2 id="status-quick-sheet-title" className={`flex-1 text-sm font-black uppercase tracking-wider ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                <div className={`flex items-center gap-3 px-5 py-4 border-b flex-shrink-0 ${modalAccent.header}`}>
+                  <h2 id="status-quick-modal-title" className="flex-1 text-sm font-black tracking-wide">
                     {statusQuickSheet === 'received-signal' && <>{SIGNAL_EMOJI} {SIGNAL_INBOX_TITLE}</>}
                     {statusQuickSheet === 'sent-signal' && <>{SIGNAL_EMOJI} {SIGNAL_SENT_TITLE}</>}
-                    {statusQuickSheet === 'exchanged-contacts' && <>📱 교환된 연락처</>}
+                    {statusQuickSheet === 'exchanged-contacts' && <>🤝 교환된 연락처</>}
                   </h2>
                   <button
                     type="button"
                     onClick={closeStatusQuickSheet}
                     aria-label="닫기"
-                    className={`p-2 rounded-xl transition-all active:scale-95 ${darkMode ? 'text-slate-400 hover:bg-slate-800 hover:text-white' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700'}`}
+                    className={`p-2 rounded-xl transition-all active:scale-95 ${darkMode ? 'text-slate-400 hover:bg-slate-800/80 hover:text-white' : 'text-gray-400 hover:bg-black/5 hover:text-gray-700'}`}
                   >
                     <X className="w-5 h-5" />
                   </button>
                 </div>
-                <div className="flex-1 overflow-y-auto px-5 py-4">
+                <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 py-4">
                   {statusQuickSheet === 'received-signal' && (
                     receivedSignalSenders.length === 0 ? (
                       <div className="text-center py-10">
@@ -1339,7 +1354,7 @@ export function MainScreen({
                   {statusQuickSheet === 'exchanged-contacts' && (
                     receivedContactShares.length === 0 ? (
                       <div className="text-center py-10">
-                        <span className="text-3xl block mb-2" aria-hidden>📱</span>
+                        <span className="text-3xl block mb-2" aria-hidden>🤝</span>
                         <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>아직 교환된 연락처가 없습니다.</p>
                       </div>
                     ) : (
@@ -1387,7 +1402,8 @@ export function MainScreen({
                 </div>
               </div>
             </div>
-          )}
+            );
+          })()}
           </StatusErrorBoundary>
         )}
 
