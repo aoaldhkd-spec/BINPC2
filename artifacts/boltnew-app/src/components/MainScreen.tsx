@@ -2307,12 +2307,10 @@ export function MainScreen({
               aria-expanded={myMenuOpen}
               aria-haspopup="menu"
               onClick={() => setMyMenuOpen(v => !v)}
-              className={`participant-fab fixed bottom-[calc(4.5rem+var(--tabbar-safe-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-50 w-14 h-14 rounded-full flex flex-col items-center justify-center transition-all active:scale-90 select-none ${
+              className={`participant-fab fixed bottom-[calc(4.5rem+var(--tabbar-safe-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-50 w-14 h-14 rounded-full flex flex-col items-center justify-center transition-all active:scale-90 select-none shadow-none ${
                 myTabActive || myMenuOpen
                   ? 'bg-gradient-to-br from-cyan-500 to-teal-500 text-white ring-2 ring-white/30'
-                  : darkMode
-                    ? 'text-slate-100 ring-2 ring-cyan-400/80'
-                    : 'text-gray-800 ring-2 ring-teal-500/70'
+                  : 'bg-gradient-to-br from-slate-800 to-slate-900 text-teal-300 ring-1 ring-teal-500/50'
               }`}
             >
               <span className="text-[15px] font-black leading-none tracking-widest">MY</span>

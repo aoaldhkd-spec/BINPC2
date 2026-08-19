@@ -33,6 +33,16 @@ body[data-view="chat"] .fixed.inset-0.z-\[9997\] { display: none !important; }
 /* Participant tab FABs (Theme + MY): shield from Y2K/Minimal global overrides */
 .participant-fab {
   border-radius: 9999px !important;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.participant-fab:not(.bg-gradient-to-br):not(.theme-switcher-btn) {
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+.participant-fab.bg-gradient-to-br {
+  background-color: unset !important;
 }
 [data-theme="y2k"] .participant-fab:not(.theme-switcher-btn) {
   box-shadow: none !important;
