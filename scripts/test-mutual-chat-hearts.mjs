@@ -9,7 +9,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { isFunctionsLocked } from './lib/functions-lock.mjs';
-import { createTestPersona, profilePayload } from './lib/test-personas.mjs';
+import { createPersonaPair, profilePayload } from './lib/test-personas.mjs';
 
 const SITE = (process.env.NETLIFY_URL || 'https://binpc2.netlify.app').replace(/\/$/, '');
 const API = (process.env.API_BASE || `${SITE}/api/db`).replace(/\/$/, '');
@@ -69,10 +69,9 @@ function openSse(userId, token) {
   };
 }
 
-async function registerAndLogin(index) {
+async function registerAndLogin(persona) {
   const id = randomUUID();
   const secret = randomUUID();
-  const persona = createTestPersona({ index });
   const reg = await api('/op', {
     body: {
       op: 'insert', table: 'profiles', single: true, selectAfterWrite: true,
@@ -95,8 +94,9 @@ async function main() {
 
   console.log('Mutual chat+hearts test');
   console.log('API=', API, '| SSE=', SSE_API);
-  const a = await registerAndLogin(0);
-  const b = await registerAndLogin(1);
+  const [personaA, personaB] = createPersonaPair();
+  const a = await registerAndLogin(personaA);
+  const b = await registerAndLogin(personaB);
   console.log('Personas:', a.persona.nickname, '↔', b.persona.nickname);
   const streamA = openSse(a.id, a.sseToken);
   const streamB = openSse(b.id, b.sseToken);

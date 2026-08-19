@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo, Suspense, lazy, memo, type ReactNode } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, Suspense, memo, type ReactNode } from 'react';
 /**
  * Main user shell UI (tabs: profiles/chats/status/…).
  * State/realtime: App.tsx + hooks (useChat/useHearts). See ARCHITECTURE.md.
@@ -51,7 +51,7 @@ import {
 import type { ScannedContact } from '../lib/profile-contact-helpers';
 import StatusErrorBoundary from './StatusErrorBoundary';
 import { MainChatsTab } from './MainChatsTab';
-const FortuneTab = lazy(() => import('./FortuneTab'));
+import { FortuneTabLazy as FortuneTab } from './FortuneTab.lazy';
 
 export { ProfileCard };
 

@@ -11,17 +11,39 @@
  *   STAGES=10,30,50 API_BASE=https://binpc2.onrender.com/api/db node scripts/sim-concurrent-users.mjs
  *   STAGES=10,30,50,100,150 node scripts/sim-concurrent-users.mjs
  *
+ * Entry burst (replaces simulate-100-entry.js):
+ *   node scripts/sim-concurrent-users.mjs --entry-only --users=100 --concurrency=100
+ *   ENTRY_ONLY=1 USERS=100 node scripts/sim-concurrent-users.mjs
+ *
  * Env:
  *   API_BASE   default https://binpc2.onrender.com/api/db  (Render 직접 — Netlify SSE 버퍼링 회피)
  *   STAGES     comma list, default 10,30,50,100,150
  *   HOLD_MS    how long to keep SSE open during chaos (default 8000)
  *   CLEANUP    1=delete created test profiles after each stage (default 0 — soft leave)
+ *   ENTRY_ONLY 1=QR entry burst only (no SSE/hearts/chat)
+ *   USERS      entry-only user count (default 100, max 500)
+ *   CONCURRENCY entry-only parallel requests (default 100, max 500)
  */
 
 import { randomUUID } from 'node:crypto';
 import { createTestPersona, profilePayload, reserveNickname } from './lib/test-personas.mjs';
+import { runEntryBurst } from './lib/entry-burst.mjs';
 
-const API = (process.env.API_BASE || 'https://binpc2.onrender.com/api/db').replace(/\/$/, '');
+const args = process.argv.slice(2);
+function getArg(flag, defaultVal) {
+  const idx = args.indexOf(flag);
+  if (idx < 0) return defaultVal;
+  return args[idx + 1] ?? defaultVal;
+}
+const hasFlag = (flag) => args.includes(flag);
+
+const ENTRY_ONLY = hasFlag('--entry-only') || process.env.ENTRY_ONLY === '1';
+const ENTRY_USERS = parseInt(getArg('--users', process.env.USERS || '100'), 10);
+const ENTRY_CONCURRENCY = parseInt(getArg('--concurrency', process.env.CONCURRENCY || '100'), 10);
+const ENTRY_VERBOSE = hasFlag('--verbose') || process.env.VERBOSE === '1';
+const CLI_API = getArg('--url', null);
+
+const API = (CLI_API || process.env.API_BASE || 'https://binpc2.onrender.com/api/db').replace(/\/$/, '');
 const STAGES = String(process.env.STAGES || '10,30,50,100,150')
   .split(',')
   .map((s) => Number(s.trim()))
@@ -709,6 +731,19 @@ function stagePass(m) {
 }
 
 async function main() {
+  if (ENTRY_ONLY) {
+    console.log('\nSIM entry burst (--entry-only)');
+    console.log(`API=${API}`);
+    const r = await runEntryBurst({
+      baseUrl: API,
+      totalUsers: ENTRY_USERS,
+      concurrency: ENTRY_CONCURRENCY,
+      verbose: ENTRY_VERBOSE,
+    });
+    if (r.verdict === 'FAIL') process.exit(1);
+    return;
+  }
+
   console.log(`\nSIM concurrent users`);
   console.log(`API=${API}`);
   console.log(`STAGES=${STAGES.join(',')}`);

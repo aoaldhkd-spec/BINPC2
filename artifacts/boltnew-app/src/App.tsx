@@ -40,7 +40,7 @@ import { ConfettiOverlay } from './components/ConfettiOverlay';
 import { LikeConfirmDialog } from './components/LikeConfirmDialog';
 import { ContactShareModal } from './components/ContactShareModal';
 import { ContactViewModal } from './components/ContactViewModal';
-const FortuneTabLazy = lazy(() => import('./components/FortuneTab'));
+import { FortuneTabLazy } from './components/FortuneTab.lazy';
 import { WaitingOverlay } from './components/WaitingOverlay';
 import { NicknameSetupScreen } from './components/NicknameSetupScreen';
 import { EntryGateScreen } from './components/EntryGateScreen';
