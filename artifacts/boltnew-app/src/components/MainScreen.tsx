@@ -172,7 +172,6 @@ export function MainScreen({
   }, [sentLikedProfiles, sentHeartsPerPerson, sentHeartTypes]);
 
   const [profileSearch, setProfileSearch] = useState('');
-  const [profilePersonalityFilter, setProfilePersonalityFilter] = useState<string | null>(null);
   const [profileCardGrid, setProfileCardGridRaw] = useState<ProfileCardGridMode>(() => readProfileCardGridMode());
   const setProfileCardGrid = (mode: ProfileCardGridMode) => {
     writeProfileCardGridMode(mode);
@@ -212,11 +211,11 @@ export function MainScreen({
   const filteredProfiles = useMemo(() => filterProfilesForDeck(profiles, {
     currentUserId,
     search: profileSearch,
-    personality: profilePersonalityFilter,
+    personality: null,
     mbti: null,
     blockedUserIds,
     hiddenByIds,
-  }), [profiles, profileSearch, profilePersonalityFilter, currentUserId, blockedUserIds, hiddenByIds]);
+  }), [profiles, profileSearch, currentUserId, blockedUserIds, hiddenByIds]);
 
   const [refreshedTab, setRefreshedTab] = useState<string | null>(null);
 
@@ -671,7 +670,7 @@ export function MainScreen({
             className="-mb-[calc(8.5rem+var(--tabbar-safe-bottom))] flex flex-col min-h-0"
             style={{ maxHeight: 'calc(100dvh - 330px - var(--tabbar-safe-bottom))' }}
           >
-            {/* 검색 + 필터 바 */}
+            {/* 검색 + 카드 보기 */}
             <div className="space-y-2 mb-3 shrink-0">
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">
@@ -685,29 +684,7 @@ export function MainScreen({
                 </div>
                 <RefreshBtn onRefresh={() => doRefresh('profiles', onRefreshProfiles)} refreshed={refreshedTab === 'profiles'} />
               </div>
-              {/* 검색 힌트 */}
-              <p className="text-[10px] text-gray-400 px-1 -mt-0.5">
-                💡 닉네임·MBTI·성향(탑/바텀/올)·초성으로 검색할 수 있어요
-              </p>
-              {/* 성향 필터 + 카드 보기 (작게 / 2열 / 3열) */}
-              <div className="flex items-center gap-1.5 min-w-0">
-                <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-styled-light flex-1 min-w-0">
-                  {[null,'바텀계열','올계열','탑계열','비선호'].map(f => {
-                    const colorMap: Record<string, string> = {
-                      '바텀계열': 'bg-green-500 text-white border-green-500',
-                      '올계열':   'bg-amber-500 text-white border-amber-500',
-                      '탑계열':   'bg-blue-500 text-white border-blue-500',
-                      '비선호':   'bg-gray-500 text-white border-gray-500',
-                    };
-                    const active = profilePersonalityFilter === f;
-                    return (
-                      <button key={String(f)} onClick={() => setProfilePersonalityFilter(active ? null : f)}
-                        className={`flex-shrink-0 px-2.5 py-1 rounded-full text-xs font-bold border transition-all ${active ? (f ? colorMap[f] : 'bg-teal-500 text-white border-teal-500') : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'}`}>
-                        {f ?? '전체'}
-                      </button>
-                    );
-                  })}
-                </div>
+              <div className="flex justify-end">
                 <div
                   role="group"
                   aria-label="참여자 카드 보기"
@@ -765,7 +742,7 @@ export function MainScreen({
             {filteredProfiles.filter(p => p.id !== currentUserId).length === 0 && (
               <div className={`${profileGridColSpanClass} text-center py-20`}>
                 <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500">{profileSearch || profilePersonalityFilter ? '검색 결과가 없습니다.' : '아직 다른 참가자가 없습니다.'}</p>
+                <p className="text-gray-500">{profileSearch ? '검색 결과가 없습니다.' : '아직 다른 참가자가 없습니다.'}</p>
               </div>
             )}
           </div>
