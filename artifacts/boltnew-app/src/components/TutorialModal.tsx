@@ -177,21 +177,24 @@ const ADVANCED: Topic[] = [
 const KR_WRAP = 'break-keep [word-break:keep-all] [line-break:strict] [overflow-wrap:break-word] text-pretty';
 
 /** 모든 탭에서 동일한 모달·영상 높이 */
-const MODAL_SHELL = 'w-full max-w-sm max-h-[min(88dvh,calc(100dvh-var(--safe-top)-var(--safe-bottom)-2rem))]';
-const EMBEDDED_VIDEO_H = 'h-[11rem]';
+const MODAL_SHELL = 'w-[calc(100vw-1.5rem)] max-w-md max-h-[min(90dvh,calc(100dvh-var(--safe-top)-var(--safe-bottom)-1rem))]';
+const EMBEDDED_VIDEO_H = 'h-[13rem] min-h-[11rem]';
 
-function TipCard({ tip, panel, text, muted }: {
+function TipCard({ tip, panel, text, muted, darkMode }: {
   tip: Tip;
   panel: string;
   text: string;
   muted: string;
+  darkMode?: boolean;
 }) {
   return (
-    <div className={`flex gap-2 rounded-xl border items-start px-2.5 py-2 min-h-[3.25rem] ${panel}`}>
-      <span className="text-sm leading-none flex-shrink-0 mt-0.5">{tip.icon}</span>
+    <div className={`flex gap-3 rounded-2xl border items-start px-3 py-2.5 ${panel}`}>
+      <span className={`text-lg leading-none flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-xl ${darkMode ? 'bg-white/10' : 'bg-black/[0.04]'}`}>
+        {tip.icon}
+      </span>
       <div className="min-w-0 flex-1">
-        <p className={`text-[11px] font-black leading-snug ${KR_WRAP} ${text}`}>{tip.title}</p>
-        <p className={`text-[10px] leading-snug mt-0.5 ${KR_WRAP} ${muted}`}>
+        <p className={`text-xs font-black leading-snug ${KR_WRAP} ${text}`}>{tip.title}</p>
+        <p className={`text-[11px] leading-relaxed mt-1 ${KR_WRAP} ${muted}`}>
           {tip.desc.replace(/([.·])\s+/g, '$1\u200b ')}
         </p>
       </div>
@@ -199,18 +202,17 @@ function TipCard({ tip, panel, text, muted }: {
   );
 }
 
-function TipGrid({ tips, panel, text, muted, singleColumn }: {
+function TipGrid({ tips, panel, text, muted, darkMode }: {
   tips: Tip[];
   panel: string;
   text: string;
   muted: string;
-  singleColumn?: boolean;
+  darkMode?: boolean;
 }) {
-  const cols = singleColumn || tips.length <= 1 ? 'grid-cols-1' : 'grid-cols-2';
   return (
-    <div className={`grid gap-1.5 ${cols}`}>
+    <div className="flex flex-col gap-2">
       {tips.map((tip) => (
-        <TipCard key={tip.title} tip={tip} panel={panel} text={text} muted={muted} />
+        <TipCard key={tip.title} tip={tip} panel={panel} text={text} muted={muted} darkMode={darkMode} />
       ))}
     </div>
   );
@@ -333,23 +335,23 @@ function FillerPanel({ kind, darkMode }: { kind: FillerKind; darkMode?: boolean 
   const pin = kind === 'pin';
   return (
     <div
-      className={`flex-shrink-0 flex flex-col items-center justify-center rounded-xl px-2.5 ${pin ? 'py-2' : 'py-1.5'} text-center ${
+      className={`flex-shrink-0 flex flex-col items-center justify-center rounded-2xl px-3 py-3 text-center ${
         darkMode ? f.darkShell : f.shell
       }`}
     >
       {pin && (
-        <span className="mb-1 inline-flex items-center justify-center px-3.5 py-1 rounded-full text-[12px] font-black tracking-tight text-white shadow-sm bg-gradient-to-r from-amber-500 to-orange-500">
+        <span className="mb-1.5 inline-flex items-center justify-center px-3.5 py-1 rounded-full text-xs font-black tracking-tight text-white shadow-sm bg-gradient-to-r from-amber-500 to-orange-500">
           관리자문의
         </span>
       )}
       <FillerArt kind={kind} darkMode={darkMode} />
-      <p className={`${pin ? 'text-[13px]' : 'text-[12px]'} font-black tracking-tight leading-tight ${KR_WRAP} ${darkMode ? 'text-white' : 'text-slate-800'}`}>
+      <p className={`text-sm font-black tracking-tight leading-snug ${KR_WRAP} ${darkMode ? 'text-white' : 'text-slate-800'}`}>
         {f.title}
       </p>
-      <p className={`${pin ? 'text-[11px]' : 'text-[10px]'} leading-snug mt-0.5 ${KR_WRAP} ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+      <p className={`text-xs leading-relaxed mt-1 ${KR_WRAP} ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
         {f.line.replace(/([.·])\s+/g, '$1\u200b ')}
       </p>
-      <p className={`${pin ? 'text-[10px]' : 'text-[9px]'} leading-snug mt-0.5 ${KR_WRAP} ${darkMode ? 'text-white/55' : 'text-slate-500'}`}>
+      <p className={`text-[11px] leading-relaxed mt-1 ${KR_WRAP} ${darkMode ? 'text-white/55' : 'text-slate-500'}`}>
         {f.quote.replace(/([.·])\s+/g, '$1\u200b ')}
       </p>
     </div>
@@ -385,45 +387,52 @@ export function TutorialModal({ onClose, darkMode }: {
   };
 
   const videoBlock = hasVideo && topic.video ? (
-    <div className={`flex-shrink-0 ${EMBEDDED_VIDEO_H}`}>
-      <TutorialVideo
-        key={`${mode}-${topic.id}`}
-        embedded
-        compact
-        fill
-        sceneIndices={topic.video}
-        onClose={() => setShowVideo(false)}
-      />
+    <div className="flex flex-col gap-1.5 flex-shrink-0">
+      <p className={`text-xs font-black ${text}`}>📹 짧은 영상</p>
+      <div className={EMBEDDED_VIDEO_H}>
+        <TutorialVideo
+          key={`${mode}-${topic.id}`}
+          embedded
+          compact
+          fill
+          sceneIndices={topic.video}
+          onClose={() => setShowVideo(false)}
+        />
+      </div>
     </div>
   ) : null;
 
   const bodyContent = (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-3 pb-1">
+      {topic.filler && <FillerPanel kind={topic.filler} darkMode={darkMode} />}
+      {videoBlock}
       {(topic.sections ?? []).map((section) => (
         <div key={section.title}>
-          <p className={`text-[11px] font-black mb-1.5 ${text}`}>{section.emoji} {section.title}</p>
-          <TipGrid tips={section.tips} panel={panel} text={text} muted={muted} />
+          <p className={`text-xs font-black mb-2 flex items-center gap-1.5 ${text}`}>
+            <span className="text-base leading-none">{section.emoji}</span>
+            {section.title}
+          </p>
+          <TipGrid tips={section.tips} panel={panel} text={text} muted={muted} darkMode={darkMode} />
           {section.footer && (
-            <p className={`mt-1.5 text-[10px] leading-snug ${KR_WRAP} ${muted}`}>
+            <p className={`mt-2 px-1 text-[11px] leading-relaxed rounded-xl py-2 ${KR_WRAP} ${darkMode ? 'bg-slate-800/60 text-slate-400' : 'bg-slate-100 text-gray-500'}`}>
               {section.footer.replace(/([.·])\s+/g, '$1\u200b ')}
             </p>
           )}
         </div>
       ))}
       {topic.tips.length > 0 && (
-        <TipGrid
-          tips={topic.tips}
-          panel={panel}
-          text={text}
-          muted={muted}
-          singleColumn={topic.wideTips && topic.tips.length <= 3}
-        />
+        <>
+          {!topic.sections?.length && (
+            <p className={`text-xs font-black ${text}`}>📋 핵심만</p>
+          )}
+          <TipGrid tips={topic.tips} panel={panel} text={text} muted={muted} darkMode={darkMode} />
+        </>
       )}
       {topic.footer && (
-        <p className={`text-[10px] leading-snug ${KR_WRAP} ${muted}`}>{topic.footer.replace(/([.·])\s+/g, '$1\u200b ')}</p>
+        <p className={`text-[11px] leading-relaxed px-1 py-2 rounded-xl ${KR_WRAP} ${darkMode ? 'bg-slate-800/60 text-slate-400' : 'bg-slate-100 text-gray-500'}`}>
+          {topic.footer.replace(/([.·])\s+/g, '$1\u200b ')}
+        </p>
       )}
-      {topic.filler && <FillerPanel kind={topic.filler} darkMode={darkMode} />}
-      {videoBlock}
     </div>
   );
 
@@ -436,7 +445,7 @@ export function TutorialModal({ onClose, darkMode }: {
         role="dialog"
         aria-modal="true"
         aria-labelledby="tutorial-modal-title"
-        className={`mobile-flow-card relative ${MODAL_SHELL} min-h-0 rounded-2xl shadow-2xl flex flex-col overflow-hidden ${darkMode ? 'bg-slate-900' : 'bg-white'}`}
+        className={`mobile-flow-card relative ${MODAL_SHELL} min-h-0 rounded-3xl shadow-2xl flex flex-col overflow-hidden ${darkMode ? 'bg-slate-900' : 'bg-white'}`}
         onClick={e => e.stopPropagation()}
       >
         <button onClick={onClose}
@@ -444,15 +453,15 @@ export function TutorialModal({ onClose, darkMode }: {
           <X className="w-4 h-4" />
         </button>
 
-        <div className={`bg-gradient-to-br ${topic.color} px-4 pt-3 pb-2 pr-12 flex-shrink-0`}>
-          <p className="text-white/80 text-[10px] font-bold tracking-wide">도움말</p>
-          <h2 id="tutorial-modal-title" className={`text-white font-black text-sm leading-snug mt-0.5 ${KR_WRAP}`}>{topic.emoji} {topic.title}</h2>
+        <div className={`bg-gradient-to-br ${topic.color} px-4 pt-4 pb-3 pr-12 flex-shrink-0`}>
+          <p className="text-white/80 text-[11px] font-bold tracking-wide">도움말</p>
+          <h2 id="tutorial-modal-title" className={`text-white font-black text-base leading-snug mt-0.5 ${KR_WRAP}`}>{topic.emoji} {topic.title}</h2>
         </div>
 
-        <div className={`flex-shrink-0 px-3 pt-2 ${darkMode ? 'bg-slate-900' : 'bg-white'}`}>
-          <div className={`grid grid-cols-2 p-0.5 rounded-xl ${darkMode ? 'bg-slate-800' : 'bg-gray-100'}`}>
+        <div className={`flex-shrink-0 px-4 pt-3 ${darkMode ? 'bg-slate-900' : 'bg-white'}`}>
+          <div className={`grid grid-cols-2 p-1 rounded-xl gap-1 ${darkMode ? 'bg-slate-800' : 'bg-gray-100'}`}>
             <button type="button" onClick={() => switchMode('basic')}
-              className={`py-1 rounded-lg text-[11px] font-black transition-all ${
+              className={`py-2 rounded-lg text-xs font-black transition-all ${
                 mode === 'basic'
                   ? 'bg-white text-gray-900 shadow-sm'
                   : darkMode ? 'text-slate-400' : 'text-gray-500'
@@ -460,7 +469,7 @@ export function TutorialModal({ onClose, darkMode }: {
               기본
             </button>
             <button type="button" onClick={() => switchMode('advanced')}
-              className={`py-1 rounded-lg text-[11px] font-black transition-all ${
+              className={`py-2 rounded-lg text-xs font-black transition-all ${
                 mode === 'advanced'
                   ? 'bg-white text-gray-900 shadow-sm'
                   : darkMode ? 'text-slate-400' : 'text-gray-500'
@@ -471,40 +480,41 @@ export function TutorialModal({ onClose, darkMode }: {
         </div>
 
         {showChips && (
-          <div className={`flex-shrink-0 px-3 py-1.5 border-b ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
-            <div className="flex gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className={`flex-shrink-0 px-4 py-2 border-b ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
+            <div className={`grid gap-1.5 ${topics.length <= 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
               {topics.map((t, i) => (
                 <button key={t.id} onClick={() => setTopicIdx(i)}
-                  className={`flex-shrink-0 px-2 py-1 rounded-lg text-[10px] font-bold whitespace-nowrap transition-all active:scale-95 ${
+                  className={`px-1 py-2 rounded-xl text-[11px] font-bold leading-tight text-center transition-all active:scale-95 ${
                     i === safeIdx
                       ? `bg-gradient-to-br ${t.color} text-white shadow-sm`
-                      : darkMode ? 'text-slate-500 hover:bg-slate-800' : 'text-gray-400 hover:bg-gray-50'
+                      : darkMode ? 'text-slate-400 bg-slate-800/80 hover:bg-slate-800' : 'text-gray-500 bg-gray-50 hover:bg-gray-100'
                   }`}>
-                  {t.emoji} {t.label}
+                  <span className="block text-sm leading-none mb-0.5">{t.emoji}</span>
+                  {t.label}
                 </button>
               ))}
             </div>
           </div>
         )}
 
-        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 py-2">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-3">
           {bodyContent}
         </div>
 
-        <div className={`flex-shrink-0 px-3 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex gap-2 border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
+        <div className={`flex-shrink-0 px-4 pt-2.5 pb-[max(0.875rem,env(safe-area-inset-bottom))] flex gap-2 border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
           {safeIdx > 0 ? (
             <button onClick={() => setTopicIdx(safeIdx - 1)}
-              className={`touch-target flex-[2] flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-semibold whitespace-nowrap border ${darkMode ? 'border-slate-700 text-slate-300' : 'border-gray-200 text-gray-600'}`}>
+              className={`touch-target flex-[2] flex items-center justify-center gap-1 py-2.5 rounded-xl text-sm font-semibold border ${darkMode ? 'border-slate-700 text-slate-300' : 'border-gray-200 text-gray-600'}`}>
               <ArrowLeft className="w-4 h-4" /> 이전
             </button>
           ) : mode === 'advanced' ? (
             <button onClick={() => switchMode('basic')}
-              className={`touch-target flex-[2] py-2 rounded-xl text-xs font-semibold whitespace-nowrap border ${darkMode ? 'border-slate-700 text-slate-300' : 'border-gray-200 text-gray-600'}`}>
+              className={`touch-target flex-[2] py-2.5 rounded-xl text-sm font-semibold border ${darkMode ? 'border-slate-700 text-slate-300' : 'border-gray-200 text-gray-600'}`}>
               기본으로
             </button>
           ) : (
             <button onClick={onClose}
-              className={`touch-target flex-[2] py-2 rounded-xl text-xs font-semibold whitespace-nowrap border ${darkMode ? 'border-slate-700 text-slate-300' : 'border-gray-200 text-gray-500'}`}>
+              className={`touch-target flex-[2] py-2.5 rounded-xl text-sm font-semibold border ${darkMode ? 'border-slate-700 text-slate-300' : 'border-gray-200 text-gray-500'}`}>
               닫기
             </button>
           )}
@@ -514,7 +524,7 @@ export function TutorialModal({ onClose, darkMode }: {
               if (mode === 'basic') { switchMode('advanced'); return; }
               onClose();
             }}
-            className={`touch-target flex-[3] flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-bold whitespace-nowrap text-white bg-gradient-to-r ${topic.color}`}
+            className={`touch-target flex-[3] flex items-center justify-center gap-1 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r ${topic.color}`}
           >
             {isLast && mode === 'advanced' ? '알겠어요' : isLast && mode === 'basic' ? '심화 보기' : <>다음 <ArrowRight className="w-4 h-4" /></>}
           </button>
