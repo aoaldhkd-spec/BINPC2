@@ -736,7 +736,7 @@ export function MainScreen({
             </div>
 
             {/* ── 참여자 그리드 (이 영역만 스크롤) ───────── */}
-            <div className="overflow-y-auto -mx-3 min-[360px]:-mx-4 px-3 min-[360px]:px-4 pb-0" style={{ maxHeight: 'calc(100dvh - 330px - var(--tabbar-safe-bottom))', minHeight: 160 }}>
+            <div className="overflow-y-auto -mx-3 min-[360px]:-mx-4 px-3 min-[360px]:px-4 pb-0" style={{ maxHeight: 'calc(100dvh - 330px - 8.5rem - var(--tabbar-safe-bottom))', minHeight: 160 }}>
             <div className={profileGridClassName(profileCardGrid)}>
             {filteredProfiles.filter(p => p.id !== currentUserId).map((profile) => (
               <ProfileCard
@@ -2223,6 +2223,15 @@ export function MainScreen({
         </div>
       </nav>
 
+      {/* 참여자 탭: 흰 프로필 카드가 FAB 뒤로 비치지 않게 페이지 톤 gutter (탭바 z-40 위 FAB z-50 아래) */}
+      {mainTab === 'profiles' && (
+        <div
+          className={`participant-fab-gutter fixed inset-x-0 bottom-0 z-[39] ${darkMode ? 'bg-slate-950' : 'bg-gray-50'}`}
+          style={{ height: 'calc(8.5rem + var(--tabbar-safe-bottom))' }}
+          aria-hidden
+        />
+      )}
+
       {/* ── MY 버튼 (우하단 고정) + 팝업 ── */}
       {(() => {
         const myTabActive = mainTab === 'status' || mainTab === 'chats' || mainTab === 'fortune' || mainTab === 'settings';
@@ -2290,10 +2299,10 @@ export function MainScreen({
               onClick={() => setMyMenuOpen(v => !v)}
               className={`participant-fab participant-fab-my fixed bottom-[calc(4.5rem+var(--tabbar-safe-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-50 w-14 h-14 rounded-full flex flex-col items-center justify-center transition-all active:scale-90 select-none ${
                 myTabActive || myMenuOpen
-                  ? 'bg-gradient-to-br from-cyan-500 to-teal-500 text-white ring-2 ring-white/30'
+                  ? 'bg-gradient-to-br from-cyan-500 to-teal-500 text-white'
                   : darkMode
-                    ? 'bg-transparent text-slate-100 ring-2 ring-cyan-400/80'
-                    : 'bg-transparent text-gray-800 ring-2 ring-teal-500/70'
+                    ? 'bg-transparent text-slate-100'
+                    : 'bg-transparent text-gray-800'
               }`}
             >
               <span className="text-[15px] font-black leading-none tracking-widest">MY</span>
