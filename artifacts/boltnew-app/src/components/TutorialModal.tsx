@@ -112,7 +112,6 @@ const BASIC: Topic[] = [
     label: '채팅',
     title: '채팅, 이렇게만 알면 됨',
     color: 'from-blue-500 to-indigo-500',
-    filler: 'chat',
     video: [3, 4, 5],
     videoHint: '이모지·스티커 · 사진 · 스와이프 답장',
     tips: [
