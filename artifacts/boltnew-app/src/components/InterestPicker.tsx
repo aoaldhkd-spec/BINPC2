@@ -56,7 +56,7 @@ export function InterestPicker({
         </div>
       )}
 
-      <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-0.5 -mx-0.5 px-0.5">
+      <div className="flex flex-wrap gap-2">
         {BIO_CATEGORIES.map((cat) => {
           const active = filter === cat.label;
           const count = cat.tags.filter((t) => selected.includes(t)).length;
@@ -65,7 +65,7 @@ export function InterestPicker({
               key={cat.label}
               type="button"
               onClick={() => onFilter(cat.label)}
-              className={`relative flex-shrink-0 inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-[11px] font-black border transition-all whitespace-nowrap ${
+              className={`relative inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-[11px] font-black border transition-all whitespace-nowrap min-h-[36px] ${
                 active
                   ? `${cat.color.selected} border-transparent shadow-sm`
                   : darkMode
