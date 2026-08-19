@@ -134,9 +134,11 @@ export function createTestPersona(opts = {}) {
 export function createPersonaPair() {
   resetNicknameRegistry();
   const bases = shuffle(NICKNAMES);
+  // Avoid fixed 00/01 suffixes — prod E2E re-runs hit profiles_nickname_key otherwise.
+  const seed = Math.floor(Math.random() * 9000) + 100;
   return [
-    createTestPersona({ index: 0, nickname: reserveNickname({ base: bases[0], index: 0 }) }),
-    createTestPersona({ index: 1, nickname: reserveNickname({ base: bases[1], index: 1 }) }),
+    createTestPersona({ index: seed, nickname: reserveNickname({ base: bases[0], index: seed }) }),
+    createTestPersona({ index: seed + 1, nickname: reserveNickname({ base: bases[1], index: seed + 1 }) }),
   ];
 }
 
