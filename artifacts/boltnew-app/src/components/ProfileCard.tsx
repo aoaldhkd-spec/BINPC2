@@ -7,6 +7,12 @@ import { HeartType, heartMeta } from '../lib/constants';
 import { getPositionLabel, getPositionStyle, getKoreanAge, hasUploadedPhoto, getAvatarGradientCss } from '../lib/profile';
 import { getMbtiStyle } from '../lib/utils';
 import { cardMenuBox } from '../lib/card-menu-box';
+import { parseIdealTags } from '../lib/signal-match';
+
+/** 카드 뒷면에 바로 보여줄 이상형 태그 상한 — 나머지는 "+N" + 프로필 상세 */
+const CARD_IDEAL_MAX_VISIBLE = 8;
+/** 태그가 많을 때 칩 글자 축소 */
+const CARD_IDEAL_COMPACT_FONT_AT = 6;
 
 // ─── ProfileCard (memoized — 하트/채팅 상태 변경 시 해당 카드만 재렌더) ────────
 
@@ -37,9 +43,15 @@ export const ProfileCard = memo(function ProfileCard({
 
   const posLabel = getPositionLabel(profile.personality_score ?? 50);
   const posStyle = getPositionStyle(profile.personality_score ?? 50);
-  const idealParts = (idealMsg ?? '').split('\n');
-  const idealTags = idealParts[0] ? idealParts[0].split(',').map(t => t.trim()).filter(Boolean) : [];
-  const idealFree = idealParts[1]?.trim() ?? '';
+  const idealTags = parseIdealTags(idealMsg);
+  const idealFree = (idealMsg ?? '').split('\n').slice(1).join('\n').trim();
+  const idealTagCount = idealTags.length;
+  const idealOverflow = idealTagCount > CARD_IDEAL_MAX_VISIBLE;
+  const visibleIdealTags = idealOverflow ? idealTags.slice(0, CARD_IDEAL_MAX_VISIBLE) : idealTags;
+  const hiddenIdealCount = idealTagCount - visibleIdealTags.length;
+  const idealChipClass = idealTagCount >= CARD_IDEAL_COMPACT_FONT_AT
+    ? 'text-[7px] sm:text-[8px]'
+    : 'text-[8px] sm:text-[9px]';
   const age = getKoreanAge(profile.birth_year);
   const msStyle = profile.mbti ? getMbtiStyle(profile.mbti) : null;
   const interestTags = parseProfileInterests(profile).slice(0, 2);
@@ -89,7 +101,9 @@ export const ProfileCard = memo(function ProfileCard({
   const [tickerOffset, setTickerOffset] = useState(0); // 슬라이드할 px 거리
   const hasTicker = Boolean(statusMsg?.trim());
   const hasMenu = Boolean(onBlock || onContactShare || onViewFortune);
-  const showTopBar = hasTicker;
+  // 뒤집힌 뒷면(이상형)은 작은 카드에서 전광판·닉네임 바와 겹치므로 앞면에서만 표시
+  const showTopBar = hasTicker && !isFlipped;
+  const showBottomBar = !isFlipped;
   useEffect(() => {
     const bar = tickerBarRef.current;
     const span = tickerSpanRef.current;
@@ -232,41 +246,49 @@ export const ProfileCard = memo(function ProfileCard({
                 )}
               </div>
 
-              {/* 뒷면: 이상형 — 탭하면 앞면(사진)으로 복귀 */}
+              {/* 뒷면: 이상형 — 헤더 탭으로 앞면 복귀, 태그 영역은 스크롤 */}
               <div
-                className="absolute inset-0 flex flex-col min-h-0 cursor-pointer"
+                className="absolute inset-0 flex flex-col min-h-0"
                 style={{
                   backfaceVisibility: 'hidden',
                   WebkitBackfaceVisibility: 'hidden',
                   transform: 'rotateY(180deg)',
                   background: 'linear-gradient(165deg,#1a082a 0%,#3a0f52 40%,#4a1570 100%)',
                 }}
-                onClick={(e) => { e.stopPropagation(); setIsFlipped(false); }}
               >
                 <div className="pointer-events-none absolute inset-0"
                   style={{ background: 'radial-gradient(ellipse at 50% 0%,rgba(255,100,200,0.28) 0%,transparent 60%)' }} />
 
-                <div className="relative z-[1] shrink-0 flex items-center justify-center gap-1 px-2 pt-1.5 pb-0.5">
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setIsFlipped(false); }}
+                  className="relative z-[1] shrink-0 flex items-center justify-center gap-1 px-2 pt-1.5 pb-0.5 cursor-pointer active:opacity-80"
+                  aria-label="사진으로 돌아가기"
+                >
                   <span className="text-xs leading-none" aria-hidden>💗</span>
-                  <span className="text-[9px] sm:text-[10px] font-black tracking-[0.08em] text-pink-50 drop-shadow-sm">나의 이상형</span>
-                </div>
+                  <span className="text-[9px] sm:text-[10px] font-black tracking-[0.08em] text-pink-50 drop-shadow-sm">
+                    나의 이상형{idealTagCount > 0 ? ` (${idealTagCount})` : ''}
+                  </span>
+                </button>
 
                 <div
-                  className="relative z-[1] flex-1 min-h-0 overflow-y-auto overscroll-contain px-1.5 py-0.5"
+                  className="relative z-[1] flex-1 min-h-0 max-h-full overflow-y-auto overscroll-contain px-1.5 py-0.5 touch-pan-y"
                   style={{ WebkitOverflowScrolling: 'touch' }}
+                  onClick={(e) => e.stopPropagation()}
+                  onPointerDown={(e) => e.stopPropagation()}
                 >
-                  {!idealTags.length && !idealFree ? (
+                  {!idealTagCount && !idealFree ? (
                     <p className="text-[9px] sm:text-[10px] text-center text-pink-100/80 leading-relaxed m-0 py-1 font-medium">
                       아직 작성하지 않았어요 🌸
                     </p>
                   ) : (
                     <>
-                      {idealTags.length > 0 && (
+                      {idealTagCount > 0 && (
                         <div className="flex flex-wrap justify-center gap-0.5">
-                          {idealTags.map(t => (
+                          {visibleIdealTags.map(t => (
                             <span
                               key={t}
-                              className="inline-block max-w-full text-[8px] sm:text-[9px] font-extrabold leading-tight px-1.5 py-0.5 rounded-full border break-words text-center"
+                              className={`inline-block max-w-full ${idealChipClass} font-extrabold leading-tight px-1.5 py-0.5 rounded-full border break-words text-center`}
                               style={{
                                 background: 'rgba(255,160,220,0.22)',
                                 borderColor: 'rgba(255,200,230,0.65)',
@@ -275,11 +297,22 @@ export const ProfileCard = memo(function ProfileCard({
                               }}
                             >{t}</span>
                           ))}
+                          {hiddenIdealCount > 0 && (
+                            <span
+                              className={`inline-block ${idealChipClass} font-extrabold leading-tight px-1.5 py-0.5 rounded-full border`}
+                              style={{
+                                background: 'rgba(255,120,180,0.35)',
+                                borderColor: 'rgba(255,200,230,0.75)',
+                                color: '#fff5fb',
+                                textShadow: '0 1px 2px rgba(0,0,0,0.35)',
+                              }}
+                            >+{hiddenIdealCount}</span>
+                          )}
                         </div>
                       )}
                       {idealFree && (
                         <p
-                          className="text-[8px] sm:text-[9px] text-center leading-snug mt-1 mb-0 px-0.5 break-words whitespace-pre-wrap font-semibold"
+                          className={`${idealChipClass} text-center leading-snug mt-1 mb-0 px-0.5 break-words whitespace-pre-wrap font-semibold${idealOverflow ? ' line-clamp-2' : ''}`}
                           style={{ color: 'rgba(255,245,252,0.95)', textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}
                         >
                           {idealFree}
@@ -299,7 +332,7 @@ export const ProfileCard = memo(function ProfileCard({
                     color: '#ffd6f0',
                   }}
                 >
-                  프로필 보기 →
+                  {idealOverflow ? `프로필에서 전체 ${idealTagCount}개 보기 →` : '프로필 보기 →'}
                 </button>
               </div>
 
@@ -360,21 +393,23 @@ export const ProfileCard = memo(function ProfileCard({
             </div>
           )}
 
-          {/* 하단 흰 전광판 — 닉·나이 (사진 위 겹침) */}
-          <div
-            className="absolute bottom-0 left-0 right-0 z-30 flex items-center min-h-[20px] px-1.5 py-0.5 cursor-pointer pointer-events-auto"
-            style={{
-              background: 'rgba(255,255,255,0.94)',
-              borderTop: '1px solid rgba(229,231,235,0.95)',
-              boxShadow: '0 -2px 8px rgba(0,0,0,0.07)',
-            }}
-            onClick={(e) => { e.stopPropagation(); onSelect(profile); }}
-          >
-            <span className="font-extrabold text-[10px] sm:text-[11px] truncate min-w-0 flex-1 text-gray-950 leading-none">{profile.nickname}</span>
-            {profile.birth_year != null && (
-              <span className="flex-shrink-0 text-[9px] sm:text-[10px] font-bold text-gray-600 tabular-nums whitespace-nowrap ml-1 leading-none">{age}</span>
-            )}
-          </div>
+          {/* 하단 흰 전광판 — 닉·나이 (사진 위 겹침, 뒷면에서는 숨김) */}
+          {showBottomBar && (
+            <div
+              className="absolute bottom-0 left-0 right-0 z-30 flex items-center min-h-[20px] px-1.5 py-0.5 cursor-pointer pointer-events-auto"
+              style={{
+                background: 'rgba(255,255,255,0.94)',
+                borderTop: '1px solid rgba(229,231,235,0.95)',
+                boxShadow: '0 -2px 8px rgba(0,0,0,0.07)',
+              }}
+              onClick={(e) => { e.stopPropagation(); onSelect(profile); }}
+            >
+              <span className="font-extrabold text-[10px] sm:text-[11px] truncate min-w-0 flex-1 text-gray-950 leading-none">{profile.nickname}</span>
+              {profile.birth_year != null && (
+                <span className="flex-shrink-0 text-[9px] sm:text-[10px] font-bold text-gray-600 tabular-nums whitespace-nowrap ml-1 leading-none">{age}</span>
+              )}
+            </div>
+          )}
       </div>{/* /3:4 사진 */}
 
       {/* ── 성향·MBTI·관심사 ── */}
