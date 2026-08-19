@@ -322,16 +322,16 @@ function TipCard({
   const cardCls = darkMode ? accent.cardDark : accent.cardLight;
   const iconCls = darkMode ? accent.iconDark : accent.iconLight;
   const barCls = sectionBar ?? accent.bar;
-  const iconShell = `${compact ? 'w-5 h-5 text-[10px] rounded-md' : 'w-6 h-6 text-xs rounded-lg'} flex-shrink-0 flex items-center justify-center text-white ${iconCls}`;
-  const titleCls = compact ? 'text-[9px]' : 'text-[10px]';
-  const descCls = compact ? 'text-[8px] leading-tight' : 'text-[9px] leading-snug';
-  const pad = compact ? 'px-1.5 py-1' : 'px-2 py-1.5';
+  const iconShell = `${compact ? 'w-6 h-6 text-xs rounded-lg' : 'w-7 h-7 text-sm rounded-xl'} flex-shrink-0 flex items-center justify-center text-white ${iconCls}`;
+  const titleCls = compact ? 'text-[11px]' : 'text-xs';
+  const descCls = compact ? 'text-xs leading-snug' : 'text-[13px] leading-relaxed';
+  const pad = compact ? 'px-2 py-1.5' : 'px-3 py-2.5';
 
   const body = (
-    <div className="flex items-start gap-1.5 min-w-0 flex-1 pl-1">
+    <div className="flex items-start gap-2 min-w-0 flex-1 pl-1.5">
       <span className={iconShell}>{tip.icon}</span>
       <div className="min-w-0 flex-1">
-        <p className={`${titleCls} font-black leading-tight ${KR_WRAP} ${text}`}>{tip.title}</p>
+        <p className={`${titleCls} font-bold leading-tight ${KR_WRAP} ${text}`}>{tip.title}</p>
         <p className={`${descCls} mt-0.5 ${KR_WRAP} ${muted}`}>{desc}</p>
       </div>
     </div>
@@ -339,16 +339,16 @@ function TipCard({
 
   if (spanFull) {
     return (
-      <div className={`relative col-span-2 flex rounded-xl border ${pad} ${cardCls}`}>
-        <span className={`absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-gradient-to-b ${barCls}`} aria-hidden />
+      <div className={`relative col-span-2 flex rounded-2xl border ${pad} ${cardCls}`}>
+        <span className={`absolute left-0 top-2.5 bottom-2.5 w-0.5 rounded-full bg-gradient-to-b ${barCls}`} aria-hidden />
         {body}
       </div>
     );
   }
 
   return (
-    <div className={`relative flex rounded-xl border h-full ${pad} ${cardCls}`}>
-      <span className={`absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-gradient-to-b ${barCls}`} aria-hidden />
+    <div className={`relative flex rounded-2xl border h-full ${pad} ${cardCls}`}>
+      <span className={`absolute left-0 top-2.5 bottom-2.5 w-0.5 rounded-full bg-gradient-to-b ${barCls}`} aria-hidden />
       {body}
     </div>
   );
@@ -375,7 +375,7 @@ function TipGrid({
 }) {
   const useTwoCol = twoColumn ?? tips.length >= 4;
   const oddLast = useTwoCol && tips.length % 2 === 1;
-  const gap = compact ? 'gap-1' : 'gap-1.5';
+  const gap = compact ? 'gap-1.5' : 'gap-2.5';
 
   if (!useTwoCol) {
     return (
@@ -532,24 +532,26 @@ function FillerPanel({ kind, darkMode, compact }: { kind: FillerKind; darkMode?:
   const pin = kind === 'pin';
   return (
     <div
-      className={`flex-shrink-0 flex flex-col items-center justify-center rounded-2xl text-center ${
-        compact ? 'px-2 py-1' : 'px-3 py-2'
+      className={`flex-shrink-0 flex items-center rounded-2xl ${
+        compact ? 'gap-2 px-2.5 py-1.5 text-left' : 'flex-col justify-center gap-1 px-3.5 py-2.5 text-center'
       } ${darkMode ? f.darkShell : f.shell}`}
     >
       {pin && (
-        <span className={`inline-flex items-center justify-center rounded-full font-black tracking-tight text-white shadow-md bg-gradient-to-r from-amber-500 to-orange-500 ${compact ? 'mb-0.5 px-2 py-px text-[9px]' : 'mb-1 px-2.5 py-0.5 text-[10px]'}`}>
+        <span className={`inline-flex flex-shrink-0 items-center justify-center rounded-full font-bold tracking-tight text-white shadow-md bg-gradient-to-r from-amber-500 to-orange-500 ${compact ? 'px-2 py-0.5 text-[11px]' : 'mb-0.5 px-2.5 py-0.5 text-xs'}`}>
           관리자문의
         </span>
       )}
       {!compact && <FillerArt kind={kind} darkMode={darkMode} />}
-      <p className={`font-black tracking-tight leading-snug ${KR_WRAP} ${compact ? 'text-[10px]' : 'text-[11px]'} ${darkMode ? 'text-white' : 'text-slate-800'}`}>
-        {f.title}
-      </p>
-      {!compact && (
-        <p className={`text-[10px] leading-snug mt-0.5 ${KR_WRAP} ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-          {f.line.replace(/([.·])\s+/g, '$1\u200b ')}
+      <div className={compact ? 'min-w-0 flex-1' : ''}>
+        <p className={`font-bold tracking-tight leading-snug ${KR_WRAP} ${compact ? 'text-[11px]' : 'text-xs'} ${darkMode ? 'text-white' : 'text-slate-800'}`}>
+          {f.title}
         </p>
-      )}
+        {!compact && (
+          <p className={`text-xs leading-snug mt-0.5 ${KR_WRAP} ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+            {f.line.replace(/([.·])\s+/g, '$1\u200b ')}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
@@ -567,7 +569,7 @@ function TopicSubTabs({
   darkMode?: boolean;
   topicColor: string;
 }) {
-  const base = 'flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-xl text-[11px] font-black transition-all duration-200 active:scale-[0.97]';
+  const base = 'flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all duration-200 active:scale-[0.97]';
   const idle = darkMode ? 'text-slate-400 bg-slate-800/60' : 'text-gray-500 bg-white/60';
   const activeTips = darkMode
     ? 'bg-slate-700 text-white shadow-md ring-1 ring-white/10'
@@ -605,10 +607,10 @@ function SectionHeader({
   const variant = SECTION_VARIANTS[section.variant ?? 'default'];
   const headerCls = darkMode ? variant.headerDark : variant.headerLight;
   return (
-    <div className={`flex items-center gap-1.5 mb-0.5 rounded-lg border px-2 py-0.5 ${headerCls}`}>
-      <span className={`leading-none ${compact ? 'text-xs' : 'text-sm'}`}>{section.emoji}</span>
-      <p className={`font-black ${compact ? 'text-[9px]' : 'text-[10px]'} ${KR_WRAP}`}>{section.title}</p>
-      <span className={`ml-auto h-1 flex-1 max-w-12 rounded-full bg-gradient-to-r ${variant.bar} opacity-60`} aria-hidden />
+    <div className={`flex items-center gap-2 mb-1 rounded-xl border px-2.5 py-1 ${headerCls}`}>
+      <span className={`leading-none ${compact ? 'text-sm' : 'text-base'}`}>{section.emoji}</span>
+      <p className={`font-bold ${compact ? 'text-[11px]' : 'text-xs'} ${KR_WRAP}`}>{section.title}</p>
+      <span className={`ml-auto h-1 flex-1 max-w-16 rounded-full bg-gradient-to-r ${variant.bar} opacity-70`} aria-hidden />
     </div>
   );
 }
@@ -654,7 +656,7 @@ export function TutorialModal({
   };
 
   const tipsContent = (
-    <div className={`flex flex-col min-h-0 flex-1 overflow-hidden ${layout.compact ? 'gap-1' : 'gap-1.5'}`}>
+    <div className={`flex flex-col min-h-0 flex-1 overflow-hidden ${layout.compact ? 'gap-1.5' : 'gap-2.5'}`}>
       {topic.filler && <FillerPanel kind={topic.filler} darkMode={darkMode} compact={layout.fillerCompact} />}
 
       {(topic.sections ?? []).map((section) => {
@@ -673,7 +675,7 @@ export function TutorialModal({
               sectionBar={variant.bar}
             />
             {section.footer && (
-              <p className={`mt-0.5 px-1 leading-snug ${KR_WRAP} ${layout.compact ? 'text-[8px]' : 'text-[9px]'} ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+              <p className={`mt-1 px-1 leading-snug ${KR_WRAP} text-[11px] ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>
                 {section.footer.replace(/([.·])\s+/g, '$1\u200b ')}
               </p>
             )}
@@ -684,8 +686,8 @@ export function TutorialModal({
       {topic.tips.length > 0 && (
         <>
           {!topic.sections?.length && !topic.filler && (
-            <p className={`font-black flex items-center gap-1 ${layout.compact ? 'text-[9px]' : 'text-[10px]'} ${text}`}>
-              <span className="inline-flex w-4 h-4 items-center justify-center rounded-md bg-gradient-to-br from-cyan-500 to-teal-500 text-[10px] text-white shadow-sm">📋</span>
+            <p className={`font-bold flex items-center gap-1.5 text-xs ${text}`}>
+              <span className="inline-flex w-5 h-5 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-500 to-teal-500 text-xs text-white shadow-sm">📋</span>
               핵심만
             </p>
           )}
@@ -702,7 +704,7 @@ export function TutorialModal({
       )}
 
       {topic.footer && (
-        <p className={`leading-snug px-2 py-1 rounded-lg border ${KR_WRAP} ${layout.compact ? 'text-[8px]' : 'text-[9px]'} ${
+        <p className={`leading-snug px-2.5 py-1.5 rounded-xl border text-[11px] ${KR_WRAP} ${
           darkMode ? 'text-slate-400 bg-slate-800/40 border-slate-700/60' : 'text-gray-500 bg-slate-50/80 border-slate-100'
         }`}>
           {topic.footer.replace(/([.·])\s+/g, '$1\u200b ')}
@@ -712,38 +714,15 @@ export function TutorialModal({
   );
 
   const videoContent = topic.video ? (
-    <div className="flex flex-col flex-1 min-h-0 overflow-hidden gap-1.5">
-      <div className={`flex-shrink-0 rounded-2xl px-3 py-2 text-center border shadow-sm ${
-        darkMode
-          ? 'bg-gradient-to-br from-slate-800/90 to-violet-950/40 border-violet-900/50'
-          : 'bg-gradient-to-br from-violet-50 via-white to-fuchsia-50/80 border-violet-100/80 shadow-violet-100/30'
-      }`}>
-        <p className={`text-xs font-black ${darkMode ? 'text-violet-200' : 'text-violet-700'}`}>
-          {topic.emoji} {topic.label} · 동영상
-        </p>
-        {topic.videoHint && (
-          <p className={`text-[10px] mt-0.5 ${darkMode ? 'text-slate-400' : 'text-violet-600/80'}`}>{topic.videoHint}</p>
-        )}
-      </div>
-      <div className="flex-1 min-h-0 overflow-hidden rounded-2xl ring-1 ring-black/5 shadow-inner">
-        <TutorialVideo
-          key={`${mode}-${topic.id}-video`}
-          embedded
-          compact
-          fill
-          sceneIndices={topic.video}
-          onClose={() => setSubView('tips')}
-        />
-      </div>
-      <button
-        type="button"
-        onClick={() => setSubView('tips')}
-        className={`flex-shrink-0 w-full py-2 rounded-xl text-sm font-semibold border transition-all active:scale-[0.98] ${
-          darkMode ? 'border-slate-600 text-slate-300 bg-slate-800/60 hover:bg-slate-800' : 'border-gray-200 text-gray-600 bg-white hover:bg-gray-50'
-        }`}
-      >
-        📋 설명으로 돌아가기
-      </button>
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden rounded-2xl ring-1 ring-black/5 shadow-lg shadow-teal-900/5">
+      <TutorialVideo
+        key={`${mode}-${topic.id}-video`}
+        embedded
+        compact
+        fill
+        sceneIndices={topic.video}
+        onClose={() => setSubView('tips')}
+      />
     </div>
   ) : null;
 
@@ -783,11 +762,11 @@ export function TutorialModal({
               {topic.emoji}
             </span>
             <div className="min-w-0 flex-1 pt-0.5">
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/15 text-white/90 text-[9px] font-black tracking-wide ring-1 ring-white/10">
-                <Sparkles className="w-2.5 h-2.5" />
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/15 text-white/90 text-[11px] font-bold tracking-wide ring-1 ring-white/10">
+                <Sparkles className="w-3 h-3" />
                 도움말
               </span>
-              <h2 id="tutorial-modal-title" className={`text-white font-black text-sm leading-snug mt-1 line-clamp-2 min-h-[2.25rem] ${KR_WRAP}`}>
+              <h2 id="tutorial-modal-title" className={`text-white font-bold text-base leading-snug mt-1 line-clamp-2 min-h-[2.25rem] ${KR_WRAP}`}>
                 {topic.title}
               </h2>
             </div>
@@ -800,7 +779,7 @@ export function TutorialModal({
             <button
               type="button"
               onClick={() => switchMode('basic')}
-              className={`py-1.5 rounded-xl text-[11px] font-black transition-all duration-200 active:scale-[0.97] ${
+              className={`py-2 rounded-xl text-xs font-bold transition-all duration-200 active:scale-[0.97] ${
                 mode === 'basic'
                   ? 'bg-gradient-to-r from-cyan-500 to-teal-500 text-white shadow-md shadow-cyan-500/25'
                   : darkMode ? 'text-slate-400' : 'text-gray-500'
@@ -811,7 +790,7 @@ export function TutorialModal({
             <button
               type="button"
               onClick={() => switchMode('hidden')}
-              className={`py-1.5 rounded-xl text-[11px] font-black transition-all duration-200 active:scale-[0.97] ${
+              className={`py-2 rounded-xl text-xs font-bold transition-all duration-200 active:scale-[0.97] ${
                 mode === 'hidden'
                   ? 'bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-md shadow-violet-500/25'
                   : darkMode ? 'text-slate-400' : 'text-gray-500'
@@ -833,7 +812,7 @@ export function TutorialModal({
                   <button
                     key={t.id}
                     onClick={() => selectTopic(i)}
-                    className={`relative flex-shrink-0 min-w-[4.25rem] px-1.5 py-1 rounded-xl text-[10px] font-bold leading-tight text-center transition-all duration-200 active:scale-95 border ${
+                    className={`relative flex-shrink-0 min-w-[4.5rem] px-2 py-1.5 rounded-xl text-[11px] font-semibold leading-tight text-center transition-all duration-200 active:scale-95 border ${
                       active
                         ? `bg-gradient-to-br ${t.color} text-white shadow-md shadow-black/10 border-white/20 ring-1 ring-white/30`
                         : darkMode
@@ -856,8 +835,8 @@ export function TutorialModal({
         <TopicSubTabs subView={subView} onChange={setSubView} hasVideo={hasVideo} darkMode={darkMode} topicColor={topic.color} />
 
         {/* Content */}
-        <div className={`flex-1 min-h-0 px-4 py-1.5 flex flex-col overflow-hidden transition-colors duration-300 ${
-          darkMode ? 'bg-gradient-to-b from-slate-900/80 to-slate-950' : 'bg-gradient-to-b from-slate-50/50 to-white'
+        <div className={`flex-1 min-h-0 px-4 py-2 flex flex-col overflow-hidden transition-colors duration-300 ${
+          darkMode ? 'bg-gradient-to-b from-slate-900/80 to-slate-950' : 'bg-gradient-to-b from-slate-50/80 to-white'
         }`}>
           {subView === 'video' && hasVideo ? videoContent : tipsContent}
         </div>
