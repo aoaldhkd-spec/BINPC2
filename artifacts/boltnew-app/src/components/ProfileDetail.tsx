@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, type SyntheticEvent } from 'react';
 import { ArrowLeft, Heart, MessageCircle, MapPin } from 'lucide-react';
 import { getPositionLabel, getPositionBg, getDomSubLabel, getDomSubBg, getKoreanAge, genAvatar, getAvatarSrc, hasUploadedPhoto, isPresetAvatar } from '../lib/profile';
+import { parseIdealTags } from '../lib/signal-match';
 import { HEART_TYPES, HeartType } from '../lib/constants';
 import ProfileScoreBar from './ProfileScoreBar';
 import type { Profile } from '../types/app';
@@ -43,9 +44,44 @@ function PhotoHeader({ profile }: { profile: Profile }) {
   );
 }
 
-function ProfileDetail({ profile, isMe, isLiked, heartType, sentHeartsCount, locked, onLike, onChat, onBack, onViewFortune }: {
+function signalMsgParts(msg: string | null | undefined): { tags: string[]; free: string } {
+  if (!msg) return { tags: [], free: '' };
+  const parts = msg.split('\n');
+  return { tags: parseIdealTags(msg), free: parts[1]?.trim() ?? '' };
+}
+
+function SignalMsgSection({ label, emoji, tags, free, chipClass }: {
+  label: string;
+  emoji: string;
+  tags: string[];
+  free: string;
+  chipClass: string;
+}) {
+  if (!tags.length && !free) return null;
+  return (
+    <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2.5">{emoji} {label}</p>
+      {tags.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {tags.map((tag) => (
+            <span key={tag} className={`px-3 py-1.5 text-sm font-semibold rounded-full border ${chipClass}`}>
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
+      {free && (
+        <p className="text-sm text-gray-700 mt-2.5 leading-relaxed whitespace-pre-wrap break-words">{free}</p>
+      )}
+    </div>
+  );
+}
+
+function ProfileDetail({ profile, isMe, isLiked, heartType, sentHeartsCount, locked, idealMsg, featureMsg, onLike, onChat, onBack, onViewFortune }: {
   profile: Profile; isMe: boolean; isLiked: boolean; heartType?: HeartType; sentHeartsCount?: number;
   locked?: boolean;
+  idealMsg?: string | null;
+  featureMsg?: string | null;
   onLike: () => void; onChat: () => void; onBack: () => void; onViewFortune?: () => void;
 }) {
   const [lockToast, setLockToast] = useState(false);
@@ -66,6 +102,9 @@ function ProfileDetail({ profile, isMe, isLiked, heartType, sentHeartsCount, loc
     if (locked) { showLockToast(); return; }
     onChat();
   };
+
+  const ideal = signalMsgParts(idealMsg);
+  const feature = signalMsgParts(featureMsg);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -152,6 +191,22 @@ function ProfileDetail({ profile, isMe, isLiked, heartType, sentHeartsCount, loc
             </span>
           </div>
         )}
+
+        <SignalMsgSection
+          label="이상형"
+          emoji="💘"
+          tags={ideal.tags}
+          free={ideal.free}
+          chipClass="bg-pink-50 text-pink-700 border-pink-200"
+        />
+
+        <SignalMsgSection
+          label="나의 특징"
+          emoji="🌟"
+          tags={feature.tags}
+          free={feature.free}
+          chipClass="bg-amber-50 text-amber-800 border-amber-200"
+        />
 
         {/* Score section — hide_personality=true 이면 상대방에게 숨김 */}
         {(!profile.hide_personality || isMe) && (

@@ -70,8 +70,8 @@ export type UserSignal = {
   id: string;
   user_id: string;
   status_msg: string | null;  // 오늘의 상태 메시지 (전광판 출력)
-  ideal_msg: string | null;   // 나의 이상형 (카드 뒤면 출력)
-  feature_msg?: string | null; // 나의 특징 (시그널 매칭, 카드에 원문 비공개)
+  ideal_msg: string | null;   // 나의 이상형 (카드 뒷면·프로필 상세)
+  feature_msg?: string | null; // 나의 특징 (프로필 상세·시그널 매칭)
   created_at: string;
 };
 

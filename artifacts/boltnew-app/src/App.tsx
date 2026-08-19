@@ -2024,6 +2024,8 @@ function App() {
               heartType={sentHeartTypes.get(selectedProfile.id)}
               sentHeartsCount={sentHeartsPerPerson.get(selectedProfile.id)?.size ?? 0}
               locked={functionsLocked}
+              idealMsg={userSignals.find((s) => s.user_id === selectedProfile.id)?.ideal_msg}
+              featureMsg={userSignals.find((s) => s.user_id === selectedProfile.id)?.feature_msg}
               onLike={() => { if (!functionsLocked) handleLike(selectedProfile.id); }}
               onChat={() => { void openChatGuarded(selectedProfile); }}
               onBack={goParticipantBack}
