@@ -36,14 +36,14 @@ body[data-view="chat"] .fixed.inset-0.z-\[9997\] { display: none !important; }
   -webkit-appearance: none;
   appearance: none;
 }
-/* MY only — transparent inactive pill + explicit ring (Tailwind ring-* loses to theme box-shadow:none) */
+/* MY only — solid inactive pill + explicit ring (Tailwind ring-* loses to theme box-shadow:none) */
 .participant-fab-my:not(.bg-gradient-to-br) {
-  background-color: transparent !important;
+  background-color: #ffffff !important;
   background-image: none !important;
   box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.7) !important;
 }
 .bg-slate-950 .participant-fab-my:not(.bg-gradient-to-br) {
-  background-color: transparent !important;
+  background-color: rgb(30 41 59) !important;
   box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.8) !important;
 }
 .participant-fab-my.bg-gradient-to-br {
@@ -51,12 +51,10 @@ body[data-view="chat"] .fixed.inset-0.z-\[9997\] { display: none !important; }
   box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.3) !important;
 }
 [data-theme="y2k"] .participant-fab-my:not(.bg-gradient-to-br) {
-  background-color: transparent !important;
   background-image: none !important;
   color: inherit;
 }
 [data-theme="minimal"] .participant-fab-my:not(.bg-gradient-to-br) {
-  background-color: transparent !important;
   background-image: none !important;
   border-radius: 9999px !important;
   letter-spacing: normal !important;
