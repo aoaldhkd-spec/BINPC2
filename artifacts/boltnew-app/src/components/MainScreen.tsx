@@ -41,6 +41,7 @@ import { ResetButton } from './ResetButton';
 import { SignalTab } from './SignalTab';
 import { FUNCTIONS_LOCK_TOAST, SOCIAL_LOCKED_TABS } from '../lib/functions-lock';
 import { STATUS_QUICK_MSGS } from '../lib/chat-picker-data';
+import { HOST_AGE_EASTER_EGG_HINT } from '../lib/host-age-easter-egg';
 import { filterProfilesForDeck } from '../lib/profile-deck-filter';
 import {
   readProfileCardGridMode, writeProfileCardGridMode, profileGridClassName, profileGridColSpan,
@@ -2051,6 +2052,9 @@ export function MainScreen({
                 </div>
               );
             })()}
+            <p className={`text-center text-[10px] leading-relaxed px-4 ${darkMode ? 'text-slate-600' : 'text-gray-400'}`}>
+              {HOST_AGE_EASTER_EGG_HINT}
+            </p>
           </div>
           </StatusErrorBoundary>
         )}

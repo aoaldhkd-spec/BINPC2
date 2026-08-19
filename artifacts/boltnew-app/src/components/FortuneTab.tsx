@@ -7,7 +7,6 @@ import {
   getCompatibility, getNumerologyCompat, getOhaengCompat, getBedCompat, getMbtiCompat,
   type DrawnCard,
 } from '../lib/fortune';
-import { HOST_AGE_EASTER_EGG_HINT } from '../lib/host-age-easter-egg';
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
 type FortuneSubTab = 'tarot' | 'saju' | 'gungham';
@@ -617,7 +616,6 @@ export default function FortuneTab({
           </div>
         )}
         </div>
-        <p className="text-center text-slate-600 text-[10px] px-4 pb-6 pt-2 leading-relaxed">{HOST_AGE_EASTER_EGG_HINT}</p>
       </div>
     </div>
   );
