@@ -70,7 +70,7 @@ mustNotMatch('scripts/test-realtime-two-user.mjs', '02_sse_not_netlify', [/\$\{A
 mustMatch('scripts/endurance-5h.mjs', '03_functions_locked_skip', [
   /isOpFunctionsLocked/,
   /process\.exit\(2\)/,
-  /return 'locked'|result === 'locked'/,
+  /result\.locked|locked: true/,
 ]);
 mustMatch('scripts/lib/functions-lock.mjs', '03_functions_lock_helper', [/isOpFunctionsLocked/]);
 
@@ -88,8 +88,12 @@ mustMatch('scripts/endurance-5h.mjs', '06_rate_limit_single_instance', [
   /numInstances:1|ONE endurance/i,
 ]);
 
-// 7. admin event reset — documented in endurance (cannot fix mid-run)
-mustMatch('scripts/endurance-5h.mjs', '07_admin_event_reset_doc', [/admin_event_end_reset/]);
+// 7. admin event reset — auto re-provision soak users mid-run
+mustMatch('scripts/endurance-5h.mjs', '07_admin_event_reset_recover', [
+  /admin_event_end_reset/,
+  /recoverContext|re-provisioning soak users/,
+]);
+mustExist('scripts/endurance-watchdog.mjs', '07b_endurance_watchdog');
 
 // 8. Photo upload sessionToken — uploadStorageDataUrl, no raw fetch
 mustMatch('artifacts/boltnew-app/src/lib/localdb.ts', '08_upload_session_token', [

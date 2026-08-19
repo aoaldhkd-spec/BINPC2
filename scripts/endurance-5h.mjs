@@ -16,11 +16,12 @@
  *   ENDURANCE_LOCK_STALE_MS   stale lock override (default 6h)
  *   ENDURANCE_FORCE_LOCK=1    run even if another lock is active (not recommended)
  *
- * Ops / recurrence (cannot fix inside this script):
+ * Ops / recurrence:
  *   - SSE 401 @ 1h: proactive 80% token refresh + ensureConnected each cycle (mirrors localdb.ts).
- *   - admin_event_end_reset: wipes ALL participant rows — soak users disappear; stop before admin reset.
+ *   - admin_event_end_reset: wipes participant rows — auto re-provision soak users + chat (recoverContext).
  *   - Rate limit 429: run ONE endurance at a time (Render numInstances:1). Parallel soaks share NAT IP.
  *   - functions_locked: exit 2 at start; mid-run admin lock skips cycle (not fail streak).
+ *   - Watchdog: scripts/endurance-watchdog.mjs restarts on crash/abort with remaining hours.
  */
 import { appendFileSync, existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -38,6 +39,9 @@ const LOCK_PATH = resolve(process.env.ENDURANCE_LOCK_FILE
   || 'scripts/.soak-results/endurance.lock');
 const LOCK_STALE_MS = Number(process.env.ENDURANCE_LOCK_STALE_MS || 6 * 60 * 60 * 1000);
 const FORCE_LOCK = process.env.ENDURANCE_FORCE_LOCK === '1';
+const DEADLINE_AT = process.env.ENDURANCE_DEADLINE_AT
+  ? Number(process.env.ENDURANCE_DEADLINE_AT)
+  : null;
 const DURATION_MS = HOURS * 60 * 60 * 1000;
 
 // 앱 localdb.ts 와 동일 — 1h TTL, 80% 지점(720s 남을 때) 선제 갱신
@@ -289,8 +293,10 @@ function acquireEnduranceLock() {
     runId: RUN_ID,
     pid: process.pid,
     startedAt: Date.now(),
+    deadlineAt: DEADLINE_AT ?? (Date.now() + DURATION_MS),
     api: API,
     hours: HOURS,
+    metrics: METRICS,
   }), 'utf8');
   log({ type: 'lock', msg: `RUN_ID=${RUN_ID} lock=${LOCK_PATH}` });
 }
@@ -312,6 +318,30 @@ async function checkFunctionsUnlocked() {
     log({ type: 'skip', ok: false, msg: 'FUNCTIONS_LOCKED — unlock in admin before endurance run' });
     process.exit(2);
   }
+}
+
+function isRecoverableOpFailure({ status, json } = {}) {
+  if (isOpFunctionsLocked({ status, json })) return false;
+  if (status === 401) return true;
+  if (status === 403 && json?.error?.code === 'FORBIDDEN') return true;
+  if (status === 403) return true; // stale session / wiped chat after admin reset
+  return false;
+}
+
+async function recoverContext(ctx, sseB) {
+  log({ type: 'recover', phase: 'start', msg: 're-provisioning soak users (admin reset or stale session)' });
+  sseB.stop();
+  const fresh = await setupUsers();
+  Object.assign(ctx, fresh);
+  await sseB.start();
+  log({
+    type: 'recover',
+    phase: 'done',
+    ok: true,
+    idA: ctx.idA,
+    chatId: ctx.chatId,
+    msg: 'soak users restored — retrying cycle',
+  });
 }
 
 async function setupUsers() {
@@ -372,9 +402,14 @@ async function runCycle(ctx, cycle, sseB) {
   });
   if (isOpFunctionsLocked(msgR)) {
     log({ type: 'skip', ok: true, msg: 'FUNCTIONS_LOCKED mid-run — skipping cycle (not fail streak)' });
-    return 'locked';
+    return { ok: false, locked: true, recoverable: false, fails: ['FUNCTIONS_LOCKED'] };
   }
-  if (msgR.status !== 200 || !msgR.json.data?.id) fails.push(`msg insert ${msgR.status}`);
+  if (msgR.status !== 200 || !msgR.json.data?.id) {
+    fails.push(`msg insert ${msgR.status}`);
+    if (isRecoverableOpFailure(msgR)) {
+      return { ok: false, locked: false, recoverable: true, fails };
+    }
+  }
 
   const msgEvt = streamB
     ? await streamB.waitFor(
@@ -391,16 +426,22 @@ async function runCycle(ctx, cycle, sseB) {
   if (!msgs.some((m) => m.content === msgBody)) fails.push('msg DB miss');
 
   const ok = fails.length === 0;
+  const recoverable = !ok && (
+    isRecoverableOpFailure(msgR)
+    || fails.some((f) => /403|401/.test(f))
+    || (selR.status !== 200 && isRecoverableOpFailure(selR))
+  );
   log({
     type: 'cycle',
     cycle,
     ok,
     fails,
+    recoverable,
     msgCount: msgs.length,
     sseExpB: ctx.sseExpB,
     elapsedMs: Date.now() - ctx.startedAt,
   });
-  return ok;
+  return { ok, locked: false, recoverable, fails };
 }
 
 async function main() {
@@ -413,22 +454,36 @@ async function main() {
 
   const ctx = await setupUsers();
   ctx.startedAt = Date.now();
-  log({ type: 'start', hours: HOURS, intervalMs: INTERVAL_MS, sseExpB: ctx.sseExpB });
+  const deadline = DEADLINE_AT ?? (Date.now() + DURATION_MS);
+  log({ type: 'start', hours: HOURS, intervalMs: INTERVAL_MS, sseExpB: ctx.sseExpB, deadlineAt: deadline });
 
   const sseB = createSseSession(ctx, 'B');
   await sseB.start();
 
-  const deadline = Date.now() + DURATION_MS;
   let cycle = 0;
   let failStreak = 0;
 
   try {
     while (Date.now() < deadline) {
       cycle += 1;
-      const result = await runCycle(ctx, cycle, sseB);
-      if (result === 'locked') {
+      let result = await runCycle(ctx, cycle, sseB);
+      if (result.locked) {
         // Admin locked mid-run — skip cycle, do not abort soak or increment fail streak
-      } else if (!result) {
+      } else if (!result.ok) {
+        if (result.recoverable) {
+          try {
+            await recoverContext(ctx, sseB);
+            cycle -= 1;
+            failStreak = 0;
+            continue;
+          } catch (e) {
+            log({
+              type: 'recover',
+              ok: false,
+              msg: e instanceof Error ? e.message : String(e),
+            });
+          }
+        }
         failStreak += 1;
         if (failStreak >= 3) {
           log({ type: 'abort', ok: false, msg: '3 consecutive cycle failures' });
