@@ -1958,38 +1958,6 @@ export function MainScreen({
                     )}
                   </div>
 
-                  {/* ── 성향(돔/섭) 공개 ── */}
-                  {(() => {
-                    const hidePersonality = (me as { hide_personality?: boolean }).hide_personality ?? true;
-                    return (
-                      <div className={`border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
-                        <div className="flex items-center justify-between px-4 py-3">
-                          <div className="flex items-center gap-3">
-                            <span className="text-xl flex-shrink-0">👁</span>
-                            <div>
-                              <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>성향(돔/섭) 공개</p>
-                              <p className={`text-[10px] ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{hidePersonality ? '🔒 다른 참여자에게 숨김' : '👁 다른 참여자에게 보임'}</p>
-                            </div>
-                          </div>
-                          <button
-                            onClick={async () => {
-                              const next = !hidePersonality;
-                              if (!currentUserId) return;
-                              try {
-                                await supabase.from('profiles').update({ hide_personality: next } as never).eq('id', currentUserId);
-                                onUpdateProfile({ id: currentUserId, hide_personality: next } as never);
-                              } catch (e) { console.error('[hide_personality]', e); }
-                            }}
-                            className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none ${hidePersonality ? (darkMode ? 'bg-slate-600' : 'bg-gray-300') : 'bg-teal-500'}`}
-                            aria-label="성향 공개 토글"
-                          >
-                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ${hidePersonality ? 'translate-x-1' : 'translate-x-6'}`} />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })()}
-
                   {/* ── 방문자 알림 ── */}
                   <div className={`border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
                     <div className="flex items-center justify-between px-4 py-3">
