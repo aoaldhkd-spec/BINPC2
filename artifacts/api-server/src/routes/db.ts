@@ -3153,18 +3153,21 @@ router.post('/op', async (req: Request, res: Response) => {
       }
 
       // ─ IDOR guard: contact_shares SELECT ─────────────────────────────────
-      // 연락처 공유 내역은 보낸 사람(liker_id) 또는 받은 사람(liked_id)만 조회 가능.
-      // requesterId 없이 전체 덤프하면 모든 연락처 공유 기록이 노출됨 → 차단.
+      // liker_id/liked_id 필터 있음 → 당사자만 전체 필드. 없음 → 통계 집계(created_at만, 익명).
       if (table === 'contact_shares' && !canReadPrivateTables) {
         if (!requesterId) {
           logger.warn({ ip: req.ip }, '[SECURITY] IDOR: contact_shares SELECT without requesterId blocked');
           return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
         }
-        // 서버 측에서 소유자 스코프 제한 — 클라이언트 필터 우회 공격 차단
-        const csScope = tableData.filter(r =>
-          String(r.liker_id) === String(requesterId) || String(r.liked_id) === String(requesterId)
+        const hasPartyFilter = normalizedFilters.some(f =>
+          (f.type === 'eq' || f.type === 'in') && (f.col === 'liker_id' || f.col === 'liked_id'),
         );
-        const csResult = applyFilters(csScope, normalizedFilters);
+        const csSource = hasPartyFilter
+          ? tableData.filter(r =>
+              String(r.liker_id) === String(requesterId) || String(r.liked_id) === String(requesterId),
+            )
+          : tableData.map(r => ({ created_at: r.created_at }));
+        const csResult = applyFilters(csSource, normalizedFilters);
         for (const { col, asc } of safeOrders) {
           csResult.sort((a, b) => {
             const av = a[col]; const bv = b[col];

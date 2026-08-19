@@ -476,13 +476,21 @@ describe('[Security] private /op tables and relationship ownership', () => {
     expect(noEventAuth.status).toBe(403);
     expect(noEventAuth.body.error?.code).toBe('FORBIDDEN');
 
-    const recipientShares = await op({ op: 'select', table: 'contact_shares', requesterId: recipient });
+    const recipientShares = await op({
+      op: 'select',
+      table: 'contact_shares',
+      requesterId: recipient,
+      filters: [{ type: 'eq', col: 'liker_id', val: recipient }],
+    });
     expect(recipientShares.body.data.some((row: { id: string }) => row.id === shareId)).toBe(true);
     const recipientEvents = await op({ op: 'select', table: 'contact_share_events', requesterId: recipient });
     expect(recipientEvents.body.data.some((row: { id: string }) => row.id === eventId)).toBe(true);
 
     const outsiderShares = await op({ op: 'select', table: 'contact_shares', requesterId: outsider });
-    expect(outsiderShares.body.data.some((row: { id: string }) => row.id === shareId)).toBe(false);
+    expect(outsiderShares.body.data.every((row: Record<string, unknown>) =>
+      Object.keys(row).length === 1 && 'created_at' in row,
+    )).toBe(true);
+    expect(outsiderShares.body.data.length).toBeGreaterThanOrEqual(1);
     const outsiderEvents = await op({ op: 'select', table: 'contact_share_events', requesterId: outsider });
     expect(outsiderEvents.body.data.some((row: { id: string }) => row.id === eventId)).toBe(false);
 

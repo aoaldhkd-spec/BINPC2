@@ -2,11 +2,11 @@ import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Database } from '../types/database';
 import {
-  BarChart3, Trophy, Heart, Users, TrendingUp, Award,
+  BarChart3, Trophy, Heart, Users, Share2, Award,
 } from 'lucide-react';
 import { parseProfileInterests } from '../lib/interests';
 import { HEART_META, HeartType } from '../lib/constants';
-import { collectProfileBreakdowns, countTodayHeartStats, rankByReceivedHearts } from '../lib/stats-ranking';
+import { collectProfileBreakdowns, countTodayContactExchanges, countTodayHeartStats, rankByReceivedHearts } from '../lib/stats-ranking';
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
 type Like = Database['public']['Tables']['likes']['Row'];
@@ -53,6 +53,52 @@ function usePublicLikes() {
   }, []);
 
   return allLikes;
+}
+
+type ContactShareRow = { created_at?: string | null };
+
+const PUBLIC_CONTACT_SHARES_POLL_MS = 30_000;
+
+function usePublicContactShares() {
+  const [allShares, setAllShares] = useState<ContactShareRow[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    let tries = 0;
+
+    const load = () => {
+      const fail = () => {
+        if (!active || tries >= 3) return;
+        tries += 1;
+        retryTimer = setTimeout(load, 800 * tries);
+      };
+      supabase.from('contact_shares').select('created_at').then(({ data }: { data: unknown }) => {
+        if (!active) return;
+        if (Array.isArray(data)) {
+          setAllShares(data as ContactShareRow[]);
+          tries = 0;
+          return;
+        }
+        fail();
+      }, fail);
+    };
+
+    load();
+    const poll = setInterval(load, PUBLIC_CONTACT_SHARES_POLL_MS);
+    const onVis = () => {
+      if (document.visibilityState === 'visible') load();
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      active = false;
+      window.clearTimeout(retryTimer);
+      window.clearInterval(poll);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, []);
+
+  return allShares;
 }
 
 const CHART_COLORS = ['#0891b2', '#0d9488', '#059669', '#16a34a', '#65a30d', '#ca8a04', '#d97706', '#ea580c', '#dc2626', '#db2777', '#9333ea', '#7c3aed'];
@@ -104,12 +150,14 @@ function EmptyNote({ text, dark }: { text: string; dark: boolean }) {
 
 export function StatsTab({ profiles, darkMode }: { profiles: Profile[]; darkMode: boolean }) {
   const allLikes = usePublicLikes();
+  const allContactShares = usePublicContactShares();
 
   const stats = useMemo(() => {
     const breakdowns = collectProfileBreakdowns(profiles, parseProfileInterests);
-    const { heart, totalHearts, matched } = countTodayHeartStats(allLikes);
-    return { ...breakdowns, heart, totalHearts, matched };
-  }, [profiles, allLikes]);
+    const { heart, totalHearts } = countTodayHeartStats(allLikes);
+    const contactExchanges = countTodayContactExchanges(allContactShares);
+    return { ...breakdowns, heart, totalHearts, contactExchanges };
+  }, [profiles, allLikes, allContactShares]);
 
   const maxMbti = Math.max(1, ...stats.mbti.map((e) => e[1]));
   const maxPos = Math.max(1, ...stats.position.map((e) => e[1]));
@@ -123,13 +171,13 @@ export function StatsTab({ profiles, darkMode }: { profiles: Profile[]; darkMode
       <div className="flex items-center gap-2 px-1">
         <BarChart3 className="w-5 h-5 text-cyan-500" />
         <h2 className={`text-lg font-black ${darkMode ? 'text-white' : 'text-gray-800'}`}>오늘의 통계</h2>
-        <span className={`text-[11px] ml-auto ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>하트는 오늘(한국시간) · 익명 집계</span>
+        <span className={`text-[11px] ml-auto ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>하트·연락처는 오늘(한국시간) · 익명 집계</span>
       </div>
 
       <div className="grid grid-cols-3 gap-3">
         <StatCard label="참여자" value={profiles.length} sub="명" icon={<Users className="w-4 h-4" />} color="#0891b2" />
         <StatCard label="보낸 하트" value={stats.totalHearts} sub="개" icon={<Heart className="w-4 h-4" />} color="#ef4444" />
-        <StatCard label="매칭 성사" value={stats.matched} sub="건" icon={<TrendingUp className="w-4 h-4" />} color="#10b981" />
+        <StatCard label="연락처 교환" value={stats.contactExchanges} sub="회" icon={<Share2 className="w-4 h-4" />} color="#10b981" />
       </div>
 
       <div className={`rounded-2xl shadow-sm p-5 border transition-colors duration-300 ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-100'}`}>

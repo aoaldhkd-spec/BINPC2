@@ -3,6 +3,7 @@ import {
   ageBand,
   canonicalInterestTags,
   collectProfileBreakdowns,
+  countTodayContactExchanges,
   countTodayHeartStats,
   extractCityLevel,
   isLikeOnSeoulDay,
@@ -37,7 +38,7 @@ describe('isLikeOnSeoulDay', () => {
 });
 
 describe('countTodayHeartStats', () => {
-  it('counts only today KST hearts and accepted rows', () => {
+  it('counts only today KST hearts', () => {
     const stats = countTodayHeartStats([
       { liked_id: 'a', heart_type: 'red', status: 'pending', created_at: todayIso },
       { liked_id: 'b', heart_type: 'blue', status: 'accepted', created_at: todayIso },
@@ -45,7 +46,6 @@ describe('countTodayHeartStats', () => {
       { liked_id: 'd', heart_type: 'pink', status: 'rejected', created_at: todayIso },
     ], kstNow);
     expect(stats.totalHearts).toBe(3);
-    expect(stats.matched).toBe(1);
     expect(stats.heart).toEqual({ red: 1, blue: 1, pink: 1, green: 0 });
   });
 
@@ -62,8 +62,21 @@ describe('countTodayHeartStats', () => {
     expect(countTodayHeartStats([], kstNow)).toEqual({
       heart: { red: 0, blue: 0, pink: 0, green: 0 },
       totalHearts: 0,
-      matched: 0,
     });
+  });
+});
+
+describe('countTodayContactExchanges', () => {
+  it('counts only today KST contact shares', () => {
+    expect(countTodayContactExchanges([
+      { created_at: todayIso },
+      { created_at: yesterdayIso },
+      { created_at: todayIso },
+    ], kstNow)).toBe(2);
+  });
+
+  it('returns zero when empty', () => {
+    expect(countTodayContactExchanges([], kstNow)).toBe(0);
   });
 });
 

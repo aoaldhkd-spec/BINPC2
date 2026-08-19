@@ -45,24 +45,38 @@ function knownHeartType(raw: string | null | undefined): HeartType | null {
   return isAnyHeart(t) ? (t as HeartType) : null;
 }
 
-/** 오늘의 통계 — 하트 수·종류·수락(매칭)만. */
+/** 오늘의 통계 — 하트 수·종류만. */
 export function countTodayHeartStats(likes: readonly PublicLikeRow[], now: Date = new Date()): {
   heart: HeartCounts;
   totalHearts: number;
-  matched: number;
 } {
   const heart = emptyHeartCounts();
   let totalHearts = 0;
-  let matched = 0;
   for (const row of likes) {
     if (!isLikeOnSeoulDay(row, now)) continue;
     const t = knownHeartType(row.heart_type);
     if (!t) continue;
     heart[t] += 1;
     totalHearts += 1;
-    if (row.status === 'accepted') matched += 1;
   }
-  return { heart, totalHearts, matched };
+  return { heart, totalHearts };
+}
+
+export type PublicContactShareRow = {
+  created_at?: string | null;
+};
+
+/** contact_shares 행 수 — 오늘(KST) 생성분만. */
+export function countTodayContactExchanges(
+  shares: readonly PublicContactShareRow[],
+  now: Date = new Date(),
+): number {
+  let count = 0;
+  for (const row of shares) {
+    if (!isLikeOnSeoulDay(row, now)) continue;
+    count += 1;
+  }
+  return count;
 }
 
 export type RankedHeartEntry = {
