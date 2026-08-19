@@ -884,30 +884,33 @@ export function TutorialVideo({
     const sec = Math.round((progress / 100) * (total / 1000));
     return `0:${String(Math.min(59, sec)).padStart(2, '0')}`;
   })();
+  const isEmbeddedCompact = embedded && compact;
   const player = (
     <div className={`relative w-full min-h-0 overflow-hidden bg-black flex flex-col ${
       embedded
-        ? `${compact && !fill ? '' : 'h-full '} ${compact ? 'rounded-2xl border-2' : 'rounded-[1.35rem] border-[3px]'} border-zinc-800/90 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]`
+        ? `${compact && !fill ? '' : 'h-full '} ${isEmbeddedCompact ? 'rounded-2xl border-2' : compact ? 'rounded-2xl border-2' : 'rounded-[1.35rem] border-[3px]'} border-zinc-800/90 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]`
         : 'max-w-xs rounded-[1.75rem] shadow-2xl border-[3px] border-zinc-800'
     }`}>
-      <div className={`flex items-center gap-2 flex-shrink-0 ${compact ? 'px-2.5 pt-2 pb-1' : 'px-3 pt-2.5 pb-1.5'}`}>
-        <span className={`relative flex flex-shrink-0 ${compact ? 'h-2 w-2' : 'h-2 w-2'}`}>
-          <span className="absolute inset-0 rounded-full bg-red-500 animate-ping opacity-60" />
-          <span className="relative rounded-full bg-red-500 h-2 w-2" />
-        </span>
-        <span className="text-[11px] text-red-400 font-bold tracking-wider">REC</span>
-        {!embedded && (
-          <p className={`flex-1 min-w-0 text-center text-white font-bold ${compact ? 'text-xs leading-tight' : 'text-sm truncate'}`}>{scene.title}</p>
-        )}
-        {embedded && <div className="flex-1" />}
-        <span className="text-[11px] text-zinc-400 font-mono tabular-nums">{clock}</span>
-        {!embedded && (
-          <button onClick={onClose}
-            className="w-6 h-6 rounded-full bg-zinc-800 hover:bg-zinc-700 flex items-center justify-center text-zinc-300 text-xs flex-shrink-0">
-            ✕
-          </button>
-        )}
-      </div>
+      {!isEmbeddedCompact && (
+        <div className={`flex items-center gap-2 flex-shrink-0 ${compact ? 'px-2.5 pt-2 pb-1' : 'px-3 pt-2.5 pb-1.5'}`}>
+          <span className={`relative flex flex-shrink-0 ${compact ? 'h-2 w-2' : 'h-2 w-2'}`}>
+            <span className="absolute inset-0 rounded-full bg-red-500 animate-ping opacity-60" />
+            <span className="relative rounded-full bg-red-500 h-2 w-2" />
+          </span>
+          <span className="text-[11px] text-red-400 font-bold tracking-wider">REC</span>
+          {!embedded && (
+            <p className={`flex-1 min-w-0 text-center text-white font-bold ${compact ? 'text-xs leading-tight' : 'text-sm truncate'}`}>{scene.title}</p>
+          )}
+          {embedded && <div className="flex-1" />}
+          <span className="text-[11px] text-zinc-400 font-mono tabular-nums">{clock}</span>
+          {!embedded && (
+            <button onClick={onClose}
+              className="w-6 h-6 rounded-full bg-zinc-800 hover:bg-zinc-700 flex items-center justify-center text-zinc-300 text-xs flex-shrink-0">
+              ✕
+            </button>
+          )}
+        </div>
+      )}
       {!embedded && (
         <p className={`text-zinc-500 text-center leading-snug flex-shrink-0 px-3 break-keep ${compact ? 'text-[11px] pb-1 line-clamp-2' : 'text-xs pb-2 truncate'}`}>{scene.sub}</p>
       )}
@@ -915,9 +918,11 @@ export function TutorialVideo({
       <div
         ref={stageRef}
         className={`overflow-hidden bg-slate-900 relative ${
-          compact ? 'mx-1.5 rounded-xl' : 'mx-2 mb-1 rounded-2xl'
-        } ${fill ? 'flex-1 min-h-0' : 'flex-shrink-0'}`}
-        style={fill ? undefined : compact ? { height: COMPACT_STAGE_H } : { height: sceneH }}
+          isEmbeddedCompact
+            ? 'flex-1 min-h-0 mx-0 rounded-none'
+            : `${compact ? 'mx-1.5 rounded-xl' : 'mx-2 mb-1 rounded-2xl'} ${fill ? 'flex-1 min-h-0' : 'flex-shrink-0'}`
+        }`}
+        style={!isEmbeddedCompact && !fill ? (compact ? { height: COMPACT_STAGE_H } : { height: sceneH }) : undefined}
       >
         <div
           key={sceneIdx}
@@ -931,8 +936,40 @@ export function TutorialVideo({
           {scene.render(stepIdx)}
           <Cursor x={step.cx} y={step.cy} clicking={step.click ?? false} />
         </div>
+
+        {isEmbeddedCompact && (
+          <div className="absolute inset-x-0 bottom-0 z-[60] group/controls">
+            <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/20 to-transparent pointer-events-none" />
+            <div className="relative px-2.5 pb-2 pt-8 opacity-40 group-hover/controls:opacity-85 transition-opacity duration-200">
+              <div className="flex gap-0.5 mb-2">
+                {playlist.map((sceneNo, i) => (
+                  <button key={sceneNo} type="button" onClick={() => goPlay(i)} className="flex-1 h-0.5 rounded-full overflow-hidden bg-white/20">
+                    <div className="h-full bg-teal-400/90 transition-all duration-100"
+                      style={{ width: i < playIdx ? '100%' : i === playIdx ? `${progress}%` : '0%' }} />
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center justify-center gap-3">
+                <button type="button" onClick={() => goPlay(playIdx - 1)} disabled={playIdx === 0}
+                  className="w-7 h-7 rounded-full bg-black/35 backdrop-blur-sm hover:bg-black/50 disabled:opacity-25 flex items-center justify-center transition-all">
+                  <SkipBack className="w-3.5 h-3.5 text-white/90" />
+                </button>
+                <button type="button" onClick={() => setPlaying(p => !p)}
+                  className="w-9 h-9 rounded-full bg-white/90 text-black flex items-center justify-center shadow-lg active:scale-95 transition-all">
+                  {playing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
+                </button>
+                <button type="button"
+                  onClick={() => playIdx === playlist.length - 1 ? goPlay(0) : goPlay(playIdx + 1)}
+                  className="w-7 h-7 rounded-full bg-black/35 backdrop-blur-sm hover:bg-black/50 flex items-center justify-center transition-all">
+                  <SkipForward className="w-3.5 h-3.5 text-white/90" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
+      {!isEmbeddedCompact && (
       <div className={`flex-shrink-0 ${compact ? 'px-2.5 pt-1.5 pb-2' : 'px-3 pt-2 pb-3'}`}>
         <div className={`flex items-center gap-2 ${compact ? 'mb-1.5' : 'mb-2'}`}>
           <span className="text-[11px] text-zinc-500 font-mono w-7">{clock}</span>
@@ -963,6 +1000,7 @@ export function TutorialVideo({
           </button>
         </div>
       </div>
+      )}
     </div>
   );
 

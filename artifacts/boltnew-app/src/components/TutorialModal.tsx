@@ -721,7 +721,7 @@ export function TutorialModal({
   );
 
   const videoContent = topic.video ? (
-    <div className="flex flex-col flex-1 min-h-0 overflow-hidden rounded-2xl ring-1 ring-black/5 shadow-lg shadow-teal-900/5">
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden rounded-2xl">
       <TutorialVideo
         key={`${mode}-${topic.id}-video`}
         embedded
