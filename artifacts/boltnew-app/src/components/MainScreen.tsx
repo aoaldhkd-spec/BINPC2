@@ -723,8 +723,8 @@ export function MainScreen({
               </p>
             </div>
 
-            {/* ── 참여자 그리드: 탭바까지 스크롤, FAB 아래 카드 노출 ── */}
-            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain pb-[calc(4.5rem+var(--tabbar-safe-bottom))]">
+            {/* ── 참여자 그리드: 탭바까지 스크롤, scroll pb로 FAB·뒤로가기 터치 여백 ── */}
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain pb-[calc(8.5rem+var(--tabbar-safe-bottom))]">
             <div className={profileGridClassName(profileCardGrid)}>
             {filteredProfiles.filter(p => p.id !== currentUserId).map((profile) => (
               <ProfileCard
