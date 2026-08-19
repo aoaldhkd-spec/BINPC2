@@ -80,7 +80,6 @@ export const STATUS_QUICK_MSGS = [
   '뜨밤할래요? 🌙',
   '인스타 팔로워수 늘리고있어요 📈',
   '오늘 재밌게 놀아요 🎉',
-  '카톡 ID 알려줄게요 📱',
 ] as const;
 
 export const QUICK_REACTIONS = ['❤️', '😂', '👍', '🔥', '😮', '😢'] as const;
