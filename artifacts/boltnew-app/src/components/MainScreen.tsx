@@ -661,10 +661,10 @@ export function MainScreen({
       </header>
 
       <main
-        className={`max-w-7xl mx-auto w-full flex-1 min-h-0 flex flex-col px-3 min-[360px]:px-4 py-4 min-[390px]:py-6 scrollbar-styled-light ${
+        className={`max-w-7xl mx-auto w-full flex-1 min-h-0 flex flex-col px-3 min-[360px]:px-4 scrollbar-styled-light ${
           mainTab === 'profiles'
-            ? 'overflow-hidden pb-[calc(4.5rem+var(--tabbar-safe-bottom))]'
-            : 'overflow-y-auto pb-[calc(8.5rem+var(--tabbar-safe-bottom))]'
+            ? 'overflow-hidden pt-4 min-[390px]:pt-6 pb-0'
+            : 'overflow-y-auto py-4 min-[390px]:py-6 pb-[calc(8.5rem+var(--tabbar-safe-bottom))]'
         }`}
       >
         {chatSearchLockToast && (
@@ -680,7 +680,7 @@ export function MainScreen({
             {/* 검색 + 새로고침 + 카드 보기 — 한 줄 */}
             <div className="space-y-1 mb-2 shrink-0">
               <div className="flex items-center gap-1.5 min-w-0">
-                <div className="relative flex-1 min-w-0 max-w-[9.5rem] min-[360px]:max-w-[11rem]">
+                <div className="relative flex-1 min-w-0">
                   <Users className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
                   <input
                     value={profileSearch}
@@ -693,7 +693,7 @@ export function MainScreen({
                 <div
                   role="group"
                   aria-label="참여자 카드 보기"
-                  className="shrink-0 flex p-0.5 rounded-lg bg-gray-100 border border-gray-200 ml-auto"
+                  className="shrink-0 flex p-0.5 rounded-lg bg-gray-100 border border-gray-200"
                 >
                   {([
                     { mode: 'compact' as const, label: '작게', Icon: LayoutGrid, title: '작게 보기 (한 줄 3장·1:1)' },
@@ -723,8 +723,8 @@ export function MainScreen({
               </p>
             </div>
 
-            {/* ── 참여자 그리드: 내부 스크롤 + FAB 여백만 scroll pb (main pb는 탭바만) ── */}
-            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain -mx-3 min-[360px]:-mx-4 px-3 min-[360px]:px-4 pb-[calc(4rem+var(--tabbar-safe-bottom))]">
+            {/* ── 참여자 그리드: 탭바까지 스크롤, FAB 아래 카드 노출 ── */}
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain pb-[calc(4.5rem+var(--tabbar-safe-bottom))]">
             <div className={profileGridClassName(profileCardGrid)}>
             {filteredProfiles.filter(p => p.id !== currentUserId).map((profile) => (
               <ProfileCard
@@ -2280,8 +2280,8 @@ export function MainScreen({
                 myTabActive || myMenuOpen
                   ? 'bg-gradient-to-br from-cyan-500 to-teal-500 text-white'
                   : darkMode
-                    ? 'bg-slate-800/95 backdrop-blur-sm text-slate-100'
-                    : 'bg-white/95 backdrop-blur-sm text-gray-800'
+                    ? 'bg-slate-800 text-slate-100'
+                    : 'bg-white text-gray-800'
               }`}
             >
               <span className="text-[15px] font-black leading-none tracking-widest">MY</span>
