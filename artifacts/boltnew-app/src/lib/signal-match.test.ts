@@ -608,8 +608,8 @@ describe('이상형 / 나의 특징 chip groups', () => {
   const pickerLabels = [...IDEAL_TAG_GROUPS, ...FEATURE_TAG_GROUPS].map((g) => g.label);
   const pickerTags = [...IDEAL_TAG_GROUPS, ...FEATURE_TAG_GROUPS].flatMap((g) => [...g.tags]);
 
-  it('keeps 얼굴상/체형/매력/성격 and 술/흡연 (no 텐션 picker)', () => {
-    for (const label of ['얼굴상 👀', '체형 💪', '매력 ✨', '성격 💫', '술 🍺', '흡연 🚭']) {
+  it('keeps 얼굴상/체형/매력/특기/성격 and 술/흡연 (no 텐션 picker)', () => {
+    for (const label of ['얼굴상 👀', '체형 💪', '매력 ✨', '특기 ⭐', '성격 💫', '술 🍺', '흡연 🚭']) {
       expect(IDEAL_TAG_GROUPS.some((g) => g.label === label), label).toBe(true);
       expect(FEATURE_TAG_GROUPS.some((g) => g.label === label), label).toBe(true);
     }
