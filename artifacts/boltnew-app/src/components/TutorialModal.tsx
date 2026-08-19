@@ -576,21 +576,19 @@ function TopicSubTabs({
     : 'bg-white text-gray-900 shadow-md ring-1 ring-gray-200/80';
   const activeVideo = `bg-gradient-to-r ${topicColor} text-white shadow-lg shadow-black/10`;
 
+  if (!hasVideo) return null;
+
   return (
     <div className={`flex-shrink-0 h-11 px-4 pb-1.5 ${darkMode ? 'bg-slate-900/80' : 'bg-gradient-to-b from-white to-slate-50/80'}`}>
-      {hasVideo ? (
-        <div className={`grid grid-cols-2 gap-1 p-0.5 rounded-xl h-8 ${darkMode ? 'bg-slate-800/80 ring-1 ring-slate-700/60' : 'bg-gray-100/90 ring-1 ring-gray-200/60'}`}>
-          <button type="button" onClick={() => onChange('tips')} className={`${base} ${subView === 'tips' ? activeTips : idle}`}>
-            📋 설명
-          </button>
-          <button type="button" onClick={() => onChange('video')} className={`${base} ${subView === 'video' ? activeVideo : idle}`}>
-            <PlayCircle className="w-3.5 h-3.5" />
-            동영상
-          </button>
-        </div>
-      ) : (
-        <div className="h-8" aria-hidden />
-      )}
+      <div className={`grid grid-cols-2 gap-1 p-0.5 rounded-xl h-8 ${darkMode ? 'bg-slate-800/80 ring-1 ring-slate-700/60' : 'bg-gray-100/90 ring-1 ring-gray-200/60'}`}>
+        <button type="button" onClick={() => onChange('tips')} className={`${base} ${subView === 'tips' ? activeTips : idle}`}>
+          📋 설명
+        </button>
+        <button type="button" onClick={() => onChange('video')} className={`${base} ${subView === 'video' ? activeVideo : idle}`}>
+          <PlayCircle className="w-3.5 h-3.5" />
+          동영상
+        </button>
+      </div>
     </div>
   );
 }
@@ -656,7 +654,9 @@ export function TutorialModal({
   };
 
   const tipsContent = (
-    <div className={`flex flex-col min-h-0 flex-1 overflow-hidden ${layout.compact ? 'gap-1.5' : 'gap-2.5'}`}>
+    <div
+      className={`flex flex-col ${hasVideo ? 'min-h-0 flex-1 overflow-hidden' : 'flex-shrink-0'} ${layout.compact ? 'gap-1.5' : 'gap-2.5'}`}
+    >
       {topic.filler && <FillerPanel kind={topic.filler} darkMode={darkMode} compact={layout.fillerCompact} />}
 
       {(topic.sections ?? []).map((section) => {
@@ -836,8 +836,8 @@ export function TutorialModal({
 
         {/* Content */}
         <div className={`flex-1 min-h-0 px-4 py-2 flex flex-col overflow-hidden transition-colors duration-300 ${
-          darkMode ? 'bg-gradient-to-b from-slate-900/80 to-slate-950' : 'bg-gradient-to-b from-slate-50/80 to-white'
-        }`}>
+          !hasVideo ? 'justify-center' : ''
+        } ${darkMode ? 'bg-gradient-to-b from-slate-900/80 to-slate-950' : 'bg-gradient-to-b from-slate-50/80 to-white'}`}>
           {subView === 'video' && hasVideo ? videoContent : tipsContent}
         </div>
 
