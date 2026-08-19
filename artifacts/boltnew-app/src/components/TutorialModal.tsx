@@ -98,7 +98,7 @@ const BASIC: Topic[] = [
       { icon: '🎯', title: '관심사', desc: '2~5개. 시그널 매칭에 쓰여요.' },
       { icon: '📋', title: '연락처', desc: '카톡·인스타·전화. 수락하면 전달.' },
       { icon: '💬', title: '한마디', desc: '⚡ 빠른 선택 또는 직접 입력. 카드 전광판에 떠요.' },
-      { icon: '💘', title: '이상형', desc: '성격·술·텐션·흡연 칩. 시그널용.' },
+      { icon: '💘', title: '이상형', desc: '얼굴·매력·성격·술·흡연 칩. 시그널용.' },
       { icon: '🌟', title: '나의 특징', desc: '같은 칩. 포지션은 닉네임 설정.' },
       { icon: '🚫', title: '차단', desc: '차단하면 서로 프로필·채팅이 안 보여요.' },
       { icon: '🍻', title: '숨은 꿀팁', desc: HOST_AGE_EASTER_EGG_HINT },

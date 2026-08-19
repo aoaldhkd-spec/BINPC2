@@ -286,9 +286,9 @@ function S3({ step }: { step: number }) {
             <Ring on={step === 6} color="ring-rose-400" />
             <Tip text="이상형 칩 — 포지션/MBTI 없음" show={step === 6} dir="bottom" />
             <p className="text-white text-[10px] font-black">💘 이상형</p>
-            <p className="text-[8px] text-slate-500 font-bold mt-1">성격 💫 · 술 🍺 · 텐션 🎢 · 흡연 🚭</p>
+            <p className="text-[8px] text-slate-500 font-bold mt-1">얼굴상 👀 · 매력 ✨ · 성격 💫 · 술 🍺 · 흡연 🚭</p>
             <div className="flex flex-wrap gap-1 mt-1">
-              {['다정한', '한두잔', '텐션맞춤', '비흡연'].map((tag, i) => (
+              {['고양이상', '한두잔', '다정한', '비흡연'].map((tag, i) => (
                 <span key={tag} className={`px-1.5 py-0.5 rounded-full text-[8px] font-bold border ${idealOn && i < 2 ? 'text-white border-transparent' : 'text-slate-400 border-slate-600'}`}
                   style={idealOn && i < 2 ? { background: 'linear-gradient(135deg,#e11d48,#be185d)' } : {}}>
                   {tag}
@@ -304,7 +304,7 @@ function S3({ step }: { step: number }) {
             <p className="text-white text-[10px] font-black">🌟 나의 특징</p>
             <p className="text-[8px] text-slate-500 font-bold mt-1">같은 칩. 포지션은 닉네임 설정</p>
             <div className="flex flex-wrap gap-1 mt-1">
-              {['시크한', '술조금', '텐션중', '비흡연'].map((tag, i) => (
+              {['시크한', '술조금', '유머있는', '비흡연'].map((tag, i) => (
                 <span key={tag} className={`px-1.5 py-0.5 rounded-full text-[8px] font-bold border ${featOn && i < 2 ? 'text-white border-transparent' : 'text-slate-400 border-slate-600'}`}
                   style={featOn && i < 2 ? { background: 'linear-gradient(135deg,#7c3aed,#6d28d9)' } : {}}>
                   {tag}

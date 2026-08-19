@@ -1951,7 +1951,7 @@ export function MainScreen({
                         <div>
                           <p className={`text-[9px] font-black uppercase tracking-widest mb-1.5 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>기타 ✏️</p>
                           <input type="text" value={featureFreeText} onChange={(e) => setFeatureFreeText(e.target.value.slice(0, 30))}
-                            placeholder="예: 말 걸기 쉬운 편, 텐션 중간" maxLength={30}
+                            placeholder="예: 말 걸기 쉬운 편, 유머있는" maxLength={30}
                             className={`w-full px-3 py-2.5 rounded-xl text-sm border focus:outline-none focus:border-violet-400 transition-colors ${darkMode ? 'bg-slate-700 border-slate-500 text-white placeholder:text-slate-500' : 'bg-gray-50 border-gray-200 text-gray-800 placeholder:text-gray-400'}`} />
                           <p className={`text-[10px] mt-0.5 text-right ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>{featureFreeText.length}/30</p>
                         </div>

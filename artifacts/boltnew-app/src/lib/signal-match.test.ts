@@ -608,10 +608,21 @@ describe('이상형 / 나의 특징 chip groups', () => {
   const pickerLabels = [...IDEAL_TAG_GROUPS, ...FEATURE_TAG_GROUPS].map((g) => g.label);
   const pickerTags = [...IDEAL_TAG_GROUPS, ...FEATURE_TAG_GROUPS].flatMap((g) => [...g.tags]);
 
-  it('keeps 얼굴상/체형/매력/성격 and 술/텐션/흡연', () => {
-    for (const label of ['얼굴상 👀', '체형 💪', '매력 ✨', '성격 💫', '술 🍺', '텐션 🎢', '흡연 🚭']) {
+  it('keeps 얼굴상/체형/매력/성격 and 술/흡연 (no 텐션 picker)', () => {
+    for (const label of ['얼굴상 👀', '체형 💪', '매력 ✨', '성격 💫', '술 🍺', '흡연 🚭']) {
       expect(IDEAL_TAG_GROUPS.some((g) => g.label === label), label).toBe(true);
       expect(FEATURE_TAG_GROUPS.some((g) => g.label === label), label).toBe(true);
+    }
+    expect(pickerLabels).not.toContain('텐션 🎢');
+  });
+
+  it('does not duplicate tags within each picker', () => {
+    for (const groups of [IDEAL_TAG_GROUPS, FEATURE_TAG_GROUPS]) {
+      const seen = new Set<string>();
+      for (const tag of groups.flatMap((g) => [...g.tags])) {
+        expect(seen.has(tag), `duplicate chip: ${tag}`).toBe(false);
+        seen.add(tag);
+      }
     }
   });
 
@@ -644,12 +655,12 @@ describe('이상형 / 나의 특징 chip groups', () => {
   it('uses the same 성격 chips on both pickers', () => {
     const ideal = IDEAL_TAG_GROUPS.find((g) => g.label === '성격 💫')!.tags;
     const feature = FEATURE_TAG_GROUPS.find((g) => g.label === '성격 💫')!.tags;
-    expect([...ideal]).toEqual(['다정한', '시크한', '장난끼있는', '차분한', '유머있는', '솔직한', '리드하는', '챙겨주는']);
+    expect([...ideal]).toEqual(['다정한', '시크한', '장난끼있는', '차분한', '유머있는', '솔직한', '리드하는', '챙겨주는', '배려심많은', '긍정적인', '활발한', '수줍은']);
     expect([...feature]).toEqual([...ideal]);
   });
 });
 
-describe('성격 exact match + drink/tension/smoke synonyms', () => {
+describe('drink/smoke synonyms', () => {
   it('matches 성격 chips by exact string both ways', () => {
     const m = matchSignalPair({
       myProfile: { ...me, interests: '영화' },
@@ -682,10 +693,6 @@ describe('성격 exact match + drink/tension/smoke synonyms', () => {
       ['세게마심', '술잘마심'],
       ['분위기술', '취하면수다'],
       ['취하면귀여운', '취하면수다'],
-      ['텐션폭발', '텐션높음'],
-      ['텐션낮음', '낯가림'],
-      ['텐션맞춤', '텐션중'],
-      ['관찰형', '낯가림'],
       ['비흡연', '비흡연'],
       ['흡연OK', '흡연'],
       ['전자담배만', '전자담배'],
@@ -708,10 +715,6 @@ describe('성격 exact match + drink/tension/smoke synonyms', () => {
       ['흡연OK', '비흡연'],
       ['비흡연', '흡연'],
       ['전자담배만', '흡연'],
-      ['텐션폭발', '텐션중'],
-      ['텐션맞춤', '텐션높음'],
-      ['관찰형', '텐션높음'],
-      ['텐션폭발', '금방친해짐'],
     ];
     for (const [ideal, feature] of misses) {
       expect(tagsAreSynonyms(ideal, feature), `${ideal}≁${feature}`).toBe(false);
