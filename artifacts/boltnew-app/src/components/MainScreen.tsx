@@ -668,7 +668,7 @@ export function MainScreen({
         <KeepTab id="profiles" mainTab={mainTab}>
           <div
             className="-mb-[calc(8.5rem+var(--tabbar-safe-bottom))] flex flex-col min-h-0"
-            style={{ maxHeight: 'calc(100dvh - 330px - var(--tabbar-safe-bottom))' }}
+            style={{ maxHeight: 'calc(100dvh - 330px + 8.5rem - var(--tabbar-safe-bottom))' }}
           >
             {/* 검색 + 카드 보기 */}
             <div className="space-y-2 mb-3 shrink-0">
@@ -684,6 +684,9 @@ export function MainScreen({
                 </div>
                 <RefreshBtn onRefresh={() => doRefresh('profiles', onRefreshProfiles)} refreshed={refreshedTab === 'profiles'} />
               </div>
+              <p className="text-[10px] text-gray-400 px-1 -mt-0.5">
+                💡 닉네임·MBTI·성향(탑/바텀/올)·초성으로 검색할 수 있어요
+              </p>
               <div className="flex justify-end">
                 <div
                   role="group"
@@ -716,7 +719,7 @@ export function MainScreen({
             </div>
 
             {/* ── 참여자 그리드 (FAB 뒤 흰 블록 없이 스크롤·내부 pb로 여백) ── */}
-            <div className="flex-1 min-h-[160px] overflow-y-auto -mx-3 min-[360px]:-mx-4 px-3 min-[360px]:px-4 pb-[calc(8.5rem+var(--tabbar-safe-bottom))]">
+            <div className="profiles-tab-scroll flex-1 min-h-[160px] overflow-y-auto -mx-3 min-[360px]:-mx-4 px-3 min-[360px]:px-4 pb-[calc(8.5rem+var(--tabbar-safe-bottom))]">
             <div className={profileGridClassName(profileCardGrid)}>
             {filteredProfiles.filter(p => p.id !== currentUserId).map((profile) => (
               <ProfileCard
