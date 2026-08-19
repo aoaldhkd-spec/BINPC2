@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Quick sweep — all 15 known failure/delay modes must stay fixed + guarded in repo.
+ * Quick sweep — all known failure/delay modes must stay fixed + guarded in repo.
  * Usage: node scripts/verify-recurrence-guards.mjs
  */
 import { existsSync, readFileSync } from 'node:fs';
@@ -94,6 +94,12 @@ mustMatch('scripts/endurance-5h.mjs', '07_admin_event_reset_recover', [
   /recoverContext|re-provisioning soak users/,
 ]);
 mustExist('scripts/endurance-watchdog.mjs', '07b_endurance_watchdog');
+mustMatch('scripts/endurance-5h.mjs', '07c_endurance_recover_403', [
+  /isRecoverableOpFailure/,
+  /recoverContext/,
+  /FORBIDDEN/,
+]);
+mustMatch('scripts/endurance-5h.mjs', '07d_endurance_deadline_resume', [/ENDURANCE_DEADLINE_AT|deadlineAt/]);
 
 // 8. Photo upload sessionToken — uploadStorageDataUrl, no raw fetch
 mustMatch('artifacts/boltnew-app/src/lib/localdb.ts', '08_upload_session_token', [
@@ -178,6 +184,37 @@ mustMatch('artifacts/api-server/src/routes/db.ts', '16_db_group_age', [/groupAge
 mustNotMatch('artifacts/boltnew-app/src/lib/group-rooms.ts', '16_no_hardcoded_2026_age', [/2026\s*-\s*y\s*\+\s*1/]);
 mustNotMatch('artifacts/api-server/src/routes/db.ts', '16_db_no_inline_age', [
   /getFullYear\(\)\s*-\s*y\s*\+\s*1/,
+]);
+
+// 17. Supabase RLS — public tables not exposed via anon REST
+mustMatch('artifacts/api-server/src/routes/db.ts', '17_supabase_rls_startup', [
+  /ensurePublicTableRls/,
+  /ENABLE ROW LEVEL SECURITY/,
+  /REVOKE ALL ON public/,
+]);
+mustExist('scripts/sql/enable-rls-public-tables.sql', '17_supabase_rls_sql');
+
+// 18. Status signal/contact pills — center popup modal (not bottom sheet)
+mustMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '18_status_center_modal', [
+  /status-quick-modal-title/,
+  /items-center justify-center/,
+  /safe-overlay fixed inset-0/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '18_not_bottom_sheet', [
+  /statusQuickSheet[\s\S]{0,400}items-end/,
+  /statusQuickSheet[\s\S]{0,400}rounded-t-3xl/,
+]);
+
+// 19. Sent hearts 2-column grid on My Status
+mustMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '19_sent_hearts_2col', [
+  /grid grid-cols-2 gap-2\.5/,
+]);
+
+// 20. Profile card grid density modes
+mustExist('artifacts/boltnew-app/src/lib/profile-card-grid.ts', '20_profile_card_grid');
+mustMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '20_main_uses_card_grid', [
+  /profile-card-grid/,
+  /ProfileCardGridMode|cardGridMode/,
 ]);
 
 console.log('\n=== verify-recurrence-guards ===\n');

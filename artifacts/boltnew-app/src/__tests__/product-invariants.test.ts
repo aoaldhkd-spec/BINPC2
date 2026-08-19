@@ -243,11 +243,32 @@ describe('product copy + notification invariants', () => {
     );
     expect(endurance).toMatch(/ensureConnected/);
     expect(endurance).toMatch(/isOpFunctionsLocked|FUNCTIONS_LOCKED mid-run/);
-    expect(endurance).toMatch(/return 'locked'|result === 'locked'/);
+    expect(endurance).toMatch(/result\.locked|locked: true/);
+    expect(endurance).toMatch(/recoverContext|isRecoverableOpFailure/);
     expect(endurance).toMatch(/admin_event_end_reset/);
     expect(endurance).toMatch(/acquireEnduranceLock/);
+    expect(endurance).toMatch(/ENDURANCE_DEADLINE_AT|deadlineAt/);
     expect(endurance).toMatch(/429|Rate limit/i);
     expect(lock).toContain('isOpFunctionsLocked');
+    const watchdog = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), '../../../../scripts/endurance-watchdog.mjs'),
+      'utf8',
+    );
+    expect(watchdog).toMatch(/spawnEndurance|ENDURANCE_DEADLINE_AT/);
+  });
+
+  it('status signal/contact pills open center popup modal not bottom sheet', () => {
+    const main = read('components/MainScreen.tsx');
+    expect(main).toContain('status-quick-modal-title');
+    expect(main).toMatch(/safe-overlay fixed inset-0[\s\S]*items-center justify-center/);
+    expect(main).not.toMatch(/statusQuickSheet[\s\S]{0,400}items-end/);
+  });
+
+  it('Supabase public tables RLS enabled on API startup', () => {
+    const db = readFileSync(join(root, '../../api-server/src/routes/db.ts'), 'utf8');
+    expect(db).toContain('ensurePublicTableRls');
+    expect(db).toMatch(/ENABLE ROW LEVEL SECURITY/);
+    expect(db).toMatch(/REVOKE ALL ON public/);
   });
 
   it('mobile safe-area: Galaxy tabbar + iOS 16px input + viewport-fit=cover', () => {

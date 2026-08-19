@@ -119,9 +119,11 @@ describe('[Realtime] long-session stability', () => {
     expect(enduranceSrc).toMatch(/401/);
     expect(enduranceSrc).toMatch(/ensureConnected/);
     expect(enduranceSrc).toMatch(/isOpFunctionsLocked|FUNCTIONS_LOCKED mid-run/);
-    expect(enduranceSrc).toMatch(/return 'locked'|result === 'locked'/);
+    expect(enduranceSrc).toMatch(/result\.locked|locked: true/);
+    expect(enduranceSrc).toMatch(/recoverContext|isRecoverableOpFailure/);
     expect(enduranceSrc).toMatch(/admin_event_end_reset/);
     expect(enduranceSrc).toMatch(/acquireEnduranceLock/);
+    expect(enduranceSrc).toMatch(/ENDURANCE_DEADLINE_AT|deadlineAt/);
   });
 
   it('source: token refresh lead is 20% of 1h TTL (proactive, not only after 401)', async () => {

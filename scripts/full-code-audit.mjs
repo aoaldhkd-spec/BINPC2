@@ -198,7 +198,9 @@ try {
     ['endurance_sse_ensure_connected', /ensureConnected/],
     ['endurance_functions_locked_mid_run', /isOpFunctionsLocked|FUNCTIONS_LOCKED mid-run/],
     ['endurance_parallel_lock', /acquireEnduranceLock/],
-    ['endurance_admin_reset_doc', /admin_event_end_reset/],
+    ['endurance_admin_reset_recover', /recoverContext|re-provisioning soak users/],
+    ['endurance_recover_403', /isRecoverableOpFailure/],
+    ['endurance_deadline_resume', /ENDURANCE_DEADLINE_AT|deadlineAt/],
     ['endurance_rate_limit_note', /429|Rate limit/i],
   ];
   for (const [id, re] of enduranceGuards) {
@@ -326,6 +328,52 @@ for (const [rel, id] of [
     errors.push(f);
     console.log(`  ${f.rel}:${f.line} [${f.id}] ${f.text}`);
   }
+}
+
+// Supabase RLS — anon REST must not read public tables (rls_disabled_in_public)
+try {
+  const dbRlsSrc = readFileSync(dbPath, 'utf8');
+  const rlsGuards = [
+    ['supabase_rls_startup', /ensurePublicTableRls/],
+    ['supabase_rls_enable', /ENABLE ROW LEVEL SECURITY/],
+    ['supabase_rls_revoke', /REVOKE ALL ON public/],
+  ];
+  for (const [id, re] of rlsGuards) {
+    if (!re.test(dbRlsSrc)) {
+      const f = { rel: 'artifacts/api-server/src/routes/db.ts', line: 1, id, sev: 'error', text: `missing ${id}` };
+      allFindings.push(f);
+      errors.push(f);
+      console.log(`  ${f.rel}:${f.line} [${f.id}] ${f.text}`);
+    }
+  }
+  readFileSync(resolve(ROOT, 'scripts/sql/enable-rls-public-tables.sql'), 'utf8');
+} catch {
+  const f = {
+    rel: 'scripts/sql/enable-rls-public-tables.sql',
+    line: 1,
+    id: 'supabase_rls_sql',
+    sev: 'error',
+    text: 'missing manual RLS SQL fallback',
+  };
+  allFindings.push(f);
+  errors.push(f);
+  console.log(`  ${f.rel}:${f.line} [${f.id}] ${f.text}`);
+}
+
+// Endurance watchdog — auto-resume after crash/abort
+try {
+  readFileSync(resolve(ROOT, 'scripts/endurance-watchdog.mjs'), 'utf8');
+} catch {
+  const f = {
+    rel: 'scripts/endurance-watchdog.mjs',
+    line: 1,
+    id: 'endurance_watchdog',
+    sev: 'error',
+    text: 'missing endurance watchdog',
+  };
+  allFindings.push(f);
+  errors.push(f);
+  console.log(`  ${f.rel}:${f.line} [${f.id}] ${f.text}`);
 }
 
 process.exit(errors.length ? 1 : 0);

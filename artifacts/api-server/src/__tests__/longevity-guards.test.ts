@@ -116,4 +116,21 @@ describe('longevity recurrence guards (server)', () => {
     expect(warmScript).toContain('/api/healthz');
     expect(warmCi).toMatch(/keep-api-warm\.mjs/);
   });
+
+  it('Supabase public schema RLS on startup (rls_disabled_in_public)', () => {
+    expect(dbTs).toContain('ensurePublicTableRls');
+    expect(dbTs).toMatch(/ENABLE ROW LEVEL SECURITY/);
+    expect(dbTs).toMatch(/REVOKE ALL ON public/);
+    const sql = readFileSync(join(here, '../../../../scripts/sql/enable-rls-public-tables.sql'), 'utf8');
+    expect(sql).toMatch(/ENABLE ROW LEVEL SECURITY/);
+  });
+
+  it('endurance auto-recovers after admin reset 403 (not FUNCTIONS_LOCKED)', () => {
+    const endurance = readFileSync(join(here, '../../../../scripts/endurance-5h.mjs'), 'utf8');
+    expect(endurance).toMatch(/isRecoverableOpFailure/);
+    expect(endurance).toMatch(/recoverContext/);
+    expect(endurance).toMatch(/FORBIDDEN/);
+    expect(readFileSync(join(here, '../../../../scripts/endurance-watchdog.mjs'), 'utf8'))
+      .toMatch(/spawnEndurance/);
+  });
 });
