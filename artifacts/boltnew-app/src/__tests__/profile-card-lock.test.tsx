@@ -114,4 +114,57 @@ describe('ProfileCard — lock guard (seat-lock + functions-lock regression)', (
     expect(onView).toHaveBeenCalledWith(PROFILE);
     expect(onSelect).not.toHaveBeenCalled();
   });
+
+  it('compact: photo tap toggles ideal back then returns to front', () => {
+    const onLike = vi.fn();
+    const onSelect = vi.fn();
+    const onView = vi.fn();
+    const onOpenChat = vi.fn();
+    render(
+      <ProfileCard
+        profile={PROFILE}
+        compact
+        isLiked={false}
+        sentHeartType={undefined}
+        heartCount={0}
+        canLike={true}
+        idealMsg={'유머,다정\n기타'}
+        onLike={onLike}
+        onSelect={onSelect}
+        onView={onView}
+        onOpenChat={onOpenChat}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('profile-card-photo'));
+    expect(onView).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByTestId('profile-card-ideal-back'));
+    fireEvent.click(screen.getByText('홍길동'));
+    expect(onSelect).toHaveBeenCalledTimes(1);
+  });
+
+  it('compact: nickname bar stays visible on ideal back and tap flips to front', () => {
+    const onSelect = vi.fn();
+    const onView = vi.fn();
+    render(
+      <ProfileCard
+        profile={{ ...PROFILE, birth_year: 2000 }}
+        compact
+        isLiked={false}
+        sentHeartType={undefined}
+        heartCount={0}
+        canLike={false}
+        idealMsg="유머"
+        onLike={vi.fn()}
+        onSelect={onSelect}
+        onView={onView}
+        onOpenChat={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('profile-card-photo'));
+    expect(screen.getByText('홍길동')).toBeTruthy();
+    fireEvent.click(screen.getByText('홍길동'));
+    expect(onSelect).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId('profile-card-photo'));
+    expect(onView).toHaveBeenCalledTimes(2);
+  });
 });
