@@ -95,13 +95,15 @@ const BASIC: Topic[] = [
     videoHint: '아바타 · 한마디 · 이상형 칩',
     tips: [
       { icon: '🔑', title: '고유번호', desc: '맨 위 4자리. 폰 바꾸면 복구.' },
-      { icon: '📷', title: '사진·닉네임', desc: '사진/아바타. 2~6글자, 1회만 변경.' },
-      { icon: '🎯', title: '관심사', desc: '2~5개. 시그널 매칭에 쓰여요.' },
-      { icon: '📋', title: '연락처', desc: '카톡·인스타·전화. 수락하면 전달.' },
-      { icon: '💬', title: '한마디', desc: '⚡ 빠른 선택 또는 직접 입력. 카드 전광판에 떠요.' },
-      { icon: '💘', title: '이상형', desc: '얼굴·체형·매력·성격 칩. 시그널용.' },
-      { icon: '🌟', title: '나의 특징', desc: '같은 칩. 포지션은 닉네임 설정.' },
-      { icon: '🚫', title: '차단', desc: '차단하면 서로 프로필·채팅이 안 보여요.' },
+      { icon: '📷', title: '사진·아바타', desc: '업로드 또는 기본 아바타.' },
+      { icon: '🏷️', title: '닉네임', desc: '2~6글자. 1회만 변경.' },
+      { icon: '🎯', title: '관심사', desc: '2~5개. 시그널 매칭.' },
+      { icon: '📋', title: '연락처', desc: '카톡·인스타·전화. 수락 시 전달.' },
+      { icon: '🔮', title: '생월·생일', desc: '월·일. 운세·궁합 반영.' },
+      { icon: '💬', title: '한마디', desc: '⚡ 빠른 선택·직접 입력. 전광판.' },
+      { icon: '💘', title: '이상형', desc: '얼굴·체형·매력·성격 칩.' },
+      { icon: '🌟', title: '나의 특징', desc: '같은 칩. 포지션은 닉네임.' },
+      { icon: '🚫', title: '차단', desc: '차단 시 서로 프로필·채팅 불가.' },
     ],
   },
   {
@@ -292,9 +294,11 @@ function topicLayout(topic: Topic) {
   const count = topicTipCount(topic);
   const dense = count >= 7 || topic.id === 'guide';
   const compact = dense || (count >= 5 && Boolean(topic.filler));
+  const ultraCompact = topic.id === 'settings';
   return {
     twoColumn: count >= 4 || dense,
-    compact,
+    compact: compact || ultraCompact,
+    ultraCompact,
     fillerCompact: compact && Boolean(topic.filler),
   };
 }
@@ -307,6 +311,7 @@ function TipCard({
   darkMode,
   spanFull,
   compact,
+  ultraCompact,
   sectionBar,
 }: {
   tip: Tip;
@@ -316,16 +321,19 @@ function TipCard({
   darkMode?: boolean;
   spanFull?: boolean;
   compact?: boolean;
+  ultraCompact?: boolean;
   sectionBar?: string;
 }) {
   const desc = tip.desc.replace(/([.·])\s+/g, '$1\u200b ');
   const cardCls = darkMode ? accent.cardDark : accent.cardLight;
   const iconCls = darkMode ? accent.iconDark : accent.iconLight;
   const barCls = sectionBar ?? accent.bar;
-  const iconShell = `${compact ? 'w-6 h-6 text-xs rounded-lg' : 'w-7 h-7 text-sm rounded-xl'} flex-shrink-0 flex items-center justify-center text-white ${iconCls}`;
-  const titleCls = compact ? 'text-[11px]' : 'text-xs';
-  const descCls = compact ? 'text-xs leading-snug' : 'text-[13px] leading-relaxed';
-  const pad = compact ? 'px-2 py-1.5' : 'px-3 py-2.5';
+  const iconShell = `${
+    ultraCompact ? 'w-5 h-5 text-[10px] rounded-md' : compact ? 'w-6 h-6 text-xs rounded-lg' : 'w-7 h-7 text-sm rounded-xl'
+  } flex-shrink-0 flex items-center justify-center text-white ${iconCls}`;
+  const titleCls = ultraCompact ? 'text-[10px]' : compact ? 'text-[11px]' : 'text-xs';
+  const descCls = ultraCompact ? 'text-[9px] leading-tight' : compact ? 'text-[10px] leading-snug' : 'text-[13px] leading-relaxed';
+  const pad = ultraCompact ? 'px-1.5 py-1' : compact ? 'px-2 py-1.5' : 'px-3 py-2.5';
 
   const body = (
     <div className="flex items-start gap-2 min-w-0 flex-1 pl-1.5">
@@ -362,6 +370,7 @@ function TipGrid({
   darkMode,
   twoColumn,
   compact,
+  ultraCompact,
   sectionBar,
 }: {
   tips: Tip[];
@@ -371,11 +380,12 @@ function TipGrid({
   darkMode?: boolean;
   twoColumn?: boolean;
   compact?: boolean;
+  ultraCompact?: boolean;
   sectionBar?: string;
 }) {
   const useTwoCol = twoColumn ?? tips.length >= 4;
   const oddLast = useTwoCol && tips.length % 2 === 1;
-  const gap = compact ? 'gap-1.5' : 'gap-2.5';
+  const gap = ultraCompact ? 'gap-1' : compact ? 'gap-1.5' : 'gap-2.5';
 
   if (!useTwoCol) {
     return (
@@ -389,6 +399,7 @@ function TipGrid({
             muted={muted}
             darkMode={darkMode}
             compact={compact}
+            ultraCompact={ultraCompact}
             sectionBar={sectionBar}
           />
         ))}
@@ -407,6 +418,7 @@ function TipGrid({
           muted={muted}
           darkMode={darkMode}
           compact={compact}
+          ultraCompact={ultraCompact}
           sectionBar={sectionBar}
           spanFull={oddLast && i === tips.length - 1}
         />
@@ -655,7 +667,9 @@ export function TutorialModal({
 
   const tipsContent = (
     <div
-      className={`flex flex-col ${hasVideo ? 'min-h-0 flex-1 overflow-hidden' : 'flex-shrink-0'} ${layout.compact ? 'gap-1.5' : 'gap-2.5'}`}
+      className={`flex flex-col ${hasVideo ? 'min-h-0 flex-1 overflow-hidden' : 'flex-shrink-0'} ${
+        layout.ultraCompact ? 'gap-1' : layout.compact ? 'gap-1.5' : 'gap-2.5'
+      }`}
     >
       {topic.filler && <FillerPanel kind={topic.filler} darkMode={darkMode} compact={layout.fillerCompact} />}
 
@@ -672,6 +686,7 @@ export function TutorialModal({
               darkMode={darkMode}
               twoColumn={layout.twoColumn}
               compact={layout.compact}
+              ultraCompact={layout.ultraCompact}
               sectionBar={variant.bar}
             />
             {section.footer && (
@@ -684,23 +699,16 @@ export function TutorialModal({
       })}
 
       {topic.tips.length > 0 && (
-        <>
-          {!topic.sections?.length && !topic.filler && (
-            <p className={`font-bold flex items-center gap-1.5 text-xs ${text}`}>
-              <span className="inline-flex w-5 h-5 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-500 to-teal-500 text-xs text-white shadow-sm">📋</span>
-              핵심만
-            </p>
-          )}
-          <TipGrid
-            tips={topic.tips}
-            accent={accent}
-            text={text}
-            muted={muted}
-            darkMode={darkMode}
-            twoColumn={layout.twoColumn}
-            compact={layout.compact}
-          />
-        </>
+        <TipGrid
+          tips={topic.tips}
+          accent={accent}
+          text={text}
+          muted={muted}
+          darkMode={darkMode}
+          twoColumn={layout.twoColumn}
+          compact={layout.compact}
+          ultraCompact={layout.ultraCompact}
+        />
       )}
 
       {topic.footer && (
