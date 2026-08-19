@@ -65,11 +65,6 @@ body[data-view="chat"] .fixed.inset-0.z-\[9997\] { display: none !important; }
   letter-spacing: inherit !important;
   text-transform: inherit !important;
 }
-/* Profiles tab: page-tone gutter under fixed FABs (blocks white card bleed, not the tab bar) */
-.participant-fab-gutter {
-  pointer-events: none;
-}
-
 /* 프로필·채팅·단톡 오버레이: 리마운트 대신 GPU translate (Back 히스토리와 같은 틱에 레이아웃 재계산 방지) */
 @keyframes binpc-screen-in {
   from { transform: translate3d(100%, 0, 0); }

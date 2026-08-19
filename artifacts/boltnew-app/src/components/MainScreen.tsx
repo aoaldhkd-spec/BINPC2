@@ -2223,15 +2223,6 @@ export function MainScreen({
         </div>
       </nav>
 
-      {/* 참여자 탭: 흰 프로필 카드가 FAB 뒤로 비치지 않게 페이지 톤 gutter (탭바 z-40 위 FAB z-50 아래) */}
-      {mainTab === 'profiles' && (
-        <div
-          className={`participant-fab-gutter fixed inset-x-0 bottom-0 z-[39] ${darkMode ? 'bg-slate-950' : 'bg-gray-50'}`}
-          style={{ height: 'calc(8.5rem + var(--tabbar-safe-bottom))' }}
-          aria-hidden
-        />
-      )}
-
       {/* ── MY 버튼 (우하단 고정) + 팝업 ── */}
       {(() => {
         const myTabActive = mainTab === 'status' || mainTab === 'chats' || mainTab === 'fortune' || mainTab === 'settings';
