@@ -342,11 +342,29 @@ const HIDDEN: Topic[] = [
 
 const KR_WRAP = 'break-keep [word-break:keep-all] [line-break:strict] [overflow-wrap:break-word] text-pretty';
 
-const MODAL_SHELL = 'w-[calc(100vw-1rem)] max-w-md max-h-[calc(100dvh-var(--safe-top,0px)-var(--safe-bottom,0px)-0.5rem)]';
+/** Fixed shell — same box on every topic tab (tips + video). */
+const MODAL_SHELL =
+  'w-[calc(100vw-1rem)] max-w-md h-[min(560px,calc(85dvh-var(--safe-top,0px)-var(--safe-bottom,0px)))]';
+
+function topicTipCount(topic: Topic): number {
+  const sectionTips = (topic.sections ?? []).reduce((n, s) => n + s.tips.length, 0);
+  return topic.tips.length + sectionTips;
+}
+
+function topicLayout(topic: Topic) {
+  const count = topicTipCount(topic);
+  const dense = count >= 7 || topic.id === 'guide';
+  const compact = dense || (count >= 5 && Boolean(topic.filler));
+  return {
+    twoColumn: count >= 4 || dense,
+    compact,
+    fillerCompact: compact && Boolean(topic.filler),
+  };
+}
 
 
 
-function TipCard({ tip, panel, text, muted, darkMode, spanFull }: {
+function TipCard({ tip, panel, text, muted, darkMode, spanFull, compact }: {
 
   tip: Tip;
 
@@ -360,11 +378,17 @@ function TipCard({ tip, panel, text, muted, darkMode, spanFull }: {
 
   spanFull?: boolean;
 
+  compact?: boolean;
+
 }) {
 
   const desc = tip.desc.replace(/([.·])\s+/g, '$1\u200b ');
 
-  const iconShell = `text-sm leading-none flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-lg ${darkMode ? 'bg-white/10' : 'bg-black/[0.04]'}`;
+  const iconShell = `text-sm leading-none flex-shrink-0 ${compact ? 'w-5 h-5 text-xs rounded-md' : 'w-6 h-6 rounded-lg'} flex items-center justify-center ${darkMode ? 'bg-white/10' : 'bg-black/[0.04]'}`;
+
+  const titleCls = compact ? 'text-[9px]' : 'text-[10px]';
+
+  const descCls = compact ? 'text-[8px] leading-tight' : 'text-[9px] leading-snug';
 
 
 
@@ -372,15 +396,15 @@ function TipCard({ tip, panel, text, muted, darkMode, spanFull }: {
 
     return (
 
-      <div className={`col-span-2 flex items-start gap-2 rounded-xl border px-2.5 py-1.5 ${panel}`}>
+      <div className={`col-span-2 flex items-start gap-1.5 rounded-xl border ${compact ? 'px-2 py-1' : 'px-2.5 py-1.5'} ${panel}`}>
 
         <span className={iconShell}>{tip.icon}</span>
 
         <div className="min-w-0 flex-1">
 
-          <p className={`text-[10px] font-black leading-tight ${KR_WRAP} ${text}`}>{tip.title}</p>
+          <p className={`${titleCls} font-black leading-tight ${KR_WRAP} ${text}`}>{tip.title}</p>
 
-          <p className={`text-[9px] leading-snug mt-0.5 ${KR_WRAP} ${muted}`}>{desc}</p>
+          <p className={`${descCls} mt-0.5 ${KR_WRAP} ${muted}`}>{desc}</p>
 
         </div>
 
@@ -394,17 +418,17 @@ function TipCard({ tip, panel, text, muted, darkMode, spanFull }: {
 
   return (
 
-    <div className={`flex flex-col gap-0.5 rounded-xl border h-full px-2 py-1.5 ${panel}`}>
+    <div className={`flex flex-col gap-0.5 rounded-xl border h-full ${compact ? 'px-1.5 py-1' : 'px-2 py-1.5'} ${panel}`}>
 
       <div className="flex items-center gap-1 min-w-0">
 
         <span className={iconShell}>{tip.icon}</span>
 
-        <p className={`text-[10px] font-black leading-tight min-w-0 ${KR_WRAP} ${text}`}>{tip.title}</p>
+        <p className={`${titleCls} font-black leading-tight min-w-0 ${KR_WRAP} ${text}`}>{tip.title}</p>
 
       </div>
 
-      <p className={`text-[9px] leading-snug pl-7 ${KR_WRAP} ${muted}`}>{desc}</p>
+      <p className={`${descCls} ${compact ? 'pl-6' : 'pl-7'} ${KR_WRAP} ${muted}`}>{desc}</p>
 
     </div>
 
@@ -414,7 +438,7 @@ function TipCard({ tip, panel, text, muted, darkMode, spanFull }: {
 
 
 
-function TipGrid({ tips, panel, text, muted, darkMode, twoColumn }: {
+function TipGrid({ tips, panel, text, muted, darkMode, twoColumn, compact }: {
 
   tips: Tip[];
 
@@ -428,11 +452,15 @@ function TipGrid({ tips, panel, text, muted, darkMode, twoColumn }: {
 
   twoColumn?: boolean;
 
+  compact?: boolean;
+
 }) {
 
   const useTwoCol = twoColumn ?? tips.length >= 4;
 
   const oddLast = useTwoCol && tips.length % 2 === 1;
+
+  const gap = compact ? 'gap-1' : 'gap-1.5';
 
 
 
@@ -440,11 +468,11 @@ function TipGrid({ tips, panel, text, muted, darkMode, twoColumn }: {
 
     return (
 
-      <div className="flex flex-col gap-1.5">
+      <div className={`flex flex-col ${gap}`}>
 
         {tips.map((tip) => (
 
-          <TipCard key={tip.title} tip={tip} panel={panel} text={text} muted={muted} darkMode={darkMode} />
+          <TipCard key={tip.title} tip={tip} panel={panel} text={text} muted={muted} darkMode={darkMode} compact={compact} />
 
         ))}
 
@@ -458,7 +486,7 @@ function TipGrid({ tips, panel, text, muted, darkMode, twoColumn }: {
 
   return (
 
-    <div className="grid grid-cols-2 gap-1.5 auto-rows-fr">
+    <div className={`grid grid-cols-2 ${gap} auto-rows-fr`}>
 
       {tips.map((tip, i) => (
 
@@ -475,6 +503,8 @@ function TipGrid({ tips, panel, text, muted, darkMode, twoColumn }: {
           muted={muted}
 
           darkMode={darkMode}
+
+          compact={compact}
 
           spanFull={oddLast && i === tips.length - 1}
 
@@ -714,7 +744,7 @@ const FILLERS: Record<FillerKind, { title: string; line: string; quote: string; 
 
 
 
-function FillerPanel({ kind, darkMode }: { kind: FillerKind; darkMode?: boolean }) {
+function FillerPanel({ kind, darkMode, compact }: { kind: FillerKind; darkMode?: boolean; compact?: boolean }) {
 
   const f = FILLERS[kind];
 
@@ -724,17 +754,17 @@ function FillerPanel({ kind, darkMode }: { kind: FillerKind; darkMode?: boolean 
 
     <div
 
-      className={`flex-shrink-0 flex flex-col items-center justify-center rounded-xl px-2.5 py-2 text-center ${
+      className={`flex-shrink-0 flex flex-col items-center justify-center rounded-xl text-center ${
 
-        darkMode ? f.darkShell : f.shell
+        compact ? 'px-2 py-1' : 'px-2.5 py-2'
 
-      }`}
+      } ${darkMode ? f.darkShell : f.shell}`}
 
     >
 
       {pin && (
 
-        <span className="mb-1 inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-[10px] font-black tracking-tight text-white shadow-sm bg-gradient-to-r from-amber-500 to-orange-500">
+        <span className={`inline-flex items-center justify-center rounded-full font-black tracking-tight text-white shadow-sm bg-gradient-to-r from-amber-500 to-orange-500 ${compact ? 'mb-0.5 px-2 py-px text-[9px]' : 'mb-1 px-2.5 py-0.5 text-[10px]'}`}>
 
           관리자문의
 
@@ -742,19 +772,23 @@ function FillerPanel({ kind, darkMode }: { kind: FillerKind; darkMode?: boolean 
 
       )}
 
-      <FillerArt kind={kind} darkMode={darkMode} />
+      {!compact && <FillerArt kind={kind} darkMode={darkMode} />}
 
-      <p className={`text-[11px] font-black tracking-tight leading-snug ${KR_WRAP} ${darkMode ? 'text-white' : 'text-slate-800'}`}>
+      <p className={`font-black tracking-tight leading-snug ${KR_WRAP} ${compact ? 'text-[10px]' : 'text-[11px]'} ${darkMode ? 'text-white' : 'text-slate-800'}`}>
 
         {f.title}
 
       </p>
 
-      <p className={`text-[10px] leading-snug mt-0.5 ${KR_WRAP} ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+      {!compact && (
 
-        {f.line.replace(/([.·])\s+/g, '$1\u200b ')}
+        <p className={`text-[10px] leading-snug mt-0.5 ${KR_WRAP} ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
 
-      </p>
+          {f.line.replace(/([.·])\s+/g, '$1\u200b ')}
+
+        </p>
+
+      )}
 
     </div>
 
@@ -848,6 +882,8 @@ export function TutorialModal({ onClose, darkMode }: {
 
   const showChips = topics.length > 1;
 
+  const layout = topicLayout(topic);
+
 
 
   useEffect(() => {
@@ -890,27 +926,27 @@ export function TutorialModal({ onClose, darkMode }: {
 
   const tipsContent = (
 
-    <div className="flex flex-col gap-1.5 min-h-0 flex-1">
+    <div className={`flex flex-col min-h-0 flex-1 overflow-hidden ${layout.compact ? 'gap-1' : 'gap-1.5'}`}>
 
-      {topic.filler && <FillerPanel kind={topic.filler} darkMode={darkMode} />}
+      {topic.filler && <FillerPanel kind={topic.filler} darkMode={darkMode} compact={layout.fillerCompact} />}
 
       {(topic.sections ?? []).map((section) => (
 
         <div key={section.title}>
 
-          <p className={`text-[10px] font-black mb-1 flex items-center gap-1 ${text}`}>
+          <p className={`font-black mb-0.5 flex items-center gap-1 ${layout.compact ? 'text-[9px]' : 'text-[10px]'} ${text}`}>
 
-            <span className="text-sm leading-none">{section.emoji}</span>
+            <span className={`leading-none ${layout.compact ? 'text-xs' : 'text-sm'}`}>{section.emoji}</span>
 
             {section.title}
 
           </p>
 
-          <TipGrid tips={section.tips} panel={panel} text={text} muted={muted} darkMode={darkMode} />
+          <TipGrid tips={section.tips} panel={panel} text={text} muted={muted} darkMode={darkMode} twoColumn={layout.twoColumn} compact={layout.compact} />
 
           {section.footer && (
 
-            <p className={`mt-1 px-1 text-[9px] leading-snug ${KR_WRAP} ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+            <p className={`mt-0.5 px-1 leading-snug ${KR_WRAP} ${layout.compact ? 'text-[8px]' : 'text-[9px]'} ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>
 
               {section.footer.replace(/([.·])\s+/g, '$1\u200b ')}
 
@@ -928,11 +964,11 @@ export function TutorialModal({ onClose, darkMode }: {
 
           {!topic.sections?.length && !topic.filler && (
 
-            <p className={`text-[10px] font-black ${text}`}>📋 핵심만</p>
+            <p className={`font-black ${layout.compact ? 'text-[9px]' : 'text-[10px]'} ${text}`}>📋 핵심만</p>
 
           )}
 
-          <TipGrid tips={topic.tips} panel={panel} text={text} muted={muted} darkMode={darkMode} />
+          <TipGrid tips={topic.tips} panel={panel} text={text} muted={muted} darkMode={darkMode} twoColumn={layout.twoColumn} compact={layout.compact} />
 
         </>
 
@@ -940,7 +976,7 @@ export function TutorialModal({ onClose, darkMode }: {
 
       {topic.footer && (
 
-        <p className={`text-[9px] leading-snug px-1 ${KR_WRAP} ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+        <p className={`leading-snug px-1 ${KR_WRAP} ${layout.compact ? 'text-[8px]' : 'text-[9px]'} ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>
 
           {topic.footer.replace(/([.·])\s+/g, '$1\u200b ')}
 
@@ -956,9 +992,9 @@ export function TutorialModal({ onClose, darkMode }: {
 
   const videoContent = topic.video ? (
 
-    <div className="flex flex-col flex-1 min-h-0 gap-2 pb-1">
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden gap-1.5">
 
-      <div className={`rounded-2xl px-3 py-2 text-center ${darkMode ? 'bg-slate-800/80' : 'bg-violet-50 border border-violet-100'}`}>
+      <div className={`flex-shrink-0 rounded-2xl px-3 py-1.5 text-center ${darkMode ? 'bg-slate-800/80' : 'bg-violet-50 border border-violet-100'}`}>
 
         <p className={`text-xs font-black ${darkMode ? 'text-violet-200' : 'text-violet-700'}`}>
 
@@ -968,13 +1004,13 @@ export function TutorialModal({ onClose, darkMode }: {
 
         {topic.videoHint && (
 
-          <p className={`text-[11px] mt-0.5 ${darkMode ? 'text-slate-400' : 'text-violet-600/80'}`}>{topic.videoHint}</p>
+          <p className={`text-[10px] mt-0.5 ${darkMode ? 'text-slate-400' : 'text-violet-600/80'}`}>{topic.videoHint}</p>
 
         )}
 
       </div>
 
-      <div className="flex-1 min-h-[14rem] max-h-[24rem]">
+      <div className="flex-1 min-h-0 overflow-hidden">
 
         <TutorialVideo
 
@@ -1000,7 +1036,7 @@ export function TutorialModal({ onClose, darkMode }: {
 
         onClick={() => setSubView('tips')}
 
-        className={`w-full py-2.5 rounded-xl text-sm font-semibold border ${darkMode ? 'border-slate-600 text-slate-300' : 'border-gray-200 text-gray-600'}`}
+        className={`flex-shrink-0 w-full py-2 rounded-xl text-sm font-semibold border ${darkMode ? 'border-slate-600 text-slate-300' : 'border-gray-200 text-gray-600'}`}
 
       >
 
@@ -1032,7 +1068,7 @@ export function TutorialModal({ onClose, darkMode }: {
 
         aria-labelledby="tutorial-modal-title"
 
-        className={`mobile-flow-card relative ${MODAL_SHELL} min-h-0 rounded-3xl shadow-2xl flex flex-col overflow-hidden ${darkMode ? 'bg-slate-900' : 'bg-white'}`}
+        className={`mobile-flow-card relative ${MODAL_SHELL} rounded-3xl shadow-2xl flex flex-col overflow-hidden ${darkMode ? 'bg-slate-900' : 'bg-white'}`}
 
         onClick={e => e.stopPropagation()}
 
@@ -1146,7 +1182,7 @@ export function TutorialModal({ onClose, darkMode }: {
 
 
 
-        <div className={`flex-1 min-h-0 px-4 py-2 flex flex-col overflow-y-auto overscroll-contain`}>
+        <div className={`flex-1 min-h-0 px-4 py-1.5 flex flex-col overflow-hidden`}>
 
           {subView === 'video' && hasVideo ? videoContent : tipsContent}
 
