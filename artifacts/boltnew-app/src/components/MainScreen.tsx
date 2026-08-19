@@ -667,31 +667,29 @@ export function MainScreen({
         {visitedTabsRef.current.has('profiles') && (
         <KeepTab id="profiles" mainTab={mainTab}>
           <div
-            className="-mb-[calc(8.5rem+var(--tabbar-safe-bottom))] flex flex-col min-h-0"
-            style={{ maxHeight: 'calc(100dvh - 330px + 8.5rem - var(--tabbar-safe-bottom))' }}
+            className="flex flex-col min-h-0"
+            style={{
+              height: 'calc(100dvh - 330px - var(--tabbar-safe-bottom) + 8.5rem)',
+              maxHeight: 'calc(100dvh - 330px - var(--tabbar-safe-bottom) + 8.5rem)',
+            }}
           >
-            {/* 검색 + 카드 보기 */}
-            <div className="space-y-2 mb-3 shrink-0">
-              <div className="flex items-center gap-2">
-                <div className="relative flex-1">
-                  <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            {/* 검색 + 새로고침 + 카드 보기 — 한 줄 */}
+            <div className="space-y-1 mb-2 shrink-0">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <div className="relative flex-1 min-w-0 max-w-[9.5rem] min-[360px]:max-w-[11rem]">
+                  <Users className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
                   <input
                     value={profileSearch}
                     onChange={e => setProfileSearch(e.target.value)}
-                    placeholder="닉네임 · MBTI · 성향 · 초성 검색"
-                    className="w-full pl-9 pr-3 py-2 rounded-xl border border-gray-200 bg-white text-sm focus:border-teal-400 focus:outline-none shadow-sm"
+                    placeholder="닉네임 검색"
+                    className="w-full pl-7 pr-2 py-1.5 rounded-lg border border-gray-200 bg-white text-xs focus:border-teal-400 focus:outline-none shadow-sm"
                   />
                 </div>
-                <RefreshBtn onRefresh={() => doRefresh('profiles', onRefreshProfiles)} refreshed={refreshedTab === 'profiles'} />
-              </div>
-              <p className="text-[10px] text-gray-400 px-1 -mt-0.5">
-                💡 닉네임·MBTI·성향(탑/바텀/올)·초성으로 검색할 수 있어요
-              </p>
-              <div className="flex justify-end">
+                <RefreshBtn compact onRefresh={() => doRefresh('profiles', onRefreshProfiles)} refreshed={refreshedTab === 'profiles'} />
                 <div
                   role="group"
                   aria-label="참여자 카드 보기"
-                  className="shrink-0 flex p-0.5 rounded-xl bg-gray-100 border border-gray-200"
+                  className="shrink-0 flex p-0.5 rounded-lg bg-gray-100 border border-gray-200 ml-auto"
                 >
                   {([
                     { mode: 'compact' as const, label: '작게', Icon: LayoutGrid, title: '작게 보기 (한 줄 3장·1:1)' },
@@ -707,15 +705,18 @@ export function MainScreen({
                         aria-label={title}
                         aria-pressed={active}
                         onClick={() => setProfileCardGrid(mode)}
-                        className={`flex items-center justify-center gap-0.5 px-1.5 min-[360px]:px-2 py-1 rounded-lg text-[9px] min-[360px]:text-[10px] font-bold transition-all ${active ? 'bg-white text-teal-700 shadow-sm ring-1 ring-teal-200' : 'text-gray-500 hover:text-gray-700'}`}
+                        className={`flex items-center justify-center gap-0.5 px-1.5 py-1 rounded-md text-[9px] font-bold transition-all ${active ? 'bg-white text-teal-700 shadow-sm ring-1 ring-teal-200' : 'text-gray-500 hover:text-gray-700'}`}
                       >
-                        <Icon className="w-3 h-3 min-[360px]:w-3.5 min-[360px]:h-3.5 shrink-0" aria-hidden />
-                        <span className="hidden min-[360px]:inline">{label}{mode !== 'compact' ? '개' : ''}</span>
+                        <Icon className="w-3 h-3 shrink-0" aria-hidden />
+                        <span>{label}{mode !== 'compact' ? '개' : ''}</span>
                       </button>
                     );
                   })}
                 </div>
               </div>
+              <p className="text-[10px] text-gray-400 px-0.5">
+                💡 닉네임·MBTI·성향(탑/바텀/올)·초성으로 검색할 수 있어요
+              </p>
             </div>
 
             {/* ── 참여자 그리드 (FAB 뒤 흰 블록 없이 스크롤·내부 pb로 여백) ── */}
