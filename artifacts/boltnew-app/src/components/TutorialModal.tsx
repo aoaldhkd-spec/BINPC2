@@ -342,11 +342,11 @@ const HIDDEN: Topic[] = [
 
 const KR_WRAP = 'break-keep [word-break:keep-all] [line-break:strict] [overflow-wrap:break-word] text-pretty';
 
-const MODAL_SHELL = 'w-[calc(100vw-1.5rem)] max-w-md max-h-[min(90dvh,calc(100dvh-var(--safe-top)-var(--safe-bottom)-1rem))]';
+const MODAL_SHELL = 'w-[calc(100vw-1rem)] max-w-md max-h-[calc(100dvh-var(--safe-top,0px)-var(--safe-bottom,0px)-0.5rem)]';
 
 
 
-function TipCard({ tip, panel, text, muted, darkMode }: {
+function TipCard({ tip, panel, text, muted, darkMode, spanFull }: {
 
   tip: Tip;
 
@@ -358,7 +358,39 @@ function TipCard({ tip, panel, text, muted, darkMode }: {
 
   darkMode?: boolean;
 
+  spanFull?: boolean;
+
 }) {
+
+  const desc = tip.desc.replace(/([.·])\s+/g, '$1\u200b ');
+
+  const iconShell = `text-sm leading-none flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-lg ${darkMode ? 'bg-white/10' : 'bg-black/[0.04]'}`;
+
+
+
+  if (spanFull) {
+
+    return (
+
+      <div className={`col-span-2 flex items-start gap-2 rounded-xl border px-2.5 py-1.5 ${panel}`}>
+
+        <span className={iconShell}>{tip.icon}</span>
+
+        <div className="min-w-0 flex-1">
+
+          <p className={`text-[10px] font-black leading-tight ${KR_WRAP} ${text}`}>{tip.title}</p>
+
+          <p className={`text-[9px] leading-snug mt-0.5 ${KR_WRAP} ${muted}`}>{desc}</p>
+
+        </div>
+
+      </div>
+
+    );
+
+  }
+
+
 
   return (
 
@@ -366,21 +398,13 @@ function TipCard({ tip, panel, text, muted, darkMode }: {
 
       <div className="flex items-center gap-1 min-w-0">
 
-        <span className={`text-sm leading-none flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-lg ${darkMode ? 'bg-white/10' : 'bg-black/[0.04]'}`}>
-
-          {tip.icon}
-
-        </span>
+        <span className={iconShell}>{tip.icon}</span>
 
         <p className={`text-[10px] font-black leading-tight min-w-0 ${KR_WRAP} ${text}`}>{tip.title}</p>
 
       </div>
 
-      <p className={`text-[9px] leading-snug line-clamp-2 pl-7 ${KR_WRAP} ${muted}`}>
-
-        {tip.desc.replace(/([.·])\s+/g, '$1\u200b ')}
-
-      </p>
+      <p className={`text-[9px] leading-snug pl-7 ${KR_WRAP} ${muted}`}>{desc}</p>
 
     </div>
 
@@ -390,7 +414,7 @@ function TipCard({ tip, panel, text, muted, darkMode }: {
 
 
 
-function TipGrid({ tips, panel, text, muted, darkMode }: {
+function TipGrid({ tips, panel, text, muted, darkMode, twoColumn }: {
 
   tips: Tip[];
 
@@ -402,15 +426,59 @@ function TipGrid({ tips, panel, text, muted, darkMode }: {
 
   darkMode?: boolean;
 
+  twoColumn?: boolean;
+
 }) {
+
+  const useTwoCol = twoColumn ?? tips.length >= 4;
+
+  const oddLast = useTwoCol && tips.length % 2 === 1;
+
+
+
+  if (!useTwoCol) {
+
+    return (
+
+      <div className="flex flex-col gap-1.5">
+
+        {tips.map((tip) => (
+
+          <TipCard key={tip.title} tip={tip} panel={panel} text={text} muted={muted} darkMode={darkMode} />
+
+        ))}
+
+      </div>
+
+    );
+
+  }
+
+
 
   return (
 
     <div className="grid grid-cols-2 gap-1.5 auto-rows-fr">
 
-      {tips.map((tip) => (
+      {tips.map((tip, i) => (
 
-        <TipCard key={tip.title} tip={tip} panel={panel} text={text} muted={muted} darkMode={darkMode} />
+        <TipCard
+
+          key={tip.title}
+
+          tip={tip}
+
+          panel={panel}
+
+          text={text}
+
+          muted={muted}
+
+          darkMode={darkMode}
+
+          spanFull={oddLast && i === tips.length - 1}
+
+        />
 
       ))}
 
@@ -682,7 +750,7 @@ function FillerPanel({ kind, darkMode }: { kind: FillerKind; darkMode?: boolean 
 
       </p>
 
-      <p className={`text-[10px] leading-snug mt-0.5 line-clamp-2 ${KR_WRAP} ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+      <p className={`text-[10px] leading-snug mt-0.5 ${KR_WRAP} ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
 
         {f.line.replace(/([.·])\s+/g, '$1\u200b ')}
 
@@ -822,7 +890,7 @@ export function TutorialModal({ onClose, darkMode }: {
 
   const tipsContent = (
 
-    <div className="flex flex-col gap-1.5 min-h-0 flex-1 justify-center">
+    <div className="flex flex-col gap-1.5 min-h-0 flex-1">
 
       {topic.filler && <FillerPanel kind={topic.filler} darkMode={darkMode} />}
 
@@ -1078,7 +1146,7 @@ export function TutorialModal({ onClose, darkMode }: {
 
 
 
-        <div className={`flex-1 min-h-0 px-4 py-2 flex flex-col ${subView === 'video' && hasVideo ? 'overflow-y-auto overscroll-contain' : 'overflow-hidden'}`}>
+        <div className={`flex-1 min-h-0 px-4 py-2 flex flex-col overflow-y-auto overscroll-contain`}>
 
           {subView === 'video' && hasVideo ? videoContent : tipsContent}
 
