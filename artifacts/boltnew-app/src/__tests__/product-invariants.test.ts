@@ -161,10 +161,13 @@ describe('product copy + notification invariants', () => {
     const lock = read('lib/functions-lock.ts');
     const main = read('components/MainScreen.tsx');
     const app = read('App.tsx');
+    const chatHook = read('hooks/useChat.ts');
     const dash = read('admin/DashboardTab.tsx');
     const signal = read('components/SignalTab.tsx');
     const detail = read('components/ProfileDetail.tsx');
     const db = readFileSync(join(root, '../../api-server/src/routes/db.ts'), 'utf8');
+    expect(lock).toContain('FUNCTIONS_UNLOCK_TOAST');
+    expect(lock).toContain('isFunctionsLockedOpError');
     expect(lock).toContain("'signal'");
     expect(lock).toContain("'chats'");
     expect(lock).toContain("'fortune'");
@@ -172,6 +175,11 @@ describe('product copy + notification invariants', () => {
     expect(lock).not.toContain("'ranking'");
     expect(main).toContain('SOCIAL_LOCKED_TABS');
     expect(main).toContain('guardLockedAction');
+    expect(app).toContain('FUNCTIONS_UNLOCK_TOAST');
+    expect(app).toContain('functionsLockedPrevRef');
+    expect(app).toContain("useChat({ currentUserId, profilesRef, setSelectedProfile, setView, setBottomNotif, functionsLocked");
+    expect(chatHook).toMatch(/functionsLocked[\s\S]*flushPendingQueue/);
+    expect(chatHook).toContain('isFunctionsLockedOpError');
     expect(app).toContain('openChatGuarded');
     expect(app).toContain('sendMessageGuarded');
     expect(app).toContain('sendImageGuarded');

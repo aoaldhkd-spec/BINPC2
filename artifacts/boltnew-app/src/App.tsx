@@ -23,7 +23,7 @@ import {
 } from './lib/signal-match';
 import { mergeRowsAfterSnapshot, mergeSetAfterSnapshot } from './lib/realtime-merge';
 import { incomingInterestToast, isIncomingHeartToastTarget, MUTUAL_HEART_TOAST } from './lib/heart-toast';
-import { FUNCTIONS_LOCK_KICK_TOAST, FUNCTIONS_LOCK_TOAST, SOCIAL_LOCKED_TABS } from './lib/functions-lock';
+import { FUNCTIONS_LOCK_KICK_TOAST, FUNCTIONS_LOCK_TOAST, FUNCTIONS_UNLOCK_TOAST, SOCIAL_LOCKED_TABS } from './lib/functions-lock';
 // ─── 분리된 타입·유틸·컴포넌트 imports ────────────────────────────────────────
 import type {
   Profile, ContactShare,
@@ -252,6 +252,7 @@ function App() {
   const [functionsLocked, setFunctionsLocked] = useState(false);
   const functionsLockedRef = useRef(false);
   functionsLockedRef.current = functionsLocked;
+  const functionsLockedPrevRef = useRef(false);
   const [functionsLockToast, setFunctionsLockToast] = useState<string | null>(null);
   const functionsLockToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showFunctionsLockToast = useCallback((msg: string = FUNCTIONS_LOCK_TOAST) => {
@@ -404,7 +405,7 @@ function App() {
     unreadChatCounts, setUnreadChatCounts,
     loadChatList, openChat, sendMessage, sendImage,
     deleteChat, deleteAllChats, deleteMessage,
-  } = useChat({ currentUserId, profilesRef, setSelectedProfile, setView, setBottomNotif });
+  } = useChat({ currentUserId, profilesRef, setSelectedProfile, setView, setBottomNotif, functionsLocked });
 
   const {
     groupChats,
@@ -774,9 +775,15 @@ function App() {
     execLikeWithConfetti(...args);
   }, [execLikeWithConfetti, showFunctionsLockToast, setLikeConfirmTarget]);
 
-  // 잠금이 켜지면 채팅·시그널·단톡·운세 화면에서 참여자 탭으로 되돌림. 통계·랭킹은 유지.
+  // 잠금이 켜지는 순간에만 채팅·시그널·단톡·운세 화면에서 참여자 탭으로 되돌림. 통계·랭킹은 유지.
   useEffect(() => {
-    if (!functionsLocked) return;
+    const wasLocked = functionsLockedPrevRef.current;
+    functionsLockedPrevRef.current = functionsLocked;
+    if (!functionsLocked) {
+      if (wasLocked) showFunctionsLockToast(FUNCTIONS_UNLOCK_TOAST);
+      return;
+    }
+    if (wasLocked) return;
     let kicked = false;
     if (view === 'chat' || view === 'group-chat') {
       chatIdRef.current = null;

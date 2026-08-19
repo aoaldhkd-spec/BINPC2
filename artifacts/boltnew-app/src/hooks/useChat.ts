@@ -48,6 +48,7 @@ import { applySseInsert, applySseToRoomCaches, applyLoadMessages, messageBelongs
 import { chatPairKey, dedupeChatList, pickCanonicalChat } from '../lib/chat-pair';
 import { buildChatIdAliasMap, incrementUnreadForIncoming, isIncomingChatToastTarget, remapUnreadToCanonical, clearUnreadForChat } from '../lib/chat-unread';
 import { diag } from '../lib/diag';
+import { isFunctionsLockedOpError } from '../lib/functions-lock';
 
 interface UseChatDeps {
   currentUserId: string | null;
@@ -55,6 +56,8 @@ interface UseChatDeps {
   setSelectedProfile: (p: Profile | null) => void;
   setView: (v: View) => void;
   setBottomNotif: (n: { type: 'heart' | 'chat' | 'message' | 'contact'; nickname: string; heartType?: HeartType; message?: string } | null) => void;
+  /** false → true 전환 시 오프라인 큐 자동 플러시 (관리자 기능 잠금 해제) */
+  functionsLocked?: boolean;
 }
 
 export function useChat({
@@ -63,6 +66,7 @@ export function useChat({
   setSelectedProfile,
   setView,
   setBottomNotif,
+  functionsLocked = false,
 }: UseChatDeps) {
   const [chatId, setChatId] = useState<string | null>(null);
   const chatIdRef = useRef<string | null>(null);
@@ -897,6 +901,13 @@ export function useChat({
     return () => window.removeEventListener('online', onOnline);
   }, [flushPendingQueue]);
 
+  const functionsLockedRef = useRef(functionsLocked);
+  useEffect(() => {
+    const wasLocked = functionsLockedRef.current;
+    functionsLockedRef.current = functionsLocked;
+    if (wasLocked && !functionsLocked) void flushPendingQueue();
+  }, [functionsLocked, flushPendingQueue]);
+
   // ── 전송 잠금: boolean → Set<chatId> ─────────────────────────────────────────
   // 채팅방별 독립 잠금 — 채팅방 A 전송 중에도 채팅방 B 전송 가능
   const sendingChatIdsRef = useRef(new Set<string>());
@@ -972,6 +983,10 @@ export function useChat({
           // Insert 실패했지만 이전 시도의 응답이 분실된 경우를 처리:
           // 같은 client_id로 DB를 조회해 이미 저장된 행이 있으면 교체 후 성공
           if (error) {
+            if (isFunctionsLockedOpError(error)) {
+              lastErr = error;
+              break;
+            }
             const { data: existing } = await supabase.from('messages').select('*').eq('chat_id', snapChatId).eq('client_id', clientUUID).maybeSingle();
             if (existing && (isActiveRoomChat(snapChatId) || isActiveRoomChat((existing as Message).chat_id))) {
               const saved = existing as Message;

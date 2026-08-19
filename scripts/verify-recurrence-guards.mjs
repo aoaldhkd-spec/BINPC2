@@ -66,13 +66,24 @@ mustMatch('scripts/test-realtime-two-user.mjs', '02_sse_render_e2e', [
 ]);
 mustNotMatch('scripts/test-realtime-two-user.mjs', '02_sse_not_netlify', [/\$\{API\}\/events/]);
 
-// 3. functions_locked 403 — endurance mid-run SKIP (exit 2 at start)
+// 3. functions_locked — SSE live toggle, mid-run SKIP, unlock resume
 mustMatch('scripts/endurance-5h.mjs', '03_functions_locked_skip', [
   /isOpFunctionsLocked/,
   /process\.exit\(2\)/,
   /result\.locked|locked: true/,
 ]);
 mustMatch('scripts/lib/functions-lock.mjs', '03_functions_lock_helper', [/isOpFunctionsLocked/]);
+mustMatch('artifacts/boltnew-app/src/lib/functions-lock.ts', '03_client_unlock_toast', [/FUNCTIONS_UNLOCK_TOAST/]);
+mustMatch('artifacts/boltnew-app/src/App.tsx', '03_live_lock_sse', [
+  /functions_locked/,
+  /app-settings-user/,
+  /functionsLockedPrevRef/,
+]);
+mustMatch('artifacts/boltnew-app/src/hooks/useChat.ts', '03_unlock_flush_chat_queue', [
+  /functionsLocked/,
+  /flushPendingQueue/,
+  /isFunctionsLockedOpError/,
+]);
 
 // 4. SSE idle drop between cycles
 mustMatch('scripts/endurance-5h.mjs', '04_sse_ensure_connected', [/await sseB\.ensureConnected\(\)|ensureConnected\(\)/]);
