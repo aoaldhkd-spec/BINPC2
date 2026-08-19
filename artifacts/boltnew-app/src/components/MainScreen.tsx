@@ -58,11 +58,7 @@ export { ProfileCard };
 function KeepTab({ id, mainTab, children }: { id: MainTab; mainTab: MainTab; children: ReactNode }) {
   const active = mainTab === id;
   return (
-    <div
-      hidden={!active}
-      aria-hidden={!active}
-      className={active ? 'flex flex-1 min-h-0 flex-col min-w-0' : undefined}
-    >
+    <div hidden={!active} aria-hidden={!active}>
       {children}
     </div>
   );
@@ -660,13 +656,7 @@ export function MainScreen({
         {timerEndAt && <TimerBanner endAt={timerEndAt} label={timerLabel ?? ''} />}
       </header>
 
-      <main
-        className={`max-w-7xl mx-auto w-full flex-1 min-h-0 flex flex-col px-3 min-[360px]:px-4 scrollbar-styled-light ${
-          mainTab === 'profiles'
-            ? 'overflow-hidden pt-4 min-[390px]:pt-6 pb-0'
-            : 'overflow-y-auto py-4 min-[390px]:py-6 pb-[calc(8.5rem+var(--tabbar-safe-bottom))]'
-        }`}
-      >
+      <main className="max-w-7xl mx-auto w-full flex-1 min-h-0 flex flex-col px-3 min-[360px]:px-4 scrollbar-styled-light overflow-y-auto py-4 min-[390px]:py-6 pb-[calc(8.5rem+var(--tabbar-safe-bottom))]">
         {chatSearchLockToast && (
           <div className="fixed top-24 left-0 right-0 z-[80] flex justify-center pointer-events-none">
             <div className="text-center text-[11px] font-bold text-white bg-gray-800/90 rounded-full px-3 py-1">
@@ -676,9 +666,11 @@ export function MainScreen({
         )}
         {visitedTabsRef.current.has('profiles') && (
         <KeepTab id="profiles" mainTab={mainTab}>
-          <div className="flex flex-1 min-h-0 flex-col overflow-hidden">
-            {/* 검색 + 새로고침 + 카드 보기 — 한 줄 */}
-            <div className="space-y-1 mb-2 shrink-0">
+          <div className="flex flex-col">
+            {/* 검색 + 새로고침 + 카드 보기 — sticky below header */}
+            <div
+              className={`sticky top-14 z-[5] space-y-1 mb-2 pb-1 ${darkMode ? 'bg-slate-950' : 'bg-gray-50'}`}
+            >
               <div className="flex items-center gap-1.5 min-w-0">
                 <div className="relative flex-1 min-w-0">
                   <Users className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
@@ -723,8 +715,8 @@ export function MainScreen({
               </p>
             </div>
 
-            {/* ── 참여자 그리드: 탭바까지 스크롤, scroll pb로 FAB·뒤로가기 터치 여백 ── */}
-            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain pb-[calc(8.5rem+var(--tabbar-safe-bottom))]">
+            {/* ── 참여자 그리드 (page scroll — no internal scroll band behind FABs) ── */}
+            <div className="-mx-3 min-[360px]:-mx-4 px-3 min-[360px]:px-4">
             <div className={profileGridClassName(profileCardGrid)}>
             {filteredProfiles.filter(p => p.id !== currentUserId).map((profile) => (
               <ProfileCard
@@ -754,7 +746,7 @@ export function MainScreen({
               </div>
             )}
           </div>
-          </div>{/* /scroll-wrapper */}
+          </div>
           </div>
         </KeepTab>
         )}
