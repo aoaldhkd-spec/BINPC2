@@ -3,6 +3,7 @@ import {
   EMOJI_CATEGORIES,
   QUICK_MSGS,
   QUICK_REACTIONS,
+  STATUS_QUICK_MSGS,
   THEME_CYCLE,
   THEME_EMOJI,
 } from './chat-picker-data';
@@ -15,6 +16,7 @@ describe('chat picker static data', () => {
 
   it('keeps quick actions and theme labels available', () => {
     expect(QUICK_MSGS).toContain('번호 교환해요! 📱');
+    expect(STATUS_QUICK_MSGS.every(msg => msg.length <= 30)).toBe(true);
     expect(QUICK_REACTIONS).toEqual(['❤️', '😂', '👍', '🔥', '😮', '😢']);
     expect(THEME_CYCLE.every(theme => Boolean(THEME_EMOJI[theme]))).toBe(true);
   });

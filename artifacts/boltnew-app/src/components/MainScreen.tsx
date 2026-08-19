@@ -40,6 +40,7 @@ import { ProfileCard } from './ProfileCard';
 import { ResetButton } from './ResetButton';
 import { SignalTab } from './SignalTab';
 import { FUNCTIONS_LOCK_TOAST, SOCIAL_LOCKED_TABS } from '../lib/functions-lock';
+import { STATUS_QUICK_MSGS } from '../lib/chat-picker-data';
 import { filterProfilesForDeck } from '../lib/profile-deck-filter';
 import {
   readProfileCardGridMode, writeProfileCardGridMode, profileGridClassName, profileGridColSpan,
@@ -1813,6 +1814,22 @@ export function MainScreen({
                     </button>
                     {showStatusMsgEdit && (
                       <div className={`px-4 pb-4 ${darkMode ? 'bg-slate-700/20' : 'bg-gray-50/50'}`}>
+                        <p className={`text-[9px] font-black uppercase tracking-widest mb-1.5 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>⚡ 빠른 선택</p>
+                        <div className="flex flex-wrap gap-1.5 mb-3">
+                          {STATUS_QUICK_MSGS.map((msg) => {
+                            const selected = signalStatusMsg === msg;
+                            return (
+                              <button
+                                key={msg}
+                                type="button"
+                                onClick={() => setSignalStatusMsg(msg)}
+                                className={`px-2.5 py-1.5 rounded-full text-[11px] font-bold border transition-all active:scale-90 ${selected ? 'text-white border-transparent bg-cyan-500' : darkMode ? 'text-slate-300 border-slate-600 bg-slate-700/50 hover:border-cyan-500/50' : 'text-gray-600 border-gray-200 bg-white hover:border-cyan-300'}`}
+                              >
+                                {msg}
+                              </button>
+                            );
+                          })}
+                        </div>
                         <input type="text" value={signalStatusMsg} onChange={(e) => setSignalStatusMsg(e.target.value.slice(0, 30))}
                           placeholder="예: 퇴근 후 맥주 한잔 같이해요 🍺" maxLength={30}
                           className={`w-full px-3 py-2.5 rounded-xl text-sm border focus:outline-none focus:border-cyan-400 transition-colors ${darkMode ? 'bg-slate-700 border-slate-500 text-white placeholder:text-slate-500' : 'bg-gray-50 border-gray-200 text-gray-800 placeholder:text-gray-400'}`} />
