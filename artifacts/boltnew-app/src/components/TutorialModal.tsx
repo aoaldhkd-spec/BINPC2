@@ -326,9 +326,9 @@ const HIDDEN: Topic[] = [
 
 const KR_WRAP = 'break-keep [word-break:keep-all] [line-break:strict] [overflow-wrap:break-word] text-pretty';
 
-/** Fixed shell — same box on every topic tab; never taller than viewport (no overlay scroll). */
+/** Fixed shell — identical height on every topic/mode (tips + video). */
 const MODAL_SHELL =
-  'w-[calc(100vw-1rem)] max-w-md h-[min(500px,calc(100dvh-var(--safe-top,0px)-var(--safe-bottom,0px)-1.5rem))]';
+  'w-[calc(100vw-1rem)] max-w-md h-[min(500px,calc(100dvh-var(--safe-top,0px)-var(--safe-bottom,0px)-1.5rem))] min-h-[min(500px,calc(100dvh-var(--safe-top,0px)-var(--safe-bottom,0px)-1.5rem))] max-h-[min(500px,calc(100dvh-var(--safe-top,0px)-var(--safe-bottom,0px)-1.5rem))]';
 
 function topicTipCount(topic: Topic): number {
   const sectionTips = (topic.sections ?? []).reduce((n, s) => n + s.tips.length, 0);
@@ -794,9 +794,7 @@ function TopicSubTabs({ subView, onChange, hasVideo, darkMode }: {
 
 }) {
 
-  if (!hasVideo) return null;
-
-  const base = 'flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-black transition-all active:scale-[0.98]';
+  const base = 'flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-xl text-[11px] font-black transition-all active:scale-[0.98]';
 
   const idle = darkMode ? 'text-slate-400 bg-slate-800/80' : 'text-gray-500 bg-gray-50';
 
@@ -806,25 +804,33 @@ function TopicSubTabs({ subView, onChange, hasVideo, darkMode }: {
 
   return (
 
-    <div className={`flex-shrink-0 px-4 pb-1.5 ${darkMode ? 'bg-slate-900' : 'bg-white'}`}>
+    <div className={`flex-shrink-0 h-11 px-4 pb-1.5 ${darkMode ? 'bg-slate-900' : 'bg-white'}`}>
 
-      <div className={`grid grid-cols-2 gap-1 p-0.5 rounded-lg ${darkMode ? 'bg-slate-800' : 'bg-gray-100'}`}>
+      {hasVideo ? (
 
-        <button type="button" onClick={() => onChange('tips')} className={`${base} py-1.5 text-[11px] ${subView === 'tips' ? activeTips : idle}`}>
+        <div className={`grid grid-cols-2 gap-1 p-0.5 rounded-lg h-8 ${darkMode ? 'bg-slate-800' : 'bg-gray-100'}`}>
 
-          📋 설명
+          <button type="button" onClick={() => onChange('tips')} className={`${base} ${subView === 'tips' ? activeTips : idle}`}>
 
-        </button>
+            📋 설명
 
-        <button type="button" onClick={() => onChange('video')} className={`${base} py-1.5 text-[11px] ${subView === 'video' ? activeVideo : idle}`}>
+          </button>
 
-          <PlayCircle className="w-3.5 h-3.5" />
+          <button type="button" onClick={() => onChange('video')} className={`${base} ${subView === 'video' ? activeVideo : idle}`}>
 
-          동영상
+            <PlayCircle className="w-3.5 h-3.5" />
 
-        </button>
+            동영상
 
-      </div>
+          </button>
+
+        </div>
+
+      ) : (
+
+        <div className="h-8" aria-hidden />
+
+      )}
 
     </div>
 
@@ -1076,17 +1082,17 @@ export function TutorialModal({ onClose, darkMode }: {
 
 
 
-        <div className={`bg-gradient-to-br ${topic.color} px-4 pt-3 pb-2 pr-12 flex-shrink-0`}>
+        <div className={`bg-gradient-to-br ${topic.color} px-4 pt-3 pb-2 pr-12 flex-shrink-0 min-h-[3.75rem]`}>
 
           <p className="text-white/80 text-[10px] font-bold tracking-wide">도움말</p>
 
-          <h2 id="tutorial-modal-title" className={`text-white font-black text-sm leading-snug mt-0.5 ${KR_WRAP}`}>{topic.emoji} {topic.title}</h2>
+          <h2 id="tutorial-modal-title" className={`text-white font-black text-sm leading-snug mt-0.5 line-clamp-2 min-h-[2.5rem] ${KR_WRAP}`}>{topic.emoji} {topic.title}</h2>
 
         </div>
 
 
 
-        <div className={`flex-shrink-0 px-4 pt-2 pb-1.5 ${darkMode ? 'bg-slate-900' : 'bg-white'}`}>
+        <div className={`flex-shrink-0 h-[2.75rem] px-4 pt-2 pb-1.5 flex items-end ${darkMode ? 'bg-slate-900' : 'bg-white'}`}>
 
           <div className={`grid grid-cols-2 p-1 rounded-xl gap-1 ${darkMode ? 'bg-slate-800' : 'bg-gray-100'}`}>
 
@@ -1130,7 +1136,7 @@ export function TutorialModal({ onClose, darkMode }: {
 
         {showChips && (
 
-          <div className={`flex-shrink-0 px-4 py-1 border-b ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
+          <div className={`flex-shrink-0 h-10 px-4 py-1 border-b flex items-center ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
 
             <div className="flex gap-1 overflow-x-auto overscroll-x-contain scrollbar-none pb-0.5">
 
@@ -1174,7 +1180,7 @@ export function TutorialModal({ onClose, darkMode }: {
 
 
 
-        <div className={`flex-1 min-h-0 px-4 py-1.5 flex flex-col overflow-hidden`}>
+        <div className={`flex-1 min-h-0 px-4 py-1.5 flex flex-col overflow-hidden ${darkMode ? 'bg-slate-900' : 'bg-white'}`}>
 
           {subView === 'video' && hasVideo ? videoContent : tipsContent}
 
@@ -1182,7 +1188,7 @@ export function TutorialModal({ onClose, darkMode }: {
 
 
 
-        <div className={`flex-shrink-0 px-4 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex gap-2 border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
+        <div className={`flex-shrink-0 h-[3.75rem] px-4 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex items-start gap-2 border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
 
           {safeIdx > 0 ? (
 
