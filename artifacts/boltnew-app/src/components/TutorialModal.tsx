@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, ArrowLeft, ArrowRight } from 'lucide-react';
 import { TutorialVideo } from './TutorialVideo';
+import { HOST_AGE_EASTER_EGG_HINT } from '../lib/host-age-easter-egg';
 
 type Tip = { icon: string; title: string; desc: string };
 type Section = { emoji: string; title: string; tips: Tip[]; footer?: string };
@@ -100,6 +101,7 @@ const BASIC: Topic[] = [
       { icon: '💘', title: '이상형', desc: '성격·술·텐션·흡연 칩. 시그널용.' },
       { icon: '🌟', title: '나의 특징', desc: '같은 칩. 포지션은 닉네임 설정.' },
       { icon: '🚫', title: '차단', desc: '차단하면 서로 프로필·채팅이 안 보여요.' },
+      { icon: '🍻', title: '숨은 꿀팁', desc: HOST_AGE_EASTER_EGG_HINT },
     ],
     video: [1, 2],
   },

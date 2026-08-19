@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Users } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { HOST_AGE_EASTER_EGG_HINT } from '../lib/host-age-easter-egg';
 
 const FIXED_TITLE = '범일NPC는 30살!';
 const RANDOM_SUFFIX = [
@@ -195,9 +196,10 @@ export function ResetButton({ onReset, darkMode, onEasterEgg, onUiLockChange, on
           <button type="button" onClick={() => { if (onOpenResetPassword) onOpenResetPassword(); else setOpen(true); }} className="block group cursor-pointer" title="처음으로 돌아가기">
             <p className={`text-[10px] font-black tracking-widest uppercase leading-none transition-colors ${darkMode ? 'text-cyan-400 group-hover:text-cyan-300' : 'text-cyan-600 group-hover:text-cyan-700'}`}>범일NPC</p>
           </button>
-          <button type="button" onClick={handleLogoClick} className="block cursor-pointer active:scale-95 transition-transform" title="술번개">
-            <h1 className={`text-lg font-black leading-tight transition-colors ${darkMode ? 'text-white hover:text-amber-300' : 'text-gray-900 hover:text-amber-500'}`}>술번개 🍻</h1>
+          <button type="button" onClick={handleLogoClick} className="inline cursor-pointer active:scale-95 transition-transform align-baseline" title="술번개" aria-label={HOST_AGE_EASTER_EGG_HINT}>
+            <span className={`text-lg font-black leading-tight transition-colors ${darkMode ? 'text-white hover:text-amber-300' : 'text-gray-900 hover:text-amber-500'}`}>술번개</span>
           </button>
+          <span className={`text-lg font-black leading-tight ${darkMode ? 'text-white' : 'text-gray-900'}`} aria-hidden> 🍻</span>
         </div>
       </div>
 
