@@ -150,7 +150,7 @@ export function ThemeSwitcher() {
       {/* FAB — 테마별 스타일 */}
       <button
         onClick={() => setOpen(p => !p)}
-        className="theme-switcher-btn touch-target fixed bottom-[calc(max(0.75rem,env(safe-area-inset-bottom))+var(--participant-tabbar,0px))] left-[max(0.75rem,env(safe-area-inset-left))] z-[9998] flex items-center gap-1.5 transition-all duration-150 active:scale-90"
+        className="theme-switcher-btn participant-fab touch-target fixed bottom-[calc(max(0.75rem,env(safe-area-inset-bottom))+var(--participant-tabbar,0px))] left-[max(0.75rem,env(safe-area-inset-left))] z-[9998] flex items-center gap-1.5 transition-all duration-150 active:scale-90"
         style={{
           background: current.fab.bg,
           color: current.fab.text,

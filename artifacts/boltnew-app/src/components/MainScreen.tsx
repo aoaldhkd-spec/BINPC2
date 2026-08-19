@@ -2242,7 +2242,7 @@ export function MainScreen({
         </div>
       </nav>
 
-      {/* ── MY 버튼 (우하단 고정 원형) + 팝업 ── */}
+      {/* ── MY 버튼 (우하단 고정) + 팝업 ── */}
       {(() => {
         const myTabActive = mainTab === 'status' || mainTab === 'chats' || mainTab === 'fortune' || mainTab === 'settings';
         const heartsBadge = Math.max(0, pendingHeartsCount - seenHeartsCount) + newContactsCount + (visitorNotif ? newVisitCount : 0);
@@ -2259,14 +2259,12 @@ export function MainScreen({
 
         return (
           <>
-            {/* 팝업 닫기용 배경 */}
             {myMenuOpen && (
-              <div className="fixed inset-0 z-40" onClick={() => setMyMenuOpen(false)} />
+              <div className="fixed inset-0 z-40" onClick={() => setMyMenuOpen(false)} aria-hidden />
             )}
 
-            {/* 팝업 메뉴 */}
             {myMenuOpen && (
-              <div className={`fixed bottom-[calc(9rem+var(--tabbar-safe-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-50 rounded-2xl shadow-2xl border overflow-hidden min-w-[160px] transition-all ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'}`}>
+              <div className={`fixed bottom-[calc(8.5rem+var(--tabbar-safe-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-50 rounded-2xl shadow-xl border overflow-hidden min-w-[160px] ${darkMode ? 'bg-slate-800/95 border-slate-600 backdrop-blur-sm' : 'bg-white/95 border-gray-200 backdrop-blur-sm'}`}>
                 {MY_ITEMS.map((item, idx) => {
                   const locked = functionsLocked && LOCKED_TABS.has(item.id);
                   const active = mainTab === item.id;
@@ -2304,17 +2302,18 @@ export function MainScreen({
               </div>
             )}
 
-            {/* MY 원형 버튼 */}
             <button
+              type="button"
+              aria-expanded={myMenuOpen}
+              aria-haspopup="menu"
               onClick={() => setMyMenuOpen(v => !v)}
-              className={`fixed bottom-[calc(4.5rem+var(--tabbar-safe-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-50 w-14 h-14 rounded-full shadow-xl flex flex-col items-center justify-center gap-0 transition-all active:scale-90 select-none ${
+              className={`participant-fab fixed bottom-[calc(4.5rem+var(--tabbar-safe-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-50 w-14 h-14 rounded-full flex flex-col items-center justify-center transition-all active:scale-90 select-none ${
                 myTabActive || myMenuOpen
-                  ? 'bg-gradient-to-br from-cyan-500 to-teal-500 text-white border-2 border-white/40'
+                  ? 'bg-gradient-to-br from-cyan-500 to-teal-500 text-white ring-2 ring-white/30'
                   : darkMode
-                    ? 'bg-slate-700 text-slate-200 border-2 border-teal-400/70'
-                    : 'bg-white text-gray-700 border-2 border-gray-400'
+                    ? 'text-slate-100 ring-2 ring-cyan-400/80'
+                    : 'text-gray-800 ring-2 ring-teal-500/70'
               }`}
-              style={{ boxShadow: (myTabActive || myMenuOpen) ? '0 4px 20px rgba(6,182,212,0.45)' : darkMode ? '0 4px 16px rgba(0,0,0,0.5)' : '0 4px 16px rgba(0,0,0,0.15)' }}
             >
               <span className="text-[15px] font-black leading-none tracking-widest">MY</span>
               {myBadgeTotal > 0 && (
