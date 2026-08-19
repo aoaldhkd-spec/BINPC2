@@ -657,8 +657,8 @@ export function MainScreen({
       </header>
 
       <main
-        className={`max-w-7xl mx-auto w-full flex-1 min-h-0 flex flex-col px-3 min-[360px]:px-4 scrollbar-styled-light overflow-y-auto pb-[calc(8.5rem+var(--tabbar-safe-bottom))] ${
-          mainTab === 'profiles' ? 'pt-1 min-[390px]:pt-1.5' : 'py-4 min-[390px]:py-6'
+        className={`max-w-7xl mx-auto w-full flex-1 min-h-0 flex flex-col px-3 min-[360px]:px-4 overflow-y-auto pb-[calc(8.5rem+var(--tabbar-safe-bottom))] ${
+          mainTab === 'profiles' ? 'scrollbar-hide pt-1 min-[390px]:pt-1.5' : 'scrollbar-styled-light py-4 min-[390px]:py-6'
         }`}
       >
         {chatSearchLockToast && (
