@@ -610,7 +610,7 @@ export function MainScreen({
   };
 
   return (
-    <div className={`app-viewport min-w-0 flex flex-col transition-colors duration-300 ${darkMode ? 'bg-slate-950' : 'bg-gray-50'}`}>
+    <div className={`app-viewport h-screen overflow-hidden min-w-0 flex flex-col transition-colors duration-300 ${darkMode ? 'bg-slate-950' : 'bg-gray-50'}`}>
       <NavLayer id="tab:away" open={mainTab !== 'profiles'} onClose={() => onTabChange('profiles')} />
       <NavLayer id="my-menu" open={myMenuOpen} onClose={() => setMyMenuOpen(false)} />
       <header className={`sticky top-0 z-10 shrink-0 transition-colors duration-300 ${darkMode ? 'bg-slate-900 border-b-2 border-slate-700 shadow-slate-950/50' : 'bg-white shadow-sm'}`}>
@@ -657,8 +657,8 @@ export function MainScreen({
       </header>
 
       <main
-        className={`max-w-7xl mx-auto w-full flex-1 min-h-0 flex flex-col px-3 min-[360px]:px-4 overflow-y-auto pb-[calc(8.5rem+var(--tabbar-safe-bottom))] ${
-          mainTab === 'profiles' ? 'scrollbar-hide pt-1 min-[390px]:pt-1.5' : 'scrollbar-styled-light py-4 min-[390px]:py-6'
+        className={`max-w-7xl mx-auto w-full flex-1 min-h-0 flex flex-col px-3 min-[360px]:px-4 overflow-y-auto overscroll-y-contain pb-[calc(8.5rem+var(--tabbar-safe-bottom))] ${
+          mainTab === 'profiles' ? 'participant-scroll-hide pt-1 min-[390px]:pt-1.5' : 'scrollbar-styled-light py-4 min-[390px]:py-6'
         }`}
       >
         {chatSearchLockToast && (
