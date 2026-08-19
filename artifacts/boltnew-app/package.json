@@ -9,6 +9,7 @@
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test:themes": "playwright test --config playwright.config.ts",
+    "test:playwright-local": "playwright test --config playwright.local.config.ts",
     "test:smoke": "node ./scripts/smoke-browser.mjs",
     "test:unit": "vitest run --config vitest.config.ts",
     "lint": "eslint src --max-warnings 0"
