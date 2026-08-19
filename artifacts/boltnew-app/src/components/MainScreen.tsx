@@ -36,6 +36,7 @@ import { AVATAR_CATEGORIES } from '../lib/avatar-catalog';
 import { compressProfilePhoto, PROFILE_PHOTO_ACCEPT, validateProfilePhotoFile } from '../lib/profile-photo';
 import { uploadStorageDataUrl } from '../lib/localdb';
 import { IDEAL_TAG_GROUPS, FEATURE_TAG_GROUPS, encodeSignalMsg, SIGNAL_EMOJI, SIGNAL_INBOX_EMPTY, SIGNAL_INBOX_LINE, SIGNAL_INBOX_TITLE, SIGNAL_SENT_EMPTY, SIGNAL_SENT_LINE, SIGNAL_SENT_TITLE } from '../lib/signal-match';
+import { SignalTagPicker } from './SignalTagPicker';
 import { ProfileCard } from './ProfileCard';
 import { ResetButton } from './ResetButton';
 import { SignalTab } from './SignalTab';
@@ -1858,25 +1859,15 @@ export function MainScreen({
                     </button>
                     {showIdealEdit && (
                       <div className={`px-4 pb-4 space-y-3 ${darkMode ? 'bg-slate-700/20' : 'bg-gray-50/50'}`}>
-                        {IDEAL_TAG_GROUPS.map(group => (
-                          <div key={group.label}>
-                            <p className={`text-[9px] font-black uppercase tracking-widest mb-1.5 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>{group.label}</p>
-                            <div className="flex flex-wrap gap-1.5">
-                              {group.tags.map(tag => {
-                                const selected = idealTags.includes(tag);
-                                return (
-                                  <button key={tag}
-                                    onClick={() => setIdealTags(prev => selected ? prev.filter(t => t !== tag) : [...prev, tag])}
-                                    className={`px-2.5 py-1 rounded-full text-[11px] font-bold border transition-all active:scale-90 ${selected ? 'text-white border-transparent' : darkMode ? 'text-slate-400 border-slate-600 bg-slate-700/50 hover:border-rose-500/50' : 'text-gray-500 border-gray-200 bg-gray-50 hover:border-rose-300'}`}
-                                    style={selected ? { background: 'linear-gradient(135deg,#e11d48,#be185d)' } : {}}
-                                  >{tag}</button>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        ))}
-                        <div>
-                          <p className={`text-[9px] font-black uppercase tracking-widest mb-1.5 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>기타 ✏️</p>
+                        <SignalTagPicker
+                          groups={IDEAL_TAG_GROUPS}
+                          selected={idealTags}
+                          onToggle={(tag) => setIdealTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]))}
+                          accent="rose"
+                          darkMode={darkMode}
+                        />
+                        <div className={`rounded-xl border px-3 py-2.5 ${darkMode ? 'border-slate-600/70 bg-slate-800/35' : 'border-gray-200/90 bg-white shadow-sm shadow-gray-100/60'}`}>
+                          <p className={`text-[11px] font-bold mb-2 ${darkMode ? 'text-slate-200' : 'text-gray-800'}`}>기타 ✏️</p>
                           <input type="text" value={idealFreeText} onChange={(e) => setIdealFreeText(e.target.value.slice(0, 30))}
                             placeholder="예: 다정하고 티키타카 잘 맞는 분" maxLength={30}
                             className={`w-full px-3 py-2.5 rounded-xl text-sm border focus:outline-none focus:border-rose-400 transition-colors ${darkMode ? 'bg-slate-700 border-slate-500 text-white placeholder:text-slate-500' : 'bg-gray-50 border-gray-200 text-gray-800 placeholder:text-gray-400'}`} />
@@ -1918,25 +1909,15 @@ export function MainScreen({
                     </button>
                     {showFeaturesEdit && (
                       <div className={`px-4 pb-4 space-y-3 ${darkMode ? 'bg-slate-700/20' : 'bg-gray-50/50'}`}>
-                        {FEATURE_TAG_GROUPS.map(group => (
-                          <div key={group.label}>
-                            <p className={`text-[9px] font-black uppercase tracking-widest mb-1.5 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>{group.label}</p>
-                            <div className="flex flex-wrap gap-1.5">
-                              {group.tags.map(tag => {
-                                const selected = featureTags.includes(tag);
-                                return (
-                                  <button key={tag}
-                                    onClick={() => setFeatureTags(prev => selected ? prev.filter(t => t !== tag) : [...prev, tag])}
-                                    className={`px-2.5 py-1 rounded-full text-[11px] font-bold border transition-all active:scale-90 ${selected ? 'text-white border-transparent' : darkMode ? 'text-slate-400 border-slate-600 bg-slate-700/50 hover:border-violet-500/50' : 'text-gray-500 border-gray-200 bg-gray-50 hover:border-violet-300'}`}
-                                    style={selected ? { background: 'linear-gradient(135deg,#7c3aed,#6d28d9)' } : {}}
-                                  >{tag}</button>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        ))}
-                        <div>
-                          <p className={`text-[9px] font-black uppercase tracking-widest mb-1.5 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>기타 ✏️</p>
+                        <SignalTagPicker
+                          groups={FEATURE_TAG_GROUPS}
+                          selected={featureTags}
+                          onToggle={(tag) => setFeatureTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]))}
+                          accent="violet"
+                          darkMode={darkMode}
+                        />
+                        <div className={`rounded-xl border px-3 py-2.5 ${darkMode ? 'border-slate-600/70 bg-slate-800/35' : 'border-gray-200/90 bg-white shadow-sm shadow-gray-100/60'}`}>
+                          <p className={`text-[11px] font-bold mb-2 ${darkMode ? 'text-slate-200' : 'text-gray-800'}`}>기타 ✏️</p>
                           <input type="text" value={featureFreeText} onChange={(e) => setFeatureFreeText(e.target.value.slice(0, 30))}
                             placeholder="예: 말 걸기 쉬운 편, 유머있는" maxLength={30}
                             className={`w-full px-3 py-2.5 rounded-xl text-sm border focus:outline-none focus:border-violet-400 transition-colors ${darkMode ? 'bg-slate-700 border-slate-500 text-white placeholder:text-slate-500' : 'bg-gray-50 border-gray-200 text-gray-800 placeholder:text-gray-400'}`} />
@@ -2307,7 +2288,7 @@ export function MainScreen({
               aria-expanded={myMenuOpen}
               aria-haspopup="menu"
               onClick={() => setMyMenuOpen(v => !v)}
-              className={`participant-fab fixed bottom-[calc(4.5rem+var(--tabbar-safe-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-50 w-14 h-14 rounded-full flex flex-col items-center justify-center transition-all active:scale-90 select-none shadow-none ${
+              className={`participant-fab participant-fab-my fixed bottom-[calc(4.5rem+var(--tabbar-safe-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-50 w-14 h-14 rounded-full flex flex-col items-center justify-center transition-all active:scale-90 select-none ${
                 myTabActive || myMenuOpen
                   ? 'bg-gradient-to-br from-cyan-500 to-teal-500 text-white ring-2 ring-white/30'
                   : darkMode

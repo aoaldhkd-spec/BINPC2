@@ -808,29 +808,36 @@ export function TutorialModal({
           </div>
         </div>
 
-        {/* Topic chips */}
+        {/* Topic chips — edge-to-edge segmented tabs, no inter-tab gaps */}
         {showChips && (
-          <div className={`flex-shrink-0 h-10 px-4 py-1 border-b flex items-center ${darkMode ? 'border-slate-700/80 bg-slate-900/60' : 'border-gray-100/80 bg-white/80'}`}>
-            <div className="flex gap-1.5 overflow-x-auto overscroll-x-contain scrollbar-none pb-0.5">
+          <div className={`flex-shrink-0 border-b ${darkMode ? 'border-slate-700/80 bg-slate-900/60' : 'border-gray-100/80 bg-white/80'}`}>
+            <div
+              className="grid w-full"
+              style={{ gridTemplateColumns: `repeat(${topics.length}, minmax(0, 1fr))` }}
+            >
               {topics.map((t, i) => {
                 const tAccent = topicAccent(t);
                 const active = i === safeIdx;
+                const divider =
+                  i > 0 ? (active || i - 1 === safeIdx ? 'border-transparent' : darkMode ? 'border-l border-slate-700/45' : 'border-l border-gray-200/80') : '';
                 return (
                   <button
                     key={t.id}
+                    type="button"
+                    aria-current={active ? 'true' : undefined}
                     onClick={() => selectTopic(i)}
-                    className={`relative flex-shrink-0 min-w-[4.5rem] px-2 py-1.5 rounded-xl text-[11px] font-semibold leading-tight text-center transition-all duration-200 active:scale-95 border ${
+                    className={`relative flex flex-col items-center justify-center min-h-[2.75rem] py-1 px-0 gap-px text-center transition-all duration-200 active:brightness-95 ${divider} ${
                       active
-                        ? `bg-gradient-to-br ${t.color} text-white shadow-md shadow-black/10 border-white/20 ring-1 ring-white/30`
+                        ? `bg-gradient-to-b ${t.color} text-white shadow-[inset_0_-1px_0_rgba(255,255,255,0.15)]`
                         : darkMode
-                          ? `${tAccent.chipIdleDark} hover:bg-slate-800/80`
-                          : `${tAccent.chipIdle} hover:bg-white`
+                          ? `${tAccent.chipIdleDark} border-0 hover:brightness-110`
+                          : `${tAccent.chipIdle} border-0 hover:brightness-[1.02]`
                     }`}
                   >
-                    <span className="block text-sm leading-none mb-0.5">{t.emoji}</span>
-                    {t.label}
+                    <span className="text-[15px] leading-none">{t.emoji}</span>
+                    <span className={`text-[10px] font-semibold leading-none tracking-tight ${KR_WRAP}`}>{t.label}</span>
                     {t.video?.length ? (
-                      <span className={`absolute top-1 right-1 text-[8px] leading-none ${active ? 'opacity-90' : 'opacity-50'}`} aria-hidden>▶</span>
+                      <span className={`absolute top-0.5 right-0.5 text-[7px] leading-none ${active ? 'opacity-90' : 'opacity-40'}`} aria-hidden>▶</span>
                     ) : null}
                   </button>
                 );

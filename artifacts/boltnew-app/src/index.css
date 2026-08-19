@@ -36,28 +36,23 @@ body[data-view="chat"] .fixed.inset-0.z-\[9997\] { display: none !important; }
   -webkit-appearance: none;
   appearance: none;
 }
-.participant-fab:not(.bg-gradient-to-br):not(.theme-switcher-btn) {
+/* MY only — transparent inactive pill; Theme keeps inline styles */
+.participant-fab-my:not(.bg-gradient-to-br) {
   background-color: transparent !important;
   background-image: none !important;
-  box-shadow: none !important;
 }
-.participant-fab.bg-gradient-to-br {
+.participant-fab-my.bg-gradient-to-br {
   background-color: unset !important;
 }
-[data-theme="y2k"] .participant-fab:not(.theme-switcher-btn) {
-  box-shadow: none !important;
-}
-[data-theme="y2k"] .participant-fab:not(.bg-gradient-to-br) {
+[data-theme="y2k"] .participant-fab-my:not(.bg-gradient-to-br) {
   background-color: transparent !important;
   background-image: none !important;
-  border: none !important;
   color: inherit;
 }
-[data-theme="minimal"] .participant-fab:not(.bg-gradient-to-br) {
+[data-theme="minimal"] .participant-fab-my:not(.bg-gradient-to-br) {
   background-color: transparent !important;
   background-image: none !important;
   border-radius: 9999px !important;
-  box-shadow: none !important;
   letter-spacing: normal !important;
   text-transform: none !important;
 }
@@ -212,10 +207,10 @@ html[data-theme="y2k"] .min-h-screen,
   background: var(--t-bg, #FCFCFB) !important;
   background-image: none !important;
 }
-html[data-theme="y2k"] .bg-gradient-to-br,
-html[data-theme="y2k"] .bg-gradient-to-b,
-[data-theme="y2k"] .bg-gradient-to-br,
-[data-theme="y2k"] .bg-gradient-to-b {
+html[data-theme="y2k"] .bg-gradient-to-br:not(.participant-fab-my),
+html[data-theme="y2k"] .bg-gradient-to-b:not(.participant-fab-my),
+[data-theme="y2k"] .bg-gradient-to-br:not(.participant-fab-my),
+[data-theme="y2k"] .bg-gradient-to-b:not(.participant-fab-my) {
   background: var(--t-bg, #FCFCFB) !important;
   background-image: none !important;
 }
