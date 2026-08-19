@@ -64,16 +64,16 @@ export function isSignalDeckUnlocked(missionCount: number): boolean {
 
 /** 이상형·나의 특징 공통 그룹. 포지션/MBTI는 닉네임 설정 필드라 칩에서 제외. */
 const CORE_TAG_GROUPS = [
-  { label: '얼굴상 👀', tags: ['감자상', '댕댕이상', '고양이상', '여우상', '공룡상', '사슴상', '웃상', '이목구비또렷'] },
+  { label: '얼굴상 👀', tags: ['감자상', '댕댕이상', '고양이상', '여우상', '공룡상', '양아치상', '웃상', '이목구비또렷'] },
   { label: '체형 💪', tags: ['키큰', '슬림', '근육있는', '통통귀여운', '보통체형'] },
-  { label: '매력 ✨', tags: ['섹끼있는', '귀여운', '반전매력', '분위기있는', '눈매예쁜', '눈웃음', '미소가예쁜', '웃을때예쁜', '보조개', '쇄골이쁜', '남자다운', '스타일좋은'] },
+  { label: '매력 ✨', tags: ['섹끼있는', '귀여운', '반전매력', '눈웃음', '웃을때예쁜', '보조개', '쇄골이쁜', '남자다운', '스타일좋은'] },
   { label: '성격 💫', tags: ['다정한', '시크한', '장난끼있는', '차분한', '유머있는', '솔직한', '리드하는', '챙겨주는', '배려심많은', '긍정적인', '활발한', '수줍은'] },
 ] as const;
 
 /** MainScreen 이상형 피커. 태그 → 프로필 휴리스틱은 IDEAL_TAG_SPECS. */
 export const IDEAL_TAG_GROUPS = [
   ...CORE_TAG_GROUPS,
-  { label: '술 🍺', tags: ['안마심', '한두잔', '분위기술', '세게마심', '술잘마시는', '취하면귀여운'] },
+  { label: '술 🍺', tags: ['안마심', '한두잔', '분위기술', '술잘마시는', '취하면귀여운'] },
   { label: '흡연 🚭', tags: ['비흡연', '흡연OK', '전자담배만', '밖에서만'] },
 ] as const;
 
@@ -120,6 +120,7 @@ function specsFor(
 export const IDEAL_TAG_SPECS: readonly IdealTagSpec[] = [
   ...specsFor('얼굴상 👀', 'status_msg+bio', IDEAL_TAG_GROUPS[0].tags, {
     웃상: ['웃상', '웃는상'],
+    양아치상: ['양아치상', '양아치'],
   }),
   ...specsFor('체형 💪', 'status_msg+bio', ['키큰', '슬림', '통통귀여운', '보통체형'], {
     키큰: ['키큰', '키 큰', '큰키'],
@@ -127,7 +128,7 @@ export const IDEAL_TAG_SPECS: readonly IdealTagSpec[] = [
     통통귀여운: ['통통귀여운', '통통'],
   }),
   { tag: '근육있는', group: '체형 💪', field: 'interests+status_msg+bio', aliases: [...MUSCLE_INTERESTS, '근육있는', '근육'] },
-  ...specsFor('매력 ✨', 'status_msg+bio', ['섹끼있는', '귀여운', '반전매력', '분위기있는', '눈매예쁜', '눈웃음', '미소가예쁜', '웃을때예쁜', '보조개', '쇄골이쁜', '남자다운', '스타일좋은'], {
+  ...specsFor('매력 ✨', 'status_msg+bio', ['섹끼있는', '귀여운', '반전매력', '눈웃음', '웃을때예쁜', '보조개', '쇄골이쁜', '남자다운', '스타일좋은'], {
     눈웃음: ['눈웃음', '눈웃는', '눈웃음예쁜'],
     보조개: ['보조개', '보조개있는', '보조개예쁜'],
     쇄골이쁜: ['쇄골이쁜', '쇄골 예쁜', '쇄골'],
@@ -140,12 +141,13 @@ export const IDEAL_TAG_SPECS: readonly IdealTagSpec[] = [
   ...specsFor('MBTI 🧠', 'mbti', ['MBTI E', 'MBTI I', 'MBTI N', 'MBTI S', 'MBTI T', 'MBTI F', 'MBTI J', 'MBTI P']),
   { tag: '술좋아', group: '라이프 🍻', field: 'interests+status_msg+bio', aliases: [...DRINK_INTERESTS, '술좋아', '술잘마시는'] },
   ...specsFor('라이프 🍻', 'interests', ['운동', '카페', '집콕', '여행']),
-  ...specsFor('술 🍺', 'status_msg+bio', ['안마심', '한두잔', '분위기술', '세게마심', '취하면귀여운', '술조금', '술잘마심', '취하면수다']),
+  ...specsFor('술 🍺', 'status_msg+bio', ['안마심', '한두잔', '분위기술', '취하면귀여운', '술조금', '술잘마심', '취하면수다']),
   { tag: '술잘마시는', group: '술 🍺', field: 'interests+status_msg+bio', aliases: [...DRINK_INTERESTS, '술잘마시는', '술좋아', '술잘마심'] },
   ...specsFor('흡연 🚭', 'status_msg+bio', ['비흡연', '흡연OK', '전자담배만', '밖에서만', '흡연', '전자담배']),
   // 레거시 칩(피커 제거) — 기존 저장값 매칭용
-  ...specsFor('얼굴상 👀', 'status_msg+bio', ['곰상', '토끼상']),
-  ...specsFor('매력 ✨', 'status_msg+bio', ['웃음많은']),
+  ...specsFor('얼굴상 👀', 'status_msg+bio', ['곰상', '토끼상', '사슴상']),
+  ...specsFor('매력 ✨', 'status_msg+bio', ['웃음많은', '분위기있는', '눈매예쁜', '미소가예쁜']),
+  ...specsFor('술 🍺', 'status_msg+bio', ['세게마심']),
   ...specsFor('텐션 🎢', 'status_msg+bio', ['텐션맞춤', '텐션낮음', '텐션폭발', '관찰형', '텐션중', '텐션높음', '낯가림', '금방친해짐', '텐션높은']),
 ];
 
@@ -226,8 +228,6 @@ function normalizeTag(tag: string): string {
  */
 export const TAG_SYNONYM_PAIRS: ReadonlyArray<readonly [string, string]> = [
   ['한두잔', '술조금'],
-  ['세게마심', '술잘마심'],
-  ['세게마심', '술잘마시는'],
   ['술잘마시는', '술잘마심'],
   ['분위기술', '취하면수다'],
   ['취하면귀여운', '취하면수다'],
