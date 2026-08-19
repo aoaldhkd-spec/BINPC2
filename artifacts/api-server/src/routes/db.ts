@@ -913,6 +913,26 @@ async function dbPersistImage(path: string, dataUrl: string): Promise<void> {
 }
 
 // ─── Startup: initialize storage schema and load data ────────────────────────
+/** Supabase PostgREST(anon key)로 public 테이블이 노출되지 않도록 RLS + revoke. postgres(DATABASE_URL)는 owner라 bypass. */
+async function ensurePublicTableRls(): Promise<void> {
+  try {
+    await pool.query(`
+      DO $$
+      DECLARE r RECORD;
+      BEGIN
+        FOR r IN SELECT tablename FROM pg_tables WHERE schemaname = 'public'
+        LOOP
+          EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', r.tablename);
+          EXECUTE format('REVOKE ALL ON public.%I FROM anon, authenticated', r.tablename);
+        END LOOP;
+      END $$
+    `);
+    logger.info('[db] public schema RLS enabled (anon/authenticated revoked)');
+  } catch (e) {
+    logger.error({ err: e }, '[db] ensurePublicTableRls failed — run scripts/sql/enable-rls-public-tables.sql manually');
+  }
+}
+
 async function ensureStorageSchema(): Promise<void> {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS app_kv_rows (
@@ -934,6 +954,7 @@ async function ensureStorageSchema(): Promise<void> {
     CREATE INDEX IF NOT EXISTS app_kv_rows_table_updated_idx
       ON app_kv_rows (table_name, updated_at DESC)
   `);
+  await ensurePublicTableRls();
 }
 
 async function loadImagesFromDb(): Promise<void> {
