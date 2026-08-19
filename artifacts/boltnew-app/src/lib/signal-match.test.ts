@@ -608,12 +608,21 @@ describe('이상형 / 나의 특징 chip groups', () => {
   const pickerLabels = [...IDEAL_TAG_GROUPS, ...FEATURE_TAG_GROUPS].map((g) => g.label);
   const pickerTags = [...IDEAL_TAG_GROUPS, ...FEATURE_TAG_GROUPS].flatMap((g) => [...g.tags]);
 
-  it('keeps 얼굴상/체형/매력/특기/성격 and 술/흡연 (no 텐션 picker)', () => {
-    for (const label of ['얼굴상 👀', '체형 💪', '매력 ✨', '특기 ⭐', '성격 💫', '술 🍺', '흡연 🚭']) {
+  it('keeps core groups only (no 텐션·술·흡연 picker)', () => {
+    for (const label of ['얼굴상 👀', '체형 💪', '매력 ✨', '특기 ⭐', '성격 💫']) {
       expect(IDEAL_TAG_GROUPS.some((g) => g.label === label), label).toBe(true);
       expect(FEATURE_TAG_GROUPS.some((g) => g.label === label), label).toBe(true);
     }
     expect(pickerLabels).not.toContain('텐션 🎢');
+    expect(pickerLabels).not.toContain('술 🍺');
+    expect(pickerLabels).not.toContain('흡연 🚭');
+    for (const tag of ['안마심', '한두잔', '술조금', '술잘마심', '분위기술', '취하면수다']) {
+      expect(pickerTags).not.toContain(tag);
+    }
+    for (const tag of ['비흡연', '흡연OK', '전자담배만', '밖에서만', '흡연', '전자담배']) {
+      expect(pickerTags).not.toContain(tag);
+    }
+    expect(getIdealTagSpec('비흡연')?.group).toBe('흡연 🚭');
   });
 
   it('does not duplicate tags within each picker', () => {

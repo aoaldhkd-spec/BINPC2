@@ -182,7 +182,6 @@ export function MainScreen({
     : profileGridColSpan(profileCardGrid) === 2 ? 'col-span-2'
     : 'col-span-3';
   const [showVisitors, setShowVisitors] = useState(false);
-  const [profileMbtiFilter, setProfileMbtiFilter] = useState<string | null>(null);
   // 채팅 탭 내 서브탭: 1:1 채팅 / 단체 채팅
   const [chatSubTab, setChatSubTab] = useState<'direct' | 'group'>('direct');
 
@@ -213,10 +212,10 @@ export function MainScreen({
     currentUserId,
     search: profileSearch,
     personality: profilePersonalityFilter,
-    mbti: profileMbtiFilter,
+    mbti: null,
     blockedUserIds,
     hiddenByIds,
-  }), [profiles, profileSearch, profilePersonalityFilter, profileMbtiFilter, currentUserId, blockedUserIds, hiddenByIds]);
+  }), [profiles, profileSearch, profilePersonalityFilter, currentUserId, blockedUserIds, hiddenByIds]);
 
   const [refreshedTab, setRefreshedTab] = useState<string | null>(null);
 
@@ -733,18 +732,6 @@ export function MainScreen({
                   })}
                 </div>
               </div>
-              {/* MBTI 필터 — 8열 2행 고정 그리드 (스크롤 없음, 전체 버튼 없음) */}
-              <div className="grid grid-cols-8 gap-1">
-                {['INTJ','INTP','ENTJ','ENTP','INFJ','INFP','ENFJ','ENFP','ISTJ','ISFJ','ESTJ','ESFJ','ISTP','ISFP','ESTP','ESFP'].map(m => {
-                  const active = profileMbtiFilter === m;
-                  return (
-                    <button key={m} onClick={() => setProfileMbtiFilter(active ? null : m)}
-                      className={`px-1 py-1.5 rounded-md text-[10px] font-bold border transition-all text-center ${active ? 'bg-cyan-500 text-white border-cyan-500' : 'bg-white text-gray-500 border-gray-200 hover:border-cyan-300'}`}>
-                      {m}
-                    </button>
-                  );
-                })}
-              </div>
             </div>
 
             {/* ── 참여자 그리드 (이 영역만 스크롤) ───────── */}
@@ -774,7 +761,7 @@ export function MainScreen({
             {filteredProfiles.filter(p => p.id !== currentUserId).length === 0 && (
               <div className={`${profileGridColSpanClass} text-center py-20`}>
                 <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500">{profileSearch || profilePersonalityFilter || profileMbtiFilter ? '검색 결과가 없습니다.' : '아직 다른 참가자가 없습니다.'}</p>
+                <p className="text-gray-500">{profileSearch || profilePersonalityFilter ? '검색 결과가 없습니다.' : '아직 다른 참가자가 없습니다.'}</p>
               </div>
             )}
           </div>
