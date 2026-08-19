@@ -228,6 +228,24 @@ mustMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '20_main_uses_c
   /ProfileCardGridMode|cardGridMode/,
 ]);
 
+// 21. E2E disconnect/reconnect scripts wired into smoke + unit guards
+mustExist('scripts/test-chat-disconnect-recovery.mjs', '21_chat_disconnect_recovery');
+mustExist('scripts/e2e-heart-sse-consistency.mjs', '21_e2e_heart_consistency_script');
+mustExist('scripts/test-mutual-chat-hearts.mjs', '21_mutual_chat_hearts');
+mustExist('scripts/lib/e2e-realtime.mjs', '21_e2e_realtime_lib');
+mustMatch('scripts/test-mutual-chat-hearts.mjs', '21_mutual_sse_render', [
+  /SSE_API/,
+  /binpc2\.onrender\.com/,
+]);
+mustMatch('scripts/verify-all-features.mjs', '21_verify_all_e2e', [
+  /test-chat-disconnect-recovery\.mjs/,
+  /e2e-heart-sse-consistency\.mjs/,
+  /test-mutual-chat-hearts\.mjs/,
+]);
+mustExist('artifacts/boltnew-app/src/lib/chat-pending-queue.ts', '21_chat_pending_queue');
+mustExist('artifacts/boltnew-app/src/lib/chat-pending-queue.test.ts', '21_chat_pending_queue_test');
+mustExist('artifacts/boltnew-app/src/__tests__/e2e-reconnect-guards.test.ts', '21_e2e_vitest_guards');
+
 console.log('\n=== verify-recurrence-guards ===\n');
 for (const r of results) {
   console.log(`  ${r.ok ? 'OK' : 'FAIL'}  ${r.id}${r.detail && !r.ok ? ` — ${r.detail}` : ''}`);

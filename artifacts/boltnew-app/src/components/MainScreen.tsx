@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo, Suspense, lazy, type ReactNode } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, Suspense, lazy, memo, type ReactNode } from 'react';
 /**
  * Main user shell UI (tabs: profiles/chats/status/…).
  * State/realtime: App.tsx + hooks (useChat/useHearts). See ARCHITECTURE.md.
@@ -55,14 +55,18 @@ const FortuneTab = lazy(() => import('./FortuneTab'));
 
 export { ProfileCard };
 
-function KeepTab({ id, mainTab, children }: { id: MainTab; mainTab: MainTab; children: ReactNode }) {
+const KeepTab = memo(function KeepTab({ id, mainTab, children }: { id: MainTab; mainTab: MainTab; children: ReactNode }) {
   const active = mainTab === id;
   return (
-    <div hidden={!active} aria-hidden={!active}>
+    <div
+      hidden={!active}
+      aria-hidden={!active}
+      style={active ? undefined : { contentVisibility: 'hidden', containIntrinsicSize: '0 600px' }}
+    >
       {children}
     </div>
   );
-}
+});
 
 // ─── MainScreen ───────────────────────────────────────────────────────────────
 

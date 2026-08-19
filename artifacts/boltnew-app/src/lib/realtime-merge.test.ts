@@ -50,4 +50,17 @@ describe('mutation-aware realtime merges', () => {
       { id: 'insert-live', value: 2 },
     ]);
   });
+
+  it('preserves SSE heart rows over stale likes fetch (notification vs list)', () => {
+    type LikeRow = { id: string; liker_id: string; liked_id: string; heart_type: string };
+    const atStart: LikeRow[] = [];
+    const current: LikeRow[] = [
+      { id: 'like-live', liker_id: 'a', liked_id: 'b', heart_type: 'red' },
+    ];
+    const fetched: LikeRow[] = []; // stale HTTP before SSE merge
+
+    expect(mergeRowsAfterSnapshot(fetched, atStart, current, (r) => r.id)).toEqual([
+      { id: 'like-live', liker_id: 'a', liked_id: 'b', heart_type: 'red' },
+    ]);
+  });
 });

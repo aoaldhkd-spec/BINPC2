@@ -4,11 +4,17 @@
  * - A↔B 동시에 하트
  * - A↔B 동시에 메시지
  * - 양쪽 SSE 수신 + DB SELECT 일치
+ *
+ * SSE: Render 직접 (Netlify event-stream 버퍼링 회피) — test-realtime-two-user.mjs 와 동일
  */
 import { randomUUID } from 'node:crypto';
+import { isFunctionsLocked } from './lib/functions-lock.mjs';
 import { createTestPersona, profilePayload } from './lib/test-personas.mjs';
 
-const API = (process.env.API_BASE || 'https://binpc2.onrender.com/api/db').replace(/\/$/, '');
+const SITE = (process.env.NETLIFY_URL || 'https://binpc2.netlify.app').replace(/\/$/, '');
+const API = (process.env.API_BASE || `${SITE}/api/db`).replace(/\/$/, '');
+const SSE_ORIGIN = (process.env.SSE_ORIGIN || process.env.VITE_SSE_ORIGIN || 'https://binpc2.onrender.com').replace(/\/$/, '');
+const SSE_API = `${SSE_ORIGIN}/api/db`;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -26,7 +32,7 @@ async function api(path, { body, sessionToken } = {}) {
 function openSse(userId, token) {
   const events = [];
   const ac = new AbortController();
-  const url = `${API}/events?userId=${encodeURIComponent(userId)}&token=${encodeURIComponent(token)}`;
+  const url = `${SSE_API}/events?userId=${encodeURIComponent(userId)}&token=${encodeURIComponent(token)}`;
   const done = (async () => {
     const res = await fetch(url, { headers: { Accept: 'text/event-stream' }, signal: ac.signal });
     if (!res.ok || !res.body) throw new Error(`sse ${res.status}`);
@@ -82,8 +88,13 @@ async function registerAndLogin(index) {
 }
 
 async function main() {
+  if (await isFunctionsLocked(API)) {
+    console.log('SKIP — FUNCTIONS_LOCKED');
+    return;
+  }
+
   console.log('Mutual chat+hearts test');
-  console.log('API=', API);
+  console.log('API=', API, '| SSE=', SSE_API);
   const a = await registerAndLogin(0);
   const b = await registerAndLogin(1);
   console.log('Personas:', a.persona.nickname, '↔', b.persona.nickname);

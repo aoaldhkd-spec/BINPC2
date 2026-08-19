@@ -37,7 +37,7 @@ function suppressDisconnectBriefly(ms = 4_000) {
 
 /** disconnect 오탐 방지 — 핸드셰이크·자동재시도가 끝날 때까지 UI 보류 */
 let _disconnectNotifyTimer: ReturnType<typeof setTimeout> | null = null;
-const DISCONNECT_NOTIFY_MS = 8_000;
+const DISCONNECT_NOTIFY_MS = 6_000;
 
 function scheduleDisconnectNotify(reason: string) {
   if (Date.now() < _suppressDisconnectUntil) return;
@@ -686,8 +686,8 @@ function inShutdownRecovery(): boolean {
 /** 연속 실패 횟수에 따른 지수 백오프 대기 시간 계산 (최대 15초 + 최대 1.5초 지터)
  *  빠른 재연결: 1s → 2s → 4s → 8s → 15s (jitter 포함) */
 function calcSseBackoffMs(): number {
-  const base = Math.min(Math.pow(2, _sseFailCount) * 500, 15_000);
-  const jitter = Math.random() * 1_500; // 0~1.5초 지터 — thundering herd 방지
+  const base = Math.min(Math.pow(2, _sseFailCount) * 300, 15_000);
+  const jitter = Math.random() * 1_000;
   return base + jitter;
 }
 
@@ -882,7 +882,7 @@ setInterval(() => {
   }
 
   ensureSse();
-}, 2_000);
+}, 1_500);
 
 /**
  * 폰/탭 슬립 복귀 — 타이머·EventSource 가 멈춘 뒤 만료 토큰으로 401 폭풍이 나지 않게

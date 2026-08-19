@@ -2,9 +2,7 @@ import { seoulDateKey, isAnyHeart } from './signal-match';
 import { ALL_BIO_TAGS } from './interests';
 import { MBTI_LIST, type HeartType } from './constants';
 import { getPositionLabel } from './profile';
-import { ageBandFromBirthYear, seoulCalendarYear } from './korean-age';
-
-export { seoulCalendarYear };
+import { ageBandFromBirthYear } from './korean-age';
 
 export type PublicLikeRow = {
   id?: string;

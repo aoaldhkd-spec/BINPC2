@@ -23,7 +23,6 @@ export const NUDGE_MESSAGES = [
   '💕 서로 다른 3명에게 하트를 보내면 시그널 추천이 열려요.',
 ] as const;
 
-export const NUDGE_MAX = 3;
 export const SIGNAL_MISSION_GOAL = 3;
 export const SIGNAL_MISSION_TITLE = '오늘의 미션';
 export const SIGNAL_MISSION_COPY = '서로 다른 3명에게 하트 보내기';
@@ -193,10 +192,6 @@ export function hasInterestHeart(types: Iterable<string> | undefined | null): bo
     if (isInterestHeart(t)) return true;
   }
   return false;
-}
-
-export function nudgeStorageKey(userId: string): string {
-  return `signal_nudge_${userId}`;
 }
 
 export function missionToastKey(userId: string, dateKey: string): string {
@@ -501,32 +496,6 @@ export function countIdealTagHits(
   return hits;
 }
 
-/** 레거시: 평탄 토큰 비교. 신규 매칭은 countIdealTagHits 사용. */
-export function countTagHits(tags: string[], features: string[]): number {
-  if (tags.length === 0 || features.length === 0) return 0;
-  const bag: FeatureBag = {
-    tokens: features,
-    positionFamilies: new Set(features.filter((f) => ['비선호', '바텀', '올', '탑'].includes(f))),
-    mbtiFull: features.find((f) => FULL_MBTI_RE.test(normalizeTag(f)))?.toUpperCase() ?? '',
-    mbtiLetters: new Set(
-      features.flatMap((f) => {
-        const n = normalizeTag(f);
-        if (MBTI_LETTER_RE.test(n) || BARE_MBTI_LETTER_RE.test(n)) return [n.slice(-1).toUpperCase()];
-        if (FULL_MBTI_RE.test(n)) return [...n.toUpperCase()];
-        return [];
-      }),
-    ),
-    interests: new Set(features),
-    interestsNorm: new Set(features.map(normalizeTag)),
-    textNorm: features.map(normalizeTag).join(' '),
-  };
-  let hits = 0;
-  for (const tag of tags) {
-    if (idealTagMatchesBag(tag, bag)) hits += 1;
-  }
-  return hits;
-}
-
 export type SignalReasonChip = {
   key: 'ideal' | 'interests' | 'fit';
   label: string;
@@ -725,25 +694,6 @@ export function resolveSignalInboxProfiles<T extends { id: string }>(
     if (p) out.push(p);
   }
   return out;
-}
-
-export function readNudgeCount(userId: string, getItem: (k: string) => string | null = (k) => {
-  try { return localStorage.getItem(k); } catch { return null; }
-}): number {
-  const raw = getItem(nudgeStorageKey(userId));
-  if (!raw) return 0;
-  const n = parseInt(raw, 10);
-  return Number.isFinite(n) && n > 0 ? n : 0;
-}
-
-export function writeNudgeCount(
-  userId: string,
-  count: number,
-  setItem: (k: string, v: string) => void = (k, v) => {
-    try { localStorage.setItem(k, v); } catch { /* quota */ }
-  },
-): void {
-  setItem(nudgeStorageKey(userId), String(Math.min(NUDGE_MAX, Math.max(0, count))));
 }
 
 export function reasonsLeakIdealText(reasons: SignalReasonChip[], idealMsg: string | null | undefined): boolean {

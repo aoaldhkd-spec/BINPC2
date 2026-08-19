@@ -22,7 +22,7 @@ export const NET_OFFLINE_QUIET_MS = 3_000;
 /** CONNECTING이 이 시간 미만이면 UI 단절로 보지 않음 */
 export const NET_SSE_CONNECTING_GRACE_MS = 20_000;
 
-const RECOVER_DEBOUNCE_MS = 400;
+const RECOVER_DEBOUNCE_MS = 200;
 
 let _ui: NetUiStatus = 'ok';
 let _rawDownSince: number | null = null;

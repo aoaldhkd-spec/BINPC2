@@ -16,29 +16,6 @@
 const MAX_MESSAGES = 500; // 채팅방당 최대 메시지 보유 수 (메모리 누수 방지)
 const MAX_CACHED_CHAT_ROOMS = 8; // 최근 방만 메모리에 유지해 계정 장시간 사용 시 증가 방지
 
-// 오프라인 큐 항목 타입 — 모듈 레벨 선언으로 HMR 호환성 유지
-// userId: 큐에 쌓일 당시 로그인 유저 — flush 시 다른 유저로 전환됐으면 해당 항목 폐기
-interface PendingMsg { chatId: string; content: string; clientId: string; optimisticId: string; userId: string }
-
-// [Part1-Fix3] 내구성 큐 — localStorage 영속화 헬퍼
-const PENDING_QUEUE_KEY = 'chat_pending_queue_v1';
-function _savePendingQueue(queue: PendingMsg[]): void {
-  try { localStorage.setItem(PENDING_QUEUE_KEY, JSON.stringify(queue)); } catch { /* 스토리지 쓰기 실패 무시 */ }
-}
-function _loadPendingQueue(): PendingMsg[] {
-  try {
-    const raw = localStorage.getItem(PENDING_QUEUE_KEY);
-    if (!raw) return [];
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    // 최대 50개 + 필수 필드 유효성 확인 후 복원
-    return (parsed as PendingMsg[]).filter(
-      (m) => m && typeof m.chatId === 'string' && typeof m.content === 'string' &&
-             typeof m.clientId === 'string' && typeof m.optimisticId === 'string' && typeof m.userId === 'string'
-    ).slice(-50);
-  } catch { return []; }
-}
-
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { onSseReconnect, getSseToken, isSseHealthy } from '../lib/localdb';
@@ -49,6 +26,12 @@ import { chatPairKey, dedupeChatList, pickCanonicalChat } from '../lib/chat-pair
 import { buildChatIdAliasMap, incrementUnreadForIncoming, isIncomingChatToastTarget, remapUnreadToCanonical, clearUnreadForChat } from '../lib/chat-unread';
 import { diag } from '../lib/diag';
 import { isFunctionsLockedOpError } from '../lib/functions-lock';
+import {
+  filterPendingQueueForUser,
+  loadPendingQueue,
+  savePendingQueue,
+  type PendingMsg,
+} from '../lib/chat-pending-queue';
 
 interface UseChatDeps {
   currentUserId: string | null;
@@ -823,12 +806,12 @@ export function useChat({
   // 4회 재시도 모두 실패(네트워크 완전 단절) 시 메시지를 여기에 보관.
   // SSE 재연결 시 큐를 자동으로 플러시하여 메시지 유실 방지.
   // [Part1-Fix3] localStorage 영속화 — 새로고침 후에도 미전송 메시지 복구
-  const pendingQueueRef = useRef<PendingMsg[]>(_loadPendingQueue());
+  const pendingQueueRef = useRef<PendingMsg[]>(loadPendingQueue());
   const isFlushingRef = useRef(false);
 
   useEffect(() => {
-    pendingQueueRef.current = pendingQueueRef.current.filter(q => !currentUserId || q.userId === currentUserId);
-    _savePendingQueue(pendingQueueRef.current);
+    pendingQueueRef.current = filterPendingQueueForUser(pendingQueueRef.current, currentUserId);
+    savePendingQueue(pendingQueueRef.current);
   }, [currentUserId]);
 
   const flushPendingQueue = useCallback(async () => {
@@ -859,14 +842,14 @@ export function useChat({
             // 성공: 낙관적 메시지를 실제 메시지로 교체
             setMessages(prev => prev.map(m => m.id === item.optimisticId ? insertedMsg as Message : m));
             pendingQueueRef.current = pendingQueueRef.current.filter(q => q.clientId !== item.clientId);
-            _savePendingQueue(pendingQueueRef.current); // [Part1-Fix3] localStorage 동기화
+            savePendingQueue(pendingQueueRef.current); // [Part1-Fix3] localStorage 동기화
           } else if (error) {
             // client_id로 이미 저장됐는지 확인 (이전 시도 응답 분실)
             const { data: existing } = await supabase.from('messages').select('*').eq('chat_id', item.chatId).eq('client_id', item.clientId).maybeSingle();
             if (existing) {
               setMessages(prev => prev.map(m => m.id === item.optimisticId ? existing as Message : m));
               pendingQueueRef.current = pendingQueueRef.current.filter(q => q.clientId !== item.clientId);
-              _savePendingQueue(pendingQueueRef.current); // [Part1-Fix3] localStorage 동기화
+              savePendingQueue(pendingQueueRef.current); // [Part1-Fix3] localStorage 동기화
             }
             // 실패해도 break 하지 않음 — 다음 항목 계속 시도 (한 항목 실패가 전체 큐를 막지 않음)
           }
@@ -1011,7 +994,7 @@ export function useChat({
       // 큐 크기 상한 50개 — 무한 증가 방지 (가장 오래된 항목부터 제거)
       if (pendingQueueRef.current.length >= 50) pendingQueueRef.current.shift();
       pendingQueueRef.current.push({ chatId: snapChatId, content: trimmed, clientId: clientUUID, optimisticId, userId: snapUserId });
-      _savePendingQueue(pendingQueueRef.current); // [Part1-Fix3] localStorage 영속화 — 새로고침 후에도 복구
+      savePendingQueue(pendingQueueRef.current); // [Part1-Fix3] localStorage 영속화 — 새로고침 후에도 복구
     } finally {
       sendingChatIdsRef.current.delete(snapChatId);
     }
