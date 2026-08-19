@@ -49,7 +49,7 @@ const FILE_SCOPED_BANNED = [
     sev: 'error',
   },
 ];
-const BANNED_SKIP = /(?:__tests__|\.test\.(?:ts|tsx|mjs)$|longevity-guards|product-invariants|full-code-audit|verify-all-features)/;
+const BANNED_SKIP = /(?:__tests__|\.test\.(?:ts|tsx|mjs)$|longevity-guards|product-invariants|full-code-audit|verify-all-features|db-legacy-cleanup)/;
 
 const PATTERNS = [
   { id: 'ts_ignore', re: /@ts-ignore|@ts-expect-error/, sev: 'warn' },

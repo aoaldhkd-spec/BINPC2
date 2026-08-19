@@ -236,6 +236,7 @@ mustExist('scripts/lib/e2e-realtime.mjs', '21_e2e_realtime_lib');
 mustMatch('scripts/test-mutual-chat-hearts.mjs', '21_mutual_sse_render', [
   /SSE_API/,
   /binpc2\.onrender\.com/,
+  /createPersonaPair/,
 ]);
 mustMatch('scripts/verify-all-features.mjs', '21_verify_all_e2e', [
   /test-chat-disconnect-recovery\.mjs/,
@@ -245,6 +246,37 @@ mustMatch('scripts/verify-all-features.mjs', '21_verify_all_e2e', [
 mustExist('artifacts/boltnew-app/src/lib/chat-pending-queue.ts', '21_chat_pending_queue');
 mustExist('artifacts/boltnew-app/src/lib/chat-pending-queue.test.ts', '21_chat_pending_queue_test');
 mustExist('artifacts/boltnew-app/src/__tests__/e2e-reconnect-guards.test.ts', '21_e2e_vitest_guards');
+
+// 22. Legacy KV cleanup — startup purge + /op blocklist (seating, heart_drain, heart_balances)
+mustExist('artifacts/api-server/src/lib/db-legacy-cleanup.ts', '22_legacy_cleanup_lib');
+mustExist('artifacts/api-server/src/__tests__/db-legacy-cleanup.test.ts', '22_legacy_cleanup_test');
+mustMatch('artifacts/api-server/src/routes/db.ts', '22_cleanup_on_startup', [
+  /cleanupLegacyTables\(\)/,
+  /dbReadyPromise[\s\S]{0,120}\.then\(\(\) => cleanupLegacyTables\(\)\)/,
+  /DELETE FROM app_kv_rows WHERE table_name = \$1/,
+  /data - 'heart_drain_enabled'/,
+  /legacy_leftovers/,
+]);
+mustExist('scripts/lib/entry-burst.mjs', '22_entry_burst_lib');
+mustMatch('scripts/sim-concurrent-users.mjs', '22_entry_only_flag', [
+  /--entry-only/,
+  /runEntryBurst/,
+]);
+mustExist('artifacts/boltnew-app/src/components/FortuneTab.lazy.tsx', '22_fortune_lazy_shared');
+mustMatch('artifacts/boltnew-app/src/App.tsx', '22_fortune_lazy_import', [
+  /FortuneTabLazy/,
+  /FortuneTab\.lazy/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-legacy-cleanup.ts', '22_legacy_blocklist', [
+  /heart_balances/,
+  /heart_drain_enabled/,
+  /seats_snapshot/,
+]);
+mustMatch('artifacts/api-server/src/__tests__/db-security.test.ts', '22_legacy_op_block', [
+  /legacy removed-feature tables stay blocked/,
+  /heart_balances/,
+  /seats/,
+]);
 
 console.log('\n=== verify-recurrence-guards ===\n');
 for (const r of results) {

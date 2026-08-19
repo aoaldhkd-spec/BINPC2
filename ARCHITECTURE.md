@@ -81,6 +81,23 @@ Mission: count distinct `liked_id` today from outgoing `likes` SELECT (KST), all
 - **Cold-start:** Render 유휴/재시작 후 첫 요청 지연. `scripts/keep-api-warm` / GitHub Action(10분)으로 완화. 클라이언트는 502/503/429를 첫 실패에 에러 UI 없이 재시도.
 - **Multi-instance:** SSE는 인스턴스 로컬 → `render.yaml` `numInstances: 1` 로 고정.
 
+## Legacy remnant cleanup (seating / heart_drain / heart_balances)
+
+Removed features must **not** come back via stale Postgres rows or `/op` access.
+
+| Mechanism | What it does |
+|-----------|----------------|
+| `cleanupLegacyTables()` | After `seedIfNeeded`, deletes `LEGACY_KV_TABLES` rows (`seats`, `seating`, …) and strips `heart_drain_*` / seating keys from `app_settings` + `session_history` in Postgres |
+| 5-minute interval | Re-runs cleanup if boot-time purge failed |
+| `ALLOWED_OP_TABLES` | `/op` on legacy table names → **400 INVALID_TABLE** |
+| `admin_drain_unused_hearts` RPC | **404** (feature removed; guard against re-add) |
+| `mergeAppSettings` / admin RPC | Incoming legacy settings keys stripped before persist |
+| `/ready` | Exposes `legacy_leftovers` counts (no PII) for ops smoke |
+
+Pure strip helpers: `artifacts/api-server/src/lib/db-legacy-cleanup.ts`. Tests: `db-legacy-cleanup.test.ts`, `db-security.test.ts`, longevity guards.
+
+**Do not delete** cleanup SQL or block lists to “shrink” `db.ts`.
+
 ## Do not touch casually
 
 `db.ts` persist/SSE/`/op` 경로, `localdb.ts` SSE client, `useChat` offline queue, `net-health` quiet/error windows.

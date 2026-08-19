@@ -38,6 +38,13 @@ import {
   resetRateLimit,
 } from '../lib/db-rate-limit';
 import { mergeDbRowsIntoMemory, shouldBroadcastBulkResync } from '../lib/db-store-merge';
+import {
+  LEGACY_APP_SETTINGS_KEYS,
+  LEGACY_KV_TABLES,
+  settingsHaveLegacyKeys,
+  stripLegacySessionHistoryKeys,
+  stripLegacySettingsKeys,
+} from '../lib/db-legacy-cleanup';
 import { groupAgeDecadeBand } from '../lib/korean-age.js';
 import {
   recordExpiredSseToken,
@@ -1113,43 +1120,12 @@ function panelTestSecrets(dbTest?: string | null): string[] {
 
 const SECRET_SETTING_KEYS = ['admin_password', 'test_password', 'entry_password', 'reset_password'] as const;
 
-/** 삭제된 기능이 app_settings JSON에 남긴 키 — 메모리·Postgres 모두에서 제거 */
-const LEGACY_APP_SETTINGS_KEYS = [
-  'heart_drain_enabled',
-  'heart_drain_minutes',
-  'seating_locked',
-  'seats_snapshot',
-  'seating_map',
-  'seats',
-  'seat_layout',
-] as const;
-
-/** session_history 행에 남은 옛 좌석맵 키 — 행 자체는 유지 */
-const LEGACY_SESSION_HISTORY_KEYS = ['seats_snapshot', 'seating_locked', 'seating_map'] as const;
-
-function stripLegacySessionHistoryKeys(row: Record<string, unknown>): Record<string, unknown> {
-  if (!LEGACY_SESSION_HISTORY_KEYS.some(k => k in row)) return row;
-  const next = { ...row };
-  for (const k of LEGACY_SESSION_HISTORY_KEYS) delete next[k];
-  return next;
-}
-
 /** Postgres leftover 잔량 — 값/PII 없이 개수만. -1 은 아직 클린업 전. */
 let _legacyLeftovers = {
   kv_tables: -1,
   settings_rows: -1,
   history_rows: -1,
 };
-
-function settingsHaveLegacyKeys(row: Record<string, unknown>): boolean {
-  return LEGACY_APP_SETTINGS_KEYS.some(k => k in row);
-}
-
-function stripLegacySettingsKeys(row: Record<string, unknown>): Record<string, unknown> {
-  const next = { ...row };
-  for (const k of LEGACY_APP_SETTINGS_KEYS) delete next[k];
-  return next;
-}
 
 function mergeAppSettings(
   current: Record<string, unknown>,
@@ -1373,12 +1349,6 @@ const ACTIVE_KV_TABLES = new Set([
   'signal_sends',
   // PG 전용 메타 — 앱 데이터가 아님. inversion cleanup에서 지우면 안 됨
   'rate_limits', 'db_error_log',
-]);
-
-/** 기능 삭제 후 남은 논리 테이블 — 재시작마다 Postgres 행을 지운다 */
-const LEGACY_KV_TABLES = new Set([
-  'suggestions',
-  'seats', 'seating', 'seating_map', 'seat_assignments', 'seats_snapshot',
 ]);
 
 /** app_kv_rows 에만 두고 인메모리 store에는 올리지 않는 시스템 행 */

@@ -14,13 +14,8 @@ const dbTs = readFileSync(join(here, '../routes/db.ts'), 'utf8');
 const broadcastTargetsTs = readFileSync(join(here, '../lib/db-broadcast-targets.ts'), 'utf8');
 const dbSecurityTest = readFileSync(join(here, 'db-security.test.ts'), 'utf8');
 
-/** Global heart pool (heart_balances) was removed — per-type / per-person limits stay. */
-const HEART_BALANCE_BANNED = [
-  'heart_balances',
-  'myHeartCount',
-  'heart_initial_count',
-  'admin_reset_heart',
-] as const;
+/** Global heart pool feature tokens — must not reappear in live server paths. */
+const HEART_POOL_FEATURE_BANNED = ['myHeartCount', 'heart_initial_count', 'admin_reset_heart'] as const;
 
 describe('longevity recurrence guards (server)', () => {
   it('120s periodic path must call resyncAllFromNativeDb("periodic"), never "forced"', () => {
@@ -57,13 +52,18 @@ describe('longevity recurrence guards (server)', () => {
   });
 
   it('heart_balances global pool stays removed from server (recurrence guard)', () => {
-    for (const token of HEART_BALANCE_BANNED) {
+    for (const token of HEART_POOL_FEATURE_BANNED) {
       expect(dbTs).not.toContain(token);
       expect(broadcastTargetsTs).not.toContain(token);
-    }
-    for (const token of HEART_BALANCE_BANNED) {
       expect(dbSecurityTest).not.toContain(token);
     }
+    // heart_balances may appear only in legacy block/cleanup — never as live table logic.
+    expect(dbTs).not.toContain('heart_balances');
+    expect(broadcastTargetsTs).not.toContain('heart_balances');
+    expect(dbSecurityTest).toMatch(/legacy removed-feature tables stay blocked/);
+    expect(dbSecurityTest).toMatch(/heart_balances/);
+    const lib = readFileSync(join(here, '../lib/db-legacy-cleanup.ts'), 'utf8');
+    expect(lib).toMatch(/heart_balances/);
   });
 
   it('150 distinct venue logins on one NAT IP stay under the IP burst cap', () => {
@@ -100,6 +100,22 @@ describe('longevity recurrence guards (server)', () => {
     expect(dbTs).toMatch(/await dbPersistRow\(/);
     expect(dbTs).toMatch(/resolveAuthUserId\(req, body\)/);
     expect(dbTs).toMatch(/isPublicProfilePhoto|profile-photos\/[\w-]+/);
+  });
+
+  it('cleanupLegacyTables runs after seed and on 5-minute interval (startup PG purge)', () => {
+    expect(dbTs).toMatch(/cleanupLegacyTables\(\)/);
+    expect(dbTs).toMatch(/dbReadyPromise[\s\S]{0,120}\.then\(\(\) => cleanupLegacyTables\(\)\)/);
+    expect(dbTs).toMatch(/ensureAppSettingsSecrets\(\)[\s\S]{0,120}\.then\(\(\) => cleanupLegacyTables\(\)\)/);
+    expect(dbTs).toMatch(/LEGACY_KV_TABLES/);
+    expect(dbTs).toMatch(/DELETE FROM app_kv_rows WHERE table_name = \$1/);
+    expect(dbTs).toMatch(/data - 'heart_drain_enabled'/);
+  });
+
+  it('legacy strip helpers live in db-legacy-cleanup.ts (testable, idempotent)', () => {
+    const lib = readFileSync(join(here, '../lib/db-legacy-cleanup.ts'), 'utf8');
+    expect(lib).toMatch(/stripLegacySettingsKeys/);
+    expect(lib).toMatch(/LEGACY_OP_BLOCKLIST/);
+    expect(lib).toMatch(/heart_balances/);
   });
 
   it('load-venue-150 register p95 threshold stays CI-realistic', () => {

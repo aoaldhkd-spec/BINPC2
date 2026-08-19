@@ -920,6 +920,17 @@ describe('[Security] profiles / likes / storage', () => {
   });
 });
 
+describe('[Security] legacy removed-feature tables stay blocked on /op', () => {
+  it.each(['seats', 'seating', 'heart_balances', 'suggestions', 'seat_assignments'])(
+    '%s table returns 400 INVALID_TABLE',
+    async (table) => {
+      const res = await op({ op: 'select', table, requesterId: randomUUID() });
+      expect(res.status).toBe(400);
+      expect(res.body.error?.code).toBe('INVALID_TABLE');
+    },
+  );
+});
+
 describe('[Security] test dashboard password', () => {
   it('app_settings 일반 조회에서 test_password를 노출하지 않는다', async () => {
     const res = await op({ op: 'select', table: 'app_settings' });
