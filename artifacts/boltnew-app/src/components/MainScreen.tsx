@@ -1044,8 +1044,8 @@ export function MainScreen({
             )}
 
 
-            {/* ── 방문자 기록 (접기/펼치기) ── */}
-            {(() => {
+            {/* ── 방문자 기록 (OFF면 통째로 숨김) ── */}
+            {visitorNotif && (() => {
               const visitors = [...profileVisitors]
                 .sort((a, b) => b.viewed_at.localeCompare(a.viewed_at))
                 .filter((v, i, arr) => arr.findIndex(x => x.viewer_id === v.viewer_id) === i);
@@ -1996,9 +1996,11 @@ export function MainScreen({
                       <div className="flex items-center gap-3">
                         <span className="text-xl flex-shrink-0">👁</span>
                         <div>
-                          <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>방문자 알림</p>
-                          <p className={`text-[10px] ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
-                            {visitorNotif ? '🔔 누군가 내 프로필을 보면 MY에 표시' : '🔕 방문 알림 끔'}
+                          <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>방문자 목록</p>
+                          <p className={`text-[10px] leading-snug ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
+                            {visitorNotif
+                              ? '내 상태에 누가 프로필을 봤는지 표시해요'
+                              : '방문자 목록·알림 배지를 숨겨요 (켜면 다시 보여요)'}
                           </p>
                         </div>
                       </div>
@@ -2010,7 +2012,7 @@ export function MainScreen({
                           if (!next) onClearVisitCount?.();
                         }}
                         className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none ${visitorNotif ? 'bg-teal-500' : (darkMode ? 'bg-slate-600' : 'bg-gray-300')}`}
-                        aria-label="방문자 알림 토글"
+                        aria-label="방문자 목록 표시 토글"
                       >
                         <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ${visitorNotif ? 'translate-x-6' : 'translate-x-1'}`} />
                       </button>
@@ -2267,7 +2269,7 @@ export function MainScreen({
       {/* ── MY 버튼 (우하단 고정 원형) + 팝업 ── */}
       {(() => {
         const myTabActive = mainTab === 'status' || mainTab === 'chats' || mainTab === 'fortune' || mainTab === 'settings';
-        const heartsBadge = Math.max(0, pendingHeartsCount - seenHeartsCount) + newContactsCount + newVisitCount;
+        const heartsBadge = Math.max(0, pendingHeartsCount - seenHeartsCount) + newContactsCount + (visitorNotif ? newVisitCount : 0);
         const chatUnreadTotal = sumUnreadCounts(unreadChatCounts);
         const groupUnreadTotal = sumUnreadCounts(unreadGroupCounts);
         const myBadgeTotal = heartsBadge + chatUnreadTotal + groupUnreadTotal;
