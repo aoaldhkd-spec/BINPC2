@@ -56,47 +56,31 @@ const BASIC: Topic[] = [
 
     tips: [],
 
-    filler: 'guide',
-
     sections: [
 
       {
 
         emoji: '📋',
 
-        title: '공지',
+        title: '공지 & 탭',
 
         tips: [
 
-          { icon: '🍺', title: '술 강요 없음', desc: '마시고 싶은 만큼만. 강요 금지.' },
+          { icon: '🍺', title: '술 강요 없음', desc: '마시고 싶은 만큼만.' },
 
-          { icon: '🗳️', title: '정치·종교', desc: '정치·종교 토크는 패스. 영구밴.' },
+          { icon: '🗳️', title: '정치·종교', desc: '토크 패스. 영구밴.' },
 
-          { icon: '🚫', title: '지역·패드립', desc: '지역·패드립은 바로 영구밴.' },
+          { icon: '🚫', title: '지역·패드립', desc: '바로 영구밴.' },
 
-          { icon: '🗣️', title: '욕설·반말', desc: '욕·반말은 영구밴. 존댓말로.' },
+          { icon: '🗣️', title: '욕설·반말', desc: '존댓말로. 영구밴.' },
 
-        ],
+          { icon: '👥', title: '참여자', desc: '오늘 온 사람 카드.' },
 
-        footer: '🔒 번호·SNS 강요 금지',
+          { icon: '💕', title: '시그널', desc: '미션 후 패스·시그널.' },
 
-      },
+          { icon: '📊', title: '통계', desc: '하트 수·비율.' },
 
-      {
-
-        emoji: '🥂',
-
-        title: '아래 있는 탭',
-
-        tips: [
-
-          { icon: '👥', title: '참여자', desc: '오늘 온 사람들 카드가 여기.' },
-
-          { icon: '💕', title: '시그널', desc: '미션 전엔 설명서. 열리면 패스·시그널.' },
-
-          { icon: '📊', title: '통계', desc: '오늘 오간 하트 수랑 비율.' },
-
-          { icon: '🏆', title: '랭킹', desc: '하트 많이 받은 사람 TOP 10.' },
+          { icon: '🏆', title: '랭킹', desc: 'TOP 10.' },
 
         ],
 
@@ -104,7 +88,7 @@ const BASIC: Topic[] = [
 
     ],
 
-    footer: '하트는 카드 아래 · 채팅·설정은 MY · 끝나면 정보 파기',
+    footer: '🔒 번호·SNS 금지 · 하트는 카드 아래 · MY에서 채팅·설정',
 
   },
 
@@ -342,9 +326,9 @@ const HIDDEN: Topic[] = [
 
 const KR_WRAP = 'break-keep [word-break:keep-all] [line-break:strict] [overflow-wrap:break-word] text-pretty';
 
-/** Fixed shell — same box on every topic tab (tips + video). */
+/** Fixed shell — same box on every topic tab; never taller than viewport (no overlay scroll). */
 const MODAL_SHELL =
-  'w-[calc(100vw-1rem)] max-w-md h-[min(560px,calc(85dvh-var(--safe-top,0px)-var(--safe-bottom,0px)))]';
+  'w-[calc(100vw-1rem)] max-w-md h-[min(500px,calc(100dvh-var(--safe-top,0px)-var(--safe-bottom,0px)-1.5rem))]';
 
 function topicTipCount(topic: Topic): number {
   const sectionTips = (topic.sections ?? []).reduce((n, s) => n + s.tips.length, 0);
@@ -353,7 +337,7 @@ function topicTipCount(topic: Topic): number {
 
 function topicLayout(topic: Topic) {
   const count = topicTipCount(topic);
-  const dense = count >= 7 || topic.id === 'guide';
+  const dense = count >= 7;
   const compact = dense || (count >= 5 && Boolean(topic.filler));
   return {
     twoColumn: count >= 4 || dense,
@@ -1054,7 +1038,15 @@ export function TutorialModal({ onClose, darkMode }: {
 
     <div
 
-      className="safe-overlay fixed inset-0 z-[150] flex items-center justify-center bg-black/70 backdrop-blur-sm"
+      className="fixed inset-0 z-[150] flex items-center justify-center bg-black/70 backdrop-blur-sm overflow-hidden overscroll-none"
+
+      style={{
+
+        padding:
+
+          'max(0.5rem, var(--safe-top, 0px)) max(0.5rem, var(--safe-right, 0px)) max(0.5rem, var(--safe-bottom, 0px)) max(0.5rem, var(--safe-left, 0px))',
+
+      }}
 
       onClick={onClose}
 
@@ -1068,7 +1060,7 @@ export function TutorialModal({ onClose, darkMode }: {
 
         aria-labelledby="tutorial-modal-title"
 
-        className={`mobile-flow-card relative ${MODAL_SHELL} rounded-3xl shadow-2xl flex flex-col overflow-hidden ${darkMode ? 'bg-slate-900' : 'bg-white'}`}
+        className={`relative ${MODAL_SHELL} rounded-3xl shadow-2xl flex flex-col overflow-hidden ${darkMode ? 'bg-slate-900' : 'bg-white'}`}
 
         onClick={e => e.stopPropagation()}
 
@@ -1138,15 +1130,15 @@ export function TutorialModal({ onClose, darkMode }: {
 
         {showChips && (
 
-          <div className={`flex-shrink-0 px-4 py-1.5 border-b ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
+          <div className={`flex-shrink-0 px-4 py-1 border-b ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
 
-            <div className={`grid gap-1 ${topics.length <= 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
+            <div className="flex gap-1 overflow-x-auto overscroll-x-contain scrollbar-none pb-0.5">
 
               {topics.map((t, i) => (
 
                 <button key={t.id} onClick={() => selectTopic(i)}
 
-                  className={`relative px-1 py-1.5 rounded-lg text-[10px] font-bold leading-tight text-center transition-all active:scale-95 ${
+                  className={`relative flex-shrink-0 min-w-[4.25rem] px-1 py-1 rounded-lg text-[10px] font-bold leading-tight text-center transition-all active:scale-95 ${
 
                     i === safeIdx
 

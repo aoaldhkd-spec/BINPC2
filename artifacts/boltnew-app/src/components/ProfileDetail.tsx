@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect, type SyntheticEvent } from 'react';
 import { ArrowLeft, Heart, MessageCircle, MapPin } from 'lucide-react';
-import { getPositionLabel, getPositionBg, getDomSubLabel, getDomSubBg, getKoreanAge, genAvatar, getAvatarSrc, hasUploadedPhoto, isPresetAvatar } from '../lib/profile';
+import { getPositionLabel, getDomSubLabel, getKoreanAge, genAvatar, getAvatarSrc, hasUploadedPhoto, isPresetAvatar } from '../lib/profile';
 import { parseIdealTags } from '../lib/signal-match';
+import { parseProfileInterests, getInterestTagStyle } from '../lib/interests';
 import { HEART_TYPES, HeartType } from '../lib/constants';
-import ProfileScoreBar from './ProfileScoreBar';
 import type { Profile } from '../types/app';
 
 // heartMeta: HeartType → HEART_TYPES 메타데이터 조회 (unknown 타입 방어: 첫 번째 항목으로 폴백)
@@ -105,6 +105,9 @@ function ProfileDetail({ profile, isMe, isLiked, heartType, sentHeartsCount, loc
 
   const ideal = signalMsgParts(idealMsg);
   const feature = signalMsgParts(featureMsg);
+  const interests = parseProfileInterests(profile);
+  const showPersonality = !profile.hide_personality || isMe;
+  const showDomSub = showPersonality && profile.dom_sub_score !== null;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -146,6 +149,16 @@ function ProfileDetail({ profile, isMe, isLiked, heartType, sentHeartsCount, loc
                   <MapPin className="w-3 h-3" />{profile.location}
                 </span>
               )}
+              {showPersonality && (
+                <span className="px-2.5 py-0.5 bg-white/20 backdrop-blur-sm text-white text-xs font-bold rounded-full border border-white/30">
+                  {getPositionLabel(profile.personality_score ?? 50)}
+                </span>
+              )}
+              {showDomSub && (
+                <span className="px-2.5 py-0.5 bg-white/20 backdrop-blur-sm text-white text-xs font-bold rounded-full border border-white/30">
+                  {getDomSubLabel(profile.dom_sub_score)}
+                </span>
+              )}
             </div>
           </div>
           {lockToast && (
@@ -168,27 +181,24 @@ function ProfileDetail({ profile, isMe, isLiked, heartType, sentHeartsCount, loc
           )}
         </div>
 
-        {/* Bio tags */}
-        {profile.bio && (
+        {/* Interests */}
+        {interests.length > 0 && (
           <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2.5">소개</p>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2.5">관심사</p>
             <div className="flex flex-wrap gap-2">
-              {profile.bio.split(', ').map((tag) => (
-                <span key={tag} className="px-3 py-1.5 bg-teal-50 text-teal-700 text-sm font-medium rounded-full border border-teal-200">
-                  #{tag}
-                </span>
-              ))}
+              {interests.map((tag) => {
+                const ist = getInterestTagStyle(tag);
+                return (
+                  <span
+                    key={tag}
+                    className="px-3 py-1.5 text-sm font-medium rounded-full border"
+                    style={{ backgroundColor: ist.bg, color: ist.text, borderColor: ist.border }}
+                  >
+                    #{tag}
+                  </span>
+                );
+              })}
             </div>
-          </div>
-        )}
-
-        {/* MBTI */}
-        {profile.mbti && (
-          <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2.5">MBTI</p>
-            <span className="inline-block px-4 py-1.5 bg-teal-50 text-teal-700 text-sm font-bold rounded-full border border-teal-200">
-              {profile.mbti}
-            </span>
           </div>
         )}
 
@@ -207,19 +217,6 @@ function ProfileDetail({ profile, isMe, isLiked, heartType, sentHeartsCount, loc
           free={feature.free}
           chipClass="bg-amber-50 text-amber-800 border-amber-200"
         />
-
-        {/* Score section — hide_personality=true 이면 상대방에게 숨김 */}
-        {(!profile.hide_personality || isMe) && (
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-4">
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">성향</p>
-          <ProfileScoreBar label="포지션" score={profile.personality_score}
-            getLabel={(v) => getPositionLabel(v ?? 50)} getBg={(v) => getPositionBg(v ?? 50)}
-            leftText="바텀" rightText="탑" />
-          <div className="h-px bg-gray-100" />
-          <ProfileScoreBar label="돔/섭" score={profile.dom_sub_score}
-            getLabel={getDomSubLabel} getBg={getDomSubBg} leftText="섭" rightText="돔" />
-        </div>
-        )}
 
         {/* Chat button — locked 시 토스트, 정상 시 채팅 진입 */}
         {!isMe && (
