@@ -58,7 +58,11 @@ export { ProfileCard };
 function KeepTab({ id, mainTab, children }: { id: MainTab; mainTab: MainTab; children: ReactNode }) {
   const active = mainTab === id;
   return (
-    <div hidden={!active} aria-hidden={!active}>
+    <div
+      hidden={!active}
+      aria-hidden={!active}
+      className={active ? 'flex flex-1 min-h-0 flex-col min-w-0' : undefined}
+    >
       {children}
     </div>
   );
@@ -610,10 +614,10 @@ export function MainScreen({
   };
 
   return (
-    <div className={`app-viewport min-w-0 transition-colors duration-300 ${darkMode ? 'bg-slate-950' : 'bg-gray-50'}`}>
+    <div className={`app-viewport min-w-0 flex flex-col transition-colors duration-300 ${darkMode ? 'bg-slate-950' : 'bg-gray-50'}`}>
       <NavLayer id="tab:away" open={mainTab !== 'profiles'} onClose={() => onTabChange('profiles')} />
       <NavLayer id="my-menu" open={myMenuOpen} onClose={() => setMyMenuOpen(false)} />
-      <header className={`sticky top-0 z-10 transition-colors duration-300 ${darkMode ? 'bg-slate-900 border-b-2 border-slate-700 shadow-slate-950/50' : 'bg-white shadow-sm'}`}>
+      <header className={`sticky top-0 z-10 shrink-0 transition-colors duration-300 ${darkMode ? 'bg-slate-900 border-b-2 border-slate-700 shadow-slate-950/50' : 'bg-white shadow-sm'}`}>
         <div className="max-w-7xl mx-auto px-3 min-[360px]:px-4 py-2.5 min-[360px]:py-3 grid grid-cols-[auto_minmax(0,1fr)_auto] gap-1 items-center">
           {/* 좌: 튜토리얼 + 다크모드 + 배경음악 */}
           <div className="justify-self-start flex items-center gap-1">
@@ -656,7 +660,13 @@ export function MainScreen({
         {timerEndAt && <TimerBanner endAt={timerEndAt} label={timerLabel ?? ''} />}
       </header>
 
-      <main className="max-w-7xl mx-auto px-3 min-[360px]:px-4 py-4 min-[390px]:py-6 pb-[calc(8.5rem+var(--tabbar-safe-bottom))] scrollbar-styled-light">
+      <main
+        className={`max-w-7xl mx-auto w-full flex-1 min-h-0 flex flex-col px-3 min-[360px]:px-4 py-4 min-[390px]:py-6 scrollbar-styled-light ${
+          mainTab === 'profiles'
+            ? 'overflow-hidden pb-[calc(4.5rem+var(--tabbar-safe-bottom))]'
+            : 'overflow-y-auto pb-[calc(8.5rem+var(--tabbar-safe-bottom))]'
+        }`}
+      >
         {chatSearchLockToast && (
           <div className="fixed top-24 left-0 right-0 z-[80] flex justify-center pointer-events-none">
             <div className="text-center text-[11px] font-bold text-white bg-gray-800/90 rounded-full px-3 py-1">
@@ -2276,8 +2286,8 @@ export function MainScreen({
                 myTabActive || myMenuOpen
                   ? 'bg-gradient-to-br from-cyan-500 to-teal-500 text-white'
                   : darkMode
-                    ? 'bg-transparent text-slate-100'
-                    : 'bg-transparent text-gray-800'
+                    ? 'bg-slate-800/95 backdrop-blur-sm text-slate-100'
+                    : 'bg-white/95 backdrop-blur-sm text-gray-800'
               }`}
             >
               <span className="text-[15px] font-black leading-none tracking-widest">MY</span>
