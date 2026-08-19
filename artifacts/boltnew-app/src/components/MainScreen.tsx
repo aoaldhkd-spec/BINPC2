@@ -676,13 +676,7 @@ export function MainScreen({
         )}
         {visitedTabsRef.current.has('profiles') && (
         <KeepTab id="profiles" mainTab={mainTab}>
-          <div
-            className="flex flex-col min-h-0"
-            style={{
-              height: 'calc(100dvh - 330px - var(--tabbar-safe-bottom) + 8.5rem)',
-              maxHeight: 'calc(100dvh - 330px - var(--tabbar-safe-bottom) + 8.5rem)',
-            }}
-          >
+          <div className="flex flex-1 min-h-0 flex-col overflow-hidden">
             {/* 검색 + 새로고침 + 카드 보기 — 한 줄 */}
             <div className="space-y-1 mb-2 shrink-0">
               <div className="flex items-center gap-1.5 min-w-0">
@@ -729,8 +723,8 @@ export function MainScreen({
               </p>
             </div>
 
-            {/* ── 참여자 그리드 (FAB 뒤 흰 블록 없이 스크롤·내부 pb로 여백) ── */}
-            <div className="profiles-tab-scroll flex-1 min-h-[160px] overflow-y-auto -mx-3 min-[360px]:-mx-4 px-3 min-[360px]:px-4 pb-[calc(8.5rem+var(--tabbar-safe-bottom))]">
+            {/* ── 참여자 그리드: 내부 스크롤 + FAB 여백만 scroll pb (main pb는 탭바만) ── */}
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain -mx-3 min-[360px]:-mx-4 px-3 min-[360px]:px-4 pb-[calc(4rem+var(--tabbar-safe-bottom))]">
             <div className={profileGridClassName(profileCardGrid)}>
             {filteredProfiles.filter(p => p.id !== currentUserId).map((profile) => (
               <ProfileCard
