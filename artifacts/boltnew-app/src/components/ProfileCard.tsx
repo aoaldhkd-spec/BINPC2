@@ -101,9 +101,9 @@ export const ProfileCard = memo(function ProfileCard({
   const [tickerOffset, setTickerOffset] = useState(0); // 슬라이드할 px 거리
   const hasTicker = Boolean(statusMsg?.trim());
   const hasMenu = Boolean(onBlock || onContactShare || onViewFortune);
-  // 작게: 닉·나이 바는 뒷면에서도 유지(탭으로 앞면 복귀). 전광판은 뒷면에서 숨김
+  // 뒷면(이상형)에서는 전광판·닉·나이 바 숨김 — 이상형 영역을 최대한 확보
   const showTopBar = hasTicker && !isFlipped;
-  const showBottomBar = compact || !isFlipped;
+  const showBottomBar = !isFlipped;
   useEffect(() => {
     const bar = tickerBarRef.current;
     const span = tickerSpanRef.current;
@@ -227,20 +227,16 @@ export const ProfileCard = memo(function ProfileCard({
                   backfaceVisibility: 'hidden',
                   WebkitBackfaceVisibility: 'hidden',
                   overflow: 'hidden',
+                  pointerEvents: isFlipped ? 'none' : 'auto',
                 }}
                 data-testid="profile-card-photo"
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (compact) {
-                    setIsFlipped(f => {
-                      const next = !f;
-                      if (next) onView?.(profile);
-                      return next;
-                    });
-                  } else {
-                    setIsFlipped(true);
-                    onView?.(profile);
-                  }
+                  setIsFlipped(f => {
+                    const next = !f;
+                    if (next) onView?.(profile);
+                    return next;
+                  });
                 }}
               >
                 {pastelFill ? (
@@ -260,16 +256,16 @@ export const ProfileCard = memo(function ProfileCard({
 
               {/* 뒷면: 이상형 — 헤더 탭으로 앞면 복귀, 태그 영역은 스크롤 */}
               <div
-                className="absolute inset-0 flex flex-col min-h-0"
+                className="absolute inset-0 flex flex-col min-h-0 cursor-pointer"
                 data-testid="profile-card-ideal-back"
                 style={{
                   backfaceVisibility: 'hidden',
                   WebkitBackfaceVisibility: 'hidden',
                   transform: 'rotateY(180deg)',
                   background: 'linear-gradient(165deg,#1a082a 0%,#3a0f52 40%,#4a1570 100%)',
+                  pointerEvents: isFlipped ? 'auto' : 'none',
                 }}
                 onClick={(e) => {
-                  if (!compact) return;
                   e.stopPropagation();
                   setIsFlipped(false);
                 }}
@@ -292,8 +288,6 @@ export const ProfileCard = memo(function ProfileCard({
                 <div
                   className="relative z-[1] flex-1 min-h-0 max-h-full overflow-y-auto overscroll-contain px-1.5 py-0.5 touch-pan-y"
                   style={{ WebkitOverflowScrolling: 'touch' }}
-                  onClick={(e) => e.stopPropagation()}
-                  onPointerDown={(e) => e.stopPropagation()}
                 >
                   {!idealTagCount && !idealFree ? (
                     <p className="text-[9px] sm:text-[10px] text-center text-pink-100/80 leading-relaxed m-0 py-1 font-medium">
@@ -422,11 +416,7 @@ export const ProfileCard = memo(function ProfileCard({
               }}
               onClick={(e) => {
                 e.stopPropagation();
-                if (compact && isFlipped) {
-                  setIsFlipped(false);
-                } else {
-                  onSelect(profile);
-                }
+                onSelect(profile);
               }}
             >
               <span className="font-extrabold text-[10px] sm:text-[11px] truncate min-w-0 flex-1 text-gray-950 leading-none">{profile.nickname}</span>
