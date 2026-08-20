@@ -455,24 +455,31 @@ mustNotMatch('artifacts/boltnew-app/src/components/TutorialVideo.tsx', '26_tutor
 mustMatch('artifacts/boltnew-app/src/components/TutorialModal.tsx', '26_tutorial_modal_no_scroll', [
   /overflow-hidden scrollbar-hide rounded-2xl/,
 ]);
+mustMatch('artifacts/boltnew-app/src/components/TutorialModal.tsx', '26_tutorial_hidden_tips_scroll', [
+  /MODAL_SHELL/,
+  /const isHidden = topic\.id === 'hidden'/,
+  /switchMode\('hidden'\)/,
+]);
 mustMatch('artifacts/boltnew-app/src/components/TutorialVideo.tsx', '26_tutorial_scene_scrollbar_hide', [
   /overflow-y-auto overflow-x-hidden scrollbar-hide/,
 ]);
 
-// 27. ProfileCard surfaces: default/dark-neon always dim; y2k/minimal dim with App darkMode
+// 27. ProfileCard surfaces: default always white; dark-neon/darkMode only for others
 mustExist('artifacts/boltnew-app/src/lib/profile-card-theme.ts', '27_profile_card_theme_lib');
 mustMatch('artifacts/boltnew-app/src/lib/theme.tsx', '27_isDarkTheme_chrome_unchanged', [
   /export function isDarkTheme/,
   /theme === 'default' \|\| theme === 'dark-neon'/,
 ]);
-mustMatch('artifacts/boltnew-app/src/lib/profile-card-theme.ts', '27_card_dims_dark_themes', [
+mustMatch('artifacts/boltnew-app/src/lib/profile-card-theme.ts', '27_default_cards_stay_white', [
   /export function isProfileCardDark/,
-  /isDarkTheme\(theme\) \|\| darkMode/,
+  /theme === 'default'\) return false/,
+  /theme === 'dark-neon'\) return true/,
+  /bg-white border-gray-100/,
   /bg-slate-900/,
   /rgba\(15,\s*23,\s*42/,
 ]);
-mustNotMatch('artifacts/boltnew-app/src/lib/profile-card-theme.ts', '27_no_default_forced_white', [
-  /theme === 'default'\) return false/,
+mustNotMatch('artifacts/boltnew-app/src/lib/profile-card-theme.ts', '27_no_isDarkTheme_on_cards', [
+  /isDarkTheme\(theme\) \|\| darkMode/,
 ]);
 mustMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '27_profile_card_uses_isProfileCardDark', [
   /isProfileCardDark\(theme, darkMode\)/,
@@ -482,13 +489,14 @@ mustMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '27_profile_ca
 mustMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '27_main_passes_darkMode_to_card', [
   /darkMode=\{darkMode\}/,
 ]);
-mustMatch('artifacts/boltnew-app/src/lib/profile-card-theme.test.ts', '27_theme_tests_dark_dim', [
-  /dark themes use non-white card shell/,
+mustMatch('artifacts/boltnew-app/src/lib/profile-card-theme.test.ts', '27_theme_tests_default_white', [
+  /isProfileCardDark keeps default white/,
+  /default theme keeps white card shell even when darkMode is on/,
   /App darkMode dims light theme cards/,
 ]);
-mustMatch('artifacts/boltnew-app/src/__tests__/product-invariants.test.ts', '27_product_invariants_card_dark', [
-  /dark theme profile cards use non-white surfaces via isProfileCardDark/,
-  /isDarkTheme\(theme\) \|\| darkMode/,
+mustMatch('artifacts/boltnew-app/src/__tests__/product-invariants.test.ts', '27_product_invariants_default_white_cards', [
+  /default theme ProfileCards stay white/,
+  /theme === 'default'\) return false/,
 ]);
 
 // 28. Talent / feature picker tags ? emoji banana + kiss/heat/milk cluster + face/body catalog
@@ -565,8 +573,8 @@ mustMatch('artifacts/boltnew-app/src/components/ChatMessageRow.tsx', '32_chat_ro
 ]);
 mustExist('scripts/test-chat-message-types.mjs', '32_chat_types_smoke');
 
-// 33. User gates: logo=reset (not tester), npc=admin, sulbun=none; theme FAB only after profile
-mustNotMatch('artifacts/boltnew-app/src/components/EntryGateScreen.tsx', '33_entry_logo_not_tester', [
+// 33. Screen-differentiated logo: entry->tester; main/waiting logo=reset, npc=admin, sulbun=egg
+mustMatch('artifacts/boltnew-app/src/components/EntryGateScreen.tsx', '33_entry_logo_tester', [
   /data-gate="entry-logo-tester"/,
   /navigateToAppPath\('test'\)/,
 ]);

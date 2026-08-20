@@ -355,7 +355,7 @@ function TipCard({
       <span className={iconShell}>{tip.icon}</span>
       <div className="min-w-0 flex-1">
         <p className={`${titleCls} font-bold leading-tight ${KR_WRAP} ${text}`}>{tip.title}</p>
-        <p className={`${descCls} mt-0.5 ${KR_WRAP} ${muted}`}>{desc}</p>
+        <p className={`${descCls} mt-0.5 whitespace-normal ${KR_WRAP} ${muted}`}>{desc}</p>
       </div>
     </div>
   );
@@ -763,7 +763,7 @@ export function TutorialModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="tutorial-modal-title"
-        className={`relative ${MODAL_SHELL} rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-[scaleIn_0.25s_ease-out] ${
+        className={`relative ${modalShell} rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-[scaleIn_0.25s_ease-out] ${
           darkMode
             ? 'bg-gradient-to-b from-slate-900 to-slate-950 ring-1 ring-slate-700/50'
             : 'bg-gradient-to-b from-white to-slate-50/90 ring-1 ring-black/[0.04]'
