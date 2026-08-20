@@ -192,11 +192,13 @@ describe('product copy + notification invariants', () => {
 
   it('숨은기능 탭은 스크롤 가능한 긴 설명 레이아웃을 쓴다', () => {
     const modal = read('components/TutorialModal.tsx');
-    expect(modal).toContain('MODAL_SHELL_HIDDEN');
+    expect(modal).toContain('const MODAL_SHELL');
+    expect(modal).not.toContain('MODAL_SHELL_HIDDEN');
     expect(modal).toContain('scrollable: isHidden');
     expect(modal).toContain('overflow-y-auto overscroll-contain scrollbar-hide');
     expect(modal).toContain('longDescTitle=');
     expect(modal).toContain('longDesc?: boolean');
+    expect(modal).toContain('const showChips = topics.length > 1');
   });
 
   it('theme switcher only after profile-ready (not on entry)', () => {

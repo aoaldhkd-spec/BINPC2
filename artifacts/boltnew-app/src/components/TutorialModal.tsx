@@ -174,11 +174,9 @@ const HIDDEN: Topic[] = [
 
 const KR_WRAP = 'break-keep [word-break:keep-all] [line-break:strict] [overflow-wrap:break-word] text-pretty';
 
-/** Fixed shell — identical height on every topic/mode (tips + video). */
+/** Fixed shell — identical height on every topic/mode (tips + video). Hidden tips scroll inside. */
 const MODAL_SHELL =
   'w-[calc(100vw-1rem)] max-w-md h-[min(560px,calc(85dvh-var(--safe-top,0px)-var(--safe-bottom,0px)))]';
-const MODAL_SHELL_HIDDEN =
-  'w-[calc(100vw-1rem)] max-w-md h-[min(640px,calc(92dvh-var(--safe-top,0px)-var(--safe-bottom,0px)))]';
 
 type TopicAccent = {
   cardLight: string;
@@ -671,8 +669,8 @@ export function TutorialModal({
   const accent = topicAccent(topic);
   const isLast = safeIdx === topics.length - 1;
   const hasVideo = Boolean(topic.video?.length);
-  // hidden 모드: 기본|숨은기능 토글만 — pin/숨은기능 서브탭은 이전·다음으로 (이중 탭 행 방지)
-  const showChips = mode === 'basic' && topics.length > 1;
+  const showChips = topics.length > 1;
+  const denseTabs = mode === 'hidden';
   const layout = topicLayout(topic);
 
   useEffect(() => {
@@ -694,7 +692,7 @@ export function TutorialModal({
   };
 
   const tipsScrollable = layout.scrollable && subView === 'tips';
-  const modalShell = layout.scrollable ? MODAL_SHELL_HIDDEN : MODAL_SHELL;
+  const modalShell = MODAL_SHELL;
 
   const tipsContent = (
     <div
@@ -817,14 +815,17 @@ export function TutorialModal({
           </div>
         </div>
 
-        {/* Mode toggle — basic only; hidden mode uses topic chips (고유번호|숨은기능) to avoid duplicate tab rows */}
-        {mode === 'basic' && (
-        <div className={`flex-shrink-0 h-[2.75rem] px-4 pt-2 pb-1.5 flex items-end ${darkMode ? 'bg-slate-900/80' : 'bg-gradient-to-b from-white to-slate-50/80'}`}>
+        {/* Mode toggle */}
+        <div
+          className={`flex-shrink-0 px-4 flex items-end ${
+            denseTabs ? 'h-10 pt-1.5 pb-1' : 'h-[2.75rem] pt-2 pb-1.5'
+          } ${darkMode ? 'bg-slate-900/80' : 'bg-gradient-to-b from-white to-slate-50/80'}`}
+        >
           <div className={`grid grid-cols-2 p-1 rounded-2xl gap-1 w-full ${darkMode ? 'bg-slate-800/80 ring-1 ring-slate-700/60' : 'bg-gray-100/90 ring-1 ring-gray-200/60'}`}>
             <button
               type="button"
               onClick={() => switchMode('basic')}
-              className={`py-2 rounded-xl text-xs font-bold transition-all duration-200 active:scale-[0.97] ${
+              className={`${denseTabs ? 'py-1.5' : 'py-2'} rounded-xl text-xs font-bold transition-all duration-200 active:scale-[0.97] ${
                 mode === 'basic'
                   ? 'bg-gradient-to-r from-cyan-500 to-teal-500 text-white shadow-md shadow-cyan-500/25'
                   : darkMode ? 'text-slate-400' : 'text-gray-500'
@@ -835,7 +836,7 @@ export function TutorialModal({
             <button
               type="button"
               onClick={() => switchMode('hidden')}
-              className={`py-2 rounded-xl text-xs font-bold transition-all duration-200 active:scale-[0.97] ${
+              className={`${denseTabs ? 'py-1.5' : 'py-2'} rounded-xl text-xs font-bold transition-all duration-200 active:scale-[0.97] ${
                 mode === 'hidden'
                   ? 'bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-md shadow-violet-500/25'
                   : darkMode ? 'text-slate-400' : 'text-gray-500'
@@ -845,7 +846,6 @@ export function TutorialModal({
             </button>
           </div>
         </div>
-        )}
 
         {/* Topic chips — edge-to-edge segmented tabs, no inter-tab gaps */}
         {showChips && (
@@ -865,7 +865,9 @@ export function TutorialModal({
                     type="button"
                     aria-current={active ? 'true' : undefined}
                     onClick={() => selectTopic(i)}
-                    className={`relative flex flex-col items-center justify-center min-h-[2.75rem] py-1 px-0 gap-px text-center transition-all duration-200 active:brightness-95 ${divider} ${
+                    className={`relative flex flex-col items-center justify-center ${
+                      denseTabs ? 'min-h-10 py-0.5' : 'min-h-[2.75rem] py-1'
+                    } px-0 gap-px text-center transition-all duration-200 active:brightness-95 ${divider} ${
                       active
                         ? `bg-gradient-to-b ${t.color} text-white shadow-[inset_0_-1px_0_rgba(255,255,255,0.15)]`
                         : darkMode
