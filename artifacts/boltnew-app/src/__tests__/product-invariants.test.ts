@@ -147,7 +147,9 @@ describe('product copy + notification invariants', () => {
     expect(entry).toContain('data-gate="entry-logo-tester"');
     expect(entry).toContain("navigateToAppPath('test')");
     expect(waiting).toContain('data-gate="waiting-logo-tester"');
+    expect(waiting).toContain("verifyPanelPassword('test'");
     expect(waiting).toContain("navigateToAppPath('test')");
+    expect(waiting).not.toMatch(/data-gate="waiting-logo-tester"[\s\S]{0,200}onClick=\{\(\) => navigateToAppPath\('test'\)\}/);
     expect(waiting).not.toContain('data-gate="logo-reset"');
     expect(reset).toContain('data-gate="logo-reset"');
     expect(reset).toContain('openResetGate');
