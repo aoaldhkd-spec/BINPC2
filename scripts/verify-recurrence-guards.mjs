@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Quick sweep — all known failure/delay modes must stay fixed + guarded in repo.
+ * Quick sweep ? all known failure/delay modes must stay fixed + guarded in repo.
  * Usage: node scripts/verify-recurrence-guards.mjs
  */
 import { existsSync, readFileSync } from 'node:fs';
@@ -43,7 +43,7 @@ function mustNotMatch(rel, id, patterns) {
   return true;
 }
 
-// 1. SSE 401 @ 1h — localdb 80% refresh + endurance reconnect/refresh
+// 1. SSE 401 @ 1h ? localdb 80% refresh + endurance reconnect/refresh
 mustMatch('artifacts/boltnew-app/src/lib/localdb.ts', '01_sse_localdb_80pct', [
   /SSE_TOKEN_REFRESH_LEAD_SEC/,
   /scheduleSseTokenRefresh/,
@@ -56,7 +56,7 @@ mustMatch('scripts/endurance-5h.mjs', '01_sse_endurance_refresh', [
   /expiresAt/,
 ]);
 
-// 2. Netlify SSE buffering — VITE_SSE_ORIGIN + Render-direct E2E
+// 2. Netlify SSE buffering ? VITE_SSE_ORIGIN + Render-direct E2E
 mustMatch('artifacts/boltnew-app/src/lib/localdb.ts', '02_sse_origin_localdb', [/VITE_SSE_ORIGIN/, /SSE_ORIGIN/]);
 mustMatch('netlify.toml', '02_sse_origin_netlify', [/VITE_SSE_ORIGIN\s*=\s*"https:\/\/binpc2\.onrender\.com"/]);
 mustMatch('scripts/test-realtime-two-user.mjs', '02_sse_render_e2e', [
@@ -66,7 +66,7 @@ mustMatch('scripts/test-realtime-two-user.mjs', '02_sse_render_e2e', [
 ]);
 mustNotMatch('scripts/test-realtime-two-user.mjs', '02_sse_not_netlify', [/\$\{API\}\/events/]);
 
-// 3. functions_locked — SSE live toggle, mid-run SKIP, unlock resume
+// 3. functions_locked ? SSE live toggle, mid-run SKIP, unlock resume
 mustMatch('scripts/endurance-5h.mjs', '03_functions_locked_skip', [
   /isOpFunctionsLocked/,
   /process\.exit\(2\)/,
@@ -88,18 +88,18 @@ mustMatch('artifacts/boltnew-app/src/hooks/useChat.ts', '03_unlock_flush_chat_qu
 // 4. SSE idle drop between cycles
 mustMatch('scripts/endurance-5h.mjs', '04_sse_ensure_connected', [/await sseB\.ensureConnected\(\)|ensureConnected\(\)/]);
 
-// 5. Render cold start — keep-api-warm + CI
+// 5. Render cold start ? keep-api-warm + CI
 mustExist('scripts/keep-api-warm.mjs', '05_keep_api_warm_script');
 mustExist('.github/workflows/keep-api-warm.yml', '05_keep_api_warm_ci');
 mustMatch('render.yaml', '05_single_render_instance', [/numInstances:\s*1/]);
 
-// 6. Rate limit 429 — single instance note in endurance header
+// 6. Rate limit 429 ? single instance note in endurance header
 mustMatch('scripts/endurance-5h.mjs', '06_rate_limit_single_instance', [
   /429|Rate limit/i,
   /numInstances:1|ONE endurance/i,
 ]);
 
-// 7. admin event reset — auto re-provision soak users mid-run
+// 7. admin event reset ? auto re-provision soak users mid-run
 mustMatch('scripts/endurance-5h.mjs', '07_admin_event_reset_recover', [
   /admin_event_end_reset/,
   /recoverContext|re-provisioning soak users/,
@@ -127,7 +127,7 @@ mustMatch('scripts/start-endurance-8h.mjs', '07h_launcher_detached', [
   /ENDURANCE_SESSION_DEADLINE/,
 ]);
 
-// 8. Photo upload sessionToken — uploadStorageDataUrl, no raw fetch
+// 8. Photo upload sessionToken ? uploadStorageDataUrl, no raw fetch
 mustMatch('artifacts/boltnew-app/src/lib/localdb.ts', '08_upload_session_token', [
   /uploadStorageDataUrl/,
   /storage-upload[\s\S]*sessionToken/,
@@ -137,7 +137,7 @@ mustNotMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '08_no_raw_s
   /fetch\([^)]*['"]\/api\/db\/storage-upload/,
 ]);
 
-// 9. CI load-venue — p95 8000 register + ready (5s still flaked on busy local hosts)
+// 9. CI load-venue ? p95 8000 register + ready (5s still flaked on busy local hosts)
 mustMatch('artifacts/api-server/src/__tests__/load-venue-150.test.ts', '09_load_venue_p95', [
   /pct\(lat, 95\)\)\.toBeLessThan\(8_000\)/,
   /pct\(readyLat, 95\)\)\.toBeLessThan\(8_000\)/,
@@ -151,10 +151,10 @@ mustNotMatch('artifacts/api-server/src/__tests__/load-venue-150.test.ts', '09_lo
   /pct\(readyLat, 95\)\)\.toBeLessThan\(5_000\)/,
 ]);
 
-// 10. Admin password mismatch — SKIP not FAIL
+// 10. Admin password mismatch ? SKIP not FAIL
 mustMatch('scripts/verify-all-features.mjs', '10_admin_pw_skip', [/SKIP \(local password mismatch/]);
 
-// 11. Parallel endurance — lock file + RUN_ID warning
+// 11. Parallel endurance ? lock file + RUN_ID warning
 mustMatch('scripts/endurance-5h.mjs', '11_parallel_endurance_lock', [
   /acquireEnduranceLock/,
   /releaseEnduranceLock/,
@@ -162,7 +162,7 @@ mustMatch('scripts/endurance-5h.mjs', '11_parallel_endurance_lock', [
   /Parallel endurance|ENDURANCE_FORCE_LOCK/,
 ]);
 
-// 12. Mobile — tabbar safe-area, toast, ProfileCard, HEIC
+// 12. Mobile ? tabbar safe-area, toast, ProfileCard, HEIC
 mustMatch('artifacts/boltnew-app/index.html', '12_mobile_viewport', [/viewport-fit=cover/]);
 mustMatch('artifacts/boltnew-app/src/index.css', '12_mobile_safe_area', [
   /--tabbar-safe-bottom/,
@@ -202,27 +202,27 @@ mustNotMatch('artifacts/boltnew-app/src/__tests__/profile-card-lock.test.tsx', '
 ]);
 mustMatch('artifacts/boltnew-app/src/lib/profile-photo.ts', '12_heic_reject', [/HEIC|heic/, /JPG, PNG, WebP/]);
 
-// 13. heart_balances removed — BANNED_REGRESSION in audit
+// 13. heart_balances removed ? BANNED_REGRESSION in audit
 mustMatch('scripts/full-code-audit.mjs', '13_heart_balances_banned', [
   /heart_balances/,
   /BANNED_REGRESSION/,
 ]);
 
-// 14. Signal 📡 vs heart 💕, no SignalNudgeBanner
+// 14. Signal ?? vs heart ??, no SignalNudgeBanner
 {
   const db = read('artifacts/api-server/src/routes/db.ts');
   const sigIdx = db.indexOf("table === 'signal_sends'");
   const sigBlock = sigIdx >= 0 ? db.slice(sigIdx, sigIdx + 400) : '';
-  const ok = sigIdx >= 0 && sigBlock.includes('📡') && !sigBlock.includes('💕');
+  const ok = sigIdx >= 0 && sigBlock.includes('??') && !sigBlock.includes('??');
   results.push({
     id: '14_signal_emoji',
     ok,
-    detail: ok ? 'signal_sends uses 📡 not 💕' : 'signal_sends push emoji guard failed',
+    detail: ok ? 'signal_sends uses ?? not ??' : 'signal_sends push emoji guard failed',
   });
 }
 mustNotMatch('artifacts/boltnew-app/src/App.tsx', '14_no_signal_nudge_banner', [/SignalNudgeBanner/]);
 
-// 15. GitHub CI ↔ local parity — ONE verify:ci entrypoint (no split-step drift)
+// 15. GitHub CI ? local parity ? ONE verify:ci entrypoint (no split-step drift)
 mustMatch('package.json', '15_verify_ci_script', [
   /"verify:ci":\s*"corepack pnpm run verify:guards && corepack pnpm run audit:code && corepack pnpm run test:unit"/,
 ]);
@@ -237,7 +237,7 @@ mustMatch('package.json', '15_test_unit_alias', [
   /"test:unit":\s*"corepack pnpm -r --filter \\"\.\/artifacts\/\*\*\\" --if-present run test:unit"/,
 ]);
 
-// 16. Korean age (+1) — centralized korean-age.ts, no intl age in profile/group/db
+// 16. Korean age (+1) ? centralized korean-age.ts, no intl age in profile/group/db
 mustMatch('artifacts/boltnew-app/src/lib/korean-age.ts', '16_korean_age_client', [
   /koreanAgeFromBirthYear/,
   /\+\s*1/,
@@ -256,7 +256,7 @@ mustNotMatch('artifacts/api-server/src/routes/db.ts', '16_db_no_inline_age', [
   /getFullYear\(\)\s*-\s*y\s*\+\s*1/,
 ]);
 
-// 17. Supabase RLS — public tables not exposed via anon REST
+// 17. Supabase RLS ? public tables not exposed via anon REST
 mustMatch('artifacts/api-server/src/routes/db.ts', '17_supabase_rls_startup', [
   /ensurePublicTableRls/,
   /ENABLE ROW LEVEL SECURITY/,
@@ -264,7 +264,7 @@ mustMatch('artifacts/api-server/src/routes/db.ts', '17_supabase_rls_startup', [
 ]);
 mustExist('scripts/sql/enable-rls-public-tables.sql', '17_supabase_rls_sql');
 
-// 18. Status signal/contact pills — center popup modal (not bottom sheet)
+// 18. Status signal/contact pills ? center popup modal (not bottom sheet)
 mustMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '18_status_center_modal', [
   /status-quick-modal-title/,
   /items-center justify-center/,
@@ -306,7 +306,7 @@ mustExist('artifacts/boltnew-app/src/lib/chat-pending-queue.ts', '21_chat_pendin
 mustExist('artifacts/boltnew-app/src/lib/chat-pending-queue.test.ts', '21_chat_pending_queue_test');
 mustExist('artifacts/boltnew-app/src/__tests__/e2e-reconnect-guards.test.ts', '21_e2e_vitest_guards');
 
-// 22. Legacy KV cleanup — startup purge + /op blocklist (seating, heart_drain, heart_balances)
+// 22. Legacy KV cleanup ? startup purge + /op blocklist (seating, heart_drain, heart_balances)
 mustExist('artifacts/api-server/src/lib/db-legacy-cleanup.ts', '22_legacy_cleanup_lib');
 mustExist('artifacts/api-server/src/__tests__/db-legacy-cleanup.test.ts', '22_legacy_cleanup_test');
 mustMatch('artifacts/api-server/src/routes/db.ts', '22_cleanup_on_startup', [
@@ -337,7 +337,7 @@ mustMatch('artifacts/api-server/src/__tests__/db-security.test.ts', '22_legacy_o
   /seats/,
 ]);
 
-// 23. Test/dummy nicknames — Korean names only, no trailing digit suffixes
+// 23. Test/dummy nicknames ? Korean names only, no trailing digit suffixes
 mustMatch('scripts/lib/test-personas.mjs', '23_persona_no_digit_suffix_doc', [
   /NO numeric suffixes/,
   /nicknameEndsWithDigit/,
@@ -346,8 +346,8 @@ mustMatch('scripts/lib/test-personas.mjs', '23_persona_no_digit_suffix_doc', [
 mustNotMatch('scripts/lib/test-personas.mjs', '23_persona_no_padStart_digits', [
   /padStart\(/,
   /\$\{base\}\$\{suffix\}/,
-  /2–4 digit suffix/,
-  /base \(2–3\) \+ 2–4 digit/,
+  /2?4 digit suffix/,
+  /base \(2?3\) \+ 2?4 digit/,
 ]);
 mustMatch('scripts/sim-concurrent-users.mjs', '23_sim_names_only_comment', [
   /no digit suffixes/i,
@@ -367,7 +367,7 @@ mustMatch('scripts/sim-concurrent-users.mjs', '23_sim_names_only_comment', [
   });
 }
 
-// 24. Participant list order — stable sort + merge/patch (no SSE reshuffle)
+// 24. Participant list order ? stable sort + merge/patch (no SSE reshuffle)
 mustExist('artifacts/boltnew-app/src/lib/profile-list-order.ts', '24_profile_list_order_lib');
 mustExist('artifacts/boltnew-app/src/lib/profile-list-order.test.ts', '24_profile_list_order_test');
 mustMatch('artifacts/boltnew-app/src/lib/profile-list-order.ts', '24_profile_list_order_api', [
@@ -420,7 +420,7 @@ mustMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '25_main_is_fle
   /flex-1 min-h-0 flex flex-col/,
 ]);
 
-// 26. Tutorial overlay controls — lower bar, hover/tap reveal, no inner scrollbar
+// 26. Tutorial overlay controls ? lower bar, hover/tap reveal, no inner scrollbar
 mustMatch('artifacts/boltnew-app/src/components/TutorialVideo.tsx', '26_tutorial_controls_reveal', [
   /data-tutorial-controls/,
   /controlsVisible/,
@@ -441,65 +441,57 @@ mustMatch('artifacts/boltnew-app/src/components/TutorialVideo.tsx', '26_tutorial
   /overflow-y-auto overflow-x-hidden scrollbar-hide/,
 ]);
 
-// 27. ProfileCard surfaces — default stays white; dark-neon/darkMode darken; chrome isDarkTheme unchanged
+// 27. Dark ProfileCard auto-dim (default/dark-neon/darkMode)
 mustExist('artifacts/boltnew-app/src/lib/profile-card-theme.ts', '27_profile_card_theme_lib');
 mustMatch('artifacts/boltnew-app/src/lib/theme.tsx', '27_isDarkTheme_chrome_unchanged', [
   /export function isDarkTheme/,
   /theme === 'default' \|\| theme === 'dark-neon'/,
 ]);
-mustMatch('artifacts/boltnew-app/src/lib/profile-card-theme.ts', '27_isProfileCardDark_excludes_default', [
+mustMatch('artifacts/boltnew-app/src/lib/profile-card-theme.ts', '27_card_dims_dark_themes', [
   /export function isProfileCardDark/,
-  /theme === 'default'\) return false/,
-  /theme === 'dark-neon'\) return true/,
-  /return darkMode/,
+  /isDarkTheme\(theme\) \|\| darkMode/,
   /bg-slate-900/,
   /rgba\(15,\s*23,\s*42/,
 ]);
-mustNotMatch('artifacts/boltnew-app/src/lib/profile-card-theme.ts', '27_no_isDarkTheme_for_card_surfaces', [
-  /isDarkTheme\(theme\) \|\| darkMode/,
-  /import \{ isDarkTheme \}/,
+mustNotMatch('artifacts/boltnew-app/src/lib/profile-card-theme.ts', '27_no_default_forced_white', [
+  /theme === 'default'\) return false/,
 ]);
 mustMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '27_profile_card_uses_isProfileCardDark', [
   /isProfileCardDark\(theme, darkMode\)/,
   /profileCardSurfaces\(theme, darkMode\)/,
   /darkMode = false/,
 ]);
-mustNotMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '27_profile_card_no_isDarkTheme', [
-  /isDarkTheme\s*\(/,
-]);
 mustMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '27_main_passes_darkMode_to_card', [
   /darkMode=\{darkMode\}/,
 ]);
-mustMatch('artifacts/boltnew-app/src/lib/profile-card-theme.test.ts', '27_theme_tests_default_white', [
-  /isProfileCardDark keeps default white/,
-  /default theme keeps white card shell even when darkMode is on/,
+mustMatch('artifacts/boltnew-app/src/lib/profile-card-theme.test.ts', '27_theme_tests_dark_dim', [
+  /dark themes use non-white card shell/,
   /App darkMode dims light theme cards/,
 ]);
 mustMatch('artifacts/boltnew-app/src/__tests__/product-invariants.test.ts', '27_product_invariants_card_dark', [
   /dark theme profile cards use non-white surfaces via isProfileCardDark/,
-  /theme === 'default'\) return false/,
+  /isDarkTheme\(theme\) \|\| darkMode/,
 ]);
-
-// 28. Talent / feature picker tags — emoji banana + kiss/heat/milk cluster
+// 28. Talent / feature picker tags ? emoji banana + kiss/heat/milk cluster
 mustMatch('artifacts/boltnew-app/src/lib/signal-match.ts', '28_talent_tag_catalog', [
-  /label:\s*'재능 ⭐'/,
-  /'키스잘함'/,
-  /'달아오르게 잘함'/,
-  /'🍌 바나나 잘먹음'/,
-  /'🥛 우유 잘먹음'/,
+  /label:\s*'?? ?'/,
+  /'????'/,
+  /'????? ??'/,
+  /'?? ??? ???'/,
+  /'?? ?? ???'/,
 ]);
 mustMatch('artifacts/boltnew-app/src/lib/signal-match.ts', '28_talent_tag_order', [
-  /label:\s*'재능 ⭐',\s*tags:\s*\[[^\]]*'밤일 잘함'[^\]]*'키스잘함'[^\]]*'달아오르게 잘함'[^\]]*'🍌 바나나 잘먹음'[^\]]*'🥛 우유 잘먹음'/,
+  /label:\s*'?? ?',\s*tags:\s*\[[^\]]*'?? ??'[^\]]*'????'[^\]]*'????? ??'[^\]]*'?? ??? ???'[^\]]*'?? ?? ???'/,
 ]);
 mustNotMatch('artifacts/boltnew-app/src/lib/signal-match.ts', '28_talent_no_plain_banana_in_core', [
-  /label:\s*'재능 ⭐',\s*tags:\s*\[[^\]]*'바나나 잘먹음'/,
+  /label:\s*'?? ?',\s*tags:\s*\[[^\]]*'??? ???'/,
 ]);
 mustMatch('artifacts/boltnew-app/src/lib/signal-match.ts', '28_talent_banana_legacy_alias', [
-  /'🍌 바나나 잘먹음':\s*\[[^\]]*'바나나 잘먹음'/,
-  /\['🍌 바나나 잘먹음',\s*'바나나 잘먹음'\]/,
+  /'?? ??? ???':\s*\[[^\]]*'??? ???'/,
+  /\['?? ??? ???',\s*'??? ???'\]/,
 ]);
 
-// 29. Profile photo full-bleed — no gray letterbox / naturalRatio inset
+// 29. Profile photo full-bleed ? no gray letterbox / naturalRatio inset
 mustMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '29_profile_full_bleed', [
   /Full-bleed frame/,
   /pastelFill/,
@@ -526,14 +518,28 @@ mustMatch('artifacts/boltnew-app/src/components/MainChatsTab.tsx', '30_dark_chat
   /darkMode \? 'bg-slate-800 border border-slate-600/,
 ]);
 
+// 31. Chat image <img> auth ? sessionToken query (Netlify cookie gap)
+mustMatch('artifacts/api-server/src/routes/db.ts', '31_storage_image_session_query', [
+  /req\.query\.sessionToken/,
+  /verifySessionToken\(qUserId,\s*qSessionToken\)/,
+]);
+mustMatch('artifacts/boltnew-app/src/lib/localdb.ts', '31_with_chat_image_auth', [
+  /export function withChatImageAuth/,
+  /sessionToken=/,
+]);
+mustMatch('artifacts/boltnew-app/src/components/ChatMessageRow.tsx', '31_chat_row_image_auth', [
+  /withChatImageAuth/,
+]);
+mustExist('scripts/test-chat-message-types.mjs', '31_chat_types_smoke');
+
 console.log('\n=== verify-recurrence-guards ===\n');
 for (const r of results) {
-  console.log(`  ${r.ok ? 'OK' : 'FAIL'}  ${r.id}${r.detail && !r.ok ? ` — ${r.detail}` : ''}`);
+  console.log(`  ${r.ok ? 'OK' : 'FAIL'}  ${r.id}${r.detail && !r.ok ? ` ? ${r.detail}` : ''}`);
 }
 const failed = results.filter((r) => !r.ok);
 console.log(`\n${results.length - failed.length}/${results.length} passed`);
 if (failed.length) {
-  console.error(`\n${failed.length} guard(s) missing — recurrence risk.\n`);
+  console.error(`\n${failed.length} guard(s) missing ? recurrence risk.\n`);
   process.exit(1);
 }
 console.log('\nAll recurrence guards present.\n');

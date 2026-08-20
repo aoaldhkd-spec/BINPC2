@@ -71,6 +71,16 @@ describe('product copy + notification invariants', () => {
     expect(routes).toMatch(/resolveAuthUserId\(req, body\)/);
   });
 
+  it('chat image display uses withChatImageAuth (Netlify cookie gap for <img>)', () => {
+    const db = read('lib/localdb.ts');
+    const row = read('components/ChatMessageRow.tsx');
+    const routes = read('../../api-server/src/routes/db.ts');
+    expect(db).toContain('withChatImageAuth');
+    expect(row).toContain('withChatImageAuth');
+    expect(routes).toMatch(/req\.query\.sessionToken/);
+    expect(routes).toMatch(/verifySessionToken\(qUserId,\s*qSessionToken\)/);
+  });
+
   it('BottomNotification sits above ChatScreen', () => {
     const toast = read('components/BottomNotification.tsx');
     const chat = read('components/ChatScreen.tsx');
@@ -232,12 +242,10 @@ describe('product copy + notification invariants', () => {
     expect(theme).toContain('export function isDarkTheme');
     expect(theme).toMatch(/theme === 'default' \|\| theme === 'dark-neon'/);
     expect(surfaces).toContain('export function isProfileCardDark');
-    expect(surfaces).toContain("theme === 'default') return false");
-    expect(surfaces).toContain("theme === 'dark-neon') return true");
-    expect(surfaces).not.toContain('isDarkTheme(theme) || darkMode');
+    expect(surfaces).toContain('isDarkTheme(theme) || darkMode');
+    expect(surfaces).not.toContain("theme === 'default') return false");
     expect(card).toContain('isProfileCardDark(theme, darkMode)');
     expect(card).toContain('profileCardSurfaces(theme, darkMode)');
-    expect(card).not.toMatch(/isDarkTheme\s*\(/);
     expect(card).toContain('darkMode = false');
     expect(main).toContain('darkMode={darkMode}');
     expect(card).not.toMatch(/className="group relative flex flex-col min-w-0 max-w-full bg-white/);

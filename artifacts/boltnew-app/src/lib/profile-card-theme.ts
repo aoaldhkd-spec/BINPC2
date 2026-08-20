@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react';
 import type { ThemeMode } from './theme';
+import { isDarkTheme } from './theme';
 
-/** MainScreen dark cards use slate-800/900 — match without neon glow */
 const DARK_SHELL = 'bg-slate-900 border-slate-700';
 const LIGHT_SHELL = 'bg-white border-gray-100';
 
@@ -13,19 +13,11 @@ export type ProfileCardSurfaces = {
   ageTextClass: string;
 };
 
-/**
- * ProfileCard surface dark gate — separate from app chrome `isDarkTheme`.
- * - default: always light card (even if App darkMode is on)
- * - dark-neon: always dark card
- * - y2k / minimal: dark only when App darkMode is on
- */
+/** default/dark-neon always dim; y2k/minimal dim only with App darkMode */
 export function isProfileCardDark(theme: ThemeMode, darkMode = false): boolean {
-  if (theme === 'default') return false;
-  if (theme === 'dark-neon') return true;
-  return darkMode;
+  return isDarkTheme(theme) || darkMode;
 }
 
-/** Uses isProfileCardDark — not isDarkTheme (default chrome stays dark, cards stay white). */
 export function profileCardSurfaces(theme: ThemeMode, darkMode = false): ProfileCardSurfaces {
   if (!isProfileCardDark(theme, darkMode)) {
     return {
@@ -64,12 +56,9 @@ function withAlpha(hex: string, alpha: number): string {
 
 type ChipLike = { bg: string; border: string; text?: string; color?: string };
 
-/** Pastel chip fills → muted translucent accents on dark card surfaces */
 export function profileCardChipStyle(style: ChipLike, dark: boolean): CSSProperties {
   const accent = style.text ?? style.color ?? '#94a3b8';
-  if (!dark) {
-    return { backgroundColor: style.bg, color: accent, borderColor: style.border };
-  }
+  if (!dark) return { backgroundColor: style.bg, color: accent, borderColor: style.border };
   return {
     backgroundColor: withAlpha(accent, 0.18),
     color: style.border,
