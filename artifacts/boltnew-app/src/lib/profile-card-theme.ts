@@ -1,6 +1,5 @@
 import type { CSSProperties } from 'react';
 import type { ThemeMode } from './theme';
-import { isDarkTheme } from './theme';
 
 /** MainScreen dark cards use slate-800/900 — match without neon glow */
 const DARK_SHELL = 'bg-slate-900 border-slate-700';
@@ -15,16 +14,18 @@ export type ProfileCardSurfaces = {
 };
 
 /**
- * ProfileCard dimming:
- * - default / dark-neon → always dimmed
- * - App darkMode toggle → dimmed on y2k/minimal too
- * - y2k / minimal without darkMode → white
+ * ProfileCard surface dark gate — separate from app chrome `isDarkTheme`.
+ * - default: always light card (even if App darkMode is on)
+ * - dark-neon: always dark card
+ * - y2k / minimal: dark only when App darkMode is on
  */
 export function isProfileCardDark(theme: ThemeMode, darkMode = false): boolean {
-  return isDarkTheme(theme) || darkMode;
+  if (theme === 'default') return false;
+  if (theme === 'dark-neon') return true;
+  return darkMode;
 }
 
-/** Auto-dim on dark themes / darkMode; light themes stay white */
+/** Uses isProfileCardDark — not isDarkTheme (default chrome stays dark, cards stay white). */
 export function profileCardSurfaces(theme: ThemeMode, darkMode = false): ProfileCardSurfaces {
   if (!isProfileCardDark(theme, darkMode)) {
     return {
