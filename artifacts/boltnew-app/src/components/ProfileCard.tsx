@@ -101,9 +101,12 @@ export const ProfileCard = memo(function ProfileCard({
   const [tickerOffset, setTickerOffset] = useState(0); // 슬라이드할 px 거리
   const hasTicker = Boolean(statusMsg?.trim());
   const hasMenu = Boolean(onBlock || onContactShare || onViewFortune);
-  // 뒷면(이상형)에서는 전광판·닉·나이 바 숨김 — 이상형 영역을 최대한 확보
-  const showTopBar = hasTicker && !isFlipped;
-  const showBottomBar = !isFlipped;
+  // 플립해도 전광판·닉·나이는 항상 노출 — 가운데(사진)만 뒤집힘
+  const showTopBar = hasTicker;
+  const showBottomBar = true;
+  /** 이상형 뒷면이 상·하단 바를 덮지 않도록 인셋 (바 min-h ≈ 20px + 여유) */
+  const idealInsetTop = hasTicker ? 26 : 10;
+  const idealInsetBottom = 24;
   useEffect(() => {
     const bar = tickerBarRef.current;
     const span = tickerSpanRef.current;
@@ -202,7 +205,7 @@ export const ProfileCard = memo(function ProfileCard({
         </div>
       )}
 
-      {/* ── 프로필 사진 (작게=1:1, 기본=3:4) ── */}
+      {/* ── 프로필 사진 (작게=1:1, 기본=3:4) — 플립해도 aspect 고정, 크기 불변 ── */}
       <div
         className={`relative z-0 w-full shrink-0 isolate${compact ? ' aspect-square' : ''}`}
         style={{
@@ -210,9 +213,10 @@ export const ProfileCard = memo(function ProfileCard({
           background: photoBg,
           overflow: 'hidden',
         }}
+        data-testid="profile-card-photo-frame"
       >
-          {/* ── 플립 존 — 실제 사진이 그려지는 영역만 3D 뒤집기 ── */}
-          <div style={{ perspective: '1000px', ...flipZoneStyle }}>
+          {/* ── 플립 존 — 실제 사진이 그려지는 영역만 3D 뒤집기 (컨테이너 크기 고정) ── */}
+          <div style={{ perspective: '1000px', overflow: 'hidden', ...flipZoneStyle }}>
             <div style={{
               width: '100%', height: '100%',
               transformStyle: 'preserve-3d',
@@ -254,9 +258,9 @@ export const ProfileCard = memo(function ProfileCard({
                 )}
               </div>
 
-              {/* 뒷면: 이상형 — 헤더 탭으로 앞면 복귀, 태그 영역은 스크롤 */}
+              {/* 뒷면: 이상형 — 상·하단 바 인셋 안쪽만; 헤더는 전광판 아래, 본문은 스크롤 */}
               <div
-                className="absolute inset-0 flex flex-col min-h-0 cursor-pointer"
+                className="absolute inset-0 flex flex-col min-h-0 max-h-full overflow-hidden cursor-pointer box-border"
                 data-testid="profile-card-ideal-back"
                 style={{
                   backfaceVisibility: 'hidden',
@@ -264,6 +268,8 @@ export const ProfileCard = memo(function ProfileCard({
                   transform: 'rotateY(180deg)',
                   background: 'linear-gradient(165deg,#1a082a 0%,#3a0f52 40%,#4a1570 100%)',
                   pointerEvents: isFlipped ? 'auto' : 'none',
+                  paddingTop: idealInsetTop,
+                  paddingBottom: idealInsetBottom,
                 }}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -275,8 +281,9 @@ export const ProfileCard = memo(function ProfileCard({
 
                 <button
                   type="button"
+                  data-testid="profile-card-ideal-header"
                   onClick={(e) => { e.stopPropagation(); setIsFlipped(false); }}
-                  className="relative z-[1] shrink-0 flex items-center justify-center gap-1 px-2 pt-1.5 pb-0.5 cursor-pointer active:opacity-80"
+                  className="relative z-[1] shrink-0 flex items-center justify-center gap-1 px-2 pt-1 pb-0.5 cursor-pointer active:opacity-80"
                   aria-label="사진으로 돌아가기"
                 >
                   <span className="text-xs leading-none" aria-hidden>💗</span>
@@ -351,9 +358,10 @@ export const ProfileCard = memo(function ProfileCard({
             </div>
           </div>{/* /플립 존 */}
 
-          {/* 전광판 — 사진 위에 겹침 (높이 동일 유지) */}
+          {/* 전광판 — 사진 위에 겹침 (플립해도 유지, 카드 높이 불변) */}
           {showTopBar && (
             <div
+              data-testid="profile-card-ticker-bar"
               className="absolute top-0 left-0 right-0 z-30 flex items-stretch min-h-[20px] pointer-events-auto"
               style={{
                 background: 'linear-gradient(90deg,rgba(15,23,42,0.88) 0%,rgba(17,94,89,0.88) 100%)',
@@ -405,9 +413,10 @@ export const ProfileCard = memo(function ProfileCard({
             </div>
           )}
 
-          {/* 하단 흰 전광판 — 닉·나이 (사진 위 겹침, 뒷면에서는 숨김) */}
+          {/* 하단 흰 전광판 — 닉·나이 (사진 위 겹침, 플립해도 항상 표시) */}
           {showBottomBar && (
             <div
+              data-testid="profile-card-nick-bar"
               className="absolute bottom-0 left-0 right-0 z-30 flex items-center min-h-[20px] px-1.5 py-0.5 cursor-pointer pointer-events-auto"
               style={{
                 background: 'rgba(255,255,255,0.94)',

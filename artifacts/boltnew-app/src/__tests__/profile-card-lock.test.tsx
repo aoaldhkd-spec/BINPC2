@@ -1,12 +1,13 @@
 // @vitest-environment happy-dom
 /**
- * ProfileCard lock-guard regression tests
+ * ProfileCard lock-guard + flip UX regression tests
  *
  * Verifies:
  * 1. With seatingLocked=true, clicking heart shows toast, does NOT call onLike
  * 2. With functionsLocked=true, clicking chat shows toast, does NOT call onOpenChat
  * 3. With both locks false, both callbacks fire normally
- * 4. Chat-search panel shows lock toast and does NOT call onOpenChat when functionsLocked
+ * 4. Flip: ticker + nick/age bars stay visible; only middle flips; frame does not grow
+ * 5. Ideal header sits below ticker via paddingTop inset (compact / default)
  */
 
 import React from 'react';
@@ -17,7 +18,7 @@ import type { Profile } from '../types/app';
 
 // ── Minimal mocks ────────────────────────────────────────────────────────────
 
-vi.mock('../hooks/useTheme', () => ({ useTheme: () => ({ theme: 'default' }) }));
+vi.mock('../lib/theme', () => ({ useTheme: () => ({ theme: 'default' }) }));
 vi.mock('../lib/supabase', () => ({
   supabase: {
     channel: vi.fn(() => ({ on: vi.fn().mockReturnThis(), subscribe: vi.fn() })),
@@ -40,7 +41,7 @@ const PROFILE: Profile = {
   photo_url: '',
   personality_score: 55,
   dom_sub_score: null,
-  birth_year: null,
+  birth_year: 2000,
   birth_month: null,
   birth_day: null,
   location: null,
@@ -56,7 +57,16 @@ const PROFILE: Profile = {
 function renderCard({
   seatingLocked = false,
   functionsLocked = false,
-}: { seatingLocked?: boolean; functionsLocked?: boolean } = {}) {
+  compact = false,
+  statusMsg,
+  idealMsg,
+}: {
+  seatingLocked?: boolean;
+  functionsLocked?: boolean;
+  compact?: boolean;
+  statusMsg?: string;
+  idealMsg?: string;
+} = {}) {
   const onLike = vi.fn();
   const onSelect = vi.fn();
   const onView = vi.fn();
@@ -64,11 +74,14 @@ function renderCard({
   render(
     <ProfileCard
       profile={PROFILE}
+      compact={compact}
       isLiked={false}
       sentHeartType={undefined}
       heartCount={0}
       canLike={true}
       locked={seatingLocked || functionsLocked}
+      statusMsg={statusMsg}
+      idealMsg={idealMsg}
       onLike={onLike}
       onSelect={onSelect}
       onView={onView}
@@ -114,82 +127,73 @@ describe('ProfileCard — lock guard (seat-lock + functions-lock regression)', (
     expect(onView).toHaveBeenCalledWith(PROFILE);
     expect(onSelect).not.toHaveBeenCalled();
   });
+});
 
-  it('compact: photo tap toggles ideal back then returns to front', () => {
-    const onLike = vi.fn();
-    const onSelect = vi.fn();
-    const onView = vi.fn();
-    const onOpenChat = vi.fn();
-    render(
-      <ProfileCard
-        profile={PROFILE}
-        compact
-        isLiked={false}
-        sentHeartType={undefined}
-        heartCount={0}
-        canLike={true}
-        idealMsg={'유머,다정\n기타'}
-        onLike={onLike}
-        onSelect={onSelect}
-        onView={onView}
-        onOpenChat={onOpenChat}
-      />,
-    );
+describe('ProfileCard — flip keeps bars + fixed frame (compact/2·3열)', () => {
+  it('compact: ticker + nick stay visible on ideal back; second tap returns', () => {
+    const { onView, onSelect } = renderCard({
+      compact: true,
+      statusMsg: '오늘도 화이팅',
+      idealMsg: '유머,다정\n기타',
+    });
+    const frame = screen.getByTestId('profile-card-photo-frame');
+    const h0 = frame.getBoundingClientRect().height;
+
     fireEvent.click(screen.getByTestId('profile-card-photo'));
     expect(onView).toHaveBeenCalledTimes(1);
-    expect(screen.queryByText('홍길동')).toBeNull();
+    expect(screen.getByTestId('profile-card-ticker-bar')).toBeTruthy();
+    expect(screen.getByTestId('profile-card-nick-bar')).toBeTruthy();
+    expect(screen.getByText('홍길동')).toBeTruthy();
+    expect(screen.getByText(/나의 이상형/)).toBeTruthy();
+    expect(frame.getBoundingClientRect().height).toBe(h0);
+
     fireEvent.click(screen.getByTestId('profile-card-ideal-back'));
     expect(screen.getByText('홍길동')).toBeTruthy();
     fireEvent.click(screen.getByText('홍길동'));
     expect(onSelect).toHaveBeenCalledTimes(1);
   });
 
-  it('compact: nickname bar hidden on ideal back; photo tap flips back', () => {
-    const onSelect = vi.fn();
-    const onView = vi.fn();
-    render(
-      <ProfileCard
-        profile={{ ...PROFILE, birth_year: 2000 }}
-        compact
-        isLiked={false}
-        sentHeartType={undefined}
-        heartCount={0}
-        canLike={false}
-        idealMsg="유머"
-        onLike={vi.fn()}
-        onSelect={onSelect}
-        onView={onView}
-        onOpenChat={vi.fn()}
-      />,
-    );
-    fireEvent.click(screen.getByTestId('profile-card-photo'));
-    expect(screen.queryByText('홍길동')).toBeNull();
-    fireEvent.click(screen.getByTestId('profile-card-ideal-back'));
-    expect(screen.getByText('홍길동')).toBeTruthy();
-    fireEvent.click(screen.getByTestId('profile-card-photo'));
-    expect(onView).toHaveBeenCalledTimes(2);
-  });
+  it('default grid: bars stay on flip; frame height unchanged', () => {
+    const { onView } = renderCard({
+      statusMsg: '상태 메시지',
+      idealMsg: '유머',
+    });
+    const frame = screen.getByTestId('profile-card-photo-frame');
+    const h0 = frame.getBoundingClientRect().height;
 
-  it('default grid: photo tap toggles ideal back (2·3열 동일)', () => {
-    const onView = vi.fn();
-    render(
-      <ProfileCard
-        profile={PROFILE}
-        isLiked={false}
-        sentHeartType={undefined}
-        heartCount={0}
-        canLike={false}
-        idealMsg="유머"
-        onLike={vi.fn()}
-        onSelect={vi.fn()}
-        onView={onView}
-        onOpenChat={vi.fn()}
-      />,
-    );
     fireEvent.click(screen.getByTestId('profile-card-photo'));
     expect(onView).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('profile-card-ticker-bar')).toBeTruthy();
+    expect(screen.getByTestId('profile-card-nick-bar')).toBeTruthy();
+    expect(screen.getByText('홍길동')).toBeTruthy();
+    expect(frame.getBoundingClientRect().height).toBe(h0);
+
     fireEvent.click(screen.getByTestId('profile-card-ideal-back'));
     fireEvent.click(screen.getByTestId('profile-card-photo'));
     expect(onView).toHaveBeenCalledTimes(2);
+    expect(frame.getBoundingClientRect().height).toBe(h0);
+  });
+
+  it('ideal back paddingTop clears ticker; paddingBottom clears nick bar', () => {
+    renderCard({
+      compact: true,
+      statusMsg: '전광판',
+      idealMsg: '유머',
+    });
+    fireEvent.click(screen.getByTestId('profile-card-photo'));
+    const back = screen.getByTestId('profile-card-ideal-back');
+    expect(back.style.paddingTop).toBe('26px');
+    expect(back.style.paddingBottom).toBe('24px');
+    expect(screen.getByTestId('profile-card-ideal-header')).toBeTruthy();
+  });
+
+  it('without ticker: smaller top inset but nick bar still visible on flip', () => {
+    renderCard({ compact: true, idealMsg: '유머' });
+    fireEvent.click(screen.getByTestId('profile-card-photo'));
+    expect(screen.queryByTestId('profile-card-ticker-bar')).toBeNull();
+    expect(screen.getByTestId('profile-card-nick-bar')).toBeTruthy();
+    const back = screen.getByTestId('profile-card-ideal-back');
+    expect(back.style.paddingTop).toBe('10px');
+    expect(back.style.paddingBottom).toBe('24px');
   });
 });
