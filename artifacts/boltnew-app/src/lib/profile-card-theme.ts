@@ -1,6 +1,5 @@
 import type { CSSProperties } from 'react';
 import type { ThemeMode } from './theme';
-import { isDarkTheme } from './theme';
 
 const DARK_SHELL = 'bg-slate-900 border-slate-700';
 const LIGHT_SHELL = 'bg-white border-gray-100';
@@ -13,9 +12,10 @@ export type ProfileCardSurfaces = {
   ageTextClass: string;
 };
 
-/** default/dark-neon always dim; y2k/minimal dim only with App darkMode */
 export function isProfileCardDark(theme: ThemeMode, darkMode = false): boolean {
-  return isDarkTheme(theme) || darkMode;
+  if (theme === 'default') return false;
+  if (theme === 'dark-neon') return true;
+  return darkMode;
 }
 
 export function profileCardSurfaces(theme: ThemeMode, darkMode = false): ProfileCardSurfaces {
