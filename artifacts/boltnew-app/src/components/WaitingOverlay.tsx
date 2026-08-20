@@ -459,11 +459,6 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
             </div>
           </div>
         )}
-        {/* 테스트/관리자 — 우측 하단 고정 (검증 후 제거 예정) */}
-        <div className="fixed bottom-4 right-4 z-40 flex flex-row gap-2 items-end">
-          <a href="/test" className="px-3 py-1.5 rounded-lg bg-violet-600/80 hover:bg-violet-500 text-white font-bold text-xs shadow-lg backdrop-blur-sm transition-all border border-violet-500/50 active:scale-95">테스트</a>
-          <a href="/admin" className="px-3 py-1.5 rounded-lg bg-slate-700/90 hover:bg-slate-800 text-white font-bold text-xs shadow-lg backdrop-blur-sm transition-all border border-slate-600/50 active:scale-95">관리자</a>
-        </div>
       </div>
 
       {testOpen && (
