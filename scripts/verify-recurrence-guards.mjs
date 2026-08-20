@@ -480,6 +480,52 @@ mustMatch('artifacts/boltnew-app/src/__tests__/product-invariants.test.ts', '27_
   /theme === 'default'\) return false/,
 ]);
 
+// 28. Talent / feature picker tags — emoji banana + kiss/heat/milk cluster
+mustMatch('artifacts/boltnew-app/src/lib/signal-match.ts', '28_talent_tag_catalog', [
+  /label:\s*'재능 ⭐'/,
+  /'키스잘함'/,
+  /'달아오르게 잘함'/,
+  /'🍌 바나나 잘먹음'/,
+  /'🥛 우유 잘먹음'/,
+]);
+mustMatch('artifacts/boltnew-app/src/lib/signal-match.ts', '28_talent_tag_order', [
+  /label:\s*'재능 ⭐',\s*tags:\s*\[[^\]]*'밤일 잘함'[^\]]*'키스잘함'[^\]]*'달아오르게 잘함'[^\]]*'🍌 바나나 잘먹음'[^\]]*'🥛 우유 잘먹음'/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/lib/signal-match.ts', '28_talent_no_plain_banana_in_core', [
+  /label:\s*'재능 ⭐',\s*tags:\s*\[[^\]]*'바나나 잘먹음'/,
+]);
+mustMatch('artifacts/boltnew-app/src/lib/signal-match.ts', '28_talent_banana_legacy_alias', [
+  /'🍌 바나나 잘먹음':\s*\[[^\]]*'바나나 잘먹음'/,
+  /\['🍌 바나나 잘먹음',\s*'바나나 잘먹음'\]/,
+]);
+
+// 29. Profile photo full-bleed — no gray letterbox / naturalRatio inset
+mustMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '29_profile_full_bleed', [
+  /Full-bleed frame/,
+  /pastelFill/,
+  /getAvatarGradientCss/,
+  /objectFit:\s*'cover'/,
+  /flipZoneStyle[\s\S]{0,120}inset:\s*0/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '29_profile_no_letterbox_ratio', [
+  /naturalRatio/,
+  /CRATIO/,
+]);
+mustMatch('artifacts/boltnew-app/src/components/ProfileDetail.tsx', '29_detail_photo_cover', [
+  /object-cover object-center/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/components/ProfileDetail.tsx', '29_detail_no_preset_contain', [
+  /object-contain bg-slate-900/,
+]);
+
+// 30. Dark chat/status card surfaces (MainScreen / MainChatsTab slate shells)
+mustMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '30_dark_status_card_surface', [
+  /darkMode \? 'bg-slate-800 border border-slate-600' : 'bg-white'/,
+]);
+mustMatch('artifacts/boltnew-app/src/components/MainChatsTab.tsx', '30_dark_chats_card_surface', [
+  /darkMode \? 'bg-slate-800 border border-slate-600/,
+]);
+
 console.log('\n=== verify-recurrence-guards ===\n');
 for (const r of results) {
   console.log(`  ${r.ok ? 'OK' : 'FAIL'}  ${r.id}${r.detail && !r.ok ? ` — ${r.detail}` : ''}`);
