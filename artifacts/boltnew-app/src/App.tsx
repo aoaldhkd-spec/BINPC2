@@ -24,7 +24,13 @@ import {
 } from './lib/signal-match';
 import { mergeRowsAfterSnapshot, mergeSetAfterSnapshot } from './lib/realtime-merge';
 import { incomingInterestToast, isIncomingHeartToastTarget, MUTUAL_HEART_TOAST } from './lib/heart-toast';
-import { FUNCTIONS_LOCK_KICK_TOAST, FUNCTIONS_LOCK_TOAST, FUNCTIONS_UNLOCK_TOAST, SOCIAL_LOCKED_TABS } from './lib/functions-lock';
+import { FUNCTIONS_LOCK_KICK_TOAST, FUNCTIONS_LOCK_TOAST, FUNCTIONS_UNLOCK_TOAST, SOCIAL_LOCKED_TABS, BLOCKED_SEND_TOAST, isBlockedOpError, isFunctionsLockedOpError, isRetryableOpError } from './lib/functions-lock';
+import {
+  filterSignalPendingQueueForUser,
+  loadSignalPendingQueue,
+  saveSignalPendingQueue,
+  type PendingSignalAction,
+} from './lib/signal-pending-queue';
 // ─── 분리된 타입·유틸·컴포넌트 imports ────────────────────────────────────────
 import type {
   Profile, ContactShare,
@@ -250,6 +256,8 @@ function App() {
   sentSignalReceiversRef.current = sentSignalReceivers;
   const loadSignalGenRef = useRef(0);
   const loadSignalActionsRef = useRef<((userId: string) => Promise<void>) | null>(null);
+  const signalPendingQueueRef = useRef<PendingSignalAction[]>(loadSignalPendingQueue());
+  const isFlushingSignalQueueRef = useRef(false);
   const [functionsLocked, setFunctionsLocked] = useState(false);
   const functionsLockedRef = useRef(false);
   functionsLockedRef.current = functionsLocked;
@@ -513,7 +521,10 @@ function App() {
   const persistSignalAction = useCallback(async (profileId: string, action: 'send' | 'pass'): Promise<boolean> => {
     if (!currentUserId || profileId === currentUserId) return false;
     if (functionsLockedRef.current) { showFunctionsLockToast(); return false; }
-    if (signalActedIdsRef.current.has(profileId)) return true;
+    if (signalActedIdsRef.current.has(profileId)) {
+      if (action === 'pass') return true;
+      if (sentSignalReceiversRef.current.some((p) => p.id === profileId)) return true;
+    }
     let added = false;
     setSignalActedIds((prev) => {
       if (prev.has(profileId)) return prev;
@@ -528,6 +539,27 @@ function App() {
         return next;
       });
     };
+    const applySendOutbox = () => {
+      if (action !== 'send') return;
+      const profile = profilesRef.current.find((p) => p.id === profileId);
+      if (profile) {
+        setSentSignalReceivers((prev) => {
+          if (prev.find((p) => p.id === profileId)) return prev;
+          return [profile, ...prev];
+        });
+      }
+    };
+    const enqueueOffline = () => {
+      const clientId = crypto.randomUUID();
+      if (signalPendingQueueRef.current.length >= 50) signalPendingQueueRef.current.shift();
+      signalPendingQueueRef.current.push({
+        receiverId: profileId,
+        action,
+        userId: currentUserId,
+        clientId,
+      });
+      saveSignalPendingQueue(signalPendingQueueRef.current);
+    };
     try {
       const { error } = await supabase.from('signal_sends').insert({
         sender_id: currentUserId,
@@ -536,6 +568,21 @@ function App() {
       } as never);
       if (error) {
         console.warn('[signal_sends]', error.message);
+        if (isBlockedOpError(error)) {
+          rollback();
+          setBottomNotif({ type: 'system', message: BLOCKED_SEND_TOAST });
+          return false;
+        }
+        if (isFunctionsLockedOpError(error)) {
+          rollback();
+          showFunctionsLockToast();
+          return false;
+        }
+        if (isRetryableOpError(error)) {
+          enqueueOffline();
+          applySendOutbox();
+          return true;
+        }
         rollback();
         setBottomNotif({
           type: 'system',
@@ -545,28 +592,62 @@ function App() {
         });
         return false;
       }
-      if (action === 'send') {
-        const profile = profilesRef.current.find((p) => p.id === profileId);
-        if (profile) {
-          setSentSignalReceivers((prev) => {
-            if (prev.find((p) => p.id === profileId)) return prev;
-            return [profile, ...prev];
-          });
-        }
-      }
+      applySendOutbox();
       return true;
     } catch (e) {
       console.warn('[signal_sends]', e);
-      rollback();
-      setBottomNotif({
-        type: 'system',
-        message: action === 'send'
-          ? '시그널 전송에 실패했습니다. 잠시 후 다시 시도해 주세요.'
-          : '패스 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.',
-      });
-      return false;
+      enqueueOffline();
+      applySendOutbox();
+      return true;
     }
   }, [currentUserId, showFunctionsLockToast]);
+
+  const flushSignalPendingQueue = useCallback(async () => {
+    if (isFlushingSignalQueueRef.current || signalPendingQueueRef.current.length === 0) return;
+    const uid = userIdRef.current;
+    if (!uid) return;
+    isFlushingSignalQueueRef.current = true;
+    try {
+      const { next } = await (async () => {
+        const queue = [...signalPendingQueueRef.current];
+        let remaining = [...queue];
+        for (const item of queue) {
+          if (item.userId !== uid) {
+            remaining = remaining.filter((q) => q.clientId !== item.clientId);
+            continue;
+          }
+          try {
+            const { error } = await supabase.from('signal_sends').insert({
+              sender_id: item.userId,
+              receiver_id: item.receiverId,
+              action: item.action,
+            } as never);
+            if (!error) {
+              remaining = remaining.filter((q) => q.clientId !== item.clientId);
+              if (item.action === 'send') {
+                const profile = profilesRef.current.find((p) => p.id === item.receiverId);
+                if (profile) {
+                  setSentSignalReceivers((prev) => {
+                    if (prev.find((p) => p.id === profile.id)) return prev;
+                    return [profile, ...prev];
+                  });
+                }
+              }
+            } else if (isBlockedOpError(error) || isFunctionsLockedOpError(error) || !isRetryableOpError(error)) {
+              remaining = remaining.filter((q) => q.clientId !== item.clientId);
+            }
+          } catch {
+            // keep for next reconnect
+          }
+        }
+        return { next: remaining };
+      })();
+      signalPendingQueueRef.current = next;
+      saveSignalPendingQueue(next);
+    } finally {
+      isFlushingSignalQueueRef.current = false;
+    }
+  }, []);
 
   const handleSendSignal = useCallback((profileId: string) => {
     return persistSignalAction(profileId, 'send');
@@ -644,6 +725,17 @@ function App() {
     }
   }, []);
   loadSignalActionsRef.current = loadSignalActions;
+
+  useEffect(() => {
+    signalPendingQueueRef.current = filterSignalPendingQueueForUser(signalPendingQueueRef.current, currentUserId);
+    saveSignalPendingQueue(signalPendingQueueRef.current);
+  }, [currentUserId]);
+
+  useEffect(() => {
+    const onOnline = () => void flushSignalPendingQueue();
+    window.addEventListener('online', onOnline);
+    return () => window.removeEventListener('online', onOnline);
+  }, [flushSignalPendingQueue]);
 
   const openChatGuarded = useCallback((profile: Profile) => {
     if (functionsLockedRef.current) { showFunctionsLockToast(); return Promise.resolve(); }
@@ -784,7 +876,10 @@ function App() {
     const wasLocked = functionsLockedPrevRef.current;
     functionsLockedPrevRef.current = functionsLocked;
     if (!functionsLocked) {
-      if (wasLocked) showFunctionsLockToast(FUNCTIONS_UNLOCK_TOAST);
+      if (wasLocked) {
+        showFunctionsLockToast(FUNCTIONS_UNLOCK_TOAST);
+        void flushSignalPendingQueue();
+      }
       return;
     }
     if (wasLocked) return;
@@ -1459,6 +1554,22 @@ function App() {
             }
           }
         })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'signal_sends', filter: `sender_id=eq.${currentUserId}` },
+        (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
+          const row = payload.new as SignalSend;
+          if (row.action !== 'send' || !row.receiver_id) return;
+          setSignalActedIds((prev) => {
+            if (prev.has(row.receiver_id)) return prev;
+            return new Set([...prev, row.receiver_id]);
+          });
+          const profile = profilesRef.current.find((p) => p.id === row.receiver_id) ?? null;
+          if (profile) {
+            setSentSignalReceivers((prev) => {
+              if (prev.find((p) => p.id === profile.id)) return prev;
+              return [profile, ...prev];
+            });
+          }
+        })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'signal_sends', filter: `receiver_id=eq.${currentUserId}` },
         async (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
           try {
@@ -1484,6 +1595,35 @@ function App() {
             });
           } catch (e) {
             console.warn('[realtime:signal_sends]', e);
+          }
+        })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'signal_sends', filter: `receiver_id=eq.${currentUserId}` },
+        async (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
+          try {
+            const row = payload.new as SignalSend;
+            if (row.action !== 'send' || !row.sender_id || row.sender_id === currentUserId) return;
+            const oldRow = payload.old as SignalSend;
+            if (oldRow?.action === 'send') return;
+            const { data } = await supabase.from('profiles').select('*').eq('id', row.sender_id).maybeSingle();
+            const profile = (data as Profile | null)
+              ?? profilesRef.current.find((p) => p.id === row.sender_id)
+              ?? null;
+            if (profile) {
+              setReceivedSignalSenders((prev) => {
+                if (prev.find((p) => p.id === profile.id)) return prev;
+                return [profile, ...prev];
+              });
+            }
+            const nick = profile?.nickname ?? '누군가';
+            setBottomNotif({
+              type: 'signal',
+              signalKind: 'received',
+              nickname: nick,
+              profileId: row.sender_id,
+              message: incomingSignalToast(nick),
+            });
+          } catch (e) {
+            console.warn('[realtime:signal_sends:update]', e);
           }
         })
       .subscribe();
@@ -1634,6 +1774,7 @@ function App() {
       loadLikes(currentUserId);
       loadContactShareData(currentUserId);
       void loadSignalActions(currentUserId);
+      void flushSignalPendingQueue();
       loadProfiles();
       fetch('/api/db/ready', { signal: AbortSignal.timeout(8_000) })
         .then(r => r.ok ? r.json() : null)
@@ -1652,7 +1793,7 @@ function App() {
         .catch(() => {});
     });
     return unsubReconnect;
-  }, [currentUserId, loadChatList, loadReceivedLikes, loadLikes, loadContactShareData, loadProfiles, loadSignalActions]);
+  }, [currentUserId, loadChatList, loadReceivedLikes, loadLikes, loadContactShareData, loadProfiles, loadSignalActions, flushSignalPendingQueue]);
 
 
   // Manual refresh for status and chat tabs

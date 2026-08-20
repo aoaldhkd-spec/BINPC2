@@ -22,6 +22,13 @@ import {
   siblingGroupIds,
   writeGroupLastRead,
 } from '../lib/group-rooms';
+import { isBlockedOpError, BLOCKED_SEND_TOAST } from '../lib/functions-lock';
+import {
+  filterGroupPendingQueueForUser,
+  loadGroupPendingQueue,
+  saveGroupPendingQueue,
+  type PendingGroupMsg,
+} from '../lib/group-pending-queue';
 
 const MAX_GROUP_MESSAGES = 300;
 const MAX_MSG_LEN = 1000; // 메시지 최대 길이 — useChat과 동일 기준
@@ -172,6 +179,15 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
     }
   }, [profilesRef]);
 
+  // ── 오프라인 단톡 메시지 큐 (1:1 chat-pending-queue 패턴) ─────────────────────
+  const pendingQueueRef = useRef<PendingGroupMsg[]>(loadGroupPendingQueue());
+  const isFlushingRef = useRef(false);
+
+  useEffect(() => {
+    pendingQueueRef.current = filterGroupPendingQueueForUser(pendingQueueRef.current, currentUserId);
+    saveGroupPendingQueue(pendingQueueRef.current);
+  }, [currentUserId]);
+
   // ── 단톡방 메시지 로드 ───────────────────────────────────────────────────────
   const loadGroupMessages = useCallback(async (groupId: string): Promise<boolean> => {
     const gen = ++loadGenRef.current;
@@ -238,6 +254,63 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
     const sibs = siblingGroupIds(rooms, groupId);
     return active === groupId || active === catalogId || sibs.includes(active);
   }, []);
+
+  const flushPendingGroupQueue = useCallback(async () => {
+    if (isFlushingRef.current || pendingQueueRef.current.length === 0) return;
+    isFlushingRef.current = true;
+    try {
+      const queue = [...pendingQueueRef.current];
+      for (const item of queue) {
+        if (item.userId !== currentUserIdRef.current) {
+          pendingQueueRef.current = pendingQueueRef.current.filter(q => q.clientId !== item.clientId);
+          setGroupMessages(prev => prev.filter(m => m.id !== item.optimisticId));
+          continue;
+        }
+        try {
+          const insertPromise = supabase.from('group_messages').insert({
+            group_id: item.groupId,
+            sender_id: item.userId,
+            content: item.content,
+            client_id: item.clientId,
+          }).select().single();
+          const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('group-queue-item-timeout')), 8_000)
+          );
+          const { data: insertedMsg, error } = await Promise.race([insertPromise, timeoutPromise]);
+          if (!error && insertedMsg) {
+            const saved = insertedMsg as GroupMessage;
+            if (isActiveGroupRoom(item.groupId)) {
+              setGroupMessages(prev => prev.map(m => m.id === item.optimisticId ? saved : m));
+            }
+            pendingQueueRef.current = pendingQueueRef.current.filter(q => q.clientId !== item.clientId);
+            saveGroupPendingQueue(pendingQueueRef.current);
+          } else if (error) {
+            if (isBlockedOpError(error)) {
+              pendingQueueRef.current = pendingQueueRef.current.filter(q => q.clientId !== item.clientId);
+              saveGroupPendingQueue(pendingQueueRef.current);
+              setGroupMessages(prev => prev.filter(m => m.id !== item.optimisticId));
+              setBottomNotif({ type: 'system', message: BLOCKED_SEND_TOAST });
+              continue;
+            }
+            const { data: existing } = await supabase.from('group_messages')
+              .select('*').eq('client_id', item.clientId).maybeSingle();
+            if (existing) {
+              const saved = existing as GroupMessage;
+              if (isActiveGroupRoom(item.groupId)) {
+                setGroupMessages(prev => prev.map(m => m.id === item.optimisticId ? saved : m));
+              }
+              pendingQueueRef.current = pendingQueueRef.current.filter(q => q.clientId !== item.clientId);
+              saveGroupPendingQueue(pendingQueueRef.current);
+            }
+          }
+        } catch {
+          continue;
+        }
+      }
+    } finally {
+      isFlushingRef.current = false;
+    }
+  }, [isActiveGroupRoom, setBottomNotif]);
 
   const resyncGroupState = useCallback(async (): Promise<void> => {
     const uid = currentUserIdRef.current;
@@ -405,7 +478,7 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
     await loadGroupChats(userId);
   }, [loadGroupChats]);
 
-  // ── 메시지 전송 (낙관적 + 3회 재시도) ────────────────────────────────────────
+  // ── 메시지 전송 (낙관적 + 4회 재시도, 실패 시 오프라인 큐) ───────────────────
   const sendGroupMessage = useCallback(async (content: string): Promise<void> => {
     const snapGroupId = activeGroupIdRef.current;
     const snapUserId = currentUserIdRef.current;
@@ -417,6 +490,7 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
     const clientId = crypto.randomUUID();
     const optimisticId = `__opt_${clientId}`;
     const trimmed = content.trim();
+    const prevLastMessage = groupChatsRef.current.find(g => g.id === snapGroupId)?.lastMessage ?? '';
     const optimistic: GroupMessage = {
       id: optimisticId,
       group_id: snapGroupId,
@@ -429,9 +503,11 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
     setGroupMessages(prev => [...prev, optimistic]);
     setGroupChats(prev => prev.map(g => g.id === snapGroupId ? { ...g, lastMessage: trimmed } : g));
 
+    const MAX_RETRIES = 4;
+    let lastErr: unknown;
+
     try {
-      let success = false;
-      for (let attempt = 0; attempt < 3 && !success; attempt++) {
+      for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
         if (attempt > 0) {
           await new Promise<void>(r => setTimeout(r, Math.pow(2, attempt - 1) * 1000));
           if (activeGroupIdRef.current !== snapGroupId) return;
@@ -446,25 +522,39 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
 
           if (!error && data) {
             setGroupMessages(prev => prev.map(m => m.id === optimisticId ? data as GroupMessage : m));
-            success = true;
-          } else if (error) {
-            // 분실 응답 복구: client_id 재조회
+            return;
+          }
+          if (error) {
+            if (isBlockedOpError(error)) {
+              setGroupMessages(prev => prev.filter(m => m.id !== optimisticId));
+              setGroupChats(prev => prev.map(g =>
+                g.id === snapGroupId && g.lastMessage === trimmed
+                  ? { ...g, lastMessage: prevLastMessage }
+                  : g
+              ));
+              setBottomNotif({ type: 'system', message: BLOCKED_SEND_TOAST });
+              return;
+            }
             const { data: existing } = await supabase.from('group_messages')
               .select('*').eq('client_id', clientId).maybeSingle();
             if (existing) {
               setGroupMessages(prev => prev.map(m => m.id === optimisticId ? existing as GroupMessage : m));
-              success = true;
+              return;
             }
+            lastErr = error;
           }
-        } catch {
-          // retry
+        } catch (err) {
+          lastErr = err;
+          if (activeGroupIdRef.current !== snapGroupId) return;
         }
       }
-      if (!success) {
-        // 3회 실패 → 낙관적 메시지 롤백 + 사용자 알림
-        setGroupMessages(prev => prev.filter(m => m.id !== optimisticId));
-        setBottomNotif({ type: 'system', message: '단톡 전송 실패 — 잠시 후 다시 시도해 주세요' });
-      }
+
+      console.warn('[sendGroupMessage] 4회 재시도 실패 — 오프라인 큐에 보관, 재연결 시 자동 전송:', lastErr);
+      if (pendingQueueRef.current.length >= 50) pendingQueueRef.current.shift();
+      pendingQueueRef.current.push({
+        groupId: snapGroupId, content: trimmed, clientId, optimisticId, userId: snapUserId,
+      });
+      saveGroupPendingQueue(pendingQueueRef.current);
     } finally {
       sendingGroupRef.current.delete(snapGroupId);
     }
@@ -588,18 +678,30 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUserId, loadGroupChats]);
 
-  // ── SSE 재연결 / 탭 복귀 / 끊김 시 단톡 목록·메시지 resync (useChat 과 동일 패턴) ─
+  // ── SSE 재연결 / 탭 복귀 / 끊김 시 단톡 목록·메시지 resync + 오프라인 큐 플러시 ─
   useEffect(() => {
-    return onSseReconnect(() => { void resyncGroupState(); });
-  }, [resyncGroupState]);
+    return onSseReconnect(() => {
+      void resyncGroupState();
+      void flushPendingGroupQueue();
+    });
+  }, [resyncGroupState, flushPendingGroupQueue]);
 
   useEffect(() => {
     const handler = () => {
-      if (document.visibilityState === 'visible') void resyncGroupState();
+      if (document.visibilityState === 'visible') {
+        void resyncGroupState();
+        void flushPendingGroupQueue();
+      }
     };
     document.addEventListener('visibilitychange', handler);
     return () => document.removeEventListener('visibilitychange', handler);
-  }, [resyncGroupState]);
+  }, [resyncGroupState, flushPendingGroupQueue]);
+
+  useEffect(() => {
+    const onOnline = () => void flushPendingGroupQueue();
+    window.addEventListener('online', onOnline);
+    return () => window.removeEventListener('online', onOnline);
+  }, [flushPendingGroupQueue]);
 
   useEffect(() => {
     if (!currentUserId) return;

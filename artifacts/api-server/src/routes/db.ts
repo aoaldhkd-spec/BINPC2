@@ -3612,11 +3612,37 @@ router.post('/op', async (req: Request, res: Response) => {
           if (receiverId === String(requesterId)) {
             return res.status(400).json({ data: null, error: { message: 'cannot signal yourself', code: 'INVALID_INPUT' } });
           }
+          if (isChatPairBlocked(String(requesterId), receiverId)) {
+            logger.warn({ requesterId, receiverId, ip: req.ip }, '[SECURITY] signal_sends INSERT blocked by user block');
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: blocked user', code: 'BLOCKED' } });
+          }
           const detId = deterministicSignalId(String(requesterId), receiverId);
           const existingSig = tableData.find(r => String(r.id) === detId)
             ?? tableData.find(r => String(r.sender_id) === String(requesterId) && String(r.receiver_id) === receiverId);
           if (existingSig) {
-            if (selectAfterWrite) return res.json({ data: single ? existingSig : [existingSig], error: null });
+            const existingAction = existingSig.action === 'send' ? 'send' : 'pass';
+            if (action === 'pass' || existingAction === 'send') {
+              if (selectAfterWrite) return res.json({ data: single ? existingSig : [existingSig], error: null });
+              return res.json({ data: null, error: null });
+            }
+            // pass → send: UPDATE op is blocked for clients — upgrade inline and re-broadcast
+            const oldRow = { ...existingSig };
+            const upgraded: Record<string, unknown> = { ...existingSig, action: 'send' };
+            const sigIdx = tableData.findIndex(r => String(r.id) === String(existingSig.id));
+            if (sigIdx >= 0) tableData[sigIdx] = upgraded;
+            try {
+              await dbPersistRow(table, upgraded);
+            } catch (e) {
+              if (sigIdx >= 0) tableData[sigIdx] = oldRow;
+              logger.error({ err: e, table, rowId: upgraded.id }, '[db] signal pass→send upgrade persist failed');
+              return res.status(503).json({
+                data: null,
+                error: { message: '저장에 실패했습니다. 잠시 후 다시 시도해 주세요.', code: 'PERSIST_FAILED' },
+              });
+            }
+            smartBroadcast(table, upgraded, { type: 'change', table, event: 'UPDATE', newRow: upgraded, oldRow });
+            sendPushForEvent(table, upgraded, requesterId).catch(err => logger.error({ err }, '[db] background task error'));
+            if (selectAfterWrite) return res.json({ data: single ? upgraded : [upgraded], error: null });
             return res.json({ data: null, error: null });
           }
           effectiveRow = { ...effectiveRow, sender_id: requesterId, receiver_id: receiverId, action, id: detId };

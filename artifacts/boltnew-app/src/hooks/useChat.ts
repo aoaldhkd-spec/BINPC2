@@ -25,7 +25,7 @@ import { applySseInsert, applySseToRoomCaches, applyLoadMessages, messageBelongs
 import { chatPairKey, dedupeChatList, pickCanonicalChat } from '../lib/chat-pair';
 import { buildChatIdAliasMap, incrementUnreadForIncoming, isIncomingChatToastTarget, remapUnreadToCanonical, clearUnreadForChat } from '../lib/chat-unread';
 import { diag } from '../lib/diag';
-import { isFunctionsLockedOpError } from '../lib/functions-lock';
+import { isFunctionsLockedOpError, isBlockedOpError, isRetryableOpError, BLOCKED_SEND_TOAST } from '../lib/functions-lock';
 import {
   filterPendingQueueForUser,
   loadPendingQueue,
@@ -863,6 +863,13 @@ export function useChat({
             pendingQueueRef.current = pendingQueueRef.current.filter(q => q.clientId !== item.clientId);
             savePendingQueue(pendingQueueRef.current); // [Part1-Fix3] localStorage 동기화
           } else if (error) {
+            if (isBlockedOpError(error)) {
+              pendingQueueRef.current = pendingQueueRef.current.filter(q => q.clientId !== item.clientId);
+              savePendingQueue(pendingQueueRef.current);
+              setMessages(prev => prev.filter(m => m.id !== item.optimisticId));
+              setBottomNotif({ type: 'chat', nickname: '', message: BLOCKED_SEND_TOAST });
+              continue;
+            }
             // client_id로 이미 저장됐는지 확인 (이전 시도 응답 분실)
             const { data: existing } = await supabase.from('messages').select('*').eq('chat_id', item.chatId).eq('client_id', item.clientId).maybeSingle();
             if (existing) {
@@ -938,6 +945,7 @@ export function useChat({
     const clientUUID = crypto.randomUUID(); // 재시도 전체에서 동일 UUID 사용 (idempotency)
     const optimisticId = `__opt_${clientUUID}`;
     const trimmed = content.trim();
+    const prevLastMessage = chatListRef.current.find(c => c.id === snapChatId)?.lastMessage ?? '';
     const optimisticMsg: Message = {
       id: optimisticId,
       chat_id: snapChatId,
@@ -993,6 +1001,16 @@ export function useChat({
               lastErr = error;
               break;
             }
+            if (isBlockedOpError(error)) {
+              setMessages(prev => prev.filter(m => m.id !== optimisticId));
+              setChatList(prev => prev.map(c =>
+                c.id === snapChatId && c.lastMessage === trimmed
+                  ? { ...c, lastMessage: prevLastMessage }
+                  : c
+              ));
+              setBottomNotif({ type: 'chat', nickname: '', message: BLOCKED_SEND_TOAST });
+              return;
+            }
             const { data: existing } = await supabase.from('messages').select('*').eq('chat_id', snapChatId).eq('client_id', clientUUID).maybeSingle();
             if (existing && (isActiveRoomChat(snapChatId) || isActiveRoomChat((existing as Message).chat_id))) {
               const saved = existing as Message;
@@ -1013,6 +1031,15 @@ export function useChat({
 
       // 모든 재시도 실패 → 롤백 대신 오프라인 큐에 보관 (재연결 시 자동 전송)
       // 낙관적 메시지는 화면에 유지 — 사용자가 메시지를 다시 입력할 필요 없음
+      if (lastErr && !isRetryableOpError(lastErr)) {
+        if (isActiveRoomChat(snapChatId)) {
+          setMessages(prev => prev.filter(m => m.id !== optimisticId));
+        }
+        if (isBlockedOpError(lastErr)) {
+          setBottomNotif({ type: 'chat', nickname: '', message: BLOCKED_SEND_TOAST });
+        }
+        return;
+      }
       console.warn('[sendMessage] 4회 재시도 실패 — 오프라인 큐에 보관, 재연결 시 자동 전송:', lastErr);
       // 큐 크기 상한 50개 — 무한 증가 방지 (가장 오래된 항목부터 제거)
       if (pendingQueueRef.current.length >= 50) pendingQueueRef.current.shift();
@@ -1106,6 +1133,18 @@ export function useChat({
             if (isFunctionsLockedOpError(msgErr)) {
               lastErr = msgErr;
               break;
+            }
+            if (isBlockedOpError(msgErr)) {
+              URL.revokeObjectURL(localBlobUrl);
+              setMessages(prev => prev.filter(m => m.id !== optimisticId));
+              setChatList(prev => prev.map(c =>
+                c.id === snapChatId && c.lastMessage === '📷 사진'
+                  ? { ...c, lastMessage: prevLastMessage }
+                  : c
+              ));
+              supabase.storage.from('chat-images').remove([data.path]).catch(() => {});
+              setBottomNotif({ type: 'chat', nickname: '', message: BLOCKED_SEND_TOAST });
+              return null;
             }
             const { data: existing } = await supabase.from('messages').select('*')
               .eq('chat_id', snapChatId).eq('client_id', clientId).maybeSingle();

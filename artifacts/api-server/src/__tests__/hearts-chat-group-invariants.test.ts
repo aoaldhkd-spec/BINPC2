@@ -302,6 +302,104 @@ describe('[Chat] persist-before-broadcast + sibling visibility', () => {
   });
 });
 
+describe('[Signal] pass→send upgrade + block policy', () => {
+  it('pass then send upgrades row to send (single row)', async () => {
+    const a = randomUUID();
+    const b = randomUUID();
+    await op({ op: 'insert', table: 'profiles', payload: { id: a, nickname: `sa-${a.slice(0, 8)}` } });
+    await op({ op: 'insert', table: 'profiles', payload: { id: b, nickname: `sb-${b.slice(0, 8)}` } });
+
+    const pass = await op({
+      op: 'insert',
+      table: 'signal_sends',
+      requesterId: a,
+      payload: { sender_id: a, receiver_id: b, action: 'pass' },
+      selectAfterWrite: true,
+      single: true,
+    });
+    expect(pass.status).toBe(200);
+    expect(pass.body.data.action).toBe('pass');
+
+    const send = await op({
+      op: 'insert',
+      table: 'signal_sends',
+      requesterId: a,
+      payload: { sender_id: a, receiver_id: b, action: 'send' },
+      selectAfterWrite: true,
+      single: true,
+    });
+    expect(send.status).toBe(200);
+    expect(send.body.data.action).toBe('send');
+    expect(send.body.data.id).toBe(pass.body.data.id);
+
+    const list = await op({
+      op: 'select',
+      table: 'signal_sends',
+      requesterId: a,
+      filters: [{ type: 'eq', col: 'sender_id', val: a }],
+    });
+    const rows = list.body.data as { action: string }[];
+    expect(rows).toHaveLength(1);
+    expect(rows[0].action).toBe('send');
+  });
+
+  it('pass→send upgrade notifies receiver via broadcast targets', async () => {
+    const a = randomUUID();
+    const b = randomUUID();
+    await op({ op: 'insert', table: 'profiles', payload: { id: a, nickname: `ta-${a.slice(0, 8)}` } });
+    await op({ op: 'insert', table: 'profiles', payload: { id: b, nickname: `tb-${b.slice(0, 8)}` } });
+    await op({
+      op: 'insert',
+      table: 'signal_sends',
+      requesterId: a,
+      payload: { sender_id: a, receiver_id: b, action: 'pass' },
+    });
+    const send = await op({
+      op: 'insert',
+      table: 'signal_sends',
+      requesterId: a,
+      payload: { sender_id: a, receiver_id: b, action: 'send' },
+      selectAfterWrite: true,
+      single: true,
+    });
+    expect(send.status).toBe(200);
+    const targets = collectBroadcastTargets('signal_sends', send.body.data as Record<string, unknown>);
+    expect(targets).toContain(a);
+    expect(targets).toContain(b);
+  });
+
+  it('block_type=block 이면 양방향 signal_sends INSERT 가 403 BLOCKED', async () => {
+    const a = randomUUID();
+    const b = randomUUID();
+    await op({ op: 'insert', table: 'profiles', payload: { id: a, nickname: `sba-${a.slice(0, 8)}` } });
+    await op({ op: 'insert', table: 'profiles', payload: { id: b, nickname: `sbb-${b.slice(0, 8)}` } });
+    await op({
+      op: 'insert',
+      table: 'blocked_users',
+      requesterId: a,
+      payload: { user_id: a, target_id: b, block_type: 'block' },
+    });
+
+    const fromBlocker = await op({
+      op: 'insert',
+      table: 'signal_sends',
+      requesterId: a,
+      payload: { sender_id: a, receiver_id: b, action: 'send' },
+    });
+    expect(fromBlocker.status).toBe(403);
+    expect(fromBlocker.body.error?.code).toBe('BLOCKED');
+
+    const fromBlocked = await op({
+      op: 'insert',
+      table: 'signal_sends',
+      requesterId: b,
+      payload: { sender_id: b, receiver_id: a, action: 'send' },
+    });
+    expect(fromBlocked.status).toBe(403);
+    expect(fromBlocked.body.error?.code).toBe('BLOCKED');
+  });
+});
+
 describe('[Group] max 4 + unlimited members + both see message', () => {
   async function seedGroup(id: string, name: string) {
     const res = await op({

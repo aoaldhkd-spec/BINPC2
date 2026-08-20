@@ -21,3 +21,22 @@ export function isFunctionsLockedOpError(error: unknown): boolean {
   const e = error as { code?: string };
   return e.code === 'FUNCTIONS_LOCKED';
 }
+
+/** 차단된 상대에게 메시지·시그널 전송 시 서버 code BLOCKED */
+export const BLOCKED_SEND_TOAST = '차단된 상대와는 메시지/시그널을 보낼 수 없어요';
+
+/** /op·insert 응답이 상호 차단인지 (서버 code BLOCKED) */
+export function isBlockedOpError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const e = error as { code?: string };
+  return e.code === 'BLOCKED';
+}
+
+/** 네트워크/일시 오류 — 오프라인 큐에 보관할 오류 */
+export function isRetryableOpError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return true;
+  const e = error as { code?: string };
+  if (e.code === 'BLOCKED' || e.code === 'FUNCTIONS_LOCKED' || e.code === 'FORBIDDEN') return false;
+  if (e.code === 'INVALID_INPUT' || e.code === 'RATE_LIMIT') return false;
+  return true;
+}
