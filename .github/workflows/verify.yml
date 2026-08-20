@@ -18,5 +18,6 @@ jobs:
           cache: 'pnpm'
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
+      - run: pnpm run verify:guards
       - run: pnpm run audit:code
       - run: pnpm -r --filter "./artifacts/**" --if-present run test:unit

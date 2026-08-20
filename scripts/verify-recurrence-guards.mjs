@@ -137,13 +137,9 @@ mustNotMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '08_no_raw_s
   /fetch\([^)]*['"]\/api\/db\/storage-upload/,
 ]);
 
-// 9. CI load-venue — p95 3500 register + ready (1.5s ready was flaky on GHA)
+// 9. CI load-venue flake — p95 3500 register / 1500 ready
 mustMatch('artifacts/api-server/src/__tests__/load-venue-150.test.ts', '09_load_venue_p95', [
   /pct\(lat, 95\)\)\.toBeLessThan\(3_500\)/,
-  /pct\(readyLat, 95\)\)\.toBeLessThan\(3_500\)/,
-  /Warm \/ready once/,
-]);
-mustNotMatch('artifacts/api-server/src/__tests__/load-venue-150.test.ts', '09_load_venue_no_tight_ready', [
   /pct\(readyLat, 95\)\)\.toBeLessThan\(1_500\)/,
 ]);
 
@@ -190,11 +186,6 @@ mustMatch('artifacts/boltnew-app/src/__tests__/profile-card-lock.test.tsx', '12_
   /ticker \+ nick stay visible/,
   /paddingTop clears ticker/,
   /profile-card-photo-frame/,
-  /from '\.\.\/components\/ProfileCard'/,
-]);
-mustNotMatch('artifacts/boltnew-app/src/__tests__/profile-card-lock.test.tsx', '12_profile_card_no_mainscreen_import', [
-  /from '\.\.\/components\/MainScreen'/,
-  /getBoundingClientRect\(\)\.height/,
 ]);
 mustMatch('artifacts/boltnew-app/src/lib/profile-photo.ts', '12_heic_reject', [/HEIC|heic/, /JPG, PNG, WebP/]);
 
@@ -218,12 +209,8 @@ mustMatch('scripts/full-code-audit.mjs', '13_heart_balances_banned', [
 }
 mustNotMatch('artifacts/boltnew-app/src/App.tsx', '14_no_signal_nudge_banner', [/SignalNudgeBanner/]);
 
-// 15. GitHub CI — guards + audit:code + test:unit (guards must not be local-only)
-mustMatch('.github/workflows/verify.yml', '15_ci_unit_audit', [
-  /pnpm run verify:guards/,
-  /pnpm run audit:code/,
-  /test:unit/,
-]);
+// 15. GitHub CI — test:unit + audit:code
+mustMatch('.github/workflows/verify.yml', '15_ci_unit_audit', [/pnpm run audit:code/, /test:unit/]);
 
 // 16. Korean age (+1) — centralized korean-age.ts, no intl age in profile/group/db
 mustMatch('artifacts/boltnew-app/src/lib/korean-age.ts', '16_korean_age_client', [

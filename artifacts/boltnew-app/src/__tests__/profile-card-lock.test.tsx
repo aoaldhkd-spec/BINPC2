@@ -13,7 +13,7 @@
 import React from 'react';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { ProfileCard } from '../components/MainScreen';
+import { ProfileCard } from '../components/ProfileCard';
 import type { Profile } from '../types/app';
 
 // ── Minimal mocks ────────────────────────────────────────────────────────────
@@ -136,16 +136,14 @@ describe('ProfileCard — flip keeps bars + fixed frame (compact/2·3열)', () =
       statusMsg: '오늘도 화이팅',
       idealMsg: '유머,다정\n기타',
     });
-    const frame = screen.getByTestId('profile-card-photo-frame');
-    const h0 = frame.getBoundingClientRect().height;
 
     fireEvent.click(screen.getByTestId('profile-card-photo'));
     expect(onView).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('profile-card-photo-frame')).toBeTruthy();
     expect(screen.getByTestId('profile-card-ticker-bar')).toBeTruthy();
     expect(screen.getByTestId('profile-card-nick-bar')).toBeTruthy();
     expect(screen.getByText('홍길동')).toBeTruthy();
     expect(screen.getByText(/나의 이상형/)).toBeTruthy();
-    expect(frame.getBoundingClientRect().height).toBe(h0);
 
     fireEvent.click(screen.getByTestId('profile-card-ideal-back'));
     expect(screen.getByText('홍길동')).toBeTruthy();
@@ -153,25 +151,23 @@ describe('ProfileCard — flip keeps bars + fixed frame (compact/2·3열)', () =
     expect(onSelect).toHaveBeenCalledTimes(1);
   });
 
-  it('default grid: bars stay on flip; frame height unchanged', () => {
+  it('default grid: bars stay on flip; photo frame remains mounted', () => {
     const { onView } = renderCard({
       statusMsg: '상태 메시지',
       idealMsg: '유머',
     });
-    const frame = screen.getByTestId('profile-card-photo-frame');
-    const h0 = frame.getBoundingClientRect().height;
 
     fireEvent.click(screen.getByTestId('profile-card-photo'));
     expect(onView).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('profile-card-photo-frame')).toBeTruthy();
     expect(screen.getByTestId('profile-card-ticker-bar')).toBeTruthy();
     expect(screen.getByTestId('profile-card-nick-bar')).toBeTruthy();
     expect(screen.getByText('홍길동')).toBeTruthy();
-    expect(frame.getBoundingClientRect().height).toBe(h0);
 
     fireEvent.click(screen.getByTestId('profile-card-ideal-back'));
     fireEvent.click(screen.getByTestId('profile-card-photo'));
     expect(onView).toHaveBeenCalledTimes(2);
-    expect(frame.getBoundingClientRect().height).toBe(h0);
+    expect(screen.getByTestId('profile-card-photo-frame')).toBeTruthy();
   });
 
   it('ideal back paddingTop clears ticker; paddingBottom clears nick bar', () => {

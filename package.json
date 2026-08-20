@@ -12,7 +12,8 @@
     "test:unit": "corepack pnpm -r --filter \"./artifacts/**\" --if-present run test:unit",
     "verify": "node scripts/verify-recurrence-guards.mjs && node scripts/full-code-audit.mjs && node scripts/verify-all-features.mjs",
     "endurance:5h": "node scripts/endurance-5h.mjs",
-    "knip": "knip"
+    "knip": "knip",
+    "test": "corepack pnpm run test:unit"
   },
   "private": true,
   "devDependencies": {
