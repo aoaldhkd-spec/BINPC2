@@ -466,20 +466,22 @@ mustMatch('artifacts/boltnew-app/src/components/TutorialVideo.tsx', '26_tutorial
   /overflow-y-auto overflow-x-hidden scrollbar-hide/,
 ]);
 
-// 27. ProfileCard surfaces: default/dark-neon always dim; y2k/minimal dim with App darkMode
+// 27. ProfileCard surfaces: default always white; dark-neon/darkMode only for others
 mustExist('artifacts/boltnew-app/src/lib/profile-card-theme.ts', '27_profile_card_theme_lib');
 mustMatch('artifacts/boltnew-app/src/lib/theme.tsx', '27_isDarkTheme_chrome_unchanged', [
   /export function isDarkTheme/,
   /theme === 'default' \|\| theme === 'dark-neon'/,
 ]);
-mustMatch('artifacts/boltnew-app/src/lib/profile-card-theme.ts', '27_card_dims_dark_themes', [
+mustMatch('artifacts/boltnew-app/src/lib/profile-card-theme.ts', '27_default_cards_stay_white', [
   /export function isProfileCardDark/,
-  /isDarkTheme\(theme\) \|\| darkMode/,
+  /theme === 'default'\) return false/,
+  /theme === 'dark-neon'\) return true/,
+  /bg-white border-gray-100/,
   /bg-slate-900/,
   /rgba\(15,\s*23,\s*42/,
 ]);
-mustNotMatch('artifacts/boltnew-app/src/lib/profile-card-theme.ts', '27_no_default_forced_white', [
-  /theme === 'default'\) return false/,
+mustNotMatch('artifacts/boltnew-app/src/lib/profile-card-theme.ts', '27_no_isDarkTheme_on_cards', [
+  /isDarkTheme\(theme\) \|\| darkMode/,
 ]);
 mustMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '27_profile_card_uses_isProfileCardDark', [
   /isProfileCardDark\(theme, darkMode\)/,
@@ -489,13 +491,14 @@ mustMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '27_profile_ca
 mustMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '27_main_passes_darkMode_to_card', [
   /darkMode=\{darkMode\}/,
 ]);
-mustMatch('artifacts/boltnew-app/src/lib/profile-card-theme.test.ts', '27_theme_tests_dark_dim', [
-  /dark themes use non-white card shell/,
+mustMatch('artifacts/boltnew-app/src/lib/profile-card-theme.test.ts', '27_theme_tests_default_white', [
+  /isProfileCardDark keeps default white/,
+  /default theme keeps white card shell even when darkMode is on/,
   /App darkMode dims light theme cards/,
 ]);
-mustMatch('artifacts/boltnew-app/src/__tests__/product-invariants.test.ts', '27_product_invariants_card_dark', [
-  /dark theme profile cards use non-white surfaces via isProfileCardDark/,
-  /isDarkTheme\(theme\) \|\| darkMode/,
+mustMatch('artifacts/boltnew-app/src/__tests__/product-invariants.test.ts', '27_product_invariants_default_white_cards', [
+  /default theme ProfileCards stay white/,
+  /theme === 'default'\) return false/,
 ]);
 
 // 28. Talent / feature picker tags ? emoji banana + kiss/heat/milk cluster + face/body catalog
