@@ -46,7 +46,7 @@ const BASIC: Topic[] = [
         variant: 'tabs',
         tips: [
           { icon: '👥', title: '참여자', desc: '오늘 온 사람 카드.' },
-          { icon: '💕', title: '시그널', desc: '미션 후 패스·시그널.' },
+          { icon: '📡', title: '시그널', desc: '미션 후 패스·시그널.' },
           { icon: '📊', title: '통계', desc: '하트 수·비율.' },
           { icon: '🏆', title: '랭킹', desc: 'TOP 10.' },
         ],
