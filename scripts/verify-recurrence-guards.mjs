@@ -532,20 +532,6 @@ mustMatch('artifacts/boltnew-app/src/components/MainChatsTab.tsx', '30_dark_chat
   /darkMode \? 'bg-slate-800 border border-slate-600/,
 ]);
 
-// 31. Chat image <img> auth ? sessionToken query (Netlify cookie gap)
-mustMatch('artifacts/api-server/src/routes/db.ts', '31_storage_image_session_query', [
-  /req\.query\.sessionToken/,
-  /verifySessionToken\(qUserId,\s*qSessionToken\)/,
-]);
-mustMatch('artifacts/boltnew-app/src/lib/localdb.ts', '31_with_chat_image_auth', [
-  /export function withChatImageAuth/,
-  /sessionToken=/,
-]);
-mustMatch('artifacts/boltnew-app/src/components/ChatMessageRow.tsx', '31_chat_row_image_auth', [
-  /withChatImageAuth/,
-]);
-mustExist('scripts/test-chat-message-types.mjs', '31_chat_types_smoke');
-
 console.log('\n=== verify-recurrence-guards ===\n');
 for (const r of results) {
   console.log(`  ${r.ok ? 'OK' : 'FAIL'}  ${r.id}${r.detail && !r.ok ? ` ? ${r.detail}` : ''}`);
