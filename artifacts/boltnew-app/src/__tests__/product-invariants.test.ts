@@ -277,7 +277,7 @@ describe('product copy + notification invariants', () => {
     expect(main).not.toMatch(/userSignals\.find\(s => s\.user_id === profile\.id\)/);
   });
 
-  it('default theme ProfileCards stay white; dark-neon/darkMode get dark surfaces', () => {
+  it('dark theme profile cards use non-white surfaces via isProfileCardDark', () => {
     const theme = read('lib/theme.tsx');
     const card = read('components/ProfileCard.tsx');
     const surfaces = read('lib/profile-card-theme.ts');
@@ -285,9 +285,8 @@ describe('product copy + notification invariants', () => {
     expect(theme).toContain('export function isDarkTheme');
     expect(theme).toMatch(/theme === 'default' \|\| theme === 'dark-neon'/);
     expect(surfaces).toContain('export function isProfileCardDark');
-    expect(surfaces).toContain("theme === 'default') return false");
-    expect(surfaces).toContain("theme === 'dark-neon') return true");
-    expect(surfaces).not.toContain('isDarkTheme(theme) || darkMode');
+    expect(surfaces).toContain('isDarkTheme(theme) || darkMode');
+    expect(surfaces).not.toContain("theme === 'default') return false");
     expect(card).toContain('isProfileCardDark(theme, darkMode)');
     expect(card).toContain('profileCardSurfaces(theme, darkMode)');
     expect(card).toContain('darkMode = false');
