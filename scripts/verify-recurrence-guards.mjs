@@ -217,7 +217,11 @@ mustMatch('artifacts/api-server/src/routes/db.ts', '32_storage_image_session_que
 
 mustMatch('artifacts/boltnew-app/src/components/EntryGateScreen.tsx', '33_entry_logo_tester', [
   /data-gate="entry-logo-tester"/,
+  /verifyPanelPassword\('test'/,
   /navigateToAppPath\('test'\)/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/components/EntryGateScreen.tsx', '33_entry_logo_not_direct', [
+  /data-gate="entry-logo-tester"[\s\S]{0,200}onClick=\{\(\) => navigateToAppPath\('test'\)\}/,
 ]);
 mustMatch('artifacts/boltnew-app/src/components/WaitingOverlay.tsx', '33_waiting_logo_tester', [
   /data-gate="waiting-logo-tester"/,

@@ -145,7 +145,9 @@ describe('product copy + notification invariants', () => {
     const waiting = read('components/WaitingOverlay.tsx');
     const reset = read('components/ResetButton.tsx');
     expect(entry).toContain('data-gate="entry-logo-tester"');
+    expect(entry).toContain("verifyPanelPassword('test'");
     expect(entry).toContain("navigateToAppPath('test')");
+    expect(entry).not.toMatch(/data-gate="entry-logo-tester"[\s\S]{0,200}onClick=\{\(\) => navigateToAppPath\('test'\)\}/);
     expect(waiting).toContain('data-gate="waiting-logo-tester"');
     expect(waiting).toContain("verifyPanelPassword('test'");
     expect(waiting).toContain("navigateToAppPath('test')");
@@ -154,6 +156,17 @@ describe('product copy + notification invariants', () => {
     expect(reset).toContain('data-gate="logo-reset"');
     expect(reset).toContain('openResetGate');
     expect(reset).not.toMatch(/navigateToAppPath\('test'\)/);
+  });
+
+  it('entry and waiting have no visible test/admin shortcut buttons', () => {
+    const entry = read('components/EntryGateScreen.tsx');
+    const waiting = read('components/WaitingOverlay.tsx');
+    for (const src of [entry, waiting]) {
+      expect(src).not.toMatch(/href="\/test"/);
+      expect(src).not.toMatch(/href="\/admin"/);
+      expect(src).not.toContain('>테스트</a>');
+      expect(src).not.toContain('>관리자</a>');
+    }
   });
 
   it('admin fixed nickname survives event-end reset on server and client', () => {

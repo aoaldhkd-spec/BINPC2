@@ -664,7 +664,7 @@ describe('이상형 / 나의 특징 chip groups', () => {
   it('uses the same 성격 chips on both pickers', () => {
     const ideal = IDEAL_TAG_GROUPS.find((g) => g.label === '성격 💫')!.tags;
     const feature = FEATURE_TAG_GROUPS.find((g) => g.label === '성격 💫')!.tags;
-    expect([...ideal]).toEqual(['다정한', '시크한', '장난끼있는', '차분한', '유머있는', '솔직한', '리드하는', '챙겨주는', '배려심많은', '긍정적인', '활발한', '수줍은']);
+    expect([...ideal]).toEqual(['다정한 💕', '시크한 😎', '장난끼있는 😜', '차분한 🧘', '유머있는 😂', '솔직한 💬', '리드하는 👑', '챙겨주는 🤗', '배려심많은 💝', '긍정적인 ☀️', '활발한 ⚡', '수줍은 🙈']);
     expect([...feature]).toEqual([...ideal]);
   });
 
@@ -674,7 +674,7 @@ describe('이상형 / 나의 특징 chip groups', () => {
 
   it('drops 고양이상 and adds face/body chips used by both pickers', () => {
     expect(pickerTags).not.toContain('고양이상');
-    for (const tag of ['텀상탑 🔄', '탑상텀 🔃', '잡식 🍽', '키스잘함', '달아오르게 잘함', '🍌 바나나 잘먹음', '🥛 우유 잘먹음']) {
+    for (const tag of ['텀상탑 🔄', '탑상텀 🔃', '잡식 🍽', '키스잘함 💋', '달아오르게 잘함 🔥', '🍌 바나나 잘먹음', '🥛 우유 잘먹음']) {
       expect(pickerTags).toContain(tag);
     }
     const face = IDEAL_TAG_GROUPS.find((g) => g.label === '얼굴상 👀')!.tags;
@@ -691,14 +691,26 @@ describe('이상형 / 나의 특징 chip groups', () => {
       '텀상탑 🔄',
       '탑상텀 🔃',
     ]);
-    expect([...body]).toEqual(['키큰 📏', '슬림', '근육있는 💪', '통통귀여운', '보통체형', '잡식 🍽']);
+    expect([...body]).toEqual(['키큰 📏', '슬림 🦴', '근육있는 💪', '통통귀여운 🧸', '보통체형 👤', '잡식 🍽']);
   });
 
   it('matches emoji face/body chips with legacy plain saves', () => {
     expect(tagsAreSynonyms('텀상탑 🔄', '텀상탑')).toBe(true);
     expect(tagsAreSynonyms('잡식 🍽', '잡식')).toBe(true);
     expect(tagsAreSynonyms('감자상 🥔', '감자상')).toBe(true);
+    expect(tagsAreSynonyms('다정한 💕', '다정한')).toBe(true);
+    expect(tagsAreSynonyms('키스잘함 💋', '키스잘함')).toBe(true);
+    expect(tagsAreSynonyms('슬림 🦴', '슬림')).toBe(true);
     expect(getIdealTagSpec('고양이상')?.group).toBe('얼굴상 👀');
+  });
+
+  it('emoji chips cover 체형·매력·재능·라이프·성격 groups', () => {
+    for (const label of ['체형 💪', '매력 ✨', '재능 ⭐', '라이프 🏠', '성격 💫'] as const) {
+      const g = IDEAL_TAG_GROUPS.find((x) => x.label === label)!;
+      for (const tag of g.tags) {
+        expect(/\p{Extended_Pictographic}/u.test(tag), `${label} ${tag}`).toBe(true);
+      }
+    }
   });
 });
 

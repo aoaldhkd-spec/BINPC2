@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
-import { navigateToAppPath } from '../lib/panel-password';
+import { navigateToAppPath, verifyPanelPassword } from '../lib/panel-password';
 
 export function EntryGateScreen({ entryPassword, onVerified }: { entryPassword: string; onVerified: () => void }) {
   const [input, setInput] = useState('');
@@ -9,6 +9,10 @@ export function EntryGateScreen({ entryPassword, onVerified }: { entryPassword: 
   const [shake, setShake] = useState(false);
   const [visible, setVisible] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const [testOpen, setTestOpen] = useState(false);
+  const [testPw, setTestPw] = useState('');
+  const [testErr, setTestErr] = useState('');
+  const [testBusy, setTestBusy] = useState(false);
 
   // 타이머 ref — 언마운트 시 취소해 stale 콜백 방지
   const verifyTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -36,6 +40,22 @@ export function EntryGateScreen({ entryPassword, onVerified }: { entryPassword: 
     }
   };
 
+  const confirmTest = async () => {
+    if (testBusy) return;
+    setTestBusy(true);
+    setTestErr('');
+    const result = await verifyPanelPassword('test', testPw);
+    setTestBusy(false);
+    if (result === 'ok') {
+      setTestOpen(false);
+      setTestPw('');
+      navigateToAppPath('test');
+    } else {
+      setTestErr(result === 'limited' ? '시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.' : '비밀번호가 틀렸습니다');
+      setTestPw('');
+    }
+  };
+
   const todayHint = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit' })
     .format(new Date())
     .replace(/[^\d]/g, '');
@@ -50,7 +70,7 @@ export function EntryGateScreen({ entryPassword, onVerified }: { entryPassword: 
           <button
             type="button"
             data-gate="entry-logo-tester"
-            onClick={() => navigateToAppPath('test')}
+            onClick={() => { setTestPw(''); setTestErr(''); setTestOpen(true); }}
             title="테스터"
             aria-label="테스터"
             className="text-5xl mb-2 drop-shadow-lg inline-block active:scale-95 transition-transform cursor-pointer"
@@ -94,6 +114,31 @@ export function EntryGateScreen({ entryPassword, onVerified }: { entryPassword: 
         </form>
         <p className="text-center text-slate-600 text-xs">운영진에게 입장 코드를 받아 입력하세요</p>
       </div>
+
+      {testOpen && (
+        <div className="fixed inset-0 z-[500] flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
+          onClick={() => { setTestOpen(false); setTestPw(''); setTestErr(''); }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xs p-6 space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="text-center">
+              <span className="text-3xl">🧪</span>
+              <h3 className="text-gray-900 font-black text-lg mt-2">테스터 확인</h3>
+              <p className="text-gray-400 text-xs mt-1">테스터 비밀번호를 입력하세요</p>
+            </div>
+            <input type="password" value={testPw} onChange={e => { setTestPw(e.target.value); setTestErr(''); }}
+              onKeyDown={e => { if (e.key === 'Enter') void confirmTest(); }}
+              placeholder="테스터 비밀번호" autoFocus disabled={testBusy}
+              className={`w-full border-2 text-center text-lg font-bold rounded-xl px-4 py-3 focus:outline-none ${testErr ? 'border-red-400 bg-red-50 text-red-700' : 'border-gray-200 focus:border-cyan-500'}`} />
+            {testErr && <p className="text-red-500 text-xs text-center font-bold">{testErr}</p>}
+            <div className="flex gap-2">
+              <button type="button" onClick={() => { setTestOpen(false); setTestPw(''); setTestErr(''); }}
+                className="flex-1 py-2.5 rounded-xl border-2 border-gray-200 text-gray-500 text-sm font-semibold">취소</button>
+              <button type="button" onClick={() => void confirmTest()} disabled={testBusy}
+                className="flex-1 py-2.5 rounded-xl bg-cyan-500 text-white text-sm font-bold disabled:opacity-60">{testBusy ? '확인 중…' : '확인'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`
         @keyframes shake {
           0%,100% { transform: translateX(0); }
