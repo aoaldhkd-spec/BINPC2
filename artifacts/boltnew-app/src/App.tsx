@@ -6,6 +6,7 @@ import { supabase, setLocalDbUserId, setDeviceRecoveryPin, fetchAndSetSseToken, 
 import { diag } from './lib/diag';
 import { subscribeNetUi, resetNetUiForRetry, type NetUiStatus } from './lib/net-health';
 import { excludeSwipeGestureVerifyProfiles, genAvatar, isSwipeGestureVerifyProfile } from './lib/profile';
+import { mergeProfilesPreserveOrder, patchProfileInPlace, sortProfilesStable } from './lib/profile-list-order';
 import { findProfileById, isCompleteProfile } from './lib/profile-session';
 import {
   shouldShowWaitingOverlay,
@@ -102,7 +103,6 @@ function App() {
   const userIdRef = useRef<string | null>(null);
   userIdRef.current = currentUserId;
 
-  // SSE 연결을 현재 userId로 식별 → 서버가 당사자 이벤트만 라우팅
   // userId 변경 시 SSE 인증 토큰을 새로 발급받아 연결
   useEffect(() => {
     setLocalDbUserId(currentUserId);
@@ -322,7 +322,7 @@ function App() {
             const { data: direct } = await supabase.from('profiles').select('*').eq('id', uid).maybeSingle();
             if (direct) {
               me = direct as Profile;
-              setProfiles(prev => prev.some(p => p.id === me!.id) ? prev.map(p => p.id === me!.id ? me! : p) : [me!, ...prev]);
+              setProfiles(prev => prev.some(p => p.id === me!.id) ? prev.map(p => p.id === me!.id ? me! : p) : mergeProfilesPreserveOrder(prev, [...prev, me!]));
             }
           }
           if (tryEnterMain(me)) {
@@ -1091,8 +1091,14 @@ function App() {
     const { data } = await supabase.from('profiles').select('*').order('created_at', { ascending: false });
     if (data) {
       const visible = excludeSwipeGestureVerifyProfiles(data as Profile[], userIdRef.current);
-      setProfiles(visible);
-      try { ls.setItem(MATCHING_PROFILES_CACHE_KEY, JSON.stringify(visible)); } catch { /* quota */ }
+      // 전량 교체 금지: SSE 패치 중 리프레시해도 기존 상대 순서 유지 + 안정 키로 신규만 삽입
+      setProfiles(prev => {
+        const merged = prev.length === 0
+          ? sortProfilesStable(visible)
+          : mergeProfilesPreserveOrder(prev, visible);
+        try { ls.setItem(MATCHING_PROFILES_CACHE_KEY, JSON.stringify(merged)); } catch { /* quota */ }
+        return merged;
+      });
       return visible;
     }
     return [];
@@ -1244,13 +1250,13 @@ function App() {
           const incoming = payload.new as Profile;
           if (isSwipeGestureVerifyProfile(incoming) && incoming.id !== userIdRef.current) return prev;
           if (prev.find((p) => p.id === incoming.id)) return prev;
-          return [incoming, ...prev];
+          return mergeProfilesPreserveOrder(prev, [...prev, incoming]);
         }))
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' },
         (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) =>
           setProfiles((prev) => {
             const incoming = payload.new as Profile;
-            const next = prev.map((p) => p.id === incoming.id ? { ...p, ...incoming } : p);
+            const next = patchProfileInPlace(prev, incoming);
             return excludeSwipeGestureVerifyProfiles(next, userIdRef.current);
           }))
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'profiles' },
@@ -1629,7 +1635,7 @@ function App() {
       ls.setItem(MATCHING_USER_KEY, profile.id);
       ls.removeItem(MATCHING_DRAFT_KEY);
       isNewRegistration.current = true;
-      setProfiles(prev => prev.some(p => p.id === profile.id) ? prev : [profile as Profile, ...prev]);
+      setProfiles(prev => prev.some(p => p.id === profile.id) ? prev : mergeProfilesPreserveOrder(prev, [...prev, profile as Profile]));
       setCurrentUserId(profile.id);
       setProfileBoot('checking');
       setView('loading-main');
@@ -1666,7 +1672,7 @@ function App() {
         ls.removeItem(MATCHING_DRAFT_KEY);
         setDeviceRecoveryPin(pinCode);
         isNewRegistration.current = true;
-        setProfiles(prev => prev.some(p => p.id === profile.id) ? prev : [profile as Profile, ...prev]);
+        setProfiles(prev => prev.some(p => p.id === profile.id) ? prev : mergeProfilesPreserveOrder(prev, [...prev, profile as Profile]));
         setCurrentUserId(profile.id);
         setProfileBoot('checking');
         setEntryVerified(true);

@@ -383,3 +383,19 @@ describe('Korean age recurrence guard', () => {
     }
   });
 });
+
+describe('participant profile list order invariants', () => {
+  it('deck filter uses stable sort; App merges profiles instead of blind prepend/replace', () => {
+    const deck = read('lib/profile-deck-filter.ts');
+    const order = read('lib/profile-list-order.ts');
+    const app = read('App.tsx');
+    expect(deck).toContain('sortProfilesStable');
+    expect(order).toContain('mergeProfilesPreserveOrder');
+    expect(order).toContain('patchProfileInPlace');
+    expect(order).toContain('created_at');
+    expect(app).toContain('mergeProfilesPreserveOrder');
+    expect(app).toContain('patchProfileInPlace');
+    expect(app).not.toMatch(/return \[incoming, \.\.\.prev\]/);
+    expect(app).toContain('mergeProfilesPreserveOrder(prev, visible)');
+  });
+});
