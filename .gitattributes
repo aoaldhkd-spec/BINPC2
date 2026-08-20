@@ -1,0 +1,2 @@
+﻿# Keep recurrence guards as UTF-8 so Hangul/emoji regexes do not become ??
+scripts/verify-recurrence-guards.mjs text eol=lf working-tree-encoding=UTF-8

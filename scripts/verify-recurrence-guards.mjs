@@ -561,7 +561,11 @@ mustMatch('artifacts/boltnew-app/src/components/ChatMessageRow.tsx', '32_chat_ro
 ]);
 mustExist('scripts/test-chat-message-types.mjs', '32_chat_types_smoke');
 
-// 33. User header gates: logo=reset, npc=admin, sulbun=none; theme FAB only after profile
+// 33. Screen-differentiated logo: entry->tester; main/waiting logo=reset, npc=admin, sulbun=egg
+mustMatch('artifacts/boltnew-app/src/components/EntryGateScreen.tsx', '33_entry_logo_tester', [
+  /data-gate="entry-logo-tester"/,
+  /navigateToAppPath\('test'\)/,
+]);
 mustMatch('artifacts/boltnew-app/src/components/ResetButton.tsx', '33_user_header_gates', [
   /data-gate="logo-reset"/,
   /data-gate="npc-admin"/,
@@ -570,7 +574,7 @@ mustMatch('artifacts/boltnew-app/src/components/ResetButton.tsx', '33_user_heade
   /openAdminGate/,
   /handleSulbunClick/,
 ]);
-mustNotMatch('artifacts/boltnew-app/src/components/ResetButton.tsx', '33_logo_not_tester', [
+mustNotMatch('artifacts/boltnew-app/src/components/ResetButton.tsx', '33_main_logo_not_tester', [
   /data-gate="logo-reset"[\s\S]{0,200}navigateToAppPath\('test'\)/,
   /openResetGate[\s\S]{0,80}navigateToAppPath\('test'\)/,
 ]);
@@ -599,6 +603,8 @@ mustMatch('artifacts/boltnew-app/src/AdminApp.tsx', '33_admin_nick_restore_clien
 ]);
 mustMatch('artifacts/boltnew-app/src/__tests__/product-invariants.test.ts', '33_product_invariants_gates', [
   /user header gates: logo=reset, npc=admin, sulbun=no staff gate/,
+  /entry logo goes to tester; main logo stays reset/,
+  /data-gate="entry-logo-tester"/,
   /theme switcher only after profile-ready/,
 ]);
 
