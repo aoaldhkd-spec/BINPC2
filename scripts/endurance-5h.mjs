@@ -15,13 +15,16 @@
  *   ENDURANCE_LOCK_FILE       default scripts/.soak-results/endurance.lock
  *   ENDURANCE_LOCK_STALE_MS   stale lock override (default 6h)
  *   ENDURANCE_FORCE_LOCK=1    run even if another lock is active (not recommended)
+ *   ENDURANCE_CYCLE_TIMEOUT_MS  per-cycle hard timeout (default 180s)
+ *   ENDURANCE_SSE_CONNECT_MS    SSE handshake timeout (default 30s)
  *
  * Ops / recurrence:
  *   - SSE 401 @ 1h: proactive 80% token refresh + ensureConnected each cycle (mirrors localdb.ts).
  *   - admin_event_end_reset: wipes participant rows — auto re-provision soak users + chat (recoverContext).
  *   - Rate limit 429: run ONE endurance at a time (Render numInstances:1). Parallel soaks share NAT IP.
  *   - functions_locked: exit 2 at start; mid-run admin lock skips cycle (not fail streak).
- *   - Watchdog: scripts/endurance-watchdog.mjs restarts on crash/abort with remaining hours.
+ *   - Watchdog: scripts/endurance-watchdog.mjs restarts on crash/abort/stall with remaining hours.
+ *   - Detached spawn + lock heartbeat — survives Cursor/terminal exit; stall ≠ silent hang.
  */
 import { appendFileSync, existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -43,6 +46,8 @@ const DEADLINE_AT = process.env.ENDURANCE_DEADLINE_AT
   ? Number(process.env.ENDURANCE_DEADLINE_AT)
   : null;
 const DURATION_MS = HOURS * 60 * 60 * 1000;
+const CYCLE_TIMEOUT_MS = Number(process.env.ENDURANCE_CYCLE_TIMEOUT_MS || 180_000);
+const SSE_CONNECT_MS = Number(process.env.ENDURANCE_SSE_CONNECT_MS || 30_000);
 
 // 앱 localdb.ts 와 동일 — 1h TTL, 80% 지점(720s 남을 때) 선제 갱신
 const SSE_TOKEN_TTL_SEC = 3600;
@@ -55,6 +60,43 @@ function log(event) {
   appendFileSync(METRICS, `${JSON.stringify({ ts: new Date().toISOString(), runId: RUN_ID, ...event })}\n`);
   const tag = event.ok === false ? 'FAIL' : event.type ?? 'info';
   console.log(`[${tag}]`, event.msg ?? JSON.stringify(event));
+}
+
+/** Reject if `promise` does not settle within `ms`. */
+function withTimeout(promise, ms, label) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+function writeLockState(patch = {}) {
+  mkdirSync(dirname(LOCK_PATH), { recursive: true });
+  let prev = {};
+  try {
+    if (existsSync(LOCK_PATH)) prev = JSON.parse(readFileSync(LOCK_PATH, 'utf8'));
+  } catch { /* corrupt — overwrite */ }
+  writeFileSync(LOCK_PATH, JSON.stringify({
+    ...prev,
+    runId: RUN_ID,
+    pid: process.pid,
+    startedAt: prev.startedAt || Date.now(),
+    deadlineAt: DEADLINE_AT ?? prev.deadlineAt ?? (Date.now() + DURATION_MS),
+    api: API,
+    hours: HOURS,
+    metrics: METRICS,
+    heartbeatAt: Date.now(),
+    ...patch,
+  }), 'utf8');
+}
+
+function heartbeat(phase, cycle = null, { quiet = false } = {}) {
+  writeLockState({
+    phase,
+    ...(cycle != null ? { lastCycle: cycle } : {}),
+  });
+  if (!quiet) log({ type: 'heartbeat', phase, cycle, pid: process.pid });
 }
 
 function parseCookies(setCookieHeaders) {
@@ -117,7 +159,7 @@ async function fetchSseToken(jar, sessionToken, userId) {
   return { status: res.status, token, expiresAt, json };
 }
 
-/** SSE 연결 — 401 시 on401Refresh 한 번 호출 후 재시도 */
+/** SSE 연결 — 401 시 on401Refresh 한 번 호출 후 재시도. Handshake has connect timeout. */
 function openSse(userId, token, on401Refresh) {
   const events = [];
   let buffer = '';
@@ -125,7 +167,24 @@ function openSse(userId, token, on401Refresh) {
 
   const readLoop = async (tok, canRetry) => {
     const url = `${API}/events?userId=${encodeURIComponent(userId)}&token=${encodeURIComponent(tok)}`;
-    const res = await fetch(url, { headers: { Accept: 'text/event-stream' }, signal: ac.signal });
+    const connectAc = new AbortController();
+    const connectTimer = setTimeout(() => connectAc.abort(), SSE_CONNECT_MS);
+    const onParentAbort = () => connectAc.abort();
+    ac.signal.addEventListener('abort', onParentAbort);
+    let res;
+    try {
+      res = await fetch(url, {
+        headers: { Accept: 'text/event-stream' },
+        signal: connectAc.signal,
+      });
+    } catch (e) {
+      if (ac.signal.aborted) throw e;
+      if (connectAc.signal.aborted) throw new Error(`SSE connect timeout after ${SSE_CONNECT_MS}ms`);
+      throw e;
+    } finally {
+      clearTimeout(connectTimer);
+      ac.signal.removeEventListener('abort', onParentAbort);
+    }
     if (res.status === 401 && canRetry && on401Refresh) {
       const fresh = await on401Refresh();
       if (fresh?.token) return readLoop(fresh.token, false);
@@ -133,18 +192,24 @@ function openSse(userId, token, on401Refresh) {
     }
     if (!res.ok || !res.body) throw new Error(`SSE HTTP ${res.status}`);
     const reader = res.body.getReader();
+    const cancelOnAbort = () => { reader.cancel().catch(() => {}); };
+    ac.signal.addEventListener('abort', cancelOnAbort);
     const dec = new TextDecoder();
-    while (true) {
-      const { value, done: d } = await reader.read();
-      if (d) break;
-      buffer += dec.decode(value, { stream: true });
-      const parts = buffer.split('\n\n');
-      buffer = parts.pop() ?? '';
-      for (const block of parts) {
-        const dataLine = block.split('\n').find((l) => l.startsWith('data:'));
-        if (!dataLine) continue;
-        try { events.push(JSON.parse(dataLine.slice(5).trim())); } catch { /* ping */ }
+    try {
+      while (true) {
+        const { value, done: d } = await reader.read();
+        if (d) break;
+        buffer += dec.decode(value, { stream: true });
+        const parts = buffer.split('\n\n');
+        buffer = parts.pop() ?? '';
+        for (const block of parts) {
+          const dataLine = block.split('\n').find((l) => l.startsWith('data:'));
+          if (!dataLine) continue;
+          try { events.push(JSON.parse(dataLine.slice(5).trim())); } catch { /* ping */ }
+        }
       }
+    } finally {
+      ac.signal.removeEventListener('abort', cancelOnAbort);
     }
   };
 
@@ -278,26 +343,28 @@ function acquireEnduranceLock() {
       const prev = JSON.parse(readFileSync(LOCK_PATH, 'utf8'));
       const age = Date.now() - Number(prev.startedAt || 0);
       if (age >= 0 && age < LOCK_STALE_MS && prev.pid !== process.pid) {
-        log({
-          type: 'abort',
-          ok: false,
-          msg: `Parallel endurance blocked — active runId=${prev.runId} pid=${prev.pid} (${Math.round(age / 60000)}m ago). Set ENDURANCE_FORCE_LOCK=1 to override.`,
-        });
-        process.exit(3);
+        let alive = false;
+        try {
+          process.kill(prev.pid, 0);
+          alive = true;
+        } catch { /* dead */ }
+        if (alive) {
+          log({
+            type: 'abort',
+            ok: false,
+            msg: `Parallel endurance blocked — active runId=${prev.runId} pid=${prev.pid} (${Math.round(age / 60000)}m ago). Set ENDURANCE_FORCE_LOCK=1 to override.`,
+          });
+          process.exit(3);
+        }
       }
     } catch {
       /* corrupt lock — overwrite */
     }
   }
-  writeFileSync(LOCK_PATH, JSON.stringify({
-    runId: RUN_ID,
-    pid: process.pid,
-    startedAt: Date.now(),
-    deadlineAt: DEADLINE_AT ?? (Date.now() + DURATION_MS),
-    api: API,
-    hours: HOURS,
-    metrics: METRICS,
-  }), 'utf8');
+  writeLockState({
+    phase: 'acquired',
+    lastCycle: 0,
+  });
   log({ type: 'lock', msg: `RUN_ID=${RUN_ID} lock=${LOCK_PATH}` });
 }
 
@@ -449,16 +516,18 @@ async function main() {
   console.log(`Metrics: ${METRICS}`);
   console.log(`RUN_ID=${RUN_ID} — do not run parallel endurance (429 / shared NAT)`);
   console.log(`SSE proactive refresh at 80% TTL (${SSE_TOKEN_REFRESH_LEAD_SEC}s lead)`);
+  console.log(`Cycle timeout ${CYCLE_TIMEOUT_MS}ms, SSE connect ${SSE_CONNECT_MS}ms`);
   acquireEnduranceLock();
   await checkFunctionsUnlocked();
 
   const ctx = await setupUsers();
   ctx.startedAt = Date.now();
   const deadline = DEADLINE_AT ?? (Date.now() + DURATION_MS);
-  log({ type: 'start', hours: HOURS, intervalMs: INTERVAL_MS, sseExpB: ctx.sseExpB, deadlineAt: deadline });
+  log({ type: 'start', hours: HOURS, intervalMs: INTERVAL_MS, sseExpB: ctx.sseExpB, deadlineAt: deadline, cycleTimeoutMs: CYCLE_TIMEOUT_MS });
 
   const sseB = createSseSession(ctx, 'B');
   await sseB.start();
+  heartbeat('running', 0);
 
   let cycle = 0;
   let failStreak = 0;
@@ -466,7 +535,19 @@ async function main() {
   try {
     while (Date.now() < deadline) {
       cycle += 1;
-      let result = await runCycle(ctx, cycle, sseB);
+      heartbeat('cycle-start', cycle);
+      let result;
+      try {
+        result = await withTimeout(runCycle(ctx, cycle, sseB), CYCLE_TIMEOUT_MS, `cycle ${cycle}`);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        log({ type: 'cycle', cycle, ok: false, fails: [msg], recoverable: /timeout/i.test(msg), timedOut: true });
+        // Drop SSE so next ensureConnected rebuilds a clean stream
+        sseB.stop();
+        await sseB.start();
+        result = { ok: false, locked: false, recoverable: true, fails: [msg] };
+      }
+      heartbeat('cycle-end', cycle);
       if (result.locked) {
         // Admin locked mid-run — skip cycle, do not abort soak or increment fail streak
       } else if (!result.ok) {
@@ -494,7 +575,17 @@ async function main() {
       }
       const remaining = deadline - Date.now();
       if (remaining <= 0) break;
-      await sleep(Math.min(INTERVAL_MS, remaining));
+      heartbeat('sleep', cycle);
+      // Chunked sleep so lock heartbeat stays fresh across long intervals
+      {
+        let left = Math.min(INTERVAL_MS, remaining);
+        while (left > 0) {
+          const step = Math.min(60_000, left);
+          await sleep(step);
+          left -= step;
+          if (left > 0) heartbeat('sleep', cycle, { quiet: true });
+        }
+      }
     }
 
     log({ type: 'done', ok: true, cycles: cycle, elapsedMs: Date.now() - ctx.startedAt, msg: `${HOURS}h endurance passed` });

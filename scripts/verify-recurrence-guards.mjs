@@ -111,6 +111,21 @@ mustMatch('scripts/endurance-5h.mjs', '07c_endurance_recover_403', [
   /FORBIDDEN/,
 ]);
 mustMatch('scripts/endurance-5h.mjs', '07d_endurance_deadline_resume', [/ENDURANCE_DEADLINE_AT|deadlineAt/]);
+mustMatch('scripts/endurance-5h.mjs', '07e_endurance_cycle_timeout', [
+  /CYCLE_TIMEOUT_MS|ENDURANCE_CYCLE_TIMEOUT_MS/,
+  /withTimeout/,
+  /heartbeat/,
+]);
+mustMatch('scripts/endurance-watchdog.mjs', '07f_watchdog_detached_stall', [
+  /detached:\s*true/,
+  /STALL_MS|ENDURANCE_STALL_MS/,
+  /heartbeatAt|heartbeatAge/,
+]);
+mustExist('scripts/start-endurance-8h.mjs', '07g_detached_8h_launcher');
+mustMatch('scripts/start-endurance-8h.mjs', '07h_launcher_detached', [
+  /detached:\s*true/,
+  /ENDURANCE_SESSION_DEADLINE/,
+]);
 
 // 8. Photo upload sessionToken — uploadStorageDataUrl, no raw fetch
 mustMatch('artifacts/boltnew-app/src/lib/localdb.ts', '08_upload_session_token', [

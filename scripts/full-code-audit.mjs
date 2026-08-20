@@ -202,6 +202,8 @@ try {
     ['endurance_recover_403', /isRecoverableOpFailure/],
     ['endurance_deadline_resume', /ENDURANCE_DEADLINE_AT|deadlineAt/],
     ['endurance_rate_limit_note', /429|Rate limit/i],
+    ['endurance_cycle_timeout', /CYCLE_TIMEOUT_MS|withTimeout/],
+    ['endurance_heartbeat', /heartbeatAt|function heartbeat/],
   ];
   for (const [id, re] of enduranceGuards) {
     if (!re.test(enduranceSrc)) {
@@ -360,9 +362,20 @@ try {
   console.log(`  ${f.rel}:${f.line} [${f.id}] ${f.text}`);
 }
 
-// Endurance watchdog — auto-resume after crash/abort
+// Endurance watchdog — detached spawn + stall kill/restart
 try {
-  readFileSync(resolve(ROOT, 'scripts/endurance-watchdog.mjs'), 'utf8');
+  const wd = readFileSync(resolve(ROOT, 'scripts/endurance-watchdog.mjs'), 'utf8');
+  for (const [id, re] of [
+    ['endurance_watchdog_detached', /detached:\s*true/],
+    ['endurance_watchdog_stall', /STALL_MS|ENDURANCE_STALL_MS/],
+  ]) {
+    if (!re.test(wd)) {
+      const f = { rel: 'scripts/endurance-watchdog.mjs', line: 1, id, sev: 'error', text: `missing ${id}` };
+      allFindings.push(f);
+      errors.push(f);
+      console.log(`  ${f.rel}:${f.line} [${f.id}] ${f.text}`);
+    }
+  }
 } catch {
   const f = {
     rel: 'scripts/endurance-watchdog.mjs',
@@ -370,6 +383,21 @@ try {
     id: 'endurance_watchdog',
     sev: 'error',
     text: 'missing endurance watchdog',
+  };
+  allFindings.push(f);
+  errors.push(f);
+  console.log(`  ${f.rel}:${f.line} [${f.id}] ${f.text}`);
+}
+
+try {
+  readFileSync(resolve(ROOT, 'scripts/start-endurance-8h.mjs'), 'utf8');
+} catch {
+  const f = {
+    rel: 'scripts/start-endurance-8h.mjs',
+    line: 1,
+    id: 'endurance_8h_launcher',
+    sev: 'error',
+    text: 'missing detached 8h launcher',
   };
   allFindings.push(f);
   errors.push(f);
