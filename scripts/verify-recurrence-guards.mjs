@@ -30,10 +30,14 @@ function mustExist(rel, id) {
   return ok;
 }
 
+function withUnicode(re) {
+  return re.flags.includes('u') ? re : new RegExp(re.source, re.flags + 'u');
+}
+
 function mustMatch(rel, id, patterns) {
   const src = read(rel);
   for (const re of patterns) {
-    if (!re.test(src)) {
+    if (!withUnicode(re).test(src)) {
       results.push({ id, ok: false, detail: `${rel} missing ${re}` });
       return false;
     }
@@ -45,7 +49,7 @@ function mustMatch(rel, id, patterns) {
 function mustNotMatch(rel, id, patterns) {
   const src = read(rel);
   for (const re of patterns) {
-    if (re.test(src)) {
+    if (withUnicode(re).test(src)) {
       results.push({ id, ok: false, detail: `${rel} must not match ${re}` });
       return false;
     }

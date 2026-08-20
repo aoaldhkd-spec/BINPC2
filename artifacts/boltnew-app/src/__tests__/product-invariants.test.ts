@@ -140,6 +140,16 @@ describe('product copy + notification invariants', () => {
 
 
 
+  it('entry logo goes to tester; main logo stays reset', () => {
+    const entry = read('components/EntryGateScreen.tsx');
+    const reset = read('components/ResetButton.tsx');
+    expect(entry).toContain('data-gate="entry-logo-tester"');
+    expect(entry).toContain("navigateToAppPath('test')");
+    expect(reset).toContain('data-gate="logo-reset"');
+    expect(reset).toContain('openResetGate');
+    expect(reset).not.toMatch(/navigateToAppPath\('test'\)/);
+  });
+
   it('숨은기능: 칭찬하트 없고 방문자·NPC나이', () => {
     const modal = read('components/TutorialModal.tsx');
     const hint = read('lib/host-age-easter-egg.ts');
