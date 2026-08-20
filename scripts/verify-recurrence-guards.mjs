@@ -10,11 +10,13 @@ import { fileURLToPath } from 'node:url';
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const read = (rel) => readFileSync(resolve(ROOT, rel), 'utf8');
 
-// GUARD_ENCODING_SELFCHECK — refuse corrupted emoji/hangul regexes (Windows editor mojibake)
+// GUARD_ENCODING_SELFCHECK: refuse mojibake regex literals like /'????'/.
+// Strip this block before scanning so the checker cannot false-positive on itself.
 {
   const selfSrc = readFileSync(resolve(ROOT, 'scripts/verify-recurrence-guards.mjs'), 'utf8');
-  if (/\/'\?{2,}/.test(selfSrc) || selfSrc.includes("includes('??')") || selfSrc.includes('includes("??")')) {
-    console.error('FATAL: verify-recurrence-guards.mjs encoding corruption detected (?? placeholders). Re-checkout UTF-8 and use \\u{…} escapes.');
+  const body = selfSrc.replace(/\/\/ GUARD_ENCODING_SELFCHECK[\s\S]*?\n\}\n/, '');
+  if (/\/'\?{2,}/.test(body)) {
+    console.error('FATAL: verify-recurrence-guards.mjs encoding corruption detected. Restore UTF-8.');
     process.exit(2);
   }
 }
@@ -485,7 +487,7 @@ mustMatch('artifacts/boltnew-app/src/__tests__/product-invariants.test.ts', '27_
   /isDarkTheme\(theme\) \|\| darkMode/,
 ]);
 
-// 28. Talent / feature picker tags — emoji banana + kiss/heat/milk cluster + face/body catalog
+// 28. Talent / feature picker tags ? emoji banana + kiss/heat/milk cluster + face/body catalog
 mustMatch('artifacts/boltnew-app/src/lib/signal-match.ts', '28_talent_tag_catalog', [
   /label:\s*'\u{c7ac}\u{b2a5} \u{2b50}'/,
   /'\u{d0a4}\u{c2a4}\u{c798}\u{d568}'/,
@@ -558,6 +560,47 @@ mustMatch('artifacts/boltnew-app/src/components/ChatMessageRow.tsx', '32_chat_ro
   /withChatImageAuth/,
 ]);
 mustExist('scripts/test-chat-message-types.mjs', '32_chat_types_smoke');
+
+// 33. User header gates: logo=reset, npc=admin, sulbun=none; theme FAB only after profile
+mustMatch('artifacts/boltnew-app/src/components/ResetButton.tsx', '33_user_header_gates', [
+  /data-gate="logo-reset"/,
+  /data-gate="npc-admin"/,
+  /data-gate="sulbun-none"/,
+  /openResetGate/,
+  /openAdminGate/,
+  /handleSulbunClick/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/components/ResetButton.tsx', '33_logo_not_tester', [
+  /data-gate="logo-reset"[\s\S]{0,200}navigateToAppPath\('test'\)/,
+  /openResetGate[\s\S]{0,80}navigateToAppPath\('test'\)/,
+]);
+mustMatch('artifacts/boltnew-app/src/components/WaitingOverlay.tsx', '33_waiting_gates', [
+  /data-gate="logo-reset"/,
+  /data-gate="npc-admin"/,
+  /data-gate="sulbun-none"/,
+]);
+mustMatch('artifacts/boltnew-app/src/components/ThemeSwitcher.tsx', '33_theme_after_profile', [
+  /dataset\.appReady === '1'/,
+  /if \(!appReady\) return null/,
+]);
+mustMatch('artifacts/boltnew-app/src/App.tsx', '33_app_ready_gate', [
+  /dataset\.appReady = '1'/,
+  /!showEntryGate/,
+  /!showNicknameSetup/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '33_admin_fixed_nick_server', [
+  /ADMIN_FIXED_NICKNAME/,
+  /withFixedAdminNickname/,
+  /admin_event_end_reset/,
+]);
+mustMatch('artifacts/boltnew-app/src/AdminApp.tsx', '33_admin_nick_restore_client', [
+  /ADMIN_FIXED_NICKNAME/,
+  /restoreAdminProfileAfterWipe/,
+]);
+mustMatch('artifacts/boltnew-app/src/__tests__/product-invariants.test.ts', '33_product_invariants_gates', [
+  /user header gates: logo=reset, npc=admin, sulbun=no staff gate/,
+  /theme switcher only after profile-ready/,
+]);
 
 console.log('\n=== verify-recurrence-guards ===\n');
 for (const r of results) {
