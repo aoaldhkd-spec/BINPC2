@@ -18,6 +18,7 @@ import { LoginScreen } from './admin/LoginScreen';
 import { initialAdminSettingsSubTab } from './admin/admin-login';
 import { NotificationTab } from './admin/NotificationTab';
 import { DashboardTab } from './admin/DashboardTab';
+import { ADMIN_FIXED_NICKNAME } from './lib/panel-password';
 
 const AdminQrTab = lazy(() => import('./admin/AdminQrTab').then(m => ({ default: m.AdminQrTab })));
 const DbHealthTab = lazy(() => import('./admin/DbHealthTab').then(m => ({ default: m.DbHealthTab })));
@@ -39,6 +40,33 @@ function AdminTabFallback() {
       <div className="w-8 h-8 rounded-full border-4 border-slate-200 border-t-teal-500 animate-spin" />
     </div>
   );
+}
+
+function digitsOnly(v: unknown): string {
+  return String(v ?? '').replace(/\D/g, '');
+}
+
+/** After profile wipe, keep admin row and force nickname 범일NPC. */
+async function restoreAdminProfileAfterWipe(
+  backupProfiles: Profile[],
+  adminPhone: string | null | undefined,
+): Promise<void> {
+  const adminDigits = digitsOnly(adminPhone);
+  const fromBackup = backupProfiles.find((p) => {
+    if (adminDigits && digitsOnly(p.phone_number) === adminDigits) return true;
+    return p.nickname === ADMIN_FIXED_NICKNAME;
+  });
+  if (!fromBackup && !adminDigits) return;
+  const now = new Date().toISOString();
+  const row: Record<string, unknown> = {
+    ...(fromBackup ?? {}),
+    id: fromBackup?.id ?? crypto.randomUUID(),
+    nickname: ADMIN_FIXED_NICKNAME,
+    phone_number: fromBackup?.phone_number ?? String(adminPhone ?? ''),
+    updated_at: now,
+  };
+  if (!row.created_at) row.created_at = now;
+  await adminSupabase.from('profiles').upsert(row);
 }
 
 function AdminDashboard({ onLogout }: { onLogout: () => void }) {
@@ -383,6 +411,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         adminSupabase.from('chats').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
         adminSupabase.from('notifications').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
       ]);
+      await restoreAdminProfileAfterWipe(backupProfiles, settings?.admin_phone);
       const { error: sigErr } = await adminSupabase.from('app_settings').update({ reset_signal: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', 1);
       if (sigErr) throw new Error(sigErr.message);
       // api-server reset_signal 동기화
@@ -442,6 +471,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const handleClearProfiles = async () => {
     const backupProfiles = [...profiles];
     await adminSupabase.from('profiles').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    await restoreAdminProfileAfterWipe(backupProfiles, settings?.admin_phone);
     adminApiRpc('admin_force_resync_all', {}).catch(e => console.warn('[admin] resync:', e));
     showRecovery('참여자 프로필', '👤', backupProfiles.length > 0 ? async () => {
       for (const p of backupProfiles) await adminSupabase.from('profiles').upsert(p);
@@ -628,7 +658,9 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         )}
         {tab === 'profiles' && (
           <ProfilesTabSection profiles={profiles} settings={settings} onClear={async () => {
+            const backupProfiles = [...profiles];
             await adminSupabase.from('profiles').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+            await restoreAdminProfileAfterWipe(backupProfiles, settings?.admin_phone);
             await loadAll();
           }} onDeleteProfile={handleDeleteProfile} />
         )}

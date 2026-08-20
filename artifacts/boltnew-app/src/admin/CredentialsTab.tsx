@@ -234,7 +234,7 @@ export function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onS
       {activeTab === 'reset' && (
         <form onSubmit={handleSaveResetPw} className="space-y-4">
           <div className="bg-amber-50 rounded-xl p-3 border border-amber-200 text-xs text-amber-700 leading-relaxed">
-            유저가 술번개 로고를 탭하면 뜨는 <strong>처음으로 돌아가기</strong> 비밀번호입니다.<br />
+            참여자 메인에서 로고를 탭하면 뜨는 <strong>처음으로 돌아가기</strong> 비밀번호입니다.<br />
             여기에 저장한 값이 바로 사용됩니다. 예전에 공개됐던 기본값은 통하지 않습니다.
           </div>
           <div>

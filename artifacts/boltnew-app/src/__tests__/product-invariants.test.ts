@@ -138,6 +138,8 @@ describe('product copy + notification invariants', () => {
     expect(reset).not.toMatch(/navigateToAppPath\('test'\)/);
   });
 
+
+
   it('숨은기능: 칭찬하트 없고 방문자·NPC나이', () => {
     const modal = read('components/TutorialModal.tsx');
     const hint = read('lib/host-age-easter-egg.ts');
