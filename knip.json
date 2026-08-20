@@ -1,0 +1,13 @@
+{
+  "$schema": "https://unpkg.com/knip@5.55.1/schema.json",
+  "ignore": [
+    "artifacts/boltnew-app/public/sw.js"
+  ],
+  "ignoreDependencies": [
+    "tailwindcss",
+    "prettier"
+  ],
+  "ignoreBinaries": [
+    "typecheck:libs"
+  ]
+}
