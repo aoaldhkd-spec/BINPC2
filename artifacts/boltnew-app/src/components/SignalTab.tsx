@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, memo } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Profile, UserSignal } from '../types/app';
 import type { HeartType } from '../lib/constants';
@@ -32,22 +32,24 @@ import {
 } from '../lib/signal-match';
 import {
   SWIPE_ACTIVATE_PX,
+  SWIPE_EXIT_EASE,
   SWIPE_EXIT_MS,
+  SWIPE_SPRING_EASE,
   SWIPE_SPRING_MS,
-  SWIPE_STACK_LIFT,
   cardTransform,
-  nextCardScale,
+  nextCardTransform,
   pinRestoredCard,
   shouldCommitSwipe,
   stampOpacity,
   swipeExitX,
+  thirdCardTransform,
   updateSwipeVelocity,
 } from '../lib/signal-swipe';
 
 type DeckCard = SignalMatch & { profile: Profile };
 type SwipePhase = 'idle' | 'drag' | 'spring' | 'exit';
 
-function SignalPhotoCard({
+const SignalPhotoCard = memo(function SignalPhotoCard({
   profile,
   imgFailed,
   onImgError,
@@ -108,7 +110,7 @@ function SignalPhotoCard({
       </div>
     </div>
   );
-}
+});
 
 export function SignalTab({
   profiles,
@@ -253,6 +255,7 @@ export function SignalTab({
 
   const current = deck[0] ?? null;
   const next = deck[1] ?? null;
+  const third = deck[2] ?? null;
 
   const toastedRef = useRef(false);
 
@@ -370,12 +373,13 @@ export function SignalTab({
   const card = current?.profile;
   const progress = Math.min(SIGNAL_MISSION_GOAL, missionCount);
   const inputLocked = !!functionsLocked || swipePhase === 'exit' || swipeLocked;
-  const peekScale = nextCardScale(dragX);
+  const motionTransition = swipePhase === 'exit'
+    ? `transform ${SWIPE_EXIT_MS}ms ${SWIPE_EXIT_EASE}`
+    : `transform ${SWIPE_SPRING_MS}ms ${SWIPE_SPRING_EASE}`;
   const frontTransition = swipePhase === 'drag' || swipePhase === 'idle'
     ? 'none'
-    : swipePhase === 'exit'
-      ? `transform ${SWIPE_EXIT_MS}ms ease-in`
-      : `transform ${SWIPE_SPRING_MS}ms cubic-bezier(0.22, 1, 0.36, 1)`;
+    : motionTransition;
+  const stackTransition = frontTransition;
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (functionsLocked || !card || swipeLockRef.current || swipePhase === 'exit') return;
@@ -532,15 +536,37 @@ export function SignalTab({
           <div
             ref={stackRef}
             className="relative w-full"
-            style={{ aspectRatio: '5 / 6' }}
+            style={{ aspectRatio: '5 / 6', contain: 'layout style' }}
             data-testid="signal-swipe-stack"
           >
-            {next && (
+            {third && (
               <div
                 className="pointer-events-none absolute inset-0 z-0"
                 style={{
-                  transform: `translateY(${(1 - peekScale) * SWIPE_STACK_LIFT}px) scale(${peekScale})`,
+                  transform: thirdCardTransform(dragX),
                   transformOrigin: 'center bottom',
+                  transition: stackTransition,
+                  willChange: swipePhase === 'drag' || swipePhase === 'exit' ? 'transform' : undefined,
+                }}
+                data-testid="signal-swipe-third"
+              >
+                <SignalPhotoCard
+                  profile={third.profile}
+                  imgFailed={imgFailedIds.has(third.profile.id)}
+                  onImgError={() => setImgFailedIds((prev) => new Set([...prev, third.profile.id]))}
+                  dragX={0}
+                  showStamps={false}
+                />
+              </div>
+            )}
+            {next && (
+              <div
+                className="pointer-events-none absolute inset-0 z-[1]"
+                style={{
+                  transform: nextCardTransform(dragX),
+                  transformOrigin: 'center bottom',
+                  transition: stackTransition,
+                  willChange: swipePhase === 'drag' || swipePhase === 'exit' ? 'transform' : undefined,
                 }}
                 data-testid="signal-swipe-next"
               >

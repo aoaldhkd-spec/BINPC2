@@ -6,13 +6,17 @@
 export const SWIPE_COMMIT_PX = 96;
 export const SWIPE_FLICK_MIN_PX = 40;
 export const SWIPE_VELOCITY_PX_MS = 0.55;
-export const SWIPE_ACTIVATE_PX = 14;
-export const SWIPE_EXIT_MS = 280;
-export const SWIPE_SPRING_MS = 240;
-export const SWIPE_ROTATE_DIVISOR = 22;
-export const SWIPE_MAX_ROTATE_DEG = 15;
-export const SWIPE_STACK_SCALE = 0.94;
-export const SWIPE_STACK_LIFT = 10;
+export const SWIPE_ACTIVATE_PX = 10;
+export const SWIPE_EXIT_MS = 320;
+export const SWIPE_SPRING_MS = 340;
+export const SWIPE_EXIT_EASE = 'cubic-bezier(0.32, 0.72, 0, 1)';
+export const SWIPE_SPRING_EASE = 'cubic-bezier(0.34, 1.25, 0.64, 1)';
+export const SWIPE_ROTATE_DIVISOR = 20;
+export const SWIPE_MAX_ROTATE_DEG = 16;
+export const SWIPE_STACK_SCALE = 0.92;
+export const SWIPE_THIRD_SCALE = 0.86;
+export const SWIPE_STACK_LIFT = 16;
+export const SWIPE_DRAG_LIFT = 0.035;
 
 export type SwipeCommit = 'left' | 'right' | null;
 
@@ -45,6 +49,24 @@ export function nextCardScale(dx: number): number {
   return SWIPE_STACK_SCALE + (1 - SWIPE_STACK_SCALE) * nextCardPeek(dx);
 }
 
+export function thirdCardScale(dx: number): number {
+  const peek = nextCardPeek(dx);
+  return SWIPE_THIRD_SCALE + (SWIPE_STACK_SCALE - SWIPE_THIRD_SCALE) * peek;
+}
+
+export function stackCardTransform(dx: number, scale: number): string {
+  const lift = (1 - scale) * SWIPE_STACK_LIFT;
+  return `translate3d(0, ${lift}px, 0) scale(${scale})`;
+}
+
+export function nextCardTransform(dx: number): string {
+  return stackCardTransform(dx, nextCardScale(dx));
+}
+
+export function thirdCardTransform(dx: number): string {
+  return stackCardTransform(dx, thirdCardScale(dx));
+}
+
 export function updateSwipeVelocity(prevVx: number, sampleDx: number, dtMs: number): number {
   if (dtMs <= 0 || dtMs > 80) return prevVx;
   const inst = sampleDx / dtMs;
@@ -52,7 +74,8 @@ export function updateSwipeVelocity(prevVx: number, sampleDx: number, dtMs: numb
 }
 
 export function cardTransform(dx: number): string {
-  return `translate3d(${dx}px, 0, 0) rotate(${cardRotateDeg(dx)}deg)`;
+  const liftY = -Math.abs(dx) * SWIPE_DRAG_LIFT;
+  return `translate3d(${dx}px, ${liftY}px, 0) rotate(${cardRotateDeg(dx)}deg)`;
 }
 
 /** After a failed send/pass persist, keep that card in front — do not reshuffle it away. */
