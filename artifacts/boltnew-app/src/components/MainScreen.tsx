@@ -2179,6 +2179,8 @@ export function MainScreen({
                 profiles={profiles}
                 likedIds={likedIds}
                 initialCompatProfileId={fortuneCompatTarget}
+                blockedUserIds={blockedUserIds}
+                hiddenByIds={hiddenByIds}
               />
             </Suspense>
           </div>

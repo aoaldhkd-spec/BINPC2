@@ -167,14 +167,28 @@ function NoBirthday() {
 }
 
 // ── 메인 FortuneTab ────────────────────────────────────────────────────────
+function isFortuneTargetEligible(
+  p: Profile,
+  currentUserId: string | null,
+  blockedUserIds: ReadonlySet<string>,
+  hiddenByIds: ReadonlySet<string>,
+): boolean {
+  if (!currentUserId || p.id === currentUserId) return false;
+  if (blockedUserIds.has(p.id) || hiddenByIds.has(p.id)) return false;
+  return true;
+}
+
 export default function FortuneTab({
   currentUserId, myProfile, profiles, likedIds, initialCompatProfileId,
+  blockedUserIds = new Set(), hiddenByIds = new Set(),
 }: {
   currentUserId: string | null;
   myProfile: Profile | null;
   profiles: Profile[];
   likedIds: Set<string>;
   initialCompatProfileId?: string;
+  blockedUserIds?: ReadonlySet<string>;
+  hiddenByIds?: ReadonlySet<string>;
 }) {
   const [subTab, setSubTab] = useState<FortuneSubTab>('tarot');
   // birth_year만 있으면 사주·궁합 동작. month/day 없으면 1월 1일로 기본값 사용
@@ -204,12 +218,16 @@ export default function FortuneTab({
 
   // 외부에서 궁합 타겟이 전달되면 자동으로 '궁합' 서브탭으로 전환
   useEffect(() => {
-    if (initialCompatProfileId) {
-      setSelectedProfileId(initialCompatProfileId);
-      setTargetMode('profile');
-      setSubTab('gungham');
+    if (!initialCompatProfileId) return;
+    const target = profiles.find(p => p.id === initialCompatProfileId);
+    if (!target || !isFortuneTargetEligible(target, currentUserId, blockedUserIds, hiddenByIds)) {
+      setSelectedProfileId('');
+      return;
     }
-  }, [initialCompatProfileId]);
+    setSelectedProfileId(initialCompatProfileId);
+    setTargetMode('profile');
+    setSubTab('gungham');
+  }, [initialCompatProfileId, profiles, currentUserId, blockedUserIds, hiddenByIds]);
   const [manualYear, setManualYear] = useState(1993);
   const [manualMonth, setManualMonth] = useState(6);
   const [manualDay, setManualDay] = useState(15);
@@ -255,15 +273,23 @@ export default function FortuneTab({
     return getBedCompat(myBirthYear, myBirthMonth, myBirthDay, tYear, tMonth, tDay, myProfile?.dom_sub_score, tDomScore);
   }, [hasBirthday, hasTarget, myBirthYear, myBirthMonth, myBirthDay, tYear, tMonth, tDay, tDomScore, myProfile?.dom_sub_score]);
 
-  // 렌더마다 반복 filter 방지
+  // 렌더마다 반복 filter 방지 (차단·숨김·본인 제외 — Signal/참여자 탭과 동일)
   const heartedProfiles = useMemo(
-    () => profiles.filter(p => p.id !== currentUserId && likedIds.has(p.id)),
-    [profiles, currentUserId, likedIds],
+    () => profiles.filter(p => isFortuneTargetEligible(p, currentUserId, blockedUserIds, hiddenByIds) && likedIds.has(p.id)),
+    [profiles, currentUserId, likedIds, blockedUserIds, hiddenByIds],
   );
   const otherProfiles = useMemo(
-    () => profiles.filter(p => p.id !== currentUserId),
-    [profiles, currentUserId],
+    () => profiles.filter(p => isFortuneTargetEligible(p, currentUserId, blockedUserIds, hiddenByIds)),
+    [profiles, currentUserId, blockedUserIds, hiddenByIds],
   );
+
+  useEffect(() => {
+    if (!selectedProfileId) return;
+    const selected = profiles.find(p => p.id === selectedProfileId);
+    if (!selected || !isFortuneTargetEligible(selected, currentUserId, blockedUserIds, hiddenByIds)) {
+      setSelectedProfileId('');
+    }
+  }, [selectedProfileId, profiles, currentUserId, blockedUserIds, hiddenByIds]);
 
   return (
     <div className="text-white overflow-x-hidden w-full">

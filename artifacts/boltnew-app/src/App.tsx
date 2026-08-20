@@ -2298,6 +2298,8 @@ function App() {
                 profiles={profiles}
                 likedIds={likedIds}
                 initialCompatProfileId={fortuneModalTarget.id}
+                blockedUserIds={privacyProfileIds.blockedUserIds}
+                hiddenByIds={privacyProfileIds.hiddenByIds}
               />
             </Suspense>
           </div>
