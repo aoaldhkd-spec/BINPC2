@@ -168,6 +168,25 @@ mustNotMatch('artifacts/boltnew-app/src/components/BottomNotification.tsx', '12_
   /4\.5rem\+var\(--participant-tabbar/,
 ]);
 mustNotMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '12_profile_card_sizes', [/min-h-11/, /\bw-8 h-8\b/]);
+// Flip must keep ticker + nick bars; only middle flips; ideal inset under ticker (not hide bars)
+mustMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '12_profile_card_flip_bars_stay', [
+  /showTopBar = hasTicker/,
+  /showBottomBar = true/,
+  /idealInsetTop = hasTicker \? 26 : 10/,
+  /idealInsetBottom = 24/,
+  /profile-card-photo-frame/,
+  /profile-card-ticker-bar/,
+  /profile-card-nick-bar/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '12_profile_card_no_hide_bars_on_flip', [
+  /showTopBar = hasTicker && !isFlipped/,
+  /showBottomBar = !isFlipped/,
+]);
+mustMatch('artifacts/boltnew-app/src/__tests__/profile-card-lock.test.tsx', '12_profile_card_flip_tests', [
+  /ticker \+ nick stay visible/,
+  /paddingTop clears ticker/,
+  /profile-card-photo-frame/,
+]);
 mustMatch('artifacts/boltnew-app/src/lib/profile-photo.ts', '12_heic_reject', [/HEIC|heic/, /JPG, PNG, WebP/]);
 
 // 13. heart_balances removed — BANNED_REGRESSION in audit
