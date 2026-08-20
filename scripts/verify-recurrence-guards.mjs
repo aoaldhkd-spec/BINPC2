@@ -456,9 +456,11 @@ mustMatch('artifacts/boltnew-app/src/components/TutorialModal.tsx', '26_tutorial
   /overflow-hidden scrollbar-hide rounded-2xl/,
 ]);
 mustMatch('artifacts/boltnew-app/src/components/TutorialModal.tsx', '26_tutorial_hidden_tips_scroll', [
-  /MODAL_SHELL/,
-  /const isHidden = topic\.id === 'hidden'/,
-  /switchMode\('hidden'\)/,
+  /MODAL_SHELL_HIDDEN/,
+  /scrollable: isHidden/,
+  /overflow-y-auto overscroll-contain scrollbar-hide pb-\[max\(0\.75rem,var\(--safe-bottom/,
+  /longDescTitle=/,
+  /longDesc\?: boolean/,
 ]);
 mustMatch('artifacts/boltnew-app/src/components/TutorialVideo.tsx', '26_tutorial_scene_scrollbar_hide', [
   /overflow-y-auto overflow-x-hidden scrollbar-hide/,

@@ -177,6 +177,8 @@ const KR_WRAP = 'break-keep [word-break:keep-all] [line-break:strict] [overflow-
 /** Fixed shell — identical height on every topic/mode (tips + video). */
 const MODAL_SHELL =
   'w-[calc(100vw-1rem)] max-w-md h-[min(560px,calc(85dvh-var(--safe-top,0px)-var(--safe-bottom,0px)))]';
+const MODAL_SHELL_HIDDEN =
+  'w-[calc(100vw-1rem)] max-w-md h-[min(640px,calc(92dvh-var(--safe-top,0px)-var(--safe-bottom,0px)))]';
 
 type TopicAccent = {
   cardLight: string;
@@ -295,13 +297,14 @@ function topicLayout(topic: Topic) {
   const dense = count >= 7 || topic.id === 'guide';
   // 숨은기능: 팁4개+긴 NPC나이 힌트 — 2열·비compact면 고정 모달 하단이 잘림
   const isHidden = topic.id === 'hidden';
-  const compact = dense || count >= 5 || topic.id === 'settings' || isHidden;
+  const compact = !isHidden && (dense || count >= 5 || topic.id === 'settings');
   const fillVertical = topic.id === 'heart' || topic.id === 'signal' || topic.id === 'settings' || topic.id === 'chat';
   return {
     twoColumn: !isHidden && (count >= 4 || dense),
     compact,
     fillVertical,
     fillerCompact: compact && Boolean(topic.filler),
+    scrollable: isHidden,
   };
 }
 
@@ -315,6 +318,7 @@ function TipCard({
   compact,
   fill,
   sectionBar,
+  longDesc,
 }: {
   tip: Tip;
   accent: TopicAccent;
@@ -325,6 +329,7 @@ function TipCard({
   compact?: boolean;
   fill?: boolean;
   sectionBar?: string;
+  longDesc?: boolean;
 }) {
   const desc = tip.desc.replace(/([.·])\s+/g, '$1\u200b ');
   const cardCls = darkMode ? accent.cardDark : accent.cardLight;
@@ -340,13 +345,15 @@ function TipCard({
         : 'w-7 h-7 text-sm rounded-xl'
   } flex-shrink-0 flex items-center justify-center text-white ${iconCls}`;
   const titleCls = fill ? (compact ? 'text-xs' : 'text-sm') : compact ? 'text-[11px]' : 'text-xs';
-  const descCls = fill
-    ? compact
-      ? 'text-[11px] leading-snug'
-      : 'text-sm leading-relaxed'
-    : compact
-      ? 'text-[10px] leading-snug'
-      : 'text-[13px] leading-relaxed';
+  const descCls = longDesc
+    ? 'text-xs leading-relaxed'
+    : fill
+      ? compact
+        ? 'text-[11px] leading-snug'
+        : 'text-sm leading-relaxed'
+      : compact
+        ? 'text-[10px] leading-snug'
+        : 'text-[13px] leading-relaxed';
   const pad = fill ? (compact ? 'px-2.5 py-2' : 'px-3 py-3') : compact ? 'px-2 py-1.5' : 'px-3 py-2.5';
   const stretchCls = fill ? 'flex-1 min-h-0 items-center' : 'h-full';
 
@@ -387,6 +394,7 @@ function TipGrid({
   compact,
   fill,
   sectionBar,
+  longDescTitle,
 }: {
   tips: Tip[];
   accent: TopicAccent;
@@ -397,6 +405,7 @@ function TipGrid({
   compact?: boolean;
   fill?: boolean;
   sectionBar?: string;
+  longDescTitle?: string;
 }) {
   const useTwoCol = twoColumn ?? tips.length >= 4;
   const oddLast = useTwoCol && tips.length % 2 === 1;
@@ -417,6 +426,7 @@ function TipGrid({
             compact={compact}
             fill={fill}
             sectionBar={sectionBar}
+            longDesc={longDescTitle === tip.title}
           />
         ))}
       </div>
@@ -437,6 +447,7 @@ function TipGrid({
           fill={fill}
           sectionBar={sectionBar}
           spanFull={oddLast && i === tips.length - 1}
+          longDesc={longDescTitle === tip.title}
         />
       ))}
     </div>
@@ -681,9 +692,14 @@ export function TutorialModal({
     setSubView('tips');
   };
 
+  const tipsScrollable = layout.scrollable && subView === 'tips';
+  const modalShell = layout.scrollable ? MODAL_SHELL_HIDDEN : MODAL_SHELL;
+
   const tipsContent = (
     <div
-      className={`flex flex-col min-h-0 ${layout.fillVertical || hasVideo ? 'flex-1 h-full overflow-hidden' : 'flex-shrink-0'} ${
+      className={`flex flex-col min-h-0 ${
+        layout.scrollable || layout.fillVertical || hasVideo ? 'flex-1' : 'flex-shrink-0'
+      } ${layout.fillVertical || hasVideo ? 'h-full overflow-hidden' : ''} ${
         layout.compact ? 'gap-1.5' : 'gap-2.5'
       }`}
     >
@@ -724,6 +740,7 @@ export function TutorialModal({
           twoColumn={layout.twoColumn}
           compact={layout.compact}
           fill={layout.fillVertical}
+          longDescTitle="NPC 나이"
         />
       )}
 
@@ -866,9 +883,13 @@ export function TutorialModal({
         <TopicSubTabs subView={subView} onChange={setSubView} hasVideo={hasVideo} darkMode={darkMode} topicColor={topic.color} />
 
         {/* Content */}
-        <div className={`flex-1 min-h-0 px-4 pt-2 pb-1 flex flex-col overflow-hidden transition-colors duration-300 ${
-          !hasVideo && !layout.fillVertical ? 'justify-center' : ''
-        } ${darkMode ? 'bg-gradient-to-b from-slate-900/80 to-slate-950' : 'bg-gradient-to-b from-slate-50/80 to-white'}`}>
+        <div className={`flex-1 min-h-0 px-4 pt-2 flex flex-col transition-colors duration-300 ${
+          tipsScrollable
+            ? 'overflow-y-auto overscroll-contain scrollbar-hide pb-[max(0.75rem,var(--safe-bottom,0px))]'
+            : 'overflow-hidden pb-1'
+        } ${!hasVideo && !layout.fillVertical && !layout.scrollable ? 'justify-center' : ''} ${
+          darkMode ? 'bg-gradient-to-b from-slate-900/80 to-slate-950' : 'bg-gradient-to-b from-slate-50/80 to-white'
+        }`}>
           {subView === 'video' && hasVideo ? videoContent : tipsContent}
         </div>
 
