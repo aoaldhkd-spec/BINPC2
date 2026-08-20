@@ -154,6 +154,16 @@ describe('product copy + notification invariants', () => {
     expect(reset).not.toMatch(/navigateToAppPath\('test'\)/);
   });
 
+  it('admin fixed nickname survives event-end reset on server and client', () => {
+    const db = readFileSync(join(root, '../../api-server/src/routes/db.ts'), 'utf8');
+    const admin = read('AdminApp.tsx');
+    expect(db).toContain('ADMIN_FIXED_NICKNAME');
+    expect(db).toContain('withFixedAdminNickname');
+    expect(db).toContain('admin_event_end_reset');
+    expect(admin).toContain('ADMIN_FIXED_NICKNAME');
+    expect(admin).toContain('restoreAdminProfileAfterWipe');
+  });
+
   it('숨은기능: 칭찬하트 없고 방문자·NPC나이', () => {
     const modal = read('components/TutorialModal.tsx');
     const hint = read('lib/host-age-easter-egg.ts');
@@ -163,6 +173,15 @@ describe('product copy + notification invariants', () => {
     expect(modal).not.toMatch(/title: '칭찬 하트'/);
     expect(hint).toContain('NPC 나이');
     expect(hint).toContain('술번개');
+  });
+
+  it('숨은기능 탭은 스크롤 가능한 긴 설명 레이아웃을 쓴다', () => {
+    const modal = read('components/TutorialModal.tsx');
+    expect(modal).toContain('MODAL_SHELL_HIDDEN');
+    expect(modal).toContain('scrollable: isHidden');
+    expect(modal).toContain('overflow-y-auto overscroll-contain scrollbar-hide');
+    expect(modal).toContain('longDescTitle=');
+    expect(modal).toContain('longDesc?: boolean');
   });
 
   it('theme switcher only after profile-ready (not on entry)', () => {
@@ -330,14 +349,11 @@ describe('product copy + notification invariants', () => {
   });
 
   it('endurance soak guards SSE idle drop and mid-run FUNCTIONS_LOCKED SKIP', () => {
-    const endurance = readFileSync(
-      join(dirname(fileURLToPath(import.meta.url)), '../../../../scripts/endurance-5h.mjs'),
-      'utf8',
-    );
-    const lock = readFileSync(
-      join(dirname(fileURLToPath(import.meta.url)), '../../../../scripts/lib/functions-lock.mjs'),
-      'utf8',
-    );
+    const scriptsRoot = join(dirname(fileURLToPath(import.meta.url)), '../../../../scripts');
+    const endurance = readFileSync(join(scriptsRoot, 'endurance-5h.mjs'), 'utf8');
+    const lock = readFileSync(join(scriptsRoot, 'lib/functions-lock.mjs'), 'utf8');
+    const watchdog = readFileSync(join(scriptsRoot, 'endurance-watchdog.mjs'), 'utf8');
+    const launcher = readFileSync(join(scriptsRoot, 'start-endurance-8h.mjs'), 'utf8');
     expect(endurance).toMatch(/ensureConnected/);
     expect(endurance).toMatch(/isOpFunctionsLocked|FUNCTIONS_LOCKED mid-run/);
     expect(endurance).toMatch(/result\.locked|locked: true/);
@@ -345,13 +361,28 @@ describe('product copy + notification invariants', () => {
     expect(endurance).toMatch(/admin_event_end_reset/);
     expect(endurance).toMatch(/acquireEnduranceLock/);
     expect(endurance).toMatch(/ENDURANCE_DEADLINE_AT|deadlineAt/);
+    expect(endurance).toMatch(/CYCLE_TIMEOUT_MS|ENDURANCE_CYCLE_TIMEOUT_MS/);
     expect(endurance).toMatch(/429|Rate limit/i);
     expect(lock).toContain('isOpFunctionsLocked');
-    const watchdog = readFileSync(
-      join(dirname(fileURLToPath(import.meta.url)), '../../../../scripts/endurance-watchdog.mjs'),
+    expect(watchdog).toMatch(/detached:\s*true/);
+    expect(watchdog).toMatch(/STALL_MS|ENDURANCE_STALL_MS/);
+    expect(watchdog).toMatch(/spawnEndurance|ENDURANCE_DEADLINE_AT/);
+    expect(launcher).toMatch(/detached:\s*true/);
+    expect(launcher).toMatch(/ENDURANCE_SESSION_DEADLINE/);
+  });
+
+  it('E2E reconnect scripts stay wired in verify-all-features', () => {
+    const verify = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), '../../../../scripts/verify-all-features.mjs'),
       'utf8',
     );
-    expect(watchdog).toMatch(/spawnEndurance|ENDURANCE_DEADLINE_AT/);
+    for (const script of [
+      'test-chat-disconnect-recovery.mjs',
+      'e2e-heart-sse-consistency.mjs',
+      'test-mutual-chat-hearts.mjs',
+    ]) {
+      expect(verify).toContain(script);
+    }
   });
 
   it('status signal/contact pills open center popup modal not bottom sheet', () => {
@@ -366,6 +397,17 @@ describe('product copy + notification invariants', () => {
     expect(db).toContain('ensurePublicTableRls');
     expect(db).toMatch(/ENABLE ROW LEVEL SECURITY/);
     expect(db).toMatch(/REVOKE ALL ON public/);
+  });
+
+  it('legacy KV tables and heart_balances blocklist are cleaned on startup', () => {
+    const db = readFileSync(join(root, '../../api-server/src/routes/db.ts'), 'utf8');
+    const cleanup = readFileSync(join(root, '../../api-server/src/lib/db-legacy-cleanup.ts'), 'utf8');
+    expect(db).toContain('cleanupLegacyTables()');
+    expect(db).toMatch(/dbReadyPromise[\s\S]{0,120}\.then\(\(\) => cleanupLegacyTables\(\)\)/);
+    expect(db).toContain('legacy_leftovers');
+    for (const token of ['heart_balances', 'heart_drain_enabled', 'seats_snapshot']) {
+      expect(cleanup).toContain(token);
+    }
   });
 
   it('mobile safe-area: Galaxy tabbar + iOS 16px input + viewport-fit=cover', () => {
@@ -470,6 +512,27 @@ describe('Korean age recurrence guard', () => {
         /getFullYear\(\)\s*-\s*\w+\s*;(?![\s\S]{0,40}\+\s*1)/,
       );
     }
+  });
+});
+
+describe('test persona nicknames (scripts)', () => {
+  it('never appends numeric suffixes to visible nicknames', async () => {
+    const personas = await import(
+      '../../../../scripts/lib/test-personas.mjs'
+    ) as typeof import('../../../../scripts/lib/test-personas.mjs');
+    personas.resetNicknameRegistry();
+    const src = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), '../../../../scripts/lib/test-personas.mjs'),
+      'utf8',
+    );
+    expect(src).toContain('NO numeric suffixes');
+    expect(src).toContain('nicknameEndsWithDigit');
+    expect(src).not.toContain('padStart(');
+    const samples: string[] = [];
+    for (let i = 0; i < 80; i += 1) samples.push(personas.makeNickname({ index: i, attempt: i % 5 }));
+    for (let i = 0; i < 40; i += 1) samples.push(personas.reserveNickname({ index: 1000 + i }));
+    const bad = samples.filter((n) => personas.nicknameEndsWithDigit(n) || /\d$/u.test(n));
+    expect(bad).toEqual([]);
   });
 });
 
