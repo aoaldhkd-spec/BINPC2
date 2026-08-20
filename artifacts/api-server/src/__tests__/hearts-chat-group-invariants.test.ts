@@ -231,6 +231,75 @@ describe('[Chat] persist-before-broadcast + sibling visibility', () => {
     const same = (list.body.data as { client_id: string }[]).filter((m) => m.client_id === clientId);
     expect(same).toHaveLength(1);
   });
+
+  it('block_type=block 이면 양방향 messages INSERT 가 403 BLOCKED', async () => {
+    const a = randomUUID();
+    const b = randomUUID();
+    await op({ op: 'insert', table: 'profiles', payload: { id: a, nickname: `ba-${a.slice(0, 8)}` } });
+    await op({ op: 'insert', table: 'profiles', payload: { id: b, nickname: `bb-${b.slice(0, 8)}` } });
+    const chat = await op({
+      op: 'insert',
+      table: 'chats',
+      requesterId: a,
+      payload: { user1_id: a, user2_id: b },
+      selectAfterWrite: true,
+      single: true,
+    });
+    expect(chat.status).toBe(200);
+    const chatId = chat.body.data.id as string;
+
+    await op({
+      op: 'insert',
+      table: 'blocked_users',
+      requesterId: a,
+      payload: { user_id: a, target_id: b, block_type: 'block' },
+    });
+
+    const fromBlocker = await op({
+      op: 'insert',
+      table: 'messages',
+      requesterId: a,
+      payload: { chat_id: chatId, sender_id: a, content: 'nope', client_id: randomUUID() },
+    });
+    expect(fromBlocker.status).toBe(403);
+    expect(fromBlocker.body.error?.code).toBe('BLOCKED');
+
+    const fromBlocked = await op({
+      op: 'insert',
+      table: 'messages',
+      requesterId: b,
+      payload: { chat_id: chatId, sender_id: b, content: 'also nope', client_id: randomUUID() },
+    });
+    expect(fromBlocked.status).toBe(403);
+    expect(fromBlocked.body.error?.code).toBe('BLOCKED');
+  });
+
+  it('block_type=hide 는 messages INSERT 를 막지 않는다', async () => {
+    const a = randomUUID();
+    const b = randomUUID();
+    const chat = await op({
+      op: 'insert',
+      table: 'chats',
+      requesterId: a,
+      payload: { user1_id: a, user2_id: b },
+      selectAfterWrite: true,
+      single: true,
+    });
+    const chatId = chat.body.data.id as string;
+    await op({
+      op: 'insert',
+      table: 'blocked_users',
+      requesterId: a,
+      payload: { user_id: a, target_id: b, block_type: 'hide' },
+    });
+    const msg = await op({
+      op: 'insert',
+      table: 'messages',
+      requesterId: a,
+      payload: { chat_id: chatId, sender_id: a, content: 'hide ok', client_id: randomUUID() },
+    });
+    expect(msg.status).toBe(200);
+  });
 });
 
 describe('[Group] max 4 + unlimited members + both see message', () => {

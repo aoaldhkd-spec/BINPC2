@@ -499,7 +499,7 @@ export function useChat({
 
       const chatIds = data.map((c: { id: string }) => c.id);
       const { data: allMsgs } = await supabase.from('messages').select('chat_id, content, image_url, created_at')
-        .in('chat_id', chatIds).order('created_at', { ascending: false }).limit(Math.max(chatIds.length * 20, 100));
+        .in('chat_id', chatIds).order('created_at', { ascending: false }).limit(Math.max(chatIds.length * 40, 200));
       if (gen !== loadChatListGenRef.current) return;
 
       const msgCountByChat = new Map<string, number>();
@@ -508,6 +508,20 @@ export function useChat({
         for (const m of allMsgs as { chat_id: string; content: string; image_url?: string; created_at: string }[]) {
           msgCountByChat.set(m.chat_id, (msgCountByChat.get(m.chat_id) ?? 0) + 1);
           if (!latestByChat.has(m.chat_id)) latestByChat.set(m.chat_id, { content: m.content, image_url: m.image_url, created_at: m.created_at });
+        }
+      }
+      const missingPreview = chatIds.filter(id => !latestByChat.has(id));
+      if (missingPreview.length > 0) {
+        const fetched = await Promise.all(missingPreview.map(async (cid) => {
+          const { data: rows } = await supabase.from('messages')
+            .select('chat_id, content, image_url, created_at')
+            .eq('chat_id', cid).order('created_at', { ascending: false }).limit(1);
+          return (rows?.[0] ?? null) as { chat_id: string; content: string; image_url?: string; created_at: string } | null;
+        }));
+        if (gen !== loadChatListGenRef.current) return;
+        for (const m of fetched) {
+          if (!m) continue;
+          latestByChat.set(m.chat_id, { content: m.content, image_url: m.image_url, created_at: m.created_at });
         }
       }
 
@@ -633,7 +647,7 @@ export function useChat({
       const doOpen = async (): Promise<string | null> => {
         const { data: pairChats, error: listErr } = await supabase
           .from('chats').select('*')
-          .or(`user1_id.eq.${user1Id},user2_id.eq.${user1Id}`);
+          .or(`user1_id.eq.${currentUserId},user2_id.eq.${currentUserId}`);
         if (listErr) console.error('[openChat] 조회 오류:', listErr.message);
 
         let resolvedChatId: string | null = null;
@@ -661,7 +675,7 @@ export function useChat({
             console.error('[openChat] 채팅방 생성 실패:', errMsg);
             const { data: retryChats } = await supabase
               .from('chats').select('*')
-              .or(`user1_id.eq.${user1Id},user2_id.eq.${user1Id}`);
+              .or(`user1_id.eq.${currentUserId},user2_id.eq.${currentUserId}`);
             const retryList = ((retryChats ?? []) as Chat[]).filter(
               c => chatPairKey(c.user1_id, c.user2_id) === pairKey,
             );
@@ -832,6 +846,7 @@ export function useChat({
             chat_id: item.chatId,
             sender_id: item.userId,
             content: item.content,
+            ...(item.imageUrl ? { image_url: item.imageUrl } : {}),
             client_id: item.clientId,
           }).select().single();
           const timeoutPromise = new Promise<never>((_, reject) =>
@@ -840,14 +855,22 @@ export function useChat({
           const { data: insertedMsg, error } = await Promise.race([insertPromise, timeoutPromise]);
           if (!error && insertedMsg) {
             // 성공: 낙관적 메시지를 실제 메시지로 교체
-            setMessages(prev => prev.map(m => m.id === item.optimisticId ? insertedMsg as Message : m));
+            setMessages(prev => prev.map(m => {
+              if (m.id !== item.optimisticId) return m;
+              if (m.image_url?.startsWith('blob:')) URL.revokeObjectURL(m.image_url);
+              return insertedMsg as Message;
+            }));
             pendingQueueRef.current = pendingQueueRef.current.filter(q => q.clientId !== item.clientId);
             savePendingQueue(pendingQueueRef.current); // [Part1-Fix3] localStorage 동기화
           } else if (error) {
             // client_id로 이미 저장됐는지 확인 (이전 시도 응답 분실)
             const { data: existing } = await supabase.from('messages').select('*').eq('chat_id', item.chatId).eq('client_id', item.clientId).maybeSingle();
             if (existing) {
-              setMessages(prev => prev.map(m => m.id === item.optimisticId ? existing as Message : m));
+              setMessages(prev => prev.map(m => {
+                if (m.id !== item.optimisticId) return m;
+                if (m.image_url?.startsWith('blob:')) URL.revokeObjectURL(m.image_url);
+                return existing as Message;
+              }));
               pendingQueueRef.current = pendingQueueRef.current.filter(q => q.clientId !== item.clientId);
               savePendingQueue(pendingQueueRef.current); // [Part1-Fix3] localStorage 동기화
             }
@@ -1051,26 +1074,66 @@ export function useChat({
       }
 
       const { data: { publicUrl } } = supabase.storage.from('chat-images').getPublicUrl(data.path);
-      // .select().single() — HTTP 응답으로 실제 DB 행을 직접 수신해 optimistic 즉시 교체
-      const { data: insertedMsg, error: msgErr } = await supabase.from('messages').insert({
-        chat_id: snapChatId, sender_id: snapUserId, content: '', image_url: publicUrl,
-        client_id: clientId,
-      }).select().single();
-      if (msgErr) {
-        supabase.storage.from('chat-images').remove([data.path]).catch(() => {});
-        rollback();
-        return msgErr.message;
+      const MAX_RETRIES = 4;
+      let lastErr: unknown;
+      for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+        if (attempt > 0) {
+          await new Promise<void>(r => setTimeout(r, Math.pow(2, attempt - 1) * 1000));
+          if (!isActiveRoomChat(snapChatId) || currentUserIdRef.current !== snapUserId) {
+            supabase.storage.from('chat-images').remove([data.path]).catch(() => {});
+            rollback();
+            return null;
+          }
+        }
+        try {
+          const { data: insertedMsg, error: msgErr } = await supabase.from('messages').insert({
+            chat_id: snapChatId, sender_id: snapUserId, content: '', image_url: publicUrl,
+            client_id: clientId,
+          }).select().single();
+          if (!msgErr && insertedMsg) {
+            URL.revokeObjectURL(localBlobUrl);
+            if (isActiveRoomChat(snapChatId)) {
+              const saved = insertedMsg as Message;
+              rememberRoomChatId(saved.chat_id);
+              setMessages(prev => {
+                const next = prev.map(m => m.id === optimisticId ? saved : m);
+                return next.filter(m => messageBelongsToChat(m, snapChatId, roomChatIdsRef.current));
+              });
+            }
+            return null;
+          }
+          if (msgErr) {
+            if (isFunctionsLockedOpError(msgErr)) {
+              lastErr = msgErr;
+              break;
+            }
+            const { data: existing } = await supabase.from('messages').select('*')
+              .eq('chat_id', snapChatId).eq('client_id', clientId).maybeSingle();
+            if (existing && isActiveRoomChat(snapChatId)) {
+              URL.revokeObjectURL(localBlobUrl);
+              const saved = existing as Message;
+              rememberRoomChatId(saved.chat_id);
+              setMessages(prev => {
+                const next = prev.map(m => m.id === optimisticId ? saved : m);
+                return next.filter(m => messageBelongsToChat(m, snapChatId, roomChatIdsRef.current));
+              });
+              return null;
+            }
+            lastErr = msgErr;
+          }
+        } catch (err) {
+          lastErr = err;
+          if (!isActiveRoomChat(snapChatId)) return null;
+        }
       }
-      // 성공: optimistic(blob URL) → 실제 DB 행(CDN URL)으로 즉시 교체
-      URL.revokeObjectURL(localBlobUrl); // blob URL must not remain after swap/rollback — 5h leak
-      if (insertedMsg && isActiveRoomChat(snapChatId)) {
-        const saved = insertedMsg as Message;
-        rememberRoomChatId(saved.chat_id);
-        setMessages(prev => {
-          const next = prev.map(m => m.id === optimisticId ? saved : m);
-          return next.filter(m => messageBelongsToChat(m, snapChatId, roomChatIdsRef.current));
-        });
-      }
+
+      // 업로드는 성공했지만 INSERT 실패 → 오프라인 큐에 image_url 보관 (재연결 시 자동 전송)
+      console.warn('[sendImage] INSERT 재시도 실패 — 오프라인 큐에 보관:', lastErr);
+      if (pendingQueueRef.current.length >= 50) pendingQueueRef.current.shift();
+      pendingQueueRef.current.push({
+        chatId: snapChatId, content: '', imageUrl: publicUrl, clientId, optimisticId, userId: snapUserId,
+      });
+      savePendingQueue(pendingQueueRef.current);
       return null;
     } catch (err) {
       console.error('[sendImage] 네트워크 예외:', err);

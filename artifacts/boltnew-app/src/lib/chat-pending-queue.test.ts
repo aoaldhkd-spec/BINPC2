@@ -98,6 +98,35 @@ describe('chat pending queue (offline / refresh)', () => {
     expect(next).toHaveLength(0);
   });
 
+  it('accepts image-only pending rows (post-upload offline queue)', () => {
+    const row: PendingMsg = {
+      chatId: 'chat-1',
+      content: '',
+      imageUrl: 'https://cdn.example/img.jpg',
+      clientId: 'img-1',
+      optimisticId: '__opt_img-1',
+      userId: 'user-a',
+    };
+    savePendingQueue([row], storage);
+    expect(loadPendingQueue(storage)).toHaveLength(1);
+  });
+
+  it('flushPendingQueueItems sends image_url when content is empty', async () => {
+    const queue = [sample({ content: '', imageUrl: 'https://cdn.example/x.jpg', clientId: 'img-c' })];
+    let payload: Record<string, unknown> | null = null;
+
+    const { flushed } = await flushPendingQueueItems(queue, 'user-a', {
+      insert: async (item) => {
+        payload = { chat_id: item.chatId, image_url: item.imageUrl, client_id: item.clientId };
+        return { data: { id: 'db-img' }, error: null };
+      },
+      findByClientId: async () => ({ data: null }),
+    });
+
+    expect(flushed).toEqual(['img-c']);
+    expect(payload).toMatchObject({ image_url: 'https://cdn.example/x.jpg' });
+  });
+
   it('useChat wires flush on SSE reconnect, online, and functions unlock', () => {
     const here = dirname(fileURLToPath(import.meta.url));
     const src = readFileSync(join(here, '../hooks/useChat.ts'), 'utf8');

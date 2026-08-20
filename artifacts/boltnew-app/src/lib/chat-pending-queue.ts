@@ -8,17 +8,22 @@ export interface PendingMsg {
   clientId: string;
   optimisticId: string;
   userId: string;
+  /** Set when storage upload succeeded but message INSERT failed (post-upload offline queue). */
+  imageUrl?: string;
 }
 
 export function isValidPendingMsg(m: unknown): m is PendingMsg {
   if (!m || typeof m !== 'object') return false;
   const row = m as PendingMsg;
+  const hasText = typeof row.content === 'string' && row.content.length > 0;
+  const hasImage = typeof row.imageUrl === 'string' && row.imageUrl.length > 0;
   return (
     typeof row.chatId === 'string'
-    && typeof row.content === 'string'
+    && (hasText || hasImage)
     && typeof row.clientId === 'string'
     && typeof row.optimisticId === 'string'
     && typeof row.userId === 'string'
+    && (row.imageUrl === undefined || typeof row.imageUrl === 'string')
   );
 }
 

@@ -536,6 +536,18 @@ function getTable(name: string): Record<string, unknown>[] {
   return store[name];
 }
 
+/** Mutual block (block_type=block) between chat participants — hide is profile-only. */
+function isChatPairBlocked(userA: string, userB: string): boolean {
+  const a = String(userA);
+  const b = String(userB);
+  return getTable('blocked_users').some(row =>
+    row.block_type === 'block' && (
+      (String(row.user_id) === a && String(row.target_id) === b)
+      || (String(row.user_id) === b && String(row.target_id) === a)
+    ),
+  );
+}
+
 type ReferenceCheck = { ok: true } | { ok: false; unavailable: boolean };
 
 function mergeRefreshedRows(table: string, rows: Array<{ data?: unknown }>): void {
@@ -3451,6 +3463,13 @@ router.post('/op', async (req: Request, res: Response) => {
           if (!targetChat || (String(targetChat.user1_id) !== String(requesterId) && String(targetChat.user2_id) !== String(requesterId))) {
             logger.warn({ requesterId, chatId: effectiveRow.chat_id, ip: req.ip }, '[SECURITY] IDOR: message INSERT by non-participant blocked');
             return res.status(403).json({ data: null, error: { message: 'Forbidden: not a chat participant', code: 'FORBIDDEN' } });
+          }
+          const peerId = String(targetChat.user1_id) === String(requesterId)
+            ? String(targetChat.user2_id)
+            : String(targetChat.user1_id);
+          if (isChatPairBlocked(String(requesterId), peerId)) {
+            logger.warn({ requesterId, peerId, chatId: effectiveRow.chat_id, ip: req.ip }, '[SECURITY] message INSERT blocked by user block');
+            return res.status(403).json({ data: null, error: { message: 'Forbidden: blocked user', code: 'BLOCKED' } });
           }
           // 멀티 인스턴스에서 chats 테이블이 아직 메모리에 없어도 SSE가 전달되도록 참가자 스탬프
           effectiveRow = {
