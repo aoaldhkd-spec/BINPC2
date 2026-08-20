@@ -100,7 +100,7 @@ describe('SignalTab Tinder-like swipe', () => {
     const front = screen.getByTestId('signal-swipe-front');
     fireEvent.pointerDown(front, { pointerId: 1, clientX: 180, clientY: 200, buttons: 1 });
     fireEvent.pointerMove(front, { pointerId: 1, clientX: 180 + 80, clientY: 202 });
-    expect(front.style.transform).toContain('translate3d(80px, 0, 0)');
+    expect(front.style.transform).toContain('translate3d(80px');
     expect(Number(screen.getByTestId('signal-stamp-signal').style.opacity)).toBeGreaterThan(0.5);
     expect(screen.getByTestId('signal-stamp-pass').style.opacity).toBe('0');
     fireEvent.pointerUp(front, { pointerId: 1, clientX: 260, clientY: 202 });

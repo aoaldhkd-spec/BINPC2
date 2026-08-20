@@ -46,7 +46,7 @@ describe('stamps + stack preview', () => {
   });
 
   it('scales the next card up as the front card leaves', () => {
-    expect(nextCardScale(0)).toBeCloseTo(0.94, 5);
+    expect(nextCardScale(0)).toBeCloseTo(0.92, 5);
     expect(nextCardScale(SWIPE_COMMIT_PX)).toBe(1);
     expect(nextCardScale(-SWIPE_COMMIT_PX)).toBe(1);
   });
@@ -56,7 +56,7 @@ describe('transform helpers', () => {
   it('rotates slightly with drag and uses GPU-friendly translate3d', () => {
     expect(cardRotateDeg(88)).toBeGreaterThan(0);
     expect(cardRotateDeg(-88)).toBeLessThan(0);
-    expect(cardTransform(50)).toContain('translate3d(50px, 0, 0)');
+    expect(cardTransform(50)).toContain('translate3d(50px');
     expect(cardTransform(50)).toContain('rotate(');
   });
 

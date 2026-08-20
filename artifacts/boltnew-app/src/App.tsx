@@ -199,6 +199,7 @@ function App() {
   const loadProfilesRef = useRef<() => Promise<Profile[]>>(async () => []);
   // SSE fallback polling refs — SSE 끊김 중 채팅·하트 polling에 사용 (stale 클로저 방지)
   const loadChatListRef = useRef<((userId: string) => Promise<void>) | null>(null);
+  const loadGroupChatsRef = useRef<((userId: string) => Promise<void>) | null>(null);
   // 채팅방별 미전송 초안 보존 — 뒤로가기 후 재진입 시 복원
   const chatDraftRef = useRef<Map<string, string>>(new Map());
   const loadReceivedLikesRef = useRef<((userId: string) => Promise<void>) | null>(null);
@@ -373,6 +374,7 @@ function App() {
     const tick = () => {
       loadProfilesRef.current().catch(() => {});
       loadChatListRef.current?.(uid).catch(() => {});
+      loadGroupChatsRef.current?.(uid).catch(() => {});
       loadReceivedLikesRef.current?.(uid).catch(() => {});
       loadLikesRef.current?.(uid).catch(() => {});
       loadContactShareDataRef.current?.(uid).catch(() => {});
@@ -419,6 +421,7 @@ function App() {
     closeGroupChat,
     sendGroupMessage,
     leaveGroupChat,
+    loadGroupChats,
   } = useGroupChat({ currentUserId, profilesRef, setBottomNotif });
 
   const {
@@ -446,6 +449,7 @@ function App() {
 
   // SSE fallback polling refs 동기화 — 렌더마다 최신 함수를 가리키도록 (stale 클로저 방지)
   loadChatListRef.current = loadChatList;
+  loadGroupChatsRef.current = loadGroupChats;
   loadReceivedLikesRef.current = loadReceivedLikes;
   loadLikesRef.current = loadLikes;
   loadContactShareDataRef.current = loadContactShareData;

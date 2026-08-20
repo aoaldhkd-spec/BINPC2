@@ -236,6 +236,9 @@ describe('product copy + notification invariants', () => {
     expect(hook).toContain('siblingGroupIds');
     expect(hook).toContain('joined: false');
     expect(hook).toContain('recentlyLeftRef');
+    expect(hook).toContain('onSseReconnect');
+    expect(hook).toContain('isSseHealthy');
+    expect(hook).toContain('resyncGroupState');
     expect(app).toMatch(/closeGroupChat\(\);\s*setView\('main'\)/);
     expect(group).toContain('GroupRoomIcon');
     expect(read('components/MainChatsTab.tsx')).toContain('GroupRoomIcon');

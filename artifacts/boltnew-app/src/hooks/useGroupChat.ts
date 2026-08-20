@@ -7,6 +7,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { onSseReconnect, isSseHealthy } from '../lib/localdb';
 import type { Profile, GroupChat, GroupMessage, GroupParticipant } from '../types/app';
 import type { BottomNotificationData } from '../components/BottomNotification';
 import {
@@ -228,6 +229,27 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
       console.warn('[loadGroupParticipants]', e);
     }
   }, []);
+
+  const isActiveGroupRoom = useCallback((groupId: string): boolean => {
+    const active = activeGroupIdRef.current;
+    if (!active || !groupId) return false;
+    const rooms = rawGroupsRef.current.length ? rawGroupsRef.current : groupChatsRef.current;
+    const catalogId = resolveCatalogGroupId(rooms, groupId);
+    const sibs = siblingGroupIds(rooms, groupId);
+    return active === groupId || active === catalogId || sibs.includes(active);
+  }, []);
+
+  const resyncGroupState = useCallback(async (): Promise<void> => {
+    const uid = currentUserIdRef.current;
+    if (!uid) return;
+    await loadGroupChats(uid);
+    const active = activeGroupIdRef.current;
+    if (!active) return;
+    await Promise.all([
+      loadGroupMessages(active).catch(() => false),
+      loadGroupParticipants(active).catch(() => {}),
+    ]);
+  }, [loadGroupChats, loadGroupMessages, loadGroupParticipants]);
 
   const markGroupRead = useCallback(async (groupId: string): Promise<void> => {
     const userId = currentUserIdRef.current;
@@ -507,13 +529,14 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
             myGroupIdsRef.current = myGroupIdsRef.current.filter(id => id !== incoming.group_id);
             void loadGroupChats(uid);
           }
-          if (activeGroupIdRef.current === incoming.group_id) {
+          if (isActiveGroupRoom(incoming.group_id)) {
+            const openId = activeGroupIdRef.current ?? incoming.group_id;
             setGroupParticipants(prev => {
               if (event === 'DELETE' || !payload.new) {
                 return prev.filter(p => p.id !== incoming.id && !(p.user_id === incoming.user_id && p.group_id === incoming.group_id));
               }
-              const row = payload.new as GroupParticipant;
-              const idx = prev.findIndex(p => p.id === row.id || (p.user_id === row.user_id && p.group_id === row.group_id));
+              const row = { ...(payload.new as GroupParticipant), group_id: openId };
+              const idx = prev.findIndex(p => p.id === row.id || p.user_id === row.user_id);
               if (idx < 0) return [...prev, row];
               const next = [...prev];
               next[idx] = { ...next[idx], ...row };
@@ -521,13 +544,17 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
             });
           }
           if (event === 'INSERT' && incoming.user_id !== uid && myGroupIdsRef.current.includes(incoming.group_id)) {
+            const rooms = rawGroupsRef.current.length ? rawGroupsRef.current : groupChatsRef.current;
+            const catalogId = resolveCatalogGroupId(rooms, incoming.group_id);
             setGroupChats(prev => prev.map(g =>
-              g.id === incoming.group_id ? { ...g, memberCount: (g.memberCount ?? 0) + 1 } : g
+              (g.id === incoming.group_id || g.id === catalogId) ? { ...g, memberCount: (g.memberCount ?? 0) + 1 } : g
             ));
           }
           if (event === 'DELETE' && incoming.user_id !== uid && myGroupIdsRef.current.includes(incoming.group_id)) {
+            const rooms = rawGroupsRef.current.length ? rawGroupsRef.current : groupChatsRef.current;
+            const catalogId = resolveCatalogGroupId(rooms, incoming.group_id);
             setGroupChats(prev => prev.map(g =>
-              g.id === incoming.group_id ? { ...g, memberCount: Math.max(0, (g.memberCount ?? 1) - 1) } : g
+              (g.id === incoming.group_id || g.id === catalogId) ? { ...g, memberCount: Math.max(0, (g.memberCount ?? 1) - 1) } : g
             ));
           }
         } catch { /* SSE 파싱 오류 무시 */ }
@@ -560,6 +587,60 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
     return () => { supabase.removeChannel(ch); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUserId, loadGroupChats]);
+
+  // ── SSE 재연결 / 탭 복귀 / 끊김 시 단톡 목록·메시지 resync (useChat 과 동일 패턴) ─
+  useEffect(() => {
+    return onSseReconnect(() => { void resyncGroupState(); });
+  }, [resyncGroupState]);
+
+  useEffect(() => {
+    const handler = () => {
+      if (document.visibilityState === 'visible') void resyncGroupState();
+    };
+    document.addEventListener('visibilitychange', handler);
+    return () => document.removeEventListener('visibilitychange', handler);
+  }, [resyncGroupState]);
+
+  useEffect(() => {
+    if (!currentUserId) return;
+    const id = setInterval(() => {
+      if (isSseHealthy()) return;
+      void resyncGroupState();
+    }, 15_000);
+    return () => clearInterval(id);
+  }, [currentUserId, resyncGroupState]);
+
+  useEffect(() => {
+    const gid = activeGroupId;
+    if (!gid) return;
+    let pollFailCount = 0;
+    let isPolling = false;
+    let pollPausedUntil = 0;
+    let lastTick = 0;
+    const pollInterval = setInterval(async () => {
+      if (activeGroupIdRef.current !== gid) return;
+      if (Date.now() < pollPausedUntil) return;
+      if (isPolling) return;
+      if (isSseHealthy()) return;
+      const intervalMs = 3_000;
+      if (Date.now() - lastTick < intervalMs - 50) return;
+      lastTick = Date.now();
+      isPolling = true;
+      try {
+        const ok = await loadGroupMessages(gid);
+        if (ok) {
+          pollFailCount = 0;
+          pollPausedUntil = 0;
+        } else if (++pollFailCount >= 3) {
+          pollPausedUntil = Date.now() + 20_000;
+          pollFailCount = 0;
+        }
+      } finally {
+        isPolling = false;
+      }
+    }, 1_000);
+    return () => clearInterval(pollInterval);
+  }, [activeGroupId, loadGroupMessages]);
 
   // ── 로그인 시 단톡방 로드 ─────────────────────────────────────────────────────
   useEffect(() => {
