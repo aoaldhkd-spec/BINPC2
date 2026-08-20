@@ -292,12 +292,12 @@ function topicTipCount(topic: Topic): number {
 function topicLayout(topic: Topic) {
   const count = topicTipCount(topic);
   const dense = count >= 7 || topic.id === 'guide';
-  const compact = dense || (count >= 5 && Boolean(topic.filler));
-  const ultraCompact = topic.id === 'settings';
+  const compact = dense || count >= 5 || topic.id === 'settings';
+  const fillVertical = topic.id === 'heart' || topic.id === 'signal' || topic.id === 'settings' || topic.id === 'chat';
   return {
     twoColumn: count >= 4 || dense,
-    compact: compact || ultraCompact,
-    ultraCompact,
+    compact,
+    fillVertical,
     fillerCompact: compact && Boolean(topic.filler),
   };
 }
@@ -310,7 +310,7 @@ function TipCard({
   darkMode,
   spanFull,
   compact,
-  ultraCompact,
+  fill,
   sectionBar,
 }: {
   tip: Tip;
@@ -320,7 +320,7 @@ function TipCard({
   darkMode?: boolean;
   spanFull?: boolean;
   compact?: boolean;
-  ultraCompact?: boolean;
+  fill?: boolean;
   sectionBar?: string;
 }) {
   const desc = tip.desc.replace(/([.·])\s+/g, '$1\u200b ');
@@ -328,14 +328,27 @@ function TipCard({
   const iconCls = darkMode ? accent.iconDark : accent.iconLight;
   const barCls = sectionBar ?? accent.bar;
   const iconShell = `${
-    ultraCompact ? 'w-5 h-5 text-[10px] rounded-md' : compact ? 'w-6 h-6 text-xs rounded-lg' : 'w-7 h-7 text-sm rounded-xl'
+    fill
+      ? compact
+        ? 'w-7 h-7 text-sm rounded-xl'
+        : 'w-8 h-8 text-base rounded-xl'
+      : compact
+        ? 'w-6 h-6 text-xs rounded-lg'
+        : 'w-7 h-7 text-sm rounded-xl'
   } flex-shrink-0 flex items-center justify-center text-white ${iconCls}`;
-  const titleCls = ultraCompact ? 'text-[10px]' : compact ? 'text-[11px]' : 'text-xs';
-  const descCls = ultraCompact ? 'text-[9px] leading-tight' : compact ? 'text-[10px] leading-snug' : 'text-[13px] leading-relaxed';
-  const pad = ultraCompact ? 'px-1.5 py-1' : compact ? 'px-2 py-1.5' : 'px-3 py-2.5';
+  const titleCls = fill ? (compact ? 'text-xs' : 'text-sm') : compact ? 'text-[11px]' : 'text-xs';
+  const descCls = fill
+    ? compact
+      ? 'text-[11px] leading-snug'
+      : 'text-sm leading-relaxed'
+    : compact
+      ? 'text-[10px] leading-snug'
+      : 'text-[13px] leading-relaxed';
+  const pad = fill ? (compact ? 'px-2.5 py-2' : 'px-3 py-3') : compact ? 'px-2 py-1.5' : 'px-3 py-2.5';
+  const stretchCls = fill ? 'flex-1 min-h-0 items-center' : 'h-full';
 
   const body = (
-    <div className="flex items-start gap-2 min-w-0 flex-1 pl-1.5">
+    <div className={`flex gap-2 min-w-0 flex-1 pl-1.5 ${fill ? 'items-center' : 'items-start'}`}>
       <span className={iconShell}>{tip.icon}</span>
       <div className="min-w-0 flex-1">
         <p className={`${titleCls} font-bold leading-tight ${KR_WRAP} ${text}`}>{tip.title}</p>
@@ -346,7 +359,7 @@ function TipCard({
 
   if (spanFull) {
     return (
-      <div className={`relative col-span-2 flex rounded-2xl border ${pad} ${cardCls}`}>
+      <div className={`relative col-span-2 flex rounded-2xl border ${stretchCls} ${pad} ${cardCls}`}>
         <span className={`absolute left-0 top-2.5 bottom-2.5 w-0.5 rounded-full bg-gradient-to-b ${barCls}`} aria-hidden />
         {body}
       </div>
@@ -354,7 +367,7 @@ function TipCard({
   }
 
   return (
-    <div className={`relative flex rounded-2xl border h-full ${pad} ${cardCls}`}>
+    <div className={`relative flex rounded-2xl border ${stretchCls} ${pad} ${cardCls}`}>
       <span className={`absolute left-0 top-2.5 bottom-2.5 w-0.5 rounded-full bg-gradient-to-b ${barCls}`} aria-hidden />
       {body}
     </div>
@@ -369,7 +382,7 @@ function TipGrid({
   darkMode,
   twoColumn,
   compact,
-  ultraCompact,
+  fill,
   sectionBar,
 }: {
   tips: Tip[];
@@ -379,16 +392,17 @@ function TipGrid({
   darkMode?: boolean;
   twoColumn?: boolean;
   compact?: boolean;
-  ultraCompact?: boolean;
+  fill?: boolean;
   sectionBar?: string;
 }) {
   const useTwoCol = twoColumn ?? tips.length >= 4;
   const oddLast = useTwoCol && tips.length % 2 === 1;
-  const gap = ultraCompact ? 'gap-1' : compact ? 'gap-1.5' : 'gap-2.5';
+  const gap = fill ? (compact ? 'gap-2' : 'gap-2.5') : compact ? 'gap-1.5' : 'gap-2.5';
+  const stretchCls = fill ? 'flex-1 min-h-0 h-full' : '';
 
   if (!useTwoCol) {
     return (
-      <div className={`flex flex-col ${gap}`}>
+      <div className={`flex flex-col ${gap} ${stretchCls}`}>
         {tips.map((tip) => (
           <TipCard
             key={tip.title}
@@ -398,7 +412,7 @@ function TipGrid({
             muted={muted}
             darkMode={darkMode}
             compact={compact}
-            ultraCompact={ultraCompact}
+            fill={fill}
             sectionBar={sectionBar}
           />
         ))}
@@ -407,7 +421,7 @@ function TipGrid({
   }
 
   return (
-    <div className={`grid grid-cols-2 ${gap} auto-rows-fr`}>
+    <div className={`grid grid-cols-2 ${gap} auto-rows-fr ${stretchCls}`}>
       {tips.map((tip, i) => (
         <TipCard
           key={tip.title}
@@ -417,7 +431,7 @@ function TipGrid({
           muted={muted}
           darkMode={darkMode}
           compact={compact}
-          ultraCompact={ultraCompact}
+          fill={fill}
           sectionBar={sectionBar}
           spanFull={oddLast && i === tips.length - 1}
         />
@@ -666,8 +680,8 @@ export function TutorialModal({
 
   const tipsContent = (
     <div
-      className={`flex flex-col ${hasVideo ? 'min-h-0 flex-1 overflow-hidden' : 'flex-shrink-0'} ${
-        layout.ultraCompact ? 'gap-1' : layout.compact ? 'gap-1.5' : 'gap-2.5'
+      className={`flex flex-col min-h-0 ${layout.fillVertical || hasVideo ? 'flex-1 h-full overflow-hidden' : 'flex-shrink-0'} ${
+        layout.compact ? 'gap-1.5' : 'gap-2.5'
       }`}
     >
       {topic.filler && <FillerPanel kind={topic.filler} darkMode={darkMode} compact={layout.fillerCompact} />}
@@ -685,7 +699,7 @@ export function TutorialModal({
               darkMode={darkMode}
               twoColumn={layout.twoColumn}
               compact={layout.compact}
-              ultraCompact={layout.ultraCompact}
+              fill={layout.fillVertical}
               sectionBar={variant.bar}
             />
             {section.footer && (
@@ -706,12 +720,12 @@ export function TutorialModal({
           darkMode={darkMode}
           twoColumn={layout.twoColumn}
           compact={layout.compact}
-          ultraCompact={layout.ultraCompact}
+          fill={layout.fillVertical}
         />
       )}
 
       {topic.footer && (
-        <p className={`leading-snug px-2.5 py-1.5 rounded-xl border text-[11px] ${KR_WRAP} ${
+        <p className={`flex-shrink-0 leading-snug px-2.5 py-1.5 rounded-xl border text-[11px] ${KR_WRAP} ${
           darkMode ? 'text-slate-400 bg-slate-800/40 border-slate-700/60' : 'text-gray-500 bg-slate-50/80 border-slate-100'
         }`}>
           {topic.footer.replace(/([.·])\s+/g, '$1\u200b ')}
@@ -849,8 +863,8 @@ export function TutorialModal({
         <TopicSubTabs subView={subView} onChange={setSubView} hasVideo={hasVideo} darkMode={darkMode} topicColor={topic.color} />
 
         {/* Content */}
-        <div className={`flex-1 min-h-0 px-4 py-2 flex flex-col overflow-hidden transition-colors duration-300 ${
-          !hasVideo ? 'justify-center' : ''
+        <div className={`flex-1 min-h-0 px-4 pt-2 pb-1 flex flex-col overflow-hidden transition-colors duration-300 ${
+          !hasVideo && !layout.fillVertical ? 'justify-center' : ''
         } ${darkMode ? 'bg-gradient-to-b from-slate-900/80 to-slate-950' : 'bg-gradient-to-b from-slate-50/80 to-white'}`}>
           {subView === 'video' && hasVideo ? videoContent : tipsContent}
         </div>
