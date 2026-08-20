@@ -14,6 +14,7 @@ import { GroupRoomIcon } from './GroupRoomIcon';
 
 import { genAvatar } from '../lib/profile';
 import { NavLayer } from '../hooks/useParticipantNav';
+import { withChatImageAuth } from '../lib/localdb';
 
 const getAvatarSrc = (photoUrl: string | null | undefined, nick: string): string => {
   if (!photoUrl) return genAvatar(nick);
@@ -236,7 +237,7 @@ export function GroupChatScreen({
 
                   {msg.image_url && !isOptimistic ? (
                     <img
-                      src={msg.image_url}
+                      src={withChatImageAuth(msg.image_url)}
                       alt="사진"
                       className="rounded-2xl max-w-full object-cover"
                       style={{ maxHeight: 240 }}

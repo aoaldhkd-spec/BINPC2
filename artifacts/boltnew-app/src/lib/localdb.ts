@@ -1117,6 +1117,23 @@ export async function uploadStorageDataUrl(
   }
 }
 
+/**
+ * 채팅 이미지 <img> 용 — Netlify 쿠키 단절 시 sessionToken query로 인증.
+ * profile-photos·blob·이미 토큰이 붙은 URL은 그대로 둔다.
+ */
+export function withChatImageAuth(url: string | null | undefined): string {
+  if (!url) return '';
+  if (url.startsWith('blob:') || url.startsWith('data:')) return url;
+  if (!url.includes('/api/db/storage-image')) return url;
+  if (/[?&]p=profile-photos%2F|[?&]p=profile-photos\//.test(url)) return url;
+  if (/[?&]sessionToken=/.test(url) || /[?&]adminToken=/.test(url)) return url;
+  const uid = _currentUserId;
+  const token = (_sessionReady && _sessionBearerToken) ? _sessionBearerToken : null;
+  if (!uid || !token) return url;
+  const sep = url.includes('?') ? '&' : '?';
+  return `${url}${sep}userId=${encodeURIComponent(uid)}&sessionToken=${encodeURIComponent(token)}`;
+}
+
 // ─── Public mock client ───────────────────────────────────────────────────────
 export const supabase: any = {
   from(table: keyof Database['public']['Tables'] | string): QueryBuilder {

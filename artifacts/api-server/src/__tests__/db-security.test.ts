@@ -863,6 +863,64 @@ describe('[Security] profiles / likes / storage', () => {
     expect(upload.status).toBe(200);
   });
 
+  it('채팅 이미지 GET은 sessionToken query로 인증된다 (img 태그 / Netlify 쿠키 단절)', async () => {
+    const aId = randomUUID();
+    const bId = randomUUID();
+    const strangerId = randomUUID();
+    for (const id of [aId, bId, strangerId]) {
+      await op({
+        op: 'insert',
+        table: 'profiles',
+        payload: { id, nickname: `img-${id.slice(0, 8)}` },
+      });
+    }
+    const [u1, u2] = [aId, bId].sort();
+    const chat = await op({
+      op: 'insert',
+      table: 'chats',
+      requesterId: aId,
+      single: true,
+      selectAfterWrite: true,
+      payload: { user1_id: u1, user2_id: u2 },
+    });
+    const chatId = chat.body.data?.id as string;
+    expect(chatId).toBeTruthy();
+
+    const loginA = await request(app)
+      .post('/api/db/auth/login')
+      .send({ userId: aId, deviceSecret: `secret-${aId}` });
+    const loginB = await request(app)
+      .post('/api/db/auth/login')
+      .send({ userId: bId, deviceSecret: `secret-${bId}` });
+    const loginS = await request(app)
+      .post('/api/db/auth/login')
+      .send({ userId: strangerId, deviceSecret: `secret-${strangerId}` });
+    const tokenA = loginA.body.sessionToken as string;
+    const tokenB = loginB.body.sessionToken as string;
+    const tokenS = loginS.body.sessionToken as string;
+
+    const path = `${chatId}/${aId}/${randomUUID()}.jpg`;
+    const dataUrl = `data:image/jpeg;base64,${Buffer.from([0xFF, 0xD8, 0xFF, 0xD9]).toString('base64')}`;
+    const upload = await request(app)
+      .post('/api/db/storage-upload')
+      .send({ path, dataUrl, requesterId: aId, sessionToken: tokenA });
+    expect(upload.status).toBe(200);
+
+    const bare = await request(app).get(`/api/db/storage-image?p=${encodeURIComponent(path)}`);
+    expect(bare.status).toBe(401);
+
+    const peer = await request(app).get(
+      `/api/db/storage-image?p=${encodeURIComponent(path)}&userId=${encodeURIComponent(bId)}&sessionToken=${encodeURIComponent(tokenB)}`,
+    );
+    expect(peer.status).toBe(200);
+    expect(peer.headers['content-type']).toMatch(/image\/jpeg/);
+
+    const stranger = await request(app).get(
+      `/api/db/storage-image?p=${encodeURIComponent(path)}&userId=${encodeURIComponent(strangerId)}&sessionToken=${encodeURIComponent(tokenS)}`,
+    );
+    expect(stranger.status).toBe(403);
+  });
+
   it('프로필 업로드 MIME과 magic bytes를 JPEG/PNG/WebP/GIF로 제한한다', async () => {
     const ownerId = randomUUID();
     const owner = await loginAgent(ownerId);

@@ -71,6 +71,16 @@ describe('product copy + notification invariants', () => {
     expect(routes).toMatch(/resolveAuthUserId\(req, body\)/);
   });
 
+  it('chat image display uses withChatImageAuth (Netlify cookie gap for <img>)', () => {
+    const db = read('lib/localdb.ts');
+    const row = read('components/ChatMessageRow.tsx');
+    const routes = read('../../api-server/src/routes/db.ts');
+    expect(db).toContain('withChatImageAuth');
+    expect(row).toContain('withChatImageAuth');
+    expect(routes).toMatch(/req\.query\.sessionToken/);
+    expect(routes).toMatch(/verifySessionToken\(qUserId,\s*qSessionToken\)/);
+  });
+
   it('BottomNotification sits above ChatScreen', () => {
     const toast = read('components/BottomNotification.tsx');
     const chat = read('components/ChatScreen.tsx');
@@ -114,6 +124,42 @@ describe('product copy + notification invariants', () => {
     expect(app).not.toMatch(/showResetPassword \?/);
     expect(app).toContain('{showResetPassword && (');
     expect(app).toContain('<MainScreen');
+  });
+
+  it('user header gates: logo=reset, npc=admin, sulbun=no staff gate', () => {
+    const reset = read('components/ResetButton.tsx');
+    expect(reset).toContain('data-gate="logo-reset"');
+    expect(reset).toContain('data-gate="npc-admin"');
+    expect(reset).toContain('data-gate="sulbun-none"');
+    expect(reset).toContain('openResetGate');
+    expect(reset).toContain('openAdminGate');
+    expect(reset).toContain('handleSulbunClick');
+    expect(reset).toContain("FIXED_TITLE = '범일NPC는 30살!'");
+    expect(reset).not.toMatch(/navigateToAppPath\('test'\)/);
+    const waiting = read('components/WaitingOverlay.tsx');
+    expect(waiting).toContain('data-gate="logo-reset"');
+    expect(waiting).toContain('data-gate="npc-admin"');
+    expect(waiting).toContain("verifyPanelPassword('admin'");
+    expect(waiting).toContain("verifyPanelPassword('reset'");
+  });
+
+  it('숨은기능: 칭찬하트 없고 방문자·NPC나이', () => {
+    const modal = read('components/TutorialModal.tsx');
+    const hint = read('lib/host-age-easter-egg.ts');
+    expect(modal).toContain("title: '방문자'");
+    expect(modal).toContain("title: 'NPC 나이'");
+    expect(modal).toContain('HOST_AGE_EASTER_EGG_HINT');
+    expect(modal).not.toMatch(/title: '칭찬 하트'/);
+    expect(hint).toContain('NPC 나이');
+    expect(hint).toContain('술번개');
+  });
+
+  it('theme switcher only after profile-ready (not on entry)', () => {
+    const theme = read('components/ThemeSwitcher.tsx');
+    const app = read('App.tsx');
+    expect(theme).toContain("dataset.appReady === '1'");
+    expect(theme).toContain('if (!appReady) return null');
+    expect(app).toContain("dataset.appReady = '1'");
   });
 
   it('채팅 탭 진입만으로 미읽음 숫자를 지우지 않는다', () => {
@@ -232,12 +278,10 @@ describe('product copy + notification invariants', () => {
     expect(theme).toContain('export function isDarkTheme');
     expect(theme).toMatch(/theme === 'default' \|\| theme === 'dark-neon'/);
     expect(surfaces).toContain('export function isProfileCardDark');
-    expect(surfaces).toContain("theme === 'default') return false");
-    expect(surfaces).toContain("theme === 'dark-neon') return true");
-    expect(surfaces).not.toContain('isDarkTheme(theme) || darkMode');
+    expect(surfaces).toContain('isDarkTheme(theme) || darkMode');
+    expect(surfaces).not.toContain("theme === 'default') return false");
     expect(card).toContain('isProfileCardDark(theme, darkMode)');
     expect(card).toContain('profileCardSurfaces(theme, darkMode)');
-    expect(card).not.toMatch(/isDarkTheme\s*\(/);
     expect(card).toContain('darkMode = false');
     expect(main).toContain('darkMode={darkMode}');
     expect(card).not.toMatch(/className="group relative flex flex-col min-w-0 max-w-full bg-white/);

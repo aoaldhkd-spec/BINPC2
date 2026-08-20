@@ -1,11 +1,14 @@
 import { useState, useRef, useEffect } from 'react';
 import { Users, CheckCircle, Clock, ShieldAlert } from 'lucide-react';
 import { useTheme } from '../lib/theme';
+import { navigateToAppPath, verifyPanelPassword } from '../lib/panel-password';
 
-export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
+export function WaitingOverlay({ sessionActive, onEnter, onRecover, onReset }: {
   sessionActive: boolean | null;
   onEnter: () => void;
   onRecover?: (profileId: string, pinCode: string) => void;
+  /** 로고 → 처음으로 돌아가기 */
+  onReset?: () => void;
 }) {
   const { theme } = useTheme();
   const isLightTheme = theme === 'y2k' || theme === 'minimal';
@@ -29,6 +32,14 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
   const [maskedNickname, setMaskedNickname] = useState('');
   const [nickInput, setNickInput] = useState('');
   const [pendingPin, setPendingPin] = useState('');
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetPw, setResetPw] = useState('');
+  const [resetErr, setResetErr] = useState('');
+  const [resetBusy, setResetBusy] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
+  const [adminPw, setAdminPw] = useState('');
+  const [adminErr, setAdminErr] = useState('');
+  const [adminBusy, setAdminBusy] = useState(false);
 
 
   // 개별 ref
@@ -163,6 +174,39 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
     }
     e.preventDefault();
   };
+
+  const confirmReset = async () => {
+    if (resetBusy) return;
+    setResetBusy(true);
+    setResetErr('');
+    const result = await verifyPanelPassword('reset', resetPw);
+    setResetBusy(false);
+    if (result === 'ok') {
+      setResetOpen(false);
+      setResetPw('');
+      onReset?.();
+    } else {
+      setResetErr(result === 'limited' ? '시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.' : '비밀번호가 틀렸습니다');
+      setResetPw('');
+    }
+  };
+
+  const confirmAdmin = async () => {
+    if (adminBusy) return;
+    setAdminBusy(true);
+    setAdminErr('');
+    const result = await verifyPanelPassword('admin', adminPw);
+    setAdminBusy(false);
+    if (result === 'ok') {
+      setAdminOpen(false);
+      setAdminPw('');
+      navigateToAppPath('admin');
+    } else {
+      setAdminErr(result === 'limited' ? '시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.' : '비밀번호가 틀렸습니다');
+      setAdminPw('');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-black flex flex-col items-center justify-center px-5 py-4 relative overflow-hidden">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -172,23 +216,40 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
       </div>
 
       <div className="relative z-10 text-center max-w-sm w-full flex flex-col items-center">
-        {/* 로고 + 아이콘 — 컴팩트 */}
-        <div className="relative inline-flex items-center justify-center mb-3">
+        {/* 로고 → 처음으로 / 범일NPC → 관리자 / 술번개 → 게이트 없음 */}
+        <button
+          type="button"
+          data-gate="logo-reset"
+          onClick={() => { setResetPw(''); setResetErr(''); setResetOpen(true); }}
+          title="처음으로 돌아가기"
+          aria-label="처음으로 돌아가기"
+          className="relative inline-flex items-center justify-center mb-3 active:scale-95 transition-transform"
+        >
           <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-cyan-500 to-teal-600 flex items-center justify-center shadow-2xl shadow-cyan-500/30">
             <Users className="w-10 h-10 text-white" />
           </div>
           <div className={`absolute -top-2 -right-2 w-7 h-7 rounded-full flex items-center justify-center shadow-lg ${isActive ? 'bg-teal-400' : 'bg-amber-400 animate-bounce'}`}>
             {isActive ? <CheckCircle className="w-3.5 h-3.5 text-teal-900" /> : <Clock className="w-3.5 h-3.5 text-amber-900" />}
           </div>
-        </div>
-        {/* 타이틀 */}
+        </button>
         <div className="mb-3 text-center">
-          <p className="text-[18px] font-black tracking-[0.25em] uppercase mb-0.5"
-             style={{ color: isLightTheme ? '#0f766e' : '#cffafe' }}>
-            범일NPC
-          </p>
-          <h1 className="text-3xl font-black tracking-tight leading-tight"
-              style={{ color: isLightTheme ? '#111827' : '#ffffff' }}>술번개 🍻</h1>
+          <button
+            type="button"
+            data-gate="npc-admin"
+            onClick={() => { setAdminPw(''); setAdminErr(''); setAdminOpen(true); }}
+            title="관리자"
+            className="block mx-auto"
+          >
+            <p className="text-[18px] font-black tracking-[0.25em] uppercase mb-0.5"
+               style={{ color: isLightTheme ? '#0f766e' : '#cffafe' }}>
+              범일NPC
+            </p>
+          </button>
+          <h1
+            data-gate="sulbun-none"
+            className="text-3xl font-black tracking-tight leading-tight"
+            style={{ color: isLightTheme ? '#111827' : '#ffffff' }}
+          >술번개 🍻</h1>
         </div>
 
         {/* 상태 배지 */}
@@ -400,12 +461,57 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
             </div>
           </div>
         )}
-        {/* 테스트/관리자 — 우측 하단 고정 */}
+        {/* 테스트/관리자 — 우측 하단 고정 (검증 후 제거 예정) */}
         <div className="fixed bottom-4 right-4 z-40 flex flex-row gap-2 items-end">
           <a href="/test" className="px-3 py-1.5 rounded-lg bg-violet-600/80 hover:bg-violet-500 text-white font-bold text-xs shadow-lg backdrop-blur-sm transition-all border border-violet-500/50 active:scale-95">테스트</a>
           <a href="/admin" className="px-3 py-1.5 rounded-lg bg-slate-700/90 hover:bg-slate-800 text-white font-bold text-xs shadow-lg backdrop-blur-sm transition-all border border-slate-600/50 active:scale-95">관리자</a>
         </div>
       </div>
+
+      {resetOpen && (
+        <div className="fixed inset-0 z-[500] flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
+          onClick={() => { setResetOpen(false); setResetPw(''); setResetErr(''); }}>
+          <div className="bg-white rounded-2xl p-6 w-72 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <p className="text-sm font-bold text-gray-800 mb-1">처음으로 돌아가기</p>
+            <p className="text-xs text-gray-500 mb-4">비밀번호를 입력하세요</p>
+            <input type="password" value={resetPw} onChange={e => { setResetPw(e.target.value); setResetErr(''); }}
+              onKeyDown={e => { if (e.key === 'Enter') void confirmReset(); }} placeholder="비밀번호" autoFocus disabled={resetBusy}
+              className={`w-full px-3 py-2.5 rounded-xl border-2 text-sm text-center font-bold outline-none mb-3 ${resetErr ? 'border-red-400 bg-red-50 text-red-700' : 'border-gray-200 focus:border-cyan-400'}`} />
+            {resetErr && <p className="text-xs text-red-500 text-center mb-3">{resetErr}</p>}
+            <div className="flex gap-2">
+              <button type="button" onClick={() => { setResetOpen(false); setResetPw(''); setResetErr(''); }}
+                className="flex-1 py-2 rounded-xl border-2 border-gray-200 text-sm font-semibold text-gray-600">취소</button>
+              <button type="button" onClick={() => void confirmReset()} disabled={resetBusy}
+                className="flex-1 py-2 rounded-xl bg-cyan-500 text-white text-sm font-semibold disabled:opacity-60">{resetBusy ? '확인 중…' : '확인'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {adminOpen && (
+        <div className="fixed inset-0 z-[500] flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
+          onClick={() => { setAdminOpen(false); setAdminPw(''); setAdminErr(''); }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xs p-6 space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="text-center">
+              <span className="text-3xl">🔐</span>
+              <h3 className="text-gray-900 font-black text-lg mt-2">관리자 확인</h3>
+              <p className="text-gray-400 text-xs mt-1">관리자 비밀번호만 입력하세요 (고유번호 아님)</p>
+            </div>
+            <input type="password" value={adminPw} onChange={e => { setAdminPw(e.target.value); setAdminErr(''); }}
+              onKeyDown={e => { if (e.key === 'Enter') void confirmAdmin(); }}
+              placeholder="관리자 비밀번호" autoFocus disabled={adminBusy}
+              className={`w-full border-2 text-center text-lg font-bold rounded-xl px-4 py-3 focus:outline-none ${adminErr ? 'border-red-400 bg-red-50 text-red-700' : 'border-gray-200 focus:border-cyan-500'}`} />
+            {adminErr && <p className="text-red-500 text-xs text-center font-bold">{adminErr}</p>}
+            <div className="flex gap-2">
+              <button type="button" onClick={() => { setAdminOpen(false); setAdminPw(''); setAdminErr(''); }}
+                className="flex-1 py-2.5 rounded-xl border-2 border-gray-200 text-gray-500 text-sm font-semibold">취소</button>
+              <button type="button" onClick={() => void confirmAdmin()} disabled={adminBusy}
+                className="flex-1 py-2.5 rounded-xl bg-cyan-500 text-white text-sm font-bold disabled:opacity-60">{adminBusy ? '확인 중…' : '확인'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`
         @keyframes dotbounce {
           0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }

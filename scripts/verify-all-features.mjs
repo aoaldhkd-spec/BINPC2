@@ -145,6 +145,7 @@ async function main() {
     checks.push(['chat_disconnect_recovery', 'SKIP (FUNCTIONS_LOCKED)']);
     checks.push(['e2e_heart_sse_consistency', 'SKIP (FUNCTIONS_LOCKED)']);
     checks.push(['mutual_chat_hearts', 'SKIP (FUNCTIONS_LOCKED)']);
+    checks.push(['chat_message_types', 'SKIP (FUNCTIONS_LOCKED)']);
   } else {
     for (const [name, script] of [
       ['mobile_chat_hearts_e2e', 'test-chat-hearts-e2e.mjs'],
@@ -152,6 +153,7 @@ async function main() {
       ['chat_disconnect_recovery', 'test-chat-disconnect-recovery.mjs'],
       ['e2e_heart_sse_consistency', 'e2e-heart-sse-consistency.mjs'],
       ['mutual_chat_hearts', 'test-mutual-chat-hearts.mjs'],
+      ['chat_message_types', 'test-chat-message-types.mjs'],
     ]) {
       const run = spawnSync(process.execPath, [resolve(__dirname, script)], {
         cwd: resolve(__dirname, '..'),

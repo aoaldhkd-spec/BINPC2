@@ -1749,6 +1749,22 @@ function App() {
     view,
     shownWaiting,
   });
+
+  // 테마 FAB: 프로필 설정 완료 후 메인에서만 (입장/대기/닉네임 화면 숨김)
+  useEffect(() => {
+    const ready = Boolean(
+      currentUserId
+      && hasValidProfile
+      && profileBoot === 'ok'
+      && !showEntryGate
+      && !showWaiting
+      && !showNicknameSetup,
+    );
+    if (ready) document.body.dataset.appReady = '1';
+    else delete document.body.dataset.appReady;
+    return () => { delete document.body.dataset.appReady; };
+  }, [currentUserId, hasValidProfile, profileBoot, showEntryGate, showWaiting, showNicknameSetup]);
+
   if (appLoading || sessionActive === null || entryPassword === null) return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col items-center justify-center gap-4 px-6 text-center">
       <div className="w-12 h-12 rounded-full border-4 border-teal-500/30 border-t-teal-500 animate-spin" />
@@ -1770,6 +1786,7 @@ function App() {
     sessionActive={sessionActive}
     onEnter={() => setShownWaiting(true)}
     onRecover={handleProfileRecovery}
+    onReset={reset}
   />;
 
   // 프로필 미완료·미검증 — 메인 진입 차단 (신규 → 등록, 기존 → 복구번호)

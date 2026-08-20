@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Check } from 'lucide-react';
 import { useTheme, type ThemeMode } from '../lib/theme';
 
@@ -57,6 +57,20 @@ const THEMES: {
 export function ThemeSwitcher() {
   const { theme, setTheme } = useTheme();
   const [open, setOpen] = useState(false);
+  // 입장·대기·닉네임 설정 중에는 숨김 — 프로필 완료 후(body[data-app-ready])만 표시
+  const [appReady, setAppReady] = useState(() =>
+    typeof document !== 'undefined' && document.body.dataset.appReady === '1',
+  );
+
+  useEffect(() => {
+    const sync = () => setAppReady(document.body.dataset.appReady === '1');
+    sync();
+    const obs = new MutationObserver(sync);
+    obs.observe(document.body, { attributes: true, attributeFilter: ['data-app-ready'] });
+    return () => obs.disconnect();
+  }, []);
+
+  if (!appReady) return null;
 
   const current = THEMES.find(t => t.mode === theme) ?? THEMES[0];
   const isY2k = theme === 'y2k';

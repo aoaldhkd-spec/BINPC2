@@ -7,6 +7,7 @@ import {
   parseInfoReqType,
   type InfoRequestType,
 } from '../lib/chat-message-format';
+import { withChatImageAuth } from '../lib/localdb';
 
 export type ChatMessageMeta = {
   time: string;
@@ -189,13 +190,16 @@ export function ChatMessageRow({
                   : (parseInfoReqType(msg.content!) === 'birthday' ? '상대방이 생일 공유를 거절했어요' : '상대방이 전화번호 공유를 거절했어요')}
               </p>
             </div>
-          ) : msg.image_url ? (
+          ) : msg.image_url ? (() => {
+            const imgSrc = withChatImageAuth(msg.image_url);
+            return (
             <img
-              src={msg.image_url} alt="이미지"
+              src={imgSrc} alt="이미지"
               loading="lazy"
               className="max-w-[240px] w-full object-contain cursor-pointer active:opacity-80"
-              onClick={(e) => { e.stopPropagation(); onOpenImage(msg.image_url!); }} />
-          ) : (
+              onClick={(e) => { e.stopPropagation(); onOpenImage(imgSrc); }} />
+            );
+          })() : (
             <p className="px-4 py-2 text-sm leading-relaxed">{msg.content}</p>
           )}
         </div>

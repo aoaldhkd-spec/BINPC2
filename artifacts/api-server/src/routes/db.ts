@@ -66,6 +66,33 @@ declare module 'express-session' {
 const router = Router();
 
 const PANEL_DEFAULT_PASSWORD = '116606';
+/** Admin participant nickname is always fixed after reset / bootstrap. */
+const ADMIN_FIXED_NICKNAME = '범일NPC';
+
+function normalizePhoneDigits(value: unknown): string {
+  return String(value ?? '').replace(/[^0-9]/g, '');
+}
+
+function adminPhoneFromSettings(settings?: Record<string, unknown> | null): string {
+  const row = settings ?? (getTable('app_settings')[0] as Record<string, unknown> | undefined);
+  return normalizePhoneDigits(row?.['admin_phone']);
+}
+
+function isAdminProfilePhone(phone: unknown, adminPhoneDigits?: string): boolean {
+  const admin = adminPhoneDigits ?? adminPhoneFromSettings();
+  const phoneDigits = normalizePhoneDigits(phone);
+  return Boolean(admin && phoneDigits && admin === phoneDigits);
+}
+
+/** Force admin phone profiles to the fixed nickname; preserve other fields. */
+function withFixedAdminNickname(
+  row: Record<string, unknown>,
+  adminPhoneDigits?: string,
+): Record<string, unknown> {
+  if (!isAdminProfilePhone(row['phone_number'], adminPhoneDigits)) return row;
+  if (String(row['nickname'] ?? '') === ADMIN_FIXED_NICKNAME) return row;
+  return { ...row, nickname: ADMIN_FIXED_NICKNAME };
+}
 const LEGACY_PANEL_PASSWORDS = ['166606', PANEL_DEFAULT_PASSWORD] as const;
 
 class RpcAuthError extends Error {
@@ -3670,7 +3697,7 @@ router.post('/op', async (req: Request, res: Response) => {
               error: { message: 'PIN pool exhausted — no available PIN slots. Please contact the administrator.', code: 'PIN_EXHAUSTED' },
             });
           }
-          effectiveRow = { ...effectiveRow, pin_code: pinResult.pin };
+          effectiveRow = withFixedAdminNickname({ ...effectiveRow, pin_code: pinResult.pin });
         }
         // chats 테이블: ID를 서버에서 정규화(sort)하여 역순 요청으로 인한 중복 채팅방 생성 방지
         // 클라이언트가 user1/user2를 어떤 순서로 보내든 항상 동일한 채팅방을 가리키도록 강제
@@ -3981,7 +4008,8 @@ router.post('/op', async (req: Request, res: Response) => {
       for (let i = 0; i < tableData.length; i++) {
         if (applyFilters([tableData[i]], normalizedFilters).length) {
           const oldRow = { ...tableData[i] };
-          const newRow = { ...oldRow, ...patch };
+          let newRow = { ...oldRow, ...patch };
+          if (table === 'profiles') newRow = withFixedAdminNickname(newRow);
           tableData[i] = newRow;
           updated.push(newRow);
           if (CRITICAL_PERSIST_TABLES.has(table)) {
@@ -4585,6 +4613,12 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
 
       case 'admin_event_end_reset': {
         checkPassword();
+        const settingsRow = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
+        const adminPhoneDigits = adminPhoneFromSettings(settingsRow);
+        const oldProfiles = store['profiles'] ?? [];
+        const adminBackup = adminPhoneDigits
+          ? oldProfiles.find(p => isAdminProfilePhone(p['phone_number'], adminPhoneDigits))
+          : undefined;
         const tablesToClear = [
           'profiles', 'likes', 'anonymous_reports', 'chats', 'messages',
           'contact_shares', 'contact_share_events',
@@ -4619,6 +4653,36 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         // PG wipe가 끝난 뒤 빈 카탈로그 방을 다시 심는다 (시드가 삭제 레이스에 지워지지 않게)
         await Promise.all(persistDeletes);
         await ensureOptInGroupRooms();
+        // 관리자 프로필·설정은 유지하되 닉네임은 항상 범일NPC
+        if (adminBackup || adminPhoneDigits) {
+          const now = new Date().toISOString();
+          const restored = withFixedAdminNickname({
+            ...(adminBackup ?? {}),
+            id: String(adminBackup?.['id'] ?? crypto.randomUUID()),
+            nickname: ADMIN_FIXED_NICKNAME,
+            phone_number: String(adminBackup?.['phone_number'] ?? settingsRow['admin_phone'] ?? ''),
+            created_at: String(adminBackup?.['created_at'] ?? now),
+            updated_at: now,
+          }, adminPhoneDigits);
+          if (!restored['pin_code']) {
+            const { use5Digit, poolSize } = pinPoolParams(1);
+            const pinResult = resolvePin(new Set(), poolSize, use5Digit, null);
+            if (pinResult.ok) restored['pin_code'] = pinResult.pin;
+          }
+          store['profiles'] = [restored];
+          try {
+            await dbPersistRow('profiles', restored);
+          } catch (e) {
+            logger.error({ err: e }, '[db] restore admin profile after event reset failed');
+          }
+          broadcastAll({
+            type: 'change',
+            table: 'profiles',
+            event: 'INSERT',
+            newRow: sanitizeProfile(restored),
+            oldRow: null,
+          });
+        }
         return res.json({ data: null, error: null });
       }
 
@@ -4682,7 +4746,7 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
           }
           // XSS 방어: 관리자가 악성 스크립트 태그가 포함된 값을 주입하는 것을 차단
           const sanitizedPatch = sanitizeRow('profiles', patch);
-          const newRow = { ...oldRow, ...sanitizedPatch };
+          const newRow = withFixedAdminNickname({ ...oldRow, ...sanitizedPatch });
           profiles[idx] = newRow;
           // 민감 연락처 필드 제거 후 전체 브로드캐스트
           broadcastAll({ type: 'change', table: 'profiles', event: 'UPDATE', newRow: sanitizeProfile(newRow), oldRow: sanitizeProfile(oldRow) });
@@ -4913,7 +4977,13 @@ router.get('/storage-image', async (req: Request, res: Response): Promise<void> 
   const rawP = req.query.p;
   if (!rawP || typeof rawP !== 'string') { res.status(400).json({ error: 'Invalid path parameter' }); return; }
   const path = rawP;
-  const userId = (req.session as { userId?: string })?.userId ?? null;
+  // Cookie session or query sessionToken (Netlify cookie gap for <img> tags)
+  let userId = (req.session as { userId?: string })?.userId ?? null;
+  const qUserId = typeof req.query.userId === 'string' ? req.query.userId : null;
+  const qSessionToken = typeof req.query.sessionToken === 'string' ? req.query.sessionToken : null;
+  if (!userId && qUserId && qSessionToken && verifySessionToken(qUserId, qSessionToken)) {
+    userId = qUserId;
+  }
   const adminToken = typeof req.query.adminToken === 'string' ? req.query.adminToken : null;
   const isPublicProfilePhoto = /^profile-photos\/[\w-]+$/.test(path);
   if (
