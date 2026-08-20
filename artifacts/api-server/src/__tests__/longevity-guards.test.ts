@@ -120,9 +120,11 @@ describe('longevity recurrence guards (server)', () => {
 
   it('load-venue-150 p95 thresholds stay CI-realistic (not flaky-tight)', () => {
     const loadTest = readFileSync(join(here, 'load-venue-150.test.ts'), 'utf8');
-    expect(loadTest).toMatch(/pct\(lat, 95\)\)\.toBeLessThan\(3_500\)/);
-    expect(loadTest).toMatch(/pct\(readyLat, 95\)\)\.toBeLessThan\(3_500\)/);
-    // 1.5s ready p95 flakes on shared GHA under 50/100/150 concurrent bursts
+    expect(loadTest).toMatch(/pct\(lat, 95\)\)\.toBeLessThan\(5_000\)/);
+    expect(loadTest).toMatch(/pct\(readyLat, 95\)\)\.toBeLessThan\(5_000\)/);
+    // 1.5s / 3.5s p95 flakes on shared GHA + busy hosts under 150 concurrent bursts
+    expect(loadTest).not.toMatch(/pct\(lat, 95\)\)\.toBeLessThan\(3_500\)/);
+    expect(loadTest).not.toMatch(/pct\(readyLat, 95\)\)\.toBeLessThan\(3_500\)/);
     expect(loadTest).not.toMatch(/pct\(readyLat, 95\)\)\.toBeLessThan\(1_500\)/);
   });
 

@@ -57,7 +57,7 @@ export function MainChatsTab({
   chatsRefreshed: boolean;
 }) {
   return (
-    <div className="max-w-lg mx-auto space-y-3">
+    <div className="w-full max-w-lg mx-auto space-y-3 shrink-0">
       {/* ── 1:1 / 단체 채팅 전환 서브탭 ── */}
       <div className={`flex rounded-xl p-0.5 ${darkMode ? 'bg-slate-700' : 'bg-gray-100'}`}>
         <button

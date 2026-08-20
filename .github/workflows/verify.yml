@@ -18,6 +18,5 @@ jobs:
           cache: 'pnpm'
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
-      - run: pnpm run verify:guards
-      - run: pnpm run audit:code
-      - run: pnpm -r --filter "./artifacts/**" --if-present run test:unit
+      # Single entrypoint — must match package.json "verify:ci" (guards enforce parity)
+      - run: pnpm run verify:ci
