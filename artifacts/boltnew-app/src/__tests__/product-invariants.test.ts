@@ -140,11 +140,15 @@ describe('product copy + notification invariants', () => {
 
 
 
-  it('entry logo goes to tester; main logo stays reset', () => {
+  it('entry and waiting logos go to tester; main logo stays reset', () => {
     const entry = read('components/EntryGateScreen.tsx');
+    const waiting = read('components/WaitingOverlay.tsx');
     const reset = read('components/ResetButton.tsx');
     expect(entry).toContain('data-gate="entry-logo-tester"');
     expect(entry).toContain("navigateToAppPath('test')");
+    expect(waiting).toContain('data-gate="waiting-logo-tester"');
+    expect(waiting).toContain("navigateToAppPath('test')");
+    expect(waiting).not.toContain('data-gate="logo-reset"');
     expect(reset).toContain('data-gate="logo-reset"');
     expect(reset).toContain('openResetGate');
     expect(reset).not.toMatch(/navigateToAppPath\('test'\)/);
@@ -283,7 +287,8 @@ describe('product copy + notification invariants', () => {
     const surfaces = read('lib/profile-card-theme.ts');
     const main = read('components/MainScreen.tsx');
     expect(theme).toContain('export function isDarkTheme');
-    expect(theme).toMatch(/theme === 'default' \|\| theme === 'dark-neon'/);
+    expect(theme).toMatch(/return theme === 'dark-neon'/);
+    expect(theme).not.toMatch(/theme === 'default' \|\| theme === 'dark-neon'/);
     expect(surfaces).toContain('export function isProfileCardDark');
     expect(surfaces).toContain("theme === 'default') return false");
     expect(surfaces).toContain("theme === 'dark-neon') return true");

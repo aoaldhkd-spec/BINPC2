@@ -200,7 +200,6 @@ export function ResetButton({ onReset, darkMode, onEasterEgg, onUiLockChange, on
           <span className={`text-lg font-black leading-tight ${darkMode ? 'text-white' : 'text-gray-900'}`} aria-hidden> 🍻</span>
         </div>
       </div>
-      </div>
 
       {/* 💀 이스터에그 — 범일NPC 30살 충격 폭로 */}
       {showEgg && (

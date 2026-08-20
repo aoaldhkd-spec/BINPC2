@@ -16,7 +16,7 @@ const THEMES: {
     mode: 'default',
     emoji: '🌙',
     label: 'Default',
-    desc: '기본 다크 UI',
+    desc: '기본 라이트 UI',
     fab: { bg: 'linear-gradient(135deg,#0f172a,#1e293b)', text: '#5eead4', border: '#14b8a6', glow: 'rgba(20,184,166,0.45)' },
     panel: { bg: '#0f172a', border: 'rgba(20,184,166,0.3)', header: 'rgba(20,184,166,0.08)', headerText: '#5eead4' },
     item: { active: 'rgba(20,184,166,0.15)', hover: 'rgba(255,255,255,0.05)', activeText: '#5eead4', text: '#e2e8f0', subText: '#64748b' },

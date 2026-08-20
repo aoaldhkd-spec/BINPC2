@@ -1786,7 +1786,6 @@ function App() {
     sessionActive={sessionActive}
     onEnter={() => setShownWaiting(true)}
     onRecover={handleProfileRecovery}
-    onReset={reset}
   />;
 
   // 프로필 미완료·미검증 — 메인 진입 차단 (신규 → 등록, 기존 → 복구번호)

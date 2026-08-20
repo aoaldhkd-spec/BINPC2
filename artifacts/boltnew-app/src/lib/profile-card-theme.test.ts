@@ -3,8 +3,8 @@ import { isDarkTheme } from './theme';
 import { isProfileCardDark, profileCardChipStyle, profileCardShellIsWhite, profileCardSurfaces } from './profile-card-theme';
 
 describe('profile-card-theme (dark vs light)', () => {
-  it('marks default + dark-neon as dark chrome; y2k + minimal as light', () => {
-    expect(isDarkTheme('default')).toBe(true);
+  it('marks dark-neon as dark chrome; default/y2k/minimal as light', () => {
+    expect(isDarkTheme('default')).toBe(false);
     expect(isDarkTheme('dark-neon')).toBe(true);
     expect(isDarkTheme('y2k')).toBe(false);
     expect(isDarkTheme('minimal')).toBe(false);

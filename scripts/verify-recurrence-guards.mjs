@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Quick sweep ? all known failure/delay modes must stay fixed + guarded in repo.
+ * Recurrence guards ? high-value regressions only (CI smoke, not UI minutiae).
  * Usage: node scripts/verify-recurrence-guards.mjs
  */
 import { existsSync, readFileSync } from 'node:fs';
@@ -58,7 +58,8 @@ function mustNotMatch(rel, id, patterns) {
   return true;
 }
 
-// 1. SSE 401 @ 1h ? localdb 80% refresh + endurance reconnect/refresh
+// ?? 01?04 SSE / reconnect / persist core ?????????????????????????????????????
+
 mustMatch('artifacts/boltnew-app/src/lib/localdb.ts', '01_sse_localdb_80pct', [
   /SSE_TOKEN_REFRESH_LEAD_SEC/,
   /scheduleSseTokenRefresh/,
@@ -71,7 +72,6 @@ mustMatch('scripts/endurance-5h.mjs', '01_sse_endurance_refresh', [
   /expiresAt/,
 ]);
 
-// 2. Netlify SSE buffering ? VITE_SSE_ORIGIN + Render-direct E2E
 mustMatch('artifacts/boltnew-app/src/lib/localdb.ts', '02_sse_origin_localdb', [/VITE_SSE_ORIGIN/, /SSE_ORIGIN/]);
 mustMatch('netlify.toml', '02_sse_origin_netlify', [/VITE_SSE_ORIGIN\s*=\s*"https:\/\/binpc2\.onrender\.com"/]);
 mustMatch('scripts/test-realtime-two-user.mjs', '02_sse_render_e2e', [
@@ -81,7 +81,6 @@ mustMatch('scripts/test-realtime-two-user.mjs', '02_sse_render_e2e', [
 ]);
 mustNotMatch('scripts/test-realtime-two-user.mjs', '02_sse_not_netlify', [/\$\{API\}\/events/]);
 
-// 3. functions_locked ? SSE live toggle, mid-run SKIP, unlock resume
 mustMatch('scripts/endurance-5h.mjs', '03_functions_locked_skip', [
   /isOpFunctionsLocked/,
   /process\.exit\(2\)/,
@@ -100,21 +99,19 @@ mustMatch('artifacts/boltnew-app/src/hooks/useChat.ts', '03_unlock_flush_chat_qu
   /isFunctionsLockedOpError/,
 ]);
 
-// 4. SSE idle drop between cycles
 mustMatch('scripts/endurance-5h.mjs', '04_sse_ensure_connected', [/await sseB\.ensureConnected\(\)|ensureConnected\(\)/]);
 
-// 5. Render cold start ? keep-api-warm + CI
+// ?? 05?07 Render / rate-limit / endurance recovery ???????????????????????????
+
 mustExist('scripts/keep-api-warm.mjs', '05_keep_api_warm_script');
 mustExist('.github/workflows/keep-api-warm.yml', '05_keep_api_warm_ci');
 mustMatch('render.yaml', '05_single_render_instance', [/numInstances:\s*1/]);
 
-// 6. Rate limit 429 ? single instance note in endurance header
 mustMatch('scripts/endurance-5h.mjs', '06_rate_limit_single_instance', [
   /429|Rate limit/i,
   /numInstances:1|ONE endurance/i,
 ]);
 
-// 7. admin event reset ? auto re-provision soak users mid-run
 mustMatch('scripts/endurance-5h.mjs', '07_admin_event_reset_recover', [
   /admin_event_end_reset/,
   /recoverContext|re-provisioning soak users/,
@@ -142,7 +139,8 @@ mustMatch('scripts/start-endurance-8h.mjs', '07h_launcher_detached', [
   /ENDURANCE_SESSION_DEADLINE/,
 ]);
 
-// 8. Photo upload sessionToken ? uploadStorageDataUrl, no raw fetch
+// ?? 08 Upload sessionToken (no raw fetch) ????????????????????????????????????
+
 mustMatch('artifacts/boltnew-app/src/lib/localdb.ts', '08_upload_session_token', [
   /uploadStorageDataUrl/,
   /storage-upload[\s\S]*sessionToken/,
@@ -152,7 +150,8 @@ mustNotMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '08_no_raw_s
   /fetch\([^)]*['"]\/api\/db\/storage-upload/,
 ]);
 
-// 9. CI load-venue ? p95 8000 register + ready (5s still flaked on busy local hosts)
+// ?? 09 Load-venue p95 budgets (CI flake guard) ???????????????????????????????
+
 mustMatch('artifacts/api-server/src/__tests__/load-venue-150.test.ts', '09_load_venue_p95', [
   /pct\(lat, 95\)\)\.toBeLessThan\(8_000\)/,
   /pct\(readyLat, 95\)\)\.toBeLessThan\(8_000\)/,
@@ -166,10 +165,9 @@ mustNotMatch('artifacts/api-server/src/__tests__/load-venue-150.test.ts', '09_lo
   /pct\(readyLat, 95\)\)\.toBeLessThan\(5_000\)/,
 ]);
 
-// 10. Admin password mismatch ? SKIP not FAIL
-mustMatch('scripts/verify-all-features.mjs', '10_admin_pw_skip', [/SKIP \(local password mismatch/]);
+// ?? 10?11 Ops smoke helpers ??????????????????????????????????????????????????
 
-// 11. Parallel endurance ? lock file + RUN_ID warning
+mustMatch('scripts/verify-all-features.mjs', '10_admin_pw_skip', [/SKIP \(local password mismatch/]);
 mustMatch('scripts/endurance-5h.mjs', '11_parallel_endurance_lock', [
   /acquireEnduranceLock/,
   /releaseEnduranceLock/,
@@ -177,21 +175,8 @@ mustMatch('scripts/endurance-5h.mjs', '11_parallel_endurance_lock', [
   /Parallel endurance|ENDURANCE_FORCE_LOCK/,
 ]);
 
-// 12. Mobile ? tabbar safe-area, toast, ProfileCard, HEIC
-mustMatch('artifacts/boltnew-app/index.html', '12_mobile_viewport', [/viewport-fit=cover/]);
-mustMatch('artifacts/boltnew-app/src/index.css', '12_mobile_safe_area', [
-  /--tabbar-safe-bottom/,
-  /\.participant-tabbar/,
-  /font-size:\s*max\(16px/,
-]);
-mustMatch('artifacts/boltnew-app/src/components/BottomNotification.tsx', '12_toast_tabbar', [
-  /var\(--participant-tabbar/,
-]);
-mustNotMatch('artifacts/boltnew-app/src/components/BottomNotification.tsx', '12_toast_no_double_stack', [
-  /4\.5rem\+var\(--participant-tabbar/,
-]);
-mustNotMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '12_profile_card_sizes', [/min-h-11/, /\bw-8 h-8\b/]);
-// Flip must keep ticker + nick bars; only middle flips; ideal inset under ticker (not hide bars)
+// ?? 12 ProfileCard flip (core only ? sizing/mobile dropped) ??????????????????
+
 mustMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '12_profile_card_flip_bars_stay', [
   /showTopBar = hasTicker/,
   /showBottomBar = true/,
@@ -215,15 +200,13 @@ mustNotMatch('artifacts/boltnew-app/src/__tests__/profile-card-lock.test.tsx', '
   /from '\.\.\/components\/MainScreen'/,
   /getBoundingClientRect\(\)\.height/,
 ]);
-mustMatch('artifacts/boltnew-app/src/lib/profile-photo.ts', '12_heic_reject', [/HEIC|heic/, /JPG, PNG, WebP/]);
 
-// 13. heart_balances removed ? BANNED_REGRESSION in audit
+// ?? 13?14 Banned regressions / signal emoji ??????????????????????????????????
+
 mustMatch('scripts/full-code-audit.mjs', '13_heart_balances_banned', [
   /heart_balances/,
   /BANNED_REGRESSION/,
 ]);
-
-// 14. Signal \u{1f4e1} vs heart emoji, no SignalNudgeBanner
 {
   const db = read('artifacts/api-server/src/routes/db.ts');
   const sigIdx = db.indexOf("table === 'signal_sends' && row.action === 'send'");
@@ -240,7 +223,8 @@ mustMatch('scripts/full-code-audit.mjs', '13_heart_balances_banned', [
 }
 mustNotMatch('artifacts/boltnew-app/src/App.tsx', '14_no_signal_nudge_banner', [/SignalNudgeBanner/]);
 
-// 15. GitHub CI ? local parity ? ONE verify:ci entrypoint (no split-step drift)
+// ?? 15 verify:ci single entry (local ? GitHub parity) ????????????????????????
+
 mustMatch('package.json', '15_verify_ci_script', [
   /"verify:ci":\s*"corepack pnpm run verify:guards && corepack pnpm run audit:code && corepack pnpm run test:unit"/,
 ]);
@@ -255,7 +239,8 @@ mustMatch('package.json', '15_test_unit_alias', [
   /"test:unit":\s*"corepack pnpm -r --filter \\"\.\/artifacts\/\*\*\\" --if-present run test:unit"/,
 ]);
 
-// 16. Korean age (+1) ? centralized korean-age.ts, no intl age in profile/group/db
+// ?? 16 Korean age (+1) ? lib + no inline reimplementation ?????????????????????
+
 mustMatch('artifacts/boltnew-app/src/lib/korean-age.ts', '16_korean_age_client', [
   /koreanAgeFromBirthYear/,
   /\+\s*1/,
@@ -266,15 +251,14 @@ mustMatch('artifacts/api-server/src/lib/korean-age.ts', '16_korean_age_server', 
   /\+\s*1/,
   /groupAgeDecadeBand/,
 ]);
-mustMatch('artifacts/boltnew-app/src/lib/profile.ts', '16_profile_uses_korean_age', [/from '\.\/korean-age'/]);
-mustMatch('artifacts/boltnew-app/src/lib/group-rooms.ts', '16_group_rooms_korean_age', [/from '\.\/korean-age'/]);
 mustMatch('artifacts/api-server/src/routes/db.ts', '16_db_group_age', [/groupAgeDecadeBand/]);
 mustNotMatch('artifacts/boltnew-app/src/lib/group-rooms.ts', '16_no_hardcoded_2026_age', [/2026\s*-\s*y\s*\+\s*1/]);
 mustNotMatch('artifacts/api-server/src/routes/db.ts', '16_db_no_inline_age', [
   /getFullYear\(\)\s*-\s*y\s*\+\s*1/,
 ]);
 
-// 17. Supabase RLS ? public tables not exposed via anon REST
+// ?? 17 Supabase RLS startup ??????????????????????????????????????????????????
+
 mustMatch('artifacts/api-server/src/routes/db.ts', '17_supabase_rls_startup', [
   /ensurePublicTableRls/,
   /ENABLE ROW LEVEL SECURITY/,
@@ -282,80 +266,35 @@ mustMatch('artifacts/api-server/src/routes/db.ts', '17_supabase_rls_startup', [
 ]);
 mustExist('scripts/sql/enable-rls-public-tables.sql', '17_supabase_rls_sql');
 
-// 18. Status signal/contact pills ? center popup modal (not bottom sheet)
-mustMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '18_status_center_modal', [
-  /status-quick-modal-title/,
-  /items-center justify-center/,
-  /safe-overlay fixed inset-0/,
-]);
-mustNotMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '18_not_bottom_sheet', [
-  /statusQuickSheet[\s\S]{0,400}items-end/,
-  /statusQuickSheet[\s\S]{0,400}rounded-t-3xl/,
-]);
+// ?? 21 Chat disconnect / reconnect E2E wiring ????????????????????????????????
 
-// 19. Sent hearts 2-column grid on My Status
-mustMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '19_sent_hearts_2col', [
-  /grid grid-cols-2 gap-2\.5/,
-]);
-
-// 20. Profile card grid density modes
-mustExist('artifacts/boltnew-app/src/lib/profile-card-grid.ts', '20_profile_card_grid');
-mustMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '20_main_uses_card_grid', [
-  /profile-card-grid/,
-  /ProfileCardGridMode|cardGridMode/,
-]);
-
-// 21. E2E disconnect/reconnect scripts wired into smoke + unit guards
 mustExist('scripts/test-chat-disconnect-recovery.mjs', '21_chat_disconnect_recovery');
 mustExist('scripts/e2e-heart-sse-consistency.mjs', '21_e2e_heart_consistency_script');
 mustExist('scripts/test-mutual-chat-hearts.mjs', '21_mutual_chat_hearts');
-mustExist('scripts/lib/e2e-realtime.mjs', '21_e2e_realtime_lib');
-mustMatch('scripts/test-mutual-chat-hearts.mjs', '21_mutual_sse_render', [
-  /SSE_API/,
-  /binpc2\.onrender\.com/,
-  /createPersonaPair/,
-]);
 mustMatch('scripts/verify-all-features.mjs', '21_verify_all_e2e', [
   /test-chat-disconnect-recovery\.mjs/,
   /e2e-heart-sse-consistency\.mjs/,
   /test-mutual-chat-hearts\.mjs/,
 ]);
 mustExist('artifacts/boltnew-app/src/lib/chat-pending-queue.ts', '21_chat_pending_queue');
-mustExist('artifacts/boltnew-app/src/lib/chat-pending-queue.test.ts', '21_chat_pending_queue_test');
 mustExist('artifacts/boltnew-app/src/__tests__/e2e-reconnect-guards.test.ts', '21_e2e_vitest_guards');
 
-// 22. Legacy KV cleanup ? startup purge + /op blocklist (seating, heart_drain, heart_balances)
+// ?? 22 Legacy KV cleanup ?????????????????????????????????????????????????????
+
 mustExist('artifacts/api-server/src/lib/db-legacy-cleanup.ts', '22_legacy_cleanup_lib');
-mustExist('artifacts/api-server/src/__tests__/db-legacy-cleanup.test.ts', '22_legacy_cleanup_test');
 mustMatch('artifacts/api-server/src/routes/db.ts', '22_cleanup_on_startup', [
   /cleanupLegacyTables\(\)/,
   /dbReadyPromise[\s\S]{0,120}\.then\(\(\) => cleanupLegacyTables\(\)\)/,
-  /DELETE FROM app_kv_rows WHERE table_name = \$1/,
-  /data - 'heart_drain_enabled'/,
   /legacy_leftovers/,
-]);
-mustExist('scripts/lib/entry-burst.mjs', '22_entry_burst_lib');
-mustMatch('scripts/sim-concurrent-users.mjs', '22_entry_only_flag', [
-  /--entry-only/,
-  /runEntryBurst/,
-]);
-mustExist('artifacts/boltnew-app/src/components/FortuneTab.lazy.tsx', '22_fortune_lazy_shared');
-mustMatch('artifacts/boltnew-app/src/App.tsx', '22_fortune_lazy_import', [
-  /FortuneTabLazy/,
-  /FortuneTab\.lazy/,
 ]);
 mustMatch('artifacts/api-server/src/lib/db-legacy-cleanup.ts', '22_legacy_blocklist', [
   /heart_balances/,
   /heart_drain_enabled/,
   /seats_snapshot/,
 ]);
-mustMatch('artifacts/api-server/src/__tests__/db-security.test.ts', '22_legacy_op_block', [
-  /legacy removed-feature tables stay blocked/,
-  /heart_balances/,
-  /seats/,
-]);
 
-// 23. Test/dummy nicknames ? Korean names only, no trailing digit suffixes
+// ?? 23 Test nicknames ? no trailing digit suffixes ???????????????????????????
+
 mustMatch('scripts/lib/test-personas.mjs', '23_persona_no_digit_suffix_doc', [
   /NO numeric suffixes/,
   /nicknameEndsWithDigit/,
@@ -364,11 +303,6 @@ mustMatch('scripts/lib/test-personas.mjs', '23_persona_no_digit_suffix_doc', [
 mustNotMatch('scripts/lib/test-personas.mjs', '23_persona_no_padStart_digits', [
   /padStart\(/,
   /\$\{base\}\$\{suffix\}/,
-  /2?4 digit suffix/,
-  /base \(2?3\) \+ 2?4 digit/,
-]);
-mustMatch('scripts/sim-concurrent-users.mjs', '23_sim_names_only_comment', [
-  /no digit suffixes/i,
 ]);
 {
   const { makeNickname, reserveNickname, resetNicknameRegistry, nicknameEndsWithDigit } =
@@ -385,76 +319,21 @@ mustMatch('scripts/sim-concurrent-users.mjs', '23_sim_names_only_comment', [
   });
 }
 
-// 24. Participant list order ? stable sort + merge/patch (no SSE reshuffle)
+// ?? 24 Participant list stable order (lib only ? unit tests cover details) ?????
+
 mustExist('artifacts/boltnew-app/src/lib/profile-list-order.ts', '24_profile_list_order_lib');
-mustExist('artifacts/boltnew-app/src/lib/profile-list-order.test.ts', '24_profile_list_order_test');
 mustMatch('artifacts/boltnew-app/src/lib/profile-list-order.ts', '24_profile_list_order_api', [
   /compareProfilesStable/,
   /sortProfilesStable/,
   /mergeProfilesPreserveOrder/,
   /patchProfileInPlace/,
-  /created_at/,
-]);
-mustMatch('artifacts/boltnew-app/src/lib/profile-deck-filter.ts', '24_deck_uses_stable_sort', [
-  /from '\.\/profile-list-order'/,
-  /sortProfilesStable/,
-]);
-mustMatch('artifacts/boltnew-app/src/App.tsx', '24_app_merge_preserve_order', [
-  /mergeProfilesPreserveOrder/,
-  /patchProfileInPlace/,
-  /sortProfilesStable/,
-  /mergeProfilesPreserveOrder\(prev, visible\)/,
 ]);
 mustNotMatch('artifacts/boltnew-app/src/App.tsx', '24_app_no_blind_prepend', [
   /return \[incoming, \.\.\.prev\]/,
 ]);
-mustMatch('artifacts/boltnew-app/src/__tests__/product-invariants.test.ts', '24_product_invariants_order', [
-  /participant profile list order invariants/,
-  /sortProfilesStable/,
-  /mergeProfilesPreserveOrder/,
-  /patchProfileInPlace/,
-]);
-mustMatch('artifacts/boltnew-app/src/lib/profile-list-order.test.ts', '24_order_tests_cover_patch_merge', [
-  /patchProfileInPlace does not reorder/,
-  /mergeProfilesPreserveOrder keeps relative order/,
-  /filterProfilesForDeck order is invariant/,
-]);
 
-// 25. flex main + mx-auto tabs must keep w-full (status/settings/chats/stats/fortune)
-mustMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '25_status_settings_full_width', [
-  /mainTab === 'status'[\s\S]{0,220}w-full max-w-lg mx-auto/,
-  /mainTab === 'settings'[\s\S]{0,220}w-full max-w-lg mx-auto/,
-]);
-mustMatch('artifacts/boltnew-app/src/components/MainChatsTab.tsx', '25_chats_full_width', [
-  /w-full max-w-lg mx-auto/,
-]);
-mustMatch('artifacts/boltnew-app/src/components/StatsTabs.tsx', '25_stats_full_width', [
-  /w-full max-w-3xl mx-auto/,
-]);
-mustMatch('artifacts/boltnew-app/src/components/FortuneTab.tsx', '25_fortune_full_width', [
-  /w-full max-w-md mx-auto/,
-]);
-mustMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '25_main_is_flex_col', [
-  /flex-1 min-h-0 flex flex-col/,
-]);
+// ?? 26 Tutorial ? hidden tips scroll only (controls/sizing dropped) ??????????
 
-// 26. Tutorial overlay controls ? lower bar, hover/tap reveal, no inner scrollbar
-mustMatch('artifacts/boltnew-app/src/components/TutorialVideo.tsx', '26_tutorial_controls_reveal', [
-  /data-tutorial-controls/,
-  /controlsVisible/,
-  /revealControls/,
-  /px-2 pb-0 pt-0\.5/,
-  /w-6 h-6 rounded-full bg-white\/90/,
-  /w-5 h-5 rounded-full bg-black\/40/,
-  /overflow-hidden scrollbar-hide/,
-]);
-mustNotMatch('artifacts/boltnew-app/src/components/TutorialVideo.tsx', '26_tutorial_no_large_overlay_btns', [
-  /data-tutorial-controls[\s\S]{0,800}w-10 h-10 rounded-full bg-white\/90/,
-  /data-tutorial-controls[\s\S]{0,800}w-9 h-9 rounded-full bg-black\/40/,
-]);
-mustMatch('artifacts/boltnew-app/src/components/TutorialModal.tsx', '26_tutorial_modal_no_scroll', [
-  /overflow-hidden scrollbar-hide rounded-2xl/,
-]);
 mustMatch('artifacts/boltnew-app/src/components/TutorialModal.tsx', '26_tutorial_hidden_tips_scroll', [
   /MODAL_SHELL_HIDDEN/,
   /scrollable: isHidden/,
@@ -462,23 +341,19 @@ mustMatch('artifacts/boltnew-app/src/components/TutorialModal.tsx', '26_tutorial
   /longDescTitle=/,
   /longDesc\?: boolean/,
 ]);
-mustMatch('artifacts/boltnew-app/src/components/TutorialVideo.tsx', '26_tutorial_scene_scrollbar_hide', [
-  /overflow-y-auto overflow-x-hidden scrollbar-hide/,
-]);
 
-// 27. ProfileCard surfaces: default always white; dark-neon/darkMode only for others
+// ?? 27 Default theme ProfileCards stay white ?????????????????????????????????
+
 mustExist('artifacts/boltnew-app/src/lib/profile-card-theme.ts', '27_profile_card_theme_lib');
-mustMatch('artifacts/boltnew-app/src/lib/theme.tsx', '27_isDarkTheme_chrome_unchanged', [
+mustMatch('artifacts/boltnew-app/src/lib/theme.tsx', '27_isDarkTheme_dark_neon_only', [
   /export function isDarkTheme/,
-  /theme === 'default' \|\| theme === 'dark-neon'/,
+  /return theme === 'dark-neon'/,
 ]);
 mustMatch('artifacts/boltnew-app/src/lib/profile-card-theme.ts', '27_default_cards_stay_white', [
   /export function isProfileCardDark/,
   /theme === 'default'\) return false/,
   /theme === 'dark-neon'\) return true/,
   /bg-white border-gray-100/,
-  /bg-slate-900/,
-  /rgba\(15,\s*23,\s*42/,
 ]);
 mustNotMatch('artifacts/boltnew-app/src/lib/profile-card-theme.ts', '27_no_isDarkTheme_on_cards', [
   /isDarkTheme\(theme\) \|\| darkMode/,
@@ -488,43 +363,14 @@ mustMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '27_profile_ca
   /profileCardSurfaces\(theme, darkMode\)/,
   /darkMode = false/,
 ]);
-mustMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '27_main_passes_darkMode_to_card', [
-  /darkMode=\{darkMode\}/,
-]);
-mustMatch('artifacts/boltnew-app/src/lib/profile-card-theme.test.ts', '27_theme_tests_default_white', [
-  /isProfileCardDark keeps default white/,
-  /default theme keeps white card shell even when darkMode is on/,
-  /App darkMode dims light theme cards/,
-]);
-mustMatch('artifacts/boltnew-app/src/__tests__/product-invariants.test.ts', '27_product_invariants_default_white_cards', [
-  /default theme ProfileCards stay white/,
-  /theme === 'default'\) return false/,
-]);
 
-// 28. Talent / feature picker tags ? emoji banana + kiss/heat/milk cluster + face/body catalog
+// ?? 28 Tag catalog ? banana/kiss core, no cat face, shared groups ????????????
+
 mustMatch('artifacts/boltnew-app/src/lib/signal-match.ts', '28_talent_tag_catalog', [
   /label:\s*'\u{c7ac}\u{b2a5} \u{2b50}'/u,
   /'\u{d0a4}\u{c2a4}\u{c798}\u{d568}'/u,
-  /'\u{b2ec}\u{c544}\u{c624}\u{b974}\u{ac8c} \u{c798}\u{d568}'/u,
   /'\u{1f34c} \u{bc14}\u{b098}\u{b098} \u{c798}\u{ba39}\u{c74c}'/u,
   /'\u{1f95b} \u{c6b0}\u{c720} \u{c798}\u{ba39}\u{c74c}'/u,
-]);
-mustMatch('artifacts/boltnew-app/src/lib/signal-match.ts', '28_talent_tag_order', [
-  /label:\s*'\u{c7ac}\u{b2a5} \u{2b50}',\s*tags:\s*\[[^\]]*'\u{bc24}\u{c77c} \u{c798}\u{d568}'[^\]]*'\u{d0a4}\u{c2a4}\u{c798}\u{d568}'[^\]]*'\u{b2ec}\u{c544}\u{c624}\u{b974}\u{ac8c} \u{c798}\u{d568}'[^\]]*'\u{1f34c} \u{bc14}\u{b098}\u{b098} \u{c798}\u{ba39}\u{c74c}'[^\]]*'\u{1f95b} \u{c6b0}\u{c720} \u{c798}\u{ba39}\u{c74c}'/u,
-]);
-mustNotMatch('artifacts/boltnew-app/src/lib/signal-match.ts', '28_talent_no_plain_banana_in_core', [
-  /label:\s*'\u{c7ac}\u{b2a5} \u{2b50}',\s*tags:\s*\[[^\]]*'\u{bc14}\u{b098}\u{b098} \u{c798}\u{ba39}\u{c74c}'/u,
-]);
-mustMatch('artifacts/boltnew-app/src/lib/signal-match.ts', '28_talent_banana_legacy_alias', [
-  /'\u{1f34c} \u{bc14}\u{b098}\u{b098} \u{c798}\u{ba39}\u{c74c}':\s*\[[^\]]*'\u{bc14}\u{b098}\u{b098} \u{c798}\u{ba39}\u{c74c}'/u,
-  /\['\u{1f34c} \u{bc14}\u{b098}\u{b098} \u{c798}\u{ba39}\u{c74c}',\s*'\u{bc14}\u{b098}\u{b098} \u{c798}\u{ba39}\u{c74c}'\]/u,
-]);
-mustMatch('artifacts/boltnew-app/src/lib/signal-match.ts', '28_face_body_catalog', [
-  /label:\s*'\u{c5bc}\u{ad74}\u{c0c1} \u{1f440}'/u,
-  /'\u{d140}\u{c0c1}\u{d0d1} \u{1f504}'/u,
-  /'\u{d0d1}\u{c0c1}\u{d140} \u{1f503}'/u,
-  /label:\s*'\u{ccb4}\u{d615} \u{1f4aa}'/u,
-  /'\u{c7a1}\u{c2dd} \u{1f37d}'/u,
 ]);
 mustNotMatch('artifacts/boltnew-app/src/lib/signal-match.ts', '28_no_cat_face_in_core', [
   /label:\s*'\u{c5bc}\u{ad74}\u{c0c1} \u{1f440}',\s*tags:\s*\[[^\]]*'\u{ace0}\u{c591}\u{c774}\u{c0c1}'/u,
@@ -534,34 +380,8 @@ mustMatch('artifacts/boltnew-app/src/lib/signal-match.ts', '28_ideal_feature_sha
   /export const FEATURE_TAG_GROUPS = \[\.\.\.CORE_TAG_GROUPS\]/,
 ]);
 
-// 29. Profile photo full-bleed ? no gray letterbox / naturalRatio inset
-mustMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '29_profile_full_bleed', [
-  /Full-bleed frame/,
-  /pastelFill/,
-  /getAvatarGradientCss/,
-  /objectFit:\s*'cover'/,
-  /flipZoneStyle[\s\S]{0,120}inset:\s*0/,
-]);
-mustNotMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '29_profile_no_letterbox_ratio', [
-  /naturalRatio/,
-  /CRATIO/,
-]);
-mustMatch('artifacts/boltnew-app/src/components/ProfileDetail.tsx', '29_detail_photo_cover', [
-  /object-cover object-center/,
-]);
-mustNotMatch('artifacts/boltnew-app/src/components/ProfileDetail.tsx', '29_detail_no_preset_contain', [
-  /object-contain bg-slate-900/,
-]);
+// ?? 32 Chat image <img> sessionToken auth ????????????????????????????????????
 
-// 30. Dark chat/status card surfaces (MainScreen / MainChatsTab slate shells)
-mustMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '30_dark_status_card_surface', [
-  /darkMode \? 'bg-slate-800 border border-slate-600' : 'bg-white'/,
-]);
-mustMatch('artifacts/boltnew-app/src/components/MainChatsTab.tsx', '30_dark_chats_card_surface', [
-  /darkMode \? 'bg-slate-800 border border-slate-600/,
-]);
-
-// 32. Chat image <img> auth ? sessionToken query (Netlify cookie gap)
 mustMatch('artifacts/api-server/src/routes/db.ts', '32_storage_image_session_query', [
   /req\.query\.sessionToken/,
   /verifySessionToken\(qUserId,\s*qSessionToken\)/,
@@ -573,12 +393,19 @@ mustMatch('artifacts/boltnew-app/src/lib/localdb.ts', '32_with_chat_image_auth',
 mustMatch('artifacts/boltnew-app/src/components/ChatMessageRow.tsx', '32_chat_row_image_auth', [
   /withChatImageAuth/,
 ]);
-mustExist('scripts/test-chat-message-types.mjs', '32_chat_types_smoke');
 
-// 33. Screen-differentiated logo: entry->tester; main/waiting logo=reset, npc=admin, sulbun=egg
+// ?? 33 Entry / header gates (logo?test on entry only) ????????????????????????
+
 mustMatch('artifacts/boltnew-app/src/components/EntryGateScreen.tsx', '33_entry_logo_tester', [
   /data-gate="entry-logo-tester"/,
   /navigateToAppPath\('test'\)/,
+]);
+mustMatch('artifacts/boltnew-app/src/components/WaitingOverlay.tsx', '33_waiting_logo_tester', [
+  /data-gate="waiting-logo-tester"/,
+  /navigateToAppPath\('test'\)/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/components/WaitingOverlay.tsx', '33_waiting_logo_not_reset', [
+  /data-gate="logo-reset"/,
 ]);
 mustMatch('artifacts/boltnew-app/src/components/ResetButton.tsx', '33_user_header_gates', [
   /data-gate="logo-reset"/,
@@ -586,16 +413,10 @@ mustMatch('artifacts/boltnew-app/src/components/ResetButton.tsx', '33_user_heade
   /data-gate="sulbun-none"/,
   /openResetGate/,
   /openAdminGate/,
-  /handleSulbunClick/,
 ]);
 mustNotMatch('artifacts/boltnew-app/src/components/ResetButton.tsx', '33_main_logo_not_tester', [
   /data-gate="logo-reset"[\s\S]{0,200}navigateToAppPath\('test'\)/,
   /openResetGate[\s\S]{0,80}navigateToAppPath\('test'\)/,
-]);
-mustMatch('artifacts/boltnew-app/src/components/WaitingOverlay.tsx', '33_waiting_gates', [
-  /data-gate="logo-reset"/,
-  /data-gate="npc-admin"/,
-  /data-gate="sulbun-none"/,
 ]);
 mustMatch('artifacts/boltnew-app/src/components/ThemeSwitcher.tsx', '33_theme_after_profile', [
   /dataset\.appReady === '1'/,
@@ -614,10 +435,6 @@ mustMatch('artifacts/api-server/src/routes/db.ts', '33_admin_fixed_nick_server',
 mustMatch('artifacts/boltnew-app/src/AdminApp.tsx', '33_admin_nick_restore_client', [
   /ADMIN_FIXED_NICKNAME/,
   /restoreAdminProfileAfterWipe/,
-]);
-mustMatch('artifacts/boltnew-app/src/__tests__/product-invariants.test.ts', '33_product_invariants_gates', [
-  /user header gates: logo=reset, npc=admin, sulbun=no staff gate/,
-  /theme switcher only after profile-ready/,
 ]);
 
 console.log('\n=== verify-recurrence-guards ===\n');

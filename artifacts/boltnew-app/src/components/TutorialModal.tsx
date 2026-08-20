@@ -671,7 +671,8 @@ export function TutorialModal({
   const accent = topicAccent(topic);
   const isLast = safeIdx === topics.length - 1;
   const hasVideo = Boolean(topic.video?.length);
-  const showChips = topics.length > 1;
+  // hidden 모드: 기본|숨은기능 토글만 — pin/숨은기능 서브탭은 이전·다음으로 (이중 탭 행 방지)
+  const showChips = mode === 'basic' && topics.length > 1;
   const layout = topicLayout(topic);
 
   useEffect(() => {
@@ -703,7 +704,9 @@ export function TutorialModal({
         layout.compact ? 'gap-1.5' : 'gap-2.5'
       }`}
     >
-      {topic.filler && <FillerPanel kind={topic.filler} darkMode={darkMode} compact={layout.fillerCompact} />}
+      {topic.filler && topic.id !== 'hidden' && (
+        <FillerPanel kind={topic.filler} darkMode={darkMode} compact={layout.fillerCompact} />
+      )}
 
       {(topic.sections ?? []).map((section) => {
         const variant = SECTION_VARIANTS[section.variant ?? 'default'];
@@ -769,7 +772,7 @@ export function TutorialModal({
 
   return (
     <div
-      className="fixed inset-0 z-[150] flex items-center justify-center bg-black/70 backdrop-blur-sm overflow-hidden overscroll-none animate-[fadeIn_0.2s_ease-out]"
+      className="fixed inset-0 z-[10050] flex items-center justify-center bg-black/70 backdrop-blur-sm overflow-hidden overscroll-none animate-[fadeIn_0.2s_ease-out]"
       style={{
         padding:
           'max(0.5rem, var(--safe-top, 0px)) max(0.5rem, var(--safe-right, 0px)) max(0.5rem, var(--safe-bottom, 0px)) max(0.5rem, var(--safe-left, 0px))',
@@ -814,7 +817,8 @@ export function TutorialModal({
           </div>
         </div>
 
-        {/* Mode toggle */}
+        {/* Mode toggle — basic only; hidden mode uses topic chips (고유번호|숨은기능) to avoid duplicate tab rows */}
+        {mode === 'basic' && (
         <div className={`flex-shrink-0 h-[2.75rem] px-4 pt-2 pb-1.5 flex items-end ${darkMode ? 'bg-slate-900/80' : 'bg-gradient-to-b from-white to-slate-50/80'}`}>
           <div className={`grid grid-cols-2 p-1 rounded-2xl gap-1 w-full ${darkMode ? 'bg-slate-800/80 ring-1 ring-slate-700/60' : 'bg-gray-100/90 ring-1 ring-gray-200/60'}`}>
             <button
@@ -841,6 +845,7 @@ export function TutorialModal({
             </button>
           </div>
         </div>
+        )}
 
         {/* Topic chips — edge-to-edge segmented tabs, no inter-tab gaps */}
         {showChips && (
