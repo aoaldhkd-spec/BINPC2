@@ -40,6 +40,17 @@ export function sortProfilesStable<T extends Pick<Profile, 'id' | 'created_at' |
  * HTTP 리프레시 / SSE 패치 병합 시 기존 id 상대 순서를 유지하고,
  * 신규만 안정 키로 끼워 넣는다. 전체 재정렬에 기대지 않아도 패치만으로 자리가 안 바뀐다.
  */
+/** Same DB row payload — keeps React memo refs stable across HTTP refresh when nothing changed */
+export function profileRowEqual(a: Profile, b: Profile): boolean {
+  const aRec = a as Record<string, unknown>;
+  const bRec = b as Record<string, unknown>;
+  const keys = new Set([...Object.keys(aRec), ...Object.keys(bRec)]);
+  for (const k of keys) {
+    if (aRec[k] !== bRec[k]) return false;
+  }
+  return true;
+}
+
 export function mergeProfilesPreserveOrder(
   prev: readonly Profile[],
   incoming: readonly Profile[],
@@ -50,7 +61,7 @@ export function mergeProfilesPreserveOrder(
   for (const p of prev) {
     const next = byId.get(p.id);
     if (!next) continue;
-    kept.push(next);
+    kept.push(profileRowEqual(p, next) ? p : { ...p, ...next });
     keptIds.add(p.id);
   }
   const newcomers = incoming.filter((p) => !keptIds.has(p.id));
@@ -78,8 +89,10 @@ export function patchProfileInPlace(
   let changed = false;
   const next = prev.map((p) => {
     if (p.id !== patch.id) return p;
+    const merged = { ...p, ...patch };
+    if (profileRowEqual(p, merged)) return p;
     changed = true;
-    return { ...p, ...patch };
+    return merged;
   });
-  return changed ? next : [...prev];
+  return changed ? next : prev;
 }

@@ -38,6 +38,7 @@ import { uploadStorageDataUrl } from '../lib/localdb';
 import { IDEAL_TAG_GROUPS, FEATURE_TAG_GROUPS, encodeSignalMsg, SIGNAL_EMOJI, SIGNAL_INBOX_EMPTY, SIGNAL_INBOX_LINE, SIGNAL_INBOX_TITLE, SIGNAL_SENT_EMPTY, SIGNAL_SENT_LINE, SIGNAL_SENT_TITLE } from '../lib/signal-match';
 import { SignalTagPicker } from './SignalTagPicker';
 import { ProfileCard } from './ProfileCard';
+import { ProfileDeckGrid } from './ProfileDeckGrid';
 import { ResetButton } from './ResetButton';
 import { SignalTab } from './SignalTab';
 import { FUNCTIONS_LOCK_TOAST, SOCIAL_LOCKED_TABS } from '../lib/functions-lock';
@@ -45,7 +46,7 @@ import { STATUS_QUICK_MSGS } from '../lib/chat-picker-data';
 import { HOST_AGE_EASTER_EGG_HINT } from '../lib/host-age-easter-egg';
 import { filterProfilesForDeck } from '../lib/profile-deck-filter';
 import {
-  readProfileCardGridMode, writeProfileCardGridMode, profileGridClassName, profileGridColSpan,
+  readProfileCardGridMode, writeProfileCardGridMode, profileGridColSpan,
   type ProfileCardGridMode,
 } from '../lib/profile-card-grid';
 import type { ScannedContact } from '../lib/profile-contact-helpers';
@@ -385,6 +386,18 @@ export function MainScreen({
   type StatusQuickSheet = 'received-signal' | 'sent-signal' | 'exchanged-contacts';
   const [statusQuickSheet, setStatusQuickSheet] = useState<StatusQuickSheet | null>(null);
   const closeStatusQuickSheet = useCallback(() => setStatusQuickSheet(null), []);
+
+  const handleSendSignalTab = useCallback((id: string) => {
+    if (functionsLocked) return false;
+    return onSendSignal?.(id);
+  }, [functionsLocked, onSendSignal]);
+
+  const handlePassSignalTab = useCallback((id: string) => {
+    if (functionsLocked) return false;
+    return onPassSignal?.(id);
+  }, [functionsLocked, onPassSignal]);
+
+  const goProfilesTab = useCallback(() => onTabChange('profiles'), [onTabChange]);
 
   // ── 프로필 편집 통합 상태 (한 섹션만 열림) ──────────────────────────────────
   const [profileEditSection, setProfileEditSection] = useState<'avatar' | 'nickname' | 'birth' | 'interests' | 'statusMsg' | 'ideal' | 'features' | 'contact' | 'blocklist' | null>(null);
@@ -733,41 +746,26 @@ export function MainScreen({
             </div>
 
             {/* ── 참여자 그리드 (page scroll) ── */}
-            <div className="-mx-3 min-[360px]:-mx-4 px-3 min-[360px]:px-4">
-            <div className={profileGridClassName(profileCardGrid)}>
-            {deckProfiles.map((profile) => {
-              const signal = signalByUserId.get(profile.id);
-              return (
-              <ProfileCard
-                key={profile.id}
-                profile={profile}
-                compact={profileCardGrid === 'compact'}
-                darkMode={darkMode}
-                isLiked={likedIds.has(profile.id)}
-                sentHeartType={sentHeartTypes.get(profile.id)}
-                heartCount={sentHeartsPerPerson.get(profile.id)?.size ?? 0}
-                canLike={!!(currentUserId && profile.id !== currentUserId)}
-                locked={functionsLocked}
-                onLike={onLike}
-                onSelect={onSelect}
-                onView={onViewProfile}
-                onOpenChat={onOpenChat}
-                onBlock={onBlock}
-                onContactShare={_onContactShareOpen}
-                onViewFortune={onViewFortune}
-                idealMsg={signal?.ideal_msg}
-                statusMsg={signal?.status_msg}
-              />
-              );
-            })}
-            {deckProfiles.length === 0 && (
-              <div className={`${profileGridColSpanClass} text-center py-20`}>
-                <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500">{profileSearch ? '검색 결과가 없습니다.' : '아직 다른 참가자가 없습니다.'}</p>
-              </div>
-            )}
-            </div>
-          </div>
+            <ProfileDeckGrid
+              deckProfiles={deckProfiles}
+              profileCardGrid={profileCardGrid}
+              profileGridColSpanClass={profileGridColSpanClass}
+              profileSearch={profileSearch}
+              darkMode={darkMode}
+              likedIds={likedIds}
+              sentHeartTypes={sentHeartTypes}
+              sentHeartsPerPerson={sentHeartsPerPerson}
+              currentUserId={currentUserId}
+              functionsLocked={functionsLocked}
+              signalByUserId={signalByUserId}
+              onLike={onLike}
+              onSelect={onSelect}
+              onViewProfile={onViewProfile}
+              onOpenChat={onOpenChat}
+              onBlock={onBlock}
+              onContactShareOpen={_onContactShareOpen}
+              onViewFortune={onViewFortune}
+            />
         </KeepTab>
         )}
 
@@ -2031,6 +2029,7 @@ export function MainScreen({
         {visitedTabsRef.current.has('chats') && (
         <KeepTab id="chats" mainTab={mainTab}>
           <MainChatsTab
+            isActive={mainTab === 'chats'}
             darkMode={darkMode}
             chatSubTab={chatSubTab}
             onChangeSubTab={setChatSubTab}
@@ -2068,6 +2067,7 @@ export function MainScreen({
         {visitedTabsRef.current.has('signal') && (
         <KeepTab id="signal" mainTab={mainTab}>
           <SignalTab
+            isActive={mainTab === 'signal'}
             profiles={profiles}
             currentUserId={currentUserId}
             userSignals={userSignals}
@@ -2078,10 +2078,10 @@ export function MainScreen({
             functionsLocked={functionsLocked}
             darkMode={darkMode}
             alreadySignaledIds={signalActedIds}
-            onSendSignal={(id) => { if (functionsLocked) return false; return onSendSignal?.(id); }}
-            onPassSignal={(id) => { if (functionsLocked) return false; return onPassSignal?.(id); }}
+            onSendSignal={handleSendSignalTab}
+            onPassSignal={handlePassSignalTab}
             onSelect={onSelect}
-            onGoProfiles={() => onTabChange('profiles')}
+            onGoProfiles={goProfilesTab}
             onMissionComplete={onMissionComplete}
           />
         </KeepTab>
@@ -2245,7 +2245,7 @@ export function MainScreen({
             )}
 
             {myMenuOpen && (
-              <div className={`fixed bottom-[calc(8.5rem+var(--tabbar-safe-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-50 rounded-2xl shadow-xl border overflow-hidden min-w-[160px] ${darkMode ? 'bg-slate-800/95 border-slate-600 backdrop-blur-sm' : 'bg-white/95 border-gray-200 backdrop-blur-sm'}`}>
+              <div className={`fixed bottom-[calc(8.5rem+var(--tabbar-safe-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-50 rounded-2xl shadow-xl border overflow-hidden min-w-[160px] ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'}`}>
                 {MY_ITEMS.map((item, idx) => {
                   const locked = functionsLocked && LOCKED_TABS.has(item.id);
                   const active = mainTab === item.id;

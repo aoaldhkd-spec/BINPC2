@@ -449,13 +449,15 @@ describe('product copy + notification invariants', () => {
     const grid = read('lib/profile-card-grid.ts');
     const gridTest = read('lib/profile-card-grid.test.ts');
     const main = read('components/MainScreen.tsx');
+    const deck = read('components/ProfileDeckGrid.tsx');
     expect(grid).toContain("'compact'");
     expect(grid).toContain("'2'");
     expect(grid).toContain("'3'");
     expect(gridTest).toContain('grid-cols-2');
     expect(gridTest).toContain('grid-cols-3');
     expect(main).toContain('readProfileCardGridMode');
-    expect(main).toContain('profileGridClassName');
+    expect(main).toContain('ProfileDeckGrid');
+    expect(deck).toContain('profileGridClassName');
   });
 
   it('verify scripts treat admin password mismatch and FUNCTIONS_LOCKED as SKIP', () => {

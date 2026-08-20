@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { MessageCircle, Search } from 'lucide-react';
 import type { Chat, GroupChat, Profile } from '../types/app';
 import { groupRoomVisual, MAX_GROUPS_PER_USER, sumUnreadCounts, unreadForGroup } from '../lib/group-rooms';
@@ -12,8 +13,9 @@ import { RefreshBtn } from './RefreshBtn';
  * 메인 화면 "채팅" 탭 본문 (1:1 / 단체 서브탭).
  * 상태·실시간 구독은 전부 MainScreen에 남아 있고 이 컴포넌트는 표시 전용이다.
  */
-export function MainChatsTab({
+export const MainChatsTab = memo(function MainChatsTab({
   darkMode,
+  isActive = true,
   chatSubTab, onChangeSubTab,
   unreadChatCounts, unreadGroupCounts,
   groupChats, joiningGroupId,
@@ -27,6 +29,8 @@ export function MainChatsTab({
   onRefreshChats, chatsRefreshed,
 }: {
   darkMode: boolean;
+  /** false when tab hidden — skip chat list DOM while keeping mount for KeepTab */
+  isActive?: boolean;
   chatSubTab: 'direct' | 'group';
   onChangeSubTab: (t: 'direct' | 'group') => void;
   unreadChatCounts: Record<string, number>;
@@ -56,6 +60,8 @@ export function MainChatsTab({
   onRefreshChats: () => void;
   chatsRefreshed: boolean;
 }) {
+  if (!isActive) return null;
+
   return (
     <div className="w-full max-w-lg mx-auto space-y-3 shrink-0">
       {/* ── 1:1 / 단체 채팅 전환 서브탭 ── */}
@@ -366,6 +372,6 @@ export function MainChatsTab({
       </>}
     </div>
   );
-}
+});
 
 export default MainChatsTab;

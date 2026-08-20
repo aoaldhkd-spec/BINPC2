@@ -121,6 +121,7 @@ export function SignalTab({
   hiddenByIds,
   functionsLocked,
   darkMode,
+  isActive = true,
   onSendSignal,
   onPassSignal,
   onSelect,
@@ -137,6 +138,8 @@ export function SignalTab({
   hiddenByIds: Set<string>;
   functionsLocked?: boolean;
   darkMode: boolean;
+  /** false when tab hidden — skips expensive recommendSignals on every SSE tick */
+  isActive?: boolean;
   onSendSignal: (id: string) => void | boolean | Promise<void | boolean>;
   onPassSignal: (id: string) => void | boolean | Promise<void | boolean>;
   onSelect: (p: Profile) => void;
@@ -205,8 +208,14 @@ export function SignalTab({
     [alreadySignaledIds],
   );
 
+  const deckCacheRef = useRef<DeckCard[]>([]);
+
   const deck = useMemo(() => {
-    if (!unlocked || !me || !currentUserId) return [] as DeckCard[];
+    if (!isActive) return deckCacheRef.current;
+    if (!unlocked || !me || !currentUserId) {
+      deckCacheRef.current = [];
+      return deckCacheRef.current;
+    }
     const byId = new Map<string, Profile>();
     for (const p of profiles) byId.set(p.id, p);
     const ranked = recommendSignals({
@@ -235,9 +244,10 @@ export function SignalTab({
         return profile ? { ...m, profile } : null;
       })
       .filter((x): x is DeckCard => x != null);
-    return pinRestoredCard(built, restoredFrontId);
+    deckCacheRef.current = pinRestoredCard(built, restoredFrontId);
+    return deckCacheRef.current;
   }, [
-    unlocked, me, currentUserId, mySignal, profiles,
+    isActive, unlocked, me, currentUserId, mySignal, profiles,
     signalByUser, skippedIds, restoredFrontId, blockedUserIds, hiddenByIds, alreadyInterestedIds, signaled, likedAllTypeIds,
   ]);
 

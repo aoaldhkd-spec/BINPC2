@@ -4,6 +4,7 @@ import { filterProfilesForDeck } from './profile-deck-filter';
 import {
   mergeProfilesPreserveOrder,
   patchProfileInPlace,
+  profileRowEqual,
   sortProfilesStable,
 } from './profile-list-order';
 
@@ -55,6 +56,29 @@ describe('profile list stable order', () => {
     const merged = mergeProfilesPreserveOrder(prev, fetched);
     expect(merged.map(x => x.id)).toEqual(['new', 'a', 'b', 'c']);
     expect(merged.find(x => x.id === 'a')?.mbti).toBe('INFP');
+  });
+
+  it('mergeProfilesPreserveOrder keeps object refs when row unchanged', () => {
+    const prev = [
+      p('a', '에이', '2026-01-01T00:00:00.000Z', { mbti: 'INFP' }),
+      p('b', '비', '2026-01-02T00:00:00.000Z'),
+    ];
+    const fetched = [
+      p('a', '에이', '2026-01-01T00:00:00.000Z', { mbti: 'INFP' }),
+      p('b', '비', '2026-01-02T00:00:00.000Z', { mbti: 'ENTJ' }),
+    ];
+    const merged = mergeProfilesPreserveOrder(prev, fetched);
+    expect(merged[0]).toBe(prev[0]);
+    expect(merged[1].mbti).toBe('ENTJ');
+    expect(merged[1]).not.toBe(prev[1]);
+  });
+
+  it('profileRowEqual compares all row fields', () => {
+    const one = p('a', '에이', '2026-01-01T00:00:00.000Z', { mbti: 'INFP' });
+    const same = { ...one };
+    const diff = { ...one, mbti: 'ENTJ' };
+    expect(profileRowEqual(one, same)).toBe(true);
+    expect(profileRowEqual(one, diff)).toBe(false);
   });
 
   it('filterProfilesForDeck order is invariant to input shuffle', () => {

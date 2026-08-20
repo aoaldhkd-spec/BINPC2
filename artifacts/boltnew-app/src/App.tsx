@@ -861,6 +861,60 @@ function App() {
     try { await supabase.from('profile_views').insert(row as never); } catch {}
   }, [currentUserId]);
 
+  const handleSelectProfile = useCallback((p: Profile) => {
+    setLikeConfirmTarget(null);
+    setSelectedProfile(p);
+    setView('profile');
+    void recordProfileView(p.id);
+  }, [recordProfileView]);
+
+  const handleUpdateProfile = useCallback((update: Record<string, unknown> & { id: string }) => {
+    setProfiles(prev => prev.map(p => p.id === update.id ? { ...p, ...update } : p));
+  }, []);
+
+  const handleToggleDark = useCallback(() => {
+    setDarkMode(prev => {
+      const next = !prev;
+      ls.setItem('dark_mode', next ? '1' : '0');
+      return next;
+    });
+  }, []);
+
+  const handleClearScannedContact = useCallback((id: string) => {
+    setScannedContacts(prev => {
+      const next = prev.filter(c => c.id !== id);
+      try { ls.setItem(SCANNED_CONTACTS_KEY, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }, []);
+
+  const handleShowTutorial = useCallback(() => {
+    setShowTutorialModal(true);
+  }, []);
+
+  const handleClearChatUnread = useCallback((chatId: string) => {
+    setUnreadChatCounts(prev => { const n = { ...prev }; delete n[chatId]; return n; });
+  }, [setUnreadChatCounts]);
+
+  const handleContactShareOpen = useCallback((profile: Profile) => {
+    if (functionsLockedRef.current) { showFunctionsLockToast(); return; }
+    setContactShareTarget(profile);
+  }, [showFunctionsLockToast]);
+
+  const handleContactViewOpen = useCallback((share: ContactShare, profile: Profile) => {
+    setContactViewShare({ share, profile });
+  }, []);
+
+  const handleViewFortuneFromCard = useCallback((p: Profile) => {
+    if (functionsLockedRef.current) { showFunctionsLockToast(); return; }
+    setFortuneModalTarget(p);
+    void recordProfileView(p.id);
+  }, [recordProfileView, showFunctionsLockToast]);
+
+  const handleViewProfileCard = useCallback((p: Profile) => {
+    void recordProfileView(p.id);
+  }, [recordProfileView]);
+
 
   useEffect(() => {
     let cancelled = false;
@@ -1117,6 +1171,13 @@ function App() {
     setUserSignals(prev => {
       const idx = prev.findIndex(s => s.user_id === row.user_id);
       if (idx >= 0) {
+        const cur = prev[idx];
+        const keys = new Set([...Object.keys(cur as object), ...Object.keys(row as object)]);
+        let same = true;
+        for (const k of keys) {
+          if ((cur as Record<string, unknown>)[k] !== (row as Record<string, unknown>)[k]) { same = false; break; }
+        }
+        if (same) return prev;
         const next = [...prev];
         next[idx] = row;
         return next;
@@ -1492,14 +1553,42 @@ function App() {
         (payload: { new: Record<string, unknown> }) => {
           try {
             const s = payload.new as UserSignal;
-            setUserSignals(prev => prev.some(x => x.user_id === s.user_id) ? prev.map(x => x.user_id === s.user_id ? s : x) : [...prev, s]);
+            setUserSignals(prev => {
+              const idx = prev.findIndex(x => x.user_id === s.user_id);
+              if (idx >= 0) {
+                const cur = prev[idx];
+                const keys = new Set([...Object.keys(cur as object), ...Object.keys(s as object)]);
+                for (const k of keys) {
+                  if ((cur as Record<string, unknown>)[k] !== (s as Record<string, unknown>)[k]) {
+                    const next = [...prev];
+                    next[idx] = s;
+                    return next;
+                  }
+                }
+                return prev;
+              }
+              return [...prev, s];
+            });
           } catch (e) { console.warn('[user_signals SSE INSERT]', e); }
         })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'user_signals' },
         (payload: { new: Record<string, unknown> }) => {
           try {
             const s = payload.new as UserSignal;
-            setUserSignals(prev => prev.map(x => x.user_id === s.user_id ? s : x));
+            setUserSignals(prev => {
+              const idx = prev.findIndex(x => x.user_id === s.user_id);
+              if (idx < 0) return prev;
+              const cur = prev[idx];
+              const keys = new Set([...Object.keys(cur as object), ...Object.keys(s as object)]);
+              for (const k of keys) {
+                if ((cur as Record<string, unknown>)[k] !== (s as Record<string, unknown>)[k]) {
+                  const next = [...prev];
+                  next[idx] = s;
+                  return next;
+                }
+              }
+              return prev;
+            });
           } catch (e) { console.warn('[user_signals SSE UPDATE]', e); }
         })
       .subscribe();
@@ -1955,7 +2044,7 @@ function App() {
         mainTab={mainTab}
         onTabChange={handleMainTabChange}
         onLike={handleLikeGuarded}
-        onSelect={(p) => { setLikeConfirmTarget(null); setSelectedProfile(p); setView('profile'); recordProfileView(p.id); }}
+        onSelect={handleSelectProfile}
         onReset={reset}
         onOpenResetPassword={() => setShowResetPassword(true)}
         receivedLikers={receivedLikers}
@@ -1967,11 +2056,8 @@ function App() {
         receivedContactShares={receivedContactShares}
         pendingHeartsCount={pendingHeartsCount}
         chatList={chatList}
-        onContactShareOpen={(profile) => {
-          if (functionsLocked) { showFunctionsLockToast(); return; }
-          setContactShareTarget(profile);
-        }}
-        onContactViewOpen={(share, profile) => setContactViewShare({ share, profile })}
+        onContactShareOpen={handleContactShareOpen}
+        onContactViewOpen={handleContactViewOpen}
         onHeartResponse={handleHeartResponseGuarded}
         onDeleteChat={deleteChat}
         onDeleteAllChats={deleteAllChats}
@@ -1980,28 +2066,20 @@ function App() {
         timerLabel={timerLabel}
         onRefreshStatus={refreshStatusTab}
         onRefreshChat={refreshChatTab}
-        onUpdateProfile={(update) => setProfiles(prev => prev.map(p => p.id === (update as { id: string }).id ? { ...p, ...(update as object) } : p))}
+        onUpdateProfile={handleUpdateProfile}
         onRefreshProfiles={refreshProfilesTab}
         darkMode={darkMode}
-        onToggleDark={() => { const next = !darkMode; setDarkMode(next); ls.setItem('dark_mode', next ? '1' : '0'); }}
+        onToggleDark={handleToggleDark}
         onShowContactQr={() => setShowContactQr(true)}
         onScanQr={() => setShowQrScanner(true)}
         scannedContacts={scannedContacts}
-        onClearScannedContact={(id) => setScannedContacts(prev => {
-          const next = prev.filter(c => c.id !== id);
-          try { ls.setItem(SCANNED_CONTACTS_KEY, JSON.stringify(next)); } catch {}
-          return next;
-        })}
+        onClearScannedContact={handleClearScannedContact}
         functionsLocked={functionsLocked}
-        onShowTutorial={() => { setShowTutorialModal(true); }}
+        onShowTutorial={handleShowTutorial}
         unreadChatCounts={unreadChatCounts}
-        onClearChatUnread={(chatId) => setUnreadChatCounts(prev => { const n = { ...prev }; delete n[chatId]; return n; })}
-        onViewFortune={(p) => {
-          if (functionsLocked) { showFunctionsLockToast(); return; }
-          setFortuneModalTarget(p);
-          void recordProfileView(p.id);
-        }}
-        onViewProfile={(p) => { void recordProfileView(p.id); }}
+        onClearChatUnread={handleClearChatUnread}
+        onViewFortune={handleViewFortuneFromCard}
+        onViewProfile={handleViewProfileCard}
         fortuneCompatTarget={fortuneCompatTarget}
         groupChats={groupChats}
         unreadGroupCounts={unreadGroupCounts}
