@@ -293,10 +293,12 @@ function topicTipCount(topic: Topic): number {
 function topicLayout(topic: Topic) {
   const count = topicTipCount(topic);
   const dense = count >= 7 || topic.id === 'guide';
-  const compact = dense || count >= 5 || topic.id === 'settings';
+  // 숨은기능: 팁4개+긴 NPC나이 힌트 — 2열·비compact면 고정 모달 하단이 잘림
+  const isHidden = topic.id === 'hidden';
+  const compact = dense || count >= 5 || topic.id === 'settings' || isHidden;
   const fillVertical = topic.id === 'heart' || topic.id === 'signal' || topic.id === 'settings' || topic.id === 'chat';
   return {
-    twoColumn: count >= 4 || dense,
+    twoColumn: !isHidden && (count >= 4 || dense),
     compact,
     fillVertical,
     fillerCompact: compact && Boolean(topic.filler),
