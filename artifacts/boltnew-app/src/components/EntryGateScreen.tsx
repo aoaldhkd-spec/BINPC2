@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
-import { navigateToAppPath } from '../lib/panel-password';
 
 export function EntryGateScreen({ entryPassword, onVerified }: { entryPassword: string; onVerified: () => void }) {
   const [input, setInput] = useState('');
@@ -46,17 +45,7 @@ export function EntryGateScreen({ entryPassword, onVerified }: { entryPassword: 
     >
       <div className={`w-full max-w-sm space-y-7 transition-all duration-500 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
         <div className="text-center space-y-2">
-          {/* 입장 화면 로고 → 테스터(/test). 참여자 메인 로고(ResetButton)는 처음으로 유지 */}
-          <button
-            type="button"
-            data-gate="entry-logo-tester"
-            onClick={() => navigateToAppPath('test')}
-            title="테스터"
-            aria-label="테스터"
-            className="text-5xl mb-2 drop-shadow-lg inline-block active:scale-95 transition-transform cursor-pointer"
-          >
-            🍻
-          </button>
+          <div className="text-5xl mb-2 drop-shadow-lg">🍻</div>
           <h1 className="text-2xl font-black text-white tracking-tight">범일NPC 술번개</h1>
           <p className="text-slate-400 text-sm">참여하려면 입장 코드를 입력하세요</p>
         </div>

@@ -10,11 +10,11 @@ import { fileURLToPath } from 'node:url';
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const read = (rel) => readFileSync(resolve(ROOT, rel), 'utf8');
 
-// GUARD_ENCODING_SELFCHECK: refuse mojibake regex literals like /'????'/.
+// GUARD_ENCODING_SELFCHECK: refuse mojibake regex literals (question-mark placeholders).
 // Strip this block before scanning so the checker cannot false-positive on itself.
 {
   const selfSrc = readFileSync(resolve(ROOT, 'scripts/verify-recurrence-guards.mjs'), 'utf8');
-  const body = selfSrc.replace(/\/\/ GUARD_ENCODING_SELFCHECK[\s\S]*?\n\}\n/, '');
+  const body = selfSrc.replace(/\/\/ GUARD_ENCODING_SELFCHECK[\s\S]*?\r?\n\}\r?\n/, '');
   if (/\/'\?{2,}/.test(body)) {
     console.error('FATAL: verify-recurrence-guards.mjs encoding corruption detected. Restore UTF-8.');
     process.exit(2);
@@ -459,20 +459,22 @@ mustMatch('artifacts/boltnew-app/src/components/TutorialVideo.tsx', '26_tutorial
   /overflow-y-auto overflow-x-hidden scrollbar-hide/,
 ]);
 
-// 27. Dark ProfileCard auto-dim (default/dark-neon/darkMode)
+// 27. ProfileCard surfaces: default always white; dark-neon/darkMode only for others
 mustExist('artifacts/boltnew-app/src/lib/profile-card-theme.ts', '27_profile_card_theme_lib');
 mustMatch('artifacts/boltnew-app/src/lib/theme.tsx', '27_isDarkTheme_chrome_unchanged', [
   /export function isDarkTheme/,
   /theme === 'default' \|\| theme === 'dark-neon'/,
 ]);
-mustMatch('artifacts/boltnew-app/src/lib/profile-card-theme.ts', '27_card_dims_dark_themes', [
+mustMatch('artifacts/boltnew-app/src/lib/profile-card-theme.ts', '27_default_cards_stay_white', [
   /export function isProfileCardDark/,
-  /isDarkTheme\(theme\) \|\| darkMode/,
+  /theme === 'default'\) return false/,
+  /theme === 'dark-neon'\) return true/,
+  /bg-white border-gray-100/,
   /bg-slate-900/,
   /rgba\(15,\s*23,\s*42/,
 ]);
-mustNotMatch('artifacts/boltnew-app/src/lib/profile-card-theme.ts', '27_no_default_forced_white', [
-  /theme === 'default'\) return false/,
+mustNotMatch('artifacts/boltnew-app/src/lib/profile-card-theme.ts', '27_no_isDarkTheme_on_cards', [
+  /isDarkTheme\(theme\) \|\| darkMode/,
 ]);
 mustMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '27_profile_card_uses_isProfileCardDark', [
   /isProfileCardDark\(theme, darkMode\)/,
@@ -482,42 +484,43 @@ mustMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '27_profile_ca
 mustMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '27_main_passes_darkMode_to_card', [
   /darkMode=\{darkMode\}/,
 ]);
-mustMatch('artifacts/boltnew-app/src/lib/profile-card-theme.test.ts', '27_theme_tests_dark_dim', [
-  /dark themes use non-white card shell/,
+mustMatch('artifacts/boltnew-app/src/lib/profile-card-theme.test.ts', '27_theme_tests_default_white', [
+  /isProfileCardDark keeps default white/,
+  /default theme keeps white card shell even when darkMode is on/,
   /App darkMode dims light theme cards/,
 ]);
-mustMatch('artifacts/boltnew-app/src/__tests__/product-invariants.test.ts', '27_product_invariants_card_dark', [
-  /dark theme profile cards use non-white surfaces via isProfileCardDark/,
-  /isDarkTheme\(theme\) \|\| darkMode/,
+mustMatch('artifacts/boltnew-app/src/__tests__/product-invariants.test.ts', '27_product_invariants_default_white_cards', [
+  /default theme ProfileCards stay white/,
+  /theme === 'default'\) return false/,
 ]);
 
 // 28. Talent / feature picker tags ? emoji banana + kiss/heat/milk cluster + face/body catalog
 mustMatch('artifacts/boltnew-app/src/lib/signal-match.ts', '28_talent_tag_catalog', [
-  /label:\s*'\u{c7ac}\u{b2a5} \u{2b50}'/,
-  /'\u{d0a4}\u{c2a4}\u{c798}\u{d568}'/,
-  /'\u{b2ec}\u{c544}\u{c624}\u{b974}\u{ac8c} \u{c798}\u{d568}'/,
-  /'\u{1f34c} \u{bc14}\u{b098}\u{b098} \u{c798}\u{ba39}\u{c74c}'/,
-  /'\u{1f95b} \u{c6b0}\u{c720} \u{c798}\u{ba39}\u{c74c}'/,
+  /label:\s*'\u{c7ac}\u{b2a5} \u{2b50}'/u,
+  /'\u{d0a4}\u{c2a4}\u{c798}\u{d568}'/u,
+  /'\u{b2ec}\u{c544}\u{c624}\u{b974}\u{ac8c} \u{c798}\u{d568}'/u,
+  /'\u{1f34c} \u{bc14}\u{b098}\u{b098} \u{c798}\u{ba39}\u{c74c}'/u,
+  /'\u{1f95b} \u{c6b0}\u{c720} \u{c798}\u{ba39}\u{c74c}'/u,
 ]);
 mustMatch('artifacts/boltnew-app/src/lib/signal-match.ts', '28_talent_tag_order', [
-  /label:\s*'\u{c7ac}\u{b2a5} \u{2b50}',\s*tags:\s*\[[^\]]*'\u{bc24}\u{c77c} \u{c798}\u{d568}'[^\]]*'\u{d0a4}\u{c2a4}\u{c798}\u{d568}'[^\]]*'\u{b2ec}\u{c544}\u{c624}\u{b974}\u{ac8c} \u{c798}\u{d568}'[^\]]*'\u{1f34c} \u{bc14}\u{b098}\u{b098} \u{c798}\u{ba39}\u{c74c}'[^\]]*'\u{1f95b} \u{c6b0}\u{c720} \u{c798}\u{ba39}\u{c74c}'/,
+  /label:\s*'\u{c7ac}\u{b2a5} \u{2b50}',\s*tags:\s*\[[^\]]*'\u{bc24}\u{c77c} \u{c798}\u{d568}'[^\]]*'\u{d0a4}\u{c2a4}\u{c798}\u{d568}'[^\]]*'\u{b2ec}\u{c544}\u{c624}\u{b974}\u{ac8c} \u{c798}\u{d568}'[^\]]*'\u{1f34c} \u{bc14}\u{b098}\u{b098} \u{c798}\u{ba39}\u{c74c}'[^\]]*'\u{1f95b} \u{c6b0}\u{c720} \u{c798}\u{ba39}\u{c74c}'/u,
 ]);
 mustNotMatch('artifacts/boltnew-app/src/lib/signal-match.ts', '28_talent_no_plain_banana_in_core', [
-  /label:\s*'\u{c7ac}\u{b2a5} \u{2b50}',\s*tags:\s*\[[^\]]*'\u{bc14}\u{b098}\u{b098} \u{c798}\u{ba39}\u{c74c}'/,
+  /label:\s*'\u{c7ac}\u{b2a5} \u{2b50}',\s*tags:\s*\[[^\]]*'\u{bc14}\u{b098}\u{b098} \u{c798}\u{ba39}\u{c74c}'/u,
 ]);
 mustMatch('artifacts/boltnew-app/src/lib/signal-match.ts', '28_talent_banana_legacy_alias', [
-  /'\u{1f34c} \u{bc14}\u{b098}\u{b098} \u{c798}\u{ba39}\u{c74c}':\s*\[[^\]]*'\u{bc14}\u{b098}\u{b098} \u{c798}\u{ba39}\u{c74c}'/,
-  /\['\u{1f34c} \u{bc14}\u{b098}\u{b098} \u{c798}\u{ba39}\u{c74c}',\s*'\u{bc14}\u{b098}\u{b098} \u{c798}\u{ba39}\u{c74c}'\]/,
+  /'\u{1f34c} \u{bc14}\u{b098}\u{b098} \u{c798}\u{ba39}\u{c74c}':\s*\[[^\]]*'\u{bc14}\u{b098}\u{b098} \u{c798}\u{ba39}\u{c74c}'/u,
+  /\['\u{1f34c} \u{bc14}\u{b098}\u{b098} \u{c798}\u{ba39}\u{c74c}',\s*'\u{bc14}\u{b098}\u{b098} \u{c798}\u{ba39}\u{c74c}'\]/u,
 ]);
 mustMatch('artifacts/boltnew-app/src/lib/signal-match.ts', '28_face_body_catalog', [
-  /label:\s*'\u{c5bc}\u{ad74}\u{c0c1} \u{1f440}'/,
-  /'\u{d140}\u{c0c1}\u{d0d1} \u{1f504}'/,
-  /'\u{d0d1}\u{c0c1}\u{d140} \u{1f503}'/,
-  /label:\s*'\u{ccb4}\u{d615} \u{1f4aa}'/,
-  /'\u{c7a1}\u{c2dd} \u{1f37d}'/,
+  /label:\s*'\u{c5bc}\u{ad74}\u{c0c1} \u{1f440}'/u,
+  /'\u{d140}\u{c0c1}\u{d0d1} \u{1f504}'/u,
+  /'\u{d0d1}\u{c0c1}\u{d140} \u{1f503}'/u,
+  /label:\s*'\u{ccb4}\u{d615} \u{1f4aa}'/u,
+  /'\u{c7a1}\u{c2dd} \u{1f37d}'/u,
 ]);
 mustNotMatch('artifacts/boltnew-app/src/lib/signal-match.ts', '28_no_cat_face_in_core', [
-  /label:\s*'\u{c5bc}\u{ad74}\u{c0c1} \u{1f440}',\s*tags:\s*\[[^\]]*'\u{ace0}\u{c591}\u{c774}\u{c0c1}'/,
+  /label:\s*'\u{c5bc}\u{ad74}\u{c0c1} \u{1f440}',\s*tags:\s*\[[^\]]*'\u{ace0}\u{c591}\u{c774}\u{c0c1}'/u,
 ]);
 mustMatch('artifacts/boltnew-app/src/lib/signal-match.ts', '28_ideal_feature_shared_core', [
   /export const IDEAL_TAG_GROUPS = \[\.\.\.CORE_TAG_GROUPS\]/,
@@ -565,8 +568,8 @@ mustMatch('artifacts/boltnew-app/src/components/ChatMessageRow.tsx', '32_chat_ro
 ]);
 mustExist('scripts/test-chat-message-types.mjs', '32_chat_types_smoke');
 
-// 33. Screen-differentiated logo: entry->tester; main/waiting logo=reset, npc=admin, sulbun=egg
-mustMatch('artifacts/boltnew-app/src/components/EntryGateScreen.tsx', '33_entry_logo_tester', [
+// 33. User gates: logo=reset (not tester), npc=admin, sulbun=none; theme FAB only after profile
+mustNotMatch('artifacts/boltnew-app/src/components/EntryGateScreen.tsx', '33_entry_logo_not_tester', [
   /data-gate="entry-logo-tester"/,
   /navigateToAppPath\('test'\)/,
 ]);
@@ -607,8 +610,6 @@ mustMatch('artifacts/boltnew-app/src/AdminApp.tsx', '33_admin_nick_restore_clien
 ]);
 mustMatch('artifacts/boltnew-app/src/__tests__/product-invariants.test.ts', '33_product_invariants_gates', [
   /user header gates: logo=reset, npc=admin, sulbun=no staff gate/,
-  /entry logo goes to tester; main logo stays reset/,
-  /data-gate="entry-logo-tester"/,
   /theme switcher only after profile-ready/,
 ]);
 
