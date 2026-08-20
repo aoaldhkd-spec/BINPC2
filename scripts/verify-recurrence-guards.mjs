@@ -10,6 +10,15 @@ import { fileURLToPath } from 'node:url';
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const read = (rel) => readFileSync(resolve(ROOT, rel), 'utf8');
 
+// GUARD_ENCODING_SELFCHECK — refuse corrupted emoji/hangul regexes (Windows editor mojibake)
+{
+  const selfSrc = readFileSync(resolve(ROOT, 'scripts/verify-recurrence-guards.mjs'), 'utf8');
+  if (/\/'\?{2,}/.test(selfSrc) || selfSrc.includes("includes('??')") || selfSrc.includes('includes("??")')) {
+    console.error('FATAL: verify-recurrence-guards.mjs encoding corruption detected (?? placeholders). Re-checkout UTF-8 and use \\u{…} escapes.');
+    process.exit(2);
+  }
+}
+
 /** @type {{ id: string, ok: boolean, detail?: string }[]} */
 const results = [];
 
@@ -208,16 +217,19 @@ mustMatch('scripts/full-code-audit.mjs', '13_heart_balances_banned', [
   /BANNED_REGRESSION/,
 ]);
 
-// 14. Signal 📡 vs heart emoji, no SignalNudgeBanner
+// 14. Signal \u{1f4e1} vs heart emoji, no SignalNudgeBanner
 {
   const db = read('artifacts/api-server/src/routes/db.ts');
   const sigIdx = db.indexOf("table === 'signal_sends' && row.action === 'send'");
   const sigBlock = sigIdx >= 0 ? db.slice(sigIdx, sigIdx + 400) : '';
-  const ok = sigIdx >= 0 && sigBlock.includes('📡') && !sigBlock.includes('💚') && !sigBlock.includes('💕');
+  const SIGNAL_PUSH = String.fromCodePoint(0x1f4e1);
+  const HEART_PUSH = String.fromCodePoint(0x1f495);
+  const GREEN_HEART = String.fromCodePoint(0x1f49a);
+  const ok = sigIdx >= 0 && sigBlock.includes(SIGNAL_PUSH) && !sigBlock.includes(HEART_PUSH) && !sigBlock.includes(GREEN_HEART);
   results.push({
     id: '14_signal_emoji',
     ok,
-    detail: ok ? 'signal_sends uses 📡' : 'signal_sends push emoji guard failed',
+    detail: ok ? 'signal_sends uses \u{1f4e1}' : 'signal_sends push emoji guard failed',
   });
 }
 mustNotMatch('artifacts/boltnew-app/src/App.tsx', '14_no_signal_nudge_banner', [/SignalNudgeBanner/]);
@@ -475,31 +487,31 @@ mustMatch('artifacts/boltnew-app/src/__tests__/product-invariants.test.ts', '27_
 
 // 28. Talent / feature picker tags — emoji banana + kiss/heat/milk cluster + face/body catalog
 mustMatch('artifacts/boltnew-app/src/lib/signal-match.ts', '28_talent_tag_catalog', [
-  /label:\s*'재능 ⭐'/,
-  /'키스잘함'/,
-  /'달아오르게 잘함'/,
-  /'🍌 바나나 잘먹음'/,
-  /'🥛 우유 잘먹음'/,
+  /label:\s*'\u{c7ac}\u{b2a5} \u{2b50}'/,
+  /'\u{d0a4}\u{c2a4}\u{c798}\u{d568}'/,
+  /'\u{b2ec}\u{c544}\u{c624}\u{b974}\u{ac8c} \u{c798}\u{d568}'/,
+  /'\u{1f34c} \u{bc14}\u{b098}\u{b098} \u{c798}\u{ba39}\u{c74c}'/,
+  /'\u{1f95b} \u{c6b0}\u{c720} \u{c798}\u{ba39}\u{c74c}'/,
 ]);
 mustMatch('artifacts/boltnew-app/src/lib/signal-match.ts', '28_talent_tag_order', [
-  /label:\s*'재능 ⭐',\s*tags:\s*\[[^\]]*'밤일 잘함'[^\]]*'키스잘함'[^\]]*'달아오르게 잘함'[^\]]*'🍌 바나나 잘먹음'[^\]]*'🥛 우유 잘먹음'/,
+  /label:\s*'\u{c7ac}\u{b2a5} \u{2b50}',\s*tags:\s*\[[^\]]*'\u{bc24}\u{c77c} \u{c798}\u{d568}'[^\]]*'\u{d0a4}\u{c2a4}\u{c798}\u{d568}'[^\]]*'\u{b2ec}\u{c544}\u{c624}\u{b974}\u{ac8c} \u{c798}\u{d568}'[^\]]*'\u{1f34c} \u{bc14}\u{b098}\u{b098} \u{c798}\u{ba39}\u{c74c}'[^\]]*'\u{1f95b} \u{c6b0}\u{c720} \u{c798}\u{ba39}\u{c74c}'/,
 ]);
 mustNotMatch('artifacts/boltnew-app/src/lib/signal-match.ts', '28_talent_no_plain_banana_in_core', [
-  /label:\s*'재능 ⭐',\s*tags:\s*\[[^\]]*'바나나 잘먹음'/,
+  /label:\s*'\u{c7ac}\u{b2a5} \u{2b50}',\s*tags:\s*\[[^\]]*'\u{bc14}\u{b098}\u{b098} \u{c798}\u{ba39}\u{c74c}'/,
 ]);
 mustMatch('artifacts/boltnew-app/src/lib/signal-match.ts', '28_talent_banana_legacy_alias', [
-  /'🍌 바나나 잘먹음':\s*\[[^\]]*'바나나 잘먹음'/,
-  /\['🍌 바나나 잘먹음',\s*'바나나 잘먹음'\]/,
+  /'\u{1f34c} \u{bc14}\u{b098}\u{b098} \u{c798}\u{ba39}\u{c74c}':\s*\[[^\]]*'\u{bc14}\u{b098}\u{b098} \u{c798}\u{ba39}\u{c74c}'/,
+  /\['\u{1f34c} \u{bc14}\u{b098}\u{b098} \u{c798}\u{ba39}\u{c74c}',\s*'\u{bc14}\u{b098}\u{b098} \u{c798}\u{ba39}\u{c74c}'\]/,
 ]);
 mustMatch('artifacts/boltnew-app/src/lib/signal-match.ts', '28_face_body_catalog', [
-  /label:\s*'얼굴상 👀'/,
-  /'텀상탑 🔄'/,
-  /'탑상텀 🔃'/,
-  /label:\s*'체형 💪'/,
-  /'잡식 🍽'/,
+  /label:\s*'\u{c5bc}\u{ad74}\u{c0c1} \u{1f440}'/,
+  /'\u{d140}\u{c0c1}\u{d0d1} \u{1f504}'/,
+  /'\u{d0d1}\u{c0c1}\u{d140} \u{1f503}'/,
+  /label:\s*'\u{ccb4}\u{d615} \u{1f4aa}'/,
+  /'\u{c7a1}\u{c2dd} \u{1f37d}'/,
 ]);
 mustNotMatch('artifacts/boltnew-app/src/lib/signal-match.ts', '28_no_cat_face_in_core', [
-  /label:\s*'얼굴상 👀',\s*tags:\s*\[[^\]]*'고양이상'/,
+  /label:\s*'\u{c5bc}\u{ad74}\u{c0c1} \u{1f440}',\s*tags:\s*\[[^\]]*'\u{ace0}\u{c591}\u{c774}\u{c0c1}'/,
 ]);
 mustMatch('artifacts/boltnew-app/src/lib/signal-match.ts', '28_ideal_feature_shared_core', [
   /export const IDEAL_TAG_GROUPS = \[\.\.\.CORE_TAG_GROUPS\]/,

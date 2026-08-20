@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, ArrowLeft, ArrowRight, PlayCircle, Sparkles } from 'lucide-react';
 import { TutorialVideo } from './TutorialVideo';
+import { HOST_AGE_EASTER_EGG_HINT } from '../lib/host-age-easter-egg';
 
 type Tip = { icon: string; title: string; desc: string };
 type Section = { emoji: string; title: string; tips: Tip[]; footer?: string; variant?: 'rules' | 'tabs' | 'default' };
@@ -164,9 +165,9 @@ const HIDDEN: Topic[] = [
     filler: 'hidden',
     tips: [
       { icon: '🔄', title: '카드 뒤집기', desc: '사진 탭하면 뒷면에 이상형.' },
-      { icon: '💚', title: '칭찬 하트', desc: '💚은 칭찬만. 연락처 공유 없음.' },
-      { icon: '🚫', title: '차단·숨기기', desc: '차단은 서로. 👻는 상대만 못 봄.' },
       { icon: '👁', title: '방문자', desc: 'MY → 내 상태. 프로필 본 사람.' },
+      { icon: '🚫', title: '차단·숨기기', desc: '차단은 서로. 👻는 상대만 못 봄.' },
+      { icon: '🍻', title: 'NPC 나이', desc: HOST_AGE_EASTER_EGG_HINT },
     ],
   },
 ];
@@ -545,8 +546,8 @@ const FILLERS: Record<FillerKind, { title: string; line: string; quote: string; 
   },
   hidden: {
     title: '몰라도 되는데, 알면 이득',
-    line: '카드 뒤집기 · 칭찬 하트 · 방문자',
-    quote: '사진 탭하면 이상형 나옴. 진짜임',
+    line: '카드 뒤집기 · 방문자 · NPC 나이',
+    quote: '술번개 3번이면 NPC 나이. 진짜임',
     shell: 'bg-gradient-to-br from-violet-50 via-fuchsia-50 to-white border border-violet-100/80 shadow-sm shadow-violet-100/30',
     darkShell: 'bg-gradient-to-br from-slate-800/90 via-violet-950/50 to-slate-900 border border-violet-900/60 shadow-sm shadow-violet-900/20',
   },
