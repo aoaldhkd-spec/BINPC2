@@ -207,7 +207,7 @@ export function excludeSwipeGestureVerifyProfiles<T extends {
 export function genAvatar(nickname: string): string {
   const nick = nickname.trim() || '?';
   const { from, to } = getAvatarGradient(nick);
-  // 1:1 — 프리셋 webp·카드 flipZone과 동일
+  // 1:1 SVG — ProfileCard uses full-bleed cover/pastel on the photo frame
   const svg = [
     '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400">',
     `<defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">`,

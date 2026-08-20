@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Profile, UserSignal } from '../types/app';
 import type { HeartType } from '../lib/constants';
-import { getKoreanAge, getAvatarSrc, hasUploadedPhoto, getAvatarGradientCss, isPresetAvatar, isSwipeGestureVerifyProfile } from '../lib/profile';
+import { getKoreanAge, getAvatarSrc, hasUploadedPhoto, getAvatarGradientCss, isSwipeGestureVerifyProfile } from '../lib/profile';
 import {
   SIGNAL_CARD_PROFILE_CTA,
   SIGNAL_CARD_SIGNAL_CTA,
@@ -61,7 +61,6 @@ function SignalPhotoCard({
   showStamps: boolean;
 }) {
   const pastel = !hasUploadedPhoto(profile.photo_url) || imgFailed;
-  const presetAvatar = isPresetAvatar(profile.photo_url);
   const photoSrc = getAvatarSrc(profile.photo_url, profile.nickname);
   const leftOp = showStamps ? stampOpacity(dragX, 'left') : 0;
   const rightOp = showStamps ? stampOpacity(dragX, 'right') : 0;
@@ -77,7 +76,7 @@ function SignalPhotoCard({
         src={photoSrc}
         alt=""
         onError={onImgError}
-        className={`absolute inset-0 h-full w-full ${pastel || presetAvatar ? 'object-contain' : 'object-cover object-center'}`}
+        className={`absolute inset-0 h-full w-full ${pastel ? 'object-contain' : 'object-cover object-center'}`}
         draggable={false}
       />
       {showStamps && (

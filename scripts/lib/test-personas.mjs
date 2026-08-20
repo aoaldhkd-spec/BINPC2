@@ -1,16 +1,31 @@
 /**
  * Realistic Korean test personas for prod-facing scripts.
- * Nicknames stay within app rules (2–6 graphemes); suffix digits keep registration unique.
+ * Nicknames: Korean names only (2–6 graphemes). NO numeric suffixes — uniqueness via
+ * name pool + Hangul modifiers (digits stay in profile id / device secret only).
  */
 import { randomUUID } from 'node:crypto';
 
-/** 2–3 syllable Korean nicknames (visible in prod demos) */
+/** 2–3 syllable Korean nicknames (visible in prod demos). Large pool for uniqueness. */
 export const NICKNAMES = [
   '지민', '서연', '현우', '민재', '수아', '도윤', '예린', '준호', '하은', '시우',
   '유진', '태민', '소율', '건우', '나연', '지후', '다은', '승현', '채원', '민서',
   '준영', '수빈', '지아', '현서', '은우', '서준', '윤서', '지원', '민호', '서현',
   '도현', '예준', '시윤', '유나', '재민', '하린', '지훈', '소연', '민규', '수민',
   '태양', '가을', '보라', '성민', '나윤', '준서', '다현', '민아', '서윤', '현민',
+  '하늘', '다온', '라온', '이안', '주원', '시현', '예나', '하율', '지율', '은서',
+  '윤아', '채은', '서우', '건희', '연우', '지우', '하진', '세린', '유림', '도겸',
+  '시온', '가은', '예성', '한결', '나래', '바다', '별하', '구름', '이슬', '새벽',
+  '미소', '다솜', '한빛', '초롱', '단비', '보름', '노을', '달빛', '햇살', '풀잎',
+  '은채', '시호', '재윤', '민결', '서율', '하람', '유성', '도하', '진우', '예솔',
+  '가온', '이현', '수현', '정우', '태윤', '소희', '예림', '채린', '하영', '지안',
+  '선우', '우진', '다인', '세준', '연서', '주하', '로아', '시엘', '루나', '아린',
+];
+
+/** 1-syllable Hangul modifiers for collision retries — never digits. */
+export const NICK_MODIFIERS = [
+  '초', '봄', '별', '달', '솔', '흰', '단', '맑', '늘', '참',
+  '한', '새', '온', '담', '빛', '결', '숨', '꽃', '풀', '돌',
+  '산', '강', '숲', '눈', '비', '바람', '별빛', '한울',
 ];
 
 /** App MBTI enum (constants.ts) */
@@ -63,6 +78,27 @@ function pickInterests(count = 2) {
   return tags.slice(0, Math.min(count, tags.length));
 }
 
+function graphemeSegments(s) {
+  try {
+    return [...new Intl.Segmenter('ko', { granularity: 'grapheme' }).segment(s)].map((x) => x.segment);
+  } catch {
+    return [...s];
+  }
+}
+
+function sliceGraphemes(s, max) {
+  return graphemeSegments(s).slice(0, max).join('');
+}
+
+function graphemeCount(s) {
+  return graphemeSegments(s).length;
+}
+
+/** Recurrence / sanity: nicknames must not end with ASCII digits. */
+export function nicknameEndsWithDigit(nickname) {
+  return /\d$/u.test(String(nickname ?? ''));
+}
+
 /** personality_score → 탑/바텀 labels in profile.ts */
 export function pickPersonalityScore() {
   const bands = [15, 35, 50, 65, 85, 95];
@@ -80,16 +116,31 @@ export function shortId(len = 4) {
 }
 
 /**
- * Unique nickname within 6 graphemes: base (2–3) + 2–4 digit suffix.
+ * Unique nickname within 6 graphemes: Korean name only (no digit tails).
+ * Collision retries use Hangul modifiers (초지민, 봄서연, …).
  * @param {{ index?: number, base?: string, attempt?: number }} opts
  */
 export function makeNickname(opts = {}) {
   const { index, base: baseOverride, attempt = 0 } = opts;
-  const base = baseOverride ?? NICKNAMES[(index ?? Math.floor(Math.random() * NICKNAMES.length)) % NICKNAMES.length];
-  const seed = index != null ? index + attempt * 997 : Math.floor(Math.random() * 9000) + attempt * 137;
-  const suffix = String(seed % 10000).padStart(attempt > 0 ? 3 : 2, '0');
-  const nick = `${base}${suffix}`;
-  if (nick.length > 12) return `${base.slice(0, 2)}${suffix.slice(-4)}`;
+  const poolIdx = index != null
+    ? Math.abs(index) % NICKNAMES.length
+    : Math.floor(Math.random() * NICKNAMES.length);
+  const base = baseOverride ?? NICKNAMES[(poolIdx + attempt * 37) % NICKNAMES.length];
+  let nick;
+  if (attempt === 0) {
+    nick = sliceGraphemes(base, 6);
+  } else {
+    const mod = NICK_MODIFIERS[(poolIdx + attempt) % NICK_MODIFIERS.length];
+    const room = Math.max(1, 6 - graphemeCount(mod));
+    nick = `${mod}${sliceGraphemes(base, room)}`;
+    if (graphemeCount(nick) < 2) {
+      nick = sliceGraphemes(`${mod}${NICKNAMES[(poolIdx + attempt * 13) % NICKNAMES.length]}`, 6);
+    }
+  }
+  if (nicknameEndsWithDigit(nick)) {
+    // Defensive: never emit digit-suffixed nicks even if a bad base sneaks in
+    nick = sliceGraphemes(nick.replace(/\d+$/u, '') || '하늘', 6);
+  }
   return nick;
 }
 
@@ -98,16 +149,21 @@ export function resetNicknameRegistry() {
   usedNicknames.clear();
 }
 
-/** Reserve a nickname; bumps suffix on collision within the same process. */
+/** Reserve a nickname; bumps Hangul modifier on collision within the same process. */
 export function reserveNickname(opts = {}) {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
     const nickname = makeNickname({ ...opts, attempt });
-    if (!usedNicknames.has(nickname)) {
+    if (!usedNicknames.has(nickname) && !nicknameEndsWithDigit(nickname)) {
       usedNicknames.add(nickname);
       return nickname;
     }
   }
-  return makeNickname({ ...opts, attempt: Math.floor(Math.random() * 9999) });
+  // Last resort: two modifiers + short base (still no digits)
+  const a = NICK_MODIFIERS[Math.floor(Math.random() * NICK_MODIFIERS.length)];
+  const b = NICKNAMES[Math.floor(Math.random() * NICKNAMES.length)];
+  const fallback = sliceGraphemes(`${a}${b}`, 6);
+  usedNicknames.add(fallback);
+  return fallback;
 }
 
 /**
@@ -134,11 +190,9 @@ export function createTestPersona(opts = {}) {
 export function createPersonaPair() {
   resetNicknameRegistry();
   const bases = shuffle(NICKNAMES);
-  // Avoid fixed 00/01 suffixes — prod E2E re-runs hit profiles_nickname_key otherwise.
-  const seed = Math.floor(Math.random() * 9000) + 100;
   return [
-    createTestPersona({ index: seed, nickname: reserveNickname({ base: bases[0], index: seed }) }),
-    createTestPersona({ index: seed + 1, nickname: reserveNickname({ base: bases[1], index: seed + 1 }) }),
+    createTestPersona({ nickname: reserveNickname({ base: bases[0] }) }),
+    createTestPersona({ nickname: reserveNickname({ base: bases[1] }) }),
   ];
 }
 

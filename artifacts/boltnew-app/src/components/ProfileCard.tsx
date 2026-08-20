@@ -78,22 +78,16 @@ export const ProfileCard = memo(function ProfileCard({
     lockToastTimerRef.current = setTimeout(() => setLockToast(false), 1400);
   };
 
-  // 이미지 naturalRatio → contain 시 빈공간 유지, 실제 사진 영역만 플립/표시
-  const [naturalRatio, setNaturalRatio] = useState<number | null>(null);
+  // Full-bleed frame: pastel/preset/upload all fill the card (no gray letterboxing).
   const [imgFailed, setImgFailed] = useState(false);
-  const handleImgLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
-    const { naturalWidth: w, naturalHeight: h } = e.currentTarget;
-    if (w && h) setNaturalRatio(w / h);
-  };
   useEffect(() => {
-    setNaturalRatio(null);
     setImgFailed(false);
   }, [profile.photo_url, profile.nickname]);
 
   const pastelFill = !hasUploadedPhoto(profile.photo_url) || imgFailed;
   const photoBg = pastelFill
     ? getAvatarGradientCss(profile.nickname)
-    : '#f3f4f6';
+    : '#0f172a';
 
   // 상태 메시지 자동 마키 — 텍스트가 바 너비를 초과하면 슬라이드 애니메이션 적용
   const tickerBarRef = useRef<HTMLDivElement>(null);
@@ -122,21 +116,8 @@ export const ProfileCard = memo(function ProfileCard({
     return () => ro.disconnect();
   }, [statusMsg]);
 
-  // flipZone — 작게=1:1 컨테이너, 기본=3:4. 파스텔·프리셋 아바타는 1:1(정사각), 업로드 사진은 naturalRatio
-  const CRATIO = compact ? 1 : 3 / 4;
-  const AVATAR_RATIO = 1;
-  const r = pastelFill ? AVATAR_RATIO : (naturalRatio ?? CRATIO);
-  const flipZoneStyle: React.CSSProperties = r >= CRATIO
-    ? {
-        position: 'absolute', left: 0, right: 0,
-        top: `${((1 - CRATIO / r) / 2) * 100}%`,
-        height: `${(CRATIO / r) * 100}%`,
-      }
-    : {
-        position: 'absolute', top: 0, bottom: 0,
-        left: `${((1 - r / CRATIO) / 2) * 100}%`,
-        width: `${(r / CRATIO) * 100}%`,
-      };
+  // flipZone always matches the photo frame (compact=1:1, default=3:4) — no letterbox inset
+  const flipZoneStyle: React.CSSProperties = { position: 'absolute', inset: 0 };
 
   // ⋯ 메뉴 — 바깥 클릭 시만 닫기 (메뉴 항목 pointerdown에서 즉시 닫히면 클릭 불가)
   useEffect(() => {
@@ -251,9 +232,8 @@ export const ProfileCard = memo(function ProfileCard({
                     alt={profile.nickname}
                     loading="lazy"
                     decoding="async"
-                    onLoad={handleImgLoad}
                     onError={() => setImgFailed(true)}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center' }}
                   />
                 )}
               </div>

@@ -137,9 +137,13 @@ mustNotMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '08_no_raw_s
   /fetch\([^)]*['"]\/api\/db\/storage-upload/,
 ]);
 
-// 9. CI load-venue flake — p95 3500 register / 1500 ready
+// 9. CI load-venue — p95 3500 register + ready (1.5s ready was flaky on GHA)
 mustMatch('artifacts/api-server/src/__tests__/load-venue-150.test.ts', '09_load_venue_p95', [
   /pct\(lat, 95\)\)\.toBeLessThan\(3_500\)/,
+  /pct\(readyLat, 95\)\)\.toBeLessThan\(3_500\)/,
+  /Warm \/ready once/,
+]);
+mustNotMatch('artifacts/api-server/src/__tests__/load-venue-150.test.ts', '09_load_venue_no_tight_ready', [
   /pct\(readyLat, 95\)\)\.toBeLessThan\(1_500\)/,
 ]);
 
@@ -186,6 +190,11 @@ mustMatch('artifacts/boltnew-app/src/__tests__/profile-card-lock.test.tsx', '12_
   /ticker \+ nick stay visible/,
   /paddingTop clears ticker/,
   /profile-card-photo-frame/,
+  /from '\.\.\/components\/ProfileCard'/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/__tests__/profile-card-lock.test.tsx', '12_profile_card_no_mainscreen_import', [
+  /from '\.\.\/components\/MainScreen'/,
+  /getBoundingClientRect\(\)\.height/,
 ]);
 mustMatch('artifacts/boltnew-app/src/lib/profile-photo.ts', '12_heic_reject', [/HEIC|heic/, /JPG, PNG, WebP/]);
 
@@ -209,8 +218,12 @@ mustMatch('scripts/full-code-audit.mjs', '13_heart_balances_banned', [
 }
 mustNotMatch('artifacts/boltnew-app/src/App.tsx', '14_no_signal_nudge_banner', [/SignalNudgeBanner/]);
 
-// 15. GitHub CI — test:unit + audit:code
-mustMatch('.github/workflows/verify.yml', '15_ci_unit_audit', [/pnpm run audit:code/, /test:unit/]);
+// 15. GitHub CI — guards + audit:code + test:unit (guards must not be local-only)
+mustMatch('.github/workflows/verify.yml', '15_ci_unit_audit', [
+  /pnpm run verify:guards/,
+  /pnpm run audit:code/,
+  /test:unit/,
+]);
 
 // 16. Korean age (+1) — centralized korean-age.ts, no intl age in profile/group/db
 mustMatch('artifacts/boltnew-app/src/lib/korean-age.ts', '16_korean_age_client', [
@@ -311,6 +324,36 @@ mustMatch('artifacts/api-server/src/__tests__/db-security.test.ts', '22_legacy_o
   /heart_balances/,
   /seats/,
 ]);
+
+// 23. Test/dummy nicknames — Korean names only, no trailing digit suffixes
+mustMatch('scripts/lib/test-personas.mjs', '23_persona_no_digit_suffix_doc', [
+  /NO numeric suffixes/,
+  /nicknameEndsWithDigit/,
+  /NICK_MODIFIERS/,
+]);
+mustNotMatch('scripts/lib/test-personas.mjs', '23_persona_no_padStart_digits', [
+  /padStart\(/,
+  /\$\{base\}\$\{suffix\}/,
+  /2–4 digit suffix/,
+  /base \(2–3\) \+ 2–4 digit/,
+]);
+mustMatch('scripts/sim-concurrent-users.mjs', '23_sim_names_only_comment', [
+  /no digit suffixes/i,
+]);
+{
+  const { makeNickname, reserveNickname, resetNicknameRegistry, nicknameEndsWithDigit } =
+    await import('./lib/test-personas.mjs');
+  resetNicknameRegistry();
+  const samples = [];
+  for (let i = 0; i < 80; i += 1) samples.push(makeNickname({ index: i, attempt: i % 5 }));
+  for (let i = 0; i < 40; i += 1) samples.push(reserveNickname({ index: 1000 + i }));
+  const bad = samples.filter((n) => nicknameEndsWithDigit(n) || /\d$/u.test(n));
+  results.push({
+    id: '23_persona_runtime_no_trailing_digits',
+    ok: bad.length === 0,
+    detail: bad.length ? `digit-tailed: ${bad.slice(0, 5).join(',')}` : '',
+  });
+}
 
 console.log('\n=== verify-recurrence-guards ===\n');
 for (const r of results) {

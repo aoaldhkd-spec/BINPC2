@@ -4,7 +4,7 @@
  *
  * 실제 사용자 행동 흐름 기반 대규모 동시사용 검증 (테스트 전용 계정만 사용).
  *
- * 닉네임: realistic Korean personas + numeric suffix (scripts/lib/test-personas.mjs)
+ * 닉네임: realistic Korean personas, names only — no digit suffixes (scripts/lib/test-personas.mjs)
  *
  * Usage:
  *   node scripts/sim-concurrent-users.mjs
@@ -247,7 +247,7 @@ async function registerUser(i, m, stageN) {
         stream: null,
       };
     }
-    // duplicate nickname etc — retry with new nick suffix
+    // duplicate nickname etc — retry with a new Hangul-modifier nick
     await sleep(150 * (attempt + 1));
   }
   m.httpOtherErr++;
