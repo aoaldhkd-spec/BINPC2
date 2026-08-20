@@ -1065,29 +1065,29 @@ export function TutorialVideo({
 
         {isEmbeddedCompact && (
           <div className="absolute inset-x-0 bottom-0 z-[60] group/controls">
-            <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/20 to-transparent pointer-events-none" />
-            <div className="relative px-2.5 pb-2 pt-8 opacity-40 group-hover/controls:opacity-85 transition-opacity duration-200">
-              <div className="flex gap-0.5 mb-2">
+            <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-black/60 via-black/25 to-transparent pointer-events-none" />
+            <div className="relative px-2 pb-1 pt-1.5 opacity-45 group-hover/controls:opacity-90 transition-opacity duration-200">
+              <div className="flex gap-0.5 mb-1">
                 {playlist.map((sceneNo, i) => (
-                  <button key={sceneNo} type="button" onClick={() => goPlay(i)} className="flex-1 h-0.5 rounded-full overflow-hidden bg-white/20">
+                  <button key={sceneNo} type="button" onClick={() => goPlay(i)} className="flex-1 h-1 rounded-full overflow-hidden bg-white/25">
                     <div className="h-full bg-cyan-400/90 transition-all duration-200"
                       style={{ width: i < playIdx ? '100%' : i === playIdx ? `${progress}%` : '0%' }} />
                   </button>
                 ))}
               </div>
-              <div className="flex items-center justify-center gap-3">
+              <div className="flex items-center justify-center gap-2">
                 <button type="button" onClick={() => goPlay(playIdx - 1)} disabled={playIdx === 0}
-                  className="w-7 h-7 rounded-full bg-black/35 backdrop-blur-sm hover:bg-black/50 disabled:opacity-25 flex items-center justify-center transition-all">
-                  <SkipBack className="w-3.5 h-3.5 text-white/90" />
+                  className="w-5 h-5 rounded-full bg-black/40 backdrop-blur-sm hover:bg-black/55 disabled:opacity-25 flex items-center justify-center transition-all">
+                  <SkipBack className="w-2.5 h-2.5 text-white/90" />
                 </button>
                 <button type="button" onClick={() => setPlaying(p => !p)}
-                  className="w-9 h-9 rounded-full bg-white/90 text-black flex items-center justify-center shadow-lg active:scale-95 transition-all">
-                  {playing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
+                  className="w-6 h-6 rounded-full bg-white/90 text-black flex items-center justify-center shadow-md active:scale-95 transition-all">
+                  {playing ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3 ml-px" />}
                 </button>
                 <button type="button"
                   onClick={() => playIdx === playlist.length - 1 ? goPlay(0) : goPlay(playIdx + 1)}
-                  className="w-7 h-7 rounded-full bg-black/35 backdrop-blur-sm hover:bg-black/50 flex items-center justify-center transition-all">
-                  <SkipForward className="w-3.5 h-3.5 text-white/90" />
+                  className="w-5 h-5 rounded-full bg-black/40 backdrop-blur-sm hover:bg-black/55 flex items-center justify-center transition-all">
+                  <SkipForward className="w-2.5 h-2.5 text-white/90" />
                 </button>
               </div>
             </div>
