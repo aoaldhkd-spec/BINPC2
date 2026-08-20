@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Users } from 'lucide-react';
-import { supabase } from '../lib/supabase';
 import { HOST_AGE_EASTER_EGG_HINT } from '../lib/host-age-easter-egg';
+import { navigateToAppPath, verifyPanelPassword } from '../lib/panel-password';
 
 const FIXED_TITLE = '범일NPC는 30살!';
 const RANDOM_SUFFIX = [
@@ -31,21 +31,6 @@ function speakLine(line: string) {
     u2.lang = 'ko-KR'; u2.rate = 0.9; u2.pitch = 2.0; u2.volume = 1;
     window.speechSynthesis.speak(u2);
   };
-}
-
-async function verifyPanelPassword(kind: 'reset' | 'admin', password: string): Promise<'ok' | 'bad' | 'limited'> {
-  try {
-    const { data, error } = await supabase.rpc('verify_panel_password', {
-      p_kind: kind,
-      p_password: password,
-    });
-    const msg = String((error as { message?: string } | null)?.message ?? '');
-    if (/429|너무 많|RATE_LIMIT/i.test(msg)) return 'limited';
-    if (error) return 'bad';
-    return (data as { ok?: boolean } | null)?.ok ? 'ok' : 'bad';
-  } catch {
-    return 'bad';
-  }
 }
 
 /** Dim only — never opaque black. Inline rgba so Tailwind/theme cannot turn this into a black sheet. */
@@ -158,16 +143,29 @@ export function ResetButton({ onReset, darkMode, onEasterEgg, onUiLockChange, on
     if (result === 'ok') {
       setAdminOpen(false);
       setAdminPw('');
-      const base = import.meta.env.BASE_URL;
-      window.history.pushState({}, '', base + 'admin');
-      window.dispatchEvent(new PopStateEvent('popstate'));
+      navigateToAppPath('admin');
     } else {
       setAdminErr(result === 'limited' ? '시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.' : '❌ 비밀번호가 틀렸습니다');
       setAdminPw('');
     }
   };
 
-  const handleLogoClick = () => {
+  const openResetGate = () => {
+    if (onOpenResetPassword) onOpenResetPassword();
+    else {
+      setPw('');
+      setErr('');
+      setOpen(true);
+    }
+  };
+
+  const openAdminGate = () => {
+    setAdminPw('');
+    setAdminErr('');
+    setAdminOpen(true);
+  };
+
+  const handleSulbunClick = () => {
     logoClickCount.current += 1;
     if (logoClickTimer.current) clearTimeout(logoClickTimer.current);
     if (logoClickCount.current >= 3) {
@@ -188,19 +186,20 @@ export function ResetButton({ onReset, darkMode, onEasterEgg, onUiLockChange, on
   return (
     <>
       <div className="flex items-center gap-2">
-        <button type="button" onClick={() => { setAdminPw(''); setAdminErr(''); setAdminOpen(true); }} title="관리자"
+        <button type="button" data-gate="logo-reset" onClick={openResetGate} title="처음으로 돌아가기" aria-label="처음으로 돌아가기"
           className={`p-1 rounded-xl transition-all active:scale-95 hover:scale-110 ${darkMode ? 'text-cyan-400 hover:text-cyan-300' : 'text-cyan-500 hover:text-cyan-600'}`}>
           <Users className="w-7 h-7" />
         </button>
         <div className="text-left select-none">
-          <button type="button" onClick={() => { if (onOpenResetPassword) onOpenResetPassword(); else setOpen(true); }} className="block group cursor-pointer" title="처음으로 돌아가기">
+          <button type="button" data-gate="npc-admin" onClick={openAdminGate} className="block group cursor-pointer" title="관리자">
             <p className={`text-[10px] font-black tracking-widest uppercase leading-none transition-colors ${darkMode ? 'text-cyan-400 group-hover:text-cyan-300' : 'text-cyan-600 group-hover:text-cyan-700'}`}>범일NPC</p>
           </button>
-          <button type="button" onClick={handleLogoClick} className="inline cursor-pointer active:scale-95 transition-transform align-baseline" title="술번개" aria-label={HOST_AGE_EASTER_EGG_HINT}>
+          <button type="button" data-gate="sulbun-none" onClick={handleSulbunClick} className="inline cursor-pointer active:scale-95 transition-transform align-baseline" title="술번개" aria-label={HOST_AGE_EASTER_EGG_HINT}>
             <span className={`text-lg font-black leading-tight transition-colors ${darkMode ? 'text-white hover:text-amber-300' : 'text-gray-900 hover:text-amber-500'}`}>술번개</span>
           </button>
           <span className={`text-lg font-black leading-tight ${darkMode ? 'text-white' : 'text-gray-900'}`} aria-hidden> 🍻</span>
         </div>
+      </div>
       </div>
 
       {/* 💀 이스터에그 — 범일NPC 30살 충격 폭로 */}

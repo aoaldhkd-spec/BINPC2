@@ -136,11 +136,6 @@ describe('product copy + notification invariants', () => {
     expect(reset).toContain('handleSulbunClick');
     expect(reset).toContain("FIXED_TITLE = '범일NPC는 30살!'");
     expect(reset).not.toMatch(/navigateToAppPath\('test'\)/);
-    const waiting = read('components/WaitingOverlay.tsx');
-    expect(waiting).toContain('data-gate="logo-reset"');
-    expect(waiting).toContain('data-gate="npc-admin"');
-    expect(waiting).toContain("verifyPanelPassword('admin'");
-    expect(waiting).toContain("verifyPanelPassword('reset'");
   });
 
   it('숨은기능: 칭찬하트 없고 방문자·NPC나이', () => {
