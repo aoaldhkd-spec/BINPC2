@@ -667,6 +667,39 @@ describe('이상형 / 나의 특징 chip groups', () => {
     expect([...ideal]).toEqual(['다정한', '시크한', '장난끼있는', '차분한', '유머있는', '솔직한', '리드하는', '챙겨주는', '배려심많은', '긍정적인', '활발한', '수줍은']);
     expect([...feature]).toEqual([...ideal]);
   });
+
+  it('shares one CORE catalog between 이상형 and 나의 특징', () => {
+    expect(FEATURE_TAG_GROUPS).toEqual(IDEAL_TAG_GROUPS);
+  });
+
+  it('drops 고양이상 and adds face/body chips used by both pickers', () => {
+    expect(pickerTags).not.toContain('고양이상');
+    for (const tag of ['텀상탑 🔄', '탑상텀 🔃', '잡식 🍽', '키스잘함', '달아오르게 잘함', '🍌 바나나 잘먹음', '🥛 우유 잘먹음']) {
+      expect(pickerTags).toContain(tag);
+    }
+    const face = IDEAL_TAG_GROUPS.find((g) => g.label === '얼굴상 👀')!.tags;
+    const body = IDEAL_TAG_GROUPS.find((g) => g.label === '체형 💪')!.tags;
+    expect([...face]).toEqual([
+      '감자상 🥔',
+      '댕댕이상 🐶',
+      '여우상 🦊',
+      '공룡상 🦖',
+      '양아치상 😎',
+      '웃상 😄',
+      '이목구비 뚜렷 ✨',
+      '남자다운 🧔',
+      '텀상탑 🔄',
+      '탑상텀 🔃',
+    ]);
+    expect([...body]).toEqual(['키큰 📏', '슬림', '근육있는 💪', '통통귀여운', '보통체형', '잡식 🍽']);
+  });
+
+  it('matches emoji face/body chips with legacy plain saves', () => {
+    expect(tagsAreSynonyms('텀상탑 🔄', '텀상탑')).toBe(true);
+    expect(tagsAreSynonyms('잡식 🍽', '잡식')).toBe(true);
+    expect(tagsAreSynonyms('감자상 🥔', '감자상')).toBe(true);
+    expect(getIdealTagSpec('고양이상')?.group).toBe('얼굴상 👀');
+  });
 });
 
 describe('drink/smoke synonyms', () => {

@@ -356,7 +356,7 @@ function S3({ step }: { step: number }) {
             <p className="text-white text-[10px] font-black">💘 이상형</p>
             <p className="text-[7px] text-slate-500 font-bold mt-0.5">얼굴 · 체형 · 매력 · 재능 · 라이프 · 성격</p>
             <div className="grid grid-cols-2 gap-1 mt-1">
-              {['고양이상', '키큰', '다정한', '유머있는'].map((tag, i) => (
+              {['여우상 🦊', '키큰 📏', '다정한', '유머있는'].map((tag, i) => (
                 <span key={tag} className={`px-1.5 py-1 rounded-lg text-[8px] font-bold border text-center transition-all duration-400 ${
                   idealOn && i < 2 ? 'text-white border-transparent' : 'text-slate-400 border-slate-600'
                 }`}
