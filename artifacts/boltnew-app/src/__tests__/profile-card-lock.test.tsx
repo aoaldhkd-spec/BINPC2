@@ -18,7 +18,13 @@ import type { Profile } from '../types/app';
 
 // ── Minimal mocks ────────────────────────────────────────────────────────────
 
-vi.mock('../lib/theme', () => ({ useTheme: () => ({ theme: 'default' }) }));
+vi.mock('../lib/theme', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../lib/theme')>();
+  return {
+    ...actual,
+    useTheme: () => ({ theme: 'default' as const, setTheme: () => {} }),
+  };
+});
 vi.mock('../lib/supabase', () => ({
   supabase: {
     channel: vi.fn(() => ({ on: vi.fn().mockReturnThis(), subscribe: vi.fn() })),
@@ -191,5 +197,11 @@ describe('ProfileCard — flip keeps bars + fixed frame (compact/2·3열)', () =
     const back = screen.getByTestId('profile-card-ideal-back');
     expect(back.style.paddingTop).toBe('10px');
     expect(back.style.paddingBottom).toBe('24px');
+  });
+
+  it('ticker exposes active flag for on-screen animation gate', () => {
+    renderCard({ compact: true, statusMsg: '안녕하세요 상태메시지' });
+    const text = screen.getByTestId('profile-card-ticker-text');
+    expect(text.getAttribute('data-ticker-active')).toBe('1');
   });
 });

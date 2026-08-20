@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, memo } from 'react';
 import { Heart, MessageCircle, MoreHorizontal } from 'lucide-react';
-import { useTheme } from '../lib/theme';
+import { isDarkTheme, useTheme } from '../lib/theme';
 import type { Profile } from '../types/app';
 import { parseProfileInterests, getInterestTagStyle } from '../lib/interests';
 import { HeartType, heartMeta } from '../lib/constants';
@@ -8,6 +8,7 @@ import { getPositionLabel, getPositionStyle, getKoreanAge, hasUploadedPhoto, get
 import { getMbtiStyle } from '../lib/utils';
 import { cardMenuBox } from '../lib/card-menu-box';
 import { parseIdealTags } from '../lib/signal-match';
+import { profileCardChipStyle, profileCardSurfaces } from '../lib/profile-card-theme';
 
 /** 카드 뒷면에 바로 보여줄 이상형 태그 상한 — 나머지는 "+N" + 프로필 상세 */
 const CARD_IDEAL_MAX_VISIBLE = 8;
@@ -38,8 +39,9 @@ export const ProfileCard = memo(function ProfileCard({
   statusMsg?: string | null;
 }) {
   const { theme } = useTheme();
-  // dark-neon / default → 카드 배경이 어두움; y2k / minimal → 흰 배경
-  const isCardDark = theme === 'dark-neon' || theme === 'default';
+  // dark-neon / default → 어두운 카드 표면; y2k / minimal → 흰 배경 (라이트 유지)
+  const isCardDark = isDarkTheme(theme);
+  const surfaces = profileCardSurfaces(theme);
 
   const posLabel = getPositionLabel(profile.personality_score ?? 50);
   const posStyle = getPositionStyle(profile.personality_score ?? 50);
@@ -89,10 +91,13 @@ export const ProfileCard = memo(function ProfileCard({
     ? getAvatarGradientCss(profile.nickname)
     : '#0f172a';
 
-  // 상태 메시지 자동 마키 — 텍스트가 바 너비를 초과하면 슬라이드 애니메이션 적용
+  // 상태 메시지 자동 마키 — 뷰포트에 보일 때만 애니메이션·ResizeObserver 가동
+  const cardRootRef = useRef<HTMLDivElement>(null);
   const tickerBarRef = useRef<HTMLDivElement>(null);
   const tickerSpanRef = useRef<HTMLSpanElement>(null);
   const [tickerOffset, setTickerOffset] = useState(0); // 슬라이드할 px 거리
+  const [tickerOnScreen, setTickerOnScreen] = useState(true);
+  const [flipAnimating, setFlipAnimating] = useState(false);
   const hasTicker = Boolean(statusMsg?.trim());
   const hasMenu = Boolean(onBlock || onContactShare || onViewFortune);
   // 플립해도 전광판·닉·나이는 항상 노출 — 가운데(사진)만 뒤집힘
@@ -101,23 +106,61 @@ export const ProfileCard = memo(function ProfileCard({
   /** 이상형 뒷면이 상·하단 바를 덮지 않도록 인셋 (바 min-h ≈ 20px + 여유) */
   const idealInsetTop = hasTicker ? 26 : 10;
   const idealInsetBottom = 24;
+  const tickerAnimActive = hasTicker && tickerOnScreen;
+
   useEffect(() => {
+    if (!hasTicker) {
+      setTickerOnScreen(false);
+      return;
+    }
+    const root = cardRootRef.current;
+    if (!root || typeof IntersectionObserver === 'undefined') {
+      setTickerOnScreen(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      ([entry]) => setTickerOnScreen(Boolean(entry?.isIntersecting)),
+      { root: null, rootMargin: '80px 0px', threshold: 0 },
+    );
+    io.observe(root);
+    return () => io.disconnect();
+  }, [hasTicker]);
+
+  useEffect(() => {
+    if (!tickerAnimActive) {
+      setTickerOffset(0);
+      return;
+    }
     const bar = tickerBarRef.current;
     const span = tickerSpanRef.current;
     if (!bar || !span) { setTickerOffset(0); return; }
-    // ResizeObserver로 카드 크기 변동 시에도 재계산
+    let raf = 0;
     const calc = () => {
-      const overflow = span.scrollWidth - bar.clientWidth;
-      setTickerOffset(overflow > 4 ? overflow + 12 : 0);
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const overflow = span.scrollWidth - bar.clientWidth;
+        const next = overflow > 4 ? overflow + 12 : 0;
+        setTickerOffset((prev) => (prev === next ? prev : next));
+      });
     };
     calc();
+    if (typeof ResizeObserver === 'undefined') {
+      return () => cancelAnimationFrame(raf);
+    }
     const ro = new ResizeObserver(calc);
     ro.observe(bar);
-    return () => ro.disconnect();
-  }, [statusMsg]);
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+    };
+  }, [statusMsg, tickerAnimActive]);
 
   // flipZone always matches the photo frame (compact=1:1, default=3:4) — no letterbox inset
-  const flipZoneStyle: React.CSSProperties = { position: 'absolute', inset: 0 };
+  const flipZoneStyle: React.CSSProperties = {
+    position: 'absolute',
+    inset: 0,
+    contain: 'layout paint',
+  };
 
   // ⋯ 메뉴 — 바깥 클릭 시만 닫기 (메뉴 항목 pointerdown에서 즉시 닫히면 클릭 불가)
   useEffect(() => {
@@ -155,7 +198,11 @@ export const ProfileCard = memo(function ProfileCard({
   ) : null;
 
   return (
-    <div className="group relative flex flex-col min-w-0 max-w-full bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+    <div
+      ref={cardRootRef}
+      className={`group relative flex flex-col min-w-0 max-w-full rounded-lg shadow-sm border overflow-hidden ${surfaces.shellClass}`}
+      style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 280px' }}
+    >
 
       {/* ⋯ 드롭다운 (fixed) */}
       {showMenu && menuPos && (
@@ -197,13 +244,19 @@ export const ProfileCard = memo(function ProfileCard({
         data-testid="profile-card-photo-frame"
       >
           {/* ── 플립 존 — 실제 사진이 그려지는 영역만 3D 뒤집기 (컨테이너 크기 고정) ── */}
-          <div style={{ perspective: '1000px', overflow: 'hidden', ...flipZoneStyle }}>
-            <div style={{
-              width: '100%', height: '100%',
-              transformStyle: 'preserve-3d',
-              transition: 'transform 0.55s cubic-bezier(.4,0,.2,1)',
-              transform: isFlipped ? 'rotateY(180deg)' : 'none',
-            }}>
+          <div style={{ perspective: isFlipped || flipAnimating ? '1000px' : undefined, overflow: 'hidden', ...flipZoneStyle }}>
+            <div
+              style={{
+                width: '100%', height: '100%',
+                transformStyle: 'preserve-3d',
+                transition: 'transform 0.55s cubic-bezier(.4,0,.2,1)',
+                transform: isFlipped ? 'rotateY(180deg)' : 'none',
+                willChange: flipAnimating ? 'transform' : 'auto',
+              }}
+              onTransitionEnd={(e) => {
+                if (e.propertyName === 'transform') setFlipAnimating(false);
+              }}
+            >
 
               {/* 앞면: 사진 — 탭하면 이상형 뒷면 */}
               <div
@@ -217,6 +270,7 @@ export const ProfileCard = memo(function ProfileCard({
                 data-testid="profile-card-photo"
                 onClick={(e) => {
                   e.stopPropagation();
+                  setFlipAnimating(true);
                   setIsFlipped(f => {
                     const next = !f;
                     if (next) onView?.(profile);
@@ -253,6 +307,7 @@ export const ProfileCard = memo(function ProfileCard({
                 }}
                 onClick={(e) => {
                   e.stopPropagation();
+                  setFlipAnimating(true);
                   setIsFlipped(false);
                 }}
               >
@@ -262,7 +317,7 @@ export const ProfileCard = memo(function ProfileCard({
                 <button
                   type="button"
                   data-testid="profile-card-ideal-header"
-                  onClick={(e) => { e.stopPropagation(); setIsFlipped(false); }}
+                  onClick={(e) => { e.stopPropagation(); setFlipAnimating(true); setIsFlipped(false); }}
                   className="relative z-[1] shrink-0 flex items-center justify-center gap-1 px-2 pt-1 pb-0.5 cursor-pointer active:opacity-80"
                   aria-label="사진으로 돌아가기"
                 >
@@ -353,10 +408,11 @@ export const ProfileCard = memo(function ProfileCard({
               <div
                 ref={tickerBarRef}
                 className="flex-1 min-w-0 overflow-hidden flex items-center px-1.5 py-0.5"
-                style={{ animation: 'ticker-fadein 0.3s ease' }}
               >
                 <span
                   ref={tickerSpanRef}
+                  data-testid="profile-card-ticker-text"
+                  data-ticker-active={tickerAnimActive ? '1' : '0'}
                   style={{
                     fontSize: '9px', fontWeight: 800,
                     color: '#ccfbf1', letterSpacing: '0.03em',
@@ -364,16 +420,22 @@ export const ProfileCard = memo(function ProfileCard({
                     whiteSpace: 'nowrap',
                     display: 'inline-block',
                     flexShrink: 0,
-                    ...(tickerOffset > 0
+                    ...(tickerAnimActive && tickerOffset > 0
                       ? {
                           ['--ticker-offset' as string]: `-${tickerOffset}px`,
                           animation: `ticker-scroll ${Math.max(4, Math.round(tickerOffset / 30) + 3)}s ease-in-out infinite`,
                         }
-                      : {
-                          overflow: 'hidden', textOverflow: 'ellipsis',
-                          maxWidth: '100%',
-                          animation: 'ticker-flash 2.2s ease-in-out infinite',
-                        }
+                      : tickerAnimActive
+                        ? {
+                            overflow: 'hidden', textOverflow: 'ellipsis',
+                            maxWidth: '100%',
+                            animation: 'ticker-flash 2.2s ease-in-out infinite',
+                          }
+                        : {
+                            overflow: 'hidden', textOverflow: 'ellipsis',
+                            maxWidth: '100%',
+                            animation: 'none',
+                          }
                     ),
                   }}
                 >{statusMsg}</span>
@@ -393,40 +455,36 @@ export const ProfileCard = memo(function ProfileCard({
             </div>
           )}
 
-          {/* 하단 흰 전광판 — 닉·나이 (사진 위 겹침, 플립해도 항상 표시) */}
+          {/* 하단 닉·나이 바 (사진 위 겹침, 플립해도 항상 표시) — 다크 테마는 어두운 표면 */}
           {showBottomBar && (
             <div
               data-testid="profile-card-nick-bar"
               className="absolute bottom-0 left-0 right-0 z-30 flex items-center min-h-[20px] px-1.5 py-0.5 cursor-pointer pointer-events-auto"
-              style={{
-                background: 'rgba(255,255,255,0.94)',
-                borderTop: '1px solid rgba(229,231,235,0.95)',
-                boxShadow: '0 -2px 8px rgba(0,0,0,0.07)',
-              }}
+              style={surfaces.nickBarStyle}
               onClick={(e) => {
                 e.stopPropagation();
                 onSelect(profile);
               }}
             >
-              <span className="font-extrabold text-[10px] sm:text-[11px] truncate min-w-0 flex-1 text-gray-950 leading-none">{profile.nickname}</span>
+              <span className={`font-extrabold text-[10px] sm:text-[11px] truncate min-w-0 flex-1 leading-none ${surfaces.nickTextClass}`}>{profile.nickname}</span>
               {profile.birth_year != null && (
-                <span className="flex-shrink-0 text-[9px] sm:text-[10px] font-bold text-gray-600 tabular-nums whitespace-nowrap ml-1 leading-none">{age}</span>
+                <span className={`flex-shrink-0 text-[9px] sm:text-[10px] font-bold tabular-nums whitespace-nowrap ml-1 leading-none ${surfaces.ageTextClass}`}>{age}</span>
               )}
             </div>
           )}
       </div>{/* /3:4 사진 */}
 
       {/* ── 성향·MBTI·관심사 ── */}
-      <div className="relative z-10 shrink-0 min-w-0 bg-white px-1.5 pt-1.5 pb-0.5 cursor-pointer"
+      <div className={`relative z-10 shrink-0 min-w-0 px-1.5 pt-1.5 pb-0.5 cursor-pointer ${surfaces.metaClass}`}
         onClick={() => onSelect(profile)}>
         <div className="flex items-center gap-0.5 min-w-0 overflow-hidden">
           <span className="text-[8px] sm:text-[9px] font-extrabold px-1.5 py-0.5 rounded leading-none border min-w-0 max-w-[52%] truncate shadow-sm"
-            style={{ backgroundColor: posStyle.bg, color: posStyle.text, borderColor: posStyle.border }}>
+            style={profileCardChipStyle(posStyle, isCardDark)}>
             {posLabel}
           </span>
           {msStyle && (
             <span className="text-[8px] sm:text-[9px] font-black px-1.5 py-0.5 rounded leading-none border shrink-0 ml-auto max-w-[46%] truncate shadow-sm"
-              style={{ backgroundColor: msStyle.bg, color: msStyle.color, borderColor: msStyle.border }}>
+              style={profileCardChipStyle(msStyle, isCardDark)}>
               {profile.mbti}
             </span>
           )}
@@ -439,7 +497,7 @@ export const ProfileCard = memo(function ProfileCard({
                 <span
                   key={tag}
                   className="flex-1 min-w-0 text-[9px] font-bold px-1 py-1 rounded-md leading-tight border truncate text-center shadow-sm"
-                  style={{ backgroundColor: ist.bg, color: ist.text, borderColor: ist.border }}
+                  style={profileCardChipStyle(ist, isCardDark)}
                   title={tag}
                 >#{tag}</span>
               );

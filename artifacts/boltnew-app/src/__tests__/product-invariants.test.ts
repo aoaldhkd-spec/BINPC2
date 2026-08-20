@@ -213,6 +213,29 @@ describe('product copy + notification invariants', () => {
     expect(card).toMatch(/py-0\.5/);
   });
 
+  it('ProfileCard pauses offscreen ticker and MainScreen uses signal Map lookup', () => {
+    const card = read('components/ProfileCard.tsx');
+    expect(card).toContain('IntersectionObserver');
+    expect(card).toContain('tickerAnimActive');
+    expect(card).toContain('contentVisibility');
+    const main = read('components/MainScreen.tsx');
+    expect(main).toContain('signalByUserId');
+    expect(main).toContain('deckProfiles');
+    expect(main).not.toMatch(/userSignals\.find\(s => s\.user_id === profile\.id\)/);
+  });
+
+  it('dark theme profile cards use non-white surfaces via isDarkTheme', () => {
+    const theme = read('lib/theme.tsx');
+    const card = read('components/ProfileCard.tsx');
+    const surfaces = read('lib/profile-card-theme.ts');
+    expect(theme).toContain('export function isDarkTheme');
+    expect(card).toContain('isDarkTheme');
+    expect(card).toContain('profileCardSurfaces');
+    expect(card).not.toMatch(/className="group relative flex flex-col min-w-0 max-w-full bg-white/);
+    expect(surfaces).toContain('bg-slate-900');
+    expect(surfaces).toMatch(/rgba\(15,\s*23,\s*42/);
+  });
+
   it('App must not re-add SignalNudgeBanner heart nudge overlay', () => {
     const app = read('App.tsx');
     expect(app).not.toContain('SignalNudgeBanner');

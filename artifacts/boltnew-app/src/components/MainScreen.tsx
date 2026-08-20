@@ -221,6 +221,18 @@ export function MainScreen({
     hiddenByIds,
   }), [profiles, profileSearch, currentUserId, blockedUserIds, hiddenByIds]);
 
+  // 카드별 userSignals.find O(n) 반복 방지
+  const signalByUserId = useMemo(() => {
+    const m = new Map<string, UserSignal>();
+    for (const s of userSignals) m.set(s.user_id, s);
+    return m;
+  }, [userSignals]);
+
+  const deckProfiles = useMemo(
+    () => filteredProfiles.filter((p) => p.id !== currentUserId),
+    [filteredProfiles, currentUserId],
+  );
+
   const [refreshedTab, setRefreshedTab] = useState<string | null>(null);
 
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -723,7 +735,9 @@ export function MainScreen({
             {/* ── 참여자 그리드 (page scroll) ── */}
             <div className="-mx-3 min-[360px]:-mx-4 px-3 min-[360px]:px-4">
             <div className={profileGridClassName(profileCardGrid)}>
-            {filteredProfiles.filter(p => p.id !== currentUserId).map((profile) => (
+            {deckProfiles.map((profile) => {
+              const signal = signalByUserId.get(profile.id);
+              return (
               <ProfileCard
                 key={profile.id}
                 profile={profile}
@@ -740,11 +754,12 @@ export function MainScreen({
                 onBlock={onBlock}
                 onContactShare={_onContactShareOpen}
                 onViewFortune={onViewFortune}
-                idealMsg={userSignals.find(s => s.user_id === profile.id)?.ideal_msg}
-                statusMsg={userSignals.find(s => s.user_id === profile.id)?.status_msg}
+                idealMsg={signal?.ideal_msg}
+                statusMsg={signal?.status_msg}
               />
-            ))}
-            {filteredProfiles.filter(p => p.id !== currentUserId).length === 0 && (
+              );
+            })}
+            {deckProfiles.length === 0 && (
               <div className={`${profileGridColSpanClass} text-center py-20`}>
                 <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                 <p className="text-gray-500">{profileSearch ? '검색 결과가 없습니다.' : '아직 다른 참가자가 없습니다.'}</p>
@@ -757,7 +772,7 @@ export function MainScreen({
 
         {mainTab === 'status' && (
           <StatusErrorBoundary>
-          <div className="max-w-lg mx-auto space-y-4">
+          <div className="w-full max-w-lg mx-auto space-y-4 shrink-0">
             {/* ── 내 프로필 카드 ── */}
             {(() => {
               const me = profiles.find(p => p.id === currentUserId);
@@ -1384,7 +1399,7 @@ export function MainScreen({
         {/* ─── 내 설정 탭 ─── */}
         {mainTab === 'settings' && (
           <StatusErrorBoundary>
-          <div className="max-w-lg mx-auto space-y-4 pb-24">
+          <div className="w-full max-w-lg mx-auto space-y-4 pb-24 shrink-0">
 
             {/* ── 고유번호 ── */}
             {(() => {

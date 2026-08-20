@@ -4,6 +4,11 @@ export type ThemeMode = 'default' | 'y2k' | 'dark-neon' | 'minimal';
 
 const THEME_KEY = 'app_theme_mode_v1';
 
+/** default / dark-neon — dark UI; y2k / minimal — light */
+export function isDarkTheme(theme: ThemeMode): boolean {
+  return theme === 'default' || theme === 'dark-neon';
+}
+
 interface ThemeContextType {
   theme: ThemeMode;
   setTheme: (t: ThemeMode) => void;
@@ -67,7 +72,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     try {
       localStorage.setItem(THEME_KEY, t);
       // dark_mode 동기화: 다크 계열 테마는 강제 다크, 라이트 계열은 강제 라이트
-      const forceDark = t === 'dark-neon' || t === 'default';
+      const forceDark = isDarkTheme(t);
       localStorage.setItem('dark_mode', forceDark ? '1' : '0');
       // App.tsx의 darkMode state가 반응하도록 storage 이벤트 발화
       window.dispatchEvent(new StorageEvent('storage', {
