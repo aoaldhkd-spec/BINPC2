@@ -14,8 +14,19 @@ export type ProfileCardSurfaces = {
   ageTextClass: string;
 };
 
-export function profileCardSurfaces(theme: ThemeMode): ProfileCardSurfaces {
-  if (!isDarkTheme(theme)) {
+/**
+ * ProfileCard dimming:
+ * - default / dark-neon → always dimmed
+ * - App darkMode toggle → dimmed on y2k/minimal too
+ * - y2k / minimal without darkMode → white
+ */
+export function isProfileCardDark(theme: ThemeMode, darkMode = false): boolean {
+  return isDarkTheme(theme) || darkMode;
+}
+
+/** Auto-dim on dark themes / darkMode; light themes stay white */
+export function profileCardSurfaces(theme: ThemeMode, darkMode = false): ProfileCardSurfaces {
+  if (!isProfileCardDark(theme, darkMode)) {
     return {
       shellClass: LIGHT_SHELL,
       metaClass: 'bg-white',
@@ -65,6 +76,6 @@ export function profileCardChipStyle(style: ChipLike, dark: boolean): CSSPropert
   };
 }
 
-export function profileCardShellIsWhite(theme: ThemeMode): boolean {
-  return profileCardSurfaces(theme).shellClass.includes('bg-white');
+export function profileCardShellIsWhite(theme: ThemeMode, darkMode = false): boolean {
+  return profileCardSurfaces(theme, darkMode).shellClass.includes('bg-white');
 }

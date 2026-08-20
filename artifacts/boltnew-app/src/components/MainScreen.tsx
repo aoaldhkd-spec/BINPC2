@@ -742,6 +742,7 @@ export function MainScreen({
                 key={profile.id}
                 profile={profile}
                 compact={profileCardGrid === 'compact'}
+                darkMode={darkMode}
                 isLiked={likedIds.has(profile.id)}
                 sentHeartType={sentHeartTypes.get(profile.id)}
                 heartCount={sentHeartsPerPerson.get(profile.id)?.size ?? 0}

@@ -3,7 +3,7 @@
  * S1 입장코드 → S2 아바타 → S3 한마디/칩 → S4 이모지·스티커 → S5 사진·빠른메시지
  * → S6 스와이프·길게누르기 → S7 받은/보낸 하트 → S8 시그널 패스/보내기
  */
-import { useState, useEffect, useRef, useCallback, type ReactElement } from 'react';
+import { useState, useEffect, useRef, useCallback, type ReactElement, type PointerEvent, type MouseEvent } from 'react';
 import { SkipBack, SkipForward, Play, Pause } from 'lucide-react';
 
 // ── 커서 — RAF lerp (느리게 수렴 → 끊김·점프 완화) ───────────────────────────
@@ -657,7 +657,7 @@ function S7({ step }: { step: number }) {
 
   return (
     <div className="h-full flex flex-col bg-slate-900">
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-2.5 pt-2 pb-1 space-y-2" style={{ scrollBehavior: 'smooth' }}>
+      <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide px-2.5 pt-2 pb-1 space-y-2" style={{ scrollBehavior: 'smooth' }}>
         <p className="text-[8px] font-black text-slate-500 uppercase tracking-wider">MY → 내 상태</p>
 
         <div className={`relative rounded-2xl overflow-hidden border transition-all duration-500 ${
@@ -937,8 +937,13 @@ export function TutorialVideo({
   const [stepIdx, setStepIdx] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [sceneFade, setSceneFade] = useState(1);
+  const [controlsVisible, setControlsVisible] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const controlsHideRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pointerModeRef = useRef<'mouse' | 'touch' | null>(null);
+  const CONTROLS_IDLE_MS = 2500;
+  const CONTROLS_TOUCH_MS = 3000;
 
   const scene = SCENES[sceneIdx];
   const step = scene.steps[Math.min(stepIdx, scene.steps.length - 1)];
@@ -976,7 +981,55 @@ export function TutorialVideo({
   useEffect(() => () => {
     clearTimer();
     if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
+    if (controlsHideRef.current) clearTimeout(controlsHideRef.current);
   }, [clearTimer]);
+
+  const clearControlsHide = useCallback(() => {
+    if (controlsHideRef.current !== null) {
+      clearTimeout(controlsHideRef.current);
+      controlsHideRef.current = null;
+    }
+  }, []);
+
+  const scheduleControlsHide = useCallback((ms: number) => {
+    clearControlsHide();
+    controlsHideRef.current = setTimeout(() => {
+      setControlsVisible(false);
+      controlsHideRef.current = null;
+    }, ms);
+  }, [clearControlsHide]);
+
+  const revealControls = useCallback((ms = CONTROLS_IDLE_MS) => {
+    setControlsVisible(true);
+    if (ms > 0) scheduleControlsHide(ms);
+    else clearControlsHide();
+  }, [scheduleControlsHide, clearControlsHide]);
+
+  const onStagePointerDown = useCallback((e: PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'touch' || e.pointerType === 'pen') {
+      pointerModeRef.current = 'touch';
+    } else if (e.pointerType === 'mouse') {
+      pointerModeRef.current = 'mouse';
+    }
+  }, []);
+
+  const onStageClick = useCallback((e: MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement | null;
+    if (target?.closest('[data-tutorial-controls]')) {
+      revealControls(pointerModeRef.current === 'touch' ? CONTROLS_TOUCH_MS : CONTROLS_IDLE_MS);
+      return;
+    }
+    if (pointerModeRef.current === 'touch') {
+      setControlsVisible((v) => {
+        const next = !v;
+        if (next) scheduleControlsHide(CONTROLS_TOUCH_MS);
+        else clearControlsHide();
+        return next;
+      });
+      return;
+    }
+    revealControls(CONTROLS_IDLE_MS);
+  }, [revealControls, scheduleControlsHide, clearControlsHide]);
 
   const progress = (() => {
     const total = scene.steps.reduce((a, s) => a + s.dur, 0);
@@ -1040,16 +1093,33 @@ export function TutorialVideo({
 
       <div
         ref={stageRef}
-        className={`overflow-hidden bg-slate-900 relative ${
+        className={`overflow-hidden scrollbar-hide bg-slate-900 relative ${
           isEmbeddedCompact
             ? 'flex-1 min-h-0 mx-0 rounded-none'
             : `${compact ? 'mx-1.5 rounded-xl' : 'mx-2 mb-1 rounded-2xl'} ${fill ? 'flex-1 min-h-0' : 'flex-shrink-0'}`
         }`}
         style={!isEmbeddedCompact && !fill ? (compact ? { height: COMPACT_STAGE_H } : { height: sceneH }) : undefined}
+        onPointerDown={isEmbeddedCompact ? onStagePointerDown : undefined}
+        onClick={isEmbeddedCompact ? onStageClick : undefined}
+        onMouseEnter={isEmbeddedCompact ? () => {
+          if (pointerModeRef.current === 'touch') return;
+          pointerModeRef.current = 'mouse';
+          revealControls(CONTROLS_IDLE_MS);
+        } : undefined}
+        onMouseMove={isEmbeddedCompact ? () => {
+          if (pointerModeRef.current === 'touch') return;
+          revealControls(CONTROLS_IDLE_MS);
+        } : undefined}
+        onMouseLeave={isEmbeddedCompact ? () => {
+          if (pointerModeRef.current === 'touch') return;
+          clearControlsHide();
+          setControlsVisible(false);
+        } : undefined}
+        onFocusCapture={isEmbeddedCompact ? () => revealControls(CONTROLS_IDLE_MS) : undefined}
       >
         <div
           key={sceneIdx}
-          className="w-full relative transition-opacity duration-300 ease-out"
+          className="w-full relative transition-opacity duration-300 ease-out overflow-hidden scrollbar-hide"
           style={{
             ...(scaleStage ? {
               height: DESIGN_H,
@@ -1064,10 +1134,15 @@ export function TutorialVideo({
         </div>
 
         {isEmbeddedCompact && (
-          <div className="absolute inset-x-0 bottom-0 z-[60] group/controls">
-            <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-black/60 via-black/25 to-transparent pointer-events-none" />
-            <div className="relative px-2 pb-1 pt-1.5 opacity-45 group-hover/controls:opacity-90 transition-opacity duration-200">
-              <div className="flex gap-0.5 mb-1">
+          <div
+            data-tutorial-controls
+            className={`absolute inset-x-0 bottom-0 z-[60] transition-opacity duration-200 ${
+              controlsVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
+            }`}
+          >
+            <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black/55 via-black/20 to-transparent pointer-events-none" />
+            <div className="relative px-2 pb-0 pt-0.5">
+              <div className="flex gap-0.5 mb-0.5">
                 {playlist.map((sceneNo, i) => (
                   <button key={sceneNo} type="button" onClick={() => goPlay(i)} className="flex-1 h-1 rounded-full overflow-hidden bg-white/25">
                     <div className="h-full bg-cyan-400/90 transition-all duration-200"
@@ -1075,7 +1150,7 @@ export function TutorialVideo({
                   </button>
                 ))}
               </div>
-              <div className="flex items-center justify-center gap-2">
+              <div className="flex items-center justify-center gap-2 pb-0">
                 <button type="button" onClick={() => goPlay(playIdx - 1)} disabled={playIdx === 0}
                   className="w-5 h-5 rounded-full bg-black/40 backdrop-blur-sm hover:bg-black/55 disabled:opacity-25 flex items-center justify-center transition-all">
                   <SkipBack className="w-2.5 h-2.5 text-white/90" />

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { isDarkTheme } from './theme';
 import {
+  isProfileCardDark,
   profileCardChipStyle,
   profileCardShellIsWhite,
   profileCardSurfaces,
@@ -16,12 +17,21 @@ describe('profile-card-theme (dark vs light)', () => {
 
   it('dark themes use non-white card shell / nick bar', () => {
     for (const theme of ['default', 'dark-neon'] as const) {
+      expect(isProfileCardDark(theme)).toBe(true);
       expect(profileCardShellIsWhite(theme)).toBe(false);
       const s = profileCardSurfaces(theme);
       expect(s.shellClass).not.toContain('bg-white');
       expect(String(s.nickBarStyle.background)).not.toMatch(/255,\s*255,\s*255/);
       expect(s.metaClass).not.toBe('bg-white');
     }
+  });
+
+  it('App darkMode dims light theme cards without changing ThemeMode', () => {
+    expect(profileCardShellIsWhite('y2k', true)).toBe(false);
+    expect(profileCardShellIsWhite('minimal', true)).toBe(false);
+    expect(profileCardSurfaces('y2k', true).shellClass).toContain('bg-slate-900');
+    expect(profileCardShellIsWhite('y2k', false)).toBe(true);
+    expect(isProfileCardDark('default', false)).toBe(true);
   });
 
   it('light themes keep white card shell / nick bar', () => {

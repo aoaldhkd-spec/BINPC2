@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, memo } from 'react';
 import { Heart, MessageCircle, MoreHorizontal } from 'lucide-react';
-import { isDarkTheme, useTheme } from '../lib/theme';
+import { useTheme } from '../lib/theme';
 import type { Profile } from '../types/app';
 import { parseProfileInterests, getInterestTagStyle } from '../lib/interests';
 import { HeartType, heartMeta } from '../lib/constants';
@@ -8,7 +8,7 @@ import { getPositionLabel, getPositionStyle, getKoreanAge, hasUploadedPhoto, get
 import { getMbtiStyle } from '../lib/utils';
 import { cardMenuBox } from '../lib/card-menu-box';
 import { parseIdealTags } from '../lib/signal-match';
-import { profileCardChipStyle, profileCardSurfaces } from '../lib/profile-card-theme';
+import { isProfileCardDark, profileCardChipStyle, profileCardSurfaces } from '../lib/profile-card-theme';
 
 /** 카드 뒷면에 바로 보여줄 이상형 태그 상한 — 나머지는 "+N" + 프로필 상세 */
 const CARD_IDEAL_MAX_VISIBLE = 8;
@@ -18,7 +18,7 @@ const CARD_IDEAL_COMPACT_FONT_AT = 6;
 // ─── ProfileCard (memoized — 하트/채팅 상태 변경 시 해당 카드만 재렌더) ────────
 
 export const ProfileCard = memo(function ProfileCard({
-  profile, isLiked, sentHeartType, heartCount, canLike, locked, compact = false, onLike, onSelect, onView, onOpenChat, onBlock, onContactShare, onViewFortune, idealMsg, statusMsg,
+  profile, isLiked, sentHeartType, heartCount, canLike, locked, compact = false, darkMode = false, onLike, onSelect, onView, onOpenChat, onBlock, onContactShare, onViewFortune, idealMsg, statusMsg,
 }: {
   profile: Profile;
   isLiked: boolean;
@@ -28,6 +28,8 @@ export const ProfileCard = memo(function ProfileCard({
   locked?: boolean;
   /** 작게 보기 — 3열 그리드·1:1 정사각 사진 */
   compact?: boolean;
+  /** App dark toggle — dims cards even on y2k/minimal */
+  darkMode?: boolean;
   onLike: (id: string) => void;
   onSelect: (p: Profile) => void;
   onView?: (p: Profile) => void;
@@ -39,9 +41,9 @@ export const ProfileCard = memo(function ProfileCard({
   statusMsg?: string | null;
 }) {
   const { theme } = useTheme();
-  // dark-neon / default → 어두운 카드 표면; y2k / minimal → 흰 배경 (라이트 유지)
-  const isCardDark = isDarkTheme(theme);
-  const surfaces = profileCardSurfaces(theme);
+  // default → 흰 카드; dark-neon → 어두운 카드; y2k/minimal → darkMode일 때만 어두움
+  const isCardDark = isProfileCardDark(theme, darkMode);
+  const surfaces = profileCardSurfaces(theme, darkMode);
 
   const posLabel = getPositionLabel(profile.personality_score ?? 50);
   const posStyle = getPositionStyle(profile.personality_score ?? 50);
