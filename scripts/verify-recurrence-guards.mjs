@@ -472,23 +472,37 @@ mustMatch('artifacts/boltnew-app/src/__tests__/product-invariants.test.ts', '27_
   /dark theme profile cards use non-white surfaces via isProfileCardDark/,
   /isDarkTheme\(theme\) \|\| darkMode/,
 ]);
-// 28. Talent / feature picker tags ? emoji banana + kiss/heat/milk cluster
+// 28. Talent / feature picker tags — emoji banana + kiss/heat/milk cluster + face/body catalog
 mustMatch('artifacts/boltnew-app/src/lib/signal-match.ts', '28_talent_tag_catalog', [
-  /label:\s*'?? ?'/,
-  /'????'/,
-  /'????? ??'/,
-  /'?? ??? ???'/,
-  /'?? ?? ???'/,
+  /label:\s*'재능 ⭐'/,
+  /'키스잘함'/,
+  /'달아오르게 잘함'/,
+  /'🍌 바나나 잘먹음'/,
+  /'🥛 우유 잘먹음'/,
 ]);
 mustMatch('artifacts/boltnew-app/src/lib/signal-match.ts', '28_talent_tag_order', [
-  /label:\s*'?? ?',\s*tags:\s*\[[^\]]*'?? ??'[^\]]*'????'[^\]]*'????? ??'[^\]]*'?? ??? ???'[^\]]*'?? ?? ???'/,
+  /label:\s*'재능 ⭐',\s*tags:\s*\[[^\]]*'밤일 잘함'[^\]]*'키스잘함'[^\]]*'달아오르게 잘함'[^\]]*'🍌 바나나 잘먹음'[^\]]*'🥛 우유 잘먹음'/,
 ]);
 mustNotMatch('artifacts/boltnew-app/src/lib/signal-match.ts', '28_talent_no_plain_banana_in_core', [
-  /label:\s*'?? ?',\s*tags:\s*\[[^\]]*'??? ???'/,
+  /label:\s*'재능 ⭐',\s*tags:\s*\[[^\]]*'바나나 잘먹음'/,
 ]);
 mustMatch('artifacts/boltnew-app/src/lib/signal-match.ts', '28_talent_banana_legacy_alias', [
-  /'?? ??? ???':\s*\[[^\]]*'??? ???'/,
-  /\['?? ??? ???',\s*'??? ???'\]/,
+  /'🍌 바나나 잘먹음':\s*\[[^\]]*'바나나 잘먹음'/,
+  /\['🍌 바나나 잘먹음',\s*'바나나 잘먹음'\]/,
+]);
+mustMatch('artifacts/boltnew-app/src/lib/signal-match.ts', '28_face_body_catalog', [
+  /label:\s*'얼굴상 👀'/,
+  /'텀상탑 🔄'/,
+  /'탑상텀 🔃'/,
+  /label:\s*'체형 💪'/,
+  /'잡식 🍽'/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/lib/signal-match.ts', '28_no_cat_face_in_core', [
+  /label:\s*'얼굴상 👀',\s*tags:\s*\[[^\]]*'고양이상'/,
+]);
+mustMatch('artifacts/boltnew-app/src/lib/signal-match.ts', '28_ideal_feature_shared_core', [
+  /export const IDEAL_TAG_GROUPS = \[\.\.\.CORE_TAG_GROUPS\]/,
+  /export const FEATURE_TAG_GROUPS = \[\.\.\.CORE_TAG_GROUPS\]/,
 ]);
 
 // 29. Profile photo full-bleed ? no gray letterbox / naturalRatio inset

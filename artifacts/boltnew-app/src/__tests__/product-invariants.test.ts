@@ -126,6 +126,42 @@ describe('product copy + notification invariants', () => {
     expect(app).toContain('<MainScreen');
   });
 
+  it('user header gates: logo=reset, npc=admin, sulbun=no staff gate', () => {
+    const reset = read('components/ResetButton.tsx');
+    expect(reset).toContain('data-gate="logo-reset"');
+    expect(reset).toContain('data-gate="npc-admin"');
+    expect(reset).toContain('data-gate="sulbun-none"');
+    expect(reset).toContain('openResetGate');
+    expect(reset).toContain('openAdminGate');
+    expect(reset).toContain('handleSulbunClick');
+    expect(reset).toContain("FIXED_TITLE = '범일NPC는 30살!'");
+    expect(reset).not.toMatch(/navigateToAppPath\('test'\)/);
+    const waiting = read('components/WaitingOverlay.tsx');
+    expect(waiting).toContain('data-gate="logo-reset"');
+    expect(waiting).toContain('data-gate="npc-admin"');
+    expect(waiting).toContain("verifyPanelPassword('admin'");
+    expect(waiting).toContain("verifyPanelPassword('reset'");
+  });
+
+  it('숨은기능: 칭찬하트 없고 방문자·NPC나이', () => {
+    const modal = read('components/TutorialModal.tsx');
+    const hint = read('lib/host-age-easter-egg.ts');
+    expect(modal).toContain("title: '방문자'");
+    expect(modal).toContain("title: 'NPC 나이'");
+    expect(modal).toContain('HOST_AGE_EASTER_EGG_HINT');
+    expect(modal).not.toMatch(/title: '칭찬 하트'/);
+    expect(hint).toContain('NPC 나이');
+    expect(hint).toContain('술번개');
+  });
+
+  it('theme switcher only after profile-ready (not on entry)', () => {
+    const theme = read('components/ThemeSwitcher.tsx');
+    const app = read('App.tsx');
+    expect(theme).toContain("dataset.appReady === '1'");
+    expect(theme).toContain('if (!appReady) return null');
+    expect(app).toContain("dataset.appReady = '1'");
+  });
+
   it('채팅 탭 진입만으로 미읽음 숫자를 지우지 않는다', () => {
     const main = read('components/MainScreen.tsx');
     const chats = read('components/MainChatsTab.tsx');
