@@ -41,8 +41,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function wlog(msg) {
   mkdirSync(dirname(WATCH_LOG), { recursive: true });
   const line = `[${new Date().toISOString()}] ${msg}\n`;
-  appendFileSync(WATCH_LOG, line);
-  console.log(line.trim());
+  // When stdout is redirected to WATCH_LOG (detached launcher), skip append to avoid duplicates
+  if (process.stdout.isTTY) {
+    appendFileSync(WATCH_LOG, line);
+    console.log(line.trim());
+  } else {
+    appendFileSync(WATCH_LOG, line);
+  }
 }
 
 function isPidAlive(pid) {
