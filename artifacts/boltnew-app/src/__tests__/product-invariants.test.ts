@@ -68,6 +68,7 @@ describe('product copy + notification invariants', () => {
     expect(main).toContain('uploadStorageDataUrl');
     expect(db).toContain('uploadStorageDataUrl');
     expect(db).toMatch(/storage-upload[\s\S]*sessionToken/);
+    expect(db).toMatch(/uploadStorageDataUrl[\s\S]*_waitForSession/);
     expect(routes).toMatch(/resolveAuthUserId\(req, body\)/);
   });
 

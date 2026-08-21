@@ -105,6 +105,8 @@ function _markSessionPending() {
 // ─── Fetch helper ─────────────────────────────────────────────────────────────
 // 503(서버 과부하·콜드스타트) 및 네트워크 오류 시 지수 백오프 재시도
 const MAX_BUSY_RETRIES = 5;
+/** 401 시 loginSession 재시도 대상 — /op 와 storage API (Netlify 쿠키 단절·만료 Bearer) */
+const AUTH_RETRY_PATHS = new Set(['/op', '/storage-upload', '/storage-remove']);
 
 async function apiFetch(
   path: string,
@@ -152,12 +154,16 @@ async function apiFetch(
         const text = await resp.text().catch(() => '');
         try {
           const json = JSON.parse(text) as { data?: unknown; error?: { message?: string; code?: string } };
-          if (path === '/op' && resp.status === 401 && !authRetry && _currentUserId) {
+          if (AUTH_RETRY_PATHS.has(path) && resp.status === 401 && !authRetry && _currentUserId) {
             _markSessionPending();
             _clearSessionBearer();
             if (await loginSession(_currentUserId)) {
               const retryBody = body && typeof body === 'object' && !Array.isArray(body)
-                ? { ...(body as Record<string, unknown>), sessionToken: _sessionBearerToken ?? undefined }
+                ? {
+                  ...(body as Record<string, unknown>),
+                  requesterId: (body as Record<string, unknown>).requesterId ?? _currentUserId,
+                  sessionToken: _sessionBearerToken ?? undefined,
+                }
                 : body;
               return apiFetch(path, retryBody, { ...extraHeaders, 'x-request-id': requestId }, true);
             }
@@ -1106,6 +1112,16 @@ export async function uploadStorageDataUrl(
 ): Promise<void> {
   const uid = userId ?? _currentUserId;
   if (!uid) throw new Error('로그인 세션이 필요합니다.');
+  // /op 와 동일: loginSession 완료 전 requesterId만 보내면 storage-upload 가 401
+  const sessionOk = await _waitForSession();
+  if (!sessionOk) {
+    throw new Error('로그인 세션이 필요합니다. 잠시 후 다시 시도해 주세요.');
+  }
+  if (!hasUsableSessionBearer() && _currentUserId === uid) {
+    if (!(await loginSession(uid))) {
+      throw new Error('로그인 세션이 필요합니다. 잠시 후 다시 시도해 주세요.');
+    }
+  }
   const result = await apiFetch('/storage-upload', {
     path,
     dataUrl,
