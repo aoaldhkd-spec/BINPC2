@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { AlertTriangle, Eye, EyeOff } from 'lucide-react';
+import { PANEL_PIN_INPUT_PROPS } from '../lib/panel-password';
 import type { AppSettings } from './shared';
 
 export function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onSaveTest }: {
@@ -154,7 +155,7 @@ export function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onS
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">새 관리자 비밀번호</label>
             <div className="relative">
-              <input type={showPw ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)}
+              <input type={showPw ? 'text' : 'password'} {...PANEL_PIN_INPUT_PROPS} value={password} onChange={(e) => setPassword(e.target.value)}
                 placeholder="새 비밀번호 입력 (4자 이상)"
                 className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl focus:ring-2 focus:ring-slate-500 outline-none" required minLength={4} />
               <button type="button" onClick={() => setShowPw(p => !p)}
@@ -165,7 +166,7 @@ export function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onS
           </div>
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">비밀번호 확인</label>
-            <input type={showPw ? 'text' : 'password'} value={confirm} onChange={(e) => setConfirm(e.target.value)}
+            <input type={showPw ? 'text' : 'password'} {...PANEL_PIN_INPUT_PROPS} value={confirm} onChange={(e) => setConfirm(e.target.value)}
               placeholder="비밀번호 재입력"
               className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-slate-500 outline-none" required />
           </div>
@@ -195,7 +196,7 @@ export function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onS
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">새 입장 코드</label>
             <div className="relative">
-              <input type={showEntryPw ? 'text' : 'password'} value={entryPw} onChange={(e) => setEntryPw(e.target.value)}
+              <input type={showEntryPw ? 'text' : 'password'} {...PANEL_PIN_INPUT_PROPS} value={entryPw} onChange={(e) => setEntryPw(e.target.value)}
                 placeholder="새 입장 코드 입력 (4자 이상)"
                 className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl focus:ring-2 focus:ring-sky-500 outline-none" required minLength={4} />
               <button type="button" onClick={() => setShowEntryPw(p => !p)}
@@ -206,7 +207,7 @@ export function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onS
           </div>
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">코드 확인</label>
-            <input type={showEntryPw ? 'text' : 'password'} value={entryConfirm} onChange={(e) => setEntryConfirm(e.target.value)}
+            <input type={showEntryPw ? 'text' : 'password'} {...PANEL_PIN_INPUT_PROPS} value={entryConfirm} onChange={(e) => setEntryConfirm(e.target.value)}
               placeholder="입장 코드 재입력"
               className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-sky-500 outline-none" required />
           </div>
@@ -248,7 +249,7 @@ export function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onS
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">새 비밀번호</label>
             <div className="relative">
-              <input type={showResetPw ? 'text' : 'password'} value={resetPw} onChange={(e) => setResetPw(e.target.value)}
+              <input type={showResetPw ? 'text' : 'password'} {...PANEL_PIN_INPUT_PROPS} value={resetPw} onChange={(e) => setResetPw(e.target.value)}
                 placeholder="새 비밀번호 입력 (4자 이상)"
                 className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none" required minLength={4} />
               <button type="button" onClick={() => setShowResetPw(p => !p)}
@@ -259,7 +260,7 @@ export function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onS
           </div>
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">비밀번호 확인</label>
-            <input type={showResetPw ? 'text' : 'password'} value={resetConfirm} onChange={(e) => setResetConfirm(e.target.value)}
+            <input type={showResetPw ? 'text' : 'password'} {...PANEL_PIN_INPUT_PROPS} value={resetConfirm} onChange={(e) => setResetConfirm(e.target.value)}
               placeholder="비밀번호 재입력"
               className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none" required />
           </div>
@@ -301,7 +302,7 @@ export function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onS
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">새 테스트 코드</label>
             <div className="relative">
-              <input type={showTestPw ? 'text' : 'password'} value={testPw} onChange={(e) => setTestPw(e.target.value)}
+              <input type={showTestPw ? 'text' : 'password'} {...PANEL_PIN_INPUT_PROPS} value={testPw} onChange={(e) => setTestPw(e.target.value)}
                 placeholder="새 테스트 코드 입력 (4자 이상)"
                 className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl focus:ring-2 focus:ring-violet-500 outline-none" required minLength={4} />
               <button type="button" onClick={() => setShowTestPw(p => !p)}
@@ -312,7 +313,7 @@ export function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onS
           </div>
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">코드 확인</label>
-            <input type={showTestPw ? 'text' : 'password'} value={testConfirm} onChange={(e) => setTestConfirm(e.target.value)}
+            <input type={showTestPw ? 'text' : 'password'} {...PANEL_PIN_INPUT_PROPS} value={testConfirm} onChange={(e) => setTestConfirm(e.target.value)}
               placeholder="테스트 코드 재입력"
               className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-violet-500 outline-none" required />
           </div>

@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Users } from 'lucide-react';
 import { HOST_AGE_EASTER_EGG_HINT } from '../lib/host-age-easter-egg';
-import { navigateToAppPath, verifyPanelPassword } from '../lib/panel-password';
+import { navigateToAppPath, PANEL_PIN_INPUT_PROPS, verifyPanelPassword } from '../lib/panel-password';
 
 const FIXED_TITLE = '범일NPC는 30살!';
 const RANDOM_SUFFIX = [
@@ -82,7 +82,7 @@ export function ResetPasswordSheet({ onCancel, onConfirm }: { onCancel: () => vo
       <div className="bg-white rounded-2xl p-6 w-72 shadow-2xl">
         <p className="text-sm font-bold text-gray-800 mb-1">처음으로 돌아가기</p>
         <p className="text-xs text-gray-500 mb-4">비밀번호를 입력하세요</p>
-        <input type="password" value={pw} onChange={(e) => { setPw(e.target.value); setErr(''); }}
+        <input type="password" {...PANEL_PIN_INPUT_PROPS} value={pw} onChange={(e) => { setPw(e.target.value); setErr(''); }}
           onKeyDown={(e) => { if (e.key === 'Enter') void confirm(); }} placeholder="비밀번호" autoFocus disabled={busy}
           className={`w-full px-3 py-2.5 rounded-xl border-2 text-sm text-center font-bold outline-none mb-3 ${err ? 'border-red-400 bg-red-50 text-red-700' : 'border-gray-200 focus:border-cyan-400'}`} />
         {err && <p className="text-xs text-red-500 text-center mb-3">{err}</p>}
@@ -306,7 +306,7 @@ export function ResetButton({ onReset, darkMode, onEasterEgg, onUiLockChange, on
           <div className="bg-white rounded-2xl p-6 w-72 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <p className="text-sm font-bold text-gray-800 mb-1">처음으로 돌아가기</p>
             <p className="text-xs text-gray-500 mb-4">비밀번호를 입력하세요</p>
-            <input type="password" value={pw} onChange={(e) => { setPw(e.target.value); setErr(''); }}
+            <input type="password" {...PANEL_PIN_INPUT_PROPS} value={pw} onChange={(e) => { setPw(e.target.value); setErr(''); }}
               onKeyDown={(e) => { if (e.key === 'Enter') void confirm(); }} placeholder="비밀번호" autoFocus disabled={busy}
               className={`w-full px-3 py-2.5 rounded-xl border-2 text-sm text-center font-bold outline-none mb-3 ${err ? 'border-red-400 bg-red-50 text-red-700' : 'border-gray-200 focus:border-cyan-400'}`} />
             {err && <p className="text-xs text-red-500 text-center mb-3">{err}</p>}
@@ -323,7 +323,7 @@ export function ResetButton({ onReset, darkMode, onEasterEgg, onUiLockChange, on
         <PasswordDimLayer z={400} onClick={() => { setAdminOpen(false); setAdminPw(''); setAdminErr(''); }}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xs p-6 space-y-4" onClick={e => e.stopPropagation()}>
             <div className="text-center"><span className="text-3xl">🔐</span><h3 className="text-gray-900 font-black text-lg mt-2">관리자 확인</h3><p className="text-gray-400 text-xs mt-1">비밀번호를 입력하세요</p></div>
-            <input type="password" value={adminPw} onChange={e => { setAdminPw(e.target.value); setAdminErr(''); }}
+            <input type="password" {...PANEL_PIN_INPUT_PROPS} value={adminPw} onChange={e => { setAdminPw(e.target.value); setAdminErr(''); }}
               onKeyDown={e => { if (e.key === 'Enter') void confirmAdmin(); }}
               placeholder="비밀번호" autoFocus disabled={adminBusy}
               className={`w-full border-2 text-center text-lg font-bold rounded-xl px-4 py-3 focus:outline-none placeholder-gray-300 ${adminErr ? 'border-red-400 bg-red-50 text-red-700' : 'border-gray-200 focus:border-cyan-500'}`} />

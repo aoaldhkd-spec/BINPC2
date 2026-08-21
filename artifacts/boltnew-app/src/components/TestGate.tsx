@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState, useEffect, useRef, type FormEvent } from 'react';
 import { AlertTriangle, Shield } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { PANEL_PIN_INPUT_PROPS } from '../lib/panel-password';
 import { mapPanelLoginError, readSubmittedPassword } from '../admin/admin-login';
 
 const loadTestDashboard = () => import('../TestDashboard');
@@ -152,10 +153,10 @@ export function TestGate() {
             <input
               ref={passwordRef}
               type="password"
+              {...PANEL_PIN_INPUT_PROPS}
               value={password}
               onChange={event => setPassword(event.target.value)}
               placeholder="비밀번호 입력"
-              autoComplete="current-password"
               className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-slate-500 focus:border-transparent outline-none transition-all text-gray-800 [scroll-margin:0]"
               required
             />

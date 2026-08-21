@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Users, CheckCircle, Clock, ShieldAlert } from 'lucide-react';
 import { useTheme } from '../lib/theme';
-import { navigateToAppPath, verifyPanelPassword } from '../lib/panel-password';
+import { navigateToAppPath, PANEL_PIN_INPUT_PROPS, verifyPanelPassword } from '../lib/panel-password';
 
 export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
   sessionActive: boolean | null;
@@ -470,7 +470,7 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
               <h3 className="text-gray-900 font-black text-lg mt-2">테스터 확인</h3>
               <p className="text-gray-400 text-xs mt-1">테스터 비밀번호를 입력하세요</p>
             </div>
-            <input type="password" value={testPw} onChange={e => { setTestPw(e.target.value); setTestErr(''); }}
+            <input type="password" {...PANEL_PIN_INPUT_PROPS} value={testPw} onChange={e => { setTestPw(e.target.value); setTestErr(''); }}
               onKeyDown={e => { if (e.key === 'Enter') void confirmTest(); }}
               placeholder="테스터 비밀번호" autoFocus disabled={testBusy}
               className={`w-full border-2 text-center text-lg font-bold rounded-xl px-4 py-3 focus:outline-none ${testErr ? 'border-red-400 bg-red-50 text-red-700' : 'border-gray-200 focus:border-cyan-500'}`} />
@@ -494,7 +494,7 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
               <h3 className="text-gray-900 font-black text-lg mt-2">관리자 확인</h3>
               <p className="text-gray-400 text-xs mt-1">관리자 비밀번호만 입력하세요 (고유번호 아님)</p>
             </div>
-            <input type="password" value={adminPw} onChange={e => { setAdminPw(e.target.value); setAdminErr(''); }}
+            <input type="password" {...PANEL_PIN_INPUT_PROPS} value={adminPw} onChange={e => { setAdminPw(e.target.value); setAdminErr(''); }}
               onKeyDown={e => { if (e.key === 'Enter') void confirmAdmin(); }}
               placeholder="관리자 비밀번호" autoFocus disabled={adminBusy}
               className={`w-full border-2 text-center text-lg font-bold rounded-xl px-4 py-3 focus:outline-none ${adminErr ? 'border-red-400 bg-red-50 text-red-700' : 'border-gray-200 focus:border-cyan-500'}`} />

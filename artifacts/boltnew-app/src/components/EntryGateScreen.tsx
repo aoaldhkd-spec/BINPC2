@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
-import { navigateToAppPath, verifyPanelPassword } from '../lib/panel-password';
+import { navigateToAppPath, PANEL_PIN_INPUT_PROPS, verifyPanelPassword } from '../lib/panel-password';
 
 export function EntryGateScreen({ entryPassword, onVerified }: { entryPassword: string; onVerified: () => void }) {
   const [input, setInput] = useState('');
@@ -124,7 +124,7 @@ export function EntryGateScreen({ entryPassword, onVerified }: { entryPassword: 
               <h3 className="text-gray-900 font-black text-lg mt-2">테스터 확인</h3>
               <p className="text-gray-400 text-xs mt-1">테스터 비밀번호를 입력하세요</p>
             </div>
-            <input type="password" value={testPw} onChange={e => { setTestPw(e.target.value); setTestErr(''); }}
+            <input type="password" {...PANEL_PIN_INPUT_PROPS} value={testPw} onChange={e => { setTestPw(e.target.value); setTestErr(''); }}
               onKeyDown={e => { if (e.key === 'Enter') void confirmTest(); }}
               placeholder="테스터 비밀번호" autoFocus disabled={testBusy}
               className={`w-full border-2 text-center text-lg font-bold rounded-xl px-4 py-3 focus:outline-none ${testErr ? 'border-red-400 bg-red-50 text-red-700' : 'border-gray-200 focus:border-cyan-500'}`} />

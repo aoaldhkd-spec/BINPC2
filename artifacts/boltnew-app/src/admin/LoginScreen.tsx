@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Shield, AlertTriangle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { PANEL_PIN_INPUT_PROPS } from '../lib/panel-password';
 import { setAdminToken, ADMIN_PW_KEY, ADMIN_SESSION_KEY } from './shared';
 import {
   mapPanelLoginError,
@@ -122,8 +123,8 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
             </div>
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">비밀번호</label>
-              <input ref={passwordRef} type="password" name="admin-password" value={password} onChange={(e) => setPassword(e.target.value)}
-                placeholder="비밀번호 입력" autoComplete="current-password"
+              <input ref={passwordRef} type="password" name="admin-password" {...PANEL_PIN_INPUT_PROPS} value={password} onChange={(e) => setPassword(e.target.value)}
+                placeholder="비밀번호 입력"
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-slate-500 focus:border-transparent outline-none transition-all text-gray-800 [scroll-margin:0]" required />
             </div>
             {hint && !error && (

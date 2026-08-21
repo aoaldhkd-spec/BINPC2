@@ -276,6 +276,21 @@ mustNotMatch('artifacts/boltnew-app/src/components/ResetButton.tsx', '33_main_lo
   /openResetGate[\s\S]{0,80}navigateToAppPath\('test'\)/,
 ]);
 
+mustMatch('artifacts/boltnew-app/src/lib/panel-password.ts', '36_panel_pin_input_props', [
+  /export const PANEL_PIN_INPUT_PROPS/,
+  /inputMode:\s*'numeric'/,
+  /pattern:\s*'\[0-9\]\*'/,
+]);
+mustMatch('artifacts/boltnew-app/src/components/ResetButton.tsx', '36_reset_gate_numeric_keyboard', [
+  /PANEL_PIN_INPUT_PROPS/,
+]);
+mustMatch('artifacts/boltnew-app/src/components/WaitingOverlay.tsx', '36_waiting_gate_numeric_keyboard', [
+  /PANEL_PIN_INPUT_PROPS/,
+]);
+mustMatch('artifacts/boltnew-app/src/components/EntryGateScreen.tsx', '36_entry_gate_numeric_keyboard', [
+  /PANEL_PIN_INPUT_PROPS/,
+]);
+
 console.log('\n=== verify-recurrence-guards ===\n');
 for (const r of results) {
   console.log(`  ${r.ok ? 'OK' : 'FAIL'}  ${r.id}${r.detail && !r.ok ? ` ? ${r.detail}` : ''}`);
