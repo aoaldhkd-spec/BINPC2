@@ -14,7 +14,7 @@ import {
 } from '../lib/nickname-input';
 import { BIO_CATEGORIES } from '../lib/interests';
 import { InterestPicker } from './InterestPicker';
-import { maxAdultBirthYear } from '../lib/korean-age';
+import { maxAdultBirthYear, minBirthYearForEventMaxAge } from '../lib/korean-age';
 
 // ─── 데이터 ────────────────────────────────────────────────────────────────────
 
@@ -68,11 +68,14 @@ const MBTI_GROUPS = [
 
 function buildDecadeGroups(now: Date = new Date()): Record<string, number[]> {
   const maxYear = maxAdultBirthYear(now);
-  return {
-    '80년대': Array.from({ length: 5 }, (_, i) => 1989 - i).reverse(),
-    '90년대': Array.from({ length: 10 }, (_, i) => 1990 + i),
-    '00년대': Array.from({ length: 10 }, (_, i) => 2000 + i).filter(y => y <= maxYear),
+  const minYear = minBirthYearForEventMaxAge(now);
+  const inRange = (y: number) => y >= minYear && y <= maxYear;
+  const groups: Record<string, number[]> = {
+    '80년대': Array.from({ length: 5 }, (_, i) => 1989 - i).reverse().filter(inRange),
+    '90년대': Array.from({ length: 10 }, (_, i) => 1990 + i).filter(inRange),
+    '00년대': Array.from({ length: 10 }, (_, i) => 2000 + i).filter(inRange),
   };
+  return Object.fromEntries(Object.entries(groups).filter(([, years]) => years.length > 0));
 }
 
 const DECADE_GROUPS = buildDecadeGroups();

@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   ageBandFromBirthYear,
+  capAgeBandForEvent,
   formatKoreanAge,
   groupAgeDecadeBand,
   isAdultBirthYear,
   koreanAgeFromBirthYear,
   maxAdultBirthYear,
+  minBirthYearForEventMaxAge,
   seoulCalendarYear,
 } from './korean-age';
 
@@ -32,11 +34,24 @@ describe('korean age (연도 차 + 1)', () => {
     expect(groupAgeDecadeBand(1980, kst2026)).toBe('30대'); // 47세 → 30대 cap
   });
 
-  it('full decade bands for stats ranking (adults-only — no 10대)', () => {
+  it('full decade bands for stats ranking (20·30대 only — 40+ → 30대)', () => {
     expect(ageBandFromBirthYear(1995, kst2026)).toBe('30대');
     expect(ageBandFromBirthYear(1998, kst2026)).toBe('20대');
+    expect(ageBandFromBirthYear(1980, kst2026)).toBe('30대'); // 47세 → capped
     expect(ageBandFromBirthYear(2008, kst2026)).toBeNull();
     expect(ageBandFromBirthYear(null, kst2026)).toBeNull();
+  });
+
+  it('capAgeBandForEvent maps 40+ to 30대', () => {
+    expect(capAgeBandForEvent('40대')).toBe('30대');
+    expect(capAgeBandForEvent('50대')).toBe('30대');
+    expect(capAgeBandForEvent('30대')).toBe('30대');
+    expect(capAgeBandForEvent('20대')).toBe('20대');
+    expect(capAgeBandForEvent('10대')).toBeNull();
+  });
+
+  it('minBirthYearForEventMaxAge caps picker at 39 Korean age', () => {
+    expect(minBirthYearForEventMaxAge(kst2026)).toBe(1988); // 2026-39+1
   });
 
   it('maxAdultBirthYear and isAdultBirthYear enforce 20+ Korean age', () => {

@@ -3,7 +3,7 @@
  * Visible nicknames: Hangul only (no A1/B2 letter+digit tails).
  */
 import { MBTI_LIST } from './constants';
-import { seoulCalendarYear } from './korean-age';
+import { minBirthYearForEventMaxAge, seoulCalendarYear } from './korean-age';
 
 export const DUMMY_NICKNAMES = [
   '지민', '서연', '현우', '민재', '수아', '도윤', '예린', '준호', '하은', '시우',
@@ -87,11 +87,12 @@ export function reserveDummyNickname(existing: ReadonlySet<string>, seed = 0): s
   return makeDummyNickname({ index: seed, attempt: 99 });
 }
 
-/** 성인(한국식 20세+) 더미 — 20·20대·30대에 걸치도록 출생연도 랜덤 */
+/** 성인(한국식 20–39세) 더미 — 20·30대만, 40대 프로필 없음 */
 export function randomDummyBirthYear(now: Date = new Date()): number {
   const koreanAges = [20, 22, 25, 28, 31, 34, 37];
   const age = pick(koreanAges);
-  return seoulCalendarYear(now) - age + 1;
+  const year = seoulCalendarYear(now) - age + 1;
+  return Math.max(year, minBirthYearForEventMaxAge(now));
 }
 
 export function buildDummyProfileInsert(opts: {

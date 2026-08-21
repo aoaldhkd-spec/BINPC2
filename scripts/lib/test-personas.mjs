@@ -63,11 +63,18 @@ function seoulCalendarYear(now = new Date()) {
   return Number.isFinite(y) ? y : now.getFullYear();
 }
 
-/** 성인 더미 출생연도 (20·22·25·28·31·34·37세) */
+const MAX_EVENT_KOREAN_AGE = 39;
+
+function minBirthYearForEventMaxAge(now = new Date()) {
+  return seoulCalendarYear(now) - MAX_EVENT_KOREAN_AGE + 1;
+}
+
+/** 성인 더미 출생연도 (한국식 20–39세 → 20·30대만) */
 function pickAdultBirthYear(index = 0, now = new Date()) {
   const ages = [20, 22, 25, 28, 31, 34, 37];
   const age = ages[Math.abs(index) % ages.length];
-  return seoulCalendarYear(now) - age + 1;
+  const year = seoulCalendarYear(now) - age + 1;
+  return Math.max(year, minBirthYearForEventMaxAge(now));
 }
 
 const usedNicknames = new Set();

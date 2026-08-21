@@ -2,7 +2,7 @@ import { seoulDateKey, isAnyHeart } from './signal-match';
 import { ALL_BIO_TAGS } from './interests';
 import { MBTI_LIST, type HeartType } from './constants';
 import { getPositionLabel } from './profile';
-import { ageBandFromBirthYear } from './korean-age';
+import { ageBandFromBirthYear, capAgeBandForEvent } from './korean-age';
 
 export type PublicLikeRow = {
   id?: string;
@@ -144,7 +144,7 @@ export function extractCityLevel(location: string): string {
 
 
 export function ageBand(birthYear: number | null | undefined, now: Date = new Date()): string | null {
-  return ageBandFromBirthYear(birthYear, now);
+  return capAgeBandForEvent(ageBandFromBirthYear(birthYear, now));
 }
 
 export function normalizeMbti(raw: string | null | undefined): string | null {

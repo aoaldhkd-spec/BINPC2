@@ -152,10 +152,11 @@ describe('canonicalInterestTags / MBTI / age', () => {
     expect(normalizeMbti('')).toBeNull();
   });
 
-  it('bands Korean age with KST year (adults-only — no 10대)', () => {
+  it('bands Korean age with KST year (20·30대 only — 40+ → 30대)', () => {
     expect(ageBand(1995, kstNow)).toBe('30대'); // 2026-1995+1=32
     expect(ageBand(1997, kstNow)).toBe('30대'); // 30세
     expect(ageBand(1998, kstNow)).toBe('20대'); // 29세
+    expect(ageBand(1980, kstNow)).toBe('30대'); // 47세 → capped
     expect(ageBand(2008, kstNow)).toBeNull();
     expect(ageBand(null, kstNow)).toBeNull();
   });
@@ -187,6 +188,14 @@ describe('collectProfileBreakdowns', () => {
     ], parseProfileInterests, kstNow);
     expect(rows.location.map(([k]) => k).sort()).toEqual(['경기 수원', '부산']);
     expect(rows.age.map(([k, c]) => [k, c])).toEqual([['20대', 1], ['30대', 1]]);
+  });
+
+  it('caps 40+ profiles into 30대 bucket', () => {
+    const rows = collectProfileBreakdowns([
+      { birth_year: 1980, mbti: 'ENFP', personality_score: 50 },
+      { birth_year: 1995, mbti: 'ENFP', personality_score: 50 },
+    ], parseProfileInterests, kstNow);
+    expect(rows.age).toEqual([['30대', 2]]);
   });
 
   it('does not lump 경기 cities and ignores malformed interests', () => {
