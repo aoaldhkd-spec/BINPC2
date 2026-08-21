@@ -13,6 +13,28 @@ if (rawPort && (Number.isNaN(port) || port <= 0)) {
 // BASE_PATH defaults to '/' when not set (safe for production builds).
 const basePath = process.env.BASE_PATH ?? '/';
 
+// Local UI preview: proxy /api to Render unless LOCAL_API=1 or API_PROXY_TARGET is set.
+const apiProxyTarget =
+  process.env.API_PROXY_TARGET
+  ?? (process.env.LOCAL_API === '1' ? 'http://localhost:8080' : 'https://binpc2.onrender.com');
+
+const apiProxy = {
+  '/api': {
+    target: apiProxyTarget,
+    changeOrigin: true,
+    timeout: 0,
+    proxyTimeout: 0,
+    configure(proxy: { on: (event: string, handler: (...args: unknown[]) => void) => void }) {
+      proxy.on('proxyRes', (proxyRes: { headers: Record<string, string | string[] | undefined> }) => {
+        if (String(proxyRes.headers['content-type'] ?? '').includes('text/event-stream')) {
+          proxyRes.headers['cache-control'] = 'no-cache, no-transform';
+          proxyRes.headers['x-accel-buffering'] = 'no';
+        }
+      });
+    },
+  },
+} as const;
+
 export default defineConfig({
   base: basePath,
   plugins: [
@@ -50,22 +72,7 @@ export default defineConfig({
     fs: {
       strict: true,
     },
-    proxy: {
-      '/api': {
-        target: process.env.API_PROXY_TARGET ?? 'http://localhost:8080',
-        changeOrigin: true,
-        timeout: 0,
-        proxyTimeout: 0,
-        configure(proxy) {
-          proxy.on('proxyRes', (proxyRes) => {
-            if (String(proxyRes.headers['content-type'] ?? '').includes('text/event-stream')) {
-              proxyRes.headers['cache-control'] = 'no-cache, no-transform';
-              proxyRes.headers['x-accel-buffering'] = 'no';
-            }
-          });
-        },
-      },
-    },
+    proxy: apiProxy,
     // 핵심 진입 파일을 서버 기동 시 변환해 첫 페이지 콜드스타트를 줄입니다.
     warmup: {
       clientFiles: [
@@ -77,7 +84,9 @@ export default defineConfig({
   },
   preview: {
     port,
+    strictPort: true,
     host: '0.0.0.0',
     allowedHosts: true,
+    proxy: apiProxy,
   },
 });

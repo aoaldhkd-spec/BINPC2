@@ -4,6 +4,8 @@
   "license": "MIT",
   "scripts": {
     "preinstall": "node scripts/ensure-pnpm.mjs",
+    "dev": "corepack pnpm --filter @workspace/boltnew-app dev",
+    "preview": "corepack pnpm --filter @workspace/boltnew-app serve",
     "build": "corepack pnpm run typecheck && corepack pnpm -r --if-present run build",
     "typecheck:libs": "tsc --build",
     "typecheck": "corepack pnpm run typecheck:libs && corepack pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
