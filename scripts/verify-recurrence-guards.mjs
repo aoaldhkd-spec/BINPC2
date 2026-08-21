@@ -234,6 +234,10 @@ mustMatch('artifacts/boltnew-app/src/hooks/useHearts.ts', '34_handle_like_profil
 mustMatch('artifacts/boltnew-app/src/components/LikeConfirmDialog.tsx', '35_like_confirm_above_fabs', [
   /z-\[10070\]/,
   /bindMobileTap/,
+  /selectedRef/,
+]);
+mustMatch('artifacts/boltnew-app/src/hooks/useHearts.ts', '35_ensure_write_session_before_like', [
+  /ensureWriteSession/,
 ]);
 mustMatch('artifacts/boltnew-app/src/App.tsx', '35_like_confirm_body_overlay', [
   /dataset\.overlay = 'like-confirm'/,

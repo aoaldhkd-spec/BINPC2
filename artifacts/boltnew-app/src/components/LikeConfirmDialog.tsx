@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Heart } from 'lucide-react';
 import type { Profile } from '../types/app';
 import type { HeartType } from '../lib/constants';
@@ -16,6 +16,20 @@ export function LikeConfirmDialog({
   onCancel: () => void;
 }) {
   const [selected, setSelected] = useState<HeartType | null>(null);
+  // iOS pointerup can fire before React re-renders after setSelected — ref stays synchronous.
+  const selectedRef = useRef<HeartType | null>(null);
+
+  const pickType = (type: HeartType, disabled: boolean) => {
+    if (disabled) return;
+    selectedRef.current = type;
+    setSelected(type);
+  };
+
+  const handleConfirm = () => {
+    const type = selectedRef.current;
+    if (type) onConfirm(type);
+  };
+
   return (
     <div
       className="fixed inset-0 z-[10070] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
@@ -47,14 +61,13 @@ export function LikeConfirmDialog({
             const alreadySentToThisPerson = sentTypesForTarget.has(h.type);
             const disabled = remaining <= 0 || alreadySentToThisPerson;
             const isSel = selected === h.type;
-            const pickType = () => { if (!disabled) setSelected(h.type); };
             return (
               <button
                 key={h.type}
                 type="button"
                 disabled={disabled}
-                {...bindMobileTap(pickType)}
-                className={`touch-target w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left ${
+                {...bindMobileTap(() => pickType(h.type, disabled))}
+                className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left ${
                   disabled ? 'opacity-40 cursor-not-allowed border-gray-100 bg-gray-50'
                   : isSel ? `${h.bg} ${h.border} ring-2 ${h.ring}`
                   : `border-gray-200 hover:${h.border} hover:${h.bg}`
@@ -89,16 +102,16 @@ export function LikeConfirmDialog({
           <button
             type="button"
             {...bindMobileTap(onCancel)}
-            className="touch-target flex-1 py-3 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition-all"
+            className="flex-1 py-3 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition-all"
           >
             취소
           </button>
           <button
             type="button"
-            disabled={!selected}
-            {...bindMobileTap(() => { if (selected) onConfirm(selected); })}
-            className={`touch-target flex-1 py-3 text-white font-semibold rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 ${
-              selected ? `${heartMeta(selected).solidBg} ${heartMeta(selected).solidHover}` : 'bg-gray-300'
+            aria-disabled={!selected}
+            {...bindMobileTap(handleConfirm)}
+            className={`flex-1 py-3 text-white font-semibold rounded-xl transition-all flex items-center justify-center gap-1.5 ${
+              selected ? `${heartMeta(selected).solidBg} ${heartMeta(selected).solidHover}` : 'bg-gray-300 opacity-40 cursor-not-allowed'
             }`}
           >
             <Heart className={`w-4 h-4 ${selected ? 'fill-current' : ''}`} />

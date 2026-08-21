@@ -1382,6 +1382,15 @@ async function _loginSessionAttempt(userId: string, attempt: number): Promise<bo
   }
 }
 
+/** Critical writes (likes, chat) — refresh bearer session before /op on mobile Safari. */
+export async function ensureWriteSession(): Promise<boolean> {
+  const userId = _currentUserId;
+  if (!userId) return false;
+  if (_sessionReady && hasUsableSessionBearer()) return true;
+  _markSessionPending();
+  return loginSession(userId);
+}
+
 export function getDeviceSecret(userId: string): string {
   const key = DEVICE_SECRET_PREFIX + userId;
   try {

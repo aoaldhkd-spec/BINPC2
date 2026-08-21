@@ -99,6 +99,7 @@ describe('product copy + notification invariants', () => {
     const card = read('components/ProfileCard.tsx');
     expect(dialog).toContain('z-[10070]');
     expect(dialog).toContain('bindMobileTap');
+    expect(dialog).toContain('selectedRef');
     expect(app).toContain("dataset.overlay = 'like-confirm'");
     expect(css).toContain('data-overlay="like-confirm"');
     expect(css).toContain('.theme-switcher-btn');
@@ -106,6 +107,7 @@ describe('product copy + notification invariants', () => {
     expect(card).toContain('bindMobileTap');
     expect(card).toContain('profile-card-heart-btn');
     expect(card).toContain('onLike(profile.id, profile)');
+    expect(card).not.toContain('touch-target');
   });
 
   it('단톡 is quiet: no group-message modal popup', () => {

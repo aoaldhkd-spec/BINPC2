@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, ensureWriteSession } from '../lib/supabase';
 import type { Profile, ContactShare } from '../types/app';
 import { HeartType } from '../lib/constants';
 import { countTodayInterestMission, isInterestHeart, type LikeRowForMission } from '../lib/signal-match';
@@ -262,6 +262,12 @@ export function useHearts(
     const targetId = likeConfirmTarget.id;
     const likerId = currentUserId;
     try {
+      const sessionOk = await ensureWriteSession();
+      if (!sessionOk) {
+        setLikeError('로그인 세션이 만료되었습니다. 앱을 새로고침한 뒤 다시 시도해 주세요.');
+        setLikeConfirmTarget(null);
+        return false;
+      }
       // localdb apiFetch가 15s 타임아웃 + 429/502/503 재시도를 담당. 짧은 race는
       // NAT 429 재시도 중 거짓 실패를 만들고, 서버 insert는 계속 진행된다.
       const { error } = await supabase.from('likes').insert({ liker_id: likerId, liked_id: targetId, heart_type: heartType }) as { error: unknown };
@@ -293,7 +299,9 @@ export function useHearts(
         const isRateLimit = errCode === 'RATE_LIMIT' || errMsg.includes('429') || errMsg.includes('rate') || errMsg.includes('too many');
         const isLocked = errCode === 'FUNCTIONS_LOCKED';
         const isInvalidRef = errCode === 'INVALID_REFERENCE' || errMsg.includes('참조 대상');
-        const isUnauthorized = errCode === 'UNAUTHORIZED' || errMsg.includes('Authentication required') || errMsg.includes('세션');
+        const isRefRefresh = errCode === 'REFERENCE_REFRESH_FAILED';
+        const isUnauthorized = errCode === 'UNAUTHORIZED' || errCode === 'FORBIDDEN'
+          || errMsg.includes('Authentication required') || errMsg.includes('세션') || errMsg.includes('authentication required');
         setLikeError(isHeartLimit
           ? '같은 종류의 하트는 최대 2명에게만 보낼 수 있습니다.'
           : isRateLimit
@@ -302,7 +310,9 @@ export function useHearts(
               ? '행사 중에는 하트를 보낼 수 없습니다.'
               : isInvalidRef
                 ? '상대 프로필을 찾을 수 없습니다. 목록을 새로고침한 뒤 다시 시도해 주세요.'
-                : isUnauthorized
+                : isRefRefresh
+                  ? '서버 연결이 불안정합니다. 잠시 후 다시 시도해 주세요.'
+                  : isUnauthorized
                   ? '로그인 세션이 만료되었습니다. 앱을 새로고침한 뒤 다시 시도해 주세요.'
                   : '하트 전송에 실패했습니다. 잠시 후 다시 시도해 주세요.');
         setLikeConfirmTarget(null);

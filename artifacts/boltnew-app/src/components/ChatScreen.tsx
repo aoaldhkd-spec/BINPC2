@@ -1240,7 +1240,7 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
           />
           {/* 전송 버튼 — onClick만, 폼 submit 없음 */}
           <button type="button" onClick={handleSend} disabled={!input.trim() || uploading}
-            className="touch-target bg-cyan-500 text-white rounded-full hover:bg-cyan-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all shrink-0 flex items-center justify-center">
+            className="p-2 bg-cyan-500 text-white rounded-full hover:bg-cyan-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all shrink-0">
             <Send className="w-5 h-5" />
           </button>
         </div>

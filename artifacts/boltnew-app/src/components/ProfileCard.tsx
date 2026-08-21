@@ -535,7 +535,7 @@ export const ProfileCard = memo(function ProfileCard({
               data-testid="profile-card-heart-btn"
               {...bindMobileTap(handleHeartTap)}
               disabled={!locked && isLiked && heartCount >= 4}
-              className={`touch-target flex-1 min-w-0 flex items-center justify-center gap-0.5 py-1 rounded border active:scale-95 transition-transform ${locked ? 'opacity-50' : ''}`}
+              className={`flex-1 min-w-0 flex items-center justify-center gap-0.5 py-0.5 rounded border active:scale-95 transition-transform ${locked ? 'opacity-50' : ''}`}
               style={heartBtnStyle}
             >
               {isLiked && sentHeartType
@@ -553,7 +553,7 @@ export const ProfileCard = memo(function ProfileCard({
               type="button"
               data-testid="profile-card-chat-btn"
               {...bindMobileTap(handleChatTap)}
-              className={`touch-target flex-1 min-w-0 flex items-center justify-center gap-0.5 py-1 rounded border active:scale-95 transition-transform ${locked ? 'opacity-50' : ''}`}
+              className={`flex-1 min-w-0 flex items-center justify-center gap-0.5 py-0.5 rounded border active:scale-95 transition-transform ${locked ? 'opacity-50' : ''}`}
               style={chatBtnStyle}
             >
               <MessageCircle className="w-3 h-3 shrink-0" style={{ color: '#0ea5e9' }} strokeWidth={2} />
