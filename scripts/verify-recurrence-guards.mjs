@@ -286,6 +286,8 @@ mustNotMatch('artifacts/boltnew-app/src/components/ResetButton.tsx', '33_main_lo
 
 mustMatch('artifacts/boltnew-app/src/lib/panel-password.ts', '36_panel_pin_input_props', [
   /export const PANEL_PIN_INPUT_PROPS/,
+  /export const PIN_INPUT_PROPS/,
+  /export const PIN_DIGIT_INPUT_PROPS/,
   /inputMode:\s*'numeric'/,
   /pattern:\s*'\[0-9\]\*'/,
 ]);
@@ -294,9 +296,14 @@ mustMatch('artifacts/boltnew-app/src/components/ResetButton.tsx', '36_reset_gate
 ]);
 mustMatch('artifacts/boltnew-app/src/components/WaitingOverlay.tsx', '36_waiting_gate_numeric_keyboard', [
   /PANEL_PIN_INPUT_PROPS/,
+  /PIN_DIGIT_INPUT_PROPS/,
 ]);
 mustMatch('artifacts/boltnew-app/src/components/EntryGateScreen.tsx', '36_entry_gate_numeric_keyboard', [
+  /type=\{showPw \? 'text' : 'password'\}[\s\S]{0,80}PANEL_PIN_INPUT_PROPS/,
   /PANEL_PIN_INPUT_PROPS/,
+]);
+mustMatch('artifacts/boltnew-app/src/components/ProfileRecoveryScreen.tsx', '36_profile_recovery_numeric_keyboard', [
+  /PIN_DIGIT_INPUT_PROPS/,
 ]);
 
 console.log('\n=== verify-recurrence-guards ===\n');

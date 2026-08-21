@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { ArrowLeft, KeyRound } from 'lucide-react';
+import { PIN_DIGIT_INPUT_PROPS } from '../lib/panel-password';
 
 export function ProfileRecoveryScreen({
   onRecover,
@@ -169,8 +170,7 @@ export function ProfileRecoveryScreen({
                       key={idx}
                       ref={refs[idx]}
                       type="text"
-                      inputMode="numeric"
-                      pattern="\d*"
+                      {...PIN_DIGIT_INPUT_PROPS}
                       maxLength={1}
                       value={digits[idx]}
                       onChange={(e) => handleChange(idx, e.target.value)}

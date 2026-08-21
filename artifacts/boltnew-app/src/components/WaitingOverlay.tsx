@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Users, CheckCircle, Clock, ShieldAlert } from 'lucide-react';
 import { useTheme } from '../lib/theme';
-import { navigateToAppPath, PANEL_PIN_INPUT_PROPS, verifyPanelPassword } from '../lib/panel-password';
+import { navigateToAppPath, PANEL_PIN_INPUT_PROPS, PIN_DIGIT_INPUT_PROPS, verifyPanelPassword } from '../lib/panel-password';
 
 export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
   sessionActive: boolean | null;
@@ -393,8 +393,7 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
                         key={idx}
                         ref={prefs[idx]}
                         type="text"
-                        inputMode="numeric"
-                        pattern="\d*"
+                        {...PIN_DIGIT_INPUT_PROPS}
                         maxLength={1}
                         value={pinDigits[idx]}
                         onChange={e => handlePinChange(idx, e.target.value)}

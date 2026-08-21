@@ -26,9 +26,18 @@ export function navigateToAppPath(path: 'admin' | 'test'): void {
 
 export const ADMIN_FIXED_NICKNAME = '범일NPC';
 
-/** Numeric PIN/password gates — mobile numeric keyboard (iOS/Android) while type="password" masks input. */
+/** Numeric PIN/password fields — mobile numeric keyboard (iOS/Android) while type="password" masks input. */
 export const PANEL_PIN_INPUT_PROPS = {
   inputMode: 'numeric' as const,
   pattern: '[0-9]*',
   autoComplete: 'one-time-code' as const,
 };
+
+/** App-wide alias — entry codes, panel gates, admin credentials. */
+export const PIN_INPUT_PROPS = PANEL_PIN_INPUT_PROPS;
+
+/** Single-digit PIN box (profile recovery, waiting overlay). */
+export const PIN_DIGIT_INPUT_PROPS = {
+  inputMode: 'numeric' as const,
+  pattern: '\\d*',
+} as const;

@@ -93,10 +93,10 @@ export function EntryGateScreen({ entryPassword, onVerified }: { entryPassword: 
               </p>
             </div>
             <div className="relative">
-              <input type={showPw ? 'text' : 'password'} value={input}
+              <input type={showPw ? 'text' : 'password'} {...PANEL_PIN_INPUT_PROPS} value={input}
                 onChange={e => { setInput(e.target.value); setError(false); }}
                 onKeyDown={e => e.key === 'Enter' && handleSubmit()}
-                placeholder="코드를 입력하세요" autoFocus autoComplete="off"
+                placeholder="코드를 입력하세요" autoFocus
                 className={`w-full rounded-2xl px-4 py-4 pr-12 text-white text-center text-xl font-black tracking-[0.25em] focus:outline-none transition-all border-2 ${error ? 'bg-red-950/60 border-red-500 placeholder-red-400/50' : 'bg-slate-700/60 border-slate-600 focus:border-cyan-500 placeholder-slate-500'}`} />
               <button type="button" onClick={() => setShowPw(p => !p)}
                 className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition-colors">
