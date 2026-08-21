@@ -449,6 +449,12 @@ describe('product copy + notification invariants', () => {
     expect(main).not.toContain('flex-1 min-h-0 flex flex-col px-3 min-[360px]:px-4 overflow-y-auto');
   });
 
+  it('통계·랭킹 tabs scroll full content with bottom clearance (MY FAB + tab bar)', () => {
+    const statsTabs = read('components/StatsTabs.tsx');
+    expect(statsTabs).toMatch(/export function StatsTab[\s\S]*?mx-auto space-y-4 pb-24/);
+    expect(statsTabs).toMatch(/export function RankingTab[\s\S]*?mx-auto space-y-4 pb-24/);
+  });
+
   it('HEIC upload rejected with user-facing message', () => {
     const photo = read('lib/profile-photo.ts');
     expect(photo).toMatch(/HEIC|heic/);

@@ -180,7 +180,7 @@ export function StatsTab({ profiles, darkMode }: { profiles: Profile[]; darkMode
   const totalHeartsForChart = Math.max(1, Object.values(stats.heart).reduce((a, b) => a + b, 0));
 
   return (
-    <div className="w-full max-w-3xl mx-auto space-y-4 shrink-0">
+    <div className="w-full max-w-3xl mx-auto space-y-4 pb-24">
       <div className="flex items-center gap-2 px-1">
         <BarChart3 className="w-5 h-5 text-cyan-500" />
         <h2 className={`text-lg font-black ${darkMode ? 'text-white' : 'text-gray-800'}`}>오늘의 통계</h2>
@@ -294,7 +294,7 @@ export function RankingTab({ darkMode, profiles: propProfiles }: { darkMode: boo
   const profileMap = new Map(allProfiles.map(p => [p.id, p]));
 
   return (
-    <div className="w-full max-w-3xl mx-auto space-y-4 shrink-0">
+    <div className="w-full max-w-3xl mx-auto space-y-4 pb-24">
       <div className="flex items-center gap-2 px-1">
         <Trophy className="w-5 h-5 text-amber-500" />
         <h2 className={`text-lg font-black ${darkMode ? 'text-white' : 'text-gray-800'}`}>인기도 랭킹</h2>
