@@ -399,24 +399,8 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       r.status === 'fulfilled' ? (r.value as { data: unknown[] | null }).data : null;
     try {
       await adminSupabase.from('session_history').insert({ ended_at: new Date().toISOString() });
-      // api-server 전체 초기화 (인메모리 스토어 + SSE broadcast → 모든 유저에게 즉시 반영)
-      // Supabase 직접 삭제만으로는 api-server 인메모리가 그대로 남아 유저에게 반영 안 됨
+      // api-server: 인메모리 wipe + PG persist + reset_signal SSE (유저·테스트 즉시 반영)
       await adminApiRpc('admin_event_end_reset', {});
-      // 병렬 삭제 (Supabase 네이티브 테이블 — 관리자 화면용)
-      await Promise.all([
-        adminSupabase.from('profiles').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
-        adminSupabase.from('likes').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
-        adminSupabase.from('anonymous_reports').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
-        adminSupabase.from('messages').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
-        adminSupabase.from('chats').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
-        adminSupabase.from('notifications').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
-      ]);
-      await restoreAdminProfileAfterWipe(backupProfiles, settings?.admin_phone);
-      const { error: sigErr } = await adminSupabase.from('app_settings').update({ reset_signal: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', 1);
-      if (sigErr) throw new Error(sigErr.message);
-      // api-server reset_signal 동기화
-      adminApiRpc('admin_update_settings', { p_payload: { reset_signal: new Date().toISOString() } })
-        .catch(() => null);
       const hasData = backupProfiles.length > 0 || backupLikes.length > 0 || backupChats.length > 0;
       showRecovery('전체 초기화', '🗑️', hasData ? async () => {
         // 복구 upsert — 개별 실패는 로그만
@@ -470,15 +454,18 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
   const handleClearProfiles = async () => {
     const backupProfiles = [...profiles];
-    await adminSupabase.from('profiles').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    await restoreAdminProfileAfterWipe(backupProfiles, settings?.admin_phone);
-    adminApiRpc('admin_force_resync_all', {}).catch(e => console.warn('[admin] resync:', e));
-    showRecovery('참여자 프로필', '👤', backupProfiles.length > 0 ? async () => {
-      for (const p of backupProfiles) await adminSupabase.from('profiles').upsert(p);
+    try {
+      await adminApiRpc('admin_clear_profiles', {});
+      showRecovery('참여자 프로필', '👤', backupProfiles.length > 0 ? async () => {
+        for (const p of backupProfiles) await adminSupabase.from('profiles').upsert(p);
+        await loadAll();
+        setRecovery(null);
+      } : null, 'profiles');
+    } catch (e: unknown) {
+      alert(`참여자 초기화 실패: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
       await loadAll();
-      setRecovery(null);
-    } : null, 'profiles');
-    await loadAll();
+    }
   };
 
   const handleDeleteChat = async (chatId: string) => {
@@ -657,12 +644,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           </div>
         )}
         {tab === 'profiles' && (
-          <ProfilesTabSection profiles={profiles} settings={settings} onClear={async () => {
-            const backupProfiles = [...profiles];
-            await adminSupabase.from('profiles').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-            await restoreAdminProfileAfterWipe(backupProfiles, settings?.admin_phone);
-            await loadAll();
-          }} onDeleteProfile={handleDeleteProfile} />
+          <ProfilesTabSection profiles={profiles} settings={settings} onClear={handleClearProfiles} onDeleteProfile={handleDeleteProfile} />
         )}
         {tab === 'hearts' && (
           <div>

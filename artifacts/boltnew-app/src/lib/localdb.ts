@@ -372,7 +372,7 @@ interface SseEvent {
   instanceId?: string;
   missed?: number;
   table?: string;
-  event?: 'INSERT' | 'UPDATE' | 'DELETE';
+  event?: 'INSERT' | 'UPDATE' | 'DELETE' | 'RESET';
   newRow?: Record<string, unknown> | null;
   oldRow?: Record<string, unknown> | null;
   channel?: string;
@@ -775,6 +775,11 @@ function createSse() {
       if (data.type === 'change' && (data.newRow as Record<string, unknown> | null)?._bulk_resync) {
         runReconnectResync();
         return; // 개별 리스너에게 전파 불필요
+      }
+      // admin_event_end_reset 등 테이블 전체 초기화 — RESET은 row 단위 DELETE가 아니므로 리로드
+      if (data.type === 'change' && data.event === 'RESET') {
+        runReconnectResync();
+        return;
       }
       if (
         data.type === 'change'

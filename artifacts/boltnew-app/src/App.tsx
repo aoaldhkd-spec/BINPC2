@@ -1056,6 +1056,26 @@ function App() {
       }
     }, 2_500);
 
+    const applyResetSignal = (serverReset: string) => {
+      ls.setItem(MATCHING_LAST_RESET_KEY, serverReset);
+      ls.removeItem(MATCHING_USER_KEY);
+      ls.removeItem(MATCHING_DRAFT_KEY);
+      clearAllGroupLastReads();
+      ls.removeItem(MATCHING_PROFILES_CACHE_KEY);
+      setCurrentUserId(null);
+      setShownWaiting(false);
+      setProfiles([]);
+      setLikedIds(new Set());
+      setSentHeartTypes(new Map());
+      setSentHeartsPerPerson(new Map());
+      setAcknowledgedComplimentIds(new Set());
+      setReceivedLikers([]);
+      setChatList([]);
+      setActiveNotif(null);
+      void loadProfilesRef.current().catch(() => {});
+      setView('entry-1');
+    };
+
     const applySettings = (data: Record<string, unknown> | null) => {
       if (cancelled || !data) return;
       const ep = (data.entry_password as string | null | undefined) ?? '';
@@ -1067,19 +1087,7 @@ function App() {
       const localReset = ls.getItem(MATCHING_LAST_RESET_KEY);
       const serverReset = (data.reset_signal as string | null | undefined) ?? null;
       if (serverReset && serverReset !== localReset) {
-        ls.setItem(MATCHING_LAST_RESET_KEY, serverReset);
-        ls.removeItem(MATCHING_USER_KEY);
-        ls.removeItem(MATCHING_DRAFT_KEY);
-        clearAllGroupLastReads();
-        ls.removeItem(MATCHING_PROFILES_CACHE_KEY);
-        setCurrentUserId(null);
-        setShownWaiting(false);
-        setProfiles([]);
-        setLikedIds(new Set());
-        setSentHeartTypes(new Map());
-        setAcknowledgedComplimentIds(new Set());
-        setReceivedLikers([]);
-        setView('entry-1');
+        applyResetSignal(serverReset);
         return;
       }
       setTimerEndAt((data.timer_end_at as string | null | undefined) ?? null);
@@ -1154,22 +1162,7 @@ function App() {
         };
         // Admin triggered a full reset: wipe local user identity and force back to nickname setup
         if (p.reset_signal && p.reset_signal !== ls.getItem(MATCHING_LAST_RESET_KEY)) {
-          ls.setItem(MATCHING_LAST_RESET_KEY, p.reset_signal);
-          ls.removeItem(MATCHING_USER_KEY);
-          ls.removeItem(MATCHING_DRAFT_KEY);
-          clearAllGroupLastReads();
-          ls.removeItem(MATCHING_PROFILES_CACHE_KEY);
-          setCurrentUserId(null);
-          setShownWaiting(false);
-          setProfiles([]);
-          setLikedIds(new Set());
-          setReceivedLikers([]);
-          setChatList([]);
-          // 추가 상태 초기화 — 하트·알림이 리셋 후에도 남아있는 버그 방지
-          setSentHeartTypes(new Map());
-          setSentHeartsPerPerson(new Map());
-          setActiveNotif(null);
-          setView('entry-1');
+          applyResetSignal(p.reset_signal);
           return;
         }
         if (typeof p.session_active === 'boolean') {

@@ -123,4 +123,16 @@ describe('[Admin] admin_event_end_reset wipes group chats', () => {
     expect(catalogMsgs.status).toBe(200);
     expect((catalogMsgs.body.data as unknown[]).length).toBe(0);
   });
+
+  it('sets reset_signal on app_settings after wipe', async () => {
+    await op({ op: 'insert', table: 'profiles', payload: { id: 'sig-user', nickname: 'sig-user-nick' } });
+    const reset = await request(app)
+      .post('/api/db/rpc/admin_event_end_reset')
+      .send({ p_admin_password: '116606' });
+    expect(reset.status).toBe(200);
+    const settings = await op({ op: 'select', table: 'app_settings' });
+    expect(settings.status).toBe(200);
+    const row = (settings.body.data as { reset_signal?: string | null }[])[0];
+    expect(row?.reset_signal).toBeTruthy();
+  });
 });

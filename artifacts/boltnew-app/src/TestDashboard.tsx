@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase, getDeviceSecret, setDeviceRecoveryPin } from './lib/supabase';
 import type { Database } from './types/database';
+import { MATCHING_LAST_RESET_KEY } from './lib/constants';
 import {
   Users, Heart, MessageCircle,
   RefreshCw, Play, UserPlus, X, CheckCircle,
@@ -92,28 +93,52 @@ export default function TestDashboard() {
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [myUserId, setMyUserId] = useState<string | null>(() => localStorage.getItem('matching_app_user_id'));
   const [bulkCount, setBulkCount] = useState(20);
+  const lastResetRef = useRef<string | null>(() => {
+    try { return localStorage.getItem(MATCHING_LAST_RESET_KEY); } catch { return null; }
+  }());
 
   const notify = (msg: string, ok = true) => {
     setToast({ msg, ok });
     setTimeout(() => setToast(null), 2800);
   };
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const [p, l, c, settings] = await Promise.all([
       supabase.from('profiles').select('*').order('created_at', { ascending: false }),
       supabase.from('likes').select('*').order('created_at', { ascending: false }),
       supabase.from('chats').select('*').order('created_at', { ascending: false }),
-      supabase.from('app_settings').select('session_active').eq('id', 1).single(),
+      supabase.from('app_settings').select('session_active, reset_signal').eq('id', 1).single(),
     ]);
     if (p.data) setProfiles(p.data);
     if (l.data) setLikes(l.data);
     if (c.data) setChats(c.data);
     if (settings.data) {
       setSessionActive(settings.data.session_active);
+      if (settings.data.reset_signal) lastResetRef.current = settings.data.reset_signal;
     }
-  };
+  }, []);
 
-  useEffect(() => { load().catch(e => console.error('[TestDashboard] load 실패:', e)); }, []);
+  useEffect(() => { load().catch(e => console.error('[TestDashboard] load 실패:', e)); }, [load]);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('test-app-settings')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_settings' }, (payload: { new: Record<string, unknown> }) => {
+        const sig = (payload.new.reset_signal as string | null | undefined) ?? null;
+        if (sig && sig !== lastResetRef.current) {
+          lastResetRef.current = sig;
+          localStorage.setItem(MATCHING_LAST_RESET_KEY, sig);
+          localStorage.removeItem('matching_app_user_id');
+          setMyUserId(null);
+          setProfiles([]);
+          setLikes([]);
+          setChats([]);
+          void load();
+        }
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [load]);
 
   const myProfile = profiles.find(p => p.id === myUserId);
 
@@ -217,14 +242,15 @@ export default function TestDashboard() {
   const deleteAllProfiles = async () => {
     if (!confirm('모든 프로필을 초기화할까요?')) return;
     setLoading('deleteAll');
-    await supabase.from('likes').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    await supabase.from('chats').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    await supabase.from('profiles').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    localStorage.removeItem('matching_app_user_id');
-    setMyUserId(null);
-    await testResync(); // 즉시 api-server 인메모리 초기화 → 메인 앱에 즉시 반영
-    await load();
-    notify('전체 초기화 완료');
+    try {
+      await testApiRpc('test_wipe_all', {});
+      localStorage.removeItem('matching_app_user_id');
+      setMyUserId(null);
+      await load();
+      notify('전체 초기화 완료');
+    } catch (e) {
+      notify(`전체 초기화 실패: ${e instanceof Error ? e.message : String(e)}`, false);
+    }
     setLoading(null);
   };
 

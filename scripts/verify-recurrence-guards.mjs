@@ -103,6 +103,20 @@ mustMatch('scripts/endurance-5h.mjs', '07_admin_event_reset_recover', [
   /admin_event_end_reset/,
   /recoverContext|re-provisioning soak users/,
 ]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '07_admin_wipe_reset_signal', [
+  /admin_clear_profiles/,
+  /bumpResetSignalAndBroadcast/,
+  /test_wipe_all/,
+]);
+mustMatch('artifacts/boltnew-app/src/App.tsx', '07_reset_signal_reload_profiles', [
+  /applyResetSignal/,
+  /loadProfilesRef\.current\(\)/,
+  /MATCHING_PROFILES_CACHE_KEY/,
+]);
+mustMatch('artifacts/boltnew-app/src/TestDashboard.tsx', '07_test_dashboard_reset_sse', [
+  /test_wipe_all/,
+  /reset_signal/,
+]);
 mustMatch('scripts/endurance-5h.mjs', '07_endurance_recover_core', [
   /isRecoverableOpFailure/,
   /recoverContext/,

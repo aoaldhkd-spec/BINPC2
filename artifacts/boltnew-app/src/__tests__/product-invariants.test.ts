@@ -191,13 +191,18 @@ describe('product copy + notification invariants', () => {
   it('admin fixed nickname survives event-end reset on server and client', () => {
     const db = readFileSync(join(root, '../../api-server/src/routes/db.ts'), 'utf8');
     const admin = read('AdminApp.tsx');
+    const app = read('App.tsx');
     expect(db).toContain('ADMIN_FIXED_NICKNAME');
     expect(db).toContain('withFixedAdminNickname');
     expect(db).toContain('ensureAdminProfile');
     expect(db).toContain('clearAdminNpcRelationships');
     expect(db).toContain('admin_event_end_reset');
+    expect(db).toContain('admin_clear_profiles');
+    expect(db).toContain('bumpResetSignalAndBroadcast');
     expect(admin).toContain('ADMIN_FIXED_NICKNAME');
-    expect(admin).toContain('restoreAdminProfileAfterWipe');
+    expect(admin).toContain('admin_clear_profiles');
+    expect(app).toContain('applyResetSignal');
+    expect(app).toContain('loadProfilesRef.current()');
   });
 
   it('숨은기능: 칭찬하트 없고 방문자·NPC나이', () => {

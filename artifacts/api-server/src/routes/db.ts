@@ -286,6 +286,77 @@ async function ensureAdminProfile(): Promise<Record<string, unknown> | null> {
   logger.info({ id: detId }, '[db] ensureAdminProfile: seeded 범일NPC');
   return row;
 }
+
+/** 회식 종료·참여자 전체 초기화 후 범일NPC 1행 복원 (인메모리 + PG persist + SSE). */
+async function restoreAdminProfileAfterWipeInStore(
+  oldProfiles: Record<string, unknown>[],
+  settingsRow: Record<string, unknown>,
+): Promise<void> {
+  const adminPhoneDigits = adminPhoneFromSettings(settingsRow);
+  const adminBackup = adminPhoneDigits
+    ? oldProfiles.find(p => isAdminProfilePhone(p['phone_number'], adminPhoneDigits))
+    : undefined;
+  if (adminBackup || adminPhoneDigits) {
+    const now = new Date().toISOString();
+    const stableId = adminPhoneDigits
+      ? deterministicAdminProfileId(adminPhoneDigits)
+      : String(adminBackup?.['id'] ?? crypto.randomUUID());
+    const restored = withFixedAdminNickname({
+      ...(adminBackup ?? {}),
+      id: String(adminBackup?.['id'] ?? stableId),
+      nickname: ADMIN_FIXED_NICKNAME,
+      phone_number: String(adminBackup?.['phone_number'] ?? settingsRow['admin_phone'] ?? ''),
+      created_at: String(adminBackup?.['created_at'] ?? now),
+      updated_at: now,
+    }, adminPhoneDigits);
+    if (!restored['pin_code']) {
+      const { use5Digit, poolSize } = pinPoolParams(1);
+      const pinResult = resolvePin(new Set(), poolSize, use5Digit, null);
+      if (pinResult.ok) restored['pin_code'] = pinResult.pin;
+    }
+    store['profiles'] = [restored];
+    try {
+      await dbPersistRow('profiles', restored);
+    } catch (e) {
+      logger.error({ err: e }, '[db] restore admin profile after wipe failed');
+    }
+    broadcastAll({
+      type: 'change',
+      table: 'profiles',
+      event: 'INSERT',
+      newRow: sanitizeProfile(restored),
+      oldRow: null,
+    });
+  } else {
+    await ensureAdminProfile();
+  }
+}
+
+/** 관리자/테스트 전체 초기화 — reset_signal persist + SSE (유저·테스트 대시보드 동기화). */
+async function bumpResetSignalAndBroadcast(): Promise<string> {
+  const signal = new Date().toISOString();
+  const current = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
+  const merged = mergeAppSettings(current, { reset_signal: signal, updated_at: signal });
+  const updated = await overlayDbSecrets(merged, new Set());
+  store['app_settings'] = [updated];
+  try {
+    await dbPersistRow('app_settings', updated);
+  } catch (e) {
+    store['app_settings'] = [current];
+    logger.error({ err: e }, '[db] bumpResetSignal persist failed');
+    throw e;
+  }
+  smartBroadcast('app_settings', updated, {
+    type: 'change', table: 'app_settings', event: 'UPDATE',
+    newRow: updated, oldRow: current,
+  });
+  const adminRow = await ensureAdminProfile();
+  if (adminRow?.id != null) {
+    await clearAdminNpcRelationships(String(adminRow.id));
+  }
+  return signal;
+}
+
 const LEGACY_PANEL_PASSWORDS = ['166606', PANEL_DEFAULT_PASSWORD] as const;
 
 class RpcAuthError extends Error {
@@ -4663,8 +4734,8 @@ router.post('/op', async (req: Request, res: Response) => {
 // 알 수 없는 RPC 이름으로의 호출을 즉시 404로 차단 — 내부 구현 노출 및 퍼징 방지
 const ALLOWED_RPCS = new Set([
   'admin_create_session', 'admin_invalidate_session', 'admin_auth_phone',
-  'admin_update_settings', 'admin_toggle_session', 'test_resync', 'test_clear_hearts', 'admin_force_resync_all',
-  'test_verify_password', 'test_update_settings', 'admin_full_reset', 'admin_event_end_reset',
+  'admin_update_settings', 'admin_toggle_session', 'test_resync', 'test_clear_hearts', 'test_wipe_all', 'admin_force_resync_all',
+  'test_verify_password', 'test_update_settings', 'admin_full_reset', 'admin_event_end_reset', 'admin_clear_profiles',
   'verify_panel_password',
   'admin_update_profile',
   'admin_delete_profile',
@@ -4899,11 +4970,7 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
       case 'admin_event_end_reset': {
         checkPassword();
         const settingsRow = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
-        const adminPhoneDigits = adminPhoneFromSettings(settingsRow);
         const oldProfiles = store['profiles'] ?? [];
-        const adminBackup = adminPhoneDigits
-          ? oldProfiles.find(p => isAdminProfilePhone(p['phone_number'], adminPhoneDigits))
-          : undefined;
         const tablesToClear = [
           'profiles', 'likes', 'anonymous_reports', 'chats', 'messages',
           'contact_shares', 'contact_share_events',
@@ -4938,41 +5005,58 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         // PG wipe가 끝난 뒤 빈 카탈로그 방을 다시 심는다 (시드가 삭제 레이스에 지워지지 않게)
         await Promise.all(persistDeletes);
         await ensureOptInGroupRooms();
-        // 관리자 프로필·설정은 유지하되 닉네임은 항상 범일NPC
-        if (adminBackup || adminPhoneDigits) {
-          const now = new Date().toISOString();
-          const stableId = adminPhoneDigits
-            ? deterministicAdminProfileId(adminPhoneDigits)
-            : String(adminBackup?.['id'] ?? crypto.randomUUID());
-          const restored = withFixedAdminNickname({
-            ...(adminBackup ?? {}),
-            id: String(adminBackup?.['id'] ?? stableId),
-            nickname: ADMIN_FIXED_NICKNAME,
-            phone_number: String(adminBackup?.['phone_number'] ?? settingsRow['admin_phone'] ?? ''),
-            created_at: String(adminBackup?.['created_at'] ?? now),
-            updated_at: now,
-          }, adminPhoneDigits);
-          if (!restored['pin_code']) {
-            const { use5Digit, poolSize } = pinPoolParams(1);
-            const pinResult = resolvePin(new Set(), poolSize, use5Digit, null);
-            if (pinResult.ok) restored['pin_code'] = pinResult.pin;
-          }
-          store['profiles'] = [restored];
-          try {
-            await dbPersistRow('profiles', restored);
-          } catch (e) {
-            logger.error({ err: e }, '[db] restore admin profile after event reset failed');
-          }
+        await restoreAdminProfileAfterWipeInStore(oldProfiles, settingsRow);
+        await bumpResetSignalAndBroadcast();
+        return res.json({ data: null, error: null });
+      }
+
+      case 'admin_clear_profiles': {
+        checkPassword();
+        const settingsRow = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
+        const oldProfiles = [...(store['profiles'] ?? [])];
+        store['profiles'] = [];
+        for (const row of oldProfiles) {
           broadcastAll({
             type: 'change',
             table: 'profiles',
-            event: 'INSERT',
-            newRow: sanitizeProfile(restored),
-            oldRow: null,
+            event: 'DELETE',
+            newRow: null,
+            oldRow: sanitizeProfile(row),
           });
-        } else {
-          await ensureAdminProfile();
         }
+        await dbDeleteTable('profiles');
+        await restoreAdminProfileAfterWipeInStore(oldProfiles, settingsRow);
+        await bumpResetSignalAndBroadcast();
+        return res.json({ data: null, error: null });
+      }
+
+      case 'test_wipe_all': {
+        checkTestPassword();
+        const wipeTables = ['likes', 'messages', 'chats', 'profiles'] as const;
+        const persistDeletes: Promise<void>[] = [];
+        for (const t of wipeTables) {
+          const old = store[t] ?? [];
+          store[t] = [];
+          if (t === 'likes') _likesLastInsert.clear();
+          if (t === 'profiles') {
+            for (const row of old) {
+              broadcastAll({
+                type: 'change',
+                table: t,
+                event: 'DELETE',
+                newRow: null,
+                oldRow: sanitizeProfile(row),
+              });
+            }
+          } else {
+            for (const row of old) {
+              smartBroadcast(t, row, { type: 'change', table: t, event: 'DELETE', newRow: null, oldRow: row });
+            }
+          }
+          persistDeletes.push(dbDeleteTable(t).catch(e => logger.error({ err: e, table: t }, '[rpc] test_wipe_all DB delete failed')));
+        }
+        await Promise.all(persistDeletes);
+        await bumpResetSignalAndBroadcast();
         return res.json({ data: null, error: null });
       }
 

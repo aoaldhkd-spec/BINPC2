@@ -218,6 +218,14 @@ export interface Database {
         Args: { p_admin_password: string };
         Returns: undefined;
       };
+      admin_clear_profiles: {
+        Args: { p_admin_password: string };
+        Returns: undefined;
+      };
+      test_wipe_all: {
+        Args: { p_test_password: string };
+        Returns: undefined;
+      };
       admin_delete_profile: {
         Args: { p_profile_id: string; p_admin_password: string };
         Returns: undefined;
