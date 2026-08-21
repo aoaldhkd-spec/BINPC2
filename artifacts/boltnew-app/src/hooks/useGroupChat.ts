@@ -84,6 +84,11 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
   const sendingGroupRef = useRef(new Set<string>());
   const loadGenRef = useRef(0);
   const recentlyLeftRef = useRef(new Set<string>());
+  /** 낙관적 입장 중 — SSE INSERT 시 중복 loadGroupChats 방지 */
+  const pendingJoinRef = useRef(new Set<string>());
+  const loadGroupChatsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const participantsCacheRef = useRef(new Map<string, { at: number; rows: GroupParticipant[] }>());
+  const PARTICIPANTS_CACHE_MS = 30_000;
   // 비활성 그룹 SSE 중복 방지 (재연결 시 동일 메시지 재수신 대비)
   const seenInactiveGroupMsgIds = useRef(new Set<string>());
 
@@ -179,6 +184,15 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
     }
   }, [profilesRef]);
 
+  /** 입장 직후·SSE와 겹치는 전체 카탈로그 reload를 한 번으로 묶는다 */
+  const scheduleLoadGroupChats = useCallback((userId: string, delayMs = 2000) => {
+    if (loadGroupChatsTimerRef.current) clearTimeout(loadGroupChatsTimerRef.current);
+    loadGroupChatsTimerRef.current = setTimeout(() => {
+      loadGroupChatsTimerRef.current = null;
+      void loadGroupChats(userId);
+    }, delayMs);
+  }, [loadGroupChats]);
+
   // ── 오프라인 단톡 메시지 큐 (1:1 chat-pending-queue 패턴) ─────────────────────
   const pendingQueueRef = useRef<PendingGroupMsg[]>(loadGroupPendingQueue());
   const isFlushingRef = useRef(false);
@@ -222,25 +236,34 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
     }
   }, []);
 
-  const loadGroupParticipants = useCallback(async (groupId: string): Promise<void> => {
+  const loadGroupParticipants = useCallback(async (groupId: string, opts?: { refresh?: boolean }): Promise<void> => {
+    const openId = resolveCatalogGroupId(rawGroupsRef.current, groupId) || groupId;
+    const cached = participantsCacheRef.current.get(openId);
+    if (!opts?.refresh && cached && Date.now() - cached.at < PARTICIPANTS_CACHE_MS) {
+      const active = activeGroupIdRef.current;
+      if (active === openId || active === groupId) setGroupParticipants(cached.rows);
+      return;
+    }
     try {
       const queryIds = [...new Set([
         ...siblingGroupIds(rawGroupsRef.current, groupId),
-        resolveCatalogGroupId(rawGroupsRef.current, groupId),
+        openId,
         groupId,
       ].filter(Boolean))];
       const { data } = await supabase.from('group_participants').select('*').in('group_id', queryIds);
       const active = activeGroupIdRef.current;
-      if (active !== groupId && !queryIds.includes(active ?? '')) return;
+      if (active !== groupId && active !== openId && !queryIds.includes(active ?? '')) return;
       const rows = (data ?? []) as GroupParticipant[];
       const byUser = new Map<string, GroupParticipant>();
       for (const p of rows) {
         const existing = byUser.get(p.user_id);
         if (!existing || (p.last_read_at && (!existing.last_read_at || p.last_read_at > existing.last_read_at))) {
-          byUser.set(p.user_id, { ...p, group_id: groupId });
+          byUser.set(p.user_id, { ...p, group_id: openId });
         }
       }
-      setGroupParticipants([...byUser.values()]);
+      const merged = [...byUser.values()];
+      participantsCacheRef.current.set(openId, { at: Date.now(), rows: merged });
+      setGroupParticipants(merged);
     } catch (e) {
       console.warn('[loadGroupParticipants]', e);
     }
@@ -347,8 +370,7 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
   const openGroupChat = useCallback(async (groupId: string): Promise<void> => {
     if (!isJoinedGroupId(rawGroupsRef.current, myGroupIdsRef.current, groupId)) return;
     const openId = resolveCatalogGroupId(rawGroupsRef.current, groupId) || groupId;
-    setGroupMessages([]);
-    setGroupParticipants([]);
+    const switching = activeGroupIdRef.current !== openId;
     setActiveGroupId(openId);
     activeGroupIdRef.current = openId;
     setUnreadGroupCounts(prev => {
@@ -357,12 +379,16 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
       delete n[groupId];
       return n;
     });
+    if (switching) {
+      setGroupMessages([]);
+      const cached = participantsCacheRef.current.get(openId);
+      setGroupParticipants(cached?.rows ?? []);
+    }
     if (currentUserIdRef.current) writeGroupLastRead(currentUserIdRef.current, openId);
-    await Promise.all([
-      loadGroupMessages(openId).catch(() => {}),
+    void Promise.all([
+      loadGroupMessages(openId).catch(() => false),
       loadGroupParticipants(openId),
-    ]);
-    void markGroupRead(openId);
+    ]).then(() => { void markGroupRead(openId); });
   }, [loadGroupMessages, loadGroupParticipants, markGroupRead]);
 
   // ── 단톡방 입장 (클릭 전용, 자동 입장 없음) ────────────────────────────────
@@ -375,6 +401,33 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
       setBottomNotif({ type: 'system', message: groupLimitMessage() });
       return false;
     }
+
+    const prevMyGroupIds = [...myGroupIdsRef.current];
+    const prevGroupChats = groupChatsRef.current;
+    const prevRawGroups = [...rawGroupsRef.current];
+    const rooms = rawGroupsRef.current.length ? rawGroupsRef.current : groupChatsRef.current;
+    const canon = resolveCatalogGroupId(rooms, groupId) || groupId;
+
+    pendingJoinRef.current.add(groupId);
+    recentlyLeftRef.current.delete(groupId);
+    for (const id of siblingGroupIds(rooms, groupId)) recentlyLeftRef.current.delete(id);
+
+    const nextMyGroupIds = prevMyGroupIds.includes(groupId) ? prevMyGroupIds : [...prevMyGroupIds, groupId];
+    myGroupIdsRef.current = nextMyGroupIds;
+    setMyGroupIds(nextMyGroupIds);
+    setGroupChats(prev => prev.map(g =>
+      (g.id === groupId || g.id === canon)
+        ? { ...g, joined: true, memberCount: (g.memberCount ?? 0) + (g.joined ? 0 : 1) }
+        : g,
+    ));
+    if (rawGroupsRef.current.length) {
+      rawGroupsRef.current = rawGroupsRef.current.map(g =>
+        (g.id === groupId || g.id === canon)
+          ? { ...g, joined: true, memberCount: (g.memberCount ?? 0) + (g.joined ? 0 : 1) }
+          : g,
+      );
+    }
+
     setJoiningGroupId(groupId);
     try {
       const { error } = await supabase.from('group_participants').insert({
@@ -382,35 +435,31 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
         user_id: userId,
       });
       if (error) {
+        myGroupIdsRef.current = prevMyGroupIds;
+        setMyGroupIds(prevMyGroupIds);
+        setGroupChats(prevGroupChats);
+        rawGroupsRef.current = prevRawGroups;
         const msg = error.code === 'GROUP_LIMIT' || (error.message ?? '').includes('최대 4') || (error.message ?? '').includes('최대 3')
           ? groupLimitMessage()
           : (error.message || '입장에 실패했어요. 잠시 후 다시 시도해 주세요.');
         setBottomNotif({ type: 'system', message: msg });
         return false;
       }
-      recentlyLeftRef.current.delete(groupId);
-      for (const id of siblingGroupIds(rawGroupsRef.current, groupId)) {
-        recentlyLeftRef.current.delete(id);
-      }
-      setMyGroupIds(prev => {
-        const next = prev.includes(groupId) ? prev : [...prev, groupId];
-        myGroupIdsRef.current = next;
-        return next;
-      });
-      setGroupChats(prev => {
-        const canon = resolveCatalogGroupId(rawGroupsRef.current.length ? rawGroupsRef.current : prev, groupId);
-        return prev.map(g => (g.id === groupId || g.id === canon) ? { ...g, joined: true } : g);
-      });
-      void loadGroupChats(userId);
+      scheduleLoadGroupChats(userId);
       return true;
     } catch (e) {
+      myGroupIdsRef.current = prevMyGroupIds;
+      setMyGroupIds(prevMyGroupIds);
+      setGroupChats(prevGroupChats);
+      rawGroupsRef.current = prevRawGroups;
       console.error('[joinGroupChat] 오류:', e);
       setBottomNotif({ type: 'system', message: '입장에 실패했어요. 잠시 후 다시 시도해 주세요.' });
       return false;
     } finally {
+      pendingJoinRef.current.delete(groupId);
       setJoiningGroupId(null);
     }
-  }, [loadGroupChats, setBottomNotif]);
+  }, [scheduleLoadGroupChats, setBottomNotif]);
 
   // ── 단톡방 닫기 ──────────────────────────────────────────────────────────────
   const closeGroupChat = useCallback((): void => {
@@ -435,6 +484,10 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
       idSet.has(id) || resolveCatalogGroupId(raw, id) === catalogId || siblingGroupIds(raw, groupId).includes(id);
 
     for (const id of idSet) recentlyLeftRef.current.add(id);
+    for (const id of idSet) {
+      participantsCacheRef.current.delete(id);
+      participantsCacheRef.current.delete(resolveCatalogGroupId(raw, id) || id);
+    }
     window.setTimeout(() => {
       for (const id of idSet) recentlyLeftRef.current.delete(id);
     }, 15_000);
@@ -611,7 +664,8 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
           if (event === 'INSERT' && incoming.user_id === uid) {
             if (recentlyLeftRef.current.has(incoming.group_id)) return;
             setMyGroupIds(prev => prev.includes(incoming.group_id) ? prev : [...prev, incoming.group_id]);
-            void loadGroupChats(uid);
+            if (pendingJoinRef.current.has(incoming.group_id)) return;
+            scheduleLoadGroupChats(uid);
             return;
           }
           if (event === 'DELETE' && incoming.user_id === uid) {
@@ -621,6 +675,8 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
           }
           if (isActiveGroupRoom(incoming.group_id)) {
             const openId = activeGroupIdRef.current ?? incoming.group_id;
+            participantsCacheRef.current.delete(openId);
+            participantsCacheRef.current.delete(incoming.group_id);
             setGroupParticipants(prev => {
               if (event === 'DELETE' || !payload.new) {
                 return prev.filter(p => p.id !== incoming.id && !(p.user_id === incoming.user_id && p.group_id === incoming.group_id));
@@ -676,7 +732,7 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUserId, loadGroupChats]);
+  }, [currentUserId, loadGroupChats, scheduleLoadGroupChats]);
 
   // ── SSE 재연결 / 탭 복귀 / 끊김 시 단톡 목록·메시지 resync + 오프라인 큐 플러시 ─
   useEffect(() => {

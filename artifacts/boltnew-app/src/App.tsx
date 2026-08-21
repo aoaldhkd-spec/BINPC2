@@ -760,11 +760,15 @@ function App() {
 
   const joinGroupChatGuarded = useCallback(async (groupId: string) => {
     if (functionsLockedRef.current) { showFunctionsLockToast(); return; }
-    const ok = await joinGroupChat(groupId);
-    if (!ok) return;
+    const joinPromise = joinGroupChat(groupId);
     void openGroupChat(groupId);
     setView('group-chat');
-  }, [joinGroupChat, openGroupChat, showFunctionsLockToast]);
+    const ok = await joinPromise;
+    if (!ok) {
+      closeGroupChat();
+      setView('main');
+    }
+  }, [joinGroupChat, openGroupChat, closeGroupChat, showFunctionsLockToast]);
 
   const leaveGroupChatGuarded = useCallback(async (groupId: string) => {
     if (functionsLockedRef.current) { showFunctionsLockToast(); return; }
