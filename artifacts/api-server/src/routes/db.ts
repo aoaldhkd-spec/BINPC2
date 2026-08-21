@@ -13,7 +13,12 @@ import {
   sanitizeProfileForViewer,
   sanitizeSettings,
 } from '../lib/db-sanitize';
-import { chatPairKey, deterministicChatId, deterministicSignalId } from '../lib/db-chat-ids';
+import {
+  chatPairKey,
+  deterministicAdminProfileId,
+  deterministicChatId,
+  deterministicSignalId,
+} from '../lib/db-chat-ids';
 import { collectBroadcastTargets as collectBroadcastTargetsImpl } from '../lib/db-broadcast-targets';
 import {
   collectIntegrityDiagnostics,
@@ -101,6 +106,185 @@ function withFixedAdminNickname(
   if (!isAdminProfilePhone(row['phone_number'], adminPhoneDigits)) return row;
   if (String(row['nickname'] ?? '') === ADMIN_FIXED_NICKNAME) return row;
   return { ...row, nickname: ADMIN_FIXED_NICKNAME };
+}
+
+function findAdminProfileRow(adminPhoneDigits?: string): Record<string, unknown> | undefined {
+  const digits = adminPhoneDigits ?? adminPhoneFromSettings();
+  const profiles = getTable('profiles');
+  return profiles.find(p => isAdminProfilePhone(p['phone_number'], digits))
+    ?? profiles.find(p => String(p['nickname'] ?? '') === ADMIN_FIXED_NICKNAME);
+}
+
+/** 범일NPC와의 하트·1:1 채팅·연락처 공유만 제거 (다른 유저 관계는 유지). */
+async function clearAdminNpcRelationships(adminId: string): Promise<void> {
+  const aid = String(adminId);
+  if (!aid) return;
+
+  const chatRows = (getTable('chats') ?? []).filter(
+    c => String(c.user1_id) === aid || String(c.user2_id) === aid,
+  );
+  const chatIds = new Set(chatRows.map(c => String(c.id)));
+
+  const msgRows = (getTable('messages') ?? []).filter(m => chatIds.has(String(m.chat_id)));
+  const readRows = (getTable('chat_reads') ?? []).filter(r => chatIds.has(String(r.chat_id)));
+  const likeRows = (getTable('likes') ?? []).filter(
+    l => String(l.liker_id) === aid || String(l.liked_id) === aid,
+  );
+  const shareRows = (getTable('contact_shares') ?? []).filter(
+    s => String(s.liker_id) === aid || String(s.liked_id) === aid,
+  );
+  const shareEventRows = (getTable('contact_share_events') ?? []).filter(
+    e => String(e.from_user_id) === aid || String(e.to_user_id) === aid,
+  );
+
+  if (msgRows.length) {
+    store['messages'] = (getTable('messages') ?? []).filter(m => !chatIds.has(String(m.chat_id)));
+  }
+  if (readRows.length) {
+    store['chat_reads'] = (getTable('chat_reads') ?? []).filter(r => !chatIds.has(String(r.chat_id)));
+    unreadCountsCache.clear();
+  }
+  if (chatRows.length) store['chats'] = (getTable('chats') ?? []).filter(c => !chatIds.has(String(c.id)));
+  if (likeRows.length) {
+    store['likes'] = (getTable('likes') ?? []).filter(
+      l => String(l.liker_id) !== aid && String(l.liked_id) !== aid,
+    );
+    for (const key of [..._likesLastInsert.keys()]) {
+      if (key.startsWith(`${aid}:`) || key.includes(`:${aid}:`)) _likesLastInsert.delete(key);
+    }
+  }
+  if (shareRows.length) {
+    store['contact_shares'] = (getTable('contact_shares') ?? []).filter(
+      s => String(s.liker_id) !== aid && String(s.liked_id) !== aid,
+    );
+  }
+  if (shareEventRows.length) {
+    store['contact_share_events'] = (getTable('contact_share_events') ?? []).filter(
+      e => String(e.from_user_id) !== aid && String(e.to_user_id) !== aid,
+    );
+  }
+
+  const persistDeletes: Promise<void>[] = [];
+  for (const m of msgRows) {
+    broadcastAll({ type: 'change', table: 'messages', event: 'DELETE', newRow: null, oldRow: m });
+    if (m.id != null) persistDeletes.push(dbDeleteRow('messages', String(m.id)));
+  }
+  for (const r of readRows) {
+    broadcastAll({ type: 'change', table: 'chat_reads', event: 'DELETE', newRow: null, oldRow: r });
+    if (r.id != null) persistDeletes.push(dbDeleteRow('chat_reads', String(r.id)));
+  }
+  for (const c of chatRows) {
+    broadcastAll({ type: 'change', table: 'chats', event: 'DELETE', newRow: null, oldRow: c });
+    if (c.id != null) persistDeletes.push(dbDeleteRow('chats', String(c.id)));
+  }
+  for (const l of likeRows) {
+    smartBroadcast('likes', l, { type: 'change', table: 'likes', event: 'DELETE', newRow: null, oldRow: l });
+    if (l.id != null) persistDeletes.push(dbDeleteRow('likes', String(l.id)));
+  }
+  for (const s of shareRows) {
+    smartBroadcast('contact_shares', s, {
+      type: 'change', table: 'contact_shares', event: 'DELETE', newRow: null, oldRow: s,
+    });
+    if (s.id != null) persistDeletes.push(dbDeleteRow('contact_shares', String(s.id)));
+  }
+  for (const e of shareEventRows) {
+    smartBroadcast('contact_share_events', e, {
+      type: 'change', table: 'contact_share_events', event: 'DELETE', newRow: null, oldRow: e,
+    });
+    if (e.id != null) persistDeletes.push(dbDeleteRow('contact_share_events', String(e.id)));
+  }
+
+  if (persistDeletes.length) {
+    await Promise.all(persistDeletes).catch(err => {
+      logger.error({ err, adminId: aid }, '[db] clearAdminNpcRelationships persist failed');
+    });
+  }
+  if (msgRows.length || chatRows.length || likeRows.length || shareRows.length || shareEventRows.length) {
+    logger.info({
+      adminId: aid,
+      messages: msgRows.length,
+      chats: chatRows.length,
+      likes: likeRows.length,
+      contactShares: shareRows.length,
+      contactShareEvents: shareEventRows.length,
+    }, '[db] clearAdminNpcRelationships');
+  }
+}
+
+/** 범일NPC 프로필이 profiles에 항상 1행 존재하도록 보장 (부팅·리셋 후). */
+async function ensureAdminProfile(): Promise<Record<string, unknown> | null> {
+  const settings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
+  const adminPhoneDigits = adminPhoneFromSettings(settings);
+  const phoneDisplay = String(settings['admin_phone'] ?? '').trim();
+  if (!adminPhoneDigits && !phoneDisplay) return null;
+
+  const now = ts();
+  const existing = findAdminProfileRow(adminPhoneDigits);
+  if (existing) {
+    const fixed = withFixedAdminNickname({
+      ...existing,
+      nickname: ADMIN_FIXED_NICKNAME,
+      phone_number: existing['phone_number'] ?? phoneDisplay,
+      updated_at: now,
+    }, adminPhoneDigits);
+    const idx = getTable('profiles').findIndex(p => String(p.id) === String(existing.id));
+    const nicknameChanged = String(existing['nickname'] ?? '') !== ADMIN_FIXED_NICKNAME;
+    if (idx >= 0 && nicknameChanged) {
+      getTable('profiles')[idx] = fixed;
+      try {
+        await dbPersistRow('profiles', fixed);
+      } catch (e) {
+        logger.error({ err: e }, '[db] ensureAdminProfile nickname repair failed');
+      }
+      broadcastAll({
+        type: 'change',
+        table: 'profiles',
+        event: 'UPDATE',
+        newRow: sanitizeProfile(fixed),
+        oldRow: sanitizeProfile(existing),
+      });
+    }
+    return fixed;
+  }
+
+  const detId = adminPhoneDigits
+    ? deterministicAdminProfileId(adminPhoneDigits)
+    : crypto.randomUUID();
+  const tableData = getTable('profiles');
+  const usedPins = new Set(tableData.map(p => p.pin_code).filter(Boolean)) as Set<string>;
+  const { use5Digit, poolSize } = pinPoolParams(tableData.length);
+  const pinResult = resolvePin(usedPins, poolSize, use5Digit, null);
+  if (!pinResult.ok) {
+    logger.error('[db] ensureAdminProfile: PIN pool exhausted');
+    return null;
+  }
+
+  const row: Record<string, unknown> = {
+    id: detId,
+    nickname: ADMIN_FIXED_NICKNAME,
+    phone_number: phoneDisplay || adminPhoneDigits,
+    pin_code: pinResult.pin,
+    personality_score: 50,
+    created_at: now,
+    updated_at: now,
+  };
+  tableData.push(row);
+  try {
+    await dbPersistRow('profiles', row);
+  } catch (e) {
+    tableData.pop();
+    logger.error({ err: e }, '[db] ensureAdminProfile seed persist failed');
+    return null;
+  }
+  broadcastAll({
+    type: 'change',
+    table: 'profiles',
+    event: 'INSERT',
+    newRow: sanitizeProfile(row),
+    oldRow: null,
+  });
+  logger.info({ id: detId }, '[db] ensureAdminProfile: seeded 범일NPC');
+  return row;
 }
 const LEGACY_PANEL_PASSWORDS = ['166606', PANEL_DEFAULT_PASSWORD] as const;
 
@@ -1343,6 +1527,7 @@ async function seedIfNeeded(): Promise<void> {
     store['app_settings'] = [settings];
     await dbPersistRow('app_settings', settings);
   }
+  await ensureAdminProfile();
   await ensureOptInGroupRooms();
 }
 
@@ -2123,6 +2308,7 @@ const dbReadyPromise = seedIfNeeded()
 dbReadyPromise
   .then(() => cleanupLegacyTables())
   .then(() => loadRemainingTablesFromDb())
+  .then(() => ensureAdminProfile())
   .then(() => ensureOptInGroupRooms())
   .then(() => {
     startIntegrityDiagnostics();
@@ -4623,6 +4809,14 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
           type: 'change', table: 'app_settings', event: 'UPDATE',
           newRow: updated, oldRow: current,
         });
+        const prevReset = (current.reset_signal as string | null | undefined) ?? null;
+        const nextReset = (updated.reset_signal as string | null | undefined) ?? null;
+        if (nextReset && nextReset !== prevReset) {
+          const adminRow = await ensureAdminProfile();
+          if (adminRow?.id != null) {
+            await clearAdminNpcRelationships(String(adminRow.id));
+          }
+        }
         resetPanelLoginLimiter(req);
         return res.json({ data: publicAppSettingsView(updated, true), error: null });
       }
@@ -4746,9 +4940,12 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         // 관리자 프로필·설정은 유지하되 닉네임은 항상 범일NPC
         if (adminBackup || adminPhoneDigits) {
           const now = new Date().toISOString();
+          const stableId = adminPhoneDigits
+            ? deterministicAdminProfileId(adminPhoneDigits)
+            : String(adminBackup?.['id'] ?? crypto.randomUUID());
           const restored = withFixedAdminNickname({
             ...(adminBackup ?? {}),
-            id: String(adminBackup?.['id'] ?? crypto.randomUUID()),
+            id: String(adminBackup?.['id'] ?? stableId),
             nickname: ADMIN_FIXED_NICKNAME,
             phone_number: String(adminBackup?.['phone_number'] ?? settingsRow['admin_phone'] ?? ''),
             created_at: String(adminBackup?.['created_at'] ?? now),
@@ -4772,6 +4969,8 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
             newRow: sanitizeProfile(restored),
             oldRow: null,
           });
+        } else {
+          await ensureAdminProfile();
         }
         return res.json({ data: null, error: null });
       }

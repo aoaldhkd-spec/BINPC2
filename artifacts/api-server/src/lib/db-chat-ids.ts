@@ -15,3 +15,8 @@ export function deterministicChatId(u1: string, u2: string): string {
 export function deterministicSignalId(senderId: string, receiverId: string): string {
   return `sig_${createHash('sha256').update(`${senderId}\0${receiverId}`).digest('hex').slice(0, 32)}`;
 }
+
+/** 범일NPC(admin_phone) 프로필 — 재시드·리셋 후에도 동일 row id 유지 */
+export function deterministicAdminProfileId(adminPhoneDigits: string): string {
+  return `npc_${createHash('sha256').update(`admin-profile\0${adminPhoneDigits}`).digest('hex').slice(0, 32)}`;
+}

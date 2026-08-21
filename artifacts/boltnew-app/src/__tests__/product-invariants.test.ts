@@ -175,6 +175,8 @@ describe('product copy + notification invariants', () => {
     const admin = read('AdminApp.tsx');
     expect(db).toContain('ADMIN_FIXED_NICKNAME');
     expect(db).toContain('withFixedAdminNickname');
+    expect(db).toContain('ensureAdminProfile');
+    expect(db).toContain('clearAdminNpcRelationships');
     expect(db).toContain('admin_event_end_reset');
     expect(admin).toContain('ADMIN_FIXED_NICKNAME');
     expect(admin).toContain('restoreAdminProfileAfterWipe');

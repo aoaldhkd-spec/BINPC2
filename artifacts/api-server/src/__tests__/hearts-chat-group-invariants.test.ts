@@ -771,3 +771,32 @@ describe('[Lock] functions_locked rejects matching writes and broadcasts', () =>
     }
   });
 });
+
+describe('[NPC] 범일NPC profile seed + heart send', () => {
+  it('부팅 시 범일NPC 프로필이 있고 일반 유저가 하트를 보낼 수 있다', async () => {
+    const profilesRes = await op({ op: 'select', table: 'profiles' });
+    expect(profilesRes.status).toBe(200);
+    const npc = (profilesRes.body.data as Array<{ nickname?: string; id?: string }>)
+      .find(p => p.nickname === '범일NPC');
+    expect(npc?.id).toBeTruthy();
+
+    const userId = randomUUID();
+    await op({
+      op: 'insert',
+      table: 'profiles',
+      payload: { id: userId, nickname: `u-${userId.slice(0, 8)}` },
+    });
+
+    const heart = await op({
+      op: 'insert',
+      table: 'likes',
+      requesterId: userId,
+      payload: { liked_id: npc!.id, heart_type: 'red', status: 'pending' },
+      selectAfterWrite: true,
+      single: true,
+    });
+    expect(heart.status).toBe(200);
+    expect(heart.body.data?.liker_id).toBe(userId);
+    expect(heart.body.data?.liked_id).toBe(npc!.id);
+  });
+});

@@ -214,6 +214,21 @@ mustMatch('artifacts/api-server/src/routes/db.ts', '32_storage_image_session_que
   /verifySessionToken\(qUserId,\s*qSessionToken\)/,
 ]);
 
+// ?? 34 ??NPC seed + NPC relationship reset ???????????????????????????????
+
+mustMatch('artifacts/api-server/src/routes/db.ts', '34_ensure_admin_npc_profile', [
+  /ensureAdminProfile/,
+  /clearAdminNpcRelationships/,
+  /deterministicAdminProfileId/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-chat-ids.ts', '34_deterministic_admin_profile_id', [
+  /deterministicAdminProfileId/,
+]);
+mustMatch('artifacts/boltnew-app/src/hooks/useHearts.ts', '34_handle_like_profile_hint', [
+  /_profileMap\.get\(profileId\)/,
+  /hint\?: Profile/,
+]);
+
 // ?? 33 Entry / waiting / main gate mapping (minimal) ?????????????????????????
 
 mustMatch('artifacts/boltnew-app/src/components/EntryGateScreen.tsx', '33_entry_logo_tester', [

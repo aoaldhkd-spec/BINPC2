@@ -1071,6 +1071,7 @@ function App() {
         ls.removeItem(MATCHING_USER_KEY);
         ls.removeItem(MATCHING_DRAFT_KEY);
         clearAllGroupLastReads();
+        ls.removeItem(MATCHING_PROFILES_CACHE_KEY);
         setCurrentUserId(null);
         setShownWaiting(false);
         setProfiles([]);
@@ -1157,6 +1158,7 @@ function App() {
           ls.removeItem(MATCHING_USER_KEY);
           ls.removeItem(MATCHING_DRAFT_KEY);
           clearAllGroupLastReads();
+          ls.removeItem(MATCHING_PROFILES_CACHE_KEY);
           setCurrentUserId(null);
           setShownWaiting(false);
           setProfiles([]);
@@ -2295,7 +2297,7 @@ function App() {
               locked={functionsLocked}
               idealMsg={userSignals.find((s) => s.user_id === selectedProfile.id)?.ideal_msg}
               featureMsg={userSignals.find((s) => s.user_id === selectedProfile.id)?.feature_msg}
-              onLike={() => { if (!functionsLocked) handleLike(selectedProfile.id); }}
+              onLike={() => { if (!functionsLocked) handleLike(selectedProfile.id, selectedProfile); }}
               onChat={() => { void openChatGuarded(selectedProfile); }}
               onBack={goParticipantBack}
               onViewFortune={selectedProfile.birth_year && selectedProfile.birth_month && selectedProfile.birth_day ? () => {

@@ -231,10 +231,10 @@ export function useHearts(
     green: heartCountByType('green'),
   });
 
-  const handleLike = (profileId: string) => {
+  const handleLike = (profileId: string, hint?: Profile) => {
     if (!currentUserId) return;
     if (profileId === currentUserId) return; // 자기 자신 하트 금지
-    const target = profiles.find((p) => p.id === profileId);
+    const target = profiles.find((p) => p.id === profileId) ?? _profileMap.get(profileId) ?? hint;
     if (!target) return;
     const sent = sentHeartsPerPerson.get(profileId);
     if (sent && sent.size >= 4) return;
