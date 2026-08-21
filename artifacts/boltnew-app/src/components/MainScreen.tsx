@@ -6,7 +6,7 @@ import { useState, useEffect, useRef, useCallback, useMemo, Suspense, memo, type
 import {
   Heart, Users, ChevronDown, CheckCircle,
   Eye, X, HelpCircle,
-  QrCode, Camera, LayoutGrid, Grid2x2, Grid3x3,
+  Camera, LayoutGrid, Grid2x2, Grid3x3,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { Profile, ContactShare, Chat, MainTab, GroupChat, ProfileView, UserSignal } from '../types/app';
@@ -77,7 +77,7 @@ export function MainScreen({
   receivedLikers, receivedHeartTypes, sentLikedProfiles, contactSharedWithIds, acknowledgedComplimentIds,
   receivedContactShares, pendingHeartsCount, chatList,
   onContactShareOpen: _onContactShareOpen, onContactViewOpen, onHeartResponse, onDeleteChat, onDeleteAllChats, onOpenChat,
-  timerEndAt, timerLabel, onRefreshStatus, onRefreshChat, onRefreshProfiles, darkMode, onToggleDark, onShowContactQr, onScanQr, scannedContacts, onClearScannedContact, functionsLocked = false, onShowTutorial,
+  timerEndAt, timerLabel, onRefreshStatus, onRefreshChat, onRefreshProfiles, darkMode, onToggleDark, scannedContacts, onClearScannedContact, functionsLocked = false, onShowTutorial,
   unreadChatCounts, onClearChatUnread: _onClearChatUnread,
   onUpdateProfile, fortuneCompatTarget,
   groupChats = [], unreadGroupCounts = {}, onOpenGroupChat, onJoinGroupChat, onLeaveGroupChat, joiningGroupId = null,
@@ -121,8 +121,6 @@ export function MainScreen({
   onRefreshProfiles: () => void;
   darkMode: boolean;
   onToggleDark: () => void;
-  onShowContactQr: () => void;
-  onScanQr: () => void;
   scannedContacts: ScannedContact[];
   onClearScannedContact: (id: string) => void;
   functionsLocked?: boolean;
@@ -944,31 +942,38 @@ export function MainScreen({
                     </div>
                   </div>
 
-                  {/* ── QR / 고유번호 ── */}
-                  <div className="mt-4 grid grid-cols-3 gap-2">
-                    <button
-                      onClick={onShowContactQr}
-                      className={`flex flex-col items-center justify-center gap-1 py-2.5 rounded-2xl font-bold transition-all active:scale-95 border ${darkMode ? 'bg-violet-500/15 border-violet-500/30 text-violet-400 hover:bg-violet-500/25' : 'bg-violet-50 border-violet-200 text-violet-600 hover:bg-violet-100'}`}
-                    >
-                      <QrCode className="w-5 h-5" />
-                      <span className="text-[10px] leading-tight text-center">연락처<br/>QR</span>
-                    </button>
-                    <button
-                      onClick={onScanQr}
-                      className={`flex flex-col items-center justify-center gap-1 py-2.5 rounded-2xl font-bold transition-all active:scale-95 border ${darkMode ? 'bg-amber-500/15 border-amber-500/30 text-amber-400 hover:bg-amber-500/25' : 'bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100'}`}
-                    >
-                      <Camera className="w-5 h-5" />
-                      <span className="text-[10px] leading-tight text-center">QR<br/>찍기</span>
-                    </button>
-                    {me.pin_code ? (
-                      <div className={`flex flex-col items-center justify-center gap-0.5 py-2.5 rounded-2xl border-2 ${darkMode ? 'bg-amber-500/15 border-amber-500/40' : 'bg-amber-50 border-amber-300'}`}>
-                        <span className={`text-[8px] font-black uppercase tracking-widest ${darkMode ? 'text-amber-400' : 'text-amber-500'}`}>🔑 고유번호</span>
-                        <span className={`text-xl font-black tracking-[0.25em] ${darkMode ? 'text-amber-300' : 'text-amber-700'}`}>{me.pin_code}</span>
+                  {/* ── 고유번호 ── */}
+                  <div className={`mt-4 rounded-2xl border shadow-sm overflow-hidden ${darkMode ? 'bg-gradient-to-br from-amber-500/10 via-slate-900/40 to-slate-900/60 border-amber-500/25' : 'bg-gradient-to-br from-amber-50 via-white to-amber-50/30 border-amber-200'}`}>
+                    <div className="px-4 py-3.5 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={`w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 text-lg shadow-inner ${darkMode ? 'bg-amber-500/20 ring-1 ring-amber-500/30' : 'bg-amber-100 ring-1 ring-amber-200/80'}`}>🔑</div>
+                        <div className="min-w-0">
+                          <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${darkMode ? 'text-amber-400/90' : 'text-amber-600/80'}`}>내 고유번호</p>
+                          {me.pin_code ? (
+                            <p className={`text-2xl font-black tracking-[0.35em] leading-none tabular-nums ${darkMode ? 'text-amber-300' : 'text-amber-700'}`}>{me.pin_code}</p>
+                          ) : (
+                            <p className={`text-sm font-bold ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>번호 없음</p>
+                          )}
+                        </div>
                       </div>
-                    ) : (
-                      <div className={`flex flex-col items-center justify-center gap-0.5 py-2.5 rounded-2xl border ${darkMode ? 'bg-slate-700/60 border-slate-600 text-slate-500' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
-                        <span className="text-[9px] font-semibold text-center leading-tight">고유번호<br/>없음</span>
-                      </div>
+                      {me.pin_code && (
+                        <button
+                          type="button"
+                          onClick={() => { navigator.clipboard.writeText(me.pin_code!).catch(() => {}); }}
+                          className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black border transition-all active:scale-95 ${darkMode ? 'bg-amber-500/15 border-amber-500/30 text-amber-400 hover:bg-amber-500/25' : 'bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100'}`}
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden>
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                            <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                          </svg>
+                          복사
+                        </button>
+                      )}
+                    </div>
+                    {me.pin_code && (
+                      <p className={`px-4 pb-3 text-[10px] leading-relaxed ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>
+                        기기 변경 시 이 번호로 프로필을 복구할 수 있어요
+                      </p>
                     )}
                   </div>
                 </div>

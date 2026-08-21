@@ -2215,8 +2215,6 @@ function App() {
         onRefreshProfiles={refreshProfilesTab}
         darkMode={darkMode}
         onToggleDark={handleToggleDark}
-        onShowContactQr={() => setShowContactQr(true)}
-        onScanQr={() => setShowQrScanner(true)}
         scannedContacts={scannedContacts}
         onClearScannedContact={handleClearScannedContact}
         functionsLocked={functionsLocked}
