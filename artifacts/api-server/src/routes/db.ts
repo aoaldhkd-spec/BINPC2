@@ -45,7 +45,7 @@ import {
   stripLegacySessionHistoryKeys,
   stripLegacySettingsKeys,
 } from '../lib/db-legacy-cleanup';
-import { groupAgeDecadeBand } from '../lib/korean-age.js';
+import { groupAgeDecadeBand, isAdultBirthYear } from '../lib/korean-age.js';
 import {
   recordExpiredSseToken,
   recordMissingSseToken,
@@ -1795,6 +1795,18 @@ async function deleteRetiredAgeRoom(g: Record<string, unknown>): Promise<void> {
 
 function ageBandFromYear(year: unknown): string | null {
   return groupAgeDecadeBand(year);
+}
+
+const ADULT_BIRTH_YEAR_ERROR = {
+  message: '만 20세(한국식 나이) 이상만 가입할 수 있습니다.',
+  code: 'ADULT_ONLY',
+} as const;
+
+function profileBirthYearRejected(res: Response, birthYear: unknown): boolean {
+  if (birthYear == null || birthYear === '') return false;
+  if (isAdultBirthYear(birthYear)) return false;
+  res.status(400).json({ data: null, error: ADULT_BIRTH_YEAR_ERROR });
+  return true;
 }
 
 function canonicalAgeRoomId(ageBand: string): string {
@@ -3741,6 +3753,7 @@ router.post('/op', async (req: Request, res: Response) => {
         }
 
         if (table === 'profiles') {
+          if (profileBirthYearRejected(res, effectiveRow.birth_year)) return;
           const { use5Digit, poolSize } = _pinParams!;
           const usedPins = _insertPinSet!; // 루프 밖 빌드 Set 재사용 — O(1) 조회
           // PIN 슬롯 전체 소진 — 신규 등록 불가 (503) [resolvePin handles exhaustion + collision]
@@ -4057,6 +4070,9 @@ router.post('/op', async (req: Request, res: Response) => {
         }
         patch = { ...patch, pin_code: pinResult.pin };
       }
+      if (table === 'profiles' && 'birth_year' in patch) {
+        if (profileBirthYearRejected(res, patch.birth_year)) return;
+      }
       if (table === 'profiles' && !isAdmin) {
         if ('birth_md_edit_count' in patch) delete patch.birth_md_edit_count;
         const touchesBirthMd = 'birth_month' in patch || 'birth_day' in patch;
@@ -4229,6 +4245,7 @@ router.post('/op', async (req: Request, res: Response) => {
           }
           const oldRow = { ...tableData[idx] };
           const newRow = { ...oldRow, ...row };
+          if (table === 'profiles' && 'birth_year' in row && profileBirthYearRejected(res, row.birth_year)) return;
           tableData[idx] = newRow;
           upserted.push(newRow);
           if (CRITICAL_PERSIST_TABLES.has(table)) {
@@ -4255,6 +4272,7 @@ router.post('/op', async (req: Request, res: Response) => {
         } else {
           let base: Record<string, unknown> = { id: genId(), created_at: ts(), ...row };
           if (table === 'profiles') {
+            if (profileBirthYearRejected(res, base.birth_year)) return;
             const usedPins = new Set(tableData.map(r => r.pin_code).filter(Boolean)) as Set<string>;
             const { use5Digit, poolSize } = pinPoolParams(tableData.length);
             const pinResult = resolvePin(usedPins, poolSize, use5Digit, base.pin_code as string | null | undefined);
@@ -4816,6 +4834,7 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
           for (const [ak, dk] of Object.entries(map)) {
             if (args[ak] !== undefined) patch[dk] = args[ak];
           }
+          if ('birth_year' in patch && profileBirthYearRejected(res, patch.birth_year)) return;
           // XSS 방어: 관리자가 악성 스크립트 태그가 포함된 값을 주입하는 것을 차단
           const sanitizedPatch = sanitizeRow('profiles', patch);
           const newRow = withFixedAdminNickname({ ...oldRow, ...sanitizedPatch });

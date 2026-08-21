@@ -14,6 +14,7 @@ import {
 } from '../lib/nickname-input';
 import { BIO_CATEGORIES } from '../lib/interests';
 import { InterestPicker } from './InterestPicker';
+import { maxAdultBirthYear } from '../lib/korean-age';
 
 // ─── 데이터 ────────────────────────────────────────────────────────────────────
 
@@ -65,11 +66,16 @@ const MBTI_GROUPS = [
   },
 ];
 
-const DECADE_GROUPS: Record<string, number[]> = {
-  '80년대': Array.from({ length: 5 }, (_, i) => 1989 - i).reverse(),
-  '90년대': Array.from({ length: 10 }, (_, i) => 1990 + i),
-  '00년대': Array.from({ length: 8 }, (_, i) => 2000 + i),
-};
+function buildDecadeGroups(now: Date = new Date()): Record<string, number[]> {
+  const maxYear = maxAdultBirthYear(now);
+  return {
+    '80년대': Array.from({ length: 5 }, (_, i) => 1989 - i).reverse(),
+    '90년대': Array.from({ length: 10 }, (_, i) => 1990 + i),
+    '00년대': Array.from({ length: 10 }, (_, i) => 2000 + i).filter(y => y <= maxYear),
+  };
+}
+
+const DECADE_GROUPS = buildDecadeGroups();
 
 const LOCATION_GROUPS: Record<string, string[]> = {
   '광역시': ['부산', '서울', '인천', '대구', '울산', '대전', '광주', '세종'],

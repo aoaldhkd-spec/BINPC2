@@ -3,7 +3,9 @@ import {
   ageBandFromBirthYear,
   formatKoreanAge,
   groupAgeDecadeBand,
+  isAdultBirthYear,
   koreanAgeFromBirthYear,
+  maxAdultBirthYear,
   seoulCalendarYear,
 } from './korean-age';
 
@@ -30,11 +32,17 @@ describe('korean age (연도 차 + 1)', () => {
     expect(groupAgeDecadeBand(1980, kst2026)).toBe('30대'); // 47세 → 30대 cap
   });
 
-  it('full decade bands for stats ranking', () => {
+  it('full decade bands for stats ranking (adults-only — no 10대)', () => {
     expect(ageBandFromBirthYear(1995, kst2026)).toBe('30대');
     expect(ageBandFromBirthYear(1998, kst2026)).toBe('20대');
-    expect(ageBandFromBirthYear(2008, kst2026)).toBe('10대');
+    expect(ageBandFromBirthYear(2008, kst2026)).toBeNull();
     expect(ageBandFromBirthYear(null, kst2026)).toBeNull();
+  });
+
+  it('maxAdultBirthYear and isAdultBirthYear enforce 20+ Korean age', () => {
+    expect(maxAdultBirthYear(kst2026)).toBe(2007);
+    expect(isAdultBirthYear(2007, kst2026)).toBe(true);
+    expect(isAdultBirthYear(2008, kst2026)).toBe(false);
   });
 
   it('rejects invalid birth years', () => {

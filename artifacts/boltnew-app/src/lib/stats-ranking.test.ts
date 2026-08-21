@@ -152,11 +152,11 @@ describe('canonicalInterestTags / MBTI / age', () => {
     expect(normalizeMbti('')).toBeNull();
   });
 
-  it('bands Korean age with KST year', () => {
+  it('bands Korean age with KST year (adults-only — no 10대)', () => {
     expect(ageBand(1995, kstNow)).toBe('30대'); // 2026-1995+1=32
     expect(ageBand(1997, kstNow)).toBe('30대'); // 30세
     expect(ageBand(1998, kstNow)).toBe('20대'); // 29세
-    expect(ageBand(2008, kstNow)).toBe('10대');
+    expect(ageBand(2008, kstNow)).toBeNull();
     expect(ageBand(null, kstNow)).toBeNull();
   });
 });

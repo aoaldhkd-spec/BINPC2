@@ -87,9 +87,9 @@ export function reserveDummyNickname(existing: ReadonlySet<string>, seed = 0): s
   return makeDummyNickname({ index: seed, attempt: 99 });
 }
 
-/** 통계 연령대(10·20·30대)에 걸치도록 출생연도 랜덤 */
+/** 성인(한국식 20세+) 더미 — 20·20대·30대에 걸치도록 출생연도 랜덤 */
 export function randomDummyBirthYear(now: Date = new Date()): number {
-  const koreanAges = [19, 22, 25, 28, 31, 34, 37];
+  const koreanAges = [20, 22, 25, 28, 31, 34, 37];
   const age = pick(koreanAges);
   return seoulCalendarYear(now) - age + 1;
 }

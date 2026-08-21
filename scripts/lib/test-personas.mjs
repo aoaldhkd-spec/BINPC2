@@ -58,6 +58,18 @@ export const LOCATIONS = [
   '서울', '경기 수원', '경기 성남', '인천', '부산', '대구', '대전', '광주', '울산', '세종',
 ];
 
+function seoulCalendarYear(now = new Date()) {
+  const y = Number(now.toLocaleString('en-US', { timeZone: 'Asia/Seoul', year: 'numeric' }));
+  return Number.isFinite(y) ? y : now.getFullYear();
+}
+
+/** 성인 더미 출생연도 (20·22·25·28·31·34·37세) */
+function pickAdultBirthYear(index = 0, now = new Date()) {
+  const ages = [20, 22, 25, 28, 31, 34, 37];
+  const age = ages[Math.abs(index) % ages.length];
+  return seoulCalendarYear(now) - age + 1;
+}
+
 const usedNicknames = new Set();
 
 function pick(arr) {
@@ -179,7 +191,7 @@ export function createTestPersona(opts = {}) {
     mbti: MBTI_TYPES[(opts.index ?? Math.floor(Math.random() * MBTI_TYPES.length)) % MBTI_TYPES.length],
     personality_score: pickPersonalityScore(),
     dom_sub_score: pickDomSubScore(),
-    birth_year: 1992 + ((opts.index ?? 0) % 10),
+    birth_year: pickAdultBirthYear(opts.index ?? 0),
     birth_month: ((opts.index ?? 0) % 12) + 1,
     birth_day: ((opts.index ?? 0) % 28) + 1,
     location: LOCATIONS[(opts.index ?? 0) % LOCATIONS.length],

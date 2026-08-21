@@ -1,3 +1,6 @@
+/** 성인 전용 앱 — 한국식 나이(연도 차 + 1) 최소 20세 */
+export const MIN_ADULT_KOREAN_AGE = 20;
+
 /** KST calendar year — 한국식 나이(연도 차 + 1)의 기준 연도 */
 export function seoulCalendarYear(now: Date = new Date()): number {
   const y = Number(now.toLocaleString('en-US', { timeZone: 'Asia/Seoul', year: 'numeric' }));
@@ -23,9 +26,19 @@ export function formatKoreanAge(birthYear: number | null): string {
   return `${age}세`;
 }
 
-/** 통계·랭킹용 N대 (10·20·30…) */
+/** 가입·더미 허용 최대 출생연도 (한국식 나이 MIN_ADULT_KOREAN_AGE 이상) */
+export function maxAdultBirthYear(now: Date = new Date()): number {
+  return seoulCalendarYear(now) - MIN_ADULT_KOREAN_AGE + 1;
+}
+
+export function isAdultBirthYear(birthYear: unknown, now: Date = new Date()): boolean {
+  const age = koreanAgeFromBirthYear(Number(birthYear), now);
+  return age != null && age >= MIN_ADULT_KOREAN_AGE;
+}
+
+/** 통계·랭킹용 N대 (20·30·40… — 미성년·10대 제외) */
 export function ageBandFromKoreanAge(age: number): string | null {
-  if (age < 0 || age > 120) return null;
+  if (age < MIN_ADULT_KOREAN_AGE || age > 120) return null;
   const decade = Math.floor(age / 10) * 10;
   return `${decade}대`;
 }
