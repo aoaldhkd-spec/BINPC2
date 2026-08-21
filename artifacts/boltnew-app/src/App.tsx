@@ -206,6 +206,8 @@ function App() {
   // SSE fallback polling refs — SSE 끊김 중 채팅·하트 polling에 사용 (stale 클로저 방지)
   const loadChatListRef = useRef<((userId: string) => Promise<void>) | null>(null);
   const loadGroupChatsRef = useRef<((userId: string) => Promise<void>) | null>(null);
+  /** 채팅 탭·단톡 화면 밖이면 group catalog SSE reload 생략 */
+  const groupCatalogHotRef = useRef(true);
   // 채팅방별 미전송 초안 보존 — 뒤로가기 후 재진입 시 복원
   const chatDraftRef = useRef<Map<string, string>>(new Map());
   const loadReceivedLikesRef = useRef<((userId: string) => Promise<void>) | null>(null);
@@ -430,7 +432,9 @@ function App() {
     sendGroupMessage,
     leaveGroupChat,
     loadGroupChats,
-  } = useGroupChat({ currentUserId, profilesRef, setBottomNotif });
+  } = useGroupChat({ currentUserId, profilesRef, setBottomNotif, groupCatalogHotRef });
+
+  groupCatalogHotRef.current = mainTab === 'chats' || view === 'group-chat' || !!activeGroupId;
 
   const {
     likedIds, setLikedIds, sentHeartTypes, setSentHeartTypes, sentHeartsPerPerson, setSentHeartsPerPerson,
@@ -776,6 +780,24 @@ function App() {
     setView('main');
     await leaveGroupChat(groupId);
   }, [leaveGroupChat, closeGroupChat, showFunctionsLockToast]);
+
+  const handleMainOpenGroupChat = useCallback((groupId: string) => {
+    void openGroupChatGuarded(groupId).catch((e) => console.error('[openGroupChat]', e));
+  }, [openGroupChatGuarded]);
+
+  const handleMainJoinGroupChat = useCallback((groupId: string) => {
+    void joinGroupChatGuarded(groupId).catch((e) => console.error('[joinGroupChat]', e));
+  }, [joinGroupChatGuarded]);
+
+  const handleMainLeaveGroupChat = useCallback((groupId: string) => {
+    void leaveGroupChatGuarded(groupId).catch((e) => console.error('[leaveGroupChat]', e));
+  }, [leaveGroupChatGuarded]);
+
+  useEffect(() => {
+    if (mainTab === 'chats' && currentUserId) {
+      void loadGroupChats(currentUserId);
+    }
+  }, [mainTab, currentUserId, loadGroupChats]);
 
   const sendGroupMessageGuarded = useCallback(async (content: string) => {
     if (functionsLockedRef.current) { showFunctionsLockToast(); return; }
@@ -2230,9 +2252,9 @@ function App() {
         fortuneCompatTarget={fortuneCompatTarget}
         groupChats={groupChats}
         unreadGroupCounts={unreadGroupCounts}
-        onOpenGroupChat={(groupId) => { void openGroupChatGuarded(groupId).catch(e => console.error('[openGroupChat]', e)); }}
-        onJoinGroupChat={(groupId) => { void joinGroupChatGuarded(groupId).catch(e => console.error('[joinGroupChat]', e)); }}
-        onLeaveGroupChat={(groupId) => { void leaveGroupChatGuarded(groupId).catch(e => console.error('[leaveGroupChat]', e)); }}
+        onOpenGroupChat={handleMainOpenGroupChat}
+        onJoinGroupChat={handleMainJoinGroupChat}
+        onLeaveGroupChat={handleMainLeaveGroupChat}
         joiningGroupId={joiningGroupId}
         userSignals={userSignals}
         onUserSignalUpdate={handleUserSignalUpdate}

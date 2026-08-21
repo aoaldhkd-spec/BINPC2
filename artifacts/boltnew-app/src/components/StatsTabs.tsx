@@ -45,15 +45,34 @@ function usePublicLikes() {
     };
 
     load();
-    const poll = setInterval(load, PUBLIC_LIKES_POLL_MS);
-    const onVis = () => {
-      if (document.visibilityState === 'visible') load();
+    let poll: ReturnType<typeof setInterval> | undefined;
+    const startPoll = () => {
+      if (poll) return;
+      poll = setInterval(() => {
+        if (document.visibilityState !== 'visible') return;
+        load();
+      }, PUBLIC_LIKES_POLL_MS);
     };
+    const stopPoll = () => {
+      if (poll) {
+        window.clearInterval(poll);
+        poll = undefined;
+      }
+    };
+    const onVis = () => {
+      if (document.visibilityState === 'visible') {
+        load();
+        startPoll();
+      } else {
+        stopPoll();
+      }
+    };
+    startPoll();
     document.addEventListener('visibilitychange', onVis);
     return () => {
       active = false;
       window.clearTimeout(retryTimer);
-      window.clearInterval(poll);
+      stopPoll();
       document.removeEventListener('visibilitychange', onVis);
     };
   }, []);
@@ -97,15 +116,34 @@ function usePublicContactShares() {
     };
 
     load();
-    const poll = setInterval(load, PUBLIC_CONTACT_SHARES_POLL_MS);
-    const onVis = () => {
-      if (document.visibilityState === 'visible') load();
+    let poll: ReturnType<typeof setInterval> | undefined;
+    const startPoll = () => {
+      if (poll) return;
+      poll = setInterval(() => {
+        if (document.visibilityState !== 'visible') return;
+        load();
+      }, PUBLIC_CONTACT_SHARES_POLL_MS);
     };
+    const stopPoll = () => {
+      if (poll) {
+        window.clearInterval(poll);
+        poll = undefined;
+      }
+    };
+    const onVis = () => {
+      if (document.visibilityState === 'visible') {
+        load();
+        startPoll();
+      } else {
+        stopPoll();
+      }
+    };
+    startPoll();
     document.addEventListener('visibilitychange', onVis);
     return () => {
       active = false;
       window.clearTimeout(retryTimer);
-      window.clearInterval(poll);
+      stopPoll();
       document.removeEventListener('visibilitychange', onVis);
     };
   }, []);

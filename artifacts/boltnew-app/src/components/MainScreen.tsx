@@ -167,6 +167,7 @@ export function MainScreen({
   const heartCount = useCallback((t: HeartType) => { let c = 0; sentHeartsPerPerson.forEach(types => { if (types.has(t)) c++; }); return c; }, [sentHeartsPerPerson]);
 
   const sentHeartEntries = useMemo(() => {
+    if (mainTab !== 'status') return [];
     const entries: { profile: Profile; heartType: HeartType }[] = [];
     const typeOrder = HEART_TYPES.map((h) => h.type);
     for (const profile of sentLikedProfiles) {
@@ -180,7 +181,7 @@ export function MainScreen({
       }
     }
     return entries;
-  }, [sentLikedProfiles, sentHeartsPerPerson, sentHeartTypes]);
+  }, [mainTab, sentLikedProfiles, sentHeartsPerPerson, sentHeartTypes]);
 
   const [profileSearch, setProfileSearch] = useState('');
   const [profileCardGrid, setProfileCardGridRaw] = useState<ProfileCardGridMode>(() => readProfileCardGridMode());

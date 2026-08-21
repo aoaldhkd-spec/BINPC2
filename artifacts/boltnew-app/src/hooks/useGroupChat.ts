@@ -57,9 +57,11 @@ interface UseGroupChatDeps {
   currentUserId: string | null;
   profilesRef: React.MutableRefObject<Profile[]>;
   setBottomNotif: React.Dispatch<React.SetStateAction<BottomNotificationData | null>>;
+  /** false when 채팅 탭·단톡 화면 밖 — SSE catalog reload 생략 (배지는 경량 패치 유지) */
+  groupCatalogHotRef?: React.MutableRefObject<boolean>;
 }
 
-export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: UseGroupChatDeps) {
+export function useGroupChat({ currentUserId, profilesRef, setBottomNotif, groupCatalogHotRef }: UseGroupChatDeps) {
   const [groupChats, setGroupChats] = useState<GroupChat[]>([]);
   const groupChatsRef = useRef<GroupChat[]>([]);
   groupChatsRef.current = groupChats;
@@ -92,6 +94,8 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
   const PARTICIPANTS_CACHE_MS = 30_000;
   // 비활성 그룹 SSE 중복 방지 (재연결 시 동일 메시지 재수신 대비)
   const seenInactiveGroupMsgIds = useRef(new Set<string>());
+
+  const wantsCatalogReload = useCallback(() => groupCatalogHotRef?.current !== false, [groupCatalogHotRef]);
 
   // ── 단톡방 목록 로드 (참여 중 + 입장 가능 카탈로그) ─────────────────────────
   const loadGroupChats = useCallback(async (userId: string): Promise<void> => {
@@ -219,12 +223,14 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
 
   /** 입장 직후·SSE와 겹치는 전체 카탈로그 reload를 한 번으로 묶는다 */
   const scheduleLoadGroupChats = useCallback((userId: string, delayMs = 2000) => {
+    if (!wantsCatalogReload()) return;
     cancelScheduledLoadGroupChats();
     loadGroupChatsTimerRef.current = setTimeout(() => {
       loadGroupChatsTimerRef.current = null;
+      if (!wantsCatalogReload()) return;
       void loadGroupChats(userId);
     }, delayMs);
-  }, [cancelScheduledLoadGroupChats, loadGroupChats]);
+  }, [cancelScheduledLoadGroupChats, loadGroupChats, wantsCatalogReload]);
 
   // ── 오프라인 단톡 메시지 큐 (1:1 chat-pending-queue 패턴) ─────────────────────
   const pendingQueueRef = useRef<PendingGroupMsg[]>(loadGroupPendingQueue());
@@ -710,7 +716,7 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
             setMyGroupIds(next);
             syncCatalogJoined(next);
             cancelScheduledLoadGroupChats();
-            void loadGroupChats(uid);
+            if (wantsCatalogReload()) void loadGroupChats(uid);
           }
           if (isActiveGroupRoom(incoming.group_id)) {
             const openId = activeGroupIdRef.current ?? incoming.group_id;
@@ -765,13 +771,15 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
               void loadGroupParticipants(canon);
             }
           }
-          if (currentUserIdRef.current) void loadGroupChats(currentUserIdRef.current);
+          if (currentUserIdRef.current && wantsCatalogReload()) {
+            void loadGroupChats(currentUserIdRef.current);
+          }
         } catch { /* ignore */ }
       })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUserId, cancelScheduledLoadGroupChats, loadGroupChats, scheduleLoadGroupChats, syncCatalogJoined]);
+  }, [currentUserId, cancelScheduledLoadGroupChats, loadGroupChats, scheduleLoadGroupChats, syncCatalogJoined, wantsCatalogReload]);
 
   // ── SSE 재연결 / 탭 복귀 / 끊김 시 단톡 목록·메시지 resync + 오프라인 큐 플러시 ─
   useEffect(() => {

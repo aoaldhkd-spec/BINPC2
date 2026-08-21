@@ -1,9 +1,12 @@
-import { memo } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { Users } from 'lucide-react';
 import type { Profile, UserSignal } from '../types/app';
 import type { HeartType } from '../lib/constants';
 import { ProfileCard } from './ProfileCard';
 import { profileGridClassName, type ProfileCardGridMode } from '../lib/profile-card-grid';
+
+/** Initial + each scroll batch — avoids mounting 100+ cards at once on large events */
+export const DECK_RENDER_CHUNK = 36;
 
 /** 참여자 카드 그리드 — MainScreen 상태(검색·MY·채팅 뱃지) 변경과 분리해 불필요한 카드 재렌더 감소 */
 export const ProfileDeckGrid = memo(function ProfileDeckGrid({
@@ -45,10 +48,36 @@ export const ProfileDeckGrid = memo(function ProfileDeckGrid({
   onContactShareOpen: (profile: Profile) => void;
   onViewFortune?: (p: Profile) => void;
 }) {
+  const [visibleCount, setVisibleCount] = useState(DECK_RENDER_CHUNK);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const deckKey = `${profileSearch}\0${deckProfiles.length}\0${deckProfiles[0]?.id ?? ''}`;
+
+  useEffect(() => {
+    setVisibleCount(DECK_RENDER_CHUNK);
+  }, [deckKey]);
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || visibleCount >= deckProfiles.length) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setVisibleCount((c) => Math.min(c + DECK_RENDER_CHUNK, deckProfiles.length));
+        }
+      },
+      { rootMargin: '480px 0px' },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [deckProfiles.length, visibleCount]);
+
+  const visibleProfiles = deckProfiles.slice(0, visibleCount);
+  const hasMore = visibleCount < deckProfiles.length;
+
   return (
     <div className="-mx-3 min-[360px]:-mx-4 px-3 min-[360px]:px-4">
       <div className={profileGridClassName(profileCardGrid)}>
-        {deckProfiles.map((profile) => {
+        {visibleProfiles.map((profile) => {
           const signal = signalByUserId.get(profile.id);
           return (
             <ProfileCard
@@ -80,6 +109,15 @@ export const ProfileDeckGrid = memo(function ProfileDeckGrid({
           </div>
         )}
       </div>
+      {hasMore && (
+        <div
+          ref={sentinelRef}
+          className="py-6 text-center text-[11px] text-gray-400"
+          aria-hidden
+        >
+          더 불러오는 중… ({visibleCount}/{deckProfiles.length})
+        </div>
+      )}
     </div>
   );
 });
