@@ -235,7 +235,10 @@ export function useHearts(
     if (!currentUserId) return;
     if (profileId === currentUserId) return; // 자기 자신 하트 금지
     const target = profiles.find((p) => p.id === profileId) ?? _profileMap.get(profileId) ?? hint;
-    if (!target) return;
+    if (!target) {
+      setLikeError('프로필을 불러오는 중입니다. 잠시 후 다시 시도해 주세요.');
+      return;
+    }
     const sent = sentHeartsPerPerson.get(profileId);
     if (sent && sent.size >= 4) return;
     setLikeConfirmTarget(target);
@@ -288,11 +291,20 @@ export function useHearts(
         const errCode = errObj?.code != null ? String(errObj.code) : '';
         const isHeartLimit = errCode === 'HEART_LIMIT' || errMsg.includes('최대 2명');
         const isRateLimit = errCode === 'RATE_LIMIT' || errMsg.includes('429') || errMsg.includes('rate') || errMsg.includes('too many');
+        const isLocked = errCode === 'FUNCTIONS_LOCKED';
+        const isInvalidRef = errCode === 'INVALID_REFERENCE' || errMsg.includes('참조 대상');
+        const isUnauthorized = errCode === 'UNAUTHORIZED' || errMsg.includes('Authentication required') || errMsg.includes('세션');
         setLikeError(isHeartLimit
           ? '같은 종류의 하트는 최대 2명에게만 보낼 수 있습니다.'
           : isRateLimit
             ? '하트를 너무 많이 보냈습니다. 잠시 후 다시 시도해 주세요. 💔'
-            : '하트 전송에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+            : isLocked
+              ? '행사 중에는 하트를 보낼 수 없습니다.'
+              : isInvalidRef
+                ? '상대 프로필을 찾을 수 없습니다. 목록을 새로고침한 뒤 다시 시도해 주세요.'
+                : isUnauthorized
+                  ? '로그인 세션이 만료되었습니다. 앱을 새로고침한 뒤 다시 시도해 주세요.'
+                  : '하트 전송에 실패했습니다. 잠시 후 다시 시도해 주세요.');
         setLikeConfirmTarget(null);
         void loadLikes(likerId);
         return false;

@@ -229,6 +229,26 @@ mustMatch('artifacts/boltnew-app/src/hooks/useHearts.ts', '34_handle_like_profil
   /hint\?: Profile/,
 ]);
 
+// ?? 35 Mobile heart confirm overlay (ThemeSwitcher z-9998 must not block taps) ??????
+
+mustMatch('artifacts/boltnew-app/src/components/LikeConfirmDialog.tsx', '35_like_confirm_above_fabs', [
+  /z-\[10070\]/,
+  /bindMobileTap/,
+]);
+mustMatch('artifacts/boltnew-app/src/App.tsx', '35_like_confirm_body_overlay', [
+  /dataset\.overlay = 'like-confirm'/,
+]);
+mustMatch('artifacts/boltnew-app/src/index.css', '35_like_confirm_hide_fabs', [
+  /data-overlay="like-confirm"/,
+  /\.theme-switcher-btn/,
+  /\.participant-fab-my/,
+]);
+mustMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '35_profile_card_mobile_tap', [
+  /bindMobileTap/,
+  /profile-card-heart-btn/,
+  /onLike\(profile\.id, profile\)/,
+]);
+
 // ?? 33 Entry / waiting / main gate mapping (minimal) ?????????????????????????
 
 mustMatch('artifacts/boltnew-app/src/components/EntryGateScreen.tsx', '33_entry_logo_tester', [

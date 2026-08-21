@@ -35,6 +35,11 @@ body[data-view="chat"] .theme-switcher-panel { display: none !important; }
 /* backdrop: fixed inset-0 z-[9997] — chat view에서도 숨김 */
 body[data-view="chat"] .fixed.inset-0.z-\[9997\] { display: none !important; }
 
+/* ── 하트 확인 모달: ThemeSwitcher(z-9998)·MY FAB(z-50)가 터치 가로채지 않도록 ─ */
+body[data-overlay="like-confirm"] .theme-switcher-btn,
+body[data-overlay="like-confirm"] .theme-switcher-panel,
+body[data-overlay="like-confirm"] .participant-fab-my { display: none !important; }
+
 /* Participant tab FABs (Theme + MY): shield from Y2K/Minimal global overrides */
 .participant-fab {
   border-radius: 9999px !important;

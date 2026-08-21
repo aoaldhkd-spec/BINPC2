@@ -3,6 +3,7 @@ import { Heart } from 'lucide-react';
 import type { Profile } from '../types/app';
 import type { HeartType } from '../lib/constants';
 import { HEART_TYPES, heartMeta } from '../lib/constants';
+import { bindMobileTap } from '../lib/mobile-tap';
 import ProfileAvatar from './ProfileAvatar';
 
 export function LikeConfirmDialog({
@@ -16,8 +17,11 @@ export function LikeConfirmDialog({
 }) {
   const [selected, setSelected] = useState<HeartType | null>(null);
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+    <div
+      className="fixed inset-0 z-[10070] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
+      data-testid="like-confirm-dialog"
+    >
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 max-h-[min(90dvh,calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-2rem))] overflow-y-auto overscroll-contain">
         <div className="text-center mb-5">
           <div className="mx-auto mb-3">
             <ProfileAvatar profile={target} size="lg" rounded="xl" />
@@ -43,13 +47,19 @@ export function LikeConfirmDialog({
             const alreadySentToThisPerson = sentTypesForTarget.has(h.type);
             const disabled = remaining <= 0 || alreadySentToThisPerson;
             const isSel = selected === h.type;
+            const pickType = () => { if (!disabled) setSelected(h.type); };
             return (
-              <button key={h.type} onClick={() => !disabled && setSelected(h.type)} disabled={disabled}
-                className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left ${
+              <button
+                key={h.type}
+                type="button"
+                disabled={disabled}
+                {...bindMobileTap(pickType)}
+                className={`touch-target w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left ${
                   disabled ? 'opacity-40 cursor-not-allowed border-gray-100 bg-gray-50'
                   : isSel ? `${h.bg} ${h.border} ring-2 ${h.ring}`
                   : `border-gray-200 hover:${h.border} hover:${h.bg}`
-                }`}>
+                }`}
+              >
                 <span className="text-2xl">{h.emoji}</span>
                 <div className="flex-1 min-w-0">
                   <p className={`text-sm font-bold ${isSel ? h.text : 'text-gray-800'}`}>{h.label}</p>
@@ -76,13 +86,21 @@ export function LikeConfirmDialog({
           <p className="text-xs text-amber-700 font-semibold leading-relaxed">칭찬 하트는 상대방에게 칭찬만 전달됩니다. <span className="underline">연락처가 공유되지 않습니다.</span></p>
         </div>
         <div className="flex gap-3">
-          <button onClick={onCancel} className="flex-1 py-3 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition-all">
+          <button
+            type="button"
+            {...bindMobileTap(onCancel)}
+            className="touch-target flex-1 py-3 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition-all"
+          >
             취소
           </button>
-          <button onClick={() => selected && onConfirm(selected)} disabled={!selected}
-            className={`flex-1 py-3 text-white font-semibold rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 ${
+          <button
+            type="button"
+            disabled={!selected}
+            {...bindMobileTap(() => { if (selected) onConfirm(selected); })}
+            className={`touch-target flex-1 py-3 text-white font-semibold rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 ${
               selected ? `${heartMeta(selected).solidBg} ${heartMeta(selected).solidHover}` : 'bg-gray-300'
-            }`}>
+            }`}
+          >
             <Heart className={`w-4 h-4 ${selected ? 'fill-current' : ''}`} />
             보내기
           </button>

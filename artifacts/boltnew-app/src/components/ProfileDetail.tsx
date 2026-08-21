@@ -4,6 +4,7 @@ import { getPositionLabel, getDomSubLabel, getKoreanAge, genAvatar, getAvatarSrc
 import { parseIdealTags } from '../lib/signal-match';
 import { parseProfileInterests, getInterestTagStyle } from '../lib/interests';
 import { HEART_TYPES, HeartType } from '../lib/constants';
+import { bindMobileTap } from '../lib/mobile-tap';
 import type { Profile } from '../types/app';
 
 // heartMeta: HeartType → HEART_TYPES 메타데이터 조회 (unknown 타입 방어: 첫 번째 항목으로 폴백)
@@ -167,9 +168,11 @@ function ProfileDetail({ profile, isMe, isLiked, heartType, sentHeartsCount, loc
           )}
           {!isMe && (
           <button
-            onClick={handleLike}
+            type="button"
+            data-testid="profile-detail-heart-btn"
+            {...bindMobileTap(() => handleLike())}
             disabled={!locked && isLiked && (sentHeartsCount ?? 0) >= 4}
-            className={`absolute top-4 right-4 p-2.5 rounded-full backdrop-blur-sm transition-all ${locked ? 'opacity-60' : ''} ${
+            className={`touch-target absolute top-4 right-4 p-2.5 rounded-full backdrop-blur-sm transition-all ${locked ? 'opacity-60' : ''} ${
               isLiked
                 ? `${heartType ? heartMeta(heartType).solidBg : 'bg-rose-500'} text-white shadow-lg`
                 : 'bg-white/30 text-white hover:bg-rose-500 hover:scale-110'

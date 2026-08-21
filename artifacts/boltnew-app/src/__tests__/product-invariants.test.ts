@@ -92,6 +92,22 @@ describe('product copy + notification invariants', () => {
     expect(toast).not.toMatch(/4\.5rem\+var\(--participant-tabbar/);
   });
 
+  it('LikeConfirmDialog sits above ThemeSwitcher FAB and hides competing FABs on mobile', () => {
+    const dialog = read('components/LikeConfirmDialog.tsx');
+    const app = read('App.tsx');
+    const css = read('index.css');
+    const card = read('components/ProfileCard.tsx');
+    expect(dialog).toContain('z-[10070]');
+    expect(dialog).toContain('bindMobileTap');
+    expect(app).toContain("dataset.overlay = 'like-confirm'");
+    expect(css).toContain('data-overlay="like-confirm"');
+    expect(css).toContain('.theme-switcher-btn');
+    expect(css).toContain('.participant-fab-my');
+    expect(card).toContain('bindMobileTap');
+    expect(card).toContain('profile-card-heart-btn');
+    expect(card).toContain('onLike(profile.id, profile)');
+  });
+
   it('단톡 is quiet: no group-message modal popup', () => {
     const groupHook = read('hooks/useGroupChat.ts');
     const app = read('App.tsx');

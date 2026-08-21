@@ -111,7 +111,7 @@ export function MainScreen({
 }: {
   profiles: Profile[]; currentUserId: string | null; likedIds: Set<string>; sentHeartTypes: Map<string, HeartType>; sentHeartsPerPerson: Map<string, Set<HeartType>>; likeStatuses: Map<string, string>;
   profileMap: Map<string, Profile>; mainTab: MainTab;
-  onTabChange: (t: MainTab) => void; onLike: (id: string) => void;
+  onTabChange: (t: MainTab) => void; onLike: (id: string, hint?: Profile) => void;
   onSelect: (p: Profile) => void; onReset: () => void;
   receivedLikers: Profile[]; receivedHeartTypes: Map<string, HeartType>; sentLikedProfiles: Profile[];
   contactSharedWithIds: Set<string>; acknowledgedComplimentIds: Set<string>; receivedContactShares: ContactShare[];

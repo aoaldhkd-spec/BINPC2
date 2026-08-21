@@ -7,6 +7,7 @@ import { HeartType, heartMeta } from '../lib/constants';
 import { getPositionLabel, getPositionStyle, getKoreanAge, hasUploadedPhoto, getAvatarGradientCss } from '../lib/profile';
 import { getMbtiStyle } from '../lib/utils';
 import { cardMenuBox } from '../lib/card-menu-box';
+import { bindMobileTap } from '../lib/mobile-tap';
 import { parseIdealTags } from '../lib/signal-match';
 import { isProfileCardDark, profileCardChipStyle, profileCardSurfaces } from '../lib/profile-card-theme';
 
@@ -30,7 +31,7 @@ export const ProfileCard = memo(function ProfileCard({
   compact?: boolean;
   /** App dark toggle — dims cards even on y2k/minimal */
   darkMode?: boolean;
-  onLike: (id: string) => void;
+  onLike: (id: string, hint?: Profile) => void;
   onSelect: (p: Profile) => void;
   onView?: (p: Profile) => void;
   onOpenChat: (p: Profile) => void;
@@ -75,11 +76,23 @@ export const ProfileCard = memo(function ProfileCard({
   const menuBtnRef = useRef<HTMLButtonElement>(null);
   const [isFlipped, setIsFlipped] = useState(false);
   const lockToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const showLockToast = (e: React.MouseEvent) => {
+  const showLockToast = (e: React.MouseEvent | React.SyntheticEvent) => {
     e.stopPropagation();
     if (lockToastTimerRef.current) clearTimeout(lockToastTimerRef.current);
     setLockToast(true);
     lockToastTimerRef.current = setTimeout(() => setLockToast(false), 1400);
+  };
+
+  const handleHeartTap = (e: React.SyntheticEvent) => {
+    if (locked) { showLockToast(e); return; }
+    e.stopPropagation();
+    onLike(profile.id, profile);
+  };
+
+  const handleChatTap = (e: React.SyntheticEvent) => {
+    if (locked) { showLockToast(e); return; }
+    e.stopPropagation();
+    onOpenChat(profile);
   };
 
   // Full-bleed frame: pastel/preset/upload all fill the card (no gray letterboxing).
@@ -518,9 +531,11 @@ export const ProfileCard = memo(function ProfileCard({
           )}
           <div className="shrink-0 px-1.5 pt-1 pb-1 flex gap-1" style={{ borderTop: `1px solid ${dividerColor}` }}>
             <button
-              onClick={(e) => { if (locked) { showLockToast(e); return; } e.stopPropagation(); onLike(profile.id); }}
+              type="button"
+              data-testid="profile-card-heart-btn"
+              {...bindMobileTap(handleHeartTap)}
               disabled={!locked && isLiked && heartCount >= 4}
-              className={`flex-1 min-w-0 flex items-center justify-center gap-0.5 py-0.5 rounded border active:scale-95 transition-transform ${locked ? 'opacity-50' : ''}`}
+              className={`touch-target flex-1 min-w-0 flex items-center justify-center gap-0.5 py-1 rounded border active:scale-95 transition-transform ${locked ? 'opacity-50' : ''}`}
               style={heartBtnStyle}
             >
               {isLiked && sentHeartType
@@ -535,8 +550,10 @@ export const ProfileCard = memo(function ProfileCard({
               <span className="text-[9px] font-bold truncate" style={{ color: '#e11d48' }}>하트</span>
             </button>
             <button
-              onClick={(e) => { if (locked) { showLockToast(e); return; } e.stopPropagation(); onOpenChat(profile); }}
-              className={`flex-1 min-w-0 flex items-center justify-center gap-0.5 py-0.5 rounded border active:scale-95 transition-transform ${locked ? 'opacity-50' : ''}`}
+              type="button"
+              data-testid="profile-card-chat-btn"
+              {...bindMobileTap(handleChatTap)}
+              className={`touch-target flex-1 min-w-0 flex items-center justify-center gap-0.5 py-1 rounded border active:scale-95 transition-transform ${locked ? 'opacity-50' : ''}`}
               style={chatBtnStyle}
             >
               <MessageCircle className="w-3 h-3 shrink-0" style={{ color: '#0ea5e9' }} strokeWidth={2} />

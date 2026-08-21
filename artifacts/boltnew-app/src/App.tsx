@@ -507,9 +507,9 @@ function App() {
   }, [executeLike, triggerConfetti]);
 
   // 기능 잠금 중에는 하트 전송 차단 (LOCKED_TABS와 동일한 보호 수준)
-  const handleLikeGuarded = useCallback((profileId: string) => {
+  const handleLikeGuarded = useCallback((profileId: string, hint?: Profile) => {
     if (functionsLocked) { showFunctionsLockToast(); return; }
-    handleLike(profileId);
+    handleLike(profileId, hint);
   }, [functionsLocked, handleLike, showFunctionsLockToast]);
 
   const handleHeartResponseGuarded = useCallback((likerId: string, response: 'accepted' | 'rejected') => {
@@ -2026,6 +2026,13 @@ function App() {
     else delete document.body.dataset.appReady;
     return () => { delete document.body.dataset.appReady; };
   }, [currentUserId, hasValidProfile, profileBoot, showEntryGate, showWaiting, showNicknameSetup]);
+
+  // 하트 확인 모달: 전역 ThemeSwitcher·MY FAB가 모바일에서 z-9998/50으로 터치 가로채는 것 방지
+  useEffect(() => {
+    if (!likeConfirmTarget) return;
+    document.body.dataset.overlay = 'like-confirm';
+    return () => { delete document.body.dataset.overlay; };
+  }, [likeConfirmTarget]);
 
   if (appLoading || sessionActive === null || entryPassword === null) return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col items-center justify-center gap-4 px-6 text-center">

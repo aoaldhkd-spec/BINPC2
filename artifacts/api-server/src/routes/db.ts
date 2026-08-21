@@ -3987,6 +3987,7 @@ router.post('/op', async (req: Request, res: Response) => {
         }
         // likes 테이블: 동일 liker+liked+heart_type 중복 방지 (빠른 연속 클릭으로 인한 중복 하트 삽입 방지)
         if (table === 'likes' && effectiveRow.liker_id != null && effectiveRow.liked_id != null && effectiveRow.heart_type != null) {
+          await ensureAdminProfile();
           const likeLiker = String(effectiveRow.liker_id);
           const likeLiked = String(effectiveRow.liked_id);
           const likeType = String(effectiveRow.heart_type);

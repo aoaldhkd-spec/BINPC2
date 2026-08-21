@@ -40,7 +40,7 @@ export const ProfileDeckGrid = memo(function ProfileDeckGrid({
   currentUserId: string | null;
   functionsLocked: boolean;
   signalByUserId: Map<string, UserSignal>;
-  onLike: (id: string) => void;
+  onLike: (id: string, hint?: Profile) => void;
   onSelect: (p: Profile) => void;
   onViewProfile?: (p: Profile) => void;
   onOpenChat: (p: Profile) => void;
