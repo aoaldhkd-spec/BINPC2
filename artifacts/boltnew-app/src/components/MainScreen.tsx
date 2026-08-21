@@ -942,28 +942,31 @@ export function MainScreen({
                           )}
                         </button>
                       </div>
-                      <div className={`min-w-0 rounded-2xl border shadow-sm overflow-hidden ${darkMode ? 'bg-gradient-to-br from-amber-500/10 via-slate-900/40 to-slate-900/60 border-amber-500/25' : 'bg-gradient-to-br from-amber-50 via-white to-amber-50/30 border-amber-200'}`}>
-                        <div className="px-2 py-2 flex items-center justify-between gap-1 min-h-[44px]">
-                          <div className="min-w-0 flex-1">
-                            <p className={`text-[9px] font-black uppercase tracking-wider truncate leading-none mb-0.5 ${darkMode ? 'text-amber-400/90' : 'text-amber-600/80'}`}>내 고유번호</p>
-                            {me.pin_code ? (
-                              <p className={`text-sm font-black tracking-[0.2em] leading-none tabular-nums truncate ${darkMode ? 'text-amber-300' : 'text-amber-700'}`}>{me.pin_code}</p>
-                            ) : (
-                              <p className={`text-[11px] font-bold truncate ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>번호 없음</p>
-                            )}
-                          </div>
-                          {me.pin_code && (
-                            <button
-                              type="button"
-                              aria-label="고유번호 복사"
-                              onClick={() => { navigator.clipboard.writeText(me.pin_code!).catch(() => {}); }}
-                              className={`flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-xl border transition-all active:scale-95 ${darkMode ? 'bg-amber-500/15 border-amber-500/30 text-amber-400 hover:bg-amber-500/25' : 'bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100'}`}
-                            >
-                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden>
-                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                                <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
-                              </svg>
-                            </button>
+                      <div
+                        role="group"
+                        aria-label="내 고유번호"
+                        className={`relative min-w-0 rounded-2xl border shadow-sm overflow-hidden ${darkMode ? 'bg-gradient-to-br from-amber-500/10 via-slate-900/40 to-slate-900/60 border-amber-500/25' : 'bg-gradient-to-br from-amber-50 via-white to-amber-50/30 border-amber-200'}`}
+                      >
+                        {me.pin_code && (
+                          <button
+                            type="button"
+                            aria-label="고유번호 복사"
+                            onClick={() => { navigator.clipboard.writeText(me.pin_code!).catch(() => {}); }}
+                            className={`absolute top-1.5 right-1.5 z-10 flex items-center justify-center w-7 h-7 rounded-lg border transition-all active:scale-95 ${darkMode ? 'bg-amber-500/15 border-amber-500/30 text-amber-400 hover:bg-amber-500/25' : 'bg-white/80 border-amber-200 text-amber-600 hover:bg-amber-100 shadow-sm'}`}
+                          >
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden>
+                              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                              <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                            </svg>
+                          </button>
+                        )}
+                        <div className="px-2 py-2.5 flex flex-col items-center justify-center text-center min-h-[44px] gap-0.5">
+                          <span aria-hidden className={`text-[11px] leading-none ${darkMode ? 'opacity-80' : 'opacity-70'}`}>🔑</span>
+                          <p className={`text-[8px] font-black uppercase tracking-[0.14em] leading-none ${darkMode ? 'text-amber-400/90' : 'text-amber-600/75'}`}>내 고유번호</p>
+                          {me.pin_code ? (
+                            <p className={`text-sm font-black tracking-[0.32em] pl-[0.32em] leading-none tabular-nums ${darkMode ? 'text-amber-200' : 'text-amber-700'}`}>{me.pin_code}</p>
+                          ) : (
+                            <p className={`text-[10px] font-bold leading-none ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>번호 없음</p>
                           )}
                         </div>
                       </div>
