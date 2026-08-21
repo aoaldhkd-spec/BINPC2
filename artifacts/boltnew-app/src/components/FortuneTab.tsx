@@ -72,6 +72,10 @@ function BirthSelect({ label, value, options, onChange }: {
   );
 }
 
+function maxDayForMonth(month: number): number {
+  return new Date(2000, month, 0).getDate();
+}
+
 // ── 타로 카드 단일 ─────────────────────────────────────────────────────────
 function TarotCardEl({ drawn, idx, flipped, onFlip }: {
   drawn: DrawnCard; idx: number; flipped: boolean; onFlip: () => void;
@@ -156,11 +160,11 @@ function NoBirthday() {
       <div>
         <p className="text-white font-black text-lg">생년월일이 필요해요</p>
         <p className="text-slate-400 text-sm mt-1 leading-relaxed">
-          사주·타로·궁합 기능을 사용하려면<br />프로필에서 생년월일을 등록해 주세요
+          사주·타로·궁합 기능을 사용하려면<br />프로필에서 생년·생월·생일을 등록해 주세요
         </p>
       </div>
       <div className="px-4 py-3 bg-amber-500/15 border border-amber-500/30 rounded-2xl text-amber-300 text-xs font-semibold leading-relaxed">
-        ⚠️ 생년월일을 등록하지 않으면<br />사주·타로·궁합 기능을 사용할 수 없어요
+        ⚠️ 생년·생월·생일을 모두 등록하지 않으면<br />사주·타로·궁합 기능을 사용할 수 없어요
       </div>
     </div>
   );
@@ -191,11 +195,10 @@ export default function FortuneTab({
   hiddenByIds?: ReadonlySet<string>;
 }) {
   const [subTab, setSubTab] = useState<FortuneSubTab>('tarot');
-  // birth_year만 있으면 사주·궁합 동작. month/day 없으면 1월 1일로 기본값 사용
-  const hasBirthday = !!myProfile?.birth_year;
+  const hasBirthday = !!(myProfile?.birth_year && myProfile?.birth_month && myProfile?.birth_day);
   const myBirthYear  = myProfile?.birth_year  ?? 0;
-  const myBirthMonth = myProfile?.birth_month ?? 1;
-  const myBirthDay   = myProfile?.birth_day   ?? 1;
+  const myBirthMonth = myProfile?.birth_month ?? 0;
+  const myBirthDay   = myProfile?.birth_day   ?? 0;
 
   // ── 타로 ──────────────────────────────────────────────────────────────────
   const drawnCards = useMemo(() =>
@@ -231,18 +234,22 @@ export default function FortuneTab({
   const [manualYear, setManualYear] = useState(1993);
   const [manualMonth, setManualMonth] = useState(6);
   const [manualDay, setManualDay] = useState(15);
+  const manualMaxDay = maxDayForMonth(manualMonth);
+
+  useEffect(() => {
+    if (manualDay > manualMaxDay) setManualDay(manualMaxDay);
+  }, [manualDay, manualMaxDay]);
   const [activeMethod, setActiveMethod] = useState<CompatMethod>('saju');
   const [showBed, setShowBed] = useState(false);
 
   const targetProfile = profiles.find(p => p.id === selectedProfileId);
-  // 상대방도 birth_year만 있으면 궁합 계산 가능
   const targetHasBd = targetMode === 'manual'
     ? true
-    : !!targetProfile?.birth_year;
+    : !!(targetProfile?.birth_year && targetProfile?.birth_month && targetProfile?.birth_day);
 
   const tYear  = targetMode === 'profile' ? (targetProfile?.birth_year  ?? 0) : manualYear;
-  const tMonth = targetMode === 'profile' ? (targetProfile?.birth_month ?? 1) : manualMonth;
-  const tDay   = targetMode === 'profile' ? (targetProfile?.birth_day   ?? 1) : manualDay;
+  const tMonth = targetMode === 'profile' ? (targetProfile?.birth_month ?? 0) : manualMonth;
+  const tDay   = targetMode === 'profile' ? (targetProfile?.birth_day   ?? 0) : manualDay;
   const tMbti = targetMode === 'profile' ? (targetProfile?.mbti ?? '') : '';
   const tDomScore = targetMode === 'profile' ? (targetProfile?.dom_sub_score ?? null) : null;
   const hasTarget = targetHasBd && tYear > 0;
@@ -341,7 +348,7 @@ export default function FortuneTab({
 
             <button onClick={resetTarot}
               className="w-full flex items-center justify-center gap-2 py-3 bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm font-bold rounded-2xl transition-all active:scale-95">
-              <RefreshCw className="w-4 h-4" /> 카드 다시 섞기
+              <RefreshCw className="w-4 h-4" /> 카드 다시 뒤집기
             </button>
             <p className="text-center text-slate-600 text-[10px]">매일 자정 갱신 · 같은 날은 같은 결과</p>
           </div>
@@ -475,8 +482,8 @@ export default function FortuneTab({
                       className="w-full bg-slate-700 border border-slate-600 text-white text-sm rounded-xl px-3 py-2.5">
                       <option value="">-- 상대를 선택하세요 --</option>
                       {otherProfiles.map(p => (
-                        <option key={p.id} value={p.id} disabled={!p.birth_year}>
-                          {p.nickname}{!p.birth_year ? ' (생년 없음)' : ''}
+                        <option key={p.id} value={p.id} disabled={!p.birth_year || !p.birth_month || !p.birth_day}>
+                          {p.nickname}{(!p.birth_year || !p.birth_month || !p.birth_day) ? ' (생년월일 없음)' : ''}
                         </option>
                       ))}
                     </select>
@@ -492,7 +499,7 @@ export default function FortuneTab({
                       <BirthSelect label="월" value={manualMonth}
                         options={Array.from({ length: 12 }, (_, i) => i + 1)} onChange={setManualMonth} />
                       <BirthSelect label="일" value={manualDay}
-                        options={Array.from({ length: 31 }, (_, i) => i + 1)} onChange={setManualDay} />
+                        options={Array.from({ length: manualMaxDay }, (_, i) => i + 1)} onChange={setManualDay} />
                     </div>
                     <p className="text-slate-500 text-[10px] mt-1.5 text-center">
                       {getZodiac(manualYear).emoji} {getZodiac(manualYear).name}띠 · {getOhaeng(manualYear)}의 기운

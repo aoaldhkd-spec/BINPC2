@@ -11,10 +11,11 @@ import { collectProfileBreakdowns, countTodayContactExchanges, countTodayHeartSt
 type Profile = Database['public']['Tables']['profiles']['Row'];
 type Like = Database['public']['Tables']['likes']['Row'];
 
-const PUBLIC_LIKES_POLL_MS = 30_000;
+const PUBLIC_LIKES_POLL_MS = 15_000;
 
 function usePublicLikes() {
   const [allLikes, setAllLikes] = useState<Like[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
@@ -23,7 +24,11 @@ function usePublicLikes() {
 
     const load = () => {
       const fail = () => {
-        if (!active || tries >= 3) return;
+        if (!active) return;
+        if (tries >= 3) {
+          setLoading(false);
+          return;
+        }
         tries += 1;
         retryTimer = setTimeout(load, 800 * tries);
       };
@@ -32,6 +37,7 @@ function usePublicLikes() {
         if (Array.isArray(data)) {
           setAllLikes(data as Like[]);
           tries = 0;
+          setLoading(false);
           return;
         }
         fail();
@@ -52,15 +58,16 @@ function usePublicLikes() {
     };
   }, []);
 
-  return allLikes;
+  return { allLikes, loading };
 }
 
 type ContactShareRow = { created_at?: string | null };
 
-const PUBLIC_CONTACT_SHARES_POLL_MS = 30_000;
+const PUBLIC_CONTACT_SHARES_POLL_MS = 15_000;
 
 function usePublicContactShares() {
   const [allShares, setAllShares] = useState<ContactShareRow[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
@@ -69,7 +76,11 @@ function usePublicContactShares() {
 
     const load = () => {
       const fail = () => {
-        if (!active || tries >= 3) return;
+        if (!active) return;
+        if (tries >= 3) {
+          setLoading(false);
+          return;
+        }
         tries += 1;
         retryTimer = setTimeout(load, 800 * tries);
       };
@@ -78,6 +89,7 @@ function usePublicContactShares() {
         if (Array.isArray(data)) {
           setAllShares(data as ContactShareRow[]);
           tries = 0;
+          setLoading(false);
           return;
         }
         fail();
@@ -98,7 +110,7 @@ function usePublicContactShares() {
     };
   }, []);
 
-  return allShares;
+  return { allShares, loading };
 }
 
 const CHART_COLORS = ['#0891b2', '#0d9488', '#059669', '#16a34a', '#65a30d', '#ca8a04', '#d97706', '#ea580c', '#dc2626', '#db2777', '#9333ea', '#7c3aed'];
@@ -149,8 +161,9 @@ function EmptyNote({ text, dark }: { text: string; dark: boolean }) {
 }
 
 export function StatsTab({ profiles, darkMode }: { profiles: Profile[]; darkMode: boolean }) {
-  const allLikes = usePublicLikes();
-  const allContactShares = usePublicContactShares();
+  const { allLikes, loading: likesLoading } = usePublicLikes();
+  const { allShares: allContactShares, loading: sharesLoading } = usePublicContactShares();
+  const initialLoading = likesLoading || sharesLoading;
 
   const stats = useMemo(() => {
     const breakdowns = collectProfileBreakdowns(profiles, parseProfileInterests);
@@ -171,7 +184,9 @@ export function StatsTab({ profiles, darkMode }: { profiles: Profile[]; darkMode
       <div className="flex items-center gap-2 px-1">
         <BarChart3 className="w-5 h-5 text-cyan-500" />
         <h2 className={`text-lg font-black ${darkMode ? 'text-white' : 'text-gray-800'}`}>오늘의 통계</h2>
-        <span className={`text-[11px] ml-auto ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>하트·연락처는 오늘(한국시간) · 익명 집계</span>
+        <span className={`text-[11px] ml-auto ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
+          {initialLoading ? '불러오는 중…' : '하트·연락처는 오늘(한국시간) · 익명 집계'}
+        </span>
       </div>
 
       <div className="grid grid-cols-3 gap-3">
@@ -256,7 +271,7 @@ export function StatsTab({ profiles, darkMode }: { profiles: Profile[]; darkMode
 
 // ─── 랭킹 탭 ──────────────────────────────────────────────────────────────────
 export function RankingTab({ darkMode, profiles: propProfiles }: { darkMode: boolean; profiles?: Profile[] }) {
-  const allLikes = usePublicLikes();
+  const { allLikes, loading: likesLoading } = usePublicLikes();
   const [fetchedProfiles, setFetchedProfiles] = useState<Profile[]>([]);
 
   useEffect(() => {
@@ -283,7 +298,9 @@ export function RankingTab({ darkMode, profiles: propProfiles }: { darkMode: boo
       <div className="flex items-center gap-2 px-1">
         <Trophy className="w-5 h-5 text-amber-500" />
         <h2 className={`text-lg font-black ${darkMode ? 'text-white' : 'text-gray-800'}`}>인기도 랭킹</h2>
-        <span className={`text-[11px] ml-auto ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>하트 많이 받은 순</span>
+        <span className={`text-[11px] ml-auto ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
+          {likesLoading ? '불러오는 중…' : '하트 많이 받은 순'}
+        </span>
       </div>
 
       <div className={`rounded-2xl shadow-sm p-4 border transition-colors duration-300 flex items-start gap-2.5 ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-100'}`}>

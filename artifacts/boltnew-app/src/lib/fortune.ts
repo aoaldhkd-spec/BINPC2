@@ -182,7 +182,7 @@ function getZodiacMod(year: number): number {
   return ((year % 12) + 12) % 12;
 }
 
-function zodiacBaseScore(year1: number, year2: number): { score: number; rel: string } {
+export function zodiacBaseScore(year1: number, year2: number): { score: number; rel: string } {
   const m1 = getZodiacMod(year1);
   const m2 = getZodiacMod(year2);
   if (m1 === m2) return { score: 72, rel: '동갑 (비견) — 서로를 거울처럼 이해해요' };
