@@ -173,8 +173,26 @@ export type ProfileForStats = {
   interests?: string | string[] | null;
   bio?: string | null;
   location?: string | null;
-  birth_year?: number | null;
+  birth_year?: number | string | null;
 };
+
+/** Postgres JSON / SSE 패치에서 birth_year가 문자열로 올 수 있음 */
+export function normalizeBirthYearForStats(raw: unknown): number | null {
+  const y = typeof raw === 'string' ? parseInt(raw.trim(), 10) : Number(raw);
+  if (!Number.isFinite(y) || y < 1900 || y > 2100) return null;
+  return y;
+}
+
+export function normalizeLocationForStats(raw: unknown): string {
+  if (raw == null) return '';
+  if (typeof raw !== 'string') return '';
+  return raw.trim();
+}
+
+function ageBandSortKey(label: string): number {
+  const m = /^(\d+)대$/.exec(label.trim());
+  return m ? parseInt(m[1], 10) : Number.MAX_SAFE_INTEGER;
+}
 
 export function collectProfileBreakdowns(
   profiles: readonly ProfileForStats[],
@@ -204,10 +222,11 @@ export function collectProfileBreakdowns(
       interestCounts.set(tag, (interestCounts.get(tag) ?? 0) + 1);
     }
 
-    const loc = extractCityLevel(p.location ?? '');
+    const loc = extractCityLevel(normalizeLocationForStats(p.location));
     if (loc) locationCounts.set(loc, (locationCounts.get(loc) ?? 0) + 1);
 
-    const band = ageBand(p.birth_year, now);
+    const year = normalizeBirthYearForStats(p.birth_year);
+    const band = year != null ? ageBand(year, now) : null;
     if (band) ageCounts.set(band, (ageCounts.get(band) ?? 0) + 1);
   }
 
@@ -216,6 +235,6 @@ export function collectProfileBreakdowns(
     position: sortCountDesc([...positionCounts.entries()]),
     interest: sortCountDesc([...interestCounts.entries()]).slice(0, 10),
     location: sortCountDesc([...locationCounts.entries()]).slice(0, 8),
-    age: [...ageCounts.entries()].sort((a, b) => parseInt(a[0], 10) - parseInt(b[0], 10)),
+    age: [...ageCounts.entries()].sort((a, b) => ageBandSortKey(a[0]) - ageBandSortKey(b[0])),
   };
 }

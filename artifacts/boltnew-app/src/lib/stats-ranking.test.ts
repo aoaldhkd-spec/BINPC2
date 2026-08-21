@@ -7,6 +7,8 @@ import {
   countTodayHeartStats,
   extractCityLevel,
   isLikeOnSeoulDay,
+  normalizeBirthYearForStats,
+  normalizeLocationForStats,
   normalizeMbti,
   rankByReceivedHearts,
 } from './stats-ranking';
@@ -159,7 +161,34 @@ describe('canonicalInterestTags / MBTI / age', () => {
   });
 });
 
+describe('normalizeBirthYearForStats / location', () => {
+  it('coerces string birth years and rejects junk', () => {
+    expect(normalizeBirthYearForStats('1995')).toBe(1995);
+    expect(normalizeBirthYearForStats(' 2001 ')).toBe(2001);
+    expect(normalizeBirthYearForStats('')).toBeNull();
+    expect(normalizeBirthYearForStats(null)).toBeNull();
+    expect(normalizeBirthYearForStats('abc')).toBeNull();
+    expect(normalizeBirthYearForStats(1800)).toBeNull();
+  });
+
+  it('trims location and drops non-strings', () => {
+    expect(normalizeLocationForStats('  부산  ')).toBe('부산');
+    expect(normalizeLocationForStats('')).toBe('');
+    expect(normalizeLocationForStats(null)).toBe('');
+    expect(normalizeLocationForStats(42)).toBe('');
+  });
+});
+
 describe('collectProfileBreakdowns', () => {
+  it('counts age/location from string birth_year and trimmed location', () => {
+    const rows = collectProfileBreakdowns([
+      { location: '  경기 수원 ', birth_year: '1995', mbti: 'ENFP', personality_score: 50 },
+      { location: '부산', birth_year: 2001, mbti: 'ISTJ', personality_score: 20 },
+    ], parseProfileInterests, kstNow);
+    expect(rows.location.map(([k]) => k).sort()).toEqual(['경기 수원', '부산']);
+    expect(rows.age.map(([k, c]) => [k, c])).toEqual([['20대', 1], ['30대', 1]]);
+  });
+
   it('does not lump 경기 cities and ignores malformed interests', () => {
     const rows = collectProfileBreakdowns([
       { mbti: 'enfp', personality_score: 80, interests: '운동, 안녕하세요', location: '경기 수원', birth_year: 1995 },

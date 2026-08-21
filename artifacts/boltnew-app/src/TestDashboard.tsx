@@ -7,7 +7,7 @@ import {
   AlertTriangle, ChevronDown, ChevronRight,
 } from 'lucide-react';
 import { genAvatar } from './lib/profile';
-import { MBTI_LIST, BIO_LIST, LETTERS } from './lib/constants';
+import { buildDummyProfileInsert } from './lib/dummy-persona';
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
 type Like = Database['public']['Tables']['likes']['Row'];
@@ -132,24 +132,21 @@ export default function TestDashboard() {
   };
 
   // ── Profiles ───────────────────────────────────────────────────────────────
-  const createTestUser = async (letter = 'T', num = Math.floor(Math.random() * 9) + 1) => {
+  const createTestUser = async () => {
     setLoading('profile');
-    const nick = `${letter}${num}`;
-    const mbti = MBTI_LIST[Math.floor(Math.random() * MBTI_LIST.length)];
-    const bio = BIO_LIST[Math.floor(Math.random() * BIO_LIST.length)];
-    const score = Math.floor(Math.random() * 100);
     const id = crypto.randomUUID();
-    const { data, error } = await supabase.from('profiles').insert({
+    const existing = new Set(profiles.map((p) => p.nickname));
+    const row = buildDummyProfileInsert({
       id,
-      _device_secret: getDeviceSecret(id),
-      nickname: nick, bio, photo_url: genAvatar(nick),
-      personality_score: score, dom_sub_score: null, mbti,
-    }).select().single();
+      deviceSecret: getDeviceSecret(id),
+      existingNicknames: existing,
+    });
+    row.photo_url = genAvatar(row.nickname);
+    const { data, error } = await supabase.from('profiles').insert(row).select().single();
     if (error) { notify('닉네임 중복 - 다시 시도', false); }
     else {
-      notify(`프로필 생성: ${nick} (${mbti})`);
+      notify(`프로필 생성: ${row.nickname} (${row.mbti})`);
       if (!myUserId && data) { localStorage.setItem('matching_app_user_id', data.id); setMyUserId(data.id); }
-      // api-server 인메모리 동기화 → 메인 앱 유저들이 즉시 볼 수 있도록
       testResync();
     }
     await load();
@@ -158,27 +155,19 @@ export default function TestDashboard() {
 
   const createManyDummies = async (count: number) => {
     setLoading('dummies');
-    const allPairs = LETTERS.flatMap(l =>
-      [1,2,3,4,5,6,7,8,9,0].map(n => `${l}${n}`)
-    );
-    // 기존 닉네임 제외 후 최대 count개 선택
-    const existing = new Set(profiles.map(p => p.nickname));
-    const candidates = allPairs.filter(nick => !existing.has(nick));
-    const shuffled = [...candidates].sort(() => Math.random() - 0.5).slice(0, count);
-    const entries = shuffled.map(nick => {
+    const existing = new Set(profiles.map((p) => p.nickname));
+    const entries = Array.from({ length: count }, (_, i) => {
       const id = crypto.randomUUID();
-      return {
+      const row = buildDummyProfileInsert({
         id,
-        _device_secret: getDeviceSecret(id),
-        nickname: nick,
-        bio: BIO_LIST[Math.floor(Math.random() * BIO_LIST.length)],
-        photo_url: genAvatar(nick),
-        personality_score: Math.floor(Math.random() * 100),
-        dom_sub_score: null,
-        mbti: MBTI_LIST[Math.floor(Math.random() * MBTI_LIST.length)],
-      };
+        deviceSecret: getDeviceSecret(id),
+        index: i,
+        existingNicknames: existing,
+      });
+      existing.add(row.nickname);
+      row.photo_url = genAvatar(row.nickname);
+      return row;
     });
-    if (entries.length === 0) { notify('생성할 수 있는 닉네임이 없습니다 (최대 260개)', false); setLoading(null); return; }
     const { error: insertErr } = await supabase.from('profiles').insert(entries);
     if (insertErr) { notify(`더미 생성 실패: ${insertErr.message}`, false); setLoading(null); return; }
     // api-server 인메모리 동기화 → 메인 앱에 즉시 반영
@@ -418,7 +407,7 @@ export default function TestDashboard() {
 
         {/* 더미 프로필 대량 생성 */}
         <Section title="더미 프로필 대량 생성" icon={<UserPlus className="w-4 h-4" />} defaultOpen={false}>
-          <p className="text-xs text-slate-400">하트·채팅 기능 테스트에 필요한 더미 유저들을 생성합니다.</p>
+          <p className="text-xs text-slate-400">한글 닉네임·지역·출생연도가 랜덤으로 채워진 더미 유저를 생성합니다.</p>
 
           {/* 슬라이더 */}
           <div className="space-y-1.5">
@@ -436,7 +425,7 @@ export default function TestDashboard() {
 
           <div className="grid grid-cols-2 gap-2">
             <Btn label={`더미 ${bulkCount}명 생성`} onClick={() => createManyDummies(bulkCount)} color="violet" disabled={loading === 'dummies'} />
-            <Btn label="랜덤 1명 생성" onClick={() => createTestUser(LETTERS[Math.floor(Math.random() * LETTERS.length)], Math.floor(Math.random() * 9) + 1)} color="cyan" disabled={!!loading} />
+            <Btn label="랜덤 1명 생성" onClick={() => createTestUser()} color="cyan" disabled={!!loading} />
           </div>
 
           {/* 프로필 목록 */}
