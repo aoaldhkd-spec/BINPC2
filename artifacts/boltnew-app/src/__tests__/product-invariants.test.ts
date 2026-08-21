@@ -442,6 +442,13 @@ describe('product copy + notification invariants', () => {
     expect(main).toContain('--tabbar-safe-bottom');
   });
 
+  it('내 상태 tab scrolls full content with bottom clearance (MY FAB + tab bar)', () => {
+    const main = read('components/MainScreen.tsx');
+    expect(main).toMatch(/mainTab === 'status'[\s\S]{0,240}pb-24/);
+    expect(main).toContain('flex-1 min-h-0 px-3 min-[360px]:px-4 overflow-y-auto overscroll-y-contain scrollbar-hide pb-[calc(8.5rem+var(--tabbar-safe-bottom))]');
+    expect(main).not.toContain('flex-1 min-h-0 flex flex-col px-3 min-[360px]:px-4 overflow-y-auto');
+  });
+
   it('HEIC upload rejected with user-facing message', () => {
     const photo = read('lib/profile-photo.ts');
     expect(photo).toMatch(/HEIC|heic/);

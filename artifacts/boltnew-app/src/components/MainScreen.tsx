@@ -684,7 +684,7 @@ export function MainScreen({
       </header>
 
       <main
-        className={`max-w-7xl mx-auto w-full flex-1 min-h-0 flex flex-col px-3 min-[360px]:px-4 overflow-y-auto overscroll-y-contain scrollbar-hide pb-[calc(8.5rem+var(--tabbar-safe-bottom))] ${
+        className={`max-w-7xl mx-auto w-full flex-1 min-h-0 px-3 min-[360px]:px-4 overflow-y-auto overscroll-y-contain scrollbar-hide pb-[calc(8.5rem+var(--tabbar-safe-bottom))] ${
           mainTab === 'profiles' ? 'pt-1 min-[390px]:pt-1.5' : 'py-4 min-[390px]:py-6'
         }`}
       >
@@ -769,7 +769,7 @@ export function MainScreen({
 
         {mainTab === 'status' && (
           <StatusErrorBoundary>
-          <div className="w-full max-w-lg mx-auto space-y-4 shrink-0">
+          <div className="w-full max-w-lg mx-auto space-y-4 pb-24">
             {/* ── 내 프로필 카드 ── */}
             {(() => {
               const me = profiles.find(p => p.id === currentUserId);
@@ -1081,7 +1081,6 @@ export function MainScreen({
               );
             })()}
 
-            <div className="contents">
             {/* 받은 하트 */}
             <div className={`rounded-2xl shadow-sm transition-colors duration-300 overflow-hidden ${darkMode ? 'bg-slate-800 border border-slate-600' : 'bg-white'}`}>
               <button
@@ -1232,8 +1231,6 @@ export function MainScreen({
               )}
               </div>
               )}
-            </div>
-
             </div>
           </div>
 
