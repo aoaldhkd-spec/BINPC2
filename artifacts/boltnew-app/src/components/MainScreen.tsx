@@ -44,6 +44,14 @@ import { SignalTab } from './SignalTab';
 import { FUNCTIONS_LOCK_TOAST, SOCIAL_LOCKED_TABS } from '../lib/functions-lock';
 import { STATUS_QUICK_MSGS } from '../lib/chat-picker-data';
 import { HOST_AGE_EASTER_EGG_HINT } from '../lib/host-age-easter-egg';
+import {
+  BIRTH_MD_EDIT_MAX,
+  birthMdEditsRemaining,
+  birthMdWouldChange,
+  getBirthMdEditCount,
+  isBirthMdEditLocked,
+  nextBirthMdEditCount,
+} from '../lib/birth-md-edit';
 import { filterProfilesForDeck } from '../lib/profile-deck-filter';
 import {
   readProfileCardGridMode, writeProfileCardGridMode, profileGridColSpan,
@@ -413,6 +421,7 @@ export function MainScreen({
   const [sajuBirthMonth, setSajuBirthMonth] = useState<number | null>(null);
   const [sajuBirthDay, setSajuBirthDay] = useState<number | null>(null);
   const [sajuSaving, setSajuSaving] = useState(false);
+  const [birthEditError, setBirthEditError] = useState<string | null>(null);
   const sajuInitRef = useRef(false);
 
   // ── 내 상태 탭 연락처 편집 상태 ─────────────────────────────────────────────
@@ -481,23 +490,47 @@ export function MainScreen({
 
   const saveSajuBirthDate = async () => {
     if (!currentUserId) return;
-    setSajuSaving(true);
+    const me = profiles.find(p => p.id === currentUserId);
+    if (!me) return;
+    setBirthEditError(null);
     // 월별 최대 일수 cross-validation (버튼 UI에서도 2월 30일 같은 날짜 저장 방지)
     const maxDayForMonth = (m: number | null) => m ? new Date(2000, m, 0).getDate() : 31;
     const clampedDay = (sajuBirthDay && sajuBirthMonth && sajuBirthDay > maxDayForMonth(sajuBirthMonth))
       ? maxDayForMonth(sajuBirthMonth)
       : sajuBirthDay;
+    const wouldChange = birthMdWouldChange(me, sajuBirthMonth, clampedDay);
+    if (wouldChange && isBirthMdEditLocked(me)) {
+      setBirthEditError(`생월·생일은 ${BIRTH_MD_EDIT_MAX}회까지만 변경할 수 있어요.`);
+      return;
+    }
+    const nextCount = nextBirthMdEditCount(me, sajuBirthMonth, clampedDay);
+    setSajuSaving(true);
     try {
-      await supabase.from('profiles').update({
+      const patch: Record<string, unknown> = {
         birth_month: sajuBirthMonth,
         birth_day: clampedDay,
-      } as never).eq('id', currentUserId);
-      onUpdateProfile({ id: currentUserId, birth_month: sajuBirthMonth, birth_day: clampedDay });
+      };
+      if (wouldChange) patch.birth_md_edit_count = nextCount;
+      const { error } = await supabase.from('profiles').update(patch as never).eq('id', currentUserId);
+      if (error) {
+        if ((error as { code?: string }).code === 'BIRTH_MD_LIMIT') {
+          setBirthEditError(`생월·생일은 ${BIRTH_MD_EDIT_MAX}회까지만 변경할 수 있어요.`);
+        } else {
+          setBirthEditError('저장에 실패했어요. 다시 시도해 주세요.');
+        }
+        return;
+      }
+      onUpdateProfile({
+        id: currentUserId,
+        birth_month: sajuBirthMonth,
+        birth_day: clampedDay,
+        birth_md_edit_count: nextCount,
+      } as Partial<Profile> & { id: string });
       sajuInitRef.current = false;
       setProfileEditSection(null);
       setShowFortuneBirthEdit(false);
       onRefreshProfiles();
-    } catch (e) { console.error('[saju] 저장 실패:', e); }
+    } catch (e) { console.error('[saju] 저장 실패:', e); setBirthEditError('저장에 실패했어요. 다시 시도해 주세요.'); }
     setSajuSaving(false);
   };
 
@@ -1440,6 +1473,9 @@ export function MainScreen({
               if (!me) return null;
               const currentTags = me.bio ? me.bio.split(',').map(t => t.trim()).filter(Boolean) : [];
               const hasBd = !!(me.birth_month && me.birth_day);
+              const birthMdLocked = isBirthMdEditLocked(me);
+              const birthMdRemaining = birthMdEditsRemaining(me);
+              const birthMdUsed = getBirthMdEditCount(me);
               const toggleTag = (tag: string) => {
                 // 함수형 업데이트 대신 직접 계산 — setTimeout 클로저 stale 문제 방지
                 const next = editInterests.includes(tag)
@@ -1472,6 +1508,10 @@ export function MainScreen({
                     setNicknameEditError(null);
                     setNicknameEditDupOk(false);
                   }
+                }
+                if (s === 'birth') {
+                  if (isBirthMdEditLocked(me)) return;
+                  setBirthEditError(null);
                 }
                 if (s === 'interests' && profileEditSection !== 'interests') {
                   interestInitRef.current = false;
@@ -1744,17 +1784,37 @@ export function MainScreen({
 
                   {/* ── 생월·생일 ── */}
                   <div className={`border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
-                    <button onClick={() => toggleSection('birth')} className="w-full flex items-center gap-3 px-4 py-3 text-left">
-                      <span className="text-xl flex-shrink-0">🔮</span>
+                    <button
+                      onClick={() => toggleSection('birth')}
+                      disabled={birthMdLocked}
+                      className={`w-full flex items-center gap-3 px-4 py-3 text-left ${birthMdLocked ? 'cursor-not-allowed' : ''}`}
+                    >
+                      <span className="text-xl flex-shrink-0">{birthMdLocked ? '🔒' : '🔮'}</span>
                       <div className="flex-1 min-w-0">
                         <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>생월 · 생일</p>
                         <p className={`text-[11px] ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{hasBd ? `${me.birth_month}월 ${me.birth_day}일` : '미설정 — 사주·운세·궁합에 반영돼요'}</p>
+                        {birthMdLocked ? (
+                          <p className={`text-[10px] mt-0.5 font-medium ${darkMode ? 'text-amber-400/80' : 'text-amber-600'}`}>생월·생일 변경은 {BIRTH_MD_EDIT_MAX}회만 가능해요</p>
+                        ) : birthMdUsed > 0 && birthMdRemaining > 0 ? (
+                          <p className={`text-[10px] mt-0.5 font-medium ${darkMode ? 'text-purple-300/80' : 'text-purple-600'}`}>{birthMdRemaining}회 남음</p>
+                        ) : null}
                       </div>
-                      {hasBd && <span className="text-[10px] font-black px-2 py-0.5 bg-purple-500 text-white rounded-full flex-shrink-0">{me.birth_month}월 {me.birth_day}일 ✓</span>}
-                      <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${showBirthEdit ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
+                      {birthMdLocked ? (
+                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-full flex-shrink-0 ${darkMode ? 'bg-slate-700 text-slate-400' : 'bg-gray-100 text-gray-400'}`}>변경 완료</span>
+                      ) : hasBd ? (
+                        <span className="text-[10px] font-black px-2 py-0.5 bg-purple-500 text-white rounded-full flex-shrink-0">{me.birth_month}월 {me.birth_day}일 ✓</span>
+                      ) : null}
+                      {!birthMdLocked && <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${showBirthEdit ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />}
                     </button>
-                    {showBirthEdit && (
+                    {showBirthEdit && !birthMdLocked && (
                       <div className={`px-4 pb-4 ${darkMode ? 'bg-slate-700/20' : 'bg-gray-50/50'}`}>
+                        <div className={`flex items-start gap-2 px-3 py-2 mb-3 rounded-xl ${darkMode ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-amber-50 border border-amber-200'}`}>
+                          <span className="text-sm flex-shrink-0">⚠️</span>
+                          <p className={`text-[11px] font-bold leading-snug ${darkMode ? 'text-amber-300' : 'text-amber-700'}`}>
+                            생월·생일은 <span className="underline">최대 {BIRTH_MD_EDIT_MAX}회</span>만 변경할 수 있어요.
+                            {birthMdRemaining < BIRTH_MD_EDIT_MAX ? ` (${birthMdRemaining}회 남음)` : ''}
+                          </p>
+                        </div>
                         <div>
                           <p className={`text-xs font-bold mb-2 ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>월</p>
                           <div className="grid grid-cols-4 gap-1.5">
@@ -1783,6 +1843,7 @@ export function MainScreen({
                           className="mt-3 w-full py-2.5 bg-gradient-to-r from-purple-500 to-violet-500 hover:from-purple-600 hover:to-violet-600 text-white font-bold rounded-xl text-sm disabled:opacity-40 active:scale-[0.98] transition-all">
                           {sajuSaving ? '저장 중...' : '생월·생일 저장하기'}
                         </button>
+                        {birthEditError && <p className="text-[11px] text-rose-500 font-medium mt-2">⚠ {birthEditError}</p>}
                       </div>
                     )}
                   </div>
@@ -2103,26 +2164,47 @@ export function MainScreen({
               const me = profiles.find(p => p.id === currentUserId);
               if (!me) return null;
               const hasBd = !!(me.birth_month && me.birth_day);
+              const birthMdLocked = isBirthMdEditLocked(me);
+              const birthMdRemaining = birthMdEditsRemaining(me);
+              const birthMdUsed = getBirthMdEditCount(me);
               return (
                 <div className={`rounded-2xl mb-4 border transition-colors duration-300 ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-gradient-to-br from-purple-50 to-white border-purple-200'}`}>
                   {/* 접기/펼치기 토글 */}
-                  <button onClick={() => setShowFortuneBirthEdit(v => !v)} className="w-full flex items-center gap-2 p-4 text-left">
-                    <span className="text-xl flex-shrink-0">🔮</span>
+                  <button
+                    onClick={() => { if (!birthMdLocked) { setBirthEditError(null); setShowFortuneBirthEdit(v => !v); } }}
+                    disabled={birthMdLocked}
+                    className={`w-full flex items-center gap-2 p-4 text-left ${birthMdLocked ? 'cursor-not-allowed' : ''}`}
+                  >
+                    <span className="text-xl flex-shrink-0">{birthMdLocked ? '🔒' : '🔮'}</span>
                     <div className="flex-1 min-w-0">
                       <p className={`text-sm font-black ${darkMode ? 'text-white' : 'text-gray-900'}`}>생월·생일 설정</p>
                       <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-purple-600'}`}>사주·운세·궁합 기능에 필요해요</p>
+                      {birthMdLocked ? (
+                        <p className={`text-[10px] mt-0.5 font-medium ${darkMode ? 'text-amber-400/80' : 'text-amber-600'}`}>생월·생일 변경은 {BIRTH_MD_EDIT_MAX}회만 가능해요</p>
+                      ) : birthMdUsed > 0 && birthMdRemaining > 0 ? (
+                        <p className={`text-[10px] mt-0.5 font-medium ${darkMode ? 'text-purple-300/80' : 'text-purple-600'}`}>{birthMdRemaining}회 남음</p>
+                      ) : null}
                     </div>
-                    {hasBd ? (
+                    {birthMdLocked ? (
+                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-full flex-shrink-0 ${darkMode ? 'bg-slate-700 text-slate-400' : 'bg-gray-100 text-gray-400'}`}>변경 완료</span>
+                    ) : hasBd ? (
                       <span className="text-[10px] font-black px-2 py-0.5 bg-purple-500 text-white rounded-full flex-shrink-0">
                         {me.birth_month}월 {me.birth_day}일 ✓
                       </span>
                     ) : (
                       <span className={`text-[10px] font-bold flex-shrink-0 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>미설정</span>
                     )}
-                    <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${showFortuneBirthEdit ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-purple-400'}`} />
+                    {!birthMdLocked && <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${showFortuneBirthEdit ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-purple-400'}`} />}
                   </button>
-                  {showFortuneBirthEdit && (
+                  {showFortuneBirthEdit && !birthMdLocked && (
                   <div className="px-4 pb-4">
+                  <div className={`flex items-start gap-2 px-3 py-2 mb-3 rounded-xl ${darkMode ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-amber-50 border border-amber-200'}`}>
+                    <span className="text-sm flex-shrink-0">⚠️</span>
+                    <p className={`text-[11px] font-bold leading-snug ${darkMode ? 'text-amber-300' : 'text-amber-700'}`}>
+                      생월·생일은 <span className="underline">최대 {BIRTH_MD_EDIT_MAX}회</span>만 변경할 수 있어요.
+                      {birthMdRemaining < BIRTH_MD_EDIT_MAX ? ` (${birthMdRemaining}회 남음)` : ''}
+                    </p>
+                  </div>
                   {/* 생월 탭 그리드 */}
                   <div>
                     <p className={`text-xs font-bold mb-2 ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>월</p>
@@ -2161,6 +2243,7 @@ export function MainScreen({
                     className="mt-3 w-full py-2.5 bg-gradient-to-r from-purple-500 to-violet-500 hover:from-purple-600 hover:to-violet-600 text-white font-bold rounded-xl text-sm disabled:opacity-40 active:scale-[0.98] transition-all">
                     {sajuSaving ? '저장 중...' : '생월·생일 저장하기'}
                   </button>
+                  {birthEditError && <p className="text-[11px] text-rose-500 font-medium mt-2">⚠ {birthEditError}</p>}
                 </div>
                   )}
                 </div>

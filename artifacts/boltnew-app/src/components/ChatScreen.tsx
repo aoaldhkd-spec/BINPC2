@@ -39,6 +39,13 @@ import ChatQuickMsgsPanel from './ChatQuickMsgsPanel';
 import ChatSajuModal from './ChatSajuModal';
 import ChatStickerPanel from './ChatStickerPanel';
 import { NavLayer } from '../hooks/useParticipantNav';
+import {
+  BIRTH_MD_EDIT_MAX,
+  birthMdEditsRemaining,
+  birthMdWouldChange,
+  isBirthMdEditLocked,
+  nextBirthMdEditCount,
+} from '../lib/birth-md-edit';
 
 // ─── ChatScreen ───────────────────────────────────────────────────────────────
 // 1:1 채팅 화면. 스티커·이모지·이미지·연락처 공유·궁합·사주 기능 포함.
@@ -95,6 +102,8 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   const myBY = currentUserProfile?.birth_year ?? 0;
   const myBM = currentUserProfile?.birth_month ?? 0;
   const myBD = currentUserProfile?.birth_day ?? 0;
+  const birthMdLocked = isBirthMdEditLocked(currentUserProfile ?? undefined);
+  const birthMdRemaining = birthMdEditsRemaining(currentUserProfile ?? undefined);
   const thBY = otherProfile.birth_year ?? 0;
   const thBM = otherProfile.birth_month ?? 0;
   const thBD = otherProfile.birth_day ?? 0;
@@ -451,11 +460,29 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
     const bd = parseInt(myInfoForm.birthDay);
     // 월별 최대 일수 cross-validation (2월 30일 같은 불가능한 날짜 방지)
     const maxDayForMonth = (m: number) => new Date(2000, m, 0).getDate();
+    let nextMonth: number | null = null;
+    let nextDay: number | null = null;
     if (!isNaN(bm) && bm >= 1 && bm <= 12) {
+      nextMonth = bm;
       update.birth_month = bm;
-      if (!isNaN(bd) && bd >= 1 && bd <= maxDayForMonth(bm)) update.birth_day = bd;
+      if (!isNaN(bd) && bd >= 1 && bd <= maxDayForMonth(bm)) {
+        nextDay = bd;
+        update.birth_day = bd;
+      }
     } else if (!isNaN(bd) && bd >= 1 && bd <= 31) {
+      nextDay = bd;
       update.birth_day = bd; // 월 없이 일만 수정하는 경우
+    }
+    const touchesBirthMd = 'birth_month' in update || 'birth_day' in update;
+    if (touchesBirthMd) {
+      const wouldChange = birthMdWouldChange(currentUserProfile, nextMonth, nextDay);
+      if (wouldChange && isBirthMdEditLocked(currentUserProfile)) {
+        setChatError(`생월·생일은 ${BIRTH_MD_EDIT_MAX}회까지만 변경할 수 있어요.`);
+        return;
+      }
+      if (wouldChange) {
+        update.birth_md_edit_count = nextBirthMdEditCount(currentUserProfile, nextMonth, nextDay);
+      }
     }
     const phone = myInfoForm.phone.trim();
     const kakao = myInfoForm.kakao.trim();
@@ -468,7 +495,11 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
       const { id: _id, ...patch } = update;
       const { error } = await supabase.from('profiles').update(patch).eq('id', currentUserProfile.id);
       if (error) {
-        setChatError('정보 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+        if (error.code === 'BIRTH_MD_LIMIT') {
+          setChatError(`생월·생일은 ${BIRTH_MD_EDIT_MAX}회까지만 변경할 수 있어요.`);
+        } else {
+          setChatError('정보 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+        }
         return; // 저장 실패 시 편집창 유지 — 변경사항 손실 방지
       }
       onUpdateProfile?.(update as Partial<Profile> & { id: string });
@@ -1028,13 +1059,19 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
               <div className="bg-emerald-50 rounded-2xl p-3 space-y-2 border border-emerald-100">
                 {/* 생월·생일 */}
                 <p className="text-[10px] font-black text-emerald-600 px-1">🎂 생월 · 생일</p>
+                {birthMdLocked ? (
+                  <p className="text-[10px] text-amber-700 px-1">생월·생일 변경은 {BIRTH_MD_EDIT_MAX}회만 가능해요.</p>
+                ) : birthMdRemaining < BIRTH_MD_EDIT_MAX ? (
+                  <p className="text-[10px] text-purple-700 px-1">{birthMdRemaining}회 남음 · 최대 {BIRTH_MD_EDIT_MAX}회 변경</p>
+                ) : null}
                 <div className="flex gap-2">
                   <div className="flex-1">
                     <input
                       type="number" min="1" max="12" placeholder="월 (1~12)"
                       value={myInfoForm.birthMonth}
                       onChange={e => setMyInfoForm(f => ({ ...f, birthMonth: e.target.value }))}
-                      className="w-full px-3 py-2 text-sm border border-emerald-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
+                      disabled={birthMdLocked}
+                      className="w-full px-3 py-2 text-sm border border-emerald-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white disabled:opacity-50"
                     />
                   </div>
                   <div className="flex-1">
@@ -1042,7 +1079,8 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
                       type="number" min="1" max="31" placeholder="일 (1~31)"
                       value={myInfoForm.birthDay}
                       onChange={e => setMyInfoForm(f => ({ ...f, birthDay: e.target.value }))}
-                      className="w-full px-3 py-2 text-sm border border-emerald-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
+                      disabled={birthMdLocked}
+                      className="w-full px-3 py-2 text-sm border border-emerald-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white disabled:opacity-50"
                     />
                   </div>
                 </div>

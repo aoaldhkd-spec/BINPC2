@@ -68,6 +68,15 @@ const router = Router();
 const PANEL_DEFAULT_PASSWORD = '116606';
 /** Admin participant nickname is always fixed after reset / bootstrap. */
 const ADMIN_FIXED_NICKNAME = '범일NPC';
+/** 생월·생일 변경 최대 횟수 — FE `lib/birth-md-edit.ts` BIRTH_MD_EDIT_MAX 와 동기화 */
+const BIRTH_MD_EDIT_MAX = 2;
+
+function birthMdWouldChangeRow(row: Record<string, unknown>, patch: Record<string, unknown>): boolean {
+  const nextMonth = 'birth_month' in patch ? patch.birth_month : row.birth_month;
+  const nextDay = 'birth_day' in patch ? patch.birth_day : row.birth_day;
+  return Number(nextMonth ?? 0) !== Number(row.birth_month ?? 0)
+    || Number(nextDay ?? 0) !== Number(row.birth_day ?? 0);
+}
 
 function normalizePhoneDigits(value: unknown): string {
   return String(value ?? '').replace(/[^0-9]/g, '');
@@ -4047,6 +4056,24 @@ router.post('/op', async (req: Request, res: Response) => {
           });
         }
         patch = { ...patch, pin_code: pinResult.pin };
+      }
+      if (table === 'profiles' && !isAdmin) {
+        if ('birth_md_edit_count' in patch) delete patch.birth_md_edit_count;
+        const touchesBirthMd = 'birth_month' in patch || 'birth_day' in patch;
+        if (touchesBirthMd) {
+          for (const existingRow of rowsToUpdate) {
+            if (!birthMdWouldChangeRow(existingRow, patch)) continue;
+            const rawCount = Number(existingRow.birth_md_edit_count ?? 0);
+            const count = Number.isFinite(rawCount) && rawCount >= 0 ? rawCount : 0;
+            if (count >= BIRTH_MD_EDIT_MAX) {
+              return res.status(403).json({
+                data: null,
+                error: { message: '생월·생일은 2회까지만 변경할 수 있어요.', code: 'BIRTH_MD_LIMIT' },
+              });
+            }
+            patch = { ...patch, birth_md_edit_count: count + 1 };
+          }
+        }
       }
       if (table === 'chat_reads') stampChatReadAt(patch);
       const updated: Record<string, unknown>[] = [];

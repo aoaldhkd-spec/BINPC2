@@ -2827,3 +2827,72 @@ describe('[Security] group chats auto 2 + opt-in 2차', () => {
     expect(msgRows.some((m: { content?: string }) => String(m.content) === 'keep-me-age')).toBe(true);
   });
 });
+
+describe('[Security] profiles birth month/day edit limit', () => {
+  async function readProfile(agent: request.SuperAgentTest, userId: string) {
+    const res = await agent.post('/api/db/op').send({
+      op: 'select',
+      table: 'profiles',
+      requesterId: userId,
+      filters: [{ type: 'eq', col: 'id', val: userId }],
+    });
+    expect(res.status).toBe(200);
+    const row = Array.isArray(res.body.data) ? res.body.data[0] : res.body.data;
+    return row as { birth_month?: number; birth_day?: number; birth_md_edit_count?: number };
+  }
+
+  it('allows up to 2 birth month/day changes then returns BIRTH_MD_LIMIT', async () => {
+    const userId = randomUUID();
+    const agent = await loginAgent(userId);
+
+    expect((await agent.post('/api/db/op').send({
+      op: 'update',
+      table: 'profiles',
+      requesterId: userId,
+      payload: { birth_month: 3, birth_day: 10 },
+      filters: [{ type: 'eq', col: 'id', val: userId }],
+    })).status).toBe(200);
+    expect((await readProfile(agent, userId)).birth_md_edit_count).toBe(1);
+
+    expect((await agent.post('/api/db/op').send({
+      op: 'update',
+      table: 'profiles',
+      requesterId: userId,
+      payload: { birth_month: 4, birth_day: 20 },
+      filters: [{ type: 'eq', col: 'id', val: userId }],
+    })).status).toBe(200);
+    expect((await readProfile(agent, userId)).birth_md_edit_count).toBe(2);
+
+    const third = await agent.post('/api/db/op').send({
+      op: 'update',
+      table: 'profiles',
+      requesterId: userId,
+      payload: { birth_month: 5, birth_day: 1 },
+      filters: [{ type: 'eq', col: 'id', val: userId }],
+    });
+    expect(third.status).toBe(403);
+    expect(third.body.error?.code).toBe('BIRTH_MD_LIMIT');
+  });
+
+  it('does not increment count when month/day unchanged', async () => {
+    const userId = randomUUID();
+    const agent = await loginAgent(userId);
+
+    await agent.post('/api/db/op').send({
+      op: 'update',
+      table: 'profiles',
+      requesterId: userId,
+      payload: { birth_month: 7, birth_day: 7 },
+      filters: [{ type: 'eq', col: 'id', val: userId }],
+    });
+
+    expect((await agent.post('/api/db/op').send({
+      op: 'update',
+      table: 'profiles',
+      requesterId: userId,
+      payload: { birth_month: 7, birth_day: 7, bio: 'same birthday' },
+      filters: [{ type: 'eq', col: 'id', val: userId }],
+    })).status).toBe(200);
+    expect((await readProfile(agent, userId)).birth_md_edit_count).toBe(1);
+  });
+});
