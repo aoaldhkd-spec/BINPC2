@@ -5832,11 +5832,13 @@ function verifySessionToken(userId: string, token: string): boolean {
 
 /** 쿠키 세션 또는 Bearer sessionToken 으로 인증된 userId */
 function resolveAuthUserId(req: Request, body: Record<string, unknown>): string | null {
-  const cookieId = (req.session as { userId?: string })?.userId;
-  if (cookieId) return String(cookieId);
+  const cookieId = (req.session as { userId?: string })?.userId ?? null;
   const token = typeof body.sessionToken === 'string' ? body.sessionToken : null;
   const claimed = typeof body.requesterId === 'string' ? body.requesterId : null;
+  // Verified bearer wins over connect.sid — mobile Safari keeps stale cookies through
+  // Netlify while sessionStorage holds the current user's sessionToken (PIN recovery·재등록).
   if (token && claimed && verifySessionToken(claimed, token)) return claimed;
+  if (cookieId) return String(cookieId);
   return null;
 }
 

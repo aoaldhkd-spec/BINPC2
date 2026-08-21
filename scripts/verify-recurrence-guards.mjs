@@ -239,6 +239,14 @@ mustMatch('artifacts/boltnew-app/src/components/LikeConfirmDialog.tsx', '35_like
 mustMatch('artifacts/boltnew-app/src/hooks/useHearts.ts', '35_ensure_write_session_before_like', [
   /ensureWriteSession/,
 ]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '35_bearer_over_stale_cookie', [
+  /verifySessionToken\(claimed, token\)/,
+  /Verified bearer wins over connect\.sid/,
+]);
+mustMatch('artifacts/boltnew-app/src/lib/localdb.ts', '35_auth_retry_403_forbidden', [
+  /requesterId must match/,
+  /FUNCTIONS_LOCKED/,
+]);
 mustMatch('artifacts/boltnew-app/src/App.tsx', '35_like_confirm_body_overlay', [
   /dataset\.overlay = 'like-confirm'/,
 ]);

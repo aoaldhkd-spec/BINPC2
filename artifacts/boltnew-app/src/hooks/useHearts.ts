@@ -295,6 +295,7 @@ export function useHearts(
         const errObj = (typeof error === 'object' && error !== null) ? error as { message?: unknown; code?: unknown } : null;
         const errMsg = errObj?.message != null ? String(errObj.message) : String(error);
         const errCode = errObj?.code != null ? String(errObj.code) : '';
+        console.warn('[useHearts] executeLike failed', { errCode, errMsg, targetId, heartType });
         const isHeartLimit = errCode === 'HEART_LIMIT' || errMsg.includes('최대 2명');
         const isRateLimit = errCode === 'RATE_LIMIT' || errMsg.includes('429') || errMsg.includes('rate') || errMsg.includes('too many');
         const isLocked = errCode === 'FUNCTIONS_LOCKED';

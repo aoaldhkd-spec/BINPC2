@@ -26,8 +26,9 @@ export function LikeConfirmDialog({
   };
 
   const handleConfirm = () => {
-    const type = selectedRef.current;
-    if (type) onConfirm(type);
+    const type = selectedRef.current ?? selected;
+    if (!type) return;
+    onConfirm(type);
   };
 
   return (
@@ -108,10 +109,10 @@ export function LikeConfirmDialog({
           </button>
           <button
             type="button"
-            aria-disabled={!selected}
+            disabled={!selected}
             {...bindMobileTap(handleConfirm)}
-            className={`flex-1 py-3 text-white font-semibold rounded-xl transition-all flex items-center justify-center gap-1.5 ${
-              selected ? `${heartMeta(selected).solidBg} ${heartMeta(selected).solidHover}` : 'bg-gray-300 opacity-40 cursor-not-allowed'
+            className={`flex-1 py-3 text-white font-semibold rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 ${
+              selected ? `${heartMeta(selected).solidBg} ${heartMeta(selected).solidHover}` : 'bg-gray-300'
             }`}
           >
             <Heart className={`w-4 h-4 ${selected ? 'fill-current' : ''}`} />

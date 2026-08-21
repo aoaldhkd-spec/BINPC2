@@ -154,7 +154,13 @@ async function apiFetch(
         const text = await resp.text().catch(() => '');
         try {
           const json = JSON.parse(text) as { data?: unknown; error?: { message?: string; code?: string } };
-          if (AUTH_RETRY_PATHS.has(path) && resp.status === 401 && !authRetry && _currentUserId) {
+          const errCode = json.error?.code;
+          const errMsg = json.error?.message ?? '';
+          const authMismatch = resp.status === 403 && errCode === 'FORBIDDEN'
+            && errMsg.includes('requesterId must match');
+          const needsAuthRetry = AUTH_RETRY_PATHS.has(path) && !authRetry && _currentUserId
+            && (resp.status === 401 || authMismatch);
+          if (needsAuthRetry && errCode !== 'FUNCTIONS_LOCKED') {
             _markSessionPending();
             _clearSessionBearer();
             if (await loginSession(_currentUserId)) {
@@ -1382,13 +1388,16 @@ async function _loginSessionAttempt(userId: string, attempt: number): Promise<bo
   }
 }
 
-/** Critical writes (likes, chat) — refresh bearer session before /op on mobile Safari. */
+/** Critical writes (likes, chat) — loginSession 완료 + bearer 확보까지 대기 (mobile Safari). */
 export async function ensureWriteSession(): Promise<boolean> {
   const userId = _currentUserId;
   if (!userId) return false;
-  if (_sessionReady && hasUsableSessionBearer()) return true;
-  _markSessionPending();
-  return loginSession(userId);
+  if (!hasUsableSessionBearer()) {
+    _markSessionPending();
+    if (!(await loginSession(userId))) return false;
+  }
+  const ready = await _waitForSession();
+  return ready && hasUsableSessionBearer();
 }
 
 export function getDeviceSecret(userId: string): string {
