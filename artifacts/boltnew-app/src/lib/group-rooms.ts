@@ -346,6 +346,32 @@ export function isJoinedGroupId(groups: GroupChat[] | undefined | null, joinedId
   return siblingGroupIds(groups, groupId).some(id => joinedIds.includes(id));
 }
 
+/** 카탈로그 `joined`를 myGroupIds(+형제 id)와 맞춘다. lastMessage·memberCount는 기존 카탈로그에서 유지. */
+export function patchCatalogMembership(
+  catalog: GroupChat[],
+  rawGroups: GroupChat[],
+  joinedIds: readonly string[],
+  opts?: { myBirthYear?: number | null },
+): GroupChat[] {
+  const ids = [...joinedIds];
+  const raw = rawGroups.length ? rawGroups : catalog;
+  const enriched = raw.map(g => ({
+    ...g,
+    joined: isJoinedGroupId(raw, ids, g.id),
+  }));
+  const nextCatalog = catalogGroupRooms(enriched, { ...opts, joinedIds: ids });
+  const prevById = new Map(catalog.map(g => [g.id, g]));
+  return nextCatalog.map(g => {
+    const prev = prevById.get(g.id);
+    if (!prev) return g;
+    return {
+      ...g,
+      lastMessage: prev.lastMessage ?? g.lastMessage,
+      memberCount: prev.memberCount ?? g.memberCount,
+    };
+  });
+}
+
 export function catalogGroupRooms(
   groups: GroupChat[],
   opts?: { myBirthYear?: number | null; joinedIds?: string[] },

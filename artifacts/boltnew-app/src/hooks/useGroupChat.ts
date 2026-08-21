@@ -17,6 +17,7 @@ import {
   countUnreadGroupMessages,
   groupLimitMessage,
   isJoinedGroupId,
+  patchCatalogMembership,
   readGroupLastReads,
   resolveCatalogGroupId,
   siblingGroupIds,
@@ -184,14 +185,46 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
     }
   }, [profilesRef]);
 
+  const cancelScheduledLoadGroupChats = useCallback(() => {
+    if (loadGroupChatsTimerRef.current) {
+      clearTimeout(loadGroupChatsTimerRef.current);
+      loadGroupChatsTimerRef.current = null;
+    }
+  }, []);
+
+  const catalogBirthYear = useCallback((): number | null => {
+    const userId = currentUserIdRef.current;
+    if (!userId) return null;
+    const year = Number(profilesRef.current.find(p => p.id === userId)?.birth_year);
+    return Number.isFinite(year) ? year : null;
+  }, [profilesRef]);
+
+  /** myGroupIds(+형제 id)와 카탈로그 joined를 즉시 맞춘다 — 낙관적 입장·SSE·나가기 공통 */
+  const syncCatalogJoined = useCallback((joinedIds: readonly string[]) => {
+    const ids = [...joinedIds];
+    const raw = rawGroupsRef.current;
+    const catalog = groupChatsRef.current;
+    if (!raw.length && !catalog.length) return;
+
+    if (raw.length) {
+      rawGroupsRef.current = raw.map(g => ({
+        ...g,
+        joined: isJoinedGroupId(raw, ids, g.id),
+      }));
+    }
+    setGroupChats(patchCatalogMembership(catalog, rawGroupsRef.current.length ? rawGroupsRef.current : catalog, ids, {
+      myBirthYear: catalogBirthYear(),
+    }));
+  }, [catalogBirthYear]);
+
   /** 입장 직후·SSE와 겹치는 전체 카탈로그 reload를 한 번으로 묶는다 */
   const scheduleLoadGroupChats = useCallback((userId: string, delayMs = 2000) => {
-    if (loadGroupChatsTimerRef.current) clearTimeout(loadGroupChatsTimerRef.current);
+    cancelScheduledLoadGroupChats();
     loadGroupChatsTimerRef.current = setTimeout(() => {
       loadGroupChatsTimerRef.current = null;
       void loadGroupChats(userId);
     }, delayMs);
-  }, [loadGroupChats]);
+  }, [cancelScheduledLoadGroupChats, loadGroupChats]);
 
   // ── 오프라인 단톡 메시지 큐 (1:1 chat-pending-queue 패턴) ─────────────────────
   const pendingQueueRef = useRef<PendingGroupMsg[]>(loadGroupPendingQueue());
@@ -407,25 +440,20 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
     const prevRawGroups = [...rawGroupsRef.current];
     const rooms = rawGroupsRef.current.length ? rawGroupsRef.current : groupChatsRef.current;
     const canon = resolveCatalogGroupId(rooms, groupId) || groupId;
+    const pendingIds = [...new Set([groupId, canon, ...siblingGroupIds(rooms, groupId)])];
+    const wasJoined = isJoinedGroupId(rooms, prevMyGroupIds, groupId);
 
-    pendingJoinRef.current.add(groupId);
-    recentlyLeftRef.current.delete(groupId);
-    for (const id of siblingGroupIds(rooms, groupId)) recentlyLeftRef.current.delete(id);
+    for (const id of pendingIds) pendingJoinRef.current.add(id);
+    for (const id of pendingIds) recentlyLeftRef.current.delete(id);
 
     const nextMyGroupIds = prevMyGroupIds.includes(groupId) ? prevMyGroupIds : [...prevMyGroupIds, groupId];
     myGroupIdsRef.current = nextMyGroupIds;
     setMyGroupIds(nextMyGroupIds);
-    setGroupChats(prev => prev.map(g =>
-      (g.id === groupId || g.id === canon)
-        ? { ...g, joined: true, memberCount: (g.memberCount ?? 0) + (g.joined ? 0 : 1) }
-        : g,
-    ));
-    if (rawGroupsRef.current.length) {
-      rawGroupsRef.current = rawGroupsRef.current.map(g =>
-        (g.id === groupId || g.id === canon)
-          ? { ...g, joined: true, memberCount: (g.memberCount ?? 0) + (g.joined ? 0 : 1) }
-          : g,
-      );
+    syncCatalogJoined(nextMyGroupIds);
+    if (!wasJoined) {
+      setGroupChats(prev => prev.map(g =>
+        g.id === canon ? { ...g, memberCount: (g.memberCount ?? 0) + 1 } : g,
+      ));
     }
 
     setJoiningGroupId(groupId);
@@ -456,10 +484,10 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
       setBottomNotif({ type: 'system', message: '입장에 실패했어요. 잠시 후 다시 시도해 주세요.' });
       return false;
     } finally {
-      pendingJoinRef.current.delete(groupId);
+      for (const id of pendingIds) pendingJoinRef.current.delete(id);
       setJoiningGroupId(null);
     }
-  }, [scheduleLoadGroupChats, setBottomNotif]);
+  }, [scheduleLoadGroupChats, setBottomNotif, syncCatalogJoined]);
 
   // ── 단톡방 닫기 ──────────────────────────────────────────────────────────────
   const closeGroupChat = useCallback((): void => {
@@ -484,6 +512,7 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
       idSet.has(id) || resolveCatalogGroupId(raw, id) === catalogId || siblingGroupIds(raw, groupId).includes(id);
 
     for (const id of idSet) recentlyLeftRef.current.add(id);
+    cancelScheduledLoadGroupChats();
     for (const id of idSet) {
       participantsCacheRef.current.delete(id);
       participantsCacheRef.current.delete(resolveCatalogGroupId(raw, id) || id);
@@ -497,10 +526,7 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
       myGroupIdsRef.current = next;
       return next;
     });
-    setGroupChats(prev => prev.map(g => (isLeavingId(g.id) ? { ...g, joined: false } : g)));
-    if (rawGroupsRef.current.length) {
-      rawGroupsRef.current = rawGroupsRef.current.map(g => (isLeavingId(g.id) ? { ...g, joined: false } : g));
-    }
+    syncCatalogJoined(myGroupIdsRef.current);
     const active = activeGroupIdRef.current;
     if (active && isLeavingId(active)) {
       setActiveGroupId(null);
@@ -529,7 +555,7 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
       console.error('[leaveGroupChat] 삭제 오류:', e);
     }
     await loadGroupChats(userId);
-  }, [loadGroupChats]);
+  }, [cancelScheduledLoadGroupChats, loadGroupChats, syncCatalogJoined]);
 
   // ── 메시지 전송 (낙관적 + 4회 재시도, 실패 시 오프라인 큐) ───────────────────
   const sendGroupMessage = useCallback(async (content: string): Promise<void> => {
@@ -663,14 +689,27 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
           if (!incoming?.group_id) return;
           if (event === 'INSERT' && incoming.user_id === uid) {
             if (recentlyLeftRef.current.has(incoming.group_id)) return;
-            setMyGroupIds(prev => prev.includes(incoming.group_id) ? prev : [...prev, incoming.group_id]);
-            if (pendingJoinRef.current.has(incoming.group_id)) return;
+            const rooms = rawGroupsRef.current.length ? rawGroupsRef.current : groupChatsRef.current;
+            const sibs = siblingGroupIds(rooms, incoming.group_id);
+            const pendingIds = [incoming.group_id, ...sibs];
+            const next = myGroupIdsRef.current.includes(incoming.group_id)
+              ? myGroupIdsRef.current
+              : [...myGroupIdsRef.current, incoming.group_id];
+            myGroupIdsRef.current = next;
+            setMyGroupIds(next);
+            syncCatalogJoined(next);
+            if (pendingIds.some(id => pendingJoinRef.current.has(id))) return;
             scheduleLoadGroupChats(uid);
             return;
           }
           if (event === 'DELETE' && incoming.user_id === uid) {
-            setMyGroupIds(prev => prev.filter(id => id !== incoming.group_id));
-            myGroupIdsRef.current = myGroupIdsRef.current.filter(id => id !== incoming.group_id);
+            const rooms = rawGroupsRef.current.length ? rawGroupsRef.current : groupChatsRef.current;
+            const removeIds = new Set([incoming.group_id, ...siblingGroupIds(rooms, incoming.group_id)]);
+            const next = myGroupIdsRef.current.filter(id => !removeIds.has(id));
+            myGroupIdsRef.current = next;
+            setMyGroupIds(next);
+            syncCatalogJoined(next);
+            cancelScheduledLoadGroupChats();
             void loadGroupChats(uid);
           }
           if (isActiveGroupRoom(incoming.group_id)) {
@@ -732,7 +771,7 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif }: Use
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUserId, loadGroupChats, scheduleLoadGroupChats]);
+  }, [currentUserId, cancelScheduledLoadGroupChats, loadGroupChats, scheduleLoadGroupChats, syncCatalogJoined]);
 
   // ── SSE 재연결 / 탭 복귀 / 끊김 시 단톡 목록·메시지 resync + 오프라인 큐 플러시 ─
   useEffect(() => {

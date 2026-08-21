@@ -14,6 +14,7 @@ import {
   unreadMemberCount,
   countJoinedCatalogRooms,
   isJoinedGroupId,
+  patchCatalogMembership,
   groupRoomVisual,
   AFTERPARTY_CLUB_ID,
   clearAllGroupLastReads,
@@ -247,6 +248,33 @@ describe('group-rooms catalog', () => {
     ];
     expect(countJoinedCatalogRooms(raw, ['y', 'a', 'dup-drink'], { myBirthYear: 1998 })).toBe(3);
     expect(isJoinedGroupId(raw, ['dup-drink'], 'group_afterparty_drink')).toBe(true);
+  });
+
+  it('patchCatalogMembership marks canonical 2차 joined when only a duplicate id is in myGroupIds', () => {
+    const raw = [
+      room({ id: 'dup-drink', name: '2차 술 갈 분', interest_tag: '2차술', room_kind: 'afterparty_drink', memberCount: 3 }),
+      room({ id: 'group_afterparty_drink', name: '2차 술 갈 분', interest_tag: '2차술', room_kind: 'afterparty_drink', memberCount: 3 }),
+      room({ id: 'group_afterparty_club', name: '2차 클럽 갈 분', interest_tag: '2차클럽', room_kind: 'afterparty_club', memberCount: 1 }),
+    ];
+    const catalog = catalogGroupRooms(raw, { joinedIds: [] });
+    expect(catalog.every(g => !g.joined)).toBe(true);
+
+    const joined = patchCatalogMembership(catalog, raw, ['dup-drink']);
+    expect(joined.find(g => g.id === 'group_afterparty_drink')?.joined).toBe(true);
+    expect(joined.find(g => g.id === 'group_afterparty_club')?.joined).toBe(false);
+    expect(joined.find(g => g.id === 'group_afterparty_drink')?.memberCount).toBe(3);
+  });
+
+  it('patchCatalogMembership clears joined on leave for sibling 2차 ids', () => {
+    const raw = [
+      room({ id: 'dup-club', name: '2차 클럽 갈 분', interest_tag: '2차클럽', room_kind: 'afterparty_club' }),
+      room({ id: 'group_afterparty_club', name: '2차 클럽 갈 분', interest_tag: '2차클럽', room_kind: 'afterparty_club' }),
+    ];
+    const catalog = catalogGroupRooms(raw, { joinedIds: ['dup-club'] });
+    expect(catalog.find(g => g.id === 'group_afterparty_club')?.joined).toBe(true);
+
+    const left = patchCatalogMembership(catalog, raw, []);
+    expect(left.find(g => g.id === 'group_afterparty_club')?.joined).toBe(false);
   });
 });
 

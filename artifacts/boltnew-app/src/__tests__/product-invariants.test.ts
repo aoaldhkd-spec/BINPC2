@@ -234,8 +234,9 @@ describe('product copy + notification invariants', () => {
     expect(hook).toContain('markGroupRead');
     expect(hook).toContain('last_read_at');
     expect(hook).toContain('siblingGroupIds');
-    expect(hook).toContain('joined: false');
     expect(hook).toContain('recentlyLeftRef');
+    expect(hook).toContain('syncCatalogJoined');
+    expect(hook).toContain('patchCatalogMembership');
     expect(hook).toContain('onSseReconnect');
     expect(hook).toContain('isSseHealthy');
     expect(hook).toContain('resyncGroupState');
