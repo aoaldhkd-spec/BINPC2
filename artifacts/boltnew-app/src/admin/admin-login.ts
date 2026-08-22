@@ -36,13 +36,56 @@ export function readSubmittedPassword(
   return String(field?.value || reactState || '').trim();
 }
 
-/** After login, open 접속정보 when the URL asks for it. Does not skip auth. */
+export type AdminSettingsSubTab = 'control' | 'qr' | 'admin' | 'db';
+
+function parseAdminUrlSearch(search: string): URLSearchParams {
+  return new URLSearchParams(search.startsWith('?') ? search.slice(1) : search);
+}
+
+/** Map /admin query+hash to the settings sub-tab. Does not skip auth. */
+export function adminSettingsSubTabFromUrl(
+  search = typeof window === 'undefined' ? '' : window.location.search,
+  hash = typeof window === 'undefined' ? '' : window.location.hash,
+): AdminSettingsSubTab {
+  const q = parseAdminUrlSearch(search);
+  const tab = q.get('tab');
+  const settings = q.get('settings');
+  if (settings === 'admin' || tab === 'credentials') return 'admin';
+  if (settings === 'db' || tab === 'db') return 'db';
+  if (settings === 'qr' || tab === 'qr') return 'qr';
+  if (/credentials|접속정보/.test(hash)) return 'admin';
+  if (/health|db.?health/i.test(hash)) return 'db';
+  return 'control';
+}
+
+/** After login, open the settings sub-tab requested by the URL. */
 export function initialAdminSettingsSubTab(
   search = typeof window === 'undefined' ? '' : window.location.search,
   hash = typeof window === 'undefined' ? '' : window.location.hash,
-): 'admin' | 'control' {
-  const q = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search);
-  if (q.get('settings') === 'admin' || q.get('tab') === 'credentials') return 'admin';
-  if (/credentials|접속정보/.test(hash)) return 'admin';
-  return 'control';
+): AdminSettingsSubTab {
+  return adminSettingsSubTabFromUrl(search, hash);
+}
+
+/** Keep SPA URL aligned with the active settings sub-tab (replaceState only). */
+export function syncAdminSettingsSubTabUrl(
+  subTab: AdminSettingsSubTab,
+  pathname = typeof window === 'undefined' ? '/admin' : window.location.pathname,
+): void {
+  const url = new URL(pathname, 'http://local');
+  if (subTab === 'admin') {
+    url.searchParams.set('tab', 'credentials');
+  } else if (subTab === 'db') {
+    url.searchParams.set('tab', 'db');
+    url.hash = 'health';
+  } else if (subTab === 'qr') {
+    url.searchParams.set('tab', 'qr');
+  } else {
+    url.search = '';
+    url.hash = '';
+  }
+  const next = `${url.pathname}${url.search}${url.hash}`;
+  const current = `${pathname}${typeof window === 'undefined' ? '' : window.location.search}${typeof window === 'undefined' ? '' : window.location.hash}`;
+  if (next !== current && typeof window !== 'undefined') {
+    window.history.replaceState({}, '', next);
+  }
 }

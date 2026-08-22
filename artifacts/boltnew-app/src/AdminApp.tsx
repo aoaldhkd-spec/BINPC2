@@ -15,7 +15,9 @@ import {
   type GroupChat, type GroupMessage, type GroupParticipant, type SignalSend, type DbHealthData,
 } from './admin/shared';
 import { LoginScreen } from './admin/LoginScreen';
-import { initialAdminSettingsSubTab } from './admin/admin-login';
+import {
+  adminSettingsSubTabFromUrl, initialAdminSettingsSubTab, syncAdminSettingsSubTabUrl,
+} from './admin/admin-login';
 import { NotificationTab } from './admin/NotificationTab';
 import { DashboardTab } from './admin/DashboardTab';
 import { ADMIN_FIXED_NICKNAME } from './lib/panel-password';
@@ -552,6 +554,17 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     setTab(t);
   };
 
+  const handleSettingsSubTabChange = (st: SettingsSubTab) => {
+    setSettingsSubTab(st);
+    syncAdminSettingsSubTabUrl(st);
+  };
+
+  useEffect(() => {
+    const onUrlChange = () => setSettingsSubTab(adminSettingsSubTabFromUrl());
+    window.addEventListener('popstate', onUrlChange);
+    return () => window.removeEventListener('popstate', onUrlChange);
+  }, []);
+
   const TABS: { id: AdminTab; label: string; icon: React.ReactNode; badge?: number }[] = [
     { id: 'settings', label: '설정', icon: <LayoutGrid className="w-4 h-4" /> },
     { id: 'profiles', label: '참여자', icon: <Users className="w-4 h-4" />, badge: Math.max(0, profiles.length - seenProfilesCount) || undefined },
@@ -601,7 +614,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       </header>
 
       <main className="max-w-4xl mx-auto">
-        <Suspense fallback={<AdminTabFallback />}>
         {tab === 'settings' && (
           <div>
             <div className="grid grid-cols-4 border-b border-gray-200 bg-white px-2 min-[360px]:px-4">
@@ -611,7 +623,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                 { id: 'admin' as SettingsSubTab, label: '접속정보' },
                 { id: 'db' as SettingsSubTab, label: 'DB헬스', errorBadge: (dbHealth?.persistErrors ?? 0) > 0 },
               ]).map(st => (
-                <button key={st.id} onClick={() => setSettingsSubTab(st.id)}
+                <button key={st.id} onClick={() => handleSettingsSubTabChange(st.id)}
                   className={`touch-target relative min-w-0 px-0.5 min-[390px]:px-2 py-2.5 text-[9px] min-[360px]:text-[10px] min-[390px]:text-xs font-semibold border-b-2 transition-all text-center leading-tight break-words ${settingsSubTab === st.id ? 'border-teal-500 text-teal-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
                   {st.label}
                   {'errorBadge' in st && st.errorBadge && (
@@ -620,36 +632,40 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                 </button>
               ))}
             </div>
-            {settingsSubTab === 'control' && (
-              <DashboardTab settings={settings} profiles={profiles}
-                onToggleSession={handleToggleSession} onEventEndReset={handleEventEndReset}
-                onToggleFunctionsLock={handleToggleFunctionsLock}
-                onClearLikes={handleClearLikes} onClearChats={handleClearAllChats}
-                onClearProfiles={handleClearProfiles}
-                onClearHistory={handleClearHistory} restoreMap={restoreMap} />
-            )}
-            {settingsSubTab === 'qr' && <AdminQrTab settings={settings} onSaveQrBase={async (url) => {
-              try {
-                await patchAdminSettings({ qr_base_url: url }, setSettings);
-              } catch (e) {
-                alert(`QR URL 저장 실패: ${e instanceof Error ? e.message : String(e)}`);
-              }
-            }} />}
-            {settingsSubTab === 'admin' && <CredentialsTab settings={settings} onSave={handleSaveCredentials} onSaveEntry={handleSaveEntryPassword} onSaveReset={handleSaveResetPassword} onSaveTest={handleSaveTestPassword} />}
-            {settingsSubTab === 'db' && (
-              <>
-                {dbHealthAuthError && (
-                  <div className="mx-4 mt-4 bg-amber-50 border border-amber-300 rounded-xl p-3 text-xs text-amber-800">
-                    DB 헬스 조회 인증이 만료됐습니다. 로그아웃 후 다시 로그인해 주세요.
-                  </div>
-                )}
-                <DbHealthTab health={dbHealth} loading={dbHealthLoading} onRefresh={fetchDbHealth} onClearErrors={handleClearDbErrors} />
-              </>
-            )}
+            <Suspense fallback={<AdminTabFallback />}>
+              {settingsSubTab === 'control' && (
+                <DashboardTab settings={settings} profiles={profiles}
+                  onToggleSession={handleToggleSession} onEventEndReset={handleEventEndReset}
+                  onToggleFunctionsLock={handleToggleFunctionsLock}
+                  onClearLikes={handleClearLikes} onClearChats={handleClearAllChats}
+                  onClearProfiles={handleClearProfiles}
+                  onClearHistory={handleClearHistory} restoreMap={restoreMap} />
+              )}
+              {settingsSubTab === 'qr' && <AdminQrTab settings={settings} onSaveQrBase={async (url) => {
+                try {
+                  await patchAdminSettings({ qr_base_url: url }, setSettings);
+                } catch (e) {
+                  alert(`QR URL 저장 실패: ${e instanceof Error ? e.message : String(e)}`);
+                }
+              }} />}
+              {settingsSubTab === 'admin' && <CredentialsTab settings={settings} onSave={handleSaveCredentials} onSaveEntry={handleSaveEntryPassword} onSaveReset={handleSaveResetPassword} onSaveTest={handleSaveTestPassword} />}
+              {settingsSubTab === 'db' && (
+                <>
+                  {dbHealthAuthError && (
+                    <div className="mx-4 mt-4 bg-amber-50 border border-amber-300 rounded-xl p-3 text-xs text-amber-800">
+                      DB 헬스 조회 인증이 만료됐습니다. 로그아웃 후 다시 로그인해 주세요.
+                    </div>
+                  )}
+                  <DbHealthTab health={dbHealth} loading={dbHealthLoading} onRefresh={fetchDbHealth} onClearErrors={handleClearDbErrors} />
+                </>
+              )}
+            </Suspense>
           </div>
         )}
         {tab === 'profiles' && (
-          <ProfilesTabSection profiles={profiles} settings={settings} onClear={handleClearProfiles} onDeleteProfile={handleDeleteProfile} />
+          <Suspense fallback={<AdminTabFallback />}>
+            <ProfilesTabSection profiles={profiles} settings={settings} onClear={handleClearProfiles} onDeleteProfile={handleDeleteProfile} />
+          </Suspense>
         )}
         {tab === 'hearts' && (
           <div>
@@ -664,19 +680,24 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                 </button>
               ))}
             </div>
-            {heartSubTab === 'hearts' && <HeartsTab likes={likes} profileMap={profileMap} onClear={handleClearLikes} onRefresh={loadAll} />}
-            {heartSubTab === 'popularity' && <PopularityTab likes={likes} profileMap={profileMap} />}
+            <Suspense fallback={<AdminTabFallback />}>
+              {heartSubTab === 'hearts' && <HeartsTab likes={likes} profileMap={profileMap} onClear={handleClearLikes} onRefresh={loadAll} />}
+              {heartSubTab === 'popularity' && <PopularityTab likes={likes} profileMap={profileMap} />}
+            </Suspense>
           </div>
         )}
-        {tab === 'chats' && <ChatsTab
-          chats={allChats} messages={allMessages}
-          groupChats={groupChats} groupMessages={groupMessages}
-          groupParticipants={groupParticipants} signalSends={signalSends}
-          profileMap={profileMap} historyLoading={historyLoading} historyError={historyError}
-          onDeleteChat={handleDeleteChat} onClearAll={handleClearAllChats} onRefresh={loadAll}
-        />}
+        {tab === 'chats' && (
+          <Suspense fallback={<AdminTabFallback />}>
+            <ChatsTab
+              chats={allChats} messages={allMessages}
+              groupChats={groupChats} groupMessages={groupMessages}
+              groupParticipants={groupParticipants} signalSends={signalSends}
+              profileMap={profileMap} historyLoading={historyLoading} historyError={historyError}
+              onDeleteChat={handleDeleteChat} onClearAll={handleClearAllChats} onRefresh={loadAll}
+            />
+          </Suspense>
+        )}
         {tab === 'notify' && <NotificationTab tableCount={0} settings={settings} onSetTimer={handleSetTimer} />}
-        </Suspense>
       </main>
 
       {/* 초기화 복구 배너 (non-blocking) */}

@@ -1,12 +1,14 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   isRetiredPublicPanelPassword,
   mapPanelLoginError,
   readSubmittedPassword,
   initialAdminSettingsSubTab,
+  adminSettingsSubTabFromUrl,
+  syncAdminSettingsSubTabUrl,
   TEST_ADMIN_HINT,
 } from './admin-login';
 
@@ -47,6 +49,30 @@ describe('admin login helpers', () => {
     expect(initialAdminSettingsSubTab('?tab=credentials', '')).toBe('admin');
     expect(initialAdminSettingsSubTab('', '#credentials')).toBe('admin');
     expect(initialAdminSettingsSubTab('', '')).toBe('control');
+  });
+
+  it('opens DB 헬스 from tab=db or #health deep links', () => {
+    expect(adminSettingsSubTabFromUrl('?tab=db', '')).toBe('db');
+    expect(adminSettingsSubTabFromUrl('?settings=db', '')).toBe('db');
+    expect(adminSettingsSubTabFromUrl('', '#health')).toBe('db');
+    expect(initialAdminSettingsSubTab('?tab=db', '#health')).toBe('db');
+  });
+
+  it('syncs settings sub-tab into the SPA URL', () => {
+    const replaceState = vi.fn();
+    const location = { pathname: '/admin', search: '', hash: '' };
+    vi.stubGlobal('window', {
+      location,
+      history: { replaceState },
+    });
+    syncAdminSettingsSubTabUrl('db', '/admin');
+    expect(replaceState).toHaveBeenCalledWith({}, '', '/admin?tab=db#health');
+    location.search = '?tab=db';
+    location.hash = '#health';
+    replaceState.mockClear();
+    syncAdminSettingsSubTabUrl('control', '/admin');
+    expect(replaceState).toHaveBeenCalledWith({}, '', '/admin');
+    vi.unstubAllGlobals();
   });
 
   it('test-admin hint never claims a filled password will work', () => {
