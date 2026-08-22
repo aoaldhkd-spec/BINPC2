@@ -146,9 +146,23 @@ describe('ProfileCard — lock guard (seat-lock + functions-lock regression)', (
     const { onBlock } = renderCard({ withMenu: true });
     const menuBtn = screen.getByTestId('profile-card-menu-btn');
     fireEvent.pointerUp(menuBtn, { pointerType: 'touch' });
-    expect(screen.getByRole('menu')).toBeTruthy();
+    const menu = screen.getByTestId('profile-card-menu');
+    expect(menu).toBeTruthy();
+    expect(menu.parentElement).toBe(document.body);
     fireEvent.pointerUp(screen.getByRole('menuitem', { name: /차단하기/i }), { pointerType: 'touch' });
     expect(onBlock).toHaveBeenCalledWith(PROFILE.id, 'block');
+  });
+
+  it('compact (3-col) grid: menu portals to body with fixed coords near trigger', () => {
+    renderCard({ withMenu: true, compact: true, statusMsg: '상태' });
+    const menuBtn = screen.getByTestId('profile-card-menu-btn');
+    const btnRect = menuBtn.getBoundingClientRect();
+    fireEvent.pointerUp(menuBtn, { pointerType: 'touch' });
+    const menu = screen.getByTestId('profile-card-menu');
+    expect(menu.parentElement).toBe(document.body);
+    const top = Number.parseFloat(menu.style.top);
+    expect(top).toBeGreaterThanOrEqual(btnRect.bottom);
+    expect(top).toBeLessThan(btnRect.bottom + 40);
   });
 
   it('functionsLocked=true: contact share menu shows toast, does NOT call onContactShare', () => {

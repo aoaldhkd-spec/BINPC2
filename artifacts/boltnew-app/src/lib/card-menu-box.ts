@@ -1,20 +1,49 @@
-/** Keep the ⋯ dropdown inside the viewport so left-column cards do not clip labels. */
+export type MenuTriggerRect = {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+};
+
+export type ViewportBox = {
+  vw: number;
+  vh: number;
+  offsetTop: number;
+  offsetLeft: number;
+};
+
+/** Visual viewport metrics — dense 2·3열 grids + iOS address-bar scroll. */
+export function readViewportBox(): ViewportBox {
+  if (typeof window === 'undefined') {
+    return { vw: 360, vh: 640, offsetTop: 0, offsetLeft: 0 };
+  }
+  const vv = window.visualViewport;
+  return {
+    vw: vv?.width ?? window.innerWidth,
+    vh: vv?.height ?? window.innerHeight,
+    offsetTop: vv?.offsetTop ?? 0,
+    offsetLeft: vv?.offsetLeft ?? 0,
+  };
+}
+
+/** Keep the ⋯ dropdown inside the viewport; center under trigger for narrow grid cells. */
 export function cardMenuBox(
-  rect: { right: number; bottom: number; top?: number },
-  vw: number,
-  vh: number,
+  rect: MenuTriggerRect,
+  viewport: ViewportBox,
   menuHeight = 200,
 ): { top: number; left: number; width: number } {
   const pad = 8;
   const gap = 6;
+  const { vw, vh, offsetTop, offsetLeft } = viewport;
   const width = Math.min(192, Math.max(0, vw - pad * 2));
-  let left = rect.right - width;
+
+  const triggerCenter = (rect.left + rect.right) / 2;
+  let left = triggerCenter - width / 2;
   if (left < pad) left = pad;
   if (left + width > vw - pad) left = Math.max(pad, vw - pad - width);
 
   const below = rect.bottom + gap;
-  const anchorTop = rect.top ?? rect.bottom - 20;
-  const above = anchorTop - gap - menuHeight;
+  const above = rect.top - gap - menuHeight;
 
   let top: number;
   if (below + menuHeight <= vh - pad) {
@@ -24,7 +53,12 @@ export function cardMenuBox(
   } else {
     top = Math.max(pad, Math.min(below, vh - pad - menuHeight));
   }
-  return { top, left, width };
+
+  return {
+    top: top + offsetTop,
+    left: left + offsetLeft,
+    width,
+  };
 }
 
 /** Rough menu height from item count (~44px per row + chrome). */

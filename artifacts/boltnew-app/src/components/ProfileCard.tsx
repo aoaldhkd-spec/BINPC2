@@ -7,7 +7,7 @@ import { parseProfileInterests, getInterestTagStyle } from '../lib/interests';
 import { HeartType, heartMeta } from '../lib/constants';
 import { getPositionLabel, getPositionStyle, getKoreanAge, hasUploadedPhoto, getAvatarGradientCssForProfile } from '../lib/profile';
 import { getMbtiStyle } from '../lib/utils';
-import { cardMenuBox, cardMenuHeight } from '../lib/card-menu-box';
+import { cardMenuBox, cardMenuHeight, readViewportBox } from '../lib/card-menu-box';
 import { bindMobileTap } from '../lib/mobile-tap';
 import { parseIdealTags } from '../lib/signal-match';
 import { isProfileCardDark, profileCardChipStyle, profileCardSurfaces } from '../lib/profile-card-theme';
@@ -181,12 +181,21 @@ export const ProfileCard = memo(function ProfileCard({
     contain: 'layout paint',
   };
 
-  const measureMenuPos = useCallback(() => {
+  const measureMenuPos = useCallback((menuHeight = estimatedMenuHeight) => {
     const el = menuBtnRef.current;
     if (!el) return null;
     const rect = el.getBoundingClientRect();
-    return cardMenuBox(rect, window.innerWidth, window.innerHeight, estimatedMenuHeight);
+    return cardMenuBox(
+      { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom },
+      readViewportBox(),
+      menuHeight,
+    );
   }, [estimatedMenuHeight]);
+
+  const applyMenuPos = useCallback((menuHeight = estimatedMenuHeight) => {
+    const next = measureMenuPos(menuHeight);
+    if (next) setMenuPos(next);
+  }, [estimatedMenuHeight, measureMenuPos]);
 
   // ⋯ 메뉴 — 바깥 클릭 시만 닫기 (메뉴 항목 pointerdown에서 즉시 닫히면 클릭 불가)
   useEffect(() => {
@@ -202,30 +211,45 @@ export const ProfileCard = memo(function ProfileCard({
     return () => document.removeEventListener('pointerdown', close);
   }, [showMenu]);
 
-  // Portal menu — keep aligned while page/deck scrolls or viewport resizes
+  // Portal menu — keep aligned while page/deck scrolls, viewport resizes, or iOS chrome shifts
   useEffect(() => {
     if (!showMenu) return;
-    const reposition = () => {
-      const next = measureMenuPos();
-      if (next) setMenuPos(next);
-    };
+    const reposition = () => applyMenuPos();
     window.addEventListener('resize', reposition);
     window.addEventListener('scroll', reposition, true);
+    const vv = window.visualViewport;
+    vv?.addEventListener('resize', reposition);
+    vv?.addEventListener('scroll', reposition);
     return () => {
       window.removeEventListener('resize', reposition);
       window.removeEventListener('scroll', reposition, true);
+      vv?.removeEventListener('resize', reposition);
+      vv?.removeEventListener('scroll', reposition);
     };
-  }, [showMenu, measureMenuPos]);
+  }, [showMenu, applyMenuPos]);
+
+  // After mount, use measured menu height for flip-above/below in dense grids
+  useEffect(() => {
+    if (!showMenu) return;
+    const el = menuRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => {
+      const h = el.getBoundingClientRect().height;
+      if (h > 0) applyMenuPos(h);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [showMenu, applyMenuPos]);
 
   const openCardMenu = (e: React.SyntheticEvent) => {
     e.stopPropagation();
     if (showMenu) { setShowMenu(false); setMenuPos(null); return; }
     const el = (e.currentTarget ?? menuBtnRef.current) as HTMLElement | null;
     if (!el) return;
-    const rect = el.getBoundingClientRect();
-    setMenuPos(cardMenuBox(rect, window.innerWidth, window.innerHeight, estimatedMenuHeight));
+    applyMenuPos();
     suppressMenuCloseUntilRef.current = performance.now() + 400;
     setShowMenu(true);
+    requestAnimationFrame(() => requestAnimationFrame(() => applyMenuPos()));
   };
 
   const closeCardMenu = () => {
