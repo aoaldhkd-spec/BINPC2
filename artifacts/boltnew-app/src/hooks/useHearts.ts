@@ -377,6 +377,11 @@ export function useHearts(
     if (contactShareInFlightRef.current) return;
     contactShareInFlightRef.current = true;
     try {
+      const sessionOk = await ensureWriteSession();
+      if (!sessionOk) {
+        setLikeError('로그인 세션이 만료되었습니다. 앱을 새로고침한 뒤 다시 시도해 주세요.');
+        return;
+      }
       const { error } = await supabase.from('contact_shares').upsert({
         liker_id: likerId,
         liked_id: currentUserId,

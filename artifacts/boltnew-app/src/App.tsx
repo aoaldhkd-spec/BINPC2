@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } fro
 import {
   X,
 } from 'lucide-react';
-import { supabase, setLocalDbUserId, setDeviceRecoveryPin, fetchAndSetSseToken, getDeviceSecret, onSseReconnect, isSseHealthy } from './lib/supabase';
+import { supabase, setLocalDbUserId, setDeviceRecoveryPin, fetchAndSetSseToken, getDeviceSecret, onSseReconnect, isSseHealthy, ensureWriteSession } from './lib/supabase';
 import { diag } from './lib/diag';
 import { subscribeNetUi, resetNetUiForRetry, type NetUiStatus } from './lib/net-health';
 import { excludeSwipeGestureVerifyProfiles, isSwipeGestureVerifyProfile } from './lib/profile';
@@ -945,6 +945,11 @@ function App() {
     if (!currentUserId || targetId === currentUserId) return;
     // 이미 차단/숨기기한 경우 중복 방지
     if (blockedUsers.some(b => b.user_id === currentUserId && b.target_id === targetId && b.block_type === type)) return;
+    const sessionOk = await ensureWriteSession();
+    if (!sessionOk) {
+      setBottomNotif({ type: 'system', message: '로그인 세션이 만료되었습니다. 앱을 새로고침한 뒤 다시 시도해 주세요.' });
+      return;
+    }
     const id = crypto.randomUUID();
     const row: BlockedUser = { id, user_id: currentUserId, target_id: targetId, block_type: type, created_at: new Date().toISOString() };
     // 낙관적 업데이트
@@ -962,6 +967,11 @@ function App() {
 
   // ─── 차단·숨기기 해제 ────────────────────────────────────────────────────
   const handleUnblock = useCallback(async (blockId: string) => {
+    const sessionOk = await ensureWriteSession();
+    if (!sessionOk) {
+      setBottomNotif({ type: 'system', message: '로그인 세션이 만료되었습니다. 앱을 새로고침한 뒤 다시 시도해 주세요.' });
+      return;
+    }
     setBlockedUsers(prev => prev.filter(b => b.id !== blockId));
     const { error } = await supabase.from('blocked_users').delete().eq('id', blockId as never);
     if (error) {

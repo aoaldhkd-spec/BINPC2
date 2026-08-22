@@ -150,6 +150,29 @@ describe('ProfileCard — lock guard (seat-lock + functions-lock regression)', (
     fireEvent.pointerUp(screen.getByRole('menuitem', { name: /차단하기/i }), { pointerType: 'touch' });
     expect(onBlock).toHaveBeenCalledWith(PROFILE.id, 'block');
   });
+
+  it('functionsLocked=true: contact share menu shows toast, does NOT call onContactShare', () => {
+    const { onContactShare } = renderCard({ withMenu: true, functionsLocked: true });
+    fireEvent.pointerUp(screen.getByTestId('profile-card-menu-btn'), { pointerType: 'touch' });
+    fireEvent.pointerUp(screen.getByRole('menuitem', { name: /연락처 보내기/i }), { pointerType: 'touch' });
+    expect(onContactShare).not.toHaveBeenCalled();
+    expect(screen.getByText(/현재 잠금 중/i)).toBeTruthy();
+  });
+
+  it('functionsLocked=true: fortune menu shows toast, does NOT call onViewFortune', () => {
+    const { onViewFortune } = renderCard({ withMenu: true, functionsLocked: true });
+    fireEvent.pointerUp(screen.getByTestId('profile-card-menu-btn'), { pointerType: 'touch' });
+    fireEvent.pointerUp(screen.getByRole('menuitem', { name: /궁합 보기/i }), { pointerType: 'touch' });
+    expect(onViewFortune).not.toHaveBeenCalled();
+    expect(screen.getByText(/현재 잠금 중/i)).toBeTruthy();
+  });
+
+  it('functionsLocked=true: block/hide menu still runs (privacy not locked)', () => {
+    const { onBlock } = renderCard({ withMenu: true, functionsLocked: true });
+    fireEvent.pointerUp(screen.getByTestId('profile-card-menu-btn'), { pointerType: 'touch' });
+    fireEvent.pointerUp(screen.getByRole('menuitem', { name: /나를 못 보게 하기/i }), { pointerType: 'touch' });
+    expect(onBlock).toHaveBeenCalledWith(PROFILE.id, 'hide');
+  });
 });
 
 describe('ProfileCard — flip keeps bars + fixed frame (compact/2·3열)', () => {

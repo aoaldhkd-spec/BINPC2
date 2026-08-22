@@ -282,6 +282,17 @@ mustMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '37_card_menu_
 mustMatch('artifacts/boltnew-app/src/hooks/useChat.ts', '37_chat_ensure_write_session', [
   /ensureWriteSession/,
 ]);
+mustMatch('artifacts/boltnew-app/src/App.tsx', '37_block_ensure_write_session', [
+  /handleBlock[\s\S]*ensureWriteSession/,
+  /handleUnblock[\s\S]*ensureWriteSession/,
+]);
+mustMatch('artifacts/boltnew-app/src/hooks/useHearts.ts', '37_contact_share_ensure_write_session', [
+  /handleContactShare[\s\S]*ensureWriteSession/,
+]);
+mustMatch('artifacts/boltnew-app/src/components/ProfileDeckGrid.tsx', '37_fortune_menu_birth_gate', [
+  /profile\.birth_year[\s\S]*profile\.birth_month[\s\S]*profile\.birth_day/,
+  /onViewFortune/,
+]);
 
 // ?? 33 Entry / waiting / main gate mapping (minimal) ?????????????????????????
 

@@ -96,7 +96,11 @@ export const ProfileDeckGrid = memo(function ProfileDeckGrid({
               onOpenChat={onOpenChat}
               onBlock={onBlock}
               onContactShare={onContactShareOpen}
-              onViewFortune={onViewFortune}
+              onViewFortune={
+                onViewFortune && profile.birth_year && profile.birth_month && profile.birth_day
+                  ? onViewFortune
+                  : undefined
+              }
               idealMsg={signal?.ideal_msg}
               statusMsg={signal?.status_msg}
             />
