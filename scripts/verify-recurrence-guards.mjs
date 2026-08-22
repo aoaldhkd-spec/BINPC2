@@ -282,14 +282,17 @@ mustMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '37_card_menu_
 mustMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '39_card_menu_body_portal', [
   /createPortal/,
   /document\.body/,
+  /profile-card-menu-layer/,
   /profile-card-menu/,
   /cardMenuHeight/,
   /readViewportBox/,
+  /zIndex:\s*10080/,
 ]);
 mustMatch('artifacts/boltnew-app/src/lib/card-menu-box.ts', '39_card_menu_viewport_box', [
   /readViewportBox/,
   /visualViewport/,
   /triggerCenter/,
+  /CARD_MENU_BOTTOM_CHROME/,
 ]);
 mustMatch('artifacts/boltnew-app/src/hooks/useChat.ts', '37_chat_ensure_write_session', [
   /ensureWriteSession/,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cardMenuBox, cardMenuHeight } from './card-menu-box';
+import { cardMenuBox, cardMenuHeight, CARD_MENU_BOTTOM_CHROME } from './card-menu-box';
 
 const VP = { vw: 360, vh: 640, offsetTop: 0, offsetLeft: 0 };
 const VP320 = { vw: 320, vh: 568, offsetTop: 0, offsetLeft: 0 };
@@ -32,9 +32,16 @@ describe('cardMenuBox', () => {
     expect(box.top).toBeGreaterThanOrEqual(8);
   });
 
-  it('applies visualViewport offset for iOS fixed positioning', () => {
-    const box = cardMenuBox({ left: 150, right: 170, top: 4, bottom: 24 }, { vw: 360, vh: 640, offsetTop: 12, offsetLeft: 0 }, 180);
-    expect(box.top).toBe(42);
+  it('flips above bottom tab bar when trigger sits above chrome', () => {
+    const vh = 640;
+    const trigger = { left: 150, right: 170, top: vh - CARD_MENU_BOTTOM_CHROME - 30, bottom: vh - CARD_MENU_BOTTOM_CHROME - 10 };
+    const box = cardMenuBox(trigger, { vw: 360, vh, offsetTop: 0, offsetLeft: 0 }, 180);
+    expect(box.top + 180).toBeLessThanOrEqual(vh - CARD_MENU_BOTTOM_CHROME + 8);
+  });
+
+  it('returns visual-viewport-relative coords (layer applies vv offset)', () => {
+    const box = cardMenuBox({ left: 150, right: 170, top: 4, bottom: 24 }, { vw: 360, vh: 640, offsetTop: 12, offsetLeft: 4 }, 180);
+    expect(box.top).toBe(30);
     expect(box.left).toBe(64);
   });
 });

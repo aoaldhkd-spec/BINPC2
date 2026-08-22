@@ -12,6 +12,9 @@ export type ViewportBox = {
   offsetLeft: number;
 };
 
+/** Participant tab bar (~4.5rem) + safe-bottom — flip menu above when near bottom chrome. */
+export const CARD_MENU_BOTTOM_CHROME = 80;
+
 /** Visual viewport metrics — dense 2·3열 grids + iOS address-bar scroll. */
 export function readViewportBox(): ViewportBox {
   if (typeof window === 'undefined') {
@@ -26,16 +29,21 @@ export function readViewportBox(): ViewportBox {
   };
 }
 
-/** Keep the ⋯ dropdown inside the viewport; center under trigger for narrow grid cells. */
+/**
+ * Keep the ⋯ dropdown inside the visual viewport; center under trigger for narrow grid cells.
+ * Returns coords relative to the visual viewport (for a fixed layer pinned at vv offset).
+ */
 export function cardMenuBox(
   rect: MenuTriggerRect,
   viewport: ViewportBox,
   menuHeight = 200,
+  bottomChrome = CARD_MENU_BOTTOM_CHROME,
 ): { top: number; left: number; width: number } {
   const pad = 8;
   const gap = 6;
-  const { vw, vh, offsetTop, offsetLeft } = viewport;
+  const { vw, vh } = viewport;
   const width = Math.min(192, Math.max(0, vw - pad * 2));
+  const maxBottom = Math.max(pad + menuHeight, vh - bottomChrome);
 
   const triggerCenter = (rect.left + rect.right) / 2;
   let left = triggerCenter - width / 2;
@@ -46,19 +54,15 @@ export function cardMenuBox(
   const above = rect.top - gap - menuHeight;
 
   let top: number;
-  if (below + menuHeight <= vh - pad) {
+  if (below + menuHeight <= maxBottom - pad) {
     top = below;
   } else if (above >= pad) {
     top = above;
   } else {
-    top = Math.max(pad, Math.min(below, vh - pad - menuHeight));
+    top = Math.max(pad, Math.min(below, maxBottom - pad - menuHeight));
   }
 
-  return {
-    top: top + offsetTop,
-    left: left + offsetLeft,
-    width,
-  };
+  return { top, left, width };
 }
 
 /** Rough menu height from item count (~44px per row + chrome). */
