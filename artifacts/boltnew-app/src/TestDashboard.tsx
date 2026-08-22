@@ -93,9 +93,9 @@ export default function TestDashboard() {
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [myUserId, setMyUserId] = useState<string | null>(() => localStorage.getItem('matching_app_user_id'));
   const [bulkCount, setBulkCount] = useState(20);
-  const lastResetRef = useRef<string | null>(() => {
+  const lastResetRef = useRef<string | null>((() => {
     try { return localStorage.getItem(MATCHING_LAST_RESET_KEY); } catch { return null; }
-  }());
+  })());
 
   const notify = (msg: string, ok = true) => {
     setToast({ msg, ok });
