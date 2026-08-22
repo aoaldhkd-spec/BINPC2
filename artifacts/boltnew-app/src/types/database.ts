@@ -29,6 +29,7 @@ export interface Database {
           instagram_id: string | null;
           phone_number: string | null;
           pin_code: string | null;
+          avatar_color: number | null;
           created_at: string;
         };
         Insert: {
@@ -50,6 +51,7 @@ export interface Database {
           instagram_id?: string | null;
           phone_number?: string | null;
           pin_code?: string | null;
+          avatar_color?: number | null;
           created_at?: string;
         };
         Update: {
@@ -71,6 +73,7 @@ export interface Database {
           instagram_id?: string | null;
           phone_number?: string | null;
           pin_code?: string | null;
+          avatar_color?: number | null;
           created_at?: string;
         };
         Relationships: [];

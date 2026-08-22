@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { genAvatar, hasUploadedPhoto, getAvatarSrc, isPresetAvatar } from '../lib/profile';
+import {
+  genAvatar,
+  hasUploadedPhoto,
+  getAvatarSrc,
+  isPresetAvatar,
+  resolveAvatarColorIndex,
+  getAvatarGradientCssForProfile,
+  getAvatarGradient,
+} from '../lib/profile';
 
 describe('genAvatar', () => {
   it('같은 닉네임은 같은 SVG를 생성한다', () => {
@@ -46,5 +54,18 @@ describe('genAvatar', () => {
     expect(isPresetAvatar('/avatars/av360.webp')).toBe(true);
     expect(isPresetAvatar('/app/avatars/av1.webp?v=2')).toBe(true);
     expect(isPresetAvatar('/api/db/storage-image?p=profile-photos%2Fuser-1')).toBe(false);
+  });
+
+  it('avatar_color overrides nickname hash for card gradient', () => {
+    expect(resolveAvatarColorIndex({ nickname: '민수', avatar_color: 5 })).toBe(5);
+    expect(getAvatarGradientCssForProfile({ nickname: '민수', avatar_color: 5 }))
+      .toBe(getAvatarGradientCssForProfile({ nickname: '다른닉', avatar_color: 5 }));
+    expect(getAvatarGradient('민수', 5)).toEqual(getAvatarGradient('다른닉', 5));
+  });
+
+  it('null avatar_color keeps nickname-based auto color', () => {
+    const auto = resolveAvatarColorIndex({ nickname: '민수', avatar_color: null });
+    expect(auto).toBe(resolveAvatarColorIndex({ nickname: '민수' }));
+    expect(genAvatar('민수')).toBe(genAvatar('민수', null));
   });
 });

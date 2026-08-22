@@ -14,7 +14,8 @@ import { sumUnreadCounts } from '../lib/group-rooms';
 import { BIO_CATEGORIES, parseProfileInterests } from '../lib/interests';
 import { InterestPicker } from './InterestPicker';
 import { HeartType, HEART_TYPES, heartMeta } from '../lib/constants';
-import { getPositionLabel, getPositionBg, getDomSubLabel, getDomSubBg, genAvatar, getAvatarSrc } from '../lib/profile';
+import { getPositionLabel, getPositionBg, getDomSubLabel, getDomSubBg, genAvatar, getAvatarSrc, getAvatarGradientCssForProfile, AVATAR_PALETTE } from '../lib/profile';
+import { AVATAR_COLOR_CATEGORIES } from '../lib/avatar-color-catalog';
 import { containsBannedNicknameWord } from '../lib/bannedWords';
 import {
   clampNicknameInput,
@@ -624,6 +625,8 @@ export function MainScreen({
   // ── 프로필 사진 업로드 + 기본 아바타 피커 ────────────────────────────────────
   const [photoUploading, setPhotoUploading] = useState(false);
   const [avatarCatIdx, setAvatarCatIdx] = useState(0);
+  const [avatarColorCatIdx, setAvatarColorCatIdx] = useState(0);
+  const [avatarColorSaving, setAvatarColorSaving] = useState(false);
   const [showLegacyPhotoNotice, setShowLegacyPhotoNotice] = useState(true);
   // 고정 storage path를 쓰는 기존 사진도 앱 재진입 시 브라우저 캐시가 아닌 현재 값을 조회한다.
   const [photoCacheBust, setPhotoCacheBust] = useState(() => Date.now());
@@ -638,6 +641,27 @@ export function MainScreen({
     onUpdateProfile({ id: currentUserId, photo_url: avatarUrl });
     onRefreshProfiles();
     setProfileEditSection(null);
+  };
+
+  const handleSelectAvatarColor = async (colorIndex: number | null) => {
+    if (!currentUserId || avatarColorSaving) return;
+    const current = (me as Profile).avatar_color ?? null;
+    if (current === colorIndex) return;
+    setAvatarColorSaving(true);
+    try {
+      const { error } = await supabase.from('profiles').update({ avatar_color: colorIndex } as never).eq('id', currentUserId);
+      if (error) {
+        alert('카드 배경색 저장 중 오류가 발생했습니다. 다시 시도해 주세요.');
+        return;
+      }
+      onUpdateProfile({ id: currentUserId, avatar_color: colorIndex });
+      onRefreshProfiles();
+    } catch (e) {
+      console.error('[avatar-color] 저장 실패:', e);
+      alert('카드 배경색 저장 중 오류가 발생했습니다. 다시 시도해 주세요.');
+    } finally {
+      setAvatarColorSaving(false);
+    }
   };
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -831,11 +855,11 @@ export function MainScreen({
                     <div className="flex-shrink-0 flex flex-col items-center gap-1 pt-[17px]">
                       <div className="relative w-32 h-32">
                         <label className={`block w-full h-full rounded-2xl overflow-hidden border-2 border-cyan-500/50 shadow-lg shadow-cyan-500/20 cursor-pointer group ${photoUploading ? 'cursor-wait' : ''}`}>
-                          <img src={getAvatarSrc(me.photo_url, me.nickname, photoCacheBust)} alt={me.nickname} className="w-full h-full object-cover"
+                          <img src={getAvatarSrc(me.photo_url, me.nickname, photoCacheBust, me.avatar_color)} alt={me.nickname} className="w-full h-full object-cover"
                             onError={(e) => {
                               const image = e.currentTarget;
                               image.onerror = null;
-                              image.src = genAvatar(me.nickname);
+                              image.src = genAvatar(me.nickname, me.avatar_color);
                             }} />
                           <div className={`absolute inset-0 flex flex-col items-center justify-center photo-overlay transition-all ${photoUploading ? 'bg-black/60' : 'bg-black/0 group-hover:bg-black/50'}`}>
                             {photoUploading ? (
@@ -1536,13 +1560,13 @@ export function MainScreen({
                   <div className={`border-b ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
                     <button onClick={() => toggleSection('avatar')} className="w-full flex items-center gap-3 px-4 py-3 text-left">
                       <img
-                        src={getAvatarSrc(me.photo_url, me.nickname, photoCacheBust)}
+                        src={getAvatarSrc(me.photo_url, me.nickname, photoCacheBust, me.avatar_color)}
                         alt={me.nickname}
                         className="w-9 h-9 rounded-xl object-cover flex-shrink-0 border border-white/10"
                         onError={(e) => {
                           const image = e.currentTarget;
                           image.onerror = null;
-                          image.src = genAvatar(me.nickname);
+                          image.src = genAvatar(me.nickname, me.avatar_color);
                         }}
                       />
                       <div className="flex-1 min-w-0">
@@ -1607,6 +1631,51 @@ export function MainScreen({
                               </button>
                             );
                           })}
+                        </div>
+                        <div className={`mt-4 pt-4 border-t ${darkMode ? 'border-slate-700' : 'border-gray-200'}`}>
+                          <p className={`text-[11px] font-black mb-0.5 ${darkMode ? 'text-slate-300' : 'text-gray-600'}`}>🎨 카드 배경색</p>
+                          <p className={`text-[9px] mb-2 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>프로필 카드 사진 영역의 파스텔 배경 (사진 없을 때·프리셋 주변)</p>
+                          <div className={`flex flex-wrap gap-1 mb-2 pb-2 border-b ${darkMode ? 'border-slate-700' : 'border-gray-200'}`}>
+                            {AVATAR_COLOR_CATEGORIES.map((cat, idx) => (
+                              <button key={cat.label} type="button" onClick={() => setAvatarColorCatIdx(idx)}
+                                className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all whitespace-nowrap ${
+                                  avatarColorCatIdx === idx ? 'bg-cyan-500 text-white shadow-sm' :
+                                  darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-white text-gray-600 border border-gray-200 hover:border-cyan-300'
+                                }`}>{cat.label}</button>
+                            ))}
+                          </div>
+                          <div className="grid grid-cols-4 gap-2">
+                            {AVATAR_COLOR_CATEGORIES[avatarColorCatIdx]?.colors.map((choice) => {
+                              const myAvatarColor = (me as Profile).avatar_color ?? null;
+                              const isSel = myAvatarColor === choice.index;
+                              const swatchBg = choice.index == null
+                                ? getAvatarGradientCssForProfile({ nickname: me.nickname, avatar_color: null })
+                                : (() => {
+                                  const { from, to } = AVATAR_PALETTE[choice.index];
+                                  return `linear-gradient(135deg, ${from} 0%, ${to} 100%)`;
+                                })();
+                              return (
+                                <button
+                                  key={choice.index == null ? 'auto' : choice.index}
+                                  type="button"
+                                  disabled={avatarColorSaving}
+                                  onClick={() => void handleSelectAvatarColor(choice.index)}
+                                  className={`relative flex flex-col items-center gap-1 py-2 px-1 rounded-xl border-2 shadow-sm transition-all active:scale-95 disabled:opacity-60 ${
+                                    isSel ? 'border-cyan-500 bg-cyan-50' :
+                                    darkMode ? 'border-slate-600 bg-slate-700/70 hover:border-cyan-400' : 'border-gray-200 bg-white hover:border-cyan-300 hover:shadow-md'
+                                  }`}
+                                >
+                                  <span
+                                    className="w-12 h-12 rounded-full border border-black/10 shadow-inner block"
+                                    style={{ background: swatchBg }}
+                                    aria-hidden
+                                  />
+                                  <span className={`text-[10px] font-bold leading-tight text-center w-full truncate ${isSel ? 'text-cyan-600' : darkMode ? 'text-slate-300' : 'text-gray-600'}`}>{choice.label}</span>
+                                  {isSel && <span className="absolute top-1 right-1 w-4 h-4 bg-cyan-500 rounded-full flex items-center justify-center shadow"><CheckCircle className="w-2.5 h-2.5 text-white" /></span>}
+                                </button>
+                              );
+                            })}
+                          </div>
                         </div>
                       </div>
                     )}
@@ -1910,13 +1979,18 @@ export function MainScreen({
                       <div className="flex-1 min-w-0">
                         <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>이상형</p>
                         <p className={`text-[11px] truncate ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
-                          {idealTags.length > 0 ? idealTags.slice(0, 3).join(' · ') + (idealTags.length > 3 ? ' …' : '') : idealFreeText.trim() || '미설정'}
+                          {idealTags.length > 0 ? idealTags.slice(0, 3).join(' · ') + (idealTags.length > 3 ? ' …' : '') : idealFreeText.trim() || (
+                            <span className="text-[10px] leading-snug">설정하시면 다른 사람들이 내 이상형을 볼 수 있어요. 카드를 뒤집어 보세요.</span>
+                          )}
                         </p>
                       </div>
                       <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${showIdealEdit ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
                     </button>
                     {showIdealEdit && (
                       <div className={`px-4 pb-4 space-y-3 ${darkMode ? 'bg-slate-700/20' : 'bg-gray-50/50'}`}>
+                        <p className={`text-[10px] leading-snug ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
+                          설정하시면 다른 사람들이 내 이상형을 볼 수 있어요. 카드를 뒤집어 보세요.
+                        </p>
                         <SignalTagPicker
                           groups={IDEAL_TAG_GROUPS}
                           selected={idealTags}
@@ -1960,13 +2034,18 @@ export function MainScreen({
                       <div className="flex-1 min-w-0">
                         <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>나의 특징</p>
                         <p className={`text-[11px] truncate ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
-                          {featureTags.length > 0 ? featureTags.slice(0, 3).join(' · ') + (featureTags.length > 3 ? ' …' : '') : featureFreeText.trim() || '미설정'}
+                          {featureTags.length > 0 ? featureTags.slice(0, 3).join(' · ') + (featureTags.length > 3 ? ' …' : '') : featureFreeText.trim() || (
+                            <span className="text-[10px] leading-snug">참여자들이 프로필 보기를 누르면 내 특징이 보여요. 누군지 알아보세요~</span>
+                          )}
                         </p>
                       </div>
                       <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${showFeaturesEdit ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
                     </button>
                     {showFeaturesEdit && (
                       <div className={`px-4 pb-4 space-y-3 ${darkMode ? 'bg-slate-700/20' : 'bg-gray-50/50'}`}>
+                        <p className={`text-[10px] leading-snug ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
+                          참여자들이 프로필 보기를 누르면 내 특징이 보여요. 누군지 알아보세요~
+                        </p>
                         <SignalTagPicker
                           groups={FEATURE_TAG_GROUPS}
                           selected={featureTags}

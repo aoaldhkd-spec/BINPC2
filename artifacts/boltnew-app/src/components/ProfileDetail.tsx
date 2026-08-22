@@ -10,8 +10,8 @@ import type { Profile } from '../types/app';
 // heartMeta: HeartType → HEART_TYPES 메타데이터 조회 (unknown 타입 방어: 첫 번째 항목으로 폴백)
 const heartMeta = (t: HeartType) => HEART_TYPES.find(h => h.type === t) ?? HEART_TYPES[0];
 
-function onImgErr(nick: string) {
-  return (e: SyntheticEvent<HTMLImageElement>) => { e.currentTarget.src = genAvatar(nick); };
+function onImgErr(nick: string, colorIndex?: number | null) {
+  return (e: SyntheticEvent<HTMLImageElement>) => { e.currentTarget.src = genAvatar(nick, colorIndex); };
 }
 
 // ── 프로필 사진 헤더 — 실제 사진 있으면 표시, 없으면 성향 색상 + 라벨 ──────────
@@ -35,10 +35,10 @@ function PhotoHeader({ profile }: { profile: Profile }) {
   return (
     <div className="aspect-[4/3]">
       <img
-        src={getAvatarSrc(profile.photo_url, profile.nickname)}
+        src={getAvatarSrc(profile.photo_url, profile.nickname, undefined, profile.avatar_color)}
         alt={profile.nickname}
         className="w-full h-full object-cover"
-        onError={onImgErr(profile.nickname)}
+        onError={onImgErr(profile.nickname, profile.avatar_color)}
       />
     </div>
   );

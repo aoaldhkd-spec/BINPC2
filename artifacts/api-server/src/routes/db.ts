@@ -4,6 +4,11 @@ import pg from 'pg';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { VAPID_PUBLIC_KEY, sendPush, type PushPayload } from '../lib/push';
 import { resolvePin, pinPoolParams } from '../lib/pin';
+import {
+  collectUsedPresetAvatarIds,
+  extractPresetAvatarId,
+  resolveEntryAvatar,
+} from '../lib/avatar-pool';
 import { logger } from '../lib/logger';
 import { buildPgOptions } from '../lib/pg-options.js';
 import { createImageAccessPolicy } from '../lib/image-access';
@@ -1443,6 +1448,10 @@ function mergeAppSettings(
   }
   const merged: Record<string, unknown> = { ...defaultAppSettings(), ...current, ...safePatch, id: 1, updated_at: ts() };
   for (const k of LEGACY_APP_SETTINGS_KEYS) delete merged[k];
+  if ('functions_locked' in merged) {
+    const v = merged.functions_locked;
+    merged.functions_locked = v === true || v === 1 || v === 'true' || v === '1';
+  }
   if (isLocalQrUrl(merged.qr_base_url)) merged.qr_base_url = PRODUCTION_QR_BASE;
   return merged;
 }
@@ -1527,7 +1536,13 @@ const FUNCTIONS_LOCKED_UPDATE_TABLES = new Set([
 ]);
 
 function isFunctionsLocked(): boolean {
-  return (getTable('app_settings')[0] as Record<string, unknown> | undefined)?.functions_locked === true;
+  const v = (getTable('app_settings')[0] as Record<string, unknown> | undefined)?.functions_locked;
+  return v === true || v === 1 || v === 'true' || v === '1';
+}
+
+function settingsFunctionsLocked(row: Record<string, unknown> | null | undefined): boolean {
+  const v = row?.functions_locked;
+  return v === true || v === 1 || v === 'true' || v === '1';
 }
 
 /** DB에 id/session_active 등 핵심 필드가 빠진 app_settings를 자동 복구 */
@@ -2062,6 +2077,19 @@ function profileBirthYearRejected(res: Response, birthYear: unknown): boolean {
   if (birthYear == null || birthYear === '') return false;
   if (isAdultBirthYear(birthYear)) return false;
   res.status(400).json({ data: null, error: ADULT_BIRTH_YEAR_ERROR });
+  return true;
+}
+
+const AVATAR_COLOR_COUNT = 12;
+
+function profileAvatarColorRejected(res: Response, avatarColor: unknown): boolean {
+  if (avatarColor == null) return false;
+  const n = Number(avatarColor);
+  if (Number.isInteger(n) && n >= 0 && n < AVATAR_COLOR_COUNT) return false;
+  res.status(400).json({
+    data: null,
+    error: { message: '카드 배경색 값이 올바르지 않습니다.', code: 'INVALID_AVATAR_COLOR' },
+  });
   return true;
 }
 
@@ -2628,7 +2656,9 @@ function applyAppSettingsFromDbRows(dbRows: Record<string, unknown>[]): boolean 
   const memTs = String(memRow.updated_at ?? '');
   const dbTs = String(dbRow.updated_at ?? '');
   if (dbTs >= memTs) {
-    const changed = memTs !== dbTs || memRow.session_active !== dbRow.session_active;
+    const changed = memTs !== dbTs
+      || memRow.session_active !== dbRow.session_active
+      || settingsFunctionsLocked(memRow) !== settingsFunctionsLocked(cleaned);
     store['app_settings'] = [cleaned];
     if (hadLegacy) {
       dbPersistRow('app_settings', cleaned).catch(e => logger.warn({ err: e }, '[db] persist stripped app_settings'));
@@ -3695,6 +3725,7 @@ router.post('/op', async (req: Request, res: Response) => {
       // Fix #4: O(n²) → O(n) — profiles 삽입 시 루프 밖에서 Set 1회만 빌드
       const _insertNickSet = table === 'profiles' ? new Set(tableData.map(r => r.nickname).filter(Boolean)) : null;
       const _insertPinSet  = table === 'profiles' ? new Set(tableData.map(r => r.pin_code).filter(Boolean)) as Set<string>  : null;
+      const _insertAvatarSet = table === 'profiles' ? collectUsedPresetAvatarIds(tableData) : null;
       const _pinParams     = table === 'profiles' ? pinPoolParams(tableData.length) : null;
       for (const row of inputs) {
         if (!row) continue;
@@ -4022,6 +4053,21 @@ router.post('/op', async (req: Request, res: Response) => {
             });
           }
           effectiveRow = withFixedAdminNickname({ ...effectiveRow, pin_code: pinResult.pin });
+          if (profileAvatarColorRejected(res, effectiveRow.avatar_color)) return;
+          // 입장 시 카탈로그 프리셋 아바타를 중복 없이 랜덤 배정 (동시 입장 race → advisory lock)
+          await withChatPairLock('entry_avatar_assign', async () => {
+            await mergeTableFromDbIfStale('profiles', true);
+            const usedAvatars = collectUsedPresetAvatarIds(getTable('profiles'));
+            for (const id of _insertAvatarSet!) usedAvatars.add(id);
+            const avatarResult = resolveEntryAvatar(
+              usedAvatars,
+              effectiveRow.photo_url as string | null | undefined,
+            );
+            if (avatarResult.ok && avatarResult.assigned) {
+              effectiveRow = { ...effectiveRow, photo_url: avatarResult.path };
+              _insertAvatarSet!.add(avatarResult.id);
+            }
+          });
         }
         // chats 테이블: ID를 서버에서 정규화(sort)하여 역순 요청으로 인한 중복 채팅방 생성 방지
         // 클라이언트가 user1/user2를 어떤 순서로 보내든 항상 동일한 채팅방을 가리키도록 강제
@@ -4154,6 +4200,8 @@ router.post('/op', async (req: Request, res: Response) => {
         if (table === 'profiles') {
           if (newRow.nickname) _insertNickSet!.add(newRow.nickname as string);
           if (newRow.pin_code) _insertPinSet!.add(newRow.pin_code as string);
+          const avId = extractPresetAvatarId(newRow.photo_url as string | null | undefined);
+          if (avId) _insertAvatarSet!.add(avId);
         }
 
         // 핵심 테이블: DB 저장 성공 후에만 SSE 전파 — "전달됐는데 저장 안 됨" 방지
@@ -4330,6 +4378,9 @@ router.post('/op', async (req: Request, res: Response) => {
       }
       if (table === 'profiles' && 'birth_year' in patch) {
         if (profileBirthYearRejected(res, patch.birth_year)) return;
+      }
+      if (table === 'profiles' && 'avatar_color' in patch) {
+        if (profileAvatarColorRejected(res, patch.avatar_color)) return;
       }
       if (table === 'profiles' && !isAdmin) {
         if ('birth_md_edit_count' in patch) delete patch.birth_md_edit_count;
@@ -5473,14 +5524,14 @@ router.get('/ready', (_req: Request, res: Response) => {
         timer_label: (settings.timer_label as string | null | undefined) ?? null,
         reset_signal: (settings.reset_signal as string | null | undefined) ?? null,
         // reset_password 는 공개 readiness에 노출하지 않음 (관리자 패널/RPC만)
-        functions_locked: settings.functions_locked === true,
+        functions_locked: settingsFunctionsLocked(settings),
       },
       login: {
         adminConfigured: adminSecrets.length > 0,
         testConfigured: testSecrets.length > 0,
         resetConfigured: panelSecretsForRuntime(settings.reset_password as string | undefined).length > 0,
       },
-      functions_locked: settings.functions_locked === true,
+      functions_locked: settingsFunctionsLocked(settings),
       qr_base_url: settings.qr_base_url ?? null,
       // leftover 잔량만 (키 값·비밀번호·PII 없음). 0 이면 PG에서 제거 완료.
       legacy_leftovers: {

@@ -65,6 +65,8 @@ export function getPositionStyle(score: number): { bg: string; text: string; bor
 // ─── 나이 계산 ────────────────────────────────────────────────────────────────
 export { formatKoreanAge as getKoreanAge } from './korean-age';
 
+import { AVATAR_COLOR_COUNT } from './avatar-color-catalog';
+
 // ─── 아바타 SVG 생성 ─────────────────────────────────────────────────────────
 /** 닉네임 전체를 해시 — 첫 글자만 쓰면 한글 닉네임이 주황색에 몰림 */
 function avatarPaletteIndex(nickname: string): number {
@@ -76,7 +78,7 @@ function avatarPaletteIndex(nickname: string): number {
 }
 
 /** 부드러운 파스텔 그라디언트 (닉네임별로 다양하게 분산, 텍스트 없음) */
-const AVATAR_PALETTE: Array<{ from: string; to: string }> = [
+export const AVATAR_PALETTE: Array<{ from: string; to: string }> = [
   { from: '#dbeafe', to: '#bfdbfe' },
   { from: '#cffafe', to: '#a5f3fc' },
   { from: '#d1fae5', to: '#a7f3d0' },
@@ -90,6 +92,34 @@ const AVATAR_PALETTE: Array<{ from: string; to: string }> = [
   { from: '#fae8ff', to: '#f5d0fe' },
   { from: '#ffedd5', to: '#fed7aa' },
 ];
+
+export type AvatarColorProfile = {
+  nickname: string;
+  avatar_color?: number | null;
+};
+
+export function isAvatarColorIndex(value: unknown): value is number {
+  return typeof value === 'number'
+    && Number.isInteger(value)
+    && value >= 0
+    && value < AVATAR_COLOR_COUNT;
+}
+
+/** 사용자 지정 색 또는 닉네임 해시 기본값 */
+export function resolveAvatarColorIndex(profile: AvatarColorProfile): number {
+  if (isAvatarColorIndex(profile.avatar_color)) return profile.avatar_color;
+  const nick = profile.nickname.trim() || '?';
+  return avatarPaletteIndex(nick) % AVATAR_PALETTE.length;
+}
+
+export function getAvatarGradientForProfile(profile: AvatarColorProfile): { from: string; to: string } {
+  return AVATAR_PALETTE[resolveAvatarColorIndex(profile)];
+}
+
+export function getAvatarGradientCssForProfile(profile: AvatarColorProfile): string {
+  const { from, to } = getAvatarGradientForProfile(profile);
+  return `linear-gradient(135deg, ${from} 0%, ${to} 100%)`;
+}
 
 /** 실제 업로드·프리셋 webp만 사진으로 취급 — null/dicebear/구형 SVG → genAvatar */
 export function hasUploadedPhoto(url: string | null | undefined): boolean {
@@ -105,23 +135,22 @@ export function isPresetAvatar(url: string | null | undefined): boolean {
   return /(?:^|\/)avatars\/av\d+\.webp(?:[?#]|$)/i.test(url);
 }
 
-export function getAvatarGradient(nickname: string): { from: string; to: string } {
-  const nick = nickname.trim() || '?';
-  return AVATAR_PALETTE[avatarPaletteIndex(nick) % AVATAR_PALETTE.length];
+export function getAvatarGradient(nickname: string, colorIndex?: number | null): { from: string; to: string } {
+  return getAvatarGradientForProfile({ nickname, avatar_color: colorIndex ?? undefined });
 }
 
 /** 카드 배경·플레이스홀더용 CSS 그라디언트 (genAvatar SVG와 동일 색) */
-export function getAvatarGradientCss(nickname: string): string {
-  const { from, to } = getAvatarGradient(nickname);
-  return `linear-gradient(135deg, ${from} 0%, ${to} 100%)`;
+export function getAvatarGradientCss(nickname: string, colorIndex?: number | null): string {
+  return getAvatarGradientCssForProfile({ nickname, avatar_color: colorIndex ?? undefined });
 }
 
 export function getAvatarSrc(
   url: string | null | undefined,
   nick: string,
   cacheBust?: string | number,
+  colorIndex?: number | null,
 ): string {
-  if (!hasUploadedPhoto(url)) return genAvatar(nick);
+  if (!hasUploadedPhoto(url)) return genAvatar(nick, colorIndex);
   const src = url!;
   if (
     cacheBust == null ||
@@ -204,9 +233,9 @@ export function excludeSwipeGestureVerifyProfiles<T extends {
   });
 }
 
-export function genAvatar(nickname: string): string {
+export function genAvatar(nickname: string, colorIndex?: number | null): string {
   const nick = nickname.trim() || '?';
-  const { from, to } = getAvatarGradient(nick);
+  const { from, to } = getAvatarGradient(nick, colorIndex);
   // 1:1 SVG — ProfileCard uses full-bleed cover/pastel on the photo frame
   const svg = [
     '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400">',

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, memo } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Profile, UserSignal } from '../types/app';
 import type { HeartType } from '../lib/constants';
-import { getKoreanAge, getAvatarSrc, hasUploadedPhoto, getAvatarGradientCss, isSwipeGestureVerifyProfile } from '../lib/profile';
+import { getKoreanAge, getAvatarSrc, hasUploadedPhoto, getAvatarGradientCssForProfile, isSwipeGestureVerifyProfile } from '../lib/profile';
 import {
   SIGNAL_CARD_PROFILE_CTA,
   SIGNAL_CARD_SIGNAL_CTA,
@@ -63,7 +63,7 @@ const SignalPhotoCard = memo(function SignalPhotoCard({
   showStamps: boolean;
 }) {
   const pastel = !hasUploadedPhoto(profile.photo_url) || imgFailed;
-  const photoSrc = getAvatarSrc(profile.photo_url, profile.nickname);
+  const photoSrc = getAvatarSrc(profile.photo_url, profile.nickname, undefined, profile.avatar_color);
   const leftOp = showStamps ? stampOpacity(dragX, 'left') : 0;
   const rightOp = showStamps ? stampOpacity(dragX, 'right') : 0;
   return (
@@ -71,7 +71,7 @@ const SignalPhotoCard = memo(function SignalPhotoCard({
       className="relative h-full w-full overflow-hidden rounded-3xl shadow-xl"
       style={{
         aspectRatio: '5 / 6',
-        background: pastel ? getAvatarGradientCss(profile.nickname) : '#111',
+        background: pastel ? getAvatarGradientCssForProfile(profile) : '#111',
       }}
     >
       <img
