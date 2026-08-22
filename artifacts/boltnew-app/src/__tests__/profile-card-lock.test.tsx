@@ -177,6 +177,41 @@ describe('ProfileCard — lock guard (seat-lock + functions-lock regression)', (
     expect(top).toBeCloseTo(btnRect.bottom + CARD_MENU_GAP, 0);
   });
 
+  it('uses button rect, not photo frame or nick bar (screenshot regression)', () => {
+    renderCard({ withMenu: true, compact: true });
+    const menuBtn = screen.getByTestId('profile-card-menu-btn');
+    const photoFrame = screen.getByTestId('profile-card-photo-frame');
+    const nickBar = screen.getByTestId('profile-card-nick-bar');
+
+    const buttonRect = {
+      left: 283, right: 303, top: 10, bottom: 30,
+      width: 20, height: 20, x: 283, y: 10, toJSON: () => ({}),
+    } as DOMRect;
+    const photoRect = {
+      left: 186, right: 306, top: 96, bottom: 216,
+      width: 120, height: 120, x: 186, y: 96, toJSON: () => ({}),
+    } as DOMRect;
+    const nickRect = {
+      left: 186, right: 306, top: 196, bottom: 216,
+      width: 120, height: 20, x: 186, y: 196, toJSON: () => ({}),
+    } as DOMRect;
+
+    vi.spyOn(menuBtn, 'getBoundingClientRect').mockReturnValue(buttonRect);
+    vi.spyOn(photoFrame, 'getBoundingClientRect').mockReturnValue(photoRect);
+    vi.spyOn(nickBar, 'getBoundingClientRect').mockReturnValue(nickRect);
+
+    fireEvent.pointerUp(menuBtn, { pointerType: 'touch' });
+    const menu = screen.getByTestId('profile-card-menu');
+    const top = Number.parseFloat(menu.style.top);
+    const left = Number.parseFloat(menu.style.left);
+
+    expect(top).toBe(buttonRect.bottom + CARD_MENU_GAP);
+    expect(top).not.toBe(photoRect.bottom + CARD_MENU_GAP);
+    expect(top).not.toBe(nickRect.bottom + CARD_MENU_GAP);
+    expect(left).toBeGreaterThanOrEqual(8);
+    expect(left + Number.parseFloat(menu.style.width)).toBeLessThanOrEqual(320);
+  });
+
   it('functionsLocked=true: contact share menu shows toast, does NOT call onContactShare', () => {
     const { onContactShare } = renderCard({ withMenu: true, functionsLocked: true });
     fireEvent.pointerUp(screen.getByTestId('profile-card-menu-btn'), { pointerType: 'touch' });

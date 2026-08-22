@@ -276,8 +276,11 @@ mustMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '35_profile_ca
 ]);
 mustMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '37_card_menu_mobile_tap', [
   /profile-card-menu-btn/,
+  /data-profile-card-menu-trigger/,
   /bindMobileTap\(openCardMenu\)/,
   /runMenuAction/,
+  /resolveOpenTrigger/,
+  /menuTriggerRef/,
 ]);
 mustMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '39_card_menu_body_portal', [
   /createPortal/,

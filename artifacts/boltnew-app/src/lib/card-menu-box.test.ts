@@ -64,6 +64,23 @@ describe('cardMenuBox', () => {
     expect(box.top).toBe(trigger.bottom + CARD_MENU_GAP);
     expect(box.left).toBe(trigger.right - box.width);
   });
+
+  it('3-col screenshot regression: button top-right, not photo/nick bar rect', () => {
+    const button = { left: 283, right: 303, top: 10, bottom: 30 };
+    const photoFrame = { left: 186, right: 306, top: 96, bottom: 216 };
+    const nickBar = { left: 186, right: 306, top: 196, bottom: 216 };
+
+    const fromButton = cardMenuBox(button, VP320, 184);
+    const fromPhoto = cardMenuBox(photoFrame, VP320, 184);
+    const fromNick = cardMenuBox(nickBar, VP320, 184);
+
+    expect(fromButton.top).toBe(34);
+    expect(fromButton.left).toBeGreaterThanOrEqual(8);
+    expect(fromPhoto.top).toBeGreaterThan(150);
+    expect(fromNick.top).toBeGreaterThan(150);
+    expect(fromButton.top).toBeLessThan(fromPhoto.top);
+    expect(fromButton.top).toBeLessThan(fromNick.top);
+  });
 });
 
 describe('cardMenuHeight', () => {
