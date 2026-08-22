@@ -217,24 +217,34 @@ export const ProfileCard = memo(function ProfileCard({
     action(e);
   };
 
-  const menuPanelClass = `absolute right-0 top-full mt-1 z-[99999] min-w-[192px] max-h-[calc(100dvh-1rem)] rounded-2xl shadow-2xl border overflow-y-auto ${isCardDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100'}`;
+  const menuPanelClass = `absolute right-0 top-full mt-1 z-[99999] w-max min-w-0 max-w-[8.25rem] max-h-[calc(100dvh-1rem)] rounded-lg shadow-md border overflow-y-auto ${isCardDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100'}`;
+  const menuItemClass = (tone: 'teal' | 'violet' | 'red' | 'muted', bordered?: boolean) =>
+    `w-full text-left px-2 py-1.5 text-[10px] font-semibold flex items-start gap-1 leading-snug touch-manipulation${bordered ? ' border-t' : ''} ${
+      tone === 'teal'
+        ? isCardDark ? 'text-teal-400 hover:bg-slate-700' : 'text-teal-600 hover:bg-teal-50'
+        : tone === 'violet'
+          ? isCardDark ? 'text-violet-400 hover:bg-slate-700 border-slate-700' : 'text-violet-600 hover:bg-violet-50 border-gray-50'
+          : tone === 'red'
+            ? isCardDark ? 'text-red-400 hover:bg-slate-700 border-slate-700' : 'text-red-500 hover:bg-red-50 border-gray-50'
+            : isCardDark ? 'text-slate-300 hover:bg-slate-700 border-slate-700' : 'text-gray-600 hover:bg-gray-50 border-gray-50'
+    }`;
 
   const renderMenuItems = () => (
     <>
       {onContactShare && (
         <button type="button" role="menuitem" {...bindMobileTap(runMenuAction((e) => { if (locked) { showLockToast(e); return; } onContactShare(profile); }))}
-          className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 whitespace-nowrap touch-manipulation ${isCardDark ? 'text-teal-400 hover:bg-slate-700' : 'text-teal-600 hover:bg-teal-50'}`}>💌 연락처 보내기</button>
+          className={menuItemClass('teal')}>💌 연락처 보내기</button>
       )}
       {onViewFortune && (
         <button type="button" role="menuitem" {...bindMobileTap(runMenuAction((e) => { if (locked) { showLockToast(e); return; } onViewFortune(profile); }))}
-          className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 whitespace-nowrap border-t touch-manipulation ${isCardDark ? 'text-violet-400 hover:bg-slate-700 border-slate-700' : 'text-violet-600 hover:bg-violet-50 border-gray-50'}`}>🔮 궁합 보기</button>
+          className={menuItemClass('violet', true)}>🔮 궁합 보기</button>
       )}
       {onBlock && (
         <>
           <button type="button" role="menuitem" {...bindMobileTap(runMenuAction(() => { onBlock(profile.id, 'block'); }))}
-            className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 whitespace-nowrap border-t touch-manipulation ${isCardDark ? 'text-red-400 hover:bg-slate-700 border-slate-700' : 'text-red-500 hover:bg-red-50 border-gray-50'}`}>🚫 차단하기</button>
+            className={menuItemClass('red', true)}>🚫 차단하기</button>
           <button type="button" role="menuitem" {...bindMobileTap(runMenuAction(() => { onBlock(profile.id, 'hide'); }))}
-            className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 whitespace-nowrap border-t touch-manipulation ${isCardDark ? 'text-slate-300 hover:bg-slate-700 border-slate-700' : 'text-gray-600 hover:bg-gray-50 border-gray-50'}`}>👻 나를 못 보게 하기</button>
+            className={menuItemClass('muted', true)}>👻 나를 못 보게 하기</button>
         </>
       )}
     </>
