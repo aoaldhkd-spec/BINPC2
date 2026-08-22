@@ -218,14 +218,24 @@ export const ProfileCard = memo(function ProfileCard({
     action(e);
   };
 
-  const menuPanelClass = `absolute right-0 top-full z-[99999] w-max min-w-0 rounded-lg shadow-md border overflow-y-auto overscroll-contain ${
+  const menuItemCount =
+    (onContactShare ? 1 : 0) + (onViewFortune ? 1 : 0) + (onBlock ? 2 : 0);
+  /** compact + 4 items: open above ⋯ so row-below cards / viewport bottom do not clip */
+  const compactMenuOpensAbove = compact && menuItemCount >= 4;
+
+  const menuPlacementClass = compactMenuOpensAbove
+    ? 'bottom-full mb-0.5'
+    : compact
+      ? 'top-full mt-0.5'
+      : 'top-full mt-1';
+  const menuPanelClass = `absolute right-0 z-[99999] w-max min-w-0 rounded-lg shadow-md border overflow-y-auto overscroll-contain ${menuPlacementClass} ${
     compact
-      ? 'mt-0.5 max-w-[7.5rem] max-h-[min(calc(100dvh-1rem),10.5rem)]'
-      : 'mt-1 max-w-[8.25rem] max-h-[calc(100dvh-1rem)]'
+      ? 'max-w-[7.5rem] max-h-[calc(100dvh-1rem)] py-0'
+      : 'max-w-[8.25rem] max-h-[calc(100dvh-1rem)]'
   } ${isCardDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100'}`;
   const menuItemClass = (tone: 'teal' | 'violet' | 'red' | 'muted', bordered?: boolean) =>
-    `w-full text-left font-semibold flex items-center gap-0.5 leading-snug touch-manipulation${
-      compact ? ' px-1.5 py-1 text-[9px] min-h-[28px]' : ' px-2 py-1.5 text-[10px] min-h-[32px]'
+    `w-full text-left font-semibold flex items-center gap-0.5 touch-manipulation${
+      compact ? ' px-1.5 py-0.5 text-[8px] leading-tight min-h-[26px] whitespace-nowrap' : ' px-2 py-1.5 text-[10px] min-h-[32px] leading-snug'
     }${bordered ? ' border-t' : ''} ${
       tone === 'teal'
         ? isCardDark ? 'text-teal-400 hover:bg-slate-700' : 'text-teal-600 hover:bg-teal-50'
@@ -294,7 +304,7 @@ export const ProfileCard = memo(function ProfileCard({
   return (
     <div
       ref={cardRootRef}
-      className={`group relative flex flex-col min-w-0 max-w-full rounded-lg shadow-sm border ${showMenu ? 'overflow-visible' : 'overflow-hidden'} ${surfaces.shellClass}`}
+      className={`group relative flex flex-col min-w-0 max-w-full rounded-lg shadow-sm border ${showMenu ? 'overflow-visible z-[100]' : 'overflow-hidden'} ${surfaces.shellClass}`}
       style={{ contentVisibility: showMenu ? 'visible' : 'auto', containIntrinsicSize: 'auto 280px' }}
     >
 

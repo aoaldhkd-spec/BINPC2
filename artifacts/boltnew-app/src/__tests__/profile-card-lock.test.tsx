@@ -155,14 +155,17 @@ describe('ProfileCard — lock guard (seat-lock + functions-lock regression)', (
     expect(onBlock).toHaveBeenCalledWith(PROFILE.id, 'block');
   });
 
-  it('compact (3-col) grid: menu is absolute sibling directly below ⋯ button', () => {
+  it('compact (3-col) grid: 4-item menu opens above ⋯ button', () => {
     renderCard({ withMenu: true, compact: true, statusMsg: '상태' });
     const menuBtn = screen.getByTestId('profile-card-menu-btn');
     fireEvent.pointerUp(menuBtn, { pointerType: 'touch' });
     const menu = screen.getByTestId('profile-card-menu');
-    expect(menu.className).toMatch(/top-full/);
-    expect(menu.className).toMatch(/mt-0\.5/);
+    expect(menu.className).toMatch(/bottom-full/);
+    expect(menu.className).toMatch(/mb-0\.5/);
     expect(menu.parentElement).toBe(menuBtn.parentElement);
+    const items = screen.getAllByRole('menuitem');
+    expect(items).toHaveLength(4);
+    expect(screen.getByRole('menuitem', { name: /나를 못 보게 하기/i })).toBeTruthy();
   });
 
   it('photo-corner menu: absolute dropdown below button (no ticker)', () => {
@@ -170,7 +173,7 @@ describe('ProfileCard — lock guard (seat-lock + functions-lock regression)', (
     const menuBtn = screen.getByTestId('profile-card-menu-btn');
     fireEvent.pointerUp(menuBtn, { pointerType: 'touch' });
     const menu = screen.getByTestId('profile-card-menu');
-    expect(menu.className).toContain('top-full');
+    expect(menu.className).toContain('bottom-full');
     expect(menuBtn.getAttribute('data-menu-anchor')).toBe('photo');
   });
 
