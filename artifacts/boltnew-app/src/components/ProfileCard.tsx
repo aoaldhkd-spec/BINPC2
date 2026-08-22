@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect, memo } from 'react';
+import { useState, useRef, useEffect, memo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Heart, MessageCircle, MoreHorizontal } from 'lucide-react';
 import { useTheme } from '../lib/theme';
 import type { Profile } from '../types/app';
@@ -6,7 +7,7 @@ import { parseProfileInterests, getInterestTagStyle } from '../lib/interests';
 import { HeartType, heartMeta } from '../lib/constants';
 import { getPositionLabel, getPositionStyle, getKoreanAge, hasUploadedPhoto, getAvatarGradientCssForProfile } from '../lib/profile';
 import { getMbtiStyle } from '../lib/utils';
-import { cardMenuBox } from '../lib/card-menu-box';
+import { cardMenuBox, cardMenuHeight } from '../lib/card-menu-box';
 import { bindMobileTap } from '../lib/mobile-tap';
 import { parseIdealTags } from '../lib/signal-match';
 import { isProfileCardDark, profileCardChipStyle, profileCardSurfaces } from '../lib/profile-card-theme';
@@ -115,6 +116,9 @@ export const ProfileCard = memo(function ProfileCard({
   const [flipAnimating, setFlipAnimating] = useState(false);
   const hasTicker = Boolean(statusMsg?.trim());
   const hasMenu = Boolean(onBlock || onContactShare || onViewFortune);
+  const menuItemCount = (onContactShare ? 1 : 0) + (onViewFortune ? 1 : 0) + (onBlock ? 2 : 0);
+  const estimatedMenuHeight = cardMenuHeight(menuItemCount);
+  const suppressMenuCloseUntilRef = useRef(0);
   // 플립해도 전광판·닉·나이는 항상 노출 — 가운데(사진)만 뒤집힘
   const showTopBar = hasTicker;
   const showBottomBar = true;
@@ -177,10 +181,18 @@ export const ProfileCard = memo(function ProfileCard({
     contain: 'layout paint',
   };
 
+  const measureMenuPos = useCallback(() => {
+    const el = menuBtnRef.current;
+    if (!el) return null;
+    const rect = el.getBoundingClientRect();
+    return cardMenuBox(rect, window.innerWidth, window.innerHeight, estimatedMenuHeight);
+  }, [estimatedMenuHeight]);
+
   // ⋯ 메뉴 — 바깥 클릭 시만 닫기 (메뉴 항목 pointerdown에서 즉시 닫히면 클릭 불가)
   useEffect(() => {
     if (!showMenu) return;
     const close = (e: PointerEvent) => {
+      if (performance.now() < suppressMenuCloseUntilRef.current) return;
       const t = e.target as Node;
       if (menuRef.current?.contains(t) || menuBtnRef.current?.contains(t)) return;
       setShowMenu(false);
@@ -190,13 +202,29 @@ export const ProfileCard = memo(function ProfileCard({
     return () => document.removeEventListener('pointerdown', close);
   }, [showMenu]);
 
+  // Portal menu — keep aligned while page/deck scrolls or viewport resizes
+  useEffect(() => {
+    if (!showMenu) return;
+    const reposition = () => {
+      const next = measureMenuPos();
+      if (next) setMenuPos(next);
+    };
+    window.addEventListener('resize', reposition);
+    window.addEventListener('scroll', reposition, true);
+    return () => {
+      window.removeEventListener('resize', reposition);
+      window.removeEventListener('scroll', reposition, true);
+    };
+  }, [showMenu, measureMenuPos]);
+
   const openCardMenu = (e: React.SyntheticEvent) => {
     e.stopPropagation();
     if (showMenu) { setShowMenu(false); setMenuPos(null); return; }
     const el = (e.currentTarget ?? menuBtnRef.current) as HTMLElement | null;
     if (!el) return;
     const rect = el.getBoundingClientRect();
-    setMenuPos(cardMenuBox(rect, window.innerWidth, window.innerHeight));
+    setMenuPos(cardMenuBox(rect, window.innerWidth, window.innerHeight, estimatedMenuHeight));
+    suppressMenuCloseUntilRef.current = performance.now() + 400;
     setShowMenu(true);
   };
 
@@ -233,12 +261,12 @@ export const ProfileCard = memo(function ProfileCard({
       style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 280px' }}
     >
 
-      {/* ⋯ 드롭다운 (fixed) */}
-      {showMenu && menuPos && (
+      {showMenu && menuPos && typeof document !== 'undefined' && createPortal(
         <div
           ref={menuRef}
           role="menu"
-          style={{ position: 'fixed', top: menuPos.top, left: menuPos.left, width: menuPos.width, zIndex: 9999 }}
+          data-testid="profile-card-menu"
+          style={{ position: 'fixed', top: menuPos.top, left: menuPos.left, width: menuPos.width, zIndex: 10000 }}
           className={`max-h-[calc(100dvh-1rem)] rounded-2xl shadow-2xl border overflow-y-auto ${isCardDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100'}`}
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
@@ -259,7 +287,8 @@ export const ProfileCard = memo(function ProfileCard({
                 className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 whitespace-nowrap border-t touch-manipulation ${isCardDark ? 'text-slate-300 hover:bg-slate-700 border-slate-700' : 'text-gray-600 hover:bg-gray-50 border-gray-50'}`}>👻 나를 못 보게 하기</button>
             </>
           )}
-        </div>
+        </div>,
+        document.body,
       )}
 
       {/* ── 프로필 사진 (작게=1:1, 기본=3:4) — 플립해도 aspect 고정, 크기 불변 ── */}

@@ -279,6 +279,12 @@ mustMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '37_card_menu_
   /bindMobileTap\(openCardMenu\)/,
   /runMenuAction/,
 ]);
+mustMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '39_card_menu_body_portal', [
+  /createPortal/,
+  /document\.body/,
+  /profile-card-menu/,
+  /cardMenuHeight/,
+]);
 mustMatch('artifacts/boltnew-app/src/hooks/useChat.ts', '37_chat_ensure_write_session', [
   /ensureWriteSession/,
 ]);
