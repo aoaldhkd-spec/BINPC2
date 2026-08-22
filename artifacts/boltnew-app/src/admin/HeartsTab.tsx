@@ -32,12 +32,12 @@ export function HeartsTab({ likes, profileMap, onClear, onRefresh }: { likes: Li
   }
   return (
     <div className="p-4 space-y-3">
-      <div className="flex items-center justify-between px-1 mb-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-1 mb-2">
         <div className="flex items-center gap-2">
           <Heart className="w-4 h-4 text-rose-400 fill-rose-400" />
           <span className="text-sm font-bold text-gray-700">총 {likes.length}개의 하트</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button onClick={handleRefresh} disabled={refreshing}
             className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl transition-all disabled:opacity-50 ${refreshDone ? 'bg-teal-50 text-teal-700 border border-teal-200' : 'bg-gray-100 hover:bg-teal-50 hover:text-teal-700 text-gray-600'}`}>
             <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />{refreshDone ? '완료!' : refreshing ? '로딩...' : '새로고침'}
@@ -63,14 +63,14 @@ export function HeartsTab({ likes, profileMap, onClear, onRefresh }: { likes: Li
             : ht === 'green' ? { emoji: '💚', color: 'text-emerald-400 fill-emerald-400', label: '칭찬' }
             : { emoji: '❤️', color: 'text-rose-400 fill-rose-400', label: '호감' };
           return (
-            <div key={like.id} className="grid grid-cols-3 items-center px-4 py-3 border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors">
-              <div className="flex items-center gap-2">
+            <div key={like.id} className="grid grid-cols-3 items-center px-3 min-[360px]:px-4 py-3 border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors gap-1">
+              <div className="flex min-w-0 items-center gap-2">
                 {liker && (
                   <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0">
                     <img src={liker.photo_url} alt={liker.nickname} className="w-full h-full object-cover" />
                   </div>
                 )}
-                <span className="text-sm font-semibold text-gray-800 truncate">{liker?.nickname ?? '알 수 없음'}</span>
+                <span className="min-w-0 text-sm font-semibold text-gray-800 break-words">{liker?.nickname ?? '알 수 없음'}</span>
               </div>
               <div className="flex flex-col items-center gap-0.5">
                 <Heart className={`w-4 h-4 ${htMeta.color}`} />
@@ -83,8 +83,8 @@ export function HeartsTab({ likes, profileMap, onClear, onRefresh }: { likes: Li
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-2 justify-end">
-                <span className="text-sm font-semibold text-gray-800 truncate">{liked?.nickname ?? '알 수 없음'}</span>
+              <div className="flex min-w-0 items-center gap-2 justify-end">
+                <span className="min-w-0 text-sm font-semibold text-gray-800 break-words text-right">{liked?.nickname ?? '알 수 없음'}</span>
                 {liked && (
                   <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0">
                     <img src={liked.photo_url} alt={liked.nickname} className="w-full h-full object-cover" />

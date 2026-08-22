@@ -137,7 +137,7 @@ export function NotificationTab({ tableCount, settings, onSetTimer }: {
       {/* ── 타이머 활성 스트립 ────────────────────────────────────────────── */}
       {timerActive && (
         <div className="rounded-2xl border-2 border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50 overflow-hidden">
-          <div className="flex items-center gap-3 px-4 py-3">
+          <div className="flex flex-wrap items-center gap-3 px-4 py-3">
             <div className="w-9 h-9 rounded-2xl bg-amber-500 flex items-center justify-center flex-shrink-0 shadow-md shadow-amber-500/30">
               <Timer className="w-5 h-5 text-white" />
             </div>
@@ -150,7 +150,7 @@ export function NotificationTab({ tableCount, settings, onSetTimer }: {
                   {timerCountdown === '00:00' ? '종료됨' : '진행 중'}
                 </span>
               </div>
-              {settings?.timer_label && <p className="text-xs text-amber-700 font-semibold mt-0.5 truncate">{settings.timer_label}</p>}
+              {settings?.timer_label && <p className="text-xs text-amber-700 font-semibold mt-0.5 break-words">{settings.timer_label}</p>}
             </div>
             <button onClick={() => onSetTimer(null, null)}
               className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 bg-red-100 hover:bg-red-200 text-red-600 rounded-xl text-xs font-bold transition-all active:scale-95">

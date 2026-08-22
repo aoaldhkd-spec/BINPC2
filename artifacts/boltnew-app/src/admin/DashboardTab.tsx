@@ -80,18 +80,18 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
           {/* 기능 잠금 (functions_locked) */}
           <button
             onClick={onToggleFunctionsLock}
-            className={`w-full rounded-2xl p-4 border-2 flex items-center gap-3 transition-all active:scale-[0.98] shadow-sm ${
+            className={`w-full rounded-2xl p-4 border-2 flex flex-wrap items-center gap-3 transition-all active:scale-[0.98] shadow-sm ${
               isFunctionsLocked ? 'bg-red-50 border-red-300 hover:bg-red-100' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
             }`}
           >
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isFunctionsLocked ? 'bg-red-500' : 'bg-slate-400'}`}>
               {isFunctionsLocked ? <Lock className="w-5 h-5 text-white" /> : <Unlock className="w-5 h-5 text-white" />}
             </div>
-            <div className="flex-1 text-left">
-              <p className={`font-black text-sm ${isFunctionsLocked ? 'text-red-700' : 'text-slate-700'}`}>
+            <div className="flex-1 text-left min-w-0">
+              <p className={`font-black text-sm break-words ${isFunctionsLocked ? 'text-red-700' : 'text-slate-700'}`}>
                 {isFunctionsLocked ? '🔒 채팅·기능 잠금 중' : '💬 채팅·기능 열려있음'}
               </p>
-              <p className={`text-[10px] mt-0.5 ${isFunctionsLocked ? 'text-red-500' : 'text-slate-400'}`}>
+              <p className={`text-[10px] mt-0.5 break-words ${isFunctionsLocked ? 'text-red-500' : 'text-slate-400'}`}>
                 {isFunctionsLocked ? '하트·채팅·시그널·단톡·운세 사용 불가 — 통계·랭킹은 그대로 — 탭하여 해제' : '하트·채팅·시그널·단톡·운세 잠금 가능 — 통계·랭킹은 항상 열림 — 탭하여 잠금'}
               </p>
             </div>
@@ -145,7 +145,7 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
 
       {/* 회식 종료 전체 초기화 */}
       <div className="rounded-2xl p-5 border-2 border-red-300 bg-red-50">
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-1.5 mb-0.5">
               <span className="text-xs font-black text-red-600 bg-red-100 border border-red-300 px-2 py-0.5 rounded-full">위험</span>

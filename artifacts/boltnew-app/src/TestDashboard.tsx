@@ -21,7 +21,7 @@ function Section({ title, icon, children, defaultOpen = true }: { title: string;
     <div className="bg-slate-800/60 rounded-2xl border border-slate-700/50 overflow-hidden">
       <button onClick={() => setOpen(o => !o)} className="w-full flex items-center gap-2 px-4 py-3 hover:bg-slate-700/30 transition-all">
         <span className="text-slate-400">{icon}</span>
-        <span className="font-black text-slate-200 text-sm flex-1 text-left">{title}</span>
+        <span className="font-black text-slate-200 text-sm flex-1 min-w-0 text-left break-words">{title}</span>
         {open ? <ChevronDown className="w-4 h-4 text-slate-500" /> : <ChevronRight className="w-4 h-4 text-slate-500" />}
       </button>
       {open && <div className="px-4 pb-4 space-y-3">{children}</div>}
@@ -45,7 +45,7 @@ function Btn({ label, onClick, color = 'slate', disabled = false, small = false 
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`${small ? 'text-xs py-1.5 px-3' : 'text-sm py-2 px-4'} font-semibold rounded-xl border transition-all disabled:opacity-40 ${colors[color] ?? colors.slate}`}
+      className={`${small ? 'text-xs py-1.5 px-3' : 'text-sm py-2 px-4'} font-semibold rounded-xl border transition-all disabled:opacity-40 text-center break-words ${colors[color] ?? colors.slate}`}
     >{label}</button>
   );
 }
@@ -336,8 +336,8 @@ export default function TestDashboard() {
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white">
       {/* Header */}
       <div className="sticky top-0 z-20 bg-slate-900/95 backdrop-blur border-b border-slate-800 px-4 py-3">
-        <div className="max-w-2xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="max-w-2xl mx-auto flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          <div className="flex min-w-0 items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center">
               <AlertTriangle className="w-4 h-4 text-amber-900" />
             </div>
@@ -385,13 +385,13 @@ export default function TestDashboard() {
 
         {/* 내 계정 */}
         <Section title="내 테스트 계정" icon={<Users className="w-4 h-4" />}>
-          <div className="flex items-center gap-3 p-3 bg-slate-700/40 rounded-xl border border-slate-600/50">
+          <div className="flex flex-wrap items-center gap-3 p-3 bg-slate-700/40 rounded-xl border border-slate-600/50">
             {myProfile ? (
               <>
-                <img src={myProfile.photo_url} className="w-10 h-10 rounded-full" />
-                <div className="flex-1 min-w-0">
-                  <p className="font-bold text-white text-sm">{myProfile.nickname}</p>
-                  <p className="text-xs text-slate-400">{myProfile.mbti} · {myProfile.bio}</p>
+                <img src={myProfile.photo_url} className="w-10 h-10 rounded-full flex-shrink-0" />
+                <div className="flex-1 min-w-0 basis-[140px]">
+                  <p className="font-bold text-white text-sm break-words">{myProfile.nickname}</p>
+                  <p className="text-xs text-slate-400 break-words">{myProfile.mbti} · {myProfile.bio}</p>
                 </div>
                 <Btn label="이 계정으로 입장" onClick={() => enterAsUser(myProfile.id)} color="teal" small disabled={loading === 'enter'} />
                 <Btn label="초기화" onClick={() => { localStorage.removeItem('matching_app_user_id'); setMyUserId(null); notify('계정 초기화됨'); }} color="red" small />
@@ -458,9 +458,9 @@ export default function TestDashboard() {
           <div className="max-h-48 overflow-y-auto space-y-1.5 mt-1">
             {profiles.length === 0 && <p className="text-xs text-slate-500 text-center py-3">프로필 없음</p>}
             {profiles.map(p => (
-              <div key={p.id} className="flex items-center gap-2 px-3 py-1.5 bg-slate-700/40 rounded-lg">
+              <div key={p.id} className="flex flex-wrap items-center gap-2 px-3 py-1.5 bg-slate-700/40 rounded-lg">
                 <img src={p.photo_url} className="w-7 h-7 rounded-full flex-shrink-0" />
-                <span className="text-xs font-semibold text-slate-200 flex-1 truncate">{p.nickname}</span>
+                <span className="text-xs font-semibold text-slate-200 flex-1 min-w-0 break-words">{p.nickname}</span>
                 <Tag text={p.mbti ?? '?'} color="slate" />
                 {p.pin_code && <Tag text={`PIN ${p.pin_code}`} color="teal" />}
                 {p.id === myUserId && <Tag text="나" color="teal" />}

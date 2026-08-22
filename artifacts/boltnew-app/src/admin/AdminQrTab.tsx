@@ -117,7 +117,7 @@ export function AdminQrTab({ settings, onSaveQrBase }: { settings: AppSettings |
             <p className="text-xs text-white/90 mt-0.5">이 QR 하나만 인쇄/전시하면 됩니다</p>
           </div>
           <div className="p-5">
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center gap-4">
               <button
                 onClick={() => setFullscreen(true)}
                 className="flex-shrink-0 p-2 bg-slate-50 rounded-2xl border-2 border-slate-200 hover:border-teal-400 transition-all"

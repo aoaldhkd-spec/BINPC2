@@ -31,7 +31,7 @@ export function ProfilesTabSection({ profiles, settings: _settings, onClear, onD
 
   return (
     <div className="p-4">
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <div className="flex items-center gap-2">
           <Users className="w-4 h-4 text-cyan-500" />
           <span className="text-sm font-bold text-gray-700">
@@ -101,7 +101,7 @@ export function ProfilesTabSection({ profiles, settings: _settings, onClear, onD
 
               {/* 닉네임 + 태그 2행 */}
               <div className="flex-1 min-w-0">
-                <p className="font-black text-[13px] text-gray-900 leading-tight truncate mb-1.5">
+                <p className="font-black text-[13px] text-gray-900 leading-tight break-words mb-1.5">
                   {p.nickname ?? '(이름 없음)'}
                 </p>
                 <div className="flex items-center gap-1 flex-wrap">

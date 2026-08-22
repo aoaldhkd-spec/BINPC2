@@ -566,7 +566,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         <div className="max-w-4xl mx-auto px-3 py-2.5 flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-1.5 flex-1 min-w-0">
             <Shield className="w-4 h-4 text-slate-300 flex-shrink-0" />
-            <h1 className="font-bold text-sm truncate">관리자 대시보드</h1>
+            <h1 className="font-bold text-sm break-words">관리자 대시보드</h1>
             <span className={`text-[11px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 ${settings?.session_active ? 'bg-teal-500 text-white' : 'bg-slate-700 text-slate-300'}`}>
               {settings?.session_active ? '진행 중' : '대기 중'}
             </span>
@@ -585,11 +585,11 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         <div className="max-w-4xl mx-auto px-2 grid grid-cols-5 pb-0">
           {TABS.map((t) => (
             <button key={t.id} onClick={() => handleTabChange(t.id)}
-              className={`touch-target relative flex min-w-0 items-center justify-center gap-1 px-0.5 py-2 text-[10px] min-[360px]:text-[11px] font-semibold border-b-2 transition-all ${
+              className={`touch-target relative flex min-w-0 flex-col items-center justify-center gap-0.5 px-0.5 py-2 text-[9px] min-[360px]:text-[10px] min-[390px]:text-[11px] font-semibold border-b-2 transition-all ${
                 tab === t.id ? 'border-teal-400 text-white' : 'border-transparent text-slate-400 hover:text-slate-200'
               }`}>
               {t.icon}
-              <span className="truncate">{t.label}</span>
+              <span className="text-center leading-tight break-words">{t.label}</span>
               {t.badge !== undefined && t.badge > 0 && (
                 <span className="ml-0.5 px-1.5 py-0.5 bg-rose-500 text-white text-[10px] font-bold rounded-full leading-none">
                   {t.badge}
@@ -612,7 +612,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                 { id: 'db' as SettingsSubTab, label: 'DB헬스', errorBadge: (dbHealth?.persistErrors ?? 0) > 0 },
               ]).map(st => (
                 <button key={st.id} onClick={() => setSettingsSubTab(st.id)}
-                  className={`touch-target relative min-w-0 px-0.5 min-[390px]:px-2 py-2.5 text-[10px] min-[360px]:text-xs font-semibold border-b-2 transition-all ${settingsSubTab === st.id ? 'border-teal-500 text-teal-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+                  className={`touch-target relative min-w-0 px-0.5 min-[390px]:px-2 py-2.5 text-[9px] min-[360px]:text-[10px] min-[390px]:text-xs font-semibold border-b-2 transition-all text-center leading-tight break-words ${settingsSubTab === st.id ? 'border-teal-500 text-teal-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
                   {st.label}
                   {'errorBadge' in st && st.errorBadge && (
                     <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full" />
@@ -653,13 +653,13 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         )}
         {tab === 'hearts' && (
           <div>
-            <div className="flex border-b border-gray-200 bg-gray-50 px-4">
+            <div className="grid grid-cols-2 border-b border-gray-200 bg-gray-50 px-2 min-[360px]:px-4">
               {([
                 { id: 'hearts' as HeartSubTab, label: '하트 현황' },
                 { id: 'popularity' as HeartSubTab, label: '인기도 랭킹' },
               ]).map(st => (
                 <button key={st.id} onClick={() => setHeartSubTab(st.id)}
-                  className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition-all ${heartSubTab === st.id ? 'border-rose-500 text-rose-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+                  className={`touch-target min-w-0 px-1 py-2.5 text-[10px] min-[360px]:text-xs font-semibold border-b-2 transition-all text-center leading-tight break-words ${heartSubTab === st.id ? 'border-rose-500 text-rose-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
                   {st.label}
                 </button>
               ))}

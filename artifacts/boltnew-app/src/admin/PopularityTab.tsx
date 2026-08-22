@@ -42,7 +42,7 @@ export function PopularityTab({ likes, profileMap }: { likes: Like[]; profileMap
                     : (profile.nickname?.charAt(0) ?? '?')}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-gray-900 truncate">{profile.nickname}</p>
+                  <p className="text-sm font-bold text-gray-900 break-words">{profile.nickname}</p>
                   <p className="text-xs text-gray-400">총 {r.total}개</p>
                 </div>
               </div>
