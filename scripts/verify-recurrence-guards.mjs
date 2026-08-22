@@ -338,6 +338,27 @@ mustMatch('artifacts/boltnew-app/src/App.tsx', '37_entry_no_client_avatar', [
   /server assigns a unique preset avatar/,
 ]);
 
+// ?? 38 Parallel-push integration atomicity (db.ts import <-> module, ProfileCard <-> profile.ts) ?
+
+mustExist('artifacts/api-server/src/lib/avatar-pool.ts', '38_avatar_pool_module');
+mustExist('artifacts/api-server/src/lib/avatar-pool.test.ts', '38_avatar_pool_tests');
+mustMatch('artifacts/api-server/src/routes/db.ts', '38_db_imports_avatar_pool', [
+  /from '\.\.\/lib\/avatar-pool'/,
+  /resolveEntryAvatar/,
+]);
+mustMatch('artifacts/boltnew-app/src/lib/profile.ts', '38_avatar_gradient_export', [
+  /export function getAvatarGradientCssForProfile/,
+]);
+mustMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '38_profile_card_uses_gradient', [
+  /getAvatarGradientCssForProfile\(profile\)/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '38_db_single_router_export', [
+  /export default router;\s*$/,
+]);
+mustNotMatch('artifacts/api-server/src/routes/db.ts', '38_db_no_duplicate_router_export', [
+  /export default router[\s\S]*export default router/,
+]);
+
 console.log('\n=== verify-recurrence-guards ===\n');
 for (const r of results) {
   console.log(`  ${r.ok ? 'OK' : 'FAIL'}  ${r.id}${r.detail && !r.ok ? ` ? ${r.detail}` : ''}`);
