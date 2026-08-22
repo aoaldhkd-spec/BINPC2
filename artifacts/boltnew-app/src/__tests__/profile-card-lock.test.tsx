@@ -14,6 +14,7 @@ import React from 'react';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { ProfileCard } from '../components/ProfileCard';
+import { CARD_MENU_GAP } from '../lib/card-menu-box';
 import type { Profile } from '../types/app';
 
 // ── Minimal mocks ────────────────────────────────────────────────────────────
@@ -154,7 +155,7 @@ describe('ProfileCard — lock guard (seat-lock + functions-lock regression)', (
     expect(onBlock).toHaveBeenCalledWith(PROFILE.id, 'block');
   });
 
-  it('compact (3-col) grid: menu layers on body with coords near trigger', () => {
+  it('compact (3-col) grid: menu top equals button bottom + gap on body portal', () => {
     renderCard({ withMenu: true, compact: true, statusMsg: '상태' });
     const menuBtn = screen.getByTestId('profile-card-menu-btn');
     const btnRect = menuBtn.getBoundingClientRect();
@@ -163,8 +164,17 @@ describe('ProfileCard — lock guard (seat-lock + functions-lock regression)', (
     const menu = screen.getByTestId('profile-card-menu');
     expect(layer.parentElement).toBe(document.body);
     const top = Number.parseFloat(menu.style.top);
-    expect(top).toBeGreaterThanOrEqual(btnRect.bottom - 2);
-    expect(top).toBeLessThan(btnRect.bottom + 40);
+    expect(top).toBeCloseTo(btnRect.bottom + CARD_MENU_GAP, 0);
+  });
+
+  it('photo-corner menu: top equals button bottom + gap (no ticker)', () => {
+    renderCard({ withMenu: true, compact: true });
+    const menuBtn = screen.getByTestId('profile-card-menu-btn');
+    const btnRect = menuBtn.getBoundingClientRect();
+    fireEvent.pointerUp(menuBtn, { pointerType: 'touch' });
+    const menu = screen.getByTestId('profile-card-menu');
+    const top = Number.parseFloat(menu.style.top);
+    expect(top).toBeCloseTo(btnRect.bottom + CARD_MENU_GAP, 0);
   });
 
   it('functionsLocked=true: contact share menu shows toast, does NOT call onContactShare', () => {

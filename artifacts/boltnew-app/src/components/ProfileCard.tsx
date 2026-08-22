@@ -75,6 +75,7 @@ export const ProfileCard = memo(function ProfileCard({
   const [menuPos, setMenuPos] = useState<{top:number;left:number;width:number}|null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuBtnRef = useRef<HTMLButtonElement>(null);
+  const menuTriggerRef = useRef<HTMLElement | null>(null);
   const [isFlipped, setIsFlipped] = useState(false);
   const lockToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showLockToast = (e: React.MouseEvent | React.SyntheticEvent) => {
@@ -182,7 +183,7 @@ export const ProfileCard = memo(function ProfileCard({
   };
 
   const measureMenuPos = useCallback((menuHeight = estimatedMenuHeight, trigger?: HTMLElement | null) => {
-    const el = trigger ?? menuBtnRef.current;
+    const el = trigger ?? menuTriggerRef.current ?? menuBtnRef.current;
     if (!el) return null;
     const rect = el.getBoundingClientRect();
     return cardMenuBox(
@@ -206,27 +207,26 @@ export const ProfileCard = memo(function ProfileCard({
       if (menuRef.current?.contains(t) || menuBtnRef.current?.contains(t)) return;
       setShowMenu(false);
       setMenuPos(null);
+      menuTriggerRef.current = null;
     };
     document.addEventListener('pointerdown', close);
     return () => document.removeEventListener('pointerdown', close);
   }, [showMenu]);
 
-  // Portal menu — resize/orientation reflow; scroll closes (avoids drift while deck scrolls)
+  // Portal menu — keep anchored under trigger on scroll/resize/viewport shifts
   useEffect(() => {
     if (!showMenu) return;
-    const closeOnScroll = () => {
-      setShowMenu(false);
-      setMenuPos(null);
-    };
     const reposition = () => applyMenuPos();
     window.addEventListener('resize', reposition);
-    window.addEventListener('scroll', closeOnScroll, true);
+    window.addEventListener('scroll', reposition, true);
     const vv = window.visualViewport;
     vv?.addEventListener('resize', reposition);
+    vv?.addEventListener('scroll', reposition);
     return () => {
       window.removeEventListener('resize', reposition);
-      window.removeEventListener('scroll', closeOnScroll, true);
+      window.removeEventListener('scroll', reposition, true);
       vv?.removeEventListener('resize', reposition);
+      vv?.removeEventListener('scroll', reposition);
     };
   }, [showMenu, applyMenuPos]);
 
@@ -245,18 +245,20 @@ export const ProfileCard = memo(function ProfileCard({
 
   const openCardMenu = (e: React.SyntheticEvent) => {
     e.stopPropagation();
-    if (showMenu) { setShowMenu(false); setMenuPos(null); return; }
+    if (showMenu) { closeCardMenu(); return; }
     const el = (e.currentTarget ?? menuBtnRef.current) as HTMLElement | null;
     if (!el) return;
+    menuTriggerRef.current = el;
     applyMenuPos(estimatedMenuHeight, el);
     suppressMenuCloseUntilRef.current = performance.now() + 400;
     setShowMenu(true);
-    requestAnimationFrame(() => requestAnimationFrame(() => applyMenuPos()));
+    requestAnimationFrame(() => requestAnimationFrame(() => applyMenuPos(estimatedMenuHeight, el)));
   };
 
   const closeCardMenu = () => {
     setShowMenu(false);
     setMenuPos(null);
+    menuTriggerRef.current = null;
   };
 
   const runMenuAction = (action: (e: React.SyntheticEvent) => void) => (e: React.SyntheticEvent) => {

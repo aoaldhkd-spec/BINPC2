@@ -291,7 +291,8 @@ mustMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '39_card_menu_
 mustMatch('artifacts/boltnew-app/src/lib/card-menu-box.ts', '39_card_menu_viewport_box', [
   /readViewportBox/,
   /visualViewport/,
-  /triggerCenter/,
+  /rect\.right - width/,
+  /CARD_MENU_GAP/,
   /CARD_MENU_BOTTOM_CHROME/,
 ]);
 mustMatch('artifacts/boltnew-app/src/hooks/useChat.ts', '37_chat_ensure_write_session', [

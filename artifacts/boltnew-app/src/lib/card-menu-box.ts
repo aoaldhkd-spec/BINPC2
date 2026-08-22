@@ -12,6 +12,9 @@ export type ViewportBox = {
   offsetLeft: number;
 };
 
+/** Gap between ⋯ trigger bottom edge and menu top (px). */
+export const CARD_MENU_GAP = 4;
+
 /** Participant tab bar (~4.5rem) + safe-bottom — flip menu above when near bottom chrome. */
 export const CARD_MENU_BOTTOM_CHROME = 80;
 
@@ -31,7 +34,7 @@ export function readViewportBox(): ViewportBox {
 
 /**
  * Position the ⋯ dropdown directly under the trigger (fixed coords from getBoundingClientRect).
- * Centers under the button; clamps left/right to safe margins so 1st/last grid columns stay on-screen.
+ * Right-aligns to the button; clamps left >= pad so left-column cards stay on-screen.
  */
 export function cardMenuBox(
   rect: MenuTriggerRect,
@@ -40,14 +43,12 @@ export function cardMenuBox(
   bottomChrome = CARD_MENU_BOTTOM_CHROME,
 ): { top: number; left: number; width: number } {
   const pad = 8;
-  const gap = 4;
+  const gap = CARD_MENU_GAP;
   const { vw, vh } = viewport ?? readViewportBox();
-  const btnW = Math.max(0, rect.right - rect.left);
-  const width = Math.min(192, Math.max(btnW, vw - pad * 2));
+  const width = Math.min(192, Math.max(0, vw - pad * 2));
   const maxBottom = Math.max(pad + menuHeight, vh - bottomChrome);
 
-  const triggerCenter = (rect.left + rect.right) / 2;
-  let left = triggerCenter - width / 2;
+  let left = rect.right - width;
   if (left < pad) left = pad;
   if (left + width > vw - pad) left = Math.max(pad, vw - pad - width);
 
