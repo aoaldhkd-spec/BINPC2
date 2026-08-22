@@ -2,6 +2,7 @@ import { Sparkles } from 'lucide-react';
 import { HEART_TYPE_META } from '../lib/constants';
 import { rankByReceivedHearts } from '../lib/stats-ranking';
 import type { Profile, Like } from './shared';
+import { adminAvatarSrc } from './shared';
 
 export function PopularityTab({ likes, profileMap }: { likes: Like[]; profileMap: Map<string, Profile> }) {
   const ranked = rankByReceivedHearts(likes, {
@@ -37,9 +38,7 @@ export function PopularityTab({ likes, profileMap }: { likes: Like[]; profileMap
               <div className="flex items-center gap-3 mb-2">
                 <span className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-sm font-black ${r.rank <= 3 ? 'bg-amber-50' : 'bg-gray-100 text-gray-500'}`}>{medal}</span>
                 <div className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0 bg-gray-100 flex items-center justify-center text-sm font-black text-gray-500">
-                  {profile.photo_url
-                    ? <img src={profile.photo_url} alt={profile.nickname} className="w-full h-full object-cover" />
-                    : (profile.nickname?.charAt(0) ?? '?')}
+                  <img src={adminAvatarSrc(profile)} alt={profile.nickname} className="w-full h-full object-cover" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold text-gray-900 break-words">{profile.nickname}</p>

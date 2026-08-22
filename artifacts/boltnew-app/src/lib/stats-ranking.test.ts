@@ -6,6 +6,7 @@ import {
   countTodayContactExchanges,
   countTodayHeartStats,
   extractCityLevel,
+  filterProfilesForPublicStats,
   isLikeOnSeoulDay,
   normalizeBirthYearForStats,
   normalizeLocationForStats,
@@ -209,5 +210,16 @@ describe('collectProfileBreakdowns', () => {
     expect(rows.interest.find(([k]) => k === '안녕하세요')).toBeUndefined();
     expect(rows.interest.find(([k]) => k === '영화/드라마')?.[1]).toBe(1);
     expect(rows.age.map(([k]) => k)).toEqual(['20대', '30대']);
+  });
+});
+
+describe('filterProfilesForPublicStats', () => {
+  it('excludes admin NPC and swipe-gesture verify fixtures', () => {
+    const filtered = filterProfilesForPublicStats([
+      { nickname: '범일NPC', mbti: 'ENFP' },
+      { nickname: 'Smoke', bio: 'swipe-gesture-verify' },
+      { nickname: '지민', mbti: 'INFP' },
+    ]);
+    expect(filtered.map((p) => p.nickname)).toEqual(['지민']);
   });
 });

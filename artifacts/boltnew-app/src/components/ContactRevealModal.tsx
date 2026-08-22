@@ -1,4 +1,5 @@
 import { X, Phone, MessageCircle, Instagram } from 'lucide-react';
+import { getAvatarSrc } from '../lib/profile';
 import type { Profile } from '../types/app';
 
 interface Props {
@@ -34,7 +35,7 @@ export function ContactRevealModal({ profile, onClose, onOpenChat, darkMode }: P
           {/* 아바타 */}
           {profile.photo_url ? (
             <img
-              src={profile.photo_url}
+              src={getAvatarSrc(profile.photo_url, profile.nickname, undefined, profile.avatar_color)}
               alt={profile.nickname}
               className="w-20 h-20 rounded-full object-cover mx-auto mb-3 border-4 border-teal-400 shadow-lg"
             />

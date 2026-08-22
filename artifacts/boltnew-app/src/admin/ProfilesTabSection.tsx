@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Trash2, Users, X, Search } from 'lucide-react';
 import { getPositionLabel, getDomSubLabel, getKoreanAge } from '../lib/profile';
 import type { Profile, AppSettings } from './shared';
+import { adminAvatarSrc } from './shared';
 import { ConfirmDialog } from './ConfirmDialog';
 
 // ─── Game Tab ─────────────────────────────────────────────────────────────────
@@ -68,29 +69,15 @@ export function ProfilesTabSection({ profiles, settings: _settings, onClear, onD
           const domLabel = p.dom_sub_score !== null ? getDomSubLabel(p.dom_sub_score) : null;
           const age = p.birth_year ? getKoreanAge(p.birth_year) : null;
           const bioTags = (p.bio ?? '').split(',').map(t => t.trim()).filter(Boolean).slice(0, 3);
-          const initial = (p.nickname ?? '?')[0];
           return (
             <div key={p.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3 flex items-center gap-3">
               {/* 원형 아바타 */}
               <div className="relative flex-shrink-0 w-10 h-10">
-                {p.photo_url ? (
-                  <img
-                    src={p.photo_url}
-                    alt={p.nickname ?? ''}
-                    onError={e => {
-                      e.currentTarget.style.display = 'none';
-                      const fb = e.currentTarget.nextElementSibling as HTMLElement | null;
-                      if (fb) fb.style.display = 'flex';
-                    }}
-                    className="w-10 h-10 rounded-full object-cover"
-                  />
-                ) : null}
-                <div
-                  className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-400 to-teal-500 items-center justify-center"
-                  style={{ display: p.photo_url ? 'none' : 'flex' }}
-                >
-                  <span className="text-white text-sm font-black leading-none">{initial}</span>
-                </div>
+                <img
+                  src={adminAvatarSrc(p)}
+                  alt={p.nickname ?? ''}
+                  className="w-10 h-10 rounded-full object-cover"
+                />
                 <button
                   onClick={() => setDeleteTarget(p)}
                   className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center shadow transition-all"

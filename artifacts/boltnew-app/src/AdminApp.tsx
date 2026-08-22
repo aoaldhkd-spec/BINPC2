@@ -21,6 +21,7 @@ import {
 import { NotificationTab } from './admin/NotificationTab';
 import { DashboardTab } from './admin/DashboardTab';
 import { ADMIN_FIXED_NICKNAME } from './lib/panel-password';
+import { NPC_TEXT_AVATAR_SENTINEL } from './lib/profile';
 
 const AdminQrTab = lazy(() => import('./admin/AdminQrTab').then(m => ({ default: m.AdminQrTab })));
 const DbHealthTab = lazy(() => import('./admin/DbHealthTab').then(m => ({ default: m.DbHealthTab })));
@@ -65,6 +66,7 @@ async function restoreAdminProfileAfterWipe(
     id: fromBackup?.id ?? crypto.randomUUID(),
     nickname: ADMIN_FIXED_NICKNAME,
     phone_number: fromBackup?.phone_number ?? String(adminPhone ?? ''),
+    photo_url: fromBackup?.photo_url ?? NPC_TEXT_AVATAR_SENTINEL,
     updated_at: now,
   };
   if (!row.created_at) row.created_at = now;

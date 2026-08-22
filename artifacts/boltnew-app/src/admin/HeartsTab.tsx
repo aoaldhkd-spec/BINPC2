@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Trash2, Heart, RefreshCw } from 'lucide-react';
 import type { Profile, Like } from './shared';
+import { adminAvatarSrc } from './shared';
 import { ConfirmDialog } from './ConfirmDialog';
 
 // ─── Hearts Tab ───────────────────────────────────────────────────────────────
@@ -67,7 +68,7 @@ export function HeartsTab({ likes, profileMap, onClear, onRefresh }: { likes: Li
               <div className="flex min-w-0 items-center gap-2">
                 {liker && (
                   <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0">
-                    <img src={liker.photo_url} alt={liker.nickname} className="w-full h-full object-cover" />
+                    <img src={adminAvatarSrc(liker)} alt={liker.nickname} className="w-full h-full object-cover" />
                   </div>
                 )}
                 <span className="min-w-0 text-sm font-semibold text-gray-800 break-words">{liker?.nickname ?? '알 수 없음'}</span>
@@ -87,7 +88,7 @@ export function HeartsTab({ likes, profileMap, onClear, onRefresh }: { likes: Li
                 <span className="min-w-0 text-sm font-semibold text-gray-800 break-words text-right">{liked?.nickname ?? '알 수 없음'}</span>
                 {liked && (
                   <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0">
-                    <img src={liked.photo_url} alt={liked.nickname} className="w-full h-full object-cover" />
+                    <img src={adminAvatarSrc(liked)} alt={liked.nickname} className="w-full h-full object-cover" />
                   </div>
                 )}
               </div>

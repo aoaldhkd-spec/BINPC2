@@ -1049,7 +1049,7 @@ export function MainScreen({
                         {/* 아바타 */}
                         <div className="flex-shrink-0">
                           {c.photo_url ? (
-                            <img src={c.photo_url} alt={c.nickname} loading="lazy" className="w-10 h-10 rounded-xl object-cover" />
+                            <img src={getAvatarSrc(c.photo_url, c.nickname, undefined, c.avatar_color)} alt={c.nickname} loading="lazy" className="w-10 h-10 rounded-xl object-cover" />
                           ) : (
                             <div className="w-10 h-10 rounded-xl bg-teal-500 flex items-center justify-center text-white font-black text-sm">{c.nickname?.[0] ?? '?'}</div>
                           )}
@@ -1500,7 +1500,7 @@ export function MainScreen({
               const me = profiles.find(p => p.id === currentUserId);
               if (!me) return null;
               const currentTags = me.bio ? me.bio.split(',').map(t => t.trim()).filter(Boolean) : [];
-              const hasBd = !!(me.birth_month && me.birth_day);
+              const hasBd = !!(me.birth_year && me.birth_month && me.birth_day);
               const birthMdLocked = isBirthMdEditLocked(me);
               const birthMdRemaining = birthMdEditsRemaining(me);
               const birthMdUsed = getBirthMdEditCount(me);
@@ -2266,7 +2266,7 @@ export function MainScreen({
             {currentUserId && (() => {
               const me = profiles.find(p => p.id === currentUserId);
               if (!me) return null;
-              const hasBd = !!(me.birth_month && me.birth_day);
+              const hasBd = !!(me.birth_year && me.birth_month && me.birth_day);
               const birthMdLocked = isBirthMdEditLocked(me);
               const birthMdRemaining = birthMdEditsRemaining(me);
               const birthMdUsed = getBirthMdEditCount(me);

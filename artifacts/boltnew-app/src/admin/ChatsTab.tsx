@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import {
   withAdminImageToken,
+  adminAvatarSrc,
   type Profile, type Chat, type Message, type GroupChat, type GroupMessage,
   type GroupParticipant, type SignalSend,
 } from './shared';
@@ -188,8 +189,8 @@ export function ChatsTab({
                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setExpandedId(isOpen ? null : chat.id); }}
                   >
                     <div className="flex -space-x-2 flex-shrink-0">
-                      {u1 && <div className="w-8 h-8 rounded-full overflow-hidden ring-2 ring-white"><img src={u1.photo_url} alt={u1.nickname} className="w-full h-full object-cover" /></div>}
-                      {u2 && <div className="w-8 h-8 rounded-full overflow-hidden ring-2 ring-white"><img src={u2.photo_url} alt={u2.nickname} className="w-full h-full object-cover" /></div>}
+                      {u1 && <div className="w-8 h-8 rounded-full overflow-hidden ring-2 ring-white"><img src={adminAvatarSrc(u1)} alt={u1.nickname} className="w-full h-full object-cover" /></div>}
+                      {u2 && <div className="w-8 h-8 rounded-full overflow-hidden ring-2 ring-white"><img src={adminAvatarSrc(u2)} alt={u2.nickname} className="w-full h-full object-cover" /></div>}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold text-gray-900 break-words">
@@ -220,7 +221,7 @@ export function ChatsTab({
                             <div key={msg.id} className="flex items-start gap-2">
                               {sender && (
                                 <div className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0 mt-0.5">
-                                  <img src={sender.photo_url} alt={sender.nickname} className="w-full h-full object-cover" />
+                                  <img src={adminAvatarSrc(sender)} alt={sender.nickname} className="w-full h-full object-cover" />
                                 </div>
                               )}
                               <div className="flex-1 min-w-0">

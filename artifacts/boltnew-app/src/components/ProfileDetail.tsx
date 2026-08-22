@@ -23,7 +23,7 @@ function PhotoHeader({ profile }: { profile: Profile }) {
     return (
       <div className="aspect-[4/3]">
         <img
-          src={profile.photo_url!}
+          src={getAvatarSrc(profile.photo_url, profile.nickname, undefined, profile.avatar_color)}
           alt={profile.nickname}
           className="w-full h-full object-cover object-center"
           onError={() => setImgError(true)}

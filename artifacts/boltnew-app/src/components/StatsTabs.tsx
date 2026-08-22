@@ -6,7 +6,8 @@ import {
 } from 'lucide-react';
 import { parseProfileInterests } from '../lib/interests';
 import { HEART_META, HeartType } from '../lib/constants';
-import { collectProfileBreakdowns, countTodayContactExchanges, countTodayHeartStats, rankByReceivedHearts } from '../lib/stats-ranking';
+import { collectProfileBreakdowns, countTodayContactExchanges, countTodayHeartStats, filterProfilesForPublicStats, rankByReceivedHearts } from '../lib/stats-ranking';
+import { getAvatarSrc } from '../lib/profile';
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
 type Like = Database['public']['Tables']['likes']['Row'];
@@ -204,10 +205,11 @@ export function StatsTab({ profiles, darkMode }: { profiles: Profile[]; darkMode
   const initialLoading = likesLoading || sharesLoading;
 
   const stats = useMemo(() => {
-    const breakdowns = collectProfileBreakdowns(profiles, parseProfileInterests);
+    const publicProfiles = filterProfilesForPublicStats(profiles);
+    const breakdowns = collectProfileBreakdowns(publicProfiles, parseProfileInterests);
     const { heart, totalHearts } = countTodayHeartStats(allLikes);
     const contactExchanges = countTodayContactExchanges(allContactShares);
-    return { ...breakdowns, heart, totalHearts, contactExchanges };
+    return { ...breakdowns, heart, totalHearts, contactExchanges, participantCount: publicProfiles.length };
   }, [profiles, allLikes, allContactShares]);
 
   const maxMbti = Math.max(1, ...stats.mbti.map((e) => e[1]));
@@ -228,7 +230,7 @@ export function StatsTab({ profiles, darkMode }: { profiles: Profile[]; darkMode
       </div>
 
       <div className="grid grid-cols-3 gap-3">
-        <StatCard label="참여자" value={profiles.length} sub="명" icon={<Users className="w-4 h-4" />} color="#0891b2" />
+        <StatCard label="참여자" value={stats.participantCount} sub="명" icon={<Users className="w-4 h-4" />} color="#0891b2" />
         <StatCard label="보낸 하트" value={stats.totalHearts} sub="개" icon={<Heart className="w-4 h-4" />} color="#ef4444" />
         <StatCard label="연락처 교환" value={stats.contactExchanges} sub="회" icon={<Share2 className="w-4 h-4" />} color="#10b981" />
       </div>
@@ -371,8 +373,8 @@ export function RankingTab({ darkMode, profiles: propProfiles }: { darkMode: boo
                     style={{ background: isTop3 ? medalColors[r.rank - 1] : '#0891b2' }}>
                     {isTop3 ? medal : r.rank}
                   </div>
-                  {profile?.photo_url ? (
-                    <img src={profile.photo_url} alt={profile.nickname} className="w-9 h-9 rounded-full object-cover flex-shrink-0" loading="lazy" />
+                  {profile ? (
+                    <img src={getAvatarSrc(profile.photo_url, profile.nickname, undefined, profile.avatar_color)} alt={profile.nickname} className="w-9 h-9 rounded-full object-cover flex-shrink-0" loading="lazy" />
                   ) : (
                     <div className={`w-9 h-9 rounded-full flex items-center justify-center text-base font-black flex-shrink-0 ${darkMode ? 'bg-slate-600 text-slate-300' : 'bg-gray-100 text-gray-500'}`}>
                       {profile?.nickname?.charAt(0) ?? '?'}

@@ -7,7 +7,7 @@ import {
   RefreshCw, Play, UserPlus, X, CheckCircle,
   AlertTriangle, ChevronDown, ChevronRight,
 } from 'lucide-react';
-import { genAvatar } from './lib/profile';
+import { genAvatar, getAvatarSrc } from './lib/profile';
 import { buildDummyProfileInsert } from './lib/dummy-persona';
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
@@ -388,7 +388,7 @@ export default function TestDashboard() {
           <div className="flex flex-wrap items-center gap-3 p-3 bg-slate-700/40 rounded-xl border border-slate-600/50">
             {myProfile ? (
               <>
-                <img src={myProfile.photo_url} className="w-10 h-10 rounded-full flex-shrink-0" />
+                <img src={getAvatarSrc(myProfile.photo_url, myProfile.nickname, undefined, myProfile.avatar_color)} alt={myProfile.nickname} className="w-10 h-10 rounded-full flex-shrink-0" />
                 <div className="flex-1 min-w-0 basis-[140px]">
                   <p className="font-bold text-white text-sm break-words">{myProfile.nickname}</p>
                   <p className="text-xs text-slate-400 break-words">{myProfile.mbti} · {myProfile.bio}</p>
@@ -459,7 +459,7 @@ export default function TestDashboard() {
             {profiles.length === 0 && <p className="text-xs text-slate-500 text-center py-3">프로필 없음</p>}
             {profiles.map(p => (
               <div key={p.id} className="flex flex-wrap items-center gap-2 px-3 py-1.5 bg-slate-700/40 rounded-lg">
-                <img src={p.photo_url} className="w-7 h-7 rounded-full flex-shrink-0" />
+                <img src={getAvatarSrc(p.photo_url, p.nickname, undefined, p.avatar_color)} alt={p.nickname} className="w-7 h-7 rounded-full flex-shrink-0" />
                 <span className="text-xs font-semibold text-slate-200 flex-1 min-w-0 break-words">{p.nickname}</span>
                 <Tag text={p.mbti ?? '?'} color="slate" />
                 {p.pin_code && <Tag text={`PIN ${p.pin_code}`} color="teal" />}

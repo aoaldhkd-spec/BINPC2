@@ -1,5 +1,6 @@
 import { type Dispatch, type SetStateAction } from 'react';
 import { supabase } from '../lib/supabase';
+import { getAvatarSrc } from '../lib/profile';
 import type { Database } from '../types/database';
 export type { GroupChat, GroupMessage, GroupParticipant, SignalSend } from '../types/app';
 
@@ -28,6 +29,14 @@ export function withAdminImageToken(url: string): string {
   if (!token || !url.startsWith('/api/db/storage-image')) return url;
   const separator = url.includes('?') ? '&' : '?';
   return `${url}${separator}adminToken=${encodeURIComponent(token)}`;
+}
+
+export function adminAvatarSrc(profile: {
+  photo_url?: string | null;
+  nickname?: string | null;
+  avatar_color?: number | null;
+}): string {
+  return withAdminImageToken(getAvatarSrc(profile.photo_url, profile.nickname ?? '?', undefined, profile.avatar_color));
 }
 
 // ─── api-server 직접 호출 헬퍼 ───────────────────────────────────────────────
