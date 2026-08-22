@@ -14,7 +14,6 @@ import React from 'react';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { ProfileCard } from '../components/ProfileCard';
-import { CARD_MENU_GAP } from '../lib/card-menu-box';
 import type { Profile } from '../types/app';
 
 // ── Minimal mocks ────────────────────────────────────────────────────────────
@@ -147,69 +146,45 @@ describe('ProfileCard — lock guard (seat-lock + functions-lock regression)', (
     const { onBlock } = renderCard({ withMenu: true });
     const menuBtn = screen.getByTestId('profile-card-menu-btn');
     fireEvent.pointerUp(menuBtn, { pointerType: 'touch' });
-    const layer = screen.getByTestId('profile-card-menu-layer');
     const menu = screen.getByTestId('profile-card-menu');
-    expect(layer.parentElement).toBe(document.body);
     expect(menu).toBeTruthy();
+    expect(menu.className).toContain('top-full');
+    expect(menu.className).toContain('right-0');
+    expect(menu.parentElement?.contains(menuBtn)).toBe(true);
     fireEvent.pointerUp(screen.getByRole('menuitem', { name: /차단하기/i }), { pointerType: 'touch' });
     expect(onBlock).toHaveBeenCalledWith(PROFILE.id, 'block');
   });
 
-  it('compact (3-col) grid: menu top equals button bottom + gap on body portal', () => {
+  it('compact (3-col) grid: menu is absolute sibling directly below ⋯ button', () => {
     renderCard({ withMenu: true, compact: true, statusMsg: '상태' });
     const menuBtn = screen.getByTestId('profile-card-menu-btn');
-    const btnRect = menuBtn.getBoundingClientRect();
     fireEvent.pointerUp(menuBtn, { pointerType: 'touch' });
-    const layer = screen.getByTestId('profile-card-menu-layer');
     const menu = screen.getByTestId('profile-card-menu');
-    expect(layer.parentElement).toBe(document.body);
-    const top = Number.parseFloat(menu.style.top);
-    expect(top).toBeCloseTo(btnRect.bottom + CARD_MENU_GAP, 0);
+    expect(menu.className).toMatch(/top-full/);
+    expect(menu.className).toMatch(/mt-1/);
+    expect(menu.parentElement).toBe(menuBtn.parentElement);
   });
 
-  it('photo-corner menu: top equals button bottom + gap (no ticker)', () => {
+  it('photo-corner menu: absolute dropdown below button (no ticker)', () => {
     renderCard({ withMenu: true, compact: true });
     const menuBtn = screen.getByTestId('profile-card-menu-btn');
-    const btnRect = menuBtn.getBoundingClientRect();
     fireEvent.pointerUp(menuBtn, { pointerType: 'touch' });
     const menu = screen.getByTestId('profile-card-menu');
-    const top = Number.parseFloat(menu.style.top);
-    expect(top).toBeCloseTo(btnRect.bottom + CARD_MENU_GAP, 0);
+    expect(menu.className).toContain('top-full');
+    expect(menuBtn.getAttribute('data-menu-anchor')).toBe('photo');
   });
 
-  it('uses button rect, not photo frame or nick bar (screenshot regression)', () => {
+  it('menu uses button anchor, not photo frame positioning', () => {
     renderCard({ withMenu: true, compact: true });
     const menuBtn = screen.getByTestId('profile-card-menu-btn');
     const photoFrame = screen.getByTestId('profile-card-photo-frame');
-    const nickBar = screen.getByTestId('profile-card-nick-bar');
-
-    const buttonRect = {
-      left: 283, right: 303, top: 10, bottom: 30,
-      width: 20, height: 20, x: 283, y: 10, toJSON: () => ({}),
-    } as DOMRect;
-    const photoRect = {
-      left: 186, right: 306, top: 96, bottom: 216,
-      width: 120, height: 120, x: 186, y: 96, toJSON: () => ({}),
-    } as DOMRect;
-    const nickRect = {
-      left: 186, right: 306, top: 196, bottom: 216,
-      width: 120, height: 20, x: 186, y: 196, toJSON: () => ({}),
-    } as DOMRect;
-
-    vi.spyOn(menuBtn, 'getBoundingClientRect').mockReturnValue(buttonRect);
-    vi.spyOn(photoFrame, 'getBoundingClientRect').mockReturnValue(photoRect);
-    vi.spyOn(nickBar, 'getBoundingClientRect').mockReturnValue(nickRect);
 
     fireEvent.pointerUp(menuBtn, { pointerType: 'touch' });
     const menu = screen.getByTestId('profile-card-menu');
-    const top = Number.parseFloat(menu.style.top);
-    const left = Number.parseFloat(menu.style.left);
 
-    expect(top).toBe(buttonRect.bottom + CARD_MENU_GAP);
-    expect(top).not.toBe(photoRect.bottom + CARD_MENU_GAP);
-    expect(top).not.toBe(nickRect.bottom + CARD_MENU_GAP);
-    expect(left).toBeGreaterThanOrEqual(8);
-    expect(left + Number.parseFloat(menu.style.width)).toBeLessThanOrEqual(320);
+    expect(menuBtn.getAttribute('data-menu-anchor')).toBe('photo');
+    expect(photoFrame.className).toContain('overflow-visible');
+    expect(menu.parentElement).toBe(menuBtn.parentElement);
   });
 
   it('functionsLocked=true: contact share menu shows toast, does NOT call onContactShare', () => {

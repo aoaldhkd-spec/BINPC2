@@ -279,26 +279,23 @@ mustMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '37_card_menu_
   /data-profile-card-menu-trigger/,
   /bindMobileTap\(\(e\) => openMenuFromButton/,
   /runMenuAction/,
-  /pendingMenuPos/,
   /openMenuFromButton/,
-]);
-mustMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '39_card_menu_body_portal', [
-  /createPortal/,
-  /document\.body/,
-  /profile-card-menu-layer/,
-  /profile-card-menu/,
-  /cardMenuHeight/,
-  /position:\s*'fixed'/,
-  /zIndex:\s*99999/,
-  /pendingMenuPos\.current/,
   /closeCardMenu/,
 ]);
-mustMatch('artifacts/boltnew-app/src/lib/card-menu-box.ts', '39_card_menu_viewport_box', [
-  /readViewportBox/,
-  /visualViewport/,
-  /rect\.right - width/,
-  /CARD_MENU_GAP/,
-  /CARD_MENU_BOTTOM_CHROME/,
+mustMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '39_card_menu_absolute_dropdown', [
+  /profile-card-menu/,
+  /top-full mt-1/,
+  /right-0/,
+  /z-\[99999\]/,
+  /overflow-visible/,
+  /renderMenuDropdown/,
+  /menuAnchorId/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '39_card_menu_no_portal', [
+  /createPortal/,
+  /getBoundingClientRect/,
+  /pendingMenuPos/,
+  /cardMenuBox/,
 ]);
 mustMatch('artifacts/boltnew-app/src/hooks/useChat.ts', '37_chat_ensure_write_session', [
   /ensureWriteSession/,

@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect, memo, useCallback } from 'react';
-import { createPortal } from 'react-dom';
 import { Heart, MessageCircle, MoreHorizontal } from 'lucide-react';
 import { useTheme } from '../lib/theme';
 import type { Profile } from '../types/app';
@@ -7,7 +6,6 @@ import { parseProfileInterests, getInterestTagStyle } from '../lib/interests';
 import { HeartType, heartMeta } from '../lib/constants';
 import { getPositionLabel, getPositionStyle, getKoreanAge, hasUploadedPhoto, getAvatarGradientCssForProfile } from '../lib/profile';
 import { getMbtiStyle } from '../lib/utils';
-import { cardMenuBox, cardMenuHeight, readViewportBox } from '../lib/card-menu-box';
 import { bindMobileTap } from '../lib/mobile-tap';
 import { parseIdealTags } from '../lib/signal-match';
 import { isProfileCardDark, profileCardChipStyle, profileCardSurfaces } from '../lib/profile-card-theme';
@@ -75,7 +73,6 @@ export const ProfileCard = memo(function ProfileCard({
   const [lockToast, setLockToast] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [menuAnchorId, setMenuAnchorId] = useState<MenuAnchorId | null>(null);
-  const pendingMenuPos = useRef<{ top: number; left: number; width: number } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const photoMenuBtnRef = useRef<HTMLButtonElement>(null);
   const tickerMenuBtnRef = useRef<HTMLButtonElement>(null);
@@ -120,8 +117,6 @@ export const ProfileCard = memo(function ProfileCard({
   const [flipAnimating, setFlipAnimating] = useState(false);
   const hasTicker = Boolean(statusMsg?.trim());
   const hasMenu = Boolean(onBlock || onContactShare || onViewFortune);
-  const menuItemCount = (onContactShare ? 1 : 0) + (onViewFortune ? 1 : 0) + (onBlock ? 2 : 0);
-  const estimatedMenuHeight = cardMenuHeight(menuItemCount);
   const suppressMenuCloseUntilRef = useRef(0);
   // 플립해도 전광판·닉·나이는 항상 노출 — 가운데(사진)만 뒤집힘
   const showTopBar = hasTicker;
@@ -188,26 +183,18 @@ export const ProfileCard = memo(function ProfileCard({
   const closeCardMenu = useCallback(() => {
     setShowMenu(false);
     setMenuAnchorId(null);
-    pendingMenuPos.current = null;
   }, []);
 
   const openMenuFromButton = useCallback((e: React.SyntheticEvent, anchorId: MenuAnchorId) => {
     e.stopPropagation();
-    const btn = e.currentTarget as HTMLButtonElement;
     if (showMenu && menuAnchorId === anchorId) {
       closeCardMenu();
       return;
     }
-    const r = btn.getBoundingClientRect();
-    pendingMenuPos.current = cardMenuBox(
-      { left: r.left, right: r.right, top: r.top, bottom: r.bottom },
-      readViewportBox(),
-      estimatedMenuHeight,
-    );
     suppressMenuCloseUntilRef.current = performance.now() + 400;
     setMenuAnchorId(anchorId);
     setShowMenu(true);
-  }, [showMenu, menuAnchorId, estimatedMenuHeight, closeCardMenu]);
+  }, [showMenu, menuAnchorId, closeCardMenu]);
 
   // ⋯ 메뉴 — 바깥 클릭 시만 닫기 (메뉴 항목 pointerdown에서 즉시 닫히면 클릭 불가)
   useEffect(() => {
@@ -224,103 +211,82 @@ export const ProfileCard = memo(function ProfileCard({
     return () => document.removeEventListener('pointerdown', onOutside);
   }, [showMenu, closeCardMenu]);
 
-  // Scroll/resize — close instead of reposition (reposition caused wrong anchor bugs)
-  useEffect(() => {
-    if (!showMenu) return;
-    const onViewportShift = () => closeCardMenu();
-    window.addEventListener('resize', onViewportShift);
-    window.addEventListener('scroll', onViewportShift, true);
-    const vv = window.visualViewport;
-    vv?.addEventListener('resize', onViewportShift);
-    vv?.addEventListener('scroll', onViewportShift);
-    return () => {
-      window.removeEventListener('resize', onViewportShift);
-      window.removeEventListener('scroll', onViewportShift, true);
-      vv?.removeEventListener('resize', onViewportShift);
-      vv?.removeEventListener('scroll', onViewportShift);
-    };
-  }, [showMenu, closeCardMenu]);
-
   const runMenuAction = (action: (e: React.SyntheticEvent) => void) => (e: React.SyntheticEvent) => {
     e.stopPropagation();
     closeCardMenu();
     action(e);
   };
 
-  const menuPosLive = pendingMenuPos.current;
+  const menuPanelClass = `absolute right-0 top-full mt-1 z-[99999] min-w-[192px] max-h-[calc(100dvh-1rem)] rounded-2xl shadow-2xl border overflow-y-auto ${isCardDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100'}`;
 
-  const renderMenuTrigger = (anchorId: MenuAnchorId, btnRef: React.RefObject<HTMLButtonElement | null>) => (
-    <div className="relative inline-flex shrink-0">
-      <button
-        ref={btnRef}
-        type="button"
-        data-testid="profile-card-menu-btn"
-        data-profile-card-menu-trigger="1"
-        data-menu-anchor={anchorId}
-        onPointerDown={(e) => e.stopPropagation()}
-        {...bindMobileTap((e) => openMenuFromButton(e, anchorId))}
-        className="w-5 h-5 rounded-full bg-black/55 ring-1 ring-white/30 flex items-center justify-center active:scale-90 transition-transform shrink-0 shadow-sm touch-manipulation"
-        aria-label="더보기"
-        aria-expanded={showMenu && menuAnchorId === anchorId}
-      >
-        <MoreHorizontal className="w-2.5 h-2.5 text-white pointer-events-none" />
-      </button>
-    </div>
+  const renderMenuItems = () => (
+    <>
+      {onContactShare && (
+        <button type="button" role="menuitem" {...bindMobileTap(runMenuAction((e) => { if (locked) { showLockToast(e); return; } onContactShare(profile); }))}
+          className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 whitespace-nowrap touch-manipulation ${isCardDark ? 'text-teal-400 hover:bg-slate-700' : 'text-teal-600 hover:bg-teal-50'}`}>💌 연락처 보내기</button>
+      )}
+      {onViewFortune && (
+        <button type="button" role="menuitem" {...bindMobileTap(runMenuAction((e) => { if (locked) { showLockToast(e); return; } onViewFortune(profile); }))}
+          className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 whitespace-nowrap border-t touch-manipulation ${isCardDark ? 'text-violet-400 hover:bg-slate-700 border-slate-700' : 'text-violet-600 hover:bg-violet-50 border-gray-50'}`}>🔮 궁합 보기</button>
+      )}
+      {onBlock && (
+        <>
+          <button type="button" role="menuitem" {...bindMobileTap(runMenuAction(() => { onBlock(profile.id, 'block'); }))}
+            className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 whitespace-nowrap border-t touch-manipulation ${isCardDark ? 'text-red-400 hover:bg-slate-700 border-slate-700' : 'text-red-500 hover:bg-red-50 border-gray-50'}`}>🚫 차단하기</button>
+          <button type="button" role="menuitem" {...bindMobileTap(runMenuAction(() => { onBlock(profile.id, 'hide'); }))}
+            className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 whitespace-nowrap border-t touch-manipulation ${isCardDark ? 'text-slate-300 hover:bg-slate-700 border-slate-700' : 'text-gray-600 hover:bg-gray-50 border-gray-50'}`}>👻 나를 못 보게 하기</button>
+        </>
+      )}
+    </>
   );
 
-  return (
-    <div
-      ref={cardRootRef}
-      className={`group relative flex flex-col min-w-0 max-w-full rounded-lg shadow-sm border overflow-hidden ${surfaces.shellClass}`}
-      style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 280px' }}
-    >
-
-      {showMenu && menuPosLive && typeof document !== 'undefined' && createPortal(
-        <div data-testid="profile-card-menu-layer" style={{ display: 'contents' }}>
+  const renderMenuDropdown = (anchorId: MenuAnchorId, btnRef: React.RefObject<HTMLButtonElement | null>) => {
+    const isOpen = showMenu && menuAnchorId === anchorId;
+    return (
+      <div className="relative z-[100] shrink-0" style={{ position: 'relative' }}>
+        <button
+          ref={btnRef}
+          type="button"
+          data-testid="profile-card-menu-btn"
+          data-profile-card-menu-trigger="1"
+          data-menu-anchor={anchorId}
+          onPointerDown={(e) => e.stopPropagation()}
+          {...bindMobileTap((e) => openMenuFromButton(e, anchorId))}
+          className="w-5 h-5 rounded-full bg-black/55 ring-1 ring-white/30 flex items-center justify-center active:scale-90 transition-transform shrink-0 shadow-sm touch-manipulation"
+          aria-label="더보기"
+          aria-expanded={isOpen}
+        >
+          <MoreHorizontal className="w-2.5 h-2.5 text-white pointer-events-none" />
+        </button>
+        {isOpen && (
           <div
             ref={menuRef}
             role="menu"
             data-testid="profile-card-menu"
-            style={{
-              position: 'fixed',
-              top: menuPosLive.top,
-              left: menuPosLive.left,
-              width: menuPosLive.width,
-              zIndex: 99999,
-              pointerEvents: 'auto',
-            }}
-            className={`max-h-[calc(100dvh-1rem)] min-w-[192px] rounded-2xl shadow-2xl border overflow-y-auto ${isCardDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100'}`}
+            className={menuPanelClass}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
           >
-            {onContactShare && (
-              <button type="button" role="menuitem" {...bindMobileTap(runMenuAction((e) => { if (locked) { showLockToast(e); return; } onContactShare(profile); }))}
-                className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 whitespace-nowrap touch-manipulation ${isCardDark ? 'text-teal-400 hover:bg-slate-700' : 'text-teal-600 hover:bg-teal-50'}`}>💌 연락처 보내기</button>
-            )}
-            {onViewFortune && (
-              <button type="button" role="menuitem" {...bindMobileTap(runMenuAction((e) => { if (locked) { showLockToast(e); return; } onViewFortune(profile); }))}
-                className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 whitespace-nowrap border-t touch-manipulation ${isCardDark ? 'text-violet-400 hover:bg-slate-700 border-slate-700' : 'text-violet-600 hover:bg-violet-50 border-gray-50'}`}>🔮 궁합 보기</button>
-            )}
-            {onBlock && (
-              <>
-                <button type="button" role="menuitem" {...bindMobileTap(runMenuAction(() => { onBlock(profile.id, 'block'); }))}
-                  className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 whitespace-nowrap border-t touch-manipulation ${isCardDark ? 'text-red-400 hover:bg-slate-700 border-slate-700' : 'text-red-500 hover:bg-red-50 border-gray-50'}`}>🚫 차단하기</button>
-                <button type="button" role="menuitem" {...bindMobileTap(runMenuAction(() => { onBlock(profile.id, 'hide'); }))}
-                  className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 whitespace-nowrap border-t touch-manipulation ${isCardDark ? 'text-slate-300 hover:bg-slate-700 border-slate-700' : 'text-gray-600 hover:bg-gray-50 border-gray-50'}`}>👻 나를 못 보게 하기</button>
-              </>
-            )}
+            {renderMenuItems()}
           </div>
-        </div>,
-        document.body,
-      )}
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div
+      ref={cardRootRef}
+      className={`group relative flex flex-col min-w-0 max-w-full rounded-lg shadow-sm border ${showMenu ? 'overflow-visible' : 'overflow-hidden'} ${surfaces.shellClass}`}
+      style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 280px' }}
+    >
 
       {/* ── 프로필 사진 (작게=1:1, 기본=3:4) — 플립해도 aspect 고정, 크기 불변 ── */}
       <div
-        className={`relative z-0 w-full shrink-0 isolate${compact ? ' aspect-square' : ''}`}
+        className={`relative z-0 w-full shrink-0 isolate overflow-visible${compact ? ' aspect-square' : ''}`}
         style={{
           ...(compact ? {} : { aspectRatio: '3/4' }),
           background: photoBg,
-          overflow: 'hidden',
         }}
         data-testid="profile-card-photo-frame"
       >
@@ -478,7 +444,7 @@ export const ProfileCard = memo(function ProfileCard({
           {showTopBar && (
             <div
               data-testid="profile-card-ticker-bar"
-              className="absolute top-0 left-0 right-0 z-30 flex items-stretch min-h-[20px] pointer-events-auto"
+              className="absolute top-0 left-0 right-0 z-30 flex items-stretch min-h-[20px] pointer-events-auto overflow-visible"
               style={{
                 background: 'linear-gradient(90deg,rgba(15,23,42,0.88) 0%,rgba(17,94,89,0.88) 100%)',
                 borderBottom: '1px solid rgba(45,212,191,0.4)',
@@ -522,8 +488,8 @@ export const ProfileCard = memo(function ProfileCard({
                 >{statusMsg}</span>
               </div>
               {hasMenu && (
-                <div className="shrink-0 flex items-center pr-0.5 pl-0.5">
-                  {renderMenuTrigger('ticker', tickerMenuBtnRef)}
+                <div className="shrink-0 flex items-center pr-0.5 pl-0.5 overflow-visible">
+                  {renderMenuDropdown('ticker', tickerMenuBtnRef)}
                 </div>
               )}
             </div>
@@ -531,8 +497,8 @@ export const ProfileCard = memo(function ProfileCard({
 
           {/* ⋯ — 전광판 없을 때만 사진 우상단 */}
           {hasMenu && !showTopBar && (
-            <div className="absolute right-1 top-1 z-40 pointer-events-auto" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
-              {renderMenuTrigger('photo', photoMenuBtnRef)}
+            <div className="absolute right-1 top-1 z-40 pointer-events-auto overflow-visible" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+              {renderMenuDropdown('photo', photoMenuBtnRef)}
             </div>
           )}
 
