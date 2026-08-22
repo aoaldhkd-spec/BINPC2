@@ -7,7 +7,7 @@ import { parseProfileInterests, getInterestTagStyle } from '../lib/interests';
 import { HeartType, heartMeta } from '../lib/constants';
 import { getPositionLabel, getPositionStyle, getKoreanAge, hasUploadedPhoto, getAvatarGradientCssForProfile } from '../lib/profile';
 import { getMbtiStyle } from '../lib/utils';
-import { cardMenuBox, cardMenuHeight, readViewportBox } from '../lib/card-menu-box';
+import { cardMenuBox, cardMenuHeight } from '../lib/card-menu-box';
 import { bindMobileTap } from '../lib/mobile-tap';
 import { parseIdealTags } from '../lib/signal-match';
 import { isProfileCardDark, profileCardChipStyle, profileCardSurfaces } from '../lib/profile-card-theme';
@@ -73,7 +73,6 @@ export const ProfileCard = memo(function ProfileCard({
   const [lockToast, setLockToast] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [menuPos, setMenuPos] = useState<{top:number;left:number;width:number}|null>(null);
-  const [vpLayer, setVpLayer] = useState({ top: 0, left: 0, width: 360, height: 640 });
   const menuRef = useRef<HTMLDivElement>(null);
   const menuBtnRef = useRef<HTMLButtonElement>(null);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -182,27 +181,21 @@ export const ProfileCard = memo(function ProfileCard({
     contain: 'layout paint',
   };
 
-  const syncVpLayer = useCallback(() => {
-    const v = readViewportBox();
-    setVpLayer({ top: v.offsetTop, left: v.offsetLeft, width: v.vw, height: v.vh });
-  }, []);
-
   const measureMenuPos = useCallback((menuHeight = estimatedMenuHeight, trigger?: HTMLElement | null) => {
     const el = trigger ?? menuBtnRef.current;
     if (!el) return null;
     const rect = el.getBoundingClientRect();
     return cardMenuBox(
       { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom },
-      readViewportBox(),
+      undefined,
       menuHeight,
     );
   }, [estimatedMenuHeight]);
 
   const applyMenuPos = useCallback((menuHeight = estimatedMenuHeight, trigger?: HTMLElement | null) => {
-    syncVpLayer();
     const next = measureMenuPos(menuHeight, trigger);
     if (next) setMenuPos(next);
-  }, [estimatedMenuHeight, measureMenuPos, syncVpLayer]);
+  }, [estimatedMenuHeight, measureMenuPos]);
 
   // ⋯ 메뉴 — 바깥 클릭 시만 닫기 (메뉴 항목 pointerdown에서 즉시 닫히면 클릭 불가)
   useEffect(() => {
@@ -218,20 +211,22 @@ export const ProfileCard = memo(function ProfileCard({
     return () => document.removeEventListener('pointerdown', close);
   }, [showMenu]);
 
-  // Portal menu — keep aligned while page/deck scrolls, viewport resizes, or iOS chrome shifts
+  // Portal menu — resize/orientation reflow; scroll closes (avoids drift while deck scrolls)
   useEffect(() => {
     if (!showMenu) return;
+    const closeOnScroll = () => {
+      setShowMenu(false);
+      setMenuPos(null);
+    };
     const reposition = () => applyMenuPos();
     window.addEventListener('resize', reposition);
-    window.addEventListener('scroll', reposition, true);
+    window.addEventListener('scroll', closeOnScroll, true);
     const vv = window.visualViewport;
     vv?.addEventListener('resize', reposition);
-    vv?.addEventListener('scroll', reposition);
     return () => {
       window.removeEventListener('resize', reposition);
-      window.removeEventListener('scroll', reposition, true);
+      window.removeEventListener('scroll', closeOnScroll, true);
       vv?.removeEventListener('resize', reposition);
-      vv?.removeEventListener('scroll', reposition);
     };
   }, [showMenu, applyMenuPos]);
 
@@ -293,27 +288,17 @@ export const ProfileCard = memo(function ProfileCard({
     >
 
       {showMenu && menuPos && typeof document !== 'undefined' && createPortal(
-        <div
-          data-testid="profile-card-menu-layer"
-          style={{
-            position: 'fixed',
-            top: vpLayer.top,
-            left: vpLayer.left,
-            width: vpLayer.width,
-            height: vpLayer.height,
-            zIndex: 10080,
-            pointerEvents: 'none',
-          }}
-        >
+        <div data-testid="profile-card-menu-layer" style={{ display: 'contents' }}>
           <div
             ref={menuRef}
             role="menu"
             data-testid="profile-card-menu"
             style={{
-              position: 'absolute',
+              position: 'fixed',
               top: menuPos.top,
               left: menuPos.left,
               width: menuPos.width,
+              zIndex: 99999,
               pointerEvents: 'auto',
             }}
             className={`max-h-[calc(100dvh-1rem)] rounded-2xl shadow-2xl border overflow-y-auto ${isCardDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100'}`}

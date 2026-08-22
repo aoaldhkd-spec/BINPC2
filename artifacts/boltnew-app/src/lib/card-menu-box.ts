@@ -15,7 +15,7 @@ export type ViewportBox = {
 /** Participant tab bar (~4.5rem) + safe-bottom — flip menu above when near bottom chrome. */
 export const CARD_MENU_BOTTOM_CHROME = 80;
 
-/** Visual viewport metrics — dense 2·3열 grids + iOS address-bar scroll. */
+/** Visual viewport metrics — clamp menu inside visible area on dense grids. */
 export function readViewportBox(): ViewportBox {
   if (typeof window === 'undefined') {
     return { vw: 360, vh: 640, offsetTop: 0, offsetLeft: 0 };
@@ -30,19 +30,20 @@ export function readViewportBox(): ViewportBox {
 }
 
 /**
- * Keep the ⋯ dropdown inside the visual viewport; center under trigger for narrow grid cells.
- * Returns coords relative to the visual viewport (for a fixed layer pinned at vv offset).
+ * Position the ⋯ dropdown directly under the trigger (fixed coords from getBoundingClientRect).
+ * Centers under the button; clamps left/right to safe margins so 1st/last grid columns stay on-screen.
  */
 export function cardMenuBox(
   rect: MenuTriggerRect,
-  viewport: ViewportBox,
+  viewport?: ViewportBox,
   menuHeight = 200,
   bottomChrome = CARD_MENU_BOTTOM_CHROME,
 ): { top: number; left: number; width: number } {
   const pad = 8;
-  const gap = 6;
-  const { vw, vh } = viewport;
-  const width = Math.min(192, Math.max(0, vw - pad * 2));
+  const gap = 4;
+  const { vw, vh } = viewport ?? readViewportBox();
+  const btnW = Math.max(0, rect.right - rect.left);
+  const width = Math.min(192, Math.max(btnW, vw - pad * 2));
   const maxBottom = Math.max(pad + menuHeight, vh - bottomChrome);
 
   const triggerCenter = (rect.left + rect.right) / 2;

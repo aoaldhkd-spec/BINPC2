@@ -285,8 +285,8 @@ mustMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '39_card_menu_
   /profile-card-menu-layer/,
   /profile-card-menu/,
   /cardMenuHeight/,
-  /readViewportBox/,
-  /zIndex:\s*10080/,
+  /position:\s*'fixed'/,
+  /zIndex:\s*99999/,
 ]);
 mustMatch('artifacts/boltnew-app/src/lib/card-menu-box.ts', '39_card_menu_viewport_box', [
   /readViewportBox/,

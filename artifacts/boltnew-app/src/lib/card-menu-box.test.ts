@@ -7,15 +7,21 @@ const VP320 = { vw: 320, vh: 568, offsetTop: 0, offsetLeft: 0 };
 describe('cardMenuBox', () => {
   it('centers under a 3-col grid ⋯ trigger on 320px width', () => {
     const box = cardMenuBox({ left: 86, right: 106, top: 4, bottom: 24 }, VP320, 180);
-    expect(box.top).toBe(30);
+    expect(box.top).toBe(28);
     expect(box.left).toBe(8);
     expect(box.width).toBe(192);
     expect(box.left + box.width).toBeLessThanOrEqual(320 - 8);
   });
 
+  it('clamps left edge for first-column grid trigger', () => {
+    const box = cardMenuBox({ left: 4, right: 24, top: 4, bottom: 24 }, VP320, 180);
+    expect(box.left).toBeGreaterThanOrEqual(8);
+    expect(box.left + box.width).toBeLessThanOrEqual(320 - 8);
+  });
+
   it('centers under a 2-col grid ⋯ trigger', () => {
     const box = cardMenuBox({ left: 150, right: 170, top: 4, bottom: 24 }, VP, 180);
-    expect(box.top).toBe(30);
+    expect(box.top).toBe(28);
     expect(box.left).toBe(64);
     expect(box.left + box.width).toBeLessThanOrEqual(360 - 8);
   });
@@ -39,9 +45,9 @@ describe('cardMenuBox', () => {
     expect(box.top + 180).toBeLessThanOrEqual(vh - CARD_MENU_BOTTOM_CHROME + 8);
   });
 
-  it('returns visual-viewport-relative coords (layer applies vv offset)', () => {
+  it('returns fixed-position coords independent of vv offset', () => {
     const box = cardMenuBox({ left: 150, right: 170, top: 4, bottom: 24 }, { vw: 360, vh: 640, offsetTop: 12, offsetLeft: 4 }, 180);
-    expect(box.top).toBe(30);
+    expect(box.top).toBe(28);
     expect(box.left).toBe(64);
   });
 });
