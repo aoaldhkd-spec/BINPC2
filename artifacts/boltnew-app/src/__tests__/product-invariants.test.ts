@@ -107,6 +107,8 @@ describe('product copy + notification invariants', () => {
     expect(card).toContain('bindMobileTap');
     expect(card).toContain('profile-card-heart-btn');
     expect(card).toContain('onLike(profile.id, profile)');
+    expect(card).toContain('profile-card-menu-btn');
+    expect(card).toContain('bindMobileTap(openCardMenu)');
     expect(card).not.toContain('touch-target');
   });
 

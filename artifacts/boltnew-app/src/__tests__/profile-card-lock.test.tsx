@@ -66,17 +66,22 @@ function renderCard({
   compact = false,
   statusMsg,
   idealMsg,
+  withMenu = false,
 }: {
   seatingLocked?: boolean;
   functionsLocked?: boolean;
   compact?: boolean;
   statusMsg?: string;
   idealMsg?: string;
+  withMenu?: boolean;
 } = {}) {
   const onLike = vi.fn();
   const onSelect = vi.fn();
   const onView = vi.fn();
   const onOpenChat = vi.fn();
+  const onBlock = vi.fn();
+  const onContactShare = vi.fn();
+  const onViewFortune = vi.fn();
   render(
     <ProfileCard
       profile={PROFILE}
@@ -92,9 +97,12 @@ function renderCard({
       onSelect={onSelect}
       onView={onView}
       onOpenChat={onOpenChat}
+      onBlock={withMenu ? onBlock : undefined}
+      onContactShare={withMenu ? onContactShare : undefined}
+      onViewFortune={withMenu ? onViewFortune : undefined}
     />
   );
-  return { onLike, onSelect, onView, onOpenChat };
+  return { onLike, onSelect, onView, onOpenChat, onBlock, onContactShare, onViewFortune };
 }
 
 afterEach(() => cleanup());
@@ -132,6 +140,15 @@ describe('ProfileCard — lock guard (seat-lock + functions-lock regression)', (
     expect(onView).toHaveBeenCalledTimes(1);
     expect(onView).toHaveBeenCalledWith(PROFILE);
     expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it('⋯ menu opens on touch via pointerup and runs block action', () => {
+    const { onBlock } = renderCard({ withMenu: true });
+    const menuBtn = screen.getByTestId('profile-card-menu-btn');
+    fireEvent.pointerUp(menuBtn, { pointerType: 'touch' });
+    expect(screen.getByRole('menu')).toBeTruthy();
+    fireEvent.pointerUp(screen.getByRole('menuitem', { name: /차단하기/i }), { pointerType: 'touch' });
+    expect(onBlock).toHaveBeenCalledWith(PROFILE.id, 'block');
   });
 });
 

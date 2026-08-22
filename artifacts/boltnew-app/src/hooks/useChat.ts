@@ -17,7 +17,7 @@ const MAX_MESSAGES = 500; // 채팅방당 최대 메시지 보유 수 (메모리
 const MAX_CACHED_CHAT_ROOMS = 8; // 최근 방만 메모리에 유지해 계정 장시간 사용 시 증가 방지
 
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, ensureWriteSession } from '../lib/supabase';
 import { onSseReconnect, getSseToken, isSseHealthy } from '../lib/localdb';
 import type { Profile, Message, Chat, View } from '../types/app';
 import { HeartType } from '../lib/constants';
@@ -645,6 +645,11 @@ export function useChat({
       }
 
       const doOpen = async (): Promise<string | null> => {
+        const sessionOk = await ensureWriteSession();
+        if (!sessionOk) {
+          console.error('[openChat] write session unavailable');
+          return null;
+        }
         const { data: pairChats, error: listErr } = await supabase
           .from('chats').select('*')
           .or(`user1_id.eq.${currentUserId},user2_id.eq.${currentUserId}`);
@@ -965,6 +970,19 @@ export function useChat({
     let lastErr: unknown;
 
     try {
+      const sessionOk = await ensureWriteSession();
+      if (!sessionOk) {
+        if (isActiveRoomChat(snapChatId)) {
+          setMessages(prev => prev.filter(m => m.id !== optimisticId));
+          setChatList(prev => prev.map(c =>
+            c.id === snapChatId && c.lastMessage === trimmed
+              ? { ...c, lastMessage: prevLastMessage }
+              : c
+          ));
+        }
+        setBottomNotif({ type: 'chat', nickname: '', message: '로그인 세션이 만료되었습니다. 새로고침 후 다시 시도해 주세요.' });
+        return;
+      }
       for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
         // 재시도 시 지수 백오프 — attempt=1:1s, attempt=2:2s, attempt=3:4s
         if (attempt > 0) {
@@ -1087,6 +1105,11 @@ export function useChat({
     };
 
     try {
+      const sessionOk = await ensureWriteSession();
+      if (!sessionOk) {
+        rollback();
+        return '로그인 세션이 만료되었습니다. 새로고침 후 다시 시도해 주세요.';
+      }
       const ext = file.name.split('.').pop() ?? 'jpg';
       const path = `${snapChatId}/${snapUserId}/${clientId}.${ext}`;
       const { data, error } = await supabase.storage.from('chat-images').upload(path, file, { contentType: file.type || 'image/jpeg' });

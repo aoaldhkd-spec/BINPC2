@@ -341,6 +341,11 @@ export function useHearts(
     // 실패 시 롤백을 위한 스냅샷
     const prevLikers = [...receivedLikers];
     try {
+      const sessionOk = await ensureWriteSession();
+      if (!sessionOk) {
+        setLikeError('로그인 세션이 만료되었습니다. 앱을 새로고침한 뒤 다시 시도해 주세요.');
+        return;
+      }
       const { error } = await supabase
         .from('likes')
         .update({ status: response })

@@ -4,7 +4,7 @@ import { useTheme } from '../lib/theme';
 import type { Profile } from '../types/app';
 import { parseProfileInterests, getInterestTagStyle } from '../lib/interests';
 import { HeartType, heartMeta } from '../lib/constants';
-import { getPositionLabel, getPositionStyle, getKoreanAge, hasUploadedPhoto, getAvatarGradientCss } from '../lib/profile';
+import { getPositionLabel, getPositionStyle, getKoreanAge, hasUploadedPhoto, getAvatarGradientCssForProfile } from '../lib/profile';
 import { getMbtiStyle } from '../lib/utils';
 import { cardMenuBox } from '../lib/card-menu-box';
 import { bindMobileTap } from '../lib/mobile-tap';
@@ -103,7 +103,7 @@ export const ProfileCard = memo(function ProfileCard({
 
   const pastelFill = !hasUploadedPhoto(profile.photo_url) || imgFailed;
   const photoBg = pastelFill
-    ? getAvatarGradientCss(profile.nickname)
+    ? getAvatarGradientCssForProfile(profile)
     : '#0f172a';
 
   // 상태 메시지 자동 마키 — 뷰포트에 보일 때만 애니메이션·ResizeObserver 가동
@@ -190,21 +190,35 @@ export const ProfileCard = memo(function ProfileCard({
     return () => document.removeEventListener('pointerdown', close);
   }, [showMenu]);
 
-  const openCardMenu = (e: React.MouseEvent<HTMLButtonElement>) => {
+  const openCardMenu = (e: React.SyntheticEvent) => {
     e.stopPropagation();
     if (showMenu) { setShowMenu(false); setMenuPos(null); return; }
-    const rect = e.currentTarget.getBoundingClientRect();
+    const el = (e.currentTarget ?? menuBtnRef.current) as HTMLElement | null;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
     setMenuPos(cardMenuBox(rect, window.innerWidth, window.innerHeight));
     setShowMenu(true);
+  };
+
+  const closeCardMenu = () => {
+    setShowMenu(false);
+    setMenuPos(null);
+  };
+
+  const runMenuAction = (action: (e: React.SyntheticEvent) => void) => (e: React.SyntheticEvent) => {
+    e.stopPropagation();
+    closeCardMenu();
+    action(e);
   };
 
   const menuButton = hasMenu ? (
     <button
       ref={menuBtnRef}
       type="button"
+      data-testid="profile-card-menu-btn"
       onPointerDown={(e) => e.stopPropagation()}
-      onClick={openCardMenu}
-      className="w-5 h-5 rounded-full bg-black/55 ring-1 ring-white/30 flex items-center justify-center active:scale-90 transition-transform shrink-0 shadow-sm"
+      {...bindMobileTap(openCardMenu)}
+      className="w-5 h-5 rounded-full bg-black/55 ring-1 ring-white/30 flex items-center justify-center active:scale-90 transition-transform shrink-0 shadow-sm touch-manipulation"
       aria-label="더보기"
       aria-expanded={showMenu}
     >
@@ -230,19 +244,19 @@ export const ProfileCard = memo(function ProfileCard({
           onClick={(e) => e.stopPropagation()}
         >
           {onContactShare && (
-            <button type="button" role="menuitem" onClick={(e) => { e.stopPropagation(); setShowMenu(false); setMenuPos(null); if (locked) { showLockToast(e); return; } onContactShare(profile); }}
-              className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 whitespace-nowrap ${isCardDark ? 'text-teal-400 hover:bg-slate-700' : 'text-teal-600 hover:bg-teal-50'}`}>💌 연락처 보내기</button>
+            <button type="button" role="menuitem" {...bindMobileTap(runMenuAction((e) => { if (locked) { showLockToast(e); return; } onContactShare(profile); }))}
+              className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 whitespace-nowrap touch-manipulation ${isCardDark ? 'text-teal-400 hover:bg-slate-700' : 'text-teal-600 hover:bg-teal-50'}`}>💌 연락처 보내기</button>
           )}
           {onViewFortune && (
-            <button type="button" role="menuitem" onClick={(e) => { e.stopPropagation(); setShowMenu(false); setMenuPos(null); if (locked) { showLockToast(e); return; } onViewFortune(profile); }}
-              className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 whitespace-nowrap border-t ${isCardDark ? 'text-violet-400 hover:bg-slate-700 border-slate-700' : 'text-violet-600 hover:bg-violet-50 border-gray-50'}`}>🔮 궁합 보기</button>
+            <button type="button" role="menuitem" {...bindMobileTap(runMenuAction((e) => { if (locked) { showLockToast(e); return; } onViewFortune(profile); }))}
+              className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 whitespace-nowrap border-t touch-manipulation ${isCardDark ? 'text-violet-400 hover:bg-slate-700 border-slate-700' : 'text-violet-600 hover:bg-violet-50 border-gray-50'}`}>🔮 궁합 보기</button>
           )}
           {onBlock && (
             <>
-              <button type="button" role="menuitem" onClick={(e) => { e.stopPropagation(); setShowMenu(false); setMenuPos(null); onBlock(profile.id, 'block'); }}
-                className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 whitespace-nowrap border-t ${isCardDark ? 'text-red-400 hover:bg-slate-700 border-slate-700' : 'text-red-500 hover:bg-red-50 border-gray-50'}`}>🚫 차단하기</button>
-              <button type="button" role="menuitem" onClick={(e) => { e.stopPropagation(); setShowMenu(false); setMenuPos(null); onBlock(profile.id, 'hide'); }}
-                className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 whitespace-nowrap border-t ${isCardDark ? 'text-slate-300 hover:bg-slate-700 border-slate-700' : 'text-gray-600 hover:bg-gray-50 border-gray-50'}`}>👻 나를 못 보게 하기</button>
+              <button type="button" role="menuitem" {...bindMobileTap(runMenuAction(() => { onBlock(profile.id, 'block'); }))}
+                className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 whitespace-nowrap border-t touch-manipulation ${isCardDark ? 'text-red-400 hover:bg-slate-700 border-slate-700' : 'text-red-500 hover:bg-red-50 border-gray-50'}`}>🚫 차단하기</button>
+              <button type="button" role="menuitem" {...bindMobileTap(runMenuAction(() => { onBlock(profile.id, 'hide'); }))}
+                className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 whitespace-nowrap border-t touch-manipulation ${isCardDark ? 'text-slate-300 hover:bg-slate-700 border-slate-700' : 'text-gray-600 hover:bg-gray-50 border-gray-50'}`}>👻 나를 못 보게 하기</button>
             </>
           )}
         </div>
@@ -465,7 +479,7 @@ export const ProfileCard = memo(function ProfileCard({
 
           {/* ⋯ — 전광판 없을 때만 사진 우상단 */}
           {hasMenu && !showTopBar && (
-            <div className="absolute right-1 top-1 z-40" onClick={(e) => e.stopPropagation()}>
+            <div className="absolute right-1 top-1 z-40 pointer-events-auto" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
               {menuButton}
             </div>
           )}

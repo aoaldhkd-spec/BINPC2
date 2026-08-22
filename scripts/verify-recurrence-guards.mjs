@@ -274,6 +274,14 @@ mustMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '35_profile_ca
   /profile-card-heart-btn/,
   /onLike\(profile\.id, profile\)/,
 ]);
+mustMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '37_card_menu_mobile_tap', [
+  /profile-card-menu-btn/,
+  /bindMobileTap\(openCardMenu\)/,
+  /runMenuAction/,
+]);
+mustMatch('artifacts/boltnew-app/src/hooks/useChat.ts', '37_chat_ensure_write_session', [
+  /ensureWriteSession/,
+]);
 
 // ?? 33 Entry / waiting / main gate mapping (minimal) ?????????????????????????
 
