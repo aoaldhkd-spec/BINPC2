@@ -66,6 +66,9 @@ export function getPositionStyle(score: number): { bg: string; text: string; bor
 export { formatKoreanAge as getKoreanAge } from './korean-age';
 
 import { AVATAR_COLOR_COUNT } from './avatar-color-catalog';
+import { genNpcTextAvatar, isNpcTextAvatar } from './npc-text-avatar';
+
+export { isNpcTextAvatar, genNpcTextAvatar, NPC_TEXT_AVATAR_SENTINEL, NPC_TEXT_AVATAR_MESSAGE, NPC_TEXT_AVATAR_LABEL } from './npc-text-avatar';
 
 // ─── 아바타 SVG 생성 ─────────────────────────────────────────────────────────
 /** 닉네임 전체를 해시 — 첫 글자만 쓰면 한글 닉네임이 주황색에 몰림 */
@@ -121,9 +124,10 @@ export function getAvatarGradientCssForProfile(profile: AvatarColorProfile): str
   return `linear-gradient(135deg, ${from} 0%, ${to} 100%)`;
 }
 
-/** 실제 업로드·프리셋 webp만 사진으로 취급 — null/dicebear/구형 SVG → genAvatar */
+/** 실제 업로드·프리셋 webp·NPC 텍스트 아바타만 사진으로 취급 — null/dicebear/구형 SVG → genAvatar */
 export function hasUploadedPhoto(url: string | null | undefined): boolean {
   if (!url || !url.trim()) return false;
+  if (isNpcTextAvatar(url)) return true;
   if (url.includes('dicebear')) return false;
   if (url.startsWith('data:image/svg')) return false;
   return true;
@@ -150,6 +154,7 @@ export function getAvatarSrc(
   cacheBust?: string | number,
   colorIndex?: number | null,
 ): string {
+  if (isNpcTextAvatar(url)) return genNpcTextAvatar();
   if (!hasUploadedPhoto(url)) return genAvatar(nick, colorIndex);
   const src = url!;
   if (

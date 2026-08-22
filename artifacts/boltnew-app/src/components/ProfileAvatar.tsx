@@ -1,4 +1,4 @@
-import { hasUploadedPhoto, getPositionBg } from '../lib/profile';
+import { hasUploadedPhoto, getPositionBg, getAvatarSrc } from '../lib/profile';
 import type { Database } from '../types/database';
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
@@ -36,7 +36,7 @@ export default function ProfileAvatar({ profile, size = 'md', rounded = 'xl', cl
       </svg>
       {hasUploadedPhoto(profile.photo_url) && (
         <img
-          src={profile.photo_url}
+          src={getAvatarSrc(profile.photo_url, profile.nickname)}
           alt={profile.nickname}
           className="absolute inset-0 w-full h-full object-cover"
           onError={(event) => {

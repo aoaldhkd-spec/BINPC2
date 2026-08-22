@@ -284,7 +284,9 @@ mustMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '37_card_menu_
 ]);
 mustMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '39_card_menu_absolute_dropdown', [
   /profile-card-menu/,
-  /top-full mt-1/,
+  /top-full/,
+  /mt-0\.5/,
+  /mt-1/,
   /right-0/,
   /z-\[99999\]/,
   /overflow-visible/,

@@ -161,7 +161,7 @@ describe('ProfileCard — lock guard (seat-lock + functions-lock regression)', (
     fireEvent.pointerUp(menuBtn, { pointerType: 'touch' });
     const menu = screen.getByTestId('profile-card-menu');
     expect(menu.className).toMatch(/top-full/);
-    expect(menu.className).toMatch(/mt-1/);
+    expect(menu.className).toMatch(/mt-0\.5/);
     expect(menu.parentElement).toBe(menuBtn.parentElement);
   });
 

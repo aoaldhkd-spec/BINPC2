@@ -7,6 +7,7 @@ import {
   resolveAvatarColorIndex,
   getAvatarGradientCssForProfile,
   getAvatarGradient,
+  NPC_TEXT_AVATAR_SENTINEL,
 } from '../lib/profile';
 
 describe('genAvatar', () => {
@@ -42,6 +43,11 @@ describe('genAvatar', () => {
     const webp = 'https://cdn.example/avatars/av1.webp';
     expect(getAvatarSrc(null, '민수')).toBe(genAvatar('민수'));
     expect(getAvatarSrc(webp, '민수')).toBe(webp);
+  });
+
+  it('getAvatarSrc: 범일NPC 텍스트 sentinel → SVG', () => {
+    expect(getAvatarSrc(NPC_TEXT_AVATAR_SENTINEL, '범일NPC')).toMatch(/^data:image\/svg\+xml/);
+    expect(hasUploadedPhoto(NPC_TEXT_AVATAR_SENTINEL)).toBe(true);
   });
 
   it('storage 사진은 요청한 버전으로 캐시를 무효화한다', () => {

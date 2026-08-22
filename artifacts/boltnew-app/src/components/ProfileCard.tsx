@@ -4,7 +4,7 @@ import { useTheme } from '../lib/theme';
 import type { Profile } from '../types/app';
 import { parseProfileInterests, getInterestTagStyle } from '../lib/interests';
 import { HeartType, heartMeta } from '../lib/constants';
-import { getPositionLabel, getPositionStyle, getKoreanAge, hasUploadedPhoto, getAvatarGradientCssForProfile } from '../lib/profile';
+import { getPositionLabel, getPositionStyle, getKoreanAge, hasUploadedPhoto, getAvatarGradientCssForProfile, getAvatarSrc } from '../lib/profile';
 import { getMbtiStyle } from '../lib/utils';
 import { bindMobileTap } from '../lib/mobile-tap';
 import { parseIdealTags } from '../lib/signal-match';
@@ -103,6 +103,7 @@ export const ProfileCard = memo(function ProfileCard({
     setImgFailed(false);
   }, [profile.photo_url, profile.nickname]);
 
+  const cardPhotoSrc = getAvatarSrc(profile.photo_url, profile.nickname, undefined, profile.avatar_color);
   const pastelFill = !hasUploadedPhoto(profile.photo_url) || imgFailed;
   const photoBg = pastelFill
     ? getAvatarGradientCssForProfile(profile)
@@ -217,9 +218,15 @@ export const ProfileCard = memo(function ProfileCard({
     action(e);
   };
 
-  const menuPanelClass = `absolute right-0 top-full mt-1 z-[99999] w-max min-w-0 max-w-[8.25rem] max-h-[calc(100dvh-1rem)] rounded-lg shadow-md border overflow-y-auto ${isCardDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100'}`;
+  const menuPanelClass = `absolute right-0 top-full z-[99999] w-max min-w-0 rounded-lg shadow-md border overflow-y-auto overscroll-contain ${
+    compact
+      ? 'mt-0.5 max-w-[7.5rem] max-h-[min(calc(100dvh-1rem),10.5rem)]'
+      : 'mt-1 max-w-[8.25rem] max-h-[calc(100dvh-1rem)]'
+  } ${isCardDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100'}`;
   const menuItemClass = (tone: 'teal' | 'violet' | 'red' | 'muted', bordered?: boolean) =>
-    `w-full text-left px-2 py-1.5 text-[10px] font-semibold flex items-start gap-1 leading-snug touch-manipulation${bordered ? ' border-t' : ''} ${
+    `w-full text-left font-semibold flex items-center gap-0.5 leading-snug touch-manipulation${
+      compact ? ' px-1.5 py-1 text-[9px] min-h-[28px]' : ' px-2 py-1.5 text-[10px] min-h-[32px]'
+    }${bordered ? ' border-t' : ''} ${
       tone === 'teal'
         ? isCardDark ? 'text-teal-400 hover:bg-slate-700' : 'text-teal-600 hover:bg-teal-50'
         : tone === 'violet'
@@ -288,7 +295,7 @@ export const ProfileCard = memo(function ProfileCard({
     <div
       ref={cardRootRef}
       className={`group relative flex flex-col min-w-0 max-w-full rounded-lg shadow-sm border ${showMenu ? 'overflow-visible' : 'overflow-hidden'} ${surfaces.shellClass}`}
-      style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 280px' }}
+      style={{ contentVisibility: showMenu ? 'visible' : 'auto', containIntrinsicSize: 'auto 280px' }}
     >
 
       {/* ── 프로필 사진 (작게=1:1, 기본=3:4) — 플립해도 aspect 고정, 크기 불변 ── */}
@@ -339,7 +346,7 @@ export const ProfileCard = memo(function ProfileCard({
                   <div className="absolute inset-0" style={{ background: photoBg }} aria-hidden />
                 ) : (
                   <img
-                    src={profile.photo_url!}
+                    src={cardPhotoSrc}
                     alt={profile.nickname}
                     loading="lazy"
                     decoding="async"

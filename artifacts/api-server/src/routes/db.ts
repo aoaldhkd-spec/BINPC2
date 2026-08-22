@@ -9,6 +9,7 @@ import {
   extractPresetAvatarId,
   resolveEntryAvatar,
 } from '../lib/avatar-pool';
+import { isNpcTextAvatar, NPC_TEXT_AVATAR_SENTINEL } from '../lib/npc-text-avatar';
 import { logger } from '../lib/logger';
 import { buildPgOptions } from '../lib/pg-options.js';
 import { createImageAccessPolicy } from '../lib/image-access';
@@ -101,6 +102,11 @@ function isAdminProfilePhone(phone: unknown, adminPhoneDigits?: string): boolean
   const admin = adminPhoneDigits ?? adminPhoneFromSettings();
   const phoneDigits = normalizePhoneDigits(phone);
   return Boolean(admin && phoneDigits && admin === phoneDigits);
+}
+
+function isAdminProfileRow(row: Record<string, unknown>, adminPhoneDigits?: string): boolean {
+  return isAdminProfilePhone(row['phone_number'], adminPhoneDigits)
+    || String(row['nickname'] ?? '') === ADMIN_FIXED_NICKNAME;
 }
 
 /** Force admin phone profiles to the fixed nickname; preserve other fields. */
@@ -226,7 +232,7 @@ async function ensureAdminProfile(): Promise<Record<string, unknown> | null> {
   const now = ts();
   const existing = findAdminProfileRow(adminPhoneDigits);
   if (existing) {
-    const fixed = withFixedAdminNickname({
+    let fixed = withFixedAdminNickname({
       ...existing,
       nickname: ADMIN_FIXED_NICKNAME,
       phone_number: existing['phone_number'] ?? phoneDisplay,
@@ -234,12 +240,16 @@ async function ensureAdminProfile(): Promise<Record<string, unknown> | null> {
     }, adminPhoneDigits);
     const idx = getTable('profiles').findIndex(p => String(p.id) === String(existing.id));
     const nicknameChanged = String(existing['nickname'] ?? '') !== ADMIN_FIXED_NICKNAME;
-    if (idx >= 0 && nicknameChanged) {
+    const avatarNeedsRepair = String(existing['photo_url'] ?? '') !== NPC_TEXT_AVATAR_SENTINEL;
+    if (avatarNeedsRepair) {
+      fixed = { ...fixed, photo_url: NPC_TEXT_AVATAR_SENTINEL };
+    }
+    if (idx >= 0 && (nicknameChanged || avatarNeedsRepair)) {
       getTable('profiles')[idx] = fixed;
       try {
         await dbPersistRow('profiles', fixed);
       } catch (e) {
-        logger.error({ err: e }, '[db] ensureAdminProfile nickname repair failed');
+        logger.error({ err: e }, '[db] ensureAdminProfile nickname/avatar repair failed');
       }
       broadcastAll({
         type: 'change',
@@ -268,6 +278,7 @@ async function ensureAdminProfile(): Promise<Record<string, unknown> | null> {
     id: detId,
     nickname: ADMIN_FIXED_NICKNAME,
     phone_number: phoneDisplay || adminPhoneDigits,
+    photo_url: NPC_TEXT_AVATAR_SENTINEL,
     pin_code: pinResult.pin,
     personality_score: 50,
     created_at: now,
@@ -311,6 +322,7 @@ async function restoreAdminProfileAfterWipeInStore(
       id: String(adminBackup?.['id'] ?? stableId),
       nickname: ADMIN_FIXED_NICKNAME,
       phone_number: String(adminBackup?.['phone_number'] ?? settingsRow['admin_phone'] ?? ''),
+      photo_url: NPC_TEXT_AVATAR_SENTINEL,
       created_at: String(adminBackup?.['created_at'] ?? now),
       updated_at: now,
     }, adminPhoneDigits);
@@ -2089,6 +2101,21 @@ function profileAvatarColorRejected(res: Response, avatarColor: unknown): boolea
   res.status(400).json({
     data: null,
     error: { message: '카드 배경색 값이 올바르지 않습니다.', code: 'INVALID_AVATAR_COLOR' },
+  });
+  return true;
+}
+
+function profileNpcAvatarRejected(
+  res: Response,
+  photoUrl: unknown,
+  profileRow: Record<string, unknown>,
+  adminPhoneDigits?: string,
+): boolean {
+  if (!isNpcTextAvatar(photoUrl)) return false;
+  if (isAdminProfileRow(profileRow, adminPhoneDigits)) return false;
+  res.status(403).json({
+    data: null,
+    error: { message: '범일NPC 전용 아바타입니다.', code: 'NPC_AVATAR_FORBIDDEN' },
   });
   return true;
 }
@@ -4054,7 +4081,9 @@ router.post('/op', async (req: Request, res: Response) => {
           }
           effectiveRow = withFixedAdminNickname({ ...effectiveRow, pin_code: pinResult.pin });
           if (profileAvatarColorRejected(res, effectiveRow.avatar_color)) return;
+          if (profileNpcAvatarRejected(res, effectiveRow.photo_url, effectiveRow)) return;
           // 입장 시 카탈로그 프리셋 아바타를 중복 없이 랜덤 배정 (동시 입장 race → advisory lock)
+          if (!isAdminProfileRow(effectiveRow)) {
           await withChatPairLock('entry_avatar_assign', async () => {
             await mergeTableFromDbIfStale('profiles', true);
             const usedAvatars = collectUsedPresetAvatarIds(getTable('profiles'));
@@ -4068,6 +4097,7 @@ router.post('/op', async (req: Request, res: Response) => {
               _insertAvatarSet!.add(avatarResult.id);
             }
           });
+          }
         }
         // chats 테이블: ID를 서버에서 정규화(sort)하여 역순 요청으로 인한 중복 채팅방 생성 방지
         // 클라이언트가 user1/user2를 어떤 순서로 보내든 항상 동일한 채팅방을 가리키도록 강제
@@ -4381,6 +4411,12 @@ router.post('/op', async (req: Request, res: Response) => {
       }
       if (table === 'profiles' && 'avatar_color' in patch) {
         if (profileAvatarColorRejected(res, patch.avatar_color)) return;
+      }
+      if (table === 'profiles' && 'photo_url' in patch) {
+        for (const existingRow of rowsToUpdate) {
+          const merged = { ...existingRow, ...patch };
+          if (profileNpcAvatarRejected(res, patch.photo_url, merged)) return;
+        }
       }
       if (table === 'profiles' && !isAdmin) {
         if ('birth_md_edit_count' in patch) delete patch.birth_md_edit_count;
