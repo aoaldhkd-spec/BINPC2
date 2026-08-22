@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useLayoutEffect, memo, useCallback } from 'react';
+import { useState, useRef, useEffect, memo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Heart, MessageCircle, MoreHorizontal } from 'lucide-react';
 import { useTheme } from '../lib/theme';
@@ -7,7 +7,7 @@ import { parseProfileInterests, getInterestTagStyle } from '../lib/interests';
 import { HeartType, heartMeta } from '../lib/constants';
 import { getPositionLabel, getPositionStyle, getKoreanAge, hasUploadedPhoto, getAvatarGradientCssForProfile } from '../lib/profile';
 import { getMbtiStyle } from '../lib/utils';
-import { cardMenuBox, cardMenuHeight, readViewportBox, type MenuTriggerRect } from '../lib/card-menu-box';
+import { cardMenuBox, cardMenuHeight, readViewportBox } from '../lib/card-menu-box';
 import { bindMobileTap } from '../lib/mobile-tap';
 import { parseIdealTags } from '../lib/signal-match';
 import { isProfileCardDark, profileCardChipStyle, profileCardSurfaces } from '../lib/profile-card-theme';
@@ -17,16 +17,7 @@ const CARD_IDEAL_MAX_VISIBLE = 8;
 /** 태그가 많을 때 칩 글자 축소 */
 const CARD_IDEAL_COMPACT_FONT_AT = 6;
 
-const MENU_TRIGGER_ATTR = 'data-profile-card-menu-trigger';
-
-function isMenuTrigger(el: EventTarget | null | undefined): el is HTMLButtonElement {
-  return el instanceof HTMLButtonElement && el.hasAttribute(MENU_TRIGGER_ATTR);
-}
-
-function menuTriggerRect(el: HTMLElement): MenuTriggerRect {
-  const rect = el.getBoundingClientRect();
-  return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
-}
+type MenuAnchorId = 'photo' | 'ticker';
 
 // ─── ProfileCard (memoized — 하트/채팅 상태 변경 시 해당 카드만 재렌더) ────────
 
@@ -83,10 +74,11 @@ export const ProfileCard = memo(function ProfileCard({
   // 잠금 토스트 (컴포넌트 최상단 — Rules of Hooks 준수)
   const [lockToast, setLockToast] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
-  const [menuPos, setMenuPos] = useState<{top:number;left:number;width:number}|null>(null);
-  const menuPosRef = useRef<{top:number;left:number;width:number}|null>(null);
+  const [menuAnchorId, setMenuAnchorId] = useState<MenuAnchorId | null>(null);
+  const pendingMenuPos = useRef<{ top: number; left: number; width: number } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const menuTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const photoMenuBtnRef = useRef<HTMLButtonElement>(null);
+  const tickerMenuBtnRef = useRef<HTMLButtonElement>(null);
   const [isFlipped, setIsFlipped] = useState(false);
   const lockToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showLockToast = (e: React.MouseEvent | React.SyntheticEvent) => {
@@ -193,101 +185,61 @@ export const ProfileCard = memo(function ProfileCard({
     contain: 'layout paint',
   };
 
-  const commitMenuPos = useCallback((next: { top: number; left: number; width: number } | null) => {
-    menuPosRef.current = next;
-    setMenuPos(next);
+  const closeCardMenu = useCallback(() => {
+    setShowMenu(false);
+    setMenuAnchorId(null);
+    pendingMenuPos.current = null;
   }, []);
 
-  const measureMenuPos = useCallback((trigger: HTMLButtonElement, menuHeight = estimatedMenuHeight) => {
-    return cardMenuBox(menuTriggerRect(trigger), readViewportBox(), menuHeight);
-  }, [estimatedMenuHeight]);
-
-  const applyMenuPos = useCallback((trigger: HTMLButtonElement, menuHeight = estimatedMenuHeight) => {
-    const next = measureMenuPos(trigger, menuHeight);
-    commitMenuPos(next);
-    return next;
-  }, [estimatedMenuHeight, measureMenuPos, commitMenuPos]);
-
-  const resolveOpenTrigger = useCallback((fromEvent: EventTarget | null): HTMLButtonElement | null => {
-    if (isMenuTrigger(fromEvent)) return fromEvent;
-    const stored = menuTriggerRef.current;
-    if (stored?.isConnected && isMenuTrigger(stored)) return stored;
-    return null;
-  }, []);
+  const openMenuFromButton = useCallback((e: React.SyntheticEvent, anchorId: MenuAnchorId) => {
+    e.stopPropagation();
+    const btn = e.currentTarget as HTMLButtonElement;
+    if (showMenu && menuAnchorId === anchorId) {
+      closeCardMenu();
+      return;
+    }
+    const r = btn.getBoundingClientRect();
+    pendingMenuPos.current = cardMenuBox(
+      { left: r.left, right: r.right, top: r.top, bottom: r.bottom },
+      readViewportBox(),
+      estimatedMenuHeight,
+    );
+    suppressMenuCloseUntilRef.current = performance.now() + 400;
+    setMenuAnchorId(anchorId);
+    setShowMenu(true);
+  }, [showMenu, menuAnchorId, estimatedMenuHeight, closeCardMenu]);
 
   // ⋯ 메뉴 — 바깥 클릭 시만 닫기 (메뉴 항목 pointerdown에서 즉시 닫히면 클릭 불가)
   useEffect(() => {
     if (!showMenu) return;
-    const close = (e: PointerEvent) => {
+    const onOutside = (e: PointerEvent) => {
       if (performance.now() < suppressMenuCloseUntilRef.current) return;
       const t = e.target as Node;
-      if (menuRef.current?.contains(t) || menuTriggerRef.current?.contains(t)) return;
-      setShowMenu(false);
-      commitMenuPos(null);
-      menuTriggerRef.current = null;
+      if (menuRef.current?.contains(t)) return;
+      if (photoMenuBtnRef.current?.contains(t)) return;
+      if (tickerMenuBtnRef.current?.contains(t)) return;
+      closeCardMenu();
     };
-    document.addEventListener('pointerdown', close);
-    return () => document.removeEventListener('pointerdown', close);
-  }, [showMenu, commitMenuPos]);
+    document.addEventListener('pointerdown', onOutside);
+    return () => document.removeEventListener('pointerdown', onOutside);
+  }, [showMenu, closeCardMenu]);
 
-  const repositionMenu = useCallback((menuHeight = estimatedMenuHeight) => {
-    const trigger = menuTriggerRef.current;
-    if (!trigger?.isConnected || !isMenuTrigger(trigger)) return;
-    applyMenuPos(trigger, menuHeight);
-  }, [estimatedMenuHeight, applyMenuPos]);
-
-  // Portal menu — keep anchored under trigger on scroll/resize/viewport shifts
+  // Scroll/resize — close instead of reposition (reposition caused wrong anchor bugs)
   useEffect(() => {
     if (!showMenu) return;
-    const reposition = () => repositionMenu();
-    window.addEventListener('resize', reposition);
-    window.addEventListener('scroll', reposition, true);
+    const onViewportShift = () => closeCardMenu();
+    window.addEventListener('resize', onViewportShift);
+    window.addEventListener('scroll', onViewportShift, true);
     const vv = window.visualViewport;
-    vv?.addEventListener('resize', reposition);
-    vv?.addEventListener('scroll', reposition);
+    vv?.addEventListener('resize', onViewportShift);
+    vv?.addEventListener('scroll', onViewportShift);
     return () => {
-      window.removeEventListener('resize', reposition);
-      window.removeEventListener('scroll', reposition, true);
-      vv?.removeEventListener('resize', reposition);
-      vv?.removeEventListener('scroll', reposition);
+      window.removeEventListener('resize', onViewportShift);
+      window.removeEventListener('scroll', onViewportShift, true);
+      vv?.removeEventListener('resize', onViewportShift);
+      vv?.removeEventListener('scroll', onViewportShift);
     };
-  }, [showMenu, repositionMenu]);
-
-  // Sync anchor before paint — avoids one frame at stale/wrong coords
-  useLayoutEffect(() => {
-    if (!showMenu) return;
-    repositionMenu();
-  }, [showMenu, repositionMenu]);
-
-  // After mount, use measured menu height for flip-above/below in dense grids
-  useEffect(() => {
-    if (!showMenu) return;
-    const el = menuRef.current;
-    if (!el || typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver(() => {
-      const h = el.getBoundingClientRect().height;
-      if (h > 0) repositionMenu(h);
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [showMenu, repositionMenu]);
-
-  const openCardMenu = (e: React.SyntheticEvent) => {
-    e.stopPropagation();
-    const trigger = resolveOpenTrigger(e.currentTarget);
-    if (!trigger) return;
-    if (showMenu) { closeCardMenu(); return; }
-    menuTriggerRef.current = trigger;
-    applyMenuPos(trigger, estimatedMenuHeight);
-    suppressMenuCloseUntilRef.current = performance.now() + 400;
-    setShowMenu(true);
-  };
-
-  const closeCardMenu = () => {
-    setShowMenu(false);
-    commitMenuPos(null);
-    menuTriggerRef.current = null;
-  };
+  }, [showMenu, closeCardMenu]);
 
   const runMenuAction = (action: (e: React.SyntheticEvent) => void) => (e: React.SyntheticEvent) => {
     e.stopPropagation();
@@ -295,24 +247,26 @@ export const ProfileCard = memo(function ProfileCard({
     action(e);
   };
 
-  const menuPosLive = menuPos ?? menuPosRef.current;
+  const menuPosLive = pendingMenuPos.current;
 
-  const menuButton = hasMenu ? (
-    <div className="relative shrink-0">
+  const renderMenuTrigger = (anchorId: MenuAnchorId, btnRef: React.RefObject<HTMLButtonElement | null>) => (
+    <div className="relative inline-flex shrink-0">
       <button
+        ref={btnRef}
         type="button"
         data-testid="profile-card-menu-btn"
-        {...{ [MENU_TRIGGER_ATTR]: '1' }}
+        data-profile-card-menu-trigger="1"
+        data-menu-anchor={anchorId}
         onPointerDown={(e) => e.stopPropagation()}
-        {...bindMobileTap(openCardMenu)}
+        {...bindMobileTap((e) => openMenuFromButton(e, anchorId))}
         className="w-5 h-5 rounded-full bg-black/55 ring-1 ring-white/30 flex items-center justify-center active:scale-90 transition-transform shrink-0 shadow-sm touch-manipulation"
         aria-label="더보기"
-        aria-expanded={showMenu}
+        aria-expanded={showMenu && menuAnchorId === anchorId}
       >
         <MoreHorizontal className="w-2.5 h-2.5 text-white pointer-events-none" />
       </button>
     </div>
-  ) : null;
+  );
 
   return (
     <div
@@ -335,7 +289,7 @@ export const ProfileCard = memo(function ProfileCard({
               zIndex: 99999,
               pointerEvents: 'auto',
             }}
-            className={`max-h-[calc(100dvh-1rem)] rounded-2xl shadow-2xl border overflow-y-auto ${isCardDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100'}`}
+            className={`max-h-[calc(100dvh-1rem)] min-w-[192px] rounded-2xl shadow-2xl border overflow-y-auto ${isCardDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100'}`}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
           >
@@ -569,7 +523,7 @@ export const ProfileCard = memo(function ProfileCard({
               </div>
               {hasMenu && (
                 <div className="shrink-0 flex items-center pr-0.5 pl-0.5">
-                  {menuButton}
+                  {renderMenuTrigger('ticker', tickerMenuBtnRef)}
                 </div>
               )}
             </div>
@@ -578,7 +532,7 @@ export const ProfileCard = memo(function ProfileCard({
           {/* ⋯ — 전광판 없을 때만 사진 우상단 */}
           {hasMenu && !showTopBar && (
             <div className="absolute right-1 top-1 z-40 pointer-events-auto" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
-              {menuButton}
+              {renderMenuTrigger('photo', photoMenuBtnRef)}
             </div>
           )}
 

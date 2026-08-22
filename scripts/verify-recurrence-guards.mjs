@@ -277,10 +277,10 @@ mustMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '35_profile_ca
 mustMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '37_card_menu_mobile_tap', [
   /profile-card-menu-btn/,
   /data-profile-card-menu-trigger/,
-  /bindMobileTap\(openCardMenu\)/,
+  /bindMobileTap\(\(e\) => openMenuFromButton/,
   /runMenuAction/,
-  /resolveOpenTrigger/,
-  /menuTriggerRef/,
+  /pendingMenuPos/,
+  /openMenuFromButton/,
 ]);
 mustMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '39_card_menu_body_portal', [
   /createPortal/,
@@ -290,6 +290,8 @@ mustMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '39_card_menu_
   /cardMenuHeight/,
   /position:\s*'fixed'/,
   /zIndex:\s*99999/,
+  /pendingMenuPos\.current/,
+  /closeCardMenu/,
 ]);
 mustMatch('artifacts/boltnew-app/src/lib/card-menu-box.ts', '39_card_menu_viewport_box', [
   /readViewportBox/,

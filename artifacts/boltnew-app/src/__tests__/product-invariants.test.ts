@@ -108,7 +108,7 @@ describe('product copy + notification invariants', () => {
     expect(card).toContain('profile-card-heart-btn');
     expect(card).toContain('onLike(profile.id, profile)');
     expect(card).toContain('profile-card-menu-btn');
-    expect(card).toContain('bindMobileTap(openCardMenu)');
+    expect(card).toContain('bindMobileTap((e) => openMenuFromButton');
     expect(card).not.toContain('touch-target');
     const deck = read('components/ProfileDeckGrid.tsx');
     expect(deck).toContain('profile.birth_year');
