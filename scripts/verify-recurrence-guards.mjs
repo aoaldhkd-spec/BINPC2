@@ -328,6 +328,16 @@ mustMatch('artifacts/boltnew-app/src/components/ProfileRecoveryScreen.tsx', '36_
   /PIN_DIGIT_INPUT_PROPS/,
 ]);
 
+// ?? 37 Entry avatar ? server-side unique preset assign on profile INSERT ?????
+mustMatch('artifacts/api-server/src/routes/db.ts', '37_entry_avatar_assign', [
+  /resolveEntryAvatar/,
+  /entry_avatar_assign/,
+  /collectUsedPresetAvatarIds/,
+]);
+mustMatch('artifacts/boltnew-app/src/App.tsx', '37_entry_no_client_avatar', [
+  /server assigns a unique preset avatar/,
+]);
+
 console.log('\n=== verify-recurrence-guards ===\n');
 for (const r of results) {
   console.log(`  ${r.ok ? 'OK' : 'FAIL'}  ${r.id}${r.detail && !r.ok ? ` ? ${r.detail}` : ''}`);

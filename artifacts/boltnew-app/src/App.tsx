@@ -5,7 +5,7 @@ import {
 import { supabase, setLocalDbUserId, setDeviceRecoveryPin, fetchAndSetSseToken, getDeviceSecret, onSseReconnect, isSseHealthy } from './lib/supabase';
 import { diag } from './lib/diag';
 import { subscribeNetUi, resetNetUiForRetry, type NetUiStatus } from './lib/net-health';
-import { excludeSwipeGestureVerifyProfiles, genAvatar, isSwipeGestureVerifyProfile } from './lib/profile';
+import { excludeSwipeGestureVerifyProfiles, isSwipeGestureVerifyProfile } from './lib/profile';
 import { mergeProfilesPreserveOrder, patchProfileInPlace, sortProfilesStable } from './lib/profile-list-order';
 import { findProfileById, isCompleteProfile } from './lib/profile-session';
 import {
@@ -24,7 +24,7 @@ import {
 } from './lib/signal-match';
 import { mergeRowsAfterSnapshot, mergeSetAfterSnapshot } from './lib/realtime-merge';
 import { incomingInterestToast, isIncomingHeartToastTarget, MUTUAL_HEART_TOAST } from './lib/heart-toast';
-import { FUNCTIONS_LOCK_KICK_TOAST, FUNCTIONS_LOCK_TOAST, FUNCTIONS_UNLOCK_TOAST, SOCIAL_LOCKED_TABS, BLOCKED_SEND_TOAST, isBlockedOpError, isFunctionsLockedOpError, isRetryableOpError } from './lib/functions-lock';
+import { FUNCTIONS_LOCK_KICK_TOAST, FUNCTIONS_LOCK_TOAST, FUNCTIONS_UNLOCK_TOAST, SOCIAL_LOCKED_TABS, BLOCKED_SEND_TOAST, isBlockedOpError, isFunctionsLockedOpError, isRetryableOpError, parseFunctionsLocked } from './lib/functions-lock';
 import {
   filterSignalPendingQueueForUser,
   loadSignalPendingQueue,
@@ -949,21 +949,24 @@ function App() {
     const row: BlockedUser = { id, user_id: currentUserId, target_id: targetId, block_type: type, created_at: new Date().toISOString() };
     // 낙관적 업데이트
     setBlockedUsers(prev => [...prev, row]);
-    try {
-      await supabase.from('blocked_users').insert(row as never);
-    } catch (e) {
-      console.error('[handleBlock]', e);
+    const { error } = await supabase.from('blocked_users').insert(row as never);
+    if (error) {
+      console.error('[handleBlock]', error);
       setBlockedUsers(prev => prev.filter(b => b.id !== id));
+      setBottomNotif({
+        type: 'system',
+        message: type === 'block' ? '차단에 실패했어요. 다시 시도해 주세요.' : '숨기기에 실패했어요. 다시 시도해 주세요.',
+      });
     }
-  }, [currentUserId, blockedUsers]);
+  }, [currentUserId, blockedUsers, setBottomNotif]);
 
   // ─── 차단·숨기기 해제 ────────────────────────────────────────────────────
   const handleUnblock = useCallback(async (blockId: string) => {
     setBlockedUsers(prev => prev.filter(b => b.id !== blockId));
-    try {
-      await supabase.from('blocked_users').delete().eq('id', blockId as never);
-    } catch (e) {
-      console.error('[handleUnblock]', e);
+    const { error } = await supabase.from('blocked_users').delete().eq('id', blockId as never);
+    if (error) {
+      console.error('[handleUnblock]', error);
+      setBottomNotif({ type: 'system', message: '차단 해제에 실패했어요. 다시 시도해 주세요.' });
       // 실패 시 재로드
       supabase.from('blocked_users').select('*').then(({ data }: { data: unknown }) => {
         if (Array.isArray(data) && currentUserId) {
@@ -971,7 +974,7 @@ function App() {
         }
       }).catch(() => {});
     }
-  }, [currentUserId]);
+  }, [currentUserId, setBottomNotif]);
 
   // ─── 프로필 열 때 방문 기록 ───────────────────────────────────────────────
   // 카드 사진 탭(뒤집기)과 상세/사주 오픈이 연속되면 같은 상대에 대해 중복 INSERT 방지
@@ -1092,7 +1095,7 @@ function App() {
       }
       setTimerEndAt((data.timer_end_at as string | null | undefined) ?? null);
       setTimerLabel((data.timer_label as string | null | undefined) ?? null);
-      if (data.functions_locked != null) setFunctionsLocked(Boolean(data.functions_locked));
+      if (data.functions_locked != null) setFunctionsLocked(parseFunctionsLocked(data.functions_locked));
     };
 
     async function loadSettings(attempt = 0): Promise<void> {
@@ -1186,7 +1189,7 @@ function App() {
         }
         setTimerEndAt(p.timer_end_at ?? null);
         setTimerLabel(p.timer_label ?? null);
-        if (p.functions_locked != null) setFunctionsLocked(Boolean(p.functions_locked));
+        if (p.functions_locked != null) setFunctionsLocked(parseFunctionsLocked(p.functions_locked));
         if (p.entry_password !== undefined) {
           const ep = p.entry_password ?? '';
           setEntryPassword(ep);
@@ -1765,6 +1768,19 @@ function App() {
     const handleVisibilityChange = () => {
       if (document.visibilityState !== 'visible') return;
       const storedId = ls.getItem(MATCHING_USER_KEY);
+      // 백그라운드 중 SSE 유실 시 기능 잠금·세션 상태를 /ready로 즉시 보정
+      fetch('/api/db/ready', { signal: AbortSignal.timeout(5_000) })
+        .then(r => r.ok ? r.json() : null)
+        .then((json: { settings?: Record<string, unknown> } | null) => {
+          const data = json?.settings;
+          if (!data) return;
+          if (typeof data.session_active === 'boolean') {
+            sessionActiveRef.current = data.session_active;
+            setSessionActive(data.session_active);
+          }
+          if (data.functions_locked != null) setFunctionsLocked(parseFunctionsLocked(data.functions_locked));
+        })
+        .catch(() => {});
       if (!storedId) return;
       // 포그라운드 복귀 시 데이터만 조용히 갱신. 목록이 비거나 잘려도 7일 세션을 끊지 않는다.
       loadProfiles().then((allProfiles) => {
@@ -1809,7 +1825,7 @@ function App() {
           }
           setTimerEndAt((data.timer_end_at as string | null | undefined) ?? null);
           setTimerLabel((data.timer_label as string | null | undefined) ?? null);
-          if (data.functions_locked != null) setFunctionsLocked(Boolean(data.functions_locked));
+          if (data.functions_locked != null) setFunctionsLocked(parseFunctionsLocked(data.functions_locked));
         })
         .catch(() => {});
     });
@@ -1858,7 +1874,7 @@ function App() {
         _device_secret: getDeviceSecret(newProfileId),
         nickname: data.nickname,
         bio: data.interests.join(', '),
-        photo_url: genAvatar(data.nickname),
+        // photo_url: server assigns a unique preset avatar on INSERT (avatar-pool.ts)
         personality_score: data.personalityScore,
         dom_sub_score: data.domSubScore,
         mbti: data.mbti,

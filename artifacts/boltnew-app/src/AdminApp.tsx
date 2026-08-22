@@ -97,6 +97,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   // Table label editing panel
   const [seenHeartsCount, setSeenHeartsCountRaw] = useState(() => parseInt(localStorage.getItem('admin_seen_hearts') ?? '0', 10));
   const [seenMessagesCount, setSeenMessagesCountRaw] = useState(() => parseInt(localStorage.getItem('admin_seen_messages') ?? '0', 10));
+  const [lockToggleBusy, setLockToggleBusy] = useState(false);
   const [seenProfilesCount, setSeenProfilesCountRaw] = useState(() => parseInt(localStorage.getItem('admin_seen_profiles') ?? '0', 10));
 
   const setSeenHeartsCount = (n: number) => { localStorage.setItem('admin_seen_hearts', String(n)); setSeenHeartsCountRaw(n); };
@@ -184,7 +185,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           void loadAll();
           return;
         }
-        if (row.id == null && typeof row.session_active !== 'boolean') return;
+        if (row.id == null && typeof row.session_active !== 'boolean' && !('functions_locked' in row)) return;
         setSettings(prev => (prev ? { ...prev, ...row } : row) as AppSettings);
       })
       .subscribe();
@@ -522,13 +523,17 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   };
 
   const handleToggleFunctionsLock = async () => {
-    if (!settings) return;
-    const newVal = !((settings as any).functions_locked ?? false);
+    if (!settings || lockToggleBusy) return;
+    const newVal = !((settings as AppSettings).functions_locked ?? false);
+    setLockToggleBusy(true);
     try {
       await patchAdminSettings({ functions_locked: newVal }, setSettings);
     } catch (e) {
-      setSettings(prev => prev ? { ...prev, functions_locked: !newVal } as any : prev);
+      setSettings(prev => prev ? { ...prev, functions_locked: !newVal } as AppSettings : prev);
       console.error('[admin] 기능 잠금 토글 실패:', e instanceof Error ? e.message : e);
+      alert(`기능 잠금 변경 실패: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setLockToggleBusy(false);
     }
   };
 

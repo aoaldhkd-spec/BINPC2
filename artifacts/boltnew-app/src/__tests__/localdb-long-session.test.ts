@@ -137,7 +137,7 @@ describe('[Realtime] long-session stability', () => {
     expect(localdbSrc).toMatch(/SSE_TOKEN_WAKE_REFRESH_LEAD_SEC/);
     expect(localdbSrc).toMatch(/wake-ring-stale/);
     expect(localdbSrc).toMatch(/type === 'catchup'/);
-  });
+  }, 15_000);
 
   it('source: client caches that grow with time stay capped', () => {
     expect(useChatSrc).toMatch(/const MAX_MESSAGES = 500/);

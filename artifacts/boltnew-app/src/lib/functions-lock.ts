@@ -15,6 +15,11 @@ export function isSocialLockedTab(tab: MainTab): boolean {
   return SOCIAL_LOCKED_TABS.has(tab);
 }
 
+/** app_settings.functions_locked — JSON/legacy 값을 일관된 boolean으로 */
+export function parseFunctionsLocked(value: unknown): boolean {
+  return value === true || value === 1 || value === 'true' || value === '1';
+}
+
 /** /op·insert 응답이 mid-run 기능 잠금인지 (서버 code FUNCTIONS_LOCKED) */
 export function isFunctionsLockedOpError(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;
