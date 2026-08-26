@@ -155,13 +155,13 @@ describe('ProfileCard — lock guard (seat-lock + functions-lock regression)', (
     expect(onBlock).toHaveBeenCalledWith(PROFILE.id, 'block');
   });
 
-  it('compact (3-col) grid: 4-item menu opens above ⋯ button', () => {
+  it('compact (3-col) grid: 4-item menu opens below ⋯ button', () => {
     renderCard({ withMenu: true, compact: true, statusMsg: '상태' });
     const menuBtn = screen.getByTestId('profile-card-menu-btn');
     fireEvent.pointerUp(menuBtn, { pointerType: 'touch' });
     const menu = screen.getByTestId('profile-card-menu');
-    expect(menu.className).toMatch(/bottom-full/);
-    expect(menu.className).toMatch(/mb-0\.5/);
+    expect(menu.className).toContain('top-full');
+    expect(menu.className).toContain('mt-0.5');
     expect(menu.parentElement).toBe(menuBtn.parentElement);
     const items = screen.getAllByRole('menuitem');
     expect(items).toHaveLength(4);
@@ -173,7 +173,8 @@ describe('ProfileCard — lock guard (seat-lock + functions-lock regression)', (
     const menuBtn = screen.getByTestId('profile-card-menu-btn');
     fireEvent.pointerUp(menuBtn, { pointerType: 'touch' });
     const menu = screen.getByTestId('profile-card-menu');
-    expect(menu.className).toContain('bottom-full');
+    expect(menu.className).toContain('top-full');
+    expect(menu.className).toContain('mt-0.5');
     expect(menuBtn.getAttribute('data-menu-anchor')).toBe('photo');
   });
 

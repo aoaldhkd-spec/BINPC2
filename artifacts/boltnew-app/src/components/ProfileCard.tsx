@@ -218,16 +218,7 @@ export const ProfileCard = memo(function ProfileCard({
     action(e);
   };
 
-  const menuItemCount =
-    (onContactShare ? 1 : 0) + (onViewFortune ? 1 : 0) + (onBlock ? 2 : 0);
-  /** compact + 4 items: open above ⋯ so row-below cards / viewport bottom do not clip */
-  const compactMenuOpensAbove = compact && menuItemCount >= 4;
-
-  const menuPlacementClass = compactMenuOpensAbove
-    ? 'bottom-full mb-0.5'
-    : compact
-      ? 'top-full mt-0.5'
-      : 'top-full mt-1';
+  const menuPlacementClass = compact ? 'top-full mt-0.5' : 'top-full mt-1';
   const menuPanelClass = `absolute right-0 z-[99999] w-max min-w-0 rounded-lg shadow-md border overflow-y-auto overscroll-contain ${menuPlacementClass} ${
     compact
       ? 'max-w-[7.5rem] max-h-[calc(100dvh-1rem)] py-0'
@@ -304,7 +295,7 @@ export const ProfileCard = memo(function ProfileCard({
   return (
     <div
       ref={cardRootRef}
-      className={`group relative flex flex-col min-w-0 max-w-full rounded-lg shadow-sm border ${showMenu ? 'overflow-visible z-[100]' : 'overflow-hidden'} ${surfaces.shellClass}`}
+      className={`group relative flex flex-col min-w-0 max-w-full rounded-lg shadow-sm border ${showMenu ? 'overflow-visible z-[200]' : 'overflow-hidden'} ${surfaces.shellClass}`}
       style={{ contentVisibility: showMenu ? 'visible' : 'auto', containIntrinsicSize: 'auto 280px' }}
     >
 
