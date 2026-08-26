@@ -310,7 +310,7 @@ mustMatch('artifacts/boltnew-app/src/hooks/useHearts.ts', '37_contact_share_ensu
   /handleContactShare[\s\S]*ensureWriteSession/,
 ]);
 mustMatch('artifacts/boltnew-app/src/components/ProfileDeckGrid.tsx', '37_fortune_menu_birth_gate', [
-  /profile\.birth_year[\s\S]*profile\.birth_month[\s\S]*profile\.birth_day/,
+  /hasProfileFortuneCompatData/,
   /onViewFortune/,
 ]);
 

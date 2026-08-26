@@ -4,6 +4,7 @@ import type { Profile, UserSignal } from '../types/app';
 import type { HeartType } from '../lib/constants';
 import { ProfileCard } from './ProfileCard';
 import { profileGridClassName, type ProfileCardGridMode } from '../lib/profile-card-grid';
+import { hasProfileFortuneCompatData } from '../lib/profile';
 
 /** Initial + each scroll batch — avoids mounting 100+ cards at once on large events */
 export const DECK_RENDER_CHUNK = 36;
@@ -75,7 +76,7 @@ export const ProfileDeckGrid = memo(function ProfileDeckGrid({
   const hasMore = visibleCount < deckProfiles.length;
 
   return (
-    <div className="-mx-3 min-[360px]:-mx-4 px-3 min-[360px]:px-4">
+    <div className="-mx-3 min-[360px]:-mx-4 px-3 min-[360px]:px-4 overflow-visible">
       <div className={profileGridClassName(profileCardGrid)}>
         {visibleProfiles.map((profile) => {
           const signal = signalByUserId.get(profile.id);
@@ -97,7 +98,7 @@ export const ProfileDeckGrid = memo(function ProfileDeckGrid({
               onBlock={onBlock}
               onContactShare={onContactShareOpen}
               onViewFortune={
-                onViewFortune && profile.birth_year && profile.birth_month && profile.birth_day
+                onViewFortune && hasProfileFortuneCompatData(profile)
                   ? onViewFortune
                   : undefined
               }

@@ -238,6 +238,18 @@ export function excludeSwipeGestureVerifyProfiles<T extends {
   });
 }
 
+/** Card/menu gate: year alone enables 12지신·오행; MBTI enables personality compat. */
+export function hasProfileFortuneCompatData(p: {
+  birth_year?: number | null;
+  birth_month?: number | null;
+  birth_day?: number | null;
+  mbti?: string | null;
+} | null | undefined): boolean {
+  if (!p) return false;
+  if (p.birth_year != null && p.birth_year > 0) return true;
+  return Boolean(p.mbti?.trim());
+}
+
 export function genAvatar(nickname: string, colorIndex?: number | null): string {
   const nick = nickname.trim() || '?';
   const { from, to } = getAvatarGradient(nick, colorIndex);

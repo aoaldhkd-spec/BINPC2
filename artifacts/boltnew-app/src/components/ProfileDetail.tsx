@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, type SyntheticEvent } from 'react';
 import { ArrowLeft, Heart, MessageCircle, MapPin } from 'lucide-react';
-import { getPositionLabel, getDomSubLabel, getKoreanAge, genAvatar, getAvatarSrc, hasUploadedPhoto } from '../lib/profile';
+import { getPositionLabel, getDomSubLabel, getKoreanAge, genAvatar, getAvatarSrc, hasProfileFortuneCompatData, hasUploadedPhoto } from '../lib/profile';
 import { parseIdealTags } from '../lib/signal-match';
 import { parseProfileInterests, getInterestTagStyle } from '../lib/interests';
 import { HEART_TYPES, HeartType } from '../lib/constants';
@@ -229,7 +229,7 @@ function ProfileDetail({ profile, isMe, isLiked, heartType, sentHeartsCount, loc
         </button>
         )}
         {/* 궁합 버튼 */}
-        {!isMe && profile.birth_year && profile.birth_month && profile.birth_day && onViewFortune && (
+        {!isMe && hasProfileFortuneCompatData(profile) && onViewFortune && (
           <button onClick={() => { if (locked) { showLockToast(); return; } onViewFortune(); }}
             className={`w-full py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold rounded-2xl transition-all flex items-center justify-center gap-2 shadow-sm text-sm ${locked ? 'opacity-60' : ''}`}
           >

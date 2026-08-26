@@ -218,7 +218,16 @@ export const ProfileCard = memo(function ProfileCard({
     action(e);
   };
 
-  const menuPlacementClass = compact ? 'top-full mt-0.5' : 'top-full mt-1';
+  const menuItemCount =
+    (onContactShare ? 1 : 0) + (onViewFortune ? 1 : 0) + (onBlock ? 2 : 0);
+  /** compact: open above when full menu would clip into the next grid row */
+  const compactMenuOpensAbove = compact && menuItemCount >= 3;
+
+  const menuPlacementClass = compactMenuOpensAbove
+    ? 'bottom-full mb-0.5'
+    : compact
+      ? 'top-full mt-0.5'
+      : 'top-full mt-1';
   const menuPanelClass = `absolute right-0 z-[99999] w-max min-w-0 rounded-lg shadow-md border overflow-y-auto overscroll-contain ${menuPlacementClass} ${
     compact
       ? 'max-w-[7.5rem] max-h-[calc(100dvh-1rem)] py-0'

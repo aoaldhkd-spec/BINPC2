@@ -17,6 +17,7 @@ describe('profile-card-grid', () => {
     expect(readProfileCardGridMode()).toBe('3');
     expect(profileGridColSpan('3')).toBe(3);
     expect(profileGridClassName('3')).toContain('grid-cols-3');
+    expect(profileGridClassName('3')).toContain('overflow-visible');
   });
 
   it('persists valid mode in localStorage', () => {

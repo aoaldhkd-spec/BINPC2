@@ -26,6 +26,6 @@ export function profileGridColSpan(mode: ProfileCardGridMode): number {
 
 export function profileGridClassName(mode: ProfileCardGridMode): string {
   if (mode === 'compact') return 'grid grid-cols-3 gap-1 sm:gap-1.5 items-start overflow-visible';
-  if (mode === '2') return 'grid grid-cols-2 gap-1.5 sm:gap-2 items-start';
-  return 'grid grid-cols-3 gap-1 sm:gap-1.5 items-start';
+  if (mode === '2') return 'grid grid-cols-2 gap-1.5 sm:gap-2 items-start overflow-visible';
+  return 'grid grid-cols-3 gap-1 sm:gap-1.5 items-start overflow-visible';
 }

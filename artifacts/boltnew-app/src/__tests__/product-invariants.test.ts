@@ -111,9 +111,7 @@ describe('product copy + notification invariants', () => {
     expect(card).toContain('bindMobileTap((e) => openMenuFromButton');
     expect(card).not.toContain('touch-target');
     const deck = read('components/ProfileDeckGrid.tsx');
-    expect(deck).toContain('profile.birth_year');
-    expect(deck).toContain('profile.birth_month');
-    expect(deck).toContain('profile.birth_day');
+    expect(deck).toContain('hasProfileFortuneCompatData');
   });
 
   it('단톡 is quiet: no group-message modal popup', () => {

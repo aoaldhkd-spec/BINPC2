@@ -5,7 +5,7 @@ import {
 import { supabase, setLocalDbUserId, setDeviceRecoveryPin, fetchAndSetSseToken, getDeviceSecret, onSseReconnect, isSseHealthy, ensureWriteSession } from './lib/supabase';
 import { diag } from './lib/diag';
 import { subscribeNetUi, resetNetUiForRetry, type NetUiStatus } from './lib/net-health';
-import { excludeSwipeGestureVerifyProfiles, isSwipeGestureVerifyProfile } from './lib/profile';
+import { excludeSwipeGestureVerifyProfiles, hasProfileFortuneCompatData, isSwipeGestureVerifyProfile } from './lib/profile';
 import { mergeProfilesPreserveOrder, patchProfileInPlace, sortProfilesStable } from './lib/profile-list-order';
 import { findProfileById, isCompleteProfile } from './lib/profile-session';
 import {
@@ -2326,7 +2326,7 @@ function App() {
               onLike={() => { if (!functionsLocked) handleLike(selectedProfile.id, selectedProfile); }}
               onChat={() => { void openChatGuarded(selectedProfile); }}
               onBack={goParticipantBack}
-              onViewFortune={selectedProfile.birth_year && selectedProfile.birth_month && selectedProfile.birth_day ? () => {
+              onViewFortune={hasProfileFortuneCompatData(selectedProfile) ? () => {
                 if (functionsLocked) { showFunctionsLockToast(); return; }
                 setFortuneCompatTarget(selectedProfile.id);
                 setLikeConfirmTarget(null);

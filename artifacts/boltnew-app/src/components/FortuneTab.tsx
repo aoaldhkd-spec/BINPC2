@@ -7,6 +7,7 @@ import {
   getCompatibility, getNumerologyCompat, getOhaengCompat, getBedCompat, getMbtiCompat,
   type DrawnCard,
 } from '../lib/fortune';
+import { hasProfileFortuneCompatData } from '../lib/profile';
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
 type FortuneSubTab = 'tarot' | 'saju' | 'gungham';
@@ -245,7 +246,7 @@ export default function FortuneTab({
   const targetProfile = profiles.find(p => p.id === selectedProfileId);
   const targetHasBd = targetMode === 'manual'
     ? true
-    : !!(targetProfile?.birth_year && targetProfile?.birth_month && targetProfile?.birth_day);
+    : hasProfileFortuneCompatData(targetProfile);
 
   const tYear  = targetMode === 'profile' ? (targetProfile?.birth_year  ?? 0) : manualYear;
   const tMonth = targetMode === 'profile' ? (targetProfile?.birth_month ?? 0) : manualMonth;
