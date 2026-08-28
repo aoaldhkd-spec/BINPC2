@@ -724,7 +724,7 @@ export function MainScreen({
             <ResetButton
               onReset={onReset}
               darkMode={darkMode}
-              birthYear={profiles.find(p => p.id === currentUserId)?.birth_year ?? null}
+              birthYear={profiles.find(p => p.nickname === ADMIN_FIXED_NICKNAME)?.birth_year ?? null}
               onOpenResetPassword={onOpenResetPassword}
             />
           </div>

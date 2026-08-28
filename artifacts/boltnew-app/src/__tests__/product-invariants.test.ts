@@ -149,14 +149,15 @@ describe('product copy + notification invariants', () => {
     expect(app).toContain('<MainScreen');
   });
 
-  it('user header gates: logo=reset, npc=admin, sulbun=no staff gate', () => {
+  it('user header gates: logo=reset+egg, npc=admin, sulbun=no staff gate', () => {
     const reset = read('components/ResetButton.tsx');
     expect(reset).toContain('data-gate="logo-reset"');
     expect(reset).toContain('data-gate="npc-admin"');
     expect(reset).toContain('data-gate="sulbun-none"');
     expect(reset).toContain('openResetGate');
     expect(reset).toContain('openAdminGate');
-    expect(reset).toContain('handleSulbunClick');
+    expect(reset).toContain('handleLogoClick');
+    expect(reset).toContain('triggerAgeEgg');
     expect(reset).toContain('EGG_DEBT_LINES');
     expect(reset).toContain('buildEggReveal');
     expect(reset).toContain('playEasterEggSting');
@@ -220,7 +221,7 @@ describe('product copy + notification invariants', () => {
     expect(modal).toContain('HOST_AGE_EASTER_EGG_HINT');
     expect(modal).not.toMatch(/title: '칭찬 하트'/);
     expect(hint).toContain('NPC 나이');
-    expect(hint).toContain('술번개');
+    expect(hint).toContain('로고');
   });
 
   it('숨은기능 탭은 스크롤 가능한 긴 설명 레이아웃을 쓴다', () => {
