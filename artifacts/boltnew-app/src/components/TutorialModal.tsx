@@ -558,7 +558,7 @@ const FILLERS: Record<FillerKind, { title: string; line: string; quote: string; 
   hidden: {
     title: '몰라도 되는데, 알면 이득',
     line: '카드 뒤집기 · 방문자 · NPC 나이',
-    quote: '로고 3번이면 NPC 나이. 진짜임',
+    quote: '술번개 3번이면 NPC 나이. 진짜임',
     shell: 'bg-gradient-to-br from-violet-50 via-fuchsia-50 to-white border border-violet-100/80 shadow-sm shadow-violet-100/30',
     darkShell: 'bg-gradient-to-br from-slate-800/90 via-violet-950/50 to-slate-900 border border-violet-900/60 shadow-sm shadow-violet-900/20',
   },

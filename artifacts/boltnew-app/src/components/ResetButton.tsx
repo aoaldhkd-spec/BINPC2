@@ -206,37 +206,28 @@ export function ResetButton({ onReset, darkMode, birthYear, onEasterEgg, onUiLoc
     setAdminOpen(true);
   };
 
-  const triggerAgeEgg = () => {
-    logoClickCount.current = 0;
-    eggSound.current?.stop();
-    eggSound.current = playEasterEggSting();
-    setEggCopy(buildEggReveal(birthYear));
-    setShowEgg(true);
-    eggHapticPulse();
-    onEasterEgg?.();
-    if (eggTimer.current) clearTimeout(eggTimer.current);
-    eggTimer.current = setTimeout(() => dismissEgg(), 6000);
-  };
-
-  /** 1탭=처음으로, 3연타(3초 이내)=NPC 나이 이스터에그 */
-  const handleLogoClick = () => {
+  const handleSulbunClick = () => {
     logoClickCount.current += 1;
     if (logoClickTimer.current) clearTimeout(logoClickTimer.current);
     if (logoClickCount.current >= 3) {
-      triggerAgeEgg();
-      return;
-    }
-    const delayMs = logoClickCount.current === 1 ? 450 : 3000;
-    logoClickTimer.current = setTimeout(() => {
-      if (logoClickCount.current === 1) openResetGate();
       logoClickCount.current = 0;
-    }, delayMs);
+      eggSound.current?.stop();
+      eggSound.current = playEasterEggSting();
+      setEggCopy(buildEggReveal(birthYear));
+      setShowEgg(true);
+      eggHapticPulse();
+      onEasterEgg?.();
+      if (eggTimer.current) clearTimeout(eggTimer.current);
+      eggTimer.current = setTimeout(() => dismissEgg(), 6000);
+    } else {
+      logoClickTimer.current = setTimeout(() => { logoClickCount.current = 0; }, 3000);
+    }
   };
 
   return (
     <>
       <div className="flex items-center gap-2">
-        <button type="button" data-gate="logo-reset" onClick={handleLogoClick} title="처음으로 돌아가기" aria-label={HOST_AGE_EASTER_EGG_HINT}
+        <button type="button" data-gate="logo-reset" onClick={openResetGate} title="처음으로 돌아가기" aria-label="처음으로 돌아가기"
           className={`p-1 rounded-xl transition-all active:scale-95 hover:scale-110 ${darkMode ? 'text-cyan-400 hover:text-cyan-300' : 'text-cyan-500 hover:text-cyan-600'}`}>
           <Users className="w-7 h-7" />
         </button>
@@ -244,14 +235,14 @@ export function ResetButton({ onReset, darkMode, birthYear, onEasterEgg, onUiLoc
           <button type="button" data-gate="npc-admin" onClick={openAdminGate} className="block group cursor-pointer" title="관리자">
             <p className={`text-[10px] font-black tracking-widest uppercase leading-none transition-colors ${darkMode ? 'text-cyan-400 group-hover:text-cyan-300' : 'text-cyan-600 group-hover:text-cyan-700'}`}>범일NPC</p>
           </button>
-          <span data-gate="sulbun-none" className="inline align-baseline" title="술번개">
-            <span className={`text-lg font-black leading-tight ${darkMode ? 'text-white' : 'text-gray-900'}`}>술번개</span>
-          </span>
+          <button type="button" data-gate="sulbun-none" onClick={handleSulbunClick} className="inline cursor-pointer active:scale-95 transition-transform align-baseline" title="술번개" aria-label={HOST_AGE_EASTER_EGG_HINT}>
+            <span className={`text-lg font-black leading-tight transition-colors ${darkMode ? 'text-white hover:text-amber-300' : 'text-gray-900 hover:text-amber-500'}`}>술번개</span>
+          </button>
           <span className={`text-lg font-black leading-tight ${darkMode ? 'text-white' : 'text-gray-900'}`} aria-hidden> 🍻</span>
         </div>
       </div>
 
-      {/* 🍻 로고 3연타 — 방장 나이 공개 얼음깨기 영수증 */}
+      {/* 🍻 술번개 3연타 — 방장 나이 공개 얼음깨기 영수증 */}
       {showEgg && (
         <div
           className="safe-fullscreen fixed inset-0 z-[300] flex items-center justify-center px-4 overflow-y-auto"
