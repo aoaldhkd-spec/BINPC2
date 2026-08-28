@@ -14,6 +14,7 @@ import {
   SIGNAL_GUIDE_LEAD,
   SIGNAL_GUIDE_POINTS,
   SIGNAL_GUIDE_TITLE,
+  SIGNAL_MATCH_RULE_HINT,
   SIGNAL_MISSION_COPY,
   SIGNAL_MISSION_GOAL,
   SIGNAL_MISSION_TITLE,
@@ -452,6 +453,9 @@ export function SignalTab({
         <p className={`text-xs mt-0.5 ${darkMode ? 'text-slate-300' : 'text-rose-600'}`}>
           {SIGNAL_MISSION_COPY}
         </p>
+        <p className={`text-[10px] mt-1.5 leading-snug ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
+          {SIGNAL_MATCH_RULE_HINT}
+        </p>
         <div className="mt-2 flex items-center gap-2">
           <div className={`flex-1 h-2 rounded-full overflow-hidden ${darkMode ? 'bg-slate-700' : 'bg-rose-100'}`}>
             <div
@@ -486,6 +490,9 @@ export function SignalTab({
           </p>
           <p className={`text-xs mt-1.5 leading-relaxed ${darkMode ? 'text-slate-300' : 'text-gray-600'}`}>
             {SIGNAL_GUIDE_LEAD}
+          </p>
+          <p className={`text-[10px] mt-2 leading-snug ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
+            {SIGNAL_MATCH_RULE_HINT}
           </p>
           <div className={`mt-4 rounded-2xl px-3 py-3 ${darkMode ? 'bg-slate-700/80' : 'bg-rose-50 border border-rose-100'}`}>
             <p className={`text-[11px] font-black text-center ${darkMode ? 'text-rose-200' : 'text-rose-700'}`}>
@@ -524,9 +531,15 @@ export function SignalTab({
           <p className={`text-xs mt-1 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
             {SIGNAL_EMPTY_DECK_HINT}
           </p>
+          <p className={`text-[10px] mt-2 leading-snug ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>
+            {SIGNAL_MATCH_RULE_HINT}
+          </p>
         </div>
       ) : (
         <div className="space-y-2">
+          <p className={`text-[10px] leading-snug px-0.5 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
+            {SIGNAL_MATCH_RULE_HINT}
+          </p>
           <div className={`rounded-2xl px-3 py-2 flex items-center justify-between text-[11px] font-black ${
             darkMode ? 'bg-slate-800 border border-slate-600 text-slate-200' : 'bg-white border border-rose-100 text-gray-700'
           }`}>

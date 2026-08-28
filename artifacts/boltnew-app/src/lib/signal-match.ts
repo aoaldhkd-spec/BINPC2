@@ -26,6 +26,9 @@ export const NUDGE_MESSAGES = [
 export const SIGNAL_MISSION_GOAL = 3;
 export const SIGNAL_MISSION_TITLE = '오늘의 미션';
 export const SIGNAL_MISSION_COPY = '서로 다른 3명에게 하트 보내기';
+/** 미션 후 덱 노출 조건 — matchSignalPair OR 매칭(이상형↔특징·공통 관심사)과 동일한 설명 */
+export const SIGNAL_MATCH_RULE_HINT =
+  '서로 다른 3명에게 하트를 보내면, 내·상대 이상형·나의 특징·관심사가 서로 겹치는 참여자만 시그널에 보여요.';
 export const SIGNAL_GUIDE_TITLE = '시그널 설명서';
 export const SIGNAL_GUIDE_LEAD = '시그널은 앱이 사람을 추천하는 기능이에요. 서로 다른 3명에게 하트를 보내면 추천이 열려요.';
 export const SIGNAL_GUIDE_POINTS = [
