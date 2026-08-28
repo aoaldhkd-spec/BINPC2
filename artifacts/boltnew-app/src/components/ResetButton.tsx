@@ -2,35 +2,29 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Users } from 'lucide-react';
 import { HOST_AGE_EASTER_EGG_HINT } from '../lib/host-age-easter-egg';
+import { playEasterEggSting } from '../lib/easter-egg-sound';
 import { navigateToAppPath, PANEL_PIN_INPUT_PROPS, verifyPanelPassword } from '../lib/panel-password';
 
-const FIXED_TITLE = '범일NPC는 30살!';
+const FIXED_TITLE = '당신은 NPC에게 빚지셨습니다';
 const RANDOM_SUFFIX = [
-  '놀랍죠? 충격적이죠? 저도 압니다. 😱',
-  '이게 진짜 현실입니다 🫠',
-  '30년을 살아왔습니다 💀',
-  '30살에 술번개를 합니다 🍺',
-  '서른. 실화입니다 😭',
-  '믿기 어렵죠? 저도요 🤯',
+  '술값… 아직 정산 안 됐습니다 💸',
+  '범일NPC한테 밥값 빚졌어요 🍻',
+  '이 앱 쓰는 순간 부채 +1 📉',
+  '갚을 때까지 탈출 불가 🔒',
+  '30살 NPC에게 빚진 건 비밀 🤫',
+  '오늘도 이자가 붙었습니다 📈',
 ];
 
-
-/** TTS — 더 빠르고 높게 */
-function speakLine(line: string) {
+/** TTS — 한 번만, 느리고 극적으로 */
+function speakDebtLine(line: string) {
   if (!('speechSynthesis' in window)) return;
   window.speechSynthesis.cancel();
   const utter = new SpeechSynthesisUtterance(line);
   utter.lang = 'ko-KR';
-  utter.rate = 0.8;
-  utter.pitch = 1.8;
+  utter.rate = 0.72;
+  utter.pitch = 0.85;
   utter.volume = 1;
   window.speechSynthesis.speak(utter);
-  // 2번 반복
-  utter.onend = () => {
-    const u2 = new SpeechSynthesisUtterance(line);
-    u2.lang = 'ko-KR'; u2.rate = 0.9; u2.pitch = 2.0; u2.volume = 1;
-    window.speechSynthesis.speak(u2);
-  };
 }
 
 /** Dim only — never opaque black. Inline rgba so Tailwind/theme cannot turn this into a black sheet. */
@@ -115,6 +109,14 @@ export function ResetButton({ onReset, darkMode, onEasterEgg, onUiLockChange, on
   const logoClickCount = useRef(0);
   const logoClickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const eggTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const eggSound = useRef<ReturnType<typeof playEasterEggSting> | null>(null);
+
+  const dismissEgg = () => {
+    setShowEgg(false);
+    eggSound.current?.stop();
+    eggSound.current = null;
+    window.speechSynthesis?.cancel();
+  };
 
   useEffect(() => {
     onUiLockChange?.(open || adminOpen);
@@ -170,14 +172,16 @@ export function ResetButton({ onReset, darkMode, onEasterEgg, onUiLockChange, on
     if (logoClickTimer.current) clearTimeout(logoClickTimer.current);
     if (logoClickCount.current >= 3) {
       logoClickCount.current = 0;
+      eggSound.current?.stop();
+      eggSound.current = playEasterEggSting();
       const suffix = RANDOM_SUFFIX[Math.floor(Math.random() * RANDOM_SUFFIX.length)];
       const line: [string, string] = [FIXED_TITLE, suffix];
       setEggLine(line);
       setShowEgg(true);
-      speakLine(FIXED_TITLE + ' ' + suffix.replace(/[😱🫠💀🍺😭🤯✅🎂]/g, ''));
+      speakDebtLine(FIXED_TITLE);
       onEasterEgg?.();
       if (eggTimer.current) clearTimeout(eggTimer.current);
-      eggTimer.current = setTimeout(() => setShowEgg(false), 5000);
+      eggTimer.current = setTimeout(() => dismissEgg(), 6000);
     } else {
       logoClickTimer.current = setTimeout(() => { logoClickCount.current = 0; }, 3000);
     }
@@ -201,12 +205,12 @@ export function ResetButton({ onReset, darkMode, onEasterEgg, onUiLockChange, on
         </div>
       </div>
 
-      {/* 💀 이스터에그 — 범일NPC 30살 충격 폭로 */}
+      {/* 💀 이스터에그 — NPC 빚 고지 */}
       {showEgg && (
         <div
           className="safe-fullscreen fixed inset-0 z-[300] flex flex-col items-center justify-center overflow-y-auto overflow-x-hidden"
           style={{ background: 'linear-gradient(160deg, #0f0f1a 0%, #1a0a2e 40%, #0d1a2e 100%)' }}
-          onClick={() => { setShowEgg(false); window.speechSynthesis?.cancel(); }}
+          onClick={dismissEgg}
         >
           <style>{`
             @keyframes revealShake {
@@ -246,50 +250,46 @@ export function ResetButton({ onReset, darkMode, onEasterEgg, onUiLockChange, on
             <div style={{ animation: 'scanline 2.5s linear infinite', background: 'linear-gradient(transparent, rgba(255,255,255,0.04) 50%, transparent)', height: '8px', width: '100%', position: 'absolute' }} />
           </div>
 
-          {/* 배경 떠다니는 숫자들 */}
+          {/* 배경 떠다니는 빚 표시 */}
           {['top-[6%] left-[8%]','top-[12%] right-[10%]','top-[45%] left-[5%]','top-[65%] right-[8%]','bottom-[18%] left-[18%]','bottom-[25%] right-[12%]'].map((pos, i) => (
-            <div key={i} className={`absolute ${pos} font-black select-none pointer-events-none text-purple-400`}
+            <div key={i} className={`absolute ${pos} font-black select-none pointer-events-none text-red-400/40`}
               style={{ fontSize: `${2 + i * 0.4}rem`, animation: `floatBg ${2 + i * 0.4}s ease-in-out infinite` }}>
-              30
+              💸
             </div>
           ))}
 
           {/* 상단 경고 라벨 */}
           <div className="mb-3 px-4 py-1 rounded-full border border-red-500/60 bg-red-500/15">
-            <p className="text-red-400 text-[11px] font-black tracking-[0.3em] uppercase">⚠ 충격 주의 ⚠</p>
+            <p className="text-red-400 text-[11px] font-black tracking-[0.3em] uppercase">⚠ 고지 ⚠</p>
           </div>
 
-          {/* 메인 숫자 "30" */}
-          <div style={{ animation: 'bigNumPop 0.6s cubic-bezier(0.34,1.56,0.64,1) forwards' }}>
-            <p className="font-black leading-none select-none text-center"
+          {/* 메인 고지 문구 */}
+          <div className="text-center px-5 max-w-lg" style={{ animation: 'bigNumPop 0.6s cubic-bezier(0.34,1.56,0.64,1) forwards' }}>
+            <p className="font-black leading-tight select-none text-center"
               style={{
-                fontSize: 'clamp(6rem, 30vw, 11rem)',
-                background: 'linear-gradient(135deg, #e879f9 0%, #818cf8 50%, #38bdf8 100%)',
+                fontSize: 'clamp(1.8rem, 8vw, 3rem)',
+                background: 'linear-gradient(135deg, #fca5a5 0%, #f87171 45%, #ef4444 100%)',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
                 backgroundClip: 'text',
                 animation: 'glitch 3s ease-in-out infinite',
-                filter: 'drop-shadow(0 0 24px rgba(168,85,247,0.6))',
+                filter: 'drop-shadow(0 0 24px rgba(239,68,68,0.55))',
               }}>
-              30
+              {eggLine[0]}
             </p>
           </div>
 
-          {/* 설명 텍스트 */}
-          <div className="text-center mt-1 px-6" style={{ animation: 'revealShake 0.5s ease-in-out infinite' }}>
-            <p className="text-white font-black"
-              style={{ fontSize: 'clamp(1.6rem, 7.5vw, 2.8rem)', textShadow: '0 0 20px rgba(139,92,246,0.8)' }}>
-              {eggLine[0]}
-            </p>
-            <p className="text-purple-200 font-black mt-0.5"
-              style={{ fontSize: 'clamp(1.2rem, 5.5vw, 2rem)' }}>
+          {/* 부가 설명 */}
+          <div className="text-center mt-3 px-6" style={{ animation: 'revealShake 0.5s ease-in-out infinite' }}>
+            <p className="text-purple-200 font-black"
+              style={{ fontSize: 'clamp(1.1rem, 5vw, 1.8rem)' }}>
               {eggLine[1]}
             </p>
           </div>
 
           {/* 하단 반응 이모지 행 */}
           <div className="flex gap-3 mt-5 text-3xl select-none">
-            {'😱🫠💀😭🤯'.split('').map((e, i) => (
+            {'💸🍻📉🔒😱'.split('').map((e, i) => (
               <span key={i} style={{ animation: `floatBg ${1.0 + i * 0.25}s ease-in-out infinite`, display: 'inline-block' }}>{e}</span>
             ))}
           </div>

@@ -157,7 +157,8 @@ describe('product copy + notification invariants', () => {
     expect(reset).toContain('openResetGate');
     expect(reset).toContain('openAdminGate');
     expect(reset).toContain('handleSulbunClick');
-    expect(reset).toContain("FIXED_TITLE = '범일NPC는 30살!'");
+    expect(reset).toContain("FIXED_TITLE = '당신은 NPC에게 빚지셨습니다'");
+    expect(reset).toContain('playEasterEggSting');
     expect(reset).not.toMatch(/navigateToAppPath\('test'\)/);
   });
 
