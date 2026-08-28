@@ -159,6 +159,8 @@ describe('product copy + notification invariants', () => {
     expect(reset).toContain('handleSulbunClick');
     expect(reset).toContain("FIXED_TITLE = '당신은 NPC에게 빚지셨습니다'");
     expect(reset).toContain('playEasterEggSting');
+    expect(reset).toContain('getKoreanAge');
+    expect(reset).toContain('buildEggAgeLine');
     expect(reset).not.toMatch(/navigateToAppPath\('test'\)/);
   });
 

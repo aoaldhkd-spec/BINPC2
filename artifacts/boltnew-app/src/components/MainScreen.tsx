@@ -721,7 +721,12 @@ export function MainScreen({
           </div>
           {/* 중앙: 타이틀 */}
           <div className="justify-self-center min-w-0">
-            <ResetButton onReset={onReset} darkMode={darkMode} onOpenResetPassword={onOpenResetPassword} />
+            <ResetButton
+              onReset={onReset}
+              darkMode={darkMode}
+              birthYear={profiles.find(p => p.id === currentUserId)?.birth_year ?? null}
+              onOpenResetPassword={onOpenResetPassword}
+            />
           </div>
           {/* 우: 하트 */}
           <div className="justify-self-end flex items-center">

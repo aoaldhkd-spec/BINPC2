@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Users } from 'lucide-react';
 import { HOST_AGE_EASTER_EGG_HINT } from '../lib/host-age-easter-egg';
 import { playEasterEggSting } from '../lib/easter-egg-sound';
+import { getKoreanAge } from '../lib/profile';
 import { navigateToAppPath, PANEL_PIN_INPUT_PROPS, verifyPanelPassword } from '../lib/panel-password';
 
 const FIXED_TITLE = '당신은 NPC에게 빚지셨습니다';
@@ -15,14 +16,20 @@ const RANDOM_SUFFIX = [
   '오늘도 이자가 붙었습니다 📈',
 ];
 
-/** TTS — 한 번만, 느리고 극적으로 */
-function speakDebtLine(line: string) {
+function buildEggAgeLine(birthYear: number | null | undefined): string {
+  const age = getKoreanAge(birthYear ?? null);
+  if (age === '나이 미입력') return '몇 살이지? …음, 나이를 모르겠네요';
+  return `몇 살이지? ${age}입니다`;
+}
+
+/** TTS — 깜짝 고지 + 한국식 나이 */
+function speakEggReveal(debtTitle: string, ageLine: string) {
   if (!('speechSynthesis' in window)) return;
   window.speechSynthesis.cancel();
-  const utter = new SpeechSynthesisUtterance(line);
+  const utter = new SpeechSynthesisUtterance(`${debtTitle}. ${ageLine}`);
   utter.lang = 'ko-KR';
-  utter.rate = 0.72;
-  utter.pitch = 0.85;
+  utter.rate = 0.88;
+  utter.pitch = 1;
   utter.volume = 1;
   window.speechSynthesis.speak(utter);
 }
@@ -91,8 +98,8 @@ export function ResetPasswordSheet({ onCancel, onConfirm }: { onCancel: () => vo
   );
 }
 
-export function ResetButton({ onReset, darkMode, onEasterEgg, onUiLockChange, onOpenResetPassword }: {
-  onReset: () => void; variant?: string; darkMode?: boolean; resetPassword?: string | null; onEasterEgg?: () => void;
+export function ResetButton({ onReset, darkMode, birthYear, onEasterEgg, onUiLockChange, onOpenResetPassword }: {
+  onReset: () => void; variant?: string; darkMode?: boolean; birthYear?: number | null; resetPassword?: string | null; onEasterEgg?: () => void;
   onUiLockChange?: (locked: boolean) => void;
   onOpenResetPassword?: () => void;
 }) {
@@ -106,6 +113,7 @@ export function ResetButton({ onReset, darkMode, onEasterEgg, onUiLockChange, on
   const [adminBusy, setAdminBusy] = useState(false);
   const [showEgg, setShowEgg] = useState(false);
   const [eggLine, setEggLine] = useState<[string,string]>([FIXED_TITLE, RANDOM_SUFFIX[0]]);
+  const [eggAgeLine, setEggAgeLine] = useState('');
   const logoClickCount = useRef(0);
   const logoClickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const eggTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -175,10 +183,12 @@ export function ResetButton({ onReset, darkMode, onEasterEgg, onUiLockChange, on
       eggSound.current?.stop();
       eggSound.current = playEasterEggSting();
       const suffix = RANDOM_SUFFIX[Math.floor(Math.random() * RANDOM_SUFFIX.length)];
+      const ageLine = buildEggAgeLine(birthYear);
       const line: [string, string] = [FIXED_TITLE, suffix];
       setEggLine(line);
+      setEggAgeLine(ageLine);
       setShowEgg(true);
-      speakDebtLine(FIXED_TITLE);
+      speakEggReveal(FIXED_TITLE, ageLine);
       onEasterEgg?.();
       if (eggTimer.current) clearTimeout(eggTimer.current);
       eggTimer.current = setTimeout(() => dismissEgg(), 6000);
@@ -276,6 +286,14 @@ export function ResetButton({ onReset, darkMode, onEasterEgg, onUiLockChange, on
                 filter: 'drop-shadow(0 0 24px rgba(239,68,68,0.55))',
               }}>
               {eggLine[0]}
+            </p>
+          </div>
+
+          {/* 한국식 나이 */}
+          <div className="text-center mt-4 px-6" style={{ animation: 'bigNumPop 0.5s cubic-bezier(0.34,1.56,0.64,1) forwards' }}>
+            <p className="text-amber-200 font-black"
+              style={{ fontSize: 'clamp(1.3rem, 6vw, 2.2rem)' }}>
+              {eggAgeLine}
             </p>
           </div>
 

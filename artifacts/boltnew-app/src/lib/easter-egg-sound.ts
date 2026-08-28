@@ -1,4 +1,4 @@
-/** Web Audio dramatic sting for 술번개 3-click easter egg — no external assets. */
+/** Web Audio surprise balloon-pop for 술번개 3-click easter egg — no external assets. */
 
 type EasterEggSoundHandle = { stop: () => void };
 
@@ -12,66 +12,79 @@ export function playEasterEggSting(): EasterEggSoundHandle {
   const ctx = new Ctx();
   void ctx.resume();
 
+  const t0 = ctx.currentTime;
   const master = ctx.createGain();
-  master.gain.setValueAtTime(0.0001, ctx.currentTime);
-  master.gain.exponentialRampToValueAtTime(0.85, ctx.currentTime + 0.04);
-  master.gain.exponentialRampToValueAtTime(0.35, ctx.currentTime + 1.2);
-  master.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 4.5);
+  master.gain.setValueAtTime(0.0001, t0);
+  master.gain.exponentialRampToValueAtTime(0.95, t0 + 0.004);
+  master.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.65);
   master.connect(ctx.destination);
 
-  const oscs: OscillatorNode[] = [];
-  const nodes: AudioNode[] = [master];
+  const sources: AudioScheduledSourceNode[] = [];
 
-  const addTone = (freq: number, type: OscillatorType, detune = 0, gain = 0.22, delay = 0) => {
+  // Balloon pop — short band-passed noise burst
+  const popLen = Math.floor(ctx.sampleRate * 0.06);
+  const popBuf = ctx.createBuffer(1, popLen, ctx.sampleRate);
+  const popData = popBuf.getChannelData(0);
+  for (let i = 0; i < popLen; i++) {
+    const env = 1 - i / popLen;
+    popData[i] = (Math.random() * 2 - 1) * env * env;
+  }
+  const pop = ctx.createBufferSource();
+  pop.buffer = popBuf;
+  const popFilter = ctx.createBiquadFilter();
+  popFilter.type = 'bandpass';
+  popFilter.frequency.setValueAtTime(680, t0);
+  popFilter.Q.setValueAtTime(1.2, t0);
+  const popGain = ctx.createGain();
+  popGain.gain.setValueAtTime(0.0001, t0);
+  popGain.gain.exponentialRampToValueAtTime(0.85, t0 + 0.003);
+  popGain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.07);
+  pop.connect(popFilter);
+  popFilter.connect(popGain);
+  popGain.connect(master);
+  pop.start(t0);
+  pop.stop(t0 + 0.08);
+  sources.push(pop);
+
+  // Soft rubber snap — not a low horror rumble
+  const thump = ctx.createOscillator();
+  const thumpGain = ctx.createGain();
+  thump.type = 'sine';
+  thump.frequency.setValueAtTime(180, t0);
+  thump.frequency.exponentialRampToValueAtTime(55, t0 + 0.05);
+  thumpGain.gain.setValueAtTime(0.0001, t0);
+  thumpGain.gain.exponentialRampToValueAtTime(0.35, t0 + 0.002);
+  thumpGain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.09);
+  thump.connect(thumpGain);
+  thumpGain.connect(master);
+  thump.start(t0);
+  thump.stop(t0 + 0.1);
+  sources.push(thump);
+
+  // Confetti sparkle — brief high chirps
+  const sparkleFreqs = [1400, 2200, 3100, 4200, 5200];
+  for (let i = 0; i < sparkleFreqs.length; i++) {
+    const freq = sparkleFreqs[i];
+    const delay = 0.02 + i * 0.018;
     const osc = ctx.createOscillator();
     const g = ctx.createGain();
-    osc.type = type;
-    osc.frequency.setValueAtTime(freq, ctx.currentTime + delay);
-    osc.detune.setValueAtTime(detune, ctx.currentTime + delay);
-    g.gain.setValueAtTime(gain, ctx.currentTime + delay);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, t0 + delay);
+    osc.frequency.exponentialRampToValueAtTime(freq * 1.35, t0 + delay + 0.04);
+    g.gain.setValueAtTime(0.0001, t0 + delay);
+    g.gain.exponentialRampToValueAtTime(0.12, t0 + delay + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + delay + 0.07);
     osc.connect(g);
     g.connect(master);
-    osc.start(ctx.currentTime + delay);
-    osc.stop(ctx.currentTime + 4.6);
-    oscs.push(osc);
-    nodes.push(g);
-  };
-
-  // Low rumble → dissonant cluster sting (horror reveal)
-  addTone(55, 'sawtooth', 0, 0.28, 0);
-  addTone(82.4, 'sawtooth', -8, 0.2, 0.02);
-  addTone(110, 'square', 12, 0.14, 0.05);
-  addTone(155.6, 'sawtooth', -5, 0.26, 0.08);
-  addTone(233.1, 'sawtooth', 7, 0.24, 0.1);
-  addTone(311.1, 'square', -12, 0.18, 0.12);
-  addTone(415.3, 'triangle', 0, 0.12, 0.15);
-
-  // Noise burst for shock
-  const bufferSize = ctx.sampleRate * 0.35;
-  const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-  const data = noiseBuffer.getChannelData(0);
-  for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
-  const noise = ctx.createBufferSource();
-  noise.buffer = noiseBuffer;
-  const noiseFilter = ctx.createBiquadFilter();
-  noiseFilter.type = 'bandpass';
-  noiseFilter.frequency.setValueAtTime(900, ctx.currentTime);
-  noiseFilter.Q.setValueAtTime(0.8, ctx.currentTime);
-  const noiseGain = ctx.createGain();
-  noiseGain.gain.setValueAtTime(0.0001, ctx.currentTime);
-  noiseGain.gain.exponentialRampToValueAtTime(0.35, ctx.currentTime + 0.02);
-  noiseGain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.4);
-  noise.connect(noiseFilter);
-  noiseFilter.connect(noiseGain);
-  noiseGain.connect(master);
-  noise.start(ctx.currentTime);
-  nodes.push(noiseFilter, noiseGain);
+    osc.start(t0 + delay);
+    osc.stop(t0 + delay + 0.08);
+    sources.push(osc);
+  }
 
   const stop = () => {
-    for (const osc of oscs) {
-      try { osc.stop(); } catch { /* already stopped */ }
+    for (const s of sources) {
+      try { s.stop(); } catch { /* already stopped */ }
     }
-    try { noise.stop(); } catch { /* already stopped */ }
     void ctx.close();
   };
 
