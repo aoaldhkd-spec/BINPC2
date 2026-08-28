@@ -7,35 +7,35 @@ import { koreanAgeFromBirthYear } from '../lib/korean-age';
 import { navigateToAppPath, PANEL_PIN_INPUT_PROPS, verifyPanelPassword } from '../lib/panel-password';
 
 export const EGG_HEADLINES = [
-  'NPC: 너 나한테 빚졌어 🧾',
-  '야 ㅋㅋ NPC한테 걸렸다',
-  '범일NPC: 계산서 나왔어 💸',
-  '술번개 3번 = 빚 각 ㅋ',
-  'NPC가 영수증 꺼냄 🧾',
-  '오늘도 NPC한테 밀림',
-  '빚 폭탄 도착 🍻',
-  'NPC: 또 눌렀지?',
+  '범일NPC: 오늘 회식비가 조금… 이월됐어요 🧾',
+  '범일NPC: 계산서가 도착했어요 💸',
+  '술번개 3번 — 영수증이 나왔네요',
+  'NPC: 오늘도 정산은 다음에요 🍻',
+  '범일NPC: 빚 장부에 한 줄 추가됐어요',
+  '회식비 정산… NPC한테 이월됐습니다',
+  '영수증 출력 완료 🧾',
+  '범일NPC: 또 누르셨네요 (기록됨)',
 ] as const;
 
 export const EGG_DEBT_LINES = [
-  '오늘의 실패: 술값 NPC에게 이월',
-  '치킨값 아직 NPC한테',
-  '택시비도 NPC 카드로',
-  '회식비 1/n → NPC한테',
-  'NPC한테 밥 얻어먹음 🍚',
-  '소주값 미정산 🍺',
-  '2차 비용 NPC 이월 ㅋ',
-  '편의점 과자도 NPC 크레딧',
-  '술값+안주 = NPC 몫',
-  '분명 나눠내기 했는데 NPC만 이득',
-  '카드값 NPC한테 넘김 💳',
-  '오늘 술값 또 NPC한테 밀었네',
+  '당신은 NPC에게 빚이 생겼어요 (술값 편)',
+  '오늘 술값은 NPC 카드로 정산됐어요',
+  '회식비 1/n — NPC 몫으로 이월',
+  '치킨값·안주비도 NPC에게 넘겼어요',
+  '택시비까지 NPC 크레딧 사용',
+  '소주·맥주값 미정산 상태예요 🍺',
+  '2차 비용도 NPC 장부에 적혀 있어요',
+  '편의점 간식까지 NPC 몫이에요',
+  '분명 나눠내기 했는데 NPC만 이득…',
+  '카드값 정산 — NPC에게 위임했어요 💳',
+  '오늘 회식비, NPC에게 이월 완료',
+  '술값+안주 = NPC 정산 예정',
 ] as const;
 
 const EGG_AGE_UNKNOWN = [
-  'NPC 나이? 비밀 🤫',
-  '몇 살인지도 모르는데 빚부터',
-  '나이 모름 / 빚은 확실',
+  'NPC 나이? 아직 비밀이에요 🤫',
+  '나이는 모르지만 빚은 확실해요',
+  '몇 살인지는… 다음에 알려드릴게요',
 ] as const;
 
 function pickRandom<T>(items: readonly T[]): T {
@@ -46,12 +46,12 @@ function buildEggAgeGag(birthYear: number | null | undefined): string {
   const age = koreanAgeFromBirthYear(birthYear ?? null);
   if (age == null) return pickRandom(EGG_AGE_UNKNOWN);
   return pickRandom([
-    `${age}살인데 아직도 NPC한테 밀렸네 ㅋ`,
-    `몇 살? ${age}살… 근데 왜 빚?`,
-    `NPC ${age}살 / 너는 빚자`,
-    `${age}살 NPC한테 걸렸다 ㅋㅋ`,
-    `나이 ${age}살 / 빚 ∞`,
-    `…${age}살이면 술값은 갚아야지`,
+    `몇 살이세요? ${age}세 — NPC와의 인연이 시작됐네요`,
+    `${age}세시군요. 오늘부터 NPC 빚 장부에 등록돼요`,
+    `NPC는 ${age}세예요. 정산은 천천히 하셔도 돼요`,
+    `${age}세 — 회식 첫 만남, 빚부터 생겼네요 🍻`,
+    `나이 ${age}세, 빚은… 아직 무한대예요`,
+    `${age}세이신데 술값은 NPC가 먼저 냈어요`,
   ]);
 }
 
@@ -253,18 +253,14 @@ export function ResetButton({ onReset, darkMode, birthYear, onEasterEgg, onUiLoc
         >
           <style>{`
             @keyframes eggShakeIn {
-              0% { transform: scale(0.15) rotate(-14deg); opacity: 0; }
-              18% { transform: scale(1.12) rotate(5deg); opacity: 1; }
-              35% { transform: scale(0.92) rotate(-4deg); }
-              52% { transform: scale(1.05) rotate(3deg); }
-              68% { transform: scale(0.97) rotate(-2deg); }
-              84% { transform: scale(1.02) rotate(1deg); }
-              100% { transform: scale(1) rotate(-2deg); opacity: 1; }
+              0% { transform: scale(0.5) rotate(-4deg); opacity: 0; }
+              40% { transform: scale(1.04) rotate(2deg); opacity: 1; }
+              70% { transform: scale(0.98) rotate(-1deg); }
+              100% { transform: scale(1) rotate(-1deg); opacity: 1; }
             }
             @keyframes eggWobble {
-              0%, 100% { transform: rotate(-2deg) translateY(0); }
-              33% { transform: rotate(2.5deg) translateY(-3px); }
-              66% { transform: rotate(-3deg) translateY(2px); }
+              0%, 100% { transform: rotate(-1deg) translateY(0); }
+              50% { transform: rotate(1deg) translateY(-1px); }
             }
             @keyframes eggEmojiPop {
               0% { transform: scale(0) rotate(-20deg); opacity: 0; }
@@ -280,7 +276,7 @@ export function ResetButton({ onReset, darkMode, birthYear, onEasterEgg, onUiLoc
               border: '3px dashed #ca8a04',
               borderRadius: '2px',
               boxShadow: '6px 8px 0 rgba(120, 53, 15, 0.35), inset 0 0 0 1px rgba(255,255,255,0.5)',
-              animation: 'eggShakeIn 0.48s cubic-bezier(0.36, 0.07, 0.19, 0.97) forwards, eggWobble 2.2s ease-in-out 0.48s infinite',
+              animation: 'eggShakeIn 0.42s ease-out forwards, eggWobble 3s ease-in-out 0.42s infinite',
             }}
           >
             <p
@@ -312,7 +308,7 @@ export function ResetButton({ onReset, darkMode, birthYear, onEasterEgg, onUiLoc
             </p>
 
             <p className="mt-4 text-center text-amber-800/55 text-[10px] font-bold tracking-wide">
-              탭하면 닫힘 ㅋ
+              화면을 탭하면 닫혀요
             </p>
           </div>
         </div>
