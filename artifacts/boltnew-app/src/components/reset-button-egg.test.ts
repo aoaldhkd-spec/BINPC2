@@ -12,8 +12,14 @@ describe('buildEggReveal', () => {
 
     const reveal = buildEggReveal(birthYear);
     expect(reveal.headline).toBe('술번개 공식 영수증');
-    expect(reveal.ageGag).toBe('방장의 실제 나이는 30세');
+    expect(reveal.ageGag).toBe('30세');
     expect(reveal.penaltyLine).toBe('높게 말한 값 · +100,000원');
+  });
+
+  it('shows exactly one age on the receipt', () => {
+    const reveal = buildEggReveal(1997);
+    const receiptText = [reveal.headline, reveal.ageGag, reveal.penaltyLine].filter(Boolean).join('\n');
+    expect(receiptText.match(/\d+세/g)).toEqual(['30세']);
   });
 
   it('does not embed a fake wrong age in the penalty line', () => {

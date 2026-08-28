@@ -21,7 +21,7 @@ export function buildEggReveal(birthYear: number | null | undefined) {
   }
   return {
     headline: EGG_RECEIPT_TITLE,
-    ageGag: `방장의 실제 나이는 ${age}세`,
+    ageGag: `${age}세`,
     penaltyLine: EGG_PENALTY_LINE,
   };
 }

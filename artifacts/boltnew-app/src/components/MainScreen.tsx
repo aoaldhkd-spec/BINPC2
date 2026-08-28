@@ -45,7 +45,7 @@ import { ResetButton } from './ResetButton';
 import { SignalTab } from './SignalTab';
 import { FUNCTIONS_LOCK_TOAST, SOCIAL_LOCKED_TABS } from '../lib/functions-lock';
 import { STATUS_QUICK_MSGS } from '../lib/chat-picker-data';
-import { HOST_AGE_EASTER_EGG_HINT } from '../lib/host-age-easter-egg';
+import { HOST_AGE_EASTER_EGG_HINT, hostBirthYearFromProfiles } from '../lib/host-age-easter-egg';
 import {
   BIRTH_MD_EDIT_MAX,
   birthMdEditsRemaining,
@@ -724,7 +724,7 @@ export function MainScreen({
             <ResetButton
               onReset={onReset}
               darkMode={darkMode}
-              birthYear={profiles.find(p => p.id === currentUserId)?.birth_year ?? null}
+              birthYear={hostBirthYearFromProfiles(profiles)}
               onOpenResetPassword={onOpenResetPassword}
             />
           </div>

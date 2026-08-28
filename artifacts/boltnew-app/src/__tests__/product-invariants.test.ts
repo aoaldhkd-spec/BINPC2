@@ -151,6 +151,7 @@ describe('product copy + notification invariants', () => {
 
   it('user header gates: logo=reset, npc=admin, sulbun=no staff gate', () => {
     const reset = read('components/ResetButton.tsx');
+    const main = read('components/MainScreen.tsx');
     expect(reset).toContain('data-gate="logo-reset"');
     expect(reset).toContain('data-gate="npc-admin"');
     expect(reset).toContain('data-gate="sulbun-none"');
@@ -158,13 +159,14 @@ describe('product copy + notification invariants', () => {
     expect(reset).toContain('openAdminGate');
     expect(reset).toContain('handleSulbunClick');
     expect(reset).toContain('술번개 공식 영수증');
-    expect(reset).toContain('방장의 실제 나이는');
+    expect(reset).toContain('ageGag: `${age}세`');
     expect(reset).toContain('buildEggReveal');
     expect(reset).toContain('penaltyLine');
     expect(reset).toContain('+100,000원');
     expect(reset).toContain('playEasterEggSting');
     expect(reset).not.toContain('speechSynthesis');
     expect(reset).not.toMatch(/navigateToAppPath\('test'\)/);
+    expect(main).toContain('hostBirthYearFromProfiles(profiles)');
   });
 
 
