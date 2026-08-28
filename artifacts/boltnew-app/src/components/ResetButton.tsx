@@ -7,35 +7,31 @@ import { koreanAgeFromBirthYear } from '../lib/korean-age';
 import { navigateToAppPath, PANEL_PIN_INPUT_PROPS, verifyPanelPassword } from '../lib/panel-password';
 
 export const EGG_HEADLINES = [
-  '범일NPC — 아 술값…',
-  '술번개 3번. 영수증요',
-  '회식 끝난 줄 알았는데',
-  '계산 실수… 한 게 아니에요',
-  '범일NPC한테 걸렸어요',
-  '소주값 누가 냈더라',
-  '2차까지 NPC 카드였어요',
-  '또 누르셨네 — 기록됨',
+  '너무 높게 봐 주셨네요',
+  '제 나이, 맞춰 보셨죠?',
+  '술번개 공식 영수증',
+  '나이 추측 — 결과 나왔어요',
+  '첫 만남 얼음 깨기 🍻',
+  '방장 나이 — 진짜 버전',
+  '추측은 친절했어요',
+  '어색함 푸는 타임',
 ] as const;
 
 export const EGG_DEBT_LINES = [
-  '당신 몫 NPC한테 넘어갔어요',
-  '소주·맥주 — 아직 미정산',
-  '1/n 했는데 NPC만 손해',
-  '치킨값도 NPC 장부에',
-  '택시비까지 NPC 크레딧',
-  '2차 — NPC가 먼저 냈어요',
-  '편의점 간식도 NPC 몫',
-  '나눠내기 했는데 NPC만 이득',
-  '카드값 NPC한테 맡김',
-  '안주비 계산이 좀 이상해요',
-  '술+안주 = 빚',
-  '범일NPC 빚 장부 +1',
+  '술값은 나중에 — 오늘은 얼음깨기',
+  '소주 한 잔 값은… 다음에요',
+  '1/n은 나중에 — 지금은 웃음',
+  '술값 장난은 다음 라운드에',
+  '영수증은 개그 — 계산은 나중에',
+  'NPC 카드? 오늘은 패스예요',
+  '회식비는… 일단 나이부터',
+  '안주값은 다음에 정산해요',
 ] as const;
 
 const EGG_AGE_UNKNOWN = [
-  'NPC 나이? …모름',
-  '몇 살인지는 모르겠고 빚만 확실',
-  '나이는 나중에 — 빚은 지금',
+  '실제 나이는 프로필에 있어요',
+  '생년 입력하면 여기 나와요',
+  '나이는… 프로필에서 확인해요',
 ] as const;
 
 function pickRandom<T>(items: readonly T[]): T {
@@ -46,12 +42,14 @@ function buildEggAgeGag(birthYear: number | null | undefined): string {
   const age = koreanAgeFromBirthYear(birthYear ?? null);
   if (age == null) return pickRandom(EGG_AGE_UNKNOWN);
   return pickRandom([
-    `${age}살인데 벌써 빚`,
-    `범일NPC ${age}세 — 회식 첫만남`,
-    `${age}세… 술값은 NPC가 냈어요`,
-    `나이 ${age} — 빚은 아직`,
-    `${age}살이에요. NPC한테 걸렸죠`,
-    `NPC ${age}세. 소주값 미정산`,
+    `손님 추측? …실제는 ${age}세예요`,
+    `너무 높게 봐 주셨어요 — ${age}세`,
+    `술번개 공식: 방장 ${age}세`,
+    `실제는 ${age}세예요`,
+    `${age}세 — 프로필 그대로`,
+    `정답은 ${age}세였어요`,
+    `방장 진짜 나이: ${age}세`,
+    `${age}세 맞아요 — 높게 봐 주셨네요`,
   ]);
 }
 
@@ -244,7 +242,7 @@ export function ResetButton({ onReset, darkMode, birthYear, onEasterEgg, onUiLoc
         </div>
       </div>
 
-      {/* 🍻 술번개 3연타 — NPC 빚 개그 영수증 */}
+      {/* 🍻 술번개 3연타 — 방장 나이 공개 얼음깨기 영수증 */}
       {showEgg && (
         <div
           className="safe-fullscreen fixed inset-0 z-[300] flex items-center justify-center px-4 overflow-y-auto"
