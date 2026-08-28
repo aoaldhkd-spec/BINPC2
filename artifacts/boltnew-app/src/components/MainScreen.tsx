@@ -763,7 +763,7 @@ export function MainScreen({
                   <input
                     value={profileSearch}
                     onChange={e => setProfileSearch(e.target.value)}
-                    placeholder="닉네임 검색"
+                    placeholder="닉네임 · 나이 · 년생 검색"
                     className="w-full pl-7 pr-2 py-1.5 rounded-lg border border-gray-200 bg-white text-xs focus:border-teal-400 focus:outline-none shadow-sm"
                   />
                 </div>
@@ -797,7 +797,7 @@ export function MainScreen({
                 </div>
               </div>
               <p className="text-[10px] text-gray-400 px-0.5">
-                💡 닉네임·MBTI·성향(탑/바텀/올)·초성으로 검색할 수 있어요
+                💡 닉네임·나이·출생년도·MBTI·성향(탑/바텀/올)·초성으로 검색할 수 있어요
               </p>
             </div>
 

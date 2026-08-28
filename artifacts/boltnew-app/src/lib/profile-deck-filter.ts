@@ -1,7 +1,7 @@
 import type { Profile } from '../types/app';
-import { getPositionLabel, isSwipeGestureVerifyProfile } from './profile';
+import { isSwipeGestureVerifyProfile } from './profile';
 import { sortProfilesStable } from './profile-list-order';
-import { koreanMatch } from './utils';
+import { profileMatchesSearch } from './profile-search-match';
 
 export type ProfileDeckFilters = {
   currentUserId: string | null;
@@ -28,13 +28,7 @@ export function filterProfilesForDeck(
   const filtered = profiles.filter(profile => {
     if (isSwipeGestureVerifyProfile(profile) && profile.id !== currentUserId) return false;
     if (blockedUserIds.has(profile.id) || hiddenByIds.has(profile.id)) return false;
-    if (search) {
-      const matches =
-        koreanMatch(profile.nickname, search)
-        || Boolean(profile.mbti && koreanMatch(profile.mbti, search))
-        || koreanMatch(getPositionLabel(profile.personality_score ?? 50), search);
-      if (!matches) return false;
-    }
+    if (search && !profileMatchesSearch(profile, search)) return false;
     if (personality) {
       const score = profile.personality_score ?? 50;
       if (personality === '비선호' && score >= 0) return false;

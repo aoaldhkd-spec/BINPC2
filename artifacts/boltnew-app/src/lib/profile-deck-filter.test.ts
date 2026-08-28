@@ -1,18 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import type { Profile } from '../types/app';
+import { seoulCalendarYear } from './korean-age';
 import { filterProfilesForDeck } from './profile-deck-filter';
 
-const profile = (id: string, nickname: string, score: number, mbti: string): Profile => ({
+const refYear = seoulCalendarYear();
+const birthYearForAge = (age: number) => refYear - age + 1;
+
+const profile = (id: string, nickname: string, score: number, mbti: string, birth_year?: number | null): Profile => ({
   id,
   nickname,
   personality_score: score,
   mbti,
+  birth_year: birth_year ?? null,
 } as Profile);
 
 const profiles = [
-  profile('other-bottom', '바다', 20, 'INFP'),
-  profile('me', '나', 50, 'ENTJ'),
-  profile('other-top', '산', 80, 'ENTJ'),
+  profile('other-bottom', '바다', 20, 'INFP', birthYearForAge(29)),
+  profile('me', '나', 50, 'ENTJ', 1995),
+  profile('other-top', '산', 80, 'ENTJ', 1992),
 ];
 
 describe('profile deck filtering', () => {
@@ -42,5 +47,27 @@ describe('profile deck filtering', () => {
     });
 
     expect(result.map(item => item.id)).toEqual(['me']);
+  });
+
+  it('filters by Korean age and birth year shorthand', () => {
+    const byAge = filterProfilesForDeck(profiles, {
+      currentUserId: 'me',
+      search: '29',
+      personality: null,
+      mbti: null,
+      blockedUserIds: new Set(),
+      hiddenByIds: new Set(),
+    });
+    expect(byAge.map(item => item.id)).toEqual(['other-bottom']);
+
+    const byYear = filterProfilesForDeck(profiles, {
+      currentUserId: 'me',
+      search: '95',
+      personality: null,
+      mbti: null,
+      blockedUserIds: new Set(),
+      hiddenByIds: new Set(),
+    });
+    expect(byYear.map(item => item.id)).toEqual(['me']);
   });
 });

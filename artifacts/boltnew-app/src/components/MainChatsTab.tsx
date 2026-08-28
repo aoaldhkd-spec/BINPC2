@@ -4,8 +4,8 @@ import type { Chat, GroupChat, Profile } from '../types/app';
 import { groupRoomVisual, MAX_GROUPS_PER_USER, sumUnreadCounts, unreadForGroup } from '../lib/group-rooms';
 import { GroupRoomIcon } from './GroupRoomIcon';
 import { unreadForChat } from '../lib/chat-unread';
-import { genAvatar, getAvatarSrc, getPositionLabel, isSwipeGestureVerifyProfile } from '../lib/profile';
-import { koreanMatch } from '../lib/utils';
+import { genAvatar, getAvatarSrc, isSwipeGestureVerifyProfile } from '../lib/profile';
+import { profileMatchesSearch } from '../lib/profile-search-match';
 import { FUNCTIONS_LOCK_TOAST } from '../lib/functions-lock';
 import { RefreshBtn } from './RefreshBtn';
 
@@ -259,7 +259,7 @@ export const MainChatsTab = memo(function MainChatsTab({
         <input
           value={chatSearch}
           onChange={e => onChangeChatSearch(e.target.value)}
-          placeholder="닉네임 · MBTI · 성향 · 초성 검색"
+          placeholder="닉네임 · 나이 · 년생 · MBTI · 성향 · 초성 검색"
           className={`w-full pl-9 pr-9 py-2.5 text-sm bg-transparent focus:outline-none ${darkMode ? 'text-white placeholder-slate-500' : 'text-gray-900 placeholder-gray-400'}`}
         />
         {chatSearch && (
@@ -275,9 +275,7 @@ export const MainChatsTab = memo(function MainChatsTab({
       {/* 검색 결과 */}
       {chatSearch.trim() && (() => {
         const results = profiles.filter(p => p.id !== currentUserId && !isSwipeGestureVerifyProfile(p) && (
-          koreanMatch(p.nickname, chatSearch) ||
-          (!!p.mbti && koreanMatch(p.mbti, chatSearch)) ||
-          koreanMatch(getPositionLabel(p.personality_score ?? 50), chatSearch)
+          profileMatchesSearch(p, chatSearch)
         ));
         return results.length > 0 ? (
           <div className="space-y-1">
