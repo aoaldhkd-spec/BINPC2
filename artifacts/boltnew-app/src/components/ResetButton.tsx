@@ -7,35 +7,35 @@ import { koreanAgeFromBirthYear } from '../lib/korean-age';
 import { navigateToAppPath, PANEL_PIN_INPUT_PROPS, verifyPanelPassword } from '../lib/panel-password';
 
 export const EGG_HEADLINES = [
-  '범일NPC: 오늘 회식비가 조금… 이월됐어요 🧾',
-  '범일NPC: 계산서가 도착했어요 💸',
-  '술번개 3번 — 영수증이 나왔네요',
-  'NPC: 오늘도 정산은 다음에요 🍻',
-  '범일NPC: 빚 장부에 한 줄 추가됐어요',
-  '회식비 정산… NPC한테 이월됐습니다',
-  '영수증 출력 완료 🧾',
-  '범일NPC: 또 누르셨네요 (기록됨)',
+  '범일NPC — 아 술값…',
+  '술번개 3번. 영수증요',
+  '회식 끝난 줄 알았는데',
+  '계산 실수… 한 게 아니에요',
+  '범일NPC한테 걸렸어요',
+  '소주값 누가 냈더라',
+  '2차까지 NPC 카드였어요',
+  '또 누르셨네 — 기록됨',
 ] as const;
 
 export const EGG_DEBT_LINES = [
-  '당신은 NPC에게 빚이 생겼어요 (술값 편)',
-  '오늘 술값은 NPC 카드로 정산됐어요',
-  '회식비 1/n — NPC 몫으로 이월',
-  '치킨값·안주비도 NPC에게 넘겼어요',
-  '택시비까지 NPC 크레딧 사용',
-  '소주·맥주값 미정산 상태예요 🍺',
-  '2차 비용도 NPC 장부에 적혀 있어요',
-  '편의점 간식까지 NPC 몫이에요',
-  '분명 나눠내기 했는데 NPC만 이득…',
-  '카드값 정산 — NPC에게 위임했어요 💳',
-  '오늘 회식비, NPC에게 이월 완료',
-  '술값+안주 = NPC 정산 예정',
+  '당신 몫 NPC한테 넘어갔어요',
+  '소주·맥주 — 아직 미정산',
+  '1/n 했는데 NPC만 손해',
+  '치킨값도 NPC 장부에',
+  '택시비까지 NPC 크레딧',
+  '2차 — NPC가 먼저 냈어요',
+  '편의점 간식도 NPC 몫',
+  '나눠내기 했는데 NPC만 이득',
+  '카드값 NPC한테 맡김',
+  '안주비 계산이 좀 이상해요',
+  '술+안주 = 빚',
+  '범일NPC 빚 장부 +1',
 ] as const;
 
 const EGG_AGE_UNKNOWN = [
-  'NPC 나이? 아직 비밀이에요 🤫',
-  '나이는 모르지만 빚은 확실해요',
-  '몇 살인지는… 다음에 알려드릴게요',
+  'NPC 나이? …모름',
+  '몇 살인지는 모르겠고 빚만 확실',
+  '나이는 나중에 — 빚은 지금',
 ] as const;
 
 function pickRandom<T>(items: readonly T[]): T {
@@ -46,12 +46,12 @@ function buildEggAgeGag(birthYear: number | null | undefined): string {
   const age = koreanAgeFromBirthYear(birthYear ?? null);
   if (age == null) return pickRandom(EGG_AGE_UNKNOWN);
   return pickRandom([
-    `몇 살이세요? ${age}세 — NPC와의 인연이 시작됐네요`,
-    `${age}세시군요. 오늘부터 NPC 빚 장부에 등록돼요`,
-    `NPC는 ${age}세예요. 정산은 천천히 하셔도 돼요`,
-    `${age}세 — 회식 첫 만남, 빚부터 생겼네요 🍻`,
-    `나이 ${age}세, 빚은… 아직 무한대예요`,
-    `${age}세이신데 술값은 NPC가 먼저 냈어요`,
+    `${age}살인데 벌써 빚`,
+    `범일NPC ${age}세 — 회식 첫만남`,
+    `${age}세… 술값은 NPC가 냈어요`,
+    `나이 ${age} — 빚은 아직`,
+    `${age}살이에요. NPC한테 걸렸죠`,
+    `NPC ${age}세. 소주값 미정산`,
   ]);
 }
 
@@ -308,7 +308,7 @@ export function ResetButton({ onReset, darkMode, birthYear, onEasterEgg, onUiLoc
             </p>
 
             <p className="mt-4 text-center text-amber-800/55 text-[10px] font-bold tracking-wide">
-              화면을 탭하면 닫혀요
+              탭하면 닫아요
             </p>
           </div>
         </div>
