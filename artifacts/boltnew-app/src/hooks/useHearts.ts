@@ -10,6 +10,19 @@ import {
 } from '../lib/realtime-merge';
 import { diag } from '../lib/diag';
 
+/** Green-heart acks must survive a stale likes SELECT that started after the user tapped 확인. */
+function mergeAcknowledgedCompliments(
+  fetched: ReadonlySet<string>,
+  atStart: ReadonlySet<string>,
+  current: ReadonlySet<string>,
+): Set<string> {
+  const merged = mergeSetAfterSnapshot(fetched, atStart, current);
+  for (const id of atStart) {
+    if (current.has(id)) merged.add(id);
+  }
+  return merged;
+}
+
 export function useHearts(
   currentUserId: string | null,
   profiles: Profile[],
@@ -162,7 +175,7 @@ export function useHearts(
       }
       const fetchedAcknowledged = new Set<string>(rows.filter((l: { liker_id: string; status: string; heart_type: string | null }) => l.status === 'accepted' && (l.heart_type ?? 'red') === 'green').map((l: { liker_id: string }) => l.liker_id));
       setReceivedHeartTypes(current => mergeMapAfterSnapshot(fetchedHeartTypes, atStart.heartTypes, current));
-      setAcknowledgedComplimentIds(current => mergeSetAfterSnapshot(fetchedAcknowledged, atStart.acknowledged, current));
+      setAcknowledgedComplimentIds(current => mergeAcknowledgedCompliments(fetchedAcknowledged, atStart.acknowledged, current));
       if (!rows.length) {
         setReceivedLikers(current => mergeRowsAfterSnapshot([], atStart.likers, current, profile => profile.id));
         return;
@@ -340,9 +353,15 @@ export function useHearts(
     const ht = receivedHeartTypes.get(likerId) ?? 'red';
     // 실패 시 롤백을 위한 스냅샷
     const prevLikers = [...receivedLikers];
+    const prevAcknowledged = new Set(acknowledgedComplimentIdsRef.current);
+    const optimisticGreenAck = response === 'accepted' && ht === 'green';
+    if (optimisticGreenAck) {
+      setAcknowledgedComplimentIds(prev => new Set([...prev, likerId]));
+    }
     try {
       const sessionOk = await ensureWriteSession();
       if (!sessionOk) {
+        if (optimisticGreenAck) setAcknowledgedComplimentIds(prevAcknowledged);
         setLikeError('로그인 세션이 만료되었습니다. 앱을 새로고침한 뒤 다시 시도해 주세요.');
         return;
       }
@@ -354,16 +373,13 @@ export function useHearts(
       if (error) throw error;
       if (response === 'rejected') {
         setReceivedLikers(prev => prev.filter(p => p.id !== likerId));
-      } else {
-        if (ht === 'green') {
-          setAcknowledgedComplimentIds(prev => new Set([...prev, likerId]));
-        } else {
-          const target = receivedLikers.find(p => p.id === likerId);
-          if (target) setContactShareTarget(target);
-        }
+      } else if (ht !== 'green') {
+        const target = receivedLikers.find(p => p.id === likerId);
+        if (target) setContactShareTarget(target);
       }
     } catch {
       // 서버 실패 시 낙관적 상태 롤백 + 사용자 알림
+      if (optimisticGreenAck) setAcknowledgedComplimentIds(prevAcknowledged);
       setReceivedLikers(prevLikers);
       setLikeError('하트 응답에 실패했습니다. 잠시 후 다시 시도해 주세요.');
     } finally {

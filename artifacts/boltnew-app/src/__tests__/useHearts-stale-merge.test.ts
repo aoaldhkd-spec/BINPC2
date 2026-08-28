@@ -205,4 +205,35 @@ describe('useHearts — stale fetch vs SSE merge', () => {
     expect(result.current.receivedHeartTypes.get(LIKER_SSE)).toBe('pink');
     expect(result.current.receivedHeartTypes.get('user-server-only')).toBe('green');
   });
+
+  it('keeps green compliment ack when loadReceivedLikes returns stale pending', async () => {
+    const { result } = renderHook(() =>
+      useHearts(USER, BASE_HOOK_ARGS.profiles, BASE_HOOK_ARGS.profileMap, BASE_HOOK_ARGS.onOpenChat),
+    );
+
+    act(() => { result.current.loadReceivedLikes(USER); });
+
+    act(() => {
+      result.current.setAcknowledgedComplimentIds(new Set([LIKER_SSE]));
+    });
+
+    act(() => {
+      likesDeferreds[0]?.resolve({
+        data: [{ id: 'like-old', liker_id: LIKER_SSE, status: 'pending', heart_type: 'green' }],
+        error: null,
+      });
+    });
+
+    await waitFor(() => {
+      expect(profilesDeferreds.length).toBe(1);
+    });
+
+    act(() => {
+      profilesDeferreds[0]?.resolve({ data: [sseLikerProfile], error: null });
+    });
+
+    await waitFor(() => {
+      expect(result.current.acknowledgedComplimentIds.has(LIKER_SSE)).toBe(true);
+    });
+  });
 });
