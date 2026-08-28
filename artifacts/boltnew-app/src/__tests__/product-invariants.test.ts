@@ -157,8 +157,11 @@ describe('product copy + notification invariants', () => {
     expect(reset).toContain('openResetGate');
     expect(reset).toContain('openAdminGate');
     expect(reset).toContain('handleSulbunClick');
-    expect(reset).toContain('EGG_DEBT_LINES');
+    expect(reset).toContain('술번개 공식 영수증');
+    expect(reset).toContain('방장의 실제 나이는');
     expect(reset).toContain('buildEggReveal');
+    expect(reset).toContain('penaltyLine');
+    expect(reset).toContain('+100,000원');
     expect(reset).toContain('playEasterEggSting');
     expect(reset).not.toContain('speechSynthesis');
     expect(reset).not.toMatch(/navigateToAppPath\('test'\)/);

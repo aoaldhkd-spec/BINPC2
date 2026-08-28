@@ -6,58 +6,23 @@ import { playEasterEggSting } from '../lib/easter-egg-sound';
 import { koreanAgeFromBirthYear } from '../lib/korean-age';
 import { navigateToAppPath, PANEL_PIN_INPUT_PROPS, verifyPanelPassword } from '../lib/panel-password';
 
-export const EGG_HEADLINES = [
-  '너무 높게 봐 주셨네요',
-  '제 나이, 맞춰 보셨죠?',
-  '술번개 공식 영수증',
-  '나이 추측 — 결과 나왔어요',
-  '첫 만남 얼음 깨기 🍻',
-  '방장 나이 — 진짜 버전',
-  '추측은 친절했어요',
-  '어색함 푸는 타임',
-] as const;
-
-export const EGG_DEBT_LINES = [
-  '술값은 나중에 — 오늘은 얼음깨기',
-  '소주 한 잔 값은… 다음에요',
-  '1/n은 나중에 — 지금은 웃음',
-  '술값 장난은 다음 라운드에',
-  '영수증은 개그 — 계산은 나중에',
-  'NPC 카드? 오늘은 패스예요',
-  '회식비는… 일단 나이부터',
-  '안주값은 다음에 정산해요',
-] as const;
-
-const EGG_AGE_UNKNOWN = [
-  '실제 나이는 프로필에 있어요',
-  '생년 입력하면 여기 나와요',
-  '나이는… 프로필에서 확인해요',
-] as const;
-
-function pickRandom<T>(items: readonly T[]): T {
-  return items[Math.floor(Math.random() * items.length)]!;
-}
-
-function buildEggAgeGag(birthYear: number | null | undefined): string {
-  const age = koreanAgeFromBirthYear(birthYear ?? null);
-  if (age == null) return pickRandom(EGG_AGE_UNKNOWN);
-  return pickRandom([
-    `손님 추측? …실제는 ${age}세예요`,
-    `너무 높게 봐 주셨어요 — ${age}세`,
-    `술번개 공식: 방장 ${age}세`,
-    `실제는 ${age}세예요`,
-    `${age}세 — 프로필 그대로`,
-    `정답은 ${age}세였어요`,
-    `방장 진짜 나이: ${age}세`,
-    `${age}세 맞아요 — 높게 봐 주셨네요`,
-  ]);
-}
+const EGG_RECEIPT_TITLE = '술번개 공식 영수증';
+const EGG_AGE_UNKNOWN = '실제 나이는 프로필에 있어요';
+const EGG_PENALTY_LINE = '높게 말한 값 · +100,000원';
 
 export function buildEggReveal(birthYear: number | null | undefined) {
+  const age = koreanAgeFromBirthYear(birthYear ?? null);
+  if (age == null) {
+    return {
+      headline: EGG_RECEIPT_TITLE,
+      ageGag: EGG_AGE_UNKNOWN,
+      penaltyLine: null as string | null,
+    };
+  }
   return {
-    headline: pickRandom(EGG_HEADLINES),
-    ageGag: buildEggAgeGag(birthYear),
-    debtLine: pickRandom(EGG_DEBT_LINES),
+    headline: EGG_RECEIPT_TITLE,
+    ageGag: `방장의 실제 나이는 ${age}세`,
+    penaltyLine: EGG_PENALTY_LINE,
   };
 }
 
@@ -298,12 +263,14 @@ export function ResetButton({ onReset, darkMode, birthYear, onEasterEgg, onUiLoc
               {eggCopy.ageGag}
             </p>
 
-            <p
-              className="mt-2 text-center font-semibold text-orange-800 leading-snug"
-              style={{ fontSize: 'clamp(0.9rem, 4vw, 1.05rem)' }}
-            >
-              {eggCopy.debtLine}
-            </p>
+            {eggCopy.penaltyLine && (
+              <p
+                className="mt-2 text-center font-semibold text-orange-800 leading-snug"
+                style={{ fontSize: 'clamp(0.9rem, 4vw, 1.05rem)' }}
+              >
+                {eggCopy.penaltyLine}
+              </p>
+            )}
 
             <p className="mt-4 text-center text-amber-800/55 text-[10px] font-bold tracking-wide">
               탭하면 닫아요
