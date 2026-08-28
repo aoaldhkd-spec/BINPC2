@@ -157,10 +157,10 @@ describe('product copy + notification invariants', () => {
     expect(reset).toContain('openResetGate');
     expect(reset).toContain('openAdminGate');
     expect(reset).toContain('handleSulbunClick');
-    expect(reset).toContain("FIXED_TITLE = '당신은 NPC에게 빚지셨습니다'");
+    expect(reset).toContain('EGG_DEBT_LINES');
+    expect(reset).toContain('buildEggReveal');
     expect(reset).toContain('playEasterEggSting');
-    expect(reset).toContain('getKoreanAge');
-    expect(reset).toContain('buildEggAgeLine');
+    expect(reset).not.toContain('speechSynthesis');
     expect(reset).not.toMatch(/navigateToAppPath\('test'\)/);
   });
 

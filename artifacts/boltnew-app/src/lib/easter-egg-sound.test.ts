@@ -12,21 +12,10 @@ describe('playEasterEggSting', () => {
     expect(() => handle.stop()).not.toThrow();
   });
 
-  it('synthesizes balloon pop + sparkle (no horror tones)', () => {
-    const oscTypes: OscillatorType[] = [];
-    const filterTypes: BiquadFilterType[] = [];
+  it('plays balloon pop + one subtle cash-register ding', () => {
     let bufferSources = 0;
-
-    class MockOscillator {
-      type: OscillatorType = 'sine';
-      frequency = { setValueAtTime: vi.fn(), exponentialRampToValueAtTime: vi.fn() };
-      connect = vi.fn();
-      start = vi.fn();
-      stop = vi.fn();
-      constructor() {
-        oscTypes.push(this.type);
-      }
-    }
+    let oscillators = 0;
+    const filterTypes: BiquadFilterType[] = [];
 
     class MockBiquadFilter {
       private _type: BiquadFilterType = 'lowpass';
@@ -63,7 +52,14 @@ describe('playEasterEggSting', () => {
         };
       }
       createOscillator() {
-        return new MockOscillator();
+        oscillators += 1;
+        return {
+          type: 'sine',
+          frequency: { setValueAtTime: vi.fn(), exponentialRampToValueAtTime: vi.fn() },
+          connect: vi.fn(),
+          start: vi.fn(),
+          stop: vi.fn(),
+        };
       }
       createBiquadFilter() {
         return new MockBiquadFilter();
@@ -82,10 +78,8 @@ describe('playEasterEggSting', () => {
 
     const handle = playEasterEggSting();
     expect(bufferSources).toBe(1);
+    expect(oscillators).toBe(1);
     expect(filterTypes).toContain('bandpass');
-    expect(oscTypes.every(t => t === 'sine')).toBe(true);
-    expect(oscTypes).not.toContain('sawtooth');
-    expect(oscTypes).not.toContain('square');
     expect(() => handle.stop()).not.toThrow();
   });
 });
