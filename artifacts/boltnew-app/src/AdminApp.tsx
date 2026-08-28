@@ -110,6 +110,11 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
   const profileMap = useMemo(() => new Map(profiles.map((p) => [p.id, p])), [profiles]);
 
+  const directChatsWithMessages = useMemo(() => {
+    const chatIdsWithMsgs = new Set(allMessages.map(m => m.chat_id));
+    return allChats.filter(c => chatIdsWithMsgs.has(c.id));
+  }, [allChats, allMessages]);
+
   const loadCore = useCallback(async () => {
     const [{ data: s }, { data: pr }, { data: hi }] = await Promise.all([
       adminSupabase.from('app_settings').select('*').eq('id', 1).single(),
@@ -691,7 +696,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         {tab === 'chats' && (
           <Suspense fallback={<AdminTabFallback />}>
             <ChatsTab
-              chats={allChats} messages={allMessages}
+              chats={directChatsWithMessages} messages={allMessages}
               groupChats={groupChats} groupMessages={groupMessages}
               groupParticipants={groupParticipants} signalSends={signalSends}
               profileMap={profileMap} historyLoading={historyLoading} historyError={historyError}

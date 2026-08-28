@@ -276,8 +276,13 @@ describe('useChat — openChat clears per-chat unread badge', () => {
     //
     // Verifies that after openChat resolves: unreadChatCounts[CHAT_A] is gone.
 
-    // Arrange: chat list shows CHAT_A; unread-counts endpoint returns { [CHAT_A]: 1 }
+    // Arrange: chat list shows CHAT_A (must have ≥1 message — empty rooms are hidden)
     chatQB._setData([makeChatRow(CHAT_A)]);
+    msgQB._setData([{
+      chat_id: CHAT_A,
+      content: 'hello',
+      created_at: '2026-07-31T01:00:00Z',
+    }]);
     setupFetch({ [CHAT_A]: 1 });
 
     // Make chatQB.maybeSingle return the existing chat so openChat resolves to CHAT_A

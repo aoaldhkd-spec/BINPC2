@@ -389,6 +389,14 @@ mustMatch('artifacts/api-server/src/routes/db.ts', '38_db_single_router_export',
 mustNotMatch('artifacts/api-server/src/routes/db.ts', '38_db_no_duplicate_router_export', [
   /export default router[\s\S]*export default router/,
 ]);
+mustMatch('artifacts/boltnew-app/src/hooks/useChat.ts', '40_load_chat_list_hide_empty', [
+  /messageCount \?\? 0\) > 0/,
+  /withMessages/,
+]);
+mustMatch('artifacts/boltnew-app/src/AdminApp.tsx', '40_admin_chats_with_messages', [
+  /directChatsWithMessages/,
+  /chatIdsWithMsgs/,
+]);
 
 console.log('\n=== verify-recurrence-guards ===\n');
 for (const r of results) {

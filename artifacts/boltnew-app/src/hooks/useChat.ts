@@ -263,18 +263,6 @@ export function useChat({
             if (!payload?.new || typeof payload.new !== 'object') return;
             const c = payload.new as { user1_id?: string; user2_id?: string; id?: string; created_at?: string };
             if (!c.id || (c.user1_id !== uid && c.user2_id !== uid)) return;
-            const newChat: Chat = {
-              id: c.id, user1_id: c.user1_id ?? '', user2_id: c.user2_id ?? '',
-              created_at: c.created_at ?? new Date().toISOString(), lastMessage: '', messageCount: 0,
-            };
-            setChatList(prev => {
-              const pairKey = chatPairKey(c.user1_id ?? '', c.user2_id ?? '');
-              if (prev.some(x => x.id === c.id)) return prev;
-              if (prev.some(x => chatPairKey(x.user1_id, x.user2_id) === pairKey)) return prev;
-              const next = [newChat, ...prev];
-              chatListRef.current = next;
-              return next;
-            });
             const pairKey = chatPairKey(c.user1_id ?? '', c.user2_id ?? '');
             if (selfInitiatedPairRef.current !== pairKey) {
               const otherId = c.user1_id === uid ? c.user2_id : c.user1_id;
@@ -282,7 +270,6 @@ export function useChat({
               setBottomNotif({ type: 'chat', nickname: otherProfile?.nickname ?? '' });
               rememberPartnerToast(pairKey);
             }
-            void loadChatList(uid);
           } catch (e) { console.warn('[user-events/chat-insert]', e); }
         })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_reads' },
@@ -544,18 +531,20 @@ export function useChat({
         const totalMsgs = siblings.reduce((sum, s) => sum + (msgCountByChat.get(s.id) ?? 0), 0);
         return { ...c, lastMessage: bestLatest?.image_url ? '📷 사진' : (bestLatest?.content ?? ''), messageCount: totalMsgs };
       });
+      // 메시지 0개 방은 목록에서 숨김 — 프로필 등에서 openChat으로는 여전히 입장 가능
+      const withMessages = enriched.filter(c => (c.messageCount ?? 0) > 0);
       setChatList(prev => {
         if (
-          prev.length === enriched.length
+          prev.length === withMessages.length
           && prev.every((c, i) =>
-            c.id === enriched[i].id
-            && c.lastMessage === enriched[i].lastMessage
-            && c.messageCount === enriched[i].messageCount
+            c.id === withMessages[i].id
+            && c.lastMessage === withMessages[i].lastMessage
+            && c.messageCount === withMessages[i].messageCount
           )
         ) {
           return prev;
         }
-        return enriched;
+        return withMessages;
       });
       void syncUnreadCountsRef.current?.();
     } catch (err) {
@@ -666,13 +655,6 @@ export function useChat({
             .from('chats').insert({ user1_id: user1Id, user2_id: user2Id }).select().single();
           if (newChat) {
             resolvedChatId = newChat.id;
-            const newChatEntry: Chat = { ...newChat, lastMessage: '', messageCount: 0 };
-            setChatList(prev => {
-              const pk = chatPairKey(user1Id, user2Id);
-              if (prev.some(c => chatPairKey(c.user1_id, c.user2_id) === pk)) return prev;
-              if (prev.some(c => c.id === newChat.id)) return prev;
-              return [newChatEntry, ...prev];
-            });
           } else {
             const errMsg = typeof createErr === 'object' && createErr !== null && 'message' in createErr
               ? String((createErr as { message: unknown }).message)
@@ -964,7 +946,24 @@ export function useChat({
       if (!isActiveRoomChat(snapChatId)) return prev;
       return [...prev, optimisticMsg];
     });
-    setChatList(prev => prev.map(c => c.id === snapChatId ? { ...c, lastMessage: trimmed } : c));
+    setChatList(prev => {
+      const idx = prev.findIndex(c => c.id === snapChatId);
+      if (idx >= 0) {
+        return prev.map(c => c.id === snapChatId ? { ...c, lastMessage: trimmed } : c);
+      }
+      const partnerId = activePartnerIdRef.current;
+      if (!partnerId) return prev;
+      const u1 = snapUserId < partnerId ? snapUserId : partnerId;
+      const u2 = snapUserId < partnerId ? partnerId : snapUserId;
+      return [{
+        id: snapChatId,
+        user1_id: u1,
+        user2_id: u2,
+        created_at: new Date().toISOString(),
+        lastMessage: trimmed,
+        messageCount: 1,
+      }, ...prev];
+    });
 
     const MAX_RETRIES = 4; // [Part1-Fix2] 4회 시도 → 실제 지수백오프 1s→2s→4s 3단계 적용
     let lastErr: unknown;
@@ -1091,7 +1090,24 @@ export function useChat({
       const next = [...prev, optimisticMsg];
       return next.length > MAX_MESSAGES ? next.slice(-MAX_MESSAGES) : next;
     });
-    setChatList(prev => prev.map(c => c.id === snapChatId ? { ...c, lastMessage: '📷 사진' } : c));
+    setChatList(prev => {
+      const idx = prev.findIndex(c => c.id === snapChatId);
+      if (idx >= 0) {
+        return prev.map(c => c.id === snapChatId ? { ...c, lastMessage: '📷 사진' } : c);
+      }
+      const partnerId = activePartnerIdRef.current;
+      if (!partnerId) return prev;
+      const u1 = snapUserId < partnerId ? snapUserId : partnerId;
+      const u2 = snapUserId < partnerId ? partnerId : snapUserId;
+      return [{
+        id: snapChatId,
+        user1_id: u1,
+        user2_id: u2,
+        created_at: new Date().toISOString(),
+        lastMessage: '📷 사진',
+        messageCount: 1,
+      }, ...prev];
+    });
 
     const rollback = () => {
       URL.revokeObjectURL(localBlobUrl); // blob URL must not remain after swap/rollback — 5h leak

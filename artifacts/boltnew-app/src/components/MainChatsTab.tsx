@@ -348,7 +348,7 @@ export const MainChatsTab = memo(function MainChatsTab({
                     const lm = chat.lastMessage || '';
                     if (lm.startsWith('__contact__')) return '📱 연락처 공유';
                     if (lm.startsWith('__reply__')) return '↩️ ' + lm.replace(/^__reply__[^\n]*\n?/, '').slice(0, 30);
-                    return lm || '메시지 없음';
+                    return lm;
                   })()}
                 </p>
               </div>
