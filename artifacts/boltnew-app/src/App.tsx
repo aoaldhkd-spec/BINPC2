@@ -1872,6 +1872,8 @@ function App() {
     instagramId: string;
     phoneNumber: string;
     contactPrivate: boolean;
+    idealMsg: string | null;
+    featureMsg: string | null;
   }) => {
     setLoading(true);
     setRegistrationError(null);
@@ -1913,6 +1915,27 @@ function App() {
       return;
     }
     if (profile) {
+      if (data.idealMsg || data.featureMsg) {
+        const signalRow = {
+          id: crypto.randomUUID(),
+          user_id: profile.id,
+          status_msg: null,
+          ideal_msg: data.idealMsg,
+          feature_msg: data.featureMsg,
+          created_at: new Date().toISOString(),
+        };
+        const { error: signalError } = await supabase
+          .from('user_signals')
+          .upsert(signalRow as never, { onConflict: 'user_id' });
+        if (signalError) {
+          console.warn('[handleNicknameSetup] user_signals upsert:', signalError);
+        } else {
+          setUserSignals(prev => {
+            const rest = prev.filter(s => s.user_id !== profile.id);
+            return [...rest, signalRow as UserSignal];
+          });
+        }
+      }
       ls.setItem(MATCHING_USER_KEY, profile.id);
       ls.removeItem(MATCHING_DRAFT_KEY);
       isNewRegistration.current = true;

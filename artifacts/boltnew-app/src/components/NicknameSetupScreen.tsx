@@ -13,7 +13,9 @@ import {
   shouldBlockNicknameBeforeInput,
 } from '../lib/nickname-input';
 import { BIO_CATEGORIES } from '../lib/interests';
+import { IDEAL_TAG_GROUPS, FEATURE_TAG_GROUPS, encodeSignalMsg } from '../lib/signal-match';
 import { InterestPicker } from './InterestPicker';
+import { SignalTagPicker } from './SignalTagPicker';
 import { maxAdultBirthYear, minBirthYearForEventMaxAge } from '../lib/korean-age';
 
 // ─── 데이터 ────────────────────────────────────────────────────────────────────
@@ -93,9 +95,9 @@ const LOCATION_GROUPS: Record<string, string[]> = {
   '기타': ['제주', '해외'],
 };
 
-// ─── 5단계 라벨 ────────────────────────────────────────────────────────────────
-const STEP_LABELS = ['MBTI', '년생·지역', '관심사', '성향', '닉네임'] as const;
-type Step = 1 | 2 | 3 | 4 | 5;
+// ─── 6단계 라벨 ────────────────────────────────────────────────────────────────
+const STEP_LABELS = ['MBTI', '년생·지역', '관심사', '성향', '닉네임', '이상형·특징'] as const;
+type Step = 1 | 2 | 3 | 4 | 5 | 6;
 
 // ─── NicknameSetupScreen ──────────────────────────────────────────────────────
 
@@ -105,6 +107,7 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
     location: string; mbti: string; interests: string[];
     personalityScore: number; domSubScore: number | null; nickname: string;
     kakaoId: string; instagramId: string; phoneNumber: string; contactPrivate: boolean;
+    idealMsg: string | null; featureMsg: string | null;
   }) => void;
   loading: boolean; registrationError?: string | null; onReset: () => void; onShowRecovery?: () => void;
 }) {
@@ -138,6 +141,12 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
   const [positionScore, setPositionScore] = useState<number | null>(null);
   const [domSubEnabled, setDomSubEnabled] = useState(false);
   const [domSubScore, setDomSubScore] = useState(50);
+
+  // 이상형·나의 특징 (선택 — Step 6)
+  const [idealTags, setIdealTags] = useState<string[]>([]);
+  const [idealFreeText, setIdealFreeText] = useState('');
+  const [featureTags, setFeatureTags] = useState<string[]>([]);
+  const [featureFreeText, setFeatureFreeText] = useState('');
 
   // contact (숨김 — 입장 후 설정)
   const kakaoId = '';
@@ -210,27 +219,31 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
 
   const canEnter = [1, 2, 3, 4, 5].every(s => isStepValid(s as Step)) && !loading;
 
+  const buildPayload = (includeSignalFields: boolean) => ({
+    birthYear: parseInt(birthYear, 10),
+    birthMonth,
+    birthDay,
+    location: location.trim(),
+    mbti: mbti!,
+    interests: selectedBio,
+    personalityScore: positionScore!,
+    domSubScore: domSubEnabled ? domSubScore : null,
+    nickname: customFinalNick,
+    kakaoId,
+    instagramId,
+    phoneNumber,
+    contactPrivate,
+    idealMsg: includeSignalFields ? encodeSignalMsg(idealTags, idealFreeText) : null,
+    featureMsg: includeSignalFields ? encodeSignalMsg(featureTags, featureFreeText) : null,
+  });
+
   // ── 제출 ──────────────────────────────────────────────────────────────────────
-  const handleSubmit = () => {
+  const handleSubmit = (includeSignalFields = true) => {
     if (!canEnter || !mbti || positionScore === null) return;
-    onSubmit({
-      birthYear: parseInt(birthYear, 10),
-      birthMonth,
-      birthDay,
-      location: location.trim(),
-      mbti,
-      interests: selectedBio,
-      personalityScore: positionScore,
-      domSubScore: domSubEnabled ? domSubScore : null,
-      nickname: customFinalNick,
-      kakaoId,
-      instagramId,
-      phoneNumber,
-      contactPrivate,
-    });
+    onSubmit(buildPayload(includeSignalFields));
   };
 
-  const goNext = () => { if (step < 5) setStep((step + 1) as Step); };
+  const goNext = () => { if (step < 6) setStep((step + 1) as Step); };
   const goPrev = () => { if (step > 1) setStep((step - 1) as Step); else onReset(); };
 
   // ── 렌더 ──────────────────────────────────────────────────────────────────────
@@ -256,7 +269,7 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
           </button>
         )}
 
-        {/* 5단계 진행 표시 */}
+        {/* 6단계 진행 표시 */}
         <div className="flex items-center gap-0">
           {STEP_LABELS.map((label, i) => {
             const idx = (i + 1) as Step;
@@ -276,7 +289,7 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
                     active ? 'text-white' : done ? 'text-white/80' : 'text-white/40'
                   }`}>{label}</span>
                 </div>
-                {i < 4 && (
+                {i < 5 && (
                   <div className={`flex-1 h-0.5 rounded-full mx-1 mb-3 transition-all ${done ? 'bg-white/80' : 'bg-white/25'}`} />
                 )}
               </div>
@@ -602,6 +615,79 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
             </div>
           )}
 
+          {/* ─── Step 6: 이상형 · 나의 특징 (선택) ─── */}
+          {step === 6 && (
+            <div className="space-y-5">
+              <div className="text-center pt-1 pb-0.5">
+                <p className="text-gray-500 text-sm">원하면 지금 채우고, 나중에 MY → 내 설정에서도 바꿀 수 있어요</p>
+                <span className="inline-block mt-2 text-xs font-semibold text-gray-400 bg-gray-100 px-2.5 py-0.5 rounded-full">선택 · 건너뛰기 가능</span>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">💘</span>
+                  <span className="text-sm font-black text-gray-800">이상형</span>
+                </div>
+                <p className="text-[10px] leading-snug text-gray-400 -mt-1">
+                  설정하시면 다른 사람들이 내 이상형을 볼 수 있어요. 카드를 뒤집어 보세요.
+                </p>
+                <SignalTagPicker
+                  groups={IDEAL_TAG_GROUPS}
+                  selected={idealTags}
+                  onToggle={(tag) => setIdealTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]))}
+                  accent="rose"
+                />
+                <div className="rounded-xl border border-gray-200/90 bg-white shadow-sm shadow-gray-100/60 px-3 py-2.5">
+                  <p className="text-[11px] font-bold mb-2 text-gray-800">기타 ✏️</p>
+                  <input
+                    type="text"
+                    value={idealFreeText}
+                    onChange={(e) => setIdealFreeText(e.target.value.slice(0, 30))}
+                    placeholder="예: 다정하고 티키타카 잘 맞는 분"
+                    maxLength={30}
+                    className="w-full px-3 py-2.5 rounded-xl text-sm border border-gray-200 bg-gray-50 text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-rose-400 transition-colors"
+                  />
+                  <p className="text-[10px] mt-0.5 text-right text-gray-400">{idealFreeText.length}/30</p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">🌟</span>
+                  <span className="text-sm font-black text-gray-800">나의 특징</span>
+                </div>
+                <p className="text-[10px] leading-snug text-gray-400 -mt-1">
+                  참여자들이 프로필 보기를 누르면 내 특징이 보여요.
+                </p>
+                <SignalTagPicker
+                  groups={FEATURE_TAG_GROUPS}
+                  selected={featureTags}
+                  onToggle={(tag) => setFeatureTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]))}
+                  accent="violet"
+                />
+                <div className="rounded-xl border border-gray-200/90 bg-white shadow-sm shadow-gray-100/60 px-3 py-2.5">
+                  <p className="text-[11px] font-bold mb-2 text-gray-800">기타 ✏️</p>
+                  <input
+                    type="text"
+                    value={featureFreeText}
+                    onChange={(e) => setFeatureFreeText(e.target.value.slice(0, 30))}
+                    placeholder="예: 말 걸기 쉬운 편, 유머있는"
+                    maxLength={30}
+                    className="w-full px-3 py-2.5 rounded-xl text-sm border border-gray-200 bg-gray-50 text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-violet-400 transition-colors"
+                  />
+                  <p className="text-[10px] mt-0.5 text-right text-gray-400">{featureFreeText.length}/30</p>
+                </div>
+              </div>
+
+              {registrationError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-2">
+                  <span className="text-rose-500 flex-shrink-0">⚠️</span>
+                  <p className="text-sm font-semibold text-rose-700 leading-snug">{registrationError}</p>
+                </div>
+              )}
+            </div>
+          )}
+
         </div>
       </div>
 
@@ -613,20 +699,26 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
           {step === 1 ? '이전하기' : '이전'}
         </button>
 
-        {step < 5 ? (
+        {step < 6 ? (
           <button type="button" onClick={goNext} disabled={!isStepValid(step)}
             className="flex-[3] flex items-center justify-center gap-2 py-3.5 bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 disabled:from-gray-200 disabled:to-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-black text-sm rounded-2xl shadow-lg shadow-cyan-500/25 transition-all active:scale-[0.98]">
             다음 <ChevronRight className="w-5 h-5" />
           </button>
         ) : (
-          <button type="button" onClick={handleSubmit} disabled={!canEnter}
-            className="flex-[3] flex items-center justify-center gap-2 py-3.5 bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 disabled:from-gray-200 disabled:to-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-black text-sm rounded-2xl shadow-lg shadow-cyan-500/25 transition-all active:scale-[0.98]">
-            {loading ? (
-              <><RefreshCw className="w-4 h-4 animate-spin" /> 입장 중...</>
-            ) : (
-              <>입장하기 <ChevronRight className="w-5 h-5" /></>
-            )}
-          </button>
+          <>
+            <button type="button" onClick={() => handleSubmit(false)} disabled={!canEnter || loading}
+              className="flex-[2] py-3.5 bg-gray-100 hover:bg-gray-200 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed text-gray-600 font-bold text-sm rounded-2xl transition-all active:scale-95">
+              건너뛰기
+            </button>
+            <button type="button" onClick={() => handleSubmit(true)} disabled={!canEnter || loading}
+              className="flex-[3] flex items-center justify-center gap-2 py-3.5 bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 disabled:from-gray-200 disabled:to-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-black text-sm rounded-2xl shadow-lg shadow-cyan-500/25 transition-all active:scale-[0.98]">
+              {loading ? (
+                <><RefreshCw className="w-4 h-4 animate-spin" /> 입장 중...</>
+              ) : (
+                <>입장하기 <ChevronRight className="w-5 h-5" /></>
+              )}
+            </button>
+          </>
         )}
       </div>
 
