@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 /**
- * NicknameSetupScreen step 6 — optional 이상형·특징, skip vs save.
+ * NicknameSetupScreen step 6 — optional 이상형·나는 어떤 사람인가요?, skip vs save.
  */
 
 import React from 'react';
@@ -49,8 +49,8 @@ describe('NicknameSetupScreen — step 6 optional signal fields', () => {
       />,
     );
     await advanceToStep6();
-    expect(screen.getByRole('heading', { level: 2, name: '이상형·특징' })).toBeTruthy();
-    expect(screen.getByText('나의 특징')).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 2, name: '이상형 · 나는 어떤 사람인가요?' })).toBeTruthy();
+    expect(screen.getByText('나는 어떤 사람인가요?')).toBeTruthy();
     expect(screen.getByRole('button', { name: '건너뛰기' })).toBeTruthy();
     expect(screen.getByRole('button', { name: /입장하기/ })).toBeTruthy();
   });

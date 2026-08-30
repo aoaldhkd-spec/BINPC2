@@ -56,6 +56,15 @@ export const SIGNAL_SENT_TITLE = '보낸 시그널';
 export const SIGNAL_SENT_EMPTY = '아직 보낸 시그널이 없습니다.';
 export const SIGNAL_SENT_LINE = '시그널을 보냈어요';
 
+/** 내 설정 · 닉네임 Step 6 — 사용자-facing 라벨·안내 (동기화) */
+export const SIGNAL_IDEAL_SECTION_LABEL = '이상형';
+export const SIGNAL_IDEAL_HINT =
+  '내가 좋아하는 타입을 골라 두면, 프로필 카드를 뒤집었을 때 다른 사람에게 보여요.';
+export const SIGNAL_FEATURE_SELF_LABEL = '나는 어떤 사람인가요?';
+export const SIGNAL_FEATURE_SELF_HINT =
+  '참여자들이 프로필을 보면 내 모습이 보여요. 시그널 매칭에도 쓰여요.';
+export const SIGNAL_SETUP_STEP_LABEL = '이상형 · 나는 어떤 사람인가요?';
+
 export function incomingSignalToast(nickname: string): string {
   return `${SIGNAL_EMOJI} ${nickname}님이 시그널을 보냈어요.`;
 }

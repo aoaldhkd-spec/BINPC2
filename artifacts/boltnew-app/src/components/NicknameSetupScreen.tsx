@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-import { ArrowLeft, ChevronRight, RefreshCw } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { getPositionBg, getDomSubBg } from '../lib/profile';
 import { containsBannedNicknameWord } from '../lib/bannedWords';
@@ -13,7 +13,7 @@ import {
   shouldBlockNicknameBeforeInput,
 } from '../lib/nickname-input';
 import { BIO_CATEGORIES } from '../lib/interests';
-import { IDEAL_TAG_GROUPS, FEATURE_TAG_GROUPS, encodeSignalMsg } from '../lib/signal-match';
+import { IDEAL_TAG_GROUPS, FEATURE_TAG_GROUPS, encodeSignalMsg, SIGNAL_FEATURE_SELF_HINT, SIGNAL_FEATURE_SELF_LABEL, SIGNAL_IDEAL_HINT, SIGNAL_IDEAL_SECTION_LABEL, SIGNAL_SETUP_STEP_LABEL } from '../lib/signal-match';
 import { InterestPicker } from './InterestPicker';
 import { SignalTagPicker } from './SignalTagPicker';
 import { maxAdultBirthYear, minBirthYearForEventMaxAge } from '../lib/korean-age';
@@ -96,7 +96,7 @@ const LOCATION_GROUPS: Record<string, string[]> = {
 };
 
 // ─── 6단계 라벨 ────────────────────────────────────────────────────────────────
-const STEP_LABELS = ['MBTI', '년생·지역', '관심사', '성향', '닉네임', '이상형·특징'] as const;
+const STEP_LABELS = ['MBTI', '년생·지역', '관심사', '성향', '닉네임', SIGNAL_SETUP_STEP_LABEL] as const;
 type Step = 1 | 2 | 3 | 4 | 5 | 6;
 
 // ─── NicknameSetupScreen ──────────────────────────────────────────────────────
@@ -142,11 +142,13 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
   const [domSubEnabled, setDomSubEnabled] = useState(false);
   const [domSubScore, setDomSubScore] = useState(50);
 
-  // 이상형·나의 특징 (선택 — Step 6)
+  // 이상형·나는 어떤 사람인가요? (선택 — Step 6)
   const [idealTags, setIdealTags] = useState<string[]>([]);
   const [idealFreeText, setIdealFreeText] = useState('');
   const [featureTags, setFeatureTags] = useState<string[]>([]);
   const [featureFreeText, setFeatureFreeText] = useState('');
+  const [idealOpen, setIdealOpen] = useState(true);
+  const [featureOpen, setFeatureOpen] = useState(true);
 
   // contact (숨김 — 입장 후 설정)
   const kakaoId = '';
@@ -615,7 +617,7 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
             </div>
           )}
 
-          {/* ─── Step 6: 이상형 · 나의 특징 (선택) ─── */}
+          {/* ─── Step 6: 이상형 · 나는 어떤 사람인가요? (선택) ─── */}
           {step === 6 && (
             <div className="space-y-5">
               <div className="text-center pt-1 pb-0.5">
@@ -623,60 +625,80 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
                 <span className="inline-block mt-2 text-xs font-semibold text-gray-400 bg-gray-100 px-2.5 py-0.5 rounded-full">선택 · 건너뛰기 가능</span>
               </div>
 
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-base">💘</span>
-                  <span className="text-sm font-black text-gray-800">이상형</span>
-                </div>
-                <p className="text-[10px] leading-snug text-gray-400 -mt-1">
-                  설정하시면 다른 사람들이 내 이상형을 볼 수 있어요. 카드를 뒤집어 보세요.
-                </p>
-                <SignalTagPicker
-                  groups={IDEAL_TAG_GROUPS}
-                  selected={idealTags}
-                  onToggle={(tag) => setIdealTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]))}
-                  accent="rose"
-                />
-                <div className="rounded-xl border border-gray-200/90 bg-white shadow-sm shadow-gray-100/60 px-3 py-2.5">
-                  <p className="text-[11px] font-bold mb-2 text-gray-800">기타 ✏️</p>
-                  <input
-                    type="text"
-                    value={idealFreeText}
-                    onChange={(e) => setIdealFreeText(e.target.value.slice(0, 30))}
-                    placeholder="예: 다정하고 티키타카 잘 맞는 분"
-                    maxLength={30}
-                    className="w-full px-3 py-2.5 rounded-xl text-sm border border-gray-200 bg-gray-50 text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-rose-400 transition-colors"
-                  />
-                  <p className="text-[10px] mt-0.5 text-right text-gray-400">{idealFreeText.length}/30</p>
-                </div>
+              <div className="rounded-xl border border-gray-200/90 bg-white shadow-sm shadow-gray-100/60 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setIdealOpen((o) => !o)}
+                  aria-expanded={idealOpen}
+                  className="w-full flex items-center gap-2 px-3 py-3 text-left"
+                >
+                  <span className="text-base flex-shrink-0">💘</span>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-black text-gray-800">{SIGNAL_IDEAL_SECTION_LABEL}</span>
+                    <p className="text-[10px] leading-snug text-gray-400 mt-0.5">{SIGNAL_IDEAL_HINT}</p>
+                  </div>
+                  <ChevronDown className={`w-4 h-4 flex-shrink-0 text-gray-400 transition-transform duration-200 ${idealOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {idealOpen && (
+                  <div className="px-3 pb-3 space-y-3 border-t border-gray-100">
+                    <SignalTagPicker
+                      groups={IDEAL_TAG_GROUPS}
+                      selected={idealTags}
+                      onToggle={(tag) => setIdealTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]))}
+                      accent="rose"
+                    />
+                    <div className="rounded-xl border border-gray-200/90 bg-white shadow-sm shadow-gray-100/60 px-3 py-2.5">
+                      <p className="text-[11px] font-bold mb-2 text-gray-800">기타 ✏️</p>
+                      <input
+                        type="text"
+                        value={idealFreeText}
+                        onChange={(e) => setIdealFreeText(e.target.value.slice(0, 30))}
+                        placeholder="예: 다정하고 티키타카 잘 맞는 분"
+                        maxLength={30}
+                        className="w-full px-3 py-2.5 rounded-xl text-sm border border-gray-200 bg-gray-50 text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-rose-400 transition-colors"
+                      />
+                      <p className="text-[10px] mt-0.5 text-right text-gray-400">{idealFreeText.length}/30</p>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-base">🌟</span>
-                  <span className="text-sm font-black text-gray-800">나의 특징</span>
-                </div>
-                <p className="text-[10px] leading-snug text-gray-400 -mt-1">
-                  참여자들이 프로필 보기를 누르면 내 특징이 보여요.
-                </p>
-                <SignalTagPicker
-                  groups={FEATURE_TAG_GROUPS}
-                  selected={featureTags}
-                  onToggle={(tag) => setFeatureTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]))}
-                  accent="violet"
-                />
-                <div className="rounded-xl border border-gray-200/90 bg-white shadow-sm shadow-gray-100/60 px-3 py-2.5">
-                  <p className="text-[11px] font-bold mb-2 text-gray-800">기타 ✏️</p>
-                  <input
-                    type="text"
-                    value={featureFreeText}
-                    onChange={(e) => setFeatureFreeText(e.target.value.slice(0, 30))}
-                    placeholder="예: 말 걸기 쉬운 편, 유머있는"
-                    maxLength={30}
-                    className="w-full px-3 py-2.5 rounded-xl text-sm border border-gray-200 bg-gray-50 text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-violet-400 transition-colors"
-                  />
-                  <p className="text-[10px] mt-0.5 text-right text-gray-400">{featureFreeText.length}/30</p>
-                </div>
+              <div className="rounded-xl border border-gray-200/90 bg-white shadow-sm shadow-gray-100/60 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setFeatureOpen((o) => !o)}
+                  aria-expanded={featureOpen}
+                  className="w-full flex items-center gap-2 px-3 py-3 text-left"
+                >
+                  <span className="text-base flex-shrink-0">🌟</span>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-black text-gray-800">{SIGNAL_FEATURE_SELF_LABEL}</span>
+                    <p className="text-[10px] leading-snug text-gray-400 mt-0.5">{SIGNAL_FEATURE_SELF_HINT}</p>
+                  </div>
+                  <ChevronDown className={`w-4 h-4 flex-shrink-0 text-gray-400 transition-transform duration-200 ${featureOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {featureOpen && (
+                  <div className="px-3 pb-3 space-y-3 border-t border-gray-100">
+                    <SignalTagPicker
+                      groups={FEATURE_TAG_GROUPS}
+                      selected={featureTags}
+                      onToggle={(tag) => setFeatureTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]))}
+                      accent="violet"
+                    />
+                    <div className="rounded-xl border border-gray-200/90 bg-white shadow-sm shadow-gray-100/60 px-3 py-2.5">
+                      <p className="text-[11px] font-bold mb-2 text-gray-800">기타 ✏️</p>
+                      <input
+                        type="text"
+                        value={featureFreeText}
+                        onChange={(e) => setFeatureFreeText(e.target.value.slice(0, 30))}
+                        placeholder="예: 말 걸기 쉬운 편, 유머있는"
+                        maxLength={30}
+                        className="w-full px-3 py-2.5 rounded-xl text-sm border border-gray-200 bg-gray-50 text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-violet-400 transition-colors"
+                      />
+                      <p className="text-[10px] mt-0.5 text-right text-gray-400">{featureFreeText.length}/30</p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {registrationError && (

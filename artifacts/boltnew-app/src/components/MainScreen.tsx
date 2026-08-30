@@ -37,7 +37,7 @@ import { RefreshBtn } from './RefreshBtn';
 import { AVATAR_CATEGORIES } from '../lib/avatar-catalog';
 import { compressProfilePhoto, PROFILE_PHOTO_ACCEPT, validateProfilePhotoFile } from '../lib/profile-photo';
 import { uploadStorageDataUrl } from '../lib/localdb';
-import { IDEAL_TAG_GROUPS, FEATURE_TAG_GROUPS, encodeSignalMsg, SIGNAL_EMOJI, SIGNAL_INBOX_EMPTY, SIGNAL_INBOX_LINE, SIGNAL_INBOX_TITLE, SIGNAL_SENT_EMPTY, SIGNAL_SENT_LINE, SIGNAL_SENT_TITLE } from '../lib/signal-match';
+import { IDEAL_TAG_GROUPS, FEATURE_TAG_GROUPS, encodeSignalMsg, SIGNAL_EMOJI, SIGNAL_FEATURE_SELF_HINT, SIGNAL_FEATURE_SELF_LABEL, SIGNAL_IDEAL_HINT, SIGNAL_IDEAL_SECTION_LABEL, SIGNAL_INBOX_EMPTY, SIGNAL_INBOX_LINE, SIGNAL_INBOX_TITLE, SIGNAL_SENT_EMPTY, SIGNAL_SENT_LINE, SIGNAL_SENT_TITLE } from '../lib/signal-match';
 import { SignalTagPicker } from './SignalTagPicker';
 import { ProfileCard } from './ProfileCard';
 import { ProfileDeckGrid } from './ProfileDeckGrid';
@@ -2002,23 +2002,30 @@ export function MainScreen({
 
                   {/* ── 이상형 ── */}
                   <div className={`border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
-                    <button onClick={() => toggleSection('ideal')} className="w-full flex items-center gap-3 px-4 py-3 text-left">
+                    <button
+                      type="button"
+                      onClick={() => toggleSection('ideal')}
+                      aria-expanded={showIdealEdit}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-left"
+                    >
                       <span className="text-xl flex-shrink-0">💘</span>
                       <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>이상형</p>
-                        <p className={`text-[11px] truncate ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
-                          {idealTags.length > 0 ? idealTags.slice(0, 3).join(' · ') + (idealTags.length > 3 ? ' …' : '') : idealFreeText.trim() || (
-                            <span className="text-[10px] leading-snug">설정하시면 다른 사람들이 내 이상형을 볼 수 있어요. 카드를 뒤집어 보세요.</span>
-                          )}
+                        <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{SIGNAL_IDEAL_SECTION_LABEL}</p>
+                        <p className={`text-[10px] leading-snug mt-0.5 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
+                          {SIGNAL_IDEAL_HINT}
                         </p>
+                        {(idealTags.length > 0 || idealFreeText.trim()) && (
+                          <p className={`text-[11px] truncate mt-1 ${darkMode ? 'text-slate-300' : 'text-gray-500'}`}>
+                            {idealTags.length > 0
+                              ? idealTags.slice(0, 3).join(' · ') + (idealTags.length > 3 ? ' …' : '')
+                              : idealFreeText.trim()}
+                          </p>
+                        )}
                       </div>
                       <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${showIdealEdit ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
                     </button>
                     {showIdealEdit && (
                       <div className={`px-4 pb-4 space-y-3 ${darkMode ? 'bg-slate-700/20' : 'bg-gray-50/50'}`}>
-                        <p className={`text-[10px] leading-snug ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
-                          설정하시면 다른 사람들이 내 이상형을 볼 수 있어요. 카드를 뒤집어 보세요.
-                        </p>
                         <SignalTagPicker
                           groups={IDEAL_TAG_GROUPS}
                           selected={idealTags}
@@ -2049,31 +2056,38 @@ export function MainScreen({
                           }}
                           disabled={signalSaving}
                           className="w-full py-2.5 bg-rose-500 hover:bg-rose-600 text-white font-bold rounded-xl text-sm active:scale-[0.98] transition-all disabled:opacity-40">
-                          {signalSaving ? '저장 중...' : '이상형 저장'}
+                          {signalSaving ? '저장 중...' : '저장'}
                         </button>
                       </div>
                     )}
                   </div>
 
-                  {/* ── 나의 특징 ── */}
+                  {/* ── 나는 어떤 사람인가요? ── */}
                   <div className={`border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
-                    <button onClick={() => toggleSection('features')} className="w-full flex items-center gap-3 px-4 py-3 text-left">
+                    <button
+                      type="button"
+                      onClick={() => toggleSection('features')}
+                      aria-expanded={showFeaturesEdit}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-left"
+                    >
                       <span className="text-xl flex-shrink-0">🌟</span>
                       <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>나의 특징</p>
-                        <p className={`text-[11px] truncate ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
-                          {featureTags.length > 0 ? featureTags.slice(0, 3).join(' · ') + (featureTags.length > 3 ? ' …' : '') : featureFreeText.trim() || (
-                            <span className="text-[10px] leading-snug">참여자들이 프로필 보기를 누르면 내 특징이 보여요. 누군지 알아보세요~</span>
-                          )}
+                        <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{SIGNAL_FEATURE_SELF_LABEL}</p>
+                        <p className={`text-[10px] leading-snug mt-0.5 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
+                          {SIGNAL_FEATURE_SELF_HINT}
                         </p>
+                        {(featureTags.length > 0 || featureFreeText.trim()) && (
+                          <p className={`text-[11px] truncate mt-1 ${darkMode ? 'text-slate-300' : 'text-gray-500'}`}>
+                            {featureTags.length > 0
+                              ? featureTags.slice(0, 3).join(' · ') + (featureTags.length > 3 ? ' …' : '')
+                              : featureFreeText.trim()}
+                          </p>
+                        )}
                       </div>
                       <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${showFeaturesEdit ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
                     </button>
                     {showFeaturesEdit && (
                       <div className={`px-4 pb-4 space-y-3 ${darkMode ? 'bg-slate-700/20' : 'bg-gray-50/50'}`}>
-                        <p className={`text-[10px] leading-snug ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
-                          참여자들이 프로필 보기를 누르면 내 특징이 보여요. 누군지 알아보세요~
-                        </p>
                         <SignalTagPicker
                           groups={FEATURE_TAG_GROUPS}
                           selected={featureTags}
@@ -2103,7 +2117,7 @@ export function MainScreen({
                           }}
                           disabled={signalSaving}
                           className="w-full py-2.5 bg-violet-500 hover:bg-violet-600 text-white font-bold rounded-xl text-sm active:scale-[0.98] transition-all disabled:opacity-40">
-                          {signalSaving ? '저장 중...' : '특징 저장'}
+                          {signalSaving ? '저장 중...' : '저장'}
                         </button>
                       </div>
                     )}
