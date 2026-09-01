@@ -53,6 +53,8 @@ describe('NicknameSetupScreen — step 6 optional signal fields', () => {
     expect(screen.getByText('나는 어떤 사람인가요?')).toBeTruthy();
     expect(screen.getByRole('button', { name: '건너뛰기' })).toBeTruthy();
     expect(screen.getByRole('button', { name: /입장하기/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /이상형/ }).getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getByRole('button', { name: /나는 어떤 사람인가요/ }).getAttribute('aria-expanded')).toBe('false');
   });
 
   it('skip submits null idealMsg and featureMsg', async () => {
@@ -81,6 +83,8 @@ describe('NicknameSetupScreen — step 6 optional signal fields', () => {
       />,
     );
     await advanceToStep6();
+    fireEvent.click(screen.getByRole('button', { name: /이상형/ }));
+    fireEvent.click(screen.getByRole('button', { name: /나는 어떤 사람인가요/ }));
     fireEvent.change(screen.getByPlaceholderText('예: 다정하고 티키타카 잘 맞는 분'), {
       target: { value: '다정한 사람' },
     });

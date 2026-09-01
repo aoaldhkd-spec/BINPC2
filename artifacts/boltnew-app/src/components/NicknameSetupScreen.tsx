@@ -147,8 +147,8 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
   const [idealFreeText, setIdealFreeText] = useState('');
   const [featureTags, setFeatureTags] = useState<string[]>([]);
   const [featureFreeText, setFeatureFreeText] = useState('');
-  const [idealOpen, setIdealOpen] = useState(true);
-  const [featureOpen, setFeatureOpen] = useState(true);
+  const [idealOpen, setIdealOpen] = useState(false);
+  const [featureOpen, setFeatureOpen] = useState(false);
 
   // contact (숨김 — 입장 후 설정)
   const kakaoId = '';
