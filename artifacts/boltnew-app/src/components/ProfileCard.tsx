@@ -59,6 +59,7 @@ export const ProfileCard = memo(function ProfileCard({
     ? 'text-[7px] sm:text-[8px]'
     : 'text-[8px] sm:text-[9px]';
   const age = getKoreanAge(profile.birth_year);
+  const locationLabel = profile.location?.trim() ?? '';
   const msStyle = profile.mbti ? getMbtiStyle(profile.mbti) : null;
   const interestTags = parseProfileInterests(profile).slice(0, 2);
   const heartBtnStyle = isCardDark
@@ -547,6 +548,15 @@ export const ProfileCard = memo(function ProfileCard({
             style={profileCardChipStyle(posStyle, isCardDark)}>
             {posLabel}
           </span>
+          {locationLabel && (
+            <span
+              className="text-[8px] sm:text-[9px] font-bold px-1.5 py-0.5 rounded leading-none border shrink-0 min-w-0 max-w-[38%] truncate shadow-sm"
+              style={profileCardChipStyle({ bg: '#ecfdf5', text: '#059669', border: '#a7f3d0' }, isCardDark)}
+              title={locationLabel}
+            >
+              {locationLabel}
+            </span>
+          )}
           {msStyle && (
             <span className="text-[8px] sm:text-[9px] font-black px-1.5 py-0.5 rounded leading-none border shrink-0 ml-auto max-w-[46%] truncate shadow-sm"
               style={profileCardChipStyle(msStyle, isCardDark)}>
