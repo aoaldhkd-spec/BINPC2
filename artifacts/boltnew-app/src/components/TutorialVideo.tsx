@@ -80,7 +80,7 @@ function Tip({ text, show, dir = 'bottom' }: { text: string; show: boolean; dir?
   );
 }
 
-/** 하단 탭 — 라이브 MainScreen: 참여자 | MY | 통계 | 랭킹 | 설정 + cyan top border */
+/** 하단 탭 — 라이브 MainScreen: 참여자 | 하트, 채팅 | 통계 | 랭킹 | 설정 */
 function Tabs({ active, hl }: { active: string; hl?: string }) {
   const row = [
     { id: 'profiles', e: '👥', l: '참여자' },
@@ -108,22 +108,6 @@ function Tabs({ active, hl }: { active: string; hl?: string }) {
           );
         })}
       </div>
-    </div>
-  );
-}
-
-function MyFab({ hl, active }: { hl?: boolean; active?: boolean }) {
-  const lit = hl || active;
-  return (
-    <div
-      className={`absolute right-1.5 bottom-9 z-30 w-11 h-11 rounded-full flex flex-col items-center justify-center text-[10px] font-black tracking-widest shadow-lg transition-all duration-300 ${
-        lit
-          ? 'bg-gradient-to-br from-cyan-500 to-teal-500 text-white ring-2 ring-cyan-200/70'
-          : 'bg-slate-800 text-slate-100 border border-slate-600'
-      }`}
-    >
-      <Ring on={!!hl} color="ring-cyan-300" />
-      MY
     </div>
   );
 }
@@ -235,7 +219,7 @@ function S2({ step }: { step: number }) {
   return (
     <div className="h-full flex flex-col bg-slate-900">
       <div className="flex-1 overflow-hidden flex flex-col px-2.5 pt-2 gap-1.5">
-        <p className="text-slate-400 text-[8px] font-bold">MY → 내 설정 → 사진 · 아바타</p>
+        <p className="text-slate-400 text-[8px] font-bold">설정 탭 → 사진 · 아바타</p>
         <div className={`relative rounded-xl border p-2 transition-all duration-500 ${step === 1 ? 'border-cyan-400 bg-slate-800' : 'border-slate-700 bg-slate-800/80'}`}>
           <Ring on={step === 1} />
           <Tip text="사진 · 아바타 열기" show={step === 1} dir="bottom" />
@@ -283,8 +267,7 @@ function S2({ step }: { step: number }) {
           </div>
         )}
       </div>
-      <MyFab hl={step === 0} active={step > 0} />
-      <Tabs active="profiles" />
+      <Tabs active="settings" hl={step === 0 ? 'settings' : undefined} />
     </div>
   );
 }
@@ -302,7 +285,7 @@ function S3({ step }: { step: number }) {
   return (
     <div className="h-full flex flex-col bg-slate-900 overflow-hidden relative">
       <div className="flex-1 px-2.5 pt-2 space-y-1.5 overflow-hidden">
-        <p className="text-slate-400 text-[8px] font-bold">MY → 내 설정 · 프로필 편집</p>
+        <p className="text-slate-400 text-[8px] font-bold">설정 탭 · 프로필 편집</p>
 
         {!showTicker && (
           <div className={`relative bg-slate-800 border rounded-xl p-2 transition-all duration-500 ${step <= 3 ? 'border-cyan-400/70' : 'border-slate-700'}`}>
@@ -387,8 +370,7 @@ function S3({ step }: { step: number }) {
           </div>
         )}
       </div>
-      <MyFab hl={step === 0} active={step > 0} />
-      <Tabs active="profiles" />
+      <Tabs active="settings" hl={step === 0 ? 'settings' : undefined} />
     </div>
   );
 }
@@ -659,7 +641,17 @@ function S7({ step }: { step: number }) {
   return (
     <div className="h-full flex flex-col bg-slate-900">
       <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide px-2.5 pt-2 pb-1 space-y-2" style={{ scrollBehavior: 'smooth' }}>
-        <p className="text-[8px] font-black text-slate-500 uppercase tracking-wider">MY → 내 상태</p>
+        <p className="text-[8px] font-black text-slate-500 uppercase tracking-wider">하트, 채팅 → 내 상태</p>
+        <div className="flex rounded-lg p-0.5 bg-slate-700">
+          <div className="flex-1 py-1 text-center text-[8px] font-black rounded-md bg-slate-600 text-white">💝 내 상태</div>
+          <div className="flex-1 py-1 text-center text-[8px] font-black text-slate-400">💬 내 채팅</div>
+        </div>
+        {step >= 1 && (
+          <div className="flex flex-col items-center py-0.5">
+            <span className="text-sm leading-none animate-bounce" aria-hidden>👇</span>
+            <span className="text-[7px] font-bold text-rose-300">받은 하트가 있어요 확인해보세요</span>
+          </div>
+        )}
 
         <div className={`relative rounded-2xl overflow-hidden border transition-all duration-500 ${
           step >= 1 ? 'border-pink-500/50 bg-slate-800' : 'border-slate-700 bg-slate-800'
@@ -728,8 +720,7 @@ function S7({ step }: { step: number }) {
           </div>
         </div>
       </div>
-      <MyFab hl={step === 0} active={step > 0} />
-      <Tabs active="profiles" />
+      <Tabs active="my" hl={step === 0 ? 'my' : undefined} />
     </div>
   );
 }
@@ -760,8 +751,8 @@ const SCENES: SceneDef[] = [
   {
     title: '사진 · 아바타 바꾸기', sub: '설정 탭 → 사진 · 아바타에서 고르세요',
     steps: [
-      { cx: 210, cy: 205, dur: 1300 },
-      { cx: 210, cy: 205, click: true,  dur: 1000 },
+      { cx: 224, cy: 232, dur: 1300 },
+      { cx: 224, cy: 232, click: true,  dur: 1000 },
       { cx: 55,  cy: 70,  dur: 1300 },
       { cx: 55,  cy: 70,  click: true,  dur: 1000 },
       { cx: 130, cy: 130, dur: 1400 },
@@ -773,7 +764,7 @@ const SCENES: SceneDef[] = [
   {
     title: '한마디는 전광판, 칩은 이상형', sub: '설정 탭에서 한마디·이상형·특징을 채워요',
     steps: [
-      { cx: 210, cy: 205, dur: 1200 },
+      { cx: 224, cy: 232, dur: 1200 },
       { cx: 124, cy: 65,  dur: 1300 },
       { cx: 124, cy: 95,  click: true,  dur: 1000 },
       { cx: 124, cy: 118, click: true,  dur: 1000 },
@@ -835,10 +826,10 @@ const SCENES: SceneDef[] = [
     render: s => <S6 step={s} />,
   },
   {
-    title: '받은 하트 & 보낸 하트', sub: 'MY → 내 상태에서 하트 내역을 확인해요',
+    title: '받은 하트 & 보낸 하트', sub: '하트, 채팅 → 내 상태에서 하트 내역을 확인해요',
     steps: [
-      { cx: 210, cy: 205, dur: 1300 },
-      { cx: 210, cy: 205, click: true,  dur: 1100 },
+      { cx: 74, cy: 232, dur: 1300 },
+      { cx: 74, cy: 232, click: true,  dur: 1100 },
       { cx: 124, cy: 85,  dur: 1400 },
       { cx: 124, cy: 110, dur: 1400 },
       { cx: 175, cy: 130, dur: 1200 },

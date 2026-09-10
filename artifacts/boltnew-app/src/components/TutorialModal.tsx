@@ -54,7 +54,7 @@ const BASIC: Topic[] = [
         ],
       },
     ],
-    footer: '🔒 번호·SNS 금지 · 하트는 카드 아래 · MY에서 채팅·설정',
+    footer: '🔒 번호·SNS 금지 · 하트는 카드 아래 · 채팅은 하트, 채팅 탭 · 프로필은 설정',
   },
   {
     id: 'heart',
@@ -65,16 +65,16 @@ const BASIC: Topic[] = [
     video: [6],
     videoHint: '받은·보낸 하트 확인하는 방법',
     tips: [
-      { icon: '🤍', title: '보내는 곳', desc: '카드 아래 하트. 오른쪽 위 아님.' },
+      { icon: '🤍', title: '보내는 곳', desc: '참여자 카드 아래 하트. 오른쪽 위 아님.' },
       { icon: '8️⃣', title: '개수', desc: '❤️호감 💙친구 💗뜨밤 💚칭찬 · 종류당 2개, 오늘 8개' },
-      { icon: '✅', title: '수락되면', desc: '연락처 나눌 수 있음. 채팅방 자동 생성 없음.' },
+      { icon: '✅', title: '확인 곳', desc: '하트, 채팅 → 내 상태. 받은 하트가 아래에 있어요.' },
     ],
   },
   {
     id: 'settings',
     emoji: '⚙️',
-    label: '내설정',
-    title: '내 설정 · 프로필',
+    label: '설정',
+    title: '설정 · 프로필',
     color: 'from-cyan-500 to-sky-600',
     video: [1, 2],
     videoHint: '아바타 · 한마디 · 이상형 칩',
@@ -135,7 +135,7 @@ const HIDDEN: Topic[] = [
     color: 'from-amber-500 to-orange-500',
     filler: 'pin',
     tips: [
-      { icon: '📍', title: '어디에', desc: 'MY → 내 설정 4자리. 입장 핀이랑 다름.' },
+      { icon: '📍', title: '어디에', desc: '설정 탭 맨 위 4자리. 입장 핀이랑 다름.' },
       { icon: '📱', title: '폰 바꿈', desc: '다시 만들지 마. 이 번호로 복구.' },
     ],
     footer: '입장 핀이랑 고유번호는 다른 거예요',
@@ -149,7 +149,7 @@ const HIDDEN: Topic[] = [
     filler: 'hidden',
     tips: [
       { icon: '🔄', title: '카드 뒤집기', desc: '사진 탭하면 뒷면에 이상형.' },
-      { icon: '👁', title: '방문자', desc: 'MY → 내 상태. 프로필 본 사람.' },
+      { icon: '👁', title: '방문자', desc: '하트, 채팅 → 내 상태. 목록만, 알림 없음.' },
       { icon: '🚫', title: '차단·숨기기', desc: '차단은 서로. 👻는 상대만 못 봄.' },
       { icon: '🍻', title: 'NPC 나이', desc: HOST_AGE_EASTER_EGG_HINT },
     ],
@@ -297,7 +297,7 @@ function TipCard({
   muted,
   darkMode,
   spanFull,
-  compact,
+  compact: _compact,
   fill,
   sectionBar,
   longDesc,
@@ -317,27 +317,11 @@ function TipCard({
   const cardCls = darkMode ? accent.cardDark : accent.cardLight;
   const iconCls = darkMode ? accent.iconDark : accent.iconLight;
   const barCls = sectionBar ?? accent.bar;
-  const iconShell = `${
-    fill
-      ? compact
-        ? 'w-7 h-7 text-sm rounded-xl'
-        : 'w-8 h-8 text-base rounded-xl'
-      : compact
-        ? 'w-6 h-6 text-xs rounded-lg'
-        : 'w-7 h-7 text-sm rounded-xl'
-  } flex-shrink-0 flex items-center justify-center text-white ${iconCls}`;
-  const titleCls = fill ? (compact ? 'text-xs' : 'text-sm') : compact ? 'text-[11px]' : 'text-xs';
-  const descCls = longDesc
-    ? 'text-xs leading-relaxed'
-    : fill
-      ? compact
-        ? 'text-[11px] leading-snug'
-        : 'text-sm leading-relaxed'
-      : compact
-        ? 'text-[10px] leading-snug'
-        : 'text-[13px] leading-relaxed';
-  const pad = fill ? (compact ? 'px-2.5 py-2' : 'px-3 py-3') : compact ? 'px-2 py-1.5' : 'px-3 py-2.5';
-  const stretchCls = fill ? 'flex-1 min-h-0 items-center' : 'h-full';
+  const iconShell = 'w-7 h-7 text-sm rounded-xl flex-shrink-0 flex items-center justify-center text-white ' + iconCls;
+  const titleCls = 'text-[11px]';
+  const descCls = longDesc ? 'text-xs leading-relaxed' : 'text-[10px] leading-snug';
+  const pad = 'px-2.5 py-2';
+  const stretchCls = longDesc ? 'min-h-[4.25rem] items-center' : 'h-[4.25rem] items-center';
 
   const body = (
     <div className={`flex gap-2 min-w-0 flex-1 pl-1.5 ${fill ? 'items-center' : 'items-start'}`}>

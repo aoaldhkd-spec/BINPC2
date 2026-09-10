@@ -49,6 +49,10 @@ describe('product copy + notification invariants', () => {
     expect(modal).not.toContain("id: 'signal'");
     expect(video).toContain("l: '하트, 채팅'");
     expect(video).toContain("l: '설정'");
+    expect(video).toContain('하트, 채팅 → 내 상태');
+    expect(video).not.toContain('function MyFab');
+    expect(video).not.toContain('MY →');
+    expect(modal).toContain("label: '설정'");
     expect(main).toContain("label: '설정'");
     expect(main).toContain("label: '하트, 채팅'");
   });
@@ -223,7 +227,9 @@ describe('product copy + notification invariants', () => {
   it('숨은기능 탭은 스크롤 가능한 긴 설명 레이아웃을 쓴다', () => {
     const modal = read('components/TutorialModal.tsx');
     expect(modal).toContain('const MODAL_SHELL');
+    expect(modal).toContain("h-[min(560px,calc(85dvh-var(--safe-top,0px)-var(--safe-bottom,0px)))]");
     expect(modal).not.toContain('MODAL_SHELL_HIDDEN');
+    expect(modal).toContain('h-[4.25rem] items-center');
     expect(modal).toContain('scrollable: isHidden');
     expect(modal).toContain('overflow-y-auto overscroll-contain scrollbar-hide');
     expect(modal).toContain('longDescTitle=');
