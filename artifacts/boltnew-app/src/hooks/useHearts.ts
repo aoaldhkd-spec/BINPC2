@@ -1,8 +1,9 @@
-import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase, ensureWriteSession } from '../lib/supabase';
 import type { Profile, ContactShare } from '../types/app';
 import { HeartType } from '../lib/constants';
-import { countTodayInterestMission, isInterestHeart, type LikeRowForMission } from '../lib/signal-match';
+import { isInterestHeart } from '../lib/signal-match';
+// signal-match: isInterestHeart only (mutual-heart detection)
 import {
   mergeMapAfterSnapshot,
   mergeRowsAfterSnapshot,
@@ -40,12 +41,10 @@ export function useHearts(
   const [receivedContactShares, setReceivedContactShares] = useState<ContactShare[]>([]);
   const [likeConfirmTarget, setLikeConfirmTarget] = useState<Profile | null>(null);
   const [contactShareTarget, setContactShareTarget] = useState<Profile | null>(null);
-  const [outgoingLikeRows, setOutgoingLikeRows] = useState<LikeRowForMission[]>([]);
   const likedIdsRef = useRef(likedIds);
   const sentHeartTypesRef = useRef(sentHeartTypes);
   const sentHeartsPerPersonRef = useRef(sentHeartsPerPerson);
   const likeStatusesRef = useRef(likeStatuses);
-  const outgoingLikeRowsRef = useRef(outgoingLikeRows);
   const receivedHeartTypesRef = useRef(receivedHeartTypes);
   const acknowledgedComplimentIdsRef = useRef(acknowledgedComplimentIds);
   const receivedLikersRef = useRef(receivedLikers);
@@ -55,7 +54,6 @@ export function useHearts(
   sentHeartTypesRef.current = sentHeartTypes;
   sentHeartsPerPersonRef.current = sentHeartsPerPerson;
   likeStatusesRef.current = likeStatuses;
-  outgoingLikeRowsRef.current = outgoingLikeRows;
   receivedHeartTypesRef.current = receivedHeartTypes;
   acknowledgedComplimentIdsRef.current = acknowledgedComplimentIds;
   receivedLikersRef.current = receivedLikers;
@@ -97,7 +95,6 @@ export function useHearts(
     setReceivedContactShares([]);
     setLikeConfirmTarget(null);
     setContactShareTarget(null);
-    setOutgoingLikeRows([]);
   }, [currentUserId]);
 
   // ✅ try/catch + 세대 카운터 — 계정 전환 중 in-flight 응답이 새 사용자 state를 덮어쓰는 race 방지
@@ -108,7 +105,6 @@ export function useHearts(
       sentHeartTypes: new Map(sentHeartTypesRef.current),
       sentHeartsPerPerson: new Map(sentHeartsPerPersonRef.current),
       likeStatuses: new Map(likeStatusesRef.current),
-      outgoingLikeRows: [...outgoingLikeRowsRef.current],
     };
     try {
       const { data, error } = await supabase.from('likes').select('id, liked_id, status, heart_type, created_at').eq('liker_id', userId);
@@ -136,17 +132,6 @@ export function useHearts(
           hmap.set(l.liked_id, s);
         });
         setSentHeartsPerPerson(current => mergeMapAfterSnapshot(hmap, atStart.sentHeartsPerPerson, current));
-        const fetchedRows = data.map((l: { liked_id: string; heart_type: string | null; created_at?: string | null }) => ({
-          liked_id: l.liked_id,
-          heart_type: l.heart_type ?? 'red',
-          created_at: l.created_at ?? null,
-        }));
-        setOutgoingLikeRows(current => mergeRowsAfterSnapshot(
-          fetchedRows,
-          atStart.outgoingLikeRows,
-          current,
-          row => `${row.liked_id}:${row.heart_type}`,
-        ));
         const last = data[data.length - 1] as { id?: string; created_at?: string | null } | undefined;
         diag('debug', 'hearts', 'state-merge', {
           corr: last?.id ?? `likes:${userId}:${gen}`,
@@ -442,20 +427,6 @@ export function useHearts(
     setContactShareTarget(null);
   };
 
-  const noteOutgoingLike = useCallback((row: LikeRowForMission) => {
-    if (!row.liked_id) return;
-    setOutgoingLikeRows(prev => {
-      const ht = row.heart_type ?? 'red';
-      if (prev.some(r => r.liked_id === row.liked_id && (r.heart_type ?? 'red') === ht)) return prev;
-      return [...prev, { liked_id: row.liked_id, heart_type: ht, created_at: row.created_at ?? new Date().toISOString() }];
-    });
-  }, []);
-
-  const signalMissionCount = useMemo(
-    () => countTodayInterestMission(outgoingLikeRows),
-    [outgoingLikeRows],
-  );
-
   return {
     likedIds, setLikedIds,
     sentHeartTypes, setSentHeartTypes,
@@ -479,7 +450,5 @@ export function useHearts(
     handleHeartResponse,
     handleContactShare,
     handleContactShareReject,
-    signalMissionCount,
-    noteOutgoingLike,
   };
 }

@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react';
 import {
-  Trash2, ChevronDown, MessageCircle, RefreshCw, UsersRound, Radio,
+  Trash2, ChevronDown, MessageCircle, RefreshCw, UsersRound,
 } from 'lucide-react';
 import {
   withAdminImageToken,
   adminAvatarSrc,
   type Profile, type Chat, type Message, type GroupChat, type GroupMessage,
-  type GroupParticipant, type SignalSend,
+  type GroupParticipant,
 } from './shared';
 import { ConfirmDialog } from './ConfirmDialog';
 import {
@@ -16,7 +16,7 @@ import {
 
 // ─── Chats Tab ────────────────────────────────────────────────────────────────
 
-type HistoryView = 'direct' | 'groups' | 'signals';
+type HistoryView = 'direct' | 'groups';
 const HISTORY_PAGE_SIZE = 100;
 
 function HistoryRefreshButton({ refreshing, refreshDone, onClick }: {
@@ -42,12 +42,12 @@ function formatHistoryTime(value: string): string {
 }
 
 export function ChatsTab({
-  chats, messages, groupChats, groupMessages, groupParticipants, signalSends,
+  chats, messages, groupChats, groupMessages, groupParticipants,
   profileMap, historyLoading, historyError, onDeleteChat, onClearAll, onRefresh,
 }: {
   chats: Chat[]; messages: Message[]; profileMap: Map<string, Profile>;
   groupChats: GroupChat[]; groupMessages: GroupMessage[];
-  groupParticipants: GroupParticipant[]; signalSends: SignalSend[];
+  groupParticipants: GroupParticipant[];
   historyLoading: boolean; historyError: string | null;
   onDeleteChat: (chatId: string) => Promise<void>;
   onClearAll: () => Promise<void>;
@@ -62,7 +62,6 @@ export function ChatsTab({
   const [refreshDone, setRefreshDone] = useState(false);
   const [_deleting, setDeleting] = useState(false);
   const [groupVisibleCount, setGroupVisibleCount] = useState(HISTORY_PAGE_SIZE);
-  const [signalVisibleCount, setSignalVisibleCount] = useState(HISTORY_PAGE_SIZE);
 
   const messagesByChat = new Map<string, Message[]>();
   for (const msg of messages) {
@@ -93,11 +92,6 @@ export function ChatsTab({
     () => [...groupMessages].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at)),
     [groupMessages],
   );
-  const sortedSignalSends = useMemo(
-    () => [...signalSends].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at)),
-    [signalSends],
-  );
-
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
@@ -128,11 +122,10 @@ export function ChatsTab({
 
   return (
     <div>
-      <nav aria-label="채팅 구분" className="grid grid-cols-3 border-b border-gray-200 bg-white px-2 min-[360px]:px-4">
+      <nav aria-label="채팅 구분" className="grid grid-cols-2 border-b border-gray-200 bg-white px-2 min-[360px]:px-4">
         {([
           { id: 'direct' as HistoryView, label: '1:1 채팅', count: messages.length },
           { id: 'groups' as HistoryView, label: '단체채팅', count: groupMessages.length },
-          { id: 'signals' as HistoryView, label: '시그널', count: signalSends.length },
         ]).map(item => (
           <button key={item.id} onClick={() => setHistoryView(item.id)}
             className={`touch-target min-w-0 px-0.5 py-2.5 text-[10px] min-[360px]:text-[11px] min-[390px]:text-xs font-semibold border-b-2 transition-all text-center leading-tight break-words ${
@@ -313,50 +306,6 @@ export function ChatsTab({
             <button onClick={() => setGroupVisibleCount(count => count + HISTORY_PAGE_SIZE)}
               className="touch-target w-full rounded-xl bg-gray-100 px-3 py-2 text-xs font-bold text-gray-600">
               다음 {Math.min(HISTORY_PAGE_SIZE, sortedGroupMessages.length - groupVisibleCount)}개 보기
-            </button>
-          )}
-        </div>
-      )}
-
-      {historyView === 'signals' && (
-        <div className="p-3 min-[360px]:p-4 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex min-w-0 items-center gap-2">
-              <Radio className="w-4 h-4 text-rose-500" />
-              <span className="text-sm font-bold text-gray-700">최근 시그널 활동 {signalSends.length}건</span>
-            </div>
-            <HistoryRefreshButton refreshing={refreshing} refreshDone={refreshDone} onClick={() => { void handleRefresh(); }} />
-          </div>
-          <p className="text-[11px] text-gray-400">상태·이상형 원문은 표시하지 않고 발신/수신과 행동만 표시합니다.</p>
-          {historyLoading && signalSends.length === 0 ? (
-            <p className="py-10 text-center text-sm text-gray-400">시그널 이력을 불러오는 중...</p>
-          ) : sortedSignalSends.length === 0 ? (
-            <p className="py-10 text-center text-sm text-gray-400">아직 시그널 활동이 없습니다.</p>
-          ) : (
-            sortedSignalSends.slice(0, signalVisibleCount).map(signal => (
-              <article key={signal.id} className="min-w-0 rounded-xl border border-gray-100 bg-white p-3 shadow-sm">
-                <div className="flex min-w-0 flex-wrap items-center gap-2">
-                  <span className="min-w-0 break-words text-sm font-bold text-gray-900">
-                    {profileMap.get(signal.sender_id)?.nickname ?? '탈퇴한 사용자'}
-                  </span>
-                  <span className="text-gray-300">→</span>
-                  <span className="min-w-0 break-words text-sm font-bold text-gray-900">
-                    {profileMap.get(signal.receiver_id)?.nickname ?? '탈퇴한 사용자'}
-                  </span>
-                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                    signal.action === 'send' ? 'bg-rose-50 text-rose-600' : 'bg-gray-100 text-gray-500'
-                  }`}>
-                    {signal.action === 'send' ? '시그널 전송' : '패스'}
-                  </span>
-                  <time className="ml-auto text-[10px] text-gray-400">{formatHistoryTime(signal.created_at)}</time>
-                </div>
-              </article>
-            ))
-          )}
-          {signalVisibleCount < sortedSignalSends.length && (
-            <button onClick={() => setSignalVisibleCount(count => count + HISTORY_PAGE_SIZE)}
-              className="touch-target w-full rounded-xl bg-gray-100 px-3 py-2 text-xs font-bold text-gray-600">
-              다음 {Math.min(HISTORY_PAGE_SIZE, sortedSignalSends.length - signalVisibleCount)}개 보기
             </button>
           )}
         </div>

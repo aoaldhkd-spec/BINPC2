@@ -5,7 +5,7 @@ import { HOST_AGE_EASTER_EGG_HINT } from '../lib/host-age-easter-egg';
 
 type Tip = { icon: string; title: string; desc: string };
 type Section = { emoji: string; title: string; tips: Tip[]; footer?: string; variant?: 'rules' | 'tabs' | 'default' };
-type FillerKind = 'guide' | 'signal' | 'chat' | 'group' | 'pin' | 'hidden';
+type FillerKind = 'guide' | 'chat' | 'group' | 'pin' | 'hidden';
 
 type Topic = {
   id: string;
@@ -67,23 +67,6 @@ const BASIC: Topic[] = [
       { icon: '🤍', title: '보내는 곳', desc: '카드 아래 하트. 오른쪽 위 아님.' },
       { icon: '8️⃣', title: '개수', desc: '❤️호감 💙친구 💗뜨밤 💚칭찬 · 종류당 2개, 오늘 8개' },
       { icon: '✅', title: '수락되면', desc: '연락처 나눌 수 있음. 채팅방 자동 생성 없음.' },
-    ],
-  },
-  {
-    id: 'signal',
-    emoji: '💕',
-    label: '시그널',
-    title: '시그널, 미션 먼저',
-    color: 'from-fuchsia-500 to-rose-500',
-    filler: 'signal',
-    video: [7],
-    videoHint: '왼쪽 패스 · 오른쪽 시그널 밀기',
-    tips: [
-      { icon: '📖', title: '미션 전', desc: '탭은 열려도 추천은 잠김. 설명서 + 하트 0/3.' },
-      { icon: '🎯', title: '오늘의 미션', desc: '다른 3명에게 하트 보내기. 3/3면 추천 해금.' },
-      { icon: '👈', title: '왼쪽 = 패스', desc: '별로면 왼쪽으로 밀어요. 패스예요.' },
-      { icon: '👉', title: '오른쪽 = 시그널', desc: '관심 있으면 오른쪽으로 밀어 시그널 보내기.' },
-      { icon: '💬', title: '채팅은 하트', desc: '시그널만으로는 채팅이 안 열려요. 서로 하트여야 해요.' },
     ],
   },
   {
@@ -296,7 +279,7 @@ function topicLayout(topic: Topic) {
   // 숨은기능: 팁4개+긴 NPC나이 힌트 — 2열·비compact면 고정 모달 하단이 잘림
   const isHidden = topic.id === 'hidden';
   const compact = !isHidden && (dense || count >= 5 || topic.id === 'settings');
-  const fillVertical = topic.id === 'heart' || topic.id === 'signal' || topic.id === 'settings' || topic.id === 'chat';
+  const fillVertical = topic.id === 'heart' || topic.id === 'settings' || topic.id === 'chat';
   return {
     twoColumn: !isHidden && (count >= 4 || dense),
     compact,
@@ -463,18 +446,6 @@ function FillerArt({ kind, darkMode }: { kind: FillerKind; darkMode?: boolean })
         </div>
         <span className="absolute -right-0.5 top-0 text-[10px] animate-pulse">✨</span>
         <span className="absolute -left-0.5 bottom-0 text-[11px]">🌙</span>
-      </div>
-    );
-  }
-  if (kind === 'signal') {
-    return (
-      <div className="relative h-9 w-24 mb-1" aria-hidden>
-        <div className={`absolute left-2 top-1.5 w-12 h-7 rounded-xl rotate-[-10deg] ${darkMode ? 'bg-rose-950/80' : 'bg-rose-100/90'}`} />
-        <div className={`absolute left-5 top-0.5 w-12 h-7 rounded-xl rotate-[8deg] flex items-center justify-center ${darkMode ? 'bg-fuchsia-950 ring-1 ring-fuchsia-400/40' : 'bg-white ring-1 ring-rose-200'} shadow-md`}>
-          <span className="text-[15px] leading-none">💕</span>
-        </div>
-        <span className="absolute right-0 top-0 text-[10px]">✨</span>
-        <span className={`absolute left-0 bottom-0 text-[8px] font-black px-1 py-px rounded-md ${darkMode ? 'bg-rose-900/60 text-rose-200' : 'bg-rose-100 text-rose-600'}`}>0/3</span>
       </div>
     );
   }

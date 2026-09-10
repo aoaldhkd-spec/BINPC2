@@ -621,7 +621,7 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
           {step === 6 && (
             <div className="space-y-5">
               <div className="text-center pt-1 pb-0.5">
-                <p className="text-gray-500 text-sm">원하면 지금 채우고, 나중에 MY → 내 설정에서도 바꿀 수 있어요</p>
+                <p className="text-gray-500 text-sm">원하면 지금 채우고, 나중에 설정 탭에서도 바꿀 수 있어요</p>
                 <span className="inline-block mt-2 text-xs font-semibold text-gray-400 bg-gray-100 px-2.5 py-0.5 rounded-full">선택 · 건너뛰기 가능</span>
               </div>
 

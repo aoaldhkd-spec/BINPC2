@@ -22,10 +22,11 @@ describe('BottomNotification', () => {
   it('shows 서로 하트 mutual CTA, not 서로 시그널', () => {
     render(
       <BottomNotification
-        notification={{ type: 'signal', signalKind: 'mutual', nickname: '상대' }}
+        notification={{ type: 'heart', nickname: '상대', heartMutual: true, message: MUTUAL_HEART_TOAST }}
         onClose={vi.fn()}
         onGoToStatus={vi.fn()}
         onGoToChats={vi.fn()}
+        onStartChat={vi.fn()}
       />,
     );
     expect(screen.getByText(MUTUAL_HEART_TOAST)).toBeTruthy();

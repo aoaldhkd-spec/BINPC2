@@ -51,7 +51,6 @@ describe('admin ConfirmDialog', () => {
         groupChats={[]}
         groupMessages={[]}
         groupParticipants={[]}
-        signalSends={[]}
         profileMap={new Map()}
         historyLoading={false}
         historyError={null}
@@ -90,7 +89,6 @@ describe('admin ConfirmDialog', () => {
           created_at: '2026-08-17T02:00:00.000Z',
         }]}
         groupParticipants={[]}
-        signalSends={[]}
         profileMap={new Map([['sender-1', { nickname: '민지' } as never]])}
         historyLoading={false}
         historyError={null}
@@ -109,38 +107,6 @@ describe('admin ConfirmDialog', () => {
     expect(screen.getByText('3명')).toBeTruthy();
   });
 
-  it('시그널 이력은 닉네임과 send/pass만 표시한다', () => {
-    render(
-      <ChatsTab
-        chats={[]}
-        messages={[]}
-        groupChats={[]}
-        groupMessages={[]}
-        groupParticipants={[]}
-        signalSends={[
-          { id: 's1', sender_id: 'a', receiver_id: 'b', action: 'send', created_at: '2026-08-17T02:00:00.000Z' },
-          { id: 's2', sender_id: 'b', receiver_id: 'a', action: 'pass', created_at: '2026-08-17T01:00:00.000Z' },
-        ]}
-        profileMap={new Map([
-          ['a', { nickname: '민지' } as never],
-          ['b', { nickname: '준호' } as never],
-        ])}
-        historyLoading={false}
-        historyError={null}
-        onDeleteChat={async () => {}}
-        onClearAll={async () => {}}
-        onRefresh={async () => {}}
-      />,
-    );
-
-    fireEvent.click(screen.getByRole('button', { name: /시그널/ }));
-    expect(screen.getAllByText('민지')).toHaveLength(2);
-    expect(screen.getAllByText('준호')).toHaveLength(2);
-    expect(screen.getByText('시그널 전송')).toBeTruthy();
-    expect(screen.getByText('패스')).toBeTruthy();
-    expect(screen.queryByText(/ideal_msg|feature_msg|status_msg/)).toBeNull();
-  });
-
   it('관리자 단체방 수는 목록 방과 년생 방을 나눠 보여 준다', () => {
     render(
       <ChatsTab
@@ -156,7 +122,6 @@ describe('admin ConfirmDialog', () => {
         ]}
         groupMessages={[]}
         groupParticipants={[]}
-        signalSends={[]}
         profileMap={new Map()}
         historyLoading={false}
         historyError={null}

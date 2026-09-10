@@ -5654,7 +5654,8 @@ router.get('/health', async (req: Request, res: Response) => {
 
   const body = {
     persistErrors: _dbPersistErrors,
-    // recentErrors는 DB 내부 오류 메시지를 포함할 수 있어 공개 응답에서 제외
+    // admin-token 전용 — 최근 10건만 (운영 디버그용)
+    recentErrors: _dbPersistErrorLog.slice(-10),
     inMemory: { messages: inMemMessages, likes: inMemLikes },
     db: { messages: dbMessages, likes: dbLikes },
     lag: { messages: messageLag, likes: likeLag },

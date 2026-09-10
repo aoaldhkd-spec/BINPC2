@@ -80,13 +80,14 @@ function Tip({ text, show, dir = 'bottom' }: { text: string; show: boolean; dir?
   );
 }
 
-/** 하단 탭 — 라이브 MainScreen: 참여자 | 시그널(📡) | 통계 | 랭킹 + cyan top border */
+/** 하단 탭 — 라이브 MainScreen: 참여자 | MY | 통계 | 랭킹 | 설정 + cyan top border */
 function Tabs({ active, hl }: { active: string; hl?: string }) {
   const row = [
     { id: 'profiles', e: '👥', l: '참여자' },
-    { id: 'signal', e: '📡', l: '시그널' },
+    { id: 'my', e: '💝', l: 'MY' },
     { id: 'stats', e: '📊', l: '통계' },
     { id: 'ranking', e: '🏆', l: '랭킹' },
+    { id: 'settings', e: '⚙️', l: '설정' },
   ];
   return (
     <div className="border-t border-slate-700 bg-slate-900 px-0.5 pt-0 pb-0.5">

@@ -166,7 +166,6 @@ describe('useHearts — account-switch race guard', () => {
     expect(result.current.receivedHeartTypes.size).toBe(0);
     expect(result.current.sentHeartTypes.size).toBe(0);
     expect(result.current.likeStatuses.size).toBe(0);
-    expect(result.current.signalMissionCount).toBe(0);
   });
 
   it('discards User A loadLikes response that arrives after switching to User B', async () => {

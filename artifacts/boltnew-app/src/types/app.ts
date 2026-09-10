@@ -85,8 +85,7 @@ export type SignalSend = {
   created_at: string;
 };
 export type MainTab =
-  | 'profiles' | 'signal' | 'status' | 'chats'
-  | 'stats' | 'ranking' | 'fortune' | 'settings';
+  | 'profiles' | 'my' | 'stats' | 'ranking' | 'settings' | 'fortune';
 
 export type TutorialSlide = {
   emoji: string;

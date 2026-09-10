@@ -27,7 +27,7 @@ import {
   shouldBlockNicknameBeforeInput,
 } from '../lib/nickname-input';
 import { ls } from '../lib/storage';
-import { NavLayer, useOptionalParticipantNav } from '../hooks/useParticipantNav';
+import { NavLayer } from '../hooks/useParticipantNav';
 import ProfileAvatar from './ProfileAvatar';
 import { StatsTab, RankingTab } from './StatsTabs';
 import { ProfileInfoBadges } from './ProfileInfoBadges';
@@ -37,12 +37,11 @@ import { RefreshBtn } from './RefreshBtn';
 import { AVATAR_CATEGORIES } from '../lib/avatar-catalog';
 import { compressProfilePhoto, PROFILE_PHOTO_ACCEPT, validateProfilePhotoFile } from '../lib/profile-photo';
 import { uploadStorageDataUrl } from '../lib/localdb';
-import { IDEAL_TAG_GROUPS, FEATURE_TAG_GROUPS, encodeSignalMsg, SIGNAL_EMOJI, SIGNAL_FEATURE_SELF_HINT, SIGNAL_FEATURE_SELF_LABEL, SIGNAL_IDEAL_HINT, SIGNAL_IDEAL_SECTION_LABEL, SIGNAL_INBOX_EMPTY, SIGNAL_INBOX_LINE, SIGNAL_INBOX_TITLE, SIGNAL_SENT_EMPTY, SIGNAL_SENT_LINE, SIGNAL_SENT_TITLE } from '../lib/signal-match';
+import { IDEAL_TAG_GROUPS, FEATURE_TAG_GROUPS, encodeSignalMsg, SIGNAL_FEATURE_SELF_HINT, SIGNAL_FEATURE_SELF_LABEL, SIGNAL_IDEAL_HINT, SIGNAL_IDEAL_SECTION_LABEL } from '../lib/signal-match';
 import { SignalTagPicker } from './SignalTagPicker';
 import { ProfileCard } from './ProfileCard';
 import { ProfileDeckGrid } from './ProfileDeckGrid';
 import { ResetButton } from './ResetButton';
-import { SignalTab } from './SignalTab';
 import { FUNCTIONS_LOCK_TOAST, SOCIAL_LOCKED_TABS } from '../lib/functions-lock';
 import { STATUS_QUICK_MSGS } from '../lib/chat-picker-data';
 import { HOST_AGE_EASTER_EGG_HINT, hostBirthYearFromProfiles } from '../lib/host-age-easter-egg';
@@ -102,14 +101,9 @@ export function MainScreen({
   onViewProfile,
   userSignals = [] as UserSignal[],
   onUserSignalUpdate,
-  onMissionComplete,
-  signalMissionCount = 0,
   onOpenResetPassword,
-  receivedSignalSenders = [] as Profile[],
-  sentSignalReceivers = [] as Profile[],
-  signalActedIds = new Set<string>(),
-  onSendSignal,
-  onPassSignal,
+  mySubTabHint = null,
+  onMySubTabHintConsumed,
 }: {
   profiles: Profile[]; currentUserId: string | null; likedIds: Set<string>; sentHeartTypes: Map<string, HeartType>; sentHeartsPerPerson: Map<string, Set<HeartType>>; likeStatuses: Map<string, string>;
   profileMap: Map<string, Profile>; mainTab: MainTab;
@@ -157,19 +151,22 @@ export function MainScreen({
   onViewProfile?: (p: Profile) => void;
   userSignals?: UserSignal[];
   onUserSignalUpdate?: (row: UserSignal) => void;
-  onMissionComplete?: () => void;
-  signalMissionCount?: number;
   onOpenResetPassword?: () => void;
-  receivedSignalSenders?: Profile[];
-  sentSignalReceivers?: Profile[];
-  signalActedIds?: Set<string>;
-  onSendSignal?: (id: string) => void | boolean | Promise<void | boolean>;
-  onPassSignal?: (id: string) => void | boolean | Promise<void | boolean>;
+  mySubTabHint?: 'status' | 'chats' | null;
+  onMySubTabHintConsumed?: () => void;
 }) {
+  const [mySubTab, setMySubTab] = useState<'status' | 'chats'>('status');
+
+  useEffect(() => {
+    if (!mySubTabHint) return;
+    setMySubTab(mySubTabHint);
+    onMySubTabHintConsumed?.();
+  }, [mySubTabHint, onMySubTabHintConsumed]);
+
   const heartCount = useCallback((t: HeartType) => { let c = 0; sentHeartsPerPerson.forEach(types => { if (types.has(t)) c++; }); return c; }, [sentHeartsPerPerson]);
 
   const sentHeartEntries = useMemo(() => {
-    if (mainTab !== 'status') return [];
+    if (mainTab !== 'my' || mySubTab !== 'status') return [];
     const entries: { profile: Profile; heartType: HeartType }[] = [];
     const typeOrder = HEART_TYPES.map((h) => h.type);
     for (const profile of sentLikedProfiles) {
@@ -322,7 +319,7 @@ export function MainScreen({
   // 이미 💝 탭에 있는 동안 새 연락처/하트가 도착해도 즉시 배지 클리어
   // (탭 버튼을 다시 클릭하지 않아도 보고 있으면 읽은 것으로 처리)
   useEffect(() => {
-    if (mainTab === 'status') {
+    if (mainTab === 'my' && mySubTab === 'status') {
       setSeenContactsCount(receivedContactShares.length);
       setSeenHeartsCount(pendingHeartsCount);
       onClearVisitCount?.();
@@ -365,16 +362,12 @@ export function MainScreen({
     return () => { root.style.removeProperty('--participant-tabbar'); };
   }, []);
 
-  // 기능 잠금(functionsLocked) 시 이동 불가 탭 — 시그널·채팅·운세 (통계·랭킹은 열림)
+  // 기능 잠금(functionsLocked) 시 이동 불가 탭 — MY·운세 (통계·랭킹·설정은 열림)
   const LOCKED_TABS = SOCIAL_LOCKED_TABS;
-
-  // MY 버튼 팝업 열림 상태
-  const [myMenuOpen, setMyMenuOpen] = useState(false);
-  const participantNav = useOptionalParticipantNav();
 
   const handleTabChange = (t: MainTab) => {
     if (functionsLocked && LOCKED_TABS.has(t)) { showChatSearchLockToast(); return; }
-    if (t === 'status') { setSeenHeartsCount(pendingHeartsCount); setSeenContactsCount(receivedContactShares.length); onClearVisitCount?.(); }
+    if (t === 'my') { setSeenHeartsCount(pendingHeartsCount); setSeenContactsCount(receivedContactShares.length); onClearVisitCount?.(); }
     if (t === 'profiles') setSeenProfilesCount(profiles.length);
     onTabChange(t);
   };
@@ -392,21 +385,9 @@ export function MainScreen({
   const [profileEditOpen, setProfileEditOpen] = useState(true);
   const [receivedHeartsOpen, setReceivedHeartsOpen] = useState(true);
   const [sentHeartsOpen, setSentHeartsOpen] = useState(true);
-  type StatusQuickSheet = 'received-signal' | 'sent-signal' | 'exchanged-contacts';
+  type StatusQuickSheet = 'exchanged-contacts';
   const [statusQuickSheet, setStatusQuickSheet] = useState<StatusQuickSheet | null>(null);
   const closeStatusQuickSheet = useCallback(() => setStatusQuickSheet(null), []);
-
-  const handleSendSignalTab = useCallback((id: string) => {
-    if (functionsLocked) return false;
-    return onSendSignal?.(id);
-  }, [functionsLocked, onSendSignal]);
-
-  const handlePassSignalTab = useCallback((id: string) => {
-    if (functionsLocked) return false;
-    return onPassSignal?.(id);
-  }, [functionsLocked, onPassSignal]);
-
-  const goProfilesTab = useCallback(() => onTabChange('profiles'), [onTabChange]);
 
   // ── 프로필 편집 통합 상태 (한 섹션만 열림) ──────────────────────────────────
   const [profileEditSection, setProfileEditSection] = useState<'avatar' | 'nickname' | 'birth' | 'interests' | 'statusMsg' | 'ideal' | 'features' | 'contact' | 'blocklist' | null>(null);
@@ -697,7 +678,6 @@ export function MainScreen({
   return (
     <div className={`app-viewport h-screen overflow-hidden min-w-0 flex flex-col transition-colors duration-300 ${darkMode ? 'bg-slate-950' : 'bg-gray-50'}`}>
       <NavLayer id="tab:away" open={mainTab !== 'profiles'} onClose={() => onTabChange('profiles')} />
-      <NavLayer id="my-menu" open={myMenuOpen} onClose={() => setMyMenuOpen(false)} />
       <header className={`sticky top-0 z-10 shrink-0 transition-colors duration-300 ${darkMode ? 'bg-slate-900 border-b-2 border-slate-700 shadow-slate-950/50' : 'bg-white shadow-sm'}`}>
         <div className="max-w-7xl mx-auto px-3 min-[360px]:px-4 py-2.5 min-[360px]:py-3 grid grid-cols-[auto_minmax(0,1fr)_auto] gap-1 items-center">
           {/* 좌: 튜토리얼 + 다크모드 + 배경음악 */}
@@ -830,9 +810,40 @@ export function MainScreen({
         </KeepTab>
         )}
 
-        {mainTab === 'status' && (
+        {mainTab === 'my' && (
           <StatusErrorBoundary>
           <div className="w-full max-w-lg mx-auto space-y-4 pb-24">
+            <div className={`flex rounded-xl p-0.5 ${darkMode ? 'bg-slate-700' : 'bg-gray-100'}`}>
+              <button
+                type="button"
+                onClick={() => setMySubTab('status')}
+                className={`flex-1 py-2 text-xs font-black rounded-lg transition-all ${
+                  mySubTab === 'status'
+                    ? (darkMode ? 'bg-slate-600 text-white shadow-sm' : 'bg-white text-gray-900 shadow-sm')
+                    : (darkMode ? 'text-slate-400' : 'text-gray-500')
+                }`}
+              >
+                💝 내 상태
+              </button>
+              <button
+                type="button"
+                onClick={() => setMySubTab('chats')}
+                className={`flex-1 py-2 text-xs font-black rounded-lg transition-all ${
+                  mySubTab === 'chats'
+                    ? (darkMode ? 'bg-slate-600 text-white shadow-sm' : 'bg-white text-gray-900 shadow-sm')
+                    : (darkMode ? 'text-slate-400' : 'text-gray-500')
+                }`}
+              >
+                💬 내 채팅
+                {(sumUnreadCounts(unreadChatCounts) + sumUnreadCounts(unreadGroupCounts)) > 0 && (
+                  <span className="ml-1 inline-flex items-center justify-center min-w-[16px] h-4 px-1 text-[10px] font-black bg-rose-500 text-white rounded-full">
+                    {sumUnreadCounts(unreadChatCounts) + sumUnreadCounts(unreadGroupCounts)}
+                  </span>
+                )}
+              </button>
+            </div>
+            {mySubTab === 'status' && (
+          <div className="space-y-4">
             {/* ── 내 프로필 카드 ── */}
             {(() => {
               const me = profiles.find(p => p.id === currentUserId);
@@ -952,42 +963,8 @@ export function MainScreen({
                     </div>
                   </div>
 
-                  {/* ── 시그널 · 교환 연락처 빠른 보기 (프로필 카드 pill) ── */}
+                  {/* ── 교환된 연락처 · 고유번호 (50/50) ── */}
                   <div className="mt-3 space-y-2">
-                    <div
-                      role="group"
-                      aria-label="시그널 목록 보기"
-                      className={`flex p-1 rounded-2xl border shadow-sm ${darkMode ? 'bg-slate-900/70 border-slate-600/80' : 'bg-gradient-to-r from-rose-50/90 via-white to-violet-50/90 border-rose-100'}`}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => setStatusQuickSheet('received-signal')}
-                        className={`flex-1 flex items-center justify-center gap-1 min-h-[44px] px-2 py-2.5 rounded-xl text-[11px] font-black transition-all active:scale-[0.98] ${darkMode ? 'text-rose-200 hover:bg-rose-500/15' : 'text-rose-700 hover:bg-rose-100/80'}`}
-                      >
-                        <span aria-hidden>{SIGNAL_EMOJI}</span>
-                        <span className="truncate">받은 시그널</span>
-                        {receivedSignalSenders.length > 0 && (
-                          <span className={`flex-shrink-0 min-w-[1.25rem] px-1.5 py-0.5 rounded-full text-[10px] font-black tabular-nums ${darkMode ? 'bg-rose-500/25 text-rose-200' : 'bg-rose-100 text-rose-600'}`}>
-                            {receivedSignalSenders.length}
-                          </span>
-                        )}
-                      </button>
-                      <div className={`w-px self-stretch my-1.5 ${darkMode ? 'bg-slate-600' : 'bg-rose-100'}`} aria-hidden />
-                      <button
-                        type="button"
-                        onClick={() => setStatusQuickSheet('sent-signal')}
-                        className={`flex-1 flex items-center justify-center gap-1 min-h-[44px] px-2 py-2.5 rounded-xl text-[11px] font-black transition-all active:scale-[0.98] ${darkMode ? 'text-violet-200 hover:bg-violet-500/15' : 'text-violet-700 hover:bg-violet-100/80'}`}
-                      >
-                        <span aria-hidden>{SIGNAL_EMOJI}</span>
-                        <span className="truncate">보낸 시그널</span>
-                        {sentSignalReceivers.length > 0 && (
-                          <span className={`flex-shrink-0 min-w-[1.25rem] px-1.5 py-0.5 rounded-full text-[10px] font-black tabular-nums ${darkMode ? 'bg-violet-500/25 text-violet-200' : 'bg-violet-100 text-violet-600'}`}>
-                            {sentSignalReceivers.length}
-                          </span>
-                        )}
-                      </button>
-                    </div>
-                    {/* ── 교환된 연락처 · 고유번호 (50/50) ── */}
                     <div className="grid grid-cols-2 gap-2 min-w-0">
                       <div
                         role="group"
@@ -1302,22 +1279,48 @@ export function MainScreen({
               )}
             </div>
           </div>
+            )}
+
+            {mySubTab === 'chats' && (
+              <MainChatsTab
+                isActive
+                darkMode={darkMode}
+                chatSubTab={chatSubTab}
+                onChangeSubTab={setChatSubTab}
+                unreadChatCounts={unreadChatCounts}
+                unreadGroupCounts={unreadGroupCounts}
+                groupChats={groupChats}
+                joiningGroupId={joiningGroupId}
+                leavingGroupId={leavingGroupId}
+                onSetLeavingGroupId={setLeavingGroupId}
+                leaveGroupTarget={leaveGroupTarget}
+                onSetLeaveGroupTarget={setLeaveGroupTarget}
+                onOpenGroupChat={onOpenGroupChat}
+                onJoinGroupChat={onJoinGroupChat}
+                onLeaveGroupChat={onLeaveGroupChat}
+                guardLockedAction={guardLockedAction}
+                functionsLocked={functionsLocked}
+                showChatSearchLockToast={showChatSearchLockToast}
+                chatSearchLockToast={chatSearchLockToast}
+                chatSearch={chatSearch}
+                onChangeChatSearch={setChatSearch}
+                profiles={profiles}
+                currentUserId={currentUserId}
+                profileMap={profileMap}
+                chatList={chatList}
+                onOpenChat={onOpenChat}
+                onDeleteChat={onDeleteChat}
+                onDeleteAllChats={onDeleteAllChats}
+                onRefreshChats={() => doRefresh('chats', onRefreshChat)}
+                chatsRefreshed={refreshedTab === 'chats'}
+              />
+            )}
 
           {statusQuickSheet && (() => {
-            const modalAccent = statusQuickSheet === 'received-signal'
-              ? {
-                  header: darkMode ? 'bg-rose-950/60 border-rose-500/30 text-rose-100' : 'bg-rose-50/90 border-rose-100 text-rose-800',
-                  shell: darkMode ? 'bg-slate-900 border border-rose-500/25 shadow-rose-500/10' : 'bg-white border border-rose-100 shadow-rose-100/50',
-                }
-              : statusQuickSheet === 'sent-signal'
-                ? {
-                    header: darkMode ? 'bg-violet-950/60 border-violet-500/30 text-violet-100' : 'bg-violet-50/90 border-violet-100 text-violet-800',
-                    shell: darkMode ? 'bg-slate-900 border border-violet-500/25 shadow-violet-500/10' : 'bg-white border border-violet-100 shadow-violet-100/50',
-                  }
-                : {
-                    header: darkMode ? 'bg-emerald-950/60 border-emerald-500/30 text-emerald-100' : 'bg-emerald-50/90 border-emerald-100 text-emerald-800',
-                    shell: darkMode ? 'bg-slate-900 border border-emerald-500/25 shadow-emerald-500/10' : 'bg-white border border-emerald-100 shadow-emerald-100/50',
-                  };
+            const modalAccent = {
+              header: darkMode ? 'bg-emerald-950/60 border-emerald-500/30 text-emerald-100' : 'bg-emerald-50/90 border-emerald-100 text-emerald-800',
+              shell: darkMode ? 'bg-slate-900 border border-emerald-500/25 shadow-emerald-500/10' : 'bg-white border border-emerald-100 shadow-emerald-100/50',
+            };
             return (
             <div
               className="safe-overlay fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]"
@@ -1333,9 +1336,7 @@ export function MainScreen({
               >
                 <div className={`flex items-center gap-3 px-5 py-4 border-b flex-shrink-0 ${modalAccent.header}`}>
                   <h2 id="status-quick-modal-title" className="flex-1 text-sm font-black tracking-wide">
-                    {statusQuickSheet === 'received-signal' && <>{SIGNAL_EMOJI} {SIGNAL_INBOX_TITLE}</>}
-                    {statusQuickSheet === 'sent-signal' && <>{SIGNAL_EMOJI} {SIGNAL_SENT_TITLE}</>}
-                    {statusQuickSheet === 'exchanged-contacts' && <>🤝 교환된 연락처</>}
+                    🤝 교환된 연락처
                   </h2>
                   <button
                     type="button"
@@ -1347,62 +1348,6 @@ export function MainScreen({
                   </button>
                 </div>
                 <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 py-4">
-                  {statusQuickSheet === 'received-signal' && (
-                    receivedSignalSenders.length === 0 ? (
-                      <div className="text-center py-10">
-                        <span className="text-3xl block mb-2" aria-hidden>{SIGNAL_EMOJI}</span>
-                        <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{SIGNAL_INBOX_EMPTY}</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {receivedSignalSenders.map((sender) => (
-                          <button
-                            key={sender.id}
-                            type="button"
-                            onClick={() => { closeStatusQuickSheet(); onSelect(sender); }}
-                            className={`w-full text-left p-3 rounded-xl ${darkMode ? 'bg-slate-800 hover:bg-slate-700' : 'bg-gray-50 hover:bg-gray-100'}`}
-                          >
-                            <div className="flex items-center gap-3">
-                              <ProfileAvatar profile={sender} size="sm" rounded="xl" />
-                              <div className="flex-1 min-w-0">
-                                <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{sender.nickname}</p>
-                                <p className={`text-xs ${darkMode ? 'text-rose-300' : 'text-rose-600'}`}>{SIGNAL_EMOJI} {SIGNAL_INBOX_LINE}</p>
-                              </div>
-                            </div>
-                            <ProfileInfoBadges profile={sender} />
-                          </button>
-                        ))}
-                      </div>
-                    )
-                  )}
-                  {statusQuickSheet === 'sent-signal' && (
-                    sentSignalReceivers.length === 0 ? (
-                      <div className="text-center py-10">
-                        <span className="text-3xl block mb-2" aria-hidden>{SIGNAL_EMOJI}</span>
-                        <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{SIGNAL_SENT_EMPTY}</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {sentSignalReceivers.map((receiver) => (
-                          <button
-                            key={receiver.id}
-                            type="button"
-                            onClick={() => { closeStatusQuickSheet(); onSelect(receiver); }}
-                            className={`w-full text-left p-3 rounded-xl ${darkMode ? 'bg-slate-800 hover:bg-slate-700' : 'bg-gray-50 hover:bg-gray-100'}`}
-                          >
-                            <div className="flex items-center gap-3">
-                              <ProfileAvatar profile={receiver} size="sm" rounded="xl" />
-                              <div className="flex-1 min-w-0">
-                                <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{receiver.nickname}</p>
-                                <p className={`text-xs ${darkMode ? 'text-violet-300' : 'text-violet-600'}`}>{SIGNAL_EMOJI} {SIGNAL_SENT_LINE}</p>
-                              </div>
-                            </div>
-                            <ProfileInfoBadges profile={receiver} />
-                          </button>
-                        ))}
-                      </div>
-                    )
-                  )}
                   {statusQuickSheet === 'exchanged-contacts' && (
                     receivedContactShares.length === 0 ? (
                       <div className="text-center py-10">
@@ -1456,10 +1401,11 @@ export function MainScreen({
             </div>
             );
           })()}
+          </div>
           </StatusErrorBoundary>
         )}
 
-        {/* ─── 내 설정 탭 ─── */}
+        {/* ─── 설정 탭 ─── */}
         {mainTab === 'settings' && (
           <StatusErrorBoundary>
           <div className="w-full max-w-lg mx-auto space-y-4 pb-24 shrink-0">
@@ -2206,68 +2152,6 @@ export function MainScreen({
           </StatusErrorBoundary>
         )}
 
-        {/* ─── 채팅 탭 ─── */}
-        {visitedTabsRef.current.has('chats') && (
-        <KeepTab id="chats" mainTab={mainTab}>
-          <MainChatsTab
-            isActive={mainTab === 'chats'}
-            darkMode={darkMode}
-            chatSubTab={chatSubTab}
-            onChangeSubTab={setChatSubTab}
-            unreadChatCounts={unreadChatCounts}
-            unreadGroupCounts={unreadGroupCounts}
-            groupChats={groupChats}
-            joiningGroupId={joiningGroupId}
-            leavingGroupId={leavingGroupId}
-            onSetLeavingGroupId={setLeavingGroupId}
-            leaveGroupTarget={leaveGroupTarget}
-            onSetLeaveGroupTarget={setLeaveGroupTarget}
-            onOpenGroupChat={onOpenGroupChat}
-            onJoinGroupChat={onJoinGroupChat}
-            onLeaveGroupChat={onLeaveGroupChat}
-            guardLockedAction={guardLockedAction}
-            functionsLocked={functionsLocked}
-            showChatSearchLockToast={showChatSearchLockToast}
-            chatSearchLockToast={chatSearchLockToast}
-            chatSearch={chatSearch}
-            onChangeChatSearch={setChatSearch}
-            profiles={profiles}
-            currentUserId={currentUserId}
-            profileMap={profileMap}
-            chatList={chatList}
-            onOpenChat={onOpenChat}
-            onDeleteChat={onDeleteChat}
-            onDeleteAllChats={onDeleteAllChats}
-            onRefreshChats={() => doRefresh('chats', onRefreshChat)}
-            chatsRefreshed={refreshedTab === 'chats'}
-          />
-        </KeepTab>
-        )}
-
-        {/* ─── 시그널 탭 ─── */}
-        {visitedTabsRef.current.has('signal') && (
-        <KeepTab id="signal" mainTab={mainTab}>
-          <SignalTab
-            isActive={mainTab === 'signal'}
-            profiles={profiles}
-            currentUserId={currentUserId}
-            userSignals={userSignals}
-            sentHeartsPerPerson={sentHeartsPerPerson}
-            persistedMissionCount={signalMissionCount}
-            blockedUserIds={blockedUserIds}
-            hiddenByIds={hiddenByIds}
-            functionsLocked={functionsLocked}
-            darkMode={darkMode}
-            alreadySignaledIds={signalActedIds}
-            onSendSignal={handleSendSignalTab}
-            onPassSignal={handlePassSignalTab}
-            onSelect={onSelect}
-            onGoProfiles={goProfilesTab}
-            onMissionComplete={onMissionComplete}
-          />
-        </KeepTab>
-        )}
-
         {/* ─── 통계 탭 ─── */}
         {mainTab === 'stats' && (
           <StatsTab profiles={profiles} darkMode={darkMode} />
@@ -2391,18 +2275,23 @@ export function MainScreen({
 
       </main>
 
-      {/* ── 하단 탭 바 (참여자 | 시그널 | 통계 | 랭킹) — 관리자/테스트 탭은 상단 유지 ── */}
+      {/* ── 하단 탭 바 (참여자 | MY | 통계 | 랭킹 | 설정) — 관리자/테스트 탭은 상단 유지 ── */}
       <nav
         aria-label="참여자 메뉴"
         className={`participant-tabbar fixed bottom-0 left-0 right-0 z-40 border-t ${darkMode ? 'bg-slate-900 border-slate-700' : 'bg-white border-gray-200'}`}
       >
         <div className="max-w-7xl mx-auto flex">
-          {([
+          {(() => {
+            const heartsBadge = Math.max(0, pendingHeartsCount - seenHeartsCount) + newContactsCount + (visitorNotif ? newVisitCount : 0);
+            const chatUnreadTotal = sumUnreadCounts(unreadChatCounts) + sumUnreadCounts(unreadGroupCounts);
+            return ([
             { id: 'profiles' as MainTab, icon: '👥', label: '참여자', badge: seenProfilesCount < 0 ? 0 : Math.max(0, profiles.length - seenProfilesCount) },
-            { id: 'signal' as MainTab, icon: SIGNAL_EMOJI, label: '시그널' },
+            { id: 'my' as MainTab, icon: '💝', label: 'MY', badge: heartsBadge + chatUnreadTotal },
             { id: 'stats' as MainTab, icon: '📊', label: '통계' },
             { id: 'ranking' as MainTab, icon: '🏆', label: '랭킹' },
-          ] as Array<{ id: MainTab; icon: string; label: string; badge?: number }>).map((t, ci, arr) => {
+            { id: 'settings' as MainTab, icon: '⚙️', label: '설정' },
+          ] as Array<{ id: MainTab; icon: string; label: string; badge?: number }>);
+          })().map((t, ci, arr) => {
             const locked = functionsLocked && LOCKED_TABS.has(t.id);
             const active = mainTab === t.id;
             return (
@@ -2428,89 +2317,23 @@ export function MainScreen({
         </div>
       </nav>
 
-      {/* ── MY 버튼 (우하단 고정) + 팝업 ── */}
-      {(() => {
-        const myTabActive = mainTab === 'status' || mainTab === 'chats' || mainTab === 'fortune' || mainTab === 'settings';
-        const heartsBadge = Math.max(0, pendingHeartsCount - seenHeartsCount) + newContactsCount + (visitorNotif ? newVisitCount : 0);
-        const chatUnreadTotal = sumUnreadCounts(unreadChatCounts);
-        const groupUnreadTotal = sumUnreadCounts(unreadGroupCounts);
-        const myBadgeTotal = heartsBadge + chatUnreadTotal + groupUnreadTotal;
-
-        const MY_ITEMS: Array<{ id: MainTab; icon: string; label: string; badge?: number }> = [
-          { id: 'status',   icon: '💝', label: '내 상태',  badge: heartsBadge },
-          { id: 'chats',    icon: '💬', label: '내 채팅',  badge: chatUnreadTotal + groupUnreadTotal },
-          { id: 'fortune',  icon: '🔮', label: '내 운세' },
-          { id: 'settings', icon: '⚙️', label: '내 설정' },
-        ];
-
-        return (
-          <>
-            {myMenuOpen && (
-              <div className="fixed inset-0 z-40" onClick={() => setMyMenuOpen(false)} aria-hidden />
-            )}
-
-            {myMenuOpen && (
-              <div className={`fixed bottom-[calc(8.5rem+var(--tabbar-safe-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-50 rounded-2xl shadow-xl border overflow-hidden min-w-[160px] ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'}`}>
-                {MY_ITEMS.map((item, idx) => {
-                  const locked = functionsLocked && LOCKED_TABS.has(item.id);
-                  const active = mainTab === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      disabled={locked}
-                      onClick={() => {
-                        if (locked) return;
-                        setMyMenuOpen(false);
-                        if (participantNav?.topId() === 'my-menu') {
-                          if (participantNav.has('tab:away')) participantNav.notifyClosed('my-menu');
-                          else participantNav.replaceTop('tab:away', () => onTabChange('profiles'));
-                        }
-                        handleTabChange(item.id);
-                      }}
-                      className={`w-full flex items-center gap-3 px-4 py-3 transition-all active:scale-95 ${idx > 0 ? (darkMode ? 'border-t border-slate-700' : 'border-t border-gray-100') : ''} ${
-                        active
-                          ? darkMode ? 'bg-cyan-500/20 text-cyan-400' : 'bg-cyan-50 text-cyan-700'
-                          : locked
-                            ? `opacity-40 cursor-not-allowed ${darkMode ? 'text-slate-400' : 'text-gray-400'}`
-                            : darkMode ? 'text-slate-200 hover:bg-slate-700' : 'text-gray-700 hover:bg-gray-50'
-                      }`}
-                    >
-                      <span className="text-lg leading-none">{locked ? '🔒' : item.icon}</span>
-                      <span className="text-sm font-bold flex-1 text-left">{item.label}</span>
-                      {!locked && (item.badge ?? 0) > 0 && (
-                        <span className="min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
-                          {item.badge}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            <button
-              type="button"
-              aria-expanded={myMenuOpen}
-              aria-haspopup="menu"
-              onClick={() => setMyMenuOpen(v => !v)}
-              className={`participant-fab participant-fab-my fixed bottom-[calc(4.5rem+var(--tabbar-safe-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-50 w-14 h-14 rounded-full flex flex-col items-center justify-center transition-all active:scale-90 select-none ${
-                myTabActive || myMenuOpen
-                  ? 'bg-gradient-to-br from-cyan-500 to-teal-500 text-white'
-                  : darkMode
-                    ? 'bg-slate-800 text-slate-100'
-                    : 'bg-white text-gray-800'
-              }`}
-            >
-              <span className="text-[15px] font-black leading-none tracking-widest">MY</span>
-              {myBadgeTotal > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center shadow-sm">
-                  {myBadgeTotal > 99 ? '99+' : myBadgeTotal}
-                </span>
-              )}
-            </button>
-          </>
-        );
-      })()}
+      {/* ── 운세 FAB (우하단) ── */}
+      <button
+        type="button"
+        aria-label="내 운세"
+        onClick={() => handleTabChange('fortune')}
+        disabled={functionsLocked && LOCKED_TABS.has('fortune')}
+        className={`participant-fab fixed bottom-[calc(4.5rem+var(--tabbar-safe-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-50 w-14 h-14 rounded-full flex flex-col items-center justify-center transition-all active:scale-90 select-none ${
+          mainTab === 'fortune'
+            ? 'bg-gradient-to-br from-cyan-500 to-teal-500 text-white'
+            : darkMode
+              ? 'bg-slate-800 text-slate-100'
+              : 'bg-white text-gray-800'
+        } ${functionsLocked && LOCKED_TABS.has('fortune') ? 'opacity-35 cursor-not-allowed' : ''}`}
+      >
+        <span className="text-xl leading-none" aria-hidden>🔮</span>
+        <span className="text-[9px] font-black leading-none mt-0.5">운세</span>
+      </button>
 
     </div>
   );

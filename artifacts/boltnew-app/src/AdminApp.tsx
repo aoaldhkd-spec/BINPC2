@@ -10,9 +10,9 @@ import {
   setAdminToken, loadAdminSession, getAdminPassword, refreshAdminToken,
   adminApiRpc, patchAdminSettings, adminApiSelect, adminSupabase,
   ADMIN_TOKEN_KEY, ADMIN_PW_KEY, ADMIN_SESSION_KEY, ADMIN_API, MAX_ADMIN_MESSAGES,
-  MAX_ADMIN_GROUP_MESSAGES, MAX_ADMIN_GROUP_PARTICIPANTS, MAX_ADMIN_SIGNAL_SENDS,
+  MAX_ADMIN_GROUP_MESSAGES, MAX_ADMIN_GROUP_PARTICIPANTS,
   type Profile, type AppSettings, type SessionHistory, type Like, type Chat, type Message,
-  type GroupChat, type GroupMessage, type GroupParticipant, type SignalSend, type DbHealthData,
+  type GroupChat, type GroupMessage, type GroupParticipant, type DbHealthData,
 } from './admin/shared';
 import { LoginScreen } from './admin/LoginScreen';
 import {
@@ -91,7 +91,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [groupChats, setGroupChats] = useState<GroupChat[]>([]);
   const [groupMessages, setGroupMessages] = useState<GroupMessage[]>([]);
   const [groupParticipants, setGroupParticipants] = useState<GroupParticipant[]>([]);
-  const [signalSends, setSignalSends] = useState<SignalSend[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [historyError, setHistoryError] = useState<string | null>(null);
   // Recovery banner (floating top)
@@ -132,7 +131,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     try {
       const [
         { data: li }, { data: ch }, { data: msgs }, { data: groups },
-        { data: groupMsgs }, { data: participants }, { data: signals },
+        { data: groupMsgs }, { data: participants },
       ] = await Promise.all([
         adminApiSelect<Like>('likes', [{ column: 'created_at', ascending: false }]),
         adminApiSelect<Chat>('chats', [{ column: 'created_at', ascending: false }]),
@@ -140,7 +139,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         adminApiSelect<GroupChat>('group_chats', [{ column: 'created_at', ascending: false }], 250),
         adminApiSelect<GroupMessage>('group_messages', [{ column: 'created_at', ascending: false }], MAX_ADMIN_GROUP_MESSAGES),
         adminApiSelect<GroupParticipant>('group_participants', [{ column: 'joined_at', ascending: false }], MAX_ADMIN_GROUP_PARTICIPANTS),
-        adminApiSelect<SignalSend>('signal_sends', [{ column: 'created_at', ascending: false }], MAX_ADMIN_SIGNAL_SENDS),
       ]);
       if (li) setLikes(li);
       if (ch) setAllChats(ch);
@@ -148,12 +146,10 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       if (groups) setGroupChats(groups);
       if (groupMsgs) setGroupMessages(groupMsgs.slice(0, MAX_ADMIN_GROUP_MESSAGES));
       if (participants) setGroupParticipants(participants.slice(0, MAX_ADMIN_GROUP_PARTICIPANTS));
-      if (signals) setSignalSends(signals.slice(0, MAX_ADMIN_SIGNAL_SENDS));
       const failed = [
         groups == null && '단체방',
         groupMsgs == null && '단체 메시지',
         participants == null && '참여자 수',
-        signals == null && '시그널',
       ].filter(Boolean);
       if (failed.length > 0) setHistoryError(`${failed.join(', ')} 조회 실패`);
     } finally {
@@ -301,21 +297,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'group_participants' },
         (payload: { old: Record<string, unknown> }) => {
           setGroupParticipants(prev => prev.filter(item => item.id !== (payload.old as GroupParticipant).id));
-        })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'signal_sends' },
-        (payload: { new: Record<string, unknown> }) => {
-          const signal = payload.new as SignalSend;
-          setSignalSends(prev =>
-            [signal, ...prev.filter(item => item.id !== signal.id)].slice(0, MAX_ADMIN_SIGNAL_SENDS));
-        })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'signal_sends' },
-        (payload: { new: Record<string, unknown> }) => {
-          const signal = payload.new as SignalSend;
-          setSignalSends(prev => prev.map(item => item.id === signal.id ? signal : item));
-        })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'signal_sends' },
-        (payload: { old: Record<string, unknown> }) => {
-          setSignalSends(prev => prev.filter(item => item.id !== (payload.old as SignalSend).id));
         })
       .subscribe();
     return () => { ldbSupabase.removeChannel(ch); };
@@ -698,7 +679,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
             <ChatsTab
               chats={directChatsWithMessages} messages={allMessages}
               groupChats={groupChats} groupMessages={groupMessages}
-              groupParticipants={groupParticipants} signalSends={signalSends}
+              groupParticipants={groupParticipants}
               profileMap={profileMap} historyLoading={historyLoading} historyError={historyError}
               onDeleteChat={handleDeleteChat} onClearAll={handleClearAllChats} onRefresh={loadAll}
             />

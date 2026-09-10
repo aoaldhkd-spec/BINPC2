@@ -18,23 +18,14 @@ import {
 import { HeartType } from './lib/constants';
 import {
   hasInterestHeart,
-  incomingSignalToast,
   isInterestHeart,
-  resolveSignalInboxProfiles,
 } from './lib/signal-match';
-import { mergeRowsAfterSnapshot, mergeSetAfterSnapshot } from './lib/realtime-merge';
 import { incomingInterestToast, isIncomingHeartToastTarget, MUTUAL_HEART_TOAST } from './lib/heart-toast';
-import { FUNCTIONS_LOCK_KICK_TOAST, FUNCTIONS_LOCK_TOAST, FUNCTIONS_UNLOCK_TOAST, SOCIAL_LOCKED_TABS, BLOCKED_SEND_TOAST, isBlockedOpError, isFunctionsLockedOpError, isRetryableOpError, parseFunctionsLocked } from './lib/functions-lock';
-import {
-  filterSignalPendingQueueForUser,
-  loadSignalPendingQueue,
-  saveSignalPendingQueue,
-  type PendingSignalAction,
-} from './lib/signal-pending-queue';
+import { FUNCTIONS_LOCK_KICK_TOAST, FUNCTIONS_LOCK_TOAST, FUNCTIONS_UNLOCK_TOAST, SOCIAL_LOCKED_TABS, parseFunctionsLocked } from './lib/functions-lock';
 // ─── 분리된 타입·유틸·컴포넌트 imports ────────────────────────────────────────
 import type {
   Profile, ContactShare,
-  View, MainTab, BlockedUser, ProfileView, UserSignal, SignalSend,
+  View, MainTab, BlockedUser, ProfileView, UserSignal,
 } from './types/app';
 import { useGroupChat } from './hooks/useGroupChat';
 import { GroupChatScreen } from './components/GroupChatScreen';
@@ -247,19 +238,7 @@ function App() {
   const [profileVisitors, setProfileVisitors] = useState<ProfileView[]>([]);
   const [newVisitCount, setNewVisitCount] = useState(0);
   const [userSignals, setUserSignals] = useState<UserSignal[]>([]);
-  const [signalActedIds, setSignalActedIds] = useState<Set<string>>(new Set());
-  const [receivedSignalSenders, setReceivedSignalSenders] = useState<Profile[]>([]);
-  const [sentSignalReceivers, setSentSignalReceivers] = useState<Profile[]>([]);
-  const signalActedIdsRef = useRef(signalActedIds);
-  signalActedIdsRef.current = signalActedIds;
-  const receivedSignalSendersRef = useRef(receivedSignalSenders);
-  receivedSignalSendersRef.current = receivedSignalSenders;
-  const sentSignalReceiversRef = useRef(sentSignalReceivers);
-  sentSignalReceiversRef.current = sentSignalReceivers;
-  const loadSignalGenRef = useRef(0);
-  const loadSignalActionsRef = useRef<((userId: string) => Promise<void>) | null>(null);
-  const signalPendingQueueRef = useRef<PendingSignalAction[]>(loadSignalPendingQueue());
-  const isFlushingSignalQueueRef = useRef(false);
+  const [mySubTabHint, setMySubTabHint] = useState<'status' | 'chats' | null>(null);
   const [functionsLocked, setFunctionsLocked] = useState(false);
   const functionsLockedRef = useRef(false);
   functionsLockedRef.current = functionsLocked;
@@ -388,7 +367,6 @@ function App() {
       loadReceivedLikesRef.current?.(uid).catch(() => {});
       loadLikesRef.current?.(uid).catch(() => {});
       loadContactShareDataRef.current?.(uid).catch(() => {});
-      loadSignalActionsRef.current?.(uid).catch(() => {});
     };
     tick();
     const pollId = setInterval(tick, connStatus === 'error' ? 5_000 : 8_000);
@@ -434,7 +412,7 @@ function App() {
     loadGroupChats,
   } = useGroupChat({ currentUserId, profilesRef, setBottomNotif, groupCatalogHotRef });
 
-  groupCatalogHotRef.current = mainTab === 'chats' || view === 'group-chat' || !!activeGroupId;
+  groupCatalogHotRef.current = mainTab === 'my' || view === 'group-chat' || !!activeGroupId;
 
   const {
     likedIds, setLikedIds, sentHeartTypes, setSentHeartTypes, sentHeartsPerPerson, setSentHeartsPerPerson,
@@ -445,7 +423,6 @@ function App() {
     loadLikes, loadReceivedLikes, loadContactShareData, likedByTypeRecord,
     handleLike, executeLike, handleHeartResponse, handleContactShare,
     likeError, setLikeError,
-    signalMissionCount, noteOutgoingLike,
   } = useHearts(currentUserId, profiles, profileMap, openChat);
 
   // 하트 전송 실패 알림 — executeLike가 error를 set하면 바텀 토스트로 표시
@@ -522,225 +499,6 @@ function App() {
     return handleContactShare(likerId, kakao, instagram, phone);
   }, [functionsLocked, handleContactShare, showFunctionsLockToast]);
 
-  const persistSignalAction = useCallback(async (profileId: string, action: 'send' | 'pass'): Promise<boolean> => {
-    if (!currentUserId || profileId === currentUserId) return false;
-    if (functionsLockedRef.current) { showFunctionsLockToast(); return false; }
-    if (signalActedIdsRef.current.has(profileId)) {
-      if (action === 'pass') return true;
-      if (sentSignalReceiversRef.current.some((p) => p.id === profileId)) return true;
-    }
-    let added = false;
-    setSignalActedIds((prev) => {
-      if (prev.has(profileId)) return prev;
-      added = true;
-      return new Set([...prev, profileId]);
-    });
-    const rollback = () => {
-      if (!added) return;
-      setSignalActedIds(prev => {
-        const next = new Set(prev);
-        next.delete(profileId);
-        return next;
-      });
-    };
-    const applySendOutbox = () => {
-      if (action !== 'send') return;
-      const profile = profilesRef.current.find((p) => p.id === profileId);
-      if (profile) {
-        setSentSignalReceivers((prev) => {
-          if (prev.find((p) => p.id === profileId)) return prev;
-          return [profile, ...prev];
-        });
-      }
-    };
-    const enqueueOffline = () => {
-      const clientId = crypto.randomUUID();
-      if (signalPendingQueueRef.current.length >= 50) signalPendingQueueRef.current.shift();
-      signalPendingQueueRef.current.push({
-        receiverId: profileId,
-        action,
-        userId: currentUserId,
-        clientId,
-      });
-      saveSignalPendingQueue(signalPendingQueueRef.current);
-    };
-    try {
-      const { error } = await supabase.from('signal_sends').insert({
-        sender_id: currentUserId,
-        receiver_id: profileId,
-        action,
-      } as never);
-      if (error) {
-        console.warn('[signal_sends]', error.message);
-        if (isBlockedOpError(error)) {
-          rollback();
-          setBottomNotif({ type: 'system', message: BLOCKED_SEND_TOAST });
-          return false;
-        }
-        if (isFunctionsLockedOpError(error)) {
-          rollback();
-          showFunctionsLockToast();
-          return false;
-        }
-        if (isRetryableOpError(error)) {
-          enqueueOffline();
-          applySendOutbox();
-          return true;
-        }
-        rollback();
-        setBottomNotif({
-          type: 'system',
-          message: action === 'send'
-            ? '시그널 전송에 실패했습니다. 잠시 후 다시 시도해 주세요.'
-            : '패스 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.',
-        });
-        return false;
-      }
-      applySendOutbox();
-      return true;
-    } catch (e) {
-      console.warn('[signal_sends]', e);
-      enqueueOffline();
-      applySendOutbox();
-      return true;
-    }
-  }, [currentUserId, showFunctionsLockToast]);
-
-  const flushSignalPendingQueue = useCallback(async () => {
-    if (isFlushingSignalQueueRef.current || signalPendingQueueRef.current.length === 0) return;
-    const uid = userIdRef.current;
-    if (!uid) return;
-    isFlushingSignalQueueRef.current = true;
-    try {
-      const { next } = await (async () => {
-        const queue = [...signalPendingQueueRef.current];
-        let remaining = [...queue];
-        for (const item of queue) {
-          if (item.userId !== uid) {
-            remaining = remaining.filter((q) => q.clientId !== item.clientId);
-            continue;
-          }
-          try {
-            const { error } = await supabase.from('signal_sends').insert({
-              sender_id: item.userId,
-              receiver_id: item.receiverId,
-              action: item.action,
-            } as never);
-            if (!error) {
-              remaining = remaining.filter((q) => q.clientId !== item.clientId);
-              if (item.action === 'send') {
-                const profile = profilesRef.current.find((p) => p.id === item.receiverId);
-                if (profile) {
-                  setSentSignalReceivers((prev) => {
-                    if (prev.find((p) => p.id === profile.id)) return prev;
-                    return [profile, ...prev];
-                  });
-                }
-              }
-            } else if (isBlockedOpError(error) || isFunctionsLockedOpError(error) || !isRetryableOpError(error)) {
-              remaining = remaining.filter((q) => q.clientId !== item.clientId);
-            }
-          } catch {
-            // keep for next reconnect
-          }
-        }
-        return { next: remaining };
-      })();
-      signalPendingQueueRef.current = next;
-      saveSignalPendingQueue(next);
-    } finally {
-      isFlushingSignalQueueRef.current = false;
-    }
-  }, []);
-
-  const handleSendSignal = useCallback((profileId: string) => {
-    return persistSignalAction(profileId, 'send');
-  }, [persistSignalAction]);
-
-  const handlePassSignal = useCallback((profileId: string) => {
-    return persistSignalAction(profileId, 'pass');
-  }, [persistSignalAction]);
-
-  const loadSignalActions = useCallback(async (userId: string) => {
-    const gen = ++loadSignalGenRef.current;
-    const actedAtStart = new Set(signalActedIdsRef.current);
-    const inboxAtStart = [...receivedSignalSendersRef.current];
-    const outboxAtStart = [...sentSignalReceiversRef.current];
-    try {
-      const [outgoingRes, incomingRes] = await Promise.all([
-        supabase.from('signal_sends').select('receiver_id, action').eq('sender_id', userId),
-        supabase.from('signal_sends').select('sender_id, action').eq('receiver_id', userId),
-      ]);
-      if (gen !== loadSignalGenRef.current) return;
-      const outgoingRows = (outgoingRes.data ?? []) as Array<{ receiver_id?: string; action?: string }>;
-      if (outgoingRes.error) {
-        console.warn('[signal_sends] outgoing select', outgoingRes.error.message);
-      } else {
-        const fetched = new Set<string>();
-        for (const row of outgoingRows) {
-          if (row.receiver_id) fetched.add(row.receiver_id);
-        }
-        setSignalActedIds((current) => mergeSetAfterSnapshot(fetched, actedAtStart, current));
-      }
-      const receiverIds = [...new Set(
-        outgoingRows.filter((r) => r.action === 'send' && r.receiver_id).map((r) => r.receiver_id as string),
-      )];
-      let outboxProfiles: Profile[] = [];
-      if (!outgoingRes.error && receiverIds.length > 0) {
-        const { data: ps, error: psErr } = await supabase.from('profiles').select('*').in('id', receiverIds);
-        if (gen !== loadSignalGenRef.current) return;
-        if (psErr) console.warn('[signal_sends] outbox profiles', psErr.message);
-        else outboxProfiles = (ps ?? []) as Profile[];
-      }
-      if (incomingRes.error) {
-        console.warn('[signal_sends] incoming select', incomingRes.error.message);
-      } else {
-        const senderIds = [...new Set(
-          ((incomingRes.data ?? []) as Array<{ sender_id?: string; action?: string }>)
-            .filter((r) => r.action === 'send' && r.sender_id)
-            .map((r) => r.sender_id as string),
-        )];
-        let fetchedProfiles: Profile[] = [];
-        if (senderIds.length > 0) {
-          const { data: ps, error: psErr } = await supabase.from('profiles').select('*').in('id', senderIds);
-          if (gen !== loadSignalGenRef.current) return;
-          if (psErr) console.warn('[signal_sends] inbox profiles', psErr.message);
-          fetchedProfiles = (ps ?? []) as Profile[];
-        }
-        if (gen !== loadSignalGenRef.current) return;
-        const resolved = resolveSignalInboxProfiles(
-          senderIds,
-          fetchedProfiles,
-          inboxAtStart,
-          profilesRef.current,
-        );
-        setReceivedSignalSenders((current) => mergeRowsAfterSnapshot(resolved, inboxAtStart, current, (p) => p.id));
-      }
-      if (gen !== loadSignalGenRef.current) return;
-      const resolvedOutbox = resolveSignalInboxProfiles(
-        receiverIds,
-        outboxProfiles,
-        outboxAtStart,
-        profilesRef.current,
-      );
-      setSentSignalReceivers((current) => mergeRowsAfterSnapshot(resolvedOutbox, outboxAtStart, current, (p) => p.id));
-    } catch {
-      /* stale — keep previous inbox / outbox / acted lock */
-    }
-  }, []);
-  loadSignalActionsRef.current = loadSignalActions;
-
-  useEffect(() => {
-    signalPendingQueueRef.current = filterSignalPendingQueueForUser(signalPendingQueueRef.current, currentUserId);
-    saveSignalPendingQueue(signalPendingQueueRef.current);
-  }, [currentUserId]);
-
-  useEffect(() => {
-    const onOnline = () => void flushSignalPendingQueue();
-    window.addEventListener('online', onOnline);
-    return () => window.removeEventListener('online', onOnline);
-  }, [flushSignalPendingQueue]);
-
   const openChatGuarded = useCallback((profile: Profile) => {
     if (functionsLockedRef.current) { showFunctionsLockToast(); return Promise.resolve(); }
     return openChat(profile);
@@ -794,7 +552,7 @@ function App() {
   }, [leaveGroupChatGuarded]);
 
   useEffect(() => {
-    if (mainTab === 'chats' && currentUserId) {
+    if (mainTab === 'my' && currentUserId) {
       void loadGroupChats(currentUserId);
     }
   }, [mainTab, currentUserId, loadGroupChats]);
@@ -904,7 +662,6 @@ function App() {
     if (!functionsLocked) {
       if (wasLocked) {
         showFunctionsLockToast(FUNCTIONS_UNLOCK_TOAST);
-        void flushSignalPendingQueue();
       }
       return;
     }
@@ -1335,9 +1092,6 @@ function App() {
     setReceivedHeartTypes(new Map());
     setLikeStatuses(new Map());
     setReceivedLikers([]);
-    loadSignalGenRef.current += 1;
-    setSignalActedIds(new Set());
-    setReceivedSignalSenders([]);
     // 타이머 ID 추적 — 언마운트 시 clearTimeout으로 stale setState 방지
     let retryTimerId: ReturnType<typeof setTimeout> | null = null;
     let initTimerId1: ReturnType<typeof setTimeout> | null = null;
@@ -1353,7 +1107,8 @@ function App() {
         if (isCompleteProfile(me)) {
           setProfileBoot('ok');
           setView('main');
-          setMainTab('status');
+          setMainTab('my');
+          setMySubTabHint('status');
         } else {
           setView('loading-main');
         }
@@ -1415,7 +1170,6 @@ function App() {
     });
     loadLikes(currentUserId);
     loadReceivedLikes(currentUserId);
-    void loadSignalActions(currentUserId);
     initTimerId1 = setTimeout(() => {
       loadContactShareData(currentUserId);
       loadChatList(currentUserId);
@@ -1478,15 +1232,10 @@ function App() {
             next.set(row.liked_id, s);
             return next;
           });
-          noteOutgoingLike({
-            liked_id: row.liked_id,
-            heart_type: row.heart_type ?? 'red',
-            created_at: row.created_at ?? new Date().toISOString(),
-          });
           // 내가 하트를 보냈고 상대도 이미 하트를 보냈으면 서로 하트 (수신자 전용 토스트와 대칭)
           if (isInterestHeart(row.heart_type) && isInterestHeart(receivedHeartTypesRef.current.get(row.liked_id))) {
             const nick = profilesRef.current.find(p => p.id === row.liked_id)?.nickname ?? '상대방';
-            setBottomNotif({ type: 'signal', signalKind: 'mutual', nickname: nick, profileId: row.liked_id, message: MUTUAL_HEART_TOAST });
+            setBottomNotif({ type: 'heart', heartMutual: true, nickname: nick, profileId: row.liked_id, message: MUTUAL_HEART_TOAST });
           }
           traceRealtimeStateMerge('hearts', row);
         })
@@ -1544,7 +1293,7 @@ function App() {
               setBottomNotif({ type: 'heart', nickname: '누군가', heartType: row.heart_type ?? 'red' });
             }
             triggerConfetti();
-            rejNotifTimerIds.push(setTimeout(() => setBottomNotif(prev => (prev?.type === 'heart' || prev?.type === 'signal') ? null : prev), 5000));
+            rejNotifTimerIds.push(setTimeout(() => setBottomNotif(prev => (prev?.type === 'heart') ? null : prev), 5000));
             traceRealtimeStateMerge('hearts', row);
           } catch (e) { console.warn('[realtime:likes]', e); }
         })
@@ -1569,97 +1318,6 @@ function App() {
           setReceivedContactShares(prev => prev.map(s => s.liked_id === share.liked_id ? share : s));
           traceRealtimeStateMerge('contact', share);
         })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'signal_sends', filter: `sender_id=eq.${currentUserId}` },
-        (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-          const row = payload.new as SignalSend;
-          if (row.receiver_id) {
-            setSignalActedIds((prev) => {
-              if (prev.has(row.receiver_id)) return prev;
-              return new Set([...prev, row.receiver_id]);
-            });
-            if (row.action === 'send') {
-              const profile = profilesRef.current.find((p) => p.id === row.receiver_id) ?? null;
-              if (profile) {
-                setSentSignalReceivers((prev) => {
-                  if (prev.find((p) => p.id === profile.id)) return prev;
-                  return [profile, ...prev];
-                });
-              }
-            }
-          }
-        })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'signal_sends', filter: `sender_id=eq.${currentUserId}` },
-        (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-          const row = payload.new as SignalSend;
-          if (row.action !== 'send' || !row.receiver_id) return;
-          setSignalActedIds((prev) => {
-            if (prev.has(row.receiver_id)) return prev;
-            return new Set([...prev, row.receiver_id]);
-          });
-          const profile = profilesRef.current.find((p) => p.id === row.receiver_id) ?? null;
-          if (profile) {
-            setSentSignalReceivers((prev) => {
-              if (prev.find((p) => p.id === profile.id)) return prev;
-              return [profile, ...prev];
-            });
-          }
-        })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'signal_sends', filter: `receiver_id=eq.${currentUserId}` },
-        async (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-          try {
-            const row = payload.new as SignalSend;
-            if (row.action !== 'send' || !row.sender_id || row.sender_id === currentUserId) return;
-            const { data } = await supabase.from('profiles').select('*').eq('id', row.sender_id).maybeSingle();
-            const profile = (data as Profile | null)
-              ?? profilesRef.current.find((p) => p.id === row.sender_id)
-              ?? null;
-            if (profile) {
-              setReceivedSignalSenders((prev) => {
-                if (prev.find((p) => p.id === profile.id)) return prev;
-                return [profile, ...prev];
-              });
-            }
-            const nick = profile?.nickname ?? '누군가';
-            setBottomNotif({
-              type: 'signal',
-              signalKind: 'received',
-              nickname: nick,
-              profileId: row.sender_id,
-              message: incomingSignalToast(nick),
-            });
-          } catch (e) {
-            console.warn('[realtime:signal_sends]', e);
-          }
-        })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'signal_sends', filter: `receiver_id=eq.${currentUserId}` },
-        async (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-          try {
-            const row = payload.new as SignalSend;
-            if (row.action !== 'send' || !row.sender_id || row.sender_id === currentUserId) return;
-            const oldRow = payload.old as SignalSend;
-            if (oldRow?.action === 'send') return;
-            const { data } = await supabase.from('profiles').select('*').eq('id', row.sender_id).maybeSingle();
-            const profile = (data as Profile | null)
-              ?? profilesRef.current.find((p) => p.id === row.sender_id)
-              ?? null;
-            if (profile) {
-              setReceivedSignalSenders((prev) => {
-                if (prev.find((p) => p.id === profile.id)) return prev;
-                return [profile, ...prev];
-              });
-            }
-            const nick = profile?.nickname ?? '누군가';
-            setBottomNotif({
-              type: 'signal',
-              signalKind: 'received',
-              nickname: nick,
-              profileId: row.sender_id,
-              message: incomingSignalToast(nick),
-            });
-          } catch (e) {
-            console.warn('[realtime:signal_sends:update]', e);
-          }
-        })
       .subscribe();
     // chats INSERT/DELETE는 useChat의 user-events-${uid} 통합 채널이 처리 — 중복 구독 제거됨
 
@@ -1674,7 +1332,7 @@ function App() {
       supabase.removeChannel(userRealtimeChannel);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- loadXxx are stable useCallbacks; setState/refs are stable
-  }, [currentUserId, loadProfiles, loadLikes, loadReceivedLikes, loadContactShareData, loadChatList, loadSignalActions, noteOutgoingLike, traceRealtimeStateMerge]);
+  }, [currentUserId, loadProfiles, loadLikes, loadReceivedLikes, loadContactShareData, loadChatList, traceRealtimeStateMerge]);
 
   // ─── 차단·숨기기 / 방문자 기록 로드 ─────────────────────────────────────────
   useEffect(() => {
@@ -1797,14 +1455,13 @@ function App() {
         if (allProfiles.length === 0) return;
         loadReceivedLikes(storedId);
         loadLikes(storedId);
-        void loadSignalActions(storedId);
         loadChatList(storedId);
         loadContactShareData(storedId);
       }).catch(() => { /* 네트워크 오류 → 세션 유지, 데이터는 다음 리프레시 때 갱신 */ });
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [loadProfiles, loadReceivedLikes, loadLikes, loadChatList, loadContactShareData, loadSignalActions]);
+  }, [loadProfiles, loadReceivedLikes, loadLikes, loadChatList, loadContactShareData]);
 
   // Web push 구독 — 로그인 완료 후 알림 권한 요청 및 구독 등록
   useEffect(() => {
@@ -1820,8 +1477,6 @@ function App() {
       loadReceivedLikes(currentUserId);
       loadLikes(currentUserId);
       loadContactShareData(currentUserId);
-      void loadSignalActions(currentUserId);
-      void flushSignalPendingQueue();
       loadProfiles();
       fetch('/api/db/ready', { signal: AbortSignal.timeout(8_000) })
         .then(r => r.ok ? r.json() : null)
@@ -1840,7 +1495,7 @@ function App() {
         .catch(() => {});
     });
     return unsubReconnect;
-  }, [currentUserId, loadChatList, loadReceivedLikes, loadLikes, loadContactShareData, loadProfiles, loadSignalActions, flushSignalPendingQueue]);
+  }, [currentUserId, loadChatList, loadReceivedLikes, loadLikes, loadContactShareData, loadProfiles]);
 
 
   // Manual refresh for status and chat tabs
@@ -1848,9 +1503,8 @@ function App() {
     if (!currentUserId) return;
     loadReceivedLikes(currentUserId);
     loadLikes(currentUserId);
-    void loadSignalActions(currentUserId);
     loadContactShareData(currentUserId);
-  }, [currentUserId, loadReceivedLikes, loadLikes, loadContactShareData, loadSignalActions]);
+  }, [currentUserId, loadReceivedLikes, loadLikes, loadContactShareData]);
 
   const refreshChatTab = useCallback(() => {
     if (!currentUserId) return;
@@ -2014,14 +1668,6 @@ function App() {
     () => derivePrivacyProfileIds(blockedUsers, currentUserId),
     [blockedUsers, currentUserId],
   );
-
-  const handleMissionComplete = useCallback(() => {
-    setBottomNotif({
-      type: 'signal',
-      signalKind: 'mission',
-      message: '🎉 미션 완료! 새로운 추천 상대를 확인해보세요.',
-    });
-  }, []);
 
   const myProfile = currentUserId ? profileMap.get(currentUserId) : null;
   const hasValidProfile = isCompleteProfile(myProfile ?? undefined);
@@ -2190,7 +1836,6 @@ function App() {
               loadReceivedLikesRef.current?.(uid).catch(() => {});
               loadLikesRef.current?.(uid).catch(() => {});
               loadContactShareDataRef.current?.(uid).catch(() => {});
-              loadSignalActionsRef.current?.(uid).catch(() => {});
               loadProfilesRef.current().catch(() => {});
             } else {
               window.location.reload();
@@ -2231,18 +1876,17 @@ function App() {
           <BottomNotification
             notification={bottomNotif}
             onClose={() => setBottomNotif(null)}
-            onGoToStatus={() => { setMainTab('status'); setBottomNotif(null); }}
-            onGoToChats={() => { handleMainTabChange('chats'); setBottomNotif(null); }}
-            onGoToSignal={() => { handleMainTabChange('signal'); setBottomNotif(null); }}
+            onGoToStatus={() => { setMySubTabHint('status'); handleMainTabChange('my'); setBottomNotif(null); }}
+            onGoToChats={() => { setMySubTabHint('chats'); handleMainTabChange('my'); setBottomNotif(null); }}
             onViewProfile={() => {
               const id = bottomNotif.profileId;
-              const p = (id && (profiles.find(x => x.id === id) ?? receivedLikers.find(x => x.id === id) ?? receivedSignalSenders.find(x => x.id === id) ?? sentSignalReceivers.find(x => x.id === id))) || null;
+              const p = (id && (profiles.find(x => x.id === id) ?? receivedLikers.find(x => x.id === id))) || null;
               if (p) { setSelectedProfile(p); setView('profile'); }
               setBottomNotif(null);
             }}
             onStartChat={() => {
               const id = bottomNotif.profileId;
-              const p = (id && (profiles.find(x => x.id === id) ?? receivedLikers.find(x => x.id === id) ?? receivedSignalSenders.find(x => x.id === id) ?? sentSignalReceivers.find(x => x.id === id))) || null;
+              const p = (id && (profiles.find(x => x.id === id) ?? receivedLikers.find(x => x.id === id))) || null;
               if (p) void openChatGuarded(p);
               setBottomNotif(null);
             }}
@@ -2309,13 +1953,8 @@ function App() {
         joiningGroupId={joiningGroupId}
         userSignals={userSignals}
         onUserSignalUpdate={handleUserSignalUpdate}
-        onMissionComplete={handleMissionComplete}
-        signalMissionCount={signalMissionCount}
-        receivedSignalSenders={receivedSignalSenders}
-        sentSignalReceivers={sentSignalReceivers}
-        signalActedIds={signalActedIds}
-        onSendSignal={handleSendSignal}
-        onPassSignal={handlePassSignal}
+        mySubTabHint={mySubTabHint}
+        onMySubTabHintConsumed={() => setMySubTabHint(null)}
         blockedUserIds={privacyProfileIds.blockedUserIds}
         hiddenByIds={privacyProfileIds.hiddenByIds}
         profileVisitors={profileVisitors}

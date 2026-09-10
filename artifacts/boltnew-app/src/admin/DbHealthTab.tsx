@@ -235,11 +235,11 @@ export function DbHealthTab({ health, loading, onRefresh, onClearErrors }: { hea
       </div>
 
       {/* Recent error log */}
-      {hasErrors && health!.recentErrors.length > 0 && (
+      {hasErrors && (health?.recentErrors ?? []).length > 0 && (
         <div>
           <p className="text-xs font-semibold text-gray-500 mb-2">최근 오류 로그 (최대 10건)</p>
           <div className="rounded-xl border border-red-200 bg-red-50 divide-y divide-red-100 overflow-hidden">
-            {health!.recentErrors.map((e, i) => (
+            {(health?.recentErrors ?? []).map((e, i) => (
               <div key={i} className="px-3 py-2">
                 <div className="flex items-center justify-between mb-0.5">
                   <span className="text-[10px] font-bold text-red-700 bg-red-100 px-1.5 py-0.5 rounded">{e.table}</span>

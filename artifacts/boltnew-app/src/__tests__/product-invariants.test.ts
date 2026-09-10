@@ -3,7 +3,6 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { MUTUAL_HEART_TOAST } from '../lib/heart-toast';
-import { SIGNAL_CARD_SIGNAL_CTA, SIGNAL_CARD_PROFILE_CTA, SIGNAL_SWIPE_LEFT_EXPLAIN, SIGNAL_SWIPE_RIGHT_EXPLAIN } from '../lib/signal-match';
 import { MAX_GROUPS_PER_USER } from '../lib/group-rooms';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -34,31 +33,24 @@ describe('heart_balances recurrence guard (client)', () => {
 });
 
 describe('product copy + notification invariants', () => {
-  it('시그널 deck CTA is 시그널 보내기; swipe left/right is explained', () => {
-    const signalTab = read('components/SignalTab.tsx');
+  it('mutual heart toast uses 서로 하트 not 서로 시그널', () => {
     const heartToast = read('lib/heart-toast.ts');
-    expect(signalTab).toContain('SIGNAL_CARD_SIGNAL_CTA');
-    expect(signalTab).toContain('onSendSignal');
-    expect(signalTab).not.toContain('onLike');
-    expect(SIGNAL_CARD_SIGNAL_CTA).toBe('시그널 보내기');
-    expect(SIGNAL_CARD_PROFILE_CTA).toBe('프로필 보기');
-    expect(SIGNAL_SWIPE_LEFT_EXPLAIN).toContain('패스');
-    expect(SIGNAL_SWIPE_RIGHT_EXPLAIN).toContain('시그널');
+    const bottom = read('components/BottomNotification.tsx');
     expect(MUTUAL_HEART_TOAST).toContain('서로 하트');
     expect(MUTUAL_HEART_TOAST).not.toContain('서로 시그널');
     expect(heartToast).not.toContain('서로 시그널');
+    expect(bottom).not.toContain("type: 'signal'");
   });
 
-  it('튜토리얼과 시그널 설명서에 왼쪽 패스 / 오른쪽 시그널이 있다', () => {
+  it('튜토리얼 하단 탭은 참여자·MY·통계·랭킹·설정 5개', () => {
     const modal = read('components/TutorialModal.tsx');
     const video = read('components/TutorialVideo.tsx');
-    const guide = read('lib/signal-match.ts');
-    expect(modal).toContain('왼쪽 = 패스');
-    expect(modal).toContain('오른쪽 = 시그널');
-    expect(video).toContain('왼쪽 = 패스(별로)');
-    expect(video).toContain('오른쪽 = 시그널 보내기');
-    expect(guide).toContain('왼쪽 = 패스(별로)');
-    expect(guide).toContain('오른쪽 = 시그널 보내기');
+    const main = read('components/MainScreen.tsx');
+    expect(modal).not.toContain("id: 'signal'");
+    expect(video).toContain("l: 'MY'");
+    expect(video).toContain("l: '설정'");
+    expect(main).toContain("label: '설정'");
+    expect(main).toContain("label: 'MY'");
   });
 
   it('profile photo upload uses sessionToken via localdb (Netlify cookie gap)', () => {
@@ -292,22 +284,21 @@ describe('product copy + notification invariants', () => {
     expect(chats).toContain('년생·나이대 방은 자동');
   });
 
-  it('functions_locked covers signal/group/chat re-entry, kick, and live settings', () => {
+  it('functions_locked covers MY/group re-entry, kick, and live settings', () => {
     const lock = read('lib/functions-lock.ts');
     const main = read('components/MainScreen.tsx');
     const app = read('App.tsx');
     const chatHook = read('hooks/useChat.ts');
     const dash = read('admin/DashboardTab.tsx');
-    const signal = read('components/SignalTab.tsx');
     const detail = read('components/ProfileDetail.tsx');
     const db = readFileSync(join(root, '../../api-server/src/routes/db.ts'), 'utf8');
     expect(lock).toContain('FUNCTIONS_UNLOCK_TOAST');
     expect(lock).toContain('isFunctionsLockedOpError');
-    expect(lock).toContain("'signal'");
-    expect(lock).toContain("'chats'");
+    expect(lock).toContain("'my'");
     expect(lock).toContain("'fortune'");
     expect(lock).not.toContain("'stats'");
     expect(lock).not.toContain("'ranking'");
+    expect(lock).not.toContain("'settings'");
     expect(main).toContain('SOCIAL_LOCKED_TABS');
     expect(main).toContain('guardLockedAction');
     expect(app).toContain('FUNCTIONS_UNLOCK_TOAST');
@@ -324,16 +315,15 @@ describe('product copy + notification invariants', () => {
     expect(app).toContain('onLeaveGroupChat');
     expect(app).toContain('handleMainTabChange');
     expect(app).toContain('FUNCTIONS_LOCK_KICK_TOAST');
-    expect(app).toContain("handleMainTabChange('chats')");
-    expect(app).toContain("handleMainTabChange('signal')");
+    expect(app).toContain("handleMainTabChange('my')");
+    expect(app).toContain('setMySubTabHint');
     expect(app).toContain('openChatGuarded(p)');
     expect(app).toContain('setContactShareTarget(null)');
     expect(app).toContain('settingsPoll');
     expect(app).toContain("table: 'app_settings'");
     expect(app).toContain('{showResetPassword && (');
-    expect(dash).toContain('하트·채팅·시그널·단톡·운세 사용 불가');
-    expect(dash).toContain('통계·랭킹은 그대로');
-    expect(signal).toContain('행사 중에는 시그널을 사용할 수 없어요');
+    expect(dash).toContain('MY·단톡·운세 사용 불가');
+    expect(dash).toContain('통계·랭킹·설정');
     expect(detail).toContain('onViewFortune');
     expect(db).toContain('FUNCTIONS_LOCKED_INSERT_TABLES');
     expect(db).toContain("code: 'FUNCTIONS_LOCKED'");
@@ -385,15 +375,11 @@ describe('product copy + notification invariants', () => {
     expect(app).not.toContain('SignalNudgeBanner');
   });
 
-  it('signal_sends push notification uses 📡 not 💕 (distinct from hearts)', () => {
-    const db = readFileSync(join(root, '../../api-server/src/routes/db.ts'), 'utf8');
-    const idx = db.indexOf("table === 'signal_sends'");
-    expect(idx).toBeGreaterThan(0);
-    const block = db.slice(idx, idx + 400);
-    expect(block).toContain('📡');
-    expect(block).not.toContain('💕');
+  it('BottomNotification has no signal toast type', () => {
     const bottom = read('components/BottomNotification.tsx');
-    expect(bottom).toContain('SIGNAL_EMOJI');
+    expect(bottom).not.toContain("type: 'signal'");
+    expect(bottom).not.toContain('onGoToSignal');
+    expect(bottom).not.toContain('SIGNAL_EMOJI');
   });
 
   it('realtime E2E script uses Render for SSE not Netlify proxy', () => {
@@ -444,7 +430,7 @@ describe('product copy + notification invariants', () => {
     }
   });
 
-  it('status signal/contact pills open center popup modal not bottom sheet', () => {
+  it('status contact pills open center popup modal not bottom sheet', () => {
     const main = read('components/MainScreen.tsx');
     expect(main).toContain('status-quick-modal-title');
     expect(main).toMatch(/safe-overlay fixed inset-0[\s\S]*items-center justify-center/);
@@ -481,9 +467,9 @@ describe('product copy + notification invariants', () => {
     expect(main).toContain('--tabbar-safe-bottom');
   });
 
-  it('내 상태 tab scrolls full content with bottom clearance (MY FAB + tab bar)', () => {
+  it('MY tab scrolls full content with bottom clearance (MY FAB + tab bar)', () => {
     const main = read('components/MainScreen.tsx');
-    expect(main).toMatch(/mainTab === 'status'[\s\S]{0,240}pb-24/);
+    expect(main).toMatch(/mainTab === 'my'[\s\S]{0,240}pb-24/);
     expect(main).toContain('flex-1 min-h-0 px-3 min-[360px]:px-4 overflow-y-auto overscroll-y-contain scrollbar-hide pb-[calc(8.5rem+var(--tabbar-safe-bottom))]');
     expect(main).not.toContain('flex-1 min-h-0 flex flex-col px-3 min-[360px]:px-4 overflow-y-auto');
   });
@@ -554,8 +540,9 @@ describe('product copy + notification invariants', () => {
     expect(app).toContain('inert={isSubScreen');
     expect(app).toContain("className={isSubScreen ? 'pointer-events-none' : undefined}");
     expect(main).toContain('KeepTab');
-    expect(main).toContain("visitedTabsRef.current.has('signal')");
-    expect(main).toContain("visitedTabsRef.current.has('chats')");
+    expect(main).toContain("visitedTabsRef.current.has('profiles')");
+    expect(main).toContain("mainTab === 'my'");
+    expect(main).toContain("mainTab === 'settings'");
   });
 });
 
