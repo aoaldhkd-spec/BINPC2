@@ -84,7 +84,7 @@ function Tip({ text, show, dir = 'bottom' }: { text: string; show: boolean; dir?
 function Tabs({ active, hl }: { active: string; hl?: string }) {
   const row = [
     { id: 'profiles', e: '👥', l: '참여자' },
-    { id: 'my', e: '💝', l: 'MY' },
+    { id: 'my', e: '💝', l: '하트, 채팅' },
     { id: 'stats', e: '📊', l: '통계' },
     { id: 'ranking', e: '🏆', l: '랭킹' },
     { id: 'settings', e: '⚙️', l: '설정' },

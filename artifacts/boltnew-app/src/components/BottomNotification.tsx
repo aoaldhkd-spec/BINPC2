@@ -48,7 +48,7 @@ export function BottomNotification({
               {notification.heartMutual && onStartChat ? (
                 <button onClick={onStartChat} className="text-xs text-white/90 bg-white/20 px-2 py-0.5 rounded-lg font-semibold mt-0.5">채팅 시작하기</button>
               ) : (
-                <button onClick={onGoToStatus} className="text-xs text-white/80 underline">MY 탭으로 이동</button>
+                <button onClick={onGoToStatus} className="text-xs text-white/80 underline">하트, 채팅으로 이동</button>
               )}
             </>
           )}
@@ -56,20 +56,20 @@ export function BottomNotification({
             <>
               <p className="text-sm font-bold text-white">{notification.message ?? (notification.nickname ? `${notification.nickname}님이 채팅방을 열었어요` : '채팅방을 열었어요')}</p>
               {!notification.message && (
-                <button onClick={onGoToChats} className="text-xs text-white/80 underline">MY · 내 채팅으로 이동</button>
+                <button onClick={onGoToChats} className="text-xs text-white/80 underline">하트, 채팅 · 내 채팅으로 이동</button>
               )}
             </>
           )}
           {notification.type === 'message' && (
             <>
               <p className="text-sm font-bold text-white">새로운 채팅이 왔습니다.</p>
-              <button onClick={onGoToChats} className="text-xs text-white/90 bg-white/20 px-2 py-0.5 rounded-lg font-semibold mt-0.5">MY · 내 채팅</button>
+              <button onClick={onGoToChats} className="text-xs text-white/90 bg-white/20 px-2 py-0.5 rounded-lg font-semibold mt-0.5">하트, 채팅 · 내 채팅</button>
             </>
           )}
           {notification.type === 'contact' && (
             <>
               <p className="text-sm font-bold text-white">{notification.nickname}님이 연락처를 공유했습니다!</p>
-              <button onClick={onGoToStatus} className="text-xs text-white/80 underline">MY · 내 상태에서 확인</button>
+              <button onClick={onGoToStatus} className="text-xs text-white/80 underline">하트, 채팅에서 확인</button>
             </>
           )}
           {notification.type === 'system' && (

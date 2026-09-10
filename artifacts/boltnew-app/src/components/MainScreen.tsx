@@ -91,7 +91,7 @@ export function MainScreen({
   groupChats = [], unreadGroupCounts = {}, onOpenGroupChat, onJoinGroupChat, onLeaveGroupChat, joiningGroupId = null,
   blockedUserIds = new Set<string>(), hiddenByIds = new Set<string>(),
   profileVisitors = [] as ProfileView[],
-  newVisitCount = 0,
+  newVisitCount: _newVisitCount = 0,
   onClearVisitCount,
   onBlock,
   myBlockList = [] as import('../types/app').BlockedUser[],
@@ -382,6 +382,7 @@ export function MainScreen({
   // ── 내 상태 탭 카드 접기/펼치기 ────────────────────────────────────────────
   const [profileEditOpen, setProfileEditOpen] = useState(true);
   const [receivedHeartsOpen, setReceivedHeartsOpen] = useState(true);
+  const receivedHeartsRef = useRef<HTMLDivElement>(null);
   const [sentHeartsOpen, setSentHeartsOpen] = useState(true);
   type StatusQuickSheet = 'exchanged-contacts';
   const [statusQuickSheet, setStatusQuickSheet] = useState<StatusQuickSheet | null>(null);
@@ -1009,6 +1010,21 @@ export function MainScreen({
               );
             })()}
 
+            {receivedLikers.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setReceivedHeartsOpen(true);
+                  receivedHeartsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }}
+                className={`w-full flex flex-col items-center gap-0.5 py-2 rounded-2xl transition-colors ${
+                  darkMode ? 'text-rose-200 hover:bg-rose-500/10' : 'text-rose-600 hover:bg-rose-50'
+                }`}
+              >
+                <span className="text-xl leading-none animate-bounce" aria-hidden>👇</span>
+                <span className="text-[11px] font-bold">받은 하트가 있어요 확인해보세요</span>
+              </button>
+            )}
 
             {/* ── 스캔한 연락처 ── */}
             {scannedContacts.length > 0 && (
@@ -1118,7 +1134,7 @@ export function MainScreen({
             })()}
 
             {/* 받은 하트 */}
-            <div className={`rounded-2xl shadow-sm transition-colors duration-300 overflow-hidden ${darkMode ? 'bg-slate-800 border border-slate-600' : 'bg-white'}`}>
+            <div ref={receivedHeartsRef} className={`rounded-2xl shadow-sm transition-colors duration-300 overflow-hidden ${darkMode ? 'bg-slate-800 border border-slate-600' : 'bg-white'}`}>
               <button
                 onClick={() => setReceivedHeartsOpen(o => !o)}
                 className={`w-full flex items-center justify-between px-5 py-4 ${darkMode ? 'hover:bg-slate-700/40' : 'hover:bg-gray-50'}`}
@@ -2069,7 +2085,7 @@ export function MainScreen({
                           <p className={`text-[10px] leading-snug ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
                             {visitorNotif
                               ? '내 상태에 누가 프로필을 봤는지 표시해요'
-                              : '방문자 목록·알림 배지를 숨겨요 (켜면 다시 보여요)'}
+                              : '방문자 목록을 숨겨요 (켜면 다시 보여요)'}
                           </p>
                         </div>
                       </div>
@@ -2161,11 +2177,11 @@ export function MainScreen({
       >
         <div className="max-w-7xl mx-auto flex">
           {(() => {
-            const heartsBadge = Math.max(0, pendingHeartsCount - seenHeartsCount) + newContactsCount + (visitorNotif ? newVisitCount : 0);
+            const heartsBadge = Math.max(0, pendingHeartsCount - seenHeartsCount) + newContactsCount;
             const chatUnreadTotal = sumUnreadCounts(unreadChatCounts) + sumUnreadCounts(unreadGroupCounts);
             return ([
             { id: 'profiles' as MainTab, icon: '👥', label: '참여자', badge: seenProfilesCount < 0 ? 0 : Math.max(0, profiles.length - seenProfilesCount) },
-            { id: 'my' as MainTab, icon: '💝', label: 'MY', badge: heartsBadge + chatUnreadTotal },
+            { id: 'my' as MainTab, icon: '💝', label: '하트, 채팅', badge: heartsBadge + chatUnreadTotal },
             { id: 'stats' as MainTab, icon: '📊', label: '통계' },
             { id: 'ranking' as MainTab, icon: '🏆', label: '랭킹' },
             { id: 'settings' as MainTab, icon: '⚙️', label: '설정' },

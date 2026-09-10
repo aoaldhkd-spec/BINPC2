@@ -42,15 +42,15 @@ describe('product copy + notification invariants', () => {
     expect(bottom).not.toContain("type: 'signal'");
   });
 
-  it('튜토리얼 하단 탭은 참여자·MY·통계·랭킹·설정 5개', () => {
+  it('튜토리얼 하단 탭은 참여자·하트, 채팅·통계·랭킹·설정 5개', () => {
     const modal = read('components/TutorialModal.tsx');
     const video = read('components/TutorialVideo.tsx');
     const main = read('components/MainScreen.tsx');
     expect(modal).not.toContain("id: 'signal'");
-    expect(video).toContain("l: 'MY'");
+    expect(video).toContain("l: '하트, 채팅'");
     expect(video).toContain("l: '설정'");
     expect(main).toContain("label: '설정'");
-    expect(main).toContain("label: 'MY'");
+    expect(main).toContain("label: '하트, 채팅'");
   });
 
   it('profile photo upload uses sessionToken via localdb (Netlify cookie gap)', () => {

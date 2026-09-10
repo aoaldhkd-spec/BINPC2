@@ -47,7 +47,7 @@ const BASIC: Topic[] = [
         variant: 'tabs',
         tips: [
           { icon: '👥', title: '참여자', desc: '오늘 온 사람 카드.' },
-          { icon: '💝', title: 'MY', desc: '내 상태·내 채팅.' },
+          { icon: '💝', title: '하트, 채팅', desc: '내 상태·내 채팅.' },
           { icon: '📊', title: '통계', desc: '하트 수·비율.' },
           { icon: '🏆', title: '랭킹', desc: 'TOP 10.' },
           { icon: '⚙️', title: '설정', desc: '프로필·생월생일.' },
@@ -100,7 +100,7 @@ const BASIC: Topic[] = [
     video: [3, 4, 5],
     videoHint: '이모지·스티커 · 사진 · 스와이프 답장',
     tips: [
-      { icon: '💬', title: '여는 곳', desc: 'MY → 내 채팅 · 단톡은 옆' },
+      { icon: '💬', title: '여는 곳', desc: '하트, 채팅 → 내 채팅 · 단톡은 옆' },
       { icon: '😊', title: '이모지', desc: '입력줄 옆 😊에 붙여 넣음' },
       { icon: '🎨', title: '스티커', desc: '+ 다음 🎨 · 이모지와 다름' },
       { icon: '📷', title: '사진', desc: '+ 다음 이미지로 전송' },
@@ -118,7 +118,7 @@ const BASIC: Topic[] = [
     color: 'from-teal-500 to-emerald-600',
     filler: 'group',
     tips: [
-      { icon: '📍', title: '여는 곳', desc: 'MY → 내 채팅 → 단체 채팅' },
+      { icon: '📍', title: '여는 곳', desc: '하트, 채팅 → 내 채팅 → 단체 채팅' },
       { icon: '✨', title: '자동 입장', desc: '년생 모임 · N대 모임, 두 방' },
       { icon: '🚪', title: '2차', desc: '술·클럽 각 1방. 나가기·입장 자유' },
       { icon: '4️⃣', title: '한도', desc: '자동 2 + 2차 2 · 정원 무제한' },

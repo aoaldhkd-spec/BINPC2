@@ -575,7 +575,7 @@ describe('nudge eligibility + reason chips', () => {
     expect(isNudgeEligible(3, 2)).toBe(false);
   });
 
-  it('opens profiles for heart copy and MY tab only for the MY nudge', () => {
+  it('opens profiles for heart copy and 하트, 채팅 tab only for that nudge', () => {
     expect(nudgeDestinationTab(0)).toBe('profiles');
     expect(nudgeDestinationTab(1)).toBe('my');
     expect(nudgeDestinationTab(2)).toBe('profiles');

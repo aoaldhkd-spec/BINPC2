@@ -19,7 +19,7 @@ export const SIGNAL_FIRST_CHIPS = [
 
 export const NUDGE_MESSAGES = [
   '❤️ 마음에 드는 사람에게 하트를 직접 보내보세요.',
-  '👀 MY 탭에서 받은 하트와 채팅을 한곳에서 확인할 수 있어요.',
+  '👀 하트, 채팅 탭에서 받은 하트와 채팅을 한곳에서 확인할 수 있어요.',
   '💕 서로 하트를 보내면 채팅을 시작할 수 있어요.',
 ] as const;
 
@@ -816,11 +816,11 @@ export function isNudgeEligible(heartSendTotal: number, likedUniqueCount: number
   return heartSendTotal < 1 || likedUniqueCount < 2;
 }
 
-/** 하트 유도 문구는 참여자 탭, MY 안내 문구는 MY 탭. */
+/** 하트 유도 문구는 참여자 탭, 하트·채팅 안내 문구는 해당 탭. */
 export function nudgeDestinationTab(index: number): 'profiles' | 'my' {
   const len = NUDGE_MESSAGES.length;
   const i = ((index % len) + len) % len;
-  return NUDGE_MESSAGES[i].includes('MY 탭') ? 'my' : 'profiles';
+  return NUDGE_MESSAGES[i].includes('하트, 채팅') ? 'my' : 'profiles';
 }
 
 /** 받은 시그널 프로필: SELECT 결과 + 기존 inbox + 로컬 프로필 캐시. 빈 fetch로 지우지 않음. */

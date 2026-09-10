@@ -43,7 +43,7 @@ UI: `ChatScreen.tsx` → state: `useChat.ts` + `chat-reducers.ts` + `chat-pair.t
 UI: `MainScreen.tsx`, `LikeConfirmDialog.tsx`, `ProfileDetail.tsx` → `useHearts.ts` → `localdb.ts` → `db.ts` (`likes`, rate limits)
 
 ### Bottom tabs
-UI: `MainScreen.tsx` — 참여자 / MY(내 상태+내 채팅) / 통계 / 랭킹 / 설정  
+UI: `MainScreen.tsx` — 참여자 / 하트, 채팅(내 상태+내 채팅) / 통계 / 랭킹 / 설정  
 궁합: 프로필 카드·상세·채팅 모달 (`FortuneTab.tsx`, `ChatCompatModal.tsx`). 개인 운세 탭/FAB 없음.
 
 ### Profile tags (`user_signals`)

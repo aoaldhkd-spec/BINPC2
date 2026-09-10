@@ -1368,9 +1368,6 @@ function App() {
             const v = payload.new as ProfileView;
             if (v.viewed_id === uid) {
               setProfileVisitors(prev => prev.some(x => x.id === v.id) ? prev : [...prev, v]);
-              if (localStorage.getItem('visitor_notification') !== '0') {
-                setNewVisitCount(prev => prev + 1);
-              }
             }
           } catch (e) { console.warn('[profile_views SSE]', e); }
         })
