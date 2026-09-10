@@ -150,8 +150,13 @@ export function ageBand(birthYear: number | null | undefined, now: Date = new Da
 
 export function normalizeMbti(raw: string | null | undefined): string | null {
   if (!raw) return null;
-  const t = raw.trim().toUpperCase();
-  return MBTI_SET.has(t) ? t : null;
+  const t = raw.replace(/[^A-Za-z]/g, '').toUpperCase();
+  if (MBTI_SET.has(t)) return t;
+  if (t.length >= 4) {
+    const four = t.slice(0, 4);
+    return MBTI_SET.has(four) ? four : null;
+  }
+  return null;
 }
 
 export function canonicalInterestTags(tags: readonly string[]): string[] {

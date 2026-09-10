@@ -149,6 +149,8 @@ describe('canonicalInterestTags / MBTI / age', () => {
 
   it('normalizes MBTI and rejects junk', () => {
     expect(normalizeMbti(' enfp ')).toBe('ENFP');
+    expect(normalizeMbti('ENFP-T')).toBe('ENFP');
+    expect(normalizeMbti('enfp a')).toBe('ENFP');
     expect(normalizeMbti('XXX')).toBeNull();
     expect(normalizeMbti('')).toBeNull();
   });

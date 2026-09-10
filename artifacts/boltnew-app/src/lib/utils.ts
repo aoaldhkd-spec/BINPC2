@@ -57,10 +57,12 @@ export const domSubLabel = (score: number | null): { label: string; color: strin
 };
 
 // ── MBTI 배지 색상 ─────────────────────────────────────────────────────────────
+/** NT/NF/SJ/SP — 2번째는 N/S, 3번째는 T/F, 4번째는 J/P. SJ를 T/F로 보면 ISTJ가 SP로 잘못 칠해짐. */
 export function getMbtiStyle(mbti: string | null): { bg: string; color: string; border: string } {
   if (!mbti) return { bg: '#f3f4f6', color: '#6b7280', border: '#e5e7eb' };
-  const g = mbti.length >= 3
-    ? (mbti[1] === 'N' ? (mbti[2] === 'T' ? 'NT' : 'NF') : (mbti[2] === 'J' ? 'SJ' : 'SP'))
+  const letters = mbti.replace(/[^A-Za-z]/g, '').toUpperCase();
+  const g = letters.length >= 4
+    ? (letters[1] === 'N' ? (letters[2] === 'T' ? 'NT' : 'NF') : (letters[3] === 'J' ? 'SJ' : 'SP'))
     : 'NT';
   return ({
     NT: { bg: '#ede9fe', color: '#7c3aed', border: '#c4b5fd' },

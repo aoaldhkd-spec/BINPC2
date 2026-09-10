@@ -484,8 +484,11 @@ describe('product copy + notification invariants', () => {
 
   it('통계·랭킹 tabs scroll full content with bottom clearance (MY FAB + tab bar)', () => {
     const statsTabs = read('components/StatsTabs.tsx');
+    const utils = read('lib/utils.ts');
     expect(statsTabs).toMatch(/export function StatsTab[\s\S]*?mx-auto space-y-4 pb-24/);
     expect(statsTabs).toMatch(/export function RankingTab[\s\S]*?mx-auto space-y-4 pb-24/);
+    expect(statsTabs).toContain('getMbtiStyle(m).color');
+    expect(utils).toContain("letters[3] === 'J' ? 'SJ' : 'SP'");
   });
 
   it('HEIC upload rejected with user-facing message', () => {

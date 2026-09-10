@@ -8,6 +8,7 @@ import { parseProfileInterests } from '../lib/interests';
 import { HEART_META, HeartType } from '../lib/constants';
 import { collectProfileBreakdowns, countTodayContactExchanges, countTodayHeartStats, filterProfilesForPublicStats, rankByReceivedHearts } from '../lib/stats-ranking';
 import { getAvatarSrc } from '../lib/profile';
+import { getMbtiStyle } from '../lib/utils';
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
 type Like = Database['public']['Tables']['likes']['Row'];
@@ -256,11 +257,11 @@ export function StatsTab({ profiles, darkMode }: { profiles: Profile[]; darkMode
         </div>
       </div>
 
-      <SectionCard title="MBTI 분포" subtitle={`총 ${stats.mbti.length}종류`} accent="#3b82f6" dark={darkMode}>
+      <SectionCard title="MBTI 분포" subtitle={`총 ${stats.mbti.reduce((n, [, c]) => n + c, 0)}명`} accent="#3b82f6" dark={darkMode}>
         {stats.mbti.length === 0 ? <EmptyNote text="아직 MBTI 데이터가 없습니다." dark={darkMode} /> : (
           <div className="space-y-2">
-            {stats.mbti.map(([m, c], i) => (
-              <BarRow key={m} label={m} count={c} max={maxMbti} color={CHART_COLORS[i % CHART_COLORS.length]} dark={darkMode} />
+            {stats.mbti.map(([m, c]) => (
+              <BarRow key={m} label={m} count={c} max={maxMbti} color={getMbtiStyle(m).color} dark={darkMode} />
             ))}
           </div>
         )}
