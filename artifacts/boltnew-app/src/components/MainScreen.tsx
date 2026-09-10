@@ -238,6 +238,15 @@ export function MainScreen({
     [filteredProfiles, currentUserId],
   );
 
+  const statsProfiles = useMemo(() => filterProfilesForDeck(profiles, {
+    currentUserId,
+    search: '',
+    personality: null,
+    mbti: null,
+    blockedUserIds,
+    hiddenByIds,
+  }), [profiles, currentUserId, blockedUserIds, hiddenByIds]);
+
   const [refreshedTab, setRefreshedTab] = useState<string | null>(null);
 
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -2160,7 +2169,7 @@ export function MainScreen({
 
         {/* ─── 통계 탭 ─── */}
         {mainTab === 'stats' && (
-          <StatsTab profiles={profiles} darkMode={darkMode} />
+          <StatsTab profiles={statsProfiles} darkMode={darkMode} />
         )}
 
         {/* ─── 랭킹 탭 ─── */}

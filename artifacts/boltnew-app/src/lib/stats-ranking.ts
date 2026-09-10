@@ -2,7 +2,6 @@ import { seoulDateKey, isAnyHeart } from './signal-match';
 import { ALL_BIO_TAGS } from './interests';
 import { MBTI_LIST, type HeartType } from './constants';
 import { getPositionLabel, isSwipeGestureVerifyProfile } from './profile';
-import { ADMIN_FIXED_NICKNAME } from './panel-password';
 import { ageBandFromBirthYear, capAgeBandForEvent } from './korean-age';
 
 export type PublicLikeRow = {
@@ -183,11 +182,11 @@ export type ProfileForStats = {
   birth_year?: number | string | null;
 };
 
-/** 공개 통계·랭킹 집계에서 제외할 프로필 (관리자 NPC, E2E 픽스처). */
+/** 공개 통계 집계: 실제 참여자(범일NPC 포함). E2E 픽스처·닉네임 없는 행만 제외. */
 export function filterProfilesForPublicStats<T extends ProfileForStats>(profiles: readonly T[]): T[] {
   return profiles.filter((p) => {
-    if (p.nickname === ADMIN_FIXED_NICKNAME) return false;
     if (isSwipeGestureVerifyProfile(p)) return false;
+    if (!String(p.nickname ?? '').trim()) return false;
     return true;
   });
 }
@@ -228,7 +227,8 @@ export function collectProfileBreakdowns(
   const ageCounts = new Map<string, number>();
 
   for (const p of profiles) {
-    const mbti = normalizeMbti(p.mbti);
+    const shown = typeof p.mbti === 'string' ? p.mbti.trim() : '';
+    const mbti = shown ? (normalizeMbti(shown) ?? shown.toUpperCase()) : null;
     if (mbti) mbtiCounts.set(mbti, (mbtiCounts.get(mbti) ?? 0) + 1);
 
     const pos = getPositionLabel(p.personality_score ?? 50);

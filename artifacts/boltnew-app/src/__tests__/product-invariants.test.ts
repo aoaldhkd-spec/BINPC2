@@ -484,10 +484,14 @@ describe('product copy + notification invariants', () => {
 
   it('통계·랭킹 tabs scroll full content with bottom clearance (MY FAB + tab bar)', () => {
     const statsTabs = read('components/StatsTabs.tsx');
+    const main = read('components/MainScreen.tsx');
+    const ranking = read('lib/stats-ranking.ts');
     const utils = read('lib/utils.ts');
     expect(statsTabs).toMatch(/export function StatsTab[\s\S]*?mx-auto space-y-4 pb-24/);
     expect(statsTabs).toMatch(/export function RankingTab[\s\S]*?mx-auto space-y-4 pb-24/);
     expect(statsTabs).toContain('getMbtiStyle(m).color');
+    expect(main).toContain('profiles={statsProfiles}');
+    expect(ranking).not.toContain('p.nickname === ADMIN_FIXED_NICKNAME');
     expect(utils).toContain("letters[3] === 'J' ? 'SJ' : 'SP'");
   });
 

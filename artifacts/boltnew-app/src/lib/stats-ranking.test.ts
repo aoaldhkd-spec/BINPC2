@@ -216,12 +216,13 @@ describe('collectProfileBreakdowns', () => {
 });
 
 describe('filterProfilesForPublicStats', () => {
-  it('excludes admin NPC and swipe-gesture verify fixtures', () => {
+  it('keeps 범일NPC with real participants; drops swipe fixtures and empty nicknames', () => {
     const filtered = filterProfilesForPublicStats([
       { nickname: '범일NPC', mbti: 'ENFP' },
       { nickname: 'Smoke', bio: 'swipe-gesture-verify' },
       { nickname: '지민', mbti: 'INFP' },
+      { nickname: '   ' },
     ]);
-    expect(filtered.map((p) => p.nickname)).toEqual(['지민']);
+    expect(filtered.map((p) => p.nickname)).toEqual(['범일NPC', '지민']);
   });
 });
