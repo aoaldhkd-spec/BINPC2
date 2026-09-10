@@ -44,11 +44,11 @@ function ChatCompatModal({
               {!myBirth && (
                 <div className="rounded-xl bg-purple-50 border border-purple-200 p-3 mb-3 text-left">
                   <p className="text-xs font-black text-purple-700 mb-0.5">내 생월·생일이 미등록</p>
-                  <p className="text-[11px] text-purple-600 leading-relaxed mb-2">운세 탭에서 생월·생일을 등록해야 궁합을 볼 수 있어요.</p>
+                  <p className="text-[11px] text-purple-600 leading-relaxed mb-2">설정 탭에서 생월·생일을 등록해야 궁합을 볼 수 있어요.</p>
                   <button
                     onClick={onGoRegisterBirth}
                     className="w-full py-2 bg-gradient-to-r from-purple-500 to-violet-500 text-white font-bold rounded-lg text-xs active:scale-95 transition-all">
-                    🔮 운세 탭에서 등록하러 가기
+                    ⚙️ 설정에서 등록하러 가기
                   </button>
                 </div>
               )}

@@ -295,7 +295,7 @@ describe('product copy + notification invariants', () => {
     expect(lock).toContain('FUNCTIONS_UNLOCK_TOAST');
     expect(lock).toContain('isFunctionsLockedOpError');
     expect(lock).toContain("'my'");
-    expect(lock).toContain("'fortune'");
+    expect(lock).not.toContain("'fortune'");
     expect(lock).not.toContain("'stats'");
     expect(lock).not.toContain("'ranking'");
     expect(lock).not.toContain("'settings'");
@@ -322,7 +322,7 @@ describe('product copy + notification invariants', () => {
     expect(app).toContain('settingsPoll');
     expect(app).toContain("table: 'app_settings'");
     expect(app).toContain('{showResetPassword && (');
-    expect(dash).toContain('MY·단톡·운세 사용 불가');
+    expect(dash).toContain('MY·단톡 사용 불가');
     expect(dash).toContain('통계·랭킹·설정');
     expect(detail).toContain('onViewFortune');
     expect(db).toContain('FUNCTIONS_LOCKED_INSERT_TABLES');
@@ -522,7 +522,7 @@ describe('product copy + notification invariants', () => {
     const nav = read('lib/participant-nav-history.ts');
     expect(app).toContain('createParticipantNav');
     expect(app).toContain('goParticipantBack');
-    expect(app).toContain('screen:profile');
+    expect(app).toContain('screen:${view}');
     expect(app).toContain('ParticipantNavProvider');
     expect(nav).toContain('trapped-root');
     expect(nav).toContain('handlePopState');

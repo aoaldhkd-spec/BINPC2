@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo, Suspense, memo, type ReactNode } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, memo, type ReactNode } from 'react';
 /**
  * Main user shell UI (tabs: profiles/chats/status/…).
  * State/realtime: App.tsx + hooks (useChat/useHearts). See ARCHITECTURE.md.
@@ -61,7 +61,6 @@ import {
 import type { ScannedContact } from '../lib/profile-contact-helpers';
 import StatusErrorBoundary from './StatusErrorBoundary';
 import { MainChatsTab } from './MainChatsTab';
-import { FortuneTabLazy as FortuneTab } from './FortuneTab.lazy';
 
 export { ProfileCard };
 
@@ -88,7 +87,7 @@ export function MainScreen({
   onContactShareOpen: _onContactShareOpen, onContactViewOpen, onHeartResponse, onDeleteChat, onDeleteAllChats, onOpenChat,
   timerEndAt, timerLabel, onRefreshStatus, onRefreshChat, onRefreshProfiles, darkMode, onToggleDark, scannedContacts, onClearScannedContact, functionsLocked = false, onShowTutorial,
   unreadChatCounts, onClearChatUnread: _onClearChatUnread,
-  onUpdateProfile, fortuneCompatTarget,
+  onUpdateProfile,
   groupChats = [], unreadGroupCounts = {}, onOpenGroupChat, onJoinGroupChat, onLeaveGroupChat, joiningGroupId = null,
   blockedUserIds = new Set<string>(), hiddenByIds = new Set<string>(),
   profileVisitors = [] as ProfileView[],
@@ -132,7 +131,6 @@ export function MainScreen({
   unreadChatCounts: Record<string, number>;
   onClearChatUnread: (chatId: string) => void;
   onUpdateProfile: (update: Record<string, unknown> & { id: string }) => void;
-  fortuneCompatTarget?: string;
   groupChats?: GroupChat[];
   unreadGroupCounts?: Record<string, number>;
   onOpenGroupChat?: (groupId: string) => void;
@@ -362,7 +360,7 @@ export function MainScreen({
     return () => { root.style.removeProperty('--participant-tabbar'); };
   }, []);
 
-  // 기능 잠금(functionsLocked) 시 이동 불가 탭 — MY·운세 (통계·랭킹·설정은 열림)
+  // 기능 잠금(functionsLocked) 시 이동 불가 탭 — MY (통계·랭킹·설정은 열림)
   const LOCKED_TABS = SOCIAL_LOCKED_TABS;
 
   const handleTabChange = (t: MainTab) => {
@@ -400,8 +398,6 @@ export function MainScreen({
   const showFeaturesEdit = profileEditSection === 'features';
   const showContactInEdit = profileEditSection === 'contact';
   const showBlockInEdit = profileEditSection === 'blocklist';
-  const [showFortuneBirthEdit, setShowFortuneBirthEdit] = useState(false);
-  const fortuneBirthAutoOpenedRef = useRef(false);
   const [sajuBirthMonth, setSajuBirthMonth] = useState<number | null>(null);
   const [sajuBirthDay, setSajuBirthDay] = useState<number | null>(null);
   const [sajuSaving, setSajuSaving] = useState(false);
@@ -465,11 +461,6 @@ export function MainScreen({
       interestInitRef.current = true;
       setEditInterests(parseProfileInterests(me));
     }
-    // 운세탭 생월생일 섹션: 미설정 상태면 자동으로 펼치기 (최초 1회)
-    if (!fortuneBirthAutoOpenedRef.current) {
-      fortuneBirthAutoOpenedRef.current = true;
-      if (!me.birth_month || !me.birth_day) setShowFortuneBirthEdit(true);
-    }
   }, [profiles, currentUserId]);
 
   const saveSajuBirthDate = async () => {
@@ -512,7 +503,6 @@ export function MainScreen({
       } as Partial<Profile> & { id: string });
       sajuInitRef.current = false;
       setProfileEditSection(null);
-      setShowFortuneBirthEdit(false);
       onRefreshProfiles();
     } catch (e) { console.error('[saju] 저장 실패:', e); setBirthEditError('저장에 실패했어요. 다시 시도해 주세요.'); }
     setSajuSaving(false);
@@ -2162,117 +2152,6 @@ export function MainScreen({
           <RankingTab darkMode={darkMode} profiles={profiles} />
         )}
 
-        {/* ─── 운세 탭 ─── */}
-        {mainTab === 'fortune' && (
-          <div className="min-h-[60vh] w-full overflow-x-hidden">
-            {/* ── 생월·생일 설정 카드 ── */}
-            {currentUserId && (() => {
-              const me = profiles.find(p => p.id === currentUserId);
-              if (!me) return null;
-              const hasBd = !!(me.birth_year && me.birth_month && me.birth_day);
-              const birthMdLocked = isBirthMdEditLocked(me);
-              const birthMdRemaining = birthMdEditsRemaining(me);
-              const birthMdUsed = getBirthMdEditCount(me);
-              return (
-                <div className={`rounded-2xl mb-4 border transition-colors duration-300 ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-gradient-to-br from-purple-50 to-white border-purple-200'}`}>
-                  {/* 접기/펼치기 토글 */}
-                  <button
-                    onClick={() => { if (!birthMdLocked) { setBirthEditError(null); setShowFortuneBirthEdit(v => !v); } }}
-                    disabled={birthMdLocked}
-                    className={`w-full flex items-center gap-2 p-4 text-left ${birthMdLocked ? 'cursor-not-allowed' : ''}`}
-                  >
-                    <span className="text-xl flex-shrink-0">{birthMdLocked ? '🔒' : '🔮'}</span>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-black ${darkMode ? 'text-white' : 'text-gray-900'}`}>생월·생일 설정</p>
-                      <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-purple-600'}`}>사주·운세·궁합 기능에 필요해요</p>
-                      {birthMdLocked ? (
-                        <p className={`text-[10px] mt-0.5 font-medium ${darkMode ? 'text-amber-400/80' : 'text-amber-600'}`}>생월·생일 변경은 {BIRTH_MD_EDIT_MAX}회만 가능해요</p>
-                      ) : birthMdUsed > 0 && birthMdRemaining > 0 ? (
-                        <p className={`text-[10px] mt-0.5 font-medium ${darkMode ? 'text-purple-300/80' : 'text-purple-600'}`}>{birthMdRemaining}회 남음</p>
-                      ) : null}
-                    </div>
-                    {birthMdLocked ? (
-                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-full flex-shrink-0 ${darkMode ? 'bg-slate-700 text-slate-400' : 'bg-gray-100 text-gray-400'}`}>변경 완료</span>
-                    ) : hasBd ? (
-                      <span className="text-[10px] font-black px-2 py-0.5 bg-purple-500 text-white rounded-full flex-shrink-0">
-                        {me.birth_month}월 {me.birth_day}일 ✓
-                      </span>
-                    ) : (
-                      <span className={`text-[10px] font-bold flex-shrink-0 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>미설정</span>
-                    )}
-                    {!birthMdLocked && <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${showFortuneBirthEdit ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-purple-400'}`} />}
-                  </button>
-                  {showFortuneBirthEdit && !birthMdLocked && (
-                  <div className="px-4 pb-4">
-                  <div className={`flex items-start gap-2 px-3 py-2 mb-3 rounded-xl ${darkMode ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-amber-50 border border-amber-200'}`}>
-                    <span className="text-sm flex-shrink-0">⚠️</span>
-                    <p className={`text-[11px] font-bold leading-snug ${darkMode ? 'text-amber-300' : 'text-amber-700'}`}>
-                      생월·생일은 <span className="underline">최대 {BIRTH_MD_EDIT_MAX}회</span>만 변경할 수 있어요.
-                      {birthMdRemaining < BIRTH_MD_EDIT_MAX ? ` (${birthMdRemaining}회 남음)` : ''}
-                    </p>
-                  </div>
-                  {/* 생월 탭 그리드 */}
-                  <div>
-                    <p className={`text-xs font-bold mb-2 ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>월</p>
-                    <div className="grid grid-cols-4 gap-1.5">
-                      {Array.from({length: 12}, (_, i) => i + 1).map(m => (
-                        <button key={m} type="button" onClick={() => setSajuBirthMonth(m)}
-                          className={`py-2 rounded-xl text-sm font-bold transition-all active:scale-95 ${
-                            sajuBirthMonth === m
-                              ? 'bg-purple-500 text-white shadow-sm'
-                              : darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-purple-50 text-purple-700 hover:bg-purple-100'
-                          }`}>
-                          {m}월
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  {/* 생일 탭 그리드 */}
-                  <div className="mt-3">
-                    <p className={`text-xs font-bold mb-2 ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>일</p>
-                    <div className="grid grid-cols-7 gap-1">
-                      {Array.from({length: 31}, (_, i) => i + 1).map(d => (
-                        <button key={d} type="button" onClick={() => setSajuBirthDay(d)}
-                          className={`py-1.5 rounded-lg text-[11px] font-bold transition-all active:scale-95 ${
-                            sajuBirthDay === d
-                              ? 'bg-purple-500 text-white shadow-sm'
-                              : darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-purple-50 text-purple-600 hover:bg-purple-100'
-                          }`}>
-                          {d}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <button
-                    onClick={saveSajuBirthDate}
-                    disabled={sajuSaving || (sajuBirthMonth === null || sajuBirthDay === null)}
-                    className="mt-3 w-full py-2.5 bg-gradient-to-r from-purple-500 to-violet-500 hover:from-purple-600 hover:to-violet-600 text-white font-bold rounded-xl text-sm disabled:opacity-40 active:scale-[0.98] transition-all">
-                    {sajuSaving ? '저장 중...' : '생월·생일 저장하기'}
-                  </button>
-                  {birthEditError && <p className="text-[11px] text-rose-500 font-medium mt-2">⚠ {birthEditError}</p>}
-                </div>
-                  )}
-                </div>
-              );
-            })()}
-            <Suspense fallback={
-              <div className="flex items-center justify-center py-12">
-                <span className={`text-sm ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>🔮 운세 불러오는 중...</span>
-              </div>
-            }>
-              <FortuneTab
-                currentUserId={currentUserId}
-                myProfile={profiles.find(p => p.id === currentUserId) ?? null}
-                profiles={profiles}
-                likedIds={likedIds}
-                initialCompatProfileId={fortuneCompatTarget}
-                blockedUserIds={blockedUserIds}
-                hiddenByIds={hiddenByIds}
-              />
-            </Suspense>
-          </div>
-        )}
-
       </main>
 
       {/* ── 하단 탭 바 (참여자 | MY | 통계 | 랭킹 | 설정) — 관리자/테스트 탭은 상단 유지 ── */}
@@ -2316,24 +2195,6 @@ export function MainScreen({
           })}
         </div>
       </nav>
-
-      {/* ── 운세 FAB (우하단) ── */}
-      <button
-        type="button"
-        aria-label="내 운세"
-        onClick={() => handleTabChange('fortune')}
-        disabled={functionsLocked && LOCKED_TABS.has('fortune')}
-        className={`participant-fab fixed bottom-[calc(4.5rem+var(--tabbar-safe-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-50 w-14 h-14 rounded-full flex flex-col items-center justify-center transition-all active:scale-90 select-none ${
-          mainTab === 'fortune'
-            ? 'bg-gradient-to-br from-cyan-500 to-teal-500 text-white'
-            : darkMode
-              ? 'bg-slate-800 text-slate-100'
-              : 'bg-white text-gray-800'
-        } ${functionsLocked && LOCKED_TABS.has('fortune') ? 'opacity-35 cursor-not-allowed' : ''}`}
-      >
-        <span className="text-xl leading-none" aria-hidden>🔮</span>
-        <span className="text-[9px] font-black leading-none mt-0.5">운세</span>
-      </button>
 
     </div>
   );

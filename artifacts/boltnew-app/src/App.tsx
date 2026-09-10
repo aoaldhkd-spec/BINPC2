@@ -170,7 +170,6 @@ function App() {
     () => (ls.getItem(MATCHING_USER_KEY) ? 'checking' : 'register'),
   );
   const [mainTab, setMainTab] = useState<MainTab>('profiles');
-  const [fortuneCompatTarget, setFortuneCompatTarget] = useState<string | undefined>(undefined);
   const [fortuneModalTarget, setFortuneModalTarget] = useState<Profile | null>(null);
   const [showTutorialModal, setShowTutorialModal] = useState(false);
   const [showContactQr, setShowContactQr] = useState(false);
@@ -655,7 +654,7 @@ function App() {
     execLikeWithConfetti(...args);
   }, [execLikeWithConfetti, showFunctionsLockToast, setLikeConfirmTarget]);
 
-  // 잠금이 켜지는 순간에만 채팅·시그널·단톡·운세 화면에서 참여자 탭으로 되돌림. 통계·랭킹은 유지.
+  // 잠금이 켜지는 순간에만 채팅·단톡·궁합 모달에서 참여자 탭으로 되돌림. 통계·랭킹·설정은 유지.
   useEffect(() => {
     const wasLocked = functionsLockedPrevRef.current;
     functionsLockedPrevRef.current = functionsLocked;
@@ -682,10 +681,6 @@ function App() {
       setFortuneModalTarget(null);
       kicked = true;
     }
-    if (fortuneCompatTarget) {
-      setFortuneCompatTarget(undefined);
-      kicked = true;
-    }
     if (likeConfirmTarget) {
       setLikeConfirmTarget(null);
       kicked = true;
@@ -695,7 +690,7 @@ function App() {
       kicked = true;
     }
     if (kicked) showFunctionsLockToast(FUNCTIONS_LOCK_KICK_TOAST);
-  }, [functionsLocked, view, mainTab, fortuneModalTarget, fortuneCompatTarget, likeConfirmTarget, contactShareTarget, chatIdRef, closeGroupChat, setChatId, setContactShareTarget, setLikeConfirmTarget, showFunctionsLockToast]);
+  }, [functionsLocked, view, mainTab, fortuneModalTarget, likeConfirmTarget, contactShareTarget, chatIdRef, closeGroupChat, setChatId, setContactShareTarget, setLikeConfirmTarget, showFunctionsLockToast]);
 
   // ─── 차단·숨기기 처리 ─────────────────────────────────────────────────────
   const handleBlock = useCallback(async (targetId: string, type: 'block' | 'hide') => {
@@ -1944,7 +1939,6 @@ function App() {
         onClearChatUnread={handleClearChatUnread}
         onViewFortune={handleViewFortuneFromCard}
         onViewProfile={handleViewProfileCard}
-        fortuneCompatTarget={fortuneCompatTarget}
         groupChats={groupChats}
         unreadGroupCounts={unreadGroupCounts}
         onOpenGroupChat={handleMainOpenGroupChat}
@@ -1990,15 +1984,7 @@ function App() {
               onBack={goParticipantBack}
               onViewFortune={hasProfileFortuneCompatData(selectedProfile) ? () => {
                 if (functionsLocked) { showFunctionsLockToast(); return; }
-                setFortuneCompatTarget(selectedProfile.id);
-                setLikeConfirmTarget(null);
-                if (screenStackRef.current.at(-1) === 'profile') screenStackRef.current.pop();
-                navDrivenViewRef.current = true;
-                if (participantNav.topId() === 'screen:profile') {
-                  participantNav.replaceTop('tab:away', () => handleMainTabChange('profiles'));
-                }
-                setView('main');
-                handleMainTabChange('fortune');
+                setFortuneModalTarget(selectedProfile);
               } : undefined}
             />
           </AppErrorBoundary>

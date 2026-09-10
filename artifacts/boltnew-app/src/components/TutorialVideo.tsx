@@ -1,7 +1,7 @@
 /**
  * TutorialVideo — 현재 앱 UI와 맞춘 커서 애니메이션 튜토리얼
  * S1 입장코드 → S2 아바타 → S3 한마디/칩 → S4 이모지·스티커 → S5 사진·빠른메시지
- * → S6 스와이프·길게누르기 → S7 받은/보낸 하트 → S8 시그널 패스/보내기
+ * → S6 스와이프·길게누르기 → S7 받은/보낸 하트
  */
 import { useState, useEffect, useRef, useCallback, type ReactElement, type PointerEvent, type MouseEvent } from 'react';
 import { SkipBack, SkipForward, Play, Pause } from 'lucide-react';
@@ -373,7 +373,7 @@ function S3({ step }: { step: number }) {
           <div className="relative bg-slate-800 border border-violet-400/70 rounded-xl p-2 animate-in fade-in duration-500">
             <Ring on={step >= 8} color="ring-violet-400" />
             <p className="text-white text-[10px] font-black">🌟 나의 특징</p>
-            <p className="text-[7px] text-slate-500 font-bold mt-0.5">같은 칩 · 시그널 매칭에 사용</p>
+            <p className="text-[7px] text-slate-500 font-bold mt-0.5">같은 칩 · 프로필 카드에 표시</p>
             <div className="grid grid-cols-2 gap-1 mt-1">
               {['시크한 😎', '슬림 🦴', '리드하는 👑', '다정한 💕'].map((tag, i) => (
                 <span key={tag} className={`px-1.5 py-1 rounded-lg text-[8px] font-bold border text-center transition-all duration-400 ${
@@ -735,62 +735,6 @@ function S7({ step }: { step: number }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Scene 8: 시그널 덱 — 왼쪽 패스 / 오른쪽 시그널
-// ══════════════════════════════════════════════════════════════════════════════
-function S8({ step }: { step: number }) {
-  const offset = step === 2 ? -52 : step === 4 ? 58 : 0;
-  const passStamp = step === 2 ? 1 : step === 1 ? 0.35 : 0;
-  const signalStamp = step === 4 ? 1 : step === 3 ? 0.35 : 0;
-  return (
-    <div className="h-full flex flex-col bg-slate-900 px-2.5 pt-1.5 pb-0.5">
-      <p className="text-[8px] font-black text-slate-500 uppercase tracking-wider mb-1">시그널 탭 · 틴더처럼</p>
-      <div className={`flex justify-between text-[7px] font-black mb-1 transition-colors duration-400 ${step >= 1 ? 'text-rose-200' : 'text-slate-500'}`}>
-        <span>왼쪽 = 패스(별로)</span>
-        <span>오른쪽 = 시그널 보내기</span>
-      </div>
-      <div className="relative flex-1 min-h-0 mb-1">
-        <div
-          className="absolute inset-x-3 top-0 bottom-8 rounded-2xl overflow-hidden shadow-lg transition-transform duration-500 ease-out"
-          style={{ transform: `translateX(${offset}px) rotate(${offset / 16}deg)` }}
-        >
-          <div className="absolute inset-0 bg-gradient-to-br from-rose-400 via-fuchsia-500 to-violet-600" />
-          <div className="absolute inset-0 flex items-center justify-center text-4xl opacity-90">🦊</div>
-          {passStamp > 0 && (
-            <div
-              className="absolute top-3 left-2 rounded-lg border-[3px] border-slate-100 bg-black/30 px-2 py-0.5 text-[11px] font-black text-slate-100 transition-opacity duration-400"
-              style={{ opacity: passStamp, transform: 'rotate(-16deg)' }}
-            >
-              패스
-            </div>
-          )}
-          {signalStamp > 0 && (
-            <div
-              className="absolute top-3 right-2 rounded-lg border-[3px] border-rose-200 bg-rose-500/30 px-2 py-0.5 text-[11px] font-black text-rose-50 transition-opacity duration-400"
-              style={{ opacity: signalStamp, transform: 'rotate(16deg)' }}
-            >
-              시그널
-            </div>
-          )}
-          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent px-2.5 pt-6 pb-2">
-            <p className="text-white text-[11px] font-black">황금여우 <span className="text-[9px] font-semibold text-white/70">28</span></p>
-            <p className="text-[8px] text-white/70 font-bold">ENFP</p>
-          </div>
-          <Ring on={step === 1 || step === 2 || step === 4} color="ring-rose-400" />
-        </div>
-        {step === 2 && <div className="absolute left-0 top-8 text-[9px] font-black text-slate-200">← 패스</div>}
-        {step === 4 && <div className="absolute right-0 top-8 text-[9px] font-black text-rose-300">시그널 →</div>}
-        <div className="absolute inset-x-0 bottom-0 flex gap-1">
-          <span className="flex-1 py-1 rounded-lg bg-slate-700 text-slate-200 text-[7px] font-bold text-center">패스</span>
-          <span className="flex-1 py-1 rounded-lg bg-white/10 border border-rose-300/40 text-rose-200 text-[7px] font-bold text-center">프로필</span>
-          <span className="flex-[1.2] py-1 rounded-lg border border-rose-400/50 text-rose-200 text-[7px] font-bold text-center">📡 시그널</span>
-        </div>
-      </div>
-      <Tabs active="signal" />
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
 interface Step { cx: number; cy: number; click?: boolean; dur: number; }
 interface SceneDef {
   title: string; sub: string;
@@ -814,7 +758,7 @@ const SCENES: SceneDef[] = [
     render: s => <S1 step={s} />,
   },
   {
-    title: '사진 · 아바타 바꾸기', sub: 'MY → 내 설정 → 사진 · 아바타에서 고르세요',
+    title: '사진 · 아바타 바꾸기', sub: '설정 탭 → 사진 · 아바타에서 고르세요',
     steps: [
       { cx: 210, cy: 205, dur: 1300 },
       { cx: 210, cy: 205, click: true,  dur: 1000 },
@@ -827,7 +771,7 @@ const SCENES: SceneDef[] = [
     render: s => <S2 step={s} />,
   },
   {
-    title: '한마디는 전광판, 칩은 시그널', sub: 'MY → 내 설정에서 한마디·이상형·특징을 채워요',
+    title: '한마디는 전광판, 칩은 이상형', sub: '설정 탭에서 한마디·이상형·특징을 채워요',
     steps: [
       { cx: 210, cy: 205, dur: 1200 },
       { cx: 124, cy: 65,  dur: 1300 },
@@ -903,18 +847,6 @@ const SCENES: SceneDef[] = [
       { cx: 124, cy: 210, dur: 2400 },
     ],
     render: s => <S7 step={s} />,
-  },
-  {
-    title: '시그널은 밀어보세요', sub: '왼쪽 = 패스(별로) · 오른쪽 = 시그널 보내기',
-    steps: [
-      { cx: 90,  cy: 55,  dur: 1400 },
-      { cx: 90,  cy: 110, dur: 1400 },
-      { cx: 40,  cy: 110, dur: 1300 },
-      { cx: 170, cy: 110, dur: 1400 },
-      { cx: 210, cy: 110, dur: 1300 },
-      { cx: 124, cy: 130, dur: 2200 },
-    ],
-    render: s => <S8 step={s} />,
   },
 ];
 

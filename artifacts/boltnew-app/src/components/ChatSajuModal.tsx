@@ -27,11 +27,11 @@ function ChatSajuModal({ myNickname, otherNickname, myBirth, theirBirth, myFortu
             <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 text-center">
               <p className="text-2xl mb-1">⚠️</p>
               <p className="text-sm font-black text-amber-800 mb-0.5">내 생월·생일이 없어요</p>
-              <p className="text-xs text-amber-600 mb-3 leading-relaxed">운세·사주 탭에서 생월·생일을 등록하면<br/>내 사주를 확인할 수 있어요.</p>
+              <p className="text-xs text-amber-600 mb-3 leading-relaxed">설정 탭에서 생월·생일을 등록하면<br/>내 사주를 확인할 수 있어요.</p>
               <button
                 onClick={onGoRegisterBirth}
                 className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-sm active:scale-95 transition-all">
-                🔮 운세 탭에서 등록하러 가기
+                ⚙️ 설정에서 등록하러 가기
               </button>
             </div>
           )}

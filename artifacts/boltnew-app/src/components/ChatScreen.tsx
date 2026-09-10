@@ -449,8 +449,8 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   const handleSendQuickMsg = useCallback((qm: string) => { onSend(qm); setShowQuickMsgs(false); }, [onSend]);
   const closeSajuModal = useCallback(() => setShowSajuModal(false), []);
   const closeCompatModal = useCallback(() => setShowCompatModal(false), []);
-  const goRegisterBirthFromSaju = useCallback(() => { setShowSajuModal(false); onGoToTab?.('fortune'); }, [onGoToTab]);
-  const goRegisterBirthFromCompat = useCallback(() => { setShowCompatModal(false); onGoToTab?.('fortune'); }, [onGoToTab]);
+  const goRegisterBirthFromSaju = useCallback(() => { setShowSajuModal(false); onGoToTab?.('settings'); }, [onGoToTab]);
+  const goRegisterBirthFromCompat = useCallback(() => { setShowCompatModal(false); onGoToTab?.('settings'); }, [onGoToTab]);
 
   // ── 내 정보 저장 ──────────────────────────────────────────────────────────────
   const handleSaveMyInfo = async () => {
@@ -778,9 +778,9 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
             </p>
             <div className="space-y-2">
               <button
-                onClick={() => { setShowNoContactModal(false); onGoToTab?.('status'); }}
+                onClick={() => { setShowNoContactModal(false); onGoToTab?.('settings'); }}
                 className="w-full py-3 bg-gradient-to-r from-cyan-500 to-teal-500 text-white font-bold rounded-xl text-sm active:scale-95 transition-all">
-                📋 내 상태 탭에서 등록하러 가기
+                ⚙️ 설정에서 등록하러 가기
               </button>
               <button onClick={() => setShowNoContactModal(false)}
                 className="w-full py-2.5 text-gray-500 text-sm font-semibold">취소</button>

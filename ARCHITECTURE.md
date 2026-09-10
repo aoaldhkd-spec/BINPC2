@@ -42,15 +42,13 @@ UI: `ChatScreen.tsx` → state: `useChat.ts` + `chat-reducers.ts` + `chat-pair.t
 ### Hearts / matching
 UI: `MainScreen.tsx`, `LikeConfirmDialog.tsx`, `ProfileDetail.tsx` → `useHearts.ts` → `localdb.ts` → `db.ts` (`likes`, rate limits)
 
-### Signal (시그널)
-UI: `SignalTab.tsx` + MainScreen tab `signal` + `SignalNudgeBanner.tsx` + `BottomNotification` signal CTAs  
-Match: `lib/signal-match.ts` (OR: my ideal↔their features, their ideal↔my features, shared interests)  
-Unlock: deck only after today's mission 3/3 (unique outgoing hearts, all types). Before that: 시그널 설명서 + progress (왼쪽=패스, 오른쪽=시그널)  
-Pool: all profiles with OR match — not limited to incoming likes. Exclude self/blocked/hidden/already-hearted/already-signaled  
-Hearts/chat reuse: `handleLike` / `LikeConfirmDialog` / `openChat` — do not reimplement likes or 1:1 send  
-Signal send: private table `signal_sends` + `onSendSignal` / `onPassSignal`. Inbox: 내 상태 `받은 시그널` (incoming sends only)  
-Swipe: left = pass, right = send signal. Chat still unlocks on mutual hearts.  
-Mission: count distinct `liked_id` today from outgoing `likes` SELECT (KST), all heart types including green
+### Bottom tabs
+UI: `MainScreen.tsx` — 참여자 / MY(내 상태+내 채팅) / 통계 / 랭킹 / 설정  
+궁합: 프로필 카드·상세·채팅 모달 (`FortuneTab.tsx`, `ChatCompatModal.tsx`). 개인 운세 탭/FAB 없음.
+
+### Profile tags (`user_signals`)
+한마디·이상형·특징: `lib/signal-match.ts` + `SignalTagPicker.tsx` + `user_signals` 테이블 (전광판·카드 뒷면).  
+시그널 탭/전송 기능은 제거됨. `signal_sends` 테이블은 레거시로 유지(스키마 삭제 안 함).
 
 ### Realtime / network recovery
 `localdb.ts` + `net-health.ts` + `ReconnectOverlay.tsx` + server SSE in `db.ts`  
