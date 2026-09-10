@@ -5,7 +5,7 @@ import { HOST_AGE_EASTER_EGG_HINT } from '../lib/host-age-easter-egg';
 
 type Tip = { icon: string; title: string; desc: string };
 type Section = { emoji: string; title: string; tips: Tip[]; footer?: string; variant?: 'rules' | 'tabs' | 'default' };
-type FillerKind = 'guide' | 'chat' | 'group' | 'pin' | 'hidden';
+type FillerKind = 'guide' | 'chat' | 'group' | 'pin' | 'hidden' | 'heart';
 
 type Topic = {
   id: string;
@@ -280,12 +280,15 @@ function topicTipCount(topic: Topic): number {
 function topicLayout(topic: Topic) {
   const count = topicTipCount(topic);
   const dense = count >= 4 || topic.id === 'guide';
+  const gapFill = topic.id === 'heart' || topic.id === 'pin' || topic.id === 'group' || topic.id === 'hidden';
   return {
     twoColumn: dense,
     compact: true,
     fillVertical: false,
     fillerCompact: Boolean(topic.filler),
     scrollable: false,
+    gapFill,
+    gapFillKind: (topic.filler ?? (topic.id === 'heart' ? 'heart' : undefined)) as FillerKind | undefined,
   };
 }
 
@@ -420,6 +423,18 @@ function TipGrid({
 }
 
 function FillerArt({ kind, darkMode }: { kind: FillerKind; darkMode?: boolean }) {
+  if (kind === 'heart') {
+    return (
+      <div className="relative h-14 w-28 mb-1" aria-hidden>
+        <div className={`absolute left-1 top-2 w-10 h-10 rounded-2xl rotate-[-12deg] ${darkMode ? 'bg-rose-900/70' : 'bg-rose-100'}`} />
+        <div className={`absolute left-8 top-0.5 w-12 h-12 rounded-2xl flex items-center justify-center ${darkMode ? 'bg-rose-950 ring-1 ring-rose-400/40' : 'bg-white ring-1 ring-rose-200'} shadow-md`}>
+          <span className="text-[22px] leading-none">🤍</span>
+        </div>
+        <span className="absolute right-1 top-1 text-[14px]">💙</span>
+        <span className="absolute right-0 bottom-0 text-[12px]">💚</span>
+      </div>
+    );
+  }
   if (kind === 'guide') {
     return (
       <div className="relative h-9 w-24 mb-1" aria-hidden>
@@ -475,6 +490,13 @@ function FillerArt({ kind, darkMode }: { kind: FillerKind; darkMode?: boolean })
 }
 
 const FILLERS: Record<FillerKind, { title: string; line: string; quote: string; shell: string; darkShell: string }> = {
+  heart: {
+    title: '하트는 카드 아래, 확인은 하트, 채팅',
+    line: '종류당 2개 · 오늘 8개. 수락되면 연락처',
+    quote: '오른쪽 위 하트 아님. 받은 하트는 아래로',
+    shell: 'bg-gradient-to-br from-rose-50 via-pink-50 to-white border border-rose-100/80 shadow-sm shadow-rose-100/30',
+    darkShell: 'bg-gradient-to-br from-slate-800/90 via-rose-950/50 to-slate-900 border border-rose-900/50 shadow-sm shadow-rose-900/20',
+  },
   guide: {
     title: '오늘 하나만 건져도 이득',
     line: '규칙은 짧게, 텐션은 자유롭게',
@@ -512,12 +534,12 @@ const FILLERS: Record<FillerKind, { title: string; line: string; quote: string; 
   },
 };
 
-function FillerPanel({ kind, darkMode, compact }: { kind: FillerKind; darkMode?: boolean; compact?: boolean }) {
+function FillerPanel({ kind, darkMode, compact, fill }: { kind: FillerKind; darkMode?: boolean; compact?: boolean; fill?: boolean }) {
   const f = FILLERS[kind];
   const pin = kind === 'pin';
   return (
     <div
-      className={`flex-shrink-0 flex items-center rounded-2xl ${
+      className={`${fill ? 'flex-1 min-h-0 overflow-hidden' : 'flex-shrink-0'} flex items-center rounded-2xl ${
         compact ? 'gap-2 px-2.5 py-1.5 text-left' : 'flex-col justify-center gap-1 px-3.5 py-2.5 text-center'
       } ${darkMode ? f.darkShell : f.shell}`}
     >
@@ -534,6 +556,11 @@ function FillerPanel({ kind, darkMode, compact }: { kind: FillerKind; darkMode?:
         {!compact && (
           <p className={`text-xs leading-snug mt-0.5 ${KR_WRAP} ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
             {f.line.replace(/([.·])\s+/g, '$1\u200b ')}
+          </p>
+        )}
+        {fill && !compact && (
+          <p className={`text-[11px] leading-snug mt-1 ${KR_WRAP} ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+            {f.quote.replace(/([.·])\s+/g, '$1\u200b ')}
           </p>
         )}
       </div>
@@ -693,6 +720,10 @@ export function TutorialModal({
         }`}>
           {topic.footer.replace(/([.·])\s+/g, '$1\u200b ')}
         </p>
+      )}
+
+      {layout.gapFill && layout.gapFillKind && (
+        <FillerPanel kind={layout.gapFillKind} darkMode={darkMode} fill />
       )}
     </div>
   );
