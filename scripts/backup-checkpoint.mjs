@@ -14,9 +14,14 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
 const push = process.argv.includes('--push');
 const allowDirty = process.argv.includes('--allow-dirty');
+const GIT_IDENTITY = '-c user.name=aoaldhkd-spec -c user.email=aoaldhkd-spec@users.noreply.github.com';
 
 function run(cmd, opts = {}) {
   return execSync(cmd, { cwd: ROOT, encoding: 'utf8', stdio: opts.silent ? 'pipe' : 'inherit', ...opts });
+}
+
+function git(cmd, opts = {}) {
+  return run(`git ${GIT_IDENTITY} ${cmd}`, opts);
 }
 
 function runQuiet(cmd) {
@@ -67,7 +72,7 @@ function main() {
   }
 
   const msg = `Checkpoint backup ${tag} @ ${head}`;
-  run(`git tag -a "${tag}" -m "${msg}"`);
+  git(`tag -a "${tag}" -m "${msg}"`);
   console.log(`\n✅ 로컬 백업 태그 생성: ${tag} (${head})`);
 
   if (!push) {
@@ -80,11 +85,11 @@ function main() {
 
   const ahead = runQuiet('git rev-list --count origin/main..HEAD');
   if (Number(ahead) > 0) {
-    run('git push origin main');
+    git('push origin main');
   } else {
     console.log('ℹ️  origin/main 과 동기화됨 — main 푸시 생략');
   }
-  run(`git push origin "${tag}"`);
+  git(`push origin "${tag}"`);
   console.log(`\n✅ GitHub 백업 완료: ${tag}`);
   console.log('   복원: git checkout <태그> 또는 git checkout -b restore-<날짜> <태그>');
 }
