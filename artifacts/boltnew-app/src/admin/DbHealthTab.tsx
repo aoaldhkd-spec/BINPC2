@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { AlertTriangle, Heart, MessageCircle, RefreshCw, Database as DatabaseIcon, Activity } from 'lucide-react';
+import { AlertTriangle, Heart, MessageCircle, RefreshCw, Database as DatabaseIcon, Activity, Download } from 'lucide-react';
 import type { DbHealthData } from './shared';
+import { downloadAdminDataBackup } from './admin-backup-export';
 
 
 // ─── DB Health Tab ────────────────────────────────────────────────────────────
@@ -8,6 +9,8 @@ export function DbHealthTab({ health, loading, onRefresh, onClearErrors }: { hea
   const hasErrors = (health?.persistErrors ?? 0) > 0;
   const dbUnavailable = health?.db.messages === -1;
   const [clearing, setClearing] = useState(false);
+  const [backingUp, setBackingUp] = useState(false);
+  const [backupMsg, setBackupMsg] = useState<string | null>(null);
 
   const CountBox = ({ label, value, sub, warn }: { label: string; value: string | number; sub?: string; warn?: boolean }) => (
     <div className={`rounded-xl border p-3 flex flex-col gap-0.5 ${warn ? 'bg-red-50 border-red-200' : 'bg-white border-gray-200'}`}>
@@ -33,15 +36,37 @@ export function DbHealthTab({ health, loading, onRefresh, onClearErrors }: { hea
             <span className="px-2 py-0.5 bg-teal-100 text-teal-700 text-[10px] font-bold rounded-full">정상</span>
           )}
         </div>
-        <button
-          onClick={onRefresh}
-          disabled={loading}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-gray-100 hover:bg-teal-50 hover:text-teal-700 text-gray-600 transition-all disabled:opacity-50"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          새로고침
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={async () => {
+              setBackupMsg(null);
+              setBackingUp(true);
+              const result = await downloadAdminDataBackup();
+              setBackingUp(false);
+              if (result.ok) setBackupMsg(`데이터 백업 JSON 저장됨 (${result.tables}개 테이블)`);
+              else setBackupMsg(result.error);
+            }}
+            disabled={backingUp || loading}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-teal-600 hover:bg-teal-700 text-white transition-all disabled:opacity-50"
+          >
+            <Download className={`w-3.5 h-3.5 ${backingUp ? 'animate-pulse' : ''}`} />
+            {backingUp ? '백업 중…' : '데이터 백업'}
+          </button>
+          <button
+            onClick={onRefresh}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-gray-100 hover:bg-teal-50 hover:text-teal-700 text-gray-600 transition-all disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            새로고침
+          </button>
+        </div>
       </div>
+
+      {backupMsg && (
+        <p className={`text-xs font-semibold ${backupMsg.includes('저장됨') ? 'text-teal-700' : 'text-red-600'}`}>{backupMsg}</p>
+      )}
 
       {/* Error alert banner */}
       {hasErrors && (

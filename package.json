@@ -13,6 +13,7 @@
     "verify:guards": "node scripts/verify-recurrence-guards.mjs",
     "test:unit": "corepack pnpm -r --filter \"./artifacts/**\" --if-present run test:unit",
     "verify:ci": "corepack pnpm run verify:guards && corepack pnpm run audit:code && corepack pnpm run test:unit",
+    "backup": "node scripts/backup-checkpoint.mjs --push",
     "verify": "node scripts/verify-recurrence-guards.mjs && node scripts/full-code-audit.mjs && node scripts/verify-all-features.mjs",
     "endurance:5h": "node scripts/endurance-5h.mjs",
     "knip": "knip",
