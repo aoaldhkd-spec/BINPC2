@@ -224,14 +224,16 @@ describe('product copy + notification invariants', () => {
     expect(hint).toContain('술번개');
   });
 
-  it('숨은기능 탭은 스크롤 가능한 긴 설명 레이아웃을 쓴다', () => {
+  it('튜토리얼은 고정 모달·통일 팁박스·내부 스크롤 없음', () => {
     const modal = read('components/TutorialModal.tsx');
     expect(modal).toContain('const MODAL_SHELL');
     expect(modal).toContain("h-[min(560px,calc(85dvh-var(--safe-top,0px)-var(--safe-bottom,0px)))]");
     expect(modal).not.toContain('MODAL_SHELL_HIDDEN');
-    expect(modal).toContain('h-[4.25rem] items-center');
-    expect(modal).toContain('scrollable: isHidden');
-    expect(modal).toContain('overflow-y-auto overscroll-contain scrollbar-hide');
+    expect(modal).toContain("const TIP_BOX = 'h-[2.75rem] items-center'");
+    expect(modal).toContain('scrollable: false');
+    expect(modal).not.toContain('scrollable: isHidden');
+    expect(modal).not.toContain('overflow-y-auto');
+    expect(modal).toContain('flex-1 min-h-0 px-3 pt-1.5 pb-1 flex flex-col overflow-hidden');
     expect(modal).toContain('longDescTitle=');
     expect(modal).toContain('longDesc?: boolean');
     expect(modal).toContain('const showChips = topics.length > 1');

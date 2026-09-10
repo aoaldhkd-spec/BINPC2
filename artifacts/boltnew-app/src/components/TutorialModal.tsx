@@ -158,9 +158,12 @@ const HIDDEN: Topic[] = [
 
 const KR_WRAP = 'break-keep [word-break:keep-all] [line-break:strict] [overflow-wrap:break-word] text-pretty';
 
-/** Fixed shell — identical height on every topic/mode (tips + video). Hidden tips scroll inside. */
+/** Fixed shell — identical height on every topic/mode (tips + video). No inner scroll. */
 const MODAL_SHELL =
   'w-[calc(100vw-1rem)] max-w-md h-[min(560px,calc(85dvh-var(--safe-top,0px)-var(--safe-bottom,0px)))]';
+
+/** One tip-card size on every topic so the densest page still fits without scrolling. */
+const TIP_BOX = 'h-[2.75rem] items-center';
 
 type TopicAccent = {
   cardLight: string;
@@ -276,17 +279,13 @@ function topicTipCount(topic: Topic): number {
 
 function topicLayout(topic: Topic) {
   const count = topicTipCount(topic);
-  const dense = count >= 7 || topic.id === 'guide';
-  // 숨은기능: 팁4개+긴 NPC나이 힌트 — 2열·비compact면 고정 모달 하단이 잘림
-  const isHidden = topic.id === 'hidden';
-  const compact = !isHidden && (dense || count >= 5 || topic.id === 'settings');
-  const fillVertical = topic.id === 'heart' || topic.id === 'settings' || topic.id === 'chat';
+  const dense = count >= 4 || topic.id === 'guide';
   return {
-    twoColumn: !isHidden && (count >= 4 || dense),
-    compact,
-    fillVertical,
-    fillerCompact: compact && Boolean(topic.filler),
-    scrollable: isHidden,
+    twoColumn: dense,
+    compact: true,
+    fillVertical: false,
+    fillerCompact: Boolean(topic.filler),
+    scrollable: false,
   };
 }
 
@@ -298,7 +297,7 @@ function TipCard({
   darkMode,
   spanFull,
   compact: _compact,
-  fill,
+  fill: _fill,
   sectionBar,
   longDesc,
 }: {
@@ -317,18 +316,18 @@ function TipCard({
   const cardCls = darkMode ? accent.cardDark : accent.cardLight;
   const iconCls = darkMode ? accent.iconDark : accent.iconLight;
   const barCls = sectionBar ?? accent.bar;
-  const iconShell = 'w-7 h-7 text-sm rounded-xl flex-shrink-0 flex items-center justify-center text-white ' + iconCls;
+  const iconShell = 'w-6 h-6 text-xs rounded-lg flex-shrink-0 flex items-center justify-center text-white ' + iconCls;
   const titleCls = 'text-[11px]';
-  const descCls = longDesc ? 'text-xs leading-relaxed' : 'text-[10px] leading-snug';
-  const pad = 'px-2.5 py-2';
-  const stretchCls = longDesc ? 'min-h-[4.25rem] items-center' : 'h-[4.25rem] items-center';
+  const descCls = longDesc ? 'text-[10px] leading-snug' : 'text-[10px] leading-snug';
+  const pad = 'px-2 py-1';
+  const stretchCls = TIP_BOX;
 
   const body = (
-    <div className={`flex gap-2 min-w-0 flex-1 pl-1.5 ${fill ? 'items-center' : 'items-start'}`}>
+    <div className="flex gap-1.5 min-w-0 flex-1 pl-1 items-center">
       <span className={iconShell}>{tip.icon}</span>
       <div className="min-w-0 flex-1">
-        <p className={`${titleCls} font-bold leading-tight ${KR_WRAP} ${text}`}>{tip.title}</p>
-        <p className={`${descCls} mt-0.5 whitespace-normal ${KR_WRAP} ${muted}`}>{desc}</p>
+        <p className={`${titleCls} font-bold leading-tight line-clamp-1 ${KR_WRAP} ${text}`}>{tip.title}</p>
+        <p className={`${descCls} mt-px line-clamp-2 ${KR_WRAP} ${muted}`}>{desc}</p>
       </div>
     </div>
   );
@@ -375,7 +374,7 @@ function TipGrid({
 }) {
   const useTwoCol = twoColumn ?? tips.length >= 4;
   const oddLast = useTwoCol && tips.length % 2 === 1;
-  const gap = fill ? (compact ? 'gap-2' : 'gap-2.5') : compact ? 'gap-1.5' : 'gap-2.5';
+  const gap = 'gap-1';
   const stretchCls = fill ? 'flex-1 min-h-0 h-full' : '';
 
   if (!useTwoCol) {
@@ -591,9 +590,9 @@ function SectionHeader({
   const variant = SECTION_VARIANTS[section.variant ?? 'default'];
   const headerCls = darkMode ? variant.headerDark : variant.headerLight;
   return (
-    <div className={`flex items-center gap-2 mb-1 rounded-xl border px-2.5 py-1 ${headerCls}`}>
-      <span className={`leading-none ${compact ? 'text-sm' : 'text-base'}`}>{section.emoji}</span>
-      <p className={`font-bold ${compact ? 'text-[11px]' : 'text-xs'} ${KR_WRAP}`}>{section.title}</p>
+    <div className={`flex items-center gap-1.5 mb-1 rounded-lg border px-2 py-0.5 ${headerCls}`}>
+      <span className="leading-none text-sm">{section.emoji}</span>
+      <p className={`font-bold text-[11px] ${KR_WRAP}`}>{section.title}</p>
       <span className={`ml-auto h-1 flex-1 max-w-16 rounded-full bg-gradient-to-r ${variant.bar} opacity-70`} aria-hidden />
     </div>
   );
@@ -640,17 +639,11 @@ export function TutorialModal({
     setSubView('tips');
   };
 
-  const tipsScrollable = layout.scrollable && subView === 'tips';
   const modalShell = MODAL_SHELL;
 
   const tipsContent = (
-    <div
-      className={`flex flex-col min-h-0 ${
-        layout.scrollable || layout.fillVertical || hasVideo ? 'flex-1' : 'flex-shrink-0'
-      } ${layout.fillVertical || hasVideo ? 'h-full overflow-hidden' : ''} ${
-        layout.compact ? 'gap-1.5' : 'gap-2.5'
-      }`}
-    >
+    <div className="flex flex-col flex-1 min-h-0 h-full overflow-hidden gap-1">
+
       {topic.filler && topic.id !== 'hidden' && (
         <FillerPanel kind={topic.filler} darkMode={darkMode} compact={layout.fillerCompact} />
       )}
@@ -695,7 +688,7 @@ export function TutorialModal({
       )}
 
       {topic.footer && (
-        <p className={`flex-shrink-0 leading-snug px-2.5 py-1.5 rounded-xl border text-[11px] ${KR_WRAP} ${
+        <p className={`flex-shrink-0 leading-snug px-2 py-1 rounded-lg border text-[10px] line-clamp-2 ${KR_WRAP} ${
           darkMode ? 'text-slate-400 bg-slate-800/40 border-slate-700/60' : 'text-gray-500 bg-slate-50/80 border-slate-100'
         }`}>
           {topic.footer.replace(/([.·])\s+/g, '$1\u200b ')}
@@ -745,7 +738,7 @@ export function TutorialModal({
         </button>
 
         {/* Header */}
-        <div className={`relative bg-gradient-to-br ${topic.color} px-4 pt-3 pb-2.5 pr-12 flex-shrink-0 min-h-[4rem] overflow-hidden transition-all duration-300`}>
+        <div className={`relative bg-gradient-to-br ${topic.color} px-4 pt-2.5 pb-2 pr-12 flex-shrink-0 overflow-hidden transition-all duration-300`}>
           <div className="absolute -right-6 -top-6 w-24 h-24 rounded-full bg-white/10 blur-2xl pointer-events-none" aria-hidden />
           <div className="absolute -left-4 bottom-0 w-16 h-16 rounded-full bg-black/10 blur-xl pointer-events-none" aria-hidden />
           <div className="relative flex items-start gap-2.5">
@@ -757,7 +750,7 @@ export function TutorialModal({
                 <Sparkles className="w-3 h-3" />
                 도움말
               </span>
-              <h2 id="tutorial-modal-title" className={`text-white font-bold text-base leading-snug mt-1 line-clamp-2 min-h-[2.25rem] ${KR_WRAP}`}>
+              <h2 id="tutorial-modal-title" className={`text-white font-bold text-sm leading-snug mt-0.5 line-clamp-1 ${KR_WRAP}`}>
                 {topic.title}
               </h2>
             </div>
@@ -839,11 +832,7 @@ export function TutorialModal({
         <TopicSubTabs subView={subView} onChange={setSubView} hasVideo={hasVideo} darkMode={darkMode} topicColor={topic.color} />
 
         {/* Content */}
-        <div className={`flex-1 min-h-0 px-4 pt-2 flex flex-col transition-colors duration-300 ${
-          tipsScrollable
-            ? 'overflow-y-auto overscroll-contain scrollbar-hide pb-[max(0.75rem,var(--safe-bottom,0px))]'
-            : 'overflow-hidden pb-1'
-        } ${!hasVideo && !layout.fillVertical && !layout.scrollable ? 'justify-center' : ''} ${
+        <div className={`flex-1 min-h-0 px-3 pt-1.5 pb-1 flex flex-col overflow-hidden ${
           darkMode ? 'bg-gradient-to-b from-slate-900/80 to-slate-950' : 'bg-gradient-to-b from-slate-50/80 to-white'
         }`}>
           {subView === 'video' && hasVideo ? videoContent : tipsContent}
