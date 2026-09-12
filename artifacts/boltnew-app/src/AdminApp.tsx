@@ -50,7 +50,7 @@ function digitsOnly(v: unknown): string {
 }
 
 /** After profile wipe, keep admin row and force nickname 범일NPC. */
-async function _restoreAdminProfileAfterWipe(
+async function restoreAdminProfileAfterWipe(
   backupProfiles: Profile[],
   adminPhone: string | null | undefined,
 ): Promise<void> {
@@ -392,6 +392,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       await adminSupabase.from('session_history').insert({ ended_at: new Date().toISOString() });
       // api-server: 인메모리 wipe + PG persist + reset_signal SSE (유저·테스트 즉시 반영)
       await adminApiRpc('admin_event_end_reset', {});
+      await restoreAdminProfileAfterWipe(backupProfiles, settings?.admin_phone);
       const hasData = backupProfiles.length > 0 || backupLikes.length > 0 || backupChats.length > 0;
       showRecovery('전체 초기화', '🗑️', hasData ? async () => {
         // 복구 upsert — 개별 실패는 로그만
@@ -447,6 +448,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     const backupProfiles = [...profiles];
     try {
       await adminApiRpc('admin_clear_profiles', {});
+      await restoreAdminProfileAfterWipe(backupProfiles, settings?.admin_phone);
       showRecovery('참여자 프로필', '👤', backupProfiles.length > 0 ? async () => {
         for (const p of backupProfiles) await adminSupabase.from('profiles').upsert(p);
         await loadAll();

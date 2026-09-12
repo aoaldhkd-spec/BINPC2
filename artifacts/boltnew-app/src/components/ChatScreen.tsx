@@ -870,7 +870,7 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
             )}
             {/* XSS 방어: javascript:/data: URL 차단 — https?:// 만 허용 */}
             {contextMenu.imgUrl && /^https?:\/\//i.test(contextMenu.imgUrl) && (
-              <a href={contextMenu.imgUrl} download target="_blank" rel="noreferrer"
+              <a href={contextMenu.imgUrl} download target="_blank" rel="noopener noreferrer"
                 onClick={() => setContextMenu(null)}
                 className="flex items-center gap-3 w-full px-5 py-3 text-sm text-gray-700 hover:bg-gray-50 border-t border-gray-100 text-left">
                 💾 이미지 저장

@@ -1707,7 +1707,7 @@ function App() {
     return () => { delete document.body.dataset.appReady; };
   }, [currentUserId, hasValidProfile, profileBoot, showEntryGate, showWaiting, showNicknameSetup]);
 
-  // 하트 확인 모달: 전역 ThemeSwitcher·MY FAB가 모바일에서 z-9998/50으로 터치 가로채는 것 방지
+  // 하트 확인 모달: MY FAB가 모바일에서 터치를 가로채지 않도록 overlay 표시
   useEffect(() => {
     if (!likeConfirmTarget) return;
     document.body.dataset.overlay = 'like-confirm';

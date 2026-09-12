@@ -24,8 +24,9 @@ export function ProfilesTabSection({ profiles, settings: _settings, onClear, onD
           p.nickname?.toLowerCase().includes(q) ||
           (p.mbti ?? '').toLowerCase().includes(q) ||
           (p.location ?? '').toLowerCase().includes(q) ||
-          ((p as any).bio ?? '').toLowerCase().includes(q) ||
-          ((p as any).pin_code ?? '').includes(q)
+          (p.bio ?? '').toLowerCase().includes(q) ||
+          (p.interests ?? '').toLowerCase().includes(q) ||
+          (p.pin_code ?? '').includes(q)
         );
       })
     : profiles;
