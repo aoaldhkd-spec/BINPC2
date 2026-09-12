@@ -825,6 +825,11 @@ export function MainScreen({
                 }`}
               >
                 💝 내 상태
+                {(Math.max(0, pendingHeartsCount - seenHeartsCount) + newContactsCount) > 0 && (
+                  <span className="ml-1 inline-flex items-center justify-center min-w-[16px] h-4 px-1 text-[10px] font-black bg-rose-500 text-white rounded-full">
+                    {Math.max(0, pendingHeartsCount - seenHeartsCount) + newContactsCount}
+                  </span>
+                )}
               </button>
               <button
                 type="button"
@@ -837,7 +842,7 @@ export function MainScreen({
               >
                 💬 내 채팅
                 {(sumUnreadCounts(unreadChatCounts) + sumUnreadCounts(unreadGroupCounts)) > 0 && (
-                  <span className="ml-1 inline-flex items-center justify-center min-w-[16px] h-4 px-1 text-[10px] font-black bg-rose-500 text-white rounded-full">
+                  <span className="ml-1 inline-flex items-center justify-center min-w-[16px] h-4 px-1 text-[10px] font-black bg-cyan-500 text-white rounded-full">
                     {sumUnreadCounts(unreadChatCounts) + sumUnreadCounts(unreadGroupCounts)}
                   </span>
                 )}
@@ -2191,14 +2196,17 @@ export function MainScreen({
             const chatUnreadTotal = sumUnreadCounts(unreadChatCounts) + sumUnreadCounts(unreadGroupCounts);
             return ([
             { id: 'profiles' as MainTab, icon: '👥', label: '참여자', badge: seenProfilesCount < 0 ? 0 : Math.max(0, profiles.length - seenProfilesCount) },
-            { id: 'my' as MainTab, icon: '💝', label: '하트, 채팅', badge: heartsBadge + chatUnreadTotal },
+            { id: 'my' as MainTab, icon: '💝', label: '하트, 채팅', heartBadge: heartsBadge, chatBadge: chatUnreadTotal },
             { id: 'stats' as MainTab, icon: '📊', label: '통계' },
             { id: 'ranking' as MainTab, icon: '🏆', label: '랭킹' },
             { id: 'settings' as MainTab, icon: '⚙️', label: '설정' },
-          ] as Array<{ id: MainTab; icon: string; label: string; badge?: number }>);
+          ] as Array<{ id: MainTab; icon: string; label: string; badge?: number; heartBadge?: number; chatBadge?: number }>);
           })().map((t, ci, arr) => {
             const locked = functionsLocked && LOCKED_TABS.has(t.id);
             const active = mainTab === t.id;
+            const heartN = t.heartBadge ?? 0;
+            const chatN = t.chatBadge ?? 0;
+            const plainN = t.badge ?? 0;
             return (
               <button key={t.id} type="button" onClick={() => handleTabChange(t.id)} disabled={locked}
                 aria-label={t.label} aria-current={active ? 'page' : undefined}
@@ -2208,11 +2216,25 @@ export function MainScreen({
                   darkMode ? 'border-t-transparent text-slate-400' : 'border-t-transparent text-gray-500'
                 }`}>
                 <span className="text-lg leading-none">{locked ? '🔒' : t.icon}</span>
-                <span className="relative inline-flex text-[10px] font-bold leading-tight">
+                <span className="relative inline-flex items-center text-[10px] font-bold leading-tight">
                   {t.label}
-                  {!locked && (t.badge ?? 0) > 0 && (
+                  {!locked && plainN > 0 && (
                     <span className="absolute -top-1 -right-3 min-w-[13px] h-[13px] px-0.5 bg-rose-500 text-white text-[8px] font-black rounded-full flex items-center justify-center">
-                      {t.badge}
+                      {plainN}
+                    </span>
+                  )}
+                  {!locked && (heartN > 0 || chatN > 0) && (
+                    <span className="absolute -top-1 -right-3 flex items-center gap-0.5">
+                      {heartN > 0 && (
+                        <span className="min-w-[13px] h-[13px] px-0.5 bg-rose-500 text-white text-[8px] font-black rounded-full flex items-center justify-center" title="하트·연락처">
+                          {heartN}
+                        </span>
+                      )}
+                      {chatN > 0 && (
+                        <span className="min-w-[13px] h-[13px] px-0.5 bg-cyan-500 text-white text-[8px] font-black rounded-full flex items-center justify-center" title="채팅">
+                          {chatN}
+                        </span>
+                      )}
                     </span>
                   )}
                 </span>
