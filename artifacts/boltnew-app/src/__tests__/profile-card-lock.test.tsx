@@ -18,13 +18,6 @@ import type { Profile } from '../types/app';
 
 // ── Minimal mocks ────────────────────────────────────────────────────────────
 
-vi.mock('../lib/theme', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../lib/theme')>();
-  return {
-    ...actual,
-    useTheme: () => ({ theme: 'default' as const, setTheme: () => {} }),
-  };
-});
 vi.mock('../lib/supabase', () => ({
   supabase: {
     channel: vi.fn(() => ({ on: vi.fn().mockReturnThis(), subscribe: vi.fn() })),

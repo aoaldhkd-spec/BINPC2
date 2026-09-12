@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -7,6 +7,7 @@ import { MAX_GROUPS_PER_USER } from '../lib/group-rooms';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel: string) => readFileSync(join(root, rel), 'utf8');
+const fileExists = (rel: string) => existsSync(join(root, rel));
 
 const HEART_BALANCE_BANNED = [
   'heart_balances',
@@ -88,7 +89,7 @@ describe('product copy + notification invariants', () => {
     expect(toast).not.toMatch(/4\.5rem\+var\(--participant-tabbar/);
   });
 
-  it('LikeConfirmDialog sits above ThemeSwitcher FAB and hides competing FABs on mobile', () => {
+  it('LikeConfirmDialog sits above FABs and hides competing MY FAB on mobile', () => {
     const dialog = read('components/LikeConfirmDialog.tsx');
     const app = read('App.tsx');
     const css = read('index.css');
@@ -98,7 +99,7 @@ describe('product copy + notification invariants', () => {
     expect(dialog).toContain('selectedRef');
     expect(app).toContain("dataset.overlay = 'like-confirm'");
     expect(css).toContain('data-overlay="like-confirm"');
-    expect(css).toContain('.theme-switcher-btn');
+    expect(css).not.toContain('theme-switcher');
     expect(css).toContain('.participant-fab-my');
     expect(card).toContain('bindMobileTap');
     expect(card).toContain('profile-card-heart-btn');
@@ -239,13 +240,17 @@ describe('product copy + notification invariants', () => {
     expect(modal).toContain('const showChips = topics.length > 1');
   });
 
-  it('theme switcher only after profile-ready (not on entry)', () => {
-    const theme = read('components/ThemeSwitcher.tsx');
+  it('multi-theme switcher is removed; dark_mode toggle remains in App', () => {
     const app = read('App.tsx');
-    expect(theme).toContain("dataset.appReady === '1'");
-    expect(theme).toContain('if (!appReady) return null');
+    const mainEntry = read('main.tsx');
+    expect(fileExists('components/ThemeSwitcher.tsx')).toBe(false);
+    expect(mainEntry).not.toContain('ThemeSwitcher');
+    expect(mainEntry).not.toContain('ThemeProvider');
+    expect(mainEntry).toContain('clearLegacyThemeArtifacts');
     expect(app).toContain("dataset.appReady = '1'");
-  });
+    expect(app).toContain("ls.getItem('dark_mode')");
+    expect(app).toContain('handleToggleDark');
+  })
 
   it('채팅 탭 진입만으로 미읽음 숫자를 지우지 않는다', () => {
     const main = read('components/MainScreen.tsx');
@@ -357,26 +362,25 @@ describe('product copy + notification invariants', () => {
     expect(main).not.toMatch(/userSignals\.find\(s => s\.user_id === profile\.id\)/);
   });
 
-  it('default theme ProfileCards stay white; dark-neon/darkMode get dark surfaces', () => {
+  it('ProfileCards follow App darkMode only; multi-theme chrome removed', () => {
     const theme = read('lib/theme.tsx');
     const card = read('components/ProfileCard.tsx');
     const surfaces = read('lib/profile-card-theme.ts');
     const main = read('components/MainScreen.tsx');
-    expect(theme).toContain('export function isDarkTheme');
-    expect(theme).toMatch(/return theme === 'dark-neon'/);
-    expect(theme).not.toMatch(/theme === 'default' \|\| theme === 'dark-neon'/);
+    expect(theme).toContain('clearLegacyThemeArtifacts');
+    expect(theme).not.toContain('ThemeProvider');
+    expect(theme).not.toContain('isDarkTheme');
     expect(surfaces).toContain('export function isProfileCardDark');
-    expect(surfaces).toContain("theme === 'default') return false");
-    expect(surfaces).toContain("theme === 'dark-neon') return true");
-    expect(surfaces).not.toContain('isDarkTheme(theme) || darkMode');
-    expect(card).toContain('isProfileCardDark(theme, darkMode)');
-    expect(card).toContain('profileCardSurfaces(theme, darkMode)');
+    expect(surfaces).toContain('return darkMode');
+    expect(card).toContain('isProfileCardDark(darkMode)');
+    expect(card).toContain('profileCardSurfaces(darkMode)');
     expect(card).toContain('darkMode = false');
+    expect(card).not.toContain('useTheme');
     expect(main).toContain('darkMode={darkMode}');
     expect(surfaces).toContain('bg-white border-gray-100');
     expect(surfaces).toContain('bg-slate-900');
     expect(surfaces).toMatch(/rgba\(15,\s*23,\s*42/);
-  });
+  })
 
   it('App must not re-add SignalNudgeBanner heart nudge overlay', () => {
     const app = read('App.tsx');

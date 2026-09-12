@@ -1,5 +1,4 @@
 import type { CSSProperties } from 'react';
-import type { ThemeMode } from './theme';
 
 const DARK_SHELL = 'bg-slate-900 border-slate-700';
 const LIGHT_SHELL = 'bg-white border-gray-100';
@@ -12,14 +11,12 @@ export type ProfileCardSurfaces = {
   ageTextClass: string;
 };
 
-export function isProfileCardDark(theme: ThemeMode, darkMode = false): boolean {
-  if (theme === 'default') return false;
-  if (theme === 'dark-neon') return true;
+export function isProfileCardDark(darkMode = false): boolean {
   return darkMode;
 }
 
-export function profileCardSurfaces(theme: ThemeMode, darkMode = false): ProfileCardSurfaces {
-  if (!isProfileCardDark(theme, darkMode)) {
+export function profileCardSurfaces(darkMode = false): ProfileCardSurfaces {
+  if (!isProfileCardDark(darkMode)) {
     return {
       shellClass: LIGHT_SHELL,
       metaClass: 'bg-white',
@@ -66,6 +63,6 @@ export function profileCardChipStyle(style: ChipLike, dark: boolean): CSSPropert
   };
 }
 
-export function profileCardShellIsWhite(theme: ThemeMode, darkMode = false): boolean {
-  return profileCardSurfaces(theme, darkMode).shellClass.includes('bg-white');
+export function profileCardShellIsWhite(darkMode = false): boolean {
+  return profileCardSurfaces(darkMode).shellClass.includes('bg-white');
 }

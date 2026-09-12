@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, memo, useCallback } from 'react';
 import { Heart, MessageCircle, MoreHorizontal } from 'lucide-react';
-import { useTheme } from '../lib/theme';
 import type { Profile } from '../types/app';
 import { parseProfileInterests, getInterestTagStyle } from '../lib/interests';
 import { HeartType, heartMeta } from '../lib/constants';
@@ -30,7 +29,7 @@ export const ProfileCard = memo(function ProfileCard({
   locked?: boolean;
   /** 작게 보기 — 3열 그리드·1:1 정사각 사진 */
   compact?: boolean;
-  /** App dark toggle — dims cards even on y2k/minimal */
+  /** App dark toggle */
   darkMode?: boolean;
   onLike: (id: string, hint?: Profile) => void;
   onSelect: (p: Profile) => void;
@@ -42,10 +41,8 @@ export const ProfileCard = memo(function ProfileCard({
   idealMsg?: string | null;
   statusMsg?: string | null;
 }) {
-  const { theme } = useTheme();
-  // default → 흰 카드; dark-neon → 어두운 카드; y2k/minimal → darkMode일 때만 어두움
-  const isCardDark = isProfileCardDark(theme, darkMode);
-  const surfaces = profileCardSurfaces(theme, darkMode);
+  const isCardDark = isProfileCardDark(darkMode);
+  const surfaces = profileCardSurfaces(darkMode);
 
   const posLabel = getPositionLabel(profile.personality_score ?? 50);
   const posStyle = getPositionStyle(profile.personality_score ?? 50);

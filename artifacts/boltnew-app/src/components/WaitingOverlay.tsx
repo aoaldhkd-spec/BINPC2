@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
 import { Users, CheckCircle, Clock, ShieldAlert } from 'lucide-react';
-import { useTheme } from '../lib/theme';
 import { navigateToAppPath, PANEL_PIN_INPUT_PROPS, PIN_DIGIT_INPUT_PROPS, verifyPanelPassword } from '../lib/panel-password';
 
 export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
@@ -8,16 +7,13 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
   onEnter: () => void;
   onRecover?: (profileId: string, pinCode: string) => void;
 }) {
-  const { theme } = useTheme();
-  const isLightTheme = theme === 'y2k' || theme === 'minimal';
-
-  // 라이트 테마(Y2K·Minimal)에서 amber 계열이 흰 배경에 묻히는 문제 → 진한 amber-8/900 사용
+  // Default amber contrast (multi-theme light overrides removed)
   const C = {
-    panelTitle: isLightTheme ? '#78350f' : '#fde68a',          // amber-900  vs  amber-200
-    panelBody:  isLightTheme ? '#92400e' : 'rgba(252,211,77,0.8)', // amber-800  vs  amber-300/80
-    panelHigh:  isLightTheme ? '#78350f' : '#fde68a',           // amber-900  vs  amber-200
-    checkLabel: isLightTheme ? '#92400e' : '#fde68a',           // amber-800  vs  amber-200
-    checkItem:  isLightTheme ? '#78350f' : '#fef3c7',           // amber-900  vs  amber-100
+    panelTitle: '#fde68a',
+    panelBody:  'rgba(252,211,77,0.8)',
+    panelHigh:  '#fde68a',
+    checkLabel: '#fde68a',
+    checkItem:  '#fef3c7',
   } as const;
   const isActive = sessionActive === true;
   const [showConsentModal, setShowConsentModal] = useState(false);
@@ -239,14 +235,14 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
             className="block mx-auto"
           >
             <p className="text-[18px] font-black tracking-[0.25em] uppercase mb-0.5"
-               style={{ color: isLightTheme ? '#0f766e' : '#cffafe' }}>
+               style={{ color: '#cffafe' }}>
               범일NPC
             </p>
           </button>
           <h1
             data-gate="sulbun-none"
             className="text-3xl font-black tracking-tight leading-tight"
-            style={{ color: isLightTheme ? '#111827' : '#ffffff' }}
+            style={{ color: '#ffffff' }}
           >술번개 🍻</h1>
         </div>
 
@@ -293,14 +289,10 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
             <div className="min-w-0 text-left">
               <p className="font-black text-sm leading-snug" style={{ color: C.panelTitle }}>이미 프로필을 만드셨나요?</p>
               <p className="text-xs mt-1 leading-relaxed" style={{ color: C.panelBody, wordBreak: 'keep-all' }}>
-                {theme === 'minimal'
-                  ? <>다시 만들지 마시고 <span className="font-bold" style={{ color: C.panelHigh }}>고유번호(PIN)</span>로 입장.</>
-                  : <>다시 만들지 마시고 <span className="font-bold" style={{ color: C.panelHigh }}>고유번호(PIN)</span>로 입장해주세요.</>}
+                <>다시 만들지 마시고 <span className="font-bold" style={{ color: C.panelHigh }}>고유번호(PIN)</span>로 입장해주세요.</>
               </p>
               <p className="text-xs leading-relaxed" style={{ color: C.panelBody, wordBreak: 'keep-all' }}>
-                {theme === 'minimal'
-                  ? <>고유번호를 모르신다면 <span className="font-bold" style={{ color: C.panelHigh }}>관리자에게 문의</span>.</>
-                  : <>고유번호를 모르신다면 <span className="font-bold" style={{ color: C.panelHigh }}>관리자에게 문의</span>해주세요.</>}
+                <>고유번호를 모르신다면 <span className="font-bold" style={{ color: C.panelHigh }}>관리자에게 문의</span>해주세요.</>
               </p>
             </div>
           </div>

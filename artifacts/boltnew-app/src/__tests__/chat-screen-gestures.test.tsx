@@ -6,7 +6,6 @@ import React from 'react';
 import { render, screen, fireEvent, cleanup, act } from '@testing-library/react';
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import ChatScreen from '../components/ChatScreen';
-import { ThemeProvider } from '../lib/theme';
 import type { Message, Profile } from '../types/app';
 
 vi.mock('../lib/supabase', () => ({
@@ -64,8 +63,7 @@ function msg(id: string, sender: string, content: string): Message {
 function renderChat() {
   const onDeleteMessage = vi.fn();
   render(
-    <ThemeProvider>
-      <ChatScreen
+    <ChatScreen
         chatId="chat-1"
         messages={[
           msg('partner-msg', OTHER.id, '오늘 반가웠어요'),
@@ -78,8 +76,7 @@ function renderChat() {
         onBack={vi.fn()}
         onDeleteMessage={onDeleteMessage}
         currentUserProfile={ME}
-      />
-    </ThemeProvider>,
+      />,
   );
   return { onDeleteMessage };
 }

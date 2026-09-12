@@ -3,7 +3,6 @@ import {
   ArrowLeft, Send, MessageCircle, Smile, ImageIcon, Phone,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { useTheme } from '../lib/theme';
 import { genAvatar } from '../lib/profile';
 import { getCompatibility, getOhaengCompat, getNumerologyCompat, getMbtiCompat, getTodayFortune } from '../lib/fortune';
 import { hasBannedWord } from '../lib/utils';
@@ -22,8 +21,6 @@ import { SIGNAL_FIRST_CHIPS } from '../lib/signal-match';
 import { diag } from '../lib/diag';
 import {
   QUICK_REACTIONS,
-  THEME_CYCLE,
-  THEME_EMOJI,
 } from '../lib/chat-picker-data';
 import {
   buildMessageMetaMap,
@@ -74,12 +71,6 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   /** 서로 하트 첫 1:1 — 칩은 입력만 채움 (자동 전송 없음) */
   showSignalOpeners?: boolean;
 }) {
-  const { theme, setTheme } = useTheme();
-  const handleCycleTheme = () => {
-    const idx = THEME_CYCLE.indexOf(theme);
-    setTheme(THEME_CYCLE[(idx + 1) % THEME_CYCLE.length]);
-  };
-
   // initialInput은 마운트 시 한 번만 적용 — lazy initializer로 처리
   const [input, setInput] = useState(() => initialInput ?? '');
   const [showEmoji, setShowEmoji] = useState(false);
@@ -293,12 +284,6 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
     vv.addEventListener('scroll', update);
     update();
     return () => { vv.removeEventListener('resize', update); vv.removeEventListener('scroll', update); };
-  }, []);
-
-  // ── 채팅 중 전역 ThemeSwitcher FAB 숨김 ──────────────────────────────────────
-  useEffect(() => {
-    document.body.dataset.view = 'chat';
-    return () => { delete document.body.dataset.view; };
   }, []);
 
   // ── 내 정보 등록 폼 동기화 ─────────────────────────────────────────────────────
@@ -924,14 +909,6 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
         </div>
         {/* 행 2: 액션 버튼 (가로 스크롤) — 320px 이하도 잘리지 않도록 */}
         <div className="max-w-3xl mx-auto px-3 pb-2 flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
-          {/* 미니 테마 순환 버튼 */}
-          <button
-            onClick={handleCycleTheme}
-            title="테마 변경"
-            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 active:scale-90 transition-all flex-shrink-0 text-base"
-          >
-            {THEME_EMOJI[theme]}
-          </button>
           <button
             onClick={() => setShowSajuModal(true)}
             className="flex items-center gap-1 px-2 py-1 bg-amber-50 text-amber-600 text-xs font-bold rounded-xl border border-amber-200 hover:bg-amber-100 transition-all active:scale-95 flex-shrink-0">

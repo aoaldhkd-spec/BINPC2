@@ -3,14 +3,15 @@ import { StrictMode, useState, useEffect, lazy, Suspense, startTransition } from
 import { createRoot } from 'react-dom/client';
 import './index.css';
 import App from './App';
-import { ThemeProvider } from './lib/theme';
-import { ThemeSwitcher } from './components/ThemeSwitcher';
+import { clearLegacyThemeArtifacts } from './lib/theme';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
 import { TestGate } from './components/TestGate';
 import { clientNavigationHref, resolveClientNavigation } from './lib/client-navigation';
 
 const loadAdminApp = () => import('./AdminApp');
 const AdminApp = lazy(loadAdminApp);
+
+clearLegacyThemeArtifacts();
 
 if ('serviceWorker' in navigator) {
   const swUrl = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/sw.js?v=20260816-pw-dim`;
@@ -89,15 +90,10 @@ if (!existingRoot) {
 }
 appRoot.render(
   <StrictMode>
-    {/* ThemeProvider/ThemeSwitcher를 AppErrorBoundary 안으로 이동 —
-        테마 렌더 오류가 전역 ErrorBoundary 밖으로 새어 나가는 것을 방지 */}
-    <AppErrorBoundary variant="app" onReset={() => window.location.reload()}>
-      <ThemeProvider>
-        <Suspense fallback={<div className="min-h-screen bg-slate-900" />}>
+        <AppErrorBoundary variant="app" onReset={() => window.location.reload()}>
+      <Suspense fallback={<div className="min-h-screen bg-slate-900" />}>
           <Root />
         </Suspense>
-        <ThemeSwitcher />
-      </ThemeProvider>
     </AppErrorBoundary>
   </StrictMode>,
 );

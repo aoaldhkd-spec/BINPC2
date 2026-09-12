@@ -1,5 +1,3 @@
-import type { ThemeMode } from './theme';
-
 export const EMOJI_CATEGORIES = [
   {
     id: 'face', label: '😄', name: '표정',
@@ -51,14 +49,6 @@ export const EMOJI_CATEGORIES = [
     ],
   },
 ] as const;
-
-export const THEME_CYCLE: ThemeMode[] = ['default', 'y2k', 'dark-neon', 'minimal'];
-export const THEME_EMOJI: Record<ThemeMode, string> = {
-  default: '🌙',
-  y2k: '💖',
-  'dark-neon': '🔥',
-  minimal: '☕',
-};
 
 export const QUICK_MSGS = [
   '오늘 즐거웠어요 ☺️', '술 한 잔 더 할래요? 🍺', '번호 교환해요! 📱', '이따가 연락해요 ☎️',

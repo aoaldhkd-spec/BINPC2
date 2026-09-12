@@ -19,7 +19,6 @@ import type { Profile } from '../types/app';
 
 // ── Minimal mocks ────────────────────────────────────────────────────────────
 
-vi.mock('../hooks/useTheme', () => ({ useTheme: () => ({ theme: 'default' }) }));
 vi.mock('../lib/supabase', () => ({
   supabase: {
     channel: vi.fn(() => ({ on: vi.fn().mockReturnThis(), subscribe: vi.fn() })),
