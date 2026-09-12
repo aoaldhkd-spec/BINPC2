@@ -537,9 +537,27 @@ const FILLERS: Record<FillerKind, { title: string; line: string; quote: string; 
 function FillerPanel({ kind, darkMode, compact, fill }: { kind: FillerKind; darkMode?: boolean; compact?: boolean; fill?: boolean }) {
   const f = FILLERS[kind];
   const pin = kind === 'pin';
+  if (fill) {
+    return (
+      <div className={`flex-1 min-h-0 overflow-hidden flex items-center gap-3 px-3 py-2 rounded-2xl ${darkMode ? f.darkShell : f.shell}`}>
+        <div className="flex-shrink-0 flex flex-col items-center gap-1">
+          {pin && (
+            <span className="inline-flex items-center justify-center rounded-full font-bold tracking-tight text-white shadow-md bg-gradient-to-r from-amber-500 to-orange-500 px-2 py-0.5 text-[11px]">
+              관리자문의
+            </span>
+          )}
+          <FillerArt kind={kind} darkMode={darkMode} />
+        </div>
+        <div className="min-w-0 flex-1 text-left">
+          <p className={`font-bold text-xs leading-snug line-clamp-2 ${darkMode ? 'text-white' : 'text-slate-800'}`}>{f.title}</p>
+          <p className={`text-[11px] leading-snug mt-0.5 line-clamp-2 ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>{f.line}</p>
+        </div>
+      </div>
+    );
+  }
   return (
     <div
-      className={`${fill ? 'flex-1 min-h-0 overflow-hidden' : 'flex-shrink-0'} flex items-center rounded-2xl ${
+      className={`flex-shrink-0 flex items-center rounded-2xl ${
         compact ? 'gap-2 px-2.5 py-1.5 text-left' : 'flex-col justify-center gap-1 px-3.5 py-2.5 text-center'
       } ${darkMode ? f.darkShell : f.shell}`}
     >
@@ -556,11 +574,6 @@ function FillerPanel({ kind, darkMode, compact, fill }: { kind: FillerKind; dark
         {!compact && (
           <p className={`text-xs leading-snug mt-0.5 ${KR_WRAP} ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
             {f.line.replace(/([.·])\s+/g, '$1\u200b ')}
-          </p>
-        )}
-        {fill && !compact && (
-          <p className={`text-[11px] leading-snug mt-1 ${KR_WRAP} ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-            {f.quote.replace(/([.·])\s+/g, '$1\u200b ')}
           </p>
         )}
       </div>
