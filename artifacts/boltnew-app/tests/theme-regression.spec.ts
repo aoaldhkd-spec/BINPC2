@@ -2,10 +2,8 @@
  * Theme Regression Tests
  *
  * Visits a minimal HTML fixture loaded with the app's built CSS, applies each
- * of the four themes (default, y2k, dark-neon, minimal) by setting `data-theme`
- * on `<html>` and injecting the matching CSS custom properties, then asserts
- * that key observable elements — page background, primary button, and body
- * text — match the expected palette values defined in `src/lib/theme.tsx`.
+ * Multi-theme switcher was removed; this suite now only checks the default
+ * (no data-theme) loading/CTA palette that the app still ships.
  *
  * Run after `pnpm run build` so the built CSS is available.
  */
@@ -43,28 +41,8 @@ function getBuiltCss(): string {
 
 const THEME_VARS: Record<string, Record<string, string>> = {
   default: {},
-  y2k: {
-    '--t-bg': '#FCFCFB',
-    '--t-surface': '#ffffff',
-    '--t-text': '#18181b',
-    '--t-accent': '#10b981',
-    '--t-border': '#e5e7eb',
-  },
-  'dark-neon': {
-    '--t-bg': '#000000',
-    '--t-surface': '#09090b',
-    '--t-text': '#ffffff',
-    '--t-accent': '#f472b6',
-    '--t-border': '#27272a',
-  },
-  minimal: {
-    '--t-bg': '#F9F8F6',
-    '--t-surface': '#ffffff',
-    '--t-text': '#09090b',
-    '--t-accent': '#18181b',
-    '--t-border': '#e5e7eb',
-  },
 };
+
 
 // ─── Minimal HTML fixture ───────────────────────────────────────────────────
 
@@ -124,48 +102,6 @@ const THEME_CHECKS: Record<string, ThemeCheck> = {
     textColor: 'rgb(255, 255, 255)',
   },
 
-  /**
-   * y2k — light, neobrutalist.
-   * All dark backgrounds flip to warm white (#FCFCFB).
-   * Accent button becomes mint green (#6ee7b7) with a dark border.
-   * White text inverts to near-black (#18181b).
-   */
-  y2k: {
-    bodyBg: 'rgb(252, 252, 251)',   // #FCFCFB via --t-bg
-    bodyColor: 'rgb(24, 24, 27)',   // #18181b via --t-text
-    mainBgColor: 'rgb(252, 252, 251)',
-    accentBg: 'rgb(110, 231, 183)', // #6ee7b7
-    textColor: 'rgb(24, 24, 27)',   // #18181b override
-  },
-
-  /**
-   * dark-neon — pure black background, hot-pink/purple accent.
-   * Loading screen collapses to solid black (#000000).
-   * Accent button gets a pink→purple gradient (background-image).
-   * White text stays white (no override needed).
-   */
-  'dark-neon': {
-    bodyBg: 'rgb(0, 0, 0)',           // #000000 via --t-bg
-    bodyColor: 'rgb(255, 255, 255)',  // #ffffff via --t-text
-    mainBgColor: 'rgb(0, 0, 0)',
-    accentBgHasGradient: true,        // linear-gradient(pink→purple)
-    textColor: 'rgb(255, 255, 255)',
-  },
-
-  /**
-   * minimal — warm off-white, ink black accents.
-   * Loading screen becomes warm cream (#F9F8F6).
-   * Accent button is deep ink (#09090b) — the later rule at index.css ~line 850
-   * wins over the earlier #18181b rule at ~line 218.
-   * White text inverts to near-black (#09090b).
-   */
-  minimal: {
-    bodyBg: 'rgb(249, 248, 246)',   // #F9F8F6 via --t-bg
-    bodyColor: 'rgb(9, 9, 11)',     // #09090b via --t-text
-    mainBgColor: 'rgb(249, 248, 246)',
-    accentBg: 'rgb(9, 9, 11)',      // #09090b — later rule at index.css ~line 854
-    textColor: 'rgb(9, 9, 11)',     // #09090b via var(--t-text)
-  },
 };
 
 // ─── Tests ──────────────────────────────────────────────────────────────────

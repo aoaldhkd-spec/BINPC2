@@ -2829,7 +2829,7 @@ describe('[Security] group chats auto 2 + opt-in 2차', () => {
 });
 
 describe('[Security] profiles birth month/day edit limit', () => {
-  async function readProfile(agent: request.SuperAgentTest, userId: string) {
+  async function readProfile(agent: ReturnType<typeof request.agent>, userId: string) {
     const res = await agent.post('/api/db/op').send({
       op: 'select',
       table: 'profiles',

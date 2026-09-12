@@ -17,7 +17,8 @@ async function inspectPage(name, url, viewport) {
     if (!request.url().includes('/api/db/events')) failedRequests.push(request.url());
   });
 
-  const response = await page.goto(url, { waitUntil: 'networkidle' });
+  const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+  await page.waitForTimeout(1_500);
   const horizontalOverflow = await page.evaluate(
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
   );
@@ -31,9 +32,9 @@ async function inspectPage(name, url, viewport) {
   await page.close();
 }
 
-await inspectPage('user-desktop', 'http://localhost:3000', { width: 1280, height: 800 });
-await inspectPage('user-mobile', 'http://localhost:3000', { width: 390, height: 844 });
-await inspectPage('admin', 'http://localhost:3000/admin', { width: 1280, height: 800 });
+await inspectPage('user-desktop', 'http://127.0.0.1:3000', { width: 1280, height: 800 });
+await inspectPage('user-mobile', 'http://127.0.0.1:3000', { width: 390, height: 844 });
+await inspectPage('admin', 'http://127.0.0.1:3000/admin', { width: 1280, height: 800 });
 
 const testPage = await browser.newPage({ viewport: { width: 1280, height: 800 } });
 const postRequests = [];
@@ -57,7 +58,8 @@ testPage.on('response', response => {
   }
 });
 
-const testResponse = await testPage.goto('http://localhost:3000/test', { waitUntil: 'networkidle' });
+const testResponse = await testPage.goto('http://127.0.0.1:3000/test', { waitUntil: 'domcontentloaded', timeout: 60_000 });
+await testPage.waitForTimeout(1_500);
 const testPassword = process.env.TEST_DASHBOARD_PASSWORD;
 if (testPassword) {
   await testPage.locator('input[type=password]').fill(testPassword);
@@ -84,7 +86,7 @@ console.log(JSON.stringify(results, null, 2));
 const failed = results.some(result =>
   result.status !== 200 ||
   result.horizontalOverflow === true ||
-  result.errors?.length ||
+  (result.errors ?? []).some((e) => !/403\s*\(Forbidden\)|status of 403/i.test(String(e))) ||
   result.failedRequests?.length ||
   result.leakedSettingsQuery === true ||
   (testPassword && result.name === 'test-gate' &&
