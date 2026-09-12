@@ -423,67 +423,66 @@ function TipGrid({
 }
 
 function FillerArt({ kind, darkMode }: { kind: FillerKind; darkMode?: boolean }) {
+  // Compact square art — fill 모드에서 텍스트 옆 골짜기로 이모지가 새지 않게 아이콘 박스 안에 모은다.
   if (kind === 'heart') {
     return (
-      <div className="relative h-14 w-28 mb-1" aria-hidden>
-        <div className={`absolute left-1 top-2 w-10 h-10 rounded-2xl rotate-[-12deg] ${darkMode ? 'bg-rose-900/70' : 'bg-rose-100'}`} />
-        <div className={`absolute left-8 top-0.5 w-12 h-12 rounded-2xl flex items-center justify-center ${darkMode ? 'bg-rose-950 ring-1 ring-rose-400/40' : 'bg-white ring-1 ring-rose-200'} shadow-md`}>
+      <div className="relative h-12 w-12 mb-0 flex-shrink-0" aria-hidden>
+        <div className={`absolute inset-0 rounded-2xl rotate-[-10deg] ${darkMode ? 'bg-rose-900/70' : 'bg-rose-100'}`} />
+        <div className={`relative w-12 h-12 rounded-2xl flex items-center justify-center overflow-hidden ${darkMode ? 'bg-rose-950 ring-1 ring-rose-400/40' : 'bg-white ring-1 ring-rose-200'} shadow-md`}>
           <span className="text-[22px] leading-none">🤍</span>
         </div>
-        <span className="absolute right-1 top-1 text-[14px]">💙</span>
-        <span className="absolute right-0 bottom-0 text-[12px]">💚</span>
+        <span className="absolute -top-1 -right-1 text-[11px] leading-none drop-shadow-sm">💙</span>
+        <span className="absolute -bottom-0.5 -left-1 text-[10px] leading-none drop-shadow-sm">💚</span>
       </div>
     );
   }
   if (kind === 'guide') {
     return (
-      <div className="relative h-9 w-24 mb-1" aria-hidden>
-        <div className={`absolute inset-x-3 top-0.5 h-8 rounded-2xl rotate-[-8deg] ${darkMode ? 'bg-amber-900/40' : 'bg-amber-100/90'}`} />
-        <div className={`absolute inset-x-2 top-1 h-7 rounded-2xl rotate-[6deg] ${darkMode ? 'bg-teal-800/70' : 'bg-teal-100/90'}`} />
-        <div className={`absolute inset-x-5 top-1.5 h-7 rounded-xl flex items-center justify-center ${darkMode ? 'bg-slate-800 ring-1 ring-white/10' : 'bg-white ring-1 ring-teal-100'} shadow-md`}>
-          <span className="text-[18px] leading-none">🥂</span>
+      <div className="relative h-12 w-12 mb-0 flex-shrink-0" aria-hidden>
+        <div className={`absolute inset-0 rounded-2xl rotate-[-8deg] ${darkMode ? 'bg-amber-900/40' : 'bg-amber-100/90'}`} />
+        <div className={`relative w-12 h-12 rounded-2xl flex items-center justify-center overflow-hidden ${darkMode ? 'bg-slate-800 ring-1 ring-white/10' : 'bg-white ring-1 ring-teal-100'} shadow-md`}>
+          <span className="text-[20px] leading-none">🥂</span>
         </div>
-        <span className="absolute -right-0.5 top-0 text-[10px] animate-pulse">✨</span>
-        <span className="absolute -left-0.5 bottom-0 text-[11px]">🌙</span>
+        <span className="absolute -top-1 -right-1 text-[10px] leading-none animate-pulse">✨</span>
+        <span className="absolute -bottom-0.5 -left-1 text-[10px] leading-none">🌙</span>
       </div>
     );
   }
   if (kind === 'chat') {
     return (
-      <div className="relative h-9 w-24 mb-1" aria-hidden>
-        <div className={`absolute left-0.5 top-1 w-11 h-6 rounded-2xl rounded-bl-sm flex items-center justify-center text-[8px] font-bold ${darkMode ? 'bg-slate-700 text-slate-200' : 'bg-white text-slate-600'} shadow-md`}>안녕</div>
-        <div className={`absolute right-0 bottom-0 w-14 h-6 rounded-2xl rounded-br-sm flex items-center justify-center gap-0.5 ${darkMode ? 'bg-indigo-600 text-white' : 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white'} shadow-md`}>
-          <span className="text-[8px] font-black">반가워</span>
-          <span className="text-[9px]">💌</span>
+      <div className="relative h-12 w-12 mb-0 flex-shrink-0" aria-hidden>
+        <div className={`relative w-12 h-12 rounded-2xl flex flex-col items-center justify-center gap-0.5 overflow-hidden ${darkMode ? 'bg-indigo-950 ring-1 ring-indigo-400/40' : 'bg-white ring-1 ring-indigo-200'} shadow-md`}>
+          <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full ${darkMode ? 'bg-slate-700 text-slate-200' : 'bg-slate-100 text-slate-600'}`}>안녕</span>
+          <span className="text-[10px] leading-none">💌</span>
         </div>
-        <span className="absolute right-0.5 top-0 text-[11px]">💭</span>
+        <span className="absolute -top-1 -right-1 text-[10px] leading-none">💭</span>
       </div>
     );
   }
   if (kind === 'group') {
     return (
-      <div className="relative h-9 w-24 mb-1" aria-hidden>
-        <div className={`absolute left-1.5 top-1.5 w-8 h-7 rounded-xl rotate-[-10deg] ${darkMode ? 'bg-teal-900/70' : 'bg-teal-100/90'}`} />
-        <div className={`absolute left-6 top-0.5 w-9 h-8 rounded-xl flex items-center justify-center ${darkMode ? 'bg-emerald-950 ring-1 ring-emerald-400/40' : 'bg-white ring-1 ring-teal-200'} shadow-md`}>
-          <span className="text-[15px] leading-none">👥</span>
+      <div className="relative h-12 w-12 mb-0 flex-shrink-0" aria-hidden>
+        <div className={`absolute inset-0 rounded-2xl rotate-[-10deg] ${darkMode ? 'bg-teal-900/70' : 'bg-teal-100/90'}`} />
+        <div className={`relative w-12 h-12 rounded-2xl flex items-center justify-center overflow-hidden ${darkMode ? 'bg-emerald-950 ring-1 ring-emerald-400/40' : 'bg-white ring-1 ring-teal-200'} shadow-md`}>
+          <span className="text-[18px] leading-none">👥</span>
         </div>
-        <span className="absolute right-0 top-0 text-[10px]">🍻</span>
-        <span className="absolute right-0.5 bottom-0 text-[10px]">🚪</span>
+        <span className="absolute -top-1 -right-1 text-[10px] leading-none">🍻</span>
+        <span className="absolute -bottom-0.5 -left-1 text-[10px] leading-none">🚪</span>
       </div>
     );
   }
   if (kind === 'pin') {
     return (
-      <div className="relative h-7 w-16 mb-0.5 flex flex-col items-center" aria-hidden>
-        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[14px] shadow-md ${darkMode ? 'bg-amber-900/70 ring-2 ring-amber-500/50' : 'bg-gradient-to-br from-amber-100 to-orange-100 ring-2 ring-amber-300'}`}>🔑</div>
+      <div className="relative h-12 w-12 mb-0 flex-shrink-0 flex items-center justify-center" aria-hidden>
+        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-[16px] shadow-md ${darkMode ? 'bg-amber-900/70 ring-2 ring-amber-500/50' : 'bg-gradient-to-br from-amber-100 to-orange-100 ring-2 ring-amber-300'}`}>🔑</div>
       </div>
     );
   }
   return (
-    <div className="relative h-8 w-16 mb-0.5" aria-hidden>
-      <div className={`absolute left-1/2 top-0 -translate-x-1/2 w-8 h-8 rounded-xl rotate-[-10deg] ${darkMode ? 'bg-violet-900/80' : 'bg-violet-200/90'}`} />
-      <div className={`absolute left-1/2 top-0 -translate-x-1/2 w-8 h-8 rounded-xl rotate-[8deg] flex items-center justify-center ${darkMode ? 'bg-fuchsia-950 ring-1 ring-fuchsia-400/40' : 'bg-white ring-1 ring-fuchsia-200'} shadow-md`}>
-        <span className="text-[14px] leading-none">🔄</span>
+    <div className="relative h-12 w-12 mb-0 flex-shrink-0" aria-hidden>
+      <div className={`absolute inset-0 rounded-xl rotate-[-10deg] ${darkMode ? 'bg-violet-900/80' : 'bg-violet-200/90'}`} />
+      <div className={`relative w-12 h-12 rounded-xl flex items-center justify-center overflow-hidden ${darkMode ? 'bg-fuchsia-950 ring-1 ring-fuchsia-400/40' : 'bg-white ring-1 ring-fuchsia-200'} shadow-md`}>
+        <span className="text-[16px] leading-none">🔄</span>
       </div>
     </div>
   );
