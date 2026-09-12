@@ -620,7 +620,7 @@ function TopicSubTabs({
 
 function SectionHeader({
   section,
-  compact,
+  compact: _compact,
   darkMode,
 }: {
   section: Section;

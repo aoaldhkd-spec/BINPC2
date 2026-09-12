@@ -50,7 +50,7 @@ function digitsOnly(v: unknown): string {
 }
 
 /** After profile wipe, keep admin row and force nickname 범일NPC. */
-async function restoreAdminProfileAfterWipe(
+async function _restoreAdminProfileAfterWipe(
   backupProfiles: Profile[],
   adminPhone: string | null | undefined,
 ): Promise<void> {

@@ -199,18 +199,23 @@ mustMatch('artifacts/api-server/src/routes/db.ts', '22_cleanup_on_startup', [
 
 // ?? 27 Default white ProfileCards + isDarkTheme dark-neon only ???????????????
 
-mustMatch('artifacts/boltnew-app/src/lib/theme.tsx', '27_isDarkTheme_dark_neon_only', [
-  /export function isDarkTheme/,
-  /return theme === 'dark-neon'/,
+mustMatch('artifacts/boltnew-app/src/lib/theme.tsx', '27_legacy_theme_cleanup_only', [
+  /export function clearLegacyThemeArtifacts/,
+  /app_theme_mode_v1/,
 ]);
-mustMatch('artifacts/boltnew-app/src/lib/profile-card-theme.ts', '27_default_cards_stay_white', [
+mustNotMatch('artifacts/boltnew-app/src/lib/theme.tsx', '27_no_multi_theme_provider', [
+  /ThemeProvider/,
+  /isDarkTheme/,
+]);
+mustMatch('artifacts/boltnew-app/src/lib/profile-card-theme.ts', '27_profile_cards_follow_darkMode', [
   /export function isProfileCardDark/,
-  /theme === 'default'\) return false/,
-  /theme === 'dark-neon'\) return true/,
+  /return darkMode/,
   /bg-white border-gray-100/,
 ]);
-
-// ?? 28 Tag catalog ? shared CORE groups, no cat face in picker ???????????????
+mustNotMatch('artifacts/boltnew-app/src/main.tsx', '27_no_theme_switcher_mount', [
+  /ThemeSwitcher/,
+  /ThemeProvider/,
+]);
 
 mustMatch('artifacts/boltnew-app/src/lib/signal-match.ts', '28_ideal_feature_shared_core', [
   /export const IDEAL_TAG_GROUPS = \[\.\.\.CORE_TAG_GROUPS\]/,
@@ -265,8 +270,10 @@ mustMatch('artifacts/boltnew-app/src/App.tsx', '35_like_confirm_body_overlay', [
 ]);
 mustMatch('artifacts/boltnew-app/src/index.css', '35_like_confirm_hide_fabs', [
   /data-overlay="like-confirm"/,
-  /\.theme-switcher-btn/,
   /\.participant-fab-my/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/index.css', '35_no_theme_switcher_css', [
+  /theme-switcher/,
 ]);
 mustMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '35_profile_card_mobile_tap', [
   /bindMobileTap/,

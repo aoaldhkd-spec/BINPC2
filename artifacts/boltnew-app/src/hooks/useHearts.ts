@@ -283,10 +283,6 @@ export function useHearts(
           if (prev.has(targetId)) return prev;
           return new Map(prev).set(targetId, 'pending');
         });
-        setOutgoingLikeRows(prev => {
-          if (prev.some(r => r.liked_id === targetId && (r.heart_type ?? 'red') === heartType)) return prev;
-          return [...prev, { liked_id: targetId, heart_type: heartType, created_at: new Date().toISOString() }];
-        });
         setLikeConfirmTarget(null);
         return true;
       } else {

@@ -484,7 +484,8 @@ export function useChat({
       if (!data) return;
       if (data.length === 0) { setChatList([]); void syncUnreadCountsRef.current?.(); return; }
 
-      const chatIds = data.map((c: { id: string }) => c.id);
+      const rows = data as { id: string }[];
+      const chatIds: string[] = rows.map((c) => c.id);
       const { data: allMsgs } = await supabase.from('messages').select('chat_id, content, image_url, created_at')
         .in('chat_id', chatIds).order('created_at', { ascending: false }).limit(Math.max(chatIds.length * 40, 200));
       if (gen !== loadChatListGenRef.current) return;
@@ -879,7 +880,7 @@ export function useChat({
       // 예외가 발생해도 반드시 해제 — 영구 잠금 방지
       isFlushingRef.current = false;
     }
-  }, []);
+  }, [setBottomNotif]);
 
   useEffect(() => {
     return onSseReconnect(() => {
@@ -1065,7 +1066,7 @@ export function useChat({
     } finally {
       sendingChatIdsRef.current.delete(snapChatId);
     }
-  }, []); // chatIdRef/currentUserIdRef/chatListRef는 항상 최신 ref — deps 불필요
+  }, [setBottomNotif]); // chatIdRef/currentUserIdRef/chatListRef는 항상 최신 ref
 
   // ── 이미지 전송 ───────────────────────────────────────────────────────────────
   const sendImage = useCallback(async (file: File): Promise<string | null> => {
@@ -1220,7 +1221,7 @@ export function useChat({
     } finally {
       uploadingChatIdsRef.current.delete(snapChatId);
     }
-  }, []); // chatIdRef/currentUserIdRef/chatListRef는 항상 최신 ref — deps 불필요
+  }, [setBottomNotif]); // chatIdRef/currentUserIdRef/chatListRef는 항상 최신 ref
 
   // ── 채팅 삭제 ────────────────────────────────────────────────────────────────
   const deleteChat = async (chatToDelete: Chat) => {

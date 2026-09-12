@@ -756,7 +756,7 @@ function App() {
     setSelectedProfile(p);
     setView('profile');
     void recordProfileView(p.id);
-  }, [recordProfileView]);
+  }, [recordProfileView, setLikeConfirmTarget]);
 
   const handleUpdateProfile = useCallback((update: Record<string, unknown> & { id: string }) => {
     setProfiles(prev => prev.map(p => p.id === update.id ? { ...p, ...update } : p));
@@ -789,7 +789,7 @@ function App() {
   const handleContactShareOpen = useCallback((profile: Profile) => {
     if (functionsLockedRef.current) { showFunctionsLockToast(); return; }
     setContactShareTarget(profile);
-  }, [showFunctionsLockToast]);
+  }, [showFunctionsLockToast, setContactShareTarget]);
 
   const handleContactViewOpen = useCallback((share: ContactShare, profile: Profile) => {
     setContactViewShare({ share, profile });

@@ -9,6 +9,7 @@ export type ScannedContact = {
   instagram_id?: string | null;
   phone_number?: string | null;
   contact_private?: boolean | null;
+  avatar_color?: number | null;
   scanned_at: string;
 };
 
@@ -27,6 +28,7 @@ export function upsertScannedContact(
     instagram_id: profile.instagram_id,
     phone_number: profile.phone_number,
     contact_private: profile.contact_private,
+    avatar_color: profile.avatar_color ?? null,
     scanned_at: scannedAt,
   };
   return [entry, ...contacts.filter(contact => contact.id !== entry.id)].slice(0, 50);

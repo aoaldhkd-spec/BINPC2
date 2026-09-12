@@ -25,7 +25,7 @@ export function BottomNotification({
   onClose,
   onGoToStatus,
   onGoToChats,
-  onViewProfile,
+  onViewProfile: _onViewProfile,
   onStartChat,
 }: BottomNotificationProps) {
   useEffect(() => {

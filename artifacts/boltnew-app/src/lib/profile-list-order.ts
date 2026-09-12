@@ -94,5 +94,5 @@ export function patchProfileInPlace(
     changed = true;
     return merged;
   });
-  return changed ? next : prev;
+  return changed ? next : [...prev];
 }

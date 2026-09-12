@@ -178,7 +178,7 @@ export function MainScreen({
       }
     }
     return entries;
-  }, [mainTab, sentLikedProfiles, sentHeartsPerPerson, sentHeartTypes]);
+  }, [mainTab, mySubTab, sentLikedProfiles, sentHeartsPerPerson, sentHeartTypes]);
 
   const [profileSearch, setProfileSearch] = useState('');
   const [profileCardGrid, setProfileCardGridRaw] = useState<ProfileCardGridMode>(() => readProfileCardGridMode());
@@ -626,7 +626,8 @@ export function MainScreen({
 
   const handleSelectAvatarColor = async (colorIndex: number | null) => {
     if (!currentUserId || avatarColorSaving) return;
-    const current = (me as Profile).avatar_color ?? null;
+    const meProfile = profiles.find(p => p.id === currentUserId);
+    const current = meProfile?.avatar_color ?? null;
     if (current === colorIndex) return;
     setAvatarColorSaving(true);
     try {

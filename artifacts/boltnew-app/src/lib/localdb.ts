@@ -158,12 +158,12 @@ async function apiFetch(
           const errMsg = json.error?.message ?? '';
           const authMismatch = resp.status === 403 && errCode === 'FORBIDDEN'
             && errMsg.includes('requesterId must match');
-          const needsAuthRetry = AUTH_RETRY_PATHS.has(path) && !authRetry && _currentUserId
+          const needsAuthRetry = AUTH_RETRY_PATHS.has(path) && !authRetry && !!_currentUserId
             && (resp.status === 401 || authMismatch);
           if (needsAuthRetry && errCode !== 'FUNCTIONS_LOCKED') {
             _markSessionPending();
             _clearSessionBearer();
-            if (await loginSession(_currentUserId)) {
+            if (_currentUserId && await loginSession(_currentUserId)) {
               const retryBody = body && typeof body === 'object' && !Array.isArray(body)
                 ? {
                   ...(body as Record<string, unknown>),

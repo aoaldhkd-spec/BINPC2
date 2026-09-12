@@ -378,7 +378,7 @@ export function RankingTab({ darkMode, profiles: propProfiles }: { darkMode: boo
                     <img src={getAvatarSrc(profile.photo_url, profile.nickname, undefined, profile.avatar_color)} alt={profile.nickname} className="w-9 h-9 rounded-full object-cover flex-shrink-0" loading="lazy" />
                   ) : (
                     <div className={`w-9 h-9 rounded-full flex items-center justify-center text-base font-black flex-shrink-0 ${darkMode ? 'bg-slate-600 text-slate-300' : 'bg-gray-100 text-gray-500'}`}>
-                      {profile?.nickname?.charAt(0) ?? '?'}
+                      {'?'}
                     </div>
                   )}
                   <div className="flex-1 min-w-0">

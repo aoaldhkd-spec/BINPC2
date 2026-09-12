@@ -43,6 +43,7 @@ const ME: Profile = {
   kakao_id: null,
   instagram_id: null,
   phone_number: null,
+  avatar_color: null,
   created_at: '2026-01-01T00:00:00Z',
 };
 

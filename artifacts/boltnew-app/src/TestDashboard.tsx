@@ -401,8 +401,8 @@ export default function TestDashboard() {
             )}
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <Btn label="테스터 A1 생성" onClick={() => createTestUser('A', 1)} color="teal" disabled={loading === 'profile'} />
-            <Btn label="랜덤 테스터 생성" onClick={() => createTestUser(LETTERS[Math.floor(Math.random() * LETTERS.length)], Math.floor(Math.random() * 9) + 1)} color="amber" disabled={loading === 'profile'} />
+            <Btn label="테스터 A1 생성" onClick={() => createTestUser()} color="teal" disabled={loading === 'profile'} />
+            <Btn label="랜덤 테스터 생성" onClick={() => createTestUser()} color="amber" disabled={loading === 'profile'} />
           </div>
           {profiles.length > 0 && (
             <div>
