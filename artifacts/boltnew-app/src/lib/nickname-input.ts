@@ -2,7 +2,7 @@
 const NICKNAME_MIN_GRAPHEMES = 2;
 export const NICKNAME_MAX_GRAPHEMES = 6;
 
-export function graphemeSegments(s: string): string[] {
+function graphemeSegments(s: string): string[] {
   try {
     if (typeof Intl !== 'undefined' && 'Segmenter' in Intl) {
       return [...new Intl.Segmenter('ko', { granularity: 'grapheme' }).segment(s)].map(
@@ -40,7 +40,7 @@ export function isHangulJamoGrapheme(g: string): boolean {
 }
 
 /** Precomposed Hangul: LV (no 종성) vs LVT (has 종성). */
-export function hangulSyllableKind(g: string): 'lv' | 'lvt' | 'other' {
+function hangulSyllableKind(g: string): 'lv' | 'lvt' | 'other' {
   const cp = g.codePointAt(0);
   if (cp == null || cp < 0xac00 || cp > 0xd7a3) return 'other';
   return (cp - 0xac00) % 28 === 0 ? 'lv' : 'lvt';

@@ -1,8 +1,8 @@
 export const PROFILE_PHOTO_ACCEPT = 'image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif';
 
 export const PROFILE_PHOTO_MAX_INPUT_BYTES = 20 * 1024 * 1024;
-export const PROFILE_PHOTO_MAX_PIXELS = 40_000_000;
-export const PROFILE_PHOTO_MAX_DATA_URL_CHARS = 8_000_000;
+const PROFILE_PHOTO_MAX_PIXELS = 40_000_000;
+const PROFILE_PHOTO_MAX_DATA_URL_CHARS = 8_000_000;
 export const PROFILE_PHOTO_MAX_OUTPUT_PX = 2048;
 export const PROFILE_PHOTO_OUTPUT_QUALITY = 0.92;
 const PROFILE_PHOTO_FALLBACK_QUALITIES = [0.86, 0.8];

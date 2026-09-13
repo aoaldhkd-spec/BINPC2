@@ -8,7 +8,7 @@ import type { Profile } from '../types/app';
  *
  * 프로필 패치·user_signals SSE 는 created_at/id 를 바꾸지 않으므로 자리가 흔들리지 않는다.
  */
-export function compareProfilesStable(
+function compareProfilesStable(
   a: Pick<Profile, 'id' | 'created_at' | 'nickname'>,
   b: Pick<Profile, 'id' | 'created_at' | 'nickname'>,
   currentUserId?: string | null,

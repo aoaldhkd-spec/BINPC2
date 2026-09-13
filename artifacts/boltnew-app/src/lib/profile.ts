@@ -115,7 +115,7 @@ export function resolveAvatarColorIndex(profile: AvatarColorProfile): number {
   return avatarPaletteIndex(nick) % AVATAR_PALETTE.length;
 }
 
-export function getAvatarGradientForProfile(profile: AvatarColorProfile): { from: string; to: string } {
+function getAvatarGradientForProfile(profile: AvatarColorProfile): { from: string; to: string } {
   return AVATAR_PALETTE[resolveAvatarColorIndex(profile)];
 }
 

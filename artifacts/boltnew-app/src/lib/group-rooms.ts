@@ -9,7 +9,7 @@ export const MAX_GROUPS_PER_USER = 4;
 const GROUP_LIMIT_MSG = '단체 채팅은 최대 4개까지 입장할 수 있어요.';
 
 export const AFTERPARTY_CLUB_ID = 'group_afterparty_club';
-export const AFTERPARTY_DRINK_ID = 'group_afterparty_drink';
+const AFTERPARTY_DRINK_ID = 'group_afterparty_drink';
 
 export function groupLimitMessage(): string {
   return GROUP_LIMIT_MSG;
@@ -143,7 +143,7 @@ type GroupLike = Pick<GroupChat, 'id' | 'name' | 'interest_tag'> & {
   created_at?: string;
 };
 
-export function afterpartyKind(group: GroupLike): 'club' | 'drink' | null {
+function afterpartyKind(group: GroupLike): 'club' | 'drink' | null {
   const kind = group.room_kind ?? '';
   const tag = group.interest_tag ?? '';
   const name = group.name ?? '';
@@ -201,7 +201,7 @@ const VISIBLE_AGE_ROOM_NAMES = new Set(['20대 모임', '30대 모임']);
 export type AdminGroupRoomBucket = 'catalog' | 'birth_year' | 'other';
 
 /** ○○년생 모임 — 출생연도마다 1개. 관리자 집계에서 빼지 않는다. */
-export function isAdminBirthYearRoom(group: GroupLike): boolean {
+function isAdminBirthYearRoom(group: GroupLike): boolean {
   if (group.room_kind === 'birth_year') return true;
   if (isYearRoom(group)) return true;
   return /^group_birth_\d{4}$/.test(group.id);
@@ -228,7 +228,7 @@ function adminGroupRoomBucket(group: GroupLike): AdminGroupRoomBucket | null {
 }
 
 /** 2차·N대·년생 복제본을 같은 키로 묶는다. hidden 플래그가 없어도 목록 8이 되지 않게. */
-export function catalogRoomDedupeKey(group: GroupLike): string | null {
+function catalogRoomDedupeKey(group: GroupLike): string | null {
   const ap = afterpartyKind(group);
   if (ap) return `ap:${ap}`;
   if (isAdminBirthYearRoom(group)) {

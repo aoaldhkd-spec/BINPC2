@@ -1,8 +1,8 @@
 /** 성인 전용 앱 — 한국식 나이(연도 차 + 1) 최소 20세 */
-export const MIN_ADULT_KOREAN_AGE = 20;
+const MIN_ADULT_KOREAN_AGE = 20;
 
 /** 행사 통계·더미·가입 피커 — 한국식 나이 상한 (40+는 30대 버킷) */
-export const MAX_EVENT_KOREAN_AGE = 39;
+const MAX_EVENT_KOREAN_AGE = 39;
 
 /** KST calendar year — 한국식 나이(연도 차 + 1)의 기준 연도 */
 export function seoulCalendarYear(now: Date = new Date()): number {

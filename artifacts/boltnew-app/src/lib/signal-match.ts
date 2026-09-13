@@ -8,7 +8,7 @@ export const SIGNAL_EMOJI = '📡';
 import { parseProfileInterests } from './interests';
 import { getPositionLabel } from './profile';
 
-export const INTEREST_HEARTS = ['red', 'blue', 'pink'] as const;
+const INTEREST_HEARTS = ['red', 'blue', 'pink'] as const;
 export type InterestHeart = (typeof INTEREST_HEARTS)[number];
 
 export const SIGNAL_FIRST_CHIPS = [
@@ -17,7 +17,7 @@ export const SIGNAL_FIRST_CHIPS = [
   '😆 관심사가 비슷하네요!',
 ] as const;
 
-export const NUDGE_MESSAGES = [
+const NUDGE_MESSAGES = [
   '❤️ 마음에 드는 사람에게 하트를 직접 보내보세요.',
   '👀 하트, 채팅 탭에서 받은 하트와 채팅을 한곳에서 확인할 수 있어요.',
   '💕 서로 하트를 보내면 채팅을 시작할 수 있어요.',

@@ -5,7 +5,7 @@
  * Admin/test routes must not install this (App.tsx only).
  */
 
-export const BINPC_NAV_KEY = 'binpcNav';
+const BINPC_NAV_KEY = 'binpcNav';
 
 export type NavClose = () => void;
 export type NavLayer = { id: string; close: NavClose };
