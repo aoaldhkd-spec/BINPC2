@@ -1,8 +1,8 @@
-/**
- * GroupChatScreen — 옵트인 단톡방 화면
- * - 1:1 ChatScreen과 같은 visualViewport / safe-area / 하단 스크롤
- * - 내 메시지: 아직 안 읽은 다른 멤버 수 (카카오식, 1씩 감소)
- * - functionsLocked 일 때만 입력 비활성
+﻿/**
+ * GroupChatScreen ???듯듃???⑦넚諛??붾㈃
+ * - 1:1 ChatScreen怨?媛숈? visualViewport / safe-area / ?섎떒 ?ㅽ겕濡?
+ * - ??硫붿떆吏: ?꾩쭅 ???쎌? ?ㅻⅨ 硫ㅻ쾭 ??(移댁뭅?ㅼ떇, 1??媛먯냼)
+ * - functionsLocked ???뚮쭔 ?낅젰 鍮꾪솢??
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
@@ -86,7 +86,7 @@ export function GroupChatScreen({
     try {
       await onSendMessage(text);
     } catch (e) {
-      console.error('[GroupChatScreen] 전송 오류:', e);
+      console.error('[GroupChatScreen] ?꾩넚 ?ㅻ쪟:', e);
       setInput(savedInput);
     } finally {
       setSending(false);
@@ -107,7 +107,7 @@ export function GroupChatScreen({
   const composerLocked = !!functionsLocked;
 
   return (
-    <AppErrorBoundary screenName="단체 채팅" onReset={onBack}>
+    <AppErrorBoundary screenName="?⑥껜 梨꾪똿" onReset={onBack}>
       <div
         className={`fixed left-0 right-0 min-w-0 flex flex-col z-[9999] ${darkMode ? 'bg-slate-900' : 'bg-gray-100'}`}
         style={{
@@ -136,7 +136,7 @@ export function GroupChatScreen({
               <span className="truncate">{group.name}</span>
             </p>
             <p className={`text-[10px] ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
-              {group.memberCount ?? participants.length ?? 0}명 참여 중
+              {group.memberCount ?? participants.length ?? 0}紐?李몄뿬 以?
             </p>
           </div>
           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${
@@ -149,7 +149,7 @@ export function GroupChatScreen({
               type="button"
               onClick={() => setShowLeaveConfirm(true)}
               className={`p-1.5 rounded-full transition-colors flex-shrink-0 ${darkMode ? 'hover:bg-slate-700 text-slate-400' : 'hover:bg-gray-100 text-gray-400'}`}
-              title="단톡방 나가기"
+              title="?⑦넚諛??섍?湲?
             >
               <LogOut className="w-4 h-4" />
             </button>
@@ -159,14 +159,14 @@ export function GroupChatScreen({
         {showLeaveConfirm && (
           <div className="safe-overlay fixed inset-0 z-[80] flex items-center justify-center bg-black/50">
             <div className={`mx-6 rounded-2xl p-5 shadow-2xl w-full max-w-xs ${darkMode ? 'bg-slate-800' : 'bg-white'}`}>
-              <p className={`font-black text-base mb-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>단톡방 나가기</p>
-              <p className={`text-sm mb-4 ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>이 방에서 나갑니다. 나중에 다시 입장할 수 있어요.</p>
+              <p className={`font-black text-base mb-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>?⑦넚諛??섍?湲?/p>
+              <p className={`text-sm mb-4 ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>??諛⑹뿉???섍컩?덈떎. ?섏쨷???ㅼ떆 ?낆옣?????덉뼱??</p>
               <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={() => setShowLeaveConfirm(false)}
                   className={`flex-1 py-2 rounded-xl text-sm font-bold ${darkMode ? 'bg-slate-700 text-white' : 'bg-gray-100 text-gray-700'}`}
-                >취소</button>
+                >痍⑥냼</button>
                 <button
                   type="button"
                   disabled={leaving}
@@ -176,7 +176,7 @@ export function GroupChatScreen({
                     try { await onLeave(); } finally { setLeaving(false); setShowLeaveConfirm(false); }
                   }}
                   className="flex-1 py-2 rounded-xl text-sm font-bold bg-red-500 text-white disabled:opacity-50"
-                >나가기</button>
+                >?섍?湲?/button>
               </div>
             </div>
           </div>
@@ -194,9 +194,9 @@ export function GroupChatScreen({
         >
           {messages.length === 0 && (
             <div className="flex flex-col items-center justify-center h-full gap-3 select-none">
-              <span className="text-5xl opacity-30">💬</span>
+              <span className="text-5xl opacity-30">?뮠</span>
               <p className={`text-sm ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>
-                첫 메시지로 대화를 시작해 보세요!
+                泥?硫붿떆吏濡???붾? ?쒖옉??蹂댁꽭??
               </p>
             </div>
           )}
@@ -231,14 +231,14 @@ export function GroupChatScreen({
                 <div className={`flex flex-col gap-0.5 max-w-[72%] ${isMe ? 'items-end' : 'items-start'}`}>
                   {!isMe && (
                     <span className={`text-[10px] font-bold px-1 ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>
-                      {sender?.nickname ?? '(알 수 없음)'}
+                      {sender?.nickname ?? '(?????놁쓬)'}
                     </span>
                   )}
 
                   {msg.image_url && !isOptimistic ? (
                     <img
                       src={withChatImageAuth(msg.image_url)}
-                      alt="사진"
+                      alt="?ъ쭊"
                       className="rounded-2xl max-w-full object-cover"
                       style={{ maxHeight: 240 }}
                       onError={(e) => {
@@ -288,7 +288,7 @@ export function GroupChatScreen({
                   endRef.current?.scrollIntoView({ behavior: 'instant' as ScrollBehavior });
                 }, 350);
               }}
-              placeholder={composerLocked ? '행사 중에는 단톡을 사용할 수 없어요' : '메시지를 입력하세요… (Enter 전송)'}
+              placeholder={composerLocked ? '?됱궗 以묒뿉???⑦넚???ъ슜?????놁뼱?? : '硫붿떆吏瑜??낅젰?섏꽭?붴?(Enter ?꾩넚)'}
               rows={1}
               disabled={composerLocked}
               readOnly={composerLocked}
@@ -303,7 +303,7 @@ export function GroupChatScreen({
               type="button"
               onClick={() => void handleSend()}
               disabled={composerLocked || !input.trim() || sending}
-              className="touch-target flex items-center justify-center rounded-full bg-teal-500 hover:bg-teal-600 disabled:opacity-40 active:scale-95 transition-all flex-shrink-0"
+              className="touch-target flex items-center justify-center rounded-full bg-teal-700 hover:bg-teal-600 disabled:opacity-40 active:scale-95 transition-all flex-shrink-0"
             >
               <Send className="w-4 h-4 text-white" />
             </button>
@@ -313,3 +313,4 @@ export function GroupChatScreen({
     </AppErrorBoundary>
   );
 }
+
