@@ -225,7 +225,7 @@ type FilterSpec =
   | { type: 'or'; expr: string };
 
 // ─── Query builder ────────────────────────────────────────────────────────────
-type DbResult<T> = { data: T | null; error: { message: string; code?: string } | null };
+type DbResult<T = any> = { data: T | null; error: { message: string; code?: string } | null };
 
 class QueryBuilder {
   private _table: string;
@@ -324,13 +324,19 @@ class QueryBuilder {
   maybeSingle(): this { this._maybeSingle = true; return this; }
 
   // ── Promise interface ─────────────────────────────────────────────────────
-  then<T>(
-    resolve: (value: DbResult<T>) => void,
-    reject?: (reason?: unknown) => void,
-  ): Promise<void> {
-    return this._runAsync()
-      .then(result => resolve(result as DbResult<T>))
-      .catch(reject);
+  // Await stays DbResult<any>: call sites cast rows (as Profile, .map, …).
+  // Bare then<T> collapsed T to {} / unknown once supabase lost outer any.
+  then<TResult1 = DbResult<any>, TResult2 = never>(
+    onfulfilled?: ((value: DbResult<any>) => TResult1 | PromiseLike<TResult1>) | null,
+    onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
+  ): Promise<TResult1 | TResult2> {
+    return this._runAsync().then(
+      (result) =>
+        onfulfilled
+          ? onfulfilled(result as DbResult<any>)
+          : (result as unknown as TResult1),
+      onrejected ?? undefined,
+    );
   }
 
   private async _runAsync(): Promise<DbResult<unknown>> {
@@ -972,7 +978,7 @@ interface SubConfig {
 }
 interface BroadcastSub {
   event: string;
-  callback: (payload: { payload: any }) => void;
+  callback: (payload: { payload: unknown }) => void;
 }
 
 class LocalRealtimeChannel {
@@ -990,7 +996,7 @@ class LocalRealtimeChannel {
   on(
     type: 'postgres_changes' | 'broadcast',
     config: { event: string; schema?: string; table?: string; filter?: string },
-    callback: (payload: any) => void,
+    callback: (payload: { payload?: unknown; new?: Record<string, unknown> | object; old?: Record<string, unknown> | object }) => void,
   ): this {
     if (type === 'broadcast') {
       this.broadcastSubs.push({ event: config.event, callback });
@@ -1006,7 +1012,7 @@ class LocalRealtimeChannel {
     return this;
   }
 
-  send(msg: { type: string; event: string; payload: any }): Promise<void> {
+  send(msg: { type: string; event: string; payload: unknown }): Promise<void> {
     if (msg.type === 'broadcast') {
       // SSE 토큰을 broadcast 인증 헤더로 전달 (SESSION_SECRET 클라이언트 노출 없이 인증)
       const authHeaders: Record<string, string> = {};
@@ -1162,7 +1168,15 @@ export function withChatImageAuth(url: string | null | undefined): string {
 }
 
 // ─── Public mock client ───────────────────────────────────────────────────────
-export const supabase: any = {
+type LocalSupabaseClient = {
+  from(table: keyof Database['public']['Tables'] | string): QueryBuilder;
+  channel(name: string): LocalRealtimeChannel;
+  removeChannel(ch: LocalRealtimeChannel): Promise<void>;
+  rpc(name: string, args?: Record<string, unknown>): Promise<DbResult<any>>;
+  storage: typeof mockStorage;
+};
+
+export const supabase: LocalSupabaseClient = {
   from(table: keyof Database['public']['Tables'] | string): QueryBuilder {
     return new QueryBuilder(table as string);
   },
@@ -1176,8 +1190,8 @@ export const supabase: any = {
     return Promise.resolve();
   },
 
-  async rpc(name: string, args?: Record<string, unknown>): Promise<{ data: any; error: any }> {
-    return apiFetch(`/rpc/${name}`, args ?? {});
+  async rpc(name: string, args?: Record<string, unknown>): Promise<DbResult<any>> {
+    return apiFetch(`/rpc/${name}`, args ?? {}) as Promise<DbResult<any>>;
   },
 
   storage: mockStorage,

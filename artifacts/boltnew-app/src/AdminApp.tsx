@@ -402,7 +402,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           ...backupChats.map(c => adminSupabase.from('chats').upsert(c)),
           ...backupMsgs.map(m => adminSupabase.from('messages').upsert(m)),
           ...backupHistories.map(h => adminSupabase.from('session_history').upsert({ id: h.id, ended_at: h.ended_at, created_at: (h as { created_at?: string }).created_at })),
-          ...(safeData(notifRes) ?? []).map((n: unknown) => adminSupabase.from('notifications').upsert(n)),
+          ...(safeData(notifRes) ?? []).map((n: unknown) => adminSupabase.from('notifications').upsert(n as Record<string, unknown>)),
         ]);
         await loadAll();
         setRecovery(null);
