@@ -331,7 +331,7 @@ export const ProfileCard = memo(function ProfileCard({
                   pointerEvents: isFlipped ? 'none' : 'auto',
                 }}
                 data-testid="profile-card-photo"
-                onClick={(e) => {
+                {...bindMobileTap((e) => {
                   e.stopPropagation();
                   setFlipAnimating(true);
                   setIsFlipped(f => {
@@ -339,7 +339,7 @@ export const ProfileCard = memo(function ProfileCard({
                     if (next) onView?.(profile);
                     return next;
                   });
-                }}
+                })}
               >
                 {pastelFill ? (
                   <div className="absolute inset-0" style={{ background: photoBg }} aria-hidden />
@@ -380,8 +380,8 @@ export const ProfileCard = memo(function ProfileCard({
                 <button
                   type="button"
                   data-testid="profile-card-ideal-header"
-                  onClick={(e) => { e.stopPropagation(); setFlipAnimating(true); setIsFlipped(false); }}
-                  className="relative z-[1] shrink-0 flex items-center justify-center gap-1 px-2 pt-1 pb-0.5 cursor-pointer active:opacity-80"
+                  {...bindMobileTap((e) => { e.stopPropagation(); setFlipAnimating(true); setIsFlipped(false); })}
+                  className="relative z-[1] shrink-0 flex items-center justify-center gap-1 px-2 pt-1 pb-0.5 cursor-pointer active:opacity-80 touch-manipulation"
                   aria-label="사진으로 돌아가기"
                 >
                   <span className="text-xs leading-none" aria-hidden>💗</span>
@@ -441,8 +441,9 @@ export const ProfileCard = memo(function ProfileCard({
 
                 <button
                   type="button"
-                  onClick={(e) => { e.stopPropagation(); onSelect(profile); }}
-                  className="relative z-[1] shrink-0 mx-1.5 mb-1 w-[calc(100%-0.75rem)] py-0.5 rounded-md text-[8px] sm:text-[9px] font-bold active:scale-95 transition-transform pointer-events-auto"
+                  data-testid="profile-card-open-detail"
+                  {...bindMobileTap((e) => { e.stopPropagation(); onSelect(profile); })}
+                  className="relative z-[1] shrink-0 mx-1.5 mb-1.5 w-[calc(100%-0.75rem)] min-h-[32px] py-1.5 rounded-md text-[10px] sm:text-[11px] font-bold active:scale-95 transition-transform pointer-events-auto touch-manipulation"
                   style={{
                     background: 'rgba(255,160,220,0.22)',
                     border: '1px solid rgba(255,160,220,0.5)',
@@ -522,12 +523,12 @@ export const ProfileCard = memo(function ProfileCard({
           {showBottomBar && (
             <div
               data-testid="profile-card-nick-bar"
-              className="absolute bottom-0 left-0 right-0 z-30 flex items-center min-h-[20px] px-1.5 py-0.5 cursor-pointer pointer-events-auto"
+              className="absolute bottom-0 left-0 right-0 z-30 flex items-center min-h-[32px] px-1.5 py-1 cursor-pointer pointer-events-auto touch-manipulation"
               style={surfaces.nickBarStyle}
-              onClick={(e) => {
+              {...bindMobileTap((e) => {
                 e.stopPropagation();
                 onSelect(profile);
-              }}
+              })}
             >
               <span className={`font-extrabold text-[10px] sm:text-[11px] truncate min-w-0 flex-1 leading-none ${surfaces.nickTextClass}`}>{profile.nickname}</span>
               {profile.birth_year != null && (
@@ -538,8 +539,8 @@ export const ProfileCard = memo(function ProfileCard({
       </div>{/* /3:4 사진 */}
 
       {/* ── 성향·MBTI·관심사 ── */}
-      <div className={`relative z-10 shrink-0 min-w-0 px-1.5 pt-1.5 pb-0.5 cursor-pointer ${surfaces.metaClass}`}
-        onClick={() => onSelect(profile)}>
+      <div className={`relative z-10 shrink-0 min-w-0 px-1.5 pt-1.5 pb-0.5 cursor-pointer touch-manipulation ${surfaces.metaClass}`}
+        {...bindMobileTap(() => onSelect(profile))}>
         <div className="flex items-center gap-0.5 min-w-0 overflow-hidden">
           <span className="text-[8px] sm:text-[9px] font-extrabold px-1.5 py-0.5 rounded leading-none border min-w-0 max-w-[52%] truncate shadow-sm"
             style={profileCardChipStyle(posStyle, isCardDark)}>

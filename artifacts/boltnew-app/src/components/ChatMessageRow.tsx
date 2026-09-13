@@ -105,7 +105,7 @@ export function ChatMessageRow({
             <span className="text-[10px] text-gray-400 mt-0.5">{STICKER_LABELS[stickerIdx]}</span>
           </div>
         ) : (
-        <div className={`max-w-[72%] rounded-2xl overflow-hidden chat-bubble ${isMe ? 'chat-bubble-me bg-cyan-500 text-white rounded-br-md' : 'chat-bubble-other bg-white text-gray-900 rounded-bl-md shadow-sm'}`}>
+        <div className={`max-w-[72%] rounded-2xl overflow-hidden ${isMe ? 'bg-cyan-500 text-white rounded-br-md' : 'bg-white text-gray-900 rounded-bl-md shadow-sm'}`}>
           {isCard ? (
             <div className="px-4 py-3">
               <p className={`text-[10px] font-black uppercase tracking-widest mb-2 ${isMe ? 'text-cyan-100' : 'text-cyan-600'}`}>📱 연락처</p>
