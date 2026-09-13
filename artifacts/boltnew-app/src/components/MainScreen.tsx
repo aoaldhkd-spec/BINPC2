@@ -39,7 +39,6 @@ import { compressProfilePhoto, PROFILE_PHOTO_ACCEPT, validateProfilePhotoFile } 
 import { uploadStorageDataUrl } from '../lib/localdb';
 import { IDEAL_TAG_GROUPS, FEATURE_TAG_GROUPS, encodeSignalMsg, SIGNAL_FEATURE_SELF_HINT, SIGNAL_FEATURE_SELF_LABEL, SIGNAL_IDEAL_HINT, SIGNAL_IDEAL_SECTION_LABEL } from '../lib/signal-match';
 import { SignalTagPicker } from './SignalTagPicker';
-import { ProfileCard } from './ProfileCard';
 import { ProfileDeckGrid } from './ProfileDeckGrid';
 import { ResetButton } from './ResetButton';
 import { FUNCTIONS_LOCK_TOAST, SOCIAL_LOCKED_TABS } from '../lib/functions-lock';

@@ -8,8 +8,7 @@ export const SIGNAL_EMOJI = '📡';
 import { parseProfileInterests } from './interests';
 import { getPositionLabel } from './profile';
 
-const INTEREST_HEARTS = ['red', 'blue', 'pink'] as const;
-export type InterestHeart = (typeof INTEREST_HEARTS)[number];
+export type InterestHeart = 'red' | 'blue' | 'pink';
 
 export const SIGNAL_FIRST_CHIPS = [
   '👋 반가워요! 어디 테이블이에요?',
