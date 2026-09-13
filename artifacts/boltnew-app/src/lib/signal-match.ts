@@ -24,37 +24,8 @@ const NUDGE_MESSAGES = [
 ] as const;
 
 export const SIGNAL_MISSION_GOAL = 3;
-export const SIGNAL_MISSION_TITLE = '오늘의 미션';
 export const SIGNAL_MISSION_COPY = '서로 다른 3명에게 하트 보내기';
-/** 미션 후 덱 노출 조건 — matchSignalPair OR 매칭(이상형↔특징·공통 관심사)과 동일한 설명 */
-export const SIGNAL_MATCH_RULE_HINT =
-  '서로 다른 3명에게 하트를 보내면, 내·상대 이상형·나의 특징·관심사가 서로 겹치는 참여자만 시그널에 보여요.';
 export const SIGNAL_GUIDE_TITLE = '시그널 설명서';
-export const SIGNAL_GUIDE_LEAD = '시그널은 앱이 사람을 추천하는 기능이에요. 서로 다른 3명에게 하트를 보내면 추천이 열려요.';
-export const SIGNAL_GUIDE_POINTS = [
-  '카드를 왼쪽으로 밀면 패스(별로), 오른쪽으로 밀면 시그널 보내기예요.',
-  '시그널은 관심 표시예요. 채팅은 서로 하트를 보내야 열려요.',
-  '내 이상형 ↔ 상대 특징, 상대 이상형 ↔ 내 특징, 공통 관심사 — 하나만 같아도 추천돼요.',
-  '상대가 적어 둔 이상형·특징 문장은 안 보여요. 몇 개가 맞았는지만 알려줘요.',
-] as const;
-export const SIGNAL_GUIDE_CTA = '참여자에게 하트 보내기';
-export const SIGNAL_CARD_SKIP_CTA = '패스';
-export const SIGNAL_CARD_PROFILE_CTA = '프로필 보기';
-export const SIGNAL_CARD_HEART_CTA = '하트 보내기';
-export const SIGNAL_CARD_SIGNAL_CTA = '시그널 보내기';
-export const SIGNAL_SWIPE_LEFT_LABEL = '패스';
-export const SIGNAL_SWIPE_RIGHT_LABEL = '시그널';
-export const SIGNAL_SWIPE_LEFT_EXPLAIN = '왼쪽 = 패스(별로)';
-export const SIGNAL_SWIPE_RIGHT_EXPLAIN = '오른쪽 = 시그널 보내기';
-export const SIGNAL_SWIPE_HINT = '← 패스(별로) · 시그널 보내기 →';
-export const SIGNAL_EMPTY_DECK_TITLE = '지금 추천할 사람이 없어요';
-export const SIGNAL_EMPTY_DECK_HINT = '이상형·특징·관심사가 맞는 사람이 아직 없거나, 이미 다 봤어요';
-export const SIGNAL_INBOX_TITLE = '받은 시그널';
-export const SIGNAL_INBOX_EMPTY = '아직 받은 시그널이 없습니다.';
-export const SIGNAL_INBOX_LINE = '시그널을 보냈습니다';
-export const SIGNAL_SENT_TITLE = '보낸 시그널';
-export const SIGNAL_SENT_EMPTY = '아직 보낸 시그널이 없습니다.';
-export const SIGNAL_SENT_LINE = '시그널을 보냈어요';
 
 /** 내 설정 · 닉네임 Step 6 — 사용자-facing 라벨·안내 (동기화) */
 export const SIGNAL_IDEAL_SECTION_LABEL = '이상형';
