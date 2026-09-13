@@ -13,12 +13,12 @@ export function ParticipantNavProvider({
   return <ParticipantNavContext.Provider value={nav}>{children}</ParticipantNavContext.Provider>;
 }
 
-export function useOptionalParticipantNav(): ParticipantNavController | null {
+function useOptionalParticipantNav(): ParticipantNavController | null {
   return useContext(ParticipantNavContext);
 }
 
 /** Sync a boolean overlay with the shared History stack. No-ops without a provider (tests). */
-export function useNavLayer(id: string, open: boolean, onClose: () => void) {
+function useNavLayer(id: string, open: boolean, onClose: () => void) {
   const nav = useOptionalParticipantNav();
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;

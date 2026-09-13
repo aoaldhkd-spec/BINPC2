@@ -2,10 +2,10 @@
 
 export const SWIPE_REPLY_PX = 55;
 export const SWIPE_ACTIVATE_PX = 10;
-export const SWIPE_MAX_PX = 72;
+const SWIPE_MAX_PX = 72;
 export const LONG_PRESS_MS = 500;
-export const MOVE_CANCEL_PX = 10;
-export const VERTICAL_LOCK_SLACK = 4;
+const MOVE_CANCEL_PX = 10;
+const VERTICAL_LOCK_SLACK = 4;
 export const MENU_CLICK_GUARD_MS = 500;
 
 export function shouldTreatAsHorizontalSwipe(dx: number, dy: number, alreadySwiping: boolean): boolean {

@@ -101,7 +101,7 @@ export type AvatarColorProfile = {
   avatar_color?: number | null;
 };
 
-export function isAvatarColorIndex(value: unknown): value is number {
+function isAvatarColorIndex(value: unknown): value is number {
   return typeof value === 'number'
     && Number.isInteger(value)
     && value >= 0

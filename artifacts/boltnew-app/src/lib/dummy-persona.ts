@@ -5,7 +5,7 @@
 import { MBTI_LIST } from './constants';
 import { minBirthYearForEventMaxAge, seoulCalendarYear } from './korean-age';
 
-export const DUMMY_NICKNAMES = [
+const DUMMY_NICKNAMES = [
   '지민', '서연', '현우', '민재', '수아', '도윤', '예린', '준호', '하은', '시우',
   '유진', '태민', '소율', '건우', '나연', '지후', '다은', '승현', '채원', '민서',
   '준영', '수빈', '지아', '현서', '은우', '서준', '윤서', '지원', '민호', '서현',
@@ -19,7 +19,7 @@ const NICK_MODIFIERS = [
   '한', '새', '온', '담', '빛', '결', '숨', '꽃', '풀', '돌',
 ] as const;
 
-export const DUMMY_LOCATIONS = [
+const DUMMY_LOCATIONS = [
   '서울', '경기 수원', '경기 성남', '인천', '부산', '대구', '대전', '광주', '울산', '세종',
   '전남 여수', '강원 춘천', '충남 천안', '제주',
 ] as const;
@@ -70,7 +70,7 @@ function sliceGraphemes(s: string, max: number): string {
   }
 }
 
-export function makeDummyNickname(opts: { index?: number; attempt?: number } = {}): string {
+function makeDummyNickname(opts: { index?: number; attempt?: number } = {}): string {
   const { index = Math.floor(Math.random() * DUMMY_NICKNAMES.length), attempt = 0 } = opts;
   const base = DUMMY_NICKNAMES[Math.abs(index + attempt * 37) % DUMMY_NICKNAMES.length];
   if (attempt === 0) return sliceGraphemes(base, 6);
@@ -79,7 +79,7 @@ export function makeDummyNickname(opts: { index?: number; attempt?: number } = {
   return sliceGraphemes(`${mod}${base}`, room + graphemeCount(mod) > 6 ? room : 6);
 }
 
-export function reserveDummyNickname(existing: ReadonlySet<string>, seed = 0): string {
+function reserveDummyNickname(existing: ReadonlySet<string>, seed = 0): string {
   for (let attempt = 0; attempt < 40; attempt += 1) {
     const nick = makeDummyNickname({ index: seed + attempt, attempt });
     if (!existing.has(nick) && !/\d$/u.test(nick)) return nick;
@@ -88,7 +88,7 @@ export function reserveDummyNickname(existing: ReadonlySet<string>, seed = 0): s
 }
 
 /** 성인(한국식 20–39세) 더미 — 20·30대만, 40대 프로필 없음 */
-export function randomDummyBirthYear(now: Date = new Date()): number {
+function randomDummyBirthYear(now: Date = new Date()): number {
   const koreanAges = [20, 22, 25, 28, 31, 34, 37];
   const age = pick(koreanAges);
   const year = seoulCalendarYear(now) - age + 1;

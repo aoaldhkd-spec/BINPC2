@@ -12,7 +12,7 @@ export interface PendingMsg {
   imageUrl?: string;
 }
 
-export function isValidPendingMsg(m: unknown): m is PendingMsg {
+function isValidPendingMsg(m: unknown): m is PendingMsg {
   if (!m || typeof m !== 'object') return false;
   const row = m as PendingMsg;
   const hasText = typeof row.content === 'string' && row.content.length > 0;

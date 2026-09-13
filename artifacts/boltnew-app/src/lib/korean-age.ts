@@ -56,7 +56,7 @@ export function capAgeBandForEvent(band: string | null | undefined): string | nu
 }
 
 /** 통계·랭킹용 N대 — 20·30대만, 40+ → 30대, 미성년 null */
-export function ageBandFromKoreanAge(age: number): string | null {
+function ageBandFromKoreanAge(age: number): string | null {
   if (age < MIN_ADULT_KOREAN_AGE || age > 120) return null;
   if (age < 30) return '20대';
   return '30대';

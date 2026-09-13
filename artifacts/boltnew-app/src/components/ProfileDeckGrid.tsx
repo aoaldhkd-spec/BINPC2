@@ -7,7 +7,7 @@ import { profileGridClassName, type ProfileCardGridMode } from '../lib/profile-c
 import { hasProfileFortuneCompatData } from '../lib/profile';
 
 /** Initial + each scroll batch — avoids mounting 100+ cards at once on large events */
-export const DECK_RENDER_CHUNK = 36;
+const DECK_RENDER_CHUNK = 36;
 
 /** 참여자 카드 그리드 — MainScreen 상태(검색·MY·채팅 뱃지) 변경과 분리해 불필요한 카드 재렌더 감소 */
 export const ProfileDeckGrid = memo(function ProfileDeckGrid({

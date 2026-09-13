@@ -10,7 +10,7 @@ export interface PendingGroupMsg {
   userId: string;
 }
 
-export function isValidPendingGroupMsg(m: unknown): m is PendingGroupMsg {
+function isValidPendingGroupMsg(m: unknown): m is PendingGroupMsg {
   if (!m || typeof m !== 'object') return false;
   const row = m as PendingGroupMsg;
   return (

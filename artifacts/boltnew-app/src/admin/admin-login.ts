@@ -1,5 +1,5 @@
 /** Retired public panel defaults. Production rejects these on purpose. */
-export const RETIRED_PUBLIC_PANEL_PASSWORDS = ['116606', '166606'] as const;
+const RETIRED_PUBLIC_PANEL_PASSWORDS = ['116606', '166606'] as const;
 
 export const TEST_ADMIN_HINT =
   '전화번호만 채웠습니다. 관리자 패널에 저장한 비밀번호를 입력하세요. 예전 공개 기본값은 사용할 수 없습니다.';

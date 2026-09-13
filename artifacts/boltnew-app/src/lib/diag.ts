@@ -102,7 +102,7 @@ export function diag(
   return id;
 }
 
-export function getDiagEvents(limit = 80): DiagEvent[] {
+function getDiagEvents(limit = 80): DiagEvent[] {
   return _events.slice(-limit);
 }
 

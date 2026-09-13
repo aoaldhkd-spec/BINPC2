@@ -208,7 +208,7 @@ export function isAdminBirthYearRoom(group: GroupLike): boolean {
 }
 
 /** 유저 목록에 항상 보이는 4방: 2차 클럽·2차 술·20대·30대 */
-export function isAdminCatalogListingRoom(group: GroupLike): boolean {
+function isAdminCatalogListingRoom(group: GroupLike): boolean {
   if (isAdminBirthYearRoom(group)) return false;
   if (afterpartyKind(group)) return true;
   if (VISIBLE_AGE_ROOM_NAMES.has(String(group.name ?? ''))) return true;
@@ -220,7 +220,7 @@ export function isAdminCatalogListingRoom(group: GroupLike): boolean {
  * 관리자 집계용. 년생은 hidden이어도 센다.
  * hidden/merged 중복 행은 null (카탈로그 복제본).
  */
-export function adminGroupRoomBucket(group: GroupLike): AdminGroupRoomBucket | null {
+function adminGroupRoomBucket(group: GroupLike): AdminGroupRoomBucket | null {
   if (isAdminBirthYearRoom(group)) return 'birth_year';
   if (group.hidden || group.merged_into) return null;
   if (isAdminCatalogListingRoom(group)) return 'catalog';
@@ -303,7 +303,7 @@ export function formatAdminGroupRoomCounts(groups: readonly GroupLike[]): string
   return `전체 ${counts.total}개 방 · ${parts.join(' · ')}`;
 }
 
-export function isVisibleCatalogRoom(
+function isVisibleCatalogRoom(
   group: GroupLike,
   opts?: { myBirthYear?: number | null; joinedIds?: string[] },
 ): boolean {
@@ -423,7 +423,7 @@ export function resolveCatalogGroupId(groups: GroupChat[], groupId: string): str
   return groupId;
 }
 
-export function sortGroupRooms(a: GroupChat, b: GroupChat): number {
+function sortGroupRooms(a: GroupChat, b: GroupChat): number {
   const va = groupRoomVisual(a).afterparty ? 0 : 1;
   const vb = groupRoomVisual(b).afterparty ? 0 : 1;
   if (va !== vb) return va - vb;

@@ -6,7 +6,7 @@ export interface ZodiacInfo {
   desc: string; // 쉬운 설명
 }
 
-export const ZODIAC_LIST: ZodiacInfo[] = [
+const ZODIAC_LIST: ZodiacInfo[] = [
   { name: '원숭이', emoji: '🐒', element: '금', yinyang: '양', mod: 0, desc: '재치 있고 눈치 빠른 타입. 분위기 메이커' },
   { name: '닭',     emoji: '🐓', element: '금', yinyang: '음', mod: 1, desc: '꼼꼼하고 완벽주의. 자기 관리 철저' },
   { name: '개',     emoji: '🐕', element: '토', yinyang: '양', mod: 2, desc: '의리 있고 믿음직함. 한번 정하면 끝까지' },
@@ -46,7 +46,7 @@ const OHAENG_DESC: Record<string, string> = {
   수: '지혜·유연·감성의 기운. 물처럼 부드럽게 흐르는 에너지',
 };
 
-export function getCheongan(year: number): string {
+function getCheongan(year: number): string {
   return CHEONGAN[((year % 10) + 10) % 10];
 }
 export function getOhaeng(year: number): string {
@@ -54,7 +54,7 @@ export function getOhaeng(year: number): string {
 }
 export function getOhaengColor(ohaeng: string): string { return OHAENG_COLOR[ohaeng] ?? '#94a3b8'; }
 export function getOhaengEmoji(ohaeng: string): string { return OHAENG_EMOJI[ohaeng] ?? '🌀'; }
-export function getOhaengDesc(ohaeng: string): string { return OHAENG_DESC[ohaeng] ?? ''; }
+function getOhaengDesc(ohaeng: string): string { return OHAENG_DESC[ohaeng] ?? ''; }
 
 // ── 타로 카드 (메이저 아르카나 22장) ──────────────────────────────────────────
 export interface TarotCard {
@@ -63,7 +63,7 @@ export interface TarotCard {
   easyDesc: string; // 모르는 사람을 위한 쉬운 설명
 }
 
-export const TAROT_DECK: TarotCard[] = [
+const TAROT_DECK: TarotCard[] = [
   { id: 0,  nameKo: '바보',       nameEn: 'The Fool',        emoji: '🌈', upright: '새로운 시작, 자유로운 여정, 순수한 도전',     reversed: '무모함, 준비 없는 출발, 경솔한 결정',     uprightKey: '자유',   reversedKey: '무모함', easyDesc: '가방 하나 들고 절벽 끝에서 뛰어내리려는 사람. 겁 없이 새 출발하는 에너지예요.' },
   { id: 1,  nameKo: '마법사',     nameEn: 'The Magician',    emoji: '🪄', upright: '의지력, 숙련, 창의적 실행, 기회 활용',       reversed: '속임수, 재능 낭비, 집중력 부족',           uprightKey: '능력',   reversedKey: '낭비',   easyDesc: '내 안에 있는 능력을 꺼내 쓸 때가 됐어요. 지금 가진 것으로 충분해요.' },
   { id: 2,  nameKo: '여사제',     nameEn: 'High Priestess',  emoji: '🌙', upright: '직관, 내면의 지혜, 숨겨진 진실',            reversed: '비밀 억압, 표면적 판단, 직관 무시',         uprightKey: '직관',   reversedKey: '억압',   easyDesc: '논리보다 느낌을 믿어보세요. 마음속 어딘가가 이미 답을 알고 있어요.' },

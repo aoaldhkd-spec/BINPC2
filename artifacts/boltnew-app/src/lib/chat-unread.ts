@@ -22,7 +22,7 @@ export function buildChatIdAliasMap(chats: readonly ChatRow[]): Map<string, stri
   return alias;
 }
 
-export function canonicalChatId(
+function canonicalChatId(
   chatId: string,
   alias: ReadonlyMap<string, string> | undefined | null,
 ): string {

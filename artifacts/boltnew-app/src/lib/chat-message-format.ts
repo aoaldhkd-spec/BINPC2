@@ -10,7 +10,7 @@ export function parseContactCard(content: string): string[] {
   return content.replace(/^__contact__\n?/, '').split('\n').filter(Boolean);
 }
 
-export function isReplyMsg(content: string | null | undefined): boolean {
+function isReplyMsg(content: string | null | undefined): boolean {
   return Boolean(content?.startsWith('__reply__'));
 }
 
@@ -22,7 +22,7 @@ export function parseReply(content: string): { quote: string; text: string } {
     : { quote: body.slice(0, newline), text: body.slice(newline + 1) };
 }
 
-export function isStickerMsg(content: string | null | undefined): boolean {
+function isStickerMsg(content: string | null | undefined): boolean {
   return Boolean(content?.startsWith('__sticker__'));
 }
 

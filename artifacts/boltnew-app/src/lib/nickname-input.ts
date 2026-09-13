@@ -1,5 +1,5 @@
 /** Nickname grapheme limits (2~6 complete characters). */
-export const NICKNAME_MIN_GRAPHEMES = 2;
+const NICKNAME_MIN_GRAPHEMES = 2;
 export const NICKNAME_MAX_GRAPHEMES = 6;
 
 export function graphemeSegments(s: string): string[] {
