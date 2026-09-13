@@ -396,9 +396,3 @@ export const AVATAR_CATEGORIES = [
   ]},
 ];
 
-/** All preset ids — keep in sync with api-server avatar-preset-ids.json */
-export const AVATAR_PRESET_IDS = AVATAR_CATEGORIES.flatMap((c) => c.avatars.map((a) => a.id));
-
-export function presetAvatarSrc(id: string): string {
-  return `${_BASE}avatars/${id}.webp`;
-}

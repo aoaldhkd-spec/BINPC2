@@ -62,7 +62,6 @@ import type { ScannedContact } from '../lib/profile-contact-helpers';
 import StatusErrorBoundary from './StatusErrorBoundary';
 import { MainChatsTab } from './MainChatsTab';
 
-export { ProfileCard };
 
 const KeepTab = memo(function KeepTab({ id, mainTab, children }: { id: MainTab; mainTab: MainTab; children: ReactNode }) {
   const active = mainTab === id;

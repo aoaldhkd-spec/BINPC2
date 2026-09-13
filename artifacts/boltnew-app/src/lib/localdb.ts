@@ -108,12 +108,14 @@ const MAX_BUSY_RETRIES = 5;
 /** 401 시 loginSession 재시도 대상 — /op 와 storage API (Netlify 쿠키 단절·만료 Bearer) */
 const AUTH_RETRY_PATHS = new Set(['/op', '/storage-upload', '/storage-remove']);
 
+type DbResult<T = any> = { data: T | null; error: { message: string; code?: string } | null };
+
 async function apiFetch(
   path: string,
   body?: unknown,
   extraHeaders?: Record<string, string>,
   authRetry = false,
-): Promise<{ data: unknown; error: unknown }> {
+): Promise<DbResult> {
   const requestId = (extraHeaders?.['x-request-id'] ?? newRequestId());
   const started = Date.now();
   const opHint = (() => {
@@ -189,7 +191,10 @@ async function apiFetch(
           }
           return {
             data: json.data ?? null,
-            error: json.error ?? { message: `HTTP ${resp.status}` },
+            error: {
+              message: json.error?.message ?? `HTTP ${resp.status}`,
+              ...(json.error?.code !== undefined ? { code: json.error.code } : {}),
+            },
           };
         } catch {
           diag('error', 'api', `http-${resp.status}-raw`, { corr: requestId, ms: Date.now() - started, data: { op: opHint } });
@@ -199,7 +204,7 @@ async function apiFetch(
       if (attempt > 0) {
         diag('info', 'api', 'ok-after-retry', { corr: requestId, ms: Date.now() - started, data: { op: opHint, attempt } });
       }
-      return await resp.json();
+      return (await resp.json()) as DbResult;
     } catch (e) {
       clearTimeout(timer);
       if (attempt < MAX_BUSY_RETRIES) {
@@ -225,7 +230,6 @@ type FilterSpec =
   | { type: 'or'; expr: string };
 
 // ─── Query builder ────────────────────────────────────────────────────────────
-type DbResult<T = any> = { data: T | null; error: { message: string; code?: string } | null };
 
 class QueryBuilder {
   private _table: string;
@@ -1191,7 +1195,7 @@ export const supabase: LocalSupabaseClient = {
   },
 
   async rpc(name: string, args?: Record<string, unknown>): Promise<DbResult<any>> {
-    return apiFetch(`/rpc/${name}`, args ?? {}) as Promise<DbResult<any>>;
+    return apiFetch(`/rpc/${name}`, args ?? {});
   },
 
   storage: mockStorage,

@@ -9,9 +9,6 @@ export const SOCIAL_LOCKED_TABS = new Set<MainTab>([
   'my',
 ]);
 
-export function isSocialLockedTab(tab: MainTab): boolean {
-  return SOCIAL_LOCKED_TABS.has(tab);
-}
 
 /** app_settings.functions_locked — JSON/legacy 값을 일관된 boolean으로 */
 export function parseFunctionsLocked(value: unknown): boolean {

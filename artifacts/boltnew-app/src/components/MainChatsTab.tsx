@@ -372,4 +372,3 @@ export const MainChatsTab = memo(function MainChatsTab({
   );
 });
 
-export default MainChatsTab;

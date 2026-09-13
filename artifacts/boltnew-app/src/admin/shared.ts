@@ -22,7 +22,6 @@ export const ADMIN_PW_KEY = 'admin_pw_v1';
 export const MAX_ADMIN_MESSAGES = 5_000;
 export const MAX_ADMIN_GROUP_MESSAGES = 1_000;
 export const MAX_ADMIN_GROUP_PARTICIPANTS = 2_000;
-export const MAX_ADMIN_SIGNAL_SENDS = 1_000;
 
 export function withAdminImageToken(url: string): string {
   const token = localStorage.getItem(ADMIN_TOKEN_KEY);
@@ -174,26 +173,6 @@ export async function adminApiSelect<T>(
   } catch {
     return { data: null };
   }
-}
-
-/** api-server /op 호출 — INSERT/UPDATE/DELETE를 인메모리 + SSE broadcast + 영속화 */
-export async function adminApiOp(
-  table: string,
-  op: 'insert' | 'update' | 'delete',
-  payload: Record<string, unknown>,
-  filters?: Array<{ col: string; type: string; value: unknown }>,
-): Promise<void> {
-  const token = localStorage.getItem(ADMIN_TOKEN_KEY) ?? '';
-  const body: Record<string, unknown> = { table, op, payload, adminToken: token };
-  if (filters) body.filters = filters;
-  const res = await fetch(`${ADMIN_API}/op`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error(`api-server /op ${op}:${table} 오류: HTTP ${res.status}`);
-  const json = (await res.json()) as { data: unknown; error: { message: string } | null };
-  if (json.error) throw new Error(json.error.message);
 }
 
 // Local mock: admin client is the same as the regular client
