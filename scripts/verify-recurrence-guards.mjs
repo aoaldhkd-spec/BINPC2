@@ -345,7 +345,7 @@ mustNotMatch('artifacts/boltnew-app/src/components/ResetButton.tsx', '33_main_lo
 
 mustMatch('artifacts/boltnew-app/src/lib/panel-password.ts', '36_panel_pin_input_props', [
   /export const PANEL_PIN_INPUT_PROPS/,
-  /export const PIN_INPUT_PROPS/,
+  /export const PANEL_PIN_INPUT_PROPS/,
   /export const PIN_DIGIT_INPUT_PROPS/,
   /inputMode:\s*'numeric'/,
   /pattern:\s*'\[0-9\]\*'/,

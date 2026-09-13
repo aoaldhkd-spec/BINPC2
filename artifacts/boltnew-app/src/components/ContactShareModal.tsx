@@ -27,7 +27,7 @@ export function ContactShareModal({
           <CheckCircle className="w-12 h-12 text-teal-500 mx-auto mb-3" />
           <h3 className="text-lg font-bold text-gray-900 mb-1">연락처 공유 완료</h3>
           <p className="text-sm text-gray-500 mb-5">{liker.nickname}님에게 연락처를 이미 공유했습니다.</p>
-          <button onClick={onClose} className="w-full py-3 bg-teal-500 text-white font-semibold rounded-xl hover:bg-teal-600 transition-all">확인</button>
+          <button onClick={onClose} className="w-full py-3 bg-teal-700 text-white font-semibold rounded-xl hover:bg-teal-600 transition-all">확인</button>
         </div>
       </div>
     );

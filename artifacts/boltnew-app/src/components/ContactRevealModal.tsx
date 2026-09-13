@@ -40,7 +40,7 @@ export function ContactRevealModal({ profile, onClose, onOpenChat, darkMode }: P
               className="w-20 h-20 rounded-full object-cover mx-auto mb-3 border-4 border-teal-400 shadow-lg"
             />
           ) : (
-            <div className="w-20 h-20 rounded-full mx-auto mb-3 bg-teal-500 flex items-center justify-center text-3xl font-black text-white shadow-lg">
+            <div className="w-20 h-20 rounded-full mx-auto mb-3 bg-teal-700 flex items-center justify-center text-3xl font-black text-white shadow-lg">
               {profile.nickname?.[0] ?? '?'}
             </div>
           )}

@@ -9,5 +9,8 @@
   ],
   "ignoreBinaries": [
     "typecheck:libs"
+  ],
+  "tags": [
+    "-@public"
   ]
 }

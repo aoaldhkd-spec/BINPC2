@@ -132,7 +132,7 @@ export function AdminQrTab({ settings, onSaveQrBase }: { settings: AppSettings |
                 <p className="text-[10px] font-mono text-gray-400 break-all bg-gray-50 rounded-lg px-2 py-1 mb-2">{entryUrl}</p>
                 <div className="flex gap-2">
                   <button onClick={() => copyUrl(entryUrl)} className="text-xs px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-all">링크 복사</button>
-                  <button onClick={() => setFullscreen(true)} className="text-xs px-3 py-1.5 bg-teal-600 hover:bg-teal-500 text-white rounded-lg transition-all">크게 보기</button>
+                  <button onClick={() => setFullscreen(true)} className="text-xs px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition-all">크게 보기</button>
                 </div>
               </div>
             </div>

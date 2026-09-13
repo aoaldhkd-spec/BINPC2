@@ -747,7 +747,7 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
               )}
             </div>
             <button onClick={() => setShowTheirContact(false)}
-              className="w-full py-3 bg-teal-500 text-white font-semibold rounded-xl hover:bg-teal-600 transition-all">확인</button>
+              className="w-full py-3 bg-teal-700 text-white font-semibold rounded-xl hover:bg-teal-600 transition-all">확인</button>
           </div>
         </div>
       )}

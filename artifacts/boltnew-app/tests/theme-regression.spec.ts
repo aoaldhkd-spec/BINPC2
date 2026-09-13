@@ -63,7 +63,7 @@ const FIXTURE_HTML = `<!doctype html>
 </head>
 <body>
   <div id="main-bg" class="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900"></div>
-  <button id="accent-btn" class="bg-teal-500">Primary</button>
+  <button id="accent-btn" class="bg-teal-700">Primary</button>
   <span id="text-el" class="text-white">Text</span>
 </body>
 </html>`;
@@ -91,14 +91,14 @@ const THEME_CHECKS: Record<string, ThemeCheck> = {
   /**
    * default — dark slate theme; no `data-theme` attribute.
    * Loading screen retains its original gradient.
-   * Accent button keeps Tailwind's teal-500 (Tailwind v4 uses OKLCH).
+   * Accent button uses Tailwind teal-700 for AA contrast with white text.
    * Text stays white.
    */
   default: {
     mainBgHasGradient: true,
     // Tailwind v4 emits OKLCH for colour values (not rgb).
-    // oklch(0.704 0.14 182.503) ≈ teal-500 (#14b8a6).
-    accentBg: 'oklch(0.704 0.14 182.503)',
+    // oklch(0.511 0.096 186.391) ≈ teal-700 (#0f766e).
+    accentBg: 'oklch(0.511 0.096 186.391)',
     textColor: 'rgb(255, 255, 255)',
   },
 

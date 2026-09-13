@@ -176,7 +176,7 @@ export function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onS
             </div>
           )}
           <button type="submit" disabled={savingAdmin}
-            className={`w-full py-3 font-semibold rounded-xl transition-all disabled:opacity-60 ${savedAdmin ? 'bg-teal-500 text-white' : 'bg-slate-800 text-white hover:bg-slate-700'}`}>
+            className={`w-full py-3 font-semibold rounded-xl transition-all disabled:opacity-60 ${savedAdmin ? 'bg-teal-700 text-white' : 'bg-slate-800 text-white hover:bg-slate-700'}`}>
             {savedAdmin ? '✓ 저장 완료!' : savingAdmin ? '저장 중…' : '변경 저장'}
           </button>
         </form>
@@ -218,7 +218,7 @@ export function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onS
           )}
           <div className="flex gap-2">
             <button type="submit" disabled={savingEntry}
-              className={`flex-1 py-3 font-semibold rounded-xl transition-all disabled:opacity-60 ${savedEntry ? 'bg-teal-500 text-white' : 'bg-sky-600 text-white hover:bg-sky-700'}`}>
+              className={`flex-1 py-3 font-semibold rounded-xl transition-all disabled:opacity-60 ${savedEntry ? 'bg-teal-700 text-white' : 'bg-sky-600 text-white hover:bg-sky-700'}`}>
               {savedEntry ? '✓ 저장 완료!' : savingEntry ? '저장 중…' : '코드 저장'}
             </button>
             {settings?.entry_password && (
@@ -271,7 +271,7 @@ export function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onS
           )}
           <div className="flex gap-2">
             <button type="submit" disabled={savingReset}
-              className={`flex-1 py-3 font-semibold rounded-xl transition-all disabled:opacity-60 ${savedReset ? 'bg-teal-500 text-white' : 'bg-amber-500 text-white hover:bg-amber-600'}`}>
+              className={`flex-1 py-3 font-semibold rounded-xl transition-all disabled:opacity-60 ${savedReset ? 'bg-teal-700 text-white' : 'bg-amber-500 text-white hover:bg-amber-600'}`}>
               {savedReset ? '✓ 저장 완료!' : savingReset ? '저장 중…' : '비밀번호 저장'}
             </button>
             {settings?.reset_password_set && (
@@ -324,7 +324,7 @@ export function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onS
           )}
           <div className="flex gap-2">
             <button type="submit" disabled={savingTest}
-              className={`flex-1 py-3 font-semibold rounded-xl transition-all disabled:opacity-60 ${savedTest ? 'bg-teal-500 text-white' : 'bg-violet-600 text-white hover:bg-violet-700'}`}>
+              className={`flex-1 py-3 font-semibold rounded-xl transition-all disabled:opacity-60 ${savedTest ? 'bg-teal-700 text-white' : 'bg-violet-600 text-white hover:bg-violet-700'}`}>
               {savedTest ? '✓ 저장 완료!' : savingTest ? '저장 중…' : '코드 저장'}
             </button>
             {settings?.test_password_set && (

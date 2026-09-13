@@ -34,7 +34,6 @@ export const PANEL_PIN_INPUT_PROPS = {
 };
 
 /** App-wide alias — entry codes, panel gates, admin credentials. */
-export const PIN_INPUT_PROPS = PANEL_PIN_INPUT_PROPS;
 
 /** Single-digit PIN box (profile recovery, waiting overlay). */
 export const PIN_DIGIT_INPUT_PROPS = {

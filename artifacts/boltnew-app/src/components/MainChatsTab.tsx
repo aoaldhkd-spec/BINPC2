@@ -200,7 +200,7 @@ export const MainChatsTab = memo(function MainChatsTab({
                           className={`text-[11px] font-black px-3 py-1.5 rounded-full active:scale-95 disabled:opacity-50 ${
                             visual.afterparty
                               ? 'bg-violet-500 text-white'
-                              : 'bg-teal-500 text-white'
+                              : 'bg-teal-700 text-white'
                           }`}
                         >
                           {joining ? '입장 중…' : '입장'}

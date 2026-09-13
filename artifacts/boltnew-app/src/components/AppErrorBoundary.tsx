@@ -62,7 +62,7 @@ export class AppErrorBoundary extends Component<Props, State> {
           </div>
           <button
             onClick={this.handleReset}
-            className="px-6 py-3 bg-teal-500 hover:bg-teal-400 text-white font-black rounded-2xl transition-all"
+            className="px-6 py-3 bg-teal-700 hover:bg-teal-400 text-white font-black rounded-2xl transition-all"
           >
             새로고침
           </button>

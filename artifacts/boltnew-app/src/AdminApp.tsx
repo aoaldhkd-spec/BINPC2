@@ -570,7 +570,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           <div className="flex items-center gap-1.5 flex-1 min-w-0">
             <Shield className="w-4 h-4 text-slate-300 flex-shrink-0" />
             <h1 className="font-bold text-sm break-words">관리자 대시보드</h1>
-            <span className={`text-[11px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 ${settings?.session_active ? 'bg-teal-500 text-white' : 'bg-slate-700 text-slate-300'}`}>
+            <span className={`text-[11px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 ${settings?.session_active ? 'bg-teal-700 text-white' : 'bg-slate-700 text-slate-300'}`}>
               {settings?.session_active ? '진행 중' : '대기 중'}
             </span>
           </div>

@@ -307,8 +307,8 @@ const FIXTURE_HTML = `<!doctype html>
 
 <!-- ── CTA button (bg-teal-500 → #6ee7b7 Y2K / #09090b Minimal) ─── -->
 <!-- No text-colour class on the span: inherits the color set by the bg-teal-500 override rule -->
-<div id="teal-btn" class="bg-teal-500 rounded-xl" style="padding:8px;display:inline-block">
-  <span data-label="text on .bg-teal-500 (CTA btn)" data-bg-id="teal-btn" class="text-white">버튼 텍스트</span>
+<div id="teal-btn" class="bg-teal-700 rounded-xl" style="padding:8px;display:inline-block">
+  <span data-label="text on .bg-teal-700 (CTA btn)" data-bg-id="teal-btn" class="text-white">버튼 텍스트</span>
 </div>
 
 <!-- ── Chat bubbles — no text-colour class; colour comes from chat-bubble-* rule ─── -->
@@ -329,7 +329,7 @@ const FIXTURE_HTML = `<!doctype html>
   <span data-label=".text-gray-700 on bg-white"   data-bg-id="white-bg" class="text-gray-700">흰 배경 텍스트</span>
   <span data-label=".text-gray-600 on bg-white"   data-bg-id="white-bg" class="text-gray-600">흰 배경 보조</span>
   <span data-label=".text-gray-500 on bg-white"   data-bg-id="white-bg" class="text-gray-500">흰 배경 muted</span>
-  <span data-label=".text-teal-500 on bg-white"   data-bg-id="white-bg" class="text-teal-500">흰 배경 액센트</span>
+  <span data-label=".text-teal-700 on bg-white"   data-bg-id="white-bg" class="text-teal-700">흰 배경 액센트</span>
 </div>
 
 </body>
@@ -496,8 +496,6 @@ for (const themeName of ['default'] as const) {
     const skipped: string[] = [];
 
     const ACCENT_SOFT = new Set([
-      'text on .bg-teal-500 (CTA btn)',
-      '.text-teal-500 on bg-white',
     ]);
     const softWarnings: string[] = [];
 

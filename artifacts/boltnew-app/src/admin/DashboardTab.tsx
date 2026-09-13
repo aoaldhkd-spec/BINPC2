@@ -49,9 +49,9 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
                 : 'bg-slate-50 border-slate-200 opacity-35 cursor-not-allowed'
             }`}
           >
-            <PlayCircle className={`w-7 h-7 ${!isActive ? 'text-teal-500' : 'text-slate-400'}`} />
+            <PlayCircle className={`w-7 h-7 ${!isActive ? 'text-teal-700' : 'text-slate-400'}`} />
             <span className={`text-sm font-black ${!isActive ? 'text-teal-700' : 'text-slate-400'}`}>회식 시작</span>
-            <span className={`text-[10px] font-medium ${!isActive ? 'text-teal-500' : 'text-slate-400'}`}>
+            <span className={`text-[10px] font-medium ${!isActive ? 'text-teal-700' : 'text-slate-400'}`}>
               {isActive ? '진행 중' : '클릭하여 세션 열기'}
             </span>
           </button>

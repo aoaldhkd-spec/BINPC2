@@ -68,7 +68,7 @@ export { formatKoreanAge as getKoreanAge } from './korean-age';
 import { AVATAR_COLOR_COUNT } from './avatar-color-catalog';
 import { genNpcTextAvatar, isNpcTextAvatar } from './npc-text-avatar';
 
-export { isNpcTextAvatar, genNpcTextAvatar, NPC_TEXT_AVATAR_SENTINEL, NPC_TEXT_AVATAR_MESSAGE, NPC_TEXT_AVATAR_LABEL } from './npc-text-avatar';
+export { isNpcTextAvatar, genNpcTextAvatar, NPC_TEXT_AVATAR_SENTINEL, NPC_TEXT_AVATAR_LABEL } from './npc-text-avatar';
 
 // ─── 아바타 SVG 생성 ─────────────────────────────────────────────────────────
 /** 닉네임 전체를 해시 — 첫 글자만 쓰면 한글 닉네임이 주황색에 몰림 */

@@ -1052,7 +1052,7 @@ export function MainScreen({
                           {c.photo_url ? (
                             <img src={getAvatarSrc(c.photo_url, c.nickname, undefined, c.avatar_color)} alt={c.nickname} loading="lazy" className="w-10 h-10 rounded-xl object-cover" />
                           ) : (
-                            <div className="w-10 h-10 rounded-xl bg-teal-500 flex items-center justify-center text-white font-black text-sm">{c.nickname?.[0] ?? '?'}</div>
+                            <div className="w-10 h-10 rounded-xl bg-teal-700 flex items-center justify-center text-white font-black text-sm">{c.nickname?.[0] ?? '?'}</div>
                           )}
                         </div>
                         {/* 정보 */}
@@ -1765,7 +1765,7 @@ export function MainScreen({
                           ? <p className={`text-[11px] leading-snug ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>{currentTags.join(' · ')}</p>
                           : <p className={`text-[11px] ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>미설정</p>}
                       </div>
-                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-full flex-shrink-0 ${currentTags.length >= 2 ? 'bg-teal-500 text-white' : darkMode ? 'bg-slate-700 text-slate-500' : 'bg-gray-100 text-gray-400'}`}>{currentTags.length}/5</span>
+                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-full flex-shrink-0 ${currentTags.length >= 2 ? 'bg-teal-700 text-white' : darkMode ? 'bg-slate-700 text-slate-500' : 'bg-gray-100 text-gray-400'}`}>{currentTags.length}/5</span>
                       <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${showInterestEdit ? 'rotate-180' : ''} ${darkMode ? 'text-slate-400' : 'text-gray-400'}`} />
                     </button>
                     {showInterestEdit && (
@@ -1778,7 +1778,7 @@ export function MainScreen({
                           darkMode={darkMode}
                         />
                         <button onClick={saveInterests} disabled={interestSaving || editInterests.length < 2}
-                          className="w-full py-2.5 bg-teal-500 hover:bg-teal-600 text-white font-bold rounded-xl text-sm active:scale-[0.98] transition-all disabled:opacity-40">
+                          className="w-full py-2.5 bg-teal-700 hover:bg-teal-600 text-white font-bold rounded-xl text-sm active:scale-[0.98] transition-all disabled:opacity-40">
                           {interestSaving ? '저장 중...' : `관심사 저장 (${editInterests.length}개 선택됨)`}
                         </button>
                       </div>

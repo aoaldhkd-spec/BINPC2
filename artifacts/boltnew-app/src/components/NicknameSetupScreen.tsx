@@ -478,7 +478,7 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
                       }}
                       className={`flex-shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold border-2 transition-all ${
                         regionFilter === r
-                          ? 'bg-teal-500 border-teal-500 text-white shadow-sm'
+                          ? 'bg-teal-700 border-teal-500 text-white shadow-sm'
                           : 'bg-white border-gray-200 text-gray-500 hover:border-teal-300'
                       }`}>{r}</button>
                   ))}
@@ -491,7 +491,7 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
                       <button key={city} type="button" onClick={() => setLocation(val)}
                         className={`py-2.5 rounded-xl text-xs font-bold border-2 transition-all active:scale-95 ${
                           location === val
-                            ? 'bg-teal-500 border-teal-500 text-white shadow-md'
+                            ? 'bg-teal-700 border-teal-500 text-white shadow-md'
                             : 'bg-white border-gray-200 text-gray-700 hover:border-teal-300 hover:bg-teal-50'
                         }`}>{city}</button>
                     );
@@ -515,7 +515,7 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
                   <span className="text-xs font-semibold text-red-500 bg-red-50 px-2 py-0.5 rounded-full">2개 이상</span>
                 </div>
                 <div className={`flex items-center gap-1 text-xs font-black px-2.5 py-1 rounded-full transition-all ${
-                  atMaxBio ? 'bg-rose-500 text-white' : selectedBio.length >= 2 ? 'bg-teal-500 text-white' : 'bg-gray-100 text-gray-500'
+                  atMaxBio ? 'bg-rose-500 text-white' : selectedBio.length >= 2 ? 'bg-teal-700 text-white' : 'bg-gray-100 text-gray-500'
                 }`}>{selectedBio.length} / 5</div>
               </div>
 

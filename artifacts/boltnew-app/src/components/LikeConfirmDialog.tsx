@@ -49,7 +49,7 @@ export function LikeConfirmDialog({
             <p className="text-xs text-gray-400 mt-1">
               이미 보낸 하트: {[...sentTypesForTarget].map(t => heartMeta(t).emoji).join(' ')}
               {sentTypesForTarget.size < 4 && (
-                <span className="ml-1 text-teal-500 font-bold">· {4 - sentTypesForTarget.size}종류 더 보낼 수 있어요</span>
+                <span className="ml-1 text-teal-700 font-bold">· {4 - sentTypesForTarget.size}종류 더 보낼 수 있어요</span>
               )}
             </p>
           )}

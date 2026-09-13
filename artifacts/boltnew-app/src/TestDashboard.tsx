@@ -350,7 +350,7 @@ export default function TestDashboard() {
             <button onClick={load} className="p-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 transition-all">
               <RefreshCw className="w-4 h-4 text-slate-300" />
             </button>
-            <a href="/" className="px-3 py-1.5 bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold rounded-lg transition-all">
+            <a href="/" className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg transition-all">
               앱으로
             </a>
             <a href="/admin" className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold rounded-lg transition-all">
@@ -421,7 +421,7 @@ export default function TestDashboard() {
             <button
               type="button"
               onClick={() => { if (myUserId) void enterAsUser(myUserId); else window.location.href = '/'; }}
-              className="flex-1 text-center text-sm py-3 bg-teal-600 hover:bg-teal-500 text-white font-bold rounded-xl border border-teal-500 transition-all"
+              className="flex-1 text-center text-sm py-3 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl border border-teal-500 transition-all"
             >
               {myUserId ? '선택한 더미로 유저 화면 입장 →' : '유저 화면 열기 →'}
             </button>

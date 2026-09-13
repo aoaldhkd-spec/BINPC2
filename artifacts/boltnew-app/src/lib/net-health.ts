@@ -14,12 +14,16 @@ export type NetUiStatus = 'ok' | 'reconnecting' | 'error';
 type Listener = (status: NetUiStatus) => void;
 
 /** SSE ping(15s) + 느린 핸드셰이크보다 길게 — 한 번 재연결로는 배너 없음 */
+/** @public */
 export const NET_QUIET_MS = 20_000;
 /** 재연결 배너 후 이만큼 더 실패하면 error 모달. 콜드스타트·배포는 첫 실패에 강한 모달 금지. */
+/** @public */
 export const NET_ERROR_AFTER_MS = 90_000;
 /** navigator.offline 깜빡임 debounce (행사장 Wi‑Fi) */
+/** @public */
 export const NET_OFFLINE_QUIET_MS = 3_000;
 /** CONNECTING이 이 시간 미만이면 UI 단절로 보지 않음 */
+/** @public */
 export const NET_SSE_CONNECTING_GRACE_MS = 20_000;
 
 const RECOVER_DEBOUNCE_MS = 200;
@@ -77,6 +81,7 @@ function armQuietTimer(ms: number) {
  * 예상된 클라이언트/서버 오류는 네트워크 단절로 취급하지 않음.
  * seats 테이블 제거 400, NAT 429 등이 /op 경로에서 down으로 잘못 보고돼도 UI 금지.
  */
+/** @public */
 export function shouldIgnoreDownReason(reason: string): boolean {
   const r = reason.toLowerCase();
   return (
@@ -163,6 +168,7 @@ export function reportBrowserOnline(): void {
   reportLinkUp('browser-online');
 }
 
+/** @public */
 export function getNetUiStatus(): NetUiStatus {
   return _ui;
 }

@@ -522,6 +522,7 @@ export function onSseReconnect(fn: () => void): () => void {
 }
 
 /** SSE 연결 끊김 시 호출될 콜백을 등록합니다. 반환값은 해제 함수입니다. */
+/** @public */
 export function onSseDisconnect(fn: () => void): () => void {
   _disconnectCallbacks.add(fn);
   return () => _disconnectCallbacks.delete(fn);
@@ -567,6 +568,7 @@ const SSE_TOK_EXP_KEY = 'sse_tok_exp';
 export const SSE_TOKEN_TTL_SEC = 3600;
 export const SSE_TOKEN_REFRESH_LEAD_SEC = Math.floor(SSE_TOKEN_TTL_SEC * 0.2); // 720s = 80% TTL
 /** 탭 복귀 시에는 더 일찍 갱신 — 잠든 동안 만료된 토큰으로 EventSource 401 재시도를 막는다. */
+/** @public */
 export const SSE_TOKEN_WAKE_REFRESH_LEAD_SEC = 20 * 60;
 /** 서버 SSE 링 TTL(20분)과 맞춤. 이보다 오래 끊기면 Last-Event-ID 재전송을 포기하고 HTTP merge. */
 const SSE_RING_STALE_MS = 20 * 60 * 1_000;

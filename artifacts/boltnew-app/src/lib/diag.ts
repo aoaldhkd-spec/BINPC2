@@ -127,6 +127,7 @@ export function getDiagSummary(): {
   return { total: _events.length, errors, warns, lastError, byCat };
 }
 
+/** @public */
 export function findDiagByCorr(corr: string): DiagEvent[] {
   return _events.filter((e) => e.corr === corr);
 }
