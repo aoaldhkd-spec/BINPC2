@@ -4,7 +4,6 @@
  * 채팅은 여전히 상호 하트만. 시그널은 받은/보낸 시그널 목록에서 확인.
  * 이상형·특징 원문(ideal_msg / feature_msg 자유 텍스트)은 이유 칩에 절대 넣지 않는다.
  */
-export const SIGNAL_EMOJI = '📡';
 import { parseProfileInterests } from './interests';
 import { getPositionLabel } from './profile';
 

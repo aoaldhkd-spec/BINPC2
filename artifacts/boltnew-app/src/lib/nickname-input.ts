@@ -19,7 +19,7 @@ export function countGraphemes(s: string): number {
   return graphemeSegments(s).length;
 }
 
-export function sliceGraphemes(s: string, max: number): string {
+function sliceGraphemes(s: string, max: number): string {
   return graphemeSegments(s).slice(0, max).join('');
 }
 

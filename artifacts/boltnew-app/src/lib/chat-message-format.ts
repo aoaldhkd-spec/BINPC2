@@ -30,7 +30,7 @@ export function parseStickerIdx(content: string): number {
   return Number.parseInt(content.replace('__sticker__', ''), 10);
 }
 
-export function isInfoReq(content: string | null | undefined): boolean {
+function isInfoReq(content: string | null | undefined): boolean {
   return Boolean(content?.startsWith('__inforeq__:'));
 }
 

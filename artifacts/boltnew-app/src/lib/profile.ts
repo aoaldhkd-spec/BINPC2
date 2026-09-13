@@ -143,10 +143,6 @@ export function getAvatarGradient(nickname: string, colorIndex?: number | null):
   return getAvatarGradientForProfile({ nickname, avatar_color: colorIndex ?? undefined });
 }
 
-/** 카드 배경·플레이스홀더용 CSS 그라디언트 (genAvatar SVG와 동일 색) */
-export function getAvatarGradientCss(nickname: string, colorIndex?: number | null): string {
-  return getAvatarGradientCssForProfile({ nickname, avatar_color: colorIndex ?? undefined });
-}
 
 export function getAvatarSrc(
   url: string | null | undefined,
