@@ -4,7 +4,7 @@
 
 const CHOSUNG_LIST = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
 
-export function getKoreanChosung(str: string): string {
+function getKoreanChosung(str: string): string {
   return str.split('').map(ch => {
     const code = ch.charCodeAt(0) - 0xAC00;
     if (code < 0 || code > 11171) return ch;

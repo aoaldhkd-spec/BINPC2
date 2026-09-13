@@ -35,10 +35,6 @@ export const SIGNAL_FEATURE_SELF_HINT =
   '참여자들이 프로필을 보면 내 모습이 보여요. 시그널 매칭에도 쓰여요.';
 export const SIGNAL_SETUP_STEP_LABEL = '이상형 · 나는 어떤 사람인가요?';
 
-export function incomingSignalToast(nickname: string): string {
-  return `${SIGNAL_EMOJI} ${nickname}님이 시그널을 보냈어요.`;
-}
-
 export function isSignalDeckUnlocked(missionCount: number): boolean {
   return missionCount >= SIGNAL_MISSION_GOAL;
 }
@@ -108,7 +104,7 @@ function specsFor(
 }
 
 /** 피커 태그 전수 → 실제 나의 특징 필드. 얼굴/체형 일부는 키·얼굴 컬럼이 없어 status/bio만. */
-export const IDEAL_TAG_SPECS: readonly IdealTagSpec[] = [
+const IDEAL_TAG_SPECS: readonly IdealTagSpec[] = [
   ...specsFor('얼굴상 👀', 'status_msg+bio', IDEAL_TAG_GROUPS[0].tags, {
     '감자상 🥔': ['감자상 🥔', '감자상'],
     '댕댕이상 🐶': ['댕댕이상 🐶', '댕댕이상'],
@@ -263,10 +259,6 @@ export function hasInterestHeart(types: Iterable<string> | undefined | null): bo
   return false;
 }
 
-export function missionToastKey(userId: string, dateKey: string): string {
-  return `signal_mission_done_${userId}_${dateKey}`;
-}
-
 export function seoulDateKey(d: Date = new Date()): string {
   return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
 }
@@ -308,7 +300,7 @@ function normalizeTag(tag: string): string {
  * 이상형 칩 ↔ 나의 특징 칩 동의어 (양방향).
  * 같은 글자(안마심·비흡연)는 정확 일치로 처리하므로 쌍에 넣지 않음.
  */
-export const TAG_SYNONYM_PAIRS: ReadonlyArray<readonly [string, string]> = [
+const TAG_SYNONYM_PAIRS: ReadonlyArray<readonly [string, string]> = [
   ['한두잔', '술조금'],
   ['술잘마시는', '술잘마심'],
   ['분위기술', '취하면수다'],
@@ -392,7 +384,7 @@ export function tagsAreSynonyms(a: string, b: string): boolean {
 }
 
 /** 칩↔칩 비교. substring 금지(흡연이 비흡연에 먹히지 않게). */
-export function countSynonymTagHits(idealTags: string[], featureTags: string[]): number {
+function countSynonymTagHits(idealTags: string[], featureTags: string[]): number {
   if (idealTags.length === 0 || featureTags.length === 0) return 0;
   let hits = 0;
   for (const tag of idealTags) {
@@ -401,7 +393,7 @@ export function countSynonymTagHits(idealTags: string[], featureTags: string[]):
   return hits;
 }
 
-export function countIdealVsFeatures(
+function countIdealVsFeatures(
   idealTags: string[],
   args: {
     featureMsg?: string | null;
@@ -427,7 +419,7 @@ export type FeatureProfile = {
   location?: string | null;
 };
 
-export function positionFamilies(score: number | null | undefined): string[] {
+function positionFamilies(score: number | null | undefined): string[] {
   const s = score ?? 50;
   const out: string[] = [];
   if (s < 0) out.push('비선호');
@@ -499,7 +491,7 @@ export type FeatureBag = {
 };
 
 /** 나의 특징 가방: 포지션·MBTI·관심사·상태·지역·bio. 상대 이상형 원문은 넣지 않음. */
-export function buildFeatureBag(
+function buildFeatureBag(
   profile: FeatureProfile,
   statusMsg?: string | null,
 ): FeatureBag {
@@ -541,7 +533,7 @@ export function buildFeatureBag(
 }
 
 /** 나의 특징: 포지션·MBTI·관심사·상태 메시지·지역. 상대 이상형 원문은 넣지 않음. */
-export function collectFeatureTokens(
+function collectFeatureTokens(
   profile: FeatureProfile,
   statusMsg?: string | null,
 ): string[] {
@@ -564,7 +556,7 @@ function mbtiTagLetter(tag: string): string | null {
   return null;
 }
 
-export function idealTagMatchesBag(tag: string, bag: FeatureBag): boolean {
+function idealTagMatchesBag(tag: string, bag: FeatureBag): boolean {
   const spec = getIdealTagSpec(tag);
   if (spec) {
     if (spec.field === 'personality_score') {
@@ -601,7 +593,7 @@ function fallbackTagHits(tag: string, bag: FeatureBag): boolean {
   return featNorm.some((f) => f === n || (n.length >= 2 && f.includes(n)) || (f.length >= 2 && n.includes(f)));
 }
 
-export function countIdealTagHits(
+function countIdealTagHits(
   tags: string[],
   profile: FeatureProfile,
   statusMsg?: string | null,

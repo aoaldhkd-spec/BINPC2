@@ -17,7 +17,7 @@ export type HeartCounts = Record<HeartType, number>;
 export type CountEntry = [string, number];
 
 /** 가입 픽커 이전 BIO_LIST → 현재 관심사 태그 */
-export const STATS_INTEREST_ALIASES: Record<string, string> = {
+const STATS_INTEREST_ALIASES: Record<string, string> = {
   영화: '영화/드라마',
   음악: '음악감상',
   사진: '사진찍기',
@@ -26,7 +26,7 @@ export const STATS_INTEREST_ALIASES: Record<string, string> = {
 const MBTI_SET = new Set<string>(MBTI_LIST);
 const CANONICAL_INTERESTS = new Set<string>(ALL_BIO_TAGS);
 
-export function emptyHeartCounts(): HeartCounts {
+function emptyHeartCounts(): HeartCounts {
   return { red: 0, blue: 0, pink: 0, green: 0 };
 }
 
