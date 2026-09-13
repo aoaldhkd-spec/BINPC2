@@ -312,7 +312,7 @@ const FIXTURE_HTML = `<!doctype html>
 </div>
 
 <!-- ── Chat bubbles — no text-colour class; colour comes from chat-bubble-* rule ─── -->
-<div id="bubble-me" class="chat-bubble-me bg-teal-600" style="padding:8px;display:inline-block">
+<div id="bubble-me" class="chat-bubble-me bg-teal-700" style="padding:8px;display:inline-block">
   <span data-label="text on chat-bubble-me" data-bg-id="bubble-me" class="text-white">내 메시지</span>
 </div>
 <div id="bubble-other" class="chat-bubble-other bg-slate-700" style="padding:8px;display:inline-block">
@@ -497,7 +497,6 @@ for (const themeName of ['default'] as const) {
 
     const ACCENT_SOFT = new Set([
       'text on .bg-teal-500 (CTA btn)',
-      'text on chat-bubble-me',
       '.text-teal-500 on bg-white',
     ]);
     const softWarnings: string[] = [];

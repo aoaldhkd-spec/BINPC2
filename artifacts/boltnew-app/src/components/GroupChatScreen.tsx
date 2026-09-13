@@ -248,9 +248,7 @@ export function GroupChatScreen({
                   ) : (
                     <div className={`px-3 py-2 rounded-2xl text-sm leading-relaxed break-words whitespace-pre-wrap ${
                       isMe
-                        ? darkMode
-                          ? 'bg-teal-600 text-white'
-                          : 'bg-teal-500 text-white'
+                        ? 'bg-teal-700 text-white'
                         : darkMode
                           ? 'bg-slate-700 text-white'
                           : 'bg-white text-gray-900 shadow-sm'
