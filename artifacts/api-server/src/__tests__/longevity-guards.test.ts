@@ -153,4 +153,13 @@ describe('longevity recurrence guards (server)', () => {
     expect(readFileSync(join(here, '../../../../scripts/endurance-watchdog.mjs'), 'utf8'))
       .toMatch(/spawnEndurance/);
   });
+  it('pg pool hard-caps max and handles idle errors; LISTEN shutdown bumps gen', () => {
+    const poolTs = readFileSync(join(here, '../lib/pg-pool.ts'), 'utf8');
+    expect(poolTs).toMatch(/PG_POOL_HARD_CAP\s*=\s*10/);
+    expect(poolTs).toMatch(/resolvePgPoolMax/);
+    expect(poolTs).toMatch(/pgPool\.on\(\s*'error'/);
+    expect(dbTs).toMatch(/_listenSetupGen\s*\+=\s*1/);
+    expect(dbTs).toMatch(/_listenSetupInFlight\s*=\s*null/);
+  });
+
 });

@@ -100,3 +100,18 @@ Limits:
 - Soak stage: 1 to 200 users and no larger than `--max-stage`.
 - Concurrent simulator stage: hard maximum 500 users.
 - Entry simulator users/concurrency: hard maximum 500.
+
+## EMAXCONNSESSION / Postgres connections
+
+App code alone cannot fully clear Supabase `EMAXCONNSESSION` if:
+
+1. Render is still running a pre-`PG_POOL_MAX=10` deploy, or
+2. Render env still has a high `PG_POOL_MAX`, or other clients (Supabase dashboard SQL, extra services, leftover LISTEN sockets after crash) hold sessions.
+
+Human checklist (no secrets required in chat):
+
+1. Render → service `binpc2-api` (or `BINPC2`) → **Environment**: set `PG_POOL_MAX=10` (or lower). Confirm `numInstances` stays **1**.
+2. Confirm `DATABASE_URL` uses Supabase **Session** pooler host on port **5432** (not transaction pooler **6543**).
+3. **Manual Deploy** latest `main` (includes pool hard-cap + LISTEN reconnect serialization). Blueprint/`render.yaml` alone may not rewrite existing env.
+4. Supabase → **Database** → reports/connections: kill idle sessions if the pooler is still saturated after redeploy.
+5. Do **not** run `rotate-secrets` / `bootstrap-production` / `trigger-netlify-build` just to redeploy unless you already have dashboard tokens in env — those scripts need `RENDER_API_KEY` and must not print secrets.

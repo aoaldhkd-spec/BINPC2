@@ -6427,6 +6427,9 @@ router.get('/events', (req: Request, res: Response) => {
 // ─── Graceful shutdown helper (index.ts에서 SIGTERM·SIGINT 시 호출) ───────────
 // DB 커넥션 풀과 LISTEN 클라이언트를 순서대로 종료한다.
 export async function gracefulShutdown(): Promise<void> {
+  // Invalidate in-flight / scheduled LISTEN reconnects before closing sockets.
+  _listenSetupGen += 1;
+  _listenSetupInFlight = null;
   // 1) LISTEN 클라이언트 종료 — NOTIFY 구독 해제
   if (_listenClient) {
     try { await _listenClient.end(); } catch { /* ignore */ }
