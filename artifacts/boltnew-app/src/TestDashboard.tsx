@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { supabase, getDeviceSecret, setDeviceRecoveryPin } from './lib/supabase';
+import { supabase, getDeviceSecret, setDeviceRecoveryPin, setLocalDbUserId, ensureWriteSession } from './lib/supabase';
 import type { Database } from './types/database';
 import { MATCHING_LAST_RESET_KEY } from './lib/constants';
 import {
@@ -254,31 +254,75 @@ export default function TestDashboard() {
     setLoading(null);
   };
 
+  // ── Write-session helper (likes/chats INSERT require requesterId) ───────────
+  const withWriteAsUser = async <T,>(userId: string, fn: () => Promise<T>): Promise<T> => {
+    const prev = myUserId;
+    setLocalDbUserId(userId);
+    try {
+      const ok = await ensureWriteSession();
+      if (!ok) {
+        throw new Error('쓰기 세션을 확보하지 못했습니다. 테스트 로그인·기기 바인딩을 확인하세요.');
+      }
+      return await fn();
+    } finally {
+      if (prev) setLocalDbUserId(prev);
+      else setLocalDbUserId(null);
+    }
+  };
+
   // ── Hearts ─────────────────────────────────────────────────────────────────
   const sendHeart = async (fromId: string, toId: string) => {
-    if (fromId === toId) return;
+    if (!fromId || !toId) { notify('유저를 선택하세요', false); return; }
+    if (fromId === toId) { notify('같은 유저에게는 하트를 보낼 수 없습니다', false); return; }
     setLoading('heart');
-    const existing = await supabase.from('likes').select('id').eq('liker_id', fromId).eq('liked_id', toId).maybeSingle();
-    if (existing.data) { notify('이미 하트를 보냈습니다', false); setLoading(null); return; }
-    await supabase.from('likes').insert({ liker_id: fromId, liked_id: toId, status: 'pending' });
-    testResync();
-    await load();
-    notify('하트 전송됨');
-    setLoading(null);
+    try {
+      const existing = await supabase.from('likes').select('id').eq('liker_id', fromId).eq('liked_id', toId).maybeSingle();
+      if (existing.error) { notify(`하트 조회 실패: ${existing.error.message}`, false); return; }
+      if (existing.data) { notify('이미 하트를 보냈습니다', false); return; }
+      const { error } = await withWriteAsUser(fromId, async () =>
+        supabase.from('likes').insert({ liker_id: fromId, liked_id: toId, status: 'pending', heart_type: 'red' }),
+      );
+      if (error) { notify(`하트 전송 실패: ${error.message}`, false); return; }
+      await testResync();
+      await load();
+      notify('하트 전송됨');
+    } catch (e) {
+      notify(`하트 전송 실패: ${e instanceof Error ? e.message : String(e)}`, false);
+    } finally {
+      setLoading(null);
+    }
   };
 
   const acceptHeart = async (likeId: string) => {
-    await supabase.from('likes').update({ status: 'accepted' }).eq('id', likeId);
-    testResync();
-    await load();
-    notify('하트 수락됨');
+    const like = likes.find(l => l.id === likeId);
+    if (!like?.liked_id) { notify('하트 정보를 찾을 수 없습니다', false); return; }
+    try {
+      const { error } = await withWriteAsUser(String(like.liked_id), async () =>
+        supabase.from('likes').update({ status: 'accepted' }).eq('id', likeId),
+      );
+      if (error) { notify(`하트 수락 실패: ${error.message}`, false); return; }
+      await testResync();
+      await load();
+      notify('하트 수락됨');
+    } catch (e) {
+      notify(`하트 수락 실패: ${e instanceof Error ? e.message : String(e)}`, false);
+    }
   };
 
   const deleteHeart = async (likeId: string) => {
-    await supabase.from('likes').delete().eq('id', likeId);
-    testResync();
-    await load();
-    notify('하트 삭제됨');
+    const like = likes.find(l => l.id === likeId);
+    if (!like?.liker_id) { notify('하트 정보를 찾을 수 없습니다', false); return; }
+    try {
+      const { error } = await withWriteAsUser(String(like.liker_id), async () =>
+        supabase.from('likes').delete().eq('id', likeId),
+      );
+      if (error) { notify(`하트 삭제 실패: ${error.message}`, false); return; }
+      await testResync();
+      await load();
+      notify('하트 삭제됨');
+    } catch (e) {
+      notify(`하트 삭제 실패: ${e instanceof Error ? e.message : String(e)}`, false);
+    }
   };
 
   const clearAllHearts = async () => {
@@ -295,29 +339,57 @@ export default function TestDashboard() {
 
   // ── Chat ───────────────────────────────────────────────────────────────────
   const createChat = async (user1: string, user2: string) => {
-    if (user1 === user2) return;
+    if (!user1 || !user2) { notify('유저를 선택하세요', false); return; }
+    if (user1 === user2) { notify('같은 유저끼리 채팅을 만들 수 없습니다', false); return; }
     setLoading('chat');
-    const existing = await supabase.from('chats').select('id')
-      .or(`and(user1_id.eq.${user1},user2_id.eq.${user2}),and(user1_id.eq.${user2},user2_id.eq.${user1})`)
-      .maybeSingle();
-    if (existing.data) { notify('채팅방이 이미 있습니다', false); setLoading(null); return; }
-    const { data } = await supabase.from('chats').insert({ user1_id: user1, user2_id: user2 }).select().single();
-    if (data) {
-      await supabase.from('messages').insert({ chat_id: data.id, sender_id: user2, content: '안녕하세요! 테스트 메시지입니다.' });
-      await supabase.from('messages').insert({ chat_id: data.id, sender_id: user1, content: '반갑습니다~' });
+    try {
+      const existing = await supabase.from('chats').select('id')
+        .or(`and(user1_id.eq.${user1},user2_id.eq.${user2}),and(user1_id.eq.${user2},user2_id.eq.${user1})`)
+        .maybeSingle();
+      if (existing.error) { notify(`채팅 조회 실패: ${existing.error.message}`, false); return; }
+      if (existing.data) { notify('채팅방이 이미 있습니다', false); return; }
+      const { data, error } = await withWriteAsUser(user1, async () =>
+        supabase.from('chats').insert({ user1_id: user1, user2_id: user2 }).select().single(),
+      );
+      if (error) { notify(`채팅 생성 실패: ${error.message}`, false); return; }
+      if (data) {
+        const chatId = String(data.id);
+        const msg1 = await withWriteAsUser(user2, async () =>
+          supabase.from('messages').insert({ chat_id: chatId, sender_id: user2, content: '안녕하세요! 테스트 메시지입니다.' }),
+        );
+        if (msg1.error) { notify(`테스트 메시지 실패: ${msg1.error.message}`, false); }
+        const msg2 = await withWriteAsUser(user1, async () =>
+          supabase.from('messages').insert({ chat_id: chatId, sender_id: user1, content: '반갑습니다~' }),
+        );
+        if (msg2.error) { notify(`테스트 메시지 실패: ${msg2.error.message}`, false); }
+      }
+      await testResync();
+      await load();
+      notify('채팅방 + 메시지 2개 생성됨');
+    } catch (e) {
+      notify(`채팅 생성 실패: ${e instanceof Error ? e.message : String(e)}`, false);
+    } finally {
+      setLoading(null);
     }
-    testResync();
-    await load();
-    notify('채팅방 + 메시지 2개 생성됨');
-    setLoading(null);
   };
 
   const deleteChat = async (chatId: string) => {
-    await supabase.from('messages').delete().eq('chat_id', chatId);
-    await supabase.from('chats').delete().eq('id', chatId);
-    testResync();
-    await load();
-    notify('채팅 삭제됨');
+    const chat = chats.find(c => c.id === chatId);
+    const actor = chat ? String(chat.user1_id ?? chat.user2_id ?? '') : (myUserId ?? '');
+    if (!actor) { notify('채팅 삭제에 사용할 유저가 없습니다', false); return; }
+    try {
+      await withWriteAsUser(actor, async () => {
+        const m = await supabase.from('messages').delete().eq('chat_id', chatId);
+        if (m.error) throw new Error(m.error.message);
+        const c = await supabase.from('chats').delete().eq('id', chatId);
+        if (c.error) throw new Error(c.error.message);
+      });
+      await testResync();
+      await load();
+      notify('채팅 삭제됨');
+    } catch (e) {
+      notify(`채팅 삭제 실패: ${e instanceof Error ? e.message : String(e)}`, false);
+    }
   };
 
   // ── Select helpers ─────────────────────────────────────────────────────────
@@ -479,12 +551,22 @@ export default function TestDashboard() {
             {profileSel(fromUser, setFromUser)}
             <span className="text-rose-400 text-sm font-bold flex-shrink-0">→ 하트 →</span>
             {profileSel(toUser, setToUser)}
-            <Btn label="전송" onClick={() => { if (fromUser && toUser) sendHeart(fromUser, toUser); }} color="rose" small disabled={!fromUser || !toUser || loading === 'heart'} />
+            <Btn label="전송" onClick={() => { void sendHeart(fromUser, toUser); }} color="rose" small disabled={!fromUser || !toUser || loading === 'heart'} />
           </div>
           {myUserId && profiles.length > 1 && (
             <div className="grid grid-cols-2 gap-2">
-              <Btn label="랜덤 → 나 하트" onClick={() => { const others = profiles.filter(p => p.id !== myUserId); if (others.length) sendHeart(others[Math.floor(Math.random() * others.length)].id, myUserId!); }} color="pink" disabled={loading === 'heart'} />
-              <Btn label="나 → 랜덤 하트" onClick={() => { const others = profiles.filter(p => p.id !== myUserId); if (others.length) sendHeart(myUserId!, others[Math.floor(Math.random() * others.length)].id); }} color="rose" disabled={loading === 'heart'} />
+              <Btn label="랜덤 → 나 하트" onClick={() => {
+                if (!myUserId) { notify('내 유저를 먼저 선택하세요', false); return; }
+                const others = profiles.filter(p => p.id !== myUserId);
+                if (!others.length) { notify('다른 유저가 없습니다', false); return; }
+                void sendHeart(others[Math.floor(Math.random() * others.length)].id, myUserId);
+              }} color="pink" disabled={loading === 'heart'} />
+              <Btn label="나 → 랜덤 하트" onClick={() => {
+                if (!myUserId) { notify('내 유저를 먼저 선택하세요', false); return; }
+                const others = profiles.filter(p => p.id !== myUserId);
+                if (!others.length) { notify('다른 유저가 없습니다', false); return; }
+                void sendHeart(myUserId, others[Math.floor(Math.random() * others.length)].id);
+              }} color="rose" disabled={loading === 'heart'} />
             </div>
           )}
           <div className="max-h-48 overflow-y-auto space-y-1">
@@ -511,10 +593,15 @@ export default function TestDashboard() {
             {profileSel(chatU1, setChatU1)}
             <span className="text-violet-400 text-sm font-bold flex-shrink-0">↔</span>
             {profileSel(chatU2, setChatU2)}
-            <Btn label="채팅 생성" onClick={() => { if (chatU1 && chatU2) createChat(chatU1, chatU2); }} color="violet" small disabled={!chatU1 || !chatU2 || loading === 'chat'} />
+            <Btn label="채팅 생성" onClick={() => { void createChat(chatU1, chatU2); }} color="violet" small disabled={!chatU1 || !chatU2 || loading === 'chat'} />
           </div>
           {myUserId && profiles.length > 1 && (
-            <Btn label="나 ↔ 랜덤 채팅 생성" onClick={() => { const others = profiles.filter(p => p.id !== myUserId); if (others.length) createChat(myUserId!, others[Math.floor(Math.random() * others.length)].id); }} color="violet" disabled={loading === 'chat'} />
+            <Btn label="나 ↔ 랜덤 채팅 생성" onClick={() => {
+              if (!myUserId) { notify('내 유저를 먼저 선택하세요', false); return; }
+              const others = profiles.filter(p => p.id !== myUserId);
+              if (!others.length) { notify('다른 유저가 없습니다', false); return; }
+              void createChat(myUserId, others[Math.floor(Math.random() * others.length)].id);
+            }} color="violet" disabled={loading === 'chat'} />
           )}
           <div className="max-h-36 overflow-y-auto space-y-1">
             {chats.map(c => {
