@@ -3,6 +3,7 @@ import {
   X,
 } from 'lucide-react';
 import { supabase, setLocalDbUserId, setDeviceRecoveryPin, fetchAndSetSseToken, getDeviceSecret, onSseReconnect, isSseHealthy, ensureWriteSession } from './lib/supabase';
+import { planParticipantSoTReload } from './lib/participant-sot-resync';
 import { diag } from './lib/diag';
 import { subscribeNetUi, resetNetUiForRetry, type NetUiStatus } from './lib/net-health';
 import { excludeSwipeGestureVerifyProfiles, hasProfileFortuneCompatData, isSwipeGestureVerifyProfile } from './lib/profile';
@@ -196,6 +197,7 @@ function App() {
   const loadProfilesRef = useRef<() => Promise<Profile[]>>(async () => []);
   // SSE fallback polling refs — SSE 끊김 중 채팅·하트 polling에 사용 (stale 클로저 방지)
   const loadChatListRef = useRef<((userId: string) => Promise<void>) | null>(null);
+  const lastParticipantSoTAtRef = useRef(0);
   const loadGroupChatsRef = useRef<((userId: string) => Promise<void>) | null>(null);
   /** 채팅 탭·단톡 화면 밖이면 group catalog SSE reload 생략 */
   const groupCatalogHotRef = useRef(true);
@@ -398,6 +400,7 @@ function App() {
     unreadChatCounts, setUnreadChatCounts,
     loadChatList, openChat, sendMessage, sendImage,
     deleteChat, deleteAllChats, deleteMessage,
+    hasMoreOlderMessages, loadingOlderMessages, loadOlderMessages,
   } = useChat({ currentUserId, profilesRef, setSelectedProfile, setView, setBottomNotif, functionsLocked });
 
   const {
@@ -1482,7 +1485,15 @@ function App() {
         })
         .catch(() => {});
       if (!storedId) return;
+      const plan = planParticipantSoTReload({
+        trigger: 'visibility',
+        now: Date.now(),
+        lastReloadAt: lastParticipantSoTAtRef.current,
+        sseHealthy: isSseHealthy(),
+      });
+      if (!plan.shouldReload) return;
       // 포그라운드 복귀 시 데이터만 조용히 갱신. 목록이 비거나 잘려도 7일 세션을 끊지 않는다.
+      lastParticipantSoTAtRef.current = Date.now();
       loadProfiles().then((allProfiles) => {
         if (allProfiles.length === 0) return;
         loadReceivedLikes(storedId);
@@ -1502,9 +1513,19 @@ function App() {
   }, [currentUserId]);
 
   // SSE 재연결 시 DB Source-of-Truth 재동기화 (UI 모달은 net-health가 담당)
+  // Duplicate reconnect storms coalesce; visibility skips when SSE healthy + fresh.
+  // Real disconnect recovery always reloads (planParticipantSoTReload sse-reconnect).
   useEffect(() => {
     if (!currentUserId) return;
     const unsubReconnect = onSseReconnect(() => {
+      const plan = planParticipantSoTReload({
+        trigger: 'sse-reconnect',
+        now: Date.now(),
+        lastReloadAt: lastParticipantSoTAtRef.current,
+        sseHealthy: isSseHealthy(),
+      });
+      if (!plan.shouldReload) return;
+      lastParticipantSoTAtRef.current = Date.now();
       loadChatList(currentUserId);
       loadReceivedLikes(currentUserId);
       loadLikes(currentUserId);
@@ -2064,6 +2085,9 @@ function App() {
                 onSendImage={sendImageGuarded}
                 onBack={goParticipantBack}
                 onDeleteMessage={deleteMessage}
+                hasMoreOlder={hasMoreOlderMessages}
+                loadingOlder={loadingOlderMessages}
+                onLoadOlder={loadOlderMessages}
                 currentUserProfile={profiles.find(p => p.id === currentUserId) ?? null}
                 receivedContactShares={receivedContactShares}
                 contactSharedWithIds={contactSharedWithIds}

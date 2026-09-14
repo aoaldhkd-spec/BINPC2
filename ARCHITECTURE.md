@@ -96,6 +96,19 @@ Pure strip helpers: `artifacts/api-server/src/lib/db-legacy-cleanup.ts`. Tests: 
 
 **Do not delete** cleanup SQL or block lists to “shrink” `db.ts`.
 
+
+## Attach / detach modularity (skeleton vs features)
+
+Coding skeleton is **OK to attach/detach features incrementally** — prefer small `lib/*` pure modules + hooks over growing `App.tsx`.
+
+| Layer | Status |
+|-------|--------|
+| Pure helpers (`lib/chat-*.ts`, `participant-sot-resync.ts`, `received-like-update.ts`, …) | Modular — easy attach/detach |
+| Domain hooks (`useChat`, `useHearts`, `useGroupChat`) | Mostly modular |
+| `App.tsx` (~2k lines) | Still the wiring monolith (session, visibility, reconnect SoT, overlays) |
+
+**Next incremental steps (no big-bang rewrite):** (1) keep extracting SoT/resync planners from App effects, (2) pass feature flags/callbacks into screens rather than new App state, (3) leave chat list `select('*')` until open-room + reconnect relief land.
+
 ## Do not touch casually
 
 `db.ts` persist/SSE/`/op` 경로, `localdb.ts` SSE client, `useChat` offline queue, `net-health` quiet/error windows.

@@ -52,7 +52,7 @@ import {
 // React ref가 아닌 모듈 스코프 Map을 사용하므로 컴포넌트 언마운트 이후에도 유지된다.
 const _scrollPositionCache = new Map<string, number>();
 
-function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onSendImage, onBack, onDeleteMessage, currentUserProfile, receivedContactShares, contactSharedWithIds, onGoToTab, onUpdateProfile, initialInput, onInputChange, showSignalOpeners }: {
+function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onSendImage, onBack, onDeleteMessage, currentUserProfile, receivedContactShares, contactSharedWithIds, onGoToTab, onUpdateProfile, initialInput, onInputChange, showSignalOpeners, hasMoreOlder, loadingOlder, onLoadOlder }: {
   chatId: string;
   messages: Message[]; currentUserId: string; otherProfile: Profile;
   onSend: (content: string) => Promise<void> | void;
@@ -70,6 +70,10 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
   onInputChange?: (v: string) => void;
   /** 서로 하트 첫 1:1 — 칩은 입력만 채움 (자동 전송 없음) */
   showSignalOpeners?: boolean;
+  /** 초기 페이지(최신 N)보다 더 오래된 메시지 존재 여부 */
+  hasMoreOlder?: boolean;
+  loadingOlder?: boolean;
+  onLoadOlder?: () => void | Promise<boolean | void>;
 }) {
   // initialInput은 마운트 시 한 번만 적용 — lazy initializer로 처리
   const [input, setInput] = useState(() => initialInput ?? '');
@@ -958,6 +962,18 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
         }}
       >
         <div className="max-w-3xl mx-auto px-4 py-4 space-y-1">
+          {hasMoreOlder && onLoadOlder && (
+            <div className="flex justify-center py-2">
+              <button
+                type="button"
+                disabled={!!loadingOlder}
+                onClick={() => { void onLoadOlder(); }}
+                className="px-3 py-1.5 text-xs font-semibold rounded-full border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+              >
+                {loadingOlder ? '불러오는 중…' : '이전 메시지 더 보기'}
+              </button>
+            </div>
+          )}
           {messages.map((msg) => (
             <ChatMessageRow
               key={msg.id}

@@ -3144,7 +3144,22 @@ type FilterSpec =
   | { type: 'eq'; col: string; val: unknown }
   | { type: 'neq'; col: string; val: unknown }
   | { type: 'in'; col: string; vals: unknown[] }
-  | { type: 'or'; expr: string };
+  | { type: 'or'; expr: string }
+  | { type: 'lt'; col: string; val: unknown }
+  | { type: 'gt'; col: string; val: unknown };
+
+function compareFilterValues(rowVal: unknown, filterVal: unknown): number | null {
+  if (rowVal == null || filterVal == null) return null;
+  const aNum = typeof rowVal === 'number' ? rowVal : Number(rowVal);
+  const bNum = typeof filterVal === 'number' ? filterVal : Number(filterVal);
+  // Avoid treating ISO timestamps as numbers (Number('2026-...') === NaN — fine).
+  if (Number.isFinite(aNum) && Number.isFinite(bNum) && String(rowVal).trim() !== '' && !String(rowVal).includes('-') && !String(rowVal).includes('T')) {
+    return aNum < bNum ? -1 : aNum > bNum ? 1 : 0;
+  }
+  const as = String(rowVal);
+  const bs = String(filterVal);
+  return as < bs ? -1 : as > bs ? 1 : 0;
+}
 
 function matchFilter(row: Record<string, unknown>, f: FilterSpec): boolean {
   if (f.type === 'eq') {
@@ -3156,6 +3171,11 @@ function matchFilter(row: Record<string, unknown>, f: FilterSpec): boolean {
   if (f.type === 'in') {
     return f.vals.some(v => row[f.col] === v || String(row[f.col]) === String(v));
   }
+  if (f.type === 'lt' || f.type === 'gt') {
+    const cmp = compareFilterValues(row[f.col], f.val);
+    if (cmp == null) return false;
+    return f.type === 'lt' ? cmp < 0 : cmp > 0;
+  }
   if (f.type === 'or') {
     const parts = f.expr.split(',').map(s => s.trim());
     return parts.some(part => {
@@ -3164,10 +3184,10 @@ function matchFilter(row: Record<string, unknown>, f: FilterSpec): boolean {
       const [, col, op, val] = m;
       if (op === 'eq') return row[col] === val || String(row[col]) === val;
       if (op === 'neq') return row[col] !== val && String(row[col]) !== val;
-      return true;
+      return false;
     });
   }
-  return true;
+  return false;
 }
 
 function applyFilters(
@@ -3318,12 +3338,18 @@ router.post('/op', async (req: Request, res: Response) => {
     if (fr.op != null) return { ...fr, type: fr.op, op: undefined } as unknown as FilterSpec;
     return fr as unknown as FilterSpec;
   }).filter((f): f is FilterSpec => {
-    // 필터 요소 유효성: eq/neq/in 은 col, or 는 expr
+    // 필터 요소 유효성: allowlist — unknown types must not become no-op pass-alls
     if (f == null) return false;
     const fr = f as unknown as Record<string, unknown>;
     if (typeof fr.type !== 'string') return false;
     if (fr.type === 'or') return typeof fr.expr === 'string' && fr.expr.length > 0;
-    return typeof fr.col === 'string' && fr.col.length > 0;
+    if (fr.type === 'eq' || fr.type === 'neq' || fr.type === 'lt' || fr.type === 'gt') {
+      return typeof fr.col === 'string' && fr.col.length > 0 && 'val' in fr;
+    }
+    if (fr.type === 'in') {
+      return typeof fr.col === 'string' && fr.col.length > 0 && Array.isArray(fr.vals);
+    }
+    return false;
   });
 
   // ─ Table allowlist: reject unknown/internal tables immediately

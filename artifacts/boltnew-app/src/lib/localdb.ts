@@ -227,7 +227,9 @@ type FilterSpec =
   | { type: 'eq'; col: string; val: unknown }
   | { type: 'neq'; col: string; val: unknown }
   | { type: 'in'; col: string; vals: unknown[] }
-  | { type: 'or'; expr: string };
+  | { type: 'or'; expr: string }
+  | { type: 'lt'; col: string; val: unknown }
+  | { type: 'gt'; col: string; val: unknown };
 
 // ─── Query builder ────────────────────────────────────────────────────────────
 
@@ -295,6 +297,18 @@ class QueryBuilder {
 
   neq(col: string, val: unknown): this {
     this._filters.push({ type: 'neq', col, val });
+    return this;
+  }
+
+  /** Strict less-than — used for message older-cursor (created_at). */
+  lt(col: string, val: unknown): this {
+    this._filters.push({ type: 'lt', col, val });
+    return this;
+  }
+
+  /** Strict greater-than. */
+  gt(col: string, val: unknown): this {
+    this._filters.push({ type: 'gt', col, val });
     return this;
   }
 

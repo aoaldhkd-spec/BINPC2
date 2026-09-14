@@ -419,6 +419,36 @@ mustMatch('artifacts/boltnew-app/src/App.tsx', '41_fallback_poll_skips_when_sse_
   /loadReceivedLikesRef\.current\?\.\(uid\)/,
 ]);
 
+
+// ?? 42 Open-room message page bound + participant SoT coalesce ???????????????
+mustExist('artifacts/boltnew-app/src/lib/chat-message-page.ts', '42_chat_message_page_module');
+mustExist('artifacts/boltnew-app/src/lib/chat-message-page.test.ts', '42_chat_message_page_tests');
+mustExist('artifacts/boltnew-app/src/lib/participant-sot-resync.ts', '42_participant_sot_resync_module');
+mustExist('artifacts/boltnew-app/src/lib/participant-sot-resync.test.ts', '42_participant_sot_resync_tests');
+mustMatch('artifacts/boltnew-app/src/hooks/useChat.ts', '42_messages_bounded_initial_page', [
+  /MESSAGE_PAGE_SIZE/,
+  /normalizeDescMessagePage/,
+  /\.order\('created_at',\s*\{\s*ascending:\s*false\s*\}\)/,
+  /\.limit\(MESSAGE_PAGE_SIZE\)/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/hooks/useChat.ts', '42_no_blind_full_history_asc_select', [
+  /from\('messages'\)\.select\('\*'\)[\s\S]{0,220}\.order\('created_at',\s*\{\s*ascending:\s*true\s*\}\)\s*;/,
+]);
+mustMatch('artifacts/boltnew-app/src/App.tsx', '42_participant_sot_plan_on_reconnect', [
+  /planParticipantSoTReload/,
+  /trigger:\s*'sse-reconnect'/,
+  /trigger:\s*'visibility'/,
+]);
+mustMatch('artifacts/boltnew-app/src/lib/localdb.ts', '42_localdb_lt_filter', [
+  /type:\s*'lt'/,
+  /lt\(col: string, val: unknown\)/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '42_server_lt_filter', [
+  /type:\s*'lt'/,
+  /f\.type === 'lt' \|\| f\.type === 'gt'/,
+]);
+
+
 console.log('\n=== verify-recurrence-guards ===\n');
 for (const r of results) {
   console.log(`  ${r.ok ? 'OK' : 'FAIL'}  ${r.id}${r.detail && !r.ok ? ` ? ${r.detail}` : ''}`);

@@ -13,9 +13,6 @@
  * 9. 내구성 큐: 오프라인 큐를 localStorage에 영속화 — 새로고침 후에도 미전송 메시지 복구 [Part1-Fix3]
  */
 
-const MAX_MESSAGES = 500; // 채팅방당 최대 메시지 보유 수 (메모리 누수 방지)
-const MAX_CACHED_CHAT_ROOMS = 8; // 최근 방만 메모리에 유지해 계정 장시간 사용 시 증가 방지
-
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase, ensureWriteSession } from '../lib/supabase';
 import { onSseReconnect, getSseToken, isSseHealthy } from '../lib/localdb';
@@ -32,6 +29,20 @@ import {
   savePendingQueue,
   type PendingMsg,
 } from '../lib/chat-pending-queue';
+import {
+  MESSAGE_PAGE_SIZE,
+  MESSAGE_OLDER_HARD_CAP,
+  normalizeDescMessagePage,
+  olderMessagesCursor,
+  mergeOlderMessagePage,
+} from '../lib/chat-message-page';
+import { planParticipantSoTReload } from '../lib/participant-sot-resync';
+
+const MAX_MESSAGES = 500; // 채팅방당 최대 메시지 보유 수 (메모리 누수 방지) — MESSAGE_PAGE_SIZE와 동일
+if (MAX_MESSAGES !== MESSAGE_PAGE_SIZE) {
+  throw new Error('MAX_MESSAGES must equal MESSAGE_PAGE_SIZE');
+}
+const MAX_CACHED_CHAT_ROOMS = 8; // 최근 방만 메모리에 유지해 계정 장시간 사용 시 증가 방지
 
 interface UseChatDeps {
   currentUserId: string | null;
@@ -87,6 +98,10 @@ export function useChat({
   };
 
   const [messages, setMessages] = useState<Message[]>([]);
+  const [hasMoreOlderMessages, setHasMoreOlderMessages] = useState(false);
+  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
+  const roomSoTAtRef = useRef(0);
+
   const messagesRef = useRef<Message[]>(messages);
   messagesRef.current = messages;
   const messageCacheRef = useRef<Map<string, Message[]>>(new Map());
@@ -334,10 +349,14 @@ export function useChat({
           .filter(([alias, canon]) => alias === cid || canon === cid)
           .flatMap(([alias, canon]) => [alias, canon]),
       ].filter(Boolean))];
+      // Bounded initial page: newest MESSAGE_PAGE_SIZE (aligns with in-memory MAX_MESSAGES).
+      // Desc + limit avoids full-history SELECT; reverse to chronological for UI/reducers.
       const q = queryIds.length <= 1
         ? supabase.from('messages').select('*').eq('chat_id', cid)
         : supabase.from('messages').select('*').in('chat_id', queryIds);
-      const { data, error } = await q.order('created_at', { ascending: true });
+      const { data, error } = await q
+        .order('created_at', { ascending: false })
+        .limit(MESSAGE_PAGE_SIZE);
       if (gen !== loadGenRef.current) {
         diag('debug', 'chat', 'fetch-stale-discard', {
           corr: `room:${cid}:${gen}`,
@@ -346,38 +365,44 @@ export function useChat({
         return false;
       }
       if (error) { console.error('[loadMessages] DB 오류:', error.message); return false; }
-      if (data) setMessages(prev => {
-        const result = applyLoadMessages(prev, data as Message[], {
-          idsAtRequestStart,
-          deletedIds: deletedMessageIdsRef.current,
+      if (data) {
+        const page = normalizeDescMessagePage(data as Message[], MESSAGE_PAGE_SIZE);
+        setHasMoreOlderMessages(page.hasMoreOlder);
+        roomSoTAtRef.current = Date.now();
+        setMessages(prev => {
+          const result = applyLoadMessages(prev, page.messages, {
+            idsAtRequestStart,
+            deletedIds: deletedMessageIdsRef.current,
+          });
+          rememberRoomChatId(cid);
+          for (const m of page.messages) rememberRoomChatId(m.chat_id);
+          const aliases = roomChatIdsRef.current;
+          // [Fix-1] 쿼리 결과 chat_id 재검증 — 빈 chat_id·타방·단톡 메시지 원천 차단
+          // 서버 sibling merge 가 canonical id 로 바꿔 돌려줘도 열린 방 별칭이면 유지
+          const filtered = result.filter(m => messageBelongsToChat(m, cid, aliases));
+          const visible = filtered.length > MAX_MESSAGES ? filtered.slice(-MAX_MESSAGES) : filtered;
+          cacheRoomMessages(cid, visible);
+          if (
+            visible.length === prev.length
+            && visible.every((m, i) => m.id === prev[i].id && m.content === prev[i].content)
+          ) {
+            return prev;
+          }
+          const last = visible[visible.length - 1];
+          diag('debug', 'chat', 'state-merge', {
+            corr: last?.id ?? `room:${cid}:${gen}`,
+            data: {
+              messageId: last?.id ?? null,
+              roomId: cid,
+              createdAt: last?.created_at ?? null,
+              source: 'fetch',
+              count: visible.length,
+              hasMoreOlder: page.hasMoreOlder,
+            },
+          });
+          return visible;
         });
-        rememberRoomChatId(cid);
-        for (const m of data as Message[]) rememberRoomChatId(m.chat_id);
-        const aliases = roomChatIdsRef.current;
-        // [Fix-1] 쿼리 결과 chat_id 재검증 — 빈 chat_id·타방·단톡 메시지 원천 차단
-        // 서버 sibling merge 가 canonical id 로 바꿔 돌려줘도 열린 방 별칭이면 유지
-        const filtered = result.filter(m => messageBelongsToChat(m, cid, aliases));
-        const visible = filtered.length > MAX_MESSAGES ? filtered.slice(-MAX_MESSAGES) : filtered;
-        cacheRoomMessages(cid, visible);
-        if (
-          visible.length === prev.length
-          && visible.every((m, i) => m.id === prev[i].id && m.content === prev[i].content)
-        ) {
-          return prev;
-        }
-        const last = visible[visible.length - 1];
-        diag('debug', 'chat', 'state-merge', {
-          corr: last?.id ?? `room:${cid}:${gen}`,
-          data: {
-            messageId: last?.id ?? null,
-            roomId: cid,
-            createdAt: last?.created_at ?? null,
-            source: 'fetch',
-            count: visible.length,
-          },
-        });
-        return visible;
-      });
+      }
       return true;
     } catch (err) {
       console.error('[loadMessages] 네트워크 오류:', err);
@@ -390,6 +415,8 @@ export function useChat({
     if (!chatId) {
       ++loadGenRef.current; // 닫힌 뒤 도착한 이전 방 응답이 화면을 되살리지 않게 무효화
       setMessages([]);
+      setHasMoreOlderMessages(false);
+      setLoadingOlderMessages(false);
       roomChatIdsRef.current = new Set();
       activePairKeyRef.current = null;
       activePartnerIdRef.current = null;
@@ -773,14 +800,21 @@ export function useChat({
 
   useEffect(() => {
     const handler = () => {
-      if (document.visibilityState === 'visible') {
-        void syncUnreadCounts();
-        const uid = currentUserIdRef.current;
-        if (uid) void loadChatList(uid);
-        // 탭 복귀 시 active 채팅방 메시지도 즉시 당겨옴 (SSE가 끊긴 사이 누락된 메시지 복구)
-        const activeChatId = chatIdRef.current;
-        if (activeChatId) void loadMessages(activeChatId);
-      }
+      if (document.visibilityState !== 'visible') return;
+      void syncUnreadCounts();
+      const plan = planParticipantSoTReload({
+        trigger: 'visibility',
+        now: Date.now(),
+        lastReloadAt: roomSoTAtRef.current,
+        sseHealthy: isSseHealthy(),
+      });
+      if (!plan.shouldReload) return;
+      const uid = currentUserIdRef.current;
+      if (uid) void loadChatList(uid);
+      // 탭 복귀 시 active 채팅방 메시지도 즉시 당겨옴 (SSE가 끊긴 사이 누락된 메시지 복구)
+      const activeChatId = chatIdRef.current;
+      if (activeChatId) void loadMessages(activeChatId);
+      else roomSoTAtRef.current = Date.now();
     };
     document.addEventListener('visibilitychange', handler);
     return () => document.removeEventListener('visibilitychange', handler);
@@ -1276,6 +1310,58 @@ export function useChat({
     }
   };
 
+
+  // ── 이전 메시지(older cursor) — ChatScreen load-more skeleton ────────────────
+  const loadOlderMessages = useCallback(async (): Promise<boolean> => {
+    const cid = chatIdRef.current;
+    if (!cid || loadingOlderMessages) return false;
+    const cursor = olderMessagesCursor(messagesRef.current);
+    if (!cursor) {
+      setHasMoreOlderMessages(false);
+      return false;
+    }
+    setLoadingOlderMessages(true);
+    try {
+      const queryIds = [...new Set([
+        cid,
+        ...roomChatIdsRef.current,
+        ...[...siblingToCanonicalRef.current.entries()]
+          .filter(([alias, canon]) => alias === cid || canon === cid)
+          .flatMap(([alias, canon]) => [alias, canon]),
+      ].filter(Boolean))];
+      const q = queryIds.length <= 1
+        ? supabase.from('messages').select('*').eq('chat_id', cid)
+        : supabase.from('messages').select('*').in('chat_id', queryIds);
+      const { data, error } = await q
+        .lt('created_at', cursor)
+        .order('created_at', { ascending: false })
+        .limit(MESSAGE_PAGE_SIZE);
+      if (error) {
+        console.error('[loadOlderMessages] DB 오류:', error.message);
+        return false;
+      }
+      if (chatIdRef.current !== cid) return false;
+      const page = normalizeDescMessagePage((data ?? []) as Message[], MESSAGE_PAGE_SIZE);
+      setHasMoreOlderMessages(page.hasMoreOlder);
+      if (page.messages.length === 0) return true;
+      setMessages(prev => {
+        if (!isActiveRoomChat(cid)) return prev;
+        const aliases = roomChatIdsRef.current;
+        const filtered = page.messages.filter(m => messageBelongsToChat(m, cid, aliases));
+        for (const m of filtered) rememberRoomChatId(m.chat_id);
+        const merged = mergeOlderMessagePage(prev, filtered, MESSAGE_OLDER_HARD_CAP);
+        cacheRoomMessages(cid, merged.length > MAX_MESSAGES ? merged.slice(-MAX_MESSAGES) : merged);
+        return merged;
+      });
+      return true;
+    } catch (err) {
+      console.error('[loadOlderMessages] 네트워크 오류:', err);
+      return false;
+    } finally {
+      setLoadingOlderMessages(false);
+    }
+  }, [loadingOlderMessages, cacheRoomMessages]);
+
   return {
     chatId, setChatId,
     chatIdRef,
@@ -1286,6 +1372,9 @@ export function useChat({
     unreadChatCounts, setUnreadChatCounts,
     loadChatList,
     loadMessages,
+    hasMoreOlderMessages,
+    loadingOlderMessages,
+    loadOlderMessages,
     openChat,
     sendMessage,
     sendImage,
