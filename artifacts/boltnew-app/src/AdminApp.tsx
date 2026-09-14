@@ -1,5 +1,5 @@
 import {
-  lazy, Suspense, useState, useEffect, useCallback, useMemo,
+  lazy, Suspense, useState, useEffect, useCallback, useMemo, useRef,
 } from 'react';
 import {
   Shield, LogOut, Users, LayoutGrid, Heart, MessageCircle, BellRing,
@@ -10,6 +10,7 @@ import {
   setAdminToken, loadAdminSession, getAdminPassword, refreshAdminToken,
   adminApiRpc, patchAdminSettings, adminApiSelect, adminSupabase,
   ADMIN_TOKEN_KEY, ADMIN_PW_KEY, ADMIN_SESSION_KEY, ADMIN_API, MAX_ADMIN_MESSAGES,
+  MAX_ADMIN_LIKES, MAX_ADMIN_CHATS,
   MAX_ADMIN_GROUP_MESSAGES, MAX_ADMIN_GROUP_PARTICIPANTS,
   type Profile, type AppSettings, type SessionHistory, type Like, type Chat, type Message,
   type GroupChat, type GroupMessage, type GroupParticipant, type DbHealthData,
@@ -93,6 +94,8 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [groupParticipants, setGroupParticipants] = useState<GroupParticipant[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [historyError, setHistoryError] = useState<string | null>(null);
+  const loadActivityInFlightRef = useRef<Promise<void> | null>(null);
+  const lastActivitySuccessAtRef = useRef(0);
   // Recovery banner (floating top)
   const [recovery, setRecovery] = useState<{ label: string; emoji: string; restore: (() => Promise<void>) | null; timerId: ReturnType<typeof setTimeout> } | null>(null);
   // Persistent restore map — key → restore function (shown as buttons in DashboardTab)
@@ -125,40 +128,59 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     if (hi) setHistories(hi);
   }, []);
 
-  const loadActivity = useCallback(async () => {
-    setHistoryLoading(true);
-    setHistoryError(null);
-    try {
-      const [
-        { data: li }, { data: ch }, { data: msgs }, { data: groups },
-        { data: groupMsgs }, { data: participants },
-      ] = await Promise.all([
-        adminApiSelect<Like>('likes', [{ column: 'created_at', ascending: false }]),
-        adminApiSelect<Chat>('chats', [{ column: 'created_at', ascending: false }]),
-        adminApiSelect<Message>('messages', [{ column: 'created_at', ascending: true }]),
-        adminApiSelect<GroupChat>('group_chats', [{ column: 'created_at', ascending: false }], 250),
-        adminApiSelect<GroupMessage>('group_messages', [{ column: 'created_at', ascending: false }], MAX_ADMIN_GROUP_MESSAGES),
-        adminApiSelect<GroupParticipant>('group_participants', [{ column: 'joined_at', ascending: false }], MAX_ADMIN_GROUP_PARTICIPANTS),
-      ]);
-      if (li) setLikes(li);
-      if (ch) setAllChats(ch);
-      if (msgs) setAllMessages(msgs.slice(-MAX_ADMIN_MESSAGES));
-      if (groups) setGroupChats(groups);
-      if (groupMsgs) setGroupMessages(groupMsgs.slice(0, MAX_ADMIN_GROUP_MESSAGES));
-      if (participants) setGroupParticipants(participants.slice(0, MAX_ADMIN_GROUP_PARTICIPANTS));
-      const failed = [
-        groups == null && '단체방',
-        groupMsgs == null && '단체 메시지',
-        participants == null && '참여자 수',
-      ].filter(Boolean);
-      if (failed.length > 0) setHistoryError(`${failed.join(', ')} 조회 실패`);
-    } finally {
-      setHistoryLoading(false);
+  const loadActivity = useCallback(async (opts?: { showLoading?: boolean }) => {
+    if (loadActivityInFlightRef.current) {
+      // Manual/initial refresh joined mid-flight — still show spinner until shared promise settles.
+      if (opts?.showLoading === true) setHistoryLoading(true);
+      return loadActivityInFlightRef.current;
     }
+    const showLoading = opts?.showLoading === true;
+    const run = (async () => {
+      if (showLoading) setHistoryLoading(true);
+      setHistoryError(null);
+      try {
+        const [
+          { data: li }, { data: ch }, { data: msgs }, { data: groups },
+          { data: groupMsgs }, { data: participants },
+        ] = await Promise.all([
+          adminApiSelect<Like>('likes', [{ column: 'created_at', ascending: false }], MAX_ADMIN_LIKES),
+          adminApiSelect<Chat>('chats', [{ column: 'created_at', ascending: false }], MAX_ADMIN_CHATS),
+          // Newest-first page, then reverse so UI stays chronological ascending.
+          adminApiSelect<Message>('messages', [{ column: 'created_at', ascending: false }], MAX_ADMIN_MESSAGES),
+          adminApiSelect<GroupChat>('group_chats', [{ column: 'created_at', ascending: false }], 250),
+          adminApiSelect<GroupMessage>('group_messages', [{ column: 'created_at', ascending: false }], MAX_ADMIN_GROUP_MESSAGES),
+          adminApiSelect<GroupParticipant>('group_participants', [{ column: 'joined_at', ascending: false }], MAX_ADMIN_GROUP_PARTICIPANTS),
+        ]);
+        if (li) setLikes(li);
+        if (ch) setAllChats(ch);
+        if (msgs) setAllMessages([...msgs].reverse());
+        if (groups) setGroupChats(groups);
+        if (groupMsgs) setGroupMessages(groupMsgs.slice(0, MAX_ADMIN_GROUP_MESSAGES));
+        if (participants) setGroupParticipants(participants.slice(0, MAX_ADMIN_GROUP_PARTICIPANTS));
+        const failed = [
+          li == null && '하트',
+          ch == null && '채팅',
+          msgs == null && '메시지',
+          groups == null && '단체방',
+          groupMsgs == null && '단체 메시지',
+          participants == null && '참여자 수',
+        ].filter(Boolean);
+        if (failed.length > 0) {
+          setHistoryError(`${failed.join(', ')} 조회 실패`);
+        } else {
+          lastActivitySuccessAtRef.current = Date.now();
+        }
+      } finally {
+        setHistoryLoading(false);
+        loadActivityInFlightRef.current = null;
+      }
+    })();
+    loadActivityInFlightRef.current = run;
+    return run;
   }, []);
 
   const loadAll = useCallback(async () => {
-    await Promise.all([loadCore(), loadActivity()]);
+    await Promise.all([loadCore(), loadActivity({ showLoading: true })]);
   }, [loadActivity, loadCore]);
 
   useEffect(() => {
@@ -167,7 +189,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     reconnectAdminSse();
     void loadCore();
     // 첫 화면과 입력 반응이 그려진 다음 대용량 하트·채팅 데이터를 받는다.
-    const activityTimer = window.setTimeout(() => { void loadActivity(); }, 150);
+    const activityTimer = window.setTimeout(() => { void loadActivity({ showLoading: true }); }, 150);
     const channel = supabase
       .channel('admin-realtime')
       // ── profiles: 페이로드 기반 증분 업데이트 ───────────────────────
@@ -303,18 +325,20 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
   // SSE 재연결·catchup 후 하트/채팅을 HTTP로 맞춰 새로고침 없이도 목록이 따라오게 한다.
   useEffect(() => {
-    return onSseReconnect(() => { void loadActivity(); });
+    return onSseReconnect(() => { void loadActivity({ showLoading: false }); });
   }, [loadActivity]);
 
   // SSE가 약하거나 adminToken 업그레이드 전에 하트/채팅이 멈추지 않도록 백업 폴링.
+  // SSE healthy + 최근 성공 로드(<60s)면 폴링 스킵 — reconnect·수동 새로고침 경로는 유지.
   useEffect(() => {
     let nextAt = 0;
     const id = window.setInterval(() => {
       const now = Date.now();
+      if (isSseHealthy() && now - lastActivitySuccessAtRef.current < 60_000) return;
       const gap = isSseHealthy() ? 25_000 : 8_000;
       if (now < nextAt) return;
       nextAt = now + gap;
-      void loadActivity();
+      void loadActivity({ showLoading: false });
     }, 4_000);
     return () => window.clearInterval(id);
   }, [loadActivity]);

@@ -20,6 +20,8 @@ export const ADMIN_SESSION_KEY = 'admin_session_v1';
 export const ADMIN_TOKEN_KEY = 'admin_token_v1';
 export const ADMIN_PW_KEY = 'admin_pw_v1';
 export const MAX_ADMIN_MESSAGES = 5_000;
+export const MAX_ADMIN_LIKES = 10_000;
+export const MAX_ADMIN_CHATS = 10_000;
 export const MAX_ADMIN_GROUP_MESSAGES = 1_000;
 export const MAX_ADMIN_GROUP_PARTICIPANTS = 2_000;
 
