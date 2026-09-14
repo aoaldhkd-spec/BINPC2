@@ -414,9 +414,14 @@ mustMatch('artifacts/boltnew-app/src/App.tsx', '41_received_likes_update_increme
 mustNotMatch('artifacts/boltnew-app/src/App.tsx', '41_no_received_likes_update_blind_refetch', [
   /liked_id=eq\.\$\{currentUserId\}` \},\s*\(\) => \{ loadReceivedLikesRef/,
 ]);
-mustMatch('artifacts/boltnew-app/src/App.tsx', '41_fallback_poll_skips_when_sse_healthy', [
-  /if \(isSseHealthy\(\)\) return;/,
-  /loadReceivedLikesRef\.current\?\.\(uid\)/,
+mustMatch('artifacts/boltnew-app/src/lib/sse-fallback-poll.ts', '41_fallback_poll_skips_when_sse_healthy', [
+  /skipReason:\s*'sse-healthy'/,
+  /if \(input\.sseHealthy\) return/,
+]);
+mustMatch('artifacts/boltnew-app/src/hooks/useSseFallbackPoll.ts', '41_fallback_poll_hook_uses_health_plan', [
+  /planSseFallbackTick/,
+  /isSseHealthy\(\)/,
+  /loadReceivedLikes/,
 ]);
 
 
@@ -481,6 +486,54 @@ mustMatch('ARCHITECTURE.md', '43_architecture_whole_app_skeleton', [
   /session-ready-settings/,
 ]);
 
+
+
+
+// ?? 44 App peel wave: SSE fallback + heart/contact planners + lock/signal helpers ??
+mustExist('artifacts/boltnew-app/src/hooks/useSseFallbackPoll.ts', '44_use_sse_fallback_poll_hook');
+mustExist('artifacts/boltnew-app/src/lib/sse-fallback-poll.ts', '44_sse_fallback_poll_module');
+mustExist('artifacts/boltnew-app/src/lib/sse-fallback-poll.test.ts', '44_sse_fallback_poll_tests');
+mustExist('artifacts/boltnew-app/src/lib/sent-like-insert.ts', '44_sent_like_insert_module');
+mustExist('artifacts/boltnew-app/src/lib/sent-like-insert.test.ts', '44_sent_like_insert_tests');
+mustExist('artifacts/boltnew-app/src/lib/contact-share-event.ts', '44_contact_share_event_module');
+mustExist('artifacts/boltnew-app/src/lib/contact-share-event.test.ts', '44_contact_share_event_tests');
+mustExist('artifacts/boltnew-app/src/lib/pending-hearts.ts', '44_pending_hearts_module');
+mustExist('artifacts/boltnew-app/src/lib/pending-hearts.test.ts', '44_pending_hearts_tests');
+mustExist('artifacts/boltnew-app/src/lib/user-signal-merge.ts', '44_user_signal_merge_module');
+mustExist('artifacts/boltnew-app/src/lib/realtime-row-upsert.ts', '44_realtime_row_upsert_module');
+mustExist('artifacts/boltnew-app/src/lib/settings-ready-poll.ts', '44_settings_ready_poll_module');
+mustExist('artifacts/boltnew-app/src/lib/profile-view-record.ts', '44_profile_view_record_module');
+mustExist('artifacts/boltnew-app/src/lib/notification-active.ts', '44_notification_active_module');
+mustMatch('artifacts/boltnew-app/src/App.tsx', '44_app_wires_sse_fallback_hook', [
+  /useSseFallbackPoll/,
+  /planSentLikeInsert/,
+  /planContactShareEvent/,
+  /countPendingHearts/,
+  /planFunctionsLockTransition/,
+  /mergeUserSignalRow/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/App.tsx', '44_app_no_inline_sse_fallback_interval', [
+  /setInterval\(tick,\s*connStatus === 'error' \? 5_000 : 8_000\)/,
+]);
+mustMatch('artifacts/boltnew-app/src/lib/heart-toast.ts', '44_incoming_heart_notif_planner', [
+  /planIncomingHeartBottomNotif/,
+]);
+mustMatch('artifacts/boltnew-app/src/lib/functions-lock.ts', '44_functions_lock_transition_planner', [
+  /planFunctionsLockTransition/,
+]);
+mustMatch('artifacts/boltnew-app/src/lib/entry-gate.ts', '44_entry_password_reset_planners', [
+  /planEntryPasswordState/,
+  /shouldApplyAdminResetSignal/,
+]);
+mustExist('artifacts/boltnew-app/src/hooks/useDarkModeStorageSync.ts', '44_use_dark_mode_storage_sync');
+mustMatch('artifacts/boltnew-app/src/App.tsx', '44_app_wires_dark_mode_sync_hook', [
+  /useDarkModeStorageSync/,
+]);
+mustMatch('ARCHITECTURE.md', '44_architecture_app_peel_progress', [
+  /App peel progress/,
+  /useSseFallbackPoll/,
+  /sent-like-insert/,
+]);
 
 console.log('\n=== verify-recurrence-guards ===\n');
 for (const r of results) {

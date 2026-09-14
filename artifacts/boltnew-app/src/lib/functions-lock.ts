@@ -1,4 +1,4 @@
-import type { MainTab } from '../types/app';
+import type { MainTab, View } from '../types/app';
 
 /** 행사 중 매칭/소셜 정지 — MY(상태·채팅)·단톡. 통계·랭킹·설정 탭은 잠그지 않음. */
 export const FUNCTIONS_LOCK_TOAST = '🔒 현재 잠금 중';
@@ -39,4 +39,78 @@ export function isRetryableOpError(error: unknown): boolean {
   if (e.code === 'BLOCKED' || e.code === 'FUNCTIONS_LOCKED' || e.code === 'FORBIDDEN') return false;
   if (e.code === 'INVALID_INPUT' || e.code === 'RATE_LIMIT') return false;
   return true;
+}
+
+
+export type FunctionsLockTransitionInput = {
+  wasLocked: boolean;
+  nowLocked: boolean;
+  view: View | string;
+  mainTab: MainTab;
+  hasFortuneModal: boolean;
+  hasLikeConfirm: boolean;
+  hasContactShare: boolean;
+};
+
+export type FunctionsLockTransitionPlan = {
+  /** Unlock edge: show unlock toast */
+  showUnlockToast: boolean;
+  /** Newly locked and something social was open */
+  showKickToast: boolean;
+  closeChatOrGroup: boolean;
+  resetMainTabToProfiles: boolean;
+  clearFortune: boolean;
+  clearLikeConfirm: boolean;
+  clearContactShare: boolean;
+};
+
+/**
+ * Pure planner for lock/unlock edge effects.
+ * App applies setState / closeChat — hook owns no feature state.
+ */
+export function planFunctionsLockTransition(
+  input: FunctionsLockTransitionInput,
+): FunctionsLockTransitionPlan {
+  if (!input.nowLocked) {
+    return {
+      showUnlockToast: input.wasLocked,
+      showKickToast: false,
+      closeChatOrGroup: false,
+      resetMainTabToProfiles: false,
+      clearFortune: false,
+      clearLikeConfirm: false,
+      clearContactShare: false,
+    };
+  }
+  if (input.wasLocked) {
+    return {
+      showUnlockToast: false,
+      showKickToast: false,
+      closeChatOrGroup: false,
+      resetMainTabToProfiles: false,
+      clearFortune: false,
+      clearLikeConfirm: false,
+      clearContactShare: false,
+    };
+  }
+  const closeChatOrGroup = input.view === 'chat' || input.view === 'group-chat';
+  const resetMainTabToProfiles = SOCIAL_LOCKED_TABS.has(input.mainTab);
+  const clearFortune = input.hasFortuneModal;
+  const clearLikeConfirm = input.hasLikeConfirm;
+  const clearContactShare = input.hasContactShare;
+  const kicked =
+    closeChatOrGroup
+    || resetMainTabToProfiles
+    || clearFortune
+    || clearLikeConfirm
+    || clearContactShare;
+  return {
+    showUnlockToast: false,
+    showKickToast: kicked,
+    closeChatOrGroup,
+    resetMainTabToProfiles,
+    clearFortune,
+    clearLikeConfirm,
+    clearContactShare,
+  };
 }

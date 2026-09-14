@@ -5,6 +5,8 @@ import {
   shouldShowNicknameSetup,
   shouldShowRecoveryScreen,
   shouldAutoSkipWaiting,
+  planEntryPasswordState,
+  shouldApplyAdminResetSignal,
 } from './entry-gate';
 
 describe('shouldShowWaitingOverlay', () => {
@@ -199,5 +201,24 @@ describe('shouldShowRecoveryScreen', () => {
       profileBoot: 'recover',
       view: 'entry-recover',
     })).toBe(false);
+  });
+});
+
+
+describe('planEntryPasswordState', () => {
+  it('empty password is verified', () => {
+    expect(planEntryPasswordState('', null)).toEqual({ entryPassword: '', entryVerified: true });
+  });
+  it('matches stored verification', () => {
+    expect(planEntryPasswordState('pw', 'pw').entryVerified).toBe(true);
+    expect(planEntryPasswordState('pw', 'other').entryVerified).toBe(false);
+  });
+});
+
+describe('shouldApplyAdminResetSignal', () => {
+  it('fires when server differs', () => {
+    expect(shouldApplyAdminResetSignal('r2', 'r1')).toBe(true);
+    expect(shouldApplyAdminResetSignal('r1', 'r1')).toBe(false);
+    expect(shouldApplyAdminResetSignal(null, 'r1')).toBe(false);
   });
 });

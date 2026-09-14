@@ -71,3 +71,23 @@ export function shouldShowRecoveryScreen(opts: {
   if (opts.profileBoot === 'checking') return false;
   return opts.profileBoot === 'recover' || opts.view === 'entry-recover';
 }
+
+/** Derive entry gate password + verified flag from settings / SSE. */
+export function planEntryPasswordState(
+  entryPassword: string | null | undefined,
+  verifiedStored: string | null | undefined,
+): { entryPassword: string; entryVerified: boolean } {
+  const ep = entryPassword ?? '';
+  return {
+    entryPassword: ep,
+    entryVerified: !ep || verifiedStored === ep,
+  };
+}
+
+/** Admin reset_signal changed vs local last-seen key. */
+export function shouldApplyAdminResetSignal(
+  serverReset: string | null | undefined,
+  localReset: string | null | undefined,
+): boolean {
+  return Boolean(serverReset && serverReset !== localReset);
+}

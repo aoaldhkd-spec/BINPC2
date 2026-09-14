@@ -21,6 +21,7 @@ Prefer **single Render instance**. Multi-instance는 NOTIFY로 일부 동기화�
 | `artifacts/boltnew-app/src/hooks/useHearts.ts` | 하트/좋아요·연락처 공유 |
 | `artifacts/boltnew-app/src/hooks/useGroupChat.ts` | 단체 채팅 |
 | `artifacts/boltnew-app/src/hooks/useParticipantSoTResync.ts` | 포그라운드/SSE 재연결 SoT 배선 (App은 콜백만) |
+| `artifacts/boltnew-app/src/hooks/useSseFallbackPoll.ts` | SSE unhealthy 폴링 fallback (App은 로더만) |
 | `artifacts/boltnew-app/src/lib/localdb.ts` | SSE·`/op`·auth 토큰·Supabase 에뮬 |
 | `artifacts/boltnew-app/src/lib/net-health.ts` | 네트워크 UI·reconnect·backoff |
 | `artifacts/boltnew-app/src/lib/diag.ts` | 관측/`__BINPC_DIAG__` |
@@ -109,10 +110,10 @@ Coding skeleton is **OK to attach/detach features incrementally** across the **e
 | **entry** | gate / password / recovery | `entry-gate.ts`, `EntryGateScreen`, `ProfileRecoveryScreen` |
 | **waiting** | session inactive overlay | `WaitingOverlay`, `/ready` + `session-ready-settings.ts` |
 | **main** | tabs shell (profiles stay mounted under overlays) | `MainScreen.tsx`, `App.tsx` view routing |
-| **hearts** | likes / received / contact share | `useHearts.ts`, `received-like-update.ts`, heart dialogs |
+| **hearts** | likes / received / contact share | `useHearts.ts`, `received-like-update.ts`, `sent-like-insert.ts`, `pending-hearts.ts`, `heart-toast.ts`, heart dialogs |
 | **chat** | 1:1 list + room | `useChat.ts`, `chat-*.ts`, `ChatScreen.tsx` |
 | **group** | catalog + room | `useGroupChat.ts`, `group-*.ts`, `GroupChatScreen.tsx` |
-| **contact** | share / view / QR | contact modals + `loadContactShareData` |
+| **contact** | share / view / QR | contact modals + `contact-share-event.ts` + `loadContactShareData` |
 | **admin / test** | separate shells | `AdminApp.tsx`, `TestDashboard.tsx` |
 
 Detach = stop wiring the domain hook/callbacks into `App.tsx` / screens; keep pure `lib/*` planners so re-attach is additive.
@@ -121,21 +122,28 @@ Detach = stop wiring the domain hook/callbacks into `App.tsx` / screens; keep pu
 
 | Layer | Status |
 |-------|--------|
-| Pure helpers (`lib/chat-*.ts`, `participant-sot-resync.ts`, `session-ready-settings.ts`, `received-like-update.ts`, `entry-gate.ts`, …) | Modular — easy attach/detach |
-| Domain hooks (`useChat`, `useHearts`, `useGroupChat`, `useParticipantSoTResync`) | Mostly modular |
+| Pure helpers (`lib/chat-*.ts`, `participant-sot-resync.ts`, `session-ready-settings.ts`, `received-like-update.ts`, `sent-like-insert.ts`, `contact-share-event.ts`, `pending-hearts.ts`, `sse-fallback-poll.ts`, `user-signal-merge.ts`, `realtime-row-upsert.ts`, `entry-gate.ts`, …) | Modular — easy attach/detach |
+| Domain hooks (`useChat`, `useHearts`, `useGroupChat`, `useParticipantSoTResync`, `useSseFallbackPoll`, `useDarkModeStorageSync`) | Mostly modular |
 | Screens | Prefer **flags + callbacks** (`onRefreshStatus`, `onRefreshChat`, guarded open/join) — do **not** grow App `useState` for peels |
-| `App.tsx` (~2k lines) | Still the wiring shell (session, overlays, SSE channel fan-in) — peels go out as planners/hooks |
+| `App.tsx` (~2.1k lines, peeling) | Wiring shell (session, overlays, SSE fan-in apply) — more planners/hooks extracted |
 
 ### SoT / resync (whole-app domains)
 
 `planParticipantSoTReload` + `runParticipantSoTReload` cover **profiles / chatList / likes / receivedLikes / contactShares / sessionReady**.  
-`useParticipantSoTResync` owns visibility + SSE-reconnect effects; App only passes loaders + `applySessionReady`.
+`useParticipantSoTResync` owns visibility + SSE-reconnect effects; App only passes loaders + `applySessionReady`.  
+`useSseFallbackPoll` owns unhealthy-SSE interval reloads (same loader set).
 
-**Correctness invariants:** real SSE reconnect always reloads (coalesce-only); visibility still skippable when SSE healthy + fresh; visibility always refreshes `/ready` session/lock even when data SoT is skipped.
+**Correctness invariants:** real SSE reconnect always reloads (coalesce-only); visibility still skippable when SSE healthy + fresh; visibility always refreshes `/ready` session/lock even when data SoT is skipped; fallback poll skips when EventSource healthy (UI lag).
+
+### App peel progress (incremental)
+
+Moved out of `App.tsx` (planners/hooks, behavior unchanged): SoT resync, SSE fallback poll, dark-mode storage sync, sent/received like planners + toast payloads, contact-share events, pending-hearts badge count, functions-lock kick plan, user-signal merge, realtime row upserts, settings `/ready` poll gap, profile-view debounce, broadcast notif helpers, entry password/reset planners.
+
+Still in App (intentionally): mount settings bootstrap + reset wipe side-effects, loading-main profile boot machine, full SSE channel subscribe fan-in (apply only thinned), JSX screen wiring.
 
 ### Next incremental steps (no big-bang rewrite)
 
-1. Keep extracting planners from remaining App effects (SSE channel merges, privacy loads).
+1. Further thin remaining App SSE subscribe blocks if more pure apply helpers appear.
 2. Screens keep flags/callbacks only — no new App feature state for modularity work.
 3. Further narrow hot `select('*')` paths (profiles/signals) the same way as chat-list columns.
 

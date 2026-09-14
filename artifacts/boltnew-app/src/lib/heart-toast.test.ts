@@ -1,32 +1,60 @@
-import { describe, expect, it } from 'vitest';
-import { incomingInterestToast, isIncomingHeartToastTarget, MUTUAL_HEART_TOAST } from './heart-toast';
+import { describe, it, expect } from 'vitest';
+import {
+  isIncomingHeartToastTarget,
+  incomingInterestToast,
+  planIncomingHeartBottomNotif,
+  MUTUAL_HEART_TOAST,
+} from './heart-toast';
 
 describe('isIncomingHeartToastTarget', () => {
-  it('shows the toast only to the liked recipient', () => {
-    const row = { liker_id: 'A', liked_id: 'B' };
-    expect(isIncomingHeartToastTarget('B', row)).toBe(true);
-    expect(isIncomingHeartToastTarget('A', row)).toBe(false);
-    expect(isIncomingHeartToastTarget('C', row)).toBe(false);
-    expect(isIncomingHeartToastTarget(null, row)).toBe(false);
-  });
-
-  it('never toasts the sender even if the liked_id filter is missing', () => {
-    expect(isIncomingHeartToastTarget('A', { liker_id: 'A', liked_id: 'A' })).toBe(false);
-  });
-
-  it('A→B heart toasts B only; B→A heart toasts A only', () => {
-    expect(isIncomingHeartToastTarget('B', { liker_id: 'A', liked_id: 'B' })).toBe(true);
-    expect(isIncomingHeartToastTarget('A', { liker_id: 'A', liked_id: 'B' })).toBe(false);
-    expect(isIncomingHeartToastTarget('A', { liker_id: 'B', liked_id: 'A' })).toBe(true);
-    expect(isIncomingHeartToastTarget('B', { liker_id: 'B', liked_id: 'A' })).toBe(false);
+  it('requires liked_id === me and liker !== me', () => {
+    expect(isIncomingHeartToastTarget('me', { liker_id: 'u2', liked_id: 'me' })).toBe(true);
+    expect(isIncomingHeartToastTarget('me', { liker_id: 'me', liked_id: 'me' })).toBe(false);
+    expect(isIncomingHeartToastTarget('me', { liker_id: 'u2', liked_id: 'u2' })).toBe(false);
+    expect(isIncomingHeartToastTarget(null, { liker_id: 'u2', liked_id: 'me' })).toBe(false);
   });
 });
 
-describe('mutual heart toast copy', () => {
-  it('says 서로 하트, not 서로 시그널', () => {
-    expect(MUTUAL_HEART_TOAST).toContain('서로 하트');
-    expect(MUTUAL_HEART_TOAST).not.toContain('서로 시그널');
-    expect(incomingInterestToast('상대')).toContain('하트를 보냈어요');
-    expect(incomingInterestToast('상대')).not.toContain('시그널');
+describe('planIncomingHeartBottomNotif', () => {
+  it('anon when no liker', () => {
+    expect(planIncomingHeartBottomNotif({ heartType: 'green' })).toEqual({
+      type: 'heart',
+      nickname: '누군가',
+      heartType: 'green',
+    });
+  });
+
+  it('mutual when interest both ways', () => {
+    expect(planIncomingHeartBottomNotif({
+      likerId: 'u2',
+      heartType: 'red',
+      nickname: 'Neo',
+      sentHeartsToLiker: new Set(['blue']),
+    })).toEqual({
+      type: 'heart',
+      nickname: 'Neo',
+      profileId: 'u2',
+      message: MUTUAL_HEART_TOAST,
+      heartMutual: true,
+    });
+  });
+
+  it('interest toast when one-way', () => {
+    const n = planIncomingHeartBottomNotif({
+      likerId: 'u2',
+      heartType: 'red',
+      nickname: 'Neo',
+      sentHeartsToLiker: new Set(['green']),
+    });
+    expect(n.message).toBe(incomingInterestToast('Neo'));
+    expect(n.heartMutual).toBeUndefined();
+  });
+
+  it('green compliment without mutual message', () => {
+    expect(planIncomingHeartBottomNotif({
+      likerId: 'u2',
+      heartType: 'green',
+      nickname: 'Neo',
+    })).toEqual({ type: 'heart', nickname: 'Neo', heartType: 'green' });
   });
 });

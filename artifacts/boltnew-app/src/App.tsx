@@ -4,6 +4,8 @@ import {
 } from 'lucide-react';
 import { supabase, setLocalDbUserId, setDeviceRecoveryPin, fetchAndSetSseToken, getDeviceSecret, isSseHealthy, ensureWriteSession } from './lib/supabase';
 import { useParticipantSoTResync } from './hooks/useParticipantSoTResync';
+import { useSseFallbackPoll } from './hooks/useSseFallbackPoll';
+import { useDarkModeStorageSync } from './hooks/useDarkModeStorageSync';
 import type { SessionReadySettingsPatch } from './lib/session-ready-settings';
 import { diag } from './lib/diag';
 import { subscribeNetUi, resetNetUiForRetry, type NetUiStatus } from './lib/net-health';
@@ -16,15 +18,31 @@ import {
   shouldShowNicknameSetup,
   shouldShowRecoveryScreen,
   shouldAutoSkipWaiting,
+  planEntryPasswordState,
+  shouldApplyAdminResetSignal,
 } from './lib/entry-gate';
 import { HeartType } from './lib/constants';
 import {
   hasInterestHeart,
   isInterestHeart,
 } from './lib/signal-match';
-import { incomingInterestToast, isIncomingHeartToastTarget, MUTUAL_HEART_TOAST } from './lib/heart-toast';
+import { isIncomingHeartToastTarget, MUTUAL_HEART_TOAST, planIncomingHeartBottomNotif } from './lib/heart-toast';
 import { planReceivedLikeUpdate, preferReceivedHeartType } from './lib/received-like-update';
-import { FUNCTIONS_LOCK_KICK_TOAST, FUNCTIONS_LOCK_TOAST, FUNCTIONS_UNLOCK_TOAST, SOCIAL_LOCKED_TABS, parseFunctionsLocked } from './lib/functions-lock';
+import { planSentLikeInsert, shouldKeepExistingSentHeartType, planSentLikeStatusNotif } from './lib/sent-like-insert';
+import { planContactShareEvent, pruneSeenIdSet } from './lib/contact-share-event';
+import { countPendingHearts } from './lib/pending-hearts';
+import { mergeUserSignalRow } from './lib/user-signal-merge';
+import {
+  upsertById,
+  upsertReceivedContactShare,
+  upsertReceivedLikerFront,
+  filterBlockedUsersForMe,
+  isBlockedRowForMe,
+} from './lib/realtime-row-upsert';
+import { shouldRunSettingsReadyPoll } from './lib/settings-ready-poll';
+import { shouldRecordProfileView } from './lib/profile-view-record';
+import { shouldShowBroadcastNotif, dismissActiveNotifIfMatch } from './lib/notification-active';
+import { FUNCTIONS_LOCK_KICK_TOAST, FUNCTIONS_LOCK_TOAST, FUNCTIONS_UNLOCK_TOAST, SOCIAL_LOCKED_TABS, parseFunctionsLocked, planFunctionsLockTransition } from './lib/functions-lock';
 // ─── 분리된 타입·유틸·컴포넌트 imports ────────────────────────────────────────
 import type {
   Profile, ContactShare,
@@ -260,13 +278,7 @@ function App() {
   const [entryVerified, setEntryVerified] = useState(false);
   const [darkMode, setDarkMode] = useState(() => ls.getItem('dark_mode') === '1');
   // 테마 전환 시 dark_mode 동기화 (theme.tsx에서 storage 이벤트 발화)
-  useEffect(() => {
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === 'dark_mode') setDarkMode(e.newValue === '1');
-    };
-    window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
-  }, []);
+  useDarkModeStorageSync(setDarkMode);
 
   // loading-main: 내 프로필(닉네임+고유번호) 확인될 때만 main — 없으면 복구/등록 화면
   useEffect(() => {
@@ -357,26 +369,7 @@ function App() {
     };
   }, [view]);
 
-  // SSE 연결 실패 시 polling fallback — SSE 없이도 프로필·채팅·하트 최소 기능 유지
-  // reconnecting/error 동안 주기적 DB 재동기화 (모달은 error일 때만 강하게 표시)
-  useEffect(() => {
-    if (connStatus === 'ok' || !currentUserId) return;
-    const uid = currentUserId;
-    const tick = () => {
-      // UI status can lag behind a healthy EventSource — skip duplicate full refetches
-      // (onSseReconnect already resyncs when the link comes back).
-      if (isSseHealthy()) return;
-      loadProfilesRef.current().catch(() => {});
-      loadChatListRef.current?.(uid).catch(() => {});
-      loadGroupChatsRef.current?.(uid).catch(() => {});
-      loadReceivedLikesRef.current?.(uid).catch(() => {});
-      loadLikesRef.current?.(uid).catch(() => {});
-      loadContactShareDataRef.current?.(uid).catch(() => {});
-    };
-    tick();
-    const pollId = setInterval(tick, connStatus === 'error' ? 5_000 : 8_000);
-    return () => { clearInterval(pollId); };
-  }, [connStatus, currentUserId]);
+  // SSE fallback poll: useSseFallbackPoll (wired after loaders below)
 
   // Track user's current table number for notification targeting (ref for stable access in channel callbacks)
 
@@ -665,38 +658,30 @@ function App() {
   useEffect(() => {
     const wasLocked = functionsLockedPrevRef.current;
     functionsLockedPrevRef.current = functionsLocked;
-    if (!functionsLocked) {
-      if (wasLocked) {
-        showFunctionsLockToast(FUNCTIONS_UNLOCK_TOAST);
-      }
+    const plan = planFunctionsLockTransition({
+      wasLocked,
+      nowLocked: functionsLocked,
+      view,
+      mainTab,
+      hasFortuneModal: Boolean(fortuneModalTarget),
+      hasLikeConfirm: Boolean(likeConfirmTarget),
+      hasContactShare: Boolean(contactShareTarget),
+    });
+    if (plan.showUnlockToast) {
+      showFunctionsLockToast(FUNCTIONS_UNLOCK_TOAST);
       return;
     }
-    if (wasLocked) return;
-    let kicked = false;
-    if (view === 'chat' || view === 'group-chat') {
+    if (plan.closeChatOrGroup) {
       chatIdRef.current = null;
       setChatId(null);
       closeGroupChat();
       setView('main');
-      kicked = true;
     }
-    if (SOCIAL_LOCKED_TABS.has(mainTab)) {
-      setMainTab('profiles');
-      kicked = true;
-    }
-    if (fortuneModalTarget) {
-      setFortuneModalTarget(null);
-      kicked = true;
-    }
-    if (likeConfirmTarget) {
-      setLikeConfirmTarget(null);
-      kicked = true;
-    }
-    if (contactShareTarget) {
-      setContactShareTarget(null);
-      kicked = true;
-    }
-    if (kicked) showFunctionsLockToast(FUNCTIONS_LOCK_KICK_TOAST);
+    if (plan.resetMainTabToProfiles) setMainTab('profiles');
+    if (plan.clearFortune) setFortuneModalTarget(null);
+    if (plan.clearLikeConfirm) setLikeConfirmTarget(null);
+    if (plan.clearContactShare) setContactShareTarget(null);
+    if (plan.showKickToast) showFunctionsLockToast(FUNCTIONS_LOCK_KICK_TOAST);
   }, [functionsLocked, view, mainTab, fortuneModalTarget, likeConfirmTarget, contactShareTarget, chatIdRef, closeGroupChat, setChatId, setContactShareTarget, setLikeConfirmTarget, showFunctionsLockToast]);
 
   // ─── 차단·숨기기 처리 ─────────────────────────────────────────────────────
@@ -739,7 +724,7 @@ function App() {
       // 실패 시 재로드
       supabase.from('blocked_users').select('*').then(({ data }: { data: unknown }) => {
         if (Array.isArray(data) && currentUserId) {
-          setBlockedUsers((data as BlockedUser[]).filter(b => b.user_id === currentUserId || b.target_id === currentUserId));
+          setBlockedUsers(filterBlockedUsersForMe(data as BlockedUser[], currentUserId));
         }
       }).catch(() => {});
     }
@@ -749,12 +734,16 @@ function App() {
   // 카드 사진 탭(뒤집기)과 상세/사주 오픈이 연속되면 같은 상대에 대해 중복 INSERT 방지
   const recentProfileViewsRef = useRef<Map<string, number>>(new Map());
   const recordProfileView = useCallback(async (viewedId: string) => {
-    if (!currentUserId || viewedId === currentUserId) return;
     const now = Date.now();
     const last = recentProfileViewsRef.current.get(viewedId) ?? 0;
-    if (now - last < 60_000) return;
+    if (!shouldRecordProfileView({
+      viewerId: currentUserId,
+      viewedId,
+      lastRecordedAt: last,
+      now,
+    })) return;
     recentProfileViewsRef.current.set(viewedId, now);
-    const row: ProfileView = { id: crypto.randomUUID(), viewer_id: currentUserId, viewed_id: viewedId, viewed_at: new Date().toISOString() };
+    const row: ProfileView = { id: crypto.randomUUID(), viewer_id: currentUserId!, viewed_id: viewedId, viewed_at: new Date().toISOString() };
     try { await supabase.from('profile_views').insert(row as never); } catch {}
   }, [currentUserId]);
 
@@ -850,16 +839,19 @@ function App() {
 
     const applySettings = (data: Record<string, unknown> | null) => {
       if (cancelled || !data) return;
-      const ep = (data.entry_password as string | null | undefined) ?? '';
+      const entry = planEntryPasswordState(
+        data.entry_password as string | null | undefined,
+        ls.getItem(ENTRY_VERIFIED_KEY),
+      );
       const nextActive = Boolean(data.session_active);
       sessionActiveRef.current = nextActive;
       setSessionActive(nextActive);
-      setEntryPassword(ep);
-      setEntryVerified(!ep || ls.getItem(ENTRY_VERIFIED_KEY) === ep);
+      setEntryPassword(entry.entryPassword);
+      setEntryVerified(entry.entryVerified);
       const localReset = ls.getItem(MATCHING_LAST_RESET_KEY);
       const serverReset = (data.reset_signal as string | null | undefined) ?? null;
-      if (serverReset && serverReset !== localReset) {
-        applyResetSignal(serverReset);
+      if (shouldApplyAdminResetSignal(serverReset, localReset)) {
+        applyResetSignal(serverReset!);
         return;
       }
       setTimerEndAt((data.timer_end_at as string | null | undefined) ?? null);
@@ -908,11 +900,14 @@ function App() {
     void loadSettings();
     let lastReadyAt = 0;
     const settingsPoll = setInterval(() => {
-      // SSE 가 살아 있으면 설정은 app_settings 채널로 온다. 4초 /ready 를 150명이
-      // 5시간 때리면 서버만 바빠지고 기능은 그대로다. 끊겼을 때만 빠르게 폴링.
-      const gap = isSseHealthy() ? 30_000 : 4_000;
-      if (Date.now() - lastReadyAt < gap) return;
-      lastReadyAt = Date.now();
+      // SSE 가 살아 있으면 설정은 app_settings 채널로 온다. 끊겼을 때만 빠르게 폴링.
+      const now = Date.now();
+      if (!shouldRunSettingsReadyPoll({
+        now,
+        lastReadyAt,
+        sseHealthy: isSseHealthy(),
+      })) return;
+      lastReadyAt = now;
       fetch('/api/db/ready', { signal: AbortSignal.timeout(5_000) })
         .then(r => r.ok ? r.json() : null)
         .then((json: { settings?: Record<string, unknown> } | null) => {
@@ -933,8 +928,8 @@ function App() {
           functions_locked?: boolean;
         };
         // Admin triggered a full reset: wipe local user identity and force back to nickname setup
-        if (p.reset_signal && p.reset_signal !== ls.getItem(MATCHING_LAST_RESET_KEY)) {
-          applyResetSignal(p.reset_signal);
+        if (shouldApplyAdminResetSignal(p.reset_signal, ls.getItem(MATCHING_LAST_RESET_KEY))) {
+          applyResetSignal(p.reset_signal!);
           return;
         }
         if (typeof p.session_active === 'boolean') {
@@ -960,9 +955,9 @@ function App() {
         setTimerLabel(p.timer_label ?? null);
         if (p.functions_locked != null) setFunctionsLocked(parseFunctionsLocked(p.functions_locked));
         if (p.entry_password !== undefined) {
-          const ep = p.entry_password ?? '';
-          setEntryPassword(ep);
-          setEntryVerified(!ep || ls.getItem(ENTRY_VERIFIED_KEY) === ep);
+          const entry = planEntryPasswordState(p.entry_password, ls.getItem(ENTRY_VERIFIED_KEY));
+          setEntryPassword(entry.entryPassword);
+          setEntryVerified(entry.entryVerified);
         }
       })
       .subscribe();
@@ -970,18 +965,17 @@ function App() {
       .channel('notifications-user')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         const n = payload.new as { id: string; message: string; type: string; target: string; is_active: boolean };
-        if (!n.is_active) return;
-        if (n.target === 'all') setActiveNotif(n);
+        if (shouldShowBroadcastNotif(n)) setActiveNotif(n);
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notifications' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         // 관리자가 알림을 비활성화 시 현재 표시 중인 알림 즉시 닫기
         const n = payload.new as { id: string; is_active: boolean };
-        if (!n.is_active) setActiveNotif(prev => prev?.id === n.id ? null : prev);
+        if (!n.is_active) setActiveNotif(prev => dismissActiveNotifIfMatch(prev, n.id));
       })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'notifications' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         // 관리자가 알림을 삭제 시 표시 중이면 즉시 닫기
         const n = payload.old as { id: string };
-        setActiveNotif(prev => prev?.id === n.id ? null : prev);
+        setActiveNotif(prev => dismissActiveNotifIfMatch(prev, n.id));
       })
       .subscribe();
 
@@ -992,29 +986,13 @@ function App() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'contact_share_events' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
         const row = payload.new as { id?: string; from_user_id: string; to_user_id: string; event_type: string; created_at?: string };
         const myId = userIdRef.current;
-        if (!myId || row.to_user_id !== myId) return;
-        // 동일 이벤트 중복 처리 방지
-        const eventKey = row.id ?? `${row.from_user_id}:${row.event_type}:${row.created_at}`;
-        if (seenContactEventIdsRef.current.has(eventKey)) return;
-        seenContactEventIdsRef.current.add(eventKey);
-        if (seenContactEventIdsRef.current.size > 500) {
-          const arr = [...seenContactEventIdsRef.current];
-          seenContactEventIdsRef.current = new Set(arr.slice(-300));
-        }
-        const eventAgeMs = row.created_at ? Date.now() - new Date(row.created_at).getTime() : 0;
-        // 폰 시계가 서버보다 빠르면 live 이벤트도 30초+로 보여 토스트가 스킵됨.
-        // 음수(폰이 느림)는 live. 2분 초과만 링 재전송으로 본다.
-        const isStaleReplay = eventAgeMs > 120_000;
-        if (row.event_type === 'accepted') {
-          // replay된 이벤트가 오래됐어도 토스트만 생략하고 durable contact_shares
-          // 상태는 반드시 DB에서 복구한다.
-          void loadContactShareData(myId);
-          if (isStaleReplay) return;
-          setShareEventNotif({ type: 'accepted', fromUserId: row.from_user_id });
-          shareNotifTimerIds.push(setTimeout(() => setShareEventNotif(null), 5000));
-        } else if (row.event_type === 'rejected') {
-          if (isStaleReplay) return;
-          setShareEventNotif({ type: 'rejected', fromUserId: row.from_user_id });
+        const plan = planContactShareEvent(row, myId, { seenIds: seenContactEventIdsRef.current });
+        if (plan.ignore) return;
+        seenContactEventIdsRef.current.add(plan.eventKey);
+        seenContactEventIdsRef.current = pruneSeenIdSet(seenContactEventIdsRef.current);
+        if (plan.loadContactShares && myId) void loadContactShareData(myId);
+        if (plan.notif) {
+          setShareEventNotif(plan.notif);
           shareNotifTimerIds.push(setTimeout(() => setShareEventNotif(null), 5000));
         }
       })
@@ -1060,22 +1038,7 @@ function App() {
   }, []);
 
   const handleUserSignalUpdate = useCallback((row: UserSignal) => {
-    setUserSignals(prev => {
-      const idx = prev.findIndex(s => s.user_id === row.user_id);
-      if (idx >= 0) {
-        const cur = prev[idx];
-        const keys = new Set([...Object.keys(cur as object), ...Object.keys(row as object)]);
-        let same = true;
-        for (const k of keys) {
-          if ((cur as Record<string, unknown>)[k] !== (row as Record<string, unknown>)[k]) { same = false; break; }
-        }
-        if (same) return prev;
-        const next = [...prev];
-        next[idx] = row;
-        return next;
-      }
-      return [...prev, row];
-    });
+    setUserSignals(prev => mergeUserSignalRow(prev, row, 'upsert'));
   }, []);
 
   const refreshProfilesTab = useCallback(() => {
@@ -1219,25 +1182,28 @@ function App() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'likes', filter: `liker_id=eq.${currentUserId}` },
         (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
           const row = payload.new as { id?: string; liked_id: string; heart_type: HeartType; created_at?: string };
-          setLikedIds((prev) => new Set([...prev, row.liked_id]));
-          setSentHeartTypes((prev) => {
-            const incoming = row.heart_type ?? 'red';
-            const existing = prev.get(row.liked_id);
-            if (incoming === 'green' && existing && isInterestHeart(existing)) return prev;
-            return new Map(prev).set(row.liked_id, incoming);
+          const plan = planSentLikeInsert(row, {
+            counterpartReceivedHeartType: receivedHeartTypesRef.current.get(row.liked_id),
           });
-          setLikeStatuses(prev => prev.has(row.liked_id) ? prev : new Map(prev).set(row.liked_id, 'pending'));
+          if (!plan) return;
+          setLikedIds((prev) => new Set([...prev, plan.likedId]));
+          setSentHeartTypes((prev) => {
+            const existing = prev.get(plan.likedId);
+            if (shouldKeepExistingSentHeartType(existing, plan.heartType)) return prev;
+            return new Map(prev).set(plan.likedId, plan.heartType);
+          });
+          setLikeStatuses(prev => prev.has(plan.likedId) ? prev : new Map(prev).set(plan.likedId, 'pending'));
           setSentHeartsPerPerson(prev => {
             const next = new Map(prev);
-            const s = new Set(next.get(row.liked_id) ?? []);
-            s.add(row.heart_type ?? 'red');
-            next.set(row.liked_id, s);
+            const s = new Set(next.get(plan.likedId) ?? []);
+            s.add(plan.heartType);
+            next.set(plan.likedId, s);
             return next;
           });
           // 내가 하트를 보냈고 상대도 이미 하트를 보냈으면 서로 하트 (수신자 전용 토스트와 대칭)
-          if (isInterestHeart(row.heart_type) && isInterestHeart(receivedHeartTypesRef.current.get(row.liked_id))) {
-            const nick = profilesRef.current.find(p => p.id === row.liked_id)?.nickname ?? '상대방';
-            setBottomNotif({ type: 'heart', heartMutual: true, nickname: nick, profileId: row.liked_id, message: MUTUAL_HEART_TOAST });
+          if (plan.showMutualToast) {
+            const nick = profilesRef.current.find(p => p.id === plan.likedId)?.nickname ?? '상대방';
+            setBottomNotif({ type: 'heart', heartMutual: true, nickname: nick, profileId: plan.likedId, message: MUTUAL_HEART_TOAST });
           }
           traceRealtimeStateMerge('hearts', row);
         })
@@ -1245,17 +1211,15 @@ function App() {
         (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
           const updated = payload.new as { id?: string; liked_id: string; status: string; created_at?: string };
           setLikeStatuses(prev => new Map(prev).set(updated.liked_id, updated.status));
-          if (updated.status === 'rejected') {
-            const rejectedProfile = profilesRef.current.find(p => p.id === updated.liked_id);
-            const nick = rejectedProfile?.nickname ?? '상대방';
-            setRejectionNotif(nick);
+          const statusNick = profilesRef.current.find(p => p.id === updated.liked_id)?.nickname ?? '상대방';
+          const statusNotif = planSentLikeStatusNotif(updated.status, statusNick);
+          if (statusNotif?.kind === 'rejected') {
+            setRejectionNotif(statusNotif.nickname);
             rejNotifTimerIds.push(setTimeout(() => setRejectionNotif(null), 5000));
-          } else if (updated.status === 'accepted') {
+          } else if (statusNotif?.kind === 'accepted') {
             loadContactShareData(currentUserId);
-            const acceptedProfile = profilesRef.current.find(p => p.id === updated.liked_id);
-            const nick = acceptedProfile?.nickname ?? '상대방';
-            setBottomNotif({ type: 'chat', nickname: nick, message: `💚 ${nick}님이 하트를 수락했어요` });
-            rejNotifTimerIds.push(setTimeout(() => setBottomNotif(prev => prev?.message === `💚 ${nick}님이 하트를 수락했어요` ? null : prev), 5000));
+            setBottomNotif({ type: 'chat', nickname: statusNotif.nickname, message: statusNotif.message });
+            rejNotifTimerIds.push(setTimeout(() => setBottomNotif(prev => prev?.message === statusNotif.message ? null : prev), 5000));
           }
           traceRealtimeStateMerge('hearts', updated);
         })
@@ -1270,29 +1234,23 @@ function App() {
               const incomingHt = row.heart_type ?? 'red';
               setReceivedHeartTypes(prev => {
                 const existing = prev.get(likerId);
-                if (incomingHt === 'green' && existing && isInterestHeart(existing)) return prev;
+                if (shouldKeepExistingSentHeartType(existing, incomingHt)) return prev;
                 return new Map(prev).set(likerId, incomingHt);
               });
               const { data } = await supabase.from('profiles').select('*').eq('id', likerId).maybeSingle();
               if (data) {
-                setReceivedLikers((prev) => {
-                  if (prev.find((p) => p.id === data.id)) return prev;
-                  return [data, ...prev];
-                });
+                setReceivedLikers((prev) => upsertReceivedLikerFront(prev, data as Profile));
               } else {
                 loadReceivedLikesRef.current?.(currentUserId)?.catch(() => {});
               }
-              const heartNick = data?.nickname ?? '누군가';
-              const ht = row.heart_type ?? 'red';
-              if (isInterestHeart(ht) && hasInterestHeart(sentHeartsPerPersonRef.current.get(likerId))) {
-                setBottomNotif({ type: 'heart', nickname: heartNick, profileId: likerId, message: MUTUAL_HEART_TOAST, heartMutual: true });
-              } else if (isInterestHeart(ht)) {
-                setBottomNotif({ type: 'heart', nickname: heartNick, heartType: ht, profileId: likerId, message: incomingInterestToast(heartNick) });
-              } else {
-                setBottomNotif({ type: 'heart', nickname: heartNick, heartType: ht });
-              }
+              setBottomNotif(planIncomingHeartBottomNotif({
+                likerId,
+                heartType: row.heart_type ?? 'red',
+                nickname: data?.nickname ?? '누군가',
+                sentHeartsToLiker: sentHeartsPerPersonRef.current.get(likerId),
+              }));
             } else {
-              setBottomNotif({ type: 'heart', nickname: '누군가', heartType: row.heart_type ?? 'red' });
+              setBottomNotif(planIncomingHeartBottomNotif({ heartType: row.heart_type ?? 'red' }));
             }
             triggerConfetti();
             rejNotifTimerIds.push(setTimeout(() => setBottomNotif(prev => (prev?.type === 'heart') ? null : prev), 5000));
@@ -1341,10 +1299,7 @@ function App() {
         async (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
           try {
             const share = payload.new as ContactShare;
-            setReceivedContactShares(prev => {
-              if (prev.find(s => s.liked_id === share.liked_id)) return prev.map(s => s.liked_id === share.liked_id ? share : s);
-              return [share, ...prev];
-            });
+            setReceivedContactShares(prev => upsertReceivedContactShare(prev, share));
             traceRealtimeStateMerge('contact', share);
             const { data } = await supabase.from('profiles').select('nickname').eq('id', share.liked_id).maybeSingle();
             setBottomNotif({ type: 'contact', nickname: data?.nickname ?? '' });
@@ -1353,7 +1308,7 @@ function App() {
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'contact_shares', filter: `liker_id=eq.${currentUserId}` },
         (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
           const share = payload.new as ContactShare;
-          setReceivedContactShares(prev => prev.map(s => s.liked_id === share.liked_id ? share : s));
+          setReceivedContactShares(prev => upsertReceivedContactShare(prev, share));
           traceRealtimeStateMerge('contact', share);
         })
       .subscribe();
@@ -1384,7 +1339,7 @@ function App() {
     supabase.from('blocked_users').select('*')
       .then(({ data }: { data: unknown }) => {
         if (Array.isArray(data)) {
-          setBlockedUsers((data as BlockedUser[]).filter(b => b.user_id === uid || b.target_id === uid));
+          setBlockedUsers(filterBlockedUsersForMe(data as BlockedUser[], uid));
         }
       }).catch(() => {});
     // 내 프로필 방문자 로드
@@ -1400,8 +1355,8 @@ function App() {
         (payload: { new: Record<string, unknown> }) => {
           try {
             const b = payload.new as BlockedUser;
-            if (b.user_id === uid || b.target_id === uid) {
-              setBlockedUsers(prev => prev.some(x => x.id === b.id) ? prev : [...prev, b]);
+            if (isBlockedRowForMe(b, uid)) {
+              setBlockedUsers(prev => upsertById(prev, b));
             }
           } catch (e) { console.warn('[blocked_users SSE]', e); }
         })
@@ -1410,7 +1365,7 @@ function App() {
           try {
             const v = payload.new as ProfileView;
             if (v.viewed_id === uid) {
-              setProfileVisitors(prev => prev.some(x => x.id === v.id) ? prev : [...prev, v]);
+              setProfileVisitors(prev => upsertById(prev, v));
             }
           } catch (e) { console.warn('[profile_views SSE]', e); }
         })
@@ -1424,42 +1379,14 @@ function App() {
         (payload: { new: Record<string, unknown> }) => {
           try {
             const s = payload.new as UserSignal;
-            setUserSignals(prev => {
-              const idx = prev.findIndex(x => x.user_id === s.user_id);
-              if (idx >= 0) {
-                const cur = prev[idx];
-                const keys = new Set([...Object.keys(cur as object), ...Object.keys(s as object)]);
-                for (const k of keys) {
-                  if ((cur as Record<string, unknown>)[k] !== (s as Record<string, unknown>)[k]) {
-                    const next = [...prev];
-                    next[idx] = s;
-                    return next;
-                  }
-                }
-                return prev;
-              }
-              return [...prev, s];
-            });
+            setUserSignals(prev => mergeUserSignalRow(prev, s, 'upsert'));
           } catch (e) { console.warn('[user_signals SSE INSERT]', e); }
         })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'user_signals' },
         (payload: { new: Record<string, unknown> }) => {
           try {
             const s = payload.new as UserSignal;
-            setUserSignals(prev => {
-              const idx = prev.findIndex(x => x.user_id === s.user_id);
-              if (idx < 0) return prev;
-              const cur = prev[idx];
-              const keys = new Set([...Object.keys(cur as object), ...Object.keys(s as object)]);
-              for (const k of keys) {
-                if ((cur as Record<string, unknown>)[k] !== (s as Record<string, unknown>)[k]) {
-                  const next = [...prev];
-                  next[idx] = s;
-                  return next;
-                }
-              }
-              return prev;
-            });
+            setUserSignals(prev => mergeUserSignalRow(prev, s, 'update-only'));
           } catch (e) { console.warn('[user_signals SSE UPDATE]', e); }
         })
       .subscribe();
@@ -1494,6 +1421,18 @@ function App() {
     loadReceivedLikes,
     loadContactShareData,
     applySessionReady,
+  });
+
+  // SSE unhealthy poll — App only wires loaders (mirrors SoT peel; no new useState).
+  useSseFallbackPoll({
+    connStatus,
+    currentUserId,
+    loadProfiles,
+    loadChatList,
+    loadGroupChats,
+    loadReceivedLikes,
+    loadLikes,
+    loadContactShareData,
   });
 
   // Web push 구독 — 로그인 완료 후 알림 권한 요청 및 구독 등록
@@ -1661,11 +1600,12 @@ function App() {
     [profiles, likedIds],
   );
   const pendingHeartsCount = useMemo(
-    () => receivedLikers.filter((l) => {
-      const ht = receivedHeartTypes.get(l.id) ?? 'red';
-      if (ht === 'green') return !acknowledgedComplimentIds.has(l.id);
-      return !contactSharedWithIds.has(l.id);
-    }).length,
+    () => countPendingHearts(
+      receivedLikers,
+      receivedHeartTypes,
+      acknowledgedComplimentIds,
+      contactSharedWithIds,
+    ),
     [receivedLikers, receivedHeartTypes, acknowledgedComplimentIds, contactSharedWithIds],
   );
 
