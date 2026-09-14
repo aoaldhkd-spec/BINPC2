@@ -1,5 +1,5 @@
 import { type Dispatch, type SetStateAction } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, reconnectAdminSse } from '../lib/supabase';
 import { getAvatarSrc } from '../lib/profile';
 import type { Database } from '../types/database';
 export type { GroupChat, GroupMessage, GroupParticipant, SignalSend } from '../types/app';
@@ -49,6 +49,8 @@ export interface AdminSession { phone: string; authedAt: number; }
 export function setAdminToken(token: string | null) {
   if (token) localStorage.setItem(ADMIN_TOKEN_KEY, token);
   else localStorage.removeItem(ADMIN_TOKEN_KEY);
+  // 토큰 저장 직후 익명 SSE → adminToken SSE로 올려 하트/채팅 프라이빗 이벤트를 받게 한다.
+  reconnectAdminSse();
 }
 
 export function loadAdminSession(): AdminSession | null {

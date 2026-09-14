@@ -658,6 +658,44 @@ function fetchSseToken(userId: string): void {
 }
 
 /** 사용자 로그인/로그아웃 시 호출 — SSE를 userId 식별 연결로 재연결 */
+function readAdminTokenFromStorage(): string | null {
+  try {
+    const t = localStorage.getItem('admin_token_v1');
+    return t && t.length > 0 ? t : null;
+  } catch {
+    return null;
+  }
+}
+
+function sseConnectionHasAdminToken(es: EventSource | null): boolean {
+  if (!es) return false;
+  try {
+    return /[?&]adminToken=/.test(es.url);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 관리자 대시보드용 — 참가자 userId를 비우고 adminToken SSE로 강제 재연결.
+ * setLocalDbUserId(null)은 이미 null이면 early-return 해서 익명 EventSource가
+ * adminToken 없이 열린 채 남을 수 있다 (하트/채팅 프라이빗 이벤트 미수신).
+ */
+export function reconnectAdminSse(): void {
+  _currentUserId = null;
+  _sseToken = null;
+  _sseTokenExp = 0;
+  _lastTokenRefreshStartedAt = 0;
+  if (_sseTokenRetryTimer) { clearTimeout(_sseTokenRetryTimer); _sseTokenRetryTimer = null; }
+  if (_tokenRefreshTimer) { clearTimeout(_tokenRefreshTimer); _tokenRefreshTimer = null; }
+  _clearSessionBearer();
+  _markSessionReady();
+  try { localStorage.removeItem(SSE_TOK_KEY); localStorage.removeItem(SSE_TOK_EXP_KEY); } catch { /* ignore */ }
+  suppressDisconnectBriefly(15_000);
+  closeSse('admin-sse-upgrade');
+  if (_sseListeners.size > 0) ensureSse();
+}
+
 export function setLocalDbUserId(userId: string | null) {
   if (_currentUserId === userId) return;
   _currentUserId = userId;
@@ -726,7 +764,7 @@ function createSse() {
     params.push(`token=${encodeURIComponent(_sseToken)}`);
   }
   // 관리자 토큰이 있으면 관리자 SSE 연결로 업그레이드 (모든 이벤트 수신)
-  const adminToken = (() => { try { return localStorage.getItem('admin_token_v1'); } catch { return null; } })();
+  const adminToken = readAdminTokenFromStorage();
   if (adminToken && !_currentUserId) params.push(`adminToken=${encodeURIComponent(adminToken)}`);
   if (_lastEventId) params.push(`lastEventId=${encodeURIComponent(_lastEventId)}`);
   const url = params.length ? `${SSE_API}/events?${params.join('&')}` : `${SSE_API}/events`;
@@ -878,6 +916,17 @@ function ensureSse() {
   if (!inShutdownRecovery() && _es && _es.readyState === EventSource.CONNECTING && _sseErrorSince && Date.now() - _sseErrorSince > 12_000) {
     closeSse('connecting-timeout');
     _sseErrorSince = null;
+  }
+  // 익명(또는 user) EventSource가 열린 뒤 adminToken이 생기면 URL을 업그레이드한다.
+  // 관리자 하트/채팅은 sseAdminClients로만 팬아웃되므로 adminToken 없는 연결은 새로고침 없이는 갱신되지 않는다.
+  if (
+    _es
+    && _es.readyState !== EventSource.CLOSED
+    && !_currentUserId
+    && readAdminTokenFromStorage()
+    && !sseConnectionHasAdminToken(_es)
+  ) {
+    closeSse('admin-sse-upgrade');
   }
   if (_es && _es.readyState !== EventSource.CLOSED) return;
   _sseErrorSince = null;

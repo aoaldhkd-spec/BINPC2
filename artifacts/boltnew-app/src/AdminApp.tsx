@@ -5,7 +5,7 @@ import {
   Shield, LogOut, Users, LayoutGrid, Heart, MessageCircle, BellRing,
 } from 'lucide-react';
 import { supabase } from './lib/supabase';
-import { setLocalDbUserId, supabase as ldbSupabase } from './lib/localdb';
+import { reconnectAdminSse, onSseReconnect, isSseHealthy, supabase as ldbSupabase } from './lib/localdb';
 import {
   setAdminToken, loadAdminSession, getAdminPassword, refreshAdminToken,
   adminApiRpc, patchAdminSettings, adminApiSelect, adminSupabase,
@@ -162,10 +162,9 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   }, [loadActivity, loadCore]);
 
   useEffect(() => {
-    // 관리자 SSE 핵심 수정: 일반 유저 userId가 localStorage에 남아 있으면
-    // localdb가 adminToken 조건(userId===null)을 만족 못해 admin SSE가 아닌 user SSE로 연결됨.
-    // → setLocalDbUserId(null)로 userId를 초기화하여 adminToken이 SSE URL에 포함되도록 강제.
-    setLocalDbUserId(null);
+    // 관리자 SSE: 참가자 userId·익명 EventSource를 걷어내고 adminToken SSE로 강제 재연결.
+    // (setLocalDbUserId(null) early-return만으로는 이미 열린 익명 SSE가 업그레이드되지 않음)
+    reconnectAdminSse();
     void loadCore();
     // 첫 화면과 입력 반응이 그려진 다음 대용량 하트·채팅 데이터를 받는다.
     const activityTimer = window.setTimeout(() => { void loadActivity(); }, 150);
@@ -301,6 +300,24 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       .subscribe();
     return () => { ldbSupabase.removeChannel(ch); };
   }, []);
+
+  // SSE 재연결·catchup 후 하트/채팅을 HTTP로 맞춰 새로고침 없이도 목록이 따라오게 한다.
+  useEffect(() => {
+    return onSseReconnect(() => { void loadActivity(); });
+  }, [loadActivity]);
+
+  // SSE가 약하거나 adminToken 업그레이드 전에 하트/채팅이 멈추지 않도록 백업 폴링.
+  useEffect(() => {
+    let nextAt = 0;
+    const id = window.setInterval(() => {
+      const now = Date.now();
+      const gap = isSseHealthy() ? 25_000 : 8_000;
+      if (now < nextAt) return;
+      nextAt = now + gap;
+      void loadActivity();
+    }, 4_000);
+    return () => window.clearInterval(id);
+  }, [loadActivity]);
 
   // ─── DB health polling (5s interval) ──────────────────────────────────────
   const fetchDbHealth = useCallback(async () => {
