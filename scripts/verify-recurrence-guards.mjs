@@ -404,6 +404,21 @@ mustMatch('artifacts/boltnew-app/src/AdminApp.tsx', '40_admin_chats_with_message
   /chatIdsWithMsgs/,
 ]);
 
+// ?? 41 Participant received-likes UPDATE incremental (no full refetch storm) ???
+mustExist('artifacts/boltnew-app/src/lib/received-like-update.ts', '41_received_like_update_module');
+mustExist('artifacts/boltnew-app/src/lib/received-like-update.test.ts', '41_received_like_update_tests');
+mustMatch('artifacts/boltnew-app/src/App.tsx', '41_received_likes_update_incremental', [
+  /planReceivedLikeUpdate/,
+  /preferReceivedHeartType/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/App.tsx', '41_no_received_likes_update_blind_refetch', [
+  /liked_id=eq\.\$\{currentUserId\}` \},\s*\(\) => \{ loadReceivedLikesRef/,
+]);
+mustMatch('artifacts/boltnew-app/src/App.tsx', '41_fallback_poll_skips_when_sse_healthy', [
+  /if \(isSseHealthy\(\)\) return;/,
+  /loadReceivedLikesRef\.current\?\.\(uid\)/,
+]);
+
 console.log('\n=== verify-recurrence-guards ===\n');
 for (const r of results) {
   console.log(`  ${r.ok ? 'OK' : 'FAIL'}  ${r.id}${r.detail && !r.ok ? ` ? ${r.detail}` : ''}`);

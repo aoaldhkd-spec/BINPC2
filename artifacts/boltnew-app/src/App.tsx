@@ -21,6 +21,7 @@ import {
   isInterestHeart,
 } from './lib/signal-match';
 import { incomingInterestToast, isIncomingHeartToastTarget, MUTUAL_HEART_TOAST } from './lib/heart-toast';
+import { planReceivedLikeUpdate, preferReceivedHeartType } from './lib/received-like-update';
 import { FUNCTIONS_LOCK_KICK_TOAST, FUNCTIONS_LOCK_TOAST, FUNCTIONS_UNLOCK_TOAST, SOCIAL_LOCKED_TABS, parseFunctionsLocked } from './lib/functions-lock';
 // ─── 분리된 타입·유틸·컴포넌트 imports ────────────────────────────────────────
 import type {
@@ -360,6 +361,9 @@ function App() {
     if (connStatus === 'ok' || !currentUserId) return;
     const uid = currentUserId;
     const tick = () => {
+      // UI status can lag behind a healthy EventSource — skip duplicate full refetches
+      // (onSseReconnect already resyncs when the link comes back).
+      if (isSseHealthy()) return;
       loadProfilesRef.current().catch(() => {});
       loadChatListRef.current?.(uid).catch(() => {});
       loadGroupChatsRef.current?.(uid).catch(() => {});
@@ -1293,7 +1297,43 @@ function App() {
           } catch (e) { console.warn('[realtime:likes]', e); }
         })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'likes', filter: `liked_id=eq.${currentUserId}` },
-        () => { loadReceivedLikesRef.current?.(currentUserId).catch(() => {}); })
+        (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
+          try {
+            const updated = payload.new as {
+              id?: string;
+              liker_id?: string;
+              status?: string;
+              heart_type?: HeartType | null;
+              created_at?: string;
+            };
+            const patch = planReceivedLikeUpdate(updated);
+            if (patch.needsFullRefetch) {
+              loadReceivedLikesRef.current?.(currentUserId).catch(() => {});
+              return;
+            }
+            if (patch.removeLikerId) {
+              setReceivedLikers(prev => prev.filter(p => p.id !== patch.removeLikerId));
+            }
+            if (patch.ackGreenLikerId) {
+              setAcknowledgedComplimentIds(prev => {
+                if (prev.has(patch.ackGreenLikerId!)) return prev;
+                return new Set([...prev, patch.ackGreenLikerId!]);
+              });
+            }
+            if (patch.setHeartType) {
+              const { likerId, heartType } = patch.setHeartType;
+              setReceivedHeartTypes(prev => {
+                const nextType = preferReceivedHeartType(prev.get(likerId), heartType);
+                if (prev.get(likerId) === nextType) return prev;
+                return new Map(prev).set(likerId, nextType);
+              });
+            }
+            traceRealtimeStateMerge('hearts', updated);
+          } catch (e) {
+            console.warn('[realtime:likes-update]', e);
+            loadReceivedLikesRef.current?.(currentUserId).catch(() => {});
+          }
+        })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'contact_shares', filter: `liker_id=eq.${currentUserId}` },
         async (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
           try {
