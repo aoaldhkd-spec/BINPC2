@@ -2487,13 +2487,36 @@ function tableFingerprint(rows: Record<string, unknown>[]): string {
 // 자신이 보낸 NOTIFY는 INSTANCE_ID로 걸러서 중복 브로드캐스트를 방지한다.
 
 let _listenClient: pg.Client | null = null;
+/** Serializes LISTEN connect/retry so error+catch timers cannot open parallel clients. */
+let _listenSetupGen = 0;
+let _listenSetupInFlight: Promise<void> | null = null;
 
 async function setupListenClient(): Promise<void> {
+  if (_listenSetupInFlight) return _listenSetupInFlight;
+  const gen = ++_listenSetupGen;
+  _listenSetupInFlight = _setupListenClientInner(gen).finally(() => {
+    if (_listenSetupInFlight && gen === _listenSetupGen) _listenSetupInFlight = null;
+  });
+  return _listenSetupInFlight;
+}
+
+async function _setupListenClientInner(gen: number): Promise<void> {
   // try 외부에 선언 — catch 블록에서 client.end()로 커넥션 누수 방지
   let client: pg.Client | null = null;
   try {
+    // Drop a prior live client before opening another (stale reconnect timer safety).
+    if (_listenClient) {
+      const prev = _listenClient;
+      _listenClient = null;
+      await prev.end().catch(() => {});
+    }
+    if (gen !== _listenSetupGen) return;
     client = new pg.Client(buildPgOptions());
     await client.connect();
+    if (gen !== _listenSetupGen) {
+      await client.end().catch(() => {});
+      return;
+    }
     await client.query('LISTEN data_change');
     client.on('notification', (msg) => {
       if (!msg.payload) return;
@@ -2573,23 +2596,31 @@ async function setupListenClient(): Promise<void> {
     });
     client.on('error', (err) => {
       logger.error({ err }, '[db] LISTEN client error — reconnecting in 5 s');
-      _listenClient = null;
+      if (_listenClient === client) _listenClient = null;
       // client는 이 시점에 반드시 연결된 상태 (error 이벤트는 connect 이후에만 발생)
       client!.end().catch(() => {});
+      const errGen = gen;
       // 재연결 후 핫 테이블 재동기화: 5초 gap 중 누락된 변경 복구
       setTimeout(() => {
+        if (errGen !== _listenSetupGen) return;
         setupListenClient()
           .then(() => resyncHotTablesFromDb())
           .catch(e => logger.error({ err: e }, '[db] LISTEN reconnect failed'));
       }, 5000);
     });
+    if (gen !== _listenSetupGen) {
+      await client.end().catch(() => {});
+      return;
+    }
     _listenClient = client;
     logger.info({ instance: INSTANCE_ID.slice(0, 8) }, '[db] LISTEN data_change ready');
   } catch (err) {
     logger.error({ err }, '[db] setupListenClient failed — retry in 10 s');
     // connect() 성공 후 LISTEN 실패 시 반드시 종료 — pg.Client 커넥션 누수 방지
     if (client) client.end().catch(() => {});
+    if (gen !== _listenSetupGen) return;
     setTimeout(() => {
+      if (gen !== _listenSetupGen) return;
       setupListenClient()
         .then(() => resyncHotTablesFromDb())
         .catch(e => logger.error({ err: e }, '[db] LISTEN retry failed'));

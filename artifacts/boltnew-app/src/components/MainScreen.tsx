@@ -715,7 +715,7 @@ export function MainScreen({
                 return (
                   <div key={h.type} className="flex items-center gap-0.5" title={`${h.label} (${2-used}개 남음)`}>
                     <span className="text-sm leading-none">{h.emoji}</span>
-                    <span className={`text-[10px] font-bold ${used >= 2 ? 'text-gray-400 line-through' : darkMode ? 'text-gray-300' : 'text-gray-500'}`}>{2-used}</span>
+                    <span className={`text-[10px] font-bold tabular-nums ${used >= 2 ? (darkMode ? 'text-slate-400 line-through' : 'text-gray-400 line-through') : (darkMode ? 'text-white' : 'text-gray-600')}`}>{2 - used}</span>
                   </div>
                 );
               })}
