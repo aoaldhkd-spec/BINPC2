@@ -2,8 +2,9 @@ import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } fro
 import {
   X,
 } from 'lucide-react';
-import { supabase, setLocalDbUserId, setDeviceRecoveryPin, fetchAndSetSseToken, getDeviceSecret, onSseReconnect, isSseHealthy, ensureWriteSession } from './lib/supabase';
-import { planParticipantSoTReload } from './lib/participant-sot-resync';
+import { supabase, setLocalDbUserId, setDeviceRecoveryPin, fetchAndSetSseToken, getDeviceSecret, isSseHealthy, ensureWriteSession } from './lib/supabase';
+import { useParticipantSoTResync } from './hooks/useParticipantSoTResync';
+import type { SessionReadySettingsPatch } from './lib/session-ready-settings';
 import { diag } from './lib/diag';
 import { subscribeNetUi, resetNetUiForRetry, type NetUiStatus } from './lib/net-health';
 import { excludeSwipeGestureVerifyProfiles, hasProfileFortuneCompatData, isSwipeGestureVerifyProfile } from './lib/profile';
@@ -197,7 +198,6 @@ function App() {
   const loadProfilesRef = useRef<() => Promise<Profile[]>>(async () => []);
   // SSE fallback polling refs — SSE 끊김 중 채팅·하트 polling에 사용 (stale 클로저 방지)
   const loadChatListRef = useRef<((userId: string) => Promise<void>) | null>(null);
-  const lastParticipantSoTAtRef = useRef(0);
   const loadGroupChatsRef = useRef<((userId: string) => Promise<void>) | null>(null);
   /** 채팅 탭·단톡 화면 밖이면 group catalog SSE reload 생략 */
   const groupCatalogHotRef = useRef(true);
@@ -1466,89 +1466,41 @@ function App() {
     return () => { supabase.removeChannel(privacyCh); supabase.removeChannel(signalsCh); };
   }, [currentUserId, loadUserSignals]);
 
-  // Re-validate profile when the user returns to the app (Android/iOS back, home button, tab switch)
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState !== 'visible') return;
-      const storedId = ls.getItem(MATCHING_USER_KEY);
-      // 백그라운드 중 SSE 유실 시 기능 잠금·세션 상태를 /ready로 즉시 보정
-      fetch('/api/db/ready', { signal: AbortSignal.timeout(5_000) })
-        .then(r => r.ok ? r.json() : null)
-        .then((json: { settings?: Record<string, unknown> } | null) => {
-          const data = json?.settings;
-          if (!data) return;
-          if (typeof data.session_active === 'boolean') {
-            sessionActiveRef.current = data.session_active;
-            setSessionActive(data.session_active);
-          }
-          if (data.functions_locked != null) setFunctionsLocked(parseFunctionsLocked(data.functions_locked));
-        })
-        .catch(() => {});
-      if (!storedId) return;
-      const plan = planParticipantSoTReload({
-        trigger: 'visibility',
-        now: Date.now(),
-        lastReloadAt: lastParticipantSoTAtRef.current,
-        sseHealthy: isSseHealthy(),
-      });
-      if (!plan.shouldReload) return;
-      // 포그라운드 복귀 시 데이터만 조용히 갱신. 목록이 비거나 잘려도 7일 세션을 끊지 않는다.
-      lastParticipantSoTAtRef.current = Date.now();
-      loadProfiles().then((allProfiles) => {
-        if (allProfiles.length === 0) return;
-        loadReceivedLikes(storedId);
-        loadLikes(storedId);
-        loadChatList(storedId);
-        loadContactShareData(storedId);
-      }).catch(() => { /* 네트워크 오류 → 세션 유지, 데이터는 다음 리프레시 때 갱신 */ });
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [loadProfiles, loadReceivedLikes, loadLikes, loadChatList, loadContactShareData]);
+  // Participant SoT: visibility + SSE reconnect live in useParticipantSoTResync.
+  // App only wires loaders + applySessionReady (no new useState for this peel).
+  const applySessionReady = useCallback((patch: SessionReadySettingsPatch, source: 'visibility' | 'sse-reconnect') => {
+    if (typeof patch.sessionActive === 'boolean') {
+      sessionActiveRef.current = patch.sessionActive;
+      setSessionActive(patch.sessionActive);
+      if (source === 'sse-reconnect' && !patch.sessionActive && userIdRef.current) {
+        setShownWaiting(false);
+      }
+    }
+    if (patch.hasFunctionsLocked) {
+      setFunctionsLocked(parseFunctionsLocked(patch.functionsLockedRaw));
+    }
+    if (patch.includeTimers) {
+      setTimerEndAt(patch.timerEndAt ?? null);
+      setTimerLabel(patch.timerLabel ?? null);
+    }
+  }, []);
+
+  useParticipantSoTResync({
+    currentUserId,
+    getStoredUserId: () => ls.getItem(MATCHING_USER_KEY),
+    loadProfiles,
+    loadChatList,
+    loadLikes,
+    loadReceivedLikes,
+    loadContactShareData,
+    applySessionReady,
+  });
 
   // Web push 구독 — 로그인 완료 후 알림 권한 요청 및 구독 등록
   useEffect(() => {
     if (!currentUserId) return;
     registerPushSub(currentUserId);
   }, [currentUserId]);
-
-  // SSE 재연결 시 DB Source-of-Truth 재동기화 (UI 모달은 net-health가 담당)
-  // Duplicate reconnect storms coalesce; visibility skips when SSE healthy + fresh.
-  // Real disconnect recovery always reloads (planParticipantSoTReload sse-reconnect).
-  useEffect(() => {
-    if (!currentUserId) return;
-    const unsubReconnect = onSseReconnect(() => {
-      const plan = planParticipantSoTReload({
-        trigger: 'sse-reconnect',
-        now: Date.now(),
-        lastReloadAt: lastParticipantSoTAtRef.current,
-        sseHealthy: isSseHealthy(),
-      });
-      if (!plan.shouldReload) return;
-      lastParticipantSoTAtRef.current = Date.now();
-      loadChatList(currentUserId);
-      loadReceivedLikes(currentUserId);
-      loadLikes(currentUserId);
-      loadContactShareData(currentUserId);
-      loadProfiles();
-      fetch('/api/db/ready', { signal: AbortSignal.timeout(8_000) })
-        .then(r => r.ok ? r.json() : null)
-        .then((json: { settings?: Record<string, unknown> } | null) => {
-          const data = json?.settings;
-          if (!data) return;
-          if (typeof data.session_active === 'boolean') {
-            sessionActiveRef.current = data.session_active;
-            setSessionActive(data.session_active);
-            if (!data.session_active && userIdRef.current) setShownWaiting(false);
-          }
-          setTimerEndAt((data.timer_end_at as string | null | undefined) ?? null);
-          setTimerLabel((data.timer_label as string | null | undefined) ?? null);
-          if (data.functions_locked != null) setFunctionsLocked(parseFunctionsLocked(data.functions_locked));
-        })
-        .catch(() => {});
-    });
-    return unsubReconnect;
-  }, [currentUserId, loadChatList, loadReceivedLikes, loadLikes, loadContactShareData, loadProfiles]);
 
 
   // Manual refresh for status and chat tabs

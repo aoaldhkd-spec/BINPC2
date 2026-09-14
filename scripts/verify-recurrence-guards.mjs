@@ -434,7 +434,7 @@ mustMatch('artifacts/boltnew-app/src/hooks/useChat.ts', '42_messages_bounded_ini
 mustNotMatch('artifacts/boltnew-app/src/hooks/useChat.ts', '42_no_blind_full_history_asc_select', [
   /from\('messages'\)\.select\('\*'\)[\s\S]{0,220}\.order\('created_at',\s*\{\s*ascending:\s*true\s*\}\)\s*;/,
 ]);
-mustMatch('artifacts/boltnew-app/src/App.tsx', '42_participant_sot_plan_on_reconnect', [
+mustMatch('artifacts/boltnew-app/src/hooks/useParticipantSoTResync.ts', '42_participant_sot_plan_on_reconnect', [
   /planParticipantSoTReload/,
   /trigger:\s*'sse-reconnect'/,
   /trigger:\s*'visibility'/,
@@ -446,6 +446,39 @@ mustMatch('artifacts/boltnew-app/src/lib/localdb.ts', '42_localdb_lt_filter', [
 mustMatch('artifacts/api-server/src/routes/db.ts', '42_server_lt_filter', [
   /type:\s*'lt'/,
   /f\.type === 'lt' \|\| f\.type === 'gt'/,
+]);
+
+
+// ?? 43 Whole-app SoT peel + chat-list select bound + session-ready planner ????
+mustExist('artifacts/boltnew-app/src/hooks/useParticipantSoTResync.ts', '43_use_participant_sot_resync_hook');
+mustExist('artifacts/boltnew-app/src/lib/session-ready-settings.ts', '43_session_ready_settings_module');
+mustExist('artifacts/boltnew-app/src/lib/session-ready-settings.test.ts', '43_session_ready_settings_tests');
+mustMatch('artifacts/boltnew-app/src/lib/participant-sot-resync.ts', '43_participant_sot_domains_runner', [
+  /planParticipantSoTDomains/,
+  /runParticipantSoTReload/,
+  /'contactShares'/,
+  /'sessionReady'/,
+]);
+mustMatch('artifacts/boltnew-app/src/App.tsx', '43_app_wires_sot_hook_callbacks_only', [
+  /useParticipantSoTResync/,
+  /applySessionReady/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/App.tsx', '43_app_no_inline_sot_visibility_effect', [
+  /handleVisibilityChange/,
+  /lastParticipantSoTAtRef/,
+]);
+mustMatch('artifacts/boltnew-app/src/hooks/useChat.ts', '43_chat_list_bounded_select', [
+  /CHAT_LIST_SELECT/,
+  /from\('chats'\)\.select\(CHAT_LIST_SELECT\)/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/hooks/useChat.ts', '43_chat_list_no_select_star', [
+  /from\('chats'\)\.select\('\*'\)/,
+]);
+mustMatch('ARCHITECTURE.md', '43_architecture_whole_app_skeleton', [
+  /Whole-app attach \/ detach skeleton/,
+  /NOT chat-only/,
+  /useParticipantSoTResync/,
+  /session-ready-settings/,
 ]);
 
 

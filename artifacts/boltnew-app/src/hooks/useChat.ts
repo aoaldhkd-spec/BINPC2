@@ -38,6 +38,9 @@ import {
 } from '../lib/chat-message-page';
 import { planParticipantSoTReload } from '../lib/participant-sot-resync';
 
+/** Narrow chats columns for list/open — no select('*') payload bloat. */
+export const CHAT_LIST_SELECT = 'id, user1_id, user2_id, created_at';
+
 const MAX_MESSAGES = 500; // 채팅방당 최대 메시지 보유 수 (메모리 누수 방지) — MESSAGE_PAGE_SIZE와 동일
 if (MAX_MESSAGES !== MESSAGE_PAGE_SIZE) {
   throw new Error('MAX_MESSAGES must equal MESSAGE_PAGE_SIZE');
@@ -504,7 +507,7 @@ export function useChat({
   const loadChatList = useCallback(async (userId: string) => {
     const gen = ++loadChatListGenRef.current;
     try {
-      const { data } = await supabase.from('chats').select('*')
+      const { data } = await supabase.from('chats').select(CHAT_LIST_SELECT)
         .or(`user1_id.eq.${userId},user2_id.eq.${userId}`)
         .order('created_at', { ascending: false });
       if (gen !== loadChatListGenRef.current) return;
@@ -668,7 +671,7 @@ export function useChat({
           return null;
         }
         const { data: pairChats, error: listErr } = await supabase
-          .from('chats').select('*')
+          .from('chats').select(CHAT_LIST_SELECT)
           .or(`user1_id.eq.${currentUserId},user2_id.eq.${currentUserId}`);
         if (listErr) console.error('[openChat] 조회 오류:', listErr.message);
 
@@ -689,7 +692,7 @@ export function useChat({
               : String(createErr ?? 'unknown');
             console.error('[openChat] 채팅방 생성 실패:', errMsg);
             const { data: retryChats } = await supabase
-              .from('chats').select('*')
+              .from('chats').select(CHAT_LIST_SELECT)
               .or(`user1_id.eq.${currentUserId},user2_id.eq.${currentUserId}`);
             const retryList = ((retryChats ?? []) as Chat[]).filter(
               c => chatPairKey(c.user1_id, c.user2_id) === pairKey,

@@ -20,6 +20,7 @@ Prefer **single Render instance**. Multi-instance는 NOTIFY로 일부 동기화�
 | `artifacts/boltnew-app/src/hooks/useChat.ts` | 1:1 채팅 상태·전송·재시도·오프라인 큐 |
 | `artifacts/boltnew-app/src/hooks/useHearts.ts` | 하트/좋아요·연락처 공유 |
 | `artifacts/boltnew-app/src/hooks/useGroupChat.ts` | 단체 채팅 |
+| `artifacts/boltnew-app/src/hooks/useParticipantSoTResync.ts` | 포그라운드/SSE 재연결 SoT 배선 (App은 콜백만) |
 | `artifacts/boltnew-app/src/lib/localdb.ts` | SSE·`/op`·auth 토큰·Supabase 에뮬 |
 | `artifacts/boltnew-app/src/lib/net-health.ts` | 네트워크 UI·reconnect·backoff |
 | `artifacts/boltnew-app/src/lib/diag.ts` | 관측/`__BINPC_DIAG__` |
@@ -97,17 +98,46 @@ Pure strip helpers: `artifacts/api-server/src/lib/db-legacy-cleanup.ts`. Tests: 
 **Do not delete** cleanup SQL or block lists to “shrink” `db.ts`.
 
 
-## Attach / detach modularity (skeleton vs features)
+## Whole-app attach / detach skeleton (NOT chat-only)
 
-Coding skeleton is **OK to attach/detach features incrementally** — prefer small `lib/*` pure modules + hooks over growing `App.tsx`.
+Coding skeleton is **OK to attach/detach features incrementally** across the **entire participant app**, not only chat cursors.
+
+### App shell stages (attach order)
+
+| Stage | What attaches | Primary modules |
+|-------|---------------|-----------------|
+| **entry** | gate / password / recovery | `entry-gate.ts`, `EntryGateScreen`, `ProfileRecoveryScreen` |
+| **waiting** | session inactive overlay | `WaitingOverlay`, `/ready` + `session-ready-settings.ts` |
+| **main** | tabs shell (profiles stay mounted under overlays) | `MainScreen.tsx`, `App.tsx` view routing |
+| **hearts** | likes / received / contact share | `useHearts.ts`, `received-like-update.ts`, heart dialogs |
+| **chat** | 1:1 list + room | `useChat.ts`, `chat-*.ts`, `ChatScreen.tsx` |
+| **group** | catalog + room | `useGroupChat.ts`, `group-*.ts`, `GroupChatScreen.tsx` |
+| **contact** | share / view / QR | contact modals + `loadContactShareData` |
+| **admin / test** | separate shells | `AdminApp.tsx`, `TestDashboard.tsx` |
+
+Detach = stop wiring the domain hook/callbacks into `App.tsx` / screens; keep pure `lib/*` planners so re-attach is additive.
+
+### Layer status
 
 | Layer | Status |
 |-------|--------|
-| Pure helpers (`lib/chat-*.ts`, `participant-sot-resync.ts`, `received-like-update.ts`, …) | Modular — easy attach/detach |
-| Domain hooks (`useChat`, `useHearts`, `useGroupChat`) | Mostly modular |
-| `App.tsx` (~2k lines) | Still the wiring monolith (session, visibility, reconnect SoT, overlays) |
+| Pure helpers (`lib/chat-*.ts`, `participant-sot-resync.ts`, `session-ready-settings.ts`, `received-like-update.ts`, `entry-gate.ts`, …) | Modular — easy attach/detach |
+| Domain hooks (`useChat`, `useHearts`, `useGroupChat`, `useParticipantSoTResync`) | Mostly modular |
+| Screens | Prefer **flags + callbacks** (`onRefreshStatus`, `onRefreshChat`, guarded open/join) — do **not** grow App `useState` for peels |
+| `App.tsx` (~2k lines) | Still the wiring shell (session, overlays, SSE channel fan-in) — peels go out as planners/hooks |
 
-**Next incremental steps (no big-bang rewrite):** (1) keep extracting SoT/resync planners from App effects, (2) pass feature flags/callbacks into screens rather than new App state, (3) leave chat list `select('*')` until open-room + reconnect relief land.
+### SoT / resync (whole-app domains)
+
+`planParticipantSoTReload` + `runParticipantSoTReload` cover **profiles / chatList / likes / receivedLikes / contactShares / sessionReady**.  
+`useParticipantSoTResync` owns visibility + SSE-reconnect effects; App only passes loaders + `applySessionReady`.
+
+**Correctness invariants:** real SSE reconnect always reloads (coalesce-only); visibility still skippable when SSE healthy + fresh; visibility always refreshes `/ready` session/lock even when data SoT is skipped.
+
+### Next incremental steps (no big-bang rewrite)
+
+1. Keep extracting planners from remaining App effects (SSE channel merges, privacy loads).
+2. Screens keep flags/callbacks only — no new App feature state for modularity work.
+3. Further narrow hot `select('*')` paths (profiles/signals) the same way as chat-list columns.
 
 ## Do not touch casually
 
