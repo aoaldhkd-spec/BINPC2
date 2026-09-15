@@ -1,105 +1,49 @@
 import { useEffect, useState } from 'react';
 
 type CoachTab = 'profiles' | 'my' | 'stats' | 'ranking' | 'settings';
-
-type CoachStep = {
-  title: string;
-  detail: string;
-  spotlight: string;
-  tip: string;
-};
+type CoachStep = { title: string; detail: string; target: string };
+type Rect = { top: number; left: number; width: number; height: number };
 
 const HOME_STEPS: readonly CoachStep[] = [
-  {
-    title: '참여자 카드',
-    detail: '카드 아래 버튼으로 하트를 보내거나 채팅을 시작해요.',
-    spotlight: 'top-[18%] left-[3%] right-[3%] h-[46%]',
-    tip: 'bottom-[calc(8.5rem+var(--tabbar-safe-bottom))]',
-  },
-  {
-    title: '카드 뒤집기',
-    detail: '사진을 누르면 뒤집혀서 상대의 이상형 태그를 볼 수 있어요.',
-    spotlight: 'top-[22%] left-[8%] right-[8%] h-[34%]',
-    tip: 'bottom-[calc(8.5rem+var(--tabbar-safe-bottom))]',
-  },
-  {
-    title: '하트 종류와 개수',
-    detail: '오른쪽 위에서 오늘 쓸 수 있는 하트 종류별 개수를 확인해요.',
-    spotlight: 'top-[1%] right-[2%] w-[48%] h-[9%]',
-    tip: 'top-[12%]',
-  },
-  {
-    title: '검색·카드 보기',
-    detail: '검색창과 새로고침, 작게·2개·3개 보기로 카드를 정리해요.',
-    spotlight: 'top-[11%] left-[3%] right-[3%] h-[10%]',
-    tip: 'top-[22%]',
-  },
-  {
-    title: '잠금 표시',
-    detail: '회색 자물쇠나 흐린 버튼은 아직 잠긴 기능이에요.',
-    spotlight: 'top-[18%] left-[3%] right-[3%] h-[46%]',
-    tip: 'bottom-[calc(8.5rem+var(--tabbar-safe-bottom))]',
-  },
-  {
-    title: '하트·채팅',
-    detail: '여기서 받은 하트와 내 채팅을 한곳에서 확인해요.',
-    spotlight: 'bottom-[var(--tabbar-safe-bottom)] left-[20%] w-[20%] h-[4.75rem]',
-    tip: 'bottom-[calc(8.5rem+var(--tabbar-safe-bottom))]',
-  },
-  {
-    title: '통계·랭킹',
-    detail: '참여 흐름과 하트 순위를 확인할 수 있어요.',
-    spotlight: 'bottom-[var(--tabbar-safe-bottom)] left-[40%] w-[40%] h-[4.75rem]',
-    tip: 'bottom-[calc(8.5rem+var(--tabbar-safe-bottom))]',
-  },
-  {
-    title: '내 프로필·설정',
-    detail: '내 상태, 프로필, 아바타는 설정에서 바꿀 수 있어요.',
-    spotlight: 'bottom-[var(--tabbar-safe-bottom)] right-0 w-[20%] h-[4.75rem]',
-    tip: 'bottom-[calc(8.5rem+var(--tabbar-safe-bottom))]',
-  },
+  { title: '참여자 카드', detail: '여기는 오늘 함께하는 사람들의 카드예요. 카드 아래 하트로 마음을 보내고, 말풍선으로 바로 채팅할 수 있어요.', target: 'participant-card' },
+  { title: '카드 뒤집기', detail: '사진을 누르면 카드가 뒤집혀요. 상대가 고른 이상형 태그를 확인하고 프로필 전체 보기로 더 자세히 볼 수 있어요.', target: 'participant-card' },
+  { title: '하트 종류와 개수', detail: '오른쪽 위에서 호감·친구·뜨밤·칭찬 하트를 확인해요. 종류마다 오늘 사용할 수 있는 개수가 표시됩니다.', target: 'home-heart-types' },
+  { title: '검색과 카드 보기', detail: '검색으로 닉네임·나이·출생년도를 찾고, 새로고침과 작게·2개·3개 보기로 화면을 편하게 정리해요.', target: 'home-controls' },
+  { title: '잠금 표시', detail: '회색 자물쇠나 흐린 버튼은 현재 잠긴 기능이에요. 행사 조건이 열리면 같은 자리에서 사용할 수 있어요.', target: 'participant-card' },
+  { title: '하트·채팅', detail: '하트와 채팅 탭에서 받은 하트, 내 상태, 1:1 채팅과 단체 채팅을 확인할 수 있어요.', target: 'nav-my' },
+  { title: '통계·랭킹', detail: '통계에서는 참여 흐름과 하트 지표를, 랭킹에서는 순위와 인기 흐름을 확인해요.', target: 'nav-stats' },
+  { title: '내 프로필·설정', detail: '설정에서 사진·아바타·닉네임·관심사·출생년도와 내 성향 상세를 관리해요.', target: 'nav-settings' },
 ];
 
 const SCREEN_STEPS: Record<Exclude<CoachTab, 'profiles'>, readonly CoachStep[]> = {
   my: [
-    { title: '내 상태', detail: '받은 하트와 방문자, 내 프로필 상태를 확인해요.', spotlight: 'top-[15%] left-[4%] right-[4%] h-[23%]', tip: 'top-[40%]' },
-    { title: '내 채팅', detail: '1:1 채팅과 단체 채팅을 이 탭에서 오가요.', spotlight: 'top-[15%] left-[4%] right-[4%] h-[23%]', tip: 'top-[40%]' },
+    { title: '내 상태', detail: '받은 하트와 방문자, 내 프로필 상태를 확인하는 화면이에요.', target: 'my-subtabs' },
+    { title: '내 채팅', detail: '내 채팅을 누르면 1:1 대화와 단체 채팅방을 오가며 메시지를 이어갈 수 있어요.', target: 'my-subtabs' },
   ],
-  stats: [
-    { title: '통계 화면', detail: '오늘의 참여자·하트·관심사 흐름을 한눈에 봐요.', spotlight: 'top-[13%] left-[4%] right-[4%] h-[65%]', tip: 'bottom-[calc(8.5rem+var(--tabbar-safe-bottom))]' },
-  ],
-  ranking: [
-    { title: '랭킹 화면', detail: '하트와 참여 지표의 순위를 확인해요.', spotlight: 'top-[13%] left-[4%] right-[4%] h-[65%]', tip: 'bottom-[calc(8.5rem+var(--tabbar-safe-bottom))]' },
-  ],
+  stats: [{ title: '통계', detail: '오늘 참여자와 하트 흐름을 숫자와 분포로 확인하는 화면이에요.', target: 'nav-stats' }],
+  ranking: [{ title: '랭킹', detail: '참여와 하트 흐름의 순위를 확인하는 화면이에요. 수치는 행사 중 계속 갱신됩니다.', target: 'nav-ranking' }],
   settings: [
-    { title: '프로필 설정', detail: '사진·닉네임·출생년도와 관심사를 관리해요.', spotlight: 'top-[13%] left-[4%] right-[4%] h-[35%]', tip: 'bottom-[calc(8.5rem+var(--tabbar-safe-bottom))]' },
-    { title: '내 성향 상세', detail: '이상형과 나의 특징은 소분류를 골라 채워요.', spotlight: 'top-[35%] left-[4%] right-[4%] h-[38%]', tip: 'top-[15%]' },
+    { title: '프로필 설정', detail: '사진·아바타·닉네임·출생년도·관심사를 여기서 바꿀 수 있어요.', target: 'settings-profile' },
+    { title: '이상형·내 특징', detail: '성향 상세에서 소분류를 고르고 태그를 선택해요. 기타 직접 작성은 설정에서만 가능합니다.', target: 'settings-signals' },
   ],
 };
 
-const KEY_PREFIX = 'binpc2_coach_marks_v2_';
+// v3 deliberately replays the expanded guide once for users who only saw the earlier thin guide.
+const KEY_PREFIX = 'binpc2_coach_marks_v3_';
 
 function hasSeen(tab: CoachTab): boolean {
   try { return localStorage.getItem(`${KEY_PREFIX}${tab}`) === '1'; } catch { return false; }
 }
-
 function markSeen(tab: CoachTab) {
   try { localStorage.setItem(`${KEY_PREFIX}${tab}`, '1'); } catch { /* private mode */ }
 }
 
-export function FirstEntryCoachMarks({
-  isSubScreen,
-  suspended = false,
-  mainTab,
-}: {
-  isSubScreen: boolean;
-  suspended?: boolean;
-  mainTab: CoachTab;
-}) {
+export function FirstEntryCoachMarks({ isSubScreen, suspended = false, mainTab }: { isSubScreen: boolean; suspended?: boolean; mainTab: CoachTab }) {
   const [step, setStep] = useState(0);
   const [openTab, setOpenTab] = useState<CoachTab | null>(null);
-
+  const [targetRect, setTargetRect] = useState<Rect | null>(null);
   const steps = mainTab === 'profiles' ? HOME_STEPS : SCREEN_STEPS[mainTab];
+  const current = steps[step] ?? steps[0];
 
   useEffect(() => {
     if (isSubScreen || suspended || hasSeen(mainTab)) {
@@ -110,20 +54,53 @@ export function FirstEntryCoachMarks({
     setOpenTab(mainTab);
   }, [isSubScreen, suspended, mainTab]);
 
-  if (!openTab || openTab !== mainTab || isSubScreen || suspended) return null;
-  const current = steps[step] ?? steps[0];
+  // Measure one stable anchor per step. Missing anchors intentionally fall back to a centered tip.
+  useEffect(() => {
+    if (!openTab || openTab !== mainTab || isSubScreen || suspended || !current) {
+      setTargetRect(null);
+      return;
+    }
+    let raf = 0;
+    const measure = () => {
+      const element = document.querySelector<HTMLElement>(`[data-coach="${current.target}"]`);
+      const box = element?.getBoundingClientRect();
+      if (!box || box.width < 2 || box.height < 2) {
+        setTargetRect(null);
+        return;
+      }
+      setTargetRect({ top: box.top, left: box.left, width: box.width, height: box.height });
+    };
+    raf = window.requestAnimationFrame(measure);
+    window.addEventListener('resize', measure, { passive: true });
+    return () => { window.cancelAnimationFrame(raf); window.removeEventListener('resize', measure); };
+  }, [openTab, mainTab, step, current, isSubScreen, suspended]);
+
+  useEffect(() => {
+    if (!openTab) return;
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') { markSeen(mainTab); setOpenTab(null); } };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [openTab, mainTab]);
+
+  if (!openTab || openTab !== mainTab || isSubScreen || suspended || !current) return null;
   const last = step === steps.length - 1;
   const dismiss = () => { markSeen(mainTab); setOpenTab(null); };
-  const next = () => {
-    if (last) dismiss();
-    else setStep((value) => value + 1);
-  };
+  const next = () => { if (last) dismiss(); else { setTargetRect(null); setStep((value) => value + 1); } };
+  const spotlightStyle = targetRect ? {
+    top: Math.max(6, targetRect.top - 6),
+    left: Math.max(6, targetRect.left - 6),
+    width: Math.min(window.innerWidth - Math.max(6, targetRect.left - 6) - 6, targetRect.width + 12),
+    height: Math.min(window.innerHeight - Math.max(6, targetRect.top - 6) - 6, targetRect.height + 12),
+  } : undefined;
+  const tipStyle = targetRect
+    ? { top: Math.min(Math.max(12, targetRect.top > window.innerHeight * 0.55 ? targetRect.top - 170 : targetRect.top + targetRect.height + 14), window.innerHeight - 190) }
+    : { top: '50%', transform: 'translateY(-50%)' };
 
   return (
     <div className="fixed inset-0 z-[190] pointer-events-auto" role="dialog" aria-modal="true" aria-label={`${current.title} 첫 이용 안내`}>
       <div className="absolute inset-0 bg-slate-950/65" aria-hidden="true" />
-      <div className={`absolute ${current.spotlight} rounded-2xl border-2 border-cyan-300 shadow-[0_0_0_9999px_rgba(2,6,23,0.58),0_0_24px_rgba(103,232,249,0.75)] pointer-events-none transition-all duration-300`} aria-hidden="true" />
-      <div className={`absolute left-4 right-4 ${current.tip} rounded-2xl border border-cyan-200/70 bg-white px-4 py-3.5 text-slate-800 shadow-2xl shadow-slate-950/40 animate-[scaleIn_0.2s_ease-out]`}>
+      {spotlightStyle && <div className="absolute rounded-2xl border-2 border-cyan-300 shadow-[0_0_0_9999px_rgba(2,6,23,0.58),0_0_24px_rgba(103,232,249,0.75)] pointer-events-none transition-all duration-200" style={spotlightStyle} aria-hidden="true" />}
+      <div className="absolute left-4 right-4 mx-auto max-w-md rounded-2xl border border-cyan-200/70 bg-white px-4 py-3.5 text-slate-800 shadow-2xl shadow-slate-950/40" style={tipStyle}>
         <div className="flex items-start gap-3">
           <span className="mt-0.5 text-2xl" aria-hidden="true">✨</span>
           <div className="min-w-0 flex-1">

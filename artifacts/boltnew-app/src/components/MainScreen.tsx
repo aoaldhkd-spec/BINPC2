@@ -707,7 +707,7 @@ export function MainScreen({
             />
           </div>
           {/* 우: 하트 */}
-          <div className="justify-self-end flex items-center">
+          <div data-coach="home-heart-types" className="justify-self-end flex items-center">
             <div className="flex items-center gap-1 min-[390px]:gap-1.5">
               {HEART_TYPES.map(h => {
                 const used = heartCount(h.type);
@@ -739,7 +739,7 @@ export function MainScreen({
         {visitedTabsRef.current.has('profiles') && (
         <KeepTab id="profiles" mainTab={mainTab}>
             {/* 검색 + 새로고침 + 카드 보기 — 한 줄 */}
-            <div className="space-y-1 mb-2 shrink-0">
+            <div data-coach="home-controls" className="space-y-1 mb-2 shrink-0">
               <div className="flex items-center gap-1.5 min-w-0">
                 <div className="relative flex-1 min-w-0">
                   <Users className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
@@ -811,7 +811,7 @@ export function MainScreen({
         {mainTab === 'my' && (
           <StatusErrorBoundary>
           <div className="w-full max-w-lg mx-auto space-y-4 pb-24">
-            <div className={`flex rounded-xl p-0.5 ${darkMode ? 'bg-slate-700' : 'bg-gray-100'}`}>
+            <div data-coach="my-subtabs" className={`flex rounded-xl p-0.5 ${darkMode ? 'bg-slate-700' : 'bg-gray-100'}`}>
               <button
                 type="button"
                 onClick={() => setMySubTab('status')}
@@ -1503,7 +1503,7 @@ export function MainScreen({
                 setProfileEditSection(p => p === s ? null : s);
               };
               return (
-                <div className={`rounded-2xl border overflow-hidden transition-colors duration-300 ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-100'}`}>
+                <div data-coach="settings-profile" className={`rounded-2xl border overflow-hidden transition-colors duration-300 ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-100'}`}>
                   <button
                     onClick={() => setProfileEditOpen(o => !o)}
                     className={`w-full flex items-center justify-between px-4 py-3 border-b transition-colors ${darkMode ? 'border-slate-700 hover:bg-slate-700/40' : 'border-gray-100 hover:bg-gray-50'}`}
@@ -1951,7 +1951,7 @@ export function MainScreen({
                   </div>
 
                   {/* ── 성향 상세: 소분류 ── */}
-                  <div className={`border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
+                  <div data-coach="settings-signals" className={`border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
                     <button
                       type="button"
                       onClick={() => toggleSection('signals')}
@@ -2140,7 +2140,7 @@ export function MainScreen({
             const chatN = t.chatBadge ?? 0;
             const plainN = t.badge ?? 0;
             return (
-              <button key={t.id} type="button" onClick={() => handleTabChange(t.id)} disabled={locked}
+              <button key={t.id} data-coach={`nav-${t.id}`} type="button" onClick={() => handleTabChange(t.id)} disabled={locked}
                 aria-label={t.label} aria-current={active ? 'page' : undefined}
                 className={`touch-target relative flex-1 py-2.5 min-[360px]:py-3 flex flex-col items-center justify-center gap-1 transition-all active:scale-95 border-t-2 ${ci < arr.length - 1 ? (darkMode ? 'border-r border-slate-700/30' : 'border-r border-gray-200/70') : ''} ${
                   locked ? `opacity-35 cursor-not-allowed border-t-transparent ${darkMode ? 'text-slate-500' : 'text-gray-400'}` :

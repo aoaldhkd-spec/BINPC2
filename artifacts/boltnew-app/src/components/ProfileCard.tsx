@@ -293,6 +293,7 @@ export const ProfileCard = memo(function ProfileCard({
   return (
     <div
       ref={cardRootRef}
+      data-coach="participant-card"
       className={`group relative flex flex-col min-w-0 max-w-full rounded-lg shadow-sm border ${showMenu ? 'overflow-visible z-[200]' : 'overflow-hidden'} ${surfaces.shellClass}`}
       style={{ contentVisibility: showMenu ? 'visible' : 'auto', containIntrinsicSize: 'auto 280px' }}
     >
