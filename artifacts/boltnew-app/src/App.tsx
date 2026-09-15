@@ -6,11 +6,24 @@ import { supabase, setLocalDbUserId, setDeviceRecoveryPin, fetchAndSetSseToken, 
 import { useParticipantSoTResync } from './hooks/useParticipantSoTResync';
 import { useSseFallbackPoll } from './hooks/useSseFallbackPoll';
 import { useDarkModeStorageSync } from './hooks/useDarkModeStorageSync';
+import { useUserRealtimeChannel } from './hooks/useUserRealtimeChannel';
 import type { SessionReadySettingsPatch } from './lib/session-ready-settings';
 import { diag } from './lib/diag';
 import { subscribeNetUi, resetNetUiForRetry, type NetUiStatus } from './lib/net-health';
-import { excludeSwipeGestureVerifyProfiles, hasProfileFortuneCompatData, isSwipeGestureVerifyProfile } from './lib/profile';
-import { mergeProfilesPreserveOrder, patchProfileInPlace, sortProfilesStable } from './lib/profile-list-order';
+import { excludeSwipeGestureVerifyProfiles, hasProfileFortuneCompatData } from './lib/profile';
+import { mergeProfilesPreserveOrder, sortProfilesStable } from './lib/profile-list-order';
+import {
+  planProfilesAfterDelete,
+  planProfilesAfterInsert,
+  planProfilesAfterUpdate,
+} from './lib/profile-realtime-apply';
+import {
+  BLOCK_SESSION_EXPIRED_MESSAGE,
+  blockFailureMessage,
+  buildBlockedUserRow,
+  shouldSkipBlock,
+  unblockFailureMessage,
+} from './lib/block-action';
 import { findProfileById, isCompleteProfile } from './lib/profile-session';
 import {
   shouldShowWaitingOverlay,
@@ -21,7 +34,6 @@ import {
   planEntryPasswordState,
   shouldApplyAdminResetSignal,
 } from './lib/entry-gate';
-import { HeartType } from './lib/constants';
 import {
   hasInterestHeart,
   isInterestHeart,
@@ -236,6 +248,8 @@ function App() {
   const [showResetPassword, setShowResetPassword] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const confettiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** SSE heart/status toast clear timers — owned by App apply, cleared on user change */
+  const realtimeNotifTimerIdsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const confettiInnerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const triggerConfetti = useCallback(() => {
     // 뷰 전환 시 이전 타이머 취소 가능하도록 ref에 저장
@@ -684,28 +698,29 @@ function App() {
     if (plan.showKickToast) showFunctionsLockToast(FUNCTIONS_LOCK_KICK_TOAST);
   }, [functionsLocked, view, mainTab, fortuneModalTarget, likeConfirmTarget, contactShareTarget, chatIdRef, closeGroupChat, setChatId, setContactShareTarget, setLikeConfirmTarget, showFunctionsLockToast]);
 
-  // ─── 차단·숨기기 처리 ─────────────────────────────────────────────────────
+  // ─── 차단·숨기기 처리 (pure planners + thin async wire) ───────────────────
   const handleBlock = useCallback(async (targetId: string, type: 'block' | 'hide') => {
-    if (!currentUserId || targetId === currentUserId) return;
-    // 이미 차단/숨기기한 경우 중복 방지
-    if (blockedUsers.some(b => b.user_id === currentUserId && b.target_id === targetId && b.block_type === type)) return;
+    if (shouldSkipBlock({ currentUserId, targetId, type, blockedUsers })) return;
     const sessionOk = await ensureWriteSession();
     if (!sessionOk) {
-      setBottomNotif({ type: 'system', message: '로그인 세션이 만료되었습니다. 앱을 새로고침한 뒤 다시 시도해 주세요.' });
+      setBottomNotif({ type: 'system', message: BLOCK_SESSION_EXPIRED_MESSAGE });
       return;
     }
     const id = crypto.randomUUID();
-    const row: BlockedUser = { id, user_id: currentUserId, target_id: targetId, block_type: type, created_at: new Date().toISOString() };
+    const row = buildBlockedUserRow({
+      id,
+      currentUserId: currentUserId!,
+      targetId,
+      type,
+      createdAt: new Date().toISOString(),
+    });
     // 낙관적 업데이트
     setBlockedUsers(prev => [...prev, row]);
     const { error } = await supabase.from('blocked_users').insert(row as never);
     if (error) {
       console.error('[handleBlock]', error);
       setBlockedUsers(prev => prev.filter(b => b.id !== id));
-      setBottomNotif({
-        type: 'system',
-        message: type === 'block' ? '차단에 실패했어요. 다시 시도해 주세요.' : '숨기기에 실패했어요. 다시 시도해 주세요.',
-      });
+      setBottomNotif({ type: 'system', message: blockFailureMessage(type) });
     }
   }, [currentUserId, blockedUsers, setBottomNotif]);
 
@@ -713,14 +728,14 @@ function App() {
   const handleUnblock = useCallback(async (blockId: string) => {
     const sessionOk = await ensureWriteSession();
     if (!sessionOk) {
-      setBottomNotif({ type: 'system', message: '로그인 세션이 만료되었습니다. 앱을 새로고침한 뒤 다시 시도해 주세요.' });
+      setBottomNotif({ type: 'system', message: BLOCK_SESSION_EXPIRED_MESSAGE });
       return;
     }
     setBlockedUsers(prev => prev.filter(b => b.id !== blockId));
     const { error } = await supabase.from('blocked_users').delete().eq('id', blockId as never);
     if (error) {
       console.error('[handleUnblock]', error);
-      setBottomNotif({ type: 'system', message: '차단 해제에 실패했어요. 다시 시도해 주세요.' });
+      setBottomNotif({ type: 'system', message: unblockFailureMessage() });
       // 실패 시 재로드
       supabase.from('blocked_users').select('*').then(({ data }: { data: unknown }) => {
         if (Array.isArray(data) && currentUserId) {
@@ -1060,7 +1075,6 @@ function App() {
     // 타이머 ID 추적 — 언마운트 시 clearTimeout으로 stale setState 방지
     let retryTimerId: ReturnType<typeof setTimeout> | null = null;
     let initTimerId1: ReturnType<typeof setTimeout> | null = null;
-    const rejNotifTimerIds: ReturnType<typeof setTimeout>[] = [];
     // cancelled 플래그 — 언마운트 후 비동기 콜백이 setState를 호출하는 것을 방지
     let cancelled = false;
     loadProfiles().catch(() => []).then(async (allProfiles) => {
@@ -1156,176 +1170,17 @@ function App() {
       })();
     }
 
-    const profileChannel = supabase
-      .channel('realtime:profiles')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'profiles' },
-        (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => setProfiles((prev) => {
-          const incoming = payload.new as Profile;
-          if (isSwipeGestureVerifyProfile(incoming) && incoming.id !== userIdRef.current) return prev;
-          if (prev.find((p) => p.id === incoming.id)) return prev;
-          return mergeProfilesPreserveOrder(prev, [...prev, incoming]);
-        }))
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' },
-        (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) =>
-          setProfiles((prev) => {
-            const incoming = payload.new as Profile;
-            const next = patchProfileInPlace(prev, incoming);
-            return excludeSwipeGestureVerifyProfiles(next, userIdRef.current);
-          }))
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'profiles' },
-        (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => setProfiles((prev) => prev.filter((p) => p.id !== (payload.old as Profile).id)))
-      .subscribe();
-
-    // 하트/연락처/제안/잔여하트 — 단일 채널로 묶어 SSE 리스너 수 감소 (EventSource는 공유)
-    const userRealtimeChannel = supabase
-      .channel(`realtime:user-bundle:${currentUserId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'likes', filter: `liker_id=eq.${currentUserId}` },
-        (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-          const row = payload.new as { id?: string; liked_id: string; heart_type: HeartType; created_at?: string };
-          const plan = planSentLikeInsert(row, {
-            counterpartReceivedHeartType: receivedHeartTypesRef.current.get(row.liked_id),
-          });
-          if (!plan) return;
-          setLikedIds((prev) => new Set([...prev, plan.likedId]));
-          setSentHeartTypes((prev) => {
-            const existing = prev.get(plan.likedId);
-            if (shouldKeepExistingSentHeartType(existing, plan.heartType)) return prev;
-            return new Map(prev).set(plan.likedId, plan.heartType);
-          });
-          setLikeStatuses(prev => prev.has(plan.likedId) ? prev : new Map(prev).set(plan.likedId, 'pending'));
-          setSentHeartsPerPerson(prev => {
-            const next = new Map(prev);
-            const s = new Set(next.get(plan.likedId) ?? []);
-            s.add(plan.heartType);
-            next.set(plan.likedId, s);
-            return next;
-          });
-          // 내가 하트를 보냈고 상대도 이미 하트를 보냈으면 서로 하트 (수신자 전용 토스트와 대칭)
-          if (plan.showMutualToast) {
-            const nick = profilesRef.current.find(p => p.id === plan.likedId)?.nickname ?? '상대방';
-            setBottomNotif({ type: 'heart', heartMutual: true, nickname: nick, profileId: plan.likedId, message: MUTUAL_HEART_TOAST });
-          }
-          traceRealtimeStateMerge('hearts', row);
-        })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'likes', filter: `liker_id=eq.${currentUserId}` },
-        (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-          const updated = payload.new as { id?: string; liked_id: string; status: string; created_at?: string };
-          setLikeStatuses(prev => new Map(prev).set(updated.liked_id, updated.status));
-          const statusNick = profilesRef.current.find(p => p.id === updated.liked_id)?.nickname ?? '상대방';
-          const statusNotif = planSentLikeStatusNotif(updated.status, statusNick);
-          if (statusNotif?.kind === 'rejected') {
-            setRejectionNotif(statusNotif.nickname);
-            rejNotifTimerIds.push(setTimeout(() => setRejectionNotif(null), 5000));
-          } else if (statusNotif?.kind === 'accepted') {
-            loadContactShareData(currentUserId);
-            setBottomNotif({ type: 'chat', nickname: statusNotif.nickname, message: statusNotif.message });
-            rejNotifTimerIds.push(setTimeout(() => setBottomNotif(prev => prev?.message === statusNotif.message ? null : prev), 5000));
-          }
-          traceRealtimeStateMerge('hearts', updated);
-        })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'likes', filter: `liked_id=eq.${currentUserId}` },
-        async (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-          try {
-            const row = payload.new as { id?: string; liker_id?: string; liked_id?: string; heart_type: HeartType; created_at?: string };
-            const likerId = row.liker_id;
-            // 수신자 전용 — 보낸 사람·제3자 토스트 방지 (필터가 깨져도 가드)
-            if (!isIncomingHeartToastTarget(currentUserId, { liker_id: likerId, liked_id: row.liked_id ?? currentUserId })) return;
-            if (likerId) {
-              const incomingHt = row.heart_type ?? 'red';
-              setReceivedHeartTypes(prev => {
-                const existing = prev.get(likerId);
-                if (shouldKeepExistingSentHeartType(existing, incomingHt)) return prev;
-                return new Map(prev).set(likerId, incomingHt);
-              });
-              const { data } = await supabase.from('profiles').select('*').eq('id', likerId).maybeSingle();
-              if (data) {
-                setReceivedLikers((prev) => upsertReceivedLikerFront(prev, data as Profile));
-              } else {
-                loadReceivedLikesRef.current?.(currentUserId)?.catch(() => {});
-              }
-              setBottomNotif(planIncomingHeartBottomNotif({
-                likerId,
-                heartType: row.heart_type ?? 'red',
-                nickname: data?.nickname ?? '누군가',
-                sentHeartsToLiker: sentHeartsPerPersonRef.current.get(likerId),
-              }));
-            } else {
-              setBottomNotif(planIncomingHeartBottomNotif({ heartType: row.heart_type ?? 'red' }));
-            }
-            triggerConfetti();
-            rejNotifTimerIds.push(setTimeout(() => setBottomNotif(prev => (prev?.type === 'heart') ? null : prev), 5000));
-            traceRealtimeStateMerge('hearts', row);
-          } catch (e) { console.warn('[realtime:likes]', e); }
-        })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'likes', filter: `liked_id=eq.${currentUserId}` },
-        (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-          try {
-            const updated = payload.new as {
-              id?: string;
-              liker_id?: string;
-              status?: string;
-              heart_type?: HeartType | null;
-              created_at?: string;
-            };
-            const patch = planReceivedLikeUpdate(updated);
-            if (patch.needsFullRefetch) {
-              loadReceivedLikesRef.current?.(currentUserId).catch(() => {});
-              return;
-            }
-            if (patch.removeLikerId) {
-              setReceivedLikers(prev => prev.filter(p => p.id !== patch.removeLikerId));
-            }
-            if (patch.ackGreenLikerId) {
-              setAcknowledgedComplimentIds(prev => {
-                if (prev.has(patch.ackGreenLikerId!)) return prev;
-                return new Set([...prev, patch.ackGreenLikerId!]);
-              });
-            }
-            if (patch.setHeartType) {
-              const { likerId, heartType } = patch.setHeartType;
-              setReceivedHeartTypes(prev => {
-                const nextType = preferReceivedHeartType(prev.get(likerId), heartType);
-                if (prev.get(likerId) === nextType) return prev;
-                return new Map(prev).set(likerId, nextType);
-              });
-            }
-            traceRealtimeStateMerge('hearts', updated);
-          } catch (e) {
-            console.warn('[realtime:likes-update]', e);
-            loadReceivedLikesRef.current?.(currentUserId).catch(() => {});
-          }
-        })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'contact_shares', filter: `liker_id=eq.${currentUserId}` },
-        async (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-          try {
-            const share = payload.new as ContactShare;
-            setReceivedContactShares(prev => upsertReceivedContactShare(prev, share));
-            traceRealtimeStateMerge('contact', share);
-            const { data } = await supabase.from('profiles').select('nickname').eq('id', share.liked_id).maybeSingle();
-            setBottomNotif({ type: 'contact', nickname: data?.nickname ?? '' });
-          } catch (e) { console.warn('[realtime:contact-shares]', e); }
-        })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'contact_shares', filter: `liker_id=eq.${currentUserId}` },
-        (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-          const share = payload.new as ContactShare;
-          setReceivedContactShares(prev => upsertReceivedContactShare(prev, share));
-          traceRealtimeStateMerge('contact', share);
-        })
-      .subscribe();
-    // chats INSERT/DELETE는 useChat의 user-events-${uid} 통합 채널이 처리 — 중복 구독 제거됨
+    // profiles + user-bundle SSE subscribe live in useUserRealtimeChannel (apply callbacks below).
 
     return () => {
       cancelled = true;
       if (retryTimerId) clearTimeout(retryTimerId);
       if (initTimerId1) clearTimeout(initTimerId1);
-      rejNotifTimerIds.forEach(clearTimeout);
       if (confettiTimerRef.current) { clearTimeout(confettiTimerRef.current); confettiTimerRef.current = null; }
       if (confettiInnerTimerRef.current) { clearTimeout(confettiInnerTimerRef.current); confettiInnerTimerRef.current = null; }
-      supabase.removeChannel(profileChannel);
-      supabase.removeChannel(userRealtimeChannel);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- loadXxx are stable useCallbacks; setState/refs are stable
-  }, [currentUserId, loadProfiles, loadLikes, loadReceivedLikes, loadContactShareData, loadChatList, traceRealtimeStateMerge]);
+  }, [currentUserId, loadProfiles, loadLikes, loadReceivedLikes, loadContactShareData, loadChatList]);
 
   // ─── 차단·숨기기 / 방문자 기록 로드 ─────────────────────────────────────────
   useEffect(() => {
@@ -1421,6 +1276,145 @@ function App() {
     loadReceivedLikes,
     loadContactShareData,
     applySessionReady,
+  });
+
+  // Clear SSE toast timers on user switch / unmount (hook apply schedules them).
+  useEffect(() => {
+    return () => {
+      realtimeNotifTimerIdsRef.current.forEach(clearTimeout);
+      realtimeNotifTimerIdsRef.current = [];
+    };
+  }, [currentUserId]);
+
+  // profiles + likes/contact_shares fan-in — App owns setState; hook only subscribes/routes.
+  useUserRealtimeChannel({
+    currentUserId,
+    onProfileInsert: (incoming) => {
+      setProfiles((prev) => planProfilesAfterInsert(prev, incoming, userIdRef.current));
+    },
+    onProfileUpdate: (incoming) => {
+      setProfiles((prev) => planProfilesAfterUpdate(prev, incoming, userIdRef.current));
+    },
+    onProfileDelete: (deletedId) => {
+      setProfiles((prev) => planProfilesAfterDelete(prev, deletedId));
+    },
+    onSentLikeInsert: (row) => {
+      const plan = planSentLikeInsert(row, {
+        counterpartReceivedHeartType: receivedHeartTypesRef.current.get(row.liked_id),
+      });
+      if (!plan) return;
+      setLikedIds((prev) => new Set([...prev, plan.likedId]));
+      setSentHeartTypes((prev) => {
+        const existing = prev.get(plan.likedId);
+        if (shouldKeepExistingSentHeartType(existing, plan.heartType)) return prev;
+        return new Map(prev).set(plan.likedId, plan.heartType);
+      });
+      setLikeStatuses(prev => prev.has(plan.likedId) ? prev : new Map(prev).set(plan.likedId, 'pending'));
+      setSentHeartsPerPerson(prev => {
+        const next = new Map(prev);
+        const s = new Set(next.get(plan.likedId) ?? []);
+        s.add(plan.heartType);
+        next.set(plan.likedId, s);
+        return next;
+      });
+      // 내가 하트를 보냈고 상대도 이미 하트를 보냈으면 서로 하트 (수신자 전용 토스트와 대칭)
+      if (plan.showMutualToast) {
+        const nick = profilesRef.current.find(p => p.id === plan.likedId)?.nickname ?? '상대방';
+        setBottomNotif({ type: 'heart', heartMutual: true, nickname: nick, profileId: plan.likedId, message: MUTUAL_HEART_TOAST });
+      }
+      traceRealtimeStateMerge('hearts', row);
+    },
+    onSentLikeUpdate: (updated) => {
+      setLikeStatuses(prev => new Map(prev).set(updated.liked_id, updated.status));
+      const statusNick = profilesRef.current.find(p => p.id === updated.liked_id)?.nickname ?? '상대방';
+      const statusNotif = planSentLikeStatusNotif(updated.status, statusNick);
+      if (statusNotif?.kind === 'rejected') {
+        setRejectionNotif(statusNotif.nickname);
+        realtimeNotifTimerIdsRef.current.push(setTimeout(() => setRejectionNotif(null), 5000));
+      } else if (statusNotif?.kind === 'accepted') {
+        loadContactShareData(currentUserId!);
+        setBottomNotif({ type: 'chat', nickname: statusNotif.nickname, message: statusNotif.message });
+        realtimeNotifTimerIdsRef.current.push(setTimeout(() => setBottomNotif(prev => prev?.message === statusNotif.message ? null : prev), 5000));
+      }
+      traceRealtimeStateMerge('hearts', updated);
+    },
+    onReceivedLikeInsert: async (row) => {
+      try {
+        const likerId = row.liker_id;
+        const uid = userIdRef.current;
+        // 수신자 전용 — 보낸 사람·제3자 토스트 방지 (필터가 깨져도 가드)
+        if (!uid || !isIncomingHeartToastTarget(uid, { liker_id: likerId, liked_id: row.liked_id ?? uid })) return;
+        if (likerId) {
+          const incomingHt = row.heart_type ?? 'red';
+          setReceivedHeartTypes(prev => {
+            const existing = prev.get(likerId);
+            if (shouldKeepExistingSentHeartType(existing, incomingHt)) return prev;
+            return new Map(prev).set(likerId, incomingHt);
+          });
+          const { data } = await supabase.from('profiles').select('*').eq('id', likerId).maybeSingle();
+          if (data) {
+            setReceivedLikers((prev) => upsertReceivedLikerFront(prev, data as Profile));
+          } else {
+            loadReceivedLikesRef.current?.(uid)?.catch(() => {});
+          }
+          setBottomNotif(planIncomingHeartBottomNotif({
+            likerId,
+            heartType: row.heart_type ?? 'red',
+            nickname: data?.nickname ?? '누군가',
+            sentHeartsToLiker: sentHeartsPerPersonRef.current.get(likerId),
+          }));
+        } else {
+          setBottomNotif(planIncomingHeartBottomNotif({ heartType: row.heart_type ?? 'red' }));
+        }
+        triggerConfetti();
+        realtimeNotifTimerIdsRef.current.push(setTimeout(() => setBottomNotif(prev => (prev?.type === 'heart') ? null : prev), 5000));
+        traceRealtimeStateMerge('hearts', row);
+      } catch (e) { console.warn('[realtime:likes]', e); }
+    },
+    onReceivedLikeUpdate: (updated) => {
+      try {
+        const patch = planReceivedLikeUpdate(updated);
+        const uid = userIdRef.current;
+        if (patch.needsFullRefetch) {
+          if (uid) loadReceivedLikesRef.current?.(uid).catch(() => {});
+          return;
+        }
+        if (patch.removeLikerId) {
+          setReceivedLikers(prev => prev.filter(p => p.id !== patch.removeLikerId));
+        }
+        if (patch.ackGreenLikerId) {
+          setAcknowledgedComplimentIds(prev => {
+            if (prev.has(patch.ackGreenLikerId!)) return prev;
+            return new Set([...prev, patch.ackGreenLikerId!]);
+          });
+        }
+        if (patch.setHeartType) {
+          const { likerId, heartType } = patch.setHeartType;
+          setReceivedHeartTypes(prev => {
+            const nextType = preferReceivedHeartType(prev.get(likerId), heartType);
+            if (prev.get(likerId) === nextType) return prev;
+            return new Map(prev).set(likerId, nextType);
+          });
+        }
+        traceRealtimeStateMerge('hearts', updated);
+      } catch (e) {
+        console.warn('[realtime:likes-update]', e);
+        const uid = userIdRef.current;
+        if (uid) loadReceivedLikesRef.current?.(uid).catch(() => {});
+      }
+    },
+    onContactShareInsert: async (share) => {
+      try {
+        setReceivedContactShares(prev => upsertReceivedContactShare(prev, share));
+        traceRealtimeStateMerge('contact', share);
+        const { data } = await supabase.from('profiles').select('nickname').eq('id', share.liked_id).maybeSingle();
+        setBottomNotif({ type: 'contact', nickname: data?.nickname ?? '' });
+      } catch (e) { console.warn('[realtime:contact-shares]', e); }
+    },
+    onContactShareUpdate: (share) => {
+      setReceivedContactShares(prev => upsertReceivedContactShare(prev, share));
+      traceRealtimeStateMerge('contact', share);
+    },
   });
 
   // SSE unhealthy poll — App only wires loaders (mirrors SoT peel; no new useState).

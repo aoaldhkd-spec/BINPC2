@@ -114,10 +114,12 @@ describe('product copy + notification invariants', () => {
   it('단톡 is quiet: no group-message modal popup', () => {
     const groupHook = read('hooks/useGroupChat.ts');
     const app = read('App.tsx');
+    const notif = read('lib/notification-active.ts');
     expect(groupHook).not.toMatch(/setBottomNotif\(\{\s*type:\s*'message'/);
     expect(groupHook).not.toMatch(/setActiveNotif/);
     expect(app).toContain('NotifModal');
-    expect(app).toMatch(/n\.target === 'all'/);
+    expect(app).toContain('shouldShowBroadcastNotif');
+    expect(notif).toMatch(/n\.target === 'all'/);
   });
 
   it('닉네임 설정 1단계 이전하기는 대기 랜딩으로 돌아가고 회식 중 설정 갱신에 덮이지 않는다', () => {
@@ -620,13 +622,16 @@ describe('participant profile list order invariants', () => {
   it('deck filter uses stable sort; App merges profiles instead of blind prepend/replace', () => {
     const deck = read('lib/profile-deck-filter.ts');
     const order = read('lib/profile-list-order.ts');
+    const apply = read('lib/profile-realtime-apply.ts');
     const app = read('App.tsx');
     expect(deck).toContain('sortProfilesStable');
     expect(order).toContain('mergeProfilesPreserveOrder');
     expect(order).toContain('patchProfileInPlace');
     expect(order).toContain('created_at');
+    expect(apply).toContain('planProfilesAfterInsert');
+    expect(apply).toContain('patchProfileInPlace');
     expect(app).toContain('mergeProfilesPreserveOrder');
-    expect(app).toContain('patchProfileInPlace');
+    expect(app).toContain('planProfilesAfterUpdate');
     expect(app).not.toMatch(/return \[incoming, \.\.\.prev\]/);
     expect(app).toContain('mergeProfilesPreserveOrder(prev, visible)');
   });

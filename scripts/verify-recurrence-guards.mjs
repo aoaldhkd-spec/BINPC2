@@ -535,6 +535,35 @@ mustMatch('ARCHITECTURE.md', '44_architecture_app_peel_progress', [
   /sent-like-insert/,
 ]);
 
+// ?? 45 App peel: useUserRealtimeChannel fan-in + profile/block planners ??????????
+mustExist('artifacts/boltnew-app/src/hooks/useUserRealtimeChannel.ts', '45_use_user_realtime_channel_hook');
+mustExist('artifacts/boltnew-app/src/lib/profile-realtime-apply.ts', '45_profile_realtime_apply_module');
+mustExist('artifacts/boltnew-app/src/lib/profile-realtime-apply.test.ts', '45_profile_realtime_apply_tests');
+mustExist('artifacts/boltnew-app/src/lib/block-action.ts', '45_block_action_module');
+mustExist('artifacts/boltnew-app/src/lib/block-action.test.ts', '45_block_action_tests');
+mustMatch('artifacts/boltnew-app/src/hooks/useUserRealtimeChannel.ts', '45_hook_subscribes_profiles_and_user_bundle', [
+  /realtime:profiles/,
+  /realtime:user-bundle:/,
+  /onSentLikeInsert/,
+  /onContactShareInsert/,
+]);
+mustMatch('artifacts/boltnew-app/src/App.tsx', '45_app_wires_user_realtime_apply_callbacks', [
+  /useUserRealtimeChannel/,
+  /planProfilesAfterInsert/,
+  /planSentLikeInsert/,
+  /shouldSkipBlock/,
+  /buildBlockedUserRow/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/App.tsx', '45_app_no_inline_profiles_or_user_bundle_channel', [
+  /channel\('realtime:profiles'\)/,
+  /realtime:user-bundle:/,
+]);
+mustMatch('ARCHITECTURE.md', '45_architecture_user_realtime_peel', [
+  /useUserRealtimeChannel/,
+  /incremental/,
+]);
+
+
 console.log('\n=== verify-recurrence-guards ===\n');
 for (const r of results) {
   console.log(`  ${r.ok ? 'OK' : 'FAIL'}  ${r.id}${r.detail && !r.ok ? ` ? ${r.detail}` : ''}`);

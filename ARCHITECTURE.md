@@ -22,6 +22,7 @@ Prefer **single Render instance**. Multi-instance는 NOTIFY로 일부 동기화�
 | `artifacts/boltnew-app/src/hooks/useGroupChat.ts` | 단체 채팅 |
 | `artifacts/boltnew-app/src/hooks/useParticipantSoTResync.ts` | 포그라운드/SSE 재연결 SoT 배선 (App은 콜백만) |
 | `artifacts/boltnew-app/src/hooks/useSseFallbackPoll.ts` | SSE unhealthy 폴링 fallback (App은 로더만) |
+| `artifacts/boltnew-app/src/hooks/useUserRealtimeChannel.ts` | profiles + likes/contact_shares SSE 구독/라우트 (App은 apply 콜백) |
 | `artifacts/boltnew-app/src/lib/localdb.ts` | SSE·`/op`·auth 토큰·Supabase 에뮬 |
 | `artifacts/boltnew-app/src/lib/net-health.ts` | 네트워크 UI·reconnect·backoff |
 | `artifacts/boltnew-app/src/lib/diag.ts` | 관측/`__BINPC_DIAG__` |
@@ -123,7 +124,7 @@ Detach = stop wiring the domain hook/callbacks into `App.tsx` / screens; keep pu
 | Layer | Status |
 |-------|--------|
 | Pure helpers (`lib/chat-*.ts`, `participant-sot-resync.ts`, `session-ready-settings.ts`, `received-like-update.ts`, `sent-like-insert.ts`, `contact-share-event.ts`, `pending-hearts.ts`, `sse-fallback-poll.ts`, `user-signal-merge.ts`, `realtime-row-upsert.ts`, `entry-gate.ts`, …) | Modular — easy attach/detach |
-| Domain hooks (`useChat`, `useHearts`, `useGroupChat`, `useParticipantSoTResync`, `useSseFallbackPoll`, `useDarkModeStorageSync`) | Mostly modular |
+| Domain hooks (`useChat`, `useHearts`, `useGroupChat`, `useParticipantSoTResync`, `useSseFallbackPoll`, `useUserRealtimeChannel`, `useDarkModeStorageSync`) | Mostly modular |
 | Screens | Prefer **flags + callbacks** (`onRefreshStatus`, `onRefreshChat`, guarded open/join) — do **not** grow App `useState` for peels |
 | `App.tsx` (~2.1k lines, peeling) | Wiring shell (session, overlays, SSE fan-in apply) — more planners/hooks extracted |
 
@@ -137,13 +138,15 @@ Detach = stop wiring the domain hook/callbacks into `App.tsx` / screens; keep pu
 
 ### App peel progress (incremental)
 
-Moved out of `App.tsx` (planners/hooks, behavior unchanged): SoT resync, SSE fallback poll, dark-mode storage sync, sent/received like planners + toast payloads, contact-share events, pending-hearts badge count, functions-lock kick plan, user-signal merge, realtime row upserts, settings `/ready` poll gap, profile-view debounce, broadcast notif helpers, entry password/reset planners.
+Moved out of `App.tsx` (planners/hooks, behavior unchanged): SoT resync, SSE fallback poll, dark-mode storage sync, sent/received like planners + toast payloads, contact-share events, pending-hearts badge count, functions-lock kick plan, user-signal merge, realtime row upserts, settings `/ready` poll gap, profile-view debounce, broadcast notif helpers, entry password/reset planners, **profiles + user-bundle SSE subscribe** (`useUserRealtimeChannel` + apply callbacks), profile SSE apply planners, block/hide planners.
 
-Still in App (intentionally): mount settings bootstrap + reset wipe side-effects, loading-main profile boot machine, full SSE channel subscribe fan-in (apply only thinned), JSX screen wiring.
+Still in App (intentionally, next peels): mount settings bootstrap + `applyResetSignal` wipe bundle, loading-main profile boot/backoff machine, remaining SSE channels (settings/notifications/contact-events/privacy/signals), JSX screen wiring.
+
+Path to a prettier codebase = **incremental** thinner peels (subscribe vs apply vs pure planners) — not one-shot perfection.
 
 ### Next incremental steps (no big-bang rewrite)
 
-1. Further thin remaining App SSE subscribe blocks if more pure apply helpers appear.
+1. Peel remaining SSE channels (signals / privacy / settings apply thins) the same subscribe+callback pattern — skip mega-hooks.
 2. Screens keep flags/callbacks only — no new App feature state for modularity work.
 3. Further narrow hot `select('*')` paths (profiles/signals) the same way as chat-list columns.
 
