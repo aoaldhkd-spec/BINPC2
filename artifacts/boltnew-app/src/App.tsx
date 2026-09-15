@@ -946,6 +946,7 @@ function App() {
     <ParticipantNavProvider nav={participantNav}>
       <AppOverlays
         isSubScreen={isSubScreen}
+        mainTab={mainTab}
         showTutorialModal={showTutorialModal}
         setShowTutorialModal={setShowTutorialModal}
         activeNotif={activeNotif}

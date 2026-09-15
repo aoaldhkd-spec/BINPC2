@@ -53,6 +53,7 @@ type Notif = { id: string; message: string; type: string; target: string };
 export type AppOverlaysProps = {
   children: ReactNode;
   isSubScreen: boolean;
+  mainTab: MainTab;
   showTutorialModal: boolean;
   setShowTutorialModal: Dispatch<SetStateAction<boolean>>;
   activeNotif: Notif | null;
@@ -136,6 +137,7 @@ export function AppOverlays(p: AppOverlaysProps) {
   const {
     children,
     isSubScreen,
+    mainTab,
     showTutorialModal, setShowTutorialModal,
     activeNotif, setActiveNotif,
     showResetPassword, setShowResetPassword,
@@ -190,7 +192,7 @@ export function AppOverlays(p: AppOverlaysProps) {
         </Suspense>
       )}
 
-      <FirstEntryCoachMarks isSubScreen={isSubScreen} suspended={showTutorialModal} />
+      <FirstEntryCoachMarks isSubScreen={isSubScreen} mainTab={mainTab} suspended={showTutorialModal} />
       {connStatus !== 'ok' && (
         <ReconnectOverlay
           status={connStatus}
