@@ -277,3 +277,31 @@ export function buildDeviceSecretRow(input: {
     created_at: input.createdAt,
   };
 }
+
+/**
+ * Cookie session vs bearer sessionToken (PIN recovery / Netlify stale cookie).
+ * Verified bearer wins over connect.sid — crypto verify injected.
+ */
+export function resolveAuthUserIdFromParts(input: {
+  cookieUserId: string | null | undefined;
+  bodySessionToken: unknown;
+  bodyRequesterId: unknown;
+  /** Precomputed: token && claimed && verifySessionToken(claimed, token) */
+  sessionTokenValid: boolean;
+}): string | null {
+  const token = typeof input.bodySessionToken === 'string' ? input.bodySessionToken : null;
+  const claimed = typeof input.bodyRequesterId === 'string' ? input.bodyRequesterId : null;
+  if (token && claimed && input.sessionTokenValid) return claimed;
+  if (input.cookieUserId) return String(input.cookieUserId);
+  return null;
+}
+
+/** JSON body for successful /auth/login (session mutate stays in db.ts). */
+export function buildLoginSuccessBody(
+  userId: string,
+  issueSessionToken: (userId: string) => { token: string; expiresAt: number },
+): { ok: true; sessionToken: string; sessionExpiresAt: number } {
+  const { token, expiresAt } = issueSessionToken(userId);
+  return { ok: true, sessionToken: token, sessionExpiresAt: expiresAt };
+}
+

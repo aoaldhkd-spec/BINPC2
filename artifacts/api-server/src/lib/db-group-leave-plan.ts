@@ -70,3 +70,66 @@ export function countUserGroupSlots(
   }
   return keys.size;
 }
+
+/**
+ * When leaving a group via DELETE, expand to all leave-slot sibling memberships.
+ * Seeds from matched rows, or from eq filters when the filter set is empty.
+ * `leaveRowsFor` is injected (db.ts thin wrapper over participantRowsToLeave).
+ */
+export function planGroupParticipantsDeleteExpand(input: {
+  toDelete: Record<string, unknown>[];
+  groupIdEqVal: unknown | undefined;
+  userIdEqVal: unknown | undefined;
+  requesterId: string;
+  leaveRowsFor: (userId: string, groupId: string) => Record<string, unknown>[];
+}): Record<string, unknown>[] {
+  const seeds =
+    input.toDelete.length > 0
+      ? input.toDelete
+      : input.groupIdEqVal != null && input.userIdEqVal != null
+        ? [{ user_id: input.userIdEqVal, group_id: input.groupIdEqVal }]
+        : [];
+  const byId = new Map<string, Record<string, unknown>>();
+  for (const row of seeds) {
+    if (String(row.user_id) !== String(input.requesterId)) continue;
+    for (const extra of input.leaveRowsFor(String(row.user_id), String(row.group_id ?? ''))) {
+      byId.set(String(extra.id), extra);
+    }
+  }
+  return byId.size > 0 ? [...byId.values()] : input.toDelete;
+}
+
+export function buildGroupOptOutRow(input: {
+  userId: string;
+  groupId: string;
+  optKey: string;
+  roomKind: string;
+  createdAt: string;
+}): Record<string, unknown> {
+  return {
+    id: `${input.userId}__${input.optKey}`,
+    user_id: input.userId,
+    group_id: input.groupId,
+    room_kind: input.roomKind,
+    opt_key: input.optKey,
+    created_at: input.createdAt,
+  };
+}
+
+/** Rows to remove when clearing opt-out for user+group/optKey. */
+export function planClearGroupOptOutRows(
+  outs: Record<string, unknown>[],
+  userId: string,
+  groupId: string,
+  optKey: string,
+): { gone: Record<string, unknown>[]; keep: Record<string, unknown>[] } {
+  const gone = outs.filter(
+    r =>
+      String(r.user_id) === userId
+      && (String(r.opt_key) === optKey || String(r.group_id) === groupId),
+  );
+  if (!gone.length) return { gone: [], keep: outs };
+  const goneSet = new Set(gone);
+  return { gone, keep: outs.filter(r => !goneSet.has(r)) };
+}
+

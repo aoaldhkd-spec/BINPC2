@@ -78,3 +78,18 @@ export function pinRateLimitedReject(): PinLookupReject {
     },
   };
 }
+
+export function pinLookupInvalidBodyReject(): PinLookupReject {
+  return {
+    status: 400,
+    body: { data: null, error: { message: 'Invalid request body', code: 'INVALID_BODY' } },
+  };
+}
+
+export function pinLookupInternalReject(): PinLookupReject {
+  return {
+    status: 500,
+    body: { data: null, error: { message: '서버 내부 오류가 발생했습니다.' } },
+  };
+}
+

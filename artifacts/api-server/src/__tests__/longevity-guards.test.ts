@@ -258,6 +258,24 @@ describe('longevity recurrence guards (server)', () => {
     expect(health).toContain('buildHealthAlarms');
   });
 
+  it('auth-resolve + unread/push-notify + leave-expand + sse-gate stay extracted', () => {
+    expect(dbTs).toContain('resolveAuthUserIdFromParts');
+    expect(dbTs).toContain('validatePushNotifyRequest');
+    expect(dbTs).toContain('planGroupParticipantsDeleteExpand');
+    expect(dbTs).toContain('planSseUserTokenGate');
+    expect(dbTs).toContain('planNotifyQueueEnqueue');
+    expect(dbTs).toContain('planApplyAdminNpcRelStore');
+    expect(dbTs).toContain('unreadCountsUnauthorizedReject');
+    expect(dbTs).not.toMatch(/안읽은 메시지 수 조회 중 오류가 발생했습니다/);
+    const session = readFileSync(join(here, '../lib/db-session-tokens.ts'), 'utf8');
+    const unread = readFileSync(join(here, '../lib/db-unread-counts.ts'), 'utf8');
+    const push = readFileSync(join(here, '../lib/db-push-plan.ts'), 'utf8');
+    expect(session).toContain('resolveAuthUserIdFromParts');
+    expect(unread).toContain('readUnreadCountsCache');
+    expect(push).toContain('validatePushNotifyRequest');
+  });
+
+
   it('app-settings-merge + panel-tokens stay extracted from db.ts', () => {
     expect(dbTs).toContain("from '../lib/db-app-settings-merge'");
     expect(dbTs).toContain("from '../lib/db-panel-tokens'");

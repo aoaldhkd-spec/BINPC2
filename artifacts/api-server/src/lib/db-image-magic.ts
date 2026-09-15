@@ -42,3 +42,13 @@ export function dataUrlMimeAndMagic(
   );
   return { mime, magicOk: matched };
 }
+
+/** Split `data:<mime>;base64,<body>` for HTTP image responses. */
+export function parseDataUrlForResponse(
+  dataUrl: string,
+): { mime: string; base64: string } | null {
+  const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+  if (!match) return null;
+  return { mime: match[1], base64: match[2] };
+}
+

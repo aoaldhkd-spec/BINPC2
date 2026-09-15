@@ -68,3 +68,66 @@ export function computeUnreadCountsForUser(
   }
   return counts;
 }
+
+export type UnreadCountsReject = {
+  status: number;
+  body: { data: null; error: { message: string; code?: string } };
+};
+
+export function unreadCountsUserIdRequiredReject(): UnreadCountsReject {
+  return { status: 400, body: { data: null, error: { message: 'userId required' } } };
+}
+
+export function unreadCountsUnauthorizedReject(): UnreadCountsReject {
+  return {
+    status: 401,
+    body: {
+      data: null,
+      error: { message: 'Unauthorized: valid SSE token required', code: 'UNAUTHORIZED' },
+    },
+  };
+}
+
+export function unreadCountsInternalReject(): UnreadCountsReject {
+  return {
+    status: 500,
+    body: { data: null, error: { message: '안읽은 메시지 수 조회 중 오류가 발생했습니다.' } },
+  };
+}
+
+export type UnreadCountsCacheEntry = { ts: number; data: Record<string, number> };
+
+/** Hit when entry exists and is within TTL. */
+export function readUnreadCountsCache(
+  cache: Map<string, UnreadCountsCacheEntry>,
+  userId: string,
+  now: number,
+  ttlMs: number,
+): Record<string, number> | null {
+  const cached = cache.get(userId);
+  if (cached && (now - cached.ts) < ttlMs) return cached.data;
+  return null;
+}
+
+/** LRU-ish: Map insertion order — evict oldest key when at maxSize. */
+export function writeUnreadCountsCache(
+  cache: Map<string, UnreadCountsCacheEntry>,
+  userId: string,
+  data: Record<string, number>,
+  now: number,
+  maxSize = 200,
+): void {
+  if (cache.size >= maxSize && !cache.has(userId)) {
+    const oldest = cache.keys().next().value;
+    if (oldest !== undefined) cache.delete(oldest);
+  }
+  cache.set(userId, { ts: now, data });
+}
+
+export function pruneUnreadCountsCache(
+  cache: Map<string, UnreadCountsCacheEntry>,
+  cutoff: number,
+): void {
+  for (const [k, v] of cache) if (v.ts < cutoff) cache.delete(k);
+}
+

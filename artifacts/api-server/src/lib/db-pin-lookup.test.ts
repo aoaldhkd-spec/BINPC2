@@ -24,3 +24,16 @@ describe('db-pin-lookup', () => {
     expect(pinRateLimitedReject().status).toBe(429);
   });
 });
+
+import {
+  pinLookupInvalidBodyReject,
+  pinLookupInternalReject,
+} from './db-pin-lookup.js';
+
+describe('pin lookup body/internal (70)', () => {
+  it('rejects', () => {
+    expect(pinLookupInvalidBodyReject().body.error.code).toBe('INVALID_BODY');
+    expect(pinLookupInternalReject().body.error.message).toContain('서버');
+  });
+});
+

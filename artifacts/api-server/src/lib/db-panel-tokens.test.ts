@@ -36,3 +36,24 @@ describe('db-panel-tokens', () => {
     expect(verifyTestPanelToken(adminTok, ['pw'])).toBe(false);
   });
 });
+
+import {
+  planClearDbErrorsAuth,
+  clearDbErrorsInvalidBodyReject,
+} from './db-panel-tokens.js';
+
+describe('clear-db-errors auth (70)', () => {
+  it('token or password', () => {
+    expect(planClearDbErrorsAuth({
+      tokenOk: true, adminPassword: undefined, expectedPassword: 'x',
+    }).ok).toBe(true);
+    expect(planClearDbErrorsAuth({
+      tokenOk: false, adminPassword: 'pw', expectedPassword: 'pw',
+    }).ok).toBe(true);
+    expect(planClearDbErrorsAuth({
+      tokenOk: false, adminPassword: 'no', expectedPassword: 'pw',
+    }).ok).toBe(false);
+    expect(clearDbErrorsInvalidBodyReject().status).toBe(400);
+  });
+});
+

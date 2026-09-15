@@ -204,3 +204,60 @@ export function planPushSubscribeStore(input: {
   };
 }
 
+export type PushNotifyReject = { status: number; body: { error: string } };
+
+export function pushNotifyForbiddenReject(): PushNotifyReject {
+  return { status: 403, body: { error: 'Forbidden' } };
+}
+
+export function pushNotifyInvalidBodyReject(): PushNotifyReject {
+  return { status: 400, body: { error: 'Invalid request body' } };
+}
+
+export function pushNotifyInvalidRecipientReject(): PushNotifyReject {
+  return { status: 400, body: { error: 'Missing or invalid recipientId' } };
+}
+
+export function pushNotifyInternalReject(): PushNotifyReject {
+  return { status: 500, body: { error: 'Internal server error' } };
+}
+
+export type PushNotifyBodyOk = {
+  ok: true;
+  recipientId: string;
+  payload: PushPlanPayload;
+};
+
+export type PushNotifyBodyResult = PushNotifyBodyOk | { ok: false; reject: PushNotifyReject };
+
+/**
+ * /push/notify secret + body validate + payload slice (exact prior wording/limits).
+ * Send / store mutate stay in db.ts.
+ */
+export function validatePushNotifyRequest(input: {
+  secretOk: boolean;
+  body: unknown;
+}): PushNotifyBodyResult {
+  if (!input.secretOk) return { ok: false, reject: pushNotifyForbiddenReject() };
+  if (input.body == null || typeof input.body !== 'object' || Array.isArray(input.body)) {
+    return { ok: false, reject: pushNotifyInvalidBodyReject() };
+  }
+  const raw = input.body as Record<string, unknown>;
+  const recipientId = typeof raw.recipientId === 'string' ? raw.recipientId : null;
+  if (!recipientId || recipientId.length > 128) {
+    return { ok: false, reject: pushNotifyInvalidRecipientReject() };
+  }
+  const safeStr = (v: unknown, def: string, max: number) =>
+    (typeof v === 'string' ? v : def).slice(0, max);
+  return {
+    ok: true,
+    recipientId,
+    payload: {
+      title: safeStr(raw.title, '범일NPC 술번개', 64),
+      body: safeStr(raw.body, '', 200),
+      tag: safeStr(raw.tag, 'notification', 64),
+      url: safeStr(raw.url, '/', 512),
+    },
+  };
+}
+

@@ -50,3 +50,34 @@ describe('db-unread-counts', () => {
     expect(counts).toEqual({ canon: 1 });
   });
 });
+
+import {
+  unreadCountsUserIdRequiredReject,
+  unreadCountsUnauthorizedReject,
+  unreadCountsInternalReject,
+  readUnreadCountsCache,
+  writeUnreadCountsCache,
+  pruneUnreadCountsCache,
+} from './db-unread-counts.js';
+
+describe('unread rejects + cache (70)', () => {
+  it('Korean/English rejects', () => {
+    expect(unreadCountsUserIdRequiredReject().status).toBe(400);
+    expect(unreadCountsUnauthorizedReject().body.error.code).toBe('UNAUTHORIZED');
+    expect(unreadCountsInternalReject().body.error.message).toContain('안읽은');
+  });
+
+  it('cache read/write/prune LRU', () => {
+    const cache = new Map();
+    expect(readUnreadCountsCache(cache, 'u', 100, 50)).toBe(null);
+    writeUnreadCountsCache(cache, 'u', { c1: 1 }, 100, 2);
+    expect(readUnreadCountsCache(cache, 'u', 120, 50)).toEqual({ c1: 1 });
+    writeUnreadCountsCache(cache, 'a', { c: 1 }, 1, 2);
+    writeUnreadCountsCache(cache, 'b', { c: 1 }, 2, 2);
+    writeUnreadCountsCache(cache, 'c', { c: 1 }, 3, 2);
+    expect(cache.has('a')).toBe(false);
+    pruneUnreadCountsCache(cache, 3);
+    expect(cache.has('b')).toBe(false);
+  });
+});
+

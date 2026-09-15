@@ -16,6 +16,7 @@ import { createImageAccessPolicy } from '../lib/image-access';
 import {
   MAX_IMAGE_DATAURL_BYTES,
   dataUrlMimeAndMagic,
+  parseDataUrlForResponse,
 } from '../lib/db-image-magic';
 import {
   sanitizeRow,
@@ -70,7 +71,7 @@ import {
   SSE_RING_MAX_DEFAULT,
   SSE_RING_TTL_MS_DEFAULT,
 } from '../lib/db-sse-ring';
-import { createMergedIdMap } from '../lib/db-merged-id-map';
+import { createMergedIdMap, resolveMergedIdViaRows } from '../lib/db-merged-id-map';
 import {
   ALLOWED_OP_TABLES,
   CRITICAL_PERSIST_TABLES,
@@ -79,8 +80,6 @@ import {
   planSmartBroadcastLocal,
   REALTIME_TRACE_TABLES,
   realtimeTraceMeta,
-  sseTokenExpiredReject,
-  sseTokenInvalidReject,
   sseCapacityReject,
   planSseIpCount,
   shouldRejectAnonSse,
@@ -89,7 +88,8 @@ import {
   shouldEvictOldestSseConn,
   SSE_RING_REPLAY_MAX_DEFAULT,
   SSE_ADMIN_MAX_CONN_DEFAULT,
-  planNotifyOtherInstances,
+  planNotifyOtherInstances, planSseUserTokenGate, planNotifyQueueEnqueue,
+  countSseLiveConnections, countSseHealthConnections,
 } from '../lib/db-sse-fanout-policy';
 import {
   normalizeOpFilters,
@@ -162,7 +162,7 @@ import {
   maskNicknameForPinConfirm,
   pinLookupNotFoundReject,
   pinNicknameMismatchReject,
-  pinRateLimitedReject,
+  pinRateLimitedReject, pinLookupInvalidBodyReject, pinLookupInternalReject,
   validateByPinBody,
 } from '../lib/db-pin-lookup';
 import {
@@ -173,7 +173,11 @@ import {
   storageUploadInternalReject,
   storageRemoveInternalReject,
 } from '../lib/db-storage-path';
-import { validateBroadcastBody } from '../lib/db-broadcast-validate';
+import {
+  validateBroadcastBody,
+  broadcastForbiddenReject, broadcastRateLimitedReject, broadcastInternalReject,
+  clientIpFromXForwardedFor,
+} from '../lib/db-broadcast-validate';
 import {
   ALLOWED_RPCS,
   adminPhoneMismatch,
@@ -257,8 +261,8 @@ import {
   planBirthMdEditPatch,
 } from '../lib/db-admin-identity';
 import {
-  likeRateKeyTouchesAdmin,
   planClearAdminNpcRelationships,
+  planApplyAdminNpcRelStore,
   ADMIN_EVENT_END_CLEAR_TABLES,
   planWipeTableBroadcast,
   TEST_WIPE_ALL_TABLES,
@@ -287,6 +291,7 @@ import {
   deriveTestToken,
   verifyAdminPanelToken,
   verifyTestPanelToken,
+  clearDbErrorsInvalidBodyReject, planClearDbErrorsAuth, clearDbErrorsInternalReject,
 } from '../lib/db-panel-tokens';
 import {
   createImageStore,
@@ -322,6 +327,7 @@ import {
   hasGroupOptOut as hasGroupOptOutPure,
   participantRowsToLeave as participantRowsToLeavePure,
   countUserGroupSlots as countUserGroupSlotsPure,
+  planGroupParticipantsDeleteExpand, buildGroupOptOutRow, planClearGroupOptOutRows,
 } from '../lib/db-group-leave-plan';
 import {
   profileBirthYearRejected as profileBirthYearRejectedPure,
@@ -374,23 +380,25 @@ import {
   authSseTokenUnauthReject,
   authSseTokenInternalReject,
   planAuthSseTokenUser,
-  planProfileDeviceSecretBind,
-  buildDeviceSecretRow,
+  planProfileDeviceSecretBind, buildDeviceSecretRow,
+  resolveAuthUserIdFromParts, buildLoginSuccessBody,
 } from '../lib/db-session-tokens';
-import { computeUnreadCountsForUser } from '../lib/db-unread-counts';
+import {
+  computeUnreadCountsForUser,
+  unreadCountsUserIdRequiredReject, unreadCountsUnauthorizedReject, unreadCountsInternalReject,
+  readUnreadCountsCache, writeUnreadCountsCache, pruneUnreadCountsCache,
+} from '../lib/db-unread-counts';
 import {
   planPushForEvent,
-  pushSubscribeUnauthorizedReject,
-  validatePushSubscribeBody,
-  planPushSubscribeStore,
+  pushSubscribeUnauthorizedReject, validatePushSubscribeBody, planPushSubscribeStore,
+  validatePushNotifyRequest, pushNotifyInternalReject,
 } from '../lib/db-push-plan';
 import {
   isChatParticipant as isChatParticipantPure,
   countMessagesForChat as countMessagesForChatPure,
   chatIdsForPair as chatIdsForPairPure,
   pickCanonicalChatRow as pickCanonicalChatRowPure,
-  groupChatsByPair,
-  messageMergeAction,
+  groupChatsByPair, messageMergeAction, planCanonicalMessageChatId,
 } from '../lib/db-chat-pair-plan';
 import {
   FUNCTIONS_LOCKED_ERROR,
@@ -468,7 +476,6 @@ async function clearAdminNpcRelationships(adminId: string): Promise<void> {
   if (!plan) return;
   const {
     adminId: aid,
-    chatIds,
     chatRows,
     msgRows,
     readRows,
@@ -477,32 +484,28 @@ async function clearAdminNpcRelationships(adminId: string): Promise<void> {
     shareEventRows,
   } = plan;
 
-  if (msgRows.length) {
-    store['messages'] = (getTable('messages') ?? []).filter(m => !chatIds.has(String(m.chat_id)));
-  }
-  if (readRows.length) {
-    store['chat_reads'] = (getTable('chat_reads') ?? []).filter(r => !chatIds.has(String(r.chat_id)));
+  const storePatch = planApplyAdminNpcRelStore({
+    plan,
+    messages: getTable('messages') ?? [],
+    chat_reads: getTable('chat_reads') ?? [],
+    chats: getTable('chats') ?? [],
+    likes: getTable('likes') ?? [],
+    contact_shares: getTable('contact_shares') ?? [],
+    contact_share_events: getTable('contact_share_events') ?? [],
+    likeRateKeys: _likesLastInsert.keys(),
+  });
+  if (storePatch.messages) store['messages'] = storePatch.messages;
+  if (storePatch.chat_reads) {
+    store['chat_reads'] = storePatch.chat_reads;
     unreadCountsCache.clear();
   }
-  if (chatRows.length) store['chats'] = (getTable('chats') ?? []).filter(c => !chatIds.has(String(c.id)));
-  if (likeRows.length) {
-    store['likes'] = (getTable('likes') ?? []).filter(
-      l => String(l.liker_id) !== aid && String(l.liked_id) !== aid,
-    );
-    for (const key of [..._likesLastInsert.keys()]) {
-      if (likeRateKeyTouchesAdmin(key, aid)) _likesLastInsert.delete(key);
-    }
+  if (storePatch.chats) store['chats'] = storePatch.chats;
+  if (storePatch.likes) {
+    store['likes'] = storePatch.likes;
+    for (const key of storePatch.likeRateKeysToDelete) _likesLastInsert.delete(key);
   }
-  if (shareRows.length) {
-    store['contact_shares'] = (getTable('contact_shares') ?? []).filter(
-      s => String(s.liker_id) !== aid && String(s.liked_id) !== aid,
-    );
-  }
-  if (shareEventRows.length) {
-    store['contact_share_events'] = (getTable('contact_share_events') ?? []).filter(
-      e => String(e.from_user_id) !== aid && String(e.to_user_id) !== aid,
-    );
-  }
+  if (storePatch.contact_shares) store['contact_shares'] = storePatch.contact_shares;
+  if (storePatch.contact_share_events) store['contact_share_events'] = storePatch.contact_share_events;
 
   const persistDeletes: Promise<void>[] = [];
   for (const m of msgRows) {
@@ -754,12 +757,6 @@ const _sseConnPerIp = new Map<string, number>();
 const SSE_MAX_CONN_PER_IP = Number(process.env.SSE_MAX_CONN_PER_IP ?? 200);
 const SSE_MAX_TOTAL = Number(process.env.SSE_MAX_TOTAL ?? 4000);
 const SSE_MAX_CONN_PER_USER = Number(process.env.SSE_MAX_CONN_PER_USER ?? 4);
-
-function sseLiveCount(): number {
-  let n = sseAnonClients.size + sseAdminClients.size;
-  for (const s of sseUserMap.values()) n += s.size;
-  return n;
-}
 
 // Image magic / MIME: ../lib/db-image-magic.ts
 
@@ -1711,19 +1708,15 @@ function collapseDuplicateGroupChatIds(): void {
 const _mergedGroupIds = createMergedIdMap(2000);
 const rememberMergedGroup = _mergedGroupIds.remember;
 function resolveMergedGroupId(groupId: string): string {
-  // First follow in-memory redirects, then row.merged_into (DB-backed).
-  let cur = _mergedGroupIds.resolve(groupId);
-  for (let i = 0; i < 8; i++) {
-    const row = getTable('group_chats').find(g => String(g.id) === cur);
-    const into = row ? String(row.merged_into ?? '') : '';
-    if (into && into !== cur) {
-      rememberMergedGroup(cur, into);
-      cur = _mergedGroupIds.resolve(into);
-      continue;
-    }
-    break;
-  }
-  return cur;
+  return resolveMergedIdViaRows(
+    groupId,
+    (id) => _mergedGroupIds.resolve(id),
+    rememberMergedGroup,
+    (cur) => {
+      const row = getTable('group_chats').find(g => String(g.id) === cur);
+      return row ? String(row.merged_into ?? '') : '';
+    },
+  );
 }
 
 async function mergeGroupInto(dupId: string, canonicalId: string): Promise<void> {
@@ -2003,14 +1996,13 @@ async function recordGroupOptOut(part: Record<string, unknown>): Promise<void> {
   if (!userId || !groupId) return;
   const group = getTable('group_chats').find(g => String(g.id) === groupId);
   const optKey = optKeyForGroup(group, groupId);
-  const row: Record<string, unknown> = {
-    id: `${userId}__${optKey}`,
-    user_id: userId,
-    group_id: groupId,
-    room_kind: String(group?.room_kind ?? ''),
-    opt_key: optKey,
-    created_at: ts(),
-  };
+  const row = buildGroupOptOutRow({
+    userId,
+    groupId,
+    optKey,
+    roomKind: String(group?.room_kind ?? ''),
+    createdAt: ts(),
+  });
   const outs = getTable('group_opt_outs');
   const idx = outs.findIndex(r => String(r.id) === String(row.id));
   if (idx >= 0) outs[idx] = row;
@@ -2025,10 +2017,9 @@ async function recordGroupOptOut(part: Record<string, unknown>): Promise<void> {
 async function clearGroupOptOut(userId: string, groupId: string): Promise<void> {
   const group = getTable('group_chats').find(g => String(g.id) === groupId);
   const optKey = optKeyForGroup(group, groupId);
-  const outs = getTable('group_opt_outs');
-  const gone = outs.filter(r => String(r.user_id) === userId && (String(r.opt_key) === optKey || String(r.group_id) === groupId));
+  const { gone, keep } = planClearGroupOptOutRows(getTable('group_opt_outs'), userId, groupId, optKey);
   if (!gone.length) return;
-  store['group_opt_outs'] = outs.filter(r => !gone.includes(r));
+  store['group_opt_outs'] = keep;
   for (const r of gone) {
     void dbDeleteRow('group_opt_outs', String(r.id));
   }
@@ -2385,22 +2376,14 @@ function _drainNotifyQueue() {
 }
 
 function enqueueNotify(msg: string, table: string, rowId: unknown): void {
-  if (rowId != null) {
-    for (let i = _notifyQueue.length - 1; i >= 0; i--) {
-      try {
-        const queued = JSON.parse(_notifyQueue[i]) as { table?: string; id?: unknown; newRow?: Record<string, unknown>; oldRow?: Record<string, unknown> };
-        const queuedId = queued.id ?? (queued.newRow ?? queued.oldRow)?.['id'];
-        if (queued.table === table && String(queuedId) === String(rowId)) {
-          _notifyQueue[i] = msg;
-          return;
-        }
-      } catch {
-        // 손상된 항목은 drain 단계에서 실패하도록 그대로 두고 다음 항목을 확인합니다.
-      }
-    }
+  // Coalesce/push plan: ../lib/db-sse-fanout-policy.ts
+  const plan = planNotifyQueueEnqueue(_notifyQueue, msg, table, rowId, NOTIFY_QUEUE_MAX);
+  if (plan.action === 'replace') {
+    _notifyQueue[plan.index] = plan.msg;
+    return;
   }
-  if (_notifyQueue.length >= NOTIFY_QUEUE_MAX) _notifyQueue.shift();
-  _notifyQueue.push(msg);
+  if (plan.dropOldest) _notifyQueue.shift();
+  _notifyQueue.push(plan.msg);
   _drainNotifyQueue();
 }
 
@@ -3172,15 +3155,15 @@ router.post('/op', async (req: Request, res: Response) => {
           effectiveRow = { ...effectiveRow, chat_id: resolveMergedChatId(String(effectiveRow.chat_id)) };
           const referenceCheck = await ensureWriteReferences(table, effectiveRow);
           if (!referenceCheck.ok && referenceCheck.unavailable) return sendReferenceFailure(res, referenceCheck);
-          const msgChat = getTable('chats').find(c => String(c.id) === String(effectiveRow.chat_id));
-          if (msgChat) {
-            const pk = chatPairKey(String(msgChat.user1_id), String(msgChat.user2_id));
-            const siblings = getTable('chats').filter(c => chatPairKey(String(c.user1_id), String(c.user2_id)) === pk);
-            if (siblings.length > 1) {
-              const canonical = pickCanonicalChatRow(siblings);
-              effectiveRow = { ...effectiveRow, chat_id: canonical.id };
-            }
-          }
+          effectiveRow = {
+            ...effectiveRow,
+            chat_id: planCanonicalMessageChatId(
+              String(effectiveRow.chat_id),
+              getTable('chats'),
+              chatPairKey,
+              pickCanonicalChatRow,
+            ),
+          };
           const targetChat = getTable('chats').find(c => String(c.id) === String(effectiveRow.chat_id));
           if (!isChatRowParticipantOf(targetChat, String(requesterId))) {
             const rej = messagesInsertNonParticipantReject();
@@ -3877,19 +3860,13 @@ router.post('/op', async (req: Request, res: Response) => {
       if (table === 'group_participants' && requesterId && !isAdmin) {
         const gidF = normalizedFilters.find(f => f.type === 'eq' && f.col === 'group_id');
         const uidF = normalizedFilters.find(f => f.type === 'eq' && f.col === 'user_id');
-        const seeds = toDelete.length > 0
-          ? toDelete
-          : (gidF && uidF && 'val' in gidF && 'val' in uidF
-            ? [{ user_id: uidF.val, group_id: gidF.val }]
-            : []);
-        const byId = new Map<string, Record<string, unknown>>();
-        for (const row of seeds) {
-          if (String(row.user_id) !== String(requesterId)) continue;
-          for (const extra of participantRowsToLeave(String(row.user_id), String(row.group_id ?? ''))) {
-            byId.set(String(extra.id), extra);
-          }
-        }
-        if (byId.size > 0) toDelete = [...byId.values()];
+        toDelete = planGroupParticipantsDeleteExpand({
+          toDelete,
+          groupIdEqVal: gidF && 'val' in gidF ? gidF.val : undefined,
+          userIdEqVal: uidF && 'val' in uidF ? uidF.val : undefined,
+          requesterId: String(requesterId),
+          leaveRowsFor: participantRowsToLeave,
+        });
       }
 
       const deleteIds = [...new Set(toDelete.map(r => String(r.id)).filter(Boolean))];
@@ -4347,15 +4324,16 @@ router.post('/broadcast', (req: Request, res: Response) => {
   const token  = req.headers['x-broadcast-token']  as string | undefined;
   const userId = req.headers['x-broadcast-userid'] as string | undefined;
   if (!token || !userId || !verifySseToken(userId, token)) {
-    res.status(403).json({ ok: false, error: 'Forbidden: invalid broadcast token' });
+    const rej = broadcastForbiddenReject();
+    res.status(rej.status).json(rej.body);
     return;
   }
   // x-forwarded-for는 Express가 배열로 파싱할 수 있음 — typeof 검사 후 안전하게 첫 IP 추출
-  const xfwd = req.headers['x-forwarded-for'];
-  const ip = (typeof xfwd === 'string' ? xfwd : Array.isArray(xfwd) ? xfwd[0] : req.socket?.remoteAddress ?? 'unknown').split(',')[0].trim();
+  const ip = clientIpFromXForwardedFor(req.headers['x-forwarded-for'], req.socket?.remoteAddress);
   const broadcastRate = consumeRateLimit(_broadcastRateMap, ip, { windowMs: 5_000, max: 30 });
   if (broadcastRate !== 'ok') {
-    res.status(429).json({ ok: false, error: 'Too many broadcasts' });
+    const rej = broadcastRateLimitedReject();
+    res.status(rej.status).json(rej.body);
     return;
   }
   // ─ body/channel/event validate (db-broadcast-validate)
@@ -4371,7 +4349,10 @@ router.post('/broadcast', (req: Request, res: Response) => {
   res.json({ ok: true });
   } catch (e) {
     logger.error({ err: e }, '[broadcast] Unexpected error');
-    if (!res.headersSent) res.status(500).json({ ok: false, error: 'Internal server error' });
+    if (!res.headersSent) {
+      const rej = broadcastInternalReject();
+      res.status(rej.status).json(rej.body);
+    }
   }
 });
 
@@ -4497,14 +4478,13 @@ router.get('/storage-image', async (req: Request, res: Response): Promise<void> 
     }
   }
   if (!dataUrl) { res.status(404).json({ error: 'Not found' }); return; }
-  const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
-  if (match) {
-    const [, mime, b64] = match;
-    res.setHeader('Content-Type', mime);
+  const parsedImg = parseDataUrlForResponse(dataUrl);
+  if (parsedImg) {
+    res.setHeader('Content-Type', parsedImg.mime);
     res.setHeader('X-Content-Type-Options', 'nosniff');   // prevent MIME sniffing
     res.setHeader('Content-Disposition', 'inline');        // don't treat as download
     res.setHeader('Cache-Control', 'private, max-age=86400');
-    res.send(Buffer.from(b64, 'base64'));
+    res.send(Buffer.from(parsedImg.base64, 'base64'));
     return;
   }
   res.send(dataUrl);
@@ -4518,7 +4498,8 @@ router.get('/storage-image', async (req: Request, res: Response): Promise<void> 
 router.post('/admin/clear-db-errors', async (req: Request, res: Response) => {
   try {
   if (req.body == null || typeof req.body !== 'object' || Array.isArray(req.body)) {
-    return res.status(400).json({ ok: false, error: 'Request body must be a JSON object' });
+    const rej = clearDbErrorsInvalidBodyReject();
+    return res.status(rej.status).json(rej.body);
   }
   const adminTokenHeader = typeof req.headers['x-admin-token'] === 'string'
     ? req.headers['x-admin-token']
@@ -4527,11 +4508,13 @@ router.post('/admin/clear-db-errors', async (req: Request, res: Response) => {
   const tokenOk = verifyAdminToken(adminTokenHeader);
   const settings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
   const expectedPw = (settings.admin_password as string) ?? '';
-  const passwordOk = typeof adminPassword === 'string'
-    && !!expectedPw
-    && adminPassword === expectedPw;
-  if (!tokenOk && !passwordOk) {
-    return res.status(403).json({ ok: false, error: 'Admin authentication required' });
+  const authPlan = planClearDbErrorsAuth({
+    tokenOk,
+    adminPassword,
+    expectedPassword: expectedPw,
+  });
+  if (!authPlan.ok) {
+    return res.status(authPlan.reject.status).json(authPlan.reject.body);
   }
 
   _dbPersistErrors = 0;
@@ -4565,7 +4548,10 @@ router.post('/admin/clear-db-errors', async (req: Request, res: Response) => {
   return res.json({ ok: true });
   } catch (e) {
     logger.error({ err: e }, '[admin/clear-db-errors] Unexpected error');
-    if (!res.headersSent) res.status(500).json({ ok: false, error: 'Internal server error' });
+    if (!res.headersSent) {
+      const rej = clearDbErrorsInternalReject();
+      res.status(rej.status).json(rej.body);
+    }
     return;
   }
 });
@@ -4638,7 +4624,7 @@ router.get('/health', async (req: Request, res: Response) => {
     logger.warn({ err: e }, '[health] DB count query failed');
   }
 
-  const sseTotal = [...sseUserMap.values()].reduce((s, c) => s + c.size, 0) + sseAnonClients.size;
+  const sseTotal = countSseHealthConnections([...sseUserMap.values()].map(c => c.size), sseAnonClients.size);
 
   // Alarm thresholds / PIN pool / lag strings: ../lib/db-health-plan.ts
   const recentPersistErrors = _dbPersistErrorLog.filter(e => Date.now() - e.time < 5 * 60 * 1000).length;
@@ -4697,13 +4683,15 @@ const unreadCountsCache = new Map<string, { ts: number; data: Record<string, num
 const UNREAD_CACHE_TTL_MS = 2_000;
 // Fix #3: unreadCountsCache TTL 초과 항목 30초마다 정리 — userId 항목 무한 축적 방지
 setInterval(() => {
-  const cutoff = Date.now() - UNREAD_CACHE_TTL_MS;
-  for (const [k, v] of unreadCountsCache) if (v.ts < cutoff) unreadCountsCache.delete(k);
+  pruneUnreadCountsCache(unreadCountsCache, Date.now() - UNREAD_CACHE_TTL_MS);
 }, 30_000).unref();
 
 router.get('/unread-counts', (req: Request, res: Response) => {
   const userId = typeof req.query.userId === 'string' && req.query.userId ? req.query.userId : null;
-  if (!userId) return res.status(400).json({ data: null, error: { message: 'userId required' } });
+  if (!userId) {
+    const rej = unreadCountsUserIdRequiredReject();
+    return res.status(rej.status).json(rej.body);
+  }
 
   // ─ IDOR guard: 자신의 미읽음 카운트만 조회 가능 — SSE 토큰으로 소유자 확인 ──
   // 타인의 userId를 추측해 다른 사람의 채팅 존재 여부를 파악하는 공격을 차단
@@ -4713,14 +4701,15 @@ router.get('/unread-counts', (req: Request, res: Response) => {
     ?? (typeof req.headers['x-sse-token'] === 'string' ? req.headers['x-sse-token'] : null);
   if (!sseToken || !verifySseToken(userId, sseToken)) {
     logger.warn({ userId, ip: req.ip }, '[SECURITY] IDOR: /unread-counts without valid SSE token blocked');
-    return res.status(401).json({ data: null, error: { message: 'Unauthorized: valid SSE token required', code: 'UNAUTHORIZED' } });
+    const rej = unreadCountsUnauthorizedReject();
+    return res.status(rej.status).json(rej.body);
   }
 
   try {
-    // 캐시 히트
-    const cached = unreadCountsCache.get(userId);
-    if (cached && (Date.now() - cached.ts) < UNREAD_CACHE_TTL_MS) {
-      return res.json({ data: cached.data, error: null });
+    // 캐시 히트 — db-unread-counts
+    const cached = readUnreadCountsCache(unreadCountsCache, userId, Date.now(), UNREAD_CACHE_TTL_MS);
+    if (cached) {
+      return res.json({ data: cached, error: null });
     }
 
     // Unread computation: ../lib/db-unread-counts.ts
@@ -4733,16 +4722,12 @@ router.get('/unread-counts', (req: Request, res: Response) => {
       countMessagesForChat,
     );
 
-    // LRU 상한 200개 — Map은 삽입 순서 보장이므로 첫 번째(가장 오래된) 항목 제거
-    if (unreadCountsCache.size >= 200) {
-      const oldest = unreadCountsCache.keys().next().value;
-      if (oldest !== undefined) unreadCountsCache.delete(oldest);
-    }
-    unreadCountsCache.set(userId, { ts: Date.now(), data: counts });
+    writeUnreadCountsCache(unreadCountsCache, userId, counts, Date.now(), 200);
     return res.json({ data: counts, error: null });
   } catch (e) {
     logger.error({ err: e }, '[unread-counts] Unexpected error');
-    return res.status(500).json({ data: null, error: { message: '안읽은 메시지 수 조회 중 오류가 발생했습니다.' } });
+    const rej = unreadCountsInternalReject();
+    return res.status(rej.status).json(rej.body);
   }
 });
 
@@ -4771,7 +4756,8 @@ router.post('/by-pin', (req: Request, res: Response) => {
 
   // ─ 페이로드 타입 방어
   if (req.body == null || typeof req.body !== 'object' || Array.isArray(req.body)) {
-    return res.status(400).json({ data: null, error: { message: 'Invalid request body', code: 'INVALID_BODY' } });
+    const rej = pinLookupInvalidBodyReject();
+    return res.status(rej.status).json(rej.body);
   }
   const body = req.body as Record<string, unknown>;
   const parsed = validateByPinBody(body.pin, body.nickname);
@@ -4809,7 +4795,8 @@ router.post('/by-pin', (req: Request, res: Response) => {
   return res.json({ data: { id: found['id'] }, error: null });
   } catch (e) {
     logger.error({ err: e }, '[by-pin] Unexpected error');
-    return res.status(500).json({ data: null, error: { message: '서버 내부 오류가 발생했습니다.' } });
+    const rej = pinLookupInternalReject();
+    return res.status(rej.status).json(rej.body);
   }
 });
 
@@ -4866,28 +4853,18 @@ router.post('/push/notify', async (req: Request, res: Response): Promise<void> =
   try {
   // 클라이언트 직접 호출 남용 방지 — X-Internal-Secret 헤더 필요
   const secret = req.headers['x-internal-secret'];
-  if (secret !== PUSH_NOTIFY_SECRET) { res.status(403).json({ error: 'Forbidden' }); return; }
-  // ─ 페이로드 타입 방어 + 길이 제한 — XSS·스토리지 폭탄 방어
-  if (req.body == null || typeof req.body !== 'object' || Array.isArray(req.body)) {
-    res.status(400).json({ error: 'Invalid request body' }); return;
+  const parsedNotify = validatePushNotifyRequest({
+    secretOk: secret === PUSH_NOTIFY_SECRET,
+    body: req.body,
+  });
+  if (!parsedNotify.ok) {
+    res.status(parsedNotify.reject.status).json(parsedNotify.reject.body);
+    return;
   }
-  const rawNotify = req.body as Record<string, unknown>;
-  const recipientId = typeof rawNotify.recipientId === 'string' ? rawNotify.recipientId : null;
-  if (!recipientId || recipientId.length > 128) { res.status(400).json({ error: 'Missing or invalid recipientId' }); return; }
-
-  // 안전한 문자열 변환 + 길이 상한 (알림 페이로드 비대 방지)
-  const safeStr = (v: unknown, def: string, max: number) =>
-    (typeof v === 'string' ? v : def).slice(0, max);
+  const { recipientId, payload } = parsedNotify;
 
   const subs = getTable('push_subscriptions').filter(s => s.user_id === recipientId);
   if (!subs.length) { res.json({ ok: true, sent: 0 }); return; }
-
-  const payload: PushPayload = {
-    title: safeStr(rawNotify.title, '범일NPC 술번개', 64),
-    body:  safeStr(rawNotify.body,  '',               200),
-    tag:   safeStr(rawNotify.tag,   'notification',   64),
-    url:   safeStr(rawNotify.url,   '/',              512),
-  };
 
   // 병렬 전송 — 직렬 await 제거
   const pushResults = await Promise.all(
@@ -4904,7 +4881,10 @@ router.post('/push/notify', async (req: Request, res: Response): Promise<void> =
   res.json({ ok: true, sent: subs.length - expired.length });
   } catch (e) {
     logger.error({ err: e }, '[push/notify] Unexpected error');
-    if (!res.headersSent) res.status(500).json({ error: 'Internal server error' });
+    if (!res.headersSent) {
+      const rej = pushNotifyInternalReject();
+      res.status(rej.status).json(rej.body);
+    }
   }
 });
 
@@ -4921,22 +4901,24 @@ function verifySessionToken(userId: string, token: string): boolean {
   return verifySessionTokenPure(userId, token, SSE_TOKEN_SECRET);
 }
 
-/** 쿠키 세션 또는 Bearer sessionToken 으로 인증된 userId */
+/** Thin wrapper — cookie vs bearer resolve lives in db-session-tokens. */
 function resolveAuthUserId(req: Request, body: Record<string, unknown>): string | null {
   const cookieId = (req.session as { userId?: string })?.userId ?? null;
   const token = typeof body.sessionToken === 'string' ? body.sessionToken : null;
   const claimed = typeof body.requesterId === 'string' ? body.requesterId : null;
   // Verified bearer wins over connect.sid — mobile Safari keeps stale cookies through
   // Netlify while sessionStorage holds the current user's sessionToken (PIN recovery·재등록).
-  if (token && claimed && verifySessionToken(claimed, token)) return claimed;
-  if (cookieId) return String(cookieId);
-  return null;
+  return resolveAuthUserIdFromParts({
+    cookieUserId: cookieId,
+    bodySessionToken: token,
+    bodyRequesterId: claimed,
+    sessionTokenValid: Boolean(token && claimed && verifySessionToken(claimed, token)),
+  });
 }
 
 function finishLogin(res: Response, req: Request, userId: string) {
   req.session.userId = userId;
-  const { token: sessionToken, expiresAt: sessionExpiresAt } = issueSessionToken(userId);
-  return res.json({ ok: true, sessionToken, sessionExpiresAt });
+  return res.json(buildLoginSuccessBody(userId, issueSessionToken));
 }
 
 function issueSseToken(userId: string): { token: string; expiresAt: number } {
@@ -5097,30 +5079,32 @@ router.get('/events', (req: Request, res: Response) => {
   // 관리자 토큰 검증 — HMAC 재계산으로 검증 (서버 재시작 후에도 유효)
   const isAdminSse = verifyAdminToken(adminTokenParam);
 
-  // userId가 있으면 반드시 유효한 토큰 필요 — 없거나 만료/위조된 경우 거부
-  if (userId && (!token || classifySseToken(userId, token) !== 'valid')) {
-    const state = !token ? 'missing' : classifySseToken(userId, token);
-    if (state === 'expired') {
-      // 만료는 정상 수명 종료. 침입 warn 으로 남기면 5시간 로그가 401 스팸이 된다.
-      recordExpiredSseToken();
-      logger.debug({ userId, ip: req.ip }, '[sse] token expired — client should refresh');
-      const rej = sseTokenExpiredReject();
-      res.status(rej.status).json(rej.body);
-    } else if (state === 'missing') {
-      recordMissingSseToken();
-      logger.warn({ userId, hasToken: false, ip: req.ip }, '[sse] 인증 실패: 유효하지 않은 토큰으로 SSE 접근 시도 — 침입 탐지');
-      const rej = sseTokenInvalidReject();
-      res.status(rej.status).json(rej.body);
-    } else {
-      logger.warn({ userId, hasToken: !!token, ip: req.ip }, '[sse] 인증 실패: 유효하지 않은 토큰으로 SSE 접근 시도 — 침입 탐지');
-      const rej = sseTokenInvalidReject();
-      res.status(rej.status).json(rej.body);
+  // userId가 있으면 반드시 유효한 토큰 필요 — 없거나 만료/위조된 경우 거부 (db-sse-fanout-policy)
+  {
+    const tokenState = userId && token ? classifySseToken(userId, token) : null;
+    const gate = planSseUserTokenGate({ userId, token, tokenState });
+    if (gate.action === 'reject') {
+      if (gate.metric === 'expired') {
+        // 만료는 정상 수명 종료. 침입 warn 으로 남기면 5시간 로그가 401 스팸이 된다.
+        recordExpiredSseToken();
+        logger.debug({ userId, ip: req.ip }, '[sse] token expired — client should refresh');
+      } else if (gate.metric === 'missing') {
+        recordMissingSseToken();
+        logger.warn({ userId, hasToken: false, ip: req.ip }, '[sse] 인증 실패: 유효하지 않은 토큰으로 SSE 접근 시도 — 침입 탐지');
+      } else {
+        logger.warn({ userId, hasToken: !!token, ip: req.ip }, '[sse] 인증 실패: 유효하지 않은 토큰으로 SSE 접근 시도 — 침입 탐지');
+      }
+      res.status(gate.reject.status).json(gate.reject.body);
+      return;
     }
-    return;
   }
 
   // 전역 SSE 상한 — 프로세스 메모리/FD 고갈 방지
-  if (sseLiveCount() >= SSE_MAX_TOTAL) {
+  if (countSseLiveConnections(
+    [...sseUserMap.values()].map(s => s.size),
+    sseAnonClients.size,
+    sseAdminClients.size,
+  ) >= SSE_MAX_TOTAL) {
     const rej = sseCapacityReject();
     res.setHeader('Retry-After', rej.retryAfter ?? '3');
     res.status(rej.status).json(rej.body);

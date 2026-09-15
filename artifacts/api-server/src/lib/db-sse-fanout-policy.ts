@@ -196,6 +196,40 @@ export function shouldEvictOldestSseConn(currentSize: number, max: number): bool
   return currentSize >= max;
 }
 
+export type SseUserTokenGate =
+  | { action: 'pass' }
+  | {
+      action: 'reject';
+      state: 'expired' | 'missing' | 'invalid';
+      reject: SseAdmitReject;
+      metric: 'expired' | 'missing' | 'invalid';
+    };
+
+/**
+ * /events userId+token gate — classify injected; metrics/logging stay in db.ts.
+ * tokenState is classify result when token present; ignored when token missing.
+ */
+export function planSseUserTokenGate(input: {
+  userId: string | null;
+  token: string | null;
+  tokenState: 'valid' | 'expired' | 'invalid' | null;
+}): SseUserTokenGate {
+  if (!input.userId) return { action: 'pass' };
+  if (input.token && input.tokenState === 'valid') return { action: 'pass' };
+  const state: 'expired' | 'missing' | 'invalid' = !input.token
+    ? 'missing'
+    : input.tokenState === 'expired'
+      ? 'expired'
+      : 'invalid';
+  if (state === 'expired') {
+    return { action: 'reject', state, reject: sseTokenExpiredReject(), metric: 'expired' };
+  }
+  if (state === 'missing') {
+    return { action: 'reject', state, reject: sseTokenInvalidReject(), metric: 'missing' };
+  }
+  return { action: 'reject', state, reject: sseTokenInvalidReject(), metric: 'invalid' };
+}
+
 
 export type NotifyOtherPlan =
   | { action: 'skip' }
@@ -240,3 +274,60 @@ export function planNotifyOtherInstances(input: {
   }
   return { action: 'enqueue', msg: payload, table: input.table, rowId: id };
 }
+
+export type NotifyQueueEnqueuePlan =
+  | { action: 'replace'; index: number; msg: string }
+  | { action: 'push'; msg: string; dropOldest: boolean };
+
+/**
+ * Coalesce same table+rowId pending NOTIFY payloads; otherwise push (drop oldest if full).
+ */
+export function planNotifyQueueEnqueue(
+  queue: readonly string[],
+  msg: string,
+  table: string,
+  rowId: unknown,
+  max: number,
+): NotifyQueueEnqueuePlan {
+  if (rowId != null) {
+    for (let i = queue.length - 1; i >= 0; i--) {
+      try {
+        const queued = JSON.parse(queue[i]) as {
+          table?: string;
+          id?: unknown;
+          newRow?: Record<string, unknown>;
+          oldRow?: Record<string, unknown>;
+        };
+        const queuedId = queued.id ?? (queued.newRow ?? queued.oldRow)?.['id'];
+        if (queued.table === table && String(queuedId) === String(rowId)) {
+          return { action: 'replace', index: i, msg };
+        }
+      } catch {
+        // corrupted entry — leave for drain failure; keep scanning
+      }
+    }
+  }
+  return { action: 'push', msg, dropOldest: queue.length >= max };
+}
+
+/** Live SSE connections: anon + admin + sum of per-user sets. */
+export function countSseLiveConnections(
+  userMapSizes: Iterable<number>,
+  anonCount: number,
+  adminCount: number,
+): number {
+  let n = anonCount + adminCount;
+  for (const s of userMapSizes) n += s;
+  return n;
+}
+
+/** /health sseConnections — user + anon only (admin SSE excluded, prior behavior). */
+export function countSseHealthConnections(
+  userMapSizes: Iterable<number>,
+  anonCount: number,
+): number {
+  let n = anonCount;
+  for (const s of userMapSizes) n += s;
+  return n;
+}
+

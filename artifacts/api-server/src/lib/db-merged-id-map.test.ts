@@ -36,3 +36,22 @@ describe('db-merged-id-map', () => {
     expect(m.resolve('a')).toBe('a');
   });
 });
+
+import { resolveMergedIdViaRows, createMergedIdMap } from './db-merged-id-map.js';
+
+describe('resolveMergedIdViaRows (70)', () => {
+  it('follows map then merged_into', () => {
+    const m = createMergedIdMap(10);
+    m.remember('a', 'b');
+    const rows: Record<string, string> = { b: 'c', c: '' };
+    const id = resolveMergedIdViaRows(
+      'a',
+      (x) => m.resolve(x),
+      (f, t) => m.remember(f, t),
+      (cur) => rows[cur] ?? '',
+    );
+    expect(id).toBe('c');
+    expect(m.resolve('b')).toBe('c');
+  });
+});
+

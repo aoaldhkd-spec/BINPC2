@@ -81,3 +81,25 @@ export function messageMergeAction(
   if (dbTs >= memTs) return 'replace';
   return 'keep';
 }
+
+/**
+ * When inserting a message, collapse onto canonical chat id if sibling rooms exist.
+ */
+export function planCanonicalMessageChatId(
+  chatId: string,
+  chats: Record<string, unknown>[],
+  pairKey: (u1: string, u2: string) => string,
+  pickCanonical: (group: Record<string, unknown>[]) => Record<string, unknown>,
+): string {
+  const msgChat = chats.find(c => String(c.id) === String(chatId));
+  if (!msgChat) return chatId;
+  const pk = pairKey(String(msgChat.user1_id), String(msgChat.user2_id));
+  const siblings = chats.filter(
+    c => pairKey(String(c.user1_id), String(c.user2_id)) === pk,
+  );
+  if (siblings.length > 1) {
+    return String(pickCanonical(siblings).id);
+  }
+  return chatId;
+}
+

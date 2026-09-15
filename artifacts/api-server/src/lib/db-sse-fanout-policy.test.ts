@@ -136,3 +136,38 @@ describe('sse notify + ring replay (69)', () => {
     expect(shouldEvictOldestSseConn(10, 10)).toBe(true);
   });
 });
+
+import {
+  planSseUserTokenGate,
+  planNotifyQueueEnqueue,
+  countSseLiveConnections,
+  countSseHealthConnections,
+} from './db-sse-fanout-policy.js';
+
+describe('sse token gate + notify queue + counts (70)', () => {
+  it('planSseUserTokenGate', () => {
+    expect(planSseUserTokenGate({ userId: null, token: null, tokenState: null }).action).toBe('pass');
+    expect(planSseUserTokenGate({ userId: 'u', token: 't', tokenState: 'valid' }).action).toBe('pass');
+    const exp = planSseUserTokenGate({ userId: 'u', token: 't', tokenState: 'expired' });
+    expect(exp.action).toBe('reject');
+    if (exp.action === 'reject') expect(exp.metric).toBe('expired');
+    const miss = planSseUserTokenGate({ userId: 'u', token: null, tokenState: null });
+    expect(miss.action).toBe('reject');
+    if (miss.action === 'reject') expect(miss.metric).toBe('missing');
+  });
+
+  it('planNotifyQueueEnqueue coalesce + push', () => {
+    const q = [JSON.stringify({ table: 'messages', id: '1', newRow: { id: '1' } })];
+    const rep = planNotifyQueueEnqueue(q, '{"table":"messages","id":"1"}', 'messages', '1', 10);
+    expect(rep).toEqual({ action: 'replace', index: 0, msg: '{"table":"messages","id":"1"}' });
+    const push = planNotifyQueueEnqueue(q, 'm2', 'likes', '9', 1);
+    expect(push.action).toBe('push');
+    if (push.action === 'push') expect(push.dropOldest).toBe(true);
+  });
+
+  it('connection counts', () => {
+    expect(countSseLiveConnections([2, 3], 1, 4)).toBe(10);
+    expect(countSseHealthConnections([2, 3], 1)).toBe(6);
+  });
+});
+

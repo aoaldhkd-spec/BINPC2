@@ -79,3 +79,21 @@ describe('db-chat-pair-plan', () => {
     )).toBe('keep');
   });
 });
+
+import { planCanonicalMessageChatId, pickCanonicalChatRow } from './db-chat-pair-plan.js';
+import { chatPairKey } from './db-chat-ids.js';
+
+describe('planCanonicalMessageChatId (70)', () => {
+  it('collapses siblings', () => {
+    const chats = [
+      { id: 'old', user1_id: 'a', user2_id: 'b', created_at: '1' },
+      { id: 'new', user1_id: 'a', user2_id: 'b', created_at: '2' },
+    ];
+    const id = planCanonicalMessageChatId('old', chats, chatPairKey, (g) =>
+      pickCanonicalChatRow(g, (cid) => (cid === 'new' ? 5 : 1)),
+    );
+    expect(id).toBe('new');
+    expect(planCanonicalMessageChatId('solo', [{ id: 'solo', user1_id: 'x', user2_id: 'y' }], chatPairKey, pickCanonicalChatRow)).toBe('solo');
+  });
+});
+

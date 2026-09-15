@@ -39,3 +39,15 @@ describe('db-image-magic', () => {
     expect(dataUrlMimeAndMagic(bad)?.magicOk).toBe(false);
   });
 });
+
+import { parseDataUrlForResponse } from './db-image-magic.js';
+
+describe('parseDataUrlForResponse (70)', () => {
+  it('parses mime + body', () => {
+    expect(parseDataUrlForResponse('data:image/png;base64,abc')).toEqual({
+      mime: 'image/png', base64: 'abc',
+    });
+    expect(parseDataUrlForResponse('not-data')).toBe(null);
+  });
+});
+

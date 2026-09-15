@@ -48,3 +48,35 @@ export function verifyTestPanelToken(
 ): boolean {
   return verifyPanelTokenAgainstSecrets(provided, secrets, deriveTestToken);
 }
+
+export type ClearDbErrorsReject = { status: number; body: { ok: false; error: string } };
+
+export function clearDbErrorsInvalidBodyReject(): ClearDbErrorsReject {
+  return { status: 400, body: { ok: false, error: 'Request body must be a JSON object' } };
+}
+
+/**
+ * /admin/clear-db-errors — accept admin HMAC token OR plaintext password match.
+ */
+export function planClearDbErrorsAuth(input: {
+  tokenOk: boolean;
+  adminPassword: unknown;
+  expectedPassword: string;
+}): { ok: true } | { ok: false; reject: ClearDbErrorsReject } {
+  const passwordOk =
+    typeof input.adminPassword === 'string'
+    && !!input.expectedPassword
+    && input.adminPassword === input.expectedPassword;
+  if (!input.tokenOk && !passwordOk) {
+    return {
+      ok: false,
+      reject: { status: 403, body: { ok: false, error: 'Admin authentication required' } },
+    };
+  }
+  return { ok: true };
+}
+
+export function clearDbErrorsInternalReject(): ClearDbErrorsReject {
+  return { status: 500, body: { ok: false, error: 'Internal server error' } };
+}
+

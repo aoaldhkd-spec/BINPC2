@@ -42,3 +42,28 @@ export function createMergedIdMap(maxSize = 2000): MergedIdMap {
 
   return { remember, resolve, size, clear };
 }
+
+/**
+ * Follow in-memory redirects, then row.merged_into (DB-backed), remembering hops.
+ * findMergedInto returns next id or ''/null when none.
+ */
+export function resolveMergedIdViaRows(
+  id: string,
+  mapResolve: (id: string) => string,
+  remember: (fromId: string, toId: string) => void,
+  findMergedInto: (cur: string) => string,
+  maxHops = 8,
+): string {
+  let cur = mapResolve(id);
+  for (let i = 0; i < maxHops; i++) {
+    const into = findMergedInto(cur);
+    if (into && into !== cur) {
+      remember(cur, into);
+      cur = mapResolve(into);
+      continue;
+    }
+    break;
+  }
+  return cur;
+}
+

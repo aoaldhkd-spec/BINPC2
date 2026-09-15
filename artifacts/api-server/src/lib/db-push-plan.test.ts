@@ -127,3 +127,32 @@ describe('planPushSubscribeStore', () => {
     if (plan.kind === 'insert') expect(plan.evictIndex).toBe(0);
   });
 });
+
+import {
+  validatePushNotifyRequest,
+  pushNotifyForbiddenReject,
+} from './db-push-plan.js';
+
+describe('push notify validate (70)', () => {
+  it('secret + body + payload limits', () => {
+    expect(validatePushNotifyRequest({ secretOk: false, body: {} }).ok).toBe(false);
+    expect(pushNotifyForbiddenReject().status).toBe(403);
+    const bad = validatePushNotifyRequest({ secretOk: true, body: null });
+    expect(bad.ok).toBe(false);
+    const ok = validatePushNotifyRequest({
+      secretOk: true,
+      body: { recipientId: 'u1', title: 'T', body: 'B', tag: 't', url: '/' },
+    });
+    expect(ok.ok).toBe(true);
+    if (ok.ok) {
+      expect(ok.recipientId).toBe('u1');
+      expect(ok.payload.title).toBe('T');
+    }
+    const def = validatePushNotifyRequest({
+      secretOk: true,
+      body: { recipientId: 'u1' },
+    });
+    if (def.ok) expect(def.payload.title).toBe('범일NPC 술번개');
+  });
+});
+

@@ -141,3 +141,38 @@ describe('device secret bind + sse-token plan (69)', () => {
     }).ok).toBe(false);
   });
 });
+
+import {
+  resolveAuthUserIdFromParts,
+  buildLoginSuccessBody,
+} from './db-session-tokens.js';
+
+describe('resolveAuthUserIdFromParts + login body (70)', () => {
+  it('bearer wins over cookie', () => {
+    expect(resolveAuthUserIdFromParts({
+      cookieUserId: 'cookie',
+      bodySessionToken: 'tok',
+      bodyRequesterId: 'claimed',
+      sessionTokenValid: true,
+    })).toBe('claimed');
+    expect(resolveAuthUserIdFromParts({
+      cookieUserId: 'cookie',
+      bodySessionToken: 'tok',
+      bodyRequesterId: 'claimed',
+      sessionTokenValid: false,
+    })).toBe('cookie');
+    expect(resolveAuthUserIdFromParts({
+      cookieUserId: null,
+      bodySessionToken: 1,
+      bodyRequesterId: 'x',
+      sessionTokenValid: true,
+    })).toBe(null);
+  });
+
+  it('buildLoginSuccessBody', () => {
+    expect(buildLoginSuccessBody('u', () => ({ token: 't', expiresAt: 9 }))).toEqual({
+      ok: true, sessionToken: 't', sessionExpiresAt: 9,
+    });
+  });
+});
+

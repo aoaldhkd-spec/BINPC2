@@ -67,3 +67,36 @@ describe('db-admin-wipe-plan', () => {
     expect([...TEST_WIPE_ALL_TABLES]).toEqual(['likes', 'messages', 'chats', 'profiles']);
   });
 });
+
+import {
+  planClearAdminNpcRelationships,
+  planApplyAdminNpcRelStore,
+} from './db-admin-wipe-plan.js';
+
+describe('planApplyAdminNpcRelStore (70)', () => {
+  it('filters store slices', () => {
+    const plan = planClearAdminNpcRelationships('admin', {
+      chats: [{ id: 'c1', user1_id: 'admin', user2_id: 'u2' }],
+      messages: [{ id: 'm1', chat_id: 'c1' }, { id: 'm2', chat_id: 'other' }],
+      chat_reads: [{ id: 'r1', chat_id: 'c1' }],
+      likes: [{ id: 'l1', liker_id: 'admin', liked_id: 'u2' }, { id: 'l2', liker_id: 'u2', liked_id: 'u3' }],
+      contact_shares: [],
+      contact_share_events: [],
+    });
+    expect(plan).toBeTruthy();
+    const patch = planApplyAdminNpcRelStore({
+      plan: plan!,
+      messages: [{ id: 'm1', chat_id: 'c1' }, { id: 'm2', chat_id: 'other' }],
+      chat_reads: [{ id: 'r1', chat_id: 'c1' }],
+      chats: [{ id: 'c1', user1_id: 'admin', user2_id: 'u2' }],
+      likes: [{ id: 'l1', liker_id: 'admin', liked_id: 'u2' }, { id: 'l2', liker_id: 'u2', liked_id: 'u3' }],
+      contact_shares: [],
+      contact_share_events: [],
+      likeRateKeys: ['admin::u2', 'u2::u3'],
+    });
+    expect(patch.messages?.map(m => m.id)).toEqual(['m2']);
+    expect(patch.likes?.map(l => l.id)).toEqual(['l2']);
+    expect(patch.likeRateKeysToDelete.length).toBeGreaterThan(0);
+  });
+});
+

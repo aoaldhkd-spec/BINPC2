@@ -105,3 +105,65 @@ export function planWipeTableBroadcast(
 
 /** Tables cleared by test_wipe_all. */
 export const TEST_WIPE_ALL_TABLES = ['likes', 'messages', 'chats', 'profiles'] as const;
+
+export type AdminNpcRelStorePatch = {
+  messages?: Record<string, unknown>[];
+  chat_reads?: Record<string, unknown>[];
+  chats?: Record<string, unknown>[];
+  likes?: Record<string, unknown>[];
+  contact_shares?: Record<string, unknown>[];
+  contact_share_events?: Record<string, unknown>[];
+  clearUnreadCache: boolean;
+  likeRateKeysToDelete: string[];
+};
+
+/**
+ * Pure next-store slices after clearing admin NPC relationships (persist/SSE stay in db.ts).
+ */
+export function planApplyAdminNpcRelStore(input: {
+  plan: AdminNpcRelClearPlan;
+  messages: Record<string, unknown>[];
+  chat_reads: Record<string, unknown>[];
+  chats: Record<string, unknown>[];
+  likes: Record<string, unknown>[];
+  contact_shares: Record<string, unknown>[];
+  contact_share_events: Record<string, unknown>[];
+  likeRateKeys: Iterable<string>;
+}): AdminNpcRelStorePatch {
+  const { plan } = input;
+  const aid = plan.adminId;
+  const chatIds = plan.chatIds;
+  const out: AdminNpcRelStorePatch = {
+    clearUnreadCache: plan.readRows.length > 0,
+    likeRateKeysToDelete: [],
+  };
+  if (plan.msgRows.length) {
+    out.messages = input.messages.filter(m => !chatIds.has(String(m.chat_id)));
+  }
+  if (plan.readRows.length) {
+    out.chat_reads = input.chat_reads.filter(r => !chatIds.has(String(r.chat_id)));
+  }
+  if (plan.chatRows.length) {
+    out.chats = input.chats.filter(c => !chatIds.has(String(c.id)));
+  }
+  if (plan.likeRows.length) {
+    out.likes = input.likes.filter(
+      l => String(l.liker_id) !== aid && String(l.liked_id) !== aid,
+    );
+    out.likeRateKeysToDelete = [...input.likeRateKeys].filter(k =>
+      likeRateKeyTouchesAdmin(k, aid),
+    );
+  }
+  if (plan.shareRows.length) {
+    out.contact_shares = input.contact_shares.filter(
+      s => String(s.liker_id) !== aid && String(s.liked_id) !== aid,
+    );
+  }
+  if (plan.shareEventRows.length) {
+    out.contact_share_events = input.contact_share_events.filter(
+      e => String(e.from_user_id) !== aid && String(e.to_user_id) !== aid,
+    );
+  }
+  return out;
+}
+

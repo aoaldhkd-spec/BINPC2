@@ -93,3 +93,46 @@ describe('db-group-leave-plan', () => {
     expect(countUserGroupSlots('u3', parts, chats)).toBe(0);
   });
 });
+
+import {
+  planGroupParticipantsDeleteExpand,
+  buildGroupOptOutRow,
+  planClearGroupOptOutRows,
+} from './db-group-leave-plan.js';
+
+describe('group leave expand + opt-out (70)', () => {
+  it('planGroupParticipantsDeleteExpand uses leaveRowsFor', () => {
+    const leave = (uid: string, gid: string) => [
+      { id: 'p1', user_id: uid, group_id: gid },
+      { id: 'p2', user_id: uid, group_id: 'sib' },
+    ];
+    const expanded = planGroupParticipantsDeleteExpand({
+      toDelete: [{ id: 'p1', user_id: 'u1', group_id: 'g1' }],
+      groupIdEqVal: undefined,
+      userIdEqVal: undefined,
+      requesterId: 'u1',
+      leaveRowsFor: leave,
+    });
+    expect(expanded.map(r => String(r.id)).sort()).toEqual(['p1', 'p2']);
+    const fromFilters = planGroupParticipantsDeleteExpand({
+      toDelete: [],
+      groupIdEqVal: 'g1',
+      userIdEqVal: 'u1',
+      requesterId: 'u1',
+      leaveRowsFor: leave,
+    });
+    expect(fromFilters.length).toBe(2);
+  });
+
+  it('build + clear opt-out rows', () => {
+    const row = buildGroupOptOutRow({
+      userId: 'u', groupId: 'g', optKey: 'k', roomKind: 'rk', createdAt: 't',
+    });
+    expect(row.id).toBe('u__k');
+    const outs = [row, { id: 'other', user_id: 'x', opt_key: 'k', group_id: 'g' }];
+    const { gone, keep } = planClearGroupOptOutRows(outs, 'u', 'g', 'k');
+    expect(gone).toEqual([row]);
+    expect(keep).toHaveLength(1);
+  });
+});
+

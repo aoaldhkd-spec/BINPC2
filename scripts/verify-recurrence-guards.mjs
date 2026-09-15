@@ -1911,6 +1911,70 @@ mustMatch('ARCHITECTURE.md', '69_architecture_path_after_storage_health_peel', [
 ]);
 
 
+
+
+// ── 70: auth-resolve + unread/push-notify + leave-expand + sse-gate + notify-queue ─
+mustMatch('artifacts/api-server/src/lib/db-session-tokens.ts', '70_auth_resolve_exports', [
+  /export function resolveAuthUserIdFromParts/,
+  /export function buildLoginSuccessBody/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-unread-counts.ts', '70_unread_rejects_cache', [
+  /export function unreadCountsUnauthorizedReject/,
+  /export function readUnreadCountsCache/,
+  /안읽은 메시지 수 조회 중 오류가 발생했습니다/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-push-plan.ts', '70_push_notify_exports', [
+  /export function validatePushNotifyRequest/,
+  /범일NPC 술번개/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-group-leave-plan.ts', '70_leave_expand_exports', [
+  /export function planGroupParticipantsDeleteExpand/,
+  /export function buildGroupOptOutRow/,
+  /export function planClearGroupOptOutRows/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-merged-id-map.ts', '70_merged_via_rows', [
+  /export function resolveMergedIdViaRows/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-sse-fanout-policy.ts', '70_sse_gate_queue_counts', [
+  /export function planSseUserTokenGate/,
+  /export function planNotifyQueueEnqueue/,
+  /export function countSseLiveConnections/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-broadcast-validate.ts', '70_broadcast_rejects_ip', [
+  /export function broadcastForbiddenReject/,
+  /export function clientIpFromXForwardedFor/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-panel-tokens.ts', '70_clear_db_errors_auth', [
+  /export function planClearDbErrorsAuth/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-admin-wipe-plan.ts', '70_admin_npc_store_patch', [
+  /export function planApplyAdminNpcRelStore/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-chat-pair-plan.ts', '70_canonical_message_chat', [
+  /export function planCanonicalMessageChatId/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '70_db_reimports_auth_unread_push_sse', [
+  /resolveAuthUserIdFromParts/,
+  /validatePushNotifyRequest/,
+  /planGroupParticipantsDeleteExpand/,
+  /planSseUserTokenGate/,
+  /planNotifyQueueEnqueue/,
+  /planApplyAdminNpcRelStore/,
+  /unreadCountsUnauthorizedReject/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '70_db_still_single_router_export', [
+  /export default router/,
+]);
+mustNotMatch('artifacts/api-server/src/routes/db.ts', '70_db_no_inline_unread_push_korean', [
+  /안읽은 메시지 수 조회 중 오류가 발생했습니다/,
+  /서버 내부 오류가 발생했습니다/,
+]);
+mustMatch('ARCHITECTURE.md', '70_architecture_path_after_auth_unread_peel', [
+  /auth-resolve|unread|push-notify|leave-expand|sse-gate/,
+  /~9\.5/,
+]);
+
+
 console.log('\n=== verify-recurrence-guards ===\n');
 
 for (const r of results) {

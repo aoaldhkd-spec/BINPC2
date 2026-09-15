@@ -46,3 +46,24 @@ export function validateBroadcastBody(body: unknown): BroadcastValidateResult {
   return { ok: true, channel, event, payload };
 }
 
+export function broadcastForbiddenReject(): BroadcastValidateReject {
+  return { status: 403, body: { ok: false, error: 'Forbidden: invalid broadcast token' } };
+}
+
+export function broadcastRateLimitedReject(): BroadcastValidateReject {
+  return { status: 429, body: { ok: false, error: 'Too many broadcasts' } };
+}
+
+export function broadcastInternalReject(): BroadcastValidateReject {
+  return { status: 500, body: { ok: false, error: 'Internal server error' } };
+}
+
+/** First hop from X-Forwarded-For (Express may give string | string[]). */
+export function clientIpFromXForwardedFor(
+  xfwd: string | string[] | undefined,
+  fallback: string | undefined,
+): string {
+  const raw = typeof xfwd === 'string' ? xfwd : Array.isArray(xfwd) ? xfwd[0] : fallback ?? 'unknown';
+  return String(raw).split(',')[0].trim();
+}
+
