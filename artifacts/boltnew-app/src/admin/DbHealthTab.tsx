@@ -29,7 +29,7 @@ export function DbHealthTab({ health, loading, onRefresh, onClearErrors }: { hea
           <h2 className="text-sm font-bold text-gray-700">DB 헬스 모니터</h2>
           {hasErrors && (
             <span className="px-2 py-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full">
-              오류 {health!.persistErrors}건
+              오류 누계 {health!.persistErrors}건
             </span>
           )}
           {!hasErrors && health && (
@@ -70,13 +70,14 @@ export function DbHealthTab({ health, loading, onRefresh, onClearErrors }: { hea
 
       {/* Error alert banner */}
       {hasErrors && (
+
         <div className="bg-red-50 border border-red-300 rounded-xl p-3 flex items-start gap-2">
           <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-bold text-red-700">DB 저장 오류 감지</p>
             <p className="text-xs text-red-600 mt-0.5">
-              {health!.persistErrors}건의 DB 저장 실패가 누적되어 있습니다.
-              In-memory 데이터와 PostgreSQL 간 불일치가 발생했을 수 있습니다.
+              {health!.persistErrors}건은 재시도 후에도 저장에 실패한 누계입니다.
+              서버 재시작 후에도 보존되므로, 최근 장애가 아니어도 숫자가 남을 수 있습니다.
             </p>
           </div>
           {onClearErrors && (
@@ -85,7 +86,7 @@ export function DbHealthTab({ health, loading, onRefresh, onClearErrors }: { hea
               disabled={clearing}
               className="flex-shrink-0 px-2.5 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 text-[11px] font-bold rounded-lg transition-all disabled:opacity-50"
             >
-              {clearing ? '초기화 중…' : '초기화'}
+              {clearing ? '초기화 중…' : '누계 초기화'}
             </button>
           )}
         </div>

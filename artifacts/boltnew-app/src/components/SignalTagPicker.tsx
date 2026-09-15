@@ -44,8 +44,9 @@ export function SignalTagPicker({
 
   return (
     <div className={`rounded-xl border p-2.5 space-y-2.5 ${darkMode ? 'border-slate-700/70 bg-slate-900/20' : 'border-gray-200/70 bg-gray-50/50'}`}>
-      <div className="flex items-center gap-2 px-1">
-        <span className={`text-[10px] font-black tracking-wide ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>대분류</span>
+      <div className={`rounded-xl border p-2 ${darkMode ? 'border-slate-700 bg-slate-800/45' : 'border-rose-100 bg-white'}`}>
+        <div className="flex items-center gap-2 px-1 mb-1.5">
+          <span className={`text-[10px] font-black tracking-wide ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>대분류</span>
         <span className={`min-w-0 truncate text-[10px] font-semibold ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>
           먼저 이상형 또는 나는 어떤 사람인가요?를 선택하세요
         </span>
@@ -69,8 +70,10 @@ export function SignalTagPicker({
           );
         })}
       </div>
-      <div className="flex items-center gap-2 px-1 pt-1">
-        <span className={`text-[10px] font-black tracking-wide ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>소분류</span>
+      </div>
+      <div className={`rounded-xl border p-2 ${darkMode ? 'border-slate-700 bg-slate-800/45' : 'border-cyan-100 bg-white'}`}>
+        <div className="flex items-center gap-2 px-1 mb-1.5">
+          <span className={`text-[10px] font-black tracking-wide ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>소분류</span>
         <span className={`min-w-0 truncate text-[10px] font-semibold ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>
           선택한 대분류의 세부 조건
         </span>
@@ -91,6 +94,7 @@ export function SignalTagPicker({
             </button>
           );
         })}
+        </div>
       </div>
       <p className={`px-1 text-[10px] ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>
         {roleOption.label} · {activeGroup || '소분류'}
