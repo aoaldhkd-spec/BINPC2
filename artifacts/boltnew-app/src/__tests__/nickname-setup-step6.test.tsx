@@ -22,6 +22,7 @@ function advanceToStep6() {
   fireEvent.click(screen.getByRole('button', { name: 'INTJ' }));
   fireEvent.click(screen.getByRole('button', { name: /다음/ }));
   fireEvent.click(screen.getByRole('button', { name: /다음/ }));
+  fireEvent.click(screen.getByRole('button', { name: /엔터·사교·기타/ }));
   fireEvent.click(screen.getByRole('button', { name: '집콕' }));
   fireEvent.click(screen.getByRole('button', { name: '기타' }));
   fireEvent.click(screen.getByRole('button', { name: /다음/ }));

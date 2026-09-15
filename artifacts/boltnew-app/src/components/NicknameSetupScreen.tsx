@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { ArrowLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { BIO_CATEGORY_GROUPS } from '../lib/interests';
 import { getPositionBg } from '../lib/profile';
 import { containsBannedNicknameWord } from '../lib/bannedWords';
 import {
@@ -12,7 +13,7 @@ import {
   nicknameCompositionAllowed,
   shouldBlockNicknameBeforeInput,
 } from '../lib/nickname-input';
-import { IDEAL_TAG_GROUPS, FEATURE_TAG_GROUPS, encodeSignalMsg, SIGNAL_FEATURE_SELF_LABEL, SIGNAL_IDEAL_SECTION_LABEL, SIGNAL_SETUP_STEP_LABEL } from '../lib/signal-match';
+import { IDEAL_TAG_GROUPS, encodeSignalMsg, SIGNAL_SETUP_STEP_LABEL } from '../lib/signal-match';
 import { InterestPicker } from './InterestPicker';
 import { SignalTagPicker } from './SignalTagPicker';
 import { maxAdultBirthYear, minBirthYearForEventMaxAge } from '../lib/korean-age';
@@ -135,7 +136,7 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
   // 이상형·나는 어떤 사람인가요? (선택 — Step 6)
   const [idealTags, setIdealTags] = useState<string[]>([]);
   const [featureTags, setFeatureTags] = useState<string[]>([]);
-  const [activeSignalSection, setActiveSignalSection] = useState<'ideal' | 'features'>('ideal');
+  const [bioFilter, setBioFilter] = useState<string>(BIO_CATEGORY_GROUPS[0].label);
 
   // contact (숨김 — 입장 후 설정)
   const kakaoId = '';
@@ -509,6 +510,8 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
               <InterestPicker
                 selected={selectedBio}
                 onToggle={toggleBio}
+                filter={bioFilter}
+                onFilter={setBioFilter}
               />
             </div>
           )}
@@ -567,33 +570,19 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
               </div>
 
               <div className="rounded-xl border border-gray-200/90 bg-white shadow-sm shadow-gray-100/60 overflow-hidden">
-                <div className="flex gap-1 p-1.5 bg-gray-50 border-b border-gray-100">
-                  <button type="button" onClick={() => setActiveSignalSection('ideal')} aria-pressed={activeSignalSection === 'ideal'}
-                    className={`flex-1 rounded-lg px-2 py-2 text-xs font-black transition-all ${activeSignalSection === 'ideal' ? 'bg-white text-rose-600 shadow-sm' : 'text-gray-500'}`}>
-                    💘 {SIGNAL_IDEAL_SECTION_LABEL}
-                  </button>
-                  <button type="button" onClick={() => setActiveSignalSection('features')} aria-pressed={activeSignalSection === 'features'}
-                    className={`flex-1 rounded-lg px-2 py-2 text-xs font-black transition-all ${activeSignalSection === 'features' ? 'bg-white text-violet-600 shadow-sm' : 'text-gray-500'}`}>
-                    🌟 <span>{SIGNAL_FEATURE_SELF_LABEL}</span>
-                  </button>
-                </div>
-                <div className="px-3 pb-3 pt-2">
-                  <p className="text-[10px] text-gray-400 mb-2">대분류를 고른 뒤 아래 소분류에서 태그를 선택하세요.</p>
-                  {activeSignalSection === 'ideal' ? (
-                    <SignalTagPicker
-                      groups={IDEAL_TAG_GROUPS}
-                      selected={idealTags}
-                      onToggle={(tag) => setIdealTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]))}
-                      accent="rose"
-                    />
-                  ) : (
-                    <SignalTagPicker
-                      groups={FEATURE_TAG_GROUPS}
-                      selected={featureTags}
-                      onToggle={(tag) => setFeatureTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]))}
-                      accent="violet"
-                    />
-                  )}
+                <div className="px-3 pb-3 pt-3">
+                  <SignalTagPicker
+                    groups={IDEAL_TAG_GROUPS}
+                    idealSelected={idealTags}
+                    featureSelected={featureTags}
+                    onToggle={(role, tag) => {
+                      if (role === 'ideal') {
+                        setIdealTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
+                      } else {
+                        setFeatureTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
+                      }
+                    }}
+                  />
                 </div>
               </div>
 

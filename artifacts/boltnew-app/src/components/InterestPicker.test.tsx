@@ -7,14 +7,20 @@ import { InterestPicker } from './InterestPicker';
 describe('InterestPicker', () => {
   afterEach(() => cleanup());
 
-  it('shows all three categories and their tags in each group at once', () => {
-    render(<InterestPicker selected={[]} onToggle={vi.fn()} />);
+  it('shows one merged major at a time with its three subcategories', () => {
+    const onFilter = vi.fn();
+    const { rerender } = render(<InterestPicker selected={[]} onToggle={vi.fn()} filter="활동·라이프" onFilter={onFilter} />);
 
-    for (const category of ['스포츠/활동', '음식/음주', '취미/라이프', '뜨밤 & 기타', '엔터/미디어', '여가/사교']) {
-      expect(screen.getByText(new RegExp(category.replace('/', '\\/')))).toBeTruthy();
-    }
-    for (const tag of ['운동', '기타 운동', '카페', '여행', '음악감상', '보드게임']) {
-      expect(screen.getByRole('button', { name: tag })).toBeTruthy();
-    }
+    expect(screen.getByRole('button', { name: /활동·라이프/ }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByText(/스포츠\/활동/)).toBeTruthy();
+    expect(screen.getByText(/음식\/음주/)).toBeTruthy();
+    expect(screen.getByText(/취미\/라이프/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: '운동' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: '음악감상' })).toBeNull();
+
+    rerender(<InterestPicker selected={[]} onToggle={vi.fn()} filter="엔터·사교·기타" onFilter={onFilter} />);
+    expect(screen.getByRole('button', { name: /엔터·사교·기타/ }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('button', { name: '음악감상' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: '운동' })).toBeNull();
   });
 });
