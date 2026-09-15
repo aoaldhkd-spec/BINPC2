@@ -201,6 +201,8 @@ function App() {
   const [timerEndAt, setTimerEndAt] = useState<string | null>(null);
   const [timerLabel, setTimerLabel] = useState<string | null>(null);
   const [eventScheduleRaw, setEventScheduleRaw] = useState<string | null>(null);
+  // Quotas change at clock-slot boundaries even when the schedule JSON is unchanged.
+  const [eventScheduleMinute, setEventScheduleMinute] = useState(0);
   const [rejectionNotif, setRejectionNotif] = useState<string | null>(null); // nickname of person who rejected
   const [bottomNotif, setBottomNotif] = useState<BottomNotificationData | null>(null);
   const [showResetPassword, setShowResetPassword] = useState(false);
@@ -370,7 +372,21 @@ function App() {
     handleLike, executeLike, handleHeartResponse, handleContactShare,
     likeError, setLikeError,
   } = useHearts(currentUserId, profiles, profileMap, openChat, eventScheduleRaw);
-  const heartQuotas = useMemo(() => eventHeartQuotas(eventScheduleRaw), [eventScheduleRaw]);
+  useEffect(() => {
+    if (!eventScheduleRaw) { setEventScheduleMinute(0); return; }
+    let timer: number | undefined;
+    const refresh = () => setEventScheduleMinute(Math.floor(Date.now() / 60_000));
+    const schedule = () => {
+      timer = window.setTimeout(() => { refresh(); schedule(); }, 60_000 - (Date.now() % 60_000) + 50);
+    };
+    refresh();
+    schedule();
+    return () => { if (timer !== undefined) window.clearTimeout(timer); };
+  }, [eventScheduleRaw]);
+  const heartQuotas = useMemo(
+    () => eventHeartQuotas(eventScheduleRaw, new Date(eventScheduleMinute * 60_000)),
+    [eventScheduleRaw, eventScheduleMinute],
+  );
   // The schedule is also evaluated locally between SSE/ready heartbeats so a slot
   // boundary does not leave the buttons visually stale. The server remains authoritative.
   useEffect(() => {
