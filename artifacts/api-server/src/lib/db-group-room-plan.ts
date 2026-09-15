@@ -337,3 +337,46 @@ export function collectBirthYearRoomGroups(
   }
   return byYear;
 }
+
+export type GroupParticipantMergeApplyEffect =
+  | { kind: 'delete'; oldId: string }
+  | { kind: 'persist'; row: Record<string, unknown>; oldId: string; deleteOldId: boolean };
+
+/**
+ * Apply one group_participants merge action in memory.
+ * Delete mutates `parts` in place; remap updates group_id/id on the row.
+ * Persist/delete PG I/O stays in the caller.
+ */
+export function applyGroupParticipantMergeAction(
+  parts: Record<string, unknown>[],
+  action: GroupParticipantMergeAction,
+  canonicalId: string,
+): GroupParticipantMergeApplyEffect | null {
+  if (action.kind === 'delete') {
+    for (let i = parts.length - 1; i >= 0; i--) {
+      if (String(parts[i].id) === action.oldId) parts.splice(i, 1);
+    }
+    return { kind: 'delete', oldId: action.oldId };
+  }
+  const p = parts.find(x => String(x.id) === action.oldId);
+  if (!p) return null;
+  p.group_id = canonicalId;
+  p.id = action.newId;
+  return {
+    kind: 'persist',
+    row: p,
+    oldId: action.oldId,
+    deleteOldId: Boolean(action.oldId && action.oldId !== action.newId),
+  };
+}
+
+/** Mutate group_id on matching rows; returns the remapped rows (for persist). */
+export function remapRowsGroupId(
+  rows: Record<string, unknown>[],
+  fromGroupId: string,
+  toGroupId: string,
+): Record<string, unknown>[] {
+  const hit = filterRowsByGroupId(rows, fromGroupId);
+  for (const r of hit) r.group_id = toGroupId;
+  return hit;
+}

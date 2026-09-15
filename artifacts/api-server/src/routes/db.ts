@@ -3,7 +3,7 @@ import { Router, type Request, type Response } from 'express';
 import pg from 'pg';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { VAPID_PUBLIC_KEY, sendPush, type PushPayload } from '../lib/push';
-import { resolvePin, pinPoolParams } from '../lib/pin';
+import { resolvePin, pinPoolParams, collectUsedPinCodes } from '../lib/pin';
 import {
   collectUsedPresetAvatarIds,
   extractPresetAvatarId,
@@ -31,6 +31,8 @@ import {
 import { collectBroadcastTargets as collectBroadcastTargetsImpl } from '../lib/db-broadcast-targets';
 import {
   collectIntegrityDiagnostics,
+  clampIntegrityScanMaxRows,
+  clampIntegrityScanIntervalMs,
   writeReferencesFor,
   type IntegrityDiagnostics,
 } from '../lib/db-integrity';
@@ -90,6 +92,7 @@ import {
   ALLOWED_OP_TABLES,
   CRITICAL_PERSIST_TABLES,
   ACTIVE_KV_TABLES,
+  isCriticalWriteLog,
 } from '../lib/db-table-policy';
 import {
   planSmartBroadcastLocal,
@@ -295,6 +298,7 @@ import {
   explicitSecretKeys,
   koreanDateMMDD,
   mergeAppSettings as mergeAppSettingsPure,
+  overlaySecretsFromDbRow,
   sanitizeAdminSettingsPayload,
   filterTestSettingsPayload,
 } from '../lib/db-app-settings-merge';
@@ -337,6 +341,8 @@ import {
   buildGroupParticipantRow,
   planAutoMatchJoinSpecs,
   planGroupParticipantMerge,
+  applyGroupParticipantMergeAction,
+  remapRowsGroupId,
   filterRowsByGroupId,
   groupNeedsUnlimitedMaxMembers,
   planVisibleAgeBandRoomSpec,
@@ -421,6 +427,7 @@ import {
   groupChatsByPair, messageMergeAction, planCanonicalMessageChatId,
   planChatDedupeMergeSteps, planChatReadsForDedupe,
   messagesToRemapOnDedupe, applyIncomingMessageRows,
+  applyChatReadDedupeAction,
 } from '../lib/db-chat-pair-plan';
 import {
   FUNCTIONS_LOCKED_ERROR,
@@ -607,7 +614,7 @@ async function ensureAdminProfile(): Promise<Record<string, unknown> | null> {
   }
 
   const tableData = getTable('profiles');
-  const usedPins = new Set(tableData.map(p => p.pin_code).filter(Boolean)) as Set<string>;
+  const usedPins = collectUsedPinCodes(tableData);
   const { use5Digit, poolSize } = pinPoolParams(tableData.length);
   const pinResult = resolvePin(usedPins, poolSize, use5Digit, null);
   if (!pinResult.ok) {
@@ -1079,14 +1086,12 @@ async function refreshGroupParticipant(groupId: string, userId: string): Promise
   }
 }
 
-const _integrityScanMaxRaw = Number(process.env.INTEGRITY_SCAN_MAX_ROWS ?? 20_000);
-const _integrityScanIntervalRaw = Number(process.env.INTEGRITY_SCAN_INTERVAL_MS ?? 5 * 60 * 1000);
-const INTEGRITY_SCAN_MAX_ROWS = Number.isFinite(_integrityScanMaxRaw)
-  ? Math.max(1, Math.floor(_integrityScanMaxRaw))
-  : 20_000;
-const INTEGRITY_SCAN_INTERVAL_MS = Number.isFinite(_integrityScanIntervalRaw)
-  ? Math.max(30_000, Math.floor(_integrityScanIntervalRaw))
-  : 5 * 60 * 1000;
+const INTEGRITY_SCAN_MAX_ROWS = clampIntegrityScanMaxRows(
+  Number(process.env.INTEGRITY_SCAN_MAX_ROWS ?? 20_000),
+);
+const INTEGRITY_SCAN_INTERVAL_MS = clampIntegrityScanIntervalMs(
+  Number(process.env.INTEGRITY_SCAN_INTERVAL_MS ?? 5 * 60 * 1000),
+);
 let _integrityDiagnostics: IntegrityDiagnostics = collectIntegrityDiagnostics(store, INTEGRITY_SCAN_MAX_ROWS);
 let _integrityDiagnosticsStarted = false;
 
@@ -1202,24 +1207,9 @@ async function dedupeChatsInStore(): Promise<number> {
     }
     const reads = getTable('chat_reads');
     for (const action of planChatReadsForDedupe(reads, dupId, canonicalId)) {
-      if (action.kind === 'absorb') {
-        const existing = reads.find(
-          r => String(r.chat_id) === canonicalId && String(r.reader_id) === action.readerId,
-        );
-        if (existing) {
-          if (action.bumpReadAt !== undefined) existing.read_at = action.bumpReadAt;
-          void dbPersistRow('chat_reads', existing);
-        }
-        const idx = reads.findIndex(r => String(r.id) === action.deleteId);
-        if (idx >= 0) reads.splice(idx, 1);
-        void dbDeleteRow('chat_reads', action.deleteId);
-      } else {
-        const cr = reads.find(r => String(r.id) === action.rowId)
-          ?? reads.find(r => String(r.chat_id) === dupId && String(r.reader_id) === action.readerId);
-        if (!cr) continue;
-        cr.chat_id = action.newChatId;
-        cr.id = action.newId;
-        void dbPersistRow('chat_reads', cr);
+      for (const effect of applyChatReadDedupeAction(reads, action, { canonicalId, dupId })) {
+        if (effect.kind === 'persist') void dbPersistRow('chat_reads', effect.row);
+        else void dbDeleteRow('chat_reads', effect.id);
       }
     }
     const idx = chats.findIndex(c => String(c.id) === dupId);
@@ -1473,12 +1463,7 @@ async function overlayDbSecrets(
     );
     const db = rows[0]?.data as Record<string, unknown> | undefined;
     if (!db || typeof db !== 'object') return row;
-    const next = { ...row };
-    for (const key of SECRET_SETTING_KEYS) {
-      if (explicit.has(key)) continue;
-      if (db[key] != null && String(db[key]).trim() !== '') next[key] = db[key];
-    }
-    return next;
+    return overlaySecretsFromDbRow(row, db, explicit);
   } catch (e) {
     logger.warn({ err: e }, '[db] overlayDbSecrets failed — using in-memory secrets');
     return row;
@@ -1703,24 +1688,19 @@ async function mergeGroupInto(dupId: string, canonicalId: string): Promise<void>
   rememberMergedGroup(dupId, canonicalId);
   const parts = getTable('group_participants');
   for (const action of planGroupParticipantMerge(parts, dupId, canonicalId)) {
-    if (action.kind === 'delete') {
-      store['group_participants'] = getTable('group_participants').filter(x => String(x.id) !== action.oldId);
-      void dbDeleteRow('group_participants', action.oldId);
+    const effect = applyGroupParticipantMergeAction(parts, action, canonicalId);
+    if (!effect) continue;
+    if (effect.kind === 'delete') {
+      void dbDeleteRow('group_participants', effect.oldId);
     } else {
-      const p = getTable('group_participants').find(x => String(x.id) === action.oldId);
-      if (!p) continue;
-      p.group_id = canonicalId;
-      p.id = action.newId;
-      void dbPersistRow('group_participants', p);
-      if (action.oldId && action.oldId !== action.newId) void dbDeleteRow('group_participants', action.oldId);
+      void dbPersistRow('group_participants', effect.row);
+      if (effect.deleteOldId) void dbDeleteRow('group_participants', effect.oldId);
     }
   }
-  for (const m of filterRowsByGroupId(getTable('group_messages'), dupId)) {
-    m.group_id = canonicalId;
+  for (const m of remapRowsGroupId(getTable('group_messages'), dupId, canonicalId)) {
     void dbPersistRow('group_messages', m);
   }
-  for (const r of filterRowsByGroupId(getTable('group_opt_outs'), dupId)) {
-    r.group_id = canonicalId;
+  for (const r of remapRowsGroupId(getTable('group_opt_outs'), dupId, canonicalId)) {
     void dbPersistRow('group_opt_outs', r);
   }
 }
@@ -2712,10 +2692,7 @@ router.post('/op', async (req: Request, res: Response) => {
   }
 
   // 핵심 쓰기 작업만 requestId 로깅 (관측용, 본문/비밀 제외)
-  if (
-    (op === 'insert' || op === 'update' || op === 'upsert' || op === 'delete') &&
-    (table === 'messages' || table === 'chats' || table === 'likes' || table === 'contact_shares' || table === 'signal_sends')
-  ) {
+  if (isCriticalWriteLog(op, table)) {
     logger.info({ requestId, op, table }, '[op] critical-write');
   }
 
@@ -3034,7 +3011,7 @@ router.post('/op', async (req: Request, res: Response) => {
       const inserted: Record<string, unknown>[] = [];
       // Fix #4: O(n²) → O(n) — profiles 삽입 시 루프 밖에서 Set 1회만 빌드
       const _insertNickSet = table === 'profiles' ? new Set(tableData.map(r => r.nickname).filter(Boolean)) : null;
-      const _insertPinSet  = table === 'profiles' ? new Set(tableData.map(r => r.pin_code).filter(Boolean)) as Set<string>  : null;
+      const _insertPinSet  = table === 'profiles' ? collectUsedPinCodes(tableData) : null;
       const _insertAvatarSet = table === 'profiles' ? collectUsedPresetAvatarIds(tableData) : null;
       const _pinParams     = table === 'profiles' ? pinPoolParams(tableData.length) : null;
       for (const row of inputs) {
@@ -3510,7 +3487,7 @@ router.post('/op', async (req: Request, res: Response) => {
       // profiles 테이블에서 pin_code를 UPDATE할 때 서버 레벨 유일성 보장
       // (레거시 사용자 핀 자동 부여 시 경쟁 조건 방지)
       if (table === 'profiles' && patch.pin_code != null) {
-        const usedPins = new Set(tableData.map(r => r.pin_code).filter(Boolean)) as Set<string>;
+        const usedPins = collectUsedPinCodes(tableData);
         const { use5Digit, poolSize } = pinPoolParams(tableData.length);
         const pinResult = resolvePin(usedPins, poolSize, use5Digit, patch.pin_code as string);
         if (!pinResult.ok) {
@@ -3684,7 +3661,7 @@ router.post('/op', async (req: Request, res: Response) => {
           let base: Record<string, unknown> = { id: genId(), created_at: ts(), ...row };
           if (table === 'profiles') {
             if (profileBirthYearRejected(res, base.birth_year)) return;
-            const usedPins = new Set(tableData.map(r => r.pin_code).filter(Boolean)) as Set<string>;
+            const usedPins = collectUsedPinCodes(tableData);
             const { use5Digit, poolSize } = pinPoolParams(tableData.length);
             const pinResult = resolvePin(usedPins, poolSize, use5Digit, base.pin_code as string | null | undefined);
             if (!pinResult.ok) {

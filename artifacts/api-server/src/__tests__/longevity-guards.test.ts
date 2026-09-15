@@ -275,6 +275,31 @@ describe('longevity recurrence guards (server)', () => {
     expect(policy).toContain('ACTIVE_KV_TABLES');
   });
 
+
+  it('overlay-secrets + pin-collect + integrity-clamp + dedupe/merge-apply + critical-write-log stay extracted', () => {
+    expect(dbTs).toContain('overlaySecretsFromDbRow');
+    expect(dbTs).toContain('collectUsedPinCodes');
+    expect(dbTs).toContain('clampIntegrityScanMaxRows');
+    expect(dbTs).toContain('applyChatReadDedupeAction');
+    expect(dbTs).toContain('applyGroupParticipantMergeAction');
+    expect(dbTs).toContain('isCriticalWriteLog');
+    expect(dbTs).not.toMatch(/Number\.isFinite\(_integrityScanMaxRaw\)/);
+    expect(dbTs).not.toMatch(/table === 'messages' \|\| table === 'chats' \|\| table === 'likes' \|\| table === 'contact_shares' \|\| table === 'signal_sends'/);
+    const merge = readFileSync(join(here, '../lib/db-app-settings-merge.ts'), 'utf8');
+    const pin = readFileSync(join(here, '../lib/pin.ts'), 'utf8');
+    const integ = readFileSync(join(here, '../lib/db-integrity.ts'), 'utf8');
+    const chat = readFileSync(join(here, '../lib/db-chat-pair-plan.ts'), 'utf8');
+    const group = readFileSync(join(here, '../lib/db-group-room-plan.ts'), 'utf8');
+    const policy = readFileSync(join(here, '../lib/db-table-policy.ts'), 'utf8');
+    expect(merge).toContain('overlaySecretsFromDbRow');
+    expect(pin).toContain('collectUsedPinCodes');
+    expect(integ).toContain('clampIntegrityScanMaxRows');
+    expect(chat).toContain('applyChatReadDedupeAction');
+    expect(group).toContain('applyGroupParticipantMergeAction');
+    expect(policy).toContain('isCriticalWriteLog');
+  });
+
+
   it('chat-dedupe + group-merge + entry-renewal planners stay extracted', () => {
     expect(dbTs).toContain('planChatDedupeMergeSteps');
     expect(dbTs).toContain('planChatReadsForDedupe');

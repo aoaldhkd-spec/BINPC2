@@ -45,3 +45,15 @@ export const ACTIVE_KV_TABLES = new Set([
   // PG 전용 메타 — 앱 데이터가 아님. inversion cleanup에서 지우면 안 됨
   'rate_limits', 'db_error_log',
 ]);
+
+/** Tables whose /op writes are logged as critical-write (requestId only). */
+export const CRITICAL_WRITE_LOG_TABLES = new Set([
+  'messages', 'chats', 'likes', 'contact_shares', 'signal_sends',
+]);
+
+const CRITICAL_WRITE_OPS = new Set(['insert', 'update', 'upsert', 'delete']);
+
+/** Whether /op should emit the critical-write info log line. */
+export function isCriticalWriteLog(op: string, table: string): boolean {
+  return CRITICAL_WRITE_OPS.has(op) && CRITICAL_WRITE_LOG_TABLES.has(table);
+}

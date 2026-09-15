@@ -216,3 +216,40 @@ export function applyIncomingMessageRows(
     }
   }
 }
+
+export type ChatReadDedupeApplyEffect =
+  | { kind: 'persist'; row: Record<string, unknown> }
+  | { kind: 'delete'; id: string };
+
+/**
+ * Apply one chat_reads dedupe action in memory.
+ * Returns persist/delete side-effects for the caller (PG I/O stays in db.ts).
+ */
+export function applyChatReadDedupeAction(
+  reads: Record<string, unknown>[],
+  action: ChatReadDedupeAction,
+  ctx: { canonicalId: string; dupId: string },
+): ChatReadDedupeApplyEffect[] {
+  const effects: ChatReadDedupeApplyEffect[] = [];
+  if (action.kind === 'absorb') {
+    const existing = reads.find(
+      r => String(r.chat_id) === ctx.canonicalId && String(r.reader_id) === action.readerId,
+    );
+    if (existing) {
+      if (action.bumpReadAt !== undefined) existing.read_at = action.bumpReadAt;
+      effects.push({ kind: 'persist', row: existing });
+    }
+    const idx = reads.findIndex(r => String(r.id) === action.deleteId);
+    if (idx >= 0) reads.splice(idx, 1);
+    effects.push({ kind: 'delete', id: action.deleteId });
+    return effects;
+  }
+
+  const cr = reads.find(r => String(r.id) === action.rowId)
+    ?? reads.find(r => String(r.chat_id) === ctx.dupId && String(r.reader_id) === action.readerId);
+  if (!cr) return effects;
+  cr.chat_id = action.newChatId;
+  cr.id = action.newId;
+  effects.push({ kind: 'persist', row: cr });
+  return effects;
+}

@@ -2060,6 +2060,53 @@ mustMatch('ARCHITECTURE.md', '72_architecture_path_after_resync_notify_peel', [
 ]);
 
 
+
+// ── 73: overlay-secrets + pin-collect + integrity-clamp + dedupe/merge apply + critical-write-log ──
+mustMatch('artifacts/api-server/src/lib/db-app-settings-merge.ts', '73_overlay_secrets_export', [
+  /export function overlaySecretsFromDbRow/,
+]);
+mustMatch('artifacts/api-server/src/lib/pin.ts', '73_collect_used_pins_export', [
+  /export function collectUsedPinCodes/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-integrity.ts', '73_integrity_clamp_exports', [
+  /export function clampIntegrityScanMaxRows/,
+  /export function clampIntegrityScanIntervalMs/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-chat-pair-plan.ts', '73_chat_read_dedupe_apply_export', [
+  /export function applyChatReadDedupeAction/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-group-room-plan.ts', '73_group_merge_apply_exports', [
+  /export function applyGroupParticipantMergeAction/,
+  /export function remapRowsGroupId/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-table-policy.ts', '73_critical_write_log_export', [
+  /export function isCriticalWriteLog/,
+  /export const CRITICAL_WRITE_LOG_TABLES/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '73_db_reimports_overlay_pin_apply_critical', [
+  /overlaySecretsFromDbRow/,
+  /collectUsedPinCodes/,
+  /clampIntegrityScanMaxRows/,
+  /applyChatReadDedupeAction/,
+  /applyGroupParticipantMergeAction/,
+  /remapRowsGroupId/,
+  /isCriticalWriteLog/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '73_db_still_single_router_export', [
+  /export default router/,
+]);
+mustNotMatch('artifacts/api-server/src/routes/db.ts', '73_db_no_inline_critical_write_table_list', [
+  /table === 'messages' \|\| table === 'chats' \|\| table === 'likes' \|\| table === 'contact_shares' \|\| table === 'signal_sends'/,
+]);
+mustNotMatch('artifacts/api-server/src/routes/db.ts', '73_db_no_inline_integrity_scan_clamp', [
+  /Number\.isFinite\(_integrityScanMaxRaw\)/,
+]);
+mustMatch('ARCHITECTURE.md', '73_architecture_path_after_overlay_pin_apply_peel', [
+  /overlay-secrets|pin-collect|integrity-clamp|dedupe\/merge-apply|critical-write-log/,
+  /~9\.5/,
+]);
+
+
 console.log('\n=== verify-recurrence-guards ===\n');
 
 for (const r of results) {

@@ -1,6 +1,6 @@
 /**
  * App settings merge / QR / entry-date helpers — extracted from routes/db.ts.
- * Pure; defaultAppSettings + overlayDbSecrets stay in db.ts (env / PG).
+ * Pure; defaultAppSettings builder + PG fetch for overlayDbSecrets stay in db.ts.
  */
 import { LEGACY_APP_SETTINGS_KEYS } from './db-legacy-cleanup.js';
 
@@ -97,4 +97,23 @@ export function filterTestSettingsPayload(
   return Object.fromEntries(
     Object.entries(raw).filter(([k]) => ALLOWED_TEST_SETTINGS_FIELDS.has(k)),
   );
+}
+
+/**
+ * Copy non-empty secret keys from a Postgres settings row onto `row`,
+ * skipping keys the caller is explicitly writing.
+ * Does not mutate inputs; returns a shallow copy of `row` with overlays.
+ */
+export function overlaySecretsFromDbRow(
+  row: Record<string, unknown>,
+  db: Record<string, unknown>,
+  explicit: Set<string>,
+  secretKeys: readonly string[] = SECRET_SETTING_KEYS,
+): Record<string, unknown> {
+  const next = { ...row };
+  for (const key of secretKeys) {
+    if (explicit.has(key)) continue;
+    if (db[key] != null && String(db[key]).trim() !== '') next[key] = db[key];
+  }
+  return next;
 }

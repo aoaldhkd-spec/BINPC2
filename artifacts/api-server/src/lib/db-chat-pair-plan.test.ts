@@ -103,6 +103,7 @@ import {
   planChatReadsForDedupe,
   messagesToRemapOnDedupe,
   applyIncomingMessageRows,
+  applyChatReadDedupeAction,
   pickCanonicalChatRow,
 } from './db-chat-pair-plan.js';
 
@@ -149,4 +150,30 @@ describe('chat dedupe / message-merge planners (71)', () => {
       () => 0,
     ).id).toBe('b');
   });
+
+  it('applyChatReadDedupeAction absorb bumps + deletes; remap rewrites ids', () => {
+    const reads = [
+      { id: 'r1', chat_id: 'dup', reader_id: 'u1', read_at: '2024-02-01' },
+      { id: 'r2', chat_id: 'canon', reader_id: 'u1', read_at: '2024-01-01' },
+      { id: 'r3', chat_id: 'dup', reader_id: 'u2', read_at: 't' },
+    ];
+    const absorb = {
+      kind: 'absorb' as const, deleteId: 'r1', readerId: 'u1', bumpReadAt: '2024-02-01',
+    };
+    const effects = applyChatReadDedupeAction(reads, absorb, { canonicalId: 'canon', dupId: 'dup' });
+    expect(reads.find(r => r.id === 'r2')!.read_at).toBe('2024-02-01');
+    expect(reads.some(r => r.id === 'r1')).toBe(false);
+    expect(effects).toEqual([
+      { kind: 'persist', row: reads.find(r => r.id === 'r2') },
+      { kind: 'delete', id: 'r1' },
+    ]);
+    const remap = {
+      kind: 'remap' as const, rowId: 'r3', readerId: 'u2', newChatId: 'canon', newId: 'canon__u2',
+    };
+    const e2 = applyChatReadDedupeAction(reads, remap, { canonicalId: 'canon', dupId: 'dup' });
+    expect(reads.find(r => r.id === 'canon__u2')).toMatchObject({ chat_id: 'canon', reader_id: 'u2' });
+    expect(e2).toHaveLength(1);
+    expect(e2[0].kind).toBe('persist');
+  });
+
 });

@@ -121,3 +121,21 @@ export function collectIntegrityDiagnostics(
     },
   };
 }
+
+export const INTEGRITY_SCAN_MAX_ROWS_DEFAULT = 20_000;
+export const INTEGRITY_SCAN_INTERVAL_MS_DEFAULT = 5 * 60 * 1000;
+export const INTEGRITY_SCAN_INTERVAL_MS_MIN = 30_000;
+
+/** Clamp INTEGRITY_SCAN_MAX_ROWS env (finite → floor ≥1; else default). */
+export function clampIntegrityScanMaxRows(raw: number): number {
+  return Number.isFinite(raw)
+    ? Math.max(1, Math.floor(raw))
+    : INTEGRITY_SCAN_MAX_ROWS_DEFAULT;
+}
+
+/** Clamp INTEGRITY_SCAN_INTERVAL_MS env (finite → floor ≥30s; else default). */
+export function clampIntegrityScanIntervalMs(raw: number): number {
+  return Number.isFinite(raw)
+    ? Math.max(INTEGRITY_SCAN_INTERVAL_MS_MIN, Math.floor(raw))
+    : INTEGRITY_SCAN_INTERVAL_MS_DEFAULT;
+}

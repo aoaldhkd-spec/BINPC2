@@ -8,6 +8,7 @@ import {
   filterTestSettingsPayload,
   mergeAppSettings,
   sanitizeAdminSettingsPayload,
+  overlaySecretsFromDbRow,
 } from './db-app-settings-merge.js';
 
 describe('db-app-settings-merge', () => {
@@ -72,5 +73,14 @@ describe('db-app-settings-merge', () => {
     expect(filterTestSettingsPayload({ session_active: true, admin_password: 'x' })).toEqual({
       session_active: true,
     });
+  });
+  it('overlaySecretsFromDbRow copies non-empty secrets unless explicit', () => {
+    const row = { id: 1, admin_password: 'mem', entry_password: 'old' };
+    const db = { admin_password: 'dbAdmin', test_password: 'dbTest', entry_password: '  ' };
+    const out = overlaySecretsFromDbRow(row, db, new Set(['admin_password']));
+    expect(out.admin_password).toBe('mem');
+    expect(out.test_password).toBe('dbTest');
+    expect(out.entry_password).toBe('old');
+    expect(row.test_password).toBeUndefined();
   });
 });

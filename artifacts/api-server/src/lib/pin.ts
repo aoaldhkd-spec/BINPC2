@@ -74,3 +74,8 @@ export function resolvePin(
 
   return { ok: true, pin };
 }
+
+/** Build the set of assigned PIN codes from profile rows (truthy pin_code only). */
+export function collectUsedPinCodes(profiles: Record<string, unknown>[]): Set<string> {
+  return new Set(profiles.map(p => p.pin_code).filter(Boolean) as string[]);
+}

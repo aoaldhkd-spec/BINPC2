@@ -2,6 +2,8 @@
  * /health alarm + pin-pool planners — extracted from routes/db.ts.
  * Pure given counts/lags; Express / DB queries / cache stay in db.ts.
  */
+import { collectUsedPinCodes } from './pin.js';
+
 
 export const HEALTH_LOSS_ALARM_THRESHOLD = 5;
 
@@ -15,7 +17,7 @@ export type PinPoolStats = {
 export function planPinPoolStats(profiles: Record<string, unknown>[]): PinPoolStats {
   const use5Digit = profiles.length > 8000;
   const total = use5Digit ? 90_000 : 9000;
-  const used = new Set(profiles.map(p => p.pin_code).filter(Boolean)).size;
+  const used = collectUsedPinCodes(profiles).size;
   const remaining = total - used;
   const alarmThreshold = Math.max(50, Math.floor(total * 0.15));
   return { remaining, total, alarmThreshold };

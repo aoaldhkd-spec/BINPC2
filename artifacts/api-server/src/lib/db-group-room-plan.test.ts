@@ -133,6 +133,8 @@ describe('planAutoMatchJoinSpecs', () => {
 
 import {
   planGroupParticipantMerge,
+  applyGroupParticipantMergeAction,
+  remapRowsGroupId,
   filterRowsByGroupId,
   groupNeedsUnlimitedMaxMembers,
   planVisibleAgeBandRoomSpec,
@@ -173,4 +175,25 @@ describe('group merge / catalog planners (71)', () => {
     ]);
     expect(byYear.get(1995)?.length).toBe(2);
   });
+
+  it('applyGroupParticipantMergeAction delete/remap + remapRowsGroupId', () => {
+    const parts = [
+      { id: 'dup__u1', group_id: 'dup', user_id: 'u1' },
+      { id: 'can__u1', group_id: 'can', user_id: 'u1' },
+      { id: 'dup__u2', group_id: 'dup', user_id: 'u2' },
+    ];
+    const del = applyGroupParticipantMergeAction(parts, { kind: 'delete', oldId: 'dup__u1' }, 'can');
+    expect(del).toEqual({ kind: 'delete', oldId: 'dup__u1' });
+    expect(parts.some(p => p.id === 'dup__u1')).toBe(false);
+    const remap = applyGroupParticipantMergeAction(
+      parts, { kind: 'remap', oldId: 'dup__u2', userId: 'u2', newId: 'can__u2' }, 'can',
+    );
+    expect(remap).toMatchObject({ kind: 'persist', oldId: 'dup__u2', deleteOldId: true });
+    expect(parts.find(p => p.id === 'can__u2')).toMatchObject({ group_id: 'can', user_id: 'u2' });
+    const msgs = [{ id: 'm1', group_id: 'dup' }, { id: 'm2', group_id: 'other' }];
+    const hit = remapRowsGroupId(msgs, 'dup', 'can');
+    expect(hit).toHaveLength(1);
+    expect(msgs[0].group_id).toBe('can');
+  });
+
 });

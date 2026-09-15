@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { ALLOWED_OP_TABLES, CRITICAL_PERSIST_TABLES, ACTIVE_KV_TABLES } from './db-table-policy.js';
+import {
+  ALLOWED_OP_TABLES,
+  CRITICAL_PERSIST_TABLES,
+  ACTIVE_KV_TABLES,
+  isCriticalWriteLog,
+  CRITICAL_WRITE_LOG_TABLES,
+} from './db-table-policy.js';
 
 describe('db-table-policy', () => {
   it('keeps core chat/hearts tables on both lists', () => {
@@ -22,5 +28,12 @@ describe('db-table-policy', () => {
     expect(ACTIVE_KV_TABLES.has('rate_limits')).toBe(true);
     expect(ACTIVE_KV_TABLES.has('db_error_log')).toBe(true);
     expect(ACTIVE_KV_TABLES.size).toBeGreaterThanOrEqual(ALLOWED_OP_TABLES.size);
+  });
+
+  it('isCriticalWriteLog matches prior critical-write tables/ops', () => {
+    expect(isCriticalWriteLog('insert', 'messages')).toBe(true);
+    expect(isCriticalWriteLog('select', 'messages')).toBe(false);
+    expect(isCriticalWriteLog('update', 'profiles')).toBe(false);
+    expect(CRITICAL_WRITE_LOG_TABLES.has('signal_sends')).toBe(true);
   });
 });
