@@ -1,5 +1,7 @@
 # BINPC2 ops / smoke log
 
+판매용 성과는 SALES_RESULTS.md 참고 (이 파일은 개발/스모크용).
+
 앱 초기화·admin wipe와 무관한 기록입니다. Git에만 남깁니다. 항목은 짧게.
 
 ## 2026-09-15
