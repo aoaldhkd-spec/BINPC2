@@ -14,6 +14,10 @@ import { logger } from '../lib/logger';
 import { buildPgOptions } from '../lib/pg-options.js';
 import { createImageAccessPolicy } from '../lib/image-access';
 import {
+  MAX_IMAGE_DATAURL_BYTES,
+  dataUrlMimeAndMagic,
+} from '../lib/db-image-magic';
+import {
   sanitizeRow,
   sanitizeProfile,
   sanitizeProfileForViewer,
@@ -44,6 +48,8 @@ import {
   broadcastRateMap as _broadcastRateMap,
   pruneRateMap,
   consumeRateLimit,
+  consumePinBucket as consumePinBucketPure,
+  PIN_WINDOW_MS_DEFAULT,
   venueLoginRateKeys,
   venueUploadRateKeys,
   resetRateLimit,
@@ -159,6 +165,14 @@ import {
   mergeKvRowsIntoStore as mergeKvRowsIntoStorePure,
   seedLikesLastInsertMap as seedLikesLastInsertMapPure,
 } from '../lib/db-kv-hydrate';
+import {
+  issueSessionToken as issueSessionTokenPure,
+  verifySessionToken as verifySessionTokenPure,
+  issueSseToken as issueSseTokenPure,
+  classifySseToken as classifySseTokenPure,
+  verifySseToken as verifySseTokenPure,
+  type SseTokenState,
+} from '../lib/db-session-tokens';
 import {
   isChatParticipant as isChatParticipantPure,
   countMessagesForChat as countMessagesForChatPure,
@@ -574,17 +588,7 @@ function sseLiveCount(): number {
   return n;
 }
 
-// ─── Image magic-bytes map ─────────────────────────────────────────────────────
-// MIME 헤더 조작으로 악성 파일을 이미지로 위장하는 공격 차단
-const IMAGE_MAGIC: Record<string, Array<{ offset: number; bytes: number[] }>> = {
-  'image/jpeg': [{ offset: 0, bytes: [0xFF, 0xD8, 0xFF] }],
-  'image/png':  [{ offset: 0, bytes: [0x89, 0x50, 0x4E, 0x47] }],
-  'image/gif':  [{ offset: 0, bytes: [0x47, 0x49, 0x46, 0x38] }],
-  'image/webp': [
-    { offset: 0, bytes: [0x52, 0x49, 0x46, 0x46] }, // RIFF
-    { offset: 8, bytes: [0x57, 0x45, 0x42, 0x50] }, // WEBP
-  ],
-};
+// Image magic / MIME: ../lib/db-image-magic.ts
 
 // ─── Per-user global likes rate limit (독립 조합 스팸 방지) ──────────────────────
 const LIKES_MAX_PER_USER_PER_MIN = 20; // 1분에 20개 초과 시 429
@@ -4806,9 +4810,7 @@ router.post('/broadcast', (req: Request, res: Response) => {
 
 // ─── Image storage ────────────────────────────────────────────────────────────
 // 허용 MIME 타입 (이미지만)
-const ALLOWED_IMAGE_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
-// base64 인코딩 시 ~4/3 오버헤드 → 5MB 원본 ≈ 9MB JSON 문자열
-const MAX_IMAGE_DATAURL_BYTES = 9_000_000;
+// ALLOWED_IMAGE_MIMES / MAX_IMAGE_DATAURL_BYTES: ../lib/db-image-magic.ts
 const imageAccess = createImageAccessPolicy(getTable);
 
 router.post('/storage-upload', async (req: Request, res: Response) => {
@@ -4861,12 +4863,12 @@ router.post('/storage-upload', async (req: Request, res: Response) => {
     return res.status(429).json({ data: null, error: '이미지를 너무 자주 업로드하고 있습니다. 잠시 후 다시 시도해 주세요.' });
   }
 
-  // ─ dataUrl 검증
+  // ─ dataUrl 검증 (MIME + magic: db-image-magic)
   if (!dataUrl || typeof dataUrl !== 'string') {
     return res.status(400).json({ data: null, error: 'Missing dataUrl' });
   }
-  const mimeMatch = dataUrl.match(/^data:([^;]+);base64,/);
-  if (!mimeMatch || !ALLOWED_IMAGE_MIMES.has(mimeMatch[1])) {
+  const mimeMagic = dataUrlMimeAndMagic(dataUrl);
+  if (!mimeMagic) {
     recordUploadRejected('mime');
     return res.status(400).json({ data: null, error: 'Invalid image type' });
   }
@@ -4875,18 +4877,9 @@ router.post('/storage-upload', async (req: Request, res: Response) => {
     recordUploadRejected('size_cap');
     return res.status(413).json({ data: null, error: 'Image too large (max 5MB)' });
   }
-  // ─ Magic bytes 검증: MIME 헤더 조작으로 악성 파일 위장 차단
-  const expectedMagic = IMAGE_MAGIC[mimeMatch[1]];
-  if (expectedMagic) {
-    const base64Body = dataUrl.split(',')[1] ?? '';
-    const rawBytes = Buffer.from(base64Body.slice(0, 24), 'base64');
-    const matched = expectedMagic.every(signature =>
-      signature.bytes.every((byte, index) => rawBytes[signature.offset + index] === byte)
-    );
-    if (!matched) {
-      recordUploadRejected('magic');
-      return res.status(400).json({ data: null, error: 'Image content does not match declared type' });
-    }
+  if (!mimeMagic.magicOk) {
+    recordUploadRejected('magic');
+    return res.status(400).json({ data: null, error: 'Image content does not match declared type' });
   }
   // 프로필 row가 이 경로를 저장하기 전에 이미지 자체가 durable해야 한다.
   // DB 저장 실패를 성공으로 응답하면 서버 재시작 후 깨진 프로필 사진이 남는다.
@@ -5278,18 +5271,11 @@ router.get('/unread-counts', (req: Request, res: Response) => {
 const _pinAttempts = new Map<string, { count: number; resetAt: number }>();
 const PIN_MAX_PER_IP = Number(process.env.PIN_MAX_PER_IP ?? 200);
 const PIN_MAX_PER_PIN = Number(process.env.PIN_MAX_PER_PIN ?? 8);
-const PIN_WINDOW_MS = 15 * 60 * 1000;
+const PIN_WINDOW_MS = PIN_WINDOW_MS_DEFAULT;
 
+/** Thin wrapper — pure bucket lives in db-rate-limit. */
 function consumePinBucket(key: string, max: number): boolean {
-  const now = Date.now();
-  const prev = _pinAttempts.get(key);
-  if (prev && prev.resetAt > now) {
-    if (prev.count >= max) return false;
-    prev.count++;
-    return true;
-  }
-  _pinAttempts.set(key, { count: 1, resetAt: now + PIN_WINDOW_MS });
-  return true;
+  return consumePinBucketPure(_pinAttempts, key, max, PIN_WINDOW_MS);
 }
 
 setInterval(() => {
@@ -5470,35 +5456,17 @@ router.post('/push/notify', async (req: Request, res: Response): Promise<void> =
   }
 });
 
-// ─── SSE token helpers ─────────────────────────────────────────────────────────
+// ─── SSE/session token helpers: ../lib/db-session-tokens.ts (re-import) ─────────
 // SESSION_SECRET는 app.ts에서 필수 검증하므로 여기서는 항상 유효한 값
 const SSE_TOKEN_SECRET = process.env.SESSION_SECRET!;
-const SSE_TOKEN_EXPIRY_SEC = 3600; // 1 hour
-const SESSION_TOKEN_EXPIRY_SEC = 7 * 24 * 60 * 60; // 7 days — cookie 대체·Netlify 프록시 대응
 
+/** Thin wrappers — HMAC issue/verify/classify live in db-session-tokens. */
 function issueSessionToken(userId: string): { token: string; expiresAt: number } {
-  const exp = Math.floor(Date.now() / 1000) + SESSION_TOKEN_EXPIRY_SEC;
-  const mac = createHmac('sha256', SSE_TOKEN_SECRET)
-    .update(`session:${userId}:${exp}`)
-    .digest('hex');
-  return { token: `${exp}:${mac}`, expiresAt: exp };
+  return issueSessionTokenPure(userId, SSE_TOKEN_SECRET);
 }
 
 function verifySessionToken(userId: string, token: string): boolean {
-  const colonIdx = token.indexOf(':');
-  if (colonIdx < 1) return false;
-  const expStr = token.slice(0, colonIdx);
-  const mac = token.slice(colonIdx + 1);
-  const exp = Number(expStr);
-  if (!Number.isFinite(exp) || Math.floor(Date.now() / 1000) > exp) return false;
-  const expected = createHmac('sha256', SSE_TOKEN_SECRET)
-    .update(`session:${userId}:${expStr}`)
-    .digest('hex');
-  try {
-    return timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(mac, 'hex'));
-  } catch {
-    return false;
-  }
+  return verifySessionTokenPure(userId, token, SSE_TOKEN_SECRET);
 }
 
 /** 쿠키 세션 또는 Bearer sessionToken 으로 인증된 userId */
@@ -5520,44 +5488,15 @@ function finishLogin(res: Response, req: Request, userId: string) {
 }
 
 function issueSseToken(userId: string): { token: string; expiresAt: number } {
-  const exp = Math.floor(Date.now() / 1000) + SSE_TOKEN_EXPIRY_SEC;
-  const mac = createHmac('sha256', SSE_TOKEN_SECRET)
-    .update(`${userId}:${exp}`)
-    .digest('hex');
-  return { token: `${exp}:${mac}`, expiresAt: exp };
+  return issueSseTokenPure(userId, SSE_TOKEN_SECRET);
 }
 
-/**
- * SSE 토큰 상태 구분.
- *
- * `expired` = 서명은 이 서버 비밀키로 정상 검증되지만 exp 가 지난 것 → 정상 사용자의
- * 토큰 갱신 실패다. `invalid` = 서명 불일치·형식 오류 → 위조 시도일 수 있다.
- * 둘을 섞어 warn 으로 남기면 만료 스팸에 묻혀 진짜 침입 신호를 놓친다.
- */
-type SseTokenState = 'valid' | 'expired' | 'invalid';
-
 function classifySseToken(userId: string, token: string): SseTokenState {
-  const colonIdx = token.indexOf(':');
-  if (colonIdx < 1) return 'invalid';
-  const expStr = token.slice(0, colonIdx);
-  const mac = token.slice(colonIdx + 1);
-  const exp = Number(expStr);
-  if (!Number.isFinite(exp)) return 'invalid';
-  const expected = createHmac('sha256', SSE_TOKEN_SECRET)
-    .update(`${userId}:${exp}`)
-    .digest('hex');
-  let signatureOk = false;
-  try {
-    signatureOk = timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(mac, 'hex'));
-  } catch {
-    return 'invalid';
-  }
-  if (!signatureOk) return 'invalid';
-  return Math.floor(Date.now() / 1000) > exp ? 'expired' : 'valid';
+  return classifySseTokenPure(userId, token, SSE_TOKEN_SECRET);
 }
 
 function verifySseToken(userId: string, token: string): boolean {
-  return classifySseToken(userId, token) === 'valid';
+  return verifySseTokenPure(userId, token, SSE_TOKEN_SECRET);
 }
 
 /**

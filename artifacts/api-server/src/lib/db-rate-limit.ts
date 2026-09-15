@@ -1,5 +1,5 @@
 /**
- * IP/키 단위 in-memory rate limit. persist/SSE store 와 독립.
+ * IP/키 단위 in-memory rate limit (+ PIN by-pin bucket). persist/SSE store 와 독립.
  * 분산 quota(`app_kv_rows`)는 db.ts 에 그대로 둔다.
  */
 
@@ -67,4 +67,28 @@ export function consumeRateLimit(
   bucket.count++;
   if (bucket.count > opts.max) return 'limited';
   return 'ok';
+}
+
+/** PIN lookup window (by-pin): 동일 PIN 무차별 대입 차단. */
+export const PIN_WINDOW_MS_DEFAULT = 15 * 60 * 1000;
+
+/**
+ * PIN 버킷 — 창 안에서는 max 회까지 허용(count >= max 이면 거부).
+ * consumeRateLimit 와 다르게 초과 시 count 를 더 올리지 않는다 (기존 db.ts 동작).
+ */
+export function consumePinBucket(
+  map: Map<string, RateBucket>,
+  key: string,
+  max: number,
+  windowMs: number,
+  now = Date.now(),
+): boolean {
+  const prev = map.get(key);
+  if (prev && prev.resetAt > now) {
+    if (prev.count >= max) return false;
+    prev.count++;
+    return true;
+  }
+  map.set(key, { count: 1, resetAt: now + windowMs });
+  return true;
 }

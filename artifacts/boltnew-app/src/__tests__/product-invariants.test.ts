@@ -515,6 +515,15 @@ describe('product copy + notification invariants', () => {
     expect(db).not.toMatch(/type ReferenceCheck = \{ ok: true \}/);
     expect(db).not.toMatch(/function realtimeTraceMeta\(/);
     expect(db).not.toMatch(/const SYSTEM_KV_TABLES = new Set\(\['rate_limits'/);
+    expect(db).toContain("from '../lib/db-session-tokens'");
+    expect(db).toContain('issueSessionTokenPure');
+    expect(db).toContain('classifySseTokenPure');
+    expect(db).toContain('consumePinBucketPure');
+    expect(db).toContain("from '../lib/db-image-magic'");
+    expect(db).toContain('dataUrlMimeAndMagic');
+    expect(db).not.toMatch(/const SSE_TOKEN_EXPIRY_SEC = 3600/);
+    expect(db).not.toMatch(/const IMAGE_MAGIC: Record<string/);
+    expect(db).not.toMatch(/const ALLOWED_IMAGE_MIMES = new Set\(\['image\/jpeg'/);
   });
 
 

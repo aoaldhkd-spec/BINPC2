@@ -1390,6 +1390,62 @@ mustMatch('ARCHITECTURE.md', '60_architecture_path_after_reference_kv_peel', [
 ]);
 
 
+
+// ── 61: db-session-tokens + pin-bucket + db-image-magic ───────────────────────
+mustExist('artifacts/api-server/src/lib/db-session-tokens.ts', '61_db_session_tokens_module');
+mustExist('artifacts/api-server/src/lib/db-session-tokens.test.ts', '61_db_session_tokens_tests');
+mustExist('artifacts/api-server/src/lib/db-image-magic.ts', '61_db_image_magic_module');
+mustExist('artifacts/api-server/src/lib/db-image-magic.test.ts', '61_db_image_magic_tests');
+mustMatch('artifacts/api-server/src/lib/db-session-tokens.ts', '61_session_tokens_exports', [
+  /export const SSE_TOKEN_EXPIRY_SEC/,
+  /export const SESSION_TOKEN_EXPIRY_SEC/,
+  /export type SseTokenState/,
+  /export function issueSessionToken/,
+  /export function verifySessionToken/,
+  /export function issueSseToken/,
+  /export function classifySseToken/,
+  /export function verifySseToken/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-rate-limit.ts', '61_rate_limit_pin_bucket_export', [
+  /export function consumePinBucket/,
+  /export const PIN_WINDOW_MS_DEFAULT/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-image-magic.ts', '61_image_magic_exports', [
+  /export const IMAGE_MAGIC/,
+  /export const ALLOWED_IMAGE_MIMES/,
+  /export const MAX_IMAGE_DATAURL_BYTES/,
+  /export function dataUrlMimeAndMagic/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '61_db_reimports_session_tokens_pin_image_magic', [
+  /from '\.\.\/lib\/db-session-tokens'/,
+  /issueSessionToken as issueSessionTokenPure/,
+  /verifySessionToken as verifySessionTokenPure/,
+  /issueSseToken as issueSseTokenPure/,
+  /classifySseToken as classifySseTokenPure/,
+  /verifySseToken as verifySseTokenPure/,
+  /consumePinBucket as consumePinBucketPure/,
+  /from '\.\.\/lib\/db-image-magic'/,
+  /dataUrlMimeAndMagic/,
+  /MAX_IMAGE_DATAURL_BYTES/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '61_db_still_single_router_export', [
+  /export default router/,
+]);
+mustNotMatch('artifacts/api-server/src/routes/db.ts', '61_db_no_inline_session_token_or_image_magic_impl', [
+  /const SSE_TOKEN_EXPIRY_SEC = 3600/,
+  /const SESSION_TOKEN_EXPIRY_SEC = 7 \* 24 \* 60 \* 60/,
+  /type SseTokenState = 'valid' \| 'expired' \| 'invalid'/,
+  /\.update\(`session:\$\{userId\}:\$\{exp\}`\)/,
+  /const IMAGE_MAGIC: Record<string/,
+  /const ALLOWED_IMAGE_MIMES = new Set\(\['image\/jpeg'/,
+]);
+mustMatch('ARCHITECTURE.md', '61_architecture_path_after_session_tokens_peel', [
+  /db-session-tokens/,
+  /db-image-magic/,
+  /~9\.5/,
+]);
+
+
 console.log('\n=== verify-recurrence-guards ===\n');
 
 for (const r of results) {

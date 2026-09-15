@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { consumeRateLimit, pruneRateMap, resetRateLimit, venueLoginRateKeys, venueUploadRateKeys } from '../lib/db-rate-limit.js';
+import { consumeRateLimit, consumePinBucket, pruneRateMap, resetRateLimit, venueLoginRateKeys, venueUploadRateKeys } from '../lib/db-rate-limit.js';
 
 describe('consumeRateLimit', () => {
   it('allows up to max then limits', () => {
@@ -49,5 +49,22 @@ describe('consumeRateLimit', () => {
     const b = venueUploadRateKeys('bob', '10.0.0.1');
     expect(a.userKey).not.toBe(b.userKey);
     expect(a.ipBurstKey).toBe(b.ipBurstKey);
+  });
+});
+
+describe('consumePinBucket', () => {
+  it('allows up to max then rejects without further increment', () => {
+    const map = new Map();
+    expect(consumePinBucket(map, 'pin:1234', 2, 1000, 100)).toBe(true);
+    expect(consumePinBucket(map, 'pin:1234', 2, 1000, 100)).toBe(true);
+    expect(consumePinBucket(map, 'pin:1234', 2, 1000, 100)).toBe(false);
+    expect(map.get('pin:1234')?.count).toBe(2);
+  });
+
+  it('resets after window', () => {
+    const map = new Map();
+    consumePinBucket(map, 'ip:1', 1, 100, 1000);
+    expect(consumePinBucket(map, 'ip:1', 1, 100, 1000)).toBe(false);
+    expect(consumePinBucket(map, 'ip:1', 1, 100, 1101)).toBe(true);
   });
 });

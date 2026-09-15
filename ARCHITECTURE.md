@@ -65,9 +65,11 @@ Prefer **single Render instance**. Multi-instance는 NOTIFY로 일부 동기화�
 | `artifacts/api-server/src/lib/db-chat-read-block.ts` | chat read-stamp / mutual-block helpers (순수) |
 | `artifacts/api-server/src/lib/db-reference-check.ts` | write-path reference-check / mergeRefreshedRows planners |
 | `artifacts/api-server/src/lib/db-kv-hydrate.ts` | KV hydrate + likes last-insert seed (순수) |
+| `artifacts/api-server/src/lib/db-session-tokens.ts` | session/SSE bearer HMAC issue·verify·classify (순수) |
+| `artifacts/api-server/src/lib/db-image-magic.ts` | upload MIME allowlist + magic-byte check (순수) |
 | `artifacts/api-server/src/lib/db-chat-ids.ts` | `chatPairKey` / `deterministicChatId` |
 | `artifacts/api-server/src/lib/db-broadcast-targets.ts` | SSE 수신자 목록 (순수) |
-| `artifacts/api-server/src/lib/db-rate-limit.ts` | IP rate-limit 맵/헬퍼 |
+| `artifacts/api-server/src/lib/db-rate-limit.ts` | IP/PIN rate-limit 맵/헬퍼 (순수 consume*) |
 | `scripts/verify-all-features.mjs` | 프로덕션 스모크 |
 
 ## Feature → files (읽기 범위)
@@ -173,7 +175,7 @@ Detach = stop wiring the domain hook/callbacks into `App.tsx` / screens; keep pu
 
 Moved out of `App.tsx` (planners/hooks, behavior unchanged): SoT resync, SSE fallback poll, dark-mode storage sync, sent/received like planners + toast payloads, contact-share events, pending-hearts badge count, functions-lock kick plan, user-signal merge, realtime row upserts, settings `/ready` poll gap, profile-view debounce, broadcast notif helpers, entry password/reset planners, **profiles + user-bundle + privacy + signals SSE subscribe** (`useUserRealtimeChannel`), **profiles / privacy+signals / hearts SSE apply** (`useProfilesRealtimeApply` + `usePrivacySignalsRealtimeApply` + `useHeartsRealtimeApply`), **app_settings + notifications + contact_share_events SSE subscribe + apply** (`useAppShellRealtimeChannels` + `useAppShellRealtimeApply`), `app-settings-realtime` planner, profile SSE apply planners, block/hide planners, **admin reset wipe** (`admin-reset-wipe` plan+run; App thin `applyResetSignal`), **`/ready` bootstrap + settings poll** (`useSessionReadyBootstrap` + `ready-bootstrap-settings`), **loading-main profile boot/backoff** (`profile-boot-machine` + `useProfileBootMachine`), **early entry gates JSX** (`AppEntryGates`), **main shell + overlay JSX fan-in** (`AppMainShell` / `AppOverlays`), **hearts/chat/group lock wrappers** (`useSocialLockGuards`), **nickname/registration + recovery/reset** (`useNicknameRegistration` + `nickname-registration` planners), **profile/privacy/signals loaders** (`useProfilePrivacyLoaders` + `profile-select` column lists), **participant session-init** (`useSessionInit` + `session-init` planners).
 
-App residual is compose/wiring (setState fan-in, guarded handlers, overlay props). **db.ts peel progressing:** prior modules + **`db-group-room-plan`** + **`db-chat-pair-plan`** + **`db-app-settings-view`** + **`db-group-leave-plan`** + **`db-profile-reject`** + **`db-chat-read-block`** + **`db-reference-check`** + **`db-kv-hydrate`** (+ realtimeTraceMeta into fanout) (re-import; single router export intact). Full `/op`/RPC router split remains the large mountain (~5.9k).
+App residual is compose/wiring (setState fan-in, guarded handlers, overlay props). **db.ts peel progressing:** prior modules + **`db-reference-check`** + **`db-kv-hydrate`** + **`db-session-tokens`** + **`db-image-magic`** + PIN `consumePinBucket` in rate-limit (re-import; single router export intact). Full `/op`/RPC router split remains the large mountain (~5.8k).
 
 Path to ≥9.5 further = more `db.ts` write-path / ensureAdmin slices — App is already wiring-thin.
 
@@ -194,13 +196,14 @@ Path to ≥9.5 further = more `db.ts` write-path / ensureAdmin slices — App is
 | Prior (db-app-settings-view) | **~9.5** | App settings public view / functions-lock / resync planners peeled; `db.ts` ~6.0k |
 | Prior (db-group-leave-plan) | **~9.5** | Group opt-out / leave-slot / slot-count pure planners peeled; `db.ts` ~6.0k |
 | Prior (db-profile-reject + db-chat-read-block) | **~9.5** | Profile birth/avatar/NPC reject + chat read-stamp/mutual-block helpers peeled; `db.ts` ~6.0k |
-| This peel (db-reference-check + db-kv-hydrate) | **~9.5** | Write-path reference-check + KV hydrate/seed (+ realtimeTraceMeta) peeled; `db.ts` ~5.9k. Honest claim still **~9.5** — further gains are ensureAdmin / `/op` slices |
+| Prior (db-reference-check + db-kv-hydrate) | **~9.5** | Write-path reference-check + KV hydrate/seed (+ realtimeTraceMeta) peeled; `db.ts` ~5.9k |
+| This peel (db-session-tokens + pin-bucket + db-image-magic) | **~9.5** | Session/SSE HMAC + PIN rate-bucket + image MIME/magic peeled; `db.ts` ~5.85k. Honest claim still **~9.5** — further gains are ensureAdmin / `/op` slices |
 | Beyond 9.5 | more `db.ts` write-path / ensureAdmin slices | Keep App wiring-thin; do not re-inline apply |
 
 ### Next incremental steps (no big-bang rewrite)
 
 1. Screens keep flags/callbacks only — no new App feature state for modularity work.
-2. Continue `db.ts` peel track (ensureAdmin / rate-bucket / remaining write-path clusters + re-import); keep `38_db_single_router_export`.
+2. Continue `db.ts` peel track (ensureAdmin / remaining write-path / `/op` clusters + re-import); keep `38_db_single_router_export`.
 3. Keep App apply surface in focused hooks — do not re-inline privacy/signal/shell apply.
 4. Any leftover participant `select('*')` only where a column list is clearly safe.
 5. Beyond ~9.5: shrink `db.ts` further; App is already compose/wiring.
