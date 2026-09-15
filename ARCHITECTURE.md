@@ -130,6 +130,7 @@ UI: `MainScreen.tsx` — 참여자 / 하트, 채팅(내 상태+내 채팅) / 통
 
 ## Ops notes (known, not code bugs)
 
+- Wipe와 무관한 ops/smoke 기록은 [OPS_SMOKE_LOG.md](OPS_SMOKE_LOG.md)에 Git으로 보존합니다.
 - **NAT 429:** 같은 공인 IP(행사장 Wi‑Fi)에서 IP rate-limit이 묶이면 429. 로그인·업로드·SSE는 user-key + 넉넉한 IP 버스트. 남은 IP 한도는 의도적 방어.
 - **Cold-start:** Render 유휴/재시작 후 첫 요청 지연. `scripts/keep-api-warm` / GitHub Action(10분)으로 완화. 클라이언트는 502/503/429를 첫 실패에 에러 UI 없이 재시도.
 - **Multi-instance:** SSE는 인스턴스 로컬 → `render.yaml` `numInstances: 1` 로 고정.
