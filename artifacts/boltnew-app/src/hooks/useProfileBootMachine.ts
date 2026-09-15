@@ -6,6 +6,7 @@ import { useEffect, useRef } from 'react';
 import type { Profile } from '../types/app';
 import { findProfileById } from '../lib/profile-session';
 import {
+  PROFILE_BOOT_EXHAUSTED_RETRY_MS,
   PROFILE_BOOT_POLL_MS,
   planProfileBootCacheHit,
   planProfileBootFetchResult,
@@ -102,8 +103,11 @@ export function useProfileBootMachine(args: UseProfileBootMachineArgs): void {
             return;
           }
           if (decision.kind === 'recover-exhausted') {
-            clearInterval(pollId);
+            // Do not send a returning user to recovery merely because the API
+            // was unavailable for the first few attempts. Keep the identity
+            // and continue in the background until the profile is readable.
             a.onRecoverExhausted();
+            if (!cancelled) scheduleRetry(PROFILE_BOOT_EXHAUSTED_RETRY_MS);
             return;
           }
         } catch {
@@ -118,8 +122,8 @@ export function useProfileBootMachine(args: UseProfileBootMachineArgs): void {
             if (decision.kind === 'continue-retry') {
               scheduleRetry(decision.delayMs);
             } else if (decision.kind === 'recover-exhausted') {
-              clearInterval(pollId);
               argsRef.current.onRecoverExhausted();
+              if (!cancelled) scheduleRetry(PROFILE_BOOT_EXHAUSTED_RETRY_MS);
             } else if (decision.kind === 'register') {
               clearInterval(pollId);
               argsRef.current.onRegister();

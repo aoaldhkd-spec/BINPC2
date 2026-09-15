@@ -24,7 +24,7 @@ type SetState<T> = React.Dispatch<React.SetStateAction<T>>;
 
 export type UseAppShellRealtimeApplyArgs = {
   userIdRef: React.MutableRefObject<string | null>;
-  sessionActiveRef: React.MutableRefObject<boolean>;
+  sessionActiveRef: React.MutableRefObject<boolean | null>;
   applyResetSignal: (serverReset: string) => void;
   loadContactShareData: (userId: string) => void | Promise<void>;
   setSessionActive: SetState<boolean>;

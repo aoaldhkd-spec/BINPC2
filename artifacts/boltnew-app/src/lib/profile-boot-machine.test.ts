@@ -53,13 +53,16 @@ describe('planProfileBootFetchResult', () => {
     }).kind).toBe('enter-main');
   });
 
-  it('recover-cleared when others exist but me missing (wipe / device change)', () => {
+  it('keeps retrying when a partial list omits me (never clears identity)', () => {
     expect(planProfileBootFetchResult({
       uid: 'u1',
       me: undefined,
       allProfilesCount: 5,
       attempt: 2,
-    })).toEqual({ kind: 'recover-cleared' });
+    })).toEqual({
+      kind: 'continue-retry',
+      delayMs: profileBootRetryDelayMs(2),
+    });
   });
 
   it('keeps retrying on empty list (preserve 7d session storage)', () => {

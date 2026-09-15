@@ -55,9 +55,9 @@ export function planSessionInitMissingRetry(input: {
   if (input.me && isCompleteProfile(input.me)) {
     return { kind: 'enter-main', me: input.me };
   }
-  if (input.retryProfiles.length > 0 && !input.me) {
-    return { kind: 'recover-cleared' };
-  }
+  // Keep the stored identity on a single missing/partial response. The profile
+  // may be hidden briefly during a cold start or replica lag; clearing it here
+  // made users look logged out after a transient network/DB hiccup.
   return { kind: 'noop' };
 }
 

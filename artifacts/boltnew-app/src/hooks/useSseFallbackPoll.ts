@@ -35,20 +35,28 @@ export function useSseFallbackPoll(args: UseSseFallbackPollArgs): void {
     if (!start.shouldPoll || !currentUserId) return;
 
     const uid = currentUserId;
+    let pollInFlight = false;
     const tick = () => {
+      // A slow Render wake-up must not overlap the next interval. Six domain
+      // reads per tick otherwise multiply into a reconnect/request storm.
+      if (pollInFlight) return;
+      pollInFlight = true;
+      const finish = () => { pollInFlight = false; };
       const a = argsRef.current;
       const plan = planSseFallbackTick({
         connStatus: a.connStatus,
         currentUserId: uid,
         sseHealthy: isSseHealthy(),
       });
-      if (!plan.shouldPoll) return;
-      void Promise.resolve(a.loadProfiles()).catch(() => {});
-      void Promise.resolve(a.loadChatList(uid)).catch(() => {});
-      void Promise.resolve(a.loadGroupChats(uid)).catch(() => {});
-      void Promise.resolve(a.loadReceivedLikes(uid)).catch(() => {});
-      void Promise.resolve(a.loadLikes(uid)).catch(() => {});
-      void Promise.resolve(a.loadContactShareData(uid)).catch(() => {});
+      if (!plan.shouldPoll) { finish(); return; }
+      void Promise.allSettled([
+        Promise.resolve(a.loadProfiles()),
+        Promise.resolve(a.loadChatList(uid)),
+        Promise.resolve(a.loadGroupChats(uid)),
+        Promise.resolve(a.loadReceivedLikes(uid)),
+        Promise.resolve(a.loadLikes(uid)),
+        Promise.resolve(a.loadContactShareData(uid)),
+      ]).then(finish, finish);
     };
 
     tick();

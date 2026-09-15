@@ -66,7 +66,7 @@ describe('session-init planners', () => {
     expect(shouldForceMainOnMissingRetry('chat')).toBe(false);
   });
 
-  it('planSessionInitMissingRetry enter / recover / noop', () => {
+  it('planSessionInitMissingRetry enter / preserve / noop', () => {
     expect(planSessionInitMissingRetry({
       retryProfiles: [profile({ id: 'u1' })],
       me: profile({ id: 'u1' }),
@@ -75,7 +75,7 @@ describe('session-init planners', () => {
     expect(planSessionInitMissingRetry({
       retryProfiles: [profile({ id: 'other' })],
       me: undefined,
-    }).kind).toBe('recover-cleared');
+    }).kind).toBe('noop');
 
     expect(planSessionInitMissingRetry({
       retryProfiles: [],

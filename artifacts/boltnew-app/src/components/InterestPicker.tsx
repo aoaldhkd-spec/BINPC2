@@ -31,7 +31,7 @@ export function InterestPicker({
   darkMode?: boolean;
 }) {
   const defaultGroup = BIO_CATEGORY_GROUPS[0];
-  const [internalFilter, setInternalFilter] = useState(defaultGroup.label);
+  const [internalFilter, setInternalFilter] = useState<string>(defaultGroup.label);
   const activeGroup = BIO_CATEGORY_GROUPS.find((group) => group.label === (filter ?? internalFilter)) ?? defaultGroup;
   const atMax = selected.length >= max;
 

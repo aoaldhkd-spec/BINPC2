@@ -307,8 +307,10 @@ function App() {
       setView('entry-recover');
     },
     onRecoverExhausted: () => {
-      setProfileBoot('recover');
-      setView('entry-recover');
+      // A transient profile read failure is not a logout. Keep the stored
+      // identity and let useProfileBootMachine retry in the background.
+      setProfileBoot('checking');
+      setView('loading-main');
     },
   });
 
