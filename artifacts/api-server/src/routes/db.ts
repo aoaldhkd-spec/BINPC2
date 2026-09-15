@@ -72,6 +72,15 @@ import {
   CRITICAL_PERSIST_TABLES,
 } from '../lib/db-table-policy';
 import {
+  planSmartBroadcastLocal,
+} from '../lib/db-sse-fanout-policy';
+import {
+  normalizeOpFilters,
+  sanitizeConflictCols,
+  sanitizeOpOrders,
+  validateOpScalars,
+} from '../lib/db-op-request';
+import {
   LEGACY_APP_SETTINGS_KEYS,
   LEGACY_KV_TABLES,
   settingsHaveLegacyKeys,
@@ -2877,31 +2886,6 @@ function broadcastToUsers(userIds: string[], event: Record<string, unknown>) {
   }
 }
 
-/** 1:1 프라이빗 데이터 테이블 — 절대 전체 브로드캐스트 금지 */
-const PRIVATE_TABLES = new Set([
-  'messages', 'likes', 'chats',
-  'contact_shares', 'contact_share_events', 'chat_reads',
-  'group_messages', 'group_participants',
-  'blocked_users', 'profile_views',
-  'signal_sends',
-  // user_signals는 공개 — 전광판/카드에서 모두가 볼 수 있음 (연락처 등 민감정보 없음)
-]);
-
-/** 관리자 SSE 전용 — 일반 유저에게 브로드캐스트 금지 */
-const ADMIN_ONLY_PRIVATE_TABLES = new Set(['anonymous_reports']);
-
-function _stripInternalBroadcastFields(table: string, event: Record<string, unknown>): Record<string, unknown> {
-  if (table !== 'messages') return event;
-  const strip = (row: unknown) => {
-    if (!row || typeof row !== 'object' || Array.isArray(row)) return row;
-    const r = { ...(row as Record<string, unknown>) };
-    delete r.chat_user1_id;
-    delete r.chat_user2_id;
-    return r;
-  };
-  return { ...event, newRow: strip(event['newRow']), oldRow: strip(event['oldRow']) };
-}
-
 /** 관리자 SSE 연결에만 전송 (익명 신고 등) */
 function broadcastAdminOnly(event: Record<string, unknown>) {
   const json = JSON.stringify(event);
@@ -2912,44 +2896,26 @@ function broadcastAdminOnly(event: Record<string, unknown>) {
 
 /** 테이블 종류에 따라 자동으로 수신자 판단 — 로컬 SSE 전송 전용 (NOTIFY 없음) */
 function _smartBroadcastLocal(table: string, row: Record<string, unknown> | null, event: Record<string, unknown>) {
-  if (ADMIN_ONLY_PRIVATE_TABLES.has(table)) {
-    broadcastAdminOnly(_stripInternalBroadcastFields(table, event));
+  const plan = planSmartBroadcastLocal(table, row, event, {
+    sanitizeProfile,
+    sanitizeSettings,
+    collectTargets: collectBroadcastTargets,
+  });
+  if (plan.kind === 'admin') {
+    broadcastAdminOnly(plan.event);
     return;
   }
-  // row가 없는 경우(DELETE payload 없음): 프라이빗 테이블이면 드롭, 공개 테이블만 전체 전송
-  if (!row) {
-    if (!PRIVATE_TABLES.has(table)) broadcastAll(event);
+  if (plan.kind === 'all') {
+    broadcastAll(plan.event);
     return;
   }
-  const targets = collectBroadcastTargets(table, row);
-  const safeEvent = _stripInternalBroadcastFields(table, event);
-
-  if (targets.length > 0) {
-    // 프로필 포함 이벤트라도 수신자가 명확하면 해당 유저에게만 전달
-    broadcastToUsers(targets, safeEvent);
-  } else if (!PRIVATE_TABLES.has(table)) {
-    // 공개 테이블(profiles, app_settings 등)만 전체 브로드캐스트 허용
-    // profiles → 연락처 필드 제거, app_settings → admin_password 제거
-    if (table === 'profiles') {
-      const safeEvent = {
-        ...event,
-        newRow: event['newRow'] ? sanitizeProfile(event['newRow'] as Record<string, unknown>) : null,
-        oldRow: event['oldRow'] ? sanitizeProfile(event['oldRow'] as Record<string, unknown>) : null,
-      };
-      broadcastAll(safeEvent);
-    } else if (table === 'app_settings') {
-      const safeEvent = {
-        ...event,
-        newRow: event['newRow'] ? sanitizeSettings(event['newRow'] as Record<string, unknown>) : null,
-        oldRow: event['oldRow'] ? sanitizeSettings(event['oldRow'] as Record<string, unknown>) : null,
-      };
-      broadcastAll(safeEvent);
-    } else {
-      broadcastAll(event);
-    }
-  } else {
-    // 프라이빗 테이블인데 수신자를 특정 못한 경우 → 드롭하되 관측 가능하게 경고
-    logger.warn({ table, rowId: row['id'], chatId: row['chat_id'] }, '[sse] private event dropped — no targets');
+  if (plan.kind === 'users') {
+    broadcastToUsers(plan.targets, plan.event);
+    return;
+  }
+  // drop — 프라이빗 테이블인데 수신자를 특정 못한 경우 → 관측 가능하게 경고
+  if (row) {
+    logger.warn({ table: plan.table, rowId: plan.rowId, chatId: plan.chatId }, '[sse] private event dropped — no targets');
   }
 }
 
@@ -3108,10 +3074,13 @@ router.post('/op', async (req: Request, res: Response) => {
     return res.status(401).json({ data: null, error: { message: 'Authentication required', code: 'UNAUTHORIZED' } });
   }
 
-  // ─ 페이로드 타입 방어: table/op는 반드시 문자열이어야 함 ─────────────────────
-  if (typeof table !== 'string' || typeof op !== 'string') {
-    _activeOpCount--;
-    return res.status(400).json({ data: null, error: { message: 'table and op must be strings', code: 'INVALID_INPUT' } });
+  // ─ 페이로드/스칼라 검증 + filter/order/conflict normalize (db-op-request) ─
+  {
+    const issue = validateOpScalars({ table, op, single, maybeSingle, selectAfterWrite, limit });
+    if (issue) {
+      _activeOpCount--;
+      return res.status(issue.status).json(issue.body);
+    }
   }
 
   // 핵심 쓰기 작업만 requestId 로깅 (관측용, 본문/비밀 제외)
@@ -3122,75 +3091,10 @@ router.post('/op', async (req: Request, res: Response) => {
     logger.info({ requestId, op, table }, '[op] critical-write');
   }
 
-  // ─ op 허용 목록: 알 수 없는 op는 즉시 거부 ────────────────────────────────────
-  const ALLOWED_OPS = new Set(['select', 'insert', 'update', 'upsert', 'delete']);
-  if (!ALLOWED_OPS.has(op)) {
-    _activeOpCount--;
-    return res.status(400).json({ data: null, error: { message: `Invalid op: ${op}`, code: 'INVALID_OP' } });
-  }
-
-  // ─ table/op 문자열 길이 제한 ────────────────────────────────────────────────
-  if (table.length > 100 || op.length > 50) {
-    _activeOpCount--;
-    return res.status(400).json({ data: null, error: { message: 'Invalid input length', code: 'INVALID_INPUT' } });
-  }
-
-  // ─ boolean 필드 타입 검증 ────────────────────────────────────────────────────
-  if (single != null && typeof single !== 'boolean') {
-    _activeOpCount--;
-    return res.status(400).json({ data: null, error: { message: 'single must be a boolean', code: 'INVALID_INPUT' } });
-  }
-  if (maybeSingle != null && typeof maybeSingle !== 'boolean') {
-    _activeOpCount--;
-    return res.status(400).json({ data: null, error: { message: 'maybeSingle must be a boolean', code: 'INVALID_INPUT' } });
-  }
-  if (selectAfterWrite != null && typeof selectAfterWrite !== 'boolean') {
-    _activeOpCount--;
-    return res.status(400).json({ data: null, error: { message: 'selectAfterWrite must be a boolean', code: 'INVALID_INPUT' } });
-  }
-
-  // ─ limit 타입 검증: 숫자가 아니거나 음수면 거부 ──────────────────────────────
-  if (limit != null && (typeof limit !== 'number' || !Number.isFinite(limit) || limit < 0)) {
-    _activeOpCount--;
-    return res.status(400).json({ data: null, error: { message: 'limit must be a non-negative number', code: 'INVALID_INPUT' } });
-  }
-
-  // ─ orders 검증: 각 항목이 {col: string, asc: boolean} 이어야 함 ──────────────
-  const safeOrders = Array.isArray(orders)
-    ? orders.filter((o): o is { col: string; asc: boolean } =>
-        o != null && typeof o === 'object' && typeof (o as Record<string, unknown>).col === 'string' && ((o as Record<string, unknown>).col as string).length > 0)
-    : [];
-
-  // ─ conflictCols 검증: 문자열 배열이어야 함 ────────────────────────────────────
-  const safeConflictCols = Array.isArray(conflictCols)
-    ? conflictCols.filter((c): c is string => typeof c === 'string' && c.length > 0)
-    : [];
-
-  // ─ Fix: 외부에서 {op:'eq'} 형식으로 보내 필터를 우회하는 공격 차단 ───────────────
-  // 클라이언트는 {type:'eq'} 형식으로 보내지만, 해커가 {op:'eq'}로 보내면
-  // matchFilter가 f.type을 찾지 못해 모든 행을 통과시킴 → 필터 완전 무력화
-  const normalizedFilters: FilterSpec[] = (Array.isArray(filters) ? filters : []).map((f: unknown) => {
-    // ─ 각 필터 요소 타입 방어: null·primitive는 null 마커로 치환해 이후 filter()에서 제거
-    if (f == null || typeof f !== 'object' || Array.isArray(f)) return null;
-    const fr = f as Record<string, unknown>;
-    if (fr.type != null) return fr as unknown as FilterSpec;
-    // op → type 정규화
-    if (fr.op != null) return { ...fr, type: fr.op, op: undefined } as unknown as FilterSpec;
-    return fr as unknown as FilterSpec;
-  }).filter((f): f is FilterSpec => {
-    // 필터 요소 유효성: allowlist — unknown types must not become no-op pass-alls
-    if (f == null) return false;
-    const fr = f as unknown as Record<string, unknown>;
-    if (typeof fr.type !== 'string') return false;
-    if (fr.type === 'or') return typeof fr.expr === 'string' && fr.expr.length > 0;
-    if (fr.type === 'eq' || fr.type === 'neq' || fr.type === 'lt' || fr.type === 'gt') {
-      return typeof fr.col === 'string' && fr.col.length > 0 && 'val' in fr;
-    }
-    if (fr.type === 'in') {
-      return typeof fr.col === 'string' && fr.col.length > 0 && Array.isArray(fr.vals);
-    }
-    return false;
-  });
+  const safeOrders = sanitizeOpOrders(orders);
+  const safeConflictCols = sanitizeConflictCols(conflictCols);
+  // Fix: {op:'eq'} 우회 → type 정규화; unknown types must not become no-op pass-alls
+  const normalizedFilters: FilterSpec[] = normalizeOpFilters(filters);
 
   // ─ Table allowlist: reject unknown/internal tables immediately
   if (!ALLOWED_OP_TABLES.has(table)) {

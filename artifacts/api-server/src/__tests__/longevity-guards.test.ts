@@ -90,6 +90,22 @@ describe('longevity recurrence guards (server)', () => {
     expect(block).not.toContain('💕');
   });
 
+  it('SSE fanout policy + /op request helpers stay extracted from db.ts', () => {
+    expect(dbTs).toContain("from '../lib/db-sse-fanout-policy'");
+    expect(dbTs).toContain("from '../lib/db-op-request'");
+    expect(dbTs).toContain('planSmartBroadcastLocal');
+    expect(dbTs).toContain('normalizeOpFilters');
+    expect(dbTs).toContain('validateOpScalars');
+    expect(dbTs).not.toMatch(/const PRIVATE_TABLES = new Set\(/);
+    expect(dbTs).not.toMatch(/const ALLOWED_OPS = new Set\(\['select'/);
+    const fanout = readFileSync(join(here, '../lib/db-sse-fanout-policy.ts'), 'utf8');
+    const opReq = readFileSync(join(here, '../lib/db-op-request.ts'), 'utf8');
+    expect(fanout).toContain('PRIVATE_TABLES');
+    expect(fanout).toContain('planSmartBroadcastLocal');
+    expect(opReq).toContain('ALLOWED_OPS');
+    expect(opReq).toContain('normalizeOpFilters');
+  });
+
   it('persist-before-broadcast and legacy seating/heart_drain stay out of active op tables', () => {
     expect(dbTs).toContain("from '../lib/db-table-policy'");
     expect(dbTs).toContain('ALLOWED_OP_TABLES');

@@ -371,8 +371,12 @@ mustMatch('artifacts/api-server/src/routes/db.ts', '37_entry_avatar_assign', [
   /entry_avatar_assign/,
   /collectUsedPresetAvatarIds/,
 ]);
-mustMatch('artifacts/boltnew-app/src/App.tsx', '37_entry_no_client_avatar', [
+mustMatch('artifacts/boltnew-app/src/lib/nickname-registration.ts', '37_entry_no_client_avatar', [
   /server assigns a unique preset avatar/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/hooks/useNicknameRegistration.ts', '37_entry_no_client_photo_url_stamp', [
+  /photo_url:\s*['"]/,
+  /genNpcTextAvatar/,
 ]);
 
 // ?? 38 Parallel-push integration atomicity (db.ts import <-> module, ProfileCard <-> profile.ts) ?
@@ -798,6 +802,74 @@ mustMatch('ARCHITECTURE.md', '49_architecture_path_after_hearts_db_peel', [
   /~9\.0/,
   /~9\.5/,
 ]);
+
+
+// --- 50 Nickname/registration + profile/privacy loaders + db fanout/op-request ---
+mustExist('artifacts/boltnew-app/src/hooks/useNicknameRegistration.ts', '50_nickname_registration_hook');
+mustExist('artifacts/boltnew-app/src/hooks/useProfilePrivacyLoaders.ts', '50_profile_privacy_loaders_hook');
+mustExist('artifacts/boltnew-app/src/lib/nickname-registration.ts', '50_nickname_registration_planners');
+mustExist('artifacts/boltnew-app/src/lib/nickname-registration.test.ts', '50_nickname_registration_tests');
+mustExist('artifacts/boltnew-app/src/lib/profile-select.ts', '50_profile_select_columns');
+mustExist('artifacts/api-server/src/lib/db-sse-fanout-policy.ts', '50_db_sse_fanout_policy_module');
+mustExist('artifacts/api-server/src/lib/db-sse-fanout-policy.test.ts', '50_db_sse_fanout_policy_tests');
+mustExist('artifacts/api-server/src/lib/db-op-request.ts', '50_db_op_request_module');
+mustExist('artifacts/api-server/src/lib/db-op-request.test.ts', '50_db_op_request_tests');
+mustMatch('artifacts/boltnew-app/src/App.tsx', '50_app_wires_registration_and_privacy_loaders', [
+  /useNicknameRegistration/,
+  /useProfilePrivacyLoaders/,
+  /handleNicknameSetup/,
+  /handleProfileRecovery/,
+  /refreshProfilesTab/,
+  /PROFILE_ROW_SELECT/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/App.tsx', '50_app_no_inline_registration_insert', [
+  /from\('profiles'\)\s*\.insert\(/,
+  /이미 사용 중인 닉네임입니다/,
+  /PIN_EXHAUSTED/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/App.tsx', '50_app_no_profiles_select_star', [
+  /from\('profiles'\)\.select\('\*'\)/,
+]);
+mustMatch('artifacts/boltnew-app/src/hooks/useProfilePrivacyLoaders.ts', '50_privacy_loaders_use_column_lists', [
+  /PROFILE_ROW_SELECT/,
+  /USER_SIGNAL_ROW_SELECT/,
+  /BLOCKED_USER_ROW_SELECT/,
+  /PROFILE_VIEW_ROW_SELECT/,
+  /mergeProfilesPreserveOrder/,
+]);
+mustMatch('artifacts/boltnew-app/src/hooks/useNicknameRegistration.ts', '50_registration_uses_planners', [
+  /buildRegistrationProfileInsert/,
+  /mapRegistrationErrorMessage/,
+  /buildRegistrationSignalRow/,
+  /PROFILE_ROW_SELECT/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '50_db_reimports_fanout_and_op_request', [
+  /from '\.\.\/lib\/db-sse-fanout-policy'/,
+  /from '\.\.\/lib\/db-op-request'/,
+  /planSmartBroadcastLocal/,
+  /normalizeOpFilters/,
+  /validateOpScalars/,
+  /sanitizeOpOrders/,
+  /sanitizeConflictCols/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '50_db_still_single_router_export', [
+  /export default router;\s*$/,
+]);
+mustNotMatch('artifacts/api-server/src/routes/db.ts', '50_db_no_inline_private_tables_or_allowed_ops', [
+  /const PRIVATE_TABLES = new Set\(/,
+  /const ADMIN_ONLY_PRIVATE_TABLES = new Set\(/,
+  /const ALLOWED_OPS = new Set\(\['select'/,
+  /function _stripInternalBroadcastFields\(/,
+]);
+mustMatch('ARCHITECTURE.md', '50_architecture_path_after_registration_fanout_peel', [
+  /useNicknameRegistration/,
+  /useProfilePrivacyLoaders/,
+  /db-sse-fanout-policy/,
+  /db-op-request/,
+  /~9\.2/,
+  /~9\.5/,
+]);
+
 
 
 console.log('\n=== verify-recurrence-guards ===\n');

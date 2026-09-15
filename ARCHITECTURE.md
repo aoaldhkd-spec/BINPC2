@@ -16,7 +16,9 @@ Prefer **single Render instance**. Multi-instance는 NOTIFY로 일부 동기화�
 
 | Path | Role |
 |------|------|
-| `artifacts/boltnew-app/src/App.tsx` | 유저 앱 셸: 훅·배선·compose. 메인/오버레이 JSX + hearts/group apply·lock guards peeled |
+| `artifacts/boltnew-app/src/App.tsx` | 유저 앱 셸: 훅·배선·compose. nickname/registration + profile/privacy loaders peeled |
+| `artifacts/boltnew-app/src/hooks/useNicknameRegistration.ts` | 닉네임 등록·복구·reset (App은 setState 배선) |
+| `artifacts/boltnew-app/src/hooks/useProfilePrivacyLoaders.ts` | profiles/signals/blocked/visitors 로드 (App은 setState 배선) |
 | `artifacts/boltnew-app/src/hooks/useChat.ts` | 1:1 채팅 상태·전송·재시도·오프라인 큐 |
 | `artifacts/boltnew-app/src/hooks/useHearts.ts` | 하트/좋아요·연락처 공유 |
 | `artifacts/boltnew-app/src/hooks/useGroupChat.ts` | 단체 채팅 |
@@ -40,6 +42,11 @@ Prefer **single Render instance**. Multi-instance는 NOTIFY로 일부 동기화�
 | `artifacts/api-server/src/lib/db-sanitize.ts` | 입력/SSE sanitize |
 | `artifacts/api-server/src/lib/db-op-filters.ts` | `/op` FilterSpec match/apply (순수) |
 | `artifacts/api-server/src/lib/db-panel-secrets.ts` | 패널 비밀번호 collect/match (순수; prod는 factory default 거부) |
+| `artifacts/api-server/src/lib/db-sse-ring.ts` | SSE Last-Event-ID ring buffer (순수) |
+| `artifacts/api-server/src/lib/db-merged-id-map.ts` | chat/group merged-id maps (순수) |
+| `artifacts/api-server/src/lib/db-table-policy.ts` | `/op` allowlist + critical persist sets |
+| `artifacts/api-server/src/lib/db-sse-fanout-policy.ts` | SSE private/admin sets + smart-broadcast plan (순수) |
+| `artifacts/api-server/src/lib/db-op-request.ts` | `/op` scalar validate + filter/order normalize (순수) |
 | `artifacts/api-server/src/lib/db-chat-ids.ts` | `chatPairKey` / `deterministicChatId` |
 | `artifacts/api-server/src/lib/db-broadcast-targets.ts` | SSE 수신자 목록 (순수) |
 | `artifacts/api-server/src/lib/db-rate-limit.ts` | IP rate-limit 맵/헬퍼 |
@@ -132,9 +139,9 @@ Detach = stop wiring the domain hook/callbacks into `App.tsx` / screens; keep pu
 | Layer | Status |
 |-------|--------|
 | Pure helpers (`lib/chat-*.ts`, `participant-sot-resync.ts`, `session-ready-settings.ts`, `app-settings-realtime.ts`, `received-like-update.ts`, `sent-like-insert.ts`, `contact-share-event.ts`, `pending-hearts.ts`, `sse-fallback-poll.ts`, `user-signal-merge.ts`, `realtime-row-upsert.ts`, `entry-gate.ts`, …) | Modular — easy attach/detach |
-| Domain hooks (`useChat`, `useHearts`, `useGroupChat`, `useParticipantSoTResync`, `useSseFallbackPoll`, `useUserRealtimeChannel`, `useAppShellRealtimeChannels`, `useHeartsRealtimeApply`, `useSocialLockGuards`, `useSessionReadyBootstrap`, `useProfileBootMachine`, `useDarkModeStorageSync`) | Mostly modular |
+| Domain hooks (`useChat`, `useHearts`, `useGroupChat`, `useParticipantSoTResync`, `useSseFallbackPoll`, `useUserRealtimeChannel`, `useAppShellRealtimeChannels`, `useHeartsRealtimeApply`, `useSocialLockGuards`, `useSessionReadyBootstrap`, `useProfileBootMachine`, `useNicknameRegistration`, `useProfilePrivacyLoaders`, `useDarkModeStorageSync`) | Mostly modular |
 | Screens | Prefer **flags + callbacks** (`onRefreshStatus`, `onRefreshChat`, guarded open/join) — do **not** grow App `useState` for peels |
-| `App.tsx` (~1.44k lines, peeling) | Wiring shell (hooks + compose) — hearts/group guards + realtime apply peeled |
+| `App.tsx` (~1.27k lines, peeling) | Wiring shell (hooks + compose) — registration/profile loaders + hearts/group peeled |
 
 ### SoT / resync (whole-app domains)
 
@@ -146,9 +153,9 @@ Detach = stop wiring the domain hook/callbacks into `App.tsx` / screens; keep pu
 
 ### App peel progress (incremental)
 
-Moved out of `App.tsx` (planners/hooks, behavior unchanged): SoT resync, SSE fallback poll, dark-mode storage sync, sent/received like planners + toast payloads, contact-share events, pending-hearts badge count, functions-lock kick plan, user-signal merge, realtime row upserts, settings `/ready` poll gap, profile-view debounce, broadcast notif helpers, entry password/reset planners, **profiles + user-bundle + privacy + signals SSE subscribe** (`useUserRealtimeChannel` + apply callbacks), **app_settings + notifications + contact_share_events SSE** (`useAppShellRealtimeChannels` + apply callbacks), `app-settings-realtime` planner, profile SSE apply planners, block/hide planners, **admin reset wipe** (`admin-reset-wipe` plan+run; App thin `applyResetSignal`), **`/ready` bootstrap + settings poll** (`useSessionReadyBootstrap` + `ready-bootstrap-settings`), **loading-main profile boot/backoff** (`profile-boot-machine` + `useProfileBootMachine`), **early entry gates JSX** (`AppEntryGates`), **main shell + overlay JSX fan-in** (`AppMainShell` / `AppOverlays`), **hearts/contact SSE apply** (`useHeartsRealtimeApply`), **hearts/chat/group lock wrappers** (`useSocialLockGuards`).
+Moved out of `App.tsx` (planners/hooks, behavior unchanged): SoT resync, SSE fallback poll, dark-mode storage sync, sent/received like planners + toast payloads, contact-share events, pending-hearts badge count, functions-lock kick plan, user-signal merge, realtime row upserts, settings `/ready` poll gap, profile-view debounce, broadcast notif helpers, entry password/reset planners, **profiles + user-bundle + privacy + signals SSE subscribe** (`useUserRealtimeChannel` + apply callbacks), **app_settings + notifications + contact_share_events SSE** (`useAppShellRealtimeChannels` + apply callbacks), `app-settings-realtime` planner, profile SSE apply planners, block/hide planners, **admin reset wipe** (`admin-reset-wipe` plan+run; App thin `applyResetSignal`), **`/ready` bootstrap + settings poll** (`useSessionReadyBootstrap` + `ready-bootstrap-settings`), **loading-main profile boot/backoff** (`profile-boot-machine` + `useProfileBootMachine`), **early entry gates JSX** (`AppEntryGates`), **main shell + overlay JSX fan-in** (`AppMainShell` / `AppOverlays`), **hearts/contact SSE apply** (`useHeartsRealtimeApply`), **hearts/chat/group lock wrappers** (`useSocialLockGuards`), **nickname/registration + recovery/reset** (`useNicknameRegistration` + `nickname-registration` planners), **profile/privacy/signals loaders** (`useProfilePrivacyLoaders` + `profile-select` column lists).
 
-Still in App (intentionally, next peels toward ~9.5): nickname/registration + some profile loaders, remaining privacy/signal apply surface, residual `select('*')` on profiles/admin. **db.ts peel progressing:** `db-op-filters` + `db-panel-secrets` + `db-sse-ring` + `db-merged-id-map` + `db-table-policy` (re-import; single router export intact). Full `/op`/RPC router split remains a separate mountain.
+Still in App (intentionally, next peels toward ~9.5): participant session-init effect, residual privacy/signal SSE apply surface, residual admin/`select('*')` elsewhere. **db.ts peel progressing:** `db-op-filters` + `db-panel-secrets` + `db-sse-ring` + `db-merged-id-map` + `db-table-policy` + `db-sse-fanout-policy` + `db-op-request` (re-import; single router export intact). Full `/op`/RPC router split remains a separate mountain.
 
 Path to ~9.5 = **App shell + domain hooks/planners** via incremental peels — not fake-perfect in one PR. `db.ts` remains a separate maintainability track.
 
@@ -158,16 +165,17 @@ Path to ~9.5 = **App shell + domain hooks/planners** via incremental peels — n
 |------------|----------|-------|
 | Prior (gates/bootstrap peeled) | **~8.4** | App ~1.87k; wiring + early gates |
 | Prior (main/overlay JSX + db filter/secrets) | **~8.7** | App ~1.65k compose; `db.ts` first pure slices |
-| This peel (hearts/group apply+guards + db ring/map/policy) | **~9.0** | App ~1.44k; more `db.ts` cohesive modules; message/group selects narrowed |
-| Toward ~9.5 | leftover App loaders/registration thinner; more `db.ts` domain peels; residual `select('*')` | Not one PR |
+| Prior (hearts/group apply+guards + db ring/map/policy) | **~9.0** | App ~1.44k; more `db.ts` cohesive modules; message/group selects narrowed |
+| This peel (registration/profile loaders + db fanout/op-request) | **~9.2–9.3** | App ~1.27k wiring; SSE fanout plan + `/op` request helpers; App profile `select('*')` cleared |
+| Toward ~9.5 | session-init peel; more `db.ts` domain slices; residual admin/`select('*')` elsewhere | Not claimed yet |
 
 ### Next incremental steps (no big-bang rewrite)
 
-1. Continue thinning App registration/profile-load wiring without growing `useState`.
+1. Peel participant session-init effect (post-login profile resolve + share QR) without growing `useState`.
 2. Screens keep flags/callbacks only — no new App feature state for modularity work.
-3. Further narrow hot `select('*')` paths (profiles/signals/admin) the same way as message/group columns.
-4. Continue `db.ts` peel track (SSE fanout / admin wipe / `/op` clusters + re-import); keep `38_db_single_router_export`.
-5. Do **not** claim 9.5 until App is mostly wiring and `db.ts` has several more domain slices beyond ring/policy/filters.
+3. Further narrow residual `select('*')` outside App (admin/TestDashboard) where safe.
+4. Continue `db.ts` peel track (admin wipe / write-path clusters + re-import); keep `38_db_single_router_export`.
+5. Do **not** claim 9.5 until App is mostly wiring and `db.ts` has more domain slices beyond fanout/op-request/ring/policy.
 
 ## Do not touch casually
 

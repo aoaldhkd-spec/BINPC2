@@ -336,7 +336,7 @@ describe('product copy + notification invariants', () => {
     expect(app).toContain('sendMessageGuarded');
     expect(app).toContain('sendImageGuarded');
     expect(app).toContain('sendGroupMessageGuarded');
-    expect(app).toContain('joinGroupChatGuarded');
+    expect(app).toContain('handleMainJoinGroupChat');
     expect(app).toContain('leaveGroupChatGuarded');
     expect(read('hooks/useSocialLockGuards.ts')).toContain('joinGroupChatGuarded');
     expect(read('hooks/useHeartsRealtimeApply.ts')).toContain('MUTUAL_HEART_TOAST');
@@ -389,6 +389,32 @@ describe('product copy + notification invariants', () => {
     expect(db).toContain("from '../lib/db-table-policy'");
     expect(db).not.toMatch(/function _ringAdd\(/);
     expect(db).not.toMatch(/const ALLOWED_OP_TABLES = new Set\(/);
+  });
+
+  it('registration/privacy loaders + db fanout/op-request stay wired (no inline fat)', () => {
+    const app = read('App.tsx');
+    const reg = read('hooks/useNicknameRegistration.ts');
+    const loaders = read('hooks/useProfilePrivacyLoaders.ts');
+    const planners = read('lib/nickname-registration.ts');
+    const cols = read('lib/profile-select.ts');
+    const db = readFileSync(join(root, '../../api-server/src/routes/db.ts'), 'utf8');
+    expect(app).toContain('useNicknameRegistration');
+    expect(app).toContain('useProfilePrivacyLoaders');
+    expect(app).toContain('PROFILE_ROW_SELECT');
+    expect(app).not.toMatch(/from\('profiles'\)\.select\('\*'\)/);
+    expect(app).not.toContain('이미 사용 중인 닉네임입니다');
+    expect(reg).toContain('buildRegistrationProfileInsert');
+    expect(reg).toContain('mapRegistrationErrorMessage');
+    expect(loaders).toContain('PROFILE_ROW_SELECT');
+    expect(loaders).toContain('USER_SIGNAL_ROW_SELECT');
+    expect(planners).toContain('buildRegistrationSignalRow');
+    expect(cols).toContain('PROFILE_ROW_SELECT');
+    expect(db).toContain("from '../lib/db-sse-fanout-policy'");
+    expect(db).toContain("from '../lib/db-op-request'");
+    expect(db).toContain('planSmartBroadcastLocal');
+    expect(db).toContain('normalizeOpFilters');
+    expect(db).not.toMatch(/const PRIVATE_TABLES = new Set\(/);
+    expect(db).not.toMatch(/const ALLOWED_OPS = new Set\(\['select'/);
   });
 
   it('ProfileCard keeps compact heart/chat buttons (no min-h-11 bloat)', () => {
@@ -665,11 +691,12 @@ describe('test persona nicknames (scripts)', () => {
 });
 
 describe('participant profile list order invariants', () => {
-  it('deck filter uses stable sort; App merges profiles instead of blind prepend/replace', () => {
+  it('deck filter uses stable sort; App/loaders merge profiles instead of blind prepend/replace', () => {
     const deck = read('lib/profile-deck-filter.ts');
     const order = read('lib/profile-list-order.ts');
     const apply = read('lib/profile-realtime-apply.ts');
     const app = read('App.tsx');
+    const loaders = read('hooks/useProfilePrivacyLoaders.ts');
     expect(deck).toContain('sortProfilesStable');
     expect(order).toContain('mergeProfilesPreserveOrder');
     expect(order).toContain('patchProfileInPlace');
@@ -679,6 +706,7 @@ describe('participant profile list order invariants', () => {
     expect(app).toContain('mergeProfilesPreserveOrder');
     expect(app).toContain('planProfilesAfterUpdate');
     expect(app).not.toMatch(/return \[incoming, \.\.\.prev\]/);
-    expect(app).toContain('mergeProfilesPreserveOrder(prev, visible)');
+    expect(loaders).toContain('mergeProfilesPreserveOrder(prev, visible)');
+    expect(app).toContain('useProfilePrivacyLoaders');
   });
 });

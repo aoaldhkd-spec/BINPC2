@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { supabase, setLocalDbUserId, setDeviceRecoveryPin, fetchAndSetSseToken, getDeviceSecret, ensureWriteSession } from './lib/supabase';
+import { supabase, setLocalDbUserId, fetchAndSetSseToken, ensureWriteSession } from './lib/supabase';
 import { useParticipantSoTResync } from './hooks/useParticipantSoTResync';
 import { useSseFallbackPoll } from './hooks/useSseFallbackPoll';
 import { useDarkModeStorageSync } from './hooks/useDarkModeStorageSync';
@@ -9,12 +9,15 @@ import { useSessionReadyBootstrap } from './hooks/useSessionReadyBootstrap';
 import { useProfileBootMachine } from './hooks/useProfileBootMachine';
 import { useHeartsRealtimeApply } from './hooks/useHeartsRealtimeApply';
 import { useSocialLockGuards } from './hooks/useSocialLockGuards';
+import { useNicknameRegistration } from './hooks/useNicknameRegistration';
+import { useProfilePrivacyLoaders } from './hooks/useProfilePrivacyLoaders';
 import { planAdminResetWipe, runAdminResetWipe } from './lib/admin-reset-wipe';
 import type { SessionReadySettingsPatch } from './lib/session-ready-settings';
 import { planAppSettingsRealtimeUpdate } from './lib/app-settings-realtime';
 import { subscribeNetUi, resetNetUiForRetry, type NetUiStatus } from './lib/net-health';
 import { excludeSwipeGestureVerifyProfiles } from './lib/profile';
-import { mergeProfilesPreserveOrder, sortProfilesStable } from './lib/profile-list-order';
+import { mergeProfilesPreserveOrder } from './lib/profile-list-order';
+import { PROFILE_ROW_SELECT } from './lib/profile-select';
 import {
   planProfilesAfterDelete,
   planProfilesAfterInsert,
@@ -257,6 +260,34 @@ function App() {
   // 테마 전환 시 dark_mode 동기화 (theme.tsx에서 storage 이벤트 발화)
   useDarkModeStorageSync(setDarkMode);
 
+  // profile/privacy loaders + nickname/registration — App wires setState only
+  const {
+    loadProfiles,
+    handleUserSignalUpdate,
+    refreshProfilesTab,
+  } = useProfilePrivacyLoaders({
+    currentUserId,
+    userIdRef,
+    loadProfilesRef,
+    setProfiles,
+    setUserSignals,
+    setBlockedUsers,
+    setProfileVisitors,
+  });
+
+  const { handleNicknameSetup, handleProfileRecovery, reset } = useNicknameRegistration({
+    isNewRegistration,
+    setLoading,
+    setRegistrationError,
+    setProfiles,
+    setUserSignals,
+    setCurrentUserId,
+    setProfileBoot,
+    setView,
+    setShownWaiting,
+    setEntryVerified,
+  });
+
   // loading-main profile boot / backoff — pure machine + thin hook; App applies results
   useProfileBootMachine({
     view,
@@ -264,7 +295,7 @@ function App() {
     getProfiles: () => profilesRef.current,
     loadProfiles: () => loadProfilesRef.current(),
     fetchProfileById: async (uid) => {
-      const { data: direct } = await supabase.from('profiles').select('*').eq('id', uid).maybeSingle();
+      const { data: direct } = await supabase.from('profiles').select(PROFILE_ROW_SELECT).eq('id', uid).maybeSingle();
       return (direct as Profile | null) ?? null;
     },
     mergeFetchedProfile: (me) => {
@@ -579,7 +610,7 @@ function App() {
       console.error('[handleUnblock]', error);
       setBottomNotif({ type: 'system', message: unblockFailureMessage() });
       // 실패 시 재로드
-      supabase.from('blocked_users').select('*').then(({ data }: { data: unknown }) => {
+      supabase.from('blocked_users').select('id, user_id, target_id, block_type, created_at').then(({ data }: { data: unknown }) => {
         if (Array.isArray(data) && currentUserId) {
           setBlockedUsers(filterBlockedUsersForMe(data as BlockedUser[], currentUserId));
         }
@@ -696,42 +727,6 @@ function App() {
   }, []);
 
 
-  const loadProfiles = useCallback(async () => {
-    const { data } = await supabase.from('profiles').select('*').order('created_at', { ascending: false });
-    if (data) {
-      const visible = excludeSwipeGestureVerifyProfiles(data as Profile[], userIdRef.current);
-      // 전량 교체 금지: SSE 패치 중 리프레시해도 기존 상대 순서 유지 + 안정 키로 신규만 삽입
-      setProfiles(prev => {
-        const merged = prev.length === 0
-          ? sortProfilesStable(visible)
-          : mergeProfilesPreserveOrder(prev, visible);
-        try { ls.setItem(MATCHING_PROFILES_CACHE_KEY, JSON.stringify(merged)); } catch { /* quota */ }
-        return merged;
-      });
-      return visible;
-    }
-    return [];
-  }, []);
-  // loading-main 지수 백오프 재시도에서 항상 최신 함수 참조 유지
-  loadProfilesRef.current = loadProfiles;
-
-  const loadUserSignals = useCallback(() => {
-    supabase.from('user_signals').select('*')
-      .then(({ data }: { data: unknown }) => {
-        if (Array.isArray(data)) setUserSignals(data as UserSignal[]);
-      }).catch(() => {});
-  }, []);
-
-  const handleUserSignalUpdate = useCallback((row: UserSignal) => {
-    setUserSignals(prev => mergeUserSignalRow(prev, row, 'upsert'));
-  }, []);
-
-  const refreshProfilesTab = useCallback(() => {
-    loadProfiles();
-    loadUserSignals();
-  }, [loadProfiles, loadUserSignals]);
-
-
   useEffect(() => {
     if (!currentUserId) return;
     // #52: 계정 전환 시 이전 유저의 하트 상태가 잠깐 보이는 현상 방지
@@ -769,7 +764,7 @@ function App() {
           const retry = await loadProfiles();
           me = findProfileById(retry, currentUserId);
           if (!me) {
-            const { data: direct } = await supabase.from('profiles').select('*').eq('id', currentUserId).maybeSingle();
+            const { data: direct } = await supabase.from('profiles').select(PROFILE_ROW_SELECT).eq('id', currentUserId).maybeSingle();
             if (direct) me = direct as Profile;
           }
           if (me && isCompleteProfile(me)) {
@@ -804,7 +799,7 @@ function App() {
           try {
             const { data: refreshed } = await supabase
               .from('profiles')
-              .select('*')
+              .select(PROFILE_ROW_SELECT)
               .eq('id', currentUserId)
               .maybeSingle();
             if (refreshed && (refreshed as Profile).pin_code) {
@@ -829,7 +824,7 @@ function App() {
       window.history.replaceState(window.history.state ?? {}, '', window.location.pathname);
       (async () => {
         try {
-          const { data: shareProfile } = await supabase.from('profiles').select('*').eq('id', pendingShareId).maybeSingle();
+          const { data: shareProfile } = await supabase.from('profiles').select(PROFILE_ROW_SELECT).eq('id', pendingShareId).maybeSingle();
           if (!shareProfile) return;
           const p = shareProfile as import('./types/app').Profile;
           saveScannedContact(p);
@@ -851,32 +846,6 @@ function App() {
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- loadXxx are stable useCallbacks; setState/refs are stable
   }, [currentUserId, loadProfiles, loadLikes, loadReceivedLikes, loadContactShareData, loadChatList]);
-
-  // ─── 차단·숨기기 / 방문자 기록 로드 ─────────────────────────────────────────
-  useEffect(() => {
-    if (!currentUserId) {
-      setBlockedUsers([]);
-      setProfileVisitors([]);
-      return;
-    }
-    const uid = currentUserId;
-    // 차단·숨기기 목록 로드 (내가 한 것 + 나에게 한 것)
-    supabase.from('blocked_users').select('*')
-      .then(({ data }: { data: unknown }) => {
-        if (Array.isArray(data)) {
-          setBlockedUsers(filterBlockedUsersForMe(data as BlockedUser[], uid));
-        }
-      }).catch(() => {});
-    // 내 프로필 방문자 로드
-    supabase.from('profile_views').select('*').eq('viewed_id', uid)
-      .then(({ data }: { data: unknown }) => {
-        if (Array.isArray(data)) setProfileVisitors(data as ProfileView[]);
-      }).catch(() => {});
-
-    // user_signals 전체 로드 (전광판 + 카드 뒤면용)
-    loadUserSignals();
-    // privacy + user_signals SSE subscribe live in useUserRealtimeChannel.
-  }, [currentUserId, loadUserSignals]);
 
   // Participant SoT: visibility + SSE reconnect live in useParticipantSoTResync.
   // App only wires loaders + applySessionReady (no new useState for this peel).
@@ -1027,144 +996,6 @@ function App() {
     if (!currentUserId) return;
     loadChatList(currentUserId);
   }, [currentUserId, loadChatList]);
-
-
-  const handleNicknameSetup = async (data: {
-    birthYear: number;
-    birthMonth: number | null;
-    birthDay: number | null;
-    location: string;
-    mbti: string;
-    interests: string[];
-    personalityScore: number;
-    domSubScore: number | null;
-    nickname: string;
-    kakaoId: string;
-    instagramId: string;
-    phoneNumber: string;
-    contactPrivate: boolean;
-    idealMsg: string | null;
-    featureMsg: string | null;
-  }) => {
-    setLoading(true);
-    setRegistrationError(null);
-    try {
-    const newProfileId = crypto.randomUUID();
-    const { data: profile, error } = await supabase
-      .from('profiles')
-      .insert({
-        id: newProfileId,
-        _device_secret: getDeviceSecret(newProfileId),
-        nickname: data.nickname,
-        bio: data.interests.join(', '),
-        // photo_url: server assigns a unique preset avatar on INSERT (avatar-pool.ts)
-        personality_score: data.personalityScore,
-        dom_sub_score: data.domSubScore,
-        mbti: data.mbti,
-        birth_year: data.birthYear,
-        birth_month: data.birthMonth,
-        birth_day: data.birthDay,
-        location: data.location,
-        interests: Array.isArray(data.interests) ? (data.interests as string[]).join(', ') : data.interests as string | null,
-        contact_private: data.contactPrivate,
-        kakao_id: data.kakaoId || null,
-        instagram_id: data.instagramId || null,
-        phone_number: data.phoneNumber || null,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      if (error.code === '23505') {
-        setRegistrationError('이미 사용 중인 닉네임입니다. 다른 닉네임을 선택해 주세요.');
-      } else if (error.code === 'PIN_EXHAUSTED') {
-        setRegistrationError('현재 정원이 가득 찼습니다. 운영진에 문의하세요.');
-      } else {
-        setRegistrationError(`오류가 발생했습니다: ${error.message}`);
-      }
-      setLoading(false);
-      return;
-    }
-    if (profile) {
-      if (data.idealMsg || data.featureMsg) {
-        const signalRow = {
-          id: crypto.randomUUID(),
-          user_id: profile.id,
-          status_msg: null,
-          ideal_msg: data.idealMsg,
-          feature_msg: data.featureMsg,
-          created_at: new Date().toISOString(),
-        };
-        const { error: signalError } = await supabase
-          .from('user_signals')
-          .upsert(signalRow as never, { onConflict: 'user_id' });
-        if (signalError) {
-          console.warn('[handleNicknameSetup] user_signals upsert:', signalError);
-        } else {
-          setUserSignals(prev => {
-            const rest = prev.filter(s => s.user_id !== profile.id);
-            return [...rest, signalRow as UserSignal];
-          });
-        }
-      }
-      ls.setItem(MATCHING_USER_KEY, profile.id);
-      ls.removeItem(MATCHING_DRAFT_KEY);
-      isNewRegistration.current = true;
-      setProfiles(prev => prev.some(p => p.id === profile.id) ? prev : mergeProfilesPreserveOrder(prev, [...prev, profile as Profile]));
-      setCurrentUserId(profile.id);
-      setProfileBoot('checking');
-      setView('loading-main');
-    }
-    } catch (e) {
-      console.error('[handleNicknameSetup] 오류:', e);
-      setRegistrationError('오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-
-  const reset = () => {
-    ls.removeItem(MATCHING_USER_KEY);
-    ls.removeItem(MATCHING_DRAFT_KEY);
-    setCurrentUserId(null);
-    setShownWaiting(false);
-    setProfileBoot('register');
-    setView('entry-1');
-  };
-
-  const handleProfileRecovery = async (profileId: string, pinCode: string) => {
-    setLoading(true);
-    setShownWaiting(true);
-    try {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', profileId)
-        .single();
-      if (profile) {
-        ls.setItem(MATCHING_USER_KEY, profile.id);
-        ls.removeItem(MATCHING_DRAFT_KEY);
-        setDeviceRecoveryPin(pinCode);
-        isNewRegistration.current = true;
-        setProfiles(prev => prev.some(p => p.id === profile.id) ? prev : mergeProfilesPreserveOrder(prev, [...prev, profile as Profile]));
-        setCurrentUserId(profile.id);
-        setProfileBoot('checking');
-        setEntryVerified(true);
-        void fetchAndSetSseToken(profile.id as string);
-        setView('loading-main');
-      } else {
-        alert('프로필을 찾을 수 없습니다. 관리자에게 문의하세요.');
-        setView('entry-1');
-      }
-    } catch (e) {
-      console.error('[handleProfileRecovery] 오류:', e);
-      alert('프로필 복구 중 오류가 발생했습니다. 다시 시도해 주세요.');
-      setView('entry-1');
-    } finally {
-      setLoading(false);
-    }
-  };
 
 
   // useMemo: 매 렌더마다 filter 재계산 방지 — 모든 early return 전에 선언 (Rules of Hooks 준수)
