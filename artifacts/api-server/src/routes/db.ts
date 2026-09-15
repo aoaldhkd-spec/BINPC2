@@ -9,7 +9,7 @@ import {
   extractPresetAvatarId,
   resolveEntryAvatar,
 } from '../lib/avatar-pool';
-import { isNpcTextAvatar, NPC_TEXT_AVATAR_SENTINEL } from '../lib/npc-text-avatar';
+import { NPC_TEXT_AVATAR_SENTINEL } from '../lib/npc-text-avatar';
 import { logger } from '../lib/logger';
 import { buildPgOptions } from '../lib/pg-options.js';
 import { createImageAccessPolicy } from '../lib/image-access';
@@ -137,6 +137,15 @@ import {
   countUserGroupSlots as countUserGroupSlotsPure,
 } from '../lib/db-group-leave-plan';
 import {
+  profileBirthYearRejected as profileBirthYearRejectedPure,
+  profileAvatarColorRejected as profileAvatarColorRejectedPure,
+  profileNpcAvatarRejected as profileNpcAvatarRejectedPure,
+} from '../lib/db-profile-reject';
+import {
+  stampChatReadAt as stampChatReadAtPure,
+  isChatPairBlocked as isChatPairBlockedPure,
+} from '../lib/db-chat-read-block';
+import {
   isChatParticipant as isChatParticipantPure,
   countMessagesForChat as countMessagesForChatPure,
   chatIdsForPair as chatIdsForPairPure,
@@ -160,7 +169,6 @@ import {
   stripLegacySessionHistoryKeys,
   stripLegacySettingsKeys,
 } from '../lib/db-legacy-cleanup';
-import { isAdultBirthYear } from '../lib/korean-age.js';
 import {
   recordExpiredSseToken,
   recordMissingSseToken,
@@ -799,11 +807,9 @@ function ts(): string {
   return new Date().toISOString();
 }
 
-/** chat_reads.write 는 서버 시계 — 폰 시계가 느리면 말풍선 '1'이 안 지워진다. */
+/** Thin wrapper — ts() stays local. */
 function stampChatReadAt(row: Record<string, unknown>): void {
-  const now = ts();
-  const provided = String(row.read_at ?? '');
-  row.read_at = provided > now ? provided : now;
+  stampChatReadAtPure(row, ts());
 }
 
 function getTable(name: string): Record<string, unknown>[] {
@@ -811,16 +817,9 @@ function getTable(name: string): Record<string, unknown>[] {
   return store[name];
 }
 
-/** Mutual block (block_type=block) between chat participants — hide is profile-only. */
+/** Thin wrapper — getTable stays local. */
 function isChatPairBlocked(userA: string, userB: string): boolean {
-  const a = String(userA);
-  const b = String(userB);
-  return getTable('blocked_users').some(row =>
-    row.block_type === 'block' && (
-      (String(row.user_id) === a && String(row.target_id) === b)
-      || (String(row.user_id) === b && String(row.target_id) === a)
-    ),
-  );
+  return isChatPairBlockedPure(getTable('blocked_users'), userA, userB);
 }
 
 type ReferenceCheck = { ok: true } | { ok: false; unavailable: boolean };
@@ -1874,44 +1873,29 @@ async function deleteRetiredAgeRoom(g: Record<string, unknown>): Promise<void> {
   smartBroadcast('group_chats', g, { type: 'change', table: 'group_chats', event: 'DELETE', newRow: null, oldRow: g });
 }
 
-const ADULT_BIRTH_YEAR_ERROR = {
-  message: '만 20세(한국식 나이) 이상만 가입할 수 있습니다.',
-  code: 'ADULT_ONLY',
-} as const;
-
+/** Thin wrapper — pure reject helper. */
 function profileBirthYearRejected(res: Response, birthYear: unknown): boolean {
-  if (birthYear == null || birthYear === '') return false;
-  if (isAdultBirthYear(birthYear)) return false;
-  res.status(400).json({ data: null, error: ADULT_BIRTH_YEAR_ERROR });
-  return true;
+  return profileBirthYearRejectedPure(res, birthYear);
 }
 
-const AVATAR_COLOR_COUNT = 12;
-
+/** Thin wrapper — pure reject helper. */
 function profileAvatarColorRejected(res: Response, avatarColor: unknown): boolean {
-  if (avatarColor == null) return false;
-  const n = Number(avatarColor);
-  if (Number.isInteger(n) && n >= 0 && n < AVATAR_COLOR_COUNT) return false;
-  res.status(400).json({
-    data: null,
-    error: { message: '카드 배경색 값이 올바르지 않습니다.', code: 'INVALID_AVATAR_COLOR' },
-  });
-  return true;
+  return profileAvatarColorRejectedPure(res, avatarColor);
 }
 
+/** Thin wrapper — adminPhoneFromSettings stays local. */
 function profileNpcAvatarRejected(
   res: Response,
   photoUrl: unknown,
   profileRow: Record<string, unknown>,
   adminPhoneDigits?: string,
 ): boolean {
-  if (!isNpcTextAvatar(photoUrl)) return false;
-  if (isAdminProfileRow(profileRow, adminPhoneDigits)) return false;
-  res.status(403).json({
-    data: null,
-    error: { message: '범일NPC 전용 아바타입니다.', code: 'NPC_AVATAR_FORBIDDEN' },
-  });
-  return true;
+  return profileNpcAvatarRejectedPure(
+    res,
+    photoUrl,
+    profileRow,
+    adminPhoneDigits ?? adminPhoneFromSettings(),
+  );
 }
 
 const autoMatchInFlight = new Map<string, Promise<void>>();

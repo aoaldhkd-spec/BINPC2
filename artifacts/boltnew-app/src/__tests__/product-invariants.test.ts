@@ -496,6 +496,15 @@ describe('product copy + notification invariants', () => {
     expect(db).toContain('participantRowsToLeavePure');
     expect(db).toContain('countUserGroupSlotsPure');
     expect(db).not.toMatch(/const yearOrAge = \/\^\\d\{4\}년생 모임\$/);
+    expect(db).toContain("from '../lib/db-profile-reject'");
+    expect(db).toContain('profileBirthYearRejectedPure');
+    expect(db).toContain('profileAvatarColorRejectedPure');
+    expect(db).toContain('profileNpcAvatarRejectedPure');
+    expect(db).toContain("from '../lib/db-chat-read-block'");
+    expect(db).toContain('stampChatReadAtPure');
+    expect(db).toContain('isChatPairBlockedPure');
+    expect(db).not.toMatch(/const ADULT_BIRTH_YEAR_ERROR = \{/);
+    expect(db).not.toMatch(/const AVATAR_COLOR_COUNT = 12/);
   });
 
 

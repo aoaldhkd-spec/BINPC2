@@ -1293,6 +1293,46 @@ mustMatch('ARCHITECTURE.md', '58_architecture_path_after_group_leave_plan_peel',
 ]);
 
 
+// ── 59: db-profile-reject + db-chat-read-block ───────────────────────────────
+mustExist('artifacts/api-server/src/lib/db-profile-reject.ts', '59_db_profile_reject_module');
+mustExist('artifacts/api-server/src/lib/db-profile-reject.test.ts', '59_db_profile_reject_tests');
+mustExist('artifacts/api-server/src/lib/db-chat-read-block.ts', '59_db_chat_read_block_module');
+mustExist('artifacts/api-server/src/lib/db-chat-read-block.test.ts', '59_db_chat_read_block_tests');
+mustMatch('artifacts/api-server/src/lib/db-profile-reject.ts', '59_profile_reject_exports', [
+  /export function profileBirthYearRejected/,
+  /export function profileAvatarColorRejected/,
+  /export function profileNpcAvatarRejected/,
+  /ADULT_BIRTH_YEAR_ERROR/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-chat-read-block.ts', '59_chat_read_block_exports', [
+  /export function stampChatReadAt/,
+  /export function isChatPairBlocked/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '59_db_reimports_profile_reject_and_chat_read_block', [
+  /from '\.\.\/lib\/db-profile-reject'/,
+  /profileBirthYearRejected as profileBirthYearRejectedPure/,
+  /profileAvatarColorRejected as profileAvatarColorRejectedPure/,
+  /profileNpcAvatarRejected as profileNpcAvatarRejectedPure/,
+  /from '\.\.\/lib\/db-chat-read-block'/,
+  /stampChatReadAt as stampChatReadAtPure/,
+  /isChatPairBlocked as isChatPairBlockedPure/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '59_db_still_single_router_export', [
+  /export default router/,
+]);
+mustNotMatch('artifacts/api-server/src/routes/db.ts', '59_db_no_inline_profile_reject_or_chat_read_block_impl', [
+  /const ADULT_BIRTH_YEAR_ERROR = \{/,
+  /const AVATAR_COLOR_COUNT = 12/,
+  /row\.read_at = provided > now \? provided : now/,
+  /row\.block_type === 'block' && \(/,
+]);
+mustMatch('ARCHITECTURE.md', '59_architecture_path_after_profile_reject_peel', [
+  /db-profile-reject/,
+  /db-chat-read-block/,
+  /~9\.5/,
+]);
+
+
 
 
 console.log('\n=== verify-recurrence-guards ===\n');
