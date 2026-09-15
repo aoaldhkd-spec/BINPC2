@@ -179,3 +179,64 @@ export function shouldRejectAnonSse(input: {
   const max = input.anonMax ?? 100;
   return !input.isAdminSse && !input.hasUserId && input.anonCount >= max;
 }
+
+export const SSE_RING_REPLAY_MAX_DEFAULT = 200;
+export const SSE_ADMIN_MAX_CONN_DEFAULT = 10;
+
+/** Catchup when missed ring entries exceed soft max (HTTP merge-by-id instead). */
+export function planSseRingReplay(
+  missedCount: number,
+  max: number = SSE_RING_REPLAY_MAX_DEFAULT,
+): 'catchup' | 'replay' {
+  return missedCount > max ? 'catchup' : 'replay';
+}
+
+/** Whether to evict oldest connection before adding (admin/user caps). */
+export function shouldEvictOldestSseConn(currentSize: number, max: number): boolean {
+  return currentSize >= max;
+}
+
+
+export type NotifyOtherPlan =
+  | { action: 'skip' }
+  | { action: 'enqueue'; msg: string; table: string; rowId: unknown };
+
+/** Pure NOTIFY payload plan (skip images; tombstone oversized / app_settings). */
+export function planNotifyOtherInstances(input: {
+  table: string;
+  ev: string;
+  newRow: Record<string, unknown> | null;
+  oldRow: Record<string, unknown> | null;
+  instanceId: string;
+  maxPayload?: number;
+}): NotifyOtherPlan {
+  if (input.table === 'app_image_store') return { action: 'skip' };
+  const id = (input.newRow ?? input.oldRow)?.['id'];
+  if (input.table === 'app_settings') {
+    if (id == null) return { action: 'skip' };
+    return {
+      action: 'enqueue',
+      msg: JSON.stringify({ src: input.instanceId, table: input.table, ev: input.ev, id, _tombstone: true }),
+      table: input.table,
+      rowId: id,
+    };
+  }
+  const payload = JSON.stringify({
+    src: input.instanceId,
+    table: input.table,
+    ev: input.ev,
+    newRow: input.newRow,
+    oldRow: input.oldRow,
+  });
+  const max = input.maxPayload ?? 7900;
+  if (payload.length > max) {
+    if (!id) return { action: 'skip' };
+    return {
+      action: 'enqueue',
+      msg: JSON.stringify({ src: input.instanceId, table: input.table, ev: input.ev, id, _tombstone: true }),
+      table: input.table,
+      rowId: id,
+    };
+  }
+  return { action: 'enqueue', msg: payload, table: input.table, rowId: id };
+}

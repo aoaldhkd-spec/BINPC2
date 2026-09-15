@@ -69,3 +69,25 @@ describe('db-rpc-allowlist', () => {
     expect(Object.keys(ADMIN_UPDATE_PROFILE_ARG_MAP).length).toBeGreaterThan(10);
   });
 });
+
+import {
+  shouldPersistBootstrapPanelPassword,
+  rpcSessionPersistFailedReject,
+  rpcSettingsPersistFailedReject,
+} from './db-rpc-allowlist.js';
+
+describe('rpc bootstrap + persist rejects (69)', () => {
+  it('shouldPersistBootstrapPanelPassword', () => {
+    expect(shouldPersistBootstrapPanelPassword({
+      provided: 'boot', bootstrap: 'boot', dbValue: '', isDefault: () => false,
+    })).toBe(true);
+    expect(shouldPersistBootstrapPanelPassword({
+      provided: 'x', bootstrap: 'boot', dbValue: 'set', isDefault: () => false,
+    })).toBe(false);
+  });
+
+  it('persist failed Korean messages', () => {
+    expect(rpcSessionPersistFailedReject().body.error.message).toContain('회의 상태');
+    expect(rpcSettingsPersistFailedReject().body.error.message).toContain('설정 저장');
+  });
+});

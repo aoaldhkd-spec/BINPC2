@@ -1839,6 +1839,78 @@ mustMatch('ARCHITECTURE.md', '68_architecture_path_after_auth_op_gate_peel', [
 ]);
 
 
+
+// ── 69: storage-upload + health-plan + push-subscribe-store + notify/autoMatch ─
+mustExist('artifacts/api-server/src/lib/db-health-plan.ts', '69_health_plan_module');
+mustExist('artifacts/api-server/src/lib/db-health-plan.test.ts', '69_health_plan_tests');
+mustMatch('artifacts/api-server/src/lib/db-storage-path.ts', '69_storage_upload_exports', [
+  /export function planStorageUploadAuthPath/,
+  /export function planStorageUploadContent/,
+  /export function planStorageRemove/,
+  /export function planStorageImageAuth/,
+  /이미지를 너무 자주 업로드하고 있습니다/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-health-plan.ts', '69_health_plan_exports', [
+  /export function planPinPoolStats/,
+  /export function buildHealthAlarms/,
+  /export function buildHealthBody/,
+  /export function shouldWarnPinPool/,
+  /PIN pool nearly full/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-push-plan.ts', '69_push_subscribe_store_export', [
+  /export function planPushSubscribeStore/,
+  /USER_MAX_PUSH_SUBS/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-sse-fanout-policy.ts', '69_notify_ring_exports', [
+  /export function planNotifyOtherInstances/,
+  /export function planSseRingReplay/,
+  /export function shouldEvictOldestSseConn/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-group-room-plan.ts', '69_automatch_specs_export', [
+  /export function planAutoMatchJoinSpecs/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-op-insert-ownership.ts', '69_signal_upgrade_exports', [
+  /export function planSignalSendsExistingRow/,
+  /export function withMessageChatPairFields/,
+  /export function buildGroupParticipantInsertRow/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-rpc-allowlist.ts', '69_rpc_persist_exports', [
+  /export function rpcSessionPersistFailedReject/,
+  /export function shouldPersistBootstrapPanelPassword/,
+  /회의 상태 저장 실패/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-op-request.ts', '69_op_write_gate_exports', [
+  /export function opAdminOnlyReject/,
+  /export function opFunctionsLockedReject/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '69_db_reimports_storage_health_push_notify', [
+  /from '\.\.\/lib\/db-storage-path'/,
+  /planStorageUploadAuthPath/,
+  /planStorageUploadContent/,
+  /from '\.\.\/lib\/db-health-plan'/,
+  /buildHealthAlarms/,
+  /planPushSubscribeStore/,
+  /planNotifyOtherInstances/,
+  /planAutoMatchJoinSpecs/,
+  /planSignalSendsExistingRow/,
+  /opAdminOnlyReject/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '69_db_still_single_router_export', [
+  /export default router/,
+]);
+mustNotMatch('artifacts/api-server/src/routes/db.ts', '69_db_no_inline_storage_health_korean', [
+  /이미지를 너무 자주 업로드하고 있습니다\. 잠시 후 다시 시도해 주세요/,
+  /회의 상태 저장 실패 — 잠시 후 다시 시도해 주세요/,
+  /설정 저장 실패 — 잠시 후 다시 시도해 주세요/,
+  /PIN pool nearly full:/,
+]);
+mustMatch('ARCHITECTURE.md', '69_architecture_path_after_storage_health_peel', [
+  /storage-upload/,
+  /health-plan/,
+  /~9\.5/,
+]);
+
+
 console.log('\n=== verify-recurrence-guards ===\n');
 
 for (const r of results) {

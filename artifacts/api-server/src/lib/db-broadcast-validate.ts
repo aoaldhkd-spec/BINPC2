@@ -45,3 +45,4 @@ export function validateBroadcastBody(body: unknown): BroadcastValidateResult {
   }
   return { ok: true, channel, event, payload };
 }
+

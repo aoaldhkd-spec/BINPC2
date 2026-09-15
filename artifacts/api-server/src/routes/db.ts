@@ -85,6 +85,11 @@ import {
   planSseIpCount,
   shouldRejectAnonSse,
   sseAnonLimitReject,
+  planSseRingReplay,
+  shouldEvictOldestSseConn,
+  SSE_RING_REPLAY_MAX_DEFAULT,
+  SSE_ADMIN_MAX_CONN_DEFAULT,
+  planNotifyOtherInstances,
 } from '../lib/db-sse-fanout-policy';
 import {
   normalizeOpFilters,
@@ -104,6 +109,8 @@ import {
   opUnknownOperationReject,
   planBindRequesterId,
   shouldBlockUnauthenticatedRequester,
+  opAdminOnlyReject,
+  opFunctionsLockedReject,
 } from '../lib/db-op-request';
 import {
   orderLimitShape,
@@ -159,9 +166,12 @@ import {
   validateByPinBody,
 } from '../lib/db-pin-lookup';
 import {
-  isValidStoragePath,
-  isValidStoragePathList,
-  isPublicProfilePhotoPath,
+  planStorageUploadAuthPath,
+  planStorageUploadContent,
+  planStorageRemove,
+  planStorageImageAuth,
+  storageUploadInternalReject,
+  storageRemoveInternalReject,
 } from '../lib/db-storage-path';
 import { validateBroadcastBody } from '../lib/db-broadcast-validate';
 import {
@@ -179,6 +189,9 @@ import {
   rpcInvalidBodyReject,
   rpcUnknownReject,
   validateRpcName,
+  rpcSessionPersistFailedReject,
+  rpcSettingsPersistFailedReject,
+  shouldPersistBootstrapPanelPassword,
 } from '../lib/db-rpc-allowlist';
 import {
   checkUpdateRowOwnership,
@@ -215,6 +228,12 @@ import {
   findExistingChatPairRow,
   findRowByClientId,
   messageReceiverIdFromChat,
+  planSignalSendsExistingRow,
+  groupParticipantsLimitReject,
+  buildGroupParticipantInsertRow,
+  withMessageChatPairFields,
+  peerIdFromChat,
+  isChatRowParticipantOf,
 } from '../lib/db-op-insert-ownership';
 import {
   checkUpsertChatReadsReader,
@@ -297,6 +316,7 @@ import {
   patchExistingAutoRoom,
   shouldSkipAutoRoomJoin,
   buildGroupParticipantRow,
+  planAutoMatchJoinSpecs,
 } from '../lib/db-group-room-plan';
 import {
   hasGroupOptOut as hasGroupOptOutPure,
@@ -326,6 +346,18 @@ import {
   countRowsCreatedSince,
 } from '../lib/db-kv-hydrate';
 import {
+  HEALTH_LOSS_ALARM_THRESHOLD,
+  PIN_WARN_USED_RATIO_DEFAULT,
+  planPinPoolStats,
+  buildHealthAlarms,
+  buildHealthBody,
+  shouldWarnPinPool,
+  buildPinPoolWarningPush,
+  buildAdminDbFailurePush,
+  healthUnauthorizedReject,
+  healthInternalReject,
+} from '../lib/db-health-plan';
+import {
   issueSessionToken as issueSessionTokenPure,
   verifySessionToken as verifySessionTokenPure,
   issueSseToken as issueSseTokenPure,
@@ -339,12 +371,18 @@ import {
   authLoginUnknownUserReject,
   planAuthLoginDecision,
   validateAuthLoginBody,
+  authSseTokenUnauthReject,
+  authSseTokenInternalReject,
+  planAuthSseTokenUser,
+  planProfileDeviceSecretBind,
+  buildDeviceSecretRow,
 } from '../lib/db-session-tokens';
 import { computeUnreadCountsForUser } from '../lib/db-unread-counts';
 import {
   planPushForEvent,
   pushSubscribeUnauthorizedReject,
   validatePushSubscribeBody,
+  planPushSubscribeStore,
 } from '../lib/db-push-plan';
 import {
   isChatParticipant as isChatParticipantPure,
@@ -796,7 +834,6 @@ let _lastAdminDbPushAt = 0;
 const ADMIN_PIN_PUSH_THROTTLE_MS = 60 * 60 * 1000;
 let _lastAdminPinPushAt = 0;
 // 85% used = 15% remaining triggers the alert.
-const PIN_WARN_USED_RATIO = 0.85;
 
 /** Helper: send a push notification to the admin.
  *  Returns false if no push subscription is found. */
@@ -832,13 +869,7 @@ async function notifyAdminDbFailure(tableName: string, errMsg: string): Promise<
   if (now - _lastAdminDbPushAt < ADMIN_DB_PUSH_THROTTLE_MS) return;
   _lastAdminDbPushAt = now;
   try {
-    const shortErr = errMsg.length > 80 ? errMsg.slice(0, 80) + '…' : errMsg;
-    const sent = await _sendAdminPush({
-      title: '⚠️ DB 저장 오류 발생',
-      body: `[${tableName}] ${shortErr}`,
-      tag: 'db-persist-error',
-      url: '/',
-    });
+    const sent = await _sendAdminPush(buildAdminDbFailurePush(tableName, errMsg));
     if (sent) logger.info({ tableName }, '[db] Admin DB failure push sent');
   } catch (e) {
     logger.error({ err: e, tableName }, '[db] Failed to send admin DB failure push');
@@ -849,27 +880,23 @@ async function notifyAdminDbFailure(tableName: string, errMsg: string): Promise<
  *  Throttled to at most once per hour.
  *  Errors are swallowed. */
 async function checkAndNotifyAdminPinPool(): Promise<void> {
-  const allProfiles = getTable('profiles');
-  const use5Digit   = allProfiles.length > 8000;
-  const poolSize    = use5Digit ? 90000 : 9000;
-  const usedCount   = new Set(allProfiles.map(p => p.pin_code).filter(Boolean)).size;
-  const usedRatio   = usedCount / poolSize;
-  if (usedRatio < PIN_WARN_USED_RATIO) return; // below threshold — no alert
+  const pinPool = planPinPoolStats(getTable('profiles'));
+  if (!shouldWarnPinPool(pinPool, PIN_WARN_USED_RATIO_DEFAULT)) return; // below threshold — no alert
 
   const now = Date.now();
   if (now - _lastAdminPinPushAt < ADMIN_PIN_PUSH_THROTTLE_MS) return;
   _lastAdminPinPushAt = now;
 
   try {
-    const remaining = poolSize - usedCount;
-    const pct = Math.round(usedRatio * 100);
-    const sent = await _sendAdminPush({
-      title: '🔔 PIN 풀 거의 소진',
-      body: `PIN ${pct}% 사용됨 — 잔여 ${remaining}개 (총 ${poolSize}개). 빠른 조치가 필요합니다.`,
-      tag: 'pin-pool-warning',
-      url: '/',
-    });
-    if (sent) logger.info({ usedCount, poolSize, pct }, '[db] Admin PIN pool warning push sent');
+    const payload = buildPinPoolWarningPush(pinPool);
+    const sent = await _sendAdminPush(payload);
+    if (sent) {
+      logger.info({
+        usedCount: pinPool.total - pinPool.remaining,
+        poolSize: pinPool.total,
+        pct: payload.pct,
+      }, '[db] Admin PIN pool warning push sent');
+    }
   } catch (e) {
     logger.error({ err: e }, '[db] Failed to send admin PIN pool warning push');
   }
@@ -2111,8 +2138,6 @@ async function autoMatchGroupChat(userId: string, profile: Record<string, unknow
   if (!userId) return;
   try {
     await ensureOptInGroupRooms();
-    const ageBand = ageBandFromYear(profile.birth_year);
-    const year = Number(profile.birth_year);
     const parts = getTable('group_participants').filter(p => String(p.user_id) === userId);
     for (const p of parts) {
       const g = getTable('group_chats').find(row => String(row.id) === String(p.group_id));
@@ -2120,25 +2145,8 @@ async function autoMatchGroupChat(userId: string, profile: Record<string, unknow
         await removeParticipant(userId, String(p.group_id), false);
       }
     }
-    if (ageBand) {
-      await joinOrCreateAutoRoom(userId, {
-        room_kind: AUTO_ROOM_AGE_DECADE,
-        name: `${ageBand} 모임`,
-        interest_tag: ageBand,
-        age_group: ageBand,
-        optKey: autoRoomOptKey(AUTO_ROOM_AGE_DECADE, ageBand),
-        canonicalId: canonicalAgeRoomId(ageBand),
-      });
-    }
-    if (Number.isFinite(year) && year >= 1900 && year <= 2100) {
-      await joinOrCreateAutoRoom(userId, {
-        room_kind: AUTO_ROOM_BIRTH_YEAR,
-        name: `${year}년생 모임`,
-        interest_tag: `${year}년생`,
-        age_group: null,
-        optKey: autoRoomOptKey(AUTO_ROOM_BIRTH_YEAR, `${year}년생`),
-        canonicalId: canonicalYearRoomId(year),
-      });
+    for (const spec of planAutoMatchJoinSpecs(profile)) {
+      await joinOrCreateAutoRoom(userId, spec);
     }
     const mine = getTable('group_participants').filter(p => String(p.user_id) === userId);
     for (const p of mine) {
@@ -2396,25 +2404,14 @@ function enqueueNotify(msg: string, table: string, rowId: unknown): void {
   _drainNotifyQueue();
 }
 
-/** 다른 인스턴스에 변경 사항 전파. 이미지 테이블 제외. 8 KB 초과 시 tombstone 전송 */
+/** 다른 인스턴스에 변경 사항 전파. 이미지 테이블 제외. 8 KB 초과 시 tombstone 전송 — plan: db-sse-fanout-policy */
 function notifyOtherInstances(table: string, ev: string, newRow: Record<string, unknown> | null, oldRow: Record<string, unknown> | null): void {
-  if (table === 'app_image_store') return; // 이미지 data URL은 수 KB — 제외
-  const id = (newRow ?? oldRow)?.['id'];
   // app_settings 비밀번호는 NOTIFY 페이로드에 넣지 않고 DB에서 다시 읽는다.
-  if (table === 'app_settings') {
-    if (id == null) return;
-    enqueueNotify(JSON.stringify({ src: INSTANCE_ID, table, ev, id, _tombstone: true }), table, id);
-    return;
-  }
-  const payload = JSON.stringify({ src: INSTANCE_ID, table, ev, newRow, oldRow });
-  let msg: string;
-  if (payload.length > 7900) {
-    if (!id) return;
-    msg = JSON.stringify({ src: INSTANCE_ID, table, ev, id, _tombstone: true });
-  } else {
-    msg = payload;
-  }
-  enqueueNotify(msg, table, id);
+  const plan = planNotifyOtherInstances({
+    table, ev, newRow, oldRow, instanceId: INSTANCE_ID,
+  });
+  if (plan.action === 'skip') return;
+  enqueueNotify(plan.msg, plan.table, plan.rowId);
 }
 
 /** pickLatestAppSettingsRow / planAppSettingsFromDbRows: ../lib/db-app-settings-view.ts */
@@ -3127,10 +3124,7 @@ router.post('/op', async (req: Request, res: Response) => {
     if (op === 'insert') {
       if (payload == null) return sendReject(opPayloadRequiredReject());
       if (!isAdmin && isFunctionsLocked() && FUNCTIONS_LOCKED_INSERT_TABLES.has(table)) {
-        return res.status(403).json({
-          data: null,
-          error: { ...FUNCTIONS_LOCKED_ERROR },
-        });
+        return sendReject(opFunctionsLockedReject(FUNCTIONS_LOCKED_ERROR));
       }
       if (table === 'chats') {
         // 동일 유저 쌍 생성을 인스턴스 간에 직렬화
@@ -3188,24 +3182,18 @@ router.post('/op', async (req: Request, res: Response) => {
             }
           }
           const targetChat = getTable('chats').find(c => String(c.id) === String(effectiveRow.chat_id));
-          if (!targetChat || (String(targetChat.user1_id) !== String(requesterId) && String(targetChat.user2_id) !== String(requesterId))) {
+          if (!isChatRowParticipantOf(targetChat, String(requesterId))) {
             const rej = messagesInsertNonParticipantReject();
             logger.warn({ requesterId, chatId: effectiveRow.chat_id, ip: req.ip }, rej.logMsg);
             return res.status(rej.status).json(rej.body);
           }
-          const peerId = String(targetChat.user1_id) === String(requesterId)
-            ? String(targetChat.user2_id)
-            : String(targetChat.user1_id);
+          const peerId = peerIdFromChat(targetChat!, String(requesterId));
           if (isChatPairBlocked(String(requesterId), peerId)) {
             const rej = messagesInsertBlockedReject();
             logger.warn({ requesterId, peerId, chatId: effectiveRow.chat_id, ip: req.ip }, rej.logMsg);
             return res.status(rej.status).json(rej.body);
           }
-          effectiveRow = {
-            ...effectiveRow,
-            chat_user1_id: targetChat.user1_id,
-            chat_user2_id: targetChat.user2_id,
-          };
+          effectiveRow = withMessageChatPairFields(effectiveRow, targetChat!);
         }
         if (table === 'chats') {
           const plan = planChatsInsertOwnership(effectiveRow, requesterId);
@@ -3268,15 +3256,10 @@ router.post('/op', async (req: Request, res: Response) => {
           }
           await pruneNonCatalogMemberships(String(requesterId));
           if (countUserGroupSlots(String(requesterId)) >= MAX_GROUPS_PER_USER) {
-            return res.status(400).json({ data: null, error: { message: GROUP_LIMIT_MESSAGE, code: 'GROUP_LIMIT' } });
+            const rej = groupParticipantsLimitReject(GROUP_LIMIT_MESSAGE);
+            return res.status(rej.status).json(rej.body);
           }
-          effectiveRow = {
-            ...effectiveRow,
-            id: `${groupId}__${requesterId}`,
-            group_id: groupId,
-            user_id: requesterId,
-            joined_at: effectiveRow.joined_at ?? ts(),
-          };
+          effectiveRow = buildGroupParticipantInsertRow(effectiveRow, groupId, String(requesterId), ts());
           await clearGroupOptOut(String(requesterId), groupId);
         }
         if (table === 'group_chats') {
@@ -3328,15 +3311,15 @@ router.post('/op', async (req: Request, res: Response) => {
           const detId = deterministicSignalId(String(requesterId), receiverId);
           const existingSig = tableData.find(r => String(r.id) === detId)
             ?? tableData.find(r => String(r.sender_id) === String(requesterId) && String(r.receiver_id) === receiverId);
-          if (existingSig) {
-            const existingAction = existingSig.action === 'send' ? 'send' : 'pass';
-            if (action === 'pass' || existingAction === 'send') {
-              if (selectAfterWrite) return res.json({ data: single ? existingSig : [existingSig], error: null });
-              return res.json({ data: null, error: null });
-            }
-            const oldRow = { ...existingSig };
-            const upgraded: Record<string, unknown> = { ...existingSig, action: 'send' };
-            const sigIdx = tableData.findIndex(r => String(r.id) === String(existingSig.id));
+          const existingPlan = planSignalSendsExistingRow({ existing: existingSig, action });
+          if (existingPlan.kind === 'return_existing') {
+            if (selectAfterWrite) return res.json({ data: single ? existingSig : [existingSig], error: null });
+            return res.json({ data: null, error: null });
+          }
+          if (existingPlan.kind === 'upgrade') {
+            const oldRow = { ...existingSig! };
+            const upgraded = existingPlan.upgraded;
+            const sigIdx = tableData.findIndex(r => String(r.id) === String(existingSig!.id));
             if (sigIdx >= 0) tableData[sigIdx] = upgraded;
             try {
               await dbPersistRow(table, upgraded);
@@ -3512,17 +3495,23 @@ router.post('/op', async (req: Request, res: Response) => {
         // 프로필 생성 시 device secret을 원자적으로 바인딩 — TOFU 레이스 윈도우 제거
         // 클라이언트가 _device_secret 필드를 포함해 INSERT하면 서버가 HMAC 해시를 저장하고
         // 해당 필드를 프로필 데이터에서 제거합니다(공개 쿼리에 노출되지 않음).
-        if (table === 'profiles' && typeof newRow._device_secret === 'string') {
-          const secretHash = createHmac('sha256', SSE_TOKEN_SECRET)
-            .update(newRow._device_secret as string)
-            .digest('hex');
-          const profileId = newRow.id as string;
-          if (!getTable('device_secrets').find(r => r.user_id === profileId)) {
-            const dsRow = { id: genId(), user_id: profileId, secret_hash: secretHash, created_at: ts() };
-            getTable('device_secrets').push(dsRow);
-            dbPersistRow('device_secrets', dsRow).catch(e => logger.error({ err: e }, '[db] background task error'));
+        {
+          const bind = planProfileDeviceSecretBind(table, newRow, (secret) =>
+            createHmac('sha256', SSE_TOKEN_SECRET).update(secret).digest('hex'),
+          );
+          if (bind.action === 'bind') {
+            if (!getTable('device_secrets').find(r => r.user_id === bind.profileId)) {
+              const dsRow = buildDeviceSecretRow({
+                id: genId(),
+                userId: bind.profileId,
+                secretHash: bind.secretHash,
+                createdAt: ts(),
+              });
+              getTable('device_secrets').push(dsRow);
+              dbPersistRow('device_secrets', dsRow).catch(e => logger.error({ err: e }, '[db] background task error'));
+            }
+            delete newRow._device_secret; // 프로필 응답·DB에서 제거
           }
-          delete newRow._device_secret; // 프로필 응답·DB에서 제거
         }
 
         tableData.push(newRow);
@@ -3579,13 +3568,10 @@ router.post('/op', async (req: Request, res: Response) => {
     // ── UPDATE ──────────────────────────────────────────────────────────────
     if (op === 'update') {
       if (table === 'app_settings' && !isAdmin) {
-        return res.status(403).json({ data: null, error: { message: 'Forbidden: admin only', code: 'FORBIDDEN' } });
+        return sendReject(opAdminOnlyReject());
       }
       if (!isAdmin && isFunctionsLocked() && FUNCTIONS_LOCKED_UPDATE_TABLES.has(table)) {
-        return res.status(403).json({
-          data: null,
-          error: { ...FUNCTIONS_LOCKED_ERROR },
-        });
+        return sendReject(opFunctionsLockedReject(FUNCTIONS_LOCKED_ERROR));
       }
       let patch = sanitizeRow(table, payload as Record<string, unknown>);
       const rowsToUpdate = applyFilters(tableData, normalizedFilters);
@@ -4027,9 +4013,14 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         });
         const adminToken = deriveAdminToken(tokenKey);
         const bootstrapAdmin = process.env.BOOTSTRAP_ADMIN_PASSWORD?.trim();
-        if (bootstrapAdmin && providedPw === bootstrapAdmin && (!dbAdmin || isDefaultPanelPassword(dbAdmin))) {
+        if (shouldPersistBootstrapPanelPassword({
+          provided: providedPw,
+          bootstrap: bootstrapAdmin,
+          dbValue: dbAdmin,
+          isDefault: isDefaultPanelPassword,
+        })) {
           const current = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
-          const updated = mergeAppSettings(current, { admin_password: bootstrapAdmin });
+          const updated = mergeAppSettings(current, { admin_password: bootstrapAdmin! });
           store['app_settings'] = [updated];
           dbPersistRow('app_settings', updated).catch(e => logger.error({ err: e }, '[db] persist bootstrap admin password'));
         }
@@ -4055,10 +4046,8 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
           await dbPersistRow('app_settings', updated);
         } catch (e) {
           logger.error({ err: e }, '[db] admin_toggle_session persist failed');
-          return res.status(503).json({
-            data: null,
-            error: { message: '회의 상태 저장 실패 — 잠시 후 다시 시도해 주세요.', code: 'PERSIST_FAILED' },
-          });
+          const rej = rpcSessionPersistFailedReject();
+          return res.status(rej.status).json(rej.body);
         }
         smartBroadcast('app_settings', updated, {
           type: 'change', table: 'app_settings', event: 'UPDATE',
@@ -4083,10 +4072,8 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         } catch (e) {
           store['app_settings'] = [current];
           logger.error({ err: e }, '[db] admin_update_settings persist failed');
-          return res.status(503).json({
-            data: null,
-            error: { message: '설정 저장 실패 — 잠시 후 다시 시도해 주세요.', code: 'PERSIST_FAILED' },
-          });
+          const rej = rpcSettingsPersistFailedReject();
+          return res.status(rej.status).json(rej.body);
         }
         smartBroadcast('app_settings', updated, {
           type: 'change', table: 'app_settings', event: 'UPDATE',
@@ -4109,9 +4096,14 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         const provided = String(args.p_test_password ?? '').trim();
         const bootstrapTest = process.env.BOOTSTRAP_TEST_PASSWORD?.trim();
         const dbTest = String(settings.test_password ?? '').trim();
-        if (bootstrapTest && provided === bootstrapTest && (!dbTest || isDefaultPanelPassword(dbTest))) {
+        if (shouldPersistBootstrapPanelPassword({
+          provided,
+          bootstrap: bootstrapTest,
+          dbValue: dbTest,
+          isDefault: isDefaultPanelPassword,
+        })) {
           const current = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
-          const updated = mergeAppSettings(current, { test_password: bootstrapTest });
+          const updated = mergeAppSettings(current, { test_password: bootstrapTest! });
           store['app_settings'] = [updated];
           dbPersistRow('app_settings', updated).catch(e => logger.error({ err: e }, '[db] persist bootstrap test password'));
         }
@@ -4390,29 +4382,23 @@ const imageAccess = createImageAccessPolicy(getTable);
 
 router.post('/storage-upload', async (req: Request, res: Response) => {
   try {
-  // ─ req.body 타입 방어
-  if (req.body == null || typeof req.body !== 'object' || Array.isArray(req.body)) {
-    return res.status(400).json({ data: null, error: 'Invalid request body' });
-  }
-  const body = req.body as Record<string, unknown>;
-  const userId = resolveAuthUserId(req, body);
-  if (!userId) {
-    recordUploadRejected('unauthenticated');
-    return res.status(401).json({ data: null, error: { message: 'Authentication required' } });
-  }
-    const { path: imgPath, dataUrl } = body as { path?: string; dataUrl?: string };
-  // ─ 경로 검증: 디렉터리 트래버설 / 임의 덮어쓰기 방지 (db-storage-path)
-  if (!isValidStoragePath(imgPath)) {
-    recordUploadRejected('path');
-    return res.status(400).json({ data: null, error: 'Invalid path' });
-  }
-  if (!imageAccess.canUpload(imgPath, userId)) {
-    recordUploadRejected('forbidden');
-    return res.status(403).json({ data: null, error: { message: 'Forbidden image path' } });
+  const bodyRec = (req.body != null && typeof req.body === 'object' && !Array.isArray(req.body))
+    ? req.body as Record<string, unknown>
+    : null;
+  const userId = bodyRec ? resolveAuthUserId(req, bodyRec) : null;
+  // ─ Stage 1: body/auth/path (db-storage-path) — rate only after this passes
+  const authPath = planStorageUploadAuthPath({
+    body: req.body,
+    userId,
+    canUpload: (p, uid) => imageAccess.canUpload(p, uid),
+  });
+  if (!authPath.ok) {
+    if (authPath.reject.rejectReason) recordUploadRejected(authPath.reject.rejectReason);
+    return res.status(authPath.reject.status).json(authPath.reject.body);
   }
   // ─ Per-user + NAT IP burst: 이미지 스팸 방지 (공인 IP 한 줄로 전원 429 금지)
   const uploadIp = String(req.ip ?? req.socket.remoteAddress ?? 'unknown');
-  const uploadKeys = venueUploadRateKeys(userId, uploadIp);
+  const uploadKeys = venueUploadRateKeys(userId!, uploadIp);
   const uploadUserRate = consumeRateLimit(_uploadRateMap, uploadKeys.userKey, {
     windowMs: UPLOAD_RATE_WINDOW_MS,
     max: UPLOAD_RATE_MAX,
@@ -4423,44 +4409,30 @@ router.post('/storage-upload', async (req: Request, res: Response) => {
     max: UPLOAD_RATE_MAX_PER_IP,
     maxMapSize: RATE_MAP_MAX_SIZE,
   });
-  if (uploadUserRate === 'map_full' || uploadIpBurst === 'map_full') {
-    recordUploadRejected('rate_limited');
-    res.setHeader('Retry-After', '5');
-    return res.status(429).json({ data: null, error: '요청이 너무 많습니다.' });
-  }
-  if (uploadUserRate === 'limited' || uploadIpBurst === 'limited') {
-    recordUploadRejected('rate_limited');
-    res.setHeader('Retry-After', '5');
-    return res.status(429).json({ data: null, error: '이미지를 너무 자주 업로드하고 있습니다. 잠시 후 다시 시도해 주세요.' });
-  }
-
-  // ─ dataUrl 검증 (MIME + magic: db-image-magic)
-  if (!dataUrl || typeof dataUrl !== 'string') {
-    return res.status(400).json({ data: null, error: 'Missing dataUrl' });
-  }
-  const mimeMagic = dataUrlMimeAndMagic(dataUrl);
-  if (!mimeMagic) {
-    recordUploadRejected('mime');
-    return res.status(400).json({ data: null, error: 'Invalid image type' });
-  }
-  // ─ 크기 제한 (~5MB 원본). 클라이언트 압축 상한은 8M 문자, 서버는 9M.
-  if (dataUrl.length > MAX_IMAGE_DATAURL_BYTES) {
-    recordUploadRejected('size_cap');
-    return res.status(413).json({ data: null, error: 'Image too large (max 5MB)' });
-  }
-  if (!mimeMagic.magicOk) {
-    recordUploadRejected('magic');
-    return res.status(400).json({ data: null, error: 'Image content does not match declared type' });
+  // ─ Stage 2: rate + dataUrl MIME/magic/size
+  const planned = planStorageUploadContent({
+    path: authPath.path,
+    dataUrl: bodyRec?.dataUrl,
+    uploadUserRate,
+    uploadIpBurst,
+    dataUrlMimeAndMagic,
+    maxDataUrlBytes: MAX_IMAGE_DATAURL_BYTES,
+  });
+  if (!planned.ok) {
+    if (planned.reject.rejectReason) recordUploadRejected(planned.reject.rejectReason);
+    if (planned.reject.status === 429) res.setHeader('Retry-After', '5');
+    return res.status(planned.reject.status).json(planned.reject.body);
   }
   // 프로필 row가 이 경로를 저장하기 전에 이미지 자체가 durable해야 한다.
   // DB 저장 실패를 성공으로 응답하면 서버 재시작 후 깨진 프로필 사진이 남는다.
-  await dbPersistImage(imgPath, dataUrl);
-  imageStoreSet(imgPath, dataUrl);
+  await dbPersistImage(planned.path, planned.dataUrl);
+  imageStoreSet(planned.path, planned.dataUrl);
   recordUploadAccepted();
-  return res.json({ data: { path: imgPath }, error: null });
+  return res.json({ data: { path: planned.path }, error: null });
   } catch (e) {
     logger.error({ err: e }, '[storage-upload] Unexpected error');
-    return res.status(500).json({ data: null, error: 'Internal server error' });
+    const rej = storageUploadInternalReject();
+    return res.status(rej.status).json(rej.body);
   }
 });
 
@@ -4471,26 +4443,20 @@ router.post('/storage-remove', async (req: Request, res: Response) => {
       ? req.body as Record<string, unknown>
       : {};
     const userId = resolveAuthUserId(req, body);
-    const paths = body.paths;
-    if (!userId) {
-      return res.status(401).json({ data: null, error: { message: 'Authentication required' } });
-    }
-        if (!isValidStoragePathList(paths)) {
-      return res.status(400).json({ data: null, error: { message: 'Invalid paths' } });
-    }
+    const planned = planStorageRemove({
+      userId,
+      paths: body.paths,
+      canRemove: (p, uid) => imageAccess.canRemove(p, uid),
+    });
+    if (!planned.ok) return res.status(planned.reject.status).json(planned.reject.body);
 
-    const stringPaths = paths;
-    const authorized = stringPaths.every(p => imageAccess.canRemove(p, userId));
-    if (!authorized) {
-      return res.status(403).json({ data: null, error: { message: 'Forbidden' } });
-    }
-
-    for (const p of stringPaths) _imageStore.delete(p);
-    await pool.query('DELETE FROM app_image_store WHERE path = ANY($1::text[])', [stringPaths]);
+    for (const p of planned.paths) _imageStore.delete(p);
+    await pool.query('DELETE FROM app_image_store WHERE path = ANY($1::text[])', [planned.paths]);
     return res.json({ data: null, error: null });
   } catch (e) {
     logger.error({ err: e }, '[storage-remove] Unexpected error');
-    return res.status(500).json({ data: null, error: { message: 'Internal server error' } });
+    const rej = storageRemoveInternalReject();
+    return res.status(rej.status).json(rej.body);
   }
 });
 
@@ -4498,7 +4464,9 @@ router.get('/storage-image', async (req: Request, res: Response): Promise<void> 
   try {
   // ─ req.query.p 타입 방어: Express는 ?p=a&p=b 시 배열을 반환 → 명시적 string 검증
   const rawP = req.query.p;
-  if (!rawP || typeof rawP !== 'string') { res.status(400).json({ error: 'Invalid path parameter' }); return; }
+  if (!rawP || typeof rawP !== 'string') {
+    res.status(400).json({ error: 'Invalid path parameter' }); return;
+  }
   const path = rawP;
   // Cookie session or query sessionToken (Netlify cookie gap for <img> tags)
   let userId = (req.session as { userId?: string })?.userId ?? null;
@@ -4508,13 +4476,14 @@ router.get('/storage-image', async (req: Request, res: Response): Promise<void> 
     userId = qUserId;
   }
   const adminToken = typeof req.query.adminToken === 'string' ? req.query.adminToken : null;
-  const isPublicProfilePhoto = isPublicProfilePhotoPath(path);
-  if (
-    !verifyAdminToken(adminToken) &&
-    !isPublicProfilePhoto &&
-    (!userId || !imageAccess.canRead(path, userId))
-  ) {
-    res.status(userId ? 403 : 401).json({ error: 'Authentication required' });
+  const imageAuth = planStorageImageAuth({
+    path,
+    userId,
+    adminOk: verifyAdminToken(adminToken),
+    canRead: (p, uid) => imageAccess.canRead(p, uid),
+  });
+  if (!imageAuth.ok) {
+    res.status(imageAuth.reject.status).json(imageAuth.reject.body);
     return;
   }
   let dataUrl: string | undefined = imageStoreGet(path);
@@ -4634,7 +4603,8 @@ router.get('/health', async (req: Request, res: Response) => {
     ? req.headers['x-admin-token']
     : null;
   if (!verifyAdminToken(adminToken)) {
-    return res.status(401).json({ ok: false, error: 'Admin authentication required' });
+    const rej = healthUnauthorizedReject();
+    return res.status(rej.status).json(rej.body);
   }
   if (_healthCache && Date.now() - _healthCache.ts < HEALTH_CACHE_TTL_MS) {
     return res.json(_healthCache.body);
@@ -4670,50 +4640,52 @@ router.get('/health', async (req: Request, res: Response) => {
 
   const sseTotal = [...sseUserMap.values()].reduce((s, c) => s + c.size, 0) + sseAnonClients.size;
 
-  // ── Alarm thresholds (0% loss target) ────────────────────────────────────
-  // Durability alarm: flag if DB count lags in-memory count by more than 5 rows
-  // (transient lag is normal; large gaps signal persist failures or pool starvation).
-  // Error-rate alarm: any persist errors in 5 min window = warning.
-  const LOSS_ALARM_THRESHOLD = 5;
+  // Alarm thresholds / PIN pool / lag strings: ../lib/db-health-plan.ts
   const recentPersistErrors = _dbPersistErrorLog.filter(e => Date.now() - e.time < 5 * 60 * 1000).length;
   const messageLag = dbMessages >= 0 ? inMemMessages - dbMessages : null;
-  const likeLag    = dbLikes    >= 0 ? inMemLikes    - dbLikes    : null;
-  // #33: PIN pool 잔여량 — 85% 이상 사용됐으면 alarm (15% 이하 남음)
-  const _allProfiles = getTable('profiles');
-  const _use5Digit   = _allProfiles.length > 8000;
-  const _pinPoolSize = _use5Digit ? 90000 : 9000;
-  const _usedPinCount = new Set(_allProfiles.map(p => p.pin_code).filter(Boolean)).size;
-  const pinRemaining  = _pinPoolSize - _usedPinCount;
-  const PIN_ALARM_THRESHOLD = Math.max(50, Math.floor(_pinPoolSize * 0.15)); // 15% remaining = 85% used
+  const likeLag = dbLikes >= 0 ? inMemLikes - dbLikes : null;
+  const pinPool = planPinPoolStats(getTable('profiles'));
+  const alarms = buildHealthAlarms({
+    recentPersistErrors,
+    dbQueryError,
+    inMemMessages,
+    dbMessages,
+    inMemLikes,
+    dbLikes,
+    messageLag,
+    likeLag,
+    lossAlarmThreshold: HEALTH_LOSS_ALARM_THRESHOLD,
+    pinRemaining: pinPool.remaining,
+    pinAlarmThreshold: pinPool.alarmThreshold,
+    pinPoolTotal: pinPool.total,
+  });
 
-  const alarms: string[] = [];
-  if (recentPersistErrors > 0) alarms.push(`${recentPersistErrors} DB persist error(s) in last 5 min`);
-  if (dbQueryError) alarms.push(`DB query failed: ${dbQueryError.slice(0, 120)}`);
-  if (messageLag !== null && messageLag > LOSS_ALARM_THRESHOLD) alarms.push(`message lag: inMem=${inMemMessages} db=${dbMessages} (>${LOSS_ALARM_THRESHOLD})`);
-  if (likeLag    !== null && likeLag    > LOSS_ALARM_THRESHOLD) alarms.push(`like lag: inMem=${inMemLikes} db=${dbLikes} (>${LOSS_ALARM_THRESHOLD})`);
-  if (pinRemaining <= PIN_ALARM_THRESHOLD) alarms.push(`PIN pool nearly full: ${pinRemaining} slot(s) remaining of ${_pinPoolSize}`);
-
-  const body = {
+  // admin-token 전용 body — recentErrors 최근 10건 (운영 디버그용); db-health-plan
+  const body = buildHealthBody({
     persistErrors: _dbPersistErrors,
-    // admin-token 전용 — 최근 10건만 (운영 디버그용)
     recentErrors: _dbPersistErrorLog.slice(-10),
-    inMemory: { messages: inMemMessages, likes: inMemLikes },
-    db: { messages: dbMessages, likes: dbLikes },
-    lag: { messages: messageLag, likes: likeLag },
-    pinPool: { remaining: pinRemaining, total: _pinPoolSize }, // #33
-    alarms,                          // non-empty = action required
-    ok: alarms.length === 0,         // quick pass/fail for monitoring
+    inMemMessages,
+    inMemLikes,
+    dbMessages,
+    dbLikes,
+    messageLag,
+    likeLag,
+    pinRemaining: pinPool.remaining,
+    pinTotal: pinPool.total,
+    alarms,
     sseConnections: sseTotal,
-    thresholds: { lossAlarm: LOSS_ALARM_THRESHOLD, likesMinIntervalMs: LIKES_MIN_INTERVAL_MS },
+    likesMinIntervalMs: LIKES_MIN_INTERVAL_MS,
     integrity: _integrityDiagnostics,
     httpMetrics: snapshotHttpMetrics(),
     checkedAt: new Date().toISOString(),
-  };
+    lossAlarmThreshold: HEALTH_LOSS_ALARM_THRESHOLD,
+  });
   _healthCache = { ts: Date.now(), body };
   return res.json(body);
   } catch (e) {
     logger.error({ err: e }, '[health] Unexpected error');
-    return res.status(500).json({ ok: false, error: 'Health check failed' });
+    const rej = healthInternalReject();
+    return res.status(rej.status).json(rej.body);
   }
 });
 
@@ -4863,32 +4835,23 @@ router.post('/push/subscribe', (req: Request, res: Response) => {
     return res.status(rej.status).json(rej.body);
   }
   const subs = getTable('push_subscriptions');
-  const idx = subs.findIndex(s => s.user_id === userId && s.endpoint === subscription.endpoint);
-  if (idx >= 0) {
-    const updated = { ...subs[idx], auth: subscription.keys!.auth, p256dh: subscription.keys!.p256dh, updated_at: ts() };
-    subs[idx] = updated;
-    dbPersistRow('push_subscriptions', updated).catch(e => logger.error({ err: e }, '[db] background task error'));
+  const storePlan = planPushSubscribeStore({
+    subs,
+    userId,
+    endpoint: subscription.endpoint,
+    auth: subscription.keys!.auth,
+    p256dh: subscription.keys!.p256dh,
+    now: ts(),
+    newId: genId(),
+  });
+  if (storePlan.kind === 'update') {
+    subs[storePlan.index] = storePlan.row;
+    dbPersistRow('push_subscriptions', storePlan.row).catch(e => logger.error({ err: e }, '[db] background task error'));
   } else {
-    // 사용자당 최대 5개 구독 — 초과 시 가장 오래된 것 제거 (슬라이딩 윈도우)
-    const USER_MAX_PUSH_SUBS = 5;
-    type SubWithIdx = Record<string, unknown> & { _idx: number };
-    const userSubs = (subs as Array<Record<string, unknown>>)
-      .map((s, i) => ({ ...s, _idx: i } as SubWithIdx))
-      .filter(s => s['user_id'] === userId)
-      .sort((a, b) => String(a['created_at']).localeCompare(String(b['created_at'])));
-    if (userSubs.length >= USER_MAX_PUSH_SUBS) {
-      const oldestIdx = subs.findIndex(s => s['id'] === userSubs[0]['id']);
-      if (oldestIdx >= 0) subs.splice(oldestIdx, 1);
-    }
-    const newSub = {
-      id: genId(), user_id: userId,
-      endpoint: subscription.endpoint,
-      auth: subscription.keys!.auth,
-      p256dh: subscription.keys!.p256dh,
-      created_at: ts(),
-    };
-    subs.push(newSub);
-    dbPersistRow('push_subscriptions', newSub).catch(e => logger.error({ err: e }, '[db] background task error'));
+    // 사용자당 최대 5개 구독 — 초과 시 가장 오래된 것 제거 (슬라이딩 윈도우; db-push-plan)
+    if (storePlan.evictIndex != null) subs.splice(storePlan.evictIndex, 1);
+    subs.push(storePlan.row);
+    dbPersistRow('push_subscriptions', storePlan.row).catch(e => logger.error({ err: e }, '[db] background task error'));
   }
   return res.json({ ok: true });
   } catch (e) {
@@ -5103,18 +5066,24 @@ router.post('/auth/sse-token', (req: Request, res: Response) => {
     const body = (req.body != null && typeof req.body === 'object' && !Array.isArray(req.body))
       ? req.body as { userId?: string; sessionToken?: string }
       : {};
-    let sessionUserId = req.session?.userId ?? null;
-    if (!sessionUserId && body.userId && body.sessionToken && verifySessionToken(body.userId, body.sessionToken)) {
-      sessionUserId = body.userId;
+    const planned = planAuthSseTokenUser({
+      sessionUserId: req.session?.userId ?? null,
+      bodyUserId: body.userId,
+      bodySessionToken: body.sessionToken,
+      sessionTokenValid: Boolean(
+        body.userId && body.sessionToken && verifySessionToken(body.userId, body.sessionToken),
+      ),
+    });
+    if (!planned.ok) {
+      const rej = authSseTokenUnauthReject();
+      return res.status(rej.status).json(rej.body);
     }
-    if (!sessionUserId) {
-      return res.status(401).json({ error: 'Not authenticated — call /auth/login first' });
-    }
-    const { token, expiresAt } = issueSseToken(sessionUserId);
+    const { token, expiresAt } = issueSseToken(planned.userId);
     return res.json({ token, expiresAt });
   } catch (e) {
     logger.error({ err: e }, '[auth/sse-token] Unexpected error');
-    return res.status(500).json({ error: 'Internal server error' });
+    const rej = authSseTokenInternalReject();
+    return res.status(rej.status).json(rej.body);
   }
 });
 
@@ -5227,8 +5196,8 @@ router.get('/events', (req: Request, res: Response) => {
   });
 
   if (isAdminSse) {
-    // 관리자 SSE — 모든 이벤트(private 포함) 수신, 최대 10개 연결
-    if (sseAdminClients.size >= 10) {
+    // 관리자 SSE — 모든 이벤트(private 포함) 수신, 최대 SSE_ADMIN_MAX_CONN_DEFAULT개 연결
+    if (shouldEvictOldestSseConn(sseAdminClients.size, SSE_ADMIN_MAX_CONN_DEFAULT)) {
       const oldest = sseAdminClients.values().next().value;
       if (oldest) { _sseCleanup.get(oldest)?.(); _sseCleanup.delete(oldest); try { oldest.end(); } catch { /* ignore */ } sseAdminClients.delete(oldest); }
     }
@@ -5237,7 +5206,7 @@ router.get('/events', (req: Request, res: Response) => {
     if (!sseUserMap.has(userId)) sseUserMap.set(userId, new Set());
     const userConns = sseUserMap.get(userId)!;
     // 탭 과다 방지: 사용자당 최대 4개 연결. 초과 시 가장 오래된 연결 종료
-    if (userConns.size >= SSE_MAX_CONN_PER_USER) {
+    if (shouldEvictOldestSseConn(userConns.size, SSE_MAX_CONN_PER_USER)) {
       const oldest = userConns.values().next().value;
       // keepalive interval도 반드시 해제 — 미해제 시 메모리 누수
       _sseCleanup.get(oldest)?.();
@@ -5264,8 +5233,7 @@ router.get('/events', (req: Request, res: Response) => {
     if (lastSeq > 0 && Number.isFinite(lastSeq) && !isNaN(lastSeq)) {
       const missed = _ringGetSince(lastSeq, userId, isAdminSse);
       // 슬립 후 링 전체가 쏟아지면 채팅이 멈춘다. 소량은 재전송, 대량은 HTTP merge-by-id.
-      const RING_REPLAY_MAX = 200;
-      if (missed.length > RING_REPLAY_MAX) {
+      if (planSseRingReplay(missed.length, SSE_RING_REPLAY_MAX_DEFAULT) === 'catchup') {
         const latest = _sseRing.latestSeq() || lastSeq;
         try {
           res.write(`id: ${latest}\ndata: ${JSON.stringify({ type: 'catchup', missed: missed.length })}\n\n`);

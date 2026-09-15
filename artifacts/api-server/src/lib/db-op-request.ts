@@ -242,3 +242,22 @@ export function shouldBlockUnauthenticatedRequester(input: {
   );
 }
 
+
+export const OP_ADMIN_ONLY_MESSAGE = 'Forbidden: admin only';
+
+export function opAdminOnlyReject(): OpGateReject {
+  return {
+    status: 403,
+    body: { data: null, error: { message: OP_ADMIN_ONLY_MESSAGE, code: 'FORBIDDEN' } },
+  };
+}
+
+/** Spread FUNCTIONS_LOCKED_ERROR from caller (keeps message ownership in app-settings-view). */
+export function opFunctionsLockedReject(
+  lockedError: { message: string; code: string },
+): OpGateReject {
+  return {
+    status: 403,
+    body: { data: null, error: { ...lockedError } },
+  };
+}

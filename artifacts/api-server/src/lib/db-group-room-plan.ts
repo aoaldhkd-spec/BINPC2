@@ -212,3 +212,40 @@ export function buildGroupParticipantRow(
     joined_at: joinedAt,
   };
 }
+
+export type AutoMatchJoinSpec = {
+  room_kind: string;
+  name: string;
+  interest_tag: string;
+  age_group: string | null;
+  optKey: string;
+  canonicalId: string;
+};
+
+/** Pure list of auto rooms a profile should join (age decade + birth year). */
+export function planAutoMatchJoinSpecs(profile: Record<string, unknown>): AutoMatchJoinSpec[] {
+  const specs: AutoMatchJoinSpec[] = [];
+  const ageBand = ageBandFromYear(profile.birth_year);
+  const year = Number(profile.birth_year);
+  if (ageBand) {
+    specs.push({
+      room_kind: AUTO_ROOM_AGE_DECADE,
+      name: `${ageBand} 모임`,
+      interest_tag: ageBand,
+      age_group: ageBand,
+      optKey: autoRoomOptKey(AUTO_ROOM_AGE_DECADE, ageBand),
+      canonicalId: canonicalAgeRoomId(ageBand),
+    });
+  }
+  if (Number.isFinite(year) && year >= 1900 && year <= 2100) {
+    specs.push({
+      room_kind: AUTO_ROOM_BIRTH_YEAR,
+      name: `${year}년생 모임`,
+      interest_tag: `${year}년생`,
+      age_group: null,
+      optKey: autoRoomOptKey(AUTO_ROOM_BIRTH_YEAR, `${year}년생`),
+      canonicalId: canonicalYearRoomId(year),
+    });
+  }
+  return specs;
+}

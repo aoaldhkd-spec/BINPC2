@@ -563,6 +563,11 @@ describe('product copy + notification invariants', () => {
     expect(db).toContain("from '../lib/db-op-select-access'");
     expect(db).toContain("from '../lib/db-session-tokens'");
     expect(db).toContain('validateAuthLoginBody');
+    expect(db).toContain('planStorageUploadAuthPath');
+    expect(db).toContain('buildHealthAlarms');
+    expect(db).toContain('planPushSubscribeStore');
+    expect(db).toContain('planNotifyOtherInstances');
+    expect(db).toContain('planAutoMatchJoinSpecs');
     expect(db).toContain('opBusyReject');
     expect(db).toContain('validateRpcName');
     expect(db).toContain('validatePushSubscribeBody');

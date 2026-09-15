@@ -143,3 +143,64 @@ export function pushSubscribeUnauthorizedReject(): PushSubscribeReject {
   return { status: 401, body: { error: 'Unauthorized: invalid SSE token' } };
 }
 
+
+export const USER_MAX_PUSH_SUBS = 5;
+
+export type PushSubscribeStorePlan =
+  | { kind: 'update'; index: number; row: Record<string, unknown> }
+  | { kind: 'insert'; row: Record<string, unknown>; evictIndex: number | null };
+
+/**
+ * Plan push_subscriptions memory mutation for /push/subscribe.
+ * Evicts oldest user sub when at USER_MAX_PUSH_SUBS (sliding window).
+ */
+export function planPushSubscribeStore(input: {
+  subs: Record<string, unknown>[];
+  userId: string;
+  endpoint: string;
+  auth: string;
+  p256dh: string;
+  now: string;
+  newId: string;
+  maxSubs?: number;
+}): PushSubscribeStorePlan {
+  const max = input.maxSubs ?? USER_MAX_PUSH_SUBS;
+  const idx = input.subs.findIndex(
+    s => s.user_id === input.userId && s.endpoint === input.endpoint,
+  );
+  if (idx >= 0) {
+    return {
+      kind: 'update',
+      index: idx,
+      row: {
+        ...input.subs[idx],
+        auth: input.auth,
+        p256dh: input.p256dh,
+        updated_at: input.now,
+      },
+    };
+  }
+  type SubWithIdx = Record<string, unknown> & { _idx: number };
+  const userSubs = (input.subs as Array<Record<string, unknown>>)
+    .map((s, i) => ({ ...s, _idx: i } as SubWithIdx))
+    .filter(s => s['user_id'] === input.userId)
+    .sort((a, b) => String(a['created_at']).localeCompare(String(b['created_at'])));
+  let evictIndex: number | null = null;
+  if (userSubs.length >= max) {
+    const oldestIdx = input.subs.findIndex(s => s['id'] === userSubs[0]['id']);
+    if (oldestIdx >= 0) evictIndex = oldestIdx;
+  }
+  return {
+    kind: 'insert',
+    evictIndex,
+    row: {
+      id: input.newId,
+      user_id: input.userId,
+      endpoint: input.endpoint,
+      auth: input.auth,
+      p256dh: input.p256dh,
+      created_at: input.now,
+    },
+  };
+}
+

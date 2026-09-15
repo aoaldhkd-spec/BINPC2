@@ -80,7 +80,8 @@ Prefer **single Render instance**. Multi-instance는 NOTIFY로 일부 동기화�
 | `artifacts/api-server/src/lib/db-op-select-access.ts` | /op SELECT messages/chat_reads/group access planners (순수) |
 | `artifacts/api-server/src/lib/db-op-likes-limits.ts` | /op likes same-type + pair/minute rate planners (순수) |
 | `artifacts/api-server/src/lib/db-pin-lookup.ts` | /by-pin validate + nickname mask (순수) |
-| `artifacts/api-server/src/lib/db-storage-path.ts` | storage path shape + public profile-photo check (순수) |
+| `artifacts/api-server/src/lib/db-storage-path.ts` | storage path + upload/remove/image gate planners (순수) |
+| `artifacts/api-server/src/lib/db-health-plan.ts` | `/health` pin-pool/alarms/body planners (순수) |
 | `artifacts/api-server/src/lib/db-broadcast-validate.ts` | /broadcast body channel/event validate (순수) |
 | `artifacts/api-server/src/lib/db-rpc-allowlist.ts` | RPC allowlist + panel/admin-session auth planners (순수) |
 | `artifacts/api-server/src/lib/db-chat-ids.ts` | `chatPairKey` / `deterministicChatId` |
@@ -191,7 +192,7 @@ Detach = stop wiring the domain hook/callbacks into `App.tsx` / screens; keep pu
 
 Moved out of `App.tsx` (planners/hooks, behavior unchanged): SoT resync, SSE fallback poll, dark-mode storage sync, sent/received like planners + toast payloads, contact-share events, pending-hearts badge count, functions-lock kick plan, user-signal merge, realtime row upserts, settings `/ready` poll gap, profile-view debounce, broadcast notif helpers, entry password/reset planners, **profiles + user-bundle + privacy + signals SSE subscribe** (`useUserRealtimeChannel`), **profiles / privacy+signals / hearts SSE apply** (`useProfilesRealtimeApply` + `usePrivacySignalsRealtimeApply` + `useHeartsRealtimeApply`), **app_settings + notifications + contact_share_events SSE subscribe + apply** (`useAppShellRealtimeChannels` + `useAppShellRealtimeApply`), `app-settings-realtime` planner, profile SSE apply planners, block/hide planners, **admin reset wipe** (`admin-reset-wipe` plan+run; App thin `applyResetSignal`), **`/ready` bootstrap + settings poll** (`useSessionReadyBootstrap` + `ready-bootstrap-settings`), **loading-main profile boot/backoff** (`profile-boot-machine` + `useProfileBootMachine`), **early entry gates JSX** (`AppEntryGates`), **main shell + overlay JSX fan-in** (`AppMainShell` / `AppOverlays`), **hearts/chat/group lock wrappers** (`useSocialLockGuards`), **nickname/registration + recovery/reset** (`useNicknameRegistration` + `nickname-registration` planners), **profile/privacy/signals loaders** (`useProfilePrivacyLoaders` + `profile-select` column lists), **participant session-init** (`useSessionInit` + `session-init` planners).
 
-App residual is compose/wiring (setState fan-in, guarded handlers, overlay props). **db.ts peel progressing:** prior modules + **`/auth/login` + `/op` gate/write rejects + RPC panel/auth + push-subscribe + insert follow-up + SSE admit + `/ready`** planners folded into existing pure libs (re-import; single router export intact). Full `/op`/RPC router split remains the large mountain (~5.3k).
+App residual is compose/wiring (setState fan-in, guarded handlers, overlay props). **db.ts peel progressing:** prior modules + **storage-upload/remove gates + `/health` alarms + push-subscribe store + NOTIFY/autoMatch specs + signal upgrade + RPC persist** planners folded into pure libs (re-import; single router export intact). Full `/op`/RPC router split remains the large mountain (~5.3k).
 
 Path to ≥9.5 further = more `db.ts` write-path / `/op` slices — App is already wiring-thin.
 
@@ -220,7 +221,8 @@ Path to ≥9.5 further = more `db.ts` write-path / `/op` slices — App is alrea
 | Prior (db-op-update-ownership + db-op-delete-ownership) | **~9.5** | /op UPDATE/DELETE IDOR ownership planners peeled; `db.ts` ~5.49k |
 | Prior (db-op-insert-ownership + db-op-upsert-ownership) | **~9.5** | /op INSERT/UPSERT IDOR ownership planners peeled; `db.ts` ~5.42k |
 | Prior (db-op-select-access + db-op-likes-limits + pin/storage/broadcast/rpc) | **~9.5** | SELECT access + likes limits + pin/storage/broadcast/rpc allowlist peeled; `db.ts` ~5.37k |
-| This peel (auth-login + op-gate + rpc-auth + push-subscribe + insert follow-up + SSE admit) | **~9.5** | `/auth/login` + `/op` gates/rejects + RPC panel/auth + push-subscribe + insert follow-up + SSE admit + `/ready` folded into existing pure libs; `db.ts` ~5.35k. Honest claim still **~9.5** — further gains are write-path / `/op` slices |
+| Prior (auth-login + op-gate + rpc-auth + push-subscribe + insert follow-up + SSE admit) | **~9.5** | `/auth/login` + `/op` gates/rejects + RPC panel/auth + push-subscribe + insert follow-up + SSE admit + `/ready` folded into existing pure libs; `db.ts` ~5.35k |
+| This peel (storage-upload + health-plan + push-subscribe-store + notify/autoMatch) | **~9.5** | storage upload/remove gates + `/health` pin-pool/alarms + push-subscribe store + NOTIFY payload + autoMatch specs + signal upgrade + RPC persist rejects folded into pure libs; `db.ts` ~5.32k. Honest claim still **~9.5** — further gains are write-path / `/op` slices |
 | Beyond 9.5 | more `db.ts` write-path / `/op` slices | Keep App wiring-thin; do not re-inline apply |
 
 ### Next incremental steps (no big-bang rewrite)

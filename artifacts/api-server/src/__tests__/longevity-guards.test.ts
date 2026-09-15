@@ -196,7 +196,9 @@ describe('longevity recurrence guards (server)', () => {
     expect(dbTs).toContain("from '../lib/db-pin-lookup'");
     expect(dbTs).toContain('maskNicknameForPinConfirm');
     expect(dbTs).toContain("from '../lib/db-storage-path'");
-    expect(dbTs).toContain('isValidStoragePath');
+    expect(dbTs).toContain('planStorageUploadAuthPath');
+    const storagePath = readFileSync(join(here, '../lib/db-storage-path.ts'), 'utf8');
+    expect(storagePath).toContain('isValidStoragePath');
     expect(dbTs).toContain("from '../lib/db-broadcast-validate'");
     expect(dbTs).toContain('validateBroadcastBody');
     expect(dbTs).toContain("from '../lib/db-rpc-allowlist'");
@@ -233,6 +235,27 @@ describe('longevity recurrence guards (server)', () => {
     const opReq = readFileSync(join(here, '../lib/db-op-request.ts'), 'utf8');
     expect(sess).toContain('validateAuthLoginBody');
     expect(opReq).toContain('opBusyReject');
+  });
+
+  it('storage-upload + health-plan + push-subscribe-store + notify/autoMatch stay extracted', () => {
+    expect(dbTs).toContain("from '../lib/db-storage-path'");
+    expect(dbTs).toContain('planStorageUploadAuthPath');
+    expect(dbTs).toContain('planStorageUploadContent');
+    expect(dbTs).toContain("from '../lib/db-health-plan'");
+    expect(dbTs).toContain('buildHealthAlarms');
+    expect(dbTs).toContain('planPinPoolStats');
+    expect(dbTs).toContain('planPushSubscribeStore');
+    expect(dbTs).toContain('planNotifyOtherInstances');
+    expect(dbTs).toContain('planAutoMatchJoinSpecs');
+    expect(dbTs).toContain('planSignalSendsExistingRow');
+    expect(dbTs).toContain('opAdminOnlyReject');
+    expect(dbTs).not.toMatch(/이미지를 너무 자주 업로드하고 있습니다/);
+    expect(dbTs).not.toMatch(/회의 상태 저장 실패/);
+    expect(dbTs).not.toMatch(/PIN pool nearly full:/);
+    const storage = readFileSync(join(here, '../lib/db-storage-path.ts'), 'utf8');
+    const health = readFileSync(join(here, '../lib/db-health-plan.ts'), 'utf8');
+    expect(storage).toContain('planStorageUploadAuthPath');
+    expect(health).toContain('buildHealthAlarms');
   });
 
   it('app-settings-merge + panel-tokens stay extracted from db.ts', () => {
@@ -273,7 +296,8 @@ describe('longevity recurrence guards (server)', () => {
     expect(policy).not.toContain('heart_balances');
     expect(dbTs).toMatch(/await dbPersistRow\(/);
     expect(dbTs).toMatch(/resolveAuthUserId\(req, body\)/);
-    expect(dbTs).toMatch(/isPublicProfilePhoto|profile-photos\/[\w-]+/);
+    const storagePath2 = readFileSync(join(here, '../lib/db-storage-path.ts'), 'utf8');
+    expect(storagePath2).toMatch(/isPublicProfilePhoto|profile-photos\/[\w-]+/);
   });
 
   it('cleanupLegacyTables runs after seed and on 5-minute interval (startup PG purge)', () => {

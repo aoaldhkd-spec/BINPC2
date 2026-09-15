@@ -17,6 +17,12 @@ import {
   buildInsertedRow,
   messageReceiverIdFromChat,
   shouldForceServerCreatedAt,
+  planSignalSendsExistingRow,
+  withMessageChatPairFields,
+  peerIdFromChat,
+  isChatRowParticipantOf,
+  buildGroupParticipantInsertRow,
+  groupParticipantsLimitReject,
 } from './db-op-insert-ownership.js';
 
 describe('db-op-insert-ownership', () => {
@@ -136,5 +142,24 @@ describe('db-op-insert-followup (via insert-ownership)', () => {
   it('messageReceiverIdFromChat', () => {
     expect(messageReceiverIdFromChat({ user1_id: 'a', user2_id: 'b' }, 'a')).toBe('b');
     expect(messageReceiverIdFromChat({ user1_id: 'a', user2_id: 'b' }, 'b')).toBe('a');
+  });
+});
+
+describe('insert follow-up planners (69)', () => {
+  it('planSignalSendsExistingRow', () => {
+    expect(planSignalSendsExistingRow({ existing: undefined, action: 'send' }).kind).toBe('continue_insert');
+    expect(planSignalSendsExistingRow({ existing: { action: 'send' }, action: 'pass' }).kind).toBe('return_existing');
+    const up = planSignalSendsExistingRow({ existing: { action: 'pass', id: '1' }, action: 'send' });
+    expect(up.kind).toBe('upgrade');
+  });
+
+  it('message chat pair helpers + group participant row', () => {
+    const chat = { user1_id: 'a', user2_id: 'b' };
+    expect(isChatRowParticipantOf(chat, 'a')).toBe(true);
+    expect(peerIdFromChat(chat, 'a')).toBe('b');
+    expect(withMessageChatPairFields({ x: 1 }, chat).chat_user1_id).toBe('a');
+    const row = buildGroupParticipantInsertRow({ joined_at: undefined }, 'g1', 'u1', 'now');
+    expect(row.id).toBe('g1__u1');
+    expect(groupParticipantsLimitReject('한도').body.error.code).toBe('GROUP_LIMIT');
   });
 });

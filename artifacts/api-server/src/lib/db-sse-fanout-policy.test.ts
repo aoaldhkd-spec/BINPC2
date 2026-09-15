@@ -111,3 +111,28 @@ describe('db-sse-fanout-policy admit', () => {
     expect(sseAnonLimitReject().status).toBe(429);
   });
 });
+
+import {
+  planNotifyOtherInstances,
+  planSseRingReplay,
+  shouldEvictOldestSseConn,
+} from './db-sse-fanout-policy.js';
+
+describe('sse notify + ring replay (69)', () => {
+  it('planNotifyOtherInstances', () => {
+    expect(planNotifyOtherInstances({
+      table: 'app_image_store', ev: 'INSERT', newRow: { id: '1' }, oldRow: null, instanceId: 'i',
+    }).action).toBe('skip');
+    const tomb = planNotifyOtherInstances({
+      table: 'app_settings', ev: 'UPDATE', newRow: { id: 's' }, oldRow: null, instanceId: 'i',
+    });
+    expect(tomb.action).toBe('enqueue');
+    if (tomb.action === 'enqueue') expect(tomb.msg).toContain('_tombstone');
+  });
+
+  it('ring replay + evict', () => {
+    expect(planSseRingReplay(201)).toBe('catchup');
+    expect(planSseRingReplay(10)).toBe('replay');
+    expect(shouldEvictOldestSseConn(10, 10)).toBe(true);
+  });
+});

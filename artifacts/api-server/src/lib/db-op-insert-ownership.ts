@@ -535,3 +535,82 @@ export function messageReceiverIdFromChat(
   return receiverId != null ? String(receiverId) : null;
 }
 
+
+export type SignalExistingPlan =
+  | { kind: 'return_existing' }
+  | { kind: 'upgrade'; upgraded: Record<string, unknown> }
+  | { kind: 'continue_insert' };
+
+/**
+ * Existing signal_sends row: return as-is, upgrade pass→send, or continue fresh insert.
+ */
+export function planSignalSendsExistingRow(input: {
+  existing: Record<string, unknown> | undefined;
+  action: 'send' | 'pass';
+}): SignalExistingPlan {
+  if (!input.existing) return { kind: 'continue_insert' };
+  const existingAction = input.existing.action === 'send' ? 'send' : 'pass';
+  if (input.action === 'pass' || existingAction === 'send') {
+    return { kind: 'return_existing' };
+  }
+  return {
+    kind: 'upgrade',
+    upgraded: { ...input.existing, action: 'send' },
+  };
+}
+
+export function groupParticipantsLimitReject(message: string): OpOwnershipReject {
+  return {
+    status: 400,
+    body: { data: null, error: { message, code: 'GROUP_LIMIT' } },
+    logMsg: '',
+  };
+}
+
+/** Deterministic group_participants id + joined_at stamp. */
+export function buildGroupParticipantInsertRow(
+  effectiveRow: Record<string, unknown>,
+  groupId: string,
+  requesterId: string,
+  joinedAt: string,
+): Record<string, unknown> {
+  return {
+    ...effectiveRow,
+    id: `${groupId}__${requesterId}`,
+    group_id: groupId,
+    user_id: requesterId,
+    joined_at: effectiveRow.joined_at ?? joinedAt,
+  };
+}
+
+/** Attach denormalized chat user ids onto a messages row. */
+export function withMessageChatPairFields(
+  row: Record<string, unknown>,
+  chat: Record<string, unknown>,
+): Record<string, unknown> {
+  return {
+    ...row,
+    chat_user1_id: chat.user1_id,
+    chat_user2_id: chat.user2_id,
+  };
+}
+
+export function peerIdFromChat(
+  chat: Record<string, unknown>,
+  requesterId: string,
+): string {
+  return String(chat.user1_id) === String(requesterId)
+    ? String(chat.user2_id)
+    : String(chat.user1_id);
+}
+
+export function isChatRowParticipantOf(
+  chat: Record<string, unknown> | undefined,
+  requesterId: string,
+): boolean {
+  if (!chat) return false;
+  return (
+    String(chat.user1_id) === String(requesterId)
+    || String(chat.user2_id) === String(requesterId)
+  );
+}

@@ -3,6 +3,8 @@ import {
   planPushForEvent,
   validatePushSubscribeBody,
   pushSubscribeUnauthorizedReject,
+  planPushSubscribeStore,
+  USER_MAX_PUSH_SUBS,
 } from './db-push-plan.js';
 
 describe('db-push-plan', () => {
@@ -100,5 +102,28 @@ describe('db-push-subscribe (via push-plan)', () => {
     expect(validatePushSubscribeBody(null).ok).toBe(false);
     expect(validatePushSubscribeBody({ userId: 'u' }).ok).toBe(false);
     expect(pushSubscribeUnauthorizedReject().status).toBe(401);
+  });
+});
+
+describe('planPushSubscribeStore', () => {
+  it('updates existing endpoint', () => {
+    const subs = [{ id: '1', user_id: 'u', endpoint: 'e', auth: 'a', p256dh: 'p', created_at: '2020' }];
+    const plan = planPushSubscribeStore({
+      subs, userId: 'u', endpoint: 'e', auth: 'a2', p256dh: 'p2', now: 'now', newId: 'x',
+    });
+    expect(plan.kind).toBe('update');
+    if (plan.kind === 'update') expect(plan.row.auth).toBe('a2');
+  });
+
+  it('evicts oldest when at max', () => {
+    const subs = Array.from({ length: USER_MAX_PUSH_SUBS }, (_, i) => ({
+      id: String(i), user_id: 'u', endpoint: `e${i}`, auth: 'a', p256dh: 'p',
+      created_at: `2020-01-0${i + 1}`,
+    }));
+    const plan = planPushSubscribeStore({
+      subs, userId: 'u', endpoint: 'new', auth: 'a', p256dh: 'p', now: 'now', newId: 'n',
+    });
+    expect(plan.kind).toBe('insert');
+    if (plan.kind === 'insert') expect(plan.evictIndex).toBe(0);
   });
 });

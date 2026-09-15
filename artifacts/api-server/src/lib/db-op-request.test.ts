@@ -77,3 +77,12 @@ describe('db-op-gate (via op-request)', () => {
     })).toBe(false);
   });
 });
+
+import { opAdminOnlyReject, opFunctionsLockedReject } from './db-op-request.js';
+
+describe('op write gates (69)', () => {
+  it('admin only + functions locked', () => {
+    expect(opAdminOnlyReject().body.error.code).toBe('FORBIDDEN');
+    expect(opFunctionsLockedReject({ message: '잠김', code: 'FUNCTIONS_LOCKED' }).body.error.code).toBe('FUNCTIONS_LOCKED');
+  });
+});

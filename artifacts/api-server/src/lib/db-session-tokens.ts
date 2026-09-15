@@ -213,3 +213,67 @@ export function planAuthLoginDecision(input: {
   return { action: 'deny' };
 }
 
+
+export function authSseTokenUnauthReject(): AuthLoginReject {
+  return { status: 401, body: { error: 'Not authenticated — call /auth/login first' } };
+}
+
+export function authSseTokenInternalReject(): AuthLoginReject {
+  return { status: 500, body: { error: 'Internal server error' } };
+}
+
+/**
+ * Resolve session user for /auth/sse-token (cookie session or body sessionToken).
+ * Crypto verify is injected so this stays pure given booleans.
+ */
+export function planAuthSseTokenUser(input: {
+  sessionUserId: string | null | undefined;
+  bodyUserId: string | undefined;
+  bodySessionToken: string | undefined;
+  sessionTokenValid: boolean;
+}): { ok: true; userId: string } | { ok: false } {
+  let sessionUserId = input.sessionUserId ?? null;
+  if (!sessionUserId && input.bodyUserId && input.bodySessionToken && input.sessionTokenValid) {
+    sessionUserId = input.bodyUserId;
+  }
+  if (!sessionUserId) return { ok: false };
+  return { ok: true, userId: sessionUserId };
+}
+
+export type ProfileDeviceSecretBind =
+  | { action: 'none' }
+  | { action: 'bind'; profileId: string; secretHash: string; strip: true };
+
+/**
+ * Profiles INSERT may include _device_secret (TOFU). Caller HMAC-hashes via injected fn.
+ */
+export function planProfileDeviceSecretBind(
+  table: string,
+  row: Record<string, unknown>,
+  hashSecret: (secret: string) => string,
+): ProfileDeviceSecretBind {
+  if (table !== 'profiles' || typeof row._device_secret !== 'string') {
+    return { action: 'none' };
+  }
+  const profileId = String(row.id ?? '');
+  return {
+    action: 'bind',
+    profileId,
+    secretHash: hashSecret(row._device_secret as string),
+    strip: true,
+  };
+}
+
+export function buildDeviceSecretRow(input: {
+  id: string;
+  userId: string;
+  secretHash: string;
+  createdAt: string;
+}): Record<string, unknown> {
+  return {
+    id: input.id,
+    user_id: input.userId,
+    secret_hash: input.secretHash,
+    created_at: input.createdAt,
+  };
+}

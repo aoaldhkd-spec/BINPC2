@@ -119,3 +119,14 @@ describe('db-group-room-plan', () => {
   });
 
 });
+
+import { planAutoMatchJoinSpecs } from './db-group-room-plan.js';
+
+describe('planAutoMatchJoinSpecs', () => {
+  it('returns age + birth year rooms', () => {
+    const specs = planAutoMatchJoinSpecs({ birth_year: 1995 });
+    expect(specs.length).toBe(2);
+    expect(specs[0].room_kind).toBeTruthy();
+    expect(specs[1].name).toContain('1995');
+  });
+});

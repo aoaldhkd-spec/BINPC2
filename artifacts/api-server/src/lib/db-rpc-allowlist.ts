@@ -215,3 +215,42 @@ export function planCheckTestPassword(input: {
   return { ok: true };
 }
 
+
+export const RPC_SESSION_PERSIST_FAILED_MESSAGE =
+  '회의 상태 저장 실패 — 잠시 후 다시 시도해 주세요.';
+export const RPC_SETTINGS_PERSIST_FAILED_MESSAGE =
+  '설정 저장 실패 — 잠시 후 다시 시도해 주세요.';
+
+export function rpcSessionPersistFailedReject(): RpcGateReject {
+  return {
+    status: 503,
+    body: {
+      data: null,
+      error: { message: RPC_SESSION_PERSIST_FAILED_MESSAGE, code: 'PERSIST_FAILED' },
+    },
+  };
+}
+
+export function rpcSettingsPersistFailedReject(): RpcGateReject {
+  return {
+    status: 503,
+    body: {
+      data: null,
+      error: { message: RPC_SETTINGS_PERSIST_FAILED_MESSAGE, code: 'PERSIST_FAILED' },
+    },
+  };
+}
+
+/** Persist bootstrap panel password when env secret matched and DB still default/empty. */
+export function shouldPersistBootstrapPanelPassword(input: {
+  provided: string;
+  bootstrap: string | undefined;
+  dbValue: string;
+  isDefault: (v: string) => boolean;
+}): boolean {
+  return Boolean(
+    input.bootstrap
+    && input.provided === input.bootstrap
+    && (!input.dbValue || input.isDefault(input.dbValue)),
+  );
+}

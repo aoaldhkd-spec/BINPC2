@@ -112,3 +112,32 @@ describe('db-auth-login (via session-tokens)', () => {
     })).toEqual({ action: 'deny' });
   });
 });
+
+import {
+  planProfileDeviceSecretBind,
+  buildDeviceSecretRow,
+  planAuthSseTokenUser,
+} from './db-session-tokens.js';
+
+describe('device secret bind + sse-token plan (69)', () => {
+  it('planProfileDeviceSecretBind', () => {
+    expect(planProfileDeviceSecretBind('likes', {}, () => 'h').action).toBe('none');
+    const bind = planProfileDeviceSecretBind(
+      'profiles',
+      { id: 'u1', _device_secret: 'sec' },
+      (s) => `h:${s}`,
+    );
+    expect(bind.action).toBe('bind');
+    if (bind.action === 'bind') expect(bind.secretHash).toBe('h:sec');
+    expect(buildDeviceSecretRow({ id: '1', userId: 'u', secretHash: 'h', createdAt: 't' }).user_id).toBe('u');
+  });
+
+  it('planAuthSseTokenUser', () => {
+    expect(planAuthSseTokenUser({
+      sessionUserId: null, bodyUserId: 'u', bodySessionToken: 't', sessionTokenValid: true,
+    })).toEqual({ ok: true, userId: 'u' });
+    expect(planAuthSseTokenUser({
+      sessionUserId: null, bodyUserId: 'u', bodySessionToken: 't', sessionTokenValid: false,
+    }).ok).toBe(false);
+  });
+});
