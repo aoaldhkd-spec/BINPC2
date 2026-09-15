@@ -448,9 +448,13 @@ mustMatch('artifacts/boltnew-app/src/lib/localdb.ts', '42_localdb_lt_filter', [
   /type:\s*'lt'/,
   /lt\(col: string, val: unknown\)/,
 ]);
-mustMatch('artifacts/api-server/src/routes/db.ts', '42_server_lt_filter', [
+mustMatch('artifacts/api-server/src/lib/db-op-filters.ts', '42_server_lt_filter', [
   /type:\s*'lt'/,
   /f\.type === 'lt' \|\| f\.type === 'gt'/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '42_db_imports_op_filters', [
+  /from '\.\.\/lib\/db-op-filters'/,
+  /applyFilters/,
 ]);
 
 
@@ -655,6 +659,64 @@ mustMatch('ARCHITECTURE.md', '47_architecture_path_to_9_5', [
   /AppEntryGates/,
   /~9\.5/,
   /db\.ts/,
+]);
+
+
+
+// --- 48 App main/overlay JSX fan-in + api-server db.ts start peel ---
+mustExist('artifacts/boltnew-app/src/components/AppMainShell.tsx', '48_app_main_shell_module');
+mustExist('artifacts/boltnew-app/src/components/AppOverlays.tsx', '48_app_overlays_module');
+mustExist('artifacts/api-server/src/lib/db-op-filters.ts', '48_db_op_filters_module');
+mustExist('artifacts/api-server/src/lib/db-op-filters.test.ts', '48_db_op_filters_tests');
+mustExist('artifacts/api-server/src/lib/db-panel-secrets.ts', '48_db_panel_secrets_module');
+mustExist('artifacts/api-server/src/lib/db-panel-secrets.test.ts', '48_db_panel_secrets_tests');
+mustMatch('artifacts/boltnew-app/src/App.tsx', '48_app_wires_main_shell_and_overlays', [
+  /AppMainShell/,
+  /AppOverlays/,
+  /renderAppEntryGates/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/App.tsx', '48_app_no_inline_mainscreen_jsx', [
+  /<MainScreen\b/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/App.tsx', '48_app_no_inline_reconnect_or_notif_modal', [
+  /<ReconnectOverlay\b/,
+  /<NotifModal\b/,
+  /<ProfileDetail\b/,
+  /<ChatScreen\b/,
+]);
+mustMatch('artifacts/boltnew-app/src/components/AppMainShell.tsx', '48_main_shell_keeps_inert_mainscreen', [
+  /inert=\{isSubScreen/,
+  /<MainScreen/,
+  /pointer-events-none/,
+]);
+mustMatch('artifacts/boltnew-app/src/components/AppOverlays.tsx', '48_overlays_keep_korean_and_modals', [
+  /하트를 거절했습니다/,
+  /채팅방 열는 중/,
+  /LikeConfirmDialog/,
+  /FortuneTabLazy/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '48_db_reexports_stable_via_import', [
+  /from '\.\.\/lib\/db-op-filters'/,
+  /from '\.\.\/lib\/db-panel-secrets'/,
+  /PANEL_DEFAULT_PASSWORD/,
+  /applyFilters/,
+  /panelSecretsForRuntime/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '48_db_still_single_router_export', [
+  /export default router;\s*$/,
+]);
+mustNotMatch('artifacts/api-server/src/routes/db.ts', '48_db_no_inline_filter_or_collect_secrets', [
+  /function applyFilters\(/,
+  /function collectSecrets\(/,
+  /function matchFilter\(/,
+]);
+mustMatch('ARCHITECTURE.md', '48_architecture_path_after_shell_db_peel', [
+  /AppMainShell/,
+  /AppOverlays/,
+  /db-op-filters/,
+  /db-panel-secrets/,
+  /~9\.5/,
+  /8\.[567]/,
 ]);
 
 console.log('\n=== verify-recurrence-guards ===\n');

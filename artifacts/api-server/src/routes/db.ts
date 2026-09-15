@@ -50,6 +50,18 @@ import {
 } from '../lib/db-rate-limit';
 import { mergeDbRowsIntoMemory, shouldBroadcastBulkResync } from '../lib/db-store-merge';
 import {
+  type FilterSpec,
+  applyFilters,
+} from '../lib/db-op-filters';
+import {
+  PANEL_DEFAULT_PASSWORD,
+  isDefaultPanelPassword,
+  secretMatches,
+  panelSecretsForRuntime,
+  panelAdminSecrets,
+  panelTestSecrets,
+} from '../lib/db-panel-secrets';
+import {
   LEGACY_APP_SETTINGS_KEYS,
   LEGACY_KV_TABLES,
   settingsHaveLegacyKeys,
@@ -76,7 +88,6 @@ declare module 'express-session' {
 
 const router = Router();
 
-const PANEL_DEFAULT_PASSWORD = '116606';
 /** Admin participant nickname is always fixed after reset / bootstrap. */
 const ADMIN_FIXED_NICKNAME = '범일NPC';
 /** 생월·생일 변경 최대 횟수 — FE `lib/birth-md-edit.ts` BIRTH_MD_EDIT_MAX 와 동기화 */
@@ -374,7 +385,6 @@ async function bumpResetSignalAndBroadcast(): Promise<string> {
   return signal;
 }
 
-const LEGACY_PANEL_PASSWORDS = ['166606', PANEL_DEFAULT_PASSWORD] as const;
 
 class RpcAuthError extends Error {
   statusCode = 403;
@@ -1390,52 +1400,6 @@ const PRODUCTION_QR_BASE = 'https://binpc2.netlify.app';
 function isLocalQrUrl(url: unknown): boolean {
   const s = String(url ?? '');
   return !s || /localhost|127\.0\.0\.1|0\.0\.0\.0/i.test(s);
-}
-
-function collectSecrets(...vals: Array<string | null | undefined>): string[] {
-  const out: string[] = [];
-  for (const v of vals) {
-    const s = (v ?? '').trim();
-    if (s && !out.includes(s)) out.push(s);
-  }
-  return out;
-}
-
-function isDefaultPanelPassword(pw: string): boolean {
-  const s = pw.trim();
-  return !s || LEGACY_PANEL_PASSWORDS.some(l => l === s);
-}
-
-function secretMatches(provided: string, secrets: string[]): boolean {
-  const p = provided.trim();
-  return p.length > 0 && secrets.some(s => s === p);
-}
-
-/**
- * Factory credentials are convenient only for local/test bootstrap. Render runs
- * with NODE_ENV=production, where accepting a password published in this
- * repository would make every panel operation publicly accessible.
- */
-function panelSecretsForRuntime(...configured: Array<string | null | undefined>): string[] {
-  const secrets = collectSecrets(...configured);
-  if (process.env.NODE_ENV !== 'production') {
-    return collectSecrets(...secrets, PANEL_DEFAULT_PASSWORD, ...LEGACY_PANEL_PASSWORDS);
-  }
-  return secrets.filter(secret => !isDefaultPanelPassword(secret));
-}
-
-function panelAdminSecrets(dbAdmin?: string | null): string[] {
-  return panelSecretsForRuntime(
-    dbAdmin ?? '',
-    process.env.BOOTSTRAP_ADMIN_PASSWORD,
-  );
-}
-
-function panelTestSecrets(dbTest?: string | null): string[] {
-  return panelSecretsForRuntime(
-    dbTest ?? '',
-    process.env.BOOTSTRAP_TEST_PASSWORD,
-  );
 }
 
 const SECRET_SETTING_KEYS = ['admin_password', 'test_password', 'entry_password', 'reset_password'] as const;
@@ -3137,65 +3101,6 @@ async function sendPushForEvent(
     store['push_subscriptions'] = (store['push_subscriptions'] ?? []).filter(s => !expired.includes(s.id as string));
     dbDeleteRows('push_subscriptions', expired).catch(e => logger.error({ err: e }, '[db] background task error'));
   }
-}
-
-// ─── Filter helpers ───────────────────────────────────────────────────────────
-type FilterSpec =
-  | { type: 'eq'; col: string; val: unknown }
-  | { type: 'neq'; col: string; val: unknown }
-  | { type: 'in'; col: string; vals: unknown[] }
-  | { type: 'or'; expr: string }
-  | { type: 'lt'; col: string; val: unknown }
-  | { type: 'gt'; col: string; val: unknown };
-
-function compareFilterValues(rowVal: unknown, filterVal: unknown): number | null {
-  if (rowVal == null || filterVal == null) return null;
-  const aNum = typeof rowVal === 'number' ? rowVal : Number(rowVal);
-  const bNum = typeof filterVal === 'number' ? filterVal : Number(filterVal);
-  // Avoid treating ISO timestamps as numbers (Number('2026-...') === NaN — fine).
-  if (Number.isFinite(aNum) && Number.isFinite(bNum) && String(rowVal).trim() !== '' && !String(rowVal).includes('-') && !String(rowVal).includes('T')) {
-    return aNum < bNum ? -1 : aNum > bNum ? 1 : 0;
-  }
-  const as = String(rowVal);
-  const bs = String(filterVal);
-  return as < bs ? -1 : as > bs ? 1 : 0;
-}
-
-function matchFilter(row: Record<string, unknown>, f: FilterSpec): boolean {
-  if (f.type === 'eq') {
-    return row[f.col] === f.val || String(row[f.col]) === String(f.val);
-  }
-  if (f.type === 'neq') {
-    return row[f.col] !== f.val && String(row[f.col]) !== String(f.val);
-  }
-  if (f.type === 'in') {
-    return f.vals.some(v => row[f.col] === v || String(row[f.col]) === String(v));
-  }
-  if (f.type === 'lt' || f.type === 'gt') {
-    const cmp = compareFilterValues(row[f.col], f.val);
-    if (cmp == null) return false;
-    return f.type === 'lt' ? cmp < 0 : cmp > 0;
-  }
-  if (f.type === 'or') {
-    const parts = f.expr.split(',').map(s => s.trim());
-    return parts.some(part => {
-      const m = part.match(/^(\w+)\.(\w+)\.(.+)$/);
-      if (!m) return false;
-      const [, col, op, val] = m;
-      if (op === 'eq') return row[col] === val || String(row[col]) === val;
-      if (op === 'neq') return row[col] !== val && String(row[col]) !== val;
-      return false;
-    });
-  }
-  return false;
-}
-
-function applyFilters(
-  rows: Record<string, unknown>[],
-  filters: FilterSpec[],
-): Record<string, unknown>[] {
-  if (!filters.length) return rows;
-  return rows.filter(r => filters.every(f => matchFilter(r, f)));
 }
 
 // ─── DB operation endpoint ────────────────────────────────────────────────────

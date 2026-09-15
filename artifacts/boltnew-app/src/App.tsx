@@ -1,7 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
-import {
-  X,
-} from 'lucide-react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { supabase, setLocalDbUserId, setDeviceRecoveryPin, fetchAndSetSseToken, getDeviceSecret, ensureWriteSession } from './lib/supabase';
 import { useParticipantSoTResync } from './hooks/useParticipantSoTResync';
 import { useSseFallbackPoll } from './hooks/useSseFallbackPoll';
@@ -15,7 +12,7 @@ import type { SessionReadySettingsPatch } from './lib/session-ready-settings';
 import { planAppSettingsRealtimeUpdate } from './lib/app-settings-realtime';
 import { diag } from './lib/diag';
 import { subscribeNetUi, resetNetUiForRetry, type NetUiStatus } from './lib/net-health';
-import { excludeSwipeGestureVerifyProfiles, hasProfileFortuneCompatData } from './lib/profile';
+import { excludeSwipeGestureVerifyProfiles } from './lib/profile';
 import { mergeProfilesPreserveOrder, sortProfilesStable } from './lib/profile-list-order';
 import {
   planProfilesAfterDelete,
@@ -36,10 +33,6 @@ import {
   shouldShowNicknameSetup,
   shouldShowRecoveryScreen,
 } from './lib/entry-gate';
-import {
-  hasInterestHeart,
-  isInterestHeart,
-} from './lib/signal-match';
 import { isIncomingHeartToastTarget, MUTUAL_HEART_TOAST, planIncomingHeartBottomNotif } from './lib/heart-toast';
 import { planReceivedLikeUpdate, preferReceivedHeartType } from './lib/received-like-update';
 import { planSentLikeInsert, shouldKeepExistingSentHeartType, planSentLikeStatusNotif } from './lib/sent-like-insert';
@@ -62,20 +55,9 @@ import type {
   View, MainTab, BlockedUser, ProfileView, UserSignal,
 } from './types/app';
 import { useGroupChat } from './hooks/useGroupChat';
-import { GroupChatScreen } from './components/GroupChatScreen';
-import { ChatErrorBoundary } from './components/ChatErrorBoundary';
-import { AppErrorBoundary } from './components/AppErrorBoundary';
-import ProfileDetail from './components/ProfileDetail';
-import ReconnectOverlay from './components/ReconnectOverlay';
-import { NotifModal } from './components/NotifModal';
-import { ConfettiOverlay } from './components/ConfettiOverlay';
-import { LikeConfirmDialog } from './components/LikeConfirmDialog';
-import { ContactShareModal } from './components/ContactShareModal';
-import { ContactViewModal } from './components/ContactViewModal';
-import { FortuneTabLazy } from './components/FortuneTab.lazy';
 import { renderAppEntryGates } from './components/AppEntryGates';
-import { ResetPasswordSheet } from './components/ResetButton';
-import { ContactRevealModal } from './components/ContactRevealModal';
+import { AppMainShell } from './components/AppMainShell';
+import { AppOverlays } from './components/AppOverlays';
 import {
   MATCHING_USER_KEY, MATCHING_DRAFT_KEY, MATCHING_LAST_RESET_KEY,
   MATCHING_PROFILES_CACHE_KEY,
@@ -86,14 +68,12 @@ import { clearAllGroupLastReads } from './lib/group-rooms';
 import { useHearts } from './hooks/useHearts';
 import { useChat } from './hooks/useChat';
 import { createParticipantNav, isParticipantAppPath } from './lib/participant-nav-history';
-import { NavLayer, ParticipantNavProvider } from './hooks/useParticipantNav';
+import { ParticipantNavProvider } from './hooks/useParticipantNav';
 import { registerPushSub } from './lib/webPush';
 import {
-  BottomNotification,
   type BottomNotificationData,
 } from './components/BottomNotification';
 import {
-  ShareEventNotification,
   type ShareEventNotificationData,
 } from './components/ShareEventNotification';
 import {
@@ -102,18 +82,8 @@ import {
   type ScannedContact,
 } from './lib/profile-contact-helpers';
 
-const loadChatScreen = () => import('./components/ChatScreen');
 const loadMainScreen = () => import('./components/MainScreen').then(m => ({ default: m.MainScreen }));
-const ChatScreen = lazy(loadChatScreen);
-const MainScreen = lazy(loadMainScreen);
-const TutorialModal = lazy(() => import('./components/TutorialModal').then(m => ({ default: m.TutorialModal })));
-const QrScannerModal = lazy(() => import('./components/QrScannerModal').then(m => ({ default: m.QrScannerModal })));
-const ContactDisplayModal = lazy(() => import('./components/ContactDisplayModal').then(m => ({ default: m.ContactDisplayModal })));
-const overlayLazyFallback = (
-  <div className="fixed inset-0 z-[200] flex items-center justify-center pointer-events-none">
-    <div className="h-5 w-5 rounded-full border-2 border-slate-400/25 border-t-slate-300 animate-spin" />
-  </div>
-);
+const loadChatScreen = () => import('./components/ChatScreen');
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 
@@ -1502,364 +1472,169 @@ function App() {
 
   return (
     <ParticipantNavProvider nav={participantNav}>
-    <>
-      <NavLayer id="tutorial" open={showTutorialModal} onClose={() => setShowTutorialModal(false)} />
-      <NavLayer id="notif" open={!!activeNotif} onClose={() => setActiveNotif(null)} />
-      <NavLayer id="reset-password" open={showResetPassword} onClose={() => setShowResetPassword(false)} />
-      <NavLayer id="like-confirm" open={!!likeConfirmTarget} onClose={() => setLikeConfirmTarget(null)} />
-      <NavLayer id="contact-share" open={!!contactShareTarget} onClose={() => setContactShareTarget(null)} />
-      <NavLayer id="contact-view" open={!!contactViewShare} onClose={() => setContactViewShare(null)} />
-      <NavLayer id="contact-qr" open={showContactQr} onClose={() => setShowContactQr(false)} />
-      <NavLayer id="qr-scanner" open={showQrScanner} onClose={() => setShowQrScanner(false)} />
-      <NavLayer id="scanned-contact" open={!!scannedContactProfile} onClose={() => setScannedContactProfile(null)} />
-      <NavLayer id="fortune-modal" open={!!fortuneModalTarget} onClose={() => setFortuneModalTarget(null)} />
-      {/* Tutorial modal — JS (TutorialVideo) loads on first open */}
-      {showTutorialModal && (
-        <Suspense fallback={overlayLazyFallback}>
-          <TutorialModal
-            onClose={() => {
-              setShowTutorialModal(false);
-            }}
-            darkMode={darkMode}
-          />
-        </Suspense>
-      )}
-
-      {connStatus !== 'ok' && (
-        <ReconnectOverlay
-          status={connStatus}
-          onRetry={() => {
-            resetNetUiForRetry();
-            const uid = userIdRef.current;
-            if (uid) {
-              fetchAndSetSseToken(uid).catch(() => {});
-              loadChatListRef.current?.(uid).catch(() => {});
-              loadReceivedLikesRef.current?.(uid).catch(() => {});
-              loadLikesRef.current?.(uid).catch(() => {});
-              loadContactShareDataRef.current?.(uid).catch(() => {});
-              loadProfilesRef.current().catch(() => {});
-            } else {
-              window.location.reload();
-            }
-          }}
-        />
-      )}
-      {/* Broadcast notification modal */}
-      {activeNotif && (
-        <AppErrorBoundary screenName="공지 알림" onReset={() => setActiveNotif(null)}>
-          <NotifModal notif={activeNotif} onClose={() => setActiveNotif(null)} />
-        </AppErrorBoundary>
-      )}
-      {/* Heart rejection notification */}
-      {rejectionNotif && (
-        <AppErrorBoundary screenName="거절 알림" onReset={() => setRejectionNotif(null)}>
-          <div className="fixed bottom-[calc(0.75rem+var(--participant-tabbar,0px))] left-0 right-0 z-[150] flex justify-center px-4 pointer-events-none">
-            <div className="max-w-full bg-gray-800 text-white px-4 min-[360px]:px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 pointer-events-auto animate-bounce">
-              <span className="text-lg">💔</span>
-              <div>
-                <p className="text-sm font-bold">{rejectionNotif}님이 하트를 거절했습니다</p>
-              </div>
-              <button onClick={() => setRejectionNotif(null)} className="touch-target text-white/60 hover:text-white text-lg flex-shrink-0 flex items-center justify-center">×</button>
-            </div>
-          </div>
-        </AppErrorBoundary>
-      )}
-      {/* Bottom notification: new heart / chat */}
-      {functionsLockToast && (
-        <div className="fixed bottom-[calc(0.75rem+var(--participant-tabbar,0px))] left-0 right-0 z-[10060] flex justify-center px-3 min-[360px]:px-4 pointer-events-none">
-          <div className="max-w-full bg-gray-800/95 text-white px-4 py-2 rounded-full shadow-xl text-[12px] font-bold">
-            {functionsLockToast}
-          </div>
-        </div>
-      )}
-      {bottomNotif && (
-        <AppErrorBoundary screenName="하단 알림" onReset={() => setBottomNotif(null)}>
-          <BottomNotification
-            notification={bottomNotif}
-            onClose={() => setBottomNotif(null)}
-            onGoToStatus={() => { setMySubTabHint('status'); handleMainTabChange('my'); setBottomNotif(null); }}
-            onGoToChats={() => { setMySubTabHint('chats'); handleMainTabChange('my'); setBottomNotif(null); }}
-            onViewProfile={() => {
-              const id = bottomNotif.profileId;
-              const p = (id && (profiles.find(x => x.id === id) ?? receivedLikers.find(x => x.id === id))) || null;
-              if (p) { setSelectedProfile(p); setView('profile'); }
-              setBottomNotif(null);
-            }}
-            onStartChat={() => {
-              const id = bottomNotif.profileId;
-              const p = (id && (profiles.find(x => x.id === id) ?? receivedLikers.find(x => x.id === id))) || null;
-              if (p) void openChatGuarded(p);
-              setBottomNotif(null);
-            }}
-          />
-        </AppErrorBoundary>
-      )}
-      <div
-        className={isSubScreen ? 'pointer-events-none' : undefined}
-        aria-hidden={isSubScreen}
-        inert={isSubScreen || undefined}
-      >
-      <AppErrorBoundary screenName="메인 화면" onReset={() => { setView('main'); setMainTab('profiles'); }}>
-      <Suspense fallback={<div className="min-h-screen bg-slate-900" />}>
-        <MainScreen
+      <AppOverlays
+        isSubScreen={isSubScreen}
+        showTutorialModal={showTutorialModal}
+        setShowTutorialModal={setShowTutorialModal}
+        activeNotif={activeNotif}
+        setActiveNotif={setActiveNotif}
+        showResetPassword={showResetPassword}
+        setShowResetPassword={setShowResetPassword}
+        likeConfirmTarget={likeConfirmTarget}
+        setLikeConfirmTarget={setLikeConfirmTarget}
+        contactShareTarget={contactShareTarget}
+        setContactShareTarget={setContactShareTarget}
+        contactViewShare={contactViewShare}
+        setContactViewShare={setContactViewShare}
+        showContactQr={showContactQr}
+        setShowContactQr={setShowContactQr}
+        showQrScanner={showQrScanner}
+        setShowQrScanner={setShowQrScanner}
+        scannedContactProfile={scannedContactProfile}
+        setScannedContactProfile={setScannedContactProfile}
+        fortuneModalTarget={fortuneModalTarget}
+        setFortuneModalTarget={setFortuneModalTarget}
+        connStatus={connStatus}
+        onReconnectRetry={() => {
+          resetNetUiForRetry();
+          const uid = userIdRef.current;
+          if (uid) {
+            fetchAndSetSseToken(uid).catch(() => {});
+            loadChatListRef.current?.(uid).catch(() => {});
+            loadReceivedLikesRef.current?.(uid).catch(() => {});
+            loadLikesRef.current?.(uid).catch(() => {});
+            loadContactShareDataRef.current?.(uid).catch(() => {});
+            loadProfilesRef.current().catch(() => {});
+          } else {
+            window.location.reload();
+          }
+        }}
+        rejectionNotif={rejectionNotif}
+        setRejectionNotif={setRejectionNotif}
+        functionsLockToast={functionsLockToast}
+        bottomNotif={bottomNotif}
+        setBottomNotif={setBottomNotif}
+        setMySubTabHint={setMySubTabHint}
+        handleMainTabChange={handleMainTabChange}
         profiles={profiles}
+        receivedLikers={receivedLikers}
+        setSelectedProfile={setSelectedProfile}
+        setView={setView}
+        openChatGuarded={openChatGuarded}
+        reset={reset}
+        view={view}
+        selectedProfile={selectedProfile}
         currentUserId={currentUserId}
         likedIds={likedIds}
-        sentHeartsPerPerson={sentHeartsPerPerson}
-        likeStatuses={likeStatuses}
-        profileMap={profileMap}
-        mainTab={mainTab}
-        onTabChange={handleMainTabChange}
-        onLike={handleLikeGuarded}
-        onSelect={handleSelectProfile}
-        onReset={reset}
-        onOpenResetPassword={() => setShowResetPassword(true)}
-        receivedLikers={receivedLikers}
-        receivedHeartTypes={receivedHeartTypes}
         sentHeartTypes={sentHeartTypes}
-        sentLikedProfiles={sentLikedProfiles}
-        contactSharedWithIds={contactSharedWithIds}
-        acknowledgedComplimentIds={acknowledgedComplimentIds}
-        receivedContactShares={receivedContactShares}
-        pendingHeartsCount={pendingHeartsCount}
-        chatList={chatList}
-        onContactShareOpen={handleContactShareOpen}
-        onContactViewOpen={handleContactViewOpen}
-        onHeartResponse={handleHeartResponseGuarded}
-        onDeleteChat={deleteChat}
-        onDeleteAllChats={deleteAllChats}
-        onOpenChat={openChatGuarded}
-        timerEndAt={timerEndAt}
-        timerLabel={timerLabel}
-        onRefreshStatus={refreshStatusTab}
-        onRefreshChat={refreshChatTab}
-        onUpdateProfile={handleUpdateProfile}
-        onRefreshProfiles={refreshProfilesTab}
-        darkMode={darkMode}
-        onToggleDark={handleToggleDark}
-        scannedContacts={scannedContacts}
-        onClearScannedContact={handleClearScannedContact}
+        sentHeartsPerPerson={sentHeartsPerPerson}
+        receivedHeartTypes={receivedHeartTypes}
         functionsLocked={functionsLocked}
-        onShowTutorial={handleShowTutorial}
-        unreadChatCounts={unreadChatCounts}
-        onClearChatUnread={handleClearChatUnread}
-        onViewFortune={handleViewFortuneFromCard}
-        onViewProfile={handleViewProfileCard}
-        groupChats={groupChats}
-        unreadGroupCounts={unreadGroupCounts}
-        onOpenGroupChat={handleMainOpenGroupChat}
-        onJoinGroupChat={handleMainJoinGroupChat}
-        onLeaveGroupChat={handleMainLeaveGroupChat}
-        joiningGroupId={joiningGroupId}
         userSignals={userSignals}
-        onUserSignalUpdate={handleUserSignalUpdate}
-        mySubTabHint={mySubTabHint}
-        onMySubTabHintConsumed={() => setMySubTabHint(null)}
-        blockedUserIds={privacyProfileIds.blockedUserIds}
-        hiddenByIds={privacyProfileIds.hiddenByIds}
-        profileVisitors={profileVisitors}
-        newVisitCount={newVisitCount}
-        onClearVisitCount={() => setNewVisitCount(0)}
-        onBlock={handleBlock}
-        myBlockList={blockedUsers.filter(b => b.user_id === currentUserId)}
-        onUnblock={handleUnblock}
-        />
-      </Suspense>
-      </AppErrorBoundary>
-      </div>
-      {showResetPassword && (
-        <ResetPasswordSheet
-          onCancel={() => setShowResetPassword(false)}
-          onConfirm={() => { setShowResetPassword(false); reset(); }}
-        />
-      )}
-      {view === 'profile' && selectedProfile && (
-        <div className="binpc-screen-in safe-fullscreen fixed inset-0 z-40 overflow-y-auto bg-white">
-          <AppErrorBoundary screenName="프로필" onReset={() => setView('main')}>
-            <ProfileDetail
-              profile={selectedProfile}
-              isMe={selectedProfile.id === currentUserId}
-              isLiked={likedIds.has(selectedProfile.id)}
-              heartType={sentHeartTypes.get(selectedProfile.id)}
-              sentHeartsCount={sentHeartsPerPerson.get(selectedProfile.id)?.size ?? 0}
-              locked={functionsLocked}
-              idealMsg={userSignals.find((s) => s.user_id === selectedProfile.id)?.ideal_msg}
-              featureMsg={userSignals.find((s) => s.user_id === selectedProfile.id)?.feature_msg}
-              onLike={() => { if (!functionsLocked) handleLike(selectedProfile.id, selectedProfile); }}
-              onChat={() => { void openChatGuarded(selectedProfile); }}
-              onBack={goParticipantBack}
-              onViewFortune={hasProfileFortuneCompatData(selectedProfile) ? () => {
-                if (functionsLocked) { showFunctionsLockToast(); return; }
-                setFortuneModalTarget(selectedProfile);
-              } : undefined}
-            />
-          </AppErrorBoundary>
-        </div>
-      )}
-      {view === 'group-chat' && activeGroupId && (
-        <div className="binpc-screen-in fixed inset-0 z-40 min-w-0">
-          <GroupChatScreen
-            group={groupChats.find(g => g.id === activeGroupId) ?? null}
-            messages={groupMessages}
-            participants={groupParticipants}
-            currentUserId={currentUserId}
-            profileMap={profileMap}
-            darkMode={darkMode}
-            functionsLocked={functionsLocked}
-            onBack={goParticipantBack}
-            onSendMessage={sendGroupMessageGuarded}
-            onLeave={async () => { if (activeGroupId) await leaveGroupChatGuarded(activeGroupId); }}
-          />
-        </div>
-      )}
-      {view === 'chat' && selectedProfile && !chatId && (
-        <div className="binpc-screen-in safe-fullscreen fixed inset-0 z-40 flex items-center justify-center bg-white">
-          <div className="text-center">
-            <div className="w-8 h-8 border-4 border-pink-400 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-            <p className="text-sm text-gray-400">채팅방 열는 중…</p>
-          </div>
-        </div>
-      )}
-      {view === 'chat' && selectedProfile && chatId && (
-        <div className="binpc-screen-in fixed inset-0 z-40 min-w-0">
-          <ChatErrorBoundary onReset={() => { chatIdRef.current = null; setChatId(null); setView('main'); }}>
-            <Suspense fallback={<div className="h-screen bg-white" />}>
-              <ChatScreen
-                chatId={chatId}
-                messages={messages}
-                currentUserId={currentUserId!}
-                otherProfile={selectedProfile}
-                onSend={sendMessageGuarded}
-                onSendImage={sendImageGuarded}
-                onBack={goParticipantBack}
-                onDeleteMessage={deleteMessage}
-                hasMoreOlder={hasMoreOlderMessages}
-                loadingOlder={loadingOlderMessages}
-                onLoadOlder={loadOlderMessages}
-                currentUserProfile={profiles.find(p => p.id === currentUserId) ?? null}
-                receivedContactShares={receivedContactShares}
-                contactSharedWithIds={contactSharedWithIds}
-                onGoToTab={(tab) => {
-                  chatIdRef.current = null;
-                  setChatId(null);
-                  setView('main');
-                  handleMainTabChange(tab as MainTab);
-                }}
-                onUpdateProfile={(update) => setProfiles(prev => prev.map(p => p.id === update.id ? { ...p, ...update } : p))}
-                initialInput={chatDraftRef.current.get(chatId) ?? ''}
-                onInputChange={(v) => chatDraftRef.current.set(chatId, v)}
-                showSignalOpeners={
-                  !!(selectedProfile
-                    && hasInterestHeart(sentHeartsPerPerson.get(selectedProfile.id))
-                    && isInterestHeart(receivedHeartTypes.get(selectedProfile.id)))
-                }
-              />
-            </Suspense>
-          </ChatErrorBoundary>
-        </div>
-      )}
-      {likeConfirmTarget && (
-        <LikeConfirmDialog
-          target={likeConfirmTarget}
-          likedByType={likedByTypeRecord()}
-          sentTypesForTarget={sentHeartsPerPerson.get(likeConfirmTarget.id) ?? new Set()}
-          onConfirm={execLikeGuarded}
-          onCancel={() => setLikeConfirmTarget(null)}
-        />
-      )}
-      <ConfettiOverlay show={showConfetti} />
-      <div className={isSubScreen ? 'hidden' : undefined} aria-hidden={isSubScreen}>
-      {shareEventNotif && (() => {
-        const fromProfile = profiles.find(p => p.id === shareEventNotif.fromUserId);
-        const name = fromProfile?.nickname ?? '상대방';
-        return (
-          <ShareEventNotification
-            notification={shareEventNotif}
-            nickname={name}
-            onClose={() => setShareEventNotif(null)}
-          />
-        );
-      })()}
-      {contactShareTarget && (
-        <ContactShareModal
-          liker={contactShareTarget}
-          alreadyShared={contactSharedWithIds.has(contactShareTarget.id)}
-          myProfile={currentUserId ? (profileMap.get(currentUserId) ?? null) : null}
-          onSubmit={(kakao, instagram, phone) => handleContactShareGuarded(contactShareTarget.id, kakao, instagram, phone)}
-          onClose={() => setContactShareTarget(null)}
-        />
-      )}
-      {contactViewShare && (
-        <ContactViewModal
-          share={contactViewShare.share}
-          likedProfile={contactViewShare.profile}
-          onClose={() => setContactViewShare(null)}
-        />
-      )}
-      {showContactQr && currentUserId && profileMap.get(currentUserId) && (
-        <Suspense fallback={overlayLazyFallback}>
-          <ContactDisplayModal
-            profile={profileMap.get(currentUserId)!}
-            onClose={() => setShowContactQr(false)}
-          />
-        </Suspense>
-      )}
-      {/* QR 카메라 스캐너 — jsqr loads on first open */}
-      {showQrScanner && (
-        <Suspense fallback={overlayLazyFallback}>
-          <QrScannerModal
-            darkMode={darkMode}
-            onClose={() => setShowQrScanner(false)}
-            onDetected={async (profileId) => {
-              setShowQrScanner(false);
-              const cached = profiles.find(p => p.id === profileId);
-              if (cached) { saveScannedContact(cached); setScannedContactProfile(cached); return; }
-              const { data } = await supabase.from('profiles').select('*').eq('id', profileId).maybeSingle();
-              if (data) { saveScannedContact(data as import('./types/app').Profile); setScannedContactProfile(data as import('./types/app').Profile); }
-            }}
-          />
-        </Suspense>
-      )}
-      {/* 연락처 스캔 결과 모달 */}
-      {scannedContactProfile && (
-        <ContactRevealModal
-          profile={scannedContactProfile}
+        handleLike={handleLike}
+        goParticipantBack={goParticipantBack}
+        showFunctionsLockToast={showFunctionsLockToast}
+        activeGroupId={activeGroupId}
+        groupChats={groupChats}
+        groupMessages={groupMessages}
+        groupParticipants={groupParticipants}
+        profileMap={profileMap}
+        darkMode={darkMode}
+        sendGroupMessageGuarded={sendGroupMessageGuarded}
+        leaveGroupChatGuarded={leaveGroupChatGuarded}
+        chatId={chatId}
+        setChatId={setChatId}
+        chatIdRef={chatIdRef}
+        messages={messages}
+        sendMessageGuarded={sendMessageGuarded}
+        sendImageGuarded={sendImageGuarded}
+        deleteMessage={deleteMessage}
+        hasMoreOlderMessages={hasMoreOlderMessages}
+        loadingOlderMessages={loadingOlderMessages}
+        loadOlderMessages={loadOlderMessages}
+        receivedContactShares={receivedContactShares}
+        contactSharedWithIds={contactSharedWithIds}
+        setProfiles={setProfiles}
+        chatDraftRef={chatDraftRef}
+        likedByTypeRecord={likedByTypeRecord}
+        execLikeGuarded={execLikeGuarded}
+        showConfetti={showConfetti}
+        shareEventNotif={shareEventNotif}
+        setShareEventNotif={setShareEventNotif}
+        handleContactShareGuarded={handleContactShareGuarded}
+        saveScannedContact={saveScannedContact}
+        privacyProfileIds={privacyProfileIds}
+      >
+        <AppMainShell
+          isSubScreen={isSubScreen}
+          onBoundaryReset={() => { setView('main'); setMainTab('profiles'); }}
+          profiles={profiles}
+          currentUserId={currentUserId}
+          likedIds={likedIds}
+          sentHeartsPerPerson={sentHeartsPerPerson}
+          likeStatuses={likeStatuses}
+          profileMap={profileMap}
+          mainTab={mainTab}
+          onTabChange={handleMainTabChange}
+          onLike={handleLikeGuarded}
+          onSelect={handleSelectProfile}
+          onReset={reset}
+          onOpenResetPassword={() => setShowResetPassword(true)}
+          receivedLikers={receivedLikers}
+          receivedHeartTypes={receivedHeartTypes}
+          sentHeartTypes={sentHeartTypes}
+          sentLikedProfiles={sentLikedProfiles}
+          contactSharedWithIds={contactSharedWithIds}
+          acknowledgedComplimentIds={acknowledgedComplimentIds}
+          receivedContactShares={receivedContactShares}
+          pendingHeartsCount={pendingHeartsCount}
+          chatList={chatList}
+          onContactShareOpen={handleContactShareOpen}
+          onContactViewOpen={handleContactViewOpen}
+          onHeartResponse={handleHeartResponseGuarded}
+          onDeleteChat={deleteChat}
+          onDeleteAllChats={deleteAllChats}
+          onOpenChat={openChatGuarded}
+          timerEndAt={timerEndAt}
+          timerLabel={timerLabel}
+          onRefreshStatus={refreshStatusTab}
+          onRefreshChat={refreshChatTab}
+          onUpdateProfile={handleUpdateProfile}
+          onRefreshProfiles={refreshProfilesTab}
           darkMode={darkMode}
-          onClose={() => setScannedContactProfile(null)}
+          onToggleDark={handleToggleDark}
+          scannedContacts={scannedContacts}
+          onClearScannedContact={handleClearScannedContact}
+          functionsLocked={functionsLocked}
+          onShowTutorial={handleShowTutorial}
+          unreadChatCounts={unreadChatCounts}
+          onClearChatUnread={handleClearChatUnread}
+          onViewFortune={handleViewFortuneFromCard}
+          onViewProfile={handleViewProfileCard}
+          groupChats={groupChats}
+          unreadGroupCounts={unreadGroupCounts}
+          onOpenGroupChat={handleMainOpenGroupChat}
+          onJoinGroupChat={handleMainJoinGroupChat}
+          onLeaveGroupChat={handleMainLeaveGroupChat}
+          joiningGroupId={joiningGroupId}
+          userSignals={userSignals}
+          onUserSignalUpdate={handleUserSignalUpdate}
+          mySubTabHint={mySubTabHint}
+          onMySubTabHintConsumed={() => setMySubTabHint(null)}
+          blockedUserIds={privacyProfileIds.blockedUserIds}
+          hiddenByIds={privacyProfileIds.hiddenByIds}
+          profileVisitors={profileVisitors}
+          newVisitCount={newVisitCount}
+          onClearVisitCount={() => setNewVisitCount(0)}
+          onBlock={handleBlock}
+          myBlockList={blockedUsers.filter(b => b.user_id === currentUserId)}
+          onUnblock={handleUnblock}
         />
-      )}
-      {/* ── 사주 궁합 팝업 모달 ── */}
-      {fortuneModalTarget && (
-        <div className="safe-fullscreen fixed inset-0 z-[200] flex flex-col bg-slate-900/95 backdrop-blur-sm overflow-y-auto">
-          <div className="flex items-center justify-between px-4 pt-4 pb-2 flex-shrink-0">
-            <p className="text-white font-black text-sm">🔮 {fortuneModalTarget.nickname}님과의 궁합</p>
-            <button
-              onClick={() => setFortuneModalTarget(null)}
-              className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center active:scale-90 transition-transform"
-            >
-              <X className="w-4 h-4 text-white" />
-            </button>
-          </div>
-          <div className="flex-1 min-h-0">
-            <Suspense fallback={<div className="flex items-center justify-center py-20 text-slate-400 text-sm">불러오는 중...</div>}>
-              <FortuneTabLazy
-                currentUserId={currentUserId}
-                myProfile={currentUserId ? (profileMap.get(currentUserId) ?? null) : null}
-                profiles={profiles}
-                likedIds={likedIds}
-                initialCompatProfileId={fortuneModalTarget.id}
-                blockedUserIds={privacyProfileIds.blockedUserIds}
-                hiddenByIds={privacyProfileIds.hiddenByIds}
-              />
-            </Suspense>
-          </div>
-        </div>
-      )}
-      </div>
-    </>
+      </AppOverlays>
     </ParticipantNavProvider>
   );
 }
+
 
 
 // ─── Profile Detail ───────────────────────────────────────────────────────────

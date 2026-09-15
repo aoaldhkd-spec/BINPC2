@@ -117,7 +117,7 @@ describe('product copy + notification invariants', () => {
     const notif = read('lib/notification-active.ts');
     expect(groupHook).not.toMatch(/setBottomNotif\(\{\s*type:\s*'message'/);
     expect(groupHook).not.toMatch(/setActiveNotif/);
-    expect(app).toContain('NotifModal');
+    expect(read('components/AppOverlays.tsx')).toContain('NotifModal');
     expect(app).toContain('shouldShowBroadcastNotif');
     expect(notif).toMatch(/n\.target === 'all'/);
   });
@@ -141,14 +141,17 @@ describe('product copy + notification invariants', () => {
   it('처음으로 돌아가기 is a dim popup over mounted MainScreen', () => {
     const reset = read('components/ResetButton.tsx');
     const app = read('App.tsx');
+    const overlays = read('components/AppOverlays.tsx');
+    const mainShell = read('components/AppMainShell.tsx');
     expect(reset).toContain("backgroundColor: 'rgba(0, 0, 0, 0.4)'");
     expect(reset).toContain('data-password-overlay="dim"');
     expect(reset).not.toContain("backgroundColor: '#000000'");
     expect(reset).not.toMatch(/className="[^"]*\bbg-black(?:\s|")/);
     expect(reset).not.toContain('backdrop-blur');
-    expect(app).not.toMatch(/showResetPassword \?/);
-    expect(app).toContain('{showResetPassword && (');
-    expect(app).toContain('<MainScreen');
+    expect(overlays).not.toMatch(/showResetPassword \?/);
+    expect(overlays).toContain('{showResetPassword && (');
+    expect(app).toContain('<AppMainShell');
+    expect(mainShell).toContain('<MainScreen');
   });
 
   it('user header gates: logo=reset, npc=admin, sulbun=no staff gate', () => {
@@ -333,10 +336,11 @@ describe('product copy + notification invariants', () => {
     expect(app).toContain('onLeaveGroupChat');
     expect(app).toContain('handleMainTabChange');
     expect(app).toContain('FUNCTIONS_LOCK_KICK_TOAST');
-    expect(app).toContain("handleMainTabChange('my')");
+    expect(read('components/AppOverlays.tsx')).toContain("handleMainTabChange('my')");
     expect(app).toContain('setMySubTabHint');
-    expect(app).toContain('openChatGuarded(p)');
-    expect(app).toContain('setContactShareTarget(null)');
+    expect(read('components/AppOverlays.tsx')).toContain('openChatGuarded(p)');
+    expect(app).toContain('setContactShareTarget');
+    expect(read('components/AppOverlays.tsx')).toContain('setContactShareTarget(null)');
     expect(app).toContain('useSessionReadyBootstrap');
     expect(app).toContain('useAppShellRealtimeChannels');
     expect(app).toContain('planAppSettingsRealtimeUpdate');
@@ -345,7 +349,7 @@ describe('product copy + notification invariants', () => {
     const readyBoot = read('hooks/useSessionReadyBootstrap.ts');
     expect(readyBoot).toContain('settingsPoll');
     expect(readyBoot).toContain('/api/db/ready');
-    expect(app).toContain('{showResetPassword && (');
+    expect(read('components/AppOverlays.tsx')).toContain('{showResetPassword && (');
     expect(dash).toContain('MY·단톡 사용 불가');
     expect(dash).toContain('통계·랭킹·설정');
     expect(detail).toContain('onViewFortune');
@@ -566,9 +570,9 @@ describe('product copy + notification invariants', () => {
     const main = read('components/MainScreen.tsx');
     expect(css).toContain('binpc-screen-in');
     expect(css).toContain('translate3d(100%, 0, 0)');
-    expect(app).toContain('binpc-screen-in');
-    expect(app).toContain('inert={isSubScreen');
-    expect(app).toContain("className={isSubScreen ? 'pointer-events-none' : undefined}");
+    expect(read('components/AppOverlays.tsx')).toContain('binpc-screen-in');
+    expect(read('components/AppMainShell.tsx')).toContain('inert={isSubScreen');
+    expect(read('components/AppMainShell.tsx')).toContain("className={isSubScreen ? 'pointer-events-none' : undefined}");
     expect(main).toContain('KeepTab');
     expect(main).toContain("visitedTabsRef.current.has('profiles')");
     expect(main).toContain("mainTab === 'my'");
