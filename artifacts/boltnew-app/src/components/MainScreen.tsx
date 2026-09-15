@@ -163,6 +163,12 @@ export function MainScreen({
   }, [mySubTabHint, onMySubTabHintConsumed]);
 
   const heartCount = useCallback((t: HeartType) => { let c = 0; sentHeartsPerPerson.forEach(types => { if (types.has(t)) c++; }); return c; }, [sentHeartsPerPerson]);
+  // Keep the header's aggregate badge on the same quota source as the picker.
+  // This includes schedule grants and changes immediately after a send.
+  const remainingHeartTotal = useMemo(
+    () => HEART_TYPES.reduce((sum, h) => sum + Math.max(0, (heartQuotas[h.type] ?? 2) - heartCount(h.type)), 0),
+    [heartQuotas, heartCount],
+  );
 
   const sentHeartEntries = useMemo(() => {
     if (mainTab !== 'my' || mySubTab !== 'status') return [];
@@ -710,7 +716,8 @@ export function MainScreen({
             />
           </div>
           {/* 우: 하트 */}
-          <div data-coach="home-heart-types" className="justify-self-end flex items-center">
+          <div data-coach="home-heart-types" className="justify-self-end flex items-center gap-1">
+            <span data-testid="home-heart-remaining-total" aria-label={`남은 하트 ${remainingHeartTotal}개`} className={`text-[9px] min-[390px]:text-[10px] font-black tabular-nums whitespace-nowrap ${darkMode ? 'text-cyan-300' : 'text-cyan-700'}`}>총 {remainingHeartTotal}</span>
             <div className="flex items-center gap-1 min-[390px]:gap-1.5">
               {HEART_TYPES.map(h => {
                 const used = heartCount(h.type);
