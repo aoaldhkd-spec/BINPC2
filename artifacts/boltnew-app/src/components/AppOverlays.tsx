@@ -35,6 +35,7 @@ import {
   ShareEventNotification,
   type ShareEventNotificationData,
 } from './ShareEventNotification';
+import { FirstEntryCoachMarks } from './FirstEntryCoachMarks';
 
 const ChatScreen = lazy(() => import('./ChatScreen'));
 const TutorialModal = lazy(() => import('./TutorialModal').then(m => ({ default: m.TutorialModal })));
@@ -189,6 +190,7 @@ export function AppOverlays(p: AppOverlaysProps) {
         </Suspense>
       )}
 
+      <FirstEntryCoachMarks isSubScreen={isSubScreen} suspended={showTutorialModal} />
       {connStatus !== 'ok' && (
         <ReconnectOverlay
           status={connStatus}

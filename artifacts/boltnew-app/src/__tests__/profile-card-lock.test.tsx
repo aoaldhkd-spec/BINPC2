@@ -259,8 +259,8 @@ describe('ProfileCard — flip keeps bars + fixed frame (compact/2·3열)', () =
     });
     fireEvent.click(screen.getByTestId('profile-card-photo'));
     const back = screen.getByTestId('profile-card-ideal-back');
-    expect(back.style.paddingTop).toBe('26px');
-    expect(back.style.paddingBottom).toBe('24px');
+    expect(back.style.paddingTop).toBe('22px');
+    expect(back.style.paddingBottom).toBe('20px');
     expect(screen.getByTestId('profile-card-ideal-header')).toBeTruthy();
   });
 
@@ -270,8 +270,8 @@ describe('ProfileCard — flip keeps bars + fixed frame (compact/2·3열)', () =
     expect(screen.queryByTestId('profile-card-ticker-bar')).toBeNull();
     expect(screen.getByTestId('profile-card-nick-bar')).toBeTruthy();
     const back = screen.getByTestId('profile-card-ideal-back');
-    expect(back.style.paddingTop).toBe('10px');
-    expect(back.style.paddingBottom).toBe('24px');
+    expect(back.style.paddingTop).toBe('8px');
+    expect(back.style.paddingBottom).toBe('20px');
   });
 
   it('ticker exposes active flag for on-screen animation gate', () => {

@@ -12,7 +12,7 @@ import { isProfileCardDark, profileCardChipStyle, profileCardSurfaces } from '..
 /** 카드 뒷면에 바로 보여줄 이상형 태그 상한 — 나머지는 "+N" + 프로필 상세 */
 const CARD_IDEAL_MAX_VISIBLE = 8;
 /** 태그가 많을 때 칩 글자 축소 */
-const CARD_IDEAL_COMPACT_FONT_AT = 6;
+const CARD_IDEAL_COMPACT_FONT_AT = 5;
 
 type MenuAnchorId = 'photo' | 'ticker';
 
@@ -53,8 +53,8 @@ export const ProfileCard = memo(function ProfileCard({
   const visibleIdealTags = idealOverflow ? idealTags.slice(0, CARD_IDEAL_MAX_VISIBLE) : idealTags;
   const hiddenIdealCount = idealTagCount - visibleIdealTags.length;
   const idealChipClass = idealTagCount >= CARD_IDEAL_COMPACT_FONT_AT
-    ? 'text-[7px] sm:text-[8px]'
-    : 'text-[8px] sm:text-[9px]';
+    ? 'text-[6px] sm:text-[7px]'
+    : 'text-[7px] sm:text-[8px]';
   const age = getKoreanAge(profile.birth_year);
   const locationLabel = profile.location?.trim() ?? '';
   const msStyle = profile.mbti ? getMbtiStyle(profile.mbti) : null;
@@ -121,8 +121,8 @@ export const ProfileCard = memo(function ProfileCard({
   const showTopBar = hasTicker;
   const showBottomBar = true;
   /** 이상형 뒷면이 상·하단 바를 덮지 않도록 인셋 (바 min-h ≈ 20px + 여유) */
-  const idealInsetTop = hasTicker ? 26 : 10;
-  const idealInsetBottom = 24;
+  const idealInsetTop = hasTicker ? 22 : 8;
+  const idealInsetBottom = 20;
   const tickerAnimActive = hasTicker && tickerOnScreen;
 
   useEffect(() => {
@@ -381,17 +381,17 @@ export const ProfileCard = memo(function ProfileCard({
                   type="button"
                   data-testid="profile-card-ideal-header"
                   {...bindMobileTap((e) => { e.stopPropagation(); setFlipAnimating(true); setIsFlipped(false); })}
-                  className="relative z-[1] shrink-0 flex items-center justify-center gap-1 px-2 pt-1 pb-0.5 cursor-pointer active:opacity-80 touch-manipulation"
+                  className="relative z-[1] shrink-0 flex items-center justify-center gap-0.5 px-1 pt-0.5 pb-0 cursor-pointer active:opacity-80 touch-manipulation"
                   aria-label="사진으로 돌아가기"
                 >
                   <span className="text-xs leading-none" aria-hidden>💗</span>
-                  <span className="text-[9px] sm:text-[10px] font-black tracking-[0.08em] text-pink-50 drop-shadow-sm">
+                  <span className="text-[8px] sm:text-[9px] font-black tracking-[0.05em] text-pink-50 drop-shadow-sm">
                     나의 이상형{idealTagCount > 0 ? ` (${idealTagCount})` : ''}
                   </span>
                 </button>
 
                 <div
-                  className="relative z-[1] flex-1 min-h-0 max-h-full overflow-y-auto overscroll-contain px-1.5 py-0.5 touch-pan-y"
+                  className="relative z-[1] flex-1 min-h-0 max-h-full overflow-y-auto overscroll-contain px-1 py-0 touch-pan-y"
                   style={{ WebkitOverflowScrolling: 'touch' }}
                 >
                   {!idealTagCount && !idealFree ? (
@@ -405,7 +405,7 @@ export const ProfileCard = memo(function ProfileCard({
                           {visibleIdealTags.map(t => (
                             <span
                               key={t}
-                              className={`inline-block max-w-full ${idealChipClass} font-extrabold leading-tight px-1.5 py-0.5 rounded-full border break-words text-center`}
+                              className={`inline-block max-w-full ${idealChipClass} font-extrabold leading-tight px-1 py-[1px] rounded-full border break-words text-center`}
                               style={{
                                 background: 'rgba(255,160,220,0.22)',
                                 borderColor: 'rgba(255,200,230,0.65)',
@@ -416,7 +416,7 @@ export const ProfileCard = memo(function ProfileCard({
                           ))}
                           {hiddenIdealCount > 0 && (
                             <span
-                              className={`inline-block ${idealChipClass} font-extrabold leading-tight px-1.5 py-0.5 rounded-full border`}
+                              className={`inline-block ${idealChipClass} font-extrabold leading-tight px-1 py-[1px] rounded-full border`}
                               style={{
                                 background: 'rgba(255,120,180,0.35)',
                                 borderColor: 'rgba(255,200,230,0.75)',
@@ -429,7 +429,7 @@ export const ProfileCard = memo(function ProfileCard({
                       )}
                       {idealFree && (
                         <p
-                          className={`${idealChipClass} text-center leading-snug mt-1 mb-0 px-0.5 break-words whitespace-pre-wrap font-semibold${idealOverflow ? ' line-clamp-2' : ''}`}
+                          className={`${idealChipClass} text-center leading-tight mt-0.5 mb-0 px-0.5 break-words whitespace-pre-wrap font-semibold${idealOverflow ? ' line-clamp-2' : ''}`}
                           style={{ color: 'rgba(255,245,252,0.95)', textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}
                         >
                           {idealFree}
@@ -443,7 +443,7 @@ export const ProfileCard = memo(function ProfileCard({
                   type="button"
                   data-testid="profile-card-open-detail"
                   {...bindMobileTap((e) => { e.stopPropagation(); onSelect(profile); })}
-                  className="relative z-[1] shrink-0 mx-1.5 mb-1.5 w-[calc(100%-0.75rem)] min-h-[32px] py-1.5 rounded-md text-[10px] sm:text-[11px] font-bold active:scale-95 transition-transform pointer-events-auto touch-manipulation"
+                  className="relative z-[1] shrink-0 mx-1 mb-1 w-[calc(100%-0.5rem)] min-h-[28px] py-1 rounded-md text-[9px] sm:text-[10px] font-bold active:scale-95 transition-transform pointer-events-auto touch-manipulation"
                   style={{
                     background: 'rgba(255,160,220,0.22)',
                     border: '1px solid rgba(255,160,220,0.5)',
