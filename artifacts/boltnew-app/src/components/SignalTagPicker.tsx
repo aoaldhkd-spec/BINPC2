@@ -37,6 +37,27 @@ export function SignalTagPicker({
 
   return (
     <div className="space-y-3">
+      {/* 대분류는 섹션 상단의 full-width segmented control */}
+      <div>
+        <p className={`mb-1.5 px-1 text-[11px] font-black ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>대분류</p>
+        <div className={`grid grid-cols-2 gap-1 rounded-xl p-1 ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-gray-100 border border-gray-200'}`} aria-label="성향 대분류 선택">
+          {ROLE_OPTIONS.map((option) => {
+            const activeRole = role === option.key;
+            const count = option.key === 'ideal' ? idealSelected.length : featureSelected.length;
+            return (
+              <button
+                key={option.key}
+                type="button"
+                aria-pressed={activeRole}
+                onClick={() => setRole(option.key)}
+                className={`min-h-[44px] rounded-lg px-2 py-2 text-xs font-black transition-all ${activeRole ? ROLE_STYLE[option.color].active : darkMode ? 'text-slate-300 hover:bg-slate-700' : 'text-gray-600 hover:bg-white'}`}
+              >
+                {option.emoji} <span>{option.label}</span>{count > 0 && <span className="ml-1 text-[9px] opacity-80">{count}</span>}
+              </button>
+            );
+          })}
+        </div>
+      </div>
       {/* 소분류는 plain navigation; 별도 카드 없음 */}
       <div>
         <p className={`mb-1.5 px-1 text-[11px] font-black ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>소분류</p>
@@ -84,27 +105,6 @@ export function SignalTagPicker({
         </div>
       </div>
 
-      {/* 대분류는 요청대로 섹션 하단의 full-width segmented control */}
-      <div>
-        <p className={`mb-1.5 px-1 text-[11px] font-black ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>대분류</p>
-        <div className={`grid grid-cols-2 gap-1 rounded-xl p-1 ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-gray-100 border border-gray-200'}`} aria-label="성향 대분류 선택">
-          {ROLE_OPTIONS.map((option) => {
-            const activeRole = role === option.key;
-            const count = option.key === 'ideal' ? idealSelected.length : featureSelected.length;
-            return (
-              <button
-                key={option.key}
-                type="button"
-                aria-pressed={activeRole}
-                onClick={() => setRole(option.key)}
-                className={`min-h-[44px] rounded-lg px-2 py-2 text-xs font-black transition-all ${activeRole ? ROLE_STYLE[option.color].active : darkMode ? 'text-slate-300 hover:bg-slate-700' : 'text-gray-600 hover:bg-white'}`}
-              >
-                {option.emoji} <span>{option.label}</span>{count > 0 && <span className="ml-1 text-[9px] opacity-80">{count}</span>}
-              </button>
-            );
-          })}
-        </div>
-      </div>
     </div>
   );
 }
