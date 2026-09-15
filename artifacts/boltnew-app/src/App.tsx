@@ -7,10 +7,11 @@ import { useUserRealtimeChannel } from './hooks/useUserRealtimeChannel';
 import { useAppShellRealtimeChannels } from './hooks/useAppShellRealtimeChannels';
 import { useSessionReadyBootstrap } from './hooks/useSessionReadyBootstrap';
 import { useProfileBootMachine } from './hooks/useProfileBootMachine';
+import { useHeartsRealtimeApply } from './hooks/useHeartsRealtimeApply';
+import { useSocialLockGuards } from './hooks/useSocialLockGuards';
 import { planAdminResetWipe, runAdminResetWipe } from './lib/admin-reset-wipe';
 import type { SessionReadySettingsPatch } from './lib/session-ready-settings';
 import { planAppSettingsRealtimeUpdate } from './lib/app-settings-realtime';
-import { diag } from './lib/diag';
 import { subscribeNetUi, resetNetUiForRetry, type NetUiStatus } from './lib/net-health';
 import { excludeSwipeGestureVerifyProfiles } from './lib/profile';
 import { mergeProfilesPreserveOrder, sortProfilesStable } from './lib/profile-list-order';
@@ -33,22 +34,17 @@ import {
   shouldShowNicknameSetup,
   shouldShowRecoveryScreen,
 } from './lib/entry-gate';
-import { isIncomingHeartToastTarget, MUTUAL_HEART_TOAST, planIncomingHeartBottomNotif } from './lib/heart-toast';
-import { planReceivedLikeUpdate, preferReceivedHeartType } from './lib/received-like-update';
-import { planSentLikeInsert, shouldKeepExistingSentHeartType, planSentLikeStatusNotif } from './lib/sent-like-insert';
 import { planContactShareEvent, pruneSeenIdSet } from './lib/contact-share-event';
 import { countPendingHearts } from './lib/pending-hearts';
 import { mergeUserSignalRow } from './lib/user-signal-merge';
 import {
   upsertById,
-  upsertReceivedContactShare,
-  upsertReceivedLikerFront,
   filterBlockedUsersForMe,
   isBlockedRowForMe,
 } from './lib/realtime-row-upsert';
 import { shouldRecordProfileView } from './lib/profile-view-record';
 import { shouldShowBroadcastNotif, dismissActiveNotifIfMatch } from './lib/notification-active';
-import { FUNCTIONS_LOCK_KICK_TOAST, FUNCTIONS_LOCK_TOAST, FUNCTIONS_UNLOCK_TOAST, SOCIAL_LOCKED_TABS, parseFunctionsLocked, planFunctionsLockTransition } from './lib/functions-lock';
+import { FUNCTIONS_LOCK_KICK_TOAST, FUNCTIONS_LOCK_TOAST, FUNCTIONS_UNLOCK_TOAST, parseFunctionsLocked, planFunctionsLockTransition } from './lib/functions-lock';
 // ─── 분리된 타입·유틸·컴포넌트 imports ────────────────────────────────────────
 import type {
   Profile, ContactShare,
@@ -216,8 +212,6 @@ function App() {
   const [showResetPassword, setShowResetPassword] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const confettiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  /** SSE heart/status toast clear timers — owned by App apply, cleared on user change */
-  const realtimeNotifTimerIdsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const shareEventNotifTimerIdsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const confettiInnerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const triggerConfetti = useCallback(() => {
@@ -371,133 +365,74 @@ function App() {
   loadReceivedLikesRef.current = loadReceivedLikes;
   loadLikesRef.current = loadLikes;
   loadContactShareDataRef.current = loadContactShareData;
-  const sentHeartsPerPersonRef = useRef(sentHeartsPerPerson);
-  sentHeartsPerPersonRef.current = sentHeartsPerPerson;
-  const receivedHeartTypesRef = useRef(receivedHeartTypes);
-  receivedHeartTypesRef.current = receivedHeartTypes;
-  const pendingRealtimeRenderTraceRef = useRef<{
-    feature: 'hearts' | 'contact';
-    rowId: string | null;
-    createdAt: string | null;
-  } | null>(null);
-  const traceRealtimeStateMerge = useCallback((
-    feature: 'hearts' | 'contact',
-    row: { id?: string; created_at?: string },
-  ) => {
-    const trace = {
-      feature,
-      rowId: row.id ?? null,
-      createdAt: row.created_at ?? null,
-    };
-    pendingRealtimeRenderTraceRef.current = trace;
-    diag('debug', feature, 'state-merge', {
-      corr: trace.rowId ?? undefined,
-      data: { rowId: trace.rowId, createdAt: trace.createdAt, source: 'sse' },
-    });
-  }, []);
+  const heartsRealtimeApply = useHeartsRealtimeApply({
+    currentUserId,
+    userIdRef,
+    profilesRef,
+    loadReceivedLikesRef,
+    loadContactShareData,
+    triggerConfetti,
+    setLikedIds,
+    setSentHeartTypes,
+    setLikeStatuses,
+    setSentHeartsPerPerson,
+    setReceivedHeartTypes,
+    setReceivedLikers,
+    setAcknowledgedComplimentIds,
+    setReceivedContactShares,
+    setBottomNotif,
+    setRejectionNotif,
+    likedIds,
+    likeStatuses,
+    receivedContactShares,
+    receivedHeartTypes,
+    sentHeartsPerPerson,
+  });
 
-  useEffect(() => {
-    const trace = pendingRealtimeRenderTraceRef.current;
-    if (!trace) return;
-    pendingRealtimeRenderTraceRef.current = null;
-    diag('debug', trace.feature, 'render', {
-      corr: trace.rowId ?? undefined,
-      data: { rowId: trace.rowId, createdAt: trace.createdAt, userId: currentUserId },
-    });
-  }, [currentUserId, likedIds, likeStatuses, receivedContactShares, receivedHeartTypes]);
+  const {
+    handleLikeGuarded,
+    handleHeartResponseGuarded,
+    handleContactShareGuarded,
+    openChatGuarded,
+    sendMessageGuarded,
+    sendImageGuarded,
+    leaveGroupChatGuarded,
+    handleMainOpenGroupChat,
+    handleMainJoinGroupChat,
+    handleMainLeaveGroupChat,
+    sendGroupMessageGuarded,
+    handleMainTabChange,
+    execLikeGuarded,
+    handleContactShareOpen,
+  } = useSocialLockGuards({
+    functionsLocked,
+    functionsLockedRef,
+    showFunctionsLockToast,
+    handleLike,
+    handleHeartResponse,
+    handleContactShare,
+    executeLike,
+    triggerConfetti,
+    setLikeConfirmTarget,
+    setContactShareTarget,
+    openChat,
+    sendMessage,
+    sendImage,
+    openGroupChat,
+    joinGroupChat,
+    leaveGroupChat,
+    closeGroupChat,
+    sendGroupMessage,
+    setView,
+    setMainTab,
+  });
 
-  // 하트 보내는 쪽도 폭죽 🎊 — 전송 성공 후에만 (실패 시 폭죽은 오해만 줌)
-  const execLikeWithConfetti = useCallback(async (...args: Parameters<typeof executeLike>) => {
-    const ok = await executeLike(...args);
-    if (ok) triggerConfetti();
-  }, [executeLike, triggerConfetti]);
-
-  // 기능 잠금 중에는 하트 전송 차단 (LOCKED_TABS와 동일한 보호 수준)
-  const handleLikeGuarded = useCallback((profileId: string, hint?: Profile) => {
-    if (functionsLocked) { showFunctionsLockToast(); return; }
-    handleLike(profileId, hint);
-  }, [functionsLocked, handleLike, showFunctionsLockToast]);
-
-  const handleHeartResponseGuarded = useCallback((likerId: string, response: 'accepted' | 'rejected') => {
-    if (functionsLocked) { showFunctionsLockToast(); return; }
-    return handleHeartResponse(likerId, response);
-  }, [functionsLocked, handleHeartResponse, showFunctionsLockToast]);
-
-  const handleContactShareGuarded = useCallback((likerId: string, kakao: string, instagram: string, phone: string) => {
-    if (functionsLocked) { showFunctionsLockToast(); return; }
-    return handleContactShare(likerId, kakao, instagram, phone);
-  }, [functionsLocked, handleContactShare, showFunctionsLockToast]);
-
-  const openChatGuarded = useCallback((profile: Profile) => {
-    if (functionsLockedRef.current) { showFunctionsLockToast(); return Promise.resolve(); }
-    return openChat(profile);
-  }, [openChat, showFunctionsLockToast]);
-
-  const sendMessageGuarded = useCallback(async (content: string) => {
-    if (functionsLockedRef.current) { showFunctionsLockToast(); return; }
-    return sendMessage(content);
-  }, [sendMessage, showFunctionsLockToast]);
-
-  const sendImageGuarded = useCallback(async (file: File): Promise<string | null> => {
-    if (functionsLockedRef.current) { showFunctionsLockToast(); return null; }
-    return sendImage(file);
-  }, [sendImage, showFunctionsLockToast]);
-
-  const openGroupChatGuarded = useCallback(async (groupId: string) => {
-    if (functionsLockedRef.current) { showFunctionsLockToast(); return; }
-    void openGroupChat(groupId);
-    setView('group-chat');
-  }, [openGroupChat, showFunctionsLockToast]);
-
-  const joinGroupChatGuarded = useCallback(async (groupId: string) => {
-    if (functionsLockedRef.current) { showFunctionsLockToast(); return; }
-    const joinPromise = joinGroupChat(groupId);
-    void openGroupChat(groupId);
-    setView('group-chat');
-    const ok = await joinPromise;
-    if (!ok) {
-      closeGroupChat();
-      setView('main');
-    }
-  }, [joinGroupChat, openGroupChat, closeGroupChat, showFunctionsLockToast]);
-
-  const leaveGroupChatGuarded = useCallback(async (groupId: string) => {
-    if (functionsLockedRef.current) { showFunctionsLockToast(); return; }
-    closeGroupChat();
-    setView('main');
-    await leaveGroupChat(groupId);
-  }, [leaveGroupChat, closeGroupChat, showFunctionsLockToast]);
-
-  const handleMainOpenGroupChat = useCallback((groupId: string) => {
-    void openGroupChatGuarded(groupId).catch((e) => console.error('[openGroupChat]', e));
-  }, [openGroupChatGuarded]);
-
-  const handleMainJoinGroupChat = useCallback((groupId: string) => {
-    void joinGroupChatGuarded(groupId).catch((e) => console.error('[joinGroupChat]', e));
-  }, [joinGroupChatGuarded]);
-
-  const handleMainLeaveGroupChat = useCallback((groupId: string) => {
-    void leaveGroupChatGuarded(groupId).catch((e) => console.error('[leaveGroupChat]', e));
-  }, [leaveGroupChatGuarded]);
-
+  // 채팅 탭 진입 시 단톡 목록 로드
   useEffect(() => {
     if (mainTab === 'my' && currentUserId) {
       void loadGroupChats(currentUserId);
     }
   }, [mainTab, currentUserId, loadGroupChats]);
-
-  const sendGroupMessageGuarded = useCallback(async (content: string) => {
-    if (functionsLockedRef.current) { showFunctionsLockToast(); return; }
-    return sendGroupMessage(content);
-  }, [sendGroupMessage, showFunctionsLockToast]);
-
-  const handleMainTabChange = useCallback((t: MainTab) => {
-    if (functionsLocked && SOCIAL_LOCKED_TABS.has(t)) {
-      showFunctionsLockToast();
-      return;
-    }
-    setMainTab(t);
-  }, [functionsLocked, showFunctionsLockToast]);
 
   const screenStackRef = useRef<Array<'profile' | 'chat' | 'group-chat'>>([]);
   const navDrivenViewRef = useRef(false);
@@ -574,15 +509,6 @@ function App() {
     html.style.overflow = 'hidden';
     return () => { html.style.overflow = prev; };
   }, [view]);
-
-  const execLikeGuarded = useCallback((...args: Parameters<typeof executeLike>) => {
-    if (functionsLockedRef.current) {
-      setLikeConfirmTarget(null);
-      showFunctionsLockToast();
-      return;
-    }
-    execLikeWithConfetti(...args);
-  }, [execLikeWithConfetti, showFunctionsLockToast, setLikeConfirmTarget]);
 
   // 잠금이 켜지는 순간에만 채팅·단톡·궁합 모달에서 참여자 탭으로 되돌림. 통계·랭킹·설정은 유지.
   useEffect(() => {
@@ -712,11 +638,6 @@ function App() {
   const handleClearChatUnread = useCallback((chatId: string) => {
     setUnreadChatCounts(prev => { const n = { ...prev }; delete n[chatId]; return n; });
   }, [setUnreadChatCounts]);
-
-  const handleContactShareOpen = useCallback((profile: Profile) => {
-    if (functionsLockedRef.current) { showFunctionsLockToast(); return; }
-    setContactShareTarget(profile);
-  }, [showFunctionsLockToast, setContactShareTarget]);
 
   const handleContactViewOpen = useCallback((share: ContactShare, profile: Profile) => {
     setContactViewShare({ share, profile });
@@ -987,14 +908,6 @@ function App() {
     applySessionReady,
   });
 
-  // Clear SSE toast timers on user switch / unmount (hook apply schedules them).
-  useEffect(() => {
-    return () => {
-      realtimeNotifTimerIdsRef.current.forEach(clearTimeout);
-      realtimeNotifTimerIdsRef.current = [];
-    };
-  }, [currentUserId]);
-
   // profiles + likes/contact_shares + privacy + signals fan-in — App owns setState; hook only routes.
   useUserRealtimeChannel({
     currentUserId,
@@ -1007,123 +920,7 @@ function App() {
     onProfileDelete: (deletedId) => {
       setProfiles((prev) => planProfilesAfterDelete(prev, deletedId));
     },
-    onSentLikeInsert: (row) => {
-      const plan = planSentLikeInsert(row, {
-        counterpartReceivedHeartType: receivedHeartTypesRef.current.get(row.liked_id),
-      });
-      if (!plan) return;
-      setLikedIds((prev) => new Set([...prev, plan.likedId]));
-      setSentHeartTypes((prev) => {
-        const existing = prev.get(plan.likedId);
-        if (shouldKeepExistingSentHeartType(existing, plan.heartType)) return prev;
-        return new Map(prev).set(plan.likedId, plan.heartType);
-      });
-      setLikeStatuses(prev => prev.has(plan.likedId) ? prev : new Map(prev).set(plan.likedId, 'pending'));
-      setSentHeartsPerPerson(prev => {
-        const next = new Map(prev);
-        const s = new Set(next.get(plan.likedId) ?? []);
-        s.add(plan.heartType);
-        next.set(plan.likedId, s);
-        return next;
-      });
-      // 내가 하트를 보냈고 상대도 이미 하트를 보냈으면 서로 하트 (수신자 전용 토스트와 대칭)
-      if (plan.showMutualToast) {
-        const nick = profilesRef.current.find(p => p.id === plan.likedId)?.nickname ?? '상대방';
-        setBottomNotif({ type: 'heart', heartMutual: true, nickname: nick, profileId: plan.likedId, message: MUTUAL_HEART_TOAST });
-      }
-      traceRealtimeStateMerge('hearts', row);
-    },
-    onSentLikeUpdate: (updated) => {
-      setLikeStatuses(prev => new Map(prev).set(updated.liked_id, updated.status));
-      const statusNick = profilesRef.current.find(p => p.id === updated.liked_id)?.nickname ?? '상대방';
-      const statusNotif = planSentLikeStatusNotif(updated.status, statusNick);
-      if (statusNotif?.kind === 'rejected') {
-        setRejectionNotif(statusNotif.nickname);
-        realtimeNotifTimerIdsRef.current.push(setTimeout(() => setRejectionNotif(null), 5000));
-      } else if (statusNotif?.kind === 'accepted') {
-        loadContactShareData(currentUserId!);
-        setBottomNotif({ type: 'chat', nickname: statusNotif.nickname, message: statusNotif.message });
-        realtimeNotifTimerIdsRef.current.push(setTimeout(() => setBottomNotif(prev => prev?.message === statusNotif.message ? null : prev), 5000));
-      }
-      traceRealtimeStateMerge('hearts', updated);
-    },
-    onReceivedLikeInsert: async (row) => {
-      try {
-        const likerId = row.liker_id;
-        const uid = userIdRef.current;
-        // 수신자 전용 — 보낸 사람·제3자 토스트 방지 (필터가 깨져도 가드)
-        if (!uid || !isIncomingHeartToastTarget(uid, { liker_id: likerId, liked_id: row.liked_id ?? uid })) return;
-        if (likerId) {
-          const incomingHt = row.heart_type ?? 'red';
-          setReceivedHeartTypes(prev => {
-            const existing = prev.get(likerId);
-            if (shouldKeepExistingSentHeartType(existing, incomingHt)) return prev;
-            return new Map(prev).set(likerId, incomingHt);
-          });
-          const { data } = await supabase.from('profiles').select('*').eq('id', likerId).maybeSingle();
-          if (data) {
-            setReceivedLikers((prev) => upsertReceivedLikerFront(prev, data as Profile));
-          } else {
-            loadReceivedLikesRef.current?.(uid)?.catch(() => {});
-          }
-          setBottomNotif(planIncomingHeartBottomNotif({
-            likerId,
-            heartType: row.heart_type ?? 'red',
-            nickname: data?.nickname ?? '누군가',
-            sentHeartsToLiker: sentHeartsPerPersonRef.current.get(likerId),
-          }));
-        } else {
-          setBottomNotif(planIncomingHeartBottomNotif({ heartType: row.heart_type ?? 'red' }));
-        }
-        triggerConfetti();
-        realtimeNotifTimerIdsRef.current.push(setTimeout(() => setBottomNotif(prev => (prev?.type === 'heart') ? null : prev), 5000));
-        traceRealtimeStateMerge('hearts', row);
-      } catch (e) { console.warn('[realtime:likes]', e); }
-    },
-    onReceivedLikeUpdate: (updated) => {
-      try {
-        const patch = planReceivedLikeUpdate(updated);
-        const uid = userIdRef.current;
-        if (patch.needsFullRefetch) {
-          if (uid) loadReceivedLikesRef.current?.(uid).catch(() => {});
-          return;
-        }
-        if (patch.removeLikerId) {
-          setReceivedLikers(prev => prev.filter(p => p.id !== patch.removeLikerId));
-        }
-        if (patch.ackGreenLikerId) {
-          setAcknowledgedComplimentIds(prev => {
-            if (prev.has(patch.ackGreenLikerId!)) return prev;
-            return new Set([...prev, patch.ackGreenLikerId!]);
-          });
-        }
-        if (patch.setHeartType) {
-          const { likerId, heartType } = patch.setHeartType;
-          setReceivedHeartTypes(prev => {
-            const nextType = preferReceivedHeartType(prev.get(likerId), heartType);
-            if (prev.get(likerId) === nextType) return prev;
-            return new Map(prev).set(likerId, nextType);
-          });
-        }
-        traceRealtimeStateMerge('hearts', updated);
-      } catch (e) {
-        console.warn('[realtime:likes-update]', e);
-        const uid = userIdRef.current;
-        if (uid) loadReceivedLikesRef.current?.(uid).catch(() => {});
-      }
-    },
-    onContactShareInsert: async (share) => {
-      try {
-        setReceivedContactShares(prev => upsertReceivedContactShare(prev, share));
-        traceRealtimeStateMerge('contact', share);
-        const { data } = await supabase.from('profiles').select('nickname').eq('id', share.liked_id).maybeSingle();
-        setBottomNotif({ type: 'contact', nickname: data?.nickname ?? '' });
-      } catch (e) { console.warn('[realtime:contact-shares]', e); }
-    },
-    onContactShareUpdate: (share) => {
-      setReceivedContactShares(prev => upsertReceivedContactShare(prev, share));
-      traceRealtimeStateMerge('contact', share);
-    },
+    ...heartsRealtimeApply,
     onBlockedUserInsert: (b) => {
       const uid = userIdRef.current;
       if (uid && isBlockedRowForMe(b, uid)) {

@@ -41,6 +41,9 @@ import { planParticipantSoTReload } from '../lib/participant-sot-resync';
 /** Narrow chats columns for list/open — no select('*') payload bloat. */
 export const CHAT_LIST_SELECT = 'id, user1_id, user2_id, created_at';
 
+/** Full message row columns (database.ts) — avoid select('*') on hot paths. */
+export const MESSAGE_ROW_SELECT = 'id, chat_id, sender_id, content, image_url, created_at, client_id';
+
 const MAX_MESSAGES = 500; // 채팅방당 최대 메시지 보유 수 (메모리 누수 방지) — MESSAGE_PAGE_SIZE와 동일
 if (MAX_MESSAGES !== MESSAGE_PAGE_SIZE) {
   throw new Error('MAX_MESSAGES must equal MESSAGE_PAGE_SIZE');
@@ -355,8 +358,8 @@ export function useChat({
       // Bounded initial page: newest MESSAGE_PAGE_SIZE (aligns with in-memory MAX_MESSAGES).
       // Desc + limit avoids full-history SELECT; reverse to chronological for UI/reducers.
       const q = queryIds.length <= 1
-        ? supabase.from('messages').select('*').eq('chat_id', cid)
-        : supabase.from('messages').select('*').in('chat_id', queryIds);
+        ? supabase.from('messages').select(MESSAGE_ROW_SELECT).eq('chat_id', cid)
+        : supabase.from('messages').select(MESSAGE_ROW_SELECT).in('chat_id', queryIds);
       const { data, error } = await q
         .order('created_at', { ascending: false })
         .limit(MESSAGE_PAGE_SIZE);
@@ -896,7 +899,7 @@ export function useChat({
               continue;
             }
             // client_id로 이미 저장됐는지 확인 (이전 시도 응답 분실)
-            const { data: existing } = await supabase.from('messages').select('*').eq('chat_id', item.chatId).eq('client_id', item.clientId).maybeSingle();
+            const { data: existing } = await supabase.from('messages').select(MESSAGE_ROW_SELECT).eq('chat_id', item.chatId).eq('client_id', item.clientId).maybeSingle();
             if (existing) {
               setMessages(prev => prev.map(m => {
                 if (m.id !== item.optimisticId) return m;
@@ -1066,7 +1069,7 @@ export function useChat({
               setBottomNotif({ type: 'chat', nickname: '', message: BLOCKED_SEND_TOAST });
               return;
             }
-            const { data: existing } = await supabase.from('messages').select('*').eq('chat_id', snapChatId).eq('client_id', clientUUID).maybeSingle();
+            const { data: existing } = await supabase.from('messages').select(MESSAGE_ROW_SELECT).eq('chat_id', snapChatId).eq('client_id', clientUUID).maybeSingle();
             if (existing && (isActiveRoomChat(snapChatId) || isActiveRoomChat((existing as Message).chat_id))) {
               const saved = existing as Message;
               rememberRoomChatId(saved.chat_id);
@@ -1223,7 +1226,7 @@ export function useChat({
               setBottomNotif({ type: 'chat', nickname: '', message: BLOCKED_SEND_TOAST });
               return null;
             }
-            const { data: existing } = await supabase.from('messages').select('*')
+            const { data: existing } = await supabase.from('messages').select(MESSAGE_ROW_SELECT)
               .eq('chat_id', snapChatId).eq('client_id', clientId).maybeSingle();
             if (existing && isActiveRoomChat(snapChatId)) {
               URL.revokeObjectURL(localBlobUrl);
@@ -1333,8 +1336,8 @@ export function useChat({
           .flatMap(([alias, canon]) => [alias, canon]),
       ].filter(Boolean))];
       const q = queryIds.length <= 1
-        ? supabase.from('messages').select('*').eq('chat_id', cid)
-        : supabase.from('messages').select('*').in('chat_id', queryIds);
+        ? supabase.from('messages').select(MESSAGE_ROW_SELECT).eq('chat_id', cid)
+        : supabase.from('messages').select(MESSAGE_ROW_SELECT).in('chat_id', queryIds);
       const { data, error } = await q
         .lt('created_at', cursor)
         .order('created_at', { ascending: false })

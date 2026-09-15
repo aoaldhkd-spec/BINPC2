@@ -31,6 +31,11 @@ import {
   type PendingGroupMsg,
 } from '../lib/group-pending-queue';
 
+/** group_messages row columns — avoid select('*') on load/replay. */
+export const GROUP_MESSAGE_ROW_SELECT = 'id, group_id, sender_id, content, image_url, created_at, client_id';
+export const GROUP_PARTICIPANT_SELECT = 'id, group_id, user_id, joined_at, last_read_at';
+export const GROUP_CHAT_LIST_SELECT = 'id, name, interest_tag, age_group, max_members, created_at, room_kind, hidden, merged_into';
+
 const MAX_GROUP_MESSAGES = 300;
 const MAX_MSG_LEN = 1000; // 메시지 최대 길이 — useChat과 동일 기준
 
@@ -101,8 +106,8 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif, group
   const loadGroupChats = useCallback(async (userId: string): Promise<void> => {
     try {
       // 참가 조회가 N대/년생 방을 만든 뒤에 목록을 읽는다 (병렬이면 빈 카탈로그가 올 수 있음)
-      const partsRes = await supabase.from('group_participants').select('*').eq('user_id', userId);
-      const groupsRes = await supabase.from('group_chats').select('*');
+      const partsRes = await supabase.from('group_participants').select(GROUP_PARTICIPANT_SELECT).eq('user_id', userId);
+      const groupsRes = await supabase.from('group_chats').select(GROUP_CHAT_LIST_SELECT);
       const parts = (partsRes.data ?? []) as GroupParticipant[];
       const groupIds = parts.map(p => p.group_id);
       const left = recentlyLeftRef.current;
@@ -250,7 +255,7 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif, group
         resolveCatalogGroupId(rawGroupsRef.current, groupId),
         groupId,
       ].filter(Boolean))];
-      const { data, error } = await supabase.from('group_messages').select('*')
+      const { data, error } = await supabase.from('group_messages').select(GROUP_MESSAGE_ROW_SELECT)
         .in('group_id', queryIds).order('created_at', { ascending: true });
       if (gen !== loadGenRef.current) return false;
       if (error) { console.error('[loadGroupMessages] DB 오류:', error.message); return false; }
@@ -289,7 +294,7 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif, group
         openId,
         groupId,
       ].filter(Boolean))];
-      const { data } = await supabase.from('group_participants').select('*').in('group_id', queryIds);
+      const { data } = await supabase.from('group_participants').select(GROUP_PARTICIPANT_SELECT).in('group_id', queryIds);
       const active = activeGroupIdRef.current;
       if (active !== groupId && active !== openId && !queryIds.includes(active ?? '')) return;
       const rows = (data ?? []) as GroupParticipant[];
@@ -355,7 +360,7 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif, group
               continue;
             }
             const { data: existing } = await supabase.from('group_messages')
-              .select('*').eq('client_id', item.clientId).maybeSingle();
+              .select(GROUP_MESSAGE_ROW_SELECT).eq('client_id', item.clientId).maybeSingle();
             if (existing) {
               const saved = existing as GroupMessage;
               if (isActiveGroupRoom(item.groupId)) {
@@ -621,7 +626,7 @@ export function useGroupChat({ currentUserId, profilesRef, setBottomNotif, group
               return;
             }
             const { data: existing } = await supabase.from('group_messages')
-              .select('*').eq('client_id', clientId).maybeSingle();
+              .select(GROUP_MESSAGE_ROW_SELECT).eq('client_id', clientId).maybeSingle();
             if (existing) {
               setGroupMessages(prev => prev.map(m => m.id === optimisticId ? existing as GroupMessage : m));
               return;

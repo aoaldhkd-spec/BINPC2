@@ -62,6 +62,16 @@ import {
   panelTestSecrets,
 } from '../lib/db-panel-secrets';
 import {
+  createSseRing,
+  SSE_RING_MAX_DEFAULT,
+  SSE_RING_TTL_MS_DEFAULT,
+} from '../lib/db-sse-ring';
+import { createMergedIdMap } from '../lib/db-merged-id-map';
+import {
+  ALLOWED_OP_TABLES,
+  CRITICAL_PERSIST_TABLES,
+} from '../lib/db-table-policy';
+import {
   LEGACY_APP_SETTINGS_KEYS,
   LEGACY_KV_TABLES,
   settingsHaveLegacyKeys,
@@ -474,64 +484,15 @@ function imageStoreSet(path: string, dataUrl: string): void {
   pruneImageStore();
 }
 
-// ─── Allowed tables for /op ────────────────────────────────────────────────────
-// Allowlist prevents access to internal or non-existent tables.
-const ALLOWED_OP_TABLES = new Set([
-  'profiles', 'chats', 'messages', 'likes', 'chat_reads',
-  'app_settings',
-  'session_history',
-  // Extra tables used by the app
-  'contact_shares', 'contact_share_events', 'anonymous_reports',
-  'notifications',
-  'app_image_store',
-  // 옵트인 단체 채팅
-  'group_chats', 'group_participants', 'group_messages',
-  // 차단·숨기기 / 프로필 방문자
-  'blocked_users', 'profile_views',
-  // 상태·이상형 신호
-  'user_signals',
-  // 시그널 보내기/패스 (하트 likes 와 분리)
-  'signal_sends',
-]);
+// ALLOWED_OP_TABLES: ../lib/db-table-policy.ts
 
-// ─── SSE Event Ring Buffer — Last-Event-ID 재전송으로 재연결 시 이벤트 유실 방지 ──
-// 브라우저 EventSource는 마지막 수신한 id를 자동으로 Last-Event-ID 헤더로 재연결 시 전송.
-// 서버는 해당 seq 이후 이벤트를 링 버퍼에서 찾아 즉시 재전송 → 단절 구간 이벤트 자동 복구.
-// TTL(10분) 초과 단절은 onSseReconnect → loadMessages 전체 리로드로 폴백.
-let _sseEventSeq = 0;
-const SSE_RING_MAX = 1000;           // 최대 보관 이벤트 수 (~1000 × ~1 KB ≈ 1 MB 상한) [Part1-Fix1]
-const SSE_RING_TTL_MS = 20 * 60 * 1_000; // 20분 보관 — 중단기 재연결 Last-Event-ID 복구 커버 [Part1-Fix1]
-
-interface RingEntry {
-  seq: number;
-  ts: number;
-  json: string;               // JSON.stringify(event) — SSE data 페이로드
-  targets: 'all' | string[]; // 'all' = broadcastAll, string[] = broadcastToUsers userIds
-}
-const _sseRingBuffer: RingEntry[] = [];
-
-function _ringAdd(json: string, targets: 'all' | string[]): number {
-  const seq = ++_sseEventSeq;
-  _sseRingBuffer.push({ seq, ts: Date.now(), json, targets });
-  // TTL + 상한 초과 항목 제거
-  const cutoff = Date.now() - SSE_RING_TTL_MS;
-  while (
-    _sseRingBuffer.length > SSE_RING_MAX ||
-    (_sseRingBuffer.length > 0 && _sseRingBuffer[0].ts < cutoff)
-  ) {
-    _sseRingBuffer.shift();
-  }
-  return seq;
-}
-
-function _ringGetSince(lastSeq: number, userId: string | null, isAdmin: boolean): RingEntry[] {
-  return _sseRingBuffer.filter(e => {
-    if (e.seq <= lastSeq) return false;
-    if (isAdmin) return true;
-    if (e.targets === 'all') return true;
-    return userId ? (e.targets as string[]).includes(userId) : false;
-  });
-}
+// ─── SSE Event Ring Buffer — implementation in ../lib/db-sse-ring.ts ───────────
+// TTL 초과 단절은 onSseReconnect → loadMessages 전체 리로드로 폴백.
+const SSE_RING_MAX = SSE_RING_MAX_DEFAULT;           // ~1000 × ~1 KB ≈ 1 MB 상한 [Part1-Fix1]
+const SSE_RING_TTL_MS = SSE_RING_TTL_MS_DEFAULT; // 20분 — Last-Event-ID 복구 커버 [Part1-Fix1]
+const _sseRing = createSseRing({ max: SSE_RING_MAX, ttlMs: SSE_RING_TTL_MS });
+const _ringAdd = _sseRing.add;
+const _ringGetSince = _sseRing.getSince;
 
 // sanitize helpers: ../lib/db-sanitize.ts
 
@@ -970,13 +931,7 @@ async function withChatPairLock<T>(pairKey: string, fn: () => Promise<T>): Promi
   }
 }
 
-/** 내구성이 필수인 테이블 — persist 성공 후에만 SSE/응답 */
-const CRITICAL_PERSIST_TABLES = new Set([
-  'messages', 'likes', 'chats', 'chat_reads',
-  'contact_shares', 'contact_share_events',
-  'group_messages', 'group_chats', 'group_participants',
-  'signal_sends',
-]);
+/** CRITICAL_PERSIST_TABLES: ../lib/db-table-policy.ts */
 
 /** SSE 타겟 수집 (테스트·브로드캐스트 공용) — 구현은 db-broadcast-targets.ts */
 export function collectBroadcastTargets(
@@ -1014,26 +969,10 @@ function chatIdsForPair(u1: string, u2: string): string[] {
     .map(c => String(c.id));
 }
 
-/** 병합된 옛 방 id → canonical (프로세스 동안 SELECT 리다이렉트) */
-const mergedChatIds = new Map<string, string>();
-function rememberMergedChat(fromId: string, toId: string) {
-  if (!fromId || fromId === toId) return;
-  mergedChatIds.set(fromId, toId);
-  if (mergedChatIds.size > 2000) {
-    const first = mergedChatIds.keys().next().value;
-    if (first) mergedChatIds.delete(first);
-  }
-}
-
-function resolveMergedChatId(chatId: string): string {
-  let cur = chatId;
-  for (let i = 0; i < 8; i++) {
-    const next = mergedChatIds.get(cur);
-    if (!next || next === cur) break;
-    cur = next;
-  }
-  return cur;
-}
+/** 병합된 옛 방 id → canonical (프로세스 동안 SELECT 리다이렉트) — db-merged-id-map */
+const _mergedChatIds = createMergedIdMap(2000);
+const rememberMergedChat = _mergedChatIds.remember;
+const resolveMergedChatId = _mergedChatIds.resolve;
 
 /** 방 단위로 PG에서 메시지를 메모리에 합침 — 전역 LIMIT 때문에 옛 대화가 비는 것 방지 */
 async function mergeMessagesForChatIds(chatIds: string[]): Promise<void> {
@@ -1781,23 +1720,19 @@ function collapseDuplicateGroupChatIds(): void {
   if (byId.size !== rows.length) store['group_chats'] = [...byId.values()];
 }
 
-const mergedGroupIds = new Map<string, string>();
-function rememberMergedGroup(fromId: string, toId: string) {
-  if (!fromId || fromId === toId) return;
-  mergedGroupIds.set(fromId, toId);
-  if (mergedGroupIds.size > 2000) {
-    const first = mergedGroupIds.keys().next().value;
-    if (first) mergedGroupIds.delete(first);
-  }
-}
+const _mergedGroupIds = createMergedIdMap(2000);
+const rememberMergedGroup = _mergedGroupIds.remember;
 function resolveMergedGroupId(groupId: string): string {
-  let cur = groupId;
+  // First follow in-memory redirects, then row.merged_into (DB-backed).
+  let cur = _mergedGroupIds.resolve(groupId);
   for (let i = 0; i < 8; i++) {
-    const mapped = mergedGroupIds.get(cur);
-    if (mapped && mapped !== cur) { cur = mapped; continue; }
     const row = getTable('group_chats').find(g => String(g.id) === cur);
     const into = row ? String(row.merged_into ?? '') : '';
-    if (into && into !== cur) { cur = into; continue; }
+    if (into && into !== cur) {
+      rememberMergedGroup(cur, into);
+      cur = _mergedGroupIds.resolve(into);
+      continue;
+    }
     break;
   }
   return cur;
@@ -5049,7 +4984,8 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
           }
           persistDeletes.push(dbDeleteTable(t).catch(e => logger.error({ err: e }, '[db] background task error')));
         }
-        mergedGroupIds.clear();
+        _mergedGroupIds.clear();
+        _mergedChatIds.clear();
         autoMatchInFlight.clear();
         // PG wipe가 끝난 뒤 빈 카탈로그 방을 다시 심는다 (시드가 삭제 레이스에 지워지지 않게)
         await Promise.all(persistDeletes);
@@ -6293,7 +6229,7 @@ router.get('/events', (req: Request, res: Response) => {
       // 슬립 후 링 전체가 쏟아지면 채팅이 멈춘다. 소량은 재전송, 대량은 HTTP merge-by-id.
       const RING_REPLAY_MAX = 200;
       if (missed.length > RING_REPLAY_MAX) {
-        const latest = _sseRingBuffer.length ? _sseRingBuffer[_sseRingBuffer.length - 1].seq : lastSeq;
+        const latest = _sseRing.latestSeq() || lastSeq;
         try {
           res.write(`id: ${latest}\ndata: ${JSON.stringify({ type: 'catchup', missed: missed.length })}\n\n`);
         } catch { /* ignore */ }

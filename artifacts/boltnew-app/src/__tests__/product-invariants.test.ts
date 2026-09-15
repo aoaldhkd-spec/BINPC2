@@ -272,12 +272,14 @@ describe('product copy + notification invariants', () => {
 
   it('단톡 입장 즉시 열고 나가기·키보드·읽음 숫자가 연결된다', () => {
     const app = read('App.tsx');
+    const guards = read('hooks/useSocialLockGuards.ts');
     const group = read('components/GroupChatScreen.tsx');
     const hook = read('hooks/useGroupChat.ts');
     expect(app).toContain('leaveGroupChatGuarded');
     expect(app).toContain('onLeaveGroupChat');
-    expect(app).toContain("setView('group-chat')");
-    expect(app).toMatch(/void openGroupChat\(groupId\);\s*setView\('group-chat'\)/);
+    expect(app).toContain('useSocialLockGuards');
+    expect(guards).toContain("setView('group-chat')");
+    expect(guards).toMatch(/void openGroupChat\(groupId\);\s*setView\('group-chat'\)/);
     expect(group).toContain('visualViewport');
     expect(group).toContain('unreadMemberCount');
     expect(group).toContain('functionsLocked');
@@ -327,12 +329,19 @@ describe('product copy + notification invariants', () => {
     expect(app).toContain("useChat({ currentUserId, profilesRef, setSelectedProfile, setView, setBottomNotif, functionsLocked");
     expect(chatHook).toMatch(/functionsLocked[\s\S]*flushPendingQueue/);
     expect(chatHook).toContain('isFunctionsLockedOpError');
+    expect(app).toContain('useSocialLockGuards');
+    expect(app).toContain('useHeartsRealtimeApply');
+    expect(app).toContain('...heartsRealtimeApply');
     expect(app).toContain('openChatGuarded');
     expect(app).toContain('sendMessageGuarded');
     expect(app).toContain('sendImageGuarded');
     expect(app).toContain('sendGroupMessageGuarded');
     expect(app).toContain('joinGroupChatGuarded');
     expect(app).toContain('leaveGroupChatGuarded');
+    expect(read('hooks/useSocialLockGuards.ts')).toContain('joinGroupChatGuarded');
+    expect(read('hooks/useHeartsRealtimeApply.ts')).toContain('MUTUAL_HEART_TOAST');
+    expect(chatHook).toContain('MESSAGE_ROW_SELECT');
+    expect(chatHook).not.toMatch(/from\('messages'\)\.select\('\*'\)/);
     expect(app).toContain('onLeaveGroupChat');
     expect(app).toContain('handleMainTabChange');
     expect(app).toContain('FUNCTIONS_LOCK_KICK_TOAST');
@@ -356,6 +365,30 @@ describe('product copy + notification invariants', () => {
     expect(db).toContain('FUNCTIONS_LOCKED_INSERT_TABLES');
     expect(db).toContain("code: 'FUNCTIONS_LOCKED'");
     expect(db).toContain('broadcastAll({ type: \'change\', table: \'app_settings\'');
+  });
+
+
+  it('hearts/group peels + db ring/map/policy stay wired (no inline fat)', () => {
+    const app = read('App.tsx');
+    const heartsApply = read('hooks/useHeartsRealtimeApply.ts');
+    const guards = read('hooks/useSocialLockGuards.ts');
+    const chatHook = read('hooks/useChat.ts');
+    const groupHook = read('hooks/useGroupChat.ts');
+    const db = readFileSync(join(root, '../../api-server/src/routes/db.ts'), 'utf8');
+    expect(app).toContain('useHeartsRealtimeApply');
+    expect(app).toContain('useSocialLockGuards');
+    expect(app).toContain('...heartsRealtimeApply');
+    expect(app).not.toContain('planSentLikeInsert');
+    expect(app).not.toContain('MUTUAL_HEART_TOAST');
+    expect(heartsApply).toContain('MUTUAL_HEART_TOAST');
+    expect(guards).toContain('joinGroupChatGuarded');
+    expect(chatHook).toContain('MESSAGE_ROW_SELECT');
+    expect(groupHook).toContain('GROUP_MESSAGE_ROW_SELECT');
+    expect(db).toContain("from '../lib/db-sse-ring'");
+    expect(db).toContain("from '../lib/db-merged-id-map'");
+    expect(db).toContain("from '../lib/db-table-policy'");
+    expect(db).not.toMatch(/function _ringAdd\(/);
+    expect(db).not.toMatch(/const ALLOWED_OP_TABLES = new Set\(/);
   });
 
   it('ProfileCard keeps compact heart/chat buttons (no min-h-11 bloat)', () => {

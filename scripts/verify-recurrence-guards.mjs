@@ -407,7 +407,7 @@ mustMatch('artifacts/boltnew-app/src/AdminApp.tsx', '40_admin_chats_with_message
 // ?? 41 Participant received-likes UPDATE incremental (no full refetch storm) ???
 mustExist('artifacts/boltnew-app/src/lib/received-like-update.ts', '41_received_like_update_module');
 mustExist('artifacts/boltnew-app/src/lib/received-like-update.test.ts', '41_received_like_update_tests');
-mustMatch('artifacts/boltnew-app/src/App.tsx', '41_received_likes_update_incremental', [
+mustMatch('artifacts/boltnew-app/src/hooks/useHeartsRealtimeApply.ts', '41_received_likes_update_incremental', [
   /planReceivedLikeUpdate/,
   /preferReceivedHeartType/,
 ]);
@@ -510,11 +510,14 @@ mustExist('artifacts/boltnew-app/src/lib/profile-view-record.ts', '44_profile_vi
 mustExist('artifacts/boltnew-app/src/lib/notification-active.ts', '44_notification_active_module');
 mustMatch('artifacts/boltnew-app/src/App.tsx', '44_app_wires_sse_fallback_hook', [
   /useSseFallbackPoll/,
-  /planSentLikeInsert/,
+  /useHeartsRealtimeApply/,
   /planContactShareEvent/,
   /countPendingHearts/,
   /planFunctionsLockTransition/,
   /mergeUserSignalRow/,
+]);
+mustMatch('artifacts/boltnew-app/src/hooks/useHeartsRealtimeApply.ts', '44_hearts_apply_owns_sent_like_planner', [
+  /planSentLikeInsert/,
 ]);
 mustNotMatch('artifacts/boltnew-app/src/App.tsx', '44_app_no_inline_sse_fallback_interval', [
   /setInterval\(tick,\s*connStatus === 'error' \? 5_000 : 8_000\)/,
@@ -554,7 +557,8 @@ mustMatch('artifacts/boltnew-app/src/hooks/useUserRealtimeChannel.ts', '45_hook_
 mustMatch('artifacts/boltnew-app/src/App.tsx', '45_app_wires_user_realtime_apply_callbacks', [
   /useUserRealtimeChannel/,
   /planProfilesAfterInsert/,
-  /planSentLikeInsert/,
+  /useHeartsRealtimeApply/,
+  /\.\.\.heartsRealtimeApply/,
   /shouldSkipBlock/,
   /buildBlockedUserRow/,
 ]);
@@ -718,6 +722,83 @@ mustMatch('ARCHITECTURE.md', '48_architecture_path_after_shell_db_peel', [
   /~9\.5/,
   /8\.[567]/,
 ]);
+
+
+// --- 49 Hearts/group apply+guards + db sse-ring/merged-id/table-policy ---
+mustExist('artifacts/boltnew-app/src/hooks/useHeartsRealtimeApply.ts', '49_hearts_realtime_apply_hook');
+mustExist('artifacts/boltnew-app/src/hooks/useSocialLockGuards.ts', '49_social_lock_guards_hook');
+mustExist('artifacts/api-server/src/lib/db-sse-ring.ts', '49_db_sse_ring_module');
+mustExist('artifacts/api-server/src/lib/db-sse-ring.test.ts', '49_db_sse_ring_tests');
+mustExist('artifacts/api-server/src/lib/db-merged-id-map.ts', '49_db_merged_id_map_module');
+mustExist('artifacts/api-server/src/lib/db-merged-id-map.test.ts', '49_db_merged_id_map_tests');
+mustExist('artifacts/api-server/src/lib/db-table-policy.ts', '49_db_table_policy_module');
+mustExist('artifacts/api-server/src/lib/db-table-policy.test.ts', '49_db_table_policy_tests');
+mustMatch('artifacts/boltnew-app/src/App.tsx', '49_app_wires_hearts_apply_and_social_guards', [
+  /useHeartsRealtimeApply/,
+  /useSocialLockGuards/,
+  /\.\.\.heartsRealtimeApply/,
+  /handleMainJoinGroupChat/,
+  /execLikeGuarded/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/App.tsx', '49_app_no_inline_hearts_sse_planners', [
+  /planSentLikeInsert/,
+  /planReceivedLikeUpdate/,
+  /planIncomingHeartBottomNotif/,
+  /MUTUAL_HEART_TOAST/,
+  /traceRealtimeStateMerge/,
+]);
+mustMatch('artifacts/boltnew-app/src/hooks/useHeartsRealtimeApply.ts', '49_hearts_apply_keeps_mutual_and_incoming', [
+  /MUTUAL_HEART_TOAST/,
+  /planIncomingHeartBottomNotif/,
+  /planSentLikeInsert/,
+  /planReceivedLikeUpdate/,
+]);
+mustMatch('artifacts/boltnew-app/src/hooks/useSocialLockGuards.ts', '49_social_guards_gate_group_join', [
+  /joinGroupChatGuarded/,
+  /functionsLockedRef/,
+  /openGroupChat/,
+  /setView\('group-chat'\)/,
+]);
+mustMatch('artifacts/boltnew-app/src/hooks/useChat.ts', '49_chat_message_row_select_narrowed', [
+  /MESSAGE_ROW_SELECT/,
+  /\.select\(MESSAGE_ROW_SELECT\)/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/hooks/useChat.ts', '49_chat_no_messages_select_star', [
+  /from\('messages'\)\.select\('\*'\)/,
+]);
+mustMatch('artifacts/boltnew-app/src/hooks/useGroupChat.ts', '49_group_selects_narrowed', [
+  /GROUP_MESSAGE_ROW_SELECT/,
+  /GROUP_PARTICIPANT_SELECT/,
+  /GROUP_CHAT_LIST_SELECT/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '49_db_reimports_ring_map_policy', [
+  /from '\.\.\/lib\/db-sse-ring'/,
+  /from '\.\.\/lib\/db-merged-id-map'/,
+  /from '\.\.\/lib\/db-table-policy'/,
+  /createSseRing/,
+  /createMergedIdMap/,
+  /ALLOWED_OP_TABLES/,
+  /CRITICAL_PERSIST_TABLES/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '49_db_still_single_router_export', [
+  /export default router;\s*$/,
+]);
+mustNotMatch('artifacts/api-server/src/routes/db.ts', '49_db_no_inline_ring_or_allowed_set', [
+  /function _ringAdd\(/,
+  /const ALLOWED_OP_TABLES = new Set\(/,
+  /const CRITICAL_PERSIST_TABLES = new Set\(/,
+  /const _sseRingBuffer/,
+]);
+mustMatch('ARCHITECTURE.md', '49_architecture_path_after_hearts_db_peel', [
+  /useHeartsRealtimeApply/,
+  /useSocialLockGuards/,
+  /db-sse-ring/,
+  /db-merged-id-map/,
+  /db-table-policy/,
+  /~9\.0/,
+  /~9\.5/,
+]);
+
 
 console.log('\n=== verify-recurrence-guards ===\n');
 for (const r of results) {

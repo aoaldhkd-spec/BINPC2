@@ -91,12 +91,13 @@ describe('longevity recurrence guards (server)', () => {
   });
 
   it('persist-before-broadcast and legacy seating/heart_drain stay out of active op tables', () => {
-    const allowedStart = dbTs.indexOf('const ALLOWED_OP_TABLES');
-    expect(allowedStart).toBeGreaterThan(0);
-    const allowedBlock = dbTs.slice(allowedStart, allowedStart + 900);
-    expect(allowedBlock).not.toContain("'seats'");
-    expect(allowedBlock).not.toContain("'seating'");
-    expect(allowedBlock).not.toContain('heart_balances');
+    expect(dbTs).toContain("from '../lib/db-table-policy'");
+    expect(dbTs).toContain('ALLOWED_OP_TABLES');
+    const policy = readFileSync(join(here, '../lib/db-table-policy.ts'), 'utf8');
+    expect(policy).toContain('ALLOWED_OP_TABLES');
+    expect(policy).not.toContain("'seats'");
+    expect(policy).not.toContain("'seating'");
+    expect(policy).not.toContain('heart_balances');
     expect(dbTs).toMatch(/await dbPersistRow\(/);
     expect(dbTs).toMatch(/resolveAuthUserId\(req, body\)/);
     expect(dbTs).toMatch(/isPublicProfilePhoto|profile-photos\/[\w-]+/);
