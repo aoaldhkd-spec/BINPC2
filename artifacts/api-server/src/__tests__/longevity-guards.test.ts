@@ -209,6 +209,32 @@ describe('longevity recurrence guards (server)', () => {
     expect(likes).toContain('likesHeartLimitReject');
   });
 
+  it('auth-login + op-gate + rpc-auth + push-subscribe + insert follow-up stay extracted', () => {
+    expect(dbTs).toContain("from '../lib/db-session-tokens'");
+    expect(dbTs).toContain('validateAuthLoginBody');
+    expect(dbTs).toContain('planAuthLoginDecision');
+    expect(dbTs).toContain("from '../lib/db-op-request'");
+    expect(dbTs).toContain('opBusyReject');
+    expect(dbTs).toContain('planBindRequesterId');
+    expect(dbTs).toContain("from '../lib/db-rpc-allowlist'");
+    expect(dbTs).toContain('validateRpcName');
+    expect(dbTs).toContain('planVerifyPanelPasswordArgs');
+    expect(dbTs).toContain("from '../lib/db-push-plan'");
+    expect(dbTs).toContain('validatePushSubscribeBody');
+    expect(dbTs).toContain('buildInsertedRow');
+    expect(dbTs).toContain('planLikesMinuteBucketConsume');
+    expect(dbTs).toContain('sseCapacityReject');
+    expect(dbTs).toContain('buildReadyPayload');
+    expect(dbTs).toContain('buildAutoRoomRow');
+    expect(dbTs).not.toMatch(/이미 다른 기기에서 등록된 계정입니다/);
+    expect(dbTs).not.toMatch(/Server busy — retry in 1s/);
+    expect(dbTs).not.toMatch(/Server at SSE capacity/);
+    const sess = readFileSync(join(here, '../lib/db-session-tokens.ts'), 'utf8');
+    const opReq = readFileSync(join(here, '../lib/db-op-request.ts'), 'utf8');
+    expect(sess).toContain('validateAuthLoginBody');
+    expect(opReq).toContain('opBusyReject');
+  });
+
   it('app-settings-merge + panel-tokens stay extracted from db.ts', () => {
     expect(dbTs).toContain("from '../lib/db-app-settings-merge'");
     expect(dbTs).toContain("from '../lib/db-panel-tokens'");

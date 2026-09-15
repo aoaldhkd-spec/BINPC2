@@ -480,3 +480,58 @@ export function groupParticipantsMissingGroupReject(): OpOwnershipReject {
     logMsg: '',
   };
 }
+
+export function findRowByClientId(
+  rows: Record<string, unknown>[],
+  clientId: unknown,
+): Record<string, unknown> | undefined {
+  if (clientId == null) return undefined;
+  return rows.find(r => r.client_id === clientId);
+}
+
+export function findExistingChatPairRow(
+  rows: Record<string, unknown>[],
+  uid1: string,
+  uid2: string,
+  detId: string,
+): Record<string, unknown> | undefined {
+  const byPair = rows.find(r =>
+    (String(r.user1_id) === uid1 && String(r.user2_id) === uid2)
+    || (String(r.user1_id) === uid2 && String(r.user2_id) === uid1),
+  );
+  if (byPair) return byPair;
+  return rows.find(r => String(r.id) === detId);
+}
+
+/** likes / contact_shares / contact_share_events — ignore client-supplied created_at. */
+export function shouldForceServerCreatedAt(table: string): boolean {
+  return table === 'likes' || table === 'contact_shares' || table === 'contact_share_events';
+}
+
+export function buildInsertedRow(
+  effectiveRow: Record<string, unknown>,
+  id: string,
+  createdAt: string,
+  table: string,
+): Record<string, unknown> {
+  const newRow: Record<string, unknown> = {
+    created_at: createdAt,
+    ...effectiveRow,
+    id,
+  };
+  if (table === 'session_history' && !newRow.ended_at) newRow.ended_at = createdAt;
+  if (shouldForceServerCreatedAt(table)) newRow.created_at = createdAt;
+  return newRow;
+}
+
+export function messageReceiverIdFromChat(
+  chat: Record<string, unknown> | undefined,
+  senderId: unknown,
+): string | null {
+  if (!chat || senderId == null) return null;
+  const receiverId = String(chat.user1_id) === String(senderId)
+    ? chat.user2_id
+    : chat.user1_id;
+  return receiverId != null ? String(receiverId) : null;
+}
+

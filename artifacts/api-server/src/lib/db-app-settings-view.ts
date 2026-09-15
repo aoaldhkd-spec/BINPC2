@@ -126,3 +126,39 @@ export function planAppSettingsFromDbRows(
   const changed = secretKeys.some(k => String(memRow[k] ?? '') !== String(merged[k] ?? ''));
   return { action: 'secrets_overlay', row, changed };
 }
+
+/** Public /ready JSON body (no PII beyond entry_password which is already public gate). */
+export function buildReadyPayload(input: {
+  settings: Record<string, unknown>;
+  adminConfigured: boolean;
+  testConfigured: boolean;
+  resetConfigured: boolean;
+  legacyLeftovers: { kv_tables: number; settings_rows: number; history_rows: number };
+  checkedAt: string;
+}): Record<string, unknown> {
+  const settings = input.settings;
+  return {
+    ready: true,
+    settings: {
+      session_active: settings.session_active === true,
+      entry_password: String(settings.entry_password ?? ''),
+      timer_end_at: (settings.timer_end_at as string | null | undefined) ?? null,
+      timer_label: (settings.timer_label as string | null | undefined) ?? null,
+      reset_signal: (settings.reset_signal as string | null | undefined) ?? null,
+      functions_locked: settingsFunctionsLocked(settings),
+    },
+    login: {
+      adminConfigured: input.adminConfigured,
+      testConfigured: input.testConfigured,
+      resetConfigured: input.resetConfigured,
+    },
+    functions_locked: settingsFunctionsLocked(settings),
+    qr_base_url: settings.qr_base_url ?? null,
+    legacy_leftovers: {
+      kv_tables: input.legacyLeftovers.kv_tables,
+      settings_rows: input.legacyLeftovers.settings_rows,
+      history_rows: input.legacyLeftovers.history_rows,
+    },
+    checkedAt: input.checkedAt,
+  };
+}

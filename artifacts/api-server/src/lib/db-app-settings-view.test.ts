@@ -8,6 +8,7 @@ import {
   publicAppSettingsView,
   settingsFunctionsLocked,
   tableFingerprint,
+  buildReadyPayload,
 } from './db-app-settings-view.js';
 
 describe('db-app-settings-view', () => {
@@ -136,4 +137,19 @@ describe('db-app-settings-view', () => {
       persistLegacy: false,
     });
   });
+
+  it('buildReadyPayload keeps gate fields', () => {
+    const body = buildReadyPayload({
+      settings: { session_active: true, entry_password: '1234', reset_signal: 'r' },
+      adminConfigured: true,
+      testConfigured: false,
+      resetConfigured: true,
+      legacyLeftovers: { kv_tables: 0, settings_rows: 0, history_rows: 0 },
+      checkedAt: 't',
+    });
+    expect(body.ready).toBe(true);
+    expect((body.settings as any).entry_password).toBe('1234');
+    expect((body.login as any).adminConfigured).toBe(true);
+  });
+
 });

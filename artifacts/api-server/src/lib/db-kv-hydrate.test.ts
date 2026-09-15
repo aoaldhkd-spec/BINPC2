@@ -3,6 +3,7 @@ import {
   SYSTEM_KV_TABLES,
   mergeKvRowsIntoStore,
   seedLikesLastInsertMap,
+  countRowsCreatedSince,
 } from './db-kv-hydrate.js';
 
 describe('db-kv-hydrate', () => {
@@ -59,4 +60,13 @@ describe('db-kv-hydrate', () => {
     expect(map.has('e:f:undefined')).toBe(false);
     expect(size).toBe(1);
   });
+
+  it('countRowsCreatedSince', () => {
+    expect(countRowsCreatedSince([
+      { created_at: '2020-01-01' },
+      { created_at: '2030-01-01' },
+      { created_at: 1 },
+    ], '2025-01-01')).toBe(1);
+  });
+
 });

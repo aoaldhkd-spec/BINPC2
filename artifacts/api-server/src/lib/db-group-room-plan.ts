@@ -141,3 +141,74 @@ export function groupLimitSlotKey(g: Record<string, unknown> | undefined, groupI
   if (/^\d+대 모임$/.test(name)) return `age:${name}`;
   return String(g.id || groupId);
 }
+
+/** Build a new auto room row (caller supplies id / created_at). */
+export function buildAutoRoomRow(spec: {
+  id: string;
+  name: string;
+  interest_tag: string;
+  age_group: string | null;
+  room_kind: string;
+  created_at: string;
+}): Record<string, unknown> {
+  return {
+    id: spec.id,
+    name: spec.name,
+    interest_tag: spec.interest_tag,
+    age_group: spec.age_group,
+    room_kind: spec.room_kind,
+    max_members: UNLIMITED_GROUP_MEMBERS,
+    hidden: false,
+    created_at: spec.created_at,
+  };
+}
+
+/** Fields to refresh on an existing catalog/auto room before join. */
+export function patchExistingAutoRoom(
+  room: Record<string, unknown>,
+  spec: {
+    name: string;
+    interest_tag: string;
+    age_group: string | null;
+    room_kind: string;
+  },
+): Record<string, unknown> {
+  return {
+    ...room,
+    name: spec.name,
+    interest_tag: spec.interest_tag,
+    room_kind: spec.room_kind,
+    age_group: spec.age_group,
+    max_members: UNLIMITED_GROUP_MEMBERS,
+    hidden: false,
+    merged_into: null,
+  };
+}
+
+/** Whether join should skip afterparty / opt-out / already-member / slot-full. */
+export function shouldSkipAutoRoomJoin(input: {
+  hasOptOut: boolean;
+  roomKind: string;
+  alreadyMember: boolean;
+  slotsUsed: number;
+  maxSlots: number;
+}): boolean {
+  if (input.hasOptOut) return true;
+  if (input.roomKind === 'afterparty_club' || input.roomKind === 'afterparty_drink') return true;
+  if (input.alreadyMember) return true;
+  if (input.slotsUsed >= input.maxSlots) return true;
+  return false;
+}
+
+export function buildGroupParticipantRow(
+  groupId: string,
+  userId: string,
+  joinedAt: string,
+): Record<string, unknown> {
+  return {
+    id: `${groupId}__${userId}`,
+    group_id: groupId,
+    user_id: userId,
+    joined_at: joinedAt,
+  };
+}

@@ -65,3 +65,13 @@ export function seedLikesLastInsertMap(
   }
   return likesLastInsert.size;
 }
+
+/** Count in-memory rows whose created_at >= sinceIso (string compare ISO). */
+export function countRowsCreatedSince(
+  rows: Record<string, unknown>[],
+  sinceIso: string,
+): number {
+  return rows.filter(
+    r => typeof r.created_at === 'string' && r.created_at >= sinceIso,
+  ).length;
+}

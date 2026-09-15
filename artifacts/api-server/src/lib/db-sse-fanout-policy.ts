@@ -110,3 +110,72 @@ export function realtimeTraceMeta(table: string, row: Record<string, unknown>) {
     createdAt: typeof row.created_at === 'string' ? row.created_at : null,
   };
 }
+
+export type SseAdmitReject = {
+  status: number;
+  retryAfter?: string;
+  body: { error: string; code: string };
+};
+
+export function sseTokenExpiredReject(): SseAdmitReject {
+  return {
+    status: 401,
+    body: { error: 'Invalid or missing SSE token', code: 'SSE_TOKEN_EXPIRED' },
+  };
+}
+
+export function sseTokenInvalidReject(): SseAdmitReject {
+  return {
+    status: 401,
+    body: { error: 'Invalid or missing SSE token', code: 'SSE_TOKEN_INVALID' },
+  };
+}
+
+export function sseCapacityReject(): SseAdmitReject {
+  return {
+    status: 429,
+    retryAfter: '3',
+    body: { error: 'Server at SSE capacity', code: 'SSE_CAPACITY' },
+  };
+}
+
+export function sseIpLimitReject(): SseAdmitReject {
+  return {
+    status: 429,
+    retryAfter: '5',
+    body: { error: 'Too many SSE connections from this IP', code: 'RATE_LIMIT' },
+  };
+}
+
+export function sseAnonLimitReject(): SseAdmitReject {
+  return {
+    status: 429,
+    retryAfter: '5',
+    body: { error: 'Too many anonymous SSE connections', code: 'RATE_LIMIT' },
+  };
+}
+
+/** Whether IP bucket should count this connection (anonymous IP-capped vs auth bypass). */
+export function planSseIpCount(input: {
+  currentConns: number;
+  maxPerIp: number;
+  hasUserId: boolean;
+}): { allow: boolean; countIp: boolean; reject?: SseAdmitReject } {
+  if (input.currentConns >= input.maxPerIp) {
+    if (!input.hasUserId) {
+      return { allow: false, countIp: false, reject: sseIpLimitReject() };
+    }
+    return { allow: true, countIp: false };
+  }
+  return { allow: true, countIp: true };
+}
+
+export function shouldRejectAnonSse(input: {
+  isAdminSse: boolean;
+  hasUserId: boolean;
+  anonCount: number;
+  anonMax?: number;
+}): boolean {
+  const max = input.anonMax ?? 100;
+  return !input.isAdminSse && !input.hasUserId && input.anonCount >= max;
+}

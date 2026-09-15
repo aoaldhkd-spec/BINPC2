@@ -6,6 +6,11 @@ import {
   planSmartBroadcastLocal,
   realtimeTraceMeta,
   stripInternalBroadcastFields,
+  sseTokenExpiredReject,
+  sseCapacityReject,
+  planSseIpCount,
+  shouldRejectAnonSse,
+  sseAnonLimitReject,
 } from './db-sse-fanout-policy.js';
 
 const sanitize = {
@@ -90,5 +95,19 @@ describe('realtimeTraceMeta', () => {
       roomId: null,
       createdAt: null,
     });
+  });
+});
+
+describe('db-sse-fanout-policy admit', () => {
+  it('token/capacity rejects', () => {
+    expect(sseTokenExpiredReject().body.code).toBe('SSE_TOKEN_EXPIRED');
+    expect(sseCapacityReject().retryAfter).toBe('3');
+  });
+  it('planSseIpCount + anon', () => {
+    expect(planSseIpCount({ currentConns: 200, maxPerIp: 200, hasUserId: false }).allow).toBe(false);
+    expect(planSseIpCount({ currentConns: 200, maxPerIp: 200, hasUserId: true }).countIp).toBe(false);
+    expect(planSseIpCount({ currentConns: 1, maxPerIp: 200, hasUserId: false }).countIp).toBe(true);
+    expect(shouldRejectAnonSse({ isAdminSse: false, hasUserId: false, anonCount: 100 })).toBe(true);
+    expect(sseAnonLimitReject().status).toBe(429);
   });
 });

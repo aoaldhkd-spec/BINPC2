@@ -1,5 +1,6 @@
 /**
- * /op request normalize + scalar validation — extracted from routes/db.ts.
+ * /op request normalize + scalar validation + entry-gate/write rejects —
+ * extracted from routes/db.ts.
  */
 import type { FilterSpec } from './db-op-filters';
 
@@ -83,3 +84,161 @@ export function validateOpScalars(input: {
   }
   return null;
 }
+
+export type OpGateReject = {
+  status: number;
+  body: { data: null; error: { message: string; code?: string } };
+  /** Optional Retry-After seconds for 503/429 busy paths. */
+  retryAfter?: string;
+  logMsg?: string;
+};
+
+export const OP_BUSY_MESSAGE = 'Server busy — retry in 1s';
+export const OP_INVALID_BODY_MESSAGE = 'Request body must be a JSON object';
+export const OP_REQUESTER_SPOOF_MESSAGE =
+  'Forbidden: requesterId must match authenticated session';
+export const OP_UNAUTH_REQUESTER_MESSAGE = 'Authentication required';
+export const OP_INVALID_TABLE_MESSAGE = 'Invalid table';
+export const OP_PAYLOAD_REQUIRED_MESSAGE = 'payload is required for insert';
+export const OP_UNKNOWN_OPERATION_MESSAGE = 'Unknown operation';
+export const OP_INTERNAL_ERROR_MESSAGE =
+  '서버 내부 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
+export const OP_PERSIST_FAILED_MESSAGE =
+  '저장에 실패했습니다. 잠시 후 다시 시도해 주세요.';
+export const OP_DELETE_PERSIST_FAILED_MESSAGE =
+  '일시적 저장 오류입니다. 잠시 후 다시 시도해주세요.';
+export const OP_PIN_EXHAUSTED_MESSAGE =
+  'PIN pool exhausted — no available PIN slots. Please contact the administrator.';
+export const OP_NICKNAME_DUPLICATE_MESSAGE =
+  'duplicate key value violates unique constraint "profiles_nickname_key"';
+
+export function opBusyReject(): OpGateReject {
+  return {
+    status: 503,
+    retryAfter: '1',
+    body: { data: null, error: { message: OP_BUSY_MESSAGE, code: 'BUSY' } },
+  };
+}
+
+export function opInvalidBodyReject(): OpGateReject {
+  return {
+    status: 400,
+    body: { data: null, error: { message: OP_INVALID_BODY_MESSAGE, code: 'INVALID_BODY' } },
+  };
+}
+
+export function opRequesterIdSpoofReject(): OpGateReject {
+  return {
+    status: 403,
+    body: { data: null, error: { message: OP_REQUESTER_SPOOF_MESSAGE, code: 'FORBIDDEN' } },
+    logMsg: '[SECURITY] requesterId body-spoof attempt blocked',
+  };
+}
+
+export function opUnauthenticatedRequesterReject(): OpGateReject {
+  return {
+    status: 401,
+    body: { data: null, error: { message: OP_UNAUTH_REQUESTER_MESSAGE, code: 'UNAUTHORIZED' } },
+    logMsg: '[SECURITY] unauthenticated requesterId blocked',
+  };
+}
+
+export function opInvalidTableReject(): OpGateReject {
+  return {
+    status: 400,
+    body: { data: null, error: { message: OP_INVALID_TABLE_MESSAGE, code: 'INVALID_TABLE' } },
+  };
+}
+
+export function opPayloadRequiredReject(): OpGateReject {
+  return {
+    status: 400,
+    body: { data: null, error: { message: OP_PAYLOAD_REQUIRED_MESSAGE, code: '22023' } },
+  };
+}
+
+export function opUnknownOperationReject(): OpGateReject {
+  return {
+    status: 200,
+    body: { data: null, error: { message: OP_UNKNOWN_OPERATION_MESSAGE } },
+  };
+}
+
+export function opInternalErrorReject(): OpGateReject {
+  return {
+    status: 200,
+    body: { data: null, error: { message: OP_INTERNAL_ERROR_MESSAGE } },
+  };
+}
+
+export function opPersistFailedReject(): OpGateReject {
+  return {
+    status: 503,
+    body: { data: null, error: { message: OP_PERSIST_FAILED_MESSAGE, code: 'PERSIST_FAILED' } },
+  };
+}
+
+export function opDeletePersistFailedReject(): OpGateReject {
+  return {
+    status: 503,
+    body: {
+      data: null,
+      error: { message: OP_DELETE_PERSIST_FAILED_MESSAGE, code: 'PERSIST_FAILED' },
+    },
+  };
+}
+
+export function opPinExhaustedReject(): OpGateReject {
+  return {
+    status: 503,
+    body: { data: null, error: { message: OP_PIN_EXHAUSTED_MESSAGE, code: 'PIN_EXHAUSTED' } },
+  };
+}
+
+/** PG-shaped nickname unique violation (client treats code 23505). */
+export function opNicknameDuplicateReject(): OpGateReject {
+  return {
+    status: 200,
+    body: {
+      data: null,
+      error: { message: OP_NICKNAME_DUPLICATE_MESSAGE, code: '23505' },
+    },
+  };
+}
+
+export type BindRequesterIdResult =
+  | { ok: true; setRequesterId?: string }
+  | { ok: false; reject: OpGateReject };
+
+/**
+ * Session-bind requesterId before body destructure.
+ * Spoof when auth session exists and body claims a different id.
+ */
+export function planBindRequesterId(
+  authId: string | null,
+  bodyRequesterId: unknown,
+): BindRequesterIdResult {
+  if (authId && bodyRequesterId != null && String(bodyRequesterId) !== authId) {
+    return { ok: false, reject: opRequesterIdSpoofReject() };
+  }
+  if (authId) return { ok: true, setRequesterId: authId };
+  return { ok: true };
+}
+
+/** True when production-like env must require a session for claimed requesterId. */
+export function shouldBlockUnauthenticatedRequester(input: {
+  nodeEnv: string | undefined;
+  requesterId: unknown;
+  sessionUserId: string | null;
+  isAdmin: boolean;
+  isTestSession: boolean;
+}): boolean {
+  return (
+    input.nodeEnv !== 'test'
+    && Boolean(input.requesterId)
+    && !input.sessionUserId
+    && !input.isAdmin
+    && !input.isTestSession
+  );
+}
+

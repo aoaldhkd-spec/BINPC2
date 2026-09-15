@@ -93,3 +93,53 @@ export function planPushForEvent(
   }
   return null;
 }
+
+export type PushSubscribeReject = {
+  status: number;
+  body: { error: string };
+};
+
+export type PushSubscribeOk = {
+  ok: true;
+  userId: string;
+  endpoint: string;
+  auth: string;
+  p256dh: string;
+};
+
+export type PushSubscribeResult = PushSubscribeOk | { ok: false; reject: PushSubscribeReject };
+
+export function validatePushSubscribeBody(body: unknown): PushSubscribeResult {
+  if (body == null || typeof body !== 'object' || Array.isArray(body)) {
+    return { ok: false, reject: { status: 400, body: { error: 'Invalid request body' } } };
+  }
+  const rawBody = body as Record<string, unknown>;
+  const userId = typeof rawBody.userId === 'string' ? rawBody.userId : null;
+  const sub = rawBody.subscription;
+  const endpoint = sub != null && typeof (sub as Record<string, unknown>).endpoint === 'string'
+    ? (sub as Record<string, unknown>).endpoint as string : null;
+  const keys = sub != null ? (sub as Record<string, unknown>).keys : null;
+  const auth = keys != null && typeof (keys as Record<string, unknown>).auth === 'string'
+    ? (keys as Record<string, unknown>).auth as string : null;
+  const p256dh = keys != null && typeof (keys as Record<string, unknown>).p256dh === 'string'
+    ? (keys as Record<string, unknown>).p256dh as string : null;
+
+  if (!userId || userId.length > 128) {
+    return { ok: false, reject: { status: 400, body: { error: 'Missing or invalid userId' } } };
+  }
+  if (!endpoint || endpoint.length > 2048) {
+    return { ok: false, reject: { status: 400, body: { error: 'Missing or invalid endpoint' } } };
+  }
+  if (!auth || auth.length > 512) {
+    return { ok: false, reject: { status: 400, body: { error: 'Missing or invalid auth key' } } };
+  }
+  if (!p256dh || p256dh.length > 512) {
+    return { ok: false, reject: { status: 400, body: { error: 'Missing or invalid p256dh key' } } };
+  }
+  return { ok: true, userId, endpoint, auth, p256dh };
+}
+
+export function pushSubscribeUnauthorizedReject(): PushSubscribeReject {
+  return { status: 401, body: { error: 'Unauthorized: invalid SSE token' } };
+}
+

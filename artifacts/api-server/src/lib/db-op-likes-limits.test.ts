@@ -9,6 +9,7 @@ import {
   LIKES_RATE_LIMIT_MESSAGE,
   LIKES_SAME_TYPE_TARGET_MAX,
   matchesLikeTriple,
+  planLikesMinuteBucketConsume,
 } from './db-op-likes-limits.js';
 
 describe('db-op-likes-limits', () => {
@@ -42,5 +43,20 @@ describe('db-op-likes-limits', () => {
   it('likesPairIntervalBlocked', () => {
     expect(likesPairIntervalBlocked(1000, 1200, 500)).toBe(true);
     expect(likesPairIntervalBlocked(1000, 1600, 500)).toBe(false);
+  });
+
+  it('planLikesMinuteBucketConsume windows + cap', () => {
+    const a = planLikesMinuteBucketConsume(undefined, 1000, 2);
+    expect(a.allowed).toBe(true);
+    expect(a.bucket.count).toBe(1);
+    const b = planLikesMinuteBucketConsume(a.bucket, 1500, 2);
+    expect(b.allowed).toBe(true);
+    expect(b.bucket.count).toBe(2);
+    const c = planLikesMinuteBucketConsume(b.bucket, 1600, 2);
+    expect(c.allowed).toBe(false);
+    expect(c.bucket.count).toBe(3);
+    const d = planLikesMinuteBucketConsume(c.bucket, c.bucket.resetAt + 1, 2);
+    expect(d.allowed).toBe(true);
+    expect(d.bucket.count).toBe(1);
   });
 });

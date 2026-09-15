@@ -5,6 +5,17 @@ import {
   sanitizeConflictCols,
   sanitizeOpOrders,
   validateOpScalars,
+  opBusyReject,
+  opPersistFailedReject,
+  opPinExhaustedReject,
+  opInternalErrorReject,
+  opNicknameDuplicateReject,
+  planBindRequesterId,
+  shouldBlockUnauthenticatedRequester,
+  OP_BUSY_MESSAGE,
+  OP_PERSIST_FAILED_MESSAGE,
+  OP_PIN_EXHAUSTED_MESSAGE,
+  OP_INTERNAL_ERROR_MESSAGE,
 } from './db-op-request.js';
 
 describe('db-op-request', () => {
@@ -37,5 +48,32 @@ describe('db-op-request', () => {
     expect(validateOpScalars({ table: 'profiles', op: 'nope' })?.body.error.code).toBe('INVALID_OP');
     expect(validateOpScalars({ table: 'profiles', op: 'select', limit: -1 })?.body.error.code).toBe('INVALID_INPUT');
     expect(validateOpScalars({ table: 'profiles', op: 'select', limit: 10 })).toBeNull();
+  });
+});
+
+describe('db-op-gate (via op-request)', () => {
+  it('busy / persist / pin / internal rejects preserve messages', () => {
+    expect(opBusyReject().body.error.message).toBe(OP_BUSY_MESSAGE);
+    expect(opBusyReject().retryAfter).toBe('1');
+    expect(opPersistFailedReject().body.error.message).toBe(OP_PERSIST_FAILED_MESSAGE);
+    expect(opPinExhaustedReject().body.error.message).toBe(OP_PIN_EXHAUSTED_MESSAGE);
+    expect(opInternalErrorReject().body.error.message).toBe(OP_INTERNAL_ERROR_MESSAGE);
+    expect(opNicknameDuplicateReject().body.error.code).toBe('23505');
+  });
+
+  it('planBindRequesterId spoof vs bind', () => {
+    expect(planBindRequesterId('a', 'b').ok).toBe(false);
+    expect(planBindRequesterId('a', 'a')).toEqual({ ok: true, setRequesterId: 'a' });
+    expect(planBindRequesterId('a', null)).toEqual({ ok: true, setRequesterId: 'a' });
+    expect(planBindRequesterId(null, 'x')).toEqual({ ok: true });
+  });
+
+  it('shouldBlockUnauthenticatedRequester', () => {
+    expect(shouldBlockUnauthenticatedRequester({
+      nodeEnv: 'production', requesterId: 'u1', sessionUserId: null, isAdmin: false, isTestSession: false,
+    })).toBe(true);
+    expect(shouldBlockUnauthenticatedRequester({
+      nodeEnv: 'test', requesterId: 'u1', sessionUserId: null, isAdmin: false, isTestSession: false,
+    })).toBe(false);
   });
 });

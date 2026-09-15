@@ -18,6 +18,11 @@ import {
   matchesAfterpartySpec,
   matchesVisibleAgeBand,
   optKeyForGroup,
+  buildAutoRoomRow,
+  patchExistingAutoRoom,
+  shouldSkipAutoRoomJoin,
+  buildGroupParticipantRow,
+  UNLIMITED_GROUP_MEMBERS,
 } from './db-group-room-plan.js';
 
 describe('db-group-room-plan', () => {
@@ -95,4 +100,22 @@ describe('db-group-room-plan', () => {
     expect(groupLimitSlotKey({ id: 'group_afterparty_club', name: '2차 클럽 갈 분' }, 'x'))
       .toBe('afterparty_club');
   });
+
+  it('auto room row builders + skip join', () => {
+    const row = buildAutoRoomRow({
+      id: 'g1', name: '20대 모임', interest_tag: '20대', age_group: '20대',
+      room_kind: 'age_decade', created_at: 't',
+    });
+    expect(row.max_members).toBe(UNLIMITED_GROUP_MEMBERS);
+    expect(row.hidden).toBe(false);
+    const patched = patchExistingAutoRoom(row, {
+      name: 'n', interest_tag: 't', age_group: null, room_kind: 'birth_year',
+    });
+    expect(patched.merged_into).toBeNull();
+    expect(shouldSkipAutoRoomJoin({
+      hasOptOut: false, roomKind: 'afterparty_club', alreadyMember: false, slotsUsed: 0, maxSlots: 4,
+    })).toBe(true);
+    expect(buildGroupParticipantRow('g', 'u', 't').id).toBe('g__u');
+  });
+
 });

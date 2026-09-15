@@ -79,12 +79,31 @@ import {
   planSmartBroadcastLocal,
   REALTIME_TRACE_TABLES,
   realtimeTraceMeta,
+  sseTokenExpiredReject,
+  sseTokenInvalidReject,
+  sseCapacityReject,
+  planSseIpCount,
+  shouldRejectAnonSse,
+  sseAnonLimitReject,
 } from '../lib/db-sse-fanout-policy';
 import {
   normalizeOpFilters,
   sanitizeConflictCols,
   sanitizeOpOrders,
   validateOpScalars,
+  opBusyReject,
+  opDeletePersistFailedReject,
+  opInternalErrorReject,
+  opInvalidBodyReject,
+  opInvalidTableReject,
+  opNicknameDuplicateReject,
+  opPayloadRequiredReject,
+  opPersistFailedReject,
+  opPinExhaustedReject,
+  opUnauthenticatedRequesterReject,
+  opUnknownOperationReject,
+  planBindRequesterId,
+  shouldBlockUnauthenticatedRequester,
 } from '../lib/db-op-request';
 import {
   orderLimitShape,
@@ -130,6 +149,7 @@ import {
   likesRateLimitReject,
   likesSameTypeLimitReached,
   matchesLikeTriple,
+  planLikesMinuteBucketConsume,
 } from '../lib/db-op-likes-limits';
 import {
   maskNicknameForPinConfirm,
@@ -144,7 +164,22 @@ import {
   isPublicProfilePhotoPath,
 } from '../lib/db-storage-path';
 import { validateBroadcastBody } from '../lib/db-broadcast-validate';
-import { ALLOWED_RPCS } from '../lib/db-rpc-allowlist';
+import {
+  ALLOWED_RPCS,
+  adminPhoneMismatch,
+  adminPhoneMismatchReject,
+  buildAdminProfilePatchFromArgs,
+  panelMapFullReject,
+  panelPasswordUnauthorizedReject,
+  panelRateLimitedReject,
+  pickAdminTokenKey,
+  planCheckAdminPassword,
+  planCheckTestPassword,
+  planVerifyPanelPasswordArgs,
+  rpcInvalidBodyReject,
+  rpcUnknownReject,
+  validateRpcName,
+} from '../lib/db-rpc-allowlist';
 import {
   checkUpdateRowOwnership,
   forceUpdateOwnershipPatch,
@@ -176,6 +211,10 @@ import {
   planProfileViewsInsertOwnership,
   planSignalSendsInsertOwnership,
   signalSendsInsertBlockedReject,
+  buildInsertedRow,
+  findExistingChatPairRow,
+  findRowByClientId,
+  messageReceiverIdFromChat,
 } from '../lib/db-op-insert-ownership';
 import {
   checkUpsertChatReadsReader,
@@ -254,6 +293,10 @@ import {
   optKeyForGroup as optKeyForGroupPure,
   isLeftoverInterestRoom,
   groupLimitSlotKey,
+  buildAutoRoomRow,
+  patchExistingAutoRoom,
+  shouldSkipAutoRoomJoin,
+  buildGroupParticipantRow,
 } from '../lib/db-group-room-plan';
 import {
   hasGroupOptOut as hasGroupOptOutPure,
@@ -280,6 +323,7 @@ import {
   SYSTEM_KV_TABLES,
   mergeKvRowsIntoStore as mergeKvRowsIntoStorePure,
   seedLikesLastInsertMap as seedLikesLastInsertMapPure,
+  countRowsCreatedSince,
 } from '../lib/db-kv-hydrate';
 import {
   issueSessionToken as issueSessionTokenPure,
@@ -288,9 +332,20 @@ import {
   classifySseToken as classifySseTokenPure,
   verifySseToken as verifySseTokenPure,
   type SseTokenState,
+  authLoginDeviceMismatchReject,
+  authLoginInternalReject,
+  authLoginMapFullReject,
+  authLoginRateLimitedReject,
+  authLoginUnknownUserReject,
+  planAuthLoginDecision,
+  validateAuthLoginBody,
 } from '../lib/db-session-tokens';
 import { computeUnreadCountsForUser } from '../lib/db-unread-counts';
-import { planPushForEvent } from '../lib/db-push-plan';
+import {
+  planPushForEvent,
+  pushSubscribeUnauthorizedReject,
+  validatePushSubscribeBody,
+} from '../lib/db-push-plan';
 import {
   isChatParticipant as isChatParticipantPure,
   countMessagesForChat as countMessagesForChatPure,
@@ -307,6 +362,7 @@ import {
   settingsFunctionsLocked,
   tableFingerprint,
   planAppSettingsFromDbRows,
+  buildReadyPayload,
 } from '../lib/db-app-settings-view';
 import {
   LEGACY_APP_SETTINGS_KEYS,
@@ -585,7 +641,6 @@ async function bumpResetSignalAndBroadcast(): Promise<string> {
   }
   return signal;
 }
-
 
 class RpcAuthError extends Error {
   statusCode = 403;
@@ -1717,15 +1772,15 @@ async function upsertCanonicalGroupRoom(spec: {
   let room = groups.find(g => String(g.id) === spec.id);
   if (!room) {
     room = {
-      id: spec.id,
-      name: spec.name,
-      interest_tag: spec.interest_tag,
-      room_kind: spec.room_kind,
-      age_group: spec.age_group === undefined ? null : spec.age_group,
-      max_members: UNLIMITED_GROUP_MEMBERS,
-      hidden: false,
+      ...buildAutoRoomRow({
+        id: spec.id,
+        name: spec.name,
+        interest_tag: spec.interest_tag,
+        age_group: spec.age_group === undefined ? null : spec.age_group,
+        room_kind: spec.room_kind,
+        created_at: ts(),
+      }),
       merged_into: null,
-      created_at: ts(),
     };
     groups.push(room);
     try {
@@ -1740,14 +1795,14 @@ async function upsertCanonicalGroupRoom(spec: {
     }
     return room;
   }
-  room.name = spec.name;
-  room.interest_tag = spec.interest_tag;
-  room.room_kind = spec.room_kind;
-  room.max_members = UNLIMITED_GROUP_MEMBERS;
-  room.hidden = false;
-  room.merged_into = null;
-  if (spec.age_group !== undefined) room.age_group = spec.age_group;
-  else if (room.age_group === undefined) room.age_group = null;
+  Object.assign(room, patchExistingAutoRoom(room, {
+    name: spec.name,
+    interest_tag: spec.interest_tag,
+    room_kind: spec.room_kind,
+    age_group: spec.age_group !== undefined
+      ? spec.age_group
+      : (room.age_group === undefined ? null : (room.age_group as string | null)),
+  }));
   try {
     await dbPersistRow('group_chats', room);
   } catch (e) {
@@ -1993,16 +2048,14 @@ async function joinOrCreateAutoRoom(userId: string, spec: {
   let room = groups.find(g => spec.canonicalId && String(g.id) === spec.canonicalId)
     ?? groups.find(g => String(g.name) === spec.name && String(g.hidden ?? '') !== 'true' && g.hidden !== true);
   if (!room) {
-    room = {
+    room = buildAutoRoomRow({
       id: spec.canonicalId || genId(),
       name: spec.name,
       interest_tag: spec.interest_tag,
       age_group: spec.age_group,
       room_kind: spec.room_kind,
-      max_members: UNLIMITED_GROUP_MEMBERS,
-      hidden: false,
       created_at: ts(),
-    };
+    });
     groups.push(room);
     try {
       await dbPersistRow('group_chats', room);
@@ -2015,32 +2068,28 @@ async function joinOrCreateAutoRoom(userId: string, spec: {
       return;
     }
   } else {
-    room.name = spec.name;
-    room.interest_tag = spec.interest_tag;
-    room.room_kind = spec.room_kind;
-    room.age_group = spec.age_group;
-    room.max_members = UNLIMITED_GROUP_MEMBERS;
-    room.hidden = false;
-    room.merged_into = null;
+    Object.assign(room, patchExistingAutoRoom(room, {
+      name: spec.name,
+      interest_tag: spec.interest_tag,
+      age_group: spec.age_group,
+      room_kind: spec.room_kind,
+    }));
     try {
       await dbPersistRow('group_chats', room);
     } catch (e) {
       logger.error({ err: e, userId, groupId: String(room.id) }, '[autoMatchGroupChat] room update persist failed');
     }
   }
-  if (hasGroupOptOut(userId, spec.optKey)) return;
-  const kind = String(room.room_kind ?? '');
-  if (kind === 'afterparty_club' || kind === 'afterparty_drink') return;
   const parts = getTable('group_participants');
-  if (parts.some(p => String(p.group_id) === String(room.id) && String(p.user_id) === userId)) return;
-  if (countUserGroupSlots(userId) >= MAX_GROUPS_PER_USER) return;
+  if (shouldSkipAutoRoomJoin({
+    hasOptOut: hasGroupOptOut(userId, spec.optKey),
+    roomKind: String(room.room_kind ?? ''),
+    alreadyMember: parts.some(p => String(p.group_id) === String(room.id) && String(p.user_id) === userId),
+    slotsUsed: countUserGroupSlots(userId),
+    maxSlots: MAX_GROUPS_PER_USER,
+  })) return;
   if (hasGroupOptOut(userId, spec.optKey)) return;
-  const part = {
-    id: `${room.id}__${userId}`,
-    group_id: String(room.id),
-    user_id: userId,
-    joined_at: ts(),
-  };
+  const part = buildGroupParticipantRow(String(room.id), userId, ts());
   parts.push(part);
   try {
     await dbPersistRow('group_participants', part);
@@ -2694,9 +2743,10 @@ router.post('/op', async (req: Request, res: Response) => {
 
   // 동시 요청이 상한선을 초과하면 503 반환 — 클라이언트가 지수 백오프 후 재시도
   if (_activeOpCount >= MAX_CONCURRENT_OPS) {
-    res.status(503).setHeader('Retry-After', '1');
+    const rej = opBusyReject();
+    res.status(rej.status).setHeader('Retry-After', rej.retryAfter ?? '1');
     logger.warn({ requestId, code: 'BUSY' }, '[op] concurrent cap');
-    return res.json({ data: null, error: { message: 'Server busy — retry in 1s', code: 'BUSY' } });
+    return res.json(rej.body);
   }
   _activeOpCount++;
 
@@ -2705,19 +2755,20 @@ router.post('/op', async (req: Request, res: Response) => {
   {
     const bodyRec = req.body as Record<string, unknown>;
     const _authId = resolveAuthUserId(req, bodyRec);
-    const _bodyReqId = bodyRec.requesterId as string | null | undefined;
-    if (_authId && _bodyReqId != null && String(_bodyReqId) !== _authId) {
+    const bind = planBindRequesterId(_authId, bodyRec.requesterId);
+    if (!bind.ok) {
       _activeOpCount--;
-      logger.warn({ ip: req.ip, session: _authId, claimed: _bodyReqId }, '[SECURITY] requesterId body-spoof attempt blocked');
-      return res.status(403).json({ data: null, error: { message: 'Forbidden: requesterId must match authenticated session', code: 'FORBIDDEN' } });
+      logger.warn({ ip: req.ip, session: _authId, claimed: bodyRec.requesterId }, bind.reject.logMsg ?? '[SECURITY] requesterId body-spoof attempt blocked');
+      return res.status(bind.reject.status).json(bind.reject.body);
     }
-    if (_authId) bodyRec.requesterId = _authId;
+    if (bind.setRequesterId) bodyRec.requesterId = bind.setRequesterId;
   }
 
   // ─ req.body 타입 방어: JSON 파싱 실패·비객체 전송 시 safe fallback ─────────
   if (req.body == null || typeof req.body !== 'object' || Array.isArray(req.body)) {
     _activeOpCount--;
-    return res.status(400).json({ data: null, error: { message: 'Request body must be a JSON object', code: 'INVALID_BODY' } });
+    const rej = opInvalidBodyReject();
+    return res.status(rej.status).json(rej.body);
   }
   const {
     table,
@@ -2751,10 +2802,17 @@ router.post('/op', async (req: Request, res: Response) => {
 
   // requesterId는 인증 수단이 아니라 세션 사용자와의 일치 검사용입니다.
   // 테스트 환경의 기존 단위 테스트만 메모리 세션 없이 직접 가드를 검증합니다.
-  if (process.env.NODE_ENV !== 'test' && requesterId && !sessionUserId && !isAdmin && !isTestSession) {
+  if (shouldBlockUnauthenticatedRequester({
+    nodeEnv: process.env.NODE_ENV,
+    requesterId,
+    sessionUserId,
+    isAdmin,
+    isTestSession,
+  })) {
     _activeOpCount--;
-    logger.warn({ requesterId, ip: req.ip }, '[SECURITY] unauthenticated requesterId blocked');
-    return res.status(401).json({ data: null, error: { message: 'Authentication required', code: 'UNAUTHORIZED' } });
+    const rej = opUnauthenticatedRequesterReject();
+    logger.warn({ requesterId, ip: req.ip }, rej.logMsg ?? '[SECURITY] unauthenticated requesterId blocked');
+    return res.status(rej.status).json(rej.body);
   }
 
   // ─ 페이로드/스칼라 검증 + filter/order/conflict normalize (db-op-request) ─
@@ -2782,13 +2840,22 @@ router.post('/op', async (req: Request, res: Response) => {
   // ─ Table allowlist: reject unknown/internal tables immediately
   if (!ALLOWED_OP_TABLES.has(table)) {
     _activeOpCount--;
-    return res.status(400).json({ data: null, error: { message: 'Invalid table', code: 'INVALID_TABLE' } });
+    const rej = opInvalidTableReject();
+    return res.status(rej.status).json(rej.body);
   }
 
   if (!store[table]) store[table] = [];
   let tableData = store[table];
 
   try {
+    const sendReject = (
+      rej: { status: number; body: unknown; logMsg?: string; retryAfter?: string },
+      logCtx: Record<string, unknown> = { ip: req.ip },
+    ) => {
+      if (rej.retryAfter) res.setHeader('Retry-After', rej.retryAfter);
+      if (rej.logMsg) logger.warn(logCtx, rej.logMsg);
+      return res.status(rej.status).json(rej.body);
+    };
     // ── SELECT ──────────────────────────────────────────────────────────────
     if (op === 'select') {
       if (REALTIME_MERGE_TABLES.has(table)) {
@@ -2803,9 +2870,7 @@ router.post('/op', async (req: Request, res: Response) => {
       if (table === 'messages') {
         if (!canReadPrivateTables) {
           if (!requesterId) {
-            const rej = selectAuthRequiredReject('[SECURITY] IDOR: messages SELECT without requesterId blocked');
-            logger.warn({ ip: req.ip }, rej.logMsg);
-            return res.status(rej.status).json(rej.body);
+          return sendReject(selectAuthRequiredReject('[SECURITY] IDOR: messages SELECT without requesterId blocked'), { ip: req.ip });
           }
           // chat_id 필터 탐색: eq(단일 채팅방) 또는 in(채팅 목록 일괄 조회) 모두 허용 — db-op-select-access
           const chatIdEqF = findChatIdEqFilter(normalizedFilters);
@@ -2878,8 +2943,7 @@ router.post('/op', async (req: Request, res: Response) => {
           return res.json({ data: result2, error: null });
         }
         if (!requesterId) {
-          logger.warn({ ip: req.ip }, '[SECURITY] IDOR: chats SELECT without requesterId blocked');
-          return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+          return sendReject(selectAuthRequiredReject('[SECURITY] IDOR: chats SELECT without requesterId blocked'), { ip: req.ip });
         }
         // 서버 측에서 참여자 검증 — 클라이언트 필터 우회 공격 차단
         // ⚠️ tableData는 store 배열 참조 → splice 금지. 별도 변수로 필터링.
@@ -2898,8 +2962,7 @@ router.post('/op', async (req: Request, res: Response) => {
       // 인증된 사용자는 전체 좋아요 조회 가능 (랭킹 집계 목적).
       if (table === 'likes' && !canReadPrivateTables) {
         if (!requesterId) {
-          logger.warn({ ip: req.ip }, '[SECURITY] IDOR: likes SELECT without requesterId blocked');
-          return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+          return sendReject(selectAuthRequiredReject('[SECURITY] IDOR: likes SELECT without requesterId blocked'), { ip: req.ip });
         }
       }
 
@@ -2907,8 +2970,7 @@ router.post('/op', async (req: Request, res: Response) => {
       // 보낸 사람은 자신의 발신(send+pass)만. 받은 사람은 incoming send만 (pass 비공개).
       if (table === 'signal_sends' && !canReadPrivateTables) {
         if (!requesterId) {
-          logger.warn({ ip: req.ip }, '[SECURITY] IDOR: signal_sends SELECT without requesterId blocked');
-          return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+          return sendReject(selectAuthRequiredReject('[SECURITY] IDOR: signal_sends SELECT without requesterId blocked'), { ip: req.ip });
         }
         tableData = scopeSignalSendsRows(tableData, String(requesterId));
       }
@@ -2917,8 +2979,7 @@ router.post('/op', async (req: Request, res: Response) => {
       // 내 프로필 방문자(viewed_id=me) 또는 내가 본 기록(viewer_id=me)만.
       if (table === 'profile_views' && !canReadPrivateTables) {
         if (!requesterId) {
-          logger.warn({ ip: req.ip }, '[SECURITY] IDOR: profile_views SELECT without requesterId blocked');
-          return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+          return sendReject(selectAuthRequiredReject('[SECURITY] IDOR: profile_views SELECT without requesterId blocked'), { ip: req.ip });
         }
         tableData = scopeProfileViewsRows(tableData, String(requesterId));
       }
@@ -2927,8 +2988,7 @@ router.post('/op', async (req: Request, res: Response) => {
       // 관계 당사자만 읽을 수 있고 관리자·테스트 감사 세션만 전체 조회 가능.
       if ((table === 'blocked_users' || table === 'contact_share_events') && !canReadPrivateTables) {
         if (!requesterId) {
-          logger.warn({ table, ip: req.ip }, '[SECURITY] IDOR: relationship SELECT without requesterId blocked');
-          return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+          return sendReject(selectAuthRequiredReject('[SECURITY] IDOR: relationship SELECT without requesterId blocked'), { table, ip: req.ip });
         }
         tableData = table === 'blocked_users'
           ? scopeBlockedUsersRows(tableData, String(requesterId))
@@ -2939,8 +2999,7 @@ router.post('/op', async (req: Request, res: Response) => {
       // liker_id/liked_id 필터 있음 → 당사자만 전체 필드. 없음 → 통계 집계(created_at만, 익명).
       if (table === 'contact_shares' && !canReadPrivateTables) {
         if (!requesterId) {
-          logger.warn({ ip: req.ip }, '[SECURITY] IDOR: contact_shares SELECT without requesterId blocked');
-          return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+          return sendReject(selectAuthRequiredReject('[SECURITY] IDOR: contact_shares SELECT without requesterId blocked'), { ip: req.ip });
         }
         const csSource = contactSharesSelectSource(tableData, String(requesterId), normalizedFilters);
         const csResult = applyFilters(csSource, normalizedFilters);
@@ -2957,8 +3016,7 @@ router.post('/op', async (req: Request, res: Response) => {
       // 타인 방 스크래핑은 차단하되, 상대 read_at 폴링('1' 표시)은 동작해야 함.
       if (table === 'chat_reads' && !isAdmin) {
         if (!requesterId) {
-          logger.warn({ ip: req.ip }, '[SECURITY] IDOR: chat_reads SELECT without requesterId blocked');
-          return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+          return sendReject(selectAuthRequiredReject('[SECURITY] IDOR: chat_reads SELECT without requesterId blocked'), { ip: req.ip });
         }
         // 같은 1:1 방 상대의 read_at 만 허용 — 프론트 '1' 폴링에 필요 (db-op-select-access)
         const crScope = scopeChatReadsForRequester(
@@ -2991,8 +3049,7 @@ router.post('/op', async (req: Request, res: Response) => {
       // ─ IDOR guard: group_messages / group_participants SELECT ───────────────
       if ((table === 'group_messages' || table === 'group_participants') && !canReadPrivateTables) {
         if (!requesterId) {
-          logger.warn({ table, ip: req.ip }, '[SECURITY] IDOR: group SELECT without requesterId blocked');
-          return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+          return sendReject(selectAuthRequiredReject('[SECURITY] IDOR: group SELECT without requesterId blocked'), { table, ip: req.ip });
         }
         if (table === 'group_participants') {
           const me = getTable('profiles').find(p => String(p.id) === String(requesterId));
@@ -3068,7 +3125,7 @@ router.post('/op', async (req: Request, res: Response) => {
 
     // ── INSERT ──────────────────────────────────────────────────────────────
     if (op === 'insert') {
-      if (payload == null) return res.status(400).json({ data: null, error: { message: 'payload is required for insert', code: '22023' } });
+      if (payload == null) return sendReject(opPayloadRequiredReject());
       if (!isAdmin && isFunctionsLocked() && FUNCTIONS_LOCKED_INSERT_TABLES.has(table)) {
         return res.status(403).json({
           data: null,
@@ -3099,7 +3156,7 @@ router.post('/op', async (req: Request, res: Response) => {
       for (const row of inputs) {
         if (!row) continue;
         if (table === 'profiles' && _insertNickSet!.has(row.nickname) && row.nickname != null) {
-          return res.json({ data: null, error: { message: 'duplicate key value violates unique constraint "profiles_nickname_key"', code: '23505' } });
+          return sendReject(opNicknameDuplicateReject());
         }
         // const row는 재할당 불가이므로 effectiveRow로 분리; 텍스트 필드 sanitization 적용
         let effectiveRow: Record<string, unknown> = sanitizeRow(table, row);
@@ -3286,10 +3343,7 @@ router.post('/op', async (req: Request, res: Response) => {
             } catch (e) {
               if (sigIdx >= 0) tableData[sigIdx] = oldRow;
               logger.error({ err: e, table, rowId: upgraded.id }, '[db] signal pass→send upgrade persist failed');
-              return res.status(503).json({
-                data: null,
-                error: { message: '저장에 실패했습니다. 잠시 후 다시 시도해 주세요.', code: 'PERSIST_FAILED' },
-              });
+              return sendReject(opPersistFailedReject());
             }
             smartBroadcast(table, upgraded, { type: 'change', table, event: 'UPDATE', newRow: upgraded, oldRow });
             sendPushForEvent(table, upgraded, requesterId).catch(err => logger.error({ err }, '[db] background task error'));
@@ -3350,10 +3404,7 @@ router.post('/op', async (req: Request, res: Response) => {
           // PIN 슬롯 전체 소진 — 신규 등록 불가 (503) [resolvePin handles exhaustion + collision]
           const pinResult = resolvePin(usedPins, poolSize, use5Digit, effectiveRow.pin_code as string | null | undefined);
           if (!pinResult.ok) {
-            return res.status(503).json({
-              data: null,
-              error: { message: 'PIN pool exhausted — no available PIN slots. Please contact the administrator.', code: 'PIN_EXHAUSTED' },
-            });
+            return sendReject(opPinExhaustedReject());
           }
           effectiveRow = withFixedAdminNickname({ ...effectiveRow, pin_code: pinResult.pin });
           if (profileAvatarColorRejected(res, effectiveRow.avatar_color)) return;
@@ -3378,32 +3429,17 @@ router.post('/op', async (req: Request, res: Response) => {
         // chats 테이블: ID 정규화(sort) — planNormalizeChatPairRow
         if (table === 'chats' && effectiveRow.user1_id != null && effectiveRow.user2_id != null) {
           const { uid1, uid2, detId, row: normalized } = planNormalizeChatPairRow(effectiveRow);
-          effectiveRow = { ...normalized, id: effectiveRow.id ?? detId };
-          effectiveRow = { ...effectiveRow, user1_id: uid1, user2_id: uid2 };
-          const existing = tableData.find(r =>
-            (String(r.user1_id) === uid1 && String(r.user2_id) === uid2) ||
-            (String(r.user1_id) === uid2 && String(r.user2_id) === uid1)
-          );
+          effectiveRow = { ...normalized, id: effectiveRow.id ?? detId, user1_id: uid1, user2_id: uid2 };
+          const existing = findExistingChatPairRow(tableData, uid1, uid2, detId);
           if (existing) {
             if (selectAfterWrite) return res.json({ data: single ? existing : [existing], error: null });
             return res.json({ data: null, error: null });
           }
-          const byId = tableData.find(r => String(r.id) === detId);
-          if (byId) {
-            if (selectAfterWrite) return res.json({ data: single ? byId : [byId], error: null });
-            return res.json({ data: null, error: null });
-          }
           effectiveRow = { ...effectiveRow, id: detId };
         }
-        // messages 테이블: client_id(UUID) 기반 멱등성 — 네트워크 재시도로 인한 중복 메시지 삽입 방지
-        if (table === 'messages' && effectiveRow.client_id != null) {
-          const dupMsg = tableData.find(r => r.client_id === effectiveRow.client_id);
-          if (dupMsg) return res.json({ data: single ? dupMsg : [dupMsg], error: null }); // ON CONFLICT DO NOTHING
-        }
-        // group_messages 테이블: client_id 기반 멱등성 (단톡방 재시도 중복 삽입 방지)
-        if (table === 'group_messages' && effectiveRow.client_id != null) {
-          const dupGMsg = tableData.find(r => r.client_id === effectiveRow.client_id);
-          if (dupGMsg) return res.json({ data: single ? dupGMsg : [dupGMsg], error: null });
+        if (table === 'messages' || table === 'group_messages') {
+          const dupMsg = findRowByClientId(tableData, effectiveRow.client_id);
+          if (dupMsg) return res.json({ data: single ? dupMsg : [dupMsg], error: null });
         }
         // likes 테이블: 동일 liker+liked+heart_type 중복 방지 (빠른 연속 클릭으로 인한 중복 하트 삽입 방지)
         if (table === 'likes' && effectiveRow.liker_id != null && effectiveRow.liked_id != null && effectiveRow.heart_type != null) {
@@ -3421,8 +3457,7 @@ router.post('/op', async (req: Request, res: Response) => {
           // 타입별 글로벌 한도: 동일 heart_type을 최대 2명에게만 보낼 수 있음 (db-op-likes-limits)
           if (likesSameTypeLimitReached(tableData, likeLiker, likeType)) {
             // 400: HEART_LIMIT을 429로 주면 클라이언트가 NAT 429로 재시도해 지연·이중전송처럼 보임
-            const rej = likesHeartLimitReject();
-            return res.status(rej.status).json(rej.body);
+            return sendReject(likesHeartLimitReject());
           }
 
           // Time-bucket rate limiter: at most 1 like per 500 ms per (liker, liked, type) triple
@@ -3434,31 +3469,27 @@ router.post('/op', async (req: Request, res: Response) => {
             // Rapid duplicate — return existing row if any (never silent null success)
             const recent = tableData.find(likeTriple);
             if (recent) return res.json({ data: single ? recent : [recent], error: null });
-            const rej = likesRateLimitReject();
-            return res.status(rej.status).json(rej.body);
+            return sendReject(likesRateLimitReject());
           }
           // 멀티 인스턴스: PG 공용 슬롯 (로컬 Map 만으로는 인스턴스별 우회 가능)
           const distributedOk = await claimDistributedRateSlot(`like_pair:${rateKey}`, LIKES_MIN_INTERVAL_MS);
           if (!distributedOk) {
             const recent = tableData.find(likeTriple);
             if (recent) return res.json({ data: single ? recent : [recent], error: null });
-            const rej = likesRateLimitReject();
-            return res.status(rej.status).json(rej.body);
+            return sendReject(likesRateLimitReject());
           }
           _likesLastInsert.set(rateKey, Date.now());
 
-          // ─ 사용자 전체 분당 한도 (서로 다른 대상/타입 조합 스팸 방지)
           const liker = String(effectiveRow.liker_id);
           const nowMs = Date.now();
-          let ubucket = _userLikeMinuteBuckets.get(liker);
-          if (!ubucket || nowMs > ubucket.resetAt) {
-            ubucket = { count: 0, resetAt: nowMs + 60_000 };
-            _userLikeMinuteBuckets.set(liker, ubucket);
-          }
-          ubucket.count++;
-          if (ubucket.count > LIKES_MAX_PER_USER_PER_MIN) {
-            const rej = likesRateLimitReject();
-            return res.status(rej.status).json(rej.body);
+          const minutePlan = planLikesMinuteBucketConsume(
+            _userLikeMinuteBuckets.get(liker),
+            nowMs,
+            LIKES_MAX_PER_USER_PER_MIN,
+          );
+          _userLikeMinuteBuckets.set(liker, minutePlan.bucket);
+          if (!minutePlan.allowed) {
+            return sendReject(likesRateLimitReject());
           }
           const minuteBucket = Math.floor(nowMs / 60_000);
           const minuteOk = await claimDistributedMinuteQuota(
@@ -3466,22 +3497,17 @@ router.post('/op', async (req: Request, res: Response) => {
             LIKES_MAX_PER_USER_PER_MIN,
           );
           if (!minuteOk) {
-            const rej = likesRateLimitReject();
-            return res.status(rej.status).json(rej.body);
+            return sendReject(likesRateLimitReject());
           }
         }
         const referenceCheck = await ensureWriteReferences(table, effectiveRow);
         if (!referenceCheck.ok) return sendReferenceFailure(res, referenceCheck);
-        const newRow: Record<string, unknown> = {
-          created_at: ts(),
-          ...effectiveRow,
-          id: (effectiveRow.id as string | undefined) ?? genId(),
-        };
-        if (table === 'session_history' && !newRow.ended_at) newRow.ended_at = ts();
-        // 클라이언트 시계가 created_at을 덮어쓰면 토스트 스킵·정렬이 어긋남 (채팅 read_at과 같은 계열)
-        if (table === 'likes' || table === 'contact_shares' || table === 'contact_share_events') {
-          newRow.created_at = ts();
-        }
+        const newRow = buildInsertedRow(
+          effectiveRow,
+          (effectiveRow.id as string | undefined) ?? genId(),
+          ts(),
+          table,
+        );
 
         // 프로필 생성 시 device secret을 원자적으로 바인딩 — TOFU 레이스 윈도우 제거
         // 클라이언트가 _device_secret 필드를 포함해 INSERT하면 서버가 HMAC 해시를 저장하고
@@ -3519,10 +3545,7 @@ router.post('/op', async (req: Request, res: Response) => {
             const iidx = inserted.findIndex(r => r.id === newRow.id);
             if (iidx >= 0) inserted.splice(iidx, 1);
             logger.error({ err: e, table, rowId: newRow.id }, '[db] critical persist failed — rolled back memory');
-            return res.status(503).json({
-              data: null,
-              error: { message: '저장에 실패했습니다. 잠시 후 다시 시도해 주세요.', code: 'PERSIST_FAILED' },
-            });
+            return sendReject(opPersistFailedReject());
           }
           smartBroadcast(table, newRow, { type: 'change', table, event: 'INSERT', newRow, oldRow: null });
         } else {
@@ -3541,10 +3564,8 @@ router.post('/op', async (req: Request, res: Response) => {
         // Fix #8: 메시지 삽입 시 수신자 unread 캐시 즉시 무효화 (TTL 2s 대기 없음)
         if (table === 'messages' && newRow.sender_id && newRow.chat_id) {
           const _msgChat = getTable('chats').find(c => String(c.id) === String(newRow.chat_id));
-          if (_msgChat) {
-            const _receiverId = String(_msgChat.user1_id) === String(newRow.sender_id) ? _msgChat.user2_id : _msgChat.user1_id;
-            if (_receiverId) unreadCountsCache.delete(String(_receiverId));
-          }
+          const _receiverId = messageReceiverIdFromChat(_msgChat, newRow.sender_id);
+          if (_receiverId) unreadCountsCache.delete(_receiverId);
         }
         // 메시지·하트·채팅방 생성 시 수신자 핸드폰으로 푸시 알림 전송
         if (table === 'messages' || table === 'likes' || table === 'chats' || (table === 'signal_sends' && newRow.action === 'send')) {
@@ -3617,10 +3638,7 @@ router.post('/op', async (req: Request, res: Response) => {
         const { use5Digit, poolSize } = pinPoolParams(tableData.length);
         const pinResult = resolvePin(usedPins, poolSize, use5Digit, patch.pin_code as string);
         if (!pinResult.ok) {
-          return res.status(503).json({
-            data: null,
-            error: { message: 'PIN pool exhausted — no available PIN slots. Please contact the administrator.', code: 'PIN_EXHAUSTED' },
-          });
+          return sendReject(opPinExhaustedReject());
         }
         patch = { ...patch, pin_code: pinResult.pin };
       }
@@ -3664,10 +3682,7 @@ router.post('/op', async (req: Request, res: Response) => {
               const uidx = updated.findIndex(r => r.id === newRow.id);
               if (uidx >= 0) updated.splice(uidx, 1);
               logger.error({ err: e, table, rowId: newRow.id }, '[db] critical UPDATE persist failed');
-              return res.status(503).json({
-                data: null,
-                error: { message: '저장에 실패했습니다. 잠시 후 다시 시도해 주세요.', code: 'PERSIST_FAILED' },
-              });
+              return sendReject(opPersistFailedReject());
             }
             smartBroadcast(table, newRow, { type: 'change', table, event: 'UPDATE', newRow, oldRow });
           } else {
@@ -3778,10 +3793,7 @@ router.post('/op', async (req: Request, res: Response) => {
               tableData[idx] = oldRow;
               upserted.pop();
               logger.error({ err: e, table, rowId: newRow.id }, '[db] critical UPSERT persist failed');
-              return res.status(503).json({
-                data: null,
-                error: { message: '저장에 실패했습니다. 잠시 후 다시 시도해 주세요.', code: 'PERSIST_FAILED' },
-              });
+              return sendReject(opPersistFailedReject());
             }
             smartBroadcast(table, newRow, { type: 'change', table, event: 'UPDATE', newRow, oldRow });
           } else {
@@ -3800,10 +3812,7 @@ router.post('/op', async (req: Request, res: Response) => {
             const { use5Digit, poolSize } = pinPoolParams(tableData.length);
             const pinResult = resolvePin(usedPins, poolSize, use5Digit, base.pin_code as string | null | undefined);
             if (!pinResult.ok) {
-              return res.status(503).json({
-                data: null,
-                error: { message: 'PIN pool exhausted — no available PIN slots. Please contact the administrator.', code: 'PIN_EXHAUSTED' },
-              });
+              return sendReject(opPinExhaustedReject());
             }
             base = { ...base, pin_code: pinResult.pin };
             if (typeof base._device_secret === 'string') {
@@ -3834,10 +3843,7 @@ router.post('/op', async (req: Request, res: Response) => {
               if (bi >= 0) tableData.splice(bi, 1);
               upserted.pop();
               logger.error({ err: e, table, rowId: base.id }, '[db] critical UPSERT insert persist failed');
-              return res.status(503).json({
-                data: null,
-                error: { message: '저장에 실패했습니다. 잠시 후 다시 시도해 주세요.', code: 'PERSIST_FAILED' },
-              });
+              return sendReject(opPersistFailedReject());
             }
             smartBroadcast(table, base, { type: 'change', table, event: 'INSERT', newRow: base, oldRow: null });
           } else {
@@ -3920,7 +3926,7 @@ router.post('/op', async (req: Request, res: Response) => {
               }
             }
             logger.error({ err: e, table, deleteIds }, '[db] critical DELETE persist failed — rolled back');
-            return res.status(503).json({ data: null, error: { message: '일시적 저장 오류입니다. 잠시 후 다시 시도해주세요.', code: 'PERSIST_FAILED' } });
+            return sendReject(opDeletePersistFailedReject());
           }
         } else {
           dbDeleteRows(table, deleteIds).catch(e => logger.error({ err: e }, '[db] background task error'));
@@ -3936,11 +3942,11 @@ router.post('/op', async (req: Request, res: Response) => {
       return res.json({ data: null, error: null });
     }
 
-    return res.json({ data: null, error: { message: 'Unknown operation' } });
+    return sendReject(opUnknownOperationReject());
   } catch (e) {
     logger.error({ err: e }, '[db/op] Unexpected error');
     // 내부 오류 문자열을 클라이언트에 직접 노출하지 않음 — 스키마·스택 정보 유출 방지
-    return res.json({ data: null, error: { message: '서버 내부 오류가 발생했습니다. 잠시 후 다시 시도해주세요.' } });
+    return res.status(200).json(opInternalErrorReject().body);
   } finally {
     // ─ 동시 요청 슬롯 반환 — try/catch 내부의 어떤 경로로 나가든 반드시 1회 실행
     _activeOpCount--;
@@ -3953,17 +3959,20 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
   const { name } = req.params;
 
   // ─ name 타입·길이 방어 + 허용 목록 검증 ───────────────────────────────────
-  if (typeof name !== 'string' || name.length > 100) {
-    return res.status(400).json({ data: null, error: { message: 'Invalid RPC name format' } });
+  {
+    const nameRej = validateRpcName(name);
+    if (nameRej) return res.status(nameRej.status).json(nameRej.body);
   }
   if (!ALLOWED_RPCS.has(name)) {
     logger.warn({ name, ip: req.ip }, '[SECURITY] Unknown RPC call rejected');
-    return res.status(404).json({ data: null, error: { message: `Unknown RPC: ${name}` } });
+    const rej = rpcUnknownReject(String(name));
+    return res.status(rej.status).json(rej.body);
   }
 
   // ─ req.body 타입 방어 ──────────────────────────────────────────────────────
   if (req.body != null && (typeof req.body !== 'object' || Array.isArray(req.body))) {
-    return res.status(400).json({ data: null, error: { message: 'Request body must be a JSON object' } });
+    const rej = rpcInvalidBodyReject();
+    return res.status(rej.status).json(rej.body);
   }
   const args = (req.body ?? {}) as Record<string, unknown>;
 
@@ -3973,20 +3982,23 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
   const testSecrets = panelTestSecrets(settings.test_password as string | undefined);
 
   function checkPassword() {
-    const provided = (args.p_admin_password as string) ?? '';
-    const token = (args.adminToken as string) ?? '';
-    if (!adminSecrets.length) throw new RpcAuthError('관리자 비밀번호가 서버에 설정되지 않았습니다. 잠시 후 다시 시도하세요.');
-    const isValidToken = token.length > 0 && adminSecrets.some(s => token === deriveAdminToken(s));
-    if (!secretMatches(provided, adminSecrets) && !isValidToken) {
-      throw new RpcAuthError('비밀번호가 일치하지 않습니다.');
-    }
+    const plan = planCheckAdminPassword({
+      provided: (args.p_admin_password as string) ?? '',
+      token: (args.adminToken as string) ?? '',
+      adminSecrets,
+      deriveAdminToken,
+      secretMatches,
+    });
+    if (!plan.ok) throw new RpcAuthError(plan.message);
   }
 
   function checkTestPassword() {
-    const provided = String(args.p_test_password ?? '').trim();
-    if (!secretMatches(provided, testSecrets)) {
-      throw new RpcAuthError('테스트 비밀번호가 올바르지 않습니다.');
-    }
+    const plan = planCheckTestPassword({
+      provided: String(args.p_test_password ?? '').trim(),
+      testSecrets,
+      secretMatches,
+    });
+    if (!plan.ok) throw new RpcAuthError(plan.message);
   }
 
   try {
@@ -3995,24 +4007,24 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         // 관리자 비밀번호 서버 사이드 검증
         // (클라이언트가 app_settings.admin_password를 직접 읽는 것을 방지하기 위해 여기서만 검증)
         checkPassword();
-        // 전화번호 검증 — 입력한 경우에만 (비밀번호만으로도 로그인 가능)
         const adminPhoneSetting = (settings.admin_phone as string | undefined) ?? '';
         const providedPhone = (args.p_phone as string | undefined) ?? '';
-        const normalizeP = (s: string) => s.replace(/[^0-9]/g, '');
-        if (adminPhoneSetting && providedPhone.trim() && normalizeP(providedPhone) !== normalizeP(adminPhoneSetting)) {
-          return res.status(403).json({ data: null, error: { message: '전화번호 또는 비밀번호가 올바르지 않습니다.' } });
+        if (adminPhoneMismatch(adminPhoneSetting, providedPhone)) {
+          const rej = adminPhoneMismatchReject();
+          return res.status(rej.status).json(rej.body);
         }
         const providedPw = String(args.p_admin_password ?? '').trim();
         const adminTokenArg = String(args.adminToken ?? '').trim();
         const dbAdmin = String(settings.admin_password ?? '').trim();
         // 실제로 일치한 비밀번호로 토큰 생성 — bootstrap 로그인 시 DB/기본값 불일치 방지
-        let tokenKey = dbAdmin || adminSecrets[0];
-        if (secretMatches(providedPw, adminSecrets)) {
-          tokenKey = providedPw;
-        } else if (adminTokenArg) {
-          const matched = adminSecrets.find(s => adminTokenArg === deriveAdminToken(s));
-          if (matched) tokenKey = matched;
-        }
+        const tokenKey = pickAdminTokenKey({
+          providedPw,
+          adminTokenArg,
+          dbAdmin,
+          adminSecrets,
+          secretMatches,
+          deriveAdminToken,
+        });
         const adminToken = deriveAdminToken(tokenKey);
         const bootstrapAdmin = process.env.BOOTSTRAP_ADMIN_PASSWORD?.trim();
         if (bootstrapAdmin && providedPw === bootstrapAdmin && (!dbAdmin || isDefaultPanelPassword(dbAdmin))) {
@@ -4255,30 +4267,29 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
             maxMapSize: RATE_MAP_MAX_SIZE,
           });
           if (panelRate === 'map_full') {
-            return res.status(429).json({ data: null, error: { message: '요청이 너무 많습니다.', code: 'RATE_LIMITED' } });
+            const rej = panelMapFullReject();
+            return res.status(rej.status).json(rej.body);
           }
           if (panelRate === 'limited') {
-            return res.status(429).json({ data: null, error: { message: '시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.', code: 'RATE_LIMITED' } });
+            const rej = panelRateLimitedReject();
+            return res.status(rej.status).json(rej.body);
           }
         }
-        const kind = String(args.p_kind ?? 'reset');
-        const provided = String(args.p_password ?? '').trim();
-        if (!provided || provided.length > 100) {
-          return res.status(400).json({ data: null, error: { message: 'Invalid password', code: 'INVALID_INPUT' } });
-        }
+        const planned = planVerifyPanelPasswordArgs(args.p_kind, args.p_password);
+        if (!planned.ok) return res.status(planned.reject.status).json(planned.reject.body);
+        const { kind, provided } = planned;
         let ok = false;
         if (kind === 'reset') {
           const secrets = panelSecretsForRuntime(settings.reset_password as string | undefined);
           ok = secretMatches(provided, secrets);
         } else if (kind === 'admin') {
           ok = secretMatches(provided, panelAdminSecrets(settings.admin_password as string | undefined));
-        } else if (kind === 'test') {
-          ok = secretMatches(provided, panelTestSecrets(settings.test_password as string | undefined));
         } else {
-          return res.status(400).json({ data: null, error: { message: 'Invalid kind', code: 'INVALID_INPUT' } });
+          ok = secretMatches(provided, panelTestSecrets(settings.test_password as string | undefined));
         }
         if (!ok) {
-          return res.status(401).json({ data: { ok: false }, error: { message: '비밀번호가 올바르지 않습니다.', code: 'UNAUTHORIZED' } });
+          const rej = panelPasswordUnauthorizedReject();
+          return res.status(rej.status).json(rej.body);
         }
         resetPanelLoginLimiter(req);
         return res.json({ data: { ok: true }, error: null });
@@ -4291,18 +4302,7 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         const idx = profiles.findIndex(p => p.id === profileId);
         if (idx >= 0) {
           const oldRow = { ...profiles[idx] };
-          const patch: Record<string, unknown> = {};
-          const map: Record<string, string> = {
-            p_nickname: 'nickname', p_mbti: 'mbti', p_bio: 'bio',
-            p_birth_year: 'birth_year', p_birth_month: 'birth_month', p_birth_day: 'birth_day',
-            p_location: 'location', p_personality_score: 'personality_score',
-            p_dom_sub_score: 'dom_sub_score', p_interests: 'interests',
-            p_kakao_id: 'kakao_id', p_instagram_id: 'instagram_id',
-            p_phone_number: 'phone_number', p_contact_private: 'contact_private',
-          };
-          for (const [ak, dk] of Object.entries(map)) {
-            if (args[ak] !== undefined) patch[dk] = args[ak];
-          }
+          const patch = buildAdminProfilePatchFromArgs(args);
           if ('birth_year' in patch && profileBirthYearRejected(res, patch.birth_year)) return;
           // XSS 방어: 관리자가 악성 스크립트 태그가 포함된 값을 주입하는 것을 차단
           const sanitizedPatch = sanitizeRow('profiles', patch);
@@ -4612,32 +4612,16 @@ router.get('/ready', (_req: Request, res: Response) => {
     const settings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
     const adminSecrets = panelAdminSecrets(settings.admin_password as string | undefined);
     const testSecrets = panelTestSecrets(settings.test_password as string | undefined);
-    res.json({
-      ready: true,
-      settings: {
-        session_active: settings.session_active === true,
-        entry_password: String(settings.entry_password ?? ''),
-        timer_end_at: (settings.timer_end_at as string | null | undefined) ?? null,
-        timer_label: (settings.timer_label as string | null | undefined) ?? null,
-        reset_signal: (settings.reset_signal as string | null | undefined) ?? null,
-        // reset_password 는 공개 readiness에 노출하지 않음 (관리자 패널/RPC만)
-        functions_locked: settingsFunctionsLocked(settings),
-      },
-      login: {
-        adminConfigured: adminSecrets.length > 0,
-        testConfigured: testSecrets.length > 0,
-        resetConfigured: panelSecretsForRuntime(settings.reset_password as string | undefined).length > 0,
-      },
-      functions_locked: settingsFunctionsLocked(settings),
-      qr_base_url: settings.qr_base_url ?? null,
-      // leftover 잔량만 (키 값·비밀번호·PII 없음). 0 이면 PG에서 제거 완료.
-      legacy_leftovers: {
-        kv_tables: _legacyLeftovers.kv_tables,
-        settings_rows: _legacyLeftovers.settings_rows,
-        history_rows: _legacyLeftovers.history_rows,
-      },
+    // reset_password 는 공개 readiness에 노출하지 않음 (관리자 패널/RPC만)
+    // leftover 잔량만 (키 값·비밀번호·PII 없음). 0 이면 PG에서 제거 완료. — legacy_leftovers
+    res.json(buildReadyPayload({
+      settings,
+      adminConfigured: adminSecrets.length > 0,
+      testConfigured: testSecrets.length > 0,
+      resetConfigured: panelSecretsForRuntime(settings.reset_password as string | undefined).length > 0,
+      legacyLeftovers: _legacyLeftovers,
       checkedAt: new Date().toISOString(),
-    });
+    }));
   } catch (e) {
     logger.error({ err: e }, '[ready] Unexpected error');
     res.status(500).json({ ready: false, error: 'Ready check failed' });
@@ -4658,13 +4642,9 @@ router.get('/health', async (req: Request, res: Response) => {
 
   const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
 
-  // In-memory counts for last 5 minutes
-  const inMemMessages = getTable('messages').filter(
-    m => typeof m.created_at === 'string' && m.created_at >= fiveMinAgo,
-  ).length;
-  const inMemLikes = getTable('likes').filter(
-    l => typeof l.created_at === 'string' && l.created_at >= fiveMinAgo,
-  ).length;
+  // In-memory counts for last 5 minutes (db-kv-hydrate)
+  const inMemMessages = countRowsCreatedSince(getTable('messages'), fiveMinAgo);
+  const inMemLikes = countRowsCreatedSince(getTable('likes'), fiveMinAgo);
 
   // DB counts for last 5 minutes (best-effort)
   let dbMessages = -1;
@@ -4868,34 +4848,19 @@ router.get('/push/vapid-key', (_req: Request, res: Response) => {
 
 router.post('/push/subscribe', (req: Request, res: Response) => {
   try {
-  // ─ 페이로드 타입 방어 + 길이 제한
-  if (req.body == null || typeof req.body !== 'object' || Array.isArray(req.body)) {
-    return res.status(400).json({ error: 'Invalid request body' });
+  const parsedSub = validatePushSubscribeBody(req.body);
+  if (!parsedSub.ok) {
+    return res.status(parsedSub.reject.status).json(parsedSub.reject.body);
   }
-  const rawBody = req.body as Record<string, unknown>;
-  const userId = typeof rawBody.userId === 'string' ? rawBody.userId : null;
-  const sub = rawBody.subscription;
-  const endpoint = sub != null && typeof (sub as Record<string, unknown>).endpoint === 'string'
-    ? (sub as Record<string, unknown>).endpoint as string : null;
-  const keys = sub != null ? (sub as Record<string, unknown>).keys : null;
-  const auth = keys != null && typeof (keys as Record<string, unknown>).auth === 'string'
-    ? (keys as Record<string, unknown>).auth as string : null;
-  const p256dh = keys != null && typeof (keys as Record<string, unknown>).p256dh === 'string'
-    ? (keys as Record<string, unknown>).p256dh as string : null;
-
-  // 필드 존재 + 길이 검증
-  if (!userId || userId.length > 128) return res.status(400).json({ error: 'Missing or invalid userId' });
-  if (!endpoint || endpoint.length > 2048) return res.status(400).json({ error: 'Missing or invalid endpoint' });
-  if (!auth || auth.length > 512) return res.status(400).json({ error: 'Missing or invalid auth key' });
-  if (!p256dh || p256dh.length > 512) return res.status(400).json({ error: 'Missing or invalid p256dh key' });
-
+  const { userId, endpoint, auth, p256dh } = parsedSub;
   const subscription = { endpoint, keys: { auth, p256dh } };
 
   // SSE 토큰 검증 — 실제 userId 소유자만 구독 등록 가능
   const sseToken = req.headers['x-sse-token'] as string | undefined;
   if (!sseToken || !verifySseToken(userId, sseToken)) {
     logger.warn({ userId, ip: req.ip }, '[push/subscribe] Invalid or missing SSE token — 침입 탐지');
-    return res.status(401).json({ error: 'Unauthorized: invalid SSE token' });
+    const rej = pushSubscribeUnauthorizedReject();
+    return res.status(rej.status).json(rej.body);
   }
   const subs = getTable('push_subscriptions');
   const idx = subs.findIndex(s => s.user_id === userId && s.endpoint === subscription.endpoint);
@@ -5057,32 +5022,27 @@ router.post('/auth/login', (req: Request, res: Response) => {
   });
   if (userRate === 'map_full' || ipBurst === 'map_full') {
     res.setHeader('Retry-After', '5');
-    return res.status(429).json({ error: '요청이 너무 많습니다.' });
+    const rej = authLoginMapFullReject();
+    return res.status(rej.status).json(rej.body);
   }
   if (userRate === 'limited' || ipBurst === 'limited') {
     res.setHeader('Retry-After', '5');
-    return res.status(429).json({ error: '로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.' });
+    const rej = authLoginRateLimitedReject();
+    return res.status(rej.status).json(rej.body);
   }
   }
 
-  // ─ req.body 타입 방어: null·배열·원시값 전송 시 TypeError 방지
-  if (req.body == null || typeof req.body !== 'object' || Array.isArray(req.body)) {
-    return res.status(400).json({ error: 'Request body must be a JSON object' });
+  const parsed = validateAuthLoginBody(req.body);
+  if (!parsed.ok) {
+    return res.status(parsed.reject.status).json(parsed.reject.body);
   }
-  const { userId, deviceSecret, pinCode, testToken } = req.body as {
-    userId?: string; deviceSecret?: string; pinCode?: string; testToken?: string;
-  };
-  if (!userId || typeof userId !== 'string') {
-    return res.status(400).json({ error: 'Missing userId' });
-  }
-  if (!deviceSecret || typeof deviceSecret !== 'string') {
-    return res.status(400).json({ error: 'Missing deviceSecret' });
-  }
+  const { userId, deviceSecret, pinCode, testToken } = parsed;
   // 프로필 존재 여부 확인
   const profiles = getTable('profiles');
   const profile = profiles.find(p => p.id === userId);
   if (!profile) {
-    return res.status(401).json({ error: 'Unknown userId' });
+    const rej = authLoginUnknownUserReject();
+    return res.status(rej.status).json(rej.body);
   }
   // 제출된 deviceSecret의 HMAC 계산
   const submittedHash = createHmac('sha256', SSE_TOKEN_SECRET)
@@ -5090,7 +5050,23 @@ router.post('/auth/login', (req: Request, res: Response) => {
     .digest('hex');
   const deviceSecrets = getTable('device_secrets');
   const existing = deviceSecrets.find(r => r.user_id === userId);
-  if (!existing) {
+  let matched = false;
+  if (existing) {
+    try {
+      matched = timingSafeEqual(
+        Buffer.from(submittedHash, 'hex'),
+        Buffer.from(existing.secret_hash as string, 'hex'),
+      );
+    } catch { /* 해시 길이 불일치 → mismatch */ }
+  }
+  const decision = planAuthLoginDecision({
+    hasExistingSecret: Boolean(existing),
+    secretMatched: matched,
+    profilePin: String(profile.pin_code ?? '').trim(),
+    providedPin: String(pinCode ?? '').trim(),
+    testOk: verifyTestToken(testToken),
+  });
+  if (decision.action === 'first-claim') {
     // 첫 번째 기기 클레임 — id=userId로 안정적 row_id 사용 (ON CONFLICT UPDATE 보장)
     // (기존 사용자 마이그레이션: 프로필은 존재하지만 device_secret이 없는 경우)
     const newDs = { id: userId, user_id: userId, secret_hash: submittedHash };
@@ -5099,37 +5075,24 @@ router.post('/auth/login', (req: Request, res: Response) => {
     logger.info({ userId }, '[auth] first-claim device registered');
     return finishLogin(res, req, userId);
   }
-  // 재인증: 타이밍 안전 비교
-  let matched = false;
-  try {
-    matched = timingSafeEqual(
-      Buffer.from(submittedHash, 'hex'),
-      Buffer.from(existing.secret_hash as string, 'hex'),
-    );
-  } catch { /* 해시 길이 불일치 → mismatch */ }
-
-  if (!matched) {
-    const profilePin = String(profile.pin_code ?? '').trim();
-    const providedPin = String(pinCode ?? '').trim();
-    const testOk = verifyTestToken(testToken);
-    if (testOk || (profilePin && providedPin && profilePin === providedPin)) {
-      const rebound = { id: userId, user_id: userId, secret_hash: submittedHash };
-      const idx = deviceSecrets.findIndex(r => r.user_id === userId);
-      if (idx >= 0) deviceSecrets[idx] = rebound; else deviceSecrets.push(rebound);
-      dbPersistRow('device_secrets', rebound).catch(e => logger.error({ err: e }, '[db] device re-bind persist failed'));
-      logger.info({ userId, via: testOk ? 'test-token' : 'pin' }, '[auth] device re-bound');
-      return finishLogin(res, req, userId);
-    }
+  if (decision.action === 'rebind') {
+    const rebound = { id: userId, user_id: userId, secret_hash: submittedHash };
+    const idx = deviceSecrets.findIndex(r => r.user_id === userId);
+    if (idx >= 0) deviceSecrets[idx] = rebound; else deviceSecrets.push(rebound);
+    dbPersistRow('device_secrets', rebound).catch(e => logger.error({ err: e }, '[db] device re-bind persist failed'));
+    logger.info({ userId, via: decision.via }, '[auth] device re-bound');
+    return finishLogin(res, req, userId);
+  }
+  if (decision.action === 'deny') {
     logger.warn({ userId, ip: req.ip }, '[auth] device secret mismatch — access denied (re-bind blocked)');
-    return res.status(401).json({
-      error: '이미 다른 기기에서 등록된 계정입니다. 고유번호(PIN)로 프로필 복구를 이용해 주세요.',
-      code: 'DEVICE_MISMATCH',
-    });
+    const rej = authLoginDeviceMismatchReject();
+    return res.status(rej.status).json(rej.body);
   }
   return finishLogin(res, req, userId);
   } catch (e) {
     logger.error({ err: e }, '[auth/login] Unexpected error');
-    return res.status(500).json({ error: '로그인 처리 중 오류가 발생했습니다.' });
+    const rej = authLoginInternalReject();
+    return res.status(rej.status).json(rej.body);
   }
 });
 
@@ -5172,22 +5135,26 @@ router.get('/events', (req: Request, res: Response) => {
       // 만료는 정상 수명 종료. 침입 warn 으로 남기면 5시간 로그가 401 스팸이 된다.
       recordExpiredSseToken();
       logger.debug({ userId, ip: req.ip }, '[sse] token expired — client should refresh');
-      res.status(401).json({ error: 'Invalid or missing SSE token', code: 'SSE_TOKEN_EXPIRED' });
+      const rej = sseTokenExpiredReject();
+      res.status(rej.status).json(rej.body);
     } else if (state === 'missing') {
       recordMissingSseToken();
       logger.warn({ userId, hasToken: false, ip: req.ip }, '[sse] 인증 실패: 유효하지 않은 토큰으로 SSE 접근 시도 — 침입 탐지');
-      res.status(401).json({ error: 'Invalid or missing SSE token', code: 'SSE_TOKEN_INVALID' });
+      const rej = sseTokenInvalidReject();
+      res.status(rej.status).json(rej.body);
     } else {
       logger.warn({ userId, hasToken: !!token, ip: req.ip }, '[sse] 인증 실패: 유효하지 않은 토큰으로 SSE 접근 시도 — 침입 탐지');
-      res.status(401).json({ error: 'Invalid or missing SSE token', code: 'SSE_TOKEN_INVALID' });
+      const rej = sseTokenInvalidReject();
+      res.status(rej.status).json(rej.body);
     }
     return;
   }
 
   // 전역 SSE 상한 — 프로세스 메모리/FD 고갈 방지
   if (sseLiveCount() >= SSE_MAX_TOTAL) {
-    res.setHeader('Retry-After', '3');
-    res.status(429).json({ error: 'Server at SSE capacity', code: 'SSE_CAPACITY' });
+    const rej = sseCapacityReject();
+    res.setHeader('Retry-After', rej.retryAfter ?? '3');
+    res.status(rej.status).json(rej.body);
     return;
   }
 
@@ -5196,14 +5163,19 @@ router.get('/events', (req: Request, res: Response) => {
   // per-user cap + 전역 SSE_MAX_TOTAL 이 서버를 보호한다.
   const sseIp = String(req.ip ?? req.socket.remoteAddress ?? 'unknown');
   const currentConns = _sseConnPerIp.get(sseIp) ?? 0;
+  const ipPlan = planSseIpCount({
+    currentConns,
+    maxPerIp: SSE_MAX_CONN_PER_IP,
+    hasUserId: Boolean(userId),
+  });
+  if (!ipPlan.allow) {
+    const rej = ipPlan.reject!;
+    res.setHeader('Retry-After', rej.retryAfter ?? '5');
+    res.status(rej.status).json(rej.body);
+    return;
+  }
   let countedIp = false;
-  if (currentConns >= SSE_MAX_CONN_PER_IP) {
-    if (!userId) {
-      res.setHeader('Retry-After', '5');
-      res.status(429).json({ error: 'Too many SSE connections from this IP', code: 'RATE_LIMIT' });
-      return;
-    }
-  } else {
+  if (ipPlan.countIp) {
     _sseConnPerIp.set(sseIp, currentConns + 1);
     countedIp = true;
   }
@@ -5216,10 +5188,11 @@ router.get('/events', (req: Request, res: Response) => {
   };
 
   // 익명 상한은 헤더 flush 전에 검사해야 429 JSON이 전달됨
-  if (!isAdminSse && !userId && sseAnonClients.size >= 100) {
+  if (shouldRejectAnonSse({ isAdminSse, hasUserId: Boolean(userId), anonCount: sseAnonClients.size })) {
     _undoSseConnCount();
-    res.setHeader('Retry-After', '5');
-    res.status(429).json({ error: 'Too many anonymous SSE connections', code: 'RATE_LIMIT' });
+    const rej = sseAnonLimitReject();
+    res.setHeader('Retry-After', rej.retryAfter ?? '5');
+    res.status(rej.status).json(rej.body);
     return;
   }
 

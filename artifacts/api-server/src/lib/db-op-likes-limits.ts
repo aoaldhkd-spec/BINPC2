@@ -81,3 +81,22 @@ export function likesPairIntervalBlocked(
 ): boolean {
   return nowMs - lastMs < minIntervalMs;
 }
+
+export type LikesMinuteBucket = { count: number; resetAt: number };
+
+/**
+ * Local per-liker minute window: increment and report whether over max.
+ * Does not mutate caller state — returns the next bucket snapshot.
+ */
+export function planLikesMinuteBucketConsume(
+  prev: LikesMinuteBucket | undefined,
+  nowMs: number,
+  maxPerMin: number,
+): { allowed: boolean; bucket: LikesMinuteBucket } {
+  let bucket = prev;
+  if (!bucket || nowMs > bucket.resetAt) {
+    bucket = { count: 0, resetAt: nowMs + 60_000 };
+  }
+  const next = { count: bucket.count + 1, resetAt: bucket.resetAt };
+  return { allowed: next.count <= maxPerMin, bucket: next };
+}

@@ -1751,6 +1751,94 @@ mustMatch('ARCHITECTURE.md', '67_architecture_path_after_select_access_peel', [
 ]);
 
 
+
+
+// ── 68: auth-login + op-gate + rpc-auth + push-subscribe + insert follow-up + SSE admit ─
+mustMatch('artifacts/api-server/src/lib/db-session-tokens.ts', '68_auth_login_exports', [
+  /export function validateAuthLoginBody/,
+  /export function planAuthLoginDecision/,
+  /export function authLoginDeviceMismatchReject/,
+  /AUTH_DEVICE_MISMATCH_MESSAGE/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-op-request.ts', '68_op_gate_exports', [
+  /export function opBusyReject/,
+  /export function planBindRequesterId/,
+  /export function opPersistFailedReject/,
+  /export function opPinExhaustedReject/,
+  /OP_PERSIST_FAILED_MESSAGE/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-rpc-allowlist.ts', '68_rpc_auth_exports', [
+  /export function validateRpcName/,
+  /export function planVerifyPanelPasswordArgs/,
+  /export function planCheckAdminPassword/,
+  /export function buildAdminProfilePatchFromArgs/,
+  /RPC_ADMIN_PHONE_MISMATCH_MESSAGE/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-push-plan.ts', '68_push_subscribe_exports', [
+  /export function validatePushSubscribeBody/,
+  /export function pushSubscribeUnauthorizedReject/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-op-insert-ownership.ts', '68_insert_followup_exports', [
+  /export function findRowByClientId/,
+  /export function findExistingChatPairRow/,
+  /export function buildInsertedRow/,
+  /export function messageReceiverIdFromChat/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-op-likes-limits.ts', '68_likes_minute_bucket_export', [
+  /export function planLikesMinuteBucketConsume/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-sse-fanout-policy.ts', '68_sse_admit_exports', [
+  /export function sseCapacityReject/,
+  /export function planSseIpCount/,
+  /export function shouldRejectAnonSse/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-app-settings-view.ts', '68_ready_payload_export', [
+  /export function buildReadyPayload/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-group-room-plan.ts', '68_auto_room_builder_exports', [
+  /export function buildAutoRoomRow/,
+  /export function shouldSkipAutoRoomJoin/,
+]);
+mustExist('artifacts/api-server/src/lib/db-session-tokens.test.ts', '68_session_tokens_auth_tests');
+mustExist('artifacts/api-server/src/lib/db-op-request.test.ts', '68_op_request_gate_tests');
+mustExist('artifacts/api-server/src/lib/db-rpc-allowlist.test.ts', '68_rpc_allowlist_auth_tests');
+mustExist('artifacts/api-server/src/lib/db-push-plan.test.ts', '68_push_plan_subscribe_tests');
+mustMatch('artifacts/api-server/src/routes/db.ts', '68_db_reimports_auth_op_gate_rpc_push', [
+  /from '\.\.\/lib\/db-session-tokens'/,
+  /validateAuthLoginBody/,
+  /planAuthLoginDecision/,
+  /from '\.\.\/lib\/db-op-request'/,
+  /opBusyReject/,
+  /planBindRequesterId/,
+  /from '\.\.\/lib\/db-rpc-allowlist'/,
+  /validateRpcName/,
+  /planVerifyPanelPasswordArgs/,
+  /from '\.\.\/lib\/db-push-plan'/,
+  /validatePushSubscribeBody/,
+  /buildInsertedRow/,
+  /planLikesMinuteBucketConsume/,
+  /sseCapacityReject/,
+  /buildReadyPayload/,
+  /buildAutoRoomRow/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '68_db_still_single_router_export', [
+  /export default router/,
+]);
+mustNotMatch('artifacts/api-server/src/routes/db.ts', '68_db_no_inline_auth_gate_rpc_impl', [
+  /이미 다른 기기에서 등록된 계정입니다\. 고유번호\(PIN\)로 프로필 복구를 이용해 주세요/,
+  /Server busy — retry in 1s/,
+  /PIN pool exhausted — no available PIN slots/,
+  /저장에 실패했습니다\. 잠시 후 다시 시도해 주세요/,
+  /전화번호 또는 비밀번호가 올바르지 않습니다/,
+  /Server at SSE capacity/,
+]);
+mustMatch('ARCHITECTURE.md', '68_architecture_path_after_auth_op_gate_peel', [
+  /auth-login/,
+  /op-gate/,
+  /~9\.5/,
+]);
+
+
 console.log('\n=== verify-recurrence-guards ===\n');
 
 for (const r of results) {

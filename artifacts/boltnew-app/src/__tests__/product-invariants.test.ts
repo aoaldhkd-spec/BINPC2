@@ -561,6 +561,15 @@ describe('product copy + notification invariants', () => {
     expect(db).not.toMatch(/IDOR: messages INSERT without requesterId blocked/);
     expect(db).not.toMatch(/Forbidden: use insert for signal actions/);
     expect(db).toContain("from '../lib/db-op-select-access'");
+    expect(db).toContain("from '../lib/db-session-tokens'");
+    expect(db).toContain('validateAuthLoginBody');
+    expect(db).toContain('opBusyReject');
+    expect(db).toContain('validateRpcName');
+    expect(db).toContain('validatePushSubscribeBody');
+    expect(db).toContain('buildInsertedRow');
+    expect(db).not.toMatch(/이미 다른 기기에서 등록된 계정입니다/);
+    expect(db).not.toMatch(/Server busy — retry in 1s/);
+
     expect(db).toContain('mapMessagesOntoCanonicalChatId');
     expect(db).toContain("from '../lib/db-op-likes-limits'");
     expect(db).toContain('likesHeartLimitReject');

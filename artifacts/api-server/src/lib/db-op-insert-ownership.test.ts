@@ -12,6 +12,11 @@ import {
   planNormalizeChatPairRow,
   planProfileViewsInsertOwnership,
   planSignalSendsInsertOwnership,
+  findRowByClientId,
+  findExistingChatPairRow,
+  buildInsertedRow,
+  messageReceiverIdFromChat,
+  shouldForceServerCreatedAt,
 } from './db-op-insert-ownership.js';
 
 describe('db-op-insert-ownership', () => {
@@ -107,5 +112,29 @@ describe('db-op-insert-ownership', () => {
     expect(row.user2_id).toBe('b');
     expect(row.id).toBe(detId);
     expect(detId.length).toBeGreaterThan(8);
+  });
+});
+
+describe('db-op-insert-followup (via insert-ownership)', () => {
+  it('client_id + chat pair finders', () => {
+    const rows = [
+      { id: '1', client_id: 'c1', user1_id: 'a', user2_id: 'b' },
+      { id: 'pair', user1_id: 'x', user2_id: 'y' },
+    ];
+    expect(findRowByClientId(rows, 'c1')?.id).toBe('1');
+    expect(findExistingChatPairRow(rows, 'y', 'x', 'nope')?.id).toBe('pair');
+    expect(findExistingChatPairRow(rows, 'p', 'q', '1')?.id).toBe('1');
+  });
+
+  it('buildInsertedRow stamps server created_at for likes', () => {
+    expect(shouldForceServerCreatedAt('likes')).toBe(true);
+    const row = buildInsertedRow({ created_at: 'client', foo: 1 }, 'id1', 'server', 'likes');
+    expect(row.created_at).toBe('server');
+    expect(row.id).toBe('id1');
+  });
+
+  it('messageReceiverIdFromChat', () => {
+    expect(messageReceiverIdFromChat({ user1_id: 'a', user2_id: 'b' }, 'a')).toBe('b');
+    expect(messageReceiverIdFromChat({ user1_id: 'a', user2_id: 'b' }, 'b')).toBe('a');
   });
 });
