@@ -8,6 +8,7 @@ import {
   isAdminProfilePhone,
   isAdminProfileRow,
   normalizePhoneDigits,
+  planBirthMdEditPatch,
   withFixedAdminNickname,
 } from './db-admin-identity.js';
 
@@ -53,5 +54,20 @@ describe('db-admin-identity', () => {
     expect(birthMdWouldChangeRow(row, { birth_month: 3, birth_day: 15 })).toBe(false);
     expect(birthMdWouldChangeRow(row, { birth_month: 4 })).toBe(true);
     expect(birthMdWouldChangeRow(row, { nickname: 'x' })).toBe(false);
+  });
+
+
+  it('planBirthMdEditPatch enforces Korean limit', () => {
+    const row = { birth_month: 3, birth_day: 15, birth_md_edit_count: 2 };
+    const blocked = planBirthMdEditPatch(row, { birth_month: 4 });
+    expect(blocked.ok).toBe(false);
+    if (!blocked.ok) {
+      expect(blocked.reject.body.error.message).toContain('생월');
+    }
+    const ok = planBirthMdEditPatch(
+      { birth_month: 3, birth_day: 15, birth_md_edit_count: 0 },
+      { birth_month: 4 },
+    );
+    expect(ok).toEqual({ ok: true, patch: { birth_month: 4, birth_md_edit_count: 1 } });
   });
 });

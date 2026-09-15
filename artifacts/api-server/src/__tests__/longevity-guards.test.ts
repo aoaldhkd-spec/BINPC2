@@ -187,6 +187,28 @@ describe('longevity recurrence guards (server)', () => {
     expect(ups).toContain('planUpsertRelationshipRow');
   });
 
+  it('op select-access + likes-limits + pin/storage/broadcast/rpc stay extracted', () => {
+    expect(dbTs).toContain("from '../lib/db-op-select-access'");
+    expect(dbTs).toContain('mapMessagesOntoCanonicalChatId');
+    expect(dbTs).toContain('collectMyGroupIds');
+    expect(dbTs).toContain("from '../lib/db-op-likes-limits'");
+    expect(dbTs).toContain('likesHeartLimitReject');
+    expect(dbTs).toContain("from '../lib/db-pin-lookup'");
+    expect(dbTs).toContain('maskNicknameForPinConfirm');
+    expect(dbTs).toContain("from '../lib/db-storage-path'");
+    expect(dbTs).toContain('isValidStoragePath');
+    expect(dbTs).toContain("from '../lib/db-broadcast-validate'");
+    expect(dbTs).toContain('validateBroadcastBody');
+    expect(dbTs).toContain("from '../lib/db-rpc-allowlist'");
+    expect(dbTs).toContain('ALLOWED_RPCS');
+    expect(dbTs).not.toMatch(/같은 종류의 하트는 최대 2명에게만 보낼 수 있습니다/);
+    expect(dbTs).not.toMatch(/const ALLOWED_RPCS = new Set/);
+    const sel = readFileSync(join(here, '../lib/db-op-select-access.ts'), 'utf8');
+    const likes = readFileSync(join(here, '../lib/db-op-likes-limits.ts'), 'utf8');
+    expect(sel).toContain('mapMessagesOntoCanonicalChatId');
+    expect(likes).toContain('likesHeartLimitReject');
+  });
+
   it('app-settings-merge + panel-tokens stay extracted from db.ts', () => {
     expect(dbTs).toContain("from '../lib/db-app-settings-merge'");
     expect(dbTs).toContain("from '../lib/db-panel-tokens'");

@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ADMIN_EVENT_END_CLEAR_TABLES,
+  ADMIN_EVENT_END_PRIVATE_RESET,
   likeRateKeyTouchesAdmin,
   planClearAdminNpcRelationships,
+  planWipeTableBroadcast,
+  TEST_WIPE_ALL_TABLES,
 } from './db-admin-wipe-plan.js';
 
 describe('db-admin-wipe-plan', () => {
@@ -52,5 +56,14 @@ describe('db-admin-wipe-plan', () => {
     expect(likeRateKeyTouchesAdmin('admin1:u2', 'admin1')).toBe(true);
     expect(likeRateKeyTouchesAdmin('u2:admin1:x', 'admin1')).toBe(true);
     expect(likeRateKeyTouchesAdmin('u2:u3', 'admin1')).toBe(false);
+  });
+
+  it('event-end clear tables + broadcast modes', () => {
+    expect(ADMIN_EVENT_END_CLEAR_TABLES).toContain('profiles');
+    expect(ADMIN_EVENT_END_PRIVATE_RESET.has('messages')).toBe(true);
+    expect(planWipeTableBroadcast('messages', [{ id: 1 }])).toEqual({ mode: 'reset' });
+    expect(planWipeTableBroadcast('profiles', [{ id: 1 }]).mode).toBe('profile_delete');
+    expect(planWipeTableBroadcast('notifications', [{ id: 1 }]).mode).toBe('row_delete');
+    expect([...TEST_WIPE_ALL_TABLES]).toEqual(['likes', 'messages', 'chats', 'profiles']);
   });
 });

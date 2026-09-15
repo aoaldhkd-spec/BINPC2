@@ -560,6 +560,16 @@ describe('product copy + notification invariants', () => {
     expect(db).toContain('planUpsertRelationshipRow');
     expect(db).not.toMatch(/IDOR: messages INSERT without requesterId blocked/);
     expect(db).not.toMatch(/Forbidden: use insert for signal actions/);
+    expect(db).toContain("from '../lib/db-op-select-access'");
+    expect(db).toContain('mapMessagesOntoCanonicalChatId');
+    expect(db).toContain("from '../lib/db-op-likes-limits'");
+    expect(db).toContain('likesHeartLimitReject');
+    expect(db).toContain("from '../lib/db-pin-lookup'");
+    expect(db).toContain("from '../lib/db-storage-path'");
+    expect(db).toContain("from '../lib/db-broadcast-validate'");
+    expect(db).toContain("from '../lib/db-rpc-allowlist'");
+    expect(db).not.toMatch(/같은 종류의 하트는 최대 2명에게만 보낼 수 있습니다/);
+    expect(db).not.toMatch(/const ALLOWED_RPCS = new Set/);
   });
 
 

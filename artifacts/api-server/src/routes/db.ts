@@ -106,6 +106,46 @@ import {
   scopeSignalSendsRows,
 } from '../lib/db-op-select-scope';
 import {
+  applyChatReadsSiblingScope,
+  chatReadsSiblingIdsForEqFilter,
+  collectMyGroupIds,
+  expandMessagesChatIdInVals,
+  findChatIdEqFilter,
+  findChatIdInFilter,
+  findIllegalMessagesInChatId,
+  isChatRowParticipant,
+  mapMessagesOntoCanonicalChatId,
+  messagesSelectInNonParticipantReject,
+  messagesSelectMissingChatIdFilterReject,
+  messagesSelectNonParticipantReject,
+  remapGroupIdFilters,
+  scopeChatReadsForRequester,
+  scopeGroupMessageRows,
+  scopeGroupParticipantRows,
+  selectAuthRequiredReject,
+} from '../lib/db-op-select-access';
+import {
+  likesHeartLimitReject,
+  likesPairIntervalBlocked,
+  likesRateLimitReject,
+  likesSameTypeLimitReached,
+  matchesLikeTriple,
+} from '../lib/db-op-likes-limits';
+import {
+  maskNicknameForPinConfirm,
+  pinLookupNotFoundReject,
+  pinNicknameMismatchReject,
+  pinRateLimitedReject,
+  validateByPinBody,
+} from '../lib/db-pin-lookup';
+import {
+  isValidStoragePath,
+  isValidStoragePathList,
+  isPublicProfilePhotoPath,
+} from '../lib/db-storage-path';
+import { validateBroadcastBody } from '../lib/db-broadcast-validate';
+import { ALLOWED_RPCS } from '../lib/db-rpc-allowlist';
+import {
   checkUpdateRowOwnership,
   forceUpdateOwnershipPatch,
   planGroupParticipantsUpdate,
@@ -152,15 +192,18 @@ import {
   ADMIN_FIXED_NICKNAME,
   BIRTH_MD_EDIT_MAX,
   adminPhoneDigitsFromSettings,
-  birthMdWouldChangeRow,
   findAdminProfileInRows,
   isAdminProfilePhone as isAdminProfilePhonePure,
   isAdminProfileRow as isAdminProfileRowPure,
   withFixedAdminNickname as withFixedAdminNicknamePure,
+  planBirthMdEditPatch,
 } from '../lib/db-admin-identity';
 import {
   likeRateKeyTouchesAdmin,
   planClearAdminNpcRelationships,
+  ADMIN_EVENT_END_CLEAR_TABLES,
+  planWipeTableBroadcast,
+  TEST_WIPE_ALL_TABLES,
 } from '../lib/db-admin-wipe-plan';
 import {
   buildAdminSeedProfile,
@@ -173,6 +216,8 @@ import {
   explicitSecretKeys,
   koreanDateMMDD,
   mergeAppSettings as mergeAppSettingsPure,
+  sanitizeAdminSettingsPayload,
+  filterTestSettingsPayload,
 } from '../lib/db-app-settings-merge';
 import {
   appSettingsCoreFieldsBroken,
@@ -2758,17 +2803,18 @@ router.post('/op', async (req: Request, res: Response) => {
       if (table === 'messages') {
         if (!canReadPrivateTables) {
           if (!requesterId) {
-            logger.warn({ ip: req.ip }, '[SECURITY] IDOR: messages SELECT without requesterId blocked');
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+            const rej = selectAuthRequiredReject('[SECURITY] IDOR: messages SELECT without requesterId blocked');
+            logger.warn({ ip: req.ip }, rej.logMsg);
+            return res.status(rej.status).json(rej.body);
           }
-          // chat_id 필터 탐색: eq(단일 채팅방) 또는 in(채팅 목록 일괄 조회) 모두 허용
-          const chatIdEqF = normalizedFilters.find(f => f.type === 'eq' && f.col === 'chat_id') as { type: 'eq'; col: string; val: unknown } | undefined;
-          const chatIdInF = normalizedFilters.find(f => f.type === 'in' && f.col === 'chat_id') as { type: 'in'; col: string; vals: unknown[] } | undefined;
+          // chat_id 필터 탐색: eq(단일 채팅방) 또는 in(채팅 목록 일괄 조회) 모두 허용 — db-op-select-access
+          const chatIdEqF = findChatIdEqFilter(normalizedFilters);
+          const chatIdInF = findChatIdInFilter(normalizedFilters);
 
           if (!chatIdEqF && !chatIdInF) {
-            // chat_id 필터 없이 전체 메시지 덤프 시도 → 차단
-            logger.warn({ requesterId, ip: req.ip }, '[SECURITY] IDOR: messages SELECT without chat_id filter blocked');
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: chat_id filter required', code: 'FORBIDDEN' } });
+            const rej = messagesSelectMissingChatIdFilterReject();
+            logger.warn({ requesterId, ip: req.ip }, rej.logMsg);
+            return res.status(rej.status).json(rej.body);
           }
 
           if (chatIdEqF) {
@@ -2779,16 +2825,15 @@ router.post('/op', async (req: Request, res: Response) => {
             if (!chat) {
               return res.json({ data: [], error: null }); // 존재하지 않는 채팅방 → 빈 배열
             }
-            if (String(chat.user1_id) !== String(requesterId) && String(chat.user2_id) !== String(requesterId)) {
-              logger.warn({ requesterId, chatId: chatIdEqF.val, ip: req.ip }, '[SECURITY] IDOR: messages SELECT by non-participant blocked');
-              return res.status(403).json({ data: null, error: { message: 'Forbidden: not a chat participant', code: 'FORBIDDEN' } });
+            if (!isChatRowParticipant(chat, String(requesterId))) {
+              const rej = messagesSelectNonParticipantReject();
+              logger.warn({ requesterId, chatId: chatIdEqF.val, ip: req.ip }, rej.logMsg);
+              return res.status(rej.status).json(rej.body);
             }
             const siblingIds = chatIdsForPair(String(chat.user1_id), String(chat.user2_id));
             const lookupIds = [...new Set([wantId, ...siblingIds])];
             await mergeMessagesForChatIds(lookupIds);
-            const scoped = getTable('messages')
-              .filter(m => lookupIds.includes(String(m.chat_id)))
-              .map(m => (String(m.chat_id) === wantId ? m : { ...m, chat_id: wantId }));
+            const scoped = mapMessagesOntoCanonicalChatId(getTable('messages'), wantId, lookupIds);
             const otherFilters = normalizedFilters.filter(f => !(f.type === 'eq' && f.col === 'chat_id'));
             const scopedResult = applyFilters(scoped, otherFilters);
             const scopedData = orderLimitShape(scopedResult, safeOrders, {
@@ -2802,24 +2847,16 @@ router.post('/op', async (req: Request, res: Response) => {
           if (chatIdInF) {
             // 복수 채팅방 일괄 조회 (loadChatList) — 요청자가 참여하지 않는 채팅방 ID 차단
             const chats = getTable('chats');
-            const illegalChatId = (chatIdInF.vals as string[]).find(cid => {
-              const chat = chats.find(c => String(c.id) === String(cid));
-              if (!chat) return false; // 존재하지 않으면 결과가 없으므로 무해
-              return String(chat.user1_id) !== String(requesterId) && String(chat.user2_id) !== String(requesterId);
-            });
+            const illegalChatId = findIllegalMessagesInChatId(chats, chatIdInF.vals, String(requesterId));
             if (illegalChatId) {
-              logger.warn({ requesterId, chatId: illegalChatId, ip: req.ip }, '[SECURITY] IDOR: messages SELECT (in) includes non-participant chat blocked');
-              return res.status(403).json({ data: null, error: { message: 'Forbidden: not a chat participant', code: 'FORBIDDEN' } });
+              const rej = messagesSelectInNonParticipantReject();
+              logger.warn({ requesterId, chatId: illegalChatId, ip: req.ip }, rej.logMsg);
+              return res.status(rej.status).json(rej.body);
             }
             // sibling 방 메시지까지 포함 — 목록 lastMessage/미읽음이 옛 chat_id 행을 놓치지 않게
-            const expanded = new Set((chatIdInF.vals as unknown[]).map(v => String(v)));
-            for (const cid of [...expanded]) {
-              const chat = chats.find(c => String(c.id) === cid);
-              if (!chat) continue;
-              for (const id of chatIdsForPair(String(chat.user1_id), String(chat.user2_id))) expanded.add(id);
-            }
-            chatIdInF.vals = [...expanded];
-            await mergeMessagesForChatIds([...expanded]);
+            const expanded = expandMessagesChatIdInVals(chats, chatIdInF.vals, chatIdsForPair);
+            chatIdInF.vals = expanded;
+            await mergeMessagesForChatIds(expanded);
           }
         }
         // isAdmin: 모든 메시지 조회 허용 (관리자 감사용)
@@ -2923,32 +2960,25 @@ router.post('/op', async (req: Request, res: Response) => {
           logger.warn({ ip: req.ip }, '[SECURITY] IDOR: chat_reads SELECT without requesterId blocked');
           return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
         }
-        const crScope = tableData.filter(r => {
-          if (String(r.reader_id) === String(requesterId)) return true;
-          // 같은 1:1 방 상대의 read_at 만 허용 — 프론트 '1' 폴링에 필요.
-          // 참여하지 않은 방·제3자 읽음 기록은 절대 노출하지 않음.
-          const resolved = resolveMergedChatId(String(r.chat_id ?? ''));
-          const chat = getTable('chats').find(c => String(c.id) === resolved || String(c.id) === String(r.chat_id));
-          if (!chat) return false;
-          return String(chat.user1_id) === String(requesterId) || String(chat.user2_id) === String(requesterId);
-        });
-        const chatIdEqCr = normalizedFilters.find(f => f.type === 'eq' && f.col === 'chat_id') as { type: 'eq'; col: string; val: unknown } | undefined;
-        const siblingIds = new Set<string>();
-        if (chatIdEqCr) {
-          const want = String(chatIdEqCr.val);
-          siblingIds.add(want);
-          siblingIds.add(resolveMergedChatId(want));
-          const chat = getTable('chats').find(c => siblingIds.has(String(c.id)));
-          if (chat) {
-            for (const id of chatIdsForPair(String(chat.user1_id), String(chat.user2_id))) siblingIds.add(id);
-          }
-        }
-        const crFilters = chatIdEqCr
-          ? normalizedFilters.filter(f => !(f.type === 'eq' && f.col === 'chat_id'))
-          : normalizedFilters;
-        const crScoped = chatIdEqCr
-          ? crScope.filter(r => siblingIds.has(String(r.chat_id)))
-          : crScope;
+        // 같은 1:1 방 상대의 read_at 만 허용 — 프론트 '1' 폴링에 필요 (db-op-select-access)
+        const crScope = scopeChatReadsForRequester(
+          tableData,
+          String(requesterId),
+          (raw, resolved) => getTable('chats').find(c => String(c.id) === resolved || String(c.id) === raw),
+          resolveMergedChatId,
+        );
+        const { chatIdEq: chatIdEqCr, siblingIds } = chatReadsSiblingIdsForEqFilter(
+          normalizedFilters,
+          resolveMergedChatId,
+          (ids) => getTable('chats').find(c => ids.has(String(c.id))),
+          chatIdsForPair,
+        );
+        const { rows: crScoped, filters: crFilters } = applyChatReadsSiblingScope(
+          crScope,
+          normalizedFilters,
+          chatIdEqCr,
+          siblingIds,
+        );
         const crResult = applyFilters(crScoped, crFilters);
         const crData = orderLimitShape(crResult, safeOrders, {
           limit: limit != null ? Math.floor(limit) : undefined,
@@ -2969,17 +2999,13 @@ router.post('/op', async (req: Request, res: Response) => {
           if (me) await autoMatchGroupChatGuarded(String(requesterId), me);
           tableData = store['group_participants'];
         }
-        const myGroupIds = new Set(
-          getTable('group_participants')
-            .filter(p => String(p.user_id) === String(requesterId))
-            .flatMap(p => {
-              const raw = String(p.group_id);
-              const resolved = resolveMergedGroupId(raw);
-              return raw === resolved ? [raw] : [raw, resolved];
-            }),
+        const myGroupIds = collectMyGroupIds(
+          getTable('group_participants'),
+          String(requesterId),
+          resolveMergedGroupId,
         );
         if (table === 'group_participants') {
-          const gpScope = tableData.filter(r => myGroupIds.has(String(r.group_id)));
+          const gpScope = scopeGroupParticipantRows(tableData, myGroupIds);
           const gpResult = applyFilters(gpScope, normalizedFilters);
           const gpData = orderLimitShape(gpResult, safeOrders, {
             limit: limit != null ? Math.floor(limit) : undefined,
@@ -2988,21 +3014,9 @@ router.post('/op', async (req: Request, res: Response) => {
           });
           return res.json({ data: gpData, error: null });
         }
-        // group_messages: 참여 중인 방만 (병합된 옛 id 포함)
-        const gmScope = tableData.filter(r => {
-          const gid = String(r.group_id);
-          return myGroupIds.has(gid) || myGroupIds.has(resolveMergedGroupId(gid));
-        });
-        const gmFilters = normalizedFilters.map(f => {
-          if (f.type === 'eq' && f.col === 'group_id') {
-            return { ...f, val: resolveMergedGroupId(String(f.val)) };
-          }
-          if (f.type === 'in' && f.col === 'group_id') {
-            const vals = [...new Set((f.vals as unknown[]).map(v => resolveMergedGroupId(String(v))))];
-            return { ...f, vals };
-          }
-          return f;
-        });
+        // group_messages: 참여 중인 방만 (병합된 옛 id 포함) — db-op-select-access
+        const gmScope = scopeGroupMessageRows(tableData, myGroupIds, resolveMergedGroupId);
+        const gmFilters = remapGroupIdFilters(normalizedFilters, resolveMergedGroupId);
         const gmResult = applyFilters(gmScope, gmFilters);
         const gmData = orderLimitShape(gmResult, safeOrders, {
           limit: limit != null ? Math.floor(limit) : undefined,
@@ -3398,19 +3412,17 @@ router.post('/op', async (req: Request, res: Response) => {
           const likeLiked = String(effectiveRow.liked_id);
           const likeType = String(effectiveRow.heart_type);
           const likeTriple = (r: Record<string, unknown>) =>
-            String(r.liker_id) === likeLiker && String(r.liked_id) === likeLiked && String(r.heart_type) === likeType;
+            matchesLikeTriple(r, likeLiker, likeLiked, likeType);
           const dupLike = tableData.find(likeTriple);
           if (dupLike) return res.json({ data: single ? dupLike : [dupLike], error: null }); // 멱등: 기존 row 반환
           const referenceCheck = await ensureWriteReferences(table, effectiveRow);
           if (!referenceCheck.ok) return sendReferenceFailure(res, referenceCheck);
 
-          // 타입별 글로벌 한도: 동일 heart_type을 최대 2명에게만 보낼 수 있음 (클라이언트 우회 방지)
-          const sameTypeCount = tableData.filter(r =>
-            String(r.liker_id) === likeLiker && String(r.heart_type) === likeType
-          ).length;
-          if (sameTypeCount >= 2) {
+          // 타입별 글로벌 한도: 동일 heart_type을 최대 2명에게만 보낼 수 있음 (db-op-likes-limits)
+          if (likesSameTypeLimitReached(tableData, likeLiker, likeType)) {
             // 400: HEART_LIMIT을 429로 주면 클라이언트가 NAT 429로 재시도해 지연·이중전송처럼 보임
-            return res.status(400).json({ data: null, error: { message: '같은 종류의 하트는 최대 2명에게만 보낼 수 있습니다.', code: 'HEART_LIMIT' } });
+            const rej = likesHeartLimitReject();
+            return res.status(rej.status).json(rej.body);
           }
 
           // Time-bucket rate limiter: at most 1 like per 500 ms per (liker, liked, type) triple
@@ -3418,18 +3430,20 @@ router.post('/op', async (req: Request, res: Response) => {
           // only the exact same (liker, liked, type) combination is throttled within the window.
           const rateKey = `${likeLiker}:${likeLiked}:${likeType}`;
           const lastMs = _likesLastInsert.get(rateKey) ?? 0;
-          if (Date.now() - lastMs < LIKES_MIN_INTERVAL_MS) {
+          if (likesPairIntervalBlocked(lastMs, Date.now(), LIKES_MIN_INTERVAL_MS)) {
             // Rapid duplicate — return existing row if any (never silent null success)
             const recent = tableData.find(likeTriple);
             if (recent) return res.json({ data: single ? recent : [recent], error: null });
-            return res.status(429).json({ data: null, error: { message: '하트를 너무 빠르게 보내고 있습니다. 잠시 후 다시 시도해 주세요.', code: 'RATE_LIMIT' } });
+            const rej = likesRateLimitReject();
+            return res.status(rej.status).json(rej.body);
           }
           // 멀티 인스턴스: PG 공용 슬롯 (로컬 Map 만으로는 인스턴스별 우회 가능)
           const distributedOk = await claimDistributedRateSlot(`like_pair:${rateKey}`, LIKES_MIN_INTERVAL_MS);
           if (!distributedOk) {
             const recent = tableData.find(likeTriple);
             if (recent) return res.json({ data: single ? recent : [recent], error: null });
-            return res.status(429).json({ data: null, error: { message: '하트를 너무 빠르게 보내고 있습니다. 잠시 후 다시 시도해 주세요.', code: 'RATE_LIMIT' } });
+            const rej = likesRateLimitReject();
+            return res.status(rej.status).json(rej.body);
           }
           _likesLastInsert.set(rateKey, Date.now());
 
@@ -3443,7 +3457,8 @@ router.post('/op', async (req: Request, res: Response) => {
           }
           ubucket.count++;
           if (ubucket.count > LIKES_MAX_PER_USER_PER_MIN) {
-            return res.status(429).json({ data: null, error: { message: '하트를 너무 빠르게 보내고 있습니다. 잠시 후 다시 시도해 주세요.', code: 'RATE_LIMIT' } });
+            const rej = likesRateLimitReject();
+            return res.status(rej.status).json(rej.body);
           }
           const minuteBucket = Math.floor(nowMs / 60_000);
           const minuteOk = await claimDistributedMinuteQuota(
@@ -3451,7 +3466,8 @@ router.post('/op', async (req: Request, res: Response) => {
             LIKES_MAX_PER_USER_PER_MIN,
           );
           if (!minuteOk) {
-            return res.status(429).json({ data: null, error: { message: '하트를 너무 빠르게 보내고 있습니다. 잠시 후 다시 시도해 주세요.', code: 'RATE_LIMIT' } });
+            const rej = likesRateLimitReject();
+            return res.status(rej.status).json(rej.body);
           }
         }
         const referenceCheck = await ensureWriteReferences(table, effectiveRow);
@@ -3625,16 +3641,9 @@ router.post('/op', async (req: Request, res: Response) => {
         const touchesBirthMd = 'birth_month' in patch || 'birth_day' in patch;
         if (touchesBirthMd) {
           for (const existingRow of rowsToUpdate) {
-            if (!birthMdWouldChangeRow(existingRow, patch)) continue;
-            const rawCount = Number(existingRow.birth_md_edit_count ?? 0);
-            const count = Number.isFinite(rawCount) && rawCount >= 0 ? rawCount : 0;
-            if (count >= BIRTH_MD_EDIT_MAX) {
-              return res.status(403).json({
-                data: null,
-                error: { message: '생월·생일은 2회까지만 변경할 수 있어요.', code: 'BIRTH_MD_LIMIT' },
-              });
-            }
-            patch = { ...patch, birth_md_edit_count: count + 1 };
+            const bmPlan = planBirthMdEditPatch(existingRow, patch);
+            if (!bmPlan.ok) return res.status(bmPlan.reject.status).json(bmPlan.reject.body);
+            patch = bmPlan.patch;
           }
         }
       }
@@ -3938,17 +3947,7 @@ router.post('/op', async (req: Request, res: Response) => {
   }
 });
 
-// ─── RPC allowlist ─────────────────────────────────────────────────────────────
-// 알 수 없는 RPC 이름으로의 호출을 즉시 404로 차단 — 내부 구현 노출 및 퍼징 방지
-const ALLOWED_RPCS = new Set([
-  'admin_create_session', 'admin_invalidate_session', 'admin_auth_phone',
-  'admin_update_settings', 'admin_toggle_session', 'test_resync', 'test_clear_hearts', 'test_wipe_all', 'admin_force_resync_all',
-  'test_verify_password', 'test_update_settings', 'admin_full_reset', 'admin_event_end_reset', 'admin_clear_profiles',
-  'verify_panel_password',
-  'admin_update_profile',
-  'admin_delete_profile',
-]);
-
+// ─── RPC allowlist: ../lib/db-rpc-allowlist.ts ─────────────────────────────────
 // ─── RPC endpoint ─────────────────────────────────────────────────────────────
 router.post('/rpc/:name', async (req: Request, res: Response) => {
   const { name } = req.params;
@@ -4061,16 +4060,8 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         // Supabase 직접 업데이트만으로는 api-server 메모리가 갱신되지 않아 유저에게 반영 안 됨
         checkPassword();
         const rawPayload = (args.p_payload as Record<string, unknown>) ?? {};
-        // ─ XSS 방어: 관리자가 app_settings에 악성 스크립트를 주입하는 것을 차단 ──────
-        // 클라이언트(AdminApp)가 app_settings를 전달할 때 문자열 값 내 HTML 태그 제거
-        const sanitizedSettingsPayload = Object.fromEntries(
-          Object.entries(rawPayload).map(([k, v]) => [
-            k,
-            typeof v === 'string'
-              ? v.replace(/<[^>]*>/g, '').slice(0, 2000)
-              : v,
-          ])
-        );
+        // ─ XSS 방어: 관리자가 app_settings에 악성 스크립트를 주입하는 것을 차단 (db-app-settings-merge)
+        const sanitizedSettingsPayload = sanitizeAdminSettingsPayload(rawPayload);
         const current = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
         const merged = mergeAppSettings(current, sanitizedSettingsPayload);
         const updated = await overlayDbSecrets(merged, explicitSecretKeys(sanitizedSettingsPayload));
@@ -4150,11 +4141,8 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
       case 'test_update_settings': {
         checkTestPassword();
         const testPayload = (args.p_payload as Record<string, unknown>) ?? {};
-        // 허용 필드 제한 — 테스트 대시보드는 세션·테이블 설정만 변경 가능
-        const ALLOWED_TEST_FIELDS = new Set(['session_active', 'active_tables']);
-        const filteredPayload = Object.fromEntries(
-          Object.entries(testPayload).filter(([k]) => ALLOWED_TEST_FIELDS.has(k))
-        );
+        // 허용 필드 제한 — 테스트 대시보드는 세션·테이블 설정만 변경 가능 (db-app-settings-merge)
+        const filteredPayload = filterTestSettingsPayload(testPayload);
         const currentSettings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
         const mergedSettings = { ...currentSettings, ...filteredPayload, updated_at: new Date().toISOString() };
         const updatedSettings = await overlayDbSecrets(mergedSettings, new Set());
@@ -4179,32 +4167,21 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         checkPassword();
         const settingsRow = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
         const oldProfiles = store['profiles'] ?? [];
-        const tablesToClear = [
-          'profiles', 'likes', 'anonymous_reports', 'chats', 'messages',
-          'contact_shares', 'contact_share_events',
-          'notifications',
-          'signal_sends',
-          'group_chats', 'group_participants', 'group_messages', 'group_opt_outs',
-        ];
-        // 프라이빗 테이블은 row 내용 없이 "전체 초기화" 신호만 전송 (민감 데이터 유출 방지)
-        const RESET_PRIVATE = new Set([
-          'likes', 'chats', 'messages', 'contact_shares', 'contact_share_events',
-          'chat_reads', 'anonymous_reports', 'signal_sends',
-          'group_chats', 'group_participants', 'group_messages', 'group_opt_outs',
-        ]);
+        // tables + broadcast mode: db-admin-wipe-plan
         const persistDeletes: Promise<void>[] = [];
-        for (const t of tablesToClear) {
+        for (const t of ADMIN_EVENT_END_CLEAR_TABLES) {
           const old = store[t] ?? [];
           store[t] = [];
           if (t === 'chat_reads') unreadCountsCache.clear(); // 전체 리셋 시 캐시 전부 무효화
-          if (RESET_PRIVATE.has(t)) {
+          const bplan = planWipeTableBroadcast(t, old);
+          if (bplan.mode === 'reset') {
             // 행 데이터 없이 테이블 초기화 알림만 전송
             broadcastAll({ type: 'change', table: t, event: 'RESET', newRow: null, oldRow: null });
-          } else if (t === 'profiles') {
+          } else if (bplan.mode === 'profile_delete') {
             // 프로필 DELETE는 민감 필드 제거 후 전송
-            for (const row of old) broadcastAll({ type: 'change', table: t, event: 'DELETE', newRow: null, oldRow: sanitizeProfile(row) });
+            for (const row of bplan.rows) broadcastAll({ type: 'change', table: t, event: 'DELETE', newRow: null, oldRow: sanitizeProfile(row) });
           } else {
-            for (const row of old) broadcastAll({ type: 'change', table: t, event: 'DELETE', newRow: null, oldRow: row });
+            for (const row of bplan.rows) broadcastAll({ type: 'change', table: t, event: 'DELETE', newRow: null, oldRow: row });
           }
           persistDeletes.push(dbDeleteTable(t).catch(e => logger.error({ err: e }, '[db] background task error')));
         }
@@ -4241,9 +4218,8 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
 
       case 'test_wipe_all': {
         checkTestPassword();
-        const wipeTables = ['likes', 'messages', 'chats', 'profiles'] as const;
         const persistDeletes: Promise<void>[] = [];
-        for (const t of wipeTables) {
+        for (const t of TEST_WIPE_ALL_TABLES) {
           const old = store[t] ?? [];
           store[t] = [];
           if (t === 'likes') _likesLastInsert.clear();
@@ -4390,21 +4366,13 @@ router.post('/broadcast', (req: Request, res: Response) => {
     res.status(429).json({ ok: false, error: 'Too many broadcasts' });
     return;
   }
-  // ─ req.body 타입 방어: null·원시값·배열 전송 시 400 반환
-  if (req.body == null || typeof req.body !== 'object' || Array.isArray(req.body)) {
-    res.status(400).json({ ok: false, error: 'Request body must be a JSON object' });
+  // ─ body/channel/event validate (db-broadcast-validate)
+  const parsed = validateBroadcastBody(req.body);
+  if (!parsed.ok) {
+    res.status(parsed.reject.status).json(parsed.reject.body);
     return;
   }
-  const { channel, event, payload } = req.body as { channel?: unknown; event?: unknown; payload: unknown };
-  // ─ 입력 검증: channel과 event는 비어있지 않은 문자열이어야 함
-  if (typeof channel !== 'string' || !channel.trim() || channel.length > 200) {
-    res.status(400).json({ ok: false, error: 'Invalid channel' });
-    return;
-  }
-  if (typeof event !== 'string' || !event.trim() || event.length > 200) {
-    res.status(400).json({ ok: false, error: 'Invalid event' });
-    return;
-  }
+  const { channel, event, payload } = parsed;
   // ─ XSS 방어: broadcast payload 내 문자열 값 HTML 태그 제거 (db-op-result-shape)
   const sanitizedPayload = sanitizeBroadcastValue(payload);
   broadcastAll({ type: 'broadcast', channel, event, payload: sanitizedPayload });
@@ -4432,13 +4400,9 @@ router.post('/storage-upload', async (req: Request, res: Response) => {
     recordUploadRejected('unauthenticated');
     return res.status(401).json({ data: null, error: { message: 'Authentication required' } });
   }
-  const { path: imgPath, dataUrl } = body as { path?: string; dataUrl?: string };
-  // ─ 경로 검증: 디렉터리 트래버설 / 임의 덮어쓰기 방지
-  if (
-    !imgPath || typeof imgPath !== 'string' ||
-    imgPath.includes('..') || imgPath.startsWith('/') ||
-    imgPath.length > 512 || !/^[\w\-./]+$/.test(imgPath)
-  ) {
+    const { path: imgPath, dataUrl } = body as { path?: string; dataUrl?: string };
+  // ─ 경로 검증: 디렉터리 트래버설 / 임의 덮어쓰기 방지 (db-storage-path)
+  if (!isValidStoragePath(imgPath)) {
     recordUploadRejected('path');
     return res.status(400).json({ data: null, error: 'Invalid path' });
   }
@@ -4511,13 +4475,11 @@ router.post('/storage-remove', async (req: Request, res: Response) => {
     if (!userId) {
       return res.status(401).json({ data: null, error: { message: 'Authentication required' } });
     }
-    if (!Array.isArray(paths) || paths.length === 0 || paths.length > 10 ||
-        paths.some(p => typeof p !== 'string' || p.includes('..') || p.startsWith('/') ||
-          p.length > 512 || !/^[\w\-./]+$/.test(p))) {
+        if (!isValidStoragePathList(paths)) {
       return res.status(400).json({ data: null, error: { message: 'Invalid paths' } });
     }
 
-    const stringPaths = paths as string[];
+    const stringPaths = paths;
     const authorized = stringPaths.every(p => imageAccess.canRemove(p, userId));
     if (!authorized) {
       return res.status(403).json({ data: null, error: { message: 'Forbidden' } });
@@ -4546,7 +4508,7 @@ router.get('/storage-image', async (req: Request, res: Response): Promise<void> 
     userId = qUserId;
   }
   const adminToken = typeof req.query.adminToken === 'string' ? req.query.adminToken : null;
-  const isPublicProfilePhoto = /^profile-photos\/[\w-]+$/.test(path);
+  const isPublicProfilePhoto = isPublicProfilePhotoPath(path);
   if (
     !verifyAdminToken(adminToken) &&
     !isPublicProfilePhoto &&
@@ -4860,37 +4822,33 @@ router.post('/by-pin', (req: Request, res: Response) => {
     return res.status(400).json({ data: null, error: { message: 'Invalid request body', code: 'INVALID_BODY' } });
   }
   const body = req.body as Record<string, unknown>;
-  const pin = body.pin;
-  const nickname = body.nickname;
-
-  // pin은 반드시 문자열, 최대 8자 (4~5자리 숫자 코드)
-  if (!pin || typeof pin !== 'string' || pin.length === 0 || pin.length > 8) {
-    return res.status(400).json({ data: null, error: { message: 'PIN required (max 8 chars)' } });
+  const parsed = validateByPinBody(body.pin, body.nickname);
+  if (!parsed.ok) {
+    return res.status(parsed.reject.status).json(parsed.reject.body);
   }
+  const { pin, nickname } = parsed;
   if (!consumePinBucket(`ip:${ip}`, PIN_MAX_PER_IP) || !consumePinBucket(`pin:${pin}`, PIN_MAX_PER_PIN)) {
-    return res.status(429).json({ data: null, error: { message: '시도 횟수를 초과했습니다. 15분 후 다시 시도해주세요.' } });
-  }
-  // nickname은 선택적이되, 전달된 경우 문자열이어야 함, 최대 30자
-  if (nickname != null && (typeof nickname !== 'string' || nickname.length > 30)) {
-    return res.status(400).json({ data: null, error: { message: 'Invalid nickname' } });
+    const rej = pinRateLimitedReject();
+    return res.status(rej.status).json(rej.body);
   }
 
   const profiles = getTable('profiles');
   const found = profiles.find(p => String(p['pin_code']) === String(pin));
-  if (!found) return res.json({ data: null, error: { message: '해당 번호로 등록된 프로필이 없어요' } });
+  if (!found) {
+    const rej = pinLookupNotFoundReject();
+    return res.status(rej.status).json(rej.body);
+  }
 
-  // 1단계: pin만 입력 → 마스킹된 닉네임 반환 (본인 확인용)
+  // 1단계: pin만 입력 → 마스킹된 닉네임 반환 (본인 확인용) — db-pin-lookup
   if (!nickname) {
-    const nick = String(found['nickname'] ?? '');
-    const masked = nick.length > 1
-      ? nick[0] + '*'.repeat(nick.length - 1)
-      : nick[0] ?? '*';
+    const masked = maskNicknameForPinConfirm(String(found['nickname'] ?? ''));
     return res.json({ data: { step: 'confirm', maskedNickname: masked }, error: null });
   }
 
   // 2단계: pin + nickname → 정확히 일치해야 통과
   if (String(found['nickname']) !== nickname) {
-    return res.json({ data: null, error: { message: '닉네임이 일치하지 않습니다. 본인 닉네임을 정확히 입력해주세요.' } });
+    const rej = pinNicknameMismatchReject();
+    return res.status(rej.status).json(rej.body);
   }
 
   // 성공 — rate limit 리셋 (버킷 키는 consumePinBucket 과 동일)

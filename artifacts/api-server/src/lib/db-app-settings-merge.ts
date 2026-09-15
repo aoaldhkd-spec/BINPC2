@@ -73,3 +73,28 @@ export function mergeAppSettings(
   if (isLocalQrUrl(merged.qr_base_url)) merged.qr_base_url = PRODUCTION_QR_BASE;
   return merged;
 }
+
+
+/** Strip HTML tags + cap string length for admin_update_settings XSS defense. */
+export function sanitizeAdminSettingsPayload(
+  raw: Record<string, unknown>,
+  maxLen = 2000,
+): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(raw).map(([k, v]) => [
+      k,
+      typeof v === 'string' ? v.replace(/<[^>]*>/g, '').slice(0, maxLen) : v,
+    ]),
+  );
+}
+
+/** test_update_settings allowlist filter. */
+export const ALLOWED_TEST_SETTINGS_FIELDS = new Set(['session_active', 'active_tables']);
+
+export function filterTestSettingsPayload(
+  raw: Record<string, unknown>,
+): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(raw).filter(([k]) => ALLOWED_TEST_SETTINGS_FIELDS.has(k)),
+  );
+}

@@ -5,7 +5,9 @@ import {
   explicitSecretKeys,
   isLocalQrUrl,
   koreanDateMMDD,
+  filterTestSettingsPayload,
   mergeAppSettings,
+  sanitizeAdminSettingsPayload,
 } from './db-app-settings-merge.js';
 
 describe('db-app-settings-merge', () => {
@@ -62,5 +64,13 @@ describe('db-app-settings-merge', () => {
     );
     expect(merged.qr_base_url).toBe(PRODUCTION_QR_BASE);
     expect(merged.functions_locked).toBe(true);
+  });
+
+
+  it('sanitizeAdminSettingsPayload strips tags + filterTestSettingsPayload allowlist', () => {
+    expect(sanitizeAdminSettingsPayload({ a: '<b>x</b>', n: 1 })).toEqual({ a: 'x', n: 1 });
+    expect(filterTestSettingsPayload({ session_active: true, admin_password: 'x' })).toEqual({
+      session_active: true,
+    });
   });
 });

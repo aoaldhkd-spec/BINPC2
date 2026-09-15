@@ -68,3 +68,40 @@ export function likeRateKeyTouchesAdmin(key: string, adminId: string): boolean {
   const aid = String(adminId);
   return key.startsWith(`${aid}:`) || key.includes(`:${aid}:`);
 }
+
+/** Tables cleared by admin_event_end_reset (order preserved). */
+export const ADMIN_EVENT_END_CLEAR_TABLES = [
+  'profiles', 'likes', 'anonymous_reports', 'chats', 'messages',
+  'contact_shares', 'contact_share_events',
+  'notifications',
+  'signal_sends',
+  'group_chats', 'group_participants', 'group_messages', 'group_opt_outs',
+] as const;
+
+/**
+ * Private tables: emit RESET without row payloads (민감 데이터 유출 방지).
+ * profiles uses sanitized DELETE; others row DELETE.
+ */
+export const ADMIN_EVENT_END_PRIVATE_RESET = new Set([
+  'likes', 'chats', 'messages', 'contact_shares', 'contact_share_events',
+  'chat_reads', 'anonymous_reports', 'signal_sends',
+  'group_chats', 'group_participants', 'group_messages', 'group_opt_outs',
+]);
+
+export type WipeBroadcastPlan =
+  | { mode: 'reset' }
+  | { mode: 'profile_delete'; rows: Record<string, unknown>[] }
+  | { mode: 'row_delete'; rows: Record<string, unknown>[] };
+
+/** How to announce a wiped table on SSE (payload choice only — emit stays in db.ts). */
+export function planWipeTableBroadcast(
+  table: string,
+  oldRows: Record<string, unknown>[],
+): WipeBroadcastPlan {
+  if (ADMIN_EVENT_END_PRIVATE_RESET.has(table)) return { mode: 'reset' };
+  if (table === 'profiles') return { mode: 'profile_delete', rows: oldRows };
+  return { mode: 'row_delete', rows: oldRows };
+}
+
+/** Tables cleared by test_wipe_all. */
+export const TEST_WIPE_ALL_TABLES = ['likes', 'messages', 'chats', 'profiles'] as const;

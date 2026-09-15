@@ -64,3 +64,36 @@ export function findAdminProfileInRows(
   return profiles.find(p => isAdminProfilePhone(p['phone_number'], adminPhoneDigits))
     ?? profiles.find(p => String(p['nickname'] ?? '') === ADMIN_FIXED_NICKNAME);
 }
+
+
+export type BirthMdEditPlan =
+  | { ok: true; patch: Record<string, unknown> }
+  | { ok: false; reject: { status: number; body: { data: null; error: { message: string; code: string } } } };
+
+/**
+ * Non-admin profiles UPDATE touching birth_month/day: enforce edit count + bump.
+ * Caller still strips birth_md_edit_count from client patch before calling.
+ */
+export function planBirthMdEditPatch(
+  existingRow: Record<string, unknown>,
+  patch: Record<string, unknown>,
+): BirthMdEditPlan {
+  if (!birthMdWouldChangeRow(existingRow, patch)) {
+    return { ok: true, patch };
+  }
+  const rawCount = Number(existingRow.birth_md_edit_count ?? 0);
+  const count = Number.isFinite(rawCount) && rawCount >= 0 ? rawCount : 0;
+  if (count >= BIRTH_MD_EDIT_MAX) {
+    return {
+      ok: false,
+      reject: {
+        status: 403,
+        body: {
+          data: null,
+          error: { message: '생월·생일은 2회까지만 변경할 수 있어요.', code: 'BIRTH_MD_LIMIT' },
+        },
+      },
+    };
+  }
+  return { ok: true, patch: { ...patch, birth_md_edit_count: count + 1 } };
+}

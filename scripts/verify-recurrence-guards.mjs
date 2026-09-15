@@ -1666,6 +1666,91 @@ mustMatch('ARCHITECTURE.md', '66_architecture_path_after_op_insert_upsert_peel',
 ]);
 
 
+
+
+// ── 67: db-op-select-access + likes-limits + pin/storage/broadcast/rpc ─────────
+mustExist('artifacts/api-server/src/lib/db-op-select-access.ts', '67_db_op_select_access_module');
+mustExist('artifacts/api-server/src/lib/db-op-select-access.test.ts', '67_db_op_select_access_tests');
+mustExist('artifacts/api-server/src/lib/db-op-likes-limits.ts', '67_db_op_likes_limits_module');
+mustExist('artifacts/api-server/src/lib/db-op-likes-limits.test.ts', '67_db_op_likes_limits_tests');
+mustExist('artifacts/api-server/src/lib/db-pin-lookup.ts', '67_db_pin_lookup_module');
+mustExist('artifacts/api-server/src/lib/db-pin-lookup.test.ts', '67_db_pin_lookup_tests');
+mustExist('artifacts/api-server/src/lib/db-storage-path.ts', '67_db_storage_path_module');
+mustExist('artifacts/api-server/src/lib/db-storage-path.test.ts', '67_db_storage_path_tests');
+mustExist('artifacts/api-server/src/lib/db-broadcast-validate.ts', '67_db_broadcast_validate_module');
+mustExist('artifacts/api-server/src/lib/db-broadcast-validate.test.ts', '67_db_broadcast_validate_tests');
+mustExist('artifacts/api-server/src/lib/db-rpc-allowlist.ts', '67_db_rpc_allowlist_module');
+mustExist('artifacts/api-server/src/lib/db-rpc-allowlist.test.ts', '67_db_rpc_allowlist_tests');
+mustMatch('artifacts/api-server/src/lib/db-op-select-access.ts', '67_op_select_access_exports', [
+  /export function mapMessagesOntoCanonicalChatId/,
+  /export function collectMyGroupIds/,
+  /export function scopeChatReadsForRequester/,
+  /export function remapGroupIdFilters/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-op-likes-limits.ts', '67_op_likes_limits_exports', [
+  /export function likesHeartLimitReject/,
+  /export function likesRateLimitReject/,
+  /export function likesSameTypeLimitReached/,
+  /export function matchesLikeTriple/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-pin-lookup.ts', '67_pin_lookup_exports', [
+  /export function validateByPinBody/,
+  /export function maskNicknameForPinConfirm/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-storage-path.ts', '67_storage_path_exports', [
+  /export function isValidStoragePath/,
+  /export function isValidStoragePathList/,
+  /export function isPublicProfilePhotoPath/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-broadcast-validate.ts', '67_broadcast_validate_exports', [
+  /export function validateBroadcastBody/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-rpc-allowlist.ts', '67_rpc_allowlist_exports', [
+  /export const ALLOWED_RPCS/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-admin-wipe-plan.ts', '67_wipe_plan_event_end_exports', [
+  /export const ADMIN_EVENT_END_CLEAR_TABLES/,
+  /export function planWipeTableBroadcast/,
+  /export const TEST_WIPE_ALL_TABLES/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-app-settings-merge.ts', '67_settings_sanitize_exports', [
+  /export function sanitizeAdminSettingsPayload/,
+  /export function filterTestSettingsPayload/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-admin-identity.ts', '67_birth_md_edit_plan_export', [
+  /export function planBirthMdEditPatch/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '67_db_reimports_select_access_likes_pin_storage', [
+  /from '\.\.\/lib\/db-op-select-access'/,
+  /mapMessagesOntoCanonicalChatId/,
+  /collectMyGroupIds/,
+  /from '\.\.\/lib\/db-op-likes-limits'/,
+  /likesHeartLimitReject/,
+  /from '\.\.\/lib\/db-pin-lookup'/,
+  /from '\.\.\/lib\/db-storage-path'/,
+  /from '\.\.\/lib\/db-broadcast-validate'/,
+  /from '\.\.\/lib\/db-rpc-allowlist'/,
+  /ALLOWED_RPCS/,
+  /planWipeTableBroadcast/,
+  /sanitizeAdminSettingsPayload/,
+  /planBirthMdEditPatch/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '67_db_still_single_router_export', [
+  /export default router/,
+]);
+mustNotMatch('artifacts/api-server/src/routes/db.ts', '67_db_no_inline_select_access_likes_rpc_impl', [
+  /같은 종류의 하트는 최대 2명에게만 보낼 수 있습니다/,
+  /const ALLOWED_RPCS = new Set/,
+  /nick\.length > 1\s*\?[\s\S]*\*\.repeat/,
+  /IDOR: messages SELECT without chat_id filter blocked/,
+]);
+mustMatch('ARCHITECTURE.md', '67_architecture_path_after_select_access_peel', [
+  /db-op-select-access/,
+  /db-op-likes-limits/,
+  /~9\.5/,
+]);
+
+
 console.log('\n=== verify-recurrence-guards ===\n');
 
 for (const r of results) {
