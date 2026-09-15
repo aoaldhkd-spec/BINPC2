@@ -540,6 +540,14 @@ describe('product copy + notification invariants', () => {
     expect(db).toContain('planAppSettingsSecretsPatch');
     expect(db).not.toMatch(/personality_score: 50,/);
     expect(db).not.toMatch(/admin_phone: '010-3878-6740',/);
+    expect(db).toContain("from '../lib/db-op-result-shape'");
+    expect(db).toContain('orderLimitShape');
+    expect(db).toContain('sanitizeBroadcastValue');
+    expect(db).toContain("from '../lib/db-op-select-scope'");
+    expect(db).toContain('scopeSignalSendsRows');
+    expect(db).toContain('dedupeParticipantChatRows');
+    expect(db).not.toMatch(/function sanitizeBroadcastValue\(val: unknown, depth = 0\)/);
+    expect(db).not.toMatch(/const seenPairs = new Set<string>\(\);/);
   });
 
 

@@ -139,6 +139,22 @@ describe('longevity recurrence guards (server)', () => {
     expect(boot).toContain('buildDefaultAppSettings');
   });
 
+  it('op result-shape + select-scope stay extracted from db.ts', () => {
+    expect(dbTs).toContain("from '../lib/db-op-result-shape'");
+    expect(dbTs).toContain('orderLimitShape');
+    expect(dbTs).toContain('sanitizeBroadcastValue');
+    expect(dbTs).toContain("from '../lib/db-op-select-scope'");
+    expect(dbTs).toContain('scopeSignalSendsRows');
+    expect(dbTs).toContain('dedupeParticipantChatRows');
+    expect(dbTs).toContain('likesSelectKeepsLikerId');
+    expect(dbTs).not.toMatch(/function sanitizeBroadcastValue\(val: unknown, depth = 0\)/);
+    expect(dbTs).not.toMatch(/const seenPairs = new Set<string>\(\);/);
+    const shape = readFileSync(join(here, '../lib/db-op-result-shape.ts'), 'utf8');
+    const scope = readFileSync(join(here, '../lib/db-op-select-scope.ts'), 'utf8');
+    expect(shape).toContain('orderLimitShape');
+    expect(scope).toContain('scopeSignalSendsRows');
+  });
+
   it('app-settings-merge + panel-tokens stay extracted from db.ts', () => {
     expect(dbTs).toContain("from '../lib/db-app-settings-merge'");
     expect(dbTs).toContain("from '../lib/db-panel-tokens'");

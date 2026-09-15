@@ -88,6 +88,25 @@ import {
   validateOpScalars,
 } from '../lib/db-op-request';
 import {
+  orderLimitShape,
+  sanitizeBroadcastValue,
+  sortRowsByOrders,
+} from '../lib/db-op-result-shape';
+import {
+  attachGroupMemberCounts,
+  collapseRowsById,
+  contactSharesSelectSource,
+  dedupeParticipantChatRows,
+  likesSelectKeepsLikerId,
+  profileViewsSelectKeepsViewerId,
+  redactLikerId,
+  redactViewerId,
+  scopeBlockedUsersRows,
+  scopeContactShareEventsRows,
+  scopeProfileViewsRows,
+  scopeSignalSendsRows,
+} from '../lib/db-op-select-scope';
+import {
   ADMIN_FIXED_NICKNAME,
   BIRTH_MD_EDIT_MAX,
   adminPhoneDigitsFromSettings,
@@ -1516,13 +1535,8 @@ async function cleanupLegacyTables(): Promise<void> {
 
 function collapseDuplicateGroupChatIds(): void {
   const rows = getTable('group_chats');
-  const byId = new Map<string, Record<string, unknown>>();
-  for (const g of rows) {
-    const id = String(g.id ?? '');
-    if (!id) continue;
-    byId.set(id, g);
-  }
-  if (byId.size !== rows.length) store['group_chats'] = [...byId.values()];
+  const collapsed = collapseRowsById(rows);
+  if (collapsed !== rows) store['group_chats'] = collapsed;
 }
 
 const _mergedGroupIds = createMergedIdMap(2000);
@@ -2304,24 +2318,10 @@ async function mergeTableFromDbIfStale(table: string, force = false): Promise<vo
     );
     if (!rows.length) return;
     if (!store[table]) store[table] = [];
-    const memRows = store[table];
-    const byId = new Map(memRows.map(r => [String(r['id']), r]));
-    for (const row of rows) {
-      const data = row.data as Record<string, unknown>;
-      const id = String(data['id'] ?? '');
-      if (!id) continue;
-      const existing = byId.get(id);
-      const dbTs = String(data.updated_at ?? data.created_at ?? '');
-      const memTs = existing ? String(existing.updated_at ?? existing.created_at ?? '') : '';
-      if (!existing) {
-        memRows.push(data);
-        byId.set(id, data);
-      } else if (dbTs >= memTs) {
-        const idx = memRows.findIndex(r => String(r['id']) === id);
-        if (idx >= 0) memRows[idx] = data;
-        byId.set(id, data);
-      }
-    }
+    mergeDbRowsIntoMemory(
+      store[table],
+      rows.map(r => r.data as Record<string, unknown>),
+    );
     if (table === 'chats') await dedupeChatsInStore();
   } catch (e) {
     logger.warn({ err: e, table }, '[db] mergeTableFromDbIfStale failed');
@@ -2345,24 +2345,10 @@ async function resyncHotTablesFromDb(): Promise<void> {
         return;
       }
       if (!store[tbl]) store[tbl] = [];
-      const memRows = store[tbl];
-      const byId = new Map(memRows.map(r => [String(r['id']), r]));
-      for (const row of rows) {
-        const data = row.data as Record<string, unknown>;
-        const id = String(data['id'] ?? '');
-        if (!id) continue;
-        const existing = byId.get(id);
-        const dbTs = String(data.updated_at ?? data.created_at ?? '');
-        const memTs = existing ? String(existing.updated_at ?? existing.created_at ?? '') : '';
-        if (!existing) {
-          memRows.push(data);
-          byId.set(id, data);
-        } else if (dbTs >= memTs) {
-          const idx = memRows.findIndex(r => String(r['id']) === id);
-          if (idx >= 0) memRows[idx] = data;
-          byId.set(id, data);
-        }
-      }
+      mergeDbRowsIntoMemory(
+        store[tbl],
+        rows.map(r => r.data as Record<string, unknown>),
+      );
     }));
     await dedupeChatsInStore();
     logger.info({}, '[db] hot-table resync complete (merge-by-id)');
@@ -2762,18 +2748,12 @@ router.post('/op', async (req: Request, res: Response) => {
               .filter(m => lookupIds.includes(String(m.chat_id)))
               .map(m => (String(m.chat_id) === wantId ? m : { ...m, chat_id: wantId }));
             const otherFilters = normalizedFilters.filter(f => !(f.type === 'eq' && f.col === 'chat_id'));
-            let scopedResult = applyFilters(scoped, otherFilters);
-            for (const { col, asc } of safeOrders) {
-              scopedResult.sort((a, b) => {
-                const av = a[col]; const bv = b[col];
-                if (av === bv) return 0;
-                if (av == null) return asc ? -1 : 1;
-                if (bv == null) return asc ? 1 : -1;
-                return (av < bv ? -1 : 1) * (asc ? 1 : -1);
-              });
-            }
-            if (limit != null) scopedResult = scopedResult.slice(0, Math.floor(limit));
-            const scopedData = single ? (scopedResult[0] ?? null) : maybeSingle ? (scopedResult[0] ?? null) : scopedResult;
+            const scopedResult = applyFilters(scoped, otherFilters);
+            const scopedData = orderLimitShape(scopedResult, safeOrders, {
+              limit: limit != null ? Math.floor(limit) : undefined,
+              single,
+              maybeSingle,
+            });
             return res.json({ data: scopedData, error: null });
           }
 
@@ -2811,18 +2791,11 @@ router.post('/op', async (req: Request, res: Response) => {
         if (canReadPrivateTables) {
           // 관리자: 필터/정렬/페이지 그대로 적용하되 참여자 스코프 제한 없음
           const adminResult = applyFilters(tableData, normalizedFilters);
-          for (const { col, asc } of safeOrders) {
-            adminResult.sort((a, b) => {
-              const av = a[col]; const bv = b[col];
-              if (av === bv) return 0;
-              if (av == null) return asc ? -1 : 1;
-              if (bv == null) return asc ? 1 : -1;
-              return (av < bv ? -1 : 1) * (asc ? 1 : -1);
-            });
-          }
-          const safeLimit2 = limit != null ? Math.floor(limit) : undefined;
-          const limited2 = safeLimit2 != null ? adminResult.slice(0, safeLimit2) : adminResult;
-          const result2 = single ? (limited2[0] ?? null) : maybeSingle ? (limited2[0] ?? null) : limited2;
+          const result2 = orderLimitShape(adminResult, safeOrders, {
+            limit: limit != null ? Math.floor(limit) : undefined,
+            single,
+            maybeSingle,
+          });
           return res.json({ data: result2, error: null });
         }
         if (!requesterId) {
@@ -2831,31 +2804,13 @@ router.post('/op', async (req: Request, res: Response) => {
         }
         // 서버 측에서 참여자 검증 — 클라이언트 필터 우회 공격 차단
         // ⚠️ tableData는 store 배열 참조 → splice 금지. 별도 변수로 필터링.
-        const chatScope = tableData.filter(c =>
-          String(c.user1_id) === String(requesterId) || String(c.user2_id) === String(requesterId)
-        );
-        const dedupedScope: Record<string, unknown>[] = [];
-        const seenPairs = new Set<string>();
-        for (const c of chatScope) {
-          const pk = chatPairKey(String(c.user1_id), String(c.user2_id));
-          if (seenPairs.has(pk)) continue;
-          const siblings = chatScope.filter(x => chatPairKey(String(x.user1_id), String(x.user2_id)) === pk);
-          dedupedScope.push(pickCanonicalChatRow(siblings));
-          seenPairs.add(pk);
-        }
+        const dedupedScope = dedupeParticipantChatRows(tableData, String(requesterId), pickCanonicalChatRow);
         const scopedResult = applyFilters(dedupedScope, normalizedFilters);
-        for (const { col, asc } of safeOrders) {
-          scopedResult.sort((a, b) => {
-            const av = a[col]; const bv = b[col];
-            if (av === bv) return 0;
-            if (av == null) return asc ? -1 : 1;
-            if (bv == null) return asc ? 1 : -1;
-            return (av < bv ? -1 : 1) * (asc ? 1 : -1);
-          });
-        }
-        const safeLimit = limit != null ? Math.floor(limit) : undefined;
-        const limitedScope = safeLimit != null ? scopedResult.slice(0, safeLimit) : scopedResult;
-        const singleScope = single ? (limitedScope[0] ?? null) : maybeSingle ? (limitedScope[0] ?? null) : limitedScope;
+        const singleScope = orderLimitShape(scopedResult, safeOrders, {
+          limit: limit != null ? Math.floor(limit) : undefined,
+          single,
+          maybeSingle,
+        });
         return res.json({ data: singleScope, error: null });
       }
 
@@ -2876,10 +2831,7 @@ router.post('/op', async (req: Request, res: Response) => {
           logger.warn({ ip: req.ip }, '[SECURITY] IDOR: signal_sends SELECT without requesterId blocked');
           return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
         }
-        tableData = tableData.filter(r => {
-          if (String(r.sender_id) === String(requesterId)) return true;
-          return String(r.receiver_id) === String(requesterId) && r.action === 'send';
-        });
+        tableData = scopeSignalSendsRows(tableData, String(requesterId));
       }
 
       // ─ IDOR guard: profile_views SELECT ───────────────────────────────────
@@ -2889,9 +2841,7 @@ router.post('/op', async (req: Request, res: Response) => {
           logger.warn({ ip: req.ip }, '[SECURITY] IDOR: profile_views SELECT without requesterId blocked');
           return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
         }
-        tableData = tableData.filter(r =>
-          String(r.viewer_id) === String(requesterId) || String(r.viewed_id) === String(requesterId)
-        );
+        tableData = scopeProfileViewsRows(tableData, String(requesterId));
       }
 
       // ─ IDOR guard: blocked_users / contact_share_events SELECT ───────────
@@ -2901,10 +2851,9 @@ router.post('/op', async (req: Request, res: Response) => {
           logger.warn({ table, ip: req.ip }, '[SECURITY] IDOR: relationship SELECT without requesterId blocked');
           return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
         }
-        tableData = tableData.filter(r => table === 'blocked_users'
-          ? String(r.user_id) === String(requesterId) || String(r.target_id) === String(requesterId)
-          : String(r.from_user_id) === String(requesterId) || String(r.to_user_id) === String(requesterId)
-        );
+        tableData = table === 'blocked_users'
+          ? scopeBlockedUsersRows(tableData, String(requesterId))
+          : scopeContactShareEventsRows(tableData, String(requesterId));
       }
 
       // ─ IDOR guard: contact_shares SELECT ─────────────────────────────────
@@ -2914,27 +2863,13 @@ router.post('/op', async (req: Request, res: Response) => {
           logger.warn({ ip: req.ip }, '[SECURITY] IDOR: contact_shares SELECT without requesterId blocked');
           return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
         }
-        const hasPartyFilter = normalizedFilters.some(f =>
-          (f.type === 'eq' || f.type === 'in') && (f.col === 'liker_id' || f.col === 'liked_id'),
-        );
-        const csSource = hasPartyFilter
-          ? tableData.filter(r =>
-              String(r.liker_id) === String(requesterId) || String(r.liked_id) === String(requesterId),
-            )
-          : tableData.map(r => ({ created_at: r.created_at }));
+        const csSource = contactSharesSelectSource(tableData, String(requesterId), normalizedFilters);
         const csResult = applyFilters(csSource, normalizedFilters);
-        for (const { col, asc } of safeOrders) {
-          csResult.sort((a, b) => {
-            const av = a[col]; const bv = b[col];
-            if (av === bv) return 0;
-            if (av == null) return asc ? -1 : 1;
-            if (bv == null) return asc ? 1 : -1;
-            return (av < bv ? -1 : 1) * (asc ? 1 : -1);
-          });
-        }
-        const csLimit = limit != null ? Math.floor(limit) : undefined;
-        const csLimited = csLimit != null ? csResult.slice(0, csLimit) : csResult;
-        const csData = single ? (csLimited[0] ?? null) : maybeSingle ? (csLimited[0] ?? null) : csLimited;
+        const csData = orderLimitShape(csResult, safeOrders, {
+          limit: limit != null ? Math.floor(limit) : undefined,
+          single,
+          maybeSingle,
+        });
         return res.json({ data: csData, error: null });
       }
 
@@ -2973,18 +2908,11 @@ router.post('/op', async (req: Request, res: Response) => {
           ? crScope.filter(r => siblingIds.has(String(r.chat_id)))
           : crScope;
         const crResult = applyFilters(crScoped, crFilters);
-        for (const { col, asc } of safeOrders) {
-          crResult.sort((a, b) => {
-            const av = a[col]; const bv = b[col];
-            if (av === bv) return 0;
-            if (av == null) return asc ? -1 : 1;
-            if (bv == null) return asc ? 1 : -1;
-            return (av < bv ? -1 : 1) * (asc ? 1 : -1);
-          });
-        }
-        const crLimit = limit != null ? Math.floor(limit) : undefined;
-        const crLimited = crLimit != null ? crResult.slice(0, crLimit) : crResult;
-        const crData = single ? (crLimited[0] ?? null) : maybeSingle ? (crLimited[0] ?? null) : crLimited;
+        const crData = orderLimitShape(crResult, safeOrders, {
+          limit: limit != null ? Math.floor(limit) : undefined,
+          single,
+          maybeSingle,
+        });
         return res.json({ data: crData, error: null });
       }
 
@@ -3011,18 +2939,11 @@ router.post('/op', async (req: Request, res: Response) => {
         if (table === 'group_participants') {
           const gpScope = tableData.filter(r => myGroupIds.has(String(r.group_id)));
           const gpResult = applyFilters(gpScope, normalizedFilters);
-          for (const { col, asc } of safeOrders) {
-            gpResult.sort((a, b) => {
-              const av = a[col]; const bv = b[col];
-              if (av === bv) return 0;
-              if (av == null) return asc ? -1 : 1;
-              if (bv == null) return asc ? 1 : -1;
-              return (av < bv ? -1 : 1) * (asc ? 1 : -1);
-            });
-          }
-          const gpLimit = limit != null ? Math.floor(limit) : undefined;
-          const gpLimited = gpLimit != null ? gpResult.slice(0, gpLimit) : gpResult;
-          const gpData = single ? (gpLimited[0] ?? null) : maybeSingle ? (gpLimited[0] ?? null) : gpLimited;
+          const gpData = orderLimitShape(gpResult, safeOrders, {
+            limit: limit != null ? Math.floor(limit) : undefined,
+            single,
+            maybeSingle,
+          });
           return res.json({ data: gpData, error: null });
         }
         // group_messages: 참여 중인 방만 (병합된 옛 id 포함)
@@ -3041,18 +2962,11 @@ router.post('/op', async (req: Request, res: Response) => {
           return f;
         });
         const gmResult = applyFilters(gmScope, gmFilters);
-        for (const { col, asc } of safeOrders) {
-          gmResult.sort((a, b) => {
-            const av = a[col]; const bv = b[col];
-            if (av === bv) return 0;
-            if (av == null) return asc ? -1 : 1;
-            if (bv == null) return asc ? 1 : -1;
-            return (av < bv ? -1 : 1) * (asc ? 1 : -1);
-          });
-        }
-        const gmLimit = limit != null ? Math.floor(limit) : undefined;
-        const gmLimited = gmLimit != null ? gmResult.slice(0, gmLimit) : gmResult;
-        const gmData = single ? (gmLimited[0] ?? null) : maybeSingle ? (gmLimited[0] ?? null) : gmLimited;
+        const gmData = orderLimitShape(gmResult, safeOrders, {
+          limit: limit != null ? Math.floor(limit) : undefined,
+          single,
+          maybeSingle,
+        });
         return res.json({ data: gmData, error: null });
       }
 
@@ -3065,26 +2979,11 @@ router.post('/op', async (req: Request, res: Response) => {
         tableData = store['group_chats'];
       }
       let result = applyFilters(tableData, normalizedFilters);
-      for (const { col, asc } of safeOrders) {
-        result.sort((a, b) => {
-          const av = a[col]; const bv = b[col];
-          if (av === bv) return 0;
-          if (av == null) return asc ? -1 : 1;
-          if (bv == null) return asc ? 1 : -1;
-          const cmp = av < bv ? -1 : 1;
-          return asc ? cmp : -cmp;
-        });
-      }
+      sortRowsByOrders(result, safeOrders);
       if (limit != null) result = result.slice(0, limit);
       // 카탈로그 목록용 인원 수 — user_id 없이 숫자만 첨부
       if (table === 'group_chats') {
-        const counts = new Map<string, number>();
-        for (const p of getTable('group_participants')) {
-          const gid = String(p.group_id ?? '');
-          if (!gid) continue;
-          counts.set(gid, (counts.get(gid) ?? 0) + 1);
-        }
-        result = result.map(r => ({ ...r, memberCount: counts.get(String(r.id)) ?? 0 }));
+        result = attachGroupMemberCounts(result, getTable('group_participants'));
       }
       // ─ app_settings: 비밀번호 원문은 관리자에게도 내려주지 않음. 관리자는 *_set 플래그만.
       if (table === 'app_settings') {
@@ -3095,37 +2994,13 @@ router.post('/op', async (req: Request, res: Response) => {
       }
       // likes: 랭킹/통계 덤프는 liked_id·heart_type·status만 필요.
       // 보낸 사람(liker_id)은 본인 발신(liker_id=me) 또는 본인 수신함(liked_id=me) 조회 때만 노출.
-      if (table === 'likes' && !isAdmin) {
-        const ownSentOnly = normalizedFilters.some(
-          f => f.type === 'eq' && f.col === 'liker_id' && requesterId && String(f.val) === String(requesterId),
-        );
-        const ownInboxOnly = normalizedFilters.some(
-          f => f.type === 'eq' && f.col === 'liked_id' && requesterId && String(f.val) === String(requesterId),
-        );
-        if (!ownSentOnly && !ownInboxOnly) {
-          result = result.map(r => {
-            const s = { ...r };
-            delete s['liker_id'];
-            return s;
-          });
-        }
+      if (table === 'likes' && !isAdmin && !likesSelectKeepsLikerId(normalizedFilters, requesterId)) {
+        result = redactLikerId(result);
       }
       // profile_views: 방문자(viewer_id)는 본인 방문 기록 또는 내 프로필 방문자 조회 때만 노출.
       // 좋아요 inbox(liker_id)와 동일 — 무필터 덤프에서 viewer_id를 지우면 방문자 목록이 비어 보임.
-      if (table === 'profile_views' && !isAdmin) {
-        const ownViewedOnly = normalizedFilters.some(
-          f => f.type === 'eq' && f.col === 'viewed_id' && requesterId && String(f.val) === String(requesterId),
-        );
-        const ownViewerOnly = normalizedFilters.some(
-          f => f.type === 'eq' && f.col === 'viewer_id' && requesterId && String(f.val) === String(requesterId),
-        );
-        if (!ownViewedOnly && !ownViewerOnly) {
-          result = result.map(r => {
-            const s = { ...r };
-            delete s['viewer_id'];
-            return s;
-          });
-        }
+      if (table === 'profile_views' && !isAdmin && !profileViewsSelectKeepsViewerId(normalizedFilters, requesterId)) {
+        result = redactViewerId(result);
       }
       if (single) {
         if (!result.length) return res.json({ data: null, error: { message: 'Row not found', code: 'PGRST116' } });
@@ -4695,19 +4570,7 @@ router.post('/broadcast', (req: Request, res: Response) => {
     res.status(400).json({ ok: false, error: 'Invalid event' });
     return;
   }
-  // ─ XSS 방어: broadcast payload 내 문자열 값 HTML 태그 제거 ───────────────────
-  // 관리자가 전송한 공지 메시지에 <script> 삽입 시도를 서버 레벨에서 차단
-  function sanitizeBroadcastValue(val: unknown, depth = 0): unknown {
-    if (depth > 5) return val; // 깊이 제한 (ReDoS / 순환 참조 방지)
-    if (typeof val === 'string') return val.replace(/<[^>]*>/g, '').slice(0, 5000);
-    if (Array.isArray(val)) return val.map(v => sanitizeBroadcastValue(v, depth + 1));
-    if (val !== null && typeof val === 'object') {
-      return Object.fromEntries(
-        Object.entries(val as Record<string, unknown>).map(([k, v]) => [k, sanitizeBroadcastValue(v, depth + 1)])
-      );
-    }
-    return val;
-  }
+  // ─ XSS 방어: broadcast payload 내 문자열 값 HTML 태그 제거 (db-op-result-shape)
   const sanitizedPayload = sanitizeBroadcastValue(payload);
   broadcastAll({ type: 'broadcast', channel, event, payload: sanitizedPayload });
   res.json({ ok: true });

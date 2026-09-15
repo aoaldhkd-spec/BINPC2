@@ -1534,6 +1534,52 @@ mustMatch('ARCHITECTURE.md', '63_architecture_path_after_admin_ensure_peel', [
 ]);
 
 
+// ── 64: db-op-result-shape + db-op-select-scope ────────────────────────────────
+mustExist('artifacts/api-server/src/lib/db-op-result-shape.ts', '64_db_op_result_shape_module');
+mustExist('artifacts/api-server/src/lib/db-op-result-shape.test.ts', '64_db_op_result_shape_tests');
+mustExist('artifacts/api-server/src/lib/db-op-select-scope.ts', '64_db_op_select_scope_module');
+mustExist('artifacts/api-server/src/lib/db-op-select-scope.test.ts', '64_db_op_select_scope_tests');
+mustMatch('artifacts/api-server/src/lib/db-op-result-shape.ts', '64_op_result_shape_exports', [
+  /export function sortRowsByOrders/,
+  /export function shapeSelectData/,
+  /export function orderLimitShape/,
+  /export function sanitizeBroadcastValue/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-op-select-scope.ts', '64_op_select_scope_exports', [
+  /export function scopeSignalSendsRows/,
+  /export function dedupeParticipantChatRows/,
+  /export function contactSharesSelectSource/,
+  /export function likesSelectKeepsLikerId/,
+  /export function attachGroupMemberCounts/,
+  /export function collapseRowsById/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '64_db_reimports_op_result_and_select_scope', [
+  /from '\.\.\/lib\/db-op-result-shape'/,
+  /orderLimitShape/,
+  /sanitizeBroadcastValue/,
+  /from '\.\.\/lib\/db-op-select-scope'/,
+  /scopeSignalSendsRows/,
+  /dedupeParticipantChatRows/,
+  /likesSelectKeepsLikerId/,
+  /collapseRowsById/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '64_db_still_single_router_export', [
+  /export default router/,
+]);
+mustNotMatch('artifacts/api-server/src/routes/db.ts', '64_db_no_inline_op_shape_or_scope_impl', [
+  /function sanitizeBroadcastValue\(val: unknown, depth = 0\)/,
+  /const seenPairs = new Set<string>\(\);/,
+  /counts\.set\(gid, \(counts\.get\(gid\) \?\? 0\) \+ 1\)/,
+  /delete s\['liker_id'\];/,
+]);
+mustMatch('ARCHITECTURE.md', '64_architecture_path_after_op_select_peel', [
+  /db-op-result-shape/,
+  /db-op-select-scope/,
+  /~9\.5/,
+]);
+
+
+
 console.log('\n=== verify-recurrence-guards ===\n');
 
 for (const r of results) {
