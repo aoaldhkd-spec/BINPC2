@@ -582,7 +582,7 @@ export const ProfileCard = memo(function ProfileCard({
 
       {/* ── 하트 + 채팅 버튼 ── */}
       {canLike && (
-        <div className="relative" onClick={(e) => e.stopPropagation()}>
+        <div data-coach={locked ? 'locked-control' : undefined} className="relative" onClick={(e) => e.stopPropagation()}>
           {lockToast && (
             <div className="absolute -top-6 left-1/2 -translate-x-1/2 z-20 whitespace-nowrap text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-800/90 text-white shadow pointer-events-none">
               🔒 현재 잠금 중
@@ -592,6 +592,7 @@ export const ProfileCard = memo(function ProfileCard({
             <button
               type="button"
               data-testid="profile-card-heart-btn"
+              data-coach="profile-card-heart-btn"
               {...bindMobileTap(handleHeartTap)}
               disabled={!locked && isLiked && heartCount >= 4}
               className={`flex-1 min-w-0 flex items-center justify-center gap-0.5 py-0.5 rounded border active:scale-95 transition-transform ${locked ? 'opacity-50' : ''}`}
@@ -611,6 +612,7 @@ export const ProfileCard = memo(function ProfileCard({
             <button
               type="button"
               data-testid="profile-card-chat-btn"
+              data-coach="profile-card-chat-btn"
               {...bindMobileTap(handleChatTap)}
               className={`flex-1 min-w-0 flex items-center justify-center gap-0.5 py-0.5 rounded border active:scale-95 transition-transform ${locked ? 'opacity-50' : ''}`}
               style={chatBtnStyle}

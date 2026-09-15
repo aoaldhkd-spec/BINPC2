@@ -1418,7 +1418,7 @@ export function MainScreen({
             {(() => {
               const pinCode = profiles.find(p => p.id === currentUserId)?.pin_code;
               return (
-                <div className={`rounded-3xl border shadow-xl overflow-hidden ${darkMode ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600' : 'bg-white border-gray-100'}`}>
+                <div data-coach="settings-pin" className={`rounded-3xl border shadow-xl overflow-hidden ${darkMode ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600' : 'bg-white border-gray-100'}`}>
                   <div className="px-5 py-4 flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3 min-w-0">
                       <div className={`w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 text-lg ${darkMode ? 'bg-amber-500/20' : 'bg-amber-50'}`}>🔑</div>
@@ -1449,6 +1449,20 @@ export function MainScreen({
                 </div>
               );
             })()}
+
+            {/* ── 도움말·화면 설정 ── */}
+            <div data-coach="settings-tools" className={`rounded-2xl border p-3 ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-100 shadow-sm'}`}>
+              <p className={`mb-2 px-1 text-[11px] font-black ${darkMode ? 'text-slate-300' : 'text-gray-500'}`}>도움말·화면 설정</p>
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" onClick={onShowTutorial} className={`min-h-11 rounded-xl border px-3 py-2 text-xs font-black transition-all ${darkMode ? 'border-slate-600 bg-slate-700 text-cyan-300 hover:bg-slate-600' : 'border-cyan-100 bg-cyan-50 text-cyan-700 hover:bg-cyan-100'}`}>
+                  ❔ 튜토리얼 보기
+                </button>
+                <button type="button" onClick={onToggleDark} className={`min-h-11 rounded-xl border px-3 py-2 text-xs font-black transition-all ${darkMode ? 'border-slate-600 bg-slate-700 text-amber-300 hover:bg-slate-600' : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100'}`}>
+                  {darkMode ? '☀️ 라이트 모드' : '🌙 다크 모드'}
+                </button>
+              </div>
+              <p className={`mt-2 px-1 text-[10px] ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>도움말은 현재 화면의 사용법을, 다크 모드는 화면 색상을 바꿔요.</p>
+            </div>
 
             {/* ── 프로필 편집 (통합) ── */}
             {(() => {
@@ -1515,7 +1529,7 @@ export function MainScreen({
                   <>
 
                   {/* ── 사진·아바타 ── */}
-                  <div className={`border-b ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
+                  <div data-coach="settings-avatar" className={`border-b ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
                     <button onClick={() => toggleSection('avatar')} className="w-full flex items-center gap-3 px-4 py-3 text-left">
                       <img
                         src={getAvatarSrc(me.photo_url, me.nickname, photoCacheBust, me.avatar_color)}
@@ -1897,7 +1911,7 @@ export function MainScreen({
                   </div>
 
                   {/* ── 오늘의 한마디 ── */}
-                  <div className={`border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
+                  <div data-coach="settings-status" className={`border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
                     <button onClick={() => toggleSection('statusMsg')} className="w-full flex items-center gap-3 px-4 py-3 text-left">
                       <span className="text-xl flex-shrink-0">💬</span>
                       <div className="flex-1 min-w-0">
@@ -1950,7 +1964,7 @@ export function MainScreen({
                     )}
                   </div>
 
-                  {/* ── 성향 상세: 소분류 ── */}
+                  {/* ── 이상형 · 내 특징 ── */}
                   <div data-coach="settings-signals" className={`border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
                     <button
                       type="button"
@@ -1960,9 +1974,9 @@ export function MainScreen({
                     >
                       <span className="text-xl flex-shrink-0">🧩</span>
                       <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>성향 상세</p>
+                        <p className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>이상형 · 내 특징</p>
                         <p className={`text-[10px] leading-snug mt-0.5 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>
-                          소분류에서 이상형·나는 어떤 사람인가요?와 얼굴상·체형 등을 선택해요
+                          이상형과 내 특징을 각각 고르고, 얼굴상·체형 등 소분류 태그를 채워요
                         </p>
                         {(idealTags.length > 0 || featureTags.length > 0 || idealFreeText.trim() || featureFreeText.trim()) && (
                           <p className={`text-[11px] truncate mt-1 ${darkMode ? 'text-slate-300' : 'text-gray-500'}`}>
