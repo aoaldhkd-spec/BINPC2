@@ -171,3 +171,89 @@ describe('sse token gate + notify queue + counts (70)', () => {
   });
 });
 
+
+import {
+  planNotifyInboundApply,
+  applyNotifyMemoryUpsert,
+  applyNotifyMemoryDelete,
+  applyNotifyTombstoneDelete,
+  applyNotifyRefetchedRow,
+} from './db-sse-fanout-policy.js';
+
+describe('notify inbound plan + memory apply (72)', () => {
+  const secrets = ['admin_password', 'test_password', 'entry_password', 'reset_password'] as const;
+
+  it('skips same-instance echo and empty tombstone', () => {
+    expect(planNotifyInboundApply(
+      { src: 'me', table: 'likes', ev: 'INSERT', newRow: { id: '1' } },
+      'me',
+      secrets,
+    ).action).toBe('skip');
+    expect(planNotifyInboundApply(
+      { src: 'other', table: 'likes', ev: 'DELETE', _tombstone: true },
+      'me',
+      secrets,
+    ).action).toBe('skip');
+  });
+
+  it('tombstone delete / refetch / settings secrets', () => {
+    const del = planNotifyInboundApply(
+      { src: 'o', table: 'likes', ev: 'DELETE', id: 'x', _tombstone: true },
+      'me',
+      secrets,
+    );
+    expect(del).toEqual({ action: 'tombstone_delete', table: 'likes', id: 'x' });
+    const ref = planNotifyInboundApply(
+      { src: 'o', table: 'messages', ev: 'UPDATE', id: 'm1', _tombstone: true },
+      'me',
+      secrets,
+    );
+    expect(ref.action).toBe('refetch');
+    if (ref.action === 'refetch') expect(ref.reason).toBe('tombstone');
+    const sec = planNotifyInboundApply(
+      { src: 'o', table: 'app_settings', ev: 'UPDATE', newRow: { id: '1', session_active: true } },
+      'me',
+      secrets,
+    );
+    expect(sec.action).toBe('refetch');
+    if (sec.action === 'refetch') expect(sec.reason).toBe('settings_secrets');
+  });
+
+  it('memory upsert/delete + broadcast_only', () => {
+    const ins = planNotifyInboundApply(
+      { src: 'o', table: 'likes', ev: 'INSERT', newRow: { id: '1' }, oldRow: null },
+      'me',
+      secrets,
+    );
+    expect(ins.action).toBe('memory_upsert');
+    const d = planNotifyInboundApply(
+      { src: 'o', table: 'likes', ev: 'DELETE', oldRow: { id: '1' } },
+      'me',
+      secrets,
+    );
+    expect(d.action).toBe('memory_delete');
+    const bo = planNotifyInboundApply(
+      { src: 'o', table: 'db_error_log', ev: 'INSERT', newRow: { id: 'e' } },
+      'me',
+      secrets,
+    );
+    expect(bo.action).toBe('broadcast_only');
+  });
+
+  it('apply helpers mutate rows in place', () => {
+    const rows: Record<string, unknown>[] = [{ id: 'a' }];
+    applyNotifyMemoryUpsert(rows, 'insert', { id: 'b' });
+    applyNotifyMemoryUpsert(rows, 'insert', { id: 'b' }); // no dup
+    expect(rows.map(r => r.id)).toEqual(['a', 'b']);
+    applyNotifyMemoryUpsert(rows, 'update', { id: 'a', v: 2 });
+    expect(rows.find(r => r.id === 'a')).toMatchObject({ v: 2 });
+    applyNotifyMemoryDelete(rows, { id: 'b' });
+    expect(rows.map(r => r.id)).toEqual(['a']);
+    applyNotifyTombstoneDelete(rows, 'a');
+    expect(rows).toEqual([]);
+    applyNotifyRefetchedRow(rows, { id: 's', admin_password: 'x' }, { reason: 'settings_secrets' });
+    expect(rows[0]).toMatchObject({ admin_password: 'x' });
+    applyNotifyRefetchedRow(rows, { id: 't' }, { reason: 'tombstone', tombstoneId: 's' });
+    expect(rows[0]).toMatchObject({ id: 't' });
+  });
+});

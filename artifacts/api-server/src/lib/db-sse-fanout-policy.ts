@@ -331,3 +331,157 @@ export function countSseHealthConnections(
   return n;
 }
 
+
+/** Parsed LISTEN/NOTIFY envelope (cross-instance sync). */
+export type NotifyInboundEnvelope = {
+  src: string;
+  table: string;
+  ev: string;
+  id?: unknown;
+  _tombstone?: boolean;
+  newRow?: Record<string, unknown> | null;
+  oldRow?: Record<string, unknown> | null;
+};
+
+export type NotifyInboundPlan =
+  | { action: 'skip' }
+  | { action: 'tombstone_delete'; table: string; id: string }
+  | { action: 'refetch'; table: string; id: string; ev: string; reason: 'tombstone' | 'settings_secrets' }
+  | {
+      action: 'memory_upsert';
+      table: string;
+      ev: string;
+      newRow: Record<string, unknown>;
+      oldRow: Record<string, unknown> | null;
+      mode: 'insert' | 'update';
+    }
+  | {
+      action: 'memory_delete';
+      table: string;
+      oldRow: Record<string, unknown>;
+    }
+  | {
+      action: 'broadcast_only';
+      table: string;
+      ev: string;
+      newRow: Record<string, unknown> | null;
+      oldRow: Record<string, unknown> | null;
+    };
+
+/**
+ * Pure inbound NOTIFY decision (no PG/SSE).
+ * Same-instance echo / empty tombstone id → skip.
+ * Tombstones / sanitized app_settings → refetch; else memory upsert/delete or broadcast-only.
+ */
+export function planNotifyInboundApply(
+  env: NotifyInboundEnvelope,
+  instanceId: string,
+  secretKeys: readonly string[],
+): NotifyInboundPlan {
+  if (env.src === instanceId) return { action: 'skip' };
+  const tbl = env.table;
+
+  if (env._tombstone) {
+    if (!tbl || tbl === 'db_error_log') return { action: 'skip' };
+    const id = String(env.id ?? '');
+    if (!id) return { action: 'skip' };
+    if (env.ev === 'DELETE') return { action: 'tombstone_delete', table: tbl, id };
+    return { action: 'refetch', table: tbl, id, ev: env.ev, reason: 'tombstone' };
+  }
+
+  const newRow = env.newRow ?? null;
+  const oldRow = env.oldRow ?? null;
+
+  if (tbl && tbl !== 'db_error_log') {
+    if (env.ev === 'INSERT' && newRow) {
+      return {
+        action: 'memory_upsert',
+        table: tbl,
+        ev: env.ev,
+        newRow,
+        oldRow,
+        mode: 'insert',
+      };
+    }
+    if (env.ev === 'UPDATE' && newRow) {
+      if (tbl === 'app_settings' && secretKeys.some((k) => !(k in newRow))) {
+        const sid = String(newRow['id'] ?? 1);
+        return { action: 'refetch', table: tbl, id: sid, ev: env.ev, reason: 'settings_secrets' };
+      }
+      return {
+        action: 'memory_upsert',
+        table: tbl,
+        ev: env.ev,
+        newRow,
+        oldRow,
+        mode: 'update',
+      };
+    }
+    if (env.ev === 'DELETE' && oldRow) {
+      return { action: 'memory_delete', table: tbl, oldRow };
+    }
+  }
+
+  // Prior behavior: still relay SSE even when store mutation is skipped (missing row / db_error_log).
+  return {
+    action: 'broadcast_only',
+    table: tbl,
+    ev: env.ev,
+    newRow,
+    oldRow,
+  };
+}
+
+/** In-memory INSERT/UPDATE from a NOTIFY row (no PG). */
+export function applyNotifyMemoryUpsert(
+  rows: Record<string, unknown>[],
+  mode: 'insert' | 'update',
+  newRow: Record<string, unknown>,
+): void {
+  if (mode === 'insert') {
+    const id = newRow['id'];
+    if (!rows.some((r) => r['id'] === id)) rows.push(newRow);
+    return;
+  }
+  const id = newRow['id'];
+  const idx = rows.findIndex((r) => r['id'] === id);
+  if (idx >= 0) rows[idx] = newRow;
+  else rows.push(newRow);
+}
+
+/** In-memory DELETE from a NOTIFY oldRow (no PG). */
+export function applyNotifyMemoryDelete(
+  rows: Record<string, unknown>[],
+  oldRow: Record<string, unknown>,
+): void {
+  const id = oldRow['id'];
+  const idx = rows.findIndex((r) => r['id'] === id);
+  if (idx >= 0) rows.splice(idx, 1);
+}
+
+/** Tombstone DELETE by id (broadcast still done by caller). */
+export function applyNotifyTombstoneDelete(
+  rows: Record<string, unknown>[],
+  id: string,
+): void {
+  const idx = rows.findIndex((r) => r['id'] === id);
+  if (idx >= 0) rows.splice(idx, 1);
+}
+
+/** Apply a refetched row into memory (tombstone or settings secrets). */
+export function applyNotifyRefetchedRow(
+  rows: Record<string, unknown>[],
+  row: Record<string, unknown>,
+  opts: { reason: 'tombstone' | 'settings_secrets'; tombstoneId?: string },
+): void {
+  if (opts.reason === 'settings_secrets') {
+    const sidx = rows.findIndex((r) => r['id'] === row['id'] || r['id'] === 1);
+    if (sidx >= 0) rows[sidx] = row;
+    else rows.push(row);
+    return;
+  }
+  const id = opts.tombstoneId ?? String(row['id'] ?? '');
+  const idx = rows.findIndex((r) => r['id'] === id);
+  if (idx >= 0) rows[idx] = row;
+  else rows.push(row);
+}

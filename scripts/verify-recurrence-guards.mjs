@@ -2016,6 +2016,50 @@ mustMatch('ARCHITECTURE.md', '71_architecture_path_after_dedupe_merge_peel', [
 ]);
 
 
+
+
+// ── 72: resync-policy + notify-inbound + ACTIVE_KV ────────────────────────────
+mustMatch('artifacts/api-server/src/lib/db-store-merge.ts', '72_resync_policy_exports', [
+  /export const HOT_TABLES/,
+  /export const REALTIME_MERGE_TABLES/,
+  /export const FULL_RESYNC_TABLES/,
+  /export const RESYNC_TABLE_LIMIT/,
+  /export function buildFullResyncUnionSql/,
+  /export function groupKvDataRowsByTable/,
+  /export function shouldThrottleDbMerge/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-sse-fanout-policy.ts', '72_notify_inbound_exports', [
+  /export function planNotifyInboundApply/,
+  /export function applyNotifyMemoryUpsert/,
+  /export function applyNotifyMemoryDelete/,
+  /export function applyNotifyTombstoneDelete/,
+  /export function applyNotifyRefetchedRow/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-table-policy.ts', '72_active_kv_export', [
+  /export const ACTIVE_KV_TABLES/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '72_db_reimports_resync_notify_active', [
+  /planNotifyInboundApply/,
+  /buildFullResyncUnionSql/,
+  /groupKvDataRowsByTable/,
+  /ACTIVE_KV_TABLES/,
+  /HOT_RESYNC_TABLES/,
+  /shouldThrottleDbMerge/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '72_db_still_single_router_export', [
+  /export default router/,
+]);
+mustNotMatch('artifacts/api-server/src/routes/db.ts', '72_db_no_inline_full_resync_limit', [
+  /const FULL_RESYNC_TABLES: Array/,
+  /const RESYNC_TABLE_LIMIT: Record/,
+  /const ACTIVE_KV_TABLES = new Set\(/,
+]);
+mustMatch('ARCHITECTURE.md', '72_architecture_path_after_resync_notify_peel', [
+  /resync-policy|notify-inbound|ACTIVE_KV/,
+  /~9\.5/,
+]);
+
+
 console.log('\n=== verify-recurrence-guards ===\n');
 
 for (const r of results) {

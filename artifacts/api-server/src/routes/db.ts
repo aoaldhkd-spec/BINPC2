@@ -53,7 +53,21 @@ import {
   venueUploadRateKeys,
   resetRateLimit,
 } from '../lib/db-rate-limit';
-import { mergeDbRowsIntoMemory, shouldBroadcastBulkResync } from '../lib/db-store-merge';
+import {
+  mergeDbRowsIntoMemory,
+  shouldBroadcastBulkResync,
+  HOT_TABLES,
+  REALTIME_MERGE_TABLES,
+  FULL_RESYNC_TABLES,
+  RESYNC_TABLE_LIMIT,
+  HOT_RESYNC_TABLES,
+  HOT_RESYNC_LIMITS,
+  RESYNC_DEFAULT_LIMIT,
+  resyncLimitFor,
+  shouldThrottleDbMerge,
+  groupKvDataRowsByTable,
+  buildFullResyncUnionSql,
+} from '../lib/db-store-merge';
 import {
   type FilterSpec,
   applyFilters,
@@ -75,6 +89,7 @@ import { createMergedIdMap, resolveMergedIdViaRows } from '../lib/db-merged-id-m
 import {
   ALLOWED_OP_TABLES,
   CRITICAL_PERSIST_TABLES,
+  ACTIVE_KV_TABLES,
 } from '../lib/db-table-policy';
 import {
   planSmartBroadcastLocal,
@@ -89,6 +104,8 @@ import {
   SSE_RING_REPLAY_MAX_DEFAULT,
   SSE_ADMIN_MAX_CONN_DEFAULT,
   planNotifyOtherInstances, planSseUserTokenGate, planNotifyQueueEnqueue,
+  planNotifyInboundApply,
+  applyNotifyMemoryUpsert, applyNotifyMemoryDelete, applyNotifyTombstoneDelete, applyNotifyRefetchedRow,
   countSseLiveConnections, countSseHealthConnections,
 } from '../lib/db-sse-fanout-policy';
 import {
@@ -1390,7 +1407,7 @@ function seedLikesLastInsertFromStore(): void {
   }
 }
 
-const HOT_TABLES = ['app_settings', 'profiles'];
+/** HOT_TABLES: ../lib/db-store-merge.ts */
 
 async function loadHotTablesFromDb(): Promise<void> {
   try {
@@ -1579,26 +1596,7 @@ function startDailyEntryPasswordRenewal(): void {
 }
 
 // ─── 기능 삭제 후 남은 레거시 테이블 자동 정리 ──────────────────────────────────
-// 이 Set에 없는 table_name을 가진 app_kv_rows 행은 서버 시작 시 자동 삭제된다.
-// 새 기능을 추가할 때는 이 Set에도 테이블명을 추가할 것.
-// 기능을 삭제할 때는 이 Set에서 제거하기만 하면 다음 재시작 시 데이터도 자동 삭제된다.
-const ACTIVE_KV_TABLES = new Set([
-  'profiles', 'app_settings', 'notifications', 'likes', 'chats',
-  'messages', 'chat_reads', 'device_secrets', 'session_history', 'push_subscriptions',
-  'contact_shares', 'contact_share_events', 'anonymous_reports',
-  'app_image_store',
-  // 옵트인 단체 채팅
-  'group_chats', 'group_participants', 'group_messages',
-  // 명시적 단톡 나가기 — 자동 재입장 방지 (서버 전용)
-  'group_opt_outs',
-  // 차단·숨기기 / 프로필 방문자
-  'blocked_users', 'profile_views',
-  // 상태·이상형 신호
-  'user_signals',
-  'signal_sends',
-  // PG 전용 메타 — 앱 데이터가 아님. inversion cleanup에서 지우면 안 됨
-  'rate_limits', 'db_error_log',
-]);
+// ACTIVE_KV_TABLES inventory: ../lib/db-table-policy.ts (re-import).
 
 async function countLegacyLeftovers(): Promise<{ kv_tables: number; settings_rows: number; history_rows: number }> {
   const [kv, settings, hist] = await Promise.all([
@@ -2207,79 +2205,64 @@ async function _setupListenClientInner(gen: number): Promise<void> {
     await client.query('LISTEN data_change');
     client.on('notification', (msg) => {
       if (!msg.payload) return;
-      let env: { src: string; table: string; ev: string; id?: unknown; _tombstone?: boolean; newRow?: Record<string, unknown> | null; oldRow?: Record<string, unknown> | null };
+      let env: {
+        src: string; table: string; ev: string; id?: unknown; _tombstone?: boolean;
+        newRow?: Record<string, unknown> | null; oldRow?: Record<string, unknown> | null;
+      };
       try { env = JSON.parse(msg.payload); } catch { return; }
-      if (env.src === INSTANCE_ID) return; // 자신이 보낸 echo — 이미 로컬에서 처리됨
 
-      const tbl = env.table;
+      // Inbound plan + memory apply: ../lib/db-sse-fanout-policy.ts
+      const plan = planNotifyInboundApply(env, INSTANCE_ID, SECRET_SETTING_KEYS);
+      if (plan.action === 'skip') return;
 
-      // ── tombstone: 페이로드가 너무 커서 row를 생략한 경우 → DB에서 직접 재조회 ──
-      if (env._tombstone && tbl && tbl !== 'db_error_log') {
-        const id = String(env.id ?? '');
-        if (!id) return;
-        if (env.ev === 'DELETE') {
-          // DELETE tombstone: id로 store에서 제거
-          if (!store[tbl]) return;
-          const idx = store[tbl].findIndex(r => r['id'] === id);
-          if (idx >= 0) store[tbl].splice(idx, 1);
-          const delEvent = { type: 'change', table: tbl, event: 'DELETE', newRow: null, oldRow: { id } };
-          _smartBroadcastLocal(tbl, null, delEvent);
-        } else {
-          // INSERT/UPDATE tombstone: DB에서 전체 row 재조회 후 store 갱신
-          pool.query(
-            `SELECT data FROM app_kv_rows WHERE table_name = $1 AND row_id = $2 LIMIT 1`,
-            [tbl, id],
-          ).then(result => {
-            const row = (result.rows[0]?.data ?? null) as Record<string, unknown> | null;
-            if (!row) return;
-            if (!store[tbl]) store[tbl] = [];
-            const idx = store[tbl].findIndex(r => r['id'] === id);
-            if (idx >= 0) store[tbl][idx] = row; else store[tbl].push(row);
-            const fullEvent = { type: 'change', table: tbl, event: env.ev, newRow: row, oldRow: null };
-            _smartBroadcastLocal(tbl, row, fullEvent);
-          }).catch(e => logger.warn({ err: e }, '[db] tombstone DB refetch failed'));
-        }
+      if (plan.action === 'tombstone_delete') {
+        if (!store[plan.table]) return;
+        applyNotifyTombstoneDelete(store[plan.table], plan.id);
+        _smartBroadcastLocal(plan.table, null, {
+          type: 'change', table: plan.table, event: 'DELETE', newRow: null, oldRow: { id: plan.id },
+        });
         return;
       }
 
-      const newRow = env.newRow ?? null;
-      const oldRow = env.oldRow ?? null;
-
-      // ── 1. 로컬 store 업데이트 ──
-      if (tbl && tbl !== 'db_error_log') {
-        if (!store[tbl]) store[tbl] = [];
-        if (env.ev === 'INSERT' && newRow) {
-          const id = newRow['id'];
-          if (!store[tbl].some(r => r['id'] === id)) store[tbl].push(newRow);
-        } else if (env.ev === 'UPDATE' && newRow) {
-          // 비밀번호가 빠진(sanitize된) app_settings는 메모리에 덮어쓰지 않고 DB에서 다시 읽는다.
-          if (tbl === 'app_settings' && SECRET_SETTING_KEYS.some(k => !(k in newRow))) {
-            const sid = String(newRow['id'] ?? 1);
-            pool.query(
-              `SELECT data FROM app_kv_rows WHERE table_name = $1 AND row_id = $2 LIMIT 1`,
-              [tbl, sid],
-            ).then(result => {
-              const row = (result.rows[0]?.data ?? null) as Record<string, unknown> | null;
-              if (!row) return;
-              if (!store[tbl]) store[tbl] = [];
-              const sidx = store[tbl].findIndex(r => r['id'] === row['id'] || r['id'] === 1);
-              if (sidx >= 0) store[tbl][sidx] = row; else store[tbl].push(row);
-            }).catch(e => logger.warn({ err: e }, '[db] app_settings NOTIFY refetch failed'));
-            return;
-          }
-          const id = newRow['id'];
-          const idx = store[tbl].findIndex(r => r['id'] === id);
-          if (idx >= 0) store[tbl][idx] = newRow; else store[tbl].push(newRow);
-        } else if (env.ev === 'DELETE' && oldRow) {
-          const id = oldRow['id'];
-          const idx = store[tbl].findIndex(r => r['id'] === id);
-          if (idx >= 0) store[tbl].splice(idx, 1);
-        }
+      if (plan.action === 'refetch') {
+        const { table: tbl, id, ev, reason } = plan;
+        pool.query(
+          `SELECT data FROM app_kv_rows WHERE table_name = $1 AND row_id = $2 LIMIT 1`,
+          [tbl, id],
+        ).then(result => {
+          const row = (result.rows[0]?.data ?? null) as Record<string, unknown> | null;
+          if (!row) return;
+          if (!store[tbl]) store[tbl] = [];
+          applyNotifyRefetchedRow(store[tbl], row, { reason, tombstoneId: id });
+          if (reason === 'settings_secrets') return;
+          _smartBroadcastLocal(tbl, row, { type: 'change', table: tbl, event: ev, newRow: row, oldRow: null });
+        }).catch(e => logger.warn({ err: e }, reason === 'settings_secrets'
+          ? '[db] app_settings NOTIFY refetch failed'
+          : '[db] tombstone DB refetch failed'));
+        return;
       }
 
-      // ── 2. 로컬 SSE 클라이언트에게 중계 (notify=false — 무한 루프 방지) ──
-      const event = { type: 'change', table: tbl, event: env.ev, newRow, oldRow };
-      _smartBroadcastLocal(tbl, newRow ?? oldRow, event);
+      if (plan.action === 'memory_upsert') {
+        if (!store[plan.table]) store[plan.table] = [];
+        applyNotifyMemoryUpsert(store[plan.table], plan.mode, plan.newRow);
+        _smartBroadcastLocal(plan.table, plan.newRow ?? plan.oldRow, {
+          type: 'change', table: plan.table, event: plan.ev, newRow: plan.newRow, oldRow: plan.oldRow,
+        });
+        return;
+      }
+
+      if (plan.action === 'memory_delete') {
+        if (!store[plan.table]) store[plan.table] = [];
+        applyNotifyMemoryDelete(store[plan.table], plan.oldRow);
+        _smartBroadcastLocal(plan.table, plan.oldRow, {
+          type: 'change', table: plan.table, event: 'DELETE', newRow: null, oldRow: plan.oldRow,
+        });
+        return;
+      }
+
+      _smartBroadcastLocal(plan.table, plan.newRow ?? plan.oldRow, {
+        type: 'change', table: plan.table, event: plan.ev, newRow: plan.newRow, oldRow: plan.oldRow,
+      });
     });
     client.on('error', (err) => {
       logger.error({ err }, '[db] LISTEN client error — reconnecting in 5 s');
@@ -2370,18 +2353,17 @@ function applyAppSettingsFromDbRows(dbRows: Record<string, unknown>[]): boolean 
 }
 
 /** hot 테이블(profiles·app_settings)을 app_kv_rows에서 재동기화 — LISTEN gap 보정 전용 */
-const REALTIME_MERGE_TABLES = new Set(['profiles', 'chats', 'likes', 'messages', 'contact_shares', 'signal_sends']);
+/** REALTIME_MERGE_TABLES / DB_MERGE_THROTTLE_MS: ../lib/db-store-merge.ts */
 const _lastDbMerge = new Map<string, number>();
-const DB_MERGE_THROTTLE_MS = 2_500;
 
 /** SELECT 직전 인스턴스 간 split-brain 완화 — PG 최신 행을 in-memory store에 병합 */
 async function mergeTableFromDbIfStale(table: string, force = false): Promise<void> {
   const now = Date.now();
   const last = _lastDbMerge.get(table) ?? 0;
-  if (!force && now - last < DB_MERGE_THROTTLE_MS) return;
+  if (!force && shouldThrottleDbMerge(last, now)) return;
   _lastDbMerge.set(table, now);
   try {
-    const limit = RESYNC_TABLE_LIMIT[table] ?? 5000;
+    const limit = resyncLimitFor(table);
     const { rows } = await pool.query(
       `SELECT data FROM app_kv_rows WHERE table_name = $1 ORDER BY updated_at DESC LIMIT $2`,
       [table, limit],
@@ -2401,10 +2383,8 @@ async function mergeTableFromDbIfStale(table: string, force = false): Promise<vo
 async function resyncHotTablesFromDb(): Promise<void> {
   try {
     // messages/likes/chats 는 절대 wholesale replace 하지 않음 — LIMIT 때문에 오래된 방이 메모리에서 증발함
-    const hotTables = ['profiles', 'chats', 'likes', 'messages', 'app_settings'] as const;
-    const limits: Record<string, number> = { profiles: 10000, chats: 8000, likes: 8000, messages: 15000, app_settings: 10 };
-    await Promise.all(hotTables.map(async (tbl) => {
-      const limit = limits[tbl] ?? 5000;
+    await Promise.all(HOT_RESYNC_TABLES.map(async (tbl) => {
+      const limit = HOT_RESYNC_LIMITS[tbl] ?? 5000;
       const { rows } = await pool.query(
         `SELECT data FROM app_kv_rows WHERE table_name = $1 ORDER BY updated_at DESC LIMIT $2`,
         [tbl, limit],
@@ -2429,26 +2409,8 @@ async function resyncHotTablesFromDb(): Promise<void> {
 
 // 관리자·테스트 패널이 Supabase 네이티브 테이블에 직접 쓸 때 api-server 인메모리와 어긋남
 // → 30초마다 네이티브 테이블에서 전체 재동기화해 최대 30초 안에 자동 복구
-const FULL_RESYNC_TABLES: Array<{ tbl: string; order?: string }> = [
-  { tbl: 'profiles' },
-  { tbl: 'app_settings' },
-  { tbl: 'notifications', order: 'ORDER BY created_at DESC' },
-  { tbl: 'likes',           order: 'ORDER BY created_at DESC LIMIT 5000' },
-  { tbl: 'chats',           order: 'ORDER BY created_at DESC LIMIT 5000' },
-  { tbl: 'contact_shares',  order: 'ORDER BY created_at DESC LIMIT 5000' },
-  { tbl: 'signal_sends',    order: 'ORDER BY created_at DESC LIMIT 5000' },
-];
-
+/** FULL_RESYNC_TABLES / RESYNC_TABLE_LIMIT: ../lib/db-store-merge.ts */
 let _fullResyncRunning = false;
-
-// [Fix] 테이블별 최대 행 수 — 리싱크 시 인메모리 크기 상한 적용
-const RESYNC_TABLE_LIMIT: Record<string, number> = {
-  notifications: 200,
-  likes: 5000,
-  chats: 5000,
-  contact_shares: 5000,
-  signal_sends: 5000,
-};
 
 async function pruneDistributedRateLimits(): Promise<void> {
   if (process.env.NODE_ENV === 'test' || process.env.VITEST) return;
@@ -2469,18 +2431,9 @@ async function resyncAllFromNativeDb(reason: 'periodic' | 'forced' = 'periodic')
   try {
     // [Fix] 테이블별 LIMIT 적용 — 대용량 세션에서 전체 행 적재로 인한 메모리/지연 방지
     // ROW_NUMBER() OVER(PARTITION BY table_name ORDER BY updated_at DESC) 로 최근 N개만 조회
-    const tableNames = FULL_RESYNC_TABLES.map(t => t.tbl);
-    const defaultLimit = 10000;
-    const limitSql = tableNames
-      .map(t => `(SELECT table_name, data FROM app_kv_rows WHERE table_name = '${t}' ORDER BY updated_at DESC LIMIT ${RESYNC_TABLE_LIMIT[t] ?? defaultLimit})`)
-      .join(' UNION ALL ');
+    const limitSql = buildFullResyncUnionSql(FULL_RESYNC_TABLES, RESYNC_TABLE_LIMIT, RESYNC_DEFAULT_LIMIT);
     const { rows } = await pool.query(limitSql);
-    const grouped: Record<string, Record<string, unknown>[]> = {};
-    for (const r of rows) {
-      const tbl = r.table_name as string;
-      if (!grouped[tbl]) grouped[tbl] = [];
-      grouped[tbl].push(r.data as Record<string, unknown>);
-    }
+    const grouped = groupKvDataRowsByTable(rows as Array<{ table_name: string; data: unknown }>);
     const notifyClients = shouldBroadcastBulkResync(reason);
     for (const { tbl } of FULL_RESYNC_TABLES) {
       if (grouped[tbl] === undefined) continue;

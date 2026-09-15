@@ -258,6 +258,23 @@ describe('longevity recurrence guards (server)', () => {
     expect(health).toContain('buildHealthAlarms');
   });
 
+  it('resync-policy + notify-inbound + ACTIVE_KV stay extracted', () => {
+    expect(dbTs).toContain('planNotifyInboundApply');
+    expect(dbTs).toContain('buildFullResyncUnionSql');
+    expect(dbTs).toContain('groupKvDataRowsByTable');
+    expect(dbTs).toContain('ACTIVE_KV_TABLES');
+    expect(dbTs).toContain('HOT_RESYNC_TABLES');
+    expect(dbTs).not.toMatch(/const FULL_RESYNC_TABLES: Array/);
+    expect(dbTs).not.toMatch(/const RESYNC_TABLE_LIMIT: Record/);
+    expect(dbTs).not.toMatch(/const ACTIVE_KV_TABLES = new Set\(/);
+    const merge = readFileSync(join(here, '../lib/db-store-merge.ts'), 'utf8');
+    const sse = readFileSync(join(here, '../lib/db-sse-fanout-policy.ts'), 'utf8');
+    const policy = readFileSync(join(here, '../lib/db-table-policy.ts'), 'utf8');
+    expect(merge).toContain('buildFullResyncUnionSql');
+    expect(sse).toContain('planNotifyInboundApply');
+    expect(policy).toContain('ACTIVE_KV_TABLES');
+  });
+
   it('chat-dedupe + group-merge + entry-renewal planners stay extracted', () => {
     expect(dbTs).toContain('planChatDedupeMergeSteps');
     expect(dbTs).toContain('planChatReadsForDedupe');
