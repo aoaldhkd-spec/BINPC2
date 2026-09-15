@@ -112,13 +112,34 @@ import {
   IMAGE_STORE_MAX_CHARS_DEFAULT,
 } from '../lib/db-image-store';
 import {
+  MAX_GROUPS_PER_USER,
+  UNLIMITED_GROUP_MEMBERS,
+  GROUP_LIMIT_MESSAGE,
+  OPT_IN_GROUP_ROOMS,
+  AUTO_ROOM_AGE_DECADE,
+  AUTO_ROOM_BIRTH_YEAR,
+  VISIBLE_AGE_BANDS,
+  matchesAfterpartySpec,
+  matchesVisibleAgeBand,
+  birthYearOfGroup,
+  isRetiredAgeRoom,
+  ageBandFromYear,
+  canonicalAgeRoomId,
+  canonicalYearRoomId,
+  autoRoomOptKey,
+  optKeyForGroup as optKeyForGroupPure,
+  isLeftoverInterestRoom,
+  afterpartySlotKey,
+  groupLimitSlotKey,
+} from '../lib/db-group-room-plan';
+import {
   LEGACY_APP_SETTINGS_KEYS,
   LEGACY_KV_TABLES,
   settingsHaveLegacyKeys,
   stripLegacySessionHistoryKeys,
   stripLegacySettingsKeys,
 } from '../lib/db-legacy-cleanup';
-import { groupAgeDecadeBand, isAdultBirthYear } from '../lib/korean-age.js';
+import { isAdultBirthYear } from '../lib/korean-age.js';
 import {
   recordExpiredSseToken,
   recordMissingSseToken,
@@ -1617,48 +1638,7 @@ async function cleanupLegacyTables(): Promise<void> {
   }
 }
 
-// 사람당 단톡 입장 수 상한 (방 인원 정원이 아님 — 방 인원은 제한 없음)
-const MAX_GROUPS_PER_USER = 4;
-// 방 인원 상한 없음. 정원 초과로 방을 나누지 않음.
-const UNLIMITED_GROUP_MEMBERS = 999999;
-const GROUP_LIMIT_MESSAGE = '단체 채팅은 최대 4개까지 입장할 수 있어요.';
-
-const OPT_IN_GROUP_ROOMS: Array<{
-  id: string; name: string; interest_tag: string; room_kind: string;
-}> = [
-  { id: 'group_afterparty_club', name: '2차 클럽 갈 분', interest_tag: '2차클럽', room_kind: 'afterparty_club' },
-  { id: 'group_afterparty_drink', name: '2차 술 갈 분', interest_tag: '2차술', room_kind: 'afterparty_drink' },
-];
-
-function compactGroupName(value: unknown): string {
-  return String(value ?? '').replace(/\s+/g, '');
-}
-
-function matchesAfterpartySpec(g: Record<string, unknown>, spec: { id: string; name: string; interest_tag: string; room_kind: string }): boolean {
-  const name = String(g.name ?? '');
-  const compact = compactGroupName(name);
-  return String(g.id) === spec.id
-    || name === spec.name
-    || compact === compactGroupName(spec.name)
-    || String(g.interest_tag) === spec.interest_tag
-    || String(g.room_kind ?? '') === spec.room_kind
-    || (spec.room_kind === 'afterparty_club' && (name.includes('2차 클럽') || compact.includes('2차클럽')))
-    || (spec.room_kind === 'afterparty_drink' && (name.includes('2차 술') || compact.includes('2차술')));
-}
-
-function matchesVisibleAgeBand(g: Record<string, unknown>, band: string): boolean {
-  if (String(g.id) === `group_age_${band.replace(/대$/, '')}`) return true;
-  const compact = compactGroupName(g.name);
-  return compact === compactGroupName(`${band} 모임`);
-}
-
-function birthYearOfGroup(g: Record<string, unknown>): number | null {
-  const idm = String(g.id ?? '').match(/^group_birth_(\d{4})$/);
-  if (idm) return Number(idm[1]);
-  const namem = String(g.name ?? '').match(/^(\d{4})년생\s*모임$/);
-  if (namem) return Number(namem[1]);
-  return null;
-}
+/** Group room match/opt-in planners: ../lib/db-group-room-plan.ts (re-import). */
 
 function collapseDuplicateGroupChatIds(): void {
   const rows = getTable('group_chats');
@@ -1872,20 +1852,6 @@ async function ensureOptInGroupRoomsWork(): Promise<void> {
   }
 }
 
-const AUTO_ROOM_AGE_DECADE = 'age_decade';
-const AUTO_ROOM_BIRTH_YEAR = 'birth_year';
-const VISIBLE_AGE_BANDS = ['20대', '30대'] as const;
-const RETIRED_AGE_ROOM_RE = /^(10|40|50|60|70)대 모임$/;
-
-function isRetiredAgeRoom(g: Record<string, unknown>): boolean {
-  const name = String(g.name ?? '');
-  const id = String(g.id ?? '');
-  const band = String(g.age_group ?? '');
-  return RETIRED_AGE_ROOM_RE.test(name)
-    || /^group_age_(10|40|50|60|70)$/.test(id)
-    || /^(10|40|50|60|70)대$/.test(band);
-}
-
 async function purgeRetiredAgeRooms(): Promise<void> {
   const retired = getTable('group_chats').filter(g => isRetiredAgeRoom(g));
   for (const g of retired) {
@@ -1924,10 +1890,6 @@ async function deleteRetiredAgeRoom(g: Record<string, unknown>): Promise<void> {
     logger.error({ err: e, groupId }, '[deleteRetiredAgeRoom] group_chats persist failed');
   }
   smartBroadcast('group_chats', g, { type: 'change', table: 'group_chats', event: 'DELETE', newRow: null, oldRow: g });
-}
-
-function ageBandFromYear(year: unknown): string | null {
-  return groupAgeDecadeBand(year);
 }
 
 const ADULT_BIRTH_YEAR_ERROR = {
@@ -1970,19 +1932,7 @@ function profileNpcAvatarRejected(
   return true;
 }
 
-function canonicalAgeRoomId(ageBand: string): string {
-  return `group_age_${ageBand.replace(/대$/, '')}`;
-}
-
-function canonicalYearRoomId(year: number): string {
-  return `group_birth_${year}`;
-}
-
 const autoMatchInFlight = new Map<string, Promise<void>>();
-
-function autoRoomOptKey(kind: string, extra: string): string {
-  return `${kind}:${extra}`;
-}
 
 function hasGroupOptOut(userId: string, optKey: string): boolean {
   return getTable('group_opt_outs').some(
@@ -1990,24 +1940,9 @@ function hasGroupOptOut(userId: string, optKey: string): boolean {
   );
 }
 
+/** Thin wrapper — resolveMergedGroupId stays local. */
 function optKeyForGroup(group: Record<string, unknown> | undefined, groupId: string): string {
-  const kind = String(group?.room_kind ?? '');
-  const name = String(group?.name ?? '');
-  const tag = String(group?.interest_tag ?? '');
-  const age = String(group?.age_group ?? '');
-  if (kind === AUTO_ROOM_AGE_DECADE || /^\d+대 모임$/.test(name)) {
-    const band = age || name.match(/^(\d+대)/)?.[1] || tag;
-    return autoRoomOptKey(AUTO_ROOM_AGE_DECADE, String(band));
-  }
-  if (kind === AUTO_ROOM_BIRTH_YEAR || /^\d{4}년생 모임$/.test(name)) {
-    const yearTag = /^\d{4}년생$/.test(tag)
-      ? tag
-      : (name.match(/^(\d{4}년생)/)?.[1] || tag);
-    return autoRoomOptKey(AUTO_ROOM_BIRTH_YEAR, String(yearTag));
-  }
-  if (kind === 'afterparty_club' || tag === '2차클럽' || name.includes('2차 클럽')) return 'afterparty_club';
-  if (kind === 'afterparty_drink' || tag === '2차술' || name.includes('2차 술')) return 'afterparty_drink';
-  return resolveMergedGroupId(groupId);
+  return optKeyForGroupPure(group, groupId, resolveMergedGroupId);
 }
 
 function groupIdsInSameLeaveSlot(groupId: string): Set<string> {
@@ -2071,36 +2006,6 @@ async function clearGroupOptOut(userId: string, groupId: string): Promise<void> 
   for (const r of gone) {
     void dbDeleteRow('group_opt_outs', String(r.id));
   }
-}
-
-function isLeftoverInterestRoom(g: Record<string, unknown>): boolean {
-  const kind = String(g.room_kind ?? '');
-  const name = String(g.name ?? '');
-  if (kind === 'afterparty_club' || kind === 'afterparty_drink') return false;
-  if (kind === AUTO_ROOM_BIRTH_YEAR || /^\d{4}년생 모임$/.test(name)) return false;
-  if (kind === AUTO_ROOM_AGE_DECADE || /^\d+대 모임$/.test(name)) return false;
-  return kind === 'interest_age' || /대\s+.+\s*모임/.test(name) || /모임\s*모임/.test(name);
-}
-
-function afterpartySlotKey(g: Record<string, unknown>): 'afterparty_club' | 'afterparty_drink' | null {
-  if (matchesAfterpartySpec(g, OPT_IN_GROUP_ROOMS[0])) return 'afterparty_club';
-  if (matchesAfterpartySpec(g, OPT_IN_GROUP_ROOMS[1])) return 'afterparty_drink';
-  return null;
-}
-
-/** 한도 계산용. 숨긴 중복 2차·레거시 관심사/은퇴 N대는 칸을 차지하지 않음. */
-function groupLimitSlotKey(g: Record<string, unknown> | undefined, groupId: string): string | null {
-  if (!g) return null;
-  if (g.hidden === true) return null;
-  const into = String(g.merged_into ?? '');
-  if (into && into !== String(g.id)) return null;
-  if (isLeftoverInterestRoom(g) || isRetiredAgeRoom(g)) return null;
-  const ap = afterpartySlotKey(g);
-  if (ap) return ap;
-  const name = String(g.name ?? '');
-  if (/^\d{4}년생 모임$/.test(name)) return `year:${name}`;
-  if (/^\d+대 모임$/.test(name)) return `age:${name}`;
-  return String(g.id || groupId);
 }
 
 function countUserGroupSlots(userId: string): number {

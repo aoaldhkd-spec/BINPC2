@@ -746,6 +746,7 @@ describe('Korean age recurrence guard', () => {
     const groupRooms = read('lib/group-rooms.ts');
     const stats = read('lib/stats-ranking.ts');
     const db = readFileSync(join(root, '../../api-server/src/routes/db.ts'), 'utf8');
+    const groupRoomPlan = readFileSync(join(root, '../../api-server/src/lib/db-group-room-plan.ts'), 'utf8');
     const serverAge = readFileSync(join(root, '../../api-server/src/lib/korean-age.ts'), 'utf8');
 
     expect(ageLib).toMatch(/\+\s*1/);
@@ -753,7 +754,9 @@ describe('Korean age recurrence guard', () => {
     expect(profile).toContain("from './korean-age'");
     expect(groupRooms).toContain("from './korean-age'");
     expect(stats).toContain("from './korean-age'");
-    expect(db).toContain('groupAgeDecadeBand');
+    // ageBandFromYear lives in db-group-room-plan (peeled); still uses groupAgeDecadeBand
+    expect(groupRoomPlan).toContain('groupAgeDecadeBand');
+    expect(db).toContain("from '../lib/db-group-room-plan'");
     expect(serverAge).toMatch(/\+\s*1/);
 
     for (const [rel, src] of [
@@ -761,6 +764,7 @@ describe('Korean age recurrence guard', () => {
       ['lib/group-rooms.ts', groupRooms],
       ['lib/stats-ranking.ts', stats],
       ['api-server db.ts', db],
+      ['api-server db-group-room-plan.ts', groupRoomPlan],
     ] as const) {
       expect(src, `${rel} must not inline intl age (year diff without +1)`).not.toMatch(
         /getFullYear\(\)\s*-\s*\w+\s*;(?![\s\S]{0,40}\+\s*1)/,

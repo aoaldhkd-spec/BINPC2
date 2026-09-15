@@ -1152,6 +1152,45 @@ mustMatch('ARCHITECTURE.md', '54_architecture_path_after_privacy_apply_peel', [
 ]);
 
 
+// ── 55: db-group-room-plan (match/merge/opt-in pure planners) ─────────────────
+mustExist('artifacts/api-server/src/lib/db-group-room-plan.ts', '55_db_group_room_plan_module');
+mustExist('artifacts/api-server/src/lib/db-group-room-plan.test.ts', '55_db_group_room_plan_tests');
+mustMatch('artifacts/api-server/src/lib/db-group-room-plan.ts', '55_group_room_plan_exports', [
+  /export function compactGroupName/,
+  /export function matchesAfterpartySpec/,
+  /export function matchesVisibleAgeBand/,
+  /export function birthYearOfGroup/,
+  /export function isRetiredAgeRoom/,
+  /export function optKeyForGroup/,
+  /export function groupLimitSlotKey/,
+  /export const OPT_IN_GROUP_ROOMS/,
+  /export const GROUP_LIMIT_MESSAGE/,
+  /단체 채팅은 최대 4개까지 입장할 수 있어요/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '55_db_reimports_group_room_plan', [
+  /from '\.\.\/lib\/db-group-room-plan'/,
+  /optKeyForGroup as optKeyForGroupPure/,
+  /matchesAfterpartySpec/,
+  /groupLimitSlotKey/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '55_db_still_single_router_export', [
+  /export default router/,
+]);
+mustNotMatch('artifacts/api-server/src/routes/db.ts', '55_db_no_inline_group_room_plan_impl', [
+  /function compactGroupName\(/,
+  /function matchesAfterpartySpec\(/,
+  /function isRetiredAgeRoom\(/,
+  /function groupLimitSlotKey\(/,
+  /const OPT_IN_GROUP_ROOMS/,
+  /const GROUP_LIMIT_MESSAGE =/,
+]);
+mustMatch('ARCHITECTURE.md', '55_architecture_path_after_group_room_plan_peel', [
+  /db-group-room-plan/,
+  /~9\.5/,
+]);
+
+
+
 console.log('\n=== verify-recurrence-guards ===\n');
 for (const r of results) {
   console.log(`  ${r.ok ? 'OK' : 'FAIL'}  ${r.id}${r.detail && !r.ok ? ` ? ${r.detail}` : ''}`);

@@ -57,6 +57,7 @@ Prefer **single Render instance**. Multi-instance는 NOTIFY로 일부 동기화�
 | `artifacts/api-server/src/lib/db-app-settings-merge.ts` | app_settings merge / QR / koreanDateMMDD / secret keys (순수) |
 | `artifacts/api-server/src/lib/db-panel-tokens.ts` | admin/test panel session HMAC derive (순수) |
 | `artifacts/api-server/src/lib/db-image-store.ts` | in-memory image dataURL LRU (순수 factory) |
+| `artifacts/api-server/src/lib/db-group-room-plan.ts` | group room match/merge/opt-in planners (순수) |
 | `artifacts/api-server/src/lib/db-chat-ids.ts` | `chatPairKey` / `deterministicChatId` |
 | `artifacts/api-server/src/lib/db-broadcast-targets.ts` | SSE 수신자 목록 (순수) |
 | `artifacts/api-server/src/lib/db-rate-limit.ts` | IP rate-limit 맵/헬퍼 |
@@ -165,7 +166,7 @@ Detach = stop wiring the domain hook/callbacks into `App.tsx` / screens; keep pu
 
 Moved out of `App.tsx` (planners/hooks, behavior unchanged): SoT resync, SSE fallback poll, dark-mode storage sync, sent/received like planners + toast payloads, contact-share events, pending-hearts badge count, functions-lock kick plan, user-signal merge, realtime row upserts, settings `/ready` poll gap, profile-view debounce, broadcast notif helpers, entry password/reset planners, **profiles + user-bundle + privacy + signals SSE subscribe** (`useUserRealtimeChannel`), **profiles / privacy+signals / hearts SSE apply** (`useProfilesRealtimeApply` + `usePrivacySignalsRealtimeApply` + `useHeartsRealtimeApply`), **app_settings + notifications + contact_share_events SSE subscribe + apply** (`useAppShellRealtimeChannels` + `useAppShellRealtimeApply`), `app-settings-realtime` planner, profile SSE apply planners, block/hide planners, **admin reset wipe** (`admin-reset-wipe` plan+run; App thin `applyResetSignal`), **`/ready` bootstrap + settings poll** (`useSessionReadyBootstrap` + `ready-bootstrap-settings`), **loading-main profile boot/backoff** (`profile-boot-machine` + `useProfileBootMachine`), **early entry gates JSX** (`AppEntryGates`), **main shell + overlay JSX fan-in** (`AppMainShell` / `AppOverlays`), **hearts/chat/group lock wrappers** (`useSocialLockGuards`), **nickname/registration + recovery/reset** (`useNicknameRegistration` + `nickname-registration` planners), **profile/privacy/signals loaders** (`useProfilePrivacyLoaders` + `profile-select` column lists), **participant session-init** (`useSessionInit` + `session-init` planners).
 
-App residual is compose/wiring (setState fan-in, guarded handlers, overlay props). **db.ts peel progressing:** prior modules + **`db-image-store`** (re-import; single router export intact). Full `/op`/RPC router split remains the large mountain (~6.1k).
+App residual is compose/wiring (setState fan-in, guarded handlers, overlay props). **db.ts peel progressing:** prior modules + **`db-image-store`** + **`db-group-room-plan`** (re-import; single router export intact). Full `/op`/RPC router split remains the large mountain (~6.0k).
 
 Path to ≥9.5 further = more `db.ts` write-path / ensureAdmin slices — App is already wiring-thin.
 
@@ -180,13 +181,14 @@ Path to ≥9.5 further = more `db.ts` write-path / ensureAdmin slices — App is
 | Prior (session-init) | **~9.35–9.4** | App ~1.18k; session-init effect → `useSessionInit` + pure planners; no db.ts touch |
 | Prior (admin identity/wipe-plan + admin/test selects) | **~9.4–9.45** | `db-admin-identity` + wipe plan; Admin/TestDashboard `select('*')` cleared |
 | Prior (settings-merge/tokens + participant selects) | **~9.45–9.5 path** | `db-app-settings-merge` + `db-panel-tokens`; hearts/overlays/StatsTabs selects cleared via `CONTACT_SHARE_ROW_SELECT` |
-| This peel (privacy/signal/profile/shell apply + image-store) | **~9.5** | App ~1.11k clearly compose/wiring; residual work mostly `db.ts` mountain (~6.1k). Honest claim **~9.5** — not fake-perfect; further gains are db write-path/ensureAdmin |
-| Beyond 9.5 | more `db.ts` write-path / ensureAdmin slices | Keep App wiring-thin; do not re-inline apply |
+| Prior (privacy/signal/profile/shell apply + image-store) | **~9.5** | App ~1.11k clearly compose/wiring; `db.ts` ~6.1k |
+| This peel (db-group-room-plan) | **~9.5** | Group match/merge/opt-in pure planners peeled; `db.ts` mountain shrinking (~6.0k). Honest claim still **~9.5** — further gains are write-path/ensureAdmin |
+| Beyond 9.5 | more `db.ts` write-path / ensureAdmin / chat-dedupe slices | Keep App wiring-thin; do not re-inline apply |
 
 ### Next incremental steps (no big-bang rewrite)
 
 1. Screens keep flags/callbacks only — no new App feature state for modularity work.
-2. Continue `db.ts` peel track (ensureAdmin/write-path / IMAGE_MAGIC / rate-bucket clusters + re-import); keep `38_db_single_router_export`.
+2. Continue `db.ts` peel track (ensureAdmin/write-path / chat-dedupe / rate-bucket clusters + re-import); keep `38_db_single_router_export`.
 3. Keep App apply surface in focused hooks — do not re-inline privacy/signal/shell apply.
 4. Any leftover participant `select('*')` only where a column list is clearly safe.
 5. Beyond ~9.5: shrink `db.ts` further; App is already compose/wiring.
