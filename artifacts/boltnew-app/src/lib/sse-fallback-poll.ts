@@ -5,12 +5,12 @@
 
 export type SseFallbackConnStatus = 'ok' | 'reconnecting' | 'error' | string;
 
-// Fallback reads are a safety net, not a reconnect loop. Keep enough spacing
-// for Render cold starts and avoid turning one outage into a 429 burst.
-export const SSE_FALLBACK_ERROR_MS = 20_000;
-export const SSE_FALLBACK_RECONNECTING_MS = 12_000;
+// Fallback reads are a safety net, not a reconnect loop. Keep a short bounded
+// cadence; the hook-level in-flight guard prevents an outage from becoming a 429 burst.
+export const SSE_FALLBACK_ERROR_MS = 3_000;
+export const SSE_FALLBACK_RECONNECTING_MS = 3_000;
 
-/** Poll faster when UI is in hard error; slower while reconnecting. */
+/** Use the same short cadence for recovery and hard-error fallback. */
 export function sseFallbackPollIntervalMs(connStatus: SseFallbackConnStatus): number {
   return connStatus === 'error' ? SSE_FALLBACK_ERROR_MS : SSE_FALLBACK_RECONNECTING_MS;
 }

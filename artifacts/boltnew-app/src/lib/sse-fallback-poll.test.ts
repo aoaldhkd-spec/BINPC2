@@ -7,7 +7,7 @@ import {
 } from './sse-fallback-poll';
 
 describe('sseFallbackPollIntervalMs', () => {
-  it('uses 5s on error and 8s otherwise', () => {
+  it('uses the configured 3s safety-net interval', () => {
     expect(sseFallbackPollIntervalMs('error')).toBe(SSE_FALLBACK_ERROR_MS);
     expect(sseFallbackPollIntervalMs('reconnecting')).toBe(SSE_FALLBACK_RECONNECTING_MS);
     expect(sseFallbackPollIntervalMs('ok')).toBe(SSE_FALLBACK_RECONNECTING_MS);

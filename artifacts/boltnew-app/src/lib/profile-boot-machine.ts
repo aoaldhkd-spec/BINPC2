@@ -10,7 +10,7 @@ export const PROFILE_BOOT_MAX_ATTEMPTS = 8;
 export const PROFILE_BOOT_BASE_DELAY_MS = 1_000;
 export const PROFILE_BOOT_POLL_MS = 200;
 /** After the initial bounded burst, keep the session alive and retry quietly. */
-export const PROFILE_BOOT_EXHAUSTED_RETRY_MS = 15_000;
+export const PROFILE_BOOT_EXHAUSTED_RETRY_MS = 3_000;
 
 /** Delay after a failed attempt (attempt already incremented). */
 export function profileBootRetryDelayMs(
