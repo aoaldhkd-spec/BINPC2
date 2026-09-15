@@ -906,6 +906,75 @@ mustMatch('ARCHITECTURE.md', '51_architecture_path_after_session_init_peel', [
   /~9\.5/,
 ]);
 
+// ── 52: db admin identity/wipe-plan + admin/test select('*') narrow ───────────
+mustExist('artifacts/api-server/src/lib/db-admin-identity.ts', '52_db_admin_identity_module');
+mustExist('artifacts/api-server/src/lib/db-admin-identity.test.ts', '52_db_admin_identity_tests');
+mustExist('artifacts/api-server/src/lib/db-admin-wipe-plan.ts', '52_db_admin_wipe_plan_module');
+mustExist('artifacts/api-server/src/lib/db-admin-wipe-plan.test.ts', '52_db_admin_wipe_plan_tests');
+mustMatch('artifacts/api-server/src/lib/db-admin-identity.ts', '52_admin_identity_exports', [
+  /export const ADMIN_FIXED_NICKNAME/,
+  /export const BIRTH_MD_EDIT_MAX/,
+  /export function birthMdWouldChangeRow/,
+  /export function normalizePhoneDigits/,
+  /export function isAdminProfilePhone/,
+  /export function withFixedAdminNickname/,
+  /export function findAdminProfileInRows/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-admin-wipe-plan.ts', '52_admin_wipe_plan_exports', [
+  /export function planClearAdminNpcRelationships/,
+  /export function likeRateKeyTouchesAdmin/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '52_db_reimports_admin_identity_wipe', [
+  /from '\.\.\/lib\/db-admin-identity'/,
+  /from '\.\.\/lib\/db-admin-wipe-plan'/,
+  /planClearAdminNpcRelationships/,
+  /ADMIN_FIXED_NICKNAME/,
+  /BIRTH_MD_EDIT_MAX/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '52_db_still_single_router_export', [
+  /export default router/,
+]);
+mustNotMatch('artifacts/api-server/src/routes/db.ts', '52_db_no_inline_admin_fixed_nickname_const', [
+  /const ADMIN_FIXED_NICKNAME = /,
+  /const BIRTH_MD_EDIT_MAX = /,
+  /function birthMdWouldChangeRow\(/,
+  /function normalizePhoneDigits\(/,
+]);
+mustMatch('artifacts/boltnew-app/src/lib/profile-select.ts', '52_profile_select_admin_columns', [
+  /export const LIKE_ROW_SELECT/,
+  /export const CHAT_ROW_SELECT/,
+  /export const SESSION_HISTORY_ROW_SELECT/,
+  /export const NOTIFICATION_ROW_SELECT/,
+  /export const APP_SETTINGS_ADMIN_SELECT/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/AdminApp.tsx', '52_admin_app_no_select_star', [
+  /\.select\('\*'\)/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/TestDashboard.tsx', '52_test_dashboard_no_select_star', [
+  /\.select\('\*'\)/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/admin/NotificationTab.tsx', '52_notification_tab_no_select_star', [
+  /\.select\('\*'\)/,
+]);
+mustMatch('artifacts/boltnew-app/src/AdminApp.tsx', '52_admin_app_uses_column_lists', [
+  /APP_SETTINGS_ADMIN_SELECT/,
+  /PROFILE_ROW_SELECT/,
+  /SESSION_HISTORY_ROW_SELECT/,
+  /NOTIFICATION_ROW_SELECT/,
+]);
+mustMatch('artifacts/boltnew-app/src/TestDashboard.tsx', '52_test_dashboard_uses_column_lists', [
+  /PROFILE_ROW_SELECT/,
+  /LIKE_ROW_SELECT/,
+  /CHAT_ROW_SELECT/,
+]);
+mustMatch('ARCHITECTURE.md', '52_architecture_path_after_admin_identity_peel', [
+  /db-admin-identity/,
+  /db-admin-wipe-plan/,
+  /~9\.4/,
+  /~9\.5/,
+]);
+
+
 
 
 

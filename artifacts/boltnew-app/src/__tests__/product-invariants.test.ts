@@ -433,6 +433,28 @@ describe('product copy + notification invariants', () => {
     expect(planners).toContain('shouldForceMainOnExistingComplete');
   });
 
+  it('admin identity/wipe-plan + Admin/TestDashboard selects stay narrowed', () => {
+    const admin = read('AdminApp.tsx');
+    const testDash = read('TestDashboard.tsx');
+    const notif = read('admin/NotificationTab.tsx');
+    const cols = read('lib/profile-select.ts');
+    const db = readFileSync(join(root, '../../api-server/src/routes/db.ts'), 'utf8');
+    expect(db).toContain("from '../lib/db-admin-identity'");
+    expect(db).toContain("from '../lib/db-admin-wipe-plan'");
+    expect(db).toContain('planClearAdminNpcRelationships');
+    expect(db).not.toMatch(/const ADMIN_FIXED_NICKNAME = /);
+    expect(cols).toContain('APP_SETTINGS_ADMIN_SELECT');
+    expect(cols).toContain('LIKE_ROW_SELECT');
+    expect(admin).toContain('APP_SETTINGS_ADMIN_SELECT');
+    expect(admin).toContain('PROFILE_ROW_SELECT');
+    expect(admin).not.toMatch(/\.select\('\*'\)/);
+    expect(testDash).toContain('LIKE_ROW_SELECT');
+    expect(testDash).not.toMatch(/\.select\('\*'\)/);
+    expect(notif).toContain('NOTIFICATION_ROW_SELECT');
+    expect(notif).not.toMatch(/\.select\('\*'\)/);
+  });
+
+
   it('ProfileCard keeps compact heart/chat buttons (no min-h-11 bloat)', () => {
     const card = read('components/ProfileCard.tsx');
     expect(card).not.toMatch(/min-h-11/);

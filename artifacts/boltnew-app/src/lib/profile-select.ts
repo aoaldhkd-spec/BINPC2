@@ -15,3 +15,22 @@ export const PROFILE_VIEW_ROW_SELECT = 'id, viewer_id, viewed_id, viewed_at';
 
 /** user_signals board/card fields. */
 export const USER_SIGNAL_ROW_SELECT = 'id, user_id, status_msg, ideal_msg, feature_msg, created_at';
+
+/** likes.Row — admin / TestDashboard loads. */
+export const LIKE_ROW_SELECT = 'id, liker_id, liked_id, status, heart_type, created_at';
+
+/** chats.Row — admin / TestDashboard loads. */
+export const CHAT_ROW_SELECT = 'id, user1_id, user2_id, created_at';
+
+/** session_history.Row — admin core load + wipe backup. */
+export const SESSION_HISTORY_ROW_SELECT = 'id, ended_at, created_at';
+
+/** notifications.Row — admin notify tab + wipe backup. */
+export const NOTIFICATION_ROW_SELECT = 'id, message, type, target, is_active, created_at';
+
+/**
+ * Admin app_settings load — includes secret columns + overlay `_set` flags + qr_base_url.
+ * (Participant clients must not use this list.)
+ */
+export const APP_SETTINGS_ADMIN_SELECT =
+  'id, session_active, admin_phone, admin_password, entry_password, reset_password, test_password, updated_at, timer_end_at, timer_label, functions_locked, active_tables, reset_signal, table_labels, qr_base_url, admin_password_set, test_password_set, reset_password_set';

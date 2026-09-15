@@ -9,6 +9,11 @@ import {
 } from 'lucide-react';
 import { genAvatar, getAvatarSrc } from './lib/profile';
 import { buildDummyProfileInsert } from './lib/dummy-persona';
+import {
+  PROFILE_ROW_SELECT,
+  LIKE_ROW_SELECT,
+  CHAT_ROW_SELECT,
+} from './lib/profile-select';
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
 type Like = Database['public']['Tables']['likes']['Row'];
@@ -104,9 +109,9 @@ export default function TestDashboard() {
 
   const load = useCallback(async () => {
     const [p, l, c, settings] = await Promise.all([
-      supabase.from('profiles').select('*').order('created_at', { ascending: false }),
-      supabase.from('likes').select('*').order('created_at', { ascending: false }),
-      supabase.from('chats').select('*').order('created_at', { ascending: false }),
+      supabase.from('profiles').select(PROFILE_ROW_SELECT).order('created_at', { ascending: false }),
+      supabase.from('likes').select(LIKE_ROW_SELECT).order('created_at', { ascending: false }),
+      supabase.from('chats').select(CHAT_ROW_SELECT).order('created_at', { ascending: false }),
       supabase.from('app_settings').select('session_active, reset_signal').eq('id', 1).single(),
     ]);
     if (p.data) setProfiles(p.data);

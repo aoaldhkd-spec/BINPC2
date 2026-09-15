@@ -106,6 +106,20 @@ describe('longevity recurrence guards (server)', () => {
     expect(opReq).toContain('normalizeOpFilters');
   });
 
+  it('admin identity + wipe-plan stay extracted from db.ts', () => {
+    expect(dbTs).toContain("from '../lib/db-admin-identity'");
+    expect(dbTs).toContain("from '../lib/db-admin-wipe-plan'");
+    expect(dbTs).toContain('planClearAdminNpcRelationships');
+    expect(dbTs).toContain('ADMIN_FIXED_NICKNAME');
+    expect(dbTs).not.toMatch(/const ADMIN_FIXED_NICKNAME = /);
+    expect(dbTs).not.toMatch(/function birthMdWouldChangeRow\(/);
+    const ident = readFileSync(join(here, '../lib/db-admin-identity.ts'), 'utf8');
+    const wipe = readFileSync(join(here, '../lib/db-admin-wipe-plan.ts'), 'utf8');
+    expect(ident).toContain('ADMIN_FIXED_NICKNAME');
+    expect(ident).toContain('withFixedAdminNickname');
+    expect(wipe).toContain('planClearAdminNpcRelationships');
+  });
+
   it('persist-before-broadcast and legacy seating/heart_drain stay out of active op tables', () => {
     expect(dbTs).toContain("from '../lib/db-table-policy'");
     expect(dbTs).toContain('ALLOWED_OP_TABLES');

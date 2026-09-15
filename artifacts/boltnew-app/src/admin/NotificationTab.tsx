@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Trash2, X, ChevronDown, Send, CheckCircle, BellRing, Timer, RefreshCw } from 'lucide-react';
 import { adminSupabase, type AppSettings } from './shared';
+import { NOTIFICATION_ROW_SELECT } from '../lib/profile-select';
 
 // ─── Notification Tab ─────────────────────────────────────────────────────────
 
@@ -55,7 +56,7 @@ export function NotificationTab({ tableCount, settings, onSetTimer }: {
   };
 
   const load = async () => {
-    const { data } = await adminSupabase.from('notifications').select('*').order('created_at', { ascending: false }).limit(30);
+    const { data } = await adminSupabase.from('notifications').select(NOTIFICATION_ROW_SELECT).order('created_at', { ascending: false }).limit(30);
     if (data) setNotifications(data as Notification[]);
   };
   useEffect(() => { load(); }, []);

@@ -81,6 +81,20 @@ import {
   validateOpScalars,
 } from '../lib/db-op-request';
 import {
+  ADMIN_FIXED_NICKNAME,
+  BIRTH_MD_EDIT_MAX,
+  adminPhoneDigitsFromSettings,
+  birthMdWouldChangeRow,
+  findAdminProfileInRows,
+  isAdminProfilePhone as isAdminProfilePhonePure,
+  isAdminProfileRow as isAdminProfileRowPure,
+  withFixedAdminNickname as withFixedAdminNicknamePure,
+} from '../lib/db-admin-identity';
+import {
+  likeRateKeyTouchesAdmin,
+  planClearAdminNpcRelationships,
+} from '../lib/db-admin-wipe-plan';
+import {
   LEGACY_APP_SETTINGS_KEYS,
   LEGACY_KV_TABLES,
   settingsHaveLegacyKeys,
@@ -107,76 +121,54 @@ declare module 'express-session' {
 
 const router = Router();
 
-/** Admin participant nickname is always fixed after reset / bootstrap. */
-const ADMIN_FIXED_NICKNAME = '범일NPC';
-/** 생월·생일 변경 최대 횟수 — FE `lib/birth-md-edit.ts` BIRTH_MD_EDIT_MAX 와 동기화 */
-const BIRTH_MD_EDIT_MAX = 2;
-
-function birthMdWouldChangeRow(row: Record<string, unknown>, patch: Record<string, unknown>): boolean {
-  const nextMonth = 'birth_month' in patch ? patch.birth_month : row.birth_month;
-  const nextDay = 'birth_day' in patch ? patch.birth_day : row.birth_day;
-  return Number(nextMonth ?? 0) !== Number(row.birth_month ?? 0)
-    || Number(nextDay ?? 0) !== Number(row.birth_day ?? 0);
-}
-
-function normalizePhoneDigits(value: unknown): string {
-  return String(value ?? '').replace(/[^0-9]/g, '');
-}
-
+/** Admin identity: ../lib/db-admin-identity.ts (re-import; store wrappers below). */
 function adminPhoneFromSettings(settings?: Record<string, unknown> | null): string {
-  const row = settings ?? (getTable('app_settings')[0] as Record<string, unknown> | undefined);
-  return normalizePhoneDigits(row?.['admin_phone']);
+  return adminPhoneDigitsFromSettings(
+    settings ?? (getTable('app_settings')[0] as Record<string, unknown> | undefined),
+  );
 }
 
 function isAdminProfilePhone(phone: unknown, adminPhoneDigits?: string): boolean {
-  const admin = adminPhoneDigits ?? adminPhoneFromSettings();
-  const phoneDigits = normalizePhoneDigits(phone);
-  return Boolean(admin && phoneDigits && admin === phoneDigits);
+  return isAdminProfilePhonePure(phone, adminPhoneDigits ?? adminPhoneFromSettings());
 }
 
 function isAdminProfileRow(row: Record<string, unknown>, adminPhoneDigits?: string): boolean {
-  return isAdminProfilePhone(row['phone_number'], adminPhoneDigits)
-    || String(row['nickname'] ?? '') === ADMIN_FIXED_NICKNAME;
+  return isAdminProfileRowPure(row, adminPhoneDigits ?? adminPhoneFromSettings());
 }
 
-/** Force admin phone profiles to the fixed nickname; preserve other fields. */
 function withFixedAdminNickname(
   row: Record<string, unknown>,
   adminPhoneDigits?: string,
 ): Record<string, unknown> {
-  if (!isAdminProfilePhone(row['phone_number'], adminPhoneDigits)) return row;
-  if (String(row['nickname'] ?? '') === ADMIN_FIXED_NICKNAME) return row;
-  return { ...row, nickname: ADMIN_FIXED_NICKNAME };
+  return withFixedAdminNicknamePure(row, adminPhoneDigits ?? adminPhoneFromSettings());
 }
 
 function findAdminProfileRow(adminPhoneDigits?: string): Record<string, unknown> | undefined {
   const digits = adminPhoneDigits ?? adminPhoneFromSettings();
-  const profiles = getTable('profiles');
-  return profiles.find(p => isAdminProfilePhone(p['phone_number'], digits))
-    ?? profiles.find(p => String(p['nickname'] ?? '') === ADMIN_FIXED_NICKNAME);
+  return findAdminProfileInRows(getTable('profiles'), digits);
 }
 
 /** 범일NPC와의 하트·1:1 채팅·연락처 공유만 제거 (다른 유저 관계는 유지). */
 async function clearAdminNpcRelationships(adminId: string): Promise<void> {
-  const aid = String(adminId);
-  if (!aid) return;
-
-  const chatRows = (getTable('chats') ?? []).filter(
-    c => String(c.user1_id) === aid || String(c.user2_id) === aid,
-  );
-  const chatIds = new Set(chatRows.map(c => String(c.id)));
-
-  const msgRows = (getTable('messages') ?? []).filter(m => chatIds.has(String(m.chat_id)));
-  const readRows = (getTable('chat_reads') ?? []).filter(r => chatIds.has(String(r.chat_id)));
-  const likeRows = (getTable('likes') ?? []).filter(
-    l => String(l.liker_id) === aid || String(l.liked_id) === aid,
-  );
-  const shareRows = (getTable('contact_shares') ?? []).filter(
-    s => String(s.liker_id) === aid || String(s.liked_id) === aid,
-  );
-  const shareEventRows = (getTable('contact_share_events') ?? []).filter(
-    e => String(e.from_user_id) === aid || String(e.to_user_id) === aid,
-  );
+  const plan = planClearAdminNpcRelationships(String(adminId), {
+    chats: getTable('chats') ?? [],
+    messages: getTable('messages') ?? [],
+    chat_reads: getTable('chat_reads') ?? [],
+    likes: getTable('likes') ?? [],
+    contact_shares: getTable('contact_shares') ?? [],
+    contact_share_events: getTable('contact_share_events') ?? [],
+  });
+  if (!plan) return;
+  const {
+    adminId: aid,
+    chatIds,
+    chatRows,
+    msgRows,
+    readRows,
+    likeRows,
+    shareRows,
+    shareEventRows,
+  } = plan;
 
   if (msgRows.length) {
     store['messages'] = (getTable('messages') ?? []).filter(m => !chatIds.has(String(m.chat_id)));
@@ -191,7 +183,7 @@ async function clearAdminNpcRelationships(adminId: string): Promise<void> {
       l => String(l.liker_id) !== aid && String(l.liked_id) !== aid,
     );
     for (const key of [..._likesLastInsert.keys()]) {
-      if (key.startsWith(`${aid}:`) || key.includes(`:${aid}:`)) _likesLastInsert.delete(key);
+      if (likeRateKeyTouchesAdmin(key, aid)) _likesLastInsert.delete(key);
     }
   }
   if (shareRows.length) {

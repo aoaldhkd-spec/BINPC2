@@ -20,6 +20,12 @@ import {
   adminSettingsSubTabFromUrl, initialAdminSettingsSubTab, syncAdminSettingsSubTabUrl,
 } from './admin/admin-login';
 import { NotificationTab } from './admin/NotificationTab';
+import {
+  PROFILE_ROW_SELECT,
+  SESSION_HISTORY_ROW_SELECT,
+  NOTIFICATION_ROW_SELECT,
+  APP_SETTINGS_ADMIN_SELECT,
+} from './lib/profile-select';
 import { DashboardTab } from './admin/DashboardTab';
 import { ADMIN_FIXED_NICKNAME } from './lib/panel-password';
 import { NPC_TEXT_AVATAR_SENTINEL } from './lib/profile';
@@ -119,9 +125,9 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
   const loadCore = useCallback(async () => {
     const [{ data: s }, { data: pr }, { data: hi }] = await Promise.all([
-      adminSupabase.from('app_settings').select('*').eq('id', 1).single(),
-      adminSupabase.from('profiles').select('*').order('created_at', { ascending: false }),
-      adminSupabase.from('session_history').select('*').order('ended_at', { ascending: false }),
+      adminSupabase.from('app_settings').select(APP_SETTINGS_ADMIN_SELECT).eq('id', 1).single(),
+      adminSupabase.from('profiles').select(PROFILE_ROW_SELECT).order('created_at', { ascending: false }),
+      adminSupabase.from('session_history').select(SESSION_HISTORY_ROW_SELECT).order('ended_at', { ascending: false }),
     ]);
     if (s) setSettings(s);
     if (pr) setProfiles(pr);
@@ -425,7 +431,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     const backupHistories = [...histories];
     // 백업 데이터 수집 — 실패해도 초기화 진행
     const [notifRes] = await Promise.allSettled([
-      adminSupabase.from('notifications').select('*'),
+      adminSupabase.from('notifications').select(NOTIFICATION_ROW_SELECT),
     ]);
     const safeData = (r: PromiseSettledResult<{ data: unknown[] | null }>) =>
       r.status === 'fulfilled' ? (r.value as { data: unknown[] | null }).data : null;
