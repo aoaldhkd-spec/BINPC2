@@ -258,29 +258,24 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
           </button>
         )}
 
-        {/* 6단계 진행 표시 */}
-        <div className="flex items-center gap-0">
+        {/* 6단계 진행 표시 — 6개 동일 열 */}
+        <div className="grid grid-cols-6 gap-1" aria-label="설정 진행 단계">
           {STEP_LABELS.map((label, i) => {
             const idx = (i + 1) as Step;
             const done = idx < step;
             const active = idx === step;
             return (
-              <div key={idx} className="flex items-center flex-1 last:flex-none">
-                <div className="flex flex-col items-center gap-0.5">
-                  <div className={`flex items-center justify-center rounded-full font-black transition-all ${
-                    done ? 'w-6 h-6 bg-white text-cyan-600 text-xs' :
-                    active ? 'w-7 h-7 bg-white text-cyan-600 text-sm shadow-lg ring-2 ring-white/40' :
-                    'w-5 h-5 bg-white/25 text-white text-[10px]'
-                  }`}>
-                    {done ? '✓' : idx}
-                  </div>
-                  <span className={`text-[9px] font-bold leading-none whitespace-nowrap transition-all ${
-                    active ? 'text-white' : done ? 'text-white/80' : 'text-white/40'
-                  }`}>{label}</span>
+              <div key={idx} className="min-w-0 flex flex-col items-center gap-1 text-center">
+                <div className={`flex h-7 w-7 items-center justify-center rounded-full font-black transition-all ${
+                  done ? 'bg-white text-cyan-600 text-xs' :
+                  active ? 'bg-white text-cyan-600 text-xs ring-2 ring-white/50 shadow-lg' :
+                  'bg-white/25 text-white text-xs'
+                }`}>
+                  {done ? '✓' : idx}
                 </div>
-                {i < 5 && (
-                  <div className={`flex-1 h-0.5 rounded-full mx-1 mb-3 transition-all ${done ? 'bg-white/80' : 'bg-white/25'}`} />
-                )}
+                <span className={`w-full truncate text-[9px] font-bold leading-none transition-all ${
+                  active ? 'text-white' : done ? 'text-white/80' : 'text-white/40'
+                }`}>{label}</span>
               </div>
             );
           })}

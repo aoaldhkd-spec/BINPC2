@@ -43,9 +43,9 @@ export function InterestPicker({
   const renderCategory = (cat: (typeof BIO_CATEGORIES)[number]) => {
     const count = cat.tags.filter((tag) => selected.includes(tag)).length;
     return (
-      <div key={cat.label} className={`rounded-lg border px-2.5 py-2 ${darkMode ? 'border-slate-700/70 bg-slate-800/35' : `${cat.color.border} bg-white`}`}>
-        <div className="flex items-center justify-between gap-1 mb-1.5">
-          <p className={`text-xs font-black tracking-tight ${darkMode ? 'text-slate-200' : cat.color.label}`}>
+      <div key={cat.label} className={`px-1 pb-2 ${darkMode ? 'border-slate-700' : 'border-gray-100'} border-b last:border-b-0`}>
+        <div className="flex items-center justify-between gap-1 mb-1">
+          <p className={`text-[13px] font-black tracking-tight ${darkMode ? 'text-slate-200' : cat.color.label}`}>
             {CAT_EMOJI[cat.label] ?? ''} {cat.label}
           </p>
           {count > 0 && <span className={`text-[11px] font-bold tabular-nums ${darkMode ? 'text-cyan-400' : 'text-teal-600'}`}>{count}개</span>}
@@ -88,12 +88,12 @@ export function InterestPicker({
         </div>
       )}
 
-      <div className={`flex flex-wrap gap-1.5 border-b pb-2 ${darkMode ? 'border-slate-700' : 'border-gray-200'}`} aria-label="관심사 대분류 선택">
+      <div className={`grid grid-cols-2 gap-1 rounded-xl p-1 ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-gray-100 border border-gray-200'}`} aria-label="관심사 대분류 선택">
         {BIO_CATEGORY_GROUPS.map((group) => {
           const active = group.label === activeGroup.label;
           const count = group.categories.flatMap((label) => BIO_CATEGORIES.find((cat) => cat.label === label)?.tags ?? []).filter((tag) => selected.includes(tag)).length;
           return (
-            <button key={group.label} type="button" aria-pressed={active} onClick={() => selectGroup(group.label)} className={`inline-flex items-center gap-1 min-h-[40px] rounded-lg px-3 py-2 text-[13px] font-black border transition-all ${active ? 'bg-cyan-500 text-white border-cyan-500 shadow-sm' : darkMode ? 'bg-slate-800 border-slate-600 text-slate-300' : 'bg-white border-gray-200 text-gray-600 hover:border-cyan-300'}`}>
+            <button key={group.label} type="button" aria-pressed={active} onClick={() => selectGroup(group.label)} className={`flex min-h-[44px] items-center justify-center gap-1 rounded-lg px-2 py-2 text-[13px] font-black transition-all ${active ? 'bg-cyan-500 text-white shadow-sm' : darkMode ? 'text-slate-300 hover:bg-slate-700' : 'text-gray-600 hover:bg-white'}`}>
               {GROUP_EMOJI[group.label] ?? ''} {group.label}{count > 0 && <span className="rounded-full bg-white/25 px-1 text-[9px]">{count}</span>}
             </button>
           );
@@ -102,8 +102,8 @@ export function InterestPicker({
 
       <div className={`rounded-xl border overflow-hidden ${darkMode ? 'border-slate-700 bg-slate-800/35' : 'border-gray-200 bg-white'}`}>
         <div className={`flex items-center justify-between px-3 py-2 ${darkMode ? 'bg-slate-800/70' : 'bg-gray-50'}`}>
-          <span className="text-sm font-black text-cyan-700">{GROUP_EMOJI[activeGroup.label] ?? ''} {activeGroup.label}</span>
-          <span className={`text-xs font-bold ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>대분류 선택 · 소분류 태그</span>
+          <span className="text-sm font-black text-gray-800">{GROUP_EMOJI[activeGroup.label] ?? ''} {activeGroup.label}</span>
+          <span className={`text-[10px] font-semibold ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>{selected.length}/{max}</span>
         </div>
         <div className="space-y-1 p-2">
           {activeGroup.categories.map((label) => {
