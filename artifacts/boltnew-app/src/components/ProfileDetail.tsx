@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, type SyntheticEvent } from 'react';
 import { ArrowLeft, Heart, MessageCircle, MapPin } from 'lucide-react';
-import { getPositionLabel, getDomSubLabel, getKoreanAge, genAvatar, getAvatarSrc, hasProfileFortuneCompatData, hasUploadedPhoto } from '../lib/profile';
+import { getPositionLabel, getKoreanAge, genAvatar, getAvatarSrc, hasProfileFortuneCompatData, hasUploadedPhoto } from '../lib/profile';
 import { parseIdealTags } from '../lib/signal-match';
 import { parseProfileInterests, getInterestTagStyle } from '../lib/interests';
 import { HEART_TYPES, HeartType } from '../lib/constants';
@@ -107,7 +107,6 @@ function ProfileDetail({ profile, isMe, isLiked, heartType, sentHeartsCount, loc
   const feature = signalMsgParts(featureMsg);
   const interests = parseProfileInterests(profile);
   const showPersonality = !profile.hide_personality || isMe;
-  const showDomSub = showPersonality && profile.dom_sub_score !== null;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -152,11 +151,6 @@ function ProfileDetail({ profile, isMe, isLiked, heartType, sentHeartsCount, loc
               {showPersonality && (
                 <span className="px-2.5 py-0.5 bg-white/20 backdrop-blur-sm text-white text-xs font-bold rounded-full border border-white/30">
                   {getPositionLabel(profile.personality_score ?? 50)}
-                </span>
-              )}
-              {showDomSub && (
-                <span className="px-2.5 py-0.5 bg-white/20 backdrop-blur-sm text-white text-xs font-bold rounded-full border border-white/30">
-                  {getDomSubLabel(profile.dom_sub_score)}
                 </span>
               )}
             </div>

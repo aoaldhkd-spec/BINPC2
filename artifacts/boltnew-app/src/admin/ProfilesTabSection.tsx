@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Trash2, Users, X, Search } from 'lucide-react';
-import { getPositionLabel, getDomSubLabel, getKoreanAge } from '../lib/profile';
+import { getPositionLabel, getKoreanAge } from '../lib/profile';
 import type { Profile, AppSettings } from './shared';
 import { adminAvatarSrc } from './shared';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -67,7 +67,6 @@ export function ProfilesTabSection({ profiles, settings: _settings, onClear, onD
       <div className="space-y-2.5">
         {filtered.map((p) => {
           const posLabel = getPositionLabel(p.personality_score ?? 50);
-          const domLabel = p.dom_sub_score !== null ? getDomSubLabel(p.dom_sub_score) : null;
           const age = p.birth_year ? getKoreanAge(p.birth_year) : null;
           const bioTags = (p.bio ?? '').split(',').map(t => t.trim()).filter(Boolean).slice(0, 3);
           return (
@@ -95,7 +94,6 @@ export function ProfilesTabSection({ profiles, settings: _settings, onClear, onD
                 <div className="flex items-center gap-1 flex-wrap">
                   <span className="text-[9px] font-bold bg-cyan-50 text-cyan-700 border border-cyan-100 px-1.5 py-0.5 rounded-full">{posLabel}</span>
                   {p.mbti && <span className="text-[9px] font-bold bg-indigo-50 text-indigo-600 border border-indigo-100 px-1.5 py-0.5 rounded-full">{p.mbti}</span>}
-                  {domLabel && <span className="text-[9px] font-bold bg-rose-50 text-rose-600 border border-rose-100 px-1.5 py-0.5 rounded-full">{domLabel}</span>}
                   {age && <span className="text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-100 px-1.5 py-0.5 rounded-full">{age}</span>}
                   {p.location && <span className="text-[9px] font-bold bg-green-50 text-green-700 border border-green-100 px-1.5 py-0.5 rounded-full">{p.location}</span>}
                   {bioTags.map(tag => (

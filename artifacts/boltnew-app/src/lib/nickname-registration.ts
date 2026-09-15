@@ -11,7 +11,6 @@ export type NicknameSetupInput = {
   mbti: string;
   interests: string[];
   personalityScore: number;
-  domSubScore: number | null;
   nickname: string;
   kakaoId: string;
   instagramId: string;
@@ -35,7 +34,6 @@ export function buildRegistrationProfileInsert(
     bio: data.interests.join(', '),
     // photo_url: server assigns a unique preset avatar on INSERT (avatar-pool.ts)
     personality_score: data.personalityScore,
-    dom_sub_score: data.domSubScore,
     mbti: data.mbti,
     birth_year: data.birthYear,
     birth_month: data.birthMonth,

@@ -46,16 +46,6 @@ export const MBTI_COLORS: Record<string, string> = {
   'ESTP': 'bg-sky-100 text-sky-700 border-sky-200',          'ESFP': 'bg-sky-100 text-sky-700 border-sky-200',
 };
 
-/** Badge label + Tailwind color classes for dom/sub score */
-export const domSubLabel = (score: number | null): { label: string; color: string } | null => {
-  if (score === null || score === undefined) return null;
-  if (score <= 2)  return { label: 'Dominant',  color: 'bg-rose-100 text-rose-700 border-rose-200' };
-  if (score <= 4)  return { label: 'Dom 선호',   color: 'bg-rose-50 text-rose-600 border-rose-100' };
-  if (score <= 6)  return { label: 'Switch',     color: 'bg-gray-100 text-gray-600 border-gray-200' };
-  if (score <= 8)  return { label: 'Sub 선호',   color: 'bg-sky-50 text-sky-600 border-sky-100' };
-  return             { label: 'Submissive',       color: 'bg-sky-100 text-sky-700 border-sky-200' };
-};
-
 // ── MBTI 배지 색상 ─────────────────────────────────────────────────────────────
 /** NT/NF/SJ/SP — 2번째는 N/S, 3번째는 T/F, 4번째는 J/P. SJ를 T/F로 보면 ISTJ가 SP로 잘못 칠해짐. */
 export function getMbtiStyle(mbti: string | null): { bg: string; color: string; border: string } {

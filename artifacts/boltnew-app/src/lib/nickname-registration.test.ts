@@ -14,7 +14,6 @@ describe('nickname-registration planners', () => {
     mbti: 'INFP',
     interests: ['음악', '영화'],
     personalityScore: 50,
-    domSubScore: null,
     nickname: '테스트',
     kakaoId: 'k',
     instagramId: '',

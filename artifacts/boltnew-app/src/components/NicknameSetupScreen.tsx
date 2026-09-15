@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { ArrowLeft, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { getPositionBg, getDomSubBg } from '../lib/profile';
+import { getPositionBg } from '../lib/profile';
 import { containsBannedNicknameWord } from '../lib/bannedWords';
 import {
   clampNicknameInput,
@@ -27,14 +27,6 @@ const POSITION_OPTIONS: { label: string; val: number }[] = [
   { label: '올', val: 50 },
   { label: '올탑', val: 70 },
   { label: '퓨어탑', val: 100 },
-];
-
-const DOM_SUB_OPTIONS: { label: string; val: number }[] = [
-  { label: '완전섭', val: 0 },
-  { label: '섭', val: 25 },
-  { label: '스위치', val: 50 },
-  { label: '돔', val: 75 },
-  { label: '완전돔', val: 100 },
 ];
 
 const MBTI_GROUPS = [
@@ -72,9 +64,9 @@ function buildDecadeGroups(now: Date = new Date()): Record<string, number[]> {
   const maxYear = maxAdultBirthYear(now);
   const minYear = minBirthYearForEventMaxAge(now);
   const inRange = (y: number) => y >= minYear && y <= maxYear;
-  // 80년대 선택지는 00년대 탭 안에서 89·88·87년생만 제공한다.
-  // 행사 상한(minYear)과 무관하게 이 세 연도는 명시적으로 허용한다.
-  const relocated80s = [1989, 1988, 1987].filter(y => y <= maxYear);
+  // 80년대 선택지는 00년대 탭 안에서 89·88이하 버킷만 제공한다.
+  // 행사 상한(minYear)과 무관하게 이 두 연도는 명시적으로 허용한다.
+  const relocated80s = [1989, 1988].filter(y => y <= maxYear);
   const groups: Record<string, number[]> = {
     '90년대': Array.from({ length: 10 }, (_, i) => 1990 + i).filter(inRange),
     '00년대': [...relocated80s, ...Array.from({ length: 10 }, (_, i) => 2000 + i).filter(inRange)],
@@ -107,7 +99,7 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
   onSubmit: (data: {
     birthYear: number; birthMonth: number | null; birthDay: number | null;
     location: string; mbti: string; interests: string[];
-    personalityScore: number; domSubScore: number | null; nickname: string;
+    personalityScore: number; nickname: string;
     kakaoId: string; instagramId: string; phoneNumber: string; contactPrivate: boolean;
     idealMsg: string | null; featureMsg: string | null;
   }) => void;
@@ -141,8 +133,6 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
 
   // 성향
   const [positionScore, setPositionScore] = useState<number | null>(null);
-  const [domSubEnabled, setDomSubEnabled] = useState(false);
-  const [domSubScore, setDomSubScore] = useState(50);
 
   // 이상형·나는 어떤 사람인가요? (선택 — Step 6)
   const [idealTags, setIdealTags] = useState<string[]>([]);
@@ -231,7 +221,6 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
     mbti: mbti!,
     interests: selectedBio,
     personalityScore: positionScore!,
-    domSubScore: domSubEnabled ? domSubScore : null,
     nickname: customFinalNick,
     kakaoId,
     instagramId,
@@ -449,12 +438,12 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
                 <div className="grid grid-cols-5 gap-1.5">
                   {DECADE_GROUPS[decadeFilter].map(year => (
                     <button key={year} type="button" onClick={() => setBirthYear(String(year))}
-                      className={`py-2.5 rounded-xl text-xs font-bold border-2 transition-all active:scale-95 ${
+                      className={`py-2.5 rounded-xl text-xs font-bold border-2 transition-all active:scale-95 whitespace-nowrap ${
                         birthYear === String(year)
                           ? 'bg-cyan-500 border-cyan-500 text-white shadow-md'
                           : 'bg-white border-gray-200 text-gray-700 hover:border-cyan-300 hover:bg-cyan-50'
                       }`}>
-                      {String(year).slice(2)}년
+                      {year === 1989 ? '89' : year === 1988 ? '88이하' : `${String(year).slice(2)}년`}
                     </button>
                   ))}
                 </div>
@@ -565,50 +554,6 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
                     );
                   })}
                 </div>
-              </div>
-
-              {/* 돔/섭 */}
-              <div>
-                <div className="flex items-center justify-between mb-2.5">
-                  <div className="flex items-center gap-2">
-                    <span className="text-base">⚖️</span>
-                    <span className="text-sm font-black text-gray-800">성향 (돔/섭)</span>
-                    <span className="text-xs font-semibold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">선택</span>
-                  </div>
-                  <button type="button" onClick={() => setDomSubEnabled(!domSubEnabled)}
-                    className={`relative w-11 h-6 rounded-full transition-all ${domSubEnabled ? 'bg-cyan-500' : 'bg-gray-200'}`}>
-                    <div className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${domSubEnabled ? 'translate-x-5' : ''}`} />
-                  </button>
-                </div>
-                {!domSubEnabled ? (
-                  <div className="flex items-center gap-2.5 px-4 py-3 bg-gray-50 rounded-2xl border-2 border-gray-200">
-                    <div className="w-3 h-3 rounded-full bg-gray-400" />
-                    <span className="text-gray-500 text-sm font-semibold">일반 / 보통</span>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 gap-1.5">
-                    {DOM_SUB_OPTIONS.map(({ label, val }) => {
-                      const selected = domSubScore === val;
-                      const bg = getDomSubBg(val);
-                      return (
-                        <button key={val} type="button" onClick={() => setDomSubScore(val)}
-                          className={`flex items-center gap-3 px-4 py-2.5 rounded-2xl border-2 transition-all text-left active:scale-95 ${
-                            selected ? 'border-transparent shadow-md' : 'border-gray-200 bg-white hover:border-gray-300'
-                          }`}
-                          style={selected ? { background: bg, borderColor: bg } : {}}>
-                          <div className={`w-4 h-4 rounded-md flex items-center justify-center flex-shrink-0 border-2 ${selected ? 'bg-white border-white' : 'border-gray-300'}`}>
-                            {selected && (
-                              <svg className="w-2.5 h-2.5" viewBox="0 0 12 12" fill="none">
-                                <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: bg }} />
-                              </svg>
-                            )}
-                          </div>
-                          <span className={`font-semibold text-sm ${selected ? 'text-white' : 'text-gray-700'}`}>{label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
               </div>
 
               {registrationError && (

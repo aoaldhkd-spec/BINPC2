@@ -35,7 +35,14 @@ export function SignalTagPicker({
   const pal = ACCENT[accent];
 
   return (
-    <div className="space-y-2.5">
+    <div className="rounded-xl border border-gray-200/70 bg-gray-50/50 p-2.5 space-y-2.5 dark:border-slate-700/70 dark:bg-slate-900/20">
+      <div className="flex items-center gap-2 px-1">
+        <span className={`text-[10px] font-black tracking-wide ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>소분류</span>
+        <span className={`min-w-0 truncate text-[10px] font-semibold ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>
+          {groups.map((group) => group.label).join(' · ')}
+        </span>
+      </div>
+      <div className="space-y-2.5">
       {groups.map((group) => {
         const picked = group.tags.filter((t) => selected.includes(t)).length;
         const dense = group.tags.length > 4;
@@ -81,6 +88,7 @@ export function SignalTagPicker({
           </div>
         );
       })}
+      </div>
     </div>
   );
 }

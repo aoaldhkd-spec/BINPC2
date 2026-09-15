@@ -24,7 +24,15 @@ const STATS_INTEREST_ALIASES: Record<string, string> = {
 };
 
 const MBTI_SET = new Set<string>(MBTI_LIST);
-const CANONICAL_INTERESTS = new Set<string>(ALL_BIO_TAGS);
+// Picker에서 퇴출한 태그도 기존 저장 프로필의 통계·표시 호환성을 위해 읽기만 허용한다.
+const LEGACY_SAVED_INTEREST_TAGS = [
+  '필라테스/요가', '테니스', '낚시', '서핑', '복싱', '볼링', '자전거',
+  '디저트', '와인', '위스키', '브런치',
+  '캠핑', '인테리어', '독서', '원예/식물', '명상/요가',
+  '영화/드라마', '라이브방송', '팝/힙합', '재즈/클래식',
+  '독서모임', '소모임', '봉사활동', '맥주축제', '페스티벌',
+] as const;
+const CANONICAL_INTERESTS = new Set<string>([...ALL_BIO_TAGS, ...LEGACY_SAVED_INTEREST_TAGS]);
 
 function emptyHeartCounts(): HeartCounts {
   return { red: 0, blue: 0, pink: 0, green: 0 };

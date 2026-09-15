@@ -252,7 +252,6 @@ export default function FortuneTab({
   const tMonth = targetMode === 'profile' ? (targetProfile?.birth_month ?? 0) : manualMonth;
   const tDay   = targetMode === 'profile' ? (targetProfile?.birth_day   ?? 0) : manualDay;
   const tMbti = targetMode === 'profile' ? (targetProfile?.mbti ?? '') : '';
-  const tDomScore = targetMode === 'profile' ? (targetProfile?.dom_sub_score ?? null) : null;
   const hasTarget = targetHasBd && tYear > 0;
 
   const compat = useMemo(() => {
@@ -278,8 +277,8 @@ export default function FortuneTab({
 
   const bedC = useMemo(() => {
     if (!hasBirthday || !hasTarget) return null;
-    return getBedCompat(myBirthYear, myBirthMonth, myBirthDay, tYear, tMonth, tDay, myProfile?.dom_sub_score, tDomScore);
-  }, [hasBirthday, hasTarget, myBirthYear, myBirthMonth, myBirthDay, tYear, tMonth, tDay, tDomScore, myProfile?.dom_sub_score]);
+    return getBedCompat(myBirthYear, myBirthMonth, myBirthDay, tYear, tMonth, tDay);
+  }, [hasBirthday, hasTarget, myBirthYear, myBirthMonth, myBirthDay, tYear, tMonth, tDay]);
 
   // 렌더마다 반복 filter 방지 (차단·숨김·본인 제외 — Signal/참여자 탭과 동일)
   const heartedProfiles = useMemo(

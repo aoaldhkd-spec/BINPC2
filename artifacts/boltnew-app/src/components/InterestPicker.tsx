@@ -1,4 +1,4 @@
-import { BIO_CATEGORIES, getInterestTagStyle } from '../lib/interests';
+import { BIO_CATEGORIES, BIO_CATEGORY_GROUPS, getInterestTagStyle } from '../lib/interests';
 
 const CAT_EMOJI: Record<string, string> = {
   '뜨밤 & 기타': '🔥',
@@ -28,6 +28,33 @@ export function InterestPicker({
   const activeCat = BIO_CATEGORIES.find((c) => c.label === filter) ?? BIO_CATEGORIES[0];
   const activeSelected = activeCat.tags.filter((t) => selected.includes(t)).length;
 
+  const renderCategoryButton = (cat: (typeof BIO_CATEGORIES)[number]) => {
+    const active = filter === cat.label;
+    const count = cat.tags.filter((t) => selected.includes(t)).length;
+    return (
+      <button
+        key={cat.label}
+        type="button"
+        onClick={() => onFilter(cat.label)}
+        className={`relative inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-black border transition-all whitespace-nowrap min-h-[32px] ${
+          active
+            ? `${cat.color.selected} border-transparent shadow-sm`
+            : darkMode
+              ? `bg-slate-800 border-slate-600 ${cat.color.label}`
+              : `bg-white border-gray-200 ${cat.color.label}`
+        }`}
+      >
+        <span>{CAT_EMOJI[cat.label] ?? ''}</span>
+        {cat.label}
+        {count > 0 && (
+          <span className={`min-w-[16px] h-4 px-1 rounded-full text-[9px] font-black leading-4 text-center ${
+            active ? 'bg-white/25 text-white' : 'bg-cyan-500 text-white'
+          }`}>{count}</span>
+        )}
+      </button>
+    );
+  };
+
   return (
     <div className="space-y-3">
       {selected.length > 0 && (
@@ -56,33 +83,18 @@ export function InterestPicker({
         </div>
       )}
 
-      <div className="flex flex-wrap gap-2">
-        {BIO_CATEGORIES.map((cat) => {
-          const active = filter === cat.label;
-          const count = cat.tags.filter((t) => selected.includes(t)).length;
-          return (
-            <button
-              key={cat.label}
-              type="button"
-              onClick={() => onFilter(cat.label)}
-              className={`relative inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-[11px] font-black border transition-all whitespace-nowrap min-h-[36px] ${
-                active
-                  ? `${cat.color.selected} border-transparent shadow-sm`
-                  : darkMode
-                    ? `bg-slate-800 border-slate-600 ${cat.color.label}`
-                    : `bg-white border-gray-200 ${cat.color.label}`
-              }`}
-            >
-              <span>{CAT_EMOJI[cat.label] ?? ''}</span>
-              {cat.label}
-              {count > 0 && (
-                <span className={`min-w-[16px] h-4 px-1 rounded-full text-[9px] font-black leading-4 text-center ${
-                  active ? 'bg-white/25 text-white' : 'bg-cyan-500 text-white'
-                }`}>{count}</span>
-              )}
-            </button>
-          );
-        })}
+      <div className="space-y-1.5">
+        {BIO_CATEGORY_GROUPS.map((group) => (
+          <div key={group.label} className={`rounded-xl px-2 py-1.5 ${darkMode ? 'bg-slate-800/50' : 'bg-gray-50/80'}`}>
+            <p className={`mb-1 text-[9px] font-black tracking-wide ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>{group.label}</p>
+            <div className="flex flex-wrap gap-1.5">
+              {group.categories.map((label) => {
+                const cat = BIO_CATEGORIES.find((item) => item.label === label);
+                return cat ? renderCategoryButton(cat) : null;
+              })}
+            </div>
+          </div>
+        ))}
       </div>
 
       <div className={`rounded-2xl border overflow-hidden ${

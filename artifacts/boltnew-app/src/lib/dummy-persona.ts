@@ -26,16 +26,16 @@ const DUMMY_LOCATIONS = [
 
 const DUMMY_BIOS = [
   '주말엔 등산이나 카페 투어 좋아해요',
-  '영화 보고 맛집 찾는 게 취미예요',
+  '공연 보고 맛집 찾는 게 취미예요',
   '운동하고 헬스장 자주 가요',
-  '여행·캠핑 좋아하는 편이에요',
-  '조용히 독서하거나 OTT 보는 타입',
+  '여행·사진찍기 좋아하는 편이에요',
+  '조용히 음악 듣거나 OTT 보는 타입',
   '사람 만나는 것도, 집콕도 좋아요',
 ] as const;
 
 const DUMMY_INTERESTS = [
-  '등산', '카페', '영화/드라마', '헬스', '여행', '독서', '운동', '맛집탐방',
-  '게임', '캠핑', '음악감상', '요리', '러닝', '보드게임',
+  '등산', '카페', '공연/전시', '헬스', '여행', '웹툰', '운동', '맛집탐방',
+  '게임', '드라이브', '음악감상', '요리', '러닝', '보드게임',
 ] as const;
 
 function pick<T>(arr: readonly T[]): T {
@@ -106,7 +106,6 @@ export function buildDummyProfileInsert(opts: {
   const nickname = reserveDummyNickname(taken, idx);
   const interestList = shuffle(DUMMY_INTERESTS).slice(0, 2 + (idx % 2));
   const personalityBands = [15, 35, 50, 65, 85, 95];
-  const domBands = [8, 25, 45, 55, 75, 92];
   return {
     id: opts.id,
     _device_secret: opts.deviceSecret,
@@ -115,7 +114,6 @@ export function buildDummyProfileInsert(opts: {
     interests: interestList.join(', '),
     mbti: MBTI_LIST[idx % MBTI_LIST.length],
     personality_score: pick(personalityBands),
-    dom_sub_score: pick(domBands),
     birth_year: randomDummyBirthYear(),
     birth_month: (idx % 12) + 1,
     birth_day: (idx % 28) + 1,

@@ -14,7 +14,7 @@ import { sumUnreadCounts } from '../lib/group-rooms';
 import { BIO_CATEGORIES, parseProfileInterests } from '../lib/interests';
 import { InterestPicker } from './InterestPicker';
 import { HeartType, HEART_TYPES, heartMeta } from '../lib/constants';
-import { getPositionLabel, getPositionBg, getDomSubLabel, getDomSubBg, genAvatar, getAvatarSrc, getAvatarGradientCssForProfile, AVATAR_PALETTE, isNpcTextAvatar, genNpcTextAvatar, NPC_TEXT_AVATAR_LABEL } from '../lib/profile';
+import { getPositionLabel, getPositionBg, genAvatar, getAvatarSrc, getAvatarGradientCssForProfile, AVATAR_PALETTE, isNpcTextAvatar, genNpcTextAvatar, NPC_TEXT_AVATAR_LABEL } from '../lib/profile';
 import { buildAvatarPickerTabs } from '../lib/avatar-picker-tabs';
 import { ADMIN_FIXED_NICKNAME } from '../lib/panel-password';
 import { containsBannedNicknameWord } from '../lib/bannedWords';
@@ -854,8 +854,6 @@ export function MainScreen({
               if (!me) return null;
               const posLabel = getPositionLabel(me.personality_score ?? 50);
               const posColor = getPositionBg(me.personality_score ?? 50);
-              const domLabel = getDomSubLabel(me.dom_sub_score ?? null);
-              const domColor = getDomSubBg(me.dom_sub_score ?? null);
               const bioTags = parseProfileInterests(me);
               return (
                 <div className={`rounded-3xl p-5 border shadow-xl transition-colors duration-300 ${darkMode ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600' : 'bg-white border-gray-100'}`}>
@@ -933,18 +931,6 @@ export function MainScreen({
                             boxShadow: darkMode ? `0 0 14px ${posColor}44` : 'none'
                           }}>
                             <span className="text-xs font-black text-white drop-shadow">{posLabel}</span>
-                          </div>
-                        </div>
-
-                        {/* 돔/섭 */}
-                        <div className="flex flex-col items-center gap-1">
-                          <span className={`text-[10px] font-black tracking-wide ${darkMode ? 'text-white' : 'text-gray-800'}`}>돔/섭</span>
-                          <div className="w-16 h-14 rounded-2xl flex items-center justify-center" style={{
-                            background: `linear-gradient(135deg,${domColor}cc,${domColor}88)`,
-                            border: `1.5px solid ${domColor}`,
-                            boxShadow: darkMode ? `0 0 14px ${domColor}44` : 'none'
-                          }}>
-                            <span className="text-xs font-black text-white drop-shadow">{domLabel}</span>
                           </div>
                         </div>
 

@@ -1,13 +1,12 @@
 import React from 'react';
 import type { Profile } from '../types/app';
-import { MBTI_COLORS, domSubLabel } from '../lib/utils';
+import { MBTI_COLORS } from '../lib/utils';
 import { getPositionLabel, getPositionStyle, getKoreanAge } from '../lib/profile';
 import { getZodiac } from '../lib/fortune';
 import { parseProfileInterests } from '../lib/interests';
 
 export function ProfileInfoBadges({ profile }: { profile: Profile }) {
   const age = getKoreanAge(profile.birth_year);
-  const ds = domSubLabel(profile.dom_sub_score ?? null);
   const interests = parseProfileInterests(profile).slice(0, 4);
 
   const posLabel = getPositionLabel(profile.personality_score ?? 50);
@@ -38,11 +37,6 @@ export function ProfileInfoBadges({ profile }: { profile: Profile }) {
       {!profile.hide_personality && profile.personality_score !== null && profile.personality_score !== undefined && (
         <span className="px-2 py-0.5 rounded-full text-[11px] font-bold border" style={{ backgroundColor: posStyle.bg, color: posStyle.text, borderColor: posStyle.border }}>
           {posLabel}
-        </span>
-      )}
-      {!profile.hide_personality && ds && (
-        <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold border ${ds.color}`}>
-          {ds.label}
         </span>
       )}
       {interests.map((it, i) => (

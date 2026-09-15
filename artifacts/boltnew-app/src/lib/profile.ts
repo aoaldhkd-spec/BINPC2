@@ -27,29 +27,6 @@ export function getPositionBg(score: number): string {
   return '#1d4ed8';
 }
 
-// ─── 돔/섭 ────────────────────────────────────────────────────────────────────
-export function getDomSubLabel(score: number | null): string {
-  if (score === null)  return '일반/보통';
-  if (score <= 10)     return '완전 섭';
-  if (score <= 30)     return '섭';
-  if (score <= 49)     return '섭에 가까운 스위치';
-  if (score <= 60)     return '스위치';
-  if (score <= 69)     return '돔에 가까운 스위치';
-  if (score <= 89)     return '돔';
-  return '완전 돔';
-}
-
-export function getDomSubBg(score: number | null): string {
-  if (score === null) return '#6b7280';
-  if (score <= 10)    return '#ec4899';
-  if (score <= 30)    return '#f472b6';
-  if (score <= 49)    return '#fb923c';
-  if (score <= 60)    return '#eab308';
-  if (score <= 69)    return '#60a5fa';
-  if (score <= 89)    return '#1d4ed8';
-  return '#1e3a8a';
-}
-
 // ─── 포지션 배지 스타일 (파스텔 — 가독성 개선) ───────────────────────────────
 export function getPositionStyle(score: number): { bg: string; text: string; border: string } {
   if (score < 0)   return { bg: '#f3f4f6', text: '#374151', border: '#d1d5db' };

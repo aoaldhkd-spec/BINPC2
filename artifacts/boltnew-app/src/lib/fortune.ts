@@ -314,7 +314,6 @@ const BED_CHEMISTRIES = [
 export function getBedCompat(
   year1: number, month1: number, day1: number,
   year2: number, month2: number, day2: number,
-  domScore1?: number | null, domScore2?: number | null,
 ): BedCompatResult {
   const o1 = getOhaeng(year1); const o2 = getOhaeng(year2);
   const sangsaeng = OHAENG_SANGSAENG.some(p => (p[0] === o1 && p[1] === o2) || (p[0] === o2 && p[1] === o1));
@@ -325,12 +324,6 @@ export function getBedCompat(
   if (sangsaeng) base = 82;
   else if (sanggeuk) base = 55;
   else if (o1 === o2) base = 72;
-
-  // 돔/섭 보정: 한 쪽이 돔 성향, 다른 쪽이 섭 성향이면 보너스
-  const d1 = domScore1 ?? 50; const d2 = domScore2 ?? 50;
-  const domDiff = Math.abs(d1 - d2);
-  if (domDiff > 40) base = Math.min(99, base + 12); // 역할이 뚜렷하면 케미 UP
-  else if (domDiff < 15) base = Math.max(30, base - 5); // 둘 다 비슷하면 갈등 가능
 
   // 날짜 기반 미세조정
   const adjust = (((day1 * month2 + day2 * month1) * 3) % 20) - 10;
