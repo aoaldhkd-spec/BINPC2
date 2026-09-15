@@ -25,7 +25,6 @@ import {
 } from '../lib/db-sanitize';
 import {
   chatPairKey,
-  deterministicChatId,
   deterministicSignalId,
 } from '../lib/db-chat-ids';
 import { collectBroadcastTargets as collectBroadcastTargetsImpl } from '../lib/db-broadcast-targets';
@@ -117,6 +116,38 @@ import {
   checkDeleteRowOwnership,
   deleteMissingRequesterReject,
 } from '../lib/db-op-delete-ownership';
+import {
+  chatReadsInsertNonParticipantReject,
+  groupChatsInsertReject,
+  groupMessagesInsertNonParticipantReject,
+  groupParticipantsMissingGroupReject,
+  messagesInsertBlockedReject,
+  messagesInsertNonParticipantReject,
+  planBlockedUsersInsertOwnership,
+  planChatReadsInsertOwnership,
+  planChatsInsertOwnership,
+  planContactShareEventsInsertOwnership,
+  planContactSharesInsertOwnership,
+  planGroupMessagesInsertOwnership,
+  planGroupParticipantsInsertOwnership,
+  planLikesInsertOwnership,
+  planMessagesInsertOwnership,
+  planNormalizeChatPairRow,
+  planProfileViewsInsertOwnership,
+  planSignalSendsInsertOwnership,
+  signalSendsInsertBlockedReject,
+} from '../lib/db-op-insert-ownership';
+import {
+  checkUpsertChatReadsReader,
+  checkUpsertConflictOwner,
+  chatReadsUpsertNonParticipantReject,
+  planChatReadsUpsertOwnership,
+  planUpsertRelationshipRow,
+  relationshipOwnerField,
+  signalSendsUpsertReject,
+  upsertRelationshipMissingRequesterReject,
+  UPSERT_RELATIONSHIP_TABLES,
+} from '../lib/db-op-upsert-ownership';
 import {
   ADMIN_FIXED_NICKNAME,
   BIRTH_MD_EDIT_MAX,
@@ -3059,25 +3090,20 @@ router.post('/op', async (req: Request, res: Response) => {
         // const row는 재할당 불가이므로 effectiveRow로 분리; 텍스트 필드 sanitization 적용
         let effectiveRow: Record<string, unknown> = sanitizeRow(table, row);
 
-        // ─ IDOR: INSERT 소유권 검증 (강화) ────────────────────────────────
-        // messages: requesterId 필수 + sender_id 일치 + 채팅방 참여자 검증
+        // ─ IDOR: INSERT ownership (db-op-insert-ownership) ────────────────
         if (table === 'messages') {
-          if (!requesterId) {
-            logger.warn({ ip: req.ip }, '[SECURITY] IDOR: messages INSERT without requesterId blocked');
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+          const plan = planMessagesInsertOwnership(effectiveRow, requesterId);
+          if (!plan.ok) {
+            if (!requesterId) {
+              logger.warn({ ip: req.ip }, plan.reject.logMsg);
+            } else if (plan.reject.logMsg.includes('sender_id mismatch')) {
+              logger.warn({ requesterId, sender_id: effectiveRow.sender_id, ip: req.ip }, plan.reject.logMsg);
+            } else if (plan.reject.logMsg) {
+              logger.warn({ requesterId, ip: req.ip }, plan.reject.logMsg);
+            }
+            return res.status(plan.reject.status).json(plan.reject.body);
           }
-          // sender_id를 requesterId로 강제 설정 (omit·mismatch 공격 동시 차단)
-          // liker_id/reader_id와 동일한 방어 패턴
-          if (effectiveRow.sender_id != null && String(effectiveRow.sender_id) !== String(requesterId)) {
-            logger.warn({ requesterId, sender_id: effectiveRow.sender_id, ip: req.ip }, '[SECURITY] IDOR: sender_id mismatch blocked');
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: sender_id mismatch', code: 'FORBIDDEN' } });
-          }
-          effectiveRow = { ...effectiveRow, sender_id: requesterId };
-          // ─ chat_id는 messages INSERT에서 필수 — 없으면 고아 메시지 생성 차단
-          if (effectiveRow.chat_id == null) {
-            logger.warn({ requesterId, ip: req.ip }, '[SECURITY] IDOR: messages INSERT without chat_id blocked');
-            return res.status(400).json({ data: null, error: { message: 'chat_id is required for messages', code: 'INVALID_INPUT' } });
-          }
+          effectiveRow = plan.row;
           effectiveRow = { ...effectiveRow, chat_id: resolveMergedChatId(String(effectiveRow.chat_id)) };
           const referenceCheck = await ensureWriteReferences(table, effectiveRow);
           if (!referenceCheck.ok && referenceCheck.unavailable) return sendReferenceFailure(res, referenceCheck);
@@ -3090,54 +3116,39 @@ router.post('/op', async (req: Request, res: Response) => {
               effectiveRow = { ...effectiveRow, chat_id: canonical.id };
             }
           }
-          // 채팅방 참여자 검증 — 채팅방에 속하지 않은 사용자가 메시지를 삽입하는 공격 차단
-          // id 타입(string/uuid) 불일치로 참가자 검증이 실패하면 전송 불가가 되므로 String 비교 강제
           const targetChat = getTable('chats').find(c => String(c.id) === String(effectiveRow.chat_id));
           if (!targetChat || (String(targetChat.user1_id) !== String(requesterId) && String(targetChat.user2_id) !== String(requesterId))) {
-            logger.warn({ requesterId, chatId: effectiveRow.chat_id, ip: req.ip }, '[SECURITY] IDOR: message INSERT by non-participant blocked');
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: not a chat participant', code: 'FORBIDDEN' } });
+            const rej = messagesInsertNonParticipantReject();
+            logger.warn({ requesterId, chatId: effectiveRow.chat_id, ip: req.ip }, rej.logMsg);
+            return res.status(rej.status).json(rej.body);
           }
           const peerId = String(targetChat.user1_id) === String(requesterId)
             ? String(targetChat.user2_id)
             : String(targetChat.user1_id);
           if (isChatPairBlocked(String(requesterId), peerId)) {
-            logger.warn({ requesterId, peerId, chatId: effectiveRow.chat_id, ip: req.ip }, '[SECURITY] message INSERT blocked by user block');
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: blocked user', code: 'BLOCKED' } });
+            const rej = messagesInsertBlockedReject();
+            logger.warn({ requesterId, peerId, chatId: effectiveRow.chat_id, ip: req.ip }, rej.logMsg);
+            return res.status(rej.status).json(rej.body);
           }
-          // 멀티 인스턴스에서 chats 테이블이 아직 메모리에 없어도 SSE가 전달되도록 참가자 스탬프
           effectiveRow = {
             ...effectiveRow,
             chat_user1_id: targetChat.user1_id,
             chat_user2_id: targetChat.user2_id,
           };
         }
-        // chats: requesterId 필수 + 본인이 user1_id 또는 user2_id여야 함
         if (table === 'chats') {
-          if (!requesterId) {
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
-          }
-          const u1 = String(effectiveRow.user1_id ?? '');
-          const u2 = String(effectiveRow.user2_id ?? '');
-          if (!u1 || !u2) {
-            return res.status(400).json({ data: null, error: { message: 'user1_id and user2_id are both required', code: 'INVALID_INPUT' } });
-          }
-          if (u1 === u2) {
-            return res.status(400).json({ data: null, error: { message: 'self-chat not allowed', code: 'INVALID_INPUT' } });
-          }
-          if (requesterId !== u1 && requesterId !== u2) {
-            logger.warn({ requesterId, u1, u2, ip: req.ip }, '[SECURITY] IDOR: chats INSERT by non-participant blocked');
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: must be a participant', code: 'FORBIDDEN' } });
+          const plan = planChatsInsertOwnership(effectiveRow, requesterId);
+          if (!plan.ok) {
+            if (plan.reject.logMsg) {
+              logger.warn({ requesterId, u1: String(effectiveRow.user1_id ?? ''), u2: String(effectiveRow.user2_id ?? ''), ip: req.ip }, plan.reject.logMsg);
+            }
+            return res.status(plan.reject.status).json(plan.reject.body);
           }
         }
-        // group_messages: requesterId 필수 + sender_id 강제 + 참여자 검증
         if (table === 'group_messages') {
-          if (!requesterId) {
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
-          }
-          effectiveRow = { ...effectiveRow, sender_id: requesterId };
-          if (effectiveRow.group_id == null) {
-            return res.status(400).json({ data: null, error: { message: 'group_id is required for group_messages', code: 'INVALID_INPUT' } });
-          }
+          const plan = planGroupMessagesInsertOwnership(effectiveRow, requesterId);
+          if (!plan.ok) return res.status(plan.reject.status).json(plan.reject.body);
+          effectiveRow = plan.row;
           effectiveRow = { ...effectiveRow, group_id: resolveMergedGroupId(String(effectiveRow.group_id)) };
           const groupReference = await ensureWriteReferences(table, effectiveRow);
           if (!groupReference.ok && groupReference.unavailable) return sendReferenceFailure(res, groupReference);
@@ -3152,30 +3163,30 @@ router.post('/op', async (req: Request, res: Response) => {
             isParticipant = refreshed === 'found';
           }
           if (!isParticipant) {
-            logger.warn({ requesterId, groupId: effectiveRow.group_id, ip: req.ip }, '[SECURITY] IDOR: group_messages INSERT by non-participant blocked');
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: not a group participant', code: 'FORBIDDEN' } });
+            const rej = groupMessagesInsertNonParticipantReject();
+            logger.warn({ requesterId, groupId: effectiveRow.group_id, ip: req.ip }, rej.logMsg);
+            return res.status(rej.status).json(rej.body);
           }
         }
-        // group_participants: 본인만 입장, 방당 인원 제한 없음, 사람당 최대 4개 방
         if (table === 'group_participants') {
-          if (!requesterId) {
-            logger.warn({ ip: req.ip }, '[SECURITY] IDOR: group_participants INSERT without requesterId blocked');
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+          const plan = planGroupParticipantsInsertOwnership(effectiveRow, requesterId);
+          if (!plan.ok) {
+            if (plan.reject.logMsg.includes('user_id mismatch')) {
+              logger.warn({ requesterId, user_id: effectiveRow.user_id, ip: req.ip }, plan.reject.logMsg);
+            } else if (plan.reject.logMsg) {
+              logger.warn({ ip: req.ip }, plan.reject.logMsg);
+            }
+            return res.status(plan.reject.status).json(plan.reject.body);
           }
-          if (effectiveRow.user_id != null && String(effectiveRow.user_id) !== String(requesterId)) {
-            logger.warn({ requesterId, user_id: effectiveRow.user_id, ip: req.ip }, '[SECURITY] IDOR: group_participants user_id mismatch blocked');
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신의 참여만 추가할 수 있습니다.', code: 'FORBIDDEN' } });
-          }
-          if (effectiveRow.group_id == null || String(effectiveRow.group_id) === '') {
-            return res.status(400).json({ data: null, error: { message: 'group_id is required for group_participants', code: 'INVALID_INPUT' } });
-          }
+          effectiveRow = plan.row;
           const groupId = resolveMergedGroupId(String(effectiveRow.group_id));
           effectiveRow = { ...effectiveRow, group_id: groupId, user_id: requesterId };
           const groupReference = await ensureWriteReferences(table, effectiveRow);
           if (!groupReference.ok && groupReference.unavailable) return sendReferenceFailure(res, groupReference);
           const groupExists = getTable('group_chats').some(g => String(g.id) === groupId);
           if (!groupExists) {
-            return res.status(400).json({ data: null, error: { message: '존재하지 않는 단톡방입니다.', code: 'INVALID_INPUT' } });
+            const rej = groupParticipantsMissingGroupReject();
+            return res.status(rej.status).json(rej.body);
           }
           const already = getTable('group_participants').find(
             p => String(p.group_id) === groupId && String(p.user_id) === String(requesterId),
@@ -3197,57 +3208,51 @@ router.post('/op', async (req: Request, res: Response) => {
           };
           await clearGroupOptOut(String(requesterId), groupId);
         }
-        // group_chats: 카탈로그는 서버 시드. 일반 유저 방 생성 금지 (테스트는 시드용 INSERT 허용)
-        if (table === 'group_chats' && !isAdmin && process.env.NODE_ENV !== 'test') {
-          logger.warn({ requesterId, ip: req.ip }, '[SECURITY] IDOR: group_chats INSERT blocked');
-          return res.status(403).json({ data: null, error: { message: 'Forbidden: 단톡방 생성은 관리자만 가능합니다.', code: 'FORBIDDEN' } });
-        }
-        // chat_reads: reader_id를 requesterId로 강제 + 해당 채팅 참여자만 기록 가능
-        if (table === 'chat_reads') {
-          if (!requesterId) {
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+        if (table === 'group_chats') {
+          const rej = groupChatsInsertReject(isAdmin, process.env.NODE_ENV === 'test');
+          if (rej) {
+            logger.warn({ requesterId, ip: req.ip }, rej.logMsg);
+            return res.status(rej.status).json(rej.body);
           }
-          effectiveRow = { ...effectiveRow, reader_id: requesterId };
+        }
+        if (table === 'chat_reads') {
+          const plan = planChatReadsInsertOwnership(effectiveRow, requesterId);
+          if (!plan.ok) return res.status(plan.reject.status).json(plan.reject.body);
+          effectiveRow = plan.row;
           if (effectiveRow.chat_id != null) {
             effectiveRow = { ...effectiveRow, chat_id: resolveMergedChatId(String(effectiveRow.chat_id)) };
             effectiveRow.id = `${effectiveRow.chat_id}__${requesterId}`;
           }
           const referenceCheck = await ensureWriteReferences(table, effectiveRow);
           if (!referenceCheck.ok && referenceCheck.unavailable) return sendReferenceFailure(res, referenceCheck);
-          if (!isChatParticipant(effectiveRow.chat_id, requesterId)) {
-            logger.warn({ requesterId, chatId: effectiveRow.chat_id, ip: req.ip }, '[SECURITY] IDOR: chat_reads INSERT by non-participant blocked');
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: not a chat participant', code: 'FORBIDDEN' } });
+          if (!isChatParticipant(effectiveRow.chat_id, requesterId!)) {
+            const rej = chatReadsInsertNonParticipantReject();
+            logger.warn({ requesterId, chatId: effectiveRow.chat_id, ip: req.ip }, rej.logMsg);
+            return res.status(rej.status).json(rej.body);
           }
           stampChatReadAt(effectiveRow);
         }
-        // likes: requesterId 필수 + liker_id를 세션 사용자로 강제 (omit·mismatch 차단)
         if (table === 'likes') {
-          if (!requesterId) {
-            logger.warn({ ip: req.ip }, '[SECURITY] IDOR: likes INSERT without requesterId blocked');
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+          const plan = planLikesInsertOwnership(effectiveRow, requesterId);
+          if (!plan.ok) {
+            logger.warn({ ip: req.ip }, plan.reject.logMsg);
+            return res.status(plan.reject.status).json(plan.reject.body);
           }
-          effectiveRow = { ...effectiveRow, liker_id: requesterId };
+          effectiveRow = plan.row;
         }
-        // signal_sends: requesterId 필수 + sender_id 강제. 하트(likes)와 별도 액션.
         if (table === 'signal_sends') {
-          if (!requesterId) {
-            logger.warn({ ip: req.ip }, '[SECURITY] IDOR: signal_sends INSERT without requesterId blocked');
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+          const plan = planSignalSendsInsertOwnership(effectiveRow, requesterId);
+          if (!plan.ok) {
+            if (plan.reject.logMsg) logger.warn({ ip: req.ip }, plan.reject.logMsg);
+            return res.status(plan.reject.status).json(plan.reject.body);
           }
-          const receiverId = effectiveRow.receiver_id != null ? String(effectiveRow.receiver_id) : '';
-          const action = effectiveRow.action === 'pass' ? 'pass' : effectiveRow.action === 'send' ? 'send' : '';
-          if (!receiverId) {
-            return res.status(400).json({ data: null, error: { message: 'receiver_id is required', code: 'INVALID_INPUT' } });
-          }
-          if (!action) {
-            return res.status(400).json({ data: null, error: { message: 'action must be send or pass', code: 'INVALID_INPUT' } });
-          }
-          if (receiverId === String(requesterId)) {
-            return res.status(400).json({ data: null, error: { message: 'cannot signal yourself', code: 'INVALID_INPUT' } });
-          }
+          effectiveRow = plan.row;
+          const receiverId = String(effectiveRow.receiver_id);
+          const action = effectiveRow.action === 'pass' ? 'pass' : 'send';
           if (isChatPairBlocked(String(requesterId), receiverId)) {
-            logger.warn({ requesterId, receiverId, ip: req.ip }, '[SECURITY] signal_sends INSERT blocked by user block');
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: blocked user', code: 'BLOCKED' } });
+            const rej = signalSendsInsertBlockedReject();
+            logger.warn({ requesterId, receiverId, ip: req.ip }, rej.logMsg);
+            return res.status(rej.status).json(rej.body);
           }
           const detId = deterministicSignalId(String(requesterId), receiverId);
           const existingSig = tableData.find(r => String(r.id) === detId)
@@ -3258,7 +3263,6 @@ router.post('/op', async (req: Request, res: Response) => {
               if (selectAfterWrite) return res.json({ data: single ? existingSig : [existingSig], error: null });
               return res.json({ data: null, error: null });
             }
-            // pass → send: UPDATE op is blocked for clients — upgrade inline and re-broadcast
             const oldRow = { ...existingSig };
             const upgraded: Record<string, unknown> = { ...existingSig, action: 'send' };
             const sigIdx = tableData.findIndex(r => String(r.id) === String(existingSig.id));
@@ -3282,84 +3286,45 @@ router.post('/op', async (req: Request, res: Response) => {
           const referenceCheck = await ensureWriteReferences(table, effectiveRow);
           if (!referenceCheck.ok) return sendReferenceFailure(res, referenceCheck);
         }
-        // profile_views: viewer_id를 requesterId로 강제 (omit·mismatch 차단). 자기 자신 방문은 기록하지 않음.
         if (table === 'profile_views') {
-          if (!requesterId) {
-            logger.warn({ ip: req.ip }, '[SECURITY] IDOR: profile_views INSERT without requesterId blocked');
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+          const plan = planProfileViewsInsertOwnership(effectiveRow, requesterId);
+          if (!plan.ok) {
+            if (plan.earlyEmpty) {
+              if (selectAfterWrite) return res.json({ data: single ? null : [], error: null });
+              return res.json({ data: null, error: null });
+            }
+            if (plan.reject!.logMsg) logger.warn({ ip: req.ip }, plan.reject!.logMsg);
+            return res.status(plan.reject!.status).json(plan.reject!.body);
           }
-          if (effectiveRow.viewed_id == null || String(effectiveRow.viewed_id) === '') {
-            return res.status(400).json({ data: null, error: { message: 'viewed_id is required', code: 'INVALID_INPUT' } });
-          }
-          if (String(effectiveRow.viewed_id) === String(requesterId)) {
-            if (selectAfterWrite) return res.json({ data: single ? null : [], error: null });
-            return res.json({ data: null, error: null });
-          }
-          effectiveRow = { ...effectiveRow, viewer_id: requesterId };
+          effectiveRow = plan.row;
           const referenceCheck = await ensureWriteReferences(table, effectiveRow);
           if (!referenceCheck.ok) return sendReferenceFailure(res, referenceCheck);
         }
-        // blocked_users: 차단을 건 사용자 identity는 세션으로 고정.
         if (table === 'blocked_users' && !isAdmin) {
-          if (!requesterId) {
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
-          }
           const existingById = effectiveRow.id == null
             ? undefined
             : tableData.find(r => String(r.id) === String(effectiveRow.id));
-          if (existingById && String(existingById.user_id ?? '') !== String(requesterId)) {
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: row owner mismatch', code: 'FORBIDDEN' } });
-          }
-          const targetId = String(effectiveRow.target_id ?? '');
-          if (!targetId) {
-            return res.status(400).json({ data: null, error: { message: 'target_id is required', code: 'INVALID_INPUT' } });
-          }
-          if (targetId === String(requesterId)) {
-            return res.status(400).json({ data: null, error: { message: 'cannot block yourself', code: 'INVALID_INPUT' } });
-          }
-          effectiveRow = { ...effectiveRow, user_id: requesterId, target_id: targetId };
+          const plan = planBlockedUsersInsertOwnership(effectiveRow, requesterId, existingById);
+          if (!plan.ok) return res.status(plan.reject.status).json(plan.reject.body);
+          effectiveRow = plan.row;
         }
-        // contact_shares: 연락처를 실제로 공유하는 사용자는 liked_id(현재 하트 수신자).
         if (table === 'contact_shares' && !isAdmin) {
-          if (!requesterId) {
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
-          }
           const existingById = effectiveRow.id == null
             ? undefined
             : tableData.find(r => String(r.id) === String(effectiveRow.id));
-          if (existingById && String(existingById.liked_id ?? '') !== String(requesterId)) {
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: row owner mismatch', code: 'FORBIDDEN' } });
-          }
-          const recipientId = String(effectiveRow.liker_id ?? '');
-          if (!recipientId) {
-            return res.status(400).json({ data: null, error: { message: 'liker_id is required', code: 'INVALID_INPUT' } });
-          }
-          if (recipientId === String(requesterId)) {
-            return res.status(400).json({ data: null, error: { message: 'cannot share contact with yourself', code: 'INVALID_INPUT' } });
-          }
-          effectiveRow = { ...effectiveRow, liked_id: requesterId, liker_id: recipientId };
+          const plan = planContactSharesInsertOwnership(effectiveRow, requesterId, existingById);
+          if (!plan.ok) return res.status(plan.reject.status).json(plan.reject.body);
+          effectiveRow = plan.row;
           const referenceCheck = await ensureWriteReferences(table, effectiveRow);
           if (!referenceCheck.ok) return sendReferenceFailure(res, referenceCheck);
         }
-        // contact_share_events: 이벤트 발신자는 항상 인증된 세션 사용자.
         if (table === 'contact_share_events' && !isAdmin) {
-          if (!requesterId) {
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
-          }
           const existingById = effectiveRow.id == null
             ? undefined
             : tableData.find(r => String(r.id) === String(effectiveRow.id));
-          if (existingById && String(existingById.from_user_id ?? '') !== String(requesterId)) {
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: row owner mismatch', code: 'FORBIDDEN' } });
-          }
-          const toUserId = String(effectiveRow.to_user_id ?? '');
-          if (!toUserId) {
-            return res.status(400).json({ data: null, error: { message: 'to_user_id is required', code: 'INVALID_INPUT' } });
-          }
-          if (toUserId === String(requesterId)) {
-            return res.status(400).json({ data: null, error: { message: 'cannot send contact event to yourself', code: 'INVALID_INPUT' } });
-          }
-          effectiveRow = { ...effectiveRow, from_user_id: requesterId, to_user_id: toUserId };
+          const plan = planContactShareEventsInsertOwnership(effectiveRow, requesterId, existingById);
+          if (!plan.ok) return res.status(plan.reject.status).json(plan.reject.body);
+          effectiveRow = plan.row;
           const referenceCheck = await ensureWriteReferences(table, effectiveRow);
           if (!referenceCheck.ok) return sendReferenceFailure(res, referenceCheck);
         }
@@ -3396,12 +3361,11 @@ router.post('/op', async (req: Request, res: Response) => {
           });
           }
         }
-        // chats 테이블: ID를 서버에서 정규화(sort)하여 역순 요청으로 인한 중복 채팅방 생성 방지
-        // 클라이언트가 user1/user2를 어떤 순서로 보내든 항상 동일한 채팅방을 가리키도록 강제
+        // chats 테이블: ID 정규화(sort) — planNormalizeChatPairRow
         if (table === 'chats' && effectiveRow.user1_id != null && effectiveRow.user2_id != null) {
-          const [uid1, uid2] = [String(effectiveRow.user1_id), String(effectiveRow.user2_id)].sort();
+          const { uid1, uid2, detId, row: normalized } = planNormalizeChatPairRow(effectiveRow);
+          effectiveRow = { ...normalized, id: effectiveRow.id ?? detId };
           effectiveRow = { ...effectiveRow, user1_id: uid1, user2_id: uid2 };
-          // 정규화된 쌍으로 기존 채팅방 탐색 (양방향 모두 확인)
           const existing = tableData.find(r =>
             (String(r.user1_id) === uid1 && String(r.user2_id) === uid2) ||
             (String(r.user1_id) === uid2 && String(r.user2_id) === uid1)
@@ -3410,8 +3374,6 @@ router.post('/op', async (req: Request, res: Response) => {
             if (selectAfterWrite) return res.json({ data: single ? existing : [existing], error: null });
             return res.json({ data: null, error: null });
           }
-          // 멀티 인스턴스: 동일 쌍 → 동일 row_id 로 persist 충돌 시 하나로 합쳐짐
-          const detId = deterministicChatId(uid1, uid2);
           const byId = tableData.find(r => String(r.id) === detId);
           if (byId) {
             if (selectAfterWrite) return res.json({ data: single ? byId : [byId], error: null });
@@ -3720,84 +3682,60 @@ router.post('/op', async (req: Request, res: Response) => {
 
     // ── UPSERT ──────────────────────────────────────────────────────────────
     if (op === 'upsert') {
-      if (table === 'signal_sends' && !isAdmin) {
-        return res.status(403).json({ data: null, error: { message: 'Forbidden: use insert for signal actions', code: 'FORBIDDEN' } });
+      {
+        const sigReject = signalSendsUpsertReject(table, isAdmin);
+        if (sigReject) return res.status(sigReject.status).json(sigReject.body);
       }
       const inputs = (Array.isArray(payload) ? payload as Record<string, unknown>[] : [payload as Record<string, unknown>])
         .map(row => sanitizeRow(table, row)); // XSS 방어: UPSERT payload도 sanitize
       const upserted: Record<string, unknown>[] = [];
 
-      // ─ IDOR guard: UPSERT ownership check ─────────────────────────────
-      if (
-        !isAdmin &&
-        (table === 'blocked_users' || table === 'contact_shares' || table === 'contact_share_events')
-      ) {
-        if (!requesterId) {
-          return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
-        }
-        for (const row of inputs) {
+      // ─ IDOR guard: UPSERT ownership (db-op-upsert-ownership) ───────────
+      {
+        const missing = upsertRelationshipMissingRequesterReject(table, isAdmin, requesterId);
+        if (missing) return res.status(missing.status).json(missing.body);
+      }
+      if (!isAdmin && UPSERT_RELATIONSHIP_TABLES.has(table) && requesterId) {
+        for (let i = 0; i < inputs.length; i++) {
+          const row = inputs[i];
           if (!row) continue;
           const existingById = row.id == null ? undefined : tableData.find(r => String(r.id) === String(row.id));
-          if (existingById) {
-            const owner = table === 'blocked_users'
-              ? existingById.user_id
-              : table === 'contact_shares'
-                ? existingById.liked_id
-                : existingById.from_user_id;
-            if (String(owner ?? '') !== String(requesterId)) {
-              return res.status(403).json({ data: null, error: { message: 'Forbidden: row owner mismatch', code: 'FORBIDDEN' } });
-            }
-          }
-          if (table === 'blocked_users') {
-            const targetId = String(row.target_id ?? '');
-            if (!targetId || targetId === String(requesterId)) {
-              return res.status(400).json({ data: null, error: { message: 'invalid target_id', code: 'INVALID_INPUT' } });
-            }
-            row.user_id = requesterId;
-          } else if (table === 'contact_shares') {
-            const recipientId = String(row.liker_id ?? '');
-            if (!recipientId || recipientId === String(requesterId)) {
-              return res.status(400).json({ data: null, error: { message: 'invalid liker_id', code: 'INVALID_INPUT' } });
-            }
-            row.liked_id = requesterId;
-          } else {
-            const toUserId = String(row.to_user_id ?? '');
-            if (!toUserId || toUserId === String(requesterId)) {
-              return res.status(400).json({ data: null, error: { message: 'invalid to_user_id', code: 'INVALID_INPUT' } });
-            }
-            row.from_user_id = requesterId;
-          }
+          const plan = planUpsertRelationshipRow(table, row, String(requesterId), existingById);
+          if (!plan.ok) return res.status(plan.reject.status).json(plan.reject.body);
+          inputs[i] = plan.row;
         }
       }
       if (table === 'chat_reads') {
-        if (!requesterId) {
-          return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
-        }
-        for (const row of inputs) {
+        for (let i = 0; i < inputs.length; i++) {
+          const row = inputs[i];
           if (!row) continue;
-          row.reader_id = requesterId;
-          if (row.chat_id != null) {
-            row.chat_id = resolveMergedChatId(String(row.chat_id));
-            row.id = `${row.chat_id}__${requesterId}`;
+          const plan = planChatReadsUpsertOwnership(row, requesterId);
+          if (!plan.ok) return res.status(plan.reject.status).json(plan.reject.body);
+          let next = plan.row;
+          if (next.chat_id != null) {
+            next = { ...next, chat_id: resolveMergedChatId(String(next.chat_id)) };
+            next.id = `${next.chat_id}__${requesterId}`;
           }
-          const referenceCheck = await ensureWriteReferences(table, row);
+          const referenceCheck = await ensureWriteReferences(table, next);
           if (!referenceCheck.ok) return sendReferenceFailure(res, referenceCheck);
-          if (!isChatParticipant(row.chat_id, requesterId)) {
-            logger.warn({ requesterId, chatId: row.chat_id }, '[SECURITY] IDOR: UPSERT chat_reads by non-participant blocked');
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: not a chat participant', code: 'FORBIDDEN' } });
+          if (!isChatParticipant(next.chat_id, requesterId!)) {
+            const rej = chatReadsUpsertNonParticipantReject();
+            logger.warn({ requesterId, chatId: next.chat_id }, rej.logMsg);
+            return res.status(rej.status).json(rej.body);
           }
-          stampChatReadAt(row);
+          stampChatReadAt(next);
+          inputs[i] = next;
         }
       }
       if (requesterId) {
         for (const row of inputs) {
           if (!row) continue;
-          // chat_reads: reader_id는 반드시 requester여야 함
-          if (table === 'chat_reads' && row.reader_id != null &&
-              String(row.reader_id) !== String(requesterId)) {
-            logger.warn({ requesterId, reader_id: row.reader_id }, '[SECURITY] IDOR: UPSERT chat_reads blocked');
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신의 읽음 기록만 생성할 수 있습니다.', code: 'FORBIDDEN' } });
-          }        }
+          const ownReject = checkUpsertChatReadsReader(table, row, String(requesterId));
+          if (ownReject) {
+            logger.warn({ requesterId, reader_id: row.reader_id }, ownReject.logMsg);
+            return res.status(ownReject.status).json(ownReject.body);
+          }
+        }
       }
       for (const row of inputs) {
         if (!row) continue;
@@ -3814,19 +3752,10 @@ router.post('/op', async (req: Request, res: Response) => {
           idx = _idxById!.get(row.id) ?? -1;
         }
         if (idx >= 0) {
-          if (
-            !isAdmin &&
-            requesterId &&
-            (table === 'blocked_users' || table === 'contact_shares' || table === 'contact_share_events')
-          ) {
-            const existingOwner = table === 'blocked_users'
-              ? tableData[idx].user_id
-              : table === 'contact_shares'
-                ? tableData[idx].liked_id
-                : tableData[idx].from_user_id;
-            if (String(existingOwner ?? '') !== String(requesterId)) {
-              return res.status(403).json({ data: null, error: { message: 'Forbidden: row owner mismatch', code: 'FORBIDDEN' } });
-            }
+          if (!isAdmin && requesterId && UPSERT_RELATIONSHIP_TABLES.has(table)) {
+            const ownerField = relationshipOwnerField(table)!;
+            const ownReject = checkUpsertConflictOwner(table, tableData[idx][ownerField], String(requesterId));
+            if (ownReject) return res.status(ownReject.status).json(ownReject.body);
           }
           const oldRow = { ...tableData[idx] };
           const newRow = { ...oldRow, ...row };

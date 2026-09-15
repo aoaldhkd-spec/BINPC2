@@ -75,6 +75,8 @@ Prefer **single Render instance**. Multi-instance는 NOTIFY로 일부 동기화�
 | `artifacts/api-server/src/lib/db-op-select-scope.ts` | /op SELECT IDOR row-scope + field redaction planners (순수) |
 | `artifacts/api-server/src/lib/db-op-update-ownership.ts` | /op UPDATE IDOR ownership + patch forcing planners (순수) |
 | `artifacts/api-server/src/lib/db-op-delete-ownership.ts` | /op DELETE IDOR ownership planners (순수) |
+| `artifacts/api-server/src/lib/db-op-insert-ownership.ts` | /op INSERT IDOR ownership + field-forcing planners (순수) |
+| `artifacts/api-server/src/lib/db-op-upsert-ownership.ts` | /op UPSERT IDOR ownership + field-forcing planners (순수) |
 | `artifacts/api-server/src/lib/db-chat-ids.ts` | `chatPairKey` / `deterministicChatId` |
 | `artifacts/api-server/src/lib/db-broadcast-targets.ts` | SSE 수신자 목록 (순수) |
 | `artifacts/api-server/src/lib/db-rate-limit.ts` | IP/PIN rate-limit 맵/헬퍼 (순수 consume*) |
@@ -183,7 +185,7 @@ Detach = stop wiring the domain hook/callbacks into `App.tsx` / screens; keep pu
 
 Moved out of `App.tsx` (planners/hooks, behavior unchanged): SoT resync, SSE fallback poll, dark-mode storage sync, sent/received like planners + toast payloads, contact-share events, pending-hearts badge count, functions-lock kick plan, user-signal merge, realtime row upserts, settings `/ready` poll gap, profile-view debounce, broadcast notif helpers, entry password/reset planners, **profiles + user-bundle + privacy + signals SSE subscribe** (`useUserRealtimeChannel`), **profiles / privacy+signals / hearts SSE apply** (`useProfilesRealtimeApply` + `usePrivacySignalsRealtimeApply` + `useHeartsRealtimeApply`), **app_settings + notifications + contact_share_events SSE subscribe + apply** (`useAppShellRealtimeChannels` + `useAppShellRealtimeApply`), `app-settings-realtime` planner, profile SSE apply planners, block/hide planners, **admin reset wipe** (`admin-reset-wipe` plan+run; App thin `applyResetSignal`), **`/ready` bootstrap + settings poll** (`useSessionReadyBootstrap` + `ready-bootstrap-settings`), **loading-main profile boot/backoff** (`profile-boot-machine` + `useProfileBootMachine`), **early entry gates JSX** (`AppEntryGates`), **main shell + overlay JSX fan-in** (`AppMainShell` / `AppOverlays`), **hearts/chat/group lock wrappers** (`useSocialLockGuards`), **nickname/registration + recovery/reset** (`useNicknameRegistration` + `nickname-registration` planners), **profile/privacy/signals loaders** (`useProfilePrivacyLoaders` + `profile-select` column lists), **participant session-init** (`useSessionInit` + `session-init` planners).
 
-App residual is compose/wiring (setState fan-in, guarded handlers, overlay props). **db.ts peel progressing:** prior modules + **`db-op-update-ownership`** + **`db-op-delete-ownership`** (re-import; single router export intact). Full `/op`/RPC router split remains the large mountain (~5.5k).
+App residual is compose/wiring (setState fan-in, guarded handlers, overlay props). **db.ts peel progressing:** prior modules + **`db-op-insert-ownership`** + **`db-op-upsert-ownership`** (re-import; single router export intact). Full `/op`/RPC router split remains the large mountain (~5.4k).
 
 Path to ≥9.5 further = more `db.ts` write-path / `/op` slices — App is already wiring-thin.
 
@@ -209,7 +211,8 @@ Path to ≥9.5 further = more `db.ts` write-path / `/op` slices — App is alrea
 | Prior (db-unread-counts + db-push-plan + panel verify) | **~9.5** | Unread compute + push payload plan + panel token verify peeled; `db.ts` ~5.76k |
 | Prior (db-admin-ensure-plan + db-app-settings-boot) | **~9.5** | ensureAdmin/restore planners + settings default/repair/bootstrap secrets peeled; `db.ts` ~5.72k |
 | Prior (db-op-result-shape + db-op-select-scope) | **~9.5** | /op SELECT order/limit/shape + IDOR row-scope/redaction peeled; `db.ts` ~5.58k |
-| This peel (db-op-update-ownership + db-op-delete-ownership) | **~9.5** | /op UPDATE/DELETE IDOR ownership planners peeled; `db.ts` ~5.49k. Honest claim still **~9.5** — further gains are write-path / `/op` slices |
+| Prior (db-op-update-ownership + db-op-delete-ownership) | **~9.5** | /op UPDATE/DELETE IDOR ownership planners peeled; `db.ts` ~5.49k |
+| This peel (db-op-insert-ownership + db-op-upsert-ownership) | **~9.5** | /op INSERT/UPSERT IDOR ownership planners peeled; `db.ts` ~5.42k. Honest claim still **~9.5** — further gains are write-path / `/op` slices |
 | Beyond 9.5 | more `db.ts` write-path / `/op` slices | Keep App wiring-thin; do not re-inline apply |
 
 ### Next incremental steps (no big-bang rewrite)

@@ -554,6 +554,12 @@ describe('product copy + notification invariants', () => {
     expect(db).toContain('checkDeleteRowOwnership');
     expect(db).not.toMatch(/IDOR: messages UPDATE without requesterId blocked/);
     expect(db).not.toMatch(/Forbidden: 자신이 보낸 하트만 취소할 수 있습니다\./);
+    expect(db).toContain("from '../lib/db-op-insert-ownership'");
+    expect(db).toContain('planMessagesInsertOwnership');
+    expect(db).toContain("from '../lib/db-op-upsert-ownership'");
+    expect(db).toContain('planUpsertRelationshipRow');
+    expect(db).not.toMatch(/IDOR: messages INSERT without requesterId blocked/);
+    expect(db).not.toMatch(/Forbidden: use insert for signal actions/);
   });
 
 

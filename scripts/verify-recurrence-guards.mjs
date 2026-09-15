@@ -1622,6 +1622,50 @@ mustMatch('ARCHITECTURE.md', '65_architecture_path_after_op_write_ownership_peel
 
 
 
+
+// ── 66: db-op-insert-ownership + db-op-upsert-ownership ───────────────────────
+mustExist('artifacts/api-server/src/lib/db-op-insert-ownership.ts', '66_db_op_insert_ownership_module');
+mustExist('artifacts/api-server/src/lib/db-op-insert-ownership.test.ts', '66_db_op_insert_ownership_tests');
+mustExist('artifacts/api-server/src/lib/db-op-upsert-ownership.ts', '66_db_op_upsert_ownership_module');
+mustExist('artifacts/api-server/src/lib/db-op-upsert-ownership.test.ts', '66_db_op_upsert_ownership_tests');
+mustMatch('artifacts/api-server/src/lib/db-op-insert-ownership.ts', '66_op_insert_ownership_exports', [
+  /export function planMessagesInsertOwnership/,
+  /export function planChatsInsertOwnership/,
+  /export function planLikesInsertOwnership/,
+  /export function planNormalizeChatPairRow/,
+  /export function groupChatsInsertReject/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-op-upsert-ownership.ts', '66_op_upsert_ownership_exports', [
+  /export function signalSendsUpsertReject/,
+  /export function planUpsertRelationshipRow/,
+  /export function planChatReadsUpsertOwnership/,
+  /export function checkUpsertConflictOwner/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '66_db_reimports_op_insert_and_upsert_ownership', [
+  /from '\.\.\/lib\/db-op-insert-ownership'/,
+  /planMessagesInsertOwnership/,
+  /planLikesInsertOwnership/,
+  /planNormalizeChatPairRow/,
+  /from '\.\.\/lib\/db-op-upsert-ownership'/,
+  /planUpsertRelationshipRow/,
+  /signalSendsUpsertReject/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '66_db_still_single_router_export', [
+  /export default router/,
+]);
+mustNotMatch('artifacts/api-server/src/routes/db.ts', '66_db_no_inline_insert_or_upsert_ownership_impl', [
+  /IDOR: messages INSERT without requesterId blocked/,
+  /Forbidden: use insert for signal actions/,
+  /cannot share contact with yourself/,
+  /자신의 읽음 기록만 생성할 수 있습니다/,
+]);
+mustMatch('ARCHITECTURE.md', '66_architecture_path_after_op_insert_upsert_peel', [
+  /db-op-insert-ownership/,
+  /db-op-upsert-ownership/,
+  /~9\.5/,
+]);
+
+
 console.log('\n=== verify-recurrence-guards ===\n');
 
 for (const r of results) {

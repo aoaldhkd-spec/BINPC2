@@ -171,6 +171,22 @@ describe('longevity recurrence guards (server)', () => {
     expect(del).toContain('checkDeleteRowOwnership');
   });
 
+  it('op insert/upsert ownership stay extracted from db.ts', () => {
+    expect(dbTs).toContain("from '../lib/db-op-insert-ownership'");
+    expect(dbTs).toContain('planMessagesInsertOwnership');
+    expect(dbTs).toContain('planLikesInsertOwnership');
+    expect(dbTs).toContain('planNormalizeChatPairRow');
+    expect(dbTs).toContain("from '../lib/db-op-upsert-ownership'");
+    expect(dbTs).toContain('planUpsertRelationshipRow');
+    expect(dbTs).toContain('signalSendsUpsertReject');
+    expect(dbTs).not.toMatch(/IDOR: messages INSERT without requesterId blocked/);
+    expect(dbTs).not.toMatch(/Forbidden: use insert for signal actions/);
+    const ins = readFileSync(join(here, '../lib/db-op-insert-ownership.ts'), 'utf8');
+    const ups = readFileSync(join(here, '../lib/db-op-upsert-ownership.ts'), 'utf8');
+    expect(ins).toContain('planMessagesInsertOwnership');
+    expect(ups).toContain('planUpsertRelationshipRow');
+  });
+
   it('app-settings-merge + panel-tokens stay extracted from db.ts', () => {
     expect(dbTs).toContain("from '../lib/db-app-settings-merge'");
     expect(dbTs).toContain("from '../lib/db-panel-tokens'");
