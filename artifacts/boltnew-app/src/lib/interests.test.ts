@@ -5,6 +5,7 @@ describe('interest catalog', () => {
   it('removes retired tags without removing neighboring interests', () => {
     const retired = [
       '필라테스/요가', '테니스', '낚시', '서핑', '복싱', '볼링', '자전거',
+      '골프', '크로스핏', '등산', '스키/보드', '러닝',
       '디저트', '와인', '위스키', '브런치',
       '캠핑', '인테리어', '독서', '원예/식물', '명상/요가',
       '영화/드라마', '라이브방송', '팝/힙합', '재즈/클래식',
@@ -12,6 +13,7 @@ describe('interest catalog', () => {
     ];
     expect(retired.every((tag) => !ALL_BIO_TAGS.includes(tag))).toBe(true);
     expect(ALL_BIO_TAGS).toContain('운동');
+    expect(ALL_BIO_TAGS).toContain('기타 운동');
     expect(ALL_BIO_TAGS).toContain('카페');
     expect(ALL_BIO_TAGS).toContain('여행');
     expect(ALL_BIO_TAGS).toContain('음악감상');

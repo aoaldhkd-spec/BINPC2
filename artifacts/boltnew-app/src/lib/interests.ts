@@ -14,7 +14,7 @@ export const BIO_CATEGORIES = [
   },
   {
     label: '스포츠/활동',
-    tags: ['운동', '헬스', '크로스핏', '골프', '러닝', '등산', '수영', '클라이밍', '축구/풋살', '배드민턴', '스키/보드'],
+    tags: ['운동', '기타 운동', '헬스', '수영', '클라이밍', '축구/풋살', '배드민턴'],
     color: {
       label: 'text-green-500',
       normal: 'bg-green-50 border-green-200 text-green-700 hover:bg-green-500 hover:border-green-500 hover:text-white',

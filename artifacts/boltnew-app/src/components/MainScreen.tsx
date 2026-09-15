@@ -11,7 +11,7 @@ import {
 import { supabase } from '../lib/supabase';
 import type { Profile, ContactShare, Chat, MainTab, GroupChat, ProfileView, UserSignal } from '../types/app';
 import { sumUnreadCounts } from '../lib/group-rooms';
-import { BIO_CATEGORIES, parseProfileInterests } from '../lib/interests';
+import { parseProfileInterests } from '../lib/interests';
 import { InterestPicker } from './InterestPicker';
 import { HeartType, HEART_TYPES, heartMeta } from '../lib/constants';
 import { getPositionLabel, getPositionBg, genAvatar, getAvatarSrc, getAvatarGradientCssForProfile, AVATAR_PALETTE, isNpcTextAvatar, genNpcTextAvatar, NPC_TEXT_AVATAR_LABEL } from '../lib/profile';
@@ -438,7 +438,6 @@ export function MainScreen({
 
   // ── 관심사 편집 상태 ────────────────────────────────────────────────────────
   const [editInterests, setEditInterests] = useState<string[]>([]);
-  const [interestFilter, setInterestFilter] = useState<string | null>(BIO_CATEGORIES[0].label);
   const [interestSaving, setInterestSaving] = useState(false);
   const interestInitRef = useRef(false);
   const [leaveGroupTarget, setLeaveGroupTarget] = useState<GroupChat | null>(null);
@@ -1759,8 +1758,6 @@ export function MainScreen({
                         <InterestPicker
                           selected={editInterests}
                           onToggle={toggleTag}
-                          filter={interestFilter ?? BIO_CATEGORIES[0].label}
-                          onFilter={(label) => setInterestFilter(label)}
                           darkMode={darkMode}
                         />
                         <button onClick={saveInterests} disabled={interestSaving || editInterests.length < 2}

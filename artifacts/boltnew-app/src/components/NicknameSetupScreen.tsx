@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-import { ArrowLeft, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
+import { ArrowLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { getPositionBg } from '../lib/profile';
 import { containsBannedNicknameWord } from '../lib/bannedWords';
@@ -12,8 +12,7 @@ import {
   nicknameCompositionAllowed,
   shouldBlockNicknameBeforeInput,
 } from '../lib/nickname-input';
-import { BIO_CATEGORIES } from '../lib/interests';
-import { IDEAL_TAG_GROUPS, FEATURE_TAG_GROUPS, encodeSignalMsg, SIGNAL_FEATURE_SELF_HINT, SIGNAL_FEATURE_SELF_LABEL, SIGNAL_IDEAL_HINT, SIGNAL_IDEAL_SECTION_LABEL, SIGNAL_SETUP_STEP_LABEL } from '../lib/signal-match';
+import { IDEAL_TAG_GROUPS, FEATURE_TAG_GROUPS, encodeSignalMsg, SIGNAL_FEATURE_SELF_LABEL, SIGNAL_IDEAL_SECTION_LABEL, SIGNAL_SETUP_STEP_LABEL } from '../lib/signal-match';
 import { InterestPicker } from './InterestPicker';
 import { SignalTagPicker } from './SignalTagPicker';
 import { maxAdultBirthYear, minBirthYearForEventMaxAge } from '../lib/korean-age';
@@ -129,18 +128,14 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
 
   // 관심사
   const [selectedBio, setSelectedBio] = useState<string[]>([]);
-  const [bioFilter, setBioFilter] = useState<string>(BIO_CATEGORIES[0].label);
 
   // 성향
   const [positionScore, setPositionScore] = useState<number | null>(null);
 
   // 이상형·나는 어떤 사람인가요? (선택 — Step 6)
   const [idealTags, setIdealTags] = useState<string[]>([]);
-  const [idealFreeText, setIdealFreeText] = useState('');
   const [featureTags, setFeatureTags] = useState<string[]>([]);
-  const [featureFreeText, setFeatureFreeText] = useState('');
-  const [idealOpen, setIdealOpen] = useState(false);
-  const [featureOpen, setFeatureOpen] = useState(false);
+  const [activeSignalSection, setActiveSignalSection] = useState<'ideal' | 'features'>('ideal');
 
   // contact (숨김 — 입장 후 설정)
   const kakaoId = '';
@@ -226,8 +221,8 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
     instagramId,
     phoneNumber,
     contactPrivate,
-    idealMsg: includeSignalFields ? encodeSignalMsg(idealTags, idealFreeText) : null,
-    featureMsg: includeSignalFields ? encodeSignalMsg(featureTags, featureFreeText) : null,
+    idealMsg: includeSignalFields ? encodeSignalMsg(idealTags, '') : null,
+    featureMsg: includeSignalFields ? encodeSignalMsg(featureTags, '') : null,
   });
 
   // ── 제출 ──────────────────────────────────────────────────────────────────────
@@ -514,8 +509,6 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
               <InterestPicker
                 selected={selectedBio}
                 onToggle={toggleBio}
-                filter={bioFilter}
-                onFilter={setBioFilter}
               />
             </div>
           )}
@@ -574,79 +567,34 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
               </div>
 
               <div className="rounded-xl border border-gray-200/90 bg-white shadow-sm shadow-gray-100/60 overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setIdealOpen((o) => !o)}
-                  aria-expanded={idealOpen}
-                  className="w-full flex items-center gap-2 px-3 py-3 text-left"
-                >
-                  <span className="text-base flex-shrink-0">💘</span>
-                  <div className="flex-1 min-w-0">
-                    <span className="text-sm font-black text-gray-800">{SIGNAL_IDEAL_SECTION_LABEL}</span>
-                    <p className="text-[10px] leading-snug text-gray-400 mt-0.5">{SIGNAL_IDEAL_HINT}</p>
-                  </div>
-                  <ChevronDown className={`w-4 h-4 flex-shrink-0 text-gray-400 transition-transform duration-200 ${idealOpen ? 'rotate-180' : ''}`} />
-                </button>
-                {idealOpen && (
-                  <div className="px-3 pb-3 space-y-3 border-t border-gray-100">
+                <div className="flex gap-1 p-1.5 bg-gray-50 border-b border-gray-100">
+                  <button type="button" onClick={() => setActiveSignalSection('ideal')} aria-pressed={activeSignalSection === 'ideal'}
+                    className={`flex-1 rounded-lg px-2 py-2 text-xs font-black transition-all ${activeSignalSection === 'ideal' ? 'bg-white text-rose-600 shadow-sm' : 'text-gray-500'}`}>
+                    💘 {SIGNAL_IDEAL_SECTION_LABEL}
+                  </button>
+                  <button type="button" onClick={() => setActiveSignalSection('features')} aria-pressed={activeSignalSection === 'features'}
+                    className={`flex-1 rounded-lg px-2 py-2 text-xs font-black transition-all ${activeSignalSection === 'features' ? 'bg-white text-violet-600 shadow-sm' : 'text-gray-500'}`}>
+                    🌟 <span>{SIGNAL_FEATURE_SELF_LABEL}</span>
+                  </button>
+                </div>
+                <div className="px-3 pb-3 pt-2">
+                  <p className="text-[10px] text-gray-400 mb-2">대분류를 고른 뒤 아래 소분류에서 태그를 선택하세요.</p>
+                  {activeSignalSection === 'ideal' ? (
                     <SignalTagPicker
                       groups={IDEAL_TAG_GROUPS}
                       selected={idealTags}
                       onToggle={(tag) => setIdealTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]))}
                       accent="rose"
                     />
-                    <div className="rounded-xl border border-gray-200/90 bg-white shadow-sm shadow-gray-100/60 px-3 py-2.5">
-                      <p className="text-[11px] font-bold mb-2 text-gray-800">기타 ✏️</p>
-                      <input
-                        type="text"
-                        value={idealFreeText}
-                        onChange={(e) => setIdealFreeText(e.target.value.slice(0, 30))}
-                        placeholder="예: 다정하고 티키타카 잘 맞는 분"
-                        maxLength={30}
-                        className="w-full px-3 py-2.5 rounded-xl text-sm border border-gray-200 bg-gray-50 text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-rose-400 transition-colors"
-                      />
-                      <p className="text-[10px] mt-0.5 text-right text-gray-400">{idealFreeText.length}/30</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="rounded-xl border border-gray-200/90 bg-white shadow-sm shadow-gray-100/60 overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setFeatureOpen((o) => !o)}
-                  aria-expanded={featureOpen}
-                  className="w-full flex items-center gap-2 px-3 py-3 text-left"
-                >
-                  <span className="text-base flex-shrink-0">🌟</span>
-                  <div className="flex-1 min-w-0">
-                    <span className="text-sm font-black text-gray-800">{SIGNAL_FEATURE_SELF_LABEL}</span>
-                    <p className="text-[10px] leading-snug text-gray-400 mt-0.5">{SIGNAL_FEATURE_SELF_HINT}</p>
-                  </div>
-                  <ChevronDown className={`w-4 h-4 flex-shrink-0 text-gray-400 transition-transform duration-200 ${featureOpen ? 'rotate-180' : ''}`} />
-                </button>
-                {featureOpen && (
-                  <div className="px-3 pb-3 space-y-3 border-t border-gray-100">
+                  ) : (
                     <SignalTagPicker
                       groups={FEATURE_TAG_GROUPS}
                       selected={featureTags}
                       onToggle={(tag) => setFeatureTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]))}
                       accent="violet"
                     />
-                    <div className="rounded-xl border border-gray-200/90 bg-white shadow-sm shadow-gray-100/60 px-3 py-2.5">
-                      <p className="text-[11px] font-bold mb-2 text-gray-800">기타 ✏️</p>
-                      <input
-                        type="text"
-                        value={featureFreeText}
-                        onChange={(e) => setFeatureFreeText(e.target.value.slice(0, 30))}
-                        placeholder="예: 말 걸기 쉬운 편, 유머있는"
-                        maxLength={30}
-                        className="w-full px-3 py-2.5 rounded-xl text-sm border border-gray-200 bg-gray-50 text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-violet-400 transition-colors"
-                      />
-                      <p className="text-[10px] mt-0.5 text-right text-gray-400">{featureFreeText.length}/30</p>
-                    </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
 
               {registrationError && (
