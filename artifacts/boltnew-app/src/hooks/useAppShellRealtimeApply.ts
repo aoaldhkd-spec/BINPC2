@@ -32,6 +32,7 @@ export type UseAppShellRealtimeApplyArgs = {
   setView: SetState<View>;
   setTimerEndAt: SetState<string | null>;
   setTimerLabel: SetState<string | null>;
+  setEventScheduleRaw: SetState<string | null>;
   setFunctionsLocked: SetState<boolean>;
   setEntryPassword: SetState<string | null>;
   setEntryVerified: SetState<boolean>;
@@ -54,6 +55,7 @@ export function useAppShellRealtimeApply(
     setView,
     setTimerEndAt,
     setTimerLabel,
+    setEventScheduleRaw,
     setFunctionsLocked,
     setEntryPassword,
     setEntryVerified,
@@ -93,6 +95,7 @@ export function useAppShellRealtimeApply(
     }
     setTimerEndAt(plan.timerEndAt);
     setTimerLabel(plan.timerLabel);
+    if (p.event_schedule !== undefined) setEventScheduleRaw(typeof p.event_schedule === 'string' ? p.event_schedule : null);
     if (plan.hasFunctionsLocked) setFunctionsLocked(parseFunctionsLocked(plan.functionsLockedRaw));
     if (plan.hasEntryPassword) {
       setEntryPassword(plan.entryPassword ?? '');
@@ -101,7 +104,7 @@ export function useAppShellRealtimeApply(
   }, [
     userIdRef, sessionActiveRef, applyResetSignal,
     setSessionActive, setShownWaiting, setView,
-    setTimerEndAt, setTimerLabel, setFunctionsLocked,
+    setTimerEndAt, setTimerLabel, setEventScheduleRaw, setFunctionsLocked,
     setEntryPassword, setEntryVerified,
   ]);
 

@@ -8,8 +8,9 @@ const HOME_STEPS: readonly CoachStep[] = [
   { title: '참여자 카드', detail: '여기는 오늘 함께하는 사람들의 카드예요. 이름·나이·관심사를 한눈에 확인할 수 있어요.', target: 'participant-card' },
   { title: '하트 보내기', detail: '카드 아래 하트 버튼을 누르면 상대에게 마음을 보낼 수 있어요. 하트 종류와 남은 개수는 위에서 확인해요.', target: 'profile-card-heart-btn' },
   { title: '채팅 시작하기', detail: '카드 아래 채팅 버튼을 누르면 상대와 1:1 대화를 시작해요. 받은 대화는 하트·채팅 탭에서도 확인할 수 있어요.', target: 'profile-card-chat-btn' },
-  { title: '카드 뒤집기', detail: '사진을 누르면 카드가 뒤집혀요. 상대가 고른 이상형 태그와 프로필 전체 보기를 확인할 수 있어요.', target: 'participant-card' },
-  { title: '잠금 표시', detail: '회색 자물쇠나 흐린 버튼은 현재 잠긴 기능이에요. 행사 조건이 열리면 같은 자리에서 사용할 수 있어요.', target: 'locked-control' },
+  { title: '카드 뒤집기', detail: '사진 가운데를 누르면 카드가 뒤집혀요. 상대가 고른 이상형 태그와 프로필 전체 보기를 확인할 수 있어요.', target: 'profile-card-flip' },
+  { title: '잠금 표시', detail: '회색 자물쇠나 흐린 버튼은 아직 잠긴 기능이에요. 잠금 표시가 없으면 이 단계는 안내 위치에서 설명해요.', target: 'locked-control' },
+  { title: '참여자 더보기', detail: '카드의 ⋯ 버튼을 누르면 연락처 보내기·궁합 보기·차단 같은 메뉴를 열 수 있어요. 작은 화면에서도 메뉴가 화면 안에 열려요.', target: 'participant-more' },
   { title: '하트 종류와 개수', detail: '오른쪽 위에서 호감·친구·뜨밤·칭찬 하트를 확인해요. 종류마다 오늘 사용할 수 있는 개수가 표시됩니다.', target: 'home-heart-types' },
   { title: '검색과 카드 보기', detail: '검색으로 닉네임·나이·출생년도를 찾고, 새로고침과 작게·2개·3개 보기로 화면을 편하게 정리해요.', target: 'home-controls' },
   { title: '하트·채팅', detail: '하트와 채팅 탭에서 받은 하트, 내 상태, 1:1 채팅과 단체 채팅을 확인할 수 있어요.', target: 'nav-my' },
@@ -26,15 +27,20 @@ const SCREEN_STEPS: Record<Exclude<CoachTab, 'profiles'>, readonly CoachStep[]> 
   ranking: [{ title: '랭킹', detail: '참여와 하트 흐름의 순위를 확인하는 화면이에요. 수치는 행사 중 계속 갱신됩니다.', target: 'nav-ranking' }],
   settings: [
     { title: '고유번호', detail: '고유번호는 휴대폰을 바꾸거나 다시 입장할 때 필요한 내 복구 번호예요. 복사해 두세요.', target: 'settings-pin' },
+    { title: '닉네임', detail: '닉네임은 참여자 카드에 보이는 이름이에요. 변경 가능 횟수를 확인하고 저장해요.', target: 'settings-nickname' },
+    { title: '관심사', detail: '관심사를 골라 공통점을 보여줘요. 태그를 누른 뒤 저장 버튼을 눌러요.', target: 'settings-interests' },
+    { title: '연락처 설정', detail: '연락처 공개 여부를 정해요. 상대가 공유를 수락했을 때만 전달됩니다.', target: 'settings-contact' },
+    { title: '생월·생일', detail: '생월과 생일은 궁합·운세에 사용돼요. 변경 가능 횟수를 확인해요.', target: 'settings-birth' },
     { title: '도움말·화면 설정', detail: '튜토리얼 보기에서 전체 사용법을 다시 보고, 다크 모드로 화면 색상을 바꿀 수 있어요.', target: 'settings-tools' },
     { title: '아바타·사진', detail: '사진을 올리거나 기본 아바타와 카드 배경을 고를 수 있어요.', target: 'settings-avatar' },
     { title: '오늘의 한마디', detail: '오늘의 한마디는 참여자 카드의 전광판에 보여요. 빠른 문구나 직접 입력으로 남길 수 있어요.', target: 'settings-status' },
     { title: '이상형·내 특징', detail: '대분류를 고른 뒤 소분류와 태그를 선택해요. 기타 직접 작성은 설정에서만 가능합니다.', target: 'settings-signals' },
+    { title: '차단·숨기기', detail: '차단하거나 숨긴 참여자는 이 목록에서 확인하고 해제할 수 있어요.', target: 'settings-blocklist' },
   ]
 };
 
-// v4 replays the complete guide so every user receives the concrete examples.
-const KEY_PREFIX = 'binpc2_coach_marks_v4_';
+// v5 replays the complete guide so every user receives the concrete examples.
+const KEY_PREFIX = 'binpc2_coach_marks_v5_';
 
 function hasSeen(tab: CoachTab): boolean {
   try { return localStorage.getItem(`${KEY_PREFIX}${tab}`) === '1'; } catch { return false; }
@@ -58,6 +64,16 @@ export function FirstEntryCoachMarks({ isSubScreen, suspended = false, mainTab }
     setStep(0);
     setOpenTab(mainTab);
   }, [isSubScreen, suspended, mainTab]);
+
+  // Settings is a long page: bring the actual section under the spotlight before measuring.
+  // Do not change tabs here; chat/current-tab explanations stay in place.
+  useEffect(() => {
+    if (!openTab || openTab !== mainTab || isSubScreen || suspended || !current || mainTab !== 'settings') return;
+    const element = document.querySelector<HTMLElement>(`[data-coach="${current.target}"]`);
+    if (element && typeof element.scrollIntoView === 'function') {
+      element.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' as ScrollBehavior });
+    }
+  }, [openTab, mainTab, step, current, isSubScreen, suspended]);
 
   // Measure one stable anchor per step. Missing anchors intentionally fall back to a centered tip.
   useEffect(() => {

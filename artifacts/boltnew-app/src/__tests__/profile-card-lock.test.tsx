@@ -142,9 +142,10 @@ describe('ProfileCard — lock guard (seat-lock + functions-lock regression)', (
     fireEvent.pointerUp(menuBtn, { pointerType: 'touch' });
     const menu = screen.getByTestId('profile-card-menu');
     expect(menu).toBeTruthy();
-    expect(menu.className).toContain('top-full');
-    expect(menu.className).toContain('right-0');
-    expect(menu.parentElement?.contains(menuBtn)).toBe(true);
+    expect(menu.className).toContain('fixed');
+    expect(menu.style.left).toBeTruthy();
+    expect(menu.style.top).toBeTruthy();
+    expect(document.body.contains(menu)).toBe(true);
     fireEvent.pointerUp(screen.getByRole('menuitem', { name: /차단하기/i }), { pointerType: 'touch' });
     expect(onBlock).toHaveBeenCalledWith(PROFILE.id, 'block');
   });
@@ -154,10 +155,9 @@ describe('ProfileCard — lock guard (seat-lock + functions-lock regression)', (
     const menuBtn = screen.getByTestId('profile-card-menu-btn');
     fireEvent.pointerUp(menuBtn, { pointerType: 'touch' });
     const menu = screen.getByTestId('profile-card-menu');
-    expect(menu.className).toMatch(/top-full/);
-    expect(menu.className).toMatch(/mt-0\.5/);
-    expect(menu.className).not.toMatch(/bottom-full/);
-    expect(menu.parentElement).toBe(menuBtn.parentElement);
+    expect(menu.className).toContain('fixed');
+    expect(menu.style.maxHeight).toBeTruthy();
+    expect(document.body.contains(menu)).toBe(true);
     const items = screen.getAllByRole('menuitem');
     expect(items).toHaveLength(4);
     expect(screen.getByRole('menuitem', { name: /나를 못 보게 하기/i })).toBeTruthy();
@@ -168,8 +168,8 @@ describe('ProfileCard — lock guard (seat-lock + functions-lock regression)', (
     const menuBtn = screen.getByTestId('profile-card-menu-btn');
     fireEvent.pointerUp(menuBtn, { pointerType: 'touch' });
     const menu = screen.getByTestId('profile-card-menu');
-    expect(menu.className).toMatch(/top-full/);
-    expect(menu.className).not.toMatch(/bottom-full/);
+    expect(menu.className).toContain('fixed');
+    expect(menu.style.left).toBeTruthy();
     expect(menuBtn.getAttribute('data-menu-anchor')).toBe('photo');
   });
 
@@ -183,7 +183,7 @@ describe('ProfileCard — lock guard (seat-lock + functions-lock regression)', (
 
     expect(menuBtn.getAttribute('data-menu-anchor')).toBe('photo');
     expect(photoFrame.className).toContain('overflow-visible');
-    expect(menu.parentElement).toBe(menuBtn.parentElement);
+    expect(document.body.contains(menu)).toBe(true);
   });
 
   it('functionsLocked=true: contact share menu shows toast, does NOT call onContactShare', () => {

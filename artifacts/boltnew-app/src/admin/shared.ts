@@ -9,6 +9,7 @@ export type AppSettings = Database['public']['Tables']['app_settings']['Row'] & 
   admin_password_set?: boolean;
   test_password_set?: boolean;
   reset_password_set?: boolean;
+  event_schedule?: string | null;
 };
 export type SessionHistory = Database['public']['Tables']['session_history']['Row'];
 export type Like = Database['public']['Tables']['likes']['Row'];

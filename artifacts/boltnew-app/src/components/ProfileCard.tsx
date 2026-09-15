@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect, memo, useCallback } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, memo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Heart, MessageCircle, MoreHorizontal } from 'lucide-react';
 import type { Profile } from '../types/app';
 import { parseProfileInterests, getInterestTagStyle } from '../lib/interests';
@@ -71,6 +72,7 @@ export const ProfileCard = memo(function ProfileCard({
   const [lockToast, setLockToast] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [menuAnchorId, setMenuAnchorId] = useState<MenuAnchorId | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number; maxHeight: number } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const photoMenuBtnRef = useRef<HTMLButtonElement>(null);
   const tickerMenuBtnRef = useRef<HTMLButtonElement>(null);
@@ -210,17 +212,46 @@ export const ProfileCard = memo(function ProfileCard({
     return () => document.removeEventListener('pointerdown', onOutside);
   }, [showMenu, closeCardMenu]);
 
+  // Mobile cards may sit at the viewport edge or inside an overflow grid. Render
+  // the menu in a fixed portal and clamp it to the visual viewport.
+  useLayoutEffect(() => {
+    if (!showMenu || !menuAnchorId) {
+      setMenuPosition(null);
+      return;
+    }
+    const measure = () => {
+      const button = menuAnchorId === 'photo' ? photoMenuBtnRef.current : tickerMenuBtnRef.current;
+      if (!button) return;
+      const rect = button.getBoundingClientRect();
+      const compactMaxHeight = Math.max(96, window.innerHeight - 16);
+      const estimatedWidth = compact ? 120 : 132;
+      const gutter = 8;
+      const left = Math.max(gutter, Math.min(rect.right - estimatedWidth, window.innerWidth - estimatedWidth - gutter));
+      const maxHeight = Math.max(96, window.innerHeight - 16);
+      const menuHeight = Math.min(compactMaxHeight, 220);
+      const below = rect.bottom + 4;
+      const top = below + menuHeight <= window.innerHeight - gutter
+        ? below
+        : Math.max(gutter, rect.top - menuHeight - 4);
+      setMenuPosition({ top, left, maxHeight });
+    };
+    measure();
+    window.addEventListener('resize', measure, { passive: true });
+    window.addEventListener('scroll', measure, { passive: true, capture: true });
+    return () => {
+      window.removeEventListener('resize', measure);
+      window.removeEventListener('scroll', measure, true);
+    };
+  }, [showMenu, menuAnchorId, compact]);
+
   const runMenuAction = (action: (e: React.SyntheticEvent) => void) => (e: React.SyntheticEvent) => {
     e.stopPropagation();
     closeCardMenu();
     action(e);
   };
 
-  const menuPlacementClass = compact ? 'top-full mt-0.5' : 'top-full mt-1';
-  const menuPanelClass = `absolute right-0 z-[99999] w-max min-w-0 rounded-lg shadow-md border overflow-y-auto overscroll-contain ${menuPlacementClass} ${
-    compact
-      ? 'max-w-[7.5rem] max-h-[calc(100dvh-1rem)] py-0'
-      : 'max-w-[8.25rem] max-h-[calc(100dvh-1rem)]'
+  const menuPanelClass = `fixed z-[99999] w-max min-w-0 rounded-lg shadow-md border overflow-y-auto overscroll-contain ${
+    compact ? 'max-w-[7.5rem] py-0' : 'max-w-[8.25rem]'
   } ${isCardDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100'}`;
   const menuItemClass = (tone: 'teal' | 'violet' | 'red' | 'muted', bordered?: boolean) =>
     `w-full text-left font-semibold flex items-center gap-0.5 touch-manipulation${
@@ -258,35 +289,43 @@ export const ProfileCard = memo(function ProfileCard({
 
   const renderMenuDropdown = (anchorId: MenuAnchorId, btnRef: React.RefObject<HTMLButtonElement | null>) => {
     const isOpen = showMenu && menuAnchorId === anchorId;
-    return (
-      <div className="relative z-[100] shrink-0" style={{ position: 'relative' }}>
-        <button
-          ref={btnRef}
-          type="button"
-          data-testid="profile-card-menu-btn"
-          data-profile-card-menu-trigger="1"
-          data-menu-anchor={anchorId}
+    const menu = isOpen && menuPosition && typeof document !== 'undefined'
+      ? createPortal(
+        <div
+          ref={menuRef}
+          role="menu"
+          data-testid="profile-card-menu"
+          className={menuPanelClass}
+          style={{ top: menuPosition.top, left: menuPosition.left, maxHeight: menuPosition.maxHeight }}
           onPointerDown={(e) => e.stopPropagation()}
-          {...bindMobileTap((e) => openMenuFromButton(e, anchorId))}
-          className="w-5 h-5 rounded-full bg-black/55 ring-1 ring-white/30 flex items-center justify-center active:scale-90 transition-transform shrink-0 shadow-sm touch-manipulation"
-          aria-label="더보기"
-          aria-expanded={isOpen}
+          onClick={(e) => e.stopPropagation()}
         >
-          <MoreHorizontal className="w-2.5 h-2.5 text-white pointer-events-none" />
-        </button>
-        {isOpen && (
-          <div
-            ref={menuRef}
-            role="menu"
-            data-testid="profile-card-menu"
-            className={menuPanelClass}
+          {renderMenuItems()}
+        </div>,
+        document.body,
+      )
+      : null;
+    return (
+      <>
+        <div className="relative z-[100] shrink-0" style={{ position: 'relative' }}>
+          <button
+            ref={btnRef}
+            type="button"
+            data-testid="profile-card-menu-btn"
+            data-coach="participant-more"
+            data-profile-card-menu-trigger="1"
+            data-menu-anchor={anchorId}
             onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => e.stopPropagation()}
+            {...bindMobileTap((e) => openMenuFromButton(e, anchorId))}
+            className="w-5 h-5 rounded-full bg-black/55 ring-1 ring-white/30 flex items-center justify-center active:scale-90 transition-transform shrink-0 shadow-sm touch-manipulation"
+            aria-label="더보기"
+            aria-expanded={isOpen}
           >
-            {renderMenuItems()}
-          </div>
-        )}
-      </div>
+            <MoreHorizontal className="w-2.5 h-2.5 text-white pointer-events-none" />
+          </button>
+        </div>
+        {menu}
+      </>
     );
   };
 
@@ -306,6 +345,7 @@ export const ProfileCard = memo(function ProfileCard({
           background: photoBg,
         }}
         data-testid="profile-card-photo-frame"
+        data-coach="profile-card-flip"
       >
           {/* ── 플립 존 — 실제 사진이 그려지는 영역만 3D 뒤집기 (컨테이너 크기 고정) ── */}
           <div style={{ perspective: isFlipped || flipAnimating ? '1000px' : undefined, overflow: 'hidden', ...flipZoneStyle }}>

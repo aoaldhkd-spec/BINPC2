@@ -9,6 +9,7 @@ export type SessionReadySettingsPatch = {
   hasFunctionsLocked: boolean;
   timerEndAt?: string | null;
   timerLabel?: string | null;
+  eventScheduleRaw?: string | null;
   includeTimers: boolean;
 };
 
@@ -28,6 +29,7 @@ export function planSessionReadySettingsPatch(
   };
   if (hasSession) patch.sessionActive = settings.session_active as boolean;
   if (hasFunctionsLocked) patch.functionsLockedRaw = settings.functions_locked;
+  if (typeof settings.event_schedule === 'string') patch.eventScheduleRaw = settings.event_schedule;
   if (includeTimers) {
     patch.timerEndAt = (settings.timer_end_at as string | null | undefined) ?? null;
     patch.timerLabel = (settings.timer_label as string | null | undefined) ?? null;

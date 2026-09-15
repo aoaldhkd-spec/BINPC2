@@ -7,11 +7,12 @@ import { bindMobileTap } from '../lib/mobile-tap';
 import ProfileAvatar from './ProfileAvatar';
 
 export function LikeConfirmDialog({
-  target, likedByType, sentTypesForTarget, onConfirm, onCancel,
+  target, likedByType, sentTypesForTarget, quotas, onConfirm, onCancel,
 }: {
   target: Profile;
   likedByType: Record<HeartType, number>;
   sentTypesForTarget: Set<HeartType>;
+  quotas: Record<HeartType, number>;
   onConfirm: (type: HeartType) => void;
   onCancel: () => void;
 }) {
@@ -58,7 +59,7 @@ export function LikeConfirmDialog({
         <div className="space-y-2 mb-5">
           {HEART_TYPES.map(h => {
             const used = likedByType[h.type] ?? 0;
-            const remaining = 2 - used;
+            const remaining = Math.max(0, (quotas[h.type] ?? 2) - used);
             const alreadySentToThisPerson = sentTypesForTarget.has(h.type);
             const disabled = remaining <= 0 || alreadySentToThisPerson;
             const isSel = selected === h.type;
@@ -85,8 +86,8 @@ export function LikeConfirmDialog({
                   {alreadySentToThisPerson ? (
                     <span className="text-[10px] text-gray-400 font-bold">전송됨</span>
                   ) : (
-                    [0, 1].map(i => (
-                      <Heart key={i} className={`w-4 h-4 ${i < (2 - used) ? h.fillText : 'fill-gray-200 text-gray-200'}`} />
+                    Array.from({ length: Math.min(8, quotas[h.type] ?? 2) }, (_, i) => (
+                      <Heart key={i} className={`w-4 h-4 ${i < remaining ? h.fillText : 'fill-gray-200 text-gray-200'}`} />
                     ))
                   )}
                 </div>

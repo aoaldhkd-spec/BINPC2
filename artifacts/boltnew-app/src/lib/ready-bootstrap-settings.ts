@@ -22,6 +22,7 @@ export type ReadyBootstrapApplyPlan =
       entryVerified: boolean;
       timerEndAt: string | null;
       timerLabel: string | null;
+      eventScheduleRaw?: string | null;
       hasFunctionsLocked: boolean;
       functionsLockedRaw?: unknown;
     };
@@ -49,6 +50,7 @@ export function planReadyBootstrapApply(
     entryVerified: entry.entryVerified,
     timerEndAt: (data.timer_end_at as string | null | undefined) ?? null,
     timerLabel: (data.timer_label as string | null | undefined) ?? null,
+    ...(Object.prototype.hasOwnProperty.call(data, 'event_schedule') ? { eventScheduleRaw: typeof data.event_schedule === 'string' ? data.event_schedule : null } : {}),
     hasFunctionsLocked: data.functions_locked != null,
     functionsLockedRaw: data.functions_locked != null ? data.functions_locked : undefined,
   };

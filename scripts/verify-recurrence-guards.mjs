@@ -291,22 +291,15 @@ mustMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '37_card_menu_
   /openMenuFromButton/,
   /closeCardMenu/,
 ]);
-mustMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '39_card_menu_absolute_dropdown', [
+mustMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '39_card_menu_fixed_portal', [
   /profile-card-menu/,
-  /top-full/,
-  /mt-0\.5/,
-  /mt-1/,
-  /right-0/,
-  /z-\[99999\]/,
+  /fixed z-\[99999\]/,
+  /createPortal/,
+  /getBoundingClientRect/,
+  /maxHeight/,
   /overflow-visible/,
   /renderMenuDropdown/,
   /menuAnchorId/,
-]);
-mustNotMatch('artifacts/boltnew-app/src/components/ProfileCard.tsx', '39_card_menu_no_portal', [
-  /createPortal/,
-  /getBoundingClientRect/,
-  /pendingMenuPos/,
-  /cardMenuBox/,
 ]);
 mustMatch('artifacts/boltnew-app/src/hooks/useChat.ts', '37_chat_ensure_write_session', [
   /ensureWriteSession/,

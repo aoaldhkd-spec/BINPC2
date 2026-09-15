@@ -3,6 +3,8 @@
  * Keep FIELD_LIMITS in sync when adding free-text columns.
  */
 
+import { activeEventScheduleSlot } from './db-event-schedule.js';
+
 export function sanitizeStr(val: unknown, maxLen: number): unknown {
   if (typeof val !== 'string') return val;
   return val
@@ -56,5 +58,8 @@ export function sanitizeSettings(row: Record<string, unknown>): Record<string, u
   delete s['admin_password'];
   delete s['reset_password'];
   delete s['test_password'];
+  // Schedule lock is computed on the server for every settings SSE emission.
+  const slot = activeEventScheduleSlot(s['event_schedule']);
+  if (slot?.functions_locked !== undefined) s['functions_locked'] = slot.functions_locked;
   return s;
 }

@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase, ensureWriteSession } from '../lib/supabase';
 import type { Profile, ContactShare } from '../types/app';
 import { HeartType } from '../lib/constants';
+import { eventHeartQuotas } from '../lib/event-schedule';
 import { isInterestHeart } from '../lib/signal-match';
 // signal-match: isInterestHeart only (mutual-heart detection)
 import {
@@ -30,6 +31,7 @@ export function useHearts(
   profiles: Profile[],
   _profileMap: Map<string, Profile>,
   _onOpenChat: (profile: Profile) => void,
+  eventScheduleRaw: string | null = null,
 ) {
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [sentHeartTypes, setSentHeartTypes] = useState<Map<string, HeartType>>(new Map());
@@ -246,8 +248,9 @@ export function useHearts(
   const executeLike = async (heartType: HeartType): Promise<boolean> => {
     if (!currentUserId || !likeConfirmTarget) return false;
     if (likeInFlightRef.current) return false;
-    if (heartCountByType(heartType) >= 2) {
-      setLikeError('같은 종류의 하트는 최대 2명에게만 보낼 수 있습니다.');
+    const heartQuota = eventHeartQuotas(eventScheduleRaw)[heartType];
+    if (heartCountByType(heartType) >= heartQuota) {
+      setLikeError(`같은 종류의 하트는 최대 ${heartQuota}명에게만 보낼 수 있습니다.`);
       setLikeConfirmTarget(null);
       return false;
     }
@@ -291,7 +294,9 @@ export function useHearts(
         const errMsg = errObj?.message != null ? String(errObj.message) : String(error);
         const errCode = errObj?.code != null ? String(errObj.code) : '';
         console.warn('[useHearts] executeLike failed', { errCode, errMsg, targetId, heartType });
-        const isHeartLimit = errCode === 'HEART_LIMIT' || errMsg.includes('최대 2명');
+        const isHeartLimit = errCode === 'HEART_LIMIT' || errMsg.includes('최대 2명') || errMsg.includes('최대 ');
+        const heartLimitMatch = errMsg.match(/최대\s+(\d+)명/);
+        const heartLimit = heartLimitMatch ? Number(heartLimitMatch[1]) : 2;
         const isRateLimit = errCode === 'RATE_LIMIT' || errMsg.includes('429') || errMsg.includes('rate') || errMsg.includes('too many');
         const isLocked = errCode === 'FUNCTIONS_LOCKED';
         const isInvalidRef = errCode === 'INVALID_REFERENCE' || errMsg.includes('참조 대상');
@@ -299,7 +304,7 @@ export function useHearts(
         const isUnauthorized = errCode === 'UNAUTHORIZED' || errCode === 'FORBIDDEN'
           || errMsg.includes('Authentication required') || errMsg.includes('세션') || errMsg.includes('authentication required');
         setLikeError(isHeartLimit
-          ? '같은 종류의 하트는 최대 2명에게만 보낼 수 있습니다.'
+          ? `같은 종류의 하트는 최대 ${heartLimit}명에게만 보낼 수 있습니다.`
           : isRateLimit
             ? '하트를 너무 많이 보냈습니다. 잠시 후 다시 시도해 주세요. 💔'
             : isLocked

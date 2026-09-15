@@ -487,6 +487,7 @@ import {
   buildLegacyHistoryStripSql,
   parseLegacyLeftoverCounts,
 } from '../lib/db-legacy-cleanup';
+import { eventHeartQuota, EVENT_HEART_TYPES, type EventHeartType } from '../lib/db-event-schedule';
 import {
   recordExpiredSseToken,
   recordMissingSseToken,
@@ -3342,10 +3343,19 @@ router.post('/op', async (req: Request, res: Response) => {
           const referenceCheck = await ensureWriteReferences(table, effectiveRow);
           if (!referenceCheck.ok) return sendReferenceFailure(res, referenceCheck);
 
-          // 타입별 글로벌 한도: 동일 heart_type을 최대 2명에게만 보낼 수 있음 (db-op-likes-limits)
-          if (likesSameTypeLimitReached(tableData, likeLiker, likeType)) {
+          // 타입별 행사 한도: 기본 2명 + 서버 시각 기준으로 이미 열린 슬롯의 grant.
+          // 클라이언트가 우회해도 여기서 최종 차단하며, 슬롯 변경은 app_settings/SSE로 전파된다.
+          const quotaType = (EVENT_HEART_TYPES as readonly string[]).includes(likeType)
+            ? likeType as EventHeartType
+            : 'red';
+          const heartQuota = eventHeartQuota(
+            (getTable('app_settings')[0] as Record<string, unknown> | undefined)?.event_schedule,
+            quotaType,
+            new Date(),
+          );
+          if (likesSameTypeLimitReached(tableData, likeLiker, likeType, heartQuota)) {
             // 400: HEART_LIMIT을 429로 주면 클라이언트가 NAT 429로 재시도해 지연·이중전송처럼 보임
-            return sendReject(likesHeartLimitReject());
+            return sendReject(likesHeartLimitReject(heartQuota));
           }
 
           // Time-bucket rate limiter: at most 1 like per 500 ms per (liker, liked, type) triple

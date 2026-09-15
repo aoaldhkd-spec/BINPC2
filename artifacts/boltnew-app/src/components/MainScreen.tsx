@@ -1,3 +1,4 @@
+import { EventScheduleBanner } from './EventScheduleBanner';
 import { useState, useEffect, useRef, useCallback, useMemo, memo, type ReactNode } from 'react';
 /**
  * Main user shell UI (tabs: profiles/chats/status/…).
@@ -83,7 +84,7 @@ export function MainScreen({
   receivedLikers, receivedHeartTypes, sentLikedProfiles, contactSharedWithIds, acknowledgedComplimentIds,
   receivedContactShares, pendingHeartsCount, chatList,
   onContactShareOpen: _onContactShareOpen, onContactViewOpen, onHeartResponse, onDeleteChat, onDeleteAllChats, onOpenChat,
-  timerEndAt, timerLabel, onRefreshStatus, onRefreshChat, onRefreshProfiles, darkMode, onToggleDark, scannedContacts, onClearScannedContact, functionsLocked = false, onShowTutorial,
+  timerEndAt, timerLabel, heartQuotas, eventScheduleRaw, onRefreshStatus, onRefreshChat, onRefreshProfiles, darkMode, onToggleDark, scannedContacts, onClearScannedContact, functionsLocked = false, onShowTutorial,
   unreadChatCounts, onClearChatUnread: _onClearChatUnread,
   onUpdateProfile,
   groupChats = [], unreadGroupCounts = {}, onOpenGroupChat, onJoinGroupChat, onLeaveGroupChat, joiningGroupId = null,
@@ -117,6 +118,8 @@ export function MainScreen({
   onOpenChat: (profile: Profile) => void;
   timerEndAt: string | null;
   timerLabel: string | null;
+  heartQuotas: Record<HeartType, number>;
+  eventScheduleRaw: string | null;
   onRefreshStatus: () => void;
   onRefreshChat: () => void;
   onRefreshProfiles: () => void;
@@ -712,9 +715,9 @@ export function MainScreen({
               {HEART_TYPES.map(h => {
                 const used = heartCount(h.type);
                 return (
-                  <div key={h.type} className="flex items-center gap-0.5" title={`${h.label} (${2-used}개 남음)`}>
+                  <div key={h.type} className="flex items-center gap-0.5" title={`${h.label} (${Math.max(0, (heartQuotas[h.type] ?? 2) - used)}개 남음)`}>
                     <span className="text-sm leading-none">{h.emoji}</span>
-                    <span className={`text-[10px] font-bold tabular-nums ${used >= 2 ? (darkMode ? 'text-slate-400 line-through' : 'text-gray-400 line-through') : (darkMode ? 'text-white' : 'text-gray-600')}`}>{2 - used}</span>
+                    <span className={`text-[10px] font-bold tabular-nums ${used >= (heartQuotas[h.type] ?? 2) ? (darkMode ? 'text-slate-400 line-through' : 'text-gray-400 line-through') : (darkMode ? 'text-white' : 'text-gray-600')}`}>{Math.max(0, (heartQuotas[h.type] ?? 2) - used)}</span>
                   </div>
                 );
               })}
@@ -722,6 +725,7 @@ export function MainScreen({
           </div>
         </div>
         {timerEndAt && <TimerBanner endAt={timerEndAt} label={timerLabel ?? ''} />}
+        <EventScheduleBanner raw={eventScheduleRaw} />
       </header>
 
       <main
@@ -1677,7 +1681,7 @@ export function MainScreen({
                   {(() => {
                     const nicknameAlreadyChanged = !!(me as { nickname_changed?: boolean }).nickname_changed;
                     return (
-                      <div className={`border-b ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
+                      <div data-coach="settings-nickname" className={`border-b ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
                         <button
                           onClick={() => toggleSection('nickname')}
                           disabled={nicknameAlreadyChanged}
@@ -1755,7 +1759,7 @@ export function MainScreen({
                   })()}
 
                   {/* ── 관심사 ── */}
-                  <div className={`border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
+                  <div data-coach="settings-interests" className={`border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
                     <button onClick={() => toggleSection('interests')} className="w-full flex items-center gap-3 px-4 py-3 text-left">
                       <span className="text-xl flex-shrink-0">🎯</span>
                       <div className="flex-1 min-w-0">
@@ -1785,7 +1789,7 @@ export function MainScreen({
                   </div>
 
                   {/* ── 연락처 설정 ── */}
-                  <div className={`border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
+                  <div data-coach="settings-contact" className={`border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
                     <button onClick={() => toggleSection('contact')} className="w-full flex items-center gap-2 px-4 py-3 text-left">
                       <span className="text-xl flex-shrink-0">📋</span>
                       <div className="flex-1 min-w-0">
@@ -1845,7 +1849,7 @@ export function MainScreen({
                   </div>
 
                   {/* ── 생월·생일 ── */}
-                  <div className={`border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
+                  <div data-coach="settings-birth" className={`border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
                     <button
                       onClick={() => toggleSection('birth')}
                       disabled={birthMdLocked}
@@ -2066,7 +2070,7 @@ export function MainScreen({
                   </div>
 
                   {/* ── 차단·숨기기 ── */}
-                  <div className={`border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
+                  <div data-coach="settings-blocklist" className={`border-t ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
                     <button onClick={() => toggleSection('blocklist')} className="w-full flex items-center gap-3 px-4 py-3 text-left">
                       <span className="text-xl flex-shrink-0">🚫</span>
                       <div className="flex-1 min-w-0">

@@ -33,6 +33,7 @@ export function buildDefaultAppSettings(input: {
     updated_at: input.now,
     timer_end_at: null,
     timer_label: null,
+    event_schedule: JSON.stringify({ timezone: 'Asia/Seoul', slots: [] }),
     functions_locked: false,
     reset_signal: null,
     entry_password: input.entryPassword ?? '',

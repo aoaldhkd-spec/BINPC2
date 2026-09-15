@@ -17,6 +17,7 @@ import { useProfilePrivacyLoaders } from './hooks/useProfilePrivacyLoaders';
 import { useSessionInit } from './hooks/useSessionInit';
 import { planAdminResetWipe, runAdminResetWipe } from './lib/admin-reset-wipe';
 import type { SessionReadySettingsPatch } from './lib/session-ready-settings';
+import { eventHeartQuotas, currentEventSlot } from './lib/event-schedule';
 import { subscribeNetUi, resetNetUiForRetry, type NetUiStatus } from './lib/net-health';
 import { excludeSwipeGestureVerifyProfiles } from './lib/profile';
 import { mergeProfilesPreserveOrder } from './lib/profile-list-order';
@@ -199,6 +200,7 @@ function App() {
   const [activeNotif, setActiveNotif] = useState<{ id: string; message: string; type: string; target: string } | null>(null);
   const [timerEndAt, setTimerEndAt] = useState<string | null>(null);
   const [timerLabel, setTimerLabel] = useState<string | null>(null);
+  const [eventScheduleRaw, setEventScheduleRaw] = useState<string | null>(null);
   const [rejectionNotif, setRejectionNotif] = useState<string | null>(null); // nickname of person who rejected
   const [bottomNotif, setBottomNotif] = useState<BottomNotificationData | null>(null);
   const [showResetPassword, setShowResetPassword] = useState(false);
@@ -367,7 +369,20 @@ function App() {
     loadLikes, loadReceivedLikes, loadContactShareData, likedByTypeRecord,
     handleLike, executeLike, handleHeartResponse, handleContactShare,
     likeError, setLikeError,
-  } = useHearts(currentUserId, profiles, profileMap, openChat);
+  } = useHearts(currentUserId, profiles, profileMap, openChat, eventScheduleRaw);
+  const heartQuotas = useMemo(() => eventHeartQuotas(eventScheduleRaw), [eventScheduleRaw]);
+  // The schedule is also evaluated locally between SSE/ready heartbeats so a slot
+  // boundary does not leave the buttons visually stale. The server remains authoritative.
+  useEffect(() => {
+    if (!eventScheduleRaw) return;
+    const applySlotLock = () => {
+      const lock = currentEventSlot(eventScheduleRaw)?.functions_locked;
+      if (typeof lock === 'boolean') setFunctionsLocked(lock);
+    };
+    applySlotLock();
+    const id = window.setInterval(applySlotLock, 1000);
+    return () => window.clearInterval(id);
+  }, [eventScheduleRaw]);
 
   // 하트 전송 실패 알림 — executeLike가 error를 set하면 바텀 토스트로 표시
   useEffect(() => {
@@ -719,6 +734,7 @@ function App() {
     setEntryVerified,
     setTimerEndAt,
     setTimerLabel,
+    setEventSchedule: setEventScheduleRaw,
     setFunctionsLocked,
   });
 
@@ -770,6 +786,7 @@ function App() {
     if (patch.includeTimers) {
       setTimerEndAt(patch.timerEndAt ?? null);
       setTimerLabel(patch.timerLabel ?? null);
+      if (patch.eventScheduleRaw !== undefined) setEventScheduleRaw(patch.eventScheduleRaw ?? null);
     }
   }, []);
 
@@ -803,6 +820,7 @@ function App() {
     setView,
     setTimerEndAt,
     setTimerLabel,
+    setEventScheduleRaw,
     setFunctionsLocked,
     setEntryPassword,
     setEntryVerified,
@@ -1040,6 +1058,7 @@ function App() {
         handleContactShareGuarded={handleContactShareGuarded}
         saveScannedContact={saveScannedContact}
         privacyProfileIds={privacyProfileIds}
+        heartQuotas={heartQuotas}
       >
         <AppMainShell
           isSubScreen={isSubScreen}
@@ -1073,6 +1092,8 @@ function App() {
           onOpenChat={openChatGuarded}
           timerEndAt={timerEndAt}
           timerLabel={timerLabel}
+          heartQuotas={heartQuotas}
+          eventScheduleRaw={eventScheduleRaw}
           onRefreshStatus={refreshStatusTab}
           onRefreshChat={refreshChatTab}
           onUpdateProfile={handleUpdateProfile}

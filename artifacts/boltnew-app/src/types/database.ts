@@ -135,6 +135,7 @@ export interface Database {
           updated_at: string;
           timer_end_at: string | null;
           timer_label: string | null;
+          event_schedule: string | null;
           functions_locked: boolean | null;
           active_tables: number[] | null;
           reset_signal: string | null;
@@ -151,6 +152,7 @@ export interface Database {
           updated_at?: string;
           timer_end_at?: string | null;
           timer_label?: string | null;
+          event_schedule?: string | null;
           functions_locked?: boolean | null;
           active_tables?: number[] | null;
           reset_signal?: string | null;
@@ -167,6 +169,7 @@ export interface Database {
           updated_at?: string;
           timer_end_at?: string | null;
           timer_label?: string | null;
+          event_schedule?: string | null;
           functions_locked?: boolean | null;
           active_tables?: number[] | null;
           reset_signal?: string | null;

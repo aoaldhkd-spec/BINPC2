@@ -3,6 +3,7 @@
  * Pure; defaultAppSettings builder + PG fetch for overlayDbSecrets stay in db.ts.
  */
 import { LEGACY_APP_SETTINGS_KEYS } from './db-legacy-cleanup.js';
+import { serializeEventSchedule } from './db-event-schedule.js';
 
 export const PRODUCTION_QR_BASE = 'https://binpc2.netlify.app';
 
@@ -60,6 +61,7 @@ export function mergeAppSettings(
     merged.functions_locked = v === true || v === 1 || v === 'true' || v === '1';
   }
   if (isLocalQrUrl(merged.qr_base_url)) merged.qr_base_url = PRODUCTION_QR_BASE;
+  if ('event_schedule' in merged) merged.event_schedule = serializeEventSchedule(merged.event_schedule);
   return merged;
 }
 
@@ -72,7 +74,7 @@ export function sanitizeAdminSettingsPayload(
   return Object.fromEntries(
     Object.entries(raw).map(([k, v]) => [
       k,
-      typeof v === 'string' ? v.replace(/<[^>]*>/g, '').slice(0, maxLen) : v,
+      typeof v === 'string' ? v.replace(/<[^>]*>/g, '').slice(0, k === 'event_schedule' ? 12000 : maxLen) : v,
     ]),
   );
 }

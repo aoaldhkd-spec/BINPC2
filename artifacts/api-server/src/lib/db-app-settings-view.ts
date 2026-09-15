@@ -3,6 +3,7 @@
  * PG hydrate/persist and store mutate stay in db.ts (thin wrappers + I/O).
  */
 import { sanitizeSettings } from './db-sanitize.js';
+import { activeEventScheduleSlot } from './db-event-schedule.js';
 import {
   panelAdminSecrets,
   panelSecretsForRuntime,
@@ -33,7 +34,9 @@ export const FUNCTIONS_LOCKED_ERROR = {
 
 export function settingsFunctionsLocked(row: Record<string, unknown> | null | undefined): boolean {
   const v = row?.functions_locked;
-  return v === true || v === 1 || v === 'true' || v === '1';
+  const base = v === true || v === 1 || v === 'true' || v === '1';
+  const slot = activeEventScheduleSlot(row?.event_schedule);
+  return slot?.functions_locked ?? base;
 }
 
 /** Strip secrets; forAdmin adds *_password_set booleans only. */
@@ -144,6 +147,7 @@ export function buildReadyPayload(input: {
       entry_password: String(settings.entry_password ?? ''),
       timer_end_at: (settings.timer_end_at as string | null | undefined) ?? null,
       timer_label: (settings.timer_label as string | null | undefined) ?? null,
+      event_schedule: typeof settings.event_schedule === 'string' ? settings.event_schedule : JSON.stringify({ timezone: 'Asia/Seoul', slots: [] }),
       reset_signal: (settings.reset_signal as string | null | undefined) ?? null,
       functions_locked: settingsFunctionsLocked(settings),
     },

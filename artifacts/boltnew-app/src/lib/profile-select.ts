@@ -36,4 +36,4 @@ export const NOTIFICATION_ROW_SELECT = 'id, message, type, target, is_active, cr
  * (Participant clients must not use this list.)
  */
 export const APP_SETTINGS_ADMIN_SELECT =
-  'id, session_active, admin_phone, admin_password, entry_password, reset_password, test_password, updated_at, timer_end_at, timer_label, functions_locked, active_tables, reset_signal, table_labels, qr_base_url, admin_password_set, test_password_set, reset_password_set';
+  'id, session_active, admin_phone, admin_password, entry_password, reset_password, test_password, updated_at, timer_end_at, timer_label, event_schedule, functions_locked, active_tables, reset_signal, table_labels, qr_base_url, admin_password_set, test_password_set, reset_password_set';

@@ -33,6 +33,7 @@ export type UseSessionReadyBootstrapArgs = {
   setEntryVerified: (v: boolean) => void;
   setTimerEndAt: (v: string | null) => void;
   setTimerLabel: (v: string | null) => void;
+  setEventSchedule: (v: string | null) => void;
   setFunctionsLocked: (v: boolean) => void;
 };
 
@@ -50,6 +51,7 @@ function applyReadyPlan(
   args.setEntryVerified(plan.entryVerified);
   args.setTimerEndAt(plan.timerEndAt);
   args.setTimerLabel(plan.timerLabel);
+  if (plan.eventScheduleRaw !== undefined) args.setEventSchedule(plan.eventScheduleRaw);
   if (plan.hasFunctionsLocked) {
     args.setFunctionsLocked(parseFunctionsLocked(plan.functionsLockedRaw));
   }
@@ -105,7 +107,7 @@ export function useSessionReadyBootstrap(args: UseSessionReadyBootstrapArgs): vo
 
       const { data, error } = await supabase
         .from('app_settings')
-        .select('session_active, timer_end_at, timer_label, reset_signal, entry_password, functions_locked')
+        .select('session_active, timer_end_at, timer_label, event_schedule, reset_signal, entry_password, functions_locked')
         .eq('id', 1)
         .single();
       if (cancelled) return;

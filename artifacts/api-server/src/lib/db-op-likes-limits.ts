@@ -41,12 +41,12 @@ export function countSameTypeLikes(
 }
 
 /** 400 HEART_LIMIT — do not use 429 (client NAT retry storm). */
-export function likesHeartLimitReject(): LikesLimitReject {
+export function likesHeartLimitReject(max = LIKES_SAME_TYPE_TARGET_MAX): LikesLimitReject {
   return {
     status: 400,
     body: {
       data: null,
-      error: { message: LIKES_HEART_LIMIT_MESSAGE, code: 'HEART_LIMIT' },
+      error: { message: `같은 종류의 하트는 최대 ${max}명에게만 보낼 수 있습니다.`, code: 'HEART_LIMIT' },
     },
   };
 }
@@ -69,8 +69,9 @@ export function likesSameTypeLimitReached(
   rows: Record<string, unknown>[],
   likerId: string,
   heartType: string,
+  maxTargets = LIKES_SAME_TYPE_TARGET_MAX,
 ): boolean {
-  return countSameTypeLikes(rows, likerId, heartType) >= LIKES_SAME_TYPE_TARGET_MAX;
+  return countSameTypeLikes(rows, likerId, heartType) >= maxTargets;
 }
 
 /** True when local pair interval has not elapsed. */

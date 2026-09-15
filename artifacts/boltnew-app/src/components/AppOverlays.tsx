@@ -131,6 +131,7 @@ export type AppOverlaysProps = {
   handleContactShareGuarded: (toUserId: string, kakao: string, instagram: string, phone: string) => void | Promise<void>;
   saveScannedContact: (p: Profile) => void;
   privacyProfileIds: { blockedUserIds: Set<string>; hiddenByIds: Set<string> };
+  heartQuotas: Record<HeartType, number>;
 };
 
 export function AppOverlays(p: AppOverlaysProps) {
@@ -165,7 +166,7 @@ export function AppOverlays(p: AppOverlaysProps) {
     receivedContactShares, contactSharedWithIds, setProfiles, chatDraftRef,
     likedByTypeRecord, execLikeGuarded, showConfetti,
     shareEventNotif, setShareEventNotif, handleContactShareGuarded, saveScannedContact,
-    privacyProfileIds,
+    privacyProfileIds, heartQuotas,
   } = p;
 
   return (
@@ -346,6 +347,7 @@ export function AppOverlays(p: AppOverlaysProps) {
           target={likeConfirmTarget}
           likedByType={likedByTypeRecord()}
           sentTypesForTarget={sentHeartsPerPerson.get(likeConfirmTarget.id) ?? new Set()}
+          quotas={heartQuotas}
           onConfirm={execLikeGuarded}
           onCancel={() => setLikeConfirmTarget(null)}
         />
