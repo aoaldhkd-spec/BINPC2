@@ -113,6 +113,8 @@ import {
 import {
   deriveAdminToken,
   deriveTestToken,
+  verifyAdminPanelToken,
+  verifyTestPanelToken,
 } from '../lib/db-panel-tokens';
 import {
   createImageStore,
@@ -173,6 +175,8 @@ import {
   verifySseToken as verifySseTokenPure,
   type SseTokenState,
 } from '../lib/db-session-tokens';
+import { computeUnreadCountsForUser } from '../lib/db-unread-counts';
+import { planPushForEvent } from '../lib/db-push-plan';
 import {
   isChatParticipant as isChatParticipantPure,
   countMessagesForChat as countMessagesForChatPure,
@@ -505,32 +509,17 @@ class RpcAuthError extends Error {
 // 서버는 현재 admin_password를 읽어 HMAC을 재계산한 뒤 timingSafeEqual로 비교
 // → 비밀번호 변경 시 자동 무효화, 재시작 후에도 동일 토큰 검증 가능
 
+/** Thin wrappers — HMAC verify lives in db-panel-tokens; getTable stays local. */
 function verifyAdminToken(provided: string | null | undefined): boolean {
-  if (!provided || typeof provided !== 'string') return false;
   const settings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
   const secrets = panelAdminSecrets(String(settings.admin_password ?? ''));
-  if (!secrets.length) return false;
-  return secrets.some((s) => {
-    const expected = deriveAdminToken(s);
-    try {
-      return timingSafeEqual(Buffer.from(provided, 'hex'), Buffer.from(expected, 'hex'));
-    } catch { return false; }
-  });
+  return verifyAdminPanelToken(provided, secrets);
 }
 
 function verifyTestToken(provided: string | null | undefined): boolean {
-  if (!provided || typeof provided !== 'string') return false;
   const settings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
   const secrets = panelTestSecrets(String(settings.test_password ?? ''));
-  if (!secrets.length) return false;
-  return secrets.some((s) => {
-    const expected = deriveTestToken(s);
-    try {
-      return timingSafeEqual(Buffer.from(provided, 'hex'), Buffer.from(expected, 'hex'));
-    } catch {
-      return false;
-    }
-  });
+  return verifyTestPanelToken(provided, secrets);
 }
 
 // 관리자 SSE 연결 집합 — 일반 sseUserMap과 분리해 모든 이벤트(private 포함) 수신
@@ -2638,55 +2627,21 @@ function smartBroadcast(table: string, row: Record<string, unknown> | null, even
 }
 
 // ─── Web Push: 메시지/하트 삽입 시 수신자에게 알림 전송 ──────────────────────
+/** Push recipient/payload plan: ../lib/db-push-plan.ts (re-import). */
 async function sendPushForEvent(
   table: string,
   row: Record<string, unknown>,
   actorId?: string | null,
 ): Promise<void> {
-  let recipientId: string | null = null;
-  let payload: PushPayload | null = null;
-
-  if (table === 'messages') {
-    const chat = getTable('chats').find(c => String(c.id) === String(row.chat_id));
-    if (!chat) return;
-    recipientId = (String(chat.user1_id) === String(row.sender_id) ? chat.user2_id : chat.user1_id) as string;
-    const sender = getTable('profiles').find(p => p.id === row.sender_id);
-    const nick = (sender?.nickname as string) ?? '누군가';
-    let body = (row.content as string) ?? '';
-    if (row.image_url) body = '[이미지]';
-    else if (body.startsWith('__sticker__')) body = '[스티커]';
-    else if (body.length > 60) body = body.slice(0, 60) + '…';
-    payload = { title: `💬 ${nick}`, body, tag: `chat-${chat.id as string}`, url: '/' };
-  } else if (table === 'likes') {
-    recipientId = row.liked_id as string;
-    const sender = getTable('profiles').find(p => p.id === row.liker_id);
-    const nick = (sender?.nickname as string) ?? '누군가';
-    const heartEmoji =
-      row.heart_type === 'red' ? '❤️' :
-      row.heart_type === 'blue' ? '💙' :
-      row.heart_type === 'pink' ? '💗' : '💚';
-    payload = { title: `${heartEmoji} ${nick}님`, body: '하트를 보냈어요!', tag: `like-${row.liker_id as string}`, url: '/' };
-  } else if (table === 'signal_sends' && row.action === 'send') {
-    recipientId = row.receiver_id as string;
-    const sender = getTable('profiles').find(p => p.id === row.sender_id);
-    const nick = (sender?.nickname as string) ?? '누군가';
-    payload = { title: `📡 ${nick}님`, body: '시그널을 보냈어요!', tag: `signal-${row.sender_id as string}`, url: '/' };
-  } else if (table === 'chats' && actorId) {
-    const u1 = String(row.user1_id ?? '');
-    const u2 = String(row.user2_id ?? '');
-    recipientId = u1 === String(actorId) ? u2 : u1;
-    if (!recipientId || recipientId === String(actorId)) return;
-    const opener = getTable('profiles').find(p => p.id === actorId);
-    const nick = (opener?.nickname as string) ?? '누군가';
-    payload = {
-      title: `💬 ${nick}님`,
-      body: '채팅방을 열었어요',
-      tag: `chat-open-${String(row.id ?? '')}`,
-      url: '/',
-    };
-  }
-
-  if (!recipientId || !payload) return;
+  const planned = planPushForEvent(
+    table,
+    row,
+    actorId,
+    (chatId) => getTable('chats').find(c => String(c.id) === String(chatId)),
+    (userId) => getTable('profiles').find(p => p.id === userId),
+  );
+  if (!planned) return;
+  const { recipientId, payload } = planned;
 
   const subs = getTable('push_subscriptions').filter(s => s.user_id === recipientId);
 
@@ -5202,56 +5157,15 @@ router.get('/unread-counts', (req: Request, res: Response) => {
       return res.json({ data: cached.data, error: null });
     }
 
-    const chats = getTable('chats').filter(c =>
-      String(c.user1_id) === String(userId) || String(c.user2_id) === String(userId)
+    // Unread computation: ../lib/db-unread-counts.ts
+    const counts = computeUnreadCountsForUser(
+      userId,
+      getTable('chats'),
+      getTable('messages'),
+      getTable('chat_reads'),
+      resolveMergedChatId,
+      countMessagesForChat,
     );
-
-    // Build a map of chatId → read_at for this user
-    const readAtByChat = new Map<string, string>();
-    for (const r of getTable('chat_reads')) {
-      if (String(r.reader_id) === String(userId) && r.chat_id && r.read_at) {
-        const cid = resolveMergedChatId(String(r.chat_id));
-        const prev = readAtByChat.get(cid);
-        if (!prev || String(r.read_at) > prev) readAtByChat.set(cid, r.read_at as string);
-      }
-    }
-
-    // 전체 메시지를 chat_id 기준으로 미리 인덱싱 — O(msgs) 1회 스캔
-    const msgsByChatId = new Map<string, typeof store[string]>();
-    for (const m of getTable('messages')) {
-      const cid = resolveMergedChatId(String(m.chat_id ?? ''));
-      if (!msgsByChatId.has(cid)) msgsByChatId.set(cid, []);
-      msgsByChatId.get(cid)!.push(m);
-    }
-
-    const counts: Record<string, number> = {};
-    const seenPairs = new Set<string>();
-    for (const chat of chats) {
-      const pk = chatPairKey(String(chat.user1_id), String(chat.user2_id));
-      if (seenPairs.has(pk)) continue;
-      seenPairs.add(pk);
-      const siblings = chats.filter(c => chatPairKey(String(c.user1_id), String(c.user2_id)) === pk);
-      const canonical = pickCanonicalChatRow(siblings);
-      const chatId = String(canonical.id);
-      const siblingIds = siblings.map(c => String(c.id));
-      let readAt: string | undefined;
-      for (const sid of siblingIds) {
-        const ra = readAtByChat.get(sid) ?? readAtByChat.get(resolveMergedChatId(sid));
-        if (ra && (!readAt || ra > readAt)) readAt = ra;
-      }
-      let unreadCount = 0;
-      const seenMsg = new Set<string>();
-      for (const sid of [...new Set([...siblingIds, chatId])]) {
-        for (const m of msgsByChatId.get(sid) ?? []) {
-          const mid = String(m.id ?? '');
-          if (mid && seenMsg.has(mid)) continue;
-          if (mid) seenMsg.add(mid);
-          if (String(m.sender_id) === String(userId)) continue;
-          if (!readAt || (m.created_at as string) > readAt) unreadCount++;
-        }
-      }
-      if (unreadCount > 0) counts[chatId] = unreadCount;
-    }
 
     // LRU 상한 200개 — Map은 삽입 순서 보장이므로 첫 번째(가장 오래된) 항목 제거
     if (unreadCountsCache.size >= 200) {

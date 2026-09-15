@@ -83,9 +83,13 @@ describe('longevity recurrence guards (server)', () => {
   });
 
   it('signal push title uses 📡 emoji not 💕', () => {
-    const sigIdx = dbTs.indexOf("table === 'signal_sends'");
+    // Planner peeled to db-push-plan.ts; db.ts only re-imports planPushForEvent.
+    expect(dbTs).toContain("from '../lib/db-push-plan'");
+    expect(dbTs).toContain('planPushForEvent');
+    const pushPlan = readFileSync(join(here, '../lib/db-push-plan.ts'), 'utf8');
+    const sigIdx = pushPlan.indexOf("table === 'signal_sends'");
     expect(sigIdx).toBeGreaterThan(0);
-    const block = dbTs.slice(sigIdx, sigIdx + 400);
+    const block = pushPlan.slice(sigIdx, sigIdx + 400);
     expect(block).toContain('📡');
     expect(block).not.toContain('💕');
   });

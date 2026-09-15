@@ -1446,6 +1446,48 @@ mustMatch('ARCHITECTURE.md', '61_architecture_path_after_session_tokens_peel', [
 ]);
 
 
+// ── 62: db-unread-counts + db-push-plan + panel-token verify ──────────────────
+mustExist('artifacts/api-server/src/lib/db-unread-counts.ts', '62_db_unread_counts_module');
+mustExist('artifacts/api-server/src/lib/db-unread-counts.test.ts', '62_db_unread_counts_tests');
+mustExist('artifacts/api-server/src/lib/db-push-plan.ts', '62_db_push_plan_module');
+mustExist('artifacts/api-server/src/lib/db-push-plan.test.ts', '62_db_push_plan_tests');
+mustMatch('artifacts/api-server/src/lib/db-unread-counts.ts', '62_unread_counts_exports', [
+  /export function computeUnreadCountsForUser/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-push-plan.ts', '62_push_plan_exports', [
+  /export function planPushForEvent/,
+  /export type PushPlan/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-panel-tokens.ts', '62_panel_tokens_verify_exports', [
+  /export function verifyPanelTokenAgainstSecrets/,
+  /export function verifyAdminPanelToken/,
+  /export function verifyTestPanelToken/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '62_db_reimports_unread_push_panel_verify', [
+  /from '\.\.\/lib\/db-unread-counts'/,
+  /computeUnreadCountsForUser/,
+  /from '\.\.\/lib\/db-push-plan'/,
+  /planPushForEvent/,
+  /verifyAdminPanelToken/,
+  /verifyTestPanelToken/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '62_db_still_single_router_export', [
+  /export default router/,
+]);
+mustNotMatch('artifacts/api-server/src/routes/db.ts', '62_db_no_inline_unread_or_push_plan_impl', [
+  /const msgsByChatId = new Map<string, typeof store\[string\]>/,
+  /body = '\[이미지\]'/,
+  /body: '하트를 보냈어요!'/,
+  /timingSafeEqual\(Buffer\.from\(provided, 'hex'\), Buffer\.from\(expected, 'hex'\)\)/,
+]);
+mustMatch('ARCHITECTURE.md', '62_architecture_path_after_unread_push_peel', [
+  /db-unread-counts/,
+  /db-push-plan/,
+  /~9\.5/,
+]);
+
+
+
 console.log('\n=== verify-recurrence-guards ===\n');
 
 for (const r of results) {

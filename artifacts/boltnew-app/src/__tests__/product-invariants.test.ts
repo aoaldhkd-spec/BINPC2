@@ -524,6 +524,14 @@ describe('product copy + notification invariants', () => {
     expect(db).not.toMatch(/const SSE_TOKEN_EXPIRY_SEC = 3600/);
     expect(db).not.toMatch(/const IMAGE_MAGIC: Record<string/);
     expect(db).not.toMatch(/const ALLOWED_IMAGE_MIMES = new Set\(\['image\/jpeg'/);
+    expect(db).toContain("from '../lib/db-unread-counts'");
+    expect(db).toContain('computeUnreadCountsForUser');
+    expect(db).toContain("from '../lib/db-push-plan'");
+    expect(db).toContain('planPushForEvent');
+    expect(db).toContain('verifyAdminPanelToken');
+    expect(db).toContain('verifyTestPanelToken');
+    expect(db).not.toMatch(/payload = \{ title: `💬 \$\{nick\}`/);
+    expect(db).not.toMatch(/const msgsByChatId = new Map<string, typeof store\[string\]>/);
   });
 
 

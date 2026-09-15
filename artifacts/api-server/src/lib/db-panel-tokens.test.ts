@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { createHmac } from 'node:crypto';
-import { deriveAdminToken, deriveTestToken } from './db-panel-tokens.js';
+import {
+  deriveAdminToken,
+  deriveTestToken,
+  verifyAdminPanelToken,
+  verifyTestPanelToken,
+} from './db-panel-tokens.js';
 
 describe('db-panel-tokens', () => {
   it('deriveAdminToken is stable HMAC of admin-session', () => {
@@ -14,5 +19,20 @@ describe('db-panel-tokens', () => {
     const secret = (process.env.SESSION_SECRET ?? 'fallback-secret') + 'pw';
     const expected = createHmac('sha256', secret).update('test-session').digest('hex');
     expect(deriveTestToken('pw')).toBe(expected);
+  });
+
+  it('verifyAdminPanelToken accepts matching hex and rejects junk', () => {
+    const token = deriveAdminToken('secret-a');
+    expect(verifyAdminPanelToken(token, ['secret-a', 'other'])).toBe(true);
+    expect(verifyAdminPanelToken(token, ['wrong'])).toBe(false);
+    expect(verifyAdminPanelToken(null, ['secret-a'])).toBe(false);
+    expect(verifyAdminPanelToken('not-hex', ['secret-a'])).toBe(false);
+  });
+
+  it('verifyTestPanelToken does not accept admin token for same password', () => {
+    const adminTok = deriveAdminToken('pw');
+    const testTok = deriveTestToken('pw');
+    expect(verifyTestPanelToken(testTok, ['pw'])).toBe(true);
+    expect(verifyTestPanelToken(adminTok, ['pw'])).toBe(false);
   });
 });
