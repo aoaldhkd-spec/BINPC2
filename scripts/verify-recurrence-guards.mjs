@@ -2107,6 +2107,49 @@ mustMatch('ARCHITECTURE.md', '73_architecture_path_after_overlay_pin_apply_peel'
 ]);
 
 
+
+// ── 74: legacy-sql + device-secret-hash + admin-push-recipient/throttle + health-count-sql ──
+mustMatch('artifacts/api-server/src/lib/db-legacy-cleanup.ts', '74_legacy_sql_builders_export', [
+  /export function buildLegacyKvLeftoverCountSql/,
+  /export function buildLegacySettingsStripSql/,
+  /export function buildLegacyHistoryStripSql/,
+  /export function parseLegacyLeftoverCounts/,
+  /export const UNKNOWN_LEGACY_LEFTOVERS/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-session-tokens.ts', '74_hash_device_secret_export', [
+  /export function hashDeviceSecret/,
+  /export function deviceSecretHashesEqual/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-health-plan.ts', '74_admin_push_throttle_health_sql_export', [
+  /export function resolveAdminPushRecipient/,
+  /export function shouldThrottleEvent/,
+  /export function buildHealthRecentCountSql/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '74_db_reimports_legacy_hash_admin_push', [
+  /hashDeviceSecret/,
+  /deviceSecretHashesEqual/,
+  /resolveAdminPushRecipient/,
+  /shouldThrottleEvent/,
+  /buildHealthRecentCountSql/,
+  /buildLegacySettingsStripSql/,
+  /buildLegacyKvLeftoverCountSql/,
+  /UNKNOWN_LEGACY_LEFTOVERS/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '74_db_still_single_router_export', [
+  /export default router/,
+]);
+mustNotMatch('artifacts/api-server/src/routes/db.ts', '74_db_no_inline_legacy_strip_sql', [
+  /data - 'heart_drain_enabled'/,
+]);
+mustNotMatch('artifacts/api-server/src/routes/db.ts', '74_db_no_inline_device_hmac', [
+  /createHmac\('sha256', SSE_TOKEN_SECRET\)/,
+]);
+mustMatch('ARCHITECTURE.md', '74_architecture_path_after_legacy_hash_admin_peel', [
+  /legacy-sql|device-secret-hash|admin-push-recipient|health-count-sql/,
+  /~9\.5/,
+]);
+
+
 console.log('\n=== verify-recurrence-guards ===\n');
 
 for (const r of results) {

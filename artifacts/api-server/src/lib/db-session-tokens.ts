@@ -305,3 +305,17 @@ export function buildLoginSuccessBody(
   return { ok: true, sessionToken: token, sessionExpiresAt: expiresAt };
 }
 
+
+/** HMAC-SHA256 hex of a client deviceSecret (TOFU /auth/login + profiles INSERT). */
+export function hashDeviceSecret(secret: string, sessionSecret: string): string {
+  return createHmac('sha256', sessionSecret).update(secret).digest('hex');
+}
+
+/** timingSafeEqual on hex hashes; length mismatch → false (never throws). */
+export function deviceSecretHashesEqual(a: string, b: string): boolean {
+  try {
+    return timingSafeEqual(Buffer.from(a, 'hex'), Buffer.from(b, 'hex'));
+  } catch {
+    return false;
+  }
+}

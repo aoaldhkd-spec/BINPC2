@@ -1,7 +1,6 @@
 import '../lib/dns-ipv4-first.js';
 import { Router, type Request, type Response } from 'express';
 import pg from 'pg';
-import { createHmac, timingSafeEqual } from 'node:crypto';
 import { VAPID_PUBLIC_KEY, sendPush, type PushPayload } from '../lib/push';
 import { resolvePin, pinPoolParams, collectUsedPinCodes } from '../lib/pin';
 import {
@@ -388,6 +387,7 @@ import {
   buildAdminDbFailurePush,
   healthUnauthorizedReject,
   healthInternalReject,
+  resolveAdminPushRecipient, shouldThrottleEvent, buildHealthRecentCountSql,
 } from '../lib/db-health-plan';
 import {
   issueSessionToken as issueSessionTokenPure,
@@ -408,6 +408,7 @@ import {
   planAuthSseTokenUser,
   planProfileDeviceSecretBind, buildDeviceSecretRow,
   resolveAuthUserIdFromParts, buildLoginSuccessBody,
+  hashDeviceSecret, deviceSecretHashesEqual,
 } from '../lib/db-session-tokens';
 import {
   computeUnreadCountsForUser,
@@ -442,9 +443,16 @@ import {
 import {
   LEGACY_APP_SETTINGS_KEYS,
   LEGACY_KV_TABLES,
+  UNKNOWN_LEGACY_LEFTOVERS,
   settingsHaveLegacyKeys,
   stripLegacySessionHistoryKeys,
   stripLegacySettingsKeys,
+  buildLegacyKvLeftoverCountSql,
+  buildLegacySettingsLeftoverCountSql,
+  buildLegacyHistoryLeftoverCountSql,
+  buildLegacySettingsStripSql,
+  buildLegacyHistoryStripSql,
+  parseLegacyLeftoverCounts,
 } from '../lib/db-legacy-cleanup';
 import {
   recordExpiredSseToken,
@@ -864,13 +872,12 @@ let _lastAdminPinPushAt = 0;
 /** Helper: send a push notification to the admin.
  *  Returns false if no push subscription is found. */
 async function _sendAdminPush(payload: PushPayload): Promise<boolean> {
-  const settings = (store['app_settings'] ?? [])[0];
-  if (!settings) return false;
-  const adminPhone = settings['admin_phone'] as string | undefined;
-  if (!adminPhone) return false;
-  const adminProfile = (store['profiles'] ?? []).find(p => p['phone_number'] === adminPhone);
-  if (!adminProfile) return false;
-  const adminId = adminProfile['id'] as string;
+  const recipient = resolveAdminPushRecipient(
+    (store['app_settings'] ?? [])[0] as Record<string, unknown> | undefined,
+    store['profiles'] ?? [],
+  );
+  if (!recipient) return false;
+  const adminId = recipient.adminId;
   const subs = (store['push_subscriptions'] ?? []).filter(s => s['user_id'] === adminId);
   if (!subs.length) return false;
   const results = await Promise.all(
@@ -892,7 +899,7 @@ async function _sendAdminPush(payload: PushPayload): Promise<boolean> {
  *  Errors are swallowed — we must not recurse into dbPersistRow. */
 async function notifyAdminDbFailure(tableName: string, errMsg: string): Promise<void> {
   const now = Date.now();
-  if (now - _lastAdminDbPushAt < ADMIN_DB_PUSH_THROTTLE_MS) return;
+  if (shouldThrottleEvent(now, _lastAdminDbPushAt, ADMIN_DB_PUSH_THROTTLE_MS)) return;
   _lastAdminDbPushAt = now;
   try {
     const sent = await _sendAdminPush(buildAdminDbFailurePush(tableName, errMsg));
@@ -910,7 +917,7 @@ async function checkAndNotifyAdminPinPool(): Promise<void> {
   if (!shouldWarnPinPool(pinPool, PIN_WARN_USED_RATIO_DEFAULT)) return; // below threshold — no alert
 
   const now = Date.now();
-  if (now - _lastAdminPinPushAt < ADMIN_PIN_PUSH_THROTTLE_MS) return;
+  if (shouldThrottleEvent(now, _lastAdminPinPushAt, ADMIN_PIN_PUSH_THROTTLE_MS)) return;
   _lastAdminPinPushAt = now;
 
   try {
@@ -1438,11 +1445,7 @@ function defaultAppSettings(): Record<string, unknown> {
 }
 
 /** Postgres leftover 잔량 — 값/PII 없이 개수만. -1 은 아직 클린업 전. */
-let _legacyLeftovers = {
-  kv_tables: -1,
-  settings_rows: -1,
-  history_rows: -1,
-};
+let _legacyLeftovers = { ...UNKNOWN_LEGACY_LEFTOVERS };
 
 /** Thin wrapper — pure merge lives in db-app-settings-merge. */
 function mergeAppSettings(
@@ -1585,27 +1588,15 @@ function startDailyEntryPasswordRenewal(): void {
 
 async function countLegacyLeftovers(): Promise<{ kv_tables: number; settings_rows: number; history_rows: number }> {
   const [kv, settings, hist] = await Promise.all([
-    pool.query<{ n: number }>(
-      `SELECT COUNT(DISTINCT table_name)::int AS n FROM app_kv_rows
-       WHERE table_name IN ('suggestions','seats','seating','seating_map','seat_assignments','seats_snapshot')`,
-    ),
-    pool.query<{ n: number }>(
-      `SELECT COUNT(*)::int AS n FROM app_kv_rows
-       WHERE table_name = 'app_settings'
-         AND (data ? 'heart_drain_enabled' OR data ? 'heart_drain_minutes' OR data ? 'seating_locked'
-              OR data ? 'seats_snapshot' OR data ? 'seating_map' OR data ? 'seats' OR data ? 'seat_layout')`,
-    ),
-    pool.query<{ n: number }>(
-      `SELECT COUNT(*)::int AS n FROM app_kv_rows
-       WHERE table_name = 'session_history'
-         AND (data ? 'seats_snapshot' OR data ? 'seating_locked' OR data ? 'seating_map')`,
-    ),
+    pool.query<{ n: number }>(buildLegacyKvLeftoverCountSql()),
+    pool.query<{ n: number }>(buildLegacySettingsLeftoverCountSql()),
+    pool.query<{ n: number }>(buildLegacyHistoryLeftoverCountSql()),
   ]);
-  return {
-    kv_tables: kv.rows[0]?.n ?? 0,
-    settings_rows: settings.rows[0]?.n ?? 0,
-    history_rows: hist.rows[0]?.n ?? 0,
-  };
+  return parseLegacyLeftoverCounts({
+    kv: kv.rows[0]?.n,
+    settings: settings.rows[0]?.n,
+    history: hist.rows[0]?.n,
+  });
 }
 
 async function cleanupLegacyTables(): Promise<void> {
@@ -1622,15 +1613,7 @@ async function cleanupLegacyTables(): Promise<void> {
     }
 
     // jsonb - text 체인 — $1::text[] 바인딩 실패 시 키가 PG에 남는 것을 방지
-    const settingsStrip = await pool.query(
-      `UPDATE app_kv_rows
-       SET data = data - 'heart_drain_enabled' - 'heart_drain_minutes' - 'seating_locked'
-                      - 'seats_snapshot' - 'seating_map' - 'seats' - 'seat_layout',
-           updated_at = NOW()
-       WHERE table_name = 'app_settings'
-         AND (data ? 'heart_drain_enabled' OR data ? 'heart_drain_minutes' OR data ? 'seating_locked'
-              OR data ? 'seats_snapshot' OR data ? 'seating_map' OR data ? 'seats' OR data ? 'seat_layout')`,
-    );
+    const settingsStrip = await pool.query(buildLegacySettingsStripSql());
     if ((settingsStrip.rowCount ?? 0) > 0) {
       const mem = getTable('app_settings')[0];
       if (mem && settingsHaveLegacyKeys(mem)) {
@@ -1639,13 +1622,7 @@ async function cleanupLegacyTables(): Promise<void> {
       logger.info({ stripped: settingsStrip.rowCount, keys: [...LEGACY_APP_SETTINGS_KEYS] }, '[db] cleanupLegacyTables: app_settings 레거시 키 삭제');
     }
 
-    const histStrip = await pool.query(
-      `UPDATE app_kv_rows
-       SET data = data - 'seats_snapshot' - 'seating_locked' - 'seating_map',
-           updated_at = NOW()
-       WHERE table_name = 'session_history'
-         AND (data ? 'seats_snapshot' OR data ? 'seating_locked' OR data ? 'seating_map')`,
-    );
+    const histStrip = await pool.query(buildLegacyHistoryStripSql());
     if ((histStrip.rowCount ?? 0) > 0) {
       const histRows = store['session_history'];
       if (Array.isArray(histRows)) {
@@ -3364,7 +3341,7 @@ router.post('/op', async (req: Request, res: Response) => {
         // 해당 필드를 프로필 데이터에서 제거합니다(공개 쿼리에 노출되지 않음).
         {
           const bind = planProfileDeviceSecretBind(table, newRow, (secret) =>
-            createHmac('sha256', SSE_TOKEN_SECRET).update(secret).digest('hex'),
+            hashDeviceSecret(secret, SSE_TOKEN_SECRET),
           );
           if (bind.action === 'bind') {
             if (!getTable('device_secrets').find(r => r.user_id === bind.profileId)) {
@@ -3669,9 +3646,7 @@ router.post('/op', async (req: Request, res: Response) => {
             }
             base = { ...base, pin_code: pinResult.pin };
             if (typeof base._device_secret === 'string') {
-              const secretHash = createHmac('sha256', SSE_TOKEN_SECRET)
-                .update(base._device_secret as string)
-                .digest('hex');
+              const secretHash = hashDeviceSecret(base._device_secret as string, SSE_TOKEN_SECRET);
               const profileId = String(base.id);
               if (!getTable('device_secrets').find(r => r.user_id === profileId)) {
                 const dsRow = { id: genId(), user_id: profileId, secret_hash: secretHash, created_at: ts() };
@@ -4492,14 +4467,8 @@ router.get('/health', async (req: Request, res: Response) => {
   let dbQueryError: string | null = null;
   try {
     const [mRes, lRes] = await Promise.all([
-      pool.query(
-        `SELECT COUNT(*) FROM app_kv_rows WHERE table_name='messages' AND (data->>'created_at') >= $1`,
-        [fiveMinAgo],
-      ),
-      pool.query(
-        `SELECT COUNT(*) FROM app_kv_rows WHERE table_name='likes' AND (data->>'created_at') >= $1`,
-        [fiveMinAgo],
-      ),
+      pool.query(buildHealthRecentCountSql('messages'), [fiveMinAgo]),
+      pool.query(buildHealthRecentCountSql('likes'), [fiveMinAgo]),
     ]);
     dbMessages = parseInt(mRes.rows[0].count as string, 10);
     dbLikes = parseInt(lRes.rows[0].count as string, 10);
@@ -4874,20 +4843,12 @@ router.post('/auth/login', (req: Request, res: Response) => {
     return res.status(rej.status).json(rej.body);
   }
   // 제출된 deviceSecret의 HMAC 계산
-  const submittedHash = createHmac('sha256', SSE_TOKEN_SECRET)
-    .update(deviceSecret)
-    .digest('hex');
+  const submittedHash = hashDeviceSecret(deviceSecret, SSE_TOKEN_SECRET);
   const deviceSecrets = getTable('device_secrets');
   const existing = deviceSecrets.find(r => r.user_id === userId);
-  let matched = false;
-  if (existing) {
-    try {
-      matched = timingSafeEqual(
-        Buffer.from(submittedHash, 'hex'),
-        Buffer.from(existing.secret_hash as string, 'hex'),
-      );
-    } catch { /* 해시 길이 불일치 → mismatch */ }
-  }
+  const matched = Boolean(
+    existing && deviceSecretHashesEqual(submittedHash, String(existing.secret_hash ?? '')),
+  );
   const decision = planAuthLoginDecision({
     hasExistingSecret: Boolean(existing),
     secretMatched: matched,

@@ -14,6 +14,8 @@ import {
   authLoginRateLimitedReject,
   AUTH_DEVICE_MISMATCH_MESSAGE,
   AUTH_LOGIN_RATE_LIMIT_MESSAGE,
+  hashDeviceSecret,
+  deviceSecretHashesEqual,
 } from './db-session-tokens.js';
 
 const SECRET = 'unit-test-session-secret';
@@ -176,3 +178,16 @@ describe('resolveAuthUserIdFromParts + login body (70)', () => {
   });
 });
 
+
+describe('hashDeviceSecret + deviceSecretHashesEqual (74)', () => {
+  it('hashes deterministically and compares timing-safe', () => {
+    const a = hashDeviceSecret('secret-a', 'sess');
+    const b = hashDeviceSecret('secret-a', 'sess');
+    const c = hashDeviceSecret('secret-b', 'sess');
+    expect(a).toBe(b);
+    expect(a).not.toBe(c);
+    expect(deviceSecretHashesEqual(a, b)).toBe(true);
+    expect(deviceSecretHashesEqual(a, c)).toBe(false);
+    expect(deviceSecretHashesEqual(a, 'zz')).toBe(false);
+  });
+});

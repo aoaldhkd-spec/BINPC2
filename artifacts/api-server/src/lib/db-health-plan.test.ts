@@ -7,6 +7,9 @@ import {
   shouldWarnPinPool,
   buildPinPoolWarningPush,
   buildAdminDbFailurePush,
+  resolveAdminPushRecipient,
+  shouldThrottleEvent,
+  buildHealthRecentCountSql,
 } from './db-health-plan.js';
 
 describe('db-health-plan', () => {
@@ -72,5 +75,20 @@ describe('db-health-plan', () => {
     const fail = buildAdminDbFailurePush('messages', 'x'.repeat(100));
     expect(fail.body).toContain('…');
     expect(fail.tag).toBe('db-persist-error');
+  });
+});
+
+describe('admin push recipient + throttle + health count SQL (74)', () => {
+  it('resolveAdminPushRecipient matches phone_number exactly', () => {
+    expect(resolveAdminPushRecipient(null, [])).toBeNull();
+    expect(resolveAdminPushRecipient({ admin_phone: '010' }, [{ phone_number: '011', id: 'x' }])).toBeNull();
+    expect(resolveAdminPushRecipient({ admin_phone: '010' }, [{ phone_number: '010', id: 'adm' }])).toEqual({ adminId: 'adm' });
+  });
+
+  it('shouldThrottleEvent and health COUNT SQL', () => {
+    expect(shouldThrottleEvent(1000, 500, 600)).toBe(true);
+    expect(shouldThrottleEvent(1000, 500, 400)).toBe(false);
+    expect(buildHealthRecentCountSql('messages')).toContain("table_name='messages'");
+    expect(buildHealthRecentCountSql('likes')).toContain("table_name='likes'");
   });
 });

@@ -155,3 +155,35 @@ export function buildAdminDbFailurePush(tableName: string, errMsg: string): {
     url: '/',
   };
 }
+
+/**
+ * Resolve admin profile id for push delivery from settings.admin_phone + profiles.
+ * Exact phone_number match (same as prior _sendAdminPush).
+ */
+export function resolveAdminPushRecipient(
+  settings: Record<string, unknown> | null | undefined,
+  profiles: Record<string, unknown>[],
+): { adminId: string } | null {
+  if (!settings) return null;
+  const adminPhone = settings['admin_phone'];
+  if (typeof adminPhone !== 'string' || !adminPhone) return null;
+  const adminProfile = profiles.find((p) => p['phone_number'] === adminPhone);
+  if (!adminProfile) return null;
+  const adminId = adminProfile['id'];
+  if (adminId == null) return null;
+  return { adminId: String(adminId) };
+}
+
+/** Shared throttle gate for admin DB-failure / PIN-pool pushes. */
+export function shouldThrottleEvent(
+  nowMs: number,
+  lastAtMs: number,
+  throttleMs: number,
+): boolean {
+  return nowMs - lastAtMs < throttleMs;
+}
+
+/** Trusted table names only — messages|likes health lag COUNT SQL. */
+export function buildHealthRecentCountSql(tableName: 'messages' | 'likes'): string {
+  return `SELECT COUNT(*) FROM app_kv_rows WHERE table_name='${tableName}' AND (data->>'created_at') >= $1`;
+}

@@ -382,7 +382,9 @@ describe('longevity recurrence guards (server)', () => {
     expect(dbTs).toMatch(/ensureAppSettingsSecrets\(\)[\s\S]{0,120}\.then\(\(\) => cleanupLegacyTables\(\)\)/);
     expect(dbTs).toMatch(/LEGACY_KV_TABLES/);
     expect(dbTs).toMatch(/DELETE FROM app_kv_rows WHERE table_name = \$1/);
-    expect(dbTs).toMatch(/data - 'heart_drain_enabled'/);
+    expect(dbTs).toMatch(/buildLegacySettingsStripSql/);
+    expect(dbTs).toMatch(/buildLegacyHistoryStripSql/);
+    expect(dbTs).not.toMatch(/data - 'heart_drain_enabled'/);
   });
 
   it('legacy strip helpers live in db-legacy-cleanup.ts (testable, idempotent)', () => {
@@ -390,6 +392,26 @@ describe('longevity recurrence guards (server)', () => {
     expect(lib).toMatch(/stripLegacySettingsKeys/);
     expect(lib).toMatch(/LEGACY_OP_BLOCKLIST/);
     expect(lib).toMatch(/heart_balances/);
+    expect(lib).toMatch(/buildLegacySettingsStripSql/);
+    expect(lib).toMatch(/heart_drain_enabled/);
+    expect(lib).toMatch(/jsonbStripKeysSql/);
+  });
+
+  it('device-secret hash + admin-push recipient + legacy SQL builders peeled (74)', () => {
+    expect(dbTs).toContain('hashDeviceSecret');
+    expect(dbTs).toContain('deviceSecretHashesEqual');
+    expect(dbTs).toContain('resolveAdminPushRecipient');
+    expect(dbTs).toContain('shouldThrottleEvent');
+    expect(dbTs).toContain('buildHealthRecentCountSql');
+    expect(dbTs).toContain('buildLegacyKvLeftoverCountSql');
+    expect(dbTs).not.toMatch(/createHmac\('sha256', SSE_TOKEN_SECRET\)/);
+    const session = readFileSync(join(here, '../lib/db-session-tokens.ts'), 'utf8');
+    const health = readFileSync(join(here, '../lib/db-health-plan.ts'), 'utf8');
+    expect(session).toContain('export function hashDeviceSecret');
+    expect(session).toContain('export function deviceSecretHashesEqual');
+    expect(health).toContain('export function resolveAdminPushRecipient');
+    expect(health).toContain('export function shouldThrottleEvent');
+    expect(health).toContain('export function buildHealthRecentCountSql');
   });
 
   it('load-venue-150 p95 thresholds stay CI-realistic (not flaky-tight)', () => {

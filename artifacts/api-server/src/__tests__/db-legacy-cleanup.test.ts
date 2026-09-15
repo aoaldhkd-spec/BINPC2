@@ -3,9 +3,16 @@ import {
   LEGACY_APP_SETTINGS_KEYS,
   LEGACY_KV_TABLE_NAMES,
   LEGACY_OP_BLOCKLIST,
+  UNKNOWN_LEGACY_LEFTOVERS,
   settingsHaveLegacyKeys,
   stripLegacySessionHistoryKeys,
   stripLegacySettingsKeys,
+  buildLegacyKvLeftoverCountSql,
+  buildLegacySettingsLeftoverCountSql,
+  buildLegacyHistoryLeftoverCountSql,
+  buildLegacySettingsStripSql,
+  buildLegacyHistoryStripSql,
+  parseLegacyLeftoverCounts,
 } from '../lib/db-legacy-cleanup.js';
 
 describe('db-legacy-cleanup pure helpers', () => {
@@ -56,5 +63,27 @@ describe('db-legacy-cleanup pure helpers', () => {
       expect(LEGACY_OP_BLOCKLIST).toContain(t);
     }
     expect(LEGACY_OP_BLOCKLIST).toContain('heart_balances');
+  });
+
+  it('legacy leftover/strip SQL builders use LEGACY_* catalogs (single source)', () => {
+    const kv = buildLegacyKvLeftoverCountSql();
+    for (const t of LEGACY_KV_TABLE_NAMES) expect(kv).toContain(`'${t}'`);
+    const strip = buildLegacySettingsStripSql();
+    expect(strip).toContain("data - 'heart_drain_enabled'");
+    for (const k of LEGACY_APP_SETTINGS_KEYS) {
+      expect(strip).toContain(`data ? '${k}'`);
+      expect(buildLegacySettingsLeftoverCountSql()).toContain(`data ? '${k}'`);
+    }
+    const hist = buildLegacyHistoryStripSql();
+    expect(hist).toContain("data - 'seats_snapshot'");
+    expect(buildLegacyHistoryLeftoverCountSql()).toContain("data ? 'seating_map'");
+  });
+
+  it('parseLegacyLeftoverCounts + UNKNOWN sentinel', () => {
+    expect(UNKNOWN_LEGACY_LEFTOVERS.kv_tables).toBe(-1);
+    expect(parseLegacyLeftoverCounts({})).toEqual({ kv_tables: 0, settings_rows: 0, history_rows: 0 });
+    expect(parseLegacyLeftoverCounts({ kv: 2, settings: 1, history: 3 })).toEqual({
+      kv_tables: 2, settings_rows: 1, history_rows: 3,
+    });
   });
 });
