@@ -443,7 +443,7 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
                           ? 'bg-cyan-500 border-cyan-500 text-white shadow-md'
                           : 'bg-white border-gray-200 text-gray-700 hover:border-cyan-300 hover:bg-cyan-50'
                       }`}>
-                      {year === 1989 ? '89' : year === 1988 ? '88이하' : `${String(year).slice(2)}년`}
+                      {year === 1989 ? '89년' : year === 1988 ? '88년 이하' : `${String(year).slice(2)}년`}
                     </button>
                   ))}
                 </div>

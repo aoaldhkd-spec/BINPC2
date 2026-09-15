@@ -35,7 +35,7 @@ describe('NicknameSetupScreen — step 1 back', () => {
     expect(onReset).toHaveBeenCalledTimes(1);
   });
 
-  it('places exactly 89 and 88이하 under the 00년대 tab and shows the guidance note', () => {
+  it('places exactly 89년 and 88년 이하 under the 00년대 tab and shows the guidance note', () => {
     render(
       <NicknameSetupScreen
         onSubmit={vi.fn()}
@@ -49,9 +49,10 @@ describe('NicknameSetupScreen — step 1 back', () => {
     expect(screen.queryByRole('button', { name: '80년대' })).toBeNull();
     expect(screen.getByText('80년대는 00년대에 있어요')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: '00년대' }));
-    expect(screen.getByRole('button', { name: '89' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: '88이하' })).toBeTruthy();
-    expect(screen.queryByRole('button', { name: '88년' })).toBeNull();
+    expect(screen.getByRole('button', { name: '89년' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: '88년 이하' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: '89' })).toBeNull();
+    expect(screen.queryByRole('button', { name: '88이하' })).toBeNull();
     expect(screen.queryByRole('button', { name: '87년' })).toBeNull();
     expect(screen.queryByRole('button', { name: '86년' })).toBeNull();
     expect(screen.queryByRole('button', { name: '85년' })).toBeNull();
