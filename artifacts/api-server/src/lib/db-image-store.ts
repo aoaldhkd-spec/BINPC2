@@ -15,8 +15,8 @@ export type ImageStore = {
   size: () => number;
 };
 
-export const IMAGE_STORE_MAX_ENTRIES_DEFAULT = 80;
-export const IMAGE_STORE_MAX_CHARS_DEFAULT = 32 * 1024 * 1024;
+export const IMAGE_STORE_MAX_ENTRIES_DEFAULT = 48;
+export const IMAGE_STORE_MAX_CHARS_DEFAULT = 16 * 1024 * 1024;
 
 export function createImageStore(opts: ImageStoreOptions = {}): ImageStore {
   const maxEntries = opts.maxEntries ?? IMAGE_STORE_MAX_ENTRIES_DEFAULT;
