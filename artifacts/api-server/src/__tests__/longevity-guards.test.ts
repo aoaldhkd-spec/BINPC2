@@ -124,6 +124,21 @@ describe('longevity recurrence guards (server)', () => {
     expect(wipe).toContain('planClearAdminNpcRelationships');
   });
 
+  it('admin ensure-plan + app-settings-boot stay extracted from db.ts', () => {
+    expect(dbTs).toContain("from '../lib/db-admin-ensure-plan'");
+    expect(dbTs).toContain('planEnsureAdminProfile');
+    expect(dbTs).toContain('planRestoreAdminProfileAfterWipe');
+    expect(dbTs).toContain("from '../lib/db-app-settings-boot'");
+    expect(dbTs).toContain('buildDefaultAppSettings');
+    expect(dbTs).toContain('planAppSettingsSecretsPatch');
+    expect(dbTs).not.toMatch(/personality_score: 50,/);
+    expect(dbTs).not.toMatch(/admin_phone: '010-3878-6740',/);
+    const ensure = readFileSync(join(here, '../lib/db-admin-ensure-plan.ts'), 'utf8');
+    const boot = readFileSync(join(here, '../lib/db-app-settings-boot.ts'), 'utf8');
+    expect(ensure).toContain('planEnsureAdminProfile');
+    expect(boot).toContain('buildDefaultAppSettings');
+  });
+
   it('app-settings-merge + panel-tokens stay extracted from db.ts', () => {
     expect(dbTs).toContain("from '../lib/db-app-settings-merge'");
     expect(dbTs).toContain("from '../lib/db-panel-tokens'");

@@ -237,9 +237,12 @@ mustMatch('artifacts/api-server/src/routes/db.ts', '32_storage_image_session_que
 mustMatch('artifacts/api-server/src/routes/db.ts', '34_ensure_admin_npc_profile', [
   /ensureAdminProfile/,
   /clearAdminNpcRelationships/,
-  /deterministicAdminProfileId/,
+  /planEnsureAdminProfile/,
 ]);
 mustMatch('artifacts/api-server/src/lib/db-chat-ids.ts', '34_deterministic_admin_profile_id', [
+  /deterministicAdminProfileId/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-admin-ensure-plan.ts', '34_ensure_plan_uses_deterministic_admin_id', [
   /deterministicAdminProfileId/,
 ]);
 mustMatch('artifacts/boltnew-app/src/hooks/useHearts.ts', '34_handle_like_profile_hint', [
@@ -1486,6 +1489,49 @@ mustMatch('ARCHITECTURE.md', '62_architecture_path_after_unread_push_peel', [
   /~9\.5/,
 ]);
 
+
+
+
+
+// ── 63: db-admin-ensure-plan + db-app-settings-boot ───────────────────────────
+mustExist('artifacts/api-server/src/lib/db-admin-ensure-plan.ts', '63_db_admin_ensure_plan_module');
+mustExist('artifacts/api-server/src/lib/db-admin-ensure-plan.test.ts', '63_db_admin_ensure_plan_tests');
+mustExist('artifacts/api-server/src/lib/db-app-settings-boot.ts', '63_db_app_settings_boot_module');
+mustExist('artifacts/api-server/src/lib/db-app-settings-boot.test.ts', '63_db_app_settings_boot_tests');
+mustMatch('artifacts/api-server/src/lib/db-admin-ensure-plan.ts', '63_admin_ensure_plan_exports', [
+  /export function planEnsureAdminProfile/,
+  /export function buildAdminSeedProfile/,
+  /export function planRestoreAdminProfileAfterWipe/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-app-settings-boot.ts', '63_app_settings_boot_exports', [
+  /export function buildDefaultAppSettings/,
+  /export function appSettingsCoreFieldsBroken/,
+  /export function planAppSettingsSecretsPatch/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '63_db_reimports_admin_ensure_and_settings_boot', [
+  /from '\.\.\/lib\/db-admin-ensure-plan'/,
+  /planEnsureAdminProfile/,
+  /buildAdminSeedProfile/,
+  /planRestoreAdminProfileAfterWipe/,
+  /from '\.\.\/lib\/db-app-settings-boot'/,
+  /buildDefaultAppSettings/,
+  /appSettingsCoreFieldsBroken/,
+  /planAppSettingsSecretsPatch/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '63_db_still_single_router_export', [
+  /export default router/,
+]);
+mustNotMatch('artifacts/api-server/src/routes/db.ts', '63_db_no_inline_ensure_or_settings_boot_impl', [
+  /avatarNeedsRepair = String\(existing\['photo_url'\]/,
+  /personality_score: 50,/,
+  /admin_phone: '010-3878-6740',/,
+  /const targetAdmin = bootstrapAdmin \|\| PANEL_DEFAULT_PASSWORD/,
+]);
+mustMatch('ARCHITECTURE.md', '63_architecture_path_after_admin_ensure_peel', [
+  /db-admin-ensure-plan/,
+  /db-app-settings-boot/,
+  /~9\.5/,
+]);
 
 
 console.log('\n=== verify-recurrence-guards ===\n');

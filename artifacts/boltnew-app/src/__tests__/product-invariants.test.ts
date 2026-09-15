@@ -532,6 +532,14 @@ describe('product copy + notification invariants', () => {
     expect(db).toContain('verifyTestPanelToken');
     expect(db).not.toMatch(/payload = \{ title: `💬 \$\{nick\}`/);
     expect(db).not.toMatch(/const msgsByChatId = new Map<string, typeof store\[string\]>/);
+    expect(db).toContain("from '../lib/db-admin-ensure-plan'");
+    expect(db).toContain('planEnsureAdminProfile');
+    expect(db).toContain('planRestoreAdminProfileAfterWipe');
+    expect(db).toContain("from '../lib/db-app-settings-boot'");
+    expect(db).toContain('buildDefaultAppSettings');
+    expect(db).toContain('planAppSettingsSecretsPatch');
+    expect(db).not.toMatch(/personality_score: 50,/);
+    expect(db).not.toMatch(/admin_phone: '010-3878-6740',/);
   });
 
 

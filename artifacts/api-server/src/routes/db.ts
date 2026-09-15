@@ -25,7 +25,6 @@ import {
 } from '../lib/db-sanitize';
 import {
   chatPairKey,
-  deterministicAdminProfileId,
   deterministicChatId,
   deterministicSignalId,
 } from '../lib/db-chat-ids';
@@ -103,13 +102,22 @@ import {
   planClearAdminNpcRelationships,
 } from '../lib/db-admin-wipe-plan';
 import {
+  buildAdminSeedProfile,
+  planEnsureAdminProfile,
+  planRestoreAdminProfileAfterWipe,
+} from '../lib/db-admin-ensure-plan';
+import {
   PRODUCTION_QR_BASE,
   SECRET_SETTING_KEYS,
   explicitSecretKeys,
-  isLocalQrUrl,
   koreanDateMMDD,
   mergeAppSettings as mergeAppSettingsPure,
 } from '../lib/db-app-settings-merge';
+import {
+  appSettingsCoreFieldsBroken,
+  buildDefaultAppSettings,
+  planAppSettingsSecretsPatch,
+} from '../lib/db-app-settings-boot';
 import {
   deriveAdminToken,
   deriveTestToken,
@@ -346,46 +354,33 @@ async function clearAdminNpcRelationships(adminId: string): Promise<void> {
 /** 범일NPC 프로필이 profiles에 항상 1행 존재하도록 보장 (부팅·리셋 후). */
 async function ensureAdminProfile(): Promise<Record<string, unknown> | null> {
   const settings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
-  const adminPhoneDigits = adminPhoneFromSettings(settings);
-  const phoneDisplay = String(settings['admin_phone'] ?? '').trim();
-  if (!adminPhoneDigits && !phoneDisplay) return null;
-
+  const profiles = getTable('profiles');
   const now = ts();
-  const existing = findAdminProfileRow(adminPhoneDigits);
-  if (existing) {
-    let fixed = withFixedAdminNickname({
-      ...existing,
-      nickname: ADMIN_FIXED_NICKNAME,
-      phone_number: existing['phone_number'] ?? phoneDisplay,
-      updated_at: now,
-    }, adminPhoneDigits);
-    const idx = getTable('profiles').findIndex(p => String(p.id) === String(existing.id));
-    const nicknameChanged = String(existing['nickname'] ?? '') !== ADMIN_FIXED_NICKNAME;
-    const avatarNeedsRepair = String(existing['photo_url'] ?? '') !== NPC_TEXT_AVATAR_SENTINEL;
-    if (avatarNeedsRepair) {
-      fixed = { ...fixed, photo_url: NPC_TEXT_AVATAR_SENTINEL };
+  const plan = planEnsureAdminProfile({
+    settings,
+    profiles,
+    now,
+    npcAvatarSentinel: NPC_TEXT_AVATAR_SENTINEL,
+  });
+  if (plan.action === 'skip') return null;
+  if (plan.action === 'keep') return plan.row;
+  if (plan.action === 'repair') {
+    getTable('profiles')[plan.profileIndex] = plan.fixed;
+    try {
+      await dbPersistRow('profiles', plan.fixed);
+    } catch (e) {
+      logger.error({ err: e }, '[db] ensureAdminProfile nickname/avatar repair failed');
     }
-    if (idx >= 0 && (nicknameChanged || avatarNeedsRepair)) {
-      getTable('profiles')[idx] = fixed;
-      try {
-        await dbPersistRow('profiles', fixed);
-      } catch (e) {
-        logger.error({ err: e }, '[db] ensureAdminProfile nickname/avatar repair failed');
-      }
-      broadcastAll({
-        type: 'change',
-        table: 'profiles',
-        event: 'UPDATE',
-        newRow: sanitizeProfile(fixed),
-        oldRow: sanitizeProfile(existing),
-      });
-    }
-    return fixed;
+    broadcastAll({
+      type: 'change',
+      table: 'profiles',
+      event: 'UPDATE',
+      newRow: sanitizeProfile(plan.fixed),
+      oldRow: sanitizeProfile(plan.existing),
+    });
+    return plan.fixed;
   }
 
-  const detId = adminPhoneDigits
-    ? deterministicAdminProfileId(adminPhoneDigits)
-    : crypto.randomUUID();
   const tableData = getTable('profiles');
   const usedPins = new Set(tableData.map(p => p.pin_code).filter(Boolean)) as Set<string>;
   const { use5Digit, poolSize } = pinPoolParams(tableData.length);
@@ -395,16 +390,14 @@ async function ensureAdminProfile(): Promise<Record<string, unknown> | null> {
     return null;
   }
 
-  const row: Record<string, unknown> = {
-    id: detId,
-    nickname: ADMIN_FIXED_NICKNAME,
-    phone_number: phoneDisplay || adminPhoneDigits,
-    photo_url: NPC_TEXT_AVATAR_SENTINEL,
-    pin_code: pinResult.pin,
-    personality_score: 50,
-    created_at: now,
-    updated_at: now,
-  };
+  const row = buildAdminSeedProfile({
+    adminPhoneDigits: plan.adminPhoneDigits,
+    phoneDisplay: plan.phoneDisplay,
+    now,
+    fallbackId: crypto.randomUUID(),
+    pin: pinResult.pin,
+    npcAvatarSentinel: NPC_TEXT_AVATAR_SENTINEL,
+  });
   tableData.push(row);
   try {
     await dbPersistRow('profiles', row);
@@ -420,7 +413,7 @@ async function ensureAdminProfile(): Promise<Record<string, unknown> | null> {
     newRow: sanitizeProfile(row),
     oldRow: null,
   });
-  logger.info({ id: detId }, '[db] ensureAdminProfile: seeded 범일NPC');
+  logger.info({ id: row.id }, '[db] ensureAdminProfile: seeded 범일NPC');
   return row;
 }
 
@@ -429,45 +422,37 @@ async function restoreAdminProfileAfterWipeInStore(
   oldProfiles: Record<string, unknown>[],
   settingsRow: Record<string, unknown>,
 ): Promise<void> {
-  const adminPhoneDigits = adminPhoneFromSettings(settingsRow);
-  const adminBackup = adminPhoneDigits
-    ? oldProfiles.find(p => isAdminProfilePhone(p['phone_number'], adminPhoneDigits))
-    : undefined;
-  if (adminBackup || adminPhoneDigits) {
-    const now = new Date().toISOString();
-    const stableId = adminPhoneDigits
-      ? deterministicAdminProfileId(adminPhoneDigits)
-      : String(adminBackup?.['id'] ?? crypto.randomUUID());
-    const restored = withFixedAdminNickname({
-      ...(adminBackup ?? {}),
-      id: String(adminBackup?.['id'] ?? stableId),
-      nickname: ADMIN_FIXED_NICKNAME,
-      phone_number: String(adminBackup?.['phone_number'] ?? settingsRow['admin_phone'] ?? ''),
-      photo_url: NPC_TEXT_AVATAR_SENTINEL,
-      created_at: String(adminBackup?.['created_at'] ?? now),
-      updated_at: now,
-    }, adminPhoneDigits);
-    if (!restored['pin_code']) {
-      const { use5Digit, poolSize } = pinPoolParams(1);
-      const pinResult = resolvePin(new Set(), poolSize, use5Digit, null);
-      if (pinResult.ok) restored['pin_code'] = pinResult.pin;
-    }
-    store['profiles'] = [restored];
-    try {
-      await dbPersistRow('profiles', restored);
-    } catch (e) {
-      logger.error({ err: e }, '[db] restore admin profile after wipe failed');
-    }
-    broadcastAll({
-      type: 'change',
-      table: 'profiles',
-      event: 'INSERT',
-      newRow: sanitizeProfile(restored),
-      oldRow: null,
-    });
-  } else {
+  const now = new Date().toISOString();
+  const plan = planRestoreAdminProfileAfterWipe({
+    oldProfiles,
+    settingsRow,
+    now,
+    fallbackId: crypto.randomUUID(),
+    npcAvatarSentinel: NPC_TEXT_AVATAR_SENTINEL,
+  });
+  if (plan.action === 'ensure_fallback') {
     await ensureAdminProfile();
+    return;
   }
+  const restored = plan.row;
+  if (!restored['pin_code']) {
+    const { use5Digit, poolSize } = pinPoolParams(1);
+    const pinResult = resolvePin(new Set(), poolSize, use5Digit, null);
+    if (pinResult.ok) restored['pin_code'] = pinResult.pin;
+  }
+  store['profiles'] = [restored];
+  try {
+    await dbPersistRow('profiles', restored);
+  } catch (e) {
+    logger.error({ err: e }, '[db] restore admin profile after wipe failed');
+  }
+  broadcastAll({
+    type: 'change',
+    table: 'profiles',
+    event: 'INSERT',
+    newRow: sanitizeProfile(restored),
+    oldRow: null,
+  });
 }
 
 /** 관리자/테스트 전체 초기화 — reset_signal persist + SSE (유저·테스트 대시보드 동기화). */
@@ -1264,25 +1249,16 @@ async function loadRemainingTablesFromDb(): Promise<void> {
 }
 
 // ─── Seed data (only if DB is empty) ─────────────────────────────────────────
+/** Thin wrapper — pure builder lives in db-app-settings-boot. */
 function defaultAppSettings(): Record<string, unknown> {
-  const bootstrapAdmin = process.env.BOOTSTRAP_ADMIN_PASSWORD?.trim();
-  const bootstrapTest = process.env.BOOTSTRAP_TEST_PASSWORD?.trim();
-  return {
-    id: 1,
-    session_active: false,
-    admin_phone: '010-3878-6740',
-    admin_password: bootstrapAdmin || PANEL_DEFAULT_PASSWORD,
-    updated_at: ts(),
-    timer_end_at: null,
-    timer_label: null,
-    functions_locked: false,
-    reset_signal: null,
-    entry_password: koreanDateMMDD(),
-    reset_password: PANEL_DEFAULT_PASSWORD,
-    test_password: bootstrapTest || PANEL_DEFAULT_PASSWORD,
-    qr_base_url: PRODUCTION_QR_BASE,
-    active_tables: null,
-  };
+  return buildDefaultAppSettings({
+    now: ts(),
+    bootstrapAdmin: process.env.BOOTSTRAP_ADMIN_PASSWORD?.trim(),
+    bootstrapTest: process.env.BOOTSTRAP_TEST_PASSWORD?.trim(),
+    panelDefault: PANEL_DEFAULT_PASSWORD,
+    productionQrBase: PRODUCTION_QR_BASE,
+    entryPassword: koreanDateMMDD(),
+  });
 }
 
 /** Postgres leftover 잔량 — 값/PII 없이 개수만. -1 은 아직 클린업 전. */
@@ -1365,14 +1341,7 @@ async function repairAppSettingsIfNeeded(): Promise<void> {
     logger.warn('[db] app_settings missing — seeded defaults');
     return;
   }
-  const broken = row.id == null
-    || row.session_active === undefined
-    || row.admin_password === undefined
-    || row.admin_password === null
-    || row.admin_password === ''
-    || row.entry_password === undefined
-    || row.test_password === undefined;
-  if (!broken) return;
+  if (!appSettingsCoreFieldsBroken(row)) return;
   const repaired = mergeAppSettings(row, {});
   store['app_settings'] = [repaired];
   await dbPersistRow('app_settings', repaired);
@@ -1381,30 +1350,15 @@ async function repairAppSettingsIfNeeded(): Promise<void> {
 
 /** Render BOOTSTRAP_* env — redeploy/resync 후 DB 비밀번호가 어긋나면 자동 복구 */
 async function ensureAppSettingsSecrets(): Promise<void> {
-  const bootstrapAdmin = process.env.BOOTSTRAP_ADMIN_PASSWORD?.trim();
-  const bootstrapTest = process.env.BOOTSTRAP_TEST_PASSWORD?.trim();
-
   const row = getTable('app_settings')[0];
   if (!row) return;
 
-  const patch: Record<string, unknown> = {};
-  const currentAdmin = String(row.admin_password ?? '').trim();
-  const currentTest = row.test_password == null ? '' : String(row.test_password);
-  const currentReset = row.reset_password == null ? '' : String(row.reset_password);
-  const targetAdmin = bootstrapAdmin || PANEL_DEFAULT_PASSWORD;
-  const targetTest = bootstrapTest || PANEL_DEFAULT_PASSWORD;
-  if ((!currentAdmin || isDefaultPanelPassword(currentAdmin)) && currentAdmin !== targetAdmin) {
-    patch.admin_password = targetAdmin;
-  }
-  if ((!currentTest || isDefaultPanelPassword(currentTest)) && currentTest !== targetTest) {
-    patch.test_password = targetTest;
-  }
-  if ((!currentReset || isDefaultPanelPassword(currentReset)) && currentReset !== PANEL_DEFAULT_PASSWORD) {
-    patch.reset_password = PANEL_DEFAULT_PASSWORD;
-  }
-  if (isLocalQrUrl(row.qr_base_url)) patch.qr_base_url = PRODUCTION_QR_BASE;
-  const needsStrip = settingsHaveLegacyKeys(row);
-  if (!Object.keys(patch).length && !needsStrip) return;
+  const { patch, shouldApply } = planAppSettingsSecretsPatch(row, {
+    bootstrapAdmin: process.env.BOOTSTRAP_ADMIN_PASSWORD?.trim(),
+    bootstrapTest: process.env.BOOTSTRAP_TEST_PASSWORD?.trim(),
+    panelDefault: PANEL_DEFAULT_PASSWORD,
+  });
+  if (!shouldApply) return;
 
   const merged = mergeAppSettings(row, patch);
   const updated = await overlayDbSecrets(merged, explicitSecretKeys(patch));
