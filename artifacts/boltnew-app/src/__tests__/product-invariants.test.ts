@@ -505,6 +505,16 @@ describe('product copy + notification invariants', () => {
     expect(db).toContain('isChatPairBlockedPure');
     expect(db).not.toMatch(/const ADULT_BIRTH_YEAR_ERROR = \{/);
     expect(db).not.toMatch(/const AVATAR_COLOR_COUNT = 12/);
+    expect(db).toContain("from '../lib/db-reference-check'");
+    expect(db).toContain('mergeRefreshedRowsPure');
+    expect(db).toContain('missingWriteRefsByTable');
+    expect(db).toContain('evaluateWriteReferences');
+    expect(db).toContain("from '../lib/db-kv-hydrate'");
+    expect(db).toContain('mergeKvRowsIntoStorePure');
+    expect(db).toContain('seedLikesLastInsertMapPure');
+    expect(db).not.toMatch(/type ReferenceCheck = \{ ok: true \}/);
+    expect(db).not.toMatch(/function realtimeTraceMeta\(/);
+    expect(db).not.toMatch(/const SYSTEM_KV_TABLES = new Set\(\['rate_limits'/);
   });
 
 

@@ -92,3 +92,21 @@ export function planSmartBroadcastLocal(
   }
   return { kind: 'drop', table, rowId: row['id'], chatId: row['chat_id'] };
 }
+
+/** Tables whose persist/emit paths log compact realtime trace meta. */
+export const REALTIME_TRACE_TABLES = new Set([
+  'messages',
+  'chats',
+  'likes',
+  'contact_shares',
+  'contact_share_events',
+]);
+
+export function realtimeTraceMeta(table: string, row: Record<string, unknown>) {
+  return {
+    table,
+    rowId: typeof row.id === 'string' ? row.id : null,
+    roomId: typeof row.chat_id === 'string' ? row.chat_id : null,
+    createdAt: typeof row.created_at === 'string' ? row.created_at : null,
+  };
+}

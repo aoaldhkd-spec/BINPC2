@@ -1335,6 +1335,61 @@ mustMatch('ARCHITECTURE.md', '59_architecture_path_after_profile_reject_peel', [
 
 
 
+
+
+// ── 60: db-reference-check + db-kv-hydrate (+ realtimeTraceMeta in fanout) ───
+mustExist('artifacts/api-server/src/lib/db-reference-check.ts', '60_db_reference_check_module');
+mustExist('artifacts/api-server/src/lib/db-reference-check.test.ts', '60_db_reference_check_tests');
+mustExist('artifacts/api-server/src/lib/db-kv-hydrate.ts', '60_db_kv_hydrate_module');
+mustExist('artifacts/api-server/src/lib/db-kv-hydrate.test.ts', '60_db_kv_hydrate_tests');
+mustMatch('artifacts/api-server/src/lib/db-reference-check.ts', '60_reference_check_exports', [
+  /export type ReferenceCheck/,
+  /export function sendReferenceFailure/,
+  /export function mergeRefreshedRows/,
+  /export function missingWriteRefsByTable/,
+  /export function evaluateWriteReferences/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-kv-hydrate.ts', '60_kv_hydrate_exports', [
+  /export const SYSTEM_KV_TABLES/,
+  /export function mergeKvRowsIntoStore/,
+  /export function seedLikesLastInsertMap/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-sse-fanout-policy.ts', '60_fanout_realtime_trace_exports', [
+  /export const REALTIME_TRACE_TABLES/,
+  /export function realtimeTraceMeta/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '60_db_reimports_reference_check_and_kv_hydrate', [
+  /from '\.\.\/lib\/db-reference-check'/,
+  /sendReferenceFailure/,
+  /mergeRefreshedRows as mergeRefreshedRowsPure/,
+  /missingWriteRefsByTable/,
+  /evaluateWriteReferences/,
+  /from '\.\.\/lib\/db-kv-hydrate'/,
+  /mergeKvRowsIntoStore as mergeKvRowsIntoStorePure/,
+  /seedLikesLastInsertMap as seedLikesLastInsertMapPure/,
+  /SYSTEM_KV_TABLES/,
+  /REALTIME_TRACE_TABLES/,
+  /realtimeTraceMeta/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '60_db_still_single_router_export', [
+  /export default router/,
+]);
+mustNotMatch('artifacts/api-server/src/routes/db.ts', '60_db_no_inline_reference_or_kv_hydrate_impl', [
+  /type ReferenceCheck = \{ ok: true \}/,
+  /code: 'REFERENCE_REFRESH_FAILED'/,
+  /code: 'INVALID_REFERENCE'/,
+  /function realtimeTraceMeta\(/,
+  /const REALTIME_TRACE_TABLES = new Set/,
+  /const SYSTEM_KV_TABLES = new Set\(\['rate_limits'/,
+  /function seedLikesLastInsertFromStore\(\): void \{\s*const cutoff/,
+]);
+mustMatch('ARCHITECTURE.md', '60_architecture_path_after_reference_kv_peel', [
+  /db-reference-check/,
+  /db-kv-hydrate/,
+  /~9\.5/,
+]);
+
+
 console.log('\n=== verify-recurrence-guards ===\n');
 
 for (const r of results) {

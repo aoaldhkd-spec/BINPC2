@@ -73,6 +73,8 @@ import {
 } from '../lib/db-table-policy';
 import {
   planSmartBroadcastLocal,
+  REALTIME_TRACE_TABLES,
+  realtimeTraceMeta,
 } from '../lib/db-sse-fanout-policy';
 import {
   normalizeOpFilters,
@@ -145,6 +147,18 @@ import {
   stampChatReadAt as stampChatReadAtPure,
   isChatPairBlocked as isChatPairBlockedPure,
 } from '../lib/db-chat-read-block';
+import {
+  sendReferenceFailure,
+  mergeRefreshedRows as mergeRefreshedRowsPure,
+  missingWriteRefsByTable,
+  evaluateWriteReferences,
+  type ReferenceCheck,
+} from '../lib/db-reference-check';
+import {
+  SYSTEM_KV_TABLES,
+  mergeKvRowsIntoStore as mergeKvRowsIntoStorePure,
+  seedLikesLastInsertMap as seedLikesLastInsertMapPure,
+} from '../lib/db-kv-hydrate';
 import {
   isChatParticipant as isChatParticipantPure,
   countMessagesForChat as countMessagesForChatPure,
@@ -822,18 +836,9 @@ function isChatPairBlocked(userA: string, userB: string): boolean {
   return isChatPairBlockedPure(getTable('blocked_users'), userA, userB);
 }
 
-type ReferenceCheck = { ok: true } | { ok: false; unavailable: boolean };
-
+/** Thin wrapper — merge lives in db-reference-check. */
 function mergeRefreshedRows(table: string, rows: Array<{ data?: unknown }>): void {
-  const target = getTable(table);
-  for (const result of rows) {
-    const row = result.data as Record<string, unknown> | null | undefined;
-    const id = String(row?.id ?? '');
-    if (!row || !id) continue;
-    const idx = target.findIndex(existing => String(existing.id) === id);
-    if (idx >= 0) target[idx] = row;
-    else target.push(row);
-  }
+  mergeRefreshedRowsPure(getTable(table), rows);
 }
 
 /** RAM miss only: make one narrow PG read for the referenced row ids. */
@@ -859,35 +864,13 @@ async function ensureWriteReferences(
   row: Record<string, unknown>,
 ): Promise<ReferenceCheck> {
   const refs = writeReferencesFor(sourceTable, row);
-  const missingByTable = new Map<string, string[]>();
-  for (const ref of refs) {
-    if (ref.id && getTable(ref.table).some(candidate => String(candidate.id) === ref.id)) continue;
-    const ids = missingByTable.get(ref.table) ?? [];
-    ids.push(ref.id);
-    missingByTable.set(ref.table, ids);
-  }
+  const hasRow = (table: string, id: string) =>
+    getTable(table).some(candidate => String(candidate.id) === id);
+  const missingByTable = missingWriteRefsByTable(refs, hasRow);
   for (const [table, ids] of missingByTable) {
     if (!(await refreshReferencedRows(table, ids))) return { ok: false, unavailable: true };
   }
-  for (const ref of refs) {
-    if (!ref.id || !getTable(ref.table).some(candidate => String(candidate.id) === ref.id)) {
-      return { ok: false, unavailable: false };
-    }
-  }
-  return { ok: true };
-}
-
-function sendReferenceFailure(res: Response, check: Exclude<ReferenceCheck, { ok: true }>) {
-  if (check.unavailable) {
-    return res.status(503).json({
-      data: null,
-      error: { message: '관계 데이터 확인에 실패했습니다. 잠시 후 다시 시도해 주세요.', code: 'REFERENCE_REFRESH_FAILED' },
-    });
-  }
-  return res.status(400).json({
-    data: null,
-    error: { message: '참조 대상이 존재하지 않습니다.', code: 'INVALID_REFERENCE' },
-  });
+  return evaluateWriteReferences(refs, hasRow);
 }
 
 /** Membership can arrive through NOTIFY after the room row, so refresh this pair once on a miss. */
@@ -1091,23 +1074,6 @@ async function dedupeChatsInStore(): Promise<number> {
 // [Part1-Fix4] Per-(table, row_id) write serialization — 동시 upsert 순서 역전 방지
 // 동일 키의 새 write는 이전 promise 완료 후 실행 → 오래된 스냅샷이 최신 데이터를 덮어쓰지 않음
 const _dbWriteLocks = new Map<string, Promise<void>>();
-const REALTIME_TRACE_TABLES = new Set([
-  'messages',
-  'chats',
-  'likes',
-  'contact_shares',
-  'contact_share_events',
-]);
-
-function realtimeTraceMeta(table: string, row: Record<string, unknown>) {
-  return {
-    table,
-    rowId: typeof row.id === 'string' ? row.id : null,
-    roomId: typeof row.chat_id === 'string' ? row.chat_id : null,
-    createdAt: typeof row.created_at === 'string' ? row.created_at : null,
-  };
-}
-
 async function dbPersistRow(tableName: string, row: Record<string, unknown>): Promise<void> {
   const rowId = String(row.id ?? genId());
   const key = `${tableName}:${rowId}`;
@@ -1253,44 +1219,27 @@ async function loadImagesFromDb(): Promise<void> {
   }
 }
 
+/** Thin wrapper — pure hydrate lives in db-kv-hydrate. */
 function mergeKvRowsIntoStore(rows: Array<{ table_name: string; row_id: string; data: unknown }>): void {
-  for (const row of rows) {
-    // Error-log counter row is meta — not application data
-    if (row.table_name === 'db_error_log' && row.row_id === 'counter') {
-      const saved = row.data as { count?: number; log?: PersistErrorEntry[] };
+  mergeKvRowsIntoStorePure(rows, store, {
+    systemTables: SYSTEM_KV_TABLES,
+    legacyTables: LEGACY_KV_TABLES,
+    onErrorLogCounter: (saved) => {
       if (typeof saved.count === 'number') _dbPersistErrors = saved.count;
       if (Array.isArray(saved.log)) {
         _dbPersistErrorLog.length = 0;
         _dbPersistErrorLog.push(...saved.log.slice(-100));
       }
-      continue;
-    }
-    // 시스템·삭제된 기능 테이블은 앱 store에 올리지 않음 (rate_limits는 PG 전용)
-    if (SYSTEM_KV_TABLES.has(row.table_name) || LEGACY_KV_TABLES.has(row.table_name)) continue;
-    if (!store[row.table_name]) store[row.table_name] = [];
-    let data = row.data as Record<string, unknown>;
-    if (row.table_name === 'session_history') {
-      data = stripLegacySessionHistoryKeys(data);
-    }
-    store[row.table_name].push(data);
-  }
+    },
+    stripSessionHistory: stripLegacySessionHistoryKeys,
+  });
 }
 
+/** Thin wrapper — pure seed lives in db-kv-hydrate; logger stays local. */
 function seedLikesLastInsertFromStore(): void {
-  const cutoff = Date.now() - 10_000;
-  for (const like of (store['likes'] ?? [])) {
-    const liker = like['liker_id'];
-    const liked  = like['liked_id'];
-    const htype  = like['heart_type'];
-    if (!liker || !liked || !htype) continue;
-    const createdMs = like['created_at'] ? new Date(like['created_at'] as string).getTime() : 0;
-    if (createdMs < cutoff) continue;
-    const key = `${liker}:${liked}:${htype}`;
-    const prev = _likesLastInsert.get(key) ?? 0;
-    if (createdMs > prev) _likesLastInsert.set(key, createdMs);
-  }
-  if (_likesLastInsert.size > 0) {
-    logger.info({ count: _likesLastInsert.size }, '[db] Seeded _likesLastInsert from DB on startup');
+  const count = seedLikesLastInsertMapPure(store['likes'] ?? [], _likesLastInsert, Date.now());
+  if (count > 0) {
+    logger.info({ count }, '[db] Seeded _likesLastInsert from DB on startup');
   }
 }
 
@@ -1537,9 +1486,6 @@ const ACTIVE_KV_TABLES = new Set([
   // PG 전용 메타 — 앱 데이터가 아님. inversion cleanup에서 지우면 안 됨
   'rate_limits', 'db_error_log',
 ]);
-
-/** app_kv_rows 에만 두고 인메모리 store에는 올리지 않는 시스템 행 */
-const SYSTEM_KV_TABLES = new Set(['rate_limits', 'db_error_log']);
 
 async function countLegacyLeftovers(): Promise<{ kv_tables: number; settings_rows: number; history_rows: number }> {
   const [kv, settings, hist] = await Promise.all([

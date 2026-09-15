@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   ADMIN_ONLY_PRIVATE_TABLES,
   PRIVATE_TABLES,
+  REALTIME_TRACE_TABLES,
   planSmartBroadcastLocal,
+  realtimeTraceMeta,
   stripInternalBroadcastFields,
 } from './db-sse-fanout-policy.js';
 
@@ -63,5 +65,30 @@ describe('db-sse-fanout-policy', () => {
       sanitize,
     );
     expect(plan.kind).toBe('drop');
+  });
+});
+
+describe('realtimeTraceMeta', () => {
+  it('exports REALTIME_TRACE_TABLES for messages/likes/chats/contact*', () => {
+    expect(REALTIME_TRACE_TABLES.has('messages')).toBe(true);
+    expect(REALTIME_TRACE_TABLES.has('likes')).toBe(true);
+    expect(REALTIME_TRACE_TABLES.has('profiles')).toBe(false);
+    expect(realtimeTraceMeta('messages', {
+      id: 'm1',
+      chat_id: 'c1',
+      created_at: '2026-01-01T00:00:00.000Z',
+      other: 1,
+    })).toEqual({
+      table: 'messages',
+      rowId: 'm1',
+      roomId: 'c1',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    });
+    expect(realtimeTraceMeta('likes', { id: 1, chat_id: 2, created_at: 3 })).toEqual({
+      table: 'likes',
+      rowId: null,
+      roomId: null,
+      createdAt: null,
+    });
   });
 });
