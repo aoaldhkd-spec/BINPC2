@@ -548,6 +548,12 @@ describe('product copy + notification invariants', () => {
     expect(db).toContain('dedupeParticipantChatRows');
     expect(db).not.toMatch(/function sanitizeBroadcastValue\(val: unknown, depth = 0\)/);
     expect(db).not.toMatch(/const seenPairs = new Set<string>\(\);/);
+    expect(db).toContain("from '../lib/db-op-update-ownership'");
+    expect(db).toContain('checkUpdateRowOwnership');
+    expect(db).toContain("from '../lib/db-op-delete-ownership'");
+    expect(db).toContain('checkDeleteRowOwnership');
+    expect(db).not.toMatch(/IDOR: messages UPDATE without requesterId blocked/);
+    expect(db).not.toMatch(/Forbidden: 자신이 보낸 하트만 취소할 수 있습니다\./);
   });
 
 

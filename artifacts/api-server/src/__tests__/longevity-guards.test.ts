@@ -155,6 +155,22 @@ describe('longevity recurrence guards (server)', () => {
     expect(scope).toContain('scopeSignalSendsRows');
   });
 
+  it('op update/delete ownership stay extracted from db.ts', () => {
+    expect(dbTs).toContain("from '../lib/db-op-update-ownership'");
+    expect(dbTs).toContain('updateMissingRequesterReject');
+    expect(dbTs).toContain('forceUpdateOwnershipPatch');
+    expect(dbTs).toContain('checkUpdateRowOwnership');
+    expect(dbTs).toContain("from '../lib/db-op-delete-ownership'");
+    expect(dbTs).toContain('deleteMissingRequesterReject');
+    expect(dbTs).toContain('checkDeleteRowOwnership');
+    expect(dbTs).not.toMatch(/IDOR: messages UPDATE without requesterId blocked/);
+    expect(dbTs).not.toMatch(/IDOR: DELETE likes blocked/);
+    const upd = readFileSync(join(here, '../lib/db-op-update-ownership.ts'), 'utf8');
+    const del = readFileSync(join(here, '../lib/db-op-delete-ownership.ts'), 'utf8');
+    expect(upd).toContain('checkUpdateRowOwnership');
+    expect(del).toContain('checkDeleteRowOwnership');
+  });
+
   it('app-settings-merge + panel-tokens stay extracted from db.ts', () => {
     expect(dbTs).toContain("from '../lib/db-app-settings-merge'");
     expect(dbTs).toContain("from '../lib/db-panel-tokens'");

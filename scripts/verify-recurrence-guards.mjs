@@ -1579,6 +1579,48 @@ mustMatch('ARCHITECTURE.md', '64_architecture_path_after_op_select_peel', [
 ]);
 
 
+// ── 65: db-op-update-ownership + db-op-delete-ownership ───────────────────────
+mustExist('artifacts/api-server/src/lib/db-op-update-ownership.ts', '65_db_op_update_ownership_module');
+mustExist('artifacts/api-server/src/lib/db-op-update-ownership.test.ts', '65_db_op_update_ownership_tests');
+mustExist('artifacts/api-server/src/lib/db-op-delete-ownership.ts', '65_db_op_delete_ownership_module');
+mustExist('artifacts/api-server/src/lib/db-op-delete-ownership.test.ts', '65_db_op_delete_ownership_tests');
+mustMatch('artifacts/api-server/src/lib/db-op-update-ownership.ts', '65_op_update_ownership_exports', [
+  /export function updateMissingRequesterReject/,
+  /export function forceUpdateOwnershipPatch/,
+  /export function planGroupParticipantsUpdate/,
+  /export function checkUpdateRowOwnership/,
+  /export function signalSendsUpdateReject/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-op-delete-ownership.ts', '65_op_delete_ownership_exports', [
+  /export const DELETE_AUTH_REQUIRED_TABLES/,
+  /export function deleteMissingRequesterReject/,
+  /export function checkDeleteRowOwnership/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '65_db_reimports_op_update_and_delete_ownership', [
+  /from '\.\.\/lib\/db-op-update-ownership'/,
+  /updateMissingRequesterReject/,
+  /forceUpdateOwnershipPatch/,
+  /checkUpdateRowOwnership/,
+  /from '\.\.\/lib\/db-op-delete-ownership'/,
+  /deleteMissingRequesterReject/,
+  /checkDeleteRowOwnership/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '65_db_still_single_router_export', [
+  /export default router/,
+]);
+mustNotMatch('artifacts/api-server/src/routes/db.ts', '65_db_no_inline_update_or_delete_ownership_impl', [
+  /IDOR: messages UPDATE without requesterId blocked/,
+  /IDOR: DELETE likes blocked/,
+  /Forbidden: 자신이 보낸 하트만 취소할 수 있습니다\./,
+  /Forbidden: 자신의 프로필만 수정할 수 있습니다\./,
+]);
+mustMatch('ARCHITECTURE.md', '65_architecture_path_after_op_write_ownership_peel', [
+  /db-op-update-ownership/,
+  /db-op-delete-ownership/,
+  /~9\.5/,
+]);
+
+
 
 console.log('\n=== verify-recurrence-guards ===\n');
 

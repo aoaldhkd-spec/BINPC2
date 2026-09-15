@@ -107,6 +107,17 @@ import {
   scopeSignalSendsRows,
 } from '../lib/db-op-select-scope';
 import {
+  checkUpdateRowOwnership,
+  forceUpdateOwnershipPatch,
+  planGroupParticipantsUpdate,
+  signalSendsUpdateReject,
+  updateMissingRequesterReject,
+} from '../lib/db-op-update-ownership';
+import {
+  checkDeleteRowOwnership,
+  deleteMissingRequesterReject,
+} from '../lib/db-op-delete-ownership';
+import {
   ADMIN_FIXED_NICKNAME,
   BIRTH_MD_EDIT_MAX,
   adminPhoneDigitsFromSettings,
@@ -3584,97 +3595,40 @@ router.post('/op', async (req: Request, res: Response) => {
         if (!referenceCheck.ok) return sendReferenceFailure(res, referenceCheck);
       }
 
-      // ─ IDOR guard: UPDATE ownership check ──────────────────────────────
-      // messages UPDATE는 requesterId 필수 — 미인증 UPDATE로 타인 메시지 수정 차단
-      if (table === 'messages' && !requesterId) {
-        logger.warn({ ip: req.ip }, '[SECURITY] IDOR: messages UPDATE without requesterId blocked');
-        return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
-      }
-      if (table === 'likes' && !isAdmin && !requesterId) {
-        logger.warn({ ip: req.ip }, '[SECURITY] IDOR: likes UPDATE without requesterId blocked');
-        return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
-      }
-      if (
-        !isAdmin &&
-        (table === 'blocked_users' || table === 'contact_shares' || table === 'contact_share_events') &&
-        !requesterId
-      ) {
-        logger.warn({ table, ip: req.ip }, '[SECURITY] IDOR: relationship UPDATE without requesterId blocked');
-        return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+      // ─ IDOR guard: UPDATE ownership (db-op-update-ownership) ───────────
+      {
+        const authReject = updateMissingRequesterReject(table, isAdmin, requesterId);
+        if (authReject) {
+          if (authReject.logMsg.includes('relationship')) {
+            logger.warn({ table, ip: req.ip }, authReject.logMsg);
+          } else {
+            logger.warn({ ip: req.ip }, authReject.logMsg);
+          }
+          return res.status(authReject.status).json(authReject.body);
+        }
       }
       if (!isAdmin && requesterId) {
-        if (table === 'blocked_users') {
-          delete patch.id;
-          patch = { ...patch, user_id: requesterId };
-        }
-        if (table === 'contact_shares') {
-          delete patch.id;
-          delete patch.liker_id;
-          patch = { ...patch, liked_id: requesterId };
-        }
-        if (table === 'contact_share_events') {
-          delete patch.id;
-          delete patch.to_user_id;
-          patch = { ...patch, from_user_id: requesterId };
-        }
+        patch = forceUpdateOwnershipPatch(table, patch, String(requesterId));
       }
-      if (table === 'signal_sends' && !isAdmin) {
-        return res.status(403).json({ data: null, error: { message: 'Forbidden: signal actions cannot be updated', code: 'FORBIDDEN' } });
+      {
+        const sigReject = signalSendsUpdateReject(table, isAdmin);
+        if (sigReject) return res.status(sigReject.status).json(sigReject.body);
       }
       if (table === 'group_participants') {
-        if (!requesterId) {
-          logger.warn({ ip: req.ip }, '[SECURITY] IDOR: group_participants UPDATE without requesterId blocked');
-          return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+        const gpPlan = planGroupParticipantsUpdate(patch, requesterId);
+        if (!gpPlan.ok) {
+          if (gpPlan.reject.logMsg) logger.warn({ ip: req.ip }, gpPlan.reject.logMsg);
+          return res.status(gpPlan.reject.status).json(gpPlan.reject.body);
         }
-        const readAt = patch.last_read_at;
-        if (typeof readAt !== 'string' || !readAt.trim()) {
-          return res.status(400).json({ data: null, error: { message: 'last_read_at is required', code: 'INVALID_INPUT' } });
-        }
-        patch = { last_read_at: readAt };
+        patch = gpPlan.patch;
       }
       // requesterId가 있는 경우, 자신 소유의 행만 수정 가능하도록 검증
       if (requesterId) {
         for (const existingRow of rowsToUpdate) {
-          // profiles: 자신의 프로필만 수정 가능
-          if (table === 'profiles' && existingRow.id != null &&
-              String(existingRow.id) !== String(requesterId)) {
-            logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: UPDATE profiles blocked');
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신의 프로필만 수정할 수 있습니다.', code: 'FORBIDDEN' } });
-          }
-          // messages: 자신이 보낸 메시지만 수정 가능
-          if (table === 'messages' && existingRow.sender_id != null &&
-              String(existingRow.sender_id) !== String(requesterId)) {
-            logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: UPDATE messages blocked');
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신의 메시지만 수정할 수 있습니다.', code: 'FORBIDDEN' } });
-          }
-          // likes: 하트를 받은 사용자만 수락·거절 상태를 변경할 수 있음
-          if (!isAdmin && table === 'likes' && existingRow.liked_id != null &&
-              String(existingRow.liked_id) !== String(requesterId)) {
-            logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: UPDATE likes blocked');
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: 받은 하트만 변경할 수 있습니다.', code: 'FORBIDDEN' } });
-          }
-          // chat_reads: 자신의 읽음 기록만 수정 가능
-          if (table === 'chat_reads' && existingRow.reader_id != null &&
-              String(existingRow.reader_id) !== String(requesterId)) {
-            logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: UPDATE chat_reads blocked');
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신의 읽음 기록만 수정할 수 있습니다.', code: 'FORBIDDEN' } });
-          }
-          if (table === 'group_participants' && existingRow.user_id != null &&
-              String(existingRow.user_id) !== String(requesterId)) {
-            logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: UPDATE group_participants blocked');
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신의 참여만 수정할 수 있습니다.', code: 'FORBIDDEN' } });
-          }
-          if (!isAdmin && table === 'blocked_users' && String(existingRow.user_id ?? '') !== String(requesterId)) {
-            logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: UPDATE blocked_users blocked');
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신이 만든 차단만 수정할 수 있습니다.', code: 'FORBIDDEN' } });
-          }
-          if (!isAdmin && table === 'contact_shares' && String(existingRow.liked_id ?? '') !== String(requesterId)) {
-            logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: UPDATE contact_shares blocked');
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신이 공유한 연락처만 수정할 수 있습니다.', code: 'FORBIDDEN' } });
-          }
-          if (!isAdmin && table === 'contact_share_events' && String(existingRow.from_user_id ?? '') !== String(requesterId)) {
-            logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: UPDATE contact_share_events blocked');
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신이 보낸 이벤트만 수정할 수 있습니다.', code: 'FORBIDDEN' } });
+          const ownReject = checkUpdateRowOwnership(table, existingRow, String(requesterId), isAdmin);
+          if (ownReject) {
+            logger.warn({ requesterId, rowId: existingRow.id }, ownReject.logMsg);
+            return res.status(ownReject.status).json(ownReject.body);
           }
         }
       }
@@ -3970,70 +3924,22 @@ router.post('/op', async (req: Request, res: Response) => {
     if (op === 'delete') {
       let toDelete = applyFilters(tableData, normalizedFilters);
 
-      // ─ IDOR guard: 민감 테이블 DELETE는 requesterId 필수 ────────────────
-      if (!isAdmin && !requesterId) {
-        if (
-          table === 'messages' || table === 'likes' || table === 'chat_reads' ||
-          table === 'chats' || table === 'contact_shares' || table === 'contact_share_events' ||
-          table === 'group_messages' || table === 'group_participants' || table === 'group_chats' ||
-          table === 'signal_sends' || table === 'blocked_users'
-        ) {
-          logger.warn({ table, ip: req.ip }, '[SECURITY] IDOR: DELETE without requesterId blocked');
-          return res.status(403).json({ data: null, error: { message: 'Forbidden: authentication required', code: 'FORBIDDEN' } });
+      // ─ IDOR guard: DELETE ownership (db-op-delete-ownership) ───────────
+      {
+        const authReject = deleteMissingRequesterReject(table, isAdmin, requesterId);
+        if (authReject) {
+          logger.warn({ table, ip: req.ip }, authReject.logMsg);
+          return res.status(authReject.status).json(authReject.body);
         }
       }
 
       // ─ IDOR guard: DELETE ownership check ──────────────────────────────
       if (requesterId && !isAdmin) {
         for (const existingRow of toDelete) {
-          if (table === 'likes' && existingRow.liker_id != null &&
-              String(existingRow.liker_id) !== String(requesterId)) {
-            logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: DELETE likes blocked');
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신이 보낸 하트만 취소할 수 있습니다.', code: 'FORBIDDEN' } });
-          }
-          if (table === 'signal_sends' && existingRow.sender_id != null &&
-              String(existingRow.sender_id) !== String(requesterId)) {
-            logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: DELETE signal_sends blocked');
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신이 보낸 시그널만 취소할 수 있습니다.', code: 'FORBIDDEN' } });
-          }
-          if (table === 'messages' && existingRow.sender_id != null &&
-              String(existingRow.sender_id) !== String(requesterId)) {
-            logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: DELETE messages blocked');
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신의 메시지만 삭제할 수 있습니다.', code: 'FORBIDDEN' } });
-          }
-          if (table === 'chats') {
-            const u1 = String(existingRow.user1_id ?? '');
-            const u2 = String(existingRow.user2_id ?? '');
-            if (u1 !== String(requesterId) && u2 !== String(requesterId)) {
-              logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: DELETE chats blocked');
-              return res.status(403).json({ data: null, error: { message: 'Forbidden: 참여한 채팅방만 삭제할 수 있습니다.', code: 'FORBIDDEN' } });
-            }
-          }
-          if (table === 'group_participants' && existingRow.user_id != null &&
-              String(existingRow.user_id) !== String(requesterId)) {
-            logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: DELETE group_participants blocked');
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신의 참여만 나갈 수 있습니다.', code: 'FORBIDDEN' } });
-          }
-          if (table === 'group_messages' && existingRow.sender_id != null &&
-              String(existingRow.sender_id) !== String(requesterId)) {
-            logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: DELETE group_messages blocked');
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신의 단톡 메시지만 삭제할 수 있습니다.', code: 'FORBIDDEN' } });
-          }
-          if (table === 'group_chats') {
-            logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: DELETE group_chats blocked');
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: 단톡방 삭제는 관리자만 가능합니다.', code: 'FORBIDDEN' } });
-          }
-          if (table === 'blocked_users' && String(existingRow.user_id ?? '') !== String(requesterId)) {
-            logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: DELETE blocked_users blocked');
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신이 만든 차단만 삭제할 수 있습니다.', code: 'FORBIDDEN' } });
-          }
-          if (table === 'contact_shares' && String(existingRow.liked_id ?? '') !== String(requesterId)) {
-            logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: DELETE contact_shares blocked');
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신이 공유한 연락처만 삭제할 수 있습니다.', code: 'FORBIDDEN' } });
-          }
-          if (table === 'contact_share_events' && String(existingRow.from_user_id ?? '') !== String(requesterId)) {
-            logger.warn({ requesterId, rowId: existingRow.id }, '[SECURITY] IDOR: DELETE contact_share_events blocked');
-            return res.status(403).json({ data: null, error: { message: 'Forbidden: 자신이 보낸 이벤트만 삭제할 수 있습니다.', code: 'FORBIDDEN' } });
+          const ownReject = checkDeleteRowOwnership(table, existingRow, String(requesterId));
+          if (ownReject) {
+            logger.warn({ requesterId, rowId: existingRow.id }, ownReject.logMsg);
+            return res.status(ownReject.status).json(ownReject.body);
           }
         }
       }
