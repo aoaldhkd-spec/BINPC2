@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
+import { PROFILE_ROW_SELECT } from '../lib/profile-select';
 import type { Database } from '../types/database';
 import {
   BarChart3, Trophy, Heart, Users, Share2, Award,
@@ -318,7 +319,7 @@ export function RankingTab({ darkMode, profiles: propProfiles }: { darkMode: boo
   useEffect(() => {
     if (propProfiles) return;
     let active = true;
-    supabase.from('profiles').select('*').then(({ data }: { data: unknown }) => {
+    supabase.from('profiles').select(PROFILE_ROW_SELECT).then(({ data }: { data: unknown }) => {
       if (active && Array.isArray(data)) setFetchedProfiles(data as Profile[]);
     });
     return () => { active = false; };

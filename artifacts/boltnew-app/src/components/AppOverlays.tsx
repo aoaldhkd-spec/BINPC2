@@ -5,6 +5,7 @@
 import { Suspense, lazy, type ReactNode, type Dispatch, type SetStateAction, type MutableRefObject } from 'react';
 import { X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { PROFILE_ROW_SELECT } from '../lib/profile-select';
 import { hasInterestHeart, isInterestHeart } from '../lib/signal-match';
 import { hasProfileFortuneCompatData } from '../lib/profile';
 import type { NetUiStatus } from '../lib/net-health';
@@ -392,7 +393,7 @@ export function AppOverlays(p: AppOverlaysProps) {
               setShowQrScanner(false);
               const cached = profiles.find(p => p.id === profileId);
               if (cached) { saveScannedContact(cached); setScannedContactProfile(cached); return; }
-              const { data } = await supabase.from('profiles').select('*').eq('id', profileId).maybeSingle();
+              const { data } = await supabase.from('profiles').select(PROFILE_ROW_SELECT).eq('id', profileId).maybeSingle();
               if (data) { saveScannedContact(data as import('../types/app').Profile); setScannedContactProfile(data as import('../types/app').Profile); }
             }}
           />

@@ -95,6 +95,18 @@ import {
   planClearAdminNpcRelationships,
 } from '../lib/db-admin-wipe-plan';
 import {
+  PRODUCTION_QR_BASE,
+  SECRET_SETTING_KEYS,
+  explicitSecretKeys,
+  isLocalQrUrl,
+  koreanDateMMDD,
+  mergeAppSettings as mergeAppSettingsPure,
+} from '../lib/db-app-settings-merge';
+import {
+  deriveAdminToken,
+  deriveTestToken,
+} from '../lib/db-panel-tokens';
+import {
   LEGACY_APP_SETTINGS_KEYS,
   LEGACY_KV_TABLES,
   settingsHaveLegacyKeys,
@@ -410,11 +422,6 @@ class RpcAuthError extends Error {
 // 서버는 현재 admin_password를 읽어 HMAC을 재계산한 뒤 timingSafeEqual로 비교
 // → 비밀번호 변경 시 자동 무효화, 재시작 후에도 동일 토큰 검증 가능
 
-function deriveAdminToken(adminPassword: string): string {
-  const secret = (process.env.SESSION_SECRET ?? 'fallback-secret') + adminPassword;
-  return createHmac('sha256', secret).update('admin-session').digest('hex');
-}
-
 function verifyAdminToken(provided: string | null | undefined): boolean {
   if (!provided || typeof provided !== 'string') return false;
   const settings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
@@ -426,11 +433,6 @@ function verifyAdminToken(provided: string | null | undefined): boolean {
       return timingSafeEqual(Buffer.from(provided, 'hex'), Buffer.from(expected, 'hex'));
     } catch { return false; }
   });
-}
-
-function deriveTestToken(testPassword: string): string {
-  const secret = (process.env.SESSION_SECRET ?? 'fallback-secret') + testPassword;
-  return createHmac('sha256', secret).update('test-session').digest('hex');
 }
 
 function verifyTestToken(provided: string | null | undefined): boolean {
@@ -773,15 +775,6 @@ function stampChatReadAt(row: Record<string, unknown>): void {
   const now = ts();
   const provided = String(row.read_at ?? '');
   row.read_at = provided > now ? provided : now;
-}
-
-function koreanDateMMDD(): string {
-  const now = new Date();
-  // 새벽 3시 이전(00:00~02:59 KST)은 전날로 취급 — 3시간을 빼고 날짜를 계산
-  const korea = new Date(now.getTime() + (9 - 3) * 60 * 60 * 1000);
-  const mm = String(korea.getUTCMonth() + 1).padStart(2, '0');
-  const dd = String(korea.getUTCDate()).padStart(2, '0');
-  return mm + dd;
 }
 
 function getTable(name: string): Record<string, unknown>[] {
@@ -1335,15 +1328,6 @@ function defaultAppSettings(): Record<string, unknown> {
   };
 }
 
-const PRODUCTION_QR_BASE = 'https://binpc2.netlify.app';
-
-function isLocalQrUrl(url: unknown): boolean {
-  const s = String(url ?? '');
-  return !s || /localhost|127\.0\.0\.1|0\.0\.0\.0/i.test(s);
-}
-
-const SECRET_SETTING_KEYS = ['admin_password', 'test_password', 'entry_password', 'reset_password'] as const;
-
 /** Postgres leftover 잔량 — 값/PII 없이 개수만. -1 은 아직 클린업 전. */
 let _legacyLeftovers = {
   kv_tables: -1,
@@ -1351,33 +1335,12 @@ let _legacyLeftovers = {
   history_rows: -1,
 };
 
+/** Thin wrapper — pure merge lives in db-app-settings-merge. */
 function mergeAppSettings(
   current: Record<string, unknown>,
   patch: Record<string, unknown>,
 ): Record<string, unknown> {
-  // 빈/null 패치값으로 DB 비밀번호가 지워지는 것을 방지 (관리자 패널·resync 안전망)
-  const safePatch = { ...patch };
-  for (const key of SECRET_SETTING_KEYS) {
-    if (key in safePatch && (safePatch[key] == null || String(safePatch[key]).trim() === '')) {
-      delete safePatch[key];
-    }
-  }
-  const merged: Record<string, unknown> = { ...defaultAppSettings(), ...current, ...safePatch, id: 1, updated_at: ts() };
-  for (const k of LEGACY_APP_SETTINGS_KEYS) delete merged[k];
-  if ('functions_locked' in merged) {
-    const v = merged.functions_locked;
-    merged.functions_locked = v === true || v === 1 || v === 'true' || v === '1';
-  }
-  if (isLocalQrUrl(merged.qr_base_url)) merged.qr_base_url = PRODUCTION_QR_BASE;
-  return merged;
-}
-
-function explicitSecretKeys(payload: Record<string, unknown>): Set<string> {
-  const keys = new Set<string>();
-  for (const key of SECRET_SETTING_KEYS) {
-    if (key in payload && payload[key] != null && String(payload[key]).trim() !== '') keys.add(key);
-  }
-  return keys;
+  return mergeAppSettingsPure(current, patch, defaultAppSettings(), ts());
 }
 
 /** 비비밀번호 설정 저장이 Postgres에 이미 있는 패널 비밀번호를 덮어쓰지 않게 함 */

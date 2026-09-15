@@ -51,6 +51,8 @@ Prefer **single Render instance**. Multi-instance는 NOTIFY로 일부 동기화�
 | `artifacts/api-server/src/lib/db-op-request.ts` | `/op` scalar validate + filter/order normalize (순수) |
 | `artifacts/api-server/src/lib/db-admin-identity.ts` | Admin/NPC phone·nickname identity + birth-md helper (순수) |
 | `artifacts/api-server/src/lib/db-admin-wipe-plan.ts` | `clearAdminNpcRelationships` row-selection plan (순수) |
+| `artifacts/api-server/src/lib/db-app-settings-merge.ts` | app_settings merge / QR / koreanDateMMDD / secret keys (순수) |
+| `artifacts/api-server/src/lib/db-panel-tokens.ts` | admin/test panel session HMAC derive (순수) |
 | `artifacts/api-server/src/lib/db-chat-ids.ts` | `chatPairKey` / `deterministicChatId` |
 | `artifacts/api-server/src/lib/db-broadcast-targets.ts` | SSE 수신자 목록 (순수) |
 | `artifacts/api-server/src/lib/db-rate-limit.ts` | IP rate-limit 맵/헬퍼 |
@@ -159,7 +161,7 @@ Detach = stop wiring the domain hook/callbacks into `App.tsx` / screens; keep pu
 
 Moved out of `App.tsx` (planners/hooks, behavior unchanged): SoT resync, SSE fallback poll, dark-mode storage sync, sent/received like planners + toast payloads, contact-share events, pending-hearts badge count, functions-lock kick plan, user-signal merge, realtime row upserts, settings `/ready` poll gap, profile-view debounce, broadcast notif helpers, entry password/reset planners, **profiles + user-bundle + privacy + signals SSE subscribe** (`useUserRealtimeChannel` + apply callbacks), **app_settings + notifications + contact_share_events SSE** (`useAppShellRealtimeChannels` + apply callbacks), `app-settings-realtime` planner, profile SSE apply planners, block/hide planners, **admin reset wipe** (`admin-reset-wipe` plan+run; App thin `applyResetSignal`), **`/ready` bootstrap + settings poll** (`useSessionReadyBootstrap` + `ready-bootstrap-settings`), **loading-main profile boot/backoff** (`profile-boot-machine` + `useProfileBootMachine`), **early entry gates JSX** (`AppEntryGates`), **main shell + overlay JSX fan-in** (`AppMainShell` / `AppOverlays`), **hearts/contact SSE apply** (`useHeartsRealtimeApply`), **hearts/chat/group lock wrappers** (`useSocialLockGuards`), **nickname/registration + recovery/reset** (`useNicknameRegistration` + `nickname-registration` planners), **profile/privacy/signals loaders** (`useProfilePrivacyLoaders` + `profile-select` column lists), **participant session-init** (`useSessionInit` + `session-init` planners).
 
-Still in App (intentionally, next peels toward ~9.5): residual privacy/signal SSE apply surface. **db.ts peel progressing:** `db-op-filters` + `db-panel-secrets` + `db-sse-ring` + `db-merged-id-map` + `db-table-policy` + `db-sse-fanout-policy` + `db-op-request` + **`db-admin-identity` + `db-admin-wipe-plan`** (re-import; single router export intact). Admin/TestDashboard `select('*')` narrowed via `profile-select` column lists. Full `/op`/RPC router split remains a separate mountain.
+Still in App (intentionally, next peels toward ~9.5): residual privacy/signal SSE apply surface. **db.ts peel progressing:** `db-op-filters` + `db-panel-secrets` + `db-sse-ring` + `db-merged-id-map` + `db-table-policy` + `db-sse-fanout-policy` + `db-op-request` + `db-admin-identity` + `db-admin-wipe-plan` + **`db-app-settings-merge` + `db-panel-tokens`** (re-import; single router export intact). Participant hearts/overlays/StatsTabs + Admin/TestDashboard `select('*')` narrowed via `profile-select` (incl. `CONTACT_SHARE_ROW_SELECT`). Full `/op`/RPC router split remains a separate mountain.
 
 Path to ~9.5 = **App shell + domain hooks/planners** via incremental peels — not fake-perfect in one PR. `db.ts` remains a separate maintainability track.
 
@@ -172,16 +174,17 @@ Path to ~9.5 = **App shell + domain hooks/planners** via incremental peels — n
 | Prior (hearts/group apply+guards + db ring/map/policy) | **~9.0** | App ~1.44k; more `db.ts` cohesive modules; message/group selects narrowed |
 | Prior (registration/profile loaders + db fanout/op-request) | **~9.2–9.3** | App ~1.27k wiring; SSE fanout plan + `/op` request helpers; App profile `select('*')` cleared |
 | Prior (session-init) | **~9.35–9.4** | App ~1.18k; session-init effect → `useSessionInit` + pure planners; no db.ts touch |
-| This peel (admin identity/wipe-plan + admin/test selects) | **~9.4–9.45** | `db-admin-identity` + wipe plan; Admin/TestDashboard `select('*')` cleared |
-| Toward ~9.5 | more `db.ts` write-path / ensureAdmin slices; residual privacy/signal apply | Not claimed yet |
+| Prior (admin identity/wipe-plan + admin/test selects) | **~9.4–9.45** | `db-admin-identity` + wipe plan; Admin/TestDashboard `select('*')` cleared |
+| This peel (settings-merge/tokens + participant selects) | **~9.45–9.5 path** | `db-app-settings-merge` + `db-panel-tokens`; hearts/overlays/StatsTabs selects cleared. **Not claiming 9.5** — App still has residual privacy/signal apply; `db.ts` still large (~6.1k) |
+| Toward ≥9.5 | more `db.ts` write-path / ensureAdmin slices; residual privacy/signal apply | Claim 9.5 only when App wiring-thin AND residual `select('*')` mostly gone AND db meaningfully smaller |
 
 ### Next incremental steps (no big-bang rewrite)
 
 1. Screens keep flags/callbacks only — no new App feature state for modularity work.
-2. Continue `db.ts` peel track (ensureAdmin/write-path clusters + re-import); keep `38_db_single_router_export`.
+2. Continue `db.ts` peel track (ensureAdmin/write-path / image-store clusters + re-import); keep `38_db_single_router_export`.
 3. Residual privacy/signal SSE apply surface if it still fattens App.
-4. Residual `select('*')` in StatsTabs / hearts hooks where safe.
-5. Do **not** claim 9.5 until App is mostly wiring and `db.ts` has more domain slices beyond identity/wipe-plan/fanout/op-request.
+4. Any leftover participant `select('*')` only where a column list is clearly safe.
+5. Do **not** claim 9.5 until App is mostly wiring-thin, residual `select('*')` mostly gone, and `db.ts` has more domain slices beyond settings-merge/tokens/identity/wipe-plan.
 
 ## Do not touch casually
 

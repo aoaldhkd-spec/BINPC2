@@ -19,6 +19,9 @@ export const USER_SIGNAL_ROW_SELECT = 'id, user_id, status_msg, ideal_msg, featu
 /** likes.Row — admin / TestDashboard loads. */
 export const LIKE_ROW_SELECT = 'id, liker_id, liked_id, status, heart_type, created_at';
 
+/** contact_shares.Row — received shares load (useHearts). */
+export const CONTACT_SHARE_ROW_SELECT = 'id, liker_id, liked_id, kakao, instagram, phone, created_at';
+
 /** chats.Row — admin / TestDashboard loads. */
 export const CHAT_ROW_SELECT = 'id, user1_id, user2_id, created_at';
 

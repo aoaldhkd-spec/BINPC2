@@ -10,6 +10,7 @@ import {
   mergeSetAfterSnapshot,
 } from '../lib/realtime-merge';
 import { diag } from '../lib/diag';
+import { CONTACT_SHARE_ROW_SELECT, PROFILE_ROW_SELECT } from '../lib/profile-select';
 
 /** Green-heart acks must survive a stale likes SELECT that started after the user tapped 확인. */
 function mergeAcknowledgedCompliments(
@@ -170,7 +171,7 @@ export function useHearts(
         setReceivedLikers(current => mergeRowsAfterSnapshot([], atStart.likers, current, profile => profile.id));
         return;
       }
-      const { data: ps } = await supabase.from('profiles').select('*').in('id', activeLikerIds);
+      const { data: ps } = await supabase.from('profiles').select(PROFILE_ROW_SELECT).in('id', activeLikerIds);
       if (gen !== loadReceivedLikesGenRef.current) return; // 두 번째 await 후에도 재확인
       if (ps) setReceivedLikers(current => mergeRowsAfterSnapshot(ps, atStart.likers, current, profile => profile.id));
       const last = rows[rows.length - 1] as { id?: string; created_at?: string | null } | undefined;
@@ -192,7 +193,7 @@ export function useHearts(
       // Fix #9: 두 독립 쿼리를 Promise.all로 병렬 실행 → 레이턴시 ~50% 감소
       const [sharedResult, receivedResult] = await Promise.all([
         supabase.from('contact_shares').select('liker_id').eq('liked_id', userId),
-        supabase.from('contact_shares').select('*').eq('liker_id', userId),
+        supabase.from('contact_shares').select(CONTACT_SHARE_ROW_SELECT).eq('liker_id', userId),
       ]);
       if (gen !== loadContactShareGenRef.current) return;
       if (sharedResult.data) {

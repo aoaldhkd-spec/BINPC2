@@ -15,6 +15,7 @@ import {
 } from '../lib/realtime-row-upsert';
 import type { HeartType } from '../lib/constants';
 import type { ContactShare, Profile } from '../types/app';
+import { PROFILE_ROW_SELECT } from '../lib/profile-select';
 import type { BottomNotificationData } from '../components/BottomNotification';
 import type {
   ReceivedLikeInsertRow,
@@ -190,7 +191,7 @@ export function useHeartsRealtimeApply(args: UseHeartsRealtimeApplyArgs): Hearts
           if (shouldKeepExistingSentHeartType(existing, incomingHt)) return prev;
           return new Map(prev).set(likerId, incomingHt);
         });
-        const { data } = await supabase.from('profiles').select('*').eq('id', likerId).maybeSingle();
+        const { data } = await supabase.from('profiles').select(PROFILE_ROW_SELECT).eq('id', likerId).maybeSingle();
         if (data) {
           setReceivedLikers((prev) => upsertReceivedLikerFront(prev, data as Profile));
         } else {

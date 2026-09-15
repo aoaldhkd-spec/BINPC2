@@ -978,6 +978,83 @@ mustMatch('ARCHITECTURE.md', '52_architecture_path_after_admin_identity_peel', [
 
 
 
+
+// ── 53: db app-settings-merge/panel-tokens + participant select('*') narrow ───
+mustExist('artifacts/api-server/src/lib/db-app-settings-merge.ts', '53_db_app_settings_merge_module');
+mustExist('artifacts/api-server/src/lib/db-app-settings-merge.test.ts', '53_db_app_settings_merge_tests');
+mustExist('artifacts/api-server/src/lib/db-panel-tokens.ts', '53_db_panel_tokens_module');
+mustExist('artifacts/api-server/src/lib/db-panel-tokens.test.ts', '53_db_panel_tokens_tests');
+mustMatch('artifacts/api-server/src/lib/db-app-settings-merge.ts', '53_app_settings_merge_exports', [
+  /export const PRODUCTION_QR_BASE/,
+  /export const SECRET_SETTING_KEYS/,
+  /export function isLocalQrUrl/,
+  /export function koreanDateMMDD/,
+  /export function explicitSecretKeys/,
+  /export function mergeAppSettings/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-panel-tokens.ts', '53_panel_tokens_exports', [
+  /export function deriveAdminToken/,
+  /export function deriveTestToken/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '53_db_reimports_settings_merge_tokens', [
+  /from '\.\.\/lib\/db-app-settings-merge'/,
+  /from '\.\.\/lib\/db-panel-tokens'/,
+  /mergeAppSettingsPure/,
+  /deriveAdminToken/,
+  /deriveTestToken/,
+  /koreanDateMMDD/,
+  /SECRET_SETTING_KEYS/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '53_db_still_single_router_export', [
+  /export default router/,
+]);
+mustNotMatch('artifacts/api-server/src/routes/db.ts', '53_db_no_inline_settings_merge_tokens', [
+  /const PRODUCTION_QR_BASE = /,
+  /const SECRET_SETTING_KEYS = /,
+  /function koreanDateMMDD\(/,
+  /function isLocalQrUrl\(/,
+  /function explicitSecretKeys\(/,
+  /function deriveAdminToken\(/,
+  /function deriveTestToken\(/,
+]);
+mustMatch('artifacts/boltnew-app/src/lib/profile-select.ts', '53_profile_select_contact_share', [
+  /export const CONTACT_SHARE_ROW_SELECT/,
+  /export const PROFILE_ROW_SELECT/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/hooks/useHearts.ts', '53_hearts_no_select_star', [
+  /\.select\('\*'\)/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/hooks/useHeartsRealtimeApply.ts', '53_hearts_realtime_no_select_star', [
+  /\.select\('\*'\)/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/components/AppOverlays.tsx', '53_overlays_no_select_star', [
+  /\.select\('\*'\)/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/components/StatsTabs.tsx', '53_stats_tabs_no_select_star', [
+  /\.select\('\*'\)/,
+]);
+mustMatch('artifacts/boltnew-app/src/hooks/useHearts.ts', '53_hearts_uses_column_lists', [
+  /PROFILE_ROW_SELECT/,
+  /CONTACT_SHARE_ROW_SELECT/,
+]);
+mustMatch('artifacts/boltnew-app/src/hooks/useHeartsRealtimeApply.ts', '53_hearts_realtime_uses_profile_select', [
+  /PROFILE_ROW_SELECT/,
+]);
+mustMatch('artifacts/boltnew-app/src/components/AppOverlays.tsx', '53_overlays_uses_profile_select', [
+  /PROFILE_ROW_SELECT/,
+]);
+mustMatch('artifacts/boltnew-app/src/components/StatsTabs.tsx', '53_stats_tabs_uses_profile_select', [
+  /PROFILE_ROW_SELECT/,
+]);
+mustMatch('ARCHITECTURE.md', '53_architecture_path_after_settings_merge_peel', [
+  /db-app-settings-merge/,
+  /db-panel-tokens/,
+  /CONTACT_SHARE_ROW_SELECT/,
+  /~9\.45/,
+  /~9\.5/,
+]);
+
+
 console.log('\n=== verify-recurrence-guards ===\n');
 for (const r of results) {
   console.log(`  ${r.ok ? 'OK' : 'FAIL'}  ${r.id}${r.detail && !r.ok ? ` ? ${r.detail}` : ''}`);

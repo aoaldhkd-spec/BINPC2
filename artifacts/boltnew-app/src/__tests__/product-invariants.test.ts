@@ -454,6 +454,31 @@ describe('product copy + notification invariants', () => {
     expect(notif).not.toMatch(/\.select\('\*'\)/);
   });
 
+  it('participant hearts/overlays/StatsTabs selects + settings-merge/tokens stay narrowed', () => {
+    const hearts = read('hooks/useHearts.ts');
+    const apply = read('hooks/useHeartsRealtimeApply.ts');
+    const overlays = read('components/AppOverlays.tsx');
+    const stats = read('components/StatsTabs.tsx');
+    const cols = read('lib/profile-select.ts');
+    const db = readFileSync(join(root, '../../api-server/src/routes/db.ts'), 'utf8');
+    expect(cols).toContain('CONTACT_SHARE_ROW_SELECT');
+    expect(hearts).toContain('PROFILE_ROW_SELECT');
+    expect(hearts).toContain('CONTACT_SHARE_ROW_SELECT');
+    expect(hearts).not.toMatch(/\.select\('\*'\)/);
+    expect(apply).toContain('PROFILE_ROW_SELECT');
+    expect(apply).not.toMatch(/\.select\('\*'\)/);
+    expect(overlays).toContain('PROFILE_ROW_SELECT');
+    expect(overlays).not.toMatch(/\.select\('\*'\)/);
+    expect(stats).toContain('PROFILE_ROW_SELECT');
+    expect(stats).not.toMatch(/\.select\('\*'\)/);
+    expect(db).toContain("from '../lib/db-app-settings-merge'");
+    expect(db).toContain("from '../lib/db-panel-tokens'");
+    expect(db).toContain('mergeAppSettingsPure');
+    expect(db).not.toMatch(/const PRODUCTION_QR_BASE = /);
+    expect(db).not.toMatch(/function deriveAdminToken\(/);
+  });
+
+
 
   it('ProfileCard keeps compact heart/chat buttons (no min-h-11 bloat)', () => {
     const card = read('components/ProfileCard.tsx');

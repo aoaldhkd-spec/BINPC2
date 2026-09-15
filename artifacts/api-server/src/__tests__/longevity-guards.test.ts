@@ -120,6 +120,22 @@ describe('longevity recurrence guards (server)', () => {
     expect(wipe).toContain('planClearAdminNpcRelationships');
   });
 
+  it('app-settings-merge + panel-tokens stay extracted from db.ts', () => {
+    expect(dbTs).toContain("from '../lib/db-app-settings-merge'");
+    expect(dbTs).toContain("from '../lib/db-panel-tokens'");
+    expect(dbTs).toContain('mergeAppSettingsPure');
+    expect(dbTs).toContain('deriveAdminToken');
+    expect(dbTs).not.toMatch(/const PRODUCTION_QR_BASE = /);
+    expect(dbTs).not.toMatch(/function koreanDateMMDD\(/);
+    expect(dbTs).not.toMatch(/function deriveAdminToken\(/);
+    const merge = readFileSync(join(here, '../lib/db-app-settings-merge.ts'), 'utf8');
+    const tokens = readFileSync(join(here, '../lib/db-panel-tokens.ts'), 'utf8');
+    expect(merge).toContain('mergeAppSettings');
+    expect(merge).toContain('SECRET_SETTING_KEYS');
+    expect(tokens).toContain('deriveAdminToken');
+    expect(tokens).toContain('deriveTestToken');
+  });
+
   it('persist-before-broadcast and legacy seating/heart_drain stay out of active op tables', () => {
     expect(dbTs).toContain("from '../lib/db-table-policy'");
     expect(dbTs).toContain('ALLOWED_OP_TABLES');
