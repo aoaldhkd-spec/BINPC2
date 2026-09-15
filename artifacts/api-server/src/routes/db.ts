@@ -2077,6 +2077,22 @@ let _listenClient: pg.Client | null = null;
 /** Serializes LISTEN connect/retry so error+catch timers cannot open parallel clients. */
 let _listenSetupGen = 0;
 let _listenSetupInFlight: Promise<void> | null = null;
+let _listenReconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let _listenReconnectScheduledGen: number | null = null;
+
+/** Schedule one reconnect for a LISTEN generation; error/end must not race into duplicates. */
+function scheduleListenReconnect(gen: number, delayMs: number, reason: string): void {
+  if (gen !== _listenSetupGen || _listenReconnectScheduledGen === gen) return;
+  _listenReconnectScheduledGen = gen;
+  _listenReconnectTimer = setTimeout(() => {
+    _listenReconnectTimer = null;
+    _listenReconnectScheduledGen = null;
+    if (gen !== _listenSetupGen) return;
+    setupListenClient()
+      .then(() => resyncHotTablesFromDb())
+      .catch(e => logger.error({ err: e, reason }, '[db] LISTEN reconnect failed'));
+  }, delayMs);
+}
 
 async function setupListenClient(): Promise<void> {
   if (_listenSetupInFlight) return _listenSetupInFlight;
@@ -2171,14 +2187,16 @@ async function _setupListenClientInner(gen: number): Promise<void> {
       if (_listenClient === client) _listenClient = null;
       // client는 이 시점에 반드시 연결된 상태 (error 이벤트는 connect 이후에만 발생)
       client!.end().catch(() => {});
-      const errGen = gen;
       // 재연결 후 핫 테이블 재동기화: 5초 gap 중 누락된 변경 복구
-      setTimeout(() => {
-        if (errGen !== _listenSetupGen) return;
-        setupListenClient()
-          .then(() => resyncHotTablesFromDb())
-          .catch(e => logger.error({ err: e }, '[db] LISTEN reconnect failed'));
-      }, 5000);
+      scheduleListenReconnect(gen, 5000, 'error');
+    });
+    client.on('end', () => {
+      // 일부 DB/proxy 종료는 error 없이 end만 내보낸다. active client일 때만
+      // 재연결하고, deliberate shutdown/replacement는 generation guard로 무시한다.
+      if (_listenClient !== client) return;
+      _listenClient = null;
+      logger.warn('[db] LISTEN client ended — reconnecting in 5 s');
+      scheduleListenReconnect(gen, 5000, 'end');
     });
     if (gen !== _listenSetupGen) {
       await client.end().catch(() => {});
@@ -2191,12 +2209,7 @@ async function _setupListenClientInner(gen: number): Promise<void> {
     // connect() 성공 후 LISTEN 실패 시 반드시 종료 — pg.Client 커넥션 누수 방지
     if (client) client.end().catch(() => {});
     if (gen !== _listenSetupGen) return;
-    setTimeout(() => {
-      if (gen !== _listenSetupGen) return;
-      setupListenClient()
-        .then(() => resyncHotTablesFromDb())
-        .catch(e => logger.error({ err: e }, '[db] LISTEN retry failed'));
-    }, 10000);
+    scheduleListenReconnect(gen, 10000, 'setup');
   }
 }
 
@@ -5179,6 +5192,8 @@ export async function gracefulShutdown(): Promise<void> {
   // Invalidate in-flight / scheduled LISTEN reconnects before closing sockets.
   _listenSetupGen += 1;
   _listenSetupInFlight = null;
+  if (_listenReconnectTimer) { clearTimeout(_listenReconnectTimer); _listenReconnectTimer = null; }
+  _listenReconnectScheduledGen = null;
   // 1) LISTEN 클라이언트 종료 — NOTIFY 구독 해제
   if (_listenClient) {
     try { await _listenClient.end(); } catch { /* ignore */ }

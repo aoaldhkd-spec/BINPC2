@@ -503,6 +503,8 @@ describe('longevity recurrence guards (server)', () => {
     expect(poolTs).toMatch(/pgPool\.on\(\s*'error'/);
     expect(dbTs).toMatch(/_listenSetupGen\s*\+=\s*1/);
     expect(dbTs).toMatch(/_listenSetupInFlight\s*=\s*null/);
+    expect(dbTs).toMatch(/client\.on\('end'/);
+    expect(dbTs).toMatch(/scheduleListenReconnect/);
   });
 
 });

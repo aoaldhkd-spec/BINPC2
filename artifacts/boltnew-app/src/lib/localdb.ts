@@ -784,6 +784,9 @@ function createSse() {
   const url = params.length ? `${SSE_API}/events?${params.join('&')}` : `${SSE_API}/events`;
   const es = new EventSource(url);
   es.onmessage = (ev) => {
+    // A token refresh/reconnect can replace this EventSource before a queued
+    // browser callback runs. Stale callbacks must not mutate the new stream.
+    if (_es !== es) return;
     if (ev.lastEventId) {
       _lastEventId = ev.lastEventId;
       try { sessionStorage.setItem('sse_last_event_id', _lastEventId); } catch { /* ignore */ }
@@ -867,6 +870,10 @@ function createSse() {
     }
   };
   es.onerror = () => {
+    // closeSse()/token refresh may have replaced this source already. Ignore
+    // late errors from the old source; otherwise they can null the new stream
+    // and arm a false backoff.
+    if (_es !== es) return;
     // 일부 브라우저는 OPEN 상태에서도 onerror를 한 번 쏨 — 단절로 보지 않음
     if (es.readyState === EventSource.OPEN) return;
     const wasConnected = _sseHasConnected;
@@ -892,7 +899,7 @@ function createSse() {
         _sseFailCount = Math.min(_sseFailCount + 1, 4); // 최대 4 (≈ 8s base 백오프, 지터 포함 최대 ~10s)
         _sseNextAllowedRetry = Date.now() + calcSseBackoffMs();
       }
-      _es = null;
+      if (_es === es) _es = null;
     }
   };
   return es;

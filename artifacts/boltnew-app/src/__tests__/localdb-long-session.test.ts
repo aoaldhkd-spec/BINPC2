@@ -199,6 +199,29 @@ describe('[Realtime] long-session stability', () => {
     channel.unsubscribe();
   });
 
+  it('ignores late callbacks from an EventSource replaced during token refresh', async () => {
+    const { setLocalDbUserId, setSseToken, supabase, sseDebugState } = await import('../lib/localdb');
+    setLocalDbUserId('user-stale-source');
+    await vi.advanceTimersByTimeAsync(0);
+    setSseToken('tok-old', Math.floor(Date.now() / 1000) + 3600);
+    const channel = supabase.channel('stale-source').subscribe();
+    const oldSource = FakeEventSource.instances.find(s => s.url.includes('tok-old'))!;
+    expect(oldSource).toBeTruthy();
+
+    setSseToken('tok-new', Math.floor(Date.now() / 1000) + 3600);
+    const newSource = FakeEventSource.instances.find(s => s.url.includes('tok-new'))!;
+    expect(newSource).toBeTruthy();
+    expect(sseDebugState().hasEventSource).toBe(true);
+
+    // Browsers can deliver a queued close/error callback after close().
+    oldSource.onerror?.();
+    oldSource.emit({ type: 'ping' });
+    expect(sseDebugState().hasEventSource).toBe(true);
+    expect(newSource.readyState).toBe(FakeEventSource.OPEN);
+
+    channel.unsubscribe();
+  });
+
   it('many reconnect cycles keep one live EventSource and a constant listener count', async () => {
     const { supabase, sseDebugState } = await import('../lib/localdb');
     const live = Array.from({ length: 4 }, (_, i) => supabase.channel(`re-${i}`).subscribe());
