@@ -491,6 +491,11 @@ describe('product copy + notification invariants', () => {
     expect(db).not.toMatch(/function settingsFunctionsLocked\(/);
     expect(db).not.toMatch(/function tableFingerprint\(/);
     expect(db).not.toMatch(/function pickLatestAppSettingsRow\(/);
+    expect(db).toContain("from '../lib/db-group-leave-plan'");
+    expect(db).toContain('hasGroupOptOutPure');
+    expect(db).toContain('participantRowsToLeavePure');
+    expect(db).toContain('countUserGroupSlotsPure');
+    expect(db).not.toMatch(/const yearOrAge = \/\^\\d\{4\}년생 모임\$/);
   });
 
 

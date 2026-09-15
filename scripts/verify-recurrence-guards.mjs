@@ -1264,6 +1264,35 @@ mustMatch('ARCHITECTURE.md', '57_architecture_path_after_app_settings_view_peel'
 ]);
 
 
+// ── 58: db-group-leave-plan (opt-out / leave-slot / slot-count planners) ──────
+mustExist('artifacts/api-server/src/lib/db-group-leave-plan.ts', '58_db_group_leave_plan_module');
+mustExist('artifacts/api-server/src/lib/db-group-leave-plan.test.ts', '58_db_group_leave_plan_tests');
+mustMatch('artifacts/api-server/src/lib/db-group-leave-plan.ts', '58_group_leave_plan_exports', [
+  /export function hasGroupOptOut/,
+  /export function groupIdsInSameLeaveSlot/,
+  /export function participantRowsToLeave/,
+  /export function countUserGroupSlots/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '58_db_reimports_group_leave_plan', [
+  /from '\.\.\/lib\/db-group-leave-plan'/,
+  /hasGroupOptOut as hasGroupOptOutPure/,
+  /participantRowsToLeave as participantRowsToLeavePure/,
+  /countUserGroupSlots as countUserGroupSlotsPure/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '58_db_still_single_router_export', [
+  /export default router/,
+]);
+mustNotMatch('artifacts/api-server/src/routes/db.ts', '58_db_no_inline_group_leave_plan_impl', [
+  /const yearOrAge = \/\^\\d\{4\}년생 모임\$/,
+  /function groupIdsInSameLeaveSlot\(/,
+  /function countUserGroupSlots\(userId: string\): number \{\s*const keys = new Set/,
+]);
+mustMatch('ARCHITECTURE.md', '58_architecture_path_after_group_leave_plan_peel', [
+  /db-group-leave-plan/,
+  /~9\.5/,
+]);
+
+
 
 
 console.log('\n=== verify-recurrence-guards ===\n');

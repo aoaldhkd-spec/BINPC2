@@ -129,9 +129,13 @@ import {
   autoRoomOptKey,
   optKeyForGroup as optKeyForGroupPure,
   isLeftoverInterestRoom,
-  afterpartySlotKey,
   groupLimitSlotKey,
 } from '../lib/db-group-room-plan';
+import {
+  hasGroupOptOut as hasGroupOptOutPure,
+  participantRowsToLeave as participantRowsToLeavePure,
+  countUserGroupSlots as countUserGroupSlotsPure,
+} from '../lib/db-group-leave-plan';
 import {
   isChatParticipant as isChatParticipantPure,
   countMessagesForChat as countMessagesForChatPure,
@@ -1912,10 +1916,9 @@ function profileNpcAvatarRejected(
 
 const autoMatchInFlight = new Map<string, Promise<void>>();
 
+/** Thin wrapper — getTable stays local. */
 function hasGroupOptOut(userId: string, optKey: string): boolean {
-  return getTable('group_opt_outs').some(
-    r => String(r.user_id) === userId && String(r.opt_key) === optKey,
-  );
+  return hasGroupOptOutPure(getTable('group_opt_outs'), userId, optKey);
 }
 
 /** Thin wrapper — resolveMergedGroupId stays local. */
@@ -1923,30 +1926,15 @@ function optKeyForGroup(group: Record<string, unknown> | undefined, groupId: str
   return optKeyForGroupPure(group, groupId, resolveMergedGroupId);
 }
 
-function groupIdsInSameLeaveSlot(groupId: string): Set<string> {
-  const resolved = resolveMergedGroupId(groupId);
-  const ids = new Set<string>([groupId, resolved]);
-  const target = getTable('group_chats').find(g => String(g.id) === resolved || String(g.id) === groupId);
-  if (!target) return ids;
-  const ap = afterpartySlotKey(target);
-  const name = String(target.name ?? '');
-  const yearOrAge = /^\d{4}년생 모임$/.test(name) || /^\d+대 모임$/.test(name);
-  for (const g of getTable('group_chats')) {
-    const gid = String(g.id);
-    if (ap && afterpartySlotKey(g) === ap) ids.add(gid);
-    else if (yearOrAge && String(g.name) === name) ids.add(gid);
-  }
-  return ids;
-}
-
+/** Thin wrapper — getTable + resolveMergedGroupId stay local. */
 function participantRowsToLeave(userId: string, groupId: string): Record<string, unknown>[] {
-  if (!userId || !groupId) return [];
-  const ids = groupIdsInSameLeaveSlot(groupId);
-  return getTable('group_participants').filter(p => {
-    if (String(p.user_id) !== userId) return false;
-    const gid = String(p.group_id ?? '');
-    return ids.has(gid) || ids.has(resolveMergedGroupId(gid));
-  });
+  return participantRowsToLeavePure(
+    userId,
+    groupId,
+    getTable('group_participants'),
+    getTable('group_chats'),
+    resolveMergedGroupId,
+  );
 }
 
 async function recordGroupOptOut(part: Record<string, unknown>): Promise<void> {
@@ -1986,16 +1974,9 @@ async function clearGroupOptOut(userId: string, groupId: string): Promise<void> 
   }
 }
 
+/** Thin wrapper — getTable stays local. */
 function countUserGroupSlots(userId: string): number {
-  const keys = new Set<string>();
-  for (const p of getTable('group_participants')) {
-    if (String(p.user_id) !== userId) continue;
-    const gid = String(p.group_id ?? '');
-    const g = getTable('group_chats').find(row => String(row.id) === gid);
-    const key = groupLimitSlotKey(g, gid);
-    if (key) keys.add(key);
-  }
-  return keys.size;
+  return countUserGroupSlotsPure(userId, getTable('group_participants'), getTable('group_chats'));
 }
 
 async function pruneNonCatalogMemberships(userId: string): Promise<void> {
