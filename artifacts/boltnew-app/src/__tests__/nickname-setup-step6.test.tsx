@@ -86,6 +86,7 @@ describe('NicknameSetupScreen — step 6 optional signal fields', () => {
     await advanceToStep6();
     fireEvent.click(screen.getByRole('button', { name: '감자상 🥔' }));
     fireEvent.click(screen.getByRole('button', { name: /나는 어떤 사람인가요/ }));
+    fireEvent.click(screen.getByRole('button', { name: /성격/ }));
     fireEvent.click(screen.getByRole('button', { name: '다정한 💕' }));
     fireEvent.click(screen.getByRole('button', { name: /입장하기/ }));
     expect(onSubmit).toHaveBeenCalledTimes(1);

@@ -37,21 +37,20 @@ export function SignalTagPicker({
   darkMode?: boolean;
 }) {
   const [role, setRole] = React.useState<SignalRole>('ideal');
-  const [activeGroup, setActiveGroup] = React.useState<string | null>(null);
+  const [activeGroup, setActiveGroup] = React.useState<string>(groups[0]?.label ?? '');
   const selected = role === 'ideal' ? idealSelected : featureSelected;
   const roleOption = ROLE_OPTIONS.find((option) => option.key === role) ?? ROLE_OPTIONS[0];
-  const visibleGroups = activeGroup ? groups.filter((group) => group.label === activeGroup) : groups;
-  const roleCount = selected.length;
+  const visibleGroups = groups.filter((group) => group.label === activeGroup);
 
   return (
     <div className={`rounded-xl border p-2.5 space-y-2.5 ${darkMode ? 'border-slate-700/70 bg-slate-900/20' : 'border-gray-200/70 bg-gray-50/50'}`}>
       <div className="flex items-center gap-2 px-1">
-        <span className={`text-[10px] font-black tracking-wide ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>소분류</span>
+        <span className={`text-[10px] font-black tracking-wide ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>대분류</span>
         <span className={`min-w-0 truncate text-[10px] font-semibold ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>
-          이상형·나는 어떤 사람인가요? · 얼굴상·체형 등
+          먼저 이상형 또는 나는 어떤 사람인가요?를 선택하세요
         </span>
       </div>
-      <div className="flex flex-wrap gap-1.5" aria-label="성향 소분류 선택">
+      <div className="flex flex-wrap gap-1.5" aria-label="성향 대분류 선택">
         {ROLE_OPTIONS.map((option) => {
           const active = role === option.key;
           const count = option.key === 'ideal' ? idealSelected.length : featureSelected.length;
@@ -61,14 +60,22 @@ export function SignalTagPicker({
               key={option.key}
               type="button"
               aria-pressed={active}
-              onClick={() => { setRole(option.key); setActiveGroup(null); }}
-              className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-[11px] font-black transition-all ${active ? style.active : darkMode ? 'border-slate-600 bg-slate-800 text-slate-300' : style.idle}`}
+              onClick={() => setRole(option.key)}
+              className={`inline-flex items-center gap-1 rounded-lg border px-3 py-2 text-xs font-black transition-all ${active ? style.active : darkMode ? 'border-slate-600 bg-slate-800 text-slate-300' : style.idle}`}
             >
               <span>{option.emoji}</span><span>{option.label}</span>
               {count > 0 && <span className="rounded-full bg-white/25 px-1 text-[9px]">{count}</span>}
             </button>
           );
         })}
+      </div>
+      <div className="flex items-center gap-2 px-1 pt-1">
+        <span className={`text-[10px] font-black tracking-wide ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>소분류</span>
+        <span className={`min-w-0 truncate text-[10px] font-semibold ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>
+          선택한 대분류의 세부 조건
+        </span>
+      </div>
+      <div className="flex flex-wrap gap-1.5" aria-label="성향 소분류 선택">
         {groups.map((group) => {
           const active = activeGroup === group.label;
           const count = group.tags.filter((tag) => selected.includes(tag)).length;
@@ -77,8 +84,8 @@ export function SignalTagPicker({
               key={group.label}
               type="button"
               aria-pressed={active}
-              onClick={() => setActiveGroup((current) => current === group.label ? null : group.label)}
-              className={`rounded-lg border px-2.5 py-1.5 text-[11px] font-bold transition-all ${active ? 'border-cyan-500 bg-cyan-500 text-white shadow-sm' : darkMode ? 'border-slate-600 bg-slate-800 text-slate-300' : 'border-gray-200 bg-white text-gray-600 hover:border-cyan-300'}`}
+              onClick={() => setActiveGroup(group.label)}
+              className={`rounded-lg border px-3 py-2 text-xs font-bold transition-all ${active ? 'border-cyan-500 bg-cyan-500 text-white shadow-sm' : darkMode ? 'border-slate-600 bg-slate-800 text-slate-300' : 'border-gray-200 bg-white text-gray-600 hover:border-cyan-300'}`}
             >
               {group.label}{count > 0 && <span className="ml-1 text-[9px]">{count}</span>}
             </button>
@@ -86,7 +93,7 @@ export function SignalTagPicker({
         })}
       </div>
       <p className={`px-1 text-[10px] ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>
-        {roleOption.label} · {activeGroup ?? '소분류 전체'}
+        {roleOption.label} · {activeGroup || '소분류'}
       </p>
       <div className="space-y-2.5">
         {visibleGroups.map((group) => {
