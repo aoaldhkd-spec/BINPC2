@@ -569,21 +569,19 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
                 <span className="inline-block mt-2 text-xs font-semibold text-gray-400 bg-gray-100 px-2.5 py-0.5 rounded-full">선택 · 건너뛰기 가능</span>
               </div>
 
-              <div className="rounded-xl border border-gray-200/90 bg-white shadow-sm shadow-gray-100/60 overflow-hidden">
-                <div className="px-3 pb-3 pt-3">
-                  <SignalTagPicker
-                    groups={IDEAL_TAG_GROUPS}
-                    idealSelected={idealTags}
-                    featureSelected={featureTags}
-                    onToggle={(role, tag) => {
-                      if (role === 'ideal') {
-                        setIdealTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
-                      } else {
-                        setFeatureTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
-                      }
-                    }}
-                  />
-                </div>
+              <div className="px-1">
+                <SignalTagPicker
+                  groups={IDEAL_TAG_GROUPS}
+                  idealSelected={idealTags}
+                  featureSelected={featureTags}
+                  onToggle={(role, tag) => {
+                    if (role === 'ideal') {
+                      setIdealTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
+                    } else {
+                      setFeatureTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
+                    }
+                  }}
+                />
               </div>
 
               {registrationError && (

@@ -43,8 +43,8 @@ export function SignalTagPicker({
   const visibleGroups = groups.filter((group) => group.label === activeGroup);
 
   return (
-    <div className={`rounded-xl border p-2.5 space-y-2.5 ${darkMode ? 'border-slate-700/70 bg-slate-900/20' : 'border-gray-200/70 bg-gray-50/50'}`}>
-      <div className={`rounded-xl border p-2 ${darkMode ? 'border-slate-700 bg-slate-800/45' : 'border-rose-100 bg-white'}`}>
+    <div className="space-y-2.5">
+      <div className={`space-y-1 ${darkMode ? 'border-b border-slate-700' : 'border-b border-gray-200'} pb-2`}>
         <div className="flex items-center gap-2 px-1 mb-1.5">
           <span className={`text-[10px] font-black tracking-wide ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>대분류</span>
         <span className={`min-w-0 truncate text-[10px] font-semibold ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>
@@ -71,7 +71,7 @@ export function SignalTagPicker({
         })}
       </div>
       </div>
-      <div className={`rounded-xl border p-2 ${darkMode ? 'border-slate-700 bg-slate-800/45' : 'border-cyan-100 bg-white'}`}>
+      <div className="space-y-1">
         <div className="flex items-center gap-2 px-1 mb-1.5">
           <span className={`text-[10px] font-black tracking-wide ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>소분류</span>
         <span className={`min-w-0 truncate text-[10px] font-semibold ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>
@@ -99,12 +99,12 @@ export function SignalTagPicker({
       <p className={`px-1 text-[10px] ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>
         {roleOption.label} · {activeGroup || '소분류'}
       </p>
-      <div className="space-y-2.5">
+      <div className={`rounded-xl border p-2.5 ${darkMode ? 'border-slate-600/70 bg-slate-800/35' : 'border-gray-200/90 bg-white shadow-sm shadow-gray-100/60'}`}>
         {visibleGroups.map((group) => {
           const picked = group.tags.filter((tag) => selected.includes(tag)).length;
           const dense = group.tags.length > 4;
           return (
-            <div key={group.label} className={`rounded-xl border px-3 py-2.5 ${darkMode ? 'border-slate-600/70 bg-slate-800/35' : 'border-gray-200/90 bg-white shadow-sm shadow-gray-100/60'}`}>
+            <div key={group.label} className={`px-1 py-1 ${darkMode ? 'border-slate-700' : 'border-gray-100'} ${visibleGroups.length > 1 ? 'border-b last:border-b-0' : ''}`}>
               <div className="flex items-center justify-between gap-2 mb-2">
                 <p className={`text-[11px] font-bold tracking-tight ${darkMode ? 'text-slate-200' : 'text-gray-800'}`}>{group.label}</p>
                 {picked > 0 && <span className={`text-[10px] font-bold tabular-nums ${darkMode ? 'text-cyan-400' : 'text-teal-600'}`}>{picked}개</span>}
