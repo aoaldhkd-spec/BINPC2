@@ -72,10 +72,12 @@ function buildDecadeGroups(now: Date = new Date()): Record<string, number[]> {
   const maxYear = maxAdultBirthYear(now);
   const minYear = minBirthYearForEventMaxAge(now);
   const inRange = (y: number) => y >= minYear && y <= maxYear;
+  // 80년대 선택지는 00년대 탭 안에서 89·88·87년생만 제공한다.
+  // 행사 상한(minYear)과 무관하게 이 세 연도는 명시적으로 허용한다.
+  const relocated80s = [1989, 1988, 1987].filter(y => y <= maxYear);
   const groups: Record<string, number[]> = {
-    '80년대': Array.from({ length: 5 }, (_, i) => 1989 - i).reverse().filter(inRange),
     '90년대': Array.from({ length: 10 }, (_, i) => 1990 + i).filter(inRange),
-    '00년대': Array.from({ length: 10 }, (_, i) => 2000 + i).filter(inRange),
+    '00년대': [...relocated80s, ...Array.from({ length: 10 }, (_, i) => 2000 + i).filter(inRange)],
   };
   return Object.fromEntries(Object.entries(groups).filter(([, years]) => years.length > 0));
 }
@@ -424,6 +426,7 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
                 <div className="flex items-center gap-2 mb-2.5">
                   <span className="text-base">🎂</span>
                   <span className="text-sm font-black text-gray-800">출생년도</span>
+                  <span className="text-[11px] font-bold text-cyan-600">80년대는 00년대에 있어요</span>
                   <span className="text-xs font-semibold text-red-500 bg-red-50 px-2 py-0.5 rounded-full">필수</span>
                 </div>
                 {/* 연대 탭 */}

@@ -35,6 +35,29 @@ describe('NicknameSetupScreen — step 1 back', () => {
     expect(onReset).toHaveBeenCalledTimes(1);
   });
 
+  it('places only 89·88·87 under the 00년대 tab and shows the guidance note', () => {
+    render(
+      <NicknameSetupScreen
+        onSubmit={vi.fn()}
+        loading={false}
+        onReset={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'INTJ' }));
+    fireEvent.click(screen.getByRole('button', { name: /다음/ }));
+
+    expect(screen.queryByRole('button', { name: '80년대' })).toBeNull();
+    expect(screen.getByText('80년대는 00년대에 있어요')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '00년대' }));
+    expect(screen.getByRole('button', { name: '89년' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: '88년' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: '87년' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: '86년' })).toBeNull();
+    expect(screen.queryByRole('button', { name: '85년' })).toBeNull();
+    expect(screen.getByRole('button', { name: '00년' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: '07년' })).toBeTruthy();
+  });
+
   it('goes to the previous setup step instead of resetting after step 1', () => {
     const onReset = vi.fn();
     render(
