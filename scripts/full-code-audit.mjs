@@ -348,16 +348,19 @@ for (const [rel, id] of [
 }
 
 // Supabase RLS — anon REST must not read public tables (rls_disabled_in_public)
+// SQL body lives in db-table-policy (buildPublicTableRlsSql); db.ts still calls ensurePublicTableRls.
 try {
   const dbRlsSrc = readFileSync(dbPath, 'utf8');
+  const policyRlsSrc = readFileSync(resolve(ROOT, 'artifacts/api-server/src/lib/db-table-policy.ts'), 'utf8');
   const rlsGuards = [
-    ['supabase_rls_startup', /ensurePublicTableRls/],
-    ['supabase_rls_enable', /ENABLE ROW LEVEL SECURITY/],
-    ['supabase_rls_revoke', /REVOKE ALL ON public/],
+    ['supabase_rls_startup', dbRlsSrc, /ensurePublicTableRls/, 'artifacts/api-server/src/routes/db.ts'],
+    ['supabase_rls_builder', dbRlsSrc, /buildPublicTableRlsSql/, 'artifacts/api-server/src/routes/db.ts'],
+    ['supabase_rls_enable', policyRlsSrc, /ENABLE ROW LEVEL SECURITY/, 'artifacts/api-server/src/lib/db-table-policy.ts'],
+    ['supabase_rls_revoke', policyRlsSrc, /REVOKE ALL ON public/, 'artifacts/api-server/src/lib/db-table-policy.ts'],
   ];
-  for (const [id, re] of rlsGuards) {
-    if (!re.test(dbRlsSrc)) {
-      const f = { rel: 'artifacts/api-server/src/routes/db.ts', line: 1, id, sev: 'error', text: `missing ${id}` };
+  for (const [id, src, re, rel] of rlsGuards) {
+    if (!re.test(src)) {
+      const f = { rel, line: 1, id, sev: 'error', text: `missing ${id}` };
       allFindings.push(f);
       errors.push(f);
       console.log(`  ${f.rel}:${f.line} [${f.id}] ${f.text}`);

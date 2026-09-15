@@ -1,5 +1,5 @@
 /**
- * /op allowlist + critical persist table sets — extracted from routes/db.ts.
+ * /op allowlist + critical persist table sets + KV/schema SQL builders — extracted from routes/db.ts.
  */
 
 /** Allowlist prevents access to internal or non-existent tables via /op. */
@@ -56,4 +56,101 @@ const CRITICAL_WRITE_OPS = new Set(['insert', 'update', 'upsert', 'delete']);
 /** Whether /op should emit the critical-write info log line. */
 export function isCriticalWriteLog(op: string, table: string): boolean {
   return CRITICAL_WRITE_OPS.has(op) && CRITICAL_WRITE_LOG_TABLES.has(table);
+}
+
+
+/** Trusted SQL builders for app_kv_rows / app_image_store / schema — execution stays in db.ts. */
+
+/** Upsert one KV row. Params: $1=table_name, $2=row_id, $3=json data. */
+export function buildKvUpsertSql(): string {
+  return `INSERT INTO app_kv_rows (table_name, row_id, data, updated_at)
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (table_name, row_id)
+       DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`;
+}
+
+/** Delete one KV row. Params: $1=table_name, $2=row_id. */
+export function buildKvDeleteRowSql(): string {
+  return 'DELETE FROM app_kv_rows WHERE table_name = $1 AND row_id = $2';
+}
+
+/** Batch delete KV rows. Params: $1=table_name, $2=row_id[]. */
+export function buildKvDeleteRowsSql(): string {
+  return 'DELETE FROM app_kv_rows WHERE table_name = $1 AND row_id = ANY($2::text[])';
+}
+
+/** Delete all rows for a table_name. Params: $1=table_name. */
+export function buildKvDeleteTableSql(): string {
+  return 'DELETE FROM app_kv_rows WHERE table_name = $1';
+}
+
+/** Upsert image blob. Params: $1=path, $2=data_url. */
+export function buildImageUpsertSql(): string {
+  return `INSERT INTO app_image_store (path, data_url, updated_at)
+       VALUES ($1, $2, NOW())
+       ON CONFLICT (path)
+       DO UPDATE SET data_url = EXCLUDED.data_url, updated_at = NOW()`;
+}
+
+/** Persist db_error_log counter row. Params: $1=json payload. */
+export function buildErrorLogCounterUpsertSql(): string {
+  return `INSERT INTO app_kv_rows (table_name, row_id, data, updated_at)
+       VALUES ('db_error_log', 'counter', $1, NOW())
+       ON CONFLICT (table_name, row_id)
+       DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`;
+}
+
+/** CREATE TABLE app_kv_rows IF NOT EXISTS. */
+export function buildEnsureKvRowsTableSql(): string {
+  return `
+    CREATE TABLE IF NOT EXISTS app_kv_rows (
+      table_name text NOT NULL,
+      row_id text NOT NULL,
+      data jsonb NOT NULL,
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (table_name, row_id)
+    )
+  `;
+}
+
+/** CREATE TABLE app_image_store IF NOT EXISTS. */
+export function buildEnsureImageStoreTableSql(): string {
+  return `
+    CREATE TABLE IF NOT EXISTS app_image_store (
+      path text PRIMARY KEY,
+      data_url text NOT NULL,
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+}
+
+/** CREATE INDEX on app_kv_rows (table_name, updated_at DESC). */
+export function buildKvTableUpdatedIndexSql(): string {
+  return `
+    CREATE INDEX IF NOT EXISTS app_kv_rows_table_updated_idx
+      ON app_kv_rows (table_name, updated_at DESC)
+  `;
+}
+
+/**
+ * Enable RLS + revoke anon/authenticated on all public tables.
+ * Exact prior DO block from ensurePublicTableRls.
+ */
+export function buildPublicTableRlsSql(): string {
+  return `
+      DO $$
+      DECLARE r RECORD;
+      BEGIN
+        FOR r IN SELECT tablename FROM pg_tables WHERE schemaname = 'public'
+        LOOP
+          EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', r.tablename);
+          EXECUTE format('REVOKE ALL ON public.%I FROM anon, authenticated', r.tablename);
+        END LOOP;
+      END $$
+    `;
+}
+
+/** Preload image store. */
+export function buildLoadImagesSql(): string {
+  return 'SELECT path, data_url FROM app_image_store';
 }

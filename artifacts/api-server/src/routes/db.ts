@@ -53,6 +53,9 @@ import {
   venueLoginRateKeys,
   venueUploadRateKeys,
   resetRateLimit,
+  buildDistributedRateSlotSql,
+  buildDistributedMinuteQuotaSql,
+  buildRateLimitsPruneSql,
 } from '../lib/db-rate-limit';
 import {
   mergeDbRowsIntoMemory,
@@ -92,6 +95,17 @@ import {
   CRITICAL_PERSIST_TABLES,
   ACTIVE_KV_TABLES,
   isCriticalWriteLog,
+  buildKvUpsertSql,
+  buildKvDeleteRowSql,
+  buildKvDeleteRowsSql,
+  buildKvDeleteTableSql,
+  buildImageUpsertSql,
+  buildErrorLogCounterUpsertSql,
+  buildEnsureKvRowsTableSql,
+  buildEnsureImageStoreTableSql,
+  buildKvTableUpdatedIndexSql,
+  buildPublicTableRlsSql,
+  buildLoadImagesSql,
 } from '../lib/db-table-policy';
 import {
   planSmartBroadcastLocal,
@@ -812,12 +826,7 @@ async function claimDistributedRateSlot(
   if (process.env.NODE_ENV === 'test' || process.env.VITEST) return true;
   try {
     const { rows } = await pool.query(
-      `INSERT INTO app_kv_rows (table_name, row_id, data, updated_at)
-       VALUES ('rate_limits', $1, '{}'::jsonb, NOW())
-       ON CONFLICT (table_name, row_id) DO UPDATE
-       SET updated_at = NOW()
-       WHERE app_kv_rows.updated_at < NOW() - ($2::double precision * INTERVAL '1 millisecond')
-       RETURNING row_id`,
+      buildDistributedRateSlotSql(),
       [rowId, minIntervalMs],
     );
     return rows.length > 0;
@@ -834,16 +843,7 @@ async function claimDistributedMinuteQuota(
   if (process.env.NODE_ENV === 'test' || process.env.VITEST) return true;
   try {
     const { rows } = await pool.query(
-      `INSERT INTO app_kv_rows (table_name, row_id, data, updated_at)
-       VALUES ('rate_limits', $1, jsonb_build_object('count', 1), NOW())
-       ON CONFLICT (table_name, row_id) DO UPDATE
-       SET data = jsonb_build_object(
-             'count',
-             LEAST($2::int, COALESCE((app_kv_rows.data->>'count')::int, 0) + 1)
-           ),
-           updated_at = NOW()
-       WHERE COALESCE((app_kv_rows.data->>'count')::int, 0) < $2::int
-       RETURNING (data->>'count')::int AS count`,
+      buildDistributedMinuteQuotaSql(),
       [rowId, maxPerMinute],
     );
     return rows.length > 0;
@@ -941,10 +941,7 @@ async function checkAndNotifyAdminPinPool(): Promise<void> {
 async function flushErrorStateToDB(): Promise<void> {
   try {
     await pool.query(
-      `INSERT INTO app_kv_rows (table_name, row_id, data, updated_at)
-       VALUES ('db_error_log', 'counter', $1, NOW())
-       ON CONFLICT (table_name, row_id)
-       DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
+      buildErrorLogCounterUpsertSql(),
       [JSON.stringify({ count: _dbPersistErrors, log: _dbPersistErrorLog })],
     );
   } catch (e) {
@@ -1250,10 +1247,7 @@ async function dbPersistRow(tableName: string, row: Record<string, unknown>): Pr
 }
 
 async function _execDbPersistRow(tableName: string, rowId: string, row: Record<string, unknown>): Promise<void> {
-  const sql = `INSERT INTO app_kv_rows (table_name, row_id, data, updated_at)
-       VALUES ($1, $2, $3, NOW())
-       ON CONFLICT (table_name, row_id)
-       DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`;
+  const sql = buildKvUpsertSql();
   const params = [tableName, rowId, JSON.stringify(row)];
   try {
     await pool.query(sql, params);
@@ -1279,7 +1273,7 @@ async function _execDbPersistRow(tableName: string, rowId: string, row: Record<s
 async function dbDeleteRow(tableName: string, rowId: string): Promise<void> {
   try {
     await pool.query(
-      'DELETE FROM app_kv_rows WHERE table_name = $1 AND row_id = $2',
+      buildKvDeleteRowSql(),
       [tableName, rowId],
     );
   } catch (e) {
@@ -1292,7 +1286,7 @@ async function dbDeleteRows(tableName: string, rowIds: string[]): Promise<void> 
   if (!rowIds.length) return;
   try {
     await pool.query(
-      'DELETE FROM app_kv_rows WHERE table_name = $1 AND row_id = ANY($2::text[])',
+      buildKvDeleteRowsSql(),
       [tableName, rowIds],
     );
   } catch (e) {
@@ -1303,7 +1297,7 @@ async function dbDeleteRows(tableName: string, rowIds: string[]): Promise<void> 
 
 async function dbDeleteTable(tableName: string): Promise<void> {
   try {
-    await pool.query('DELETE FROM app_kv_rows WHERE table_name = $1', [tableName]);
+    await pool.query(buildKvDeleteTableSql(), [tableName]);
   } catch (e) {
     logger.error({ err: e, tableName }, '[db] dbDeleteTable failed');
   }
@@ -1312,10 +1306,7 @@ async function dbDeleteTable(tableName: string): Promise<void> {
 async function dbPersistImage(path: string, dataUrl: string): Promise<void> {
   try {
     await pool.query(
-      `INSERT INTO app_image_store (path, data_url, updated_at)
-       VALUES ($1, $2, NOW())
-       ON CONFLICT (path)
-       DO UPDATE SET data_url = EXCLUDED.data_url, updated_at = NOW()`,
+      buildImageUpsertSql(),
       [path, dataUrl],
     );
   } catch (e) {
@@ -1328,17 +1319,7 @@ async function dbPersistImage(path: string, dataUrl: string): Promise<void> {
 /** Supabase PostgREST(anon key)로 public 테이블이 노출되지 않도록 RLS + revoke. postgres(DATABASE_URL)는 owner라 bypass. */
 async function ensurePublicTableRls(): Promise<void> {
   try {
-    await pool.query(`
-      DO $$
-      DECLARE r RECORD;
-      BEGIN
-        FOR r IN SELECT tablename FROM pg_tables WHERE schemaname = 'public'
-        LOOP
-          EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', r.tablename);
-          EXECUTE format('REVOKE ALL ON public.%I FROM anon, authenticated', r.tablename);
-        END LOOP;
-      END $$
-    `);
+    await pool.query(buildPublicTableRlsSql());
     logger.info('[db] public schema RLS enabled (anon/authenticated revoked)');
   } catch (e) {
     logger.error({ err: e }, '[db] ensurePublicTableRls failed — run scripts/sql/enable-rls-public-tables.sql manually');
@@ -1346,32 +1327,15 @@ async function ensurePublicTableRls(): Promise<void> {
 }
 
 async function ensureStorageSchema(): Promise<void> {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS app_kv_rows (
-      table_name text NOT NULL,
-      row_id text NOT NULL,
-      data jsonb NOT NULL,
-      updated_at timestamptz NOT NULL DEFAULT now(),
-      PRIMARY KEY (table_name, row_id)
-    )
-  `);
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS app_image_store (
-      path text PRIMARY KEY,
-      data_url text NOT NULL,
-      updated_at timestamptz NOT NULL DEFAULT now()
-    )
-  `);
-  await pool.query(`
-    CREATE INDEX IF NOT EXISTS app_kv_rows_table_updated_idx
-      ON app_kv_rows (table_name, updated_at DESC)
-  `);
+  await pool.query(buildEnsureKvRowsTableSql());
+  await pool.query(buildEnsureImageStoreTableSql());
+  await pool.query(buildKvTableUpdatedIndexSql());
   await ensurePublicTableRls();
 }
 
 async function loadImagesFromDb(): Promise<void> {
   try {
-    const imgs = await pool.query('SELECT path, data_url FROM app_image_store');
+    const imgs = await pool.query(buildLoadImagesSql());
     for (const img of imgs.rows) {
       imageStoreSet(img.path, img.data_url);
     }
@@ -2372,11 +2336,7 @@ let _fullResyncRunning = false;
 async function pruneDistributedRateLimits(): Promise<void> {
   if (process.env.NODE_ENV === 'test' || process.env.VITEST) return;
   try {
-    await pool.query(
-      `DELETE FROM app_kv_rows
-       WHERE table_name = 'rate_limits'
-         AND updated_at < NOW() - INTERVAL '10 minutes'`,
-    );
+    await pool.query(buildRateLimitsPruneSql());
   } catch (e) {
     logger.warn({ err: e }, '[db] rate_limits prune failed');
   }

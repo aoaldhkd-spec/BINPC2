@@ -1,6 +1,6 @@
 /**
  * IP/키 단위 in-memory rate limit (+ PIN by-pin bucket). persist/SSE store 와 독립.
- * 분산 quota(`app_kv_rows`)는 db.ts 에 그대로 둔다.
+ * 분산 quota SQL builders live here; pool.query execution stays in db.ts.
  */
 
 export type RateBucket = { count: number; resetAt: number };
@@ -91,4 +91,37 @@ export function consumePinBucket(
   }
   map.set(key, { count: 1, resetAt: now + windowMs });
   return true;
+}
+
+/** Trusted SQL only — distributed rate_limits rows in app_kv_rows. Execution stays in db.ts. */
+
+/** Claim a min-interval slot (RETURNING empty ⇒ too soon). Params: $1=rowId, $2=minIntervalMs. */
+export function buildDistributedRateSlotSql(): string {
+  return `INSERT INTO app_kv_rows (table_name, row_id, data, updated_at)
+       VALUES ('rate_limits', $1, '{}'::jsonb, NOW())
+       ON CONFLICT (table_name, row_id) DO UPDATE
+       SET updated_at = NOW()
+       WHERE app_kv_rows.updated_at < NOW() - ($2::double precision * INTERVAL '1 millisecond')
+       RETURNING row_id`;
+}
+
+/** Claim a per-minute quota increment. Params: $1=rowId, $2=maxPerMinute. */
+export function buildDistributedMinuteQuotaSql(): string {
+  return `INSERT INTO app_kv_rows (table_name, row_id, data, updated_at)
+       VALUES ('rate_limits', $1, jsonb_build_object('count', 1), NOW())
+       ON CONFLICT (table_name, row_id) DO UPDATE
+       SET data = jsonb_build_object(
+             'count',
+             LEAST($2::int, COALESCE((app_kv_rows.data->>'count')::int, 0) + 1)
+           ),
+           updated_at = NOW()
+       WHERE COALESCE((app_kv_rows.data->>'count')::int, 0) < $2::int
+       RETURNING (data->>'count')::int AS count`;
+}
+
+/** Delete rate_limits rows older than 10 minutes (periodic prune). */
+export function buildRateLimitsPruneSql(): string {
+  return `DELETE FROM app_kv_rows
+       WHERE table_name = 'rate_limits'
+         AND updated_at < NOW() - INTERVAL '10 minutes'`;
 }

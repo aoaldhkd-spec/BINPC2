@@ -2150,6 +2150,54 @@ mustMatch('ARCHITECTURE.md', '74_architecture_path_after_legacy_hash_admin_peel'
 ]);
 
 
+// ── 75: distributed-rate-sql + kv-persist-sql + schema/rls-sql ──
+mustMatch('artifacts/api-server/src/lib/db-rate-limit.ts', '75_distributed_rate_sql_export', [
+  /export function buildDistributedRateSlotSql/,
+  /export function buildDistributedMinuteQuotaSql/,
+  /export function buildRateLimitsPruneSql/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-table-policy.ts', '75_kv_schema_sql_export', [
+  /export function buildKvUpsertSql/,
+  /export function buildKvDeleteRowSql/,
+  /export function buildKvDeleteRowsSql/,
+  /export function buildKvDeleteTableSql/,
+  /export function buildImageUpsertSql/,
+  /export function buildErrorLogCounterUpsertSql/,
+  /export function buildEnsureKvRowsTableSql/,
+  /export function buildEnsureImageStoreTableSql/,
+  /export function buildKvTableUpdatedIndexSql/,
+  /export function buildPublicTableRlsSql/,
+  /export function buildLoadImagesSql/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '75_db_reimports_rate_kv_schema_sql', [
+  /buildDistributedRateSlotSql/,
+  /buildDistributedMinuteQuotaSql/,
+  /buildRateLimitsPruneSql/,
+  /buildKvUpsertSql/,
+  /buildKvDeleteRowSql/,
+  /buildImageUpsertSql/,
+  /buildErrorLogCounterUpsertSql/,
+  /buildPublicTableRlsSql/,
+  /buildEnsureKvRowsTableSql/,
+  /buildLoadImagesSql/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '75_db_still_single_router_export', [
+  /export default router/,
+]);
+mustNotMatch('artifacts/api-server/src/routes/db.ts', '75_db_no_inline_rate_slot_sql', [
+  /VALUES \('rate_limits', \$1, '\{\}'::jsonb/,
+]);
+mustNotMatch('artifacts/api-server/src/routes/db.ts', '75_db_no_inline_schema_rls_sql', [
+  /CREATE TABLE IF NOT EXISTS app_kv_rows/,
+  /ENABLE ROW LEVEL SECURITY/,
+]);
+mustMatch('ARCHITECTURE.md', '75_architecture_path_after_rate_kv_schema_peel', [
+  /distributed-rate-sql|kv-persist-sql|schema\/rls-sql/,
+  /~9\.5/,
+]);
+
+
+
 console.log('\n=== verify-recurrence-guards ===\n');
 
 for (const r of results) {

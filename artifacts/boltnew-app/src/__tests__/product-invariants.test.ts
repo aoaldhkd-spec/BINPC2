@@ -727,9 +727,11 @@ describe('product copy + notification invariants', () => {
 
   it('Supabase public tables RLS enabled on API startup', () => {
     const db = readFileSync(join(root, '../../api-server/src/routes/db.ts'), 'utf8');
+    const policy = readFileSync(join(root, '../../api-server/src/lib/db-table-policy.ts'), 'utf8');
     expect(db).toContain('ensurePublicTableRls');
-    expect(db).toMatch(/ENABLE ROW LEVEL SECURITY/);
-    expect(db).toMatch(/REVOKE ALL ON public/);
+    expect(db).toContain('buildPublicTableRlsSql');
+    expect(policy).toMatch(/ENABLE ROW LEVEL SECURITY/);
+    expect(policy).toMatch(/REVOKE ALL ON public/);
   });
 
   it('legacy KV tables and heart_balances blocklist are cleaned on startup', () => {

@@ -5,6 +5,17 @@ import {
   ACTIVE_KV_TABLES,
   isCriticalWriteLog,
   CRITICAL_WRITE_LOG_TABLES,
+  buildKvUpsertSql,
+  buildKvDeleteRowSql,
+  buildKvDeleteRowsSql,
+  buildKvDeleteTableSql,
+  buildImageUpsertSql,
+  buildErrorLogCounterUpsertSql,
+  buildEnsureKvRowsTableSql,
+  buildEnsureImageStoreTableSql,
+  buildKvTableUpdatedIndexSql,
+  buildPublicTableRlsSql,
+  buildLoadImagesSql,
 } from './db-table-policy.js';
 
 describe('db-table-policy', () => {
@@ -35,5 +46,20 @@ describe('db-table-policy', () => {
     expect(isCriticalWriteLog('select', 'messages')).toBe(false);
     expect(isCriticalWriteLog('update', 'profiles')).toBe(false);
     expect(CRITICAL_WRITE_LOG_TABLES.has('signal_sends')).toBe(true);
+  });
+
+  it('KV/schema SQL builders match prior ddl/dml (75)', () => {
+    expect(buildKvUpsertSql()).toContain('ON CONFLICT (table_name, row_id)');
+    expect(buildKvDeleteRowSql()).toBe('DELETE FROM app_kv_rows WHERE table_name = $1 AND row_id = $2');
+    expect(buildKvDeleteRowsSql()).toContain('ANY($2::text[])');
+    expect(buildKvDeleteTableSql()).toBe('DELETE FROM app_kv_rows WHERE table_name = $1');
+    expect(buildImageUpsertSql()).toContain('app_image_store');
+    expect(buildErrorLogCounterUpsertSql()).toContain("'db_error_log'");
+    expect(buildEnsureKvRowsTableSql()).toContain('CREATE TABLE IF NOT EXISTS app_kv_rows');
+    expect(buildEnsureImageStoreTableSql()).toContain('CREATE TABLE IF NOT EXISTS app_image_store');
+    expect(buildKvTableUpdatedIndexSql()).toContain('app_kv_rows_table_updated_idx');
+    expect(buildPublicTableRlsSql()).toContain('ENABLE ROW LEVEL SECURITY');
+    expect(buildPublicTableRlsSql()).toContain('REVOKE ALL ON public');
+    expect(buildLoadImagesSql()).toBe('SELECT path, data_url FROM app_image_store');
   });
 });

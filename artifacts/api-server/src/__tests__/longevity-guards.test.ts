@@ -34,7 +34,9 @@ describe('longevity recurrence guards (server)', () => {
 
   it('rate_limits prune interval stays on the 5-minute path', () => {
     expect(dbTs).toMatch(/pruneDistributedRateLimits\(\)/);
-    expect(dbTs).toMatch(/table_name = 'rate_limits'/);
+    expect(dbTs).toMatch(/buildRateLimitsPruneSql/);
+    const rateLib = readFileSync(join(here, '../lib/db-rate-limit.ts'), 'utf8');
+    expect(rateLib).toMatch(/table_name = 'rate_limits'/);
   });
 
   it('admin RPC hydrates app_settings from DB before password checks', () => {
@@ -414,6 +416,23 @@ describe('longevity recurrence guards (server)', () => {
     expect(health).toContain('export function buildHealthRecentCountSql');
   });
 
+  it('distributed rate + KV/schema SQL builders peeled (75)', () => {
+    expect(dbTs).toContain('buildDistributedRateSlotSql');
+    expect(dbTs).toContain('buildDistributedMinuteQuotaSql');
+    expect(dbTs).toContain('buildRateLimitsPruneSql');
+    expect(dbTs).toContain('buildKvUpsertSql');
+    expect(dbTs).toContain('buildPublicTableRlsSql');
+    expect(dbTs).toContain('buildErrorLogCounterUpsertSql');
+    expect(dbTs).not.toMatch(/CREATE TABLE IF NOT EXISTS app_kv_rows/);
+    expect(dbTs).not.toMatch(/ENABLE ROW LEVEL SECURITY/);
+    const rateLib = readFileSync(join(here, '../lib/db-rate-limit.ts'), 'utf8');
+    const policy = readFileSync(join(here, '../lib/db-table-policy.ts'), 'utf8');
+    expect(rateLib).toContain('export function buildDistributedRateSlotSql');
+    expect(rateLib).toContain('export function buildRateLimitsPruneSql');
+    expect(policy).toContain('export function buildKvUpsertSql');
+    expect(policy).toContain('export function buildPublicTableRlsSql');
+  });
+
   it('load-venue-150 p95 thresholds stay CI-realistic (not flaky-tight)', () => {
     const loadTest = readFileSync(join(here, 'load-venue-150.test.ts'), 'utf8');
     expect(loadTest).toMatch(/pct\(lat, 95\)\)\.toBeLessThan\(8_000\)/);
@@ -435,8 +454,10 @@ describe('longevity recurrence guards (server)', () => {
 
   it('Supabase public schema RLS on startup (rls_disabled_in_public)', () => {
     expect(dbTs).toContain('ensurePublicTableRls');
-    expect(dbTs).toMatch(/ENABLE ROW LEVEL SECURITY/);
-    expect(dbTs).toMatch(/REVOKE ALL ON public/);
+    expect(dbTs).toMatch(/buildPublicTableRlsSql/);
+    const policy = readFileSync(join(here, '../lib/db-table-policy.ts'), 'utf8');
+    expect(policy).toMatch(/ENABLE ROW LEVEL SECURITY/);
+    expect(policy).toMatch(/REVOKE ALL ON public/);
     const sql = readFileSync(join(here, '../../../../scripts/sql/enable-rls-public-tables.sql'), 'utf8');
     expect(sql).toMatch(/ENABLE ROW LEVEL SECURITY/);
   });
