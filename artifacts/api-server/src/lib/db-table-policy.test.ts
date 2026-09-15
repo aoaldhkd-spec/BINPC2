@@ -48,6 +48,7 @@ describe('db-table-policy', () => {
     expect(ACTIVE_KV_TABLES.has('group_opt_outs')).toBe(true);
     expect(ACTIVE_KV_TABLES.has('rate_limits')).toBe(true);
     expect(ACTIVE_KV_TABLES.has('db_error_log')).toBe(true);
+    expect(ACTIVE_KV_TABLES.has('event_sales_reports')).toBe(true);
     expect(ACTIVE_KV_TABLES.size).toBeGreaterThanOrEqual(ALLOWED_OP_TABLES.size);
   });
 

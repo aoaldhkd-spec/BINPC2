@@ -182,6 +182,55 @@ export async function adminApiSelect<T>(
 // Local mock: admin client is the same as the regular client
 export const adminSupabase = supabase;
 
+export type SalesReportMetrics = {
+  participants: number;
+  hearts: number;
+  chatRooms: number;
+  chatMessages: number;
+  groupRooms: number;
+  groupMessages: number;
+  groupParticipants: number;
+  mbtiDistribution: Record<string, number>;
+  compatibilityProfiles: number;
+  fortuneProfiles: number;
+  realtime: { adminSseConnections: number };
+  stability: { persistErrors: number };
+};
+
+export type SalesReport = {
+  id: string;
+  created_at: string;
+  metrics: SalesReportMetrics;
+};
+
+async function adminApiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  let refreshed = false;
+  for (;;) {
+    const headers = new Headers(init.headers);
+    headers.set('x-admin-token', localStorage.getItem(ADMIN_TOKEN_KEY) ?? '');
+    const response = await fetch(`${ADMIN_API}${path}`, { ...init, headers });
+    if ((response.status === 401 || response.status === 403) && !refreshed && await refreshAdminToken()) {
+      refreshed = true;
+      continue;
+    }
+    return response;
+  }
+}
+
+export async function adminApiJson<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const response = await adminApiFetch(path, init);
+  if (!response.ok) throw new Error(`관리자 API 오류: HTTP ${response.status}`);
+  const body = await response.json() as { data: T; error: { message?: string } | null };
+  if (body.error) throw new Error(body.error.message ?? '관리자 API 오류');
+  return body.data;
+}
+
+export async function adminApiDownload(path: string): Promise<Blob> {
+  const response = await adminApiFetch(path);
+  if (!response.ok) throw new Error(`다운로드 오류: HTTP ${response.status}`);
+  return response.blob();
+}
+
 export interface DbHealthHttpMetrics {
   since: string;
   unauthorized: Record<string, number>;

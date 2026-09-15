@@ -4,7 +4,7 @@
  */
 
 /** app_kv_rows 에만 두고 인메모리 store에는 올리지 않는 시스템 행 */
-export const SYSTEM_KV_TABLES = new Set(['rate_limits', 'db_error_log']);
+export const SYSTEM_KV_TABLES = new Set(['rate_limits', 'db_error_log', 'event_sales_reports']);
 
 export type PersistErrorLogEntry = { table: string; time: number; msg: string };
 

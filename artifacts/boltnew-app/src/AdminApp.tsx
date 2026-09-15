@@ -37,11 +37,12 @@ const PopularityTab = lazy(() => import('./admin/PopularityTab').then(m => ({ de
 const ChatsTab = lazy(() => import('./admin/ChatsTab').then(m => ({ default: m.ChatsTab })));
 const ProfilesTabSection = lazy(() => import('./admin/ProfilesTabSection').then(m => ({ default: m.ProfilesTabSection })));
 const CredentialsTab = lazy(() => import('./admin/CredentialsTab').then(m => ({ default: m.CredentialsTab })));
+const SalesReportsTab = lazy(() => import('./admin/SalesReportsTab').then(m => ({ default: m.SalesReportsTab })));
 
 // ─── Admin Dashboard ──────────────────────────────────────────────────────────
 
 type AdminTab = 'settings' | 'profiles' | 'hearts' | 'chats' | 'notify';
-type SettingsSubTab = 'control' | 'qr' | 'admin' | 'db';
+type SettingsSubTab = 'control' | 'qr' | 'admin' | 'db' | 'reports';
 type HeartSubTab = 'hearts' | 'popularity';
 
 function AdminTabFallback() {
@@ -653,12 +654,13 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       <main className="max-w-4xl mx-auto">
         {tab === 'settings' && (
           <div>
-            <div className="grid grid-cols-4 border-b border-gray-200 bg-white px-2 min-[360px]:px-4">
+            <div className="grid grid-cols-5 border-b border-gray-200 bg-white px-2 min-[360px]:px-4">
               {([
                 { id: 'control' as SettingsSubTab, label: '대시보드' },
                 { id: 'qr' as SettingsSubTab, label: 'QR코드' },
                 { id: 'admin' as SettingsSubTab, label: '접속정보' },
                 { id: 'db' as SettingsSubTab, label: 'DB헬스', errorBadge: (dbHealth?.persistErrors ?? 0) > 0 },
+                { id: 'reports' as SettingsSubTab, label: '성과 리포트' },
               ]).map(st => (
                 <button key={st.id} onClick={() => handleSettingsSubTabChange(st.id)}
                   className={`touch-target relative min-w-0 px-0.5 min-[390px]:px-2 py-2.5 text-[9px] min-[360px]:text-[10px] min-[390px]:text-xs font-semibold border-b-2 transition-all text-center leading-tight break-words ${settingsSubTab === st.id ? 'border-teal-500 text-teal-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
@@ -696,6 +698,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                   <DbHealthTab health={dbHealth} loading={dbHealthLoading} onRefresh={fetchDbHealth} onClearErrors={handleClearDbErrors} />
                 </>
               )}
+              {settingsSubTab === 'reports' && <SalesReportsTab />}
             </Suspense>
           </div>
         )}

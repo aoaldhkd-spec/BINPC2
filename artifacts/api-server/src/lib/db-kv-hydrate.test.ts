@@ -10,6 +10,7 @@ describe('db-kv-hydrate', () => {
   it('SYSTEM_KV_TABLES skips rate_limits and db_error_log from app store', () => {
     expect(SYSTEM_KV_TABLES.has('rate_limits')).toBe(true);
     expect(SYSTEM_KV_TABLES.has('db_error_log')).toBe(true);
+    expect(SYSTEM_KV_TABLES.has('event_sales_reports')).toBe(true);
     expect(SYSTEM_KV_TABLES.has('likes')).toBe(false);
   });
 
@@ -21,6 +22,7 @@ describe('db-kv-hydrate', () => {
       [
         { table_name: 'db_error_log', row_id: 'counter', data: { count: 3, log: [{ table: 'x', time: 1, msg: 'e' }] } },
         { table_name: 'rate_limits', row_id: 'r1', data: { id: 'r1' } },
+        { table_name: 'event_sales_reports', row_id: 'report-1', data: { id: 'report-1' } },
         { table_name: 'suggestions', row_id: 's1', data: { id: 's1' } },
         { table_name: 'likes', row_id: 'l1', data: { id: 'l1', liker_id: 'a' } },
         { table_name: 'session_history', row_id: 'h1', data: { id: 'h1', seats_snapshot: 1 } },
@@ -34,6 +36,7 @@ describe('db-kv-hydrate', () => {
     );
     expect(onError).toHaveBeenCalledWith({ count: 3, log: [{ table: 'x', time: 1, msg: 'e' }] });
     expect(store['rate_limits']).toBeUndefined();
+    expect(store['event_sales_reports']).toBeUndefined();
     expect(store['suggestions']).toBeUndefined();
     expect(store['likes']).toEqual([{ id: 'l1', liker_id: 'a' }]);
     expect(store['session_history']).toEqual([{ id: 'h1', seats_snapshot: 1, stripped: true }]);

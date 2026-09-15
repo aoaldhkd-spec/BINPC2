@@ -36,7 +36,7 @@ export function readSubmittedPassword(
   return String(field?.value || reactState || '').trim();
 }
 
-export type AdminSettingsSubTab = 'control' | 'qr' | 'admin' | 'db';
+export type AdminSettingsSubTab = 'control' | 'qr' | 'admin' | 'db' | 'reports';
 
 function parseAdminUrlSearch(search: string): URLSearchParams {
   return new URLSearchParams(search.startsWith('?') ? search.slice(1) : search);
@@ -53,6 +53,7 @@ export function adminSettingsSubTabFromUrl(
   if (settings === 'admin' || tab === 'credentials') return 'admin';
   if (settings === 'db' || tab === 'db') return 'db';
   if (settings === 'qr' || tab === 'qr') return 'qr';
+  if (settings === 'reports' || tab === 'reports') return 'reports';
   if (/credentials|접속정보/.test(hash)) return 'admin';
   if (/health|db.?health/i.test(hash)) return 'db';
   return 'control';
@@ -79,6 +80,8 @@ export function syncAdminSettingsSubTabUrl(
     url.hash = 'health';
   } else if (subTab === 'qr') {
     url.searchParams.set('tab', 'qr');
+  } else if (subTab === 'reports') {
+    url.searchParams.set('tab', 'reports');
   } else {
     url.search = '';
     url.hash = '';

@@ -44,6 +44,8 @@ export const ACTIVE_KV_TABLES = new Set([
   'signal_sends',
   // PG 전용 메타 — 앱 데이터가 아님. inversion cleanup에서 지우면 안 됨
   'rate_limits', 'db_error_log',
+  // Wipe-surviving aggregate sales snapshots (custom admin API only).
+  'event_sales_reports',
 ]);
 
 /** Tables whose /op writes are logged as critical-write (requestId only). */

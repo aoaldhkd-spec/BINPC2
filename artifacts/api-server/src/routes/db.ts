@@ -311,7 +311,16 @@ import {
   ADMIN_EVENT_END_CLEAR_TABLES,
   planWipeTableBroadcast,
   TEST_WIPE_ALL_TABLES,
+  ADMIN_EVENT_END_PRESERVE_TABLES,
 } from '../lib/db-admin-wipe-plan';
+import {
+  buildSalesReport,
+  salesReportMarkdown,
+  SALES_REPORT_LIMIT,
+  SALES_REPORT_TABLE,
+  isSalesReport,
+  type SalesReport,
+} from '../lib/db-sales-reports';
 import {
   buildAdminSeedProfile,
   planEnsureAdminProfile,
@@ -783,6 +792,7 @@ const INSTANCE_ID = crypto.randomUUID();
 
 // ─── In-memory cache (loaded from DB on startup, write-through on every change)
 const store: Record<string, Record<string, unknown>[]> = {};
+const WIPE_PRESERVED_TABLES = new Set<string>(ADMIN_EVENT_END_PRESERVE_TABLES);
 /** RAM 캐시. 넘치면 오래된 항목부터 지우고, 조회 시 Postgres에서 다시 채움. */
 // imageStore: ../lib/db-image-store.ts
 const IMAGE_STORE_MAX_ENTRIES = IMAGE_STORE_MAX_ENTRIES_DEFAULT;
@@ -2545,6 +2555,113 @@ async function sendPushForEvent(
   }
 }
 
+// ─── Wipe-surviving aggregate sales reports ───────────────────────────────────
+// Reports live in app_kv_rows under a dedicated table_name. The event-end and
+// test wipe plans only delete their explicit app tables, so these rows survive.
+function salesReportAdminToken(req: Request): string {
+  const token = req.headers['x-admin-token'];
+  return typeof token === 'string' ? token : '';
+}
+
+function salesReportId(id: string): string | null {
+  return /^[A-Za-z0-9_-]{1,100}$/.test(id) ? id : null;
+}
+
+function salesReportUnauthorized(res: Response): Response {
+  return res.status(401).json({ data: null, error: { message: '관리자 인증이 필요합니다.' } });
+}
+
+async function loadSalesReports(limit = SALES_REPORT_LIMIT): Promise<SalesReport[]> {
+  const { rows } = await pool.query<{ data: unknown }>(
+    buildKvSelectLatestLimitedSql(),
+    [SALES_REPORT_TABLE, Math.max(1, Math.min(limit, SALES_REPORT_LIMIT))],
+  );
+  return rows
+    .map(row => row.data)
+    .filter(isSalesReport);
+}
+
+async function loadSalesReport(id: string): Promise<SalesReport | null> {
+  const { rows } = await pool.query<{ data: unknown }>(
+    buildKvSelectByTableRowIdSql(),
+    [SALES_REPORT_TABLE, id],
+  );
+  const report = rows[0]?.data;
+  return isSalesReport(report) ? report : null;
+}
+
+router.post('/sales-reports', async (req: Request, res: Response) => {
+  if (!verifyAdminToken(salesReportAdminToken(req))) return salesReportUnauthorized(res);
+  try {
+    const report = buildSalesReport({
+      id: crypto.randomUUID(),
+      now: ts(),
+      profiles: getTable('profiles'),
+      likes: getTable('likes'),
+      chats: getTable('chats'),
+      messages: getTable('messages'),
+      groupChats: getTable('group_chats'),
+      groupMessages: getTable('group_messages'),
+      groupParticipants: getTable('group_participants'),
+      adminSseConnections: sseAdminClients.size,
+      persistErrors: _dbPersistErrors,
+      excludeProfile: isAdminProfileRow,
+    });
+    await dbPersistRow(SALES_REPORT_TABLE, report as unknown as Record<string, unknown>);
+    return res.status(201).json({ data: report, error: null });
+  } catch (e) {
+    logger.error({ err: e }, '[sales-reports] create failed');
+    return res.status(500).json({ data: null, error: { message: '성과 리포트 저장에 실패했습니다.' } });
+  }
+});
+
+router.get('/sales-reports', async (req: Request, res: Response) => {
+  if (!verifyAdminToken(salesReportAdminToken(req))) return salesReportUnauthorized(res);
+  try {
+    return res.json({ data: await loadSalesReports(), error: null });
+  } catch (e) {
+    logger.error({ err: e }, '[sales-reports] list failed');
+    return res.status(500).json({ data: null, error: { message: '성과 리포트 조회에 실패했습니다.' } });
+  }
+});
+
+router.get('/sales-reports/:id/download', async (req: Request, res: Response) => {
+  if (!verifyAdminToken(salesReportAdminToken(req))) return salesReportUnauthorized(res);
+  const id = salesReportId(String(req.params.id ?? ''));
+  if (!id) return res.status(400).json({ data: null, error: { message: '잘못된 리포트 ID입니다.' } });
+  try {
+    const report = await loadSalesReport(id);
+    if (!report) return res.status(404).json({ data: null, error: { message: '리포트를 찾을 수 없습니다.' } });
+    const format = String(req.query.format ?? 'md').toLowerCase();
+    const isJson = format === 'json';
+    if (!isJson && format !== 'md') {
+      return res.status(400).json({ data: null, error: { message: '지원하지 않는 다운로드 형식입니다.' } });
+    }
+    const ext = isJson ? 'json' : 'md';
+    res.setHeader('Content-Disposition', `attachment; filename="binpc2-sales-report-${id}.${ext}"`);
+    res.setHeader('Cache-Control', 'no-store');
+    if (isJson) return res.type('application/json').send(JSON.stringify(report, null, 2));
+    return res.type('text/markdown').send(salesReportMarkdown(report));
+  } catch (e) {
+    logger.error({ err: e, id }, '[sales-reports] download failed');
+    return res.status(500).json({ data: null, error: { message: '성과 리포트 다운로드에 실패했습니다.' } });
+  }
+});
+
+router.get('/sales-reports/:id', async (req: Request, res: Response) => {
+  if (!verifyAdminToken(salesReportAdminToken(req))) return salesReportUnauthorized(res);
+  const id = salesReportId(String(req.params.id ?? ''));
+  if (!id) return res.status(400).json({ data: null, error: { message: '잘못된 리포트 ID입니다.' } });
+  try {
+    const report = await loadSalesReport(id);
+    if (!report) return res.status(404).json({ data: null, error: { message: '리포트를 찾을 수 없습니다.' } });
+    return res.json({ data: report, error: null });
+  } catch (e) {
+    logger.error({ err: e, id }, '[sales-reports] get failed');
+    return res.status(500).json({ data: null, error: { message: '성과 리포트 조회에 실패했습니다.' } });
+  }
+});
+
 // ─── DB operation endpoint ────────────────────────────────────────────────────
 router.post('/op', async (req: Request, res: Response) => {
   const requestId = String(req.headers['x-request-id'] ?? req.id ?? '');
@@ -3975,6 +4092,7 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         // tables + broadcast mode: db-admin-wipe-plan
         const persistDeletes: Promise<void>[] = [];
         for (const t of ADMIN_EVENT_END_CLEAR_TABLES) {
+          if (WIPE_PRESERVED_TABLES.has(t)) continue;
           const old = store[t] ?? [];
           store[t] = [];
           if (t === 'chat_reads') unreadCountsCache.clear(); // 전체 리셋 시 캐시 전부 무효화
@@ -4025,6 +4143,7 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         checkTestPassword();
         const persistDeletes: Promise<void>[] = [];
         for (const t of TEST_WIPE_ALL_TABLES) {
+          if (WIPE_PRESERVED_TABLES.has(t)) continue;
           const old = store[t] ?? [];
           store[t] = [];
           if (t === 'likes') _likesLastInsert.clear();
