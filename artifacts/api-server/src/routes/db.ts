@@ -133,6 +133,14 @@ import {
   groupLimitSlotKey,
 } from '../lib/db-group-room-plan';
 import {
+  isChatParticipant as isChatParticipantPure,
+  countMessagesForChat as countMessagesForChatPure,
+  chatIdsForPair as chatIdsForPairPure,
+  pickCanonicalChatRow as pickCanonicalChatRowPure,
+  groupChatsByPair,
+  messageMergeAction,
+} from '../lib/db-chat-pair-plan';
+import {
   LEGACY_APP_SETTINGS_KEYS,
   LEGACY_KV_TABLES,
   settingsHaveLegacyKeys,
@@ -950,25 +958,25 @@ export function collectBroadcastTargets(
   );
 }
 
+/** Chat pair / dedupe / message-merge planners: ../lib/db-chat-pair-plan.ts (re-import). */
+
+/** Thin wrapper — resolveMergedChatId + getTable stay local. */
 function isChatParticipant(chatId: unknown, userId: string): boolean {
-  if (chatId == null || chatId === '' || !userId) return false;
-  const resolved = resolveMergedChatId(String(chatId));
-  const chat = getTable('chats').find(c => String(c.id) === resolved)
-    ?? getTable('chats').find(c => String(c.id) === String(chatId));
-  if (!chat) return false;
-  return String(chat.user1_id) === String(userId) || String(chat.user2_id) === String(userId);
+  return isChatParticipantPure(
+    chatId,
+    userId,
+    (id) => getTable('chats').find(c => String(c.id) === id),
+    resolveMergedChatId,
+  );
 }
 
 function countMessagesForChat(chatId: string): number {
-  return getTable('messages').filter(m => String(m.chat_id) === String(chatId)).length;
+  return countMessagesForChatPure(chatId, getTable('messages'));
 }
 
 /** 동일 user 쌍의 모든 chat id (메시지 조회·병합용) */
 function chatIdsForPair(u1: string, u2: string): string[] {
-  const key = chatPairKey(u1, u2);
-  return getTable('chats')
-    .filter(c => chatPairKey(String(c.user1_id), String(c.user2_id)) === key)
-    .map(c => String(c.id));
+  return chatIdsForPairPure(u1, u2, getTable('chats'));
 }
 
 /** 병합된 옛 방 id → canonical (프로세스 동안 SELECT 리다이렉트) — db-merged-id-map */
@@ -995,12 +1003,11 @@ async function mergeMessagesForChatIds(chatIds: string[]): Promise<void> {
       const id = String(data['id'] ?? '');
       if (!id) continue;
       const existing = byId.get(id);
-      const dbTs = String(data.updated_at ?? data.created_at ?? '');
-      const memTs = existing ? String(existing.updated_at ?? existing.created_at ?? '') : '';
-      if (!existing) {
+      const action = messageMergeAction(existing, data);
+      if (action === 'insert') {
         memRows.push(data);
         byId.set(id, data);
-      } else if (dbTs >= memTs) {
+      } else if (action === 'replace') {
         const idx = memRows.findIndex(r => String(r['id']) === id);
         if (idx >= 0) memRows[idx] = data;
         byId.set(id, data);
@@ -1012,26 +1019,14 @@ async function mergeMessagesForChatIds(chatIds: string[]): Promise<void> {
 }
 
 function pickCanonicalChatRow(group: Record<string, unknown>[]): Record<string, unknown> {
-  return [...group].sort((a, b) => {
-    const diff = countMessagesForChat(String(b.id)) - countMessagesForChat(String(a.id));
-    if (diff !== 0) return diff;
-    return String(a.created_at ?? a.id).localeCompare(String(b.created_at ?? b.id));
-  })[0];
+  return pickCanonicalChatRowPure(group, countMessagesForChat);
 }
 
 /** 중복 1:1 채팅방 병합 — 메시지·읽음을 canonical 방으로 이전 */
 async function dedupeChatsInStore(): Promise<number> {
   const chats = getTable('chats');
   if (chats.length < 2) return 0;
-  const groups = new Map<string, Record<string, unknown>[]>();
-  for (const c of chats) {
-    const u1 = String(c.user1_id ?? '');
-    const u2 = String(c.user2_id ?? '');
-    if (!u1 || !u2 || u1 === u2) continue;
-    const key = chatPairKey(u1, u2);
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push(c);
-  }
+  const groups = groupChatsByPair(chats);
   let merged = 0;
   for (const group of groups.values()) {
     if (group.length <= 1) continue;

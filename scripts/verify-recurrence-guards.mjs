@@ -1190,8 +1190,43 @@ mustMatch('ARCHITECTURE.md', '55_architecture_path_after_group_room_plan_peel', 
 ]);
 
 
+// ── 56: db-chat-pair-plan (pair/dedupe/message-merge pure planners) ───────────
+mustExist('artifacts/api-server/src/lib/db-chat-pair-plan.ts', '56_db_chat_pair_plan_module');
+mustExist('artifacts/api-server/src/lib/db-chat-pair-plan.test.ts', '56_db_chat_pair_plan_tests');
+mustMatch('artifacts/api-server/src/lib/db-chat-pair-plan.ts', '56_chat_pair_plan_exports', [
+  /export function isChatParticipant/,
+  /export function countMessagesForChat/,
+  /export function chatIdsForPair/,
+  /export function pickCanonicalChatRow/,
+  /export function groupChatsByPair/,
+  /export function messageMergeAction/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '56_db_reimports_chat_pair_plan', [
+  /from '\.\.\/lib\/db-chat-pair-plan'/,
+  /isChatParticipant as isChatParticipantPure/,
+  /chatIdsForPair as chatIdsForPairPure/,
+  /pickCanonicalChatRow as pickCanonicalChatRowPure/,
+  /groupChatsByPair/,
+  /messageMergeAction/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '56_db_still_single_router_export', [
+  /export default router/,
+]);
+mustNotMatch('artifacts/api-server/src/routes/db.ts', '56_db_no_inline_chat_pair_plan_impl', [
+  /function groupChatsByPair\(/,
+  /function messageMergeAction\(/,
+  /const diff = countMessagesForChat\(String\(b\.id\)\) - countMessagesForChat\(String\(a\.id\)\)/,
+  /messages\.filter\(m => String\(m\.chat_id\) === String\(chatId\)\)\.length/,
+]);
+mustMatch('ARCHITECTURE.md', '56_architecture_path_after_chat_pair_plan_peel', [
+  /db-chat-pair-plan/,
+  /~9\.5/,
+]);
+
+
 
 console.log('\n=== verify-recurrence-guards ===\n');
+
 for (const r of results) {
   console.log(`  ${r.ok ? 'OK' : 'FAIL'}  ${r.id}${r.detail && !r.ok ? ` ? ${r.detail}` : ''}`);
 }
