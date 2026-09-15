@@ -1,12 +1,13 @@
 /**
- * Thin wire: subscribe profiles + user-bundle (likes / contact_shares) SSE channels.
+ * Thin wire: subscribe profiles + user-bundle (likes / contact_shares)
+ * + privacy (blocked_users / profile_views) + user_signals SSE channels.
  * App owns setState via apply callbacks — hook only subscribes and routes.
  * Does not own settings/reset/boot or a mega apply blob.
  */
 import { useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import type { HeartType } from '../lib/constants';
-import type { ContactShare, Profile } from '../types/app';
+import type { BlockedUser, ContactShare, Profile, ProfileView, UserSignal } from '../types/app';
 
 type PgPayload = { new: Record<string, unknown>; old: Record<string, unknown> };
 
@@ -51,6 +52,10 @@ export type UseUserRealtimeChannelArgs = {
   onReceivedLikeUpdate: (row: ReceivedLikeUpdateRow) => void;
   onContactShareInsert: (share: ContactShare) => void | Promise<void>;
   onContactShareUpdate: (share: ContactShare) => void;
+  onBlockedUserInsert: (row: BlockedUser) => void;
+  onProfileViewInsert: (row: ProfileView) => void;
+  onUserSignalInsert: (row: UserSignal) => void;
+  onUserSignalUpdate: (row: UserSignal) => void;
 };
 
 export function useUserRealtimeChannel(args: UseUserRealtimeChannelArgs): void {
@@ -107,9 +112,45 @@ export function useUserRealtimeChannel(args: UseUserRealtimeChannelArgs): void {
         })
       .subscribe();
 
+    // SSE: blocked_users / profile_views — 단일 채널
+    const privacyCh = supabase
+      .channel(`privacy-${uid}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'blocked_users' },
+        (payload: PgPayload) => {
+          try {
+            argsRef.current.onBlockedUserInsert(payload.new as BlockedUser);
+          } catch (e) { console.warn('[blocked_users SSE]', e); }
+        })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'profile_views' },
+        (payload: PgPayload) => {
+          try {
+            argsRef.current.onProfileViewInsert(payload.new as ProfileView);
+          } catch (e) { console.warn('[profile_views SSE]', e); }
+        })
+      .subscribe();
+
+    // SSE: user_signals INSERT/UPDATE 구독 (전원 공개 — PRIVATE_TABLES 미포함)
+    const signalsCh = supabase
+      .channel('user-signals-all')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'user_signals' },
+        (payload: PgPayload) => {
+          try {
+            argsRef.current.onUserSignalInsert(payload.new as UserSignal);
+          } catch (e) { console.warn('[user_signals SSE INSERT]', e); }
+        })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'user_signals' },
+        (payload: PgPayload) => {
+          try {
+            argsRef.current.onUserSignalUpdate(payload.new as UserSignal);
+          } catch (e) { console.warn('[user_signals SSE UPDATE]', e); }
+        })
+      .subscribe();
+
     return () => {
       supabase.removeChannel(profileChannel);
       supabase.removeChannel(userRealtimeChannel);
+      supabase.removeChannel(privacyCh);
+      supabase.removeChannel(signalsCh);
     };
   }, [args.currentUserId]);
 }

@@ -564,6 +564,46 @@ mustMatch('ARCHITECTURE.md', '45_architecture_user_realtime_peel', [
 ]);
 
 
+
+// ?? 46 App peel: shell + privacy/signals realtime channels + settings planner ??????????
+mustExist('artifacts/boltnew-app/src/hooks/useAppShellRealtimeChannels.ts', '46_use_app_shell_realtime_channels_hook');
+mustExist('artifacts/boltnew-app/src/lib/app-settings-realtime.ts', '46_app_settings_realtime_module');
+mustExist('artifacts/boltnew-app/src/lib/app-settings-realtime.test.ts', '46_app_settings_realtime_tests');
+mustMatch('artifacts/boltnew-app/src/hooks/useAppShellRealtimeChannels.ts', '46_hook_subscribes_settings_notif_contact_events', [
+  /app-settings-user/,
+  /notifications-user/,
+  /contact-share-events-user/,
+  /onAppSettingsUpdate/,
+  /onBroadcastNotifInsert/,
+  /onContactShareEventInsert/,
+]);
+mustMatch('artifacts/boltnew-app/src/hooks/useUserRealtimeChannel.ts', '46_hook_subscribes_privacy_and_signals', [
+  /privacy-\$\{uid\}/,
+  /user-signals-all/,
+  /onBlockedUserInsert/,
+  /onUserSignalInsert/,
+]);
+mustMatch('artifacts/boltnew-app/src/App.tsx', '46_app_wires_shell_and_privacy_apply_callbacks', [
+  /useAppShellRealtimeChannels/,
+  /planAppSettingsRealtimeUpdate/,
+  /onBlockedUserInsert/,
+  /onUserSignalInsert/,
+  /onBroadcastNotifInsert/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/App.tsx', '46_app_no_inline_shell_privacy_signals_channels', [
+  /channel\('app-settings-user'\)/,
+  /channel\('notifications-user'\)/,
+  /channel\('contact-share-events-user'\)/,
+  /channel\(`privacy-\$\{/,
+  /channel\('user-signals-all'\)/,
+]);
+mustMatch('ARCHITECTURE.md', '46_architecture_shell_realtime_peel', [
+  /useAppShellRealtimeChannels/,
+  /app-settings-realtime/,
+  /incremental/,
+]);
+
+
 console.log('\n=== verify-recurrence-guards ===\n');
 for (const r of results) {
   console.log(`  ${r.ok ? 'OK' : 'FAIL'}  ${r.id}${r.detail && !r.ok ? ` ? ${r.detail}` : ''}`);

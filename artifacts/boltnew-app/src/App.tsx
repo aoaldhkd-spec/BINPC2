@@ -7,7 +7,9 @@ import { useParticipantSoTResync } from './hooks/useParticipantSoTResync';
 import { useSseFallbackPoll } from './hooks/useSseFallbackPoll';
 import { useDarkModeStorageSync } from './hooks/useDarkModeStorageSync';
 import { useUserRealtimeChannel } from './hooks/useUserRealtimeChannel';
+import { useAppShellRealtimeChannels } from './hooks/useAppShellRealtimeChannels';
 import type { SessionReadySettingsPatch } from './lib/session-ready-settings';
+import { planAppSettingsRealtimeUpdate } from './lib/app-settings-realtime';
 import { diag } from './lib/diag';
 import { subscribeNetUi, resetNetUiForRetry, type NetUiStatus } from './lib/net-health';
 import { excludeSwipeGestureVerifyProfiles, hasProfileFortuneCompatData } from './lib/profile';
@@ -30,7 +32,6 @@ import {
   shouldShowEntryGate,
   shouldShowNicknameSetup,
   shouldShowRecoveryScreen,
-  shouldAutoSkipWaiting,
   planEntryPasswordState,
   shouldApplyAdminResetSignal,
 } from './lib/entry-gate';
@@ -250,6 +251,7 @@ function App() {
   const confettiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** SSE heart/status toast clear timers — owned by App apply, cleared on user change */
   const realtimeNotifTimerIdsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const shareEventNotifTimerIdsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const confettiInnerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const triggerConfetti = useCallback(() => {
     // 뷰 전환 시 이전 타이머 취소 가능하도록 ref에 저장
@@ -817,6 +819,27 @@ function App() {
   }, [recordProfileView]);
 
 
+  // Admin reset wipe — shared by /ready bootstrap applySettings and settings SSE apply.
+  const applyResetSignal = useCallback((serverReset: string) => {
+    ls.setItem(MATCHING_LAST_RESET_KEY, serverReset);
+    ls.removeItem(MATCHING_USER_KEY);
+    ls.removeItem(MATCHING_DRAFT_KEY);
+    clearAllGroupLastReads();
+    ls.removeItem(MATCHING_PROFILES_CACHE_KEY);
+    setCurrentUserId(null);
+    setShownWaiting(false);
+    setProfiles([]);
+    setLikedIds(new Set());
+    setSentHeartTypes(new Map());
+    setSentHeartsPerPerson(new Map());
+    setAcknowledgedComplimentIds(new Set());
+    setReceivedLikers([]);
+    setChatList([]);
+    setActiveNotif(null);
+    void loadProfilesRef.current().catch(() => {});
+    setView('entry-1');
+  }, [setLikedIds, setSentHeartTypes, setSentHeartsPerPerson, setAcknowledgedComplimentIds, setReceivedLikers, setChatList]);
+
   useEffect(() => {
     let cancelled = false;
     // API 콜드스타트·재시도 중에도 2.5초 후에는 스피너만 해제.
@@ -831,26 +854,6 @@ function App() {
         }
       }
     }, 2_500);
-
-    const applyResetSignal = (serverReset: string) => {
-      ls.setItem(MATCHING_LAST_RESET_KEY, serverReset);
-      ls.removeItem(MATCHING_USER_KEY);
-      ls.removeItem(MATCHING_DRAFT_KEY);
-      clearAllGroupLastReads();
-      ls.removeItem(MATCHING_PROFILES_CACHE_KEY);
-      setCurrentUserId(null);
-      setShownWaiting(false);
-      setProfiles([]);
-      setLikedIds(new Set());
-      setSentHeartTypes(new Map());
-      setSentHeartsPerPerson(new Map());
-      setAcknowledgedComplimentIds(new Set());
-      setReceivedLikers([]);
-      setChatList([]);
-      setActiveNotif(null);
-      void loadProfilesRef.current().catch(() => {});
-      setView('entry-1');
-    };
 
     const applySettings = (data: Record<string, unknown> | null) => {
       if (cancelled || !data) return;
@@ -931,96 +934,15 @@ function App() {
         })
         .catch(() => {});
     }, 4_000);
-    const settingsChannel = supabase
-      .channel('app-settings-user')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_settings' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-        const p = payload.new as {
-          session_active: boolean;
-          timer_end_at: string | null;
-          timer_label: string | null;
-          reset_signal: string | null;
-          entry_password: string | null;
-          functions_locked?: boolean;
-        };
-        // Admin triggered a full reset: wipe local user identity and force back to nickname setup
-        if (shouldApplyAdminResetSignal(p.reset_signal, ls.getItem(MATCHING_LAST_RESET_KEY))) {
-          applyResetSignal(p.reset_signal!);
-          return;
-        }
-        if (typeof p.session_active === 'boolean') {
-          const wasActive = sessionActiveRef.current;
-          sessionActiveRef.current = p.session_active;
-          setSessionActive(p.session_active);
-          // 회식이 꺼짐→켜짐으로 바뀌는 순간에만 대기 랜딩을 건너뛴다.
-          // 이미 켜진 채 설정이 갱신되면 닉네임 1단계 뒤로가기를 덮어쓰지 않는다.
-          if (shouldAutoSkipWaiting({
-            sessionActive: p.session_active,
-            wasSessionActive: wasActive,
-            hasStoredUser: Boolean(ls.getItem(MATCHING_USER_KEY)),
-          })) {
-            setShownWaiting(true);
-            setView('entry-1');
-          }
-          // 회의 종료 시 대기 화면으로 복귀 (관리자가 종료 누르지 않아도 SSE로 반영)
-          if (!p.session_active && userIdRef.current) {
-            setShownWaiting(false);
-          }
-        }
-        setTimerEndAt(p.timer_end_at ?? null);
-        setTimerLabel(p.timer_label ?? null);
-        if (p.functions_locked != null) setFunctionsLocked(parseFunctionsLocked(p.functions_locked));
-        if (p.entry_password !== undefined) {
-          const entry = planEntryPasswordState(p.entry_password, ls.getItem(ENTRY_VERIFIED_KEY));
-          setEntryPassword(entry.entryPassword);
-          setEntryVerified(entry.entryVerified);
-        }
-      })
-      .subscribe();
-    const notifChannel = supabase
-      .channel('notifications-user')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-        const n = payload.new as { id: string; message: string; type: string; target: string; is_active: boolean };
-        if (shouldShowBroadcastNotif(n)) setActiveNotif(n);
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notifications' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-        // 관리자가 알림을 비활성화 시 현재 표시 중인 알림 즉시 닫기
-        const n = payload.new as { id: string; is_active: boolean };
-        if (!n.is_active) setActiveNotif(prev => dismissActiveNotifIfMatch(prev, n.id));
-      })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'notifications' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-        // 관리자가 알림을 삭제 시 표시 중이면 즉시 닫기
-        const n = payload.old as { id: string };
-        setActiveNotif(prev => dismissActiveNotifIfMatch(prev, n.id));
-      })
-      .subscribe();
 
-    // Contact share events subscription (acceptance/rejection notifications)
-    // 알림 자동소거 타이머 ID 추적 — 언마운트 시 clearTimeout으로 누수 방지
-    const shareNotifTimerIds: ReturnType<typeof setTimeout>[] = [];
-    const contactEventsChannel = supabase.channel('contact-share-events-user')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'contact_share_events' }, (payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
-        const row = payload.new as { id?: string; from_user_id: string; to_user_id: string; event_type: string; created_at?: string };
-        const myId = userIdRef.current;
-        const plan = planContactShareEvent(row, myId, { seenIds: seenContactEventIdsRef.current });
-        if (plan.ignore) return;
-        seenContactEventIdsRef.current.add(plan.eventKey);
-        seenContactEventIdsRef.current = pruneSeenIdSet(seenContactEventIdsRef.current);
-        if (plan.loadContactShares && myId) void loadContactShareData(myId);
-        if (plan.notif) {
-          setShareEventNotif(plan.notif);
-          shareNotifTimerIds.push(setTimeout(() => setShareEventNotif(null), 5000));
-        }
-      })
-      .subscribe();
+    // settings / notifications / contact-events SSE subscribe live in useAppShellRealtimeChannels.
 
     return () => {
       cancelled = true;
       clearTimeout(safetyTimer);
       clearInterval(settingsPoll);
-      shareNotifTimerIds.forEach(clearTimeout);
-      supabase.removeChannel(settingsChannel);
-      supabase.removeChannel(notifChannel);
-      supabase.removeChannel(contactEventsChannel);
+      shareEventNotifTimerIdsRef.current.forEach(clearTimeout);
+      shareEventNotifTimerIdsRef.current = [];
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only; adding deps causes reconnect loop
   }, []);
@@ -1203,49 +1125,9 @@ function App() {
         if (Array.isArray(data)) setProfileVisitors(data as ProfileView[]);
       }).catch(() => {});
 
-    // SSE: blocked_users / profile_views — 단일 채널
-    const privacyCh = supabase
-      .channel(`privacy-${uid}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'blocked_users' },
-        (payload: { new: Record<string, unknown> }) => {
-          try {
-            const b = payload.new as BlockedUser;
-            if (isBlockedRowForMe(b, uid)) {
-              setBlockedUsers(prev => upsertById(prev, b));
-            }
-          } catch (e) { console.warn('[blocked_users SSE]', e); }
-        })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'profile_views' },
-        (payload: { new: Record<string, unknown> }) => {
-          try {
-            const v = payload.new as ProfileView;
-            if (v.viewed_id === uid) {
-              setProfileVisitors(prev => upsertById(prev, v));
-            }
-          } catch (e) { console.warn('[profile_views SSE]', e); }
-        })
-      .subscribe();
     // user_signals 전체 로드 (전광판 + 카드 뒤면용)
     loadUserSignals();
-    // SSE: user_signals INSERT/UPDATE 구독 (전원 공개 — PRIVATE_TABLES 미포함)
-    const signalsCh = supabase
-      .channel('user-signals-all')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'user_signals' },
-        (payload: { new: Record<string, unknown> }) => {
-          try {
-            const s = payload.new as UserSignal;
-            setUserSignals(prev => mergeUserSignalRow(prev, s, 'upsert'));
-          } catch (e) { console.warn('[user_signals SSE INSERT]', e); }
-        })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'user_signals' },
-        (payload: { new: Record<string, unknown> }) => {
-          try {
-            const s = payload.new as UserSignal;
-            setUserSignals(prev => mergeUserSignalRow(prev, s, 'update-only'));
-          } catch (e) { console.warn('[user_signals SSE UPDATE]', e); }
-        })
-      .subscribe();
-    return () => { supabase.removeChannel(privacyCh); supabase.removeChannel(signalsCh); };
+    // privacy + user_signals SSE subscribe live in useUserRealtimeChannel.
   }, [currentUserId, loadUserSignals]);
 
   // Participant SoT: visibility + SSE reconnect live in useParticipantSoTResync.
@@ -1286,7 +1168,7 @@ function App() {
     };
   }, [currentUserId]);
 
-  // profiles + likes/contact_shares fan-in — App owns setState; hook only subscribes/routes.
+  // profiles + likes/contact_shares + privacy + signals fan-in — App owns setState; hook only routes.
   useUserRealtimeChannel({
     currentUserId,
     onProfileInsert: (incoming) => {
@@ -1414,6 +1296,79 @@ function App() {
     onContactShareUpdate: (share) => {
       setReceivedContactShares(prev => upsertReceivedContactShare(prev, share));
       traceRealtimeStateMerge('contact', share);
+    },
+    onBlockedUserInsert: (b) => {
+      const uid = userIdRef.current;
+      if (uid && isBlockedRowForMe(b, uid)) {
+        setBlockedUsers(prev => upsertById(prev, b));
+      }
+    },
+    onProfileViewInsert: (v) => {
+      const uid = userIdRef.current;
+      if (uid && v.viewed_id === uid) {
+        setProfileVisitors(prev => upsertById(prev, v));
+      }
+    },
+    onUserSignalInsert: (s) => {
+      setUserSignals(prev => mergeUserSignalRow(prev, s, 'upsert'));
+    },
+    onUserSignalUpdate: (s) => {
+      setUserSignals(prev => mergeUserSignalRow(prev, s, 'update-only'));
+    },
+  });
+
+  // app_settings + notifications + contact_share_events — App owns apply; hook only routes.
+  useAppShellRealtimeChannels({
+    onAppSettingsUpdate: (p) => {
+      const plan = planAppSettingsRealtimeUpdate(p, {
+        localReset: ls.getItem(MATCHING_LAST_RESET_KEY),
+        wasSessionActive: sessionActiveRef.current,
+        hasStoredUser: Boolean(ls.getItem(MATCHING_USER_KEY)),
+        entryVerifiedStored: ls.getItem(ENTRY_VERIFIED_KEY),
+      });
+      if (plan.kind === 'reset') {
+        applyResetSignal(plan.resetSignal);
+        return;
+      }
+      if (plan.setSessionActive && typeof plan.sessionActive === 'boolean') {
+        sessionActiveRef.current = plan.sessionActive;
+        setSessionActive(plan.sessionActive);
+        if (plan.autoSkipWaiting) {
+          setShownWaiting(true);
+          setView('entry-1');
+        }
+        if (plan.returnToWaiting && userIdRef.current) {
+          setShownWaiting(false);
+        }
+      }
+      setTimerEndAt(plan.timerEndAt);
+      setTimerLabel(plan.timerLabel);
+      if (plan.hasFunctionsLocked) setFunctionsLocked(parseFunctionsLocked(plan.functionsLockedRaw));
+      if (plan.hasEntryPassword) {
+        setEntryPassword(plan.entryPassword ?? '');
+        setEntryVerified(Boolean(plan.entryVerified));
+      }
+    },
+    onBroadcastNotifInsert: (n) => {
+      if (shouldShowBroadcastNotif(n)) setActiveNotif(n);
+    },
+    onBroadcastNotifUpdate: (n) => {
+      if (!n.is_active) setActiveNotif(prev => dismissActiveNotifIfMatch(prev, n.id));
+    },
+    onBroadcastNotifDelete: (n) => {
+      setActiveNotif(prev => dismissActiveNotifIfMatch(prev, n.id));
+    },
+    onContactShareEventInsert: (row) => {
+      const myId = userIdRef.current;
+      const plan = planContactShareEvent(row, myId, { seenIds: seenContactEventIdsRef.current });
+      if (plan.ignore) return;
+      seenContactEventIdsRef.current.add(plan.eventKey);
+      seenContactEventIdsRef.current = pruneSeenIdSet(seenContactEventIdsRef.current);
+      if (plan.loadContactShares && myId) void loadContactShareData(myId);
+      if (plan.notif) {
+        setShareEventNotif(plan.notif);
+        shareEventNotifTimerIdsRef.current.push(setTimeout(() => setShareEventNotif(null), 5000));
+      }
     },
   });
 

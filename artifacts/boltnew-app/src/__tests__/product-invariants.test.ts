@@ -126,11 +126,14 @@ describe('product copy + notification invariants', () => {
     const nick = read('components/NicknameSetupScreen.tsx');
     const app = read('App.tsx');
     const gate = read('lib/entry-gate.ts');
+    const settingsRt = read('lib/app-settings-realtime.ts');
     expect(nick).toContain("step === 1 ? '이전하기' : '이전'");
     expect(nick).toContain('else onReset()');
     expect(app).toContain('onReset={reset}');
-    expect(app).toContain('shouldAutoSkipWaiting');
+    expect(app).toContain('planAppSettingsRealtimeUpdate');
+    expect(app).toContain('autoSkipWaiting');
     expect(app).toContain('shownWaiting,');
+    expect(settingsRt).toContain('shouldAutoSkipWaiting');
     expect(gate).toContain('opts.shownWaiting === false');
     expect(gate).toContain('wasSessionActive === false');
   });
@@ -335,7 +338,10 @@ describe('product copy + notification invariants', () => {
     expect(app).toContain('openChatGuarded(p)');
     expect(app).toContain('setContactShareTarget(null)');
     expect(app).toContain('settingsPoll');
-    expect(app).toContain("table: 'app_settings'");
+    expect(app).toContain('useAppShellRealtimeChannels');
+    expect(app).toContain('planAppSettingsRealtimeUpdate');
+    const shellHook = read('hooks/useAppShellRealtimeChannels.ts');
+    expect(shellHook).toContain("table: 'app_settings'");
     expect(app).toContain('{showResetPassword && (');
     expect(dash).toContain('MY·단톡 사용 불가');
     expect(dash).toContain('통계·랭킹·설정');
