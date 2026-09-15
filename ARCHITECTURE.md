@@ -24,6 +24,9 @@ Prefer **single Render instance**. Multi-instance는 NOTIFY로 일부 동기화�
 | `artifacts/boltnew-app/src/hooks/useSseFallbackPoll.ts` | SSE unhealthy 폴링 fallback (App은 로더만) |
 | `artifacts/boltnew-app/src/hooks/useUserRealtimeChannel.ts` | profiles + likes/contact_shares + privacy + signals SSE 구독/라우트 (App은 apply 콜백) |
 | `artifacts/boltnew-app/src/hooks/useAppShellRealtimeChannels.ts` | app_settings + notifications + contact_share_events SSE 구독/라우트 (App은 apply 콜백) |
+| `artifacts/boltnew-app/src/hooks/useSessionReadyBootstrap.ts` | `/ready` mount bootstrap + settings poll (App은 wipe/setState 배선) |
+| `artifacts/boltnew-app/src/hooks/useProfileBootMachine.ts` | loading-main 프로필 확인/백오프 (App은 enter/recover 결과 적용) |
+| `artifacts/boltnew-app/src/components/AppEntryGates.tsx` | 입장/대기/복구/닉네임 early gate JSX (App 셸은 null 후 메인) |
 | `artifacts/boltnew-app/src/lib/localdb.ts` | SSE·`/op`·auth 토큰·Supabase 에뮬 |
 | `artifacts/boltnew-app/src/lib/net-health.ts` | 네트워크 UI·reconnect·backoff |
 | `artifacts/boltnew-app/src/lib/diag.ts` | 관측/`__BINPC_DIAG__` |
@@ -125,9 +128,9 @@ Detach = stop wiring the domain hook/callbacks into `App.tsx` / screens; keep pu
 | Layer | Status |
 |-------|--------|
 | Pure helpers (`lib/chat-*.ts`, `participant-sot-resync.ts`, `session-ready-settings.ts`, `app-settings-realtime.ts`, `received-like-update.ts`, `sent-like-insert.ts`, `contact-share-event.ts`, `pending-hearts.ts`, `sse-fallback-poll.ts`, `user-signal-merge.ts`, `realtime-row-upsert.ts`, `entry-gate.ts`, …) | Modular — easy attach/detach |
-| Domain hooks (`useChat`, `useHearts`, `useGroupChat`, `useParticipantSoTResync`, `useSseFallbackPoll`, `useUserRealtimeChannel`, `useAppShellRealtimeChannels`, `useDarkModeStorageSync`) | Mostly modular |
+| Domain hooks (`useChat`, `useHearts`, `useGroupChat`, `useParticipantSoTResync`, `useSseFallbackPoll`, `useUserRealtimeChannel`, `useAppShellRealtimeChannels`, `useSessionReadyBootstrap`, `useProfileBootMachine`, `useDarkModeStorageSync`) | Mostly modular |
 | Screens | Prefer **flags + callbacks** (`onRefreshStatus`, `onRefreshChat`, guarded open/join) — do **not** grow App `useState` for peels |
-| `App.tsx` (~2.0k lines, peeling) | Wiring shell (session, overlays, SSE fan-in apply) — more planners/hooks extracted |
+| `App.tsx` (~1.87k lines, peeling) | Wiring shell (session, overlays, SSE fan-in apply) — bootstrap/boot/wipe peeled |
 
 ### SoT / resync (whole-app domains)
 
@@ -139,17 +142,18 @@ Detach = stop wiring the domain hook/callbacks into `App.tsx` / screens; keep pu
 
 ### App peel progress (incremental)
 
-Moved out of `App.tsx` (planners/hooks, behavior unchanged): SoT resync, SSE fallback poll, dark-mode storage sync, sent/received like planners + toast payloads, contact-share events, pending-hearts badge count, functions-lock kick plan, user-signal merge, realtime row upserts, settings `/ready` poll gap, profile-view debounce, broadcast notif helpers, entry password/reset planners, **profiles + user-bundle + privacy + signals SSE subscribe** (`useUserRealtimeChannel` + apply callbacks), **app_settings + notifications + contact_share_events SSE** (`useAppShellRealtimeChannels` + apply callbacks), `app-settings-realtime` planner, profile SSE apply planners, block/hide planners.
+Moved out of `App.tsx` (planners/hooks, behavior unchanged): SoT resync, SSE fallback poll, dark-mode storage sync, sent/received like planners + toast payloads, contact-share events, pending-hearts badge count, functions-lock kick plan, user-signal merge, realtime row upserts, settings `/ready` poll gap, profile-view debounce, broadcast notif helpers, entry password/reset planners, **profiles + user-bundle + privacy + signals SSE subscribe** (`useUserRealtimeChannel` + apply callbacks), **app_settings + notifications + contact_share_events SSE** (`useAppShellRealtimeChannels` + apply callbacks), `app-settings-realtime` planner, profile SSE apply planners, block/hide planners, **admin reset wipe** (`admin-reset-wipe` plan+run; App thin `applyResetSignal`), **`/ready` bootstrap + settings poll** (`useSessionReadyBootstrap` + `ready-bootstrap-settings`), **loading-main profile boot/backoff** (`profile-boot-machine` + `useProfileBootMachine`), **early entry gates JSX** (`AppEntryGates`).
 
-Still in App (intentionally, next peels): mount settings bootstrap + `/ready` poll + `applyResetSignal` wipe bundle, loading-main profile boot/backoff machine, JSX screen wiring.
+Still in App (intentionally, next peels toward ~9.5): main shell JSX / overlay fan-in, hearts/chat/group wiring surface, remaining `select('*')` hot paths. **Separate mountain:** `artifacts/api-server/src/routes/db.ts` (not App).
 
-Path to a prettier codebase = **incremental** thinner peels (subscribe vs apply vs pure planners) — not one-shot perfection.
+Path to ~9.5 = **App shell + domain hooks/planners** via incremental peels — not fake-perfect in one PR. `db.ts` remains a separate maintainability track.
 
 ### Next incremental steps (no big-bang rewrite)
 
-1. Optionally thin `/ready` bootstrap applySettings further — keep wipe bundle in App unless a tiny pure edge is obvious.
+1. Continue thinning main-shell / overlay JSX (more `AppScreens`-style compose helpers) without growing App `useState`.
 2. Screens keep flags/callbacks only — no new App feature state for modularity work.
 3. Further narrow hot `select('*')` paths (profiles/signals) the same way as chat-list columns.
+4. Do **not** claim 9.5 until App is mostly wiring and `db.ts` has its own peel track.
 
 ## Do not touch casually
 

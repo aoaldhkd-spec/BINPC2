@@ -337,11 +337,14 @@ describe('product copy + notification invariants', () => {
     expect(app).toContain('setMySubTabHint');
     expect(app).toContain('openChatGuarded(p)');
     expect(app).toContain('setContactShareTarget(null)');
-    expect(app).toContain('settingsPoll');
+    expect(app).toContain('useSessionReadyBootstrap');
     expect(app).toContain('useAppShellRealtimeChannels');
     expect(app).toContain('planAppSettingsRealtimeUpdate');
     const shellHook = read('hooks/useAppShellRealtimeChannels.ts');
     expect(shellHook).toContain("table: 'app_settings'");
+    const readyBoot = read('hooks/useSessionReadyBootstrap.ts');
+    expect(readyBoot).toContain('settingsPoll');
+    expect(readyBoot).toContain('/api/db/ready');
     expect(app).toContain('{showResetPassword && (');
     expect(dash).toContain('MY·단톡 사용 불가');
     expect(dash).toContain('통계·랭킹·설정');

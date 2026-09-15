@@ -1,7 +1,7 @@
 /**
  * Thin wire: mount-scoped SSE — app_settings, notifications, contact_share_events.
  * App owns setState via apply callbacks — hook only subscribes and routes.
- * Does not own /ready bootstrap, settings poll, or applyResetSignal wipe.
+ * Does not own /ready bootstrap/settings poll (useSessionReadyBootstrap) or wipe (admin-reset-wipe).
  */
 import { useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';

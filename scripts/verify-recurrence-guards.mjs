@@ -604,6 +604,59 @@ mustMatch('ARCHITECTURE.md', '46_architecture_shell_realtime_peel', [
 ]);
 
 
+
+
+// --- 47 App peel: admin wipe + /ready bootstrap + profile boot + entry gates ---
+mustExist('artifacts/boltnew-app/src/lib/admin-reset-wipe.ts', '47_admin_reset_wipe_module');
+mustExist('artifacts/boltnew-app/src/lib/admin-reset-wipe.test.ts', '47_admin_reset_wipe_tests');
+mustExist('artifacts/boltnew-app/src/lib/ready-bootstrap-settings.ts', '47_ready_bootstrap_settings_module');
+mustExist('artifacts/boltnew-app/src/lib/ready-bootstrap-settings.test.ts', '47_ready_bootstrap_settings_tests');
+mustExist('artifacts/boltnew-app/src/lib/profile-boot-machine.ts', '47_profile_boot_machine_module');
+mustExist('artifacts/boltnew-app/src/lib/profile-boot-machine.test.ts', '47_profile_boot_machine_tests');
+mustExist('artifacts/boltnew-app/src/hooks/useSessionReadyBootstrap.ts', '47_use_session_ready_bootstrap_hook');
+mustExist('artifacts/boltnew-app/src/hooks/useProfileBootMachine.ts', '47_use_profile_boot_machine_hook');
+mustExist('artifacts/boltnew-app/src/components/AppEntryGates.tsx', '47_app_entry_gates_module');
+mustMatch('artifacts/boltnew-app/src/lib/admin-reset-wipe.ts', '47_admin_reset_wipe_plan_run', [
+  /planAdminResetWipe/,
+  /runAdminResetWipe/,
+  /MATCHING_USER_KEY/,
+  /MATCHING_PROFILES_CACHE_KEY/,
+]);
+mustMatch('artifacts/boltnew-app/src/lib/ready-bootstrap-settings.ts', '47_ready_bootstrap_planners', [
+  /planReadyBootstrapApply/,
+  /planReadyBootstrapSafety/,
+  /planReadyBootstrapRetry/,
+  /pickReadyBootstrapSettings/,
+]);
+mustMatch('artifacts/boltnew-app/src/lib/profile-boot-machine.ts', '47_profile_boot_decisions', [
+  /planProfileBootCacheHit/,
+  /planProfileBootFetchResult/,
+  /recover-cleared/,
+  /recover-exhausted/,
+]);
+mustMatch('artifacts/boltnew-app/src/App.tsx', '47_app_wires_bootstrap_boot_wipe_gates', [
+  /useSessionReadyBootstrap/,
+  /useProfileBootMachine/,
+  /planAdminResetWipe/,
+  /runAdminResetWipe/,
+  /applyResetSignal/,
+  /renderAppEntryGates/,
+  /loadProfilesRef\.current\(\)/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/App.tsx', '47_app_no_inline_ready_poll_or_profile_boot_effect', [
+  /shouldRunSettingsReadyPoll/,
+  /setInterval\(\(\) => \{\s*if \(pollTick\(\)\)/,
+  /MAX_ATTEMPTS = 8/,
+]);
+mustMatch('ARCHITECTURE.md', '47_architecture_path_to_9_5', [
+  /useSessionReadyBootstrap/,
+  /useProfileBootMachine/,
+  /admin-reset-wipe/,
+  /AppEntryGates/,
+  /~9\.5/,
+  /db\.ts/,
+]);
+
 console.log('\n=== verify-recurrence-guards ===\n');
 for (const r of results) {
   console.log(`  ${r.ok ? 'OK' : 'FAIL'}  ${r.id}${r.detail && !r.ok ? ` ? ${r.detail}` : ''}`);

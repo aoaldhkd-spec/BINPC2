@@ -2,12 +2,15 @@ import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } fro
 import {
   X,
 } from 'lucide-react';
-import { supabase, setLocalDbUserId, setDeviceRecoveryPin, fetchAndSetSseToken, getDeviceSecret, isSseHealthy, ensureWriteSession } from './lib/supabase';
+import { supabase, setLocalDbUserId, setDeviceRecoveryPin, fetchAndSetSseToken, getDeviceSecret, ensureWriteSession } from './lib/supabase';
 import { useParticipantSoTResync } from './hooks/useParticipantSoTResync';
 import { useSseFallbackPoll } from './hooks/useSseFallbackPoll';
 import { useDarkModeStorageSync } from './hooks/useDarkModeStorageSync';
 import { useUserRealtimeChannel } from './hooks/useUserRealtimeChannel';
 import { useAppShellRealtimeChannels } from './hooks/useAppShellRealtimeChannels';
+import { useSessionReadyBootstrap } from './hooks/useSessionReadyBootstrap';
+import { useProfileBootMachine } from './hooks/useProfileBootMachine';
+import { planAdminResetWipe, runAdminResetWipe } from './lib/admin-reset-wipe';
 import type { SessionReadySettingsPatch } from './lib/session-ready-settings';
 import { planAppSettingsRealtimeUpdate } from './lib/app-settings-realtime';
 import { diag } from './lib/diag';
@@ -32,8 +35,6 @@ import {
   shouldShowEntryGate,
   shouldShowNicknameSetup,
   shouldShowRecoveryScreen,
-  planEntryPasswordState,
-  shouldApplyAdminResetSignal,
 } from './lib/entry-gate';
 import {
   hasInterestHeart,
@@ -52,7 +53,6 @@ import {
   filterBlockedUsersForMe,
   isBlockedRowForMe,
 } from './lib/realtime-row-upsert';
-import { shouldRunSettingsReadyPoll } from './lib/settings-ready-poll';
 import { shouldRecordProfileView } from './lib/profile-view-record';
 import { shouldShowBroadcastNotif, dismissActiveNotifIfMatch } from './lib/notification-active';
 import { FUNCTIONS_LOCK_KICK_TOAST, FUNCTIONS_LOCK_TOAST, FUNCTIONS_UNLOCK_TOAST, SOCIAL_LOCKED_TABS, parseFunctionsLocked, planFunctionsLockTransition } from './lib/functions-lock';
@@ -73,10 +73,7 @@ import { LikeConfirmDialog } from './components/LikeConfirmDialog';
 import { ContactShareModal } from './components/ContactShareModal';
 import { ContactViewModal } from './components/ContactViewModal';
 import { FortuneTabLazy } from './components/FortuneTab.lazy';
-import { WaitingOverlay } from './components/WaitingOverlay';
-import { NicknameSetupScreen } from './components/NicknameSetupScreen';
-import { EntryGateScreen } from './components/EntryGateScreen';
-import { ProfileRecoveryScreen } from './components/ProfileRecoveryScreen';
+import { renderAppEntryGates } from './components/AppEntryGates';
 import { ResetPasswordSheet } from './components/ResetButton';
 import { ContactRevealModal } from './components/ContactRevealModal';
 import {
@@ -296,94 +293,41 @@ function App() {
   // 테마 전환 시 dark_mode 동기화 (theme.tsx에서 storage 이벤트 발화)
   useDarkModeStorageSync(setDarkMode);
 
-  // loading-main: 내 프로필(닉네임+고유번호) 확인될 때만 main — 없으면 복구/등록 화면
-  useEffect(() => {
-    if (view !== 'loading-main') return;
-    let cancelled = false;
-
-    const tryEnterMain = (myProfile: Profile | undefined | null): boolean => {
-      if (!myProfile || !isCompleteProfile(myProfile)) return false;
+  // loading-main profile boot / backoff — pure machine + thin hook; App applies results
+  useProfileBootMachine({
+    view,
+    getUserId: () => userIdRef.current,
+    getProfiles: () => profilesRef.current,
+    loadProfiles: () => loadProfilesRef.current(),
+    fetchProfileById: async (uid) => {
+      const { data: direct } = await supabase.from('profiles').select('*').eq('id', uid).maybeSingle();
+      return (direct as Profile | null) ?? null;
+    },
+    mergeFetchedProfile: (me) => {
+      setProfiles(prev => prev.some(p => p.id === me.id)
+        ? prev.map(p => (p.id === me.id ? me : p))
+        : mergeProfilesPreserveOrder(prev, [...prev, me]));
+    },
+    onEnterMain: () => {
       setProfileBoot('ok');
       setView('main');
-      return true;
-    };
-
-    const pollTick = () => {
-      if (cancelled) return false;
-      const me = findProfileById(profilesRef.current, userIdRef.current);
-      return tryEnterMain(me);
-    };
-    pollTick();
-    const pollId = setInterval(() => {
-      if (pollTick()) clearInterval(pollId);
-    }, 200);
-
-    let attempt = 0;
-    const MAX_ATTEMPTS = 8;
-    const BASE_DELAY_MS = 1_000;
-    let retryTimer: ReturnType<typeof setTimeout> | null = null;
-
-    const scheduleRetry = (delay: number) => {
-      retryTimer = setTimeout(async () => {
-        if (cancelled) return;
-        attempt++;
-        try {
-          const uid = userIdRef.current;
-          if (!uid) {
-            clearInterval(pollId);
-            setProfileBoot('register');
-            setView('entry-1');
-            return;
-          }
-          const allProfiles = await loadProfilesRef.current();
-          if (cancelled) return;
-          let me = findProfileById(allProfiles, uid);
-          if (!me) {
-            const { data: direct } = await supabase.from('profiles').select('*').eq('id', uid).maybeSingle();
-            if (direct) {
-              me = direct as Profile;
-              setProfiles(prev => prev.some(p => p.id === me!.id) ? prev.map(p => p.id === me!.id ? me! : p) : mergeProfilesPreserveOrder(prev, [...prev, me!]));
-            }
-          }
-          if (tryEnterMain(me)) {
-            clearInterval(pollId);
-            return;
-          }
-          // 다른 참가자는 있는데 내 프로필만 없음 → 관리자 리셋·기기 변경 — 복구번호로
-          if (allProfiles.length > 0 && !me) {
-            clearInterval(pollId);
-            ls.removeItem(MATCHING_USER_KEY);
-            ls.removeItem(MATCHING_DRAFT_KEY);
-            setCurrentUserId(null);
-            setProfileBoot('recover');
-            setView('entry-recover');
-            return;
-          }
-        } catch {
-          // 네트워크 오류 — 재시도
-        }
-        if (!cancelled) {
-          if (attempt < MAX_ATTEMPTS) {
-            scheduleRetry(BASE_DELAY_MS * Math.pow(2, Math.min(attempt, 4)));
-          } else {
-            // 서버 기동 중일 수 있음 — 기존 유저를 entry-1로 팅기지 않고 복구 화면 안내
-            clearInterval(pollId);
-            setProfileBoot('recover');
-            setView('entry-recover');
-          }
-        }
-      }, delay);
-    };
-
-    // 첫 조회는 즉시 — 닉네임 저장 직후·돌아오는 유저가 1초를 기다리지 않음. 실패 시에만 지수 백오프.
-    scheduleRetry(0);
-
-    return () => {
-      cancelled = true;
-      clearInterval(pollId);
-      if (retryTimer) clearTimeout(retryTimer);
-    };
-  }, [view]);
+    },
+    onRegister: () => {
+      setProfileBoot('register');
+      setView('entry-1');
+    },
+    onRecoverCleared: () => {
+      ls.removeItem(MATCHING_USER_KEY);
+      ls.removeItem(MATCHING_DRAFT_KEY);
+      setCurrentUserId(null);
+      setProfileBoot('recover');
+      setView('entry-recover');
+    },
+    onRecoverExhausted: () => {
+      setProfileBoot('recover');
+      setView('entry-recover');
+    },
+  });
 
   // SSE fallback poll: useSseFallbackPoll (wired after loaders below)
 
@@ -819,132 +763,45 @@ function App() {
   }, [recordProfileView]);
 
 
-  // Admin reset wipe — shared by /ready bootstrap applySettings and settings SSE apply.
+  // Admin reset wipe — planner/runner; shared by /ready bootstrap + settings SSE apply.
   const applyResetSignal = useCallback((serverReset: string) => {
-    ls.setItem(MATCHING_LAST_RESET_KEY, serverReset);
-    ls.removeItem(MATCHING_USER_KEY);
-    ls.removeItem(MATCHING_DRAFT_KEY);
-    clearAllGroupLastReads();
-    ls.removeItem(MATCHING_PROFILES_CACHE_KEY);
-    setCurrentUserId(null);
-    setShownWaiting(false);
-    setProfiles([]);
-    setLikedIds(new Set());
-    setSentHeartTypes(new Map());
-    setSentHeartsPerPerson(new Map());
-    setAcknowledgedComplimentIds(new Set());
-    setReceivedLikers([]);
-    setChatList([]);
-    setActiveNotif(null);
-    void loadProfilesRef.current().catch(() => {});
-    setView('entry-1');
+    runAdminResetWipe(planAdminResetWipe(serverReset), {
+      setItem: (k, v) => ls.setItem(k, v),
+      removeItem: (k) => ls.removeItem(k),
+      clearAllGroupLastReads,
+      setCurrentUserId,
+      setShownWaiting,
+      setProfilesEmpty: () => setProfiles([]),
+      clearHeartsAndChats: () => {
+        setLikedIds(new Set());
+        setSentHeartTypes(new Map());
+        setSentHeartsPerPerson(new Map());
+        setAcknowledgedComplimentIds(new Set());
+        setReceivedLikers([]);
+        setChatList([]);
+      },
+      setActiveNotif,
+      reloadProfiles: () => { void loadProfilesRef.current().catch(() => {}); },
+      setView,
+    });
   }, [setLikedIds, setSentHeartTypes, setSentHeartsPerPerson, setAcknowledgedComplimentIds, setReceivedLikers, setChatList]);
 
-  useEffect(() => {
-    let cancelled = false;
-    // API 콜드스타트·재시도 중에도 2.5초 후에는 스피너만 해제.
-    // entryPassword는 비우지 않음 — 빈 값으로 강제하면 대기 랜딩이 먼저 뜨고
-    // /ready 이후 입장 코드 화면으로 한 번 더 바뀐다.
-    const safetyTimer = setTimeout(() => {
-      if (!cancelled) {
-        setAppLoading(false);
-        // 더미/복구 재입장: sessionActive를 false로 강제하면 대기 랜딩이 한 프레임 깜빡인다
-        if (!ls.getItem(MATCHING_USER_KEY)) {
-          setSessionActive(prev => (prev === null ? false : prev));
-        }
-      }
-    }, 2_500);
+  useSessionReadyBootstrap({
+    applyResetSignal,
+    setAppLoading,
+    setSessionActive,
+    setSessionActiveRef: (v) => { sessionActiveRef.current = v; },
+    setEntryPassword,
+    setEntryVerified,
+    setTimerEndAt,
+    setTimerLabel,
+    setFunctionsLocked,
+  });
 
-    const applySettings = (data: Record<string, unknown> | null) => {
-      if (cancelled || !data) return;
-      const entry = planEntryPasswordState(
-        data.entry_password as string | null | undefined,
-        ls.getItem(ENTRY_VERIFIED_KEY),
-      );
-      const nextActive = Boolean(data.session_active);
-      sessionActiveRef.current = nextActive;
-      setSessionActive(nextActive);
-      setEntryPassword(entry.entryPassword);
-      setEntryVerified(entry.entryVerified);
-      const localReset = ls.getItem(MATCHING_LAST_RESET_KEY);
-      const serverReset = (data.reset_signal as string | null | undefined) ?? null;
-      if (shouldApplyAdminResetSignal(serverReset, localReset)) {
-        applyResetSignal(serverReset!);
-        return;
-      }
-      setTimerEndAt((data.timer_end_at as string | null | undefined) ?? null);
-      setTimerLabel((data.timer_label as string | null | undefined) ?? null);
-      if (data.functions_locked != null) setFunctionsLocked(parseFunctionsLocked(data.functions_locked));
-    };
-
-    async function loadSettings(attempt = 0): Promise<void> {
-      try {
-        const resp = await fetch('/api/db/ready', { signal: AbortSignal.timeout(8_000) });
-        if (resp.ok) {
-          const json = await resp.json() as {
-            ready?: boolean;
-            settings?: Record<string, unknown>;
-          };
-          if (json.ready && json.settings) {
-            setAppLoading(false);
-            applySettings(json.settings);
-            return;
-          }
-        }
-      } catch {
-        // fall through to Supabase-compatible fetch
-      }
-
-      const { data, error } = await supabase
-        .from('app_settings')
-        .select('session_active, timer_end_at, timer_label, reset_signal, entry_password, functions_locked')
-        .eq('id', 1)
-        .single();
-      if (cancelled) return;
-      if (error || !data) {
-        if (attempt < 5) {
-          await new Promise(r => setTimeout(r, Math.min(400 * Math.pow(2, attempt), 3200)));
-          return loadSettings(attempt + 1);
-        }
-        setAppLoading(false);
-        setSessionActive(false);
-        setEntryPassword('');
-        return;
-      }
-      setAppLoading(false);
-      applySettings(data as Record<string, unknown>);
-    }
-
-    void loadSettings();
-    let lastReadyAt = 0;
-    const settingsPoll = setInterval(() => {
-      // SSE 가 살아 있으면 설정은 app_settings 채널로 온다. 끊겼을 때만 빠르게 폴링.
-      const now = Date.now();
-      if (!shouldRunSettingsReadyPoll({
-        now,
-        lastReadyAt,
-        sseHealthy: isSseHealthy(),
-      })) return;
-      lastReadyAt = now;
-      fetch('/api/db/ready', { signal: AbortSignal.timeout(5_000) })
-        .then(r => r.ok ? r.json() : null)
-        .then((json: { settings?: Record<string, unknown> } | null) => {
-          if (cancelled || !json?.settings) return;
-          applySettings(json.settings);
-        })
-        .catch(() => {});
-    }, 4_000);
-
-    // settings / notifications / contact-events SSE subscribe live in useAppShellRealtimeChannels.
-
-    return () => {
-      cancelled = true;
-      clearTimeout(safetyTimer);
-      clearInterval(settingsPoll);
-      shareEventNotifTimerIdsRef.current.forEach(clearTimeout);
-      shareEventNotifTimerIdsRef.current = [];
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only; adding deps causes reconnect loop
+  // share-event toast timers — cleanup on unmount (was co-located with /ready bootstrap)
+  useEffect(() => () => {
+    shareEventNotifTimerIdsRef.current.forEach(clearTimeout);
+    shareEventNotifTimerIdsRef.current = [];
   }, []);
 
 
@@ -1616,82 +1473,32 @@ function App() {
     return () => { delete document.body.dataset.overlay; };
   }, [likeConfirmTarget]);
 
-  if (appLoading || sessionActive === null || entryPassword === null) return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col items-center justify-center gap-4 px-6 text-center">
-      <div className="w-12 h-12 rounded-full border-4 border-teal-500/30 border-t-teal-500 animate-spin" />
-      <p className="text-base font-black text-white">서버랑 X스 중입니다...</p>
-      <p className="text-sm font-bold text-slate-400">조ㄹ라 잠시만 기다려주세요! 🍺</p>
-    </div>
-  );
-  // 입장 코드 게이트: 미식별 방문자만. 더미/복구/재방문은 스킵
-  if (showEntryGate && entryPassword) return (
-    <EntryGateScreen
-      onVerified={() => {
-        ls.setItem(ENTRY_VERIFIED_KEY, entryPassword);
-        setEntryVerified(true);
-      }}
-      entryPassword={entryPassword}
-    />
-  );
-  if (showWaiting) return <WaitingOverlay
-    sessionActive={sessionActive}
-    onEnter={() => setShownWaiting(true)}
-    onRecover={handleProfileRecovery}
-  />;
+  const entryGate = renderAppEntryGates({
+    appLoading,
+    sessionActive,
+    entryPassword,
+    showEntryGate,
+    showWaiting,
+    showRecovery,
+    showNicknameSetup,
+    currentUserId,
+    hasValidProfile,
+    profileBoot,
+    view,
+    loading,
+    registrationError,
+    onEntryVerified: () => setEntryVerified(true),
+    onWaitingEnter: () => setShownWaiting(true),
+    onRecover: handleProfileRecovery,
+    onRecoveryBackToRegister: () => { setProfileBoot('register'); setView('entry-1'); },
+    onRecoveryBackToEntry: () => setView('entry-1'),
+    onNicknameSubmit: handleNicknameSetup,
+    onReset: reset,
+    onShowRecovery: () => setView('entry-recover'),
+  });
+  if (entryGate) return entryGate;
 
-  // 프로필 미완료·미검증 — 메인 진입 차단 (신규 → 등록, 기존 → 복구번호)
-  if (currentUserId && !hasValidProfile && profileBoot !== 'ok') {
-    if (showRecovery) {
-      return (
-        <ProfileRecoveryScreen
-          onRecover={handleProfileRecovery}
-          onBack={() => { setProfileBoot('register'); setView('entry-1'); }}
-        />
-      );
-    }
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col items-center justify-center gap-4">
-        <div className="w-12 h-12 rounded-full border-4 border-teal-500/30 border-t-teal-500 animate-spin" />
-        <p className="text-sm text-slate-400 font-semibold">프로필 확인 중...</p>
-      </div>
-    );
-  }
-
-  if (view === 'loading-main') return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col items-center justify-center gap-4">
-      <div className="w-12 h-12 rounded-full border-4 border-teal-500/30 border-t-teal-500 animate-spin" />
-      <p className="text-sm text-slate-400 font-semibold">프로필 저장 중...</p>
-    </div>
-  );
-
-  if (showRecovery) return (
-    <ProfileRecoveryScreen
-      onRecover={handleProfileRecovery}
-      onBack={() => setView('entry-1')}
-    />
-  );
-
-  if (showNicknameSetup) return (
-    <NicknameSetupScreen
-      onSubmit={handleNicknameSetup}
-      loading={loading}
-      registrationError={registrationError}
-      onReset={reset}
-      onShowRecovery={() => setView('entry-recover')}
-    />
-  );
-
-  // 식별된 유저인데 view가 아직 첫 방문 화면이면 잘못된 페이지 대신 로딩
-  if (currentUserId && (view === 'entry-1' || view === 'entry-recover')) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col items-center justify-center gap-4">
-        <div className="w-12 h-12 rounded-full border-4 border-teal-500/30 border-t-teal-500 animate-spin" />
-        <p className="text-sm text-slate-400 font-semibold">프로필 확인 중...</p>
-      </div>
-    );
-  }
-
-  const isSubScreen = view === 'profile' || view === 'chat' || view === 'group-chat';
+    const isSubScreen = view === 'profile' || view === 'chat' || view === 'group-chat';
 
   return (
     <ParticipantNavProvider nav={participantNav}>
