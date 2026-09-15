@@ -29,11 +29,11 @@ function ReconnectOverlay({
   if (status === 'reconnecting') {
     return (
       <div className="fixed top-0 left-0 right-0 z-[200] flex justify-center pointer-events-none px-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
-        <div className="pointer-events-none bg-amber-50/95 border border-amber-200 text-amber-950 shadow-md rounded-2xl px-4 py-2.5 max-w-md w-full flex items-center gap-3">
+        <div role="status" aria-live="polite" className="pointer-events-none bg-amber-50/95 border border-amber-200 text-amber-950 shadow-md rounded-2xl px-4 py-2.5 max-w-md w-full flex items-center gap-3">
           <div className="w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full animate-spin shrink-0" />
           <div className="min-w-0">
             <p className="text-sm font-bold leading-tight">연결 복구 중{dots}</p>
-            <p className="text-xs text-amber-800/80 leading-snug">잠시만 기다려 주세요. 자동으로 이어집니다.</p>
+            <p className="text-xs text-amber-800/80 leading-snug">프로필·하트·채팅은 유지됩니다. 연결되면 자동으로 최신 상태를 맞춥니다.</p>
           </div>
         </div>
       </div>
@@ -41,15 +41,15 @@ function ReconnectOverlay({
   }
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 px-6">
+    <div role="alertdialog" aria-live="assertive" className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 px-6">
       <div className="bg-white rounded-3xl shadow-2xl p-6 max-w-sm w-full text-center">
         <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-red-50 flex items-center justify-center">
           <span className="text-2xl" aria-hidden>!</span>
         </div>
         <h3 className="font-black text-gray-900 text-lg">연결 실패</h3>
         <p className="text-sm text-gray-600 mt-2 leading-relaxed">
-          서버 연결에 실패했습니다.<br />
-          네트워크를 확인한 뒤 다시 시도해 주세요.
+          서버 연결이 오래 걸리고 있습니다.<br />
+          세션은 유지되므로 네트워크를 확인한 뒤 다시 연결해 주세요.
         </p>
         {corr && (
           <p className="mt-3 text-[10px] text-gray-400 break-all select-all">

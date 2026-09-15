@@ -10,6 +10,7 @@
 - **이번 감사에서 수정한 실제 결함**: 토큰 교체/재연결 때 닫힌 이전 `EventSource`의 늦은 `onerror`가 새 연결을 `_es = null`로 만들고 가짜 백오프를 걸 수 있던 경쟁 상태. 이전 소스의 `onmessage`도 새 스트림에 섞일 수 있어 두 콜백 모두 현재 소스인지 확인한다.
 - **이전 단계에서 반영·재확인한 결함**: 부분 프로필 응답이 사용자의 `matching_app_user_id`를 지우던 경로 제거, SSE fallback 6개 읽기 배치의 overlap 방지, 3초 재시도 주기.
 - **서버 보강**: PostgreSQL `LISTEN`이 `error` 없이 `end`만 발생하는 경우에도 세대·단일 타이머로 재연결하고 hot-table resync를 수행한다.
+- **사용자 복구 UX**: 자동 복구 배너가 세션/프로필 보존과 SoT 재동기화를 안내하며, 수동 재시도는 profiles/hearts/chats/groups까지 다시 읽는다.
 - **절대적 영구 보장**: 불가능하다. Render 프로세스 종료, DNS/TCP 단절, Postgres 장애 중에는 지연 또는 일시적인 stale 화면이 남을 수 있으며 아래 residual/ops 항목을 운영해야 한다.
 
 ## Severity별 결과
@@ -44,7 +45,8 @@
 - 토큰 만료 EventSource를 닫아 동일 URL의 native 401 retry loop를 막는다.
 - 서버 keep-alive 15초, client ping zombie 감시 45초, SSE socket timeout 105초로 silent drop을 감지한다.
 - visibility 복귀/online 이벤트에서 token·Last-Event-ID를 보정하고, 링이 20분보다 오래된 경우 HTTP merge-by-id로 따라잡는다.
-- reconnect resync callback은 1.5초 창에서 coalesce하며, 메시지/하트/단체방/연락처 apply는 ID 기반 중복 방어와 재조회 경로를 갖는다.
+- reconnect resync callback은 1.5초 창에서 coalesce하며, 메시지/하트/단체방/연락처 apply는 ID 기반 중복 방어와 재조회 경로를 갖는다. 수동 retry도 profiles/hearts/chats/groups를 모두 SoT reload한다.
+- reconnect/error 배너는 한국어로 세션 유지·자동 최신화·수동 재시도 의미를 명시하고 status/alert semantics를 제공한다.
 - admin SSE는 일반 사용자 SSE와 별도 집합이며, shutdown 시 `retry: 100` + shutdown event를 먼저 보낸다.
 - PG pool은 hard cap 10, dedicated LISTEN client, idle pool error listener를 사용한다.
 - Render는 `numInstances: 1`, Netlify는 SSE만 Render direct origin으로 연결하도록 고정되어 있다.
@@ -80,7 +82,7 @@
 
 ### P2 residual
 
-- **20분 초과 background sleep**: 링 replay가 아니라 HTTP merge-by-id로 보정하므로 이벤트 순간성은 사라질 수 있다. 채팅/하트의 SoT reload가 성공해야 최종 상태가 맞는다.
+- **20분 초과 background sleep**: visibility/online 복귀에서 Last-Event-ID를 버리고 HTTP merge/SoT catchup을 강제한다. 링 replay가 아니라 HTTP merge-by-id로 보정하므로 이벤트 순간성은 사라질 수 있고, 채팅/하트/단체방 SoT reload가 성공해야 최종 상태가 맞는다.
 - **LISTEN gap**: reconnect scheduler와 25초 hot resync가 보완하지만, DB 장애 중 즉시 NOTIFY 전달은 불가능하다.
 - **Fallback 부하**: 3초마다 최대 6개 read가 가능하다. in-flight guard로 중첩은 막지만, 행사 규모가 커지면 서버 환경변수와 endpoint metrics를 보고 주기를 늘려야 한다.
 - **In-memory limits**: per-process SSE/rate maps는 Render single-instance 전제다. autoscale을 켜면 NOTIFY는 일부 보완해도 connection/rate state는 전역이 아니다.
@@ -92,7 +94,7 @@
 2. Netlify `VITE_SSE_ORIGIN`이 실제 Render API와 일치하는지 배포마다 확인.
 3. Render health/CPU/heap/restart/connection count와 `/api/db` 401/403/429 metrics를 행사 전후 확인.
 4. admin DB health에서 누적 persist error와 HTTP metrics를 확인하고, reset 전 원인을 보존한다.
-5. production smoke: 두 사용자 heart/chat/group, SSE reconnect, browser sleep/wake, server redeploy, admin reset/wipe, avatar upload를 실제 환경에서 실행한다.
+5. `OPS_SMOKE_PRE_EVENT.md`의 production smoke: 두 사용자 heart/chat/group, SSE reconnect, browser sleep/wake, server redeploy, admin reset/wipe, avatar upload를 실제 환경에서 실행한다.
 
 ## 검증
 

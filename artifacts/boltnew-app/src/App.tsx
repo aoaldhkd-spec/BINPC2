@@ -979,6 +979,7 @@ function App() {
             loadReceivedLikesRef.current?.(uid).catch(() => {});
             loadLikesRef.current?.(uid).catch(() => {});
             loadContactShareDataRef.current?.(uid).catch(() => {});
+            loadGroupChatsRef.current?.(uid).catch(() => {});
             loadProfilesRef.current().catch(() => {});
           } else {
             window.location.reload();
