@@ -871,6 +871,43 @@ mustMatch('ARCHITECTURE.md', '50_architecture_path_after_registration_fanout_pee
 ]);
 
 
+// --- 51 Participant session-init peel ---
+mustExist('artifacts/boltnew-app/src/hooks/useSessionInit.ts', '51_use_session_init_hook');
+mustExist('artifacts/boltnew-app/src/lib/session-init.ts', '51_session_init_planners');
+mustExist('artifacts/boltnew-app/src/lib/session-init.test.ts', '51_session_init_tests');
+mustMatch('artifacts/boltnew-app/src/App.tsx', '51_app_wires_session_init', [
+  /useSessionInit/,
+  /clearHeartsState/,
+  /saveScannedContact/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/App.tsx', '51_app_no_inline_session_init_effect', [
+  /\/\/ #52: 계정 전환 시 이전 유저의 하트 상태가 잠깐 보이는 현상 방지/,
+  /pendingShareId && pendingShareId !== currentUserId/,
+  /\[share-profile\] QR 스캔 프로필 로드 실패/,
+]);
+mustMatch('artifacts/boltnew-app/src/hooks/useSessionInit.ts', '51_session_init_uses_planners', [
+  /planSessionInitAfterProfiles/,
+  /planSessionInitMissingRetry/,
+  /shouldProcessPendingShare/,
+  /SESSION_INIT_CONTACT_DELAY_MS/,
+  /SESSION_INIT_MISSING_RETRY_MS/,
+  /PROFILE_ROW_SELECT/,
+]);
+mustMatch('artifacts/boltnew-app/src/lib/session-init.ts', '51_session_init_planner_exports', [
+  /export function planSessionInitAfterProfiles/,
+  /export function planSessionInitMissingRetry/,
+  /export function shouldForceMainOnExistingComplete/,
+  /export function shouldProcessPendingShare/,
+]);
+mustMatch('ARCHITECTURE.md', '51_architecture_path_after_session_init_peel', [
+  /useSessionInit/,
+  /session-init/,
+  /~9\.35/,
+  /~9\.5/,
+]);
+
+
+
 
 console.log('\n=== verify-recurrence-guards ===\n');
 for (const r of results) {

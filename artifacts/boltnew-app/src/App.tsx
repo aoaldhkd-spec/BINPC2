@@ -11,6 +11,7 @@ import { useHeartsRealtimeApply } from './hooks/useHeartsRealtimeApply';
 import { useSocialLockGuards } from './hooks/useSocialLockGuards';
 import { useNicknameRegistration } from './hooks/useNicknameRegistration';
 import { useProfilePrivacyLoaders } from './hooks/useProfilePrivacyLoaders';
+import { useSessionInit } from './hooks/useSessionInit';
 import { planAdminResetWipe, runAdminResetWipe } from './lib/admin-reset-wipe';
 import type { SessionReadySettingsPatch } from './lib/session-ready-settings';
 import { planAppSettingsRealtimeUpdate } from './lib/app-settings-realtime';
@@ -30,7 +31,7 @@ import {
   shouldSkipBlock,
   unblockFailureMessage,
 } from './lib/block-action';
-import { findProfileById, isCompleteProfile } from './lib/profile-session';
+import { isCompleteProfile } from './lib/profile-session';
 import {
   shouldShowWaitingOverlay,
   shouldShowEntryGate,
@@ -203,9 +204,6 @@ function App() {
   const loadReceivedLikesRef = useRef<((userId: string) => Promise<void>) | null>(null);
   const loadLikesRef = useRef<((userId: string) => Promise<void>) | null>(null);
   const loadContactShareDataRef = useRef<((userId: string) => Promise<void>) | null>(null);
-  // ?share=<profileId> URL 파라미터 — 프로필 QR 스캔 시 연락처 자동 수신
-  const [pendingShareId] = useState<string | null>(() => new URLSearchParams(window.location.search).get('share'));
-
   const [loading, setLoading] = useState(false);
   const [activeNotif, setActiveNotif] = useState<{ id: string; message: string; type: string; target: string } | null>(null);
   const [timerEndAt, setTimerEndAt] = useState<string | null>(null);
@@ -727,125 +725,37 @@ function App() {
   }, []);
 
 
-  useEffect(() => {
-    if (!currentUserId) return;
-    // #52: 계정 전환 시 이전 유저의 하트 상태가 잠깐 보이는 현상 방지
-    // 새 userId로 로드하기 전에 상태를 즉시 비움
-    setLikedIds(new Set());
-    setSentHeartTypes(new Map());
-    setSentHeartsPerPerson(new Map());
-    setReceivedHeartTypes(new Map());
-    setLikeStatuses(new Map());
-    setReceivedLikers([]);
-    // 타이머 ID 추적 — 언마운트 시 clearTimeout으로 stale setState 방지
-    let retryTimerId: ReturnType<typeof setTimeout> | null = null;
-    let initTimerId1: ReturnType<typeof setTimeout> | null = null;
-    // cancelled 플래그 — 언마운트 후 비동기 콜백이 setState를 호출하는 것을 방지
-    let cancelled = false;
-    loadProfiles().catch(() => []).then(async (allProfiles) => {
-      if (cancelled) return;
-      if (!allProfiles || allProfiles.length === 0) return;
-      if (isNewRegistration.current) {
-        isNewRegistration.current = false;
-        const me = findProfileById(allProfiles, currentUserId);
-        if (isCompleteProfile(me)) {
-          setProfileBoot('ok');
-          setView('main');
-          setMainTab('my');
-          setMySubTabHint('status');
-        } else {
-          setView('loading-main');
-        }
-        return;
-      }
-      let me = findProfileById(allProfiles, currentUserId);
-      if (!me) {
-        retryTimerId = setTimeout(async () => {
-          const retry = await loadProfiles();
-          me = findProfileById(retry, currentUserId);
-          if (!me) {
-            const { data: direct } = await supabase.from('profiles').select(PROFILE_ROW_SELECT).eq('id', currentUserId).maybeSingle();
-            if (direct) me = direct as Profile;
-          }
-          if (me && isCompleteProfile(me)) {
-            setProfileBoot('ok');
-            const v = viewRef.current;
-            if (v !== 'chat' && v !== 'profile' && v !== 'group-chat') setView('main');
-            return;
-          }
-          if (retry.length > 0 && !me) {
-            ls.removeItem(MATCHING_USER_KEY);
-            ls.removeItem(MATCHING_DRAFT_KEY);
-            setCurrentUserId(null);
-            setShownWaiting(false);
-            setProfileBoot('recover');
-            setView('entry-recover');
-          }
-        }, 2000);
-        return;
-      }
-      if (isCompleteProfile(me)) {
-        setProfileBoot('ok');
-        const v = viewRef.current;
-        if (v !== 'chat' && v !== 'profile' && v !== 'group-chat' && v !== 'loading-main') {
-          setView('main');
-        }
-      } else {
-        setView('loading-main');
-      }
-      // 고유번호 없으면 서버에서 직접 재조회 (클라이언트 임의 PIN 생성 금지)
-      if (me && !me.pin_code) {
-        (async () => {
-          try {
-            const { data: refreshed } = await supabase
-              .from('profiles')
-              .select(PROFILE_ROW_SELECT)
-              .eq('id', currentUserId)
-              .maybeSingle();
-            if (refreshed && (refreshed as Profile).pin_code) {
-              setProfiles(prev => prev.map(p => p.id === currentUserId ? (refreshed as Profile) : p));
-              setProfileBoot('ok');
-            }
-          } catch (err) {
-            console.warn('[pin] 고유번호 재조회 실패:', err);
-          }
-        })();
-      }
-    });
-    loadLikes(currentUserId);
-    loadReceivedLikes(currentUserId);
-    initTimerId1 = setTimeout(() => {
-      loadContactShareData(currentUserId);
-      loadChatList(currentUserId);
-    }, 300);
+  // participant session-init — hearts clear, profile resolve, deferred loads, ?share= QR
+  useSessionInit({
+    currentUserId,
+    isNewRegistration,
+    viewRef,
+    loadProfiles,
+    loadLikes,
+    loadReceivedLikes,
+    loadContactShareData,
+    loadChatList,
+    clearHeartsState: () => {
+      setLikedIds(new Set());
+      setSentHeartTypes(new Map());
+      setSentHeartsPerPerson(new Map());
+      setReceivedHeartTypes(new Map());
+      setLikeStatuses(new Map());
+      setReceivedLikers([]);
+    },
+    setProfileBoot,
+    setView,
+    setMainTab,
+    setMySubTabHint,
+    setCurrentUserId,
+    setShownWaiting,
+    setProfiles,
+    saveScannedContact,
+    setScannedContactProfile,
+    confettiTimerRef,
+    confettiInnerTimerRef,
+  });
 
-    // ── ?share=<profileId> 처리: 연락처 QR 스캔 → 연락처 모달 표시 ──
-    if (pendingShareId && pendingShareId !== currentUserId) {
-      window.history.replaceState(window.history.state ?? {}, '', window.location.pathname);
-      (async () => {
-        try {
-          const { data: shareProfile } = await supabase.from('profiles').select(PROFILE_ROW_SELECT).eq('id', pendingShareId).maybeSingle();
-          if (!shareProfile) return;
-          const p = shareProfile as import('./types/app').Profile;
-          saveScannedContact(p);
-          setScannedContactProfile(p);
-        } catch (err) {
-          console.warn('[share-profile] QR 스캔 프로필 로드 실패:', err);
-        }
-      })();
-    }
-
-    // profiles + user-bundle SSE subscribe live in useUserRealtimeChannel (apply callbacks below).
-
-    return () => {
-      cancelled = true;
-      if (retryTimerId) clearTimeout(retryTimerId);
-      if (initTimerId1) clearTimeout(initTimerId1);
-      if (confettiTimerRef.current) { clearTimeout(confettiTimerRef.current); confettiTimerRef.current = null; }
-      if (confettiInnerTimerRef.current) { clearTimeout(confettiInnerTimerRef.current); confettiInnerTimerRef.current = null; }
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- loadXxx are stable useCallbacks; setState/refs are stable
-  }, [currentUserId, loadProfiles, loadLikes, loadReceivedLikes, loadContactShareData, loadChatList]);
 
   // Participant SoT: visibility + SSE reconnect live in useParticipantSoTResync.
   // App only wires loaders + applySessionReady (no new useState for this peel).

@@ -417,6 +417,22 @@ describe('product copy + notification invariants', () => {
     expect(db).not.toMatch(/const ALLOWED_OPS = new Set\(\['select'/);
   });
 
+
+  it('session-init peeled to useSessionInit + planners (no inline #52 effect)', () => {
+    const app = read('App.tsx');
+    const hook = read('hooks/useSessionInit.ts');
+    const planners = read('lib/session-init.ts');
+    expect(app).toContain('useSessionInit');
+    expect(app).toContain('clearHeartsState');
+    expect(app).not.toContain('#52: 계정 전환 시 이전 유저의 하트 상태가 잠깐 보이는 현상 방지');
+    expect(app).not.toContain('[share-profile] QR 스캔 프로필 로드 실패');
+    expect(hook).toContain('planSessionInitAfterProfiles');
+    expect(hook).toContain('shouldProcessPendingShare');
+    expect(hook).toContain('SESSION_INIT_CONTACT_DELAY_MS');
+    expect(planners).toContain('planSessionInitMissingRetry');
+    expect(planners).toContain('shouldForceMainOnExistingComplete');
+  });
+
   it('ProfileCard keeps compact heart/chat buttons (no min-h-11 bloat)', () => {
     const card = read('components/ProfileCard.tsx');
     expect(card).not.toMatch(/min-h-11/);
