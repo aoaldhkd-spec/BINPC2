@@ -141,6 +141,15 @@ import {
   messageMergeAction,
 } from '../lib/db-chat-pair-plan';
 import {
+  FUNCTIONS_LOCKED_ERROR,
+  FUNCTIONS_LOCKED_INSERT_TABLES,
+  FUNCTIONS_LOCKED_UPDATE_TABLES,
+  publicAppSettingsView,
+  settingsFunctionsLocked,
+  tableFingerprint,
+  planAppSettingsFromDbRows,
+} from '../lib/db-app-settings-view';
+import {
   LEGACY_APP_SETTINGS_KEYS,
   LEGACY_KV_TABLES,
   settingsHaveLegacyKeys,
@@ -1387,44 +1396,18 @@ async function hydrateAppSettingsFromDb(): Promise<Record<string, unknown>> {
   return (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
 }
 
-function publicAppSettingsView(row: Record<string, unknown>, forAdmin: boolean): Record<string, unknown> {
-  const s = sanitizeSettings(row);
-  if (forAdmin) {
-    s.admin_password_set = panelAdminSecrets(row.admin_password as string | undefined).length > 0;
-    s.test_password_set = panelTestSecrets(row.test_password as string | undefined).length > 0;
-    s.reset_password_set = panelSecretsForRuntime(row.reset_password as string | undefined).length > 0;
-  }
-  return s;
-}
+/** publicAppSettingsView: ../lib/db-app-settings-view.ts */
 
 function resetPanelLoginLimiter(req: Request): void {
   const ip = String(req.ip ?? req.socket.remoteAddress ?? 'unknown');
   resetRateLimit(_loginRateMap, `panel:${ip}`);
 }
 
-/** 행사 중 매칭/소셜 쓰기 — 하트·1:1 방/메시지·연락처 공유·단톡 */
-const FUNCTIONS_LOCKED_INSERT_TABLES = new Set([
-  'likes',
-  'messages',
-  'chats',
-  'contact_shares',
-  'group_messages',
-  'group_participants',
-  'signal_sends',
-]);
-const FUNCTIONS_LOCKED_UPDATE_TABLES = new Set([
-  'likes',
-  'contact_shares',
-]);
+/** FUNCTIONS_LOCKED_* / settingsFunctionsLocked: ../lib/db-app-settings-view.ts */
 
+/** Thin wrapper — getTable stays local. */
 function isFunctionsLocked(): boolean {
-  const v = (getTable('app_settings')[0] as Record<string, unknown> | undefined)?.functions_locked;
-  return v === true || v === 1 || v === 'true' || v === '1';
-}
-
-function settingsFunctionsLocked(row: Record<string, unknown> | null | undefined): boolean {
-  const v = row?.functions_locked;
-  return v === true || v === 1 || v === 'true' || v === '1';
+  return settingsFunctionsLocked(getTable('app_settings')[0] as Record<string, unknown> | undefined);
 }
 
 /** DB에 id/session_active 등 핵심 필드가 빠진 app_settings를 자동 복구 */
@@ -2222,14 +2205,7 @@ setInterval(() => { pruneDistributedRateLimits().catch(e => logger.warn({ err: e
 // 25초마다 hot 테이블 재동기화 — 다중 Render 인스턴스 split-brain 완화
 setInterval(() => { resyncHotTablesFromDb().catch(e => logger.warn({ err: e }, '[db] hot resync failed')); }, 25_000).unref();
 
-function tableFingerprint(rows: Record<string, unknown>[]): string {
-  let maxTs = '';
-  for (const r of rows) {
-    const ts = String(r.updated_at ?? r.created_at ?? '');
-    if (ts > maxTs) maxTs = ts;
-  }
-  return `${rows.length}:${maxTs}`;
-}
+/** tableFingerprint: ../lib/db-app-settings-view.ts */
 
 // ─── Cross-instance sync via PostgreSQL LISTEN/NOTIFY ─────────────────────────
 // autoscale 환경에서 여러 인스턴스가 뜰 때 store + SSE를 동기화한다.
@@ -2433,54 +2409,22 @@ function notifyOtherInstances(table: string, ev: string, newRow: Record<string, 
   enqueueNotify(msg, table, id);
 }
 
-function pickLatestAppSettingsRow(rows: Record<string, unknown>[]): Record<string, unknown> | null {
-  if (!rows.length) return null;
-  let best = rows[0];
-  let bestTs = String(best.updated_at ?? '');
-  for (let i = 1; i < rows.length; i++) {
-    const ts = String(rows[i].updated_at ?? '');
-    if (ts >= bestTs) {
-      best = rows[i];
-      bestTs = ts;
-    }
-  }
-  return best;
-}
+/** pickLatestAppSettingsRow / planAppSettingsFromDbRows: ../lib/db-app-settings-view.ts */
 
 /** DB resync 시 오래된 session_active가 메모리를 덮어쓰지 않도록 updated_at 기준 병합 */
 function applyAppSettingsFromDbRows(dbRows: Record<string, unknown>[]): boolean {
-  const dbRow = pickLatestAppSettingsRow(dbRows);
-  if (!dbRow) return false;
-  const hadLegacy = settingsHaveLegacyKeys(dbRow);
-  const cleaned = stripLegacySettingsKeys(dbRow);
   const memRow = (getTable('app_settings')[0] ?? null) as Record<string, unknown> | null;
-  if (!memRow) {
-    store['app_settings'] = [cleaned];
-    if (hadLegacy) {
-      dbPersistRow('app_settings', cleaned).catch(e => logger.warn({ err: e }, '[db] persist stripped app_settings'));
-    }
-    return true;
+  const plan = planAppSettingsFromDbRows(memRow, dbRows, {
+    stripLegacy: stripLegacySettingsKeys,
+    hasLegacy: settingsHaveLegacyKeys,
+    secretKeys: SECRET_SETTING_KEYS,
+  });
+  if (plan.action === 'empty') return false;
+  store['app_settings'] = [plan.row];
+  if (plan.action === 'replace' && plan.persistLegacy) {
+    dbPersistRow('app_settings', plan.row).catch(e => logger.warn({ err: e }, '[db] persist stripped app_settings'));
   }
-  const memTs = String(memRow.updated_at ?? '');
-  const dbTs = String(dbRow.updated_at ?? '');
-  if (dbTs >= memTs) {
-    const changed = memTs !== dbTs
-      || memRow.session_active !== dbRow.session_active
-      || settingsFunctionsLocked(memRow) !== settingsFunctionsLocked(cleaned);
-    store['app_settings'] = [cleaned];
-    if (hadLegacy) {
-      dbPersistRow('app_settings', cleaned).catch(e => logger.warn({ err: e }, '[db] persist stripped app_settings'));
-    }
-    return changed;
-  }
-  // 메모리가 더 최신(세션 토글 등)이어도 비밀번호는 항상 DB 값을 쓴다.
-  // 예전 "heal" persist는 다른 인스턴스의 옛 비밀번호로 패널 변경을 되돌렸다.
-  const merged = { ...memRow };
-  for (const key of SECRET_SETTING_KEYS) {
-    if (cleaned[key] != null && String(cleaned[key]).trim() !== '') merged[key] = cleaned[key];
-  }
-  store['app_settings'] = [stripLegacySettingsKeys(merged)];
-  return SECRET_SETTING_KEYS.some(k => String(memRow[k] ?? '') !== String(merged[k] ?? ''));
+  return plan.changed;
 }
 
 /** hot 테이블(profiles·app_settings)을 app_kv_rows에서 재동기화 — LISTEN gap 보정 전용 */
@@ -3373,7 +3317,7 @@ router.post('/op', async (req: Request, res: Response) => {
       if (!isAdmin && isFunctionsLocked() && FUNCTIONS_LOCKED_INSERT_TABLES.has(table)) {
         return res.status(403).json({
           data: null,
-          error: { message: '행사 중에는 하트·채팅·시그널·단톡을 사용할 수 없습니다.', code: 'FUNCTIONS_LOCKED' },
+          error: { ...FUNCTIONS_LOCKED_ERROR },
         });
       }
       if (table === 'chats') {
@@ -3931,7 +3875,7 @@ router.post('/op', async (req: Request, res: Response) => {
       if (!isAdmin && isFunctionsLocked() && FUNCTIONS_LOCKED_UPDATE_TABLES.has(table)) {
         return res.status(403).json({
           data: null,
-          error: { message: '행사 중에는 하트·채팅·시그널·단톡을 사용할 수 없습니다.', code: 'FUNCTIONS_LOCKED' },
+          error: { ...FUNCTIONS_LOCKED_ERROR },
         });
       }
       let patch = sanitizeRow(table, payload as Record<string, unknown>);

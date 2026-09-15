@@ -317,6 +317,7 @@ describe('product copy + notification invariants', () => {
     const dash = read('admin/DashboardTab.tsx');
     const detail = read('components/ProfileDetail.tsx');
     const db = readFileSync(join(root, '../../api-server/src/routes/db.ts'), 'utf8');
+    const settingsView = readFileSync(join(root, '../../api-server/src/lib/db-app-settings-view.ts'), 'utf8');
     expect(lock).toContain('FUNCTIONS_UNLOCK_TOAST');
     expect(lock).toContain('isFunctionsLockedOpError');
     expect(lock).toContain("'my'");
@@ -369,7 +370,9 @@ describe('product copy + notification invariants', () => {
     expect(dash).toContain('통계·랭킹·설정');
     expect(detail).toContain('onViewFortune');
     expect(db).toContain('FUNCTIONS_LOCKED_INSERT_TABLES');
-    expect(db).toContain("code: 'FUNCTIONS_LOCKED'");
+    expect(db).toContain('FUNCTIONS_LOCKED_ERROR');
+    expect(db).toContain("from '../lib/db-app-settings-view'");
+    expect(settingsView).toContain("code: 'FUNCTIONS_LOCKED'");
     expect(db).toContain('broadcastAll({ type: \'change\', table: \'app_settings\'');
   });
 
@@ -482,6 +485,12 @@ describe('product copy + notification invariants', () => {
     expect(db).toContain('mergeAppSettingsPure');
     expect(db).not.toMatch(/const PRODUCTION_QR_BASE = /);
     expect(db).not.toMatch(/function deriveAdminToken\(/);
+    expect(db).toContain("from '../lib/db-app-settings-view'");
+    expect(db).toContain('planAppSettingsFromDbRows');
+    expect(db).not.toMatch(/function publicAppSettingsView\(/);
+    expect(db).not.toMatch(/function settingsFunctionsLocked\(/);
+    expect(db).not.toMatch(/function tableFingerprint\(/);
+    expect(db).not.toMatch(/function pickLatestAppSettingsRow\(/);
   });
 
 

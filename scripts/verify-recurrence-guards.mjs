@@ -1224,6 +1224,47 @@ mustMatch('ARCHITECTURE.md', '56_architecture_path_after_chat_pair_plan_peel', [
 ]);
 
 
+// ── 57: db-app-settings-view (public view / functions-lock / resync planners) ─
+mustExist('artifacts/api-server/src/lib/db-app-settings-view.ts', '57_db_app_settings_view_module');
+mustExist('artifacts/api-server/src/lib/db-app-settings-view.test.ts', '57_db_app_settings_view_tests');
+mustMatch('artifacts/api-server/src/lib/db-app-settings-view.ts', '57_app_settings_view_exports', [
+  /export const FUNCTIONS_LOCKED_INSERT_TABLES/,
+  /export const FUNCTIONS_LOCKED_UPDATE_TABLES/,
+  /export const FUNCTIONS_LOCKED_ERROR/,
+  /export function settingsFunctionsLocked/,
+  /export function publicAppSettingsView/,
+  /export function tableFingerprint/,
+  /export function pickLatestAppSettingsRow/,
+  /export function planAppSettingsFromDbRows/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '57_db_reimports_app_settings_view', [
+  /from '\.\.\/lib\/db-app-settings-view'/,
+  /FUNCTIONS_LOCKED_INSERT_TABLES/,
+  /FUNCTIONS_LOCKED_UPDATE_TABLES/,
+  /FUNCTIONS_LOCKED_ERROR/,
+  /publicAppSettingsView/,
+  /settingsFunctionsLocked/,
+  /tableFingerprint/,
+  /planAppSettingsFromDbRows/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '57_db_still_single_router_export', [
+  /export default router/,
+]);
+mustNotMatch('artifacts/api-server/src/routes/db.ts', '57_db_no_inline_app_settings_view_impl', [
+  /function publicAppSettingsView\(/,
+  /function settingsFunctionsLocked\(/,
+  /function tableFingerprint\(/,
+  /function pickLatestAppSettingsRow\(/,
+  /const FUNCTIONS_LOCKED_INSERT_TABLES = new Set/,
+  /const FUNCTIONS_LOCKED_UPDATE_TABLES = new Set/,
+]);
+mustMatch('ARCHITECTURE.md', '57_architecture_path_after_app_settings_view_peel', [
+  /db-app-settings-view/,
+  /~9\.5/,
+]);
+
+
+
 
 console.log('\n=== verify-recurrence-guards ===\n');
 
