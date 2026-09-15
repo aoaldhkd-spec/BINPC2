@@ -8,22 +8,19 @@ import { useAppShellRealtimeChannels } from './hooks/useAppShellRealtimeChannels
 import { useSessionReadyBootstrap } from './hooks/useSessionReadyBootstrap';
 import { useProfileBootMachine } from './hooks/useProfileBootMachine';
 import { useHeartsRealtimeApply } from './hooks/useHeartsRealtimeApply';
+import { useProfilesRealtimeApply } from './hooks/useProfilesRealtimeApply';
+import { usePrivacySignalsRealtimeApply } from './hooks/usePrivacySignalsRealtimeApply';
+import { useAppShellRealtimeApply } from './hooks/useAppShellRealtimeApply';
 import { useSocialLockGuards } from './hooks/useSocialLockGuards';
 import { useNicknameRegistration } from './hooks/useNicknameRegistration';
 import { useProfilePrivacyLoaders } from './hooks/useProfilePrivacyLoaders';
 import { useSessionInit } from './hooks/useSessionInit';
 import { planAdminResetWipe, runAdminResetWipe } from './lib/admin-reset-wipe';
 import type { SessionReadySettingsPatch } from './lib/session-ready-settings';
-import { planAppSettingsRealtimeUpdate } from './lib/app-settings-realtime';
 import { subscribeNetUi, resetNetUiForRetry, type NetUiStatus } from './lib/net-health';
 import { excludeSwipeGestureVerifyProfiles } from './lib/profile';
 import { mergeProfilesPreserveOrder } from './lib/profile-list-order';
 import { PROFILE_ROW_SELECT } from './lib/profile-select';
-import {
-  planProfilesAfterDelete,
-  planProfilesAfterInsert,
-  planProfilesAfterUpdate,
-} from './lib/profile-realtime-apply';
 import {
   BLOCK_SESSION_EXPIRED_MESSAGE,
   blockFailureMessage,
@@ -38,16 +35,11 @@ import {
   shouldShowNicknameSetup,
   shouldShowRecoveryScreen,
 } from './lib/entry-gate';
-import { planContactShareEvent, pruneSeenIdSet } from './lib/contact-share-event';
 import { countPendingHearts } from './lib/pending-hearts';
-import { mergeUserSignalRow } from './lib/user-signal-merge';
 import {
-  upsertById,
   filterBlockedUsersForMe,
-  isBlockedRowForMe,
 } from './lib/realtime-row-upsert';
 import { shouldRecordProfileView } from './lib/profile-view-record';
-import { shouldShowBroadcastNotif, dismissActiveNotifIfMatch } from './lib/notification-active';
 import { FUNCTIONS_LOCK_KICK_TOAST, FUNCTIONS_LOCK_TOAST, FUNCTIONS_UNLOCK_TOAST, parseFunctionsLocked, planFunctionsLockTransition } from './lib/functions-lock';
 // ─── 분리된 타입·유틸·컴포넌트 imports ────────────────────────────────────────
 import type {
@@ -59,9 +51,9 @@ import { renderAppEntryGates } from './components/AppEntryGates';
 import { AppMainShell } from './components/AppMainShell';
 import { AppOverlays } from './components/AppOverlays';
 import {
-  MATCHING_USER_KEY, MATCHING_DRAFT_KEY, MATCHING_LAST_RESET_KEY,
+  MATCHING_USER_KEY, MATCHING_DRAFT_KEY,
   MATCHING_PROFILES_CACHE_KEY,
-  ENTRY_VERIFIED_KEY, SCANNED_CONTACTS_KEY,
+  SCANNED_CONTACTS_KEY,
 } from './lib/constants';
 import { ls } from './lib/storage';
 import { clearAllGroupLastReads } from './lib/group-rooms';
@@ -156,7 +148,6 @@ function App() {
     } catch { return []; }
   });
   const [shareEventNotif, setShareEventNotif] = useState<ShareEventNotificationData | null>(null);
-  const seenContactEventIdsRef = useRef<Set<string>>(new Set());
   const [contactViewShare, setContactViewShare] = useState<{ share: ContactShare; profile: Profile } | null>(null);
   const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null);
   const [view, setView] = useState<View>(() => {
@@ -213,7 +204,6 @@ function App() {
   const [showResetPassword, setShowResetPassword] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const confettiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const shareEventNotifTimerIdsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const confettiInnerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const triggerConfetti = useCallback(() => {
     // 뷰 전환 시 이전 타이머 취소 가능하도록 ref에 저장
@@ -416,6 +406,18 @@ function App() {
     receivedContactShares,
     receivedHeartTypes,
     sentHeartsPerPerson,
+  });
+
+  const profilesRealtimeApply = useProfilesRealtimeApply({
+    userIdRef,
+    setProfiles,
+  });
+
+  const privacySignalsRealtimeApply = usePrivacySignalsRealtimeApply({
+    userIdRef,
+    setBlockedUsers,
+    setProfileVisitors,
+    setUserSignals,
   });
 
   const {
@@ -718,13 +720,6 @@ function App() {
     setFunctionsLocked,
   });
 
-  // share-event toast timers — cleanup on unmount (was co-located with /ready bootstrap)
-  useEffect(() => () => {
-    shareEventNotifTimerIdsRef.current.forEach(clearTimeout);
-    shareEventNotifTimerIdsRef.current = [];
-  }, []);
-
-
   // participant session-init — hearts clear, profile resolve, deferred loads, ?share= QR
   useSessionInit({
     currentUserId,
@@ -787,93 +782,32 @@ function App() {
     applySessionReady,
   });
 
-  // profiles + likes/contact_shares + privacy + signals fan-in — App owns setState; hook only routes.
+  // profiles + likes/contact_shares + privacy + signals fan-in — App wires apply hooks; channel only routes.
   useUserRealtimeChannel({
     currentUserId,
-    onProfileInsert: (incoming) => {
-      setProfiles((prev) => planProfilesAfterInsert(prev, incoming, userIdRef.current));
-    },
-    onProfileUpdate: (incoming) => {
-      setProfiles((prev) => planProfilesAfterUpdate(prev, incoming, userIdRef.current));
-    },
-    onProfileDelete: (deletedId) => {
-      setProfiles((prev) => planProfilesAfterDelete(prev, deletedId));
-    },
+    ...profilesRealtimeApply,
     ...heartsRealtimeApply,
-    onBlockedUserInsert: (b) => {
-      const uid = userIdRef.current;
-      if (uid && isBlockedRowForMe(b, uid)) {
-        setBlockedUsers(prev => upsertById(prev, b));
-      }
-    },
-    onProfileViewInsert: (v) => {
-      const uid = userIdRef.current;
-      if (uid && v.viewed_id === uid) {
-        setProfileVisitors(prev => upsertById(prev, v));
-      }
-    },
-    onUserSignalInsert: (s) => {
-      setUserSignals(prev => mergeUserSignalRow(prev, s, 'upsert'));
-    },
-    onUserSignalUpdate: (s) => {
-      setUserSignals(prev => mergeUserSignalRow(prev, s, 'update-only'));
-    },
+    ...privacySignalsRealtimeApply,
   });
 
-  // app_settings + notifications + contact_share_events — App owns apply; hook only routes.
-  useAppShellRealtimeChannels({
-    onAppSettingsUpdate: (p) => {
-      const plan = planAppSettingsRealtimeUpdate(p, {
-        localReset: ls.getItem(MATCHING_LAST_RESET_KEY),
-        wasSessionActive: sessionActiveRef.current,
-        hasStoredUser: Boolean(ls.getItem(MATCHING_USER_KEY)),
-        entryVerifiedStored: ls.getItem(ENTRY_VERIFIED_KEY),
-      });
-      if (plan.kind === 'reset') {
-        applyResetSignal(plan.resetSignal);
-        return;
-      }
-      if (plan.setSessionActive && typeof plan.sessionActive === 'boolean') {
-        sessionActiveRef.current = plan.sessionActive;
-        setSessionActive(plan.sessionActive);
-        if (plan.autoSkipWaiting) {
-          setShownWaiting(true);
-          setView('entry-1');
-        }
-        if (plan.returnToWaiting && userIdRef.current) {
-          setShownWaiting(false);
-        }
-      }
-      setTimerEndAt(plan.timerEndAt);
-      setTimerLabel(plan.timerLabel);
-      if (plan.hasFunctionsLocked) setFunctionsLocked(parseFunctionsLocked(plan.functionsLockedRaw));
-      if (plan.hasEntryPassword) {
-        setEntryPassword(plan.entryPassword ?? '');
-        setEntryVerified(Boolean(plan.entryVerified));
-      }
-    },
-    onBroadcastNotifInsert: (n) => {
-      if (shouldShowBroadcastNotif(n)) setActiveNotif(n);
-    },
-    onBroadcastNotifUpdate: (n) => {
-      if (!n.is_active) setActiveNotif(prev => dismissActiveNotifIfMatch(prev, n.id));
-    },
-    onBroadcastNotifDelete: (n) => {
-      setActiveNotif(prev => dismissActiveNotifIfMatch(prev, n.id));
-    },
-    onContactShareEventInsert: (row) => {
-      const myId = userIdRef.current;
-      const plan = planContactShareEvent(row, myId, { seenIds: seenContactEventIdsRef.current });
-      if (plan.ignore) return;
-      seenContactEventIdsRef.current.add(plan.eventKey);
-      seenContactEventIdsRef.current = pruneSeenIdSet(seenContactEventIdsRef.current);
-      if (plan.loadContactShares && myId) void loadContactShareData(myId);
-      if (plan.notif) {
-        setShareEventNotif(plan.notif);
-        shareEventNotifTimerIdsRef.current.push(setTimeout(() => setShareEventNotif(null), 5000));
-      }
-    },
+  // app_settings + notifications + contact_share_events — App wires apply; channel only routes.
+  const appShellRealtimeApply = useAppShellRealtimeApply({
+    userIdRef,
+    sessionActiveRef,
+    applyResetSignal,
+    loadContactShareData,
+    setSessionActive,
+    setShownWaiting,
+    setView,
+    setTimerEndAt,
+    setTimerLabel,
+    setFunctionsLocked,
+    setEntryPassword,
+    setEntryVerified,
+    setActiveNotif,
+    setShareEventNotif,
   });
+  useAppShellRealtimeChannels(appShellRealtimeApply);
 
   // SSE unhealthy poll — App only wires loaders (mirrors SoT peel; no new useState).
   useSseFallbackPoll({

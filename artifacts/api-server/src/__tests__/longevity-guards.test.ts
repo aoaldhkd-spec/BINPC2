@@ -136,6 +136,18 @@ describe('longevity recurrence guards (server)', () => {
     expect(tokens).toContain('deriveTestToken');
   });
 
+  it('image-store stays extracted from db.ts', () => {
+    expect(dbTs).toContain("from '../lib/db-image-store'");
+    expect(dbTs).toContain('createImageStore');
+    expect(dbTs).toContain('imageStoreGet');
+    expect(dbTs).toContain('imageStoreSet');
+    expect(dbTs).not.toMatch(/function pruneImageStore\(/);
+    expect(dbTs).not.toMatch(/const imageStore = new Map/);
+    const imageStore = readFileSync(join(here, '../lib/db-image-store.ts'), 'utf8');
+    expect(imageStore).toContain('createImageStore');
+    expect(imageStore).toContain('IMAGE_STORE_MAX_ENTRIES_DEFAULT');
+  });
+
   it('persist-before-broadcast and legacy seating/heart_drain stay out of active op tables', () => {
     expect(dbTs).toContain("from '../lib/db-table-policy'");
     expect(dbTs).toContain('ALLOWED_OP_TABLES');

@@ -515,9 +515,15 @@ mustExist('artifacts/boltnew-app/src/lib/notification-active.ts', '44_notificati
 mustMatch('artifacts/boltnew-app/src/App.tsx', '44_app_wires_sse_fallback_hook', [
   /useSseFallbackPoll/,
   /useHeartsRealtimeApply/,
-  /planContactShareEvent/,
+  /usePrivacySignalsRealtimeApply/,
+  /useAppShellRealtimeApply/,
   /countPendingHearts/,
   /planFunctionsLockTransition/,
+]);
+mustMatch('artifacts/boltnew-app/src/hooks/useAppShellRealtimeApply.ts', '44_shell_apply_owns_contact_share_event', [
+  /planContactShareEvent/,
+]);
+mustMatch('artifacts/boltnew-app/src/hooks/usePrivacySignalsRealtimeApply.ts', '44_privacy_apply_owns_signal_merge', [
   /mergeUserSignalRow/,
 ]);
 mustMatch('artifacts/boltnew-app/src/hooks/useHeartsRealtimeApply.ts', '44_hearts_apply_owns_sent_like_planner', [
@@ -560,11 +566,17 @@ mustMatch('artifacts/boltnew-app/src/hooks/useUserRealtimeChannel.ts', '45_hook_
 ]);
 mustMatch('artifacts/boltnew-app/src/App.tsx', '45_app_wires_user_realtime_apply_callbacks', [
   /useUserRealtimeChannel/,
-  /planProfilesAfterInsert/,
+  /useProfilesRealtimeApply/,
+  /\.\.\.profilesRealtimeApply/,
   /useHeartsRealtimeApply/,
   /\.\.\.heartsRealtimeApply/,
   /shouldSkipBlock/,
   /buildBlockedUserRow/,
+]);
+mustMatch('artifacts/boltnew-app/src/hooks/useProfilesRealtimeApply.ts', '45_profiles_apply_uses_planners', [
+  /planProfilesAfterInsert/,
+  /planProfilesAfterUpdate/,
+  /planProfilesAfterDelete/,
 ]);
 mustNotMatch('artifacts/boltnew-app/src/App.tsx', '45_app_no_inline_profiles_or_user_bundle_channel', [
   /channel\('realtime:profiles'\)/,
@@ -597,10 +609,21 @@ mustMatch('artifacts/boltnew-app/src/hooks/useUserRealtimeChannel.ts', '46_hook_
 ]);
 mustMatch('artifacts/boltnew-app/src/App.tsx', '46_app_wires_shell_and_privacy_apply_callbacks', [
   /useAppShellRealtimeChannels/,
+  /useAppShellRealtimeApply/,
+  /usePrivacySignalsRealtimeApply/,
+  /\.\.\.privacySignalsRealtimeApply/,
+  /appShellRealtimeApply/,
+]);
+mustMatch('artifacts/boltnew-app/src/hooks/useAppShellRealtimeApply.ts', '46_shell_apply_uses_settings_planner', [
   /planAppSettingsRealtimeUpdate/,
+  /onBroadcastNotifInsert/,
+  /planContactShareEvent/,
+]);
+mustMatch('artifacts/boltnew-app/src/hooks/usePrivacySignalsRealtimeApply.ts', '46_privacy_apply_handlers', [
   /onBlockedUserInsert/,
   /onUserSignalInsert/,
-  /onBroadcastNotifInsert/,
+  /mergeUserSignalRow/,
+  /isBlockedRowForMe/,
 ]);
 mustNotMatch('artifacts/boltnew-app/src/App.tsx', '46_app_no_inline_shell_privacy_signals_channels', [
   /channel\('app-settings-user'\)/,
@@ -1051,6 +1074,80 @@ mustMatch('ARCHITECTURE.md', '53_architecture_path_after_settings_merge_peel', [
   /db-panel-tokens/,
   /CONTACT_SHARE_ROW_SELECT/,
   /~9\.45/,
+  /~9\.5/,
+]);
+
+
+
+
+
+// ── 54: App privacy/signal/profile/shell apply + db-image-store ───────────────
+mustExist('artifacts/boltnew-app/src/hooks/usePrivacySignalsRealtimeApply.ts', '54_privacy_signals_realtime_apply_hook');
+mustExist('artifacts/boltnew-app/src/hooks/useProfilesRealtimeApply.ts', '54_profiles_realtime_apply_hook');
+mustExist('artifacts/boltnew-app/src/hooks/useAppShellRealtimeApply.ts', '54_app_shell_realtime_apply_hook');
+mustExist('artifacts/api-server/src/lib/db-image-store.ts', '54_db_image_store_module');
+mustExist('artifacts/api-server/src/lib/db-image-store.test.ts', '54_db_image_store_tests');
+mustMatch('artifacts/boltnew-app/src/hooks/usePrivacySignalsRealtimeApply.ts', '54_privacy_apply_exports', [
+  /export function usePrivacySignalsRealtimeApply/,
+  /onBlockedUserInsert/,
+  /onProfileViewInsert/,
+  /onUserSignalInsert/,
+  /onUserSignalUpdate/,
+  /mergeUserSignalRow/,
+]);
+mustMatch('artifacts/boltnew-app/src/hooks/useProfilesRealtimeApply.ts', '54_profiles_apply_exports', [
+  /export function useProfilesRealtimeApply/,
+  /planProfilesAfterInsert/,
+  /planProfilesAfterUpdate/,
+  /planProfilesAfterDelete/,
+]);
+mustMatch('artifacts/boltnew-app/src/hooks/useAppShellRealtimeApply.ts', '54_shell_apply_exports', [
+  /export function useAppShellRealtimeApply/,
+  /planAppSettingsRealtimeUpdate/,
+  /shouldShowBroadcastNotif/,
+  /planContactShareEvent/,
+  /applyResetSignal/,
+]);
+mustMatch('artifacts/boltnew-app/src/App.tsx', '54_app_wires_apply_hooks_only', [
+  /usePrivacySignalsRealtimeApply/,
+  /useProfilesRealtimeApply/,
+  /useAppShellRealtimeApply/,
+  /\.\.\.profilesRealtimeApply/,
+  /\.\.\.privacySignalsRealtimeApply/,
+  /useAppShellRealtimeChannels\(appShellRealtimeApply\)/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/App.tsx', '54_app_no_inline_privacy_signal_shell_apply', [
+  /mergeUserSignalRow/,
+  /isBlockedRowForMe/,
+  /planAppSettingsRealtimeUpdate/,
+  /planContactShareEvent/,
+  /planProfilesAfterInsert/,
+  /shouldShowBroadcastNotif/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-image-store.ts', '54_image_store_exports', [
+  /export function createImageStore/,
+  /export const IMAGE_STORE_MAX_ENTRIES_DEFAULT/,
+  /export const IMAGE_STORE_MAX_CHARS_DEFAULT/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '54_db_reimports_image_store', [
+  /from '\.\.\/lib\/db-image-store'/,
+  /createImageStore/,
+  /imageStoreGet/,
+  /imageStoreSet/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '54_db_still_single_router_export', [
+  /export default router/,
+]);
+mustNotMatch('artifacts/api-server/src/routes/db.ts', '54_db_no_inline_image_store_impl', [
+  /function pruneImageStore\(/,
+  /function imageStoreSet\(/,
+  /function imageStoreGet\(/,
+  /const imageStore = new Map/,
+]);
+mustMatch('ARCHITECTURE.md', '54_architecture_path_after_privacy_apply_peel', [
+  /usePrivacySignalsRealtimeApply/,
+  /useAppShellRealtimeApply/,
+  /db-image-store/,
   /~9\.5/,
 ]);
 

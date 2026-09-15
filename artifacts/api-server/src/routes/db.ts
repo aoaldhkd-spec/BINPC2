@@ -107,6 +107,11 @@ import {
   deriveTestToken,
 } from '../lib/db-panel-tokens';
 import {
+  createImageStore,
+  IMAGE_STORE_MAX_ENTRIES_DEFAULT,
+  IMAGE_STORE_MAX_CHARS_DEFAULT,
+} from '../lib/db-image-store';
+import {
   LEGACY_APP_SETTINGS_KEYS,
   LEGACY_KV_TABLES,
   settingsHaveLegacyKeys,
@@ -462,30 +467,12 @@ const INSTANCE_ID = crypto.randomUUID();
 // ─── In-memory cache (loaded from DB on startup, write-through on every change)
 const store: Record<string, Record<string, unknown>[]> = {};
 /** RAM 캐시. 넘치면 오래된 항목부터 지우고, 조회 시 Postgres에서 다시 채움. */
-const IMAGE_STORE_MAX_ENTRIES = 80;
-const IMAGE_STORE_MAX_CHARS = 32 * 1024 * 1024;
-const imageStore = new Map<string, string>();
-
-function imageStoreGet(path: string): string | undefined {
-  return imageStore.get(path);
-}
-
-function pruneImageStore(): void {
-  let chars = 0;
-  for (const v of imageStore.values()) chars += v.length;
-  while (imageStore.size > IMAGE_STORE_MAX_ENTRIES || chars > IMAGE_STORE_MAX_CHARS) {
-    const first = imageStore.keys().next().value as string | undefined;
-    if (!first) break;
-    chars -= imageStore.get(first)?.length ?? 0;
-    imageStore.delete(first);
-  }
-}
-
-function imageStoreSet(path: string, dataUrl: string): void {
-  imageStore.delete(path);
-  imageStore.set(path, dataUrl);
-  pruneImageStore();
-}
+// imageStore: ../lib/db-image-store.ts
+const IMAGE_STORE_MAX_ENTRIES = IMAGE_STORE_MAX_ENTRIES_DEFAULT;
+const IMAGE_STORE_MAX_CHARS = IMAGE_STORE_MAX_CHARS_DEFAULT;
+const _imageStore = createImageStore({ maxEntries: IMAGE_STORE_MAX_ENTRIES, maxChars: IMAGE_STORE_MAX_CHARS });
+const imageStoreGet = _imageStore.get;
+const imageStoreSet = _imageStore.set;
 
 // ALLOWED_OP_TABLES: ../lib/db-table-policy.ts
 
@@ -5181,7 +5168,7 @@ router.post('/storage-remove', async (req: Request, res: Response) => {
       return res.status(403).json({ data: null, error: { message: 'Forbidden' } });
     }
 
-    for (const p of stringPaths) imageStore.delete(p);
+    for (const p of stringPaths) _imageStore.delete(p);
     await pool.query('DELETE FROM app_image_store WHERE path = ANY($1::text[])', [stringPaths]);
     return res.json({ data: null, error: null });
   } catch (e) {

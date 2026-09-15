@@ -118,7 +118,8 @@ describe('product copy + notification invariants', () => {
     expect(groupHook).not.toMatch(/setBottomNotif\(\{\s*type:\s*'message'/);
     expect(groupHook).not.toMatch(/setActiveNotif/);
     expect(read('components/AppOverlays.tsx')).toContain('NotifModal');
-    expect(app).toContain('shouldShowBroadcastNotif');
+    expect(app).toContain('useAppShellRealtimeApply');
+    expect(read('hooks/useAppShellRealtimeApply.ts')).toContain('shouldShowBroadcastNotif');
     expect(notif).toMatch(/n\.target === 'all'/);
   });
 
@@ -130,8 +131,9 @@ describe('product copy + notification invariants', () => {
     expect(nick).toContain("step === 1 ? '이전하기' : '이전'");
     expect(nick).toContain('else onReset()');
     expect(app).toContain('onReset={reset}');
-    expect(app).toContain('planAppSettingsRealtimeUpdate');
-    expect(app).toContain('autoSkipWaiting');
+    expect(app).toContain('useAppShellRealtimeApply');
+    expect(read('hooks/useAppShellRealtimeApply.ts')).toContain('planAppSettingsRealtimeUpdate');
+    expect(read('hooks/useAppShellRealtimeApply.ts')).toContain('autoSkipWaiting');
     expect(app).toContain('shownWaiting,');
     expect(settingsRt).toContain('shouldAutoSkipWaiting');
     expect(gate).toContain('opts.shownWaiting === false');
@@ -352,7 +354,11 @@ describe('product copy + notification invariants', () => {
     expect(read('components/AppOverlays.tsx')).toContain('setContactShareTarget(null)');
     expect(app).toContain('useSessionReadyBootstrap');
     expect(app).toContain('useAppShellRealtimeChannels');
-    expect(app).toContain('planAppSettingsRealtimeUpdate');
+    expect(app).toContain('useAppShellRealtimeApply');
+    expect(app).toContain('usePrivacySignalsRealtimeApply');
+    expect(app).toContain('useProfilesRealtimeApply');
+    expect(app).not.toContain('planAppSettingsRealtimeUpdate');
+    expect(read('hooks/useAppShellRealtimeApply.ts')).toContain('planAppSettingsRealtimeUpdate');
     const shellHook = read('hooks/useAppShellRealtimeChannels.ts');
     expect(shellHook).toContain("table: 'app_settings'");
     const readyBoot = read('hooks/useSessionReadyBootstrap.ts');
@@ -478,6 +484,37 @@ describe('product copy + notification invariants', () => {
     expect(db).not.toMatch(/function deriveAdminToken\(/);
   });
 
+
+
+
+  it('privacy/signal/profile/shell apply + db-image-store stay peeled', () => {
+    const app = read('App.tsx');
+    const privacy = read('hooks/usePrivacySignalsRealtimeApply.ts');
+    const profiles = read('hooks/useProfilesRealtimeApply.ts');
+    const shellApply = read('hooks/useAppShellRealtimeApply.ts');
+    const db = readFileSync(join(root, '../../api-server/src/routes/db.ts'), 'utf8');
+    const imageStore = readFileSync(join(root, '../../api-server/src/lib/db-image-store.ts'), 'utf8');
+    expect(app).toContain('usePrivacySignalsRealtimeApply');
+    expect(app).toContain('useProfilesRealtimeApply');
+    expect(app).toContain('useAppShellRealtimeApply');
+    expect(app).toContain('...privacySignalsRealtimeApply');
+    expect(app).toContain('...profilesRealtimeApply');
+    expect(app).toContain('useAppShellRealtimeChannels(appShellRealtimeApply)');
+    expect(app).not.toContain('mergeUserSignalRow');
+    expect(app).not.toContain('planAppSettingsRealtimeUpdate');
+    expect(app).not.toContain('planProfilesAfterInsert');
+    expect(privacy).toContain('onBlockedUserInsert');
+    expect(privacy).toContain('mergeUserSignalRow');
+    expect(profiles).toContain('planProfilesAfterUpdate');
+    expect(shellApply).toContain('planAppSettingsRealtimeUpdate');
+    expect(shellApply).toContain('planContactShareEvent');
+    expect(db).toContain("from '../lib/db-image-store'");
+    expect(db).toContain('createImageStore');
+    expect(db).not.toMatch(/function pruneImageStore\(/);
+    expect(db).not.toMatch(/const imageStore = new Map/);
+    expect(imageStore).toContain('createImageStore');
+    expect(imageStore).toContain('IMAGE_STORE_MAX_ENTRIES_DEFAULT');
+  });
 
 
   it('ProfileCard keeps compact heart/chat buttons (no min-h-11 bloat)', () => {
@@ -767,7 +804,9 @@ describe('participant profile list order invariants', () => {
     expect(apply).toContain('planProfilesAfterInsert');
     expect(apply).toContain('patchProfileInPlace');
     expect(app).toContain('mergeProfilesPreserveOrder');
-    expect(app).toContain('planProfilesAfterUpdate');
+    expect(app).toContain('useProfilesRealtimeApply');
+    expect(app).not.toContain('planProfilesAfterUpdate');
+    expect(read('hooks/useProfilesRealtimeApply.ts')).toContain('planProfilesAfterUpdate');
     expect(app).not.toMatch(/return \[incoming, \.\.\.prev\]/);
     expect(loaders).toContain('mergeProfilesPreserveOrder(prev, visible)');
     expect(app).toContain('useProfilePrivacyLoaders');

@@ -143,7 +143,8 @@ describe('[Realtime] long-session stability', () => {
     expect(useChatSrc).toMatch(/const MAX_MESSAGES = 500/);
     expect(useChatSrc).toMatch(/const MAX_CACHED_CHAT_ROOMS = 8/);
     expect(useChatSrc).toMatch(/while \(cache\.size > MAX_CACHED_CHAT_ROOMS\)/);
-    expect(appSrc).toMatch(/pruneSeenIdSet\(seenContactEventIdsRef\.current\)/);
+    const shellApply = readFileSync(join(here, '../hooks/useAppShellRealtimeApply.ts'), 'utf8');
+    expect(shellApply).toMatch(/pruneSeenIdSet\(seenContactEventIdsRef\.current\)/);
     const contactEvt = readFileSync(join(here, '../lib/contact-share-event.ts'), 'utf8');
     expect(contactEvt).toMatch(/max = 500/);
     expect(contactEvt).toMatch(/function pruneSeenIdSet/);
