@@ -97,3 +97,19 @@ export function planAppSettingsSecretsPatch(
   const shouldApply = Object.keys(patch).length > 0 || needsStrip;
   return { patch, shouldApply };
 }
+
+/**
+ * Daily MMDD entry_password auto-renewal decision.
+ * Returns null when no renew; otherwise the fields to merge onto settings.
+ */
+export function planDailyEntryPasswordRenewal(
+  settings: Record<string, unknown> | null | undefined,
+  today: string,
+  nowIso: string,
+): { entry_password: string; updated_at: string } | null {
+  if (!settings) return null;
+  const currentPw = settings['entry_password'] as string | null | undefined;
+  if (!currentPw || !/^\d{4}$/.test(currentPw)) return null;
+  if (currentPw === today) return null;
+  return { entry_password: today, updated_at: nowIso };
+}

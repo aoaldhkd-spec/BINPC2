@@ -249,3 +249,91 @@ export function planAutoMatchJoinSpecs(profile: Record<string, unknown>): AutoMa
   }
   return specs;
 }
+
+export type GroupParticipantMergeAction =
+  | { kind: 'delete'; oldId: string }
+  | { kind: 'remap'; oldId: string; userId: string; newId: string };
+
+/** Pure plan: move or drop participants when merging dup group into canonical. */
+export function planGroupParticipantMerge(
+  parts: Record<string, unknown>[],
+  dupId: string,
+  canonicalId: string,
+): GroupParticipantMergeAction[] {
+  const actions: GroupParticipantMergeAction[] = [];
+  for (const p of parts) {
+    if (String(p.group_id) !== dupId) continue;
+    const uid = String(p.user_id ?? '');
+    const oldId = String(p.id);
+    const already = parts.some(
+      x => String(x.group_id) === canonicalId && String(x.user_id) === uid,
+    );
+    if (already) actions.push({ kind: 'delete', oldId });
+    else actions.push({ kind: 'remap', oldId, userId: uid, newId: `${canonicalId}__${uid}` });
+  }
+  return actions;
+}
+
+export function filterRowsByGroupId(
+  rows: Record<string, unknown>[],
+  groupId: string,
+): Record<string, unknown>[] {
+  return rows.filter(r => String(r.group_id) === groupId);
+}
+
+export function groupNeedsUnlimitedMaxMembers(
+  g: Record<string, unknown>,
+  unlimited: number = UNLIMITED_GROUP_MEMBERS,
+): boolean {
+  const cap = Number(g.max_members);
+  return !Number.isFinite(cap) || cap < unlimited;
+}
+
+/** Catalog seed spec for a visible N대 band (20대/30대). */
+export function planVisibleAgeBandRoomSpec(band: string): {
+  id: string;
+  name: string;
+  interest_tag: string;
+  room_kind: string;
+  age_group: string;
+} {
+  return {
+    id: canonicalAgeRoomId(band),
+    name: `${band} 모임`,
+    interest_tag: band,
+    room_kind: 'age_decade',
+    age_group: band,
+  };
+}
+
+/** Catalog seed spec for a birth-year room. */
+export function planBirthYearRoomSpec(year: number): {
+  id: string;
+  name: string;
+  interest_tag: string;
+  room_kind: string;
+  age_group: null;
+} {
+  return {
+    id: canonicalYearRoomId(year),
+    name: `${year}년생 모임`,
+    interest_tag: `${year}년생`,
+    room_kind: 'birth_year',
+    age_group: null,
+  };
+}
+
+/** Group rooms that already carry a birth_year identity, keyed by year. */
+export function collectBirthYearRoomGroups(
+  groups: Record<string, unknown>[],
+): Map<number, Record<string, unknown>[]> {
+  const byYear = new Map<number, Record<string, unknown>[]>();
+  for (const g of groups) {
+    const year = birthYearOfGroup(g);
+    if (year == null) continue;
+    const list = byYear.get(year) ?? [];
+    list.push(g);
+    byYear.set(year, list);
+  }
+  return byYear;
+}

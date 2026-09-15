@@ -97,3 +97,56 @@ describe('planCanonicalMessageChatId (70)', () => {
   });
 });
 
+
+import {
+  planChatDedupeMergeSteps,
+  planChatReadsForDedupe,
+  messagesToRemapOnDedupe,
+  applyIncomingMessageRows,
+  pickCanonicalChatRow,
+} from './db-chat-pair-plan.js';
+
+describe('chat dedupe / message-merge planners (71)', () => {
+  it('planChatDedupeMergeSteps picks canonical by message count', () => {
+    const chats = [
+      { id: 'a', user1_id: 'u1', user2_id: 'u2', created_at: '1' },
+      { id: 'b', user1_id: 'u1', user2_id: 'u2', created_at: '2' },
+    ];
+    const steps = planChatDedupeMergeSteps(chats, (id) => (id === 'b' ? 3 : 0));
+    expect(steps).toEqual([{ canonicalId: 'b', dupId: 'a' }]);
+  });
+
+  it('planChatReadsForDedupe absorb vs remap', () => {
+    const reads = [
+      { id: 'r1', chat_id: 'dup', reader_id: 'u1', read_at: '2024-02-01' },
+      { id: 'r2', chat_id: 'canon', reader_id: 'u1', read_at: '2024-01-01' },
+      { id: 'r3', chat_id: 'dup', reader_id: 'u2', read_at: 't' },
+    ];
+    const actions = planChatReadsForDedupe(reads, 'dup', 'canon');
+    expect(actions).toContainEqual({
+      kind: 'absorb', deleteId: 'r1', readerId: 'u1', bumpReadAt: '2024-02-01',
+    });
+    expect(actions).toContainEqual({
+      kind: 'remap', rowId: 'r3', readerId: 'u2', newChatId: 'canon', newId: 'canon__u2',
+    });
+  });
+
+  it('messagesToRemapOnDedupe + applyIncomingMessageRows', () => {
+    const msgs = [
+      { id: 'm1', chat_id: 'dup' },
+      { id: 'm2', chat_id: 'other' },
+    ];
+    expect(messagesToRemapOnDedupe(msgs, 'dup').map(m => m.id)).toEqual(['m1']);
+    const mem: Record<string, unknown>[] = [{ id: 'm1', chat_id: 'x', updated_at: '1' }];
+    applyIncomingMessageRows(mem, [
+      { id: 'm1', chat_id: 'x', updated_at: '2' },
+      { id: 'm3', chat_id: 'y', created_at: '1' },
+    ]);
+    expect(mem.find(m => m.id === 'm1')!.updated_at).toBe('2');
+    expect(mem.some(m => m.id === 'm3')).toBe(true);
+    expect(pickCanonicalChatRow(
+      [{ id: 'a', created_at: '2' }, { id: 'b', created_at: '1' }],
+      () => 0,
+    ).id).toBe('b');
+  });
+});

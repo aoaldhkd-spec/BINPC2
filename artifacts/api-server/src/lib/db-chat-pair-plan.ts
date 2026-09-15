@@ -103,3 +103,116 @@ export function planCanonicalMessageChatId(
   return chatId;
 }
 
+
+/** Ordered dup→canonical merge steps for 1:1 chat dedupe. */
+export type ChatDedupeMergeStep = {
+  canonicalId: string;
+  dupId: string;
+};
+
+export function planChatDedupeMergeSteps(
+  chats: Record<string, unknown>[],
+  countMessages: (chatId: string) => number,
+): ChatDedupeMergeStep[] {
+  const groups = groupChatsByPair(chats);
+  const steps: ChatDedupeMergeStep[] = [];
+  for (const group of groups.values()) {
+    if (group.length <= 1) continue;
+    const canonical = pickCanonicalChatRow(group, countMessages);
+    const canonicalId = String(canonical.id);
+    for (const dup of group) {
+      const dupId = String(dup.id);
+      if (dupId === canonicalId) continue;
+      steps.push({ canonicalId, dupId });
+    }
+  }
+  return steps;
+}
+
+export type ChatReadDedupeAction =
+  | {
+      kind: 'absorb';
+      /** chat_reads row id on the dup room (deleted after absorb). */
+      deleteId: string;
+      readerId: string;
+      /** When set, write onto the surviving canonical read's read_at. */
+      bumpReadAt?: unknown;
+    }
+  | {
+      kind: 'remap';
+      rowId: string;
+      readerId: string;
+      newChatId: string;
+      newId: string;
+    };
+
+/**
+ * Pure chat_reads plan for one dup→canonical merge.
+ * Iteration order matches the historical reverse scan in db.ts.
+ */
+export function planChatReadsForDedupe(
+  reads: Record<string, unknown>[],
+  dupId: string,
+  canonicalId: string,
+): ChatReadDedupeAction[] {
+  const actions: ChatReadDedupeAction[] = [];
+  for (let i = reads.length - 1; i >= 0; i--) {
+    const cr = reads[i];
+    if (String(cr.chat_id) !== dupId) continue;
+    const readerId = String(cr.reader_id ?? '');
+    const existing = reads.find(
+      r => String(r.chat_id) === canonicalId && String(r.reader_id) === readerId,
+    );
+    if (existing) {
+      const crTs = String(cr.read_at ?? '');
+      const exTs = String(existing.read_at ?? '');
+      actions.push(
+        crTs > exTs
+          ? { kind: 'absorb', deleteId: String(cr.id), readerId, bumpReadAt: cr.read_at }
+          : { kind: 'absorb', deleteId: String(cr.id), readerId },
+      );
+    } else {
+      actions.push({
+        kind: 'remap',
+        rowId: String(cr.id),
+        readerId,
+        newChatId: canonicalId,
+        newId: `${canonicalId}__${readerId}`,
+      });
+    }
+  }
+  return actions;
+}
+
+/** Messages whose chat_id should move onto canonical during dedupe. */
+export function messagesToRemapOnDedupe(
+  messages: Record<string, unknown>[],
+  dupId: string,
+): Record<string, unknown>[] {
+  return messages.filter(m => String(m.chat_id) === dupId);
+}
+
+/**
+ * Apply PG-fetched message rows into an in-memory messages table
+ * using messageMergeAction (insert/replace/keep).
+ */
+export function applyIncomingMessageRows(
+  memRows: Record<string, unknown>[],
+  incoming: Record<string, unknown>[],
+): void {
+  const byId = new Map(memRows.map(r => [String(r['id']), r]));
+  for (const data of incoming) {
+    const id = String(data['id'] ?? '');
+    if (!id) continue;
+    const existing = byId.get(id);
+    const action = messageMergeAction(existing, data);
+    if (action === 'insert') {
+      memRows.push(data);
+      byId.set(id, data);
+    } else if (action === 'replace') {
+      const idx = memRows.findIndex(r => String(r['id']) === id);
+      if (idx >= 0) memRows[idx] = data;
+      byId.set(id, data);
+    }
+  }
+}

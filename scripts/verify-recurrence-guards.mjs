@@ -1975,6 +1975,47 @@ mustMatch('ARCHITECTURE.md', '70_architecture_path_after_auth_unread_peel', [
 ]);
 
 
+
+// ── 71: chat-dedupe + group-merge/catalog + entry-password renewal ───────────
+mustMatch('artifacts/api-server/src/lib/db-chat-pair-plan.ts', '71_chat_dedupe_exports', [
+  /export function planChatDedupeMergeSteps/,
+  /export function planChatReadsForDedupe/,
+  /export function messagesToRemapOnDedupe/,
+  /export function applyIncomingMessageRows/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-group-room-plan.ts', '71_group_merge_catalog_exports', [
+  /export function planGroupParticipantMerge/,
+  /export function filterRowsByGroupId/,
+  /export function groupNeedsUnlimitedMaxMembers/,
+  /export function planVisibleAgeBandRoomSpec/,
+  /export function planBirthYearRoomSpec/,
+  /export function collectBirthYearRoomGroups/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-app-settings-boot.ts', '71_entry_renewal_export', [
+  /export function planDailyEntryPasswordRenewal/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '71_db_reimports_dedupe_merge_renewal', [
+  /planChatDedupeMergeSteps/,
+  /planChatReadsForDedupe/,
+  /applyIncomingMessageRows/,
+  /planGroupParticipantMerge/,
+  /planVisibleAgeBandRoomSpec/,
+  /planBirthYearRoomSpec/,
+  /collectBirthYearRoomGroups/,
+  /planDailyEntryPasswordRenewal/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '71_db_still_single_router_export', [
+  /export default router/,
+]);
+mustNotMatch('artifacts/api-server/src/routes/db.ts', '71_db_no_inline_birth_year_map_loop', [
+  /const byYear = new Map<number, Record<string, unknown>\[\]>\(\);/,
+]);
+mustMatch('ARCHITECTURE.md', '71_architecture_path_after_dedupe_merge_peel', [
+  /chat-dedupe|group-merge|entry-renewal/,
+  /~9\.5/,
+]);
+
+
 console.log('\n=== verify-recurrence-guards ===\n');
 
 for (const r of results) {

@@ -78,3 +78,17 @@ describe('db-app-settings-boot', () => {
     expect(plan.patch.qr_base_url).toBe(PRODUCTION_QR_BASE);
   });
 });
+
+import { planDailyEntryPasswordRenewal } from './db-app-settings-boot.js';
+
+describe('planDailyEntryPasswordRenewal (71)', () => {
+  it('renews only 4-digit MMDD when stale', () => {
+    expect(planDailyEntryPasswordRenewal(null, '0915', 't')).toBeNull();
+    expect(planDailyEntryPasswordRenewal({ entry_password: 'abc' }, '0915', 't')).toBeNull();
+    expect(planDailyEntryPasswordRenewal({ entry_password: '0915' }, '0915', 't')).toBeNull();
+    expect(planDailyEntryPasswordRenewal({ entry_password: '0914' }, '0915', 't0')).toEqual({
+      entry_password: '0915',
+      updated_at: 't0',
+    });
+  });
+});

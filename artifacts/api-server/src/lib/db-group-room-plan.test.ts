@@ -130,3 +130,47 @@ describe('planAutoMatchJoinSpecs', () => {
     expect(specs[1].name).toContain('1995');
   });
 });
+
+import {
+  planGroupParticipantMerge,
+  filterRowsByGroupId,
+  groupNeedsUnlimitedMaxMembers,
+  planVisibleAgeBandRoomSpec,
+  planBirthYearRoomSpec,
+  collectBirthYearRoomGroups,
+  UNLIMITED_GROUP_MEMBERS,
+} from './db-group-room-plan.js';
+
+describe('group merge / catalog planners (71)', () => {
+  it('planGroupParticipantMerge delete vs remap', () => {
+    const parts = [
+      { id: 'dup__u1', group_id: 'dup', user_id: 'u1' },
+      { id: 'can__u1', group_id: 'can', user_id: 'u1' },
+      { id: 'dup__u2', group_id: 'dup', user_id: 'u2' },
+    ];
+    const actions = planGroupParticipantMerge(parts, 'dup', 'can');
+    expect(actions).toContainEqual({ kind: 'delete', oldId: 'dup__u1' });
+    expect(actions).toContainEqual({ kind: 'remap', oldId: 'dup__u2', userId: 'u2', newId: 'can__u2' });
+  });
+
+  it('filterRowsByGroupId + max_members + catalog specs', () => {
+    expect(filterRowsByGroupId(
+      [{ id: '1', group_id: 'g1' }, { id: '2', group_id: 'g2' }],
+      'g1',
+    ).map(r => r.id)).toEqual(['1']);
+    expect(groupNeedsUnlimitedMaxMembers({ max_members: 10 })).toBe(true);
+    expect(groupNeedsUnlimitedMaxMembers({ max_members: UNLIMITED_GROUP_MEMBERS })).toBe(false);
+    expect(planVisibleAgeBandRoomSpec('20대')).toMatchObject({
+      id: 'group_age_20', name: '20대 모임', room_kind: 'age_decade',
+    });
+    expect(planBirthYearRoomSpec(1995)).toMatchObject({
+      id: 'group_birth_1995', name: '1995년생 모임', room_kind: 'birth_year',
+    });
+    const byYear = collectBirthYearRoomGroups([
+      { id: 'group_birth_1995', name: '1995년생 모임' },
+      { id: 'dup', name: '1995년생 모임' },
+      { id: 'c', name: '20대 모임' },
+    ]);
+    expect(byYear.get(1995)?.length).toBe(2);
+  });
+});

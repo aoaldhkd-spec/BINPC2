@@ -285,6 +285,7 @@ import {
   appSettingsCoreFieldsBroken,
   buildDefaultAppSettings,
   planAppSettingsSecretsPatch,
+  planDailyEntryPasswordRenewal,
 } from '../lib/db-app-settings-boot';
 import {
   deriveAdminToken,
@@ -310,10 +311,6 @@ import {
   matchesVisibleAgeBand,
   birthYearOfGroup,
   isRetiredAgeRoom,
-  ageBandFromYear,
-  canonicalAgeRoomId,
-  canonicalYearRoomId,
-  autoRoomOptKey,
   optKeyForGroup as optKeyForGroupPure,
   isLeftoverInterestRoom,
   groupLimitSlotKey,
@@ -322,6 +319,12 @@ import {
   shouldSkipAutoRoomJoin,
   buildGroupParticipantRow,
   planAutoMatchJoinSpecs,
+  planGroupParticipantMerge,
+  filterRowsByGroupId,
+  groupNeedsUnlimitedMaxMembers,
+  planVisibleAgeBandRoomSpec,
+  planBirthYearRoomSpec,
+  collectBirthYearRoomGroups,
 } from '../lib/db-group-room-plan';
 import {
   hasGroupOptOut as hasGroupOptOutPure,
@@ -399,6 +402,8 @@ import {
   chatIdsForPair as chatIdsForPairPure,
   pickCanonicalChatRow as pickCanonicalChatRowPure,
   groupChatsByPair, messageMergeAction, planCanonicalMessageChatId,
+  planChatDedupeMergeSteps, planChatReadsForDedupe,
+  messagesToRemapOnDedupe, applyIncomingMessageRows,
 } from '../lib/db-chat-pair-plan';
 import {
   FUNCTIONS_LOCKED_ERROR,
@@ -1154,23 +1159,10 @@ async function mergeMessagesForChatIds(chatIds: string[]): Promise<void> {
       [ids],
     );
     if (!rows.length) return;
-    const memRows = getTable('messages');
-    const byId = new Map(memRows.map(r => [String(r['id']), r]));
-    for (const row of rows) {
-      const data = row.data as Record<string, unknown>;
-      const id = String(data['id'] ?? '');
-      if (!id) continue;
-      const existing = byId.get(id);
-      const action = messageMergeAction(existing, data);
-      if (action === 'insert') {
-        memRows.push(data);
-        byId.set(id, data);
-      } else if (action === 'replace') {
-        const idx = memRows.findIndex(r => String(r['id']) === id);
-        if (idx >= 0) memRows[idx] = data;
-        byId.set(id, data);
-      }
-    }
+    applyIncomingMessageRows(
+      getTable('messages'),
+      rows.map(r => r.data as Record<string, unknown>),
+    );
   } catch (e) {
     logger.warn({ err: e }, '[db] mergeMessagesForChatIds failed');
   }
@@ -1184,48 +1176,40 @@ function pickCanonicalChatRow(group: Record<string, unknown>[]): Record<string, 
 async function dedupeChatsInStore(): Promise<number> {
   const chats = getTable('chats');
   if (chats.length < 2) return 0;
-  const groups = groupChatsByPair(chats);
+  const steps = planChatDedupeMergeSteps(chats, countMessagesForChat);
   let merged = 0;
-  for (const group of groups.values()) {
-    if (group.length <= 1) continue;
-    const canonical = pickCanonicalChatRow(group);
-    const canonicalId = String(canonical.id);
-    for (const dup of group) {
-      const dupId = String(dup.id);
-      if (dupId === canonicalId) continue;
-      for (const msg of getTable('messages')) {
-        if (String(msg.chat_id) === dupId) {
-          msg.chat_id = canonicalId;
-          void dbPersistRow('messages', msg);
-        }
-      }
-      const reads = getTable('chat_reads');
-      for (let i = reads.length - 1; i >= 0; i--) {
-        const cr = reads[i];
-        if (String(cr.chat_id) !== dupId) continue;
-        const readerId = String(cr.reader_id ?? '');
+  for (const { canonicalId, dupId } of steps) {
+    for (const msg of messagesToRemapOnDedupe(getTable('messages'), dupId)) {
+      msg.chat_id = canonicalId;
+      void dbPersistRow('messages', msg);
+    }
+    const reads = getTable('chat_reads');
+    for (const action of planChatReadsForDedupe(reads, dupId, canonicalId)) {
+      if (action.kind === 'absorb') {
         const existing = reads.find(
-          r => String(r.chat_id) === canonicalId && String(r.reader_id) === readerId,
+          r => String(r.chat_id) === canonicalId && String(r.reader_id) === action.readerId,
         );
         if (existing) {
-          const crTs = String(cr.read_at ?? '');
-          const exTs = String(existing.read_at ?? '');
-          if (crTs > exTs) existing.read_at = cr.read_at;
+          if (action.bumpReadAt !== undefined) existing.read_at = action.bumpReadAt;
           void dbPersistRow('chat_reads', existing);
-          reads.splice(i, 1);
-          void dbDeleteRow('chat_reads', String(cr.id));
-        } else {
-          cr.chat_id = canonicalId;
-          cr.id = `${canonicalId}__${readerId}`;
-          void dbPersistRow('chat_reads', cr);
         }
+        const idx = reads.findIndex(r => String(r.id) === action.deleteId);
+        if (idx >= 0) reads.splice(idx, 1);
+        void dbDeleteRow('chat_reads', action.deleteId);
+      } else {
+        const cr = reads.find(r => String(r.id) === action.rowId)
+          ?? reads.find(r => String(r.chat_id) === dupId && String(r.reader_id) === action.readerId);
+        if (!cr) continue;
+        cr.chat_id = action.newChatId;
+        cr.id = action.newId;
+        void dbPersistRow('chat_reads', cr);
       }
-      const idx = chats.findIndex(c => String(c.id) === dupId);
-      if (idx >= 0) chats.splice(idx, 1);
-      void dbDeleteRow('chats', dupId);
-      rememberMergedChat(dupId, canonicalId);
-      merged++;
     }
+    const idx = chats.findIndex(c => String(c.id) === dupId);
+    if (idx >= 0) chats.splice(idx, 1);
+    void dbDeleteRow('chats', dupId);
+    rememberMergedChat(dupId, canonicalId);
+    merged++;
   }
   if (merged > 0) {
     logger.info({ merged }, '[db] dedupeChatsInStore merged duplicate chat rooms');
@@ -1574,13 +1558,10 @@ function startDailyEntryPasswordRenewal(): void {
   const check = (): void => {
     if (_renewalInProgress) return; // 이전 DB write가 완료되지 않은 경우 건너뜀
     const settings = getTable('app_settings')[0];
-    if (!settings) return;
-    const currentPw = settings['entry_password'] as string | null | undefined;
-    if (!currentPw || !/^\d{4}$/.test(currentPw)) return;
-    const today = koreanDateMMDD();
-    if (currentPw === today) return;
+    const renew = planDailyEntryPasswordRenewal(settings, koreanDateMMDD(), ts());
+    if (!renew || !settings) return;
     _renewalInProgress = true;
-    const updated = { ...settings, entry_password: today, updated_at: ts() };
+    const updated = { ...settings, ...renew };
     void overlayDbSecrets(updated, new Set(['entry_password']))
       .then(toStore => {
         store['app_settings'][0] = toStore;
@@ -1723,33 +1704,26 @@ async function mergeGroupInto(dupId: string, canonicalId: string): Promise<void>
   if (!dupId || dupId === canonicalId) return;
   rememberMergedGroup(dupId, canonicalId);
   const parts = getTable('group_participants');
-  for (const p of [...parts]) {
-    if (String(p.group_id) !== dupId) continue;
-    const uid = String(p.user_id ?? '');
-    const oldId = String(p.id);
-    const already = parts.some(x => String(x.group_id) === canonicalId && String(x.user_id) === uid);
-    if (already) {
-      store['group_participants'] = getTable('group_participants').filter(x => String(x.id) !== oldId);
-      void dbDeleteRow('group_participants', oldId);
+  for (const action of planGroupParticipantMerge(parts, dupId, canonicalId)) {
+    if (action.kind === 'delete') {
+      store['group_participants'] = getTable('group_participants').filter(x => String(x.id) !== action.oldId);
+      void dbDeleteRow('group_participants', action.oldId);
     } else {
-      const newId = `${canonicalId}__${uid}`;
+      const p = getTable('group_participants').find(x => String(x.id) === action.oldId);
+      if (!p) continue;
       p.group_id = canonicalId;
-      p.id = newId;
+      p.id = action.newId;
       void dbPersistRow('group_participants', p);
-      if (oldId && oldId !== newId) void dbDeleteRow('group_participants', oldId);
+      if (action.oldId && action.oldId !== action.newId) void dbDeleteRow('group_participants', action.oldId);
     }
   }
-  for (const m of getTable('group_messages')) {
-    if (String(m.group_id) === dupId) {
-      m.group_id = canonicalId;
-      void dbPersistRow('group_messages', m);
-    }
+  for (const m of filterRowsByGroupId(getTable('group_messages'), dupId)) {
+    m.group_id = canonicalId;
+    void dbPersistRow('group_messages', m);
   }
-  for (const r of getTable('group_opt_outs')) {
-    if (String(r.group_id) === dupId) {
-      r.group_id = canonicalId;
-      void dbPersistRow('group_opt_outs', r);
-    }
+  for (const r of filterRowsByGroupId(getTable('group_opt_outs'), dupId)) {
+    r.group_id = canonicalId;
+    void dbPersistRow('group_opt_outs', r);
   }
 }
 
@@ -1846,14 +1820,12 @@ async function ensureOptInGroupRoomsWork(): Promise<void> {
     collapseDuplicateGroupChatIds();
     const groups = getTable('group_chats');
     for (const g of groups) {
-      const cap = Number(g.max_members);
-      if (!Number.isFinite(cap) || cap < UNLIMITED_GROUP_MEMBERS) {
-        g.max_members = UNLIMITED_GROUP_MEMBERS;
-        try {
-          await dbPersistRow('group_chats', g);
-        } catch (e) {
-          logger.error({ err: e, groupId: g.id }, '[ensureOptInGroupRooms] max_members persist failed');
-        }
+      if (!groupNeedsUnlimitedMaxMembers(g)) continue;
+      g.max_members = UNLIMITED_GROUP_MEMBERS;
+      try {
+        await dbPersistRow('group_chats', g);
+      } catch (e) {
+        logger.error({ err: e, groupId: g.id }, '[ensureOptInGroupRooms] max_members persist failed');
       }
     }
     for (const spec of OPT_IN_GROUP_ROOMS) {
@@ -1864,32 +1836,14 @@ async function ensureOptInGroupRoomsWork(): Promise<void> {
     }
     // 보이는 N대 방은 20대·30대만. 같은 이름 중복은 canonical 으로 합친다. 10대/40~70대는 시드하지 않는다.
     for (const band of VISIBLE_AGE_BANDS) {
-      const id = `group_age_${band.replace('대', '')}`;
-      const name = `${band} 모임`;
-      const canonical = await upsertCanonicalGroupRoom({
-        id, name, interest_tag: band, room_kind: 'age_decade', age_group: band,
-      });
+      const canonical = await upsertCanonicalGroupRoom(planVisibleAgeBandRoomSpec(band));
       if (!canonical) continue;
       const matches = getTable('group_chats').filter(g => matchesVisibleAgeBand(g, band));
       await mergeMatchesIntoCanonical(matches, canonical);
     }
-    const byYear = new Map<number, Record<string, unknown>[]>();
-    for (const g of getTable('group_chats')) {
-      const year = birthYearOfGroup(g);
-      if (year == null) continue;
-      const list = byYear.get(year) ?? [];
-      list.push(g);
-      byYear.set(year, list);
-    }
-    for (const [year, rooms] of byYear) {
+    for (const [year, rooms] of collectBirthYearRoomGroups(getTable('group_chats'))) {
       if (rooms.length < 2) continue;
-      const canonical = await upsertCanonicalGroupRoom({
-        id: `group_birth_${year}`,
-        name: `${year}년생 모임`,
-        interest_tag: `${year}년생`,
-        room_kind: 'birth_year',
-        age_group: null,
-      });
+      const canonical = await upsertCanonicalGroupRoom(planBirthYearRoomSpec(year));
       if (!canonical) continue;
       await mergeMatchesIntoCanonical(
         getTable('group_chats').filter(g => birthYearOfGroup(g) === year),
@@ -1912,7 +1866,7 @@ async function purgeRetiredAgeRooms(): Promise<void> {
 async function deleteRetiredAgeRoom(g: Record<string, unknown>): Promise<void> {
   const groupId = String(g.id ?? '');
   if (!groupId) return;
-  const msgs = getTable('group_messages').filter(m => String(m.group_id) === groupId);
+  const msgs = filterRowsByGroupId(getTable('group_messages'), groupId);
   for (const m of msgs) {
     smartBroadcast('group_messages', m, { type: 'change', table: 'group_messages', event: 'DELETE', newRow: null, oldRow: m });
   }
@@ -1921,13 +1875,13 @@ async function deleteRetiredAgeRoom(g: Record<string, unknown>): Promise<void> {
     store['group_messages'] = getTable('group_messages').filter(m => String(m.group_id) !== groupId);
     await dbDeleteRows('group_messages', msgIds);
   }
-  const parts = getTable('group_participants').filter(p => String(p.group_id) === groupId);
+  const parts = filterRowsByGroupId(getTable('group_participants'), groupId);
   for (const p of parts) {
     const uid = String(p.user_id ?? '');
     if (uid) await removeParticipant(uid, groupId, false);
     smartBroadcast('group_participants', p, { type: 'change', table: 'group_participants', event: 'DELETE', newRow: null, oldRow: p });
   }
-  const outs = getTable('group_opt_outs').filter(r => String(r.group_id) === groupId);
+  const outs = filterRowsByGroupId(getTable('group_opt_outs'), groupId);
   if (outs.length) {
     const outIds = outs.map(r => String(r.id)).filter(Boolean);
     store['group_opt_outs'] = getTable('group_opt_outs').filter(r => String(r.group_id) !== groupId);
