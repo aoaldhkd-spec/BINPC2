@@ -383,7 +383,7 @@ describe('longevity recurrence guards (server)', () => {
     expect(dbTs).toMatch(/dbReadyPromise[\s\S]{0,120}\.then\(\(\) => cleanupLegacyTables\(\)\)/);
     expect(dbTs).toMatch(/ensureAppSettingsSecrets\(\)[\s\S]{0,120}\.then\(\(\) => cleanupLegacyTables\(\)\)/);
     expect(dbTs).toMatch(/LEGACY_KV_TABLES/);
-    expect(dbTs).toMatch(/DELETE FROM app_kv_rows WHERE table_name = \$1/);
+    expect(dbTs).toMatch(/buildKvDeleteTableSql/);
     expect(dbTs).toMatch(/buildLegacySettingsStripSql/);
     expect(dbTs).toMatch(/buildLegacyHistoryStripSql/);
     expect(dbTs).not.toMatch(/data - 'heart_drain_enabled'/);
@@ -432,6 +432,32 @@ describe('longevity recurrence guards (server)', () => {
     expect(policy).toContain('export function buildKvUpsertSql');
     expect(policy).toContain('export function buildPublicTableRlsSql');
   });
+
+  it('kv-select/load + image-path + error/audit SQL builders peeled (76)', () => {
+    expect(dbTs).toContain('buildKvSelectByRowIdsSql');
+    expect(dbTs).toContain('buildKvSelectByTableRowIdSql');
+    expect(dbTs).toContain('buildKvSelectLatestLimitedSql');
+    expect(dbTs).toContain('buildAppSettingsLatestSql');
+    expect(dbTs).toContain('buildGroupParticipantLookupSql');
+    expect(dbTs).toContain('buildMessagesByChatIdsSql');
+    expect(dbTs).toContain('buildLoadHotKvTablesSql');
+    expect(dbTs).toContain('buildLoadRemainingKvTablesSql');
+    expect(dbTs).toContain('buildImageDeleteByPathsSql');
+    expect(dbTs).toContain('buildImageSelectByPathSql');
+    expect(dbTs).toContain('buildErrorLogCounterDeleteSql');
+    expect(dbTs).toContain('buildAuditLogUpsertSql');
+    expect(dbTs).not.toMatch(/DELETE FROM app_image_store WHERE path = ANY/);
+    expect(dbTs).not.toMatch(/SELECT data_url FROM app_image_store WHERE path = \$1/);
+    expect(dbTs).not.toMatch(/table_name = 'db_error_log' AND row_id = 'counter'/);
+    const policy = readFileSync(join(here, '../lib/db-table-policy.ts'), 'utf8');
+    const merge = readFileSync(join(here, '../lib/db-store-merge.ts'), 'utf8');
+    expect(policy).toContain('export function buildKvSelectByRowIdsSql');
+    expect(policy).toContain('export function buildImageDeleteByPathsSql');
+    expect(policy).toContain('export function buildAuditLogUpsertSql');
+    expect(merge).toContain('export function buildLoadHotKvTablesSql');
+    expect(merge).toContain('export function buildLoadRemainingKvTablesSql');
+  });
+
 
   it('load-venue-150 p95 thresholds stay CI-realistic (not flaky-tight)', () => {
     const loadTest = readFileSync(join(here, 'load-venue-150.test.ts'), 'utf8');

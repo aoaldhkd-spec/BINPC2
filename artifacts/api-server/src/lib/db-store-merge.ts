@@ -113,3 +113,13 @@ export function buildFullResyncUnionSql(
     )
     .join(' UNION ALL ');
 }
+
+/** Boot load: hot tables only. Params: $1=table_name[]. */
+export function buildLoadHotKvTablesSql(): string {
+  return 'SELECT table_name, row_id, data FROM app_kv_rows WHERE table_name = ANY($1::text[]) ORDER BY updated_at ASC';
+}
+
+/** Boot load: everything except hot tables. Params: $1=table_name[] (hot set to exclude). */
+export function buildLoadRemainingKvTablesSql(): string {
+  return 'SELECT table_name, row_id, data FROM app_kv_rows WHERE table_name <> ALL($1::text[]) ORDER BY updated_at ASC';
+}

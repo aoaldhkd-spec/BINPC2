@@ -11,6 +11,8 @@ import {
   shouldThrottleDbMerge,
   groupKvDataRowsByTable,
   buildFullResyncUnionSql,
+  buildLoadHotKvTablesSql,
+  buildLoadRemainingKvTablesSql,
   DB_MERGE_THROTTLE_MS,
   RESYNC_DEFAULT_LIMIT,
 } from './db-store-merge.js';
@@ -68,5 +70,14 @@ describe('db-store-merge resync policy (72)', () => {
     expect(sql).toContain("table_name = 'profiles'");
     expect(sql).toContain('UNION ALL');
     expect(sql).toContain(`LIMIT ${RESYNC_TABLE_LIMIT.likes}`);
+  });
+});
+
+describe('db-store-merge boot load SQL (76)', () => {
+  it('hot/remaining load SQL stay exact', () => {
+    expect(buildLoadHotKvTablesSql()).toContain('table_name = ANY($1::text[])');
+    expect(buildLoadHotKvTablesSql()).toContain('ORDER BY updated_at ASC');
+    expect(buildLoadRemainingKvTablesSql()).toContain('table_name <> ALL($1::text[])');
+    expect(buildLoadRemainingKvTablesSql()).toContain('ORDER BY updated_at ASC');
   });
 });

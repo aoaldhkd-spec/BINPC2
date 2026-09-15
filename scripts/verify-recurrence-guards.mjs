@@ -2198,6 +2198,60 @@ mustMatch('ARCHITECTURE.md', '75_architecture_path_after_rate_kv_schema_peel', [
 
 
 
+
+
+// ── 76: kv-select/load-sql + image-path-sql + error/audit-sql ──
+mustMatch('artifacts/api-server/src/lib/db-table-policy.ts', '76_kv_select_image_audit_sql_export', [
+  /export function buildKvSelectByRowIdsSql/,
+  /export function buildKvSelectByTableRowIdSql/,
+  /export function buildKvSelectLatestLimitedSql/,
+  /export function buildAppSettingsLatestSql/,
+  /export function buildGroupParticipantLookupSql/,
+  /export function buildMessagesByChatIdsSql/,
+  /export function buildErrorLogCounterDeleteSql/,
+  /export function buildAuditLogUpsertSql/,
+  /export function buildImageDeleteByPathsSql/,
+  /export function buildImageSelectByPathSql/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-store-merge.ts', '76_boot_load_sql_export', [
+  /export function buildLoadHotKvTablesSql/,
+  /export function buildLoadRemainingKvTablesSql/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '76_db_reimports_kv_select_image_load_sql', [
+  /buildKvSelectByRowIdsSql/,
+  /buildKvSelectByTableRowIdSql/,
+  /buildKvSelectLatestLimitedSql/,
+  /buildAppSettingsLatestSql/,
+  /buildGroupParticipantLookupSql/,
+  /buildMessagesByChatIdsSql/,
+  /buildLoadHotKvTablesSql/,
+  /buildLoadRemainingKvTablesSql/,
+  /buildImageDeleteByPathsSql/,
+  /buildImageSelectByPathSql/,
+  /buildErrorLogCounterDeleteSql/,
+  /buildAuditLogUpsertSql/,
+  /buildKvDeleteTableSql/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '76_db_still_single_router_export', [
+  /export default router/,
+]);
+mustNotMatch('artifacts/api-server/src/routes/db.ts', '76_db_no_inline_image_path_sql', [
+  /DELETE FROM app_image_store WHERE path = ANY/,
+  /SELECT data_url FROM app_image_store WHERE path = \$1/,
+]);
+mustNotMatch('artifacts/api-server/src/routes/db.ts', '76_db_no_inline_error_log_delete_sql', [
+  /table_name = 'db_error_log' AND row_id = 'counter'/,
+]);
+mustNotMatch('artifacts/api-server/src/routes/db.ts', '76_db_no_inline_boot_load_sql', [
+  /table_name = ANY\(\$1::text\[\]\) ORDER BY updated_at ASC/,
+  /table_name <> ALL\(\$1::text\[\]\) ORDER BY updated_at ASC/,
+]);
+mustMatch('ARCHITECTURE.md', '76_architecture_path_after_kv_select_image_peel', [
+  /kv-select\/load-sql|image-path-sql|error\/audit-sql/,
+  /~9\.5/,
+]);
+
+
 console.log('\n=== verify-recurrence-guards ===\n');
 
 for (const r of results) {

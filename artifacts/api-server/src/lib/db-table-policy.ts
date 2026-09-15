@@ -1,5 +1,5 @@
 /**
- * /op allowlist + critical persist table sets + KV/schema SQL builders — extracted from routes/db.ts.
+ * /op allowlist + critical persist table sets + KV/schema/select/image SQL builders — extracted from routes/db.ts.
  */
 
 /** Allowlist prevents access to internal or non-existent tables via /op. */
@@ -153,4 +153,63 @@ export function buildPublicTableRlsSql(): string {
 /** Preload image store. */
 export function buildLoadImagesSql(): string {
   return 'SELECT path, data_url FROM app_image_store';
+}
+
+/** Select KV rows by primary keys. Params: $1=table_name, $2=row_id[]. */
+export function buildKvSelectByRowIdsSql(): string {
+  return `SELECT data FROM app_kv_rows
+       WHERE table_name = $1 AND row_id = ANY($2::text[])`;
+}
+
+/** Select one KV row by (table_name, row_id). Params: $1=table_name, $2=row_id. */
+export function buildKvSelectByTableRowIdSql(): string {
+  return `SELECT data FROM app_kv_rows WHERE table_name = $1 AND row_id = $2 LIMIT 1`;
+}
+
+/** Latest N rows for a table_name. Params: $1=table_name, $2=limit. */
+export function buildKvSelectLatestLimitedSql(): string {
+  return `SELECT data FROM app_kv_rows WHERE table_name = $1 ORDER BY updated_at DESC LIMIT $2`;
+}
+
+/** Latest app_settings row (overlay/hydrate). */
+export function buildAppSettingsLatestSql(): string {
+  return `SELECT data FROM app_kv_rows WHERE table_name = 'app_settings' ORDER BY updated_at DESC LIMIT 1`;
+}
+
+/** Targeted group_participants refresh. Params: $1=group_id, $2=user_id. */
+export function buildGroupParticipantLookupSql(): string {
+  return `SELECT data FROM app_kv_rows
+       WHERE table_name = 'group_participants'
+         AND data->>'group_id' = $1
+         AND data->>'user_id' = $2
+       LIMIT 1`;
+}
+
+/** Messages for chat id set (merge). Params: $1=chat_id[]. */
+export function buildMessagesByChatIdsSql(): string {
+  return `SELECT data FROM app_kv_rows
+       WHERE table_name = 'messages'
+         AND data->>'chat_id' = ANY($1::text[])`;
+}
+
+/** Clear persisted db_error_log counter. */
+export function buildErrorLogCounterDeleteSql(): string {
+  return `DELETE FROM app_kv_rows WHERE table_name = 'db_error_log' AND row_id = 'counter'`;
+}
+
+/** Admin audit_log upsert. Params: $1=row_id, $2=json payload. */
+export function buildAuditLogUpsertSql(): string {
+  return `INSERT INTO app_kv_rows (table_name, row_id, data)
+       VALUES ('audit_log', $1, $2::jsonb)
+       ON CONFLICT (table_name, row_id) DO UPDATE SET data = EXCLUDED.data`;
+}
+
+/** Batch delete images by path. Params: $1=path[]. */
+export function buildImageDeleteByPathsSql(): string {
+  return 'DELETE FROM app_image_store WHERE path = ANY($1::text[])';
+}
+
+/** Lazy-load one image. Params: $1=path. */
+export function buildImageSelectByPathSql(): string {
+  return 'SELECT data_url FROM app_image_store WHERE path = $1 LIMIT 1';
 }

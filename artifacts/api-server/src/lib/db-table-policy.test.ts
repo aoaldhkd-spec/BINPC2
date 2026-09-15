@@ -16,6 +16,16 @@ import {
   buildKvTableUpdatedIndexSql,
   buildPublicTableRlsSql,
   buildLoadImagesSql,
+  buildKvSelectByRowIdsSql,
+  buildKvSelectByTableRowIdSql,
+  buildKvSelectLatestLimitedSql,
+  buildAppSettingsLatestSql,
+  buildGroupParticipantLookupSql,
+  buildMessagesByChatIdsSql,
+  buildErrorLogCounterDeleteSql,
+  buildAuditLogUpsertSql,
+  buildImageDeleteByPathsSql,
+  buildImageSelectByPathSql,
 } from './db-table-policy.js';
 
 describe('db-table-policy', () => {
@@ -61,5 +71,20 @@ describe('db-table-policy', () => {
     expect(buildPublicTableRlsSql()).toContain('ENABLE ROW LEVEL SECURITY');
     expect(buildPublicTableRlsSql()).toContain('REVOKE ALL ON public');
     expect(buildLoadImagesSql()).toBe('SELECT path, data_url FROM app_image_store');
+  });
+
+  it('KV select/load + image-path + error/audit SQL builders (76)', () => {
+    expect(buildKvSelectByRowIdsSql()).toContain('row_id = ANY($2::text[])');
+    expect(buildKvSelectByTableRowIdSql()).toContain('row_id = $2 LIMIT 1');
+    expect(buildKvSelectLatestLimitedSql()).toContain('ORDER BY updated_at DESC LIMIT $2');
+    expect(buildAppSettingsLatestSql()).toContain("table_name = 'app_settings'");
+    expect(buildGroupParticipantLookupSql()).toContain("table_name = 'group_participants'");
+    expect(buildGroupParticipantLookupSql()).toContain("data->>'user_id' = $2");
+    expect(buildMessagesByChatIdsSql()).toContain("table_name = 'messages'");
+    expect(buildMessagesByChatIdsSql()).toContain("data->>'chat_id' = ANY($1::text[])");
+    expect(buildErrorLogCounterDeleteSql()).toContain("'db_error_log'");
+    expect(buildAuditLogUpsertSql()).toContain("'audit_log'");
+    expect(buildImageDeleteByPathsSql()).toBe('DELETE FROM app_image_store WHERE path = ANY($1::text[])');
+    expect(buildImageSelectByPathSql()).toBe('SELECT data_url FROM app_image_store WHERE path = $1 LIMIT 1');
   });
 });

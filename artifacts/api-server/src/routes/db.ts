@@ -71,6 +71,8 @@ import {
   shouldThrottleDbMerge,
   groupKvDataRowsByTable,
   buildFullResyncUnionSql,
+  buildLoadHotKvTablesSql,
+  buildLoadRemainingKvTablesSql,
 } from '../lib/db-store-merge';
 import {
   type FilterSpec,
@@ -106,6 +108,16 @@ import {
   buildKvTableUpdatedIndexSql,
   buildPublicTableRlsSql,
   buildLoadImagesSql,
+  buildKvSelectByRowIdsSql,
+  buildKvSelectByTableRowIdSql,
+  buildKvSelectLatestLimitedSql,
+  buildAppSettingsLatestSql,
+  buildGroupParticipantLookupSql,
+  buildMessagesByChatIdsSql,
+  buildErrorLogCounterDeleteSql,
+  buildAuditLogUpsertSql,
+  buildImageDeleteByPathsSql,
+  buildImageSelectByPathSql,
 } from '../lib/db-table-policy';
 import {
   planSmartBroadcastLocal,
@@ -1043,8 +1055,7 @@ async function refreshReferencedRows(table: string, ids: string[]): Promise<bool
   if (!wanted.length) return true;
   try {
     const { rows } = await pool.query(
-      `SELECT data FROM app_kv_rows
-       WHERE table_name = $1 AND row_id = ANY($2::text[])`,
+      buildKvSelectByRowIdsSql(),
       [table, wanted],
     );
     mergeRefreshedRows(table, rows);
@@ -1073,11 +1084,7 @@ async function ensureWriteReferences(
 async function refreshGroupParticipant(groupId: string, userId: string): Promise<'found' | 'missing' | 'unavailable'> {
   try {
     const { rows } = await pool.query(
-      `SELECT data FROM app_kv_rows
-       WHERE table_name = 'group_participants'
-         AND data->>'group_id' = $1
-         AND data->>'user_id' = $2
-       LIMIT 1`,
+      buildGroupParticipantLookupSql(),
       [groupId, userId],
     );
     mergeRefreshedRows('group_participants', rows);
@@ -1179,9 +1186,7 @@ async function mergeMessagesForChatIds(chatIds: string[]): Promise<void> {
   if (!ids.length) return;
   try {
     const { rows } = await pool.query(
-      `SELECT data FROM app_kv_rows
-       WHERE table_name = 'messages'
-         AND data->>'chat_id' = ANY($1::text[])`,
+      buildMessagesByChatIdsSql(),
       [ids],
     );
     if (!rows.length) return;
@@ -1373,7 +1378,7 @@ function seedLikesLastInsertFromStore(): void {
 async function loadHotTablesFromDb(): Promise<void> {
   try {
     const { rows } = await pool.query(
-      'SELECT table_name, row_id, data FROM app_kv_rows WHERE table_name = ANY($1::text[]) ORDER BY updated_at ASC',
+      buildLoadHotKvTablesSql(),
       [HOT_TABLES],
     );
     mergeKvRowsIntoStore(rows);
@@ -1385,7 +1390,7 @@ async function loadHotTablesFromDb(): Promise<void> {
 async function loadRemainingTablesFromDb(): Promise<void> {
   try {
     const { rows } = await pool.query(
-      'SELECT table_name, row_id, data FROM app_kv_rows WHERE table_name <> ALL($1::text[]) ORDER BY updated_at ASC',
+      buildLoadRemainingKvTablesSql(),
       [HOT_TABLES],
     );
     mergeKvRowsIntoStore(rows);
@@ -1426,7 +1431,7 @@ async function overlayDbSecrets(
 ): Promise<Record<string, unknown>> {
   try {
     const { rows } = await pool.query(
-      `SELECT data FROM app_kv_rows WHERE table_name = 'app_settings' ORDER BY updated_at DESC LIMIT 1`,
+      buildAppSettingsLatestSql(),
     );
     const db = rows[0]?.data as Record<string, unknown> | undefined;
     if (!db || typeof db !== 'object') return row;
@@ -1441,7 +1446,7 @@ async function overlayDbSecrets(
 async function hydrateAppSettingsFromDb(): Promise<Record<string, unknown>> {
   try {
     const { rows } = await pool.query(
-      `SELECT data FROM app_kv_rows WHERE table_name = 'app_settings' ORDER BY updated_at DESC LIMIT 1`,
+      buildAppSettingsLatestSql(),
     );
     const data = rows[0]?.data as Record<string, unknown> | undefined;
     if (data && typeof data === 'object' && !Array.isArray(data)) {
@@ -1568,7 +1573,7 @@ async function cleanupLegacyTables(): Promise<void> {
     // 지정 leftover 테이블만 삭제 — 미등록 테이블 전체 삭제(inversion)는 병렬 기능 데이터를 지울 수 있어 하지 않음
     for (const t of LEGACY_KV_TABLES) {
       const res = await pool.query(
-        `DELETE FROM app_kv_rows WHERE table_name = $1`, [t],
+        buildKvDeleteTableSql(), [t],
       );
       delete store[t];
       if ((res.rowCount ?? 0) > 0) {
@@ -2148,7 +2153,7 @@ async function _setupListenClientInner(gen: number): Promise<void> {
       if (plan.action === 'refetch') {
         const { table: tbl, id, ev, reason } = plan;
         pool.query(
-          `SELECT data FROM app_kv_rows WHERE table_name = $1 AND row_id = $2 LIMIT 1`,
+          buildKvSelectByTableRowIdSql(),
           [tbl, id],
         ).then(result => {
           const row = (result.rows[0]?.data ?? null) as Record<string, unknown> | null;
@@ -2286,7 +2291,7 @@ async function mergeTableFromDbIfStale(table: string, force = false): Promise<vo
   try {
     const limit = resyncLimitFor(table);
     const { rows } = await pool.query(
-      `SELECT data FROM app_kv_rows WHERE table_name = $1 ORDER BY updated_at DESC LIMIT $2`,
+      buildKvSelectLatestLimitedSql(),
       [table, limit],
     );
     if (!rows.length) return;
@@ -2307,7 +2312,7 @@ async function resyncHotTablesFromDb(): Promise<void> {
     await Promise.all(HOT_RESYNC_TABLES.map(async (tbl) => {
       const limit = HOT_RESYNC_LIMITS[tbl] ?? 5000;
       const { rows } = await pool.query(
-        `SELECT data FROM app_kv_rows WHERE table_name = $1 ORDER BY updated_at DESC LIMIT $2`,
+        buildKvSelectLatestLimitedSql(),
         [tbl, limit],
       );
       if (!rows.length) return;
@@ -4251,7 +4256,7 @@ router.post('/storage-remove', async (req: Request, res: Response) => {
     if (!planned.ok) return res.status(planned.reject.status).json(planned.reject.body);
 
     for (const p of planned.paths) _imageStore.delete(p);
-    await pool.query('DELETE FROM app_image_store WHERE path = ANY($1::text[])', [planned.paths]);
+    await pool.query(buildImageDeleteByPathsSql(), [planned.paths]);
     return res.json({ data: null, error: null });
   } catch (e) {
     logger.error({ err: e }, '[storage-remove] Unexpected error');
@@ -4289,7 +4294,7 @@ router.get('/storage-image', async (req: Request, res: Response): Promise<void> 
   let dataUrl: string | undefined = imageStoreGet(path);
   if (!dataUrl) {
     try {
-      const { rows } = await pool.query('SELECT data_url FROM app_image_store WHERE path = $1 LIMIT 1', [path]);
+      const { rows } = await pool.query(buildImageSelectByPathSql(), [path]);
       dataUrl = rows[0]?.data_url as string | undefined;
       if (dataUrl) imageStoreSet(path, dataUrl);
     } catch (e) {
@@ -4342,7 +4347,7 @@ router.post('/admin/clear-db-errors', async (req: Request, res: Response) => {
   // Remove the persisted counter from DB
   try {
     await pool.query(
-      `DELETE FROM app_kv_rows WHERE table_name = 'db_error_log' AND row_id = 'counter'`,
+      buildErrorLogCounterDeleteSql(),
     );
   } catch (e) {
     logger.error({ err: e }, '[db] Failed to clear error state from DB');
@@ -4353,9 +4358,7 @@ router.post('/admin/clear-db-errors', async (req: Request, res: Response) => {
   // #38: 관리자 에러 초기화 감사 로그 — DB에 영구 기록
   try {
     await pool.query(
-      `INSERT INTO app_kv_rows (table_name, row_id, data)
-       VALUES ('audit_log', $1, $2::jsonb)
-       ON CONFLICT (table_name, row_id) DO UPDATE SET data = EXCLUDED.data`,
+      buildAuditLogUpsertSql(),
       [
         `clear_db_errors_${Date.now()}`,
         JSON.stringify({ action: 'clear_db_errors', clearedAt: new Date().toISOString() }),
