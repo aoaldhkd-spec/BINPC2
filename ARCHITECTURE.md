@@ -54,7 +54,7 @@ Prefer **single Render instance**. Multi-instance는 NOTIFY로 일부 동기화�
 | `artifacts/api-server/src/lib/db-op-request.ts` | `/op` scalar/filter normalize + entry-gate/write rejects (순수) |
 | `artifacts/api-server/src/lib/db-admin-identity.ts` | Admin/NPC phone·nickname identity + birth-md helper (순수) |
 | `artifacts/api-server/src/lib/db-admin-wipe-plan.ts` | `clearAdminNpcRelationships` row-selection plan (순수) |
-| `artifacts/api-server/src/lib/db-app-settings-merge.ts` | app_settings merge / QR / koreanDateMMDD / secret keys (순수) |
+| `artifacts/api-server/src/lib/db-app-settings-merge.ts` | app_settings merge / QR / secret keys (순수) |
 | `artifacts/api-server/src/lib/db-panel-tokens.ts` | admin/test panel session HMAC derive + verify (순수) |
 | `artifacts/api-server/src/lib/db-image-store.ts` | in-memory image dataURL LRU (순수 factory) |
 | `artifacts/api-server/src/lib/db-group-room-plan.ts` | group room match/opt-in + auto-room row builders (순수) |
@@ -226,7 +226,7 @@ Path to ≥9.5 further = more `db.ts` write-path / `/op` slices — App is alrea
 | Prior (auth-login + op-gate + rpc-auth + push-subscribe + insert follow-up + SSE admit) | **~9.5** | `/auth/login` + `/op` gates/rejects + RPC panel/auth + push-subscribe + insert follow-up + SSE admit + `/ready` folded into existing pure libs; `db.ts` ~5.35k |
 | Prior (storage-upload + health-plan + push-subscribe-store + notify/autoMatch) | **~9.5** | storage upload/remove gates + `/health` pin-pool/alarms + push-subscribe store + NOTIFY payload + autoMatch specs + signal upgrade + RPC persist rejects; `db.ts` ~5.32k |
 | Prior (auth-resolve + unread/push-notify + leave-expand + sse-gate) | **~9.5** | auth userId resolve/login body + unread rejects/cache + push-notify validate + group leave-expand/opt-out + SSE token gate/notify-queue/counts + admin-NPC store patch + broadcast rejects/IP + clear-db-errors auth; `db.ts` ~5.30k |
-| Prior (chat-dedupe + group-merge + entry-renewal) | **~9.5** | 1:1 chat dedupe/read-merge + message apply + group participant merge/catalog specs + daily entry-password renewal folded into existing pure libs; `db.ts` ~5.25k |
+| Prior (chat-dedupe + group-merge) | **~9.5** | 1:1 chat dedupe/read-merge + message apply + group participant merge/catalog specs folded into existing pure libs; date-based entry-code renewal removed; `db.ts` ~5.25k |
 | Prior (resync-policy + notify-inbound + ACTIVE_KV) | **~9.5** | Hot/full resync catalogs + throttle/group/union helpers + LISTEN/NOTIFY inbound plan/memory apply + ACTIVE_KV inventory folded into existing pure libs; `db.ts` ~5.20k |
 | Prior (overlay-secrets + pin-collect + integrity-clamp + dedupe/merge-apply + critical-write-log) | **~9.5** | Settings secret overlay + used-PIN collect + integrity env clamps + chat_reads/group-participant memory apply + critical-write log helper folded into existing pure libs; `db.ts` ~5.18k |
 | Prior (legacy-sql + device-secret-hash + admin-push-recipient + health-count-sql) | **~9.5** | Legacy leftover/strip SQL builders + device-secret HMAC/compare + admin push recipient/throttle + health recent-count SQL folded into existing pure libs; `db.ts` ~5.14k |

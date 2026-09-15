@@ -154,7 +154,7 @@ function ChatComposer({
 // Scene 1: 입장 코드 (EntryGateScreen)
 // ══════════════════════════════════════════════════════════════════════════════
 function S1({ step }: { step: number }) {
-  const typed = step >= 2 ? (step >= 3 ? '0820' : '08') : '';
+  const typed = step >= 2 ? (step >= 3 ? '••••' : '••') : '';
   const verifying = step >= 5;
   const done = step >= 6;
   return (
@@ -167,17 +167,11 @@ function S1({ step }: { step: number }) {
             <p className="text-slate-400 text-[9px]">참여하려면 입장 코드를 입력하세요</p>
           </div>
           <div className={`w-full max-w-[210px] rounded-2xl border border-slate-700/60 bg-slate-800/70 p-2.5 space-y-2 transition-all duration-500 ${verifying ? 'opacity-80' : ''}`}>
-            <div className="rounded-xl border-2 border-cyan-400/60 bg-cyan-400/10 px-2 py-1.5 text-center">
-              <p className="text-[9px] font-black text-cyan-200">
-                입장 코드는 <span className="text-white underline decoration-cyan-400">오늘 날짜</span>
-              </p>
-              <p className="text-[8px] font-bold text-cyan-300 mt-0.5">월·일 4자리 (예: 0820)</p>
-            </div>
             <div className={`relative rounded-xl border-2 px-2 py-2 text-center transition-all duration-300 ${
               step >= 1 && step < 4 ? 'border-cyan-500 bg-slate-700/60' : 'border-slate-600 bg-slate-700/40'
             }`}>
               <Ring on={step === 1} color="ring-cyan-400" />
-              <Tip text="오늘 날짜 입력" show={step === 1} dir="bottom" />
+              <Tip text="입장 코드 입력" show={step === 1} dir="bottom" />
               <span className={`text-sm font-black tracking-[0.28em] ${typed ? 'text-white' : 'text-slate-500'}`}>
                 {typed || '••••'}
               </span>
@@ -736,7 +730,7 @@ interface SceneDef {
 /** 홀드·이동을 넉넉히 — 끊김 완화 (이전 대비 ~1.4×) */
 const SCENES: SceneDef[] = [
   {
-    title: '입장 코드로 들어가기', sub: '오늘 날짜 4자리를 입력하고 입장해요',
+    title: '입장 코드로 들어가기', sub: '운영진에게 받은 입장 코드를 입력하고 입장해요',
     steps: [
       { cx: 124, cy: 120, dur: 1400 },
       { cx: 124, cy: 148, click: false, dur: 1100 },

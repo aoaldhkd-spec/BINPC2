@@ -83,7 +83,7 @@ describe('shouldAutoSkipWaiting', () => {
 describe('shouldShowEntryGate', () => {
   it('shows PIN only for unidentified visitors when a code is set', () => {
     expect(shouldShowEntryGate({
-      entryPassword: '0816',
+      entryPassword: 'entry-code',
       entryVerified: false,
       currentUserId: null,
     })).toBe(true);
@@ -91,7 +91,7 @@ describe('shouldShowEntryGate', () => {
 
   it('skips PIN when already verified or no code', () => {
     expect(shouldShowEntryGate({
-      entryPassword: '0816',
+      entryPassword: 'entry-code',
       entryVerified: true,
       currentUserId: null,
     })).toBe(false);
@@ -109,12 +109,12 @@ describe('shouldShowEntryGate', () => {
 
   it('skips PIN for dummy / stored account / tester even if not verified yet', () => {
     expect(shouldShowEntryGate({
-      entryPassword: '0816',
+      entryPassword: 'entry-code',
       entryVerified: false,
       currentUserId: 'dummy-1',
     })).toBe(false);
     expect(shouldShowEntryGate({
-      entryPassword: '0816',
+      entryPassword: 'entry-code',
       entryVerified: false,
       currentUserId: null,
       isTester: true,

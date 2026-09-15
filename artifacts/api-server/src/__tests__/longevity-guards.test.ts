@@ -302,20 +302,20 @@ describe('longevity recurrence guards (server)', () => {
   });
 
 
-  it('chat-dedupe + group-merge + entry-renewal planners stay extracted', () => {
+  it('chat-dedupe + group-merge stay extracted without date-entry renewal', () => {
     expect(dbTs).toContain('planChatDedupeMergeSteps');
     expect(dbTs).toContain('planChatReadsForDedupe');
     expect(dbTs).toContain('applyIncomingMessageRows');
     expect(dbTs).toContain('planGroupParticipantMerge');
     expect(dbTs).toContain('planVisibleAgeBandRoomSpec');
-    expect(dbTs).toContain('planDailyEntryPasswordRenewal');
+    expect(dbTs).not.toContain('planDailyEntryPasswordRenewal');
     expect(dbTs).not.toMatch(/const byYear = new Map<number, Record<string, unknown>\[\]>\(\);/);
     const chat = readFileSync(join(here, '../lib/db-chat-pair-plan.ts'), 'utf8');
     const group = readFileSync(join(here, '../lib/db-group-room-plan.ts'), 'utf8');
     const boot = readFileSync(join(here, '../lib/db-app-settings-boot.ts'), 'utf8');
     expect(chat).toContain('planChatDedupeMergeSteps');
     expect(group).toContain('planGroupParticipantMerge');
-    expect(boot).toContain('planDailyEntryPasswordRenewal');
+    expect(boot).not.toContain('planDailyEntryPasswordRenewal');
   });
 
   it('auth-resolve + unread/push-notify + leave-expand + sse-gate stay extracted', () => {

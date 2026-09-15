@@ -5,7 +5,6 @@
 import {
   PRODUCTION_QR_BASE,
   isLocalQrUrl,
-  koreanDateMMDD,
 } from './db-app-settings-merge.js';
 import { settingsHaveLegacyKeys } from './db-legacy-cleanup.js';
 import {
@@ -36,7 +35,7 @@ export function buildDefaultAppSettings(input: {
     timer_label: null,
     functions_locked: false,
     reset_signal: null,
-    entry_password: input.entryPassword ?? koreanDateMMDD(),
+    entry_password: input.entryPassword ?? '',
     reset_password: panelDefault,
     test_password: bootstrapTest || panelDefault,
     qr_base_url: productionQrBase,
@@ -96,20 +95,4 @@ export function planAppSettingsSecretsPatch(
   const needsStrip = settingsHaveLegacyKeys(row);
   const shouldApply = Object.keys(patch).length > 0 || needsStrip;
   return { patch, shouldApply };
-}
-
-/**
- * Daily MMDD entry_password auto-renewal decision.
- * Returns null when no renew; otherwise the fields to merge onto settings.
- */
-export function planDailyEntryPasswordRenewal(
-  settings: Record<string, unknown> | null | undefined,
-  today: string,
-  nowIso: string,
-): { entry_password: string; updated_at: string } | null {
-  if (!settings) return null;
-  const currentPw = settings['entry_password'] as string | null | undefined;
-  if (!currentPw || !/^\d{4}$/.test(currentPw)) return null;
-  if (currentPw === today) return null;
-  return { entry_password: today, updated_at: nowIso };
 }

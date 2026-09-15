@@ -40,7 +40,7 @@ describe('db-app-settings-view', () => {
       admin_password: 'secret-admin',
       test_password: 'secret-test',
       reset_password: 'secret-reset',
-      entry_password: '0915',
+      entry_password: 'venue-code',
     };
     const userView = publicAppSettingsView(row, false);
     expect(userView.admin_password).toBeUndefined();

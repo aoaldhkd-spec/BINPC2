@@ -330,7 +330,6 @@ import {
   PRODUCTION_QR_BASE,
   SECRET_SETTING_KEYS,
   explicitSecretKeys,
-  koreanDateMMDD,
   mergeAppSettings as mergeAppSettingsPure,
   overlaySecretsFromDbRow,
   sanitizeAdminSettingsPayload,
@@ -340,7 +339,6 @@ import {
   appSettingsCoreFieldsBroken,
   buildDefaultAppSettings,
   planAppSettingsSecretsPatch,
-  planDailyEntryPasswordRenewal,
 } from '../lib/db-app-settings-boot';
 import {
   deriveAdminToken,
@@ -1419,7 +1417,6 @@ function defaultAppSettings(): Record<string, unknown> {
     bootstrapTest: process.env.BOOTSTRAP_TEST_PASSWORD?.trim(),
     panelDefault: PANEL_DEFAULT_PASSWORD,
     productionQrBase: PRODUCTION_QR_BASE,
-    entryPassword: koreanDateMMDD(),
   });
 }
 
@@ -1532,34 +1529,6 @@ async function seedIfNeeded(): Promise<void> {
   }
   await ensureAdminProfile();
   await ensureOptInGroupRooms();
-}
-
-// ─── Daily entry_password auto-renewal ────────────────────────────────────────
-// If entry_password is a 4-digit MMDD date string, update it to today's Korean
-// date every minute so the code never expires without an admin needing to touch it.
-let _renewalInProgress = false; // single-flight guard — 동시 갱신 방지
-function startDailyEntryPasswordRenewal(): void {
-  const check = (): void => {
-    if (_renewalInProgress) return; // 이전 DB write가 완료되지 않은 경우 건너뜀
-    const settings = getTable('app_settings')[0];
-    const renew = planDailyEntryPasswordRenewal(settings, koreanDateMMDD(), ts());
-    if (!renew || !settings) return;
-    _renewalInProgress = true;
-    const updated = { ...settings, ...renew };
-    void overlayDbSecrets(updated, new Set(['entry_password']))
-      .then(toStore => {
-        store['app_settings'][0] = toStore;
-        return dbPersistRow('app_settings', toStore).then(() => {
-          smartBroadcast('app_settings', toStore, {
-            type: 'change', table: 'app_settings', event: 'UPDATE',
-            newRow: toStore, oldRow: settings as Record<string, unknown>,
-          });
-        });
-      })
-      .catch(e => logger.error({ err: e }, '[db] background task error'))
-      .finally(() => { _renewalInProgress = false; });
-  };
-  setInterval(check, 60_000).unref();
 }
 
 // ─── 기능 삭제 후 남은 레거시 테이블 자동 정리 ──────────────────────────────────
@@ -2054,10 +2023,7 @@ async function autoMatchGroupChatGuarded(userId: string, profile: Record<string,
 // Seed must finish before /api/db handles traffic. LISTEN/NOTIFY is background-only —
 // blocking requests on Postgres LISTEN connect hung chat INSERT + SSE on Render boot.
 // cleanupLegacyTables는 부팅 경로에서 제외 — 콜드스타트·재배포 직후 채팅/하트 503 대기 시간 단축.
-const dbReadyPromise = seedIfNeeded()
-  .then(() => {
-    startDailyEntryPasswordRenewal();
-  });
+const dbReadyPromise = seedIfNeeded();
 
 dbReadyPromise
   .then(() => cleanupLegacyTables())

@@ -11,7 +11,7 @@ describe('db-app-settings-boot', () => {
   it('buildDefaultAppSettings fills factory defaults and bootstrap overrides', () => {
     const row = buildDefaultAppSettings({
       now: 'n0',
-      entryPassword: '0915',
+      entryPassword: 'venue-code',
       bootstrapAdmin: 'admin-secret',
       bootstrapTest: 'test-secret',
     });
@@ -22,11 +22,16 @@ describe('db-app-settings-boot', () => {
       admin_password: 'admin-secret',
       test_password: 'test-secret',
       reset_password: PANEL_DEFAULT_PASSWORD,
-      entry_password: '0915',
+      entry_password: 'venue-code',
       qr_base_url: PRODUCTION_QR_BASE,
       functions_locked: false,
       updated_at: 'n0',
     });
+  });
+
+  it('does not invent a date as the default entry code', () => {
+    const row = buildDefaultAppSettings({ now: 'n0' });
+    expect(row.entry_password).toBe('');
   });
 
   it('appSettingsCoreFieldsBroken detects missing core fields', () => {
@@ -34,20 +39,20 @@ describe('db-app-settings-boot', () => {
       id: 1,
       session_active: false,
       admin_password: 'x',
-      entry_password: '0915',
+      entry_password: 'venue-code',
       test_password: 'y',
     })).toBe(false);
     expect(appSettingsCoreFieldsBroken({
       session_active: false,
       admin_password: 'x',
-      entry_password: '0915',
+      entry_password: 'venue-code',
       test_password: 'y',
     })).toBe(true);
     expect(appSettingsCoreFieldsBroken({
       id: 1,
       session_active: false,
       admin_password: '',
-      entry_password: '0915',
+      entry_password: 'venue-code',
       test_password: 'y',
     })).toBe(true);
   });
@@ -76,19 +81,5 @@ describe('db-app-settings-boot', () => {
     expect(plan.patch.test_password).toBe('boot-test');
     expect(plan.patch.reset_password).toBe(PANEL_DEFAULT_PASSWORD);
     expect(plan.patch.qr_base_url).toBe(PRODUCTION_QR_BASE);
-  });
-});
-
-import { planDailyEntryPasswordRenewal } from './db-app-settings-boot.js';
-
-describe('planDailyEntryPasswordRenewal (71)', () => {
-  it('renews only 4-digit MMDD when stale', () => {
-    expect(planDailyEntryPasswordRenewal(null, '0915', 't')).toBeNull();
-    expect(planDailyEntryPasswordRenewal({ entry_password: 'abc' }, '0915', 't')).toBeNull();
-    expect(planDailyEntryPasswordRenewal({ entry_password: '0915' }, '0915', 't')).toBeNull();
-    expect(planDailyEntryPasswordRenewal({ entry_password: '0914' }, '0915', 't0')).toEqual({
-      entry_password: '0915',
-      updated_at: 't0',
-    });
   });
 });

@@ -1014,7 +1014,6 @@ mustMatch('artifacts/api-server/src/lib/db-app-settings-merge.ts', '53_app_setti
   /export const PRODUCTION_QR_BASE/,
   /export const SECRET_SETTING_KEYS/,
   /export function isLocalQrUrl/,
-  /export function koreanDateMMDD/,
   /export function explicitSecretKeys/,
   /export function mergeAppSettings/,
 ]);
@@ -1028,7 +1027,6 @@ mustMatch('artifacts/api-server/src/routes/db.ts', '53_db_reimports_settings_mer
   /mergeAppSettingsPure/,
   /deriveAdminToken/,
   /deriveTestToken/,
-  /koreanDateMMDD/,
   /SECRET_SETTING_KEYS/,
 ]);
 mustMatch('artifacts/api-server/src/routes/db.ts', '53_db_still_single_router_export', [
@@ -1976,7 +1974,7 @@ mustMatch('ARCHITECTURE.md', '70_architecture_path_after_auth_unread_peel', [
 
 
 
-// ── 71: chat-dedupe + group-merge/catalog + entry-password renewal ───────────
+// ── 71: chat-dedupe + group-merge/catalog; date-entry renewal removed ─────────
 mustMatch('artifacts/api-server/src/lib/db-chat-pair-plan.ts', '71_chat_dedupe_exports', [
   /export function planChatDedupeMergeSteps/,
   /export function planChatReadsForDedupe/,
@@ -1991,7 +1989,7 @@ mustMatch('artifacts/api-server/src/lib/db-group-room-plan.ts', '71_group_merge_
   /export function planBirthYearRoomSpec/,
   /export function collectBirthYearRoomGroups/,
 ]);
-mustMatch('artifacts/api-server/src/lib/db-app-settings-boot.ts', '71_entry_renewal_export', [
+mustNotMatch('artifacts/api-server/src/lib/db-app-settings-boot.ts', '71_no_date_entry_renewal_export', [
   /export function planDailyEntryPasswordRenewal/,
 ]);
 mustMatch('artifacts/api-server/src/routes/db.ts', '71_db_reimports_dedupe_merge_renewal', [
@@ -2002,7 +2000,11 @@ mustMatch('artifacts/api-server/src/routes/db.ts', '71_db_reimports_dedupe_merge
   /planVisibleAgeBandRoomSpec/,
   /planBirthYearRoomSpec/,
   /collectBirthYearRoomGroups/,
+]);
+mustNotMatch('artifacts/api-server/src/routes/db.ts', '71_db_no_date_entry_renewal', [
   /planDailyEntryPasswordRenewal/,
+  /startDailyEntryPasswordRenewal/,
+  /koreanDateMMDD/,
 ]);
 mustMatch('artifacts/api-server/src/routes/db.ts', '71_db_still_single_router_export', [
   /export default router/,
@@ -2011,7 +2013,7 @@ mustNotMatch('artifacts/api-server/src/routes/db.ts', '71_db_no_inline_birth_yea
   /const byYear = new Map<number, Record<string, unknown>\[\]>\(\);/,
 ]);
 mustMatch('ARCHITECTURE.md', '71_architecture_path_after_dedupe_merge_peel', [
-  /chat-dedupe|group-merge|entry-renewal/,
+  /chat-dedupe|group-merge/,
   /~9\.5/,
 ]);
 

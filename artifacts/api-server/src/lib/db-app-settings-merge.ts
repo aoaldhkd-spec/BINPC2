@@ -1,5 +1,5 @@
 /**
- * App settings merge / QR / entry-date helpers — extracted from routes/db.ts.
+ * App settings merge / QR helpers — extracted from routes/db.ts.
  * Pure; defaultAppSettings builder + PG fetch for overlayDbSecrets stay in db.ts.
  */
 import { LEGACY_APP_SETTINGS_KEYS } from './db-legacy-cleanup.js';
@@ -18,17 +18,6 @@ export type SecretSettingKey = (typeof SECRET_SETTING_KEYS)[number];
 export function isLocalQrUrl(url: unknown): boolean {
   const s = String(url ?? '');
   return !s || /localhost|127\.0\.0\.1|0\.0\.0\.0/i.test(s);
-}
-
-/**
- * Venue entry password date — KST with 03:00 rollover
- * (treat 00:00–02:59 as previous calendar day).
- */
-export function koreanDateMMDD(now: Date = new Date()): string {
-  const korea = new Date(now.getTime() + (9 - 3) * 60 * 60 * 1000);
-  const mm = String(korea.getUTCMonth() + 1).padStart(2, '0');
-  const dd = String(korea.getUTCDate()).padStart(2, '0');
-  return mm + dd;
 }
 
 export function explicitSecretKeys(payload: Record<string, unknown>): Set<string> {

@@ -4,7 +4,6 @@ import {
   SECRET_SETTING_KEYS,
   explicitSecretKeys,
   isLocalQrUrl,
-  koreanDateMMDD,
   filterTestSettingsPayload,
   mergeAppSettings,
   sanitizeAdminSettingsPayload,
@@ -28,15 +27,6 @@ describe('db-app-settings-merge', () => {
     expect(isLocalQrUrl('')).toBe(true);
     expect(isLocalQrUrl('http://localhost:5173')).toBe(true);
     expect(isLocalQrUrl('https://binpc2.netlify.app')).toBe(false);
-  });
-
-  it('koreanDateMMDD uses KST with 03:00 rollover', () => {
-    // 2026-09-15 01:30 KST = 2026-09-14 16:30 UTC → still previous day after -3h shift
-    const early = new Date('2026-09-14T16:30:00.000Z');
-    expect(koreanDateMMDD(early)).toBe('0914');
-    // 2026-09-15 04:00 KST = 2026-09-14 19:00 UTC → same calendar day
-    const late = new Date('2026-09-14T19:00:00.000Z');
-    expect(koreanDateMMDD(late)).toBe('0915');
   });
 
   it('explicitSecretKeys ignores empty', () => {

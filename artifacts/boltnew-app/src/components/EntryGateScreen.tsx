@@ -56,10 +56,6 @@ export function EntryGateScreen({ entryPassword, onVerified }: { entryPassword: 
     }
   };
 
-  const todayHint = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit' })
-    .format(new Date())
-    .replace(/[^\d]/g, '');
-
   return (
     <div
       className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center p-6"
@@ -84,14 +80,6 @@ export function EntryGateScreen({ entryPassword, onVerified }: { entryPassword: 
           className={`bg-slate-800/70 backdrop-blur-sm rounded-3xl p-6 border border-slate-700/60 shadow-2xl space-y-4 ${shake ? 'animate-[shake_0.45s_ease-in-out]' : ''}`}>
           <div>
             <label className="block text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2">입장 코드</label>
-            <div className="mb-3 rounded-2xl border-2 border-cyan-400/60 bg-cyan-400/10 px-4 py-3 text-center">
-              <p className="text-base font-black text-cyan-200">
-                입장 코드는 <span className="text-lg text-white underline decoration-cyan-400 decoration-2 underline-offset-4">오늘 날짜</span>입니다
-              </p>
-              <p className="mt-1 text-sm font-bold text-cyan-300">
-                월·일 4자리로 입력해 주세요 (예: {todayHint || 'MMDD'})
-              </p>
-            </div>
             <div className="relative">
               <input type={showPw ? 'text' : 'password'} {...PANEL_PIN_INPUT_PROPS} value={input}
                 onChange={e => { setInput(e.target.value); setError(false); }}
