@@ -235,6 +235,29 @@ describe('product copy + notification invariants', () => {
     expect(hint).toContain('술번개');
   });
 
+  it('첫 이용 코치는 참여자 이후 my/stats/ranking/settings SCREEN_STEPS를 순회한다', () => {
+    const coach = read('components/FirstEntryCoachMarks.tsx');
+    const marks = read('lib/coach-marks.ts');
+    const guards = read('hooks/useSocialLockGuards.ts');
+    expect(coach).toContain('const SCREEN_STEPS');
+    expect(coach).toContain("onNavigateTab");
+    expect(coach).toContain('markHomeCoachDone');
+    expect(marks).toContain('isHomeCoachPending');
+    expect(guards).toContain('isHomeCoachPending');
+  });
+
+  it('튜토리얼 채팅 하단은 폰 목업으로 채우고 동영상은 LIVE UI 2026.09', () => {
+    const modal = read('components/TutorialModal.tsx');
+    const video = read('components/TutorialVideo.tsx');
+    expect(modal).toContain('function ChatPhoneMock');
+    expect(modal).toContain("topic.id === 'chat'");
+    expect(modal).toContain('data-testid="tutorial-chat-phone-mock"');
+    expect(video).toContain('UI 2026.09');
+    expect(video).toContain('function ChatWallpaper');
+    expect(video).toContain('총 N · 무지개 잠금→해금');
+    expect(video).toContain('LIVE');
+  });
+
   it('튜토리얼은 고정 모달·통일 팁박스·내부 스크롤 없음', () => {
     const modal = read('components/TutorialModal.tsx');
     expect(modal).toContain('const MODAL_SHELL');

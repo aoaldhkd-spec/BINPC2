@@ -14,7 +14,7 @@ const AdminApp = lazy(loadAdminApp);
 clearLegacyThemeArtifacts();
 
 if ('serviceWorker' in navigator) {
-  const swUrl = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/sw.js?v=20260816-pw-dim`;
+  const swUrl = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/sw.js?v=20260916-tutorial-v2`;
   window.addEventListener('load', () => {
     navigator.serviceWorker.register(swUrl, { scope: import.meta.env.BASE_URL as string }).catch(() => {});
   });

@@ -281,7 +281,7 @@ function topicTipCount(topic: Topic): number {
 function topicLayout(topic: Topic) {
   const count = topicTipCount(topic);
   const dense = count >= 4 || topic.id === 'guide';
-  const gapFill = topic.id === 'heart' || topic.id === 'pin' || topic.id === 'group' || topic.id === 'hidden';
+  const gapFill = topic.id === 'heart' || topic.id === 'chat' || topic.id === 'pin' || topic.id === 'group' || topic.id === 'hidden';
   return {
     twoColumn: dense,
     compact: true,
@@ -289,7 +289,7 @@ function topicLayout(topic: Topic) {
     fillerCompact: Boolean(topic.filler),
     scrollable: false,
     gapFill,
-    gapFillKind: (topic.filler ?? (topic.id === 'heart' ? 'heart' : undefined)) as FillerKind | undefined,
+    gapFillKind: (topic.filler ?? (topic.id === 'heart' ? 'heart' : topic.id === 'chat' ? 'chat' : undefined)) as FillerKind | undefined,
   };
 }
 
@@ -423,6 +423,81 @@ function TipGrid({
   );
 }
 
+
+/** Bottom gap filler for chat topic — full-width phone mock so the fixed tip box looks packed. */
+function ChatPhoneMock({ darkMode }: { darkMode?: boolean }) {
+  return (
+    <div
+      className={`flex-1 min-h-0 overflow-hidden flex items-stretch gap-2.5 px-2.5 py-2 rounded-2xl border ${
+        darkMode
+          ? 'bg-gradient-to-br from-indigo-950/80 via-slate-900 to-slate-950 border-indigo-800/60'
+          : 'bg-gradient-to-br from-indigo-50 via-sky-50 to-white border-indigo-100 shadow-sm shadow-indigo-100/40'
+      }`}
+      data-testid="tutorial-chat-phone-mock"
+      aria-hidden
+    >
+      <div className={`relative w-[5.25rem] flex-shrink-0 rounded-[1.1rem] border-[2.5px] overflow-hidden shadow-lg ${
+        darkMode ? 'border-slate-600 bg-slate-950' : 'border-slate-800 bg-slate-900'
+      }`}>
+        <div className="absolute top-0 inset-x-0 h-2.5 z-10 flex justify-center">
+          <span className={`mt-0.5 h-1.5 w-8 rounded-b-md ${darkMode ? 'bg-slate-800' : 'bg-black/80'}`} />
+        </div>
+        <div className="h-full flex flex-col pt-3 pb-1 px-1 bg-gradient-to-b from-slate-900 to-slate-950">
+          <div className="flex items-center gap-1 px-1 pb-1 border-b border-slate-700/80">
+            <span className="w-4 h-4 rounded-md bg-gradient-to-br from-pink-400 to-rose-500" />
+            <div className="min-w-0 flex-1">
+              <p className="text-[6px] font-black text-white truncate">하늘다람쥐</p>
+              <p className="text-[5px] font-bold text-teal-300">온라인</p>
+            </div>
+          </div>
+          <div className="flex-1 min-h-0 py-1 space-y-1 overflow-hidden">
+            <div className="flex justify-start">
+              <span className="bg-white text-slate-700 text-[5.5px] font-semibold px-1.5 py-1 rounded-lg rounded-tl-sm max-w-[90%]">오늘 반가웠어요!</span>
+            </div>
+            <div className="flex justify-end">
+              <span className="bg-cyan-500 text-white text-[5.5px] font-semibold px-1.5 py-1 rounded-lg rounded-tr-sm">저도요 😊</span>
+            </div>
+            <div className="flex justify-end">
+              <span className="bg-cyan-500/90 text-white text-[9px] px-1.5 py-1 rounded-lg">🎊</span>
+            </div>
+            <div className="flex justify-start">
+              <span className="bg-white text-slate-700 text-[5.5px] font-semibold px-1.5 py-1 rounded-lg">번호 교환해요 📱</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-0.5 px-0.5 pt-0.5 border-t border-slate-700/70">
+            <span className="w-3 h-3 rounded-full bg-slate-700 text-[6px] text-slate-300 flex items-center justify-center">+</span>
+            <span className="w-3 h-3 rounded-full text-[7px] flex items-center justify-center">😊</span>
+            <span className="flex-1 h-3 rounded-full bg-slate-800 border border-slate-600" />
+            <span className="w-3 h-3 rounded-full bg-cyan-500 text-[6px] text-white flex items-center justify-center">➤</span>
+          </div>
+        </div>
+      </div>
+      <div className="min-w-0 flex-1 flex flex-col justify-center gap-1 py-0.5">
+        <p className={`font-black text-[11px] leading-snug ${darkMode ? 'text-white' : 'text-slate-800'}`}>
+          채팅은 이렇게 꽉 차요
+        </p>
+        <p className={`text-[10px] font-semibold leading-snug ${darkMode ? 'text-indigo-200/90' : 'text-indigo-700/80'}`}>
+          하트, 채팅 → 내 채팅 · 😊 이모지 · + 다음 🎨 스티커 · 옆으로 밀면 답장
+        </p>
+        <div className="flex flex-wrap gap-1 mt-0.5">
+          {['😊 이모지', '🎨 스티커', '📷 사진', '⚡ 빠른말'].map((chip) => (
+            <span
+              key={chip}
+              className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full border ${
+                darkMode
+                  ? 'border-indigo-700/70 bg-indigo-950/60 text-indigo-200'
+                  : 'border-indigo-200 bg-white text-indigo-700 shadow-sm'
+              }`}
+            >
+              {chip}
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function FillerArt({ kind, darkMode }: { kind: FillerKind; darkMode?: boolean }) {
   // Compact square art — fill 모드에서 텍스트 옆 골짜기로 이모지가 새지 않게 아이콘 박스 안에 모은다.
   if (kind === 'heart') {
@@ -538,6 +613,7 @@ function FillerPanel({ kind, darkMode, compact, fill }: { kind: FillerKind; dark
   const f = FILLERS[kind];
   const pin = kind === 'pin';
   if (fill) {
+    if (kind === 'chat') return <ChatPhoneMock darkMode={darkMode} />;
     return (
       <div className={`flex-1 min-h-0 overflow-hidden flex items-center gap-3 px-3 py-2 rounded-2xl ${darkMode ? f.darkShell : f.shell}`}>
         <div className="flex-shrink-0 flex flex-col items-center gap-1">

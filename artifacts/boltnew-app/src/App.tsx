@@ -165,6 +165,7 @@ function App() {
   const [mainTab, setMainTab] = useState<MainTab>('profiles');
   const [coachReplayToken, setCoachReplayToken] = useState(0);
   const forceCoachParticipants = useCallback(() => setMainTab('profiles'), []);
+  const navigateCoachTab = useCallback((tab: MainTab) => setMainTab(tab), []);
   const replayCoach = useCallback(() => {
     setMainTab('profiles');
     setCoachReplayToken(value => value + 1);
@@ -1044,6 +1045,7 @@ function App() {
         handleMainTabChange={handleMainTabChange}
         coachReplayToken={coachReplayToken}
         onForceCoachParticipants={forceCoachParticipants}
+        onNavigateCoachTab={navigateCoachTab}
         profiles={profiles}
         receivedLikers={receivedLikers}
         setSelectedProfile={setSelectedProfile}

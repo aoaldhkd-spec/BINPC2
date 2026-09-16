@@ -1,5 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { hasCompletedFirstEntryCoach, markFirstEntryCoachSeen } from '../lib/coach-marks';
+import {
+  hasCompletedFirstEntryCoach,
+  markFirstEntryCoachSeen,
+  markHomeCoachDone,
+} from '../lib/coach-marks';
 
 type CoachTab = 'profiles' | 'my' | 'stats' | 'ranking' | 'settings';
 type CoachStep = { title: string; detail: string; target: string };
@@ -19,6 +23,40 @@ const HOME_STEPS: readonly CoachStep[] = [
   { title: '내 프로필·설정', detail: '설정에서 고유번호, 아바타, 오늘의 한마디, 관심사와 이상형·내 특징을 관리해요. 설정의 ‘설명 다시보기’에서 이 안내를 언제든 다시 볼 수 있어요.', target: 'nav-settings' },
 ];
 
+const SCREEN_STEPS: Record<Exclude<CoachTab, 'profiles'>, readonly CoachStep[]> = {
+  my: [
+    { title: '내 상태', detail: '받은 하트와 방문자, 내 프로필 상태를 확인하는 화면이에요.', target: 'my-subtabs' },
+    { title: '내 채팅', detail: '내 채팅을 누르면 1:1 대화와 단체 채팅방을 오가며 메시지를 이어갈 수 있어요.', target: 'my-subtabs' },
+  ],
+  stats: [{ title: '통계', detail: '오늘 참여자와 하트 흐름을 숫자와 분포로 확인하는 화면이에요.', target: 'nav-stats' }],
+  ranking: [{ title: '랭킹', detail: '참여와 하트 흐름의 순위를 확인하는 화면이에요. 수치는 행사 중 계속 갱신됩니다.', target: 'nav-ranking' }],
+  settings: [
+    { title: '고유번호', detail: '고유번호는 휴대폰을 바꾸거나 다시 입장할 때 필요한 내 복구 번호예요. 복사해 두세요.', target: 'settings-pin' },
+    { title: '닉네임', detail: '닉네임은 참여자 카드에 보이는 이름이에요. 변경 가능 횟수를 확인하고 저장해요.', target: 'settings-nickname' },
+    { title: '관심사', detail: '관심사를 골라 공통점을 보여줘요. 태그를 누른 뒤 저장 버튼을 눌러요.', target: 'settings-interests' },
+    { title: '연락처 설정', detail: '연락처 공개 여부를 정해요. 상대가 공유를 수락했을 때만 전달됩니다.', target: 'settings-contact' },
+    { title: '생월·생일', detail: '생월과 생일은 궁합·운세에 사용돼요. 변경 가능 횟수를 확인해요.', target: 'settings-birth' },
+    { title: '도움말·화면 설정', detail: '튜토리얼 보기에서 전체 사용법을 다시 보고, 다크 모드로 화면 색상을 바꿀 수 있어요.', target: 'settings-tools' },
+    { title: '설명 다시보기', detail: '설정의 ‘설명 다시보기’를 누르면 참여자부터 시작하는 전체 코치 안내를 언제든 다시 볼 수 있어요.', target: 'settings-replay' },
+    { title: '아바타·사진', detail: '사진을 올리거나 기본 아바타와 카드 배경을 고를 수 있어요.', target: 'settings-avatar' },
+    { title: '오늘의 한마디', detail: '오늘의 한마디는 참여자 카드의 전광판에 보여요. 빠른 문구나 직접 입력으로 남길 수 있어요.', target: 'settings-status' },
+    { title: '이상형·내 특징', detail: '대분류를 고른 뒤 소분류와 태그를 선택해요. 기타 직접 작성은 설정에서만 가능합니다.', target: 'settings-signals' },
+    { title: '차단·숨기기', detail: '차단하거나 숨긴 참여자는 이 목록에서 확인하고 해제할 수 있어요.', target: 'settings-blocklist' },
+  ],
+};
+
+const TOUR_ORDER: readonly CoachTab[] = ['profiles', 'my', 'stats', 'ranking', 'settings'];
+
+function stepsFor(tab: CoachTab): readonly CoachStep[] {
+  return tab === 'profiles' ? HOME_STEPS : SCREEN_STEPS[tab];
+}
+
+function nextTourTab(tab: CoachTab): CoachTab | null {
+  const idx = TOUR_ORDER.indexOf(tab);
+  if (idx < 0 || idx >= TOUR_ORDER.length - 1) return null;
+  return TOUR_ORDER[idx + 1] ?? null;
+}
+
 function initialOpenTab(replayToken: number): CoachTab | null {
   // First paint must not wait on useEffect — otherwise tip 1 never appears if a later
   // tab race / overlay suspends the effect before openTab is seeded.
@@ -30,23 +68,39 @@ function initialOpenTab(replayToken: number): CoachTab | null {
   }
 }
 
-export function FirstEntryCoachMarks({ isSubScreen, suspended = false, mainTab, replayToken = 0, onForceParticipants }: { isSubScreen: boolean; suspended?: boolean; mainTab: CoachTab; replayToken?: number; onForceParticipants?: () => void }) {
+export function FirstEntryCoachMarks({
+  isSubScreen,
+  suspended = false,
+  mainTab,
+  replayToken = 0,
+  onForceParticipants,
+  onNavigateTab,
+}: {
+  isSubScreen: boolean;
+  suspended?: boolean;
+  mainTab: CoachTab;
+  replayToken?: number;
+  onForceParticipants?: () => void;
+  /** Bypass social-lock tab gate so the sequential tour can open my/stats/ranking/settings. */
+  onNavigateTab?: (tab: CoachTab) => void;
+}) {
   const [step, setStep] = useState(0);
   const [openTab, setOpenTab] = useState<CoachTab | null>(() => initialOpenTab(replayToken));
   const handledReplayRef = useRef(0);
   const replayModeRef = useRef(replayToken > 0);
-  // Keep force callback out of effect deps — inline App lambdas would reset step 0 every render.
   const forceParticipantsRef = useRef(onForceParticipants);
   forceParticipantsRef.current = onForceParticipants;
+  const navigateTabRef = useRef(onNavigateTab);
+  navigateTabRef.current = onNavigateTab;
   // Once the home tour has opened, never re-seed step 0 on incidental effect re-runs.
   const homeTourStartedRef = useRef(initialOpenTab(replayToken) === 'profiles');
   const [targetRect, setTargetRect] = useState<Rect | null>(null);
   // Defer one frame so MainScreen commits; avoid double-rAF races that never painted tip 1.
   const [shellPainted, setShellPainted] = useState(() => replayToken > 0);
-  // Visible coach during first-entry/replay is always the participant home tour.
-  // Home-only tour (per-tab SCREEN_STEPS retired after tip-1 / replay fixes).
-  const steps = HOME_STEPS;
+
+  const steps = openTab ? stepsFor(openTab) : HOME_STEPS;
   const current = steps[Math.min(step, steps.length - 1)] ?? steps[0];
+  const homePhase = openTab === 'profiles' || openTab === null;
 
   useLayoutEffect(() => {
     if (replayToken > 0) {
@@ -57,7 +111,6 @@ export function FirstEntryCoachMarks({ isSubScreen, suspended = false, mainTab, 
     const id = window.requestAnimationFrame(() => {
       if (!cancelled) setShellPainted(true);
     });
-    // Safety: if rAF is stalled (background tab), still open tip 1 promptly.
     const fallback = window.setTimeout(() => {
       if (!cancelled) setShellPainted(true);
     }, 120);
@@ -68,18 +121,17 @@ export function FirstEntryCoachMarks({ isSubScreen, suspended = false, mainTab, 
     };
   }, [replayToken]);
 
-  // Layout: force participants before paint so openTab===mainTab on the first visible frame.
+  // Layout: force participants before paint only during the home phase.
   useLayoutEffect(() => {
     const replaying = replayToken > 0 && replayToken !== handledReplayRef.current;
     const tourPending = replaying || replayModeRef.current || !hasCompletedFirstEntryCoach();
     if (!tourPending || isSubScreen || suspended) return;
-    if (mainTab !== 'profiles') forceParticipantsRef.current?.();
-  }, [isSubScreen, suspended, mainTab, replayToken]);
+    if (homePhase && mainTab !== 'profiles') forceParticipantsRef.current?.();
+  }, [isSubScreen, suspended, mainTab, replayToken, homePhase]);
 
   useEffect(() => {
     const replaying = replayToken > 0 && replayToken !== handledReplayRef.current;
     if (replaying) {
-      // Replay is always a fresh, deterministic tour beginning at participants.
       handledReplayRef.current = replayToken;
       replayModeRef.current = true;
       homeTourStartedRef.current = true;
@@ -98,10 +150,18 @@ export function FirstEntryCoachMarks({ isSubScreen, suspended = false, mainTab, 
       setOpenTab(null);
       return;
     }
-    // Until the participant home tour finishes, stay on profiles — never open hearts/chat tips first.
-    if (mainTab !== 'profiles') {
-      forceParticipantsRef.current?.();
-      // Keep openTab='profiles' (not null) so tip 1 mounts as soon as the tab arrives.
+
+    // Home phase: stay on profiles — never open hearts/chat tips first.
+    if (homePhase) {
+      if (mainTab !== 'profiles') {
+        forceParticipantsRef.current?.();
+        if (!homeTourStartedRef.current) {
+          homeTourStartedRef.current = true;
+          setStep(0);
+        }
+        setOpenTab('profiles');
+        return;
+      }
       if (!homeTourStartedRef.current) {
         homeTourStartedRef.current = true;
         setStep(0);
@@ -109,12 +169,21 @@ export function FirstEntryCoachMarks({ isSubScreen, suspended = false, mainTab, 
       setOpenTab('profiles');
       return;
     }
-    if (!homeTourStartedRef.current) {
-      homeTourStartedRef.current = true;
-      setStep(0);
+
+    // Later tour tabs: keep openTab, navigate shell if user/tab drifted.
+    if (openTab && mainTab !== openTab) {
+      navigateTabRef.current?.(openTab);
     }
-    setOpenTab('profiles');
-  }, [isSubScreen, suspended, mainTab, replayToken]);
+  }, [isSubScreen, suspended, mainTab, replayToken, homePhase, openTab]);
+
+  // Settings is a long page: bring the actual section under the spotlight before measuring.
+  useEffect(() => {
+    if (!openTab || openTab !== mainTab || isSubScreen || suspended || !current || mainTab !== 'settings') return;
+    const element = document.querySelector<HTMLElement>(`[data-coach="${current.target}"]`);
+    if (element && typeof element.scrollIntoView === 'function') {
+      element.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' as ScrollBehavior });
+    }
+  }, [openTab, mainTab, step, current, isSubScreen, suspended]);
 
   // Measure one stable anchor per step. Missing anchors intentionally fall back to a centered tip.
   useEffect(() => {
@@ -139,15 +208,44 @@ export function FirstEntryCoachMarks({ isSubScreen, suspended = false, mainTab, 
 
   useEffect(() => {
     if (!openTab) return;
-    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') { replayModeRef.current = false; homeTourStartedRef.current = false; markFirstEntryCoachSeen('profiles'); setOpenTab(null); } };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        replayModeRef.current = false;
+        homeTourStartedRef.current = false;
+        markFirstEntryCoachSeen(openTab);
+        setOpenTab(null);
+      }
+    };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [openTab, mainTab]);
+  }, [openTab]);
 
   if (!shellPainted || !openTab || openTab !== mainTab || isSubScreen || suspended || !current) return null;
   const last = step === steps.length - 1;
-  const dismiss = () => { replayModeRef.current = false; homeTourStartedRef.current = false; markFirstEntryCoachSeen('profiles'); setOpenTab(null); };
-  const next = () => { if (last) dismiss(); else { setTargetRect(null); setStep((value) => value + 1); } };
+  const dismiss = () => {
+    replayModeRef.current = false;
+    homeTourStartedRef.current = false;
+    markFirstEntryCoachSeen(openTab);
+    setOpenTab(null);
+  };
+  const next = () => {
+    if (!last) {
+      setTargetRect(null);
+      setStep((value) => value + 1);
+      return;
+    }
+    const following = nextTourTab(openTab);
+    if (!following) {
+      dismiss();
+      return;
+    }
+    // Leave home only after participants tips finish — then sequential tab tour.
+    if (openTab === 'profiles') markHomeCoachDone();
+    setTargetRect(null);
+    setStep(0);
+    setOpenTab(following);
+    navigateTabRef.current?.(following);
+  };
   const spotlightStyle = targetRect ? {
     top: Math.max(6, targetRect.top - 6),
     left: Math.max(6, targetRect.left - 6),
@@ -174,7 +272,7 @@ export function FirstEntryCoachMarks({ isSubScreen, suspended = false, mainTab, 
           <button type="button" onClick={dismiss} className="min-h-10 rounded-xl px-3 text-xs font-bold text-slate-400 hover:bg-slate-100 hover:text-slate-600">건너뛰기</button>
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-bold text-slate-400" aria-label={`${step + 1}단계 중 ${steps.length}단계`}>{step + 1} / {steps.length}</span>
-            <button type="button" onClick={next} className="min-h-10 rounded-xl bg-cyan-500 px-4 text-xs font-black text-white shadow-sm hover:bg-cyan-600 active:scale-95">{last ? '알겠어요' : '다음'}</button>
+            <button type="button" onClick={next} className="min-h-10 rounded-xl bg-cyan-500 px-4 text-xs font-black text-white shadow-sm hover:bg-cyan-600 active:scale-95">{last && !nextTourTab(openTab) ? '알겠어요' : '다음'}</button>
           </div>
         </div>
       </div>

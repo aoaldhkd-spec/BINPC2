@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FirstEntryCoachMarks } from './FirstEntryCoachMarks';
 
@@ -65,5 +65,40 @@ describe('FirstEntryCoachMarks tip 1', () => {
     expect(force).toHaveBeenCalled();
     // Tip is gated on openTab===mainTab; stays pending until profiles arrives.
     expect(screen.queryByTestId('first-entry-coach')).toBeNull();
+  });
+
+  it('after home tips finish, navigates to my and shows hearts/chat tip', async () => {
+    const navigate = vi.fn();
+    const { rerender } = render(
+      <FirstEntryCoachMarks
+        isSubScreen={false}
+        mainTab="profiles"
+        suspended={false}
+        onNavigateTab={navigate}
+      />,
+    );
+    await waitFor(() => expect(screen.getByTestId('first-entry-coach')).toBeTruthy());
+
+    // Advance through all 11 home steps.
+    for (let i = 0; i < 11; i += 1) {
+      fireEvent.click(screen.getByRole('button', { name: '다음' }));
+    }
+
+    expect(navigate).toHaveBeenCalledWith('my');
+    expect(localStorage.getItem('binpc2_coach_marks_v5_home_done')).toBe('1');
+    expect(localStorage.getItem('binpc2_coach_marks_completed')).toBeNull();
+
+    rerender(
+      <FirstEntryCoachMarks
+        isSubScreen={false}
+        mainTab="my"
+        suspended={false}
+        onNavigateTab={navigate}
+      />,
+    );
+    await waitFor(() => {
+      expect(screen.getByText('여기는 내 상태예요')).toBeTruthy();
+    });
+    expect(screen.getByLabelText('1단계 중 2단계')).toBeTruthy();
   });
 });

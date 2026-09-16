@@ -1,5 +1,5 @@
 // Service Worker — 푸시 알림 + HTML 캐시 무효화
-const CACHE_VERSION = 'binpc2-20260816-pw-dim';
+const CACHE_VERSION = 'binpc2-20260916-tutorial-v2';
 
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (event) => {

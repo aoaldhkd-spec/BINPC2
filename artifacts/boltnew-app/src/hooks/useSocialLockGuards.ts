@@ -7,7 +7,7 @@ import { useCallback, type MutableRefObject } from 'react';
 import type { Profile, View, MainTab } from '../types/app';
 import type { HeartType } from '../lib/constants';
 import { SOCIAL_LOCKED_TABS } from '../lib/functions-lock';
-import { isFirstEntryCoachPending } from '../lib/coach-marks';
+import { isHomeCoachPending } from '../lib/coach-marks';
 
 export type UseSocialLockGuardsArgs = {
   functionsLocked: boolean;
@@ -139,7 +139,8 @@ export function useSocialLockGuards(args: UseSocialLockGuardsArgs) {
       return;
     }
     // Coach must finish participant tips before hearts/chat (or other tabs) can take focus.
-    if (t !== 'profiles' && isFirstEntryCoachPending()) {
+    // After home advances, sequential coach (and the user) may open other tabs.
+    if (t !== 'profiles' && isHomeCoachPending()) {
       setMainTab('profiles');
       return;
     }

@@ -3,7 +3,9 @@ import {
   clearFirstEntryCoachSeen,
   hasCompletedFirstEntryCoach,
   isFirstEntryCoachPending,
+  isHomeCoachPending,
   markFirstEntryCoachSeen,
+  markHomeCoachDone,
 } from './coach-marks';
 
 function installMemoryLocalStorage() {
@@ -27,10 +29,20 @@ describe('coach-marks pending gate', () => {
 
   it('starts pending until marked seen', () => {
     expect(isFirstEntryCoachPending()).toBe(true);
+    expect(isHomeCoachPending()).toBe(true);
     expect(hasCompletedFirstEntryCoach()).toBe(false);
     markFirstEntryCoachSeen('profiles');
     expect(isFirstEntryCoachPending()).toBe(false);
+    expect(isHomeCoachPending()).toBe(false);
     expect(hasCompletedFirstEntryCoach()).toBe(true);
+  });
+
+  it('home done unlocks other tabs without completing the full tour', () => {
+    expect(isHomeCoachPending()).toBe(true);
+    markHomeCoachDone();
+    expect(isHomeCoachPending()).toBe(false);
+    expect(isFirstEntryCoachPending()).toBe(true);
+    expect(hasCompletedFirstEntryCoach()).toBe(false);
   });
 
   it('ignores non-profiles legacy tab keys so tip 1 is not skipped', () => {

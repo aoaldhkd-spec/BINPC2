@@ -85,6 +85,7 @@ export type AppOverlaysProps = {
   handleMainTabChange: (tab: MainTab) => void;
   coachReplayToken: number;
   onForceCoachParticipants: () => void;
+  onNavigateCoachTab: (tab: MainTab) => void;
   profiles: Profile[];
   receivedLikers: Profile[];
   setSelectedProfile: Dispatch<SetStateAction<Profile | null>>;
@@ -156,7 +157,7 @@ export function AppOverlays(p: AppOverlaysProps) {
     rejectionNotif, setRejectionNotif,
     functionsLockToast,
     bottomNotif, setBottomNotif,
-    setMySubTabHint, handleMainTabChange, coachReplayToken, onForceCoachParticipants,
+    setMySubTabHint, handleMainTabChange, coachReplayToken, onForceCoachParticipants, onNavigateCoachTab,
     profiles, receivedLikers, setSelectedProfile, setView, openChatGuarded,
     reset, view, selectedProfile, currentUserId,
     likedIds, sentHeartTypes, sentHeartsPerPerson, receivedHeartTypes,
@@ -196,7 +197,7 @@ export function AppOverlays(p: AppOverlaysProps) {
         </Suspense>
       )}
 
-      <FirstEntryCoachMarks isSubScreen={isSubScreen} mainTab={mainTab} suspended={showTutorialModal} replayToken={coachReplayToken} onForceParticipants={onForceCoachParticipants} />
+      <FirstEntryCoachMarks isSubScreen={isSubScreen} mainTab={mainTab} suspended={showTutorialModal} replayToken={coachReplayToken} onForceParticipants={onForceCoachParticipants} onNavigateTab={onNavigateCoachTab} />
       {connStatus !== 'ok' && (
         <ReconnectOverlay
           status={connStatus}
