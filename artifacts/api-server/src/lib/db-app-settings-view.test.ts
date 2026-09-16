@@ -152,4 +152,27 @@ describe('db-app-settings-view', () => {
     expect((body.login as any).adminConfigured).toBe(true);
   });
 
+  it('buildReadyPayload serializes object event_schedule instead of wiping rainbow_pool', () => {
+    const body = buildReadyPayload({
+      settings: {
+        session_active: true,
+        entry_password: '',
+        event_schedule: {
+          timezone: 'Asia/Seoul',
+          slots: [{ id: 'slot-1', at: '12:00', notice: 'open', functions_locked: false, rainbow_pool: 4 }],
+        },
+      },
+      adminConfigured: false,
+      testConfigured: false,
+      resetConfigured: false,
+      legacyLeftovers: { kv_tables: 0, settings_rows: 0, history_rows: 0 },
+      checkedAt: 't',
+    });
+    const raw = (body.settings as any).event_schedule as string;
+    expect(typeof raw).toBe('string');
+    expect(raw).toContain('rainbow_pool');
+    expect(raw).toContain('12:00');
+    expect(JSON.parse(raw).slots[0].rainbow_pool).toBe(4);
+  });
+
 });

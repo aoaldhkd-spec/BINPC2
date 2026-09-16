@@ -489,7 +489,7 @@ import {
   buildLegacyHistoryStripSql,
   parseLegacyLeftoverCounts,
 } from '../lib/db-legacy-cleanup';
-import { eventRainbowQuota } from '../lib/db-event-schedule';
+import { eventRainbowQuota, serializeEventSchedule } from '../lib/db-event-schedule';
 import {
   recordExpiredSseToken,
   recordMissingSseToken,
@@ -1461,6 +1461,8 @@ async function hydrateAppSettingsFromDb(): Promise<Record<string, unknown>> {
     const data = rows[0]?.data as Record<string, unknown> | undefined;
     if (data && typeof data === 'object' && !Array.isArray(data)) {
       const cleaned = stripLegacySettingsKeys(data);
+      // jsonb may revive event_schedule as an object; keep a string so /ready never wipes pool.
+      if ('event_schedule' in cleaned) cleaned.event_schedule = serializeEventSchedule(cleaned.event_schedule);
       store['app_settings'] = [cleaned];
       return cleaned;
     }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { hasCompletedFirstEntryCoach, isFirstEntryCoachPending, markFirstEntryCoachSeen } from '../lib/coach-marks';
 export { isFirstEntryCoachPending };
 
@@ -42,20 +42,39 @@ const SCREEN_STEPS: Record<Exclude<CoachTab, 'profiles'>, readonly CoachStep[]> 
   ]
 };
 
+function initialOpenTab(replayToken: number): CoachTab | null {
+  // First paint must not wait on useEffect — otherwise tip 1 never appears if a later
+  // tab race / overlay suspends the effect before openTab is seeded.
+  if (replayToken > 0) return 'profiles';
+  try {
+    return hasCompletedFirstEntryCoach() ? null : 'profiles';
+  } catch {
+    return 'profiles';
+  }
+}
+
 export function FirstEntryCoachMarks({ isSubScreen, suspended = false, mainTab, replayToken = 0, onForceParticipants }: { isSubScreen: boolean; suspended?: boolean; mainTab: CoachTab; replayToken?: number; onForceParticipants?: () => void }) {
   const [step, setStep] = useState(0);
-  const [openTab, setOpenTab] = useState<CoachTab | null>(null);
+  const [openTab, setOpenTab] = useState<CoachTab | null>(() => initialOpenTab(replayToken));
   const handledReplayRef = useRef(0);
-  const replayModeRef = useRef(false);
+  const replayModeRef = useRef(replayToken > 0);
   // Keep force callback out of effect deps — inline App lambdas would reset step 0 every render.
   const forceParticipantsRef = useRef(onForceParticipants);
   forceParticipantsRef.current = onForceParticipants;
   // Once the home tour has opened, never re-seed step 0 on incidental effect re-runs.
-  const homeTourStartedRef = useRef(false);
+  const homeTourStartedRef = useRef(initialOpenTab(replayToken) === 'profiles');
   const [targetRect, setTargetRect] = useState<Rect | null>(null);
   // Visible coach during first-entry/replay is always the participant home tour.
   const steps = (openTab === 'profiles' || mainTab === 'profiles') ? HOME_STEPS : SCREEN_STEPS[mainTab];
   const current = steps[Math.min(step, steps.length - 1)] ?? steps[0];
+
+  // Layout: force participants before paint so openTab===mainTab on the first visible frame.
+  useLayoutEffect(() => {
+    const replaying = replayToken > 0 && replayToken !== handledReplayRef.current;
+    const tourPending = replaying || replayModeRef.current || !hasCompletedFirstEntryCoach();
+    if (!tourPending || isSubScreen || suspended) return;
+    if (mainTab !== 'profiles') forceParticipantsRef.current?.();
+  }, [isSubScreen, suspended, mainTab, replayToken]);
 
   useEffect(() => {
     const replaying = replayToken > 0 && replayToken !== handledReplayRef.current;
@@ -150,10 +169,10 @@ export function FirstEntryCoachMarks({ isSubScreen, suspended = false, mainTab, 
     : { top: '50%', transform: 'translateY(-50%)' };
 
   return (
-    <div className="fixed inset-0 z-[190] pointer-events-auto" role="dialog" aria-modal="true" aria-label={`${current.title} 첫 이용 안내`}>
+    <div className="fixed inset-0 z-[210] pointer-events-auto" role="dialog" aria-modal="true" aria-label={`${current.title} 첫 이용 안내`} data-testid="first-entry-coach">
       <div className="absolute inset-0 bg-slate-950/65" aria-hidden="true" />
       {spotlightStyle && <div className="absolute rounded-2xl border-2 border-cyan-300 shadow-[0_0_0_9999px_rgba(2,6,23,0.58),0_0_24px_rgba(103,232,249,0.75)] pointer-events-none transition-all duration-200" style={spotlightStyle} aria-hidden="true" />}
-      <div className="absolute left-4 right-4 mx-auto max-w-md rounded-2xl border border-cyan-200/70 bg-white px-4 py-3.5 text-slate-800 shadow-2xl shadow-slate-950/40" style={tipStyle}>
+      <div className="absolute left-4 right-4 mx-auto max-w-md rounded-2xl border border-cyan-200/70 bg-white px-4 py-3.5 text-slate-800 shadow-2xl shadow-slate-950/40" style={tipStyle} data-testid="first-entry-coach-tip">
         <div className="flex items-start gap-3">
           <span className="mt-0.5 text-2xl" aria-hidden="true">✨</span>
           <div className="min-w-0 flex-1">

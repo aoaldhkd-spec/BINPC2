@@ -129,10 +129,10 @@ export function LikeConfirmDialog({
           </button>
           <button
             type="button"
-            disabled={!selected}
+            aria-disabled={!selected}
             {...bindMobileTap(handleConfirm)}
-            className={`flex-1 py-3 text-white font-semibold rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 ${
-              selected ? `${heartMeta(selected).solidBg} ${heartMeta(selected).solidHover}` : 'bg-gray-300'
+            className={`flex-1 py-3 text-white font-semibold rounded-xl transition-all flex items-center justify-center gap-1.5 ${
+              selected ? `${heartMeta(selected).solidBg} ${heartMeta(selected).solidHover}` : 'bg-gray-300 opacity-40 cursor-not-allowed'
             }`}
           >
             <Heart className={`w-4 h-4 ${selected ? 'fill-current' : ''}`} />
