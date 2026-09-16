@@ -5,6 +5,7 @@ import {
   planReadyBootstrapRetry,
   planReadyBootstrapExhausted,
   pickReadyBootstrapSettings,
+  raceFirstNonNullSettings,
   READY_BOOTSTRAP_MAX_ATTEMPTS,
 } from './ready-bootstrap-settings';
 
@@ -89,5 +90,22 @@ describe('pickReadyBootstrapSettings', () => {
     expect(pickReadyBootstrapSettings(body, 'poll')).toEqual({ session_active: true });
     expect(pickReadyBootstrapSettings({ ready: true, settings: { a: 1 } }, 'bootstrap')).toEqual({ a: 1 });
     expect(pickReadyBootstrapSettings(null, 'poll')).toBeNull();
+  });
+});
+
+describe('raceFirstNonNullSettings', () => {
+  it('resolves with the first non-null settings', async () => {
+    const slow = new Promise<Record<string, unknown> | null>((resolve) => {
+      setTimeout(() => resolve({ from: 'slow' }), 30);
+    });
+    const fast = Promise.resolve({ from: 'fast' } as Record<string, unknown>);
+    await expect(raceFirstNonNullSettings([slow, fast])).resolves.toEqual({ from: 'fast' });
+  });
+
+  it('returns null when every source fails', async () => {
+    await expect(raceFirstNonNullSettings([
+      Promise.resolve(null),
+      Promise.reject(new Error('x')).catch(() => null),
+    ])).resolves.toBeNull();
   });
 });

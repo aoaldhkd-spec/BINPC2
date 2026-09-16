@@ -33,9 +33,10 @@ export function planSessionInitAfterProfiles(input: {
   return { kind: 'existing-incomplete', me };
 }
 
-/** Existing complete: do not yank chat/profile/group/loading-main to main. */
+/** Existing complete: do not yank chat/profile/group-chat to main.
+ *  loading-main → main is allowed so first paint is not stuck waiting for the boot poll. */
 export function shouldForceMainOnExistingComplete(view: string): boolean {
-  return view !== 'chat' && view !== 'profile' && view !== 'group-chat' && view !== 'loading-main';
+  return view !== 'chat' && view !== 'profile' && view !== 'group-chat';
 }
 
 /** Missing-retry complete: do not yank chat/profile/group-chat to main. */
@@ -70,4 +71,11 @@ export function shouldProcessPendingShare(
   currentUserId: string,
 ): boolean {
   return Boolean(pendingShareId && pendingShareId !== currentUserId);
+}
+
+/** Cached deck already has a complete me — enter main without waiting on network. */
+export function shouldEnterMainFromCachePlan(
+  plan: SessionInitAfterProfilesPlan,
+): plan is Extract<SessionInitAfterProfilesPlan, { kind: 'existing-complete' } | { kind: 'new-reg-complete' }> {
+  return plan.kind === 'existing-complete' || plan.kind === 'new-reg-complete';
 }

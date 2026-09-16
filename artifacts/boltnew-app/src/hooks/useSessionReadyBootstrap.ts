@@ -1,6 +1,6 @@
 /**
  * Mount /ready bootstrap + backup settings poll.
- * App wires apply callbacks (incl. wipe); hook owns timers / fetch / fallback SELECT.
+ * App wires apply callbacks (incl. wipe); hook owns timers / parallel /ready+SELECT race.
  */
 import { useEffect, useRef } from 'react';
 import { supabase, isSseHealthy } from '../lib/supabase';
@@ -15,6 +15,7 @@ import {
   planReadyBootstrapExhausted,
   planReadyBootstrapRetry,
   planReadyBootstrapSafety,
+  raceFirstNonNullSettings,
   type ReadyBootstrapApplyPlan,
 } from '../lib/ready-bootstrap-settings';
 import { MATCHING_LAST_RESET_KEY, MATCHING_USER_KEY, ENTRY_VERIFIED_KEY } from '../lib/constants';
@@ -85,46 +86,47 @@ export function useSessionReadyBootstrap(args: UseSessionReadyBootstrapArgs): vo
 
     async function loadSettings(attempt = 0): Promise<void> {
       const a = argsRef.current;
-      try {
-        const resp = await fetch('/api/db/ready', {
-          signal: AbortSignal.timeout(READY_BOOTSTRAP_FETCH_MS),
-        });
-        if (resp.ok) {
+      // Race /ready with SELECT — first success unblocks entry gate (no serial fallback wait).
+      const readySettings = fetch('/api/db/ready', {
+        signal: AbortSignal.timeout(READY_BOOTSTRAP_FETCH_MS),
+      })
+        .then(async (resp) => {
+          if (!resp.ok) return null;
           const json = await resp.json() as {
             ready?: boolean;
             settings?: Record<string, unknown>;
           };
-          const settings = pickReadyBootstrapSettings(json, 'bootstrap');
-          if (settings) {
-            a.setAppLoading(false);
-            applySettings(settings);
-            return;
-          }
-        }
-      } catch {
-        // fall through to Supabase-compatible fetch
-      }
+          return pickReadyBootstrapSettings(json, 'bootstrap');
+        })
+        .catch(() => null);
 
-      const { data, error } = await supabase
+      const selectSettings = supabase
         .from('app_settings')
         .select('session_active, timer_end_at, timer_label, event_schedule, reset_signal, entry_password, functions_locked')
         .eq('id', 1)
-        .single();
+        .single()
+        .then(({ data, error }) => {
+          if (error || !data) return null;
+          return data as Record<string, unknown>;
+        })
+        .catch(() => null);
+
+      const settings = await raceFirstNonNullSettings([readySettings, selectSettings]);
       if (cancelled) return;
-      if (error || !data) {
-        const retry = planReadyBootstrapRetry(attempt);
-        if (retry.kind === 'retry') {
-          await new Promise(r => setTimeout(r, retry.delayMs));
-          return loadSettings(retry.nextAttempt);
-        }
-        const exhausted = planReadyBootstrapExhausted();
-        a.setAppLoading(exhausted.appLoading);
-        a.setSessionActive(exhausted.sessionActive);
-        a.setEntryPassword(exhausted.entryPassword);
+      if (settings) {
+        a.setAppLoading(false);
+        applySettings(settings);
         return;
       }
-      a.setAppLoading(false);
-      applySettings(data as Record<string, unknown>);
+      const retry = planReadyBootstrapRetry(attempt);
+      if (retry.kind === 'retry') {
+        await new Promise(r => setTimeout(r, retry.delayMs));
+        return loadSettings(retry.nextAttempt);
+      }
+      const exhausted = planReadyBootstrapExhausted();
+      a.setAppLoading(exhausted.appLoading);
+      a.setSessionActive(exhausted.sessionActive);
+      a.setEntryPassword(exhausted.entryPassword);
     }
 
     void loadSettings();

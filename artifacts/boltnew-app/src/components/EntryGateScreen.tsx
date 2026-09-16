@@ -15,14 +15,11 @@ export function EntryGateScreen({ entryPassword, onVerified }: { entryPassword: 
   const [testBusy, setTestBusy] = useState(false);
 
   // 타이머 ref — 언마운트 시 취소해 stale 콜백 방지
-  const verifyTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const shakeTimerRef  = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => { const t = setTimeout(() => setVisible(true), 60); return () => clearTimeout(t); }, []);
 
-  // 언마운트 시 두 타이머 모두 취소
   useEffect(() => () => {
-    if (verifyTimerRef.current) clearTimeout(verifyTimerRef.current);
     if (shakeTimerRef.current)  clearTimeout(shakeTimerRef.current);
   }, []);
 
@@ -31,8 +28,8 @@ export function EntryGateScreen({ entryPassword, onVerified }: { entryPassword: 
     if (verifying) return;
     if (input === entryPassword) {
       setVerifying(true);
-      // 짧은 딜레이로 로딩 피드백 후 입장 — 네트워크 느린 기기에서 버튼이 멈춘 것처럼 보이지 않도록
-      verifyTimerRef.current = setTimeout(() => onVerified(), 120);
+      // Immediate verify — artificial delay made entry→next screen feel slow on mobile.
+      onVerified();
     } else {
       setError(true); setShake(true); setInput('');
       if (shakeTimerRef.current) clearTimeout(shakeTimerRef.current);

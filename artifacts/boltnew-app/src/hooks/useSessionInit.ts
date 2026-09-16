@@ -20,6 +20,7 @@ import {
   SESSION_INIT_MISSING_RETRY_MS,
   planSessionInitAfterProfiles,
   planSessionInitMissingRetry,
+  shouldEnterMainFromCachePlan,
   shouldForceMainOnExistingComplete,
   shouldForceMainOnMissingRetry,
   shouldProcessPendingShare,
@@ -34,6 +35,8 @@ export type UseSessionInitArgs = {
   currentUserId: string | null;
   isNewRegistration: MutableRefObject<boolean>;
   viewRef: MutableRefObject<View>;
+  /** In-memory / ls cache — optimistic main before network refresh. */
+  getProfiles: () => Profile[];
   loadProfiles: () => Promise<Profile[]>;
   loadLikes: (userId: string) => void;
   loadReceivedLikes: (userId: string) => void;
@@ -58,6 +61,7 @@ export function useSessionInit(args: UseSessionInitArgs): void {
     currentUserId,
     isNewRegistration,
     viewRef,
+    getProfiles,
     loadProfiles,
     loadLikes,
     loadReceivedLikes,
@@ -92,6 +96,23 @@ export function useSessionInit(args: UseSessionInitArgs): void {
     let initTimerId1: ReturnType<typeof setTimeout> | null = null;
     // cancelled 플래그 — 언마운트 후 비동기 콜백이 setState를 호출하는 것을 방지
     let cancelled = false;
+
+    // Optimistic: cached complete profile → main immediately (network refresh still runs).
+    const cachePlan = planSessionInitAfterProfiles({
+      allProfiles: getProfiles(),
+      currentUserId,
+      isNewRegistration: isNewRegistration.current,
+    });
+    if (shouldEnterMainFromCachePlan(cachePlan)) {
+      setProfileBoot('ok');
+      if (cachePlan.kind === 'new-reg-complete') {
+        setView('main');
+        setMainTab('profiles');
+      } else {
+        const v = viewRef.current;
+        if (shouldForceMainOnExistingComplete(v)) setView('main');
+      }
+    }
 
     const refreshPinIfMissing = (uid: string, me: Profile | undefined) => {
       if (!shouldRefreshMissingPin(me)) return;

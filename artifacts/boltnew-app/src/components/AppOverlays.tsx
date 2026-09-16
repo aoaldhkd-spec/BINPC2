@@ -400,10 +400,16 @@ export function AppOverlays(p: AppOverlaysProps) {
             darkMode={darkMode}
             onClose={() => setShowQrScanner(false)}
             onDetected={async (profileId) => {
-              setShowQrScanner(false);
               const cached = profiles.find(p => p.id === profileId);
-              if (cached) { saveScannedContact(cached); setScannedContactProfile(cached); return; }
+              if (cached) {
+                setShowQrScanner(false);
+                saveScannedContact(cached);
+                setScannedContactProfile(cached);
+                return;
+              }
+              // Keep scanner up until fetch completes — avoids blank gap after QR detect.
               const { data } = await supabase.from('profiles').select(PROFILE_ROW_SELECT).eq('id', profileId).maybeSingle();
+              setShowQrScanner(false);
               if (data) { saveScannedContact(data as import('../types/app').Profile); setScannedContactProfile(data as import('../types/app').Profile); }
             }}
           />

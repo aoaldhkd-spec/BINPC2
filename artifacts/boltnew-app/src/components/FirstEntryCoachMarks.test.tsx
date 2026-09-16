@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FirstEntryCoachMarks } from './FirstEntryCoachMarks';
 
@@ -25,7 +25,7 @@ describe('FirstEntryCoachMarks tip 1', () => {
     cleanup();
   });
 
-  it('shows participant tip 1 on first paint for brand-new users', () => {
+  it('shows participant tip 1 after main shell paint frames for brand-new users', async () => {
     render(
       <FirstEntryCoachMarks
         isSubScreen={false}
@@ -33,7 +33,9 @@ describe('FirstEntryCoachMarks tip 1', () => {
         suspended={false}
       />,
     );
-    expect(screen.getByTestId('first-entry-coach')).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.getByTestId('first-entry-coach')).toBeTruthy();
+    });
     expect(screen.getByText('여기는 참여자 카드예요')).toBeTruthy();
     expect(screen.getByLabelText('1단계 중 11단계')).toBeTruthy();
   });

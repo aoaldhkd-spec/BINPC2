@@ -3,6 +3,7 @@ import type { Profile } from '../types/app';
 import {
   planSessionInitAfterProfiles,
   planSessionInitMissingRetry,
+  shouldEnterMainFromCachePlan,
   shouldForceMainOnExistingComplete,
   shouldForceMainOnMissingRetry,
   shouldProcessPendingShare,
@@ -60,7 +61,7 @@ describe('session-init planners', () => {
 
   it('view force-main gates match prior App effect', () => {
     expect(shouldForceMainOnExistingComplete('main')).toBe(true);
-    expect(shouldForceMainOnExistingComplete('loading-main')).toBe(false);
+    expect(shouldForceMainOnExistingComplete('loading-main')).toBe(true);
     expect(shouldForceMainOnExistingComplete('chat')).toBe(false);
     expect(shouldForceMainOnMissingRetry('loading-main')).toBe(true);
     expect(shouldForceMainOnMissingRetry('chat')).toBe(false);
@@ -89,5 +90,20 @@ describe('session-init planners', () => {
     expect(shouldProcessPendingShare('share1', 'u1')).toBe(true);
     expect(shouldProcessPendingShare('u1', 'u1')).toBe(false);
     expect(shouldProcessPendingShare(null, 'u1')).toBe(false);
+  });
+
+  it('shouldEnterMainFromCachePlan only for complete cache hits', () => {
+    const complete = planSessionInitAfterProfiles({
+      allProfiles: [profile({ id: 'u1' })],
+      currentUserId: 'u1',
+      isNewRegistration: false,
+    });
+    expect(shouldEnterMainFromCachePlan(complete)).toBe(true);
+    const missing = planSessionInitAfterProfiles({
+      allProfiles: [profile({ id: 'other' })],
+      currentUserId: 'u1',
+      isNewRegistration: false,
+    });
+    expect(shouldEnterMainFromCachePlan(missing)).toBe(false);
   });
 });

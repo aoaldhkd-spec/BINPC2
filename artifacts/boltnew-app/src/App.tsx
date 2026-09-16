@@ -774,6 +774,7 @@ function App() {
     currentUserId,
     isNewRegistration,
     viewRef,
+    getProfiles: () => profilesRef.current,
     loadProfiles,
     loadLikes,
     loadReceivedLikes,

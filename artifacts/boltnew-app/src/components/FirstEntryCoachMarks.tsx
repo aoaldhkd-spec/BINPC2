@@ -64,9 +64,30 @@ export function FirstEntryCoachMarks({ isSubScreen, suspended = false, mainTab, 
   // Once the home tour has opened, never re-seed step 0 on incidental effect re-runs.
   const homeTourStartedRef = useRef(initialOpenTab(replayToken) === 'profiles');
   const [targetRect, setTargetRect] = useState<Rect | null>(null);
+  // Defer overlay until main shell paints once — tip still opens for new users, just after first paint.
+  const [shellPainted, setShellPainted] = useState(() => replayToken > 0);
   // Visible coach during first-entry/replay is always the participant home tour.
   const steps = (openTab === 'profiles' || mainTab === 'profiles') ? HOME_STEPS : SCREEN_STEPS[mainTab];
   const current = steps[Math.min(step, steps.length - 1)] ?? steps[0];
+
+  useEffect(() => {
+    if (replayToken > 0) {
+      setShellPainted(true);
+      return;
+    }
+    let cancelled = false;
+    let inner = 0;
+    const outer = window.requestAnimationFrame(() => {
+      inner = window.requestAnimationFrame(() => {
+        if (!cancelled) setShellPainted(true);
+      });
+    });
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(outer);
+      if (inner) window.cancelAnimationFrame(inner);
+    };
+  }, [replayToken]);
 
   // Layout: force participants before paint so openTab===mainTab on the first visible frame.
   useLayoutEffect(() => {
@@ -154,7 +175,7 @@ export function FirstEntryCoachMarks({ isSubScreen, suspended = false, mainTab, 
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [openTab, mainTab]);
 
-  if (!openTab || openTab !== mainTab || isSubScreen || suspended || !current) return null;
+  if (!shellPainted || !openTab || openTab !== mainTab || isSubScreen || suspended || !current) return null;
   const last = step === steps.length - 1;
   const dismiss = () => { replayModeRef.current = false; homeTourStartedRef.current = false; markFirstEntryCoachSeen('profiles'); setOpenTab(null); };
   const next = () => { if (last) dismiss(); else { setTargetRect(null); setStep((value) => value + 1); } };

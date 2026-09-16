@@ -104,3 +104,37 @@ export function pickReadyBootstrapSettings(
   if (mode === 'bootstrap' && !json.ready) return null;
   return json.settings;
 }
+
+/** First successful settings payload wins (parallel /ready + SELECT). */
+export function raceFirstNonNullSettings(
+  sources: Array<Promise<Record<string, unknown> | null>>,
+): Promise<Record<string, unknown> | null> {
+  return new Promise((resolve) => {
+    let remaining = sources.length;
+    if (remaining === 0) {
+      resolve(null);
+      return;
+    }
+    let settled = false;
+    const failOne = () => {
+      if (settled) return;
+      remaining -= 1;
+      if (remaining === 0) resolve(null);
+    };
+    for (const src of sources) {
+      void src.then(
+        (s) => {
+          if (settled) return;
+          if (s) {
+            settled = true;
+            resolve(s);
+            return;
+          }
+          failOne();
+        },
+        () => failOne(),
+      );
+    }
+  });
+}
+
