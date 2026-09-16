@@ -66,7 +66,7 @@ const BASIC: Topic[] = [
     videoHint: '받은·보낸 하트 확인하는 방법',
     tips: [
       { icon: '🤍', title: '보내는 곳', desc: '참여자 카드 아래 하트. 오른쪽 위 아님.' },
-      { icon: '🌈', title: '개수', desc: '하트는 처음 잠겨 있고, 행사 시계 슬롯이 열리면 종류별 지급량이 상단에 표시돼요.' },
+      { icon: '🌈', title: '개수', desc: '처음엔 잠금. 행사 시계·관리자 해금 후 상단 총 N·무지개 풀로 사용해요.' },
       { icon: '✅', title: '확인 곳', desc: '하트, 채팅 → 내 상태. 받은 하트가 아래에 있어요.' },
     ],
   },
@@ -178,8 +178,8 @@ type TopicAccent = {
 
 const TOPIC_ACCENTS: Record<string, TopicAccent> = {
   guide: {
-    cardLight: 'bg-gradient-to-br from-teal-50/90 to-cyan-50/60 border-teal-100/80 shadow-sm shadow-teal-100/40',
-    cardDark: 'bg-gradient-to-br from-teal-950/40 to-slate-800/80 border-teal-800/50 shadow-sm shadow-teal-900/20',
+    cardLight: 'bg-gradient-to-br from-teal-50/90 to-cyan-50/60 border-teal-100/80 shadow-[0_1px_2px_rgba(13,148,136,0.08)]',
+    cardDark: 'bg-gradient-to-br from-teal-950/40 to-slate-800/80 border-teal-800/50 shadow-[0_1px_2px_rgba(0,0,0,0.25)]',
     iconLight: 'bg-gradient-to-br from-teal-500 to-cyan-600 shadow-sm shadow-teal-300/50',
     iconDark: 'bg-gradient-to-br from-teal-600 to-cyan-700 shadow-sm shadow-teal-900/40',
     bar: 'from-teal-400 to-cyan-500',
@@ -187,8 +187,8 @@ const TOPIC_ACCENTS: Record<string, TopicAccent> = {
     chipIdleDark: 'bg-teal-950/30 border-teal-900/40 text-teal-300/70',
   },
   heart: {
-    cardLight: 'bg-gradient-to-br from-rose-50/90 to-pink-50/60 border-rose-100/80 shadow-sm shadow-rose-100/40',
-    cardDark: 'bg-gradient-to-br from-rose-950/40 to-slate-800/80 border-rose-900/50 shadow-sm shadow-rose-900/20',
+    cardLight: 'bg-gradient-to-br from-rose-50/90 to-pink-50/60 border-rose-100/80 shadow-[0_1px_2px_rgba(244,63,94,0.08)]',
+    cardDark: 'bg-gradient-to-br from-rose-950/40 to-slate-800/80 border-rose-900/50 shadow-[0_1px_2px_rgba(0,0,0,0.25)]',
     iconLight: 'bg-gradient-to-br from-pink-500 to-rose-500 shadow-sm shadow-rose-300/50',
     iconDark: 'bg-gradient-to-br from-pink-600 to-rose-600 shadow-sm shadow-rose-900/40',
     bar: 'from-pink-400 to-rose-500',
@@ -196,8 +196,8 @@ const TOPIC_ACCENTS: Record<string, TopicAccent> = {
     chipIdleDark: 'bg-rose-950/30 border-rose-900/40 text-rose-300/70',
   },
   signal: {
-    cardLight: 'bg-gradient-to-br from-fuchsia-50/90 to-rose-50/60 border-fuchsia-100/80 shadow-sm shadow-fuchsia-100/40',
-    cardDark: 'bg-gradient-to-br from-fuchsia-950/40 to-slate-800/80 border-fuchsia-900/50 shadow-sm shadow-fuchsia-900/20',
+    cardLight: 'bg-gradient-to-br from-fuchsia-50/90 to-rose-50/60 border-fuchsia-100/80 shadow-[0_1px_2px_rgba(217,70,239,0.08)]',
+    cardDark: 'bg-gradient-to-br from-fuchsia-950/40 to-slate-800/80 border-fuchsia-900/50 shadow-[0_1px_2px_rgba(0,0,0,0.25)]',
     iconLight: 'bg-gradient-to-br from-fuchsia-500 to-rose-500 shadow-sm shadow-fuchsia-300/50',
     iconDark: 'bg-gradient-to-br from-fuchsia-600 to-rose-600 shadow-sm shadow-fuchsia-900/40',
     bar: 'from-fuchsia-400 to-rose-500',
@@ -205,8 +205,8 @@ const TOPIC_ACCENTS: Record<string, TopicAccent> = {
     chipIdleDark: 'bg-fuchsia-950/30 border-fuchsia-900/40 text-fuchsia-300/70',
   },
   settings: {
-    cardLight: 'bg-gradient-to-br from-sky-50/90 to-cyan-50/60 border-sky-100/80 shadow-sm shadow-sky-100/40',
-    cardDark: 'bg-gradient-to-br from-sky-950/40 to-slate-800/80 border-sky-900/50 shadow-sm shadow-sky-900/20',
+    cardLight: 'bg-gradient-to-br from-sky-50/90 to-cyan-50/60 border-sky-100/80 shadow-[0_1px_2px_rgba(14,165,233,0.08)]',
+    cardDark: 'bg-gradient-to-br from-sky-950/40 to-slate-800/80 border-sky-900/50 shadow-[0_1px_2px_rgba(0,0,0,0.25)]',
     iconLight: 'bg-gradient-to-br from-cyan-500 to-sky-600 shadow-sm shadow-cyan-300/50',
     iconDark: 'bg-gradient-to-br from-cyan-600 to-sky-700 shadow-sm shadow-cyan-900/40',
     bar: 'from-cyan-400 to-sky-500',
@@ -214,8 +214,8 @@ const TOPIC_ACCENTS: Record<string, TopicAccent> = {
     chipIdleDark: 'bg-sky-950/30 border-sky-900/40 text-sky-300/70',
   },
   chat: {
-    cardLight: 'bg-gradient-to-br from-indigo-50/90 to-blue-50/60 border-indigo-100/80 shadow-sm shadow-indigo-100/40',
-    cardDark: 'bg-gradient-to-br from-indigo-950/40 to-slate-800/80 border-indigo-900/50 shadow-sm shadow-indigo-900/20',
+    cardLight: 'bg-gradient-to-br from-indigo-50/90 to-blue-50/60 border-indigo-100/80 shadow-[0_1px_2px_rgba(99,102,241,0.08)]',
+    cardDark: 'bg-gradient-to-br from-indigo-950/40 to-slate-800/80 border-indigo-900/50 shadow-[0_1px_2px_rgba(0,0,0,0.25)]',
     iconLight: 'bg-gradient-to-br from-blue-500 to-indigo-500 shadow-sm shadow-indigo-300/50',
     iconDark: 'bg-gradient-to-br from-blue-600 to-indigo-600 shadow-sm shadow-indigo-900/40',
     bar: 'from-blue-400 to-indigo-500',
@@ -223,8 +223,8 @@ const TOPIC_ACCENTS: Record<string, TopicAccent> = {
     chipIdleDark: 'bg-indigo-950/30 border-indigo-900/40 text-indigo-300/70',
   },
   group: {
-    cardLight: 'bg-gradient-to-br from-emerald-50/90 to-teal-50/60 border-emerald-100/80 shadow-sm shadow-emerald-100/40',
-    cardDark: 'bg-gradient-to-br from-emerald-950/40 to-slate-800/80 border-emerald-900/50 shadow-sm shadow-emerald-900/20',
+    cardLight: 'bg-gradient-to-br from-emerald-50/90 to-teal-50/60 border-emerald-100/80 shadow-[0_1px_2px_rgba(16,185,129,0.08)]',
+    cardDark: 'bg-gradient-to-br from-emerald-950/40 to-slate-800/80 border-emerald-900/50 shadow-[0_1px_2px_rgba(0,0,0,0.25)]',
     iconLight: 'bg-gradient-to-br from-teal-500 to-emerald-600 shadow-sm shadow-emerald-300/50',
     iconDark: 'bg-gradient-to-br from-teal-600 to-emerald-700 shadow-sm shadow-emerald-900/40',
     bar: 'from-teal-400 to-emerald-500',
@@ -232,8 +232,8 @@ const TOPIC_ACCENTS: Record<string, TopicAccent> = {
     chipIdleDark: 'bg-emerald-950/30 border-emerald-900/40 text-emerald-300/70',
   },
   pin: {
-    cardLight: 'bg-gradient-to-br from-amber-50/90 to-orange-50/60 border-amber-100/80 shadow-sm shadow-amber-100/40',
-    cardDark: 'bg-gradient-to-br from-amber-950/40 to-slate-800/80 border-amber-900/50 shadow-sm shadow-amber-900/20',
+    cardLight: 'bg-gradient-to-br from-amber-50/90 to-orange-50/60 border-amber-100/80 shadow-[0_1px_2px_rgba(245,158,11,0.08)]',
+    cardDark: 'bg-gradient-to-br from-amber-950/40 to-slate-800/80 border-amber-900/50 shadow-[0_1px_2px_rgba(0,0,0,0.25)]',
     iconLight: 'bg-gradient-to-br from-amber-500 to-orange-500 shadow-sm shadow-amber-300/50',
     iconDark: 'bg-gradient-to-br from-amber-600 to-orange-600 shadow-sm shadow-amber-900/40',
     bar: 'from-amber-400 to-orange-500',
@@ -241,8 +241,8 @@ const TOPIC_ACCENTS: Record<string, TopicAccent> = {
     chipIdleDark: 'bg-amber-950/30 border-amber-900/40 text-amber-300/70',
   },
   hidden: {
-    cardLight: 'bg-gradient-to-br from-violet-50/90 to-purple-50/60 border-violet-100/80 shadow-sm shadow-violet-100/40',
-    cardDark: 'bg-gradient-to-br from-violet-950/40 to-slate-800/80 border-violet-900/50 shadow-sm shadow-violet-900/20',
+    cardLight: 'bg-gradient-to-br from-violet-50/90 to-purple-50/60 border-violet-100/80 shadow-[0_1px_2px_rgba(139,92,246,0.08)]',
+    cardDark: 'bg-gradient-to-br from-violet-950/40 to-slate-800/80 border-violet-900/50 shadow-[0_1px_2px_rgba(0,0,0,0.25)]',
     iconLight: 'bg-gradient-to-br from-violet-500 to-purple-600 shadow-sm shadow-violet-300/50',
     iconDark: 'bg-gradient-to-br from-violet-600 to-purple-700 shadow-sm shadow-violet-900/40',
     bar: 'from-violet-400 to-purple-500',
@@ -320,7 +320,7 @@ function TipCard({
   const cardCls = darkMode ? accent.cardDark : accent.cardLight;
   const iconCls = darkMode ? accent.iconDark : accent.iconLight;
   const barCls = sectionBar ?? accent.bar;
-  const iconShell = 'w-6 h-6 text-xs rounded-lg flex-shrink-0 flex items-center justify-center text-white ' + iconCls;
+  const iconShell = 'w-6 h-6 text-[11px] rounded-xl flex-shrink-0 flex items-center justify-center text-white ring-1 ring-white/25 ' + iconCls;
   const titleCls = 'text-[11px]';
   const descCls = longDesc ? 'text-[10px] leading-snug' : 'text-[10px] leading-snug';
   const pad = 'px-2 py-1';
@@ -338,7 +338,7 @@ function TipCard({
 
   if (spanFull) {
     return (
-      <div className={`relative col-span-2 flex rounded-2xl border ${stretchCls} ${pad} ${cardCls}`}>
+      <div className={`relative col-span-2 flex rounded-xl border ${stretchCls} ${pad} ${cardCls}`}>
         <span className={`absolute left-0 top-2.5 bottom-2.5 w-0.5 rounded-full bg-gradient-to-b ${barCls}`} aria-hidden />
         {body}
       </div>
@@ -346,7 +346,7 @@ function TipCard({
   }
 
   return (
-    <div className={`relative flex rounded-2xl border ${stretchCls} ${pad} ${cardCls}`}>
+    <div className={`relative flex rounded-xl border ${stretchCls} ${pad} ${cardCls}`}>
       <span className={`absolute left-0 top-2.5 bottom-2.5 w-0.5 rounded-full bg-gradient-to-b ${barCls}`} aria-hidden />
       {body}
     </div>
@@ -495,42 +495,42 @@ const FILLERS: Record<FillerKind, { title: string; line: string; quote: string; 
     line: '행사 시계가 열어 준 하트만 선택 가능 · 수락되면 연락처',
     quote: '오른쪽 위 하트 아님. 받은 하트는 아래로',
     shell: 'bg-gradient-to-br from-rose-50 via-pink-50 to-white border border-rose-100/80 shadow-sm shadow-rose-100/30',
-    darkShell: 'bg-gradient-to-br from-slate-800/90 via-rose-950/50 to-slate-900 border border-rose-900/50 shadow-sm shadow-rose-900/20',
+    darkShell: 'bg-gradient-to-br from-slate-800/90 via-rose-950/50 to-slate-900 border border-rose-900/50 shadow-[0_1px_2px_rgba(0,0,0,0.25)]',
   },
   guide: {
     title: '오늘 하나만 건져도 이득',
     line: '규칙은 짧게, 텐션은 자유롭게',
     quote: '존댓말로 시작하면 반은 먹고 들어감',
     shell: 'bg-gradient-to-br from-teal-50 via-white to-amber-50/80 border border-teal-100/80 shadow-sm shadow-teal-100/30',
-    darkShell: 'bg-gradient-to-br from-slate-800/90 via-slate-800/60 to-teal-950/40 border border-teal-800/50 shadow-sm shadow-teal-900/20',
+    darkShell: 'bg-gradient-to-br from-slate-800/90 via-slate-800/60 to-teal-950/40 border border-teal-800/50 shadow-[0_1px_2px_rgba(0,0,0,0.25)]',
   },
   chat: {
     title: '말 거는 게 제일 어려움 인정',
     line: '하트랑 채팅은 따로. 그냥 먼저 쳐도 됨',
     quote: '한 줄이면 충분, 소설 쓸 필요 없음',
     shell: 'bg-gradient-to-br from-sky-50 via-indigo-50 to-white border border-indigo-100/80 shadow-sm shadow-indigo-100/30',
-    darkShell: 'bg-gradient-to-br from-slate-800/90 via-indigo-950/50 to-slate-900 border border-indigo-900/60 shadow-sm shadow-indigo-900/20',
+    darkShell: 'bg-gradient-to-br from-slate-800/90 via-indigo-950/50 to-slate-900 border border-indigo-900/60 shadow-[0_1px_2px_rgba(0,0,0,0.25)]',
   },
   group: {
     title: '두 방은 알아서 들어감',
     line: '2차 클럽·2차 술만 직접 입장',
     quote: '년생·N대 자동, 2차는 들락날락',
     shell: 'bg-gradient-to-br from-teal-50 via-emerald-50 to-white border border-teal-100/80 shadow-sm shadow-teal-100/30',
-    darkShell: 'bg-gradient-to-br from-slate-800/90 via-teal-950/50 to-slate-900 border border-teal-900/60 shadow-sm shadow-teal-900/20',
+    darkShell: 'bg-gradient-to-br from-slate-800/90 via-teal-950/50 to-slate-900 border border-teal-900/60 shadow-[0_1px_2px_rgba(0,0,0,0.25)]',
   },
   pin: {
     title: '모르면?',
     line: '관리자에게 닉네임 말하고 찾아 달라고',
     quote: '입장 핀이랑 다른 거예요. 캡처 필수',
     shell: 'bg-gradient-to-br from-amber-50 via-orange-50 to-white border border-amber-100/80 shadow-sm shadow-amber-100/30',
-    darkShell: 'bg-gradient-to-br from-slate-800/90 via-amber-950/40 to-slate-900 border border-amber-900/50 shadow-sm shadow-amber-900/20',
+    darkShell: 'bg-gradient-to-br from-slate-800/90 via-amber-950/40 to-slate-900 border border-amber-900/50 shadow-[0_1px_2px_rgba(0,0,0,0.25)]',
   },
   hidden: {
     title: '몰라도 되는데, 알면 이득',
     line: '카드 뒤집기 · 방문자 · NPC 나이',
     quote: '술번개 3번이면 NPC 나이. 진짜임',
     shell: 'bg-gradient-to-br from-violet-50 via-fuchsia-50 to-white border border-violet-100/80 shadow-sm shadow-violet-100/30',
-    darkShell: 'bg-gradient-to-br from-slate-800/90 via-violet-950/50 to-slate-900 border border-violet-900/60 shadow-sm shadow-violet-900/20',
+    darkShell: 'bg-gradient-to-br from-slate-800/90 via-violet-950/50 to-slate-900 border border-violet-900/60 shadow-[0_1px_2px_rgba(0,0,0,0.25)]',
   },
 };
 
@@ -595,25 +595,29 @@ function TopicSubTabs({
   topicColor: string;
 }) {
   const base = 'flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all duration-200 active:scale-[0.97]';
-  const idle = darkMode ? 'text-slate-400 bg-slate-800/60' : 'text-gray-500 bg-white/60';
+  const idle = darkMode ? 'text-slate-400' : 'text-gray-500';
   const activeTips = darkMode
     ? 'bg-slate-700 text-white shadow-md ring-1 ring-white/10'
-    : 'bg-white text-gray-900 shadow-md ring-1 ring-gray-200/80';
+    : 'bg-white text-gray-900 shadow-md ring-1 ring-gray-200/70';
   const activeVideo = `bg-gradient-to-r ${topicColor} text-white shadow-lg shadow-black/10`;
-
-  if (!hasVideo) return null;
 
   return (
     <div className={`flex-shrink-0 h-11 px-4 pb-1.5 ${darkMode ? 'bg-slate-900/80' : 'bg-gradient-to-b from-white to-slate-50/80'}`}>
-      <div className={`grid grid-cols-2 gap-1 p-0.5 rounded-xl h-8 ${darkMode ? 'bg-slate-800/80 ring-1 ring-slate-700/60' : 'bg-gray-100/90 ring-1 ring-gray-200/60'}`}>
-        <button type="button" onClick={() => onChange('tips')} className={`${base} ${subView === 'tips' ? activeTips : idle}`}>
-          📋 설명
-        </button>
-        <button type="button" onClick={() => onChange('video')} className={`${base} ${subView === 'video' ? activeVideo : idle}`}>
-          <PlayCircle className="w-3.5 h-3.5" />
-          동영상
-        </button>
-      </div>
+      {hasVideo ? (
+        <div className={`grid grid-cols-2 gap-1 p-0.5 rounded-xl h-8 ${darkMode ? 'bg-slate-800/80 ring-1 ring-slate-700/60' : 'bg-gray-100/90 ring-1 ring-gray-200/60'}`}>
+          <button type="button" onClick={() => onChange('tips')} className={`${base} ${subView === 'tips' ? activeTips : idle}`}>
+            📋 설명
+          </button>
+          <button type="button" onClick={() => onChange('video')} className={`${base} ${subView === 'video' ? activeVideo : idle}`}>
+            <PlayCircle className="w-3.5 h-3.5" />
+            동영상
+          </button>
+        </div>
+      ) : (
+        <div className={`h-8 rounded-xl flex items-center justify-center gap-1.5 px-3 ${darkMode ? 'bg-slate-800/50 ring-1 ring-slate-700/50' : 'bg-slate-100/80 ring-1 ring-slate-200/70'}`}>
+          <span className={`text-[11px] font-semibold tracking-tight ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>📋 설명으로 안내해요</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -658,7 +662,6 @@ export function TutorialModal({
   const isLast = safeIdx === topics.length - 1;
   const hasVideo = Boolean(topic.video?.length);
   const showChips = topics.length > 1;
-  const denseTabs = mode === 'hidden';
   const layout = topicLayout(topic);
 
   useEffect(() => {
@@ -756,7 +759,7 @@ export function TutorialModal({
 
   return (
     <div
-      className="fixed inset-0 z-[10050] flex items-center justify-center bg-black/70 backdrop-blur-sm overflow-hidden overscroll-none animate-[fadeIn_0.2s_ease-out]"
+      className="fixed inset-0 z-[10050] flex items-center justify-center bg-slate-950/75 backdrop-blur-md overflow-hidden overscroll-none animate-[fadeIn_0.2s_ease-out]"
       style={{
         padding:
           'max(0.5rem, var(--safe-top, 0px)) max(0.5rem, var(--safe-right, 0px)) max(0.5rem, var(--safe-bottom, 0px)) max(0.5rem, var(--safe-left, 0px))',
@@ -776,7 +779,7 @@ export function TutorialModal({
       >
         <button
           onClick={onClose}
-          className="touch-target absolute top-2.5 right-2.5 z-10 flex items-center justify-center w-8 h-8 rounded-full bg-black/20 hover:bg-black/40 text-white backdrop-blur-sm ring-1 ring-white/20 transition-all active:scale-95"
+          className="touch-target absolute top-2.5 right-2.5 z-10 flex items-center justify-center w-8 h-8 rounded-full bg-black/25 hover:bg-black/45 text-white backdrop-blur-md ring-1 ring-white/25 shadow-sm transition-all active:scale-95"
         >
           <X className="w-4 h-4" />
         </button>
@@ -786,14 +789,26 @@ export function TutorialModal({
           <div className="absolute -right-6 -top-6 w-24 h-24 rounded-full bg-white/10 blur-2xl pointer-events-none" aria-hidden />
           <div className="absolute -left-4 bottom-0 w-16 h-16 rounded-full bg-black/10 blur-xl pointer-events-none" aria-hidden />
           <div className="relative flex items-start gap-2.5">
-            <span className="flex-shrink-0 w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-sm ring-1 ring-white/30 flex items-center justify-center text-xl shadow-lg">
+            <span className="flex-shrink-0 w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-md ring-1 ring-white/35 flex items-center justify-center text-xl shadow-lg shadow-black/10">
               {topic.emoji}
             </span>
             <div className="min-w-0 flex-1 pt-0.5">
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/15 text-white/90 text-[11px] font-bold tracking-wide ring-1 ring-white/10">
-                <Sparkles className="w-3 h-3" />
-                도움말
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/15 text-white/90 text-[11px] font-bold tracking-wide ring-1 ring-white/10">
+                  <Sparkles className="w-3 h-3" />
+                  도움말
+                </span>
+                <span className="inline-flex items-center gap-1" aria-hidden>
+                  {topics.map((_, i) => (
+                    <span
+                      key={topics[i].id}
+                      className={`h-1 rounded-full transition-all duration-300 ${
+                        i === safeIdx ? 'w-3.5 bg-white' : 'w-1.5 bg-white/35'
+                      }`}
+                    />
+                  ))}
+                </span>
+              </div>
               <h2 id="tutorial-modal-title" className={`text-white font-bold text-sm leading-snug mt-0.5 line-clamp-1 ${KR_WRAP}`}>
                 {topic.title}
               </h2>
@@ -803,15 +818,13 @@ export function TutorialModal({
 
         {/* Mode toggle */}
         <div
-          className={`flex-shrink-0 px-4 flex items-end ${
-            denseTabs ? 'h-10 pt-1.5 pb-1' : 'h-[2.75rem] pt-2 pb-1.5'
-          } ${darkMode ? 'bg-slate-900/80' : 'bg-gradient-to-b from-white to-slate-50/80'}`}
+          className={`flex-shrink-0 h-[2.75rem] px-4 pt-2 pb-1.5 flex items-end ${darkMode ? 'bg-slate-900/80' : 'bg-gradient-to-b from-white to-slate-50/80'}`}
         >
-          <div className={`grid grid-cols-2 p-1 rounded-2xl gap-1 w-full ${darkMode ? 'bg-slate-800/80 ring-1 ring-slate-700/60' : 'bg-gray-100/90 ring-1 ring-gray-200/60'}`}>
+          <div className={`grid grid-cols-2 p-1 rounded-2xl gap-1 w-full h-[2.125rem] ${darkMode ? 'bg-slate-800/80 ring-1 ring-slate-700/60' : 'bg-gray-100/90 ring-1 ring-gray-200/60'}`}>
             <button
               type="button"
               onClick={() => switchMode('basic')}
-              className={`${denseTabs ? 'py-1.5' : 'py-2'} rounded-xl text-xs font-bold transition-all duration-200 active:scale-[0.97] ${
+              className={`rounded-xl text-xs font-bold transition-all duration-200 active:scale-[0.97] ${
                 mode === 'basic'
                   ? 'bg-gradient-to-r from-cyan-500 to-teal-500 text-white shadow-md shadow-cyan-500/25'
                   : darkMode ? 'text-slate-400' : 'text-gray-500'
@@ -822,7 +835,7 @@ export function TutorialModal({
             <button
               type="button"
               onClick={() => switchMode('hidden')}
-              className={`${denseTabs ? 'py-1.5' : 'py-2'} rounded-xl text-xs font-bold transition-all duration-200 active:scale-[0.97] ${
+              className={`rounded-xl text-xs font-bold transition-all duration-200 active:scale-[0.97] ${
                 mode === 'hidden'
                   ? 'bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-md shadow-violet-500/25'
                   : darkMode ? 'text-slate-400' : 'text-gray-500'
@@ -851,9 +864,7 @@ export function TutorialModal({
                     type="button"
                     aria-current={active ? 'true' : undefined}
                     onClick={() => selectTopic(i)}
-                    className={`relative flex flex-col items-center justify-center ${
-                      denseTabs ? 'min-h-10 py-0.5' : 'min-h-[2.75rem] py-1'
-                    } px-0 gap-px text-center transition-all duration-200 active:brightness-95 ${divider} ${
+                    className={`relative flex flex-col items-center justify-center min-h-[2.75rem] py-1 px-0 gap-px text-center transition-all duration-200 active:brightness-95 ${divider} ${
                       active
                         ? `bg-gradient-to-b ${t.color} text-white shadow-[inset_0_-1px_0_rgba(255,255,255,0.15)]`
                         : darkMode
@@ -884,7 +895,7 @@ export function TutorialModal({
 
         {/* Footer */}
         <div className={`flex-shrink-0 h-[3.75rem] px-4 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex items-start gap-2 border-t ${
-          darkMode ? 'border-slate-700/80 bg-slate-900/90' : 'border-gray-100/80 bg-white/90'
+          darkMode ? 'border-slate-700/80 bg-slate-900/95 backdrop-blur-sm' : 'border-gray-100/80 bg-white/95 backdrop-blur-sm'
         }`}>
           {safeIdx > 0 ? (
             <button

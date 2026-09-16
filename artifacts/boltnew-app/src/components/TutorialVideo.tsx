@@ -98,7 +98,7 @@ function Tabs({ active, hl }: { active: string; hl?: string }) {
             <div
               key={t.id}
               className={`relative flex-1 flex flex-col items-center py-1 border-t-2 transition-colors duration-300 ${
-                on ? 'border-t-cyan-500 bg-cyan-500/10' : 'border-t-transparent'
+                on ? 'border-t-cyan-400 bg-cyan-500/15' : 'border-t-transparent'
               }`}
             >
               <Ring on={hl === t.id} />
@@ -107,6 +107,33 @@ function Tabs({ active, hl }: { active: string; hl?: string }) {
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+/** 홈 헤더 하트 — 라이브: 총 N + 무지개 풀(잠금 시 grayscale) */
+function HeartHeader({ unlocked, total = 4 }: { unlocked: boolean; total?: number }) {
+  const row = [
+    { e: '❤️', n: unlocked ? String(total) : '0' },
+    { e: '💙', n: unlocked ? '•' : '0' },
+    { e: '💗', n: unlocked ? '•' : '0' },
+    { e: '💚', n: unlocked ? '•' : '0' },
+  ];
+  return (
+    <div className="flex items-center justify-between gap-1 px-2 py-1 border-b border-slate-700/80 bg-slate-950/90">
+      <div className="min-w-0">
+        <p className="text-[8px] font-black text-white tracking-tight truncate">🍻 범일NPC</p>
+        <p className="text-[6px] font-bold text-slate-500 truncate">{unlocked ? '무지개하트 사용 가능' : '행사 시계·해금 대기'}</p>
+      </div>
+      <div className="flex items-center gap-1 flex-shrink-0">
+        <span className={`text-[8px] font-black tabular-nums ${unlocked ? 'text-cyan-300' : 'text-slate-500'}`}>총 {unlocked ? total : 0}</span>
+        {row.map((h) => (
+          <span key={h.e} className={`flex items-center gap-0.5 ${unlocked ? '' : 'grayscale opacity-40'}`}>
+            <span className="text-[10px] leading-none">{h.e}</span>
+            <span className={`text-[8px] font-bold tabular-nums ${unlocked ? 'text-white' : 'text-slate-400 line-through'}`}>{h.n}</span>
+          </span>
+        ))}
       </div>
     </div>
   );
@@ -619,27 +646,38 @@ function S6({ step }: { step: number }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Scene 7: 받은 하트 · 보낸 하트 (내 상태)
+// Scene 7: 받은 하트 · 보낸 하트 (내 상태) + 잠금→해금 헤더
 // ══════════════════════════════════════════════════════════════════════════════
 function S7({ step }: { step: number }) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const sentRef = useRef<HTMLDivElement>(null);
+  const unlocked = step >= 2;
   const accepted = step >= 5;
-
-  useEffect(() => {
-    if (step >= 6 && sentRef.current && scrollRef.current) {
-      scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
-    }
-  }, [step]);
+  const showSent = step >= 6;
 
   return (
     <div className="h-full flex flex-col bg-slate-900">
-      <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide px-2.5 pt-2 pb-1 space-y-2" style={{ scrollBehavior: 'smooth' }}>
+      <HeartHeader unlocked={unlocked} total={4} />
+      <div className="flex-1 overflow-hidden px-2.5 pt-1.5 pb-1 space-y-1.5">
         <p className="text-[8px] font-black text-slate-500 uppercase tracking-wider">하트, 채팅 → 내 상태</p>
         <div className="flex rounded-lg p-0.5 bg-slate-700">
           <div className="flex-1 py-1 text-center text-[8px] font-black rounded-md bg-slate-600 text-white">💝 내 상태</div>
           <div className="flex-1 py-1 text-center text-[8px] font-black text-slate-400">💬 내 채팅</div>
         </div>
+
+        {step >= 1 && !unlocked && (
+          <div className="rounded-xl border border-amber-500/40 bg-amber-950/30 px-2 py-1.5 animate-in fade-in duration-400">
+            <p className="text-[8px] font-black text-amber-200">🔒 하트 잠금</p>
+            <p className="text-[7px] text-amber-100/80 font-bold mt-0.5 leading-snug">행사 시계 슬롯이 열리거나 관리자가 해금하면 상단 총 N이 켜져요</p>
+            <Ring on={step === 1} color="ring-amber-400" />
+          </div>
+        )}
+
+        {unlocked && step < 3 && (
+          <div className="rounded-xl border border-cyan-500/40 bg-cyan-950/25 px-2 py-1 animate-in fade-in duration-400">
+            <p className="text-[8px] font-black text-cyan-200">✅ 해금됨 · 총 4</p>
+            <p className="text-[7px] text-cyan-100/80 font-bold">종류는 자유롭게 · 같은 상대에게 한 색만</p>
+          </div>
+        )}
+
         {step >= 1 && (
           <div className="flex flex-col items-center py-0.5">
             <span className="text-sm leading-none animate-bounce" aria-hidden>👇</span>
@@ -648,16 +686,16 @@ function S7({ step }: { step: number }) {
         )}
 
         <div className={`relative rounded-2xl overflow-hidden border transition-all duration-500 ${
-          step >= 1 ? 'border-pink-500/50 bg-slate-800' : 'border-slate-700 bg-slate-800'
+          step >= 3 ? 'border-pink-500/50 bg-slate-800' : 'border-slate-700 bg-slate-800'
         }`}>
-          <Ring on={step === 1 || step === 2} color="ring-pink-400" />
-          <Tip text="받은 하트" show={step === 1} dir="right" />
+          <Ring on={step === 3 || step === 4} color="ring-pink-400" />
+          <Tip text="받은 하트" show={step === 3} dir="right" />
           <div className="flex items-center justify-between px-2.5 py-1.5">
             <p className="text-[9px] font-black text-slate-200">💕 받은 하트</p>
             <span className="px-1.5 py-0.5 bg-rose-500/20 text-rose-300 text-[7px] font-bold rounded-full">1개 미응답</span>
           </div>
           <div className="px-2 pb-2 space-y-1.5">
-            <div className={`rounded-xl p-2 transition-all duration-400 ${step >= 3 ? 'bg-rose-900/25 ring-1 ring-pink-400/50' : 'bg-slate-700/60'}`}>
+            <div className={`rounded-xl p-2 transition-all duration-400 ${step >= 4 ? 'bg-rose-900/25 ring-1 ring-pink-400/50' : 'bg-slate-700/60'}`}>
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-pink-400 to-rose-500 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
@@ -665,7 +703,7 @@ function S7({ step }: { step: number }) {
                   <p className="text-[8px] text-rose-300">❤️ 호감 하트</p>
                 </div>
               </div>
-              {step >= 3 && !accepted && (
+              {step >= 4 && !accepted && (
                 <div className="flex gap-1 mt-1.5">
                   <span className="flex-1 py-1 text-center bg-slate-600 text-slate-200 text-[7px] font-bold rounded-lg">거절</span>
                   <span className="flex-[1.4] py-1 text-center bg-rose-500 text-white text-[7px] font-bold rounded-lg animate-pulse">
@@ -679,47 +717,37 @@ function S7({ step }: { step: number }) {
                 </span>
               )}
             </div>
-            <div className="rounded-xl p-2 bg-slate-700/60 flex items-center gap-2">
-              <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-emerald-400 to-teal-600 flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-white text-[9px] font-bold">은빛고양이</p>
-                <p className="text-[8px] text-emerald-300">💚 칭찬 하트</p>
-              </div>
-            </div>
           </div>
         </div>
 
-        <div
-          ref={sentRef}
-          className={`relative rounded-2xl overflow-hidden border transition-all duration-500 ${
-            step >= 6 ? 'border-amber-500/60 bg-slate-800' : 'border-slate-700 bg-slate-800'
-          }`}
-        >
-          <Ring on={step >= 6} color="ring-amber-400" />
-          <Tip text="보낸 하트" show={step === 6} dir="right" />
-          <p className="text-[9px] font-black text-slate-200 px-2.5 py-1.5">💌 보낸 하트</p>
-          <div className="px-2 pb-2 grid grid-cols-2 gap-1.5">
-            <div className={`rounded-xl p-1.5 transition-all duration-400 ${step >= 6 ? 'bg-amber-900/25' : 'bg-slate-700/60'}`}>
-              <div className="w-full h-8 rounded-lg bg-gradient-to-br from-orange-400 to-amber-600 mb-1" />
-              <p className="text-white text-[8px] font-bold truncate">황금여우</p>
-              <p className="text-[7px] text-rose-300">❤️ 호감</p>
-              <span className="mt-0.5 inline-block text-[6px] font-bold px-1 py-0.5 rounded bg-amber-500/20 text-amber-300">대기 중</span>
-            </div>
-            <div className="rounded-xl p-1.5 bg-slate-700/60">
-              <div className="w-full h-8 rounded-lg bg-gradient-to-br from-sky-400 to-blue-600 mb-1" />
-              <p className="text-white text-[8px] font-bold truncate">파란고래</p>
-              <p className="text-[7px] text-blue-300">💙 친구</p>
-              <span className="mt-0.5 inline-block text-[6px] font-bold px-1 py-0.5 rounded bg-teal-500/20 text-teal-300">수락됨</span>
+        {showSent && (
+          <div className="relative rounded-2xl overflow-hidden border border-amber-500/60 bg-slate-800 animate-in fade-in duration-500">
+            <Ring on color="ring-amber-400" />
+            <Tip text="보낸 하트" show={step === 6} dir="right" />
+            <p className="text-[9px] font-black text-slate-200 px-2.5 py-1.5">💌 보낸 하트</p>
+            <div className="px-2 pb-2 grid grid-cols-2 gap-1.5">
+              <div className="rounded-xl p-1.5 bg-amber-900/25">
+                <div className="w-full h-8 rounded-lg bg-gradient-to-br from-orange-400 to-amber-600 mb-1" />
+                <p className="text-white text-[8px] font-bold truncate">황금여우</p>
+                <p className="text-[7px] text-rose-300">❤️ 호감</p>
+                <span className="mt-0.5 inline-block text-[6px] font-bold px-1 py-0.5 rounded bg-amber-500/20 text-amber-300">대기 중</span>
+              </div>
+              <div className="rounded-xl p-1.5 bg-slate-700/60">
+                <div className="w-full h-8 rounded-lg bg-gradient-to-br from-sky-400 to-blue-600 mb-1" />
+                <p className="text-white text-[8px] font-bold truncate">파란고래</p>
+                <p className="text-[7px] text-blue-300">💙 친구</p>
+                <span className="mt-0.5 inline-block text-[6px] font-bold px-1 py-0.5 rounded bg-teal-500/20 text-teal-300">수락됨</span>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
       <Tabs active="my" hl={step === 0 ? 'my' : undefined} />
     </div>
   );
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
+// ═
 interface Step { cx: number; cy: number; click?: boolean; dur: number; }
 interface SceneDef {
   title: string; sub: string;
@@ -820,16 +848,16 @@ const SCENES: SceneDef[] = [
     render: s => <S6 step={s} />,
   },
   {
-    title: '받은 하트 & 보낸 하트', sub: '하트, 채팅 → 내 상태에서 하트 내역을 확인해요',
+    title: '하트 잠금 해제 & 받은·보낸', sub: '상단 총 N이 켜진 뒤, 하트·채팅 → 내 상태에서 확인해요',
     steps: [
-      { cx: 74, cy: 232, dur: 1300 },
-      { cx: 74, cy: 232, click: true,  dur: 1100 },
-      { cx: 124, cy: 85,  dur: 1400 },
-      { cx: 124, cy: 110, dur: 1400 },
-      { cx: 175, cy: 130, dur: 1200 },
-      { cx: 175, cy: 130, click: true,  dur: 1300 },
+      { cx: 74,  cy: 232, dur: 1200 },
+      { cx: 74,  cy: 232, click: true,  dur: 1000 },
+      { cx: 190, cy: 28,  dur: 1500 },
+      { cx: 124, cy: 95,  dur: 1400 },
+      { cx: 124, cy: 130, dur: 1300 },
+      { cx: 175, cy: 150, click: true,  dur: 1300 },
       { cx: 124, cy: 195, dur: 1500 },
-      { cx: 124, cy: 210, dur: 2400 },
+      { cx: 124, cy: 210, dur: 2200 },
     ],
     render: s => <S7 step={s} />,
   },
@@ -982,7 +1010,7 @@ export function TutorialVideo({
   const player = (
     <div className={`relative w-full min-h-0 overflow-hidden bg-black flex flex-col ${
       embedded
-        ? `${compact && !fill ? '' : 'h-full '} ${isEmbeddedCompact ? 'rounded-2xl border-2' : compact ? 'rounded-2xl border-2' : 'rounded-[1.35rem] border-[3px]'} border-zinc-800/90 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]`
+        ? `${compact && !fill ? '' : 'h-full '} ${isEmbeddedCompact ? 'rounded-2xl border-2' : compact ? 'rounded-2xl border-2' : 'rounded-[1.35rem] border-[3px]'} border-zinc-700/90 shadow-[0_8px_24px_rgba(0,0,0,0.35),inset_0_0_0_1px_rgba(255,255,255,0.08)]`
         : 'max-w-xs rounded-[1.75rem] shadow-2xl border-[3px] border-zinc-800'
     }`}>
       {!isEmbeddedCompact && (
