@@ -90,7 +90,7 @@ async function op(body: Record<string, unknown>) {
 
 
 beforeAll(async () => {
-  const eventSchedule = JSON.stringify({ timezone: 'Asia/Seoul', slots: [{ id: 'test-grants', at: '00:00', notice: 'test', heart_grants: { red: 20, blue: 20, pink: 20, green: 20 } }] });
+  const eventSchedule = JSON.stringify({ timezone: 'Asia/Seoul', slots: [{ id: 'test-grants', at: '00:00', notice: 'test', rainbow_pool: 40, heart_grants: { red: 20, blue: 20, pink: 20, green: 20 } }] });
   for (const pw of ['116606', 'custom-admin-pw-xyz', process.env.BOOTSTRAP_ADMIN_PASSWORD].filter(Boolean)) {
     const res = await request(app).post('/api/db/rpc/admin_update_settings').send({ p_admin_password: pw, p_payload: { event_schedule: eventSchedule } });
     if (res.status === 200) return;
