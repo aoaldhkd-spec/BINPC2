@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { AppSettings } from './shared';
 import type { HeartType } from '../lib/constants';
 import { HEART_TYPES } from '../lib/constants';
-import { parseEventSchedule, type EventScheduleSlot } from '../lib/event-schedule';
+import { eventHeartQuotas, parseEventSchedule, type EventScheduleSlot } from '../lib/event-schedule';
 
 const NOTICE_PRESETS = [
   '지금은 프로필·설정만 이용할 수 있어요. 하트·채팅은 잠시 후 열립니다.',
@@ -36,9 +36,15 @@ export function EventScheduleTab({ settings, onSave }: { settings: AppSettings |
   const [start, setStart] = useState(slots[0]?.at ?? '23:00');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [clock, setClock] = useState(() => new Date());
+  useEffect(() => { const id = window.setInterval(() => setClock(new Date()), 1000); return () => window.clearInterval(id); }, []);
+  const cumulative = useMemo(() => eventHeartQuotas({ timezone: 'Asia/Seoul', slots }, clock), [slots, clock]);
   const update = (id: string, patch: Partial<EventScheduleSlot>) => setSlots(prev => prev.map(s => s.id === id ? { ...s, ...patch } : s));
   const add = () => setSlots(prev => [...prev, { id: `slot-${Date.now()}`, at: '23:00', notice: '', functions_locked: false, heart_grants: {} }]);
-  const generate = () => setSlots(TIMES(start, 6).map((at, i) => ({ id: `slot-${i + 1}`, at, notice: i === 0 ? '행사 시작' : `${i * 5}분 경과 — 하트가 추가됩니다`, functions_locked: i < 2, heart_grants: i === 2 ? { red: 1, blue: 1, pink: 1, green: 1 } : {} })));
+  const generate = () => {
+    if (typeof window !== 'undefined' && slots.length > 0 && !window.confirm('기존 슬롯과 직접 입력한 지급량을 모두 새 5분 타임라인으로 바꿀까요?')) return;
+    setSlots(TIMES(start, 6).map((at, i) => ({ id: `slot-${i + 1}`, at, notice: i === 0 ? '행사 시작' : `${i * 5}분 경과 — 하트가 추가됩니다`, functions_locked: i < 2, heart_grants: i === 2 ? { red: 1, blue: 1, pink: 1, green: 1 } : {} })));
+  };
   const save = async () => {
     setSaving(true);
     try { await onSave(JSON.stringify({ timezone: 'Asia/Seoul', slots })); setSaved(true); setTimeout(() => setSaved(false), 1800); } finally { setSaving(false); }
@@ -52,6 +58,8 @@ export function EventScheduleTab({ settings, onSave }: { settings: AppSettings |
         <input type="time" value={start} onChange={e => setStart(e.target.value)} className="rounded-lg border border-cyan-200 bg-white px-2 py-1.5 text-sm" />
         <button type="button" onClick={generate} className="rounded-lg bg-cyan-600 px-3 py-1.5 text-xs font-black text-white">+5분 6칸 만들기</button>
       </div>
+      <p className="mt-2 text-[10px] font-bold leading-relaxed text-cyan-800">⚠️ ‘+5분 6칸 만들기’는 기존 슬롯·지급량을 새로 교체합니다. 직접 입력한 grant가 있으면 저장 전에 확인해 주세요.</p>
+      <p className="mt-2 rounded-lg border border-cyan-200 bg-white/70 px-2.5 py-2 text-[11px] font-black text-cyan-900">현재까지 누적 해금: 빨강 {cumulative.red} · 파랑 {cumulative.blue} · 분홍 {cumulative.pink} · 초록 {cumulative.green} <span className="font-medium text-cyan-700">(현재 시각 이전 슬롯 합산)</span></p>
     </div>
     <div className="space-y-3">
       {slots.map((slot, index) => <div key={slot.id} className="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
@@ -75,6 +83,7 @@ export function EventScheduleTab({ settings, onSave }: { settings: AppSettings |
           <button type="button" onClick={() => update(slot.id, { heart_grants: rainbowUnlockGrants(slot) })} className="rounded-lg border border-fuchsia-300 bg-fuchsia-50 px-2.5 py-1.5 text-[10px] font-black text-fuchsia-700 hover:bg-fuchsia-100">🌈 무지개하트 4개 해금</button>
           <button type="button" onClick={() => update(slot.id, { at: seoulNowHHMM(), functions_locked: false, heart_grants: rainbowUnlockGrants(slot) })} className="rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-[10px] font-black text-amber-700 hover:bg-amber-100">지금 적용 + 무지개 해금</button>
         </div>
+        <p className="mt-2 text-[10px] font-semibold text-gray-400">이 슬롯 지급은 추가분 (이전 슬롯과 합산)</p>
         <div className="mt-2 grid grid-cols-2 min-[390px]:grid-cols-4 gap-2">
           {HEART_TYPES.map(h => <label key={h.type} className="flex items-center gap-1 rounded-lg bg-gray-50 px-2 py-1.5 text-[10px] font-bold text-gray-600"><span>{h.emoji}</span><span className="truncate">{h.label}</span><input aria-label={`${index + 1}번 ${h.label} 지급`} type="number" min="0" max="20" value={slot.heart_grants?.[h.type] ?? 0} onChange={e => update(slot.id, { heart_grants: { ...(slot.heart_grants ?? {}), [h.type]: Math.max(0, Math.min(20, Number(e.target.value) || 0)) } })} className="ml-auto w-10 rounded border border-gray-200 bg-white px-1 py-1 text-center" /></label>)}
         </div>
