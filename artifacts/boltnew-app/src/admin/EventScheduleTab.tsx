@@ -88,7 +88,6 @@ export function EventScheduleTab({ settings, onSave }: { settings: AppSettings |
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
           <label className="flex items-center gap-1 rounded-lg border border-fuchsia-200 bg-fuchsia-50 px-2 py-1.5 text-[10px] font-black text-fuchsia-700">🌈 <input aria-label={`${index + 1}번 무지개하트 해금 수`} type="number" min="1" max="100" value={rainbowAmount} onChange={e => setRainbowAmount(e.target.value)} className="w-10 rounded border border-fuchsia-200 bg-white px-1 py-1 text-center" />개</label>
           <button type="button" disabled={saving} onClick={() => void unlockRainbowNow(slot.id)} className="rounded-lg border border-fuchsia-300 bg-fuchsia-50 px-2.5 py-1.5 text-[10px] font-black text-fuchsia-700 hover:bg-fuchsia-100 disabled:opacity-40">무지개하트 {Math.max(1, Number(rainbowAmount) || 4)}개 해금·저장</button>
-          <button type="button" disabled={saving} onClick={() => void unlockRainbowNow(slot.id)} className="rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-[10px] font-black text-amber-700 hover:bg-amber-100 disabled:opacity-40">지금 적용 + 무지개 해금·저장</button>
           {typeof slot.rainbow_pool === 'number' && slot.rainbow_pool > 0 && (
             <span className="rounded-full bg-fuchsia-100 px-2 py-1 text-[10px] font-black text-fuchsia-800">슬롯 pool {slot.rainbow_pool}개</span>
           )}
