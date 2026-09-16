@@ -389,7 +389,11 @@ function App() {
     schedule();
     return () => { if (timer !== undefined) window.clearTimeout(timer); };
   }, [eventScheduleRaw]);
-  const scheduleNow = useMemo(() => new Date(eventScheduleMinute * 60_000), [eventScheduleMinute]);
+  // Minute ticker drives recompute; never use epoch (minute===0) while a schedule exists.
+  const scheduleNow = useMemo(
+    () => new Date(eventScheduleMinute > 0 ? eventScheduleMinute * 60_000 : Date.now()),
+    [eventScheduleMinute, eventScheduleRaw],
+  );
   const heartQuotas = useMemo(
     () => eventHeartQuotas(eventScheduleRaw, scheduleNow),
     [eventScheduleRaw, scheduleNow],

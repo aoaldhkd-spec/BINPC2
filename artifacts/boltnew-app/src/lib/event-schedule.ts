@@ -58,3 +58,28 @@ export function currentEventSlot(raw: unknown, now = new Date()): EventScheduleS
   for (const s of parseEventSchedule(raw).slots) if (slotMinute(s.at) <= minute) active = s;
   return active;
 }
+
+/** Normalize app_settings.event_schedule from SSE/ready (string or object) into a JSON string. */
+export function coerceEventScheduleRaw(raw: unknown): string | null {
+  if (raw == null) return null;
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    return trimmed ? trimmed : null;
+  }
+  if (typeof raw === 'object') {
+    try { return JSON.stringify(raw); } catch { return null; }
+  }
+  return null;
+}
+
+/** Shared-pool pick state for LikeConfirmDialog / header — unlocked only when rainbow_pool > 0. */
+export function rainbowPoolPickState(input: {
+  rainbowPool: number;
+  totalUsed: number;
+  alreadySentThisType: boolean;
+}): { unlocked: boolean; poolRemaining: number; disabled: boolean } {
+  const unlocked = input.rainbowPool > 0;
+  const poolRemaining = unlocked ? Math.max(0, input.rainbowPool - input.totalUsed) : 0;
+  const disabled = !unlocked || poolRemaining <= 0 || input.alreadySentThisType;
+  return { unlocked, poolRemaining, disabled };
+}

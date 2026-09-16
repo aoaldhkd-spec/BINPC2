@@ -3,6 +3,7 @@ import { Heart } from 'lucide-react';
 import type { Profile } from '../types/app';
 import type { HeartType } from '../lib/constants';
 import { HEART_TYPES, heartMeta } from '../lib/constants';
+import { rainbowPoolPickState } from '../lib/event-schedule';
 import { bindMobileTap } from '../lib/mobile-tap';
 import ProfileAvatar from './ProfileAvatar';
 
@@ -29,8 +30,10 @@ export function LikeConfirmDialog({
 
   const totalUsed = HEART_TYPES.reduce((sum, h) => sum + (likedByType[h.type] ?? 0), 0);
   // 무지개하트 UI unlocks only via rainbow_pool grant — never via leftover per-color quotas.
-  const poolRemaining = Math.max(0, rainbowPool - totalUsed);
-  const unlockedRainbowCount = rainbowPool > 0 ? poolRemaining : 0;
+  const { poolRemaining, unlocked: rainbowUnlocked } = rainbowPoolPickState({
+    rainbowPool, totalUsed, alreadySentThisType: false,
+  });
+  const unlockedRainbowCount = rainbowUnlocked ? poolRemaining : 0;
 
   const handleConfirm = () => {
     const type = selectedRef.current ?? selected;
@@ -72,9 +75,12 @@ export function LikeConfirmDialog({
         <div className="space-y-2 mb-5">
           {HEART_TYPES.map(h => {
             // Spendable only after rainbow_pool grant; any of the 4 colors consumes one pool slot.
-            const remaining = rainbowPool > 0 ? poolRemaining : 0;
             const alreadySentToThisPerson = sentTypesForTarget.has(h.type);
-            const disabled = rainbowPool <= 0 || remaining <= 0 || alreadySentToThisPerson;
+            const pick = rainbowPoolPickState({
+              rainbowPool, totalUsed, alreadySentThisType: alreadySentToThisPerson,
+            });
+            const remaining = pick.poolRemaining;
+            const disabled = pick.disabled;
             const isSel = selected === h.type;
             return (
               <button
@@ -92,14 +98,14 @@ export function LikeConfirmDialog({
                 <div className="flex-1 min-w-0">
                   <p className={`text-sm font-bold ${isSel ? h.text : 'text-gray-800'}`}>{h.label}</p>
                   <p className="text-xs text-gray-400">
-                    {alreadySentToThisPerson ? '이미 보낸 하트' : rainbowPool > 0 ? `무지개하트 ${remaining}개 중 선택` : '관리자 해금 후 사용할 수 있어요'}
+                    {alreadySentToThisPerson ? '이미 보낸 하트' : pick.unlocked ? `무지개하트 ${remaining}개 중 선택` : '관리자 해금 후 사용할 수 있어요'}
                   </p>
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
                   {alreadySentToThisPerson ? (
                     <span className="text-[10px] text-gray-400 font-bold">전송됨</span>
                   ) : (
-                    Array.from({ length: Math.min(8, rainbowPool > 0 ? Math.max(remaining, 1) : 1) }, (_, i) => (
+                    Array.from({ length: Math.min(8, pick.unlocked ? Math.max(remaining, 1) : 1) }, (_, i) => (
                       <Heart key={i} className={`w-4 h-4 ${i < remaining ? h.fillText : 'fill-gray-200 text-gray-200'}`} />
                     ))
                   )}

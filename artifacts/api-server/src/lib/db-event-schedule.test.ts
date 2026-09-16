@@ -22,4 +22,10 @@ describe('event schedule', () => {
     expect(eventRainbowQuota(raw, new Date('2026-09-16T14:04:59.000Z'))).toBe(4);
     expect(eventRainbowQuota(raw, new Date('2026-09-16T14:05:00.000Z'))).toBe(7);
   });
+  it('immediate unlock-now style slot opens rainbow pool at current Seoul minute', () => {
+    const now = new Date('2026-09-16T05:30:00.000Z'); // 14:30 Seoul
+    const raw = { slots: [{ at: '14:30', functions_locked: false, rainbow_pool: 4 }] };
+    expect(eventRainbowQuota(raw, now)).toBe(4);
+    expect(eventRainbowQuota(raw, new Date('2026-09-16T05:29:00.000Z'))).toBe(0);
+  });
 });

@@ -1,3 +1,4 @@
+import { coerceEventScheduleRaw } from './event-schedule';
 /**
  * Pure planner for /api/db/ready settings → App apply callbacks.
  * Whole-app (entry/session/timer/functions-lock), not chat-only.
@@ -29,7 +30,7 @@ export function planSessionReadySettingsPatch(
   };
   if (hasSession) patch.sessionActive = settings.session_active as boolean;
   if (hasFunctionsLocked) patch.functionsLockedRaw = settings.functions_locked;
-  if (typeof settings.event_schedule === 'string') patch.eventScheduleRaw = settings.event_schedule;
+  if (Object.prototype.hasOwnProperty.call(settings, 'event_schedule')) patch.eventScheduleRaw = coerceEventScheduleRaw(settings.event_schedule);
   if (includeTimers) {
     patch.timerEndAt = (settings.timer_end_at as string | null | undefined) ?? null;
     patch.timerLabel = (settings.timer_label as string | null | undefined) ?? null;

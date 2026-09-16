@@ -12,6 +12,7 @@ import { ENTRY_VERIFIED_KEY, MATCHING_LAST_RESET_KEY, MATCHING_USER_KEY } from '
 import { ls } from '../lib/storage';
 import type { ShareEventNotificationData } from '../components/ShareEventNotification';
 import type { View } from '../types/app';
+import { coerceEventScheduleRaw } from '../lib/event-schedule';
 import type {
   BroadcastNotifDeleteRow,
   BroadcastNotifInsertRow,
@@ -95,7 +96,7 @@ export function useAppShellRealtimeApply(
     }
     setTimerEndAt(plan.timerEndAt);
     setTimerLabel(plan.timerLabel);
-    if (p.event_schedule !== undefined) setEventScheduleRaw(typeof p.event_schedule === 'string' ? p.event_schedule : null);
+    if (p.event_schedule !== undefined) setEventScheduleRaw(coerceEventScheduleRaw(p.event_schedule));
     if (plan.hasFunctionsLocked) setFunctionsLocked(parseFunctionsLocked(plan.functionsLockedRaw));
     if (plan.hasEntryPassword) {
       setEntryPassword(plan.entryPassword ?? '');

@@ -12,7 +12,7 @@ export type AppSettingsRealtimeRow = {
   session_active?: boolean;
   timer_end_at?: string | null;
   timer_label?: string | null;
-  event_schedule?: string | null;
+  event_schedule?: string | Record<string, unknown> | null;
   reset_signal?: string | null;
   entry_password?: string | null;
   functions_locked?: boolean | null;
