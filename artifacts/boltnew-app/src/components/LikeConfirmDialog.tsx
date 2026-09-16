@@ -7,7 +7,7 @@ import { bindMobileTap } from '../lib/mobile-tap';
 import ProfileAvatar from './ProfileAvatar';
 
 export function LikeConfirmDialog({
-  target, likedByType, sentTypesForTarget, quotas, rainbowPool, onConfirm, onCancel,
+  target, likedByType, sentTypesForTarget, quotas: _quotas, rainbowPool, onConfirm, onCancel,
 }: {
   target: Profile;
   likedByType: Record<HeartType, number>;
@@ -28,10 +28,9 @@ export function LikeConfirmDialog({
   };
 
   const totalUsed = HEART_TYPES.reduce((sum, h) => sum + (likedByType[h.type] ?? 0), 0);
-  const totalRemaining = rainbowPool > 0
-    ? Math.max(0, rainbowPool - totalUsed)
-    : HEART_TYPES.reduce((sum, h) => sum + Math.max(0, (quotas[h.type] ?? 0) - (likedByType[h.type] ?? 0)), 0);
-  const unlockedRainbowCount = totalRemaining;
+  // 무지개하트 UI unlocks only via rainbow_pool grant — never via leftover per-color quotas.
+  const poolRemaining = Math.max(0, rainbowPool - totalUsed);
+  const unlockedRainbowCount = rainbowPool > 0 ? poolRemaining : 0;
 
   const handleConfirm = () => {
     const type = selectedRef.current ?? selected;
@@ -55,7 +54,7 @@ export function LikeConfirmDialog({
           </p>
           <div className="mt-2 flex items-center justify-center gap-1.5" aria-label={`무지개하트 ${unlockedRainbowCount}개 선택 가능`}>
             <span className="text-[10px] font-bold text-gray-400">무지개하트</span>
-            {Array.from({ length: Math.min(8, Math.max(4, unlockedRainbowCount)) }, (_, i) => (
+            {Array.from({ length: Math.min(8, Math.max(4, unlockedRainbowCount || 4)) }, (_, i) => (
               <span key={i} className={`text-lg leading-none transition-all ${i < unlockedRainbowCount ? '' : 'grayscale opacity-30'}`} aria-hidden="true">🌈</span>
             ))}
             <span className="text-[10px] font-black text-gray-500">{unlockedRainbowCount}개</span>
@@ -72,12 +71,10 @@ export function LikeConfirmDialog({
 
         <div className="space-y-2 mb-5">
           {HEART_TYPES.map(h => {
-            const used = likedByType[h.type] ?? 0;
-            const remaining = rainbowPool > 0
-              ? totalRemaining
-              : Math.max(0, (quotas[h.type] ?? 0) - used);
-            const alreadySentToThisPerson = rainbowPool <= 0 && sentTypesForTarget.has(h.type);
-            const disabled = remaining <= 0 || alreadySentToThisPerson;
+            // Spendable only after rainbow_pool grant; any of the 4 colors consumes one pool slot.
+            const remaining = rainbowPool > 0 ? poolRemaining : 0;
+            const alreadySentToThisPerson = sentTypesForTarget.has(h.type);
+            const disabled = rainbowPool <= 0 || remaining <= 0 || alreadySentToThisPerson;
             const isSel = selected === h.type;
             return (
               <button
@@ -95,14 +92,14 @@ export function LikeConfirmDialog({
                 <div className="flex-1 min-w-0">
                   <p className={`text-sm font-bold ${isSel ? h.text : 'text-gray-800'}`}>{h.label}</p>
                   <p className="text-xs text-gray-400">
-                    {alreadySentToThisPerson ? '이미 보낸 하트' : rainbowPool > 0 ? `무지개하트 ${remaining}개 중 선택` : h.desc}
+                    {alreadySentToThisPerson ? '이미 보낸 하트' : rainbowPool > 0 ? `무지개하트 ${remaining}개 중 선택` : '관리자 해금 후 사용할 수 있어요'}
                   </p>
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
                   {alreadySentToThisPerson ? (
                     <span className="text-[10px] text-gray-400 font-bold">전송됨</span>
                   ) : (
-                    Array.from({ length: Math.min(8, rainbowPool > 0 ? remaining : (quotas[h.type] ?? 0)) }, (_, i) => (
+                    Array.from({ length: Math.min(8, rainbowPool > 0 ? Math.max(remaining, 1) : 1) }, (_, i) => (
                       <Heart key={i} className={`w-4 h-4 ${i < remaining ? h.fillText : 'fill-gray-200 text-gray-200'}`} />
                     ))
                   )}

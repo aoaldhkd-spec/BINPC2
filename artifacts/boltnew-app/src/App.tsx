@@ -164,6 +164,11 @@ function App() {
   );
   const [mainTab, setMainTab] = useState<MainTab>('profiles');
   const [coachReplayToken, setCoachReplayToken] = useState(0);
+  const forceCoachParticipants = useCallback(() => setMainTab('profiles'), []);
+  const replayCoach = useCallback(() => {
+    setMainTab('profiles');
+    setCoachReplayToken(value => value + 1);
+  }, []);
   const [fortuneModalTarget, setFortuneModalTarget] = useState<Profile | null>(null);
   const [showTutorialModal, setShowTutorialModal] = useState(false);
   const [showContactQr, setShowContactQr] = useState(false);
@@ -203,7 +208,7 @@ function App() {
   const [timerLabel, setTimerLabel] = useState<string | null>(null);
   const [eventScheduleRaw, setEventScheduleRaw] = useState<string | null>(null);
   // Quotas change at clock-slot boundaries even when the schedule JSON is unchanged.
-  const [eventScheduleMinute, setEventScheduleMinute] = useState(0);
+  const [eventScheduleMinute, setEventScheduleMinute] = useState(() => Math.floor(Date.now() / 60_000));
   const [rejectionNotif, setRejectionNotif] = useState<string | null>(null); // nickname of person who rejected
   const [bottomNotif, setBottomNotif] = useState<BottomNotificationData | null>(null);
   const [showResetPassword, setShowResetPassword] = useState(false);
@@ -1033,7 +1038,7 @@ function App() {
         setMySubTabHint={setMySubTabHint}
         handleMainTabChange={handleMainTabChange}
         coachReplayToken={coachReplayToken}
-        onForceCoachParticipants={() => setMainTab('profiles')}
+        onForceCoachParticipants={forceCoachParticipants}
         profiles={profiles}
         receivedLikers={receivedLikers}
         setSelectedProfile={setSelectedProfile}
@@ -1096,7 +1101,7 @@ function App() {
           profileMap={profileMap}
           mainTab={mainTab}
           onTabChange={handleMainTabChange}
-          onReplayCoach={() => { setMainTab('profiles'); setCoachReplayToken(value => value + 1); }}
+          onReplayCoach={replayCoach}
           onLike={handleLikeGuarded}
           onSelect={handleSelectProfile}
           onReset={reset}

@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { hasCompletedFirstEntryCoach, isFirstEntryCoachPending, markFirstEntryCoachSeen } from '../lib/coach-marks';
+export { isFirstEntryCoachPending };
 
 type CoachTab = 'profiles' | 'my' | 'stats' | 'ranking' | 'settings';
 type CoachStep = { title: string; detail: string; target: string };
@@ -40,72 +42,60 @@ const SCREEN_STEPS: Record<Exclude<CoachTab, 'profiles'>, readonly CoachStep[]> 
   ]
 };
 
-const KEY_PREFIX = 'binpc2_coach_marks_v5_';
-const COMPLETE_KEY = 'binpc2_coach_marks_completed';
-
-function hasCompletedCoach(): boolean {
-  try {
-    if (localStorage.getItem(COMPLETE_KEY) === '1') return true;
-    // Preserve completion recorded by older coach versions, including users who
-    // already finished the v4/v5 participant tour before this fix shipped.
-    for (let i = 0; i < localStorage.length; i += 1) {
-      const key = localStorage.key(i) ?? '';
-      if (key.startsWith('binpc2_coach_marks_') && localStorage.getItem(key) === '1') return true;
-    }
-    return false;
-  } catch { return false; }
-}
-function markSeen(tab: CoachTab) {
-  try {
-    localStorage.setItem(`${KEY_PREFIX}${tab}`, '1');
-    localStorage.setItem(COMPLETE_KEY, '1');
-  } catch { /* private mode */ }
-}
-
 export function FirstEntryCoachMarks({ isSubScreen, suspended = false, mainTab, replayToken = 0, onForceParticipants }: { isSubScreen: boolean; suspended?: boolean; mainTab: CoachTab; replayToken?: number; onForceParticipants?: () => void }) {
   const [step, setStep] = useState(0);
   const [openTab, setOpenTab] = useState<CoachTab | null>(null);
   const handledReplayRef = useRef(0);
   const replayModeRef = useRef(false);
+  // Keep force callback out of effect deps — inline App lambdas would reset step 0 every render.
+  const forceParticipantsRef = useRef(onForceParticipants);
+  forceParticipantsRef.current = onForceParticipants;
+  // Once the home tour has opened, never re-seed step 0 on incidental effect re-runs.
+  const homeTourStartedRef = useRef(false);
   const [targetRect, setTargetRect] = useState<Rect | null>(null);
-  const steps = mainTab === 'profiles' ? HOME_STEPS : SCREEN_STEPS[mainTab];
-  const current = steps[step] ?? steps[0];
+  // Visible coach during first-entry/replay is always the participant home tour.
+  const steps = (openTab === 'profiles' || mainTab === 'profiles') ? HOME_STEPS : SCREEN_STEPS[mainTab];
+  const current = steps[Math.min(step, steps.length - 1)] ?? steps[0];
 
   useEffect(() => {
     const replaying = replayToken > 0 && replayToken !== handledReplayRef.current;
     if (replaying) {
       // Replay is always a fresh, deterministic tour beginning at participants.
-      // Do not let the current tab (or a stale completion flag) skip step 1.
       handledReplayRef.current = replayToken;
       replayModeRef.current = true;
+      homeTourStartedRef.current = true;
       setStep(0);
       setOpenTab('profiles');
+      if (mainTab !== 'profiles') forceParticipantsRef.current?.();
       return;
     }
-    if (replayModeRef.current && mainTab !== 'profiles' && !isSubScreen && !suspended) {
-      onForceParticipants?.();
+    if (isSubScreen || suspended) {
+      // Pause overlay while covered; do not clear openTab/step (avoids skipping tip 1 on return).
+      return;
+    }
+    const tourPending = replayModeRef.current || !hasCompletedFirstEntryCoach();
+    if (!tourPending) {
+      homeTourStartedRef.current = false;
       setOpenTab(null);
       return;
     }
-    if (replayModeRef.current && mainTab === 'profiles' && !isSubScreen && !suspended) {
-      // Completion persistence must not suppress an explicit Settings replay.
+    // Until the participant home tour finishes, stay on profiles — never open hearts/chat tips first.
+    if (mainTab !== 'profiles') {
+      forceParticipantsRef.current?.();
+      // Keep openTab='profiles' (not null) so tip 1 mounts as soon as the tab arrives.
+      if (!homeTourStartedRef.current) {
+        homeTourStartedRef.current = true;
+        setStep(0);
+      }
       setOpenTab('profiles');
       return;
     }
-    if (isSubScreen || suspended || hasCompletedCoach()) {
-      setOpenTab(null);
-      return;
+    if (!homeTourStartedRef.current) {
+      homeTourStartedRef.current = true;
+      setStep(0);
     }
-    if (mainTab !== 'profiles') {
-      // A first-entry tab jump can otherwise make the first visible target be
-      // hearts/chat. Force the participant tab until the home tour is complete.
-      onForceParticipants?.();
-      setOpenTab(null);
-      return;
-    }
-    setStep(0);
     setOpenTab('profiles');
-  }, [isSubScreen, suspended, mainTab, replayToken, onForceParticipants]);
+  }, [isSubScreen, suspended, mainTab, replayToken]);
 
   // Settings is a long page: bring the actual section under the spotlight before measuring.
   // Do not change tabs here; chat/current-tab explanations stay in place.
@@ -140,14 +130,14 @@ export function FirstEntryCoachMarks({ isSubScreen, suspended = false, mainTab, 
 
   useEffect(() => {
     if (!openTab) return;
-    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') { replayModeRef.current = false; markSeen(mainTab); setOpenTab(null); } };
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') { replayModeRef.current = false; homeTourStartedRef.current = false; markFirstEntryCoachSeen('profiles'); setOpenTab(null); } };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [openTab, mainTab]);
 
   if (!openTab || openTab !== mainTab || isSubScreen || suspended || !current) return null;
   const last = step === steps.length - 1;
-  const dismiss = () => { replayModeRef.current = false; markSeen(mainTab); setOpenTab(null); };
+  const dismiss = () => { replayModeRef.current = false; homeTourStartedRef.current = false; markFirstEntryCoachSeen('profiles'); setOpenTab(null); };
   const next = () => { if (last) dismiss(); else { setTargetRect(null); setStep((value) => value + 1); } };
   const spotlightStyle = targetRect ? {
     top: Math.max(6, targetRect.top - 6),

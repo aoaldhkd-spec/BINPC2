@@ -62,7 +62,7 @@ export function EventScheduleTab({ settings, onSave }: { settings: AppSettings |
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
           <label className="flex items-center gap-1 rounded-lg border border-fuchsia-200 bg-fuchsia-50 px-2 py-1.5 text-[10px] font-black text-fuchsia-700">🌈 <input aria-label={`${index + 1}번 무지개하트 해금 수`} type="number" min="1" max="100" value={rainbowAmount} onChange={e => setRainbowAmount(e.target.value)} className="w-10 rounded border border-fuchsia-200 bg-white px-1 py-1 text-center" />개</label>
-          <button type="button" onClick={() => update(slot.id, { rainbow_pool: Math.max(1, Math.min(100, Number(rainbowAmount) || 4)) })} className="rounded-lg border border-fuchsia-300 bg-fuchsia-50 px-2.5 py-1.5 text-[10px] font-black text-fuchsia-700 hover:bg-fuchsia-100">무지개하트 {Math.max(1, Number(rainbowAmount) || 4)}개 해금</button>
+          <button type="button" onClick={() => update(slot.id, { functions_locked: false, rainbow_pool: Math.max(1, Math.min(100, Number(rainbowAmount) || 4)) })} className="rounded-lg border border-fuchsia-300 bg-fuchsia-50 px-2.5 py-1.5 text-[10px] font-black text-fuchsia-700 hover:bg-fuchsia-100">무지개하트 {Math.max(1, Number(rainbowAmount) || 4)}개 해금</button>
           <button type="button" onClick={() => update(slot.id, { at: seoulNowHHMM(), functions_locked: false, rainbow_pool: Math.max(1, Math.min(100, Number(rainbowAmount) || 4)) })} className="rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-[10px] font-black text-amber-700 hover:bg-amber-100">지금 적용 + 무지개 해금</button>
         </div>
         <p className="mt-2 text-[10px] font-semibold text-gray-400">무지개 pool은 이전 슬롯과 합산돼 어떤 색이든 자유롭게 사용할 수 있어요. 아래 색상별 지급은 선택적인 고급 설정입니다.</p>

@@ -17,10 +17,9 @@ describe('event schedule', () => {
     expect(eventHeartQuota(raw, 'red', new Date('2026-09-16T14:06:00.000Z'))).toBe(4);
     expect(activeEventScheduleSlot(raw, new Date('2026-09-16T14:04:00.000Z'))?.notice).toBe('start');
   });
-});
-
   it('accumulates rainbow pool grants by opened slot', () => {
     const raw = { slots: [{ at: '23:00', rainbow_pool: 4 }, { at: '23:05', rainbow_pool: 3 }] };
     expect(eventRainbowQuota(raw, new Date('2026-09-16T14:04:59.000Z'))).toBe(4);
     expect(eventRainbowQuota(raw, new Date('2026-09-16T14:05:00.000Z'))).toBe(7);
   });
+});

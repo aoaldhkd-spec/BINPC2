@@ -3358,10 +3358,13 @@ router.post('/op', async (req: Request, res: Response) => {
               return sendReject(likesRainbowPoolLimitReject(rainbowQuota));
             }
           } else {
+            // No rainbow_pool grant yet: locked. Optional advanced per-color grants remain a fallback.
             const heartQuota = eventHeartQuota(eventScheduleRaw, quotaType, new Date());
-            if (likesSameTypeLimitReached(tableData, likeLiker, likeType, heartQuota)) {
+            if (heartQuota <= 0 || likesSameTypeLimitReached(tableData, likeLiker, likeType, heartQuota)) {
               // 400: HEART_LIMIT을 429로 주면 클라이언트가 NAT 429로 재시도해 지연·이중전송처럼 보임
-              return sendReject(likesHeartLimitReject(heartQuota));
+              return sendReject(heartQuota <= 0
+                ? likesRainbowPoolLimitReject(0)
+                : likesHeartLimitReject(heartQuota));
             }
           }
 

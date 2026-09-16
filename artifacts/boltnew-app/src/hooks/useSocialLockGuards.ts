@@ -7,6 +7,7 @@ import { useCallback, type MutableRefObject } from 'react';
 import type { Profile, View, MainTab } from '../types/app';
 import type { HeartType } from '../lib/constants';
 import { SOCIAL_LOCKED_TABS } from '../lib/functions-lock';
+import { isFirstEntryCoachPending } from '../lib/coach-marks';
 
 export type UseSocialLockGuardsArgs = {
   functionsLocked: boolean;
@@ -135,6 +136,11 @@ export function useSocialLockGuards(args: UseSocialLockGuardsArgs) {
   const handleMainTabChange = useCallback((t: MainTab) => {
     if (functionsLocked && SOCIAL_LOCKED_TABS.has(t)) {
       showFunctionsLockToast();
+      return;
+    }
+    // Coach must finish participant tips before hearts/chat (or other tabs) can take focus.
+    if (t !== 'profiles' && isFirstEntryCoachPending()) {
+      setMainTab('profiles');
       return;
     }
     setMainTab(t);

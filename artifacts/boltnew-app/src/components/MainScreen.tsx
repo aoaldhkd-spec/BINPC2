@@ -84,7 +84,7 @@ export function MainScreen({
   receivedLikers, receivedHeartTypes, sentLikedProfiles, contactSharedWithIds, acknowledgedComplimentIds,
   receivedContactShares, pendingHeartsCount, chatList,
   onContactShareOpen: _onContactShareOpen, onContactViewOpen, onHeartResponse, onDeleteChat, onDeleteAllChats, onOpenChat,
-  timerEndAt, timerLabel, heartQuotas, rainbowPool, eventScheduleRaw, onRefreshStatus, onRefreshChat, onRefreshProfiles, darkMode, onToggleDark, scannedContacts, onClearScannedContact, functionsLocked = false, onShowTutorial,
+  timerEndAt, timerLabel, heartQuotas: _heartQuotas, rainbowPool, eventScheduleRaw, onRefreshStatus, onRefreshChat, onRefreshProfiles, darkMode, onToggleDark, scannedContacts, onClearScannedContact, functionsLocked = false, onShowTutorial,
   unreadChatCounts, onClearChatUnread: _onClearChatUnread,
   onUpdateProfile,
   groupChats = [], unreadGroupCounts = {}, onOpenGroupChat, onJoinGroupChat, onLeaveGroupChat, joiningGroupId = null,
@@ -170,11 +170,10 @@ export function MainScreen({
     return total;
   }, [sentHeartsPerPerson]);
   // Rainbow grants are one shared pool: any color consumes one slot.
+  // Header 무지개하트 remaining follows the shared pool only (gray/locked until grant).
   const remainingHeartTotal = useMemo(
-    () => rainbowPool > 0
-      ? Math.max(0, rainbowPool - sentHeartTotal)
-      : HEART_TYPES.reduce((sum, h) => sum + Math.max(0, (heartQuotas[h.type] ?? 0) - heartCount(h.type)), 0),
-    [rainbowPool, sentHeartTotal, heartQuotas, heartCount],
+    () => Math.max(0, rainbowPool - sentHeartTotal),
+    [rainbowPool, sentHeartTotal],
   );
 
   const sentHeartEntries = useMemo(() => {
@@ -726,13 +725,12 @@ export function MainScreen({
           <div data-coach="home-heart-types" className="justify-self-end flex items-center gap-1">
             <span data-testid="home-heart-remaining-total" aria-label={`남은 하트 ${remainingHeartTotal}개`} className={`text-[9px] min-[390px]:text-[10px] font-black tabular-nums whitespace-nowrap ${darkMode ? 'text-cyan-300' : 'text-cyan-700'}`}>총 {remainingHeartTotal}</span>
             <div className="flex items-center gap-1 min-[390px]:gap-1.5">
-              {HEART_TYPES.map(h => {
-                const used = heartCount(h.type);
-                const remaining = rainbowPool > 0 ? remainingHeartTotal : Math.max(0, (heartQuotas[h.type] ?? 0) - used);
+              {HEART_TYPES.map((h, idx) => {
+                const unlocked = rainbowPool > 0 && remainingHeartTotal > 0;
                 return (
-                  <div key={h.type} className="flex items-center gap-0.5" title={rainbowPool > 0 ? `무지개하트 pool (${remainingHeartTotal}개 남음)` : `${h.label} (${remaining}개 남음)`}>
-                    <span className={`text-sm leading-none transition-all ${remaining > 0 ? '' : 'grayscale opacity-40'}`}>{h.emoji}</span>
-                    <span className={`text-[10px] font-bold tabular-nums ${remaining <= 0 ? (darkMode ? 'text-slate-400 line-through' : 'text-gray-400 line-through') : (darkMode ? 'text-white' : 'text-gray-600')}`}>{rainbowPool > 0 ? '•' : remaining}</span>
+                  <div key={h.type} className="flex items-center gap-0.5" title={rainbowPool > 0 ? `무지개하트 pool (${remainingHeartTotal}개 남음)` : '무지개하트 잠금 — 관리자 해금 후 사용'}>
+                    <span className={`text-sm leading-none transition-all ${unlocked ? '' : 'grayscale opacity-40'}`}>{h.emoji}</span>
+                    <span className={`text-[10px] font-bold tabular-nums ${!unlocked ? (darkMode ? 'text-slate-400 line-through' : 'text-gray-400 line-through') : (darkMode ? 'text-white' : 'text-gray-600')}`}>{idx === 0 ? (rainbowPool > 0 ? remainingHeartTotal : 0) : (unlocked ? '•' : '0')}</span>
                   </div>
                 );
               })}

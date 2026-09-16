@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase, ensureWriteSession } from '../lib/supabase';
 import type { Profile, ContactShare } from '../types/app';
 import { HeartType } from '../lib/constants';
-import { eventHeartQuotas, eventRainbowQuota } from '../lib/event-schedule';
+import { eventRainbowQuota } from '../lib/event-schedule';
 import { isInterestHeart } from '../lib/signal-match';
 // signal-match: isInterestHeart only (mutual-heart detection)
 import {
@@ -251,19 +251,15 @@ export function useHearts(
     const rainbowQuota = eventRainbowQuota(eventScheduleRaw);
     let sentTotal = 0;
     sentHeartsPerPerson.forEach(types => { sentTotal += types.size; });
-    if (rainbowQuota > 0) {
-      if (sentTotal >= rainbowQuota) {
-        setLikeError(`무지개하트는 총 ${rainbowQuota}개까지 보낼 수 있습니다.`);
-        setLikeConfirmTarget(null);
-        return false;
-      }
-    } else {
-      const heartQuota = eventHeartQuotas(eventScheduleRaw)[heartType];
-      if (heartCountByType(heartType) >= heartQuota) {
-        setLikeError(`같은 종류의 하트는 최대 ${heartQuota}명에게만 보낼 수 있습니다.`);
-        setLikeConfirmTarget(null);
-        return false;
-      }
+    if (rainbowQuota <= 0) {
+      setLikeError('무지개하트가 아직 해금되지 않았습니다.');
+      setLikeConfirmTarget(null);
+      return false;
+    }
+    if (sentTotal >= rainbowQuota) {
+      setLikeError(`무지개하트는 총 ${rainbowQuota}개까지 보낼 수 있습니다.`);
+      setLikeConfirmTarget(null);
+      return false;
     }
     if (sentHeartsPerPerson.get(likeConfirmTarget.id)?.has(heartType)) {
       setLikeError('이미 보낸 하트입니다.');
@@ -305,7 +301,8 @@ export function useHearts(
         const errMsg = errObj?.message != null ? String(errObj.message) : String(error);
         const errCode = errObj?.code != null ? String(errObj.code) : '';
         console.warn('[useHearts] executeLike failed', { errCode, errMsg, targetId, heartType });
-        const isHeartLimit = errCode === 'HEART_LIMIT' || errMsg.includes('최대 2명') || errMsg.includes('최대 ');
+        const isRainbowLimit = errMsg.includes('무지개하트');
+        const isHeartLimit = !isRainbowLimit && (errCode === 'HEART_LIMIT' || errMsg.includes('최대 2명') || errMsg.includes('최대 '));
         const heartLimitMatch = errMsg.match(/최대\s+(\d+)명/);
         const heartLimit = heartLimitMatch ? Number(heartLimitMatch[1]) : 2;
         const isRateLimit = errCode === 'RATE_LIMIT' || errMsg.includes('429') || errMsg.includes('rate') || errMsg.includes('too many');
@@ -314,7 +311,9 @@ export function useHearts(
         const isRefRefresh = errCode === 'REFERENCE_REFRESH_FAILED';
         const isUnauthorized = errCode === 'UNAUTHORIZED' || errCode === 'FORBIDDEN'
           || errMsg.includes('Authentication required') || errMsg.includes('세션') || errMsg.includes('authentication required');
-        setLikeError(isHeartLimit
+        setLikeError(isRainbowLimit
+          ? (errMsg.includes('0개') ? '무지개하트가 아직 해금되지 않았습니다.' : errMsg)
+          : isHeartLimit
           ? `같은 종류의 하트는 최대 ${heartLimit}명에게만 보낼 수 있습니다.`
           : isRateLimit
             ? '하트를 너무 많이 보냈습니다. 잠시 후 다시 시도해 주세요. 💔'

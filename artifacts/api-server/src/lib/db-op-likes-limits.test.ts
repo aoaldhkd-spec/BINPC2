@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   countSameTypeLikes,
   likesHeartLimitReject,
+  likesRainbowPoolLimitReject,
   likesPairIntervalBlocked,
   likesRateLimitReject,
   likesSameTypeLimitReached,
@@ -43,6 +44,11 @@ describe('db-op-likes-limits', () => {
   it('likesPairIntervalBlocked', () => {
     expect(likesPairIntervalBlocked(1000, 1200, 500)).toBe(true);
     expect(likesPairIntervalBlocked(1000, 1600, 500)).toBe(false);
+  });
+
+  it('rainbow pool reject distinguishes locked vs exhausted', () => {
+    expect(likesRainbowPoolLimitReject(0).body.error.message).toContain('해금');
+    expect(likesRainbowPoolLimitReject(4).body.error.message).toContain('4개');
   });
 
   it('planLikesMinuteBucketConsume windows + cap', () => {

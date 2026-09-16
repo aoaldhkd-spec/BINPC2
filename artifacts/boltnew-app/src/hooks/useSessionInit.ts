@@ -67,7 +67,7 @@ export function useSessionInit(args: UseSessionInitArgs): void {
     setProfileBoot,
     setView,
     setMainTab,
-    setMySubTabHint,
+    setMySubTabHint: _setMySubTabHint,
     setCurrentUserId,
     setShownWaiting,
     setProfiles,
@@ -129,8 +129,8 @@ export function useSessionInit(args: UseSessionInitArgs): void {
       if (plan.kind === 'new-reg-complete') {
         setProfileBoot('ok');
         setView('main');
-        setMainTab('my');
-        setMySubTabHint('status');
+        // Stay on participants/home so first-entry coach tip 1 is not skipped by a my-tab jump.
+        setMainTab('profiles');
         return;
       }
       if (plan.kind === 'new-reg-incomplete') {

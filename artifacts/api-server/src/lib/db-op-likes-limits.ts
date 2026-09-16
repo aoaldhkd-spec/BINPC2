@@ -56,9 +56,12 @@ export function likesHeartLimitReject(max = LIKES_SAME_TYPE_TARGET_MAX): LikesLi
 }
 
 export function likesRainbowPoolLimitReject(max: number): LikesLimitReject {
+  const message = max <= 0
+    ? '무지개하트가 아직 해금되지 않았습니다.'
+    : `무지개하트는 총 ${max}개까지 보낼 수 있습니다.`;
   return {
     status: 400,
-    body: { data: null, error: { message: `무지개하트는 총 ${max}개까지 보낼 수 있습니다.`, code: 'HEART_LIMIT' } },
+    body: { data: null, error: { message, code: 'HEART_LIMIT' } },
   };
 }
 
