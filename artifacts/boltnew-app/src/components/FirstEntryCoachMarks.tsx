@@ -41,29 +41,30 @@ export function FirstEntryCoachMarks({ isSubScreen, suspended = false, mainTab, 
   // Once the home tour has opened, never re-seed step 0 on incidental effect re-runs.
   const homeTourStartedRef = useRef(initialOpenTab(replayToken) === 'profiles');
   const [targetRect, setTargetRect] = useState<Rect | null>(null);
-  // Defer overlay until main shell paints once — tip still opens for new users, just after first paint.
+  // Defer one frame so MainScreen commits; avoid double-rAF races that never painted tip 1.
   const [shellPainted, setShellPainted] = useState(() => replayToken > 0);
   // Visible coach during first-entry/replay is always the participant home tour.
   // Home-only tour (per-tab SCREEN_STEPS retired after tip-1 / replay fixes).
   const steps = HOME_STEPS;
   const current = steps[Math.min(step, steps.length - 1)] ?? steps[0];
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (replayToken > 0) {
       setShellPainted(true);
       return;
     }
     let cancelled = false;
-    let inner = 0;
-    const outer = window.requestAnimationFrame(() => {
-      inner = window.requestAnimationFrame(() => {
-        if (!cancelled) setShellPainted(true);
-      });
+    const id = window.requestAnimationFrame(() => {
+      if (!cancelled) setShellPainted(true);
     });
+    // Safety: if rAF is stalled (background tab), still open tip 1 promptly.
+    const fallback = window.setTimeout(() => {
+      if (!cancelled) setShellPainted(true);
+    }, 120);
     return () => {
       cancelled = true;
-      window.cancelAnimationFrame(outer);
-      if (inner) window.cancelAnimationFrame(inner);
+      window.cancelAnimationFrame(id);
+      window.clearTimeout(fallback);
     };
   }, [replayToken]);
 

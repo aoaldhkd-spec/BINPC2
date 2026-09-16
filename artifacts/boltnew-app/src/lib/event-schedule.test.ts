@@ -3,6 +3,7 @@ import {
   coerceEventScheduleRaw,
   eventHeartQuotas,
   eventRainbowQuota,
+  eventScheduleBannerState,
   rainbowPoolPickState,
 } from './event-schedule';
 
@@ -44,3 +45,36 @@ describe('client event schedule quotas', () => {
     expect(rainbowPoolPickState({ rainbowPool: 4, totalUsed: 0, alreadySentThisType: true }).disabled).toBe(true);
   });
 });
+
+describe('eventScheduleBannerState', () => {
+  it('shows notice only until the next slot, then hides', () => {
+    const schedule = {
+      timezone: 'Asia/Seoul',
+      slots: [
+        { at: '23:00', notice: '시작' },
+        { at: '23:05', notice: '오픈', rainbow_pool: 4 },
+      ],
+    };
+    const during = eventScheduleBannerState(schedule, new Date('2026-09-16T14:02:00.000Z'));
+    expect(during.show).toBe(true);
+    expect(during.showNotice).toBe(true);
+    expect(during.active?.notice).toBe('시작');
+    expect(during.next?.at).toBe('23:05');
+
+    const afterNext = eventScheduleBannerState(schedule, new Date('2026-09-16T14:05:00.000Z'));
+    expect(afterNext.showNotice).toBe(true);
+    expect(afterNext.active?.notice).toBe('오픈');
+    expect(afterNext.next).toBeNull();
+  });
+
+  it('hides last-slot notice after hold window with no countdown', () => {
+    const schedule = { slots: [{ at: '23:00', notice: '마지막' }] };
+    const early = eventScheduleBannerState(schedule, new Date('2026-09-16T14:02:00.000Z'));
+    expect(early.show).toBe(true);
+    expect(early.showNotice).toBe(true);
+    const late = eventScheduleBannerState(schedule, new Date('2026-09-16T14:06:00.000Z'));
+    expect(late.show).toBe(false);
+    expect(late.showNotice).toBe(false);
+  });
+});
+

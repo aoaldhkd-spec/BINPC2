@@ -83,3 +83,45 @@ export function rainbowPoolPickState(input: {
   const disabled = !unlocked || poolRemaining <= 0 || input.alreadySentThisType;
   return { unlocked, poolRemaining, disabled };
 }
+
+/** Minutes a last-slot notice stays visible after its `at` when no next slot. */
+export const EVENT_NOTICE_HOLD_MINUTES = 5;
+
+export type EventScheduleBannerState = {
+  show: boolean;
+  active: EventScheduleSlot | null;
+  next: EventScheduleSlot | null;
+  nextSeconds: number | null;
+  showNotice: boolean;
+  cumulativeRainbow: number;
+};
+
+/** Participant banner: show notice only inside its window; hide when past. */
+export function eventScheduleBannerState(raw: unknown, now = new Date()): EventScheduleBannerState {
+  const schedule = parseEventSchedule(raw);
+  if (!schedule.slots.length) {
+    return { show: false, active: null, next: null, nextSeconds: null, showNotice: false, cumulativeRainbow: 0 };
+  }
+  const current = nowSeoulMinute(now);
+  const active = currentEventSlot(raw, now);
+  const next = schedule.slots.find(s => slotMinute(s.at) > current) ?? null;
+  const nextSeconds = next
+    ? (slotMinute(next.at) - current) * 60 - now.getSeconds()
+    : null;
+  let showNotice = false;
+  if (active?.notice) {
+    const start = slotMinute(active.at);
+    const end = next ? slotMinute(next.at) : start + EVENT_NOTICE_HOLD_MINUTES;
+    showNotice = current >= start && current < end;
+  }
+  const showCountdown = next != null && nextSeconds != null && nextSeconds > 0;
+  return {
+    show: showNotice || showCountdown,
+    active,
+    next: showCountdown ? next : null,
+    nextSeconds: showCountdown ? nextSeconds : null,
+    showNotice,
+    cumulativeRainbow: eventRainbowQuota(raw, now),
+  };
+}
+

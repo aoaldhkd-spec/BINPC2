@@ -7,6 +7,9 @@ const PROFILE_COMPLETE_KEYS = [
   'binpc2_coach_marks_v3_profiles',
 ] as const;
 
+/** Keys wiped on admin reset / new registration so tip 1 can show again. */
+export const COACH_STORAGE_KEYS_TO_CLEAR = [COMPLETE_KEY, ...PROFILE_COMPLETE_KEYS] as const;
+
 export function hasCompletedFirstEntryCoach(): boolean {
   try {
     if (localStorage.getItem(COMPLETE_KEY) === '1') return true;

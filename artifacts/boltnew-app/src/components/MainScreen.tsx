@@ -696,8 +696,11 @@ export function MainScreen({
           {/* 좌: 튜토리얼 + 다크모드 + 배경음악 */}
           <div className="justify-self-start flex items-center gap-1">
             <button
+              type="button"
               onClick={() => onShowTutorial()}
-              title="도움말"
+              title="튜토리얼"
+              aria-label="튜토리얼"
+              data-testid="header-tutorial-button"
               className={`p-2 rounded-xl transition-all ${darkMode ? 'bg-slate-700 text-cyan-300 hover:bg-slate-600' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
             >
               <HelpCircle className="w-4 h-4" />

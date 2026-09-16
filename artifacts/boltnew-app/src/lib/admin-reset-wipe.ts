@@ -8,6 +8,7 @@ import {
   MATCHING_PROFILES_CACHE_KEY,
   MATCHING_USER_KEY,
 } from './constants';
+import { COACH_STORAGE_KEYS_TO_CLEAR } from './coach-marks';
 
 export type AdminResetWipePlan = {
   serverReset: string;
@@ -27,6 +28,7 @@ export function planAdminResetWipe(serverReset: string): AdminResetWipePlan {
       MATCHING_USER_KEY,
       MATCHING_DRAFT_KEY,
       MATCHING_PROFILES_CACHE_KEY,
+      ...COACH_STORAGE_KEYS_TO_CLEAR,
     ],
     clearGroupLastReads: true,
     nextView: 'entry-1',

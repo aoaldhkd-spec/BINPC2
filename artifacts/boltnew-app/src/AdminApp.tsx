@@ -701,7 +701,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                 </>
               )}
               {settingsSubTab === 'reports' && <SalesReportsTab />}
-              {settingsSubTab === 'schedule' && <EventScheduleTab settings={settings} onSave={async (raw) => { await patchAdminSettings({ event_schedule: raw }, setSettings); }} />}
+              {settingsSubTab === 'schedule' && <EventScheduleTab settings={settings} onSave={async (raw, extras) => { await patchAdminSettings({ event_schedule: raw, ...(extras ?? {}) }, setSettings); }} />}
             </Suspense>
           </div>
         )}

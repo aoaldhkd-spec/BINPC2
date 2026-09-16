@@ -9,6 +9,7 @@ import {
   MATCHING_PROFILES_CACHE_KEY,
   MATCHING_USER_KEY,
 } from './constants';
+import { COACH_STORAGE_KEYS_TO_CLEAR } from './coach-marks';
 
 describe('planAdminResetWipe', () => {
   it('targets identity + cache keys and entry-1', () => {
@@ -19,6 +20,7 @@ describe('planAdminResetWipe', () => {
       MATCHING_USER_KEY,
       MATCHING_DRAFT_KEY,
       MATCHING_PROFILES_CACHE_KEY,
+      ...COACH_STORAGE_KEYS_TO_CLEAR,
     ]);
     expect(plan.clearGroupLastReads).toBe(true);
     expect(plan.reloadProfiles).toBe(true);
@@ -48,6 +50,7 @@ describe('runAdminResetWipe', () => {
       MATCHING_USER_KEY,
       MATCHING_DRAFT_KEY,
       MATCHING_PROFILES_CACHE_KEY,
+      ...COACH_STORAGE_KEYS_TO_CLEAR,
     ]);
     expect(deps.clearAllGroupLastReads).toHaveBeenCalledTimes(1);
     expect(deps.setCurrentUserId).toHaveBeenCalledWith(null);

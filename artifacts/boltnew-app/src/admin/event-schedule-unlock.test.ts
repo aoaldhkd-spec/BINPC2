@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applySlotPatch, rainbowUnlockNowPatch, seoulNowHHMM } from './EventScheduleTab';
+import { applySlotNowPatch, applySlotPatch, rainbowUnlockNowPatch, seoulNowHHMM } from './EventScheduleTab';
 import { eventRainbowQuota, type EventScheduleSlot } from '../lib/event-schedule';
 
 describe('admin rainbow unlock now', () => {
@@ -15,5 +15,18 @@ describe('admin rainbow unlock now', () => {
     ];
     const next = applySlotPatch(slots, 'slot-1', patch);
     expect(eventRainbowQuota({ timezone: 'Asia/Seoul', slots: next }, now)).toBe(4);
+  });
+
+  it('applySlotNowPatch opens functions at Seoul now without changing pool', () => {
+    const now = new Date('2026-09-16T05:30:00.000Z');
+    const patch = applySlotNowPatch(now);
+    expect(patch).toEqual({ at: '14:30', functions_locked: false });
+    const slots: EventScheduleSlot[] = [
+      { id: 'slot-1', at: '23:00', notice: '', functions_locked: true, rainbow_pool: 4 },
+    ];
+    const next = applySlotPatch(slots, 'slot-1', patch);
+    expect(next[0].rainbow_pool).toBe(4);
+    expect(next[0].functions_locked).toBe(false);
+    expect(next[0].at).toBe('14:30');
   });
 });

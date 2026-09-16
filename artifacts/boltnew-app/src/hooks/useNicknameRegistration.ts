@@ -5,6 +5,7 @@
 import { useCallback, type MutableRefObject, type Dispatch, type SetStateAction } from 'react';
 import { supabase, getDeviceSecret, setDeviceRecoveryPin, fetchAndSetSseToken } from '../lib/supabase';
 import { MATCHING_USER_KEY, MATCHING_DRAFT_KEY } from '../lib/constants';
+import { clearFirstEntryCoachSeen } from '../lib/coach-marks';
 import { ls } from '../lib/storage';
 import { mergeProfilesPreserveOrder } from '../lib/profile-list-order';
 import { PROFILE_ROW_SELECT } from '../lib/profile-select';
@@ -80,6 +81,7 @@ export function useNicknameRegistration(args: UseNicknameRegistrationArgs) {
         ls.setItem(MATCHING_USER_KEY, profile.id);
         ls.removeItem(MATCHING_DRAFT_KEY);
         isNewRegistration.current = true;
+        clearFirstEntryCoachSeen();
         setProfiles(prev => prev.some(p => p.id === profile.id)
           ? prev
           : mergeProfilesPreserveOrder(prev, [...prev, profile as Profile]));

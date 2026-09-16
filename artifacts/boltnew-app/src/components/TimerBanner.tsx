@@ -21,24 +21,24 @@ export function TimerBanner({ endAt, label }: { endAt: string; label: string }) 
     return () => { clearInterval(id); setShowAlert(false); };
   }, [endAt]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Auto-dismiss when the timer window ends — do not leave 00:00 stuck on screen.
+  if (remaining <= 0) return null;
+
   const mins = Math.floor(remaining / 60);
   const secs = remaining % 60;
   const formatted = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-  const expired = remaining === 0;
   const nearEnd = remaining <= 60;
 
   return (
     <>
       <div className={`px-4 py-1.5 flex items-center justify-end gap-2 ${
-        expired ? 'bg-gray-50 border-gray-200'
-        : nearEnd ? 'bg-red-50 border-red-200'
-        : 'bg-amber-50 border-amber-100'
+        nearEnd ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-100'
       } border-t`}>
         <span className={`text-sm font-black tabular-nums ${
-          expired ? 'text-gray-400' : nearEnd ? 'text-red-600' : 'text-amber-700'
+          nearEnd ? 'text-red-600' : 'text-amber-700'
         }`}>{formatted}</span>
         {label && <span className={`text-xs font-medium ${
-          expired ? 'text-gray-400' : nearEnd ? 'text-red-500' : 'text-amber-600'
+          nearEnd ? 'text-red-500' : 'text-amber-600'
         }`}>· {label}</span>}
       </div>
       {showAlert && (
