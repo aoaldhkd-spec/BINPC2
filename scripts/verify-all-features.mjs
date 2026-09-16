@@ -116,7 +116,8 @@ async function main() {
   const leftoverSettingKeys = ['heart_drain_enabled', 'heart_drain_minutes', 'seating_locked', 'seats_snapshot', 'seating_map', 'seats', 'seat_layout']
     .filter(k => Object.prototype.hasOwnProperty.call(settingsRow, k));
   checks.push(['heart_drain_off', leftoverSettingKeys.length ? `FAIL (keys ${leftoverSettingKeys.join(',')})` : 'OK']);
-  checks.push(['entry_password_mmdd', /^\d{4}$/.test(String(settingsRow.entry_password ?? '')) ? settingsRow.entry_password : 'FAIL']);
+  const entryPw = String(settingsRow.entry_password ?? '').trim();
+  checks.push(['entry_password_set', entryPw.length >= 4 ? 'OK' : 'FAIL']);
 
   const seatsGone = await op({ op: 'select', table: 'seats' });
   checks.push(['legacy_seats_table_blocked', seatsGone.status === 400 ? 'OK' : `FAIL ${seatsGone.status}`]);

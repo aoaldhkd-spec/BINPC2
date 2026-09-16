@@ -67,6 +67,8 @@ describe('db-rpc-allowlist', () => {
     const patch = buildAdminProfilePatchFromArgs({ p_nickname: 'N', p_bio: 'B', ignored: 1 });
     expect(patch).toEqual({ nickname: 'N', bio: 'B' });
     expect(Object.keys(ADMIN_UPDATE_PROFILE_ARG_MAP).length).toBeGreaterThan(10);
+    expect(ADMIN_UPDATE_PROFILE_ARG_MAP).not.toHaveProperty('p_dom_sub_score');
+    expect(buildAdminProfilePatchFromArgs({ p_dom_sub_score: 50, p_nickname: 'X' })).toEqual({ nickname: 'X' });
   });
 });
 

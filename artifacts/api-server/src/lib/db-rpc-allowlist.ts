@@ -163,7 +163,6 @@ export const ADMIN_UPDATE_PROFILE_ARG_MAP: Record<string, string> = {
   p_birth_day: 'birth_day',
   p_location: 'location',
   p_personality_score: 'personality_score',
-  p_dom_sub_score: 'dom_sub_score',
   p_interests: 'interests',
   p_kakao_id: 'kakao_id',
   p_instagram_id: 'instagram_id',

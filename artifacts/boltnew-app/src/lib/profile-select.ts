@@ -5,7 +5,7 @@
 
 /** Full profiles.Row — list + single-profile loads that need the complete card. */
 export const PROFILE_ROW_SELECT =
-  'id, nickname, bio, photo_url, personality_score, dom_sub_score, mbti, birth_year, birth_month, birth_day, location, interests, contact_private, hide_personality, kakao_id, instagram_id, phone_number, pin_code, avatar_color, created_at';
+  'id, nickname, bio, photo_url, personality_score, mbti, birth_year, birth_month, birth_day, location, interests, contact_private, hide_personality, kakao_id, instagram_id, phone_number, pin_code, avatar_color, created_at';
 
 /** Blocked/hide rows used by privacy loaders. */
 export const BLOCKED_USER_ROW_SELECT = 'id, user_id, target_id, block_type, created_at';
