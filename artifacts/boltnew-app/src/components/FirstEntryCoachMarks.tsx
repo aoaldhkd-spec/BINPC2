@@ -1,6 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { hasCompletedFirstEntryCoach, isFirstEntryCoachPending, markFirstEntryCoachSeen } from '../lib/coach-marks';
-export { isFirstEntryCoachPending };
+import { hasCompletedFirstEntryCoach, markFirstEntryCoachSeen } from '../lib/coach-marks';
 
 type CoachTab = 'profiles' | 'my' | 'stats' | 'ranking' | 'settings';
 type CoachStep = { title: string; detail: string; target: string };
@@ -19,28 +18,6 @@ const HOME_STEPS: readonly CoachStep[] = [
   { title: '통계·랭킹', detail: '통계에서는 참여 흐름과 하트 지표를, 랭킹에서는 순위와 인기 흐름을 확인해요.', target: 'nav-stats' },
   { title: '내 프로필·설정', detail: '설정에서 고유번호, 아바타, 오늘의 한마디, 관심사와 이상형·내 특징을 관리해요. 설정의 ‘설명 다시보기’에서 이 안내를 언제든 다시 볼 수 있어요.', target: 'nav-settings' },
 ];
-
-const SCREEN_STEPS: Record<Exclude<CoachTab, 'profiles'>, readonly CoachStep[]> = {
-  my: [
-    { title: '내 상태', detail: '받은 하트와 방문자, 내 프로필 상태를 확인하는 화면이에요.', target: 'my-subtabs' },
-    { title: '내 채팅', detail: '내 채팅을 누르면 1:1 대화와 단체 채팅방을 오가며 메시지를 이어갈 수 있어요.', target: 'my-subtabs' },
-  ],
-  stats: [{ title: '통계', detail: '오늘 참여자와 하트 흐름을 숫자와 분포로 확인하는 화면이에요.', target: 'nav-stats' }],
-  ranking: [{ title: '랭킹', detail: '참여와 하트 흐름의 순위를 확인하는 화면이에요. 수치는 행사 중 계속 갱신됩니다.', target: 'nav-ranking' }],
-  settings: [
-    { title: '고유번호', detail: '고유번호는 휴대폰을 바꾸거나 다시 입장할 때 필요한 내 복구 번호예요. 복사해 두세요.', target: 'settings-pin' },
-    { title: '닉네임', detail: '닉네임은 참여자 카드에 보이는 이름이에요. 변경 가능 횟수를 확인하고 저장해요.', target: 'settings-nickname' },
-    { title: '관심사', detail: '관심사를 골라 공통점을 보여줘요. 태그를 누른 뒤 저장 버튼을 눌러요.', target: 'settings-interests' },
-    { title: '연락처 설정', detail: '연락처 공개 여부를 정해요. 상대가 공유를 수락했을 때만 전달됩니다.', target: 'settings-contact' },
-    { title: '생월·생일', detail: '생월과 생일은 궁합·운세에 사용돼요. 변경 가능 횟수를 확인해요.', target: 'settings-birth' },
-    { title: '도움말·화면 설정', detail: '튜토리얼 보기에서 전체 사용법을 다시 보고, 다크 모드로 화면 색상을 바꿀 수 있어요.', target: 'settings-tools' },
-    { title: '설명 다시보기', detail: '설정의 ‘설명 다시보기’를 누르면 참여자부터 시작하는 전체 코치 안내를 언제든 다시 볼 수 있어요.', target: 'settings-replay' },
-    { title: '아바타·사진', detail: '사진을 올리거나 기본 아바타와 카드 배경을 고를 수 있어요.', target: 'settings-avatar' },
-    { title: '오늘의 한마디', detail: '오늘의 한마디는 참여자 카드의 전광판에 보여요. 빠른 문구나 직접 입력으로 남길 수 있어요.', target: 'settings-status' },
-    { title: '이상형·내 특징', detail: '대분류를 고른 뒤 소분류와 태그를 선택해요. 기타 직접 작성은 설정에서만 가능합니다.', target: 'settings-signals' },
-    { title: '차단·숨기기', detail: '차단하거나 숨긴 참여자는 이 목록에서 확인하고 해제할 수 있어요.', target: 'settings-blocklist' },
-  ]
-};
 
 function initialOpenTab(replayToken: number): CoachTab | null {
   // First paint must not wait on useEffect — otherwise tip 1 never appears if a later
@@ -67,7 +44,8 @@ export function FirstEntryCoachMarks({ isSubScreen, suspended = false, mainTab, 
   // Defer overlay until main shell paints once — tip still opens for new users, just after first paint.
   const [shellPainted, setShellPainted] = useState(() => replayToken > 0);
   // Visible coach during first-entry/replay is always the participant home tour.
-  const steps = (openTab === 'profiles' || mainTab === 'profiles') ? HOME_STEPS : SCREEN_STEPS[mainTab];
+  // Home-only tour (per-tab SCREEN_STEPS retired after tip-1 / replay fixes).
+  const steps = HOME_STEPS;
   const current = steps[Math.min(step, steps.length - 1)] ?? steps[0];
 
   useEffect(() => {
@@ -136,16 +114,6 @@ export function FirstEntryCoachMarks({ isSubScreen, suspended = false, mainTab, 
     }
     setOpenTab('profiles');
   }, [isSubScreen, suspended, mainTab, replayToken]);
-
-  // Settings is a long page: bring the actual section under the spotlight before measuring.
-  // Do not change tabs here; chat/current-tab explanations stay in place.
-  useEffect(() => {
-    if (!openTab || openTab !== mainTab || isSubScreen || suspended || !current || mainTab !== 'settings') return;
-    const element = document.querySelector<HTMLElement>(`[data-coach="${current.target}"]`);
-    if (element && typeof element.scrollIntoView === 'function') {
-      element.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' as ScrollBehavior });
-    }
-  }, [openTab, mainTab, step, current, isSubScreen, suspended]);
 
   // Measure one stable anchor per step. Missing anchors intentionally fall back to a centered tip.
   useEffect(() => {

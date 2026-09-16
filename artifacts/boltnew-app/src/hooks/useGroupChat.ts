@@ -32,9 +32,9 @@ import {
 } from '../lib/group-pending-queue';
 
 /** group_messages row columns — avoid select('*') on load/replay. */
-export const GROUP_MESSAGE_ROW_SELECT = 'id, group_id, sender_id, content, image_url, created_at, client_id';
-export const GROUP_PARTICIPANT_SELECT = 'id, group_id, user_id, joined_at, last_read_at';
-export const GROUP_CHAT_LIST_SELECT = 'id, name, interest_tag, age_group, max_members, created_at, room_kind, hidden, merged_into';
+const GROUP_MESSAGE_ROW_SELECT = 'id, group_id, sender_id, content, image_url, created_at, client_id';
+const GROUP_PARTICIPANT_SELECT = 'id, group_id, user_id, joined_at, last_read_at';
+const GROUP_CHAT_LIST_SELECT = 'id, name, interest_tag, age_group, max_members, created_at, room_kind, hidden, merged_into';
 
 const MAX_GROUP_MESSAGES = 300;
 const MAX_MSG_LEN = 1000; // 메시지 최대 길이 — useChat과 동일 기준

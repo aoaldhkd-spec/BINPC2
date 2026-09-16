@@ -39,10 +39,10 @@ import {
 import { planParticipantSoTReload } from '../lib/participant-sot-resync';
 
 /** Narrow chats columns for list/open — no select('*') payload bloat. */
-export const CHAT_LIST_SELECT = 'id, user1_id, user2_id, created_at';
+const CHAT_LIST_SELECT = 'id, user1_id, user2_id, created_at';
 
 /** Full message row columns (database.ts) — avoid select('*') on hot paths. */
-export const MESSAGE_ROW_SELECT = 'id, chat_id, sender_id, content, image_url, created_at, client_id';
+const MESSAGE_ROW_SELECT = 'id, chat_id, sender_id, content, image_url, created_at, client_id';
 
 const MAX_MESSAGES = 500; // 채팅방당 최대 메시지 보유 수 (메모리 누수 방지) — MESSAGE_PAGE_SIZE와 동일
 if (MAX_MESSAGES !== MESSAGE_PAGE_SIZE) {
