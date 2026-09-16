@@ -24,6 +24,12 @@ function seoulNowHHMM(): string {
   return `${String(h === 24 ? 0 : h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
+function rainbowUnlockGrants(slot: EventScheduleSlot): Partial<Record<HeartType, number>> {
+  const grants = { ...(slot.heart_grants ?? {}) };
+  for (const heart of HEART_TYPES) grants[heart.type] = Math.max(grants[heart.type] ?? 0, 1);
+  return grants;
+}
+
 export function EventScheduleTab({ settings, onSave }: { settings: AppSettings | null; onSave: (raw: string) => Promise<void> }) {
   const initial = useMemo(() => parseEventSchedule(settings?.event_schedule), [settings?.event_schedule]);
   const [slots, setSlots] = useState<EventScheduleSlot[]>(initial.slots.length ? initial.slots : [EMPTY]);
@@ -40,7 +46,7 @@ export function EventScheduleTab({ settings, onSave }: { settings: AppSettings |
   return <div className="p-3 min-[390px]:p-4 space-y-4">
     <div className="rounded-2xl border border-cyan-200 bg-cyan-50 p-3">
       <p className="font-black text-cyan-900 text-sm">⏱ 행사 시계 타임라인</p>
-      <p className="text-[11px] text-cyan-800 mt-1 leading-relaxed">서버 시간(Asia/Seoul)으로 적용돼요. 슬롯이 열리면 공지·잠금·하트 지급이 모든 사용자에게 실시간 반영됩니다. 기존 상대 시간 타이머는 그대로 유지됩니다.</p>
+      <p className="text-[11px] text-cyan-800 mt-1 leading-relaxed">무지개하트는 빨강·파랑·분홍·초록 4종의 선택 하트예요. 버튼을 누른 뒤 저장해야 사용자에게 실시간 반영돼요. 서버 시간(Asia/Seoul)으로 적용돼요. 슬롯이 열리면 공지·잠금·하트 지급이 모든 사용자에게 실시간 반영됩니다. 기존 상대 시간 타이머는 그대로 유지됩니다.</p>
       <div className="mt-3 flex items-center gap-2">
         <label className="text-xs font-bold text-cyan-900">시작</label>
         <input type="time" value={start} onChange={e => setStart(e.target.value)} className="rounded-lg border border-cyan-200 bg-white px-2 py-1.5 text-sm" />
@@ -64,6 +70,10 @@ export function EventScheduleTab({ settings, onSave }: { settings: AppSettings |
           <div className="flex flex-wrap gap-1.5">
             {NOTICE_PRESETS.map((preset) => <button key={preset} type="button" onClick={() => update(slot.id, { notice: preset })} className={`rounded-full border px-2 py-1 text-[10px] font-bold transition-colors ${slot.notice === preset ? 'border-cyan-500 bg-cyan-50 text-cyan-700' : 'border-gray-200 bg-gray-50 text-gray-600 hover:border-cyan-300 hover:bg-cyan-50'}`}>{preset.startsWith('5분') ? '5분 후 오픈' : preset.includes('열렸어요') ? '하트·채팅 오픈' : preset.startsWith('잠금') ? '잠금 안내' : '프로필·설정만'}</button>)}
           </div>
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <button type="button" onClick={() => update(slot.id, { heart_grants: rainbowUnlockGrants(slot) })} className="rounded-lg border border-fuchsia-300 bg-fuchsia-50 px-2.5 py-1.5 text-[10px] font-black text-fuchsia-700 hover:bg-fuchsia-100">🌈 무지개하트 4개 해금</button>
+          <button type="button" onClick={() => update(slot.id, { at: seoulNowHHMM(), functions_locked: false, heart_grants: rainbowUnlockGrants(slot) })} className="rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-[10px] font-black text-amber-700 hover:bg-amber-100">지금 적용 + 무지개 해금</button>
         </div>
         <div className="mt-2 grid grid-cols-2 min-[390px]:grid-cols-4 gap-2">
           {HEART_TYPES.map(h => <label key={h.type} className="flex items-center gap-1 rounded-lg bg-gray-50 px-2 py-1.5 text-[10px] font-bold text-gray-600"><span>{h.emoji}</span><span className="truncate">{h.label}</span><input aria-label={`${index + 1}번 ${h.label} 지급`} type="number" min="0" max="20" value={slot.heart_grants?.[h.type] ?? 0} onChange={e => update(slot.id, { heart_grants: { ...(slot.heart_grants ?? {}), [h.type]: Math.max(0, Math.min(20, Number(e.target.value) || 0)) } })} className="ml-auto w-10 rounded border border-gray-200 bg-white px-1 py-1 text-center" /></label>)}
