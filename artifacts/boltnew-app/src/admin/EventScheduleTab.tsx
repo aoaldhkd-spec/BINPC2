@@ -17,6 +17,13 @@ const TIMES = (start: string, count: number) => {
   return Array.from({ length: count }, (_, i) => { const n = (base + i * 5) % (24 * 60); return `${String(Math.floor(n / 60)).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}`; });
 };
 
+function seoulNowHHMM(): string {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date());
+  const h = Number(parts.find(p => p.type === 'hour')?.value ?? 0);
+  const m = Number(parts.find(p => p.type === 'minute')?.value ?? 0);
+  return `${String(h === 24 ? 0 : h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
 export function EventScheduleTab({ settings, onSave }: { settings: AppSettings | null; onSave: (raw: string) => Promise<void> }) {
   const initial = useMemo(() => parseEventSchedule(settings?.event_schedule), [settings?.event_schedule]);
   const [slots, setSlots] = useState<EventScheduleSlot[]>(initial.slots.length ? initial.slots : [EMPTY]);
@@ -45,6 +52,7 @@ export function EventScheduleTab({ settings, onSave }: { settings: AppSettings |
         <div className="flex items-center gap-2">
           <span className="rounded-full bg-gray-100 px-2 py-1 text-[10px] font-black text-gray-500">{index + 1}</span>
           <input aria-label={`슬롯 ${index + 1} 시각`} type="time" value={slot.at} onChange={e => update(slot.id, { at: e.target.value })} className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm font-black" />
+          <button type="button" onClick={() => update(slot.id, { at: seoulNowHHMM(), functions_locked: false })} className="shrink-0 rounded-lg border border-amber-300 bg-amber-50 px-2 py-1.5 text-[10px] font-black text-amber-700 hover:bg-amber-100">지금 적용</button>
           <select aria-label={`슬롯 ${index + 1} 잠금`} value={slot.functions_locked ? 'locked' : 'open'} onChange={e => update(slot.id, { functions_locked: e.target.value === 'locked' })} className="min-w-0 flex-1 rounded-lg border border-gray-200 px-2 py-1.5 text-xs font-bold">
             <option value="locked">🔒 프로필·설정만</option><option value="open">💖 하트·채팅 열림</option>
           </select>
@@ -67,6 +75,6 @@ export function EventScheduleTab({ settings, onSave }: { settings: AppSettings |
       <button type="button" onClick={() => void save()} disabled={saving || slots.length === 0} className="rounded-xl bg-teal-600 px-5 py-2.5 text-sm font-black text-white disabled:opacity-40">{saving ? '저장 중…' : '타임라인 저장'}</button>
       {saved && <span className="text-xs font-bold text-teal-700">저장됐어요 · 실시간 반영</span>}
     </div>
-    <p className="text-[10px] leading-relaxed text-gray-400">하트는 처음에는 0개이고, 슬롯이 열릴 때 지급량이 추가돼요. 같은 종류도 여러 슬롯에서 추가할 수 있고, 서버가 현재 시각과 남은 quota를 최종 검증합니다.</p>
+    <p className="text-[10px] leading-relaxed text-gray-400">하트는 처음에는 0개이고, 슬롯이 열릴 때 지급량이 추가돼요. 같은 종류도 여러 슬롯에서 추가할 수 있고, 서버가 현재 시각과 남은 quota를 최종 검증합니다. 미래 시각의 grant는 시각이 될 때 열리고, 즉시 열려면 해당 슬롯에서 ‘지금 적용’을 누르세요.</p>
   </div>;
 }
