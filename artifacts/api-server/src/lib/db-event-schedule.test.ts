@@ -8,7 +8,7 @@ describe('event schedule', () => {
   });
   it('uses Seoul server clock and cumulative grants', () => {
     const raw = { slots: [{ at: '23:00', notice: 'start', heart_grants: { red: 1 } }, { at: '23:05', notice: 'more', heart_grants: { red: 3 } }] };
-    expect(eventHeartQuota(raw, 'red', new Date('2026-09-16T14:06:00.000Z'))).toBe(6);
+    expect(eventHeartQuota(raw, 'red', new Date('2026-09-16T14:06:00.000Z'))).toBe(4);
     expect(activeEventScheduleSlot(raw, new Date('2026-09-16T14:04:00.000Z'))?.notice).toBe('start');
   });
 });

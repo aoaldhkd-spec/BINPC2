@@ -39,7 +39,7 @@ function nowSeoulMinute(now = new Date()): number {
   return (h === 24 ? 0 : h) * 60 + m;
 }
 function slotMinute(at: string): number { return Number(at.slice(0, 2)) * 60 + Number(at.slice(3)); }
-export function eventHeartQuota(raw: unknown, type: HeartType, now = new Date(), base = 2): number {
+export function eventHeartQuota(raw: unknown, type: HeartType, now = new Date(), base = 0): number {
   const minute = nowSeoulMinute(now);
   return base + parseEventSchedule(raw).slots.filter(s => slotMinute(s.at) <= minute).reduce((n, s) => n + (s.heart_grants?.[type] ?? 0), 0);
 }

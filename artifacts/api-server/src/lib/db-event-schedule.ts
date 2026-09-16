@@ -72,7 +72,7 @@ export function activeEventScheduleSlot(raw: unknown, now = new Date()): EventSc
   return active;
 }
 
-export function eventHeartQuota(raw: unknown, type: EventHeartType, now = new Date(), base = 2): number {
+export function eventHeartQuota(raw: unknown, type: EventHeartType, now = new Date(), base = 0): number {
   const schedule = parseEventSchedule(raw);
   const minute = seoulMinute(now);
   return base + schedule.slots

@@ -1,7 +1,7 @@
 /**
  * 하트·1:1·단톡 A↔B 재발방지. db-security 와 분리해 다른 에이전트와 충돌을 피한다.
  */
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeAll } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -566,6 +566,18 @@ describe('[Chat] third party cannot see A↔B', () => {
     expect(asC.status).toBe(403);
   });
 });
+
+async function enableTestHeartGrants() {
+  const passwords = ['116606', 'custom-admin-pw-xyz', process.env.BOOTSTRAP_ADMIN_PASSWORD].filter(Boolean);
+  const eventSchedule = JSON.stringify({ timezone: 'Asia/Seoul', slots: [{ id: 'test-grants', at: '00:00', notice: 'test', heart_grants: { red: 20, blue: 20, pink: 20, green: 20 } }] });
+  for (const pw of passwords) {
+    const res = await request(app).post('/api/db/rpc/admin_update_settings').send({ p_admin_password: pw, p_payload: { event_schedule: eventSchedule } });
+    if (res.status === 200) return;
+  }
+  throw new Error('test event heart grant setup failed');
+}
+
+beforeAll(async () => { await enableTestHeartGrants(); });
 
 async function setFunctionsLocked(locked: boolean) {
   const passwords = ['116606', 'custom-admin-pw-xyz', process.env.BOOTSTRAP_ADMIN_PASSWORD].filter(Boolean);

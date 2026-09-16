@@ -4,6 +4,13 @@ import type { HeartType } from '../lib/constants';
 import { HEART_TYPES } from '../lib/constants';
 import { parseEventSchedule, type EventScheduleSlot } from '../lib/event-schedule';
 
+const NOTICE_PRESETS = [
+  '지금은 프로필·설정만 이용할 수 있어요. 하트·채팅은 잠시 후 열립니다.',
+  '잠금 유지 중이에요. 안내된 시각에 하트·채팅이 열립니다.',
+  '5분 후 하트와 채팅을 이용할 수 있어요.',
+  '하트·채팅이 열렸어요! 마음에 드는 상대에게 보내 보세요.',
+] as const;
+
 const EMPTY: EventScheduleSlot = { id: 'slot-1', at: '23:00', notice: '하트가 열렸어요!', functions_locked: false, heart_grants: {} };
 const TIMES = (start: string, count: number) => {
   const [h, m] = start.split(':').map(Number); const base = h * 60 + m;
@@ -44,6 +51,12 @@ export function EventScheduleTab({ settings, onSave }: { settings: AppSettings |
           <button type="button" aria-label={`${index + 1}번 슬롯 삭제`} onClick={() => setSlots(prev => prev.filter(s => s.id !== slot.id))} className="px-2 py-1 text-xs font-black text-rose-500">삭제</button>
         </div>
         <input aria-label={`슬롯 ${index + 1} 공지`} value={slot.notice} onChange={e => update(slot.id, { notice: e.target.value })} placeholder="참여자에게 보여줄 공지 (선택)" className="mt-2 w-full rounded-lg border border-gray-200 px-3 py-2 text-xs" maxLength={240} />
+        <div className="mt-2">
+          <p className="mb-1 text-[10px] font-black text-gray-400">빠른 공지</p>
+          <div className="flex flex-wrap gap-1.5">
+            {NOTICE_PRESETS.map((preset) => <button key={preset} type="button" onClick={() => update(slot.id, { notice: preset })} className={`rounded-full border px-2 py-1 text-[10px] font-bold transition-colors ${slot.notice === preset ? 'border-cyan-500 bg-cyan-50 text-cyan-700' : 'border-gray-200 bg-gray-50 text-gray-600 hover:border-cyan-300 hover:bg-cyan-50'}`}>{preset.startsWith('5분') ? '5분 후 오픈' : preset.includes('열렸어요') ? '하트·채팅 오픈' : preset.startsWith('잠금') ? '잠금 안내' : '프로필·설정만'}</button>)}
+          </div>
+        </div>
         <div className="mt-2 grid grid-cols-2 min-[390px]:grid-cols-4 gap-2">
           {HEART_TYPES.map(h => <label key={h.type} className="flex items-center gap-1 rounded-lg bg-gray-50 px-2 py-1.5 text-[10px] font-bold text-gray-600"><span>{h.emoji}</span><span className="truncate">{h.label}</span><input aria-label={`${index + 1}번 ${h.label} 지급`} type="number" min="0" max="20" value={slot.heart_grants?.[h.type] ?? 0} onChange={e => update(slot.id, { heart_grants: { ...(slot.heart_grants ?? {}), [h.type]: Math.max(0, Math.min(20, Number(e.target.value) || 0)) } })} className="ml-auto w-10 rounded border border-gray-200 bg-white px-1 py-1 text-center" /></label>)}
         </div>
@@ -54,6 +67,6 @@ export function EventScheduleTab({ settings, onSave }: { settings: AppSettings |
       <button type="button" onClick={() => void save()} disabled={saving || slots.length === 0} className="rounded-xl bg-teal-600 px-5 py-2.5 text-sm font-black text-white disabled:opacity-40">{saving ? '저장 중…' : '타임라인 저장'}</button>
       {saved && <span className="text-xs font-bold text-teal-700">저장됐어요 · 실시간 반영</span>}
     </div>
-    <p className="text-[10px] leading-relaxed text-gray-400">하트는 기본 종류별 2개에 슬롯별 지급량을 더해요. 같은 종류도 여러 슬롯에서 추가할 수 있고, 서버가 현재 시각과 남은 quota를 최종 검증합니다.</p>
+    <p className="text-[10px] leading-relaxed text-gray-400">하트는 처음에는 0개이고, 슬롯이 열릴 때 지급량이 추가돼요. 같은 종류도 여러 슬롯에서 추가할 수 있고, 서버가 현재 시각과 남은 quota를 최종 검증합니다.</p>
   </div>;
 }

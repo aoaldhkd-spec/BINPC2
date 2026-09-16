@@ -2,7 +2,7 @@
  * In-process 50/100/150 VU load ??production API??ë³„ë„ ?œë??ˆì´??
  * UI/?Œë§ˆ/?¼ìš°?…ì? ê±´ë“œë¦¬ì? ?Šê³  ?œë²„ ì²˜ë¦¬?‰Â·ë©”ëª¨ë¦¬Â·?¸ì…˜ ë³µêµ¬ë§?ì¸¡ì •?œë‹¤.
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeAll } from 'vitest';
 import { randomUUID } from 'node:crypto';
 
 vi.hoisted(() => {
@@ -52,6 +52,15 @@ async function op(body: Record<string, unknown>) {
   const res = await request(app).post('/api/db/op').set('Content-Type', 'application/json').send(body);
   return { status: res.status, body: res.body, ms: Date.now() - t0 };
 }
+
+beforeAll(async () => {
+  const eventSchedule = JSON.stringify({ timezone: 'Asia/Seoul', slots: [{ id: 'load-grants', at: '00:00', notice: 'load', heart_grants: { red: 20, blue: 20, pink: 20, green: 20 } }] });
+  for (const pw of ['116606', 'custom-admin-pw-xyz', process.env.BOOTSTRAP_ADMIN_PASSWORD].filter(Boolean)) {
+    const res = await request(app).post('/api/db/rpc/admin_update_settings').send({ p_admin_password: pw, p_payload: { event_schedule: eventSchedule } });
+    if (res.status === 200) return;
+  }
+  throw new Error('load test event heart grant setup failed');
+});
 
 describe('venue load 50/100/150 (in-process)', () => {
   it('registers 150 users, serves /ready, PIN recover, and stays under RSS budget', async () => {

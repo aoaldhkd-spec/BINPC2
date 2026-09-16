@@ -26,6 +26,9 @@ export function LikeConfirmDialog({
     setSelected(type);
   };
 
+  const totalRemaining = HEART_TYPES.reduce((sum, h) => sum + Math.max(0, (quotas[h.type] ?? 0) - (likedByType[h.type] ?? 0)), 0);
+  const unlockedRainbowCount = Math.min(4, totalRemaining);
+
   const handleConfirm = () => {
     const type = selectedRef.current ?? selected;
     if (!type) return;
@@ -46,6 +49,13 @@ export function LikeConfirmDialog({
           <p className="text-xs text-teal-600 font-semibold mt-1">
             💡 한 사람에게도 종류별로 하트를 보낼 수 있어요
           </p>
+          <div className="mt-2 flex items-center justify-center gap-1.5" aria-label={`무지개하트 ${unlockedRainbowCount}개 선택 가능`}>
+            <span className="text-[10px] font-bold text-gray-400">무지개하트</span>
+            {Array.from({ length: 4 }, (_, i) => (
+              <span key={i} className={`text-lg leading-none transition-all ${i < unlockedRainbowCount ? '' : 'grayscale opacity-30'}`} aria-hidden="true">🌈</span>
+            ))}
+            <span className="text-[10px] font-black text-gray-500">{unlockedRainbowCount}/4</span>
+          </div>
           {sentTypesForTarget.size > 0 && (
             <p className="text-xs text-gray-400 mt-1">
               이미 보낸 하트: {[...sentTypesForTarget].map(t => heartMeta(t).emoji).join(' ')}
@@ -59,7 +69,7 @@ export function LikeConfirmDialog({
         <div className="space-y-2 mb-5">
           {HEART_TYPES.map(h => {
             const used = likedByType[h.type] ?? 0;
-            const remaining = Math.max(0, (quotas[h.type] ?? 2) - used);
+            const remaining = Math.max(0, (quotas[h.type] ?? 0) - used);
             const alreadySentToThisPerson = sentTypesForTarget.has(h.type);
             const disabled = remaining <= 0 || alreadySentToThisPerson;
             const isSel = selected === h.type;
@@ -75,7 +85,7 @@ export function LikeConfirmDialog({
                   : `border-gray-200 hover:${h.border} hover:${h.bg}`
                 }`}
               >
-                <span className="text-2xl">{h.emoji}</span>
+                <span className={`text-2xl transition-all ${remaining > 0 ? '' : 'grayscale opacity-35'}`}>{h.emoji}</span>
                 <div className="flex-1 min-w-0">
                   <p className={`text-sm font-bold ${isSel ? h.text : 'text-gray-800'}`}>{h.label}</p>
                   <p className="text-xs text-gray-400">
@@ -86,7 +96,7 @@ export function LikeConfirmDialog({
                   {alreadySentToThisPerson ? (
                     <span className="text-[10px] text-gray-400 font-bold">전송됨</span>
                   ) : (
-                    Array.from({ length: Math.min(8, quotas[h.type] ?? 2) }, (_, i) => (
+                    Array.from({ length: Math.min(8, quotas[h.type] ?? 0) }, (_, i) => (
                       <Heart key={i} className={`w-4 h-4 ${i < remaining ? h.fillText : 'fill-gray-200 text-gray-200'}`} />
                     ))
                   )}

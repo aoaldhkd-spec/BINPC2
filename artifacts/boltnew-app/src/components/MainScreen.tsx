@@ -166,7 +166,7 @@ export function MainScreen({
   // Keep the header's aggregate badge on the same quota source as the picker.
   // This includes schedule grants and changes immediately after a send.
   const remainingHeartTotal = useMemo(
-    () => HEART_TYPES.reduce((sum, h) => sum + Math.max(0, (heartQuotas[h.type] ?? 2) - heartCount(h.type)), 0),
+    () => HEART_TYPES.reduce((sum, h) => sum + Math.max(0, (heartQuotas[h.type] ?? 0) - heartCount(h.type)), 0),
     [heartQuotas, heartCount],
   );
 
@@ -722,9 +722,9 @@ export function MainScreen({
               {HEART_TYPES.map(h => {
                 const used = heartCount(h.type);
                 return (
-                  <div key={h.type} className="flex items-center gap-0.5" title={`${h.label} (${Math.max(0, (heartQuotas[h.type] ?? 2) - used)}개 남음)`}>
-                    <span className="text-sm leading-none">{h.emoji}</span>
-                    <span className={`text-[10px] font-bold tabular-nums ${used >= (heartQuotas[h.type] ?? 2) ? (darkMode ? 'text-slate-400 line-through' : 'text-gray-400 line-through') : (darkMode ? 'text-white' : 'text-gray-600')}`}>{Math.max(0, (heartQuotas[h.type] ?? 2) - used)}</span>
+                  <div key={h.type} className="flex items-center gap-0.5" title={`${h.label} (${Math.max(0, (heartQuotas[h.type] ?? 0) - used)}개 남음)`}>
+                    <span className={`text-sm leading-none transition-all ${Math.max(0, (heartQuotas[h.type] ?? 0) - used) > 0 ? '' : 'grayscale opacity-40'}`}>{h.emoji}</span>
+                    <span className={`text-[10px] font-bold tabular-nums ${used >= (heartQuotas[h.type] ?? 0) ? (darkMode ? 'text-slate-400 line-through' : 'text-gray-400 line-through') : (darkMode ? 'text-white' : 'text-gray-600')}`}>{Math.max(0, (heartQuotas[h.type] ?? 0) - used)}</span>
                   </div>
                 );
               })}
