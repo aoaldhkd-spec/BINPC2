@@ -80,11 +80,11 @@ const KeepTab = memo(function KeepTab({ id, mainTab, children }: { id: MainTab; 
 
 export function MainScreen({
   profiles, currentUserId, likedIds, sentHeartTypes, sentHeartsPerPerson, likeStatuses, profileMap, mainTab,
-  onTabChange, onLike, onSelect, onReset,
+  onTabChange, onLike, onSelect, onReset, onReplayCoach,
   receivedLikers, receivedHeartTypes, sentLikedProfiles, contactSharedWithIds, acknowledgedComplimentIds,
   receivedContactShares, pendingHeartsCount, chatList,
   onContactShareOpen: _onContactShareOpen, onContactViewOpen, onHeartResponse, onDeleteChat, onDeleteAllChats, onOpenChat,
-  timerEndAt, timerLabel, heartQuotas, eventScheduleRaw, onRefreshStatus, onRefreshChat, onRefreshProfiles, darkMode, onToggleDark, scannedContacts, onClearScannedContact, functionsLocked = false, onShowTutorial,
+  timerEndAt, timerLabel, heartQuotas, rainbowPool, eventScheduleRaw, onRefreshStatus, onRefreshChat, onRefreshProfiles, darkMode, onToggleDark, scannedContacts, onClearScannedContact, functionsLocked = false, onShowTutorial,
   unreadChatCounts, onClearChatUnread: _onClearChatUnread,
   onUpdateProfile,
   groupChats = [], unreadGroupCounts = {}, onOpenGroupChat, onJoinGroupChat, onLeaveGroupChat, joiningGroupId = null,
@@ -105,7 +105,7 @@ export function MainScreen({
 }: {
   profiles: Profile[]; currentUserId: string | null; likedIds: Set<string>; sentHeartTypes: Map<string, HeartType>; sentHeartsPerPerson: Map<string, Set<HeartType>>; likeStatuses: Map<string, string>;
   profileMap: Map<string, Profile>; mainTab: MainTab;
-  onTabChange: (t: MainTab) => void; onLike: (id: string, hint?: Profile) => void;
+  onTabChange: (t: MainTab) => void; onReplayCoach: () => void; onLike: (id: string, hint?: Profile) => void;
   onSelect: (p: Profile) => void; onReset: () => void;
   receivedLikers: Profile[]; receivedHeartTypes: Map<string, HeartType>; sentLikedProfiles: Profile[];
   contactSharedWithIds: Set<string>; acknowledgedComplimentIds: Set<string>; receivedContactShares: ContactShare[];
@@ -119,6 +119,7 @@ export function MainScreen({
   timerEndAt: string | null;
   timerLabel: string | null;
   heartQuotas: Record<HeartType, number>;
+  rainbowPool: number;
   eventScheduleRaw: string | null;
   onRefreshStatus: () => void;
   onRefreshChat: () => void;
@@ -163,11 +164,17 @@ export function MainScreen({
   }, [mySubTabHint, onMySubTabHintConsumed]);
 
   const heartCount = useCallback((t: HeartType) => { let c = 0; sentHeartsPerPerson.forEach(types => { if (types.has(t)) c++; }); return c; }, [sentHeartsPerPerson]);
-  // Keep the header's aggregate badge on the same quota source as the picker.
-  // This includes schedule grants and changes immediately after a send.
+  const sentHeartTotal = useMemo(() => {
+    let total = 0;
+    sentHeartsPerPerson.forEach(types => { total += types.size; });
+    return total;
+  }, [sentHeartsPerPerson]);
+  // Rainbow grants are one shared pool: any color consumes one slot.
   const remainingHeartTotal = useMemo(
-    () => HEART_TYPES.reduce((sum, h) => sum + Math.max(0, (heartQuotas[h.type] ?? 0) - heartCount(h.type)), 0),
-    [heartQuotas, heartCount],
+    () => rainbowPool > 0
+      ? Math.max(0, rainbowPool - sentHeartTotal)
+      : HEART_TYPES.reduce((sum, h) => sum + Math.max(0, (heartQuotas[h.type] ?? 0) - heartCount(h.type)), 0),
+    [rainbowPool, sentHeartTotal, heartQuotas, heartCount],
   );
 
   const sentHeartEntries = useMemo(() => {
@@ -721,10 +728,11 @@ export function MainScreen({
             <div className="flex items-center gap-1 min-[390px]:gap-1.5">
               {HEART_TYPES.map(h => {
                 const used = heartCount(h.type);
+                const remaining = rainbowPool > 0 ? remainingHeartTotal : Math.max(0, (heartQuotas[h.type] ?? 0) - used);
                 return (
-                  <div key={h.type} className="flex items-center gap-0.5" title={`${h.label} (${Math.max(0, (heartQuotas[h.type] ?? 0) - used)}개 남음)`}>
-                    <span className={`text-sm leading-none transition-all ${Math.max(0, (heartQuotas[h.type] ?? 0) - used) > 0 ? '' : 'grayscale opacity-40'}`}>{h.emoji}</span>
-                    <span className={`text-[10px] font-bold tabular-nums ${used >= (heartQuotas[h.type] ?? 0) ? (darkMode ? 'text-slate-400 line-through' : 'text-gray-400 line-through') : (darkMode ? 'text-white' : 'text-gray-600')}`}>{Math.max(0, (heartQuotas[h.type] ?? 0) - used)}</span>
+                  <div key={h.type} className="flex items-center gap-0.5" title={rainbowPool > 0 ? `무지개하트 pool (${remainingHeartTotal}개 남음)` : `${h.label} (${remaining}개 남음)`}>
+                    <span className={`text-sm leading-none transition-all ${remaining > 0 ? '' : 'grayscale opacity-40'}`}>{h.emoji}</span>
+                    <span className={`text-[10px] font-bold tabular-nums ${remaining <= 0 ? (darkMode ? 'text-slate-400 line-through' : 'text-gray-400 line-through') : (darkMode ? 'text-white' : 'text-gray-600')}`}>{rainbowPool > 0 ? '•' : remaining}</span>
                   </div>
                 );
               })}
@@ -1470,6 +1478,9 @@ export function MainScreen({
                 </button>
                 <button type="button" onClick={onToggleDark} className={`min-h-11 rounded-xl border px-3 py-2 text-xs font-black transition-all ${darkMode ? 'border-slate-600 bg-slate-700 text-amber-300 hover:bg-slate-600' : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100'}`}>
                   {darkMode ? '☀️ 라이트 모드' : '🌙 다크 모드'}
+                </button>
+                <button type="button" data-coach="settings-replay" onClick={onReplayCoach} className={`col-span-2 min-h-11 rounded-xl border px-3 py-2 text-xs font-black transition-all ${darkMode ? 'border-slate-600 bg-slate-700 text-cyan-300 hover:bg-slate-600' : 'border-cyan-100 bg-cyan-50 text-cyan-700 hover:bg-cyan-100'}`}>
+                  ✨ 설명 다시보기
                 </button>
               </div>
               <p className={`mt-2 px-1 text-[10px] ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>도움말은 현재 화면의 사용법을, 다크 모드는 화면 색상을 바꿔요.</p>

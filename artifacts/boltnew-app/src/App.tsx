@@ -17,7 +17,7 @@ import { useProfilePrivacyLoaders } from './hooks/useProfilePrivacyLoaders';
 import { useSessionInit } from './hooks/useSessionInit';
 import { planAdminResetWipe, runAdminResetWipe } from './lib/admin-reset-wipe';
 import type { SessionReadySettingsPatch } from './lib/session-ready-settings';
-import { eventHeartQuotas, currentEventSlot } from './lib/event-schedule';
+import { eventHeartQuotas, eventRainbowQuota, currentEventSlot } from './lib/event-schedule';
 import { subscribeNetUi, resetNetUiForRetry, type NetUiStatus } from './lib/net-health';
 import { excludeSwipeGestureVerifyProfiles } from './lib/profile';
 import { mergeProfilesPreserveOrder } from './lib/profile-list-order';
@@ -163,6 +163,7 @@ function App() {
     () => (ls.getItem(MATCHING_USER_KEY) ? 'checking' : 'register'),
   );
   const [mainTab, setMainTab] = useState<MainTab>('profiles');
+  const [coachReplayToken, setCoachReplayToken] = useState(0);
   const [fortuneModalTarget, setFortuneModalTarget] = useState<Profile | null>(null);
   const [showTutorialModal, setShowTutorialModal] = useState(false);
   const [showContactQr, setShowContactQr] = useState(false);
@@ -383,9 +384,14 @@ function App() {
     schedule();
     return () => { if (timer !== undefined) window.clearTimeout(timer); };
   }, [eventScheduleRaw]);
+  const scheduleNow = useMemo(() => new Date(eventScheduleMinute * 60_000), [eventScheduleMinute]);
   const heartQuotas = useMemo(
-    () => eventHeartQuotas(eventScheduleRaw, new Date(eventScheduleMinute * 60_000)),
-    [eventScheduleRaw, eventScheduleMinute],
+    () => eventHeartQuotas(eventScheduleRaw, scheduleNow),
+    [eventScheduleRaw, scheduleNow],
+  );
+  const rainbowPool = useMemo(
+    () => eventRainbowQuota(eventScheduleRaw, scheduleNow),
+    [eventScheduleRaw, scheduleNow],
   );
   // The schedule is also evaluated locally between SSE/ready heartbeats so a slot
   // boundary does not leave the buttons visually stale. The server remains authoritative.
@@ -1026,6 +1032,8 @@ function App() {
         setBottomNotif={setBottomNotif}
         setMySubTabHint={setMySubTabHint}
         handleMainTabChange={handleMainTabChange}
+        coachReplayToken={coachReplayToken}
+        onForceCoachParticipants={() => setMainTab('profiles')}
         profiles={profiles}
         receivedLikers={receivedLikers}
         setSelectedProfile={setSelectedProfile}
@@ -1075,6 +1083,7 @@ function App() {
         saveScannedContact={saveScannedContact}
         privacyProfileIds={privacyProfileIds}
         heartQuotas={heartQuotas}
+        rainbowPool={rainbowPool}
       >
         <AppMainShell
           isSubScreen={isSubScreen}
@@ -1087,6 +1096,7 @@ function App() {
           profileMap={profileMap}
           mainTab={mainTab}
           onTabChange={handleMainTabChange}
+          onReplayCoach={() => { setMainTab('profiles'); setCoachReplayToken(value => value + 1); }}
           onLike={handleLikeGuarded}
           onSelect={handleSelectProfile}
           onReset={reset}
@@ -1109,6 +1119,7 @@ function App() {
           timerEndAt={timerEndAt}
           timerLabel={timerLabel}
           heartQuotas={heartQuotas}
+          rainbowPool={rainbowPool}
           eventScheduleRaw={eventScheduleRaw}
           onRefreshStatus={refreshStatusTab}
           onRefreshChat={refreshChatTab}

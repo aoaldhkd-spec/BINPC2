@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { eventHeartQuotas } from './event-schedule';
+import { eventHeartQuotas, eventRainbowQuota } from './event-schedule';
 
 describe('client event schedule quotas', () => {
   it('updates all heart types at an opened clock slot without changing JSON', () => {
@@ -8,3 +8,9 @@ describe('client event schedule quotas', () => {
     expect(eventHeartQuotas(schedule, new Date('2026-09-16T14:05:00.000Z'))).toEqual({ red: 2, blue: 1, pink: 0, green: 3 });
   });
 });
+
+  it('accumulates a shared rainbow pool, independent of color', () => {
+    const schedule = { slots: [{ at: '23:05', rainbow_pool: 4 }] };
+    expect(eventRainbowQuota(schedule, new Date('2026-09-16T14:04:59.000Z'))).toBe(0);
+    expect(eventRainbowQuota(schedule, new Date('2026-09-16T14:05:00.000Z'))).toBe(4);
+  });

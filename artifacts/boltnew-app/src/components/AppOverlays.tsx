@@ -83,6 +83,8 @@ export type AppOverlaysProps = {
   setBottomNotif: Dispatch<SetStateAction<BottomNotificationData | null>>;
   setMySubTabHint: Dispatch<SetStateAction<'status' | 'chats' | null>>;
   handleMainTabChange: (tab: MainTab) => void;
+  coachReplayToken: number;
+  onForceCoachParticipants: () => void;
   profiles: Profile[];
   receivedLikers: Profile[];
   setSelectedProfile: Dispatch<SetStateAction<Profile | null>>;
@@ -132,6 +134,7 @@ export type AppOverlaysProps = {
   saveScannedContact: (p: Profile) => void;
   privacyProfileIds: { blockedUserIds: Set<string>; hiddenByIds: Set<string> };
   heartQuotas: Record<HeartType, number>;
+  rainbowPool: number;
 };
 
 export function AppOverlays(p: AppOverlaysProps) {
@@ -153,7 +156,7 @@ export function AppOverlays(p: AppOverlaysProps) {
     rejectionNotif, setRejectionNotif,
     functionsLockToast,
     bottomNotif, setBottomNotif,
-    setMySubTabHint, handleMainTabChange,
+    setMySubTabHint, handleMainTabChange, coachReplayToken, onForceCoachParticipants,
     profiles, receivedLikers, setSelectedProfile, setView, openChatGuarded,
     reset, view, selectedProfile, currentUserId,
     likedIds, sentHeartTypes, sentHeartsPerPerson, receivedHeartTypes,
@@ -166,7 +169,7 @@ export function AppOverlays(p: AppOverlaysProps) {
     receivedContactShares, contactSharedWithIds, setProfiles, chatDraftRef,
     likedByTypeRecord, execLikeGuarded, showConfetti,
     shareEventNotif, setShareEventNotif, handleContactShareGuarded, saveScannedContact,
-    privacyProfileIds, heartQuotas,
+    privacyProfileIds, heartQuotas, rainbowPool,
   } = p;
 
   return (
@@ -193,7 +196,7 @@ export function AppOverlays(p: AppOverlaysProps) {
         </Suspense>
       )}
 
-      <FirstEntryCoachMarks isSubScreen={isSubScreen} mainTab={mainTab} suspended={showTutorialModal} />
+      <FirstEntryCoachMarks isSubScreen={isSubScreen} mainTab={mainTab} suspended={showTutorialModal} replayToken={coachReplayToken} onForceParticipants={onForceCoachParticipants} />
       {connStatus !== 'ok' && (
         <ReconnectOverlay
           status={connStatus}
@@ -348,6 +351,7 @@ export function AppOverlays(p: AppOverlaysProps) {
           likedByType={likedByTypeRecord()}
           sentTypesForTarget={sentHeartsPerPerson.get(likeConfirmTarget.id) ?? new Set()}
           quotas={heartQuotas}
+          rainbowPool={rainbowPool}
           onConfirm={execLikeGuarded}
           onCancel={() => setLikeConfirmTarget(null)}
         />

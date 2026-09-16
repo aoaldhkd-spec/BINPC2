@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { AppSettings } from './shared';
-import type { HeartType } from '../lib/constants';
 import { HEART_TYPES } from '../lib/constants';
-import { eventHeartQuotas, parseEventSchedule, type EventScheduleSlot } from '../lib/event-schedule';
+import { eventHeartQuotas, eventRainbowQuota, parseEventSchedule, type EventScheduleSlot } from '../lib/event-schedule';
 
 const NOTICE_PRESETS = [
   '지금은 프로필·설정만 이용할 수 있어요. 하트·채팅은 잠시 후 열립니다.',
@@ -12,10 +11,6 @@ const NOTICE_PRESETS = [
 ] as const;
 
 const EMPTY: EventScheduleSlot = { id: 'slot-1', at: '23:00', notice: '하트가 열렸어요!', functions_locked: false, heart_grants: {} };
-const TIMES = (start: string, count: number) => {
-  const [h, m] = start.split(':').map(Number); const base = h * 60 + m;
-  return Array.from({ length: count }, (_, i) => { const n = (base + i * 5) % (24 * 60); return `${String(Math.floor(n / 60)).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}`; });
-};
 
 function seoulNowHHMM(): string {
   const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date());
@@ -24,27 +19,18 @@ function seoulNowHHMM(): string {
   return `${String(h === 24 ? 0 : h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
-function rainbowUnlockGrants(slot: EventScheduleSlot): Partial<Record<HeartType, number>> {
-  const grants = { ...(slot.heart_grants ?? {}) };
-  for (const heart of HEART_TYPES) grants[heart.type] = Math.max(grants[heart.type] ?? 0, 1);
-  return grants;
-}
-
 export function EventScheduleTab({ settings, onSave }: { settings: AppSettings | null; onSave: (raw: string) => Promise<void> }) {
   const initial = useMemo(() => parseEventSchedule(settings?.event_schedule), [settings?.event_schedule]);
   const [slots, setSlots] = useState<EventScheduleSlot[]>(initial.slots.length ? initial.slots : [EMPTY]);
-  const [start, setStart] = useState(slots[0]?.at ?? '23:00');
+  const [rainbowAmount, setRainbowAmount] = useState('4');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [clock, setClock] = useState(() => new Date());
   useEffect(() => { const id = window.setInterval(() => setClock(new Date()), 1000); return () => window.clearInterval(id); }, []);
   const cumulative = useMemo(() => eventHeartQuotas({ timezone: 'Asia/Seoul', slots }, clock), [slots, clock]);
+  const cumulativeRainbow = useMemo(() => eventRainbowQuota({ timezone: 'Asia/Seoul', slots }, clock), [slots, clock]);
   const update = (id: string, patch: Partial<EventScheduleSlot>) => setSlots(prev => prev.map(s => s.id === id ? { ...s, ...patch } : s));
   const add = () => setSlots(prev => [...prev, { id: `slot-${Date.now()}`, at: '23:00', notice: '', functions_locked: false, heart_grants: {} }]);
-  const generate = () => {
-    if (typeof window !== 'undefined' && slots.length > 0 && !window.confirm('기존 슬롯과 직접 입력한 지급량을 모두 새 5분 타임라인으로 바꿀까요?')) return;
-    setSlots(TIMES(start, 6).map((at, i) => ({ id: `slot-${i + 1}`, at, notice: i === 0 ? '행사 시작' : `${i * 5}분 경과 — 하트가 추가됩니다`, functions_locked: i < 2, heart_grants: i === 2 ? { red: 1, blue: 1, pink: 1, green: 1 } : {} })));
-  };
   const save = async () => {
     setSaving(true);
     try { await onSave(JSON.stringify({ timezone: 'Asia/Seoul', slots })); setSaved(true); setTimeout(() => setSaved(false), 1800); } finally { setSaving(false); }
@@ -53,13 +39,8 @@ export function EventScheduleTab({ settings, onSave }: { settings: AppSettings |
     <div className="rounded-2xl border border-cyan-200 bg-cyan-50 p-3">
       <p className="font-black text-cyan-900 text-sm">⏱ 행사 시계 타임라인</p>
       <p className="text-[11px] text-cyan-800 mt-1 leading-relaxed">무지개하트는 빨강·파랑·분홍·초록 4종의 선택 하트예요. 버튼을 누른 뒤 저장해야 사용자에게 실시간 반영돼요. 서버 시간(Asia/Seoul)으로 적용돼요. 슬롯이 열리면 공지·잠금·하트 지급이 모든 사용자에게 실시간 반영됩니다. 기존 상대 시간 타이머는 그대로 유지됩니다.</p>
-      <div className="mt-3 flex items-center gap-2">
-        <label className="text-xs font-bold text-cyan-900">시작</label>
-        <input type="time" value={start} onChange={e => setStart(e.target.value)} className="rounded-lg border border-cyan-200 bg-white px-2 py-1.5 text-sm" />
-        <button type="button" onClick={generate} className="rounded-lg bg-cyan-600 px-3 py-1.5 text-xs font-black text-white">+5분 6칸 만들기</button>
-      </div>
-      <p className="mt-2 text-[10px] font-bold leading-relaxed text-cyan-800">⚠️ ‘+5분 6칸 만들기’는 기존 슬롯·지급량을 새로 교체합니다. 직접 입력한 grant가 있으면 저장 전에 확인해 주세요.</p>
-      <p className="mt-2 rounded-lg border border-cyan-200 bg-white/70 px-2.5 py-2 text-[11px] font-black text-cyan-900">현재까지 누적 해금: 빨강 {cumulative.red} · 파랑 {cumulative.blue} · 분홍 {cumulative.pink} · 초록 {cumulative.green} <span className="font-medium text-cyan-700">(현재 시각 이전 슬롯 합산)</span></p>
+      <p className="mt-2 text-[11px] font-bold leading-relaxed text-cyan-800">슬롯을 직접 추가하고 시각을 편집하세요. 무지개하트는 색상별 지급이 아니라, 원하는 색을 매번 골라 쓸 수 있는 하나의 누적 pool입니다. 저장해야 사용자에게 실시간 반영돼요.</p>
+      <p className="mt-2 rounded-lg border border-cyan-200 bg-white/70 px-2.5 py-2 text-[11px] font-black text-cyan-900">현재까지 누적 해금: 🌈 무지개하트 {cumulativeRainbow}개 · 고급 색상별 지급: 빨강 {cumulative.red} · 파랑 {cumulative.blue} · 분홍 {cumulative.pink} · 초록 {cumulative.green} <span className="font-medium text-cyan-700">(현재 시각 이전 슬롯 합산)</span></p>
     </div>
     <div className="space-y-3">
       {slots.map((slot, index) => <div key={slot.id} className="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
@@ -80,10 +61,11 @@ export function EventScheduleTab({ settings, onSave }: { settings: AppSettings |
           </div>
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          <button type="button" onClick={() => update(slot.id, { heart_grants: rainbowUnlockGrants(slot) })} className="rounded-lg border border-fuchsia-300 bg-fuchsia-50 px-2.5 py-1.5 text-[10px] font-black text-fuchsia-700 hover:bg-fuchsia-100">🌈 무지개하트 4개 해금</button>
-          <button type="button" onClick={() => update(slot.id, { at: seoulNowHHMM(), functions_locked: false, heart_grants: rainbowUnlockGrants(slot) })} className="rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-[10px] font-black text-amber-700 hover:bg-amber-100">지금 적용 + 무지개 해금</button>
+          <label className="flex items-center gap-1 rounded-lg border border-fuchsia-200 bg-fuchsia-50 px-2 py-1.5 text-[10px] font-black text-fuchsia-700">🌈 <input aria-label={`${index + 1}번 무지개하트 해금 수`} type="number" min="1" max="100" value={rainbowAmount} onChange={e => setRainbowAmount(e.target.value)} className="w-10 rounded border border-fuchsia-200 bg-white px-1 py-1 text-center" />개</label>
+          <button type="button" onClick={() => update(slot.id, { rainbow_pool: Math.max(1, Math.min(100, Number(rainbowAmount) || 4)) })} className="rounded-lg border border-fuchsia-300 bg-fuchsia-50 px-2.5 py-1.5 text-[10px] font-black text-fuchsia-700 hover:bg-fuchsia-100">무지개하트 {Math.max(1, Number(rainbowAmount) || 4)}개 해금</button>
+          <button type="button" onClick={() => update(slot.id, { at: seoulNowHHMM(), functions_locked: false, rainbow_pool: Math.max(1, Math.min(100, Number(rainbowAmount) || 4)) })} className="rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-[10px] font-black text-amber-700 hover:bg-amber-100">지금 적용 + 무지개 해금</button>
         </div>
-        <p className="mt-2 text-[10px] font-semibold text-gray-400">이 슬롯 지급은 추가분 (이전 슬롯과 합산)</p>
+        <p className="mt-2 text-[10px] font-semibold text-gray-400">무지개 pool은 이전 슬롯과 합산돼 어떤 색이든 자유롭게 사용할 수 있어요. 아래 색상별 지급은 선택적인 고급 설정입니다.</p>
         <div className="mt-2 grid grid-cols-2 min-[390px]:grid-cols-4 gap-2">
           {HEART_TYPES.map(h => <label key={h.type} className="flex items-center gap-1 rounded-lg bg-gray-50 px-2 py-1.5 text-[10px] font-bold text-gray-600"><span>{h.emoji}</span><span className="truncate">{h.label}</span><input aria-label={`${index + 1}번 ${h.label} 지급`} type="number" min="0" max="20" value={slot.heart_grants?.[h.type] ?? 0} onChange={e => update(slot.id, { heart_grants: { ...(slot.heart_grants ?? {}), [h.type]: Math.max(0, Math.min(20, Number(e.target.value) || 0)) } })} className="ml-auto w-10 rounded border border-gray-200 bg-white px-1 py-1 text-center" /></label>)}
         </div>
@@ -94,6 +76,6 @@ export function EventScheduleTab({ settings, onSave }: { settings: AppSettings |
       <button type="button" onClick={() => void save()} disabled={saving || slots.length === 0} className="rounded-xl bg-teal-600 px-5 py-2.5 text-sm font-black text-white disabled:opacity-40">{saving ? '저장 중…' : '타임라인 저장'}</button>
       {saved && <span className="text-xs font-bold text-teal-700">저장됐어요 · 실시간 반영</span>}
     </div>
-    <p className="text-[10px] leading-relaxed text-gray-400">하트는 처음에는 0개이고, 슬롯이 열릴 때 지급량이 추가돼요. 같은 종류도 여러 슬롯에서 추가할 수 있고, 서버가 현재 시각과 남은 quota를 최종 검증합니다. 미래 시각의 grant는 시각이 될 때 열리고, 즉시 열려면 해당 슬롯에서 ‘지금 적용’을 누르세요.</p>
+    <p className="text-[10px] leading-relaxed text-gray-400">하트는 처음에는 0개이고, 슬롯이 열릴 때 무지개 pool이 추가돼요. 사용자는 pool 안에서 매번 빨강·파랑·분홍·초록 중 원하는 색을 고를 수 있습니다. 서버가 현재 시각과 남은 pool을 최종 검증하며, 미래 슬롯은 시각이 될 때 열리고 즉시 열려면 ‘지금 적용’을 누르세요.</p>
   </div>;
 }

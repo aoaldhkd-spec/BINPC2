@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase, ensureWriteSession } from '../lib/supabase';
 import type { Profile, ContactShare } from '../types/app';
 import { HeartType } from '../lib/constants';
-import { eventHeartQuotas } from '../lib/event-schedule';
+import { eventHeartQuotas, eventRainbowQuota } from '../lib/event-schedule';
 import { isInterestHeart } from '../lib/signal-match';
 // signal-match: isInterestHeart only (mutual-heart detection)
 import {
@@ -248,11 +248,22 @@ export function useHearts(
   const executeLike = async (heartType: HeartType): Promise<boolean> => {
     if (!currentUserId || !likeConfirmTarget) return false;
     if (likeInFlightRef.current) return false;
-    const heartQuota = eventHeartQuotas(eventScheduleRaw)[heartType];
-    if (heartCountByType(heartType) >= heartQuota) {
-      setLikeError(`같은 종류의 하트는 최대 ${heartQuota}명에게만 보낼 수 있습니다.`);
-      setLikeConfirmTarget(null);
-      return false;
+    const rainbowQuota = eventRainbowQuota(eventScheduleRaw);
+    let sentTotal = 0;
+    sentHeartsPerPerson.forEach(types => { sentTotal += types.size; });
+    if (rainbowQuota > 0) {
+      if (sentTotal >= rainbowQuota) {
+        setLikeError(`무지개하트는 총 ${rainbowQuota}개까지 보낼 수 있습니다.`);
+        setLikeConfirmTarget(null);
+        return false;
+      }
+    } else {
+      const heartQuota = eventHeartQuotas(eventScheduleRaw)[heartType];
+      if (heartCountByType(heartType) >= heartQuota) {
+        setLikeError(`같은 종류의 하트는 최대 ${heartQuota}명에게만 보낼 수 있습니다.`);
+        setLikeConfirmTarget(null);
+        return false;
+      }
     }
     if (sentHeartsPerPerson.get(likeConfirmTarget.id)?.has(heartType)) {
       setLikeError('이미 보낸 하트입니다.');

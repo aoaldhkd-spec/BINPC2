@@ -9,6 +9,8 @@ export type EventScheduleSlot = {
   notice: string;
   functions_locked?: boolean;
   heart_grants?: Partial<Record<EventHeartType, number>>;
+  /** Cumulative pool of hearts spendable on any heart type. */
+  rainbow_pool?: number;
 };
 
 export type EventSchedule = {
@@ -40,12 +42,14 @@ export function parseEventSchedule(raw: unknown): EventSchedule {
           if (Number.isFinite(n) && n > 0) grants[type] = Math.min(20, Math.floor(n));
         }
       }
+      const rainbowPool = Number(row.rainbow_pool);
       return [{
         id: typeof row.id === 'string' && row.id ? row.id.slice(0, 64) : `slot-${index + 1}`,
         at,
         notice: typeof row.notice === 'string' ? row.notice.replace(/<[^>]*>/g, '').slice(0, 240) : '',
         ...(typeof row.functions_locked === 'boolean' ? { functions_locked: row.functions_locked } : {}),
         ...(Object.keys(grants).length ? { heart_grants: grants } : {}),
+        ...(Number.isFinite(rainbowPool) && rainbowPool > 0 ? { rainbow_pool: Math.min(100, Math.floor(rainbowPool)) } : {}),
       }];
     })
     : [];
@@ -78,6 +82,14 @@ export function eventHeartQuota(raw: unknown, type: EventHeartType, now = new Da
   return base + schedule.slots
     .filter(slot => slotMinute(slot.at) <= minute)
     .reduce((sum, slot) => sum + (slot.heart_grants?.[type] ?? 0), 0);
+}
+
+export function eventRainbowQuota(raw: unknown, now = new Date(), base = 0): number {
+  const schedule = parseEventSchedule(raw);
+  const minute = seoulMinute(now);
+  return base + schedule.slots
+    .filter(slot => slotMinute(slot.at) <= minute)
+    .reduce((sum, slot) => sum + (slot.rainbow_pool ?? 0), 0);
 }
 
 export function serializeEventSchedule(raw: unknown): string {

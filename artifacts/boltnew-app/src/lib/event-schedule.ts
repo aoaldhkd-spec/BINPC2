@@ -6,6 +6,8 @@ export type EventScheduleSlot = {
   notice: string;
   functions_locked?: boolean;
   heart_grants?: Partial<Record<HeartType, number>>;
+  /** Cumulative pool of hearts spendable on any heart type. */
+  rainbow_pool?: number;
 };
 export type EventSchedule = { timezone: 'Asia/Seoul'; slots: EventScheduleSlot[] };
 
@@ -28,7 +30,8 @@ export function parseEventSchedule(raw: unknown): EventSchedule {
         if (Number.isFinite(n) && n > 0) grants[t] = Math.min(20, Math.floor(n));
       }
     }
-    return [{ id: typeof r.id === 'string' ? r.id : `slot-${i + 1}`, at: r.at, notice: typeof r.notice === 'string' ? r.notice.slice(0, 240) : '', ...(typeof r.functions_locked === 'boolean' ? { functions_locked: r.functions_locked } : {}), ...(Object.keys(grants).length ? { heart_grants: grants } : {}) }];
+    const rainbowPool = Number(r.rainbow_pool);
+    return [{ id: typeof r.id === 'string' ? r.id : `slot-${i + 1}`, at: r.at, notice: typeof r.notice === 'string' ? r.notice.slice(0, 240) : '', ...(typeof r.functions_locked === 'boolean' ? { functions_locked: r.functions_locked } : {}), ...(Object.keys(grants).length ? { heart_grants: grants } : {}), ...(Number.isFinite(rainbowPool) && rainbowPool > 0 ? { rainbow_pool: Math.min(100, Math.floor(rainbowPool)) } : {}) }];
   }) : [];
   return { timezone: 'Asia/Seoul', slots: slots.sort((a, b) => a.at.localeCompare(b.at)) };
 }
@@ -42,6 +45,10 @@ function slotMinute(at: string): number { return Number(at.slice(0, 2)) * 60 + N
 export function eventHeartQuota(raw: unknown, type: HeartType, now = new Date(), base = 0): number {
   const minute = nowSeoulMinute(now);
   return base + parseEventSchedule(raw).slots.filter(s => slotMinute(s.at) <= minute).reduce((n, s) => n + (s.heart_grants?.[type] ?? 0), 0);
+}
+export function eventRainbowQuota(raw: unknown, now = new Date(), base = 0): number {
+  const minute = nowSeoulMinute(now);
+  return base + parseEventSchedule(raw).slots.filter(s => slotMinute(s.at) <= minute).reduce((n, s) => n + (s.rainbow_pool ?? 0), 0);
 }
 export function eventHeartQuotas(raw: unknown, now = new Date()): Record<HeartType, number> {
   return { red: eventHeartQuota(raw, 'red', now), blue: eventHeartQuota(raw, 'blue', now), pink: eventHeartQuota(raw, 'pink', now), green: eventHeartQuota(raw, 'green', now) };

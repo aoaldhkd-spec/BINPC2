@@ -196,8 +196,10 @@ import {
   selectAuthRequiredReject,
 } from '../lib/db-op-select-access';
 import {
+  countAllLikes,
   likesHeartLimitReject,
   likesPairIntervalBlocked,
+  likesRainbowPoolLimitReject,
   likesRateLimitReject,
   likesSameTypeLimitReached,
   matchesLikeTriple,
@@ -487,7 +489,7 @@ import {
   buildLegacyHistoryStripSql,
   parseLegacyLeftoverCounts,
 } from '../lib/db-legacy-cleanup';
-import { eventHeartQuota, EVENT_HEART_TYPES, type EventHeartType } from '../lib/db-event-schedule';
+import { eventHeartQuota, eventRainbowQuota, EVENT_HEART_TYPES, type EventHeartType } from '../lib/db-event-schedule';
 import {
   recordExpiredSseToken,
   recordMissingSseToken,
@@ -3348,14 +3350,19 @@ router.post('/op', async (req: Request, res: Response) => {
           const quotaType = (EVENT_HEART_TYPES as readonly string[]).includes(likeType)
             ? likeType as EventHeartType
             : 'red';
-          const heartQuota = eventHeartQuota(
-            (getTable('app_settings')[0] as Record<string, unknown> | undefined)?.event_schedule,
-            quotaType,
-            new Date(),
-          );
-          if (likesSameTypeLimitReached(tableData, likeLiker, likeType, heartQuota)) {
-            // 400: HEART_LIMIT을 429로 주면 클라이언트가 NAT 429로 재시도해 지연·이중전송처럼 보임
-            return sendReject(likesHeartLimitReject(heartQuota));
+          const eventScheduleRaw = (getTable('app_settings')[0] as Record<string, unknown> | undefined)?.event_schedule;
+          const rainbowQuota = eventRainbowQuota(eventScheduleRaw, new Date());
+          if (rainbowQuota > 0) {
+            // 무지개하트는 색상별 quota가 아니라 모든 색상에 공통인 누적 pool이다.
+            if (countAllLikes(tableData, likeLiker) >= rainbowQuota) {
+              return sendReject(likesRainbowPoolLimitReject(rainbowQuota));
+            }
+          } else {
+            const heartQuota = eventHeartQuota(eventScheduleRaw, quotaType, new Date());
+            if (likesSameTypeLimitReached(tableData, likeLiker, likeType, heartQuota)) {
+              // 400: HEART_LIMIT을 429로 주면 클라이언트가 NAT 429로 재시도해 지연·이중전송처럼 보임
+              return sendReject(likesHeartLimitReject(heartQuota));
+            }
           }
 
           // Time-bucket rate limiter: at most 1 like per 500 ms per (liker, liked, type) triple
