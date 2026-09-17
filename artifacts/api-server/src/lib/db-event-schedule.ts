@@ -92,6 +92,15 @@ export function eventRainbowQuota(raw: unknown, now = new Date(), base = 0): num
     .reduce((sum, slot) => sum + (slot.rainbow_pool ?? 0), 0);
 }
 
+/** Spendable grant total: rainbow_pool + all heart_grants. Never a hardcoded 4. */
+export function eventGrantedHeartTotal(raw: unknown, now = new Date()): number {
+  return eventRainbowQuota(raw, now)
+    + eventHeartQuota(raw, 'red', now)
+    + eventHeartQuota(raw, 'blue', now)
+    + eventHeartQuota(raw, 'pink', now)
+    + eventHeartQuota(raw, 'green', now);
+}
+
 export function serializeEventSchedule(raw: unknown): string {
   return JSON.stringify(parseEventSchedule(raw));
 }

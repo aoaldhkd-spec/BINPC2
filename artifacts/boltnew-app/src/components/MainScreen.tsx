@@ -729,10 +729,10 @@ export function MainScreen({
           <div data-coach="home-heart-types" className="justify-self-end flex items-center gap-1">
             <span
               data-testid="home-heart-remaining-total"
-              aria-label={`남은 하트 ${heartChatLock.remaining}개 · 해금 ${rainbowPool}개`}
+              aria-label={`총 ${rainbowPool}개 · 남은 하트 ${heartChatLock.remaining}개`}
               className={`text-[9px] min-[390px]:text-[10px] font-black tabular-nums whitespace-nowrap ${darkMode ? 'text-cyan-300' : 'text-cyan-700'}`}
             >
-              남음 {heartChatLock.remaining}/{rainbowPool}
+              총 {rainbowPool} · 남음 {heartChatLock.remaining}
             </span>
             <span
               data-testid="home-heart-lock"

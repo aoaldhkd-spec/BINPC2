@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { AppSettings } from './shared';
 import { HEART_TYPES } from '../lib/constants';
-import { currentEventSlot, eventHeartQuotas, eventRainbowQuota, parseEventSchedule, type EventScheduleSlot } from '../lib/event-schedule';
+import { currentEventSlot, eventGrantedHeartTotal, eventHeartQuotas, parseEventSchedule, type EventScheduleSlot } from '../lib/event-schedule';
 
 const NOTICE_PRESETS = [
   '지금은 프로필·설정만 이용할 수 있어요. 하트·채팅은 잠시 후 열립니다.',
@@ -21,17 +21,23 @@ export function seoulNowHHMM(now = new Date()): string {
   return `${String(h === 24 ? 0 : h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
+/** Parse admin grant input. 0 if empty/invalid — never fall back to 4. */
+export function parseHeartGrantAmount(raw: unknown): number {
+  const n = Math.floor(Number(raw));
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.min(100, n);
+}
+
 /** Immediate rainbow unlock patch: open functions, bump slot clock to now, grant shared pool. */
 export function rainbowUnlockNowPatch(amount: number, now = new Date()): Partial<EventScheduleSlot> {
-  const n = Math.max(1, Math.min(100, Math.floor(Number(amount) || 4)));
-  return { at: seoulNowHHMM(now), functions_locked: false, rainbow_pool: n };
+  const n = parseHeartGrantAmount(amount);
+  return { at: seoulNowHHMM(now), functions_locked: false, ...(n > 0 ? { rainbow_pool: n } : {}) };
 }
 
 /** Add N more to a slot's existing rainbow_pool (admin "추가하는만큼"). */
 export function nextRainbowPoolGrant(current: number | undefined, add: number): number {
   const cur = Math.max(0, Math.floor(Number(current) || 0));
-  const n = Math.max(1, Math.min(100, Math.floor(Number(add) || 4)));
-  return Math.min(100, cur + n);
+  return Math.min(100, cur + parseHeartGrantAmount(add));
 }
 
 /** Apply slot now: bump clock + open functions (no pool change). */
@@ -105,7 +111,7 @@ export function EventScheduleTab({ settings, onSave }: {
 }) {
   const initial = useMemo(() => parseEventSchedule(settings?.event_schedule), [settings?.event_schedule]);
   const [slots, setSlots] = useState<EventScheduleSlot[]>(initial.slots.length ? initial.slots : [EMPTY]);
-  const [rainbowAmount, setRainbowAmount] = useState('4');
+  const [rainbowAmount, setRainbowAmount] = useState('');
   const [picks, setPicks] = useState<Record<string, SlotApplyPick>>({});
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState<'notice' | 'hearts' | 'timeline' | 'selected' | false>(false);
@@ -117,7 +123,7 @@ export function EventScheduleTab({ settings, onSave }: {
   }, [initial]);
   const scheduleObj = useMemo(() => ({ timezone: 'Asia/Seoul' as const, slots }), [slots]);
   const cumulative = useMemo(() => eventHeartQuotas(scheduleObj, clock), [scheduleObj, clock]);
-  const cumulativeRainbow = useMemo(() => eventRainbowQuota(scheduleObj, clock), [scheduleObj, clock]);
+  const cumulativeRainbow = useMemo(() => eventGrantedHeartTotal(scheduleObj, clock), [scheduleObj, clock]);
   const active = useMemo(() => currentEventSlot(scheduleObj, clock), [scheduleObj, clock]);
   const nowHHMM = seoulNowHHMM(clock);
   const unlocked = active ? active.functions_locked !== true : !(settings?.functions_locked ?? false);
@@ -138,20 +144,22 @@ export function EventScheduleTab({ settings, onSave }: {
     setPicks(prev => ({ ...prev, [id]: { ...prev[id], [key]: !prev[id]?.[key] } }));
   };
   const applyPicked = async (id: string, pick: SlotApplyPick, kind: 'notice' | 'hearts' | 'timeline' | 'selected') => {
-    if (selectedApplyCount(pick) === 0) return;
-    if (shouldWarnTimeOnlyApply(pick) && typeof window !== 'undefined'
+    const addHearts = parseHeartGrantAmount(rainbowAmount);
+    const effective: SlotApplyPick = { ...pick, hearts: Boolean(pick.hearts && addHearts > 0) };
+    if (selectedApplyCount(effective) === 0) return;
+    if (shouldWarnTimeOnlyApply(effective) && typeof window !== 'undefined'
       && !window.confirm(`${TIME_ONLY_APPLY_HINT}. 시간만 적용할까요?`)) return;
     const local = slots.find(s => s.id === id);
     const base = savedSlots.some(s => s.id === id) ? savedSlots : slots;
     const savedSlot = base.find(s => s.id === id);
-    const next = applySavedFieldPatch(savedSlots, slots, id, selectedSlotApplyPatch(pick, {
+    const next = applySavedFieldPatch(savedSlots, slots, id, selectedSlotApplyPatch(effective, {
       at: local?.at ?? seoulNowHHMM(),
       notice: local?.notice ?? '',
       currentPool: savedSlot?.rainbow_pool,
-      addHearts: Number(rainbowAmount) || 4,
+      addHearts,
     }));
     setSlots(next);
-    await persist(next, pick.hearts ? { functions_locked: false } : undefined, kind);
+    await persist(next, effective.hearts ? { functions_locked: false } : undefined, kind);
   };
   /** Heart count only — last-saved notice/time stay. */
   const unlockRainbowNow = async (id: string) => { await applyPicked(id, { hearts: true }, 'hearts'); };
@@ -222,9 +230,9 @@ export function EventScheduleTab({ settings, onSave }: {
             <button type="button" disabled={saving} onClick={() => void applyNoticeNow(slot.id)} className="mt-2 w-full rounded-lg bg-cyan-600 px-3 py-2 text-[11px] font-black text-white hover:bg-cyan-700 disabled:opacity-40">공지만 적용</button>
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-2 rounded-xl border border-fuchsia-200 bg-fuchsia-50/70 p-2">
-            <label className="flex items-center gap-1 text-[11px] font-black text-fuchsia-800">🌈 <input aria-label={`${index + 1}번 무지개하트 해금 수`} type="number" min="1" max="100" value={rainbowAmount} onChange={e => setRainbowAmount(e.target.value)} className="w-12 rounded border border-fuchsia-200 bg-white px-1 py-1 text-center" />개</label>
-            <button type="button" disabled={saving} onClick={() => void unlockRainbowNow(slot.id)} className="rounded-lg bg-fuchsia-600 px-3 py-2 text-[11px] font-black text-white shadow-sm hover:bg-fuchsia-700 disabled:opacity-40">
-              하트만 해금·적용 {Math.max(1, Number(rainbowAmount) || 4)}개
+            <label className="flex items-center gap-1 text-[11px] font-black text-fuchsia-800">🌈 <input aria-label={`${index + 1}번 하트 해금 수`} type="number" min="1" max="100" placeholder="N" value={rainbowAmount} onChange={e => setRainbowAmount(e.target.value)} className="w-12 rounded border border-fuchsia-200 bg-white px-1 py-1 text-center" />개</label>
+            <button type="button" disabled={saving || parseHeartGrantAmount(rainbowAmount) <= 0} onClick={() => void unlockRainbowNow(slot.id)} className="rounded-lg bg-fuchsia-600 px-3 py-2 text-[11px] font-black text-white shadow-sm hover:bg-fuchsia-700 disabled:opacity-40">
+              하트만 해금·적용 {parseHeartGrantAmount(rainbowAmount) > 0 ? `${parseHeartGrantAmount(rainbowAmount)}개` : '개수 입력'}
             </button>
             <div className="w-full flex flex-wrap items-center gap-1.5 pt-1">
               <span className="text-[10px] font-black text-gray-400">같이 적용</span>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { activeEventScheduleSlot, eventHeartQuota, eventRainbowQuota, parseEventSchedule, serializeEventSchedule } from './db-event-schedule';
+import { activeEventScheduleSlot, eventGrantedHeartTotal, eventHeartQuota, eventRainbowQuota, parseEventSchedule, serializeEventSchedule } from './db-event-schedule';
 
 describe('event schedule', () => {
   it('normalizes slots and grants', () => {
@@ -21,6 +21,11 @@ describe('event schedule', () => {
     const raw = { slots: [{ at: '23:00', rainbow_pool: 4 }, { at: '23:05', rainbow_pool: 3 }] };
     expect(eventRainbowQuota(raw, new Date('2026-09-16T14:04:59.000Z'))).toBe(4);
     expect(eventRainbowQuota(raw, new Date('2026-09-16T14:05:00.000Z'))).toBe(7);
+  });
+  it('eventGrantedHeartTotal adds rainbow_pool and heart_grants without a hardcoded 4', () => {
+    const now = new Date('2026-09-16T14:05:00.000Z');
+    expect(eventGrantedHeartTotal({ slots: [{ at: '23:05', rainbow_pool: 2 }] }, now)).toBe(2);
+    expect(eventGrantedHeartTotal({ slots: [{ at: '23:05', rainbow_pool: 2, heart_grants: { red: 1, green: 2 } }] }, now)).toBe(5);
   });
   it('immediate unlock-now style slot opens rainbow pool at current Seoul minute', () => {
     const now = new Date('2026-09-16T05:30:00.000Z'); // 14:30 Seoul

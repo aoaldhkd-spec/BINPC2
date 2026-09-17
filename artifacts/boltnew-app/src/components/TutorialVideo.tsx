@@ -116,7 +116,7 @@ function Tabs({ active, hl }: { active: string; hl?: string }) {
 }
 
 /** 홈 헤더 하트 — 라이브: 총 N + 무지개 풀(잠금 시 grayscale) */
-function HeartHeader({ unlocked, total = 4 }: { unlocked: boolean; total?: number }) {
+function HeartHeader({ unlocked, total }: { unlocked: boolean; total: number }) {
   const row = [
     { e: '❤️', n: unlocked ? String(total) : '0' },
     { e: '💙', n: unlocked ? '•' : '0' },
@@ -718,7 +718,7 @@ function S7({ step }: { step: number }) {
 
   return (
     <div className="h-full flex flex-col bg-slate-900">
-      <HeartHeader unlocked={unlocked} total={4} />
+      <HeartHeader unlocked={unlocked} total={7} />
       <div className="flex-1 overflow-hidden px-2.5 pt-1.5 pb-1 space-y-1.5">
         <div className={`rounded-lg px-2 py-1 flex items-center justify-between border ${
           unlocked ? 'border-cyan-400/50 bg-cyan-500/10' : 'border-amber-400/40 bg-amber-500/10'
@@ -726,7 +726,7 @@ function S7({ step }: { step: number }) {
           <p className="text-[8px] font-black text-slate-200">하트, 채팅 → 내 상태</p>
           <span className={`text-[7px] font-black px-1.5 py-0.5 rounded-full ${
             unlocked ? 'bg-cyan-400 text-slate-950' : 'bg-amber-400 text-slate-950'
-          }`}>{unlocked ? '총 4 해금' : '잠금 중'}</span>
+          }`}>{unlocked ? `총 ${7} 해금` : '잠금 중'}</span>
         </div>
         <div className="flex rounded-lg p-0.5 bg-slate-700">
           <div className="flex-1 py-1 text-center text-[8px] font-black rounded-md bg-slate-600 text-white">💝 내 상태</div>
@@ -743,7 +743,7 @@ function S7({ step }: { step: number }) {
 
         {unlocked && step < 3 && (
           <div className="rounded-xl border border-cyan-500/40 bg-cyan-950/25 px-2 py-1 animate-in fade-in duration-400">
-            <p className="text-[8px] font-black text-cyan-200">✅ 해금됨 · 총 4</p>
+            <p className="text-[8px] font-black text-cyan-200">✅ 해금됨 · 총 N</p>
             <p className="text-[7px] text-cyan-100/80 font-bold">종류는 자유롭게 · 같은 상대에게 한 색만</p>
           </div>
         )}

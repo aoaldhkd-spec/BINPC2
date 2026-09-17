@@ -67,6 +67,13 @@ describe('LikeConfirmDialog original 4 + rainbow slot', () => {
     expect(screen.getByTestId('like-rainbow-remaining').textContent).toBe('8개');
     expect(screen.getByTestId('like-rainbow-btn').textContent).toContain('해금 8개');
     expect(screen.getByTestId('like-rainbow-btn').textContent).toContain('남음 8개');
+    expect(screen.getByTestId('like-heart-red-remaining').textContent).toBe('8개');
+  });
+
+  it('shows 2 remaining when admin granted 2', () => {
+    renderDialog(2);
+    expect(screen.getByTestId('like-heart-red-remaining').textContent).toBe('2개');
+    expect(screen.getByTestId('like-rainbow-remaining').textContent).toBe('2개');
   });
 
   it('keeps a locked gray rainbow until pool is granted', () => {
