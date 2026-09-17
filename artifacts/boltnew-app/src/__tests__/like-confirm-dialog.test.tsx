@@ -87,6 +87,8 @@ describe('LikeConfirmDialog original 4 + rainbow slot', () => {
     expect(screen.getByTestId('like-heart-red-remaining').textContent).toBe('0개');
     expect(screen.getByTestId('like-rainbow-remaining').textContent).toBe('2개');
     expect(screen.getByTestId('like-heart-red')).toHaveProperty('disabled', true);
+    expect(screen.getByTestId('like-heart-red').textContent).toContain('로맨틱한 호감을 표현해요');
+    expect(screen.getByTestId('like-heart-red').className).toContain('bg-gray-50');
   });
 
   it('keeps a locked gray rainbow until pool is granted', () => {
@@ -101,7 +103,8 @@ describe('LikeConfirmDialog original 4 + rainbow slot', () => {
   it('opens rainbow modal to pick 1 of the hearts above', () => {
     const onConfirm = renderDialog(4);
     fireEvent.click(screen.getByTestId('like-rainbow-btn'));
-    expect(screen.getByTestId('rainbow-color-dialog').textContent).toContain('위 하트 중에서 1개 선택하세요');
+    expect(screen.getByTestId('rainbow-color-dialog').textContent).toContain('위 하트 중에서 1개 선택');
+    expect(screen.getByTestId('rainbow-color-dialog').textContent).not.toContain('선택하세요');
     expect(screen.getByTestId('rainbow-color-dialog').textContent).not.toContain('4개 중 4개');
     fireEvent.click(screen.getAllByText('친구')[1]);
     fireEvent.click(screen.getAllByRole('button', { name: '보내기' })[1]);

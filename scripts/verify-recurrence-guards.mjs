@@ -257,7 +257,7 @@ mustMatch('artifacts/boltnew-app/src/components/LikeConfirmDialog.tsx', '35_like
   /bindMobileTap/,
   /selectedRef/,
   /like-rainbow-btn/,
-  /위 하트 중에서 1개 선택하세요/,
+  /위 하트 중에서 1개 선택/,
   /aria-disabled/,
   /h\.label/,
   /h\.desc/,
@@ -344,6 +344,7 @@ mustNotMatch('artifacts/boltnew-app/src/hooks/useHearts.ts', '35_like_spend_rain
 mustMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '35_heart_chat_lock_count', [
   /home-heart-remaining-total/,
   /home-heart-lock/,
+  /home-heart-remaining-rainbow/,
   /남음 \{heartChatLock\.remaining\}/,
   /headerHeartRemainings/,
   /grid-cols-2 grid-rows-2/,
@@ -362,6 +363,8 @@ mustNotMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '35_header_n
   /💖하트/,
   /💬채팅/,
   /home-chat-lock/,
+  /남음 4\/4/,
+  /하트 채팅/,
 ]);
 mustNotMatch('artifacts/boltnew-app/src/admin/event-schedule-apply.ts', '35_no_hardcoded_heart_qty_4', [
   /\|\| 4/,

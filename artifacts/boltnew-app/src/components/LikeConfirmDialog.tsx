@@ -100,7 +100,7 @@ export function LikeConfirmDialog({
                 <div className="flex-1 min-w-0">
                   <p className={`text-sm font-bold ${isSel ? h.text : 'text-gray-800'}`}>{h.label}</p>
                   <p className="text-xs text-gray-400">
-                    {alreadySentToThisPerson ? '이미 보낸 하트' : unlocked ? h.desc : '관리자 해금 후 사용할 수 있어요'}
+                    {alreadySentToThisPerson ? '이미 보낸 하트' : h.desc}
                   </p>
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
@@ -172,8 +172,8 @@ export function LikeConfirmDialog({
           data-testid="rainbow-color-dialog"
         >
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
-            <p className="text-center text-lg font-bold text-gray-900">위 하트 중에서 1개 선택하세요</p>
-            <p className="mt-1 text-center text-xs text-fuchsia-700 font-semibold">🌈 무지개하트 남음 {unlockedRainbowCount}개 · 1개 선택</p>
+            <p className="text-center text-lg font-bold text-gray-900">위 하트 중에서 1개 선택</p>
+            <p className="mt-1 text-center text-xs text-fuchsia-700 font-semibold">🌈 무지개하트 남음 {unlockedRainbowCount}개</p>
             <div className="space-y-2 mt-5 mb-5">
               {HEART_TYPES.map(h => {
                 const alreadySentToThisPerson = sentTypesForTarget.has(h.type);

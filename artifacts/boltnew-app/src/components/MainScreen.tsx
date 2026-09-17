@@ -736,7 +736,7 @@ export function MainScreen({
             />
           </div>
           {/* 우: 무지개 2×2 + 색 하트 2×2 — 술번개를 가로로 밀어내지 않음 */}
-          <div data-coach="home-heart-types" className="justify-self-end flex items-center gap-1">
+          <div data-coach="home-heart-types" className="justify-self-end flex items-center gap-1 shrink-0">
             {(() => {
               const rainbow = headerHearts.find(c => c.key === 'rainbow');
               const colors = headerHearts.filter(c => c.key !== 'rainbow');
@@ -747,17 +747,19 @@ export function MainScreen({
                     data-testid="home-heart-remaining-total"
                     aria-label={`${rainbow.label} 남음 ${heartChatLock.remaining}개`}
                     title={`${rainbow.label} 남음 ${heartChatLock.remaining}개`}
-                    className={`grid grid-cols-2 grid-rows-2 w-11 h-11 rounded-lg overflow-hidden ${
+                    className={`grid grid-cols-2 grid-rows-2 w-11 h-11 rounded-lg overflow-hidden shrink-0 ${
                       rainbow.locked
                         ? (darkMode ? 'bg-slate-700 text-slate-300' : 'bg-gray-100 text-gray-400')
                         : (darkMode ? 'bg-fuchsia-900/60 text-fuchsia-200' : 'bg-fuchsia-50 text-fuchsia-800')
                     }`}
                   >
                     <span data-testid="home-heart-lock" aria-hidden className="flex items-center justify-center text-[11px] leading-none">{rainbow.emoji}</span>
+                    <span data-testid="home-heart-remaining-rainbow" className="flex items-center justify-center text-[11px] font-black tabular-nums leading-none">{rainbow.remaining}</span>
                     <span aria-hidden className="flex items-center justify-center text-[7px] font-black leading-none">남음</span>
-                    <span className="col-span-2 flex items-center justify-center text-[11px] font-black tabular-nums leading-none">남음 {heartChatLock.remaining}</span>
+                    <span aria-hidden className="flex items-center justify-center text-[7px] font-black leading-none">개</span>
                   </div>
-                  <div className="grid grid-cols-2 grid-rows-2 gap-px w-11 h-11">
+                  <span className="sr-only">남음 {heartChatLock.remaining}</span>
+                  <div className="grid grid-cols-2 grid-rows-2 gap-px w-11 h-11 shrink-0">
                     {colors.map((chip) => (
                       <span
                         key={chip.key}
