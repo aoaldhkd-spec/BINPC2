@@ -157,7 +157,7 @@ export function LikeConfirmDialog({
             <p className="text-center text-[11px] font-semibold text-gray-500 mt-1">일반 하트는 줄지 않아요</p>
             <div className="grid grid-cols-2 gap-2 mt-4 mb-4">
               {HEART_TYPES.map(h => {
-                const disabled = !rainbowAvailable || sentTypesForTarget.has(h.type);
+                const disabled = !rainbowAvailable;
                 const isSel = selected === h.type;
                 return (
                   <button

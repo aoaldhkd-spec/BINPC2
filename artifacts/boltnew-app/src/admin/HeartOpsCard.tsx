@@ -4,10 +4,13 @@ import { HEART_TYPES } from '../lib/constants';
 import {
   adminHeartStatusLine,
   DEFAULT_HEART_OPS,
+  formatHeartOpsClock,
   formatHeartOpsTime,
   heartLabel,
   HEART_OPS_AT_RE,
   parseHeartOps,
+  parseHeartOpsClock,
+  patchHeartOpsSlotAt,
   serializeHeartOps,
   type HeartOpsConfig,
   type HeartOpsSlot,
@@ -129,23 +132,39 @@ export function HeartOpsCard({ settings, onSave }: {
           <div className="space-y-1.5">
             {slots.map((slot, idx) => (
               <div key={slot.id} className="flex flex-wrap items-center gap-1.5 rounded-lg border border-gray-100 bg-white px-2 py-1.5">
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  aria-label={`해금 시각 ${idx + 1}`}
-                  value={slot.at}
-                  placeholder="23:00"
-                  onChange={e => {
-                    const v = e.target.value.replace(/[^\d:]/g, '').slice(0, 5);
-                    setSlots(prev => prev.map((s, i) => i === idx ? { ...s, at: v } : s));
-                  }}
-                  onBlur={() => {
-                    if (!HEART_OPS_AT_RE.test(slot.at)) {
-                      setSlots(prev => prev.map((s, i) => i === idx ? { ...s, at: DEFAULT_HEART_OPS.slots[idx]?.at ?? '23:00' } : s));
-                    }
-                  }}
-                  className="w-[5.5rem] rounded border border-gray-200 bg-gray-50 px-1 py-0.5 text-[11px] font-black tabular-nums"
-                />
+                {(() => {
+                  const clock = parseHeartOpsClock(slot.at);
+                  const applyClock = (hour: number, minute: number) => {
+                    const next = formatHeartOpsClock(hour, minute);
+                    if (!next || !HEART_OPS_AT_RE.test(next)) return;
+                    setSlots(prev => patchHeartOpsSlotAt(prev, idx, hour, minute));
+                  };
+                  return (
+                    <span className="inline-flex items-center gap-0.5">
+                      <select
+                        aria-label={`해금 시 ${idx + 1}`}
+                        value={clock.hour}
+                        onChange={e => applyClock(Number(e.target.value), clock.minute)}
+                        className="rounded border border-gray-200 bg-gray-50 px-0.5 py-0.5 text-[11px] font-black tabular-nums"
+                      >
+                        {Array.from({ length: 25 }, (_, h) => (
+                          <option key={h} value={h}>{String(h).padStart(2, '0')}</option>
+                        ))}
+                      </select>
+                      <span className="text-[11px] font-black text-gray-500">:</span>
+                      <select
+                        aria-label={`해금 분 ${idx + 1}`}
+                        value={clock.minute}
+                        onChange={e => applyClock(clock.hour, Number(e.target.value))}
+                        className="rounded border border-gray-200 bg-gray-50 px-0.5 py-0.5 text-[11px] font-black tabular-nums"
+                      >
+                        {Array.from({ length: 60 }, (_, m) => (
+                          <option key={m} value={m}>{String(m).padStart(2, '0')}</option>
+                        ))}
+                      </select>
+                    </span>
+                  );
+                })()}
                 <span className="text-[9px] text-gray-400 tabular-nums">{formatHeartOpsTime(slot.at)}</span>
                 <div className="flex flex-wrap gap-1 min-w-0 flex-1">
                   {UNLOCK_ORDER.map(key => {

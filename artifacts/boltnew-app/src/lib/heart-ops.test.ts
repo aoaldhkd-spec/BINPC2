@@ -1,9 +1,13 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import {
+  canOpenHeartPicker,
   DEFAULT_HEART_OPS,
+  formatHeartOpsClock,
   grantRemaining,
   heartUsageFromLikeRows,
   parseHeartOps,
+  parseHeartOpsClock,
+  patchHeartOpsSlotAt,
   rainbowRemaining,
   serializeHeartOps,
   slotEventMinute,
@@ -24,6 +28,30 @@ function seoulTime(iso: string): Date {
 describe('heart-ops lock/unlock model', () => {
   const config = DEFAULT_HEART_OPS;
   const emptyUsage = () => heartUsageFromLikeRows([], 'me');
+
+  it('hour/minute helpers keep 24:00/24:30 and patch one slot only', () => {
+    expect(formatHeartOpsClock(23, 15)).toBe('23:15');
+    expect(formatHeartOpsClock(24, 0)).toBe('24:00');
+    expect(formatHeartOpsClock(24, 30)).toBe('24:30');
+    expect(formatHeartOpsClock(25, 0)).toBeNull();
+    expect(parseHeartOpsClock('24:30')).toEqual({ hour: 24, minute: 30 });
+    expect(slotEventMinute('24:00')).toBe(1440);
+    expect(slotEventMinute('24:30')).toBe(1470);
+
+    const patched = patchHeartOpsSlotAt(DEFAULT_HEART_OPS.slots, 0, 23, 15);
+    expect(patched[0].at).toBe('23:15');
+    expect(patched[0].unlock).toEqual(DEFAULT_HEART_OPS.slots[0].unlock);
+    expect(patched.slice(1)).toEqual(DEFAULT_HEART_OPS.slots.slice(1));
+    const roundTrip = parseHeartOps(serializeHeartOps({ ...DEFAULT_HEART_OPS, slots: patched }));
+    expect(roundTrip.slots.map(s => s.at)).toEqual(['23:15', '23:30', '24:00', '24:30']);
+    expect(roundTrip.slots.map(s => s.unlock)).toEqual(DEFAULT_HEART_OPS.slots.map(s => s.unlock));
+  });
+
+  it('canOpenHeartPicker stays open for rainbow after all grant types were sent', () => {
+    expect(canOpenHeartPicker(0, 0)).toBe(true);
+    expect(canOpenHeartPicker(4, 0)).toBe(false);
+    expect(canOpenHeartPicker(4, 3)).toBe(true);
+  });
 
   it('grant: locked → unavailable, unlocked → 1, used → 0', () => {
     vi.setSystemTime(seoulTime('2026-09-17T22:00:00+09:00'));

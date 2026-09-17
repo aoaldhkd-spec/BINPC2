@@ -30,6 +30,18 @@ export function matchesLikeTriple(
   );
 }
 
+/** Duplicate send is per (liker, liked, type, like_source). Grant and rainbow may share a type. */
+export function matchesLikeSend(
+  row: Record<string, unknown>,
+  likerId: string,
+  likedId: string,
+  heartType: string,
+  likeSource: 'grant' | 'rainbow',
+): boolean {
+  return matchesLikeTriple(row, likerId, likedId, heartType)
+    && normalizeLikeSource(row.like_source) === likeSource;
+}
+
 export function countSameTypeLikes(
   rows: Record<string, unknown>[],
   likerId: string,

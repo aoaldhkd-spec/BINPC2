@@ -46,6 +46,37 @@ const TYPES: HeartType[] = ['red', 'blue', 'pink', 'green'];
 /** HH:mm including 24:00–24:59 for post-midnight event slots. */
 export const HEART_OPS_AT_RE = /^([01]\d|2[0-4]):([0-5]\d)$/;
 
+/** Split stored `HH:MM` (including 24:xx) for hour/minute editors. */
+export function parseHeartOpsClock(at: string): { hour: number; minute: number } {
+  if (!HEART_OPS_AT_RE.test(at)) return { hour: 23, minute: 0 };
+  return { hour: Number(at.slice(0, 2)), minute: Number(at.slice(3, 5)) };
+}
+
+/** Build `HH:MM` including 24:00–24:59. Invalid values return null. */
+export function formatHeartOpsClock(hour: number, minute: number): string | null {
+  if (!Number.isInteger(hour) || !Number.isInteger(minute)) return null;
+  if (hour < 0 || hour > 24 || minute < 0 || minute > 59) return null;
+  const at = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+  return HEART_OPS_AT_RE.test(at) ? at : null;
+}
+
+/** Change one slot's `at` only — never drops sibling slots or unlock lists. */
+export function patchHeartOpsSlotAt(
+  slots: HeartOpsSlot[],
+  index: number,
+  hour: number,
+  minute: number,
+): HeartOpsSlot[] {
+  const at = formatHeartOpsClock(hour, minute);
+  if (!at) return slots;
+  return slots.map((s, i) => (i === index ? { ...s, at } : s));
+}
+
+/** Open the like picker when any grant type remains, or rainbow still has uses. */
+export function canOpenHeartPicker(sentTypeCount: number, rainbowLeft: number): boolean {
+  return sentTypeCount < TYPES.length || rainbowLeft > 0;
+}
+
 export function heartLabel(key: HeartUnlockKey): string {
   if (key === 'rainbow') return '무지개';
   return HEART_TYPES.find(h => h.type === key)?.label ?? key;

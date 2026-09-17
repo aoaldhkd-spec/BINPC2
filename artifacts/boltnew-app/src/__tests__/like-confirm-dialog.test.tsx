@@ -38,6 +38,7 @@ function renderDialog(
   unlock: { grants?: HeartType[]; rainbow?: boolean },
   usageRows: Record<string, unknown>[] = [],
   onConfirm = vi.fn(),
+  sentTypes: HeartType[] = [],
 ) {
   const keys: ('red' | 'blue' | 'pink' | 'green' | 'rainbow')[] = [
     ...(unlock.grants ?? []),
@@ -56,7 +57,7 @@ function renderDialog(
   render(
     <LikeConfirmDialog
       target={PROFILE}
-      sentTypesForTarget={new Set()}
+      sentTypesForTarget={new Set(sentTypes)}
       heartOps={heartOps}
       heartUsage={heartUsage}
       onConfirm={onConfirm}
@@ -110,5 +111,23 @@ describe('LikeConfirmDialog lock/unlock hearts', () => {
     const cfg = likeDialogHeartOps({ red: 1, blue: 0, pink: 0, green: 0 }, 4);
     expect(cfg.instant_unlock).toContain('red');
     expect(cfg.instant_unlock).toContain('rainbow');
+  });
+
+  it('rainbow picker keeps all 4 colors after a grant heart was already sent', () => {
+    const onConfirm = renderDialog(
+      { grants: ['red', 'blue', 'pink', 'green'], rainbow: true },
+      [{ liker_id: 'me', heart_type: 'red', like_source: 'grant' }],
+      vi.fn(),
+      ['red'],
+    );
+    expect(screen.getByTestId('like-heart-red')).toHaveProperty('disabled', true);
+    fireEvent.click(screen.getByTestId('like-rainbow-btn'));
+    expect(screen.getByTestId('rainbow-pick-red')).toHaveProperty('disabled', false);
+    expect(screen.getByTestId('rainbow-pick-blue')).toHaveProperty('disabled', false);
+    expect(screen.getByTestId('rainbow-pick-pink')).toHaveProperty('disabled', false);
+    expect(screen.getByTestId('rainbow-pick-green')).toHaveProperty('disabled', false);
+    fireEvent.click(screen.getByTestId('rainbow-pick-red'));
+    fireEvent.click(screen.getAllByRole('button', { name: '보내기' })[1]);
+    expect(onConfirm).toHaveBeenCalledWith('red', 'rainbow');
   });
 });

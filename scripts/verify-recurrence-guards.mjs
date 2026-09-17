@@ -314,6 +314,37 @@ mustMatch('artifacts/boltnew-app/src/admin/HeartOpsCard.tsx', '35_heart_ops_card
   /HEART_OPS_AT_RE/,
   /serializeHeartOps/,
 ]);
+mustMatch('artifacts/boltnew-app/src/admin/HeartOpsCard.tsx', '35_heart_ops_hh_mm_selects', [
+  /parseHeartOpsClock/,
+  /patchHeartOpsSlotAt/,
+  /해금 시/,
+  /해금 분/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/admin/HeartOpsCard.tsx', '35_heart_ops_no_native_time_input', [
+  /type=["']time["']/,
+]);
+mustMatch('artifacts/boltnew-app/src/lib/heart-ops.ts', '35_heart_ops_clock_24xx', [
+  /formatHeartOpsClock/,
+  /hour > 24/,
+]);
+mustMatch('artifacts/boltnew-app/src/components/LikeConfirmDialog.tsx', '35_rainbow_pick_ignores_grant_sent', [
+  /rainbow-color-dialog/,
+  /const disabled = !rainbowAvailable;/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/components/LikeConfirmDialog.tsx', '35_rainbow_pick_no_sent_type_disable', [
+  /rainbowAvailable \|\| sentTypesForTarget/,
+]);
+mustMatch('artifacts/boltnew-app/src/hooks/useHearts.ts', '35_rainbow_send_ignores_sent_type', [
+  /source !== 'rainbow' && sentHeartsPerPerson/,
+  /canOpenHeartPicker/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-op-likes-limits.ts', '35_like_dup_includes_source', [
+  /export function matchesLikeSend/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '35_like_insert_dup_uses_source', [
+  /matchesLikeSend/,
+  /likeType\}:\$\{likeSource\}/,
+]);
 mustMatch('artifacts/boltnew-app/src/admin/DashboardTab.tsx', '35_dashboard_hosts_heart_ops', [
   /HeartOpsCard/,
   /onSaveSchedule/,
@@ -1896,6 +1927,7 @@ mustMatch('artifacts/api-server/src/lib/db-op-likes-limits.ts', '67_op_likes_lim
   /export function likesRateLimitReject/,
   /export function likesSameTypeLimitReached/,
   /export function matchesLikeTriple/,
+  /export function matchesLikeSend/,
 ]);
 mustMatch('artifacts/api-server/src/lib/db-pin-lookup.ts', '67_pin_lookup_exports', [
   /export function validateByPinBody/,

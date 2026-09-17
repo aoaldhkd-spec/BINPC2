@@ -1,8 +1,9 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase, ensureWriteSession } from '../lib/supabase';
 import type { Profile, ContactShare } from '../types/app';
-import { HeartType, HEART_TYPES } from '../lib/constants';
+import { HeartType } from '../lib/constants';
 import {
+  canOpenHeartPicker,
   emptyHeartUsage,
   grantRemaining,
   heartUsageFromLikeRows,
@@ -250,7 +251,8 @@ export function useHearts(
       return;
     }
     const sent = sentHeartsPerPerson.get(profileId);
-    if (sent && sent.size >= HEART_TYPES.length) return;
+    const rainbowLeft = rainbowRemaining(parseHeartOps(eventScheduleRaw), heartUsage());
+    if (!canOpenHeartPicker(sent?.size ?? 0, rainbowLeft)) return;
     setLikeConfirmTarget(target);
   };
 
@@ -275,7 +277,7 @@ export function useHearts(
       setLikeConfirmTarget(null);
       return false;
     }
-    if (sentHeartsPerPerson.get(likeConfirmTarget.id)?.has(heartType)) {
+    if (source !== 'rainbow' && sentHeartsPerPerson.get(likeConfirmTarget.id)?.has(heartType)) {
       setLikeError('이미 보낸 하트입니다.');
       setLikeConfirmTarget(null);
       return false;

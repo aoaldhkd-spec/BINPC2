@@ -14,6 +14,7 @@ import {
   LIKES_HEART_LIMIT_MESSAGE,
   LIKES_RATE_LIMIT_MESSAGE,
   LIKES_SAME_TYPE_TARGET_MAX,
+  matchesLikeSend,
   matchesLikeTriple,
   normalizeLikeSource,
   planLikesMinuteBucketConsume,
@@ -30,6 +31,8 @@ describe('db-op-likes-limits', () => {
     ];
     expect(matchesLikeTriple(rows[0], 'me', 'a', 'red')).toBe(true);
     expect(matchesLikeTriple(rows[0], 'me', 'a', 'blue')).toBe(false);
+    expect(matchesLikeSend({ ...rows[0], like_source: 'grant' }, 'me', 'a', 'red', 'grant')).toBe(true);
+    expect(matchesLikeSend({ ...rows[0], like_source: 'grant' }, 'me', 'a', 'red', 'rainbow')).toBe(false);
     expect(countSameTypeLikes(rows, 'me', 'red')).toBe(2);
     expect(LIKES_SAME_TYPE_TARGET_MAX).toBe(2);
     expect(likesSameTypeLimitReached(rows, 'me', 'red')).toBe(true);
@@ -101,6 +104,13 @@ describe('db-op-likes-limits', () => {
       grantUsed: { red: false, blue: false, pink: false, green: false },
       rainbowUsed: RAINBOW_MAX_USES,
     })?.body.error.message).toBe('무지개하트를 모두 사용했습니다.');
+    expect(likesHeartOpsReject({
+      source: 'rainbow',
+      heartType: 'red',
+      unlockedKeys: unlocked,
+      grantUsed: { red: true, blue: false, pink: false, green: false },
+      rainbowUsed: 1,
+    })).toBeNull();
     expect(likesHeartOpsReject({
       source: 'rainbow',
       heartType: 'blue',

@@ -201,7 +201,7 @@ import {
   likesRateLimitReject,
   likesHeartOpsReject,
   normalizeLikeSource,
-  matchesLikeTriple,
+  matchesLikeSend,
   planLikesMinuteBucketConsume,
 } from '../lib/db-op-likes-limits';
 import {
@@ -3331,9 +3331,10 @@ router.post('/op', async (req: Request, res: Response) => {
           const likeLiker = String(effectiveRow.liker_id);
           const likeLiked = String(effectiveRow.liked_id);
           const likeType = String(effectiveRow.heart_type);
-          const likeTriple = (r: Record<string, unknown>) =>
-            matchesLikeTriple(r, likeLiker, likeLiked, likeType);
-          const dupLike = tableData.find(likeTriple);
+          const likeSource = normalizeLikeSource(effectiveRow.like_source);
+          const likeSend = (r: Record<string, unknown>) =>
+            matchesLikeSend(r, likeLiker, likeLiked, likeType, likeSource);
+          const dupLike = tableData.find(likeSend);
           if (dupLike) return res.json({ data: single ? dupLike : [dupLike], error: null }); // 멱등: 기존 row 반환
           const referenceCheck = await ensureWriteReferences(table, effectiveRow);
           if (!referenceCheck.ok) return sendReferenceFailure(res, referenceCheck);
@@ -3341,7 +3342,6 @@ router.post('/op', async (req: Request, res: Response) => {
           // 하트 운영: 일반(종류별 1) vs 무지개(4) — like_source로 구분.
           const eventScheduleRaw = (getTable('app_settings')[0] as Record<string, unknown> | undefined)?.event_schedule;
           const now = new Date();
-          const likeSource = normalizeLikeSource(effectiveRow.like_source);
           const heartOps = parseHeartOps(eventScheduleRaw);
           const usage = heartUsageFromLikeRows(tableData, likeLiker);
           const capReject = likesHeartOpsReject({
@@ -3354,21 +3354,20 @@ router.post('/op', async (req: Request, res: Response) => {
           if (capReject) return sendReject(capReject);
           effectiveRow = { ...effectiveRow, like_source: likeSource };
 
-          // Time-bucket rate limiter: at most 1 like per 500 ms per (liker, liked, type) triple
-          // Keyed on all three dimensions so different heart types can still be sent concurrently;
-          // only the exact same (liker, liked, type) combination is throttled within the window.
-          const rateKey = `${likeLiker}:${likeLiked}:${likeType}`;
+          // Time-bucket rate limiter: at most 1 like per 500 ms per (liker, liked, type, source)
+          // Grant and rainbow of the same color are independent sends.
+          const rateKey = `${likeLiker}:${likeLiked}:${likeType}:${likeSource}`;
           const lastMs = _likesLastInsert.get(rateKey) ?? 0;
           if (likesPairIntervalBlocked(lastMs, Date.now(), LIKES_MIN_INTERVAL_MS)) {
             // Rapid duplicate — return existing row if any (never silent null success)
-            const recent = tableData.find(likeTriple);
+            const recent = tableData.find(likeSend);
             if (recent) return res.json({ data: single ? recent : [recent], error: null });
             return sendReject(likesRateLimitReject());
           }
           // 멀티 인스턴스: PG 공용 슬롯 (로컬 Map 만으로는 인스턴스별 우회 가능)
           const distributedOk = await claimDistributedRateSlot(`like_pair:${rateKey}`, LIKES_MIN_INTERVAL_MS);
           if (!distributedOk) {
-            const recent = tableData.find(likeTriple);
+            const recent = tableData.find(likeSend);
             if (recent) return res.json({ data: single ? recent : [recent], error: null });
             return sendReject(likesRateLimitReject());
           }
