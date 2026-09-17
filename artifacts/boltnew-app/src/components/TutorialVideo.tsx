@@ -4,7 +4,7 @@
  * S1 입장코드 → S2 아바타 → S3 한마디/칩 → S4 이모지·스티커 → S5 사진·빠른메시지
  * → S6 스와이프·길게누르기 → S7 받은/보낸 하트 (하트 잠금→해금 · 무지개 4)
  */
-import { useState, useEffect, useRef, useCallback, type ReactElement, type ReactNode, type PointerEvent, type MouseEvent } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, type ReactElement, type ReactNode, type PointerEvent, type MouseEvent } from 'react';
 import { SkipBack, SkipForward, Play, Pause } from 'lucide-react';
 
 // ── 커서 — RAF lerp (느리게 수렴 → 끊김·점프 완화) ───────────────────────────
@@ -115,14 +115,13 @@ function Tabs({ active, hl }: { active: string; hl?: string }) {
   );
 }
 
-/** 홈 헤더 하트 — 라이브: 무지개 + 호감·친구·뜨밤·칭찬 잠금/해금 (개수 표시 없음) */
+/** 홈 헤더 하트 — 라이브: 무지개 2×2 + 호감·뜨밤·친구·칭찬 2×2 (개수 표시 없음) */
 function HeartHeader({ unlocked }: { unlocked: boolean }) {
-  const chips = [
-    { e: unlocked ? '🌈' : '🔒🌈' },
-    { e: '❤️' },
-    { e: '💗' },
-    { e: '💙' },
-    { e: '💚' },
+  const colors = [
+    { key: 'red', e: '❤️' },
+    { key: 'pink', e: '💗' },
+    { key: 'blue', e: '💙' },
+    { key: 'green', e: '💚' },
   ];
   return (
     <div className={`relative flex items-center justify-between gap-1 px-2 py-1.5 border-b overflow-hidden ${
@@ -136,17 +135,27 @@ function HeartHeader({ unlocked }: { unlocked: boolean }) {
       <div className="min-w-0 relative">
         <p className="text-[8px] font-black text-white tracking-tight truncate">🍻 범일NPC</p>
         <p className={`text-[6px] font-black truncate ${unlocked ? 'text-cyan-300' : 'text-amber-300'}`}>
-          {unlocked ? '✅ 무지개하트 해금' : '🔒 관리자 해금 대기'}
+          {unlocked ? '✅ 하트 해금' : '🔒 다음 해금까지 12:30'}
         </p>
       </div>
-      <div className="relative flex items-center gap-0.5 flex-shrink-0">
-        {chips.map((h) => (
-          <span key={h.e} className={`inline-flex items-center gap-0.5 rounded-full px-1 py-0.5 text-[8px] font-black tabular-nums ${
-            unlocked ? 'bg-cyan-500/15 text-cyan-100' : 'bg-amber-950/40 text-amber-200 grayscale opacity-70'
-          }`}>
-            {h.e}
-          </span>
-        ))}
+      <div className="relative flex items-center gap-1 flex-shrink-0">
+        <div className={`grid grid-cols-2 grid-rows-2 w-8 h-8 rounded-md overflow-hidden ${
+          unlocked ? 'bg-fuchsia-900/60 text-fuchsia-100' : 'bg-slate-700 text-slate-300'
+        }`}>
+          <span aria-hidden className="col-span-2 row-span-2 flex items-center justify-center text-[11px] leading-none">{unlocked ? '🌈' : '🔒🌈'}</span>
+        </div>
+        <div className="grid grid-cols-2 grid-rows-2 gap-px w-8 h-8">
+          {colors.map((h) => (
+            <span
+              key={h.key}
+              className={`flex items-center justify-center rounded-[3px] text-[8px] leading-none ${
+                unlocked ? 'bg-slate-700 text-white' : 'bg-slate-800 text-slate-400 grayscale opacity-70'
+              }`}
+            >
+              {h.e}
+            </span>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -732,7 +741,7 @@ function S7({ step }: { step: number }) {
         {step >= 1 && !unlocked && (
           <div className="rounded-xl border border-amber-500/40 bg-amber-950/30 px-2 py-1.5 animate-in fade-in duration-400">
             <p className="text-[8px] font-black text-amber-200">🔒 하트 잠금</p>
-            <p className="text-[7px] text-amber-100/80 font-bold mt-0.5 leading-snug">관리자가 해금하면 오른쪽 위 무지개·호감·친구·뜨밤·칭찬 하트가 켜져요</p>
+            <p className="text-[7px] text-amber-100/80 font-bold mt-0.5 leading-snug">정해진 시간에 호감·친구·뜨밤·칭찬·무지개가 열려요. 남은 시간은 위 안내줄</p>
             <Ring on={step === 1} color="ring-amber-400" />
           </div>
         )}
@@ -740,13 +749,13 @@ function S7({ step }: { step: number }) {
         {unlocked && step < 3 && (
           <div className="rounded-xl border border-cyan-500/40 bg-cyan-950/25 px-2 py-1 animate-in fade-in duration-400">
             <p className="text-[8px] font-black text-cyan-200">✅ 해금됨</p>
-            <p className="text-[7px] text-cyan-100/80 font-bold">일반 하트는 종류당 1번 · 무지개는 4번</p>
+            <p className="text-[7px] text-cyan-100/80 font-bold">일반 하트는 종류당 1번 · 무지개는 4번, 일반 하트는 안 줄어요</p>
           </div>
         )}
 
         {step >= 1 && (
           <div className="flex flex-col items-center py-0.5">
-            <span className="text-sm leading-none animate-bounce" aria-hidden>👇</span>
+            <span className="text-sm leading-none" aria-hidden>👇</span>
             <span className="text-[7px] font-bold text-rose-300">받은 하트가 있어요 확인해보세요</span>
           </div>
         )}
@@ -793,7 +802,7 @@ function S7({ step }: { step: number }) {
             <p className="text-[9px] font-black text-slate-200 px-2.5 py-1.5">💌 보낸 하트</p>
             <div className="px-2 pb-2 grid grid-cols-2 gap-1.5">
               <div className="rounded-xl p-1.5 bg-amber-900/25">
-                <div className="w-full h-8 rounded-lg bg-gradient-to-br from-orange-400 to-amber-600 mb-1" />
+                <div className="w-full h-8 rounded-lg bg-gradient-to-br from-rose-400 to-pink-600 mb-1" />
                 <p className="text-white text-[8px] font-bold truncate">황금여우</p>
                 <p className="text-[7px] text-rose-300">❤️ 호감</p>
                 <span className="mt-0.5 inline-block text-[6px] font-bold px-1 py-0.5 rounded bg-amber-500/20 text-amber-300">대기 중</span>
@@ -952,6 +961,7 @@ export function TutorialVideo({
   const [controlsVisible, setControlsVisible] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fadeInTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const controlsHideRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pointerModeRef = useRef<'mouse' | 'touch' | null>(null);
   const CONTROLS_IDLE_MS = 2500;
@@ -967,11 +977,18 @@ export function TutorialVideo({
   const goPlay = useCallback((nextPlay: number) => {
     clearTimer();
     if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
+    if (fadeInTimerRef.current) clearTimeout(fadeInTimerRef.current);
     setSceneFade(0);
     fadeTimerRef.current = setTimeout(() => {
+      fadeTimerRef.current = null;
       setPlayIdx(Math.max(0, Math.min(playlist.length - 1, nextPlay)));
       setStepIdx(0);
-      setSceneFade(1);
+      // 같은 커밋에서 1로 올리면 새 장면이 하드 컷으로 뜬다(1장면 루프에서는 깜빡임).
+      // 한 프레임 뒤에 올려 페이드인 트랜지션이 실제로 돌게 한다.
+      fadeInTimerRef.current = setTimeout(() => {
+        fadeInTimerRef.current = null;
+        setSceneFade(1);
+      }, 40);
     }, 220);
   }, [clearTimer, playlist.length]);
 
@@ -993,6 +1010,7 @@ export function TutorialVideo({
   useEffect(() => () => {
     clearTimer();
     if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
+    if (fadeInTimerRef.current) clearTimeout(fadeInTimerRef.current);
     if (controlsHideRef.current) clearTimeout(controlsHideRef.current);
   }, [clearTimer]);
 
@@ -1055,12 +1073,14 @@ export function TutorialVideo({
   const scaleStage = compact || fill;
   const stageRef = useRef<HTMLDivElement>(null);
   const [stageH, setStageH] = useState(compact ? COMPACT_STAGE_H : DESIGN_H);
-  useEffect(() => {
+  // 페인트 전에 재야 한다. useEffect로 재면 첫 프레임이 기본 높이 기준 축소 배율로 그려져 화면이 튄다.
+  useLayoutEffect(() => {
     if (!scaleStage) return;
     const el = stageRef.current;
     if (!el) return;
     const sync = () => setStageH(el.clientHeight || (compact ? COMPACT_STAGE_H : DESIGN_H));
     sync();
+    if (typeof ResizeObserver === 'undefined') return;
     const ro = new ResizeObserver(sync);
     ro.observe(el);
     return () => ro.disconnect();

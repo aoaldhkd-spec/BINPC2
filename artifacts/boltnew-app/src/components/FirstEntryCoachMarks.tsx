@@ -9,6 +9,14 @@ type CoachTab = 'profiles' | 'my' | 'stats' | 'ranking' | 'settings';
 type CoachStep = { title: string; detail: string; target: string };
 type Rect = { top: number; left: number; width: number; height: number };
 
+const HEART_PRIMER_BULLETS = [
+  '❤️호감 💙친구 💗뜨밤 💚칭찬은 종류마다 한 번',
+  '잠긴 하트는 정해진 시간에 열려요',
+  '다음 해금 시간과 남은 시간은 위 안내줄에서 확인',
+  '🌈 해금되면 4번 · 누르면 4종 중 하나 선택',
+  '무지개를 써도 일반 하트는 그대로예요',
+] as const;
+
 const HOME_STEPS: readonly CoachStep[] = [
   { title: '참여자 카드', detail: '여기는 오늘 함께하는 사람들의 카드예요. 이름·나이·관심사를 한눈에 확인할 수 있어요.', target: 'participant-card' },
   { title: '하트 보내기', detail: '카드 아래 하트 버튼을 누르면 상대에게 마음을 보낼 수 있어요. 하트 종류와 잠금·해금 상태는 위에서 확인해요.', target: 'profile-card-heart-btn' },
@@ -16,7 +24,8 @@ const HOME_STEPS: readonly CoachStep[] = [
   { title: '카드 뒤집기', detail: '사진 가운데를 누르면 카드가 뒤집혀요. 상대가 고른 이상형 태그와 프로필 전체 보기를 확인할 수 있어요.', target: 'profile-card-flip' },
   { title: '잠금 표시', detail: '회색 자물쇠나 흐린 버튼은 아직 잠긴 기능이에요. 잠금 표시가 없으면 이 단계는 안내 위치에서 설명해요.', target: 'locked-control' },
   { title: '참여자 더보기', detail: '카드의 ⋯ 버튼을 누르면 연락처 보내기·궁합 보기·차단 같은 메뉴를 열 수 있어요. 작은 화면에서도 메뉴가 화면 안에 열려요.', target: 'participant-more' },
-  { title: '하트 잠금·해금', detail: '오른쪽 위에서 무지개와 호감·친구·뜨밤·칭찬 하트의 잠금·해금 상태를 확인해요. 일반 하트는 종류당 1번, 무지개는 해금되면 4번 쓸 수 있고 따로 차감돼요.', target: 'home-heart-types' },
+  { title: '하트 잠금·해금', detail: '오른쪽 위에서 무지개와 호감·친구·뜨밤·칭찬 하트의 잠금·해금 상태를 볼 수 있어요. 잠긴 하트는 정해진 시간에 열리고, 다음 해금 시간과 남은 시간은 화면 위 안내줄에 나와요.', target: 'home-heart-types' },
+  { title: '하트 쓰는 법', detail: '일반 하트 호감·친구·뜨밤·칭찬은 종류마다 한 번씩 보낼 수 있어요. 무지개는 해금되면 4번, 누르면 이 4종 중 하나를 골라 보내요. 무지개를 써도 일반 하트는 줄지 않아요.', target: 'home-heart-types' },
   { title: '검색과 카드 보기', detail: '검색으로 닉네임·나이·출생년도를 찾고, 새로고침과 작게·2개·3개 보기로 화면을 편하게 정리해요.', target: 'home-controls' },
   { title: '하트·채팅', detail: '하트와 채팅 탭에서 받은 하트, 내 상태, 1:1 채팅과 단체 채팅을 확인할 수 있어요.', target: 'nav-my' },
   { title: '통계·랭킹', detail: '통계에서는 참여 흐름과 하트 지표를, 랭킹에서는 순위와 인기 흐름을 확인해요.', target: 'nav-stats' },
@@ -97,6 +106,8 @@ export function FirstEntryCoachMarks({
   const [targetRect, setTargetRect] = useState<Rect | null>(null);
   // Defer one frame so MainScreen commits; avoid double-rAF races that never painted tip 1.
   const [shellPainted, setShellPainted] = useState(() => replayToken > 0);
+  // First-entry heart primer — shown once before the spotlight tour, including settings replay.
+  const [heartPrimer, setHeartPrimer] = useState(() => initialOpenTab(replayToken) === 'profiles');
 
   const steps = openTab ? stepsFor(openTab) : HOME_STEPS;
   const current = steps[Math.min(step, steps.length - 1)] ?? steps[0];
@@ -135,6 +146,7 @@ export function FirstEntryCoachMarks({
       handledReplayRef.current = replayToken;
       replayModeRef.current = true;
       homeTourStartedRef.current = true;
+      setHeartPrimer(true);
       setStep(0);
       setOpenTab('profiles');
       if (mainTab !== 'profiles') forceParticipantsRef.current?.();
@@ -221,14 +233,22 @@ export function FirstEntryCoachMarks({
   }, [openTab]);
 
   if (!shellPainted || !openTab || openTab !== mainTab || isSubScreen || suspended || !current) return null;
+  const showHeartPrimer = heartPrimer && homePhase;
   const last = step === steps.length - 1;
   const dismiss = () => {
     replayModeRef.current = false;
     homeTourStartedRef.current = false;
+    setHeartPrimer(false);
     markFirstEntryCoachSeen(openTab);
     setOpenTab(null);
   };
   const next = () => {
+    if (showHeartPrimer) {
+      setHeartPrimer(false);
+      setTargetRect(null);
+      setStep(0);
+      return;
+    }
     if (!last) {
       setTargetRect(null);
       setStep((value) => value + 1);
@@ -257,22 +277,33 @@ export function FirstEntryCoachMarks({
     : { top: '50%', transform: 'translateY(-50%)' };
 
   return (
-    <div className="fixed inset-0 z-[210] pointer-events-auto" role="dialog" aria-modal="true" aria-label={`${current.title} 첫 이용 안내`} data-testid="first-entry-coach">
+    <div className="fixed inset-0 z-[210] pointer-events-auto" role="dialog" aria-modal="true" aria-label={showHeartPrimer ? '오늘 하트 안내' : `${current.title} 첫 이용 안내`} data-testid="first-entry-coach">
       <div className="absolute inset-0 bg-slate-950/65" aria-hidden="true" />
-      {spotlightStyle && <div className="absolute rounded-2xl border-2 border-cyan-300 shadow-[0_0_0_9999px_rgba(2,6,23,0.58),0_0_24px_rgba(103,232,249,0.75)] pointer-events-none transition-all duration-200" style={spotlightStyle} aria-hidden="true" />}
-      <div className="absolute left-4 right-4 mx-auto max-w-md rounded-2xl border border-cyan-200/70 bg-white px-4 py-3.5 text-slate-800 shadow-2xl shadow-slate-950/40" style={tipStyle} data-testid="first-entry-coach-tip">
-        <div className="flex items-start gap-3">
-          <span className="mt-0.5 text-2xl" aria-hidden="true">✨</span>
-          <div className="min-w-0 flex-1">
-            <p className="text-base font-black text-cyan-700">여기는 {current.title}예요</p>
-            <p className="mt-1 text-sm font-semibold leading-relaxed text-slate-600">{current.detail}</p>
+      {!showHeartPrimer && spotlightStyle && <div className="absolute rounded-2xl border-2 border-cyan-300 shadow-[0_0_0_9999px_rgba(2,6,23,0.58),0_0_24px_rgba(103,232,249,0.75)] pointer-events-none transition-all duration-200" style={spotlightStyle} aria-hidden="true" />}
+      <div className="absolute left-4 right-4 mx-auto max-w-md rounded-2xl border border-cyan-200/70 bg-white px-4 py-3.5 text-slate-800 shadow-2xl shadow-slate-950/40" style={showHeartPrimer ? { top: '50%', transform: 'translateY(-50%)' } : tipStyle} data-testid={showHeartPrimer ? 'first-entry-heart-primer' : 'first-entry-coach-tip'}>
+        {showHeartPrimer ? (
+          <div>
+            <p className="text-base font-black text-cyan-700">오늘 하트는 이렇게 써요</p>
+            <ul className="mt-2 space-y-1 text-sm font-semibold leading-snug text-slate-600">
+              {HEART_PRIMER_BULLETS.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
           </div>
-        </div>
+        ) : (
+          <div className="flex items-start gap-3">
+            <span className="mt-0.5 text-2xl" aria-hidden="true">✨</span>
+            <div className="min-w-0 flex-1">
+              <p className="text-base font-black text-cyan-700">여기는 {current.title}예요</p>
+              <p className="mt-1 text-sm font-semibold leading-relaxed text-slate-600">{current.detail}</p>
+            </div>
+          </div>
+        )}
         <div className="mt-3 flex items-center justify-between gap-2">
           <button type="button" onClick={dismiss} className="min-h-10 rounded-xl px-3 text-sm font-bold text-slate-400 hover:bg-slate-100 hover:text-slate-600">건너뛰기</button>
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-400" aria-label={`${step + 1}단계 중 ${steps.length}단계`}>{step + 1} / {steps.length}</span>
-            <button type="button" onClick={next} className="min-h-10 rounded-xl bg-cyan-500 px-4 text-sm font-black text-white shadow-sm hover:bg-cyan-600 active:scale-95">{last && !nextTourTab(openTab) ? '알겠어요' : '다음'}</button>
+            <span className="text-xs font-bold text-slate-400" aria-label={showHeartPrimer ? '하트 안내' : `${step + 1}단계 중 ${steps.length}단계`}>{showHeartPrimer ? '하트' : `${step + 1} / ${steps.length}`}</span>
+            <button type="button" onClick={next} className="min-h-10 rounded-xl bg-cyan-500 px-4 text-sm font-black text-white shadow-sm hover:bg-cyan-600 active:scale-95">{showHeartPrimer ? '다음' : last && !nextTourTab(openTab) ? '알겠어요' : '다음'}</button>
           </div>
         </div>
       </div>

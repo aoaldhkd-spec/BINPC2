@@ -8,6 +8,7 @@ import {
   heartUsageFromLikeRows,
   parseHeartOps,
   rainbowRemaining,
+  unlockedHeartKeys,
   type HeartUsage,
 } from '../lib/heart-ops';
 import { isInterestHeart } from '../lib/signal-match';
@@ -268,7 +269,9 @@ export function useHearts(
         return false;
       }
     } else if (grantRemaining(config, usage, heartType) <= 0) {
-      setLikeError('이 하트는 남은 개수가 없어요.');
+      setLikeError(unlockedHeartKeys(config).has(heartType)
+        ? '이미 사용한 하트입니다.'
+        : '이 하트는 아직 해금되지 않았습니다.');
       setLikeConfirmTarget(null);
       return false;
     }
@@ -320,7 +323,11 @@ export function useHearts(
         const errCode = errObj?.code != null ? String(errObj.code) : '';
         console.warn('[useHearts] executeLike failed', { errCode, errMsg, targetId, heartType });
         const isRainbowLimit = errMsg.includes('무지개하트');
-        const isHeartLimit = !isRainbowLimit && (errCode === 'HEART_LIMIT' || errMsg.includes('최대 2명') || errMsg.includes('최대 '));
+        // Lock vs already-used must survive the same-type cap mapping below.
+        const isGrantStateLimit = !isRainbowLimit
+          && (errMsg.includes('아직 해금되지') || errMsg.includes('이미 사용한 하트'));
+        const isHeartLimit = !isRainbowLimit && !isGrantStateLimit
+          && (errCode === 'HEART_LIMIT' || errMsg.includes('최대 2명') || errMsg.includes('최대 '));
         const heartLimitMatch = errMsg.match(/최대\s+(\d+)명/);
         const heartLimit = heartLimitMatch ? Number(heartLimitMatch[1]) : 2;
         const isRateLimit = errCode === 'RATE_LIMIT' || errMsg.includes('429') || errMsg.includes('rate') || errMsg.includes('too many');
@@ -331,6 +338,8 @@ export function useHearts(
           || errMsg.includes('Authentication required') || errMsg.includes('세션') || errMsg.includes('authentication required');
         setLikeError(isRainbowLimit
           ? (errMsg.includes('0개') ? '무지개하트가 아직 해금되지 않았습니다.' : errMsg)
+          : isGrantStateLimit
+          ? errMsg
           : isHeartLimit
           ? `같은 종류의 하트는 최대 ${heartLimit}명에게만 보낼 수 있습니다.`
           : isRateLimit

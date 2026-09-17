@@ -57,6 +57,10 @@ Thumbs.db
 .cache/
 .local/
 
+# Handoff archives (markdown lives in docs/; never commit the zip)
+*.zip
+BINPC2_FINAL_PACKAGE*/
+
 # generated audit, migration, and test artifacts
 /.agents/memory/
 /attached_assets/

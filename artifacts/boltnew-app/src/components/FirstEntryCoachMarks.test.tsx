@@ -36,8 +36,11 @@ describe('FirstEntryCoachMarks tip 1', () => {
     await waitFor(() => {
       expect(screen.getByTestId('first-entry-coach')).toBeTruthy();
     });
+    expect(screen.getByTestId('first-entry-heart-primer')).toBeTruthy();
+    expect(screen.getByText('오늘 하트는 이렇게 써요')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '다음' }));
     expect(screen.getByText('여기는 참여자 카드예요')).toBeTruthy();
-    expect(screen.getByLabelText('1단계 중 11단계')).toBeTruthy();
+    expect(screen.getByLabelText('1단계 중 12단계')).toBeTruthy();
   });
 
   it('stays hidden when coach was completed', () => {
@@ -78,9 +81,11 @@ describe('FirstEntryCoachMarks tip 1', () => {
       />,
     );
     await waitFor(() => expect(screen.getByTestId('first-entry-coach')).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: '다음' }));
+    await waitFor(() => expect(screen.getByText('여기는 참여자 카드예요')).toBeTruthy());
 
-    // Advance through all 11 home steps.
-    for (let i = 0; i < 11; i += 1) {
+    // Advance through all 12 home steps.
+    for (let i = 0; i < 12; i += 1) {
       fireEvent.click(screen.getByRole('button', { name: '다음' }));
     }
 

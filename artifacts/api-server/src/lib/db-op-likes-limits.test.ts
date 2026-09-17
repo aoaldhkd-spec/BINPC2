@@ -9,6 +9,8 @@ import {
   likesRateLimitReject,
   likesSameTypeLimitReached,
   likesSendCapReject,
+  likesTypeLockedReject,
+  likesTypeUsedReject,
   LIKES_HEART_LIMIT_MESSAGE,
   LIKES_RATE_LIMIT_MESSAGE,
   LIKES_SAME_TYPE_TARGET_MAX,
@@ -53,7 +55,7 @@ describe('db-op-likes-limits', () => {
 
   it('rainbow pool reject distinguishes locked vs exhausted', () => {
     expect(likesRainbowPoolLimitReject(0).body.error.message).toContain('해금');
-    expect(likesRainbowPoolLimitReject(4).body.error.message).toContain('4개');
+    expect(likesRainbowPoolLimitReject(4).body.error.message).toBe('무지개하트를 모두 사용했습니다.');
   });
 
   it('likesSendCapReject allows color grants without rainbow_pool', () => {
@@ -98,7 +100,7 @@ describe('db-op-likes-limits', () => {
       unlockedKeys: unlocked,
       grantUsed: { red: false, blue: false, pink: false, green: false },
       rainbowUsed: RAINBOW_MAX_USES,
-    })?.body.error.message).toContain(String(RAINBOW_MAX_USES));
+    })?.body.error.message).toBe('무지개하트를 모두 사용했습니다.');
     expect(likesHeartOpsReject({
       source: 'rainbow',
       heartType: 'blue',
@@ -106,6 +108,50 @@ describe('db-op-likes-limits', () => {
       grantUsed: { red: false, blue: false, pink: false, green: false },
       rainbowUsed: 1,
     })).toBeNull();
+  });
+
+  it('grant reject tells locked apart from already used', () => {
+    const locked = likesHeartOpsReject({
+      source: 'grant',
+      heartType: 'blue',
+      unlockedKeys: new Set(['red']),
+      grantUsed: { red: false, blue: false, pink: false, green: false },
+      rainbowUsed: 0,
+    });
+    const used = likesHeartOpsReject({
+      source: 'grant',
+      heartType: 'red',
+      unlockedKeys: new Set(['red']),
+      grantUsed: { red: true, blue: false, pink: false, green: false },
+      rainbowUsed: 0,
+    });
+    expect(locked?.body.error.message).toBe('이 하트는 아직 해금되지 않았습니다.');
+    expect(used?.body.error.message).toBe('이미 사용한 하트입니다.');
+    expect(locked?.body.error.message).not.toBe(used?.body.error.message);
+    expect(locked?.body.error.message).not.toContain('남은 개수');
+    expect(used?.body.error.message).not.toContain('남은 개수');
+    expect(likesTypeLockedReject().status).toBe(400);
+    expect(likesTypeUsedReject().body.error.code).toBe('HEART_LIMIT');
+  });
+
+  it('rainbow reject keeps locked wording apart from all-used wording', () => {
+    const lockedRainbow = likesHeartOpsReject({
+      source: 'rainbow',
+      heartType: 'red',
+      unlockedKeys: new Set(['red']),
+      grantUsed: { red: false, blue: false, pink: false, green: false },
+      rainbowUsed: 0,
+    });
+    const usedUpRainbow = likesHeartOpsReject({
+      source: 'rainbow',
+      heartType: 'red',
+      unlockedKeys: new Set(['red', 'rainbow']),
+      grantUsed: { red: false, blue: false, pink: false, green: false },
+      rainbowUsed: RAINBOW_MAX_USES,
+    });
+    expect(lockedRainbow?.body.error.message).toBe('무지개하트가 아직 해금되지 않았습니다.');
+    expect(usedUpRainbow?.body.error.message).toBe('무지개하트를 모두 사용했습니다.');
+    expect(usedUpRainbow?.body.error.message).not.toContain('해금');
   });
 
   it('planLikesMinuteBucketConsume windows + cap', () => {

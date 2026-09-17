@@ -393,15 +393,15 @@ function App() {
   // Minute ticker drives recompute; never use epoch (minute===0) while a schedule exists.
   const scheduleNow = useMemo(
     () => new Date(eventScheduleMinute > 0 ? eventScheduleMinute * 60_000 : Date.now()),
-    [eventScheduleMinute, eventScheduleRaw],
+    [eventScheduleMinute],
   );
   const heartOpsConfig = useMemo(
     () => parseHeartOps(eventScheduleRaw),
-    [eventScheduleRaw, scheduleNow],
+    [eventScheduleRaw],
   );
-  const heartUsage = useMemo(() => getHeartUsage(), [getHeartUsage, scheduleNow, likeConfirmTarget]);
+  const heartUsage = useMemo(() => getHeartUsage(), [getHeartUsage]);
   const participantHearts = useMemo(
-    () => participantHeartState(heartOpsConfig, heartUsage, functionsLocked, new Date()),
+    () => participantHeartState(heartOpsConfig, heartUsage, functionsLocked, scheduleNow),
     [heartOpsConfig, heartUsage, functionsLocked, scheduleNow],
   );
   // The schedule is also evaluated locally between SSE/ready heartbeats so a slot

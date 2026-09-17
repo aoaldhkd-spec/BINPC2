@@ -196,9 +196,7 @@ import {
   selectAuthRequiredReject,
 } from '../lib/db-op-select-access';
 import {
-  countAllLikes,
-  countSameTypeLikes,
-  likesHeartLimitReject,
+  likesHeartLimitReject as _likesHeartLimitReject,
   likesPairIntervalBlocked,
   likesRateLimitReject,
   likesHeartOpsReject,
@@ -299,11 +297,9 @@ import {
   UPSERT_RELATIONSHIP_TABLES,
 } from '../lib/db-op-upsert-ownership';
 import {
-  ADMIN_FIXED_NICKNAME,
-  BIRTH_MD_EDIT_MAX,
+  ADMIN_FIXED_NICKNAME as _ADMIN_FIXED_NICKNAME,
+  BIRTH_MD_EDIT_MAX as _BIRTH_MD_EDIT_MAX,
   adminPhoneDigitsFromSettings,
-  findAdminProfileInRows,
-  isAdminProfilePhone as isAdminProfilePhonePure,
   isAdminProfileRow as isAdminProfileRowPure,
   withFixedAdminNickname as withFixedAdminNicknamePure,
   planBirthMdEditPatch,
@@ -360,8 +356,6 @@ import {
   UNLIMITED_GROUP_MEMBERS,
   GROUP_LIMIT_MESSAGE,
   OPT_IN_GROUP_ROOMS,
-  AUTO_ROOM_AGE_DECADE,
-  AUTO_ROOM_BIRTH_YEAR,
   VISIBLE_AGE_BANDS,
   matchesAfterpartySpec,
   matchesVisibleAgeBand,
@@ -461,7 +455,7 @@ import {
   countMessagesForChat as countMessagesForChatPure,
   chatIdsForPair as chatIdsForPairPure,
   pickCanonicalChatRow as pickCanonicalChatRowPure,
-  groupChatsByPair, messageMergeAction, planCanonicalMessageChatId,
+  groupChatsByPair as _groupChatsByPair, messageMergeAction as _messageMergeAction, planCanonicalMessageChatId,
   planChatDedupeMergeSteps, planChatReadsForDedupe,
   messagesToRemapOnDedupe, applyIncomingMessageRows,
   applyChatReadDedupeAction,
@@ -522,10 +516,6 @@ function adminPhoneFromSettings(settings?: Record<string, unknown> | null): stri
   );
 }
 
-function isAdminProfilePhone(phone: unknown, adminPhoneDigits?: string): boolean {
-  return isAdminProfilePhonePure(phone, adminPhoneDigits ?? adminPhoneFromSettings());
-}
-
 function isAdminProfileRow(row: Record<string, unknown>, adminPhoneDigits?: string): boolean {
   return isAdminProfileRowPure(row, adminPhoneDigits ?? adminPhoneFromSettings());
 }
@@ -535,11 +525,6 @@ function withFixedAdminNickname(
   adminPhoneDigits?: string,
 ): Record<string, unknown> {
   return withFixedAdminNicknamePure(row, adminPhoneDigits ?? adminPhoneFromSettings());
-}
-
-function findAdminProfileRow(adminPhoneDigits?: string): Record<string, unknown> | undefined {
-  const digits = adminPhoneDigits ?? adminPhoneFromSettings();
-  return findAdminProfileInRows(getTable('profiles'), digits);
 }
 
 /** 범일NPC와의 하트·1:1 채팅·연락처 공유만 제거 (다른 유저 관계는 유지). */

@@ -9,6 +9,7 @@ import {
   slotEventMinute,
   unlockedHeartKeys,
   participantHeartState,
+  headerHeartRemainings,
   heartOpsBannerState,
 } from './heart-ops';
 
@@ -171,5 +172,23 @@ describe('heart-ops lock/unlock model', () => {
     const state = participantHeartState(onlyRainbow, usage, false);
     expect(state.rainbowRemaining).toBe(0);
     expect(state.heartsLocked).toBe(true);
+  });
+
+  it('functionsLocked locks every header chip and restores prior state when released', () => {
+    vi.setSystemTime(seoulTime('2026-09-18T00:35:00+09:00'));
+    const usage = heartUsageFromLikeRows([
+      { liker_id: 'me', heart_type: 'red', like_source: 'grant' },
+    ], 'me');
+    const open = headerHeartRemainings({ functionsLocked: false, config, usage });
+    expect(open.find(c => c.key === 'blue')?.locked).toBe(false);
+    expect(open.find(c => c.key === 'red')?.locked).toBe(true);
+
+    const locked = headerHeartRemainings({ functionsLocked: true, config, usage });
+    expect(locked.every(c => c.locked)).toBe(true);
+    expect(locked.find(c => c.key === 'blue')?.remaining).toBe(1);
+
+    const released = headerHeartRemainings({ functionsLocked: false, config, usage });
+    expect(released).toEqual(open);
+    expect(released.find(c => c.key === 'red')?.locked).toBe(true);
   });
 });

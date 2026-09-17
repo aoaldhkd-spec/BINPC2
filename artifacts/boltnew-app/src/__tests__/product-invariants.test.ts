@@ -242,6 +242,8 @@ describe('product copy + notification invariants', () => {
     expect(coach).toContain('const SCREEN_STEPS');
     expect(coach).toContain("onNavigateTab");
     expect(coach).toContain('markHomeCoachDone');
+    expect(coach).toContain('first-entry-heart-primer');
+    expect(coach).toContain('오늘 하트는 이렇게 써요');
     expect(marks).toContain('isHomeCoachPending');
     expect(guards).toContain('isHomeCoachPending');
   });

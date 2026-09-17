@@ -1,5 +1,7 @@
 # Safe script operations
 
+제품·하트 운영 기준: [docs/MASTER_CONTEXT.md](../docs/MASTER_CONTEXT.md). 현재 마감 상태: [docs/CURRENT_STATUS.md](../docs/CURRENT_STATUS.md).
+
 All cloud, credential, build, and remote-mutating scripts fail closed.
 
 ## Common guard

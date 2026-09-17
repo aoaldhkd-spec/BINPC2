@@ -154,6 +154,7 @@ export function LikeConfirmDialog({
         <div className="absolute inset-0 z-[1] flex items-center justify-center bg-black/50 p-4" data-testid="rainbow-color-dialog">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xs p-4">
             <p className="text-center text-sm font-bold text-gray-900">무지개 — 보낼 하트 선택</p>
+            <p className="text-center text-[11px] font-semibold text-gray-500 mt-1">일반 하트는 줄지 않아요</p>
             <div className="grid grid-cols-2 gap-2 mt-4 mb-4">
               {HEART_TYPES.map(h => {
                 const disabled = !rainbowAvailable || sentTypesForTarget.has(h.type);

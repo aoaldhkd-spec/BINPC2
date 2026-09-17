@@ -283,7 +283,9 @@ export function headerHeartRemainings(input: {
       emoji: meta(type).emoji,
       label: meta(type).label,
       remaining: rem,
-      locked: !isUnlocked || rem <= 0,
+      // functionsLocked blocks the send server-side, so the chip must look locked too.
+      // `remaining` stays untouched so the pre-lock state returns as-is when unlocked.
+      locked: input.functionsLocked || !isUnlocked || rem <= 0,
     };
   };
   const rainbowLocked = !state.unlocked.has('rainbow') || state.rainbowRemaining <= 0 || input.functionsLocked;
@@ -312,9 +314,6 @@ export type HeartOpsBannerState = {
 };
 
 export function heartOpsBannerState(config: HeartOpsConfig, now = new Date()): HeartOpsBannerState {
-  const empty: HeartOpsBannerState = {
-    show: false, directNotice: null, autoLine: null, countdownSec: null, justUnlocked: null,
-  };
   const direct = (config.direct_notice ?? '').trim();
   const minute = nowEventMinute(now);
   const { second } = seoulClockParts(now);

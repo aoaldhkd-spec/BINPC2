@@ -1,5 +1,7 @@
 # BINPC2 Removed-Features Leftover Audit
 
+> **2026-09-17:** §9의 `rainbow_pool` quota 모델은 이후 잠금/해금 모델로 교체됐다. 현재 하트 기준은 [docs/MASTER_CONTEXT.md](docs/MASTER_CONTEXT.md). 아래 제거 이력(시그널 탭, seating, heart_drain 등)은 그대로 유효하다.
+
 - **HEAD audited (pre-fix commit):** `d51b55c` + uncommitted Dom/Sub write-path + MMDD-script fixes (see § Cleanup)
 - **Synced to:** `origin/main` (`7486ab6`) **plus** local cleanup commits `5f05b82` (dead coach SCREEN_STEPS) and `d51b55c` (rainbow dup + test-persona Dom/Sub)
 - **Date (KST):** 2026-09-16 ~16:02 KST
@@ -162,12 +164,11 @@ function initialOpenTab(replayToken: number): CoachTab | null {
 
 ## 9. Old rainbow “1 of each” grant model vs pool
 
-**Status: CLEAN** (dup button cleaned in `d51b55c`)
+**Status: SUPERSEDED (2026-09-17)** — pool/`rainbow_pool` 이후 **잠금/해금 + `like_source`** 로 교체. 현재 기준 [docs/MASTER_CONTEXT.md](docs/MASTER_CONTEXT.md).
 
-### Pool model — CLEAN
-- `rainbow_pool` on slots; `eventRainbowQuota` / `rainbowPoolPickState` (`event-schedule.ts:51,75–76`).
-- `LikeConfirmDialog.tsx:32` — unlocks only via pool, never leftover per-color quotas.
-- Old `rainbowUnlockGrants` (max 1 per color) removed in `1cabed4`.
+### Pool model — historical (pre lock/unlock)
+- `rainbow_pool` on slots; `eventRainbowQuota` / `rainbowPoolPickState` (`event-schedule.ts`)는 이제 legacy 호환.
+- 신규 소비 계산은 `heart-ops.ts` / `db-heart-ops.ts`.
 
 ### Duplicate unlock buttons — DEAD_CODE cleaned (`d51b55c`)
 - Removed amber “지금 적용 + 무지개 해금·저장” duplicate (same `unlockRainbowNow` as fuchsia pool unlock).

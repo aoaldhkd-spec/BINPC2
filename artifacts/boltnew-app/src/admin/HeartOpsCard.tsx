@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Heart, Send, CheckCircle, Zap } from 'lucide-react';
-import type { HeartType } from '../lib/constants';
 import { HEART_TYPES } from '../lib/constants';
 import {
   adminHeartStatusLine,

@@ -54,7 +54,7 @@ const BASIC: Topic[] = [
         ],
       },
     ],
-    footer: '🔒 번호·SNS 금지 · 하트는 카드 아래 · 채팅은 하트, 채팅 탭 · 프로필은 설정',
+    footer: '🔒 번호·SNS 교환 금지 · 하트는 참여자 카드 아래',
   },
   {
     id: 'heart',
@@ -65,9 +65,10 @@ const BASIC: Topic[] = [
     video: [6],
     videoHint: '받은·보낸 하트 확인하는 방법',
     tips: [
-      { icon: '🤍', title: '보내는 곳', desc: '참여자 카드 아래 하트. 오른쪽 위 아님.' },
-      { icon: '🌈', title: '잠금·해금', desc: '처음엔 잠금. 관리자가 해금한 하트만 보낼 수 있어요. 호감·친구·뜨밤·칭찬은 각 1번, 무지개는 4번.' },
-      { icon: '✅', title: '확인 곳', desc: '하트, 채팅 → 내 상태. 받은 하트가 아래에 있어요.' },
+      { icon: '🤍', title: '보내고 확인', desc: '참여자 카드 아래 하트로 보내고, 하트, 채팅 → 내 상태에서 확인.' },
+      { icon: '❤️', title: '일반 하트 4종', desc: '❤️호감 💙친구 💗뜨밤 💚칭찬. 종류마다 딱 한 번 보낼 수 있어요.' },
+      { icon: '🔒', title: '시간마다 해금', desc: '잠긴 하트는 정해진 시간에 열려요. 다음 해금 시간과 남은 시간은 화면 위 안내줄에.' },
+      { icon: '🌈', title: '무지개는 4번', desc: '해금되면 4번. 누르면 위 4종 중 하나를 골라 보내고, 일반 하트는 줄지 않아요.' },
     ],
   },
   {
@@ -88,7 +89,7 @@ const BASIC: Topic[] = [
       { icon: '💬', title: '한마디', desc: '⚡ 빠른 선택·직접 입력. 전광판.' },
       { icon: '💘', title: '이상형', desc: '얼굴·체형·매력·성격 칩.' },
       { icon: '🌟', title: '내 특징', desc: '대분류 → 소분류 → 태그 순서로 선택.' },
-      { icon: '❔', title: '도움말·화면 설정', desc: '설정에서 튜토리얼을 다시 보고 다크 모드를 바꿔요.' },
+      { icon: '❔', title: '도움말·화면 설정', desc: '튜토리얼 다시 보기 · 다크 모드.' },
       { icon: '🚫', title: '차단', desc: '차단 시 서로 프로필·채팅 불가.' },
     ],
   },
@@ -165,6 +166,8 @@ const MODAL_SHELL =
 
 /** One tip-card size on every topic so the densest page still fits without scrolling. */
 const TIP_BOX = 'h-[2.75rem] items-center';
+/** 안내 탭은 2섹션(9칸) + 푸터라 기본 높이로는 푸터가 잘린다. 한 줄짜리 설명만 있어 축소해도 안전. */
+const TIP_BOX_DENSE = 'h-[2.25rem] items-center';
 
 type TopicAccent = {
   cardLight: string;
@@ -194,15 +197,6 @@ const TOPIC_ACCENTS: Record<string, TopicAccent> = {
     bar: 'from-pink-400 to-rose-500',
     chipIdle: 'bg-rose-50/60 border-rose-100/60 text-rose-700/70',
     chipIdleDark: 'bg-rose-950/30 border-rose-900/40 text-rose-300/70',
-  },
-  signal: {
-    cardLight: 'bg-gradient-to-br from-fuchsia-50/90 to-rose-50/60 border-fuchsia-100/80 shadow-[0_1px_2px_rgba(217,70,239,0.08)]',
-    cardDark: 'bg-gradient-to-br from-fuchsia-950/40 to-slate-800/80 border-fuchsia-900/50 shadow-[0_1px_2px_rgba(0,0,0,0.25)]',
-    iconLight: 'bg-gradient-to-br from-fuchsia-500 to-rose-500 shadow-sm shadow-fuchsia-300/50',
-    iconDark: 'bg-gradient-to-br from-fuchsia-600 to-rose-600 shadow-sm shadow-fuchsia-900/40',
-    bar: 'from-fuchsia-400 to-rose-500',
-    chipIdle: 'bg-fuchsia-50/60 border-fuchsia-100/60 text-fuchsia-700/70',
-    chipIdleDark: 'bg-fuchsia-950/30 border-fuchsia-900/40 text-fuchsia-300/70',
   },
   settings: {
     cardLight: 'bg-gradient-to-br from-sky-50/90 to-cyan-50/60 border-sky-100/80 shadow-[0_1px_2px_rgba(14,165,233,0.08)]',
@@ -280,10 +274,14 @@ function topicTipCount(topic: Topic): number {
 
 function topicLayout(topic: Topic) {
   const count = topicTipCount(topic);
-  const dense = count >= 4 || topic.id === 'guide';
+  // 하트 탭은 설명 한 줄이 길어 2열에서는 line-clamp로 잘린다. 카드 수가 적어 1열도 모달 안에 들어간다.
+  const dense = topic.id === 'guide' || (count >= 4 && topic.id !== 'heart');
   const gapFill = topic.id === 'heart' || topic.id === 'chat' || topic.id === 'pin' || topic.id === 'group' || topic.id === 'hidden';
   return {
     twoColumn: dense,
+    // 안내(9칸+푸터)·설정(11칸)은 행이 5~6줄이라 gap-1이면 360×640에서 마지막 줄이 잘린다.
+    tightGap: topic.id === 'guide' || topic.id === 'settings',
+    tipBox: topic.id === 'guide' ? TIP_BOX_DENSE : TIP_BOX,
     compact: true,
     fillVertical: false,
     fillerCompact: Boolean(topic.filler),
@@ -304,6 +302,7 @@ function TipCard({
   fill: _fill,
   sectionBar,
   longDesc,
+  boxClass,
 }: {
   tip: Tip;
   accent: TopicAccent;
@@ -315,6 +314,7 @@ function TipCard({
   fill?: boolean;
   sectionBar?: string;
   longDesc?: boolean;
+  boxClass?: string;
 }) {
   const desc = tip.desc.replace(/([.·])\s+/g, '$1\u200b ');
   const cardCls = darkMode ? accent.cardDark : accent.cardLight;
@@ -324,7 +324,7 @@ function TipCard({
   const titleCls = 'text-[11px]';
   const descCls = longDesc ? 'text-[10px] leading-snug' : 'text-[10px] leading-snug';
   const pad = 'px-2 py-1';
-  const stretchCls = TIP_BOX;
+  const stretchCls = boxClass ?? TIP_BOX;
 
   const body = (
     <div className="flex gap-1.5 min-w-0 flex-1 pl-1 items-center">
@@ -364,6 +364,8 @@ function TipGrid({
   fill,
   sectionBar,
   longDescTitle,
+  boxClass,
+  tightGap,
 }: {
   tips: Tip[];
   accent: TopicAccent;
@@ -375,10 +377,12 @@ function TipGrid({
   fill?: boolean;
   sectionBar?: string;
   longDescTitle?: string;
+  boxClass?: string;
+  tightGap?: boolean;
 }) {
   const useTwoCol = twoColumn ?? tips.length >= 4;
   const oddLast = useTwoCol && tips.length % 2 === 1;
-  const gap = 'gap-1';
+  const gap = tightGap ? 'gap-0.5' : 'gap-1';
   const stretchCls = fill ? 'flex-1 min-h-0 h-full' : '';
 
   if (!useTwoCol) {
@@ -396,6 +400,7 @@ function TipGrid({
             fill={fill}
             sectionBar={sectionBar}
             longDesc={longDescTitle === tip.title}
+            boxClass={boxClass}
           />
         ))}
       </div>
@@ -417,6 +422,7 @@ function TipGrid({
           sectionBar={sectionBar}
           spanFull={oddLast && i === tips.length - 1}
           longDesc={longDescTitle === tip.title}
+          boxClass={boxClass}
         />
       ))}
     </div>
@@ -442,26 +448,21 @@ function ChatPhoneMock({ darkMode }: { darkMode?: boolean }) {
         <div className="absolute top-0 inset-x-0 h-2.5 z-10 flex justify-center">
           <span className={`mt-0.5 h-1.5 w-8 rounded-b-md ${darkMode ? 'bg-slate-800' : 'bg-black/80'}`} />
         </div>
-        <div className="h-full flex flex-col pt-3 pb-1 px-1 bg-gradient-to-b from-slate-900 to-slate-950">
-          <div className="flex items-center gap-1 px-1 pb-1 border-b border-slate-700/80">
+        <div className="h-full flex flex-col pt-2.5 pb-0.5 px-1 bg-gradient-to-b from-slate-900 to-slate-950">
+          <div className="flex items-center gap-1 px-1 pb-0.5 border-b border-slate-700/80">
             <span className="w-4 h-4 rounded-md bg-gradient-to-br from-pink-400 to-rose-500" />
             <div className="min-w-0 flex-1">
               <p className="text-[6px] font-black text-white truncate">하늘다람쥐</p>
               <p className="text-[5px] font-bold text-teal-300">온라인</p>
             </div>
           </div>
-          <div className="flex-1 min-h-0 py-1 space-y-1 overflow-hidden">
+          {/* 목업 폰 화면은 80px 남짓이라 말풍선을 2개로 줄이고 아래에 붙여 최신 대화만 보이게 한다. */}
+          <div className="flex-1 min-h-0 py-0.5 flex flex-col justify-end gap-1 overflow-hidden">
             <div className="flex justify-start">
               <span className="bg-white text-slate-700 text-[5.5px] font-semibold px-1.5 py-1 rounded-lg rounded-tl-sm max-w-[90%]">오늘 반가웠어요!</span>
             </div>
             <div className="flex justify-end">
               <span className="bg-cyan-500 text-white text-[5.5px] font-semibold px-1.5 py-1 rounded-lg rounded-tr-sm">저도요 😊</span>
-            </div>
-            <div className="flex justify-end">
-              <span className="bg-cyan-500/90 text-white text-[9px] px-1.5 py-1 rounded-lg">🎊</span>
-            </div>
-            <div className="flex justify-start">
-              <span className="bg-white text-slate-700 text-[5.5px] font-semibold px-1.5 py-1 rounded-lg">번호 교환해요 📱</span>
             </div>
           </div>
           <div className="flex items-center gap-0.5 px-0.5 pt-0.5 border-t border-slate-700/70">
@@ -476,11 +477,11 @@ function ChatPhoneMock({ darkMode }: { darkMode?: boolean }) {
         <p className={`font-black text-[11px] leading-snug ${darkMode ? 'text-white' : 'text-slate-800'}`}>
           채팅은 이렇게 꽉 차요
         </p>
-        <p className={`text-[10px] font-semibold leading-snug ${darkMode ? 'text-indigo-200/90' : 'text-indigo-700/80'}`}>
-          하트, 채팅 → 내 채팅 · 😊 이모지 · + 다음 🎨 스티커 · 옆으로 밀면 답장
+        <p className={`text-[10px] font-semibold leading-snug line-clamp-2 ${darkMode ? 'text-indigo-200/90' : 'text-indigo-700/80'}`}>
+          하트, 채팅 → 내 채팅 · 옆으로 밀면 답장
         </p>
         <div className="flex flex-wrap gap-1 mt-0.5">
-          {['😊 이모지', '🎨 스티커', '📷 사진', '⚡ 빠른말'].map((chip) => (
+          {['😊 이모지', '🎨 스티커', '⚡ 빠른말'].map((chip) => (
             <span
               key={chip}
               className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full border ${
@@ -505,10 +506,10 @@ function FillerArt({ kind, darkMode }: { kind: FillerKind; darkMode?: boolean })
       <div className="relative h-12 w-12 mb-0 flex-shrink-0" aria-hidden>
         <div className={`absolute inset-0 rounded-2xl rotate-[-10deg] ${darkMode ? 'bg-rose-900/70' : 'bg-rose-100'}`} />
         <div className={`relative w-12 h-12 rounded-2xl flex items-center justify-center overflow-hidden ${darkMode ? 'bg-rose-950 ring-1 ring-rose-400/40' : 'bg-white ring-1 ring-rose-200'} shadow-md`}>
-          <span className="text-[22px] leading-none">🤍</span>
+          <span className="text-[20px] leading-none">❤️</span>
         </div>
-        <span className="absolute -top-1 -right-1 text-[11px] leading-none drop-shadow-sm">💙</span>
-        <span className="absolute -bottom-0.5 -left-1 text-[10px] leading-none drop-shadow-sm">💚</span>
+        <span className="absolute -top-1 -right-1 text-[11px] leading-none drop-shadow-sm">🌈</span>
+        <span className="absolute -bottom-0.5 -left-1 text-[10px] leading-none drop-shadow-sm">💙</span>
       </div>
     );
   }
@@ -566,9 +567,9 @@ function FillerArt({ kind, darkMode }: { kind: FillerKind; darkMode?: boolean })
 
 const FILLERS: Record<FillerKind, { title: string; line: string; quote: string; shell: string; darkShell: string }> = {
   heart: {
-    title: '하트는 카드 아래, 확인은 하트, 채팅',
-    line: '관리자가 열어 준 하트만 선택 가능 · 수락되면 연락처',
-    quote: '오른쪽 위 하트 아님. 받은 하트는 아래로',
+    title: '일반 1회 · 무지개 4회',
+    line: '잠긴 하트는 시간에 해금 · 남은 시간은 위 안내줄',
+    quote: '무지개를 써도 일반 하트는 그대로',
     shell: 'bg-gradient-to-br from-rose-50 via-pink-50 to-white border border-rose-100/80 shadow-sm shadow-rose-100/30',
     darkShell: 'bg-gradient-to-br from-slate-800/90 via-rose-950/50 to-slate-900 border border-rose-900/50 shadow-[0_1px_2px_rgba(0,0,0,0.25)]',
   },
@@ -782,6 +783,8 @@ export function TutorialModal({
               compact={layout.compact}
               fill={layout.fillVertical}
               sectionBar={variant.bar}
+              boxClass={layout.tipBox}
+              tightGap={layout.tightGap}
             />
             {section.footer && (
               <p className={`mt-1 px-1 leading-snug ${KR_WRAP} text-[11px] ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>
@@ -803,6 +806,8 @@ export function TutorialModal({
           compact={layout.compact}
           fill={layout.fillVertical}
           longDescTitle="NPC 나이"
+          boxClass={layout.tipBox}
+          tightGap={layout.tightGap}
         />
       )}
 

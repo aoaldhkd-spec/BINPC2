@@ -93,9 +93,9 @@ export function likesHeartOpsReject(input: {
     return null;
   }
   if (!input.unlockedKeys.has(input.heartType)) {
-    return likesTypeGrantReject();
+    return likesTypeLockedReject();
   }
-  if (input.grantUsed[input.heartType]) return likesTypeGrantReject();
+  if (input.grantUsed[input.heartType]) return likesTypeUsedReject();
   return null;
 }
 
@@ -127,6 +127,23 @@ export function likesSendCapReject(input: {
   return null;
 }
 
+/** Grant heart still locked by the schedule — never merged with "already used". */
+export function likesTypeLockedReject(): LikesLimitReject {
+  return {
+    status: 400,
+    body: { data: null, error: { message: '이 하트는 아직 해금되지 않았습니다.', code: 'HEART_LIMIT' } },
+  };
+}
+
+/** Grant heart unlocked but already spent (1 per type). */
+export function likesTypeUsedReject(): LikesLimitReject {
+  return {
+    status: 400,
+    body: { data: null, error: { message: '이미 사용한 하트입니다.', code: 'HEART_LIMIT' } },
+  };
+}
+
+/** legacy compatibility only — live grant path uses locked/used rejects above. */
 export function likesTypeGrantReject(): LikesLimitReject {
   return {
     status: 400,
@@ -137,7 +154,7 @@ export function likesTypeGrantReject(): LikesLimitReject {
 export function likesRainbowPoolLimitReject(max: number): LikesLimitReject {
   const message = max <= 0
     ? '무지개하트가 아직 해금되지 않았습니다.'
-    : `무지개하트는 총 ${max}개까지 보낼 수 있습니다.`;
+    : '무지개하트를 모두 사용했습니다.';
   return {
     status: 400,
     body: { data: null, error: { message, code: 'HEART_LIMIT' } },

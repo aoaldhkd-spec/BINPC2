@@ -2,6 +2,8 @@
 
 짧은 지도입니다. 기능 수정 전에 이 파일만 읽고, 아래 “어디를 열지” 목록의 소수 파일만 보세요.
 
+제품·하트·운영 기준(개발헌법 포함)은 [docs/README.md](docs/README.md)가 우선이다. 이 파일은 코드 경로 지도다.
+
 ## Stack
 
 - **Frontend:** `artifacts/boltnew-app` → Netlify (`binpc2.netlify.app`)
@@ -95,7 +97,11 @@ Prefer **single Render instance**. Multi-instance는 NOTIFY로 일부 동기화�
 UI: `ChatScreen.tsx` → state: `useChat.ts` + `chat-reducers.ts` + `chat-pair.ts` → API: `localdb.ts` → server: `db.ts` (`messages`/`chats`, persist-before-broadcast, advisory lock)
 
 ### Hearts / matching
-UI: `MainScreen.tsx`, `LikeConfirmDialog.tsx`, `ProfileDetail.tsx` → `useHearts.ts` → `localdb.ts` → `db.ts` (`likes`, rate limits)
+규칙: [docs/MASTER_CONTEXT.md](docs/MASTER_CONTEXT.md) — 잠금/해금, 일반 1회, 무지개 4회, `like_source` grant/rainbow.  
+UI: `MainScreen.tsx`, `LikeConfirmDialog.tsx`, `HeartOpsCard.tsx`, `EventScheduleBanner.tsx`  
+state: `useHearts.ts` + `lib/heart-ops.ts`  
+API: `localdb.ts` → `db.ts` (`likes`) + `db-heart-ops.ts` + `db-op-likes-limits.ts`  
+구 quota 파서 `lib/event-schedule.ts`는 legacy 호환만. 신규 소비 계산에 쓰지 않는다.
 
 ### Bottom tabs
 UI: `MainScreen.tsx` — 참여자 / 하트, 채팅(내 상태+내 채팅) / 통계 / 랭킹 / 설정  

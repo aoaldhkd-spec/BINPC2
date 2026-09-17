@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Architecture map first
 
-기능 수정 전에 루트 `ARCHITECTURE.md`를 읽고, 해당 기능의 “Feature → files”에 나온 파일만 연다.
+기능 수정 전에 `docs/DEVELOPMENT_CONSTITUTION.md`와 `docs/MASTER_CONTEXT.md`의 제품 규칙을 확인하고, 루트 `ARCHITECTURE.md`의 “Feature → files”에 나온 파일만 연다.
 
 - 채팅/하트/실시간/네트워크의 retry·reconnect·persist-before-broadcast·dedupe·resync는 삭제하지 않는다.
 - `db.ts` / `localdb.ts` / `useChat.ts` / `net-health.ts`는 동작 변경 없이 필요한 부분만 고친다.

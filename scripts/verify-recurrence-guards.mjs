@@ -352,6 +352,10 @@ mustMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '35_heart_heade
   /heartOpsConfig/,
   /grid-cols-2 grid-rows-2/,
 ]);
+// Header chips must follow functionsLocked for grant hearts too, not only rainbow.
+mustMatch('artifacts/boltnew-app/src/lib/heart-ops.ts', '35_header_chips_follow_functions_lock', [
+  /locked: input\.functionsLocked \|\| !isUnlocked \|\| rem <= 0/,
+]);
 mustMatch('artifacts/boltnew-app/src/lib/heart-ops.ts', '35_header_five_heart_chips', [
   /home-heart-remaining-rainbow/,
   /home-heart-remaining-red/,
@@ -363,6 +367,73 @@ mustMatch('artifacts/api-server/src/lib/db-op-likes-limits.ts', '35_likes_heart_
   /likesHeartOpsReject/,
   /normalizeLikeSource/,
   /RAINBOW_MAX_USES/,
+]);
+// Locked and already-used grant hearts must never collapse into one reason.
+mustMatch('artifacts/api-server/src/lib/db-op-likes-limits.ts', '35_grant_locked_vs_used_reject', [
+  /export function likesTypeLockedReject/,
+  /이 하트는 아직 해금되지 않았습니다/,
+  /export function likesTypeUsedReject/,
+  /이미 사용한 하트입니다/,
+  /unlockedKeys\.has\(input\.heartType\)\) \{\s*\n\s*return likesTypeLockedReject\(\)/,
+  /grantUsed\[input\.heartType\]\) return likesTypeUsedReject\(\)/,
+]);
+mustMatch('artifacts/boltnew-app/src/hooks/useHearts.ts', '35_client_grant_locked_vs_used_message', [
+  /이미 사용한 하트입니다/,
+  /이 하트는 아직 해금되지 않았습니다/,
+  /isGrantStateLimit/,
+]);
+// Rainbow all-used wording must stay identical on server and client.
+mustMatch('artifacts/api-server/src/lib/db-op-likes-limits.ts', '35_rainbow_all_used_message', [
+  /무지개하트를 모두 사용했습니다/,
+]);
+mustNotMatch('artifacts/api-server/src/lib/db-op-likes-limits.ts', '35_rainbow_no_cap_count_message', [
+  /개까지 보낼 수 있습니다/,
+]);
+// Tutorial copy must describe the lock/unlock model, not the retired quota model.
+mustMatch('artifacts/boltnew-app/src/components/TutorialModal.tsx', '35_tutorial_heart_lock_unlock_copy', [
+  /일반 하트 4종/,
+  /시간마다 해금/,
+  /무지개는 4번/,
+  /일반 하트는 줄지 않아요/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/components/TutorialModal.tsx', '35_tutorial_no_legacy_heart_copy', [
+  /주황/,
+  /빨강하트/,
+  /하트 개수/,
+  /관리자가 해금한/,
+]);
+// 360x640에서 안내 푸터·설정 마지막 줄이 잘렸던 조합. 두 탭은 좁은 gap을 유지해야 한다.
+mustMatch('artifacts/boltnew-app/src/components/TutorialModal.tsx', '35_tutorial_dense_tabs_tight_gap', [
+  /tightGap: topic\.id === 'guide' \|\| topic\.id === 'settings'/,
+  /tightGap \? 'gap-0\.5' : 'gap-1'/,
+]);
+// 하트 탭 설명은 한 줄이 길어 2열로 돌리면 line-clamp로 잘린다.
+mustMatch('artifacts/boltnew-app/src/components/TutorialModal.tsx', '35_tutorial_heart_tab_single_column', [
+  /count >= 4 && topic\.id !== 'heart'/,
+]);
+// 첫 입장 코치는 해금 시간·남은 시간과 무지개 사용법을 함께 안내한다.
+mustMatch('artifacts/boltnew-app/src/components/FirstEntryCoachMarks.tsx', '35_first_entry_heart_rules', [
+  /다음 해금 시간과 남은 시간/,
+  /무지개를 써도 일반 하트는 줄지 않아요/,
+  /first-entry-heart-primer/,
+  /오늘 하트는 이렇게 써요/,
+  /종류마다 한 번/,
+]);
+// 장면 전환은 한 프레임 뒤 페이드인해야 1장면 루프에서 하드 컷/깜빡임이 없다.
+mustMatch('artifacts/boltnew-app/src/components/TutorialVideo.tsx', '35_tutorial_video_heart_header_live', [
+  /grid-cols-2 grid-rows-2/,
+  /다음 해금까지/,
+  /호감·친구·뜨밤·칭찬/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/components/TutorialVideo.tsx', '35_tutorial_video_no_legacy_heart_copy', [
+  /주황하트/,
+  /빨강하트/,
+  /animate-bounce/,
+]);
+// 장면 전환은 한 프레임 뒤 페이드인해야 1장면 루프에서 하드 컷/깜빡임이 없다.
+mustMatch('artifacts/boltnew-app/src/components/TutorialVideo.tsx', '35_tutorial_video_scene_fade_in', [
+  /fadeInTimerRef/,
+  /useLayoutEffect\(\(\) => \{\s*\n\s*if \(!scaleStage\) return;/,
 ]);
 // Aliasing the config-taking serializer here wiped event_schedule on every admin save.
 mustMatch('artifacts/api-server/src/lib/db-event-schedule.ts', '35_event_schedule_raw_serializer_reexport', [

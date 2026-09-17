@@ -53,18 +53,19 @@
 ## ✅ 검증 명령어 (커밋 전 실행)
 
 ```bash
-# 프론트엔드
-cd artifacts/boltnew-app
-pnpm typecheck          # 타입 에러 0개 확인
-pnpm test:unit          # 69/69 통과 확인
+# 저장소 루트 — GitHub Verify와 동일한 가드·audit·unit
+corepack pnpm run verify:ci
 
-# 백엔드
-cd artifacts/api-server
-pnpm typecheck          # 타입 에러 0개 확인
+# 프론트엔드만
+corepack pnpm --filter ./artifacts/boltnew-app run typecheck
+corepack pnpm --filter ./artifacts/boltnew-app run test:unit
 
-# 부하 테스트 (선택)
-BASE_URL=http://localhost:8080 node artifacts/api-server/scripts/stress-test.mjs
+# 백엔드만
+corepack pnpm --filter ./artifacts/api-server run typecheck
+corepack pnpm --filter ./artifacts/api-server run test:unit
 ```
+
+최근 규모(2026-09-17): Frontend unit 699, recurrence guards 534. 부하 테스트 `load-venue-150`는 busy host에서 p95가 흔들릴 수 있는 환경성 flaky로 본다.
 
 ---
 
@@ -77,4 +78,4 @@ BASE_URL=http://localhost:8080 node artifacts/api-server/scripts/stress-test.mjs
 
 ---
 
-*마지막 업데이트: 2026-08-08 — 15단계 E2E 전수감사 완료 기준*
+*마지막 업데이트: 2026-09-17 — 최종 보관 패키지 문서 반영. 훅/보안 규칙은 2026-08-08 전수감사 기준.*
