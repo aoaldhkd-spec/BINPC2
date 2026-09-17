@@ -264,15 +264,19 @@ mustMatch('artifacts/boltnew-app/src/components/LikeConfirmDialog.tsx', '35_like
 ]);
 mustMatch('artifacts/boltnew-app/src/admin/EventScheduleTab.tsx', '35_schedule_notice_hearts_separate', [
   /공지만 적용/,
-  /하트만 해금/,
+  /하트만 \+/,
+  /이 값으로 설정/,
   /시간만 적용/,
   /applyNoticeNow/,
   /unlockRainbowNow/,
+  /setRainbowNow/,
   /applyTimeOnly/,
   /applySlotNowPatch/,
   /rainbowUnlockNowPatch/,
   /nextRainbowPoolGrant/,
   /parseHeartGrantAmount/,
+  /rainbowPoolApplyPreview/,
+  /heartsSetPatch/,
   /noticeOnlyPatch/,
   /heartsOnlyPatch/,
   /timeOnlyPatch/,
@@ -280,11 +284,23 @@ mustMatch('artifacts/boltnew-app/src/admin/EventScheduleTab.tsx', '35_schedule_n
   /shouldWarnTimeOnlyApply/,
   /선택 \{pickCount\}개 적용/,
   /공지나 하트도 같이 넣는 게 좋아요/,
+  /eventRainbowQuota/,
 ]);
 mustMatch('artifacts/boltnew-app/src/lib/event-schedule.ts', '35_upcoming_heart_preview', [
   /upcomingHeartGrantPreview/,
   /upcomingHeartText/,
   /participantHeartChatLock/,
+  /eventRainbowQuota/,
+  /cumulativeRainbow: eventRainbowQuota/,
+]);
+mustMatch('artifacts/boltnew-app/src/App.tsx', '35_rainbow_pool_only_display', [
+  /rainbowPool = useMemo/,
+  /eventRainbowQuota\(eventScheduleRaw/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/App.tsx', '35_no_granted_total_as_rainbow', [
+  /eventGrantedHeartTotal/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/hooks/useHearts.ts', '35_like_spend_rainbow_pool_only', [
   /eventGrantedHeartTotal/,
 ]);
 mustMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '35_heart_chat_lock_count', [

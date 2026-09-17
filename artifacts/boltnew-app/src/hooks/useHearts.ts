@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase, ensureWriteSession } from '../lib/supabase';
 import type { Profile, ContactShare } from '../types/app';
 import { HeartType, HEART_TYPES } from '../lib/constants';
-import { eventGrantedHeartTotal } from '../lib/event-schedule';
+import { eventRainbowQuota } from '../lib/event-schedule';
 import { isInterestHeart } from '../lib/signal-match';
 // signal-match: isInterestHeart only (mutual-heart detection)
 import {
@@ -248,7 +248,7 @@ export function useHearts(
   const executeLike = async (heartType: HeartType): Promise<boolean> => {
     if (!currentUserId || !likeConfirmTarget) return false;
     if (likeInFlightRef.current) return false;
-    const rainbowQuota = eventGrantedHeartTotal(eventScheduleRaw);
+    const rainbowQuota = eventRainbowQuota(eventScheduleRaw);
     let sentTotal = 0;
     sentHeartsPerPerson.forEach(types => { sentTotal += types.size; });
     if (rainbowQuota <= 0) {
