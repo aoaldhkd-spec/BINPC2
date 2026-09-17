@@ -256,6 +256,19 @@ mustMatch('artifacts/boltnew-app/src/components/LikeConfirmDialog.tsx', '35_like
   /z-\[10070\]/,
   /bindMobileTap/,
   /selectedRef/,
+  /like-rainbow-btn/,
+  /어떤 거 보내실래요\?/,
+  /aria-disabled/,
+]);
+mustMatch('artifacts/boltnew-app/src/admin/EventScheduleTab.tsx', '35_schedule_notice_hearts_separate', [
+  /공지만 적용/,
+  /하트만 해금/,
+  /applyNoticeIndependently/,
+  /applyHeartsIndependently/,
+]);
+mustMatch('artifacts/boltnew-app/src/lib/event-schedule.ts', '35_upcoming_heart_preview', [
+  /upcomingHeartGrantPreview/,
+  /upcomingHeartText/,
 ]);
 mustMatch('artifacts/boltnew-app/src/hooks/useHearts.ts', '35_ensure_write_session_before_like', [
   /ensureWriteSession/,

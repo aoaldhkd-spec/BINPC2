@@ -5,6 +5,7 @@ import {
   eventRainbowQuota,
   eventScheduleBannerState,
   rainbowPoolPickState,
+  upcomingHeartGrantPreview,
 } from './event-schedule';
 
 describe('client event schedule quotas', () => {
@@ -75,6 +76,28 @@ describe('eventScheduleBannerState', () => {
     const late = eventScheduleBannerState(schedule, new Date('2026-09-16T14:06:00.000Z'));
     expect(late.show).toBe(false);
     expect(late.showNotice).toBe(false);
+    expect(late.upcomingHeartText).toBeNull();
+  });
+
+  it('previews upcoming rainbow or color heart grants in Seoul time', () => {
+    const rainbow = {
+      slots: [
+        { at: '23:00', notice: '시작' },
+        { at: '23:05', rainbow_pool: 4 },
+      ],
+    };
+    const at2302 = new Date('2026-09-16T14:02:00.000Z');
+    expect(upcomingHeartGrantPreview(rainbow, at2302)).toEqual({
+      minutes: 3,
+      text: '3분 뒤 무지개하트 4개가 추가됩니다',
+    });
+    expect(eventScheduleBannerState(rainbow, at2302).upcomingHeartText).toBe('3분 뒤 무지개하트 4개가 추가됩니다');
+
+    const color = { slots: [{ at: '23:10', heart_grants: { red: 2 } }] };
+    expect(upcomingHeartGrantPreview(color, new Date('2026-09-16T14:05:00.000Z'))?.text).toBe(
+      '5분 뒤 호감하트가 추가됩니다',
+    );
+    expect(upcomingHeartGrantPreview(rainbow, new Date('2026-09-16T14:05:00.000Z'))).toBeNull();
   });
 });
 

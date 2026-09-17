@@ -12,6 +12,11 @@ export function EventScheduleBanner({ raw }: { raw: string | null }) {
   return <div className="mx-3 mb-1 rounded-xl border border-violet-200 bg-violet-50 px-3 py-1.5 text-center text-[10px] font-bold text-violet-800">
     {state.showNotice && state.active?.notice ? <span>{state.active.notice}</span> : null}
     {state.cumulativeRainbow > 0 && <span className={`${state.showNotice && state.active?.notice ? 'ml-2' : ''} text-violet-700`}>🌈 무지개하트{state.cumulativeRainbow}개 적용</span>}
-    {state.next && <span className="ml-2 text-violet-500">다음 {state.next.at} · {countdown}</span>}
+    {state.upcomingHeartText && (
+      <span className={`${state.showNotice || state.cumulativeRainbow > 0 ? 'ml-2' : ''} text-fuchsia-700`} data-testid="upcoming-heart-preview">
+        {state.upcomingHeartText}
+      </span>
+    )}
+    {!state.upcomingHeartText && state.next && <span className="ml-2 text-violet-500">다음 {state.next.at} · {countdown}</span>}
   </div>;
 }
