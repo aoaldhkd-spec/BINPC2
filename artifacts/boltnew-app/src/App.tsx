@@ -17,7 +17,7 @@ import { useProfilePrivacyLoaders } from './hooks/useProfilePrivacyLoaders';
 import { useSessionInit } from './hooks/useSessionInit';
 import { planAdminResetWipe, runAdminResetWipe } from './lib/admin-reset-wipe';
 import type { SessionReadySettingsPatch } from './lib/session-ready-settings';
-import { eventHeartQuotas, eventGrantedHeartTotal, currentEventSlot } from './lib/event-schedule';
+import { eventHeartQuotas, eventRainbowQuota, currentEventSlot } from './lib/event-schedule';
 import { subscribeNetUi, resetNetUiForRetry, type NetUiStatus } from './lib/net-health';
 import { excludeSwipeGestureVerifyProfiles } from './lib/profile';
 import { mergeProfilesPreserveOrder } from './lib/profile-list-order';
@@ -400,7 +400,7 @@ function App() {
     [eventScheduleRaw, scheduleNow],
   );
   const rainbowPool = useMemo(
-    () => eventGrantedHeartTotal(eventScheduleRaw, new Date()),
+    () => eventRainbowQuota(eventScheduleRaw, new Date()),
     [eventScheduleRaw, scheduleNow],
   );
   // The schedule is also evaluated locally between SSE/ready heartbeats so a slot

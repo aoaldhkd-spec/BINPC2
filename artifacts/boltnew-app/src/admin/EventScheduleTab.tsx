@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { AppSettings } from './shared';
 import { HEART_TYPES } from '../lib/constants';
-import { currentEventSlot, eventGrantedHeartTotal, eventHeartQuotas, parseEventSchedule, type EventScheduleSlot } from '../lib/event-schedule';
+import { currentEventSlot, eventHeartQuotas, eventRainbowQuota, parseEventSchedule, type EventScheduleSlot } from '../lib/event-schedule';
 
 const NOTICE_PRESETS = [
   '지금은 프로필·설정만 이용할 수 있어요. 하트·채팅은 잠시 후 열립니다.',
@@ -60,6 +60,23 @@ export function heartsOnlyPatch(currentPool: number | undefined, add: number): P
   return { rainbow_pool: nextRainbowPoolGrant(currentPool, add), functions_locked: false };
 }
 
+/** Hearts-only overwrite: set pool to N (not add). */
+export function heartsSetPatch(amount: number): Partial<EventScheduleSlot> {
+  const n = parseHeartGrantAmount(amount);
+  return { ...(n > 0 ? { rainbow_pool: n } : {}), functions_locked: false };
+}
+
+export function rainbowPoolApplyPreview(current: number | undefined, amount: unknown): {
+  current: number;
+  add: number;
+  added: number;
+  setTo: number;
+} {
+  const cur = Math.max(0, Math.floor(Number(current) || 0));
+  const n = parseHeartGrantAmount(amount);
+  return { current: cur, add: n, added: Math.min(100, cur + n), setTo: n };
+}
+
 export const TIME_ONLY_APPLY_HINT = '공지나 하트도 같이 넣는 게 좋아요';
 
 export type SlotApplyPick = { time?: boolean; notice?: boolean; hearts?: boolean };
@@ -67,12 +84,16 @@ export type SlotApplyPick = { time?: boolean; notice?: boolean; hearts?: boolean
 /** Merge only the fields included in this apply. Omitted keys stay on the last-saved slot. */
 export function selectedSlotApplyPatch(
   pick: SlotApplyPick,
-  values: { at: string; notice: string; currentPool?: number; addHearts: number },
+  values: { at: string; notice: string; currentPool?: number; addHearts: number; heartsMode?: 'add' | 'set' },
 ): Partial<EventScheduleSlot> {
   const patch: Partial<EventScheduleSlot> = {};
   if (pick.time) Object.assign(patch, timeOnlyPatch(values.at));
   if (pick.notice) Object.assign(patch, noticeOnlyPatch(values.notice));
-  if (pick.hearts) Object.assign(patch, heartsOnlyPatch(values.currentPool, values.addHearts));
+  if (pick.hearts) {
+    Object.assign(patch, values.heartsMode === 'set'
+      ? heartsSetPatch(values.addHearts)
+      : heartsOnlyPatch(values.currentPool, values.addHearts));
+  }
   return patch;
 }
 
@@ -123,7 +144,7 @@ export function EventScheduleTab({ settings, onSave }: {
   }, [initial]);
   const scheduleObj = useMemo(() => ({ timezone: 'Asia/Seoul' as const, slots }), [slots]);
   const cumulative = useMemo(() => eventHeartQuotas(scheduleObj, clock), [scheduleObj, clock]);
-  const cumulativeRainbow = useMemo(() => eventGrantedHeartTotal(scheduleObj, clock), [scheduleObj, clock]);
+  const cumulativeRainbow = useMemo(() => eventRainbowQuota(scheduleObj, clock), [scheduleObj, clock]);
   const active = useMemo(() => currentEventSlot(scheduleObj, clock), [scheduleObj, clock]);
   const nowHHMM = seoulNowHHMM(clock);
   const unlocked = active ? active.functions_locked !== true : !(settings?.functions_locked ?? false);
@@ -143,7 +164,7 @@ export function EventScheduleTab({ settings, onSave }: {
   const togglePick = (id: string, key: keyof SlotApplyPick) => {
     setPicks(prev => ({ ...prev, [id]: { ...prev[id], [key]: !prev[id]?.[key] } }));
   };
-  const applyPicked = async (id: string, pick: SlotApplyPick, kind: 'notice' | 'hearts' | 'timeline' | 'selected') => {
+  const applyPicked = async (id: string, pick: SlotApplyPick, kind: 'notice' | 'hearts' | 'timeline' | 'selected', heartsMode: 'add' | 'set' = 'add') => {
     const addHearts = parseHeartGrantAmount(rainbowAmount);
     const effective: SlotApplyPick = { ...pick, hearts: Boolean(pick.hearts && addHearts > 0) };
     if (selectedApplyCount(effective) === 0) return;
@@ -157,12 +178,15 @@ export function EventScheduleTab({ settings, onSave }: {
       notice: local?.notice ?? '',
       currentPool: savedSlot?.rainbow_pool,
       addHearts,
+      heartsMode,
     }));
     setSlots(next);
     await persist(next, effective.hearts ? { functions_locked: false } : undefined, kind);
   };
-  /** Heart count only — last-saved notice/time stay. */
-  const unlockRainbowNow = async (id: string) => { await applyPicked(id, { hearts: true }, 'hearts'); };
+  /** Heart count only — last-saved notice/time stay. ADD onto existing pool. */
+  const unlockRainbowNow = async (id: string) => { await applyPicked(id, { hearts: true }, 'hearts', 'add'); };
+  /** Heart count only — overwrite this slot's rainbow_pool to N. */
+  const setRainbowNow = async (id: string) => { await applyPicked(id, { hearts: true }, 'hearts', 'set'); };
   /** Notice text only — do not bump the clock or change pool. */
   const applyNoticeNow = async (id: string) => { await applyPicked(id, { notice: true }, 'notice'); };
   /** Time only — last-saved notice/pool stay. */
@@ -182,9 +206,9 @@ export function EventScheduleTab({ settings, onSave }: {
           <p className="mt-1 text-[10px] font-bold text-gray-500">{active ? `활성 ${active.at}` : '활성 슬롯 없음'} · {unlocked ? '💖 열림' : '🔒 잠김'}</p>
         </div>
         <div className={`rounded-xl border p-2 ${cumulativeRainbow > 0 ? 'border-fuchsia-300 bg-white/80' : 'border-white/70 bg-white/60'}`}>
-          <p className="text-[10px] font-black text-fuchsia-800">🌈 하트 라이브</p>
-          <p className="mt-1 text-[13px] font-black text-gray-900">pool {poolLabel}</p>
-          <p className="mt-1 text-[10px] font-bold text-gray-500">누적 · 🌈 {cumulativeRainbow} · 빨강 {cumulative.red} · 파랑 {cumulative.blue} · 분홍 {cumulative.pink} · 초록 {cumulative.green}</p>
+          <p className="text-[10px] font-black text-fuchsia-800">🌈 무지개하트 라이브</p>
+          <p className="mt-1 text-[13px] font-black text-gray-900">rainbow_pool {poolLabel}</p>
+          <p className="mt-1 text-[10px] font-bold text-gray-500">색상별 지급은 이 숫자에 안 넣음 · 빨강 {cumulative.red} · 파랑 {cumulative.blue} · 분홍 {cumulative.pink} · 초록 {cumulative.green}</p>
         </div>
       </div>
       <p className="mt-2 text-[11px] font-semibold leading-relaxed text-gray-700">
@@ -197,6 +221,7 @@ export function EventScheduleTab({ settings, onSave }: {
         const locked = slot.functions_locked === true;
         const pick = picks[slot.id] ?? {};
         const pickCount = selectedApplyCount(pick);
+        const preview = rainbowPoolApplyPreview((savedSlots.find(s => s.id === slot.id) ?? slot).rainbow_pool, rainbowAmount);
         return <div key={slot.id} className={`rounded-2xl border bg-white p-3 shadow-sm ${phase === 'active' ? 'border-cyan-400 ring-2 ring-cyan-100' : 'border-gray-200'}`}>
           <div className="mb-2 flex flex-wrap items-center gap-1.5">
             <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-black text-gray-500">#{index + 1}</span>
@@ -231,9 +256,17 @@ export function EventScheduleTab({ settings, onSave }: {
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-2 rounded-xl border border-fuchsia-200 bg-fuchsia-50/70 p-2">
             <label className="flex items-center gap-1 text-[11px] font-black text-fuchsia-800">🌈 <input aria-label={`${index + 1}번 하트 해금 수`} type="number" min="1" max="100" placeholder="N" value={rainbowAmount} onChange={e => setRainbowAmount(e.target.value)} className="w-12 rounded border border-fuchsia-200 bg-white px-1 py-1 text-center" />개</label>
-            <button type="button" disabled={saving || parseHeartGrantAmount(rainbowAmount) <= 0} onClick={() => void unlockRainbowNow(slot.id)} className="rounded-lg bg-fuchsia-600 px-3 py-2 text-[11px] font-black text-white shadow-sm hover:bg-fuchsia-700 disabled:opacity-40">
-              하트만 해금·적용 {parseHeartGrantAmount(rainbowAmount) > 0 ? `${parseHeartGrantAmount(rainbowAmount)}개` : '개수 입력'}
+            <button type="button" disabled={saving || preview.add <= 0} onClick={() => void unlockRainbowNow(slot.id)} className="rounded-lg bg-fuchsia-600 px-3 py-2 text-[11px] font-black text-white shadow-sm hover:bg-fuchsia-700 disabled:opacity-40">
+              {preview.add > 0 ? `하트만 +${preview.add}개 추가` : '하트만 추가 · 개수 입력'}
             </button>
+            <button type="button" disabled={saving || preview.add <= 0} onClick={() => void setRainbowNow(slot.id)} className="rounded-lg border border-fuchsia-400 bg-white px-3 py-2 text-[11px] font-black text-fuchsia-800 hover:bg-fuchsia-50 disabled:opacity-40">
+              이 값으로 설정
+            </button>
+            <p className="w-full text-[10px] font-bold text-fuchsia-900">
+              {preview.add > 0
+                ? `지금 pool ${preview.current} → +${preview.add} 추가 시 ${preview.added} · 설정 시 ${preview.setTo}`
+                : `지금 pool ${preview.current} · 추가할 개수 입력`}
+            </p>
             <div className="w-full flex flex-wrap items-center gap-1.5 pt-1">
               <span className="text-[10px] font-black text-gray-400">같이 적용</span>
               {([['time', '시간'], ['notice', '공지'], ['hearts', '하트']] as const).map(([key, label]) => (

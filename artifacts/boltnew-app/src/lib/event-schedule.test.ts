@@ -31,6 +31,14 @@ describe('client event schedule quotas', () => {
     expect(eventGrantedHeartTotal({ slots: [{ at: '23:05' }] }, now)).toBe(0);
   });
 
+  it('eventRainbowQuota ignores per-color heart_grants so pool 2 + grants 4 stays 2', () => {
+    const now = new Date('2026-09-16T14:05:00.000Z');
+    const mixed = { slots: [{ at: '23:05', rainbow_pool: 2, heart_grants: { red: 1, blue: 1, pink: 1, green: 1 } }] };
+    expect(eventRainbowQuota(mixed, now)).toBe(2);
+    expect(eventGrantedHeartTotal(mixed, now)).toBe(6);
+    expect(eventScheduleBannerState(mixed, now).cumulativeRainbow).toBe(2);
+  });
+
   it('stays locked (pool 0) until a rainbow_pool slot opens', () => {
     const schedule = { slots: [{ at: '23:05', notice: 'later', rainbow_pool: 4 }] };
     expect(eventRainbowQuota(schedule, new Date('2026-09-16T14:00:00.000Z'))).toBe(0);

@@ -27,6 +27,12 @@ describe('event schedule', () => {
     expect(eventGrantedHeartTotal({ slots: [{ at: '23:05', rainbow_pool: 2 }] }, now)).toBe(2);
     expect(eventGrantedHeartTotal({ slots: [{ at: '23:05', rainbow_pool: 2, heart_grants: { red: 1, green: 2 } }] }, now)).toBe(5);
   });
+  it('eventRainbowQuota stays on rainbow_pool when color grants would inflate to 6', () => {
+    const now = new Date('2026-09-16T14:05:00.000Z');
+    const mixed = { slots: [{ at: '23:05', rainbow_pool: 2, heart_grants: { red: 1, blue: 1, pink: 1, green: 1 } }] };
+    expect(eventRainbowQuota(mixed, now)).toBe(2);
+    expect(eventGrantedHeartTotal(mixed, now)).toBe(6);
+  });
   it('immediate unlock-now style slot opens rainbow pool at current Seoul minute', () => {
     const now = new Date('2026-09-16T05:30:00.000Z'); // 14:30 Seoul
     const raw = { slots: [{ at: '14:30', functions_locked: false, rainbow_pool: 4 }] };

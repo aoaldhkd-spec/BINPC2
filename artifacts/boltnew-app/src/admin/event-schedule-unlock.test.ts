@@ -4,8 +4,10 @@ import {
   applySlotNowPatch,
   applySlotPatch,
   heartsOnlyPatch,
+  heartsSetPatch,
   nextRainbowPoolGrant,
   parseHeartGrantAmount,
+  rainbowPoolApplyPreview,
   noticeOnlyPatch,
   rainbowUnlockNowPatch,
   selectedApplyCount,
@@ -115,6 +117,16 @@ describe('admin rainbow unlock now', () => {
     expect(parseHeartGrantAmount(7)).toBe(7);
     expect(nextRainbowPoolGrant(0, 0)).toBe(0);
     expect(nextRainbowPoolGrant(2, 5)).toBe(7);
+  });
+
+  it('rainbowPoolApplyPreview shows add vs set without mixing color grants', () => {
+    expect(rainbowPoolApplyPreview(2, 4)).toEqual({ current: 2, add: 4, added: 6, setTo: 4 });
+    expect(rainbowPoolApplyPreview(2, '')).toEqual({ current: 2, add: 0, added: 2, setTo: 0 });
+    expect(heartsSetPatch(4)).toEqual({ rainbow_pool: 4, functions_locked: false });
+    expect(heartsOnlyPatch(2, 4).rainbow_pool).toBe(6);
+    expect(selectedSlotApplyPatch({ hearts: true }, { at: '18:00', notice: '', currentPool: 2, addHearts: 4, heartsMode: 'set' })).toEqual({
+      rainbow_pool: 4, functions_locked: false,
+    });
   });
 
   it('adds each unlock onto the existing slot pool (not a hardcoded 4)', () => {

@@ -54,7 +54,7 @@ export function eventHeartQuotas(raw: unknown, now = new Date()): Record<HeartTy
   return { red: eventHeartQuota(raw, 'red', now), blue: eventHeartQuota(raw, 'blue', now), pink: eventHeartQuota(raw, 'pink', now), green: eventHeartQuota(raw, 'green', now) };
 }
 
-/** Spendable grant total: cumulative rainbow_pool + all heart_grants. Never HEART_TYPES.length. */
+/** Combined rainbow_pool + per-color heart_grants. Not the user-facing 무지개하트 count. */
 export function eventGrantedHeartTotal(raw: unknown, now = new Date()): number {
   const colors = eventHeartQuotas(raw, now);
   return eventRainbowQuota(raw, now) + colors.red + colors.blue + colors.pink + colors.green;
@@ -179,7 +179,7 @@ export function eventScheduleBannerState(raw: unknown, now = new Date()): EventS
     next: showCountdown ? next : null,
     nextSeconds: showCountdown ? nextSeconds : null,
     showNotice,
-    cumulativeRainbow: eventGrantedHeartTotal(raw, now),
+    cumulativeRainbow: eventRainbowQuota(raw, now),
     upcomingHeartText: upcoming?.text ?? null,
   };
 }
