@@ -9,6 +9,7 @@ import {
   rainbowUnlockNowPatch,
   selectedApplyCount,
   selectedSlotApplyPatch,
+  shouldWarnTimeOnlyApply,
   seoulNowHHMM,
   TIME_ONLY_APPLY_HINT,
   timeOnlyPatch,
@@ -91,6 +92,11 @@ describe('admin rainbow unlock now', () => {
       at: '18:00', notice: '새 공지', rainbow_pool: 7, functions_locked: false,
     });
     expect(selectedApplyCount({ time: true, notice: true })).toBe(2);
+    expect(shouldWarnTimeOnlyApply({ time: true })).toBe(true);
+    expect(shouldWarnTimeOnlyApply({ notice: true })).toBe(false);
+    expect(shouldWarnTimeOnlyApply({ hearts: true })).toBe(false);
+    expect(shouldWarnTimeOnlyApply({ time: true, notice: true })).toBe(false);
+    expect(shouldWarnTimeOnlyApply({ time: true, hearts: true })).toBe(false);
     const saved: EventScheduleSlot[] = [
       { id: 'slot-1', at: '10:00', notice: '저장 공지', functions_locked: true, rainbow_pool: 4 },
     ];

@@ -74,6 +74,11 @@ export function selectedApplyCount(pick: SlotApplyPick): number {
   return Number(!!pick.time) + Number(!!pick.notice) + Number(!!pick.hearts);
 }
 
+/** Time-only is allowed; warn. Notice-only / hearts-only / 2–3 field applies do not warn. */
+export function shouldWarnTimeOnlyApply(pick: SlotApplyPick): boolean {
+  return selectedApplyCount(pick) === 1 && !!pick.time;
+}
+
 /** Persist only the chosen field onto last-saved slots so dirty sibling edits are not broadcast. */
 export function applySavedFieldPatch(
   saved: EventScheduleSlot[],
@@ -134,7 +139,7 @@ export function EventScheduleTab({ settings, onSave }: {
   };
   const applyPicked = async (id: string, pick: SlotApplyPick, kind: 'notice' | 'hearts' | 'timeline' | 'selected') => {
     if (selectedApplyCount(pick) === 0) return;
-    if (selectedApplyCount(pick) === 1 && pick.time && typeof window !== 'undefined'
+    if (shouldWarnTimeOnlyApply(pick) && typeof window !== 'undefined'
       && !window.confirm(`${TIME_ONLY_APPLY_HINT}. 시간만 적용할까요?`)) return;
     const local = slots.find(s => s.id === id);
     const base = savedSlots.some(s => s.id === id) ? savedSlots : slots;
@@ -200,7 +205,7 @@ export function EventScheduleTab({ settings, onSave }: {
           <div className="flex flex-wrap items-center gap-2">
             <input aria-label={`슬롯 ${index + 1} 시각`} type="time" value={slot.at} onChange={e => update(slot.id, { at: e.target.value })} className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm font-black" />
             <button type="button" disabled={saving} onClick={() => update(slot.id, { at: seoulNowHHMM() })} className="rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5 text-[10px] font-black text-amber-800">지금</button>
-            <button type="button" disabled={saving} onClick={() => void applyTimeOnly(slot.id)} className="rounded-lg bg-amber-500 px-2.5 py-1.5 text-[10px] font-black text-white hover:bg-amber-600 disabled:opacity-40">시간만 적용</button>
+            <button type="button" disabled={saving} onClick={() => void applyTimeOnly(slot.id)} className="rounded-lg bg-amber-500 px-2.5 py-1.5 text-[10px] font-black text-white hover:bg-amber-600 disabled:opacity-40" title={TIME_ONLY_APPLY_HINT}>시간만 적용</button>
             <select aria-label={`슬롯 ${index + 1} 잠금`} value={locked ? 'locked' : 'open'} onChange={e => update(slot.id, { functions_locked: e.target.value === 'locked' })} className="min-w-0 flex-1 rounded-lg border border-gray-200 px-2 py-1.5 text-xs font-bold">
               <option value="locked">🔒 프로필·설정만</option><option value="open">💖 하트·채팅 열림</option>
             </select>
