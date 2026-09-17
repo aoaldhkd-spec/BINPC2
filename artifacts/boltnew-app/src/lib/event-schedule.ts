@@ -84,6 +84,25 @@ export function rainbowPoolPickState(input: {
   return { unlocked, poolRemaining, disabled };
 }
 
+/** User-facing heart vs chat lock + remaining pool — one shared count, not per-color fake 0s. */
+export function participantHeartChatLock(input: {
+  functionsLocked: boolean;
+  rainbowPool: number;
+  totalUsed: number;
+}): { remaining: number; heartsLocked: boolean; chatLocked: boolean; poolGranted: boolean } {
+  const pick = rainbowPoolPickState({
+    rainbowPool: input.rainbowPool,
+    totalUsed: input.totalUsed,
+    alreadySentThisType: false,
+  });
+  return {
+    remaining: pick.poolRemaining,
+    poolGranted: pick.unlocked,
+    heartsLocked: input.functionsLocked || !pick.unlocked,
+    chatLocked: input.functionsLocked,
+  };
+}
+
 /** Minutes a last-slot notice stays visible after its `at` when no next slot. */
 export const EVENT_NOTICE_HOLD_MINUTES = 5;
 

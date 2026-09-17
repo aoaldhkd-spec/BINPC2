@@ -4,6 +4,7 @@ import {
   eventHeartQuotas,
   eventRainbowQuota,
   eventScheduleBannerState,
+  participantHeartChatLock,
   rainbowPoolPickState,
   upcomingHeartGrantPreview,
 } from './event-schedule';
@@ -44,6 +45,21 @@ describe('client event schedule quotas', () => {
     });
     expect(rainbowPoolPickState({ rainbowPool: 4, totalUsed: 4, alreadySentThisType: false }).disabled).toBe(true);
     expect(rainbowPoolPickState({ rainbowPool: 4, totalUsed: 0, alreadySentThisType: true }).disabled).toBe(true);
+  });
+
+  it('participantHeartChatLock separates chat lock from heart pool remaining', () => {
+    expect(participantHeartChatLock({ functionsLocked: true, rainbowPool: 4, totalUsed: 1 })).toEqual({
+      remaining: 3, poolGranted: true, heartsLocked: true, chatLocked: true,
+    });
+    expect(participantHeartChatLock({ functionsLocked: false, rainbowPool: 0, totalUsed: 0 })).toEqual({
+      remaining: 0, poolGranted: false, heartsLocked: true, chatLocked: false,
+    });
+    expect(participantHeartChatLock({ functionsLocked: false, rainbowPool: 4, totalUsed: 1 })).toEqual({
+      remaining: 3, poolGranted: true, heartsLocked: false, chatLocked: false,
+    });
+    expect(participantHeartChatLock({ functionsLocked: false, rainbowPool: 8, totalUsed: 1 })).toEqual({
+      remaining: 7, poolGranted: true, heartsLocked: false, chatLocked: false,
+    });
   });
 });
 

@@ -259,6 +259,8 @@ mustMatch('artifacts/boltnew-app/src/components/LikeConfirmDialog.tsx', '35_like
   /like-rainbow-btn/,
   /어떤 거 보내실래요\?/,
   /aria-disabled/,
+  /h\.label/,
+  /space-y-2 mb-5/,
 ]);
 mustMatch('artifacts/boltnew-app/src/admin/EventScheduleTab.tsx', '35_schedule_notice_hearts_separate', [
   /공지만 적용/,
@@ -267,10 +269,17 @@ mustMatch('artifacts/boltnew-app/src/admin/EventScheduleTab.tsx', '35_schedule_n
   /unlockRainbowNow/,
   /applySlotNowPatch/,
   /rainbowUnlockNowPatch/,
+  /nextRainbowPoolGrant/,
 ]);
 mustMatch('artifacts/boltnew-app/src/lib/event-schedule.ts', '35_upcoming_heart_preview', [
   /upcomingHeartGrantPreview/,
   /upcomingHeartText/,
+  /participantHeartChatLock/,
+]);
+mustMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '35_heart_chat_lock_count', [
+  /home-heart-remaining-total/,
+  /home-heart-lock/,
+  /home-chat-lock/,
 ]);
 mustMatch('artifacts/boltnew-app/src/hooks/useHearts.ts', '35_ensure_write_session_before_like', [
   /ensureWriteSession/,

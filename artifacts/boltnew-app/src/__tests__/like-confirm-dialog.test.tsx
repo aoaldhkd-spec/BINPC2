@@ -50,16 +50,23 @@ function renderDialog(rainbowPool: number, onConfirm = vi.fn()) {
   return onConfirm;
 }
 
-describe('LikeConfirmDialog rainbow row', () => {
-  it('shows 4 color hearts plus rainbow in one row', () => {
+describe('LikeConfirmDialog original 4 + rainbow slot', () => {
+  it('keeps the original 4 heart labels and appends a rainbow slot', () => {
     renderDialog(4);
-    expect(screen.getByTestId('like-heart-row')).toBeTruthy();
-    expect(screen.getByTestId('like-heart-red')).toBeTruthy();
-    expect(screen.getByTestId('like-heart-blue')).toBeTruthy();
-    expect(screen.getByTestId('like-heart-pink')).toBeTruthy();
-    expect(screen.getByTestId('like-heart-green')).toBeTruthy();
+    expect(screen.getByText('맘에 드는 사람')).toBeTruthy();
+    expect(screen.getByText('친구하고 싶어요')).toBeTruthy();
+    expect(screen.getByText('뜨밤')).toBeTruthy();
+    expect(screen.getByText('칭찬 하트')).toBeTruthy();
+    expect(screen.queryByTestId('like-heart-row')).toBeNull();
     expect(screen.getByTestId('like-rainbow-btn')).toBeTruthy();
     expect(screen.getByTestId('like-rainbow-btn').getAttribute('aria-disabled')).toBe('false');
+  });
+
+  it('shows granted remaining, not a hardcoded 4', () => {
+    renderDialog(8);
+    expect(screen.getByTestId('like-rainbow-remaining').textContent).toBe('8개');
+    expect(screen.getByTestId('like-rainbow-btn').textContent).toContain('해금 8개');
+    expect(screen.getByTestId('like-rainbow-btn').textContent).toContain('남음 8개');
   });
 
   it('keeps a locked gray rainbow until pool is granted', () => {
@@ -75,14 +82,14 @@ describe('LikeConfirmDialog rainbow row', () => {
     const onConfirm = renderDialog(4);
     fireEvent.click(screen.getByTestId('like-rainbow-btn'));
     expect(screen.getByTestId('rainbow-color-dialog').textContent).toContain('어떤 거 보내실래요?');
-    fireEvent.click(screen.getByText('친구하고 싶어요'));
+    fireEvent.click(screen.getAllByText('친구하고 싶어요')[1]);
     fireEvent.click(screen.getAllByRole('button', { name: '보내기' })[1]);
     expect(onConfirm).toHaveBeenCalledWith('blue');
   });
 
-  it('sends a normal unlocked heart from the row without opening rainbow modal', () => {
+  it('sends a normal unlocked heart from the original list without opening rainbow modal', () => {
     const onConfirm = renderDialog(4);
-    fireEvent.click(screen.getByTestId('like-heart-red'));
+    fireEvent.click(screen.getByText('맘에 드는 사람'));
     expect(screen.queryByTestId('rainbow-color-dialog')).toBeNull();
     fireEvent.click(screen.getAllByRole('button', { name: '보내기' })[0]);
     expect(onConfirm).toHaveBeenCalledWith('red');

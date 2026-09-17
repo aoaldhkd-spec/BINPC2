@@ -27,6 +27,13 @@ export function rainbowUnlockNowPatch(amount: number, now = new Date()): Partial
   return { at: seoulNowHHMM(now), functions_locked: false, rainbow_pool: n };
 }
 
+/** Add N more to a slot's existing rainbow_pool (admin "추가하는만큼"). */
+export function nextRainbowPoolGrant(current: number | undefined, add: number): number {
+  const cur = Math.max(0, Math.floor(Number(current) || 0));
+  const n = Math.max(1, Math.min(100, Math.floor(Number(add) || 4)));
+  return Math.min(100, cur + n);
+}
+
 /** Apply slot now: bump clock + open functions (no pool change). */
 export function applySlotNowPatch(now = new Date()): Partial<EventScheduleSlot> {
   return { at: seoulNowHHMM(now), functions_locked: false };
@@ -76,16 +83,21 @@ export function EventScheduleTab({ settings, onSave }: {
   const save = async () => { await persist(slots); };
   /** Heart unlock only — same persist/SSE path; notice text on the slot is unchanged. */
   const unlockRainbowNow = async (id: string) => {
-    const next = applySlotPatch(slots, id, rainbowUnlockNowPatch(Number(rainbowAmount) || 4));
+    const slot = slots.find(s => s.id === id);
+    const granted = nextRainbowPoolGrant(slot?.rainbow_pool, Number(rainbowAmount) || 4);
+    const next = applySlotPatch(slots, id, rainbowUnlockNowPatch(granted));
     setSlots(next);
     await persist(next, { functions_locked: false }, 'hearts');
   };
-  /** Notice/timer only — bump clock so this slot's notice is live; rainbow_pool field is not patched. */
+  /** Notice/timer only — bump clock so this notice is live; do not force-unlock or change pool. */
   const applyNoticeNow = async (id: string) => {
-    const next = applySlotPatch(slots, id, applySlotNowPatch());
+    const next = applySlotPatch(slots, id, { at: seoulNowHHMM() });
     setSlots(next);
-    const locked = next.find(s => s.id === id)?.functions_locked === true;
-    await persist(next, { functions_locked: locked }, 'notice');
+    const slot = next.find(s => s.id === id);
+    const extras = typeof slot?.functions_locked === 'boolean'
+      ? { functions_locked: slot.functions_locked }
+      : undefined;
+    await persist(next, extras, 'notice');
   };
   const poolLabel = cumulativeRainbow > 0 ? `${cumulativeRainbow}개` : '0개 (잠김)';
   return <div className="p-3 min-[390px]:p-4 space-y-4">

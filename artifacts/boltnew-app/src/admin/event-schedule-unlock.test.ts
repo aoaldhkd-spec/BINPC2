@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applySlotNowPatch, applySlotPatch, rainbowUnlockNowPatch, seoulNowHHMM } from './EventScheduleTab';
+import { applySlotNowPatch, applySlotPatch, nextRainbowPoolGrant, rainbowUnlockNowPatch, seoulNowHHMM } from './EventScheduleTab';
 import { eventRainbowQuota, type EventScheduleSlot } from '../lib/event-schedule';
 
 describe('admin rainbow unlock now', () => {
@@ -44,5 +44,19 @@ describe('admin rainbow unlock now', () => {
     expect(heartsOnly[0].notice).toBe('라이브 공지');
     expect(heartsOnly[0].rainbow_pool).toBe(4);
     expect(eventRainbowQuota({ timezone: 'Asia/Seoul', slots: heartsOnly }, now)).toBe(4);
+  });
+
+  it('adds each unlock onto the existing slot pool (not a hardcoded 4)', () => {
+    expect(nextRainbowPoolGrant(undefined, 4)).toBe(4);
+    expect(nextRainbowPoolGrant(4, 4)).toBe(8);
+    expect(nextRainbowPoolGrant(8, 3)).toBe(11);
+    const now = new Date('2026-09-16T05:30:00.000Z');
+    const slots: EventScheduleSlot[] = [
+      { id: 'slot-1', at: '23:00', notice: '', functions_locked: true, rainbow_pool: 4 },
+    ];
+    const granted = nextRainbowPoolGrant(slots[0].rainbow_pool, 4);
+    const next = applySlotPatch(slots, 'slot-1', rainbowUnlockNowPatch(granted, now));
+    expect(next[0].rainbow_pool).toBe(8);
+    expect(eventRainbowQuota({ timezone: 'Asia/Seoul', slots: next }, now)).toBe(8);
   });
 });

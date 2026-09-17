@@ -264,8 +264,8 @@ export function FirstEntryCoachMarks({
         <div className="flex items-start gap-3">
           <span className="mt-0.5 text-2xl" aria-hidden="true">✨</span>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-black text-cyan-700">여기는 {current.title}예요</p>
-            <p className="mt-1 text-xs font-semibold leading-relaxed text-slate-600">{current.detail}</p>
+            <p className="text-base font-black text-cyan-700">여기는 {current.title}예요</p>
+            <p className="mt-1 text-sm font-semibold leading-relaxed text-slate-600">{current.detail}</p>
           </div>
         </div>
         <div className="mt-3 flex items-center justify-between gap-2">
