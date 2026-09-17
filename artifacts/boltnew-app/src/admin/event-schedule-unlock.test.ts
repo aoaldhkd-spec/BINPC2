@@ -16,7 +16,9 @@ import {
   seoulNowHHMM,
   TIME_ONLY_APPLY_HINT,
   timeOnlyPatch,
-} from './EventScheduleTab';
+  draftToApplyPick,
+  parseColorGrantsDraft,
+} from './event-schedule-apply';
 import { eventRainbowQuota, type EventScheduleSlot } from '../lib/event-schedule';
 
 describe('admin rainbow unlock now', () => {
@@ -141,5 +143,32 @@ describe('admin rainbow unlock now', () => {
     const next = applySlotPatch(slots, 'slot-1', rainbowUnlockNowPatch(granted, now));
     expect(next[0].rainbow_pool).toBe(8);
     expect(eventRainbowQuota({ timezone: 'Asia/Seoul', slots: next }, now)).toBe(8);
+  });
+
+  it('draftToApplyPick and selectedSlotApplyPatch send only filled fields including color grants', () => {
+    expect(draftToApplyPick({ at: '', notice: '안녕', rainbowAmount: '', colorGrants: {} })).toEqual({
+      time: false, notice: true, hearts: false,
+    });
+    expect(draftToApplyPick({ at: '14:30', notice: '', rainbowAmount: '', colorGrants: { red: '2' } })).toEqual({
+      time: true, notice: false, hearts: true,
+    });
+    expect(parseColorGrantsDraft({ red: '2', blue: '', pink: '0', green: 'abc' })).toEqual({ red: 2, pink: 0 });
+
+    const saved: EventScheduleSlot[] = [
+      { id: 'slot-1', at: '10:00', notice: '저장 공지', functions_locked: true, rainbow_pool: 4, heart_grants: { red: 1, green: 2 } },
+    ];
+    const noticeOnly = applySavedFieldPatch(saved, saved, 'slot-1', selectedSlotApplyPatch({ notice: true }, {
+      at: '18:00', notice: '새 공지', currentPool: 4, addHearts: 0,
+    }));
+    expect(noticeOnly[0]).toMatchObject({ at: '10:00', notice: '새 공지', rainbow_pool: 4, heart_grants: { red: 1, green: 2 } });
+
+    const heartsColor = applySavedFieldPatch(saved, saved, 'slot-1', selectedSlotApplyPatch({ hearts: true }, {
+      at: '18:00', notice: '무시', currentPool: 4, addHearts: 0, heartsMode: 'set',
+      colorGrants: { pink: 3 }, currentColorGrants: saved[0].heart_grants,
+    }));
+    expect(heartsColor[0].rainbow_pool).toBe(4);
+    expect(heartsColor[0].notice).toBe('저장 공지');
+    expect(heartsColor[0].at).toBe('10:00');
+    expect(heartsColor[0].heart_grants).toEqual({ red: 1, green: 2, pink: 3 });
   });
 });

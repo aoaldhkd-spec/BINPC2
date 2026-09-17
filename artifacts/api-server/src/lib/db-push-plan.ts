@@ -48,7 +48,7 @@ export function planPushForEvent(
     const nick = (sender?.nickname as string) ?? '누군가';
     const heartEmoji =
       row.heart_type === 'red' ? '❤️' :
-      row.heart_type === 'blue' ? '💙' :
+      row.heart_type === 'blue' ? '🧡' :
       row.heart_type === 'pink' ? '💗' : '💚';
     return {
       recipientId,

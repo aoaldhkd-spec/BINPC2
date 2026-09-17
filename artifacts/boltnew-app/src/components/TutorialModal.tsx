@@ -66,7 +66,7 @@ const BASIC: Topic[] = [
     videoHint: '받은·보낸 하트 확인하는 방법',
     tips: [
       { icon: '🤍', title: '보내는 곳', desc: '참여자 카드 아래 하트. 오른쪽 위 아님.' },
-      { icon: '🌈', title: '개수', desc: '처음엔 잠금. 행사 시계·관리자 해금 후 상단 총 N·무지개 풀로 사용해요.' },
+      { icon: '🌈', title: '개수', desc: '처음엔 잠금. 관리자 해금 후 오른쪽 위 무지개·빨강·핑크·주황·초록 남은 개수를 각각 봐요.' },
       { icon: '✅', title: '확인 곳', desc: '하트, 채팅 → 내 상태. 받은 하트가 아래에 있어요.' },
     ],
   },
@@ -567,7 +567,7 @@ function FillerArt({ kind, darkMode }: { kind: FillerKind; darkMode?: boolean })
 const FILLERS: Record<FillerKind, { title: string; line: string; quote: string; shell: string; darkShell: string }> = {
   heart: {
     title: '하트는 카드 아래, 확인은 하트, 채팅',
-    line: '행사 시계가 열어 준 하트만 선택 가능 · 수락되면 연락처',
+    line: '관리자가 열어 준 하트만 선택 가능 · 수락되면 연락처',
     quote: '오른쪽 위 하트 아님. 받은 하트는 아래로',
     shell: 'bg-gradient-to-br from-rose-50 via-pink-50 to-white border border-rose-100/80 shadow-sm shadow-rose-100/30',
     darkShell: 'bg-gradient-to-br from-slate-800/90 via-rose-950/50 to-slate-900 border border-rose-900/50 shadow-[0_1px_2px_rgba(0,0,0,0.25)]',

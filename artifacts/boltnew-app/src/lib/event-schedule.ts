@@ -109,6 +109,51 @@ export function participantHeartChatLock(input: {
   };
 }
 
+export type HeaderHeartChip = {
+  key: 'rainbow' | HeartType;
+  testId: string;
+  emoji: string;
+  label: string;
+  remaining: number;
+  locked: boolean;
+};
+
+/**
+ * Five header remainings: rainbow pool is never added into red/pink/orange(blue)/green.
+ * Per-color remaining = that type's heart_grants minus that type's sends only.
+ */
+export function headerHeartRemainings(input: {
+  functionsLocked: boolean;
+  rainbowPool: number;
+  quotas: Record<HeartType, number>;
+  used: Record<HeartType, number>;
+}): HeaderHeartChip[] {
+  const usedTotal = input.used.red + input.used.blue + input.used.pink + input.used.green;
+  const rainbow = participantHeartChatLock({
+    functionsLocked: input.functionsLocked,
+    rainbowPool: input.rainbowPool,
+    totalUsed: usedTotal,
+  });
+  const color = (type: HeartType, emoji: string, label: string, testId: string): HeaderHeartChip => {
+    const remaining = Math.max(0, (input.quotas[type] ?? 0) - (input.used[type] ?? 0));
+    return { key: type, testId, emoji, label, remaining, locked: remaining <= 0 };
+  };
+  return [
+    {
+      key: 'rainbow',
+      testId: 'home-heart-remaining-rainbow',
+      emoji: rainbow.heartsLocked ? '🔒🌈' : '🌈',
+      label: '무지개하트',
+      remaining: rainbow.remaining,
+      locked: rainbow.heartsLocked,
+    },
+    color('red', '❤️', '빨강하트', 'home-heart-remaining-red'),
+    color('pink', '💗', '핑크하트', 'home-heart-remaining-pink'),
+    color('blue', '🧡', '주황하트', 'home-heart-remaining-orange'),
+    color('green', '💚', '초록하트', 'home-heart-remaining-green'),
+  ];
+}
+
 /** Minutes a last-slot notice stays visible after its `at` when no next slot. */
 export const EVENT_NOTICE_HOLD_MINUTES = 5;
 
@@ -123,7 +168,7 @@ export type EventScheduleBannerState = {
 };
 
 const GRANT_LABEL: Record<HeartType, string> = {
-  red: '호감', blue: '친구', pink: '뜨밤', green: '칭찬',
+  red: '빨강', blue: '주황', pink: '핑크', green: '초록',
 };
 
 function slotHasHeartGrant(slot: EventScheduleSlot): boolean {

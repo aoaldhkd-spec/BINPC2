@@ -115,8 +115,15 @@ function Tabs({ active, hl }: { active: string; hl?: string }) {
   );
 }
 
-/** 홈 헤더 하트 — 라이브: 무지개하트 남음 N만 (종류 이모지 없음) */
+/** 홈 헤더 하트 — 라이브: 무지개·빨강·핑크·주황·초록 남은 개수 (무지개는 합치지 않음) */
 function HeartHeader({ unlocked, total }: { unlocked: boolean; total: number }) {
+  const chips = [
+    { e: unlocked ? '🌈' : '🔒🌈', n: unlocked ? total : 0 },
+    { e: '❤️', n: 0 },
+    { e: '💗', n: 0 },
+    { e: '🧡', n: 0 },
+    { e: '💚', n: 0 },
+  ];
   return (
     <div className={`relative flex items-center justify-between gap-1 px-2 py-1.5 border-b overflow-hidden ${
       unlocked
@@ -129,15 +136,17 @@ function HeartHeader({ unlocked, total }: { unlocked: boolean; total: number }) 
       <div className="min-w-0 relative">
         <p className="text-[8px] font-black text-white tracking-tight truncate">🍻 범일NPC</p>
         <p className={`text-[6px] font-black truncate ${unlocked ? 'text-cyan-300' : 'text-amber-300'}`}>
-          {unlocked ? '✅ 무지개하트 해금 · 총 N 사용' : '🔒 행사 시계·관리자 해금 대기'}
+          {unlocked ? '✅ 무지개하트 해금' : '🔒 관리자 해금 대기'}
         </p>
       </div>
-      <div className={`relative flex items-center gap-1 flex-shrink-0 rounded-full px-1.5 py-0.5 border ${
-        unlocked ? 'border-cyan-400/60 bg-cyan-500/15' : 'border-amber-500/50 bg-amber-950/40'
-      }`}>
-        <span className={`text-[9px] font-black tabular-nums ${unlocked ? 'text-cyan-200' : 'text-amber-200'}`}>
-          {unlocked ? '🌈' : '🔒🌈'} 남음 {unlocked ? total : 0}
-        </span>
+      <div className="relative flex items-center gap-0.5 flex-shrink-0">
+        {chips.map((h) => (
+          <span key={h.e} className={`inline-flex items-center gap-0.5 rounded-full px-1 py-0.5 text-[8px] font-black tabular-nums ${
+            unlocked ? 'bg-cyan-500/15 text-cyan-100' : 'bg-amber-950/40 text-amber-200 grayscale opacity-70'
+          }`}>
+            {h.e} {h.n}
+          </span>
+        ))}
       </div>
     </div>
   );
@@ -723,7 +732,7 @@ function S7({ step }: { step: number }) {
         {step >= 1 && !unlocked && (
           <div className="rounded-xl border border-amber-500/40 bg-amber-950/30 px-2 py-1.5 animate-in fade-in duration-400">
             <p className="text-[8px] font-black text-amber-200">🔒 하트 잠금</p>
-            <p className="text-[7px] text-amber-100/80 font-bold mt-0.5 leading-snug">행사 시계 슬롯이 열리거나 관리자가 해금하면 상단 총 N이 켜져요</p>
+            <p className="text-[7px] text-amber-100/80 font-bold mt-0.5 leading-snug">관리자가 해금하면 오른쪽 위 무지개·빨강·핑크·주황·초록 남은 개수가 켜져요</p>
             <Ring on={step === 1} color="ring-amber-400" />
           </div>
         )}
@@ -786,13 +795,13 @@ function S7({ step }: { step: number }) {
               <div className="rounded-xl p-1.5 bg-amber-900/25">
                 <div className="w-full h-8 rounded-lg bg-gradient-to-br from-orange-400 to-amber-600 mb-1" />
                 <p className="text-white text-[8px] font-bold truncate">황금여우</p>
-                <p className="text-[7px] text-rose-300">❤️ 호감</p>
+                <p className="text-[7px] text-rose-300">❤️ 빨강</p>
                 <span className="mt-0.5 inline-block text-[6px] font-bold px-1 py-0.5 rounded bg-amber-500/20 text-amber-300">대기 중</span>
               </div>
               <div className="rounded-xl p-1.5 bg-slate-700/60">
                 <div className="w-full h-8 rounded-lg bg-gradient-to-br from-sky-400 to-blue-600 mb-1" />
                 <p className="text-white text-[8px] font-bold truncate">파란고래</p>
-                <p className="text-[7px] text-blue-300">💙 친구</p>
+                <p className="text-[7px] text-orange-300">🧡 주황</p>
                 <span className="mt-0.5 inline-block text-[6px] font-bold px-1 py-0.5 rounded bg-teal-500/20 text-teal-300">수락됨</span>
               </div>
             </div>

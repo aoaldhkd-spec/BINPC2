@@ -2,12 +2,14 @@ import { useState } from 'react';
 import { Trash2, PlayCircle, StopCircle, Lock, Unlock } from 'lucide-react';
 import type { Profile, AppSettings } from './shared';
 import { ConfirmDialog } from './ConfirmDialog';
+import { DashboardEventClockCard } from './DashboardEventClockCard';
+import type { ScheduleSaveExtras } from './event-schedule-apply';
 
 // ─── Dashboard Tab ────────────────────────────────────────────────────────────
 
 export function DashboardTab({ settings, profiles, onToggleSession, onEventEndReset, onToggleFunctionsLock,
   onClearLikes, onClearChats, onClearProfiles, onClearHistory,
-  restoreMap }: {
+  restoreMap, onSaveSchedule }: {
   settings: AppSettings | null; profiles: Profile[];
   onToggleSession: () => void; onEventEndReset: () => void;
   onToggleFunctionsLock: () => void;
@@ -16,6 +18,7 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
   onClearProfiles: () => Promise<void>;
   onClearHistory: () => Promise<void>;
   restoreMap: Map<string, () => Promise<void>>;
+  onSaveSchedule: (raw: string, extras?: ScheduleSaveExtras) => Promise<void>;
 }) {
   const [confirmToggle, setConfirmToggle] = useState(false);
   const [confirmEventEnd, setConfirmEventEnd] = useState(false);
@@ -35,6 +38,8 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
           </div>
         ))}
       </div>
+
+      <DashboardEventClockCard settings={settings} onSave={onSaveSchedule} />
 
       {/* Session control */}
       <div>

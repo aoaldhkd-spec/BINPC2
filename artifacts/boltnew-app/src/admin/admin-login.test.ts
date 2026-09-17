@@ -58,6 +58,12 @@ describe('admin login helpers', () => {
     expect(initialAdminSettingsSubTab('?tab=db', '#health')).toBe('db');
   });
 
+  it('maps retired 행사 시계 URLs onto the dashboard instead of a missing tab', () => {
+    expect(adminSettingsSubTabFromUrl('?tab=schedule', '')).toBe('control');
+    expect(adminSettingsSubTabFromUrl('?settings=schedule', '')).toBe('control');
+    expect(adminSettingsSubTabFromUrl('?tab=timeline', '')).toBe('control');
+  });
+
   it('syncs settings sub-tab into the SPA URL', () => {
     const replaceState = vi.fn();
     const location = { pathname: '/admin', search: '', hash: '' };
@@ -95,6 +101,13 @@ describe('credentials tab copy', () => {
     expect(adminApp).toMatch(/label: '접속정보'/);
     expect(adminApp).toMatch(/patchAdminSettings\(\{ admin_phone: phone, admin_password: password \}/);
     expect(adminApp).toMatch(/settingsSubTab === 'admin' && <CredentialsTab/);
+  });
+
+  it('does not keep a dedicated 행사 시계 settings tab', () => {
+    expect(adminApp).not.toMatch(/EventScheduleTab/);
+    expect(adminApp).not.toMatch(/label: '행사 시계'/);
+    expect(adminApp).toMatch(/DashboardTab/);
+    expect(adminApp).toMatch(/onSaveSchedule/);
   });
 
   it('plants a local operator session only in Vite DEV, never as a public skip', () => {

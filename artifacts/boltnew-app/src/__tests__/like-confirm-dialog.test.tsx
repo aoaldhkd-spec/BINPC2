@@ -53,10 +53,10 @@ function renderDialog(rainbowPool: number, onConfirm = vi.fn()) {
 describe('LikeConfirmDialog original 4 + rainbow slot', () => {
   it('keeps the original 4 heart labels and appends a rainbow slot', () => {
     renderDialog(4);
-    expect(screen.getByText('맘에 드는 사람')).toBeTruthy();
-    expect(screen.getByText('친구하고 싶어요')).toBeTruthy();
-    expect(screen.getByText('뜨밤')).toBeTruthy();
-    expect(screen.getByText('칭찬 하트')).toBeTruthy();
+    expect(screen.getByText('빨강하트')).toBeTruthy();
+    expect(screen.getByText('주황하트')).toBeTruthy();
+    expect(screen.getByText('핑크하트')).toBeTruthy();
+    expect(screen.getByText('초록하트')).toBeTruthy();
     expect(screen.queryByTestId('like-heart-row')).toBeNull();
     expect(screen.getByTestId('like-rainbow-btn')).toBeTruthy();
     expect(screen.getByTestId('like-rainbow-btn').getAttribute('aria-disabled')).toBe('false');
@@ -89,14 +89,14 @@ describe('LikeConfirmDialog original 4 + rainbow slot', () => {
     const onConfirm = renderDialog(4);
     fireEvent.click(screen.getByTestId('like-rainbow-btn'));
     expect(screen.getByTestId('rainbow-color-dialog').textContent).toContain('어떤 거 보내실래요?');
-    fireEvent.click(screen.getAllByText('친구하고 싶어요')[1]);
+    fireEvent.click(screen.getAllByText('주황하트')[1]);
     fireEvent.click(screen.getAllByRole('button', { name: '보내기' })[1]);
     expect(onConfirm).toHaveBeenCalledWith('blue');
   });
 
   it('sends a normal unlocked heart from the original list without opening rainbow modal', () => {
     const onConfirm = renderDialog(4);
-    fireEvent.click(screen.getByText('맘에 드는 사람'));
+    fireEvent.click(screen.getByText('빨강하트'));
     expect(screen.queryByTestId('rainbow-color-dialog')).toBeNull();
     fireEvent.click(screen.getAllByRole('button', { name: '보내기' })[0]);
     expect(onConfirm).toHaveBeenCalledWith('red');
