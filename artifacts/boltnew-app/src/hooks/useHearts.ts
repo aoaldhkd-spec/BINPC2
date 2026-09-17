@@ -2,7 +2,14 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase, ensureWriteSession } from '../lib/supabase';
 import type { Profile, ContactShare } from '../types/app';
 import { HeartType, HEART_TYPES } from '../lib/constants';
-import { eventHeartQuotas, eventRainbowQuota, rainbowOverflowUsed, colorGrantRemaining } from '../lib/event-schedule';
+import {
+  emptyHeartUsage,
+  grantRemaining,
+  heartUsageFromLikeRows,
+  parseHeartOps,
+  rainbowRemaining,
+  type HeartUsage,
+} from '../lib/heart-ops';
 import { isInterestHeart } from '../lib/signal-match';
 // signal-match: isInterestHeart only (mutual-heart detection)
 import {
@@ -42,6 +49,7 @@ export function useHearts(
   const [contactSharedWithIds, setContactSharedWithIds] = useState<Set<string>>(new Set());
   const [acknowledgedComplimentIds, setAcknowledgedComplimentIds] = useState<Set<string>>(new Set());
   const [receivedContactShares, setReceivedContactShares] = useState<ContactShare[]>([]);
+  const [likeRows, setLikeRows] = useState<Record<string, unknown>[]>([]);
   const [likeConfirmTarget, setLikeConfirmTarget] = useState<Profile | null>(null);
   const [contactShareTarget, setContactShareTarget] = useState<Profile | null>(null);
   const likedIdsRef = useRef(likedIds);
@@ -98,6 +106,7 @@ export function useHearts(
     setReceivedContactShares([]);
     setLikeConfirmTarget(null);
     setContactShareTarget(null);
+    setLikeRows([]);
   }, [currentUserId]);
 
   // ✅ try/catch + 세대 카운터 — 계정 전환 중 in-flight 응답이 새 사용자 state를 덮어쓰는 race 방지
@@ -110,10 +119,11 @@ export function useHearts(
       likeStatuses: new Map(likeStatusesRef.current),
     };
     try {
-      const { data, error } = await supabase.from('likes').select('id, liked_id, status, heart_type, created_at').eq('liker_id', userId);
+      const { data, error } = await supabase.from('likes').select('id, liked_id, status, heart_type, like_source, created_at').eq('liker_id', userId);
       if (gen !== loadLikesGenRef.current) return; // 계정이 바뀐 경우 stale 응답 폐기
       if (error) { console.warn('[useHearts] loadLikes error', error.message); return; }
       if (data) {
+        setLikeRows(data as Record<string, unknown>[]);
         const fetchedLikedIds = new Set<string>(data.map((l: { liked_id: string }) => l.liked_id));
         const fetchedHeartTypes = new Map<string, HeartType>();
         const fetchedStatuses = new Map<string, string>();
@@ -225,12 +235,10 @@ export function useHearts(
     return c;
   };
 
-  const likedByTypeRecord = (): Record<HeartType, number> => ({
-    red: heartCountByType('red'),
-    blue: heartCountByType('blue'),
-    pink: heartCountByType('pink'),
-    green: heartCountByType('green'),
-  });
+  const heartUsage = (): HeartUsage => {
+    if (!currentUserId) return emptyHeartUsage();
+    return heartUsageFromLikeRows(likeRows, currentUserId);
+  };
 
   const handleLike = (profileId: string, hint?: Profile) => {
     if (!currentUserId) return;
@@ -248,19 +256,18 @@ export function useHearts(
   const executeLike = async (heartType: HeartType, source?: 'rainbow'): Promise<boolean> => {
     if (!currentUserId || !likeConfirmTarget) return false;
     if (likeInFlightRef.current) return false;
-    const quotas = eventHeartQuotas(eventScheduleRaw);
-    const rainbowQuota = eventRainbowQuota(eventScheduleRaw);
-    const used = likedByTypeRecord();
-    const overflow = rainbowOverflowUsed(quotas, used);
+    const config = parseHeartOps(eventScheduleRaw);
+    const usage = heartUsage();
     if (source === 'rainbow') {
-      if (rainbowQuota <= 0 || overflow >= rainbowQuota) {
-        setLikeError(rainbowQuota <= 0
-          ? '무지개하트가 아직 해금되지 않았습니다.'
-          : `무지개하트는 총 ${rainbowQuota}개까지 보낼 수 있습니다.`);
+      const left = rainbowRemaining(config, usage);
+      if (left <= 0) {
+        setLikeError(left === 0 && usage.rainbowUsed >= 4
+          ? '무지개하트를 모두 사용했습니다.'
+          : '무지개하트가 아직 해금되지 않았습니다.');
         setLikeConfirmTarget(null);
         return false;
       }
-    } else if (colorGrantRemaining(quotas[heartType] ?? 0, used[heartType] ?? 0) <= 0) {
+    } else if (grantRemaining(config, usage, heartType) <= 0) {
       setLikeError('이 하트는 남은 개수가 없어요.');
       setLikeConfirmTarget(null);
       return false;
@@ -283,8 +290,15 @@ export function useHearts(
       }
       // localdb apiFetch가 15s 타임아웃 + 429/502/503 재시도를 담당. 짧은 race는
       // NAT 429 재시도 중 거짓 실패를 만들고, 서버 insert는 계속 진행된다.
-      const { error } = await supabase.from('likes').insert({ liker_id: likerId, liked_id: targetId, heart_type: heartType }) as { error: unknown };
+      const likeSource = source === 'rainbow' ? 'rainbow' : 'grant';
+      const { error } = await supabase.from('likes').insert({
+        liker_id: likerId,
+        liked_id: targetId,
+        heart_type: heartType,
+        like_source: likeSource,
+      }) as { error: unknown };
       if (!error) {
+        setLikeRows(prev => [...prev, { liker_id: likerId, liked_id: targetId, heart_type: heartType, like_source: likeSource }]);
         setLikedIds((prev) => new Set([...prev, targetId]));
         setSentHeartTypes((prev) => new Map(prev).set(targetId, heartType));
         setSentHeartsPerPerson(prev => {
@@ -460,7 +474,7 @@ export function useHearts(
     loadReceivedLikes,
     loadContactShareData,
     heartCountByType,
-    likedByTypeRecord,
+    getHeartUsage: heartUsage,
     handleLike,
     executeLike,
     handleHeartResponse,

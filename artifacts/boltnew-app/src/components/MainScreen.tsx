@@ -43,7 +43,7 @@ import { SignalTagPicker } from './SignalTagPicker';
 import { ProfileDeckGrid } from './ProfileDeckGrid';
 import { ResetButton } from './ResetButton';
 import { FUNCTIONS_LOCK_TOAST, SOCIAL_LOCKED_TABS } from '../lib/functions-lock';
-import { headerHeartRemainings, participantHeartChatLock, rainbowOverflowUsed, colorGrantedTotal } from '../lib/event-schedule';
+import { headerHeartRemainings, participantHeartState, type HeartOpsConfig, type HeartUsage } from '../lib/heart-ops';
 import { STATUS_QUICK_MSGS } from '../lib/chat-picker-data';
 import { HOST_AGE_EASTER_EGG_HINT, hostBirthYearFromProfiles } from '../lib/host-age-easter-egg';
 import {
@@ -85,7 +85,7 @@ export function MainScreen({
   receivedLikers, receivedHeartTypes, sentLikedProfiles, contactSharedWithIds, acknowledgedComplimentIds,
   receivedContactShares, pendingHeartsCount, chatList,
   onContactShareOpen: _onContactShareOpen, onContactViewOpen, onHeartResponse, onDeleteChat, onDeleteAllChats, onOpenChat,
-  timerEndAt, timerLabel, heartQuotas, rainbowPool, eventScheduleRaw, onRefreshStatus, onRefreshChat, onRefreshProfiles, darkMode, onToggleDark, scannedContacts, onClearScannedContact, functionsLocked = false, onShowTutorial,
+  timerEndAt, timerLabel, heartOpsConfig, heartUsage, eventScheduleRaw, onRefreshStatus, onRefreshChat, onRefreshProfiles, darkMode, onToggleDark, scannedContacts, onClearScannedContact, functionsLocked = false, onShowTutorial,
   unreadChatCounts, onClearChatUnread: _onClearChatUnread,
   onUpdateProfile,
   groupChats = [], unreadGroupCounts = {}, onOpenGroupChat, onJoinGroupChat, onLeaveGroupChat, joiningGroupId = null,
@@ -119,8 +119,8 @@ export function MainScreen({
   onOpenChat: (profile: Profile) => void;
   timerEndAt: string | null;
   timerLabel: string | null;
-  heartQuotas: Record<HeartType, number>;
-  rainbowPool: number;
+  heartOpsConfig: HeartOpsConfig;
+  heartUsage: HeartUsage;
   eventScheduleRaw: string | null;
   onRefreshStatus: () => void;
   onRefreshChat: () => void;
@@ -164,28 +164,15 @@ export function MainScreen({
     onMySubTabHintConsumed?.();
   }, [mySubTabHint, onMySubTabHintConsumed]);
 
-  const heartCount = useCallback((t: HeartType) => { let c = 0; sentHeartsPerPerson.forEach(types => { if (types.has(t)) c++; }); return c; }, [sentHeartsPerPerson]);
-  const usedByType = useMemo(() => ({
-    red: heartCount('red'),
-    blue: heartCount('blue'),
-    pink: heartCount('pink'),
-    green: heartCount('green'),
-  }), [heartCount]);
-  const heartChatLock = useMemo(
-    () => participantHeartChatLock({
-      functionsLocked,
-      rainbowPool,
-      totalUsed: rainbowOverflowUsed(heartQuotas, usedByType),
-      colorGranted: colorGrantedTotal(heartQuotas),
-    }),
-    [functionsLocked, rainbowPool, heartQuotas, usedByType],
+  const participantHearts = useMemo(
+    () => participantHeartState(heartOpsConfig, heartUsage, functionsLocked),
+    [heartOpsConfig, heartUsage, functionsLocked],
   );
   const headerHearts = useMemo(() => headerHeartRemainings({
     functionsLocked,
-    rainbowPool,
-    quotas: heartQuotas,
-    used: usedByType,
-  }), [functionsLocked, rainbowPool, heartQuotas, usedByType]);
+    config: heartOpsConfig,
+    usage: heartUsage,
+  }), [functionsLocked, heartOpsConfig, heartUsage]);
 
   const sentHeartEntries = useMemo(() => {
     if (mainTab !== 'my' || mySubTab !== 'status') return [];
@@ -745,35 +732,31 @@ export function MainScreen({
                 <>
                   <div
                     data-testid="home-heart-remaining-total"
-                    aria-label={`${rainbow.label} 남음 ${heartChatLock.remaining}개`}
-                    title={`${rainbow.label} 남음 ${heartChatLock.remaining}개`}
+                    aria-label={`${rainbow.label} ${rainbow.remaining}`}
+                    title={`${rainbow.label} ${rainbow.remaining}`}
                     className={`grid grid-cols-2 grid-rows-2 w-11 h-11 rounded-lg overflow-hidden shrink-0 ${
                       rainbow.locked
                         ? (darkMode ? 'bg-slate-700 text-slate-300' : 'bg-gray-100 text-gray-400')
                         : (darkMode ? 'bg-fuchsia-900/60 text-fuchsia-200' : 'bg-fuchsia-50 text-fuchsia-800')
                     }`}
                   >
-                    <span data-testid="home-heart-lock" aria-hidden className="flex items-center justify-center text-[11px] leading-none">{rainbow.emoji}</span>
-                    <span data-testid="home-heart-remaining-rainbow" className="flex items-center justify-center text-[11px] font-black tabular-nums leading-none">{rainbow.remaining}</span>
-                    <span aria-hidden className="flex items-center justify-center text-[7px] font-black leading-none">남음</span>
-                    <span aria-hidden className="flex items-center justify-center text-[7px] font-black leading-none">개</span>
+                    <span data-testid="home-heart-lock" aria-hidden className="col-span-2 row-span-2 flex items-center justify-center text-[13px] leading-none">{rainbow.emoji}</span>
+                    <span data-testid="home-heart-remaining-rainbow" className="sr-only">{rainbow.remaining}</span>
                   </div>
-                  <span className="sr-only">남음 {heartChatLock.remaining}</span>
                   <div className="grid grid-cols-2 grid-rows-2 gap-px w-11 h-11 shrink-0">
                     {colors.map((chip) => (
                       <span
                         key={chip.key}
                         data-testid={chip.testId}
-                        aria-label={`${chip.label} 남음 ${chip.remaining}개`}
-                        title={`${chip.label} 남음 ${chip.remaining}개`}
-                        className={`flex items-center justify-center gap-px rounded-md text-[8px] font-black tabular-nums leading-none ${
+                        aria-label={`${chip.label} ${chip.remaining}`}
+                        title={`${chip.label} ${chip.remaining}`}
+                        className={`flex items-center justify-center rounded-md text-[11px] leading-none ${
                           chip.locked
                             ? (darkMode ? 'bg-slate-700 text-slate-400 grayscale' : 'bg-gray-100 text-gray-400 grayscale')
                             : (darkMode ? 'bg-slate-700 text-white' : 'bg-white text-gray-700 border border-gray-200')
                         }`}
                       >
                         <span aria-hidden>{chip.emoji}</span>
-                        {chip.remaining}
                       </span>
                     ))}
                   </div>
@@ -783,7 +766,7 @@ export function MainScreen({
           </div>
         </div>
         {timerEndAt && <TimerBanner endAt={timerEndAt} label={timerLabel ?? ''} />}
-        <EventScheduleBanner raw={eventScheduleRaw} remaining={heartChatLock.remaining} granted={rainbowPool} functionsLocked={functionsLocked} heartsLocked={heartChatLock.heartsLocked} />
+        <EventScheduleBanner raw={eventScheduleRaw} functionsLocked={functionsLocked} heartsLocked={participantHearts.heartsLocked} />
       </header>
 
       <main
@@ -858,7 +841,7 @@ export function MainScreen({
               sentHeartsPerPerson={sentHeartsPerPerson}
               currentUserId={currentUserId}
               functionsLocked={functionsLocked}
-              heartsLocked={heartChatLock.heartsLocked}
+              heartsLocked={participantHearts.heartsLocked}
               signalByUserId={signalByUserId}
               onLike={onLike}
               onSelect={onSelect}

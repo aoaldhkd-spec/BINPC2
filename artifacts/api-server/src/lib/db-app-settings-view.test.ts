@@ -152,7 +152,7 @@ describe('db-app-settings-view', () => {
     expect((body.login as any).adminConfigured).toBe(true);
   });
 
-  it('buildReadyPayload serializes object event_schedule instead of wiping rainbow_pool', () => {
+  it('buildReadyPayload serializes object event_schedule instead of wiping unlock slots', () => {
     const body = buildReadyPayload({
       settings: {
         session_active: true,
@@ -170,9 +170,9 @@ describe('db-app-settings-view', () => {
     });
     const raw = (body.settings as any).event_schedule as string;
     expect(typeof raw).toBe('string');
-    expect(raw).toContain('rainbow_pool');
     expect(raw).toContain('12:00');
-    expect(JSON.parse(raw).slots[0].rainbow_pool).toBe(4);
+    // v1 rainbow_pool migrates to an unlock flag — the slot must survive, never be wiped.
+    expect(JSON.parse(raw).slots[0]).toEqual({ id: 'slot-1', at: '12:00', unlock: ['rainbow'] });
   });
 
 });

@@ -3,6 +3,7 @@ import {
   countSameTypeLikes,
   likesColorOverflow,
   likesHeartLimitReject,
+  likesHeartOpsReject,
   likesRainbowPoolLimitReject,
   likesPairIntervalBlocked,
   likesRateLimitReject,
@@ -12,7 +13,9 @@ import {
   LIKES_RATE_LIMIT_MESSAGE,
   LIKES_SAME_TYPE_TARGET_MAX,
   matchesLikeTriple,
+  normalizeLikeSource,
   planLikesMinuteBucketConsume,
+  RAINBOW_MAX_USES,
 } from './db-op-likes-limits.js';
 
 describe('db-op-likes-limits', () => {
@@ -69,6 +72,40 @@ describe('db-op-likes-limits', () => {
       { red: 1, blue: 0, pink: 0, green: 0 },
       'red',
     )).toBe(2);
+  });
+
+  it('likesHeartOpsReject separates grant vs rainbow', () => {
+    const unlocked = new Set(['red', 'rainbow']);
+    expect(normalizeLikeSource('rainbow')).toBe('rainbow');
+    expect(normalizeLikeSource(undefined)).toBe('grant');
+    expect(likesHeartOpsReject({
+      source: 'grant',
+      heartType: 'red',
+      unlockedKeys: unlocked,
+      grantUsed: { red: false, blue: false, pink: false, green: false },
+      rainbowUsed: 0,
+    })).toBeNull();
+    expect(likesHeartOpsReject({
+      source: 'grant',
+      heartType: 'red',
+      unlockedKeys: unlocked,
+      grantUsed: { red: true, blue: false, pink: false, green: false },
+      rainbowUsed: 0,
+    })?.body.error.code).toBe('HEART_LIMIT');
+    expect(likesHeartOpsReject({
+      source: 'rainbow',
+      heartType: 'red',
+      unlockedKeys: unlocked,
+      grantUsed: { red: false, blue: false, pink: false, green: false },
+      rainbowUsed: RAINBOW_MAX_USES,
+    })?.body.error.message).toContain(String(RAINBOW_MAX_USES));
+    expect(likesHeartOpsReject({
+      source: 'rainbow',
+      heartType: 'blue',
+      unlockedKeys: unlocked,
+      grantUsed: { red: false, blue: false, pink: false, green: false },
+      rainbowUsed: 1,
+    })).toBeNull();
   });
 
   it('planLikesMinuteBucketConsume windows + cap', () => {

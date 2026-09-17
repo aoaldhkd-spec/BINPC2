@@ -2,7 +2,7 @@
  * TutorialVideo — 2026.09 UI redesign (obviously new chrome + filled scenes)
  * Phone-bezel player · LIVE badge · participants/hearts/chat mocks with no empty gaps.
  * S1 입장코드 → S2 아바타 → S3 한마디/칩 → S4 이모지·스티커 → S5 사진·빠른메시지
- * → S6 스와이프·길게누르기 → S7 받은/보낸 하트 (총 N + 무지개 잠금/해금)
+ * → S6 스와이프·길게누르기 → S7 받은/보낸 하트 (하트 잠금→해금 · 무지개 4)
  */
 import { useState, useEffect, useRef, useCallback, type ReactElement, type ReactNode, type PointerEvent, type MouseEvent } from 'react';
 import { SkipBack, SkipForward, Play, Pause } from 'lucide-react';
@@ -115,14 +115,14 @@ function Tabs({ active, hl }: { active: string; hl?: string }) {
   );
 }
 
-/** 홈 헤더 하트 — 라이브: 무지개·빨강·핑크·주황·초록 남은 개수 (무지개는 합치지 않음) */
-function HeartHeader({ unlocked, total }: { unlocked: boolean; total: number }) {
+/** 홈 헤더 하트 — 라이브: 무지개 + 호감·친구·뜨밤·칭찬 잠금/해금 (개수 표시 없음) */
+function HeartHeader({ unlocked }: { unlocked: boolean }) {
   const chips = [
-    { e: unlocked ? '🌈' : '🔒🌈', n: unlocked ? total : 0 },
-    { e: '❤️', n: 0 },
-    { e: '💗', n: 0 },
-    { e: '🧡', n: 0 },
-    { e: '💚', n: 0 },
+    { e: unlocked ? '🌈' : '🔒🌈' },
+    { e: '❤️' },
+    { e: '💗' },
+    { e: '💙' },
+    { e: '💚' },
   ];
   return (
     <div className={`relative flex items-center justify-between gap-1 px-2 py-1.5 border-b overflow-hidden ${
@@ -144,7 +144,7 @@ function HeartHeader({ unlocked, total }: { unlocked: boolean; total: number }) 
           <span key={h.e} className={`inline-flex items-center gap-0.5 rounded-full px-1 py-0.5 text-[8px] font-black tabular-nums ${
             unlocked ? 'bg-cyan-500/15 text-cyan-100' : 'bg-amber-950/40 text-amber-200 grayscale opacity-70'
           }`}>
-            {h.e} {h.n}
+            {h.e}
           </span>
         ))}
       </div>
@@ -714,7 +714,7 @@ function S7({ step }: { step: number }) {
 
   return (
     <div className="h-full flex flex-col bg-slate-900">
-      <HeartHeader unlocked={unlocked} total={7} />
+      <HeartHeader unlocked={unlocked} />
       <div className="flex-1 overflow-hidden px-2.5 pt-1.5 pb-1 space-y-1.5">
         <div className={`rounded-lg px-2 py-1 flex items-center justify-between border ${
           unlocked ? 'border-cyan-400/50 bg-cyan-500/10' : 'border-amber-400/40 bg-amber-500/10'
@@ -722,7 +722,7 @@ function S7({ step }: { step: number }) {
           <p className="text-[8px] font-black text-slate-200">하트, 채팅 → 내 상태</p>
           <span className={`text-[7px] font-black px-1.5 py-0.5 rounded-full ${
             unlocked ? 'bg-cyan-400 text-slate-950' : 'bg-amber-400 text-slate-950'
-          }`}>{unlocked ? `총 ${7} 해금` : '잠금 중'}</span>
+          }`}>{unlocked ? '해금됨' : '잠금 중'}</span>
         </div>
         <div className="flex rounded-lg p-0.5 bg-slate-700">
           <div className="flex-1 py-1 text-center text-[8px] font-black rounded-md bg-slate-600 text-white">💝 내 상태</div>
@@ -732,15 +732,15 @@ function S7({ step }: { step: number }) {
         {step >= 1 && !unlocked && (
           <div className="rounded-xl border border-amber-500/40 bg-amber-950/30 px-2 py-1.5 animate-in fade-in duration-400">
             <p className="text-[8px] font-black text-amber-200">🔒 하트 잠금</p>
-            <p className="text-[7px] text-amber-100/80 font-bold mt-0.5 leading-snug">관리자가 해금하면 오른쪽 위 무지개·빨강·핑크·주황·초록 남은 개수가 켜져요</p>
+            <p className="text-[7px] text-amber-100/80 font-bold mt-0.5 leading-snug">관리자가 해금하면 오른쪽 위 무지개·호감·친구·뜨밤·칭찬 하트가 켜져요</p>
             <Ring on={step === 1} color="ring-amber-400" />
           </div>
         )}
 
         {unlocked && step < 3 && (
           <div className="rounded-xl border border-cyan-500/40 bg-cyan-950/25 px-2 py-1 animate-in fade-in duration-400">
-            <p className="text-[8px] font-black text-cyan-200">✅ 해금됨 · 총 N</p>
-            <p className="text-[7px] text-cyan-100/80 font-bold">종류는 자유롭게 · 같은 상대에게 한 색만</p>
+            <p className="text-[8px] font-black text-cyan-200">✅ 해금됨</p>
+            <p className="text-[7px] text-cyan-100/80 font-bold">일반 하트는 종류당 1번 · 무지개는 4번</p>
           </div>
         )}
 
@@ -795,13 +795,13 @@ function S7({ step }: { step: number }) {
               <div className="rounded-xl p-1.5 bg-amber-900/25">
                 <div className="w-full h-8 rounded-lg bg-gradient-to-br from-orange-400 to-amber-600 mb-1" />
                 <p className="text-white text-[8px] font-bold truncate">황금여우</p>
-                <p className="text-[7px] text-rose-300">❤️ 빨강</p>
+                <p className="text-[7px] text-rose-300">❤️ 호감</p>
                 <span className="mt-0.5 inline-block text-[6px] font-bold px-1 py-0.5 rounded bg-amber-500/20 text-amber-300">대기 중</span>
               </div>
               <div className="rounded-xl p-1.5 bg-slate-700/60">
                 <div className="w-full h-8 rounded-lg bg-gradient-to-br from-sky-400 to-blue-600 mb-1" />
                 <p className="text-white text-[8px] font-bold truncate">파란고래</p>
-                <p className="text-[7px] text-orange-300">🧡 주황</p>
+                <p className="text-[7px] text-blue-300">💙 친구</p>
                 <span className="mt-0.5 inline-block text-[6px] font-bold px-1 py-0.5 rounded bg-teal-500/20 text-teal-300">수락됨</span>
               </div>
             </div>
@@ -914,7 +914,7 @@ const SCENES: SceneDef[] = [
     render: s => <S6 step={s} />,
   },
   {
-    title: '총 N · 무지개 잠금→해금', sub: '상단 총 N + 무지개 풀 해금 후, 하트, 채팅 → 내 상태',
+    title: '하트 잠금→해금 · 무지개 4', sub: '상단 하트 잠금→해금, 무지개는 4번. 하트, 채팅 → 내 상태',
     steps: [
       { cx: 74,  cy: 232, dur: 1200 },
       { cx: 74,  cy: 232, click: true,  dur: 1000 },

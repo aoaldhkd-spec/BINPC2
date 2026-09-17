@@ -61,7 +61,7 @@ export const HEART_TYPE_META: Record<string, { emoji: string; label: string; col
 /** Header / admin color chips only — never used as LikeConfirmDialog names. */
 export const HEART_COLOR_LABELS: Record<HeartType, { emoji: string; label: string }> = {
   red: { emoji: '❤️', label: '빨강' },
-  blue: { emoji: '🧡', label: '주황' },
+  blue: { emoji: '💙', label: '친구' },
   pink: { emoji: '💗', label: '핑크' },
   green: { emoji: '💚', label: '초록' },
 };

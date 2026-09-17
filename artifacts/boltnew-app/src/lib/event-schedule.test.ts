@@ -99,7 +99,7 @@ describe('client event schedule quotas', () => {
     expect(byKey.blue).toBe(1);
     expect(byKey.green).toBe(0);
     expect(byKey.red + byKey.pink + byKey.blue + byKey.green).not.toBe(byKey.rainbow);
-    expect(chips.find(c => c.key === 'blue')?.label).toBe('주황하트');
+    expect(chips.find(c => c.key === 'blue')?.label).toBe('친구하트');
     expect(chips.map(c => c.key)).toEqual(['rainbow', 'red', 'pink', 'blue', 'green']);
 
     const overflow = headerHeartRemainings({

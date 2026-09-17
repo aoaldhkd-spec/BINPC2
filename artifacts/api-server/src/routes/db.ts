@@ -198,11 +198,11 @@ import {
 import {
   countAllLikes,
   countSameTypeLikes,
-  likesColorOverflow,
   likesHeartLimitReject,
   likesPairIntervalBlocked,
   likesRateLimitReject,
-  likesSendCapReject,
+  likesHeartOpsReject,
+  normalizeLikeSource,
   matchesLikeTriple,
   planLikesMinuteBucketConsume,
 } from '../lib/db-op-likes-limits';
@@ -490,7 +490,12 @@ import {
   buildLegacyHistoryStripSql,
   parseLegacyLeftoverCounts,
 } from '../lib/db-legacy-cleanup';
-import { eventHeartQuota, eventRainbowQuota, serializeEventSchedule } from '../lib/db-event-schedule';
+import {
+  heartUsageFromLikeRows,
+  parseHeartOps,
+  serializeEventSchedule,
+  unlockedHeartKeys,
+} from '../lib/db-heart-ops';
 import {
   recordExpiredSseToken,
   recordMissingSseToken,
@@ -3348,30 +3353,21 @@ router.post('/op', async (req: Request, res: Response) => {
           const referenceCheck = await ensureWriteReferences(table, effectiveRow);
           if (!referenceCheck.ok) return sendReferenceFailure(res, referenceCheck);
 
-          // 타입별 행사 한도: 기본 2명 + 서버 시각 기준으로 이미 열린 슬롯의 grant.
-          // 클라이언트가 우회해도 여기서 최종 차단하며, 슬롯 변경은 app_settings/SSE로 전파된다.
+          // 하트 운영: 일반(종류별 1) vs 무지개(4) — like_source로 구분.
           const eventScheduleRaw = (getTable('app_settings')[0] as Record<string, unknown> | undefined)?.event_schedule;
           const now = new Date();
-          const typeGrant = likeType === 'red' || likeType === 'blue' || likeType === 'pink' || likeType === 'green'
-            ? eventHeartQuota(eventScheduleRaw, likeType, now)
-            : 0;
-          const rainbowQuota = eventRainbowQuota(eventScheduleRaw, now);
-          const quotas = {
-            red: eventHeartQuota(eventScheduleRaw, 'red', now),
-            blue: eventHeartQuota(eventScheduleRaw, 'blue', now),
-            pink: eventHeartQuota(eventScheduleRaw, 'pink', now),
-            green: eventHeartQuota(eventScheduleRaw, 'green', now),
-          };
-          const totalCap = rainbowQuota + quotas.red + quotas.blue + quotas.pink + quotas.green;
-          const capReject = likesSendCapReject({
-            typeGrant,
-            typeCount: countSameTypeLikes(tableData, likeLiker, likeType),
-            rainbowQuota,
-            overflowAfter: likesColorOverflow(tableData, likeLiker, quotas, likeType),
-            totalLikes: countAllLikes(tableData, likeLiker),
-            totalCap,
+          const likeSource = normalizeLikeSource(effectiveRow.like_source);
+          const heartOps = parseHeartOps(eventScheduleRaw);
+          const usage = heartUsageFromLikeRows(tableData, likeLiker);
+          const capReject = likesHeartOpsReject({
+            source: likeSource,
+            heartType: likeType,
+            unlockedKeys: unlockedHeartKeys(heartOps, now),
+            grantUsed: usage.grantUsed,
+            rainbowUsed: usage.rainbowUsed,
           });
           if (capReject) return sendReject(capReject);
+          effectiveRow = { ...effectiveRow, like_source: likeSource };
 
           // Time-bucket rate limiter: at most 1 like per 500 ms per (liker, liked, type) triple
           // Keyed on all three dimensions so different heart types can still be sent concurrently;

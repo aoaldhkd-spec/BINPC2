@@ -11,12 +11,12 @@ type Rect = { top: number; left: number; width: number; height: number };
 
 const HOME_STEPS: readonly CoachStep[] = [
   { title: '참여자 카드', detail: '여기는 오늘 함께하는 사람들의 카드예요. 이름·나이·관심사를 한눈에 확인할 수 있어요.', target: 'participant-card' },
-  { title: '하트 보내기', detail: '카드 아래 하트 버튼을 누르면 상대에게 마음을 보낼 수 있어요. 하트 종류와 남은 개수는 위에서 확인해요.', target: 'profile-card-heart-btn' },
+  { title: '하트 보내기', detail: '카드 아래 하트 버튼을 누르면 상대에게 마음을 보낼 수 있어요. 하트 종류와 잠금·해금 상태는 위에서 확인해요.', target: 'profile-card-heart-btn' },
   { title: '채팅 시작하기', detail: '카드 아래 채팅 버튼을 누르면 상대와 1:1 대화를 시작해요. 받은 대화는 하트·채팅 탭에서도 확인할 수 있어요.', target: 'profile-card-chat-btn' },
   { title: '카드 뒤집기', detail: '사진 가운데를 누르면 카드가 뒤집혀요. 상대가 고른 이상형 태그와 프로필 전체 보기를 확인할 수 있어요.', target: 'profile-card-flip' },
   { title: '잠금 표시', detail: '회색 자물쇠나 흐린 버튼은 아직 잠긴 기능이에요. 잠금 표시가 없으면 이 단계는 안내 위치에서 설명해요.', target: 'locked-control' },
   { title: '참여자 더보기', detail: '카드의 ⋯ 버튼을 누르면 연락처 보내기·궁합 보기·차단 같은 메뉴를 열 수 있어요. 작은 화면에서도 메뉴가 화면 안에 열려요.', target: 'participant-more' },
-  { title: '하트 남은 개수', detail: '오른쪽 위에서 무지개·빨강·핑크·주황·초록 하트 남은 개수를 각각 확인해요. 무지개 남은 수는 다른 하트에 합치지 않아요.', target: 'home-heart-types' },
+  { title: '하트 잠금·해금', detail: '오른쪽 위에서 무지개와 호감·친구·뜨밤·칭찬 하트의 잠금·해금 상태를 확인해요. 일반 하트는 종류당 1번, 무지개는 해금되면 4번 쓸 수 있고 따로 차감돼요.', target: 'home-heart-types' },
   { title: '검색과 카드 보기', detail: '검색으로 닉네임·나이·출생년도를 찾고, 새로고침과 작게·2개·3개 보기로 화면을 편하게 정리해요.', target: 'home-controls' },
   { title: '하트·채팅', detail: '하트와 채팅 탭에서 받은 하트, 내 상태, 1:1 채팅과 단체 채팅을 확인할 수 있어요.', target: 'nav-my' },
   { title: '통계·랭킹', detail: '통계에서는 참여 흐름과 하트 지표를, 랭킹에서는 순위와 인기 흐름을 확인해요.', target: 'nav-stats' },

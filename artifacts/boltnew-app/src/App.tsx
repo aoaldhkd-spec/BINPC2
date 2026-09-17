@@ -17,7 +17,7 @@ import { useProfilePrivacyLoaders } from './hooks/useProfilePrivacyLoaders';
 import { useSessionInit } from './hooks/useSessionInit';
 import { planAdminResetWipe, runAdminResetWipe } from './lib/admin-reset-wipe';
 import type { SessionReadySettingsPatch } from './lib/session-ready-settings';
-import { eventHeartQuotas, eventRainbowQuota, currentEventSlot } from './lib/event-schedule';
+import { currentEventSlot, parseHeartOps, participantHeartState } from './lib/heart-ops';
 import { subscribeNetUi, resetNetUiForRetry, type NetUiStatus } from './lib/net-health';
 import { excludeSwipeGestureVerifyProfiles } from './lib/profile';
 import { mergeProfilesPreserveOrder } from './lib/profile-list-order';
@@ -375,7 +375,7 @@ function App() {
     receivedLikers, setReceivedLikers, contactSharedWithIds,
     acknowledgedComplimentIds, setAcknowledgedComplimentIds, receivedContactShares, setReceivedContactShares,
     likeConfirmTarget, setLikeConfirmTarget, contactShareTarget, setContactShareTarget,
-    loadLikes, loadReceivedLikes, loadContactShareData, likedByTypeRecord,
+    loadLikes, loadReceivedLikes, loadContactShareData, getHeartUsage,
     handleLike, executeLike, handleHeartResponse, handleContactShare,
     likeError, setLikeError,
   } = useHearts(currentUserId, profiles, profileMap, openChat, eventScheduleRaw);
@@ -395,13 +395,14 @@ function App() {
     () => new Date(eventScheduleMinute > 0 ? eventScheduleMinute * 60_000 : Date.now()),
     [eventScheduleMinute, eventScheduleRaw],
   );
-  const heartQuotas = useMemo(
-    () => eventHeartQuotas(eventScheduleRaw, new Date()),
+  const heartOpsConfig = useMemo(
+    () => parseHeartOps(eventScheduleRaw),
     [eventScheduleRaw, scheduleNow],
   );
-  const rainbowPool = useMemo(
-    () => eventRainbowQuota(eventScheduleRaw, new Date()),
-    [eventScheduleRaw, scheduleNow],
+  const heartUsage = useMemo(() => getHeartUsage(), [getHeartUsage, scheduleNow, likeConfirmTarget]);
+  const participantHearts = useMemo(
+    () => participantHeartState(heartOpsConfig, heartUsage, functionsLocked, new Date()),
+    [heartOpsConfig, heartUsage, functionsLocked, scheduleNow],
   );
   // The schedule is also evaluated locally between SSE/ready heartbeats so a slot
   // boundary does not leave the buttons visually stale. The server remains authoritative.
@@ -1088,7 +1089,7 @@ function App() {
         contactSharedWithIds={contactSharedWithIds}
         setProfiles={setProfiles}
         chatDraftRef={chatDraftRef}
-        likedByTypeRecord={likedByTypeRecord}
+        getHeartUsage={getHeartUsage}
         execLikeGuarded={execLikeGuarded}
         showConfetti={showConfetti}
         shareEventNotif={shareEventNotif}
@@ -1096,8 +1097,8 @@ function App() {
         handleContactShareGuarded={handleContactShareGuarded}
         saveScannedContact={saveScannedContact}
         privacyProfileIds={privacyProfileIds}
-        heartQuotas={heartQuotas}
-        rainbowPool={rainbowPool}
+        heartOpsConfig={heartOpsConfig}
+        participantHeartsLocked={participantHearts.heartsLocked}
       >
         <AppMainShell
           isSubScreen={isSubScreen}
@@ -1132,8 +1133,8 @@ function App() {
           onOpenChat={openChatGuarded}
           timerEndAt={timerEndAt}
           timerLabel={timerLabel}
-          heartQuotas={heartQuotas}
-          rainbowPool={rainbowPool}
+          heartOpsConfig={heartOpsConfig}
+          heartUsage={heartUsage}
           eventScheduleRaw={eventScheduleRaw}
           onRefreshStatus={refreshStatusTab}
           onRefreshChat={refreshChatTab}

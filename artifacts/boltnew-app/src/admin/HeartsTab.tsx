@@ -59,10 +59,10 @@ export function HeartsTab({ likes, profileMap, onClear, onRefresh }: { likes: Li
           const liker = profileMap.get(like.liker_id);
           const liked = profileMap.get(like.liked_id);
           const ht = like.heart_type ?? 'red';
-          const htMeta = ht === 'blue' ? { emoji: '🧡', color: 'text-orange-400 fill-orange-400', label: '주황' }
-            : ht === 'pink' ? { emoji: '💗', color: 'text-pink-400 fill-pink-400', label: '핑크' }
-            : ht === 'green' ? { emoji: '💚', color: 'text-emerald-400 fill-emerald-400', label: '초록' }
-            : { emoji: '❤️', color: 'text-rose-400 fill-rose-400', label: '빨강' };
+          const htMeta = ht === 'blue' ? { emoji: '💙', color: 'text-blue-400 fill-blue-400', label: '친구' }
+            : ht === 'pink' ? { emoji: '💗', color: 'text-pink-400 fill-pink-400', label: '뜨밤' }
+            : ht === 'green' ? { emoji: '💚', color: 'text-emerald-400 fill-emerald-400', label: '칭찬' }
+            : { emoji: '❤️', color: 'text-rose-400 fill-rose-400', label: '호감' };
           return (
             <div key={like.id} className="grid grid-cols-3 items-center px-3 min-[360px]:px-4 py-3 border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors gap-1">
               <div className="flex min-w-0 items-center gap-2">

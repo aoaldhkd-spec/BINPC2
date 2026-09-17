@@ -55,6 +55,7 @@ export function likesHeartLimitReject(max = LIKES_SAME_TYPE_TARGET_MAX): LikesLi
   };
 }
 
+/** legacy compatibility only — do not use for current heart consumption. */
 export function likesColorOverflow(
   rows: Record<string, unknown>[],
   likerId: string,
@@ -72,7 +73,36 @@ export function likesColorOverflow(
     .reduce((sum, type) => sum + Math.max(0, used[type] - (Number(quotas[type]) || 0)), 0);
 }
 
-/** Grant remaining OR rainbow overflow — do not require rainbow_pool when color grants exist. */
+export const RAINBOW_MAX_USES = 4;
+
+export function normalizeLikeSource(raw: unknown): 'grant' | 'rainbow' {
+  return raw === 'rainbow' ? 'rainbow' : 'grant';
+}
+
+/** Lock/unlock heart ops — grant (1 each) vs rainbow (4 total), never mixed. */
+export function likesHeartOpsReject(input: {
+  source: 'grant' | 'rainbow';
+  heartType: string;
+  unlockedKeys: Set<string>;
+  grantUsed: Record<string, boolean>;
+  rainbowUsed: number;
+}): LikesLimitReject | null {
+  if (input.source === 'rainbow') {
+    if (!input.unlockedKeys.has('rainbow')) return likesRainbowPoolLimitReject(0);
+    if (input.rainbowUsed >= RAINBOW_MAX_USES) return likesRainbowPoolLimitReject(RAINBOW_MAX_USES);
+    return null;
+  }
+  if (!input.unlockedKeys.has(input.heartType)) {
+    return likesTypeGrantReject();
+  }
+  if (input.grantUsed[input.heartType]) return likesTypeGrantReject();
+  return null;
+}
+
+/**
+ * legacy compatibility only — do not use for current heart consumption.
+ * Live path is `likesHeartOpsReject` (lock/unlock + like_source).
+ */
 export function likesSendCapReject(input: {
   typeGrant: number;
   typeCount: number;

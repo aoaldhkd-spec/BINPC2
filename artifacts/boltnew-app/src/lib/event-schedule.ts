@@ -1,3 +1,11 @@
+/**
+ * legacy compatibility only — do not use for current heart consumption.
+ *
+ * The live heart system is `lib/heart-ops.ts` (lock/unlock + `like_source`
+ * grant/rainbow split). Everything below except `coerceEventScheduleRaw` is the
+ * pre-2026.09 quota model, kept so stored v1 `event_schedule` JSON stays
+ * readable. `coerceEventScheduleRaw` is the only live export here.
+ */
 import { HEART_COLOR_LABELS, type HeartType } from './constants';
 
 export type EventScheduleSlot = {
@@ -80,7 +88,7 @@ export function coerceEventScheduleRaw(raw: unknown): string | null {
 
 const COLOR_KEYS: HeartType[] = ['red', 'blue', 'pink', 'green'];
 
-/** Sends beyond per-color heart_grants. Rainbow remaining uses this — never raw HEART_TYPES.length. */
+/** legacy compatibility only — do not use for current heart consumption. */
 export function rainbowOverflowUsed(
   quotas: Record<HeartType, number>,
   used: Record<HeartType, number>,
@@ -96,7 +104,7 @@ export function colorGrantedTotal(quotas: Record<HeartType, number>): number {
   return COLOR_KEYS.reduce((n, t) => n + Math.max(0, quotas[t] ?? 0), 0);
 }
 
-/** Shared-pool pick state for rainbow slot — unlocked only when rainbow_pool > 0. */
+/** legacy compatibility only — do not use for current heart consumption. */
 export function rainbowPoolPickState(input: {
   rainbowPool: number;
   totalUsed: number;
@@ -108,7 +116,7 @@ export function rainbowPoolPickState(input: {
   return { unlocked, poolRemaining, disabled };
 }
 
-/** Rainbow remaining is pool − overflow (not color-grant spends). Hearts unlock via pool or color grants. */
+/** legacy compatibility only — do not use for current heart consumption. */
 export function participantHeartChatLock(input: {
   functionsLocked: boolean;
   rainbowPool: number;
@@ -139,8 +147,8 @@ export type HeaderHeartChip = {
 };
 
 /**
- * Five header remainings: rainbow pool is never added into red/pink/orange(blue)/green.
- * Per-color remaining = that type's heart_grants minus that type's sends only.
+ * legacy compatibility only — do not use for current heart consumption.
+ * The live header chips come from `heart-ops.ts#headerHeartRemainings`.
  */
 export function headerHeartRemainings(input: {
   functionsLocked: boolean;

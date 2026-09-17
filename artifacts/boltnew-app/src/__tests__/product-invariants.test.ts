@@ -254,7 +254,7 @@ describe('product copy + notification invariants', () => {
     expect(modal).toContain('data-testid="tutorial-chat-phone-mock"');
     expect(video).toContain('UI 2026.09');
     expect(video).toContain('function ChatWallpaper');
-    expect(video).toContain('총 N · 무지개 잠금→해금');
+    expect(video).toContain('하트 잠금→해금 · 무지개 4');
     expect(video).toContain('LIVE');
   });
 

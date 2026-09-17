@@ -126,7 +126,7 @@ export type AppOverlaysProps = {
   contactSharedWithIds: Set<string>;
   setProfiles: Dispatch<SetStateAction<Profile[]>>;
   chatDraftRef: MutableRefObject<Map<string, string>>;
-  likedByTypeRecord: () => Record<HeartType, number>;
+  getHeartUsage: () => import('../lib/heart-ops').HeartUsage;
   execLikeGuarded: (heartType: HeartType, source?: 'rainbow') => void | Promise<void>;
   showConfetti: boolean;
   shareEventNotif: ShareEventNotificationData | null;
@@ -134,8 +134,8 @@ export type AppOverlaysProps = {
   handleContactShareGuarded: (toUserId: string, kakao: string, instagram: string, phone: string) => void | Promise<void>;
   saveScannedContact: (p: Profile) => void;
   privacyProfileIds: { blockedUserIds: Set<string>; hiddenByIds: Set<string> };
-  heartQuotas: Record<HeartType, number>;
-  rainbowPool: number;
+  heartOpsConfig: import('../lib/heart-ops').HeartOpsConfig;
+  participantHeartsLocked: boolean;
 };
 
 export function AppOverlays(p: AppOverlaysProps) {
@@ -168,9 +168,9 @@ export function AppOverlays(p: AppOverlaysProps) {
     sendMessageGuarded, sendImageGuarded, deleteMessage,
     hasMoreOlderMessages, loadingOlderMessages, loadOlderMessages,
     receivedContactShares, contactSharedWithIds, setProfiles, chatDraftRef,
-    likedByTypeRecord, execLikeGuarded, showConfetti,
+    getHeartUsage, execLikeGuarded, showConfetti,
     shareEventNotif, setShareEventNotif, handleContactShareGuarded, saveScannedContact,
-    privacyProfileIds, heartQuotas, rainbowPool,
+    privacyProfileIds, heartOpsConfig, participantHeartsLocked,
   } = p;
 
   return (
@@ -271,7 +271,7 @@ export function AppOverlays(p: AppOverlaysProps) {
               heartType={sentHeartTypes.get(selectedProfile.id)}
               sentHeartsCount={sentHeartsPerPerson.get(selectedProfile.id)?.size ?? 0}
               locked={functionsLocked}
-              heartsLocked={functionsLocked || (rainbowPool <= 0 && heartQuotas.red + heartQuotas.blue + heartQuotas.pink + heartQuotas.green <= 0)}
+              heartsLocked={participantHeartsLocked}
               idealMsg={userSignals.find((s) => s.user_id === selectedProfile.id)?.ideal_msg}
               featureMsg={userSignals.find((s) => s.user_id === selectedProfile.id)?.feature_msg}
               onLike={() => { if (!functionsLocked) handleLike(selectedProfile.id, selectedProfile); }}
@@ -350,10 +350,9 @@ export function AppOverlays(p: AppOverlaysProps) {
       {likeConfirmTarget && (
         <LikeConfirmDialog
           target={likeConfirmTarget}
-          likedByType={likedByTypeRecord()}
           sentTypesForTarget={sentHeartsPerPerson.get(likeConfirmTarget.id) ?? new Set()}
-          quotas={heartQuotas}
-          rainbowPool={rainbowPool}
+          heartOps={heartOpsConfig}
+          heartUsage={getHeartUsage()}
           onConfirm={execLikeGuarded}
           onCancel={() => setLikeConfirmTarget(null)}
         />

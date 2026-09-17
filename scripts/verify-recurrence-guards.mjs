@@ -257,7 +257,9 @@ mustMatch('artifacts/boltnew-app/src/components/LikeConfirmDialog.tsx', '35_like
   /bindMobileTap/,
   /selectedRef/,
   /like-rainbow-btn/,
-  /위 하트 중에서 1개 선택/,
+  /rainbow-color-dialog/,
+  /grantRemaining/,
+  /rainbowRemaining/,
   /aria-disabled/,
   /h\.label/,
   /h\.desc/,
@@ -303,20 +305,17 @@ mustMatch('artifacts/boltnew-app/src/admin/event-schedule-apply.ts', '35_schedul
   /parseColorGrantsDraft/,
   /heartsMode === 'add'/,
 ]);
-mustMatch('artifacts/boltnew-app/src/admin/DashboardEventClockCard.tsx', '35_dashboard_event_clock_card', [
-  /행사 적용/,
-  /빠른 공지/,
-  /하트개수/,
-  /draftToApplyPick/,
-  /selectedSlotApplyPatch/,
-  /applyRainbowPoolOverwrite/,
-  /설정 \(덮어쓰기\)/,
-  /seoulNowHHMM/,
-  /넣기/,
-  /지금/,
+mustMatch('artifacts/boltnew-app/src/admin/HeartOpsCard.tsx', '35_heart_ops_card', [
+  /하트 운영/,
+  /현재 하트 상태/,
+  /시간별 자동 해금/,
+  /직접 공지/,
+  /지금 해금/,
+  /HEART_OPS_AT_RE/,
+  /serializeHeartOps/,
 ]);
-mustMatch('artifacts/boltnew-app/src/admin/DashboardTab.tsx', '35_dashboard_hosts_event_clock', [
-  /DashboardEventClockCard/,
+mustMatch('artifacts/boltnew-app/src/admin/DashboardTab.tsx', '35_dashboard_hosts_heart_ops', [
+  /HeartOpsCard/,
   /onSaveSchedule/,
 ]);
 mustNotMatch('artifacts/boltnew-app/src/AdminApp.tsx', '35_no_event_schedule_tab', [
@@ -324,16 +323,19 @@ mustNotMatch('artifacts/boltnew-app/src/AdminApp.tsx', '35_no_event_schedule_tab
   /label: '행사 시계'/,
   /settingsSubTab === 'schedule'/,
 ]);
-mustMatch('artifacts/boltnew-app/src/lib/event-schedule.ts', '35_upcoming_heart_preview', [
-  /upcomingHeartGrantPreview/,
-  /upcomingHeartText/,
-  /participantHeartChatLock/,
-  /eventRainbowQuota/,
-  /cumulativeRainbow: eventRainbowQuota/,
+mustMatch('artifacts/boltnew-app/src/lib/heart-ops.ts', '35_heart_ops_core', [
+  /RAINBOW_MAX_USES = 4/,
+  /heartUsageFromLikeRows/,
+  /like_source/,
+  /parseHeartOps/,
+  /headerHeartRemainings/,
+  /heartOpsBannerState/,
 ]);
-mustMatch('artifacts/boltnew-app/src/App.tsx', '35_rainbow_pool_only_display', [
-  /rainbowPool = useMemo/,
-  /eventRainbowQuota\(eventScheduleRaw/,
+mustMatch('artifacts/boltnew-app/src/App.tsx', '35_heart_ops_wiring', [
+  /heartOpsConfig = useMemo/,
+  /parseHeartOps\(eventScheduleRaw\)/,
+  /getHeartUsage/,
+  /participantHeartState/,
 ]);
 mustNotMatch('artifacts/boltnew-app/src/App.tsx', '35_no_granted_total_as_rainbow', [
   /eventGrantedHeartTotal/,
@@ -341,23 +343,35 @@ mustNotMatch('artifacts/boltnew-app/src/App.tsx', '35_no_granted_total_as_rainbo
 mustNotMatch('artifacts/boltnew-app/src/hooks/useHearts.ts', '35_like_spend_rainbow_pool_only', [
   /eventGrantedHeartTotal/,
 ]);
-mustMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '35_heart_chat_lock_count', [
+mustMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '35_heart_header_compact', [
   /home-heart-remaining-total/,
   /home-heart-lock/,
   /home-heart-remaining-rainbow/,
-  /남음 \{heartChatLock\.remaining\}/,
   /headerHeartRemainings/,
+  /participantHeartState/,
+  /heartOpsConfig/,
   /grid-cols-2 grid-rows-2/,
 ]);
-mustMatch('artifacts/boltnew-app/src/lib/event-schedule.ts', '35_header_five_heart_remainings', [
-  /headerHeartRemainings/,
+mustMatch('artifacts/boltnew-app/src/lib/heart-ops.ts', '35_header_five_heart_chips', [
   /home-heart-remaining-rainbow/,
   /home-heart-remaining-red/,
   /home-heart-remaining-pink/,
-  /home-heart-remaining-orange/,
+  /home-heart-remaining-blue/,
   /home-heart-remaining-green/,
-  /HEART_COLOR_LABELS/,
-  /rainbowOverflowUsed/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-op-likes-limits.ts', '35_likes_heart_ops_reject', [
+  /likesHeartOpsReject/,
+  /normalizeLikeSource/,
+  /RAINBOW_MAX_USES/,
+]);
+// Aliasing the config-taking serializer here wiped event_schedule on every admin save.
+mustMatch('artifacts/api-server/src/lib/db-event-schedule.ts', '35_event_schedule_raw_serializer_reexport', [
+  /^\s*parseEventSchedule,$/m,
+  /^\s*serializeEventSchedule,$/m,
+]);
+mustNotMatch('artifacts/api-server/src/lib/db-event-schedule.ts', '35_event_schedule_no_config_serializer_alias', [
+  /serializeHeartOps as serializeEventSchedule/,
+  /parseHeartOps as parseEventSchedule/,
 ]);
 mustNotMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '35_header_no_type_ticks_or_heart_chat_label', [
   /💖하트/,
@@ -370,8 +384,10 @@ mustNotMatch('artifacts/boltnew-app/src/admin/event-schedule-apply.ts', '35_no_h
   /\|\| 4/,
   /useState\('4'\)/,
 ]);
-mustNotMatch('artifacts/boltnew-app/src/admin/DashboardEventClockCard.tsx', '35_dashboard_no_hardcoded_heart_qty_4', [
-  /\|\| 4/,
+mustNotMatch('artifacts/boltnew-app/src/admin/HeartOpsCard.tsx', '35_heart_ops_no_count_inputs', [
+  /하트개수/,
+  /rainbow_pool/,
+  /heart_grants/,
   /useState\('4'\)/,
 ]);
 mustNotMatch('artifacts/boltnew-app/src/components/LikeConfirmDialog.tsx', '35_no_hardcoded_like_qty_4', [
