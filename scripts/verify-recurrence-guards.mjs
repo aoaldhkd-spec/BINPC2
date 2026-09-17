@@ -272,6 +272,7 @@ mustMatch('artifacts/boltnew-app/src/admin/EventScheduleTab.tsx', '35_schedule_n
   /applySlotNowPatch/,
   /rainbowUnlockNowPatch/,
   /nextRainbowPoolGrant/,
+  /parseHeartGrantAmount/,
   /noticeOnlyPatch/,
   /heartsOnlyPatch/,
   /timeOnlyPatch/,
@@ -284,11 +285,26 @@ mustMatch('artifacts/boltnew-app/src/lib/event-schedule.ts', '35_upcoming_heart_
   /upcomingHeartGrantPreview/,
   /upcomingHeartText/,
   /participantHeartChatLock/,
+  /eventGrantedHeartTotal/,
 ]);
 mustMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '35_heart_chat_lock_count', [
   /home-heart-remaining-total/,
   /home-heart-lock/,
+  /남음 \{heartChatLock\.remaining\}/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '35_header_no_type_ticks_or_heart_chat_label', [
+  /💖하트/,
+  /💬채팅/,
   /home-chat-lock/,
+  /HEART_TYPES\.map\(\(h\) => \(/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/admin/EventScheduleTab.tsx', '35_no_hardcoded_heart_qty_4', [
+  /\|\| 4/,
+  /useState\('4'\)/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/components/LikeConfirmDialog.tsx', '35_no_hardcoded_like_qty_4', [
+  /Math\.max\(4/,
+  /unlockedRainbowCount \|\| 4/,
 ]);
 mustMatch('artifacts/boltnew-app/src/components/FirstEntryCoachMarks.tsx', '35_coach_tip_readable_type', [
   /text-base font-black text-cyan-700/,

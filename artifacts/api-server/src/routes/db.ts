@@ -489,7 +489,7 @@ import {
   buildLegacyHistoryStripSql,
   parseLegacyLeftoverCounts,
 } from '../lib/db-legacy-cleanup';
-import { eventRainbowQuota, serializeEventSchedule } from '../lib/db-event-schedule';
+import { eventGrantedHeartTotal, serializeEventSchedule } from '../lib/db-event-schedule';
 import {
   recordExpiredSseToken,
   recordMissingSseToken,
@@ -3350,7 +3350,7 @@ router.post('/op', async (req: Request, res: Response) => {
           // 타입별 행사 한도: 기본 2명 + 서버 시각 기준으로 이미 열린 슬롯의 grant.
           // 클라이언트가 우회해도 여기서 최종 차단하며, 슬롯 변경은 app_settings/SSE로 전파된다.
           const eventScheduleRaw = (getTable('app_settings')[0] as Record<string, unknown> | undefined)?.event_schedule;
-          const rainbowQuota = eventRainbowQuota(eventScheduleRaw, new Date());
+          const rainbowQuota = eventGrantedHeartTotal(eventScheduleRaw, new Date());
           if (rainbowQuota <= 0) {
             // Product rule: hearts stay locked until an opened rainbow_pool grant exists.
             return sendReject(likesRainbowPoolLimitReject(0));

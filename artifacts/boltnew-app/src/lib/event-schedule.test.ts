@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   coerceEventScheduleRaw,
   eventHeartQuotas,
+  eventGrantedHeartTotal,
   eventRainbowQuota,
   eventScheduleBannerState,
   participantHeartChatLock,
@@ -20,6 +21,14 @@ describe('client event schedule quotas', () => {
     const schedule = { slots: [{ at: '23:05', rainbow_pool: 4 }] };
     expect(eventRainbowQuota(schedule, new Date('2026-09-16T14:04:59.000Z'))).toBe(0);
     expect(eventRainbowQuota(schedule, new Date('2026-09-16T14:05:00.000Z'))).toBe(4);
+  });
+
+  it('eventGrantedHeartTotal sums rainbow_pool and heart_grants, never a hardcoded 4', () => {
+    const now = new Date('2026-09-16T14:05:00.000Z');
+    expect(eventGrantedHeartTotal({ slots: [{ at: '23:05', rainbow_pool: 2 }] }, now)).toBe(2);
+    expect(eventGrantedHeartTotal({ slots: [{ at: '23:05', rainbow_pool: 7 }] }, now)).toBe(7);
+    expect(eventGrantedHeartTotal({ slots: [{ at: '23:05', rainbow_pool: 2, heart_grants: { red: 1, blue: 2 } }] }, now)).toBe(5);
+    expect(eventGrantedHeartTotal({ slots: [{ at: '23:05' }] }, now)).toBe(0);
   });
 
   it('stays locked (pool 0) until a rainbow_pool slot opens', () => {

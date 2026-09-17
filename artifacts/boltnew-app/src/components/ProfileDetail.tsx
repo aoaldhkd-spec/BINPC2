@@ -98,7 +98,7 @@ function ProfileDetail({ profile, isMe, isLiked, heartType, sentHeartsCount, loc
   const heartSendLocked = heartsLocked ?? chatLocked;
   const handleLike = () => {
     if (heartSendLocked) { showLockToast(); return; }
-    if (isLiked && (sentHeartsCount ?? 0) >= 4) return;
+    if (isLiked && (sentHeartsCount ?? 0) >= HEART_TYPES.length) return;
     onLike();
   };
   const handleChat = () => {
@@ -169,7 +169,7 @@ function ProfileDetail({ profile, isMe, isLiked, heartType, sentHeartsCount, loc
             data-testid="profile-detail-heart-btn"
             {...bindMobileTap(() => handleLike())}
             aria-disabled={heartSendLocked}
-            disabled={!heartSendLocked && isLiked && (sentHeartsCount ?? 0) >= 4}
+            disabled={!heartSendLocked && isLiked && (sentHeartsCount ?? 0) >= HEART_TYPES.length}
             className={`absolute top-4 right-4 p-2.5 rounded-full backdrop-blur-sm transition-all ${heartSendLocked ? 'opacity-60' : ''} ${
               isLiked
                 ? `${heartType ? heartMeta(heartType).solidBg : 'bg-rose-500'} text-white shadow-lg`

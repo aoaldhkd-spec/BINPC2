@@ -725,40 +725,25 @@ export function MainScreen({
               onOpenResetPassword={onOpenResetPassword}
             />
           </div>
-          {/* 우: 하트 */}
-          <div data-coach="home-heart-types" className="justify-self-end flex items-center gap-1">
+          {/* 우: 무지개하트 남은 개수만 (종류 4개 이모지·하트/채팅 라벨 없음) */}
+          <div data-coach="home-heart-types" className="justify-self-end flex items-center">
             <span
               data-testid="home-heart-remaining-total"
-              aria-label={`남은 하트 ${heartChatLock.remaining}개 · 해금 ${rainbowPool}개`}
-              className={`text-[9px] min-[390px]:text-[10px] font-black tabular-nums whitespace-nowrap ${darkMode ? 'text-cyan-300' : 'text-cyan-700'}`}
+              aria-label={`무지개하트 남음 ${heartChatLock.remaining}개 · 해금 ${rainbowPool}개`}
+              title={heartChatLock.heartsLocked
+                ? (heartChatLock.poolGranted ? '하트 기능 잠금' : '무지개하트 잠금 — 관리자 해금 후 사용')
+                : `무지개하트 남음 ${heartChatLock.remaining}개`}
+              className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs min-[390px]:text-sm font-black tabular-nums whitespace-nowrap ${
+                heartChatLock.heartsLocked
+                  ? (darkMode ? 'bg-slate-700 text-amber-200' : 'bg-amber-50 text-amber-800')
+                  : (darkMode ? 'bg-fuchsia-900/60 text-fuchsia-200' : 'bg-fuchsia-50 text-fuchsia-800')
+              }`}
             >
-              남음 {heartChatLock.remaining}/{rainbowPool}
+              <span data-testid="home-heart-lock" aria-hidden>
+                {heartChatLock.heartsLocked ? '🔒🌈' : '🌈'}
+              </span>
+              남음 {heartChatLock.remaining}
             </span>
-            <span
-              data-testid="home-heart-lock"
-              className={`text-[9px] font-black whitespace-nowrap ${heartChatLock.heartsLocked ? (darkMode ? 'text-amber-300' : 'text-amber-700') : (darkMode ? 'text-emerald-300' : 'text-emerald-700')}`}
-              title={heartChatLock.heartsLocked ? (heartChatLock.poolGranted ? '하트 기능 잠금' : '무지개하트 잠금 — 관리자 해금 후 사용') : `무지개하트 pool ${heartChatLock.remaining}개 남음`}
-            >
-              {heartChatLock.heartsLocked ? '🔒하트' : '💖하트'}
-            </span>
-            <span
-              data-testid="home-chat-lock"
-              className={`text-[9px] font-black whitespace-nowrap ${heartChatLock.chatLocked ? (darkMode ? 'text-amber-300' : 'text-amber-700') : (darkMode ? 'text-emerald-300' : 'text-emerald-700')}`}
-              title={heartChatLock.chatLocked ? '채팅 잠금' : '채팅 열림'}
-            >
-              {heartChatLock.chatLocked ? '🔒채팅' : '💬채팅'}
-            </span>
-            <div className="flex items-center gap-0.5 min-[390px]:gap-1">
-              {HEART_TYPES.map((h) => (
-                <span
-                  key={h.type}
-                  className={`text-sm leading-none transition-all ${heartChatLock.heartsLocked ? 'grayscale opacity-40' : ''}`}
-                  title={heartChatLock.heartsLocked ? '하트 잠금' : `무지개하트 ${heartChatLock.remaining}개 남음`}
-                >
-                  {h.emoji}
-                </span>
-              ))}
-            </div>
           </div>
         </div>
         {timerEndAt && <TimerBanner endAt={timerEndAt} label={timerLabel ?? ''} />}

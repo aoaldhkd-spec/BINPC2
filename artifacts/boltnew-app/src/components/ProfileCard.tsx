@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Heart, MessageCircle, MoreHorizontal } from 'lucide-react';
 import type { Profile } from '../types/app';
 import { parseProfileInterests, getInterestTagStyle } from '../lib/interests';
-import { HeartType, heartMeta } from '../lib/constants';
+import { HeartType, HEART_TYPES, heartMeta } from '../lib/constants';
 import { getPositionLabel, getPositionStyle, getKoreanAge, hasUploadedPhoto, getAvatarGradientCssForProfile, getAvatarSrc } from '../lib/profile';
 import { getMbtiStyle } from '../lib/utils';
 import { bindMobileTap } from '../lib/mobile-tap';
@@ -640,7 +640,7 @@ export const ProfileCard = memo(function ProfileCard({
               data-coach="profile-card-heart-btn"
               aria-disabled={heartSendLocked}
               {...bindMobileTap(handleHeartTap)}
-              disabled={!heartSendLocked && isLiked && heartCount >= 4}
+              disabled={!heartSendLocked && isLiked && heartCount >= HEART_TYPES.length}
               className={`flex-1 min-w-0 flex items-center justify-center gap-0.5 py-0.5 rounded border active:scale-95 transition-transform ${heartSendLocked ? 'opacity-50' : ''}`}
               style={heartBtnStyle}
             >

@@ -109,9 +109,9 @@ export function LikeConfirmDialog({
                   {alreadySentToThisPerson ? (
                     <span className="text-[10px] text-gray-400 font-bold">전송됨</span>
                   ) : (
-                    Array.from({ length: Math.min(8, pick.unlocked ? Math.max(remaining, 1) : 1) }, (_, i) => (
-                      <Heart key={i} className={`w-4 h-4 ${i < remaining ? h.fillText : 'fill-gray-200 text-gray-200'}`} />
-                    ))
+                    <span className={`text-[10px] font-black tabular-nums ${pick.unlocked ? h.text : 'text-gray-300'}`} data-testid={`like-heart-${h.type}-remaining`}>
+                      {pick.unlocked ? `${remaining}개` : '0개'}
+                    </span>
                   )}
                 </div>
               </button>
@@ -205,13 +205,13 @@ export function LikeConfirmDialog({
                       </p>
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
-                      {alreadySentToThisPerson ? (
-                        <span className="text-[10px] text-gray-400 font-bold">전송됨</span>
-                      ) : (
-                        Array.from({ length: Math.min(8, pick.unlocked ? Math.max(remaining, 1) : 1) }, (_, i) => (
-                          <Heart key={i} className={`w-4 h-4 ${i < remaining ? h.fillText : 'fill-gray-200 text-gray-200'}`} />
-                        ))
-                      )}
+                    {alreadySentToThisPerson ? (
+                      <span className="text-[10px] text-gray-400 font-bold">전송됨</span>
+                    ) : (
+                      <span className={`text-[10px] font-black tabular-nums ${pick.unlocked ? h.text : 'text-gray-300'}`}>
+                        {pick.unlocked ? `${remaining}개` : '0개'}
+                      </span>
+                    )}
                     </div>
                   </button>
                 );

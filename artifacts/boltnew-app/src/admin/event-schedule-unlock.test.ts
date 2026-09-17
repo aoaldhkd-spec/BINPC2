@@ -5,6 +5,7 @@ import {
   applySlotPatch,
   heartsOnlyPatch,
   nextRainbowPoolGrant,
+  parseHeartGrantAmount,
   noticeOnlyPatch,
   rainbowUnlockNowPatch,
   selectedApplyCount,
@@ -105,6 +106,15 @@ describe('admin rainbow unlock now', () => {
     ];
     const two = applySavedFieldPatch(saved, dirty, 'slot-1', selectedSlotApplyPatch({ time: true, notice: true }, values));
     expect(two[0]).toMatchObject({ at: '18:00', notice: '새 공지', rainbow_pool: 4, functions_locked: true });
+  });
+
+  it('parseHeartGrantAmount never falls back to 4', () => {
+    expect(parseHeartGrantAmount('')).toBe(0);
+    expect(parseHeartGrantAmount('abc')).toBe(0);
+    expect(parseHeartGrantAmount(2)).toBe(2);
+    expect(parseHeartGrantAmount(7)).toBe(7);
+    expect(nextRainbowPoolGrant(0, 0)).toBe(0);
+    expect(nextRainbowPoolGrant(2, 5)).toBe(7);
   });
 
   it('adds each unlock onto the existing slot pool (not a hardcoded 4)', () => {

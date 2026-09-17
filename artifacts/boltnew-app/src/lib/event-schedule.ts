@@ -53,6 +53,12 @@ export function eventRainbowQuota(raw: unknown, now = new Date(), base = 0): num
 export function eventHeartQuotas(raw: unknown, now = new Date()): Record<HeartType, number> {
   return { red: eventHeartQuota(raw, 'red', now), blue: eventHeartQuota(raw, 'blue', now), pink: eventHeartQuota(raw, 'pink', now), green: eventHeartQuota(raw, 'green', now) };
 }
+
+/** Spendable grant total: cumulative rainbow_pool + all heart_grants. Never HEART_TYPES.length. */
+export function eventGrantedHeartTotal(raw: unknown, now = new Date()): number {
+  const colors = eventHeartQuotas(raw, now);
+  return eventRainbowQuota(raw, now) + colors.red + colors.blue + colors.pink + colors.green;
+}
 export function currentEventSlot(raw: unknown, now = new Date()): EventScheduleSlot | null {
   const minute = nowSeoulMinute(now); let active: EventScheduleSlot | null = null;
   for (const s of parseEventSchedule(raw).slots) if (slotMinute(s.at) <= minute) active = s;
@@ -173,7 +179,7 @@ export function eventScheduleBannerState(raw: unknown, now = new Date()): EventS
     next: showCountdown ? next : null,
     nextSeconds: showCountdown ? nextSeconds : null,
     showNotice,
-    cumulativeRainbow: eventRainbowQuota(raw, now),
+    cumulativeRainbow: eventGrantedHeartTotal(raw, now),
     upcomingHeartText: upcoming?.text ?? null,
   };
 }
