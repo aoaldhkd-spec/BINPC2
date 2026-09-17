@@ -275,6 +275,8 @@ mustMatch('artifacts/boltnew-app/src/admin/EventScheduleTab.tsx', '35_schedule_n
   /noticeOnlyPatch/,
   /heartsOnlyPatch/,
   /timeOnlyPatch/,
+  /selectedSlotApplyPatch/,
+  /선택 \{pickCount\}개 적용/,
   /공지나 하트도 같이 넣는 게 좋아요/,
 ]);
 mustMatch('artifacts/boltnew-app/src/lib/event-schedule.ts', '35_upcoming_heart_preview', [

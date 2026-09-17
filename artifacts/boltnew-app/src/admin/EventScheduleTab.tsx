@@ -56,6 +56,24 @@ export function heartsOnlyPatch(currentPool: number | undefined, add: number): P
 
 export const TIME_ONLY_APPLY_HINT = '공지나 하트도 같이 넣는 게 좋아요';
 
+export type SlotApplyPick = { time?: boolean; notice?: boolean; hearts?: boolean };
+
+/** Merge only the fields included in this apply. Omitted keys stay on the last-saved slot. */
+export function selectedSlotApplyPatch(
+  pick: SlotApplyPick,
+  values: { at: string; notice: string; currentPool?: number; addHearts: number },
+): Partial<EventScheduleSlot> {
+  const patch: Partial<EventScheduleSlot> = {};
+  if (pick.time) Object.assign(patch, timeOnlyPatch(values.at));
+  if (pick.notice) Object.assign(patch, noticeOnlyPatch(values.notice));
+  if (pick.hearts) Object.assign(patch, heartsOnlyPatch(values.currentPool, values.addHearts));
+  return patch;
+}
+
+export function selectedApplyCount(pick: SlotApplyPick): number {
+  return Number(!!pick.time) + Number(!!pick.notice) + Number(!!pick.hearts);
+}
+
 /** Persist only the chosen field onto last-saved slots so dirty sibling edits are not broadcast. */
 export function applySavedFieldPatch(
   saved: EventScheduleSlot[],
@@ -83,8 +101,9 @@ export function EventScheduleTab({ settings, onSave }: {
   const initial = useMemo(() => parseEventSchedule(settings?.event_schedule), [settings?.event_schedule]);
   const [slots, setSlots] = useState<EventScheduleSlot[]>(initial.slots.length ? initial.slots : [EMPTY]);
   const [rainbowAmount, setRainbowAmount] = useState('4');
+  const [picks, setPicks] = useState<Record<string, SlotApplyPick>>({});
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState<'notice' | 'hearts' | 'timeline' | false>(false);
+  const [saved, setSaved] = useState<'notice' | 'hearts' | 'timeline' | 'selected' | false>(false);
   const [clock, setClock] = useState(() => new Date());
   useEffect(() => { const id = window.setInterval(() => setClock(new Date()), 1000); return () => window.clearInterval(id); }, []);
   // Keep editor in sync when SSE/ready pushes a newer schedule after unlock/save.
@@ -100,7 +119,7 @@ export function EventScheduleTab({ settings, onSave }: {
   const liveNotice = (active?.notice ?? '').trim();
   const update = (id: string, patch: Partial<EventScheduleSlot>) => setSlots(prev => applySlotPatch(prev, id, patch));
   const add = () => setSlots(prev => [...prev, { id: `slot-${Date.now()}`, at: '23:00', notice: '', functions_locked: false, heart_grants: {} }]);
-  const persist = async (next: EventScheduleSlot[], extras?: ScheduleSaveExtras, kind: 'notice' | 'hearts' | 'timeline' = 'timeline') => {
+  const persist = async (next: EventScheduleSlot[], extras?: ScheduleSaveExtras, kind: 'notice' | 'hearts' | 'timeline' | 'selected' = 'timeline') => {
     setSaving(true);
     try {
       await onSave(JSON.stringify({ timezone: 'Asia/Seoul', slots: next }), extras);
@@ -110,31 +129,32 @@ export function EventScheduleTab({ settings, onSave }: {
   };
   const save = async () => { await persist(slots); };
   const savedSlots = initial.slots;
-  /** Heart count only — last-saved notice/time stay; add to the live slot so user remaining updates now. */
-  const unlockRainbowNow = async (id: string) => {
-    const targetId = active?.id ?? id;
-    const base = savedSlots.some(s => s.id === targetId) ? savedSlots : slots;
-    const slot = base.find(s => s.id === targetId);
-    const next = applySavedFieldPatch(savedSlots, slots, targetId, heartsOnlyPatch(slot?.rainbow_pool, Number(rainbowAmount) || 4));
-    setSlots(next);
-    await persist(next, { functions_locked: false }, 'hearts');
+  const togglePick = (id: string, key: keyof SlotApplyPick) => {
+    setPicks(prev => ({ ...prev, [id]: { ...prev[id], [key]: !prev[id]?.[key] } }));
   };
+  const applyPicked = async (id: string, pick: SlotApplyPick, kind: 'notice' | 'hearts' | 'timeline' | 'selected') => {
+    if (selectedApplyCount(pick) === 0) return;
+    if (selectedApplyCount(pick) === 1 && pick.time && typeof window !== 'undefined'
+      && !window.confirm(`${TIME_ONLY_APPLY_HINT}. 시간만 적용할까요?`)) return;
+    const local = slots.find(s => s.id === id);
+    const base = savedSlots.some(s => s.id === id) ? savedSlots : slots;
+    const savedSlot = base.find(s => s.id === id);
+    const next = applySavedFieldPatch(savedSlots, slots, id, selectedSlotApplyPatch(pick, {
+      at: local?.at ?? seoulNowHHMM(),
+      notice: local?.notice ?? '',
+      currentPool: savedSlot?.rainbow_pool,
+      addHearts: Number(rainbowAmount) || 4,
+    }));
+    setSlots(next);
+    await persist(next, pick.hearts ? { functions_locked: false } : undefined, kind);
+  };
+  /** Heart count only — last-saved notice/time stay. */
+  const unlockRainbowNow = async (id: string) => { await applyPicked(id, { hearts: true }, 'hearts'); };
   /** Notice text only — do not bump the clock or change pool. */
-  const applyNoticeNow = async (id: string) => {
-    const notice = slots.find(s => s.id === id)?.notice ?? '';
-    const next = applySavedFieldPatch(savedSlots, slots, id, noticeOnlyPatch(notice));
-    setSlots(next);
-    await persist(next, undefined, 'notice');
-  };
+  const applyNoticeNow = async (id: string) => { await applyPicked(id, { notice: true }, 'notice'); };
   /** Time only — last-saved notice/pool stay. */
-  const applyTimeOnly = async (id: string) => {
-    if (typeof window !== 'undefined' && !window.confirm(`${TIME_ONLY_APPLY_HINT}. 시간만 적용할까요?`)) return;
-    const at = slots.find(s => s.id === id)?.at ?? seoulNowHHMM();
-    const next = applySavedFieldPatch(savedSlots, slots, id, timeOnlyPatch(at));
-    setSlots(next);
-    const locked = next.find(s => s.id === id)?.functions_locked;
-    await persist(next, typeof locked === 'boolean' ? { functions_locked: locked } : undefined, 'timeline');
-  };
+  const applyTimeOnly = async (id: string) => { await applyPicked(id, { time: true }, 'timeline'); };
+  const applySelected = async (id: string) => { await applyPicked(id, picks[id] ?? {}, 'selected'); };
   const poolLabel = cumulativeRainbow > 0 ? `${cumulativeRainbow}개` : '0개 (잠김)';
   return <div className="p-3 min-[390px]:p-4 space-y-4">
     <div className={`rounded-2xl border p-3 ${unlocked ? 'border-emerald-300 bg-emerald-50' : 'border-amber-300 bg-amber-50'}`}>
@@ -155,13 +175,15 @@ export function EventScheduleTab({ settings, onSave }: {
         </div>
       </div>
       <p className="mt-2 text-[11px] font-semibold leading-relaxed text-gray-700">
-        <strong>시간만 적용</strong> · <strong>공지만 적용</strong> · <strong>하트만 해금</strong>은 그 칸만 방송해요. 비운 칸은 라이브 값을 덮지 않아요. 시간만 보낼 때는 「{TIME_ONLY_APPLY_HINT}」.
+        시간·공지·하트는 따로 방송해요. 고른 칸만 나가고, 비운 칸은 라이브 값을 덮지 않아요. 시간만 보낼 때는 「{TIME_ONLY_APPLY_HINT}」.
       </p>
     </div>
     <div className="space-y-3">
       {slots.map((slot, index) => {
         const phase = slotPhase(slot, active?.id ?? null, nowHHMM);
         const locked = slot.functions_locked === true;
+        const pick = picks[slot.id] ?? {};
+        const pickCount = selectedApplyCount(pick);
         return <div key={slot.id} className={`rounded-2xl border bg-white p-3 shadow-sm ${phase === 'active' ? 'border-cyan-400 ring-2 ring-cyan-100' : 'border-gray-200'}`}>
           <div className="mb-2 flex flex-wrap items-center gap-1.5">
             <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-black text-gray-500">#{index + 1}</span>
@@ -199,6 +221,21 @@ export function EventScheduleTab({ settings, onSave }: {
             <button type="button" disabled={saving} onClick={() => void unlockRainbowNow(slot.id)} className="rounded-lg bg-fuchsia-600 px-3 py-2 text-[11px] font-black text-white shadow-sm hover:bg-fuchsia-700 disabled:opacity-40">
               하트만 해금·적용 {Math.max(1, Number(rainbowAmount) || 4)}개
             </button>
+            <div className="w-full flex flex-wrap items-center gap-1.5 pt-1">
+              <span className="text-[10px] font-black text-gray-400">같이 적용</span>
+              {([['time', '시간'], ['notice', '공지'], ['hearts', '하트']] as const).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  aria-pressed={!!pick[key]}
+                  onClick={() => togglePick(slot.id, key)}
+                  className={`rounded-full border px-2 py-1 text-[10px] font-black ${pick[key] ? 'border-teal-500 bg-teal-50 text-teal-800' : 'border-gray-200 bg-white text-gray-500'}`}
+                >{label}</button>
+              ))}
+              <button type="button" disabled={saving || pickCount === 0} onClick={() => void applySelected(slot.id)} className="rounded-lg bg-teal-600 px-2.5 py-1.5 text-[10px] font-black text-white hover:bg-teal-700 disabled:opacity-40">
+                선택 {pickCount}개 적용
+              </button>
+            </div>
             <details className="w-full">
               <summary className="cursor-pointer text-[10px] font-bold text-gray-400">고급 · 색상별 지급 (선택)</summary>
               <div className="mt-2 grid grid-cols-2 min-[390px]:grid-cols-4 gap-2">
@@ -212,7 +249,7 @@ export function EventScheduleTab({ settings, onSave }: {
     </div>
     <div className="flex items-center gap-2">
       <button type="button" onClick={() => void save()} disabled={saving || slots.length === 0} className="rounded-xl bg-teal-600 px-5 py-2.5 text-sm font-black text-white disabled:opacity-40">{saving ? '저장 중…' : '타임라인 저장'}</button>
-      {saved && <span className="text-xs font-bold text-teal-700">{saved === 'notice' ? '공지 적용됨 · 실시간 반영' : saved === 'hearts' ? '하트 해금됨 · 실시간 반영' : '저장됐어요 · 실시간 반영'}</span>}
+      {saved && <span className="text-xs font-bold text-teal-700">{saved === 'notice' ? '공지 적용됨 · 실시간 반영' : saved === 'hearts' ? '하트 해금됨 · 실시간 반영' : saved === 'selected' ? '선택한 항목 적용됨 · 실시간 반영' : '저장됐어요 · 실시간 반영'}</span>}
     </div>
   </div>;
 }
