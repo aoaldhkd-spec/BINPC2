@@ -287,6 +287,11 @@ mustMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '35_heart_chat_
   /home-heart-lock/,
   /home-chat-lock/,
 ]);
+mustMatch('artifacts/boltnew-app/src/components/FirstEntryCoachMarks.tsx', '35_coach_tip_readable_type', [
+  /text-base font-black text-cyan-700/,
+  /text-sm font-semibold leading-relaxed/,
+  /first-entry-coach-tip/,
+]);
 mustMatch('artifacts/boltnew-app/src/hooks/useHearts.ts', '35_ensure_write_session_before_like', [
   /ensureWriteSession/,
 ]);
