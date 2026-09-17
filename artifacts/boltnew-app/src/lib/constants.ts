@@ -34,25 +34,25 @@ export const HEART_TYPES: {
   solidHover: string;
   emoji: string;
 }[] = [
-  { type: 'red', label: '맘에 드는 사람', desc: '로맨틱한 호감을 표현해요', bg: 'bg-rose-50', border: 'border-rose-300', ring: 'ring-rose-200', text: 'text-rose-700', fillText: 'fill-rose-400 text-rose-400', solidBg: 'bg-rose-500', solidHover: 'hover:bg-rose-600', emoji: '❤️' },
-  { type: 'blue', label: '친구하고 싶어요', desc: '친구가 되고 싶을 때 보내요', bg: 'bg-blue-50', border: 'border-blue-300', ring: 'ring-blue-200', text: 'text-blue-700', fillText: 'fill-blue-400 text-blue-400', solidBg: 'bg-blue-500', solidHover: 'hover:bg-blue-600', emoji: '💙' },
-  { type: 'pink', label: '뜨밤', desc: '함께 밤을 보내고 싶어요', bg: 'bg-orange-50', border: 'border-orange-300', ring: 'ring-orange-200', text: 'text-orange-700', fillText: 'fill-orange-400 text-orange-400', solidBg: 'bg-orange-500', solidHover: 'hover:bg-orange-600', emoji: '💗' },
-  { type: 'green', label: '칭찬 하트', desc: '칭찬만 전달 (연락처 공유 불가)', bg: 'bg-emerald-50', border: 'border-emerald-300', ring: 'ring-emerald-200', text: 'text-emerald-700', fillText: 'fill-emerald-400 text-emerald-400', solidBg: 'bg-emerald-500', solidHover: 'hover:bg-emerald-600', emoji: '💚' },
+  { type: 'red', label: '빨강하트', desc: '로맨틱한 호감을 표현해요', bg: 'bg-rose-50', border: 'border-rose-300', ring: 'ring-rose-200', text: 'text-rose-700', fillText: 'fill-rose-400 text-rose-400', solidBg: 'bg-rose-500', solidHover: 'hover:bg-rose-600', emoji: '❤️' },
+  { type: 'blue', label: '주황하트', desc: '주황 하트를 보내요', bg: 'bg-orange-50', border: 'border-orange-300', ring: 'ring-orange-200', text: 'text-orange-700', fillText: 'fill-orange-400 text-orange-400', solidBg: 'bg-orange-500', solidHover: 'hover:bg-orange-600', emoji: '🧡' },
+  { type: 'pink', label: '핑크하트', desc: '함께 밤을 보내고 싶어요', bg: 'bg-pink-50', border: 'border-pink-300', ring: 'ring-pink-200', text: 'text-pink-700', fillText: 'fill-pink-400 text-pink-400', solidBg: 'bg-pink-500', solidHover: 'hover:bg-pink-600', emoji: '💗' },
+  { type: 'green', label: '초록하트', desc: '칭찬만 전달 (연락처 공유 불가)', bg: 'bg-emerald-50', border: 'border-emerald-300', ring: 'ring-emerald-200', text: 'text-emerald-700', fillText: 'fill-emerald-400 text-emerald-400', solidBg: 'bg-emerald-500', solidHover: 'hover:bg-emerald-600', emoji: '💚' },
 ];
 
 export const HEART_META = {
-  red: { label: '맘에 드는 사람', emoji: '❤️', color: '#ef4444' },
-  blue: { label: '친구하고 싶어요', emoji: '💙', color: '#3b82f6' },
-  pink: { label: '뜨밤', emoji: '💗', color: '#ec4899' },
-  green: { label: '칭찬 하트', emoji: '💚', color: '#10b981' },
+  red: { label: '빨강하트', emoji: '❤️', color: '#ef4444' },
+  blue: { label: '주황하트', emoji: '🧡', color: '#f97316' },
+  pink: { label: '핑크하트', emoji: '💗', color: '#ec4899' },
+  green: { label: '초록하트', emoji: '💚', color: '#10b981' },
 } as const;
 
 /** Convenience wrapper — looks up full metadata for a HeartType */
 export const heartMeta = (t: HeartType) => HEART_TYPES.find(h => h.type === t)!;
 
 export const HEART_TYPE_META: Record<string, { emoji: string; label: string; color: string; bg: string }> = {
-  red: { emoji: '❤️', label: '호감', color: 'text-rose-600', bg: 'bg-rose-100' },
-  blue: { emoji: '💙', label: '친구', color: 'text-blue-600', bg: 'bg-blue-100' },
-  pink: { emoji: '💗', label: '뜨밤', color: 'text-pink-600', bg: 'bg-pink-100' },
-  green: { emoji: '💚', label: '칭찬', color: 'text-emerald-600', bg: 'bg-emerald-100' },
+  red: { emoji: '❤️', label: '빨강', color: 'text-rose-600', bg: 'bg-rose-100' },
+  blue: { emoji: '🧡', label: '주황', color: 'text-orange-600', bg: 'bg-orange-100' },
+  pink: { emoji: '💗', label: '핑크', color: 'text-pink-600', bg: 'bg-pink-100' },
+  green: { emoji: '💚', label: '초록', color: 'text-emerald-600', bg: 'bg-emerald-100' },
 };

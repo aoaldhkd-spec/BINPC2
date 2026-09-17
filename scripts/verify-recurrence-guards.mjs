@@ -262,15 +262,7 @@ mustMatch('artifacts/boltnew-app/src/components/LikeConfirmDialog.tsx', '35_like
   /h\.label/,
   /space-y-2 mb-5/,
 ]);
-mustMatch('artifacts/boltnew-app/src/admin/EventScheduleTab.tsx', '35_schedule_notice_hearts_separate', [
-  /공지만 적용/,
-  /하트만 \+/,
-  /이 값으로 설정/,
-  /시간만 적용/,
-  /applyNoticeNow/,
-  /unlockRainbowNow/,
-  /setRainbowNow/,
-  /applyTimeOnly/,
+mustMatch('artifacts/boltnew-app/src/admin/event-schedule-apply.ts', '35_schedule_notice_hearts_separate', [
   /applySlotNowPatch/,
   /rainbowUnlockNowPatch/,
   /nextRainbowPoolGrant/,
@@ -282,9 +274,28 @@ mustMatch('artifacts/boltnew-app/src/admin/EventScheduleTab.tsx', '35_schedule_n
   /timeOnlyPatch/,
   /selectedSlotApplyPatch/,
   /shouldWarnTimeOnlyApply/,
-  /선택 \{pickCount\}개 적용/,
   /공지나 하트도 같이 넣는 게 좋아요/,
-  /eventRainbowQuota/,
+  /draftToApplyPick/,
+  /parseColorGrantsDraft/,
+]);
+mustMatch('artifacts/boltnew-app/src/admin/DashboardEventClockCard.tsx', '35_dashboard_event_clock_card', [
+  /행사 적용/,
+  /빠른 공지/,
+  /하트개수/,
+  /draftToApplyPick/,
+  /selectedSlotApplyPatch/,
+  /seoulNowHHMM/,
+  /넣기/,
+  /지금/,
+]);
+mustMatch('artifacts/boltnew-app/src/admin/DashboardTab.tsx', '35_dashboard_hosts_event_clock', [
+  /DashboardEventClockCard/,
+  /onSaveSchedule/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/AdminApp.tsx', '35_no_event_schedule_tab', [
+  /EventScheduleTab/,
+  /label: '행사 시계'/,
+  /settingsSubTab === 'schedule'/,
 ]);
 mustMatch('artifacts/boltnew-app/src/lib/event-schedule.ts', '35_upcoming_heart_preview', [
   /upcomingHeartGrantPreview/,
@@ -307,14 +318,26 @@ mustMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '35_heart_chat_
   /home-heart-remaining-total/,
   /home-heart-lock/,
   /남음 \{heartChatLock\.remaining\}/,
+  /headerHeartRemainings/,
+]);
+mustMatch('artifacts/boltnew-app/src/lib/event-schedule.ts', '35_header_five_heart_remainings', [
+  /headerHeartRemainings/,
+  /home-heart-remaining-rainbow/,
+  /home-heart-remaining-red/,
+  /home-heart-remaining-pink/,
+  /home-heart-remaining-orange/,
+  /home-heart-remaining-green/,
 ]);
 mustNotMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '35_header_no_type_ticks_or_heart_chat_label', [
   /💖하트/,
   /💬채팅/,
   /home-chat-lock/,
-  /HEART_TYPES\.map\(\(h\) => \(/,
 ]);
-mustNotMatch('artifacts/boltnew-app/src/admin/EventScheduleTab.tsx', '35_no_hardcoded_heart_qty_4', [
+mustNotMatch('artifacts/boltnew-app/src/admin/event-schedule-apply.ts', '35_no_hardcoded_heart_qty_4', [
+  /\|\| 4/,
+  /useState\('4'\)/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/admin/DashboardEventClockCard.tsx', '35_dashboard_no_hardcoded_heart_qty_4', [
   /\|\| 4/,
   /useState\('4'\)/,
 ]);

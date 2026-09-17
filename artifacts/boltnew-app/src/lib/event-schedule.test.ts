@@ -5,6 +5,7 @@ import {
   eventGrantedHeartTotal,
   eventRainbowQuota,
   eventScheduleBannerState,
+  headerHeartRemainings,
   participantHeartChatLock,
   rainbowPoolPickState,
   upcomingHeartGrantPreview,
@@ -78,6 +79,32 @@ describe('client event schedule quotas', () => {
       remaining: 7, poolGranted: true, heartsLocked: false, chatLocked: false,
     });
   });
+
+  it('headerHeartRemainings keeps rainbow remaining out of the other four counts', () => {
+    const chips = headerHeartRemainings({
+      functionsLocked: false,
+      rainbowPool: 4,
+      quotas: { red: 2, blue: 1, pink: 3, green: 0 },
+      used: { red: 1, blue: 0, pink: 0, green: 0 },
+    });
+    const byKey = Object.fromEntries(chips.map(c => [c.key, c.remaining]));
+    expect(byKey.rainbow).toBe(3);
+    expect(byKey.red).toBe(1);
+    expect(byKey.pink).toBe(3);
+    expect(byKey.blue).toBe(1);
+    expect(byKey.green).toBe(0);
+    expect(byKey.red + byKey.pink + byKey.blue + byKey.green).not.toBe(byKey.rainbow);
+    expect(chips.find(c => c.key === 'blue')?.label).toBe('주황하트');
+    expect(chips.map(c => c.key)).toEqual(['rainbow', 'red', 'pink', 'blue', 'green']);
+
+    const onlyRainbow = headerHeartRemainings({
+      functionsLocked: false,
+      rainbowPool: 4,
+      quotas: { red: 0, blue: 0, pink: 0, green: 0 },
+      used: { red: 0, blue: 0, pink: 0, green: 0 },
+    });
+    expect(onlyRainbow.map(c => c.remaining)).toEqual([4, 0, 0, 0, 0]);
+  });
 });
 
 describe('eventScheduleBannerState', () => {
@@ -128,7 +155,7 @@ describe('eventScheduleBannerState', () => {
 
     const color = { slots: [{ at: '23:10', heart_grants: { red: 2 } }] };
     expect(upcomingHeartGrantPreview(color, new Date('2026-09-16T14:05:00.000Z'))?.text).toBe(
-      '5분 뒤 호감하트가 추가됩니다',
+      '5분 뒤 빨강하트가 추가됩니다',
     );
     expect(upcomingHeartGrantPreview(rainbow, new Date('2026-09-16T14:05:00.000Z'))).toBeNull();
   });
