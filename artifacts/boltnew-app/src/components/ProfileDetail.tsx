@@ -77,9 +77,10 @@ function SignalMsgSection({ label, emoji, tags, free, chipClass }: {
   );
 }
 
-function ProfileDetail({ profile, isMe, isLiked, heartType, sentHeartsCount, locked, idealMsg, featureMsg, onLike, onChat, onBack, onViewFortune }: {
+function ProfileDetail({ profile, isMe, isLiked, heartType, sentHeartsCount, locked, heartsLocked, idealMsg, featureMsg, onLike, onChat, onBack, onViewFortune }: {
   profile: Profile; isMe: boolean; isLiked: boolean; heartType?: HeartType; sentHeartsCount?: number;
   locked?: boolean;
+  heartsLocked?: boolean;
   idealMsg?: string | null;
   featureMsg?: string | null;
   onLike: () => void; onChat: () => void; onBack: () => void; onViewFortune?: () => void;
@@ -93,8 +94,10 @@ function ProfileDetail({ profile, isMe, isLiked, heartType, sentHeartsCount, loc
     lockToastTimerRef.current = setTimeout(() => setLockToast(false), 1400);
   };
 
+  const chatLocked = !!locked;
+  const heartSendLocked = heartsLocked ?? chatLocked;
   const handleLike = () => {
-    if (locked) { showLockToast(); return; }
+    if (heartSendLocked) { showLockToast(); return; }
     if (isLiked && (sentHeartsCount ?? 0) >= 4) return;
     onLike();
   };
@@ -165,14 +168,18 @@ function ProfileDetail({ profile, isMe, isLiked, heartType, sentHeartsCount, loc
             type="button"
             data-testid="profile-detail-heart-btn"
             {...bindMobileTap(() => handleLike())}
-            disabled={!locked && isLiked && (sentHeartsCount ?? 0) >= 4}
-            className={`absolute top-4 right-4 p-2.5 rounded-full backdrop-blur-sm transition-all ${locked ? 'opacity-60' : ''} ${
+            aria-disabled={heartSendLocked}
+            disabled={!heartSendLocked && isLiked && (sentHeartsCount ?? 0) >= 4}
+            className={`absolute top-4 right-4 p-2.5 rounded-full backdrop-blur-sm transition-all ${heartSendLocked ? 'opacity-60' : ''} ${
               isLiked
                 ? `${heartType ? heartMeta(heartType).solidBg : 'bg-rose-500'} text-white shadow-lg`
                 : 'bg-white/30 text-white hover:bg-rose-500 hover:scale-110'
             }`}
+            title={heartSendLocked ? '🔒 하트 잠금' : '하트 보내기'}
           >
-            <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
+            {heartSendLocked
+              ? <span className="text-[11px] font-black leading-none">🔒</span>
+              : <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />}
           </button>
           )}
         </div>
@@ -217,9 +224,9 @@ function ProfileDetail({ profile, isMe, isLiked, heartType, sentHeartsCount, loc
         {/* Chat button — locked 시 토스트, 정상 시 채팅 진입 */}
         {!isMe && (
         <button onClick={handleChat}
-          className={`w-full py-3.5 bg-gradient-to-r from-cyan-500 to-teal-500 text-white font-semibold rounded-2xl hover:from-cyan-600 hover:to-teal-600 transition-all flex items-center justify-center gap-2 shadow-sm ${locked ? 'opacity-60' : ''}`}>
+          className={`w-full py-3.5 bg-gradient-to-r from-cyan-500 to-teal-500 text-white font-semibold rounded-2xl hover:from-cyan-600 hover:to-teal-600 transition-all flex items-center justify-center gap-2 shadow-sm ${chatLocked ? 'opacity-60' : ''}`}>
           <MessageCircle className="w-5 h-5" />
-          {locked ? '🔒 채팅하기' : '채팅하기'}
+          {chatLocked ? '🔒 채팅하기' : '채팅하기'}
         </button>
         )}
         {/* 궁합 버튼 */}

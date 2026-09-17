@@ -20,7 +20,7 @@ type MenuAnchorId = 'photo' | 'ticker';
 // ─── ProfileCard (memoized — 하트/채팅 상태 변경 시 해당 카드만 재렌더) ────────
 
 export const ProfileCard = memo(function ProfileCard({
-  profile, isLiked, sentHeartType, heartCount, canLike, locked, compact = false, darkMode = false, onLike, onSelect, onView, onOpenChat, onBlock, onContactShare, onViewFortune, idealMsg, statusMsg,
+  profile, isLiked, sentHeartType, heartCount, canLike, locked, heartsLocked, compact = false, darkMode = false, onLike, onSelect, onView, onOpenChat, onBlock, onContactShare, onViewFortune, idealMsg, statusMsg,
 }: {
   profile: Profile;
   isLiked: boolean;
@@ -28,6 +28,8 @@ export const ProfileCard = memo(function ProfileCard({
   heartCount: number;
   canLike: boolean;
   locked?: boolean;
+  /** Heart send lock (functions lock or rainbow pool not granted). Chat uses `locked`. */
+  heartsLocked?: boolean;
   /** 작게 보기 — 3열 그리드·1:1 정사각 사진 */
   compact?: boolean;
   /** App dark toggle */
@@ -85,14 +87,17 @@ export const ProfileCard = memo(function ProfileCard({
     lockToastTimerRef.current = setTimeout(() => setLockToast(false), 1400);
   };
 
+  const chatLocked = !!locked;
+  const heartSendLocked = heartsLocked ?? chatLocked;
+
   const handleHeartTap = (e: React.SyntheticEvent) => {
-    if (locked) { showLockToast(e); return; }
+    if (heartSendLocked) { showLockToast(e); return; }
     e.stopPropagation();
     onLike(profile.id, profile);
   };
 
   const handleChatTap = (e: React.SyntheticEvent) => {
-    if (locked) { showLockToast(e); return; }
+    if (chatLocked) { showLockToast(e); return; }
     e.stopPropagation();
     onOpenChat(profile);
   };
@@ -622,7 +627,7 @@ export const ProfileCard = memo(function ProfileCard({
 
       {/* ── 하트 + 채팅 버튼 ── */}
       {canLike && (
-        <div data-coach={locked ? 'locked-control' : undefined} className="relative" onClick={(e) => e.stopPropagation()}>
+        <div data-coach={chatLocked || heartSendLocked ? 'locked-control' : undefined} className="relative" onClick={(e) => e.stopPropagation()}>
           {lockToast && (
             <div className="absolute -top-6 left-1/2 -translate-x-1/2 z-20 whitespace-nowrap text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-800/90 text-white shadow pointer-events-none">
               🔒 현재 잠금 중
@@ -633,9 +638,10 @@ export const ProfileCard = memo(function ProfileCard({
               type="button"
               data-testid="profile-card-heart-btn"
               data-coach="profile-card-heart-btn"
+              aria-disabled={heartSendLocked}
               {...bindMobileTap(handleHeartTap)}
-              disabled={!locked && isLiked && heartCount >= 4}
-              className={`flex-1 min-w-0 flex items-center justify-center gap-0.5 py-0.5 rounded border active:scale-95 transition-transform ${locked ? 'opacity-50' : ''}`}
+              disabled={!heartSendLocked && isLiked && heartCount >= 4}
+              className={`flex-1 min-w-0 flex items-center justify-center gap-0.5 py-0.5 rounded border active:scale-95 transition-transform ${heartSendLocked ? 'opacity-50' : ''}`}
               style={heartBtnStyle}
             >
               {isLiked && sentHeartType
@@ -647,18 +653,19 @@ export const ProfileCard = memo(function ProfileCard({
                   </span>
                 : <Heart className="w-3 h-3 shrink-0" style={{ fill: isLiked ? '#e11d48' : 'transparent', stroke: '#e11d48', strokeWidth: 2 }} />
               }
-              <span className="text-[9px] font-bold truncate" style={{ color: '#e11d48' }}>하트</span>
+              <span className="text-[9px] font-bold truncate" style={{ color: '#e11d48' }}>{heartSendLocked ? '🔒 하트' : '하트'}</span>
             </button>
             <button
               type="button"
               data-testid="profile-card-chat-btn"
               data-coach="profile-card-chat-btn"
+              aria-disabled={chatLocked}
               {...bindMobileTap(handleChatTap)}
-              className={`flex-1 min-w-0 flex items-center justify-center gap-0.5 py-0.5 rounded border active:scale-95 transition-transform ${locked ? 'opacity-50' : ''}`}
+              className={`flex-1 min-w-0 flex items-center justify-center gap-0.5 py-0.5 rounded border active:scale-95 transition-transform ${chatLocked ? 'opacity-50' : ''}`}
               style={chatBtnStyle}
             >
               <MessageCircle className="w-3 h-3 shrink-0" style={{ color: '#0ea5e9' }} strokeWidth={2} />
-              <span className="text-[9px] font-bold truncate" style={{ color: '#0ea5e9' }}>채팅</span>
+              <span className="text-[9px] font-bold truncate" style={{ color: '#0ea5e9' }}>{chatLocked ? '🔒 채팅' : '채팅'}</span>
             </button>
           </div>
         </div>

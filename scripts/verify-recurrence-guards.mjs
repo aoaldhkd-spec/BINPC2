@@ -256,6 +256,44 @@ mustMatch('artifacts/boltnew-app/src/components/LikeConfirmDialog.tsx', '35_like
   /z-\[10070\]/,
   /bindMobileTap/,
   /selectedRef/,
+  /like-rainbow-btn/,
+  /어떤 거 보내실래요\?/,
+  /aria-disabled/,
+  /h\.label/,
+  /space-y-2 mb-5/,
+]);
+mustMatch('artifacts/boltnew-app/src/admin/EventScheduleTab.tsx', '35_schedule_notice_hearts_separate', [
+  /공지만 적용/,
+  /하트만 해금/,
+  /시간만 적용/,
+  /applyNoticeNow/,
+  /unlockRainbowNow/,
+  /applyTimeOnly/,
+  /applySlotNowPatch/,
+  /rainbowUnlockNowPatch/,
+  /nextRainbowPoolGrant/,
+  /noticeOnlyPatch/,
+  /heartsOnlyPatch/,
+  /timeOnlyPatch/,
+  /selectedSlotApplyPatch/,
+  /shouldWarnTimeOnlyApply/,
+  /선택 \{pickCount\}개 적용/,
+  /공지나 하트도 같이 넣는 게 좋아요/,
+]);
+mustMatch('artifacts/boltnew-app/src/lib/event-schedule.ts', '35_upcoming_heart_preview', [
+  /upcomingHeartGrantPreview/,
+  /upcomingHeartText/,
+  /participantHeartChatLock/,
+]);
+mustMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '35_heart_chat_lock_count', [
+  /home-heart-remaining-total/,
+  /home-heart-lock/,
+  /home-chat-lock/,
+]);
+mustMatch('artifacts/boltnew-app/src/components/FirstEntryCoachMarks.tsx', '35_coach_tip_readable_type', [
+  /text-base font-black text-cyan-700/,
+  /text-sm font-semibold leading-relaxed/,
+  /first-entry-coach-tip/,
 ]);
 mustMatch('artifacts/boltnew-app/src/hooks/useHearts.ts', '35_ensure_write_session_before_like', [
   /ensureWriteSession/,

@@ -253,7 +253,7 @@ export function FirstEntryCoachMarks({
     height: Math.min(window.innerHeight - Math.max(6, targetRect.top - 6) - 6, targetRect.height + 12),
   } : undefined;
   const tipStyle = targetRect
-    ? { top: Math.min(Math.max(12, targetRect.top > window.innerHeight * 0.55 ? targetRect.top - 170 : targetRect.top + targetRect.height + 14), window.innerHeight - 190) }
+    ? { top: Math.min(Math.max(12, targetRect.top > window.innerHeight * 0.55 ? targetRect.top - 184 : targetRect.top + targetRect.height + 14), window.innerHeight - 204) }
     : { top: '50%', transform: 'translateY(-50%)' };
 
   return (
@@ -264,15 +264,15 @@ export function FirstEntryCoachMarks({
         <div className="flex items-start gap-3">
           <span className="mt-0.5 text-2xl" aria-hidden="true">✨</span>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-black text-cyan-700">여기는 {current.title}예요</p>
-            <p className="mt-1 text-xs font-semibold leading-relaxed text-slate-600">{current.detail}</p>
+            <p className="text-base font-black text-cyan-700">여기는 {current.title}예요</p>
+            <p className="mt-1 text-sm font-semibold leading-relaxed text-slate-600">{current.detail}</p>
           </div>
         </div>
         <div className="mt-3 flex items-center justify-between gap-2">
-          <button type="button" onClick={dismiss} className="min-h-10 rounded-xl px-3 text-xs font-bold text-slate-400 hover:bg-slate-100 hover:text-slate-600">건너뛰기</button>
+          <button type="button" onClick={dismiss} className="min-h-10 rounded-xl px-3 text-sm font-bold text-slate-400 hover:bg-slate-100 hover:text-slate-600">건너뛰기</button>
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold text-slate-400" aria-label={`${step + 1}단계 중 ${steps.length}단계`}>{step + 1} / {steps.length}</span>
-            <button type="button" onClick={next} className="min-h-10 rounded-xl bg-cyan-500 px-4 text-xs font-black text-white shadow-sm hover:bg-cyan-600 active:scale-95">{last && !nextTourTab(openTab) ? '알겠어요' : '다음'}</button>
+            <span className="text-xs font-bold text-slate-400" aria-label={`${step + 1}단계 중 ${steps.length}단계`}>{step + 1} / {steps.length}</span>
+            <button type="button" onClick={next} className="min-h-10 rounded-xl bg-cyan-500 px-4 text-sm font-black text-white shadow-sm hover:bg-cyan-600 active:scale-95">{last && !nextTourTab(openTab) ? '알겠어요' : '다음'}</button>
           </div>
         </div>
       </div>

@@ -1,5 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { applySlotNowPatch, applySlotPatch, rainbowUnlockNowPatch, seoulNowHHMM } from './EventScheduleTab';
+import {
+  applySavedFieldPatch,
+  applySlotNowPatch,
+  applySlotPatch,
+  heartsOnlyPatch,
+  nextRainbowPoolGrant,
+  noticeOnlyPatch,
+  rainbowUnlockNowPatch,
+  selectedApplyCount,
+  selectedSlotApplyPatch,
+  shouldWarnTimeOnlyApply,
+  seoulNowHHMM,
+  TIME_ONLY_APPLY_HINT,
+  timeOnlyPatch,
+} from './EventScheduleTab';
 import { eventRainbowQuota, type EventScheduleSlot } from '../lib/event-schedule';
 
 describe('admin rainbow unlock now', () => {
@@ -28,5 +42,82 @@ describe('admin rainbow unlock now', () => {
     expect(next[0].rainbow_pool).toBe(4);
     expect(next[0].functions_locked).toBe(false);
     expect(next[0].at).toBe('14:30');
+  });
+
+  it('notice-only clock bump keeps rainbow_pool and unlock keeps notice text', () => {
+    const now = new Date('2026-09-16T05:30:00.000Z');
+    const slots: EventScheduleSlot[] = [
+      { id: 'slot-1', at: '23:00', notice: '라이브 공지', functions_locked: true, rainbow_pool: 4 },
+    ];
+    const noticeOnly = applySlotPatch(slots, 'slot-1', noticeOnlyPatch('새 공지'));
+    expect(noticeOnly[0].at).toBe('23:00');
+    expect(noticeOnly[0].rainbow_pool).toBe(4);
+    expect(noticeOnly[0].notice).toBe('새 공지');
+    expect(noticeOnly[0].functions_locked).toBe(true);
+
+    const heartsOnly = applySlotPatch(slots, 'slot-1', heartsOnlyPatch(4, 4));
+    expect(heartsOnly[0].notice).toBe('라이브 공지');
+    expect(heartsOnly[0].at).toBe('23:00');
+    expect(heartsOnly[0].rainbow_pool).toBe(8);
+    expect(heartsOnly[0].functions_locked).toBe(false);
+    expect(eventRainbowQuota({ timezone: 'Asia/Seoul', slots: heartsOnly }, now)).toBe(0);
+    expect(eventRainbowQuota({ timezone: 'Asia/Seoul', slots: heartsOnly }, new Date('2026-09-16T14:00:00.000Z'))).toBe(8);
+  });
+
+  it('applies one field onto last-saved slots without wiping siblings', () => {
+    const saved: EventScheduleSlot[] = [
+      { id: 'slot-1', at: '10:00', notice: '저장 공지', functions_locked: true, rainbow_pool: 4 },
+    ];
+    const dirty: EventScheduleSlot[] = [
+      { id: 'slot-1', at: '18:00', notice: '편집 중 공지', functions_locked: false, rainbow_pool: 9 },
+    ];
+    const notice = applySavedFieldPatch(saved, dirty, 'slot-1', noticeOnlyPatch(dirty[0].notice));
+    expect(notice[0]).toMatchObject({ at: '10:00', notice: '편집 중 공지', rainbow_pool: 4, functions_locked: true });
+
+    const hearts = applySavedFieldPatch(saved, dirty, 'slot-1', heartsOnlyPatch(saved[0].rainbow_pool, 3));
+    expect(hearts[0]).toMatchObject({ at: '10:00', notice: '저장 공지', rainbow_pool: 7, functions_locked: false });
+
+    const time = applySavedFieldPatch(saved, dirty, 'slot-1', timeOnlyPatch(dirty[0].at));
+    expect(time[0]).toMatchObject({ at: '18:00', notice: '저장 공지', rainbow_pool: 4, functions_locked: true });
+    expect(TIME_ONLY_APPLY_HINT).toContain('공지나 하트도 같이');
+  });
+
+  it('selectedSlotApplyPatch sends 1, 2, or 3 fields without wiping the rest', () => {
+    const values = { at: '18:00', notice: '새 공지', currentPool: 4, addHearts: 3 };
+    expect(selectedSlotApplyPatch({ notice: true }, values)).toEqual({ notice: '새 공지' });
+    expect(selectedSlotApplyPatch({ time: true, hearts: true }, values)).toEqual({
+      at: '18:00', rainbow_pool: 7, functions_locked: false,
+    });
+    expect(selectedSlotApplyPatch({ time: true, notice: true, hearts: true }, values)).toEqual({
+      at: '18:00', notice: '새 공지', rainbow_pool: 7, functions_locked: false,
+    });
+    expect(selectedApplyCount({ time: true, notice: true })).toBe(2);
+    expect(shouldWarnTimeOnlyApply({ time: true })).toBe(true);
+    expect(shouldWarnTimeOnlyApply({ notice: true })).toBe(false);
+    expect(shouldWarnTimeOnlyApply({ hearts: true })).toBe(false);
+    expect(shouldWarnTimeOnlyApply({ time: true, notice: true })).toBe(false);
+    expect(shouldWarnTimeOnlyApply({ time: true, hearts: true })).toBe(false);
+    const saved: EventScheduleSlot[] = [
+      { id: 'slot-1', at: '10:00', notice: '저장 공지', functions_locked: true, rainbow_pool: 4 },
+    ];
+    const dirty: EventScheduleSlot[] = [
+      { id: 'slot-1', at: '18:00', notice: '새 공지', functions_locked: true, rainbow_pool: 4 },
+    ];
+    const two = applySavedFieldPatch(saved, dirty, 'slot-1', selectedSlotApplyPatch({ time: true, notice: true }, values));
+    expect(two[0]).toMatchObject({ at: '18:00', notice: '새 공지', rainbow_pool: 4, functions_locked: true });
+  });
+
+  it('adds each unlock onto the existing slot pool (not a hardcoded 4)', () => {
+    expect(nextRainbowPoolGrant(undefined, 4)).toBe(4);
+    expect(nextRainbowPoolGrant(4, 4)).toBe(8);
+    expect(nextRainbowPoolGrant(8, 3)).toBe(11);
+    const now = new Date('2026-09-16T05:30:00.000Z');
+    const slots: EventScheduleSlot[] = [
+      { id: 'slot-1', at: '23:00', notice: '', functions_locked: true, rainbow_pool: 4 },
+    ];
+    const granted = nextRainbowPoolGrant(slots[0].rainbow_pool, 4);
+    const next = applySlotPatch(slots, 'slot-1', rainbowUnlockNowPatch(granted, now));
+    expect(next[0].rainbow_pool).toBe(8);
+    expect(eventRainbowQuota({ timezone: 'Asia/Seoul', slots: next }, now)).toBe(8);
   });
 });

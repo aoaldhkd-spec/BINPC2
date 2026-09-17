@@ -84,6 +84,25 @@ export function rainbowPoolPickState(input: {
   return { unlocked, poolRemaining, disabled };
 }
 
+/** User-facing heart vs chat lock + remaining pool — one shared count, not per-color fake 0s. */
+export function participantHeartChatLock(input: {
+  functionsLocked: boolean;
+  rainbowPool: number;
+  totalUsed: number;
+}): { remaining: number; heartsLocked: boolean; chatLocked: boolean; poolGranted: boolean } {
+  const pick = rainbowPoolPickState({
+    rainbowPool: input.rainbowPool,
+    totalUsed: input.totalUsed,
+    alreadySentThisType: false,
+  });
+  return {
+    remaining: pick.poolRemaining,
+    poolGranted: pick.unlocked,
+    heartsLocked: input.functionsLocked || !pick.unlocked,
+    chatLocked: input.functionsLocked,
+  };
+}
+
 /** Minutes a last-slot notice stays visible after its `at` when no next slot. */
 export const EVENT_NOTICE_HOLD_MINUTES = 5;
 
@@ -94,14 +113,46 @@ export type EventScheduleBannerState = {
   nextSeconds: number | null;
   showNotice: boolean;
   cumulativeRainbow: number;
+  upcomingHeartText: string | null;
 };
+
+const GRANT_LABEL: Record<HeartType, string> = {
+  red: '호감', blue: '친구', pink: '뜨밤', green: '칭찬',
+};
+
+function slotHasHeartGrant(slot: EventScheduleSlot): boolean {
+  if ((slot.rainbow_pool ?? 0) > 0) return true;
+  return TYPES.some(t => (slot.heart_grants?.[t] ?? 0) > 0);
+}
+
+/** Korean 「N분 뒤 ○○하트가 추가됩니다」 copy from the next future grant slot. */
+export function upcomingHeartGrantPreview(raw: unknown, now = new Date()): { minutes: number; text: string } | null {
+  const schedule = parseEventSchedule(raw);
+  const current = nowSeoulMinute(now);
+  const nextGrant = schedule.slots.find(s => slotMinute(s.at) > current && slotHasHeartGrant(s)) ?? null;
+  if (!nextGrant) return null;
+  const remainingSec = (slotMinute(nextGrant.at) - current) * 60 - now.getSeconds();
+  if (remainingSec <= 0) return null;
+  const minutes = Math.max(1, Math.ceil(remainingSec / 60));
+  const prefix = `${minutes}분 뒤`;
+  if ((nextGrant.rainbow_pool ?? 0) > 0) {
+    return { minutes, text: `${prefix} 무지개하트 ${nextGrant.rainbow_pool}개가 추가됩니다` };
+  }
+  const granted = TYPES.filter(t => (nextGrant.heart_grants?.[t] ?? 0) > 0);
+  if (granted.length === 1) {
+    return { minutes, text: `${prefix} ${GRANT_LABEL[granted[0]]}하트가 추가됩니다` };
+  }
+  if (granted.length > 1) {
+    return { minutes, text: `${prefix} ${granted.map(t => GRANT_LABEL[t]).join('·')}하트가 추가됩니다` };
+  }
+  return null;
+}
 
 /** Participant banner: show notice only inside its window; hide when past. */
 export function eventScheduleBannerState(raw: unknown, now = new Date()): EventScheduleBannerState {
   const schedule = parseEventSchedule(raw);
-  if (!schedule.slots.length) {
-    return { show: false, active: null, next: null, nextSeconds: null, showNotice: false, cumulativeRainbow: 0 };
-  }
+  const empty = { show: false, active: null, next: null, nextSeconds: null, showNotice: false, cumulativeRainbow: 0, upcomingHeartText: null as string | null };
+  if (!schedule.slots.length) return empty;
   const current = nowSeoulMinute(now);
   const active = currentEventSlot(raw, now);
   const next = schedule.slots.find(s => slotMinute(s.at) > current) ?? null;
@@ -114,14 +165,16 @@ export function eventScheduleBannerState(raw: unknown, now = new Date()): EventS
     const end = next ? slotMinute(next.at) : start + EVENT_NOTICE_HOLD_MINUTES;
     showNotice = current >= start && current < end;
   }
+  const upcoming = upcomingHeartGrantPreview(raw, now);
   const showCountdown = next != null && nextSeconds != null && nextSeconds > 0;
   return {
-    show: showNotice || showCountdown,
+    show: showNotice || showCountdown || upcoming != null,
     active,
     next: showCountdown ? next : null,
     nextSeconds: showCountdown ? nextSeconds : null,
     showNotice,
     cumulativeRainbow: eventRainbowQuota(raw, now),
+    upcomingHeartText: upcoming?.text ?? null,
   };
 }
 

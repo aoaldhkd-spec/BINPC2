@@ -293,8 +293,8 @@ export const MainChatsTab = memo(function MainChatsTab({
                     <p className={`text-sm font-bold truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>{p.nickname}</p>
                     {p.mbti && <p className={`text-[10px] ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>{p.mbti}</p>}
                   </div>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${hasChat ? (darkMode ? 'bg-teal-500/20 text-teal-400' : 'bg-teal-50 text-teal-600') : (darkMode ? 'bg-cyan-500/20 text-cyan-400' : 'bg-cyan-50 text-cyan-600')}`}>
-                    {hasChat ? '채팅 있음' : '대화 시작 →'}
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${functionsLocked ? (darkMode ? 'bg-amber-500/20 text-amber-300' : 'bg-amber-50 text-amber-800') : hasChat ? (darkMode ? 'bg-teal-500/20 text-teal-400' : 'bg-teal-50 text-teal-600') : (darkMode ? 'bg-cyan-500/20 text-cyan-400' : 'bg-cyan-50 text-cyan-600')}`}>
+                    {functionsLocked ? '🔒 채팅 잠금' : hasChat ? '채팅 있음' : '대화 시작 →'}
                   </span>
                 </div>
               );

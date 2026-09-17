@@ -57,6 +57,7 @@ const PROFILE: Profile = {
 function renderCard({
   seatingLocked = false,
   functionsLocked = false,
+  heartsLocked,
   compact = false,
   statusMsg,
   idealMsg,
@@ -64,6 +65,7 @@ function renderCard({
 }: {
   seatingLocked?: boolean;
   functionsLocked?: boolean;
+  heartsLocked?: boolean;
   compact?: boolean;
   statusMsg?: string;
   idealMsg?: string;
@@ -85,6 +87,7 @@ function renderCard({
       heartCount={0}
       canLike={true}
       locked={seatingLocked || functionsLocked}
+      heartsLocked={heartsLocked}
       statusMsg={statusMsg}
       idealMsg={idealMsg}
       onLike={onLike}
@@ -118,6 +121,18 @@ describe('ProfileCard — lock guard (seat-lock + functions-lock regression)', (
     fireEvent.click(chatBtn);
     expect(onOpenChat).not.toHaveBeenCalled();
     expect(screen.getByText(/현재 잠금 중/i)).toBeTruthy();
+    expect(screen.getByTestId('profile-card-chat-btn').textContent).toContain('🔒');
+    expect(screen.getByTestId('profile-card-heart-btn').textContent).toContain('🔒');
+  });
+
+  it('heartsLocked only: heart shows lock, chat stays open', () => {
+    const { onLike, onOpenChat } = renderCard({ functionsLocked: false, heartsLocked: true });
+    expect(screen.getByTestId('profile-card-heart-btn').textContent).toContain('🔒');
+    expect(screen.getByTestId('profile-card-chat-btn').textContent).not.toContain('🔒');
+    fireEvent.click(screen.getByTestId('profile-card-heart-btn'));
+    expect(onLike).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId('profile-card-chat-btn'));
+    expect(onOpenChat).toHaveBeenCalledTimes(1);
   });
 
   it('both locks false: heart calls onLike, chat calls onOpenChat normally', () => {

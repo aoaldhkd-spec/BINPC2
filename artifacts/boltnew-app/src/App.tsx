@@ -396,11 +396,11 @@ function App() {
     [eventScheduleMinute, eventScheduleRaw],
   );
   const heartQuotas = useMemo(
-    () => eventHeartQuotas(eventScheduleRaw, scheduleNow),
+    () => eventHeartQuotas(eventScheduleRaw, new Date()),
     [eventScheduleRaw, scheduleNow],
   );
   const rainbowPool = useMemo(
-    () => eventRainbowQuota(eventScheduleRaw, scheduleNow),
+    () => eventRainbowQuota(eventScheduleRaw, new Date()),
     [eventScheduleRaw, scheduleNow],
   );
   // The schedule is also evaluated locally between SSE/ready heartbeats so a slot
@@ -408,7 +408,9 @@ function App() {
   useEffect(() => {
     if (!eventScheduleRaw) return;
     const applySlotLock = () => {
-      const lock = currentEventSlot(eventScheduleRaw)?.functions_locked;
+      const now = new Date();
+      setEventScheduleMinute(Math.floor(now.getTime() / 60_000));
+      const lock = currentEventSlot(eventScheduleRaw, now)?.functions_locked;
       if (typeof lock === 'boolean') setFunctionsLocked(lock);
     };
     applySlotLock();

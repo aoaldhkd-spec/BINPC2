@@ -43,6 +43,7 @@ import { SignalTagPicker } from './SignalTagPicker';
 import { ProfileDeckGrid } from './ProfileDeckGrid';
 import { ResetButton } from './ResetButton';
 import { FUNCTIONS_LOCK_TOAST, SOCIAL_LOCKED_TABS } from '../lib/functions-lock';
+import { participantHeartChatLock } from '../lib/event-schedule';
 import { STATUS_QUICK_MSGS } from '../lib/chat-picker-data';
 import { HOST_AGE_EASTER_EGG_HINT, hostBirthYearFromProfiles } from '../lib/host-age-easter-egg';
 import {
@@ -171,9 +172,9 @@ export function MainScreen({
   }, [sentHeartsPerPerson]);
   // Rainbow grants are one shared pool: any color consumes one slot.
   // Header 무지개하트 remaining follows the shared pool only (gray/locked until grant).
-  const remainingHeartTotal = useMemo(
-    () => Math.max(0, rainbowPool - sentHeartTotal),
-    [rainbowPool, sentHeartTotal],
+  const heartChatLock = useMemo(
+    () => participantHeartChatLock({ functionsLocked, rainbowPool, totalUsed: sentHeartTotal }),
+    [functionsLocked, rainbowPool, sentHeartTotal],
   );
 
   const sentHeartEntries = useMemo(() => {
@@ -726,22 +727,42 @@ export function MainScreen({
           </div>
           {/* 우: 하트 */}
           <div data-coach="home-heart-types" className="justify-self-end flex items-center gap-1">
-            <span data-testid="home-heart-remaining-total" aria-label={`남은 하트 ${remainingHeartTotal}개`} className={`text-[9px] min-[390px]:text-[10px] font-black tabular-nums whitespace-nowrap ${darkMode ? 'text-cyan-300' : 'text-cyan-700'}`}>총 {remainingHeartTotal}</span>
-            <div className="flex items-center gap-1 min-[390px]:gap-1.5">
-              {HEART_TYPES.map((h, idx) => {
-                const unlocked = rainbowPool > 0 && remainingHeartTotal > 0;
-                return (
-                  <div key={h.type} className="flex items-center gap-0.5" title={rainbowPool > 0 ? `무지개하트 pool (${remainingHeartTotal}개 남음)` : '무지개하트 잠금 — 관리자 해금 후 사용'}>
-                    <span className={`text-sm leading-none transition-all ${unlocked ? '' : 'grayscale opacity-40'}`}>{h.emoji}</span>
-                    <span className={`text-[10px] font-bold tabular-nums ${!unlocked ? (darkMode ? 'text-slate-400 line-through' : 'text-gray-400 line-through') : (darkMode ? 'text-white' : 'text-gray-600')}`}>{idx === 0 ? (rainbowPool > 0 ? remainingHeartTotal : 0) : (unlocked ? '•' : '0')}</span>
-                  </div>
-                );
-              })}
+            <span
+              data-testid="home-heart-remaining-total"
+              aria-label={`남은 하트 ${heartChatLock.remaining}개 · 해금 ${rainbowPool}개`}
+              className={`text-[9px] min-[390px]:text-[10px] font-black tabular-nums whitespace-nowrap ${darkMode ? 'text-cyan-300' : 'text-cyan-700'}`}
+            >
+              남음 {heartChatLock.remaining}/{rainbowPool}
+            </span>
+            <span
+              data-testid="home-heart-lock"
+              className={`text-[9px] font-black whitespace-nowrap ${heartChatLock.heartsLocked ? (darkMode ? 'text-amber-300' : 'text-amber-700') : (darkMode ? 'text-emerald-300' : 'text-emerald-700')}`}
+              title={heartChatLock.heartsLocked ? (heartChatLock.poolGranted ? '하트 기능 잠금' : '무지개하트 잠금 — 관리자 해금 후 사용') : `무지개하트 pool ${heartChatLock.remaining}개 남음`}
+            >
+              {heartChatLock.heartsLocked ? '🔒하트' : '💖하트'}
+            </span>
+            <span
+              data-testid="home-chat-lock"
+              className={`text-[9px] font-black whitespace-nowrap ${heartChatLock.chatLocked ? (darkMode ? 'text-amber-300' : 'text-amber-700') : (darkMode ? 'text-emerald-300' : 'text-emerald-700')}`}
+              title={heartChatLock.chatLocked ? '채팅 잠금' : '채팅 열림'}
+            >
+              {heartChatLock.chatLocked ? '🔒채팅' : '💬채팅'}
+            </span>
+            <div className="flex items-center gap-0.5 min-[390px]:gap-1">
+              {HEART_TYPES.map((h) => (
+                <span
+                  key={h.type}
+                  className={`text-sm leading-none transition-all ${heartChatLock.heartsLocked ? 'grayscale opacity-40' : ''}`}
+                  title={heartChatLock.heartsLocked ? '하트 잠금' : `무지개하트 ${heartChatLock.remaining}개 남음`}
+                >
+                  {h.emoji}
+                </span>
+              ))}
             </div>
           </div>
         </div>
         {timerEndAt && <TimerBanner endAt={timerEndAt} label={timerLabel ?? ''} />}
-        <EventScheduleBanner raw={eventScheduleRaw} />
+        <EventScheduleBanner raw={eventScheduleRaw} remaining={heartChatLock.remaining} granted={rainbowPool} functionsLocked={functionsLocked} />
       </header>
 
       <main
@@ -816,6 +837,7 @@ export function MainScreen({
               sentHeartsPerPerson={sentHeartsPerPerson}
               currentUserId={currentUserId}
               functionsLocked={functionsLocked}
+              heartsLocked={heartChatLock.heartsLocked}
               signalByUserId={signalByUserId}
               onLike={onLike}
               onSelect={onSelect}

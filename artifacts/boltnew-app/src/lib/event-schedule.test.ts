@@ -4,7 +4,9 @@ import {
   eventHeartQuotas,
   eventRainbowQuota,
   eventScheduleBannerState,
+  participantHeartChatLock,
   rainbowPoolPickState,
+  upcomingHeartGrantPreview,
 } from './event-schedule';
 
 describe('client event schedule quotas', () => {
@@ -44,6 +46,21 @@ describe('client event schedule quotas', () => {
     expect(rainbowPoolPickState({ rainbowPool: 4, totalUsed: 4, alreadySentThisType: false }).disabled).toBe(true);
     expect(rainbowPoolPickState({ rainbowPool: 4, totalUsed: 0, alreadySentThisType: true }).disabled).toBe(true);
   });
+
+  it('participantHeartChatLock separates chat lock from heart pool remaining', () => {
+    expect(participantHeartChatLock({ functionsLocked: true, rainbowPool: 4, totalUsed: 1 })).toEqual({
+      remaining: 3, poolGranted: true, heartsLocked: true, chatLocked: true,
+    });
+    expect(participantHeartChatLock({ functionsLocked: false, rainbowPool: 0, totalUsed: 0 })).toEqual({
+      remaining: 0, poolGranted: false, heartsLocked: true, chatLocked: false,
+    });
+    expect(participantHeartChatLock({ functionsLocked: false, rainbowPool: 4, totalUsed: 1 })).toEqual({
+      remaining: 3, poolGranted: true, heartsLocked: false, chatLocked: false,
+    });
+    expect(participantHeartChatLock({ functionsLocked: false, rainbowPool: 8, totalUsed: 1 })).toEqual({
+      remaining: 7, poolGranted: true, heartsLocked: false, chatLocked: false,
+    });
+  });
 });
 
 describe('eventScheduleBannerState', () => {
@@ -75,6 +92,28 @@ describe('eventScheduleBannerState', () => {
     const late = eventScheduleBannerState(schedule, new Date('2026-09-16T14:06:00.000Z'));
     expect(late.show).toBe(false);
     expect(late.showNotice).toBe(false);
+    expect(late.upcomingHeartText).toBeNull();
+  });
+
+  it('previews upcoming rainbow or color heart grants in Seoul time', () => {
+    const rainbow = {
+      slots: [
+        { at: '23:00', notice: '시작' },
+        { at: '23:05', rainbow_pool: 4 },
+      ],
+    };
+    const at2302 = new Date('2026-09-16T14:02:00.000Z');
+    expect(upcomingHeartGrantPreview(rainbow, at2302)).toEqual({
+      minutes: 3,
+      text: '3분 뒤 무지개하트 4개가 추가됩니다',
+    });
+    expect(eventScheduleBannerState(rainbow, at2302).upcomingHeartText).toBe('3분 뒤 무지개하트 4개가 추가됩니다');
+
+    const color = { slots: [{ at: '23:10', heart_grants: { red: 2 } }] };
+    expect(upcomingHeartGrantPreview(color, new Date('2026-09-16T14:05:00.000Z'))?.text).toBe(
+      '5분 뒤 호감하트가 추가됩니다',
+    );
+    expect(upcomingHeartGrantPreview(rainbow, new Date('2026-09-16T14:05:00.000Z'))).toBeNull();
   });
 });
 

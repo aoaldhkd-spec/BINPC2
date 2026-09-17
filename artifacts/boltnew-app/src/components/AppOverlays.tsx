@@ -271,6 +271,7 @@ export function AppOverlays(p: AppOverlaysProps) {
               heartType={sentHeartTypes.get(selectedProfile.id)}
               sentHeartsCount={sentHeartsPerPerson.get(selectedProfile.id)?.size ?? 0}
               locked={functionsLocked}
+              heartsLocked={functionsLocked || rainbowPool <= 0}
               idealMsg={userSignals.find((s) => s.user_id === selectedProfile.id)?.ideal_msg}
               featureMsg={userSignals.find((s) => s.user_id === selectedProfile.id)?.feature_msg}
               onLike={() => { if (!functionsLocked) handleLike(selectedProfile.id, selectedProfile); }}
