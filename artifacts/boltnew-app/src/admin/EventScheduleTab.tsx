@@ -39,6 +39,34 @@ export function applySlotNowPatch(now = new Date()): Partial<EventScheduleSlot> 
   return { at: seoulNowHHMM(now), functions_locked: false };
 }
 
+/** Time-only: never touches notice / pool. */
+export function timeOnlyPatch(at: string): Partial<EventScheduleSlot> {
+  return { at };
+}
+
+/** Notice-only: never touches at / pool / lock. */
+export function noticeOnlyPatch(notice: string): Partial<EventScheduleSlot> {
+  return { notice };
+}
+
+/** Hearts-only: add to pool and open functions; never touches notice / at. */
+export function heartsOnlyPatch(currentPool: number | undefined, add: number): Partial<EventScheduleSlot> {
+  return { rainbow_pool: nextRainbowPoolGrant(currentPool, add), functions_locked: false };
+}
+
+export const TIME_ONLY_APPLY_HINT = '공지나 하트도 같이 넣는 게 좋아요';
+
+/** Persist only the chosen field onto last-saved slots so dirty sibling edits are not broadcast. */
+export function applySavedFieldPatch(
+  saved: EventScheduleSlot[],
+  local: EventScheduleSlot[],
+  id: string,
+  patch: Partial<EventScheduleSlot>,
+): EventScheduleSlot[] {
+  const base = saved.some(s => s.id === id) ? saved : local;
+  return applySlotPatch(base, id, patch);
+}
+
 export function applySlotPatch(slots: EventScheduleSlot[], id: string, patch: Partial<EventScheduleSlot>): EventScheduleSlot[] {
   return slots.map(s => s.id === id ? { ...s, ...patch } : s);
 }
@@ -81,23 +109,31 @@ export function EventScheduleTab({ settings, onSave }: {
     } finally { setSaving(false); }
   };
   const save = async () => { await persist(slots); };
-  /** Heart unlock only — same persist/SSE path; notice text on the slot is unchanged. */
+  const savedSlots = initial.slots;
+  /** Heart count only — last-saved notice/time stay; add to the live slot so user remaining updates now. */
   const unlockRainbowNow = async (id: string) => {
-    const slot = slots.find(s => s.id === id);
-    const granted = nextRainbowPoolGrant(slot?.rainbow_pool, Number(rainbowAmount) || 4);
-    const next = applySlotPatch(slots, id, rainbowUnlockNowPatch(granted));
+    const targetId = active?.id ?? id;
+    const base = savedSlots.some(s => s.id === targetId) ? savedSlots : slots;
+    const slot = base.find(s => s.id === targetId);
+    const next = applySavedFieldPatch(savedSlots, slots, targetId, heartsOnlyPatch(slot?.rainbow_pool, Number(rainbowAmount) || 4));
     setSlots(next);
     await persist(next, { functions_locked: false }, 'hearts');
   };
-  /** Notice/timer only — bump clock so this notice is live; do not force-unlock or change pool. */
+  /** Notice text only — do not bump the clock or change pool. */
   const applyNoticeNow = async (id: string) => {
-    const next = applySlotPatch(slots, id, { at: seoulNowHHMM() });
+    const notice = slots.find(s => s.id === id)?.notice ?? '';
+    const next = applySavedFieldPatch(savedSlots, slots, id, noticeOnlyPatch(notice));
     setSlots(next);
-    const slot = next.find(s => s.id === id);
-    const extras = typeof slot?.functions_locked === 'boolean'
-      ? { functions_locked: slot.functions_locked }
-      : undefined;
-    await persist(next, extras, 'notice');
+    await persist(next, undefined, 'notice');
+  };
+  /** Time only — last-saved notice/pool stay. */
+  const applyTimeOnly = async (id: string) => {
+    if (typeof window !== 'undefined' && !window.confirm(`${TIME_ONLY_APPLY_HINT}. 시간만 적용할까요?`)) return;
+    const at = slots.find(s => s.id === id)?.at ?? seoulNowHHMM();
+    const next = applySavedFieldPatch(savedSlots, slots, id, timeOnlyPatch(at));
+    setSlots(next);
+    const locked = next.find(s => s.id === id)?.functions_locked;
+    await persist(next, typeof locked === 'boolean' ? { functions_locked: locked } : undefined, 'timeline');
   };
   const poolLabel = cumulativeRainbow > 0 ? `${cumulativeRainbow}개` : '0개 (잠김)';
   return <div className="p-3 min-[390px]:p-4 space-y-4">
@@ -119,7 +155,7 @@ export function EventScheduleTab({ settings, onSave }: {
         </div>
       </div>
       <p className="mt-2 text-[11px] font-semibold leading-relaxed text-gray-700">
-        <strong>공지만 적용</strong> = 이 슬롯 공지·시각을 지금 방송 (pool 유지) · <strong>하트만 해금·적용</strong> = 무지개 pool만 지금 방송 (공지 문구 유지). 둘 다 즉시 SSE/ready 반영.
+        <strong>시간만 적용</strong> · <strong>공지만 적용</strong> · <strong>하트만 해금</strong>은 그 칸만 방송해요. 비운 칸은 라이브 값을 덮지 않아요. 시간만 보낼 때는 「{TIME_ONLY_APPLY_HINT}」.
       </p>
     </div>
     <div className="space-y-3">
@@ -141,6 +177,8 @@ export function EventScheduleTab({ settings, onSave }: {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <input aria-label={`슬롯 ${index + 1} 시각`} type="time" value={slot.at} onChange={e => update(slot.id, { at: e.target.value })} className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm font-black" />
+            <button type="button" disabled={saving} onClick={() => update(slot.id, { at: seoulNowHHMM() })} className="rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5 text-[10px] font-black text-amber-800">지금</button>
+            <button type="button" disabled={saving} onClick={() => void applyTimeOnly(slot.id)} className="rounded-lg bg-amber-500 px-2.5 py-1.5 text-[10px] font-black text-white hover:bg-amber-600 disabled:opacity-40">시간만 적용</button>
             <select aria-label={`슬롯 ${index + 1} 잠금`} value={locked ? 'locked' : 'open'} onChange={e => update(slot.id, { functions_locked: e.target.value === 'locked' })} className="min-w-0 flex-1 rounded-lg border border-gray-200 px-2 py-1.5 text-xs font-bold">
               <option value="locked">🔒 프로필·설정만</option><option value="open">💖 하트·채팅 열림</option>
             </select>
