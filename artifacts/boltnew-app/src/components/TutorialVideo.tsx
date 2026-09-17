@@ -115,14 +115,8 @@ function Tabs({ active, hl }: { active: string; hl?: string }) {
   );
 }
 
-/** 홈 헤더 하트 — 라이브: 총 N + 무지개 풀(잠금 시 grayscale) */
+/** 홈 헤더 하트 — 라이브: 무지개하트 남음 N만 (종류 이모지 없음) */
 function HeartHeader({ unlocked, total }: { unlocked: boolean; total: number }) {
-  const row = [
-    { e: '❤️', n: unlocked ? String(total) : '0' },
-    { e: '💙', n: unlocked ? '•' : '0' },
-    { e: '💗', n: unlocked ? '•' : '0' },
-    { e: '💚', n: unlocked ? '•' : '0' },
-  ];
   return (
     <div className={`relative flex items-center justify-between gap-1 px-2 py-1.5 border-b overflow-hidden ${
       unlocked
@@ -142,15 +136,8 @@ function HeartHeader({ unlocked, total }: { unlocked: boolean; total: number }) 
         unlocked ? 'border-cyan-400/60 bg-cyan-500/15' : 'border-amber-500/50 bg-amber-950/40'
       }`}>
         <span className={`text-[9px] font-black tabular-nums ${unlocked ? 'text-cyan-200' : 'text-amber-200'}`}>
-          총 {unlocked ? total : 0}
+          {unlocked ? '🌈' : '🔒🌈'} 남음 {unlocked ? total : 0}
         </span>
-        {row.map((h) => (
-          <span key={h.e} className={`flex items-center gap-0.5 ${unlocked ? 'scale-105' : 'grayscale opacity-35'}`}>
-            <span className="text-[11px] leading-none">{h.e}</span>
-            <span className={`text-[8px] font-black tabular-nums ${unlocked ? 'text-white' : 'text-slate-500 line-through'}`}>{h.n}</span>
-          </span>
-        ))}
-        {!unlocked && <span className="text-[9px] leading-none" aria-hidden>🔒</span>}
       </div>
     </div>
   );

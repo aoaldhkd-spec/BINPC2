@@ -20,7 +20,7 @@ export function EventScheduleBanner({ raw, remaining, granted, functionsLocked =
   return <div className="mx-3 mb-1 rounded-xl border border-violet-200 bg-violet-50 px-3 py-1.5 text-center text-[10px] font-bold text-violet-800">
     {state.showNotice && state.active?.notice ? <span>{state.active.notice}</span> : null}
     <span className={`${state.showNotice && state.active?.notice ? 'ml-2' : ''} text-violet-700`} data-testid="banner-heart-remaining">
-      🌈 하트 남음 {remainingCount}/{grantedCount}
+      🌈 남음 {remainingCount}
     </span>
     {functionsLocked
       ? <span className="ml-2 text-amber-800" data-testid="banner-chat-lock">🔒 채팅 잠금</span>
