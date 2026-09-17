@@ -55,6 +55,55 @@ export function likesHeartLimitReject(max = LIKES_SAME_TYPE_TARGET_MAX): LikesLi
   };
 }
 
+export function likesColorOverflow(
+  rows: Record<string, unknown>[],
+  likerId: string,
+  quotas: Record<string, number>,
+  extraType?: string,
+): number {
+  const used: Record<string, number> = { red: 0, blue: 0, pink: 0, green: 0 };
+  for (const row of rows) {
+    if (String(row.liker_id) !== likerId) continue;
+    const type = String(row.heart_type);
+    if (type in used) used[type] += 1;
+  }
+  if (extraType && extraType in used) used[extraType] += 1;
+  return (['red', 'blue', 'pink', 'green'] as const)
+    .reduce((sum, type) => sum + Math.max(0, used[type] - (Number(quotas[type]) || 0)), 0);
+}
+
+/** Grant remaining OR rainbow overflow — do not require rainbow_pool when color grants exist. */
+export function likesSendCapReject(input: {
+  typeGrant: number;
+  typeCount: number;
+  rainbowQuota: number;
+  overflowAfter: number;
+  totalLikes: number;
+  totalCap: number;
+}): LikesLimitReject | null {
+  if (input.typeGrant <= 0 && input.rainbowQuota <= 0) {
+    return likesRainbowPoolLimitReject(0);
+  }
+  if (input.totalLikes >= input.totalCap) {
+    return input.rainbowQuota > 0
+      ? likesRainbowPoolLimitReject(input.rainbowQuota)
+      : likesTypeGrantReject();
+  }
+  if (input.typeCount < input.typeGrant) return null;
+  if (input.rainbowQuota <= 0) {
+    return input.typeGrant <= 0 ? likesRainbowPoolLimitReject(0) : likesTypeGrantReject();
+  }
+  if (input.overflowAfter > input.rainbowQuota) return likesRainbowPoolLimitReject(input.rainbowQuota);
+  return null;
+}
+
+export function likesTypeGrantReject(): LikesLimitReject {
+  return {
+    status: 400,
+    body: { data: null, error: { message: '이 하트는 남은 개수가 없어요.', code: 'HEART_LIMIT' } },
+  };
+}
+
 export function likesRainbowPoolLimitReject(max: number): LikesLimitReject {
   const message = max <= 0
     ? '무지개하트가 아직 해금되지 않았습니다.'

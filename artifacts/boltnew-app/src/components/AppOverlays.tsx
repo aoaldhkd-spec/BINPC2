@@ -127,7 +127,7 @@ export type AppOverlaysProps = {
   setProfiles: Dispatch<SetStateAction<Profile[]>>;
   chatDraftRef: MutableRefObject<Map<string, string>>;
   likedByTypeRecord: () => Record<HeartType, number>;
-  execLikeGuarded: (heartType: HeartType) => void | Promise<void>;
+  execLikeGuarded: (heartType: HeartType, source?: 'rainbow') => void | Promise<void>;
   showConfetti: boolean;
   shareEventNotif: ShareEventNotificationData | null;
   setShareEventNotif: Dispatch<SetStateAction<ShareEventNotificationData | null>>;
@@ -271,7 +271,7 @@ export function AppOverlays(p: AppOverlaysProps) {
               heartType={sentHeartTypes.get(selectedProfile.id)}
               sentHeartsCount={sentHeartsPerPerson.get(selectedProfile.id)?.size ?? 0}
               locked={functionsLocked}
-              heartsLocked={functionsLocked || rainbowPool <= 0}
+              heartsLocked={functionsLocked || (rainbowPool <= 0 && heartQuotas.red + heartQuotas.blue + heartQuotas.pink + heartQuotas.green <= 0)}
               idealMsg={userSignals.find((s) => s.user_id === selectedProfile.id)?.ideal_msg}
               featureMsg={userSignals.find((s) => s.user_id === selectedProfile.id)?.feature_msg}
               onLike={() => { if (!functionsLocked) handleLike(selectedProfile.id, selectedProfile); }}

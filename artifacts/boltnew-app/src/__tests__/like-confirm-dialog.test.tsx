@@ -4,6 +4,7 @@ import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { LikeConfirmDialog } from '../components/LikeConfirmDialog';
 import type { Profile } from '../types/app';
+import type { HeartType } from '../lib/constants';
 
 afterEach(() => {
   cleanup();
@@ -32,14 +33,17 @@ const PROFILE: Profile = {
   created_at: '2026-01-01T00:00:00Z',
 };
 
-const quotas = { red: 0, blue: 0, pink: 0, green: 0 };
-const likedByType = { red: 0, blue: 0, pink: 0, green: 0 };
+const ZERO: Record<HeartType, number> = { red: 0, blue: 0, pink: 0, green: 0 };
 
-function renderDialog(rainbowPool: number, onConfirm = vi.fn()) {
+function renderDialog(
+  rainbowPool: number,
+  onConfirm = vi.fn(),
+  quotas: Record<HeartType, number> = ZERO,
+) {
   render(
     <LikeConfirmDialog
       target={PROFILE}
-      likedByType={likedByType}
+      likedByType={ZERO}
       sentTypesForTarget={new Set()}
       quotas={quotas}
       rainbowPool={rainbowPool}
@@ -52,28 +56,39 @@ function renderDialog(rainbowPool: number, onConfirm = vi.fn()) {
 
 describe('LikeConfirmDialog original 4 + rainbow slot', () => {
   it('keeps the original 4 heart labels and appends a rainbow slot', () => {
-    renderDialog(4);
-    expect(screen.getByText('빨강하트')).toBeTruthy();
-    expect(screen.getByText('주황하트')).toBeTruthy();
-    expect(screen.getByText('핑크하트')).toBeTruthy();
-    expect(screen.getByText('초록하트')).toBeTruthy();
+    renderDialog(4, vi.fn(), { red: 1, blue: 1, pink: 1, green: 1 });
+    expect(screen.getByText('호감')).toBeTruthy();
+    expect(screen.getByText('친구')).toBeTruthy();
+    expect(screen.getByText('뜨밤')).toBeTruthy();
+    expect(screen.getByText('칭찬')).toBeTruthy();
+    expect(screen.getByText('로맨틱한 호감을 표현해요')).toBeTruthy();
+    expect(screen.getByText('친구가 되고 싶을 때 보내요')).toBeTruthy();
+    expect(screen.getByText('함께 밤을 보내고 싶어요')).toBeTruthy();
+    expect(screen.getByText('칭찬만 전달 (연락처 공유 불가)')).toBeTruthy();
+    expect(screen.queryByText('빨강하트')).toBeNull();
+    expect(screen.queryByText('주황하트')).toBeNull();
     expect(screen.queryByTestId('like-heart-row')).toBeNull();
     expect(screen.getByTestId('like-rainbow-btn')).toBeTruthy();
     expect(screen.getByTestId('like-rainbow-btn').getAttribute('aria-disabled')).toBe('false');
   });
 
-  it('shows granted remaining, not a hardcoded 4', () => {
-    renderDialog(8);
+  it('shows per-color grant remaining, not a shared fake 4', () => {
+    renderDialog(8, vi.fn(), { red: 2, blue: 0, pink: 1, green: 0 });
     expect(screen.getByTestId('like-rainbow-remaining').textContent).toBe('8개');
-    expect(screen.getByTestId('like-rainbow-btn').textContent).toContain('해금 8개');
-    expect(screen.getByTestId('like-rainbow-btn').textContent).toContain('남음 8개');
-    expect(screen.getByTestId('like-heart-red-remaining').textContent).toBe('8개');
+    expect(screen.getByTestId('like-rainbow-btn').textContent).toContain('위 하트 중에서 1개 선택');
+    expect(screen.getByTestId('like-heart-red-remaining').textContent).toBe('2개');
+    expect(screen.getByTestId('like-heart-blue-remaining').textContent).toBe('0개');
+    expect(screen.getByTestId('like-heart-pink-remaining').textContent).toBe('1개');
+    expect(screen.getByTestId('like-heart-green-remaining').textContent).toBe('0개');
   });
 
-  it('shows 2 remaining when admin granted 2', () => {
+  it('grays regular hearts when that grant remaining is 0', () => {
     renderDialog(2);
-    expect(screen.getByTestId('like-heart-red-remaining').textContent).toBe('2개');
+    expect(screen.getByTestId('like-heart-red-remaining').textContent).toBe('0개');
     expect(screen.getByTestId('like-rainbow-remaining').textContent).toBe('2개');
+    expect(screen.getByTestId('like-heart-red')).toHaveProperty('disabled', true);
+    expect(screen.getByTestId('like-heart-red').textContent).toContain('로맨틱한 호감을 표현해요');
+    expect(screen.getByTestId('like-heart-red').className).toContain('bg-gray-50');
   });
 
   it('keeps a locked gray rainbow until pool is granted', () => {
@@ -85,20 +100,22 @@ describe('LikeConfirmDialog original 4 + rainbow slot', () => {
     expect(rainbow.textContent).toContain('잠금');
   });
 
-  it('opens which-color modal from rainbow and sends from the pool', () => {
+  it('opens rainbow modal to pick 1 of the hearts above', () => {
     const onConfirm = renderDialog(4);
     fireEvent.click(screen.getByTestId('like-rainbow-btn'));
-    expect(screen.getByTestId('rainbow-color-dialog').textContent).toContain('어떤 거 보내실래요?');
-    fireEvent.click(screen.getAllByText('주황하트')[1]);
+    expect(screen.getByTestId('rainbow-color-dialog').textContent).toContain('위 하트 중에서 1개 선택');
+    expect(screen.getByTestId('rainbow-color-dialog').textContent).not.toContain('선택하세요');
+    expect(screen.getByTestId('rainbow-color-dialog').textContent).not.toContain('4개 중 4개');
+    fireEvent.click(screen.getAllByText('친구')[1]);
     fireEvent.click(screen.getAllByRole('button', { name: '보내기' })[1]);
-    expect(onConfirm).toHaveBeenCalledWith('blue');
+    expect(onConfirm).toHaveBeenCalledWith('blue', 'rainbow');
   });
 
   it('sends a normal unlocked heart from the original list without opening rainbow modal', () => {
-    const onConfirm = renderDialog(4);
-    fireEvent.click(screen.getByText('빨강하트'));
+    const onConfirm = renderDialog(4, vi.fn(), { red: 2, blue: 0, pink: 0, green: 0 });
+    fireEvent.click(screen.getByText('호감'));
     expect(screen.queryByTestId('rainbow-color-dialog')).toBeNull();
     fireEvent.click(screen.getAllByRole('button', { name: '보내기' })[0]);
-    expect(onConfirm).toHaveBeenCalledWith('red');
+    expect(onConfirm).toHaveBeenCalledWith('red', undefined);
   });
 });

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  applyRainbowPoolOverwrite,
   applySavedFieldPatch,
   applySlotNowPatch,
   applySlotPatch,
@@ -91,10 +92,13 @@ describe('admin rainbow unlock now', () => {
     const values = { at: '18:00', notice: '새 공지', currentPool: 4, addHearts: 3 };
     expect(selectedSlotApplyPatch({ notice: true }, values)).toEqual({ notice: '새 공지' });
     expect(selectedSlotApplyPatch({ time: true, hearts: true }, values)).toEqual({
-      at: '18:00', rainbow_pool: 7, functions_locked: false,
+      at: '18:00', rainbow_pool: 3, functions_locked: false,
     });
     expect(selectedSlotApplyPatch({ time: true, notice: true, hearts: true }, values)).toEqual({
-      at: '18:00', notice: '새 공지', rainbow_pool: 7, functions_locked: false,
+      at: '18:00', notice: '새 공지', rainbow_pool: 3, functions_locked: false,
+    });
+    expect(selectedSlotApplyPatch({ hearts: true }, { ...values, heartsMode: 'add' })).toEqual({
+      rainbow_pool: 7, functions_locked: false,
     });
     expect(selectedApplyCount({ time: true, notice: true })).toBe(2);
     expect(shouldWarnTimeOnlyApply({ time: true })).toBe(true);
@@ -170,5 +174,22 @@ describe('admin rainbow unlock now', () => {
     expect(heartsColor[0].notice).toBe('저장 공지');
     expect(heartsColor[0].at).toBe('10:00');
     expect(heartsColor[0].heart_grants).toEqual({ red: 1, green: 2, pink: 3 });
+  });
+
+  it('SET overwrites live rainbow_pool 4 so quota becomes entered N, not 4+N', () => {
+    const now = new Date('2026-09-16T05:30:00.000Z');
+    const slots: EventScheduleSlot[] = [
+      { id: 'slot-1', at: '10:00', notice: 'old', functions_locked: false, rainbow_pool: 4 },
+      { id: 'slot-2', at: '11:00', notice: '', functions_locked: false, rainbow_pool: 4 },
+    ];
+    const next = applyRainbowPoolOverwrite(slots, 'slot-2', 8);
+    expect(next[0].rainbow_pool).toBeUndefined();
+    expect(next[1].rainbow_pool).toBe(8);
+    expect(eventRainbowQuota({ timezone: 'Asia/Seoul', slots: next }, now)).toBe(8);
+
+    const patch = selectedSlotApplyPatch({ hearts: true }, {
+      at: '14:30', notice: '', currentPool: 4, addHearts: 8,
+    });
+    expect(patch).toEqual({ rainbow_pool: 8, functions_locked: false });
   });
 });

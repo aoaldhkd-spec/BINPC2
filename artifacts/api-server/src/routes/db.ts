@@ -197,11 +197,12 @@ import {
 } from '../lib/db-op-select-access';
 import {
   countAllLikes,
+  countSameTypeLikes,
+  likesColorOverflow,
   likesHeartLimitReject,
   likesPairIntervalBlocked,
-  likesRainbowPoolLimitReject,
   likesRateLimitReject,
-  likesSameTypeLimitReached,
+  likesSendCapReject,
   matchesLikeTriple,
   planLikesMinuteBucketConsume,
 } from '../lib/db-op-likes-limits';
@@ -489,7 +490,7 @@ import {
   buildLegacyHistoryStripSql,
   parseLegacyLeftoverCounts,
 } from '../lib/db-legacy-cleanup';
-import { eventRainbowQuota, serializeEventSchedule } from '../lib/db-event-schedule';
+import { eventHeartQuota, eventRainbowQuota, serializeEventSchedule } from '../lib/db-event-schedule';
 import {
   recordExpiredSseToken,
   recordMissingSseToken,
@@ -3350,15 +3351,27 @@ router.post('/op', async (req: Request, res: Response) => {
           // 타입별 행사 한도: 기본 2명 + 서버 시각 기준으로 이미 열린 슬롯의 grant.
           // 클라이언트가 우회해도 여기서 최종 차단하며, 슬롯 변경은 app_settings/SSE로 전파된다.
           const eventScheduleRaw = (getTable('app_settings')[0] as Record<string, unknown> | undefined)?.event_schedule;
-          const rainbowQuota = eventRainbowQuota(eventScheduleRaw, new Date());
-          if (rainbowQuota <= 0) {
-            // Product rule: hearts stay locked until an opened rainbow_pool grant exists.
-            return sendReject(likesRainbowPoolLimitReject(0));
-          }
-          // 무지개하트는 색상별 quota가 아니라 모든 색상에 공통인 누적 pool이다.
-          if (countAllLikes(tableData, likeLiker) >= rainbowQuota) {
-            return sendReject(likesRainbowPoolLimitReject(rainbowQuota));
-          }
+          const now = new Date();
+          const typeGrant = likeType === 'red' || likeType === 'blue' || likeType === 'pink' || likeType === 'green'
+            ? eventHeartQuota(eventScheduleRaw, likeType, now)
+            : 0;
+          const rainbowQuota = eventRainbowQuota(eventScheduleRaw, now);
+          const quotas = {
+            red: eventHeartQuota(eventScheduleRaw, 'red', now),
+            blue: eventHeartQuota(eventScheduleRaw, 'blue', now),
+            pink: eventHeartQuota(eventScheduleRaw, 'pink', now),
+            green: eventHeartQuota(eventScheduleRaw, 'green', now),
+          };
+          const totalCap = rainbowQuota + quotas.red + quotas.blue + quotas.pink + quotas.green;
+          const capReject = likesSendCapReject({
+            typeGrant,
+            typeCount: countSameTypeLikes(tableData, likeLiker, likeType),
+            rainbowQuota,
+            overflowAfter: likesColorOverflow(tableData, likeLiker, quotas, likeType),
+            totalLikes: countAllLikes(tableData, likeLiker),
+            totalCap,
+          });
+          if (capReject) return sendReject(capReject);
 
           // Time-bucket rate limiter: at most 1 like per 500 ms per (liker, liked, type) triple
           // Keyed on all three dimensions so different heart types can still be sent concurrently;

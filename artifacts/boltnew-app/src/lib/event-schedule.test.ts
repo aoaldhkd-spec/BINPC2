@@ -7,6 +7,7 @@ import {
   eventScheduleBannerState,
   headerHeartRemainings,
   participantHeartChatLock,
+  rainbowOverflowUsed,
   rainbowPoolPickState,
   upcomingHeartGrantPreview,
 } from './event-schedule';
@@ -72,6 +73,9 @@ describe('client event schedule quotas', () => {
     expect(participantHeartChatLock({ functionsLocked: false, rainbowPool: 0, totalUsed: 0 })).toEqual({
       remaining: 0, poolGranted: false, heartsLocked: true, chatLocked: false,
     });
+    expect(participantHeartChatLock({ functionsLocked: false, rainbowPool: 0, totalUsed: 0, colorGranted: 2 })).toEqual({
+      remaining: 0, poolGranted: false, heartsLocked: false, chatLocked: false,
+    });
     expect(participantHeartChatLock({ functionsLocked: false, rainbowPool: 4, totalUsed: 1 })).toEqual({
       remaining: 3, poolGranted: true, heartsLocked: false, chatLocked: false,
     });
@@ -81,6 +85,7 @@ describe('client event schedule quotas', () => {
   });
 
   it('headerHeartRemainings keeps rainbow remaining out of the other four counts', () => {
+    expect(rainbowOverflowUsed({ red: 2, blue: 1, pink: 3, green: 0 }, { red: 1, blue: 0, pink: 0, green: 0 })).toBe(0);
     const chips = headerHeartRemainings({
       functionsLocked: false,
       rainbowPool: 4,
@@ -88,7 +93,7 @@ describe('client event schedule quotas', () => {
       used: { red: 1, blue: 0, pink: 0, green: 0 },
     });
     const byKey = Object.fromEntries(chips.map(c => [c.key, c.remaining]));
-    expect(byKey.rainbow).toBe(3);
+    expect(byKey.rainbow).toBe(4);
     expect(byKey.red).toBe(1);
     expect(byKey.pink).toBe(3);
     expect(byKey.blue).toBe(1);
@@ -96,6 +101,15 @@ describe('client event schedule quotas', () => {
     expect(byKey.red + byKey.pink + byKey.blue + byKey.green).not.toBe(byKey.rainbow);
     expect(chips.find(c => c.key === 'blue')?.label).toBe('주황하트');
     expect(chips.map(c => c.key)).toEqual(['rainbow', 'red', 'pink', 'blue', 'green']);
+
+    const overflow = headerHeartRemainings({
+      functionsLocked: false,
+      rainbowPool: 8,
+      quotas: { red: 2, blue: 0, pink: 0, green: 0 },
+      used: { red: 3, blue: 0, pink: 0, green: 0 },
+    });
+    expect(overflow.find(c => c.key === 'rainbow')?.remaining).toBe(7);
+    expect(overflow.find(c => c.key === 'red')?.remaining).toBe(0);
 
     const onlyRainbow = headerHeartRemainings({
       functionsLocked: false,
