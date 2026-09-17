@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase, ensureWriteSession } from '../lib/supabase';
 import type { Profile, ContactShare } from '../types/app';
 import { HeartType, HEART_TYPES } from '../lib/constants';
-import { eventRainbowQuota } from '../lib/event-schedule';
+import { eventHeartQuotas, eventRainbowQuota, rainbowOverflowUsed, colorGrantRemaining } from '../lib/event-schedule';
 import { isInterestHeart } from '../lib/signal-match';
 // signal-match: isInterestHeart only (mutual-heart detection)
 import {
@@ -245,19 +245,23 @@ export function useHearts(
     setLikeConfirmTarget(target);
   };
 
-  const executeLike = async (heartType: HeartType): Promise<boolean> => {
+  const executeLike = async (heartType: HeartType, source?: 'rainbow'): Promise<boolean> => {
     if (!currentUserId || !likeConfirmTarget) return false;
     if (likeInFlightRef.current) return false;
+    const quotas = eventHeartQuotas(eventScheduleRaw);
     const rainbowQuota = eventRainbowQuota(eventScheduleRaw);
-    let sentTotal = 0;
-    sentHeartsPerPerson.forEach(types => { sentTotal += types.size; });
-    if (rainbowQuota <= 0) {
-      setLikeError('무지개하트가 아직 해금되지 않았습니다.');
-      setLikeConfirmTarget(null);
-      return false;
-    }
-    if (sentTotal >= rainbowQuota) {
-      setLikeError(`무지개하트는 총 ${rainbowQuota}개까지 보낼 수 있습니다.`);
+    const used = likedByTypeRecord();
+    const overflow = rainbowOverflowUsed(quotas, used);
+    if (source === 'rainbow') {
+      if (rainbowQuota <= 0 || overflow >= rainbowQuota) {
+        setLikeError(rainbowQuota <= 0
+          ? '무지개하트가 아직 해금되지 않았습니다.'
+          : `무지개하트는 총 ${rainbowQuota}개까지 보낼 수 있습니다.`);
+        setLikeConfirmTarget(null);
+        return false;
+      }
+    } else if (colorGrantRemaining(quotas[heartType] ?? 0, used[heartType] ?? 0) <= 0) {
+      setLikeError('이 하트는 남은 개수가 없어요.');
       setLikeConfirmTarget(null);
       return false;
     }

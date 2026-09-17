@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { eventScheduleBannerState } from '../lib/event-schedule';
 
-export function EventScheduleBanner({ raw, remaining, granted, functionsLocked = false }: {
+export function EventScheduleBanner({ raw, remaining, granted, functionsLocked = false, heartsLocked: heartsLockedProp }: {
   raw: string | null;
   remaining?: number;
   granted?: number;
   functionsLocked?: boolean;
+  heartsLocked?: boolean;
 }) {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => { const id = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(id); }, []);
@@ -13,7 +14,7 @@ export function EventScheduleBanner({ raw, remaining, granted, functionsLocked =
   if (!state.show) return null;
   const grantedCount = granted ?? state.cumulativeRainbow;
   const remainingCount = remaining ?? grantedCount;
-  const heartsLocked = functionsLocked || grantedCount <= 0;
+  const heartsLocked = heartsLockedProp ?? (functionsLocked || grantedCount <= 0);
   const countdown = state.nextSeconds == null
     ? ''
     : `${Math.floor(state.nextSeconds / 60)}:${String(Math.max(0, state.nextSeconds % 60)).padStart(2, '0')}`;

@@ -78,7 +78,25 @@ export function coerceEventScheduleRaw(raw: unknown): string | null {
   return null;
 }
 
-/** Shared-pool pick state for LikeConfirmDialog / header — unlocked only when rainbow_pool > 0. */
+const COLOR_KEYS: HeartType[] = ['red', 'blue', 'pink', 'green'];
+
+/** Sends beyond per-color heart_grants. Rainbow remaining uses this — never raw HEART_TYPES.length. */
+export function rainbowOverflowUsed(
+  quotas: Record<HeartType, number>,
+  used: Record<HeartType, number>,
+): number {
+  return COLOR_KEYS.reduce((n, t) => n + Math.max(0, (used[t] ?? 0) - (quotas[t] ?? 0)), 0);
+}
+
+export function colorGrantRemaining(quota: number, used: number): number {
+  return Math.max(0, (quota ?? 0) - (used ?? 0));
+}
+
+export function colorGrantedTotal(quotas: Record<HeartType, number>): number {
+  return COLOR_KEYS.reduce((n, t) => n + Math.max(0, quotas[t] ?? 0), 0);
+}
+
+/** Shared-pool pick state for rainbow slot — unlocked only when rainbow_pool > 0. */
 export function rainbowPoolPickState(input: {
   rainbowPool: number;
   totalUsed: number;
@@ -90,21 +108,23 @@ export function rainbowPoolPickState(input: {
   return { unlocked, poolRemaining, disabled };
 }
 
-/** User-facing heart vs chat lock + remaining pool — one shared count, not per-color fake 0s. */
+/** Rainbow remaining is pool − overflow (not color-grant spends). Hearts unlock via pool or color grants. */
 export function participantHeartChatLock(input: {
   functionsLocked: boolean;
   rainbowPool: number;
   totalUsed: number;
+  colorGranted?: number;
 }): { remaining: number; heartsLocked: boolean; chatLocked: boolean; poolGranted: boolean } {
   const pick = rainbowPoolPickState({
     rainbowPool: input.rainbowPool,
     totalUsed: input.totalUsed,
     alreadySentThisType: false,
   });
+  const colorGranted = Math.max(0, input.colorGranted ?? 0);
   return {
     remaining: pick.poolRemaining,
     poolGranted: pick.unlocked,
-    heartsLocked: input.functionsLocked || !pick.unlocked,
+    heartsLocked: input.functionsLocked || (!pick.unlocked && colorGranted <= 0),
     chatLocked: input.functionsLocked,
   };
 }
@@ -128,24 +148,25 @@ export function headerHeartRemainings(input: {
   quotas: Record<HeartType, number>;
   used: Record<HeartType, number>;
 }): HeaderHeartChip[] {
-  const usedTotal = input.used.red + input.used.blue + input.used.pink + input.used.green;
+  const overflow = rainbowOverflowUsed(input.quotas, input.used);
   const rainbow = participantHeartChatLock({
     functionsLocked: input.functionsLocked,
     rainbowPool: input.rainbowPool,
-    totalUsed: usedTotal,
+    totalUsed: overflow,
+    colorGranted: colorGrantedTotal(input.quotas),
   });
   const color = (type: HeartType, emoji: string, label: string, testId: string): HeaderHeartChip => {
-    const remaining = Math.max(0, (input.quotas[type] ?? 0) - (input.used[type] ?? 0));
+    const remaining = colorGrantRemaining(input.quotas[type] ?? 0, input.used[type] ?? 0);
     return { key: type, testId, emoji, label, remaining, locked: remaining <= 0 };
   };
   return [
     {
       key: 'rainbow',
       testId: 'home-heart-remaining-rainbow',
-      emoji: rainbow.heartsLocked ? '🔒🌈' : '🌈',
+      emoji: rainbow.remaining <= 0 || input.functionsLocked ? '🔒🌈' : '🌈',
       label: '무지개하트',
       remaining: rainbow.remaining,
-      locked: rainbow.heartsLocked,
+      locked: rainbow.remaining <= 0 || input.functionsLocked,
     },
     color('red', HEART_COLOR_LABELS.red.emoji, `${HEART_COLOR_LABELS.red.label}하트`, 'home-heart-remaining-red'),
     color('pink', HEART_COLOR_LABELS.pink.emoji, `${HEART_COLOR_LABELS.pink.label}하트`, 'home-heart-remaining-pink'),

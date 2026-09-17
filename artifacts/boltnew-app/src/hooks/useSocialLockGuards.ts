@@ -16,7 +16,7 @@ export type UseSocialLockGuardsArgs = {
   handleLike: (profileId: string, hint?: Profile) => void;
   handleHeartResponse: (likerId: string, response: 'accepted' | 'rejected') => void | Promise<void>;
   handleContactShare: (likerId: string, kakao: string, instagram: string, phone: string) => void | Promise<void>;
-  executeLike: (heartType: HeartType) => Promise<boolean>;
+  executeLike: (heartType: HeartType, source?: 'rainbow') => Promise<boolean>;
   triggerConfetti: () => void;
   setLikeConfirmTarget: (p: Profile | null) => void;
   setContactShareTarget: (p: Profile | null) => void;
@@ -56,8 +56,8 @@ export function useSocialLockGuards(args: UseSocialLockGuardsArgs) {
     setMainTab,
   } = args;
 
-  const execLikeWithConfetti = useCallback(async (heartType: HeartType) => {
-    const ok = await executeLike(heartType);
+  const execLikeWithConfetti = useCallback(async (heartType: HeartType, source?: 'rainbow') => {
+    const ok = await executeLike(heartType, source);
     if (ok) triggerConfetti();
   }, [executeLike, triggerConfetti]);
 
@@ -147,13 +147,13 @@ export function useSocialLockGuards(args: UseSocialLockGuardsArgs) {
     setMainTab(t);
   }, [functionsLocked, showFunctionsLockToast, setMainTab]);
 
-  const execLikeGuarded = useCallback((heartType: HeartType) => {
+  const execLikeGuarded = useCallback((heartType: HeartType, source?: 'rainbow') => {
     if (functionsLockedRef.current) {
       setLikeConfirmTarget(null);
       showFunctionsLockToast();
       return;
     }
-    void execLikeWithConfetti(heartType);
+    void execLikeWithConfetti(heartType, source);
   }, [execLikeWithConfetti, showFunctionsLockToast, setLikeConfirmTarget, functionsLockedRef]);
 
   const handleContactShareOpen = useCallback((profile: Profile) => {

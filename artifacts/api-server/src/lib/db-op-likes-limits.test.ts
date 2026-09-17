@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   countSameTypeLikes,
+  likesColorOverflow,
   likesHeartLimitReject,
   likesRainbowPoolLimitReject,
   likesPairIntervalBlocked,
   likesRateLimitReject,
   likesSameTypeLimitReached,
+  likesSendCapReject,
   LIKES_HEART_LIMIT_MESSAGE,
   LIKES_RATE_LIMIT_MESSAGE,
   LIKES_SAME_TYPE_TARGET_MAX,
@@ -49,6 +51,24 @@ describe('db-op-likes-limits', () => {
   it('rainbow pool reject distinguishes locked vs exhausted', () => {
     expect(likesRainbowPoolLimitReject(0).body.error.message).toContain('해금');
     expect(likesRainbowPoolLimitReject(4).body.error.message).toContain('4개');
+  });
+
+  it('likesSendCapReject allows color grants without rainbow_pool', () => {
+    expect(likesSendCapReject({
+      typeGrant: 2, typeCount: 0, rainbowQuota: 0, overflowAfter: 0, totalLikes: 0, totalCap: 2,
+    })).toBeNull();
+    expect(likesSendCapReject({
+      typeGrant: 0, typeCount: 0, rainbowQuota: 0, overflowAfter: 1, totalLikes: 0, totalCap: 0,
+    })?.body.error.message).toContain('해금');
+    expect(likesSendCapReject({
+      typeGrant: 2, typeCount: 2, rainbowQuota: 8, overflowAfter: 1, totalLikes: 2, totalCap: 10,
+    })).toBeNull();
+    expect(likesColorOverflow(
+      [{ liker_id: 'me', heart_type: 'red' }, { liker_id: 'me', heart_type: 'red' }],
+      'me',
+      { red: 1, blue: 0, pink: 0, green: 0 },
+      'red',
+    )).toBe(2);
   });
 
   it('planLikesMinuteBucketConsume windows + cap', () => {

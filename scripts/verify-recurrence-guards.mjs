@@ -257,11 +257,16 @@ mustMatch('artifacts/boltnew-app/src/components/LikeConfirmDialog.tsx', '35_like
   /bindMobileTap/,
   /selectedRef/,
   /like-rainbow-btn/,
-  /어떤 거 보내실래요\?/,
+  /위 하트 중에서 1개 선택하세요/,
   /aria-disabled/,
   /h\.label/,
   /h\.desc/,
   /space-y-2 mb-5/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/components/LikeConfirmDialog.tsx', '35_like_picker_no_shared_fake_4', [
+  /4개 중 4개/,
+  /4종류/,
+  /어떤 거 보내실래요\?/,
 ]);
 mustNotMatch('artifacts/boltnew-app/src/components/LikeConfirmDialog.tsx', '35_like_picker_no_color_renames', [
   /빨강하트/,
@@ -341,6 +346,7 @@ mustMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '35_heart_chat_
   /home-heart-lock/,
   /남음 \{heartChatLock\.remaining\}/,
   /headerHeartRemainings/,
+  /grid-cols-2 grid-rows-2/,
 ]);
 mustMatch('artifacts/boltnew-app/src/lib/event-schedule.ts', '35_header_five_heart_remainings', [
   /headerHeartRemainings/,
@@ -350,6 +356,7 @@ mustMatch('artifacts/boltnew-app/src/lib/event-schedule.ts', '35_header_five_hea
   /home-heart-remaining-orange/,
   /home-heart-remaining-green/,
   /HEART_COLOR_LABELS/,
+  /rainbowOverflowUsed/,
 ]);
 mustNotMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '35_header_no_type_ticks_or_heart_chat_label', [
   /💖하트/,
