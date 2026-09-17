@@ -62,15 +62,31 @@ export function noticeOnlyPatch(notice: string): Partial<EventScheduleSlot> {
   return { notice };
 }
 
-/** Hearts-only: add to pool and open functions; never touches notice / at. */
+/** Hearts-only: add to pool and open functions; never touches notice / at. Secondary admin mode. */
 export function heartsOnlyPatch(currentPool: number | undefined, add: number): Partial<EventScheduleSlot> {
   return { rainbow_pool: nextRainbowPoolGrant(currentPool, add), functions_locked: false };
 }
 
-/** Hearts-only overwrite: set pool to N (not add). */
+/** Hearts-only overwrite: set pool to N (not add). Primary admin apply. */
 export function heartsSetPatch(amount: number): Partial<EventScheduleSlot> {
   const n = parseHeartGrantAmount(amount);
   return { ...(n > 0 ? { rainbow_pool: n } : {}), functions_locked: false };
+}
+
+/** After SET, drop leftover rainbow_pool on sibling slots so quota is exactly N (not stuck at old 4). */
+export function clearSiblingRainbowPools(slots: EventScheduleSlot[], keepId: string): EventScheduleSlot[] {
+  return slots.map((slot) => {
+    if (slot.id === keepId || slot.rainbow_pool == null) return slot;
+    const { rainbow_pool: _drop, ...rest } = slot;
+    return rest;
+  });
+}
+
+/** SET rainbow_pool on the apply slot to N and clear other slots so remaining becomes N. */
+export function applyRainbowPoolOverwrite(slots: EventScheduleSlot[], id: string, amount: number): EventScheduleSlot[] {
+  const n = parseHeartGrantAmount(amount);
+  const patched = applySlotPatch(slots, id, heartsSetPatch(n));
+  return n > 0 ? clearSiblingRainbowPools(patched, id) : patched;
 }
 
 export function rainbowPoolApplyPreview(current: number | undefined, amount: unknown): {
@@ -109,9 +125,10 @@ export function selectedSlotApplyPatch(
   if (pick.hearts) {
     const addHearts = parseHeartGrantAmount(values.addHearts);
     if (addHearts > 0) {
-      Object.assign(patch, values.heartsMode === 'set'
-        ? heartsSetPatch(addHearts)
-        : heartsOnlyPatch(values.currentPool, addHearts));
+      // Default SET (덮어쓰기). Additive +N is opt-in via heartsMode: 'add'.
+      Object.assign(patch, values.heartsMode === 'add'
+        ? heartsOnlyPatch(values.currentPool, addHearts)
+        : heartsSetPatch(addHearts));
     }
     const colors = values.colorGrants ?? {};
     const colorKeys = (Object.keys(colors) as HeartType[]).filter(t => HEART_TYPES_ORDER.includes(t));

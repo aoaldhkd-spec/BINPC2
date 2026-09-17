@@ -53,10 +53,16 @@ function renderDialog(rainbowPool: number, onConfirm = vi.fn()) {
 describe('LikeConfirmDialog original 4 + rainbow slot', () => {
   it('keeps the original 4 heart labels and appends a rainbow slot', () => {
     renderDialog(4);
-    expect(screen.getByText('빨강하트')).toBeTruthy();
-    expect(screen.getByText('주황하트')).toBeTruthy();
-    expect(screen.getByText('핑크하트')).toBeTruthy();
-    expect(screen.getByText('초록하트')).toBeTruthy();
+    expect(screen.getByText('호감')).toBeTruthy();
+    expect(screen.getByText('친구')).toBeTruthy();
+    expect(screen.getByText('뜨밤')).toBeTruthy();
+    expect(screen.getByText('칭찬')).toBeTruthy();
+    expect(screen.getByText('로맨틱한 호감을 표현해요')).toBeTruthy();
+    expect(screen.getByText('친구가 되고 싶을 때 보내요')).toBeTruthy();
+    expect(screen.getByText('함께 밤을 보내고 싶어요')).toBeTruthy();
+    expect(screen.getByText('칭찬만 전달 (연락처 공유 불가)')).toBeTruthy();
+    expect(screen.queryByText('빨강하트')).toBeNull();
+    expect(screen.queryByText('주황하트')).toBeNull();
     expect(screen.queryByTestId('like-heart-row')).toBeNull();
     expect(screen.getByTestId('like-rainbow-btn')).toBeTruthy();
     expect(screen.getByTestId('like-rainbow-btn').getAttribute('aria-disabled')).toBe('false');
@@ -89,14 +95,14 @@ describe('LikeConfirmDialog original 4 + rainbow slot', () => {
     const onConfirm = renderDialog(4);
     fireEvent.click(screen.getByTestId('like-rainbow-btn'));
     expect(screen.getByTestId('rainbow-color-dialog').textContent).toContain('어떤 거 보내실래요?');
-    fireEvent.click(screen.getAllByText('주황하트')[1]);
+    fireEvent.click(screen.getAllByText('친구')[1]);
     fireEvent.click(screen.getAllByRole('button', { name: '보내기' })[1]);
     expect(onConfirm).toHaveBeenCalledWith('blue');
   });
 
   it('sends a normal unlocked heart from the original list without opening rainbow modal', () => {
     const onConfirm = renderDialog(4);
-    fireEvent.click(screen.getByText('빨강하트'));
+    fireEvent.click(screen.getByText('호감'));
     expect(screen.queryByTestId('rainbow-color-dialog')).toBeNull();
     fireEvent.click(screen.getAllByRole('button', { name: '보내기' })[0]);
     expect(onConfirm).toHaveBeenCalledWith('red');

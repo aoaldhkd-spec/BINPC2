@@ -1,4 +1,4 @@
-import type { HeartType } from './constants';
+import { HEART_COLOR_LABELS, type HeartType } from './constants';
 
 export type EventScheduleSlot = {
   id: string;
@@ -147,10 +147,10 @@ export function headerHeartRemainings(input: {
       remaining: rainbow.remaining,
       locked: rainbow.heartsLocked,
     },
-    color('red', '❤️', '빨강하트', 'home-heart-remaining-red'),
-    color('pink', '💗', '핑크하트', 'home-heart-remaining-pink'),
-    color('blue', '🧡', '주황하트', 'home-heart-remaining-orange'),
-    color('green', '💚', '초록하트', 'home-heart-remaining-green'),
+    color('red', HEART_COLOR_LABELS.red.emoji, `${HEART_COLOR_LABELS.red.label}하트`, 'home-heart-remaining-red'),
+    color('pink', HEART_COLOR_LABELS.pink.emoji, `${HEART_COLOR_LABELS.pink.label}하트`, 'home-heart-remaining-pink'),
+    color('blue', HEART_COLOR_LABELS.blue.emoji, `${HEART_COLOR_LABELS.blue.label}하트`, 'home-heart-remaining-orange'),
+    color('green', HEART_COLOR_LABELS.green.emoji, `${HEART_COLOR_LABELS.green.label}하트`, 'home-heart-remaining-green'),
   ];
 }
 

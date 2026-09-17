@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { BellRing, Clock, Heart, Send, CheckCircle } from 'lucide-react';
 import type { HeartType } from '../lib/constants';
-import { HEART_TYPES } from '../lib/constants';
 import {
   currentEventSlot, eventHeartQuotas, eventRainbowQuota, parseEventSchedule,
 } from '../lib/event-schedule';
@@ -10,6 +9,7 @@ import {
   EMPTY_EVENT_SLOT,
   QUICK_NOTICE_STORAGE_KEY,
   TIME_ONLY_APPLY_HINT,
+  applyRainbowPoolOverwrite,
   applySavedFieldPatch,
   draftToApplyPick,
   loadQuickNotices,
@@ -41,6 +41,7 @@ export function DashboardEventClockCard({ settings, onSave }: {
   const [notice, setNotice] = useState('');
   const [at, setAt] = useState('');
   const [rainbowAmount, setRainbowAmount] = useState('');
+  const [rainbowMode, setRainbowMode] = useState<'set' | 'add'>('set');
   const [colorGrants, setColorGrants] = useState<Record<HeartType, string>>(EMPTY_COLORS);
   const [quickNotices, setQuickNotices] = useState<QuickNoticePreset[]>(() => {
     try { return loadQuickNotices(localStorage.getItem(QUICK_NOTICE_STORAGE_KEY)); }
@@ -82,16 +83,21 @@ export function DashboardEventClockCard({ settings, onSave }: {
     }
     if (shouldWarnTimeOnlyApply(effectivePick) && !window.confirm(`${TIME_ONLY_APPLY_HINT}. 시간만 적용할까요?`)) return;
     const colors = parseColorGrantsDraft(colorGrants);
+    const rainbowN = parseHeartGrantAmount(rainbowAmount);
     const patch = selectedSlotApplyPatch(effectivePick, {
       at: effectiveAt || seoulNowHHMM(),
       notice: notice.trim(),
       currentPool: target.rainbow_pool,
-      addHearts: parseHeartGrantAmount(rainbowAmount),
-      heartsMode: 'set',
+      addHearts: rainbowN,
+      heartsMode: rainbowMode,
       colorGrants: colors,
       currentColorGrants: target.heart_grants,
     });
-    const next = applySavedFieldPatch(savedSlots, savedSlots, target.id, patch);
+    let next = applySavedFieldPatch(savedSlots, savedSlots, target.id, patch);
+    // Primary SET: leftover rainbow_pool 4 on other slots must not keep 남음 stuck.
+    if (effectivePick.hearts && rainbowMode === 'set' && rainbowN > 0) {
+      next = applyRainbowPoolOverwrite(next, target.id, rainbowN);
+    }
     setSaving(true);
     try {
       await onSave(JSON.stringify({ timezone: 'Asia/Seoul', slots: next }), effectivePick.hearts ? { functions_locked: false } : undefined);
@@ -215,28 +221,51 @@ export function DashboardEventClockCard({ settings, onSave }: {
               개
               <span className="ml-auto text-[10px] font-bold text-fuchsia-700">지금 {cumulativeRainbow}</span>
             </label>
-            <div className="grid grid-cols-2 min-[390px]:grid-cols-4 gap-1.5">
-              {COLOR_GRANT_FIELDS.map(h => {
-                const meta = HEART_TYPES.find(t => t.type === h.type);
-                return (
-                  <label key={h.type} className="flex items-center gap-1 rounded-lg bg-white/80 px-1.5 py-1 text-[10px] font-bold text-gray-600">
-                    <span>{meta?.emoji ?? h.emoji}</span>
-                    <span className="truncate">{h.label}</span>
-                    <input
-                      aria-label={`${h.label}하트 지급`}
-                      type="number"
-                      min="0"
-                      max="20"
-                      placeholder="—"
-                      value={colorGrants[h.type]}
-                      onChange={e => setColorGrants(prev => ({ ...prev, [h.type]: e.target.value }))}
-                      className="ml-auto w-9 rounded border border-gray-200 bg-white px-1 py-0.5 text-center"
-                    />
-                  </label>
-                );
-              })}
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                data-testid="rainbow-mode-set"
+                onClick={() => setRainbowMode('set')}
+                className={`rounded-lg px-2 py-1 text-[10px] font-black active:scale-95 ${
+                  rainbowMode === 'set'
+                    ? 'bg-fuchsia-600 text-white'
+                    : 'border border-fuchsia-200 bg-white text-fuchsia-700'
+                }`}
+              >
+                설정 (덮어쓰기)
+              </button>
+              <button
+                type="button"
+                data-testid="rainbow-mode-add"
+                onClick={() => setRainbowMode('add')}
+                className={`rounded-lg px-2 py-1 text-[10px] font-black active:scale-95 ${
+                  rainbowMode === 'add'
+                    ? 'bg-fuchsia-600 text-white'
+                    : 'border border-fuchsia-200 bg-white text-fuchsia-700'
+                }`}
+              >
+                추가 +N
+              </button>
             </div>
-            <p className="text-[9px] font-bold text-gray-400">빈 칸은 기존 지급량을 지우지 않아요 · 무지개는 입력한 값으로 설정</p>
+            <div className="grid grid-cols-2 min-[390px]:grid-cols-4 gap-1.5">
+              {COLOR_GRANT_FIELDS.map(h => (
+                <label key={h.type} className="flex items-center gap-1 rounded-lg bg-white/80 px-1.5 py-1 text-[10px] font-bold text-gray-600">
+                  <span>{h.emoji}</span>
+                  <span className="truncate">{h.label}</span>
+                  <input
+                    aria-label={`${h.label}하트 지급`}
+                    type="number"
+                    min="0"
+                    max="20"
+                    placeholder="—"
+                    value={colorGrants[h.type]}
+                    onChange={e => setColorGrants(prev => ({ ...prev, [h.type]: e.target.value }))}
+                    className="ml-auto w-9 rounded border border-gray-200 bg-white px-1 py-0.5 text-center"
+                  />
+                </label>
+              ))}
+            </div>
+            <p className="text-[9px] font-bold text-gray-400">빈 칸은 기존 지급량을 지우지 않아요 · 무지개는 기본 설정(덮어쓰기) · 색 하트와 섞지 않아요</p>
           </div>
         </div>
 

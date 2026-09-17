@@ -102,7 +102,7 @@ export function LikeConfirmDialog({
                 <div className="flex-1 min-w-0">
                   <p className={`text-sm font-bold ${isSel ? h.text : 'text-gray-800'}`}>{h.label}</p>
                   <p className="text-xs text-gray-400">
-                    {alreadySentToThisPerson ? '이미 보낸 하트' : pick.unlocked ? `무지개하트 ${remaining}개 중 선택` : '관리자 해금 후 사용할 수 있어요'}
+                    {alreadySentToThisPerson ? '이미 보낸 하트' : !pick.unlocked ? '관리자 해금 후 사용할 수 있어요' : h.desc}
                   </p>
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
@@ -201,7 +201,7 @@ export function LikeConfirmDialog({
                     <div className="flex-1 min-w-0">
                       <p className={`text-sm font-bold ${isSel ? h.text : 'text-gray-800'}`}>{h.label}</p>
                       <p className="text-xs text-gray-400">
-                        {alreadySentToThisPerson ? '이미 보낸 하트' : pick.unlocked ? `무지개하트 ${remaining}개 중 선택` : '관리자 해금 후 사용할 수 있어요'}
+                        {alreadySentToThisPerson ? '이미 보낸 하트' : !pick.unlocked ? '관리자 해금 후 사용할 수 있어요' : h.desc}
                       </p>
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
