@@ -263,8 +263,10 @@ mustMatch('artifacts/boltnew-app/src/components/LikeConfirmDialog.tsx', '35_like
 mustMatch('artifacts/boltnew-app/src/admin/EventScheduleTab.tsx', '35_schedule_notice_hearts_separate', [
   /공지만 적용/,
   /하트만 해금/,
-  /applyNoticeIndependently/,
-  /applyHeartsIndependently/,
+  /applyNoticeNow/,
+  /unlockRainbowNow/,
+  /applySlotNowPatch/,
+  /rainbowUnlockNowPatch/,
 ]);
 mustMatch('artifacts/boltnew-app/src/lib/event-schedule.ts', '35_upcoming_heart_preview', [
   /upcomingHeartGrantPreview/,
