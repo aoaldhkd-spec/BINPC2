@@ -307,19 +307,21 @@ mustMatch('artifacts/boltnew-app/src/admin/event-schedule-apply.ts', '35_schedul
 ]);
 mustMatch('artifacts/boltnew-app/src/admin/HeartOpsCard.tsx', '35_heart_ops_card', [
   /하트 운영/,
-  /현재 하트 상태/,
+  /하트 해금/,
   /공지시간/,
+  /해금시간/,
   /직접 공지/,
   /지금 해금/,
   /해금 초기화/,
   /HEART_OPS_AT_RE/,
   /serializeHeartOps/,
   /resetHeartUnlocks/,
-  /resize-y/,
   /QUICK_NOTICE_EMPTY_HINT/,
   /onSaveNotices/,
-  /공지 추가/,
-  /min-h-\[2\.25rem\]/,
+  /liveDirectNoticeText/,
+  /ensureDirectNoticeSlots|withLiveNoticeEnabled/,
+  /flex-\[7\]/,
+  /flex-\[3\]/,
 ]);
 mustMatch('artifacts/boltnew-app/src/admin/HeartOpsCard.tsx', '35_heart_ops_hh_mm_selects', [
   /parseHeartOpsClock/,
@@ -331,8 +333,15 @@ mustMatch('artifacts/boltnew-app/src/admin/HeartOpsCard.tsx', '35_heart_ops_auto
   /공지시간/,
   /해금시간/,
   /heartOpsHeartRows/,
-  /patchHeartOpsSlotNoticeAt/,
-  /show_notice/,
+  /DIRECT_NOTICE_SLOT_COUNT/,
+  /liveDirectNoticeText/,
+  /patchDirectNotice/,
+]);
+mustMatch('artifacts/boltnew-app/src/admin/event-schedule-apply.ts', '35_direct_notice_fixed_slots', [
+  /DIRECT_NOTICE_SLOT_COUNT = 4/,
+  /ensureDirectNoticeSlots/,
+  /liveDirectNoticeText/,
+  /withLiveNoticeEnabled/,
 ]);
 mustMatch('artifacts/boltnew-app/src/lib/heart-ops.ts', '35_heart_ops_notice_at_display_only', [
   /notice_at/,

@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ensureDirectNoticeSlots,
   hasServerDirectNoticePresets,
+  liveDirectNoticeText,
   loadDirectNoticePresets,
   loadDirectNotices,
+  patchDirectNotice,
   removeDirectNotice,
   serializeDirectNotices,
   serializeQuickNoticeDraft,
   upsertDirectNotice,
+  withLiveNoticeEnabled,
 } from './event-schedule-apply';
 
 describe('direct notice list helpers', () => {
@@ -50,5 +54,37 @@ describe('direct notice list helpers', () => {
     expect(loadDirectNoticePresets(serializeDirectNotices([{ id: 'x', text: '공지' }]))).toEqual([
       { id: 'x', text: '공지' },
     ]);
+  });
+
+  it('pads to four notice slots without injecting defaults into parse', () => {
+    expect(loadDirectNotices(serializeDirectNotices([{ id: 'x', text: '공지' }]))).toEqual([
+      { id: 'x', text: '공지' },
+    ]);
+    const padded = ensureDirectNoticeSlots([{ id: 'x', text: '공지' }]);
+    expect(padded).toHaveLength(4);
+    expect(padded[0]).toEqual({ id: 'x', text: '공지', at: '23:00', enabled: false });
+    expect(padded.slice(1).map(n => n.id)).toEqual(['dn-fixed-2', 'dn-fixed-3', 'dn-fixed-4']);
+    expect(ensureDirectNoticeSlots([
+      { id: 'a', text: '1' },
+      { id: 'b', text: '2' },
+      { id: 'c', text: '3' },
+      { id: 'd', text: '4' },
+      { id: 'e', text: '5' },
+    ]).map(n => n.id)).toEqual(['a', 'b', 'c', 'd']);
+  });
+
+  it('broadcasts the first enabled non-empty notice and can seed from live text', () => {
+    const items = ensureDirectNoticeSlots([
+      { id: 'a', text: '첫 번째' },
+      { id: 'b', text: '자리 이동해주세요.' },
+    ]);
+    expect(liveDirectNoticeText(items)).toBe('');
+    const enabledSecond = patchDirectNotice(items, 'b', { enabled: true });
+    expect(liveDirectNoticeText(enabledSecond)).toBe('자리 이동해주세요.');
+    const both = patchDirectNotice(enabledSecond, 'a', { enabled: true });
+    expect(liveDirectNoticeText(both)).toBe('첫 번째');
+    expect(withLiveNoticeEnabled([{ id: 'a', text: '자리 이동해주세요.' }], '자리 이동해주세요.')[0]?.enabled).toBe(true);
+    expect(withLiveNoticeEnabled([{ id: 'a', text: '다른 공지', enabled: true }], '자리 이동해주세요.')[0]?.enabled).toBe(true);
+    expect(withLiveNoticeEnabled([{ id: 'a', text: '다른 공지', enabled: true }], '자리 이동해주세요.')[0]?.text).toBe('다른 공지');
   });
 });

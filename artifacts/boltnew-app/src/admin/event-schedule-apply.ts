@@ -25,9 +25,10 @@ export const DIRECT_NOTICES_KEY = 'admin_direct_notices_v1';
 export const DIRECT_NOTICE_PRESETS_KEY = 'direct_notice_presets';
 export const DIRECT_NOTICE_TEXT_MAX = 240;
 export const DIRECT_NOTICES_MAX = 30;
+export const DIRECT_NOTICE_SLOT_COUNT = 4;
 export const QUICK_NOTICE_EMPTY_HINT = '공지 내용을 입력해주세요.';
 
-export type DirectNoticeItem = { id: string; text: string };
+export type DirectNoticeItem = { id: string; text: string; at?: string; enabled?: boolean };
 
 export function loadQuickNoticeDraft(raw: string | null): string {
   if (raw == null || raw === '') return '';
@@ -52,7 +53,13 @@ export function createDirectNoticeId(): string {
 }
 
 export function createDirectNoticeItem(text = ''): DirectNoticeItem {
-  return { id: createDirectNoticeId(), text: text.slice(0, DIRECT_NOTICE_TEXT_MAX) };
+  return { id: createDirectNoticeId(), text: text.slice(0, DIRECT_NOTICE_TEXT_MAX), at: '23:00', enabled: false };
+}
+
+const NOTICE_AT_RE = /^([01]\d|2[0-4]):([0-5]\d)$/;
+
+function parseNoticeAt(raw: unknown): string | undefined {
+  return typeof raw === 'string' && NOTICE_AT_RE.test(raw) ? raw : undefined;
 }
 
 function parseDirectNoticeRow(row: unknown): DirectNoticeItem | null {
@@ -60,7 +67,13 @@ function parseDirectNoticeRow(row: unknown): DirectNoticeItem | null {
   const r = row as Record<string, unknown>;
   if (typeof r.id !== 'string' || !r.id.trim()) return null;
   if (typeof r.text !== 'string') return null;
-  return { id: r.id, text: r.text.slice(0, DIRECT_NOTICE_TEXT_MAX) };
+  const at = parseNoticeAt(r.at);
+  return {
+    id: r.id,
+    text: r.text.slice(0, DIRECT_NOTICE_TEXT_MAX),
+    ...(at ? { at } : {}),
+    ...(r.enabled === true ? { enabled: true } : {}),
+  };
 }
 
 export function loadDirectNotices(raw: string | null, legacyDraft: string | null = null): DirectNoticeItem[] {
@@ -92,7 +105,45 @@ export function serializeDirectNotices(items: DirectNoticeItem[]): string {
   return JSON.stringify(items.slice(0, DIRECT_NOTICES_MAX).map(n => ({
     id: n.id,
     text: n.text.slice(0, DIRECT_NOTICE_TEXT_MAX),
+    ...(n.at && NOTICE_AT_RE.test(n.at) ? { at: n.at } : {}),
+    ...(n.enabled ? { enabled: true } : {}),
   })));
+}
+
+export function ensureDirectNoticeSlots(items: DirectNoticeItem[]): DirectNoticeItem[] {
+  const next = items.slice(0, DIRECT_NOTICE_SLOT_COUNT).map(n => ({
+    id: n.id,
+    text: n.text,
+    at: n.at && NOTICE_AT_RE.test(n.at) ? n.at : '23:00',
+    enabled: n.enabled === true,
+  }));
+  while (next.length < DIRECT_NOTICE_SLOT_COUNT) {
+    next.push({
+      id: `dn-fixed-${next.length + 1}`,
+      text: '',
+      at: '23:00',
+      enabled: false,
+    });
+  }
+  return next;
+}
+
+export function liveDirectNoticeText(items: DirectNoticeItem[]): string {
+  return items.find(n => n.enabled && n.text.trim())?.text.trim().slice(0, DIRECT_NOTICE_TEXT_MAX) ?? '';
+}
+
+/** Pad to 4 slots. If none are enabled, mark the live banner text so a later save does not wipe it. */
+export function withLiveNoticeEnabled(items: DirectNoticeItem[], live: string | undefined): DirectNoticeItem[] {
+  const padded = ensureDirectNoticeSlots(items);
+  const text = (live ?? '').trim().slice(0, DIRECT_NOTICE_TEXT_MAX);
+  if (!text || padded.some(n => n.enabled === true)) return padded;
+  const match = padded.findIndex(n => n.text.trim() === text);
+  if (match >= 0) {
+    return padded.map((n, i) => (i === match ? { ...n, enabled: true } : n));
+  }
+  const empty = padded.findIndex(n => !n.text.trim());
+  const idx = empty >= 0 ? empty : 0;
+  return padded.map((n, i) => (i === idx ? { ...n, text, enabled: true } : n));
 }
 
 export function hasServerDirectNoticePresets(raw: unknown): boolean {
@@ -125,6 +176,20 @@ export function clearLocalDirectNoticeStorage(): void {
 
 export function upsertDirectNotice(items: DirectNoticeItem[], id: string, text: string): DirectNoticeItem[] {
   return items.map(n => (n.id === id ? { ...n, text: text.slice(0, DIRECT_NOTICE_TEXT_MAX) } : { ...n }));
+}
+
+export function patchDirectNotice(
+  items: DirectNoticeItem[],
+  id: string,
+  patch: Partial<Pick<DirectNoticeItem, 'text' | 'at' | 'enabled'>>,
+): DirectNoticeItem[] {
+  return items.map(n => {
+    if (n.id !== id) return { ...n };
+    const text = patch.text != null ? patch.text.slice(0, DIRECT_NOTICE_TEXT_MAX) : n.text;
+    const at = patch.at != null && NOTICE_AT_RE.test(patch.at) ? patch.at : n.at;
+    const enabled = patch.enabled != null ? patch.enabled : n.enabled;
+    return { ...n, text, ...(at ? { at } : {}), enabled };
+  });
 }
 
 export function removeDirectNotice(items: DirectNoticeItem[], id: string): DirectNoticeItem[] {
