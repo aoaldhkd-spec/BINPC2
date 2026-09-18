@@ -4,7 +4,7 @@ import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/re
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { HeartOpsCard } from './HeartOpsCard';
 import { DEFAULT_HEART_OPS, parseHeartOps, serializeHeartOps } from '../lib/heart-ops';
-import { loadQuickNoticeDraft, QUICK_NOTICE_DRAFT_KEY } from './event-schedule-apply';
+import { DIRECT_NOTICES_KEY, loadDirectNotices } from './event-schedule-apply';
 import type { AppSettings } from './shared';
 
 afterEach(() => {
@@ -14,6 +14,7 @@ afterEach(() => {
 });
 
 beforeEach(() => {
+  vi.useRealTimers();
   window.localStorage.clear();
 });
 
@@ -68,27 +69,58 @@ describe('HeartOpsCard schedule clock', () => {
     expect(saved.auto_unlock_from).toEqual(expect.any(Number));
   });
 
-  it('quick notice save and put stay separate, and empty put is blocked', async () => {
+  it('manages multiple direct notices with isolated save, put, and delete', async () => {
     const payloads: string[] = [];
     const onSave = vi.fn(async (raw: string) => { payloads.push(raw); });
     render(<HeartOpsCard settings={settingsWith()} onSave={onSave} />);
-    const box = screen.getByLabelText('빠른 공지') as HTMLTextAreaElement;
-    expect(box.value).toBe('');
-    expect(box.className).toContain('resize-y');
 
-    fireEvent.click(screen.getByRole('button', { name: '넣기' }));
+    fireEvent.click(screen.getByRole('button', { name: '+ 공지 추가' }));
+    fireEvent.click(screen.getByRole('button', { name: '+ 공지 추가' }));
+    fireEvent.click(screen.getByRole('button', { name: '+ 공지 추가' }));
+    const first = screen.getByLabelText('직접 공지 1') as HTMLTextAreaElement;
+    const second = screen.getByLabelText('직접 공지 2') as HTMLTextAreaElement;
+    const third = screen.getByLabelText('직접 공지 3') as HTMLTextAreaElement;
+    expect(first.value).toBe('');
+    expect(first.className).toContain('resize-y');
+
+    fireEvent.click(screen.getByRole('button', { name: '공지 1 넣기' }));
     expect(onSave).not.toHaveBeenCalled();
     expect(screen.getByText('공지 내용을 입력해주세요.')).toBeTruthy();
-
-    fireEvent.change(box, { target: { value: '저장된 문구' } });
-    fireEvent.click(screen.getByRole('button', { name: '저장' }));
+    fireEvent.change(first, { target: { value: '  \n  ' } });
+    fireEvent.click(screen.getByRole('button', { name: '공지 1 넣기' }));
     expect(onSave).not.toHaveBeenCalled();
-    expect(loadQuickNoticeDraft(window.localStorage.getItem(QUICK_NOTICE_DRAFT_KEY))).toBe('저장된 문구');
 
-    fireEvent.change(box, { target: { value: '10분 뒤 무지개하트가 열립니다.' } });
-    fireEvent.click(screen.getByRole('button', { name: '넣기' }));
+    fireEvent.change(first, { target: { value: '잠시 후 하트 이벤트가 시작됩니다.' } });
+    fireEvent.change(second, { target: { value: '자리 이동해주세요.' } });
+    fireEvent.change(third, { target: { value: '잠시 후 무지개하트가 열립니다.' } });
+    fireEvent.click(screen.getByRole('button', { name: '공지 1 저장' }));
+    fireEvent.click(screen.getByRole('button', { name: '공지 2 저장' }));
+    fireEvent.click(screen.getByRole('button', { name: '공지 3 저장' }));
+    expect(onSave).not.toHaveBeenCalled();
+    expect(loadDirectNotices(window.localStorage.getItem(DIRECT_NOTICES_KEY)).map(n => n.text)).toEqual([
+      '잠시 후 하트 이벤트가 시작됩니다.',
+      '자리 이동해주세요.',
+      '잠시 후 무지개하트가 열립니다.',
+    ]);
+
+    fireEvent.change(first, { target: { value: '10분 뒤 무지개하트가 열립니다.' } });
+    fireEvent.click(screen.getByRole('button', { name: '공지 1 넣기' }));
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
     expect(parseHeartOps(payloads[0]).direct_notice).toBe('10분 뒤 무지개하트가 열립니다.');
-    expect(loadQuickNoticeDraft(window.localStorage.getItem(QUICK_NOTICE_DRAFT_KEY))).toBe('저장된 문구');
-  });
+    expect(parseHeartOps(payloads[0]).slots).toHaveLength(4);
+    expect(loadDirectNotices(window.localStorage.getItem(DIRECT_NOTICES_KEY)).map(n => n.text)).toEqual([
+      '잠시 후 하트 이벤트가 시작됩니다.',
+      '자리 이동해주세요.',
+      '잠시 후 무지개하트가 열립니다.',
+    ]);
+
+    fireEvent.click(screen.getByRole('button', { name: '공지 2 삭제' }));
+    fireEvent.click(screen.getByRole('button', { name: '확인' }));
+    expect(screen.queryByLabelText('직접 공지 3')).toBeNull();
+    expect(loadDirectNotices(window.localStorage.getItem(DIRECT_NOTICES_KEY)).map(n => n.text)).toEqual([
+      '잠시 후 하트 이벤트가 시작됩니다.',
+      '잠시 후 무지개하트가 열립니다.',
+    ]);
+    expect(onSave).toHaveBeenCalledTimes(1);
+  }, 15_000);
 });

@@ -17,23 +17,88 @@ export const DEFAULT_QUICK_NOTICES: QuickNoticePreset[] = [
 ];
 
 export const QUICK_NOTICE_STORAGE_KEY = 'admin_quick_notices_v1';
-/** Saved draft only — never written into event_schedule / never broadcast. */
+/** Legacy single-draft key — migrated into DIRECT_NOTICES_KEY, never broadcast. */
 export const QUICK_NOTICE_DRAFT_KEY = 'admin_quick_notice_draft_v1';
+/** Saved notice list only — never written into event_schedule / never broadcast. */
+export const DIRECT_NOTICES_KEY = 'admin_direct_notices_v1';
+export const DIRECT_NOTICE_TEXT_MAX = 240;
+export const DIRECT_NOTICES_MAX = 30;
 export const QUICK_NOTICE_EMPTY_HINT = '공지 내용을 입력해주세요.';
+
+export type DirectNoticeItem = { id: string; text: string };
 
 export function loadQuickNoticeDraft(raw: string | null): string {
   if (raw == null || raw === '') return '';
   try {
     const parsed = JSON.parse(raw) as unknown;
-    if (typeof parsed === 'string') return parsed.slice(0, 240);
+    if (typeof parsed === 'string') return parsed.slice(0, DIRECT_NOTICE_TEXT_MAX);
     return '';
   } catch {
-    return raw.slice(0, 240);
+    return raw.slice(0, DIRECT_NOTICE_TEXT_MAX);
   }
 }
 
 export function serializeQuickNoticeDraft(text: string): string {
-  return JSON.stringify(text.slice(0, 240));
+  return JSON.stringify(text.slice(0, DIRECT_NOTICE_TEXT_MAX));
+}
+
+export function createDirectNoticeId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `dn-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export function createDirectNoticeItem(text = ''): DirectNoticeItem {
+  return { id: createDirectNoticeId(), text: text.slice(0, DIRECT_NOTICE_TEXT_MAX) };
+}
+
+function parseDirectNoticeRow(row: unknown): DirectNoticeItem | null {
+  if (!row || typeof row !== 'object') return null;
+  const r = row as Record<string, unknown>;
+  if (typeof r.id !== 'string' || !r.id.trim()) return null;
+  if (typeof r.text !== 'string') return null;
+  return { id: r.id, text: r.text.slice(0, DIRECT_NOTICE_TEXT_MAX) };
+}
+
+export function loadDirectNotices(raw: string | null, legacyDraft: string | null = null): DirectNoticeItem[] {
+  if (raw != null && raw !== '') {
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (Array.isArray(parsed)) {
+        const items: DirectNoticeItem[] = [];
+        const seen = new Set<string>();
+        for (const row of parsed) {
+          const item = parseDirectNoticeRow(row);
+          if (!item || seen.has(item.id)) continue;
+          seen.add(item.id);
+          items.push(item);
+          if (items.length >= DIRECT_NOTICES_MAX) break;
+        }
+        return items;
+      }
+    } catch {
+      /* fall through to legacy single draft */
+    }
+  }
+  const draft = loadQuickNoticeDraft(legacyDraft);
+  if (!draft) return [];
+  return [{ id: 'migrated-draft', text: draft }];
+}
+
+export function serializeDirectNotices(items: DirectNoticeItem[]): string {
+  return JSON.stringify(items.slice(0, DIRECT_NOTICES_MAX).map(n => ({
+    id: n.id,
+    text: n.text.slice(0, DIRECT_NOTICE_TEXT_MAX),
+  })));
+}
+
+export function upsertDirectNotice(items: DirectNoticeItem[], id: string, text: string): DirectNoticeItem[] {
+  return items.map(n => (n.id === id ? { ...n, text: text.slice(0, DIRECT_NOTICE_TEXT_MAX) } : { ...n }));
+}
+
+export function removeDirectNotice(items: DirectNoticeItem[], id: string): DirectNoticeItem[] {
+  return items.filter(n => n.id !== id);
 }
 
 const HEART_TYPES_ORDER: HeartType[] = ['red', 'blue', 'pink', 'green'];

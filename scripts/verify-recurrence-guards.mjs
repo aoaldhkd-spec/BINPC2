@@ -317,6 +317,8 @@ mustMatch('artifacts/boltnew-app/src/admin/HeartOpsCard.tsx', '35_heart_ops_card
   /resetHeartUnlocks/,
   /resize-y/,
   /QUICK_NOTICE_EMPTY_HINT/,
+  /DIRECT_NOTICES_KEY/,
+  /공지 추가/,
 ]);
 mustMatch('artifacts/boltnew-app/src/admin/HeartOpsCard.tsx', '35_heart_ops_hh_mm_selects', [
   /parseHeartOpsClock/,
@@ -342,6 +344,8 @@ mustMatch('artifacts/api-server/src/lib/db-heart-ops.ts', '35_api_heart_ops_unlo
 ]);
 mustMatch('artifacts/boltnew-app/src/admin/event-schedule-apply.ts', '35_quick_notice_draft_empty_hint', [
   /QUICK_NOTICE_DRAFT_KEY/,
+  /DIRECT_NOTICES_KEY/,
+  /loadDirectNotices/,
   /공지 내용을 입력해주세요/,
 ]);
 mustMatch('artifacts/boltnew-app/src/components/LikeConfirmDialog.tsx', '35_rainbow_pick_ignores_grant_sent', [
