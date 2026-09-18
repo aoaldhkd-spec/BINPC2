@@ -2,7 +2,7 @@
  * TutorialVideo — 2026.09 UI redesign (obviously new chrome + filled scenes)
  * Phone-bezel player · LIVE badge · participants/hearts/chat mocks with no empty gaps.
  * S1 입장코드 → S2 아바타 → S3 한마디/칩 → S4 이모지·스티커 → S5 사진·빠른메시지
- * → S6 스와이프·길게누르기 → S7 받은/보낸 하트 (하트 잠금→해금 · 무지개 4)
+ * → S6 스와이프·길게누르기 → S7 받은 하트 → S8 하트 보내기 → S9 무지개하트
  */
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, type ReactElement, type ReactNode, type PointerEvent, type MouseEvent } from 'react';
 import { SkipBack, SkipForward, Play, Pause } from 'lucide-react';
@@ -115,8 +115,8 @@ function Tabs({ active, hl }: { active: string; hl?: string }) {
   );
 }
 
-/** 홈 헤더 하트 — 라이브: 무지개 2×2 + 호감·뜨밤·친구·칭찬 2×2 (개수 표시 없음) */
-function HeartHeader({ unlocked }: { unlocked: boolean }) {
+/** 홈 헤더 하트 — 라이브: 무지개 2×2 + 호감·친구·뜨밤·칭찬 2×2 */
+function HeartHeader({ unlocked, rainbowLeft = 4 }: { unlocked: boolean; rainbowLeft?: number }) {
   const colors = [
     { key: 'red', e: '❤️' },
     { key: 'pink', e: '💗' },
@@ -142,7 +142,8 @@ function HeartHeader({ unlocked }: { unlocked: boolean }) {
         <div className={`grid grid-cols-2 grid-rows-2 w-8 h-8 rounded-md overflow-hidden ${
           unlocked ? 'bg-fuchsia-900/60 text-fuchsia-100' : 'bg-slate-700 text-slate-300'
         }`}>
-          <span aria-hidden className="col-span-2 row-span-2 flex items-center justify-center text-[11px] leading-none">{unlocked ? '🌈' : '🔒🌈'}</span>
+          <span aria-hidden className="col-span-2 flex items-center justify-center text-[10px] leading-none">{unlocked ? '🌈' : '🔒🌈'}</span>
+          <span className="col-span-2 flex items-center justify-center text-[8px] font-black tabular-nums leading-none">{rainbowLeft}</span>
         </div>
         <div className="grid grid-cols-2 grid-rows-2 gap-px w-8 h-8">
           {colors.map((h) => (
@@ -161,7 +162,7 @@ function HeartHeader({ unlocked }: { unlocked: boolean }) {
   );
 }
 
-/** 채팅 입력행 — 라이브: [+] [😊] [입력] [➤] */
+/** 채팅 입력행 — 라이브 ChatScreen: [+] [😊] [입력] [➤] */
 function ChatComposer({
   highlight,
   moreOpen,
@@ -172,26 +173,26 @@ function ChatComposer({
   tip?: string;
 }) {
   return (
-    <div className="px-2 pb-2 pt-1 bg-white border-t border-gray-200">
-      <div className="flex items-center gap-1">
-        <div className={`relative w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold transition-all duration-300 ${
-          moreOpen || highlight === 'plus' ? 'bg-gray-200 text-gray-700' : 'bg-gray-100 text-gray-400'
+    <div className="bg-white border-t border-gray-200 shrink-0">
+      <div className="px-2 py-1.5 flex items-end gap-1.5">
+        <div className={`relative w-7 h-7 rounded-full flex items-center justify-center text-[12px] font-bold transition-all duration-300 ${
+          moreOpen || highlight === 'plus' ? 'bg-gray-200 text-gray-600' : 'text-gray-400'
         }`}>
           <Ring on={highlight === 'plus'} color="ring-cyan-400" />
           {highlight === 'plus' && tip && <Tip text={tip} show dir="top" />}
           {moreOpen ? '✕' : '+'}
         </div>
-        <div className={`relative w-6 h-6 rounded-full flex items-center justify-center text-sm transition-all duration-300 ${
+        <div className={`relative w-7 h-7 rounded-full flex items-center justify-center text-sm transition-all duration-300 ${
           highlight === 'smile' ? 'bg-cyan-50 text-cyan-500' : 'text-gray-400'
         }`}>
           <Ring on={highlight === 'smile'} color="ring-cyan-400" />
           {highlight === 'smile' && tip && <Tip text={tip} show dir="top" />}
           😊
         </div>
-        <div className="flex-1 h-7 rounded-2xl border border-gray-300 bg-white px-2 flex items-center">
-          <span className="text-[10px] text-gray-400">메시지를 입력하세요…</span>
+        <div className="flex-1 min-h-[28px] rounded-2xl border border-gray-300 bg-white px-2 py-1 flex items-center">
+          <span className="text-[10px] text-gray-400">메시지를 입력하세요...</span>
         </div>
-        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] text-white transition-all duration-300 ${
+        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] text-white transition-all duration-300 ${
           highlight === 'send' ? 'bg-cyan-600 scale-105' : 'bg-cyan-500'
         }`}>➤</div>
       </div>
@@ -419,28 +420,33 @@ function S3({ step }: { step: number }) {
 }
 
 
-/** Chat scene wallpaper — fills empty flex space so tips/video never look hollow. */
+/** ChatWallpaper — 라이브 ChatScreen과 같은 흰 헤더·회색 본문. */
 function ChatWallpaper({ children }: { children: ReactNode }) {
   return (
-    <div className="h-full flex flex-col relative overflow-hidden bg-[#e8eef5]">
-      <div
-        className="absolute inset-0 opacity-[0.35] pointer-events-none"
-        style={{
-          backgroundImage:
-            'radial-gradient(circle at 12px 12px, rgba(14,165,233,0.18) 1.5px, transparent 1.6px), radial-gradient(circle at 36px 36px, rgba(99,102,241,0.14) 1.5px, transparent 1.6px)',
-          backgroundSize: '48px 48px',
-        }}
-        aria-hidden
-      />
-      <div className="absolute top-1 left-1 right-1 z-[1] rounded-xl bg-gradient-to-r from-indigo-600 to-cyan-500 px-2 py-1 shadow-md flex items-center gap-1.5">
-        <span className="w-5 h-5 rounded-lg bg-white/20 flex items-center justify-center text-[10px]">💬</span>
-        <div className="min-w-0 flex-1">
-          <p className="text-[8px] font-black text-white truncate">1:1 채팅 · 하트, 채팅 탭</p>
-          <p className="text-[6px] font-bold text-cyan-100 truncate">하단 입력줄까지 꽉 찬 화면</p>
+    <div className="h-full flex flex-col overflow-hidden bg-gray-100">
+      <header className="bg-white shadow-sm shrink-0 z-10">
+        <div className="px-2 pt-1.5 pb-0.5 flex items-center gap-1.5">
+          <span className="text-gray-700 text-[12px] leading-none">←</span>
+          <span className="w-6 h-6 rounded-full bg-gradient-to-br from-pink-400 to-rose-500 ring-1 ring-gray-200 shrink-0" />
+          <p className="font-semibold text-gray-900 text-[11px] truncate flex-1">하늘다람쥐</p>
         </div>
-        <span className="text-[7px] font-black text-white/90 bg-black/20 rounded-full px-1.5 py-0.5">LIVE</span>
-      </div>
-      <div className="relative z-[1] flex-1 min-h-0 flex flex-col pt-8">{children}</div>
+        <div className="px-2 pb-1 flex items-center gap-1 overflow-hidden">
+          <span className="px-1.5 py-0.5 bg-amber-50 text-amber-600 text-[7px] font-bold rounded-lg border border-amber-200">📅 사주</span>
+          <span className="px-1.5 py-0.5 bg-violet-50 text-violet-600 text-[7px] font-bold rounded-lg border border-violet-200">🔮 궁합</span>
+          <span className="px-1.5 py-0.5 bg-cyan-50 text-cyan-600 text-[7px] font-bold rounded-lg border border-cyan-200">📱 공유</span>
+        </div>
+      </header>
+      <div className="relative flex-1 min-h-0 flex flex-col">{children}</div>
+    </div>
+  );
+}
+
+function ChatBubble({ mine, children }: { mine?: boolean; children: ReactNode }) {
+  return (
+    <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+      <span className={`max-w-[72%] text-[10px] px-2.5 py-1.5 ${
+        mine ? 'bg-cyan-500 text-white rounded-2xl rounded-br-md' : 'bg-white text-gray-900 rounded-2xl rounded-bl-md shadow-sm'
+      }`}>{children}</span>
     </div>
   );
 }
@@ -457,38 +463,27 @@ function S4({ step }: { step: number }) {
   const stickers = ['🎊', '🌟', '💎', '🎵', '🌈', '🦋'];
   return (
     <ChatWallpaper>
-      <div className="flex-1 px-2.5 py-1.5 flex flex-col gap-1.5 overflow-hidden justify-end">
-        <div className="flex justify-start">
-          <span className="bg-white text-gray-700 text-[10px] px-2.5 py-1.5 rounded-2xl shadow-sm border border-gray-100">오늘 재밌었어요!</span>
-        </div>
-        <div className="flex justify-start">
-          <span className="bg-white text-gray-700 text-[10px] px-2.5 py-1.5 rounded-2xl shadow-sm border border-gray-100">이모지·스티커 써봐요 ✨</span>
-        </div>
-        <div className="flex justify-end">
-          <span className="bg-cyan-500 text-white text-[10px] px-2.5 py-1.5 rounded-2xl shadow-sm">저도요 😊</span>
-        </div>
+      <div className="flex-1 px-3 py-2 flex flex-col gap-1 overflow-hidden justify-end">
+        <ChatBubble>오늘 재밌었어요!</ChatBubble>
+        <ChatBubble>이모지·스티커 써봐요 ✨</ChatBubble>
+        <ChatBubble mine>저도요 😊</ChatBubble>
         {pickedEmoji && (
-          <div className="flex justify-end animate-in fade-in duration-400">
-            <span className="bg-cyan-500 text-white text-[10px] px-2.5 py-1.5 rounded-2xl">{pickedEmoji}</span>
+          <div className="animate-in fade-in duration-400">
+            <ChatBubble mine>{pickedEmoji}</ChatBubble>
           </div>
         )}
         {step >= 6 && (
           <div className="flex justify-end animate-in fade-in duration-400">
-            <span className="bg-cyan-500/90 text-white text-2xl px-3 py-2 rounded-2xl shadow-md ring-2 ring-white/40">🎊</span>
-          </div>
-        )}
-        {!showEmoji && !showSticker && !pickedEmoji && step < 6 && (
-          <div className="mt-auto rounded-xl border border-dashed border-indigo-300/70 bg-white/70 px-2 py-1.5 text-center">
-            <p className="text-[8px] font-black text-indigo-600">입력줄 · 😊 이모지 · + 스티커</p>
+            <span className="bg-cyan-500 text-white text-2xl px-3 py-2 rounded-2xl rounded-br-md">🎊</span>
           </div>
         )}
       </div>
 
       {showEmoji && (
-        <div className="bg-white border-t border-indigo-100 p-2 animate-in fade-in slide-in-from-bottom-2 duration-400 shadow-[0_-4px_12px_rgba(99,102,241,0.12)]">
-          <div className="flex gap-1 mb-1">
+        <div className="bg-white border-t border-gray-200 p-2 animate-in fade-in slide-in-from-bottom-2 duration-400">
+          <div className="flex gap-1 mb-1 bg-gray-50 px-1 py-0.5">
             {['😀 표정', '❤️ 하트', '🎉 축하'].map((c, i) => (
-              <span key={c} className={`px-1.5 py-0.5 rounded-full text-[7px] font-bold ${i === 0 ? 'bg-cyan-50 text-cyan-600 ring-1 ring-cyan-300' : 'bg-gray-50 text-gray-400'}`}>{c}</span>
+              <span key={c} className={`flex-1 text-center px-1 py-0.5 rounded text-[7px] font-bold ${i === 0 ? 'text-cyan-600' : 'text-gray-400 opacity-40'}`}>{c}</span>
             ))}
           </div>
           <div className="grid grid-cols-8 gap-0.5">
@@ -505,7 +500,7 @@ function S4({ step }: { step: number }) {
       )}
 
       {showMore && (
-        <div className="bg-white border-t border-indigo-100 px-2 py-1.5 flex items-center gap-1 animate-in fade-in duration-300">
+        <div className="bg-white border-t border-gray-200 px-2 pt-1.5 flex items-center gap-1 animate-in fade-in duration-300">
           <div className="p-1.5 rounded-full text-gray-400 text-sm">📷</div>
           <div className="relative p-1.5 rounded-full bg-rose-50 text-base">
             <Ring on color="ring-rose-400" />
@@ -518,7 +513,7 @@ function S4({ step }: { step: number }) {
       )}
 
       {showSticker && (
-        <div className="bg-white border-t border-indigo-100 p-2 animate-in fade-in slide-in-from-bottom-2 duration-400">
+        <div className="bg-white border-t border-gray-200 p-2 animate-in fade-in slide-in-from-bottom-2 duration-400">
           <p className="text-indigo-500 text-[8px] font-black mb-1">🎨 스티커 — + 다음 🎨</p>
           <div className="grid grid-cols-6 gap-1">
             {stickers.map((s, i) => (
@@ -559,48 +554,38 @@ function S5({ step }: { step: number }) {
   const quickMsgs = ['오늘 즐거웠어요 ☺️', '술 한 잔 더 할래요? 🍺', '번호 교환해요! 📱', '이따가 연락해요 ☎️'];
   return (
     <ChatWallpaper>
-      <div className="flex-1 px-2.5 py-1.5 space-y-1.5 overflow-hidden flex flex-col justify-end">
-        <div className="flex justify-start">
-          <span className="bg-white text-gray-700 text-[10px] px-2.5 py-1.5 rounded-2xl shadow-sm border border-gray-100">사진 있어요?</span>
-        </div>
-        <div className="flex justify-start">
-          <span className="bg-white text-gray-600 text-[9px] px-2 py-1 rounded-2xl border border-dashed border-indigo-200">+ 버튼 → 📷 사진 · ⚡ 빠른 메시지</span>
-        </div>
+      <div className="flex-1 px-3 py-2 space-y-1 overflow-hidden flex flex-col justify-end">
+        <ChatBubble>사진 있어요?</ChatBubble>
         {showUploading && (
           <div className="flex justify-end">
-            <div className="bg-cyan-400/50 rounded-2xl p-2 w-24 h-16 flex items-center justify-center animate-pulse ring-2 ring-cyan-300/50">
+            <div className="bg-cyan-400/50 rounded-2xl rounded-br-md p-2 w-24 h-16 flex items-center justify-center animate-pulse">
               <span className="text-white text-[9px] font-bold">업로드 중…</span>
             </div>
           </div>
         )}
         {imgSent && (
           <div className="flex justify-end animate-in fade-in duration-500">
-            <div className="bg-cyan-500 rounded-2xl p-1.5 w-24 h-16 flex items-center justify-center shadow-md ring-2 ring-white/30">
+            <div className="bg-cyan-500 rounded-2xl rounded-br-md p-1.5 w-24 h-16 flex items-center justify-center">
               <span className="text-3xl">🌅</span>
             </div>
           </div>
         )}
         {step >= 7 && (
-          <div className="flex justify-end animate-in fade-in duration-400">
-            <span className="bg-cyan-500 text-white text-[10px] px-2.5 py-1.5 rounded-2xl">번호 교환해요! 📱</span>
-          </div>
-        )}
-        {!showQuick && !imgSent && !showUploading && (
-          <div className="rounded-xl bg-gradient-to-r from-violet-500/15 to-cyan-500/15 border border-violet-200 px-2 py-1.5">
-            <p className="text-[8px] font-black text-violet-700 text-center">하단이 비지 않게 · 사진·빠른말 패널이 채움</p>
+          <div className="animate-in fade-in duration-400">
+            <ChatBubble mine>오늘 즐거웠어요 ☺️</ChatBubble>
           </div>
         )}
       </div>
 
       {showQuick && (
-        <div className="bg-white border-t border-violet-100 p-2 animate-in fade-in slide-in-from-bottom-2 duration-400 max-h-[7.5rem] overflow-hidden shadow-[0_-4px_12px_rgba(139,92,246,0.15)]">
+        <div className="bg-white border-t border-gray-200 p-2 animate-in fade-in slide-in-from-bottom-2 duration-400 max-h-[7.5rem] overflow-hidden">
           <p className="text-violet-500 text-[8px] font-black mb-1">⚡ 빠른 메시지</p>
           <div className="space-y-1">
             {quickMsgs.map((q, i) => (
               <div key={q} className={`relative px-2.5 py-1 rounded-xl text-[9px] font-semibold transition-all duration-300 ${
-                step >= 6 && i === 2 ? 'bg-violet-500 text-white' : 'bg-gray-50 text-gray-600'
+                step >= 6 && i === 0 ? 'bg-violet-500 text-white' : 'bg-gray-50 text-gray-600'
               }`}>
-                <Ring on={step === 5 && i === 2} color="ring-violet-400" />
+                <Ring on={step === 5 && i === 0} color="ring-violet-400" />
                 {q}
               </div>
             ))}
@@ -611,7 +596,7 @@ function S5({ step }: { step: number }) {
       {!showQuick && (
         <>
           {showMore && (
-            <div className="bg-white border-t border-indigo-100 px-2 py-1.5 flex items-center gap-1 animate-in fade-in duration-300">
+            <div className="bg-white border-t border-gray-200 px-2 pt-1.5 flex items-center gap-1 animate-in fade-in duration-300">
               <div className={`relative p-1.5 rounded-full text-sm transition-all duration-300 ${
                 step === 1 || step === 2 ? 'bg-cyan-50 text-cyan-600' : 'text-gray-400'
               }`}>
@@ -646,14 +631,12 @@ function S6({ step }: { step: number }) {
   const showCtx = step >= 4;
   return (
     <ChatWallpaper>
-      <div className="flex-1 px-2.5 py-1.5 space-y-2 overflow-hidden flex flex-col justify-end relative">
-        <div className="flex justify-start">
-          <span className="bg-white text-gray-500 text-[9px] px-2 py-1 rounded-2xl border border-dashed border-slate-200">이전 대화도 채워 두어 빈 여백 없음</span>
-        </div>
+      <div className="flex-1 px-3 py-2 space-y-1 overflow-hidden flex flex-col justify-end relative">
+        <ChatBubble>오늘 같은 자리라 반가웠어요!</ChatBubble>
         <div className="flex justify-start">
           <div className="relative transition-transform duration-500 ease-out" style={{ transform: `translateX(${swipeOffset}px)` }}>
-            <span className="bg-white text-gray-700 text-[10px] px-2.5 py-1.5 rounded-2xl inline-block shadow-sm border border-gray-100">
-              오늘 같은 자리라 반가웠어요!
+            <span className="bg-white text-gray-900 text-[10px] px-2.5 py-1.5 rounded-2xl rounded-bl-md inline-block shadow-sm max-w-[72%]">
+              내일도 올 거죠?
             </span>
             <Ring on={step === 1} color="ring-cyan-400" />
             {step === 1 && (
@@ -665,20 +648,22 @@ function S6({ step }: { step: number }) {
         </div>
 
         {showReply && (
-          <div className="bg-cyan-50 border-l-4 border-cyan-400 rounded-r-xl px-2.5 py-1.5 animate-in fade-in duration-500">
-            <p className="text-cyan-600 text-[8px] font-black">상대에 답장</p>
-            <p className="text-gray-500 text-[9px] line-clamp-1">오늘 같은 자리라 반가웠어요!</p>
+          <div className="flex items-center gap-1 animate-in fade-in duration-500">
+            <div className="flex-1 min-w-0 bg-cyan-50 border-l-4 border-cyan-400 rounded-r-xl px-2 py-1 text-[9px] text-gray-600">
+              <span className="font-bold text-cyan-600 mr-1">하늘다람쥐에 답장</span>
+              <span className="line-clamp-1">내일도 올 거죠?</span>
+            </div>
           </div>
         )}
         {showReply && (
-          <div className="flex justify-end animate-in fade-in duration-500">
-            <span className="bg-cyan-500 text-white text-[10px] px-2.5 py-1.5 rounded-2xl">저도요! 연락해요 😊</span>
+          <div className="animate-in fade-in duration-500">
+            <ChatBubble mine>저도요! 연락해요 😊</ChatBubble>
           </div>
         )}
 
         <div className="flex justify-end">
           <div className="relative">
-            <span className={`bg-cyan-500 text-white text-[10px] px-2.5 py-1.5 rounded-2xl inline-block transition-all duration-400 ${
+            <span className={`bg-cyan-500 text-white text-[10px] px-2.5 py-1.5 rounded-2xl rounded-br-md inline-block transition-all duration-400 ${
               step === 3 ? 'ring-2 ring-cyan-300 scale-[1.03]' : ''
             }`}>내일 또 봬요!</span>
             <Ring on={step === 3} color="ring-cyan-300" />
@@ -714,63 +699,45 @@ function S6({ step }: { step: number }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Scene 7: 받은 하트 · 보낸 하트 (내 상태) + 잠금→해금 헤더
+// Scene 7: 받은 하트 (하트, 채팅 → 내 상태)
 // ══════════════════════════════════════════════════════════════════════════════
 function S7({ step }: { step: number }) {
   const unlocked = step >= 2;
-  const accepted = step >= 5;
-  const showSent = step >= 6;
+  const accepted = step >= 6;
 
   return (
     <div className="h-full flex flex-col bg-slate-900">
       <HeartHeader unlocked={unlocked} />
       <div className="flex-1 overflow-hidden px-2.5 pt-1.5 pb-1 space-y-1.5">
-        <div className={`rounded-lg px-2 py-1 flex items-center justify-between border ${
-          unlocked ? 'border-cyan-400/50 bg-cyan-500/10' : 'border-amber-400/40 bg-amber-500/10'
-        }`}>
-          <p className="text-[8px] font-black text-slate-200">하트, 채팅 → 내 상태</p>
-          <span className={`text-[7px] font-black px-1.5 py-0.5 rounded-full ${
-            unlocked ? 'bg-cyan-400 text-slate-950' : 'bg-amber-400 text-slate-950'
-          }`}>{unlocked ? '해금됨' : '잠금 중'}</span>
-        </div>
         <div className="flex rounded-lg p-0.5 bg-slate-700">
           <div className="flex-1 py-1 text-center text-[8px] font-black rounded-md bg-slate-600 text-white">💝 내 상태</div>
           <div className="flex-1 py-1 text-center text-[8px] font-black text-slate-400">💬 내 채팅</div>
         </div>
 
         {step >= 1 && !unlocked && (
-          <div className="rounded-xl border border-amber-500/40 bg-amber-950/30 px-2 py-1.5 animate-in fade-in duration-400">
-            <p className="text-[8px] font-black text-amber-200">🔒 하트 잠금</p>
+          <div className="relative rounded-xl border border-amber-500/40 bg-amber-950/30 px-2 py-1.5">
+            <p className="text-[8px] font-black text-amber-200">🔒 아직 잠금</p>
             <p className="text-[7px] text-amber-100/80 font-bold mt-0.5 leading-snug">정해진 시간에 호감·친구·뜨밤·칭찬·무지개가 열려요. 남은 시간은 위 안내줄</p>
             <Ring on={step === 1} color="ring-amber-400" />
           </div>
         )}
 
-        {unlocked && step < 3 && (
-          <div className="rounded-xl border border-cyan-500/40 bg-cyan-950/25 px-2 py-1 animate-in fade-in duration-400">
-            <p className="text-[8px] font-black text-cyan-200">✅ 해금됨</p>
-            <p className="text-[7px] text-cyan-100/80 font-bold">일반 하트는 종류당 1번 · 무지개는 4번, 일반 하트는 안 줄어요</p>
-          </div>
-        )}
+        <div className="flex flex-col items-center py-0.5">
+          <span className="text-sm leading-none" aria-hidden>👇</span>
+          <span className="text-[7px] font-bold text-rose-300">받은 하트가 있어요 확인해보세요</span>
+        </div>
 
-        {step >= 1 && (
-          <div className="flex flex-col items-center py-0.5">
-            <span className="text-sm leading-none" aria-hidden>👇</span>
-            <span className="text-[7px] font-bold text-rose-300">받은 하트가 있어요 확인해보세요</span>
-          </div>
-        )}
-
-        <div className={`relative rounded-2xl overflow-hidden border transition-all duration-500 ${
+        <div className={`relative rounded-2xl overflow-hidden border ${
           step >= 3 ? 'border-pink-500/50 bg-slate-800' : 'border-slate-700 bg-slate-800'
         }`}>
           <Ring on={step === 3 || step === 4} color="ring-pink-400" />
-          <Tip text="받은 하트" show={step === 3} dir="right" />
+          <Tip text="받은 하트 확인" show={step === 3} dir="right" />
           <div className="flex items-center justify-between px-2.5 py-1.5">
             <p className="text-[9px] font-black text-slate-200">💕 받은 하트</p>
             <span className="px-1.5 py-0.5 bg-rose-500/20 text-rose-300 text-[7px] font-bold rounded-full">1개 미응답</span>
           </div>
-          <div className="px-2 pb-2 space-y-1.5">
-            <div className={`rounded-xl p-2 transition-all duration-400 ${step >= 4 ? 'bg-rose-900/25 ring-1 ring-pink-400/50' : 'bg-slate-700/60'}`}>
+          <div className="px-2 pb-2">
+            <div className={`rounded-xl p-2 ${step >= 4 ? 'bg-rose-900/25 ring-1 ring-pink-400/50' : 'bg-slate-700/60'}`}>
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-pink-400 to-rose-500 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
@@ -781,7 +748,9 @@ function S7({ step }: { step: number }) {
               {step >= 4 && !accepted && (
                 <div className="flex gap-1 mt-1.5">
                   <span className="flex-1 py-1 text-center bg-slate-600 text-slate-200 text-[7px] font-bold rounded-lg">거절</span>
-                  <span className="flex-[1.4] py-1 text-center bg-rose-500 text-white text-[7px] font-bold rounded-lg animate-pulse">
+                  <span className="relative flex-[1.4] py-1 text-center bg-rose-500 text-white text-[7px] font-bold rounded-lg">
+                    <Ring on={step === 5} color="ring-rose-300" />
+                    <Tip text="수락하면 연락처 공유" show={step === 5} dir="top" />
                     수락 + 연락처 공유
                   </span>
                 </div>
@@ -794,30 +763,156 @@ function S7({ step }: { step: number }) {
             </div>
           </div>
         </div>
-
-        {showSent && (
-          <div className="relative rounded-2xl overflow-hidden border border-amber-500/60 bg-slate-800 animate-in fade-in duration-500">
-            <Ring on color="ring-amber-400" />
-            <Tip text="보낸 하트" show={step === 6} dir="right" />
-            <p className="text-[9px] font-black text-slate-200 px-2.5 py-1.5">💌 보낸 하트</p>
-            <div className="px-2 pb-2 grid grid-cols-2 gap-1.5">
-              <div className="rounded-xl p-1.5 bg-amber-900/25">
-                <div className="w-full h-8 rounded-lg bg-gradient-to-br from-rose-400 to-pink-600 mb-1" />
-                <p className="text-white text-[8px] font-bold truncate">황금여우</p>
-                <p className="text-[7px] text-rose-300">❤️ 호감</p>
-                <span className="mt-0.5 inline-block text-[6px] font-bold px-1 py-0.5 rounded bg-amber-500/20 text-amber-300">대기 중</span>
-              </div>
-              <div className="rounded-xl p-1.5 bg-slate-700/60">
-                <div className="w-full h-8 rounded-lg bg-gradient-to-br from-sky-400 to-blue-600 mb-1" />
-                <p className="text-white text-[8px] font-bold truncate">파란고래</p>
-                <p className="text-[7px] text-blue-300">💙 친구</p>
-                <span className="mt-0.5 inline-block text-[6px] font-bold px-1 py-0.5 rounded bg-teal-500/20 text-teal-300">수락됨</span>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
       <Tabs active="my" hl={step === 0 ? 'my' : undefined} />
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Scene 8: 하트 보내기 (참여자 카드 → 종류 고르기)
+// ══════════════════════════════════════════════════════════════════════════════
+function S8({ step }: { step: number }) {
+  const dialog = step >= 2;
+  const selected = step >= 4;
+  const sent = step >= 6;
+  return (
+    <div className="h-full flex flex-col bg-slate-900 relative">
+      <HeartHeader unlocked />
+      <div className="flex-1 overflow-hidden px-3 pt-2 flex flex-col items-center justify-center">
+        <div className="relative w-[7.6rem] rounded-xl overflow-hidden border border-slate-600 bg-slate-800">
+          <div className="h-20 bg-gradient-to-br from-teal-700 to-slate-800" />
+          <div className="absolute bottom-8 inset-x-0 bg-white/95 px-1.5 py-0.5">
+            <div className="flex items-center">
+              <span className="text-[9px] font-black text-gray-950">황금여우</span>
+              <span className="ml-auto text-[8px] font-bold text-gray-600">27</span>
+            </div>
+            <p className="text-[6px] text-gray-500 font-bold truncate">ENFP · #맥주</p>
+          </div>
+          <div className="bg-white px-1 py-1 flex gap-1">
+            <div className={`relative flex-1 py-0.5 rounded border border-rose-200 text-center text-[8px] font-bold text-rose-500 ${step === 1 ? 'ring-2 ring-rose-400' : ''}`}>
+              <Ring on={step === 1} color="ring-rose-400" />
+              <Tip text="카드 아래 하트" show={step === 1} dir="top" />
+              하트
+            </div>
+            <div className="flex-1 py-0.5 rounded border border-sky-200 text-center text-[8px] font-bold text-sky-500">채팅</div>
+          </div>
+        </div>
+        {sent && (
+          <p className="mt-2 text-[8px] font-black text-rose-200 animate-in fade-in duration-400">❤️ 호감 하트를 보냈어요</p>
+        )}
+      </div>
+
+      {dialog && !sent && (
+        <div className="absolute inset-0 z-20 flex items-end justify-center bg-black/50 p-2">
+          <div className="bg-white rounded-2xl w-full max-w-[210px] p-2.5 shadow-2xl">
+            <p className="text-center text-[10px] font-black text-gray-900">황금여우</p>
+            <p className="text-center text-[7px] font-bold text-teal-600 mt-0.5">종류별로 한 번 보낼 수 있어요</p>
+            <div className="mt-1.5 space-y-1">
+              {[{ e: '❤️', l: '호감' }, { e: '💙', l: '친구' }, { e: '💗', l: '뜨밤' }, { e: '💚', l: '칭찬' }].map((h, i) => (
+                <div
+                  key={h.l}
+                  className={`relative flex items-center gap-2 px-2 py-1 rounded-xl border-2 text-left ${
+                    selected && i === 0 ? 'border-rose-300 bg-rose-50' : 'border-gray-200'
+                  }`}
+                >
+                  <Ring on={step === 3 && i === 0} color="ring-rose-400" />
+                  {step === 3 && i === 0 && <Tip text="호감 고르기" show dir="right" />}
+                  <span className="text-sm">{h.e}</span>
+                  <span className="text-[9px] font-bold text-gray-800">{h.l}</span>
+                  <span className="ml-auto text-[8px]">🔓</span>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-1.5 mt-2">
+              <span className="flex-1 py-1.5 text-center bg-gray-100 rounded-xl text-[8px] font-bold text-gray-600">취소</span>
+              <span className={`relative flex-1 py-1.5 text-center rounded-xl text-[8px] font-bold text-white ${selected ? 'bg-rose-500' : 'bg-gray-300'}`}>
+                <Ring on={step === 5} color="ring-rose-300" />
+                <Tip text="보내기" show={step === 5} dir="top" />
+                보내기
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+      <Tabs active="profiles" hl={step === 0 ? 'profiles' : undefined} />
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Scene 9: 무지개하트 (4번 · 일반 하트는 줄지 않음)
+// ══════════════════════════════════════════════════════════════════════════════
+function S9({ step }: { step: number }) {
+  const rainbowOpen = step >= 3;
+  const picked = step >= 5;
+  const sent = step >= 7;
+  const left = sent ? 3 : 4;
+  return (
+    <div className="h-full flex flex-col bg-slate-900 relative">
+      <HeartHeader unlocked rainbowLeft={left} />
+      <div className="flex-1 overflow-hidden px-3 pt-2 flex flex-col items-center">
+        <p className="text-[8px] font-black text-fuchsia-200 mb-1">무지개는 4번 · 일반 하트는 줄지 않아요</p>
+        <div className="bg-white rounded-2xl w-full max-w-[210px] p-2.5 shadow-xl">
+          <p className="text-center text-[10px] font-black text-gray-900">하늘다람쥐</p>
+          <div className="mt-1.5 space-y-1 opacity-50">
+            {[{ e: '❤️', l: '호감' }, { e: '💙', l: '친구' }].map(h => (
+              <div key={h.l} className="flex items-center gap-2 px-2 py-1 rounded-xl border-2 border-gray-100">
+                <span className="text-sm">{h.e}</span>
+                <span className="text-[9px] font-bold text-gray-800">{h.l}</span>
+                <span className="ml-auto text-[7px] text-gray-400">전송됨</span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-2 flex justify-center">
+            <div className={`relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border-2 text-[9px] font-bold ${
+              step >= 2 ? 'border-fuchsia-300 bg-fuchsia-50 text-fuchsia-800' : 'border-gray-100 text-gray-400'
+            }`}>
+              <Ring on={step === 2} color="ring-fuchsia-400" />
+              <Tip text="무지개하트 누르기" show={step === 2} dir="top" />
+              <span>🌈</span>
+              <span>무지개하트</span>
+              <span className="tabular-nums">{left}</span>
+            </div>
+          </div>
+        </div>
+        {sent && (
+          <p className="mt-2 text-[8px] font-black text-fuchsia-200 animate-in fade-in duration-400">💙 무지개로 친구 하트 · 일반은 그대로</p>
+        )}
+      </div>
+
+      {rainbowOpen && !sent && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/50 p-3">
+          <div className="bg-white rounded-2xl w-full max-w-[190px] p-3 shadow-2xl">
+            <p className="text-center text-[10px] font-black text-gray-900">무지개 — 보낼 하트 선택</p>
+            <p className="text-center text-[8px] font-semibold text-gray-500 mt-0.5">일반 하트는 줄지 않아요</p>
+            <div className="grid grid-cols-2 gap-1.5 mt-2">
+              {[{ e: '❤️', l: '호감' }, { e: '💙', l: '친구' }, { e: '💗', l: '뜨밤' }, { e: '💚', l: '칭찬' }].map((h, i) => (
+                <div
+                  key={h.l}
+                  className={`relative flex flex-col items-center gap-0.5 p-2 rounded-xl border-2 ${
+                    picked && i === 1 ? 'border-blue-300 bg-blue-50' : 'border-gray-200'
+                  }`}
+                >
+                  <Ring on={step === 4 && i === 1} color="ring-blue-400" />
+                  {step === 4 && i === 1 && <Tip text="색 고르기" show dir="top" />}
+                  <span className="text-base">{h.e}</span>
+                  <span className="text-[8px] font-bold">{h.l}</span>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-1.5 mt-2">
+              <span className="flex-1 py-1.5 text-center bg-gray-100 rounded-xl text-[8px] font-bold">뒤로</span>
+              <span className={`relative flex-1 py-1.5 text-center rounded-xl text-[8px] font-bold text-white ${picked ? 'bg-blue-500' : 'bg-gray-300'}`}>
+                <Ring on={step === 6} />
+                <Tip text="보내기" show={step === 6} dir="top" />
+                보내기
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+      <Tabs active="profiles" />
     </div>
   );
 }
@@ -876,7 +971,7 @@ const SCENES: SceneDef[] = [
     render: s => <S3 step={s} />,
   },
   {
-    title: '채팅 화면이 이렇게 꽉 차요', sub: '😊 이모지 · + 다음 🎨 스티커 · 하단 여백 없음',
+    title: '이모지 · 스티커', sub: '입력줄 😊 이모지 · + 다음 🎨 스티커',
     steps: [
       { cx: 42,  cy: 228, dur: 1300 },
       { cx: 42,  cy: 228, click: true,  dur: 1000 },
@@ -892,7 +987,7 @@ const SCENES: SceneDef[] = [
     render: s => <S4 step={s} />,
   },
   {
-    title: '사진·빠른말로 채팅 채우기', sub: '+ 펼침 → 📷 사진 · ⚡ 빠른 메시지 (빈 칸 없음)',
+    title: '사진 · 빠른 메시지', sub: '+ 펼침 → 📷 사진 · ⚡ 빠른 메시지',
     steps: [
       { cx: 28,  cy: 228, dur: 1200 },
       { cx: 28,  cy: 228, click: true,  dur: 1000 },
@@ -908,7 +1003,7 @@ const SCENES: SceneDef[] = [
     render: s => <S5 step={s} />,
   },
   {
-    title: '스와이프 답장 · 길게 메뉴', sub: '대화가 가득 찬 채팅창에서 제스처로 답장',
+    title: '스와이프 답장 · 길게 메뉴', sub: '옆으로 밀면 답장 · 길게 누르면 복사·삭제',
     steps: [
       { cx: 80,  cy: 70,  dur: 1200 },
       { cx: 150, cy: 70,  dur: 1300 },
@@ -923,18 +1018,46 @@ const SCENES: SceneDef[] = [
     render: s => <S6 step={s} />,
   },
   {
-    title: '하트 잠금→해금 · 무지개 4', sub: '상단 하트 잠금→해금, 무지개는 4번. 하트, 채팅 → 내 상태',
+    title: '하트 잠금→해금 · 받은 하트', sub: '하트, 채팅 → 내 상태. 받은 하트를 수락하면 연락처가 공유돼요',
     steps: [
       { cx: 74,  cy: 232, dur: 1200 },
       { cx: 74,  cy: 232, click: true,  dur: 1000 },
       { cx: 190, cy: 28,  dur: 1500 },
-      { cx: 124, cy: 95,  dur: 1400 },
-      { cx: 124, cy: 130, dur: 1300 },
-      { cx: 175, cy: 150, click: true,  dur: 1300 },
-      { cx: 124, cy: 195, dur: 1500 },
-      { cx: 124, cy: 210, dur: 2200 },
+      { cx: 124, cy: 88,  dur: 1300 },
+      { cx: 124, cy: 145, dur: 1400 },
+      { cx: 165, cy: 175, click: true,  dur: 1300 },
+      { cx: 124, cy: 175, dur: 1800 },
     ],
     render: s => <S7 step={s} />,
+  },
+  {
+    title: '하트 보내기', sub: '참여자 카드 아래 하트 → 호감·친구·뜨밤·칭찬 중 하나. 종류마다 한 번',
+    steps: [
+      { cx: 124, cy: 232, dur: 1100 },
+      { cx: 90,  cy: 155, dur: 1300 },
+      { cx: 90,  cy: 155, click: true,  dur: 1000 },
+      { cx: 124, cy: 118, dur: 1300 },
+      { cx: 124, cy: 118, click: true,  dur: 1000 },
+      { cx: 165, cy: 200, dur: 1200 },
+      { cx: 165, cy: 200, click: true,  dur: 1100 },
+      { cx: 124, cy: 160, dur: 1800 },
+    ],
+    render: s => <S8 step={s} />,
+  },
+  {
+    title: '하트 잠금→해금 · 무지개 4', sub: '🌈 무지개는 4번. 색을 골라 보내고, 일반 하트는 줄지 않아요',
+    steps: [
+      { cx: 200, cy: 28,  dur: 1400 },
+      { cx: 124, cy: 70,  dur: 1300 },
+      { cx: 124, cy: 168, dur: 1300 },
+      { cx: 124, cy: 168, click: true,  dur: 1100 },
+      { cx: 155, cy: 128, dur: 1300 },
+      { cx: 155, cy: 128, click: true,  dur: 1000 },
+      { cx: 165, cy: 188, dur: 1200 },
+      { cx: 165, cy: 188, click: true,  dur: 1100 },
+      { cx: 200, cy: 28,  dur: 2000 },
+    ],
+    render: s => <S9 step={s} />,
   },
 ];
 
@@ -1068,24 +1191,30 @@ export function TutorialVideo({
     return Math.min(100, (done / total) * 100);
   })();
 
+  const DESIGN_W = 248;
   const DESIGN_H = 248;
   const COMPACT_STAGE_H = 144;
   const scaleStage = compact || fill;
   const stageRef = useRef<HTMLDivElement>(null);
-  const [stageH, setStageH] = useState(compact ? COMPACT_STAGE_H : DESIGN_H);
+  const [stageBox, setStageBox] = useState({ w: DESIGN_W, h: compact ? COMPACT_STAGE_H : DESIGN_H });
   // 페인트 전에 재야 한다. useEffect로 재면 첫 프레임이 기본 높이 기준 축소 배율로 그려져 화면이 튄다.
   useLayoutEffect(() => {
     if (!scaleStage) return;
     const el = stageRef.current;
     if (!el) return;
-    const sync = () => setStageH(el.clientHeight || (compact ? COMPACT_STAGE_H : DESIGN_H));
+    const sync = () => setStageBox({
+      w: el.clientWidth || DESIGN_W,
+      h: el.clientHeight || (compact ? COMPACT_STAGE_H : DESIGN_H),
+    });
     sync();
     if (typeof ResizeObserver === 'undefined') return;
     const ro = new ResizeObserver(sync);
     ro.observe(el);
     return () => ro.disconnect();
   }, [scaleStage, compact]);
-  const sceneScale = scaleStage ? Math.min(1, stageH / DESIGN_H) : 1;
+  const sceneScale = scaleStage
+    ? Math.min(1, stageBox.w / DESIGN_W, stageBox.h / DESIGN_H)
+    : 1;
   const sceneH = embedded ? 220 : 280;
   const clock = (() => {
     const total = scene.steps.reduce((a, s) => a + s.dur, 0);
@@ -1127,7 +1256,7 @@ export function TutorialVideo({
 
       <div
         ref={stageRef}
-        className={`overflow-hidden scrollbar-hide bg-slate-900 relative ${
+        className={`overflow-hidden scrollbar-hide bg-slate-900 relative flex items-center justify-center ${
           isEmbeddedCompact
             ? 'flex-1 min-h-0 mx-0 rounded-none'
             : `${compact ? 'mx-1.5 rounded-xl' : 'mx-2 mb-1 rounded-2xl'} ${fill ? 'flex-1 min-h-0' : 'flex-shrink-0'}`
@@ -1153,13 +1282,12 @@ export function TutorialVideo({
       >
         <div
           key={sceneIdx}
-          className="w-full relative transition-opacity duration-300 ease-out overflow-hidden scrollbar-hide"
+          className="relative transition-opacity duration-300 ease-out overflow-hidden scrollbar-hide shrink-0"
           style={{
-            ...(scaleStage ? {
-              height: DESIGN_H,
-              transform: `scale(${sceneScale})`,
-              transformOrigin: 'top center',
-            } : { height: '100%' }),
+            width: DESIGN_W,
+            height: DESIGN_H,
+            transform: `scale(${sceneScale})`,
+            transformOrigin: 'center center',
             opacity: sceneFade,
           }}
         >

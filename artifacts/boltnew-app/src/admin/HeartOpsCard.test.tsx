@@ -24,10 +24,10 @@ describe('HeartOpsCard schedule clock', () => {
 
     fireEvent.change(screen.getByLabelText('해금 분 1'), { target: { value: '15' } });
     fireEvent.change(screen.getByLabelText('해금 분 2'), { target: { value: '45' } });
-    expect((screen.getByLabelText('해금 시 3') as HTMLSelectElement).value).toBe('24');
-    expect((screen.getByLabelText('해금 분 3') as HTMLSelectElement).value).toBe('0');
-    expect((screen.getByLabelText('해금 시 4') as HTMLSelectElement).value).toBe('24');
-    expect((screen.getByLabelText('해금 분 4') as HTMLSelectElement).value).toBe('30');
+    expect((screen.getByLabelText('해금 시 3') as HTMLInputElement).value).toBe('24');
+    expect((screen.getByLabelText('해금 분 3') as HTMLInputElement).value).toBe('00');
+    expect((screen.getByLabelText('해금 시 4') as HTMLInputElement).value).toBe('24');
+    expect((screen.getByLabelText('해금 분 4') as HTMLInputElement).value).toBe('30');
 
     fireEvent.click(screen.getByRole('button', { name: /스케줄 저장/ }));
     expect(onSave).toHaveBeenCalledTimes(1);

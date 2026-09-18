@@ -740,8 +740,8 @@ export function MainScreen({
                         : (darkMode ? 'bg-fuchsia-900/60 text-fuchsia-200' : 'bg-fuchsia-50 text-fuchsia-800')
                     }`}
                   >
-                    <span data-testid="home-heart-lock" aria-hidden className="col-span-2 row-span-2 flex items-center justify-center text-[13px] leading-none">{rainbow.emoji}</span>
-                    <span data-testid="home-heart-remaining-rainbow" className="sr-only">{rainbow.remaining}</span>
+                    <span data-testid="home-heart-lock" aria-hidden className="col-span-2 flex items-center justify-center text-[13px] leading-none">{rainbow.emoji}</span>
+                    <span data-testid="home-heart-remaining-rainbow" className="col-span-2 flex items-center justify-center text-[10px] font-black tabular-nums leading-none">{rainbow.remaining}</span>
                   </div>
                   <div className="grid grid-cols-2 grid-rows-2 gap-px w-11 h-11 shrink-0">
                     {colors.map((chip) => (

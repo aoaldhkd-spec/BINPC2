@@ -54,7 +54,6 @@ const BASIC: Topic[] = [
         ],
       },
     ],
-    footer: '🔒 번호·SNS 교환 금지 · 하트는 참여자 카드 아래',
   },
   {
     id: 'heart',
@@ -62,8 +61,8 @@ const BASIC: Topic[] = [
     label: '하트',
     title: '하트 보내기',
     color: 'from-pink-500 to-rose-500',
-    video: [6],
-    videoHint: '받은·보낸 하트 확인하는 방법',
+    video: [6, 7, 8],
+    videoHint: '받기 · 보내기 · 무지개하트',
     tips: [
       { icon: '🤍', title: '보내고 확인', desc: '참여자 카드 아래 하트로 보내고, 하트, 채팅 → 내 상태에서 확인.' },
       { icon: '❤️', title: '일반 하트 4종', desc: '❤️호감 💙친구 💗뜨밤 💚칭찬. 종류마다 딱 한 번 보낼 수 있어요.' },
@@ -162,11 +161,11 @@ const KR_WRAP = 'break-keep [word-break:keep-all] [line-break:strict] [overflow-
 
 /** Fixed shell — identical height on every topic/mode (tips + video). No inner scroll. */
 const MODAL_SHELL =
-  'w-[calc(100vw-1rem)] max-w-md h-[min(560px,calc(85dvh-var(--safe-top,0px)-var(--safe-bottom,0px)))]';
+  'w-[min(28rem,calc(100vw-2rem))] max-w-md h-[min(560px,calc(85dvh-var(--safe-top,0px)-var(--safe-bottom,0px)))]';
 
 /** One tip-card size on every topic so the densest page still fits without scrolling. */
 const TIP_BOX = 'h-[2.75rem] items-center';
-/** 안내 탭은 2섹션(9칸) + 푸터라 기본 높이로는 푸터가 잘린다. 한 줄짜리 설명만 있어 축소해도 안전. */
+/** 안내 탭은 2섹션(9칸). 한 줄짜리 설명만 있어 축소해도 안전. */
 const TIP_BOX_DENSE = 'h-[2.25rem] items-center';
 
 type TopicAccent = {
@@ -442,40 +441,38 @@ function ChatPhoneMock({ darkMode }: { darkMode?: boolean }) {
       data-testid="tutorial-chat-phone-mock"
       aria-hidden
     >
-      <div className={`relative w-[5.25rem] flex-shrink-0 rounded-[1.1rem] border-[2.5px] overflow-hidden shadow-lg ${
-        darkMode ? 'border-slate-600 bg-slate-950' : 'border-slate-800 bg-slate-900'
-      }`}>
-        <div className="absolute top-0 inset-x-0 h-2.5 z-10 flex justify-center">
-          <span className={`mt-0.5 h-1.5 w-8 rounded-b-md ${darkMode ? 'bg-slate-800' : 'bg-black/80'}`} />
-        </div>
-        <div className="h-full flex flex-col pt-2.5 pb-0.5 px-1 bg-gradient-to-b from-slate-900 to-slate-950">
-          <div className="flex items-center gap-1 px-1 pb-0.5 border-b border-slate-700/80">
-            <span className="w-4 h-4 rounded-md bg-gradient-to-br from-pink-400 to-rose-500" />
-            <div className="min-w-0 flex-1">
-              <p className="text-[6px] font-black text-white truncate">하늘다람쥐</p>
-              <p className="text-[5px] font-bold text-teal-300">온라인</p>
+      <div className="relative w-[5.25rem] flex-shrink-0 rounded-[1.1rem] border-[2.5px] overflow-hidden shadow-lg border-gray-300 bg-gray-100">
+        <div className="h-full flex flex-col bg-gray-100">
+          <div className="bg-white shadow-sm px-1 pt-1 pb-0.5">
+            <div className="flex items-center gap-1">
+              <span className="text-[7px] text-gray-700">←</span>
+              <span className="w-3.5 h-3.5 rounded-full bg-gradient-to-br from-pink-400 to-rose-500 ring-1 ring-gray-200" />
+              <p className="text-[6px] font-semibold text-gray-900 truncate">하늘다람쥐</p>
+            </div>
+            <div className="flex gap-0.5 mt-0.5">
+              <span className="px-0.5 py-px bg-amber-50 text-amber-600 text-[4.5px] font-bold rounded border border-amber-200">사주</span>
+              <span className="px-0.5 py-px bg-violet-50 text-violet-600 text-[4.5px] font-bold rounded border border-violet-200">궁합</span>
             </div>
           </div>
-          {/* 목업 폰 화면은 80px 남짓이라 말풍선을 2개로 줄이고 아래에 붙여 최신 대화만 보이게 한다. */}
-          <div className="flex-1 min-h-0 py-0.5 flex flex-col justify-end gap-1 overflow-hidden">
+          <div className="flex-1 min-h-0 px-1 py-0.5 flex flex-col justify-end gap-1">
             <div className="flex justify-start">
-              <span className="bg-white text-slate-700 text-[5.5px] font-semibold px-1.5 py-1 rounded-lg rounded-tl-sm max-w-[90%]">오늘 반가웠어요!</span>
+              <span className="bg-white text-gray-900 text-[5.5px] font-semibold px-1.5 py-1 rounded-2xl rounded-bl-md shadow-sm max-w-[90%]">오늘 반가웠어요!</span>
             </div>
             <div className="flex justify-end">
-              <span className="bg-cyan-500 text-white text-[5.5px] font-semibold px-1.5 py-1 rounded-lg rounded-tr-sm">저도요 😊</span>
+              <span className="bg-cyan-500 text-white text-[5.5px] font-semibold px-1.5 py-1 rounded-2xl rounded-br-md">저도요 😊</span>
             </div>
           </div>
-          <div className="flex items-center gap-0.5 px-0.5 pt-0.5 border-t border-slate-700/70">
-            <span className="w-3 h-3 rounded-full bg-slate-700 text-[6px] text-slate-300 flex items-center justify-center">+</span>
+          <div className="bg-white border-t border-gray-200 px-0.5 py-0.5 flex items-center gap-0.5">
+            <span className="w-3 h-3 rounded-full text-[6px] text-gray-400 flex items-center justify-center">+</span>
             <span className="w-3 h-3 rounded-full text-[7px] flex items-center justify-center">😊</span>
-            <span className="flex-1 h-3 rounded-full bg-slate-800 border border-slate-600" />
+            <span className="flex-1 h-3 rounded-2xl border border-gray-300 bg-white" />
             <span className="w-3 h-3 rounded-full bg-cyan-500 text-[6px] text-white flex items-center justify-center">➤</span>
           </div>
         </div>
       </div>
       <div className="min-w-0 flex-1 flex flex-col justify-center gap-1 py-0.5">
         <p className={`font-black text-[11px] leading-snug ${darkMode ? 'text-white' : 'text-slate-800'}`}>
-          채팅은 이렇게 꽉 차요
+          실제 채팅 화면과 같아요
         </p>
         <p className={`text-[10px] font-semibold leading-snug line-clamp-2 ${darkMode ? 'text-indigo-200/90' : 'text-indigo-700/80'}`}>
           하트, 채팅 → 내 채팅 · 옆으로 밀면 답장
@@ -843,7 +840,7 @@ export function TutorialModal({
       className="fixed inset-0 z-[10050] flex items-center justify-center bg-slate-950/75 backdrop-blur-md overflow-hidden overscroll-none animate-[fadeIn_0.2s_ease-out]"
       style={{
         padding:
-          'max(0.5rem, var(--safe-top, 0px)) max(0.5rem, var(--safe-right, 0px)) max(0.5rem, var(--safe-bottom, 0px)) max(0.5rem, var(--safe-left, 0px))',
+          'max(1rem, var(--safe-top, 0px)) max(1rem, var(--safe-right, 0px)) max(1rem, var(--safe-bottom, 0px)) max(1rem, var(--safe-left, 0px))',
       }}
       onClick={onClose}
     >

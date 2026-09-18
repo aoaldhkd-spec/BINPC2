@@ -257,6 +257,10 @@ describe('product copy + notification invariants', () => {
     expect(video).toContain('UI 2026.09');
     expect(video).toContain('function ChatWallpaper');
     expect(video).toContain('하트 잠금→해금 · 무지개 4');
+    expect(video).toContain('하트 보내기');
+    expect(video).toContain('받은 하트');
+    expect(video).toContain('function S8');
+    expect(video).toContain('function S9');
     expect(video).toContain('LIVE');
   });
 

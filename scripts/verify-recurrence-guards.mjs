@@ -432,6 +432,11 @@ mustNotMatch('artifacts/boltnew-app/src/components/TutorialModal.tsx', '35_tutor
   /빨강하트/,
   /하트 개수/,
   /관리자가 해금한/,
+  /번호·SNS 교환 금지/,
+]);
+mustMatch('artifacts/boltnew-app/src/components/TutorialModal.tsx', '35_tutorial_heart_video_receive_send_rainbow', [
+  /video: \[6, 7, 8\]/,
+  /받기 · 보내기 · 무지개하트/,
 ]);
 // 360x640에서 안내 푸터·설정 마지막 줄이 잘렸던 조합. 두 탭은 좁은 gap을 유지해야 한다.
 mustMatch('artifacts/boltnew-app/src/components/TutorialModal.tsx', '35_tutorial_dense_tabs_tight_gap', [
@@ -455,6 +460,9 @@ mustMatch('artifacts/boltnew-app/src/components/TutorialVideo.tsx', '35_tutorial
   /grid-cols-2 grid-rows-2/,
   /다음 해금까지/,
   /호감·친구·뜨밤·칭찬/,
+  /function S8/,
+  /function S9/,
+  /무지개 — 보낼 하트 선택/,
 ]);
 mustNotMatch('artifacts/boltnew-app/src/components/TutorialVideo.tsx', '35_tutorial_video_no_legacy_heart_copy', [
   /주황하트/,

@@ -25,6 +25,54 @@ function toggleUnlock(list: HeartUnlockKey[], key: HeartUnlockKey): HeartUnlockK
   return list.includes(key) ? list.filter(k => k !== key) : [...list, key];
 }
 
+function digitsOnly(raw: string, max = 2): string {
+  return raw.replace(/\D/g, '').slice(0, max);
+}
+
+function ClockPartInput({
+  label,
+  value,
+  onCommit,
+}: {
+  label: string;
+  value: string;
+  onCommit: (digits: string) => boolean;
+}) {
+  const [draft, setDraft] = useState(value);
+
+  useEffect(() => {
+    setDraft(value);
+  }, [value]);
+
+  const tryCommit = (raw: string) => {
+    const digits = digitsOnly(raw);
+    if (!digits) {
+      setDraft(value);
+      return;
+    }
+    if (onCommit(digits)) return;
+    setDraft(value);
+  };
+
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      pattern="[0-9]*"
+      maxLength={2}
+      aria-label={label}
+      value={draft}
+      onChange={(e) => {
+        const digits = digitsOnly(e.target.value);
+        setDraft(digits);
+        if (digits.length === 2) tryCommit(digits);
+      }}
+      onBlur={() => tryCommit(draft)}
+      className="w-9 h-8 text-center text-[13px] font-black tabular-nums rounded-md border border-gray-200 bg-white"
+    />
+  );
+}
+
 export function HeartOpsCard({ settings, onSave }: {
   settings: AppSettings | null;
   onSave: (raw: string) => Promise<void>;
@@ -129,39 +177,31 @@ export function HeartOpsCard({ settings, onSave }: {
 
         <div>
           <p className="text-[10px] font-black text-gray-500 mb-1.5">시간별 자동 해금</p>
+          <p className="text-[9px] text-gray-400 mb-1.5">시·분 숫자 입력 · 24:00·24:30 가능</p>
           <div className="space-y-1.5">
             {slots.map((slot, idx) => (
               <div key={slot.id} className="flex flex-wrap items-center gap-1.5 rounded-lg border border-gray-100 bg-white px-2 py-1.5">
                 {(() => {
                   const clock = parseHeartOpsClock(slot.at);
                   const applyClock = (hour: number, minute: number) => {
-                    const next = formatHeartOpsClock(hour, minute);
-                    if (!next || !HEART_OPS_AT_RE.test(next)) return;
+                    const nextAt = formatHeartOpsClock(hour, minute);
+                    if (!nextAt || !HEART_OPS_AT_RE.test(nextAt)) return false;
                     setSlots(prev => patchHeartOpsSlotAt(prev, idx, hour, minute));
+                    return true;
                   };
                   return (
-                    <span className="inline-flex items-center gap-0.5">
-                      <select
-                        aria-label={`해금 시 ${idx + 1}`}
-                        value={clock.hour}
-                        onChange={e => applyClock(Number(e.target.value), clock.minute)}
-                        className="rounded border border-gray-200 bg-gray-50 px-0.5 py-0.5 text-[11px] font-black tabular-nums"
-                      >
-                        {Array.from({ length: 25 }, (_, h) => (
-                          <option key={h} value={h}>{String(h).padStart(2, '0')}</option>
-                        ))}
-                      </select>
-                      <span className="text-[11px] font-black text-gray-500">:</span>
-                      <select
-                        aria-label={`해금 분 ${idx + 1}`}
-                        value={clock.minute}
-                        onChange={e => applyClock(clock.hour, Number(e.target.value))}
-                        className="rounded border border-gray-200 bg-gray-50 px-0.5 py-0.5 text-[11px] font-black tabular-nums"
-                      >
-                        {Array.from({ length: 60 }, (_, m) => (
-                          <option key={m} value={m}>{String(m).padStart(2, '0')}</option>
-                        ))}
-                      </select>
+                    <span className="inline-flex items-center gap-1">
+                      <ClockPartInput
+                        label={`해금 시 ${idx + 1}`}
+                        value={String(clock.hour).padStart(2, '0')}
+                        onCommit={(digits) => applyClock(Number(digits), clock.minute)}
+                      />
+                      <span className="text-[12px] font-black text-gray-400">:</span>
+                      <ClockPartInput
+                        label={`해금 분 ${idx + 1}`}
+                        value={String(clock.minute).padStart(2, '0')}
+                        onCommit={(digits) => applyClock(clock.hour, Number(digits))}
+                      />
                     </span>
                   );
                 })()}

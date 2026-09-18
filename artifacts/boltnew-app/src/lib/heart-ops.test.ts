@@ -11,6 +11,8 @@ import {
   rainbowRemaining,
   serializeHeartOps,
   slotEventMinute,
+  stepHeartOpsClock,
+  stepHeartOpsHour,
   unlockedHeartKeys,
   participantHeartState,
   headerHeartRemainings,
@@ -45,6 +47,11 @@ describe('heart-ops lock/unlock model', () => {
     const roundTrip = parseHeartOps(serializeHeartOps({ ...DEFAULT_HEART_OPS, slots: patched }));
     expect(roundTrip.slots.map(s => s.at)).toEqual(['23:15', '23:30', '24:00', '24:30']);
     expect(roundTrip.slots.map(s => s.unlock)).toEqual(DEFAULT_HEART_OPS.slots.map(s => s.unlock));
+    expect(stepHeartOpsClock('23:00', 15)).toBe('23:15');
+    expect(stepHeartOpsClock('23:30', 15)).toBe('23:45');
+    expect(stepHeartOpsHour('23:30', 1)).toBe('24:30');
+    expect(stepHeartOpsClock('24:55', 5)).toBe('00:00');
+    expect(stepHeartOpsHour('00:15', -1)).toBe('24:15');
   });
 
   it('canOpenHeartPicker stays open for rainbow after all grant types were sent', () => {

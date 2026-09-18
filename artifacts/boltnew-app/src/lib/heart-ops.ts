@@ -72,6 +72,23 @@ export function patchHeartOpsSlotAt(
   return slots.map((s, i) => (i === index ? { ...s, at } : s));
 }
 
+const HEART_OPS_CLOCK_MAX_MIN = 24 * 60 + 59;
+
+/** Step `HH:MM` by minutes, wrapping 00:00–24:59 so 24:xx stays valid. */
+export function stepHeartOpsClock(at: string, deltaMinutes: number): string {
+  const { hour, minute } = parseHeartOpsClock(at);
+  const span = HEART_OPS_CLOCK_MAX_MIN + 1;
+  let total = hour * 60 + minute + deltaMinutes;
+  total = ((total % span) + span) % span;
+  return formatHeartOpsClock(Math.floor(total / 60), total % 60) ?? at;
+}
+
+/** Step hour only (0–24), keep the minute. */
+export function stepHeartOpsHour(at: string, deltaHours: number): string {
+  const { hour, minute } = parseHeartOpsClock(at);
+  return formatHeartOpsClock(((hour + deltaHours) % 25 + 25) % 25, minute) ?? at;
+}
+
 /** Open the like picker when any grant type remains, or rainbow still has uses. */
 export function canOpenHeartPicker(sentTypeCount: number, rainbowLeft: number): boolean {
   return sentTypeCount < TYPES.length || rainbowLeft > 0;
