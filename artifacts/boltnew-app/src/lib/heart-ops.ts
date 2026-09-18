@@ -9,6 +9,8 @@ export type HeartOpsSlot = {
   at: string;
   /** Display-only notice clock. Unlock still uses `at`. */
   notice_at?: string;
+  /** When true, participant banner may show this slot's notice time. */
+  show_notice?: boolean;
   unlock: HeartUnlockKey[];
 };
 
@@ -47,12 +49,21 @@ export type HeartUsage = {
 
 export const RAINBOW_MAX_USES = 4;
 
+export const HEART_OPS_ROW_KEYS: HeartUnlockKey[] = ['red', 'blue', 'pink', 'green', 'rainbow'];
+
 export const DEFAULT_HEART_OPS_SLOTS: HeartOpsSlot[] = [
   { id: 'slot-1', at: '23:00', unlock: ['red'] },
   { id: 'slot-2', at: '23:30', unlock: ['blue'] },
   { id: 'slot-3', at: '24:00', unlock: ['pink', 'green'] },
   { id: 'slot-4', at: '24:30', unlock: ['rainbow'] },
 ];
+
+export function defaultHeartOpsAt(key: HeartUnlockKey): string {
+  if (key === 'red') return '23:00';
+  if (key === 'blue') return '23:30';
+  if (key === 'rainbow') return '24:30';
+  return '24:00';
+}
 
 export const DEFAULT_HEART_OPS: HeartOpsConfig = {
   timezone: 'Asia/Seoul',
@@ -106,6 +117,38 @@ export function patchHeartOpsSlotNoticeAt(
 
 export function slotNoticeAt(slot: HeartOpsSlot): string {
   return typeof slot.notice_at === 'string' && HEART_OPS_AT_RE.test(slot.notice_at) ? slot.notice_at : slot.at;
+}
+
+export function slotShowsNotice(slot: HeartOpsSlot, config: HeartOpsConfig): boolean {
+  if (slot.show_notice === true) return true;
+  if (slot.show_notice === false) return false;
+  return config.show_notice_time === true;
+}
+
+/** One admin/banner row per heart. Shared pink+green slots expand into two rows. */
+export function heartOpsHeartRows(config: HeartOpsConfig): HeartOpsSlot[] {
+  const noticeFallback = config.show_notice_time === true;
+  return HEART_OPS_ROW_KEYS.map(key => {
+    const owned = config.slots.find(s => s.unlock.includes(key));
+    const parked = config.slots.find(s => s.id === `slot-${key}`);
+    const src = owned ?? parked;
+    const at = src && HEART_OPS_AT_RE.test(src.at) ? src.at : defaultHeartOpsAt(key);
+    const noticeAt = src ? slotNoticeAt(src) : at;
+    const showNotice = src?.show_notice === true || (src?.show_notice == null && noticeFallback && !!owned);
+    return {
+      id: `slot-${key}`,
+      at,
+      notice_at: noticeAt,
+      unlock: owned ? [key] : [],
+      ...(showNotice ? { show_notice: true } : {}),
+    };
+  });
+}
+
+function slotBannerKeys(slot: HeartOpsSlot): HeartUnlockKey[] {
+  if (slot.unlock.length) return slot.unlock;
+  const key = HEART_OPS_ROW_KEYS.find(k => slot.id === `slot-${k}`);
+  return key ? [key] : [];
 }
 
 export function resolveHeartOpsBannerDisplay(config: HeartOpsConfig): HeartOpsBannerDisplay {
@@ -240,6 +283,7 @@ export function parseHeartOps(raw: unknown): HeartOpsConfig {
         at,
         unlock,
         ...(noticeAt ? { notice_at: noticeAt } : {}),
+        ...(r.show_notice === true ? { show_notice: true } : {}),
       }];
     });
   } else {
@@ -283,6 +327,7 @@ export function serializeHeartOps(config: HeartOpsConfig): string {
       at: s.at,
       unlock: [...new Set(s.unlock)],
       ...(s.notice_at && HEART_OPS_AT_RE.test(s.notice_at) ? { notice_at: s.notice_at } : {}),
+      ...(s.show_notice ? { show_notice: true } : {}),
     })),
     ...(config.instant_unlock?.length ? { instant_unlock: [...new Set(config.instant_unlock)] } : {}),
     ...(config.direct_notice?.trim() ? { direct_notice: config.direct_notice.trim().slice(0, 240) } : {}),
@@ -475,17 +520,19 @@ export function heartOpsBannerState(config: HeartOpsConfig, now = new Date()): H
     justUnlocked = `${names} 하트가 해금되었습니다`;
   }
 
-  const next = config.slots.find(s => !slotHeldByReset(config, s.at) && slotEventMinute(s.at) > minute && s.unlock.length > 0) ?? null;
+  const nextUnlock = config.slots.find(s => !slotHeldByReset(config, s.at) && slotEventMinute(s.at) > minute && s.unlock.length > 0) ?? null;
+  const nextNotice = config.slots.find(s => slotShowsNotice(s, config) && slotEventMinute(slotNoticeAt(s)) > minute) ?? null;
+  const next = nextUnlock ?? nextNotice;
   const display = resolveHeartOpsBannerDisplay(config);
   let autoLine: string | null = null;
   let countdownSec: number | null = null;
   if (next) {
-    const names = next.unlock.map(heartLabel).join('·');
+    const names = slotBannerKeys(next).map(heartLabel).join('·');
     const parts: string[] = [];
-    if (display.show_notice_time) parts.push(`${formatHeartOpsTime(slotNoticeAt(next))} 공지`);
-    if (display.show_unlock_time) parts.push(`${formatHeartOpsTime(next.at)} 해금`);
+    if (slotShowsNotice(next, config)) parts.push(`${formatHeartOpsTime(slotNoticeAt(next))} 공지`);
+    if (next.unlock.length && display.show_unlock_time) parts.push(`${formatHeartOpsTime(next.at)} 해금`);
     if (names && parts.length) autoLine = `${names} 하트 ${parts.join(' · ')}`;
-    if (display.show_countdown) {
+    if (next.unlock.length && display.show_countdown) {
       countdownSec = Math.max(0, (slotEventMinute(next.at) - minute) * 60 - second);
     }
   }

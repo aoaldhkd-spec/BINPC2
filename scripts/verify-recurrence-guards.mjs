@@ -308,7 +308,7 @@ mustMatch('artifacts/boltnew-app/src/admin/event-schedule-apply.ts', '35_schedul
 mustMatch('artifacts/boltnew-app/src/admin/HeartOpsCard.tsx', '35_heart_ops_card', [
   /하트 운영/,
   /현재 하트 상태/,
-  /시간별 자동 해금/,
+  /공지시간/,
   /직접 공지/,
   /지금 해금/,
   /해금 초기화/,
@@ -328,24 +328,22 @@ mustMatch('artifacts/boltnew-app/src/admin/HeartOpsCard.tsx', '35_heart_ops_hh_m
   /해금 분/,
 ]);
 mustMatch('artifacts/boltnew-app/src/admin/HeartOpsCard.tsx', '35_heart_ops_auto_notice_checks', [
-  /자동안내 표시/,
   /공지시간/,
   /해금시간/,
-  /해금까지 카운트다운/,
+  /heartOpsHeartRows/,
   /patchHeartOpsSlotNoticeAt/,
+  /show_notice/,
 ]);
 mustMatch('artifacts/boltnew-app/src/lib/heart-ops.ts', '35_heart_ops_notice_at_display_only', [
   /notice_at/,
-  /show_notice_time/,
-  /show_unlock_time/,
-  /show_countdown/,
+  /show_notice/,
+  /heartOpsHeartRows/,
+  /slotShowsNotice/,
   /slotNoticeAt/,
 ]);
 mustMatch('artifacts/api-server/src/lib/db-heart-ops.ts', '35_api_heart_ops_notice_at', [
   /notice_at/,
-  /show_notice_time/,
-  /show_unlock_time/,
-  /show_countdown/,
+  /show_notice/,
 ]);
 mustNotMatch('artifacts/boltnew-app/src/admin/HeartOpsCard.tsx', '35_heart_ops_no_native_time_input', [
   /type=["']time["']/,

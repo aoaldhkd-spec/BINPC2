@@ -3,7 +3,7 @@ import React from 'react';
 import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { HeartOpsCard } from './HeartOpsCard';
-import { DEFAULT_HEART_OPS, parseHeartOps, serializeHeartOps } from '../lib/heart-ops';
+import { DEFAULT_HEART_OPS, parseHeartOps, serializeHeartOps, unlockedHeartKeys } from '../lib/heart-ops';
 import {
   DIRECT_NOTICES_KEY,
   loadDirectNotices,
@@ -29,57 +29,70 @@ function settingsWith(slots = DEFAULT_HEART_OPS.slots): AppSettings {
 }
 
 describe('HeartOpsCard schedule clock', () => {
-  it('edits hour and minute separately, including 24:xx, without dropping other slots', async () => {
+  it('edits hour and minute separately, including 24:xx, without dropping other hearts', async () => {
     const payloads: string[] = [];
     const onSave = vi.fn(async (raw: string) => { payloads.push(raw); });
     render(<HeartOpsCard settings={settingsWith()} onSave={onSave} onSaveNotices={vi.fn(async () => {})} />);
 
-    fireEvent.change(screen.getByLabelText('해금 분 1'), { target: { value: '15' } });
-    fireEvent.change(screen.getByLabelText('해금 분 2'), { target: { value: '45' } });
-    expect((screen.getByLabelText('해금 시 3') as HTMLInputElement).value).toBe('24');
-    expect((screen.getByLabelText('해금 분 3') as HTMLInputElement).value).toBe('00');
-    expect((screen.getByLabelText('해금 시 4') as HTMLInputElement).value).toBe('24');
-    expect((screen.getByLabelText('해금 분 4') as HTMLInputElement).value).toBe('30');
+    fireEvent.change(screen.getByLabelText('호감 해금 분'), { target: { value: '15' } });
+    fireEvent.change(screen.getByLabelText('친구 해금 분'), { target: { value: '45' } });
+    expect((screen.getByLabelText('뜨밤 해금 시') as HTMLInputElement).value).toBe('24');
+    expect((screen.getByLabelText('뜨밤 해금 분') as HTMLInputElement).value).toBe('00');
+    expect((screen.getByLabelText('칭찬 해금 시') as HTMLInputElement).value).toBe('24');
+    expect((screen.getByLabelText('무지개 해금 시') as HTMLInputElement).value).toBe('24');
+    expect((screen.getByLabelText('무지개 해금 분') as HTMLInputElement).value).toBe('30');
 
     fireEvent.click(screen.getByRole('button', { name: /스케줄 저장/ }));
     expect(onSave).toHaveBeenCalledTimes(1);
     const saved = parseHeartOps(payloads[0]);
     expect(saved.timezone).toBe('Asia/Seoul');
     expect(saved.version).toBe(2);
-    expect(saved.slots).toHaveLength(4);
-    expect(saved.slots.map(s => s.at)).toEqual(['23:15', '23:45', '24:00', '24:30']);
-    expect(saved.slots.map(s => s.unlock)).toEqual(DEFAULT_HEART_OPS.slots.map(s => s.unlock));
-    expect(saved.show_notice_time).toBeUndefined();
-    expect(saved.show_unlock_time).toBeUndefined();
-    expect(saved.show_countdown).toBeUndefined();
+    expect(saved.slots).toHaveLength(5);
+    expect(saved.slots.find(s => s.unlock.includes('red'))?.at).toBe('23:15');
+    expect(saved.slots.find(s => s.unlock.includes('blue'))?.at).toBe('23:45');
+    expect(saved.slots.find(s => s.unlock.includes('pink'))?.at).toBe('24:00');
+    expect(saved.slots.find(s => s.unlock.includes('green'))?.at).toBe('24:00');
+    expect(saved.slots.find(s => s.unlock.includes('rainbow'))?.at).toBe('24:30');
   });
 
-  it('saves independent notice clocks and banner display checks', async () => {
+  it('saves independent notice clocks and per-heart 공지/해금 checks', async () => {
     const payloads: string[] = [];
     const onSave = vi.fn(async (raw: string) => { payloads.push(raw); });
     render(<HeartOpsCard settings={settingsWith()} onSave={onSave} onSaveNotices={vi.fn(async () => {})} />);
 
-    expect((screen.getByLabelText('공지시간') as HTMLInputElement).checked).toBe(false);
-    expect((screen.getByLabelText('해금시간') as HTMLInputElement).checked).toBe(true);
-    expect((screen.getByLabelText('해금까지 카운트다운') as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByLabelText('호감 공지') as HTMLInputElement).checked).toBe(false);
+    expect((screen.getByLabelText('호감 해금') as HTMLInputElement).checked).toBe(true);
 
-    fireEvent.change(screen.getByLabelText('공지 분 1'), { target: { value: '40' } });
-    fireEvent.change(screen.getByLabelText('해금 분 1'), { target: { value: '15' } });
-    expect((screen.getByLabelText('공지 분 1') as HTMLInputElement).value).toBe('40');
-    expect((screen.getByLabelText('해금 분 1') as HTMLInputElement).value).toBe('15');
-    expect((screen.getByLabelText('해금 분 2') as HTMLInputElement).value).toBe('30');
+    fireEvent.change(screen.getByLabelText('호감 공지 분'), { target: { value: '40' } });
+    fireEvent.change(screen.getByLabelText('호감 해금 분'), { target: { value: '15' } });
+    expect((screen.getByLabelText('호감 공지 분') as HTMLInputElement).value).toBe('40');
+    expect((screen.getByLabelText('호감 해금 분') as HTMLInputElement).value).toBe('15');
+    expect((screen.getByLabelText('친구 해금 분') as HTMLInputElement).value).toBe('30');
 
-    fireEvent.click(screen.getByLabelText('공지시간'));
-    fireEvent.click(screen.getByLabelText('해금까지 카운트다운'));
+    fireEvent.click(screen.getByLabelText('호감 공지'));
     fireEvent.click(screen.getByRole('button', { name: /스케줄 저장/ }));
     expect(onSave).toHaveBeenCalledTimes(1);
     const saved = parseHeartOps(payloads[0]);
-    expect(saved.slots[0]?.notice_at).toBe('23:40');
-    expect(saved.slots[0]?.at).toBe('23:15');
-    expect(saved.slots.map(s => s.unlock)).toEqual(DEFAULT_HEART_OPS.slots.map(s => s.unlock));
-    expect(saved.show_notice_time).toBe(true);
-    expect(saved.show_unlock_time).toBeUndefined();
-    expect(saved.show_countdown).toBe(false);
+    const red = saved.slots.find(s => s.unlock.includes('red'));
+    expect(red?.notice_at).toBe('23:40');
+    expect(red?.at).toBe('23:15');
+    expect(red?.show_notice).toBe(true);
+    expect(saved.slots.find(s => s.unlock.includes('blue'))?.unlock).toEqual(['blue']);
+  });
+
+  it('해금 체크 off keeps the heart locked after its unlock time', async () => {
+    const payloads: string[] = [];
+    const onSave = vi.fn(async (raw: string) => { payloads.push(raw); });
+    render(<HeartOpsCard settings={settingsWith()} onSave={onSave} onSaveNotices={vi.fn(async () => {})} />);
+    fireEvent.click(screen.getByLabelText('호감 해금'));
+    fireEvent.click(screen.getByRole('button', { name: /스케줄 저장/ }));
+    const saved = parseHeartOps(payloads[0]);
+    expect(saved.slots.find(s => s.id === 'slot-red')?.unlock ?? []).toEqual([]);
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-17T23:05:00+09:00'));
+    expect(unlockedHeartKeys(saved).has('red')).toBe(false);
+    expect(unlockedHeartKeys(saved).has('blue')).toBe(false);
+    vi.useRealTimers();
   });
 
   it('해금 초기화 confirms then relocks five types without wiping slots', async () => {
@@ -97,9 +110,8 @@ describe('HeartOpsCard schedule clock', () => {
     fireEvent.click(screen.getByRole('button', { name: '확인' }));
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
     const saved = parseHeartOps(payloads[0]);
-    expect(saved.slots).toHaveLength(4);
-    expect(saved.slots.map(s => s.at)).toEqual(DEFAULT_HEART_OPS.slots.map(s => s.at));
-    expect(saved.slots.map(s => s.unlock)).toEqual(DEFAULT_HEART_OPS.slots.map(s => s.unlock));
+    expect(saved.slots).toHaveLength(5);
+    expect(saved.slots.map(s => s.unlock).flat().sort()).toEqual(['blue', 'green', 'pink', 'rainbow', 'red']);
     expect(saved.instant_unlock ?? []).toEqual([]);
     expect(saved.auto_unlock_from).toEqual(expect.any(Number));
   });
@@ -148,7 +160,7 @@ describe('HeartOpsCard schedule clock', () => {
     fireEvent.click(screen.getByRole('button', { name: '공지 1 넣기' }));
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
     expect(parseHeartOps(payloads[0]).direct_notice).toBe('10분 뒤 무지개하트가 열립니다.');
-    expect(parseHeartOps(payloads[0]).slots).toHaveLength(4);
+    expect(parseHeartOps(payloads[0]).slots).toHaveLength(5);
     expect(loadDirectNotices(noticePayloads.at(-1) ?? null).map(n => n.text)).toEqual([
       '잠시 후 하트 이벤트가 시작됩니다.',
       '자리 이동해주세요.',

@@ -115,6 +115,15 @@ describe('event schedule (heart ops v2)', () => {
     expect(keys.has('red')).toBe(false);
   });
 
+  it('round-trips per-slot show_notice without unlocking from notice_at', () => {
+    const saved = JSON.parse(serializeEventSchedule({
+      version: 2,
+      slots: [{ id: 'slot-red', at: '23:00', notice_at: '22:40', unlock: ['red'], show_notice: true }],
+    }));
+    expect(saved.slots[0].show_notice).toBe(true);
+    expect(saved.slots[0].at).toBe('23:00');
+  });
+
   it('instant_unlock applies regardless of clock and stays idempotent', () => {
     const raw = { version: 2, slots: [{ id: 'a', at: '24:30', unlock: ['rainbow'] }], instant_unlock: ['rainbow', 'rainbow'] };
     const keys = unlockedHeartKeys(raw, new Date('2026-09-16T13:00:00.000Z'));

@@ -19,6 +19,7 @@ import {
   participantHeartState,
   headerHeartRemainings,
   heartOpsBannerState,
+  heartOpsHeartRows,
 } from './heart-ops';
 
 afterEach(() => {
@@ -141,32 +142,51 @@ describe('heart-ops lock/unlock model', () => {
     const base = parseHeartOps(JSON.stringify({
       version: 2,
       timezone: 'Asia/Seoul',
-      slots: [{ id: 'slot-1', at: '23:00', notice_at: '22:40', unlock: ['red'] }],
+      slots: [{ id: 'slot-red', at: '23:00', notice_at: '22:40', unlock: ['red'] }],
     }));
-    const noticeOnly = heartOpsBannerState({ ...base, show_notice_time: true, show_unlock_time: false, show_countdown: false });
-    expect(noticeOnly.autoLine).toBe('호감 하트 22:40 공지');
+    const noticeOnly = heartOpsBannerState({
+      ...base,
+      slots: [{ ...base.slots[0], notice_at: '22:55', show_notice: true, unlock: [] }],
+      show_countdown: false,
+    });
+    expect(noticeOnly.autoLine).toBe('호감 하트 22:55 공지');
     expect(noticeOnly.countdownSec).toBeNull();
 
-    const unlockOnly = heartOpsBannerState({ ...base, show_unlock_time: true, show_countdown: false });
+    const unlockOnly = heartOpsBannerState({ ...base, show_countdown: false });
     expect(unlockOnly.autoLine).toBe('호감 하트 23:00 해금');
     expect(unlockOnly.countdownSec).toBeNull();
 
-    const countdownOnly = heartOpsBannerState({ ...base, show_unlock_time: false, show_countdown: true });
-    expect(countdownOnly.autoLine).toBeNull();
-    expect(countdownOnly.countdownSec).toBe(10 * 60);
-
-    const two = heartOpsBannerState({ ...base, show_notice_time: true, show_unlock_time: true, show_countdown: false });
+    const two = heartOpsBannerState({
+      ...base,
+      slots: [{ ...base.slots[0], show_notice: true }],
+      show_countdown: false,
+    });
     expect(two.autoLine).toBe('호감 하트 22:40 공지 · 23:00 해금');
     expect(two.countdownSec).toBeNull();
 
-    const all = heartOpsBannerState({ ...base, show_notice_time: true, show_unlock_time: true, show_countdown: true });
+    const all = heartOpsBannerState({
+      ...base,
+      slots: [{ ...base.slots[0], show_notice: true }],
+    });
     expect(all.autoLine).toBe('호감 하트 22:40 공지 · 23:00 해금');
     expect(all.countdownSec).toBe(10 * 60);
+  });
 
-    const none = heartOpsBannerState({ ...base, show_unlock_time: false, show_countdown: false });
-    expect(none.autoLine).toBeNull();
-    expect(none.countdownSec).toBeNull();
-    expect(none.show).toBe(true);
+  it('empty unlock list does not auto-unlock after at', () => {
+    vi.setSystemTime(seoulTime('2026-09-17T23:05:00+09:00'));
+    const held = parseHeartOps(JSON.stringify({
+      version: 2,
+      timezone: 'Asia/Seoul',
+      slots: [{ id: 'slot-red', at: '23:00', unlock: [] }],
+    }));
+    expect(unlockedHeartKeys(held).has('red')).toBe(false);
+  });
+
+  it('heartOpsHeartRows expands shared pink+green into two independent rows', () => {
+    const rows = heartOpsHeartRows(DEFAULT_HEART_OPS);
+    expect(rows.map(s => s.id)).toEqual(['slot-red', 'slot-blue', 'slot-pink', 'slot-green', 'slot-rainbow']);
+    expect(rows.map(s => s.at)).toEqual(['23:00', '23:30', '24:00', '24:00', '24:30']);
+    expect(rows.map(s => s.unlock)).toEqual([['red'], ['blue'], ['pink'], ['green'], ['rainbow']]);
   });
 
   it('patchHeartOpsSlotNoticeAt does not change unlock at', () => {

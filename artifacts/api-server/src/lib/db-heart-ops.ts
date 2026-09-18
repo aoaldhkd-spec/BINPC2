@@ -8,6 +8,7 @@ export type HeartOpsSlot = {
   id: string;
   at: string;
   notice_at?: string;
+  show_notice?: boolean;
   unlock: HeartUnlockKey[];
 };
 
@@ -119,6 +120,7 @@ export function parseHeartOps(raw: unknown): HeartOpsConfig {
         at,
         unlock: parseUnlockList(r.unlock),
         ...(noticeAt ? { notice_at: noticeAt } : {}),
+        ...(r.show_notice === true ? { show_notice: true } : {}),
       }];
     });
   } else {
@@ -154,6 +156,7 @@ export function serializeHeartOps(config: HeartOpsConfig): string {
       at: s.at,
       unlock: s.unlock,
       ...(s.notice_at && AT_RE.test(s.notice_at) ? { notice_at: s.notice_at } : {}),
+      ...(s.show_notice ? { show_notice: true } : {}),
     })),
     ...(config.instant_unlock?.length ? { instant_unlock: config.instant_unlock } : {}),
     ...(config.direct_notice?.trim() ? { direct_notice: config.direct_notice.trim().slice(0, 240) } : {}),

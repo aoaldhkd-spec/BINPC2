@@ -5,15 +5,15 @@ import {
   adminHeartStatusLine,
   DEFAULT_HEART_OPS,
   formatHeartOpsClock,
-  formatHeartOpsTime,
   heartLabel,
   HEART_OPS_AT_RE,
+  HEART_OPS_ROW_KEYS,
+  heartOpsHeartRows,
   parseHeartOps,
   parseHeartOpsClock,
   patchHeartOpsSlotAt,
   patchHeartOpsSlotNoticeAt,
   resetHeartUnlocks,
-  resolveHeartOpsBannerDisplay,
   serializeHeartOps,
   slotNoticeAt,
   type HeartOpsConfig,
@@ -37,7 +37,13 @@ import {
   type DirectNoticeItem,
 } from './event-schedule-apply';
 
-const UNLOCK_ORDER: HeartUnlockKey[] = ['red', 'blue', 'pink', 'green', 'rainbow'];
+const UNLOCK_ORDER: HeartUnlockKey[] = HEART_OPS_ROW_KEYS;
+
+function heartRowMeta(key: HeartUnlockKey): { emoji: string; label: string } {
+  if (key === 'rainbow') return { emoji: '🌈', label: '무지개' };
+  const hit = HEART_TYPES.find(h => h.type === key);
+  return { emoji: hit?.emoji ?? '', label: hit?.label ?? key };
+}
 
 function initialDirectNotices(settings: AppSettings | null): DirectNoticeItem[] {
   if (hasServerDirectNoticePresets(settings?.direct_notice_presets)) {
@@ -104,15 +110,7 @@ export function HeartOpsCard({ settings, onSave, onSaveNotices }: {
   onSaveNotices: (raw: string) => Promise<void>;
 }) {
   const saved = useMemo(() => parseHeartOps(settings?.event_schedule), [settings?.event_schedule]);
-  const [slots, setSlots] = useState<HeartOpsSlot[]>(() => saved.slots.map(s => ({
-    ...s,
-    unlock: [...s.unlock],
-    notice_at: slotNoticeAt(s),
-  })));
-  const bannerDisplay = useMemo(() => resolveHeartOpsBannerDisplay(saved), [saved]);
-  const [showNoticeTime, setShowNoticeTime] = useState(bannerDisplay.show_notice_time);
-  const [showUnlockTime, setShowUnlockTime] = useState(bannerDisplay.show_unlock_time);
-  const [showCountdown, setShowCountdown] = useState(bannerDisplay.show_countdown);
+  const [slots, setSlots] = useState<HeartOpsSlot[]>(() => heartOpsHeartRows(saved));
   const [savedNotices, setSavedNotices] = useState<DirectNoticeItem[]>(() => initialDirectNotices(settings));
   const [noticeDrafts, setNoticeDrafts] = useState<Record<string, string>>(() => (
     Object.fromEntries(initialDirectNotices(settings).map(n => [n.id, n.text]))
@@ -127,15 +125,7 @@ export function HeartOpsCard({ settings, onSave, onSaveNotices }: {
   const [savedFlash, setSavedFlash] = useState(false);
 
   useEffect(() => {
-    setSlots(saved.slots.map(s => ({
-      ...s,
-      unlock: [...s.unlock],
-      notice_at: slotNoticeAt(s),
-    })));
-    const display = resolveHeartOpsBannerDisplay(saved);
-    setShowNoticeTime(display.show_notice_time);
-    setShowUnlockTime(display.show_unlock_time);
-    setShowCountdown(display.show_countdown);
+    setSlots(heartOpsHeartRows(saved));
   }, [saved]);
 
   const savedNoticesRef = useRef(savedNotices);
@@ -201,9 +191,6 @@ export function HeartOpsCard({ settings, onSave, onSaveNotices }: {
     instant_unlock: saved.instant_unlock ?? [],
     direct_notice: saved.direct_notice ?? '',
     ...(saved.auto_unlock_from != null ? { auto_unlock_from: saved.auto_unlock_from } : {}),
-    show_notice_time: showNoticeTime,
-    show_unlock_time: showUnlockTime,
-    show_countdown: showCountdown,
     ...patch,
   });
 
@@ -270,7 +257,7 @@ export function HeartOpsCard({ settings, onSave, onSaveNotices }: {
   };
 
   const resetDefaults = () => {
-    setSlots(DEFAULT_HEART_OPS.slots.map(s => ({ ...s, unlock: [...s.unlock], notice_at: s.at })));
+    setSlots(heartOpsHeartRows(DEFAULT_HEART_OPS));
   };
 
   return (
@@ -297,117 +284,90 @@ export function HeartOpsCard({ settings, onSave, onSaveNotices }: {
           </div>
         </div>
 
-        <div>
-          <p className="text-[10px] font-black text-gray-500 mb-1.5">시간별 자동 해금</p>
-          <p className="text-[9px] text-gray-400 mb-1.5">시·분 숫자 입력 · 24:00·24:30 가능</p>
-          <div className="space-y-1.5">
-            {slots.map((slot, idx) => (
-              <div key={slot.id} className="flex flex-wrap items-center gap-1.5 rounded-lg border border-gray-100 bg-white px-2 py-1.5">
-                {(() => {
-                  const unlockClock = parseHeartOpsClock(slot.at);
-                  const noticeClock = parseHeartOpsClock(slotNoticeAt(slot));
-                  const applyUnlock = (hour: number, minute: number) => {
-                    const nextAt = formatHeartOpsClock(hour, minute);
-                    if (!nextAt || !HEART_OPS_AT_RE.test(nextAt)) return false;
-                    setSlots(prev => patchHeartOpsSlotAt(prev, idx, hour, minute));
-                    return true;
-                  };
-                  const applyNotice = (hour: number, minute: number) => {
-                    const nextAt = formatHeartOpsClock(hour, minute);
-                    if (!nextAt || !HEART_OPS_AT_RE.test(nextAt)) return false;
-                    setSlots(prev => patchHeartOpsSlotNoticeAt(prev, idx, hour, minute));
-                    return true;
-                  };
-                  return (
-                    <>
-                      <span className="inline-flex items-center gap-1">
-                        <span className="text-[8px] font-black text-gray-400">공지</span>
-                        <ClockPartInput
-                          label={`공지 시 ${idx + 1}`}
-                          value={String(noticeClock.hour).padStart(2, '0')}
-                          onCommit={(digits) => applyNotice(Number(digits), noticeClock.minute)}
-                        />
-                        <span className="text-[12px] font-black text-gray-400">:</span>
-                        <ClockPartInput
-                          label={`공지 분 ${idx + 1}`}
-                          value={String(noticeClock.minute).padStart(2, '0')}
-                          onCommit={(digits) => applyNotice(noticeClock.hour, Number(digits))}
-                        />
-                      </span>
-                      <span className="inline-flex items-center gap-1">
-                        <span className="text-[8px] font-black text-gray-400">해금</span>
-                        <ClockPartInput
-                          label={`해금 시 ${idx + 1}`}
-                          value={String(unlockClock.hour).padStart(2, '0')}
-                          onCommit={(digits) => applyUnlock(Number(digits), unlockClock.minute)}
-                        />
-                        <span className="text-[12px] font-black text-gray-400">:</span>
-                        <ClockPartInput
-                          label={`해금 분 ${idx + 1}`}
-                          value={String(unlockClock.minute).padStart(2, '0')}
-                          onCommit={(digits) => applyUnlock(unlockClock.hour, Number(digits))}
-                        />
-                      </span>
-                    </>
-                  );
-                })()}
-                <span className="text-[9px] text-gray-400 tabular-nums">{formatHeartOpsTime(slot.at)}</span>
-                <div className="flex flex-wrap gap-1 min-w-0 flex-1">
-                  {UNLOCK_ORDER.map(key => {
-                    const on = slot.unlock.includes(key);
-                    const label = key === 'rainbow' ? '🌈' : HEART_TYPES.find(h => h.type === key)?.label ?? key;
-                    return (
-                      <button
-                        key={key}
-                        type="button"
-                        onClick={() => setSlots(prev => prev.map((s, i) => i === idx
-                          ? { ...s, unlock: toggleUnlock(s.unlock, key) }
-                          : s))}
-                        className={`rounded px-1.5 py-0.5 text-[9px] font-black ${
-                          on ? 'bg-fuchsia-600 text-white' : 'bg-gray-100 text-gray-500'
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    );
-                  })}
-                </div>
+        <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+          {slots.map((slot, idx) => {
+            const key = HEART_OPS_ROW_KEYS[idx];
+            const meta = heartRowMeta(key);
+            const unlockOn = slot.unlock.includes(key);
+            const noticeOn = slot.show_notice === true;
+            const unlockClock = parseHeartOpsClock(slot.at);
+            const noticeClock = parseHeartOpsClock(slotNoticeAt(slot));
+            const applyUnlock = (hour: number, minute: number) => {
+              const nextAt = formatHeartOpsClock(hour, minute);
+              if (!nextAt || !HEART_OPS_AT_RE.test(nextAt)) return false;
+              setSlots(prev => patchHeartOpsSlotAt(prev, idx, hour, minute));
+              return true;
+            };
+            const applyNotice = (hour: number, minute: number) => {
+              const nextAt = formatHeartOpsClock(hour, minute);
+              if (!nextAt || !HEART_OPS_AT_RE.test(nextAt)) return false;
+              setSlots(prev => patchHeartOpsSlotNoticeAt(prev, idx, hour, minute));
+              return true;
+            };
+            return (
+              <div
+                key={slot.id}
+                className="flex flex-wrap items-center gap-x-1.5 gap-y-1 px-2 py-1.5 border-b border-gray-100 last:border-b-0"
+              >
+                <span className="w-[4.5rem] shrink-0 text-[11px] font-black text-gray-800">
+                  {meta.emoji} {meta.label}
+                </span>
+                <span className="text-[10px] font-black text-gray-400">|</span>
+                <span className="text-[9px] font-black text-gray-500">공지시간</span>
+                <span className="inline-flex items-center gap-0.5">
+                  <ClockPartInput
+                    label={`${meta.label} 공지 시`}
+                    value={String(noticeClock.hour).padStart(2, '0')}
+                    onCommit={(digits) => applyNotice(Number(digits), noticeClock.minute)}
+                  />
+                  <span className="text-[12px] font-black text-gray-400">:</span>
+                  <ClockPartInput
+                    label={`${meta.label} 공지 분`}
+                    value={String(noticeClock.minute).padStart(2, '0')}
+                    onCommit={(digits) => applyNotice(noticeClock.hour, Number(digits))}
+                  />
+                </span>
+                <label className="inline-flex items-center gap-0.5 text-[9px] font-black text-gray-600">
+                  <input
+                    type="checkbox"
+                    aria-label={`${meta.label} 공지`}
+                    checked={noticeOn}
+                    onChange={e => setSlots(prev => prev.map((s, i) => i === idx
+                      ? { ...s, show_notice: e.target.checked }
+                      : s))}
+                  />
+                  공지
+                </label>
+                <span className="text-[10px] font-black text-gray-400">|</span>
+                <span className="text-[9px] font-black text-gray-500">해금시간</span>
+                <span className="inline-flex items-center gap-0.5">
+                  <ClockPartInput
+                    label={`${meta.label} 해금 시`}
+                    value={String(unlockClock.hour).padStart(2, '0')}
+                    onCommit={(digits) => applyUnlock(Number(digits), unlockClock.minute)}
+                  />
+                  <span className="text-[12px] font-black text-gray-400">:</span>
+                  <ClockPartInput
+                    label={`${meta.label} 해금 분`}
+                    value={String(unlockClock.minute).padStart(2, '0')}
+                    onCommit={(digits) => applyUnlock(unlockClock.hour, Number(digits))}
+                  />
+                </span>
+                <label className="inline-flex items-center gap-0.5 text-[9px] font-black text-gray-600">
+                  <input
+                    type="checkbox"
+                    aria-label={`${meta.label} 해금`}
+                    checked={unlockOn}
+                    onChange={e => setSlots(prev => prev.map((s, i) => i === idx
+                      ? { ...s, unlock: e.target.checked ? [key] : [] }
+                      : s))}
+                  />
+                  해금
+                </label>
               </div>
-            ))}
-          </div>
-          <div className="mt-1.5 rounded-lg border border-violet-100 bg-violet-50/60 px-2 py-1.5">
-            <p className="text-[9px] font-black text-violet-800 mb-1">자동안내 표시</p>
-            <div className="flex flex-wrap gap-x-3 gap-y-1">
-              <label className="inline-flex items-center gap-1 text-[9px] font-black text-gray-600">
-                <input
-                  type="checkbox"
-                  aria-label="공지시간"
-                  checked={showNoticeTime}
-                  onChange={e => setShowNoticeTime(e.target.checked)}
-                />
-                공지시간
-              </label>
-              <label className="inline-flex items-center gap-1 text-[9px] font-black text-gray-600">
-                <input
-                  type="checkbox"
-                  aria-label="해금시간"
-                  checked={showUnlockTime}
-                  onChange={e => setShowUnlockTime(e.target.checked)}
-                />
-                해금시간
-              </label>
-              <label className="inline-flex items-center gap-1 text-[9px] font-black text-gray-600">
-                <input
-                  type="checkbox"
-                  aria-label="해금까지 카운트다운"
-                  checked={showCountdown}
-                  onChange={e => setShowCountdown(e.target.checked)}
-                />
-                해금까지 카운트다운
-              </label>
-            </div>
-          </div>
-          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            );
+          })}
+          <div className="flex flex-wrap items-center gap-1.5 px-2 py-1.5 bg-gray-50">
             <button type="button" onClick={resetDefaults} className="text-[9px] font-bold text-gray-400 underline">
               기본값(23:00·23:30·24:00·24:30)
             </button>
@@ -420,16 +380,17 @@ export function HeartOpsCard({ settings, onSave, onSaveNotices }: {
               해금 초기화
             </button>
           </div>
+          <div className="px-2 pb-2 bg-gray-50">
+            <button
+              type="button"
+              onClick={() => void saveSchedule()}
+              disabled={saving}
+              className="w-full py-2 rounded-xl font-black text-xs bg-gradient-to-r from-teal-500 to-cyan-500 text-white disabled:opacity-40"
+            >
+              {savedFlash ? '적용됨 · 실시간 반영' : saving ? '저장 중…' : '스케줄 저장'}
+            </button>
+          </div>
         </div>
-
-        <button
-          type="button"
-          onClick={() => void saveSchedule()}
-          disabled={saving}
-          className="w-full py-2 rounded-xl font-black text-xs bg-gradient-to-r from-teal-500 to-cyan-500 text-white disabled:opacity-40"
-        >
-          {savedFlash ? '적용됨 · 실시간 반영' : saving ? '저장 중…' : '스케줄 저장'}
-        </button>
 
         <div className="rounded-xl border border-amber-100 bg-amber-50/50 p-2 space-y-2">
           <p className="text-[10px] font-black text-amber-800">직접 공지</p>
