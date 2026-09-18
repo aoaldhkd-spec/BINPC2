@@ -77,6 +77,28 @@ describe('event schedule (heart ops v2)', () => {
     expect(after.has('rainbow')).toBe(true);
   });
 
+  it('auto_unlock_from holds passed slots until instant_unlock', () => {
+    const raw = {
+      version: 2,
+      slots: [
+        { id: 'a', at: '23:00', unlock: ['red'] },
+        { id: 'b', at: '24:30', unlock: ['rainbow'] },
+      ],
+      instant_unlock: ['blue'],
+      auto_unlock_from: 24 * 60 + 35,
+    };
+    const parsed = parseEventSchedule(raw);
+    expect(parsed.slots).toHaveLength(2);
+    expect(parsed.auto_unlock_from).toBe(24 * 60 + 35);
+    const held = unlockedHeartKeys(parsed, new Date('2026-09-16T15:40:00.000Z'));
+    expect(held.has('red')).toBe(false);
+    expect(held.has('rainbow')).toBe(false);
+    expect(held.has('blue')).toBe(true);
+    const round = JSON.parse(serializeEventSchedule(raw));
+    expect(round.auto_unlock_from).toBe(24 * 60 + 35);
+    expect(round.slots).toHaveLength(2);
+  });
+
   it('instant_unlock applies regardless of clock and stays idempotent', () => {
     const raw = { version: 2, slots: [{ id: 'a', at: '24:30', unlock: ['rainbow'] }], instant_unlock: ['rainbow', 'rainbow'] };
     const keys = unlockedHeartKeys(raw, new Date('2026-09-16T13:00:00.000Z'));

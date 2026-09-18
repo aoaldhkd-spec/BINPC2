@@ -18,6 +18,12 @@ export type HeartOpsConfig = {
   instant_unlock?: HeartUnlockKey[];
   /** Operator broadcast (separate from auto schedule copy). */
   direct_notice?: string;
+  /**
+   * Event-minute hold after 해금 초기화.
+   * Slots with `at` ≤ this stay locked unless listed in `instant_unlock`.
+   * Times / unlock lists are unchanged so later slots can still auto-open.
+   */
+  auto_unlock_from?: number;
 };
 
 export type HeartUsage = {
@@ -195,6 +201,7 @@ export function parseHeartOps(raw: unknown): HeartOpsConfig {
 
   const instant = parseUnlockList(obj.instant_unlock);
   const directNotice = typeof obj.direct_notice === 'string' ? obj.direct_notice.slice(0, 240) : '';
+  const autoUnlockFrom = parseAutoUnlockFrom(obj.auto_unlock_from);
 
   return {
     timezone: 'Asia/Seoul',
@@ -202,6 +209,7 @@ export function parseHeartOps(raw: unknown): HeartOpsConfig {
     slots,
     instant_unlock: instant,
     direct_notice: directNotice,
+    ...(autoUnlockFrom != null ? { auto_unlock_from: autoUnlockFrom } : {}),
   };
 }
 
@@ -216,6 +224,7 @@ export function serializeHeartOps(config: HeartOpsConfig): string {
     })),
     ...(config.instant_unlock?.length ? { instant_unlock: [...new Set(config.instant_unlock)] } : {}),
     ...(config.direct_notice?.trim() ? { direct_notice: config.direct_notice.trim().slice(0, 240) } : {}),
+    ...(config.auto_unlock_from != null ? { auto_unlock_from: config.auto_unlock_from } : {}),
   };
   return JSON.stringify(clean);
 }
@@ -232,10 +241,35 @@ export function coerceEventScheduleRaw(raw: unknown): string | null {
   return null;
 }
 
+function parseAutoUnlockFrom(raw: unknown): number | undefined {
+  const n = Math.floor(Number(raw));
+  if (!Number.isFinite(n) || n < 0 || n > 2000) return undefined;
+  return n;
+}
+
+function slotHeldByReset(config: HeartOpsConfig, at: string): boolean {
+  const hold = config.auto_unlock_from;
+  if (hold == null || !Number.isFinite(hold)) return false;
+  return slotEventMinute(at) <= hold;
+}
+
+/** Relock all five types without touching slot times, unlock lists, notices, or likes. */
+export function resetHeartUnlocks(config: HeartOpsConfig, now = new Date()): HeartOpsConfig {
+  return {
+    timezone: 'Asia/Seoul',
+    version: 2,
+    slots: config.slots.map(s => ({ ...s, unlock: [...s.unlock] })),
+    instant_unlock: [],
+    direct_notice: config.direct_notice ?? '',
+    auto_unlock_from: nowEventMinute(now),
+  };
+}
+
 export function unlockedHeartKeys(config: HeartOpsConfig, now = new Date()): Set<HeartUnlockKey> {
   const minute = nowEventMinute(now);
   const keys = new Set<HeartUnlockKey>();
   for (const slot of config.slots) {
+    if (slotHeldByReset(config, slot.at)) continue;
     if (slotEventMinute(slot.at) <= minute) {
       for (const k of slot.unlock) keys.add(k);
     }
@@ -366,7 +400,7 @@ export function heartOpsBannerState(config: HeartOpsConfig, now = new Date()): H
   const minute = nowEventMinute(now);
   const { second } = seoulClockParts(now);
 
-  const passed = config.slots.filter(s => slotEventMinute(s.at) <= minute);
+  const passed = config.slots.filter(s => !slotHeldByReset(config, s.at) && slotEventMinute(s.at) <= minute);
   const justSlot = passed.find(s => {
     const sm = slotEventMinute(s.at);
     return minute === sm || (minute - sm <= 1 && second < 60);
@@ -377,7 +411,7 @@ export function heartOpsBannerState(config: HeartOpsConfig, now = new Date()): H
     justUnlocked = `${names} 하트가 해금되었습니다`;
   }
 
-  const next = config.slots.find(s => slotEventMinute(s.at) > minute && s.unlock.length > 0) ?? null;
+  const next = config.slots.find(s => !slotHeldByReset(config, s.at) && slotEventMinute(s.at) > minute && s.unlock.length > 0) ?? null;
   let autoLine: string | null = null;
   let countdownSec: number | null = null;
   if (next) {

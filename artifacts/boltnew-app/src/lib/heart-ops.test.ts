@@ -9,6 +9,7 @@ import {
   parseHeartOpsClock,
   patchHeartOpsSlotAt,
   rainbowRemaining,
+  resetHeartUnlocks,
   serializeHeartOps,
   slotEventMinute,
   stepHeartOpsClock,
@@ -114,6 +115,39 @@ describe('heart-ops lock/unlock model', () => {
 
     const banner = heartOpsBannerState(shifted, seoulTime('2026-09-17T23:26:00+09:00'));
     expect(banner.autoLine).toContain('23:27');
+  });
+
+  it('resetHeartUnlocks relocks passed slots without dropping times or likes usage', () => {
+    vi.setSystemTime(seoulTime('2026-09-18T00:35:00+09:00'));
+    const open = { ...config, instant_unlock: ['rainbow' as const] };
+    expect(unlockedHeartKeys(open).has('red')).toBe(true);
+    expect(unlockedHeartKeys(open).has('rainbow')).toBe(true);
+
+    const reset = resetHeartUnlocks(open);
+    expect(reset.slots).toEqual(open.slots);
+    expect(reset.instant_unlock).toEqual([]);
+    expect(reset.direct_notice).toBe(open.direct_notice);
+    expect(unlockedHeartKeys(reset).has('red')).toBe(false);
+    expect(unlockedHeartKeys(reset).has('blue')).toBe(false);
+    expect(unlockedHeartKeys(reset).has('pink')).toBe(false);
+    expect(unlockedHeartKeys(reset).has('green')).toBe(false);
+    expect(unlockedHeartKeys(reset).has('rainbow')).toBe(false);
+
+    const again = parseHeartOps(serializeHeartOps({ ...reset, instant_unlock: ['red'] }));
+    expect(again.slots.map(s => s.at)).toEqual(open.slots.map(s => s.at));
+    expect(again.slots.map(s => s.unlock)).toEqual(open.slots.map(s => s.unlock));
+    expect(unlockedHeartKeys(again).has('red')).toBe(true);
+    expect(unlockedHeartKeys(again).has('rainbow')).toBe(false);
+    expect(heartUsageFromLikeRows([
+      { liker_id: 'me', heart_type: 'red', like_source: 'grant' },
+    ], 'me').grantUsed.red).toBe(true);
+
+    vi.setSystemTime(seoulTime('2026-09-17T23:10:00+09:00'));
+    const earlyReset = resetHeartUnlocks(config);
+    expect(unlockedHeartKeys(earlyReset).has('red')).toBe(false);
+    vi.setSystemTime(seoulTime('2026-09-17T23:31:00+09:00'));
+    expect(unlockedHeartKeys(earlyReset).has('red')).toBe(false);
+    expect(unlockedHeartKeys(earlyReset).has('blue')).toBe(true);
   });
 
   it('24:00 and 24:30 map to post-midnight event minutes', () => {

@@ -11,13 +11,20 @@ import {
   parseHeartOps,
   parseHeartOpsClock,
   patchHeartOpsSlotAt,
+  resetHeartUnlocks,
   serializeHeartOps,
   type HeartOpsConfig,
   type HeartOpsSlot,
   type HeartUnlockKey,
 } from '../lib/heart-ops';
 import type { AppSettings } from './shared';
-import { loadQuickNotices, QUICK_NOTICE_STORAGE_KEY, type QuickNoticePreset } from './event-schedule-apply';
+import { ConfirmDialog } from './ConfirmDialog';
+import {
+  loadQuickNoticeDraft,
+  QUICK_NOTICE_DRAFT_KEY,
+  QUICK_NOTICE_EMPTY_HINT,
+  serializeQuickNoticeDraft,
+} from './event-schedule-apply';
 
 const UNLOCK_ORDER: HeartUnlockKey[] = ['red', 'blue', 'pink', 'green', 'rainbow'];
 
@@ -79,15 +86,17 @@ export function HeartOpsCard({ settings, onSave }: {
 }) {
   const saved = useMemo(() => parseHeartOps(settings?.event_schedule), [settings?.event_schedule]);
   const [slots, setSlots] = useState<HeartOpsSlot[]>(() => saved.slots.map(s => ({ ...s, unlock: [...s.unlock] })));
-  const [directNotice, setDirectNotice] = useState('');
+  const [quickDraft, setQuickDraft] = useState(() => {
+    try { return loadQuickNoticeDraft(localStorage.getItem(QUICK_NOTICE_DRAFT_KEY)); }
+    catch { return ''; }
+  });
+  const [quickSavedFlash, setQuickSavedFlash] = useState(false);
+  const [quickEmptyHint, setQuickEmptyHint] = useState(false);
+  const [confirmResetUnlocks, setConfirmResetUnlocks] = useState(false);
   const [instantPick, setInstantPick] = useState<HeartUnlockKey[]>([]);
   const [clock, setClock] = useState(() => new Date());
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
-  const [quickNotices, setQuickNotices] = useState<QuickNoticePreset[]>(() => {
-    try { return loadQuickNotices(localStorage.getItem(QUICK_NOTICE_STORAGE_KEY)); }
-    catch { return loadQuickNotices(null); }
-  });
 
   useEffect(() => {
     setSlots(saved.slots.map(s => ({ ...s, unlock: [...s.unlock] })));
@@ -106,9 +115,8 @@ export function HeartOpsCard({ settings, onSave }: {
 
   const status = useMemo(() => adminHeartStatusLine(liveConfig, clock), [liveConfig, clock]);
 
-  const persistQuick = (next: QuickNoticePreset[]) => {
-    setQuickNotices(next);
-    try { localStorage.setItem(QUICK_NOTICE_STORAGE_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+  const persistQuickDraft = (text: string) => {
+    try { localStorage.setItem(QUICK_NOTICE_DRAFT_KEY, serializeQuickNoticeDraft(text)); } catch { /* ignore */ }
   };
 
   const buildConfig = (patch: Partial<HeartOpsConfig>): HeartOpsConfig => ({
@@ -117,6 +125,7 @@ export function HeartOpsCard({ settings, onSave }: {
     slots,
     instant_unlock: saved.instant_unlock ?? [],
     direct_notice: saved.direct_notice ?? '',
+    ...(saved.auto_unlock_from != null ? { auto_unlock_from: saved.auto_unlock_from } : {}),
     ...patch,
   });
 
@@ -133,11 +142,26 @@ export function HeartOpsCard({ settings, onSave }: {
 
   const saveSchedule = () => void saveConfig(buildConfig({ slots }));
 
-  const sendDirectNotice = () => {
-    const text = directNotice.trim();
-    if (!text) return;
+  const saveQuickDraft = () => {
+    persistQuickDraft(quickDraft);
+    setQuickEmptyHint(false);
+    setQuickSavedFlash(true);
+    window.setTimeout(() => setQuickSavedFlash(false), 1800);
+  };
+
+  const putQuickNotice = () => {
+    const text = quickDraft.trim();
+    if (!text) {
+      setQuickEmptyHint(true);
+      return;
+    }
+    setQuickEmptyHint(false);
     void saveConfig(buildConfig({ direct_notice: text, slots }));
-    setDirectNotice('');
+  };
+
+  const resetUnlocks = () => {
+    setConfirmResetUnlocks(false);
+    void saveConfig(resetHeartUnlocks(buildConfig({ slots }), clock));
   };
 
   const instantUnlock = () => {
@@ -229,9 +253,17 @@ export function HeartOpsCard({ settings, onSave }: {
               </div>
             ))}
           </div>
-          <div className="mt-1.5 flex gap-1.5">
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
             <button type="button" onClick={resetDefaults} className="text-[9px] font-bold text-gray-400 underline">
               기본값(23:00·23:30·24:00·24:30)
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmResetUnlocks(true)}
+              disabled={saving}
+              className="ml-auto text-[9px] font-black text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 disabled:opacity-40"
+            >
+              해금 초기화
             </button>
           </div>
         </div>
@@ -248,36 +280,37 @@ export function HeartOpsCard({ settings, onSave }: {
         <div className="rounded-xl border border-amber-100 bg-amber-50/50 p-2 space-y-1.5">
           <p className="text-[10px] font-black text-amber-800">직접 공지</p>
           <textarea
-            value={directNotice}
-            onChange={e => setDirectNotice(e.target.value)}
-            placeholder="현장 공지 (하트 자동 공지와 함께 표시)"
-            rows={2}
+            aria-label="빠른 공지"
+            value={quickDraft}
+            onChange={e => {
+              setQuickDraft(e.target.value.slice(0, 240));
+              if (quickEmptyHint) setQuickEmptyHint(false);
+            }}
+            placeholder="현장 공지 (저장만 하면 참여자에게 안 보여요)"
+            rows={3}
             maxLength={240}
-            className="w-full rounded-lg border border-amber-200 bg-white px-2 py-1 text-[11px] resize-none"
+            className="w-full min-h-[3.5rem] rounded-lg border border-amber-200 bg-white px-2 py-1 text-[11px] resize-y"
           />
-          <p className="text-[9px] font-semibold text-gray-500">빠른 공지 · 수정 후 넣기</p>
-          {quickNotices.map(preset => (
-            <div key={preset.id} className="flex items-center gap-1">
-              <input
-                value={preset.text}
-                onChange={e => persistQuick(quickNotices.map(p => p.id === preset.id
-                  ? { ...p, text: e.target.value.slice(0, 240) }
-                  : p))}
-                className="flex-1 rounded border border-gray-200 bg-white px-1.5 py-0.5 text-[10px]"
-              />
-              <button type="button" onClick={() => setDirectNotice(preset.text)} className="text-[9px] font-black text-cyan-700 px-1.5">
-                넣기
-              </button>
-            </div>
-          ))}
-          <button
-            type="button"
-            onClick={sendDirectNotice}
-            disabled={saving || !directNotice.trim()}
-            className="w-full py-1.5 rounded-lg text-[10px] font-black bg-amber-500 text-white disabled:opacity-40 flex items-center justify-center gap-1"
-          >
-            <Send className="w-3 h-3" />공지 전송
-          </button>
+          {quickEmptyHint && (
+            <p className="text-[9px] font-bold text-amber-700">{QUICK_NOTICE_EMPTY_HINT}</p>
+          )}
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              onClick={saveQuickDraft}
+              className="flex-1 py-1.5 rounded-lg text-[10px] font-black bg-white border border-amber-200 text-amber-800"
+            >
+              {quickSavedFlash ? '저장됨' : '저장'}
+            </button>
+            <button
+              type="button"
+              onClick={putQuickNotice}
+              disabled={saving}
+              className="flex-1 py-1.5 rounded-lg text-[10px] font-black bg-amber-500 text-white disabled:opacity-40 flex items-center justify-center gap-1"
+            >
+              <Send className="w-3 h-3" />넣기
+            </button>
+          </div>
         </div>
 
         <div className="rounded-xl border border-violet-100 bg-violet-50/50 p-2 space-y-1.5">
@@ -317,6 +350,16 @@ export function HeartOpsCard({ settings, onSave }: {
           </p>
         )}
       </div>
+
+      {confirmResetUnlocks && (
+        <ConfirmDialog
+          title="해금 초기화"
+          message={'5종 하트를 다시 미해금 상태로 돌립니다.\n시간·슬롯·unlock·공지·좋아요 기록은 그대로입니다.'}
+          confirmText={undefined}
+          onConfirm={resetUnlocks}
+          onCancel={() => setConfirmResetUnlocks(false)}
+        />
+      )}
     </div>
   );
 }

@@ -16,6 +16,7 @@ export type HeartOpsConfig = {
   slots: HeartOpsSlot[];
   instant_unlock?: HeartUnlockKey[];
   direct_notice?: string;
+  auto_unlock_from?: number;
 };
 
 export const RAINBOW_MAX_USES = 4;
@@ -106,12 +107,14 @@ export function parseHeartOps(raw: unknown): HeartOpsConfig {
     });
   }
   slots.sort((a, b) => slotEventMinute(a.at) - slotEventMinute(b.at));
+  const autoUnlockFrom = parseAutoUnlockFrom(obj.auto_unlock_from);
   return {
     timezone: 'Asia/Seoul',
     version: 2,
     slots,
     instant_unlock: parseUnlockList(obj.instant_unlock),
     direct_notice: typeof obj.direct_notice === 'string' ? obj.direct_notice.slice(0, 240) : '',
+    ...(autoUnlockFrom != null ? { auto_unlock_from: autoUnlockFrom } : {}),
   };
 }
 
@@ -122,13 +125,27 @@ export function serializeHeartOps(config: HeartOpsConfig): string {
     slots: config.slots,
     ...(config.instant_unlock?.length ? { instant_unlock: config.instant_unlock } : {}),
     ...(config.direct_notice?.trim() ? { direct_notice: config.direct_notice.trim().slice(0, 240) } : {}),
+    ...(config.auto_unlock_from != null ? { auto_unlock_from: config.auto_unlock_from } : {}),
   });
+}
+
+function parseAutoUnlockFrom(raw: unknown): number | undefined {
+  const n = Math.floor(Number(raw));
+  if (!Number.isFinite(n) || n < 0 || n > 2000) return undefined;
+  return n;
+}
+
+function slotHeldByReset(config: HeartOpsConfig, at: string): boolean {
+  const hold = config.auto_unlock_from;
+  if (hold == null || !Number.isFinite(hold)) return false;
+  return slotEventMinute(at) <= hold;
 }
 
 export function unlockedHeartKeys(config: HeartOpsConfig, now = new Date()): Set<HeartUnlockKey> {
   const minute = nowEventMinute(now);
   const keys = new Set<HeartUnlockKey>();
   for (const slot of config.slots) {
+    if (slotHeldByReset(config, slot.at)) continue;
     if (slotEventMinute(slot.at) <= minute) {
       for (const k of slot.unlock) keys.add(k);
     }

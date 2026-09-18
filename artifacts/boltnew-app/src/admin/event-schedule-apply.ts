@@ -17,6 +17,24 @@ export const DEFAULT_QUICK_NOTICES: QuickNoticePreset[] = [
 ];
 
 export const QUICK_NOTICE_STORAGE_KEY = 'admin_quick_notices_v1';
+/** Saved draft only — never written into event_schedule / never broadcast. */
+export const QUICK_NOTICE_DRAFT_KEY = 'admin_quick_notice_draft_v1';
+export const QUICK_NOTICE_EMPTY_HINT = '공지 내용을 입력해주세요.';
+
+export function loadQuickNoticeDraft(raw: string | null): string {
+  if (raw == null || raw === '') return '';
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (typeof parsed === 'string') return parsed.slice(0, 240);
+    return '';
+  } catch {
+    return raw.slice(0, 240);
+  }
+}
+
+export function serializeQuickNoticeDraft(text: string): string {
+  return JSON.stringify(text.slice(0, 240));
+}
 
 const HEART_TYPES_ORDER: HeartType[] = ['red', 'blue', 'pink', 'green'];
 const AT_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
