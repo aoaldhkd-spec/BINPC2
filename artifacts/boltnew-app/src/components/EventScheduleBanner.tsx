@@ -29,11 +29,13 @@ export function EventScheduleBanner({ raw, functionsLocked = false, heartsLocked
       {state.justUnlocked && (
         <span className={state.directNotice ? 'ml-2' : ''}>{state.justUnlocked}</span>
       )}
-      {!state.justUnlocked && state.autoLine && (
+      {!state.justUnlocked && (state.autoLine || (state.countdownSec != null && state.countdownSec > 0)) && (
         <span className={state.directNotice ? 'ml-2' : ''} data-testid="heart-ops-auto-notice">
           {state.autoLine}
           {state.countdownSec != null && state.countdownSec > 0 && (
-            <span className="ml-1 text-fuchsia-700">· 해금까지 {countdown}</span>
+            <span className={`${state.autoLine ? 'ml-1' : ''} text-fuchsia-700`}>
+              {state.autoLine ? '· ' : ''}해금까지 {countdown}
+            </span>
           )}
         </span>
       )}

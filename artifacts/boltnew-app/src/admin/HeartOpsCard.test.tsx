@@ -49,6 +49,37 @@ describe('HeartOpsCard schedule clock', () => {
     expect(saved.slots).toHaveLength(4);
     expect(saved.slots.map(s => s.at)).toEqual(['23:15', '23:45', '24:00', '24:30']);
     expect(saved.slots.map(s => s.unlock)).toEqual(DEFAULT_HEART_OPS.slots.map(s => s.unlock));
+    expect(saved.show_notice_time).toBeUndefined();
+    expect(saved.show_unlock_time).toBeUndefined();
+    expect(saved.show_countdown).toBeUndefined();
+  });
+
+  it('saves independent notice clocks and banner display checks', async () => {
+    const payloads: string[] = [];
+    const onSave = vi.fn(async (raw: string) => { payloads.push(raw); });
+    render(<HeartOpsCard settings={settingsWith()} onSave={onSave} onSaveNotices={vi.fn(async () => {})} />);
+
+    expect((screen.getByLabelText('공지시간') as HTMLInputElement).checked).toBe(false);
+    expect((screen.getByLabelText('해금시간') as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByLabelText('해금까지 카운트다운') as HTMLInputElement).checked).toBe(true);
+
+    fireEvent.change(screen.getByLabelText('공지 분 1'), { target: { value: '40' } });
+    fireEvent.change(screen.getByLabelText('해금 분 1'), { target: { value: '15' } });
+    expect((screen.getByLabelText('공지 분 1') as HTMLInputElement).value).toBe('40');
+    expect((screen.getByLabelText('해금 분 1') as HTMLInputElement).value).toBe('15');
+    expect((screen.getByLabelText('해금 분 2') as HTMLInputElement).value).toBe('30');
+
+    fireEvent.click(screen.getByLabelText('공지시간'));
+    fireEvent.click(screen.getByLabelText('해금까지 카운트다운'));
+    fireEvent.click(screen.getByRole('button', { name: /스케줄 저장/ }));
+    expect(onSave).toHaveBeenCalledTimes(1);
+    const saved = parseHeartOps(payloads[0]);
+    expect(saved.slots[0]?.notice_at).toBe('23:40');
+    expect(saved.slots[0]?.at).toBe('23:15');
+    expect(saved.slots.map(s => s.unlock)).toEqual(DEFAULT_HEART_OPS.slots.map(s => s.unlock));
+    expect(saved.show_notice_time).toBe(true);
+    expect(saved.show_unlock_time).toBeUndefined();
+    expect(saved.show_countdown).toBe(false);
   });
 
   it('해금 초기화 confirms then relocks five types without wiping slots', async () => {

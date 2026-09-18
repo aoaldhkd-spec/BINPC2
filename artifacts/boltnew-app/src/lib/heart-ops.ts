@@ -5,9 +5,17 @@ export type HeartUnlockKey = HeartType | 'rainbow';
 
 export type HeartOpsSlot = {
   id: string;
-  /** Seoul HH:mm — 24:00 / 24:30 allowed (next calendar day after midnight). */
+  /** Seoul HH:mm — 24:00 / 24:30 allowed (next calendar day after midnight). Unlock clock. */
   at: string;
+  /** Display-only notice clock. Unlock still uses `at`. */
+  notice_at?: string;
   unlock: HeartUnlockKey[];
+};
+
+export type HeartOpsBannerDisplay = {
+  show_notice_time: boolean;
+  show_unlock_time: boolean;
+  show_countdown: boolean;
 };
 
 export type HeartOpsConfig = {
@@ -24,6 +32,12 @@ export type HeartOpsConfig = {
    * Times / unlock lists are unchanged so later slots can still auto-open.
    */
   auto_unlock_from?: number;
+  /** Participant auto-notice: 공지시간. Default off. */
+  show_notice_time?: boolean;
+  /** Participant auto-notice: 해금시간. Default on. */
+  show_unlock_time?: boolean;
+  /** Participant auto-notice: 해금까지 카운트다운. Default on. */
+  show_countdown?: boolean;
 };
 
 export type HeartUsage = {
@@ -76,6 +90,42 @@ export function patchHeartOpsSlotAt(
   const at = formatHeartOpsClock(hour, minute);
   if (!at) return slots;
   return slots.map((s, i) => (i === index ? { ...s, at } : s));
+}
+
+/** Change one slot's display `notice_at` only — never changes unlock `at`. */
+export function patchHeartOpsSlotNoticeAt(
+  slots: HeartOpsSlot[],
+  index: number,
+  hour: number,
+  minute: number,
+): HeartOpsSlot[] {
+  const noticeAt = formatHeartOpsClock(hour, minute);
+  if (!noticeAt) return slots;
+  return slots.map((s, i) => (i === index ? { ...s, notice_at: noticeAt } : s));
+}
+
+export function slotNoticeAt(slot: HeartOpsSlot): string {
+  return typeof slot.notice_at === 'string' && HEART_OPS_AT_RE.test(slot.notice_at) ? slot.notice_at : slot.at;
+}
+
+export function resolveHeartOpsBannerDisplay(config: HeartOpsConfig): HeartOpsBannerDisplay {
+  return {
+    show_notice_time: config.show_notice_time === true,
+    show_unlock_time: config.show_unlock_time !== false,
+    show_countdown: config.show_countdown !== false,
+  };
+}
+
+function serializeBannerDisplay(config: {
+  show_notice_time?: boolean;
+  show_unlock_time?: boolean;
+  show_countdown?: boolean;
+}): Partial<HeartOpsBannerDisplay> {
+  return {
+    ...(config.show_notice_time ? { show_notice_time: true } : {}),
+    ...(config.show_unlock_time === false ? { show_unlock_time: false } : {}),
+    ...(config.show_countdown === false ? { show_countdown: false } : {}),
+  };
 }
 
 const HEART_OPS_CLOCK_MAX_MIN = 24 * 60 + 59;
@@ -184,7 +234,13 @@ export function parseHeartOps(raw: unknown): HeartOpsConfig {
       const at = typeof r.at === 'string' && HEART_OPS_AT_RE.test(r.at) ? r.at : null;
       if (!at) return [];
       const unlock = parseUnlockList(r.unlock);
-      return [{ id: typeof r.id === 'string' ? r.id.slice(0, 64) : `slot-${i + 1}`, at, unlock }];
+      const noticeAt = typeof r.notice_at === 'string' && HEART_OPS_AT_RE.test(r.notice_at) ? r.notice_at : undefined;
+      return [{
+        id: typeof r.id === 'string' ? r.id.slice(0, 64) : `slot-${i + 1}`,
+        at,
+        unlock,
+        ...(noticeAt ? { notice_at: noticeAt } : {}),
+      }];
     });
   } else {
     slots = rows.flatMap((v, i) => {
@@ -210,6 +266,11 @@ export function parseHeartOps(raw: unknown): HeartOpsConfig {
     instant_unlock: instant,
     direct_notice: directNotice,
     ...(autoUnlockFrom != null ? { auto_unlock_from: autoUnlockFrom } : {}),
+    ...serializeBannerDisplay({
+      show_notice_time: obj.show_notice_time === true,
+      show_unlock_time: obj.show_unlock_time !== false,
+      show_countdown: obj.show_countdown !== false,
+    }),
   };
 }
 
@@ -221,10 +282,12 @@ export function serializeHeartOps(config: HeartOpsConfig): string {
       id: s.id,
       at: s.at,
       unlock: [...new Set(s.unlock)],
+      ...(s.notice_at && HEART_OPS_AT_RE.test(s.notice_at) ? { notice_at: s.notice_at } : {}),
     })),
     ...(config.instant_unlock?.length ? { instant_unlock: [...new Set(config.instant_unlock)] } : {}),
     ...(config.direct_notice?.trim() ? { direct_notice: config.direct_notice.trim().slice(0, 240) } : {}),
     ...(config.auto_unlock_from != null ? { auto_unlock_from: config.auto_unlock_from } : {}),
+    ...serializeBannerDisplay(config),
   };
   return JSON.stringify(clean);
 }
@@ -262,6 +325,7 @@ export function resetHeartUnlocks(config: HeartOpsConfig, now = new Date()): Hea
     instant_unlock: [],
     direct_notice: config.direct_notice ?? '',
     auto_unlock_from: nowEventMinute(now),
+    ...serializeBannerDisplay(config),
   };
 }
 
@@ -412,15 +476,21 @@ export function heartOpsBannerState(config: HeartOpsConfig, now = new Date()): H
   }
 
   const next = config.slots.find(s => !slotHeldByReset(config, s.at) && slotEventMinute(s.at) > minute && s.unlock.length > 0) ?? null;
+  const display = resolveHeartOpsBannerDisplay(config);
   let autoLine: string | null = null;
   let countdownSec: number | null = null;
   if (next) {
     const names = next.unlock.map(heartLabel).join('·');
-    autoLine = `${names} 하트 ${formatHeartOpsTime(next.at)} 해금`;
-    countdownSec = Math.max(0, (slotEventMinute(next.at) - minute) * 60 - second);
+    const parts: string[] = [];
+    if (display.show_notice_time) parts.push(`${formatHeartOpsTime(slotNoticeAt(next))} 공지`);
+    if (display.show_unlock_time) parts.push(`${formatHeartOpsTime(next.at)} 해금`);
+    if (names && parts.length) autoLine = `${names} 하트 ${parts.join(' · ')}`;
+    if (display.show_countdown) {
+      countdownSec = Math.max(0, (slotEventMinute(next.at) - minute) * 60 - second);
+    }
   }
 
-  const show = Boolean(direct || autoLine || justUnlocked);
+  const show = Boolean(direct || autoLine || justUnlocked || next);
   return { show, directNotice: direct || null, autoLine, countdownSec, justUnlocked };
 }
 

@@ -11,8 +11,11 @@ import {
   parseHeartOps,
   parseHeartOpsClock,
   patchHeartOpsSlotAt,
+  patchHeartOpsSlotNoticeAt,
   resetHeartUnlocks,
+  resolveHeartOpsBannerDisplay,
   serializeHeartOps,
+  slotNoticeAt,
   type HeartOpsConfig,
   type HeartOpsSlot,
   type HeartUnlockKey,
@@ -101,7 +104,15 @@ export function HeartOpsCard({ settings, onSave, onSaveNotices }: {
   onSaveNotices: (raw: string) => Promise<void>;
 }) {
   const saved = useMemo(() => parseHeartOps(settings?.event_schedule), [settings?.event_schedule]);
-  const [slots, setSlots] = useState<HeartOpsSlot[]>(() => saved.slots.map(s => ({ ...s, unlock: [...s.unlock] })));
+  const [slots, setSlots] = useState<HeartOpsSlot[]>(() => saved.slots.map(s => ({
+    ...s,
+    unlock: [...s.unlock],
+    notice_at: slotNoticeAt(s),
+  })));
+  const bannerDisplay = useMemo(() => resolveHeartOpsBannerDisplay(saved), [saved]);
+  const [showNoticeTime, setShowNoticeTime] = useState(bannerDisplay.show_notice_time);
+  const [showUnlockTime, setShowUnlockTime] = useState(bannerDisplay.show_unlock_time);
+  const [showCountdown, setShowCountdown] = useState(bannerDisplay.show_countdown);
   const [savedNotices, setSavedNotices] = useState<DirectNoticeItem[]>(() => initialDirectNotices(settings));
   const [noticeDrafts, setNoticeDrafts] = useState<Record<string, string>>(() => (
     Object.fromEntries(initialDirectNotices(settings).map(n => [n.id, n.text]))
@@ -116,7 +127,15 @@ export function HeartOpsCard({ settings, onSave, onSaveNotices }: {
   const [savedFlash, setSavedFlash] = useState(false);
 
   useEffect(() => {
-    setSlots(saved.slots.map(s => ({ ...s, unlock: [...s.unlock] })));
+    setSlots(saved.slots.map(s => ({
+      ...s,
+      unlock: [...s.unlock],
+      notice_at: slotNoticeAt(s),
+    })));
+    const display = resolveHeartOpsBannerDisplay(saved);
+    setShowNoticeTime(display.show_notice_time);
+    setShowUnlockTime(display.show_unlock_time);
+    setShowCountdown(display.show_countdown);
   }, [saved]);
 
   const savedNoticesRef = useRef(savedNotices);
@@ -182,6 +201,9 @@ export function HeartOpsCard({ settings, onSave, onSaveNotices }: {
     instant_unlock: saved.instant_unlock ?? [],
     direct_notice: saved.direct_notice ?? '',
     ...(saved.auto_unlock_from != null ? { auto_unlock_from: saved.auto_unlock_from } : {}),
+    show_notice_time: showNoticeTime,
+    show_unlock_time: showUnlockTime,
+    show_countdown: showCountdown,
     ...patch,
   });
 
@@ -248,7 +270,7 @@ export function HeartOpsCard({ settings, onSave, onSaveNotices }: {
   };
 
   const resetDefaults = () => {
-    setSlots(DEFAULT_HEART_OPS.slots.map(s => ({ ...s, unlock: [...s.unlock] })));
+    setSlots(DEFAULT_HEART_OPS.slots.map(s => ({ ...s, unlock: [...s.unlock], notice_at: s.at })));
   };
 
   return (
@@ -282,27 +304,51 @@ export function HeartOpsCard({ settings, onSave, onSaveNotices }: {
             {slots.map((slot, idx) => (
               <div key={slot.id} className="flex flex-wrap items-center gap-1.5 rounded-lg border border-gray-100 bg-white px-2 py-1.5">
                 {(() => {
-                  const clock = parseHeartOpsClock(slot.at);
-                  const applyClock = (hour: number, minute: number) => {
+                  const unlockClock = parseHeartOpsClock(slot.at);
+                  const noticeClock = parseHeartOpsClock(slotNoticeAt(slot));
+                  const applyUnlock = (hour: number, minute: number) => {
                     const nextAt = formatHeartOpsClock(hour, minute);
                     if (!nextAt || !HEART_OPS_AT_RE.test(nextAt)) return false;
                     setSlots(prev => patchHeartOpsSlotAt(prev, idx, hour, minute));
                     return true;
                   };
+                  const applyNotice = (hour: number, minute: number) => {
+                    const nextAt = formatHeartOpsClock(hour, minute);
+                    if (!nextAt || !HEART_OPS_AT_RE.test(nextAt)) return false;
+                    setSlots(prev => patchHeartOpsSlotNoticeAt(prev, idx, hour, minute));
+                    return true;
+                  };
                   return (
-                    <span className="inline-flex items-center gap-1">
-                      <ClockPartInput
-                        label={`해금 시 ${idx + 1}`}
-                        value={String(clock.hour).padStart(2, '0')}
-                        onCommit={(digits) => applyClock(Number(digits), clock.minute)}
-                      />
-                      <span className="text-[12px] font-black text-gray-400">:</span>
-                      <ClockPartInput
-                        label={`해금 분 ${idx + 1}`}
-                        value={String(clock.minute).padStart(2, '0')}
-                        onCommit={(digits) => applyClock(clock.hour, Number(digits))}
-                      />
-                    </span>
+                    <>
+                      <span className="inline-flex items-center gap-1">
+                        <span className="text-[8px] font-black text-gray-400">공지</span>
+                        <ClockPartInput
+                          label={`공지 시 ${idx + 1}`}
+                          value={String(noticeClock.hour).padStart(2, '0')}
+                          onCommit={(digits) => applyNotice(Number(digits), noticeClock.minute)}
+                        />
+                        <span className="text-[12px] font-black text-gray-400">:</span>
+                        <ClockPartInput
+                          label={`공지 분 ${idx + 1}`}
+                          value={String(noticeClock.minute).padStart(2, '0')}
+                          onCommit={(digits) => applyNotice(noticeClock.hour, Number(digits))}
+                        />
+                      </span>
+                      <span className="inline-flex items-center gap-1">
+                        <span className="text-[8px] font-black text-gray-400">해금</span>
+                        <ClockPartInput
+                          label={`해금 시 ${idx + 1}`}
+                          value={String(unlockClock.hour).padStart(2, '0')}
+                          onCommit={(digits) => applyUnlock(Number(digits), unlockClock.minute)}
+                        />
+                        <span className="text-[12px] font-black text-gray-400">:</span>
+                        <ClockPartInput
+                          label={`해금 분 ${idx + 1}`}
+                          value={String(unlockClock.minute).padStart(2, '0')}
+                          onCommit={(digits) => applyUnlock(unlockClock.hour, Number(digits))}
+                        />
+                      </span>
+                    </>
                   );
                 })()}
                 <span className="text-[9px] text-gray-400 tabular-nums">{formatHeartOpsTime(slot.at)}</span>
@@ -328,6 +374,38 @@ export function HeartOpsCard({ settings, onSave, onSaveNotices }: {
                 </div>
               </div>
             ))}
+          </div>
+          <div className="mt-1.5 rounded-lg border border-violet-100 bg-violet-50/60 px-2 py-1.5">
+            <p className="text-[9px] font-black text-violet-800 mb-1">자동안내 표시</p>
+            <div className="flex flex-wrap gap-x-3 gap-y-1">
+              <label className="inline-flex items-center gap-1 text-[9px] font-black text-gray-600">
+                <input
+                  type="checkbox"
+                  aria-label="공지시간"
+                  checked={showNoticeTime}
+                  onChange={e => setShowNoticeTime(e.target.checked)}
+                />
+                공지시간
+              </label>
+              <label className="inline-flex items-center gap-1 text-[9px] font-black text-gray-600">
+                <input
+                  type="checkbox"
+                  aria-label="해금시간"
+                  checked={showUnlockTime}
+                  onChange={e => setShowUnlockTime(e.target.checked)}
+                />
+                해금시간
+              </label>
+              <label className="inline-flex items-center gap-1 text-[9px] font-black text-gray-600">
+                <input
+                  type="checkbox"
+                  aria-label="해금까지 카운트다운"
+                  checked={showCountdown}
+                  onChange={e => setShowCountdown(e.target.checked)}
+                />
+                해금까지 카운트다운
+              </label>
+            </div>
           </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
             <button type="button" onClick={resetDefaults} className="text-[9px] font-bold text-gray-400 underline">

@@ -99,6 +99,22 @@ describe('event schedule (heart ops v2)', () => {
     expect(round.slots).toHaveLength(2);
   });
 
+  it('keeps notice_at and banner flags without changing unlock at', () => {
+    const saved = JSON.parse(serializeEventSchedule({
+      version: 2,
+      slots: [{ id: 'slot-1', at: '23:00', notice_at: '22:40', unlock: ['red'] }],
+      show_notice_time: true,
+      show_unlock_time: false,
+      show_countdown: true,
+    }));
+    expect(saved.slots[0]).toEqual({ id: 'slot-1', at: '23:00', notice_at: '22:40', unlock: ['red'] });
+    expect(saved.show_notice_time).toBe(true);
+    expect(saved.show_unlock_time).toBe(false);
+    expect(saved.show_countdown).toBeUndefined();
+    const keys = unlockedHeartKeys(saved, new Date('2026-09-16T13:50:00.000Z'));
+    expect(keys.has('red')).toBe(false);
+  });
+
   it('instant_unlock applies regardless of clock and stays idempotent', () => {
     const raw = { version: 2, slots: [{ id: 'a', at: '24:30', unlock: ['rainbow'] }], instant_unlock: ['rainbow', 'rainbow'] };
     const keys = unlockedHeartKeys(raw, new Date('2026-09-16T13:00:00.000Z'));

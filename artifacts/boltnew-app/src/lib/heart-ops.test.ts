@@ -8,6 +8,7 @@ import {
   parseHeartOps,
   parseHeartOpsClock,
   patchHeartOpsSlotAt,
+  patchHeartOpsSlotNoticeAt,
   rainbowRemaining,
   resetHeartUnlocks,
   serializeHeartOps,
@@ -115,6 +116,64 @@ describe('heart-ops lock/unlock model', () => {
 
     const banner = heartOpsBannerState(shifted, seoulTime('2026-09-17T23:26:00+09:00'));
     expect(banner.autoLine).toContain('23:27');
+    expect(banner.autoLine).toContain('해금');
+    expect(banner.countdownSec).toBeGreaterThan(0);
+  });
+
+  it('notice_at is display-only and never unlocks hearts', () => {
+    vi.setSystemTime(seoulTime('2026-09-17T22:50:00+09:00'));
+    const config = parseHeartOps(JSON.stringify({
+      version: 2,
+      timezone: 'Asia/Seoul',
+      slots: [{ id: 'slot-1', at: '23:00', notice_at: '22:40', unlock: ['red'] }],
+    }));
+    expect(config.slots[0]?.notice_at).toBe('22:40');
+    expect(unlockedHeartKeys(config).has('red')).toBe(false);
+    vi.setSystemTime(seoulTime('2026-09-17T23:00:00+09:00'));
+    expect(unlockedHeartKeys(config).has('red')).toBe(true);
+    const round = parseHeartOps(serializeHeartOps(config));
+    expect(round.slots[0]?.notice_at).toBe('22:40');
+    expect(round.slots[0]?.at).toBe('23:00');
+  });
+
+  it('auto-notice shows only checked banner fields', () => {
+    vi.setSystemTime(seoulTime('2026-09-17T22:50:00+09:00'));
+    const base = parseHeartOps(JSON.stringify({
+      version: 2,
+      timezone: 'Asia/Seoul',
+      slots: [{ id: 'slot-1', at: '23:00', notice_at: '22:40', unlock: ['red'] }],
+    }));
+    const noticeOnly = heartOpsBannerState({ ...base, show_notice_time: true, show_unlock_time: false, show_countdown: false });
+    expect(noticeOnly.autoLine).toBe('호감 하트 22:40 공지');
+    expect(noticeOnly.countdownSec).toBeNull();
+
+    const unlockOnly = heartOpsBannerState({ ...base, show_unlock_time: true, show_countdown: false });
+    expect(unlockOnly.autoLine).toBe('호감 하트 23:00 해금');
+    expect(unlockOnly.countdownSec).toBeNull();
+
+    const countdownOnly = heartOpsBannerState({ ...base, show_unlock_time: false, show_countdown: true });
+    expect(countdownOnly.autoLine).toBeNull();
+    expect(countdownOnly.countdownSec).toBe(10 * 60);
+
+    const two = heartOpsBannerState({ ...base, show_notice_time: true, show_unlock_time: true, show_countdown: false });
+    expect(two.autoLine).toBe('호감 하트 22:40 공지 · 23:00 해금');
+    expect(two.countdownSec).toBeNull();
+
+    const all = heartOpsBannerState({ ...base, show_notice_time: true, show_unlock_time: true, show_countdown: true });
+    expect(all.autoLine).toBe('호감 하트 22:40 공지 · 23:00 해금');
+    expect(all.countdownSec).toBe(10 * 60);
+
+    const none = heartOpsBannerState({ ...base, show_unlock_time: false, show_countdown: false });
+    expect(none.autoLine).toBeNull();
+    expect(none.countdownSec).toBeNull();
+    expect(none.show).toBe(true);
+  });
+
+  it('patchHeartOpsSlotNoticeAt does not change unlock at', () => {
+    const patched = patchHeartOpsSlotNoticeAt(DEFAULT_HEART_OPS.slots, 0, 22, 40);
+    expect(patched[0].notice_at).toBe('22:40');
+    expect(patched[0].at).toBe('23:00');
+    expect(patched[0].unlock).toEqual(DEFAULT_HEART_OPS.slots[0].unlock);
   });
 
   it('resetHeartUnlocks relocks passed slots without dropping times or likes usage', () => {
@@ -123,10 +182,12 @@ describe('heart-ops lock/unlock model', () => {
     expect(unlockedHeartKeys(open).has('red')).toBe(true);
     expect(unlockedHeartKeys(open).has('rainbow')).toBe(true);
 
-    const reset = resetHeartUnlocks(open);
+    const reset = resetHeartUnlocks({ ...open, show_notice_time: true, show_countdown: false });
     expect(reset.slots).toEqual(open.slots);
     expect(reset.instant_unlock).toEqual([]);
     expect(reset.direct_notice).toBe(open.direct_notice);
+    expect(reset.show_notice_time).toBe(true);
+    expect(reset.show_countdown).toBe(false);
     expect(unlockedHeartKeys(reset).has('red')).toBe(false);
     expect(unlockedHeartKeys(reset).has('blue')).toBe(false);
     expect(unlockedHeartKeys(reset).has('pink')).toBe(false);

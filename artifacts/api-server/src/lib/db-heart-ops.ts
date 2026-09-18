@@ -7,6 +7,7 @@ export type HeartUnlockKey = EventHeartType | 'rainbow';
 export type HeartOpsSlot = {
   id: string;
   at: string;
+  notice_at?: string;
   unlock: HeartUnlockKey[];
 };
 
@@ -17,11 +18,30 @@ export type HeartOpsConfig = {
   instant_unlock?: HeartUnlockKey[];
   direct_notice?: string;
   auto_unlock_from?: number;
+  show_notice_time?: boolean;
+  show_unlock_time?: boolean;
+  show_countdown?: boolean;
 };
 
 export const RAINBOW_MAX_USES = 4;
 
 const AT_RE = /^([01]\d|2[0-4]):([0-5]\d)$/;
+
+function parseOptionalClock(raw: unknown): string | undefined {
+  return typeof raw === 'string' && AT_RE.test(raw) ? raw : undefined;
+}
+
+function serializeBannerDisplay(config: {
+  show_notice_time?: boolean;
+  show_unlock_time?: boolean;
+  show_countdown?: boolean;
+}) {
+  return {
+    ...(config.show_notice_time ? { show_notice_time: true as const } : {}),
+    ...(config.show_unlock_time === false ? { show_unlock_time: false as const } : {}),
+    ...(config.show_countdown === false ? { show_countdown: false as const } : {}),
+  };
+}
 
 function parseUnlockList(raw: unknown): HeartUnlockKey[] {
   if (!Array.isArray(raw)) return [];
@@ -93,10 +113,12 @@ export function parseHeartOps(raw: unknown): HeartOpsConfig {
       const r = v as Record<string, unknown>;
       const at = typeof r.at === 'string' && AT_RE.test(r.at) ? r.at : null;
       if (!at) return [];
+      const noticeAt = parseOptionalClock(r.notice_at);
       return [{
         id: typeof r.id === 'string' ? r.id.slice(0, 64) : `slot-${i + 1}`,
         at,
         unlock: parseUnlockList(r.unlock),
+        ...(noticeAt ? { notice_at: noticeAt } : {}),
       }];
     });
   } else {
@@ -115,6 +137,11 @@ export function parseHeartOps(raw: unknown): HeartOpsConfig {
     instant_unlock: parseUnlockList(obj.instant_unlock),
     direct_notice: typeof obj.direct_notice === 'string' ? obj.direct_notice.slice(0, 240) : '',
     ...(autoUnlockFrom != null ? { auto_unlock_from: autoUnlockFrom } : {}),
+    ...serializeBannerDisplay({
+      show_notice_time: obj.show_notice_time === true,
+      show_unlock_time: obj.show_unlock_time !== false,
+      show_countdown: obj.show_countdown !== false,
+    }),
   };
 }
 
@@ -122,10 +149,16 @@ export function serializeHeartOps(config: HeartOpsConfig): string {
   return JSON.stringify({
     timezone: 'Asia/Seoul',
     version: 2,
-    slots: config.slots,
+    slots: config.slots.map(s => ({
+      id: s.id,
+      at: s.at,
+      unlock: s.unlock,
+      ...(s.notice_at && AT_RE.test(s.notice_at) ? { notice_at: s.notice_at } : {}),
+    })),
     ...(config.instant_unlock?.length ? { instant_unlock: config.instant_unlock } : {}),
     ...(config.direct_notice?.trim() ? { direct_notice: config.direct_notice.trim().slice(0, 240) } : {}),
     ...(config.auto_unlock_from != null ? { auto_unlock_from: config.auto_unlock_from } : {}),
+    ...serializeBannerDisplay(config),
   });
 }
 
