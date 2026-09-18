@@ -10,6 +10,8 @@ export type AppSettings = Database['public']['Tables']['app_settings']['Row'] & 
   test_password_set?: boolean;
   reset_password_set?: boolean;
   event_schedule?: string | null;
+  /** Saved direct-notice list. Live broadcast stays in event_schedule.direct_notice. */
+  direct_notice_presets?: string | null;
 };
 export type SessionHistory = Database['public']['Tables']['session_history']['Row'];
 export type Like = Database['public']['Tables']['likes']['Row'];

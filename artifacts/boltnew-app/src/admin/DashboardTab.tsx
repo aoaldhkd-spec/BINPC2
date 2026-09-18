@@ -8,7 +8,7 @@ import { HeartOpsCard } from './HeartOpsCard';
 
 export function DashboardTab({ settings, profiles, onToggleSession, onEventEndReset, onToggleFunctionsLock,
   onClearLikes, onClearChats, onClearProfiles, onClearHistory,
-  restoreMap,   onSaveSchedule }: {
+  restoreMap,   onSaveSchedule, onSaveNotices }: {
   settings: AppSettings | null; profiles: Profile[];
   onToggleSession: () => void; onEventEndReset: () => void;
   onToggleFunctionsLock: () => void;
@@ -18,6 +18,7 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
   onClearHistory: () => Promise<void>;
   restoreMap: Map<string, () => Promise<void>>;
   onSaveSchedule: (raw: string) => Promise<void>;
+  onSaveNotices: (raw: string) => Promise<void>;
 }) {
   const [confirmToggle, setConfirmToggle] = useState(false);
   const [confirmEventEnd, setConfirmEventEnd] = useState(false);
@@ -38,7 +39,7 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
         ))}
       </div>
 
-      <HeartOpsCard settings={settings} onSave={onSaveSchedule} />
+      <HeartOpsCard settings={settings} onSave={onSaveSchedule} onSaveNotices={onSaveNotices} />
 
       {/* Session control */}
       <div>

@@ -17,10 +17,12 @@ export const DEFAULT_QUICK_NOTICES: QuickNoticePreset[] = [
 ];
 
 export const QUICK_NOTICE_STORAGE_KEY = 'admin_quick_notices_v1';
-/** Legacy single-draft key — migrated into DIRECT_NOTICES_KEY, never broadcast. */
+/** Legacy single-draft key — migrated into the shared list once, never broadcast. */
 export const QUICK_NOTICE_DRAFT_KEY = 'admin_quick_notice_draft_v1';
-/** Saved notice list only — never written into event_schedule / never broadcast. */
+/** Legacy local list — migrated into app_settings.direct_notice_presets once. */
 export const DIRECT_NOTICES_KEY = 'admin_direct_notices_v1';
+/** Shared saved-notice list in app_settings. Separate from event_schedule.direct_notice. */
+export const DIRECT_NOTICE_PRESETS_KEY = 'direct_notice_presets';
 export const DIRECT_NOTICE_TEXT_MAX = 240;
 export const DIRECT_NOTICES_MAX = 30;
 export const QUICK_NOTICE_EMPTY_HINT = '공지 내용을 입력해주세요.';
@@ -91,6 +93,34 @@ export function serializeDirectNotices(items: DirectNoticeItem[]): string {
     id: n.id,
     text: n.text.slice(0, DIRECT_NOTICE_TEXT_MAX),
   })));
+}
+
+export function hasServerDirectNoticePresets(raw: unknown): boolean {
+  return raw != null && raw !== '';
+}
+
+export function loadDirectNoticePresets(raw: unknown): DirectNoticeItem[] {
+  if (Array.isArray(raw)) return loadDirectNotices(JSON.stringify(raw));
+  if (typeof raw === 'string') return loadDirectNotices(raw);
+  return [];
+}
+
+export function readLocalDirectNoticeFallback(): DirectNoticeItem[] {
+  try {
+    return loadDirectNotices(
+      localStorage.getItem(DIRECT_NOTICES_KEY),
+      localStorage.getItem(QUICK_NOTICE_DRAFT_KEY),
+    );
+  } catch {
+    return [];
+  }
+}
+
+export function clearLocalDirectNoticeStorage(): void {
+  try {
+    localStorage.removeItem(DIRECT_NOTICES_KEY);
+    localStorage.removeItem(QUICK_NOTICE_DRAFT_KEY);
+  } catch { /* ignore */ }
 }
 
 export function upsertDirectNotice(items: DirectNoticeItem[], id: string, text: string): DirectNoticeItem[] {

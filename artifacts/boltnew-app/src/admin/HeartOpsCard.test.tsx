@@ -4,7 +4,11 @@ import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/re
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { HeartOpsCard } from './HeartOpsCard';
 import { DEFAULT_HEART_OPS, parseHeartOps, serializeHeartOps } from '../lib/heart-ops';
-import { DIRECT_NOTICES_KEY, loadDirectNotices } from './event-schedule-apply';
+import {
+  DIRECT_NOTICES_KEY,
+  loadDirectNotices,
+  serializeDirectNotices,
+} from './event-schedule-apply';
 import type { AppSettings } from './shared';
 
 afterEach(() => {
@@ -28,7 +32,7 @@ describe('HeartOpsCard schedule clock', () => {
   it('edits hour and minute separately, including 24:xx, without dropping other slots', async () => {
     const payloads: string[] = [];
     const onSave = vi.fn(async (raw: string) => { payloads.push(raw); });
-    render(<HeartOpsCard settings={settingsWith()} onSave={onSave} />);
+    render(<HeartOpsCard settings={settingsWith()} onSave={onSave} onSaveNotices={vi.fn(async () => {})} />);
 
     fireEvent.change(screen.getByLabelText('해금 분 1'), { target: { value: '15' } });
     fireEvent.change(screen.getByLabelText('해금 분 2'), { target: { value: '45' } });
@@ -56,7 +60,7 @@ describe('HeartOpsCard schedule clock', () => {
         instant_unlock: ['rainbow'],
       }),
     } as AppSettings;
-    render(<HeartOpsCard settings={settings} onSave={onSave} />);
+    render(<HeartOpsCard settings={settings} onSave={onSave} onSaveNotices={vi.fn(async () => {})} />);
     fireEvent.click(screen.getByRole('button', { name: '해금 초기화' }));
     expect(screen.getByText('5종 하트를 다시 미해금 상태로 돌립니다.', { exact: false })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: '확인' }));
@@ -71,8 +75,10 @@ describe('HeartOpsCard schedule clock', () => {
 
   it('manages multiple direct notices with isolated save, put, and delete', async () => {
     const payloads: string[] = [];
+    const noticePayloads: string[] = [];
     const onSave = vi.fn(async (raw: string) => { payloads.push(raw); });
-    render(<HeartOpsCard settings={settingsWith()} onSave={onSave} />);
+    const onSaveNotices = vi.fn(async (raw: string) => { noticePayloads.push(raw); });
+    render(<HeartOpsCard settings={settingsWith()} onSave={onSave} onSaveNotices={onSaveNotices} />);
 
     fireEvent.click(screen.getByRole('button', { name: '+ 공지 추가' }));
     fireEvent.click(screen.getByRole('button', { name: '+ 공지 추가' }));
@@ -81,7 +87,9 @@ describe('HeartOpsCard schedule clock', () => {
     const second = screen.getByLabelText('직접 공지 2') as HTMLTextAreaElement;
     const third = screen.getByLabelText('직접 공지 3') as HTMLTextAreaElement;
     expect(first.value).toBe('');
+    expect(Number(first.rows)).toBe(2);
     expect(first.className).toContain('resize-y');
+    expect(first.className).toContain('min-h-[2.25rem]');
 
     fireEvent.click(screen.getByRole('button', { name: '공지 1 넣기' }));
     expect(onSave).not.toHaveBeenCalled();
@@ -97,18 +105,20 @@ describe('HeartOpsCard schedule clock', () => {
     fireEvent.click(screen.getByRole('button', { name: '공지 2 저장' }));
     fireEvent.click(screen.getByRole('button', { name: '공지 3 저장' }));
     expect(onSave).not.toHaveBeenCalled();
-    expect(loadDirectNotices(window.localStorage.getItem(DIRECT_NOTICES_KEY)).map(n => n.text)).toEqual([
+    await waitFor(() => expect(onSaveNotices).toHaveBeenCalled());
+    expect(loadDirectNotices(noticePayloads.at(-1) ?? null).map(n => n.text)).toEqual([
       '잠시 후 하트 이벤트가 시작됩니다.',
       '자리 이동해주세요.',
       '잠시 후 무지개하트가 열립니다.',
     ]);
+    expect(window.localStorage.getItem(DIRECT_NOTICES_KEY)).toBeNull();
 
     fireEvent.change(first, { target: { value: '10분 뒤 무지개하트가 열립니다.' } });
     fireEvent.click(screen.getByRole('button', { name: '공지 1 넣기' }));
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
     expect(parseHeartOps(payloads[0]).direct_notice).toBe('10분 뒤 무지개하트가 열립니다.');
     expect(parseHeartOps(payloads[0]).slots).toHaveLength(4);
-    expect(loadDirectNotices(window.localStorage.getItem(DIRECT_NOTICES_KEY)).map(n => n.text)).toEqual([
+    expect(loadDirectNotices(noticePayloads.at(-1) ?? null).map(n => n.text)).toEqual([
       '잠시 후 하트 이벤트가 시작됩니다.',
       '자리 이동해주세요.',
       '잠시 후 무지개하트가 열립니다.',
@@ -117,10 +127,34 @@ describe('HeartOpsCard schedule clock', () => {
     fireEvent.click(screen.getByRole('button', { name: '공지 2 삭제' }));
     fireEvent.click(screen.getByRole('button', { name: '확인' }));
     expect(screen.queryByLabelText('직접 공지 3')).toBeNull();
-    expect(loadDirectNotices(window.localStorage.getItem(DIRECT_NOTICES_KEY)).map(n => n.text)).toEqual([
+    await waitFor(() => expect(loadDirectNotices(noticePayloads.at(-1) ?? null).map(n => n.text)).toEqual([
       '잠시 후 하트 이벤트가 시작됩니다.',
       '잠시 후 무지개하트가 열립니다.',
-    ]);
+    ]));
     expect(onSave).toHaveBeenCalledTimes(1);
   }, 15_000);
+
+  it('migrates localStorage drafts once then uses server presets', async () => {
+    window.localStorage.setItem(DIRECT_NOTICES_KEY, serializeDirectNotices([
+      { id: 'a', text: '자리 이동해주세요.' },
+    ]));
+    const noticePayloads: string[] = [];
+    const onSaveNotices = vi.fn(async (raw: string) => { noticePayloads.push(raw); });
+    const { rerender } = render(
+      <HeartOpsCard settings={settingsWith()} onSave={vi.fn(async () => {})} onSaveNotices={onSaveNotices} />,
+    );
+    await waitFor(() => expect(onSaveNotices).toHaveBeenCalledTimes(1));
+    expect(loadDirectNotices(noticePayloads[0]).map(n => n.text)).toEqual(['자리 이동해주세요.']);
+    await waitFor(() => expect(window.localStorage.getItem(DIRECT_NOTICES_KEY)).toBeNull());
+
+    rerender(
+      <HeartOpsCard
+        settings={{ ...settingsWith(), direct_notice_presets: noticePayloads[0] }}
+        onSave={vi.fn(async () => {})}
+        onSaveNotices={onSaveNotices}
+      />,
+    );
+    expect((screen.getByLabelText('직접 공지 1') as HTMLTextAreaElement).value).toBe('자리 이동해주세요.');
+    expect(onSaveNotices).toHaveBeenCalledTimes(1);
+  });
 });

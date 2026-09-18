@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Heart, Send, CheckCircle, Zap } from 'lucide-react';
 import { HEART_TYPES } from '../lib/constants';
 import {
@@ -20,13 +20,14 @@ import {
 import type { AppSettings } from './shared';
 import { ConfirmDialog } from './ConfirmDialog';
 import {
+  clearLocalDirectNoticeStorage,
   createDirectNoticeItem,
-  DIRECT_NOTICES_KEY,
   DIRECT_NOTICES_MAX,
   DIRECT_NOTICE_TEXT_MAX,
-  loadDirectNotices,
-  QUICK_NOTICE_DRAFT_KEY,
+  hasServerDirectNoticePresets,
+  loadDirectNoticePresets,
   QUICK_NOTICE_EMPTY_HINT,
+  readLocalDirectNoticeFallback,
   removeDirectNotice,
   serializeDirectNotices,
   upsertDirectNotice,
@@ -35,19 +36,11 @@ import {
 
 const UNLOCK_ORDER: HeartUnlockKey[] = ['red', 'blue', 'pink', 'green', 'rainbow'];
 
-function readInitialDirectNotices(): DirectNoticeItem[] {
-  try {
-    const items = loadDirectNotices(
-      localStorage.getItem(DIRECT_NOTICES_KEY),
-      localStorage.getItem(QUICK_NOTICE_DRAFT_KEY),
-    );
-    if (!localStorage.getItem(DIRECT_NOTICES_KEY) && items.length) {
-      localStorage.setItem(DIRECT_NOTICES_KEY, serializeDirectNotices(items));
-    }
-    return items;
-  } catch {
-    return [];
+function initialDirectNotices(settings: AppSettings | null): DirectNoticeItem[] {
+  if (hasServerDirectNoticePresets(settings?.direct_notice_presets)) {
+    return loadDirectNoticePresets(settings?.direct_notice_presets);
   }
+  return readLocalDirectNoticeFallback();
 }
 
 function toggleUnlock(list: HeartUnlockKey[], key: HeartUnlockKey): HeartUnlockKey[] {
@@ -102,15 +95,16 @@ function ClockPartInput({
   );
 }
 
-export function HeartOpsCard({ settings, onSave }: {
+export function HeartOpsCard({ settings, onSave, onSaveNotices }: {
   settings: AppSettings | null;
   onSave: (raw: string) => Promise<void>;
+  onSaveNotices: (raw: string) => Promise<void>;
 }) {
   const saved = useMemo(() => parseHeartOps(settings?.event_schedule), [settings?.event_schedule]);
   const [slots, setSlots] = useState<HeartOpsSlot[]>(() => saved.slots.map(s => ({ ...s, unlock: [...s.unlock] })));
-  const [savedNotices, setSavedNotices] = useState<DirectNoticeItem[]>(readInitialDirectNotices);
+  const [savedNotices, setSavedNotices] = useState<DirectNoticeItem[]>(() => initialDirectNotices(settings));
   const [noticeDrafts, setNoticeDrafts] = useState<Record<string, string>>(() => (
-    Object.fromEntries(savedNotices.map(n => [n.id, n.text]))
+    Object.fromEntries(initialDirectNotices(settings).map(n => [n.id, n.text]))
   ));
   const [savedFlashId, setSavedFlashId] = useState<string | null>(null);
   const [emptyHintId, setEmptyHintId] = useState<string | null>(null);
@@ -124,6 +118,40 @@ export function HeartOpsCard({ settings, onSave }: {
   useEffect(() => {
     setSlots(saved.slots.map(s => ({ ...s, unlock: [...s.unlock] })));
   }, [saved]);
+
+  const savedNoticesRef = useRef(savedNotices);
+  savedNoticesRef.current = savedNotices;
+  const onSaveNoticesRef = useRef(onSaveNotices);
+  onSaveNoticesRef.current = onSaveNotices;
+  const migratedRef = useRef(false);
+  const noticeSaveChain = useRef(Promise.resolve());
+
+  useEffect(() => {
+    if (hasServerDirectNoticePresets(settings?.direct_notice_presets)) {
+      const items = loadDirectNoticePresets(settings?.direct_notice_presets);
+      const prevSaved = savedNoticesRef.current;
+      setSavedNotices(items);
+      setNoticeDrafts(prev => {
+        const next: Record<string, string> = {};
+        for (const n of items) {
+          const oldSaved = prevSaved.find(s => s.id === n.id)?.text;
+          const draft = prev[n.id];
+          const dirty = draft != null && oldSaved != null && draft !== oldSaved;
+          next[n.id] = dirty ? draft : n.text;
+        }
+        return next;
+      });
+      clearLocalDirectNoticeStorage();
+      return;
+    }
+    if (migratedRef.current) return;
+    const local = readLocalDirectNoticeFallback();
+    if (!local.length) return;
+    migratedRef.current = true;
+    setSavedNotices(local);
+    setNoticeDrafts(Object.fromEntries(local.map(n => [n.id, n.text])));
+    void onSaveNoticesRef.current(serializeDirectNotices(local)).then(() => clearLocalDirectNoticeStorage());
+  }, [settings?.direct_notice_presets]);
 
   useEffect(() => {
     const id = window.setInterval(() => setClock(new Date()), 1000);
@@ -139,8 +167,12 @@ export function HeartOpsCard({ settings, onSave }: {
   const status = useMemo(() => adminHeartStatusLine(liveConfig, clock), [liveConfig, clock]);
 
   const persistNoticeList = (items: DirectNoticeItem[]) => {
-    try { localStorage.setItem(DIRECT_NOTICES_KEY, serializeDirectNotices(items)); } catch { /* ignore */ }
     setSavedNotices(items);
+    savedNoticesRef.current = items;
+    noticeSaveChain.current = noticeSaveChain.current
+      .then(() => onSaveNoticesRef.current(serializeDirectNotices(savedNoticesRef.current)))
+      .then(() => clearLocalDirectNoticeStorage())
+      .catch(() => undefined);
   };
 
   const buildConfig = (patch: Partial<HeartOpsConfig>): HeartOpsConfig => ({
@@ -337,9 +369,9 @@ export function HeartOpsCard({ settings, onSave }: {
                     if (emptyHintId === notice.id) setEmptyHintId(null);
                   }}
                   placeholder="현장 공지 (저장만 하면 참여자에게 안 보여요)"
-                  rows={3}
+                  rows={2}
                   maxLength={DIRECT_NOTICE_TEXT_MAX}
-                  className="w-full min-h-[3.5rem] rounded-lg border border-amber-200 bg-white px-2 py-1 text-[11px] resize-y"
+                  className="w-full min-h-[2.25rem] rounded-lg border border-amber-200 bg-white px-2 py-1 text-[11px] resize-y"
                 />
                 {emptyHintId === notice.id && (
                   <p className="text-[9px] font-bold text-amber-700">{QUICK_NOTICE_EMPTY_HINT}</p>

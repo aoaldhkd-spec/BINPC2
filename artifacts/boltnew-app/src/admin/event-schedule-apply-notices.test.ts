@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  hasServerDirectNoticePresets,
+  loadDirectNoticePresets,
   loadDirectNotices,
   removeDirectNotice,
   serializeDirectNotices,
@@ -39,5 +41,14 @@ describe('direct notice list helpers', () => {
     const removed = removeDirectNotice(edited, 'b');
     expect(removed.map(n => n.id)).toEqual(['a', 'c']);
     expect(JSON.parse(serializeDirectNotices(removed)).map((n: { id: string }) => n.id)).toEqual(['a', 'c']);
+  });
+
+  it('treats server [] as source of truth and does not remigrate local drafts', () => {
+    expect(hasServerDirectNoticePresets('[]')).toBe(true);
+    expect(hasServerDirectNoticePresets(undefined)).toBe(false);
+    expect(loadDirectNoticePresets('[]')).toEqual([]);
+    expect(loadDirectNoticePresets(serializeDirectNotices([{ id: 'x', text: '공지' }]))).toEqual([
+      { id: 'x', text: '공지' },
+    ]);
   });
 });

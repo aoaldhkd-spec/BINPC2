@@ -63,6 +63,30 @@ describe('db-app-settings-merge', () => {
     expect(filterTestSettingsPayload({ session_active: true, admin_password: 'x' })).toEqual({
       session_active: true,
     });
+    const long = 'x'.repeat(3000);
+    expect((sanitizeAdminSettingsPayload({ direct_notice_presets: long }) as { direct_notice_presets: string }).direct_notice_presets).toHaveLength(3000);
+    expect((sanitizeAdminSettingsPayload({ other: long }) as { other: string }).other).toHaveLength(2000);
+  });
+
+  it('mergeAppSettings presets patch keeps event_schedule slots', () => {
+    const schedule = JSON.stringify({
+      timezone: 'Asia/Seoul',
+      version: 2,
+      slots: [
+        { id: 'slot-1', at: '23:00', unlock: ['red'] },
+        { id: 'slot-2', at: '24:30', unlock: ['rainbow'] },
+      ],
+    });
+    const merged = mergeAppSettings(
+      { event_schedule: schedule, admin_password: 'keep' },
+      { direct_notice_presets: JSON.stringify([{ id: 'n1', text: '자리 이동해주세요.' }]) },
+      defaults,
+      't',
+    );
+    const parsed = JSON.parse(String(merged.event_schedule)) as { slots: Array<{ id: string; at: string }> };
+    expect(parsed.slots.map(s => s.id)).toEqual(['slot-1', 'slot-2']);
+    expect(parsed.slots.map(s => s.at)).toEqual(['23:00', '24:30']);
+    expect(merged.direct_notice_presets).toBe(JSON.stringify([{ id: 'n1', text: '자리 이동해주세요.' }]));
   });
   it('overlaySecretsFromDbRow copies non-empty secrets unless explicit', () => {
     const row = { id: 1, admin_password: 'mem', entry_password: 'old' };

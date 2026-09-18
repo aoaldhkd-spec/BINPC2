@@ -62,6 +62,9 @@ export function mergeAppSettings(
   }
   if (isLocalQrUrl(merged.qr_base_url)) merged.qr_base_url = PRODUCTION_QR_BASE;
   if ('event_schedule' in merged) merged.event_schedule = serializeEventSchedule(merged.event_schedule);
+  if (Array.isArray(merged.direct_notice_presets)) {
+    merged.direct_notice_presets = JSON.stringify(merged.direct_notice_presets);
+  }
   return merged;
 }
 
@@ -74,7 +77,7 @@ export function sanitizeAdminSettingsPayload(
   return Object.fromEntries(
     Object.entries(raw).map(([k, v]) => [
       k,
-      typeof v === 'string' ? v.replace(/<[^>]*>/g, '').slice(0, k === 'event_schedule' ? 12000 : maxLen) : v,
+      typeof v === 'string' ? v.replace(/<[^>]*>/g, '').slice(0, k === 'event_schedule' || k === 'direct_notice_presets' ? 12000 : maxLen) : v,
     ]),
   );
 }

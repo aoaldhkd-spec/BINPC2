@@ -108,6 +108,7 @@ describe('credentials tab copy', () => {
     expect(adminApp).not.toMatch(/label: '행사 시계'/);
     expect(adminApp).toMatch(/DashboardTab/);
     expect(adminApp).toMatch(/onSaveSchedule/);
+    expect(adminApp).toMatch(/direct_notice_presets/);
   });
 
   it('plants a local operator session only in Vite DEV, never as a public skip', () => {

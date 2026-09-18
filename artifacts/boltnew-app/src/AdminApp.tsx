@@ -679,7 +679,8 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                   onClearLikes={handleClearLikes} onClearChats={handleClearAllChats}
                   onClearProfiles={handleClearProfiles}
                   onClearHistory={handleClearHistory} restoreMap={restoreMap}
-                  onSaveSchedule={async (raw: string) => { await patchAdminSettings({ event_schedule: raw }, setSettings); }} />
+                  onSaveSchedule={async (raw: string) => { await patchAdminSettings({ event_schedule: raw }, setSettings); }}
+                  onSaveNotices={async (raw: string) => { await patchAdminSettings({ direct_notice_presets: raw }, setSettings); }} />
               )}
               {settingsSubTab === 'qr' && <AdminQrTab settings={settings} onSaveQrBase={async (url) => {
                 try {
