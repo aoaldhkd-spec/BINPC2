@@ -12,6 +12,7 @@ import {
   planSessionReadySettingsPatch,
   type SessionReadySettingsPatch,
 } from '../lib/session-ready-settings';
+import { eventScheduleRealtimeSeqValue, fetchedScheduleIsCurrent } from '../lib/event-schedule';
 import { onSseReconnect, isSseHealthy } from '../lib/supabase';
 import type { Profile } from '../types/app';
 
@@ -42,7 +43,10 @@ export function useParticipantSoTResync(args: UseParticipantSoTResyncArgs): void
       const a = argsRef.current;
       // 백그라운드 중 SSE 유실 시 기능 잠금·세션 상태를 /ready로 즉시 보정 (SoT skip과 무관)
       void fetchReadySettingsJson(5_000).then((settings) => {
-        const patch = planSessionReadySettingsPatch(settings, { includeTimers: false });
+        const patch = planSessionReadySettingsPatch(settings, {
+          includeTimers: false,
+          omitEventSchedule: isSseHealthy(),
+        });
         if (patch) a.applySessionReady(patch, 'visibility');
       });
       const storedId = a.getStoredUserId();
@@ -90,11 +94,16 @@ export function useParticipantSoTResync(args: UseParticipantSoTResyncArgs): void
         loadLikes: a.loadLikes,
         loadReceivedLikes: a.loadReceivedLikes,
         loadContactShareData: a.loadContactShareData,
-        refreshSessionReady: () =>
-          fetchReadySettingsJson(8_000).then((settings) => {
-            const patch = planSessionReadySettingsPatch(settings, { includeTimers: true });
+        refreshSessionReady: () => {
+          const startedSeq = eventScheduleRealtimeSeqValue();
+          return fetchReadySettingsJson(8_000).then((settings) => {
+            const patch = planSessionReadySettingsPatch(settings, {
+              includeTimers: true,
+              omitEventSchedule: !fetchedScheduleIsCurrent(startedSeq),
+            });
             if (patch) a.applySessionReady(patch, 'sse-reconnect');
-          }),
+          });
+        },
       });
     });
     return unsubReconnect;

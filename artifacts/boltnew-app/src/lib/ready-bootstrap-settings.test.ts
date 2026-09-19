@@ -43,6 +43,28 @@ describe('planReadyBootstrapApply', () => {
     });
   });
 
+  it('can omit event_schedule so a late /ready does not rewind SSE', () => {
+    const data = {
+      session_active: true,
+      event_schedule: JSON.stringify({ version: 2, slots: [] }),
+      reset_signal: null,
+    };
+    const withSchedule = planReadyBootstrapApply(data, { localReset: null, entryVerifiedStored: null });
+    expect(withSchedule.kind).toBe('apply');
+    if (withSchedule.kind === 'apply') {
+      expect(withSchedule.eventScheduleRaw).toContain('version');
+    }
+    const omitted = planReadyBootstrapApply(data, {
+      localReset: null,
+      entryVerifiedStored: null,
+      omitEventSchedule: true,
+    });
+    expect(omitted.kind).toBe('apply');
+    if (omitted.kind === 'apply') {
+      expect(omitted.eventScheduleRaw).toBeUndefined();
+    }
+  });
+
   it('omits functionsLockedRaw when absent', () => {
     const plan = planReadyBootstrapApply(
       { session_active: false, reset_signal: null },

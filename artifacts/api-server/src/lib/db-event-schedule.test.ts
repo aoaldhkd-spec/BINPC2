@@ -115,6 +115,23 @@ describe('event schedule (heart ops v2)', () => {
     expect(keys.has('red')).toBe(false);
   });
 
+  it('round-trips scheduled direct_notices without collapsing to live snapshot', () => {
+    const saved = JSON.parse(serializeEventSchedule({
+      version: 2,
+      slots: [{ id: 'slot-1', at: '23:00', unlock: ['red'] }],
+      direct_notice: '',
+      direct_notices: [
+        { id: 'n1', text: '자리 이동해주세요.', at: '23:40', enabled: true },
+        { id: 'n2', text: '24시 공지', at: '24:00', enabled: true },
+      ],
+    }));
+    expect(saved.direct_notices).toEqual([
+      { id: 'n1', text: '자리 이동해주세요.', at: '23:40', enabled: true },
+      { id: 'n2', text: '24시 공지', at: '24:00', enabled: true },
+    ]);
+    expect(saved.direct_notice).toBeUndefined();
+  });
+
   it('round-trips per-slot show_notice without unlocking from notice_at', () => {
     const saved = JSON.parse(serializeEventSchedule({
       version: 2,

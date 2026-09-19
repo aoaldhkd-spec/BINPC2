@@ -16,7 +16,7 @@ export type SessionReadySettingsPatch = {
 
 export function planSessionReadySettingsPatch(
   settings: Record<string, unknown> | null | undefined,
-  opts?: { includeTimers?: boolean },
+  opts?: { includeTimers?: boolean; omitEventSchedule?: boolean },
 ): SessionReadySettingsPatch | null {
   if (!settings || typeof settings !== 'object') return null;
   const includeTimers = opts?.includeTimers === true;
@@ -30,7 +30,9 @@ export function planSessionReadySettingsPatch(
   };
   if (hasSession) patch.sessionActive = settings.session_active as boolean;
   if (hasFunctionsLocked) patch.functionsLockedRaw = settings.functions_locked;
-  if (Object.prototype.hasOwnProperty.call(settings, 'event_schedule')) patch.eventScheduleRaw = coerceEventScheduleRaw(settings.event_schedule);
+  if (!opts?.omitEventSchedule && Object.prototype.hasOwnProperty.call(settings, 'event_schedule')) {
+    patch.eventScheduleRaw = coerceEventScheduleRaw(settings.event_schedule);
+  }
   if (includeTimers) {
     patch.timerEndAt = (settings.timer_end_at as string | null | undefined) ?? null;
     patch.timerLabel = (settings.timer_label as string | null | undefined) ?? null;

@@ -128,6 +128,7 @@ export function ensureDirectNoticeSlots(items: DirectNoticeItem[]): DirectNotice
   return next;
 }
 
+/** First enabled non-empty text. Time-gating lives in heart-ops.dueDirectNoticeText. */
 export function liveDirectNoticeText(items: DirectNoticeItem[]): string {
   return items.find(n => n.enabled && n.text.trim())?.text.trim().slice(0, DIRECT_NOTICE_TEXT_MAX) ?? '';
 }

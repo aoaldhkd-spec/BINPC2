@@ -18,6 +18,7 @@ import {
   raceFirstNonNullSettings,
   type ReadyBootstrapApplyPlan,
 } from '../lib/ready-bootstrap-settings';
+import { eventScheduleRealtimeSeqValue, fetchedScheduleIsCurrent } from '../lib/event-schedule';
 import { MATCHING_LAST_RESET_KEY, MATCHING_USER_KEY, ENTRY_VERIFIED_KEY } from '../lib/constants';
 import { ls } from '../lib/storage';
 import { parseFunctionsLocked } from '../lib/functions-lock';
@@ -75,11 +76,12 @@ export function useSessionReadyBootstrap(args: UseSessionReadyBootstrapArgs): vo
       }
     }, READY_BOOTSTRAP_SAFETY_MS);
 
-    const applySettings = (data: Record<string, unknown> | null) => {
+    const applySettings = (data: Record<string, unknown> | null, omitEventSchedule = false) => {
       if (cancelled || !data) return;
       const plan = planReadyBootstrapApply(data, {
         localReset: ls.getItem(MATCHING_LAST_RESET_KEY),
         entryVerifiedStored: ls.getItem(ENTRY_VERIFIED_KEY),
+        omitEventSchedule,
       });
       applyReadyPlan(plan, argsRef.current);
     };
@@ -139,13 +141,15 @@ export function useSessionReadyBootstrap(args: UseSessionReadyBootstrapArgs): vo
         sseHealthy: isSseHealthy(),
       })) return;
       lastReadyAt = now;
+      const startedSeq = eventScheduleRealtimeSeqValue();
+      const sseHealthyAtStart = isSseHealthy();
       fetch('/api/db/ready', { signal: AbortSignal.timeout(READY_BOOTSTRAP_POLL_FETCH_MS) })
         .then(r => (r.ok ? r.json() : null))
         .then((json: { ready?: boolean; settings?: Record<string, unknown> } | null) => {
           if (cancelled) return;
           const settings = pickReadyBootstrapSettings(json, 'poll');
           if (!settings) return;
-          applySettings(settings);
+          applySettings(settings, sseHealthyAtStart || !fetchedScheduleIsCurrent(startedSeq));
         })
         .catch(() => {});
     }, READY_BOOTSTRAP_POLL_MS);

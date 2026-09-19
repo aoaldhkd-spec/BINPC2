@@ -20,6 +20,8 @@ import {
   headerHeartRemainings,
   heartOpsBannerState,
   heartOpsHeartRows,
+  dueDirectNoticeText,
+  resolveDirectNotice,
 } from './heart-ops';
 
 afterEach(() => {
@@ -340,5 +342,48 @@ describe('heart-ops lock/unlock model', () => {
     const released = headerHeartRemainings({ functionsLocked: false, config, usage });
     expect(released).toEqual(open);
     expect(released.find(c => c.key === 'red')?.locked).toBe(true);
+  });
+
+  it('direct notice list is time-gated and legacy snapshot stays immediate', () => {
+    const scheduled = parseHeartOps(JSON.stringify({
+      version: 2,
+      timezone: 'Asia/Seoul',
+      slots: [{ id: 'slot-1', at: '23:00', unlock: ['red'] }],
+      direct_notice: 'legacy-now',
+      direct_notices: [
+        { id: 'n1', text: '23시 공지', at: '23:00', enabled: true },
+        { id: 'n2', text: '24시 공지', at: '24:00', enabled: true },
+      ],
+    }));
+    expect(scheduled.direct_notices).toHaveLength(2);
+    expect(dueDirectNoticeText(scheduled.direct_notices, seoulTime('2026-09-17T22:50:00+09:00'))).toBe('');
+    expect(heartOpsBannerState(scheduled, seoulTime('2026-09-17T22:50:00+09:00')).directNotice).toBeNull();
+    expect(dueDirectNoticeText(scheduled.direct_notices, seoulTime('2026-09-17T23:00:00+09:00'))).toBe('23시 공지');
+    expect(heartOpsBannerState(scheduled, seoulTime('2026-09-17T23:05:00+09:00')).directNotice).toBe('23시 공지');
+    expect(dueDirectNoticeText(scheduled.direct_notices, seoulTime('2026-09-18T00:05:00+09:00'))).toBe('23시 공지');
+    expect(dueDirectNoticeText(scheduled.direct_notices, seoulTime('2026-09-18T00:00:00+09:00'))).toBe('23시 공지');
+
+    const laterOnly = parseHeartOps(JSON.stringify({
+      version: 2,
+      timezone: 'Asia/Seoul',
+      slots: [{ id: 'slot-1', at: '23:00', unlock: ['red'] }],
+      direct_notices: [{ id: 'n2', text: '24시 공지', at: '24:00', enabled: true }],
+    }));
+    expect(dueDirectNoticeText(laterOnly.direct_notices, seoulTime('2026-09-17T23:50:00+09:00'))).toBe('');
+    expect(dueDirectNoticeText(laterOnly.direct_notices, seoulTime('2026-09-18T00:00:00+09:00'))).toBe('24시 공지');
+
+    const legacy = parseHeartOps(JSON.stringify({
+      version: 2,
+      timezone: 'Asia/Seoul',
+      slots: [{ id: 'slot-1', at: '23:00', unlock: ['red'] }],
+      direct_notice: '바로 표시',
+    }));
+    expect(resolveDirectNotice(legacy, seoulTime('2026-09-17T10:00:00+09:00'))).toBe('바로 표시');
+    expect(heartOpsBannerState(legacy, seoulTime('2026-09-17T10:00:00+09:00')).directNotice).toBe('바로 표시');
+
+    const reset = resetHeartUnlocks({ ...scheduled, instant_unlock: ['red'] }, seoulTime('2026-09-17T23:10:00+09:00'));
+    expect(reset.direct_notices?.[0]?.text).toBe('23시 공지');
+    const round = parseHeartOps(serializeHeartOps(scheduled));
+    expect(round.direct_notices?.map(n => n.at)).toEqual(['23:00', '24:00']);
   });
 });

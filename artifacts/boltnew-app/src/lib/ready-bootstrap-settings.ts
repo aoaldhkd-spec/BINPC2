@@ -34,6 +34,7 @@ export function planReadyBootstrapApply(
   opts: {
     localReset: string | null | undefined;
     entryVerifiedStored: string | null | undefined;
+    omitEventSchedule?: boolean;
   },
 ): ReadyBootstrapApplyPlan {
   const entry = planEntryPasswordState(
@@ -51,7 +52,9 @@ export function planReadyBootstrapApply(
     entryVerified: entry.entryVerified,
     timerEndAt: (data.timer_end_at as string | null | undefined) ?? null,
     timerLabel: (data.timer_label as string | null | undefined) ?? null,
-    ...(Object.prototype.hasOwnProperty.call(data, 'event_schedule') ? { eventScheduleRaw: coerceEventScheduleRaw(data.event_schedule) } : {}),
+    ...(!opts.omitEventSchedule && Object.prototype.hasOwnProperty.call(data, 'event_schedule')
+      ? { eventScheduleRaw: coerceEventScheduleRaw(data.event_schedule) }
+      : {}),
     hasFunctionsLocked: data.functions_locked != null,
     functionsLockedRaw: data.functions_locked != null ? data.functions_locked : undefined,
   };

@@ -3,6 +3,13 @@ import { HEART_TYPES, type HeartType } from './constants';
 /** Stored in app_settings.event_schedule (version 2). */
 export type HeartUnlockKey = HeartType | 'rainbow';
 
+export type HeartOpsDirectNotice = {
+  id: string;
+  text: string;
+  at?: string;
+  enabled?: boolean;
+};
+
 export type HeartOpsSlot = {
   id: string;
   /** Seoul HH:mm — 24:00 / 24:30 allowed (next calendar day after midnight). Unlock clock. */
@@ -28,6 +35,8 @@ export type HeartOpsConfig = {
   instant_unlock?: HeartUnlockKey[];
   /** Operator broadcast (separate from auto schedule copy). */
   direct_notice?: string;
+  /** Scheduled operator notices. Banner shows the first due enabled row. */
+  direct_notices?: HeartOpsDirectNotice[];
   /**
    * Event-minute hold after 해금 초기화.
    * Slots with `at` ≤ this stay locked unless listed in `instant_unlock`.
@@ -227,6 +236,42 @@ export function nowEventMinute(now = new Date()): number {
   return base;
 }
 
+export function parseHeartOpsDirectNotices(raw: unknown): HeartOpsDirectNotice[] {
+  if (!Array.isArray(raw)) return [];
+  const out: HeartOpsDirectNotice[] = [];
+  for (const row of raw) {
+    if (!row || typeof row !== 'object' || Array.isArray(row)) continue;
+    const r = row as Record<string, unknown>;
+    if (typeof r.id !== 'string' || !r.id.trim() || typeof r.text !== 'string') continue;
+    const at = typeof r.at === 'string' && HEART_OPS_AT_RE.test(r.at) ? r.at : undefined;
+    out.push({
+      id: r.id,
+      text: r.text.slice(0, 240),
+      ...(at ? { at } : {}),
+      ...(r.enabled === true ? { enabled: true } : {}),
+    });
+    if (out.length >= 4) break;
+  }
+  return out;
+}
+
+/** First enabled notice whose clock has arrived. Missing `at` stays immediately due (legacy). */
+export function dueDirectNoticeText(items: HeartOpsDirectNotice[] | undefined, now = new Date()): string {
+  if (!items?.length) return '';
+  const minute = nowEventMinute(now);
+  const hit = items.find(n => {
+    if (n.enabled !== true || !n.text.trim()) return false;
+    if (!n.at || !HEART_OPS_AT_RE.test(n.at)) return true;
+    return slotEventMinute(n.at) <= minute;
+  });
+  return hit?.text.trim().slice(0, 240) ?? '';
+}
+
+export function resolveDirectNotice(config: HeartOpsConfig, now = new Date()): string {
+  if (config.direct_notices?.length) return dueDirectNoticeText(config.direct_notices, now);
+  return (config.direct_notice ?? '').trim();
+}
+
 function parseUnlockList(raw: unknown): HeartUnlockKey[] {
   if (!Array.isArray(raw)) return [];
   const out: HeartUnlockKey[] = [];
@@ -301,6 +346,7 @@ export function parseHeartOps(raw: unknown): HeartOpsConfig {
 
   const instant = parseUnlockList(obj.instant_unlock);
   const directNotice = typeof obj.direct_notice === 'string' ? obj.direct_notice.slice(0, 240) : '';
+  const directNotices = parseHeartOpsDirectNotices(obj.direct_notices);
   const autoUnlockFrom = parseAutoUnlockFrom(obj.auto_unlock_from);
 
   return {
@@ -309,6 +355,7 @@ export function parseHeartOps(raw: unknown): HeartOpsConfig {
     slots,
     instant_unlock: instant,
     direct_notice: directNotice,
+    ...(directNotices.length ? { direct_notices: directNotices } : {}),
     ...(autoUnlockFrom != null ? { auto_unlock_from: autoUnlockFrom } : {}),
     ...serializeBannerDisplay({
       show_notice_time: obj.show_notice_time === true,
@@ -331,6 +378,14 @@ export function serializeHeartOps(config: HeartOpsConfig): string {
     })),
     ...(config.instant_unlock?.length ? { instant_unlock: [...new Set(config.instant_unlock)] } : {}),
     ...(config.direct_notice?.trim() ? { direct_notice: config.direct_notice.trim().slice(0, 240) } : {}),
+    ...(config.direct_notices?.length ? {
+      direct_notices: config.direct_notices.slice(0, 4).map(n => ({
+        id: n.id,
+        text: n.text.slice(0, 240),
+        ...(n.at && HEART_OPS_AT_RE.test(n.at) ? { at: n.at } : {}),
+        ...(n.enabled ? { enabled: true } : {}),
+      })),
+    } : {}),
     ...(config.auto_unlock_from != null ? { auto_unlock_from: config.auto_unlock_from } : {}),
     ...serializeBannerDisplay(config),
   };
@@ -369,6 +424,7 @@ export function resetHeartUnlocks(config: HeartOpsConfig, now = new Date()): Hea
     slots: config.slots.map(s => ({ ...s, unlock: [...s.unlock] })),
     instant_unlock: [],
     direct_notice: config.direct_notice ?? '',
+    ...(config.direct_notices?.length ? { direct_notices: config.direct_notices } : {}),
     auto_unlock_from: nowEventMinute(now),
     ...serializeBannerDisplay(config),
   };
@@ -505,7 +561,7 @@ export type HeartOpsBannerState = {
 };
 
 export function heartOpsBannerState(config: HeartOpsConfig, now = new Date()): HeartOpsBannerState {
-  const direct = (config.direct_notice ?? '').trim();
+  const direct = resolveDirectNotice(config, now);
   const minute = nowEventMinute(now);
   const { second } = seoulClockParts(now);
 

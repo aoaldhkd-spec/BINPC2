@@ -51,4 +51,22 @@ describe('EventScheduleBanner auto-notice checks', () => {
     expect(screen.getByTestId('heart-ops-auto-notice').textContent).toContain('23:00 해금');
     expect(screen.getByTestId('heart-ops-auto-notice').textContent).toContain('해금까지');
   });
+
+  it('shows scheduled direct notice only after 공지시간', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-17T22:50:00+09:00'));
+    const raw = JSON.stringify({
+      version: 2,
+      timezone: 'Asia/Seoul',
+      slots: [{ id: 'slot-red', at: '23:00', unlock: ['red'] }],
+      direct_notices: [{ id: 'n1', text: '자리 이동해주세요.', at: '23:00', enabled: true }],
+    });
+    const { unmount } = render(<EventScheduleBanner raw={raw} />);
+    expect(screen.queryByText('자리 이동해주세요.')).toBeNull();
+    unmount();
+
+    vi.setSystemTime(new Date('2026-09-17T23:00:00+09:00'));
+    render(<EventScheduleBanner raw={raw} />);
+    expect(screen.getByText('자리 이동해주세요.')).toBeTruthy();
+  });
 });

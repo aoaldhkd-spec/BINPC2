@@ -34,6 +34,19 @@ describe('planSessionReadySettingsPatch', () => {
     expect(p?.timerLabel).toBeNull();
   });
 
+  it('omits event_schedule when omitEventSchedule is set', () => {
+    const p = planSessionReadySettingsPatch(
+      { session_active: true, event_schedule: '{"version":2}' },
+      { includeTimers: true, omitEventSchedule: true },
+    );
+    expect(p?.eventScheduleRaw).toBeUndefined();
+    const kept = planSessionReadySettingsPatch(
+      { session_active: true, event_schedule: '{"version":2}' },
+      { includeTimers: true },
+    );
+    expect(kept?.eventScheduleRaw).toBe('{"version":2}');
+  });
+
   it('returns timers-only patch when includeTimers and no other fields', () => {
     const p = planSessionReadySettingsPatch({ timer_end_at: null }, { includeTimers: true });
     expect(p).toEqual({

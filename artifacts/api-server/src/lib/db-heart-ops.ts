@@ -12,12 +12,20 @@ export type HeartOpsSlot = {
   unlock: HeartUnlockKey[];
 };
 
+export type HeartOpsDirectNotice = {
+  id: string;
+  text: string;
+  at?: string;
+  enabled?: boolean;
+};
+
 export type HeartOpsConfig = {
   timezone: 'Asia/Seoul';
   version: 2;
   slots: HeartOpsSlot[];
   instant_unlock?: HeartUnlockKey[];
   direct_notice?: string;
+  direct_notices?: HeartOpsDirectNotice[];
   auto_unlock_from?: number;
   show_notice_time?: boolean;
   show_unlock_time?: boolean;
@@ -42,6 +50,25 @@ function serializeBannerDisplay(config: {
     ...(config.show_unlock_time === false ? { show_unlock_time: false as const } : {}),
     ...(config.show_countdown === false ? { show_countdown: false as const } : {}),
   };
+}
+
+function parseHeartOpsDirectNotices(raw: unknown): HeartOpsDirectNotice[] {
+  if (!Array.isArray(raw)) return [];
+  const out: HeartOpsDirectNotice[] = [];
+  for (const row of raw) {
+    if (!row || typeof row !== 'object' || Array.isArray(row)) continue;
+    const r = row as Record<string, unknown>;
+    if (typeof r.id !== 'string' || !r.id.trim() || typeof r.text !== 'string') continue;
+    const at = parseOptionalClock(r.at);
+    out.push({
+      id: r.id,
+      text: r.text.slice(0, 240),
+      ...(at ? { at } : {}),
+      ...(r.enabled === true ? { enabled: true } : {}),
+    });
+    if (out.length >= 4) break;
+  }
+  return out;
 }
 
 function parseUnlockList(raw: unknown): HeartUnlockKey[] {
@@ -132,12 +159,14 @@ export function parseHeartOps(raw: unknown): HeartOpsConfig {
   }
   slots.sort((a, b) => slotEventMinute(a.at) - slotEventMinute(b.at));
   const autoUnlockFrom = parseAutoUnlockFrom(obj.auto_unlock_from);
+  const directNotices = parseHeartOpsDirectNotices(obj.direct_notices);
   return {
     timezone: 'Asia/Seoul',
     version: 2,
     slots,
     instant_unlock: parseUnlockList(obj.instant_unlock),
     direct_notice: typeof obj.direct_notice === 'string' ? obj.direct_notice.slice(0, 240) : '',
+    ...(directNotices.length ? { direct_notices: directNotices } : {}),
     ...(autoUnlockFrom != null ? { auto_unlock_from: autoUnlockFrom } : {}),
     ...serializeBannerDisplay({
       show_notice_time: obj.show_notice_time === true,
@@ -160,6 +189,14 @@ export function serializeHeartOps(config: HeartOpsConfig): string {
     })),
     ...(config.instant_unlock?.length ? { instant_unlock: config.instant_unlock } : {}),
     ...(config.direct_notice?.trim() ? { direct_notice: config.direct_notice.trim().slice(0, 240) } : {}),
+    ...(config.direct_notices?.length ? {
+      direct_notices: config.direct_notices.slice(0, 4).map(n => ({
+        id: n.id,
+        text: n.text.slice(0, 240),
+        ...(n.at && AT_RE.test(n.at) ? { at: n.at } : {}),
+        ...(n.enabled ? { enabled: true } : {}),
+      })),
+    } : {}),
     ...(config.auto_unlock_from != null ? { auto_unlock_from: config.auto_unlock_from } : {}),
     ...serializeBannerDisplay(config),
   });

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   coerceEventScheduleRaw,
+  eventScheduleRealtimeSeqValue,
+  fetchedScheduleIsCurrent,
+  noteEventScheduleRealtime,
   eventHeartQuotas,
   eventGrantedHeartTotal,
   eventRainbowQuota,
@@ -172,6 +175,16 @@ describe('eventScheduleBannerState', () => {
       '5분 뒤 빨강하트가 추가됩니다',
     );
     expect(upcomingHeartGrantPreview(rainbow, new Date('2026-09-16T14:05:00.000Z'))).toBeNull();
+  });
+});
+
+describe('event_schedule fetch vs SSE seq', () => {
+  it('marks a late fetch stale after SSE applies a newer schedule', () => {
+    const started = eventScheduleRealtimeSeqValue();
+    expect(fetchedScheduleIsCurrent(started)).toBe(true);
+    noteEventScheduleRealtime();
+    expect(fetchedScheduleIsCurrent(started)).toBe(false);
+    expect(fetchedScheduleIsCurrent(eventScheduleRealtimeSeqValue())).toBe(true);
   });
 });
 

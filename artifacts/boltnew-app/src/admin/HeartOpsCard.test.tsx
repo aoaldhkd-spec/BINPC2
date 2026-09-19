@@ -3,7 +3,7 @@ import React from 'react';
 import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { HeartOpsCard } from './HeartOpsCard';
-import { DEFAULT_HEART_OPS, parseHeartOps, serializeHeartOps, unlockedHeartKeys } from '../lib/heart-ops';
+import { DEFAULT_HEART_OPS, dueDirectNoticeText, parseHeartOps, serializeHeartOps, unlockedHeartKeys } from '../lib/heart-ops';
 import {
   DIRECT_NOTICES_KEY,
   loadDirectNotices,
@@ -117,7 +117,7 @@ describe('HeartOpsCard schedule clock', () => {
     expect(saved.auto_unlock_from).toEqual(expect.any(Number));
   });
 
-  it('keeps four direct-notice rows and broadcasts the first checked text on save', async () => {
+  it('keeps four direct-notice rows and time-gates the first checked text', async () => {
     const payloads: string[] = [];
     const noticePayloads: string[] = [];
     const onSave = vi.fn(async (raw: string) => { payloads.push(raw); });
@@ -147,14 +147,23 @@ describe('HeartOpsCard schedule clock', () => {
       '잠시 후 무지개하트가 열립니다.',
       '',
     ]);
-    expect(parseHeartOps(payloads[0]).direct_notice).toBe('자리 이동해주세요.');
-    expect(parseHeartOps(payloads[0]).slots).toHaveLength(5);
+    const firstSave = parseHeartOps(payloads[0]);
+    expect(firstSave.direct_notices?.[1]).toMatchObject({
+      text: '자리 이동해주세요.',
+      at: '23:00',
+      enabled: true,
+    });
+    expect(firstSave.direct_notice).toBe(dueDirectNoticeText(firstSave.direct_notices));
+    expect(dueDirectNoticeText(firstSave.direct_notices, new Date('2026-09-17T22:00:00+09:00'))).toBe('');
+    expect(dueDirectNoticeText(firstSave.direct_notices, new Date('2026-09-17T23:00:00+09:00'))).toBe('자리 이동해주세요.');
+    expect(firstSave.slots).toHaveLength(5);
     expect(window.localStorage.getItem(DIRECT_NOTICES_KEY)).toBeNull();
 
     fireEvent.click(screen.getByRole('checkbox', { name: '공지 2 표시' }));
     fireEvent.click(screen.getByRole('button', { name: /스케줄 저장/ }));
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
     expect(parseHeartOps(payloads[1]).direct_notice).toBe('');
+    expect(dueDirectNoticeText(parseHeartOps(payloads[1]).direct_notices, new Date('2026-09-17T23:05:00+09:00'))).toBe('');
   }, 15_000);
 
   it('migrates localStorage drafts once then uses server presets', async () => {

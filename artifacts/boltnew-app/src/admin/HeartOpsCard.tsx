@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Heart, Zap } from 'lucide-react';
 import { HEART_TYPES } from '../lib/constants';
 import {
+  dueDirectNoticeText,
   formatHeartOpsClock,
   heartLabel,
   HEART_OPS_AT_RE,
@@ -22,8 +23,8 @@ import {
   clearLocalDirectNoticeStorage,
   DIRECT_NOTICE_SLOT_COUNT,
   DIRECT_NOTICE_TEXT_MAX,
+  ensureDirectNoticeSlots,
   hasServerDirectNoticePresets,
-  liveDirectNoticeText,
   loadDirectNoticePresets,
   patchDirectNotice,
   QUICK_NOTICE_EMPTY_HINT,
@@ -42,7 +43,9 @@ function heartRowMeta(key: HeartUnlockKey): { emoji: string; label: string } {
 }
 
 function noticesFromSettings(settings: AppSettings | null): DirectNoticeItem[] {
-  const live = parseHeartOps(settings?.event_schedule).direct_notice;
+  const parsed = parseHeartOps(settings?.event_schedule);
+  if (parsed.direct_notices?.length) return ensureDirectNoticeSlots(parsed.direct_notices);
+  const live = parsed.direct_notice;
   if (hasServerDirectNoticePresets(settings?.direct_notice_presets)) {
     return withLiveNoticeEnabled(loadDirectNoticePresets(settings?.direct_notice_presets), live);
   }
@@ -152,7 +155,13 @@ export function HeartOpsCard({ settings, onSave, onSaveNotices }: {
   const migratedRef = useRef(false);
 
   useEffect(() => {
-    const live = parseHeartOps(settings?.event_schedule).direct_notice;
+    const parsed = parseHeartOps(settings?.event_schedule);
+    if (parsed.direct_notices?.length) {
+      setNotices(ensureDirectNoticeSlots(parsed.direct_notices));
+      if (hasServerDirectNoticePresets(settings?.direct_notice_presets)) clearLocalDirectNoticeStorage();
+      return;
+    }
+    const live = parsed.direct_notice;
     if (hasServerDirectNoticePresets(settings?.direct_notice_presets)) {
       setNotices(withLiveNoticeEnabled(loadDirectNoticePresets(settings?.direct_notice_presets), live));
       clearLocalDirectNoticeStorage();
@@ -168,6 +177,8 @@ export function HeartOpsCard({ settings, onSave, onSaveNotices }: {
     const padded = withLiveNoticeEnabled(local, live);
     setNotices(padded);
     void onSaveNoticesRef.current(serializeDirectNotices(padded)).then(() => clearLocalDirectNoticeStorage());
+    // Unlock SSE updates event_schedule without touching presets; do not reset unsaved notice drafts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- presets/migration only
   }, [settings?.direct_notice_presets]);
 
   const buildConfig = (patch: Partial<HeartOpsConfig>): HeartOpsConfig => ({
@@ -176,6 +187,7 @@ export function HeartOpsCard({ settings, onSave, onSaveNotices }: {
     slots,
     instant_unlock: saved.instant_unlock ?? [],
     direct_notice: saved.direct_notice ?? '',
+    ...(saved.direct_notices?.length ? { direct_notices: saved.direct_notices } : {}),
     ...(saved.auto_unlock_from != null ? { auto_unlock_from: saved.auto_unlock_from } : {}),
     ...(saved.show_notice_time ? { show_notice_time: true } : {}),
     ...(saved.show_unlock_time === false ? { show_unlock_time: false } : {}),
@@ -201,7 +213,8 @@ export function HeartOpsCard({ settings, onSave, onSaveNotices }: {
       clearLocalDirectNoticeStorage();
       await onSave(serializeHeartOps(buildConfig({
         slots,
-        direct_notice: liveDirectNoticeText(notices),
+        direct_notices: notices.slice(0, DIRECT_NOTICE_SLOT_COUNT),
+        direct_notice: dueDirectNoticeText(notices),
       })));
       setSavedFlash(true);
       window.setTimeout(() => setSavedFlash(false), 1800);

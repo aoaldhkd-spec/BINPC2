@@ -4,7 +4,7 @@
  * The live heart system is `lib/heart-ops.ts` (lock/unlock + `like_source`
  * grant/rainbow split). Everything below except `coerceEventScheduleRaw` is the
  * pre-2026.09 quota model, kept so stored v1 `event_schedule` JSON stays
- * readable. `coerceEventScheduleRaw` is the only live export here.
+ * readable. Live exports: `coerceEventScheduleRaw` and fetch-vs-SSE seq helpers.
  */
 import { HEART_COLOR_LABELS, type HeartType } from './constants';
 
@@ -84,6 +84,23 @@ export function coerceEventScheduleRaw(raw: unknown): string | null {
     try { return JSON.stringify(raw); } catch { return null; }
   }
   return null;
+}
+
+/** Bumped when SSE applies event_schedule so a late /ready cannot rewind it. */
+let eventScheduleRealtimeSeq = 0;
+
+export function noteEventScheduleRealtime(): number {
+  eventScheduleRealtimeSeq += 1;
+  return eventScheduleRealtimeSeq;
+}
+
+export function eventScheduleRealtimeSeqValue(): number {
+  return eventScheduleRealtimeSeq;
+}
+
+/** True when no SSE schedule landed after the fetch was started. */
+export function fetchedScheduleIsCurrent(startedSeq: number): boolean {
+  return startedSeq === eventScheduleRealtimeSeq;
 }
 
 const COLOR_KEYS: HeartType[] = ['red', 'blue', 'pink', 'green'];

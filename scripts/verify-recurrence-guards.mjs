@@ -318,7 +318,7 @@ mustMatch('artifacts/boltnew-app/src/admin/HeartOpsCard.tsx', '35_heart_ops_card
   /resetHeartUnlocks/,
   /QUICK_NOTICE_EMPTY_HINT/,
   /onSaveNotices/,
-  /liveDirectNoticeText/,
+  /dueDirectNoticeText/,
   /ensureDirectNoticeSlots|withLiveNoticeEnabled/,
   /flex-\[7\]/,
   /flex-\[3\]/,
@@ -334,8 +334,17 @@ mustMatch('artifacts/boltnew-app/src/admin/HeartOpsCard.tsx', '35_heart_ops_auto
   /해금시간/,
   /heartOpsHeartRows/,
   /DIRECT_NOTICE_SLOT_COUNT/,
-  /liveDirectNoticeText/,
+  /dueDirectNoticeText/,
   /patchDirectNotice/,
+]);
+mustMatch('artifacts/boltnew-app/src/lib/heart-ops.ts', '35_heart_ops_direct_notices_time_gate', [
+  /direct_notices/,
+  /dueDirectNoticeText/,
+  /resolveDirectNotice/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-heart-ops.ts', '35_api_heart_ops_direct_notices', [
+  /direct_notices/,
+  /parseHeartOpsDirectNotices/,
 ]);
 mustMatch('artifacts/boltnew-app/src/admin/event-schedule-apply.ts', '35_direct_notice_fixed_slots', [
   /DIRECT_NOTICE_SLOT_COUNT = 4/,
@@ -968,6 +977,12 @@ mustMatch('artifacts/boltnew-app/src/lib/ready-bootstrap-settings.ts', '47_ready
   /planReadyBootstrapSafety/,
   /planReadyBootstrapRetry/,
   /pickReadyBootstrapSettings/,
+  /omitEventSchedule/,
+]);
+mustMatch('artifacts/boltnew-app/src/hooks/useSessionReadyBootstrap.ts', '47_ready_poll_skip_schedule_when_sse', [
+  /omitEventSchedule/,
+  /fetchedScheduleIsCurrent/,
+  /sseHealthyAtStart/,
 ]);
 mustMatch('artifacts/boltnew-app/src/lib/profile-boot-machine.ts', '47_profile_boot_decisions', [
   /planProfileBootCacheHit/,
