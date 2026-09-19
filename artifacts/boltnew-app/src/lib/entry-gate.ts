@@ -40,7 +40,7 @@ export function shouldShowEntryGate(opts: {
   if (opts.entryVerified) return false;
   if (opts.currentUserId) return false;
   if (opts.isTester) return false;
-  return true;
+  return false;
 }
 
 /** 신규 닉네임 등록 — 이미 식별됐거나 프로필이 있으면 스킵 */
