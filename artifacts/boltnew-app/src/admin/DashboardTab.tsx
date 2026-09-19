@@ -28,6 +28,35 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
 
   return (
     <div className="space-y-5 p-5">
+      {/* 잠금 제어 */}
+      <div>
+        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 px-1">잠금 제어</h3>
+        <div className="space-y-2">
+          {/* 기능 잠금 (functions_locked) */}
+          <button
+            onClick={onToggleFunctionsLock}
+            className={`w-full rounded-2xl p-4 border-2 flex flex-wrap items-center gap-3 transition-all active:scale-[0.98] shadow-sm ${
+              isFunctionsLocked ? 'bg-red-50 border-red-300 hover:bg-red-100' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
+            }`}
+          >
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isFunctionsLocked ? 'bg-red-500' : 'bg-slate-400'}`}>
+              {isFunctionsLocked ? <Lock className="w-5 h-5 text-white" /> : <Unlock className="w-5 h-5 text-white" />}
+            </div>
+            <div className="flex-1 text-left min-w-0">
+              <p className={`font-black text-sm break-words ${isFunctionsLocked ? 'text-red-700' : 'text-slate-700'}`}>
+                {isFunctionsLocked ? '🔒 채팅·기능 잠금 중' : '💬 채팅·기능 열려있음'}
+              </p>
+              <p className={`text-[10px] mt-0.5 break-words ${isFunctionsLocked ? 'text-red-500' : 'text-slate-400'}`}>
+                {isFunctionsLocked ? 'MY·단톡 사용 불가 — 통계·랭킹·설정은 그대로 — 탭하여 해제' : 'MY·단톡 잠금 가능 — 통계·랭킹·설정은 항상 열림 — 탭하여 잠금'}
+              </p>
+            </div>
+            <div className={`relative w-10 h-6 rounded-full transition-all flex-shrink-0 ${isFunctionsLocked ? 'bg-red-500' : 'bg-slate-300'}`}>
+              <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${isFunctionsLocked ? 'left-4' : 'left-0.5'}`} />
+            </div>
+          </button>
+        </div>
+      </div>
+
       <div className="grid grid-cols-3 gap-3">
         {[
           { label: '참여자', value: profiles.length, color: 'bg-cyan-50 text-cyan-700' },
@@ -74,35 +103,6 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
             <span className={`text-[10px] font-medium ${isActive ? 'text-red-500' : 'text-slate-400'}`}>
               {isActive ? '클릭하여 세션 닫기' : '대기 중'}
             </span>
-          </button>
-        </div>
-      </div>
-
-      {/* 잠금 제어 */}
-      <div>
-        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 px-1">잠금 제어</h3>
-        <div className="space-y-2">
-          {/* 기능 잠금 (functions_locked) */}
-          <button
-            onClick={onToggleFunctionsLock}
-            className={`w-full rounded-2xl p-4 border-2 flex flex-wrap items-center gap-3 transition-all active:scale-[0.98] shadow-sm ${
-              isFunctionsLocked ? 'bg-red-50 border-red-300 hover:bg-red-100' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
-            }`}
-          >
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isFunctionsLocked ? 'bg-red-500' : 'bg-slate-400'}`}>
-              {isFunctionsLocked ? <Lock className="w-5 h-5 text-white" /> : <Unlock className="w-5 h-5 text-white" />}
-            </div>
-            <div className="flex-1 text-left min-w-0">
-              <p className={`font-black text-sm break-words ${isFunctionsLocked ? 'text-red-700' : 'text-slate-700'}`}>
-                {isFunctionsLocked ? '🔒 채팅·기능 잠금 중' : '💬 채팅·기능 열려있음'}
-              </p>
-              <p className={`text-[10px] mt-0.5 break-words ${isFunctionsLocked ? 'text-red-500' : 'text-slate-400'}`}>
-                {isFunctionsLocked ? 'MY·단톡 사용 불가 — 통계·랭킹·설정은 그대로 — 탭하여 해제' : 'MY·단톡 잠금 가능 — 통계·랭킹·설정은 항상 열림 — 탭하여 잠금'}
-              </p>
-            </div>
-            <div className={`relative w-10 h-6 rounded-full transition-all flex-shrink-0 ${isFunctionsLocked ? 'bg-red-500' : 'bg-slate-300'}`}>
-              <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${isFunctionsLocked ? 'left-4' : 'left-0.5'}`} />
-            </div>
           </button>
         </div>
       </div>
