@@ -28,6 +28,17 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
 
   return (
     <div className="space-y-5 p-5">
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { label: '참여자', value: profiles.length, color: 'bg-cyan-50 text-cyan-700' },
+        ].map((stat) => (
+          <div key={stat.label} className={`${stat.color} rounded-2xl p-5 text-center`}>
+            <div className="text-2xl font-black">{stat.value}</div>
+            <div className="text-xs font-semibold mt-0.5">{stat.label}</div>
+          </div>
+        ))}
+      </div>
+
       {/* 잠금 제어 */}
       <div>
         <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 px-1">잠금 제어</h3>
@@ -55,17 +66,6 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
             </div>
           </button>
         </div>
-      </div>
-
-      <div className="grid grid-cols-3 gap-3">
-        {[
-          { label: '참여자', value: profiles.length, color: 'bg-cyan-50 text-cyan-700' },
-        ].map((stat) => (
-          <div key={stat.label} className={`${stat.color} rounded-2xl p-5 text-center`}>
-            <div className="text-2xl font-black">{stat.value}</div>
-            <div className="text-xs font-semibold mt-0.5">{stat.label}</div>
-          </div>
-        ))}
       </div>
 
       <HeartOpsCard settings={settings} onSave={onSaveSchedule} onSaveNotices={onSaveNotices} />

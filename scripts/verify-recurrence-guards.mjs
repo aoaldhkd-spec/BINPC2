@@ -404,7 +404,7 @@ mustMatch('artifacts/boltnew-app/src/admin/DashboardTab.tsx', '35_dashboard_host
   /onSaveSchedule/,
 ]);
 mustMatch('artifacts/boltnew-app/src/admin/DashboardTab.tsx', '35_lock_control_first', [
-  /잠금 제어[\s\S]*HeartOpsCard settings/,
+  /label: '참여자'[\s\S]*잠금 제어[\s\S]*HeartOpsCard settings/,
   /onToggleFunctionsLock/,
 ]);
 mustNotMatch('artifacts/boltnew-app/src/AdminApp.tsx', '35_no_event_schedule_tab', [
