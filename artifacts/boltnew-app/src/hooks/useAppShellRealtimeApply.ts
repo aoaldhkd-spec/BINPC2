@@ -8,7 +8,7 @@ import { planAppSettingsRealtimeUpdate, type AppSettingsRealtimeRow } from '../l
 import { planContactShareEvent, pruneSeenIdSet } from '../lib/contact-share-event';
 import { shouldShowBroadcastNotif, dismissActiveNotifIfMatch } from '../lib/notification-active';
 import { parseFunctionsLocked } from '../lib/functions-lock';
-import { ENTRY_VERIFIED_KEY, MATCHING_LAST_RESET_KEY, MATCHING_USER_KEY } from '../lib/constants';
+import { MATCHING_LAST_RESET_KEY, MATCHING_USER_KEY } from '../lib/constants';
 import { ls } from '../lib/storage';
 import type { ShareEventNotificationData } from '../components/ShareEventNotification';
 import type { View } from '../types/app';
@@ -35,8 +35,6 @@ export type UseAppShellRealtimeApplyArgs = {
   setTimerLabel: SetState<string | null>;
   setEventScheduleRaw: SetState<string | null>;
   setFunctionsLocked: SetState<boolean>;
-  setEntryPassword: SetState<string | null>;
-  setEntryVerified: SetState<boolean>;
   setActiveNotif: SetState<{ id: string; message: string; type: string; target: string } | null>;
   setShareEventNotif: SetState<ShareEventNotificationData | null>;
 };
@@ -58,8 +56,6 @@ export function useAppShellRealtimeApply(
     setTimerLabel,
     setEventScheduleRaw,
     setFunctionsLocked,
-    setEntryPassword,
-    setEntryVerified,
     setActiveNotif,
     setShareEventNotif,
   } = args;
@@ -77,7 +73,6 @@ export function useAppShellRealtimeApply(
       localReset: ls.getItem(MATCHING_LAST_RESET_KEY),
       wasSessionActive: sessionActiveRef.current,
       hasStoredUser: Boolean(ls.getItem(MATCHING_USER_KEY)),
-      entryVerifiedStored: ls.getItem(ENTRY_VERIFIED_KEY),
     });
     if (plan.kind === 'reset') {
       applyResetSignal(plan.resetSignal);
@@ -101,15 +96,10 @@ export function useAppShellRealtimeApply(
       setEventScheduleRaw(coerceEventScheduleRaw(p.event_schedule));
     }
     if (plan.hasFunctionsLocked) setFunctionsLocked(parseFunctionsLocked(plan.functionsLockedRaw));
-    if (plan.hasEntryPassword) {
-      setEntryPassword(plan.entryPassword ?? '');
-      setEntryVerified(Boolean(plan.entryVerified));
-    }
   }, [
     userIdRef, sessionActiveRef, applyResetSignal,
     setSessionActive, setShownWaiting, setView,
     setTimerEndAt, setTimerLabel, setEventScheduleRaw, setFunctionsLocked,
-    setEntryPassword, setEntryVerified,
   ]);
 
   const onBroadcastNotifInsert = useCallback((n: BroadcastNotifInsertRow) => {

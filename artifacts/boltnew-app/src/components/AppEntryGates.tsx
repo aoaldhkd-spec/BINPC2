@@ -3,12 +3,9 @@
  * Returns null when the main shell should render.
  */
 import type { ComponentProps, ReactNode } from 'react';
-import { EntryGateScreen } from './EntryGateScreen';
 import { WaitingOverlay } from './WaitingOverlay';
 import { ProfileRecoveryScreen } from './ProfileRecoveryScreen';
 import { NicknameSetupScreen } from './NicknameSetupScreen';
-import { ENTRY_VERIFIED_KEY } from '../lib/constants';
-import { ls } from '../lib/storage';
 import type { View } from '../types/app';
 
 type NicknameSubmit = ComponentProps<typeof NicknameSetupScreen>['onSubmit'];
@@ -17,8 +14,6 @@ type RecoverFn = (profileId: string, pinCode: string) => void;
 export type AppEntryGatesProps = {
   appLoading: boolean;
   sessionActive: boolean | null;
-  entryPassword: string | null;
-  showEntryGate: boolean;
   showWaiting: boolean;
   showRecovery: boolean;
   showNicknameSetup: boolean;
@@ -28,7 +23,6 @@ export type AppEntryGatesProps = {
   view: View;
   loading: boolean;
   registrationError: string | null;
-  onEntryVerified: () => void;
   onWaitingEnter: () => void;
   onRecover: RecoverFn;
   onRecoveryBackToRegister: () => void;
@@ -59,23 +53,11 @@ function CompactSpinner({ label }: { label: string }): ReactNode {
 
 /** @returns gate UI, or null to continue into the main App shell */
 export function renderAppEntryGates(props: AppEntryGatesProps): ReactNode {
-  if (props.appLoading || props.sessionActive === null || props.entryPassword === null) {
+  if (props.appLoading || props.sessionActive === null) {
     return (
       <SpinnerScreen
         message="서버랑 X스 중입니다..."
         detail="조ㄹ라 잠시만 기다려주세요! 🍺"
-      />
-    );
-  }
-
-  if (props.showEntryGate && props.entryPassword) {
-    return (
-      <EntryGateScreen
-        onVerified={() => {
-          ls.setItem(ENTRY_VERIFIED_KEY, props.entryPassword!);
-          props.onEntryVerified();
-        }}
-        entryPassword={props.entryPassword}
       />
     );
   }

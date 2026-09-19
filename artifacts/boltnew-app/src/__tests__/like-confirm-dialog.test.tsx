@@ -47,7 +47,9 @@ function renderDialog(
   const heartOps = parseHeartOps(JSON.stringify({
     version: 2,
     timezone: 'Asia/Seoul',
-    slots: keys.length ? [{ id: 't', at: '00:00', unlock: keys }] : [],
+    // Empty slots fall back to DEFAULT (23:00 red). After midnight Seoul
+    // nowEventMinute treats 00:00–06:59 as past 23:00, so keep a dummy slot.
+    slots: keys.length ? [{ id: 't', at: '00:00', unlock: keys }] : [{ id: 'locked', at: '24:59', unlock: [] }],
     instant_unlock: keys,
   }));
   const heartUsage = usageRows.length

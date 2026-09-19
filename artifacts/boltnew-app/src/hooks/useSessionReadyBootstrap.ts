@@ -19,7 +19,7 @@ import {
   type ReadyBootstrapApplyPlan,
 } from '../lib/ready-bootstrap-settings';
 import { eventScheduleRealtimeSeqValue, fetchedScheduleIsCurrent } from '../lib/event-schedule';
-import { MATCHING_LAST_RESET_KEY, MATCHING_USER_KEY, ENTRY_VERIFIED_KEY } from '../lib/constants';
+import { MATCHING_LAST_RESET_KEY, MATCHING_USER_KEY } from '../lib/constants';
 import { ls } from '../lib/storage';
 import { parseFunctionsLocked } from '../lib/functions-lock';
 
@@ -31,8 +31,6 @@ export type UseSessionReadyBootstrapArgs = {
     v: boolean | null | ((prev: boolean | null) => boolean | null),
   ) => void;
   setSessionActiveRef: (v: boolean) => void;
-  setEntryPassword: (v: string) => void;
-  setEntryVerified: (v: boolean) => void;
   setTimerEndAt: (v: string | null) => void;
   setTimerLabel: (v: string | null) => void;
   setEventSchedule: (v: string | null) => void;
@@ -49,8 +47,6 @@ function applyReadyPlan(
   }
   args.setSessionActiveRef(plan.sessionActive);
   args.setSessionActive(plan.sessionActive);
-  args.setEntryPassword(plan.entryPassword);
-  args.setEntryVerified(plan.entryVerified);
   args.setTimerEndAt(plan.timerEndAt);
   args.setTimerLabel(plan.timerLabel);
   if (plan.eventScheduleRaw !== undefined) args.setEventSchedule(plan.eventScheduleRaw);
@@ -80,7 +76,6 @@ export function useSessionReadyBootstrap(args: UseSessionReadyBootstrapArgs): vo
       if (cancelled || !data) return;
       const plan = planReadyBootstrapApply(data, {
         localReset: ls.getItem(MATCHING_LAST_RESET_KEY),
-        entryVerifiedStored: ls.getItem(ENTRY_VERIFIED_KEY),
         omitEventSchedule,
       });
       applyReadyPlan(plan, argsRef.current);
@@ -104,7 +99,7 @@ export function useSessionReadyBootstrap(args: UseSessionReadyBootstrapArgs): vo
 
       const selectSettings = supabase
         .from('app_settings')
-        .select('session_active, timer_end_at, timer_label, event_schedule, reset_signal, entry_password, functions_locked')
+        .select('session_active, timer_end_at, timer_label, event_schedule, reset_signal, functions_locked')
         .eq('id', 1)
         .single()
         .then(({ data, error }) => {
@@ -128,7 +123,6 @@ export function useSessionReadyBootstrap(args: UseSessionReadyBootstrapArgs): vo
       const exhausted = planReadyBootstrapExhausted();
       a.setAppLoading(exhausted.appLoading);
       a.setSessionActive(exhausted.sessionActive);
-      a.setEntryPassword(exhausted.entryPassword);
     }
 
     void loadSettings();

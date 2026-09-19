@@ -29,20 +29,6 @@ export function shouldAutoSkipWaiting(opts: {
   return opts.wasSessionActive === false;
 }
 
-/** 입장 코드(PIN) — 이미 식별된 유저/테스터는 스킵 */
-export function shouldShowEntryGate(opts: {
-  entryPassword: string | null | undefined;
-  entryVerified: boolean;
-  currentUserId?: string | null;
-  isTester?: boolean;
-}): boolean {
-  if (!opts.entryPassword) return false;
-  if (opts.entryVerified) return false;
-  if (opts.currentUserId) return false;
-  if (opts.isTester) return false;
-  return false;
-}
-
 /** 신규 닉네임 등록 — 이미 식별됐거나 프로필이 있으면 스킵 */
 export function shouldShowNicknameSetup(opts: {
   currentUserId: string | null | undefined;
@@ -70,18 +56,6 @@ export function shouldShowRecoveryScreen(opts: {
   if (opts.hasValidProfile) return false;
   if (opts.profileBoot === 'checking') return false;
   return opts.profileBoot === 'recover' || opts.view === 'entry-recover';
-}
-
-/** Derive entry gate password + verified flag from settings / SSE. */
-export function planEntryPasswordState(
-  entryPassword: string | null | undefined,
-  verifiedStored: string | null | undefined,
-): { entryPassword: string; entryVerified: boolean } {
-  const ep = entryPassword ?? '';
-  return {
-    entryPassword: ep,
-    entryVerified: !ep || verifiedStored === ep,
-  };
 }
 
 /** Admin reset_signal changed vs local last-seen key. */

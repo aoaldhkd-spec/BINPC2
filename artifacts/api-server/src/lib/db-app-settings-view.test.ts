@@ -138,7 +138,7 @@ describe('db-app-settings-view', () => {
     });
   });
 
-  it('buildReadyPayload keeps gate fields', () => {
+  it('buildReadyPayload keeps session fields and omits legacy entry_password', () => {
     const body = buildReadyPayload({
       settings: { session_active: true, entry_password: '1234', reset_signal: 'r' },
       adminConfigured: true,
@@ -148,7 +148,8 @@ describe('db-app-settings-view', () => {
       checkedAt: 't',
     });
     expect(body.ready).toBe(true);
-    expect((body.settings as any).entry_password).toBe('1234');
+    expect((body.settings as any).session_active).toBe(true);
+    expect((body.settings as any).entry_password).toBeUndefined();
     expect((body.login as any).adminConfigured).toBe(true);
   });
 

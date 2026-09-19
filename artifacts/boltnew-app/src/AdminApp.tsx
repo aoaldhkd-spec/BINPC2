@@ -550,10 +550,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     await patchAdminSettings({ admin_phone: phone, admin_password: password }, setSettings);
   };
 
-  const handleSaveEntryPassword = async (entryPassword: string) => {
-    await patchAdminSettings({ entry_password: entryPassword || null }, setSettings);
-  };
-
   const handleSaveResetPassword = async (resetPassword: string) => {
     await patchAdminSettings({ reset_password: resetPassword || null }, setSettings);
   };
@@ -689,7 +685,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                   alert(`QR URL 저장 실패: ${e instanceof Error ? e.message : String(e)}`);
                 }
               }} />}
-              {settingsSubTab === 'admin' && <CredentialsTab settings={settings} onSave={handleSaveCredentials} onSaveEntry={handleSaveEntryPassword} onSaveReset={handleSaveResetPassword} onSaveTest={handleSaveTestPassword} />}
+              {settingsSubTab === 'admin' && <CredentialsTab settings={settings} onSave={handleSaveCredentials} onSaveReset={handleSaveResetPassword} onSaveTest={handleSaveTestPassword} />}
               {settingsSubTab === 'db' && (
                 <>
                   {dbHealthAuthError && (

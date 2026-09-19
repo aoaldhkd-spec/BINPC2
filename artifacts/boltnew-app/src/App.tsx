@@ -32,7 +32,6 @@ import {
 import { isCompleteProfile } from './lib/profile-session';
 import {
   shouldShowWaitingOverlay,
-  shouldShowEntryGate,
   shouldShowNicknameSetup,
   shouldShowRecoveryScreen,
 } from './lib/entry-gate';
@@ -253,8 +252,6 @@ function App() {
     }, 1800);
   }, []);
   const [registrationError, setRegistrationError] = useState<string | null>(null);
-  const [entryPassword, setEntryPassword] = useState<string | null>(null); // null = 아직 로드 전
-  const [entryVerified, setEntryVerified] = useState(false);
   const [darkMode, setDarkMode] = useState(() => ls.getItem('dark_mode') === '1');
   // 테마 전환 시 dark_mode 동기화 (theme.tsx에서 storage 이벤트 발화)
   useDarkModeStorageSync(setDarkMode);
@@ -284,7 +281,6 @@ function App() {
     setProfileBoot,
     setView,
     setShownWaiting,
-    setEntryVerified,
   });
 
   // loading-main profile boot / backoff — pure machine + thin hook; App applies results
@@ -765,8 +761,6 @@ function App() {
     setAppLoading,
     setSessionActive,
     setSessionActiveRef: (v) => { sessionActiveRef.current = v; },
-    setEntryPassword,
-    setEntryVerified,
     setTimerEndAt,
     setTimerLabel,
     setEventSchedule: setEventScheduleRaw,
@@ -858,8 +852,6 @@ function App() {
     setTimerLabel,
     setEventScheduleRaw,
     setFunctionsLocked,
-    setEntryPassword,
-    setEntryVerified,
     setActiveNotif,
     setShareEventNotif,
   });
@@ -931,12 +923,6 @@ function App() {
     hasValidProfile,
     isTester,
   });
-  const showEntryGate = shouldShowEntryGate({
-    entryPassword,
-    entryVerified,
-    currentUserId,
-    isTester,
-  });
   const showRecovery = shouldShowRecoveryScreen({
     hasValidProfile,
     profileBoot,
@@ -955,14 +941,13 @@ function App() {
       currentUserId
       && hasValidProfile
       && profileBoot === 'ok'
-      && !showEntryGate
       && !showWaiting
       && !showNicknameSetup,
     );
     if (ready) document.body.dataset.appReady = '1';
     else delete document.body.dataset.appReady;
     return () => { delete document.body.dataset.appReady; };
-  }, [currentUserId, hasValidProfile, profileBoot, showEntryGate, showWaiting, showNicknameSetup]);
+  }, [currentUserId, hasValidProfile, profileBoot, showWaiting, showNicknameSetup]);
 
   // 하트 확인 모달: MY FAB가 모바일에서 터치를 가로채지 않도록 overlay 표시
   useEffect(() => {
@@ -974,8 +959,6 @@ function App() {
   const entryGate = renderAppEntryGates({
     appLoading,
     sessionActive,
-    entryPassword,
-    showEntryGate,
     showWaiting,
     showRecovery,
     showNicknameSetup,
@@ -985,7 +968,6 @@ function App() {
     view,
     loading,
     registrationError,
-    onEntryVerified: () => { setMainTab('profiles'); setEntryVerified(true); },
     onWaitingEnter: () => { setMainTab('profiles'); setShownWaiting(true); },
     onRecover: handleProfileRecovery,
     onRecoveryBackToRegister: () => { setProfileBoot('register'); setView('entry-1'); },

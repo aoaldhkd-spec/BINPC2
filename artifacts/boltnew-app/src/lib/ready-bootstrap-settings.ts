@@ -4,7 +4,6 @@ import { coerceEventScheduleRaw } from './event-schedule';
  * Side effects (fetch, setState, wipe) stay in the thin hook / App wiring.
  */
 import {
-  planEntryPasswordState,
   shouldApplyAdminResetSignal,
 } from './entry-gate';
 
@@ -19,8 +18,6 @@ export type ReadyBootstrapApplyPlan =
   | {
       kind: 'apply';
       sessionActive: boolean;
-      entryPassword: string;
-      entryVerified: boolean;
       timerEndAt: string | null;
       timerLabel: string | null;
       eventScheduleRaw?: string | null;
@@ -33,14 +30,9 @@ export function planReadyBootstrapApply(
   data: Record<string, unknown>,
   opts: {
     localReset: string | null | undefined;
-    entryVerifiedStored: string | null | undefined;
     omitEventSchedule?: boolean;
   },
 ): ReadyBootstrapApplyPlan {
-  const entry = planEntryPasswordState(
-    data.entry_password as string | null | undefined,
-    opts.entryVerifiedStored,
-  );
   const serverReset = (data.reset_signal as string | null | undefined) ?? null;
   if (shouldApplyAdminResetSignal(serverReset, opts.localReset)) {
     return { kind: 'reset', resetSignal: serverReset as string };
@@ -48,8 +40,6 @@ export function planReadyBootstrapApply(
   return {
     kind: 'apply',
     sessionActive: Boolean(data.session_active),
-    entryPassword: entry.entryPassword,
-    entryVerified: entry.entryVerified,
     timerEndAt: (data.timer_end_at as string | null | undefined) ?? null,
     timerLabel: (data.timer_label as string | null | undefined) ?? null,
     ...(!opts.omitEventSchedule && Object.prototype.hasOwnProperty.call(data, 'event_schedule')
@@ -91,11 +81,10 @@ export function planReadyBootstrapRetry(attempt: number): ReadyBootstrapRetryPla
 export type ReadyBootstrapExhaustedPlan = {
   appLoading: false;
   sessionActive: false;
-  entryPassword: '';
 };
 
 export function planReadyBootstrapExhausted(): ReadyBootstrapExhaustedPlan {
-  return { appLoading: false, sessionActive: false, entryPassword: '' };
+  return { appLoading: false, sessionActive: false };
 }
 
 /** Parse /ready JSON; require ready+settings for bootstrap success (poll may omit ready). */

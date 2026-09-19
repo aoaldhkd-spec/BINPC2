@@ -3,14 +3,13 @@ import { AlertTriangle, Eye, EyeOff } from 'lucide-react';
 import { PANEL_PIN_INPUT_PROPS } from '../lib/panel-password';
 import type { AppSettings } from './shared';
 
-export function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onSaveTest }: {
+export function CredentialsTab({ settings, onSave, onSaveReset, onSaveTest }: {
   settings: AppSettings | null;
   onSave: (phone: string, password: string) => void | Promise<void>;
-  onSaveEntry: (entryPassword: string) => void | Promise<void>;
   onSaveReset: (resetPassword: string) => void | Promise<void>;
   onSaveTest: (pw: string) => void | Promise<void>;
 }) {
-  const [activeTab, setActiveTab] = useState<'admin' | 'entry' | 'reset' | 'test'>('admin');
+  const [activeTab, setActiveTab] = useState<'admin' | 'reset' | 'test'>('admin');
   // Admin tab state
   const [phone, setPhone] = useState(settings?.admin_phone ?? '');
   const [password, setPassword] = useState('');
@@ -18,12 +17,6 @@ export function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onS
   const [showPw, setShowPw] = useState(false);
   const [savedAdmin, setSavedAdmin] = useState(false);
   const [errAdmin, setErrAdmin] = useState('');
-  // Entry password tab state
-  const [entryPw, setEntryPw] = useState('');
-  const [entryConfirm, setEntryConfirm] = useState('');
-  const [showEntryPw, setShowEntryPw] = useState(false);
-  const [savedEntry, setSavedEntry] = useState(false);
-  const [errEntry, setErrEntry] = useState('');
   // Reset password tab state
   const [resetPw, setResetPw] = useState('');
   const [resetConfirm, setResetConfirm] = useState('');
@@ -38,7 +31,6 @@ export function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onS
   const [errTest, setErrTest] = useState('');
 
   const [savingAdmin, setSavingAdmin] = useState(false);
-  const [savingEntry, setSavingEntry] = useState(false);
   const [savingReset, setSavingReset] = useState(false);
   const [savingTest, setSavingTest] = useState(false);
 
@@ -64,23 +56,6 @@ export function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onS
       setErrAdmin(err instanceof Error ? err.message : '저장 실패');
     } finally {
       setSavingAdmin(false);
-    }
-  };
-
-  const handleSaveEntryPw = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrEntry('');
-    if (entryPw.length < 4) { setErrEntry('입장 코드는 4자 이상이어야 합니다.'); return; }
-    if (entryPw !== entryConfirm) { setErrEntry('입장 코드 확인이 일치하지 않습니다.'); return; }
-    setSavingEntry(true);
-    try {
-      await onSaveEntry(entryPw);
-      setSavedEntry(true);
-      setTimeout(() => setSavedEntry(false), 2500);
-    } catch (err) {
-      setErrEntry(err instanceof Error ? err.message : '저장 실패');
-    } finally {
-      setSavingEntry(false);
     }
   };
 
@@ -124,7 +99,6 @@ export function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onS
       <div className="grid grid-cols-2 gap-2">
         {([
           { id: 'admin' as const, label: '🔑 관리자 설정', desc: '전화번호·비밀번호' },
-          { id: 'entry' as const, label: '🚪 입장 코드', desc: '참여자 입장 코드' },
           { id: 'reset' as const, label: '🔄 처음으로', desc: '술번개 재시작 코드' },
           { id: 'test' as const, label: '🧪 테스트 코드', desc: '테스트 전용 접속 코드' },
         ]).map(t => (
@@ -179,56 +153,6 @@ export function CredentialsTab({ settings, onSave, onSaveEntry, onSaveReset, onS
             className={`w-full py-3 font-semibold rounded-xl transition-all disabled:opacity-60 ${savedAdmin ? 'bg-teal-700 text-white' : 'bg-slate-800 text-white hover:bg-slate-700'}`}>
             {savedAdmin ? '✓ 저장 완료!' : savingAdmin ? '저장 중…' : '변경 저장'}
           </button>
-        </form>
-      )}
-
-      {activeTab === 'entry' && (
-        <form onSubmit={handleSaveEntryPw} className="space-y-4">
-          <div className="bg-sky-50 rounded-xl p-3 border border-sky-200 text-xs text-sky-700 leading-relaxed">
-            참여자가 앱 입장 시 입력해야 하는 코드입니다. 설정하면 코드 없이는 프로필 등록이 불가합니다.
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">현재 입장 코드</label>
-            <p className="text-sm font-black text-gray-800 bg-gray-50 rounded-xl px-4 py-3 border border-gray-200 tracking-widest">
-              {settings?.entry_password ? settings.entry_password : '(설정 없음 — 누구나 입장 가능)'}
-            </p>
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">새 입장 코드</label>
-            <div className="relative">
-              <input type={showEntryPw ? 'text' : 'password'} {...PANEL_PIN_INPUT_PROPS} value={entryPw} onChange={(e) => setEntryPw(e.target.value)}
-                placeholder="새 입장 코드 입력 (4자 이상)"
-                className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl focus:ring-2 focus:ring-sky-500 outline-none" required minLength={4} />
-              <button type="button" onClick={() => setShowEntryPw(p => !p)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                {showEntryPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">코드 확인</label>
-            <input type={showEntryPw ? 'text' : 'password'} {...PANEL_PIN_INPUT_PROPS} value={entryConfirm} onChange={(e) => setEntryConfirm(e.target.value)}
-              placeholder="입장 코드 재입력"
-              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-sky-500 outline-none" required />
-          </div>
-          {errEntry && (
-            <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg border border-red-100">
-              <AlertTriangle className="w-4 h-4 flex-shrink-0" />{errEntry}
-            </div>
-          )}
-          <div className="flex gap-2">
-            <button type="submit" disabled={savingEntry}
-              className={`flex-1 py-3 font-semibold rounded-xl transition-all disabled:opacity-60 ${savedEntry ? 'bg-teal-700 text-white' : 'bg-sky-600 text-white hover:bg-sky-700'}`}>
-              {savedEntry ? '✓ 저장 완료!' : savingEntry ? '저장 중…' : '코드 저장'}
-            </button>
-            {settings?.entry_password && (
-              <button type="button"
-                onClick={() => { onSaveEntry(''); setSavedEntry(true); setTimeout(() => setSavedEntry(false), 2500); }}
-                className="px-4 py-3 font-semibold rounded-xl bg-red-100 text-red-600 hover:bg-red-200 transition-all text-sm">
-                해제
-              </button>
-            )}
-          </div>
         </form>
       )}
 

@@ -29,6 +29,12 @@ const read = (rel) => readFileSync(resolve(ROOT, rel), 'utf8');
 /** @type {{ id: string, ok: boolean, detail?: string }[]} */
 const results = [];
 
+function mustNotExist(rel, id) {
+  const ok = !existsSync(resolve(ROOT, rel));
+  results.push({ id, ok, detail: ok ? `absent ${rel}` : `must not exist ${rel}` });
+  return ok;
+}
+
 function mustExist(rel, id) {
   const ok = existsSync(resolve(ROOT, rel));
   results.push({ id, ok, detail: ok ? rel : `missing ${rel}` });
@@ -637,13 +643,14 @@ mustMatch('artifacts/boltnew-app/src/components/ProfileDeckGrid.tsx', '37_fortun
 
 // ?? 33 Entry / waiting / main gate mapping (minimal) ?????????????????????????
 
-mustMatch('artifacts/boltnew-app/src/components/EntryGateScreen.tsx', '33_entry_logo_tester', [
-  /data-gate="entry-logo-tester"/,
-  /verifyPanelPassword\('test'/,
-  /navigateToAppPath\('test'\)/,
+mustNotExist('artifacts/boltnew-app/src/components/EntryGateScreen.tsx', '33_entry_gate_screen_removed');
+mustNotMatch('artifacts/boltnew-app/src/components/AppEntryGates.tsx', '33_no_entry_password_loading_lock', [
+  /entryPassword === null/,
+  /EntryGateScreen/,
 ]);
-mustNotMatch('artifacts/boltnew-app/src/components/EntryGateScreen.tsx', '33_entry_logo_not_direct', [
-  /data-gate="entry-logo-tester"[\s\S]{0,200}onClick=\{\(\) => navigateToAppPath\('test'\)\}/,
+mustNotMatch('artifacts/boltnew-app/src/lib/entry-gate.ts', '33_no_entry_password_planners', [
+  /shouldShowEntryGate/,
+  /planEntryPasswordState/,
 ]);
 mustMatch('artifacts/boltnew-app/src/components/WaitingOverlay.tsx', '33_waiting_logo_tester', [
   /data-gate="waiting-logo-tester"/,
@@ -671,10 +678,6 @@ mustMatch('artifacts/boltnew-app/src/components/ResetButton.tsx', '36_reset_gate
 mustMatch('artifacts/boltnew-app/src/components/WaitingOverlay.tsx', '36_waiting_gate_numeric_keyboard', [
   /PANEL_PIN_INPUT_PROPS/,
   /PIN_DIGIT_INPUT_PROPS/,
-]);
-mustMatch('artifacts/boltnew-app/src/components/EntryGateScreen.tsx', '36_entry_gate_numeric_keyboard', [
-  /type=\{showPw \? 'text' : 'password'\}[\s\S]{0,80}PANEL_PIN_INPUT_PROPS/,
-  /PANEL_PIN_INPUT_PROPS/,
 ]);
 mustMatch('artifacts/boltnew-app/src/components/ProfileRecoveryScreen.tsx', '36_profile_recovery_numeric_keyboard', [
   /PIN_DIGIT_INPUT_PROPS/,
@@ -854,7 +857,6 @@ mustMatch('artifacts/boltnew-app/src/lib/functions-lock.ts', '44_functions_lock_
   /planFunctionsLockTransition/,
 ]);
 mustMatch('artifacts/boltnew-app/src/lib/entry-gate.ts', '44_entry_password_reset_planners', [
-  /planEntryPasswordState/,
   /shouldApplyAdminResetSignal/,
 ]);
 mustExist('artifacts/boltnew-app/src/hooks/useDarkModeStorageSync.ts', '44_use_dark_mode_storage_sync');

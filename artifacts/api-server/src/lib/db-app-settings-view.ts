@@ -130,7 +130,7 @@ export function planAppSettingsFromDbRows(
   return { action: 'secrets_overlay', row, changed };
 }
 
-/** Public /ready JSON body (no PII beyond entry_password which is already public gate). */
+/** Public /ready JSON body. Legacy entry_password is unused and not exposed. */
 export function buildReadyPayload(input: {
   settings: Record<string, unknown>;
   adminConfigured: boolean;
@@ -144,7 +144,6 @@ export function buildReadyPayload(input: {
     ready: true,
     settings: {
       session_active: settings.session_active === true,
-      entry_password: String(settings.entry_password ?? ''),
       timer_end_at: (settings.timer_end_at as string | null | undefined) ?? null,
       timer_label: (settings.timer_label as string | null | undefined) ?? null,
       // Always serialize — object schedules from jsonb must not collapse to empty slots

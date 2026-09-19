@@ -14,12 +14,12 @@ describe('planReadyBootstrapApply', () => {
     expect(
       planReadyBootstrapApply(
         { reset_signal: 'r2', session_active: true, entry_password: '' },
-        { localReset: 'r1', entryVerifiedStored: null },
+        { localReset: 'r1' },
       ),
     ).toEqual({ kind: 'reset', resetSignal: 'r2' });
   });
 
-  it('applies session, entry, timers, functions_locked', () => {
+  it('applies session, timers, functions_locked and ignores leftover entry_password', () => {
     const plan = planReadyBootstrapApply(
       {
         session_active: 1,
@@ -29,18 +29,20 @@ describe('planReadyBootstrapApply', () => {
         functions_locked: true,
         reset_signal: 'r1',
       },
-      { localReset: 'r1', entryVerifiedStored: 'pin' },
+      { localReset: 'r1' },
     );
     expect(plan).toEqual({
       kind: 'apply',
       sessionActive: true,
-      entryPassword: 'pin',
-      entryVerified: true,
       timerEndAt: 't1',
       timerLabel: 'L',
       hasFunctionsLocked: true,
       functionsLockedRaw: true,
     });
+    if (plan.kind === 'apply') {
+      expect('entryPassword' in plan).toBe(false);
+      expect('entryVerified' in plan).toBe(false);
+    }
   });
 
   it('can omit event_schedule so a late /ready does not rewind SSE', () => {
@@ -49,14 +51,13 @@ describe('planReadyBootstrapApply', () => {
       event_schedule: JSON.stringify({ version: 2, slots: [] }),
       reset_signal: null,
     };
-    const withSchedule = planReadyBootstrapApply(data, { localReset: null, entryVerifiedStored: null });
+    const withSchedule = planReadyBootstrapApply(data, { localReset: null });
     expect(withSchedule.kind).toBe('apply');
     if (withSchedule.kind === 'apply') {
       expect(withSchedule.eventScheduleRaw).toContain('version');
     }
     const omitted = planReadyBootstrapApply(data, {
       localReset: null,
-      entryVerifiedStored: null,
       omitEventSchedule: true,
     });
     expect(omitted.kind).toBe('apply');
@@ -68,13 +69,12 @@ describe('planReadyBootstrapApply', () => {
   it('omits functionsLockedRaw when absent', () => {
     const plan = planReadyBootstrapApply(
       { session_active: false, reset_signal: null },
-      { localReset: null, entryVerifiedStored: null },
+      { localReset: null },
     );
     expect(plan.kind).toBe('apply');
     if (plan.kind === 'apply') {
       expect(plan.hasFunctionsLocked).toBe(false);
       expect(plan.functionsLockedRaw).toBeUndefined();
-      expect(plan.entryVerified).toBe(true);
     }
   });
 });
@@ -96,11 +96,10 @@ describe('planReadyBootstrapRetry', () => {
 });
 
 describe('planReadyBootstrapExhausted', () => {
-  it('forces loading off and inactive empty entry', () => {
+  it('forces loading off and inactive session without entry-code state', () => {
     expect(planReadyBootstrapExhausted()).toEqual({
       appLoading: false,
       sessionActive: false,
-      entryPassword: '',
     });
   });
 });

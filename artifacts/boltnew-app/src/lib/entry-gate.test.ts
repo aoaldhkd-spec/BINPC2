@@ -1,11 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
   shouldShowWaitingOverlay,
-  shouldShowEntryGate,
   shouldShowNicknameSetup,
   shouldShowRecoveryScreen,
   shouldAutoSkipWaiting,
-  planEntryPasswordState,
   shouldApplyAdminResetSignal,
 } from './entry-gate';
 
@@ -76,48 +74,6 @@ describe('shouldAutoSkipWaiting', () => {
       sessionActive: true,
       wasSessionActive: false,
       hasStoredUser: true,
-    })).toBe(false);
-  });
-});
-
-describe('shouldShowEntryGate', () => {
-  it('shows PIN only for unidentified visitors when a code is set', () => {
-    expect(shouldShowEntryGate({
-      entryPassword: 'entry-code',
-      entryVerified: false,
-      currentUserId: null,
-    })).toBe(true);
-  });
-
-  it('skips PIN when already verified or no code', () => {
-    expect(shouldShowEntryGate({
-      entryPassword: 'entry-code',
-      entryVerified: true,
-      currentUserId: null,
-    })).toBe(false);
-    expect(shouldShowEntryGate({
-      entryPassword: '',
-      entryVerified: false,
-      currentUserId: null,
-    })).toBe(false);
-    expect(shouldShowEntryGate({
-      entryPassword: null,
-      entryVerified: false,
-      currentUserId: null,
-    })).toBe(false);
-  });
-
-  it('skips PIN for dummy / stored account / tester even if not verified yet', () => {
-    expect(shouldShowEntryGate({
-      entryPassword: 'entry-code',
-      entryVerified: false,
-      currentUserId: 'dummy-1',
-    })).toBe(false);
-    expect(shouldShowEntryGate({
-      entryPassword: 'entry-code',
-      entryVerified: false,
-      currentUserId: null,
-      isTester: true,
     })).toBe(false);
   });
 });
@@ -204,16 +160,6 @@ describe('shouldShowRecoveryScreen', () => {
   });
 });
 
-
-describe('planEntryPasswordState', () => {
-  it('empty password is verified', () => {
-    expect(planEntryPasswordState('', null)).toEqual({ entryPassword: '', entryVerified: true });
-  });
-  it('matches stored verification', () => {
-    expect(planEntryPasswordState('pw', 'pw').entryVerified).toBe(true);
-    expect(planEntryPasswordState('pw', 'other').entryVerified).toBe(false);
-  });
-});
 
 describe('shouldApplyAdminResetSignal', () => {
   it('fires when server differs', () => {

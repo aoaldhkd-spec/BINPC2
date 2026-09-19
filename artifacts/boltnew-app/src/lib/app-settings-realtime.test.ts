@@ -9,7 +9,6 @@ describe('planAppSettingsRealtimeUpdate', () => {
         localReset: 'r1',
         wasSessionActive: true,
         hasStoredUser: true,
-        entryVerifiedStored: null,
       },
     );
     expect(plan).toEqual({ kind: 'reset', resetSignal: 'r2' });
@@ -28,7 +27,6 @@ describe('planAppSettingsRealtimeUpdate', () => {
         localReset: 'r1',
         wasSessionActive: true,
         hasStoredUser: true,
-        entryVerifiedStored: null,
       },
     );
     expect(plan.kind).toBe('patch');
@@ -50,7 +48,6 @@ describe('planAppSettingsRealtimeUpdate', () => {
         localReset: null,
         wasSessionActive: false,
         hasStoredUser: false,
-        entryVerifiedStored: null,
       },
     );
     expect(plan.kind).toBe('patch');
@@ -59,20 +56,19 @@ describe('planAppSettingsRealtimeUpdate', () => {
     expect(plan.returnToWaiting).toBe(false);
   });
 
-  it('plans entry password verified state', () => {
+  it('ignores leftover entry_password on SSE settings', () => {
     const plan = planAppSettingsRealtimeUpdate(
       { entry_password: 'pin', reset_signal: null },
       {
         localReset: null,
         wasSessionActive: null,
         hasStoredUser: false,
-        entryVerifiedStored: 'pin',
       },
     );
     expect(plan.kind).toBe('patch');
     if (plan.kind !== 'patch') return;
-    expect(plan.hasEntryPassword).toBe(true);
-    expect(plan.entryPassword).toBe('pin');
-    expect(plan.entryVerified).toBe(true);
+    expect('hasEntryPassword' in plan).toBe(false);
+    expect('entryPassword' in plan).toBe(false);
+    expect('entryVerified' in plan).toBe(false);
   });
 });

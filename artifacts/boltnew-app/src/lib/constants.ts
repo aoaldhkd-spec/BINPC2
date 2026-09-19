@@ -5,7 +5,6 @@ export const MATCHING_USER_KEY = 'matching_app_user_id';
 export const MATCHING_DRAFT_KEY = 'matching_app_draft_step1';
 export const MATCHING_LAST_RESET_KEY = 'matching_app_last_reset_signal';
 export const MATCHING_PROFILES_CACHE_KEY = 'matching_profiles_cache';
-export const ENTRY_VERIFIED_KEY = 'matching_entry_verified';
 export const SCANNED_CONTACTS_KEY = 'matching_scanned_contacts';
 
 // ─── MBTI 목록 ───────────────────────────────────────────────────────────────

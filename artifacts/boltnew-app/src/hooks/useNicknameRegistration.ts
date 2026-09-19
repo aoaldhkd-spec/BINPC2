@@ -30,7 +30,6 @@ export type UseNicknameRegistrationArgs = {
   setProfileBoot: SetState<ProfileBootPhase>;
   setView: SetState<View>;
   setShownWaiting: SetState<boolean>;
-  setEntryVerified: SetState<boolean>;
 };
 
 export function useNicknameRegistration(args: UseNicknameRegistrationArgs) {
@@ -44,7 +43,6 @@ export function useNicknameRegistration(args: UseNicknameRegistrationArgs) {
     setProfileBoot,
     setView,
     setShownWaiting,
-    setEntryVerified,
   } = args;
 
   const handleNicknameSetup = useCallback(async (data: NicknameSetupInput) => {
@@ -134,7 +132,6 @@ export function useNicknameRegistration(args: UseNicknameRegistrationArgs) {
           : mergeProfilesPreserveOrder(prev, [...prev, profile as Profile]));
         setCurrentUserId(profile.id);
         setProfileBoot('checking');
-        setEntryVerified(true);
         void fetchAndSetSseToken(profile.id as string);
         setView('loading-main');
       } else {
@@ -155,7 +152,6 @@ export function useNicknameRegistration(args: UseNicknameRegistrationArgs) {
     setProfiles,
     setCurrentUserId,
     setProfileBoot,
-    setEntryVerified,
     setView,
   ]);
 

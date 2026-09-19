@@ -3,7 +3,6 @@
  * Does not wipe identity / storage — returns { kind: 'reset' } for App's applyResetSignal.
  */
 import {
-  planEntryPasswordState,
   shouldApplyAdminResetSignal,
   shouldAutoSkipWaiting,
 } from './entry-gate';
@@ -31,9 +30,6 @@ export type AppSettingsRealtimePlan =
       timerLabel: string | null;
       hasFunctionsLocked: boolean;
       functionsLockedRaw?: unknown;
-      hasEntryPassword: boolean;
-      entryPassword?: string;
-      entryVerified?: boolean;
     };
 
 export function planAppSettingsRealtimeUpdate(
@@ -42,7 +38,6 @@ export function planAppSettingsRealtimeUpdate(
     localReset: string | null | undefined;
     wasSessionActive: boolean | null;
     hasStoredUser: boolean;
-    entryVerifiedStored: string | null | undefined;
   },
 ): AppSettingsRealtimePlan {
   if (shouldApplyAdminResetSignal(p.reset_signal, opts.localReset)) {
@@ -57,7 +52,6 @@ export function planAppSettingsRealtimeUpdate(
     timerEndAt: p.timer_end_at ?? null,
     timerLabel: p.timer_label ?? null,
     hasFunctionsLocked: p.functions_locked != null,
-    hasEntryPassword: p.entry_password !== undefined,
   };
 
   if (typeof p.session_active === 'boolean') {
@@ -72,12 +66,6 @@ export function planAppSettingsRealtimeUpdate(
 
   if (plan.hasFunctionsLocked) {
     plan.functionsLockedRaw = p.functions_locked;
-  }
-
-  if (plan.hasEntryPassword) {
-    const entry = planEntryPasswordState(p.entry_password, opts.entryVerifiedStored);
-    plan.entryPassword = entry.entryPassword;
-    plan.entryVerified = entry.entryVerified;
   }
 
   return plan;

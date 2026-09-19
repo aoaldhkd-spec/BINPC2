@@ -168,7 +168,7 @@ Coding skeleton is **OK to attach/detach features incrementally** across the **e
 
 | Stage | What attaches | Primary modules |
 |-------|---------------|-----------------|
-| **entry** | gate / password / recovery | `entry-gate.ts`, `EntryGateScreen`, `ProfileRecoveryScreen` |
+| **entry** | waiting / recovery | `entry-gate.ts`, `WaitingOverlay`, `ProfileRecoveryScreen` |
 | **waiting** | session inactive overlay | `WaitingOverlay`, `/ready` + `session-ready-settings.ts` |
 | **main** | tabs shell (profiles stay mounted under overlays) | `MainScreen.tsx`, `App.tsx` view routing |
 | **hearts** | likes / received / contact share | `useHearts.ts`, `received-like-update.ts`, `sent-like-insert.ts`, `pending-hearts.ts`, `heart-toast.ts`, heart dialogs |
