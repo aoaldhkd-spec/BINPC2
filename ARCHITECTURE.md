@@ -116,7 +116,8 @@ UI: `MainScreen.tsx` — 참여자 / 하트, 채팅(내 상태+내 채팅) / 통
 **건드리면 안 됨:** persist-before-broadcast, SSE ring buffer, merge-by-id resync, subscription cleanup, retry/backoff.
 
 ### Admin
-`AdminApp.tsx` (데이터 로드/RPC) + `src/admin/*Tab.tsx`. Settings RPC: `admin_update_settings` / `patchAdminSettings`.
+`AdminApp.tsx` (데이터 로드/RPC) + `src/admin/*Tab.tsx`. Settings RPC: `admin_update_settings` / `patchAdminSettings`.  
+술번개 1회 오픈+다음날 17:00 자동초기화: `db-sulbun-event.ts` + RPC `admin_sulbun_open` (wipe는 `admin_event_end_reset` 공통 함수).
 
 ## Data flow (happy path)
 

@@ -18,6 +18,7 @@ import { useSessionInit } from './hooks/useSessionInit';
 import { planAdminResetWipe, runAdminResetWipe } from './lib/admin-reset-wipe';
 import type { SessionReadySettingsPatch } from './lib/session-ready-settings';
 import { currentEventSlot, parseHeartOps, participantHeartState } from './lib/heart-ops';
+import { sulbunResetNoticeText, type SulbunEventState } from './lib/sulbun-event';
 import { subscribeNetUi, resetNetUiForRetry, type NetUiStatus } from './lib/net-health';
 import { excludeSwipeGestureVerifyProfiles } from './lib/profile';
 import { mergeProfilesPreserveOrder } from './lib/profile-list-order';
@@ -207,6 +208,7 @@ function App() {
   const [timerEndAt, setTimerEndAt] = useState<string | null>(null);
   const [timerLabel, setTimerLabel] = useState<string | null>(null);
   const [eventScheduleRaw, setEventScheduleRaw] = useState<string | null>(null);
+  const [sulbunEvent, setSulbunEvent] = useState<SulbunEventState | null>(null);
   // Quotas change at clock-slot boundaries even when the schedule JSON is unchanged.
   const [eventScheduleMinute, setEventScheduleMinute] = useState(() => Math.floor(Date.now() / 60_000));
   const [rejectionNotif, setRejectionNotif] = useState<string | null>(null); // nickname of person who rejected
@@ -764,6 +766,7 @@ function App() {
     setTimerEndAt,
     setTimerLabel,
     setEventSchedule: setEventScheduleRaw,
+    setSulbunEvent,
     setFunctionsLocked,
   });
 
@@ -813,6 +816,7 @@ function App() {
     if (patch.hasFunctionsLocked) {
       setFunctionsLocked(parseFunctionsLocked(patch.functionsLockedRaw));
     }
+    if (patch.sulbunEvent !== undefined) setSulbunEvent(patch.sulbunEvent);
     if (patch.includeTimers) {
       setTimerEndAt(patch.timerEndAt ?? null);
       setTimerLabel(patch.timerLabel ?? null);
@@ -851,6 +855,7 @@ function App() {
     setTimerEndAt,
     setTimerLabel,
     setEventScheduleRaw,
+    setSulbunEvent,
     setFunctionsLocked,
     setActiveNotif,
     setShareEventNotif,
@@ -1118,6 +1123,7 @@ function App() {
           heartOpsConfig={heartOpsConfig}
           heartUsage={heartUsage}
           eventScheduleRaw={eventScheduleRaw}
+          sulbunNotice={sulbunResetNoticeText(sulbunEvent)}
           onRefreshStatus={refreshStatusTab}
           onRefreshChat={refreshChatTab}
           onUpdateProfile={handleUpdateProfile}

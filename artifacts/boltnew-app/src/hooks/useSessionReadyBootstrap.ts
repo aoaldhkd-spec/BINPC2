@@ -22,6 +22,7 @@ import { eventScheduleRealtimeSeqValue, fetchedScheduleIsCurrent } from '../lib/
 import { MATCHING_LAST_RESET_KEY, MATCHING_USER_KEY } from '../lib/constants';
 import { ls } from '../lib/storage';
 import { parseFunctionsLocked } from '../lib/functions-lock';
+import type { SulbunEventState } from '../lib/sulbun-event';
 
 export type UseSessionReadyBootstrapArgs = {
   /** Shared wipe used by SSE settings apply as well. */
@@ -34,6 +35,7 @@ export type UseSessionReadyBootstrapArgs = {
   setTimerEndAt: (v: string | null) => void;
   setTimerLabel: (v: string | null) => void;
   setEventSchedule: (v: string | null) => void;
+  setSulbunEvent: (v: SulbunEventState | null) => void;
   setFunctionsLocked: (v: boolean) => void;
 };
 
@@ -43,6 +45,7 @@ function applyReadyPlan(
 ): void {
   if (plan.kind === 'reset') {
     args.applyResetSignal(plan.resetSignal);
+    args.setSulbunEvent(plan.sulbunEvent);
     return;
   }
   args.setSessionActiveRef(plan.sessionActive);
@@ -50,6 +53,7 @@ function applyReadyPlan(
   args.setTimerEndAt(plan.timerEndAt);
   args.setTimerLabel(plan.timerLabel);
   if (plan.eventScheduleRaw !== undefined) args.setEventSchedule(plan.eventScheduleRaw);
+  args.setSulbunEvent(plan.sulbunEvent);
   if (plan.hasFunctionsLocked) {
     args.setFunctionsLocked(parseFunctionsLocked(plan.functionsLockedRaw));
   }
@@ -99,7 +103,7 @@ export function useSessionReadyBootstrap(args: UseSessionReadyBootstrapArgs): vo
 
       const selectSettings = supabase
         .from('app_settings')
-        .select('session_active, timer_end_at, timer_label, event_schedule, reset_signal, functions_locked')
+        .select('session_active, timer_end_at, timer_label, event_schedule, reset_signal, functions_locked, sulbun_event')
         .eq('id', 1)
         .single()
         .then(({ data, error }) => {

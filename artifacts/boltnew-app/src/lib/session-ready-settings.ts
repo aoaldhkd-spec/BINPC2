@@ -1,4 +1,5 @@
 import { coerceEventScheduleRaw } from './event-schedule';
+import { parseSulbunEvent, type SulbunEventState } from './sulbun-event';
 /**
  * Pure planner for /api/db/ready settings → App apply callbacks.
  * Whole-app (entry/session/timer/functions-lock), not chat-only.
@@ -11,6 +12,7 @@ export type SessionReadySettingsPatch = {
   timerEndAt?: string | null;
   timerLabel?: string | null;
   eventScheduleRaw?: string | null;
+  sulbunEvent?: SulbunEventState | null;
   includeTimers: boolean;
 };
 
@@ -32,6 +34,9 @@ export function planSessionReadySettingsPatch(
   if (hasFunctionsLocked) patch.functionsLockedRaw = settings.functions_locked;
   if (!opts?.omitEventSchedule && Object.prototype.hasOwnProperty.call(settings, 'event_schedule')) {
     patch.eventScheduleRaw = coerceEventScheduleRaw(settings.event_schedule);
+  }
+  if (Object.prototype.hasOwnProperty.call(settings, 'sulbun_event')) {
+    patch.sulbunEvent = parseSulbunEvent(settings.sulbun_event);
   }
   if (includeTimers) {
     patch.timerEndAt = (settings.timer_end_at as string | null | undefined) ?? null;

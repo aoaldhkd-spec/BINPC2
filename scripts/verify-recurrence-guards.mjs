@@ -2575,6 +2575,51 @@ mustMatch('ARCHITECTURE.md', '76_architecture_path_after_kv_select_image_peel', 
 ]);
 
 
+// ── 77: one-shot 술번개 open + next-day 17:00 auto reset (reuse event-end wipe) ──
+mustExist('artifacts/api-server/src/lib/db-sulbun-event.ts', '77_sulbun_event_module');
+mustExist('artifacts/api-server/src/lib/db-sulbun-event.test.ts', '77_sulbun_event_tests');
+mustExist('artifacts/api-server/src/__tests__/sulbun-event-reset.test.ts', '77_sulbun_event_api_tests');
+mustExist('artifacts/boltnew-app/src/lib/sulbun-event.ts', '77_sulbun_event_client_module');
+mustMatch('artifacts/api-server/src/lib/db-sulbun-event.ts', '77_sulbun_next_day_1700', [
+  /computeSulbunAutoResetAt/,
+  /Asia\/Seoul/,
+  /SULBUN_AUTO_RESET_HOUR = 17/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-rpc-allowlist.ts', '77_sulbun_open_rpc_allowlist', [
+  /admin_sulbun_open/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '77_sulbun_open_reuses_event_end', [
+  /admin_sulbun_open/,
+  /runAdminEventEndResetCore/,
+  /catchUpSulbunAutoReset/,
+  /restoreSulbunAutoResetTimer/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '77_sulbun_event_end_calls_core', [
+  /case 'admin_event_end_reset':/,
+  /runAdminEventEndResetCore\(sulbunDoneSettingsPatch\(\)\)/,
+]);
+mustNotMatch('artifacts/api-server/src/routes/db.ts', '77_no_new_sulbun_cron_interval', [
+  /setInterval\(\(\) => \{\s*catchUpSulbunAutoReset/,
+]);
+mustMatch('artifacts/boltnew-app/src/admin/DashboardTab.tsx', '77_sulbun_dashboard_button', [
+  /술번개 오픈/,
+  /술번개 진행 중/,
+  /onSulbunOpen/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/admin/HeartOpsCard.tsx', '77_heart_ops_card_untouched_by_sulbun', [
+  /admin_sulbun_open/,
+  /술번개 오픈/,
+]);
+mustMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '77_sulbun_participant_notice', [
+  /sulbun-reset-notice/,
+  /sulbunNotice/,
+]);
+mustMatch('ARCHITECTURE.md', '77_architecture_sulbun_event', [
+  /admin_sulbun_open/,
+  /db-sulbun-event/,
+]);
+
+
 console.log('\n=== verify-recurrence-guards ===\n');
 
 for (const r of results) {

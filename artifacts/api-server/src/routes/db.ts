@@ -491,6 +491,16 @@ import {
   unlockedHeartKeys,
 } from '../lib/db-heart-ops';
 import {
+  disableDirectNoticePresets,
+  disableDirectNoticesInSchedule,
+  parseSulbunEvent,
+  planSulbunMarkResetDone,
+  planSulbunOpen,
+  planSulbunTimerRestore,
+  serializeSulbunEvent,
+  shouldRunSulbunAutoReset,
+} from '../lib/db-sulbun-event';
+import {
   recordExpiredSseToken,
   recordMissingSseToken,
   recordSseAccepted,
@@ -723,10 +733,10 @@ async function restoreAdminProfileAfterWipeInStore(
 }
 
 /** 관리자/테스트 전체 초기화 — reset_signal persist + SSE (유저·테스트 대시보드 동기화). */
-async function bumpResetSignalAndBroadcast(): Promise<string> {
+async function bumpResetSignalAndBroadcast(extraPatch: Record<string, unknown> = {}): Promise<string> {
   const signal = new Date().toISOString();
   const current = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
-  const merged = mergeAppSettings(current, { reset_signal: signal, updated_at: signal });
+  const merged = mergeAppSettings(current, { reset_signal: signal, updated_at: signal, ...extraPatch });
   const updated = await overlayDbSecrets(merged, new Set());
   store['app_settings'] = [updated];
   try {
@@ -745,6 +755,108 @@ async function bumpResetSignalAndBroadcast(): Promise<string> {
     await clearAdminNpcRelationships(String(adminRow.id));
   }
   return signal;
+}
+
+let sulbunAutoResetTimer: ReturnType<typeof setTimeout> | null = null;
+let sulbunAutoResetInFlight: Promise<void> | null = null;
+
+function clearSulbunAutoResetTimer(): void {
+  if (!sulbunAutoResetTimer) return;
+  clearTimeout(sulbunAutoResetTimer);
+  sulbunAutoResetTimer = null;
+}
+
+async function persistAppSettingsPatch(patch: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const current = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
+  const merged = mergeAppSettings(current, patch);
+  const updated = await overlayDbSecrets(merged, new Set());
+  store['app_settings'] = [updated];
+  try {
+    await dbPersistRow('app_settings', updated);
+  } catch (e) {
+    store['app_settings'] = [current];
+    logger.error({ err: e }, '[db] app_settings patch persist failed');
+    throw e;
+  }
+  smartBroadcast('app_settings', updated, {
+    type: 'change', table: 'app_settings', event: 'UPDATE',
+    newRow: updated, oldRow: current,
+  });
+  return updated;
+}
+
+/** Same wipe as 회식 종료 전체 초기화. Optional extra settings patch is merged into reset_signal SSE. */
+async function runAdminEventEndResetCore(extraPatch: Record<string, unknown> = {}): Promise<void> {
+  const settingsRow = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
+  const oldProfiles = store['profiles'] ?? [];
+  const persistDeletes: Promise<void>[] = [];
+  for (const t of ADMIN_EVENT_END_CLEAR_TABLES) {
+    if (WIPE_PRESERVED_TABLES.has(t)) continue;
+    const old = store[t] ?? [];
+    store[t] = [];
+    const bplan = planWipeTableBroadcast(t, old);
+    if (bplan.mode === 'reset') {
+      broadcastAll({ type: 'change', table: t, event: 'RESET', newRow: null, oldRow: null });
+    } else if (bplan.mode === 'profile_delete') {
+      for (const row of bplan.rows) broadcastAll({ type: 'change', table: t, event: 'DELETE', newRow: null, oldRow: sanitizeProfile(row) });
+    } else {
+      for (const row of bplan.rows) broadcastAll({ type: 'change', table: t, event: 'DELETE', newRow: null, oldRow: row });
+    }
+    persistDeletes.push(dbDeleteTable(t).catch(e => logger.error({ err: e }, '[db] background task error')));
+  }
+  _mergedGroupIds.clear();
+  _mergedChatIds.clear();
+  autoMatchInFlight.clear();
+  await Promise.all(persistDeletes);
+  await ensureOptInGroupRooms();
+  await restoreAdminProfileAfterWipeInStore(oldProfiles, settingsRow);
+  await bumpResetSignalAndBroadcast(extraPatch);
+}
+
+function sulbunDoneSettingsPatch(): Record<string, unknown> {
+  const current = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
+  const done = planSulbunMarkResetDone(parseSulbunEvent(current.sulbun_event), new Date());
+  if (!done) return {};
+  return { sulbun_event: serializeSulbunEvent(done) };
+}
+
+function armSulbunAutoResetTimer(delayMs: number): void {
+  clearSulbunAutoResetTimer();
+  sulbunAutoResetTimer = setTimeout(() => {
+    sulbunAutoResetTimer = null;
+    void catchUpSulbunAutoReset();
+  }, delayMs);
+}
+
+function restoreSulbunAutoResetTimer(): void {
+  const settings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
+  const plan = planSulbunTimerRestore(settings.sulbun_event, new Date());
+  if (plan.kind === 'idle') {
+    clearSulbunAutoResetTimer();
+    return;
+  }
+  if (plan.kind === 'catch_up') {
+    void catchUpSulbunAutoReset();
+    return;
+  }
+  armSulbunAutoResetTimer(plan.delayMs);
+}
+
+async function catchUpSulbunAutoReset(): Promise<void> {
+  if (sulbunAutoResetInFlight) return sulbunAutoResetInFlight;
+  sulbunAutoResetInFlight = (async () => {
+    const settings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
+    const due = shouldRunSulbunAutoReset(settings.sulbun_event, new Date());
+    if (!due) {
+      restoreSulbunAutoResetTimer();
+      return;
+    }
+    clearSulbunAutoResetTimer();
+    await runAdminEventEndResetCore(sulbunDoneSettingsPatch());
+  })().finally(() => {
+    sulbunAutoResetInFlight = null;
+  });
+  return sulbunAutoResetInFlight;
 }
 
 class RpcAuthError extends Error {
@@ -1525,6 +1637,7 @@ async function seedIfNeeded(): Promise<void> {
   }
   await ensureAdminProfile();
   await ensureOptInGroupRooms();
+  restoreSulbunAutoResetTimer();
 }
 
 // ─── 기능 삭제 후 남은 레거시 테이블 자동 정리 ──────────────────────────────────
@@ -2038,6 +2151,7 @@ dbReadyPromise
 setInterval(() => {
   ensureAppSettingsSecrets()
     .then(() => cleanupLegacyTables())
+    .then(() => catchUpSulbunAutoReset())
     .catch(e => logger.error({ err: e }, '[db] periodic secret/legacy sync failed'));
 }, 5 * 60 * 1000).unref();
 
@@ -4071,36 +4185,43 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
 
       case 'admin_event_end_reset': {
         checkPassword();
-        const settingsRow = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
-        const oldProfiles = store['profiles'] ?? [];
-        // tables + broadcast mode: db-admin-wipe-plan
-        const persistDeletes: Promise<void>[] = [];
-        for (const t of ADMIN_EVENT_END_CLEAR_TABLES) {
-          if (WIPE_PRESERVED_TABLES.has(t)) continue;
-          const old = store[t] ?? [];
-          store[t] = [];
-          if (t === 'chat_reads') unreadCountsCache.clear(); // 전체 리셋 시 캐시 전부 무효화
-          const bplan = planWipeTableBroadcast(t, old);
-          if (bplan.mode === 'reset') {
-            // 행 데이터 없이 테이블 초기화 알림만 전송
-            broadcastAll({ type: 'change', table: t, event: 'RESET', newRow: null, oldRow: null });
-          } else if (bplan.mode === 'profile_delete') {
-            // 프로필 DELETE는 민감 필드 제거 후 전송
-            for (const row of bplan.rows) broadcastAll({ type: 'change', table: t, event: 'DELETE', newRow: null, oldRow: sanitizeProfile(row) });
-          } else {
-            for (const row of bplan.rows) broadcastAll({ type: 'change', table: t, event: 'DELETE', newRow: null, oldRow: row });
-          }
-          persistDeletes.push(dbDeleteTable(t).catch(e => logger.error({ err: e }, '[db] background task error')));
-        }
-        _mergedGroupIds.clear();
-        _mergedChatIds.clear();
-        autoMatchInFlight.clear();
-        // PG wipe가 끝난 뒤 빈 카탈로그 방을 다시 심는다 (시드가 삭제 레이스에 지워지지 않게)
-        await Promise.all(persistDeletes);
-        await ensureOptInGroupRooms();
-        await restoreAdminProfileAfterWipeInStore(oldProfiles, settingsRow);
-        await bumpResetSignalAndBroadcast();
+        clearSulbunAutoResetTimer();
+        await runAdminEventEndResetCore(sulbunDoneSettingsPatch());
         return res.json({ data: null, error: null });
+      }
+
+      case 'admin_sulbun_open': {
+        checkPassword();
+        const current = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
+        const plan = planSulbunOpen({
+          existing: current.sulbun_event,
+          now: new Date(),
+          cycleId: crypto.randomUUID(),
+        });
+        if (plan.kind === 'already_active') {
+          restoreSulbunAutoResetTimer();
+          return res.json({
+            data: { already_active: true, sulbun_event: plan.event },
+            error: null,
+          });
+        }
+        const likesBefore = (store['likes'] ?? []).length;
+        const schedule = disableDirectNoticesInSchedule(current.event_schedule);
+        const presets = disableDirectNoticePresets(current.direct_notice_presets);
+        await persistAppSettingsPatch({
+          sulbun_event: serializeSulbunEvent(plan.event),
+          event_schedule: schedule,
+          ...(presets != null ? { direct_notice_presets: presets } : {}),
+        });
+        restoreSulbunAutoResetTimer();
+        const likesAfter = (store['likes'] ?? []).length;
+        if (likesAfter !== likesBefore) {
+          logger.error({ likesBefore, likesAfter }, '[sulbun] open must not touch likes');
+        }
+        return res.json({
+          data: { already_active: false, sulbun_event: plan.event },
+          error: null,
+        });
       }
 
       case 'admin_clear_profiles': {
@@ -4487,8 +4608,9 @@ let _healthCache: { ts: number; body: unknown } | null = null;
 const HEALTH_CACHE_TTL_MS = 10_000;
 
 /** 공개 readiness — 로그인·채팅 핵심 기능 사전 점검 (인증 불필요) */
-router.get('/ready', (_req: Request, res: Response) => {
+router.get('/ready', async (_req: Request, res: Response) => {
   try {
+    await catchUpSulbunAutoReset();
     const settings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
     const adminSecrets = panelAdminSecrets(settings.admin_password as string | undefined);
     const testSecrets = panelTestSecrets(settings.test_password as string | undefined);

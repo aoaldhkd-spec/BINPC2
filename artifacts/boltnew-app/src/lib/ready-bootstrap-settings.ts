@@ -1,4 +1,5 @@
 import { coerceEventScheduleRaw } from './event-schedule';
+import { parseSulbunEvent, type SulbunEventState } from './sulbun-event';
 /**
  * Pure planners for /ready mount bootstrap + settings poll apply.
  * Side effects (fetch, setState, wipe) stay in the thin hook / App wiring.
@@ -14,7 +15,7 @@ export const READY_BOOTSTRAP_POLL_FETCH_MS = 5_000;
 export const READY_BOOTSTRAP_MAX_ATTEMPTS = 5;
 
 export type ReadyBootstrapApplyPlan =
-  | { kind: 'reset'; resetSignal: string }
+  | { kind: 'reset'; resetSignal: string; sulbunEvent: SulbunEventState | null }
   | {
       kind: 'apply';
       sessionActive: boolean;
@@ -23,6 +24,7 @@ export type ReadyBootstrapApplyPlan =
       eventScheduleRaw?: string | null;
       hasFunctionsLocked: boolean;
       functionsLockedRaw?: unknown;
+      sulbunEvent: SulbunEventState | null;
     };
 
 /** /ready or app_settings row → reset wipe or full session/entry/timer apply. */
@@ -35,7 +37,7 @@ export function planReadyBootstrapApply(
 ): ReadyBootstrapApplyPlan {
   const serverReset = (data.reset_signal as string | null | undefined) ?? null;
   if (shouldApplyAdminResetSignal(serverReset, opts.localReset)) {
-    return { kind: 'reset', resetSignal: serverReset as string };
+    return { kind: 'reset', resetSignal: serverReset as string, sulbunEvent: parseSulbunEvent(data.sulbun_event) };
   }
   return {
     kind: 'apply',
@@ -47,6 +49,7 @@ export function planReadyBootstrapApply(
       : {}),
     hasFunctionsLocked: data.functions_locked != null,
     functionsLockedRaw: data.functions_locked != null ? data.functions_locked : undefined,
+    sulbunEvent: parseSulbunEvent(data.sulbun_event),
   };
 }
 

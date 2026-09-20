@@ -16,7 +16,7 @@ describe('planReadyBootstrapApply', () => {
         { reset_signal: 'r2', session_active: true, entry_password: '' },
         { localReset: 'r1' },
       ),
-    ).toEqual({ kind: 'reset', resetSignal: 'r2' });
+    ).toEqual({ kind: 'reset', resetSignal: 'r2', sulbunEvent: null });
   });
 
   it('applies session, timers, functions_locked and ignores leftover entry_password', () => {
@@ -38,6 +38,7 @@ describe('planReadyBootstrapApply', () => {
       timerLabel: 'L',
       hasFunctionsLocked: true,
       functionsLockedRaw: true,
+      sulbunEvent: null,
     });
     if (plan.kind === 'apply') {
       expect('entryPassword' in plan).toBe(false);

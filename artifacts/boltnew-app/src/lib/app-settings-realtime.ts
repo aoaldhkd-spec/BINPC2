@@ -6,6 +6,7 @@ import {
   shouldApplyAdminResetSignal,
   shouldAutoSkipWaiting,
 } from './entry-gate';
+import { parseSulbunEvent, type SulbunEventState } from './sulbun-event';
 
 export type AppSettingsRealtimeRow = {
   session_active?: boolean;
@@ -15,10 +16,11 @@ export type AppSettingsRealtimeRow = {
   reset_signal?: string | null;
   entry_password?: string | null;
   functions_locked?: boolean | null;
+  sulbun_event?: unknown;
 };
 
 export type AppSettingsRealtimePlan =
-  | { kind: 'reset'; resetSignal: string }
+  | { kind: 'reset'; resetSignal: string; sulbunEvent: SulbunEventState | null }
   | {
       kind: 'patch';
       setSessionActive: boolean;
@@ -30,6 +32,8 @@ export type AppSettingsRealtimePlan =
       timerLabel: string | null;
       hasFunctionsLocked: boolean;
       functionsLockedRaw?: unknown;
+      sulbunEvent: SulbunEventState | null;
+      setSulbunEvent: boolean;
     };
 
 export function planAppSettingsRealtimeUpdate(
@@ -41,7 +45,7 @@ export function planAppSettingsRealtimeUpdate(
   },
 ): AppSettingsRealtimePlan {
   if (shouldApplyAdminResetSignal(p.reset_signal, opts.localReset)) {
-    return { kind: 'reset', resetSignal: p.reset_signal as string };
+    return { kind: 'reset', resetSignal: p.reset_signal as string, sulbunEvent: parseSulbunEvent(p.sulbun_event) };
   }
 
   const plan: Extract<AppSettingsRealtimePlan, { kind: 'patch' }> = {
@@ -52,6 +56,8 @@ export function planAppSettingsRealtimeUpdate(
     timerEndAt: p.timer_end_at ?? null,
     timerLabel: p.timer_label ?? null,
     hasFunctionsLocked: p.functions_locked != null,
+    sulbunEvent: parseSulbunEvent(p.sulbun_event),
+    setSulbunEvent: Object.prototype.hasOwnProperty.call(p, 'sulbun_event'),
   };
 
   if (typeof p.session_active === 'boolean') {

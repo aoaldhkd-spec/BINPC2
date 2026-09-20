@@ -65,6 +65,9 @@ export function mergeAppSettings(
   if (Array.isArray(merged.direct_notice_presets)) {
     merged.direct_notice_presets = JSON.stringify(merged.direct_notice_presets);
   }
+  if (merged.sulbun_event && typeof merged.sulbun_event === 'object') {
+    merged.sulbun_event = JSON.stringify(merged.sulbun_event);
+  }
   return merged;
 }
 
@@ -77,7 +80,7 @@ export function sanitizeAdminSettingsPayload(
   return Object.fromEntries(
     Object.entries(raw).map(([k, v]) => [
       k,
-      typeof v === 'string' ? v.replace(/<[^>]*>/g, '').slice(0, k === 'event_schedule' || k === 'direct_notice_presets' ? 12000 : maxLen) : v,
+      typeof v === 'string' ? v.replace(/<[^>]*>/g, '').slice(0, k === 'event_schedule' || k === 'direct_notice_presets' || k === 'sulbun_event' ? 12000 : maxLen) : v,
     ]),
   );
 }

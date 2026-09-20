@@ -4,6 +4,7 @@
  */
 import { sanitizeSettings } from './db-sanitize.js';
 import { activeEventScheduleSlot, serializeEventSchedule } from './db-event-schedule.js';
+import { publicSulbunEventView } from './db-sulbun-event.js';
 import {
   panelAdminSecrets,
   panelSecretsForRuntime,
@@ -151,6 +152,7 @@ export function buildReadyPayload(input: {
       event_schedule: serializeEventSchedule(settings.event_schedule),
       reset_signal: (settings.reset_signal as string | null | undefined) ?? null,
       functions_locked: settingsFunctionsLocked(settings),
+      sulbun_event: publicSulbunEventView(settings.sulbun_event),
     },
     login: {
       adminConfigured: input.adminConfigured,

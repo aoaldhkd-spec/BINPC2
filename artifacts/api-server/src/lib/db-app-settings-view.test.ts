@@ -150,6 +150,7 @@ describe('db-app-settings-view', () => {
     expect(body.ready).toBe(true);
     expect((body.settings as any).session_active).toBe(true);
     expect((body.settings as any).entry_password).toBeUndefined();
+    expect((body.settings as any).sulbun_event).toBeNull();
     expect((body.login as any).adminConfigured).toBe(true);
   });
 

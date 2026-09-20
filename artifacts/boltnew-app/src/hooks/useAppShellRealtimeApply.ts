@@ -13,6 +13,7 @@ import { ls } from '../lib/storage';
 import type { ShareEventNotificationData } from '../components/ShareEventNotification';
 import type { View } from '../types/app';
 import { coerceEventScheduleRaw, noteEventScheduleRealtime } from '../lib/event-schedule';
+import type { SulbunEventState } from '../lib/sulbun-event';
 import type {
   BroadcastNotifDeleteRow,
   BroadcastNotifInsertRow,
@@ -34,6 +35,7 @@ export type UseAppShellRealtimeApplyArgs = {
   setTimerEndAt: SetState<string | null>;
   setTimerLabel: SetState<string | null>;
   setEventScheduleRaw: SetState<string | null>;
+  setSulbunEvent: SetState<SulbunEventState | null>;
   setFunctionsLocked: SetState<boolean>;
   setActiveNotif: SetState<{ id: string; message: string; type: string; target: string } | null>;
   setShareEventNotif: SetState<ShareEventNotificationData | null>;
@@ -55,6 +57,7 @@ export function useAppShellRealtimeApply(
     setTimerEndAt,
     setTimerLabel,
     setEventScheduleRaw,
+    setSulbunEvent,
     setFunctionsLocked,
     setActiveNotif,
     setShareEventNotif,
@@ -76,6 +79,7 @@ export function useAppShellRealtimeApply(
     });
     if (plan.kind === 'reset') {
       applyResetSignal(plan.resetSignal);
+      setSulbunEvent(plan.sulbunEvent);
       return;
     }
     if (plan.setSessionActive && typeof plan.sessionActive === 'boolean') {
@@ -95,11 +99,12 @@ export function useAppShellRealtimeApply(
       noteEventScheduleRealtime();
       setEventScheduleRaw(coerceEventScheduleRaw(p.event_schedule));
     }
+    if (plan.setSulbunEvent) setSulbunEvent(plan.sulbunEvent);
     if (plan.hasFunctionsLocked) setFunctionsLocked(parseFunctionsLocked(plan.functionsLockedRaw));
   }, [
     userIdRef, sessionActiveRef, applyResetSignal,
     setSessionActive, setShownWaiting, setView,
-    setTimerEndAt, setTimerLabel, setEventScheduleRaw, setFunctionsLocked,
+    setTimerEndAt, setTimerLabel, setEventScheduleRaw, setSulbunEvent, setFunctionsLocked,
   ]);
 
   const onBroadcastNotifInsert = useCallback((n: BroadcastNotifInsertRow) => {

@@ -416,6 +416,16 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     }
   };
 
+  const handleSulbunOpen = async () => {
+    try {
+      await adminApiRpc('admin_sulbun_open', {});
+      await loadAll();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      alert(`술번개 오픈 실패: ${msg}`);
+    }
+  };
+
   const handleSetTimer = async (endAt: string | null, label: string | null) => {
     try {
       await patchAdminSettings({ timer_end_at: endAt, timer_label: label }, setSettings);
@@ -676,7 +686,8 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                   onClearProfiles={handleClearProfiles}
                   onClearHistory={handleClearHistory} restoreMap={restoreMap}
                   onSaveSchedule={async (raw: string) => { await patchAdminSettings({ event_schedule: raw }, setSettings); }}
-                  onSaveNotices={async (raw: string) => { await patchAdminSettings({ direct_notice_presets: raw }, setSettings); }} />
+                  onSaveNotices={async (raw: string) => { await patchAdminSettings({ direct_notice_presets: raw }, setSettings); }}
+                  onSulbunOpen={handleSulbunOpen} />
               )}
               {settingsSubTab === 'qr' && <AdminQrTab settings={settings} onSaveQrBase={async (url) => {
                 try {

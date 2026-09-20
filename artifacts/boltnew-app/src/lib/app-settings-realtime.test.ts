@@ -11,7 +11,7 @@ describe('planAppSettingsRealtimeUpdate', () => {
         hasStoredUser: true,
       },
     );
-    expect(plan).toEqual({ kind: 'reset', resetSignal: 'r2' });
+    expect(plan).toEqual({ kind: 'reset', resetSignal: 'r2', sulbunEvent: null });
   });
 
   it('plans session on→off returnToWaiting and timers', () => {
@@ -56,19 +56,24 @@ describe('planAppSettingsRealtimeUpdate', () => {
     expect(plan.returnToWaiting).toBe(false);
   });
 
-  it('ignores leftover entry_password on SSE settings', () => {
+  it('applies sulbun_event on SSE without treating it as a heart-ops field', () => {
     const plan = planAppSettingsRealtimeUpdate(
-      { entry_password: 'pin', reset_signal: null },
       {
-        localReset: null,
-        wasSessionActive: null,
-        hasStoredUser: false,
+        sulbun_event: {
+          cycle_id: 'c1',
+          opened_at: '2026-09-20T13:00:00.000Z',
+          auto_reset_at: '2026-09-21T08:00:00.000Z',
+          auto_reset_enabled: true,
+          reset_done: false,
+        },
+        reset_signal: null,
       },
+      { localReset: null, wasSessionActive: true, hasStoredUser: true },
     );
     expect(plan.kind).toBe('patch');
     if (plan.kind !== 'patch') return;
-    expect('hasEntryPassword' in plan).toBe(false);
-    expect('entryPassword' in plan).toBe(false);
-    expect('entryVerified' in plan).toBe(false);
+    expect(plan.setSulbunEvent).toBe(true);
+    expect(plan.sulbunEvent?.cycle_id).toBe('c1');
+    expect(plan.sulbunEvent?.auto_reset_enabled).toBe(true);
   });
 });

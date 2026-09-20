@@ -3,12 +3,13 @@ import { Trash2, PlayCircle, StopCircle, Lock, Unlock } from 'lucide-react';
 import type { Profile, AppSettings } from './shared';
 import { ConfirmDialog } from './ConfirmDialog';
 import { HeartOpsCard } from './HeartOpsCard';
+import { formatSulbunResetLabel, isSulbunEventActive, parseSulbunEvent } from '../lib/sulbun-event';
 
 // ─── Dashboard Tab ────────────────────────────────────────────────────────────
 
 export function DashboardTab({ settings, profiles, onToggleSession, onEventEndReset, onToggleFunctionsLock,
   onClearLikes, onClearChats, onClearProfiles, onClearHistory,
-  restoreMap,   onSaveSchedule, onSaveNotices }: {
+  restoreMap,   onSaveSchedule, onSaveNotices, onSulbunOpen }: {
   settings: AppSettings | null; profiles: Profile[];
   onToggleSession: () => void; onEventEndReset: () => void;
   onToggleFunctionsLock: () => void;
@@ -19,12 +20,15 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
   restoreMap: Map<string, () => Promise<void>>;
   onSaveSchedule: (raw: string) => Promise<void>;
   onSaveNotices: (raw: string) => Promise<void>;
+  onSulbunOpen: () => void | Promise<void>;
 }) {
   const [confirmToggle, setConfirmToggle] = useState(false);
   const [confirmEventEnd, setConfirmEventEnd] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
   const isActive = settings?.session_active ?? false;
   const isFunctionsLocked = settings?.functions_locked ?? false;
+  const sulbun = parseSulbunEvent(settings?.sulbun_event);
+  const sulbunActive = isSulbunEventActive(sulbun);
 
   return (
     <div className="space-y-5 p-5">
@@ -73,6 +77,26 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
       {/* Session control */}
       <div>
         <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 px-1">회식 세션</h3>
+        <button
+          type="button"
+          data-testid="sulbun-open-btn"
+          onClick={() => { if (!sulbunActive) void onSulbunOpen(); }}
+          disabled={sulbunActive}
+          className={`w-full mb-3 rounded-2xl p-4 border-2 text-left transition-all ${
+            sulbunActive
+              ? 'bg-amber-50 border-amber-300 cursor-default'
+              : 'bg-orange-50 border-orange-300 hover:bg-orange-100 active:scale-[0.98] cursor-pointer shadow-sm'
+          }`}
+        >
+          <p className={`font-black text-sm ${sulbunActive ? 'text-amber-900' : 'text-orange-800'}`}>
+            {sulbunActive ? '🍻 술번개 진행 중' : '🍻 술번개 오픈'}
+          </p>
+          <p className={`text-[10px] mt-0.5 font-semibold ${sulbunActive ? 'text-amber-700' : 'text-orange-600'}`}>
+            {sulbunActive && sulbun
+              ? `자동 초기화: ${formatSulbunResetLabel(sulbun.auto_reset_at)}`
+              : '누르면 다음날 17:00 전체 초기화가 예약됩니다'}
+          </p>
+        </button>
         <div className="grid grid-cols-2 gap-3">
           <button
             onClick={() => !isActive && setConfirmToggle(true)}
@@ -156,7 +180,7 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
               <span className="text-xs font-black text-red-600 bg-red-100 border border-red-300 px-2 py-0.5 rounded-full">위험</span>
               <h3 className="font-bold text-red-900 text-sm">회식 종료 전체 초기화</h3>
             </div>
-            <p className="text-xs text-red-600 mt-0.5 font-semibold">참여자·하트·채팅·단체채팅·공지·이력 모두 삭제 — 복구 불가</p>
+            <p className="text-xs text-red-600 mt-0.5 font-semibold">참여자·하트·채팅·단체채팅·공지·이력 모두 삭제 — 복구 불가{sulbunActive ? ' · 자동 초기화 예약도 취소' : ''}</p>
           </div>
           <button onClick={() => setConfirmEventEnd(true)}
             className="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 bg-red-600 text-white rounded-xl font-semibold text-sm hover:bg-red-700 transition-all border-2 border-red-800">
