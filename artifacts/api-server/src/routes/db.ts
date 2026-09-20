@@ -499,6 +499,7 @@ import {
   planSulbunTimerRestore,
   serializeSulbunEvent,
   shouldRunSulbunAutoReset,
+  type SulbunEventState,
 } from '../lib/db-sulbun-event';
 import {
   recordExpiredSseToken,
@@ -759,6 +760,7 @@ async function bumpResetSignalAndBroadcast(extraPatch: Record<string, unknown> =
 
 let sulbunAutoResetTimer: ReturnType<typeof setTimeout> | null = null;
 let sulbunAutoResetInFlight: Promise<void> | null = null;
+let sulbunOpenInFlight: Promise<{ already_active: boolean; sulbun_event: SulbunEventState }> | null = null;
 
 function clearSulbunAutoResetTimer(): void {
   if (!sulbunAutoResetTimer) return;
@@ -857,6 +859,40 @@ async function catchUpSulbunAutoReset(): Promise<void> {
     sulbunAutoResetInFlight = null;
   });
   return sulbunAutoResetInFlight;
+}
+
+/** Concurrent admin_sulbun_open shares one in-flight cycle so burst clicks cannot mint two events. */
+async function runAdminSulbunOpen(): Promise<{ already_active: boolean; sulbun_event: SulbunEventState }> {
+  if (sulbunOpenInFlight) return sulbunOpenInFlight;
+  sulbunOpenInFlight = (async () => {
+    const current = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
+    const plan = planSulbunOpen({
+      existing: current.sulbun_event,
+      now: new Date(),
+      cycleId: crypto.randomUUID(),
+    });
+    if (plan.kind === 'already_active') {
+      restoreSulbunAutoResetTimer();
+      return { already_active: true, sulbun_event: plan.event };
+    }
+    const likesBefore = (store['likes'] ?? []).length;
+    const schedule = disableDirectNoticesInSchedule(current.event_schedule);
+    const presets = disableDirectNoticePresets(current.direct_notice_presets);
+    await persistAppSettingsPatch({
+      sulbun_event: serializeSulbunEvent(plan.event),
+      event_schedule: schedule,
+      ...(presets != null ? { direct_notice_presets: presets } : {}),
+    });
+    restoreSulbunAutoResetTimer();
+    const likesAfter = (store['likes'] ?? []).length;
+    if (likesAfter !== likesBefore) {
+      logger.error({ likesBefore, likesAfter }, '[sulbun] open must not touch likes');
+    }
+    return { already_active: false, sulbun_event: plan.event };
+  })().finally(() => {
+    sulbunOpenInFlight = null;
+  });
+  return sulbunOpenInFlight;
 }
 
 class RpcAuthError extends Error {
@@ -4192,36 +4228,8 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
 
       case 'admin_sulbun_open': {
         checkPassword();
-        const current = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
-        const plan = planSulbunOpen({
-          existing: current.sulbun_event,
-          now: new Date(),
-          cycleId: crypto.randomUUID(),
-        });
-        if (plan.kind === 'already_active') {
-          restoreSulbunAutoResetTimer();
-          return res.json({
-            data: { already_active: true, sulbun_event: plan.event },
-            error: null,
-          });
-        }
-        const likesBefore = (store['likes'] ?? []).length;
-        const schedule = disableDirectNoticesInSchedule(current.event_schedule);
-        const presets = disableDirectNoticePresets(current.direct_notice_presets);
-        await persistAppSettingsPatch({
-          sulbun_event: serializeSulbunEvent(plan.event),
-          event_schedule: schedule,
-          ...(presets != null ? { direct_notice_presets: presets } : {}),
-        });
-        restoreSulbunAutoResetTimer();
-        const likesAfter = (store['likes'] ?? []).length;
-        if (likesAfter !== likesBefore) {
-          logger.error({ likesBefore, likesAfter }, '[sulbun] open must not touch likes');
-        }
-        return res.json({
-          data: { already_active: false, sulbun_event: plan.event },
-          error: null,
-        });
+        const data = await runAdminSulbunOpen();
+        return res.json({ data, error: null });
       }
 
       case 'admin_clear_profiles': {

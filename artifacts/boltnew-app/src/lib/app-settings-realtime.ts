@@ -14,7 +14,6 @@ export type AppSettingsRealtimeRow = {
   timer_label?: string | null;
   event_schedule?: string | Record<string, unknown> | null;
   reset_signal?: string | null;
-  entry_password?: string | null;
   functions_locked?: boolean | null;
   sulbun_event?: unknown;
 };

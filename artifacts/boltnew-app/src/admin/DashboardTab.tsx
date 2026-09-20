@@ -80,12 +80,11 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
         <button
           type="button"
           data-testid="sulbun-open-btn"
-          onClick={() => { if (!sulbunActive) void onSulbunOpen(); }}
-          disabled={sulbunActive}
-          className={`w-full mb-3 rounded-2xl p-4 border-2 text-left transition-all ${
+          onClick={() => { void onSulbunOpen(); }}
+          className={`w-full mb-3 rounded-2xl p-4 border-2 text-left transition-all active:scale-[0.98] cursor-pointer shadow-sm ${
             sulbunActive
-              ? 'bg-amber-50 border-amber-300 cursor-default'
-              : 'bg-orange-50 border-orange-300 hover:bg-orange-100 active:scale-[0.98] cursor-pointer shadow-sm'
+              ? 'bg-amber-50 border-amber-300 hover:bg-amber-100'
+              : 'bg-orange-50 border-orange-300 hover:bg-orange-100'
           }`}
         >
           <p className={`font-black text-sm ${sulbunActive ? 'text-amber-900' : 'text-orange-800'}`}>

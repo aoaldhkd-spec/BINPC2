@@ -184,4 +184,29 @@ describe('admin_sulbun_open + auto reset', () => {
     const ready2 = await request(app).get('/api/db/ready');
     expect(ready2.body.settings.reset_signal).toBe(signal1);
   });
+
+  it('serializes concurrent opens to one cycle and keeps auto_reset_at', async () => {
+    await rpc('admin_event_end_reset');
+    const burst = await Promise.all(Array.from({ length: 5 }, () => rpc('admin_sulbun_open')));
+    expect(burst.every(r => r.status === 200)).toBe(true);
+    const firstIds = burst.map(r => r.body.data?.sulbun_event?.cycle_id as string);
+    const firstResets = burst.map(r => r.body.data?.sulbun_event?.auto_reset_at as string);
+    expect(new Set(firstIds).size).toBe(1);
+    expect(new Set(firstResets).size).toBe(1);
+    const cycleId = firstIds[0];
+    const autoResetAt = firstResets[0];
+
+    const again = await Promise.all(Array.from({ length: 5 }, () => rpc('admin_sulbun_open')));
+    expect(again.every(r => r.status === 200)).toBe(true);
+    expect(again.every(r => r.body.data?.already_active === true)).toBe(true);
+    expect(again.every(r => r.body.data?.sulbun_event?.cycle_id === cycleId)).toBe(true);
+    expect(again.every(r => r.body.data?.sulbun_event?.auto_reset_at === autoResetAt)).toBe(true);
+
+    const settings = await op({ op: 'select', table: 'app_settings' });
+    const row = (settings.body.data as Record<string, unknown>[])[0];
+    const stored = parseSulbunEvent(row.sulbun_event);
+    expect(stored?.cycle_id).toBe(cycleId);
+    expect(stored?.auto_reset_at).toBe(autoResetAt);
+    expect(stored?.auto_reset_enabled).toBe(true);
+  });
 });

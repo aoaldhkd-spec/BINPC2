@@ -2606,6 +2606,14 @@ mustMatch('artifacts/boltnew-app/src/admin/DashboardTab.tsx', '77_sulbun_dashboa
   /술번개 진행 중/,
   /onSulbunOpen/,
 ]);
+mustNotMatch('artifacts/boltnew-app/src/admin/DashboardTab.tsx', '77_sulbun_btn_clickable_when_active', [
+  /disabled=\{sulbunActive\}/,
+  /if \(!sulbunActive\) void onSulbunOpen/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '77_sulbun_open_single_flight', [
+  /sulbunOpenInFlight/,
+  /runAdminSulbunOpen/,
+]);
 mustNotMatch('artifacts/boltnew-app/src/admin/HeartOpsCard.tsx', '77_heart_ops_card_untouched_by_sulbun', [
   /admin_sulbun_open/,
   /술번개 오픈/,
