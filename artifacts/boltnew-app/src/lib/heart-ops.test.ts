@@ -233,6 +233,25 @@ describe('heart-ops lock/unlock model', () => {
     expect(unlockedHeartKeys(earlyReset).has('blue')).toBe(true);
   });
 
+  it('auto_unlock_from from last night does not block the next event night', () => {
+    vi.setSystemTime(seoulTime('2026-09-17T23:40:00+09:00'));
+    const reset = resetHeartUnlocks(config);
+    expect(reset.auto_unlock_from).toBeGreaterThan(23 * 60);
+    expect(unlockedHeartKeys(reset).has('red')).toBe(false);
+    expect(unlockedHeartKeys(reset).has('blue')).toBe(false);
+
+    vi.setSystemTime(seoulTime('2026-09-18T17:05:00+09:00'));
+    const afternoon = {
+      ...reset,
+      slots: reset.slots.map(s => s.unlock.includes('red') ? { ...s, at: '17:00' } : s),
+    };
+    expect(unlockedHeartKeys(afternoon).has('red')).toBe(true);
+
+    vi.setSystemTime(seoulTime('2026-09-18T23:05:00+09:00'));
+    expect(unlockedHeartKeys(reset).has('red')).toBe(true);
+    expect(unlockedHeartKeys(reset).has('blue')).toBe(false);
+  });
+
   it('24:00 and 24:30 map to post-midnight event minutes', () => {
     expect(slotEventMinute('24:00')).toBe(24 * 60);
     expect(slotEventMinute('24:30')).toBe(24 * 60 + 30);

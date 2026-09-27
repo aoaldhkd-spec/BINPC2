@@ -68,4 +68,45 @@ describe('DashboardTab sulbun open card', () => {
     fireEvent.click(btn);
     expect(onSulbunOpen).toHaveBeenCalledTimes(5);
   });
+
+  it('keeps 회식 시작/종료 clickable regardless of session_active', () => {
+    const onToggleSession = vi.fn();
+    render(
+      <DashboardTab
+        settings={activeSettings}
+        profiles={[]}
+        onToggleSession={onToggleSession}
+        onEventEndReset={() => {}}
+        onToggleFunctionsLock={() => {}}
+        onClearLikes={noop}
+        onClearChats={noop}
+        onClearProfiles={noop}
+        onClearHistory={noop}
+        restoreMap={new Map()}
+        onSaveSchedule={noop}
+        onSaveNotices={noop}
+        onSulbunOpen={() => {}}
+      />,
+    );
+    const start = screen.getByTestId('session-start-btn') as HTMLButtonElement;
+    const end = screen.getByTestId('session-end-btn') as HTMLButtonElement;
+    expect(start.disabled).toBe(false);
+    expect(end.disabled).toBe(false);
+    expect(start.className).not.toContain('cursor-not-allowed');
+    expect(end.className).not.toContain('cursor-not-allowed');
+    fireEvent.click(start);
+    expect(screen.getByText('회식을 시작하시겠습니까?')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '취소' }));
+    fireEvent.click(end);
+    expect(screen.getByText('회식을 종료하시겠습니까?')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '확인' }));
+    expect(onToggleSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('functions lock 해제 stays a real button', () => {
+    renderDash({ session_active: true, functions_locked: true } as AppSettings);
+    const lock = screen.getByTestId('functions-lock-btn') as HTMLButtonElement;
+    expect(lock.disabled).toBe(false);
+    expect(lock.textContent).toContain('탭하여 해제');
+  });
 });

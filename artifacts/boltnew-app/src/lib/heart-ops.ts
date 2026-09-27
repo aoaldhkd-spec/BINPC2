@@ -38,9 +38,9 @@ export type HeartOpsConfig = {
   /** Scheduled operator notices. Banner shows the first due enabled row. */
   direct_notices?: HeartOpsDirectNotice[];
   /**
-   * Event-minute hold after 해금 초기화.
+   * Event-minute hold after 해금 초기화 (same event night only).
    * Slots with `at` ≤ this stay locked unless listed in `instant_unlock`.
-   * Times / unlock lists are unchanged so later slots can still auto-open.
+   * A leftover hold from a previous night (nowEventMinute < hold) does not block today.
    */
   auto_unlock_from?: number;
   /** Participant auto-notice: 공지시간. Default off. */
@@ -410,9 +410,12 @@ function parseAutoUnlockFrom(raw: unknown): number | undefined {
   return n;
 }
 
-function slotHeldByReset(config: HeartOpsConfig, at: string): boolean {
+function slotHeldByReset(config: HeartOpsConfig, at: string, now = new Date()): boolean {
   const hold = config.auto_unlock_from;
   if (hold == null || !Number.isFinite(hold)) return false;
+  // Event night rolls at 07:00 Seoul (00:00–06:59 are +1440). A hold from last night
+  // has a larger minute than this afternoon/evening, so it must not keep today's slots locked.
+  if (nowEventMinute(now) < hold) return false;
   return slotEventMinute(at) <= hold;
 }
 
@@ -434,7 +437,7 @@ export function unlockedHeartKeys(config: HeartOpsConfig, now = new Date()): Set
   const minute = nowEventMinute(now);
   const keys = new Set<HeartUnlockKey>();
   for (const slot of config.slots) {
-    if (slotHeldByReset(config, slot.at)) continue;
+    if (slotHeldByReset(config, slot.at, now)) continue;
     if (slotEventMinute(slot.at) <= minute) {
       for (const k of slot.unlock) keys.add(k);
     }
@@ -565,7 +568,7 @@ export function heartOpsBannerState(config: HeartOpsConfig, now = new Date()): H
   const minute = nowEventMinute(now);
   const { second } = seoulClockParts(now);
 
-  const passed = config.slots.filter(s => !slotHeldByReset(config, s.at) && slotEventMinute(s.at) <= minute);
+  const passed = config.slots.filter(s => !slotHeldByReset(config, s.at, now) && slotEventMinute(s.at) <= minute);
   const justSlot = passed.find(s => {
     const sm = slotEventMinute(s.at);
     return minute === sm || (minute - sm <= 1 && second < 60);
@@ -576,7 +579,7 @@ export function heartOpsBannerState(config: HeartOpsConfig, now = new Date()): H
     justUnlocked = `${names} 하트가 해금되었습니다`;
   }
 
-  const nextUnlock = config.slots.find(s => !slotHeldByReset(config, s.at) && slotEventMinute(s.at) > minute && s.unlock.length > 0) ?? null;
+  const nextUnlock = config.slots.find(s => !slotHeldByReset(config, s.at, now) && slotEventMinute(s.at) > minute && s.unlock.length > 0) ?? null;
   const nextNotice = config.slots.find(s => slotShowsNotice(s, config) && slotEventMinute(slotNoticeAt(s)) > minute) ?? null;
   const next = nextUnlock ?? nextNotice;
   const display = resolveHeartOpsBannerDisplay(config);

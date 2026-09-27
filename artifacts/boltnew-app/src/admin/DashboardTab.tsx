@@ -22,7 +22,7 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
   onSaveNotices: (raw: string) => Promise<void>;
   onSulbunOpen: () => void | Promise<void>;
 }) {
-  const [confirmToggle, setConfirmToggle] = useState(false);
+  const [confirmToggle, setConfirmToggle] = useState<'start' | 'end' | null>(null);
   const [confirmEventEnd, setConfirmEventEnd] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
   const isActive = settings?.session_active ?? false;
@@ -49,8 +49,10 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
         <div className="space-y-2">
           {/* 기능 잠금 (functions_locked) */}
           <button
+            type="button"
+            data-testid="functions-lock-btn"
             onClick={onToggleFunctionsLock}
-            className={`w-full rounded-2xl p-4 border-2 flex flex-wrap items-center gap-3 transition-all active:scale-[0.98] shadow-sm ${
+            className={`relative z-10 touch-target w-full rounded-2xl p-4 border-2 flex flex-wrap items-center gap-3 transition-all active:scale-[0.98] shadow-sm cursor-pointer touch-manipulation ${
               isFunctionsLocked ? 'bg-red-50 border-red-300 hover:bg-red-100' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
             }`}
           >
@@ -81,7 +83,7 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
           type="button"
           data-testid="sulbun-open-btn"
           onClick={() => { void onSulbunOpen(); }}
-          className={`w-full mb-3 rounded-2xl p-4 border-2 text-left transition-all active:scale-[0.98] cursor-pointer shadow-sm ${
+          className={`relative z-10 touch-target w-full mb-3 rounded-2xl p-4 border-2 text-left transition-all active:scale-[0.98] cursor-pointer shadow-sm touch-manipulation ${
             sulbunActive
               ? 'bg-amber-50 border-amber-300 hover:bg-amber-100'
               : 'bg-orange-50 border-orange-300 hover:bg-orange-100'
@@ -96,34 +98,36 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
               : '누르면 다음날 17:00 전체 초기화가 예약됩니다'}
           </p>
         </button>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="relative z-10 grid grid-cols-2 gap-3">
           <button
-            onClick={() => !isActive && setConfirmToggle(true)}
-            disabled={isActive}
-            className={`rounded-2xl p-4 border-2 flex flex-col items-center gap-2 transition-all ${
+            type="button"
+            data-testid="session-start-btn"
+            onClick={() => setConfirmToggle('start')}
+            className={`touch-target rounded-2xl p-4 border-2 flex flex-col items-center gap-2 transition-all cursor-pointer touch-manipulation ${
               !isActive
-                ? 'bg-teal-50 border-teal-300 hover:bg-teal-100 active:scale-95 cursor-pointer shadow-sm'
-                : 'bg-slate-50 border-slate-200 opacity-35 cursor-not-allowed'
+                ? 'bg-teal-50 border-teal-300 hover:bg-teal-100 active:scale-95 shadow-sm'
+                : 'bg-teal-50/70 border-teal-200 shadow-sm'
             }`}
           >
-            <PlayCircle className={`w-7 h-7 ${!isActive ? 'text-teal-700' : 'text-slate-400'}`} />
-            <span className={`text-sm font-black ${!isActive ? 'text-teal-700' : 'text-slate-400'}`}>회식 시작</span>
-            <span className={`text-[10px] font-medium ${!isActive ? 'text-teal-700' : 'text-slate-400'}`}>
+            <PlayCircle className="w-7 h-7 text-teal-700" />
+            <span className="text-sm font-black text-teal-700">회식 시작</span>
+            <span className="text-[10px] font-medium text-teal-700">
               {isActive ? '진행 중' : '클릭하여 세션 열기'}
             </span>
           </button>
           <button
-            onClick={() => isActive && setConfirmToggle(true)}
-            disabled={!isActive}
-            className={`rounded-2xl p-4 border-2 flex flex-col items-center gap-2 transition-all ${
+            type="button"
+            data-testid="session-end-btn"
+            onClick={() => setConfirmToggle('end')}
+            className={`touch-target rounded-2xl p-4 border-2 flex flex-col items-center gap-2 transition-all cursor-pointer touch-manipulation ${
               isActive
-                ? 'bg-red-50 border-red-300 hover:bg-red-100 active:scale-95 cursor-pointer shadow-sm'
-                : 'bg-slate-50 border-slate-200 opacity-35 cursor-not-allowed'
+                ? 'bg-red-50 border-red-300 hover:bg-red-100 active:scale-95 shadow-sm'
+                : 'bg-red-50/70 border-red-200 shadow-sm'
             }`}
           >
-            <StopCircle className={`w-7 h-7 ${isActive ? 'text-red-500' : 'text-slate-400'}`} />
-            <span className={`text-sm font-black ${isActive ? 'text-red-700' : 'text-slate-400'}`}>회식 종료</span>
-            <span className={`text-[10px] font-medium ${isActive ? 'text-red-500' : 'text-slate-400'}`}>
+            <StopCircle className="w-7 h-7 text-red-500" />
+            <span className="text-sm font-black text-red-700">회식 종료</span>
+            <span className="text-[10px] font-medium text-red-500">
               {isActive ? '클릭하여 세션 닫기' : '대기 중'}
             </span>
           </button>
@@ -191,10 +195,16 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
 
       {confirmToggle && (
         <ConfirmDialog
-          title={isActive ? '회식을 종료하시겠습니까?' : '회식을 시작하시겠습니까?'}
-          message={isActive ? '종료 시 모든 유저 화면이 "회식 종료 대기 화면"으로 전환됩니다.' : '시작 시 유저들이 앱에 입장할 수 있습니다.'}
-          onConfirm={() => { setConfirmToggle(false); onToggleSession(); }}
-          onCancel={() => setConfirmToggle(false)}
+          title={confirmToggle === 'end' ? '회식을 종료하시겠습니까?' : '회식을 시작하시겠습니까?'}
+          message={confirmToggle === 'end'
+            ? (isActive ? '종료 시 모든 유저 화면이 "회식 종료 대기 화면"으로 전환됩니다.' : '이미 대기 중입니다.')
+            : (isActive ? '이미 진행 중입니다.' : '시작 시 유저들이 앱에 입장할 수 있습니다.')}
+          onConfirm={() => {
+            const action = confirmToggle;
+            setConfirmToggle(null);
+            if ((action === 'start' && !isActive) || (action === 'end' && isActive)) onToggleSession();
+          }}
+          onCancel={() => setConfirmToggle(null)}
         />
       )}
       {confirmAction && (

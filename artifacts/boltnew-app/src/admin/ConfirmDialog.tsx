@@ -30,8 +30,8 @@ export function ConfirmDialog({ title, message, danger, confirmText, onConfirm, 
           </div>
         )}
         <div className="flex gap-3">
-          <button onClick={onCancel} className="flex-1 py-3 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition-all">취소</button>
-          <button onClick={onConfirm} disabled={!canConfirm} className={`flex-1 py-3 font-semibold rounded-xl transition-all text-white ${danger ? 'bg-red-500 hover:bg-red-600 disabled:bg-red-200 disabled:cursor-not-allowed' : 'bg-amber-500 hover:bg-amber-600'}`}>확인</button>
+          <button type="button" onClick={onCancel} className="touch-target flex-1 py-3 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition-all cursor-pointer touch-manipulation">취소</button>
+          <button type="button" onClick={onConfirm} disabled={!canConfirm} className={`touch-target flex-1 py-3 font-semibold rounded-xl transition-all text-white cursor-pointer touch-manipulation ${danger ? 'bg-red-500 hover:bg-red-600 disabled:bg-red-200 disabled:cursor-not-allowed' : 'bg-amber-500 hover:bg-amber-600'}`}>확인</button>
         </div>
       </div>
     </div>

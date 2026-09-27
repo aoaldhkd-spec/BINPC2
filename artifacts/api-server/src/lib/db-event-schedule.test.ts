@@ -94,6 +94,9 @@ describe('event schedule (heart ops v2)', () => {
     expect(held.has('red')).toBe(false);
     expect(held.has('rainbow')).toBe(false);
     expect(held.has('blue')).toBe(true);
+    const nextNight = unlockedHeartKeys(parsed, new Date('2026-09-17T14:05:00.000Z'));
+    expect(nextNight.has('red')).toBe(true);
+    expect(nextNight.has('rainbow')).toBe(false);
     const round = JSON.parse(serializeEventSchedule(raw));
     expect(round.auto_unlock_from).toBe(24 * 60 + 35);
     expect(round.slots).toHaveLength(2);

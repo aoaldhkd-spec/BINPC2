@@ -208,9 +208,10 @@ function parseAutoUnlockFrom(raw: unknown): number | undefined {
   return n;
 }
 
-function slotHeldByReset(config: HeartOpsConfig, at: string): boolean {
+function slotHeldByReset(config: HeartOpsConfig, at: string, now = new Date()): boolean {
   const hold = config.auto_unlock_from;
   if (hold == null || !Number.isFinite(hold)) return false;
+  if (nowEventMinute(now) < hold) return false;
   return slotEventMinute(at) <= hold;
 }
 
@@ -218,7 +219,7 @@ export function unlockedHeartKeys(config: HeartOpsConfig, now = new Date()): Set
   const minute = nowEventMinute(now);
   const keys = new Set<HeartUnlockKey>();
   for (const slot of config.slots) {
-    if (slotHeldByReset(config, slot.at)) continue;
+    if (slotHeldByReset(config, slot.at, now)) continue;
     if (slotEventMinute(slot.at) <= minute) {
       for (const k of slot.unlock) keys.add(k);
     }

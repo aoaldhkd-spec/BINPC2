@@ -380,10 +380,19 @@ mustMatch('artifacts/boltnew-app/src/lib/heart-ops.ts', '35_heart_ops_unlock_res
   /auto_unlock_from/,
   /resetHeartUnlocks/,
   /slotHeldByReset/,
+  /nowEventMinute\(now\) < hold/,
 ]);
 mustMatch('artifacts/api-server/src/lib/db-heart-ops.ts', '35_api_heart_ops_unlock_reset', [
   /auto_unlock_from/,
   /slotHeldByReset/,
+  /nowEventMinute\(now\) < hold/,
+]);
+mustMatch('artifacts/boltnew-app/src/admin/HeartOpsCard.tsx', '35_notice_presets_before_stale_schedule', [
+  /hasServerDirectNoticePresets/,
+  /suppressNoticeReloadRef/,
+  /delete next\.auto_unlock_from/,
+  /await onSave\(serializeHeartOps\(next\)\)/,
+  /await onSaveNotices\(serializeDirectNotices\(notices\)\)/,
 ]);
 mustMatch('artifacts/boltnew-app/src/admin/event-schedule-apply.ts', '35_quick_notice_draft_empty_hint', [
   /QUICK_NOTICE_DRAFT_KEY/,
@@ -2609,6 +2618,17 @@ mustMatch('artifacts/boltnew-app/src/admin/DashboardTab.tsx', '77_sulbun_dashboa
 mustNotMatch('artifacts/boltnew-app/src/admin/DashboardTab.tsx', '77_sulbun_btn_clickable_when_active', [
   /disabled=\{sulbunActive\}/,
   /if \(!sulbunActive\) void onSulbunOpen/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/admin/DashboardTab.tsx', '77_session_btns_clickable', [
+  /disabled=\{isActive\}/,
+  /disabled=\{!isActive\}/,
+]);
+mustMatch('artifacts/boltnew-app/src/admin/DashboardTab.tsx', '77_session_btns_always_open_confirm', [
+  /setConfirmToggle\('start'\)/,
+  /setConfirmToggle\('end'\)/,
+  /session-start-btn/,
+  /session-end-btn/,
+  /functions-lock-btn/,
 ]);
 mustMatch('artifacts/api-server/src/routes/db.ts', '77_sulbun_open_single_flight', [
   /sulbunOpenInFlight/,

@@ -195,4 +195,49 @@ describe('HeartOpsCard schedule clock', () => {
     expect(screen.getByLabelText('직접 공지 4')).toBeTruthy();
     expect(onSaveNotices).toHaveBeenCalledTimes(1);
   });
+
+  it('keeps notice checkboxes checked when presets update before schedule', async () => {
+    const payloads: string[] = [];
+    let current = settingsWith();
+    const onSave = vi.fn(async (raw: string) => { payloads.push(raw); });
+    let rerenderCard: (ui: React.ReactElement) => void = () => {};
+    const onSaveNotices = vi.fn(async (raw: string) => {
+      current = { ...current, direct_notice_presets: raw };
+      rerenderCard(
+        <HeartOpsCard settings={current} onSave={onSave} onSaveNotices={onSaveNotices} />,
+      );
+    });
+    const view = render(
+      <HeartOpsCard settings={current} onSave={onSave} onSaveNotices={onSaveNotices} />,
+    );
+    rerenderCard = view.rerender;
+
+    fireEvent.click(screen.getByRole('checkbox', { name: '공지 1 표시' }));
+    fireEvent.change(screen.getByLabelText('직접 공지 1'), { target: { value: '자리 이동해주세요.' } });
+    fireEvent.click(screen.getByRole('button', { name: /스케줄 저장/ }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(onSaveNotices).toHaveBeenCalledTimes(1));
+    expect((screen.getByRole('checkbox', { name: '공지 1 표시' }) as HTMLInputElement).checked).toBe(true);
+    expect(parseHeartOps(payloads[0]).direct_notices?.[0]).toMatchObject({
+      text: '자리 이동해주세요.',
+      enabled: true,
+    });
+    expect(parseHeartOps(payloads[0]).auto_unlock_from).toBeUndefined();
+  });
+
+  it('스케줄 저장 drops a leftover auto_unlock_from hold', async () => {
+    const payloads: string[] = [];
+    const settings = {
+      event_schedule: serializeHeartOps({
+        ...DEFAULT_HEART_OPS,
+        auto_unlock_from: 23 * 60 + 40,
+      }),
+    } as AppSettings;
+    const onSave = vi.fn(async (raw: string) => { payloads.push(raw); });
+    render(<HeartOpsCard settings={settings} onSave={onSave} onSaveNotices={vi.fn(async () => {})} />);
+    fireEvent.click(screen.getByRole('button', { name: /스케줄 저장/ }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(parseHeartOps(payloads[0]).auto_unlock_from).toBeUndefined();
+    expect(parseHeartOps(payloads[0]).slots).toHaveLength(5);
+  });
 });

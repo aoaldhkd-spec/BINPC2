@@ -44,11 +44,13 @@ function heartRowMeta(key: HeartUnlockKey): { emoji: string; label: string } {
 
 function noticesFromSettings(settings: AppSettings | null): DirectNoticeItem[] {
   const parsed = parseHeartOps(settings?.event_schedule);
-  if (parsed.direct_notices?.length) return ensureDirectNoticeSlots(parsed.direct_notices);
   const live = parsed.direct_notice;
+  // Presets are the admin draft source of truth. Prefer them over event_schedule
+  // so a presets-first save cannot reload stale schedule rows (enabled omitted).
   if (hasServerDirectNoticePresets(settings?.direct_notice_presets)) {
     return withLiveNoticeEnabled(loadDirectNoticePresets(settings?.direct_notice_presets), live);
   }
+  if (parsed.direct_notices?.length) return ensureDirectNoticeSlots(parsed.direct_notices);
   return withLiveNoticeEnabled(readLocalDirectNoticeFallback(), live);
 }
 
@@ -145,6 +147,7 @@ export function HeartOpsCard({ settings, onSave, onSaveNotices }: {
   const [instantPick, setInstantPick] = useState<HeartUnlockKey[]>([]);
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
+  const suppressNoticeReloadRef = useRef(false);
 
   useEffect(() => {
     setSlots(heartOpsHeartRows(saved));
@@ -155,16 +158,16 @@ export function HeartOpsCard({ settings, onSave, onSaveNotices }: {
   const migratedRef = useRef(false);
 
   useEffect(() => {
+    if (suppressNoticeReloadRef.current) return;
     const parsed = parseHeartOps(settings?.event_schedule);
-    if (parsed.direct_notices?.length) {
-      setNotices(ensureDirectNoticeSlots(parsed.direct_notices));
-      if (hasServerDirectNoticePresets(settings?.direct_notice_presets)) clearLocalDirectNoticeStorage();
-      return;
-    }
     const live = parsed.direct_notice;
     if (hasServerDirectNoticePresets(settings?.direct_notice_presets)) {
       setNotices(withLiveNoticeEnabled(loadDirectNoticePresets(settings?.direct_notice_presets), live));
       clearLocalDirectNoticeStorage();
+      return;
+    }
+    if (parsed.direct_notices?.length) {
+      setNotices(ensureDirectNoticeSlots(parsed.direct_notices));
       return;
     }
     if (migratedRef.current) return;
@@ -207,19 +210,24 @@ export function HeartOpsCard({ settings, onSave, onSaveNotices }: {
   };
 
   const saveSchedule = async () => {
+    suppressNoticeReloadRef.current = true;
     setSaving(true);
     try {
-      await onSaveNotices(serializeDirectNotices(notices));
-      clearLocalDirectNoticeStorage();
-      await onSave(serializeHeartOps(buildConfig({
+      const next = buildConfig({
         slots,
         direct_notices: notices.slice(0, DIRECT_NOTICE_SLOT_COUNT),
         direct_notice: dueDirectNoticeText(notices),
-      })));
+      });
+      delete next.auto_unlock_from;
+      // Schedule first so a presets SSE/setState cannot reload stale event_schedule notices.
+      await onSave(serializeHeartOps(next));
+      await onSaveNotices(serializeDirectNotices(notices));
+      clearLocalDirectNoticeStorage();
       setSavedFlash(true);
       window.setTimeout(() => setSavedFlash(false), 1800);
     } finally {
       setSaving(false);
+      suppressNoticeReloadRef.current = false;
     }
   };
 
