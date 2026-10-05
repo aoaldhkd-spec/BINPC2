@@ -30,25 +30,39 @@ export function useSseFallbackPoll(args: UseSseFallbackPollArgs): void {
     const start = planSseFallbackTick({
       connStatus,
       currentUserId,
-      sseHealthy: false, // effect gate; per-tick checks real SSE
+      sseHealthy: false,
     });
     if (!start.shouldPoll || !currentUserId) return;
 
     const uid = currentUserId;
+    let cancelled = false;
     let pollInFlight = false;
+    let consecutivePolls = 0;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const schedule = () => {
+      if (cancelled) return;
+      const delay = sseFallbackPollIntervalMs(argsRef.current.connStatus, consecutivePolls);
+      timer = setTimeout(tick, delay);
+    };
+
     const tick = () => {
-      // A slow Render wake-up must not overlap the next interval. Six domain
-      // reads per tick otherwise multiply into a reconnect/request storm.
-      if (pollInFlight) return;
-      pollInFlight = true;
-      const finish = () => { pollInFlight = false; };
+      if (cancelled) return;
+      if (pollInFlight) { schedule(); return; }
+
       const a = argsRef.current;
       const plan = planSseFallbackTick({
         connStatus: a.connStatus,
         currentUserId: uid,
         sseHealthy: isSseHealthy(),
       });
-      if (!plan.shouldPoll) { finish(); return; }
+      if (!plan.shouldPoll) {
+        consecutivePolls = 0;
+        schedule();
+        return;
+      }
+
+      pollInFlight = true;
       void Promise.allSettled([
         Promise.resolve(a.loadProfiles()),
         Promise.resolve(a.loadChatList(uid)),
@@ -56,13 +70,19 @@ export function useSseFallbackPoll(args: UseSseFallbackPollArgs): void {
         Promise.resolve(a.loadReceivedLikes(uid)),
         Promise.resolve(a.loadLikes(uid)),
         Promise.resolve(a.loadContactShareData(uid)),
-      ]).then(finish, finish);
+      ]).finally(() => {
+        pollInFlight = false;
+        consecutivePolls += 1;
+        schedule();
+      });
     };
 
     tick();
-    const pollId = setInterval(tick, sseFallbackPollIntervalMs(connStatus));
-    return () => { clearInterval(pollId); };
-  // argsRef keeps loaders fresh; only restart interval on status/user change
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  // argsRef keeps loaders fresh; only restart recovery loop on status/user change
   // eslint-disable-next-line react-hooks/exhaustive-deps -- mirror useParticipantSoTResync
   }, [args.connStatus, args.currentUserId]);
 }

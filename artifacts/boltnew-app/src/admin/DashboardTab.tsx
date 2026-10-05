@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Trash2, PlayCircle, StopCircle, Lock, Unlock } from 'lucide-react';
-import type { Profile, AppSettings } from './shared';
+import type { Profile, AppSettings, DbHealthData } from './shared';
 import { ConfirmDialog } from './ConfirmDialog';
 import { isSulbunEventActive, parseSulbunEvent } from '../lib/sulbun-event';
 
@@ -8,8 +8,9 @@ import { isSulbunEventActive, parseSulbunEvent } from '../lib/sulbun-event';
 
 export function DashboardTab({ settings, profiles, onToggleSession, onEventEndReset, onToggleFunctionsLock,
   onClearLikes, onClearChats, onClearProfiles, onClearHistory,
-  restoreMap, onSulbunOpen }: {
+  restoreMap, onSulbunOpen, dbHealth, dbHealthLoading }: {
   settings: AppSettings | null; profiles: Profile[];
+  dbHealth: DbHealthData | null; dbHealthLoading: boolean;
   onToggleSession: () => void; onEventEndReset: () => void;
   onToggleFunctionsLock: () => void;
   onClearLikes: () => Promise<void>;
@@ -26,6 +27,10 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
   const isFunctionsLocked = settings?.functions_locked ?? false;
   const sulbun = parseSulbunEvent(settings?.sulbun_event);
   const sulbunActive = isSulbunEventActive(sulbun);
+  const runtime = dbHealth?.runtime;
+  const metrics = dbHealth?.httpMetrics;
+  const uptimeMin = runtime ? Math.floor(runtime.uptimeSec / 60) : null;
+  const checkedAt = dbHealth?.checkedAt ? new Date(dbHealth.checkedAt).toLocaleTimeString('ko-KR') : '-';
 
   return (
     <div className="space-y-5 p-5">
@@ -38,6 +43,66 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
             <div className="text-xs font-semibold mt-0.5">{stat.label}</div>
           </div>
         ))}
+      </div>
+
+      <div data-testid="ops-overview-card" className="rounded-2xl border-2 border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <div>
+            <h3 className="text-sm font-black text-slate-900">개발·운영 현황</h3>
+            <p className="text-[10px] text-slate-500">관리자 화면에서 5초마다 자동갱신 · 마지막 확인 {checkedAt}</p>
+          </div>
+          <span className={`text-[10px] font-black px-2 py-1 rounded-full ${dbHealth?.ok ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+            {dbHealthLoading ? '확인 중' : dbHealth?.ok ? '정상' : '확인 필요'}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 min-[420px]:grid-cols-3 gap-2 text-[11px]">
+          <div className="rounded-xl bg-slate-50 p-2.5">
+            <div className="text-slate-400 font-bold">배포 코드</div>
+            <div className="font-black text-slate-800 mt-0.5">{runtime?.commit && runtime.commit !== 'unknown' ? runtime.commit.slice(0, 8) : '로컬/미확인'}</div>
+          </div>
+          <div className="rounded-xl bg-slate-50 p-2.5">
+            <div className="text-slate-400 font-bold">API 가동</div>
+            <div className="font-black text-slate-800 mt-0.5">{uptimeMin == null ? '-' : `${uptimeMin}분`}</div>
+          </div>
+          <div className="rounded-xl bg-slate-50 p-2.5">
+            <div className="text-slate-400 font-bold">SSE 실시간</div>
+            <div className="font-black text-slate-800 mt-0.5">{dbHealth ? `${dbHealth.sseConnections} 연결` : '-'}</div>
+          </div>
+          <div className="rounded-xl bg-slate-50 p-2.5">
+            <div className="text-slate-400 font-bold">모바일 Push</div>
+            <div className={`font-black mt-0.5 ${runtime?.pushConfigured ? 'text-emerald-700' : 'text-red-600'}`}>
+              {runtime ? (runtime.pushConfigured ? `ON · ${runtime.pushSubscriptions}구독` : 'OFF') : '-'}
+            </div>
+          </div>
+          <div className="rounded-xl bg-slate-50 p-2.5">
+            <div className="text-slate-400 font-bold">DB 저장 오류</div>
+            <div className={`font-black mt-0.5 ${(dbHealth?.persistErrors ?? 0) > 0 ? 'text-red-600' : 'text-emerald-700'}`}>
+              {dbHealth ? dbHealth.persistErrors : '-'}
+            </div>
+          </div>
+          <div className="rounded-xl bg-slate-50 p-2.5">
+            <div className="text-slate-400 font-bold">참여자</div>
+            <div className="font-black text-slate-800 mt-0.5">{profiles.length}명</div>
+          </div>
+        </div>
+
+        <div className="mt-3 rounded-xl bg-indigo-50 p-3 text-[10px] text-indigo-900">
+          <div className="font-black mb-1">실시간/푸시 누적</div>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+            <span>Push 성공 <b>{metrics?.pushSucceeded ?? 0}</b></span>
+            <span>재시도 <b>{metrics?.pushRetries ?? 0}</b></span>
+            <span>만료 구독 <b>{metrics?.pushExpired ?? 0}</b></span>
+            <span>Push 오류 <b>{metrics?.pushErrors ?? 0}</b></span>
+          </div>
+        </div>
+
+        {(dbHealth?.alarms?.length ?? 0) > 0 && (
+          <div className="mt-3 rounded-xl bg-red-50 border border-red-200 p-3 text-[10px] text-red-700">
+            <div className="font-black mb-1">운영 경고</div>
+            {dbHealth!.alarms.slice(0, 3).map((alarm) => <div key={alarm}>• {alarm}</div>)}
+          </div>
+        )}
       </div>
 
       {/* 잠금 제어 */}

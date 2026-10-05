@@ -2,11 +2,13 @@
  * Main tab shell peeled from App JSX — behavior unchanged.
  * Profiles stay mounted under overlays (inert when sub-screen).
  */
-import { Suspense, type ComponentProps } from 'react';
+import { lazy, Suspense, type ComponentProps } from 'react';
 import { AppErrorBoundary } from './AppErrorBoundary';
-import { MainScreen } from './MainScreen';
 
-export type AppMainShellProps = ComponentProps<typeof MainScreen> & {
+type MainScreenComponent = typeof import('./MainScreen')['MainScreen'];
+const MainScreen = lazy(() => import('./MainScreen').then((m) => ({ default: m.MainScreen })));
+
+export type AppMainShellProps = ComponentProps<MainScreenComponent> & {
   isSubScreen: boolean;
   onBoundaryReset: () => void;
 };

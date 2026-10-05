@@ -340,6 +340,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   useEffect(() => {
     let nextAt = 0;
     const id = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
       const now = Date.now();
       if (isSseHealthy() && now - lastActivitySuccessAtRef.current < 60_000) return;
       const gap = isSseHealthy() ? 25_000 : 8_000;
@@ -388,14 +389,20 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   }, [fetchDbHealth]);
 
   useEffect(() => {
-    const initialTimer = window.setTimeout(() => { void fetchDbHealth(); }, 300);
-    // 5초 주기로 SSE 연결 수 갱신 (기존 30초는 실시간성이 너무 낮음)
-    const id = setInterval(fetchDbHealth, 5_000);
+    const healthVisible = tab === 'settings' && (settingsSubTab === 'control' || settingsSubTab === 'db');
+    if (!healthVisible) return;
+    const refreshIfVisible = () => {
+      if (document.visibilityState === 'visible') void fetchDbHealth();
+    };
+    const initialTimer = window.setTimeout(refreshIfVisible, 300);
+    const id = window.setInterval(refreshIfVisible, 5_000);
+    document.addEventListener('visibilitychange', refreshIfVisible);
     return () => {
       window.clearTimeout(initialTimer);
-      clearInterval(id);
+      window.clearInterval(id);
+      document.removeEventListener('visibilitychange', refreshIfVisible);
     };
-  }, [fetchDbHealth]);
+  }, [fetchDbHealth, tab, settingsSubTab]);
 
   const handleToggleSession = async () => {
     if (!settings) return;
@@ -685,7 +692,8 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                   onClearLikes={handleClearLikes} onClearChats={handleClearAllChats}
                   onClearProfiles={handleClearProfiles}
                   onClearHistory={handleClearHistory} restoreMap={restoreMap}
-                  onSulbunOpen={handleSulbunOpen} />
+                  onSulbunOpen={handleSulbunOpen}
+                  dbHealth={dbHealth} dbHealthLoading={dbHealthLoading} />
               )}
               {settingsSubTab === 'qr' && <AdminQrTab settings={settings} onSaveQrBase={async (url) => {
                 try {

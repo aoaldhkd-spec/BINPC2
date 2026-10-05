@@ -177,7 +177,7 @@ mustMatch('scripts/full-code-audit.mjs', '13_heart_balances_banned', [
 // ?? 15 verify:ci single entry (local ? GitHub parity) ???????????????????????
 
 mustMatch('package.json', '15_verify_ci_script', [
-  /"verify:ci":\s*"corepack pnpm run verify:guards && corepack pnpm run audit:code && corepack pnpm run test:unit"/,
+  /"verify:ci":\s*"corepack pnpm run verify:records && corepack pnpm run verify:guards && corepack pnpm run audit:code && corepack pnpm run test:unit"/,
 ]);
 mustMatch('.github/workflows/verify.yml', '15_ci_runs_verify_ci', [/pnpm run verify:ci/]);
 mustNotMatch('.github/workflows/verify.yml', '15_ci_no_split_step_drift', [

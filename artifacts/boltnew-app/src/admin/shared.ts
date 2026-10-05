@@ -246,6 +246,11 @@ export interface DbHealthHttpMetrics {
   sseConnectionsClosed: number;
   uploadRejections: Record<string, number>;
   uploadsAccepted: number;
+  pushAttempts: number;
+  pushSucceeded: number;
+  pushExpired: number;
+  pushRetries: number;
+  pushErrors: number;
 }
 
 export interface DbHealthData {
@@ -259,4 +264,14 @@ export interface DbHealthData {
   ok: boolean;
   checkedAt: string;
   httpMetrics?: DbHealthHttpMetrics;
+  runtime?: {
+    commit: string;
+    service: string;
+    uptimeSec: number;
+    processStartedAt: string;
+    node: string;
+    pushConfigured: boolean;
+    pushSubscriptions: number;
+    dailyCycle: string;
+  };
 }

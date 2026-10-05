@@ -3,12 +3,16 @@ import React from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DashboardTab } from './DashboardTab';
-import type { AppSettings } from './shared';
+import type { AppSettings, DbHealthData } from './shared';
 
 afterEach(() => cleanup());
 const noop = async () => {};
 
-function renderDash(settings: AppSettings | null, opts?: { onToggleSession?: () => void; onSulbunOpen?: () => void | Promise<void> }) {
+function renderDash(settings: AppSettings | null, opts?: {
+  onToggleSession?: () => void;
+  onSulbunOpen?: () => void | Promise<void>;
+  dbHealth?: DbHealthData | null;
+}) {
   const onToggleSession = opts?.onToggleSession ?? vi.fn<() => void>();
   const onSulbunOpen = opts?.onSulbunOpen ?? vi.fn<() => void>();
   return {
@@ -27,6 +31,8 @@ function renderDash(settings: AppSettings | null, opts?: { onToggleSession?: () 
         onClearHistory={noop}
         restoreMap={new Map()}
         onSulbunOpen={onSulbunOpen}
+        dbHealth={opts?.dbHealth ?? null}
+        dbHealthLoading={false}
       />,
     ),
   };
@@ -80,5 +86,55 @@ describe('DashboardTab automatic operations', () => {
     expect(screen.queryByText('하트 운영')).toBeNull();
     expect(screen.queryByText('직접 공지')).toBeNull();
     expect(screen.queryByRole('button', { name: /스케줄 저장/ })).toBeNull();
+  });
+
+  it('shows one-glance live development and operations status', () => {
+    renderDash(activeSettings, {
+      dbHealth: {
+        persistErrors: 0,
+        recentErrors: [],
+        inMemory: { messages: 1, likes: 2 },
+        db: { messages: 1, likes: 2 },
+        sseConnections: 7,
+        pinPool: { remaining: 8990, total: 9000 },
+        alarms: [],
+        ok: true,
+        checkedAt: '2026-10-05T11:00:00.000Z',
+        runtime: {
+          commit: '5808dcada0228d96',
+          service: 'BINPC2',
+          uptimeSec: 3600,
+          processStartedAt: '2026-10-05T10:00:00.000Z',
+          node: 'v24.0.0',
+          pushConfigured: true,
+          pushSubscriptions: 3,
+          dailyCycle: '23:00 hearts / 24:00 rainbow / 01:00 close / 17:00 reset',
+        },
+        httpMetrics: {
+          since: '2026-10-05T10:00:00.000Z',
+          unauthorized: {},
+          forbidden: {},
+          rateLimited: {},
+          expiredSseTokens: 0,
+          missingSseTokens: 0,
+          sseConnectionsAccepted: 8,
+          sseConnectionsClosed: 1,
+          uploadRejections: {},
+          uploadsAccepted: 0,
+          pushAttempts: 5,
+          pushSucceeded: 4,
+          pushExpired: 1,
+          pushRetries: 2,
+          pushErrors: 0,
+        },
+      },
+    });
+    const card = screen.getByTestId('ops-overview-card');
+    expect(card.textContent).toContain('개발·운영 현황');
+    expect(card.textContent).toContain('5808dcad');
+    expect(card.textContent).toContain('7 연결');
+    expect(card.textContent).toContain('ON · 3구독');
+    expect(card.textContent).toContain('Push 성공 4');
+    expect(card.textContent).toContain('재시도 2');
   });
 });

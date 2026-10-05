@@ -5,14 +5,18 @@
 
 export type SseFallbackConnStatus = 'ok' | 'reconnecting' | 'error' | string;
 
-// Fallback reads are a safety net, not a reconnect loop. Keep a short bounded
-// cadence; the hook-level in-flight guard prevents an outage from becoming a 429 burst.
-export const SSE_FALLBACK_ERROR_MS = 3_000;
-export const SSE_FALLBACK_RECONNECTING_MS = 3_000;
+// Fast first recovery, then progressively reduce pressure during long outages.
+export const SSE_FALLBACK_BACKOFF_MS = [3_000, 5_000, 10_000, 15_000] as const;
+export const SSE_FALLBACK_ERROR_MS = SSE_FALLBACK_BACKOFF_MS[0];
+export const SSE_FALLBACK_RECONNECTING_MS = SSE_FALLBACK_BACKOFF_MS[0];
 
-/** Use the same short cadence for recovery and hard-error fallback. */
-export function sseFallbackPollIntervalMs(connStatus: SseFallbackConnStatus): number {
-  return connStatus === 'error' ? SSE_FALLBACK_ERROR_MS : SSE_FALLBACK_RECONNECTING_MS;
+export function sseFallbackPollIntervalMs(
+  connStatus: SseFallbackConnStatus,
+  consecutivePolls = 0,
+): number {
+  if (connStatus === 'ok') return SSE_FALLBACK_BACKOFF_MS[0];
+  const idx = Math.min(Math.max(0, Math.floor(consecutivePolls)), SSE_FALLBACK_BACKOFF_MS.length - 1);
+  return SSE_FALLBACK_BACKOFF_MS[idx];
 }
 
 export type SseFallbackTickPlan = {
@@ -28,8 +32,6 @@ export function planSseFallbackTick(input: {
 }): SseFallbackTickPlan {
   if (input.connStatus === 'ok') return { shouldPoll: false, skipReason: 'conn-ok' };
   if (!input.currentUserId) return { shouldPoll: false, skipReason: 'no-user' };
-  // UI status can lag behind a healthy EventSource — skip duplicate full refetches
-  // (onSseReconnect / SoT already resyncs when the link comes back).
   if (input.sseHealthy) return { shouldPoll: false, skipReason: 'sse-healthy' };
   return { shouldPoll: true };
 }

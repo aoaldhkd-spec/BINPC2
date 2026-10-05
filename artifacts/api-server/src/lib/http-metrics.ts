@@ -52,6 +52,11 @@ export interface HttpMetricsSnapshot {
   sseConnectionsClosed: number;
   uploadRejections: Record<UploadRejectReason, number>;
   uploadsAccepted: number;
+  pushAttempts: number;
+  pushSucceeded: number;
+  pushExpired: number;
+  pushRetries: number;
+  pushErrors: number;
 }
 
 function emptyRouteCounters(): Record<RouteClass, number> {
@@ -76,6 +81,11 @@ let _sseAccepted = 0;
 let _sseClosed = 0;
 let _uploadRejections = emptyUploadCounters();
 let _uploadsAccepted = 0;
+let _pushAttempts = 0;
+let _pushSucceeded = 0;
+let _pushExpired = 0;
+let _pushRetries = 0;
+let _pushErrors = 0;
 
 export function recordUnauthorized(route: RouteClass): void { _unauthorized[route]++; }
 export function recordForbidden(route: RouteClass): void { _forbidden[route]++; }
@@ -86,6 +96,11 @@ export function recordSseAccepted(): void { _sseAccepted++; }
 export function recordSseClosed(): void { _sseClosed++; }
 export function recordUploadRejected(reason: UploadRejectReason): void { _uploadRejections[reason]++; }
 export function recordUploadAccepted(): void { _uploadsAccepted++; }
+export function recordPushAttempt(): void { _pushAttempts++; }
+export function recordPushSucceeded(): void { _pushSucceeded++; }
+export function recordPushExpired(): void { _pushExpired++; }
+export function recordPushRetry(): void { _pushRetries++; }
+export function recordPushError(): void { _pushErrors++; }
 
 export function snapshotHttpMetrics(): HttpMetricsSnapshot {
   return {
@@ -99,6 +114,11 @@ export function snapshotHttpMetrics(): HttpMetricsSnapshot {
     sseConnectionsClosed: _sseClosed,
     uploadRejections: { ..._uploadRejections },
     uploadsAccepted: _uploadsAccepted,
+    pushAttempts: _pushAttempts,
+    pushSucceeded: _pushSucceeded,
+    pushExpired: _pushExpired,
+    pushRetries: _pushRetries,
+    pushErrors: _pushErrors,
   };
 }
 
@@ -114,6 +134,11 @@ export function resetHttpMetrics(now = Date.now()): void {
   _sseClosed = 0;
   _uploadRejections = emptyUploadCounters();
   _uploadsAccepted = 0;
+  _pushAttempts = 0;
+  _pushSucceeded = 0;
+  _pushExpired = 0;
+  _pushRetries = 0;
+  _pushErrors = 0;
 }
 
 /** Express req.path → RouteClass. 알 수 없는 경로는 'other'. */

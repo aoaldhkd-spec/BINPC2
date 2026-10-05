@@ -1,7 +1,7 @@
 import '../lib/dns-ipv4-first.js';
 import { Router, type Request, type Response } from 'express';
 import pg from 'pg';
-import { VAPID_PUBLIC_KEY, sendPush, type PushPayload } from '../lib/push';
+import { VAPID_PUBLIC_KEY, vapidConfigured, sendPush, type PushPayload } from '../lib/push';
 import { resolvePin, pinPoolParams, collectUsedPinCodes } from '../lib/pin';
 import {
   collectUsedPresetAvatarIds,
@@ -4766,25 +4766,37 @@ router.get('/health', async (req: Request, res: Response) => {
   });
 
   // admin-token 전용 body — recentErrors 최근 10건 (운영 디버그용); db-health-plan
-  const body = buildHealthBody({
-    persistErrors: _dbPersistErrors,
-    recentErrors: _dbPersistErrorLog.slice(-10),
-    inMemMessages,
-    inMemLikes,
-    dbMessages,
-    dbLikes,
-    messageLag,
-    likeLag,
-    pinRemaining: pinPool.remaining,
-    pinTotal: pinPool.total,
-    alarms,
-    sseConnections: sseTotal,
-    likesMinIntervalMs: LIKES_MIN_INTERVAL_MS,
-    integrity: _integrityDiagnostics,
-    httpMetrics: snapshotHttpMetrics(),
-    checkedAt: new Date().toISOString(),
-    lossAlarmThreshold: HEALTH_LOSS_ALARM_THRESHOLD,
-  });
+  const body = {
+    ...buildHealthBody({
+      persistErrors: _dbPersistErrors,
+      recentErrors: _dbPersistErrorLog.slice(-10),
+      inMemMessages,
+      inMemLikes,
+      dbMessages,
+      dbLikes,
+      messageLag,
+      likeLag,
+      pinRemaining: pinPool.remaining,
+      pinTotal: pinPool.total,
+      alarms,
+      sseConnections: sseTotal,
+      likesMinIntervalMs: LIKES_MIN_INTERVAL_MS,
+      integrity: _integrityDiagnostics,
+      httpMetrics: snapshotHttpMetrics(),
+      checkedAt: new Date().toISOString(),
+      lossAlarmThreshold: HEALTH_LOSS_ALARM_THRESHOLD,
+    }),
+    runtime: {
+      commit: String(process.env.RENDER_GIT_COMMIT ?? process.env.GIT_COMMIT ?? 'unknown'),
+      service: String(process.env.RENDER_SERVICE_NAME ?? 'BINPC2'),
+      uptimeSec: Math.floor(process.uptime()),
+      processStartedAt: new Date(Date.now() - process.uptime() * 1000).toISOString(),
+      node: process.version,
+      pushConfigured: vapidConfigured,
+      pushSubscriptions: getTable('push_subscriptions').length,
+      dailyCycle: '23:00 hearts / 24:00 rainbow / 01:00 close / 17:00 reset',
+    },
+  };
   _healthCache = { ts: Date.now(), body };
   return res.json(body);
   } catch (e) {

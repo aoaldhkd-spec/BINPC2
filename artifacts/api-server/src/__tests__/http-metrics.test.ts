@@ -4,6 +4,11 @@ import {
   recordExpiredSseToken,
   recordMissingSseToken,
   recordRateLimited,
+  recordPushAttempt,
+  recordPushError,
+  recordPushExpired,
+  recordPushRetry,
+  recordPushSucceeded,
   recordSseAccepted,
   recordSseClosed,
   recordUnauthorized,
@@ -36,6 +41,12 @@ describe('http-metrics', () => {
     recordUploadRejected('size_cap');
     recordUploadRejected('magic');
     recordUploadAccepted();
+    recordPushAttempt();
+    recordPushAttempt();
+    recordPushSucceeded();
+    recordPushExpired();
+    recordPushRetry();
+    recordPushError();
 
     const snap = snapshotHttpMetrics();
     expect(snap.unauthorized.events).toBe(2);
@@ -47,6 +58,11 @@ describe('http-metrics', () => {
     expect(snap.uploadRejections.size_cap).toBe(1);
     expect(snap.uploadRejections.magic).toBe(1);
     expect(snap.uploadsAccepted).toBe(1);
+    expect(snap.pushAttempts).toBe(2);
+    expect(snap.pushSucceeded).toBe(1);
+    expect(snap.pushExpired).toBe(1);
+    expect(snap.pushRetries).toBe(1);
+    expect(snap.pushErrors).toBe(1);
     expect(JSON.stringify(snap)).not.toMatch(/010-|kakao|userId=|eyJ/i);
   });
 });

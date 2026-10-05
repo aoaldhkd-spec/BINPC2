@@ -1,5 +1,12 @@
 import webpush from 'web-push';
 import pino from 'pino';
+import {
+  recordPushAttempt,
+  recordPushError,
+  recordPushExpired,
+  recordPushRetry,
+  recordPushSucceeded,
+} from './http-metrics.js';
 
 const logger = pino({ name: 'push' });
 
@@ -13,7 +20,7 @@ if (vapidConfigured) {
   logger.warn('VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY missing — web push disabled');
 }
 
-export { VAPID_PUBLIC_KEY };
+export { VAPID_PUBLIC_KEY, vapidConfigured };
 
 export interface PushPayload {
   title: string;
@@ -42,24 +49,32 @@ function statusCodeOf(err: unknown): number | null {
 export async function sendPush(sub: PushSub, payload: PushPayload): Promise<boolean> {
   if (!vapidConfigured) return true;
 
+  recordPushAttempt();
   for (let attempt = 0; attempt <= RETRY_MS.length; attempt++) {
     try {
       await webpush.sendNotification(
         { endpoint: sub.endpoint, keys: { auth: sub.keys.auth, p256dh: sub.keys.p256dh } },
         JSON.stringify(payload),
       );
+      recordPushSucceeded();
       return true;
     } catch (e: unknown) {
       const status = statusCodeOf(e);
-      if (status === 404 || status === 410) return false;
+      if (status === 404 || status === 410) {
+        recordPushExpired();
+        return false;
+      }
       const transient = status == null || status === 429 || status >= 500;
       if (transient && attempt < RETRY_MS.length) {
+        recordPushRetry();
         await new Promise(resolve => setTimeout(resolve, RETRY_MS[attempt]));
         continue;
       }
+      recordPushError();
       logger.error({ err: e, status, attempt }, 'sendPush error');
       return true;
     }
   }
+  recordPushError();
   return true;
 }

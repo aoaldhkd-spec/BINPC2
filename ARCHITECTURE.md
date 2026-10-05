@@ -11,6 +11,7 @@
 - **DB:** Postgres (`app_kv_rows` JSON store) + in-memory cache on API
 - **Realtime:** 커스텀 SSE (`/api/db/events`) + Postgres LISTEN/NOTIFY  
   (Supabase Realtime 아님. 클라이언트 `localdb.ts`가 Supabase-like API를 에뮬)
+- **Background notification:** 설치형 PWA Web Push (하트 + 1:1 채팅만, VAPID)
 
 Prefer **single Render instance**. Multi-instance는 NOTIFY로 일부 동기화되지만 SSE는 프로세스 로컬.
 
@@ -73,6 +74,9 @@ Prefer **single Render instance**. Multi-instance는 NOTIFY로 일부 동기화�
 | `artifacts/api-server/src/lib/db-push-plan.ts` | web-push recipient/payload + `/push/subscribe` validate (순수) |
 | `artifacts/api-server/src/lib/db-admin-ensure-plan.ts` | ensureAdminProfile / restore-after-wipe planners (순수) |
 | `artifacts/api-server/src/lib/db-app-settings-boot.ts` | app_settings default / repair / bootstrap-secret planners (순수) |
+| `artifacts/api-server/src/lib/db-daily-cycle.ts` | 매일 23/24/01/17 고정 운영 경계·서울시간·날짜 마커 플래너 |
+| `artifacts/api-server/src/lib/push.ts` | VAPID Web Push 전송·재시도·만료 구독 판정 |
+| `artifacts/api-server/src/lib/http-metrics.ts` | SSE/HTTP/업로드/Push 집계형 운영 메트릭(PII 저장 금지) |
 | `artifacts/api-server/src/lib/db-op-result-shape.ts` | /op SELECT order/limit/single shape + broadcast sanitize (순수) |
 | `artifacts/api-server/src/lib/db-op-select-scope.ts` | /op SELECT IDOR row-scope + field redaction planners (순수) |
 | `artifacts/api-server/src/lib/db-op-update-ownership.ts` | /op UPDATE IDOR ownership + patch forcing planners (순수) |
@@ -98,7 +102,7 @@ UI: `ChatScreen.tsx` → state: `useChat.ts` + `chat-reducers.ts` + `chat-pair.t
 
 ### Hearts / matching
 규칙: [docs/MASTER_CONTEXT.md](docs/MASTER_CONTEXT.md) — 잠금/해금, 일반 1회, 무지개 4회, `like_source` grant/rainbow.  
-UI: `MainScreen.tsx`, `LikeConfirmDialog.tsx`, `HeartOpsCard.tsx`, `EventScheduleBanner.tsx`  
+UI: `MainScreen.tsx`, `LikeConfirmDialog.tsx`, `EventScheduleBanner.tsx`
 state: `useHearts.ts` + `lib/heart-ops.ts`  
 API: `localdb.ts` → `db.ts` (`likes`) + `db-heart-ops.ts` + `db-op-likes-limits.ts`  
 구 quota 파서 `lib/event-schedule.ts`는 legacy 호환만. 신규 소비 계산에 쓰지 않는다.
@@ -117,7 +121,9 @@ UI: `MainScreen.tsx` — 참여자 / 하트, 채팅(내 상태+내 채팅) / 통
 
 ### Admin
 `AdminApp.tsx` (데이터 로드/RPC) + `src/admin/*Tab.tsx`. Settings RPC: `admin_update_settings` / `patchAdminSettings`.  
-술번개 1회 오픈+다음날 17:00 자동초기화: `db-sulbun-event.ts` + RPC `admin_sulbun_open` (wipe는 `admin_event_end_reset` 공통 함수).
+매일 자동운영은 `db-daily-cycle.ts`: 23:00 일반하트 / 24:00 무지개 / 01:00 종료 / 17:00 전체초기화.
+`admin_sulbun_open`은 행사 상태 오픈용으로 유지하고, 17:00 초기화의 전제조건으로 사용하지 않는다. 레거시 호환 상태/타이머 코드는 `db-sulbun-event.ts`에 유지하되, 현재 운영 기준은 `db-daily-cycle.ts`가 우선한다. wipe는 `admin_event_end_reset` 공통 reset core를 재사용한다.
+관리자 대시보드는 `/api/db/health`를 보이는 화면에서 5초 주기로 읽어 commit/uptime/SSE/Push/DB 오류를 한눈에 표시한다.
 
 ## Data flow (happy path)
 
