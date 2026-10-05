@@ -293,56 +293,6 @@ mustMatch('artifacts/boltnew-app/src/lib/constants.ts', '35_classic_heart_picker
   /칭찬만 전달 \(연락처 공유 불가\)/,
   /HEART_COLOR_LABELS/,
 ]);
-mustMatch('artifacts/boltnew-app/src/admin/event-schedule-apply.ts', '35_schedule_notice_hearts_separate', [
-  /applySlotNowPatch/,
-  /rainbowUnlockNowPatch/,
-  /nextRainbowPoolGrant/,
-  /parseHeartGrantAmount/,
-  /rainbowPoolApplyPreview/,
-  /heartsSetPatch/,
-  /applyRainbowPoolOverwrite/,
-  /noticeOnlyPatch/,
-  /heartsOnlyPatch/,
-  /timeOnlyPatch/,
-  /selectedSlotApplyPatch/,
-  /shouldWarnTimeOnlyApply/,
-  /공지나 하트도 같이 넣는 게 좋아요/,
-  /draftToApplyPick/,
-  /parseColorGrantsDraft/,
-  /heartsMode === 'add'/,
-]);
-mustMatch('artifacts/boltnew-app/src/admin/HeartOpsCard.tsx', '35_heart_ops_card', [
-  /하트 운영/,
-  /하트 해금/,
-  /공지시간/,
-  /해금시간/,
-  /직접 공지/,
-  /지금 해금/,
-  /해금 초기화/,
-  /HEART_OPS_AT_RE/,
-  /serializeHeartOps/,
-  /resetHeartUnlocks/,
-  /QUICK_NOTICE_EMPTY_HINT/,
-  /onSaveNotices/,
-  /dueDirectNoticeText/,
-  /ensureDirectNoticeSlots|withLiveNoticeEnabled/,
-  /flex-\[7\]/,
-  /flex-\[3\]/,
-]);
-mustMatch('artifacts/boltnew-app/src/admin/HeartOpsCard.tsx', '35_heart_ops_hh_mm_selects', [
-  /parseHeartOpsClock/,
-  /patchHeartOpsSlotAt/,
-  /해금 시/,
-  /해금 분/,
-]);
-mustMatch('artifacts/boltnew-app/src/admin/HeartOpsCard.tsx', '35_heart_ops_auto_notice_checks', [
-  /공지시간/,
-  /해금시간/,
-  /heartOpsHeartRows/,
-  /DIRECT_NOTICE_SLOT_COUNT/,
-  /dueDirectNoticeText/,
-  /patchDirectNotice/,
-]);
 mustMatch('artifacts/boltnew-app/src/lib/heart-ops.ts', '35_heart_ops_direct_notices_time_gate', [
   /direct_notices/,
   /dueDirectNoticeText/,
@@ -351,12 +301,6 @@ mustMatch('artifacts/boltnew-app/src/lib/heart-ops.ts', '35_heart_ops_direct_not
 mustMatch('artifacts/api-server/src/lib/db-heart-ops.ts', '35_api_heart_ops_direct_notices', [
   /direct_notices/,
   /parseHeartOpsDirectNotices/,
-]);
-mustMatch('artifacts/boltnew-app/src/admin/event-schedule-apply.ts', '35_direct_notice_fixed_slots', [
-  /DIRECT_NOTICE_SLOT_COUNT = 4/,
-  /ensureDirectNoticeSlots/,
-  /liveDirectNoticeText/,
-  /withLiveNoticeEnabled/,
 ]);
 mustMatch('artifacts/boltnew-app/src/lib/heart-ops.ts', '35_heart_ops_notice_at_display_only', [
   /notice_at/,
@@ -368,9 +312,6 @@ mustMatch('artifacts/boltnew-app/src/lib/heart-ops.ts', '35_heart_ops_notice_at_
 mustMatch('artifacts/api-server/src/lib/db-heart-ops.ts', '35_api_heart_ops_notice_at', [
   /notice_at/,
   /show_notice/,
-]);
-mustNotMatch('artifacts/boltnew-app/src/admin/HeartOpsCard.tsx', '35_heart_ops_no_native_time_input', [
-  /type=["']time["']/,
 ]);
 mustMatch('artifacts/boltnew-app/src/lib/heart-ops.ts', '35_heart_ops_clock_24xx', [
   /formatHeartOpsClock/,
@@ -387,22 +328,7 @@ mustMatch('artifacts/api-server/src/lib/db-heart-ops.ts', '35_api_heart_ops_unlo
   /slotHeldByReset/,
   /nowEventMinute\(now\) < hold/,
 ]);
-mustMatch('artifacts/boltnew-app/src/admin/HeartOpsCard.tsx', '35_notice_presets_before_stale_schedule', [
-  /hasServerDirectNoticePresets/,
-  /suppressNoticeReloadRef/,
-  /delete next\.auto_unlock_from/,
-  /await onSave\(serializeHeartOps\(next\)\)/,
-  /await onSaveNotices\(serializeDirectNotices\(notices\)\)/,
-]);
-mustMatch('artifacts/boltnew-app/src/admin/event-schedule-apply.ts', '35_quick_notice_draft_empty_hint', [
-  /QUICK_NOTICE_DRAFT_KEY/,
-  /DIRECT_NOTICES_KEY/,
-  /DIRECT_NOTICE_PRESETS_KEY/,
-  /loadDirectNotices/,
-  /공지 내용을 입력해주세요/,
-]);
-mustMatch('artifacts/boltnew-app/src/AdminApp.tsx', '35_direct_notice_presets_settings_patch', [
-  /direct_notice_presets/,
+mustNotMatch('artifacts/boltnew-app/src/AdminApp.tsx', '35_no_manual_direct_notice_settings_patch', [
   /onSaveNotices/,
 ]);
 mustMatch('artifacts/boltnew-app/src/components/LikeConfirmDialog.tsx', '35_rainbow_pick_ignores_grant_sent', [
@@ -423,12 +349,22 @@ mustMatch('artifacts/api-server/src/routes/db.ts', '35_like_insert_dup_uses_sour
   /matchesLikeSend/,
   /likeType\}:\$\{likeSource\}/,
 ]);
-mustMatch('artifacts/boltnew-app/src/admin/DashboardTab.tsx', '35_dashboard_hosts_heart_ops', [
-  /HeartOpsCard/,
-  /onSaveSchedule/,
+mustMatch('artifacts/boltnew-app/src/admin/DashboardTab.tsx', '35_dashboard_hosts_fixed_daily_cycle', [
+  /daily-cycle-card/,
+  /23:00/,
+  /24:00/,
+  /01:00/,
+  /17:00/,
 ]);
+mustNotMatch('artifacts/boltnew-app/src/admin/DashboardTab.tsx', '35_dashboard_no_manual_heart_ops', [
+  /<HeartOpsCard/,
+  /onSaveSchedule/,
+  /onSaveNotices/,
+]);
+mustNotExist('artifacts/boltnew-app/src/admin/HeartOpsCard.tsx', '35_manual_heart_ops_file_removed');
+mustNotExist('artifacts/boltnew-app/src/admin/event-schedule-apply.ts', '35_manual_schedule_apply_removed');
 mustMatch('artifacts/boltnew-app/src/admin/DashboardTab.tsx', '35_lock_control_first', [
-  /label: '참여자'[\s\S]*잠금 제어[\s\S]*HeartOpsCard settings/,
+  /label: '참여자'[\s\S]*잠금 제어[\s\S]*daily-cycle-card/,
   /onToggleFunctionsLock/,
 ]);
 mustNotMatch('artifacts/boltnew-app/src/AdminApp.tsx', '35_no_event_schedule_tab', [
@@ -571,16 +507,6 @@ mustNotMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '35_header_n
   /home-chat-lock/,
   /남음 4\/4/,
   /하트 채팅/,
-]);
-mustNotMatch('artifacts/boltnew-app/src/admin/event-schedule-apply.ts', '35_no_hardcoded_heart_qty_4', [
-  /\|\| 4/,
-  /useState\('4'\)/,
-]);
-mustNotMatch('artifacts/boltnew-app/src/admin/HeartOpsCard.tsx', '35_heart_ops_no_count_inputs', [
-  /하트개수/,
-  /rainbow_pool/,
-  /heart_grants/,
-  /useState\('4'\)/,
 ]);
 mustNotMatch('artifacts/boltnew-app/src/components/LikeConfirmDialog.tsx', '35_no_hardcoded_like_qty_4', [
   /Math\.max\(4/,
@@ -2610,20 +2536,15 @@ mustMatch('artifacts/api-server/src/routes/db.ts', '77_sulbun_event_end_calls_co
 mustNotMatch('artifacts/api-server/src/routes/db.ts', '77_no_new_sulbun_cron_interval', [
   /setInterval\(\(\) => \{\s*catchUpSulbunAutoReset/,
 ]);
-mustMatch('artifacts/boltnew-app/src/admin/DashboardTab.tsx', '77_sulbun_dashboard_button', [
+mustMatch('artifacts/boltnew-app/src/admin/DashboardTab.tsx', '77_keep_sulbun_open_button', [
+  /sulbun-open-btn/,
   /술번개 오픈/,
   /술번개 진행 중/,
   /onSulbunOpen/,
 ]);
-mustNotMatch('artifacts/boltnew-app/src/admin/DashboardTab.tsx', '77_sulbun_btn_clickable_when_active', [
-  /disabled=\{sulbunActive\}/,
-  /if \(!sulbunActive\) void onSulbunOpen/,
-]);
-mustNotMatch('artifacts/boltnew-app/src/admin/DashboardTab.tsx', '77_session_btns_clickable', [
+mustMatch('artifacts/boltnew-app/src/admin/DashboardTab.tsx', '77_session_btns_follow_current_state', [
   /disabled=\{isActive\}/,
   /disabled=\{!isActive\}/,
-]);
-mustMatch('artifacts/boltnew-app/src/admin/DashboardTab.tsx', '77_session_btns_always_open_confirm', [
   /setConfirmToggle\('start'\)/,
   /setConfirmToggle\('end'\)/,
   /session-start-btn/,
@@ -2634,11 +2555,29 @@ mustMatch('artifacts/api-server/src/routes/db.ts', '77_sulbun_open_single_flight
   /sulbunOpenInFlight/,
   /runAdminSulbunOpen/,
 ]);
-mustNotMatch('artifacts/boltnew-app/src/admin/HeartOpsCard.tsx', '77_heart_ops_card_untouched_by_sulbun', [
-  /admin_sulbun_open/,
-  /술번개 오픈/,
+mustNotExist('artifacts/boltnew-app/src/lib/host-age-easter-egg.ts', '77_host_age_easter_egg_removed');
+mustNotExist('artifacts/boltnew-app/src/lib/easter-egg-sound.ts', '77_easter_egg_sound_removed');
+mustNotMatch('artifacts/boltnew-app/src/components/ResetButton.tsx', '77_no_sulbun_triple_tap_age_egg', [
+  /handleSulbunClick/,
+  /showEgg/,
+  /HOST_AGE_EASTER_EGG_HINT/,
+  /playEasterEggSting/,
 ]);
-mustMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '77_sulbun_participant_notice', [
+mustExist('artifacts/api-server/src/lib/db-daily-cycle.ts', '77_daily_cycle_server_module');
+mustExist('artifacts/api-server/src/lib/db-daily-cycle.test.ts', '77_daily_cycle_server_tests');
+mustExist('artifacts/boltnew-app/src/lib/daily-cycle.ts', '77_daily_cycle_client_module');
+mustMatch('artifacts/api-server/src/routes/db.ts', '77_daily_cycle_server_wiring', [
+  /initializeDailyCycleAutomation/,
+  /catchUpDailyCycleAutomation/,
+  /daily_reset_date/,
+  /daily_session_end_date/,
+  /FIXED_DAILY_EVENT_SCHEDULE/,
+]);
+mustMatch('artifacts/boltnew-app/src/components/EventScheduleBanner.tsx', '77_daily_cycle_participant_notice', [
+  /dailyCycleBannerState/,
+  /남은시간/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '77_no_legacy_sulbun_participant_notice', [
   /sulbun-reset-notice/,
   /sulbunNotice/,
 ]);
@@ -2660,3 +2599,9 @@ if (failed.length) {
   process.exit(1);
 }
 console.log('\nAll recurrence guards present.\n');
+
+mustNotExist('artifacts/boltnew-app/src/admin/HeartOpsCard.test.tsx', '35_manual_heart_ops_test_removed');
+
+mustNotExist('artifacts/boltnew-app/src/admin/event-schedule-apply-notices.test.ts', '35_manual_notice_test_removed');
+
+mustNotExist('artifacts/boltnew-app/src/admin/event-schedule-unlock.test.ts', '35_manual_unlock_test_removed');

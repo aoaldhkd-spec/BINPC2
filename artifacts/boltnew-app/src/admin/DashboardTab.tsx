@@ -2,14 +2,13 @@ import { useState } from 'react';
 import { Trash2, PlayCircle, StopCircle, Lock, Unlock } from 'lucide-react';
 import type { Profile, AppSettings } from './shared';
 import { ConfirmDialog } from './ConfirmDialog';
-import { HeartOpsCard } from './HeartOpsCard';
-import { formatSulbunResetLabel, isSulbunEventActive, parseSulbunEvent } from '../lib/sulbun-event';
+import { isSulbunEventActive, parseSulbunEvent } from '../lib/sulbun-event';
 
 // ─── Dashboard Tab ────────────────────────────────────────────────────────────
 
 export function DashboardTab({ settings, profiles, onToggleSession, onEventEndReset, onToggleFunctionsLock,
   onClearLikes, onClearChats, onClearProfiles, onClearHistory,
-  restoreMap,   onSaveSchedule, onSaveNotices, onSulbunOpen }: {
+  restoreMap, onSulbunOpen }: {
   settings: AppSettings | null; profiles: Profile[];
   onToggleSession: () => void; onEventEndReset: () => void;
   onToggleFunctionsLock: () => void;
@@ -18,8 +17,6 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
   onClearProfiles: () => Promise<void>;
   onClearHistory: () => Promise<void>;
   restoreMap: Map<string, () => Promise<void>>;
-  onSaveSchedule: (raw: string) => Promise<void>;
-  onSaveNotices: (raw: string) => Promise<void>;
   onSulbunOpen: () => void | Promise<void>;
 }) {
   const [confirmToggle, setConfirmToggle] = useState<'start' | 'end' | null>(null);
@@ -74,9 +71,20 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
         </div>
       </div>
 
-      <HeartOpsCard settings={settings} onSave={onSaveSchedule} onSaveNotices={onSaveNotices} />
+      <div data-testid="daily-cycle-card" className="rounded-2xl border-2 border-violet-200 bg-violet-50 p-4">
+        <h3 className="text-sm font-black text-violet-900 mb-2">⏰ 매일 자동 운영</h3>
+        <div className="grid grid-cols-2 gap-2 text-[11px] font-bold text-violet-800">
+          <div className="rounded-xl bg-white/80 p-2">23:00 · ❤️💙💗💚 일반 하트 자동 해금</div>
+          <div className="rounded-xl bg-white/80 p-2">24:00 · 🌈 무지개하트 자동 해금</div>
+          <div className="rounded-xl bg-white/80 p-2">01:00 · 🍻 술번개 자동 종료</div>
+          <div className="rounded-xl bg-white/80 p-2">17:00 · ♻️ 전체 자동 초기화</div>
+        </div>
+        <p className="mt-2 text-[10px] font-semibold text-violet-600">
+          하트시간·공지시간은 따로 설정하지 않습니다. 매일 자동으로 반복됩니다.
+        </p>
+      </div>
 
-      {/* Session control */}
+      {/* Session control — 수동 비상/현장 제어는 기존처럼 유지 */}
       <div>
         <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 px-1">회식 세션</h3>
         <button
@@ -93,9 +101,9 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
             {sulbunActive ? '🍻 술번개 진행 중' : '🍻 술번개 오픈'}
           </p>
           <p className={`text-[10px] mt-0.5 font-semibold ${sulbunActive ? 'text-amber-700' : 'text-orange-600'}`}>
-            {sulbunActive && sulbun
-              ? `자동 초기화: ${formatSulbunResetLabel(sulbun.auto_reset_at)}`
-              : '누르면 다음날 17:00 전체 초기화가 예약됩니다'}
+            {sulbunActive
+              ? '매일 01:00 자동 종료 · 17:00 전체 초기화'
+              : '행사 상태를 오픈합니다 · 자동 운영 시간표는 항상 유지됩니다'}
           </p>
         </button>
         <div className="relative z-10 grid grid-cols-2 gap-3">
@@ -103,10 +111,11 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
             type="button"
             data-testid="session-start-btn"
             onClick={() => setConfirmToggle('start')}
-            className={`touch-target rounded-2xl p-4 border-2 flex flex-col items-center gap-2 transition-all cursor-pointer touch-manipulation ${
+            disabled={isActive}
+            className={`touch-target rounded-2xl p-4 border-2 flex flex-col items-center gap-2 transition-all touch-manipulation ${
               !isActive
-                ? 'bg-teal-50 border-teal-300 hover:bg-teal-100 active:scale-95 shadow-sm'
-                : 'bg-teal-50/70 border-teal-200 shadow-sm'
+                ? 'bg-teal-50 border-teal-300 hover:bg-teal-100 active:scale-95 shadow-sm cursor-pointer'
+                : 'bg-gray-50 border-gray-200 opacity-45 cursor-not-allowed'
             }`}
           >
             <PlayCircle className="w-7 h-7 text-teal-700" />
@@ -119,10 +128,11 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
             type="button"
             data-testid="session-end-btn"
             onClick={() => setConfirmToggle('end')}
-            className={`touch-target rounded-2xl p-4 border-2 flex flex-col items-center gap-2 transition-all cursor-pointer touch-manipulation ${
+            disabled={!isActive}
+            className={`touch-target rounded-2xl p-4 border-2 flex flex-col items-center gap-2 transition-all touch-manipulation ${
               isActive
-                ? 'bg-red-50 border-red-300 hover:bg-red-100 active:scale-95 shadow-sm'
-                : 'bg-red-50/70 border-red-200 shadow-sm'
+                ? 'bg-red-50 border-red-300 hover:bg-red-100 active:scale-95 shadow-sm cursor-pointer'
+                : 'bg-gray-50 border-gray-200 opacity-45 cursor-not-allowed'
             }`}
           >
             <StopCircle className="w-7 h-7 text-red-500" />
@@ -183,7 +193,7 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
               <span className="text-xs font-black text-red-600 bg-red-100 border border-red-300 px-2 py-0.5 rounded-full">위험</span>
               <h3 className="font-bold text-red-900 text-sm">회식 종료 전체 초기화</h3>
             </div>
-            <p className="text-xs text-red-600 mt-0.5 font-semibold">참여자·하트·채팅·단체채팅·공지·이력 모두 삭제 — 복구 불가{sulbunActive ? ' · 자동 초기화 예약도 취소' : ''}</p>
+            <p className="text-xs text-red-600 mt-0.5 font-semibold">참여자·하트·채팅·단체채팅·공지·이력 모두 삭제 — 복구 불가 · 매일 17:00 자동 초기화는 계속 유지</p>
           </div>
           <button onClick={() => setConfirmEventEnd(true)}
             className="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 bg-red-600 text-white rounded-xl font-semibold text-sm hover:bg-red-700 transition-all border-2 border-red-800">

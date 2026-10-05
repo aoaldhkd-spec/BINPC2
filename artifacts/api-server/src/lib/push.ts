@@ -8,11 +8,7 @@ const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY ?? '';
 const vapidConfigured = Boolean(VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY);
 
 if (vapidConfigured) {
-  webpush.setVapidDetails(
-    'mailto:admin@boltnew.app',
-    VAPID_PUBLIC_KEY,
-    VAPID_PRIVATE_KEY,
-  );
+  webpush.setVapidDetails('mailto:admin@boltnew.app', VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
 } else {
   logger.warn('VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY missing — web push disabled');
 }
@@ -31,24 +27,39 @@ export interface PushSub {
   keys: { auth: string; p256dh: string };
 }
 
+const RETRY_MS = [150, 500];
+
+function statusCodeOf(err: unknown): number | null {
+  if (!err || typeof err !== 'object' || !('statusCode' in err)) return null;
+  const n = Number((err as { statusCode?: unknown }).statusCode);
+  return Number.isFinite(n) ? n : null;
+}
+
 /**
- * 단일 구독에 푸시 전송.
- * 구독이 만료(410/404)된 경우 false 반환 → 호출 측에서 삭제.
+ * true  = keep subscription
+ * false = expired subscription (404/410), caller may prune
  */
 export async function sendPush(sub: PushSub, payload: PushPayload): Promise<boolean> {
   if (!vapidConfigured) return true;
-  try {
-    await webpush.sendNotification(
-      { endpoint: sub.endpoint, keys: { auth: sub.keys.auth, p256dh: sub.keys.p256dh } },
-      JSON.stringify(payload),
-    );
-    return true;
-  } catch (e: unknown) {
-    if (e && typeof e === 'object' && 'statusCode' in e) {
-      const status = (e as { statusCode: number }).statusCode;
-      if (status === 410 || status === 404) return false; // 만료된 구독
+
+  for (let attempt = 0; attempt <= RETRY_MS.length; attempt++) {
+    try {
+      await webpush.sendNotification(
+        { endpoint: sub.endpoint, keys: { auth: sub.keys.auth, p256dh: sub.keys.p256dh } },
+        JSON.stringify(payload),
+      );
+      return true;
+    } catch (e: unknown) {
+      const status = statusCodeOf(e);
+      if (status === 404 || status === 410) return false;
+      const transient = status == null || status === 429 || status >= 500;
+      if (transient && attempt < RETRY_MS.length) {
+        await new Promise(resolve => setTimeout(resolve, RETRY_MS[attempt]));
+        continue;
+      }
+      logger.error({ err: e, status, attempt }, 'sendPush error');
+      return true;
     }
-    logger.error({ err: e }, 'sendPush error');
-    return true; // 기타 오류는 구독 유지
   }
+  return true;
 }

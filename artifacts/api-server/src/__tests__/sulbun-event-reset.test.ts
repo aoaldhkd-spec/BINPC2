@@ -60,7 +60,7 @@ async function rpc(name: string, extra: Record<string, unknown> = {}) {
 }
 
 describe('admin_sulbun_open + auto reset', () => {
-  it('opens a cycle for next-day 17:00 without wiping likes or heart unlocks', async () => {
+  it('opens a cycle without wiping likes while fixed daily heart schedule stays canonical', async () => {
     const userId = `sulbun-u-${randomUUID()}`;
     const likeId = `sulbun-l-${randomUUID()}`;
     await rpc('admin_update_settings', {
@@ -92,27 +92,20 @@ describe('admin_sulbun_open + auto reset', () => {
     const event = parseSulbunEvent(opened.body.data?.sulbun_event);
     expect(event?.auto_reset_enabled).toBe(true);
     expect(event?.reset_done).toBe(false);
-    const resetAt = new Date(event!.auto_reset_at);
-    const openedAt = new Date(event!.opened_at);
-    const seoulOpen = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(openedAt);
-    const seoulReset = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).format(resetAt);
-    expect(seoulReset.endsWith('17:00')).toBe(true);
-    const [oy, om, od] = seoulOpen.split('-').map(Number);
-    const next = new Date(Date.UTC(oy, om - 1, od + 1));
-    expect(seoulReset.startsWith(
-      `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, '0')}-${String(next.getUTCDate()).padStart(2, '0')}`,
-    )).toBe(true);
-
     const likes = await op({ op: 'select', table: 'likes', requesterId: userId });
     expect((likes.body.data as { id: string }[]).some(r => r.id === likeId)).toBe(true);
 
     const settings = await op({ op: 'select', table: 'app_settings' });
     const row = (settings.body.data as Record<string, unknown>[])[0];
     const schedule = parseEventSchedule(row.event_schedule);
-    expect(schedule.slots[0]).toMatchObject({ id: 'slot-1', at: '23:00', unlock: ['red'] });
-    expect(schedule.instant_unlock).toEqual(['red', 'rainbow']);
-    expect(schedule.direct_notices?.[0]).toMatchObject({ id: 'n1', text: '기존 공지' });
-    expect(schedule.direct_notices?.[0]?.enabled).toBeUndefined();
+    expect(schedule.slots.map(s => [s.at, s.unlock])).toEqual([
+      ['23:00', ['red']],
+      ['23:00', ['blue']],
+      ['23:00', ['pink', 'green']],
+      ['24:00', ['rainbow']],
+    ]);
+    expect(schedule.instant_unlock).toEqual([]);
+    expect(schedule.direct_notices).toBeUndefined();
 
     const again = await rpc('admin_sulbun_open');
     expect(again.status).toBe(200);
@@ -152,9 +145,10 @@ describe('admin_sulbun_open + auto reset', () => {
     expect(readyEvent?.auto_reset_enabled).toBe(false);
   });
 
-  it('due cycle on /ready runs the same event-end wipe once', async () => {
+  it('legacy sulbun due timestamp cannot trigger a second reset on /ready', async () => {
     const userId = `sulbun-d-${randomUUID()}`;
-    await op({ op: 'insert', table: 'profiles', payload: { id: userId, nickname: `d-${userId.slice(0, 8)}` } });
+    const nick = `d-${userId.slice(0, 8)}`;
+    await op({ op: 'insert', table: 'profiles', payload: { id: userId, nickname: nick } });
     const opened = await rpc('admin_sulbun_open');
     const cycleId = opened.body.data.sulbun_event.cycle_id as string;
     await rpc('admin_update_settings', {
@@ -169,20 +163,18 @@ describe('admin_sulbun_open + auto reset', () => {
       },
     });
 
+    const before = await op({ op: 'select', table: 'app_settings' });
+    const signalBefore = (before.body.data as Record<string, unknown>[])[0]?.reset_signal;
     const ready = await request(app).get('/api/db/ready');
     expect(ready.status).toBe(200);
-    expect(ready.body.settings.reset_signal).toBeTruthy();
+    expect(ready.body.settings.reset_signal).toBe(signalBefore);
     const readyEvent = parseSulbunEvent(ready.body.settings?.sulbun_event);
-    expect(readyEvent?.reset_done).toBe(true);
-    expect(readyEvent?.auto_reset_enabled).toBe(false);
+    expect(readyEvent?.reset_done).toBe(false);
+    expect(readyEvent?.auto_reset_enabled).toBe(true);
 
     const profiles = await op({ op: 'select', table: 'profiles' });
     const nicks = (profiles.body.data as { nickname?: string }[]).map(p => p.nickname);
-    expect(nicks.some(n => n === `d-${userId.slice(0, 8)}`)).toBe(false);
-
-    const signal1 = ready.body.settings.reset_signal;
-    const ready2 = await request(app).get('/api/db/ready');
-    expect(ready2.body.settings.reset_signal).toBe(signal1);
+    expect(nicks).toContain(nick);
   });
 
   it('serializes concurrent opens to one cycle and keeps auto_reset_at', async () => {

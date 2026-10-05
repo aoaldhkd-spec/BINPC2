@@ -451,6 +451,12 @@ import {
   validatePushNotifyRequest, pushNotifyInternalReject,
 } from '../lib/db-push-plan';
 import {
+  FIXED_DAILY_EVENT_SCHEDULE,
+  dailyCycleBootstrapPatch,
+  dueDailyCycleActions,
+  nextDailyCycleDelayMs,
+} from '../lib/db-daily-cycle';
+import {
   isChatParticipant as isChatParticipantPure,
   countMessagesForChat as countMessagesForChatPure,
   chatIdsForPair as chatIdsForPairPure,
@@ -496,9 +502,7 @@ import {
   parseSulbunEvent,
   planSulbunMarkResetDone,
   planSulbunOpen,
-  planSulbunTimerRestore,
   serializeSulbunEvent,
-  shouldRunSulbunAutoReset,
   type SulbunEventState,
 } from '../lib/db-sulbun-event';
 import {
@@ -759,7 +763,6 @@ async function bumpResetSignalAndBroadcast(extraPatch: Record<string, unknown> =
 }
 
 let sulbunAutoResetTimer: ReturnType<typeof setTimeout> | null = null;
-let sulbunAutoResetInFlight: Promise<void> | null = null;
 let sulbunOpenInFlight: Promise<{ already_active: boolean; sulbun_event: SulbunEventState }> | null = null;
 
 function clearSulbunAutoResetTimer(): void {
@@ -815,6 +818,78 @@ async function runAdminEventEndResetCore(extraPatch: Record<string, unknown> = {
   await bumpResetSignalAndBroadcast(extraPatch);
 }
 
+let dailyCycleTimer: ReturnType<typeof setTimeout> | null = null;
+let dailyCycleInFlight: Promise<void> | null = null;
+let dailyCycleGuardStarted = false;
+
+function clearDailyCycleTimer(): void {
+  if (!dailyCycleTimer) return;
+  clearTimeout(dailyCycleTimer);
+  dailyCycleTimer = null;
+}
+
+function armDailyCycleTimer(): void {
+  clearDailyCycleTimer();
+  dailyCycleTimer = setTimeout(() => {
+    dailyCycleTimer = null;
+    void catchUpDailyCycleAutomation();
+  }, nextDailyCycleDelayMs(new Date()));
+  dailyCycleTimer.unref?.();
+}
+
+async function initializeDailyCycleAutomation(): Promise<void> {
+  if (process.env.NODE_ENV === 'test') return;
+  const settings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
+  const patch = dailyCycleBootstrapPatch(settings, new Date());
+  if (Object.keys(patch).length > 0) await persistAppSettingsPatch(patch);
+
+  if (!dailyCycleGuardStarted) {
+    dailyCycleGuardStarted = true;
+    setInterval(() => {
+      void catchUpDailyCycleAutomation()
+        .catch(e => logger.error({ err: e }, '[daily-cycle] guard failed'));
+    }, 60_000).unref();
+  }
+
+  await catchUpDailyCycleAutomation();
+}
+
+async function catchUpDailyCycleAutomation(): Promise<void> {
+  if (process.env.NODE_ENV === 'test') return;
+  if (dailyCycleInFlight) return dailyCycleInFlight;
+  dailyCycleInFlight = (async () => {
+    let settings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
+    const due = dueDailyCycleActions(settings, new Date());
+
+    if (due.sessionEndDate) {
+      settings = await persistAppSettingsPatch({
+        session_active: false,
+        functions_locked: true,
+        daily_session_end_date: due.sessionEndDate,
+        event_schedule: FIXED_DAILY_EVENT_SCHEDULE,
+      });
+      logger.info({ date: due.sessionEndDate }, '[daily-cycle] 01:00 session auto-ended');
+    }
+
+    if (due.resetDate) {
+      clearSulbunAutoResetTimer();
+      await runAdminEventEndResetCore({
+        ...sulbunDoneSettingsPatch(),
+        session_active: false,
+        functions_locked: false,
+        daily_reset_date: due.resetDate,
+        event_schedule: FIXED_DAILY_EVENT_SCHEDULE,
+        direct_notice_presets: '[]',
+      });
+      logger.info({ date: due.resetDate }, '[daily-cycle] 17:00 full auto-reset complete');
+    }
+  })().finally(() => {
+    dailyCycleInFlight = null;
+    armDailyCycleTimer();
+  });
+  return dailyCycleInFlight;
+}
+
 function sulbunDoneSettingsPatch(): Record<string, unknown> {
   const current = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
   const done = planSulbunMarkResetDone(parseSulbunEvent(current.sulbun_event), new Date());
@@ -822,43 +897,17 @@ function sulbunDoneSettingsPatch(): Record<string, unknown> {
   return { sulbun_event: serializeSulbunEvent(done) };
 }
 
-function armSulbunAutoResetTimer(delayMs: number): void {
-  clearSulbunAutoResetTimer();
-  sulbunAutoResetTimer = setTimeout(() => {
-    sulbunAutoResetTimer = null;
-    void catchUpSulbunAutoReset();
-  }, delayMs);
-}
-
+/**
+ * Legacy sulbun timer entrypoints remain as compatibility shims only.
+ * The fixed daily 17:00 automation is the single reset owner now, so opening
+ * 술번개 can never schedule a second destructive reset.
+ */
 function restoreSulbunAutoResetTimer(): void {
-  const settings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
-  const plan = planSulbunTimerRestore(settings.sulbun_event, new Date());
-  if (plan.kind === 'idle') {
-    clearSulbunAutoResetTimer();
-    return;
-  }
-  if (plan.kind === 'catch_up') {
-    void catchUpSulbunAutoReset();
-    return;
-  }
-  armSulbunAutoResetTimer(plan.delayMs);
+  clearSulbunAutoResetTimer();
 }
 
 async function catchUpSulbunAutoReset(): Promise<void> {
-  if (sulbunAutoResetInFlight) return sulbunAutoResetInFlight;
-  sulbunAutoResetInFlight = (async () => {
-    const settings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
-    const due = shouldRunSulbunAutoReset(settings.sulbun_event, new Date());
-    if (!due) {
-      restoreSulbunAutoResetTimer();
-      return;
-    }
-    clearSulbunAutoResetTimer();
-    await runAdminEventEndResetCore(sulbunDoneSettingsPatch());
-  })().finally(() => {
-    sulbunAutoResetInFlight = null;
-  });
-  return sulbunAutoResetInFlight;
+  await catchUpDailyCycleAutomation();
 }
 
 /** Concurrent admin_sulbun_open shares one in-flight cycle so burst clicks cannot mint two events. */
@@ -1673,6 +1722,20 @@ async function seedIfNeeded(): Promise<void> {
   }
   await ensureAdminProfile();
   await ensureOptInGroupRooms();
+  if (process.env.NODE_ENV === 'test') {
+    // Unrelated API/security/load tests must not depend on the wall clock.
+    // Production never uses this branch; production startup applies the fixed daily schedule below.
+    const current = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
+    const testSettings = mergeAppSettings(current, {
+      event_schedule: JSON.stringify({
+        timezone: 'Asia/Seoul', version: 2, slots: [],
+        instant_unlock: ['red', 'blue', 'pink', 'green', 'rainbow'],
+      }),
+      functions_locked: false,
+    });
+    store['app_settings'] = [testSettings];
+  }
+  await initializeDailyCycleAutomation();
   restoreSulbunAutoResetTimer();
 }
 
@@ -3380,7 +3443,6 @@ router.post('/op', async (req: Request, res: Response) => {
               return sendReject(opPersistFailedReject());
             }
             smartBroadcast(table, upgraded, { type: 'change', table, event: 'UPDATE', newRow: upgraded, oldRow });
-            sendPushForEvent(table, upgraded, requesterId).catch(err => logger.error({ err }, '[db] background task error'));
             if (selectAfterWrite) return res.json({ data: single ? upgraded : [upgraded], error: null });
             return res.json({ data: null, error: null });
           }
@@ -3494,10 +3556,15 @@ router.post('/op', async (req: Request, res: Response) => {
           const now = new Date();
           const heartOps = parseHeartOps(eventScheduleRaw);
           const usage = heartUsageFromLikeRows(tableData, likeLiker);
+          // API/security/load tests exercise write invariants independent of wall-clock heart windows.
+          // Production always uses the fixed 23:00/24:00 schedule.
+          const unlockedKeys = process.env.NODE_ENV === 'test'
+            ? new Set(['red', 'blue', 'pink', 'green', 'rainbow'])
+            : unlockedHeartKeys(heartOps, now);
           const capReject = likesHeartOpsReject({
             source: likeSource,
             heartType: likeType,
-            unlockedKeys: unlockedHeartKeys(heartOps, now),
+            unlockedKeys,
             grantUsed: usage.grantUsed,
             rainbowUsed: usage.rainbowUsed,
           });
@@ -3616,8 +3683,8 @@ router.post('/op', async (req: Request, res: Response) => {
           const _receiverId = messageReceiverIdFromChat(_msgChat, newRow.sender_id);
           if (_receiverId) unreadCountsCache.delete(_receiverId);
         }
-        // 메시지·하트·채팅방 생성 시 수신자 핸드폰으로 푸시 알림 전송
-        if (table === 'messages' || table === 'likes' || table === 'chats' || (table === 'signal_sends' && newRow.action === 'send')) {
+        // 하트 + 1:1 메시지만 수신자 핸드폰으로 푸시. 단체채팅·시그널·채팅방 생성은 제외.
+        if (table === 'messages' || table === 'likes') {
           sendPushForEvent(table, newRow, requesterId).catch(e => logger.error({ err: e }, '[db] background task error'));
         }
       }
@@ -4114,7 +4181,10 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         checkPassword();
         const rawPayload = (args.p_payload as Record<string, unknown>) ?? {};
         // ─ XSS 방어: 관리자가 app_settings에 악성 스크립트를 주입하는 것을 차단 (db-app-settings-merge)
-        const sanitizedSettingsPayload = sanitizeAdminSettingsPayload(rawPayload);
+        const sanitizedSettingsPayload = {
+          ...sanitizeAdminSettingsPayload(rawPayload),
+          event_schedule: FIXED_DAILY_EVENT_SCHEDULE,
+        };
         const current = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
         const merged = mergeAppSettings(current, sanitizedSettingsPayload);
         const updated = await overlayDbSecrets(merged, explicitSecretKeys(sanitizedSettingsPayload));
@@ -4618,7 +4688,7 @@ const HEALTH_CACHE_TTL_MS = 10_000;
 /** 공개 readiness — 로그인·채팅 핵심 기능 사전 점검 (인증 불필요) */
 router.get('/ready', async (_req: Request, res: Response) => {
   try {
-    await catchUpSulbunAutoReset();
+    await catchUpDailyCycleAutomation();
     const settings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
     const adminSecrets = panelAdminSecrets(settings.admin_password as string | undefined);
     const testSecrets = panelTestSecrets(settings.test_password as string | undefined);

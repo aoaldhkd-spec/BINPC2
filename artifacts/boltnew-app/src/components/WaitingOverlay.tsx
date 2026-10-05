@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Users, CheckCircle, Clock, ShieldAlert } from 'lucide-react';
 import { navigateToAppPath, PANEL_PIN_INPUT_PROPS, PIN_DIGIT_INPUT_PROPS, verifyPanelPassword } from '../lib/panel-password';
+import { EventScheduleBanner } from './EventScheduleBanner';
 
 export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
   sessionActive: boolean | null;
@@ -258,6 +259,10 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
             <span className="text-amber-300 text-sm font-semibold">모임 대기 중</span>
           </div>
         )}
+        <div className="w-full mb-2">
+          <EventScheduleBanner raw={null} showStatus={false} />
+        </div>
+
         {/* 안내 문구 — 배지와 중복되지 않는 내용만 */}
         <p className="text-slate-300 text-sm leading-relaxed mb-3">
           {isActive ? (

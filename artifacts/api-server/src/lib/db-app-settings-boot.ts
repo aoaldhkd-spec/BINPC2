@@ -33,6 +33,8 @@ export function buildDefaultAppSettings(input: {
     updated_at: input.now,
     timer_end_at: null,
     timer_label: null,
+    // Empty-DB default stays neutral so unit/bootstrap flows are not time-gated.
+    // Production startup immediately applies FIXED_DAILY_EVENT_SCHEDULE via initializeDailyCycleAutomation().
     event_schedule: JSON.stringify({ timezone: 'Asia/Seoul', slots: [] }),
     functions_locked: false,
     reset_signal: null,

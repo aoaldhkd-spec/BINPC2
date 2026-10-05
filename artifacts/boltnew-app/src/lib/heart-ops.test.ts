@@ -50,8 +50,8 @@ describe('heart-ops lock/unlock model', () => {
     expect(patched[0].unlock).toEqual(DEFAULT_HEART_OPS.slots[0].unlock);
     expect(patched.slice(1)).toEqual(DEFAULT_HEART_OPS.slots.slice(1));
     const roundTrip = parseHeartOps(serializeHeartOps({ ...DEFAULT_HEART_OPS, slots: patched }));
-    expect(roundTrip.slots.map(s => s.at)).toEqual(['23:15', '23:30', '24:00', '24:30']);
-    expect(roundTrip.slots.map(s => s.unlock)).toEqual(DEFAULT_HEART_OPS.slots.map(s => s.unlock));
+    expect(roundTrip.slots.map(s => s.at)).toEqual(['23:00', '23:00', '23:15', '24:00']);
+    expect(roundTrip.slots.map(s => s.unlock)).toEqual([['blue'], ['pink', 'green'], ['red'], ['rainbow']]);
     expect(stepHeartOpsClock('23:00', 15)).toBe('23:15');
     expect(stepHeartOpsClock('23:30', 15)).toBe('23:45');
     expect(stepHeartOpsHour('23:30', 1)).toBe('24:30');
@@ -100,12 +100,12 @@ describe('heart-ops lock/unlock model', () => {
     expect(rainbowRemaining(config, usage)).toBe(3);
   });
 
-  it('schedule unlocks blue at 23:30 and updates when time changes', () => {
-    vi.setSystemTime(seoulTime('2026-09-17T23:25:00+09:00'));
+  it('schedule unlocks blue at 23:00 and updates when time changes', () => {
+    vi.setSystemTime(seoulTime('2026-09-17T22:59:00+09:00'));
     const early = parseHeartOps(serializeHeartOps(config));
     expect(unlockedHeartKeys(early).has('blue')).toBe(false);
 
-    vi.setSystemTime(seoulTime('2026-09-17T23:31:00+09:00'));
+    vi.setSystemTime(seoulTime('2026-09-17T23:01:00+09:00'));
     expect(unlockedHeartKeys(early).has('blue')).toBe(true);
 
     const shifted = parseHeartOps(serializeHeartOps({
@@ -187,7 +187,7 @@ describe('heart-ops lock/unlock model', () => {
   it('heartOpsHeartRows expands shared pink+green into two independent rows', () => {
     const rows = heartOpsHeartRows(DEFAULT_HEART_OPS);
     expect(rows.map(s => s.id)).toEqual(['slot-red', 'slot-blue', 'slot-pink', 'slot-green', 'slot-rainbow']);
-    expect(rows.map(s => s.at)).toEqual(['23:00', '23:30', '24:00', '24:00', '24:30']);
+    expect(rows.map(s => s.at)).toEqual(['23:00', '23:00', '23:00', '23:00', '24:00']);
     expect(rows.map(s => s.unlock)).toEqual([['red'], ['blue'], ['pink'], ['green'], ['rainbow']]);
   });
 
@@ -230,7 +230,7 @@ describe('heart-ops lock/unlock model', () => {
     expect(unlockedHeartKeys(earlyReset).has('red')).toBe(false);
     vi.setSystemTime(seoulTime('2026-09-17T23:31:00+09:00'));
     expect(unlockedHeartKeys(earlyReset).has('red')).toBe(false);
-    expect(unlockedHeartKeys(earlyReset).has('blue')).toBe(true);
+    expect(unlockedHeartKeys(earlyReset).has('blue')).toBe(false);
   });
 
   it('auto_unlock_from from last night does not block the next event night', () => {
@@ -249,7 +249,7 @@ describe('heart-ops lock/unlock model', () => {
 
     vi.setSystemTime(seoulTime('2026-09-18T23:05:00+09:00'));
     expect(unlockedHeartKeys(reset).has('red')).toBe(true);
-    expect(unlockedHeartKeys(reset).has('blue')).toBe(false);
+    expect(unlockedHeartKeys(reset).has('blue')).toBe(true);
   });
 
   it('24:00 and 24:30 map to post-midnight event minutes', () => {
@@ -259,7 +259,7 @@ describe('heart-ops lock/unlock model', () => {
     vi.setSystemTime(seoulTime('2026-09-18T00:05:00+09:00'));
     expect(unlockedHeartKeys(config).has('pink')).toBe(true);
     expect(unlockedHeartKeys(config).has('green')).toBe(true);
-    expect(unlockedHeartKeys(config).has('rainbow')).toBe(false);
+    expect(unlockedHeartKeys(config).has('rainbow')).toBe(true);
 
     vi.setSystemTime(seoulTime('2026-09-18T00:31:00+09:00'));
     expect(unlockedHeartKeys(config).has('rainbow')).toBe(true);

@@ -103,12 +103,14 @@ describe('credentials tab copy', () => {
     expect(adminApp).toMatch(/settingsSubTab === 'admin' && <CredentialsTab/);
   });
 
-  it('does not keep a dedicated 행사 시계 settings tab', () => {
+  it('keeps fixed daily cycle on dashboard without manual heart/notice settings wiring', () => {
     expect(adminApp).not.toMatch(/EventScheduleTab/);
     expect(adminApp).not.toMatch(/label: '행사 시계'/);
     expect(adminApp).toMatch(/DashboardTab/);
-    expect(adminApp).toMatch(/onSaveSchedule/);
-    expect(adminApp).toMatch(/direct_notice_presets/);
+    expect(adminApp).not.toMatch(/onSaveSchedule/);
+    expect(adminApp).not.toMatch(/onSaveNotices/);
+    expect(adminApp).not.toMatch(/direct_notice_presets/);
+    expect(adminApp).toMatch(/onSulbunOpen=\{handleSulbunOpen\}/);
   });
 
   it('plants a local operator session only in Vite DEV, never as a public skip', () => {

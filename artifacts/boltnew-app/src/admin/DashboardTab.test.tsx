@@ -6,17 +6,19 @@ import { DashboardTab } from './DashboardTab';
 import type { AppSettings } from './shared';
 
 afterEach(() => cleanup());
-
 const noop = async () => {};
 
-function renderDash(settings: AppSettings | null, onSulbunOpen = vi.fn()) {
+function renderDash(settings: AppSettings | null, opts?: { onToggleSession?: () => void; onSulbunOpen?: () => void | Promise<void> }) {
+  const onToggleSession = opts?.onToggleSession ?? vi.fn<() => void>();
+  const onSulbunOpen = opts?.onSulbunOpen ?? vi.fn<() => void>();
   return {
+    onToggleSession,
     onSulbunOpen,
     ...render(
       <DashboardTab
         settings={settings}
         profiles={[]}
-        onToggleSession={() => {}}
+        onToggleSession={onToggleSession}
         onEventEndReset={() => {}}
         onToggleFunctionsLock={() => {}}
         onClearLikes={noop}
@@ -24,8 +26,6 @@ function renderDash(settings: AppSettings | null, onSulbunOpen = vi.fn()) {
         onClearProfiles={noop}
         onClearHistory={noop}
         restoreMap={new Map()}
-        onSaveSchedule={noop}
-        onSaveNotices={noop}
         onSulbunOpen={onSulbunOpen}
       />,
     ),
@@ -36,77 +36,49 @@ const activeSettings = {
   session_active: true,
   sulbun_event: {
     cycle_id: 'c1',
-    opened_at: '2026-09-20T13:00:00.000Z',
-    auto_reset_at: '2026-09-21T08:00:00.000Z',
+    opened_at: '2026-10-05T00:00:00.000Z',
+    auto_reset_at: '2026-10-06T08:00:00.000Z',
     auto_reset_enabled: true,
     reset_done: false,
   },
 } as unknown as AppSettings;
 
-describe('DashboardTab sulbun open card', () => {
-  it('shows open CTA before a cycle exists', () => {
+describe('DashboardTab automatic operations', () => {
+  it('shows fixed 23/24/01/17 plan and keeps sulbun-open button', () => {
     const { onSulbunOpen } = renderDash({ session_active: false } as AppSettings);
-    const btn = screen.getByTestId('sulbun-open-btn');
-    expect(btn.textContent).toContain('🍻 술번개 오픈');
-    expect((btn as HTMLButtonElement).disabled).toBe(false);
-    fireEvent.click(btn);
+    const card = screen.getByTestId('daily-cycle-card');
+    expect(card.textContent).toContain('23:00');
+    expect(card.textContent).toContain('24:00');
+    expect(card.textContent).toContain('01:00');
+    expect(card.textContent).toContain('17:00');
+    const open = screen.getByTestId('sulbun-open-btn');
+    expect(open.textContent).toContain('술번개 오픈');
+    fireEvent.click(open);
     expect(onSulbunOpen).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps the in-progress button clickable and calls open on bursts', () => {
-    const { onSulbunOpen } = renderDash(activeSettings);
-    const btn = screen.getByTestId('sulbun-open-btn');
-    expect(btn.textContent).toContain('🍻 술번개 진행 중');
-    expect(btn.textContent).toContain('자동 초기화: 9/21 17:00');
-    expect((btn as HTMLButtonElement).disabled).toBe(false);
-    expect(btn.className).toContain('active:scale-[0.98]');
-    expect(btn.className).not.toContain('cursor-default');
-    fireEvent.click(btn);
-    fireEvent.click(btn);
-    fireEvent.click(btn);
-    fireEvent.click(btn);
-    fireEvent.click(btn);
-    expect(onSulbunOpen).toHaveBeenCalledTimes(5);
+  it('inactive: start enabled, end disabled', () => {
+    renderDash({ session_active: false } as AppSettings);
+    expect((screen.getByTestId('session-start-btn') as HTMLButtonElement).disabled).toBe(false);
+    expect((screen.getByTestId('session-end-btn') as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('keeps 회식 시작/종료 clickable regardless of session_active', () => {
+  it('active: start disabled, end enabled and confirms', () => {
     const onToggleSession = vi.fn();
-    render(
-      <DashboardTab
-        settings={activeSettings}
-        profiles={[]}
-        onToggleSession={onToggleSession}
-        onEventEndReset={() => {}}
-        onToggleFunctionsLock={() => {}}
-        onClearLikes={noop}
-        onClearChats={noop}
-        onClearProfiles={noop}
-        onClearHistory={noop}
-        restoreMap={new Map()}
-        onSaveSchedule={noop}
-        onSaveNotices={noop}
-        onSulbunOpen={() => {}}
-      />,
-    );
-    const start = screen.getByTestId('session-start-btn') as HTMLButtonElement;
+    renderDash(activeSettings, { onToggleSession });
+    expect((screen.getByTestId('session-start-btn') as HTMLButtonElement).disabled).toBe(true);
     const end = screen.getByTestId('session-end-btn') as HTMLButtonElement;
-    expect(start.disabled).toBe(false);
     expect(end.disabled).toBe(false);
-    expect(start.className).not.toContain('cursor-not-allowed');
-    expect(end.className).not.toContain('cursor-not-allowed');
-    fireEvent.click(start);
-    expect(screen.getByText('회식을 시작하시겠습니까?')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: '취소' }));
     fireEvent.click(end);
     expect(screen.getByText('회식을 종료하시겠습니까?')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: '확인' }));
     expect(onToggleSession).toHaveBeenCalledTimes(1);
   });
 
-  it('functions lock 해제 stays a real button', () => {
-    renderDash({ session_active: true, functions_locked: true } as AppSettings);
-    const lock = screen.getByTestId('functions-lock-btn') as HTMLButtonElement;
-    expect(lock.disabled).toBe(false);
-    expect(lock.textContent).toContain('탭하여 해제');
+  it('does not render manual heart-operation controls', () => {
+    renderDash(activeSettings);
+    expect(screen.queryByText('하트 운영')).toBeNull();
+    expect(screen.queryByText('직접 공지')).toBeNull();
+    expect(screen.queryByRole('button', { name: /스케줄 저장/ })).toBeNull();
   });
 });

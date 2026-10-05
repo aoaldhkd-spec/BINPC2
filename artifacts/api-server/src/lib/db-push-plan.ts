@@ -26,71 +26,57 @@ export function planPushForEvent(
   findProfile: (userId: string) => Record<string, unknown> | undefined,
 ): PushPlan {
   if (table === 'messages') {
-    const chat = findChat(String(row.chat_id));
-    if (!chat) return null;
-    const recipientId = (
-      String(chat.user1_id) === String(row.sender_id) ? chat.user2_id : chat.user1_id
-    ) as string;
-    const sender = findProfile(String(row.sender_id));
+    const chat = findChat(String(row.chat_id ?? ''));
+    const senderId = String(row.sender_id ?? actorId ?? '');
+    if (!chat || !senderId) return null;
+    const u1 = String(chat.user1_id ?? '');
+    const u2 = String(chat.user2_id ?? '');
+    const recipientId = u1 === senderId ? u2 : u1;
+    if (!recipientId || recipientId === senderId) return null;
+
+    const sender = findProfile(senderId);
     const nick = (sender?.nickname as string) ?? '누군가';
-    let body = (row.content as string) ?? '';
+    let body = String(row.content ?? '');
     if (row.image_url) body = '[이미지]';
     else if (body.startsWith('__sticker__')) body = '[스티커]';
     else if (body.length > 60) body = body.slice(0, 60) + '…';
+
+    const chatId = String(chat.id ?? row.chat_id ?? '');
     return {
       recipientId,
-      payload: { title: `💬 ${nick}`, body, tag: `chat-${chat.id as string}`, url: '/' },
+      payload: {
+        title: `💬 ${nick}`,
+        body,
+        tag: `message-${String(row.id ?? chatId)}`,
+        url: `/?push=chat&peer=${encodeURIComponent(senderId)}&chat=${encodeURIComponent(chatId)}`,
+      },
     };
   }
+
   if (table === 'likes') {
-    const recipientId = row.liked_id as string;
-    const sender = findProfile(String(row.liker_id));
+    const senderId = String(row.liker_id ?? actorId ?? '');
+    const recipientId = String(row.liked_id ?? '');
+    if (!senderId || !recipientId || recipientId === senderId) return null;
+
+    const sender = findProfile(senderId);
     const nick = (sender?.nickname as string) ?? '누군가';
     const heartEmoji =
       row.heart_type === 'red' ? '❤️' :
-      row.heart_type === 'blue' ? '🧡' :
+      row.heart_type === 'blue' ? '💙' :
       row.heart_type === 'pink' ? '💗' : '💚';
     return {
       recipientId,
       payload: {
         title: `${heartEmoji} ${nick}님`,
-        body: '하트를 보냈어요!',
-        tag: `like-${row.liker_id as string}`,
-        url: '/',
+        body: `${heartEmoji} 하트가 도착했어요`,
+        tag: `like-${String(row.id ?? `${senderId}-${row.heart_type ?? ''}`)}`,
+        // rainbow source is intentionally hidden: notify as the selected real heart_type.
+        url: `/?push=heart&from=${encodeURIComponent(senderId)}`,
       },
     };
   }
-  if (table === 'signal_sends' && row.action === 'send') {
-    const recipientId = row.receiver_id as string;
-    const sender = findProfile(String(row.sender_id));
-    const nick = (sender?.nickname as string) ?? '누군가';
-    return {
-      recipientId,
-      payload: {
-        title: `📡 ${nick}님`,
-        body: '시그널을 보냈어요!',
-        tag: `signal-${row.sender_id as string}`,
-        url: '/',
-      },
-    };
-  }
-  if (table === 'chats' && actorId) {
-    const u1 = String(row.user1_id ?? '');
-    const u2 = String(row.user2_id ?? '');
-    const recipientId = u1 === String(actorId) ? u2 : u1;
-    if (!recipientId || recipientId === String(actorId)) return null;
-    const opener = findProfile(String(actorId));
-    const nick = (opener?.nickname as string) ?? '누군가';
-    return {
-      recipientId,
-      payload: {
-        title: `💬 ${nick}님`,
-        body: '채팅방을 열었어요',
-        tag: `chat-open-${String(row.id ?? '')}`,
-        url: '/',
-      },
-    };
-  }
+
+  // No phone push for signal_sends, chat-open events, or group chat.
   return null;
 }
 

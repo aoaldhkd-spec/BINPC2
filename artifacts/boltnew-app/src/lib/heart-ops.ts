@@ -62,16 +62,13 @@ export const HEART_OPS_ROW_KEYS: HeartUnlockKey[] = ['red', 'blue', 'pink', 'gre
 
 export const DEFAULT_HEART_OPS_SLOTS: HeartOpsSlot[] = [
   { id: 'slot-1', at: '23:00', unlock: ['red'] },
-  { id: 'slot-2', at: '23:30', unlock: ['blue'] },
-  { id: 'slot-3', at: '24:00', unlock: ['pink', 'green'] },
-  { id: 'slot-4', at: '24:30', unlock: ['rainbow'] },
+  { id: 'slot-2', at: '23:00', unlock: ['blue'] },
+  { id: 'slot-3', at: '23:00', unlock: ['pink', 'green'] },
+  { id: 'slot-4', at: '24:00', unlock: ['rainbow'] },
 ];
 
 export function defaultHeartOpsAt(key: HeartUnlockKey): string {
-  if (key === 'red') return '23:00';
-  if (key === 'blue') return '23:30';
-  if (key === 'rainbow') return '24:30';
-  return '24:00';
+  return key === 'rainbow' ? '24:00' : '23:00';
 }
 
 export const DEFAULT_HEART_OPS: HeartOpsConfig = {

@@ -45,7 +45,6 @@ import { ResetButton } from './ResetButton';
 import { FUNCTIONS_LOCK_TOAST, SOCIAL_LOCKED_TABS } from '../lib/functions-lock';
 import { headerHeartRemainings, participantHeartState, type HeartOpsConfig, type HeartUsage } from '../lib/heart-ops';
 import { STATUS_QUICK_MSGS } from '../lib/chat-picker-data';
-import { HOST_AGE_EASTER_EGG_HINT, hostBirthYearFromProfiles } from '../lib/host-age-easter-egg';
 import {
   BIRTH_MD_EDIT_MAX,
   birthMdEditsRemaining,
@@ -85,7 +84,7 @@ export function MainScreen({
   receivedLikers, receivedHeartTypes, sentLikedProfiles, contactSharedWithIds, acknowledgedComplimentIds,
   receivedContactShares, pendingHeartsCount, chatList,
   onContactShareOpen: _onContactShareOpen, onContactViewOpen, onHeartResponse, onDeleteChat, onDeleteAllChats, onOpenChat,
-  timerEndAt, timerLabel, heartOpsConfig, heartUsage, eventScheduleRaw, sulbunNotice = null, onRefreshStatus, onRefreshChat, onRefreshProfiles, darkMode, onToggleDark, scannedContacts, onClearScannedContact, functionsLocked = false, onShowTutorial,
+  timerEndAt, timerLabel, heartOpsConfig, heartUsage, eventScheduleRaw, onRefreshStatus, onRefreshChat, onRefreshProfiles, darkMode, onToggleDark, scannedContacts, onClearScannedContact, functionsLocked = false, onShowTutorial,
   unreadChatCounts, onClearChatUnread: _onClearChatUnread,
   onUpdateProfile,
   groupChats = [], unreadGroupCounts = {}, onOpenGroupChat, onJoinGroupChat, onLeaveGroupChat, joiningGroupId = null,
@@ -122,7 +121,6 @@ export function MainScreen({
   heartOpsConfig: HeartOpsConfig;
   heartUsage: HeartUsage;
   eventScheduleRaw: string | null;
-  sulbunNotice?: string | null;
   onRefreshStatus: () => void;
   onRefreshChat: () => void;
   onRefreshProfiles: () => void;
@@ -719,7 +717,6 @@ export function MainScreen({
             <ResetButton
               onReset={onReset}
               darkMode={darkMode}
-              birthYear={hostBirthYearFromProfiles(profiles)}
               onOpenResetPassword={onOpenResetPassword}
             />
           </div>
@@ -767,14 +764,6 @@ export function MainScreen({
           </div>
         </div>
         {timerEndAt && <TimerBanner endAt={timerEndAt} label={timerLabel ?? ''} />}
-        {sulbunNotice && (
-          <div
-            data-testid="sulbun-reset-notice"
-            className="mx-3 mb-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-center text-[10px] font-bold text-amber-900"
-          >
-            {sulbunNotice}
-          </div>
-        )}
         <EventScheduleBanner raw={eventScheduleRaw} functionsLocked={functionsLocked} heartsLocked={participantHearts.heartsLocked} />
       </header>
 
@@ -2170,9 +2159,6 @@ export function MainScreen({
                 </div>
               );
             })()}
-            <p className={`text-center text-[10px] leading-relaxed px-4 ${darkMode ? 'text-slate-600' : 'text-gray-400'}`}>
-              {HOST_AGE_EASTER_EGG_HINT}
-            </p>
           </div>
           </StatusErrorBoundary>
         )}

@@ -265,49 +265,27 @@ try {
   }
 } catch { /* ignore */ }
 
-// signal_sends push — 📡 not 💕 (하트·시그널 이모지 혼동 재발방지)
-// Planner peeled to db-push-plan.ts; keep checking that SoT (db.ts only re-imports).
+// Push policy: only likes + 1:1 messages. signal_sends/chats/group chat must stay excluded.
 const pushPlanPath = resolve(ROOT, 'artifacts/api-server/src/lib/db-push-plan.ts');
 try {
   const pushSrc = readFileSync(pushPlanPath, 'utf8');
-  const sigIdx = pushSrc.indexOf("table === 'signal_sends'");
-  if (sigIdx >= 0) {
-    const sigBlock = pushSrc.slice(sigIdx, sigIdx + 400);
-    if (sigBlock.includes('💕')) {
+  for (const [needle, id, text] of [
+    ["table === 'signal_sends'", 'signal_push_must_stay_disabled', 'signal_sends must not create phone push'],
+    ["table === 'chats'", 'chat_open_push_must_stay_disabled', 'opening/creating a chat must not create phone push'],
+    ["table === 'group_messages'", 'group_chat_push_must_stay_disabled', 'group chat must not create phone push'],
+  ]) {
+    if (pushSrc.includes(needle)) {
       const f = {
         rel: 'artifacts/api-server/src/lib/db-push-plan.ts',
         line: 1,
-        id: 'signal_push_uses_heart_emoji',
+        id,
         sev: 'error',
-        text: 'signal_sends push title must use 📡 not 💕',
+        text,
       };
       allFindings.push(f);
       errors.push(f);
       console.log(`  ${f.rel}:${f.line} [${f.id}] ${f.text}`);
     }
-    if (!sigBlock.includes('📡')) {
-      const f = {
-        rel: 'artifacts/api-server/src/lib/db-push-plan.ts',
-        line: 1,
-        id: 'signal_push_missing_signal_emoji',
-        sev: 'error',
-        text: 'signal_sends push title must include 📡',
-      };
-      allFindings.push(f);
-      errors.push(f);
-      console.log(`  ${f.rel}:${f.line} [${f.id}] ${f.text}`);
-    }
-  } else {
-    const f = {
-      rel: 'artifacts/api-server/src/lib/db-push-plan.ts',
-      line: 1,
-      id: 'signal_push_missing_signal_emoji',
-      sev: 'error',
-      text: 'signal_sends push title must include 📡',
-    };
-    allFindings.push(f);
-    errors.push(f);
-    console.log(`  ${f.rel}:${f.line} [${f.id}] ${f.text}`);
   }
 } catch { /* ignore */ }
 

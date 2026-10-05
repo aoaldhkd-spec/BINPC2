@@ -18,7 +18,7 @@ import { useSessionInit } from './hooks/useSessionInit';
 import { planAdminResetWipe, runAdminResetWipe } from './lib/admin-reset-wipe';
 import type { SessionReadySettingsPatch } from './lib/session-ready-settings';
 import { currentEventSlot, parseHeartOps, participantHeartState } from './lib/heart-ops';
-import { sulbunResetNoticeText, type SulbunEventState } from './lib/sulbun-event';
+import type { SulbunEventState } from './lib/sulbun-event';
 import { subscribeNetUi, resetNetUiForRetry, type NetUiStatus } from './lib/net-health';
 import { excludeSwipeGestureVerifyProfiles } from './lib/profile';
 import { mergeProfilesPreserveOrder } from './lib/profile-list-order';
@@ -208,7 +208,7 @@ function App() {
   const [timerEndAt, setTimerEndAt] = useState<string | null>(null);
   const [timerLabel, setTimerLabel] = useState<string | null>(null);
   const [eventScheduleRaw, setEventScheduleRaw] = useState<string | null>(null);
-  const [sulbunEvent, setSulbunEvent] = useState<SulbunEventState | null>(null);
+  const [, setSulbunEvent] = useState<SulbunEventState | null>(null);
   // Quotas change at clock-slot boundaries even when the schedule JSON is unchanged.
   const [eventScheduleMinute, setEventScheduleMinute] = useState(() => Math.floor(Date.now() / 60_000));
   const [rejectionNotif, setRejectionNotif] = useState<string | null>(null); // nickname of person who rejected
@@ -881,6 +881,48 @@ function App() {
   }, [currentUserId]);
 
 
+  // PWA 알림 클릭 deep-link: 하트는 받은 하트 화면, 1:1 채팅은 해당 상대 채팅방.
+  useEffect(() => {
+    if (!currentUserId || profileBoot !== 'ok') return;
+    const params = new URLSearchParams(window.location.search);
+    const pushKind = params.get('push');
+    if (!pushKind) return;
+
+    const cleanUrl = () => {
+      for (const key of ['push', 'from', 'peer', 'chat']) params.delete(key);
+      const q = params.toString();
+      window.history.replaceState({}, '', `${window.location.pathname}${q ? `?${q}` : ''}${window.location.hash}`);
+    };
+
+    if (pushKind === 'heart') {
+      setView('main');
+      setMainTab('my');
+      setMySubTabHint('status');
+      void loadReceivedLikes(currentUserId);
+      void loadLikes(currentUserId);
+      cleanUrl();
+      return;
+    }
+
+    if (pushKind === 'chat') {
+      const peerId = params.get('peer');
+      const peer = peerId ? profileMap.get(peerId) : undefined;
+      if (peer) {
+        openChatGuarded(peer);
+      } else {
+        setView('main');
+        setMainTab('my');
+        setMySubTabHint('chats');
+        void loadChatList(currentUserId);
+      }
+      cleanUrl();
+    }
+  }, [
+    currentUserId, profileBoot, profileMap, openChatGuarded,
+    loadReceivedLikes, loadLikes, loadChatList,
+  ]);
+
+
   // Manual refresh for status and chat tabs
   const refreshStatusTab = useCallback(() => {
     if (!currentUserId) return;
@@ -1123,7 +1165,6 @@ function App() {
           heartOpsConfig={heartOpsConfig}
           heartUsage={heartUsage}
           eventScheduleRaw={eventScheduleRaw}
-          sulbunNotice={sulbunResetNoticeText(sulbunEvent)}
           onRefreshStatus={refreshStatusTab}
           onRefreshChat={refreshChatTab}
           onUpdateProfile={handleUpdateProfile}

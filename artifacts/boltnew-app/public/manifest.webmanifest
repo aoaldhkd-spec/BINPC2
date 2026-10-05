@@ -1,0 +1,19 @@
+{
+  "id": "/",
+  "name": "범일NPC 술번개",
+  "short_name": "술번개",
+  "description": "범일NPC 술번개 실시간 하트·1:1 채팅 웹앱",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

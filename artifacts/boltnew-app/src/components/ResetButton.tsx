@@ -1,36 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Users } from 'lucide-react';
-import { HOST_AGE_EASTER_EGG_HINT } from '../lib/host-age-easter-egg';
-import { playEasterEggSting } from '../lib/easter-egg-sound';
-import { koreanAgeFromBirthYear } from '../lib/korean-age';
 import { navigateToAppPath, PANEL_PIN_INPUT_PROPS, verifyPanelPassword } from '../lib/panel-password';
 
-const EGG_RECEIPT_TITLE = '술번개 공식 영수증';
-const EGG_AGE_UNKNOWN = '실제 나이는 프로필에 있어요';
-const EGG_PENALTY_LINE = '높게 말한 값 · +100,000원';
-
-export function buildEggReveal(birthYear: number | null | undefined) {
-  const age = koreanAgeFromBirthYear(birthYear ?? null);
-  if (age == null) {
-    return {
-      headline: EGG_RECEIPT_TITLE,
-      ageGag: EGG_AGE_UNKNOWN,
-      penaltyLine: null as string | null,
-    };
-  }
-  return {
-    headline: EGG_RECEIPT_TITLE,
-    ageGag: `${age}세`,
-    penaltyLine: EGG_PENALTY_LINE,
-  };
-}
-
-function eggHapticPulse() {
-  try {
-    navigator.vibrate?.(35);
-  } catch { /* unsupported */ }
-}
 
 /** Dim only — never opaque black. Inline rgba so Tailwind/theme cannot turn this into a black sheet. */
 const PASSWORD_DIM: React.CSSProperties = {
@@ -96,8 +68,8 @@ export function ResetPasswordSheet({ onCancel, onConfirm }: { onCancel: () => vo
   );
 }
 
-export function ResetButton({ onReset, darkMode, birthYear, onEasterEgg, onUiLockChange, onOpenResetPassword }: {
-  onReset: () => void; variant?: string; darkMode?: boolean; birthYear?: number | null; resetPassword?: string | null; onEasterEgg?: () => void;
+export function ResetButton({ onReset, darkMode, onUiLockChange, onOpenResetPassword }: {
+  onReset: () => void; variant?: string; darkMode?: boolean; resetPassword?: string | null;
   onUiLockChange?: (locked: boolean) => void;
   onOpenResetPassword?: () => void;
 }) {
@@ -109,18 +81,6 @@ export function ResetButton({ onReset, darkMode, birthYear, onEasterEgg, onUiLoc
   const [adminPw, setAdminPw] = useState('');
   const [adminErr, setAdminErr] = useState('');
   const [adminBusy, setAdminBusy] = useState(false);
-  const [showEgg, setShowEgg] = useState(false);
-  const [eggCopy, setEggCopy] = useState(() => buildEggReveal(null));
-  const logoClickCount = useRef(0);
-  const logoClickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const eggTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const eggSound = useRef<ReturnType<typeof playEasterEggSting> | null>(null);
-
-  const dismissEgg = () => {
-    setShowEgg(false);
-    eggSound.current?.stop();
-    eggSound.current = null;
-  };
 
   useEffect(() => {
     onUiLockChange?.(open || adminOpen);
@@ -171,23 +131,6 @@ export function ResetButton({ onReset, darkMode, birthYear, onEasterEgg, onUiLoc
     setAdminOpen(true);
   };
 
-  const handleSulbunClick = () => {
-    logoClickCount.current += 1;
-    if (logoClickTimer.current) clearTimeout(logoClickTimer.current);
-    if (logoClickCount.current >= 3) {
-      logoClickCount.current = 0;
-      eggSound.current?.stop();
-      eggSound.current = playEasterEggSting();
-      setEggCopy(buildEggReveal(birthYear));
-      setShowEgg(true);
-      eggHapticPulse();
-      onEasterEgg?.();
-      if (eggTimer.current) clearTimeout(eggTimer.current);
-      eggTimer.current = setTimeout(() => dismissEgg(), 6000);
-    } else {
-      logoClickTimer.current = setTimeout(() => { logoClickCount.current = 0; }, 3000);
-    }
-  };
 
   return (
     <>
@@ -200,84 +143,11 @@ export function ResetButton({ onReset, darkMode, birthYear, onEasterEgg, onUiLoc
           <button type="button" data-gate="npc-admin" onClick={openAdminGate} className="block group cursor-pointer" title="관리자">
             <p className={`text-[10px] font-black tracking-widest uppercase leading-none transition-colors ${darkMode ? 'text-cyan-400 group-hover:text-cyan-300' : 'text-cyan-600 group-hover:text-cyan-700'}`}>범일NPC</p>
           </button>
-          <button type="button" data-gate="sulbun-none" onClick={handleSulbunClick} className="inline cursor-pointer active:scale-95 transition-transform align-baseline" title="술번개" aria-label={HOST_AGE_EASTER_EGG_HINT}>
-            <span className={`text-lg font-black leading-tight transition-colors ${darkMode ? 'text-white hover:text-amber-300' : 'text-gray-900 hover:text-amber-500'}`}>술번개</span>
-          </button>
+          <span data-gate="sulbun-none" className={`inline text-lg font-black leading-tight ${darkMode ? 'text-white' : 'text-gray-900'}`}>술번개</span>
           <span className={`text-lg font-black leading-tight ${darkMode ? 'text-white' : 'text-gray-900'}`} aria-hidden> 🍻</span>
         </div>
       </div>
 
-      {/* 🍻 술번개 3연타 — 방장 나이 공개 얼음깨기 영수증 */}
-      {showEgg && (
-        <div
-          className="safe-fullscreen fixed inset-0 z-[300] flex items-center justify-center px-4 overflow-y-auto"
-          style={{ background: 'rgba(254, 240, 138, 0.88)' }}
-          onClick={dismissEgg}
-        >
-          <style>{`
-            @keyframes eggShakeIn {
-              0% { transform: scale(0.5) rotate(-4deg); opacity: 0; }
-              40% { transform: scale(1.04) rotate(2deg); opacity: 1; }
-              70% { transform: scale(0.98) rotate(-1deg); }
-              100% { transform: scale(1) rotate(-1deg); opacity: 1; }
-            }
-            @keyframes eggWobble {
-              0%, 100% { transform: rotate(-1deg) translateY(0); }
-              50% { transform: rotate(1deg) translateY(-1px); }
-            }
-            @keyframes eggEmojiPop {
-              0% { transform: scale(0) rotate(-20deg); opacity: 0; }
-              70% { transform: scale(1.25) rotate(8deg); opacity: 1; }
-              100% { transform: scale(1) rotate(0deg); opacity: 1; }
-            }
-          `}</style>
-
-          <div
-            className="relative max-w-[19rem] w-full px-5 py-6 select-none"
-            style={{
-              background: 'linear-gradient(180deg, #fef08a 0%, #fde047 100%)',
-              border: '3px dashed #ca8a04',
-              borderRadius: '2px',
-              boxShadow: '6px 8px 0 rgba(120, 53, 15, 0.35), inset 0 0 0 1px rgba(255,255,255,0.5)',
-              animation: 'eggShakeIn 0.42s ease-out forwards, eggWobble 3s ease-in-out 0.42s infinite',
-            }}
-          >
-            <p
-              className="text-center leading-none mb-4"
-              style={{ fontSize: 'clamp(2.5rem, 12vw, 3.25rem)', animation: 'eggEmojiPop 0.35s ease-out 0.08s both' }}
-            >
-              🍻💸🎈
-            </p>
-
-            <p
-              className="text-center font-black text-gray-900 leading-tight"
-              style={{ fontSize: 'clamp(1.15rem, 5vw, 1.45rem)' }}
-            >
-              {eggCopy.headline}
-            </p>
-
-            <p
-              className="mt-3 text-center font-bold text-amber-900 leading-snug"
-              style={{ fontSize: 'clamp(1rem, 4.5vw, 1.2rem)' }}
-            >
-              {eggCopy.ageGag}
-            </p>
-
-            {eggCopy.penaltyLine && (
-              <p
-                className="mt-2 text-center font-semibold text-orange-800 leading-snug"
-                style={{ fontSize: 'clamp(0.9rem, 4vw, 1.05rem)' }}
-              >
-                {eggCopy.penaltyLine}
-              </p>
-            )}
-
-            <p className="mt-4 text-center text-amber-800/55 text-[10px] font-bold tracking-wide">
-              탭하면 닫아요
-            </p>
-          </div>
-        </div>
-      )}
 
       {open && (
         <PasswordDimLayer z={400} onClick={() => { setOpen(false); setPw(''); setErr(''); }}>
