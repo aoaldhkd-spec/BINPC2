@@ -77,10 +77,12 @@ function SignalMsgSection({ label, emoji, tags, free, chipClass }: {
   );
 }
 
-function ProfileDetail({ profile, isMe, isLiked, heartType, sentHeartsCount, locked, heartsLocked, idealMsg, featureMsg, onLike, onChat, onBack, onViewFortune }: {
+function ProfileDetail({ profile, isMe, isLiked, heartType, sentHeartsCount, locked, heartsLocked, heartsEnabled = true, directChatEnabled = true, idealMsg, featureMsg, onLike, onChat, onBack, onViewFortune }: {
   profile: Profile; isMe: boolean; isLiked: boolean; heartType?: HeartType; sentHeartsCount?: number;
   locked?: boolean;
   heartsLocked?: boolean;
+  heartsEnabled?: boolean;
+  directChatEnabled?: boolean;
   idealMsg?: string | null;
   featureMsg?: string | null;
   onLike: () => void; onChat: () => void; onBack: () => void; onViewFortune?: () => void;
@@ -163,7 +165,7 @@ function ProfileDetail({ profile, isMe, isLiked, heartType, sentHeartsCount, loc
               🔒 현재 잠금 중
             </div>
           )}
-          {!isMe && (
+          {!isMe && heartsEnabled && (
           <button
             type="button"
             data-testid="profile-detail-heart-btn"
@@ -222,7 +224,7 @@ function ProfileDetail({ profile, isMe, isLiked, heartType, sentHeartsCount, loc
         />
 
         {/* Chat button — locked 시 토스트, 정상 시 채팅 진입 */}
-        {!isMe && (
+        {!isMe && directChatEnabled && (
         <button onClick={handleChat}
           className={`w-full py-3.5 bg-gradient-to-r from-cyan-500 to-teal-500 text-white font-semibold rounded-2xl hover:from-cyan-600 hover:to-teal-600 transition-all flex items-center justify-center gap-2 shadow-sm ${chatLocked ? 'opacity-60' : ''}`}>
           <MessageCircle className="w-5 h-5" />

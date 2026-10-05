@@ -11,6 +11,7 @@ import {
   panelTestSecrets,
 } from './db-panel-secrets.js';
 import { SECRET_SETTING_KEYS } from './db-app-settings-merge.js';
+import { serializeModuleFlags } from './db-module-flags.js';
 
 /** 행사 중 매칭/소셜 쓰기 — 하트·1:1 방/메시지·연락처 공유·단톡 */
 export const FUNCTIONS_LOCKED_INSERT_TABLES = new Set([
@@ -153,6 +154,7 @@ export function buildReadyPayload(input: {
       reset_signal: (settings.reset_signal as string | null | undefined) ?? null,
       functions_locked: settingsFunctionsLocked(settings),
       sulbun_event: publicSulbunEventView(settings.sulbun_event),
+      module_flags: serializeModuleFlags(settings.module_flags),
     },
     login: {
       adminConfigured: input.adminConfigured,

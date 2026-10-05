@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, ArrowLeft, ArrowRight, PlayCircle, Sparkles } from 'lucide-react';
 import { TutorialVideo } from './TutorialVideo';
+import { DEFAULT_MODULE_FLAGS, type ModuleFlags } from '../lib/module-flags';
 
 type Tip = { icon: string; title: string; desc: string };
 type Section = { emoji: string; title: string; tips: Tip[]; footer?: string; variant?: 'rules' | 'tabs' | 'default' };
@@ -125,6 +126,33 @@ const BASIC: Topic[] = [
     ],
   },
 ];
+
+export function tutorialBasicTopics(moduleFlags: ModuleFlags = DEFAULT_MODULE_FLAGS): Topic[] {
+  return BASIC
+    .filter((topic) => {
+      if (topic.id === 'heart') return moduleFlags.hearts;
+      if (topic.id === 'chat') return moduleFlags.direct_chat;
+      if (topic.id === 'group') return moduleFlags.group_chat;
+      return true;
+    })
+    .map((topic) => {
+      if (topic.id !== 'guide') return topic;
+      return {
+        ...topic,
+        sections: topic.sections?.map((section) => (
+          section.variant !== 'tabs'
+            ? section
+            : {
+                ...section,
+                tips: section.tips.filter((tip) => (
+                  (tip.title !== '통계' || moduleFlags.stats)
+                  && (tip.title !== '랭킹' || moduleFlags.ranking)
+                )),
+              }
+        )),
+      };
+    });
+}
 
 const HIDDEN: Topic[] = [
   {
@@ -717,17 +745,19 @@ function SectionHeader({
 export function TutorialModal({
   onClose,
   darkMode,
+  moduleFlags = DEFAULT_MODULE_FLAGS,
 }: {
   page?: number;
   onChangePage?: (p: number) => void;
   onClose: () => void;
   darkMode?: boolean;
+  moduleFlags?: ModuleFlags;
 }) {
   const [mode, setMode] = useState<'basic' | 'hidden'>('basic');
   const [topicIdx, setTopicIdx] = useState(0);
   const [subView, setSubView] = useState<'tips' | 'video'>('tips');
 
-  const topics = mode === 'basic' ? BASIC : HIDDEN;
+  const topics = mode === 'basic' ? tutorialBasicTopics(moduleFlags) : HIDDEN;
   const safeIdx = Math.min(topicIdx, topics.length - 1);
   const topic = topics[safeIdx];
   const accent = topicAccent(topic);

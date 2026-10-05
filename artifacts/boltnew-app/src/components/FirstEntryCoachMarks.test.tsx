@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { FirstEntryCoachMarks } from './FirstEntryCoachMarks';
+import { FirstEntryCoachMarks, coachHomeStepsFor, coachTourOrder } from './FirstEntryCoachMarks';
 
 function installMemoryLocalStorage() {
   const store = new Map<string, string>();
@@ -15,6 +15,17 @@ function installMemoryLocalStorage() {
   };
   Object.defineProperty(globalThis, 'localStorage', { value: memory, configurable: true });
 }
+
+describe('coach module-aware tour order', () => {
+  it('skips disabled stats/ranking and removes missing nav target', () => {
+    expect(coachTourOrder(false, false)).toEqual(['profiles', 'my', 'settings']);
+    expect(coachTourOrder(true, false)).toEqual(['profiles', 'my', 'stats', 'settings']);
+    expect(coachTourOrder(false, true)).toEqual(['profiles', 'my', 'ranking', 'settings']);
+
+    expect(coachHomeStepsFor(false, false).some((step) => step.target === 'nav-stats' || step.target === 'nav-ranking')).toBe(false);
+    expect(coachHomeStepsFor(false, true).some((step) => step.target === 'nav-ranking')).toBe(true);
+  });
+});
 
 describe('FirstEntryCoachMarks tip 1', () => {
   beforeEach(() => {

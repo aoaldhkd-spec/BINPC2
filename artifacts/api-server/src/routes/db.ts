@@ -451,6 +451,11 @@ import {
   validatePushNotifyRequest, pushNotifyInternalReject,
 } from '../lib/db-push-plan';
 import {
+  moduleEnabled,
+  moduleWriteGate,
+  parseModuleFlags,
+} from '../lib/db-module-flags.js';
+import {
   FIXED_DAILY_EVENT_SCHEDULE,
   dailyCycleBootstrapPatch,
   dueDailyCycleActions,
@@ -514,6 +519,7 @@ import {
   recordUploadRejected,
   snapshotHttpMetrics,
 } from '../lib/http-metrics';
+import { buildRuntimeStatus } from '../lib/db-runtime-status.js';
 
 // express-session의 SessionData에 userId 필드 추가
 declare module 'express-session' {
@@ -1083,6 +1089,7 @@ let _lastAdminPinPushAt = 0;
 /** Helper: send a push notification to the admin.
  *  Returns false if no push subscription is found. */
 async function _sendAdminPush(payload: PushPayload): Promise<boolean> {
+  if (!moduleEnabled(currentModuleFlags(), 'push')) return false;
   const recipient = resolveAdminPushRecipient(
     (store['app_settings'] ?? [])[0] as Record<string, unknown> | undefined,
     store['profiles'] ?? [],
@@ -1672,6 +1679,10 @@ function resetPanelLoginLimiter(req: Request): void {
 /** Thin wrapper — getTable stays local. */
 function isFunctionsLocked(): boolean {
   return settingsFunctionsLocked(getTable('app_settings')[0] as Record<string, unknown> | undefined);
+}
+
+function currentModuleFlags() {
+  return parseModuleFlags(getTable('app_settings')[0]?.module_flags);
 }
 
 /** DB에 id/session_active 등 핵심 필드가 빠진 app_settings를 자동 복구 */
@@ -2716,6 +2727,7 @@ async function sendPushForEvent(
   row: Record<string, unknown>,
   actorId?: string | null,
 ): Promise<void> {
+  if (!moduleEnabled(currentModuleFlags(), 'push')) return;
   const planned = planPushForEvent(
     table,
     row,
@@ -2967,6 +2979,17 @@ router.post('/op', async (req: Request, res: Response) => {
       if (rej.logMsg) logger.warn(logCtx, rej.logMsg);
       return res.status(rej.status).json(rej.body);
     };
+
+    if (!isAdmin && (op === 'insert' || op === 'update' || op === 'upsert')) {
+      const gate = moduleWriteGate(table, getTable('app_settings')[0]?.module_flags);
+      if (!gate.allowed) {
+        return sendReject({
+          status: 403,
+          body: { error: gate.message, code: gate.code, module: gate.module },
+          logMsg: '[op] module disabled',
+        }, { requestId, table, op, module: gate.module });
+      }
+    }
     // ── SELECT ──────────────────────────────────────────────────────────────
     if (op === 'select') {
       if (REALTIME_MERGE_TABLES.has(table)) {
@@ -4786,16 +4809,16 @@ router.get('/health', async (req: Request, res: Response) => {
       checkedAt: new Date().toISOString(),
       lossAlarmThreshold: HEALTH_LOSS_ALARM_THRESHOLD,
     }),
-    runtime: {
-      commit: String(process.env.RENDER_GIT_COMMIT ?? process.env.GIT_COMMIT ?? 'unknown'),
-      service: String(process.env.RENDER_SERVICE_NAME ?? 'BINPC2'),
-      uptimeSec: Math.floor(process.uptime()),
-      processStartedAt: new Date(Date.now() - process.uptime() * 1000).toISOString(),
+    runtime: buildRuntimeStatus({
+      commit: process.env.RENDER_GIT_COMMIT ?? process.env.GIT_COMMIT,
+      service: process.env.RENDER_SERVICE_NAME,
       node: process.version,
+      nowMs: Date.now(),
+      uptimeSec: process.uptime(),
       pushConfigured: vapidConfigured,
       pushSubscriptions: getTable('push_subscriptions').length,
-      dailyCycle: '23:00 hearts / 24:00 rainbow / 01:00 close / 17:00 reset',
-    },
+      moduleFlags: currentModuleFlags(),
+    }),
   };
   _healthCache = { ts: Date.now(), body };
   return res.json(body);
@@ -4938,6 +4961,9 @@ router.get('/push/vapid-key', (_req: Request, res: Response) => {
 
 router.post('/push/subscribe', (req: Request, res: Response) => {
   try {
+  if (!moduleEnabled(currentModuleFlags(), 'push')) {
+    return res.status(403).json({ error: '모바일 알림 기능이 현재 꺼져 있습니다.', code: 'MODULE_DISABLED', module: 'push' });
+  }
   const parsedSub = validatePushSubscribeBody(req.body);
   if (!parsedSub.ok) {
     return res.status(parsedSub.reject.status).json(parsedSub.reject.body);
@@ -4982,6 +5008,10 @@ router.post('/push/subscribe', (req: Request, res: Response) => {
 const PUSH_NOTIFY_SECRET = process.env.SESSION_SECRET ?? 'internal';
 router.post('/push/notify', async (req: Request, res: Response): Promise<void> => {
   try {
+  if (!moduleEnabled(currentModuleFlags(), 'push')) {
+    res.status(403).json({ error: '모바일 알림 기능이 현재 꺼져 있습니다.', code: 'MODULE_DISABLED', module: 'push' });
+    return;
+  }
   // 클라이언트 직접 호출 남용 방지 — X-Internal-Secret 헤더 필요
   const secret = req.headers['x-internal-secret'];
   const parsedNotify = validatePushNotifyRequest({

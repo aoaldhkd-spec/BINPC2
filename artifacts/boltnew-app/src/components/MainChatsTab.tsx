@@ -16,6 +16,7 @@ import { RefreshBtn } from './RefreshBtn';
 export const MainChatsTab = memo(function MainChatsTab({
   darkMode,
   isActive = true,
+  directChatEnabled = true, groupChatEnabled = true,
   chatSubTab, onChangeSubTab,
   unreadChatCounts, unreadGroupCounts,
   groupChats, joiningGroupId,
@@ -31,6 +32,8 @@ export const MainChatsTab = memo(function MainChatsTab({
   darkMode: boolean;
   /** false when tab hidden — skip chat list DOM while keeping mount for KeepTab */
   isActive?: boolean;
+  directChatEnabled?: boolean;
+  groupChatEnabled?: boolean;
   chatSubTab: 'direct' | 'group';
   onChangeSubTab: (t: 'direct' | 'group') => void;
   unreadChatCounts: Record<string, number>;
@@ -61,15 +64,25 @@ export const MainChatsTab = memo(function MainChatsTab({
   chatsRefreshed: boolean;
 }) {
   if (!isActive) return null;
+  if (!directChatEnabled && !groupChatEnabled) {
+    return (
+      <div className={`w-full max-w-lg mx-auto rounded-2xl p-6 text-center text-sm ${darkMode ? 'bg-slate-800 text-slate-300' : 'bg-white text-gray-500'}`}>
+        채팅 기능이 현재 꺼져 있습니다.
+      </div>
+    );
+  }
+  const activeChatSubTab: 'direct' | 'group' = directChatEnabled && groupChatEnabled
+    ? chatSubTab
+    : directChatEnabled ? 'direct' : 'group';
 
   return (
     <div className="w-full max-w-lg mx-auto space-y-3 shrink-0">
       {/* ── 1:1 / 단체 채팅 전환 서브탭 ── */}
-      <div className={`flex rounded-xl p-0.5 ${darkMode ? 'bg-slate-700' : 'bg-gray-100'}`}>
+      {directChatEnabled && groupChatEnabled && <div className={`flex rounded-xl p-0.5 ${darkMode ? 'bg-slate-700' : 'bg-gray-100'}`}>
         <button
           onClick={() => onChangeSubTab('direct')}
           className={`flex-1 py-1.5 text-xs font-black rounded-lg transition-all ${
-            chatSubTab === 'direct'
+            activeChatSubTab === 'direct'
               ? (darkMode ? 'bg-slate-600 text-white shadow-sm' : 'bg-white text-gray-900 shadow-sm')
               : (darkMode ? 'text-slate-400' : 'text-gray-500')
           }`}
@@ -84,7 +97,7 @@ export const MainChatsTab = memo(function MainChatsTab({
         <button
           onClick={() => onChangeSubTab('group')}
           className={`flex-1 py-1.5 text-xs font-black rounded-lg transition-all ${
-            chatSubTab === 'group'
+            activeChatSubTab === 'group'
               ? (darkMode ? 'bg-slate-600 text-white shadow-sm' : 'bg-white text-gray-900 shadow-sm')
               : (darkMode ? 'text-slate-400' : 'text-gray-500')
           }`}
@@ -96,10 +109,10 @@ export const MainChatsTab = memo(function MainChatsTab({
             </span>
           )}
         </button>
-      </div>
+      </div>}
 
       {/* ── 단체 채팅 목록 ── */}
-      {chatSubTab === 'group' && (
+      {groupChatEnabled && activeChatSubTab === 'group' && (
         <>
           <p className={`text-[11px] font-bold px-1 ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>
             참여 {groupChats.filter(g => g.joined).length}/{MAX_GROUPS_PER_USER} · 년생·N대 자동, 2차는 들락날락
@@ -252,7 +265,7 @@ export const MainChatsTab = memo(function MainChatsTab({
       )}
 
       {/* ── 1:1 채팅 섹션 (기존) ── */}
-      {chatSubTab === 'direct' && <>
+      {directChatEnabled && activeChatSubTab === 'direct' && <>
       {/* ── 닉네임 검색으로 채팅 시작 ── */}
       <div className={`relative rounded-xl border overflow-hidden transition-colors ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'}`}>
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />

@@ -346,7 +346,8 @@ describe('product copy + notification invariants', () => {
     expect(main).toContain('guardLockedAction');
     expect(app).toContain('FUNCTIONS_UNLOCK_TOAST');
     expect(app).toContain('functionsLockedPrevRef');
-    expect(app).toContain("useChat({ currentUserId, profilesRef, setSelectedProfile, setView, setBottomNotif, functionsLocked");
+    expect(app).toContain('currentUserId: moduleFlags.direct_chat ? currentUserId : null');
+    expect(app).toContain('functionsLocked,');
     expect(chatHook).toMatch(/functionsLocked[\s\S]*flushPendingQueue/);
     expect(chatHook).toContain('isFunctionsLockedOpError');
     expect(app).toContain('useSocialLockGuards');

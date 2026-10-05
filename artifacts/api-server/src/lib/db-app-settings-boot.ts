@@ -7,6 +7,7 @@ import {
   isLocalQrUrl,
 } from './db-app-settings-merge.js';
 import { settingsHaveLegacyKeys } from './db-legacy-cleanup.js';
+import { serializeModuleFlags } from './db-module-flags.js';
 import {
   PANEL_DEFAULT_PASSWORD,
   isDefaultPanelPassword,
@@ -42,6 +43,7 @@ export function buildDefaultAppSettings(input: {
     reset_password: panelDefault,
     test_password: bootstrapTest || panelDefault,
     qr_base_url: productionQrBase,
+    module_flags: serializeModuleFlags(null),
     active_tables: null,
   };
 }

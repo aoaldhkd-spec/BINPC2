@@ -14,6 +14,7 @@ import type { ShareEventNotificationData } from '../components/ShareEventNotific
 import type { View } from '../types/app';
 import { coerceEventScheduleRaw, noteEventScheduleRealtime } from '../lib/event-schedule';
 import type { SulbunEventState } from '../lib/sulbun-event';
+import type { ModuleFlags } from '../lib/module-flags';
 import type {
   BroadcastNotifDeleteRow,
   BroadcastNotifInsertRow,
@@ -37,6 +38,7 @@ export type UseAppShellRealtimeApplyArgs = {
   setEventScheduleRaw: SetState<string | null>;
   setSulbunEvent: SetState<SulbunEventState | null>;
   setFunctionsLocked: SetState<boolean>;
+  setModuleFlags: SetState<ModuleFlags>;
   setActiveNotif: SetState<{ id: string; message: string; type: string; target: string } | null>;
   setShareEventNotif: SetState<ShareEventNotificationData | null>;
 };
@@ -59,6 +61,7 @@ export function useAppShellRealtimeApply(
     setEventScheduleRaw,
     setSulbunEvent,
     setFunctionsLocked,
+    setModuleFlags,
     setActiveNotif,
     setShareEventNotif,
   } = args;
@@ -100,11 +103,12 @@ export function useAppShellRealtimeApply(
       setEventScheduleRaw(coerceEventScheduleRaw(p.event_schedule));
     }
     if (plan.setSulbunEvent) setSulbunEvent(plan.sulbunEvent);
+    if (plan.setModuleFlags) setModuleFlags(plan.moduleFlags);
     if (plan.hasFunctionsLocked) setFunctionsLocked(parseFunctionsLocked(plan.functionsLockedRaw));
   }, [
     userIdRef, sessionActiveRef, applyResetSignal,
     setSessionActive, setShownWaiting, setView,
-    setTimerEndAt, setTimerLabel, setEventScheduleRaw, setSulbunEvent, setFunctionsLocked,
+    setTimerEndAt, setTimerLabel, setEventScheduleRaw, setSulbunEvent, setFunctionsLocked, setModuleFlags,
   ]);
 
   const onBroadcastNotifInsert = useCallback((n: BroadcastNotifInsertRow) => {

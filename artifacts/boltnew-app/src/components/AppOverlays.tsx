@@ -36,6 +36,7 @@ import {
   type ShareEventNotificationData,
 } from './ShareEventNotification';
 import { FirstEntryCoachMarks } from './FirstEntryCoachMarks';
+import type { ModuleFlags } from '../lib/module-flags';
 
 const ChatScreen = lazy(() => import('./ChatScreen'));
 const TutorialModal = lazy(() => import('./TutorialModal').then(m => ({ default: m.TutorialModal })));
@@ -136,6 +137,7 @@ export type AppOverlaysProps = {
   privacyProfileIds: { blockedUserIds: Set<string>; hiddenByIds: Set<string> };
   heartOpsConfig: import('../lib/heart-ops').HeartOpsConfig;
   participantHeartsLocked: boolean;
+  moduleFlags: ModuleFlags;
 };
 
 export function AppOverlays(p: AppOverlaysProps) {
@@ -170,7 +172,7 @@ export function AppOverlays(p: AppOverlaysProps) {
     receivedContactShares, contactSharedWithIds, setProfiles, chatDraftRef,
     getHeartUsage, execLikeGuarded, showConfetti,
     shareEventNotif, setShareEventNotif, handleContactShareGuarded, saveScannedContact,
-    privacyProfileIds, heartOpsConfig, participantHeartsLocked,
+    privacyProfileIds, heartOpsConfig, participantHeartsLocked, moduleFlags,
   } = p;
 
   return (
@@ -178,12 +180,12 @@ export function AppOverlays(p: AppOverlaysProps) {
       <NavLayer id="tutorial" open={showTutorialModal} onClose={() => setShowTutorialModal(false)} />
       <NavLayer id="notif" open={!!activeNotif} onClose={() => setActiveNotif(null)} />
       <NavLayer id="reset-password" open={showResetPassword} onClose={() => setShowResetPassword(false)} />
-      <NavLayer id="like-confirm" open={!!likeConfirmTarget} onClose={() => setLikeConfirmTarget(null)} />
-      <NavLayer id="contact-share" open={!!contactShareTarget} onClose={() => setContactShareTarget(null)} />
+      <NavLayer id="like-confirm" open={moduleFlags.hearts && !!likeConfirmTarget} onClose={() => setLikeConfirmTarget(null)} />
+      <NavLayer id="contact-share" open={moduleFlags.hearts && !!contactShareTarget} onClose={() => setContactShareTarget(null)} />
       <NavLayer id="contact-view" open={!!contactViewShare} onClose={() => setContactViewShare(null)} />
-      <NavLayer id="contact-qr" open={showContactQr} onClose={() => setShowContactQr(false)} />
-      <NavLayer id="qr-scanner" open={showQrScanner} onClose={() => setShowQrScanner(false)} />
-      <NavLayer id="scanned-contact" open={!!scannedContactProfile} onClose={() => setScannedContactProfile(null)} />
+      <NavLayer id="contact-qr" open={moduleFlags.contact_qr && showContactQr} onClose={() => setShowContactQr(false)} />
+      <NavLayer id="qr-scanner" open={moduleFlags.contact_qr && showQrScanner} onClose={() => setShowQrScanner(false)} />
+      <NavLayer id="scanned-contact" open={moduleFlags.contact_qr && !!scannedContactProfile} onClose={() => setScannedContactProfile(null)} />
       <NavLayer id="fortune-modal" open={!!fortuneModalTarget} onClose={() => setFortuneModalTarget(null)} />
       {/* Tutorial modal — JS (TutorialVideo) loads on first open */}
       {showTutorialModal && (
@@ -193,11 +195,21 @@ export function AppOverlays(p: AppOverlaysProps) {
               setShowTutorialModal(false);
             }}
             darkMode={darkMode}
+            moduleFlags={moduleFlags}
           />
         </Suspense>
       )}
 
-      <FirstEntryCoachMarks isSubScreen={isSubScreen} mainTab={mainTab} suspended={showTutorialModal} replayToken={coachReplayToken} onForceParticipants={onForceCoachParticipants} onNavigateTab={onNavigateCoachTab} />
+      <FirstEntryCoachMarks
+        isSubScreen={isSubScreen}
+        mainTab={mainTab}
+        suspended={showTutorialModal}
+        replayToken={coachReplayToken}
+        onForceParticipants={onForceCoachParticipants}
+        onNavigateTab={onNavigateCoachTab}
+        statsEnabled={moduleFlags.stats}
+        rankingEnabled={moduleFlags.ranking}
+      />
       {connStatus !== 'ok' && (
         <ReconnectOverlay
           status={connStatus}
@@ -272,6 +284,8 @@ export function AppOverlays(p: AppOverlaysProps) {
               sentHeartsCount={sentHeartsPerPerson.get(selectedProfile.id)?.size ?? 0}
               locked={functionsLocked}
               heartsLocked={participantHeartsLocked}
+              heartsEnabled={moduleFlags.hearts}
+              directChatEnabled={moduleFlags.direct_chat}
               idealMsg={userSignals.find((s) => s.user_id === selectedProfile.id)?.ideal_msg}
               featureMsg={userSignals.find((s) => s.user_id === selectedProfile.id)?.feature_msg}
               onLike={() => { if (!functionsLocked) handleLike(selectedProfile.id, selectedProfile); }}
@@ -285,7 +299,7 @@ export function AppOverlays(p: AppOverlaysProps) {
           </AppErrorBoundary>
         </div>
       )}
-      {view === 'group-chat' && activeGroupId && (
+      {moduleFlags.group_chat && view === 'group-chat' && activeGroupId && (
         <div className="binpc-screen-in fixed inset-0 z-40 min-w-0">
           <GroupChatScreen
             group={groupChats.find(g => g.id === activeGroupId) ?? null}
@@ -301,7 +315,7 @@ export function AppOverlays(p: AppOverlaysProps) {
           />
         </div>
       )}
-      {view === 'chat' && selectedProfile && !chatId && (
+      {moduleFlags.direct_chat && view === 'chat' && selectedProfile && !chatId && (
         <div className="binpc-screen-in safe-fullscreen fixed inset-0 z-40 flex items-center justify-center bg-white">
           <div className="text-center">
             <div className="w-8 h-8 border-4 border-pink-400 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
@@ -309,7 +323,7 @@ export function AppOverlays(p: AppOverlaysProps) {
           </div>
         </div>
       )}
-      {view === 'chat' && selectedProfile && chatId && (
+      {moduleFlags.direct_chat && view === 'chat' && selectedProfile && chatId && (
         <div className="binpc-screen-in fixed inset-0 z-40 min-w-0">
           <ChatErrorBoundary onReset={() => { chatIdRef.current = null; setChatId(null); setView('main'); }}>
             <Suspense fallback={<div className="h-screen bg-white" />}>
@@ -347,7 +361,7 @@ export function AppOverlays(p: AppOverlaysProps) {
           </ChatErrorBoundary>
         </div>
       )}
-      {likeConfirmTarget && (
+      {moduleFlags.hearts && likeConfirmTarget && (
         <LikeConfirmDialog
           target={likeConfirmTarget}
           sentTypesForTarget={sentHeartsPerPerson.get(likeConfirmTarget.id) ?? new Set()}
@@ -370,7 +384,7 @@ export function AppOverlays(p: AppOverlaysProps) {
           />
         );
       })()}
-      {contactShareTarget && (
+      {moduleFlags.hearts && contactShareTarget && (
         <ContactShareModal
           liker={contactShareTarget}
           alreadyShared={contactSharedWithIds.has(contactShareTarget.id)}
@@ -386,7 +400,7 @@ export function AppOverlays(p: AppOverlaysProps) {
           onClose={() => setContactViewShare(null)}
         />
       )}
-      {showContactQr && currentUserId && profileMap.get(currentUserId) && (
+      {moduleFlags.contact_qr && showContactQr && currentUserId && profileMap.get(currentUserId) && (
         <Suspense fallback={overlayLazyFallback}>
           <ContactDisplayModal
             profile={profileMap.get(currentUserId)!}
@@ -395,7 +409,7 @@ export function AppOverlays(p: AppOverlaysProps) {
         </Suspense>
       )}
       {/* QR 카메라 스캐너 — jsqr loads on first open */}
-      {showQrScanner && (
+      {moduleFlags.contact_qr && showQrScanner && (
         <Suspense fallback={overlayLazyFallback}>
           <QrScannerModal
             darkMode={darkMode}
@@ -417,7 +431,7 @@ export function AppOverlays(p: AppOverlaysProps) {
         </Suspense>
       )}
       {/* 연락처 스캔 결과 모달 */}
-      {scannedContactProfile && (
+      {moduleFlags.contact_qr && scannedContactProfile && (
         <ContactRevealModal
           profile={scannedContactProfile}
           darkMode={darkMode}

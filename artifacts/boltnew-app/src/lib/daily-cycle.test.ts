@@ -31,4 +31,12 @@ describe('fixed daily participant notices', () => {
     expect(s.message).toContain('17시');
     expect(s.countdownSec).toBe(7 * 60 * 60);
   });
+
+  it('switches exactly at 01 / 17 / 23 / 24 boundaries', () => {
+    expect(dailyCycleBannerState(new Date('2026-10-06T00:59:59+09:00')).phase).toBe('rainbow-open');
+    expect(dailyCycleBannerState(new Date('2026-10-06T01:00:00+09:00')).phase).toBe('ended');
+    expect(dailyCycleBannerState(new Date('2026-10-06T17:00:00+09:00')).phase).toBe('waiting-hearts');
+    expect(dailyCycleBannerState(new Date('2026-10-06T23:00:00+09:00')).phase).toBe('grant-open');
+    expect(dailyCycleBannerState(new Date('2026-10-07T00:00:00+09:00')).phase).toBe('rainbow-open');
+  });
 });

@@ -63,6 +63,7 @@ import { useChat } from './hooks/useChat';
 import { createParticipantNav, isParticipantAppPath } from './lib/participant-nav-history';
 import { ParticipantNavProvider } from './hooks/useParticipantNav';
 import { registerPushSub } from './lib/webPush';
+import { DEFAULT_MODULE_FLAGS, type ModuleFlags } from './lib/module-flags';
 import {
   type BottomNotificationData,
 } from './components/BottomNotification';
@@ -240,6 +241,7 @@ function App() {
   const [userSignals, setUserSignals] = useState<UserSignal[]>([]);
   const [mySubTabHint, setMySubTabHint] = useState<'status' | 'chats' | null>(null);
   const [functionsLocked, setFunctionsLocked] = useState(false);
+  const [moduleFlags, setModuleFlags] = useState<ModuleFlags>(DEFAULT_MODULE_FLAGS);
   const functionsLockedRef = useRef(false);
   functionsLockedRef.current = functionsLocked;
   const functionsLockedPrevRef = useRef(false);
@@ -348,7 +350,14 @@ function App() {
     loadChatList, openChat, sendMessage, sendImage,
     deleteChat, deleteAllChats, deleteMessage,
     hasMoreOlderMessages, loadingOlderMessages, loadOlderMessages,
-  } = useChat({ currentUserId, profilesRef, setSelectedProfile, setView, setBottomNotif, functionsLocked });
+  } = useChat({
+    currentUserId: moduleFlags.direct_chat ? currentUserId : null,
+    profilesRef,
+    setSelectedProfile,
+    setView,
+    setBottomNotif,
+    functionsLocked,
+  });
 
   const {
     groupChats,
@@ -363,7 +372,12 @@ function App() {
     sendGroupMessage,
     leaveGroupChat,
     loadGroupChats,
-  } = useGroupChat({ currentUserId, profilesRef, setBottomNotif, groupCatalogHotRef });
+  } = useGroupChat({
+    currentUserId: moduleFlags.group_chat ? currentUserId : null,
+    profilesRef,
+    setBottomNotif,
+    groupCatalogHotRef,
+  });
 
   groupCatalogHotRef.current = mainTab === 'my' || view === 'group-chat' || !!activeGroupId;
 
@@ -376,7 +390,28 @@ function App() {
     loadLikes, loadReceivedLikes, loadContactShareData, getHeartUsage,
     handleLike, executeLike, handleHeartResponse, handleContactShare,
     likeError, setLikeError,
-  } = useHearts(currentUserId, profiles, profileMap, openChat, eventScheduleRaw);
+  } = useHearts(moduleFlags.hearts ? currentUserId : null, profiles, profileMap, openChat, eventScheduleRaw);
+
+  const loadChatListForModules = useCallback((userId: string) => {
+    if (!moduleFlags.direct_chat) return Promise.resolve();
+    return Promise.resolve(loadChatList(userId));
+  }, [loadChatList, moduleFlags.direct_chat]);
+  const loadGroupChatsForModules = useCallback((userId: string) => {
+    if (!moduleFlags.group_chat) return Promise.resolve();
+    return Promise.resolve(loadGroupChats(userId));
+  }, [loadGroupChats, moduleFlags.group_chat]);
+  const loadLikesForModules = useCallback((userId: string) => {
+    if (!moduleFlags.hearts) return Promise.resolve();
+    return Promise.resolve(loadLikes(userId));
+  }, [loadLikes, moduleFlags.hearts]);
+  const loadReceivedLikesForModules = useCallback((userId: string) => {
+    if (!moduleFlags.hearts) return Promise.resolve();
+    return Promise.resolve(loadReceivedLikes(userId));
+  }, [loadReceivedLikes, moduleFlags.hearts]);
+  const loadContactShareDataForModules = useCallback((userId: string) => {
+    if (!moduleFlags.hearts) return Promise.resolve();
+    return Promise.resolve(loadContactShareData(userId));
+  }, [loadContactShareData, moduleFlags.hearts]);
   useEffect(() => {
     if (!eventScheduleRaw) { setEventScheduleMinute(0); return; }
     let timer: number | undefined;
@@ -429,17 +464,17 @@ function App() {
   }, [likeError, setLikeError]);
 
   // SSE fallback polling refs 동기화 — 렌더마다 최신 함수를 가리키도록 (stale 클로저 방지)
-  loadChatListRef.current = loadChatList;
-  loadGroupChatsRef.current = loadGroupChats;
-  loadReceivedLikesRef.current = loadReceivedLikes;
-  loadLikesRef.current = loadLikes;
-  loadContactShareDataRef.current = loadContactShareData;
+  loadChatListRef.current = loadChatListForModules;
+  loadGroupChatsRef.current = loadGroupChatsForModules;
+  loadReceivedLikesRef.current = loadReceivedLikesForModules;
+  loadLikesRef.current = loadLikesForModules;
+  loadContactShareDataRef.current = loadContactShareDataForModules;
   const heartsRealtimeApply = useHeartsRealtimeApply({
     currentUserId,
     userIdRef,
     profilesRef,
     loadReceivedLikesRef,
-    loadContactShareData,
+    loadContactShareData: loadContactShareDataForModules,
     triggerConfetti,
     setLikedIds,
     setSentHeartTypes,
@@ -488,6 +523,7 @@ function App() {
   } = useSocialLockGuards({
     functionsLocked,
     functionsLockedRef,
+    moduleFlags,
     showFunctionsLockToast,
     handleLike,
     handleHeartResponse,
@@ -510,10 +546,10 @@ function App() {
 
   // 채팅 탭 진입 시 단톡 목록 로드
   useEffect(() => {
-    if (mainTab === 'my' && currentUserId) {
+    if (moduleFlags.group_chat && mainTab === 'my' && currentUserId) {
       void loadGroupChats(currentUserId);
     }
-  }, [mainTab, currentUserId, loadGroupChats]);
+  }, [moduleFlags.group_chat, mainTab, currentUserId, loadGroupChats]);
 
   const screenStackRef = useRef<Array<'profile' | 'chat' | 'group-chat'>>([]);
   const navDrivenViewRef = useRef(false);
@@ -768,19 +804,21 @@ function App() {
     setEventSchedule: setEventScheduleRaw,
     setSulbunEvent,
     setFunctionsLocked,
+    setModuleFlags,
   });
 
   // participant session-init — hearts clear, profile resolve, deferred loads, ?share= QR
   useSessionInit({
     currentUserId,
+    contactQrEnabled: moduleFlags.contact_qr,
     isNewRegistration,
     viewRef,
     getProfiles: () => profilesRef.current,
     loadProfiles,
-    loadLikes,
-    loadReceivedLikes,
-    loadContactShareData,
-    loadChatList,
+    loadLikes: loadLikesForModules,
+    loadReceivedLikes: loadReceivedLikesForModules,
+    loadContactShareData: loadContactShareDataForModules,
+    loadChatList: loadChatListForModules,
     clearHeartsState: () => {
       setLikedIds(new Set());
       setSentHeartTypes(new Map());
@@ -817,6 +855,7 @@ function App() {
       setFunctionsLocked(parseFunctionsLocked(patch.functionsLockedRaw));
     }
     if (patch.sulbunEvent !== undefined) setSulbunEvent(patch.sulbunEvent);
+    if (patch.moduleFlags) setModuleFlags(patch.moduleFlags);
     if (patch.includeTimers) {
       setTimerEndAt(patch.timerEndAt ?? null);
       setTimerLabel(patch.timerLabel ?? null);
@@ -828,16 +867,17 @@ function App() {
     currentUserId,
     getStoredUserId: () => ls.getItem(MATCHING_USER_KEY),
     loadProfiles,
-    loadChatList,
-    loadLikes,
-    loadReceivedLikes,
-    loadContactShareData,
+    loadChatList: loadChatListForModules,
+    loadLikes: loadLikesForModules,
+    loadReceivedLikes: loadReceivedLikesForModules,
+    loadContactShareData: loadContactShareDataForModules,
     applySessionReady,
   });
 
   // profiles + likes/contact_shares + privacy + signals fan-in — App wires apply hooks; channel only routes.
   useUserRealtimeChannel({
     currentUserId,
+    heartsEnabled: moduleFlags.hearts,
     ...profilesRealtimeApply,
     ...heartsRealtimeApply,
     ...privacySignalsRealtimeApply,
@@ -848,7 +888,7 @@ function App() {
     userIdRef,
     sessionActiveRef,
     applyResetSignal,
-    loadContactShareData,
+    loadContactShareData: loadContactShareDataForModules,
     setSessionActive,
     setShownWaiting,
     setView,
@@ -857,6 +897,7 @@ function App() {
     setEventScheduleRaw,
     setSulbunEvent,
     setFunctionsLocked,
+    setModuleFlags,
     setActiveNotif,
     setShareEventNotif,
   });
@@ -867,19 +908,54 @@ function App() {
     connStatus,
     currentUserId,
     loadProfiles,
-    loadChatList,
-    loadGroupChats,
-    loadReceivedLikes,
-    loadLikes,
-    loadContactShareData,
+    loadChatList: loadChatListForModules,
+    loadGroupChats: loadGroupChatsForModules,
+    loadReceivedLikes: loadReceivedLikesForModules,
+    loadLikes: loadLikesForModules,
+    loadContactShareData: loadContactShareDataForModules,
   });
 
   // Web push 구독 — 로그인 완료 후 알림 권한 요청 및 구독 등록
   useEffect(() => {
-    if (!currentUserId) return;
+    if (!currentUserId || !moduleFlags.push) return;
     registerPushSub(currentUserId);
-  }, [currentUserId]);
+  }, [currentUserId, moduleFlags.push]);
 
+
+  // Soft detach applies immediately without deleting data/code.
+  useEffect(() => {
+    if (!moduleFlags.hearts) {
+      setLikeConfirmTarget(null);
+      setContactShareTarget(null);
+    }
+    if (!moduleFlags.contact_qr) {
+      setShowContactQr(false);
+      setShowQrScanner(false);
+      setScannedContactProfile(null);
+    }
+    if (!moduleFlags.direct_chat && view === 'chat') {
+      chatIdRef.current = null;
+      setChatId(null);
+      setView('main');
+      setMainTab('my');
+    }
+    if (!moduleFlags.group_chat && view === 'group-chat') {
+      closeGroupChat();
+      setView('main');
+      setMainTab('my');
+    }
+    if (!moduleFlags.stats && mainTab === 'stats') setMainTab('profiles');
+    if (!moduleFlags.ranking && mainTab === 'ranking') setMainTab('profiles');
+  }, [
+    moduleFlags,
+    view,
+    mainTab,
+    closeGroupChat,
+    chatIdRef,
+    setChatId,
+    setContactShareTarget,
+    setLikeConfirmTarget,
+  ]);
 
   // PWA 알림 클릭 deep-link: 하트는 받은 하트 화면, 1:1 채팅은 해당 상대 채팅방.
   useEffect(() => {
@@ -895,6 +971,7 @@ function App() {
     };
 
     if (pushKind === 'heart') {
+      if (!moduleFlags.hearts) { cleanUrl(); return; }
       setView('main');
       setMainTab('my');
       setMySubTabHint('status');
@@ -905,6 +982,7 @@ function App() {
     }
 
     if (pushKind === 'chat') {
+      if (!moduleFlags.direct_chat) { cleanUrl(); return; }
       const peerId = params.get('peer');
       const peer = peerId ? profileMap.get(peerId) : undefined;
       if (peer) {
@@ -919,7 +997,7 @@ function App() {
     }
   }, [
     currentUserId, profileBoot, profileMap, openChatGuarded,
-    loadReceivedLikes, loadLikes, loadChatList,
+    loadReceivedLikes, loadLikes, loadChatList, moduleFlags.hearts, moduleFlags.direct_chat,
   ]);
 
 
@@ -1128,6 +1206,7 @@ function App() {
         privacyProfileIds={privacyProfileIds}
         heartOpsConfig={heartOpsConfig}
         participantHeartsLocked={participantHearts.heartsLocked}
+        moduleFlags={moduleFlags}
       >
         <AppMainShell
           isSubScreen={isSubScreen}
@@ -1197,6 +1276,7 @@ function App() {
           onBlock={handleBlock}
           myBlockList={blockedUsers.filter(b => b.user_id === currentUserId)}
           onUnblock={handleUnblock}
+          moduleFlags={moduleFlags}
         />
       </AppOverlays>
     </ParticipantNavProvider>

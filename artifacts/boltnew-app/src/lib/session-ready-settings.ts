@@ -1,5 +1,6 @@
 import { coerceEventScheduleRaw } from './event-schedule';
 import { parseSulbunEvent, type SulbunEventState } from './sulbun-event';
+import { parseModuleFlags, type ModuleFlags } from './module-flags';
 /**
  * Pure planner for /api/db/ready settings → App apply callbacks.
  * Whole-app (entry/session/timer/functions-lock), not chat-only.
@@ -13,6 +14,7 @@ export type SessionReadySettingsPatch = {
   timerLabel?: string | null;
   eventScheduleRaw?: string | null;
   sulbunEvent?: SulbunEventState | null;
+  moduleFlags?: ModuleFlags;
   includeTimers: boolean;
 };
 
@@ -24,7 +26,8 @@ export function planSessionReadySettingsPatch(
   const includeTimers = opts?.includeTimers === true;
   const hasSession = typeof settings.session_active === 'boolean';
   const hasFunctionsLocked = settings.functions_locked != null;
-  if (!hasSession && !hasFunctionsLocked && !includeTimers) return null;
+  const hasModuleFlags = Object.prototype.hasOwnProperty.call(settings, 'module_flags');
+  if (!hasSession && !hasFunctionsLocked && !hasModuleFlags && !includeTimers) return null;
 
   const patch: SessionReadySettingsPatch = {
     hasFunctionsLocked,
@@ -38,6 +41,7 @@ export function planSessionReadySettingsPatch(
   if (Object.prototype.hasOwnProperty.call(settings, 'sulbun_event')) {
     patch.sulbunEvent = parseSulbunEvent(settings.sulbun_event);
   }
+  if (hasModuleFlags) patch.moduleFlags = parseModuleFlags(settings.module_flags);
   if (includeTimers) {
     patch.timerEndAt = (settings.timer_end_at as string | null | undefined) ?? null;
     patch.timerLabel = (settings.timer_label as string | null | undefined) ?? null;

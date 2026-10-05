@@ -61,6 +61,7 @@ import {
 import type { ScannedContact } from '../lib/profile-contact-helpers';
 import StatusErrorBoundary from './StatusErrorBoundary';
 import { MainChatsTab } from './MainChatsTab';
+import { DEFAULT_MODULE_FLAGS, type ModuleFlags } from '../lib/module-flags';
 
 
 const KeepTab = memo(function KeepTab({ id, mainTab, children }: { id: MainTab; mainTab: MainTab; children: ReactNode }) {
@@ -102,6 +103,7 @@ export function MainScreen({
   onOpenResetPassword,
   mySubTabHint = null,
   onMySubTabHintConsumed,
+  moduleFlags = DEFAULT_MODULE_FLAGS,
 }: {
   profiles: Profile[]; currentUserId: string | null; likedIds: Set<string>; sentHeartTypes: Map<string, HeartType>; sentHeartsPerPerson: Map<string, Set<HeartType>>; likeStatuses: Map<string, string>;
   profileMap: Map<string, Profile>; mainTab: MainTab;
@@ -154,6 +156,7 @@ export function MainScreen({
   onOpenResetPassword?: () => void;
   mySubTabHint?: 'status' | 'chats' | null;
   onMySubTabHintConsumed?: () => void;
+  moduleFlags?: ModuleFlags;
 }) {
   const [mySubTab, setMySubTab] = useState<'status' | 'chats'>('status');
 
@@ -721,7 +724,7 @@ export function MainScreen({
             />
           </div>
           {/* 우: 무지개 2×2 + 색 하트 2×2 — 술번개를 가로로 밀어내지 않음 */}
-          <div data-coach="home-heart-types" className="justify-self-end flex items-center gap-1 shrink-0">
+          {moduleFlags.hearts && <div data-coach="home-heart-types" className="justify-self-end flex items-center gap-1 shrink-0">
             {(() => {
               const rainbow = headerHearts.find(c => c.key === 'rainbow');
               const colors = headerHearts.filter(c => c.key !== 'rainbow');
@@ -761,10 +764,10 @@ export function MainScreen({
                 </>
               );
             })()}
-          </div>
+          </div>}
         </div>
         {timerEndAt && <TimerBanner endAt={timerEndAt} label={timerLabel ?? ''} />}
-        <EventScheduleBanner raw={eventScheduleRaw} functionsLocked={functionsLocked} heartsLocked={participantHearts.heartsLocked} />
+        {moduleFlags.hearts && <EventScheduleBanner raw={eventScheduleRaw} functionsLocked={functionsLocked} heartsLocked={participantHearts.heartsLocked} />}
       </header>
 
       <main
@@ -840,6 +843,8 @@ export function MainScreen({
               currentUserId={currentUserId}
               functionsLocked={functionsLocked}
               heartsLocked={participantHearts.heartsLocked}
+              heartsEnabled={moduleFlags.hearts}
+              directChatEnabled={moduleFlags.direct_chat}
               signalByUserId={signalByUserId}
               onLike={onLike}
               onSelect={onSelect}
@@ -1052,7 +1057,7 @@ export function MainScreen({
               );
             })()}
 
-            {receivedLikers.length > 0 && (
+            {moduleFlags.hearts && receivedLikers.length > 0 && (
               <button
                 type="button"
                 onClick={() => {
@@ -1069,7 +1074,7 @@ export function MainScreen({
             )}
 
             {/* ── 스캔한 연락처 ── */}
-            {scannedContacts.length > 0 && (
+            {moduleFlags.contact_qr && scannedContacts.length > 0 && (
               <div className={`rounded-2xl border transition-colors duration-300 ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-100'}`}>
                 <div className="p-4 pb-2">
                   <p className={`text-[10px] font-black uppercase tracking-widest mb-3 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>📋 스캔한 연락처 ({scannedContacts.length})</p>
@@ -1175,6 +1180,7 @@ export function MainScreen({
               );
             })()}
 
+            {moduleFlags.hearts && <>
             {/* 받은 하트 */}
             <div ref={receivedHeartsRef} className={`rounded-2xl shadow-sm transition-colors duration-300 overflow-hidden ${darkMode ? 'bg-slate-800 border border-slate-600' : 'bg-white'}`}>
               <button
@@ -1326,6 +1332,7 @@ export function MainScreen({
               </div>
               )}
             </div>
+            </>}
           </div>
             )}
 
@@ -1333,6 +1340,8 @@ export function MainScreen({
               <MainChatsTab
                 isActive
                 darkMode={darkMode}
+                directChatEnabled={moduleFlags.direct_chat}
+                groupChatEnabled={moduleFlags.group_chat}
                 chatSubTab={chatSubTab}
                 onChangeSubTab={setChatSubTab}
                 unreadChatCounts={unreadChatCounts}
@@ -2164,12 +2173,12 @@ export function MainScreen({
         )}
 
         {/* ─── 통계 탭 ─── */}
-        {mainTab === 'stats' && (
+        {moduleFlags.stats && mainTab === 'stats' && (
           <StatsTab profiles={statsProfiles} darkMode={darkMode} />
         )}
 
         {/* ─── 랭킹 탭 ─── */}
-        {mainTab === 'ranking' && (
+        {moduleFlags.ranking && mainTab === 'ranking' && (
           <RankingTab darkMode={darkMode} profiles={profiles} />
         )}
 
@@ -2185,12 +2194,12 @@ export function MainScreen({
             const heartsBadge = Math.max(0, pendingHeartsCount - seenHeartsCount) + newContactsCount;
             const chatUnreadTotal = sumUnreadCounts(unreadChatCounts) + sumUnreadCounts(unreadGroupCounts);
             return ([
-            { id: 'profiles' as MainTab, icon: '👥', label: '참여자', badge: seenProfilesCount < 0 ? 0 : Math.max(0, profiles.length - seenProfilesCount) },
-            { id: 'my' as MainTab, icon: '💝', label: '하트, 채팅', heartBadge: heartsBadge, chatBadge: chatUnreadTotal },
-            { id: 'stats' as MainTab, icon: '📊', label: '통계' },
-            { id: 'ranking' as MainTab, icon: '🏆', label: '랭킹' },
-            { id: 'settings' as MainTab, icon: '⚙️', label: '설정' },
-          ] as Array<{ id: MainTab; icon: string; label: string; badge?: number; heartBadge?: number; chatBadge?: number }>);
+              { id: 'profiles' as MainTab, icon: '👥', label: '참여자', badge: seenProfilesCount < 0 ? 0 : Math.max(0, profiles.length - seenProfilesCount) },
+              { id: 'my' as MainTab, icon: '💝', label: '하트, 채팅', heartBadge: heartsBadge, chatBadge: chatUnreadTotal },
+              ...(moduleFlags.stats ? [{ id: 'stats' as MainTab, icon: '📊', label: '통계' }] : []),
+              ...(moduleFlags.ranking ? [{ id: 'ranking' as MainTab, icon: '🏆', label: '랭킹' }] : []),
+              { id: 'settings' as MainTab, icon: '⚙️', label: '설정' },
+            ] as Array<{ id: MainTab; icon: string; label: string; badge?: number; heartBadge?: number; chatBadge?: number }>);
           })().map((t, ci, arr) => {
             const locked = functionsLocked && LOCKED_TABS.has(t.id);
             const active = mainTab === t.id;

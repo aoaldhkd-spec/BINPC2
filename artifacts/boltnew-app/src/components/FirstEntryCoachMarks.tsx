@@ -54,16 +54,35 @@ const SCREEN_STEPS: Record<Exclude<CoachTab, 'profiles'>, readonly CoachStep[]> 
   ],
 };
 
-const TOUR_ORDER: readonly CoachTab[] = ['profiles', 'my', 'stats', 'ranking', 'settings'];
-
-function stepsFor(tab: CoachTab): readonly CoachStep[] {
-  return tab === 'profiles' ? HOME_STEPS : SCREEN_STEPS[tab];
+export function coachTourOrder(statsEnabled: boolean, rankingEnabled: boolean): readonly CoachTab[] {
+  return [
+    'profiles',
+    'my',
+    ...(statsEnabled ? ['stats' as const] : []),
+    ...(rankingEnabled ? ['ranking' as const] : []),
+    'settings',
+  ];
 }
 
-function nextTourTab(tab: CoachTab): CoachTab | null {
-  const idx = TOUR_ORDER.indexOf(tab);
-  if (idx < 0 || idx >= TOUR_ORDER.length - 1) return null;
-  return TOUR_ORDER[idx + 1] ?? null;
+export function coachHomeStepsFor(statsEnabled: boolean, rankingEnabled: boolean): readonly CoachStep[] {
+  return HOME_STEPS
+    .filter((step) => step.target !== 'nav-stats' || statsEnabled || rankingEnabled)
+    .map((step) => (
+      step.target === 'nav-stats' && !statsEnabled && rankingEnabled
+        ? { ...step, target: 'nav-ranking' }
+        : step
+    ));
+}
+
+function stepsFor(tab: CoachTab, statsEnabled: boolean, rankingEnabled: boolean): readonly CoachStep[] {
+  return tab === 'profiles' ? coachHomeStepsFor(statsEnabled, rankingEnabled) : SCREEN_STEPS[tab];
+}
+
+function nextTourTab(tab: CoachTab, statsEnabled: boolean, rankingEnabled: boolean): CoachTab | null {
+  const order = coachTourOrder(statsEnabled, rankingEnabled);
+  const idx = order.indexOf(tab);
+  if (idx < 0 || idx >= order.length - 1) return null;
+  return order[idx + 1] ?? null;
 }
 
 function initialOpenTab(replayToken: number): CoachTab | null {
@@ -84,14 +103,18 @@ export function FirstEntryCoachMarks({
   replayToken = 0,
   onForceParticipants,
   onNavigateTab,
+  statsEnabled = true,
+  rankingEnabled = true,
 }: {
   isSubScreen: boolean;
   suspended?: boolean;
   mainTab: CoachTab;
   replayToken?: number;
   onForceParticipants?: () => void;
-  /** Bypass social-lock tab gate so the sequential tour can open my/stats/ranking/settings. */
+  /** Bypass social-lock tab gate so the sequential tour can open enabled tabs. */
   onNavigateTab?: (tab: CoachTab) => void;
+  statsEnabled?: boolean;
+  rankingEnabled?: boolean;
 }) {
   const [step, setStep] = useState(0);
   const [openTab, setOpenTab] = useState<CoachTab | null>(() => initialOpenTab(replayToken));
@@ -109,7 +132,9 @@ export function FirstEntryCoachMarks({
   // First-entry heart primer — shown once before the spotlight tour, including settings replay.
   const [heartPrimer, setHeartPrimer] = useState(() => initialOpenTab(replayToken) === 'profiles');
 
-  const steps = openTab ? stepsFor(openTab) : HOME_STEPS;
+  const steps = openTab
+    ? stepsFor(openTab, statsEnabled, rankingEnabled)
+    : coachHomeStepsFor(statsEnabled, rankingEnabled);
   const current = steps[Math.min(step, steps.length - 1)] ?? steps[0];
   const homePhase = openTab === 'profiles' || openTab === null;
 
@@ -254,7 +279,7 @@ export function FirstEntryCoachMarks({
       setStep((value) => value + 1);
       return;
     }
-    const following = nextTourTab(openTab);
+    const following = nextTourTab(openTab, statsEnabled, rankingEnabled);
     if (!following) {
       dismiss();
       return;
@@ -303,7 +328,7 @@ export function FirstEntryCoachMarks({
           <button type="button" onClick={dismiss} className="min-h-10 rounded-xl px-3 text-sm font-bold text-slate-400 hover:bg-slate-100 hover:text-slate-600">건너뛰기</button>
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-slate-400" aria-label={showHeartPrimer ? '하트 안내' : `${step + 1}단계 중 ${steps.length}단계`}>{showHeartPrimer ? '하트' : `${step + 1} / ${steps.length}`}</span>
-            <button type="button" onClick={next} className="min-h-10 rounded-xl bg-cyan-500 px-4 text-sm font-black text-white shadow-sm hover:bg-cyan-600 active:scale-95">{showHeartPrimer ? '다음' : last && !nextTourTab(openTab) ? '알겠어요' : '다음'}</button>
+            <button type="button" onClick={next} className="min-h-10 rounded-xl bg-cyan-500 px-4 text-sm font-black text-white shadow-sm hover:bg-cyan-600 active:scale-95">{showHeartPrimer ? '다음' : last && !nextTourTab(openTab, statsEnabled, rankingEnabled) ? '알겠어요' : '다음'}</button>
           </div>
         </div>
       </div>

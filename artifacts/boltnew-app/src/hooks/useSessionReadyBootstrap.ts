@@ -23,6 +23,7 @@ import { MATCHING_LAST_RESET_KEY, MATCHING_USER_KEY } from '../lib/constants';
 import { ls } from '../lib/storage';
 import { parseFunctionsLocked } from '../lib/functions-lock';
 import type { SulbunEventState } from '../lib/sulbun-event';
+import type { ModuleFlags } from '../lib/module-flags';
 
 export type UseSessionReadyBootstrapArgs = {
   /** Shared wipe used by SSE settings apply as well. */
@@ -37,6 +38,7 @@ export type UseSessionReadyBootstrapArgs = {
   setEventSchedule: (v: string | null) => void;
   setSulbunEvent: (v: SulbunEventState | null) => void;
   setFunctionsLocked: (v: boolean) => void;
+  setModuleFlags: (v: ModuleFlags) => void;
 };
 
 function applyReadyPlan(
@@ -54,6 +56,7 @@ function applyReadyPlan(
   args.setTimerLabel(plan.timerLabel);
   if (plan.eventScheduleRaw !== undefined) args.setEventSchedule(plan.eventScheduleRaw);
   args.setSulbunEvent(plan.sulbunEvent);
+  args.setModuleFlags(plan.moduleFlags);
   if (plan.hasFunctionsLocked) {
     args.setFunctionsLocked(parseFunctionsLocked(plan.functionsLockedRaw));
   }
@@ -103,7 +106,7 @@ export function useSessionReadyBootstrap(args: UseSessionReadyBootstrapArgs): vo
 
       const selectSettings = supabase
         .from('app_settings')
-        .select('session_active, timer_end_at, timer_label, event_schedule, reset_signal, functions_locked, sulbun_event')
+        .select('session_active, timer_end_at, timer_label, event_schedule, reset_signal, functions_locked, sulbun_event, module_flags')
         .eq('id', 1)
         .single()
         .then(({ data, error }) => {

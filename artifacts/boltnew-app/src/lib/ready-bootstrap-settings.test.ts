@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { DEFAULT_MODULE_FLAGS } from './module-flags';
 import {
   planReadyBootstrapApply,
   planReadyBootstrapSafety,
@@ -39,6 +40,7 @@ describe('planReadyBootstrapApply', () => {
       hasFunctionsLocked: true,
       functionsLockedRaw: true,
       sulbunEvent: null,
+      moduleFlags: DEFAULT_MODULE_FLAGS,
     });
     if (plan.kind === 'apply') {
       expect('entryPassword' in plan).toBe(false);

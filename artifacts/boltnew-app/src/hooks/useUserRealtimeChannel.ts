@@ -43,6 +43,7 @@ export type ReceivedLikeUpdateRow = {
 
 export type UseUserRealtimeChannelArgs = {
   currentUserId: string | null;
+  heartsEnabled?: boolean;
   onProfileInsert: (incoming: Profile) => void;
   onProfileUpdate: (incoming: Profile) => void;
   onProfileDelete: (deletedId: string) => void;
@@ -83,34 +84,36 @@ export function useUserRealtimeChannel(args: UseUserRealtimeChannelArgs): void {
         })
       .subscribe();
 
-    // 하트/연락처 — 단일 채널로 묶어 SSE 리스너 수 감소 (EventSource는 공유)
-    const userRealtimeChannel = supabase
-      .channel(`realtime:user-bundle:${uid}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'likes', filter: `liker_id=eq.${uid}` },
-        (payload: PgPayload) => {
-          argsRef.current.onSentLikeInsert(payload.new as SentLikeInsertRow);
-        })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'likes', filter: `liker_id=eq.${uid}` },
-        (payload: PgPayload) => {
-          argsRef.current.onSentLikeUpdate(payload.new as SentLikeUpdateRow);
-        })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'likes', filter: `liked_id=eq.${uid}` },
-        (payload: PgPayload) => {
-          void argsRef.current.onReceivedLikeInsert(payload.new as ReceivedLikeInsertRow);
-        })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'likes', filter: `liked_id=eq.${uid}` },
-        (payload: PgPayload) => {
-          argsRef.current.onReceivedLikeUpdate(payload.new as ReceivedLikeUpdateRow);
-        })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'contact_shares', filter: `liker_id=eq.${uid}` },
-        (payload: PgPayload) => {
-          void argsRef.current.onContactShareInsert(payload.new as ContactShare);
-        })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'contact_shares', filter: `liker_id=eq.${uid}` },
-        (payload: PgPayload) => {
-          argsRef.current.onContactShareUpdate(payload.new as ContactShare);
-        })
-      .subscribe();
+    // 하트/연락처는 Soft Detach 시 구독 자체를 만들지 않아 요청/처리를 줄인다.
+    const userRealtimeChannel = args.heartsEnabled === false
+      ? null
+      : supabase
+        .channel(`realtime:user-bundle:${uid}`)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'likes', filter: `liker_id=eq.${uid}` },
+          (payload: PgPayload) => {
+            argsRef.current.onSentLikeInsert(payload.new as SentLikeInsertRow);
+          })
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'likes', filter: `liker_id=eq.${uid}` },
+          (payload: PgPayload) => {
+            argsRef.current.onSentLikeUpdate(payload.new as SentLikeUpdateRow);
+          })
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'likes', filter: `liked_id=eq.${uid}` },
+          (payload: PgPayload) => {
+            void argsRef.current.onReceivedLikeInsert(payload.new as ReceivedLikeInsertRow);
+          })
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'likes', filter: `liked_id=eq.${uid}` },
+          (payload: PgPayload) => {
+            argsRef.current.onReceivedLikeUpdate(payload.new as ReceivedLikeUpdateRow);
+          })
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'contact_shares', filter: `liker_id=eq.${uid}` },
+          (payload: PgPayload) => {
+            void argsRef.current.onContactShareInsert(payload.new as ContactShare);
+          })
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'contact_shares', filter: `liker_id=eq.${uid}` },
+          (payload: PgPayload) => {
+            argsRef.current.onContactShareUpdate(payload.new as ContactShare);
+          })
+        .subscribe();
 
     // SSE: blocked_users / profile_views — 단일 채널
     const privacyCh = supabase
@@ -148,9 +151,9 @@ export function useUserRealtimeChannel(args: UseUserRealtimeChannelArgs): void {
 
     return () => {
       supabase.removeChannel(profileChannel);
-      supabase.removeChannel(userRealtimeChannel);
+      if (userRealtimeChannel) supabase.removeChannel(userRealtimeChannel);
       supabase.removeChannel(privacyCh);
       supabase.removeChannel(signalsCh);
     };
-  }, [args.currentUserId]);
+  }, [args.currentUserId, args.heartsEnabled]);
 }

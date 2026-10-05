@@ -33,6 +33,7 @@ type SetState<T> = Dispatch<SetStateAction<T>>;
 
 export type UseSessionInitArgs = {
   currentUserId: string | null;
+  contactQrEnabled?: boolean;
   isNewRegistration: MutableRefObject<boolean>;
   viewRef: MutableRefObject<View>;
   /** In-memory / ls cache — optimistic main before network refresh. */
@@ -59,6 +60,7 @@ export type UseSessionInitArgs = {
 export function useSessionInit(args: UseSessionInitArgs): void {
   const {
     currentUserId,
+    contactQrEnabled = true,
     isNewRegistration,
     viewRef,
     getProfiles,
@@ -213,7 +215,7 @@ export function useSessionInit(args: UseSessionInitArgs): void {
     }, SESSION_INIT_CONTACT_DELAY_MS);
 
     // ── ?share=<profileId> 처리: 연락처 QR 스캔 → 연락처 모달 표시 ──
-    if (shouldProcessPendingShare(pendingShareId, currentUserId)) {
+    if (contactQrEnabled && shouldProcessPendingShare(pendingShareId, currentUserId)) {
       window.history.replaceState(window.history.state ?? {}, '', window.location.pathname);
       void (async () => {
         try {
@@ -248,5 +250,5 @@ export function useSessionInit(args: UseSessionInitArgs): void {
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- loadXxx are stable useCallbacks; setState/refs are stable
-  }, [currentUserId, loadProfiles, loadLikes, loadReceivedLikes, loadContactShareData, loadChatList]);
+  }, [currentUserId, contactQrEnabled, loadProfiles, loadLikes, loadReceivedLikes, loadContactShareData, loadChatList]);
 }

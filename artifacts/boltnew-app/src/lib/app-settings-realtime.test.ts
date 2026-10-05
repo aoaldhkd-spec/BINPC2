@@ -56,6 +56,22 @@ describe('planAppSettingsRealtimeUpdate', () => {
     expect(plan.returnToWaiting).toBe(false);
   });
 
+  it('applies module flags immediately from app_settings SSE', () => {
+    const plan = planAppSettingsRealtimeUpdate(
+      {
+        module_flags: JSON.stringify({ hearts: false, stats: false }),
+        reset_signal: null,
+      },
+      { localReset: null, wasSessionActive: true, hasStoredUser: true },
+    );
+    expect(plan.kind).toBe('patch');
+    if (plan.kind !== 'patch') return;
+    expect(plan.setModuleFlags).toBe(true);
+    expect(plan.moduleFlags.hearts).toBe(false);
+    expect(plan.moduleFlags.stats).toBe(false);
+    expect(plan.moduleFlags.direct_chat).toBe(true);
+  });
+
   it('applies sulbun_event on SSE without treating it as a heart-ops field', () => {
     const plan = planAppSettingsRealtimeUpdate(
       {

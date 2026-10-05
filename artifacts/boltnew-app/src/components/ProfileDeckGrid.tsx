@@ -22,6 +22,8 @@ export const ProfileDeckGrid = memo(function ProfileDeckGrid({
   currentUserId,
   functionsLocked,
   heartsLocked,
+  heartsEnabled = true,
+  directChatEnabled = true,
   signalByUserId,
   onLike,
   onSelect,
@@ -42,6 +44,8 @@ export const ProfileDeckGrid = memo(function ProfileDeckGrid({
   currentUserId: string | null;
   functionsLocked: boolean;
   heartsLocked?: boolean;
+  heartsEnabled?: boolean;
+  directChatEnabled?: boolean;
   signalByUserId: Map<string, UserSignal>;
   onLike: (id: string, hint?: Profile) => void;
   onSelect: (p: Profile) => void;
@@ -94,6 +98,8 @@ export const ProfileDeckGrid = memo(function ProfileDeckGrid({
               canLike={!!(currentUserId && profile.id !== currentUserId)}
               locked={functionsLocked}
               heartsLocked={heartsLocked ?? functionsLocked}
+              heartsEnabled={heartsEnabled}
+              directChatEnabled={directChatEnabled}
               onLike={onLike}
               onSelect={onSelect}
               onView={onViewProfile}

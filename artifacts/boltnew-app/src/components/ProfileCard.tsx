@@ -20,7 +20,7 @@ type MenuAnchorId = 'photo' | 'ticker';
 // ─── ProfileCard (memoized — 하트/채팅 상태 변경 시 해당 카드만 재렌더) ────────
 
 export const ProfileCard = memo(function ProfileCard({
-  profile, isLiked, sentHeartType, heartCount, canLike, locked, heartsLocked, compact = false, darkMode = false, onLike, onSelect, onView, onOpenChat, onBlock, onContactShare, onViewFortune, idealMsg, statusMsg,
+  profile, isLiked, sentHeartType, heartCount, canLike, locked, heartsLocked, heartsEnabled = true, directChatEnabled = true, compact = false, darkMode = false, onLike, onSelect, onView, onOpenChat, onBlock, onContactShare, onViewFortune, idealMsg, statusMsg,
 }: {
   profile: Profile;
   isLiked: boolean;
@@ -30,6 +30,8 @@ export const ProfileCard = memo(function ProfileCard({
   locked?: boolean;
   /** Heart send lock (functions lock or rainbow pool not granted). Chat uses `locked`. */
   heartsLocked?: boolean;
+  heartsEnabled?: boolean;
+  directChatEnabled?: boolean;
   /** 작게 보기 — 3열 그리드·1:1 정사각 사진 */
   compact?: boolean;
   /** App dark toggle */
@@ -626,7 +628,7 @@ export const ProfileCard = memo(function ProfileCard({
       </div>
 
       {/* ── 하트 + 채팅 버튼 ── */}
-      {canLike && (
+      {canLike && (heartsEnabled || directChatEnabled) && (
         <div data-coach={chatLocked || heartSendLocked ? 'locked-control' : undefined} className="relative" onClick={(e) => e.stopPropagation()}>
           {lockToast && (
             <div className="absolute -top-6 left-1/2 -translate-x-1/2 z-20 whitespace-nowrap text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-800/90 text-white shadow pointer-events-none">
@@ -634,7 +636,7 @@ export const ProfileCard = memo(function ProfileCard({
             </div>
           )}
           <div className="shrink-0 px-1.5 pt-1 pb-1 flex gap-1" style={{ borderTop: `1px solid ${dividerColor}` }}>
-            <button
+            {heartsEnabled && <button
               type="button"
               data-testid="profile-card-heart-btn"
               data-coach="profile-card-heart-btn"
@@ -654,8 +656,8 @@ export const ProfileCard = memo(function ProfileCard({
                 : <Heart className="w-3 h-3 shrink-0" style={{ fill: isLiked ? '#e11d48' : 'transparent', stroke: '#e11d48', strokeWidth: 2 }} />
               }
               <span className="text-[9px] font-bold truncate" style={{ color: '#e11d48' }}>{heartSendLocked ? '🔒 하트' : '하트'}</span>
-            </button>
-            <button
+            </button>}
+            {directChatEnabled && <button
               type="button"
               data-testid="profile-card-chat-btn"
               data-coach="profile-card-chat-btn"
@@ -666,7 +668,7 @@ export const ProfileCard = memo(function ProfileCard({
             >
               <MessageCircle className="w-3 h-3 shrink-0" style={{ color: '#0ea5e9' }} strokeWidth={2} />
               <span className="text-[9px] font-bold truncate" style={{ color: '#0ea5e9' }}>{chatLocked ? '🔒 채팅' : '채팅'}</span>
-            </button>
+            </button>}
           </div>
         </div>
       )}

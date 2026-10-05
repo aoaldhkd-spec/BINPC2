@@ -1,4 +1,4 @@
-# BINPC2 CURRENT STATUS — 2026-10-05
+# BINPC2 CURRENT STATUS — 2026-10-06
 
 이 문서는 현재 실제 코드·테스트·GitHub·운영 배포 상태를 기준으로 갱신한다.
 과거 기록과 다르면 과거 기록을 삭제하지 않고 변경 이유와 현재 상태를 함께 남긴다.
@@ -7,7 +7,7 @@
 
 - 저장소: `aoaldhkd-spec/BINPC2`
 - 브랜치: `main`
-- 2026-10-05 기준 운영 기능 커밋: `5808dca` 이후 최적화/현황판 변경 작업 진행
+- 2026-10-06 모듈화 작업 시작 기준 배포 커밋: `8afb128` (이후 변경은 같은 정본·검증 절차로 누적)
 - API: Render `https://binpc2.onrender.com`
 - Frontend: Netlify
 - DB: PostgreSQL JSON/KV + API 인메모리 캐시
@@ -214,3 +214,93 @@ Push:
 - 과거: push 뼈대만 존재, likes/messages/chats/signals 혼합
 - 이유: 실제 필요한 알림만 간단하고 정확하게 전달
 - 현재: 하트 + 1:1 채팅만, 수신자 전용, 딥링크
+
+
+## 13. 2026-10-06 완성도 향상 — 안전한 기능 붙이기·떼기
+
+현재 BINPC2는 기능을 삭제/복사해서 떼는 방식이 아니라 **Soft Detach** 방식으로 관리한다.
+
+### CORE — 항상 ON, 관리자에서도 끌 수 없음
+- 프로필: 참여자 기본 정보·카드
+- 접속 QR: 행사 접속용 QR
+- 실시간 엔진: SSE·재연결·SoT 복구
+- 관리자: 운영·복구·개발·운영 현황
+- 자동운영: 매일 23:00 / 24:00 / 01:00 / 17:00 고정 주기
+
+관리자 화면의 QR은 관리자 CORE에 포함한다.
+
+### 선택적으로 ON/OFF 가능한 기능 — 기본값은 모두 ON
+- 하트
+- 1:1 채팅
+- 단체 채팅
+- 연락처 QR
+- 통계
+- 랭킹
+- 모바일 Push
+
+OFF 의미:
+- 기존 DB 데이터 삭제 안 함
+- 코드 삭제 안 함
+- 참가자 화면에서 해당 기능 숨김/차단
+- 새 쓰기는 서버에서도 차단
+- 해당 기능의 불필요한 조회·실시간 구독·복구 폴링은 가능한 범위에서 중지
+- 다시 ON 하면 기존 데이터와 기능을 그대로 재사용
+
+안전장치:
+- ON → 즉시 복구
+- ON 상태를 OFF로 바꿀 때 → 관리자 확인창 1회
+- app_settings SSE로 즉시 반영
+- SSE를 놓쳐도 /ready SoT 재동기화로 module_flags 복구
+- 하트/1:1/단톡은 서버 쓰기 게이트도 적용
+- 통계/랭킹은 읽기 화면 모듈이므로 탭만 숨기고 원본 데이터는 유지
+- 코치마크도 OFF된 통계/랭킹 탭을 건너뜀
+
+### QR 정확한 구분
+BINPC2 QR은 거대한 별도 “QR팩”이 아니라 크게 2축이다.
+
+1. **접속 QR** — 행사 입장 URL QR, CORE
+2. **연락처 QR** — 참가자 PROFID UUID 표시/스캔, 선택적으로 OFF 가능
+
+## 14. 2026-10-06 추가 최적화·서버 분리
+
+- 기능 OFF 시 1:1/단톡 훅에 사용자 연결을 주지 않아 기존 cleanup 경로로 SSE/로딩 정리
+- 하트 OFF 시 likes/contact_shares 사용자 SSE 채널 자체를 만들지 않음
+- SoT resync / SSE fallback도 OFF된 기능 로더는 no-op
+- Push OFF 시 신규 Push 구독·발송 경로 차단
+- 대형 db.ts 전체 재작성은 하지 않고, 운영 runtime 계산을 db-runtime-status.ts 순수 모듈로 분리
+- 현재 원칙: 큰 리팩터링 1회보다 작은 순수 모듈 분리 → 테스트 → 다음 분리
+
+## 15. 2026-10-06 하루 전체 자동운영 시뮬레이션
+
+db-daily-cycle-full-day.test.ts에서 가짜 시계로 하루 경계를 빠르게 통과한다.
+
+검사 순서:
+- 01:00 회식 자동종료
+- 17:00 전체 자동초기화
+- 23:00 일반 하트 4종 해금
+- 24:00 무지개하트 해금
+
+동시에 같은 날짜의 파괴적 작업이 두 번 실행되지 않는지도 확인한다.
+
+## 16. 2026-10-06 현재 검증 메모
+
+집중 검증에서 확인:
+- Frontend typecheck: 통과
+- 모듈/복구/관리자/코치마크/자동공지 집중 테스트: 30/30 통과
+- Server module/runtime/full-day-cycle 집중 테스트: 12/12 통과
+
+커밋 전 전체 검증:
+- `verify:ci`: 통과
+- recurrence guards: 591/591 통과
+- API unit tests: 65 files / 481 tests 통과
+- Frontend unit tests: 97 files / 720 tests 통과
+- Frontend typecheck: 통과
+- Frontend lint: 통과
+- Frontend production build: 통과, 1,889 modules transformed
+- API lint: 통과
+- API production build: 통과
+- `git diff --check`: 통과
+
+`knip`는 저장소에 과거부터 남아 있는 미사용 export/type 및 duplicate export 부채를 보고해 exit 1이다. 이번 변경에서 새로 만든 `RuntimeStatusInput`의 불필요 export는 제거했다. 이 knip 부채는 기능 오류와 분리해서 점진 정리하며, 현재 정상 기능을 대량 삭제하는 근거로 사용하지 않는다.
+
+GitHub Verify와 Render/Netlify 실제 운영 반영은 커밋·푸시 후 원격 상태를 다시 확인한다.

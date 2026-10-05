@@ -8,10 +8,12 @@ import type { Profile, View, MainTab } from '../types/app';
 import type { HeartType } from '../lib/constants';
 import { SOCIAL_LOCKED_TABS } from '../lib/functions-lock';
 import { isHomeCoachPending } from '../lib/coach-marks';
+import { MODULE_LABELS, type DetachableModuleId, type ModuleFlags } from '../lib/module-flags';
 
 export type UseSocialLockGuardsArgs = {
   functionsLocked: boolean;
   functionsLockedRef: MutableRefObject<boolean>;
+  moduleFlags: ModuleFlags;
   showFunctionsLockToast: (msg?: string) => void;
   handleLike: (profileId: string, hint?: Profile) => void;
   handleHeartResponse: (likerId: string, response: 'accepted' | 'rejected') => void | Promise<void>;
@@ -36,6 +38,7 @@ export function useSocialLockGuards(args: UseSocialLockGuardsArgs) {
   const {
     functionsLocked,
     functionsLockedRef,
+    moduleFlags,
     showFunctionsLockToast,
     handleLike,
     handleHeartResponse,
@@ -56,48 +59,62 @@ export function useSocialLockGuards(args: UseSocialLockGuardsArgs) {
     setMainTab,
   } = args;
 
+  const moduleOff = useCallback((id: DetachableModuleId) => {
+    if (moduleFlags[id]) return false;
+    showFunctionsLockToast(`${MODULE_LABELS[id]} 기능이 현재 꺼져 있습니다.`);
+    return true;
+  }, [moduleFlags, showFunctionsLockToast]);
+
   const execLikeWithConfetti = useCallback(async (heartType: HeartType, source?: 'rainbow') => {
     const ok = await executeLike(heartType, source);
     if (ok) triggerConfetti();
   }, [executeLike, triggerConfetti]);
 
   const handleLikeGuarded = useCallback((profileId: string, hint?: Profile) => {
+    if (moduleOff('hearts')) return;
     if (functionsLocked) { showFunctionsLockToast(); return; }
     handleLike(profileId, hint);
-  }, [functionsLocked, handleLike, showFunctionsLockToast]);
+  }, [functionsLocked, handleLike, showFunctionsLockToast, moduleOff]);
 
   const handleHeartResponseGuarded = useCallback((likerId: string, response: 'accepted' | 'rejected') => {
+    if (moduleOff('hearts')) return;
     if (functionsLocked) { showFunctionsLockToast(); return; }
     return handleHeartResponse(likerId, response);
-  }, [functionsLocked, handleHeartResponse, showFunctionsLockToast]);
+  }, [functionsLocked, handleHeartResponse, showFunctionsLockToast, moduleOff]);
 
   const handleContactShareGuarded = useCallback((likerId: string, kakao: string, instagram: string, phone: string) => {
+    if (moduleOff('hearts')) return;
     if (functionsLocked) { showFunctionsLockToast(); return; }
     return handleContactShare(likerId, kakao, instagram, phone);
-  }, [functionsLocked, handleContactShare, showFunctionsLockToast]);
+  }, [functionsLocked, handleContactShare, showFunctionsLockToast, moduleOff]);
 
   const openChatGuarded = useCallback((profile: Profile) => {
+    if (moduleOff('direct_chat')) return Promise.resolve();
     if (functionsLockedRef.current) { showFunctionsLockToast(); return Promise.resolve(); }
     return openChat(profile);
-  }, [openChat, showFunctionsLockToast, functionsLockedRef]);
+  }, [openChat, showFunctionsLockToast, functionsLockedRef, moduleOff]);
 
   const sendMessageGuarded = useCallback(async (content: string) => {
+    if (moduleOff('direct_chat')) return;
     if (functionsLockedRef.current) { showFunctionsLockToast(); return; }
     return sendMessage(content);
-  }, [sendMessage, showFunctionsLockToast, functionsLockedRef]);
+  }, [sendMessage, showFunctionsLockToast, functionsLockedRef, moduleOff]);
 
   const sendImageGuarded = useCallback(async (file: File): Promise<string | null> => {
+    if (moduleOff('direct_chat')) return null;
     if (functionsLockedRef.current) { showFunctionsLockToast(); return null; }
     return sendImage(file);
-  }, [sendImage, showFunctionsLockToast, functionsLockedRef]);
+  }, [sendImage, showFunctionsLockToast, functionsLockedRef, moduleOff]);
 
   const openGroupChatGuarded = useCallback(async (groupId: string) => {
+    if (moduleOff('group_chat')) return;
     if (functionsLockedRef.current) { showFunctionsLockToast(); return; }
     void openGroupChat(groupId);
     setView('group-chat');
-  }, [openGroupChat, showFunctionsLockToast, functionsLockedRef, setView]);
+  }, [openGroupChat, showFunctionsLockToast, functionsLockedRef, setView, moduleOff]);
 
   const joinGroupChatGuarded = useCallback(async (groupId: string) => {
+    if (moduleOff('group_chat')) return;
     if (functionsLockedRef.current) { showFunctionsLockToast(); return; }
     const joinPromise = joinGroupChat(groupId);
     void openGroupChat(groupId);
@@ -107,14 +124,15 @@ export function useSocialLockGuards(args: UseSocialLockGuardsArgs) {
       closeGroupChat();
       setView('main');
     }
-  }, [joinGroupChat, openGroupChat, closeGroupChat, showFunctionsLockToast, functionsLockedRef, setView]);
+  }, [joinGroupChat, openGroupChat, closeGroupChat, showFunctionsLockToast, functionsLockedRef, setView, moduleOff]);
 
   const leaveGroupChatGuarded = useCallback(async (groupId: string) => {
+    if (moduleOff('group_chat')) return;
     if (functionsLockedRef.current) { showFunctionsLockToast(); return; }
     closeGroupChat();
     setView('main');
     await leaveGroupChat(groupId);
-  }, [leaveGroupChat, closeGroupChat, showFunctionsLockToast, functionsLockedRef, setView]);
+  }, [leaveGroupChat, closeGroupChat, showFunctionsLockToast, functionsLockedRef, setView, moduleOff]);
 
   const handleMainOpenGroupChat = useCallback((groupId: string) => {
     void openGroupChatGuarded(groupId).catch((e) => console.error('[openGroupChat]', e));
@@ -129,9 +147,10 @@ export function useSocialLockGuards(args: UseSocialLockGuardsArgs) {
   }, [leaveGroupChatGuarded]);
 
   const sendGroupMessageGuarded = useCallback(async (content: string) => {
+    if (moduleOff('group_chat')) return;
     if (functionsLockedRef.current) { showFunctionsLockToast(); return; }
     return sendGroupMessage(content);
-  }, [sendGroupMessage, showFunctionsLockToast, functionsLockedRef]);
+  }, [sendGroupMessage, showFunctionsLockToast, functionsLockedRef, moduleOff]);
 
   const handleMainTabChange = useCallback((t: MainTab) => {
     if (functionsLocked && SOCIAL_LOCKED_TABS.has(t)) {
@@ -148,18 +167,20 @@ export function useSocialLockGuards(args: UseSocialLockGuardsArgs) {
   }, [functionsLocked, showFunctionsLockToast, setMainTab]);
 
   const execLikeGuarded = useCallback((heartType: HeartType, source?: 'rainbow') => {
+    if (moduleOff('hearts')) { setLikeConfirmTarget(null); return; }
     if (functionsLockedRef.current) {
       setLikeConfirmTarget(null);
       showFunctionsLockToast();
       return;
     }
     void execLikeWithConfetti(heartType, source);
-  }, [execLikeWithConfetti, showFunctionsLockToast, setLikeConfirmTarget, functionsLockedRef]);
+  }, [execLikeWithConfetti, showFunctionsLockToast, setLikeConfirmTarget, functionsLockedRef, moduleOff]);
 
   const handleContactShareOpen = useCallback((profile: Profile) => {
+    if (moduleOff('hearts')) return;
     if (functionsLockedRef.current) { showFunctionsLockToast(); return; }
     setContactShareTarget(profile);
-  }, [showFunctionsLockToast, functionsLockedRef, setContactShareTarget]);
+  }, [showFunctionsLockToast, functionsLockedRef, setContactShareTarget, moduleOff]);
 
   return {
     handleLikeGuarded,

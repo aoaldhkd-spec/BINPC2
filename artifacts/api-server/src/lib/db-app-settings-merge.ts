@@ -4,6 +4,7 @@
  */
 import { LEGACY_APP_SETTINGS_KEYS } from './db-legacy-cleanup.js';
 import { serializeEventSchedule } from './db-event-schedule.js';
+import { serializeModuleFlags } from './db-module-flags.js';
 
 export const PRODUCTION_QR_BASE = 'https://binpc2.netlify.app';
 
@@ -62,6 +63,7 @@ export function mergeAppSettings(
   }
   if (isLocalQrUrl(merged.qr_base_url)) merged.qr_base_url = PRODUCTION_QR_BASE;
   if ('event_schedule' in merged) merged.event_schedule = serializeEventSchedule(merged.event_schedule);
+  merged.module_flags = serializeModuleFlags(merged.module_flags);
   if (Array.isArray(merged.direct_notice_presets)) {
     merged.direct_notice_presets = JSON.stringify(merged.direct_notice_presets);
   }

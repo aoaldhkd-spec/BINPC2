@@ -40,6 +40,7 @@ Prefer **single Render instance**. Multi-instance는 NOTIFY로 일부 동기화�
 | `artifacts/boltnew-app/src/components/AppMainShell.tsx` | 메인 탭 셸 JSX (inert + MainScreen; App은 props만) |
 | `artifacts/boltnew-app/src/components/AppOverlays.tsx` | 오버레이/모달/프로필·채팅·그룹 JSX fan-in (App은 props·콜백) |
 | `artifacts/boltnew-app/src/lib/localdb.ts` | SSE·`/op`·auth 토큰·Supabase 에뮬 |
+| `artifacts/boltnew-app/src/lib/module-flags.ts` | CORE/Soft Detach 기능 카탈로그·기본 ON 파서 |
 | `artifacts/boltnew-app/src/lib/net-health.ts` | 네트워크 UI·reconnect·backoff |
 | `artifacts/boltnew-app/src/lib/diag.ts` | 관측/`__BINPC_DIAG__` |
 | `artifacts/boltnew-app/src/components/MainScreen.tsx` | 메인 탭 UI |
@@ -75,6 +76,8 @@ Prefer **single Render instance**. Multi-instance는 NOTIFY로 일부 동기화�
 | `artifacts/api-server/src/lib/db-admin-ensure-plan.ts` | ensureAdminProfile / restore-after-wipe planners (순수) |
 | `artifacts/api-server/src/lib/db-app-settings-boot.ts` | app_settings default / repair / bootstrap-secret planners (순수) |
 | `artifacts/api-server/src/lib/db-daily-cycle.ts` | 매일 23/24/01/17 고정 운영 경계·서울시간·날짜 마커 플래너 |
+| `artifacts/api-server/src/lib/db-module-flags.ts` | Soft Detach 서버 모듈 상태·쓰기 게이트 |
+| `artifacts/api-server/src/lib/db-runtime-status.ts` | `/health` runtime 상태 계산 순수 모듈 |
 | `artifacts/api-server/src/lib/push.ts` | VAPID Web Push 전송·재시도·만료 구독 판정 |
 | `artifacts/api-server/src/lib/http-metrics.ts` | SSE/HTTP/업로드/Push 집계형 운영 메트릭(PII 저장 금지) |
 | `artifacts/api-server/src/lib/db-op-result-shape.ts` | /op SELECT order/limit/single shape + broadcast sanitize (순수) |
@@ -258,3 +261,44 @@ Path to ≥9.5 further = more `db.ts` write-path / `/op` slices — App is alrea
 ## Do not touch casually
 
 `db.ts` persist/SSE/`/op` 경로, `localdb.ts` SSE client, `useChat` offline queue, `net-health` quiet/error windows.
+
+
+## Feature module system — 2026-10-06
+
+BINPC2의 “떼었다 붙였다”는 파일 삭제가 아니라 **Soft Detach**다.
+
+### CORE — always on
+- profiles
+- entry QR
+- realtime/SSE/SoT recovery
+- admin
+- fixed daily cycle
+
+### Detachable — default ON
+- hearts
+- direct chat
+- group chat
+- contact QR
+- stats
+- ranking
+- PWA Push
+
+Detach behavior:
+1. 기존 DB 데이터와 코드는 보존한다.
+2. 화면/진입점을 숨긴다.
+3. write 기능은 서버 gate에서도 거부한다.
+4. 가능한 경우 해당 loader/SSE/polling을 중지한다.
+5. app_settings SSE와 /ready SoT로 module_flags를 동기화한다.
+6. 다시 ON 하면 기존 데이터로 재연결한다.
+7. OFF는 관리자 확인 후, ON은 즉시 복구한다.
+
+QR 경계:
+- entry QR = CORE
+- admin QR screen = admin CORE
+- contact QR = detachable contact_qr
+
+관련 테스트:
+- client module-flags.test.ts
+- server db-module-flags.test.ts
+- db-daily-cycle-full-day.test.ts
+- db-runtime-status.test.ts

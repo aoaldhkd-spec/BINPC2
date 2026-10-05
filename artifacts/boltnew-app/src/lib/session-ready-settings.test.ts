@@ -47,6 +47,15 @@ describe('planSessionReadySettingsPatch', () => {
     expect(kept?.eventScheduleRaw).toBe('{"version":2}');
   });
 
+  it('restores module flags from /ready after reconnect', () => {
+    const p = planSessionReadySettingsPatch({
+      module_flags: JSON.stringify({ direct_chat: false, ranking: false }),
+    });
+    expect(p?.moduleFlags?.direct_chat).toBe(false);
+    expect(p?.moduleFlags?.ranking).toBe(false);
+    expect(p?.moduleFlags?.hearts).toBe(true);
+  });
+
   it('returns timers-only patch when includeTimers and no other fields', () => {
     const p = planSessionReadySettingsPatch({ timer_end_at: null }, { includeTimers: true });
     expect(p).toEqual({

@@ -88,6 +88,30 @@ describe('db-app-settings-merge', () => {
     expect(parsed.slots.map(s => s.at)).toEqual(['23:00', '24:30']);
     expect(merged.direct_notice_presets).toBe(JSON.stringify([{ id: 'n1', text: '자리 이동해주세요.' }]));
   });
+  it('preserves module_flags across reset-style settings patches', () => {
+    const currentFlags = JSON.stringify({
+      hearts: true,
+      direct_chat: true,
+      group_chat: false,
+      contact_qr: true,
+      stats: false,
+      ranking: true,
+      push: true,
+    });
+    const merged = mergeAppSettings(
+      { ...defaults, module_flags: currentFlags },
+      { reset_signal: '2026-10-06T00:00:00.000Z', session_active: false },
+      defaults,
+      '2026-10-06T00:00:00.000Z',
+    );
+    expect(JSON.parse(String(merged.module_flags))).toMatchObject({
+      group_chat: false,
+      stats: false,
+      hearts: true,
+      direct_chat: true,
+    });
+  });
+
   it('overlaySecretsFromDbRow copies non-empty secrets unless explicit', () => {
     const row = { id: 1, admin_password: 'mem', entry_password: 'old' };
     const db = { admin_password: 'dbAdmin', test_password: 'dbTest', entry_password: '  ' };

@@ -29,6 +29,7 @@ import {
 import { DashboardTab } from './admin/DashboardTab';
 import { ADMIN_FIXED_NICKNAME } from './lib/panel-password';
 import { NPC_TEXT_AVATAR_SENTINEL } from './lib/profile';
+import { parseModuleFlags, serializeModuleFlags, type DetachableModuleId } from './lib/module-flags';
 
 const AdminQrTab = lazy(() => import('./admin/AdminQrTab').then(m => ({ default: m.AdminQrTab })));
 const DbHealthTab = lazy(() => import('./admin/DbHealthTab').then(m => ({ default: m.DbHealthTab })));
@@ -590,6 +591,18 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     }
   };
 
+  const handleToggleModule = async (id: DetachableModuleId) => {
+    if (!settings) return;
+    const current = parseModuleFlags(settings.module_flags);
+    const next = { ...current, [id]: !current[id] };
+    try {
+      await patchAdminSettings({ module_flags: serializeModuleFlags(next) }, setSettings);
+    } catch (e) {
+      console.error('[admin] module toggle failed:', e);
+      alert(`기능 전환 실패: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
   const handleDeleteProfile = async (profileId: string) => {
     await adminSupabase.from('profiles').delete().eq('id', profileId);
     setProfiles(prev => prev.filter(p => p.id !== profileId));
@@ -693,6 +706,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                   onClearProfiles={handleClearProfiles}
                   onClearHistory={handleClearHistory} restoreMap={restoreMap}
                   onSulbunOpen={handleSulbunOpen}
+                  onToggleModule={handleToggleModule}
                   dbHealth={dbHealth} dbHealthLoading={dbHealthLoading} />
               )}
               {settingsSubTab === 'qr' && <AdminQrTab settings={settings} onSaveQrBase={async (url) => {

@@ -2587,6 +2587,88 @@ mustMatch('ARCHITECTURE.md', '77_architecture_sulbun_event', [
 ]);
 
 
+// ─── 78: safe feature modules + full-day cycle + runtime health peel ───
+mustExist('artifacts/boltnew-app/src/lib/module-flags.ts', '78_client_module_flags');
+mustExist('artifacts/boltnew-app/src/lib/module-flags.test.ts', '78_client_module_flags_tests');
+mustExist('artifacts/api-server/src/lib/db-module-flags.ts', '78_server_module_flags');
+mustExist('artifacts/api-server/src/lib/db-module-flags.test.ts', '78_server_module_flags_tests');
+mustExist('artifacts/api-server/src/lib/db-daily-cycle-full-day.test.ts', '78_full_day_cycle_test');
+mustExist('artifacts/api-server/src/lib/db-runtime-status.ts', '78_runtime_status_module');
+mustExist('artifacts/api-server/src/lib/db-runtime-status.test.ts', '78_runtime_status_tests');
+mustMatch('artifacts/boltnew-app/src/lib/module-flags.ts', '78_client_modules_default_on', [
+  /hearts: true/,
+  /direct_chat: true/,
+  /group_chat: true/,
+  /contact_qr: true/,
+  /stats: true/,
+  /ranking: true/,
+  /push: true/,
+  /CORE_MODULES/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-module-flags.ts', '78_server_write_gate', [
+  /moduleWriteGate/,
+  /MODULE_DISABLED/,
+  /likes: 'hearts'/,
+  /messages: 'direct_chat'/,
+  /group_messages: 'group_chat'/,
+]);
+mustMatch('artifacts/api-server/src/routes/db.ts', '78_server_module_wiring', [
+  /moduleWriteGate/,
+  /currentModuleFlags/,
+  /buildRuntimeStatus/,
+]);
+mustMatch('artifacts/boltnew-app/src/admin/DashboardTab.tsx', '78_admin_module_switches', [
+  /module-switches-card/,
+  /CORE_MODULES/,
+  /confirmModuleOff/,
+]);
+mustMatch('artifacts/boltnew-app/src/App.tsx', '78_client_soft_detach_wiring', [
+  /moduleFlags\.direct_chat \? currentUserId : null/,
+  /moduleFlags\.group_chat \? currentUserId : null/,
+  /moduleFlags\.hearts \? currentUserId : null/,
+  /loadChatListForModules/,
+  /loadGroupChatsForModules/,
+  /loadLikesForModules/,
+]);
+mustMatch('artifacts/boltnew-app/src/hooks/useUserRealtimeChannel.ts', '78_hearts_sse_detach', [
+  /heartsEnabled/,
+  /userRealtimeChannel = args\.heartsEnabled === false/,
+]);
+mustMatch('artifacts/boltnew-app/src/lib/session-ready-settings.ts', '78_ready_restores_module_flags', [
+  /moduleFlags/,
+  /parseModuleFlags/,
+]);
+mustMatch('artifacts/boltnew-app/src/components/MainScreen.tsx', '78_stats_ranking_detach', [
+  /moduleFlags\.stats/,
+  /moduleFlags\.ranking/,
+]);
+mustMatch('artifacts/boltnew-app/src/components/FirstEntryCoachMarks.tsx', '78_coach_skips_disabled_tabs', [
+  /statsEnabled/,
+  /rankingEnabled/,
+  /coachTourOrder/,
+]);
+mustExist('artifacts/boltnew-app/src/components/TutorialModal.module-flags.test.ts', '78_tutorial_module_filter_tests');
+mustMatch('artifacts/boltnew-app/src/components/TutorialModal.tsx', '78_tutorial_follows_modules', [
+  /tutorialBasicTopics/,
+  /moduleFlags\.hearts/,
+  /moduleFlags\.direct_chat/,
+  /moduleFlags\.group_chat/,
+  /moduleFlags\.stats/,
+  /moduleFlags\.ranking/,
+]);
+mustMatch('artifacts/api-server/src/lib/db-daily-cycle-full-day.test.ts', '78_full_day_boundaries', [
+  /01/,
+  /17/,
+  /23/,
+  /24/,
+]);
+mustMatch('ARCHITECTURE.md', '78_architecture_feature_modules', [
+  /Feature module system/,
+  /Soft Detach/,
+  /db-module-flags/,
+  /db-runtime-status/,
+]);
+
 console.log('\n=== verify-recurrence-guards ===\n');
 
 for (const r of results) {

@@ -2,6 +2,7 @@ import { type Dispatch, type SetStateAction } from 'react';
 import { supabase, reconnectAdminSse } from '../lib/supabase';
 import { getAvatarSrc } from '../lib/profile';
 import type { Database } from '../types/database';
+import type { ModuleFlags } from '../lib/module-flags';
 export type { GroupChat, GroupMessage, GroupParticipant, SignalSend } from '../types/app';
 
 export type Profile = Database['public']['Tables']['profiles']['Row'];
@@ -13,6 +14,7 @@ export type AppSettings = Database['public']['Tables']['app_settings']['Row'] & 
   /** Saved direct-notice list. Live due snapshot stays in event_schedule.direct_notice. */
   direct_notice_presets?: string | null;
   sulbun_event?: string | Record<string, unknown> | null;
+  module_flags?: string | Record<string, unknown> | null;
 };
 export type SessionHistory = Database['public']['Tables']['session_history']['Row'];
 export type Like = Database['public']['Tables']['likes']['Row'];
@@ -272,6 +274,7 @@ export interface DbHealthData {
     node: string;
     pushConfigured: boolean;
     pushSubscriptions: number;
+    moduleFlags?: ModuleFlags;
     dailyCycle: string;
   };
 }

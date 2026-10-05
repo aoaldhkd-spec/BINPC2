@@ -307,3 +307,60 @@ Push:
 - 과거: 3연타 나이 표시
 - 이유: 사용자 제거 요청
 - 현재: 없음
+
+
+## 17. 2026-10-06 기능 모듈 정본
+
+BINPC2 기능은 **CORE + Soft Detach 모듈**로 구분한다.
+
+### CORE — 항상 유지
+- profiles
+- entry_qr
+- realtime
+- admin
+- daily_cycle
+
+CORE는 행사 앱의 뼈대다. 관리자 UI에서도 OFF 기능을 제공하지 않는다.
+
+### Detachable — 기본 모두 ON
+- hearts
+- direct_chat
+- group_chat
+- contact_qr
+- stats
+- ranking
+- push
+
+정본 규칙:
+1. OFF는 삭제가 아니다.
+2. 기존 DB 행과 코드는 보존한다.
+3. UI, 신규 사용, 해당 쓰기, 불필요 조회/SSE를 가능한 범위에서 중지한다.
+4. ON 하면 기존 데이터로 다시 연결한다.
+5. 서버 쓰기 기능은 클라이언트 숨김만 믿지 않고 서버에서도 차단한다.
+6. module_flags 누락·깨짐·부분값은 미지정 모듈을 OFF로 만들지 않고 기본 ON으로 복구한다.
+7. app_settings SSE + /ready SoT 두 경로로 상태를 동기화한다.
+8. 행사 중 실수 방지를 위해 OFF 전 확인, ON은 즉시 복구를 기본 UX로 한다.
+
+주요 코드:
+- client: src/lib/module-flags.ts
+- server: src/lib/db-module-flags.ts
+- admin UI: src/admin/DashboardTab.tsx
+- app wiring: src/App.tsx
+- server write gate: src/routes/db.ts
+
+## 18. QR 정본
+
+QR은 다음 두 축으로 구분한다.
+
+- **접속 QR**: 행사 URL 접속, CORE. 관리자 QR 화면은 이 기능을 운영한다.
+- **연락처 QR**: 참가자 프로필 식별/연락처 교환용. PROFID UUID와 호환 URL/UUID를 스캔한다. Detachable.
+
+따라서 “QR팩 여러 개”라는 표현은 사용하지 않는다. 접속 QR과 연락처 QR의 목적과 생명주기가 다르다.
+
+## 19. 2026-10-06 검증/완성도 규칙 추가
+
+- 가짜 시계 하루 통합 테스트: db-daily-cycle-full-day.test.ts
+- runtime health 순수 모듈: db-runtime-status.ts
+- OFF된 통계/랭킹은 코치마크 투어에서도 건너뜀
+- 모듈 정본 누락은 verify:records와 recurrence guard에서 검출
+- 서버 대형 파일은 정상 실시간/DB 경로를 보존하면서 저위험 순수 계산부터 점진 분리

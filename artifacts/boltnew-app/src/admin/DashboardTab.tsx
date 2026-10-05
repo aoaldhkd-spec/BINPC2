@@ -3,12 +3,13 @@ import { Trash2, PlayCircle, StopCircle, Lock, Unlock } from 'lucide-react';
 import type { Profile, AppSettings, DbHealthData } from './shared';
 import { ConfirmDialog } from './ConfirmDialog';
 import { isSulbunEventActive, parseSulbunEvent } from '../lib/sulbun-event';
+import { CORE_MODULES, DETACHABLE_MODULE_IDS, MODULE_LABELS, parseModuleFlags, type DetachableModuleId } from '../lib/module-flags';
 
 // ─── Dashboard Tab ────────────────────────────────────────────────────────────
 
 export function DashboardTab({ settings, profiles, onToggleSession, onEventEndReset, onToggleFunctionsLock,
   onClearLikes, onClearChats, onClearProfiles, onClearHistory,
-  restoreMap, onSulbunOpen, dbHealth, dbHealthLoading }: {
+  restoreMap, onSulbunOpen, onToggleModule, dbHealth, dbHealthLoading }: {
   settings: AppSettings | null; profiles: Profile[];
   dbHealth: DbHealthData | null; dbHealthLoading: boolean;
   onToggleSession: () => void; onEventEndReset: () => void;
@@ -19,9 +20,11 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
   onClearHistory: () => Promise<void>;
   restoreMap: Map<string, () => Promise<void>>;
   onSulbunOpen: () => void | Promise<void>;
+  onToggleModule: (id: DetachableModuleId) => void | Promise<void>;
 }) {
   const [confirmToggle, setConfirmToggle] = useState<'start' | 'end' | null>(null);
   const [confirmEventEnd, setConfirmEventEnd] = useState(false);
+  const [confirmModuleOff, setConfirmModuleOff] = useState<DetachableModuleId | null>(null);
   const [confirmAction, setConfirmAction] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
   const isActive = settings?.session_active ?? false;
   const isFunctionsLocked = settings?.functions_locked ?? false;
@@ -31,6 +34,7 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
   const metrics = dbHealth?.httpMetrics;
   const uptimeMin = runtime ? Math.floor(runtime.uptimeSec / 60) : null;
   const checkedAt = dbHealth?.checkedAt ? new Date(dbHealth.checkedAt).toLocaleTimeString('ko-KR') : '-';
+  const moduleFlags = parseModuleFlags(settings?.module_flags ?? runtime?.moduleFlags);
 
   return (
     <div className="space-y-5 p-5">
@@ -103,6 +107,63 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
             {dbHealth!.alarms.slice(0, 3).map((alarm) => <div key={alarm}>• {alarm}</div>)}
           </div>
         )}
+      </div>
+
+      <div data-testid="module-switches-card" className="rounded-2xl border-2 border-cyan-200 bg-cyan-50 p-4">
+        <div className="mb-3">
+          <h3 className="text-sm font-black text-cyan-950">🧩 기능 붙이기 · 떼기</h3>
+          <p className="mt-1 text-[10px] font-semibold text-cyan-700">
+            OFF는 코드·기록을 삭제하지 않고 화면과 새 사용만 막습니다. 다시 ON 하면 그대로 복구됩니다.
+          </p>
+        </div>
+        <div className="space-y-2">
+          {DETACHABLE_MODULE_IDS.map((id) => {
+            const enabled = moduleFlags[id];
+            const detail: Record<DetachableModuleId, string> = {
+              hearts: '하트 버튼·받은/보낸 하트·하트 안내',
+              direct_chat: '1:1 채팅 버튼·목록·채팅방',
+              group_chat: '단체 채팅 목록·입장·메시지',
+              contact_qr: '참가자 연락처 QR 만들기·스캔',
+              stats: '참여자 통계 화면',
+              ranking: '참여자 랭킹 화면',
+              push: '휴대폰 하트/1:1 알림',
+            };
+            return (
+              <button
+                key={id}
+                type="button"
+                data-testid={`module-toggle-${id}`}
+                onClick={() => {
+                  if (enabled) setConfirmModuleOff(id);
+                  else void onToggleModule(id);
+                }}
+                className={`w-full rounded-xl border p-3 flex items-center gap-3 text-left transition active:scale-[0.99] ${enabled ? 'bg-white border-emerald-200' : 'bg-slate-100 border-slate-200'}`}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-black text-slate-900">{MODULE_LABELS[id]}</div>
+                  <div className="text-[10px] mt-0.5 text-slate-500">{detail[id]}</div>
+                </div>
+                <span className={`text-[10px] font-black px-2.5 py-1 rounded-full ${enabled ? 'bg-emerald-500 text-white' : 'bg-slate-300 text-slate-600'}`}>
+                  {enabled ? 'ON' : 'OFF'}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="mt-3 rounded-xl bg-white/80 p-2.5">
+          <div className="text-[10px] font-black text-cyan-900 mb-2">CORE · 항상 ON</div>
+          <div className="grid grid-cols-2 gap-1.5">
+            {CORE_MODULES.map((item) => (
+              <div key={item.id} className="rounded-lg border border-cyan-100 bg-cyan-50/60 px-2 py-1.5">
+                <div className="text-[10px] font-black text-cyan-900">🟢 {item.label}</div>
+                <div className="text-[9px] text-cyan-700">{item.detail}</div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-2 text-[9px] font-semibold text-cyan-700">
+            관리자 QR은 관리자 CORE에 포함 · 연락처 QR만 선택적으로 OFF 가능
+          </div>
+        </div>
       </div>
 
       {/* 잠금 제어 */}
@@ -280,6 +341,18 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
             if ((action === 'start' && !isActive) || (action === 'end' && isActive)) onToggleSession();
           }}
           onCancel={() => setConfirmToggle(null)}
+        />
+      )}
+      {confirmModuleOff && (
+        <ConfirmDialog
+          title={`${MODULE_LABELS[confirmModuleOff]} 기능을 잠시 떼시겠습니까?`}
+          message={`기존 데이터와 코드는 삭제하지 않습니다.\n참가자 화면·새 사용·해당 실시간 연결만 중지하고, 다시 ON 하면 그대로 복구됩니다.`}
+          onConfirm={() => {
+            const id = confirmModuleOff;
+            setConfirmModuleOff(null);
+            void onToggleModule(id);
+          }}
+          onCancel={() => setConfirmModuleOff(null)}
         />
       )}
       {confirmAction && (

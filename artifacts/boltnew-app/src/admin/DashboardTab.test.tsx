@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DashboardTab } from './DashboardTab';
 import type { AppSettings, DbHealthData } from './shared';
+import type { DetachableModuleId } from '../lib/module-flags';
 
 afterEach(() => cleanup());
 const noop = async () => {};
@@ -12,9 +13,11 @@ function renderDash(settings: AppSettings | null, opts?: {
   onToggleSession?: () => void;
   onSulbunOpen?: () => void | Promise<void>;
   dbHealth?: DbHealthData | null;
+  onToggleModule?: (id: DetachableModuleId) => void;
 }) {
   const onToggleSession = opts?.onToggleSession ?? vi.fn<() => void>();
   const onSulbunOpen = opts?.onSulbunOpen ?? vi.fn<() => void>();
+  const onToggleModule = opts?.onToggleModule ?? vi.fn();
   return {
     onToggleSession,
     onSulbunOpen,
@@ -31,6 +34,7 @@ function renderDash(settings: AppSettings | null, opts?: {
         onClearHistory={noop}
         restoreMap={new Map()}
         onSulbunOpen={onSulbunOpen}
+        onToggleModule={onToggleModule}
         dbHealth={opts?.dbHealth ?? null}
         dbHealthLoading={false}
       />,
@@ -86,6 +90,34 @@ describe('DashboardTab automatic operations', () => {
     expect(screen.queryByText('하트 운영')).toBeNull();
     expect(screen.queryByText('직접 공지')).toBeNull();
     expect(screen.queryByRole('button', { name: /스케줄 저장/ })).toBeNull();
+  });
+
+  it('shows detachable modules and toggles without deleting core modules', () => {
+    const onToggleModule = vi.fn();
+    renderDash({ session_active: true, module_flags: JSON.stringify({ hearts: false }) } as AppSettings, { onToggleModule });
+    const card = screen.getByTestId('module-switches-card');
+    expect(card.textContent).toContain('기능 붙이기 · 떼기');
+    expect(card.textContent).toContain('하트');
+    expect(card.textContent).toContain('1:1 채팅');
+    expect(card.textContent).toContain('단체 채팅');
+    expect(card.textContent).toContain('연락처 QR');
+    expect(card.textContent).toContain('통계');
+    expect(card.textContent).toContain('랭킹');
+    expect(card.textContent).toContain('모바일 알림');
+    expect(card.textContent).toContain('CORE · 항상 ON');
+    expect(card.textContent).toContain('접속 QR');
+    fireEvent.click(screen.getByTestId('module-toggle-hearts'));
+    expect(onToggleModule).toHaveBeenCalledWith('hearts');
+  });
+
+  it('requires confirmation before turning an enabled module off', () => {
+    const onToggleModule = vi.fn();
+    renderDash({ session_active: true } as AppSettings, { onToggleModule });
+    fireEvent.click(screen.getByTestId('module-toggle-direct_chat'));
+    expect(onToggleModule).not.toHaveBeenCalled();
+    expect(screen.getByText('1:1 채팅 기능을 잠시 떼시겠습니까?')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '확인' }));
+    expect(onToggleModule).toHaveBeenCalledWith('direct_chat');
   });
 
   it('shows one-glance live development and operations status', () => {

@@ -1,5 +1,6 @@
 import { coerceEventScheduleRaw } from './event-schedule';
 import { parseSulbunEvent, type SulbunEventState } from './sulbun-event';
+import { parseModuleFlags, type ModuleFlags } from './module-flags';
 /**
  * Pure planners for /ready mount bootstrap + settings poll apply.
  * Side effects (fetch, setState, wipe) stay in the thin hook / App wiring.
@@ -25,6 +26,7 @@ export type ReadyBootstrapApplyPlan =
       hasFunctionsLocked: boolean;
       functionsLockedRaw?: unknown;
       sulbunEvent: SulbunEventState | null;
+      moduleFlags: ModuleFlags;
     };
 
 /** /ready or app_settings row → reset wipe or full session/entry/timer apply. */
@@ -50,6 +52,7 @@ export function planReadyBootstrapApply(
     hasFunctionsLocked: data.functions_locked != null,
     functionsLockedRaw: data.functions_locked != null ? data.functions_locked : undefined,
     sulbunEvent: parseSulbunEvent(data.sulbun_event),
+    moduleFlags: parseModuleFlags(data.module_flags),
   };
 }
 

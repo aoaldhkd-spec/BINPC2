@@ -7,6 +7,7 @@ import {
   shouldAutoSkipWaiting,
 } from './entry-gate';
 import { parseSulbunEvent, type SulbunEventState } from './sulbun-event';
+import { parseModuleFlags, type ModuleFlags } from './module-flags';
 
 export type AppSettingsRealtimeRow = {
   session_active?: boolean;
@@ -16,6 +17,7 @@ export type AppSettingsRealtimeRow = {
   reset_signal?: string | null;
   functions_locked?: boolean | null;
   sulbun_event?: unknown;
+  module_flags?: unknown;
 };
 
 export type AppSettingsRealtimePlan =
@@ -33,6 +35,8 @@ export type AppSettingsRealtimePlan =
       functionsLockedRaw?: unknown;
       sulbunEvent: SulbunEventState | null;
       setSulbunEvent: boolean;
+      setModuleFlags: boolean;
+      moduleFlags: ModuleFlags;
     };
 
 export function planAppSettingsRealtimeUpdate(
@@ -57,6 +61,8 @@ export function planAppSettingsRealtimeUpdate(
     hasFunctionsLocked: p.functions_locked != null,
     sulbunEvent: parseSulbunEvent(p.sulbun_event),
     setSulbunEvent: Object.prototype.hasOwnProperty.call(p, 'sulbun_event'),
+    setModuleFlags: Object.prototype.hasOwnProperty.call(p, 'module_flags'),
+    moduleFlags: parseModuleFlags(p.module_flags),
   };
 
   if (typeof p.session_active === 'boolean') {
