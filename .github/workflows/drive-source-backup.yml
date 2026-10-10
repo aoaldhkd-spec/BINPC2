@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      BACKUP_DIR: ${{ runner.temp }}/binpc2-source-backup
+      BACKUP_DIR: ${{ github.workspace }}/binpc2-source-backup
     steps:
       - name: Fetch source without retaining checkout credentials
         uses: actions/checkout@v4
