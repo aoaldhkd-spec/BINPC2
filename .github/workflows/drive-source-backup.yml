@@ -1,0 +1,79 @@
+name: BINPC2 offsite source backup
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    # Daily fallback check: 03:17 Asia/Seoul. GitHub schedules can be delayed.
+    - cron: '17 18 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: binpc2-offsite-git-history
+  cancel-in-progress: false
+
+jobs:
+  backup-git-to-drive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      BACKUP_DIR: ${{ github.workspace }}/binpc2-source-backup
+    steps:
+      - name: Fetch source without retaining checkout credentials
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch all remote branch refs and tags (read-only)
+        shell: bash
+        run: git fetch --prune --tags origin '+refs/heads/*:refs/remotes/origin/*'
+
+      - name: Build source ZIP, full Git bundle, and checksummed manifest
+        run: node scripts/backup-cloud-snapshot.mjs --out "$BACKUP_DIR"
+
+      - name: Require secure Drive credential setup
+        shell: bash
+        env:
+          BINPC2_DRIVE_RCLONE_B64: ${{ secrets.BINPC2_DRIVE_RCLONE_B64 }}
+        run: |
+          if [[ -z "$BINPC2_DRIVE_RCLONE_B64" ]]; then
+            echo '::error::Missing GitHub Actions secret BINPC2_DRIVE_RCLONE_B64. Configure it from a trusted personal device; no Google Drive backup has been uploaded.'
+            exit 1
+          fi
+          umask 077
+          printf '%s' "$BINPC2_DRIVE_RCLONE_B64" | base64 --decode > "$RUNNER_TEMP/binpc2-rclone.conf"
+          chmod 600 "$RUNNER_TEMP/binpc2-rclone.conf"
+
+      - name: Install rclone using Ubuntu packages
+        shell: bash
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq rclone
+          rclone version | head -1
+
+      - name: Copy immutable versioned snapshot to Google Drive and verify
+        shell: bash
+        run: |
+          set -euo pipefail
+          export RCLONE_CONFIG="$RUNNER_TEMP/binpc2-rclone.conf"
+          rclone listremotes | grep -qx 'binpc2drive:' || {
+            echo '::error::Missing the binpc2drive remote in your rclone config.'
+            exit 1
+          }
+          SHA="$(node -p "require(process.env.BACKUP_DIR + '/manifest.json').head")"
+          REFHASH="$(node -p "require(process.env.BACKUP_DIR + '/manifest.json').git_refs_sha256.slice(0,12)")"
+          DEST="binpc2drive:BINPC2_AUTO_BACKUPS/snapshots/${SHA}-${REFHASH}"
+          rclone copy "$BACKUP_DIR" "$DEST" --checksum --immutable --transfers 2 --checkers 4
+          rclone check "$BACKUP_DIR" "$DEST" --checksum --one-way
+          echo "Verified offsite source snapshot for ${SHA} (refs ${REFHASH})."
+
+      - name: Remove temporary OAuth and source files
+        if: always()
+        shell: bash
+        run: |
+          rm -f "$RUNNER_TEMP/binpc2-rclone.conf"
+          rm -rf "$BACKUP_DIR"
