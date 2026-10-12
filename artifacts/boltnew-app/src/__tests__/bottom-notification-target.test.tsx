@@ -6,6 +6,29 @@ import { BottomNotification } from '../components/BottomNotification';
 afterEach(cleanup);
 
 describe('BINPC2 in-app heart / 1:1 chat notification targets', () => {
+  it('tapping the full received-heart toast opens the received heart screen once', () => {
+    const goToStatus = vi.fn();
+    const goToChats = vi.fn();
+    render(<BottomNotification
+      notification={{ type: 'heart', nickname: '상대', heartType: 'red', profileId: 'peer' }}
+      onClose={vi.fn()} onGoToStatus={goToStatus} onGoToChats={goToChats}
+    />);
+    fireEvent.click(screen.getByRole('button', { name: '받은 하트 바로 보기' }));
+    expect(goToStatus).toHaveBeenCalledOnce();
+    expect(goToChats).not.toHaveBeenCalled();
+  });
+
+  it('tapping the full direct message toast opens only that conversation callback', () => {
+    const openChat = vi.fn();
+    render(<BottomNotification
+      notification={{ type: 'message', nickname: '상대', profileId: 'peer-msg' }}
+      onClose={vi.fn()} onGoToStatus={vi.fn()} onGoToChats={openChat}
+    />);
+    fireEvent.click(screen.getByRole('button', { name: '알림 열기' }));
+    expect(openChat).toHaveBeenCalledOnce();
+  });
+
+
   it('a received heart opens MY/received heart status, not a chat list', () => {
     const onGoToStatus = vi.fn();
     const onGoToChats = vi.fn();
