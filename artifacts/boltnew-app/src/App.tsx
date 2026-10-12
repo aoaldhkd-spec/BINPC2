@@ -971,7 +971,7 @@ function App() {
     const cleanUrl = () => {
       for (const key of ['push', 'from', 'peer', 'chat']) params.delete(key);
       const q = params.toString();
-      window.history.replaceState({}, '', `${window.location.pathname}${q ? `?${q}` : ''}${window.location.hash}`);
+      window.history.replaceState(window.history.state, '', `${window.location.pathname}${q ? `?${q}` : ''}${window.location.hash}`);
     };
 
     if (pushKind === 'heart') {
