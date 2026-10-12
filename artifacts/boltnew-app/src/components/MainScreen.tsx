@@ -62,6 +62,7 @@ import type { ScannedContact } from '../lib/profile-contact-helpers';
 import StatusErrorBoundary from './StatusErrorBoundary';
 import { MainChatsTab } from './MainChatsTab';
 import { DEFAULT_MODULE_FLAGS, type ModuleFlags } from '../lib/module-flags';
+import { PushNotificationSettings } from './PushNotificationSettings';
 
 
 const KeepTab = memo(function KeepTab({ id, mainTab, children }: { id: MainTab; mainTab: MainTab; children: ReactNode }) {
@@ -1466,6 +1467,7 @@ export function MainScreen({
         {mainTab === 'settings' && (
           <StatusErrorBoundary>
           <div className="w-full max-w-lg mx-auto space-y-4 pb-24 shrink-0">
+            <PushNotificationSettings userId={currentUserId} enabled={moduleFlags.push} darkMode={darkMode} />
 
             {/* ── 고유번호 ── */}
             {(() => {
