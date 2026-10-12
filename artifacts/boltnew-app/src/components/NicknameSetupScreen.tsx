@@ -17,6 +17,7 @@ import { IDEAL_TAG_GROUPS, encodeSignalMsg, SIGNAL_SETUP_STEP_LABEL } from '../l
 import { InterestPicker } from './InterestPicker';
 import { SignalTagPicker } from './SignalTagPicker';
 import { maxAdultBirthYear, minBirthYearForEventMaxAge } from '../lib/korean-age';
+import { currentPushStatus, requestPushPermissionFromClick, type PushSetupStatus } from '../lib/webPush';
 
 // ─── 데이터 ────────────────────────────────────────────────────────────────────
 
@@ -101,7 +102,7 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
     location: string; mbti: string; interests: string[];
     personalityScore: number; nickname: string;
     kakaoId: string; instagramId: string; phoneNumber: string; contactPrivate: boolean;
-    idealMsg: string | null; featureMsg: string | null;
+    idealMsg: string | null; featureMsg: string | null; pushOptIn?: boolean;
   }) => void;
   loading: boolean; registrationError?: string | null; onReset: () => void; onShowRecovery?: () => void;
 }) {
@@ -137,6 +138,8 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
   const [idealTags, setIdealTags] = useState<string[]>([]);
   const [featureTags, setFeatureTags] = useState<string[]>([]);
   const [bioFilter, setBioFilter] = useState<string>(BIO_CATEGORY_GROUPS[0].label);
+  const [pushOptIn, setPushOptIn] = useState(false);
+  const [pushStatus, setPushStatus] = useState<PushSetupStatus | null>(null);
 
   // contact (숨김 — 입장 후 설정)
   const kakaoId = '';
@@ -224,6 +227,7 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
     contactPrivate,
     idealMsg: includeSignalFields ? encodeSignalMsg(idealTags, '') : null,
     featureMsg: includeSignalFields ? encodeSignalMsg(featureTags, '') : null,
+    pushOptIn,
   });
 
   // ── 제출 ──────────────────────────────────────────────────────────────────────
@@ -577,6 +581,45 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
                     }
                   }}
                 />
+              </div>
+
+              {/* Optional phone notifications alongside registration details, not another signup step. */}
+              <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-3">
+                <label className="flex items-start gap-2.5 cursor-pointer text-sm font-bold text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={pushOptIn}
+                    aria-label="하트·1:1 채팅 알림 받기 (선택)"
+                    onChange={(event) => {
+                      const enabled = event.target.checked;
+                      setPushOptIn(enabled);
+                      if (enabled) {
+                        // Call on the real tap, before awaiting registration or login.
+                        void requestPushPermissionFromClick().then(setPushStatus);
+                      } else {
+                        setPushStatus(null);
+                      }
+                    }}
+                    className="mt-0.5 h-4 w-4 accent-teal-600 shrink-0"
+                  />
+                  <span>🔔 <strong className="text-teal-700">[선택]</strong> 하트·1:1 채팅 알림 받기</span>
+                </label>
+                <p className="text-[11px] text-gray-500 pl-7 mt-1">
+                  내가 받은 하트와 1:1 채팅만 알려요. 보낸 본인과 단체채팅은 제외돼요. 선택하지 않아도 등록할 수 있어요.
+                </p>
+                {pushOptIn && (pushStatus?.code === 'install-required'
+                  || (!pushStatus && currentPushStatus().code === 'install-required')) && (
+                  <p className="text-[11px] text-amber-700 pl-7 mt-1" role="status">
+                    아이폰은 Safari에서 홈 화면에 추가 후 BINPC2 아이콘으로 열고, 설정에서 알림을 허용해 주세요.
+                  </p>
+                )}
+                {pushOptIn && pushStatus && pushStatus.code !== 'registering' && pushStatus.code !== 'ready'
+                  && pushStatus.code !== 'install-required' && (
+                  <p className="text-[11px] text-amber-700 pl-7 mt-1" role="status">{pushStatus.message}</p>
+                )}
+                {pushOptIn && pushStatus?.code === 'registering' && (
+                  <p className="text-[11px] text-teal-700 pl-7 mt-1" role="status">{pushStatus.message}</p>
+                )}
               </div>
 
               {registrationError && (
