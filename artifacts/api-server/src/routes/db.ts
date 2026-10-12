@@ -448,6 +448,7 @@ import {
 import {
   planPushForEvent,
   pushSubscribeUnauthorizedReject, validatePushSubscribeBody, planPushSubscribeStore,
+  pushSubscriptionIdsToReplace,
   validatePushNotifyRequest, pushNotifyInternalReject,
 } from '../lib/db-push-plan';
 import {
@@ -4959,48 +4960,72 @@ router.get('/push/vapid-key', (_req: Request, res: Response) => {
   res.json({ key: VAPID_PUBLIC_KEY });
 });
 
-router.post('/push/subscribe', (req: Request, res: Response) => {
+router.post('/push/subscribe', async (req: Request, res: Response): Promise<void> => {
   try {
-  if (!moduleEnabled(currentModuleFlags(), 'push')) {
-    return res.status(403).json({ error: '모바일 알림 기능이 현재 꺼져 있습니다.', code: 'MODULE_DISABLED', module: 'push' });
-  }
-  const parsedSub = validatePushSubscribeBody(req.body);
-  if (!parsedSub.ok) {
-    return res.status(parsedSub.reject.status).json(parsedSub.reject.body);
-  }
-  const { userId, endpoint, auth, p256dh } = parsedSub;
-  const subscription = { endpoint, keys: { auth, p256dh } };
+    if (!moduleEnabled(currentModuleFlags(), 'push')) {
+      res.status(403).json({ error: '모바일 알림 기능이 현재 꺼져 있습니다.', code: 'MODULE_DISABLED', module: 'push' });
+      return;
+    }
+    const parsed = validatePushSubscribeBody(req.body);
+    if (!parsed.ok) {
+      res.status(parsed.reject.status).json(parsed.reject.body);
+      return;
+    }
+    const { userId, endpoint, auth, p256dh } = parsed;
 
-  // SSE 토큰 검증 — 실제 userId 소유자만 구독 등록 가능
-  const sseToken = req.headers['x-sse-token'] as string | undefined;
-  if (!sseToken || !verifySseToken(userId, sseToken)) {
-    logger.warn({ userId, ip: req.ip }, '[push/subscribe] Invalid or missing SSE token — 침입 탐지');
-    const rej = pushSubscribeUnauthorizedReject();
-    return res.status(rej.status).json(rej.body);
-  }
-  const subs = getTable('push_subscriptions');
-  const storePlan = planPushSubscribeStore({
-    subs,
-    userId,
-    endpoint: subscription.endpoint,
-    auth: subscription.keys!.auth,
-    p256dh: subscription.keys!.p256dh,
-    now: ts(),
-    newId: genId(),
-  });
-  if (storePlan.kind === 'update') {
-    subs[storePlan.index] = storePlan.row;
-    dbPersistRow('push_subscriptions', storePlan.row).catch(e => logger.error({ err: e }, '[db] background task error'));
-  } else {
-    // 사용자당 최대 5개 구독 — 초과 시 가장 오래된 것 제거 (슬라이딩 윈도우; db-push-plan)
-    if (storePlan.evictIndex != null) subs.splice(storePlan.evictIndex, 1);
-    subs.push(storePlan.row);
-    dbPersistRow('push_subscriptions', storePlan.row).catch(e => logger.error({ err: e }, '[db] background task error'));
-  }
-  return res.json({ ok: true });
+    // Only the authenticated participant may attach a device to their account.
+    const token = req.headers['x-sse-token'] as string | undefined;
+    if (!token || !verifySseToken(userId, token)) {
+      logger.warn({ userId, ip: req.ip }, '[push/subscribe] Missing or invalid owner token');
+      const rej = pushSubscribeUnauthorizedReject();
+      res.status(rej.status).json(rej.body);
+      return;
+    }
+    const subs = getTable('push_subscriptions');
+    const plan = planPushSubscribeStore({ subs, userId, endpoint, auth, p256dh, now: ts(), newId: genId() });
+    const staleIds = pushSubscriptionIdsToReplace(
+      subs, userId, endpoint, plan.kind === 'insert' ? plan.evictIndex : null,
+    );
+    // A 200 response must prove the subscription is durable, not only in memory.
+    await dbPersistRow('push_subscriptions', plan.row);
+    if (staleIds.length) await dbDeleteRows('push_subscriptions', staleIds);
+    store['push_subscriptions'] = subs.filter(row => !staleIds.includes(String(row.id)));
+    const rows = getTable('push_subscriptions');
+    const oldIndex = rows.findIndex(row => row.id === plan.row.id);
+    if (oldIndex >= 0) rows[oldIndex] = plan.row;
+    else rows.push(plan.row);
+    res.json({ ok: true });
   } catch (e) {
-    logger.error({ err: e }, '[push/subscribe] Unexpected error');
-    return res.status(500).json({ error: 'Internal server error' });
+    logger.error({ err: e }, '[push/subscribe] Failed to persist subscription');
+    res.status(503).json({ error: '알림 등록을 저장하지 못했습니다. 다시 시도해 주세요.' });
+  }
+});
+
+/** Remove only this authenticated participant's endpoint when they turn alerts off. */
+router.post('/push/unsubscribe', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body)
+      ? req.body as Record<string, unknown> : {};
+    const userId = typeof body.userId === 'string' ? body.userId : '';
+    const endpoint = typeof body.endpoint === 'string' ? body.endpoint : '';
+    if (!userId || userId.length > 128 || !endpoint || endpoint.length > 2048) {
+      res.status(400).json({ error: 'Invalid unsubscribe request' });
+      return;
+    }
+    const token = req.headers['x-sse-token'] as string | undefined;
+    if (!token || !verifySseToken(userId, token)) {
+      res.status(401).json({ error: 'Unauthorized: invalid SSE token' });
+      return;
+    }
+    const subs = getTable('push_subscriptions');
+    const removeIds = subs.filter(row => row.user_id === userId && row.endpoint === endpoint)
+      .map(row => String(row.id));
+    await dbDeleteRows('push_subscriptions', removeIds);
+    if (removeIds.length) store['push_subscriptions'] = subs.filter(row => !removeIds.includes(String(row.id)));
+    res.json({ ok: true, removed: removeIds.length });
+  } catch (e) {
+    logger.error({ err: e }, '[push/unsubscribe] Failed');
+    res.status(503).json({ error: '알림 해제 중 연결 오류가 발생했습니다.' });
   }
 });
 
