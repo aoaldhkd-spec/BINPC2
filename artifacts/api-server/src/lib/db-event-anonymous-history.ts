@@ -1,6 +1,9 @@
+import { randomUUID } from 'node:crypto';
 /** Privacy-minimised event history. Never retain source profile IDs, names or message bodies. */
 export type AnonymousEventHistory = {
   eventKey: string;
+  archiveId: string;
+  archiveLabel: string;
   participantCount: number;
   heartCounts: Record<string, number>;
   directMessageCount: number;
@@ -8,6 +11,13 @@ export type AnonymousEventHistory = {
   signalCount: number;
   contactExchangeCount: number;
 };
+
+/** Namespace + unique UUID: never use a nickname or date alone as an archive key. */
+export function newAnonymousEventArchiveIdentity(eventKey: string): { archiveId: string; archiveLabel: string } {
+  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(eventKey)) throw new Error('Invalid event date');
+  const archiveId = `binpc2:event-anon:v1:${eventKey}:${randomUUID()}`;
+  return { archiveId, archiveLabel: `BINPC2 익명행사 ${eventKey} · ${archiveId.slice(-8)}` };
+}
 
 /** Aggregates are intentionally non-reversible: no mapping or original IDs persist. */
 export function summarizeAnonymousEvent(input: {
@@ -27,6 +37,7 @@ export function summarizeAnonymousEvent(input: {
   }
   return {
     eventKey: input.eventKey,
+    ...newAnonymousEventArchiveIdentity(input.eventKey),
     participantCount: input.profiles.filter(p => String(p.id ?? '') !== String(input.adminProfileId ?? '')).length,
     heartCounts,
     directMessageCount: input.messages.length,
