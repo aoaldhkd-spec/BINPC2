@@ -131,3 +131,25 @@ describe('[Security] POST /push/subscribe — SSE token auth', () => {
     expect(res.body.ok).toBe(true);
   });
 });
+
+describe('[Security] POST /push/unsubscribe — only the endpoint owner', () => {
+  const body = { userId: USER_ID, endpoint: VALID_SUB_BODY(USER_ID).subscription.endpoint };
+
+  it('rejects missing SSE token even when userId is supplied', async () => {
+    const res = await request(app).post('/api/db/push/unsubscribe').send(body);
+    expect(res.status).toBe(401);
+  });
+
+  it('rejects a valid token belonging to a different participant', async () => {
+    const res = await request(app).post('/api/db/push/unsubscribe')
+      .set('x-sse-token', makeValidToken('another-participant')).send(body);
+    expect(res.status).toBe(401);
+  });
+
+  it('accepts an authenticated endpoint unsubscribe without touching others', async () => {
+    const res = await request(app).post('/api/db/push/unsubscribe')
+      .set('x-sse-token', makeValidToken(USER_ID)).send(body);
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+  });
+});
