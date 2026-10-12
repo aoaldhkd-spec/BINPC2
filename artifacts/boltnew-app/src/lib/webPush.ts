@@ -2,7 +2,7 @@ import { fetchAndSetSseToken, getSseToken } from './supabase';
 import { ls } from './storage';
 
 export type PushSetupCode =
-  | 'ready' | 'unsupported' | 'install-required' | 'permission-required'
+  | 'ready' | 'disabled' | 'unsupported' | 'install-required' | 'permission-required'
   | 'blocked' | 'registering' | 'error';
 export type PushSetupStatus = { code: PushSetupCode; message: string };
 export const PUSH_STATUS_EVENT = 'binpc2:push-status';
@@ -159,6 +159,8 @@ export function registerPushSub(userId: string): Promise<PushSetupStatus> {
   const capability = currentPushStatus();
   if (capability.code !== 'registering') return Promise.resolve(publish(capability));
   if (inFlight?.userId === userId) return inFlight.promise;
+  // Serialize shared-device account switches so old owner cannot register after the new one.
+  if (inFlight) return inFlight.promise.then(() => registerPushSub(userId));
   const promise = subscribeGranted(userId).finally(() => {
     if (inFlight?.promise === promise) inFlight = null;
   });
@@ -176,32 +178,33 @@ export function enablePushFromClick(userId: string): Promise<PushSetupStatus> {
   );
 }
 
-/** Explicit opt-out: unlink server mapping before dropping the browser subscription. */
+/** Turn off only this participant's notifications and confirm server-side removal. */
 export async function disablePushForUser(userId: string): Promise<PushSetupStatus> {
-  setPushOptIn(userId, false);
-  lastSuccess = null;
+  if (!userId) return publish({ code: 'error', message: '프로필을 확인할 수 없어요.' });
   try {
-    if ('serviceWorker' in navigator) {
-      const registration = await navigator.serviceWorker.getRegistration();
-      const subscription = await registration?.pushManager?.getSubscription();
-      if (subscription) {
+    if ('serviceWorker' in navigator && 'PushManager' in window) {
+      const reg = await navigator.serviceWorker.getRegistration();
+      const sub = await reg?.pushManager?.getSubscription();
+      if (sub) {
         if (!getSseToken()) await fetchAndSetSseToken(userId);
         const token = getSseToken();
-        if (token) {
-          const res = await fetch('/api/db/push/unsubscribe', {
-            method: 'POST', credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json', 'x-sse-token': token },
-            body: JSON.stringify({ userId, endpoint: subscription.endpoint }),
-          });
-          if (!res.ok) throw new Error(`UNSUBSCRIBE_HTTP_${res.status}`);
-        }
-        await subscription.unsubscribe();
+        if (!token) throw new Error('SSE_TOKEN_NOT_READY');
+        const res = await fetch('/api/db/push/unsubscribe', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', 'x-sse-token': token },
+          body: JSON.stringify({ userId, endpoint: sub.endpoint }),
+        });
+        if (!res.ok) throw new Error(`UNSUBSCRIBE_HTTP_${res.status}`);
+        // Do not unsubscribe the browser itself: another account on this phone may
+        // still use the endpoint. The server enforces one owner per endpoint.
       }
     }
-    return publish({ code: 'permission-required', message: '하트·1:1 채팅 휴대폰 알림을 껐습니다.' });
+    setPushOptIn(userId, false);
+    if (lastSuccess?.userId === userId) lastSuccess = null;
+    return publish({ code: 'disabled', message: '하트·1:1 채팅 휴대폰 알림을 껐습니다.' });
   } catch (error) {
-    console.warn('[push] unsubscribe failed:', (error as Error)?.message ?? 'unknown');
-    // The local preference stays OFF. Any server record is removed as a 404/410 on next send.
-    return publish({ code: 'error', message: '서버 연결 문제로 알림 해제가 완전히 끝나지 않았습니다. 다시 꺼 주세요.' });
+    console.warn('[push] unsubscribe failed:', error instanceof Error ? error.message : 'unknown');
+    return publish({ code: 'error', message: '알림 끄기를 서버에 반영하지 못했습니다. 다시 시도해 주세요.' });
   }
 }
