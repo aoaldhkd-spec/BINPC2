@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { summarizeAnonymousEvent } from './db-event-anonymous-history.js';
+import { newAnonymousEventArchiveIdentity, summarizeAnonymousEvent } from './db-event-anonymous-history.js';
 
 describe('privacy-minimised event history', () => {
+  it('generates unique namespaced IDs even for the same event date', () => {
+    const first = newAnonymousEventArchiveIdentity('2026-10-13');
+    const second = newAnonymousEventArchiveIdentity('2026-10-13');
+    expect(first.archiveId).not.toBe(second.archiveId);
+    expect(first.archiveId).toMatch(/^binpc2:event-anon:v1:2026-10-13:/);
+    expect(first.archiveLabel).toContain('BINPC2 익명행사');
+    expect(() => newAnonymousEventArchiveIdentity('private-name')).toThrow();
+  });
   it('does not retain participants identifiers or private message contents', () => {
     const result = summarizeAnonymousEvent({
       eventKey: '2026-10-13', adminProfileId: 'owner',
