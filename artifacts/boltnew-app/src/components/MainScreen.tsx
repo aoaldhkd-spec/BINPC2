@@ -62,6 +62,7 @@ import type { ScannedContact } from '../lib/profile-contact-helpers';
 import StatusErrorBoundary from './StatusErrorBoundary';
 import { MainChatsTab } from './MainChatsTab';
 import { DEFAULT_MODULE_FLAGS, type ModuleFlags } from '../lib/module-flags';
+import { PushNotificationSettings } from './PushNotificationSettings';
 
 
 const KeepTab = memo(function KeepTab({ id, mainTab, children }: { id: MainTab; mainTab: MainTab; children: ReactNode }) {
@@ -1467,6 +1468,7 @@ export function MainScreen({
           <StatusErrorBoundary>
           <div className="w-full max-w-lg mx-auto space-y-4 pb-24 shrink-0">
 
+
             {/* ── 고유번호 ── */}
             {(() => {
               const pinCode = profiles.find(p => p.id === currentUserId)?.pin_code;
@@ -1518,6 +1520,7 @@ export function MainScreen({
                 </button>
               </div>
               <p className={`mt-2 px-1 text-[10px] ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>도움말은 현재 화면의 사용법을, 다크 모드는 화면 색상을 바꿔요.</p>
+              <div className="mt-3"><PushNotificationSettings userId={currentUserId} enabled={moduleFlags.push} darkMode={darkMode} /></div>
             </div>
 
             {/* ── 프로필 편집 (통합) ── */}

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { supabase, setLocalDbUserId, fetchAndSetSseToken, ensureWriteSession } from './lib/supabase';
+import { supabase, setLocalDbUserId, fetchAndSetSseToken, ensureWriteSession, onSseReconnect } from './lib/supabase';
 import { useParticipantSoTResync } from './hooks/useParticipantSoTResync';
 import { useSseFallbackPoll } from './hooks/useSseFallbackPoll';
 import { useDarkModeStorageSync } from './hooks/useDarkModeStorageSync';
@@ -62,7 +62,7 @@ import { useHearts } from './hooks/useHearts';
 import { useChat } from './hooks/useChat';
 import { createParticipantNav, isParticipantAppPath } from './lib/participant-nav-history';
 import { ParticipantNavProvider } from './hooks/useParticipantNav';
-import { registerPushSub } from './lib/webPush';
+import { getPushOptIn, registerPushSub } from './lib/webPush';
 import { DEFAULT_MODULE_FLAGS, type ModuleFlags } from './lib/module-flags';
 import {
   type BottomNotificationData,
@@ -915,10 +915,14 @@ function App() {
     loadContactShareData: loadContactShareDataForModules,
   });
 
-  // Web push 구독 — 로그인 완료 후 알림 권한 요청 및 구독 등록
+  // 설치된 PWA에서 이미 허용된 휴대폰 Push 구독을 재등록한다.
+  // 새로운 권한은 설정 화면의 명시적인 사용자 클릭으로만 요청한다.
   useEffect(() => {
-    if (!currentUserId || !moduleFlags.push) return;
-    registerPushSub(currentUserId);
+    if (!currentUserId || !moduleFlags.push || !getPushOptIn(currentUserId)) return;
+    void registerPushSub(currentUserId);
+    // 첫 진입에서 SSE 토큰 발급이 아직 끝나지 않은 경우, 재연결 시 서버 구독을 재시도.
+    // webPush 쪽은 동시 요청·짧은 시간 중복을 자체 제한한다.
+    return onSseReconnect(() => { void registerPushSub(currentUserId); });
   }, [currentUserId, moduleFlags.push]);
 
 
@@ -986,14 +990,38 @@ function App() {
       const peerId = params.get('peer');
       const peer = peerId ? profileMap.get(peerId) : undefined;
       if (peer) {
-        openChatGuarded(peer);
+        void openChatGuarded(peer);
+        cleanUrl();
+      } else if (peerId && peerId !== currentUserId) {
+        // 새로 열린 PWA는 프로필 목록 로드가 끝나기 전에 알림 딥링크를 받을 수 있다.
+        // 해당 상대 프로필 하나만 조회한 뒤 정확한 1:1 방으로 이동한다.
+        // 조회 실패 시에는 해당 사용자의 채팅 목록으로 안전하게 폴백한다.
+        void supabase.from('profiles').select(PROFILE_ROW_SELECT).eq('id', peerId).maybeSingle()
+          .then(({ data }) => {
+            if (data && userIdRef.current === currentUserId) {
+              void openChatGuarded(data as Profile);
+            } else if (userIdRef.current === currentUserId) {
+              setView('main');
+              setMainTab('my');
+              setMySubTabHint('chats');
+              void loadChatList(currentUserId);
+            }
+          })
+          .catch(() => {
+            if (userIdRef.current !== currentUserId) return;
+            setView('main');
+            setMainTab('my');
+            setMySubTabHint('chats');
+            void loadChatList(currentUserId);
+          })
+          .finally(cleanUrl);
       } else {
         setView('main');
         setMainTab('my');
         setMySubTabHint('chats');
         void loadChatList(currentUserId);
+        cleanUrl();
       }
-      cleanUrl();
     }
   }, [
     currentUserId, profileBoot, profileMap, openChatGuarded,

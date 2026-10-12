@@ -17,6 +17,7 @@ import { IDEAL_TAG_GROUPS, encodeSignalMsg, SIGNAL_SETUP_STEP_LABEL } from '../l
 import { InterestPicker } from './InterestPicker';
 import { SignalTagPicker } from './SignalTagPicker';
 import { maxAdultBirthYear, minBirthYearForEventMaxAge } from '../lib/korean-age';
+import { currentPushStatus, requestPushPermissionFromClick, type PushSetupStatus } from '../lib/webPush';
 
 // ─── 데이터 ────────────────────────────────────────────────────────────────────
 
@@ -101,7 +102,7 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
     location: string; mbti: string; interests: string[];
     personalityScore: number; nickname: string;
     kakaoId: string; instagramId: string; phoneNumber: string; contactPrivate: boolean;
-    idealMsg: string | null; featureMsg: string | null;
+    idealMsg: string | null; featureMsg: string | null; pushOptIn?: boolean;
   }) => void;
   loading: boolean; registrationError?: string | null; onReset: () => void; onShowRecovery?: () => void;
 }) {
@@ -137,6 +138,8 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
   const [idealTags, setIdealTags] = useState<string[]>([]);
   const [featureTags, setFeatureTags] = useState<string[]>([]);
   const [bioFilter, setBioFilter] = useState<string>(BIO_CATEGORY_GROUPS[0].label);
+  const [pushOptIn, setPushOptIn] = useState(false);
+  const [pushStatus, setPushStatus] = useState<PushSetupStatus | null>(null);
 
   // contact (숨김 — 입장 후 설정)
   const kakaoId = '';
@@ -224,6 +227,7 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
     contactPrivate,
     idealMsg: includeSignalFields ? encodeSignalMsg(idealTags, '') : null,
     featureMsg: includeSignalFields ? encodeSignalMsg(featureTags, '') : null,
+    pushOptIn,
   });
 
   // ── 제출 ──────────────────────────────────────────────────────────────────────
@@ -579,6 +583,32 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
                 />
               </div>
 
+              {/* 개인정보 안내/동의와 별개인 선택적 휴대폰 수신 동의 */}
+              <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-3">
+                <label className="flex items-start gap-2.5 cursor-pointer text-sm font-bold text-gray-700">
+                  <input type="checkbox" checked={pushOptIn} aria-label="하트·1:1 채팅 알림 받기 (선택)"
+                    onChange={(event) => {
+                      const checked = event.target.checked;
+                      setPushOptIn(checked);
+                      if (checked) {
+                        // Direct user gesture: iOS installed PWA requires a synchronous prompt.
+                        void requestPushPermissionFromClick().then(setPushStatus);
+                      } else setPushStatus(null);
+                    }}
+                    className="mt-0.5 h-4 w-4 accent-teal-600 shrink-0" />
+                  <span>🔔 <strong className="text-teal-700">[선택]</strong> 하트·1:1 채팅 알림 받기</span>
+                </label>
+                <p className="text-[11px] text-gray-500 pl-7 mt-1">보낸 본인과 단체채팅은 알리지 않아요. 선택하지 않아도 등록할 수 있어요.</p>
+                {pushOptIn && (pushStatus?.code === 'install-required' || (!pushStatus && currentPushStatus().code === 'install-required')) && (
+                  <p className="text-[11px] text-amber-700 pl-7 mt-1">아이폰은 Safari 공유 → 홈 화면에 추가, 안드로이드는 Chrome 앱 설치 후 BINPC2 아이콘으로 실행해 주세요. 설치 후 설정에서 알림을 켤 수 있어요.</p>
+                )}
+                {pushOptIn && pushStatus?.code === 'blocked' && (
+                  <p className="text-[11px] text-amber-700 pl-7 mt-1">휴대폰 설정에서 BINPC2 알림을 허용해 주세요.</p>
+                )}
+                {pushOptIn && pushStatus?.code === 'error' && (
+                  <p role="alert" className="text-[11px] text-red-700 pl-7 mt-1">{pushStatus.message}</p>
+                )}
+              </div>
               {registrationError && (
                 <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-2">
                   <span className="text-rose-500 flex-shrink-0">⚠️</span>

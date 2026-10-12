@@ -18,6 +18,7 @@ export type NicknameSetupInput = {
   contactPrivate: boolean;
   idealMsg: string | null;
   featureMsg: string | null;
+  pushOptIn?: boolean;
 };
 
 export type RegistrationErrorCode = '23505' | 'PIN_EXHAUSTED' | string;

@@ -130,6 +130,16 @@ export function pushSubscribeUnauthorizedReject(): PushSubscribeReject {
 }
 
 
+/** One push endpoint belongs to one local account. Prevent previous-account leaks. */
+export function pushSubscriptionIdsToReplace(
+  subs: Record<string, unknown>[], userId: string, endpoint: string,
+  evictIndex: number | null,
+): string[] {
+  const stale = subs.filter(s => s.endpoint === endpoint && s.user_id !== userId);
+  if (evictIndex != null && subs[evictIndex]) stale.push(subs[evictIndex]);
+  return [...new Set(stale.map(s => String(s.id ?? '')).filter(Boolean))];
+}
+
 export const USER_MAX_PUSH_SUBS = 5;
 
 export type PushSubscribeStorePlan =

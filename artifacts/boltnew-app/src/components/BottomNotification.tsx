@@ -62,8 +62,8 @@ export function BottomNotification({
           )}
           {notification.type === 'message' && (
             <>
-              <p className="text-sm font-bold text-white">새로운 채팅이 왔습니다.</p>
-              <button onClick={onGoToChats} className="text-xs text-white/90 bg-white/20 px-2 py-0.5 rounded-lg font-semibold mt-0.5">하트, 채팅 · 내 채팅</button>
+              <p className="text-sm font-bold text-white">{notification.nickname ? `${notification.nickname}님에게 새 채팅이 왔습니다.` : '새로운 채팅이 왔습니다.'}</p>
+              <button onClick={onGoToChats} className="text-xs text-white/90 bg-white/20 px-2 py-0.5 rounded-lg font-semibold mt-0.5">해당 채팅 바로 보기</button>
             </>
           )}
           {notification.type === 'contact' && (

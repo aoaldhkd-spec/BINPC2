@@ -55,7 +55,7 @@ interface UseChatDeps {
   profilesRef: React.MutableRefObject<Profile[]>;
   setSelectedProfile: (p: Profile | null) => void;
   setView: (v: View) => void;
-  setBottomNotif: (n: { type: 'heart' | 'chat' | 'message' | 'contact'; nickname: string; heartType?: HeartType; message?: string } | null) => void;
+  setBottomNotif: (n: { type: 'heart' | 'chat' | 'message' | 'contact'; nickname: string; heartType?: HeartType; message?: string; profileId?: string } | null) => void;
   /** false → true 전환 시 오프라인 큐 자동 플러시 (관리자 기능 잠금 해제) */
   functionsLocked?: boolean;
 }
@@ -257,7 +257,7 @@ export function useChat({
               }
               const senderProfile = profilesRef.current.find(p => p.id === newMsg.sender_id);
               if (isIncomingChatToastTarget(uid, newMsg.sender_id, false)) {
-                setBottomNotif({ type: 'message', nickname: senderProfile?.nickname ?? '' });
+                setBottomNotif({ type: 'message', nickname: senderProfile?.nickname ?? '', profileId: newMsg.sender_id });
               }
             }
           } catch (e) { console.warn('[user-events/msg-insert]', e); }
@@ -288,7 +288,7 @@ export function useChat({
             if (selfInitiatedPairRef.current !== pairKey) {
               const otherId = c.user1_id === uid ? c.user2_id : c.user1_id;
               const otherProfile = profilesRef.current.find(p => p.id === otherId);
-              setBottomNotif({ type: 'chat', nickname: otherProfile?.nickname ?? '' });
+              setBottomNotif({ type: 'chat', nickname: otherProfile?.nickname ?? '', profileId: otherId });
               rememberPartnerToast(pairKey);
             }
           } catch (e) { console.warn('[user-events/chat-insert]', e); }
@@ -310,7 +310,7 @@ export function useChat({
             rememberPartnerToast(pairKey);
             const otherId = chat.user1_id === uid ? chat.user2_id : chat.user1_id;
             const otherProfile = profilesRef.current.find(p => p.id === otherId);
-            setBottomNotif({ type: 'chat', nickname: otherProfile?.nickname ?? '' });
+            setBottomNotif({ type: 'chat', nickname: otherProfile?.nickname ?? '', profileId: otherId });
           } catch (e) { console.warn('[user-events/chat-reads]', e); }
         })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'chats' },
