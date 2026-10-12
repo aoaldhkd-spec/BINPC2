@@ -27,6 +27,8 @@ function advanceToStep6() {
   fireEvent.click(screen.getByRole('button', { name: '기타' }));
   fireEvent.click(screen.getByRole('button', { name: /다음/ }));
   fireEvent.click(screen.getByRole('button', { name: '올' }));
+  fireEvent.click(screen.getByRole('checkbox', { name: '[필수] 개인정보 수집 및 이용 동의' }));
+  fireEvent.click(screen.getByRole('checkbox', { name: '[필수] 개인정보 제3자 제공 동의' }));
   fireEvent.click(screen.getByRole('button', { name: /다음/ }));
   const nickInput = screen.getByPlaceholderText('예: 서울고수');
   fireEvent.change(nickInput, { target: { value: '테스트닉' } });

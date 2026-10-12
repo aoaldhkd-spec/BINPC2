@@ -2906,3 +2906,20 @@ describe('[Security] profiles birth month/day edit limit', () => {
     expect((await readProfile(agent, userId)).birth_md_edit_count).toBe(1);
   });
 });
+
+// 2026-10-13 explicit new-client consent; legacy clients remain compatible.
+describe('[Security] versioned registration consent', () => {
+  it('rejects supplied false or stale consent before saving the profile', async () => {
+    for (const c of [
+      { collection: false, sharing: true, version: '2026-10-13-v1' },
+      { collection: true, sharing: false, version: '2026-10-13-v1' },
+      { collection: true, sharing: true, version: 'old' },
+      'yes',
+    ]) {
+      const res = await op({ op: 'insert', table: 'profiles',
+        payload: { id: randomUUID(), nickname: `consent-${randomUUID().slice(0, 8)}`, registration_consent: c } });
+      expect(res.status).toBe(400);
+      expect(res.body.error?.code).toBe('CONSENT_REQUIRED');
+    }
+  });
+});

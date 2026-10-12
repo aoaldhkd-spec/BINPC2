@@ -140,7 +140,6 @@ import {
   planVisibleAgeBandRoomSpec,
   planBirthYearRoomSpec,
   collectBirthYearRoomGroups,
-  UNLIMITED_GROUP_MEMBERS,
 } from './db-group-room-plan.js';
 
 describe('group merge / catalog planners (71)', () => {

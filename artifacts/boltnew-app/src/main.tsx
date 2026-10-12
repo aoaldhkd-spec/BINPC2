@@ -2,6 +2,7 @@
 import { StrictMode, useState, useEffect, lazy, Suspense, startTransition } from 'react';
 import { createRoot } from 'react-dom/client';
 import './index.css';
+import { applyDisplayScale } from './lib/display-scale';
 import App from './App';
 import { clearLegacyThemeArtifacts } from './lib/theme';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
@@ -12,9 +13,10 @@ const loadAdminApp = () => import('./AdminApp');
 const AdminApp = lazy(loadAdminApp);
 
 clearLegacyThemeArtifacts();
+applyDisplayScale();
 
 if ('serviceWorker' in navigator) {
-  const swUrl = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/sw.js?v=20261005-pwa-push-v1`;
+  const swUrl = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/sw.js?v=20261013-push-links-v2`;
   window.addEventListener('load', () => {
     navigator.serviceWorker.register(swUrl, { scope: import.meta.env.BASE_URL as string }).catch(() => {});
   });

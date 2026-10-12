@@ -2536,10 +2536,9 @@ mustMatch('artifacts/api-server/src/routes/db.ts', '77_sulbun_event_end_calls_co
 mustNotMatch('artifacts/api-server/src/routes/db.ts', '77_no_new_sulbun_cron_interval', [
   /setInterval\(\(\) => \{\s*catchUpSulbunAutoReset/,
 ]);
-mustMatch('artifacts/boltnew-app/src/admin/DashboardTab.tsx', '77_keep_sulbun_open_button', [
+// 2026-10-13 user decision: remove manual open UI; server compatibility remains guarded above.
+mustNotMatch('artifacts/boltnew-app/src/admin/DashboardTab.tsx', '77_remove_redundant_sulbun_open_button', [
   /sulbun-open-btn/,
-  /술번개 오픈/,
-  /술번개 진행 중/,
   /onSulbunOpen/,
 ]);
 mustMatch('artifacts/boltnew-app/src/admin/DashboardTab.tsx', '77_session_btns_follow_current_state', [
@@ -2617,7 +2616,7 @@ mustMatch('artifacts/api-server/src/routes/db.ts', '78_server_module_wiring', [
   /currentModuleFlags/,
   /buildRuntimeStatus/,
 ]);
-mustMatch('artifacts/boltnew-app/src/admin/DashboardTab.tsx', '78_admin_module_switches', [
+mustMatch('artifacts/boltnew-app/src/admin/OpsOverviewPanel.tsx', '78_admin_module_switches', [
   /module-switches-card/,
   /CORE_MODULES/,
   /confirmModuleOff/,
@@ -2670,6 +2669,28 @@ mustMatch('ARCHITECTURE.md', '78_architecture_feature_modules', [
 ]);
 
 console.log('\n=== verify-recurrence-guards ===\n');
+
+// 2026-10-13 user-requested additions; retain all former server/data invariants.
+mustMatch('artifacts/boltnew-app/src/lib/mobile-tap.ts', '79_scroll_safe_mobile_tap', [
+  /onPointerDown/, /onPointerMove/, /onPointerCancel/, /scrollPositions/, /TAP_SLOP_PX = 10/, /MAX_TAP_MS = 650/,
+]);
+mustNotMatch('artifacts/boltnew-app/src/admin/DashboardTab.tsx', '79_ops_not_in_dashboard', [
+  /module-switches-card/, /ops-overview-card/,
+]);
+mustMatch('artifacts/boltnew-app/src/AdminApp.tsx', '79_ops_in_db_health_and_header_isolation', [
+  /settingsSubTab === 'db'/, /<OpsOverviewPanel/, /admin-sticky-header/, /z-40 isolate/,
+]);
+mustMatch('artifacts/boltnew-app/src/components/NicknameSetupScreen.tsx', '79_consent_in_profile_step_four', [
+  /if \(s === 4\) return positionScore !== null && hasRequiredConsent/, /<RegistrationConsentRows/,
+  /privacyConsent/, /pushOptIn/,
+]);
+mustMatch('artifacts/boltnew-app/src/App.tsx', '79_rainbow_uses_real_heart_state', [
+  /<RainbowUnlockGuide/, /participantHearts\.unlocked\.has\('rainbow'\)/, /participantHearts\.rainbowRemaining/,
+]);
+mustNotMatch('artifacts/boltnew-app/index.html', '79_keep_native_zoom', [ /maximum-scale=1/, /user-scalable=no/ ]);
+mustMatch('artifacts/boltnew-app/src/lib/webPush.ts', '79_allow_supported_mobile_web_push', [
+  /appleMobile && !isStandaloneWebApp/, /Notification\.requestPermission/,
+]);
 
 for (const r of results) {
   console.log(`  ${r.ok ? 'OK' : 'FAIL'}  ${r.id}${r.detail && !r.ok ? ` ? ${r.detail}` : ''}`);

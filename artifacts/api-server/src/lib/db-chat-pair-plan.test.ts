@@ -80,8 +80,8 @@ describe('db-chat-pair-plan', () => {
   });
 });
 
-import { planCanonicalMessageChatId, pickCanonicalChatRow } from './db-chat-pair-plan.js';
-import { chatPairKey } from './db-chat-ids.js';
+import { planCanonicalMessageChatId } from './db-chat-pair-plan.js';
+
 
 describe('planCanonicalMessageChatId (70)', () => {
   it('collapses siblings', () => {
@@ -93,7 +93,7 @@ describe('planCanonicalMessageChatId (70)', () => {
       pickCanonicalChatRow(g, (cid) => (cid === 'new' ? 5 : 1)),
     );
     expect(id).toBe('new');
-    expect(planCanonicalMessageChatId('solo', [{ id: 'solo', user1_id: 'x', user2_id: 'y' }], chatPairKey, pickCanonicalChatRow)).toBe('solo');
+    expect(planCanonicalMessageChatId('solo', [{ id: 'solo', user1_id: 'x', user2_id: 'y' }], chatPairKey, (group) => pickCanonicalChatRow(group, () => 0))).toBe('solo');
   });
 });
 
@@ -104,7 +104,6 @@ import {
   messagesToRemapOnDedupe,
   applyIncomingMessageRows,
   applyChatReadDedupeAction,
-  pickCanonicalChatRow,
 } from './db-chat-pair-plan.js';
 
 describe('chat dedupe / message-merge planners (71)', () => {

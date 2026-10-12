@@ -448,6 +448,7 @@ import {
 import {
   planPushForEvent,
   pushSubscribeUnauthorizedReject, validatePushSubscribeBody, planPushSubscribeStore,
+  pushSubscriptionIdsToReplace,
   validatePushNotifyRequest, pushNotifyInternalReject,
 } from '../lib/db-push-plan';
 import {
@@ -3517,6 +3518,13 @@ router.post('/op', async (req: Request, res: Response) => {
         }
 
         if (table === 'profiles') {
+          if (effectiveRow.registration_consent != null) {
+            const c = effectiveRow.registration_consent as Record<string, unknown>;
+            if (typeof c !== 'object' || Array.isArray(c) || c.collection !== true || c.sharing !== true || c.version !== '2026-10-13-v1') {
+              return res.status(400).json({ data: null, error: { message: '필수 개인정보 동의를 확인해 주세요.', code: 'CONSENT_REQUIRED' } });
+            }
+            effectiveRow = { ...effectiveRow, registration_consent: { collection: true, sharing: true, version: '2026-10-13-v1', accepted_at: ts() } };
+          }
           if (profileBirthYearRejected(res, effectiveRow.birth_year)) return;
           const { use5Digit, poolSize } = _pinParams!;
           const usedPins = _insertPinSet!; // 루프 밖 빌드 Set 재사용 — O(1) 조회
@@ -4091,7 +4099,7 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
     const nameRej = validateRpcName(name);
     if (nameRej) return res.status(nameRej.status).json(nameRej.body);
   }
-  if (!ALLOWED_RPCS.has(name)) {
+  if (!ALLOWED_RPCS.has(String(name))) {
     logger.warn({ name, ip: req.ip }, '[SECURITY] Unknown RPC call rejected');
     const rej = rpcUnknownReject(String(name));
     return res.status(rej.status).json(rej.body);
@@ -4959,48 +4967,80 @@ router.get('/push/vapid-key', (_req: Request, res: Response) => {
   res.json({ key: VAPID_PUBLIC_KEY });
 });
 
-router.post('/push/subscribe', (req: Request, res: Response) => {
+router.post('/push/subscribe', async (req: Request, res: Response): Promise<void> => {
   try {
-  if (!moduleEnabled(currentModuleFlags(), 'push')) {
-    return res.status(403).json({ error: '모바일 알림 기능이 현재 꺼져 있습니다.', code: 'MODULE_DISABLED', module: 'push' });
-  }
-  const parsedSub = validatePushSubscribeBody(req.body);
-  if (!parsedSub.ok) {
-    return res.status(parsedSub.reject.status).json(parsedSub.reject.body);
-  }
-  const { userId, endpoint, auth, p256dh } = parsedSub;
-  const subscription = { endpoint, keys: { auth, p256dh } };
+    if (!moduleEnabled(currentModuleFlags(), 'push')) {
+      res.status(403).json({ error: '모바일 알림 기능이 현재 꺼져 있습니다.', code: 'MODULE_DISABLED', module: 'push' });
+      return;
+    }
+    const parsedSub = validatePushSubscribeBody(req.body);
+    if (!parsedSub.ok) {
+      res.status(parsedSub.reject.status).json(parsedSub.reject.body);
+      return;
+    }
+    const { userId, endpoint, auth, p256dh } = parsedSub;
 
-  // SSE 토큰 검증 — 실제 userId 소유자만 구독 등록 가능
-  const sseToken = req.headers['x-sse-token'] as string | undefined;
-  if (!sseToken || !verifySseToken(userId, sseToken)) {
-    logger.warn({ userId, ip: req.ip }, '[push/subscribe] Invalid or missing SSE token — 침입 탐지');
-    const rej = pushSubscribeUnauthorizedReject();
-    return res.status(rej.status).json(rej.body);
-  }
-  const subs = getTable('push_subscriptions');
-  const storePlan = planPushSubscribeStore({
-    subs,
-    userId,
-    endpoint: subscription.endpoint,
-    auth: subscription.keys!.auth,
-    p256dh: subscription.keys!.p256dh,
-    now: ts(),
-    newId: genId(),
-  });
-  if (storePlan.kind === 'update') {
-    subs[storePlan.index] = storePlan.row;
-    dbPersistRow('push_subscriptions', storePlan.row).catch(e => logger.error({ err: e }, '[db] background task error'));
-  } else {
-    // 사용자당 최대 5개 구독 — 초과 시 가장 오래된 것 제거 (슬라이딩 윈도우; db-push-plan)
-    if (storePlan.evictIndex != null) subs.splice(storePlan.evictIndex, 1);
-    subs.push(storePlan.row);
-    dbPersistRow('push_subscriptions', storePlan.row).catch(e => logger.error({ err: e }, '[db] background task error'));
-  }
-  return res.json({ ok: true });
+    // The authenticated SSE token must belong to the user being subscribed.
+    const token = req.headers['x-sse-token'] as string | undefined;
+    if (!token || !verifySseToken(userId, token)) {
+      logger.warn({ userId, ip: req.ip }, '[push/subscribe] Invalid or missing SSE token');
+      const rej = pushSubscribeUnauthorizedReject();
+      res.status(rej.status).json(rej.body);
+      return;
+    }
+    const subs = getTable('push_subscriptions');
+    const plan = planPushSubscribeStore({ subs, userId, endpoint, auth, p256dh, now: ts(), newId: genId() });
+    const obsoleteIds = pushSubscriptionIdsToReplace(
+      subs, userId, endpoint, plan.kind === 'insert' ? plan.evictIndex : null,
+    );
+    // Never claim a phone was registered until its subscription is actually durable.
+    await dbPersistRow('push_subscriptions', plan.row);
+    if (obsoleteIds.length) await dbDeleteRows('push_subscriptions', obsoleteIds);
+    if (plan.kind === 'update') {
+      const idx = subs.findIndex(s => s.id === plan.row.id);
+      if (idx >= 0) subs[idx] = plan.row;
+    } else {
+      store['push_subscriptions'] = subs.filter(s => !obsoleteIds.includes(String(s.id)));
+      getTable('push_subscriptions').push(plan.row);
+    }
+    // Endpoint isolation also applies when replacing an existing row.
+    if (obsoleteIds.length && plan.kind === 'update') {
+      store['push_subscriptions'] = getTable('push_subscriptions').filter(s => !obsoleteIds.includes(String(s.id)));
+    }
+    res.json({ ok: true });
   } catch (e) {
-    logger.error({ err: e }, '[push/subscribe] Unexpected error');
-    return res.status(500).json({ error: 'Internal server error' });
+    logger.error({ err: e }, '[push/subscribe] Failed to persist subscription');
+    res.status(503).json({ error: '알림 등록을 저장하지 못했습니다. 다시 시도해 주세요.' });
+  }
+});
+
+/** A device can opt out without exposing or deleting any other participant's subscriptions. */
+router.post('/push/unsubscribe', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body)
+      ? req.body as Record<string, unknown> : {};
+    const userId = typeof body.userId === 'string' ? body.userId : '';
+    const endpoint = typeof body.endpoint === 'string' ? body.endpoint : '';
+    if (!userId || userId.length > 128 || !endpoint || endpoint.length > 2048) {
+      res.status(400).json({ error: 'Invalid unsubscribe request' });
+      return;
+    }
+    const token = req.headers['x-sse-token'] as string | undefined;
+    if (!token || !verifySseToken(userId, token)) {
+      res.status(401).json({ error: 'Unauthorized: invalid SSE token' });
+      return;
+    }
+    const subs = getTable('push_subscriptions');
+    const ids = subs.filter(s => s.user_id === userId && s.endpoint === endpoint)
+      .map(s => String(s.id));
+    await dbDeleteRows('push_subscriptions', ids);
+    if (ids.length) {
+      store['push_subscriptions'] = subs.filter(s => !ids.includes(String(s.id)));
+    }
+    res.json({ ok: true, removed: ids.length });
+  } catch (e) {
+    logger.error({ err: e }, '[push/unsubscribe] Failed');
+    res.status(503).json({ error: '알림 해제 중 연결 오류가 발생했습니다.' });
   }
 });
 

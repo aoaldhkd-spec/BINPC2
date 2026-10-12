@@ -8,6 +8,7 @@ import { MATCHING_USER_KEY, MATCHING_DRAFT_KEY } from '../lib/constants';
 import { clearFirstEntryCoachSeen } from '../lib/coach-marks';
 import { ls } from '../lib/storage';
 import { mergeProfilesPreserveOrder } from '../lib/profile-list-order';
+import { setPushOptIn } from '../lib/webPush';
 import { PROFILE_ROW_SELECT } from '../lib/profile-select';
 import {
   buildRegistrationProfileInsert,
@@ -79,6 +80,7 @@ export function useNicknameRegistration(args: UseNicknameRegistrationArgs) {
         ls.setItem(MATCHING_USER_KEY, profile.id);
         ls.removeItem(MATCHING_DRAFT_KEY);
         isNewRegistration.current = true;
+        setPushOptIn(profile.id, data.pushOptIn === true);
         clearFirstEntryCoachSeen();
         setProfiles(prev => prev.some(p => p.id === profile.id)
           ? prev
