@@ -25,11 +25,15 @@ export function PushNotificationSettings({ userId, enabled, darkMode }: {
 
   const onChange = (value: boolean) => {
     if (!enabled || !userId || busy) return;
-    setChecked(value);
-    setBusy(true);
-    // Call synchronously inside user gesture, before awaiting anything.
+    // Do not claim an opt-out worked until the server confirms removal.
+    // The enable branch calls the permission API synchronously in this gesture.
     const promise = value ? enablePushFromClick(userId) : disablePushForUser(userId);
-    void promise.then(setStatus).finally(() => setBusy(false));
+    setBusy(true);
+    void promise.then(next => {
+      setStatus(next);
+      if (value) setChecked(true);
+      else if (next.code === 'disabled') setChecked(false);
+    }).finally(() => setBusy(false));
   };
 
   return (
