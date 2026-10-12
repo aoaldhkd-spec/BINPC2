@@ -1,7 +1,7 @@
 import { fetchAndSetSseToken, getSseToken } from './supabase';
 import { ls } from './storage';
 
-export type PushSetupCode = 'ready' | 'unsupported' | 'install-required' | 'permission-required'
+export type PushSetupCode = 'ready' | 'disabled' | 'unsupported' | 'install-required' | 'permission-required'
   | 'blocked' | 'registering' | 'error';
 export type PushSetupStatus = { code: PushSetupCode; message: string };
 export const PUSH_STATUS_EVENT = 'binpc2:push-status';
@@ -168,4 +168,37 @@ export function enablePushFromClick(userId: string): Promise<PushSetupStatus> {
   setPushOptIn(userId, true);
   const status = requestPushPermissionFromClick(); // Synchronous call preserves user gesture
   return status.then(result => result.code === 'registering' ? registerPushSub(userId) : result);
+}
+
+/** Disabling alerts removes this user's endpoint from the server before reporting success. */
+export async function disablePushForUser(userId: string): Promise<PushSetupStatus> {
+  if (!userId) return publish({ code: 'error', message: '프로필을 확인할 수 없어요.' });
+  try {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      setPushOptIn(userId, false);
+      return publish({ code: 'disabled', message: '이 기기의 알림을 끈 상태예요.' });
+    }
+    const scope = String(import.meta.env.BASE_URL || '/');
+    const reg = await navigator.serviceWorker.getRegistration(scope);
+    const subscription = await reg?.pushManager.getSubscription();
+    if (subscription) {
+      if (!getSseToken()) await fetchAndSetSseToken(userId);
+      const token = getSseToken();
+      if (!token) throw new Error('SSE_TOKEN_NOT_READY');
+      const response = await fetch('/api/db/push/unsubscribe', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'x-sse-token': token },
+        body: JSON.stringify({ userId, endpoint: subscription.endpoint }),
+      });
+      if (!response.ok) throw new Error(`HTTP_${response.status}`);
+    }
+    // Keep the browser endpoint for other profiles on a shared device.
+    setPushOptIn(userId, false);
+    if (lastSuccess?.userId === userId) lastSuccess = null;
+    return publish({ code: 'disabled', message: '이 기기의 하트·1:1 채팅 알림을 껐어요.' });
+  } catch (error) {
+    console.warn('[push] unsubscribe failed:', error instanceof Error ? error.message : 'unknown');
+    return publish({ code: 'error', message: '알림 끄기를 서버에 반영하지 못했어요. 다시 시도해 주세요.' });
+  }
 }
