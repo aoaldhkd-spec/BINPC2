@@ -3,7 +3,7 @@ import {
   planPushForEvent,
   validatePushSubscribeBody,
   pushSubscribeUnauthorizedReject,
-  planPushSubscribeStore,
+  planPushSubscribeStore, pushSubscriptionIdsToReplace,
   USER_MAX_PUSH_SUBS,
   validatePushNotifyRequest,
   pushNotifyForbiddenReject,
@@ -81,6 +81,17 @@ describe('planPushSubscribeStore', () => {
       subs, userId: 'u', endpoint: 'e', auth: 'a2', p256dh: 'p2', now: 'now', newId: 'x',
     });
     expect(plan.kind).toBe('update');
+  });
+
+  it('reassigns a device endpoint without leaking previous-account pushes', () => {
+    const rows = [
+      { id: 'old-owner', user_id: 'a', endpoint: 'same-phone' },
+      { id: 'different-phone', user_id: 'a', endpoint: 'other-phone' },
+      { id: 'evicted', user_id: 'b', endpoint: 'third-phone' },
+    ];
+    expect(pushSubscriptionIdsToReplace(rows, 'b', 'same-phone', 2)).toEqual(['old-owner', 'evicted']);
+    expect(pushSubscriptionIdsToReplace(rows, 'b', 'same-phone', null)).toEqual(['old-owner']);
+    expect(pushSubscriptionIdsToReplace(rows, 'a', 'same-phone', null)).toEqual([]);
   });
 
   it('evicts oldest when at max', () => {
