@@ -21,6 +21,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
       - name: Verify and apply exact reviewed source patch
+        id: apply
         shell: bash
         run: |
           set -euo pipefail
@@ -32,15 +33,17 @@ jobs:
           raw = lzma.decompress(base64.b64decode(encoded, validate=True))
           assert hashlib.sha256(raw).hexdigest() == 'e60a3eb13e982fd24ea917992d2b47bfccb7527efd9040ac47e934417b53498f', 'PATCH_SHA256_MISMATCH'
           pathlib.Path('/tmp/binpc2-reviewed.patch').write_bytes(raw)
-          supplement = (p / 'supplement.patch').read_bytes()
-          assert hashlib.sha256(supplement).hexdigest() == '60fec35eaff38691c5d9d8858f10666a4b219864a9919ebdbbcd5c954925a9e2', 'SUPPLEMENT_SHA256_MISMATCH'
-          print('Both reviewed patches verified')
+          for name, expected in [('supplement.patch','60fec35eaff38691c5d9d8858f10666a4b219864a9919ebdbbcd5c954925a9e2'),('supplement2.patch','4054890578c2252c14b5a6bc3d3be8f0629766b443215d2a017d7cc929751630')]:
+            assert hashlib.sha256((p/name).read_bytes()).hexdigest() == expected, name + ' checksum mismatch'
+          print('All reviewed source patches verified')
           PY
           git apply --check /tmp/binpc2-reviewed.patch
           git apply /tmp/binpc2-reviewed.patch
-          git apply --check .github/review-transfer/supplement.patch
-          git apply .github/review-transfer/supplement.patch
-          rm .github/review-transfer/part-{1,2,3,4}.txt .github/review-transfer/supplement.patch
+          for patch in .github/review-transfer/supplement.patch .github/review-transfer/supplement2.patch; do
+            git apply --check "$patch"; git apply "$patch"
+          done
+          cp .github/review-transfer/browser-review.mjs "$RUNNER_TEMP/binpc2-browser-review.mjs"
+          rm .github/review-transfer/part-{1,2,3,4}.txt .github/review-transfer/supplement.patch .github/review-transfer/supplement2.patch .github/review-transfer/browser-review.mjs
           rmdir .github/review-transfer
           rm .github/workflows/apply-ui-review-once.yml
           git diff --check
@@ -51,9 +54,12 @@ jobs:
           cache: pnpm
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
+        id: dependencies
       - name: Complete checks without production credentials
+        id: checks
         shell: bash
         run: |
+          set +e
           set -uo pipefail
           failed=0
           commands=(
@@ -80,6 +86,15 @@ jobs:
             echo '::endgroup::'
           done
           exit "$failed"
+      - name: Real Chromium responsive UI with synthetic API only
+        if: always() && steps.dependencies.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f artifacts/boltnew-app/dist/public/index.html
+          pnpm --filter @workspace/boltnew-app exec playwright install --with-deps chromium
+          sudo apt-get install -y -qq fonts-noto-cjk
+          node "$RUNNER_TEMP/binpc2-browser-review.mjs" 2>&1 | tee "$RUNNER_TEMP/binpc2-reports/browser-run.log"
       - name: Commit only after tests and reject concurrent branch changes
         shell: bash
         run: |
