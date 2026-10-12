@@ -34,9 +34,27 @@ export function BottomNotification({
   // eslint-disable-next-line react-hooks/exhaustive-deps -- onClose is an inline setter; restart only when toast content changes
   }, [notification]);
 
+  const openNotification = () => {
+    if (notification.type === 'heart' || notification.type === 'contact') onGoToStatus();
+    else if (notification.type === 'message' || notification.type === 'chat') onGoToChats();
+  };
+
   return (
     <div className="fixed bottom-[calc(0.75rem+var(--participant-tabbar,0px))] left-0 right-0 z-[10050] flex justify-center px-3 min-[360px]:px-4 pointer-events-none">
-      <div className={`max-w-full px-3.5 min-[360px]:px-4 py-2.5 rounded-2xl shadow-xl flex items-center gap-2.5 pointer-events-auto cursor-pointer ${notification.type === 'heart' ? 'bg-rose-500' : notification.type === 'contact' ? 'bg-emerald-500' : notification.type === 'system' ? 'bg-amber-600' : 'bg-cyan-600'}`}>
+      <div
+        role={notification.type === 'system' ? undefined : 'button'}
+        tabIndex={notification.type === 'system' ? undefined : 0}
+        aria-label={notification.type === 'heart' ? '받은 하트 바로 보기' : '알림 열기'}
+        onClick={(event) => {
+          if (!(event.target as Element).closest('button')) openNotification();
+        }}
+        onKeyDown={(event) => {
+          if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
+            event.preventDefault();
+            openNotification();
+          }
+        }}
+        className={`max-w-full px-3.5 min-[360px]:px-4 py-2.5 rounded-2xl shadow-xl flex items-center gap-2.5 pointer-events-auto cursor-pointer ${notification.type === 'heart' ? 'bg-rose-500' : notification.type === 'contact' ? 'bg-emerald-500' : notification.type === 'system' ? 'bg-amber-600' : 'bg-cyan-600'}`}>
         <span className="text-lg">{notification.type === 'heart' ? (notification.heartType ? heartMeta(notification.heartType).emoji : '❤️') : notification.type === 'contact' ? '📱' : notification.type === 'system' ? '💛' : '💬'}</span>
         <div className="flex-1 min-w-0">
           {notification.type === 'heart' && (
