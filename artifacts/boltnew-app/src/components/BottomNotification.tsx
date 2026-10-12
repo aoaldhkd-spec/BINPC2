@@ -34,9 +34,28 @@ export function BottomNotification({
   // eslint-disable-next-line react-hooks/exhaustive-deps -- onClose is an inline setter; restart only when toast content changes
   }, [notification]);
 
+  const openNotification = () => {
+    if (notification.type === 'heart' || notification.type === 'contact') onGoToStatus();
+    else if (notification.type === 'message' || notification.type === 'chat') onGoToChats();
+  };
+
   return (
     <div className="fixed bottom-[calc(0.75rem+var(--participant-tabbar,0px))] left-0 right-0 z-[10050] flex justify-center px-3 min-[360px]:px-4 pointer-events-none">
-      <div className={`max-w-full px-3.5 min-[360px]:px-4 py-2.5 rounded-2xl shadow-xl flex items-center gap-2.5 pointer-events-auto cursor-pointer ${notification.type === 'heart' ? 'bg-rose-500' : notification.type === 'contact' ? 'bg-emerald-500' : notification.type === 'system' ? 'bg-amber-600' : 'bg-cyan-600'}`}>
+      <div
+        role={notification.type === 'system' ? undefined : 'button'}
+        tabIndex={notification.type === 'system' ? undefined : 0}
+        aria-label={notification.type === 'heart' ? '받은 하트 바로 보기' : '알림 열기'}
+        onClick={(event) => {
+          // Buttons already perform their own action; don't invoke navigation twice.
+          if (!(event.target as Element).closest('button')) openNotification();
+        }}
+        onKeyDown={(event) => {
+          if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
+            event.preventDefault();
+            openNotification();
+          }
+        }}
+        className={`max-w-full px-3.5 min-[360px]:px-4 py-2.5 rounded-2xl shadow-xl flex items-center gap-2.5 pointer-events-auto cursor-pointer ${notification.type === 'heart' ? 'bg-rose-500' : notification.type === 'contact' ? 'bg-emerald-500' : notification.type === 'system' ? 'bg-amber-600' : 'bg-cyan-600'}`}>
         <span className="text-lg">{notification.type === 'heart' ? (notification.heartType ? heartMeta(notification.heartType).emoji : '❤️') : notification.type === 'contact' ? '📱' : notification.type === 'system' ? '💛' : '💬'}</span>
         <div className="flex-1 min-w-0">
           {notification.type === 'heart' && (
@@ -62,8 +81,8 @@ export function BottomNotification({
           )}
           {notification.type === 'message' && (
             <>
-              <p className="text-sm font-bold text-white">새로운 채팅이 왔습니다.</p>
-              <button onClick={onGoToChats} className="text-xs text-white/90 bg-white/20 px-2 py-0.5 rounded-lg font-semibold mt-0.5">하트, 채팅 · 내 채팅</button>
+              <p className="text-sm font-bold text-white">{notification.nickname ? `${notification.nickname}님에게 새 채팅이 왔습니다.` : '새로운 채팅이 왔습니다.'}</p>
+              <button onClick={onGoToChats} className="text-xs text-white/90 bg-white/20 px-2 py-0.5 rounded-lg font-semibold mt-0.5">해당 채팅 바로 보기</button>
             </>
           )}
           {notification.type === 'contact' && (
