@@ -871,7 +871,7 @@ async function catchUpDailyCycleAutomation(): Promise<void> {
     if (due.sessionEndDate) {
       settings = await persistAppSettingsPatch({
         session_active: false,
-        functions_locked: true,
+        // Ending admission must not silently lock existing participants' hearts or chats.
         daily_session_end_date: due.sessionEndDate,
         event_schedule: FIXED_DAILY_EVENT_SCHEDULE,
       });
