@@ -19,7 +19,7 @@ const server = createServer((req,res) => {
 });
 await new Promise(r => server.listen(8766, '127.0.0.1', r));
 const profiles = Array.from({length:24}, (_,i) => ({ id:`synthetic-u${i}`, nickname:i===0?'검증본인':`검증참가자${i}`,pin_code:String(1000+i),birth_year:1994+i%6,birth_month:1,birth_day:1,mbti:i%2?'INTJ':'ENFP',location:'부산',interests:'["집콕","영화"]',personality_score:4,dom_sub_score:null,bio:'화면 크기와 스크롤 시험용 합성 프로필',photo_url:`/avatars/av${i+1}.webp`,avatar_color:i%8,contact_private:true,hide_personality:false,kakao_id:null,instagram_id:null,phone_number:null,created_at:'2026-10-13T00:00:00Z' }));
-const settings = { id:1, session_active:true, functions_locked:false, active_tables:'[1,2,3]', heart_initial_count:1, reset_signal:null,module_flags:{hearts:true,direct_chat:true,group_chat:true,contact_qr:true,stats:true,ranking:true,push:true} };
+const settings = { id:1, session_active:true, functions_locked:false, active_tables:'[1,2,3]', reset_signal:null,module_flags:{hearts:true,direct_chat:true,group_chat:true,contact_qr:true,stats:true,ranking:true,push:true} };
 const assert=(condition,message)=>{if(!condition)throw new Error(message);};
 const browser=await chromium.launch({headless:true});
 const results=[];
