@@ -35,15 +35,20 @@ jobs:
           pathlib.Path('/tmp/binpc2-reviewed.patch').write_bytes(raw)
           for name, expected in [('supplement.patch','60fec35eaff38691c5d9d8858f10666a4b219864a9919ebdbbcd5c954925a9e2'),('supplement2.patch','4054890578c2252c14b5a6bc3d3be8f0629766b443215d2a017d7cc929751630')]:
             assert hashlib.sha256((p/name).read_bytes()).hexdigest() == expected, name + ' checksum mismatch'
+          # Correct one transcription character in the temporary transfer, then validate the full plaintext digest.
+          encoded3 = (p/'supplement3.xz.b64').read_text().strip().replace('deBUeU3sUR','deBUe/3sUR')
+          raw3 = lzma.decompress(base64.b64decode(encoded3, validate=True))
+          assert hashlib.sha256(raw3).hexdigest() == '65c162540f06faec26d5157b250361dcd34e5ce4d22c3253dcb8985fe9fdb3e7', 'TYPED_FIX_SHA256_MISMATCH'
+          pathlib.Path('/tmp/binpc2-typed.patch').write_bytes(raw3)
           print('All reviewed source patches verified')
           PY
           git apply --check /tmp/binpc2-reviewed.patch
           git apply /tmp/binpc2-reviewed.patch
-          for patch in .github/review-transfer/supplement.patch .github/review-transfer/supplement2.patch; do
+          for patch in .github/review-transfer/supplement.patch .github/review-transfer/supplement2.patch /tmp/binpc2-typed.patch; do
             git apply --check "$patch"; git apply "$patch"
           done
           cp .github/review-transfer/browser-review.mjs "$RUNNER_TEMP/binpc2-browser-review.mjs"
-          rm .github/review-transfer/part-{1,2,3,4}.txt .github/review-transfer/supplement.patch .github/review-transfer/supplement2.patch .github/review-transfer/browser-review.mjs
+          rm .github/review-transfer/part-{1,2,3,4}.txt .github/review-transfer/supplement.patch .github/review-transfer/supplement2.patch .github/review-transfer/supplement3.xz.b64 .github/review-transfer/browser-review.mjs
           rmdir .github/review-transfer
           rm .github/workflows/apply-ui-review-once.yml
           git diff --check
