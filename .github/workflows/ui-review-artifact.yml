@@ -19,6 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
@@ -27,18 +28,28 @@ jobs:
           cache: pnpm
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
-      - name: Build and check types without live credentials
+      - name: Typecheck and build without live credentials
         run: |
           pnpm --filter @workspace/boltnew-app typecheck
+          pnpm --filter @workspace/api-server typecheck
           pnpm --filter @workspace/boltnew-app build
+      - name: Test participant screens with synthetic API in real Chromium
+        run: |
+          pnpm --filter @workspace/boltnew-app exec playwright install --with-deps chromium
+          sudo apt-get install -y -qq fonts-noto-cjk
+          node artifacts/boltnew-app/scripts/check-responsive-preview.mjs
       - name: Package source and runnable preview for offline review
+        if: always()
         run: |
           mkdir -p review-artifact
           git archive --format=zip HEAD -o review-artifact/source.zip
-          cp -R artifacts/boltnew-app/dist/public review-artifact/frontend
+          if [ -d artifacts/boltnew-app/dist/public ]; then
+            cp -R artifacts/boltnew-app/dist/public review-artifact/frontend
+          fi
           git rev-parse HEAD > review-artifact/commit.txt
           sha256sum review-artifact/source.zip > review-artifact/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: binpc2-ui-review
           path: review-artifact/
